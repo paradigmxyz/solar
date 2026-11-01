@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/pre_cancun_memory_copies.sol:PreCancunMemoryCopies ===
 @module PreCancunMemoryCopies
+; function words() external pure returns (bool) [selector 0xf2c31bd9]
 fn @words() -> i1 [selector=0xf2c31bd9, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc zeroed checked 128
@@ -30,6 +31,7 @@ fn @words() -> i1 [selector=0xf2c31bd9, pure, abi_params=[], abi_returns=[word<b
     ret v17
 }
 
+; function bytesTail() external pure returns (bool) [selector 0x56818b01]
 fn @bytesTail() -> i1 [selector=0x56818b01, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = not 31
@@ -37,15 +39,15 @@ fn @bytesTail() -> i1 [selector=0x56818b01, pure, abi_params=[], abi_returns=[wo
     v2 = alloc zeroed checked v1
     mstore v2, 33
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v3 = phi [bb0: 0], [bb3: v3]
     v4 = phi [bb0: v2], [bb3: v4]
     v5 = phi [bb0: 0], [bb3: v17]
     v6 = lt v5, 33
     jumpi v6, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     v18 = abi_encode [memory_bytes], object, args v4
     v19 = ptrtoint ptr<memory> v18 to i256
     v20 = add v19, 128
@@ -53,9 +55,9 @@ fn @bytesTail() -> i1 [selector=0x56818b01, pure, abi_params=[], abi_returns=[wo
     v22 = mload v18
     v23 = eq v22, 128
     jumpi v23, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb2
     jump bb9
-  bb7:
+  bb7:  ; preds = bb2
     v24 = mload v18
     v25 = lt 64, v24
     v26 = eq v25, false
@@ -66,18 +68,18 @@ fn @bytesTail() -> i1 [selector=0x56818b01, pure, abi_params=[], abi_returns=[wo
     v30 = shl v29, 248
     v31 = eq v30, 0x100000000000000000000000000000000000000000000000000000000000000
     jump bb9
-  bb9:
+  bb9:  ; preds = bb7, bb8
     v32 = phi [bb7: v31], [bb8: false]
     jumpi v32, bb10, bb11
-  bb11:
+  bb11:  ; preds = bb9
     jump bb12
-  bb10:
+  bb10:  ; preds = bb9
     v33 = eq v21, 0x2100000000000000000000000000000000000000000000000000000000000000
     jump bb12
-  bb12:
+  bb12:  ; preds = bb10, bb11
     v34 = phi [bb10: v33], [bb11: false]
     ret v34
-  bb4:
+  bb4:  ; preds = bb1
     v7 = checked_add uint256, v5, 1
     v8 = trunc i256 v7 to i8
     v9 = zext i8 v8 to i256
@@ -91,13 +93,14 @@ fn @bytesTail() -> i1 [selector=0x56818b01, pure, abi_params=[], abi_returns=[wo
     v16 = ptradd v15, 32
     mstore8 v16, v14
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v17 = checked_add uint256, v5, 1
     jump bb1
 }
 
+; function concat() external pure returns (bool) [selector 0x6bdbf8e6]
 fn @concat() -> i1 [selector=0x6bdbf8e6, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
@@ -114,19 +117,20 @@ fn @concat() -> i1 [selector=0x6bdbf8e6, pure, abi_params=[], abi_returns=[word<
     v6 = mload v5
     v7 = eq v6, 35
     jumpi v7, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v8 = ptradd v5, 32
     v9 = mload v5
     v10 = keccak256 v8, v9
     v11 = eq v10, 0x6af3077298100e75aa14e950ca068835b7f2b5fdaaebc811322ad87e3c5d271a
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: false]
     ret v12
 }
 
+; function assembled() external pure returns (bool) [selector 0xd1381062]
 fn @assembled() -> i1 [selector=0xd1381062, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -150,6 +154,7 @@ fn @assembled() -> i1 [selector=0xd1381062, pure, abi_params=[], abi_returns=[wo
     ret v12
 }
 
+; function recycled() external pure returns (bool) [selector 0xa163996f]
 fn @recycled() -> i1 [selector=0xa163996f, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = not 31
@@ -173,6 +178,7 @@ fn @recycled() -> i1 [selector=0xa163996f, pure, abi_params=[], abi_returns=[wor
     ret v13
 }
 
+; function fresh() external pure returns (uint256[] memory values) [selector 0xb466b76f]
 fn @fresh() -> ptr<memory> [selector=0xb466b76f, pure, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     v0 = alloc zeroed checked 128
@@ -198,6 +204,7 @@ fn @fresh() -> ptr<memory> [selector=0xb466b76f, pure, abi_params=[], abi_return
     ret v0
 }
 
+; function freshEmpty() external pure returns (uint256[] memory) [selector 0x2f9cb906]
 fn @freshEmpty() -> ptr<memory> [selector=0x2f9cb906, pure, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     v0 = alloc zeroed checked 32
@@ -205,6 +212,7 @@ fn @freshEmpty() -> ptr<memory> [selector=0x2f9cb906, pure, abi_params=[], abi_r
     ret v0
 }
 
+; function recycledTail() external pure returns (bytes32 last) [selector 0x52eea5e4]
 fn @recycledTail() -> i256 [selector=0x52eea5e4, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = not 31
@@ -230,6 +238,7 @@ fn @recycledTail() -> i256 [selector=0x52eea5e4, pure, abi_params=[], abi_return
     ret v14
 }
 
+; function pair(bytes memory payload) external pure returns (bytes32) [selector 0x9f4b9fa0]
 fn @pair(arg0: ptr<memory>) -> i256 [selector=0x9f4b9fa0, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = abi_encode [memory_bytes, memory_bytes], scratch, args arg0, arg0

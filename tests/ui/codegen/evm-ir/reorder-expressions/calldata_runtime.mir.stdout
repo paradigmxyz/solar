@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256}
 
+; function words(uint256, uint256) external pure returns (uint256 difference, uint256 quotient) [selector 0xa5a43888]
 fn @words(arg0: i256, arg1: i256) -> struct0 [selector=0xa5a43888, pure, abi_params=[uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = calldataload 36

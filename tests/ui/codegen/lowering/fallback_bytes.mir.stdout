@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256}
 
+; fallback(bytes calldata input) external returns (bytes memory) [fallback]
 fn @fallback(arg0: slice<calldata>) -> ptr<memory> [fallback] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -18,6 +19,7 @@ fn @fallback(arg0: slice<calldata>) -> ptr<memory> [fallback] {
     ret v4
 }
 
+; function invoke(bytes memory input) external returns (uint256, bytes32) [selector 0xa6514259]
 fn @invoke(arg0: ptr<memory>) -> struct0 [selector=0xa6514259, abi_params=[bytes], abi_returns=[word, word], abi_return_params=[uint256, bytes32]] {
   bb0:
     v0 = address

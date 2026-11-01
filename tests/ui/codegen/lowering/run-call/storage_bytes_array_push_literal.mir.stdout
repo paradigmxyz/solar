@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_array_push_literal.sol:C ===
 @module C
+; function pushLiteral() external returns (uint256) [selector 0x90dead0b]
 fn @pushLiteral() -> i256 [selector=0x90dead0b, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -133,9 +134,9 @@ fn @pushLiteral() -> i256 [selector=0x90dead0b, abi_params=[], abi_returns=[word
     v109 = sload 0 !metadata(storage=slot(0))
     v110 = eq v109, 1
     jumpi v110, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v111 = sload 0 !metadata(storage=slot(0))
     v112 = lt 0, v111
     v113 = eq v112, false
@@ -151,7 +152,7 @@ fn @pushLiteral() -> i256 [selector=0x90dead0b, abi_params=[], abi_returns=[word
     v122 = shl v121, 224
     v123 = eq v122, 0x1234567800000000000000000000000000000000000000000000000000000000
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v124 = phi [bb1: v123], [bb2: false]
     icall require<short_string>, v124, 3, 0x706f700000000000000000000000000000000000000000000000000000000000
     ret 1

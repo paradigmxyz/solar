@@ -6,6 +6,7 @@
   struct2: {i256, i256, i256}
   struct3: {i8, i8, i8, i8}
 
+; function bindAfterDeclaration(uint256 key, uint256 value) external returns (uint256, uint256) [selector 0x605b6474]
 fn @bindAfterDeclaration(arg0: i256, arg1: i256) -> struct0 [selector=0x605b6474, abi_params=[uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = mapping_slot arg0, 0
@@ -20,16 +21,17 @@ fn @bindAfterDeclaration(arg0: i256, arg1: i256) -> struct0 [selector=0x605b6474
     ret v6
 }
 
+; function rebind(bool useSecond, uint256 first, uint256 second, uint256 value) external returns (uint256, uint256) [selector 0xda61745d]
 fn @rebind(arg0: i1, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector=0xda61745d, abi_params=[bool, uint256, uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = mapping_slot arg1, 0
     jumpi arg0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v1 = mapping_slot arg2, 0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v2 = phi [bb1: v1], [bb2: v0]
     sstore v2, arg3 !metadata(storage=symbolic(v2))
     v3 = mapping_slot arg1, 0
@@ -41,6 +43,7 @@ fn @rebind(arg0: i1, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector=0x
     ret v8
 }
 
+; function rebindParameter(uint256 first, uint256 second, uint256 value) external returns (uint256, uint256) [selector 0xe4706ccb]
 fn @rebindParameter(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0xe4706ccb, abi_params=[uint256, uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = mapping_slot arg0, 0
@@ -54,6 +57,7 @@ fn @rebindParameter(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0xe
     ret v6
 }
 
+; function swap(uint256 first, uint256 second, uint256 firstValue, uint256 secondValue) external returns (uint256, uint256) [selector 0x5673b02d]
 fn @swap(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector=0x5673b02d, abi_params=[uint256, uint256, uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = mapping_slot arg0, 0
@@ -69,16 +73,17 @@ fn @swap(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector=0x
     ret v7
 }
 
+; function packedRebind(bool useSecond, uint256 first, uint256 second, uint8 value) external returns (uint8, uint8) [selector 0xcccc734d]
 fn @packedRebind(arg0: i1, arg1: i256, arg2: i256, arg3: i8) -> struct1 [selector=0xcccc734d, abi_params=[bool, uint256, uint256, uint8], abi_returns=[word<uint8>, word<uint8>], abi_return_params=[uint8, uint8]] {
   bb0:
     v0 = mapping_slot arg1, 1
     jumpi arg0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v1 = mapping_slot arg2, 1
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v2 = phi [bb1: v1], [bb2: v0]
     v3 = add v2, 1
     v4 = shl 255, 8
@@ -105,14 +110,15 @@ fn @packedRebind(arg0: i1, arg1: i256, arg2: i256, arg3: i8) -> struct1 [selecto
     ret v23
 }
 
+; function packedYulRebind(bool useSecond, uint256 first, uint256 second, uint256 value) external returns (uint256, uint256, uint256) [selector 0x3c827d72]
 fn @packedYulRebind(arg0: i1, arg1: i256, arg2: i256, arg3: i256) -> struct2 [selector=0x3c827d72, abi_params=[bool, uint256, uint256, uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v0 = phi [bb1: 2], [bb2: 1]
     v1 = mapping_slot arg1, v0
     sstore v1, arg3 !metadata(storage=symbolic(v1))
@@ -126,6 +132,7 @@ fn @packedYulRebind(arg0: i1, arg1: i256, arg2: i256, arg3: i256) -> struct2 [se
     ret v8
 }
 
+; function yulPackedOffset(uint8 value) external returns (uint256 offset) [selector 0x6d9cf6e9]
 fn @yulPackedOffset(arg0: i256) -> i256 [selector=0x6d9cf6e9, abi_params=[uint8], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mul 1, 8
@@ -139,6 +146,7 @@ fn @yulPackedOffset(arg0: i256) -> i256 [selector=0x6d9cf6e9, abi_params=[uint8]
     ret 1
 }
 
+; function assignmentExpression(uint256 first, uint256 second, uint256 value) external returns (uint256, uint256) [selector 0x3edbf013]
 fn @assignmentExpression(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0x3edbf013, abi_params=[uint256, uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = mapping_slot arg0, 0
@@ -153,6 +161,7 @@ fn @assignmentExpression(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selecto
     ret v7
 }
 
+; function chainedAssignmentExpression(uint256 first, uint256 second, uint256 value) external returns (uint256, uint256) [selector 0x02f2596d]
 fn @chainedAssignmentExpression(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0x02f2596d, abi_params=[uint256, uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = mapping_slot arg0, 0
@@ -168,6 +177,7 @@ fn @chainedAssignmentExpression(arg0: i256, arg1: i256, arg2: i256) -> struct0 [
     ret v8
 }
 
+; function mappingAssignmentExpression(uint256 first, uint256 second, uint8 value) external returns (uint8, uint8, uint8, uint8) [selector 0xe5a9572e]
 fn @mappingAssignmentExpression(arg0: i256, arg1: i256, arg2: i8) -> struct3 [selector=0xe5a9572e, abi_params=[uint256, uint256, uint8], abi_returns=[word<uint8>, word<uint8>, word<uint8>, word<uint8>], abi_return_params=[uint8, uint8, uint8, uint8]] {
   bb0:
     v0 = mapping_slot arg0, 1
@@ -218,6 +228,7 @@ fn @mappingAssignmentExpression(arg0: i256, arg1: i256, arg2: i8) -> struct3 [se
     ret v42
 }
 
+; function readB(Item storage item) internal view returns (uint256)
 fn @readB(arg0: i256) -> i256 [view] {
   bb0:
     v0 = add arg0, 1
@@ -225,6 +236,7 @@ fn @readB(arg0: i256) -> i256 [view] {
     ret v1
 }
 
+; function rebindParameterInner(Item storage item, uint256 key, uint256 value) internal
 fn @rebindParameterInner(arg0: i256, arg1: i256, arg2: i256) {
   bb0:
     v0 = mapping_slot arg1, 0

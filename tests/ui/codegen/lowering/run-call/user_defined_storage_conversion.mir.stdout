@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/user_defined_storage_conversion.sol:UserDefinedStorageConversion ===
 @module UserDefinedStorageConversion
+; function storeCalldata(Entry calldata value) external returns (uint256) [selector 0xc35992d7]
 fn @storeCalldata(arg0: slice<calldata>) -> i256 [selector=0xc35992d7, abi_params=[tuple<uint8, uint16, bytes2, uint8>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -106,6 +107,7 @@ fn @storeCalldata(arg0: slice<calldata>) -> i256 [selector=0xc35992d7, abi_param
     ret v87
 }
 
+; function storeMemory(Entry memory value) external returns (uint256) [selector 0xdb1ba0ba]
 fn @storeMemory(arg0: ptr<memory>) -> i256 [selector=0xdb1ba0ba, abi_params=[tuple<uint8, uint16, bytes2, uint8>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mload arg0
@@ -172,6 +174,7 @@ fn @storeMemory(arg0: ptr<memory>) -> i256 [selector=0xdb1ba0ba, abi_params=[tup
     ret v56
 }
 
+; function storeSmall(Small[] calldata values) external returns (uint256) [selector 0x48de48f7]
 fn @storeSmall(arg0: slice<calldata>) -> i256 [selector=0x48de48f7, abi_params=[array<_, uint16>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -195,36 +198,36 @@ fn @storeSmall(arg0: slice<calldata>) -> i256 [selector=0x48de48f7, abi_params=[
     v14 = alloc v12
     mstore v14, v0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v15 = phi [bb0: 0], [bb2: v27]
     v16 = lt v15, v0
     jumpi v16, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v28 = mload v14
     v29 = sload 1 !metadata(storage=slot(1))
     v30 = gt v29, v28
     jumpi v30, bb4, bb5
-  bb4:
+  bb4:  ; preds = bb3
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb7
     v31 = phi [bb4: v28], [bb7: v46]
     v32 = lt v31, v29
     jumpi v32, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     jump bb5
-  bb5:
+  bb5:  ; preds = bb3, bb8
     sstore 1, v28 !metadata(storage=slot(1))
     jump bb9
-  bb9:
+  bb9:  ; preds = bb5, bb10
     v47 = phi [bb5: 0], [bb10: v66]
     v48 = lt v47, v28
     jumpi v48, bb10, bb11
-  bb11:
+  bb11:  ; preds = bb9
     v67 = shr v28, 4
     v68 = and v28, 15
     v69 = eq v68, 0
     jumpi v69, bb13, bb12
-  bb12:
+  bb12:  ; preds = bb11
     v70 = mul v68, 16
     v71 = shl 1, v70
     v72 = sub v71, 1
@@ -234,7 +237,7 @@ fn @storeSmall(arg0: slice<calldata>) -> i256 [selector=0x48de48f7, abi_params=[
     v76 = and v75, v72
     sstore v74, v76 !metadata(storage=symbolic(v74))
     jump bb13
-  bb13:
+  bb13:  ; preds = bb11, bb12
     v77 = sload 1 !metadata(storage=slot(1))
     v78 = lt 1, v77
     v79 = eq v78, false
@@ -250,7 +253,7 @@ fn @storeSmall(arg0: slice<calldata>) -> i256 [selector=0x48de48f7, abi_params=[
     v88 = trunc i256 v87 to i16
     v89 = zext i16 v88 to i256
     ret v89
-  bb10:
+  bb10:  ; preds = bb9
     v49 = shl v47, 5
     v50 = ptradd v14, v49
     v51 = ptradd v50, 32
@@ -271,7 +274,7 @@ fn @storeSmall(arg0: slice<calldata>) -> i256 [selector=0x48de48f7, abi_params=[
     sstore v55, v65 !metadata(storage=symbolic(v55))
     v66 = add v47, 1
     jump bb9
-  bb7:
+  bb7:  ; preds = bb6
     v33 = storage_array_data_slot 1
     v34 = div v31, 16
     v35 = add v33, v34
@@ -288,7 +291,7 @@ fn @storeSmall(arg0: slice<calldata>) -> i256 [selector=0x48de48f7, abi_params=[
     sstore v35, v45 !metadata(storage=symbolic(v35))
     v46 = add v31, 1
     jump bb6
-  bb2:
+  bb2:  ; preds = bb1
     v17 = mul v15, 32
     v18 = ptrtoint ptr<calldata> v1 to i256
     v19 = add v18, v17
@@ -305,6 +308,7 @@ fn @storeSmall(arg0: slice<calldata>) -> i256 [selector=0x48de48f7, abi_params=[
     jump bb1
 }
 
+; function storeLeft(Left[] calldata values) external returns (uint256) [selector 0x2d92e508]
 fn @storeLeft(arg0: slice<calldata>) -> i256 [selector=0x2d92e508, abi_params=[array<_, bytes2>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -328,36 +332,36 @@ fn @storeLeft(arg0: slice<calldata>) -> i256 [selector=0x2d92e508, abi_params=[a
     v14 = alloc v12
     mstore v14, v0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v15 = phi [bb0: 0], [bb2: v27]
     v16 = lt v15, v0
     jumpi v16, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v28 = mload v14
     v29 = sload 2 !metadata(storage=slot(2))
     v30 = gt v29, v28
     jumpi v30, bb4, bb5
-  bb4:
+  bb4:  ; preds = bb3
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb7
     v31 = phi [bb4: v28], [bb7: v47]
     v32 = lt v31, v29
     jumpi v32, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     jump bb5
-  bb5:
+  bb5:  ; preds = bb3, bb8
     sstore 2, v28 !metadata(storage=slot(2))
     jump bb9
-  bb9:
+  bb9:  ; preds = bb5, bb10
     v48 = phi [bb5: 0], [bb10: v68]
     v49 = lt v48, v28
     jumpi v49, bb10, bb11
-  bb11:
+  bb11:  ; preds = bb9
     v69 = shr v28, 4
     v70 = and v28, 15
     v71 = eq v70, 0
     jumpi v71, bb13, bb12
-  bb12:
+  bb12:  ; preds = bb11
     v72 = mul v70, 16
     v73 = shl 1, v72
     v74 = sub v73, 1
@@ -367,7 +371,7 @@ fn @storeLeft(arg0: slice<calldata>) -> i256 [selector=0x2d92e508, abi_params=[a
     v78 = and v77, v74
     sstore v76, v78 !metadata(storage=symbolic(v76))
     jump bb13
-  bb13:
+  bb13:  ; preds = bb11, bb12
     v79 = sload 2 !metadata(storage=slot(2))
     v80 = lt 1, v79
     v81 = eq v80, false
@@ -386,7 +390,7 @@ fn @storeLeft(arg0: slice<calldata>) -> i256 [selector=0x2d92e508, abi_params=[a
     v93 = trunc i256 v92 to i8
     v94 = zext i8 v93 to i256
     ret v94
-  bb10:
+  bb10:  ; preds = bb9
     v50 = shl v48, 5
     v51 = ptradd v14, v50
     v52 = ptradd v51, 32
@@ -408,7 +412,7 @@ fn @storeLeft(arg0: slice<calldata>) -> i256 [selector=0x2d92e508, abi_params=[a
     sstore v56, v67 !metadata(storage=symbolic(v56))
     v68 = add v48, 1
     jump bb9
-  bb7:
+  bb7:  ; preds = bb6
     v33 = storage_array_data_slot 2
     v34 = div v31, 16
     v35 = add v33, v34
@@ -426,7 +430,7 @@ fn @storeLeft(arg0: slice<calldata>) -> i256 [selector=0x2d92e508, abi_params=[a
     sstore v35, v46 !metadata(storage=symbolic(v35))
     v47 = add v31, 1
     jump bb6
-  bb2:
+  bb2:  ; preds = bb1
     v17 = mul v15, 32
     v18 = ptrtoint ptr<calldata> v1 to i256
     v19 = add v18, v17

@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256, i256}
 
+; function memoryWords(uint256 seed) external pure returns (uint256 old, uint256 word, uint256 byteWord) [selector 0x9d17b978]
 fn @memoryWords(arg0: i256) -> struct0 [selector=0x9d17b978, pure, abi_params=[uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -24,6 +25,7 @@ fn @memoryWords(arg0: i256) -> struct0 [selector=0x9d17b978, pure, abi_params=[u
     ret v11
 }
 
+; function stateWords(uint256 seed) external returns (uint256 old, uint256 word, uint256 transientWord) [selector 0x0797de3c]
 fn @stateWords(arg0: i256) -> struct0 [selector=0x0797de3c, abi_params=[uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     sstore arg0, arg0 !metadata(storage=symbolic(arg0))

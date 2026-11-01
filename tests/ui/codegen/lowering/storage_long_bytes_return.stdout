@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/storage_long_bytes_return.sol:StorageLongBytesReturn ===
 @module StorageLongBytesReturn
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     sstore 0, 65 !metadata(storage=slot(0))
@@ -15,24 +16,28 @@ fn @constructor() [constructor] {
     ret
 }
 
+; getter for `string public s` [selector 0x86b714e2]
 fn @s() -> ptr<memory> [selector=0x86b714e2, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @load_storage_bytes, 0
     ret v0
 }
 
+; getter for `bytes public b` [selector 0x4df7e3d0]
 fn @b() -> ptr<memory> [selector=0x4df7e3d0, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @load_storage_bytes, 1
     ret v0
 }
 
+; function getS() public view returns (string memory) [selector 0xe93314ab]
 fn @getS() -> ptr<memory> [selector=0xe93314ab, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @load_storage_bytes, 0
     ret v0
 }
 
+; function getB() public view returns (bytes memory) [selector 0xa1c51915]
 fn @getB() -> ptr<memory> [selector=0xa1c51915, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @load_storage_bytes, 1

@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/named_arguments.sol:NamedArguments ===
 @module NamedArguments
+; function a(uint a, uint b, uint c) internal pure returns (uint r)
 fn @a(arg0: i256, arg1: i256, arg2: i256) -> i256 [pure] {
   bb0:
     v0 = checked_mul uint256, arg0, 100
@@ -9,18 +10,21 @@ fn @a(arg0: i256, arg1: i256, arg2: i256) -> i256 [pure] {
     ret v3
 }
 
+; function b() external pure returns (uint r) [selector 0x4df7e3d0]
 fn @b() -> i256 [selector=0x4df7e3d0, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @a, 1, 2, 3
     ret v0
 }
 
+; function c() external pure returns (uint r) [selector 0xc3da42b8]
 fn @c() -> i256 [selector=0xc3da42b8, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @a, 1, 2, 3
     ret v0
 }
 
+; function d() external pure cap({x: 5}) returns (uint) [selector 0x8a054ac2]
 fn @d() -> i256 [selector=0x8a054ac2, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = gt 5, 0
@@ -28,12 +32,13 @@ fn @d() -> i256 [selector=0x8a054ac2, pure, abi_params=[], abi_returns=[word], a
     icall revert_if<empty>, v1
     v2 = icall @a, 0, 0, 7
     jump bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb2
     ret v2
 }
 
+; function tick(uint256 tag) internal returns (uint256)
 fn @tick(arg0: i256) -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -43,6 +48,7 @@ fn @tick(arg0: i256) -> i256 {
     ret arg0
 }
 
+; function take(uint256 x, uint256 y) internal pure returns (uint256)
 fn @take(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = checked_mul uint256, arg0, 10
@@ -50,6 +56,7 @@ fn @take(arg0: i256, arg1: i256) -> i256 [pure] {
     ret v1
 }
 
+; function structNamed() external returns (uint256) [selector 0x486a2e72]
 fn @structNamed() -> i256 [selector=0x486a2e72, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64
@@ -75,6 +82,7 @@ fn @structNamed() -> i256 [selector=0x486a2e72, abi_params=[], abi_returns=[word
     ret v15
 }
 
+; function structPositional() external returns (uint256) [selector 0xa99479b5]
 fn @structPositional() -> i256 [selector=0xa99479b5, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64
@@ -100,6 +108,7 @@ fn @structPositional() -> i256 [selector=0xa99479b5, abi_params=[], abi_returns=
     ret v15
 }
 
+; function callNamed() external returns (uint256) [selector 0x89fca8e0]
 fn @callNamed() -> i256 [selector=0x89fca8e0, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @tick, 1
@@ -111,6 +120,7 @@ fn @callNamed() -> i256 [selector=0x89fca8e0, abi_params=[], abi_returns=[word],
     ret v5
 }
 
+; function callPositional() external returns (uint256) [selector 0xac93a445]
 fn @callPositional() -> i256 [selector=0xac93a445, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @tick, 1
@@ -122,6 +132,7 @@ fn @callPositional() -> i256 [selector=0xac93a445, abi_params=[], abi_returns=[w
     ret v5
 }
 
+; function externalNamed() external returns (uint256) [selector 0x1747fe5f]
 fn @externalNamed() -> i256 [selector=0x1747fe5f, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
@@ -138,18 +149,20 @@ fn @externalNamed() -> i256 [selector=0x1747fe5f, abi_params=[], abi_returns=[wo
     v10 = zext i160 v0 to i256
     v11 = staticcall v1, v10, v5, v6, 0, 0
     jumpi v11, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v12 = sload 0 !metadata(storage=slot(0))
     ret v12
 }
 
+; function receivePair(uint256 x, uint256 y) external pure [selector 0xba2f355f]
 fn @receivePair(arg0: i256, arg1: i256) [selector=0xba2f355f, pure, abi_params=[uint256, uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
+; function memoryStructNamed() external returns (uint256) [selector 0x7b7c1324]
 fn @memoryStructNamed() -> i256 [selector=0x7b7c1324, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64
@@ -169,6 +182,7 @@ fn @memoryStructNamed() -> i256 [selector=0x7b7c1324, abi_params=[], abi_returns
     ret v11
 }
 
+; function eventNamed() external returns (uint256) [selector 0xab104c47]
 fn @eventNamed() -> i256 [selector=0xab104c47, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @tick, 1

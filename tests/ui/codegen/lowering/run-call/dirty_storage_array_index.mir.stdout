@@ -1,10 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/dirty_storage_array_index.sol:DirtyStorageArrayIndex ===
 @module DirtyStorageArrayIndex
+; function inject(uint256 raw) internal pure returns (uint8 x)
 fn @inject(arg0: i256) -> i256 [pure] {
   bb0:
     ret arg0
 }
 
+; function storageIndex(uint256 raw) external returns (uint256) [selector 0xe1f98cd0]
 fn @storageIndex(arg0: i256) -> i256 [selector=0xe1f98cd0, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))

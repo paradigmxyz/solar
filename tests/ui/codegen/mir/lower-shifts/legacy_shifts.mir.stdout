@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/lower-shifts/legacy_shifts.sol:LegacyShifts ===
 @module LegacyShifts
+; function shr8() external pure returns (uint256) [selector 0x97471385]
 fn @shr8() -> i256 [selector=0x97471385, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = calldatasize
@@ -9,6 +10,7 @@ fn @shr8() -> i256 [selector=0x97471385, pure, abi_params=[], abi_returns=[word]
     ret v3
 }
 
+; function shl8() external pure returns (uint256) [selector 0x6626c818]
 fn @shl8() -> i256 [selector=0x6626c818, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = calldatasize
@@ -18,6 +20,7 @@ fn @shl8() -> i256 [selector=0x6626c818, pure, abi_params=[], abi_returns=[word]
     ret v3
 }
 
+; function shl3() external pure returns (uint256) [selector 0xcda3144d]
 fn @shl3() -> i256 [selector=0xcda3144d, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = calldatasize
@@ -27,6 +30,7 @@ fn @shl3() -> i256 [selector=0xcda3144d, pure, abi_params=[], abi_returns=[word]
     ret v3
 }
 
+; function selectorShift() external pure returns (uint256) [selector 0xd56d625c]
 fn @selectorShift() -> i256 [selector=0xd56d625c, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = calldatasize

@@ -15,6 +15,7 @@
       ret v1
   }
   
+  ; selector 0x01020304
   fn @entry() [selector=0x01020304] {
     bb0:
       v0 = icall @movable

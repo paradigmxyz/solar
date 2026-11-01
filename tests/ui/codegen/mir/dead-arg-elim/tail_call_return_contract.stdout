@@ -21,6 +21,7 @@
 +     ret
   }
   
+  ; selector 0x01020304
   fn @entry() [selector=0x01020304] {
     bb0:
       v0 = icall @forward
@@ -45,6 +46,7 @@
       tail_call @cold
   }
   
+  ; selector 0x05060708
   fn @entry_cold() [selector=0x05060708, cold] {
     bb0 [cold]:
       v0 = icall @forward_cold

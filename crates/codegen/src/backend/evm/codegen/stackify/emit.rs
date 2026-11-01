@@ -39,6 +39,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.emitting_entry = info.emitting_entry;
         let plan = plans[entry].take().expect("entry plan");
         self.enter_function(module, &module.functions[entry]);
+        self.comment_function_entry(&module.functions[entry], true);
         self.emit_stackified_body(entry, &module.functions[entry], plan);
         self.leave_function(module);
         self.emitting_entry = false;
@@ -52,6 +53,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.enter_function(module, func);
             self.asm.define_label(self.function_labels[&func_id]);
             self.mark_debug_function_invoke(func);
+            self.comment_function_entry(func, false);
             self.emit_entry_free_memory_start(module, call_graph, func_id);
             self.emit_stackified_body(func_id, func, plan);
             self.leave_function(module);
@@ -91,6 +93,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.define_label(constructor_label);
         }
         self.mark_debug_function_invoke(func);
+        self.comment_function_entry(func, false);
         self.body = Body::Constructor(constructor);
         let plan = plans[constructor].take().expect("constructor plan");
         self.emit_stackified_body(constructor, func, plan);
@@ -147,6 +150,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 None => self.asm.define_label(label),
             }
             self.mark_debug_function_invoke(func);
+            self.comment_function_entry(func, false);
             self.body = Body::Internal(func_id);
             self.emit_stackified_body(func_id, func, plan);
             self.leave_function(module);

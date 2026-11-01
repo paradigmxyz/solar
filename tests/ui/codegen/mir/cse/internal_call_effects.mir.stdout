@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/cse/internal_call_effects.sol:InternalCallEffects ===
 @module InternalCallEffects
+; function disjoint() external returns (uint256) [selector 0xbf1f2d2a]
 fn @disjoint() -> i256 [selector=0xbf1f2d2a, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     sstore 0, 10 !metadata(storage=slot(0))
@@ -10,6 +11,7 @@ fn @disjoint() -> i256 [selector=0xbf1f2d2a, abi_params=[], abi_returns=[word], 
     ret v2
 }
 
+; function overlap() external returns (uint256) [selector 0xea9e4070]
 fn @overlap() -> i256 [selector=0xea9e4070, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     sstore 1, 10 !metadata(storage=slot(1))
@@ -20,6 +22,7 @@ fn @overlap() -> i256 [selector=0xea9e4070, abi_params=[], abi_returns=[word], a
     ret v2
 }
 
+; function unknown(uint256 slot) external returns (uint256) [selector 0x71667367]
 fn @unknown(arg0: i256) -> i256 [selector=0x71667367, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     sstore 0, 10 !metadata(storage=slot(0))
@@ -30,6 +33,7 @@ fn @unknown(arg0: i256) -> i256 [selector=0x71667367, abi_params=[uint256], abi_
     ret v2
 }
 
+; function recursive(uint256 depth) external returns (uint256) [selector 0x6fe03c36]
 fn @recursive(arg0: i256) -> i256 [selector=0x6fe03c36, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     sstore 0, 10 !metadata(storage=slot(0))
@@ -40,6 +44,7 @@ fn @recursive(arg0: i256) -> i256 [selector=0x6fe03c36, abi_params=[uint256], ab
     ret v2
 }
 
+; function transientSlots() external returns (uint256) [selector 0xe5208ad5]
 fn @transientSlots() -> i256 [selector=0xe5208ad5, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     tstore 0, 10
@@ -50,6 +55,7 @@ fn @transientSlots() -> i256 [selector=0xe5208ad5, abi_params=[], abi_returns=[w
     ret v2
 }
 
+; function observedReturn() external pure returns (uint256) [selector 0xba4bd320]
 fn @observedReturn() -> i256 [selector=0xba4bd320, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     mstore 128, 7
@@ -58,6 +64,7 @@ fn @observedReturn() -> i256 [selector=0xba4bd320, pure, abi_params=[], abi_retu
     ret 9
 }
 
+; function observedRevert() external pure [selector 0xcc19b047]
 fn @observedRevert() [selector=0xcc19b047, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     mstore 128, 7
@@ -66,6 +73,7 @@ fn @observedRevert() [selector=0xcc19b047, pure, abi_params=[], abi_returns=[], 
     ret
 }
 
+; function memoryDisjoint() external pure returns (uint256) [selector 0xc1ce920c]
 fn @memoryDisjoint() -> i256 [selector=0xc1ce920c, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64
@@ -87,6 +95,7 @@ fn @memoryDisjoint() -> i256 [selector=0xc1ce920c, pure, abi_params=[], abi_retu
     ret v10
 }
 
+; function memoryOverlap() external pure returns (uint256) [selector 0xb7b7ef77]
 fn @memoryOverlap() -> i256 [selector=0xb7b7ef77, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64
@@ -107,6 +116,7 @@ fn @memoryOverlap() -> i256 [selector=0xb7b7ef77, pure, abi_params=[], abi_retur
     ret v9
 }
 
+; function memoryPartialOverlap() external pure returns (uint256) [selector 0x3f1d4740]
 fn @memoryPartialOverlap() -> i256 [selector=0x3f1d4740, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64
@@ -128,6 +138,7 @@ fn @memoryPartialOverlap() -> i256 [selector=0x3f1d4740, pure, abi_params=[], ab
     ret v10
 }
 
+; function memoryRecursive() external pure returns (uint256) [selector 0xff857f19]
 fn @memoryRecursive() -> i256 [selector=0xff857f19, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 96
@@ -150,66 +161,74 @@ fn @memoryRecursive() -> i256 [selector=0xff857f19, pure, abi_params=[], abi_ret
     ret v10
 }
 
+; function writeMemory(uint256 pointer) internal pure
 fn @writeMemory(arg0: i256) [pure] {
   bb0:
     mstore arg0, 7
     ret
 }
 
+; function writeMemoryRecursive(uint256 pointer, uint256 depth) internal pure
 fn @writeMemoryRecursive(arg0: i256, arg1: i256) [pure] {
   bb0:
     icall @writeMemory, arg0
     v0 = ne arg1, 0
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v1 = checked_add uint256, arg0, 32
     v2 = checked_sub uint256, arg1, 1
     icall @writeMemoryRecursive, v1, v2
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     ret
 }
 
+; function writeOne() internal
 fn @writeOne() {
   bb0:
     sstore 1, 7 !metadata(storage=slot(1))
     ret
 }
 
+; function writeSlot(uint256 slot) internal
 fn @writeSlot(arg0: i256) {
   bb0:
     sstore arg0, 7 !metadata(storage=symbolic(arg0))
     ret
 }
 
+; function recurse(uint256 depth) internal
 fn @recurse(arg0: i256) {
   bb0:
     icall @writeOne
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v1 = checked_sub uint256, arg0, 1
     icall @recurse, v1
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     ret
 }
 
+; function writeTransientOne() internal
 fn @writeTransientOne() {
   bb0:
     tstore 1, 7
     ret
 }
 
+; function returnMemory() internal pure
 fn @returnMemory() [pure] {
   bb0:
     returndata 128, 32
 }
 
+; function revertMemory() internal pure
 fn @revertMemory() [pure] {
   bb0:
     revert 128, 32

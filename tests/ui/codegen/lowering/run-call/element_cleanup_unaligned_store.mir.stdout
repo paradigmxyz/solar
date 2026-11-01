@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/element_cleanup_unaligned_store.sol:ElementCleanupUnalignedStore ===
 @module ElementCleanupUnalignedStore
+; function unaligned(uint8 x) external pure returns (uint256) [selector 0x41df2bd1]
 fn @unaligned(arg0: i8) -> i256 [selector=0x41df2bd1, pure, abi_params=[uint8], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 96
@@ -23,12 +24,12 @@ fn @unaligned(arg0: i8) -> i256 [selector=0x41df2bd1, pure, abi_params=[uint8], 
     v13 = sub v12, 1
     v14 = lt v13, v12
     jumpi v14, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     mstore v11, v13
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v15 = mload v0
     v16 = lt 1, v15
     v17 = eq v16, false
@@ -50,6 +51,7 @@ fn @unaligned(arg0: i8) -> i256 [selector=0x41df2bd1, pure, abi_params=[uint8], 
     ret v30
 }
 
+; function forged(uint8 x) external pure returns (uint256) [selector 0x55a4b81d]
 fn @forged(arg0: i8) -> i256 [selector=0x55a4b81d, pure, abi_params=[uint8], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 96
@@ -92,6 +94,7 @@ fn @forged(arg0: i8) -> i256 [selector=0x55a4b81d, pure, abi_params=[uint8], abi
     ret v28
 }
 
+; function _lower(uint8[] memory b) private pure
 fn @_lower(arg0: ptr<memory>) [pure] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
@@ -100,13 +103,13 @@ fn @_lower(arg0: ptr<memory>) [pure] {
     v3 = sub v2, 1
     v4 = lt v3, v2
     jumpi v4, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v5 = ptrtoint ptr<memory> arg0 to i256
     v6 = add v5, 32
     mstore v6, v3
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     ret
 }

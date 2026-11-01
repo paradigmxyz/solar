@@ -4,6 +4,7 @@
   struct0: {i256, i256, i256, i256, i256}
   struct1: {i256, i256}
 
+; function assemblyValues() external pure returns (uint256 a, bytes2 b, bytes3 c, bool d, address e) [selector 0x5fa26448]
 fn @assemblyValues() -> struct0 [selector=0x5fa26448, pure, abi_params=[], abi_returns=[word, word<bytes2>, word<bytes3>, word<bool>, word<uint160>], abi_return_params=[uint256, bytes2, bytes3, bool, address]] {
   bb0:
     v0 = insert_value struct0, undef struct0, 0, 2
@@ -14,6 +15,7 @@ fn @assemblyValues() -> struct0 [selector=0x5fa26448, pure, abi_params=[], abi_r
     ret v4
 }
 
+; function assemblyReferences() external pure returns (bytes2 a, bytes3 b) [selector 0x7bafbded]
 fn @assemblyReferences() -> struct1 [selector=0x7bafbded, pure, abi_params=[], abi_returns=[word<bytes2>, word<bytes3>], abi_return_params=[bytes2, bytes3]] {
   bb0:
     v0 = insert_value struct1, undef struct1, 0, 0xabcd000000000000000000000000000000000000000000000000000000000000
@@ -21,6 +23,7 @@ fn @assemblyReferences() -> struct1 [selector=0x7bafbded, pure, abi_params=[], a
     ret v1
 }
 
+; function solidityValues() external pure returns (bytes2, bytes3) [selector 0x8c965a6e]
 fn @solidityValues() -> struct1 [selector=0x8c965a6e, pure, abi_params=[], abi_returns=[word<bytes2>, word<bytes3>], abi_return_params=[bytes2, bytes3]] {
   bb0:
     v0 = insert_value struct1, undef struct1, 0, 0xabcd000000000000000000000000000000000000000000000000000000000000

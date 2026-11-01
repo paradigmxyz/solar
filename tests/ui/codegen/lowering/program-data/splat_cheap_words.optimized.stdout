@@ -1,21 +1,23 @@
 // === ROOT/tests/ui/codegen/lowering/program-data/splat_cheap_words.sol:C ===
 @module C
 @phase lowered
+; runtime dispatch entry
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
     v1 = ne v0, 0
     jumpi v1, bb3, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v2 = calldataload 0
     v3 = shr v2, 224
     switch v3, default bb3, [0x26121ff0 => bb2]
-  bb2:
+  bb2:  ; preds = bb1
     tail_call @f
-  bb3 [cold]:
+  bb3 [cold]:  ; preds = bb0, bb1
     revert 0, 0
 }
 
+; function f() external pure returns (bytes32) [selector 0x26121ff0]
 fn @f() [selector=0x26121ff0, abi_wrapper, pure] {
   bb0:
     v20 = heap_floor !metadata(alloc_ptr)

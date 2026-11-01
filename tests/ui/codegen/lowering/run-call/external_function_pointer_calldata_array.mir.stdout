@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256, i256}
 
+; function f(function() external returns (uint256)[] calldata pointers) external returns (uint256, uint256, uint256) [selector 0x2ed7fe6a]
 fn @f(arg0: slice<calldata>) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<_, function>], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -30,9 +31,9 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<
     mstore 0, v18 !metadata(memory=scratch)
     v19 = call v17, v16, 0, 28, 4, 0, 32
     jumpi v19, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v20 = returndatasize
     v21 = lt v20, 32
     icall revert_if<tuple_data_too_short>, v21
@@ -59,9 +60,9 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<
     mstore 0, v39 !metadata(memory=scratch)
     v40 = call v38, v37, 0, 28, 4, 0, 32
     jumpi v40, bb4, bb3
-  bb3:
+  bb3:  ; preds = bb2
     revert_returndata
-  bb4:
+  bb4:  ; preds = bb2
     v41 = returndatasize
     v42 = lt v41, 32
     icall revert_if<tuple_data_too_short>, v42
@@ -88,9 +89,9 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<
     mstore 0, v60 !metadata(memory=scratch)
     v61 = call v59, v58, 0, 28, 4, 0, 32
     jumpi v61, bb6, bb5
-  bb5:
+  bb5:  ; preds = bb4
     revert_returndata
-  bb6:
+  bb6:  ; preds = bb4
     v62 = returndatasize
     v63 = lt v62, 32
     icall revert_if<tuple_data_too_short>, v63
@@ -102,6 +103,7 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<
     ret v68
 }
 
+; function fReenc(function() external returns (uint256)[] calldata pointers) external returns (uint256, uint256, uint256) [selector 0xfbeba237]
 fn @fReenc(arg0: slice<calldata>) -> struct0 [selector=0xfbeba237, abi_params=[array<_, function>], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = address
@@ -112,9 +114,9 @@ fn @fReenc(arg0: slice<calldata>) -> struct0 [selector=0xfbeba237, abi_params=[a
     v5 = zext i160 v0 to i256
     v6 = call v1, v5, 0, v3, v4, v3, 96
     jumpi v6, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v7 = returndatasize
     v8 = lt v7, 96
     icall revert_if<tuple_data_too_short>, v8
@@ -139,21 +141,25 @@ fn @fReenc(arg0: slice<calldata>) -> struct0 [selector=0xfbeba237, abi_params=[a
     ret v26
 }
 
+; function getter1() external pure returns (uint256) [selector 0x0ec1632e]
 fn @getter1() -> i256 [selector=0x0ec1632e, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 23
 }
 
+; function getter2() external pure returns (uint256) [selector 0xe255e5f9]
 fn @getter2() -> i256 [selector=0xe255e5f9, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 37
 }
 
+; function getter3() external pure returns (uint256) [selector 0xec202537]
 fn @getter3() -> i256 [selector=0xec202537, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 71
 }
 
+; function g(bool reencode) external returns (uint256, uint256, uint256) [selector 0xd48092f7]
 fn @g(arg0: i1) -> struct0 [selector=0xd48092f7, abi_params=[bool], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = alloc zeroed checked 128
@@ -192,7 +198,7 @@ fn @g(arg0: i1) -> struct0 [selector=0xd48092f7, abi_params=[bool], abi_returns=
     v27 = ptradd v0, 96
     mstore v27, v26
     jumpi arg0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v52 = address
     v53 = gas
     v54 = abi_encode [memory_array<function>], selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args v0
@@ -201,9 +207,9 @@ fn @g(arg0: i1) -> struct0 [selector=0xd48092f7, abi_params=[bool], abi_returns=
     v57 = zext i160 v52 to i256
     v58 = call v53, v57, 0, v55, v56, v55, 96
     jumpi v58, bb7, bb6
-  bb6:
+  bb6:  ; preds = bb2
     revert_returndata
-  bb7:
+  bb7:  ; preds = bb2
     v59 = returndatasize
     v60 = lt v59, 96
     icall revert_if<tuple_data_too_short>, v60
@@ -223,7 +229,7 @@ fn @g(arg0: i1) -> struct0 [selector=0xd48092f7, abi_params=[bool], abi_returns=
     v74 = extract_value struct0, v72, 1
     v75 = extract_value struct0, v72, 2
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v28 = address
     v29 = gas
     v30 = abi_encode [memory_array<function>], selector 0xfbeba23700000000000000000000000000000000000000000000000000000000, args v0
@@ -232,9 +238,9 @@ fn @g(arg0: i1) -> struct0 [selector=0xd48092f7, abi_params=[bool], abi_returns=
     v33 = zext i160 v28 to i256
     v34 = call v29, v33, 0, v31, v32, v31, 96
     jumpi v34, bb5, bb4
-  bb4:
+  bb4:  ; preds = bb1
     revert_returndata
-  bb5:
+  bb5:  ; preds = bb1
     v35 = returndatasize
     v36 = lt v35, 96
     icall revert_if<tuple_data_too_short>, v36
@@ -254,7 +260,7 @@ fn @g(arg0: i1) -> struct0 [selector=0xd48092f7, abi_params=[bool], abi_returns=
     v50 = extract_value struct0, v48, 1
     v51 = extract_value struct0, v48, 2
     jump bb3
-  bb3:
+  bb3:  ; preds = bb5, bb7
     v76 = phi [bb5: v49], [bb7: v73]
     v77 = phi [bb5: v50], [bb7: v74]
     v78 = phi [bb5: v51], [bb7: v75]

@@ -3,6 +3,7 @@
 @types
   struct0: {ptr<memory>, ptr<memory>}
 
+; function retainedLiteral() external pure returns (bytes memory source, bytes memory encoded) [selector 0xe174bc9a]
 fn @retainedLiteral() -> struct0 [selector=0xe174bc9a, pure, abi_params=[], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {
   bb0:
     v0 = icall @literal
@@ -12,6 +13,7 @@ fn @retainedLiteral() -> struct0 [selector=0xe174bc9a, pure, abi_params=[], abi_
     ret v3
 }
 
+; function literal() private pure returns (bytes memory)
 fn @literal() -> ptr<memory> [pure] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)

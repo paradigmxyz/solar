@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/program-data/codesize_constructor_data.sol:Child ===
 @module Child
+; function value() external pure returns (uint256) [selector 0x3fa4f245]
 fn @value() -> i256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 7
@@ -13,6 +14,7 @@ fn @value() -> i256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word
 @immutables
   child: address
 
+; creation entry
 fn @constructor() [constructor] {
   bb0:
     v0 = datasize Child_creation_code_0
@@ -21,13 +23,14 @@ fn @constructor() [constructor] {
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     storeimmutable child, v2
     ret
 }
 
+; function value() external view returns (uint256) [selector 0x3fa4f245]
 fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = loadimmutable child
@@ -36,9 +39,9 @@ fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
     v2 = zext i160 v0 to i256
     v3 = staticcall v1, v2, 28, 4, 0, 32
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = returndatasize
     v5 = lt v4, 32
     icall revert_if<tuple_data_too_short>, v5
@@ -47,6 +50,7 @@ fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
     ret v7
 }
 
+; function sizeMatches() external view returns (bool) [selector 0x6cb0d5a7]
 fn @sizeMatches() -> i1 [selector=0x6cb0d5a7, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = codesize

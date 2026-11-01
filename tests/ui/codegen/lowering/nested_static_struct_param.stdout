@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256}
 
+; function take(Outer calldata o) external pure returns (uint256, uint256) [selector 0xd1a79489]
 fn @take(arg0: slice<calldata>) -> struct0 [selector=0xd1a79489, pure, abi_params=[tuple<uint256, tuple<uint256, uint256>, uint256>], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0

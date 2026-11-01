@@ -1,11 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/stack_arg_rotation.sol:StackArgRotation ===
 @module StackArgRotation
+; getter for `uint256 public sink` [selector 0xc74e820e]
 fn @sink() -> i256 [selector=0xc74e820e, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+; function run(uint256 x) external returns (uint256 result) [selector 0xa444f5e9]
 fn @run(arg0: i256) -> i256 [selector=0xa444f5e9, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = checked_add uint256, arg0, 1
@@ -20,6 +22,7 @@ fn @run(arg0: i256) -> i256 [selector=0xa444f5e9, abi_params=[uint256], abi_retu
     ret v8
 }
 
+; function mix(uint256 a, uint256 b) internal returns (uint256)
 fn @mix(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = add arg0, arg1

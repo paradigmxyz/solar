@@ -13,7 +13,7 @@
     bb0:
       icall @fused
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0
       v0 = add 1, 2
       mstore 128, v0
       returndata 128, 32
@@ -33,7 +33,7 @@
 +     v4 = add v3, 32
 +     v5 = mload v4
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0
 -     v1 = extract_value struct0, v0, 1
 -     sstore 0, v1
 -     ret v0
@@ -60,7 +60,7 @@
     bb0:
       icall @fused
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0
       v0 = add 1, 2
       mstore 128, v0
       returndata 128, 32
@@ -80,7 +80,7 @@
 +     v4 = add v6, 32
       v5 = mload v4
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0
       sstore 0, v5
       ret v2, v5
   }
@@ -104,7 +104,7 @@
     bb0:
 -     icall @fused
 -     jump bb1
--   bb1:
+-   bb1:  ; preds = bb0
 -     v0 = add 1, 2
 -     mstore 128, v0
 -     returndata 128, 32
@@ -123,7 +123,7 @@
 -     v4 = add v6, 32
 -     v5 = mload v4
 -     jump bb1
--   bb1:
+-   bb1:  ; preds = bb0
 -     sstore 0, v5
 -     ret v2, v5
 +     tail_call @pair_fail, 29

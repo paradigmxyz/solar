@@ -5,6 +5,7 @@
   duration: uint64
   initial: uint256
 
+; constructor(uint64 s, uint64 d) [creation entry]
 fn @constructor(arg0: i64, arg1: i64) [constructor, abi_params=[uint64, uint64]] {
   bb0:
     storeimmutable start, arg0
@@ -16,12 +17,14 @@ fn @constructor(arg0: i64, arg1: i64) [constructor, abi_params=[uint64, uint64]]
     ret
 }
 
+; getter for `uint256 public immutable initial` [selector 0xbb806dc9]
 fn @initial() -> i256 [selector=0xbb806dc9, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = loadimmutable initial
     ret v0
 }
 
+; function end() public view returns (uint256) [selector 0xefbe1c1c]
 fn @end() -> i256 [selector=0xefbe1c1c, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = loadimmutable start
@@ -32,22 +35,23 @@ fn @end() -> i256 [selector=0xefbe1c1c, view, abi_params=[], abi_returns=[word],
     ret v4
 }
 
+; function vested(uint256 amount, uint64 timestamp) public view returns (uint256) [selector 0xcc71fadf]
 fn @vested(arg0: i256, arg1: i64) -> i256 [selector=0xcc71fadf, view, abi_params=[uint256, uint64], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = loadimmutable start
     v1 = lt arg1, v0
     jumpi v1, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     v2 = icall @end
     v3 = zext i64 arg1 to i256
     v4 = lt v3, v2
     v5 = eq v4, false
     jumpi v5, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb6:
+  bb6:  ; preds = bb5
     v6 = loadimmutable start
     v7 = checked_sub uint64, arg1, v6
     v8 = zext i64 v7 to i256
@@ -56,8 +60,8 @@ fn @vested(arg0: i256, arg1: i64) -> i256 [selector=0xcc71fadf, view, abi_params
     v11 = zext i64 v10 to i256
     v12 = checked_div uint256, v9, v11
     ret v12
-  bb4:
+  bb4:  ; preds = bb3
     ret arg0
-  bb1:
+  bb1:  ; preds = bb0
     ret 0
 }

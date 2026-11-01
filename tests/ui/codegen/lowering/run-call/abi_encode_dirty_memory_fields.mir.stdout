@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_dirty_memory_fields.sol:AbiEncodeDirtyMemoryFields ===
 @module AbiEncodeDirtyMemoryFields
+; function dirty() internal pure returns (S memory s)
 fn @dirty() -> ptr<memory> [pure] {
   bb0:
     v0 = alloc 192 !metadata(preserves_fmp)
@@ -36,6 +37,7 @@ fn @dirty() -> ptr<memory> [pure] {
     ret v0
 }
 
+; function encodeStruct() external pure returns (bytes32) [selector 0x01e941a3]
 fn @encodeStruct() -> i256 [selector=0x01e941a3, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = icall @dirty
@@ -46,6 +48,7 @@ fn @encodeStruct() -> i256 [selector=0x01e941a3, pure, abi_params=[], abi_return
     ret v4
 }
 
+; function encodeArray() external pure returns (bytes32) [selector 0x7a13e494]
 fn @encodeArray() -> i256 [selector=0x7a13e494, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc zeroed checked 96
@@ -75,6 +78,7 @@ fn @encodeArray() -> i256 [selector=0x7a13e494, pure, abi_params=[], abi_returns
     ret v16
 }
 
+; function encodeBadEnum() external pure returns (bytes memory) [selector 0xc72bddb9]
 fn @encodeBadEnum() -> ptr<memory> [selector=0xc72bddb9, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @dirty

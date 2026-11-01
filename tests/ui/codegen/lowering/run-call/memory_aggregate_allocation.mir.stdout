@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/memory_aggregate_allocation.sol:MemoryAggregateAllocation ===
 @module MemoryAggregateAllocation
+; function allocate() external pure returns (uint256) [selector 0xabaa9916]
 fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = not 31
@@ -16,11 +17,11 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v8 = alloc zeroed checked 160
     mstore v8, 4
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v9 = phi [bb0: 0], [bb2: v16]
     v10 = lt v9, 4
     jumpi v10, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v17 = mload v8
     v18 = lt 3, v17
     v19 = eq v18, false
@@ -35,11 +36,11 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v25 = alloc zeroed checked 128
     mstore v25, 3
     jump bb4
-  bb4:
+  bb4:  ; preds = bb3, bb5
     v26 = phi [bb3: 0], [bb5: v36]
     v27 = lt v26, 3
     jumpi v27, bb5, bb6
-  bb6:
+  bb6:  ; preds = bb4
     v37 = mload v25
     v38 = lt 2, v37
     v39 = eq v38, false
@@ -137,7 +138,7 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v115 = zext i8 v114 to i256
     v116 = checked_add uint256, v98, v115
     ret v116
-  bb5:
+  bb5:  ; preds = bb4
     v28 = alloc 64 !metadata(preserves_fmp)
     v29 = alloc 64 !metadata(preserves_fmp)
     memory_zero v29, 64
@@ -152,7 +153,7 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     mstore v34, v35
     v36 = add v26, 1
     jump bb4
-  bb2:
+  bb2:  ; preds = bb1
     v11 = alloc 64 !metadata(preserves_fmp)
     memory_zero v11, 64
     v12 = shl v9, 5

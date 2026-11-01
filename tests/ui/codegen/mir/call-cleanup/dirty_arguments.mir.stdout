@@ -1,11 +1,13 @@
 // === ROOT/tests/ui/codegen/mir/call-cleanup/dirty_arguments.sol:DirtyArguments ===
 @module DirtyArguments
+; function normalizedReturn(uint256 word) external pure returns (bool) [selector 0xaca23352]
 fn @normalizedReturn(arg0: i256) -> i256 [selector=0xaca23352, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @rawReturn, arg0
     ret v0
 }
 
+; function compareRawReturn(uint256 word, bool flag) external pure returns (bool) [selector 0x6585d271]
 fn @compareRawReturn(arg0: i256, arg1: i1) -> i1 [selector=0x6585d271, pure, abi_params=[uint256, bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @rawReturn, arg0
@@ -14,11 +16,13 @@ fn @compareRawReturn(arg0: i256, arg1: i1) -> i1 [selector=0x6585d271, pure, abi
     ret v2
 }
 
+; function rawReturn(uint256 word) internal pure returns (bool result)
 fn @rawReturn(arg0: i256) -> i256 [pure] {
   bb0:
     ret arg0
 }
 
+; function compareReturns(uint256 a, uint256 b) external pure returns (bool) [selector 0xf3b43d04]
 fn @compareReturns(arg0: i256, arg1: i256) -> i1 [selector=0xf3b43d04, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @canonicalReturn, arg0
@@ -29,50 +33,56 @@ fn @compareReturns(arg0: i256, arg1: i256) -> i1 [selector=0xf3b43d04, pure, abi
     ret v4
 }
 
+; function canonicalReturn(uint256 word) internal pure returns (bool)
 fn @canonicalReturn(arg0: i256) -> i1 [pure] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     ret false
-  bb1:
+  bb1:  ; preds = bb0
     ret true
 }
 
+; function selectedClean(bool condition) external pure returns (uint256) [selector 0x4d264e8d]
 fn @selectedClean(arg0: i256) -> i256 [selector=0x4d264e8d, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @selected, arg0
     ret v0
 }
 
+; function selectedDirty(uint256 word) external pure returns (uint256) [selector 0x046d9187]
 fn @selectedDirty(arg0: i256) -> i256 [selector=0x046d9187, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @selected, arg0
     ret v0
 }
 
+; function selected(bool condition) internal pure returns (uint256)
 fn @selected(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v1 = phi [bb1: i8 19], [bb2: i8 7]
     v2 = zext i8 v1 to i256
     ret v2
 }
 
+; function cleanIsZero(address value) external pure returns (bool) [selector 0xcb37dd49]
 fn @cleanIsZero(arg0: i160) -> i1 [selector=0xcb37dd49, pure, abi_params=[address], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = eq arg0, i160 0
     ret v0
 }
 
+; function dirtyIsZero(uint256 word) external pure returns (bool) [selector 0x9f3c1122]
 fn @dirtyIsZero(arg0: i256) -> i1 [selector=0x9f3c1122, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = trunc i256 arg0 to i160
@@ -80,12 +90,14 @@ fn @dirtyIsZero(arg0: i256) -> i1 [selector=0x9f3c1122, pure, abi_params=[uint25
     ret v1
 }
 
+; function cleanCast(address value) external pure returns (uint256) [selector 0x12a6bf89]
 fn @cleanCast(arg0: i160) -> i256 [selector=0x12a6bf89, pure, abi_params=[address], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = zext i160 arg0 to i256
     ret v0
 }
 
+; function dirtyCast(uint256 word) external pure returns (uint256) [selector 0x9a5c5594]
 fn @dirtyCast(arg0: i256) -> i256 [selector=0x9a5c5594, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = trunc i256 arg0 to i160
@@ -93,53 +105,62 @@ fn @dirtyCast(arg0: i256) -> i256 [selector=0x9a5c5594, pure, abi_params=[uint25
     ret v1
 }
 
+; function clean(address value) external pure returns (uint256) [selector 0x169b2623]
 fn @clean(arg0: i256) -> i256 [selector=0x169b2623, pure, abi_params=[address], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @addressBits, arg0
     ret v0
 }
 
+; function dirty(uint256 word) external pure returns (uint256) [selector 0x55136761]
 fn @dirty(arg0: i256) -> i256 [selector=0x55136761, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @addressBits, arg0
     ret v0
 }
 
+; function addressBits(address value) internal pure returns (uint256 result)
 fn @addressBits(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
     ret v0
 }
 
+; function observeDirty(uint256 word) external pure returns (uint256) [selector 0xd14495e8]
 fn @observeDirty(arg0: i256) -> i256 [selector=0xd14495e8, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @rawBits, arg0
     ret v0
 }
 
+; function rawBits(address value) internal pure returns (uint256 result)
 fn @rawBits(arg0: i256) -> i256 [pure] {
   bb0:
     ret arg0
 }
 
+; function cleanBool(bool value) external pure returns (uint256) [selector 0x6a54e09a]
 fn @cleanBool(arg0: i256) -> i256 [selector=0x6a54e09a, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @boolBit, arg0
     ret v0
 }
 
+; function dirtyBool(uint256 word) external pure returns (uint256) [selector 0x121fbc13]
 fn @dirtyBool(arg0: i256) -> i256 [selector=0x121fbc13, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @boolBit, arg0
     ret v0
 }
 
+; function boolBit(bool value) internal pure returns (uint256 result)
 fn @boolBit(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = and arg0, 1
     ret v0
 }
 
+; function narrow(uint256 word) external pure returns (uint256) [selector 0x0ebb6188]
 fn @narrow(arg0: i256) -> i256 [selector=0x0ebb6188, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = trunc i256 arg0 to i8
@@ -147,12 +168,14 @@ fn @narrow(arg0: i256) -> i256 [selector=0x0ebb6188, pure, abi_params=[uint256],
     ret v1
 }
 
+; function forward(uint8 value) internal pure returns (uint256)
 fn @forward(arg0: i8) -> i256 [pure] {
   bb0:
     v0 = zext i8 arg0 to i256
     ret v0
 }
 
+; function recurse(uint256 word, uint256 depth) external pure returns (uint256) [selector 0x0dac78c4]
 fn @recurse(arg0: i256, arg1: i256) -> i256 [selector=0x0dac78c4, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = gt arg1, 4
@@ -164,17 +187,18 @@ fn @recurse(arg0: i256, arg1: i256) -> i256 [selector=0x0dac78c4, pure, abi_para
     ret v4
 }
 
+; function recursive(uint8 value, uint256 depth) internal pure returns (uint256)
 fn @recursive(arg0: i8, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = eq arg1, 0
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     v2 = checked_sub uint256, arg1, 1
     v3 = icall @recursive, arg0, v2
     ret v3
-  bb1:
+  bb1:  ; preds = bb0
     v1 = zext i8 arg0 to i256
     ret v1
 }

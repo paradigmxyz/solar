@@ -1,23 +1,25 @@
 // === ROOT/tests/ui/codegen/mir/loop-unroll/complete_loops.sol:CompleteLoops ===
 @module CompleteLoops
 @phase lowered
+; runtime dispatch entry
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
     v1 = ne v0, 0
     jumpi v1, bb4, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v2 = calldataload 0
     v3 = shr v2, 224
     switch v3, default bb4, [0x540a714 => bb2, 0xe5c5e9a3 => bb3]
-  bb3:
+  bb3:  ; preds = bb1
     tail_call @decode
-  bb2:
+  bb2:  ; preds = bb1
     tail_call @sum4
-  bb4 [cold]:
+  bb4 [cold]:  ; preds = bb0, bb1
     revert 0, 0
 }
 
+; function u32(bytes calldata data, uint256 start) internal pure returns (uint32 value, uint256 offset)
 fn @u32(arg0: i256, arg1: i256) [pure, return_abi=[i256, i256]] {
   bb0:
     v40 = lt 0, arg1
@@ -46,9 +48,9 @@ fn @u32(arg0: i256, arg1: i256) [pure, return_abi=[i256, i256]] {
     v73 = lt 3, arg1
     v81 = and v80, v73
     jumpi v81, bb2, bb1
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0
     tail_call @revert_stub
-  bb2:
+  bb2:  ; preds = bb0
     v74 = add arg0, 3
     v75 = calldataload v74
     v76 = byte 0, v75
@@ -56,6 +58,7 @@ fn @u32(arg0: i256, arg1: i256) [pure, return_abi=[i256, i256]] {
     ret v77, 4
 }
 
+; function u16(bytes calldata data, uint256 start) internal pure returns (uint16 value, uint256 offset)
 fn @u16(arg0: i256, arg1: i256, arg2: i256) [pure, return_abi=[i256, i256]] {
   bb0:
     v41 = lt arg2, arg1
@@ -69,9 +72,9 @@ fn @u16(arg0: i256, arg1: i256, arg2: i256) [pure, return_abi=[i256, i256]] {
     v54 = lt v46, arg1
     v61 = and v41, v54
     jumpi v61, bb2, bb1
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0
     tail_call @revert_stub
-  bb2:
+  bb2:  ; preds = bb0
     v59 = add v46, 1
     v55 = add arg0, v46
     v56 = calldataload v55
@@ -80,6 +83,7 @@ fn @u16(arg0: i256, arg1: i256, arg2: i256) [pure, return_abi=[i256, i256]] {
     ret v58, v59
 }
 
+; function decode(bytes calldata data) external pure returns (uint32 a, uint16 b) [selector 0xe5c5e9a3]
 fn @decode() [selector=0xe5c5e9a3, abi_wrapper, pure] {
   bb0:
     v8 = calldatasize
@@ -95,7 +99,7 @@ fn @decode() [selector=0xe5c5e9a3, abi_wrapper, pure] {
     v19 = or v14, v18
     v42 = or v9, v19
     jumpi v42, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v27 = icall @u32, v16, v15
     v35 = mload 32 !metadata(memory=scratch)
     v29 = add v35, 32
@@ -104,16 +108,17 @@ fn @decode() [selector=0xe5c5e9a3, abi_wrapper, pure] {
     mstore 0, v27
     mstore 32, v31
     returndata 0, 64
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
+; function sum4(uint256[4] calldata values) external pure returns (uint256 total) [selector 0x0540a714]
 fn @sum4() [selector=0x0540a714, abi_wrapper, pure] {
   bb0:
     v33 = calldatasize
     v34 = lt v33, 132
     jumpi v34, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb0
     v78 = calldataload 4
     v79 = add 0, v78
     v87 = calldataload 36
@@ -128,14 +133,14 @@ fn @sum4() [selector=0x0540a714, abi_wrapper, pure] {
     v107 = lt v106, v97
     v110 = or v109, v107
     jumpi v110, bb1, bb4
-  bb4:
+  bb4:  ; preds = bb3
     mstore 0, v106
     returndata 0, 32
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb3
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb2 [cold]:
+  bb2 [cold]:  ; preds = bb0
     revert 0, 0
 }
 

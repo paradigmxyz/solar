@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256, i256, i256}
 
+; function f( uint256[][2][] calldata values, uint256 i, uint256 j, uint256 k ) external pure returns (uint256 a, uint256 b, uint256 c, uint256 d) [selector 0xe272a16e]
 fn @f(arg0: slice<calldata>, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector=0xe272a16e, pure, abi_params=[array<_, array<2, array<_, uint256>>>, uint256, uint256, uint256], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1

@@ -3,18 +3,21 @@
 @types
   struct0: {i256, i256}
 
+; function simple() external pure returns (uint256 result) [selector 0xdf201a46]
 fn @simple() -> i256 [selector=0xdf201a46, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @value.4
     ret v0
 }
 
+; function conditional(uint256 condition) external pure returns (uint256 result) [selector 0xd28ac8d6]
 fn @conditional(arg0: i256) -> i256 [selector=0xd28ac8d6, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @value.5, arg0
     ret v0
 }
 
+; function multiple() external pure returns (uint256 first, uint256 second) [selector 0x437a8ae6]
 fn @multiple() -> struct0 [selector=0x437a8ae6, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall @values
@@ -25,29 +28,33 @@ fn @multiple() -> struct0 [selector=0x437a8ae6, pure, abi_params=[], abi_returns
     ret v4
 }
 
+; function fallthrough() external pure returns (uint256 result) [selector 0xb3afd11d]
 fn @fallthrough() -> i256 [selector=0xb3afd11d, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @value.7
     ret v0
 }
 
+; function value() -> output
 fn @value.4() -> i256 {
   bb0:
     ret 2
 }
 
+; function value(flag) -> output
 fn @value.5(arg0: i256) -> i256 {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     ret 9
-  bb1:
+  bb1:  ; preds = bb0
     ret 2
 }
 
+; function values() -> a, b
 fn @values() -> struct0 {
   bb0:
     v0 = insert_value struct0, undef struct0, 0, 2
@@ -55,6 +62,7 @@ fn @values() -> struct0 {
     ret v1
 }
 
+; function value() -> output
 fn @value.7() -> i256 {
   bb0:
     ret 9
