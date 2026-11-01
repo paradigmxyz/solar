@@ -9,15 +9,14 @@
 //! 1. copies the original into a fresh internal function `f.body` with its parameter list preserved
 //!    when there are internal callers; in gas mode, a function with three or more dynamic
 //!    parameters also keeps a copy of the body inline in its wrapper, and
-//! 2. strips `f`'s MIR parameter list, keeping its selector and its `Value::Arg` entries. Scalar
-//!    arguments remain lazy ABI head words (up to `MAX_LAZY_ARG_WORDS`), calldata aggregates become
-//!    `slice<calldata>` values over their validated encoding until `lower-slices` projects their
-//!    pointer and length, and memory aggregates decode into fresh memory objects. Value-carrying
-//!    returns are ABI-encoded according to the function's return layout and terminate with
-//!    `returndata`.
+//! 2. strips `f`'s MIR parameter list, keeping its selector. Scalar arguments load their ABI head
+//!    word from the input, calldata aggregates become `slice<calldata>` values over their validated
+//!    encoding until `lower-slices` projects their pointer and length, and memory aggregates decode
+//!    into fresh memory objects. Value-carrying returns are ABI-encoded according to the function's
+//!    return layout and terminate with `returndata`.
 //!
-//! The wrapper keeps argument materialization lazy so values used after a
-//! branch can still be rematerialized instead of spilled. Dynamic return
+//! The head-word loads are ordinary instructions, so passes treat them like any other calldata
+//! read and the backend decides where to push them. Dynamic return
 //! encoding becomes a semantic `abi_encode_scratch` operation here and lowers later;
 //! static returns use the fixed low-memory return buffer directly. A returned memory
 //! aggregate is encoded as it is when its return layout gives every narrow word a
@@ -75,10 +74,8 @@
 //! becomes `returndatacopy` of the whole returndata followed by a revert of its size. Before
 //! Byzantium, which lacks `returndatasize`, it becomes an empty revert.
 //!
-//! The module-wide `call_cleanup` runs once at the end, after every wrapper exists. It treats
-//! the argument words a wrapper validated, recorded while its prologue was built, as already
-//! cleaned to the bits their validator checks, and infers the other arguments and returns from
-//! call sites and bodies as usual.
+//! The module-wide `call_cleanup` runs once at the end, after every wrapper exists. It infers
+//! the arguments and returns of internal functions from call sites and bodies.
 //!
 //! A returned value skips its cleanup when it is proved canonical: an unmodified validated input
 //! word, a scalar whose bits the body proves, or a memory aggregate whose words are proved
@@ -114,12 +111,6 @@ use solar_data_structures::{
 };
 use solar_interface::{Ident, Span, Symbol, sym};
 use std::sync::Arc;
-
-/// Head words that scalar parameters address as lazy arguments.
-///
-/// Lazy arguments index a dense per-word table, so a scalar behind a huge static array loads
-/// its word explicitly instead of growing the table with the array.
-const MAX_LAZY_ARG_WORDS: u64 = 1 << 16;
 
 /// Materializes explicit ABI entries and decoding.
 pub(crate) struct LowerAbi;
@@ -177,7 +168,6 @@ struct LowerAbiCx {
     aggregate_type_helpers: FxHashMap<AbiParamType, FunctionId>,
     calldata_slice_helper: Option<FunctionId>,
     function_params: IndexVec<FunctionId, Vec<MirType>>,
-    validated_abi_arguments: super::call_cleanup::ArgumentBits,
     /// How compiler-generated decoding reverts are encoded.
     revert_strings: RevertStrings,
 }
@@ -344,9 +334,10 @@ impl LowerAbiCx {
         let hoist_callvalue = !module.is_library && callvalue.hoists();
 
         for id in constructors {
-            let layout = module.function_mut(id).abi_params.take();
+            let layout = Self::input_layout(module.function_mut(id));
             self.inject_abi_prologue(module.function_mut(id), layout.as_ref(), true);
             Self::clear_abi_inputs(module.function_mut(id));
+            module.function_mut(id).clear_params();
         }
         if let Some(id) = rejecting_constructor {
             self.inject_callvalue_check(module.function_mut(id));
@@ -394,19 +385,12 @@ impl LowerAbiCx {
         }
 
         mark_abi_wrappers(module);
-        let argument_bits =
-            |func: &Function, id, index, facts: &super::call_cleanup::ArgumentBits| {
-                self.validated_abi_arguments
-                    .get(&(id, index))
-                    .copied()
-                    .unwrap_or_else(|| super::call_cleanup::argument_bits(func, id, index, facts))
-            };
-        let facts = super::call_cleanup::infer_arguments_with(module, argument_bits);
+        let facts = super::call_cleanup::infer_arguments(module);
         let returns = super::call_cleanup::infer_returns(module);
         for (id, func) in module.functions.iter_mut_enumerated() {
             super::call_cleanup::cleanup(
                 func,
-                |func, index| argument_bits(func, id, index, &facts),
+                |func, index| super::call_cleanup::argument_bits(func, id, index, &facts),
                 &returns,
             );
         }
@@ -960,30 +944,13 @@ impl LowerAbiCx {
             && needs_body
             && Self::can_call_body(&original, original.abi_params.as_ref())
             && original_entry_inst.is_some();
-        let abi_params = original.abi_params.clone();
+        let abi_params = Self::input_layout(&original);
         // The copy must precede wrapper mutation and callvalue injection so
         // internal callers keep the original function semantics.
         let body_id = needs_body.then(|| module.add_function(Self::internal_body(&original)));
 
         let logical_values =
             self.inject_abi_prologue(module.function_mut(wrapper_id), abi_params.as_ref(), false);
-        self.validated_abi_arguments.extend(
-            abi_params
-                .as_ref()
-                .into_iter()
-                .flat_map(|layout| layout.types.iter().zip(&logical_values))
-                .filter_map(|(ty, value)| {
-                    let Value::Arg(index) = module.function(wrapper_id).value((*value)?) else {
-                        return None;
-                    };
-                    let bits = match ty.word_validator()? {
-                        AbiWordValidator::Unsigned(bits) => u32::from(bits),
-                        AbiWordValidator::Bool => 1,
-                        _ => return None,
-                    };
-                    Some(((wrapper_id, *index), bits))
-                }),
-        );
         // A wrapper that keeps its body in place returns values computed from these
         // decoded parameters; one that calls the body returns the call's results instead.
         let decoded_params = if call_body { Vec::new() } else { logical_values.clone() };
@@ -1051,13 +1018,26 @@ impl LowerAbiCx {
             &decoded_params,
         );
 
-        // External wrappers take no MIR arguments; constructor parameters
-        // retain their physical ABI head words for deployment codegen.
+        // External wrappers take no MIR arguments.
         let wrapper = module.function_mut(wrapper_id);
-        wrapper.params.clear();
+        wrapper.clear_params();
         wrapper.set_return_type(MirType::Void);
         Self::clear_abi_metadata(wrapper);
         body_id
+    }
+
+    /// The function's input layout, or one word per parameter for parsed MIR that has none.
+    fn input_layout(func: &Function) -> Option<AbiParamLayout> {
+        func.abi_params.clone().or_else(|| {
+            (!func.params.is_empty()).then(|| {
+                AbiParamLayout::new(
+                    func.params
+                        .iter()
+                        .map(|ty| AbiParamType::Scalar(ty.value_layout()))
+                        .collect::<Box<[_]>>(),
+                )
+            })
+        })
     }
 
     fn can_call_body(func: &Function, abi_params: Option<&AbiParamLayout>) -> bool {
@@ -1227,45 +1207,9 @@ impl LowerAbiCx {
         let old_entry = BlockId::ENTRY;
         let arg_uses = func.arg_uses();
         let abi_param_locations = func.abi_param_locations.take();
-        let mut logical_values = Vec::new();
         let mut replacements = FxHashMap::default();
-        if let Some(layout) = abi_params {
-            let mut head_offset = 0_u64;
-            let mut logical_physical = Vec::with_capacity(layout.types.len());
-            for ty in &layout.types {
-                let word = head_offset / 32;
-                logical_physical.push(
-                    (ty.is_scalar_word() && word < MAX_LAZY_ARG_WORDS)
-                        .then(|| ArgIdx::new(word as usize)),
-                );
-                head_offset += abi_head_size(ty);
-            }
-            // The table also keeps the original arguments, whose stale `Value::Arg`s
-            // stay typed.
-            let num_params =
-                ((head_offset / 32).min(MAX_LAZY_ARG_WORDS) as usize).max(arg_types.len());
-            // ABI words can contain sign bits above the native integer width.
-            let mut params = (0..num_params).map(|_| MirType::I256).collect::<IndexVec<_, _>>();
-            for (logical, physical) in logical_physical.iter().enumerate() {
-                if let Some(physical) = *physical
-                    && let Some(&ty) = arg_types.get(logical)
-                    && layout.types[logical].mir_type() == ty
-                    && matches!(
-                        layout.types[logical],
-                        AbiParamType::Scalar(
-                            ValueLayout::Bool | ValueLayout::UInt(_) | ValueLayout::Address
-                        )
-                    )
-                {
-                    params[physical] = ty;
-                }
-            }
-            func.set_params(params);
-            logical_values = logical_physical
-                .into_iter()
-                .map(|index| index.map(|index| func.alloc_arg(index)))
-                .collect::<Vec<_>>();
-        }
+        let mut logical_values =
+            abi_params.map_or_else(Vec::new, |layout| vec![None; layout.types.len()]);
         let guard = {
             let mut builder = self.builder(func);
             let guard = builder.create_block();
@@ -1302,23 +1246,21 @@ impl LowerAbiCx {
                     .and_then(AbiParamType::word_validator)
                     .or_else(|| AbiWordValidator::from_layout(ty.value_layout()));
                 head_offset += abi_type.map_or(32, abi_head_size);
-                // A scalar without a lazy argument takes the word it is validated against.
-                let eager = abi_type.is_some_and(AbiParamType::is_scalar_word)
-                    && logical_values.get(index).is_some_and(Option::is_none);
-                if validator.is_none() && !eager {
+                // A scalar takes the word it is validated against.
+                let scalar = abi_type.is_some_and(AbiParamType::is_scalar_word);
+                if validator.is_none() && !scalar {
                     continue;
                 }
                 builder.switch_to_block(current);
-                // `Value::Arg` values carry the canonicality invariant that this
-                // guard establishes. Read the raw input word so an optimizer
-                // cannot fold the check away before it runs.
+                // Read the raw input word so an optimizer cannot fold the check away before it
+                // runs.
                 let offset = if constructor {
                     builder.add_u64_offset(input_base, head_offset - 32)
                 } else {
                     builder.imm(4 + head_offset - 32)
                 };
                 let word = Self::load_input_word(&mut builder, offset, constructor);
-                if eager {
+                if scalar {
                     logical_values[index] = Some(word);
                 }
                 let Some(validator) = validator else { continue };
@@ -1428,11 +1370,25 @@ impl LowerAbiCx {
                 {
                     let mut replacement = raw;
                     if let Some(&ty) = arg_types.get(logical)
-                        && matches!(ty, MirType::Int(bits) if bits.get() < 256)
+                        && let Some(bits) = ty.integer_bits()
+                        && bits < 256
                     {
-                        // value = cast raw to the declared scalar type
-                        replacement = builder.cast(raw, ty);
+                        // value = trunc raw to the declared scalar type; the guard checked that
+                        // the word is in range, so a bool word is already 0 or 1
+                        replacement = builder.emit_inst(InstKind::Trunc(raw, bits), Some(ty));
                         *value = Some(replacement);
+                    } else if let AbiParamType::Scalar(layout) = abi_ty
+                        && matches!(
+                            abi_ty.word_validator(),
+                            Some(AbiWordValidator::Unsigned(_) | AbiWordValidator::Bool)
+                        )
+                        && let ty = layout.mir_type()
+                        && let Some(bits) = ty.integer_bits()
+                    {
+                        // value = zext (trunc raw to the declared type) to i256, so the width the
+                        // guard checked is visible to the passes that carry widths across calls
+                        let narrow = builder.emit_inst(InstKind::Trunc(raw, bits), Some(ty));
+                        replacement = builder.cast(narrow, MirType::I256);
                     }
                     if matches!(abi_ty, AbiParamType::Scalar(ValueLayout::Function)) {
                         // value = shr value, 64
@@ -2815,18 +2771,22 @@ fn find_canonical_return_calls(
     candidates
 }
 
-fn canonical_input_for_arg<'a>(
+/// The scalar input whose validated head word `value` loads unchanged.
+fn canonical_input_for_word<'a>(
     func: &Function,
     value: ValueId,
     input_params: Option<&'a AbiParamLayout>,
 ) -> Option<&'a AbiParamType> {
-    let Value::Arg(index) = func.value(value) else { return None };
-    let mut physical = 0;
+    let Some(InstKind::Load(address, PtrLocation::Calldata)) = func.value_inst_kind(value) else {
+        return None;
+    };
+    let head = func.value_u64(*address)?.checked_sub(4)?;
+    let mut offset = 0;
     for ty in input_params?.types.iter() {
-        if ty.is_scalar_word() && physical == index.index() {
+        if ty.is_scalar_word() && offset == head {
             return Some(ty);
         }
-        physical += (abi_head_size(ty) / EvmMemoryLayout::WORD_SIZE) as usize;
+        offset += abi_head_size(ty);
     }
     None
 }
@@ -2894,7 +2854,7 @@ fn is_canonical_return_value_inner(
     let value = if ty.is_scalar_word() { value } else { returned_object_root(func, value) };
     if !ty.needs_return_cleanup()
         || (source == ReturnValueSource::Scalar
-            && canonical_input_for_arg(func, value, input_params)
+            && canonical_input_for_word(func, value, input_params)
                 .is_some_and(|input| canonical_input_covers_return(input, ty)))
     {
         return true;

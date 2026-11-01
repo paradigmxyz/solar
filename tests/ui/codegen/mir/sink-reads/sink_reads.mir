@@ -1,0 +1,114 @@
+//@compile-flags: -Zmir-pipeline=sink-reads
+//@filecheck:
+@module SinkReads
+@phase lowered
+
+// The guard keeps its read; the body reads its own copy where the body starts.
+// CHECK-LABEL: {{^[ +].*}}after sink-reads
+// CHECK: fn @guarded()
+// CHECK: [[GUARD:v[0-9]+]] = calldataload 4
+// CHECK: = shr [[GUARD]], 8
+// CHECK: + [[BODY:v[0-9]+]] = calldataload 4
+// CHECK: + mstore 0, [[BODY]]
+fn @guarded() [selector=0x00000001, abi_wrapper] {
+  bb0:
+    v0 = calldataload 4
+    v1 = shr v0, 8
+    v2 = ne v1, 0
+    jumpi v2, bb2, bb1
+  bb1:
+    mstore 0, v0
+    stop
+  bb2:
+    revert 0, 0
+}
+
+// A read in a loop sinks only to the block before the loop, never into it.
+// CHECK-LABEL: fn @looped()
+// CHECK: [[BOUND:v[0-9]+]] = calldataload 36
+// CHECK: + [[COPY:v[0-9]+]] = calldataload 36
+// CHECK: + {{v[0-9]+}} = lt {{v[0-9]+}}, [[COPY]]
+fn @looped() [selector=0x00000002, abi_wrapper] {
+  bb0:
+    v0 = calldataload 36
+    v1 = calldatasize
+    v5 = ne v1, 0
+    jumpi v5, bb2, bb1
+  bb1:
+    jump bb3
+  bb3:
+    v2 = phi [bb1: 0], [bb4: v4]
+    v3 = lt v2, v0
+    jumpi v3, bb4, bb2
+  bb4:
+    v4 = add v2, 1
+    jump bb3
+  bb2:
+    stop
+}
+
+// Reads outside the entry block stay where they are.
+// CHECK-LABEL: fn @elsewhere()
+// CHECK-NOT: + {{v[0-9]+}} = calldataload
+fn @elsewhere() [selector=0x00000003, abi_wrapper] {
+  bb0:
+    v0 = calldatasize
+    v2 = ne v0, 0
+    jumpi v2, bb1, bb2
+  bb1:
+    v1 = calldataload 4
+    v3 = ne v1, 0
+    jumpi v3, bb3, bb2
+  bb3:
+    mstore 0, v1
+    stop
+  bb2:
+    stop
+}
+
+// Phi inputs read on the edge from their predecessors, so the copy goes to the block above both
+// arms rather than the entry.
+// CHECK-LABEL: fn @diamond()
+// CHECK: [[GUARD:v[0-9]+]] = calldataload 4
+// CHECK: = shr [[GUARD]], 8
+// CHECK: bb1:
+// CHECK: + [[ARMS:v[0-9]+]] = calldataload 4
+// CHECK: = phi [bb2: [[ARMS]]], [bb3: [[ARMS]]]
+fn @diamond() [selector=0x00000004, abi_wrapper] {
+  bb0:
+    v0 = calldataload 4
+    v1 = shr v0, 8
+    v2 = ne v1, 0
+    jumpi v2, bb5, bb1
+  bb1:
+    v3 = calldatasize
+    v4 = ne v3, 0
+    jumpi v4, bb2, bb3
+  bb2:
+    jump bb4
+  bb3:
+    jump bb4
+  bb4:
+    v5 = phi [bb2: v0], [bb3: v0]
+    mstore 0, v5
+    stop
+  bb5:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = shr v0, 224
+    switch v1, default bb5, [1 => bb1, 2 => bb2, 3 => bb3, 4 => bb4]
+  bb1:
+    tail_call @guarded
+  bb2:
+    tail_call @looped
+  bb3:
+    tail_call @elsewhere
+  bb4:
+    tail_call @diamond
+  bb5:
+    revert 0, 0
+}

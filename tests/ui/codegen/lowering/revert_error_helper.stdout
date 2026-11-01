@@ -90,13 +90,14 @@ bb0:
   sub
   push bb7
   jumpi
+  push 6
   push 4
   calldataload
-  push 6
-  dup 2
   lt
   push bb10
   jumpi
+  push 4
+  calldataload
   push 0
   mstore
   push 32
@@ -127,13 +128,14 @@ bb23 [cold]:
   push 28
   revert
 bb11:
+  push 6
   push 4
   calldataload
-  push 6
-  dup 2
   lt
   push bb13
   jumpi
+  push 4
+  calldataload
   push 0
   mstore
   push 32
@@ -148,13 +150,14 @@ bb24 [cold]:
   push 11
   jump bb23
 bb14:
+  push 6
   push 4
   calldataload
-  push 6
-  dup 2
   lt
   push bb16
   jumpi
+  push 4
+  calldataload
   push 0
   mstore
   push 32
@@ -167,26 +170,28 @@ bb16 [cold]:
   push 15
   jump bb23
 bb17:
+  push 6
   push 4
   calldataload
-  push 6
-  dup 2
   lt
   push bb19
   jumpi
+  push 4
+  calldataload
   push 0
   mstore
   push 32
   push 0
   return
 bb20:
+  push 6
   push 4
   calldataload
-  push 6
-  dup 2
   lt
   push bb22
   jumpi
+  push 4
+  calldataload
   push 0
   mstore
   push 32

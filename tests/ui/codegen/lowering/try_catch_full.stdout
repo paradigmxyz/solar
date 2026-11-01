@@ -6,32 +6,33 @@
 
 fn @full() [selector=0xd17b272f, abi_wrapper, view] {
   bb0:
+    v72 = calldataload 4
     v0 = sload 0 !metadata(storage=slot(0))
     v2 = gas
-    v199 = heap_floor !metadata(alloc_ptr)
-    v200 = add v199, 64 !metadata(alloc_ptr)
-    mstore 64, v200 !metadata(memory=scratch)
-    mstore v199, 0xb3de648b00000000000000000000000000000000000000000000000000000000
-    v86 = add v199, 4
-    mstore v86, arg0
-    v7 = staticcall v2, v0, v199, 36, 0, 0
+    v200 = heap_floor !metadata(alloc_ptr)
+    v201 = add v200, 64 !metadata(alloc_ptr)
+    mstore 64, v201 !metadata(memory=scratch)
+    mstore v200, 0xb3de648b00000000000000000000000000000000000000000000000000000000
+    v87 = add v200, 4
+    mstore v87, v72
+    v7 = staticcall v2, v0, v200, 36, 0, 0
     jumpi v7, bb1, bb2
   bb2:
     v58 = returndatasize
     v59 = add v58, 63
     v62 = and v59, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v204 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v205 = add v204, v62 !metadata(alloc_ptr)
-    mstore 64, v205 !metadata(memory=scratch)
-    mstore v204, v58
-    v176 = add v204, 32
-    returndatacopy v176, 0, v58
-    v21 = mload v176
+    v205 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v206 = add v205, v62 !metadata(alloc_ptr)
+    mstore 64, v206 !metadata(memory=scratch)
+    mstore v205, v58
+    v177 = add v205, 32
+    returndatacopy v177, 0, v58
+    v21 = mload v177
     v22 = shr v21, 224
     v23 = eq v22, 0x8c379a0
     jumpi v23, bb3, bb5
   bb3:
-    v25 = icall @try_decode_error_message, v176, v58
+    v25 = icall @try_decode_error_message, v177, v58
     jumpi v25, bb4, bb5
   bb5:
     v34 = eq v22, 0x4e487b71
@@ -39,143 +40,144 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     v37 = and v34, v36
     jumpi v37, bb6, bb7
   bb7:
-    v210 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v149 = add v210, 64
-    mstore v210, 3
-    v151 = add v210, 32
-    mstore v151, 64
-    v154 = mload v204
-    v156 = add v154, 31
-    v157 = and v156, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v158 = add v149, 32
-    v159 = add v149, v157
-    mstore v159, 0
-    mstore v149, v154
-    v161 = add v158, v157
-    mcopy v158, v176, v154 !metadata(disjoint)
-    v163 = sub v161, v210
-    returndata v210, v163
+    v211 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v150 = add v211, 64
+    mstore v211, 3
+    v152 = add v211, 32
+    mstore v152, 64
+    v155 = mload v205
+    v157 = add v155, 31
+    v158 = and v157, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v159 = add v150, 32
+    v160 = add v150, v158
+    mstore v160, 0
+    mstore v150, v155
+    v162 = add v159, v158
+    mcopy v159, v177, v155 !metadata(disjoint)
+    v164 = sub v162, v211
+    returndata v211, v164
   bb6:
-    v182 = add v204, 36
-    v40 = mload v182
-    v207 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v208 = add v207, 64
-    mstore v207, 32
-    v184 = add v207, 32
-    mstore v184, v40
-    v130 = add v207, 128
-    mstore v208, 2
-    v132 = add v207, 96
-    mstore v132, 64
-    v139 = add v130, 32
-    mstore v139, 0
-    mstore v130, 32
-    mcopy v139, v184, 32 !metadata(disjoint)
-    returndata v208, 128
+    v183 = add v205, 36
+    v40 = mload v183
+    v208 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v209 = add v208, 64
+    mstore v208, 32
+    v185 = add v208, 32
+    mstore v185, v40
+    v131 = add v208, 128
+    mstore v209, 2
+    v133 = add v208, 96
+    mstore v133, 64
+    v140 = add v131, 32
+    mstore v140, 0
+    mstore v131, 32
+    mcopy v140, v185, 32 !metadata(disjoint)
+    returndata v209, 128
   bb4:
     v29 = sub v58, 4
-    v178 = add v204, 36
-    v69 = icall @decode_aggregate.4, v178, v29
-    v206 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v109 = add v206, 64
-    mstore v206, 1
-    v111 = add v206, 32
-    mstore v111, 64
-    v114 = mload v69
-    v116 = add v114, 31
-    v117 = and v116, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v118 = add v109, 32
-    v119 = add v109, v117
-    mstore v119, 0
-    mstore v109, v114
-    v121 = add v118, v117
-    v180 = add v69, 32
-    mcopy v118, v180, v114 !metadata(memory=heap, disjoint)
-    v123 = sub v121, v206
-    returndata v206, v123
+    v179 = add v205, 36
+    v69 = icall @decode_aggregate.4, v179, v29
+    v207 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v110 = add v207, 64
+    mstore v207, 1
+    v112 = add v207, 32
+    mstore v112, 64
+    v115 = mload v69
+    v117 = add v115, 31
+    v118 = and v117, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v119 = add v110, 32
+    v120 = add v110, v118
+    mstore v120, 0
+    mstore v110, v115
+    v122 = add v119, v118
+    v181 = add v69, 32
+    mcopy v119, v181, v115 !metadata(memory=heap, disjoint)
+    v124 = sub v122, v207
+    returndata v207, v124
   bb1:
     v48 = returndatasize
     v49 = add v48, 63
     v52 = and v49, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v201 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v202 = add v201, v52 !metadata(alloc_ptr)
-    mstore 64, v202 !metadata(memory=scratch)
-    mstore v201, v48
-    v172 = add v201, 32
-    returndatacopy v172, 0, v48
-    v166 = icall @decode_aggregate.5, v201
-    v170 = mload 32 !metadata(memory=scratch)
-    v168 = add v170, 32
-    v169 = mload v168
-    v203 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v90 = add v203, 64
-    mstore v203, v166
-    v92 = add v203, 32
-    mstore v92, 64
-    v95 = mload v169
-    v97 = add v95, 31
-    v98 = and v97, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v99 = add v90, 32
-    v100 = add v90, v98
-    mstore v100, 0
-    mstore v90, v95
-    v102 = add v99, v98
-    v174 = add v169, 32
-    mcopy v99, v174, v95 !metadata(memory=heap, disjoint)
-    v104 = sub v102, v203
-    returndata v203, v104
+    v202 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v203 = add v202, v52 !metadata(alloc_ptr)
+    mstore 64, v203 !metadata(memory=scratch)
+    mstore v202, v48
+    v173 = add v202, 32
+    returndatacopy v173, 0, v48
+    v167 = icall @decode_aggregate.5, v202
+    v171 = mload 32 !metadata(memory=scratch)
+    v169 = add v171, 32
+    v170 = mload v169
+    v204 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v91 = add v204, 64
+    mstore v204, v167
+    v93 = add v204, 32
+    mstore v93, 64
+    v96 = mload v170
+    v98 = add v96, 31
+    v99 = and v98, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v100 = add v91, 32
+    v101 = add v91, v99
+    mstore v101, 0
+    mstore v91, v96
+    v103 = add v100, v99
+    v175 = add v170, 32
+    mcopy v100, v175, v96 !metadata(memory=heap, disjoint)
+    v105 = sub v103, v204
+    returndata v204, v105
 }
 
 fn @rethrows() [selector=0x0d7fadfb, abi_wrapper, view] {
   bb0:
+    v55 = calldataload 4
     v0 = sload 0 !metadata(storage=slot(0))
     v2 = gas
-    v76 = heap_floor !metadata(alloc_ptr)
-    v77 = add v76, 64 !metadata(alloc_ptr)
-    mstore 64, v77 !metadata(memory=scratch)
-    mstore v76, 0xb3de648b00000000000000000000000000000000000000000000000000000000
-    v58 = add v76, 4
-    mstore v58, arg0
-    v7 = staticcall v2, v0, v76, 36, 0, 0
+    v77 = heap_floor !metadata(alloc_ptr)
+    v78 = add v77, 64 !metadata(alloc_ptr)
+    mstore 64, v78 !metadata(memory=scratch)
+    mstore v77, 0xb3de648b00000000000000000000000000000000000000000000000000000000
+    v59 = add v77, 4
+    mstore v59, v55
+    v7 = staticcall v2, v0, v77, 36, 0, 0
     jumpi v7, bb1, bb2
   bb2:
     v41 = returndatasize
     v42 = add v41, 63
     v45 = and v42, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v80 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v81 = add v80, v45 !metadata(alloc_ptr)
-    mstore 64, v81 !metadata(memory=scratch)
-    mstore v80, v41
-    v67 = add v80, 32
-    returndatacopy v67, 0, v41
-    v19 = mload v67
+    v81 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v82 = add v81, v45 !metadata(alloc_ptr)
+    mstore 64, v82 !metadata(memory=scratch)
+    mstore v81, v41
+    v68 = add v81, 32
+    returndatacopy v68, 0, v41
+    v19 = mload v68
     v20 = shr v19, 224
     v21 = eq v20, 0x8c379a0
     jumpi v21, bb4, bb6
   bb4:
-    v23 = icall @try_decode_error_message, v67, v41
+    v23 = icall @try_decode_error_message, v68, v41
     jumpi v23, bb5, bb6
   bb6:
-    revert v67, v41
+    revert v68, v41
   bb5:
     v27 = sub v41, 4
-    v69 = add v80, 36
-    v52 = icall @decode_aggregate.4, v69, v27
+    v70 = add v81, 36
+    v52 = icall @decode_aggregate.4, v70, v27
     jump bb3
   bb1:
     v31 = returndatasize
     v32 = add v31, 63
     v35 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v78 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v79 = add v78, v35 !metadata(alloc_ptr)
-    mstore 64, v79 !metadata(memory=scratch)
-    mstore v78, v31
-    v65 = add v78, 32
-    returndatacopy v65, 0, v31
-    v60 = icall @decode_aggregate.5, v78
+    v79 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v80 = add v79, v35 !metadata(alloc_ptr)
+    mstore 64, v80 !metadata(memory=scratch)
+    mstore v79, v31
+    v66 = add v79, 32
+    returndatacopy v66, 0, v31
+    v61 = icall @decode_aggregate.5, v79
     jump bb3
   bb3:
-    v30 = phi [bb1: v60], [bb5: 1]
+    v30 = phi [bb1: v61], [bb5: 1]
     mstore 0, v30 !metadata(memory=scratch)
     returndata 0, 32
 }

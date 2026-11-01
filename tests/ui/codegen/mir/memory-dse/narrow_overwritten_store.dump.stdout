@@ -10,13 +10,15 @@ fn @hashU8() [selector=0xe99643f7, abi_wrapper, pure] {
     v7 = shr v6, 8
     v4 = calldatasize
     v5 = lt v4, 68
-    v10 = zext i1 v5 to i256
-    v11 = or v10, v7
-    v12 = ne v11, 0
-    jumpi v12, bb1, bb2
+    v13 = zext i1 v5 to i256
+    v14 = or v13, v7
+    v15 = ne v14, 0
+    jumpi v15, bb1, bb2
   bb2:
-    mstore8 0, arg0
-    mstore 1, arg1
+    v9 = calldataload 36
+    v16 = calldataload 4
+    mstore8 0, v16
+    mstore 1, v9
     v3 = keccak256 0, 33 !metadata(memory=scratch)
     mstore 0, v3 !metadata(memory=scratch)
     returndata 0, 32
@@ -30,8 +32,10 @@ fn @hashWide() [selector=0xcdd7e94c, abi_wrapper, pure] {
     v3 = lt v2, 68
     jumpi v3, bb1, bb2
   bb2:
-    mstore8 128, arg0
-    mstore 129, arg1
+    v5 = calldataload 36
+    v4 = calldataload 4
+    mstore8 128, v4
+    mstore 129, v5
     v1 = keccak256 128, 33
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
@@ -45,8 +49,9 @@ fn @hashConst() [selector=0x227e2968, abi_wrapper, pure] {
     v3 = lt v2, 36
     jumpi v3, bb1, bb2
   bb2:
+    v4 = calldataload 4
     mstore8 128, 97
-    mstore 129, arg0
+    mstore 129, v4
     v1 = keccak256 128, 33
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
@@ -60,12 +65,14 @@ fn @tailRead() [selector=0x8c0dcc20, abi_wrapper, pure] {
     v5 = lt v4, 68
     jumpi v5, bb1, bb2
   bb2:
+    v6 = calldataload 4
+    v7 = calldataload 36
     mstore 160, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v2 = shl arg0, 248
+    v2 = shl v6, 248
     mstore 128, v2
     v3 = mload 129
     mstore 192, v3
-    mstore 129, arg1
+    mstore 129, v7
     returndata 192, 32
   bb1:
     revert 0, 0
@@ -77,8 +84,9 @@ fn @literal() [selector=0x41d012fd, abi_wrapper, pure] {
     v1 = lt v0, 36
     jumpi v1, bb1, bb2
   bb2:
+    v2 = calldataload 4
     mstore 128, 0x6100000000000000000000000000000000000000000000000000000000000000
-    mstore 160, arg0
+    mstore 160, v2
     returndata 128, 64
   bb1:
     revert 0, 0

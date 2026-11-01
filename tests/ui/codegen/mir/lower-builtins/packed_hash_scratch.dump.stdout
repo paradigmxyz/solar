@@ -3,17 +3,19 @@
 @phase lowered
 fn @threeItems() [selector=0x6e13fa5d, abi_wrapper, pure] {
   bb0:
-    v9 = calldataload 36
-    v10 = shr v9, 160
+    v10 = calldataload 36
+    v11 = shr v10, 160
     v7 = calldatasize
     v8 = lt v7, 68
-    v13 = zext i1 v8 to i256
-    v14 = or v13, v10
-    v15 = ne v14, 0
-    jumpi v15, bb1, bb2
+    v16 = zext i1 v8 to i256
+    v17 = or v16, v11
+    v18 = ne v17, 0
+    jumpi v18, bb1, bb2
   bb2:
-    mstore 0, arg0
-    v4 = shl arg1, 64
+    v20 = calldataload 36
+    v19 = calldataload 4
+    mstore 0, v19
+    v4 = shl v20, 64
     v5 = or v4, 0xee9853bb00000000000000000000000000000000000000000000000000000000
     mstore 32, v5 !metadata(memory=scratch)
     v6 = keccak256 0, 56 !metadata(memory=scratch)
@@ -25,17 +27,19 @@ fn @threeItems() [selector=0x6e13fa5d, abi_wrapper, pure] {
 
 fn @twoItems() [selector=0x658c946c, abi_wrapper, pure] {
   bb0:
-    v9 = calldataload 36
-    v10 = shr v9, 160
+    v10 = calldataload 36
+    v11 = shr v10, 160
     v7 = calldatasize
     v8 = lt v7, 68
-    v13 = zext i1 v8 to i256
-    v14 = or v13, v10
-    v15 = ne v14, 0
-    jumpi v15, bb1, bb2
+    v16 = zext i1 v8 to i256
+    v17 = or v16, v11
+    v18 = ne v17, 0
+    jumpi v18, bb1, bb2
   bb2:
-    mstore 0, arg0
-    v1 = or arg1, 0xee9853bb0000000000000000000000000000000000000000
+    v20 = calldataload 36
+    v1 = or v20, 0xee9853bb0000000000000000000000000000000000000000
+    v19 = calldataload 4
+    mstore 0, v19
     v5 = shl v1, 64
     mstore 32, v5 !metadata(memory=scratch)
     v6 = keccak256 0, 56 !metadata(memory=scratch)
@@ -47,23 +51,26 @@ fn @twoItems() [selector=0x658c946c, abi_wrapper, pure] {
 
 fn @tooLong() [selector=0x70126c55, abi_wrapper, pure] {
   bb0:
-    v11 = calldataload 68
-    v12 = shr v11, 32
+    v13 = calldataload 68
+    v14 = shr v13, 32
     v9 = calldatasize
     v10 = lt v9, 100
-    v18 = zext i1 v10 to i256
-    v19 = or v18, v12
-    v20 = ne v19, 0
-    jumpi v20, bb1, bb2
+    v22 = zext i1 v10 to i256
+    v23 = or v22, v14
+    v24 = ne v23, 0
+    jumpi v24, bb1, bb2
   bb2:
-    v17 = heap_floor !metadata(alloc_ptr)
-    mstore v17, arg0
-    v3 = add v17, 32
-    mstore v3, arg1
-    v5 = shl arg2, 224
-    v7 = add v17, 64
+    v27 = calldataload 68
+    v26 = calldataload 36
+    v25 = calldataload 4
+    v20 = heap_floor !metadata(alloc_ptr)
+    mstore v20, v25
+    v3 = add v20, 32
+    mstore v3, v26
+    v5 = shl v27, 224
+    v7 = add v20, 64
     mstore v7, v5
-    v8 = keccak256 v17, 68
+    v8 = keccak256 v20, 68
     mstore 0, v8 !metadata(memory=scratch)
     returndata 0, 32
   bb1:

@@ -26,15 +26,14 @@ bb0:
   codesize
   sub
   add
-  swap 1
   push 32
+  dup 3
   add
   gt
   callvalue
   or
   push bb19
   jumpi
-  push 192
   mload
   dup 1
   push 0x87d912cb

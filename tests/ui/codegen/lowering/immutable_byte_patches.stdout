@@ -36,43 +36,39 @@ bb0:
   jumpi
   dup 1
   mload
+  dup 1
   push 8
   shr
   push bb5
   jumpi
   push 32
-  dup 2
+  dup 3
   add
   mload
   dup 1
   push 0
   signextend
+  dup 2
   sub
   push bb5
   jumpi
+  swap 2
   push 64
   add
   mload
+  dup 1
   push 8
   shl
   push bb5
   jumpi
-  push 288
-  mload
+  swap 2
+  push 255
+  and
+  swap 1
   push 192
   mstore
-  push 255
-  push 320
-  mload
-  and
   push 224
   mstore
-  push 255
-  push 248
-  shl
-  push 352
-  mload
-  and
   push 256
   mstore
   push 50

@@ -3,33 +3,35 @@
 @phase lowered
 fn @fill() [selector=0xb4f7766b, abi_wrapper, pure] {
   bb0:
-    v39 = calldataload 68
-    v40 = shl v39, 8
+    v40 = calldataload 68
+    v41 = shl v40, 8
     v37 = calldatasize
     v38 = lt v37, 100
-    v59 = zext i1 v38 to i256
-    v60 = or v59, v40
-    v61 = ne v60, 0
-    jumpi v61, bb10, bb11
+    v60 = zext i1 v38 to i256
+    v61 = or v60, v41
+    v62 = ne v61, 0
+    jumpi v62, bb10, bb11
   bb11:
-    v42 = icall @decode_calldata_type
-    mstore v42, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v16 = byte 0, arg2
+    v64 = calldataload 68
+    v63 = calldataload 36
+    v43 = icall @decode_calldata_type
+    mstore v43, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v16 = byte 0, v64
     v17 = mul v16, 0x101010101010101010101010101010101010101010101010101010101010101
-    v53 = add v42, arg1
-    v54 = add v53, 32
-    v56 = add v42, 32
-    v23 = lt v54, v56
+    v54 = add v43, v63
+    v55 = add v54, 32
+    v57 = add v43, 32
+    v23 = lt v55, v57
     jumpi v23, bb1, bb4
   bb4:
-    v27 = gt arg1, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd
+    v27 = gt v63, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd
     jumpi v27, bb5, bb7
   bb7:
-    v31 = mload v54
-    v46 = xor v31, v17
-    v47 = and v46, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v34 = xor v17, v47
-    mstore v54, v34
+    v31 = mload v55
+    v47 = xor v31, v17
+    v48 = and v47, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v34 = xor v17, v48
+    mstore v55, v34
     jump bb2
   bb1:
     v6 = phi [bb11: 0], [bb6: v15]
@@ -39,19 +41,19 @@ fn @fill() [selector=0xb4f7766b, abi_wrapper, pure] {
     mstore 0, 1
     returndata 0, 32
   bb3:
-    v35 = add arg1, v6
-    v36 = lt v35, arg1
+    v35 = add v63, v6
+    v36 = lt v35, v63
     jumpi v36, bb8, bb9
   bb9:
-    v9 = mload v42
+    v9 = mload v43
     v10 = lt v35, v9
     jumpi v10, bb6, bb5
   bb5:
     tail_call @revert_stub
   bb6:
-    v50 = add v42, v35
-    v51 = add v50, 32
-    mstore8 v51, v16
+    v51 = add v43, v35
+    v52 = add v51, 32
+    mstore8 v52, v16
     v15 = add v6, 1
     jump bb1
   bb8:
@@ -68,14 +70,18 @@ fn @scatter() [selector=0xa3efd67d, abi_wrapper, pure] {
     v11 = lt v10, 164
     jumpi v11, bb1, bb2
   bb2:
-    v12 = icall @decode_calldata_type
-    mstore v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v6 = sub arg4, v12
-    v2 = ne arg4, 0
+    v12 = calldataload 36
+    v13 = calldataload 68
+    v14 = calldataload 100
+    v15 = calldataload 132
+    v16 = icall @decode_calldata_type
+    mstore v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v6 = sub v15, v16
+    v2 = ne v15, 0
     v7 = zext i1 v2 to i256
     v8 = mul v7, v6
-    v9 = add v12, v8
-    icall @_scatter, v9, arg1, arg2, arg3
+    v9 = add v16, v8
+    icall @_scatter, v9, v12, v13, v14
     mstore 0, 1
     returndata 0, 32
   bb1:

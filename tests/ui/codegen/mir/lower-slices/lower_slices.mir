@@ -1,7 +1,6 @@
-//@compile-flags: -Zmir-pipeline=lower-abi,lower-slices
+//@compile-flags: -Zmir-pipeline=lower-slices
 //@filecheck:
 @module LowerSlices
-// CHECK: + fn @entry()
 fn @entry(arg0: slice<calldata>) [selector=0x12345678] {
   bb0:
     v1 = icall @len, arg0
@@ -10,6 +9,7 @@ fn @entry(arg0: slice<calldata>) [selector=0x12345678] {
 }
 
 // CHECK-LABEL: {{^[ +].*}}after lower-slices
+// CHECK: + fn @entry(arg0: i256)
 // CHECK: {{^[ +].*}}fn @len{{[( ]}}
 // CHECK: + [[HEAD:v[0-9]+]] = add arg0, 4
 // CHECK: + [[LENGTH:v[0-9]+]] = calldataload [[HEAD]]

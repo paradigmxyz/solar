@@ -13,12 +13,14 @@
 // relations its scope states. The searches through them still prove `a < c` from `a < b` and
 // `b < c`, so neither difference checks its underflow, however many branches precede them.
 // CHECK-LABEL: fn @chained()
-// CHECK-NOT: lt arg2, arg1
-// CHECK-NOT: lt arg2, arg0
+// CHECK: calldataload 68
+// CHECK: [[C:v[0-9]+]] = calldataload 68
+// CHECK-NOT: lt [[C]],
 //
 // Without the second guard, `b` is unordered against `c` and its difference keeps the check.
 // CHECK-LABEL: fn @unchained()
-// CHECK: lt arg2, arg1
+// CHECK: [[C:v[0-9]+]] = calldataload 68
+// CHECK: lt [[C]], {{v[0-9]+}}
 
 error Hole();
 

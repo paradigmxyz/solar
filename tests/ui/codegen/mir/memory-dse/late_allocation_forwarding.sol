@@ -9,9 +9,10 @@ contract LateAllocationForwarding {
     event Data(uint256 value, string text);
 
     // CHECK-LABEL: fn @emitData
-    // CHECK: [[FLOOR:v[0-9]+]] = heap_floor
+    // CHECK: [[VALUE:v[0-9]+]] = calldataload 4
+    // CHECK-NEXT: [[FLOOR:v[0-9]+]] = heap_floor
     // CHECK-NEXT: [[TAIL:v[0-9]+]] = add [[FLOOR]], 64
-    // CHECK-NEXT: mstore [[FLOOR]], arg0
+    // CHECK-NEXT: mstore [[FLOOR]], [[VALUE]]
     // CHECK-NEXT: [[OFFSET:v[0-9]+]] = add [[FLOOR]], 32
     // CHECK-NEXT: mstore [[OFFSET]], 64
     // CHECK-NEXT: mstore [[TAIL]], 11

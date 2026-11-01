@@ -230,16 +230,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.emit_constructor_heap_start();
     }
 
-    pub(in crate::backend::evm::codegen) fn emit_constructor_arg_load(&mut self, index: ArgIdx) {
-        self.emit_constructor_args_base();
-        let offset = index.index() as u64 * EvmMemoryLayout::WORD_SIZE;
-        if offset != 0 {
-            self.asm.emit_push(U256::from(offset));
-            self.asm.emit_op(op::ADD);
-        }
-        self.asm.emit_op(op::MLOAD);
-    }
-
     /// Address of `offset` within the current function's frame: a fixed frame for internal
     /// functions and the constructor, the bottom of the heap for an external entry.
     pub(in crate::backend::evm::codegen) fn emit_own_frame_addr(&mut self, offset: u64) {

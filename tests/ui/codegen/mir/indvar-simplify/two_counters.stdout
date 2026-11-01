@@ -7,13 +7,15 @@ fn @narrowBase() [selector=0xc5e77450, abi_wrapper, pure] {
     v23 = shr v22, 8
     v20 = calldatasize
     v21 = lt v20, 68
-    v26 = zext i1 v21 to i256
-    v27 = or v26, v23
-    v28 = ne v27, 0
-    jumpi v28, bb4, bb5
+    v29 = zext i1 v21 to i256
+    v30 = or v29, v23
+    v31 = ne v30, 0
+    jumpi v31, bb4, bb5
   bb5:
-    v14 = add arg1, arg1
-    v16 = add arg0, v14
+    v32 = calldataload 4
+    v25 = calldataload 36
+    v14 = add v25, v25
+    v16 = add v32, v14
     v17 = add v16, 7
     jump bb1
   bb1:
@@ -27,7 +29,7 @@ fn @narrowBase() [selector=0xc5e77450, abi_wrapper, pure] {
     returndata 0, 32
   bb3:
     v6 = shl v3, 5
-    v7 = add arg0, v6
+    v7 = add v32, v6
     v9 = add v7, v14
     v10 = add v2, v9
     v12 = xor v10, v18
@@ -264,10 +266,11 @@ fn @rawBase() [selector=0xcc1fc46b, abi_wrapper, pure] {
     v14 = lt v13, 36
     jumpi v14, bb4, bb5
   bb5:
-    v12 = add arg0, 64
+    v15 = calldataload 4
+    v12 = add v15, 64
     jump bb1
   bb1:
-    v10 = phi [bb5: arg0], [bb3: v11]
+    v10 = phi [bb5: v15], [bb3: v11]
     v3 = ne v10, v12
     jumpi v3, bb3, bb2
   bb2:

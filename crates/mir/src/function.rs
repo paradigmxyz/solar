@@ -198,6 +198,14 @@ impl Function {
         }
     }
 
+    /// Returns whether `id` loads the calldata word at a constant offset, which nothing changes
+    /// during the call.
+    #[must_use]
+    pub fn is_constant_calldata_load(&self, id: ValueId) -> bool {
+        matches!(self.value_inst_kind(id), Some(InstKind::Load(address, PtrLocation::Calldata))
+            if self.value_u64(*address).is_some())
+    }
+
     /// Returns the slice location of a value, if it is slice-typed.
     #[must_use]
     pub fn value_slice_location(&self, id: ValueId) -> Option<PtrLocation> {
@@ -629,12 +637,6 @@ impl Function {
         self.alloc_arg(index)
     }
 
-    /// Adds a retained argument type and allocates its value without changing the signature.
-    pub(crate) fn alloc_implicit_arg(&mut self, ty: MirType) -> ValueId {
-        let index = self.arg_types.push(ty);
-        self.alloc_arg(index)
-    }
-
     /// Allocates a value referring to an existing argument.
     pub fn alloc_arg(&mut self, index: ArgIdx) -> ValueId {
         let _ = self.arg_ty(index);
@@ -645,6 +647,16 @@ impl Function {
     pub fn set_params(&mut self, params: IndexVec<ArgIdx, MirType>) {
         self.arg_types = params.clone();
         self.params = params;
+    }
+
+    /// Removes every parameter. Argument values left in the arena become undefined.
+    pub fn clear_params(&mut self) {
+        for value in &mut self.values {
+            if let Value::Arg(index) = *value {
+                *value = Value::Undef(self.arg_types[index]);
+            }
+        }
+        self.set_params(IndexVec::new());
     }
 
     /// Allocates a value-producing instruction and its result value.

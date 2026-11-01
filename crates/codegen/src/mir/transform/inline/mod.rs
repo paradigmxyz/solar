@@ -2021,9 +2021,8 @@ pub(super) fn inline_dispatch_route(
     caller: &mut Function,
     block: BlockId,
     callee: &Function,
-    args: Box<[ValueId]>,
 ) -> Option<()> {
-    let mut cloner = InlineCloner::new(caller, callee, 0, 0, args);
+    let mut cloner = InlineCloner::new(caller, callee, 0, 0, Box::default());
     cloner.external_exit = true;
     let entry = cloner.clone_blocks(BlockId::ENTRY)?;
     // tail_call @wrapper => jump cloned_entry

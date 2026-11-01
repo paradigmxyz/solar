@@ -195,8 +195,9 @@ fn @blobAt() [selector=0x8f236983, abi_wrapper, view] {
     v7 = lt v6, 36
     jumpi v7, bb3, bb4
   bb4:
+    v8 = calldataload 4
     v0 = sload 2 !metadata(storage=slot(2))
-    v1 = lt arg0, v0
+    v1 = lt v8, v0
     jumpi v1, bb2, bb1
   bb1:
     mstore 32, 50 !metadata(memory=scratch)
@@ -204,18 +205,18 @@ fn @blobAt() [selector=0x8f236983, abi_wrapper, view] {
     revert 28, 36
   bb2:
     mstore 0, 2 !metadata(memory=scratch)
-    v4 = add arg0, 0x405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace
+    v4 = add v8, 0x405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace
     v5 = icall @load_storage_bytes, v4
-    v11 = mload v5
-    v12 = add v11, 31
-    v14 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v22 = add v5, 32
-    v17 = add v22, v11
-    mstore v17, 0
-    v24 = sub v5, 32
-    mstore v24, 32
-    v19 = add v14, 64
-    returndata v24, v19
+    v12 = mload v5
+    v13 = add v12, 31
+    v15 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v23 = add v5, 32
+    v18 = add v23, v12
+    mstore v18, 0
+    v25 = sub v5, 32
+    mstore v25, 32
+    v20 = add v15, 64
+    returndata v25, v20
   bb3:
     revert 0, 0
 }

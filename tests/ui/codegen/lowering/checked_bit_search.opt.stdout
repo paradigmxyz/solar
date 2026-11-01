@@ -12,17 +12,20 @@ fn @entry() [entry] {
 @phase lowered
 fn @fls.0() [selector=0x27be8b2d, abi_wrapper, pure] {
   bb0:
-    v0 = icall @fls.3, arg0
+    v3 = calldataload 4
+    v0 = icall @fls.3, v3
     mstore 0, v0 !metadata(memory=scratch)
     returndata 0, 32
 }
 
 fn @clz.1() [selector=0x30244f7a, abi_wrapper, pure] {
   bb0:
-    v1 = eq arg0, 0
+    v10 = calldataload 4
+    v1 = eq v10, 0
     jumpi v1, bb2, bb1
   bb1:
-    v2 = icall @fls.3, arg0
+    v12 = calldataload 4
+    v2 = icall @fls.3, v12
     v6 = sub 255, v2
     v7 = gt v2, 255
     jumpi v7, bb3, bb2
@@ -38,12 +41,14 @@ fn @clz.1() [selector=0x30244f7a, abi_wrapper, pure] {
 
 fn @ffs.2() [selector=0x2297890a, abi_wrapper, pure] {
   bb0:
-    v1 = eq arg0, 0
+    v10 = calldataload 4
+    v1 = eq v10, 0
     jumpi v1, bb2, bb1
   bb1:
-    v2 = not arg0
+    v12 = calldataload 4
+    v2 = not v12
     v3 = add v2, 1
-    v4 = and arg0, v3
+    v4 = and v12, v3
     v5 = icall @fls.3, v4
     jump bb2
   bb2:

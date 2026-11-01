@@ -30,10 +30,11 @@ bb4 [cold]:
 bb8:
   push 4
   calldataload
-  dup 1
   iszero
   push bb7
   jumpi
+  push 4
+  calldataload
   push 0
   mstore
   push 32

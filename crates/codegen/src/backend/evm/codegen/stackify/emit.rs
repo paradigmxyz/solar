@@ -11,7 +11,7 @@ use crate::{
                 select::{InstKindOpcode, rematerializable_nullary_value},
                 values::gas_minus,
             },
-            op::{self, WORD_BYTES},
+            op,
         },
     },
     mir::{
@@ -525,14 +525,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     self.asm.emit_op(opcode);
                 }
             },
-            Value::Arg(index) if self.in_constructor => self.emit_constructor_arg_load(*index),
-            Value::Arg(index) => {
-                // External arguments: push 4 + 32 * index; calldataload
-                let offset = 4 + (index.index() as u64) * WORD_BYTES as u64;
-                self.asm.emit_push(U256::from(offset));
-                self.asm.emit_op(op::CALLDATALOAD);
-            }
-            Value::Error(_) => unreachable!("value {value:?} is not materialized"),
+            Value::Arg(_) | Value::Error(_) => unreachable!("value {value:?} is not materialized"),
         }
     }
 

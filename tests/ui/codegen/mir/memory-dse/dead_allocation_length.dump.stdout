@@ -37,7 +37,8 @@ fn @fail() [selector=0x132e4f3c, abi_wrapper, pure] {
     v1 = lt v0, 36
     jumpi v1, bb1, bb2
   bb2:
-    mstore 0, arg0
+    v2 = calldataload 4
+    mstore 0, v2
     revert 0, 32
   bb1:
     revert 0, 0

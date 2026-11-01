@@ -8,7 +8,7 @@ use super::{
 };
 use crate::{
     link::{CodeKind, LibraryTable},
-    mir::{MirPhase, analysis::cold_functions, should_validate_ir},
+    mir::{Function, InstKind, MirPhase, analysis::cold_functions, should_validate_ir},
 };
 use alloy_primitives::Bytes;
 use solar_interface::Symbol;
@@ -165,7 +165,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let has_constructor_args = module
             .functions
             .iter()
-            .any(|func| func.attributes.is_constructor && !func.params.is_empty());
+            .any(|func| func.attributes.is_constructor && reads_constructor_args(func));
         assert!(
             !has_constructor_args
                 || deploy_code.bytecode.is_empty()
@@ -418,7 +418,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             // The arguments start where the runtime code, the last data entry, ends.
             // Their size reads `CODESIZE`, which makes the data layout observable, so
             // data packing keeps every entry in place.
-            let constructor_arg_offset = (!ctor.params.is_empty()).then(|| {
+            let constructor_arg_offset = reads_constructor_args(ctor).then(|| {
                 let runtime_end = u32::try_from(runtime_len).expect("runtime code exceeds `u32`");
                 ir::DataRef::new(runtime, runtime_end)
             });
@@ -517,4 +517,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.emit_op(op::ADD);
         }
     }
+}
+
+/// Whether the constructor reads its ABI argument blob.
+fn reads_constructor_args(func: &Function) -> bool {
+    func.instructions().any(|inst| {
+        matches!(func.inst(inst).kind, InstKind::ConstructorArgsBase | InstKind::ConstructorArgsEnd)
+    })
 }

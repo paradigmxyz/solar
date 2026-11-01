@@ -821,16 +821,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if let Some(rest) = ident.as_str().strip_prefix("arg") {
             let idx: usize =
                 rest.parse().map_err(|_| self.parser.error(format!("invalid arg `{ident}`")))?;
-            // ABI wrappers reference `argN` with an empty parameter list:
-            // those denote calldata head words. Allocate them on demand so
-            // printed ABI wrappers round-trip. A function that does
-            // declare parameters keeps strict bounds checking.
-            if idx >= self.arg_values.len() && builder.func().params.is_empty() {
-                for _ in self.arg_values.len()..=idx {
-                    let val = builder.func_mut().alloc_implicit_arg(MirType::I256);
-                    self.arg_values.push(val);
-                }
-            }
             return self
                 .arg_values
                 .get(idx)

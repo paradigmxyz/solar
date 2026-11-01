@@ -15,6 +15,7 @@ contract ConstructorICall {
     // MIR: sstore 0, [[VALUE]]
     // EVMIR-LABEL: @module ConstructorICall_deployment
     // EVMIR: mload
+    // EVMIR-NEXT: push 7
     // EVMIR-NEXT: and
     // EVMIR-NEXT: push [[CTOR_CONT:bb[0-9]+]]
     // EVMIR-NEXT: jump [[HELPER:bb[0-9]+]]

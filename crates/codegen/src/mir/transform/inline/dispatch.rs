@@ -1,4 +1,4 @@
-//! Expose scalar external bodies and their shared inputs in the MIR dispatcher.
+//! Expose scalar external bodies in the MIR dispatcher.
 //!
 //! After ABI and memory lowering, a bounded set of frameless word-only wrappers
 //! can be spliced into the selector switch without an internal call protocol.
@@ -7,13 +7,8 @@
 //! wrapper boundary. The bound limits growth of per-function analyses; this
 //! transformation moves bodies rather than duplicating them.
 //!
-//! Each ABI input word is materialized once before the switch and reused by
-//! the cloned bodies. Calldata reads cannot trap, mutate memory, or change
-//! across a call. Ordinary scalar passes can therefore see shared definitions;
-//! the backend may still rematerialize them when that avoids stack traffic.
 //! External exits remain external exits. Debug context is copied for cloned
-//! instructions, while shared input loads have deliberately generated origins.
-//! This pass precedes the final e-graph and CFG cleanup, and runs only with
+//! instructions. This pass precedes the final e-graph and CFG cleanup, and runs only with
 //! optimization enabled. Dynamic inputs qualify only when their lowered body
 //! needs word operations alone; general dynamic ABI and memory copying retain
 //! the wrapper boundary. Returns must use the bounded ABI buffer or fit below the
@@ -26,8 +21,8 @@
 use crate::{
     backend::evm::select::opcode_lowering,
     mir::{
-        EffectKind, Function, FunctionBuilder, InstKind, MirType, Module, PtrLocation, Terminator,
-        analysis::CallGraphInfo, memory::EvmMemoryLayout,
+        EffectKind, Function, InstKind, Module, PtrLocation, Terminator, analysis::CallGraphInfo,
+        memory::EvmMemoryLayout,
     },
 };
 use solar_ast::StateMutability;
@@ -69,12 +64,12 @@ pub(super) fn inline_dispatch(module: &mut Module) -> bool {
     let mut entry = module.function(entry_id).clone();
     let switches = entry
         .blocks
-        .iter_enumerated()
-        .filter_map(|(block, data)| {
-            matches!(data.terminator, Some(Terminator::Switch { .. })).then_some(block)
-        })
-        .collect::<Vec<_>>();
-    let [switch] = switches.as_slice() else { return false };
+        .iter()
+        .filter(|data| matches!(data.terminator, Some(Terminator::Switch { .. })))
+        .count();
+    if switches != 1 {
+        return false;
+    }
     let sites = entry
         .blocks
         .iter_enumerated()
@@ -94,24 +89,9 @@ pub(super) fn inline_dispatch(module: &mut Module) -> bool {
     {
         return false;
     }
-    let argument_count =
-        routes.iter().map(|&id| module.function(id).arg_indices().count()).max().unwrap_or(0);
-    // switch selector, cases
-    //   => input0 = calldataload 4; input1 = calldataload 36; ...
-    //      switch selector, cases[inputN/argN]
-    let args = {
-        let mut builder = FunctionBuilder::new(&mut entry);
-        builder.switch_to_block(*switch);
-        (0..argument_count)
-            .map(|index| {
-                let offset = builder.imm(4 + index as u64 * EvmMemoryLayout::WORD_SIZE);
-                builder.load(offset, PtrLocation::Calldata)
-            })
-            .collect::<Box<[_]>>()
-    };
     for (block, id) in sites {
         let callee = module.function(id);
-        if super::inline_dispatch_route(&mut entry, block, callee, args.clone()).is_none() {
+        if super::inline_dispatch_route(&mut entry, block, callee).is_none() {
             return false;
         }
         entry.external_static_return_size =
@@ -134,8 +114,6 @@ fn eligible(func: &Function) -> bool {
         && func.internal_frame_size == 0
         && func.params.is_empty()
         && func.return_components().is_empty()
-        && func.arg_indices().count() <= 8
-        && func.arg_indices().all(|index| func.arg_ty(index) == MirType::I256)
         && func.instructions().all(|id| {
             let kind = &func.inst(id).kind;
             match kind {

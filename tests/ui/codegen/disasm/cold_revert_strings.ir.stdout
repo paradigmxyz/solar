@@ -25,13 +25,15 @@ bb0:
   jumpi
   push 4
   calldataload
+  push 36
+  calldataload
+  iszero
+  iszero
   timestamp
-  dup 2
+  dup 3
   lt
   push bb9
   jumpi
-  push 36
-  calldataload
   iszero
   push bb8
   jumpi

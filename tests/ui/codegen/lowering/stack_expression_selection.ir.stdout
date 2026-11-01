@@ -127,17 +127,17 @@ bb17:
   sub
   jump bb34
 bb20:
-  push 68
   calldatasize
-  lt
+  push 68
+  gt
   push bb10
   jumpi
-  push 4
-  calldataload
   push 36
   calldataload
-  dup 1
-  dup 3
+  push 4
+  calldataload
+  dup 2
+  dup 2
   sub
   push 0
   mstore
@@ -148,17 +148,17 @@ bb20:
   push 0
   return
 bb23:
-  push 68
   calldatasize
-  lt
+  push 68
+  gt
   push bb10
   jumpi
-  push 4
-  calldataload
   push 36
   calldataload
-  dup 2
-  dup 2
+  push 4
+  calldataload
+  dup 1
+  dup 3
   sub
   push 0
   mstore
@@ -169,17 +169,17 @@ bb23:
   push 0
   return
 bb26:
-  push 68
   calldatasize
-  lt
+  push 68
+  gt
   push bb10
   jumpi
-  push 4
-  calldataload
   push 36
   calldataload
-  dup 1
-  dup 3
+  push 4
+  calldataload
+  dup 2
+  dup 2
   xor
   push 0
   mstore

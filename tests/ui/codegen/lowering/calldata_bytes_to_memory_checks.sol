@@ -16,7 +16,8 @@
 
 // A slice whose length or offset assembly set keeps the copy's checks.
 // CHECK-LABEL: fn @lengthSet
-// CHECK: shr arg1, 64
+// CHECK: [[LENGTH:v[0-9]+]] = calldataload 36
+// CHECK: shr [[LENGTH]], 64
 // CHECK: sgt
 // CHECK-LABEL: fn @offsetSet
 // CHECK: shr {{[^ ,]+}}, 64{{$}}

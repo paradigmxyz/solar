@@ -3,26 +3,28 @@
 @phase lowered
 fn @lastIndexOf() [selector=0x46c1da7f, abi_wrapper, pure] {
   bb0:
-    v27 = icall @decode_calldata_type
-    v0 = mload v27
+    v29 = icall @decode_calldata_type
+    v0 = mload v29
     v1 = eq v0, 0
     jumpi v1, bb1, bb2
   bb2:
-    v2 = lt arg2, v0
+    v42 = calldataload 68
+    v41 = calldataload 36
+    v2 = lt v42, v0
     v3 = sub v0, 1
-    v21 = sub arg2, v3
+    v21 = sub v42, v3
     v22 = zext i1 v2 to i256
     v23 = mul v22, v21
     v24 = add v3, v23
-    v34 = shl v24, 5
-    v35 = add v27, v34
-    v36 = add v35, 32
+    v36 = shl v24, 5
+    v37 = add v29, v36
+    v38 = add v37, 32
     jump bb3
   bb3:
     v10 = phi [bb2: v24], [bb6: v20]
-    v37 = phi [bb2: v36], [bb6: v38]
-    v17 = mload v37
-    v18 = ne v17, arg1
+    v39 = phi [bb2: v38], [bb6: v40]
+    v17 = mload v39
+    v18 = ne v17, v41
     jumpi v18, bb5, bb4
   bb4:
     mstore 0, v10 !metadata(memory=scratch)
@@ -32,7 +34,7 @@ fn @lastIndexOf() [selector=0x46c1da7f, abi_wrapper, pure] {
     jumpi v19, bb1, bb6
   bb6:
     v20 = sub v10, 1
-    v38 = sub v37, 32
+    v40 = sub v39, 32
     jump bb3
   bb1:
     mstore 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(memory=scratch)
@@ -41,23 +43,25 @@ fn @lastIndexOf() [selector=0x46c1da7f, abi_wrapper, pure] {
 
 fn @keepsCheck() [selector=0x117f94d5, abi_wrapper, pure] {
   bb0:
-    v26 = icall @decode_calldata_type
-    v0 = mload v26
+    v28 = icall @decode_calldata_type
+    v0 = mload v28
     v1 = eq v0, 0
     jumpi v1, bb1, bb2
   bb2:
-    v20 = sub arg2, v0
-    v2 = lt arg2, v0
+    v41 = calldataload 68
+    v40 = calldataload 36
+    v20 = sub v41, v0
+    v2 = lt v41, v0
     v21 = zext i1 v2 to i256
     v22 = mul v21, v20
     v23 = add v0, v22
-    v33 = shl v23, 5
-    v34 = add v26, v33
-    v35 = add v34, 32
+    v35 = shl v23, 5
+    v36 = add v28, v35
+    v37 = add v36, 32
     jump bb3
   bb3:
     v9 = phi [bb2: v23], [bb6: v19]
-    v36 = phi [bb2: v35], [bb6: v37]
+    v38 = phi [bb2: v37], [bb6: v39]
     v11 = lt v9, v0
     jumpi v11, bb8, bb7
   bb7:
@@ -65,8 +69,8 @@ fn @keepsCheck() [selector=0x117f94d5, abi_wrapper, pure] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb8:
-    v16 = mload v36
-    v17 = ne v16, arg1
+    v16 = mload v38
+    v17 = ne v16, v40
     jumpi v17, bb5, bb4
   bb4:
     mstore 0, v9 !metadata(memory=scratch)
@@ -76,7 +80,7 @@ fn @keepsCheck() [selector=0x117f94d5, abi_wrapper, pure] {
     jumpi v18, bb1, bb6
   bb6:
     v19 = sub v9, 1
-    v37 = sub v36, 32
+    v39 = sub v38, 32
     jump bb3
   bb1:
     mstore 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(memory=scratch)

@@ -89,9 +89,9 @@ bb15 [loop]:
   or
   push bb14
   jumpi
-  push 4
-  calldataload
   push 36
+  calldataload
+  push 4
   calldataload
   caller
   push 0
@@ -105,7 +105,7 @@ bb15 [loop]:
   push 1
   add
   push 0
-  dup 3
+  dup 4
   dup 2
   lt
   push bb19
@@ -113,7 +113,7 @@ bb15 [loop]:
   stop
 bb19 [loop]:
   dup 1
-  dup 5
+  dup 4
   add
   push 248
   shl
@@ -179,7 +179,7 @@ bb19 [loop]:
   sstore
   push 1
   add
-  dup 3
+  dup 4
   dup 2
   lt
   push bb19
@@ -206,7 +206,7 @@ bb26 [loop]:
   sstore
   push 1
   add
-  dup 3
+  dup 4
   dup 2
   lt
   push bb19
@@ -254,7 +254,7 @@ bb27 [loop]:
   sstore
   push 1
   add
-  dup 3
+  dup 4
   dup 2
   lt
   push bb19
@@ -435,6 +435,8 @@ bb43:
   lt
   push bb14
   jumpi
+  push 4
+  calldataload
   caller
   push 0
   mstore
@@ -472,18 +474,13 @@ bb43:
   eq
   push bb72
   jumpi
-  push 4
-  calldataload
-  swap 1
-  dup 2
+  dup 4
   lt
   iszero
   push bb73
   jumpi
-  swap 1
   jumpi bb48, bb49
 bb48:
-  swap 1
   push 0
   mstore
   push 32
@@ -493,10 +490,8 @@ bb48:
   push 5
   shr
   add
-  swap 1
   jump bb49
 bb49:
-  swap 1
   sload
   swap 1
   push 31

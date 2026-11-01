@@ -224,22 +224,24 @@ fn @stepThree() [selector=0xbf2eba92, abi_wrapper, pure] {
     v12 = lt v11, 68
     jumpi v12, bb4, bb5
   bb5:
-    v24 = sub arg1, arg0
-    v25 = and v24, 1
-    v26 = ne v25, 0
-    jumpi v26, bb6, bb7
+    v13 = calldataload 4
+    v14 = calldataload 36
+    v26 = sub v14, v13
+    v27 = and v26, 1
+    v28 = ne v27, 0
+    jumpi v28, bb6, bb7
   bb6:
-    v17 = add 0, arg0
-    v18 = add arg0, 3
+    v19 = add 0, v13
+    v20 = add v13, 3
     jump bb7
   bb7:
-    v27 = phi [bb5: 0], [bb6: v17]
-    v28 = phi [bb5: arg0], [bb6: v18]
+    v29 = phi [bb5: 0], [bb6: v19]
+    v30 = phi [bb5: v13], [bb6: v20]
     jump bb1
   bb1:
-    v2 = phi [bb7: v27], [bb3: v22]
-    v3 = phi [bb7: v28], [bb3: v23]
-    v6 = ne v3, arg1
+    v2 = phi [bb7: v29], [bb3: v24]
+    v3 = phi [bb7: v30], [bb3: v25]
+    v6 = ne v3, v14
     jumpi v6, bb3, bb2
   bb2:
     mstore 0, v2 !metadata(memory=scratch)
@@ -247,8 +249,8 @@ fn @stepThree() [selector=0xbf2eba92, abi_wrapper, pure] {
   bb3:
     v9 = add v2, v3
     v10 = add v3, 3
-    v22 = add v9, v10
-    v23 = add v10, 3
+    v24 = add v9, v10
+    v25 = add v10, 3
     jump bb1
   bb4:
     revert 0, 0

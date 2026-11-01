@@ -101,17 +101,18 @@ fn @loadScaled() [selector=0x69d1875c, abi_wrapper, view] {
     v2 = lt v1, 36
     jumpi v2, bb1, bb2
   bb2:
-    v0 = icall @_copy, arg0
-    v6 = mload v0
-    v7 = add v6, 31
-    v9 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v17 = add v0, 32
-    v12 = add v17, v6
-    mstore v12, 0
-    v19 = sub v0, 32
-    mstore v19, 32
-    v14 = add v9, 64
-    returndata v19, v14
+    v3 = calldataload 4
+    v0 = icall @_copy, v3
+    v7 = mload v0
+    v8 = add v7, 31
+    v10 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v18 = add v0, 32
+    v13 = add v18, v7
+    mstore v13, 0
+    v20 = sub v0, 32
+    mstore v20, 32
+    v15 = add v10, 64
+    returndata v20, v15
   bb1:
     revert 0, 0
 }

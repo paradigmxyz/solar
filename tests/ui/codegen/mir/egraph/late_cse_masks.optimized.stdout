@@ -38,18 +38,20 @@ fn @first() [selector=0x2845d4e6, abi_wrapper] {
     v10 = shr v9, 160
     v7 = calldatasize
     v8 = lt v7, 68
-    v15 = zext i1 v8 to i256
-    v16 = or v15, v10
-    v17 = ne v16, 0
-    jumpi v17, bb1, bb2
+    v18 = zext i1 v8 to i256
+    v19 = or v18, v10
+    v20 = ne v19, 0
+    jumpi v20, bb1, bb2
   bb2:
-    v0 = icall @digest, arg0, arg1
-    mstore 0, arg0
-    mstore 32, arg1
+    v21 = calldataload 4
+    v12 = calldataload 36
+    v0 = icall @digest, v21, v12
+    mstore 0, v21
+    mstore 32, v12
     v6 = keccak256 0, 64 !metadata(memory=scratch)
     v2 = eq v0, v6
-    v13 = zext i1 v2 to i256
-    mstore 0, v13 !metadata(memory=scratch)
+    v15 = zext i1 v2 to i256
+    mstore 0, v15 !metadata(memory=scratch)
     returndata 0, 32
   bb1:
     revert 0, 0
@@ -61,22 +63,24 @@ fn @second() [selector=0x6cdb32ec, abi_wrapper] {
     v16 = shr v15, 160
     v13 = calldatasize
     v14 = lt v13, 68
-    v21 = zext i1 v14 to i256
-    v22 = or v21, v16
-    v23 = ne v22, 0
-    jumpi v23, bb3, bb4
+    v24 = zext i1 v14 to i256
+    v25 = or v24, v16
+    v26 = ne v25, 0
+    jumpi v26, bb3, bb4
   bb4:
-    v9 = add arg1, 1
+    v18 = calldataload 36
+    v9 = add v18, 1
     v10 = eq v9, 0
     jumpi v10, bb1, bb2
   bb2:
-    v1 = icall @digest, arg0, v9
-    mstore 0, arg0
+    v27 = calldataload 4
+    v1 = icall @digest, v27, v9
+    mstore 0, v27
     mstore 32, v9
     v8 = keccak256 0, 64 !metadata(memory=scratch)
     v4 = eq v1, v8
-    v19 = zext i1 v4 to i256
-    mstore 0, v19 !metadata(memory=scratch)
+    v21 = zext i1 v4 to i256
+    mstore 0, v21 !metadata(memory=scratch)
     returndata 0, 32
   bb1:
     mstore 32, 17 !metadata(memory=scratch)
