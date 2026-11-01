@@ -361,7 +361,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 }
 
 /// Returns the header of the declaration in `source` on one line: everything before its body,
-/// without comments.
+/// without comments, and with runs of whitespace outside string literals collapsed.
 fn function_header(source: &str) -> String {
     let mut header = String::new();
     let mut depth = 0u32;
@@ -378,7 +378,23 @@ fn function_header(source: &str) -> String {
                 chars.by_ref().find(|&c| std::mem::replace(&mut previous, c) == '*' && c == '/');
                 header.push(' ');
             }
+            '"' | '\'' => {
+                header.push(c);
+                while let Some(literal) = chars.next() {
+                    header.push(literal);
+                    match literal {
+                        '\\' => header.extend(chars.next()),
+                        _ if literal == c => break,
+                        _ => {}
+                    }
+                }
+            }
             '{' | ';' | '=' if depth == 0 => break,
+            c if c.is_whitespace() => {
+                if !header.is_empty() && !header.ends_with(' ') {
+                    header.push(' ');
+                }
+            }
             _ => {
                 match c {
                     '(' => depth += 1,
@@ -389,7 +405,8 @@ fn function_header(source: &str) -> String {
             }
         }
     }
-    header.split_whitespace().collect::<Vec<_>>().join(" ")
+    header.truncate(header.trim_end().len());
+    header
 }
 
 /// Returns whether `header` declares a function, as opposed to a public state variable whose

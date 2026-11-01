@@ -33,6 +33,14 @@ contract C {
         return n * fact(n - 1);
     }
 
+    modifier tagged(string memory) {
+        _;
+    }
+
+    function tag(uint256 x) external pure tagged("//  ( {") returns (uint256) {
+        return x;
+    }
+
     receive() external payable {}
 
     fallback() external {
