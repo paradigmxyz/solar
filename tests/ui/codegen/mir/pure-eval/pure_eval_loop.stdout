@@ -13,11 +13,11 @@
 -   bb2:  ; preds = bb1
 -     jump bb1
 +     ret 3
-+   bb1:
++   bb1 [cold]:
 +     invalid
-+   bb2:
++   bb2 [cold]:
 +     invalid
-+   bb3:
++   bb3 [cold]:
 +     invalid
   }
   
@@ -34,11 +34,11 @@
 -   bb2:  ; preds = bb1
 -     jump bb1
 +     ret 0
-+   bb1:
++   bb1 [cold]:
 +     invalid
-+   bb2:
++   bb2 [cold]:
 +     invalid
-+   bb3:
++   bb3 [cold]:
 +     invalid
   }
   

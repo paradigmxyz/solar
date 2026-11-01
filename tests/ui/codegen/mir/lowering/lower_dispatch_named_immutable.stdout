@@ -3,12 +3,6 @@
   @module NamedImmutable
   @immutables
     library_deploy_address: address
-  
-  ; selector 0x00000002
-  fn @write() [selector=0x00000002, abi_wrapper] {
-    bb0:
-      stop
-+ }
 + 
 + ; runtime dispatch entry
 + fn @entry() [entry] {
@@ -22,7 +16,13 @@
 +     switch v3, default bb3, [2 => bb2]
 +   bb2:  ; preds = bb1
 +     tail_call @write
-+   bb3:  ; preds = bb0, bb1
++   bb3 [cold]:  ; preds = bb0, bb1
 +     revert 0, 0
++ }
+  
+  ; selector 0x00000002
+  fn @write() [selector=0x00000002, abi_wrapper] {
+    bb0:
+      stop
   }
   

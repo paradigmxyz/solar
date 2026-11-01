@@ -1,6 +1,22 @@
 // === ROOT/tests/ui/codegen/mir/check-elim/offset_bounds.sol:OffsetBounds ===
 @module OffsetBounds
 @phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:  ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0xf4f1833d => bb2]
+  bb2:  ; preds = bb1
+    tail_call @copyHigh
+  bb3 [cold]:  ; preds = bb0, bb1
+    revert 0, 0
+}
+
 ; function copyHigh() external pure returns (bytes memory d) [selector 0xf4f1833d]
 fn @copyHigh() [selector=0xf4f1833d, abi_wrapper, pure] {
   bb0:
@@ -41,7 +57,7 @@ fn @copyHigh() [selector=0xf4f1833d, abi_wrapper, pure] {
     v26 = mload v90
     v27 = lt v25, v26
     jumpi v27, bb7, bb6
-  bb6:  ; preds = bb3
+  bb6 [cold]:  ; preds = bb3
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -62,24 +78,8 @@ fn @copyHigh() [selector=0xf4f1833d, abi_wrapper, pure] {
     mstore v78, 32
     v73 = add v68, 64
     returndata v78, v73
-  bb9:  ; preds = bb0
+  bb9 [cold]:  ; preds = bb0
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb3, bb1
-  bb1:  ; preds = bb0
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb3, [0xf4f1833d => bb2]
-  bb2:  ; preds = bb1
-    tail_call @copyHigh
-  bb3:  ; preds = bb0, bb1
-    revert 0, 0
 }

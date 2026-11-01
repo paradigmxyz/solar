@@ -1,6 +1,24 @@
 // === ROOT/tests/ui/codegen/mir/inline/dispatch/free_memory_slot_return.sol:Unwritten ===
 @module Unwritten
 @phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb4, bb1
+  bb1:  ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb4, [0xc096a632 => bb2, 0xcad0899b => bb3]
+  bb3:  ; preds = bb1
+    tail_call @sum
+  bb2:  ; preds = bb1
+    tail_call @raw
+  bb4 [cold]:  ; preds = bb0, bb1
+    revert 0, 0
+}
+
 ; function raw() external pure returns (uint256) [selector 0xc096a632]
 fn @raw() [selector=0xc096a632, abi_wrapper, pure] {
   bb0:
@@ -20,29 +38,11 @@ fn @sum() [selector=0xcad0899b, abi_wrapper, pure] {
   bb2:  ; preds = bb4
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:  ; preds = bb4
+  bb1 [cold]:  ; preds = bb4
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:  ; preds = bb0
-    revert 0, 0
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb4, bb1
-  bb1:  ; preds = bb0
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb4, [0xc096a632 => bb2, 0xcad0899b => bb3]
-  bb3:  ; preds = bb1
-    tail_call @sum
-  bb2:  ; preds = bb1
-    tail_call @raw
-  bb4:  ; preds = bb0, bb1
+  bb3 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
@@ -72,7 +72,7 @@ fn @entry() [entry] {
   bb7:  ; preds = bb8
     mstore 0, v10
     returndata 0, 32
-  bb6:  ; preds = bb8
+  bb6 [cold]:  ; preds = bb8
     mstore 32, 17
     mstore 0, 0x4e487b71
     revert 28, 36
@@ -83,13 +83,31 @@ fn @entry() [entry] {
   bb5:  ; preds = bb2
     mstore 64, v4
     returndata 64, 32
-  bb4:  ; preds = bb0, bb1, bb2, bb3
+  bb4 [cold]:  ; preds = bb0, bb1, bb2, bb3
     revert 0, 0
 }
 
 // === ROOT/tests/ui/codegen/mir/inline/dispatch/free_memory_slot_return.sol:Conditional ===
 @module Conditional
 @phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb4, bb1
+  bb1:  ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb4, [0x302e678f => bb2, 0xcad0899b => bb3]
+  bb3:  ; preds = bb1
+    tail_call @sum
+  bb2:  ; preds = bb1
+    tail_call @raw
+  bb4 [cold]:  ; preds = bb0, bb1
+    revert 0, 0
+}
+
 ; function raw(uint256 x) external pure returns (uint256) [selector 0x302e678f]
 fn @raw() [selector=0x302e678f, abi_wrapper, pure] {
   bb0:
@@ -104,7 +122,7 @@ fn @raw() [selector=0x302e678f, abi_wrapper, pure] {
     jump bb2
   bb2:  ; preds = bb1, bb4
     returndata 64, 32
-  bb3:  ; preds = bb0
+  bb3 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
@@ -121,28 +139,10 @@ fn @sum() [selector=0xcad0899b, abi_wrapper, pure] {
   bb2:  ; preds = bb4
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:  ; preds = bb4
+  bb1 [cold]:  ; preds = bb4
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:  ; preds = bb0
-    revert 0, 0
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb4, bb1
-  bb1:  ; preds = bb0
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb4, [0x302e678f => bb2, 0xcad0899b => bb3]
-  bb3:  ; preds = bb1
-    tail_call @sum
-  bb2:  ; preds = bb1
-    tail_call @raw
-  bb4:  ; preds = bb0, bb1
+  bb3 [cold]:  ; preds = bb0
     revert 0, 0
 }

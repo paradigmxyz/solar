@@ -1,8 +1,21 @@
 // === ROOT/tests/ui/codegen/mir/loop-version/shared_exit.sol:Test ===
 @module Test
 @phase lowered
-@types
-  struct0: {i1, ptr<memory>}
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:  ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0xcca63247 => bb2]
+  bb2:  ; preds = bb1
+    tail_call @lastIndices
+  bb3 [cold]:  ; preds = bb0, bb1
+    revert 0, 0
+}
 
 ; function lastIndices(uint256[] memory a, uint256[] memory last) external pure returns (bool, uint256[] memory) [selector 0xcca63247]
 fn @lastIndices() [selector=0xcca63247, abi_wrapper, pure] {
@@ -29,7 +42,7 @@ fn @lastIndices() [selector=0xcca63247, abi_wrapper, pure] {
     mcopy v21, v29, v20 !metadata(memory=heap, disjoint)
     v25 = sub v23, v32
     returndata v32, v25
-  bb1:  ; preds = bb0
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
@@ -102,7 +115,7 @@ fn @_lastIndices(arg0: i256, arg1: i256) -> i1 [may_return_memory, pure] {
     v34 = and v32, 3
     v36 = lt v34, v41
     jumpi v36, bb15, bb11
-  bb11:  ; preds = bb4, bb6, bb8, bb9
+  bb11 [cold]:  ; preds = bb4, bb6, bb8, bb9
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -153,26 +166,10 @@ fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
     v22 = add v25, 32
     calldatacopy v22, v7, v12
     ret v25
-  bb3:  ; preds = bb2, bb4
+  bb3 [cold]:  ; preds = bb2, bb4
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:  ; preds = bb0, bb6
-    revert 0, 0
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb3, bb1
-  bb1:  ; preds = bb0
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb3, [0xcca63247 => bb2]
-  bb2:  ; preds = bb1
-    tail_call @lastIndices
-  bb3:  ; preds = bb0, bb1
+  bb1 [cold]:  ; preds = bb0, bb6
     revert 0, 0
 }

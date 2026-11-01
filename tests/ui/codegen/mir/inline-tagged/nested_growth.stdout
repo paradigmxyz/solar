@@ -1,6 +1,22 @@
 // === ROOT/tests/ui/codegen/mir/inline-tagged/nested_growth.sol:TaggedNesting ===
 @module TaggedNesting
 @phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:  ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0xa444f5e9 => bb2]
+  bb2:  ; preds = bb1
+    tail_call @run
+  bb3 [cold]:  ; preds = bb0, bb1
+    revert 0, 0
+}
+
 ; function run(uint256 x) external pure returns (uint256) [selector 0xa444f5e9]
 fn @run() [selector=0xa444f5e9, abi_wrapper, pure] {
   bb0:
@@ -59,22 +75,6 @@ fn @run() [selector=0xa444f5e9, abi_wrapper, pure] {
     v67 = add v63, v66
     mstore 0, v67
     returndata 0, 32
-  bb1:  ; preds = bb0
-    revert 0, 0
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb3, bb1
-  bb1:  ; preds = bb0
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb3, [0xa444f5e9 => bb2]
-  bb2:  ; preds = bb1
-    tail_call @run
-  bb3:  ; preds = bb0, bb1
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }

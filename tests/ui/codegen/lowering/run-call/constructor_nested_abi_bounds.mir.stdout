@@ -1,26 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_nested_abi_bounds.sol:NestedConstructor ===
 @module NestedConstructor
-; getter for `bytes32 public firstHash` [selector 0xa1c6d2f6]
-fn @firstHash() -> i256 [selector=0xa1c6d2f6, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
-}
-
-; getter for `bytes32 public secondHash` [selector 0xf7996542]
-fn @secondHash() -> i256 [selector=0xf7996542, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
-  bb0:
-    v0 = sload 1 !metadata(storage=slot(1))
-    ret v0
-}
-
-; getter for `uint256 public lengths` [selector 0xdab1fa12]
-fn @lengths() -> i256 [selector=0xdab1fa12, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 2 !metadata(storage=slot(2))
-    ret v0
-}
-
 ; constructor(bytes[] memory values) [creation entry]
 fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[array<_, bytes>]] {
   bb0:
@@ -62,6 +41,27 @@ fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[array<_, bytes>]] {
     v29 = or v22, v28
     sstore 2, v29 !metadata(storage=slot(2))
     ret
+}
+
+; getter for `bytes32 public firstHash` [selector 0xa1c6d2f6]
+fn @firstHash() -> i256 [selector=0xa1c6d2f6, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+; getter for `bytes32 public secondHash` [selector 0xf7996542]
+fn @secondHash() -> i256 [selector=0xf7996542, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    ret v0
+}
+
+; getter for `uint256 public lengths` [selector 0xdab1fa12]
+fn @lengths() -> i256 [selector=0xdab1fa12, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 2 !metadata(storage=slot(2))
+    ret v0
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_nested_abi_bounds.sol:ConstructorNestedAbiBounds ===

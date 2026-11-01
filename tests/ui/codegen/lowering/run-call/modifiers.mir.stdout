@@ -256,6 +256,12 @@ fn @guardedV() -> i256 [selector=0x099f200a, abi_params=[], abi_returns=[word], 
 
 // === ROOT/tests/ui/codegen/lowering/run-call/modifiers.sol:ModDerived ===
 @module ModDerived
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    ret
+}
+
 ; function guardedV() public vguard returns (uint256) [selector 0x099f200a]
 fn @guardedV() -> i256 [selector=0x099f200a, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
@@ -270,21 +276,8 @@ fn @guardedV() -> i256 [selector=0x099f200a, abi_params=[], abi_returns=[word], 
     ret v2
 }
 
-; creation entry
-fn @constructor() [constructor] {
-  bb0:
-    ret
-}
-
 // === ROOT/tests/ui/codegen/lowering/run-call/modifiers.sol:CtorMod ===
 @module CtorMod
-; getter for `uint256 public v` [selector 0x7c2efcba]
-fn @v() -> i256 [selector=0x7c2efcba, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
-}
-
 ; constructor() init [creation entry]
 fn @constructor() [constructor] {
   bb0:
@@ -300,4 +293,11 @@ fn @constructor() [constructor] {
     jump bb1
   bb1:  ; preds = bb2
     ret
+}
+
+; getter for `uint256 public v` [selector 0x7c2efcba]
+fn @v() -> i256 [selector=0x7c2efcba, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
 }

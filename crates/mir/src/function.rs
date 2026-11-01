@@ -16,6 +16,7 @@ use solar_data_structures::{
     map::{FxHashMap, StdEntry},
 };
 use solar_interface::{Ident, Span, Symbol};
+use solar_ir::Hotness;
 use std::fmt;
 
 /// A function in the MIR.
@@ -40,7 +41,8 @@ pub struct Function {
     pub params: IndexVec<ArgIdx, MirType>,
     /// The function's single logical result, or `void`.
     return_type: MirType,
-    /// Components selected by internal ABI lowering. The logical result stays intact.
+    /// Components selected by internal ABI lowering. A slice result stays logical; a function
+    /// returning several words has no logical result and only these components.
     return_abi: Option<Box<[MirType]>>,
     /// ABI layout of values returned by an external entry before `lower-abi`
     /// materializes returndata encoding.
@@ -908,6 +910,9 @@ pub struct FunctionAttributes {
     /// The widest word the single array this function returns can hold, when element
     /// cleanup proved one. Its caller can re-encode the array without cleaning it.
     pub array_return_element_bits: Option<u32>,
+    /// Whether every reachable exit aborts, so calls to this function are rare. Computed by the
+    /// hotness analysis, which the pass manager reruns after every pass that changes the module.
+    pub hotness: Hotness,
 }
 
 impl Default for FunctionAttributes {
@@ -927,6 +932,7 @@ impl Default for FunctionAttributes {
             optimization: None,
             array_element_bits: FxHashMap::default(),
             array_return_element_bits: None,
+            hotness: Hotness::Hot,
         }
     }
 }

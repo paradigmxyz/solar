@@ -33,7 +33,7 @@
 // CHECK: {{^[ +].*}}fn @revert_field_successor{{[( ]}}
 // CHECK: {{^[ +].*}}[[REVERT_FIELD:v[0-9]+]] = ptradd {{v[0-9]+}}, 32
 // CHECK-NEXT: {{^[ +].*}}mstore [[REVERT_FIELD]], arg0
-// CHECK: {{^[ +].*}}bb1:
+// CHECK: {{^[ +].*}}bb1 [cold]:
 // CHECK: {{^[ +].*}}revert {{v[0-9]+}}, 32
 // CHECK-LABEL: after dce
 // CHECK: {{^[ +].*}}fn @local_struct{{[( ]}}

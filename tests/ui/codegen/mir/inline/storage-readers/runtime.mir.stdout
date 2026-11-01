@@ -1,5 +1,12 @@
 // === ROOT/tests/ui/codegen/mir/inline/storage-readers/runtime.sol:StorageReaders ===
 @module StorageReaders
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    sstore 0, 13 !metadata(storage=slot(0))
+    ret
+}
+
 ; function reused(uint256 x) external view returns (uint256) [selector 0xa5cdae10]
 fn @reused(arg0: i256) -> i256 [selector=0xa5cdae10, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
@@ -35,11 +42,4 @@ fn @scale(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = checked_mul uint256, arg0, 3
     ret v0
-}
-
-; creation entry
-fn @constructor() [constructor] {
-  bb0:
-    sstore 0, 13 !metadata(storage=slot(0))
-    ret
 }

@@ -1,6 +1,28 @@
 // === ROOT/tests/ui/codegen/mir/load-pre/loop_array_fill.sol:LoopArrayFill ===
 @module LoopArrayFill
 @phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:  ; preds = bb0
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0x3fda5389 => bb3, 0x713c311a => bb4]
+  bb4:  ; preds = bb2
+    tail_call @lanes
+  bb3:  ; preds = bb2
+    tail_call @fill
+  bb1 [cold]:  ; preds = bb0, bb2
+    revert 0, 0
+}
+
 ; function fill(uint256 n) external pure returns (uint256[] memory ids) [selector 0x3fda5389]
 fn @fill() [selector=0x3fda5389, abi_wrapper, pure] {
   bb0:
@@ -48,7 +70,7 @@ fn @fill() [selector=0x3fda5389, abi_wrapper, pure] {
     v18 = mload v83
     v19 = lt v15, v18
     jumpi v19, bb12, bb11
-  bb11:  ; preds = bb14
+  bb11 [cold]:  ; preds = bb14
     tail_call @revert_stub.3
   bb12:  ; preds = bb14
     mstore v92, v46
@@ -125,7 +147,7 @@ fn @fill() [selector=0x3fda5389, abi_wrapper, pure] {
     v133 = eq v132, v125
     v134 = or v131, v133
     jumpi v134, bb23, bb13
-  bb13:  ; preds = bb3, bb5, bb19, bb20, bb21, bb22
+  bb13 [cold]:  ; preds = bb3, bb5, bb19, bb20, bb21, bb22
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -134,11 +156,11 @@ fn @fill() [selector=0x3fda5389, abi_wrapper, pure] {
     v135 = add v125, 1
     v136 = add v98, 128
     jump bb18
-  bb17:  ; preds = bb10
+  bb17 [cold]:  ; preds = bb10
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb8:  ; preds = bb0, bb9
+  bb8 [cold]:  ; preds = bb0, bb9
     tail_call @revert_stub.2
 }
 
@@ -198,44 +220,22 @@ fn @lanes() [selector=0x713c311a, abi_wrapper, pure] {
     v39 = add v29, 1
     v100 = add v99, 32
     jump bb2
-  bb8:  ; preds = bb4
+  bb8 [cold]:  ; preds = bb4
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
-fn @revert_stub.2() {
-  bb0:
+fn @revert_stub.2() [cold] {
+  bb0 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
-fn @revert_stub.3() {
-  bb0:
+fn @revert_stub.3() [cold] {
+  bb0 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = calldatasize
-    v2 = lt v1, 36
-    v3 = zext i1 v2 to i256
-    v4 = or v0, v3
-    v5 = ne v4, 0
-    jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
-    v6 = calldataload 0
-    v7 = shr v6, 224
-    switch v7, default bb1, [0x3fda5389 => bb3, 0x713c311a => bb4]
-  bb4:  ; preds = bb2
-    tail_call @lanes
-  bb3:  ; preds = bb2
-    tail_call @fill
-  bb1:  ; preds = bb0, bb2
-    revert 0, 0
 }

@@ -25,9 +25,9 @@
 -     jump bb2
 -   bb2:  ; preds = bb1
 -     jumpi arg1, bb1, bb3
-+   bb1:
++   bb1 [cold]:
 +     invalid
-+   bb2:
++   bb2 [cold]:
 +     invalid
   }
   

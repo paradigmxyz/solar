@@ -4,13 +4,6 @@
 
 // === ROOT/tests/ui/codegen/lowering/constructor_internal_library_call.sol:ConstructorInternalLibraryCall ===
 @module ConstructorInternalLibraryCall
-; getter for `uint256 public value` [selector 0x3fa4f245]
-fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
-}
-
 ; constructor(uint256 x) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
   bb0:
@@ -18,6 +11,13 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
     v1 = icall @helper, v0
     sstore 0, v1 !metadata(storage=slot(0))
     ret
+}
+
+; getter for `uint256 public value` [selector 0x3fa4f245]
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
 }
 
 ; function helper(uint256 n) internal pure returns (uint256)

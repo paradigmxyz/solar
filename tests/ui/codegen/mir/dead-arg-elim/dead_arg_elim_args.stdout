@@ -123,7 +123,7 @@
       jumpi arg0, bb1, bb2
     bb2:  ; preds = bb0
       jumpi arg1, bb3, bb4
-    bb4:  ; preds = bb2
+    bb4 [cold]:  ; preds = bb2
       revert 0, 0
     bb3:  ; preds = bb2
       sstore 1, arg2

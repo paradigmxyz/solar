@@ -5,7 +5,7 @@
     bb0:
       v0 = lt arg1, arg2
       jumpi v0, bb1, bb8
-+   bb8:  ; preds = bb0
++   bb8 [cold]:  ; preds = bb0
 +     revert 0, 0
     bb1:  ; preds = bb0
       jump bb2
@@ -27,7 +27,7 @@
     bb5:  ; preds = bb4
       v7 = lt v1, arg2
 -     jumpi v7, bb6, bb8
--   bb8:  ; preds = bb0, bb3, bb5
+-   bb8 [cold]:  ; preds = bb0, bb3, bb5
 -     revert 0, 0
 +     jump bb6
     bb6:  ; preds = bb5
@@ -46,7 +46,7 @@
       v2 = sub v1, 1
       v3 = lt v1, arg2
       jumpi v3, bb3, bb5
-    bb5:  ; preds = bb0, bb2
+    bb5 [cold]:  ; preds = bb0, bb2
       revert 0, 0
     bb3:  ; preds = bb2
       v4 = mload v2
@@ -74,8 +74,8 @@
     bb3:  ; preds = bb2
       v3 = add v0, 1
       jump bb1
--   bb5:  ; preds = bb2
-+   bb5:
+-   bb5 [cold]:  ; preds = bb2
++   bb5 [cold]:
       revert 0, 0
   }
   

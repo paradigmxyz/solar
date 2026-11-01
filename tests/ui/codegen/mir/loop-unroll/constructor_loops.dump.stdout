@@ -49,11 +49,33 @@ fn @constructor(arg0: i256) [abi_wrapper, constructor] {
     sstore v1, v15 !metadata(storage=symbolic(v1))
     v7 = add v1, 1
     jump bb1
-  bb7:  ; preds = bb2, bb6
+  bb7 [cold]:  ; preds = bb2, bb6
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb10:  ; preds = bb0
+  bb10 [cold]:  ; preds = bb0
+    revert 0, 0
+}
+
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:  ; preds = bb0
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0x188b85b4 => bb3, 0x9507d39a => bb4]
+  bb4:  ; preds = bb2
+    tail_call @get
+  bb3:  ; preds = bb2
+    tail_call @sum
+  bb1 [cold]:  ; preds = bb0, bb2
     revert 0, 0
 }
 
@@ -62,7 +84,7 @@ fn @get() [selector=0x9507d39a, abi_wrapper, view] {
   bb0:
     v0 = lt arg0, 8
     jumpi v0, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1 [cold]:  ; preds = bb0
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -78,7 +100,7 @@ fn @get() [selector=0x9507d39a, abi_wrapper, view] {
   bb4:  ; preds = bb2
     mstore 0, v7 !metadata(memory=scratch)
     returndata 0, 32
-  bb3:  ; preds = bb2
+  bb3 [cold]:  ; preds = bb2
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -138,30 +160,8 @@ fn @sum() [selector=0x188b85b4, abi_wrapper, pure] {
   bb8:  ; preds = bb7
     v53 = add v45, 1
     jump bb6
-  bb4:  ; preds = bb3, bb7
+  bb4 [cold]:  ; preds = bb3, bb7
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = calldatasize
-    v2 = lt v1, 36
-    v3 = zext i1 v2 to i256
-    v4 = or v0, v3
-    v5 = ne v4, 0
-    jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
-    v6 = calldataload 0
-    v7 = shr v6, 224
-    switch v7, default bb1, [0x188b85b4 => bb3, 0x9507d39a => bb4]
-  bb4:  ; preds = bb2
-    tail_call @get
-  bb3:  ; preds = bb2
-    tail_call @sum
-  bb1:  ; preds = bb0, bb2
-    revert 0, 0
 }

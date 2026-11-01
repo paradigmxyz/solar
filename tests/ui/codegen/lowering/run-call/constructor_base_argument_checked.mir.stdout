@@ -1,17 +1,17 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBase ===
 @module CheckedBase
-; getter for `uint256 public x` [selector 0x0c55699c]
-fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
-}
-
 ; constructor(uint256 v) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     ret
+}
+
+; getter for `uint256 public x` [selector 0x0c55699c]
+fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
 }
 
 ; function two() public pure returns (uint256) [selector 0x5fdf05d7]
@@ -22,18 +22,18 @@ fn @two() -> i256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word],
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedSignedBase ===
 @module CheckedSignedBase
-; getter for `int256 public y` [selector 0xa56dfe4a]
-fn @y() -> i256 [selector=0xa56dfe4a, view, abi_params=[], abi_returns=[word], abi_return_params=[int256]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
-}
-
 ; constructor(int256 v) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[int256]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     ret
+}
+
+; getter for `int256 public y` [selector 0xa56dfe4a]
+fn @y() -> i256 [selector=0xa56dfe4a, view, abi_params=[], abi_returns=[word], abi_return_params=[int256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgAdd ===
@@ -92,6 +92,17 @@ fn @two() -> i256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word],
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgList ===
 @module CheckedBaseArgList
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    v0 = icall @two
+    v1 = checked_mul uint256, v0, 3
+    sstore 0, v1 !metadata(storage=slot(0))
+    jump bb1
+  bb1:  ; preds = bb0
+    ret
+}
+
 ; getter for `uint256 public x` [selector 0x0c55699c]
 fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
@@ -103,17 +114,6 @@ fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], a
 fn @two() -> i256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 2
-}
-
-; creation entry
-fn @constructor() [constructor] {
-  bb0:
-    v0 = icall @two
-    v1 = checked_mul uint256, v0, 3
-    sstore 0, v1 !metadata(storage=slot(0))
-    jump bb1
-  bb1:  ; preds = bb0
-    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgNegate ===

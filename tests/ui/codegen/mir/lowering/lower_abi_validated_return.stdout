@@ -215,7 +215,7 @@
 +     mstore v18, v15
 +     v19 = add v7, 1
 +     jump bb3
-+   bb1:  ; preds = bb0
++   bb1 [cold]:  ; preds = bb0
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -348,7 +348,7 @@
 +     v10 = add 128, 32
 +     v11 = sub v10, 128
 +     returndata 128, v11
-+   bb2:  ; preds = bb0, bb3
++   bb2 [cold]:  ; preds = bb0, bb3
 +     revert 0, 0
   }
   
@@ -384,7 +384,7 @@
       mstore v18, v15
       v19 = add v7, 1
       jump bb3
-    bb1:  ; preds = bb0
+    bb1 [cold]:  ; preds = bb0
       mstore 32, 65 !metadata(memory=scratch)
       mstore 0, 0x4e487b71 !metadata(memory=scratch)
       revert 28, 36

@@ -1,6 +1,24 @@
 // === ROOT/tests/ui/codegen/mir/loop-version/bounds_wrapping.sol:BoundsWrapping ===
 @module BoundsWrapping
 @phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb4, bb1
+  bb1:  ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb4, [0x8a7c76d => bb2, 0xf3a3e4fe => bb3]
+  bb3:  ; preds = bb1
+    tail_call @empty
+  bb2:  ; preds = bb1
+    tail_call @wrapped
+  bb4 [cold]:  ; preds = bb0, bb1
+    revert 0, 0
+}
+
 ; function empty(uint256 count) external pure returns (uint256) [selector 0xf3a3e4fe]
 fn @empty() [selector=0xf3a3e4fe, abi_wrapper, pure] {
   bb0:
@@ -20,7 +38,7 @@ fn @empty() [selector=0xf3a3e4fe, abi_wrapper, pure] {
     v6 = mload 0x10000000000000000
     v7 = lt v4, v6
     jumpi v7, bb5, bb4
-  bb4:  ; preds = bb3
+  bb4 [cold]:  ; preds = bb3
     tail_call @revert_stub
   bb5:  ; preds = bb3
     v9 = shl v4, 5
@@ -28,7 +46,7 @@ fn @empty() [selector=0xf3a3e4fe, abi_wrapper, pure] {
     mstore v18, 0
     v13 = add v4, 1
     jump bb1
-  bb6:  ; preds = bb0
+  bb6 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
@@ -54,11 +72,11 @@ fn @wrapped() [selector=0x08a7c76d, abi_wrapper, pure] {
     v3 = icall @_write, v8, arg0, arg1
     mstore 0, v3 !metadata(memory=scratch)
     returndata 0, 32
-  bb4:  ; preds = bb2
+  bb4 [cold]:  ; preds = bb2
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:  ; preds = bb0
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
@@ -104,7 +122,7 @@ fn @_write(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory, pure]
     v7 = mload arg0
     v8 = lt v5, v7
     jumpi v8, bb10, bb9
-  bb9:  ; preds = bb3
+  bb9 [cold]:  ; preds = bb3
     tail_call @revert_stub
   bb10:  ; preds = bb3
     mstore v47, 0
@@ -113,27 +131,9 @@ fn @_write(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory, pure]
     jump bb1
 }
 
-fn @revert_stub() {
-  bb0:
+fn @revert_stub() [cold] {
+  bb0 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb4, bb1
-  bb1:  ; preds = bb0
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb4, [0x8a7c76d => bb2, 0xf3a3e4fe => bb3]
-  bb3:  ; preds = bb1
-    tail_call @empty
-  bb2:  ; preds = bb1
-    tail_call @wrapped
-  bb4:  ; preds = bb0, bb1
-    revert 0, 0
 }

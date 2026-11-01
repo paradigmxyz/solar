@@ -83,6 +83,6 @@ fn @entry() [entry] {
     v17 = add v12, v13
     v18 = add v13, 1
     jump bb7
-  bb1:  ; preds = bb0, bb2
+  bb1 [cold]:  ; preds = bb0, bb2
     revert 0, 0
 }

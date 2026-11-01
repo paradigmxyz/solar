@@ -1,12 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/constructor_memory_return.sol:ConstructorMemoryReturn ===
 @module ConstructorMemoryReturn
-; getter for `string public value` [selector 0x3fa4f245]
-fn @value() -> ptr<memory> [selector=0x3fa4f245, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
-  bb0:
-    v0 = load_storage_bytes 0
-    ret v0
-}
-
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
@@ -14,6 +7,13 @@ fn @constructor() [constructor] {
     v1 = icall @consume, v0
     icall @store_storage_bytes, 0, v1
     ret
+}
+
+; getter for `string public value` [selector 0x3fa4f245]
+fn @value() -> ptr<memory> [selector=0x3fa4f245, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = load_storage_bytes 0
+    ret v0
 }
 
 ; function version() public pure returns (string memory) [selector 0x54fd4d50]

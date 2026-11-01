@@ -5,11 +5,12 @@
 // DCE should clear bb1's instructions and mark it invalid.
 @module DceUnreachable
 // CHECK-LABEL: {{^[ +].*}}fn @skip{{[( ]}}
-// CHECK: {{^[ +].*}}bb1:
+// CHECK: - bb1:
 // CHECK: - {{v[0-9]+}} = add arg0, 1
 // CHECK: - {{v[0-9]+}} = mul {{v[0-9]+}}, {{v[0-9]+}}
 // CHECK: - ret {{v[0-9]+}}
-// CHECK: + invalid
+// CHECK: + bb1 [cold]:
+// CHECK-NEXT: + invalid
 fn @skip(arg0: i256) -> i256 {
   bb0:
     jump bb2

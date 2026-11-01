@@ -1,12 +1,5 @@
 // === ROOT/tests/ui/codegen/disasm/creation_loop_data.sol:LoopData ===
 @module LoopData
-; getter for `bytes32 public result` [selector 0x65372147]
-fn @result() -> i256 [selector=0x65372147, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
-}
-
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
@@ -34,4 +27,11 @@ fn @constructor() [constructor] {
   bb3:  ; preds = bb6
     v5 = checked_add uint256, v1, 1
     jump bb1
+}
+
+; getter for `bytes32 public result` [selector 0x65372147]
+fn @result() -> i256 [selector=0x65372147, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
 }

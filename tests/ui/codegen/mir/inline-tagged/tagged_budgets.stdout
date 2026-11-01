@@ -3,14 +3,30 @@
 @phase lowered
 @library
 ; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
+fn @entry() [entry, cold] {
+  bb0 [cold]:
     revert 0, 0
 }
 
 // === ROOT/tests/ui/codegen/mir/inline-tagged/tagged_budgets.sol:TaggedBudgets ===
 @module TaggedBudgets
 @phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:  ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0x9cf82c3f => bb2]
+  bb2:  ; preds = bb1
+    tail_call @run
+  bb3 [cold]:  ; preds = bb0, bb1
+    revert 0, 0
+}
+
 ; function run(bytes memory x, bytes memory out, uint256 a, uint256 b, uint256 c, uint256 d) external pure returns (uint256) [selector 0x9cf82c3f]
 fn @run() [selector=0x9cf82c3f, abi_wrapper, pure] {
   bb0:
@@ -23,7 +39,7 @@ fn @run() [selector=0x9cf82c3f, abi_wrapper, pure] {
     v0 = icall @f, v3, v4, arg2, arg3, arg4, arg5
     mstore 0, v0 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:  ; preds = bb0
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
@@ -119,11 +135,11 @@ fn @f(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256) ->
     mstore8 v132, v70
     v67 = add v65, 1
     jump bb8
-  bb11:  ; preds = bb7, bb10, bb18, bb19
+  bb11 [cold]:  ; preds = bb7, bb10, bb18, bb19
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb16:  ; preds = bb3, bb9, bb13, bb6
+  bb16 [cold]:  ; preds = bb3, bb9, bb13, bb6
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -168,26 +184,10 @@ fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
     v26 = add v25, v6
     calldatacopy v26, v36, v23
     ret v29
-  bb3:  ; preds = bb2, bb4
+  bb3 [cold]:  ; preds = bb2, bb4
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:  ; preds = bb0, bb6
-    revert 0, 0
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb3, bb1
-  bb1:  ; preds = bb0
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb3, [0x9cf82c3f => bb2]
-  bb2:  ; preds = bb1
-    tail_call @run
-  bb3:  ; preds = bb0, bb1
+  bb1 [cold]:  ; preds = bb0, bb6
     revert 0, 0
 }

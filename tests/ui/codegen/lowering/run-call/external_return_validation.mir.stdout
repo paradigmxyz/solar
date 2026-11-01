@@ -4,6 +4,18 @@
   struct0: {i8, i1, i128}
   struct1: {ptr<memory>, ptr<memory>}
 
+; fallback() external [fallback]
+fn @fallback() [fallback] {
+  bb0:
+    mstore 0, 64 !metadata(memory=scratch)
+    mstore 32, 96 !metadata(memory=scratch)
+    mstore 64, 64 !metadata(memory=scratch)
+    mstore 96, 32 !metadata(memory=scratch)
+    mstore 128, 1
+    mstore 160, 7
+    returndata 0, 192
+}
+
 ; function validatedTuple(uint256 value, uint256 flag) external view returns (uint8, bool, uint128) [selector 0x7b478388]
 fn @validatedTuple(arg0: i256, arg1: i256) -> struct0 [selector=0x7b478388, view, abi_params=[uint256, uint256], abi_returns=[word<uint8>, word<bool>, word<uint128>], abi_return_params=[uint8, bool, uint128]] {
   bb0:
@@ -281,18 +293,6 @@ fn @distinctDynamicReturns() -> i256 [selector=0x56c7de2c, abi_params=[], abi_re
     v24 = ptradd v20, 32
     v25 = mload v24
     ret v25
-}
-
-; fallback() external [fallback]
-fn @fallback() [fallback] {
-  bb0:
-    mstore 0, 64 !metadata(memory=scratch)
-    mstore 32, 96 !metadata(memory=scratch)
-    mstore 64, 64 !metadata(memory=scratch)
-    mstore 96, 32 !metadata(memory=scratch)
-    mstore 128, 1
-    mstore 160, 7
-    returndata 0, 192
 }
 
 ; function dirtyArray() external pure returns (bool[] memory values) [selector 0xab113bc3]

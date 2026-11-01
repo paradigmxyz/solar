@@ -1,6 +1,22 @@
 // === ROOT/tests/ui/codegen/mir/inline/shared_runs.sol:SharedRuns ===
 @module SharedRuns
 @phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:  ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0xff30d0af => bb2]
+  bb2:  ; preds = bb1
+    tail_call @paint
+  bb3 [cold]:  ; preds = bb0, bb1
+    revert 0, 0
+}
+
 ; function paint() external [selector 0xff30d0af]
 fn @paint() [selector=0xff30d0af, abi_wrapper] {
   bb0:
@@ -27,7 +43,7 @@ fn @paintUint(arg0: i256) -> i256 [may_return_memory, pure] {
     mstore 32, arg0 !metadata(memory=scratch)
     v1 = staticcall v0, 0x7109709ecfa91a80626ff3989d68f67f5b1dd12d, 28, 36, 0, 0
     jumpi v1, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1 [cold]:  ; preds = bb0
     v16 = returndatasize
     returndatacopy 0, 0, v16 !metadata(memory=abi_return)
     v17 = returndatasize
@@ -55,7 +71,7 @@ fn @paintBool() -> i256 [may_return_memory, pure] {
     mstore 32, 1
     v3 = staticcall v0, 0x7109709ecfa91a80626ff3989d68f67f5b1dd12d, 28, 36, 0, 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1 [cold]:  ; preds = bb0
     v18 = returndatasize
     returndatacopy 0, 0, v18 !metadata(memory=abi_return)
     v19 = returndatasize
@@ -102,12 +118,12 @@ fn @wrap(arg0: i256) -> i256 [may_return_memory, pure] {
     v33 = add v32, 32
     mstore v33, 0
     ret v37
-  bb1:  ; preds = bb0
+  bb1 [cold]:  ; preds = bb0
     tail_call @revert_stub
 }
 
-fn @revert_stub() {
-  bb0:
+fn @revert_stub() [cold] {
+  bb0 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -158,11 +174,11 @@ fn @decode_aggregate(arg0: i256) -> i256 [may_return_memory] {
     v37 = add v36, v15
     calldatacopy v37, v48, v32
     ret v41
-  bb4:  ; preds = bb3, bb5
+  bb4 [cold]:  ; preds = bb3, bb5
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:  ; preds = bb0, bb2, bb7
+  bb1 [cold]:  ; preds = bb0, bb2, bb7
     revert 0, 0
 }
 
@@ -183,20 +199,4 @@ fn @encode_abi_tuple(arg0: i256) -> slice<memory> [may_return_memory, return_abi
     mcopy v9, v18, v5 !metadata(memory=heap, disjoint)
     v14 = sub v12, v24
     ret v24, v14
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb3, bb1
-  bb1:  ; preds = bb0
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb3, [0xff30d0af => bb2]
-  bb2:  ; preds = bb1
-    tail_call @paint
-  bb3:  ; preds = bb0, bb1
-    revert 0, 0
 }

@@ -4,13 +4,6 @@
   struct0: {i256, i256}
   struct1: {i8, i256}
 
-; getter for `bytes32 public seal` [selector 0x3fb27b85]
-fn @seal() -> i256 [selector=0x3fb27b85, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
-}
-
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
@@ -21,6 +14,13 @@ fn @constructor() [constructor] {
     v1 = keccak256 0, 96 !metadata(memory=scratch)
     sstore 0, v1 !metadata(storage=slot(0))
     ret
+}
+
+; getter for `bytes32 public seal` [selector 0x3fb27b85]
+fn @seal() -> i256 [selector=0x3fb27b85, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
 }
 
 ; function resetHeap(uint256 a, uint256 flag) external pure returns (bytes32 result) [selector 0x68dd8af4]

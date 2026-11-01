@@ -1,8 +1,29 @@
 // === ROOT/tests/ui/codegen/mir/memory-dse/overwritten_ranges.sol:OverwrittenRanges ===
 @module OverwrittenRanges
 @phase lowered
-@types
-  struct0: {i256, i256}
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb7, bb1
+  bb1:  ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb7, [0x5e97f278 => bb2, 0x6649a3b9 => bb3, 0x7fce0203 => bb4, 0x9defb653 => bb5, 0xa6a0e5ea => bb6]
+  bb6:  ; preds = bb1
+    tail_call @returndataBounds
+  bb5:  ; preds = bb1
+    tail_call @partialOverwrite
+  bb4:  ; preds = bb1
+    tail_call @expansion
+  bb3:  ; preds = bb1
+    tail_call @allocated
+  bb2:  ; preds = bb1
+    tail_call @overwritten
+  bb7 [cold]:  ; preds = bb0, bb1
+    revert 0, 0
+}
 
 ; function overwritten() external pure returns (uint256, uint256) [selector 0x5e97f278]
 fn @overwritten() [selector=0x5e97f278, abi_wrapper, pure] {
@@ -65,34 +86,10 @@ fn @allocated() [selector=0x6649a3b9, abi_wrapper, pure] {
     v24 = sub v26, 32
     mstore v24, 32
     returndata v24, 128
-  bb4:  ; preds = bb2
+  bb4 [cold]:  ; preds = bb2
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:  ; preds = bb0
-    revert 0, 0
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb7, bb1
-  bb1:  ; preds = bb0
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb7, [0x5e97f278 => bb2, 0x6649a3b9 => bb3, 0x7fce0203 => bb4, 0x9defb653 => bb5, 0xa6a0e5ea => bb6]
-  bb6:  ; preds = bb1
-    tail_call @returndataBounds
-  bb5:  ; preds = bb1
-    tail_call @partialOverwrite
-  bb4:  ; preds = bb1
-    tail_call @expansion
-  bb3:  ; preds = bb1
-    tail_call @allocated
-  bb2:  ; preds = bb1
-    tail_call @overwritten
-  bb7:  ; preds = bb0, bb1
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }

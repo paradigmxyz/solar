@@ -1,8 +1,31 @@
 // === ROOT/tests/ui/codegen/lowering/abi_decode_dynamic_arrays.sol:AbiDecodeDynamicArrays ===
 @module AbiDecodeDynamicArrays
 @phase lowered
-@types
-  struct0: {i256, ptr<memory>, ptr<memory>}
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:  ; preds = bb0
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0x5a7641c8 => bb3, 0x6791505c => bb4, 0x68f4ce0b => bb5, 0xcfb203c5 => bb6]
+  bb6:  ; preds = bb2
+    tail_call @bools
+  bb5:  ; preds = bb2
+    tail_call @strs
+  bb4:  ; preds = bb2
+    tail_call @mixed
+  bb3:  ; preds = bb2
+    tail_call @words
+  bb1 [cold]:  ; preds = bb0, bb2
+    revert 0, 0
+}
 
 ; function words(bytes memory b) public pure returns (uint256[] memory) [selector 0x5a7641c8]
 fn @words() [selector=0x5a7641c8, abi_wrapper, pure] {
@@ -42,11 +65,11 @@ fn @words() [selector=0x5a7641c8, abi_wrapper, pure] {
     mstore v47, 32
     v40 = add v22, 64
     returndata v47, v40
-  bb4:  ; preds = bb3
+  bb4 [cold]:  ; preds = bb3
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:  ; preds = bb0, bb2, bb5
+  bb1 [cold]:  ; preds = bb0, bb2, bb5
     revert 0, 0
 }
 
@@ -128,11 +151,11 @@ fn @bools() [selector=0xcfb203c5, abi_wrapper, pure] {
     v37 = add v28, 1
     v86 = add v85, 32
     jump bb7
-  bb4:  ; preds = bb3
+  bb4 [cold]:  ; preds = bb3
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:  ; preds = bb0, bb2, bb5, bb8
+  bb1 [cold]:  ; preds = bb0, bb2, bb5, bb8
     revert 0, 0
 }
 
@@ -249,11 +272,11 @@ fn @strs() [selector=0x68f4ce0b, abi_wrapper, pure] {
     v61 = add v27, 32
     v62 = add v28, 1
     jump bb7
-  bb4:  ; preds = bb3, bb10
+  bb4 [cold]:  ; preds = bb3, bb10
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:  ; preds = bb0, bb2, bb5, bb8, bb11
+  bb1 [cold]:  ; preds = bb0, bb2, bb5, bb8, bb11
     revert 0, 0
 }
 
@@ -346,11 +369,11 @@ fn @mixed() [selector=0x6791505c, abi_wrapper, pure] {
     mcopy v99, v112, v95 !metadata(disjoint)
     v104 = sub v102, v122
     returndata v122, v104
-  bb4:  ; preds = bb3, bb7
+  bb4 [cold]:  ; preds = bb3, bb7
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:  ; preds = bb0, bb2, bb5, bb6, bb8
+  bb1 [cold]:  ; preds = bb0, bb2, bb5, bb6, bb8
     revert 0, 0
 }
 
@@ -393,37 +416,11 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v26 = add v25, v6
     calldatacopy v26, v36, v23
     ret v29
-  bb3:  ; preds = bb2
+  bb3 [cold]:  ; preds = bb2
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:  ; preds = bb0, bb5
-    revert 0, 0
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = calldatasize
-    v2 = lt v1, 36
-    v3 = zext i1 v2 to i256
-    v4 = or v0, v3
-    v5 = ne v4, 0
-    jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
-    v6 = calldataload 0
-    v7 = shr v6, 224
-    switch v7, default bb1, [0x5a7641c8 => bb3, 0x6791505c => bb4, 0x68f4ce0b => bb5, 0xcfb203c5 => bb6]
-  bb6:  ; preds = bb2
-    tail_call @bools
-  bb5:  ; preds = bb2
-    tail_call @strs
-  bb4:  ; preds = bb2
-    tail_call @mixed
-  bb3:  ; preds = bb2
-    tail_call @words
-  bb1:  ; preds = bb0, bb2
+  bb1 [cold]:  ; preds = bb0, bb5
     revert 0, 0
 }
 
@@ -440,7 +437,7 @@ fn @alloc(arg0: i256) -> i256 {
   bb2:  ; preds = bb0
     mstore 64, v2 !metadata(memory=scratch)
     ret v0
-  bb1:  ; preds = bb0
+  bb1 [cold]:  ; preds = bb0
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36

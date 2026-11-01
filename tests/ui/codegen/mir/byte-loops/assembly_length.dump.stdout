@@ -1,8 +1,27 @@
 // === ROOT/tests/ui/codegen/mir/byte-loops/assembly_length.sol:Test ===
 @module Test
 @phase lowered
-@types
-  struct0: {ptr<memory>, i256}
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb6, bb1
+  bb1:  ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb6, [0x3fda5389 => bb2, 0x53a33458 => bb3, 0x73d8cb1e => bb4, 0xd89b44d4 => bb5]
+  bb5:  ; preds = bb1
+    tail_call @grownPast
+  bb4:  ; preds = bb1
+    tail_call @word
+  bb3:  ; preds = bb1
+    tail_call @copy
+  bb2:  ; preds = bb1
+    tail_call @fill
+  bb6 [cold]:  ; preds = bb0, bb1
+    revert 0, 0
+}
 
 ; function copy(bytes memory src, uint256 start) external pure returns (bytes memory out, uint256 tail) [selector 0x53a33458]
 fn @copy() [selector=0x53a33458, abi_wrapper, pure] {
@@ -105,7 +124,7 @@ fn @copy() [selector=0x53a33458, abi_wrapper, pure] {
     v26 = mload v146
     v27 = lt v15, v26
     jumpi v27, bb10, bb8
-  bb8:  ; preds = bb3, bb5, bb9
+  bb8 [cold]:  ; preds = bb3, bb5, bb9
     tail_call @revert_stub.7
   bb10:  ; preds = bb9
     v133 = add v146, v15
@@ -132,17 +151,17 @@ fn @copy() [selector=0x53a33458, abi_wrapper, pure] {
     mstore v117, v33
     v119 = sub v115, v154
     returndata v154, v119
-  bb6:  ; preds = bb13
+  bb6 [cold]:  ; preds = bb13
     tail_call @revert_stub.6
-  bb12:  ; preds = bb17
+  bb12 [cold]:  ; preds = bb17
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb16:  ; preds = bb15
+  bb16 [cold]:  ; preds = bb15
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb14:  ; preds = bb0, bb18
+  bb14 [cold]:  ; preds = bb0, bb18
     revert 0, 0
 }
 
@@ -209,7 +228,7 @@ fn @word() [selector=0x73d8cb1e, abi_wrapper, pure] {
     v19 = mload v79
     v20 = lt v18, v19
     jumpi v20, bb8, bb7
-  bb7:  ; preds = bb3, bb4
+  bb7 [cold]:  ; preds = bb3, bb4
     tail_call @revert_stub.7
   bb8:  ; preds = bb3
     v73 = add v79, v18
@@ -217,13 +236,13 @@ fn @word() [selector=0x73d8cb1e, abi_wrapper, pure] {
     mstore8 v74, v16
     v25 = add v12, 1
     jump bb1
-  bb5:  ; preds = bb11
+  bb5 [cold]:  ; preds = bb11
     tail_call @revert_stub.6
-  bb10:  ; preds = bb13
+  bb10 [cold]:  ; preds = bb13
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb12:  ; preds = bb0
+  bb12 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
@@ -271,15 +290,15 @@ fn @fill() [selector=0x3fda5389, abi_wrapper, pure] {
     mstore v47, v20
     v49 = sub v45, v58
     returndata v58, v49
-  bb3:  ; preds = bb2
+  bb3 [cold]:  ; preds = bb2
     tail_call @revert_stub.7
-  bb1:  ; preds = bb6
+  bb1 [cold]:  ; preds = bb6
     tail_call @revert_stub.6
-  bb5:  ; preds = bb8
+  bb5 [cold]:  ; preds = bb8
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb7:  ; preds = bb0
+  bb7 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
@@ -346,7 +365,7 @@ fn @grownPast() [selector=0xd89b44d4, abi_wrapper, pure] {
     v26 = mload v88
     v27 = lt v15, v26
     jumpi v27, bb7, bb5
-  bb5:  ; preds = bb3, bb4, bb6
+  bb5 [cold]:  ; preds = bb3, bb4, bb6
     tail_call @revert_stub.7
   bb7:  ; preds = bb6
     v80 = add v88, v15
@@ -354,7 +373,7 @@ fn @grownPast() [selector=0xd89b44d4, abi_wrapper, pure] {
     mstore8 v81, v24
     v32 = add v15, 1
     jump bb1
-  bb10:  ; preds = bb0
+  bb10 [cold]:  ; preds = bb0
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -398,40 +417,18 @@ fn @_tail(arg0: i256) -> i256 [may_return_memory, pure] {
     ret v13
 }
 
-fn @revert_stub.6() {
-  bb0:
+fn @revert_stub.6() [cold] {
+  bb0 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
-fn @revert_stub.7() {
-  bb0:
+fn @revert_stub.7() [cold] {
+  bb0 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb6, bb1
-  bb1:  ; preds = bb0
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb6, [0x3fda5389 => bb2, 0x53a33458 => bb3, 0x73d8cb1e => bb4, 0xd89b44d4 => bb5]
-  bb5:  ; preds = bb1
-    tail_call @grownPast
-  bb4:  ; preds = bb1
-    tail_call @word
-  bb3:  ; preds = bb1
-    tail_call @copy
-  bb2:  ; preds = bb1
-    tail_call @fill
-  bb6:  ; preds = bb0, bb1
-    revert 0, 0
 }
 
 fn @alloc(arg0: i256) -> i256 {
@@ -447,7 +444,7 @@ fn @alloc(arg0: i256) -> i256 {
   bb2:  ; preds = bb0
     mstore 64, v2 !metadata(memory=scratch)
     ret v0
-  bb1:  ; preds = bb0
+  bb1 [cold]:  ; preds = bb0
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36

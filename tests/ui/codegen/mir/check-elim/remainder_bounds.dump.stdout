@@ -1,6 +1,26 @@
 // === ROOT/tests/ui/codegen/mir/check-elim/remainder_bounds.sol:RemainderBounds ===
 @module RemainderBounds
 @phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb5, bb1
+  bb1:  ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb5, [0x74dbbcbe => bb2, 0x9d6a1cd3 => bb3, 0xe4bcb1d7 => bb4]
+  bb4:  ; preds = bb1
+    tail_call @pickDown
+  bb3:  ; preds = bb1
+    tail_call @pick
+  bb2:  ; preds = bb1
+    tail_call @pickRest
+  bb5 [cold]:  ; preds = bb0, bb1
+    revert 0, 0
+}
+
 ; function pick(uint256[] calldata a, uint256 r) external pure returns (uint256) [selector 0x9d6a1cd3]
 fn @pick() [selector=0x9d6a1cd3, abi_wrapper, pure] {
   bb0:
@@ -21,7 +41,7 @@ fn @pick() [selector=0x9d6a1cd3, abi_wrapper, pure] {
   bb4:  ; preds = bb0
     v12 = ne v21, 0
     jumpi v12, bb2, bb1
-  bb1:  ; preds = bb4
+  bb1 [cold]:  ; preds = bb4
     mstore 32, 18 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -32,7 +52,7 @@ fn @pick() [selector=0x9d6a1cd3, abi_wrapper, pure] {
     v11 = calldataload v10
     mstore 0, v11 !metadata(memory=scratch)
     returndata 0, 32
-  bb3:  ; preds = bb0
+  bb3 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
@@ -96,15 +116,15 @@ fn @pickDown() [selector=0xe4bcb1d7, abi_wrapper, pure] {
   bb5:  ; preds = bb3
     v16 = sub v4, 1
     jump bb1
-  bb4:  ; preds = bb3
+  bb4 [cold]:  ; preds = bb3
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb8:  ; preds = bb7
+  bb8 [cold]:  ; preds = bb7
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb6:  ; preds = bb0, bb10
+  bb6 [cold]:  ; preds = bb0, bb10
     revert 0, 0
 }
 
@@ -123,26 +143,6 @@ fn @pickRest() [selector=0x74dbbcbe, abi_wrapper, pure] {
     v5 = add v3, arg1
     mstore 0, v5 !metadata(memory=scratch)
     returndata 0, 32
-  bb2:  ; preds = bb0, bb3
-    revert 0, 0
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb5, bb1
-  bb1:  ; preds = bb0
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb5, [0x74dbbcbe => bb2, 0x9d6a1cd3 => bb3, 0xe4bcb1d7 => bb4]
-  bb4:  ; preds = bb1
-    tail_call @pickDown
-  bb3:  ; preds = bb1
-    tail_call @pick
-  bb2:  ; preds = bb1
-    tail_call @pickRest
-  bb5:  ; preds = bb0, bb1
+  bb2 [cold]:  ; preds = bb0, bb3
     revert 0, 0
 }

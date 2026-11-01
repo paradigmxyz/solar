@@ -1,8 +1,21 @@
 // === ROOT/tests/ui/codegen/mir/loop-version/pointer_word.sol:Test ===
 @module Test
 @phase lowered
-@types
-  struct0: {i1, ptr<memory>}
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:  ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0x16134912 => bb2]
+  bb2:  ; preds = bb1
+    tail_call @lastIndicesIn
+  bb3 [cold]:  ; preds = bb0, bb1
+    revert 0, 0
+}
 
 ; function lastIndicesIn(uint256[] memory a, uint256[] memory items, uint256[] memory last) external pure returns (bool, uint256[] memory) [selector 0x16134912]
 fn @lastIndicesIn() [selector=0x16134912, abi_wrapper, pure] {
@@ -32,7 +45,7 @@ fn @lastIndicesIn() [selector=0x16134912, abi_wrapper, pure] {
     mcopy v24, v32, v23 !metadata(memory=heap, disjoint)
     v28 = sub v26, v36
     returndata v36, v28
-  bb1:  ; preds = bb0
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
@@ -127,7 +140,7 @@ fn @_lastIndicesIn(arg0: i256, arg1: i256, arg2: i256) -> i1 [may_return_memory,
     v49 = and v80, 3
     v51 = lt v49, v57
     jumpi v51, bb15, bb9
-  bb9:  ; preds = bb3, bb4, bb6, bb7, bb17, bb18
+  bb9 [cold]:  ; preds = bb3, bb4, bb6, bb7, bb17, bb18
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -136,7 +149,7 @@ fn @_lastIndicesIn(arg0: i256, arg1: i256, arg2: i256) -> i1 [may_return_memory,
     v104 = add v115, v52
     mstore v104, v35
     jump bb5
-  bb16:  ; preds = bb11, bb14
+  bb16 [cold]:  ; preds = bb11, bb14
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -181,26 +194,10 @@ fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
     v22 = add v25, 32
     calldatacopy v22, v7, v12
     ret v25
-  bb3:  ; preds = bb2, bb4
+  bb3 [cold]:  ; preds = bb2, bb4
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:  ; preds = bb0, bb6
-    revert 0, 0
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb3, bb1
-  bb1:  ; preds = bb0
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb3, [0x16134912 => bb2]
-  bb2:  ; preds = bb1
-    tail_call @lastIndicesIn
-  bb3:  ; preds = bb0, bb1
+  bb1 [cold]:  ; preds = bb0, bb6
     revert 0, 0
 }

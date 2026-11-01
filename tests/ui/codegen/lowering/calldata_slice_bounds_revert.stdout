@@ -1,6 +1,24 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_bounds_revert.sol:CalldataSliceBoundsRevert ===
 @module CalldataSliceBoundsRevert
 @phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb4, bb1
+  bb1:  ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb4, [0x598bfb30 => bb2, 0x8063d43b => bb3]
+  bb3:  ; preds = bb1
+    tail_call @endPastLength
+  bb2:  ; preds = bb1
+    tail_call @startAfterEnd
+  bb4 [cold]:  ; preds = bb0, bb1
+    revert 0, 0
+}
+
 ; function endPastLength(bytes calldata data, uint256 end) external pure returns (bytes memory) [selector 0x8063d43b]
 fn @endPastLength() [selector=0x8063d43b, abi_wrapper, pure] {
   bb0:
@@ -43,7 +61,7 @@ fn @endPastLength() [selector=0x8063d43b, abi_wrapper, pure] {
     calldatacopy v46, v54, v6
     v51 = sub v49, v58
     returndata v58, v51
-  bb1:  ; preds = bb0, bb2, bb4
+  bb1 [cold]:  ; preds = bb0, bb2, bb4
     revert 0, 0
 }
 
@@ -90,7 +108,7 @@ fn @startAfterEnd() [selector=0x598bfb30, abi_wrapper, pure] {
     calldatacopy v46, v54, v6
     v51 = sub v49, v58
     returndata v58, v51
-  bb1:  ; preds = bb0, bb2, bb4
+  bb1 [cold]:  ; preds = bb0, bb2, bb4
     revert 0, 0
 }
 
@@ -109,24 +127,6 @@ fn @decode_calldata_slice() -> i256 {
     jumpi v10, bb1, bb2
   bb2:  ; preds = bb0
     ret v2
-  bb1:  ; preds = bb0
-    revert 0, 0
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb4, bb1
-  bb1:  ; preds = bb0
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb4, [0x598bfb30 => bb2, 0x8063d43b => bb3]
-  bb3:  ; preds = bb1
-    tail_call @endPastLength
-  bb2:  ; preds = bb1
-    tail_call @startAfterEnd
-  bb4:  ; preds = bb0, bb1
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }

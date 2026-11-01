@@ -16,7 +16,7 @@
     bb2:  ; preds = bb1
 -     ret v4
 +     ret v1
-    bb3:  ; preds = bb0, bb1
+    bb3 [cold]:  ; preds = bb0, bb1
       revert 0, 0
   }
   

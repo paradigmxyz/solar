@@ -31,7 +31,7 @@
       v10 = mload v9
       v11 = lt v0, arg1
 -     jumpi v11, bb9, bb8
--   bb8:  ; preds = bb6, bb7
+-   bb8 [cold]:  ; preds = bb6, bb7
 -     revert 0, 36
 +     jump bb9
     bb9:  ; preds = bb7
@@ -40,10 +40,10 @@
       mstore v13, v10
       v14 = add v0, 1
       jump bb1
--   bb5:  ; preds = bb3, bb4
-+   bb5:
+-   bb5 [cold]:  ; preds = bb3, bb4
++   bb5 [cold]:
       revert 0, 0
-+   bb8:
++   bb8 [cold]:
 +     revert 0, 36
   }
   
@@ -63,8 +63,8 @@
     bb3:  ; preds = bb2
       v5 = lt arg0, arg2
       jumpi v5, bb4, bb5
--   bb5:  ; preds = bb0, bb1, bb2, bb3
-+   bb5:  ; preds = bb0, bb2, bb3
+-   bb5 [cold]:  ; preds = bb0, bb1, bb2, bb3
++   bb5 [cold]:  ; preds = bb0, bb2, bb3
       revert 0, 0
     bb4:  ; preds = bb3
       ret arg0

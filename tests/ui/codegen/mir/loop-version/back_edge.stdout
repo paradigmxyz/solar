@@ -1,6 +1,24 @@
 // === ROOT/tests/ui/codegen/mir/loop-version/back_edge.sol:Test ===
 @module Test
 @phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb4, bb1
+  bb1:  ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb4, [0x5d9cf5ea => bb2, 0x67979c1a => bb3]
+  bb3:  ; preds = bb1
+    tail_call @shiftFar
+  bb2:  ; preds = bb1
+    tail_call @shift
+  bb4 [cold]:  ; preds = bb0, bb1
+    revert 0, 0
+}
+
 ; function shift(uint256[] memory a, uint256[] memory b, uint256[] memory c, uint256 k) external pure returns (uint256[] memory) [selector 0x5d9cf5ea]
 fn @shift() [selector=0x5d9cf5ea, abi_wrapper, pure] {
   bb0:
@@ -93,7 +111,7 @@ fn @shift() [selector=0x5d9cf5ea, abi_wrapper, pure] {
   bb14:  ; preds = bb10
     v42 = lt v30, v49
     jumpi v42, bb11, bb7
-  bb7:  ; preds = bb3, bb5, bb13, bb14
+  bb7 [cold]:  ; preds = bb3, bb5, bb13, bb14
     tail_call @revert_stub
   bb11:  ; preds = bb14
     v108 = add v87, v33
@@ -101,11 +119,11 @@ fn @shift() [selector=0x5d9cf5ea, abi_wrapper, pure] {
     mstore v109, v77
     v45 = add v30, 1
     jump bb4
-  bb12:  ; preds = bb8, bb10
+  bb12 [cold]:  ; preds = bb8, bb10
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb15:  ; preds = bb0
+  bb15 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
@@ -199,7 +217,7 @@ fn @shiftFar() [selector=0x67979c1a, abi_wrapper, pure] {
   bb14:  ; preds = bb10
     v44 = lt v32, v51
     jumpi v44, bb11, bb7
-  bb7:  ; preds = bb3, bb5, bb13, bb14
+  bb7 [cold]:  ; preds = bb3, bb5, bb13, bb14
     tail_call @revert_stub
   bb11:  ; preds = bb14
     v108 = add v87, v35
@@ -207,16 +225,16 @@ fn @shiftFar() [selector=0x67979c1a, abi_wrapper, pure] {
     mstore v109, v78
     v47 = add v32, 1
     jump bb4
-  bb12:  ; preds = bb8, bb10
+  bb12 [cold]:  ; preds = bb8, bb10
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb15:  ; preds = bb0
+  bb15 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
-fn @revert_stub() {
-  bb0:
+fn @revert_stub() [cold] {
+  bb0 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -258,28 +276,10 @@ fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
     v22 = add v25, 32
     calldatacopy v22, v7, v12
     ret v25
-  bb3:  ; preds = bb2, bb4
+  bb3 [cold]:  ; preds = bb2, bb4
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:  ; preds = bb0, bb6
-    revert 0, 0
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb4, bb1
-  bb1:  ; preds = bb0
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb4, [0x5d9cf5ea => bb2, 0x67979c1a => bb3]
-  bb3:  ; preds = bb1
-    tail_call @shiftFar
-  bb2:  ; preds = bb1
-    tail_call @shift
-  bb4:  ; preds = bb0, bb1
+  bb1 [cold]:  ; preds = bb0, bb6
     revert 0, 0
 }

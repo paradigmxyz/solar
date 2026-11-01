@@ -1,6 +1,40 @@
 // === ROOT/tests/ui/codegen/lowering/precompile_builtins.sol:PrecompileBuiltins ===
 @module PrecompileBuiltins
 @phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb12, bb1
+  bb1:  ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb12, [0x8f4bed => bb2, 0x62c5650 => bb3, 0xc4b170a => bb4, 0x1a7d61f8 => bb5, 0x4aa7a4c7 => bb6, 0x5c2b7c72 => bb7, 0x65707d6f => bb8, 0xa1e754ea => bb9, 0xce746024 => bb10, 0xf1609893 => bb11]
+  bb11:  ; preds = bb1
+    tail_call @shaEmpty
+  bb10:  ; preds = bb1
+    tail_call @recover
+  bb9:  ; preds = bb1
+    tail_call @ripemd
+  bb8:  ; preds = bb1
+    tail_call @sha
+  bb7:  ; preds = bb1
+    tail_call @ripemdWord
+  bb6:  ; preds = bb1
+    tail_call @shaLiteral
+  bb5:  ; preds = bb1
+    tail_call @shaWord
+  bb4:  ; preds = bb1
+    tail_call @ripemdEmpty
+  bb3:  ; preds = bb1
+    tail_call @ripemdLiteral
+  bb2:  ; preds = bb1
+    tail_call @recoverInvalid
+  bb12 [cold]:  ; preds = bb0, bb1
+    revert 0, 0
+}
+
 ; function recover() external pure returns (address) [selector 0xce746024]
 fn @recover() [selector=0xce746024, abi_wrapper, pure] {
   bb0:
@@ -16,7 +50,7 @@ fn @recover() [selector=0xce746024, abi_wrapper, pure] {
     v7 = gas
     v8 = staticcall v7, 1, v15, 128, 0, 32
     jumpi v8, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1 [cold]:  ; preds = bb0
     v10 = returndatasize
     returndatacopy 0, 0, v10 !metadata(memory=abi_return)
     v11 = returndatasize
@@ -43,7 +77,7 @@ fn @recoverInvalid() [selector=0x008f4bed, abi_wrapper, pure] {
     v7 = gas
     v8 = staticcall v7, 1, v15, 128, 0, 32
     jumpi v8, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1 [cold]:  ; preds = bb0
     v10 = returndatasize
     returndatacopy 0, 0, v10 !metadata(memory=abi_return)
     v11 = returndatasize
@@ -112,7 +146,7 @@ fn @shaWord() [selector=0x1a7d61f8, abi_wrapper, pure] {
     v6 = gas
     v7 = staticcall v6, 2, v15, 32, 0, 32
     jumpi v7, bb2, bb1
-  bb1:  ; preds = bb4
+  bb1 [cold]:  ; preds = bb4
     v9 = returndatasize
     returndatacopy 0, 0, v9 !metadata(memory=abi_return)
     v10 = returndatasize
@@ -121,7 +155,7 @@ fn @shaWord() [selector=0x1a7d61f8, abi_wrapper, pure] {
     v8 = mload 0 !metadata(memory=scratch)
     mstore 0, v8 !metadata(memory=scratch)
     returndata 0, 32
-  bb3:  ; preds = bb0
+  bb3 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
@@ -140,7 +174,7 @@ fn @ripemdWord() [selector=0x5c2b7c72, abi_wrapper, pure] {
     v6 = gas
     v7 = staticcall v6, 3, v16, 32, 0, 32
     jumpi v7, bb2, bb1
-  bb1:  ; preds = bb4
+  bb1 [cold]:  ; preds = bb4
     v10 = returndatasize
     returndatacopy 0, 0, v10 !metadata(memory=abi_return)
     v11 = returndatasize
@@ -150,40 +184,6 @@ fn @ripemdWord() [selector=0x5c2b7c72, abi_wrapper, pure] {
     v9 = shl v8, 96
     mstore 0, v9 !metadata(memory=scratch)
     returndata 0, 32
-  bb3:  ; preds = bb0
-    revert 0, 0
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb12, bb1
-  bb1:  ; preds = bb0
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb12, [0x8f4bed => bb2, 0x62c5650 => bb3, 0xc4b170a => bb4, 0x1a7d61f8 => bb5, 0x4aa7a4c7 => bb6, 0x5c2b7c72 => bb7, 0x65707d6f => bb8, 0xa1e754ea => bb9, 0xce746024 => bb10, 0xf1609893 => bb11]
-  bb11:  ; preds = bb1
-    tail_call @shaEmpty
-  bb10:  ; preds = bb1
-    tail_call @recover
-  bb9:  ; preds = bb1
-    tail_call @ripemd
-  bb8:  ; preds = bb1
-    tail_call @sha
-  bb7:  ; preds = bb1
-    tail_call @ripemdWord
-  bb6:  ; preds = bb1
-    tail_call @shaLiteral
-  bb5:  ; preds = bb1
-    tail_call @shaWord
-  bb4:  ; preds = bb1
-    tail_call @ripemdEmpty
-  bb3:  ; preds = bb1
-    tail_call @ripemdLiteral
-  bb2:  ; preds = bb1
-    tail_call @recoverInvalid
-  bb12:  ; preds = bb0, bb1
+  bb3 [cold]:  ; preds = bb0
     revert 0, 0
 }

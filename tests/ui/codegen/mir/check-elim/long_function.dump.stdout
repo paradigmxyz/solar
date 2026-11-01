@@ -1,6 +1,28 @@
 // === ROOT/tests/ui/codegen/mir/check-elim/long_function.sol:LongFunction ===
 @module LongFunction
 @phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 100
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:  ; preds = bb0
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0xaeb2e72f => bb3, 0xd2fe3d6a => bb4]
+  bb4:  ; preds = bb2
+    tail_call @chained
+  bb3:  ; preds = bb2
+    tail_call @unchained
+  bb1 [cold]:  ; preds = bb0, bb2
+    revert 0, 0
+}
+
 ; function chained(uint256 a, uint256 b, uint256 c) external pure returns (uint256 r) [selector 0xd2fe3d6a]
 fn @chained() [selector=0xd2fe3d6a, abi_wrapper, pure] {
   bb0:
@@ -8,7 +30,7 @@ fn @chained() [selector=0xd2fe3d6a, abi_wrapper, pure] {
     v2 = lt arg1, arg2
     v62 = and v0, v2
     jumpi v62, bb4, bb3
-  bb3:  ; preds = bb0
+  bb3 [cold]:  ; preds = bb0
     revert 0, 0
   bb4:  ; preds = bb0
     v5 = eq arg2, 2
@@ -119,11 +141,11 @@ fn @chained() [selector=0xd2fe3d6a, abi_wrapper, pure] {
   bb7:  ; preds = bb2
     mstore 0, v57 !metadata(memory=scratch)
     returndata 0, 32
-  bb6:  ; preds = bb2
+  bb6 [cold]:  ; preds = bb2
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb5:  ; preds = bb1, bb4
+  bb5 [cold]:  ; preds = bb1, bb4
     tail_call @revert_stub
 }
 
@@ -132,7 +154,7 @@ fn @unchained() [selector=0xaeb2e72f, abi_wrapper, pure] {
   bb0:
     v0 = lt arg0, arg1
     jumpi v0, bb4, bb3
-  bb3:  ; preds = bb0
+  bb3 [cold]:  ; preds = bb0
     revert 0, 0
   bb4:  ; preds = bb0
     v2 = eq arg2, 1
@@ -247,38 +269,16 @@ fn @unchained() [selector=0xaeb2e72f, abi_wrapper, pure] {
   bb7:  ; preds = bb2
     mstore 0, v59 !metadata(memory=scratch)
     returndata 0, 32
-  bb6:  ; preds = bb2
+  bb6 [cold]:  ; preds = bb2
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb5:  ; preds = bb1, bb4
+  bb5 [cold]:  ; preds = bb1, bb4
     tail_call @revert_stub
 }
 
-fn @revert_stub() {
-  bb0:
+fn @revert_stub() [cold] {
+  bb0 [cold]:
     mstore 0, 0xaf7cfeb1 !metadata(memory=scratch)
     revert 28, 4
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = calldatasize
-    v2 = lt v1, 100
-    v3 = zext i1 v2 to i256
-    v4 = or v0, v3
-    v5 = ne v4, 0
-    jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
-    v6 = calldataload 0
-    v7 = shr v6, 224
-    switch v7, default bb1, [0xaeb2e72f => bb3, 0xd2fe3d6a => bb4]
-  bb4:  ; preds = bb2
-    tail_call @chained
-  bb3:  ; preds = bb2
-    tail_call @unchained
-  bb1:  ; preds = bb0, bb2
-    revert 0, 0
 }

@@ -3,18 +3,18 @@
 @immutables
   value: uint256
 
-; function baseValue() external pure returns (uint256) [selector 0x61bb9c52]
-fn @baseValue() -> i256 [selector=0x61bb9c52, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = loadimmutable value
-    ret v0
-}
-
 ; creation entry
 fn @constructor() [constructor] {
   bb0:
     storeimmutable value, 1
     ret
+}
+
+; function baseValue() external pure returns (uint256) [selector 0x61bb9c52]
+fn @baseValue() -> i256 [selector=0x61bb9c52, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = loadimmutable value
+    ret v0
 }
 
 // === ROOT/tests/ui/codegen/lowering/immutable_name_conflicts.sol:Derived ===
@@ -23,6 +23,15 @@ fn @constructor() [constructor] {
   value0_: uint256
   value1: uint256
   value0: uint256
+
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    storeimmutable value0_, 1
+    storeimmutable value1, 2
+    storeimmutable value0, 3
+    ret
+}
 
 ; function derivedValue() external pure returns (uint256) [selector 0x13f1a030]
 fn @derivedValue() -> i256 [selector=0x13f1a030, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -43,13 +52,4 @@ fn @baseValue() -> i256 [selector=0x61bb9c52, pure, abi_params=[], abi_returns=[
   bb0:
     v0 = loadimmutable value0_
     ret v0
-}
-
-; creation entry
-fn @constructor() [constructor] {
-  bb0:
-    storeimmutable value0_, 1
-    storeimmutable value1, 2
-    storeimmutable value0, 3
-    ret
 }

@@ -14,6 +14,6 @@ fn @entry() [entry] {
   bb2:  ; preds = bb1
     mstore 0, 7
     returndata 0, 32
-  bb3:  ; preds = bb0, bb1
+  bb3 [cold]:  ; preds = bb0, bb1
     revert 0, 0
 }

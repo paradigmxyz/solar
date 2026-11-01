@@ -51,7 +51,7 @@
     bb0:
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2 [cold]:  ; preds = bb0
       revert 0, 0
     bb1:  ; preds = bb0
       sstore 0, arg1
@@ -81,11 +81,12 @@
 -   bb0:
 -     v0 = ne arg0, 0
 -     jumpi v0, bb1, bb2
+-   bb2 [cold]:  ; preds = bb0
 +     jump bb2
-    bb2:  ; preds = bb0
++   bb2:  ; preds = bb0
 +     v1 = ne arg0, 0
 +     jumpi v1, bb3, bb4
-+   bb4:  ; preds = bb2
++   bb4 [cold]:  ; preds = bb2
       revert 0, 0
 -   bb1:  ; preds = bb0
 +   bb3:  ; preds = bb2
@@ -177,7 +178,7 @@
     bb0:
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2 [cold]:  ; preds = bb0
       revert 0, 0
     bb1:  ; preds = bb0
       sstore 0, arg1
@@ -203,9 +204,9 @@
 -   bb2:  ; preds = bb0
       v1 = ne arg0, 0
 -     jumpi v1, bb3, bb4
--   bb4:  ; preds = bb2
+-   bb4 [cold]:  ; preds = bb2
 +     jumpi v1, bb1, bb2
-+   bb2:  ; preds = bb0
++   bb2 [cold]:  ; preds = bb0
       revert 0, 0
 -   bb3:  ; preds = bb2
 +   bb1:  ; preds = bb0

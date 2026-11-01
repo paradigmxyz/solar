@@ -24,6 +24,54 @@
 +   narrow_three_bytes: uint8
 +   narrow_address: uint16
   
+  ; creation entry
+  fn @constructor(arg0: i256) [constructor] {
+    bb0:
+      v0 = trunc i256 arg0 to i64
+      storeimmutable small, v0
+      icall @bridge
+      stop
+  }
+  
+  ; creation entry
+  fn @assign_widths(arg0: i256) [constructor] {
+    bb0:
+      v0 = address
+      v1 = zext i160 v0 to i256
+-     storeimmutable clean_address, v1
+-     storeimmutable dirty_address, 0x10000000000000000000000000000000000000007
+-     storeimmutable repeated, 1
+-     storeimmutable repeated, 0x10000
++     storeimmutable clean_address, v0
++     storeimmutable dirty_address, i168 0x10000000000000000000000000000000000000007
++     storeimmutable repeated, i24 1
++     storeimmutable repeated, i24 0x10000
+      storeimmutable unknown, arg0
+      icall @assign_called, 7
+      icall @assign_called, 0xffff
+      ret
+  }
+  
+  ; creation entry
+  fn @assign_narrow_scalars() [constructor] {
+    bb0:
+-     storeimmutable narrow_three_bytes, i24 255
+-     storeimmutable narrow_scalar, i64 255
+-     storeimmutable narrow_address_width, i160 0xffff
+-     storeimmutable narrow_address, i160 0xffff
+-     v0 = loadimmutable narrow_scalar
++     storeimmutable narrow_three_bytes, i8 255
++     storeimmutable narrow_scalar, i8 255
++     storeimmutable narrow_address_width, i16 0xffff
++     storeimmutable narrow_address, i16 0xffff
++     v3 = loadimmutable narrow_scalar
++     v0 = zext i8 v3 to i64
+      v1 = add v0, i64 1
+      v2 = zext i64 v1 to i256
+      mstore 0, v2
+      ret
+  }
+  
   ; selector 0x00000001
   fn @runtime() -> i256 [selector=0x00000001] {
     bb0:
@@ -46,18 +94,9 @@
 +     jump bb2
     bb2:  ; preds = bb0
       ret v2
--   bb1:  ; preds = bb0
-+   bb1:
+-   bb1 [cold]:  ; preds = bb0
++   bb1 [cold]:
       revert 0, 0
-  }
-  
-  ; creation entry
-  fn @constructor(arg0: i256) [constructor] {
-    bb0:
-      v0 = trunc i256 arg0 to i64
-      storeimmutable small, v0
-      icall @bridge
-      stop
   }
   
   fn @bridge() {
@@ -74,7 +113,7 @@
       jumpi v3, bb1, bb2
     bb2:  ; preds = bb0
       stop
-    bb1:  ; preds = bb0
+    bb1 [cold]:  ; preds = bb0
       revert 0, 0
   }
   
@@ -87,7 +126,7 @@
       jumpi v3, bb1, bb2
     bb2:  ; preds = bb0
       ret v2
-    bb1:  ; preds = bb0
+    bb1 [cold]:  ; preds = bb0
       revert 0, 0
   }
   
@@ -99,7 +138,7 @@
       jumpi v2, bb1, bb2
     bb2:  ; preds = bb0
       ret v1
-    bb1:  ; preds = bb0
+    bb1 [cold]:  ; preds = bb0
       revert 0, 0
   }
   
@@ -112,27 +151,8 @@
       jumpi v3, bb1, bb2
     bb2:  ; preds = bb0
       ret v2
-    bb1:  ; preds = bb0
+    bb1 [cold]:  ; preds = bb0
       revert 0, 0
-  }
-  
-  ; creation entry
-  fn @assign_widths(arg0: i256) [constructor] {
-    bb0:
-      v0 = address
-      v1 = zext i160 v0 to i256
--     storeimmutable clean_address, v1
--     storeimmutable dirty_address, 0x10000000000000000000000000000000000000007
--     storeimmutable repeated, 1
--     storeimmutable repeated, 0x10000
-+     storeimmutable clean_address, v0
-+     storeimmutable dirty_address, i168 0x10000000000000000000000000000000000000007
-+     storeimmutable repeated, i24 1
-+     storeimmutable repeated, i24 0x10000
-      storeimmutable unknown, arg0
-      icall @assign_called, 7
-      icall @assign_called, 0xffff
-      ret
   }
   
   fn @assign_called(arg0: i256) {
@@ -140,26 +160,6 @@
 -     storeimmutable called, arg0
 +     v0 = trunc i256 arg0 to i16
 +     storeimmutable called, v0
-      ret
-  }
-  
-  ; creation entry
-  fn @assign_narrow_scalars() [constructor] {
-    bb0:
--     storeimmutable narrow_three_bytes, i24 255
--     storeimmutable narrow_scalar, i64 255
--     storeimmutable narrow_address_width, i160 0xffff
--     storeimmutable narrow_address, i160 0xffff
--     v0 = loadimmutable narrow_scalar
-+     storeimmutable narrow_three_bytes, i8 255
-+     storeimmutable narrow_scalar, i8 255
-+     storeimmutable narrow_address_width, i16 0xffff
-+     storeimmutable narrow_address, i16 0xffff
-+     v3 = loadimmutable narrow_scalar
-+     v0 = zext i8 v3 to i64
-      v1 = add v0, i64 1
-      v2 = zext i64 v1 to i256
-      mstore 0, v2
       ret
   }
   

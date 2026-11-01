@@ -1,5 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_virtual_empty.sol:ModifierVirtualEmpty ===
 @module ModifierVirtualEmpty
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    ret
+}
+
 ; function f() public pure mod returns (bool r) [selector 0x26121ff0]
 fn @f() -> i1 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
@@ -15,10 +21,4 @@ fn @f() -> i1 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word<bool>
     jump bb1
   bb1:  ; preds = bb4
     ret v0
-}
-
-; creation entry
-fn @constructor() [constructor] {
-  bb0:
-    ret
 }

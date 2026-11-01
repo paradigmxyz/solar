@@ -25,8 +25,8 @@
     bb4:  ; preds = bb3
       v6 = add v0, 1
       jump bb1
--   bb5:  ; preds = bb2, bb3
-+   bb5:  ; preds = bb3
+-   bb5 [cold]:  ; preds = bb2, bb3
++   bb5 [cold]:  ; preds = bb3
       revert 0, 0
   }
   

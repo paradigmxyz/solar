@@ -1,6 +1,28 @@
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_array_push.sol:StorageBytesArrayPush ===
 @module StorageBytesArrayPush
 @phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb6, bb1
+  bb1:  ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb6, [0x19d30117 => bb2, 0x5d7696c3 => bb3, 0x8f236983 => bb4, 0xe6e6accc => bb5]
+  bb5:  ; preds = bb1
+    tail_call @pushStr
+  bb4:  ; preds = bb1
+    tail_call @blobAt
+  bb3:  ; preds = bb1
+    tail_call @popStr
+  bb2:  ; preds = bb1
+    tail_call @pushEmpty
+  bb6 [cold]:  ; preds = bb0, bb1
+    revert 0, 0
+}
+
 ; function pushStr(string memory v) public [selector 0xe6e6accc]
 fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
   bb0:
@@ -129,15 +151,15 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
   bb1:  ; preds = bb9, bb13, bb14
     sstore 0, v2 !metadata(storage=slot(0))
     stop
-  bb4:  ; preds = bb3
+  bb4 [cold]:  ; preds = bb3
     tail_call @revert_stub.7
-  bb2:  ; preds = bb5, bb18
+  bb2 [cold]:  ; preds = bb5, bb18
     tail_call @revert_stub.6
-  bb17:  ; preds = bb16
+  bb17 [cold]:  ; preds = bb16
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb15:  ; preds = bb0, bb19
+  bb15 [cold]:  ; preds = bb0, bb19
     revert 0, 0
 }
 
@@ -183,9 +205,9 @@ fn @popStr() [selector=0x5d7696c3, abi_wrapper] {
     v19 = add v16, 1
     v20 = add v17, 1
     jump bb5
-  bb7:  ; preds = bb4
+  bb7 [cold]:  ; preds = bb4
     tail_call @revert_stub.7
-  bb3:  ; preds = bb0
+  bb3 [cold]:  ; preds = bb0
     mstore 32, 49 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -201,7 +223,7 @@ fn @blobAt() [selector=0x8f236983, abi_wrapper, view] {
     v0 = sload 2 !metadata(storage=slot(2))
     v1 = lt arg0, v0
     jumpi v1, bb2, bb1
-  bb1:  ; preds = bb4
+  bb1 [cold]:  ; preds = bb4
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -219,7 +241,7 @@ fn @blobAt() [selector=0x8f236983, abi_wrapper, view] {
     mstore v24, 32
     v19 = add v14, 64
     returndata v24, v19
-  bb3:  ; preds = bb0
+  bb3 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
@@ -234,7 +256,7 @@ fn @pushEmpty() [selector=0x19d30117, abi_wrapper] {
     v2 = add v0, 1
     sstore 2, v2 !metadata(storage=slot(2))
     stop
-  bb1:  ; preds = bb0
+  bb1 [cold]:  ; preds = bb0
     tail_call @revert_stub.6
 }
 
@@ -290,11 +312,11 @@ fn @load_storage_bytes(arg0: i256) -> i256 [may_return_memory] {
     v43 = add v42, 1
     v46 = add v45, 32
     jump bb6
-  bb9:  ; preds = bb2
+  bb9 [cold]:  ; preds = bb2
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:  ; preds = bb0
+  bb1 [cold]:  ; preds = bb0
     tail_call @revert_stub.7
 }
 
@@ -318,38 +340,16 @@ fn @clear_storage_words(arg0: i256, arg1: i256, arg2: i256) {
     jump bb1
 }
 
-fn @revert_stub.6() {
-  bb0:
+fn @revert_stub.6() [cold] {
+  bb0 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
-fn @revert_stub.7() {
-  bb0:
+fn @revert_stub.7() [cold] {
+  bb0 [cold]:
     mstore 32, 34 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb6, bb1
-  bb1:  ; preds = bb0
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb6, [0x19d30117 => bb2, 0x5d7696c3 => bb3, 0x8f236983 => bb4, 0xe6e6accc => bb5]
-  bb5:  ; preds = bb1
-    tail_call @pushStr
-  bb4:  ; preds = bb1
-    tail_call @blobAt
-  bb3:  ; preds = bb1
-    tail_call @popStr
-  bb2:  ; preds = bb1
-    tail_call @pushEmpty
-  bb6:  ; preds = bb0, bb1
-    revert 0, 0
 }

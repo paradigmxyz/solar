@@ -1,12 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_modifier_virtual_initializer.sol:ConstructorModifierVirtualInitializerBase ===
 @module ConstructorModifierVirtualInitializerBase
-; getter for `uint256 public observed` [selector 0xba210709]
-fn @observed() -> i256 [selector=0xba210709, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
-}
-
 ; constructor() record(value()) [creation entry]
 fn @constructor() [constructor] {
   bb0:
@@ -19,6 +12,13 @@ fn @constructor() [constructor] {
     ret
 }
 
+; getter for `uint256 public observed` [selector 0xba210709]
+fn @observed() -> i256 [selector=0xba210709, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
 ; function value() internal virtual returns (uint256)
 fn @value() -> i256 {
   bb0:
@@ -27,6 +27,21 @@ fn @value() -> i256 {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_modifier_virtual_initializer.sol:ConstructorModifierVirtualInitializer ===
 @module ConstructorModifierVirtualInitializer
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    v0 = icall @value
+    sstore 0, v0 !metadata(storage=slot(0))
+    jump bb3
+  bb3:  ; preds = bb0
+    jump bb2
+  bb2:  ; preds = bb3
+    jump bb1
+  bb1:  ; preds = bb2
+    sstore 1, 42 !metadata(storage=slot(1))
+    ret
+}
+
 ; getter for `uint256 public valueFromInitializer` [selector 0xa6f7461b]
 fn @valueFromInitializer() -> i256 [selector=0xa6f7461b, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
@@ -46,19 +61,4 @@ fn @observed() -> i256 [selector=0xba210709, view, abi_params=[], abi_returns=[w
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
-}
-
-; creation entry
-fn @constructor() [constructor] {
-  bb0:
-    v0 = icall @value
-    sstore 0, v0 !metadata(storage=slot(0))
-    jump bb3
-  bb3:  ; preds = bb0
-    jump bb2
-  bb2:  ; preds = bb3
-    jump bb1
-  bb1:  ; preds = bb2
-    sstore 1, 42 !metadata(storage=slot(1))
-    ret
 }

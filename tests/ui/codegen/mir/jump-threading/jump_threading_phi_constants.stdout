@@ -114,9 +114,9 @@
 -   bb5:  ; preds = bb4
 +   bb5:  ; preds = bb1, bb2
       ret 1
-+   bb3:
++   bb3 [cold]:
 +     invalid
-+   bb4:
++   bb4 [cold]:
 +     invalid
   }
   

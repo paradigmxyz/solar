@@ -4,6 +4,12 @@
   struct0: {ptr<memory>, ptr<memory>}
   struct1: {i1, ptr<memory>}
 
+; receive() external payable [receive]
+fn @receive() [receive, payable] {
+  bb0:
+    ret
+}
+
 ; function receiver() internal returns (address payable)
 fn @receiver() -> i160 {
   bb0:
@@ -46,12 +52,6 @@ fn @data() -> ptr<memory> {
     v3 = alloc 32
     mstore v3, 0
     ret v3
-}
-
-; receive() external payable [receive]
-fn @receive() [receive, payable] {
-  bb0:
-    ret
 }
 
 ; function f() external returns (uint256) [selector 0x26121ff0]

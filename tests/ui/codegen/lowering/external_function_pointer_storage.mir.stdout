@@ -3,18 +3,6 @@
 @types
   struct0: {i256, i256}
 
-; function first() public pure returns (uint256) [selector 0x3df4ddf4]
-fn @first() -> i256 [selector=0x3df4ddf4, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    ret 1
-}
-
-; function second() public pure returns (uint256) [selector 0x5a8ac02d]
-fn @second() -> i256 [selector=0x5a8ac02d, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    ret 2
-}
-
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
@@ -95,6 +83,18 @@ fn @constructor() [constructor] {
     v63 = or v60, v62
     sstore v56, v63 !metadata(storage=slot(0))
     ret
+}
+
+; function first() public pure returns (uint256) [selector 0x3df4ddf4]
+fn @first() -> i256 [selector=0x3df4ddf4, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 1
+}
+
+; function second() public pure returns (uint256) [selector 0x5a8ac02d]
+fn @second() -> i256 [selector=0x5a8ac02d, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 2
 }
 
 ; function f() public returns (uint256, uint256) [selector 0x26121ff0]

@@ -3,6 +3,12 @@
 @types
   struct0: {i256, i256}
 
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    ret
+}
+
 ; getter for `uint256 public pings` [selector 0x1e81ccb2]
 fn @pings() -> i256 [selector=0x1e81ccb2, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
@@ -186,12 +192,6 @@ fn @selectorOf(arg0: i256) -> i256 [selector=0xb29f3098, view, abi_params=[funct
     ret v9
 }
 
-; creation entry
-fn @constructor() [constructor] {
-  bb0:
-    ret
-}
-
 // === ROOT/tests/ui/codegen/lowering/run-call/external_call_input_scratch.sol:ExternalCallInputScratch ===
 @module ExternalCallInputScratch
 @types
@@ -201,6 +201,28 @@ fn @constructor() [constructor] {
 
 @data
   Target_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/external_call_input_scratch.sol:Target"
+
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    v0 = datasize Target_creation_code_0
+    v1 = fmp
+    datacopy Target_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
+  bb1:  ; preds = bb0
+    revert_returndata
+  bb2:  ; preds = bb0
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v6 = and v4, v5
+    v7 = zext i160 v2 to i256
+    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
+    v9 = or v6, v8
+    sstore 0, v9 !metadata(storage=slot(0))
+    ret
+}
 
 ; function live() internal pure returns (uint256[] memory values)
 fn @live() -> ptr<memory> [pure] {
@@ -799,26 +821,4 @@ fn @twoScalars() -> struct0 [selector=0x5de774b9, view, abi_params=[], abi_retur
     v34 = insert_value struct0, v33, 3, v25
     v35 = insert_value struct0, v34, 4, v30
     ret v35
-}
-
-; creation entry
-fn @constructor() [constructor] {
-  bb0:
-    v0 = datasize Target_creation_code_0
-    v1 = fmp
-    datacopy Target_creation_code_0, v1, v0
-    v2 = create 0, v1, v0
-    v3 = ne v2, i160 0
-    jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
-    revert_returndata
-  bb2:  ; preds = bb0
-    v4 = sload 0 !metadata(storage=slot(0))
-    v5 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v6 = and v4, v5
-    v7 = zext i160 v2 to i256
-    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
-    v9 = or v6, v8
-    sstore 0, v9 !metadata(storage=slot(0))
-    ret
 }

@@ -1,24 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/abi_param_object_copy.sol:AbiParamObjectCopy ===
 @module AbiParamObjectCopy
-; getter for `uint256[] public storedWords` [selector 0x30038209]
-fn @storedWords(arg0: i256) -> i256 [selector=0x30038209, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = lt arg0, v0
-    icall revert_if_zero<empty>, v1
-    v2 = storage_array_data_slot 0
-    v3 = add v2, arg0
-    v4 = sload v3 !metadata(storage=symbolic(v3))
-    ret v4
-}
-
-; getter for `bytes public storedBytes` [selector 0xbee7414c]
-fn @storedBytes() -> ptr<memory> [selector=0xbee7414c, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
-  bb0:
-    v0 = load_storage_bytes 1
-    ret v0
-}
-
 ; constructor(uint256[] memory words, bytes memory data) [creation entry]
 fn @constructor(arg0: ptr<memory>, arg1: ptr<memory>) [constructor, abi_params=[array<_, uint256>, bytes]] {
   bb0:
@@ -60,6 +41,25 @@ fn @constructor(arg0: ptr<memory>, arg1: ptr<memory>) [constructor, abi_params=[
     sstore v6, 0 !metadata(storage=symbolic(v6))
     v7 = add v3, 1
     jump bb3
+}
+
+; getter for `uint256[] public storedWords` [selector 0x30038209]
+fn @storedWords(arg0: i256) -> i256 [selector=0x30038209, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = lt arg0, v0
+    icall revert_if_zero<empty>, v1
+    v2 = storage_array_data_slot 0
+    v3 = add v2, arg0
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    ret v4
+}
+
+; getter for `bytes public storedBytes` [selector 0xbee7414c]
+fn @storedBytes() -> ptr<memory> [selector=0xbee7414c, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = load_storage_bytes 1
+    ret v0
 }
 
 fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {

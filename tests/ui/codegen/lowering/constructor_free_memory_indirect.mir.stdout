@@ -1,15 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/constructor_free_memory_indirect.sol:Base ===
 @module Base
-; getter for `bool public started` [selector 0x1f2698ab]
-fn @started() -> i256 [selector=0x1f2698ab, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = trunc i256 v0 to i8
-    v2 = ne v1, i8 0
-    v3 = zext i1 v2 to i256
-    ret v3
-}
-
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
@@ -25,6 +15,16 @@ fn @constructor() [constructor] {
     ret
 }
 
+; getter for `bool public started` [selector 0x1f2698ab]
+fn @started() -> i256 [selector=0x1f2698ab, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = trunc i256 v0 to i8
+    v2 = ne v1, i8 0
+    v3 = zext i1 v2 to i256
+    ret v3
+}
+
 ; function freeMemoryStarted() pure returns (bool started)
 fn @freeMemoryStarted() -> i256 [pure] {
   bb0:
@@ -38,13 +38,6 @@ fn @freeMemoryStarted() -> i256 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/constructor_free_memory_indirect.sol:ThroughBase ===
 @module ThroughBase
-; getter for `uint256 public value` [selector 0x3fa4f245]
-fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 1 !metadata(storage=slot(1))
-    ret v0
-}
-
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
@@ -61,6 +54,13 @@ fn @constructor() [constructor] {
   bb1:  ; preds = bb0
     sstore 1, 1 !metadata(storage=slot(1))
     ret
+}
+
+; getter for `uint256 public value` [selector 0x3fa4f245]
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    ret v0
 }
 
 ; getter for `bool public started` [selector 0x1f2698ab]
@@ -86,16 +86,6 @@ fn @freeMemoryStarted() -> i256 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/constructor_free_memory_indirect.sol:ThroughModifier ===
 @module ThroughModifier
-; getter for `bool public started` [selector 0x1f2698ab]
-fn @started() -> i256 [selector=0x1f2698ab, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = trunc i256 v0 to i8
-    v2 = ne v1, i8 0
-    v3 = zext i1 v2 to i256
-    ret v3
-}
-
 ; constructor() recordFreeMemory [creation entry]
 fn @constructor() [constructor] {
   bb0:
@@ -115,6 +105,16 @@ fn @constructor() [constructor] {
     ret
 }
 
+; getter for `bool public started` [selector 0x1f2698ab]
+fn @started() -> i256 [selector=0x1f2698ab, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = trunc i256 v0 to i8
+    v2 = ne v1, i8 0
+    v3 = zext i1 v2 to i256
+    ret v3
+}
+
 ; function freeMemoryStarted() pure returns (bool started)
 fn @freeMemoryStarted() -> i256 [pure] {
   bb0:
@@ -128,6 +128,13 @@ fn @freeMemoryStarted() -> i256 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/constructor_free_memory_indirect.sol:ThroughHelper ===
 @module ThroughHelper
+; constructor() [creation entry]
+fn @constructor() [constructor] {
+  bb0:
+    icall @record
+    ret
+}
+
 ; getter for `bool public started` [selector 0x1f2698ab]
 fn @started() -> i256 [selector=0x1f2698ab, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
@@ -136,13 +143,6 @@ fn @started() -> i256 [selector=0x1f2698ab, view, abi_params=[], abi_returns=[wo
     v2 = ne v1, i8 0
     v3 = zext i1 v2 to i256
     ret v3
-}
-
-; constructor() [creation entry]
-fn @constructor() [constructor] {
-  bb0:
-    icall @record
-    ret
 }
 
 ; function record() internal
@@ -173,13 +173,6 @@ fn @freeMemoryStarted() -> i256 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/constructor_free_memory_indirect.sol:Allocating ===
 @module Allocating
-; getter for `bytes32 public digest` [selector 0x52a82b65]
-fn @digest() -> i256 [selector=0x52a82b65, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
-}
-
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
@@ -207,6 +200,13 @@ fn @constructor() [constructor] {
     ret
 }
 
+; getter for `bytes32 public digest` [selector 0x52a82b65]
+fn @digest() -> i256 [selector=0x52a82b65, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
 ; function matches() external view returns (bool) [selector 0x55590d58]
 fn @matches() -> i1 [selector=0x55590d58, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
@@ -217,16 +217,16 @@ fn @matches() -> i1 [selector=0x55590d58, view, abi_params=[], abi_returns=[word
 
 // === ROOT/tests/ui/codegen/lowering/constructor_free_memory_indirect.sol:WithArgument ===
 @module WithArgument
-; getter for `uint256 public value` [selector 0x3fa4f245]
-fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
-}
-
 ; constructor(uint256 v) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     ret
+}
+
+; getter for `uint256 public value` [selector 0x3fa4f245]
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
 }

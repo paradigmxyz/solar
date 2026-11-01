@@ -453,6 +453,12 @@ fn @internal_dispatcher_p_none_r_uint8_uint16(arg0: i256) -> struct1 [function_p
 
 // === ROOT/tests/ui/codegen/lowering/run-call/dirty_internal_named_return.sol:DirtyVirtual ===
 @module DirtyVirtual
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    ret
+}
+
 ; function identity(uint8 x) internal pure override returns (uint8)
 fn @identity(arg0: i256) -> i256 [pure] {
   bb0:
@@ -464,10 +470,4 @@ fn @throughVirtual() -> i256 [selector=0x1286f860, pure, abi_params=[], abi_retu
   bb0:
     v0 = icall @identity, 257
     ret v0
-}
-
-; creation entry
-fn @constructor() [constructor] {
-  bb0:
-    ret
 }

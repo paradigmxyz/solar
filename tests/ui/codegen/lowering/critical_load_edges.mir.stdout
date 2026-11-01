@@ -1,5 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/critical_load_edges.sol:CriticalLoadEdges ===
 @module CriticalLoadEdges
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    sstore 0, 17 !metadata(storage=slot(0))
+    ret
+}
+
 ; function branch(bool store, bool join, uint256 value) external returns (uint256 result) [selector 0x5b2c5464]
 fn @branch(arg0: i1, arg1: i1, arg2: i256) -> i256 [selector=0x5b2c5464, abi_params=[bool, bool, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
@@ -45,11 +52,4 @@ fn @transientRead(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xd51942
   bb4:  ; preds = bb3
     mstore 0, 99 !metadata(memory=scratch)
     returndata 0, 32
-}
-
-; creation entry
-fn @constructor() [constructor] {
-  bb0:
-    sstore 0, 17 !metadata(storage=slot(0))
-    ret
 }

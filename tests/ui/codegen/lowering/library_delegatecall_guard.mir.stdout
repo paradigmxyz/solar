@@ -4,6 +4,14 @@
 @immutables
   library_deploy_address: address
 
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    v0 = address
+    storeimmutable library_deploy_address, v0
+    ret
+}
+
 ; function bump(uint256[] storage a, uint256 v) external returns (uint256) [selector 0x14f9a01b]
 fn @bump(arg0: i256, arg1: i256) -> i256 [selector=0x14f9a01b, abi_params=[storageptr, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
@@ -39,12 +47,4 @@ fn @probe() -> i256 [selector=0xb74af5a9, pure, abi_params=[], abi_returns=[word
     v0 = msize
     v1 = mload 128
     ret v1
-}
-
-; creation entry
-fn @constructor() [constructor] {
-  bb0:
-    v0 = address
-    storeimmutable library_deploy_address, v0
-    ret
 }

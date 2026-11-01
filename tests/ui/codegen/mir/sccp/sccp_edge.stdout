@@ -15,7 +15,7 @@
 -     ret v1
 +   bb3:  ; preds = bb1
 +     ret 11
-+   bb2:
++   bb2 [cold]:
 +     invalid
   }
   
@@ -43,11 +43,11 @@
 -     ret 11
 -   bb4:  ; preds = bb0
 -     ret 44
-+   bb1:
++   bb1 [cold]:
 +     invalid
-+   bb3:
++   bb3 [cold]:
 +     invalid
-+   bb4:
++   bb4 [cold]:
 +     invalid
   }
   
@@ -61,7 +61,7 @@
 +   bb1:  ; preds = bb0
 +     v0 = phi [bb0: arg0]
       ret v0
-+   bb2:
++   bb2 [cold]:
 +     invalid
   }
   
@@ -76,9 +76,9 @@
 +     jump bb2
     bb2:  ; preds = bb1
       ret v0
--   bb3:  ; preds = bb3
+-   bb3 [cold]:  ; preds = bb3
 -     jump bb3
-+   bb3:
++   bb3 [cold]:
 +     invalid
   }
   

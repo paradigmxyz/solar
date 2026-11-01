@@ -105,7 +105,7 @@
     bb2:  ; preds = bb0
 -     v1 = add arg0, 7
 -     ret v1
--   bb1:  ; preds = bb0
+-   bb1 [cold]:  ; preds = bb0
 +     v1 = gt arg0, 10
 +     jumpi v1, bb3, bb4
 +   bb4:  ; preds = bb2
@@ -114,12 +114,12 @@
 +   bb1:  ; preds = bb4
 +     v3 = phi [bb4: v2]
 +     ret v3
-+   bb3:  ; preds = bb2
++   bb3 [cold]:  ; preds = bb2
       tail_call @panic
   }
   
-  fn @panic() {
-    bb0:
+  fn @panic() [cold] {
+    bb0 [cold]:
       mstore 32, 17
       mstore 0, 0x4e487b71
       revert 28, 36

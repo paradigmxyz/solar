@@ -9,7 +9,7 @@
       jumpi v0, bb1, bb2
     bb2:  ; preds = bb0
       ret arg0
-    bb1:  ; preds = bb0
+    bb1 [cold]:  ; preds = bb0
       revert 0, 0
   }
   
@@ -31,7 +31,7 @@
       jumpi v0, bb2, bb3
     bb3:  ; preds = bb1
       ret arg0
-    bb2:  ; preds = bb1
+    bb2 [cold]:  ; preds = bb1
       revert 0, 0
   }
   

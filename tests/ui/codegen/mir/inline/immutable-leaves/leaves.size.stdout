@@ -6,6 +6,29 @@
     duration: uint64
     initial: uint256
   
+  ; creation entry
+  fn @constructor(arg0: i256, arg1: i256) [constructor] {
+    bb0:
+      v0 = trunc i256 arg0 to i64
+      storeimmutable start, v0
+      v1 = trunc i256 arg1 to i64
+      storeimmutable duration, v1
+-     v2 = icall @end
+-     storeimmutable initial, v2
++     jump bb2
++   bb2:  ; preds = bb0
++     v3 = loadimmutable start
++     v4 = zext i64 v3 to i256
++     v5 = loadimmutable duration
++     v6 = zext i64 v5 to i256
++     v7 = add v4, v6
++     jump bb1
++   bb1:  ; preds = bb2
++     v8 = phi [bb2: v7]
++     storeimmutable initial, v8
+      stop
+  }
+  
   ; selector 0x00000001
   fn @entry() -> i256 [selector=0x00000001] {
     bb0:
@@ -52,29 +75,6 @@
 +     v5 = add v13, v17
       v6 = add v4, v5
       ret v6
-  }
-  
-  ; creation entry
-  fn @constructor(arg0: i256, arg1: i256) [constructor] {
-    bb0:
-      v0 = trunc i256 arg0 to i64
-      storeimmutable start, v0
-      v1 = trunc i256 arg1 to i64
-      storeimmutable duration, v1
--     v2 = icall @end
--     storeimmutable initial, v2
-+     jump bb2
-+   bb2:  ; preds = bb0
-+     v3 = loadimmutable start
-+     v4 = zext i64 v3 to i256
-+     v5 = loadimmutable duration
-+     v6 = zext i64 v5 to i256
-+     v7 = add v4, v6
-+     jump bb1
-+   bb1:  ; preds = bb2
-+     v8 = phi [bb2: v7]
-+     storeimmutable initial, v8
-      stop
 - }
 - 
 - fn @end() -> i256 {
@@ -117,6 +117,28 @@
     start: uint64
     duration: uint64
     initial: uint256
+  
+  ; creation entry
+  fn @constructor(arg0: i256, arg1: i256) [constructor] {
+    bb0:
+      v0 = trunc i256 arg0 to i64
+      storeimmutable start, v0
+      v1 = trunc i256 arg1 to i64
+      storeimmutable duration, v1
+-     jump bb2
+-   bb2:  ; preds = bb0
+      v3 = loadimmutable start
+      v4 = zext i64 v3 to i256
+      v5 = loadimmutable duration
+      v6 = zext i64 v5 to i256
+      v7 = add v4, v6
+-     jump bb1
+-   bb1:  ; preds = bb2
+-     v8 = phi [bb2: v7]
+-     storeimmutable initial, v8
++     storeimmutable initial, v7
+      stop
+  }
   
   ; selector 0x00000001
   fn @entry() -> i256 [selector=0x00000001] {
@@ -163,28 +185,6 @@
       ret v6
   }
   
-  ; creation entry
-  fn @constructor(arg0: i256, arg1: i256) [constructor] {
-    bb0:
-      v0 = trunc i256 arg0 to i64
-      storeimmutable start, v0
-      v1 = trunc i256 arg1 to i64
-      storeimmutable duration, v1
--     jump bb2
--   bb2:  ; preds = bb0
-      v3 = loadimmutable start
-      v4 = zext i64 v3 to i256
-      v5 = loadimmutable duration
-      v6 = zext i64 v5 to i256
-      v7 = add v4, v6
--     jump bb1
--   bb1:  ; preds = bb2
--     v8 = phi [bb2: v7]
--     storeimmutable initial, v8
-+     storeimmutable initial, v7
-      stop
-  }
-  
 - // === ROOT/tests/ui/codegen/mir/inline/immutable-leaves/leaves.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/inline/immutable-leaves/leaves.mir (after dce) ===
   @module ImmutableLeaves
@@ -192,6 +192,22 @@
     start: uint64
     duration: uint64
     initial: uint256
+  
+  ; creation entry
+  fn @constructor(arg0: i256, arg1: i256) [constructor] {
+    bb0:
+      v0 = trunc i256 arg0 to i64
+      storeimmutable start, v0
+      v1 = trunc i256 arg1 to i64
+      storeimmutable duration, v1
+      v3 = loadimmutable start
+      v4 = zext i64 v3 to i256
+      v5 = loadimmutable duration
+      v6 = zext i64 v5 to i256
+      v7 = add v4, v6
+      storeimmutable initial, v7
+      stop
+  }
   
   ; selector 0x00000001
   fn @entry() -> i256 [selector=0x00000001] {
@@ -213,21 +229,5 @@
       v5 = add v12, v16
       v6 = add v4, v5
       ret v6
-  }
-  
-  ; creation entry
-  fn @constructor(arg0: i256, arg1: i256) [constructor] {
-    bb0:
-      v0 = trunc i256 arg0 to i64
-      storeimmutable start, v0
-      v1 = trunc i256 arg1 to i64
-      storeimmutable duration, v1
-      v3 = loadimmutable start
-      v4 = zext i64 v3 to i256
-      v5 = loadimmutable duration
-      v6 = zext i64 v5 to i256
-      v7 = add v4, v6
-      storeimmutable initial, v7
-      stop
   }
   

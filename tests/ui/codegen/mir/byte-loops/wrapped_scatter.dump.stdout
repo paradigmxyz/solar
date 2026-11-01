@@ -1,6 +1,24 @@
 // === ROOT/tests/ui/codegen/mir/byte-loops/wrapped_scatter.sol:Test ===
 @module Test
 @phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb4, bb1
+  bb1:  ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb4, [0xa3efd67d => bb2, 0xb4f7766b => bb3]
+  bb3:  ; preds = bb1
+    tail_call @fill
+  bb2:  ; preds = bb1
+    tail_call @scatter
+  bb4 [cold]:  ; preds = bb0, bb1
+    revert 0, 0
+}
+
 ; function fill(bytes memory buffer, uint256 offset, bytes1 value) external pure returns (bool) [selector 0xb4f7766b]
 fn @fill() [selector=0xb4f7766b, abi_wrapper, pure] {
   bb0:
@@ -47,7 +65,7 @@ fn @fill() [selector=0xb4f7766b, abi_wrapper, pure] {
     v9 = mload v42
     v10 = lt v35, v9
     jumpi v10, bb6, bb5
-  bb5:  ; preds = bb4, bb9
+  bb5 [cold]:  ; preds = bb4, bb9
     tail_call @revert_stub
   bb6:  ; preds = bb9
     v50 = add v42, v35
@@ -55,11 +73,11 @@ fn @fill() [selector=0xb4f7766b, abi_wrapper, pure] {
     mstore8 v51, v16
     v15 = add v6, 1
     jump bb1
-  bb8:  ; preds = bb3
+  bb8 [cold]:  ; preds = bb3
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb10:  ; preds = bb0
+  bb10 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
@@ -80,7 +98,7 @@ fn @scatter() [selector=0xa3efd67d, abi_wrapper, pure] {
     icall @_scatter, v9, arg1, arg2, arg3
     mstore 0, 1
     returndata 0, 32
-  bb1:  ; preds = bb0
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
@@ -132,7 +150,7 @@ fn @_scatter(arg0: i256, arg1: i256, arg2: i256, arg3: i256) [may_return_memory,
     v11 = mload arg0
     v12 = lt v45, v11
     jumpi v12, bb8, bb6
-  bb6:  ; preds = bb3, bb5, bb11
+  bb6 [cold]:  ; preds = bb3, bb5, bb11
     tail_call @revert_stub
   bb8:  ; preds = bb11
     v53 = add arg0, v45
@@ -140,7 +158,7 @@ fn @_scatter(arg0: i256, arg1: i256, arg2: i256, arg3: i256) [may_return_memory,
     mstore8 v54, v8
     v17 = add v4, 1
     jump bb1
-  bb10:  ; preds = bb7
+  bb10 [cold]:  ; preds = bb7
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -148,8 +166,8 @@ fn @_scatter(arg0: i256, arg1: i256, arg2: i256, arg3: i256) [may_return_memory,
     ret
 }
 
-fn @revert_stub() {
-  bb0:
+fn @revert_stub() [cold] {
+  bb0 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -194,28 +212,10 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v26 = add v25, v6
     calldatacopy v26, v36, v23
     ret v29
-  bb3:  ; preds = bb2
+  bb3 [cold]:  ; preds = bb2
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:  ; preds = bb0, bb5
-    revert 0, 0
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb4, bb1
-  bb1:  ; preds = bb0
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb4, [0xa3efd67d => bb2, 0xb4f7766b => bb3]
-  bb3:  ; preds = bb1
-    tail_call @fill
-  bb2:  ; preds = bb1
-    tail_call @scatter
-  bb4:  ; preds = bb0, bb1
+  bb1 [cold]:  ; preds = bb0, bb5
     revert 0, 0
 }

@@ -4,6 +4,28 @@
 @data
   literal_0: hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff0011"
 
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb6, bb1
+  bb1:  ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb6, [0x6793283 => bb2, 0x9bd5a60 => bb3, 0xc6b2786 => bb4, 0x58653188 => bb5]
+  bb5:  ; preds = bb1
+    tail_call @fullWordsHash
+  bb4:  ; preds = bb1
+    tail_call @shortHash
+  bb3:  ; preds = bb1
+    tail_call @hash
+  bb2:  ; preds = bb1
+    tail_call @paddingIsZero
+  bb6 [cold]:  ; preds = bb0, bb1
+    revert 0, 0
+}
+
 ; function data() internal pure returns (bytes memory)
 fn @data() -> i256 [may_return_memory, pure] {
   bb0:
@@ -84,28 +106,6 @@ fn @fullWordsHash() [selector=0x58653188, abi_wrapper, pure] {
     mstore v20, v19
     v21 = add v16, 32
     jump bb2
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb6, bb1
-  bb1:  ; preds = bb0
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb6, [0x6793283 => bb2, 0x9bd5a60 => bb3, 0xc6b2786 => bb4, 0x58653188 => bb5]
-  bb5:  ; preds = bb1
-    tail_call @fullWordsHash
-  bb4:  ; preds = bb1
-    tail_call @shortHash
-  bb3:  ; preds = bb1
-    tail_call @hash
-  bb2:  ; preds = bb1
-    tail_call @paddingIsZero
-  bb6:  ; preds = bb0, bb1
-    revert 0, 0
 }
 // === ROOT/tests/ui/codegen/lowering/program-data/splat_precancun.sol:C (runtime) ===
 @module C_runtime

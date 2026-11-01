@@ -1,12 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_resume.mir (after pipeline-default) ===
 @module PhasePipelineResume
 @phase lowered
-; selector 0x5c36b186
-fn @ping() [selector=0x5c36b186, abi_wrapper] {
-  bb0:
-    stop
-}
-
 ; runtime dispatch entry
 fn @entry() [entry] {
   bb0:
@@ -19,6 +13,12 @@ fn @entry() [entry] {
     switch v3, default bb3, [0x5c36b186 => bb2]
   bb2:  ; preds = bb1
     tail_call @ping
-  bb3:  ; preds = bb0, bb1
+  bb3 [cold]:  ; preds = bb0, bb1
     revert 0, 0
+}
+
+; selector 0x5c36b186
+fn @ping() [selector=0x5c36b186, abi_wrapper] {
+  bb0:
+    stop
 }

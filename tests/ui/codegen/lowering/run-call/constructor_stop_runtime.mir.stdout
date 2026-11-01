@@ -73,13 +73,6 @@ fn @conditionalContinues() -> i1 [selector=0x828f9845, abi_params=[], abi_return
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_stop_runtime.sol:ConstructorStopAlways ===
 @module ConstructorStopAlways
-; getter for `uint256 public value` [selector 0x3fa4f245]
-fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
-}
-
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
@@ -87,8 +80,6 @@ fn @constructor() [constructor] {
     stop
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_stop_runtime.sol:ConstructorStopConditional ===
-@module ConstructorStopConditional
 ; getter for `uint256 public value` [selector 0x3fa4f245]
 fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
@@ -96,6 +87,8 @@ fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
     ret v0
 }
 
+// === ROOT/tests/ui/codegen/lowering/run-call/constructor_stop_runtime.sol:ConstructorStopConditional ===
+@module ConstructorStopConditional
 ; constructor(bool halt) [creation entry]
 fn @constructor(arg0: i1) [constructor, abi_params=[bool]] {
   bb0:
@@ -107,4 +100,11 @@ fn @constructor(arg0: i1) [constructor, abi_params=[bool]] {
     ret
   bb1:  ; preds = bb0
     stop
+}
+
+; getter for `uint256 public value` [selector 0x3fa4f245]
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
 }

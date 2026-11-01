@@ -1,6 +1,34 @@
 // === ROOT/tests/ui/codegen/mir/byte-run-loads/pack.sol:Test ===
 @module Test
 @phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:  ; preds = bb0
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0x1158e167 => bb3, 0x63cfbce4 => bb4, 0x65313149 => bb5, 0xab0edd4e => bb6, 0xd033fb43 => bb7]
+  bb7:  ; preds = bb2
+    tail_call @lowByte
+  bb6:  ; preds = bb2
+    tail_call @stored
+  bb5:  ; preds = bb2
+    tail_call @two
+  bb4:  ; preds = bb2
+    tail_call @gapped
+  bb3:  ; preds = bb2
+    tail_call @three
+  bb1 [cold]:  ; preds = bb0, bb2
+    revert 0, 0
+}
+
 ; function three(bytes memory s) public pure returns (uint256) [selector 0x1158e167]
 fn @three() [selector=0x1158e167, abi_wrapper, pure] {
   bb0:
@@ -140,38 +168,10 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v26 = add v25, v6
     calldatacopy v26, v36, v23
     ret v29
-  bb3:  ; preds = bb2
+  bb3 [cold]:  ; preds = bb2
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:  ; preds = bb0, bb5
-    revert 0, 0
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = calldatasize
-    v2 = lt v1, 36
-    v3 = zext i1 v2 to i256
-    v4 = or v0, v3
-    v5 = ne v4, 0
-    jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
-    v6 = calldataload 0
-    v7 = shr v6, 224
-    switch v7, default bb1, [0x1158e167 => bb3, 0x63cfbce4 => bb4, 0x65313149 => bb5, 0xab0edd4e => bb6, 0xd033fb43 => bb7]
-  bb7:  ; preds = bb2
-    tail_call @lowByte
-  bb6:  ; preds = bb2
-    tail_call @stored
-  bb5:  ; preds = bb2
-    tail_call @two
-  bb4:  ; preds = bb2
-    tail_call @gapped
-  bb3:  ; preds = bb2
-    tail_call @three
-  bb1:  ; preds = bb0, bb2
+  bb1 [cold]:  ; preds = bb0, bb5
     revert 0, 0
 }

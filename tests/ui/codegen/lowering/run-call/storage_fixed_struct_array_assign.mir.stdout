@@ -3,6 +3,13 @@
 @types
   struct0: {i256, i256, i256}
 
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    sstore 24, 1 !metadata(storage=slot(24))
+    ret
+}
+
 ; function setUp() public [selector 0x0a9254e4]
 fn @setUp() [selector=0x0a9254e4, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
@@ -154,11 +161,4 @@ fn @testNested() -> struct0 [selector=0xfbd4b8cc, abi_params=[], abi_returns=[wo
     v22 = insert_value struct0, v21, 1, v19
     v23 = insert_value struct0, v22, 2, v20
     ret v23
-}
-
-; creation entry
-fn @constructor() [constructor] {
-  bb0:
-    sstore 24, 1 !metadata(storage=slot(24))
-    ret
 }

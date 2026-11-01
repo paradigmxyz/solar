@@ -3,6 +3,13 @@
 @types
   struct0: {i160, i256, i160}
 
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    sstore 0, 1 !metadata(storage=slot(0))
+    ret
+}
+
 ; getter for `mapping(uint256 => Item) public items` [selector 0xbfb231d2]
 fn @items(arg0: i256) -> struct0 [selector=0xbfb231d2, view, abi_params=[uint256], abi_returns=[word<uint160>, word, word<uint160>], abi_return_params=[address, uint256, address]] {
   bb0:
@@ -18,11 +25,4 @@ fn @items(arg0: i256) -> struct0 [selector=0xbfb231d2, view, abi_params=[uint256
     v9 = insert_value struct0, v8, 1, v4
     v10 = insert_value struct0, v9, 2, v7
     ret v10
-}
-
-; creation entry
-fn @constructor() [constructor] {
-  bb0:
-    sstore 0, 1 !metadata(storage=slot(0))
-    ret
 }

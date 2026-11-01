@@ -1,6 +1,24 @@
 // === ROOT/tests/ui/codegen/lowering/fixed_bytes_literal_assign.sol:FixedBytesLiteralAssign ===
 @module FixedBytesLiteralAssign
 @phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb4, bb1
+  bb1:  ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb4, [0x7f603a02 => bb2, 0x975057e7 => bb3]
+  bb3:  ; preds = bb1
+    tail_call @store
+  bb2:  ; preds = bb1
+    tail_call @patch
+  bb4 [cold]:  ; preds = bb0, bb1
+    revert 0, 0
+}
+
 ; function patch(bool safe) external pure returns (bytes1) [selector 0x7f603a02]
 fn @patch() [selector=0x7f603a02, abi_wrapper, pure] {
   bb0:
@@ -26,7 +44,7 @@ fn @patch() [selector=0x7f603a02, abi_wrapper, pure] {
     v13 = shl v12, 248
     mstore 0, v13 !metadata(memory=scratch)
     returndata 0, 32
-  bb3:  ; preds = bb0
+  bb3 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
@@ -40,22 +58,4 @@ fn @store() [selector=0x975057e7, abi_wrapper] {
     v7 = shl v5, 248
     mstore 0, v7 !metadata(memory=scratch)
     returndata 0, 32
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb4, bb1
-  bb1:  ; preds = bb0
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb4, [0x7f603a02 => bb2, 0x975057e7 => bb3]
-  bb3:  ; preds = bb1
-    tail_call @store
-  bb2:  ; preds = bb1
-    tail_call @patch
-  bb4:  ; preds = bb0, bb1
-    revert 0, 0
 }

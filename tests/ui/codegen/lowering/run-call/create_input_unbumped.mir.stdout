@@ -8,13 +8,6 @@ fn @value() -> i256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word
 
 // === ROOT/tests/ui/codegen/lowering/run-call/create_input_unbumped.sol:Arguments ===
 @module Arguments
-; getter for `uint256 public value` [selector 0x3fa4f245]
-fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
-}
-
 ; constructor(uint256 a, uint256 b) [creation entry]
 fn @constructor(arg0: i256, arg1: i256) [constructor, abi_params=[uint256, uint256]] {
   bb0:
@@ -23,8 +16,6 @@ fn @constructor(arg0: i256, arg1: i256) [constructor, abi_params=[uint256, uint2
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/create_input_unbumped.sol:Dynamic ===
-@module Dynamic
 ; getter for `uint256 public value` [selector 0x3fa4f245]
 fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
@@ -32,6 +23,8 @@ fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
     ret v0
 }
 
+// === ROOT/tests/ui/codegen/lowering/run-call/create_input_unbumped.sol:Dynamic ===
+@module Dynamic
 ; constructor(bytes memory data, uint256 extra) [creation entry]
 fn @constructor(arg0: ptr<memory>, arg1: i256) [constructor, abi_params=[bytes, uint256]] {
   bb0:
@@ -39,6 +32,13 @@ fn @constructor(arg0: ptr<memory>, arg1: i256) [constructor, abi_params=[bytes, 
     v1 = checked_add uint256, v0, arg1
     sstore 0, v1 !metadata(storage=slot(0))
     ret
+}
+
+; getter for `uint256 public value` [selector 0x3fa4f245]
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/create_input_unbumped.sol:CreateInputUnbumped ===

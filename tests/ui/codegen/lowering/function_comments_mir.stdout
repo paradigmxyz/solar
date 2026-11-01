@@ -1,17 +1,29 @@
 // === ROOT/tests/ui/codegen/lowering/function_comments_mir.sol:C ===
 @module C
-; getter for `uint256 public total` [selector 0x2ddbd13a]
-fn @total() -> i256 [selector=0x2ddbd13a, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
-}
-
 ; constructor(uint256 start) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     ret
+}
+
+; receive() external payable [receive]
+fn @receive() [receive, payable] {
+  bb0:
+    ret
+}
+
+; fallback() external [fallback]
+fn @fallback() [fallback] {
+  bb0:
+    ret
+}
+
+; getter for `uint256 public total` [selector 0x2ddbd13a]
+fn @total() -> i256 [selector=0x2ddbd13a, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
 }
 
 ; function pick(bool left, uint256 a, uint256 b) external pure returns (uint256) [selector 0xb67daf62]
@@ -32,16 +44,4 @@ fn @step(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = checked_add uint256, arg0, 1
     ret v0
-}
-
-; receive() external payable [receive]
-fn @receive() [receive, payable] {
-  bb0:
-    ret
-}
-
-; fallback() external [fallback]
-fn @fallback() [fallback] {
-  bb0:
-    ret
 }

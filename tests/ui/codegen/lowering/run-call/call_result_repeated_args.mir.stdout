@@ -1,5 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/call_result_repeated_args.sol:CallResultRepeatedArgs ===
 @module CallResultRepeatedArgs
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    sstore 0, 42 !metadata(storage=slot(0))
+    ret
+}
+
 ; function run() external returns (uint256 result) [selector 0xc0406226]
 fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
@@ -45,12 +52,5 @@ fn @store(arg0: i256, arg1: i256) {
     sstore 6, v6 !metadata(storage=slot(6))
     v7 = and arg0, arg1
     sstore 7, v7 !metadata(storage=slot(7))
-    ret
-}
-
-; creation entry
-fn @constructor() [constructor] {
-  bb0:
-    sstore 0, 42 !metadata(storage=slot(0))
     ret
 }

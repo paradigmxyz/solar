@@ -1,6 +1,26 @@
 // === ROOT/tests/ui/codegen/mir/egraph/late_cse_masks.sol:LateCseMasks ===
 @module LateCseMasks
 @phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb5, bb1
+  bb1:  ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb5, [0x2845d4e6 => bb2, 0x2ddbd13a => bb3, 0x6cdb32ec => bb4]
+  bb4:  ; preds = bb1
+    tail_call @second
+  bb3:  ; preds = bb1
+    tail_call @total
+  bb2:  ; preds = bb1
+    tail_call @first
+  bb5 [cold]:  ; preds = bb0, bb1
+    revert 0, 0
+}
+
 ; getter for `uint256 public total` [selector 0x2ddbd13a]
 fn @total() [selector=0x2ddbd13a, abi_wrapper, view] {
   bb0:
@@ -28,7 +48,7 @@ fn @digest(arg0: i256, arg1: i256) -> i256 {
   bb2:  ; preds = bb0
     sstore 0, v9 !metadata(storage=slot(0))
     ret v6
-  bb1:  ; preds = bb0
+  bb1 [cold]:  ; preds = bb0
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -54,7 +74,7 @@ fn @first() [selector=0x2845d4e6, abi_wrapper] {
     v13 = zext i1 v2 to i256
     mstore 0, v13 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:  ; preds = bb0
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
@@ -82,30 +102,10 @@ fn @second() [selector=0x6cdb32ec, abi_wrapper] {
     v19 = zext i1 v4 to i256
     mstore 0, v19 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:  ; preds = bb4
+  bb1 [cold]:  ; preds = bb4
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:  ; preds = bb0
-    revert 0, 0
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb5, bb1
-  bb1:  ; preds = bb0
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb5, [0x2845d4e6 => bb2, 0x2ddbd13a => bb3, 0x6cdb32ec => bb4]
-  bb4:  ; preds = bb1
-    tail_call @second
-  bb3:  ; preds = bb1
-    tail_call @total
-  bb2:  ; preds = bb1
-    tail_call @first
-  bb5:  ; preds = bb0, bb1
+  bb3 [cold]:  ; preds = bb0
     revert 0, 0
 }

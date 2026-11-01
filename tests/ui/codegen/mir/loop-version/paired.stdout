@@ -1,8 +1,25 @@
 // === ROOT/tests/ui/codegen/mir/loop-version/paired.sol:Test ===
 @module Test
 @phase lowered
-@types
-  struct0: {ptr<memory>, ptr<memory>}
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb5, bb1
+  bb1:  ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb5, [0x198bc552 => bb2, 0xb6752e08 => bb3, 0xb7239436 => bb4]
+  bb4:  ; preds = bb1
+    tail_call @overlapping
+  bb3:  ; preds = bb1
+    tail_call @sameArray
+  bb2:  ; preds = bb1
+    tail_call @sortPairs
+  bb5 [cold]:  ; preds = bb0, bb1
+    revert 0, 0
+}
 
 ; function sortPairs(uint256[] memory keys, uint256[] memory values) external pure returns (uint256[] memory, uint256[] memory) [selector 0x198bc552]
 fn @sortPairs() [selector=0x198bc552, abi_wrapper, pure] {
@@ -36,7 +53,7 @@ fn @sortPairs() [selector=0x198bc552, abi_wrapper, pure] {
     mcopy v25, v35, v24 !metadata(memory=heap, disjoint)
     v29 = sub v27, v39
     returndata v39, v29
-  bb1:  ; preds = bb0
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
@@ -55,7 +72,7 @@ fn @sameArray() [selector=0xb6752e08, abi_wrapper, pure] {
     mstore v12, 32
     v9 = add v7, 64
     returndata v12, v9
-  bb1:  ; preds = bb0
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
@@ -75,7 +92,7 @@ fn @overlapping() [selector=0xb7239436, abi_wrapper, pure] {
     mstore v15, 32
     v12 = add v10, 64
     returndata v15, v12
-  bb1:  ; preds = bb0
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
@@ -226,7 +243,7 @@ fn @_sortPairs(arg0: i256, arg1: i256) [may_return_memory, pure] {
     v57 = mload v249
     v59 = lt v24, v51
     jumpi v59, bb22, bb15
-  bb15:  ; preds = bb3, bb5, bb6, bb7, bb9, bb17, bb20, bb21
+  bb15 [cold]:  ; preds = bb3, bb5, bb6, bb7, bb9, bb17, bb20, bb21
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -274,30 +291,10 @@ fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
     v22 = add v25, 32
     calldatacopy v22, v7, v12
     ret v25
-  bb3:  ; preds = bb2, bb4
+  bb3 [cold]:  ; preds = bb2, bb4
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:  ; preds = bb0, bb6
-    revert 0, 0
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb5, bb1
-  bb1:  ; preds = bb0
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb5, [0x198bc552 => bb2, 0xb6752e08 => bb3, 0xb7239436 => bb4]
-  bb4:  ; preds = bb1
-    tail_call @overlapping
-  bb3:  ; preds = bb1
-    tail_call @sameArray
-  bb2:  ; preds = bb1
-    tail_call @sortPairs
-  bb5:  ; preds = bb0, bb1
+  bb1 [cold]:  ; preds = bb0, bb6
     revert 0, 0
 }

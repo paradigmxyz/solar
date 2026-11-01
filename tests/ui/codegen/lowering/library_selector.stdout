@@ -2,6 +2,18 @@
 @module L
 @phase lowered
 @library
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = shr v0, 224
+    switch v1, default bb2, [0xb3de648b => bb1]
+  bb1:  ; preds = bb0
+    tail_call @f
+  bb2 [cold]:  ; preds = bb0
+    revert 0, 0
+}
+
 ; function f(uint256 v) external pure returns (uint256) [selector 0xb3de648b]
 fn @f() [selector=0xb3de648b, abi_wrapper, pure] {
   bb0:
@@ -11,32 +23,13 @@ fn @f() [selector=0xb3de648b, abi_wrapper, pure] {
   bb2:  ; preds = bb0
     mstore 0, arg0 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:  ; preds = bb0
-    revert 0, 0
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = calldataload 0
-    v1 = shr v0, 224
-    switch v1, default bb2, [0xb3de648b => bb1]
-  bb1:  ; preds = bb0
-    tail_call @f
-  bb2:  ; preds = bb0
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
 // === ROOT/tests/ui/codegen/lowering/library_selector.sol:C ===
 @module C
 @phase lowered
-; function sel() public pure returns (bytes4) [selector 0x41c910e1]
-fn @sel() [selector=0x41c910e1, abi_wrapper, pure] {
-  bb0:
-    mstore 0, 0xb3de648b00000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    returndata 0, 32
-}
-
 ; runtime dispatch entry
 fn @entry() [entry] {
   bb0:
@@ -49,6 +42,13 @@ fn @entry() [entry] {
     switch v3, default bb3, [0x41c910e1 => bb2]
   bb2:  ; preds = bb1
     tail_call @sel
-  bb3:  ; preds = bb0, bb1
+  bb3 [cold]:  ; preds = bb0, bb1
     revert 0, 0
+}
+
+; function sel() public pure returns (bytes4) [selector 0x41c910e1]
+fn @sel() [selector=0x41c910e1, abi_wrapper, pure] {
+  bb0:
+    mstore 0, 0xb3de648b00000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    returndata 0, 32
 }

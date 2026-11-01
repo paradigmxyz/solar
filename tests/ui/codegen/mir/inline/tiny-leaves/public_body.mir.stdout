@@ -19,7 +19,25 @@ fn @constructor(arg0: i256) [abi_wrapper, constructor] {
   bb2:  ; preds = bb0
     mstore 192, arg0
     ret
+  bb1 [cold]:  ; preds = bb0
+    revert 0, 0
+}
+
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb4, bb1
   bb1:  ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb4, [0xbe9a6555 => bb2, 0xfea5657c => bb3]
+  bb3:  ; preds = bb1
+    tail_call @vested
+  bb2:  ; preds = bb1
+    tail_call @start
+  bb4 [cold]:  ; preds = bb0, bb1
     revert 0, 0
 }
 
@@ -37,22 +55,4 @@ fn @vested() [selector=0xfea5657c, abi_wrapper, view] {
     v2 = loadimmutable _start
     mstore 0, v2
     returndata 0, 32
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb4, bb1
-  bb1:  ; preds = bb0
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb4, [0xbe9a6555 => bb2, 0xfea5657c => bb3]
-  bb3:  ; preds = bb1
-    tail_call @vested
-  bb2:  ; preds = bb1
-    tail_call @start
-  bb4:  ; preds = bb0, bb1
-    revert 0, 0
 }

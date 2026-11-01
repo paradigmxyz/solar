@@ -1,6 +1,22 @@
 // === ROOT/tests/ui/codegen/mir/loop-unroll/exchanged_phis.sol:Swap ===
 @module Swap
 @phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:  ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0xdb9a27fa => bb2]
+  bb2:  ; preds = bb1
+    tail_call @swaps
+  bb3 [cold]:  ; preds = bb0, bb1
+    revert 0, 0
+}
+
 ; function swaps(uint256 n, uint256 a, uint256 b) external pure returns (uint256) [selector 0xdb9a27fa]
 fn @swaps() [selector=0xdb9a27fa, abi_wrapper, pure] {
   bb0:
@@ -29,22 +45,6 @@ fn @swaps() [selector=0xdb9a27fa, abi_wrapper, pure] {
   bb7:  ; preds = bb6
     v29 = add v12, 4
     jump bb6
-  bb4:  ; preds = bb0
-    revert 0, 0
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb3, bb1
-  bb1:  ; preds = bb0
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb3, [0xdb9a27fa => bb2]
-  bb2:  ; preds = bb1
-    tail_call @swaps
-  bb3:  ; preds = bb0, bb1
+  bb4 [cold]:  ; preds = bb0
     revert 0, 0
 }

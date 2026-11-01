@@ -1,6 +1,24 @@
 // === ROOT/tests/ui/codegen/lowering/checked_insertion_shift.sol:CheckedInsertionShift ===
 @module CheckedInsertionShift
 @phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb4, bb1
+  bb1:  ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb4, [0x9ec8b026 => bb2, 0xa227bfd8 => bb3]
+  bb3:  ; preds = bb1
+    tail_call @shiftAt
+  bb2:  ; preds = bb1
+    tail_call @sort
+  bb4 [cold]:  ; preds = bb0, bb1
+    revert 0, 0
+}
+
 ; function sort(uint256[] memory a) external pure returns (uint256[] memory) [selector 0x9ec8b026]
 fn @sort() [selector=0x9ec8b026, abi_wrapper, pure] {
   bb0:
@@ -58,14 +76,14 @@ fn @sort() [selector=0x9ec8b026, abi_wrapper, pure] {
     v35 = mload v87
     v37 = lt v16, v19
     jumpi v37, bb11, bb8
-  bb8:  ; preds = bb5, bb6, bb7
+  bb8 [cold]:  ; preds = bb5, bb6, bb7
     tail_call @revert_stub
   bb11:  ; preds = bb7
     v78 = add v87, 32
     mstore v78, v35
     v88 = sub v87, 32
     jump bb4
-  bb12:  ; preds = bb0
+  bb12 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
@@ -91,7 +109,7 @@ fn @shiftAt() [selector=0xa227bfd8, abi_wrapper, pure] {
     v8 = mload v30
     v10 = lt arg1, v2
     jumpi v10, bb5, bb3
-  bb3:  ; preds = bb1, bb4
+  bb3 [cold]:  ; preds = bb1, bb4
     tail_call @revert_stub
   bb5:  ; preds = bb4
     v12 = shl arg1, 5
@@ -106,12 +124,12 @@ fn @shiftAt() [selector=0xa227bfd8, abi_wrapper, pure] {
     mstore v27, 32
     v24 = add v22, 64
     returndata v27, v24
-  bb6:  ; preds = bb0
+  bb6 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
-fn @revert_stub() {
-  bb0:
+fn @revert_stub() [cold] {
+  bb0 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -153,28 +171,10 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v22 = add v25, 32
     calldatacopy v22, v7, v12
     ret v25
-  bb3:  ; preds = bb2
+  bb3 [cold]:  ; preds = bb2
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:  ; preds = bb0, bb5
-    revert 0, 0
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb4, bb1
-  bb1:  ; preds = bb0
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb4, [0x9ec8b026 => bb2, 0xa227bfd8 => bb3]
-  bb3:  ; preds = bb1
-    tail_call @shiftAt
-  bb2:  ; preds = bb1
-    tail_call @sort
-  bb4:  ; preds = bb0, bb1
+  bb1 [cold]:  ; preds = bb0, bb5
     revert 0, 0
 }

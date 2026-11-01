@@ -3,6 +3,13 @@
 @types
   struct0: {i256, i256, i256}
 
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    sstore 0, 0xbeef !metadata(storage=slot(0))
+    ret
+}
+
 ; function grow() public returns (uint256, uint256, uint256) [selector 0x5298948e]
 fn @grow() -> struct0 [selector=0x5298948e, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
@@ -71,12 +78,5 @@ fn @atCap() [selector=0xdb9a763c, abi_params=[], abi_returns=[], abi_return_para
     v4 = add v3, v0
     sstore v4, 7 !metadata(storage=symbolic(v4))
     sstore 1, v2 !metadata(storage=slot(1))
-    ret
-}
-
-; creation entry
-fn @constructor() [constructor] {
-  bb0:
-    sstore 0, 0xbeef !metadata(storage=slot(0))
     ret
 }

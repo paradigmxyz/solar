@@ -45,6 +45,22 @@ fn @sum(arg0: slice<calldata>) -> i32 [selector=0xa20eed08, pure, abi_params=[by
 // === ROOT/tests/ui/codegen/mir/optimize-function/none_build.sol:Tagged ===
 @module Tagged
 @phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:  ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0xa20eed08 => bb2]
+  bb2:  ; preds = bb1
+    tail_call @sum
+  bb3 [cold]:  ; preds = bb0, bb1
+    revert 0, 0
+}
+
 ; function sum(bytes calldata data) external pure returns (uint32 value) [selector 0xa20eed08]
 fn @sum() [selector=0xa20eed08, abi_wrapper, pure] {
   bb0:
@@ -89,42 +105,48 @@ fn @sum() [selector=0xa20eed08, abi_wrapper, pure] {
     v150 = or v146, v149
     mstore 0, v150
     returndata 0, 32
-  bb2:  ; preds = bb5
+  bb2 [cold]:  ; preds = bb5
     v73 = lt 0, v46
     v84 = lt 1, v46
     v153 = and v73, v84
     v95 = lt 2, v46
     v154 = and v153, v95
     jumpi v154, bb6, bb3
-  bb6:  ; preds = bb2
+  bb6 [cold]:  ; preds = bb2
     jump bb3
-  bb3:  ; preds = bb2, bb6
+  bb3 [cold]:  ; preds = bb2, bb6
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb4:  ; preds = bb0
-    revert 0, 0
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb3, bb1
-  bb1:  ; preds = bb0
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb3, [0xa20eed08 => bb2]
-  bb2:  ; preds = bb1
-    tail_call @sum
-  bb3:  ; preds = bb0, bb1
+  bb4 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
 // === ROOT/tests/ui/codegen/mir/optimize-function/none_build.sol:Mixed ===
 @module Mixed
 @phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:  ; preds = bb0
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0xaa8bda2d => bb3, 0xe256fef5 => bb4]
+  bb4:  ; preds = bb2
+    tail_call @fast
+  bb3:  ; preds = bb2
+    tail_call @slow
+  bb1 [cold]:  ; preds = bb0, bb2
+    revert 0, 0
+}
+
 ; function slow(bytes calldata data) external pure returns (uint32 value) [selector 0xaa8bda2d]
 fn @slow() [selector=0xaa8bda2d, abi_wrapper, pure] {
   bb0:
@@ -169,11 +191,11 @@ fn @slow() [selector=0xaa8bda2d, abi_wrapper, pure] {
     jumpi v24, bb7, bb8
   bb8:  ; preds = bb6
     jump bb2
-  bb7:  ; preds = bb6
+  bb7 [cold]:  ; preds = bb6
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb5:  ; preds = bb3
+  bb5 [cold]:  ; preds = bb3
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -212,16 +234,16 @@ fn @fast() [selector=0xe256fef5, abi_wrapper, optimize=gas, pure] {
     v142 = or v138, v141
     mstore 0, v142
     returndata 0, 32
-  bb2:  ; preds = bb0
+  bb2 [cold]:  ; preds = bb0
     v65 = lt 0, v42
     v76 = lt 1, v42
     v144 = and v65, v76
     v87 = lt 2, v42
     v145 = and v144, v87
     jumpi v145, bb4, bb3
-  bb4:  ; preds = bb2
+  bb4 [cold]:  ; preds = bb2
     jump bb3
-  bb3:  ; preds = bb2, bb4
+  bb3 [cold]:  ; preds = bb2, bb4
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -244,28 +266,6 @@ fn @decode_calldata_slice(arg0: i256) -> i256 {
     jumpi v10, bb1, bb2
   bb2:  ; preds = bb0
     ret v2
-  bb1:  ; preds = bb0
-    revert 0, 0
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = calldatasize
-    v2 = lt v1, 36
-    v3 = zext i1 v2 to i256
-    v4 = or v0, v3
-    v5 = ne v4, 0
-    jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
-    v6 = calldataload 0
-    v7 = shr v6, 224
-    switch v7, default bb1, [0xaa8bda2d => bb3, 0xe256fef5 => bb4]
-  bb4:  ; preds = bb2
-    tail_call @fast
-  bb3:  ; preds = bb2
-    tail_call @slow
-  bb1:  ; preds = bb0, bb2
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }

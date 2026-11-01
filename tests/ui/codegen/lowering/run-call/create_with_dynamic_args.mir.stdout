@@ -1,5 +1,19 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/create_with_dynamic_args.sol:Token ===
 @module Token
+; constructor(string memory n, uint8 d) [creation entry]
+fn @constructor(arg0: ptr<memory>, arg1: i8) [constructor, abi_params=[bytes, uint8]] {
+  bb0:
+    icall @store_storage_bytes, 0, arg0
+    v0 = sload 1 !metadata(storage=slot(1))
+    v1 = not 255
+    v2 = and v0, v1
+    v3 = zext i8 arg1 to i256
+    v4 = and v3, 255
+    v5 = or v2, v4
+    sstore 1, v5 !metadata(storage=slot(1))
+    ret
+}
+
 ; getter for `string public name` [selector 0x06fdde03]
 fn @name() -> ptr<memory> [selector=0x06fdde03, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
@@ -13,20 +27,6 @@ fn @decimals() -> i8 [selector=0x313ce567, view, abi_params=[], abi_returns=[wor
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = trunc i256 v0 to i8
     ret v1
-}
-
-; constructor(string memory n, uint8 d) [creation entry]
-fn @constructor(arg0: ptr<memory>, arg1: i8) [constructor, abi_params=[bytes, uint8]] {
-  bb0:
-    icall @store_storage_bytes, 0, arg0
-    v0 = sload 1 !metadata(storage=slot(1))
-    v1 = not 255
-    v2 = and v0, v1
-    v3 = zext i8 arg1 to i256
-    v4 = and v3, 255
-    v5 = or v2, v4
-    sstore 1, v5 !metadata(storage=slot(1))
-    ret
 }
 
 fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {

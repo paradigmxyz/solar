@@ -41,7 +41,7 @@
       v0 = sload arg0
       v1 = ne v0, 0
       jumpi v1, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2 [cold]:  ; preds = bb0
       revert 0, 0
     bb1:  ; preds = bb0
       ret v1
@@ -97,7 +97,7 @@
       v0 = sload arg0
       v1 = ne v0, 0
       jumpi v1, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2 [cold]:  ; preds = bb0
       revert 0, 0
     bb1:  ; preds = bb0
       ret v1

@@ -233,10 +233,10 @@ fn @entry() [entry] {
   bb34:  ; preds = bb33
     v80 = add v72, 1
     jump bb32
-  bb11:  ; preds = bb10, bb16, bb21, bb26, bb33, bb36, bb39, bb42
+  bb11 [cold]:  ; preds = bb10, bb16, bb21, bb26, bb33, bb36, bb39, bb42
     mstore 32, 17
     mstore 0, 0x4e487b71
     revert 28, 36
-  bb7:  ; preds = bb0, bb1, bb2, bb3, bb4, bb5, bb6
+  bb7 [cold]:  ; preds = bb0, bb1, bb2, bb3, bb4, bb5, bb6
     revert 0, 0
 }

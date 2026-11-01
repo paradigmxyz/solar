@@ -1,18 +1,18 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_bytes_forwarding.sol:ConstructorBytesBase ===
 @module ConstructorBytesBase
-; getter for `uint256 public value` [selector 0x3fa4f245]
-fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
-}
-
 ; constructor(uint256 value_, bytes memory data_) [creation entry]
 fn @constructor(arg0: i256, arg1: ptr<memory>) [constructor, abi_params=[uint256, bytes]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     icall @store_storage_bytes, 1, arg1
     ret
+}
+
+; getter for `uint256 public value` [selector 0x3fa4f245]
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
 }
 
 ; function byteAt(uint256 index) external view returns (bytes1) [selector 0x710422c6]

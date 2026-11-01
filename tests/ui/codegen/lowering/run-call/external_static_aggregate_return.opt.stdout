@@ -1,8 +1,37 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_static_aggregate_return.sol:ExternalStaticAggregateReturn ===
 @module ExternalStaticAggregateReturn
 @phase lowered
-@types
-  struct0: {ptr<memory>, i256}
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb11, bb1
+  bb1:  ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb11, [0x62dc8436 => bb2, 0x9510f212 => bb3, 0xad0cb941 => bb4, 0xc3f9a16c => bb5, 0xc41518f3 => bb6, 0xc6630f71 => bb7, 0xcc20ef0a => bb8, 0xe3b21a7a => bb9, 0xf4d7be11 => bb10]
+  bb10:  ; preds = bb1
+    tail_call @makePair
+  bb9:  ; preds = bb1
+    tail_call @narrow
+  bb8:  ; preds = bb1
+    tail_call @tryStructReturn
+  bb7:  ; preds = bb1
+    tail_call @pairReturn
+  bb6:  ; preds = bb1
+    tail_call @shortReturn
+  bb5:  ; preds = bb1
+    tail_call @structReturn
+  bb4:  ; preds = bb1
+    tail_call @arrayReturn
+  bb3:  ; preds = bb1
+    tail_call @makeArray
+  bb2:  ; preds = bb1
+    tail_call @makeStruct
+  bb11 [cold]:  ; preds = bb0, bb1
+    revert 0, 0
+}
 
 ; function makeStruct(uint256 x) external pure returns (S memory) [selector 0x62dc8436]
 fn @makeStruct() [selector=0x62dc8436, abi_wrapper, pure] {
@@ -22,11 +51,11 @@ fn @makeStruct() [selector=0x62dc8436, abi_wrapper, pure] {
     mstore 128, arg0
     mstore 160, v5
     returndata 128, 64
-  bb1:  ; preds = bb4
+  bb1 [cold]:  ; preds = bb4
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:  ; preds = bb0
+  bb3 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
@@ -69,11 +98,11 @@ fn @makeArray() [selector=0x9510f212, abi_wrapper, pure] {
     mstore v18, v16
     v19 = add v12, 1
     jump bb6
-  bb1:  ; preds = bb2, bb5
+  bb1 [cold]:  ; preds = bb2, bb5
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb4:  ; preds = bb0
+  bb4 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
@@ -104,11 +133,11 @@ fn @makePair() [selector=0xf4d7be11, abi_wrapper, pure] {
     mstore 160, v8
     mstore 192, v10
     returndata 128, 96
-  bb1:  ; preds = bb2, bb5
+  bb1 [cold]:  ; preds = bb2, bb5
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb4:  ; preds = bb0
+  bb4 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
@@ -137,7 +166,7 @@ fn @structReturn() [selector=0xc3f9a16c, abi_wrapper, view] {
     v36 = add v37, 64
     v7 = staticcall v1, v0, v37, 36, v36, 64
     jumpi v7, bb2, bb1
-  bb1:  ; preds = bb7
+  bb1 [cold]:  ; preds = bb7
     v22 = returndatasize
     returndatacopy 0, 0, v22 !metadata(memory=abi_return)
     v23 = returndatasize
@@ -157,11 +186,11 @@ fn @structReturn() [selector=0xc3f9a16c, abi_wrapper, view] {
   bb6:  ; preds = bb4
     mstore 0, v16 !metadata(memory=scratch)
     returndata 0, 32
-  bb5:  ; preds = bb4
+  bb5 [cold]:  ; preds = bb4
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:  ; preds = bb0, bb2
+  bb3 [cold]:  ; preds = bb0, bb2
     revert 0, 0
 }
 
@@ -183,7 +212,7 @@ fn @arrayReturn() [selector=0xad0cb941, abi_wrapper, view] {
     v57 = add v58, 64
     v7 = staticcall v1, v0, v58, 36, v57, 96
     jumpi v7, bb2, bb1
-  bb1:  ; preds = bb8
+  bb1 [cold]:  ; preds = bb8
     v39 = returndatasize
     returndatacopy 0, 0, v39 !metadata(memory=abi_return)
     v40 = returndatasize
@@ -210,11 +239,11 @@ fn @arrayReturn() [selector=0xad0cb941, abi_wrapper, view] {
   bb7:  ; preds = bb6
     mstore 0, v27 !metadata(memory=scratch)
     returndata 0, 32
-  bb5:  ; preds = bb4, bb6
+  bb5 [cold]:  ; preds = bb4, bb6
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:  ; preds = bb0, bb2
+  bb3 [cold]:  ; preds = bb0, bb2
     revert 0, 0
 }
 
@@ -254,11 +283,11 @@ fn @tryStructReturn() [selector=0xcc20ef0a, abi_wrapper, view] {
   bb6:  ; preds = bb4
     mstore 0, v16 !metadata(memory=scratch)
     returndata 0, 32
-  bb5:  ; preds = bb4
+  bb5 [cold]:  ; preds = bb4
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:  ; preds = bb0, bb1
+  bb3 [cold]:  ; preds = bb0, bb1
     revert 0, 0
 }
 
@@ -280,7 +309,7 @@ fn @pairReturn() [selector=0xc6630f71, abi_wrapper, view] {
     v59 = add v60, 64
     v7 = staticcall v1, v0, v60, 36, v59, 96
     jumpi v7, bb2, bb1
-  bb1:  ; preds = bb7
+  bb1 [cold]:  ; preds = bb7
     v47 = returndatasize
     returndatacopy 0, 0, v47 !metadata(memory=abi_return)
     v48 = returndatasize
@@ -305,11 +334,11 @@ fn @pairReturn() [selector=0xc6630f71, abi_wrapper, view] {
   bb6:  ; preds = bb4
     mstore 0, v25 !metadata(memory=scratch)
     returndata 0, 32
-  bb5:  ; preds = bb4
+  bb5 [cold]:  ; preds = bb4
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:  ; preds = bb0, bb2
+  bb3 [cold]:  ; preds = bb0, bb2
     revert 0, 0
 }
 
@@ -325,7 +354,7 @@ fn @shortReturn() [selector=0xc41518f3, abi_wrapper, view] {
     v34 = add v35, 32
     v7 = staticcall v1, v0, v35, 4, v34, 64
     jumpi v7, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1 [cold]:  ; preds = bb0
     v22 = returndatasize
     returndatacopy 0, 0, v22 !metadata(memory=abi_return)
     v23 = returndatasize
@@ -345,11 +374,11 @@ fn @shortReturn() [selector=0xc41518f3, abi_wrapper, view] {
   bb6:  ; preds = bb4
     mstore 0, v16 !metadata(memory=scratch)
     returndata 0, 32
-  bb5:  ; preds = bb4
+  bb5 [cold]:  ; preds = bb4
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:  ; preds = bb2
+  bb3 [cold]:  ; preds = bb2
     revert 0, 0
 }
 
@@ -365,36 +394,4 @@ fn @decode_static(arg0: i256) -> i256 [may_return_memory] {
     v13 = add v16, 32
     mstore v13, v8
     ret v16
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb11, bb1
-  bb1:  ; preds = bb0
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb11, [0x62dc8436 => bb2, 0x9510f212 => bb3, 0xad0cb941 => bb4, 0xc3f9a16c => bb5, 0xc41518f3 => bb6, 0xc6630f71 => bb7, 0xcc20ef0a => bb8, 0xe3b21a7a => bb9, 0xf4d7be11 => bb10]
-  bb10:  ; preds = bb1
-    tail_call @makePair
-  bb9:  ; preds = bb1
-    tail_call @narrow
-  bb8:  ; preds = bb1
-    tail_call @tryStructReturn
-  bb7:  ; preds = bb1
-    tail_call @pairReturn
-  bb6:  ; preds = bb1
-    tail_call @shortReturn
-  bb5:  ; preds = bb1
-    tail_call @structReturn
-  bb4:  ; preds = bb1
-    tail_call @arrayReturn
-  bb3:  ; preds = bb1
-    tail_call @makeArray
-  bb2:  ; preds = bb1
-    tail_call @makeStruct
-  bb11:  ; preds = bb0, bb1
-    revert 0, 0
 }

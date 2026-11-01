@@ -1,5 +1,31 @@
 // === ROOT/tests/ui/codegen/disasm/creation_pricing.sol:Constants ===
 @module Constants
+; constructor(uint256 p) [creation entry]
+fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
+  bb0:
+    v0 = checked_mul uint256, arg0, 3
+    sstore 0, v0 !metadata(storage=slot(0))
+    v1 = sload 1 !metadata(storage=slot(1))
+    v2 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v3 = and v1, v2
+    v4 = and 0x1111111111111111111111111111111111111111, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = or v3, v4
+    sstore 1, v5 !metadata(storage=slot(1))
+    v6 = sload 2 !metadata(storage=slot(2))
+    v7 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v8 = and v6, v7
+    v9 = and 0x1111111111111111111111111111111111111111, 0xffffffffffffffffffffffffffffffffffffffff
+    v10 = or v8, v9
+    sstore 2, v10 !metadata(storage=slot(2))
+    v11 = sload 3 !metadata(storage=slot(3))
+    v12 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v13 = and v11, v12
+    v14 = and 0x1111111111111111111111111111111111111111, 0xffffffffffffffffffffffffffffffffffffffff
+    v15 = or v13, v14
+    sstore 3, v15 !metadata(storage=slot(3))
+    ret
+}
+
 ; getter for `uint256 public v` [selector 0x7c2efcba]
 fn @v() -> i256 [selector=0x7c2efcba, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
@@ -31,41 +57,8 @@ fn @c() -> i160 [selector=0xc3da42b8, view, abi_params=[], abi_returns=[word<uin
     ret v1
 }
 
-; constructor(uint256 p) [creation entry]
-fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
-  bb0:
-    v0 = checked_mul uint256, arg0, 3
-    sstore 0, v0 !metadata(storage=slot(0))
-    v1 = sload 1 !metadata(storage=slot(1))
-    v2 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v3 = and v1, v2
-    v4 = and 0x1111111111111111111111111111111111111111, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = or v3, v4
-    sstore 1, v5 !metadata(storage=slot(1))
-    v6 = sload 2 !metadata(storage=slot(2))
-    v7 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v8 = and v6, v7
-    v9 = and 0x1111111111111111111111111111111111111111, 0xffffffffffffffffffffffffffffffffffffffff
-    v10 = or v8, v9
-    sstore 2, v10 !metadata(storage=slot(2))
-    v11 = sload 3 !metadata(storage=slot(3))
-    v12 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v13 = and v11, v12
-    v14 = and 0x1111111111111111111111111111111111111111, 0xffffffffffffffffffffffffffffffffffffffff
-    v15 = or v13, v14
-    sstore 3, v15 !metadata(storage=slot(3))
-    ret
-}
-
 // === ROOT/tests/ui/codegen/disasm/creation_pricing.sol:Shared ===
 @module Shared
-; getter for `uint256 public v` [selector 0x7c2efcba]
-fn @v() -> i256 [selector=0x7c2efcba, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
-}
-
 ; constructor(uint256 p) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
   bb0:
@@ -75,6 +68,13 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
     v3 = checked_add uint256, v0, v2
     sstore 0, v3 !metadata(storage=slot(0))
     ret
+}
+
+; getter for `uint256 public v` [selector 0x7c2efcba]
+fn @v() -> i256 [selector=0x7c2efcba, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
 }
 
 ; function triple(uint256 p) internal pure returns (uint256)
@@ -96,16 +96,6 @@ fn @f(arg0: i256) -> i256 [selector=0xb3de648b, pure, abi_params=[uint256], abi_
 
 // === ROOT/tests/ui/codegen/disasm/creation_pricing.sol:Looped ===
 @module Looped
-; getter for `uint256[100] public arr` [selector 0x71e5ee5f]
-fn @arr(arg0: i256) -> i256 [selector=0x71e5ee5f, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = lt arg0, 100
-    icall revert_if_zero<empty>, v0
-    v1 = add 0, arg0
-    v2 = sload v1 !metadata(storage=symbolic(arg0))
-    ret v2
-}
-
 ; constructor(uint256 s) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
   bb0:
@@ -135,25 +125,18 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
     jump bb1
 }
 
-// === ROOT/tests/ui/codegen/disasm/creation_pricing.sol:LoopCalled ===
-@module LoopCalled
-; getter for `uint256[50] public arr` [selector 0x71e5ee5f]
+; getter for `uint256[100] public arr` [selector 0x71e5ee5f]
 fn @arr(arg0: i256) -> i256 [selector=0x71e5ee5f, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = lt arg0, 50
+    v0 = lt arg0, 100
     icall revert_if_zero<empty>, v0
     v1 = add 0, arg0
     v2 = sload v1 !metadata(storage=symbolic(arg0))
     ret v2
 }
 
-; getter for `uint256 public total` [selector 0x2ddbd13a]
-fn @total() -> i256 [selector=0x2ddbd13a, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 50 !metadata(storage=slot(50))
-    ret v0
-}
-
+// === ROOT/tests/ui/codegen/disasm/creation_pricing.sol:LoopCalled ===
+@module LoopCalled
 ; constructor(uint256 s) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
   bb0:
@@ -191,6 +174,23 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
     jump bb1
 }
 
+; getter for `uint256[50] public arr` [selector 0x71e5ee5f]
+fn @arr(arg0: i256) -> i256 [selector=0x71e5ee5f, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = lt arg0, 50
+    icall revert_if_zero<empty>, v0
+    v1 = add 0, arg0
+    v2 = sload v1 !metadata(storage=symbolic(arg0))
+    ret v2
+}
+
+; getter for `uint256 public total` [selector 0x2ddbd13a]
+fn @total() -> i256 [selector=0x2ddbd13a, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 50 !metadata(storage=slot(50))
+    ret v0
+}
+
 ; function h(uint256 x) internal returns (uint256 r)
 fn @h(arg0: i256) -> i256 {
   bb0:
@@ -219,23 +219,6 @@ fn @g(arg0: i256) -> i256 [selector=0xe420264a, abi_params=[uint256], abi_return
 
 // === ROOT/tests/ui/codegen/disasm/creation_pricing.sol:LoopAfterCall ===
 @module LoopAfterCall
-; getter for `uint256[50] public arr` [selector 0x71e5ee5f]
-fn @arr(arg0: i256) -> i256 [selector=0x71e5ee5f, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = lt arg0, 50
-    icall revert_if_zero<empty>, v0
-    v1 = add 0, arg0
-    v2 = sload v1 !metadata(storage=symbolic(arg0))
-    ret v2
-}
-
-; getter for `uint256 public total` [selector 0x2ddbd13a]
-fn @total() -> i256 [selector=0x2ddbd13a, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 50 !metadata(storage=slot(50))
-    ret v0
-}
-
 ; constructor(uint256 s) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
   bb0:
@@ -290,6 +273,23 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
   bb3:  ; preds = bb6
     v34 = checked_add uint256, v1, 1
     jump bb1
+}
+
+; getter for `uint256[50] public arr` [selector 0x71e5ee5f]
+fn @arr(arg0: i256) -> i256 [selector=0x71e5ee5f, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = lt arg0, 50
+    icall revert_if_zero<empty>, v0
+    v1 = add 0, arg0
+    v2 = sload v1 !metadata(storage=symbolic(arg0))
+    ret v2
+}
+
+; getter for `uint256 public total` [selector 0x2ddbd13a]
+fn @total() -> i256 [selector=0x2ddbd13a, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 50 !metadata(storage=slot(50))
+    ret v0
 }
 
 ; function h(uint256 x) internal returns (uint256 r)

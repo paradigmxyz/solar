@@ -1,8 +1,25 @@
 // === ROOT/tests/ui/codegen/mir/loop-version/bounds.sol:Bounds ===
 @module Bounds
 @phase lowered
-@types
-  struct0: {ptr<memory>, ptr<memory>}
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb5, bb1
+  bb1:  ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb5, [0x979efdba => bb2, 0xb0bfff29 => bb3, 0xf06414cf => bb4]
+  bb4:  ; preds = bb1
+    tail_call @siftUp
+  bb3:  ; preds = bb1
+    tail_call @literalInLoop
+  bb2:  ; preds = bb1
+    tail_call @siftValues
+  bb5 [cold]:  ; preds = bb0, bb1
+    revert 0, 0
+}
 
 ; function siftValues(uint256 m, uint256 e) external pure returns (uint256[] memory values) [selector 0x979efdba]
 fn @siftValues() [selector=0x979efdba, abi_wrapper, pure] {
@@ -142,7 +159,7 @@ fn @siftValues() [selector=0x979efdba, abi_wrapper, pure] {
     mstore v184, 32
     v158 = add v156, 64
     returndata v184, v158
-  bb33:  ; preds = bb5
+  bb33 [cold]:  ; preds = bb5
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -162,7 +179,7 @@ fn @siftValues() [selector=0x979efdba, abi_wrapper, pure] {
   bb7:  ; preds = bb31
     v50 = lt v46, v39
     jumpi v50, bb32, bb27
-  bb27:  ; preds = bb2, bb3, bb6, bb7, bb34
+  bb27 [cold]:  ; preds = bb2, bb3, bb6, bb7, bb34
     tail_call @revert_stub.4
   bb32:  ; preds = bb7
     v52 = shl v46, 5
@@ -194,13 +211,13 @@ fn @siftValues() [selector=0x979efdba, abi_wrapper, pure] {
     v131 = add v122, 1
     v211 = add v210, 32
     jump bb20
-  bb38:  ; preds = bb26
+  bb38 [cold]:  ; preds = bb26
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb24:  ; preds = bb25, bb36
+  bb24 [cold]:  ; preds = bb25, bb36
     tail_call @revert_stub.3
-  bb35:  ; preds = bb0
+  bb35 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
@@ -441,7 +458,7 @@ fn @siftUp() [selector=0xf06414cf, abi_wrapper, pure] {
     mcopy v277, v293, v276 !metadata(disjoint)
     v281 = sub v279, v364
     returndata v364, v281
-  bb42:  ; preds = bb5
+  bb42 [cold]:  ; preds = bb5
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -497,7 +514,7 @@ fn @siftUp() [selector=0xf06414cf, abi_wrapper, pure] {
     v201 = mod v200, 11
     v203 = lt v198, v212
     jumpi v203, bb41, bb26
-  bb26:  ; preds = bb2, bb3, bb6, bb7, bb8, bb12, bb13, bb14, bb20, bb27, bb29, bb31, bb35, bb39, bb43
+  bb26 [cold]:  ; preds = bb2, bb3, bb6, bb7, bb8, bb12, bb13, bb14, bb20, bb27, bb29, bb31, bb35, bb39, bb43
     tail_call @revert_stub.4
   bb41:  ; preds = bb20
     mstore v379, v201
@@ -506,13 +523,13 @@ fn @siftUp() [selector=0xf06414cf, abi_wrapper, pure] {
     v377 = add v376, 32
     v380 = add v379, 32
     jump bb19
-  bb47:  ; preds = bb25, bb46
+  bb47 [cold]:  ; preds = bb25, bb46
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb23:  ; preds = bb24, bb45
+  bb23 [cold]:  ; preds = bb24, bb45
     tail_call @revert_stub.3
-  bb44:  ; preds = bb0
+  bb44 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
@@ -566,16 +583,16 @@ fn @literalInLoop() [selector=0xb0bfff29, abi_wrapper, pure] {
     v30 = mload v26
     v117 = add v116, 32
     jump bb3
-  bb6:  ; preds = bb10
+  bb6 [cold]:  ; preds = bb10
     v115 = add v107, 128
     jump bb1
-  bb1:  ; preds = bb6, bb8
+  bb1 [cold]:  ; preds = bb6, bb8
     v113 = phi [bb6: v107], [bb8: v114]
     v5 = lt v113, v115
     jumpi v5, bb8, bb7
-  bb7:  ; preds = bb1
+  bb7 [cold]:  ; preds = bb1
     tail_call @revert_stub.4
-  bb8:  ; preds = bb1
+  bb8 [cold]:  ; preds = bb1
     v9 = mload v113
     v104 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v105 = add v104, 64
@@ -598,40 +615,20 @@ fn @literalInLoop() [selector=0xb0bfff29, abi_wrapper, pure] {
     mstore v111, 128
     v114 = add v113, 32
     jump bb1
-  bb9:  ; preds = bb0
+  bb9 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
-fn @revert_stub.3() {
-  bb0:
+fn @revert_stub.3() [cold] {
+  bb0 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
-fn @revert_stub.4() {
-  bb0:
+fn @revert_stub.4() [cold] {
+  bb0 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb5, bb1
-  bb1:  ; preds = bb0
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb5, [0x979efdba => bb2, 0xb0bfff29 => bb3, 0xf06414cf => bb4]
-  bb4:  ; preds = bb1
-    tail_call @siftUp
-  bb3:  ; preds = bb1
-    tail_call @literalInLoop
-  bb2:  ; preds = bb1
-    tail_call @siftValues
-  bb5:  ; preds = bb0, bb1
-    revert 0, 0
 }

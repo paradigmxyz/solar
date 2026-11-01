@@ -890,7 +890,7 @@
 +     mstore v18, v15
 +     v19 = add v7, 1
 +     jump bb3
-+   bb1:  ; preds = bb0
++   bb1 [cold]:  ; preds = bb0
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -941,7 +941,7 @@
 +     mstore v20, v17
 +     v21 = add v9, 1
 +     jump bb3
-+   bb1:  ; preds = bb0
++   bb1 [cold]:  ; preds = bb0
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -981,7 +981,7 @@
 +     v3 = extract_value slice<memory>, v2, 0
 +     v4 = extract_value slice<memory>, v2, 1
 +     returndata v3, v4
-+   bb2:  ; preds = bb0
++   bb2 [cold]:  ; preds = bb0
 +     revert 0, 0
   }
   
@@ -1048,7 +1048,7 @@
 +     mstore v17, v14
 +     v18 = add v8, 1
 +     jump bb4
-+   bb1:  ; preds = bb0, bb2
++   bb1 [cold]:  ; preds = bb0, bb2
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1094,7 +1094,7 @@
 +     mstore v17, v14
 +     v18 = add v8, 1
 +     jump bb4
-+   bb1:  ; preds = bb0, bb2
++   bb1 [cold]:  ; preds = bb0, bb2
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1197,7 +1197,7 @@
 +     mstore v31, v28
 +     v32 = add v21, 1
 +     jump bb9
-+   bb1:  ; preds = bb0, bb2, bb5, bb7
++   bb1 [cold]:  ; preds = bb0, bb2, bb5, bb7
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1274,7 +1274,7 @@
 +     mstore v31, v28
 +     v32 = add v21, 1
 +     jump bb9
-+   bb1:  ; preds = bb0, bb2, bb5, bb7
++   bb1 [cold]:  ; preds = bb0, bb2, bb5, bb7
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1377,7 +1377,7 @@
 +     mstore v31, v28
 +     v32 = add v21, 1
 +     jump bb9
-+   bb1:  ; preds = bb0, bb2, bb5, bb7
++   bb1 [cold]:  ; preds = bb0, bb2, bb5, bb7
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1454,7 +1454,7 @@
 +     mstore v31, v28
 +     v32 = add v21, 1
 +     jump bb9
-+   bb1:  ; preds = bb0, bb2, bb5, bb7
++   bb1 [cold]:  ; preds = bb0, bb2, bb5, bb7
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1644,7 +1644,7 @@
 +     mstore v31, v28
 +     v32 = add v21, 1
 +     jump bb9
-+   bb1:  ; preds = bb0, bb2, bb5, bb7
++   bb1 [cold]:  ; preds = bb0, bb2, bb5, bb7
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1721,7 +1721,7 @@
 +     mstore v31, v28
 +     v32 = add v21, 1
 +     jump bb9
-+   bb1:  ; preds = bb0, bb2, bb5, bb7
++   bb1 [cold]:  ; preds = bb0, bb2, bb5, bb7
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1798,7 +1798,7 @@
 +     mstore v31, v28
 +     v32 = add v21, 1
 +     jump bb9
-+   bb1:  ; preds = bb0, bb2, bb5, bb7
++   bb1 [cold]:  ; preds = bb0, bb2, bb5, bb7
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1891,7 +1891,7 @@
 +     v12 = add 128, 32
 +     v13 = sub v12, 128
 +     returndata 128, v13
-+   bb4:  ; preds = bb0, bb5
++   bb4 [cold]:  ; preds = bb0, bb5
 +     revert 0, 0
   }
   
@@ -1931,7 +1931,7 @@
 +     v11 = add 128, 32
 +     v12 = sub v11, 128
 +     returndata 128, v12
-+   bb4:  ; preds = bb0, bb5
++   bb4 [cold]:  ; preds = bb0, bb5
 +     revert 0, 0
   }
   
@@ -1988,7 +1988,7 @@
 +     mstore v18, v15
 +     v19 = add v9, 1
 +     jump bb4
-+   bb1:  ; preds = bb0, bb2
++   bb1 [cold]:  ; preds = bb0, bb2
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -2035,7 +2035,7 @@
 +     mstore v17, v14
 +     v18 = add v8, 1
 +     jump bb4
-+   bb1:  ; preds = bb0, bb2
++   bb1 [cold]:  ; preds = bb0, bb2
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -2104,7 +2104,7 @@
 +     mstore v14, v12
 +     v15 = add v7, 1
 +     jump bb5
-+   bb2:  ; preds = bb0, bb3
++   bb2 [cold]:  ; preds = bb0, bb3
 +     revert 0, 0
   }
   
@@ -2205,11 +2205,11 @@
 +     mstore v22, v19
 +     v23 = add v13, 1
 +     jump bb8
-+   bb5:  ; preds = bb1, bb6
++   bb5 [cold]:  ; preds = bb1, bb6
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
-+   bb2:  ; preds = bb0, bb3
++   bb2 [cold]:  ; preds = bb0, bb3
 +     revert 0, 0
   }
   
@@ -2253,7 +2253,7 @@
 +     mstore v17, v14
 +     v18 = add v8, 1
 +     jump bb4
-+   bb1:  ; preds = bb0, bb2
++   bb1 [cold]:  ; preds = bb0, bb2
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -2313,7 +2313,7 @@
       mstore v18, v15
       v19 = add v7, 1
       jump bb3
-    bb1:  ; preds = bb0
+    bb1 [cold]:  ; preds = bb0
       mstore 32, 65 !metadata(memory=scratch)
       mstore 0, 0x4e487b71 !metadata(memory=scratch)
       revert 28, 36
@@ -2366,7 +2366,7 @@
       mstore v20, v17
       v21 = add v9, 1
       jump bb3
-    bb1:  ; preds = bb0
+    bb1 [cold]:  ; preds = bb0
       mstore 32, 65 !metadata(memory=scratch)
       mstore 0, 0x4e487b71 !metadata(memory=scratch)
       revert 28, 36
@@ -2412,7 +2412,7 @@
 +     mstore v17, v14
 +     v18 = add v8, 1
 +     jump bb4
-+   bb1:  ; preds = bb0, bb2
++   bb1 [cold]:  ; preds = bb0, bb2
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -2443,7 +2443,7 @@
 +     v9 = add 128, 32
 +     v10 = sub v9, 128
 +     returndata 128, v10
-+   bb2:  ; preds = bb0, bb3
++   bb2 [cold]:  ; preds = bb0, bb3
 +     revert 0, 0
   }
   

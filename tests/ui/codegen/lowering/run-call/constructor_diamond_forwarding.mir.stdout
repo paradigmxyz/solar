@@ -1,5 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_diamond_forwarding.sol:DiamondBase ===
 @module DiamondBase
+; constructor(uint256 newI, uint256 newK) [creation entry]
+fn @constructor(arg0: i256, arg1: i256) [constructor, abi_params=[uint256, uint256]] {
+  bb0:
+    sstore 0, arg0 !metadata(storage=slot(0))
+    sstore 1, arg1 !metadata(storage=slot(1))
+    ret
+}
+
 ; getter for `uint256 public i` [selector 0xe5aa3d58]
 fn @i() -> i256 [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
@@ -12,14 +20,6 @@ fn @k() -> i256 [selector=0xb4f40c61, view, abi_params=[], abi_returns=[word], a
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     ret v0
-}
-
-; constructor(uint256 newI, uint256 newK) [creation entry]
-fn @constructor(arg0: i256, arg1: i256) [constructor, abi_params=[uint256, uint256]] {
-  bb0:
-    sstore 0, arg0 !metadata(storage=slot(0))
-    sstore 1, arg1 !metadata(storage=slot(1))
-    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_diamond_forwarding.sol:DiamondSide ===

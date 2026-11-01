@@ -8,7 +8,7 @@ fn @add(arg0: i256, arg1: i256) -> i256 [selector=0x771602f7, pure, abi_params=[
     jumpi v2, bb1, bb2
   bb2:  ; preds = bb0
     ret v1
-  bb1:  ; preds = bb0
+  bb1 [cold]:  ; preds = bb0
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -22,7 +22,7 @@ fn @sub(arg0: i256, arg1: i256) -> i256 [selector=0xb67d77c5, pure, abi_params=[
     jumpi v2, bb1, bb2
   bb2:  ; preds = bb0
     ret v1
-  bb1:  ; preds = bb0
+  bb1 [cold]:  ; preds = bb0
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -41,7 +41,7 @@ fn @mul(arg0: i256, arg1: i256) -> i256 [selector=0xc8a4ac9c, pure, abi_params=[
     jumpi v7, bb1, bb2
   bb2:  ; preds = bb0
     ret v1
-  bb1:  ; preds = bb0
+  bb1 [cold]:  ; preds = bb0
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -52,7 +52,7 @@ fn @div_zero(arg0: i256, arg1: i256) -> i256 [selector=0xf37348f3, pure, abi_par
   bb0:
     v1 = ne arg1, 0
     jumpi v1, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1 [cold]:  ; preds = bb0
     mstore 32, 18 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -103,7 +103,7 @@ fn @pow(arg0: i256, arg1: i256) -> i256 [selector=0x2e4c697f, pure, abi_params=[
     jumpi v27, bb4, bb6
   bb6:  ; preds = bb5
     jump bb1
-  bb4:  ; preds = bb2, bb5
+  bb4 [cold]:  ; preds = bb2, bb5
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -127,7 +127,7 @@ fn @signed_add(arg0: i256, arg1: i256) -> i256 [selector=0xd51c5580, pure, abi_p
     jumpi v12, bb1, bb2
   bb2:  ; preds = bb0
     ret v1
-  bb1:  ; preds = bb0
+  bb1 [cold]:  ; preds = bb0
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -141,7 +141,7 @@ fn @signed_neg(arg0: i256) -> i256 [selector=0x85cce915, pure, abi_params=[int25
   bb2:  ; preds = bb0
     v2 = sub 0, arg0
     ret v2
-  bb1:  ; preds = bb0
+  bb1 [cold]:  ; preds = bb0
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -158,7 +158,7 @@ fn @narrow_add(arg0: i8, arg1: i8) -> i8 [selector=0xeb8645e0, pure, abi_params=
   bb2:  ; preds = bb0
     v5 = trunc i256 v3 to i8
     ret v5
-  bb1:  ; preds = bb0
+  bb1 [cold]:  ; preds = bb0
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -200,7 +200,7 @@ fn @checked_inner(arg0: i256, arg1: i256) -> i256 [pure] {
     jumpi v2, bb1, bb2
   bb2:  ; preds = bb0
     ret v1
-  bb1:  ; preds = bb0
+  bb1 [cold]:  ; preds = bb0
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36

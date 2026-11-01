@@ -25,13 +25,6 @@ fn @getData() -> i256 [selector=0x3bc5de30, abi_params=[], abi_returns=[word], a
 
 // === ROOT/tests/ui/codegen/lowering/modifier_overriding_constructor.sol:C ===
 @module C
-; function getData() public returns (uint256 r) [selector 0x3bc5de30]
-fn @getData() -> i256 [selector=0x3bc5de30, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
-}
-
 ; creation entry
 fn @constructor() [constructor] {
   bb0:
@@ -48,4 +41,11 @@ fn @constructor() [constructor] {
     jump bb1
   bb1:  ; preds = bb2
     ret
+}
+
+; function getData() public returns (uint256 r) [selector 0x3bc5de30]
+fn @getData() -> i256 [selector=0x3bc5de30, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
 }

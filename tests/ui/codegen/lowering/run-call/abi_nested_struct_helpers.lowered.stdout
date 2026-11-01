@@ -1,8 +1,27 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_nested_struct_helpers.sol:NestedStructHelpers ===
 @module NestedStructHelpers
 @phase lowered
-@types
-  struct0: {i256, i256, i256}
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:  ; preds = bb0
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0x54d20d9 => bb3, 0x7a5de1e9 => bb4]
+  bb4:  ; preds = bb2
+    tail_call @pair
+  bb3:  ; preds = bb2
+    tail_call @pairs
+  bb1 [cold]:  ; preds = bb0, bb2
+    revert 0, 0
+}
 
 ; function pair(Pair memory p) external pure returns (uint256, uint256, uint256) [selector 0x7a5de1e9]
 fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
@@ -99,7 +118,7 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
   bb5:  ; preds = bb3
     v90 = add v89, 32
     jump bb1
-  bb4:  ; preds = bb3
+  bb4 [cold]:  ; preds = bb3
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -111,11 +130,11 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v63 = add v54, 1
     v98 = add v97, 32
     jump bb10
-  bb8:  ; preds = bb7
+  bb8 [cold]:  ; preds = bb7
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb6:  ; preds = bb0, bb13
+  bb6 [cold]:  ; preds = bb0, bb13
     revert 0, 0
 }
 
@@ -177,11 +196,11 @@ fn @decode_calldata_type.2(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     v42 = add v53, 64
     mstore v42, v2
     ret v53
-  bb4:  ; preds = bb3, bb5
+  bb4 [cold]:  ; preds = bb3, bb5
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:  ; preds = bb0, bb2, bb7
+  bb1 [cold]:  ; preds = bb0, bb2, bb7
     revert 0, 0
 }
 
@@ -209,28 +228,6 @@ fn @decode_calldata_type.3(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     v18 = add v20, 64
     mstore v18, v2
     ret v20
-  bb1:  ; preds = bb0
-    revert 0, 0
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = calldatasize
-    v2 = lt v1, 36
-    v3 = zext i1 v2 to i256
-    v4 = or v0, v3
-    v5 = ne v4, 0
-    jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
-    v6 = calldataload 0
-    v7 = shr v6, 224
-    switch v7, default bb1, [0x54d20d9 => bb3, 0x7a5de1e9 => bb4]
-  bb4:  ; preds = bb2
-    tail_call @pair
-  bb3:  ; preds = bb2
-    tail_call @pairs
-  bb1:  ; preds = bb0, bb2
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }

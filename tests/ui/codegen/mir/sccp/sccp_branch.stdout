@@ -10,7 +10,7 @@
 +     jump bb1
     bb1:  ; preds = bb0
       ret 1
-+   bb2:
++   bb2 [cold]:
 +     invalid
   }
   

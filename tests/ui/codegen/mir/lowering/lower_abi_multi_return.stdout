@@ -24,7 +24,7 @@
 +     v3 = add 32, 32
 +     v4 = sub v3, 0
 +     returndata 0, v4
-+   bb2:  ; preds = bb0
++   bb2 [cold]:  ; preds = bb0
 +     revert 0, 0
   }
   
@@ -88,7 +88,7 @@
 +     mstore 0, v8 !metadata(memory=scratch)
 +     v9 = sub 32, 0
 +     returndata 0, v9
-+   bb2:  ; preds = bb0, bb3, bb4
++   bb2 [cold]:  ; preds = bb0, bb3, bb4
 +     revert 0, 0
   }
   

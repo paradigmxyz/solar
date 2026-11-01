@@ -1,6 +1,28 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_bytes_to_memory_checks.sol:CalldataBytesToMemoryChecks ===
 @module CalldataBytesToMemoryChecks
 @phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb6, bb1
+  bb1:  ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb6, [0x45c91515 => bb2, 0xa5e448c2 => bb3, 0xba062698 => bb4, 0xbf6f2c90 => bb5]
+  bb5:  ; preds = bb1
+    tail_call @forwarded
+  bb4:  ; preds = bb1
+    tail_call @offsetSet
+  bb3:  ; preds = bb1
+    tail_call @lengthSet
+  bb2:  ; preds = bb1
+    tail_call @decoded
+  bb6 [cold]:  ; preds = bb0, bb1
+    revert 0, 0
+}
+
 ; function decoded(bytes calldata b) external pure returns (uint256) [selector 0x45c91515]
 fn @decoded() [selector=0x45c91515, abi_wrapper, pure] {
   bb0:
@@ -17,7 +39,7 @@ fn @decoded() [selector=0x45c91515, abi_wrapper, pure] {
     calldatacopy v20, v15, v14
     mstore 0, v14
     returndata 0, 32
-  bb1:  ; preds = bb0
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
@@ -49,9 +71,9 @@ fn @lengthSet() [selector=0xa5e448c2, abi_wrapper, pure] {
     calldatacopy v32, v27, arg1
     mstore 0, arg1
     returndata 0, 32
-  bb1:  ; preds = bb5
+  bb1 [cold]:  ; preds = bb5
     tail_call @revert_stub
-  bb3:  ; preds = bb0, bb2
+  bb3 [cold]:  ; preds = bb0, bb2
     revert 0, 0
 }
 
@@ -85,9 +107,9 @@ fn @offsetSet() [selector=0xba062698, abi_wrapper, pure] {
     calldatacopy v36, v2, v30
     mstore 0, v30
     returndata 0, 32
-  bb1:  ; preds = bb5
+  bb1 [cold]:  ; preds = bb5
     tail_call @revert_stub
-  bb3:  ; preds = bb0, bb2
+  bb3 [cold]:  ; preds = bb0, bb2
     revert 0, 0
 }
 
@@ -116,12 +138,12 @@ fn @forwarded() [selector=0xbf6f2c90, abi_wrapper, pure] {
     calldatacopy v30, v25, v24
     mstore 0, v24
     returndata 0, 32
-  bb1:  ; preds = bb0, bb3
+  bb1 [cold]:  ; preds = bb0, bb3
     revert 0, 0
 }
 
-fn @revert_stub() {
-  bb0:
+fn @revert_stub() [cold] {
+  bb0 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -142,28 +164,6 @@ fn @decode_calldata_slice() -> i256 {
     jumpi v10, bb1, bb2
   bb2:  ; preds = bb0
     ret v2
-  bb1:  ; preds = bb0
-    revert 0, 0
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb6, bb1
-  bb1:  ; preds = bb0
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb6, [0x45c91515 => bb2, 0xa5e448c2 => bb3, 0xba062698 => bb4, 0xbf6f2c90 => bb5]
-  bb5:  ; preds = bb1
-    tail_call @forwarded
-  bb4:  ; preds = bb1
-    tail_call @offsetSet
-  bb3:  ; preds = bb1
-    tail_call @lengthSet
-  bb2:  ; preds = bb1
-    tail_call @decoded
-  bb6:  ; preds = bb0, bb1
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }

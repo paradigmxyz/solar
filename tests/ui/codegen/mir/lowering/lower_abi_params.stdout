@@ -15,7 +15,7 @@
 +     mstore 0, arg3 !metadata(memory=scratch)
 +     v2 = sub 32, 0
 +     returndata 0, v2
-+   bb2:  ; preds = bb0
++   bb2 [cold]:  ; preds = bb0
 +     revert 0, 0
   }
   
@@ -88,13 +88,13 @@
 +     mstore 0, v5 !metadata(memory=scratch)
 +     v40 = sub 32, 0
 +     returndata 0, v40
-+   bb8:  ; preds = bb7
++   bb8 [cold]:  ; preds = bb7
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
-+   bb4:  ; preds = bb3, bb5, bb6, bb9
++   bb4 [cold]:  ; preds = bb3, bb5, bb6, bb9
 +     revert 0, 0
-+   bb2:  ; preds = bb0
++   bb2 [cold]:  ; preds = bb0
 +     revert 0, 0
   }
   
@@ -120,7 +120,7 @@
 +     mstore 0, arg3
 +     v7 = sub 32, 0
 +     returndata 0, v7
-+   bb2:  ; preds = bb0, bb3
++   bb2 [cold]:  ; preds = bb0, bb3
 +     revert 0, 0
   }
   
@@ -139,7 +139,7 @@
 +     mstore 0, v2 !metadata(memory=scratch)
 +     v3 = sub 32, 0
 +     returndata 0, v3
-+   bb2:  ; preds = bb0
++   bb2 [cold]:  ; preds = bb0
 +     revert 0, 0
   }
   
@@ -167,7 +167,7 @@
 +     mstore 0, v8 !metadata(memory=scratch)
 +     v9 = sub 32, 0
 +     returndata 0, v9
-+   bb2:  ; preds = bb0, bb3
++   bb2 [cold]:  ; preds = bb0, bb3
 +     revert 0, 0
   }
   
@@ -187,7 +187,7 @@
 +     mstore 0, v1 !metadata(memory=scratch)
 +     v4 = sub 32, 0
 +     returndata 0, v4
-+   bb2:  ; preds = bb0
++   bb2 [cold]:  ; preds = bb0
 +     revert 0, 0
   }
   
@@ -211,7 +211,7 @@
 +     mstore 0, v0 !metadata(memory=scratch)
 +     v6 = sub 32, 0
 +     returndata 0, v6
-+   bb2:  ; preds = bb0, bb3
++   bb2 [cold]:  ; preds = bb0, bb3
 +     revert 0, 0
   }
   
@@ -243,7 +243,7 @@
 +     mstore 0, v0 !metadata(memory=scratch)
 +     v6 = sub 32, 0
 +     returndata 0, v6
-+   bb2:  ; preds = bb0, bb3
++   bb2 [cold]:  ; preds = bb0, bb3
 +     revert 0, 0
   }
   
@@ -262,7 +262,7 @@
 +     mstore 0, v0 !metadata(memory=scratch)
 +     v3 = sub 32, 0
 +     returndata 0, v3
-+   bb2:  ; preds = bb0
++   bb2 [cold]:  ; preds = bb0
 +     revert 0, 0
   }
   
@@ -286,7 +286,7 @@
 +     jumpi v6, bb1, bb2
 +   bb2:  ; preds = bb0
 +     ret v1
-+   bb1:  ; preds = bb0
++   bb1 [cold]:  ; preds = bb0
 +     revert 0, 0
   }
   

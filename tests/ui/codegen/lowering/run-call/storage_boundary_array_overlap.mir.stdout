@@ -3,6 +3,13 @@
 @types
   struct0: {i256, i256, i256}
 
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    sstore 0, 42 !metadata(storage=slot(0))
+    ret
+}
+
 ; getter for `uint256 public y` [selector 0xa56dfe4a]
 fn @y() -> i256 [selector=0xa56dfe4a, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
@@ -82,11 +89,4 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb3:  ; preds = bb6
     v22 = checked_add uint256, v12, 1
     jump bb1
-}
-
-; creation entry
-fn @constructor() [constructor] {
-  bb0:
-    sstore 0, 42 !metadata(storage=slot(0))
-    ret
 }

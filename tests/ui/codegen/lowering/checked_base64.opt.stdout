@@ -3,14 +3,40 @@
 @phase lowered
 @library
 ; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
+fn @entry() [entry, cold] {
+  bb0 [cold]:
     revert 0, 0
 }
 
 // === ROOT/tests/ui/codegen/lowering/checked_base64.sol:CheckedBase64 ===
 @module CheckedBase64
 @phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:  ; preds = bb0
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0x12496a1b => bb3, 0x2dba772b => bb4, 0x3d92c956 => bb5, 0x49145c91 => bb6]
+  bb6:  ; preds = bb2
+    tail_call @decode.0
+  bb5:  ; preds = bb2
+    tail_call @encodeNoPadding
+  bb4:  ; preds = bb2
+    tail_call @encodeFileSafe
+  bb3:  ; preds = bb2
+    tail_call @encode.1
+  bb1 [cold]:  ; preds = bb0, bb2
+    revert 0, 0
+}
+
 ; function decode(string memory data) external pure returns (bytes memory) [selector 0x49145c91]
 fn @decode.0() [selector=0x49145c91, abi_wrapper, pure] {
   bb0:
@@ -323,7 +349,7 @@ fn @encode.4(arg0: i256, arg1: i1, arg2: i1) -> i256 [may_return_memory, pure] {
     v114 = mload v226
     v115 = lt v177, v114
     jumpi v115, bb53, bb48
-  bb48:  ; preds = bb5, bb6, bb8, bb13, bb17, bb18, bb39
+  bb48 [cold]:  ; preds = bb5, bb6, bb8, bb13, bb17, bb18, bb39
     tail_call @revert_stub.7
   bb53:  ; preds = bb17
     v117 = byte 0, v112
@@ -335,9 +361,9 @@ fn @encode.4(arg0: i256, arg1: i1, arg2: i1) -> i256 [may_return_memory, pure] {
     v181 = add v25, 3
     v231 = add v230, 4
     jump bb3
-  bb46:  ; preds = bb2
+  bb46 [cold]:  ; preds = bb2
     tail_call @revert_stub.6
-  bb56:  ; preds = bb1, bb0
+  bb56 [cold]:  ; preds = bb1, bb0
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -386,7 +412,7 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
   bb9:  ; preds = bb8, bb46
     v34 = phi [bb8: v211], [bb46: v22]
     jump bb5
-  bb45:  ; preds = bb6, bb7, bb8
+  bb45 [cold]:  ; preds = bb6, bb7, bb8
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -575,7 +601,7 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     v134 = mload v284
     v135 = lt v219, v134
     jumpi v135, bb44, bb37
-  bb37:  ; preds = bb12, bb13, bb15, bb17, bb19, bb21, bb23
+  bb37 [cold]:  ; preds = bb12, bb13, bb15, bb17, bb19, bb21, bb23
     tail_call @revert_stub.7
   bb44:  ; preds = bb23
     v271 = add v284, v219
@@ -593,15 +619,15 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     ret v283
 }
 
-fn @revert_stub.6() {
-  bb0:
+fn @revert_stub.6() [cold] {
+  bb0 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
-fn @revert_stub.7() {
-  bb0:
+fn @revert_stub.7() [cold] {
+  bb0 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -646,37 +672,11 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v26 = add v25, v6
     calldatacopy v26, v36, v23
     ret v29
-  bb3:  ; preds = bb2
+  bb3 [cold]:  ; preds = bb2
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:  ; preds = bb0, bb5
-    revert 0, 0
-}
-
-; runtime dispatch entry
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = calldatasize
-    v2 = lt v1, 36
-    v3 = zext i1 v2 to i256
-    v4 = or v0, v3
-    v5 = ne v4, 0
-    jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
-    v6 = calldataload 0
-    v7 = shr v6, 224
-    switch v7, default bb1, [0x12496a1b => bb3, 0x2dba772b => bb4, 0x3d92c956 => bb5, 0x49145c91 => bb6]
-  bb6:  ; preds = bb2
-    tail_call @decode.0
-  bb5:  ; preds = bb2
-    tail_call @encodeNoPadding
-  bb4:  ; preds = bb2
-    tail_call @encodeFileSafe
-  bb3:  ; preds = bb2
-    tail_call @encode.1
-  bb1:  ; preds = bb0, bb2
+  bb1 [cold]:  ; preds = bb0, bb5
     revert 0, 0
 }
 
@@ -693,7 +693,7 @@ fn @alloc(arg0: i256) -> i256 {
   bb2:  ; preds = bb0
     mstore 64, v2 !metadata(memory=scratch)
     ret v0
-  bb1:  ; preds = bb0
+  bb1 [cold]:  ; preds = bb0
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36

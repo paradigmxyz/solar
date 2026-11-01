@@ -1,11 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/static_call_transient_args.sol:StaticCallTransientArgs ===
 @module StaticCallTransientArgs
-; getter for `bytes32 public constant PROPOSER_ROLE` [selector 0x8f61f4f5]
-fn @PROPOSER_ROLE() -> i256 [selector=0x8f61f4f5, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
-  bb0:
-    ret 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1
-}
-
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
@@ -21,6 +15,12 @@ fn @constructor() [constructor] {
     sstore v3, v8 !metadata(storage=symbolic(v3))
     sstore 2, 1 !metadata(storage=slot(2))
     ret
+}
+
+; getter for `bytes32 public constant PROPOSER_ROLE` [selector 0x8f61f4f5]
+fn @PROPOSER_ROLE() -> i256 [selector=0x8f61f4f5, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    ret 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1
 }
 
 ; function getMinDelay() public view returns (uint256) [selector 0xf27a0c92]
