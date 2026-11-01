@@ -1,0 +1,19 @@
+//@compile-flags: -Zmir-pipeline=lower-abi
+//@filecheck:
+
+// A constructor without an ABI layout takes one word per parameter from the constructor arguments.
+// CHECK: + fn @constructor()
+// CHECK: + [[BASE:v[0-9]+]] = constructor_args_base
+// CHECK: + [[END:v[0-9]+]] = constructor_args_end
+// CHECK: + [[REQUIRED:v[0-9]+]] = add [[BASE]], 64
+// CHECK: + {{v[0-9]+}} = gt [[REQUIRED]], [[END]]
+// CHECK: + [[WORD:v[0-9]+]] = mload
+// CHECK: + {{v[0-9]+}} = add [[WORD]], {{v[0-9]+}}
+@module LowerAbiConstructorNoLayout
+
+fn @constructor(arg0: i256, arg1: i256) [constructor] {
+  bb0:
+    v0 = add arg0, arg1
+    mstore 0, v0
+    stop
+}

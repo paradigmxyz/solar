@@ -274,7 +274,7 @@ impl LowerAbiCx {
                 if super::utils::rejects_callvalue(func) {
                     rejecting_constructor = Some(id);
                 }
-                if func.abi_params.is_some() {
+                if Self::input_layout(func).is_some() {
                     if Self::can_wrap_constructor_params(func) {
                         constructors.push(id);
                     } else {
@@ -434,7 +434,7 @@ impl LowerAbiCx {
     }
 
     fn can_wrap_constructor_params(func: &Function) -> bool {
-        let Some(layout) = &func.abi_params else { return false };
+        let Some(layout) = Self::input_layout(func) else { return false };
         func.params.len() == layout.types.len()
             && layout.types.iter().zip(&func.params).all(|(abi_ty, &param_ty)| {
                 abi_ty.mir_type() == param_ty
