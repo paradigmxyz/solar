@@ -12,6 +12,7 @@
   struct8: {i256, i256, i256, i256, i256}
   struct9: {ptr<memory>, ptr<memory>}
 
+; function dAddress(bytes memory encoded) external pure returns (address) [selector 0xd6ff3ab5]
 fn @dAddress(arg0: ptr<memory>) -> i160 [selector=0xd6ff3ab5, pure, abi_params=[bytes], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
     v0 = abi_decode [address, bytes], arg0
@@ -20,6 +21,7 @@ fn @dAddress(arg0: ptr<memory>) -> i160 [selector=0xd6ff3ab5, pure, abi_params=[
     ret v1
 }
 
+; function dAddressLength(bytes memory encoded) external pure returns (uint256) [selector 0xcdb9aa25]
 fn @dAddressLength(arg0: ptr<memory>) -> i256 [selector=0xcdb9aa25, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_decode [address, bytes], arg0
@@ -29,6 +31,7 @@ fn @dAddressLength(arg0: ptr<memory>) -> i256 [selector=0xcdb9aa25, pure, abi_pa
     ret v3
 }
 
+; function dFlat(bytes memory b) public pure returns (uint256, address, bool) [selector 0x6644232b]
 fn @dFlat(arg0: ptr<memory>) -> struct1 [selector=0x6644232b, pure, abi_params=[bytes], abi_returns=[word, word<uint160>, word<bool>], abi_return_params=[uint256, address, bool]] {
   bb0:
     v0 = abi_decode [tuple<uint256, address, bool>], arg0
@@ -45,6 +48,7 @@ fn @dFlat(arg0: ptr<memory>) -> struct1 [selector=0x6644232b, pure, abi_params=[
     ret v10
 }
 
+; function dMixed(bytes memory b) public pure returns (uint256, string memory, uint256) [selector 0x1be4db0e]
 fn @dMixed(arg0: ptr<memory>) -> struct2 [selector=0x1be4db0e, pure, abi_params=[bytes], abi_returns=[word, memory_bytes, word], abi_return_params=[uint256, bytes, uint256]] {
   bb0:
     v0 = abi_decode [uint256, bytes, array<_, uint256>], arg0
@@ -58,6 +62,7 @@ fn @dMixed(arg0: ptr<memory>) -> struct2 [selector=0x1be4db0e, pure, abi_params=
     ret v7
 }
 
+; function dNested(bytes memory b) public pure returns (uint256, string memory, uint256) [selector 0xfc7ec666]
 fn @dNested(arg0: ptr<memory>) -> struct2 [selector=0xfc7ec666, pure, abi_params=[bytes], abi_returns=[word, memory_bytes, word], abi_return_params=[uint256, bytes, uint256]] {
   bb0:
     v0 = abi_decode [tuple<tuple<uint256, address, bool>, tuple<uint256, bytes, array<_, uint256>>, bytes>], arg0
@@ -76,6 +81,7 @@ fn @dNested(arg0: ptr<memory>) -> struct2 [selector=0xfc7ec666, pure, abi_params
     ret v12
 }
 
+; function dDynArr(bytes memory b) public pure returns (uint256, uint256, uint256, uint256) [selector 0xaca542ca]
 fn @dDynArr(arg0: ptr<memory>) -> struct4 [selector=0xaca542ca, pure, abi_params=[bytes], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = abi_decode [array<_, tuple<uint256, bytes, array<_, uint256>>>], arg0
@@ -110,6 +116,7 @@ fn @dDynArr(arg0: ptr<memory>) -> struct4 [selector=0xaca542ca, pure, abi_params
     ret v25
 }
 
+; function dFixedDyn(bytes memory b) public pure returns (uint256, uint256) [selector 0x94edd832]
 fn @dFixedDyn(arg0: ptr<memory>) -> struct5 [selector=0x94edd832, pure, abi_params=[bytes], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = abi_decode [array<2, bytes>], arg0
@@ -129,6 +136,7 @@ fn @dFixedDyn(arg0: ptr<memory>) -> struct5 [selector=0x94edd832, pure, abi_para
     ret v11
 }
 
+; function typedDynArray(Dyn[] calldata ds) external pure returns (uint256, uint256, uint256) [selector 0xa00a84db]
 fn @typedDynArray(arg0: slice<calldata>) -> struct6 [selector=0xa00a84db, pure, abi_params=[array<_, tuple<uint256, bytes, array<_, uint256>>>], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -192,6 +200,7 @@ fn @typedDynArray(arg0: slice<calldata>) -> struct6 [selector=0xa00a84db, pure, 
     ret v51
 }
 
+; function nestedRoundtrip() public pure returns (uint256, string memory, uint256) [selector 0x07f0bc21]
 fn @nestedRoundtrip() -> struct2 [selector=0x07f0bc21, pure, abi_params=[], abi_returns=[word, memory_bytes, word], abi_return_params=[uint256, bytes, uint256]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
@@ -279,16 +288,17 @@ fn @nestedRoundtrip() -> struct2 [selector=0x07f0bc21, pure, abi_params=[], abi_
     ret v55
 }
 
+; function dynamicArrayRoundtrip() public pure returns (uint256, uint256, uint256, uint256) [selector 0x533c608a]
 fn @dynamicArrayRoundtrip() -> struct4 [selector=0x533c608a, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = alloc zeroed checked 96
     mstore v0, 2
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v10]
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v11 = alloc 96 !metadata(preserves_fmp)
     mstore v11, 0
     v12 = ptradd v11, 32
@@ -376,7 +386,7 @@ fn @dynamicArrayRoundtrip() -> struct4 [selector=0x533c608a, pure, abi_params=[]
     v67 = insert_value struct4, v66, 2, v63
     v68 = insert_value struct4, v67, 3, v64
     ret v68
-  bb2:
+  bb2:  ; preds = bb1
     v3 = alloc 96 !metadata(preserves_fmp)
     mstore v3, 0
     v4 = ptradd v3, 32
@@ -392,15 +402,16 @@ fn @dynamicArrayRoundtrip() -> struct4 [selector=0x533c608a, pure, abi_params=[]
     jump bb1
 }
 
+; function fixedDynamicRoundtrip() public pure returns (uint256, uint256) [selector 0x273ceef0]
 fn @fixedDynamicRoundtrip() -> struct5 [selector=0x273ceef0, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v5]
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v6 = alloc 64 !metadata(preserves_fmp)
     mstore v6, 1
     v7 = ptradd v6, 32
@@ -436,7 +447,7 @@ fn @fixedDynamicRoundtrip() -> struct5 [selector=0x273ceef0, pure, abi_params=[]
     v28 = insert_value struct5, undef struct5, 0, v22
     v29 = insert_value struct5, v28, 1, v27
     ret v29
-  bb2:
+  bb2:  ; preds = bb1
     v3 = shl v1, 5
     v4 = ptradd v0, v3
     mstore v4, 96
@@ -444,6 +455,7 @@ fn @fixedDynamicRoundtrip() -> struct5 [selector=0x273ceef0, pure, abi_params=[]
     jump bb1
 }
 
+; function dStaticNested(bytes calldata b) public pure returns (uint256, uint256, uint256, uint256, uint256, uint256) [selector 0xf634a16d]
 fn @dStaticNested(arg0: slice<calldata>) -> struct7 [selector=0xf634a16d, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = abi_decode [array<3, array<2, uint256>>], arg0
@@ -511,6 +523,7 @@ fn @dStaticNested(arg0: slice<calldata>) -> struct7 [selector=0xf634a16d, pure, 
     ret v49
 }
 
+; function dNestedArrays(bytes memory b) public pure returns (uint256, uint256, uint256, uint256) [selector 0xa8c86b4a]
 fn @dNestedArrays(arg0: ptr<memory>) -> struct4 [selector=0xa8c86b4a, pure, abi_params=[bytes], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = abi_decode [array<_, array<_, uint256>>], arg0
@@ -553,6 +566,7 @@ fn @dNestedArrays(arg0: ptr<memory>) -> struct4 [selector=0xa8c86b4a, pure, abi_
     ret v31
 }
 
+; function dArrayFixed(bytes memory b) public pure returns (uint256, uint256, uint256, uint256, uint256) [selector 0x11d9968b]
 fn @dArrayFixed(arg0: ptr<memory>) -> struct8 [selector=0x11d9968b, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = abi_decode [array<_, array<2, uint256>>], arg0
@@ -607,6 +621,7 @@ fn @dArrayFixed(arg0: ptr<memory>) -> struct8 [selector=0x11d9968b, pure, abi_pa
     ret v40
 }
 
+; function dFixedNestedDyn(bytes memory b) public pure returns (uint256, uint256, uint256, uint256, uint256) [selector 0xf648fcec]
 fn @dFixedNestedDyn(arg0: ptr<memory>) -> struct8 [selector=0xf648fcec, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = abi_decode [array<2, array<_, uint256>>], arg0
@@ -660,6 +675,7 @@ fn @dFixedNestedDyn(arg0: ptr<memory>) -> struct8 [selector=0xf648fcec, pure, ab
     ret v39
 }
 
+; function dCalldataDyn(bytes calldata b) public pure returns (uint256, uint256, uint256) [selector 0xe931c6df]
 fn @dCalldataDyn(arg0: slice<calldata>) -> struct6 [selector=0xe931c6df, pure, abi_params=[bytes], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = abi_decode [array<_, uint256>], arg0
@@ -682,6 +698,7 @@ fn @dCalldataDyn(arg0: slice<calldata>) -> struct6 [selector=0xe931c6df, pure, a
     ret v14
 }
 
+; function dOverlap(bytes memory buf) public pure returns (bool same, bool inplaceDecoded) [selector 0x9297ba94]
 fn @dOverlap(arg0: ptr<memory>) -> struct5 [selector=0x9297ba94, pure, abi_params=[bytes], abi_returns=[word<bool>, word<bool>], abi_return_params=[bool, bool]] {
   bb0:
     v0 = abi_decode [array<_, uint256>, array<_, uint256>], arg0

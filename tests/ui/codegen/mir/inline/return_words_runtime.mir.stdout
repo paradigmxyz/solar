@@ -4,6 +4,7 @@
   struct0: {i256, i256}
   struct1: {i256, i256, i256}
 
+; function pair(uint256 a, uint256 b) external pure returns (uint256 x, uint256 y) [selector 0x9280bddf]
 fn @pair(arg0: i256, arg1: i256) -> struct0 [selector=0x9280bddf, pure, abi_params=[uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall @swap, arg0, arg1
@@ -14,6 +15,7 @@ fn @pair(arg0: i256, arg1: i256) -> struct0 [selector=0x9280bddf, pure, abi_para
     ret v4
 }
 
+; function triple(uint256 a, uint256 b, uint256 c) external pure returns (uint256 x, uint256 y, uint256 z) [selector 0x10b574a8]
 fn @triple(arg0: i256, arg1: i256, arg2: i256) -> struct1 [selector=0x10b574a8, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = icall @rotate, arg0, arg1, arg2
@@ -26,6 +28,7 @@ fn @triple(arg0: i256, arg1: i256, arg2: i256) -> struct1 [selector=0x10b574a8, 
     ret v6
 }
 
+; function swap(a_, b_) -> x_, y_
 fn @swap(arg0: i256, arg1: i256) -> struct0 {
   bb0:
     v0 = insert_value struct0, undef struct0, 0, arg1
@@ -33,6 +36,7 @@ fn @swap(arg0: i256, arg1: i256) -> struct0 {
     ret v1
 }
 
+; function rotate(a_, b_, c_) -> x_, y_, z_
 fn @rotate(arg0: i256, arg1: i256, arg2: i256) -> struct1 {
   bb0:
     v0 = insert_value struct1, undef struct1, 0, arg2

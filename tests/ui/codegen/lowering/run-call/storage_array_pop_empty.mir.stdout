@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_pop_empty.sol:StorageArrayPopEmpty ===
 @module StorageArrayPopEmpty
+; function test() external returns (bool) [selector 0xf8a8fd6d]
 fn @test() -> i1 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))

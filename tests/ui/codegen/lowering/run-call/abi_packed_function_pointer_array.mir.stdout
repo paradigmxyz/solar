@@ -1,10 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_packed_function_pointer_array.sol:AbiPackedFunctionPointerArray ===
 @module AbiPackedFunctionPointerArray
+; function target() external pure [selector 0xd4b83992]
 fn @target() [selector=0xd4b83992, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
+; function memoryEncode() external pure returns (bytes memory) [selector 0xe39243fb]
 fn @memoryEncode() -> ptr<memory> [selector=0xe39243fb, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc zeroed checked 64
@@ -22,6 +24,7 @@ fn @memoryEncode() -> ptr<memory> [selector=0xe39243fb, pure, abi_params=[], abi
     ret v8
 }
 
+; function encode(function() external returns (uint256)[] calldata pointers) external pure returns (bytes memory) [selector 0xea460cbb]
 fn @encode(arg0: slice<calldata>) -> ptr<memory> [selector=0xea460cbb, pure, abi_params=[array<_, function>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -45,14 +48,14 @@ fn @encode(arg0: slice<calldata>) -> ptr<memory> [selector=0xea460cbb, pure, abi
     v14 = alloc v12
     mstore v14, v0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v15 = phi [bb0: 0], [bb2: v29]
     v16 = lt v15, v0
     jumpi v16, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v30 = abi_encode_packed (array<function> memoryarray<1> v14)
     ret v30
-  bb2:
+  bb2:  ; preds = bb1
     v17 = mul v15, 32
     v18 = ptrtoint ptr<calldata> v1 to i256
     v19 = add v18, v17

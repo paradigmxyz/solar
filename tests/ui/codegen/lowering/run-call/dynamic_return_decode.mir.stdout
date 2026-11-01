@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:Callee ===
 @module Callee
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = alloc 96
@@ -9,11 +10,11 @@ fn @constructor() [constructor] {
     v2 = ptradd v0, 64
     mstore v2, 30
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb6
     v3 = phi [bb0: 0], [bb6: v10]
     v4 = lt v3, 3
     jumpi v4, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v11 = sload 0 !metadata(storage=slot(0))
     v12 = gt v11, 0xffffffffffffffff
     icall panic_if<0x41>, v12
@@ -72,25 +73,25 @@ fn @constructor() [constructor] {
     v47 = sload v45 !metadata(storage=symbolic(v45))
     v48 = gt v47, v46
     jumpi v48, bb7, bb8
-  bb7:
+  bb7:  ; preds = bb3
     jump bb9
-  bb9:
+  bb9:  ; preds = bb7, bb10
     v49 = phi [bb7: v46], [bb10: v53]
     v50 = lt v49, v47
     jumpi v50, bb10, bb11
-  bb11:
+  bb11:  ; preds = bb9
     jump bb8
-  bb8:
+  bb8:  ; preds = bb3, bb11
     sstore v45, v46 !metadata(storage=symbolic(v45))
     jump bb12
-  bb12:
+  bb12:  ; preds = bb8, bb13
     v54 = phi [bb8: 0], [bb13: v62]
     v55 = lt v54, v46
     jumpi v55, bb13, bb14
-  bb14:
+  bb14:  ; preds = bb12
     sstore 5, v43 !metadata(storage=slot(5))
     ret
-  bb13:
+  bb13:  ; preds = bb12
     v56 = shl v54, 5
     v57 = ptradd v28, v56
     v58 = ptradd v57, 32
@@ -100,36 +101,38 @@ fn @constructor() [constructor] {
     sstore v61, v59 !metadata(storage=symbolic(v61))
     v62 = add v54, 1
     jump bb12
-  bb10:
+  bb10:  ; preds = bb9
     v51 = storage_array_data_slot v45
     v52 = add v51, v49
     sstore v52, 0 !metadata(storage=symbolic(v52))
     v53 = add v49, 1
     jump bb9
-  bb2:
+  bb2:  ; preds = bb1
     v5 = add 1, v3
     v6 = lt v3, 3
     jumpi v6, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb2
     sstore v5, 0 !metadata(storage=offset(v3, 1))
     jump bb6
-  bb4:
+  bb4:  ; preds = bb2
     v7 = shl v3, 5
     v8 = ptradd v0, v7
     v9 = mload v8
     sstore v5, v9 !metadata(storage=offset(v3, 1))
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v10 = add v3, 1
     jump bb1
 }
 
+; function getXs() external view returns (uint256[] memory) [selector 0x462bb004]
 fn @getXs() -> ptr<memory> [selector=0x462bb004, view, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     v0 = icall @load_storage_word_array, 0
     ret v0
 }
 
+; function getStr() external pure returns (string memory) [selector 0xb8c9e4ed]
 fn @getStr() -> ptr<memory> [selector=0xb8c9e4ed, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -139,6 +142,7 @@ fn @getStr() -> ptr<memory> [selector=0xb8c9e4ed, pure, abi_params=[], abi_retur
     ret v0
 }
 
+; function getBytes() external pure returns (bytes memory) [selector 0x0bcd3b33]
 fn @getBytes() -> ptr<memory> [selector=0x0bcd3b33, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -148,19 +152,20 @@ fn @getBytes() -> ptr<memory> [selector=0x0bcd3b33, pure, abi_params=[], abi_ret
     ret v0
 }
 
+; function getFixed() external view returns (uint256[3] memory) [selector 0x86952750]
 fn @getFixed() -> ptr<memory> [selector=0x86952750, view, abi_params=[], abi_returns=[array<3, word>], abi_return_params=[array<3, uint256>]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
     memory_zero v0, 96
     v1 = alloc checked 96
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v2 = phi [bb0: 0], [bb2: v8]
     v3 = lt v2, 3
     jumpi v3, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     ret v1
-  bb2:
+  bb2:  ; preds = bb1
     v4 = add 1, v2
     v5 = sload v4 !metadata(storage=offset(v2, 1))
     v6 = shl v2, 5
@@ -170,6 +175,7 @@ fn @getFixed() -> ptr<memory> [selector=0x86952750, view, abi_params=[], abi_ret
     jump bb1
 }
 
+; function getName() external view returns (string memory) [selector 0x17d7de7c]
 fn @getName() -> ptr<memory> [selector=0x17d7de7c, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = sload 4 !metadata(storage=slot(4))
@@ -182,6 +188,7 @@ fn @getName() -> ptr<memory> [selector=0x17d7de7c, view, abi_params=[], abi_retu
     ret v5
 }
 
+; function getNested() external view returns (uint256[][] memory) [selector 0x2ec68451]
 fn @getNested() -> ptr<memory> [selector=0x2ec68451, view, abi_params=[], abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, uint256>>]] {
   bb0:
     v0 = sload 5 !metadata(storage=slot(5))
@@ -203,13 +210,13 @@ fn @getNested() -> ptr<memory> [selector=0x2ec68451, view, abi_params=[], abi_re
     v13 = alloc checked v10
     mstore v13, v0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v14 = phi [bb0: 0], [bb2: v23]
     v15 = lt v14, v0
     jumpi v15, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     ret v13
-  bb2:
+  bb2:  ; preds = bb1
     v16 = storage_array_data_slot 5
     v17 = add v16, v14
     v18 = icall @load_storage_word_array, v17
@@ -242,6 +249,7 @@ fn @load_storage_word_array(arg0: i256) -> ptr<memory> {
 @data
   Callee_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:Callee"
 
+; function arrLenAndSum() public returns (uint256 len, uint256 sum) [selector 0x3dc68ceb]
 fn @arrLenAndSum() -> struct0 [selector=0x3dc68ceb, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = datasize Callee_creation_code_0
@@ -250,22 +258,22 @@ fn @arrLenAndSum() -> struct0 [selector=0x3dc68ceb, abi_params=[], abi_returns=[
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = gas
     mstore 0, 0x462bb004 !metadata(memory=scratch)
     v5 = zext i160 v2 to i256
     v6 = staticcall v4, v5, 28, 4, 0, 0
     jumpi v6, bb4, bb3
-  bb3:
+  bb3:  ; preds = bb2
     revert_returndata
-  bb4:
+  bb4:  ; preds = bb2
     v7 = icall returndata_bytes<>
     v8 = abi_decode [array<_, uint256>], v7
     v9 = mload v8
     jump bb5
-  bb5:
+  bb5:  ; preds = bb4, bb7
     v10 = phi [bb4: v9], [bb7: v10]
     v11 = phi [bb4: 0], [bb7: v23]
     v12 = phi [bb4: v8], [bb7: v12]
@@ -273,13 +281,13 @@ fn @arrLenAndSum() -> struct0 [selector=0x3dc68ceb, abi_params=[], abi_returns=[
     v14 = mload v12
     v15 = lt v13, v14
     jumpi v15, bb8, bb9
-  bb9:
+  bb9:  ; preds = bb5
     jump bb6
-  bb6:
+  bb6:  ; preds = bb9
     v25 = insert_value struct0, undef struct0, 0, v10
     v26 = insert_value struct0, v25, 1, v11
     ret v26
-  bb8:
+  bb8:  ; preds = bb5
     v16 = mload v12
     v17 = lt v13, v16
     v18 = eq v17, false
@@ -290,9 +298,9 @@ fn @arrLenAndSum() -> struct0 [selector=0x3dc68ceb, abi_params=[], abi_returns=[
     v22 = mload v21
     v23 = checked_add uint256, v11, v22
     jump bb10
-  bb10:
+  bb10:  ; preds = bb8
     jump bb7
-  bb7:
+  bb7:  ; preds = bb10
     v24 = checked_add uint256, v13, 1
     jump bb5
 }
@@ -305,6 +313,7 @@ fn @arrLenAndSum() -> struct0 [selector=0x3dc68ceb, abi_params=[], abi_returns=[
 @data
   Callee_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:Callee"
 
+; function strFirstAndLen() public returns (bytes1 first, uint256 len) [selector 0x2b10ead6]
 fn @strFirstAndLen() -> struct0 [selector=0x2b10ead6, abi_params=[], abi_returns=[word<bytes1>, word], abi_return_params=[bytes1, uint256]] {
   bb0:
     v0 = datasize Callee_creation_code_0
@@ -313,17 +322,17 @@ fn @strFirstAndLen() -> struct0 [selector=0x2b10ead6, abi_params=[], abi_returns
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = gas
     mstore 0, 0xb8c9e4ed !metadata(memory=scratch)
     v5 = zext i160 v2 to i256
     v6 = staticcall v4, v5, 28, 4, 0, 0
     jumpi v6, bb4, bb3
-  bb3:
+  bb3:  ; preds = bb2
     revert_returndata
-  bb4:
+  bb4:  ; preds = bb2
     v7 = icall returndata_bytes<>
     v8 = abi_decode [bytes], v7
     v9 = mload v8
@@ -345,6 +354,7 @@ fn @strFirstAndLen() -> struct0 [selector=0x2b10ead6, abi_params=[], abi_returns
 @data
   Callee_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:Callee"
 
+; function bytesRoundTrip() public returns (uint256) [selector 0x9700a482]
 fn @bytesRoundTrip() -> i256 [selector=0x9700a482, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = datasize Callee_creation_code_0
@@ -353,17 +363,17 @@ fn @bytesRoundTrip() -> i256 [selector=0x9700a482, abi_params=[], abi_returns=[w
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = gas
     mstore 0, 0xbcd3b33 !metadata(memory=scratch)
     v5 = zext i160 v2 to i256
     v6 = staticcall v4, v5, 28, 4, 0, 0
     jumpi v6, bb4, bb3
-  bb3:
+  bb3:  ; preds = bb2
     revert_returndata
-  bb4:
+  bb4:  ; preds = bb2
     v7 = icall returndata_bytes<>
     v8 = abi_decode [bytes], v7
     v9 = mload v8
@@ -375,6 +385,7 @@ fn @bytesRoundTrip() -> i256 [selector=0x9700a482, abi_params=[], abi_returns=[w
 @data
   Callee_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:Callee"
 
+; function fixedSum() public returns (uint256 sum) [selector 0x1f080ca7]
 fn @fixedSum() -> i256 [selector=0x1f080ca7, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = datasize Callee_creation_code_0
@@ -383,9 +394,9 @@ fn @fixedSum() -> i256 [selector=0x1f080ca7, abi_params=[], abi_returns=[word], 
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = gas
     v5 = abi_encode [], selector 0x8695275000000000000000000000000000000000000000000000000000000000
     v6 = extract_value slice<memory>, v5, 0
@@ -394,9 +405,9 @@ fn @fixedSum() -> i256 [selector=0x1f080ca7, abi_params=[], abi_returns=[word], 
     v9 = zext i160 v2 to i256
     v10 = staticcall v4, v9, v6, v7, v8, 96
     jumpi v10, bb4, bb3
-  bb3:
+  bb3:  ; preds = bb2
     revert_returndata
-  bb4:
+  bb4:  ; preds = bb2
     v11 = returndatasize
     v12 = lt v11, 96
     icall revert_if<tuple_data_too_short>, v12
@@ -426,6 +437,7 @@ fn @fixedSum() -> i256 [selector=0x1f080ca7, abi_params=[], abi_returns=[word], 
 @data
   Callee_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:Callee"
 
+; function stringElem() public returns (uint256) [selector 0x8eb2047c]
 fn @stringElem() -> i256 [selector=0x8eb2047c, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = datasize Callee_creation_code_0
@@ -434,17 +446,17 @@ fn @stringElem() -> i256 [selector=0x8eb2047c, abi_params=[], abi_returns=[word]
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = gas
     mstore 0, 0x17d7de7c !metadata(memory=scratch)
     v5 = zext i160 v2 to i256
     v6 = staticcall v4, v5, 28, 4, 0, 0
     jumpi v6, bb4, bb3
-  bb3:
+  bb3:  ; preds = bb2
     revert_returndata
-  bb4:
+  bb4:  ; preds = bb2
     v7 = icall returndata_bytes<>
     v8 = abi_decode [bytes], v7
     v9 = mload v8
@@ -456,6 +468,7 @@ fn @stringElem() -> i256 [selector=0x8eb2047c, abi_params=[], abi_returns=[word]
 @data
   Callee_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:Callee"
 
+; function nestedSum() public returns (uint256) [selector 0x002c8096]
 fn @nestedSum() -> i256 [selector=0x002c8096, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = datasize Callee_creation_code_0
@@ -464,17 +477,17 @@ fn @nestedSum() -> i256 [selector=0x002c8096, abi_params=[], abi_returns=[word],
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = gas
     mstore 0, 0x2ec68451 !metadata(memory=scratch)
     v5 = zext i160 v2 to i256
     v6 = staticcall v4, v5, 28, 4, 0, 0
     jumpi v6, bb4, bb3
-  bb3:
+  bb3:  ; preds = bb2
     revert_returndata
-  bb4:
+  bb4:  ; preds = bb2
     v7 = icall returndata_bytes<>
     v8 = abi_decode [array<_, array<_, uint256>>], v7
     v9 = mload v8

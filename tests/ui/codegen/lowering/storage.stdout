@@ -1,11 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/storage.sol:Storage ===
 @module Storage
+; getter for `uint256 public count` [selector 0x06661abd]
 fn @count() -> i256 [selector=0x06661abd, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+; function increment() public [selector 0xd09de08a]
 fn @increment() [selector=0xd09de08a, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -14,12 +16,14 @@ fn @increment() [selector=0xd09de08a, abi_params=[], abi_returns=[], abi_return_
     ret
 }
 
+; function set(uint256 v) public [selector 0x60fe47b1]
 fn @set(arg0: i256) [selector=0x60fe47b1, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     ret
 }
 
+; function get() public view returns (uint256) [selector 0x6d4ce63c]
 fn @get() -> i256 [selector=0x6d4ce63c, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))

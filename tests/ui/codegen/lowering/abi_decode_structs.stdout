@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/abi_decode_structs.sol:AbiDecodeStructs ===
 @module AbiDecodeStructs
 @phase lowered
+; runtime dispatch entry
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
@@ -10,22 +11,23 @@ fn @entry() [entry] {
     v4 = or v0, v3
     v5 = ne v4, 0
     jumpi v5, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v6 = calldataload 0
     v7 = shr v6, 224
     switch v7, default bb1, [0x6644232b => bb3, 0xaca542ca => bb4, 0xc298c02b => bb5, 0xfc7ec666 => bb6]
-  bb6:
+  bb6:  ; preds = bb2
     tail_call @dNested
-  bb5:
+  bb5:  ; preds = bb2
     tail_call @dFixed
-  bb4:
+  bb4:  ; preds = bb2
     tail_call @dDynArr
-  bb3:
+  bb3:  ; preds = bb2
     tail_call @dFlat
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0, bb2
     revert 0, 0
 }
 
+; function dFlat(bytes memory b) public pure returns (uint256, address, bool) [selector 0x6644232b]
 fn @dFlat() [selector=0x6644232b, abi_wrapper, pure] {
   bb0:
     v39 = icall @decode_calldata_type
@@ -33,7 +35,7 @@ fn @dFlat() [selector=0x6644232b, abi_wrapper, pure] {
     v12 = mload v39
     v15 = slt v12, 96
     jumpi v15, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v16 = alloc 96 !metadata(deferred_alloc)
     v17 = mload v47
     v20 = add v47, 32
@@ -41,20 +43,21 @@ fn @dFlat() [selector=0x6644232b, abi_wrapper, pure] {
     v22 = shr v21, 160
     v26 = ne v22, 0
     jumpi v26, bb1, bb3
-  bb3:
+  bb3:  ; preds = bb2
     v29 = add v47, 64
     v30 = mload v29
     v34 = gt v30, 1
     jumpi v34, bb1, bb4
-  bb4:
+  bb4:  ; preds = bb3
     mstore 0, v17
     mstore 32, v21
     mstore 64, v30
     returndata 0, 96
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0, bb2, bb3
     revert 0, 0
 }
 
+; function dNested(bytes memory b) public pure returns (uint256, string memory, uint256) [selector 0xfc7ec666]
 fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
   bb0:
     v74 = icall @decode_calldata_type
@@ -63,7 +66,7 @@ fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
     v16 = add v100, v14
     v17 = slt v14, 32
     jumpi v17, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v18 = mload v100
     v20 = add v100, v18
     v23 = gt v18, v14
@@ -71,7 +74,7 @@ fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
     v25 = lt v24, 160
     v131 = or v23, v25
     jumpi v131, bb1, bb3
-  bb3:
+  bb3:  ; preds = bb2
     v26 = alloc 96 !metadata(deferred_alloc)
     v127 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v128 = add v127, 96
@@ -83,14 +86,14 @@ fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
     v31 = shr v30, 160
     v32 = eq v31, 0
     jumpi v32, bb4, bb1
-  bb4:
+  bb4:  ; preds = bb3
     v102 = add v127, 32
     mstore v102, v30
     v34 = add v20, 64
     v35 = mload v34
     v36 = lt v35, 2
     jumpi v36, bb5, bb1
-  bb5:
+  bb5:  ; preds = bb4
     v104 = add v127, 64
     mstore v104, v35
     mstore v26, v127
@@ -106,19 +109,19 @@ fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
     v49 = gt v47, v16
     v50 = or v48, v49
     jumpi v50, bb1, bb6
-  bb6:
+  bb6:  ; preds = bb5
     v52 = mload v45
     v54 = add v52, 63
     v55 = lt v54, v52
     jumpi v55, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     v57 = and v54, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v126 = icall @alloc, v57
     mstore v126, v52
     v59 = sub v16, v47
     v60 = gt v52, v59
     jumpi v60, bb1, bb9
-  bb9:
+  bb9:  ; preds = bb8
     v108 = add v126, 32
     mcopy v108, v47, v52
     v68 = sub 0, v52
@@ -153,14 +156,15 @@ fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
     mstore v94, v9
     v96 = sub v92, v129
     returndata v129, v96
-  bb7 [cold]:
+  bb7 [cold]:  ; preds = bb6
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0, bb2, bb3, bb4, bb5, bb8
     revert 0, 0
 }
 
+; function dFixed(bytes memory b) public pure returns (uint256) [selector 0xc298c02b]
 fn @dFixed() [selector=0xc298c02b, abi_wrapper, pure] {
   bb0:
     v33 = icall @decode_calldata_type
@@ -169,7 +173,7 @@ fn @dFixed() [selector=0xc298c02b, abi_wrapper, pure] {
     v11 = add v36, v9
     v12 = slt v9, 32
     jumpi v12, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v13 = mload v36
     v15 = add v36, v13
     v18 = gt v13, v9
@@ -177,18 +181,18 @@ fn @dFixed() [selector=0xc298c02b, abi_wrapper, pure] {
     v20 = lt v19, 64
     v53 = or v18, v20
     jumpi v53, bb1, bb3
-  bb3:
+  bb3:  ; preds = bb2
     v46 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v47 = add v46, 64
     mstore 64, v47 !metadata(memory=scratch)
     v52 = add v46, 64
     jump bb4
-  bb4:
+  bb4:  ; preds = bb3, bb5
     v48 = phi [bb3: v15], [bb5: v49]
     v50 = phi [bb3: v46], [bb5: v51]
     v23 = lt v50, v52
     jumpi v23, bb5, bb6
-  bb6:
+  bb6:  ; preds = bb4
     v40 = add v46, 32
     v44 = mload v40
     v42 = add v44, 64
@@ -196,16 +200,17 @@ fn @dFixed() [selector=0xc298c02b, abi_wrapper, pure] {
     v7 = mload v45
     mstore 0, v7 !metadata(memory=scratch)
     returndata 0, 32
-  bb5:
+  bb5:  ; preds = bb4
     v26 = icall @decode_memory_type, v48, v15, v11
     mstore v50, v26
     v49 = add v48, 32
     v51 = add v50, 32
     jump bb4
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0, bb2
     revert 0, 0
 }
 
+; function dDynArr(bytes memory b) public pure returns (uint256 count) [selector 0xaca542ca]
 fn @dDynArr() [selector=0xaca542ca, abi_wrapper, pure] {
   bb0:
     v41 = icall @decode_calldata_type
@@ -214,7 +219,7 @@ fn @dDynArr() [selector=0xaca542ca, abi_wrapper, pure] {
     v5 = add v44, v3
     v6 = slt v3, 32
     jumpi v6, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v7 = mload v44
     v9 = add v44, v7
     v12 = add v9, 32
@@ -222,11 +227,11 @@ fn @dDynArr() [selector=0xaca542ca, abi_wrapper, pure] {
     v14 = gt v12, v5
     v15 = or v13, v14
     jumpi v15, bb1, bb3
-  bb3:
+  bb3:  ; preds = bb2
     v17 = mload v9
     v19 = gt v17, 0x7fffffffffffffe
     jumpi v19, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     v20 = add v17, 1
     v21 = shl v20, 5
     v51 = icall @alloc, v21
@@ -235,19 +240,19 @@ fn @dDynArr() [selector=0xaca542ca, abi_wrapper, pure] {
     v25 = shr v24, 5
     v26 = gt v17, v25
     jumpi v26, bb1, bb6
-  bb6:
+  bb6:  ; preds = bb5
     jump bb7
-  bb7:
+  bb7:  ; preds = bb6, bb8
     v27 = phi [bb6: v17], [bb8: v36]
     v28 = phi [bb6: v12], [bb8: v37]
     v29 = phi [bb6: 0], [bb8: v38]
     v30 = gt v27, 0
     jumpi v30, bb8, bb9
-  bb9:
+  bb9:  ; preds = bb7
     v1 = mload v51
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
-  bb8:
+  bb8:  ; preds = bb7
     v31 = icall @decode_memory_type, v28, v12, v5
     v32 = shl v29, 5
     v46 = add v51, v32
@@ -257,11 +262,11 @@ fn @dDynArr() [selector=0xaca542ca, abi_wrapper, pure] {
     v37 = add v28, 32
     v38 = add v29, 1
     jump bb7
-  bb4 [cold]:
+  bb4 [cold]:  ; preds = bb3
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0, bb2, bb5
     revert 0, 0
 }
 
@@ -273,7 +278,7 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v4 = sub v0, 36
     v5 = gt v1, v4
     jumpi v5, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v6 = calldataload v2
     v7 = add v2, 32
     v8 = add v6, 63
@@ -289,13 +294,13 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v38 = or v37, v34
     v39 = ne v38, 0
     jumpi v39, bb3, bb5
-  bb5:
+  bb5:  ; preds = bb2
     mstore 64, v30 !metadata(memory=scratch)
     mstore v29, v6
     v13 = sub v0, v7
     v14 = gt v6, v13
     jumpi v14, bb1, bb4
-  bb4:
+  bb4:  ; preds = bb5
     v25 = add v29, 32
     calldatacopy v25, v7, v6
     v22 = sub 0, v6
@@ -304,11 +309,11 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v26 = add v25, v6
     calldatacopy v26, v36, v23
     ret v29
-  bb3 [cold]:
+  bb3 [cold]:  ; preds = bb2
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0, bb5
     revert 0, 0
 }
 
@@ -322,7 +327,7 @@ fn @decode_memory_type(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_m
     v5 = lt v4, 96
     v82 = or v3, v5
     jumpi v82, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v79 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v80 = add v79, 96
     mstore 64, v80 !metadata(memory=scratch)
@@ -336,19 +341,19 @@ fn @decode_memory_type(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_m
     v14 = gt v12, arg2
     v15 = or v13, v14
     jumpi v15, bb1, bb3
-  bb3:
+  bb3:  ; preds = bb2
     v17 = mload v10
     v19 = add v17, 63
     v20 = lt v19, v17
     jumpi v20, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     v22 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v77 = icall @alloc, v22
     mstore v77, v17
     v24 = sub arg2, v12
     v25 = gt v17, v24
     jumpi v25, bb1, bb6
-  bb6:
+  bb6:  ; preds = bb5
     v64 = add v77, 32
     mcopy v64, v12, v17
     v33 = sub 0, v17
@@ -366,11 +371,11 @@ fn @decode_memory_type(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_m
     v43 = gt v41, arg2
     v44 = or v42, v43
     jumpi v44, bb1, bb7
-  bb7:
+  bb7:  ; preds = bb6
     v46 = mload v39
     v48 = gt v46, 0x7fffffffffffffe
     jumpi v48, bb4, bb8
-  bb8:
+  bb8:  ; preds = bb7
     v49 = add v46, 1
     v50 = shl v49, 5
     v78 = icall @alloc, v50
@@ -380,17 +385,17 @@ fn @decode_memory_type(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_m
     v54 = shr v53, 5
     v55 = gt v46, v54
     jumpi v55, bb1, bb9
-  bb9:
+  bb9:  ; preds = bb8
     v69 = add v78, 32
     mcopy v69, v41, v52
     v71 = add v79, 64
     mstore v71, v78
     ret v79
-  bb4 [cold]:
+  bb4 [cold]:  ; preds = bb3, bb7
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0, bb2, bb5, bb6, bb8
     revert 0, 0
 }
 
@@ -404,10 +409,10 @@ fn @alloc(arg0: i256) -> i256 {
     v6 = or v4, v5
     v7 = ne v6, 0
     jumpi v7, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     mstore 64, v2 !metadata(memory=scratch)
     ret v0
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36

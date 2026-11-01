@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/state_string_initializers.sol:StateStringInitializers ===
 @module StateStringInitializers
+; creation entry
 fn @constructor() [constructor] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -21,18 +22,21 @@ fn @constructor() [constructor] {
     ret
 }
 
+; getter for `string public name` [selector 0x06fdde03]
 fn @name() -> ptr<memory> [selector=0x06fdde03, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @load_storage_bytes, 0
     ret v0
 }
 
+; getter for `string public symbol` [selector 0x95d89b41]
 fn @symbol() -> ptr<memory> [selector=0x95d89b41, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @load_storage_bytes, 1
     ret v0
 }
 
+; getter for `uint8 public decimals` [selector 0x313ce567]
 fn @decimals() -> i8 [selector=0x313ce567, view, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
@@ -60,6 +64,7 @@ fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
 @data
   StateStringInitializers_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/state_string_initializers.sol:StateStringInitializers"
 
+; function deploys() external returns (bool) [selector 0x225b4d71]
 fn @deploys() -> i1 [selector=0x225b4d71, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = datasize StateStringInitializers_creation_code_0
@@ -68,15 +73,16 @@ fn @deploys() -> i1 [selector=0x225b4d71, abi_params=[], abi_returns=[word<bool>
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = zext i160 v2 to i256
     v5 = extcodesize v4
     v6 = ne v5, 0
     ret v6
 }
 
+; function deploy() external returns (string memory, string memory, uint8) [selector 0x775c300c]
 fn @deploy() -> struct0 [selector=0x775c300c, abi_params=[], abi_returns=[memory_bytes, memory_bytes, word<uint8>], abi_return_params=[bytes, bytes, uint8]] {
   bb0:
     v0 = datasize StateStringInitializers_creation_code_0
@@ -85,17 +91,17 @@ fn @deploy() -> struct0 [selector=0x775c300c, abi_params=[], abi_returns=[memory
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = gas
     mstore 0, 0x6fdde03 !metadata(memory=scratch)
     v5 = zext i160 v2 to i256
     v6 = staticcall v4, v5, 28, 4, 0, 0
     jumpi v6, bb4, bb3
-  bb3:
+  bb3:  ; preds = bb2
     revert_returndata
-  bb4:
+  bb4:  ; preds = bb2
     v7 = icall returndata_bytes<>
     v8 = abi_decode [bytes], v7
     v9 = gas
@@ -103,9 +109,9 @@ fn @deploy() -> struct0 [selector=0x775c300c, abi_params=[], abi_returns=[memory
     v10 = zext i160 v2 to i256
     v11 = staticcall v9, v10, 28, 4, 0, 0
     jumpi v11, bb6, bb5
-  bb5:
+  bb5:  ; preds = bb4
     revert_returndata
-  bb6:
+  bb6:  ; preds = bb4
     v12 = icall returndata_bytes<>
     v13 = abi_decode [bytes], v12
     v14 = gas
@@ -113,9 +119,9 @@ fn @deploy() -> struct0 [selector=0x775c300c, abi_params=[], abi_returns=[memory
     v15 = zext i160 v2 to i256
     v16 = staticcall v14, v15, 28, 4, 0, 32
     jumpi v16, bb8, bb7
-  bb7:
+  bb7:  ; preds = bb6
     revert_returndata
-  bb8:
+  bb8:  ; preds = bb6
     v17 = returndatasize
     v18 = lt v17, 32
     icall revert_if<tuple_data_too_short>, v18

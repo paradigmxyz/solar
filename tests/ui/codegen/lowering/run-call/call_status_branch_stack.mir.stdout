@@ -3,6 +3,7 @@
 @immutables
   target: address
 
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = address
@@ -10,6 +11,7 @@ fn @constructor() [constructor] {
     ret
 }
 
+; function get(uint256 x) external pure returns (Data memory) [selector 0x9507d39a]
 fn @get(arg0: i256) -> ptr<memory> [selector=0x9507d39a, pure, abi_params=[uint256], abi_returns=[tuple<word, word, word, word>], abi_return_params=[tuple<uint256, uint256, uint256, uint256>]] {
   bb0:
     v0 = alloc 128 !metadata(preserves_fmp)
@@ -29,6 +31,7 @@ fn @get(arg0: i256) -> ptr<memory> [selector=0x9507d39a, pure, abi_params=[uint2
     ret v1
 }
 
+; function first(uint256 x) external view returns (uint256) [selector 0x0b3f62f5]
 fn @first(arg0: i256) -> i256 [selector=0x0b3f62f5, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = loadimmutable target
@@ -40,9 +43,9 @@ fn @first(arg0: i256) -> i256 [selector=0x0b3f62f5, view, abi_params=[uint256], 
     v6 = zext i160 v0 to i256
     v7 = staticcall v1, v6, v3, v4, v5, 128
     jumpi v7, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v8 = returndatasize
     v9 = lt v8, 128
     icall revert_if<tuple_data_too_short>, v9
@@ -52,6 +55,7 @@ fn @first(arg0: i256) -> i256 [selector=0x0b3f62f5, view, abi_params=[uint256], 
     ret v12
 }
 
+; function second(uint256 x) external view returns (uint256) [selector 0x7896dfe3]
 fn @second(arg0: i256) -> i256 [selector=0x7896dfe3, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = loadimmutable target
@@ -63,9 +67,9 @@ fn @second(arg0: i256) -> i256 [selector=0x7896dfe3, view, abi_params=[uint256],
     v6 = zext i160 v0 to i256
     v7 = staticcall v1, v6, v3, v4, v5, 128
     jumpi v7, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v8 = returndatasize
     v9 = lt v8, 128
     icall revert_if<tuple_data_too_short>, v9
@@ -79,6 +83,7 @@ fn @second(arg0: i256) -> i256 [selector=0x7896dfe3, view, abi_params=[uint256],
     ret v16
 }
 
+; function third(uint256 x) external view returns (uint256) [selector 0xf1680ae6]
 fn @third(arg0: i256) -> i256 [selector=0xf1680ae6, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = loadimmutable target
@@ -90,9 +95,9 @@ fn @third(arg0: i256) -> i256 [selector=0xf1680ae6, view, abi_params=[uint256], 
     v6 = zext i160 v0 to i256
     v7 = staticcall v1, v6, v3, v4, v5, 128
     jumpi v7, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v8 = returndatasize
     v9 = lt v8, 128
     icall revert_if<tuple_data_too_short>, v9

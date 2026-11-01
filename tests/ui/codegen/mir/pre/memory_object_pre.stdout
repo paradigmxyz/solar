@@ -5,13 +5,13 @@
     bb0:
       v0 = ptrtoint ptr<memory> arg0 to i256
       jumpi arg1, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
 +     v3 = add v0, 64
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       v1 = add v0, 64
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
 -     v2 = add v0, 64
 -     ret v2
 +     v4 = phi [bb1: v1], [bb2: v3]

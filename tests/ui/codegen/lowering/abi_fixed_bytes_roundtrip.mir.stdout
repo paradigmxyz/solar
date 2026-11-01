@@ -1,10 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/abi_fixed_bytes_roundtrip.sol:AbiFixedBytesRoundtrip ===
 @module AbiFixedBytesRoundtrip
+; function bare(bytes12 id) external pure returns (bytes12) [selector 0x1cd66b10]
 fn @bare(arg0: i256) -> i256 [selector=0x1cd66b10, pure, abi_params=[bytes12], abi_returns=[word<bytes12>], abi_return_params=[bytes12]] {
   bb0:
     ret arg0
 }
 
+; function roundTrip(Packet memory packet) external pure returns (Packet memory) [selector 0x8a38dbfb]
 fn @roundTrip(arg0: ptr<memory>) -> ptr<memory> [selector=0x8a38dbfb, pure, abi_params=[tuple<bytes12, bytes4, bytes16, uint256>], abi_returns=[tuple<word<bytes12>, word<bytes4>, word<bytes16>, word>], abi_return_params=[tuple<bytes12, bytes4, bytes16, uint256>]] {
   bb0:
     v0 = alloc 128
@@ -30,6 +32,7 @@ fn @roundTrip(arg0: ptr<memory>) -> ptr<memory> [selector=0x8a38dbfb, pure, abi_
     ret v0
 }
 
+; function store(Packet memory packet) external returns (Packet memory) [selector 0xf0580f61]
 fn @store(arg0: ptr<memory>) -> ptr<memory> [selector=0xf0580f61, abi_params=[tuple<bytes12, bytes4, bytes16, uint256>], abi_returns=[tuple<word<bytes12>, word<bytes4>, word<bytes16>, word>], abi_return_params=[tuple<bytes12, bytes4, bytes16, uint256>]] {
   bb0:
     v0 = mload arg0
@@ -89,6 +92,7 @@ fn @store(arg0: ptr<memory>) -> ptr<memory> [selector=0xf0580f61, abi_params=[tu
     ret v30
 }
 
+; function retag(Packet memory packet, bytes16 tag) external pure returns (Packet memory) [selector 0x1cd7e54c]
 fn @retag(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0x1cd7e54c, pure, abi_params=[tuple<bytes12, bytes4, bytes16, uint256>, bytes16], abi_returns=[tuple<word<bytes12>, word<bytes4>, word<bytes16>, word>], abi_return_params=[tuple<bytes12, bytes4, bytes16, uint256>]] {
   bb0:
     v0 = alloc 128

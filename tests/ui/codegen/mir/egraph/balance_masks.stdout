@@ -37,7 +37,7 @@
     bb0:
       v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0
       v1 = balance v0
       ret v1
   }

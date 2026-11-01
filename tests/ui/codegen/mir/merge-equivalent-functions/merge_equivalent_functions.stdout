@@ -32,6 +32,7 @@
       ret v0
   }
   
+  ; selector 0x01020304
   fn @entry() -> i256 [selector=0x01020304] {
     bb0:
       v0 = icall @wrap_a, 1
@@ -46,9 +47,9 @@
   fn @recursive_a(arg0: i1, arg1: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       ret arg1
-    bb1:
+    bb1:  ; preds = bb0
       v0 = icall @recursive_a, false, arg1
       ret v0
   }
@@ -56,14 +57,15 @@
   fn @recursive_b(arg0: i1, arg1: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       ret arg1
-    bb1:
+    bb1:  ; preds = bb0
 -     v0 = icall @recursive_b, false, arg1
 +     v0 = icall @recursive_a, false, arg1
       ret v0
   }
   
+  ; selector 0x01020306
   fn @recursive_entry() [selector=0x01020306] {
     bb0:
       v0 = icall @recursive_a, true, 1
@@ -76,12 +78,12 @@
     bb0:
       v0 = eq arg0, 0
       jumpi v0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       v1 = sub arg0, 1
 -     v2 = icall @mutual_b, v1 !metadata(span=100..110)
 +     v2 = icall @mutual_a, v1 !metadata(spans=[100..110, 120..130])
       ret v2
-    bb1:
+    bb1:  ; preds = bb0
       ret 7
   }
   
@@ -89,14 +91,15 @@
     bb0:
       v0 = eq arg0, 0
       jumpi v0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       v1 = sub arg0, 1
       v2 = icall @mutual_a, v1 !metadata(span=120..130)
       ret v2
-    bb1:
+    bb1:  ; preds = bb0
       ret 7
   }
   
+  ; selector 0x01020307
   fn @mutual_entry() -> i256 [selector=0x01020307] {
     bb0:
 -     v0 = icall @mutual_b, 2
@@ -108,11 +111,11 @@
     bb0:
       v0 = eq arg0, 0
       jumpi v0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       v1 = sub arg0, 1
       v2 = icall @different_mutual_b, v1
       ret v2
-    bb1:
+    bb1:  ; preds = bb0
       ret 17
   }
   
@@ -120,11 +123,11 @@
     bb0:
       v0 = eq arg0, 0
       jumpi v0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       v1 = sub arg0, 1
       v2 = icall @different_mutual_a, v1
       ret v2
-    bb1:
+    bb1:  ; preds = bb0
       ret 18
   }
   
@@ -132,11 +135,11 @@
     bb0:
       v0 = eq arg0, 0
       jumpi v0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       v1 = sub arg0, 1
 -     tail_call @mutual_tail_b, v1
 +     tail_call @mutual_tail_a, v1
-    bb1:
+    bb1:  ; preds = bb0
       ret 23
   }
   
@@ -144,10 +147,10 @@
     bb0:
       v0 = eq arg0, 0
       jumpi v0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       v1 = sub arg0, 1
       tail_call @mutual_tail_a, v1
-    bb1:
+    bb1:  ; preds = bb0
       ret 23
   }
   

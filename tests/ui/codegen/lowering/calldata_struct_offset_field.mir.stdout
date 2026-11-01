@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_struct_offset_field.sol:CalldataStructOffsetField ===
 @module CalldataStructOffsetField
+; function sum(Params calldata p) external pure returns (uint256 t) [selector 0x06889ec9]
 fn @sum(arg0: slice<calldata>) -> i256 [selector=0x06889ec9, pure, abi_params=[tuple<array<_, uint256>, array<_, uint256>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -129,9 +130,9 @@ fn @sum(arg0: slice<calldata>) -> i256 [selector=0x06889ec9, pure, abi_params=[t
     v107 = extract_value slice<calldata>, v106, 1
     v108 = ne v107, 0
     jumpi v108, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v109 = extract_value slice<calldata>, arg0, 0
     v110 = ptrtoint ptr<calldata> v109 to i256
     v111 = add v110, 0
@@ -207,11 +208,12 @@ fn @sum(arg0: slice<calldata>) -> i256 [selector=0x06889ec9, pure, abi_params=[t
     v171 = checked_sub uint256, v139, v170
     v172 = checked_add uint256, v82, v171
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v173 = phi [bb1: v172], [bb2: v82]
     ret v173
 }
 
+; function first(Params calldata p) external pure returns (uint256 v) [selector 0x0e2e2b05]
 fn @first(arg0: slice<calldata>) -> i256 [selector=0x0e2e2b05, pure, abi_params=[tuple<array<_, uint256>, array<_, uint256>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -248,6 +250,7 @@ fn @first(arg0: slice<calldata>) -> i256 [selector=0x0e2e2b05, pure, abi_params=
     ret v26
 }
 
+; function word(Word calldata w) external pure returns (uint256) [selector 0xf128a547]
 fn @word(arg0: slice<calldata>) -> i256 [selector=0xf128a547, pure, abi_params=[tuple<uint256, tuple<array<_, uint256>, array<_, uint256>>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -257,6 +260,7 @@ fn @word(arg0: slice<calldata>) -> i256 [selector=0xf128a547, pure, abi_params=[
     ret v3
 }
 
+; function nested(Word calldata w) external pure returns (uint256) [selector 0x1637766b]
 fn @nested(arg0: slice<calldata>) -> i256 [selector=0x1637766b, pure, abi_params=[tuple<uint256, tuple<array<_, uint256>, array<_, uint256>>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -373,21 +377,22 @@ fn @nested(arg0: slice<calldata>) -> i256 [selector=0x1637766b, pure, abi_params
     ret v96
 }
 
+; function total(uint256[] calldata a) public pure returns (uint256 t) [selector 0x5188d7c7]
 fn @total(arg0: slice<calldata>) -> i256 [selector=0x5188d7c7, pure, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v15]
     v2 = phi [bb0: 0], [bb3: v16]
     v3 = extract_value slice<calldata>, v0, 1
     v4 = lt v2, v3
     jumpi v4, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v1
-  bb4:
+  bb4:  ; preds = bb1
     v5 = extract_value slice<calldata>, v0, 1
     v6 = lt v2, v5
     v7 = eq v6, false
@@ -402,9 +407,9 @@ fn @total(arg0: slice<calldata>) -> i256 [selector=0x5188d7c7, pure, abi_params=
     v14 = calldataload v13
     v15 = checked_add uint256, v1, v14
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v16 = checked_add uint256, v2, 1
     jump bb1
 }

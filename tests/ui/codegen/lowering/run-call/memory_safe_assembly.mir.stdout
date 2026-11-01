@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/memory_safe_assembly.sol:MemorySafeAssembly ===
 @module MemorySafeAssembly
+; function bump(uint256 a, uint256 flag) external pure returns (bytes32 result) [selector 0xa4da02fa]
 fn @bump(arg0: i256, arg1: i256) -> i256 [selector=0xa4da02fa, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
@@ -65,6 +66,7 @@ fn @bump(arg0: i256, arg1: i256) -> i256 [selector=0xa4da02fa, pure, abi_params=
     ret v56
 }
 
+; function throughLoaded(uint256 a, uint256 flag) external pure returns (bytes32 result) [selector 0xf8085a08]
 fn @throughLoaded(arg0: i256, arg1: i256) -> i256 [selector=0xf8085a08, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
@@ -147,6 +149,7 @@ fn @throughLoaded(arg0: i256, arg1: i256) -> i256 [selector=0xf8085a08, pure, ab
     ret v71
 }
 
+; function legacyComment(uint256 a, uint256 flag) external pure returns (bytes32 result) [selector 0xec3964b9]
 fn @legacyComment(arg0: i256, arg1: i256) -> i256 [selector=0xec3964b9, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)

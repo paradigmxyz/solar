@@ -7,6 +7,7 @@
 @types
   struct0: {i1, i256}
 
+; function sat(uint256 a, uint256 b) public pure returns (uint256) [selector 0xf4c11983]
 fn @sat(arg0: i256, arg1: i256) -> i256 [selector=0xf4c11983, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @tryAdd, arg0, arg1
@@ -15,14 +16,15 @@ fn @sat(arg0: i256, arg1: i256) -> i256 [selector=0xf4c11983, pure, abi_params=[
     v3 = ne v1, false
     v4 = eq v3, false
     jumpi v4, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     ret v2
-  bb1:
+  bb1:  ; preds = bb0
     ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 }
 
+; function tryA(uint256 a, uint256 b) public pure returns (bool, uint256) [selector 0xcc81ee27]
 fn @tryA(arg0: i256, arg1: i256) -> struct0 [selector=0xcc81ee27, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>, word], abi_return_params=[bool, uint256]] {
   bb0:
     v0 = icall @tryAdd, arg0, arg1
@@ -33,6 +35,7 @@ fn @tryA(arg0: i256, arg1: i256) -> struct0 [selector=0xcc81ee27, pure, abi_para
     ret v4
 }
 
+; function tryAdd(uint256 a, uint256 b) internal pure returns (bool ok, uint256 c)
 fn @tryAdd(arg0: i256, arg1: i256) -> struct0 [pure] {
   bb0:
     v0 = add arg0, arg1

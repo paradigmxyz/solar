@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/abi_encode_packed_calldata_slice.sol:AbiEncodePackedCalldataSlice (runtime) ===
 @module AbiEncodePackedCalldataSlice_runtime
-bb0:
+bb0:  ; runtime dispatch entry
   callvalue
   push bb4
   jumpi
@@ -23,7 +23,7 @@ bb4 [cold]:
   push 0
   push 0
   revert
-bb5:
+bb5:  ; function hash(bytes calldata data, uint256 start, uint256 end) external pure returns (bytes32) [selector 0x00d07523]
   push 100
   calldatasize
   lt
@@ -35,7 +35,7 @@ bb5:
   calldataload
   push bb7
   jump bb15
-bb15 [ret=0, inputs=1, outputs=1]:
+bb15 [ret=0, inputs=1, outputs=1]:  ; decode_calldata_slice (synthesized)
   push 4
   calldataload
   push 4
@@ -91,7 +91,7 @@ bb7 [continuation]:
   push 32
   push 0
   return
-bb10:
+bb10:  ; function open(bytes calldata data, uint256 start) external pure returns (bytes32) [selector 0x2a5dea89]
   push 128
   push 64
   mstore

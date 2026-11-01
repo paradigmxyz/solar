@@ -3,17 +3,19 @@
 @types
   struct0: {i256, i256}
 
+; function pick(bool useB) internal view returns (S storage result)
 fn @pick(arg0: i1) -> i256 [view] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     ret 0
-  bb1:
+  bb1:  ; preds = bb0
     ret 1
 }
 
+; function test(bool useB, uint256 value) external returns (uint256, uint256) [selector 0xc6a64c1f]
 fn @test(arg0: i1, arg1: i256) -> struct0 [selector=0xc6a64c1f, abi_params=[bool, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall @pick, arg0

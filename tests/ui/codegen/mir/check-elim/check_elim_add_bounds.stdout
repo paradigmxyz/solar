@@ -5,16 +5,17 @@
     bb0:
       v0 = lt arg0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
       jumpi v0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       ret 0
-    bb1:
+    bb1:  ; preds = bb0
       v1 = add arg0, 2
       v2 = lt v1, arg0
 -     jumpi v2, bb3, bb4
 +     jump bb4
-    bb4:
+    bb4:  ; preds = bb1
       ret v1
-    bb3 [cold]:
+-   bb3 [cold]:  ; preds = bb1
++   bb3 [cold]:
       revert 0, 0
   }
   
@@ -22,15 +23,15 @@
     bb0:
       v0 = lt arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       jumpi v0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       ret 0
-    bb1:
+    bb1:  ; preds = bb0
       v1 = add arg0, 2
       v2 = lt v1, arg0
       jumpi v2, bb3, bb4
-    bb4:
+    bb4:  ; preds = bb1
       ret v1
-    bb3 [cold]:
+    bb3 [cold]:  ; preds = bb1
       revert 0, 0
   }
   

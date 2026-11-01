@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/constructor_memory_return.sol:ConstructorMemoryReturn ===
 @module ConstructorMemoryReturn
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = icall @version
@@ -8,12 +9,14 @@ fn @constructor() [constructor] {
     ret
 }
 
+; getter for `string public value` [selector 0x3fa4f245]
 fn @value() -> ptr<memory> [selector=0x3fa4f245, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = load_storage_bytes 0
     ret v0
 }
 
+; function version() public pure returns (string memory) [selector 0x54fd4d50]
 fn @version() -> ptr<memory> [selector=0x54fd4d50, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -23,11 +26,13 @@ fn @version() -> ptr<memory> [selector=0x54fd4d50, pure, abi_params=[], abi_retu
     ret v0
 }
 
+; function consume(string memory input) internal pure returns (string memory)
 fn @consume(arg0: ptr<memory>) -> ptr<memory> [pure] {
   bb0:
     ret arg0
 }
 
+; function direct() public pure returns (uint256) [selector 0x222b1407]
 fn @direct() -> i256 [selector=0x222b1407, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -39,6 +44,7 @@ fn @direct() -> i256 [selector=0x222b1407, pure, abi_params=[], abi_returns=[wor
     ret v3
 }
 
+; function makePair(uint256 x) internal pure returns (Pair memory)
 fn @makePair(arg0: i256) -> ptr<memory> [pure] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -53,6 +59,7 @@ fn @makePair(arg0: i256) -> ptr<memory> [pure] {
     ret v2
 }
 
+; function pairValue() public pure returns (uint256) [selector 0x393eabbf]
 fn @pairValue() -> i256 [selector=0x393eabbf, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64

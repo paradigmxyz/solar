@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256, i256}
 
+; function dynamicFixed(uint256[2][] calldata values) external pure returns (uint256 offset, uint256 length, uint256 elementOffset) [selector 0x71cafd78]
 fn @dynamicFixed(arg0: slice<calldata>) -> struct0 [selector=0x71cafd78, pure, abi_params=[array<_, array<2, uint256>>], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -25,6 +26,7 @@ fn @dynamicFixed(arg0: slice<calldata>) -> struct0 [selector=0x71cafd78, pure, a
     ret v15
 }
 
+; function staticFixed(uint256[2][2] calldata values) external pure returns (uint256 offset, uint256 first, uint256 second) [selector 0xc2cb46f3]
 fn @staticFixed(arg0: slice<calldata>) -> struct0 [selector=0xc2cb46f3, pure, abi_params=[array<2, array<2, uint256>>], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -60,6 +62,7 @@ fn @staticFixed(arg0: slice<calldata>) -> struct0 [selector=0xc2cb46f3, pure, ab
     ret v26
 }
 
+; function nestedDynamic(uint256[][] calldata values) external pure returns (uint256 offset, uint256 length, uint256 last) [selector 0xd5de94f6]
 fn @nestedDynamic(arg0: slice<calldata>) -> struct0 [selector=0xd5de94f6, pure, abi_params=[array<_, array<_, uint256>>], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -111,6 +114,7 @@ fn @nestedDynamic(arg0: slice<calldata>) -> struct0 [selector=0xd5de94f6, pure, 
     ret v39
 }
 
+; function dynamicBytes(bytes[] calldata values) external pure returns (uint256 offset, uint256 length, uint256 last) [selector 0x925ccb10]
 fn @dynamicBytes(arg0: slice<calldata>) -> struct0 [selector=0x925ccb10, pure, abi_params=[array<_, bytes>], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1

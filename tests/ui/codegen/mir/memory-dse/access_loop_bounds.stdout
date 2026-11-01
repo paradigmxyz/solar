@@ -7,18 +7,18 @@
       mstore 128, 0
       mstore 64, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v0 = phi [bb0: 128], [bb2: v3]
       v1 = phi [bb0: true], [bb2: false]
       v2 = mload 64
       jumpi v1, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       v4 = mload v2
       v5 = mload v0
       v6 = add v4, v5
       mstore 256, v6
       returndata 256, 32
-    bb2:
+    bb2:  ; preds = bb1
       v3 = add v2, 32
       mstore 64, 128
       jump bb1
@@ -28,14 +28,14 @@
     bb0:
 -     mstore 0, 7
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       v0 = mload 64 !metadata(alloc_ptr)
       v1 = mload v0
       v2 = add v0, 32
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
       v3 = phi [bb1: v2], [bb2: 128]
       v4 = phi [bb1: v1], [bb2: 0]
       v5 = mload v3

@@ -4,39 +4,40 @@
   fn @branch_checks(arg0: i1, arg1: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       v3 = ne arg1, 0
 -     icall panic_if_zero<0x1>, v3
 +     jumpi v3, bb8, bb4
-+   bb8:
++   bb8:  ; preds = bb2
       v4 = mul arg1, 2
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       mstore 64, arg1
       v0 = ne arg1, 0
 -     icall panic_if_zero<0x1>, v0
 +     jumpi v0, bb5, bb4
-+   bb4 [cold]:
++   bb4 [cold]:  ; preds = bb1, bb2
 +     mstore 32, 1 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
-+   bb5:
++   bb5:  ; preds = bb1
       v1 = add arg1, 1
       v2 = ne v1, 0
 -     icall revert_if_zero<tuple_data_too_short>, v2
 +     jumpi v2, bb7, bb6
-+   bb6 [cold]:
++   bb6 [cold]:  ; preds = bb5
 +     mstore 32, 32 !metadata(memory=scratch)
 +     mstore 64, 34 !metadata(memory=scratch)
 +     mstore 96, 0x414249206465636f64696e673a207475706c65206461746120746f6f2073686f !metadata(memory=scratch)
 +     mstore 128, 0x7274000000000000000000000000000000000000000000000000000000000000
 +     mstore 0, 0x8c379a0 !metadata(memory=scratch)
 +     revert 28, 132
-+   bb7:
++   bb7:  ; preds = bb5
       mstore 96, v1
       jump bb3
-    bb3:
+-   bb3:  ; preds = bb1, bb2
 -     v5 = phi [bb1: v1], [bb2: v4]
++   bb3:  ; preds = bb7, bb8
 +     v5 = phi [bb7: v1], [bb8: v4]
       ret v5
   }
@@ -48,31 +49,31 @@
 -     icall require<error_string>, arg0, arg1
 -     icall require<custom_error [word, memory_bytes]>, arg0, 0, arg2, arg1
 +     jumpi arg0, bb2, bb1
-+   bb1 [cold]:
++   bb1 [cold]:  ; preds = bb0
 +     icall @revert_error, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
 +     invalid
-+   bb2:
++   bb2:  ; preds = bb0
 +     jumpi arg0, bb4, bb3
-+   bb3 [cold]:
++   bb3 [cold]:  ; preds = bb2
 +     mstore 32, 32 !metadata(memory=scratch)
 +     mstore 64, 0 !metadata(memory=scratch)
 +     mstore 0, 0x8c379a0 !metadata(memory=scratch)
 +     revert 28, 68
-+   bb4:
++   bb4:  ; preds = bb2
 +     jumpi arg0, bb6, bb5
-+   bb5 [cold]:
++   bb5 [cold]:  ; preds = bb4
 +     v0 = abi_encode [memory_bytes], scratch, selector 0x8c379a000000000000000000000000000000000000000000000000000000000, args arg1
 +     v1 = extract_value slice<memory>, v0, 0
 +     v2 = extract_value slice<memory>, v0, 1
 +     revert v1, v2
-+   bb6:
++   bb6:  ; preds = bb4
 +     jumpi arg0, bb8, bb7
-+   bb7 [cold]:
++   bb7 [cold]:  ; preds = bb6
 +     v3 = abi_encode [word, memory_bytes], scratch, selector 0, args arg2, arg1
 +     v4 = extract_value slice<memory>, v3, 0
 +     v5 = extract_value slice<memory>, v3, 1
 +     revert v4, v5
-+   bb8:
++   bb8:  ; preds = bb6
       ret
   }
   
@@ -94,9 +95,9 @@
     bb0:
 -     icall panic_if<0x32>, true
 +     jumpi true, bb1, bb2
-+   bb2:
++   bb2:  ; preds = bb0
       ret
-+   bb1 [cold]:
++   bb1 [cold]:  ; preds = bb0
 +     mstore 32, 50 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36

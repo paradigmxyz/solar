@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/check-elim/long_function.sol:LongFunction ===
 @module LongFunction
 @phase lowered
+; runtime dispatch entry
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
@@ -10,30 +11,31 @@ fn @entry() [entry] {
     v4 = or v0, v3
     v5 = ne v4, 0
     jumpi v5, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v6 = calldataload 0
     v7 = shr v6, 224
     switch v7, default bb1, [0xaeb2e72f => bb3, 0xd2fe3d6a => bb4]
-  bb4:
+  bb4:  ; preds = bb2
     tail_call @chained
-  bb3:
+  bb3:  ; preds = bb2
     tail_call @unchained
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0, bb2
     revert 0, 0
 }
 
+; function chained(uint256 a, uint256 b, uint256 c) external pure returns (uint256 r) [selector 0xd2fe3d6a]
 fn @chained() [selector=0xd2fe3d6a, abi_wrapper, pure] {
   bb0:
     v0 = lt arg0, arg1
     v2 = lt arg1, arg2
     v62 = and v0, v2
     jumpi v62, bb4, bb3
-  bb3 [cold]:
+  bb3 [cold]:  ; preds = bb0
     revert 0, 0
-  bb4:
+  bb4:  ; preds = bb0
     v5 = eq arg2, 2
     jumpi v5, bb5, bb1
-  bb1:
+  bb1:  ; preds = bb4
     v6 = eq arg2, 3
     v7 = eq arg2, 4
     v63 = or v6, v7
@@ -130,33 +132,34 @@ fn @chained() [selector=0xd2fe3d6a, abi_wrapper, pure] {
     v53 = eq arg2, 50
     v109 = or v108, v53
     jumpi v109, bb5, bb2
-  bb2:
+  bb2:  ; preds = bb1
     v54 = sub arg2, arg1
     v55 = sub arg2, arg0
     v57 = add v54, v55
     v58 = lt v57, v54
     jumpi v58, bb6, bb7
-  bb7:
+  bb7:  ; preds = bb2
     mstore 0, v57 !metadata(memory=scratch)
     returndata 0, 32
-  bb6 [cold]:
+  bb6 [cold]:  ; preds = bb2
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb5 [cold]:
+  bb5 [cold]:  ; preds = bb1, bb4
     tail_call @revert_stub
 }
 
+; function unchained(uint256 a, uint256 b, uint256 c) external pure returns (uint256 r) [selector 0xaeb2e72f]
 fn @unchained() [selector=0xaeb2e72f, abi_wrapper, pure] {
   bb0:
     v0 = lt arg0, arg1
     jumpi v0, bb4, bb3
-  bb3 [cold]:
+  bb3 [cold]:  ; preds = bb0
     revert 0, 0
-  bb4:
+  bb4:  ; preds = bb0
     v2 = eq arg2, 1
     jumpi v2, bb5, bb1
-  bb1:
+  bb1:  ; preds = bb4
     v3 = eq arg2, 2
     v4 = eq arg2, 3
     v64 = or v3, v4
@@ -255,7 +258,7 @@ fn @unchained() [selector=0xaeb2e72f, abi_wrapper, pure] {
     v51 = eq arg2, 50
     v111 = or v110, v51
     jumpi v111, bb5, bb2
-  bb2:
+  bb2:  ; preds = bb1
     v55 = sub arg2, arg1
     v56 = lt arg2, arg1
     v57 = sub arg2, arg0
@@ -263,14 +266,14 @@ fn @unchained() [selector=0xaeb2e72f, abi_wrapper, pure] {
     v60 = lt v59, v55
     v112 = or v56, v60
     jumpi v112, bb6, bb7
-  bb7:
+  bb7:  ; preds = bb2
     mstore 0, v59 !metadata(memory=scratch)
     returndata 0, 32
-  bb6 [cold]:
+  bb6 [cold]:  ; preds = bb2
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb5 [cold]:
+  bb5 [cold]:  ; preds = bb1, bb4
     tail_call @revert_stub
 }
 

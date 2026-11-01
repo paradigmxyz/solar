@@ -4,6 +4,7 @@
 
 // === ROOT/tests/ui/codegen/lowering/using_for_struct.sol:C ===
 @module C
+; function viaMethod(bytes32 a, bytes32 b) public pure returns (bytes32) [selector 0x36245213]
 fn @viaMethod(arg0: i256, arg1: i256) -> i256 [selector=0x36245213, pure, abi_params=[bytes32, bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc 128
@@ -18,6 +19,7 @@ fn @viaMethod(arg0: i256, arg1: i256) -> i256 [selector=0x36245213, pure, abi_pa
     ret v4
 }
 
+; function hashLib(S memory s) internal pure returns (bytes32)
 fn @hashLib(arg0: ptr<memory>) -> i256 [pure] {
   bb0:
     v0 = mload arg0

@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/dynamic_struct_param.sol:DynamicStructParam ===
 @module DynamicStructParam
+; function init(InitInput calldata input, address sink) external pure returns (uint256) [selector 0x5c58abd8]
 fn @init(arg0: slice<calldata>, arg1: i160) -> i256 [selector=0x5c58abd8, pure, abi_params=[tuple<address, uint8, bytes, bytes>, address], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -17,16 +18,17 @@ fn @init(arg0: slice<calldata>, arg1: i160) -> i256 [selector=0x5c58abd8, pure, 
     v13 = add v11, v12
     v14 = gt v13, 0xffffffffffffffffffffffffffffffffffffffff
     jumpi v14, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v15 = trunc i256 v13 to i160
     v10 = zext i160 v15 to i256
     ret v10
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
+; function flat(StaticPair calldata pair) external pure returns (uint256) [selector 0x73a9ddca]
 fn @flat(arg0: slice<calldata>) -> i256 [selector=0x73a9ddca, pure, abi_params=[tuple<uint256, address>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -36,6 +38,7 @@ fn @flat(arg0: slice<calldata>) -> i256 [selector=0x73a9ddca, pure, abi_params=[
     ret v3
 }
 
+; function words(WordList calldata input) external pure returns (uint256) [selector 0x6d5f7443]
 fn @words(arg0: slice<calldata>) -> i256 [selector=0x6d5f7443, pure, abi_params=[tuple<array<_, uint256>, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -74,14 +77,15 @@ fn @words(arg0: slice<calldata>) -> i256 [selector=0x6d5f7443, pure, abi_params=
     v30 = add v24, v28
     v31 = lt v30, v24
     jumpi v31, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     ret v30
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
+; function signedWords(SignedList calldata input) external pure returns (uint256) [selector 0x69491962]
 fn @signedWords(arg0: slice<calldata>) -> i256 [selector=0x69491962, pure, abi_params=[tuple<array<_, int256>, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -120,14 +124,15 @@ fn @signedWords(arg0: slice<calldata>) -> i256 [selector=0x69491962, pure, abi_p
     v30 = add v24, v28
     v31 = lt v30, v24
     jumpi v31, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     ret v30
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
+; function nestedWords(NestedList calldata input) external pure returns (uint256) [selector 0x0b0be15f]
 fn @nestedWords(arg0: slice<calldata>) -> i256 [selector=0x0b0be15f, pure, abi_params=[tuple<array<_, array<_, uint256>>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -223,9 +228,9 @@ fn @nestedWords(arg0: slice<calldata>) -> i256 [selector=0x0b0be15f, pure, abi_p
     v78 = add v24, v76
     v79 = lt v78, v24
     jumpi v79, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     ret v78
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36

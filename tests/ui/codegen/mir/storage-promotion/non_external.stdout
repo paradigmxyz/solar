@@ -5,16 +5,16 @@
     bb0:
       sstore 0, 1
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb3
       jumpi true, bb2, bb4
-    bb4:
+    bb4:  ; preds = bb1
       stop
-    bb2:
+    bb2:  ; preds = bb1
       v0 = sload 0
       v1 = mul v0, 2
       sstore 0, v1
       jump bb3
-    bb3:
+    bb3:  ; preds = bb2
       jump bb1
   }
   

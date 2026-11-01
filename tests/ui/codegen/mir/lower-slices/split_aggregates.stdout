@@ -19,13 +19,13 @@
     bb0:
 -     jumpi arg2, bb1, bb2
 +     jumpi arg4, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
 +     v4 = inttoptr i256 arg2 to ptr<calldata>
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
 +     v2 = inttoptr i256 arg0 to ptr<calldata>
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
 -     v0 = phi [bb1: arg0], [bb2: arg1]
 -     v1 = extract_value slice<calldata>, v0, 1
 -     ret v1

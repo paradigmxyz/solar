@@ -1,11 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_inheritance_init_order.sol:ConstructorInitOrderBase ===
 @module ConstructorInitOrderBase
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     sstore 0, 42 !metadata(storage=slot(0))
     ret
 }
 
+; function f() public view returns (uint256) [selector 0x26121ff0]
 fn @f() -> i256 [selector=0x26121ff0, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -14,22 +16,25 @@ fn @f() -> i256 [selector=0x26121ff0, view, abi_params=[], abi_returns=[word], a
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_inheritance_init_order.sol:ConstructorInitOrderDerived ===
 @module ConstructorInitOrderDerived
+; creation entry
 fn @constructor() [constructor] {
   bb0:
     sstore 0, 42 !metadata(storage=slot(0))
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0
     v0 = icall @f
     sstore 1, v0 !metadata(storage=slot(1))
     ret
 }
 
+; getter for `uint256 public y` [selector 0xa56dfe4a]
 fn @y() -> i256 [selector=0xa56dfe4a, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     ret v0
 }
 
+; function f() public view returns (uint256) [selector 0x26121ff0]
 fn @f() -> i256 [selector=0x26121ff0, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -38,12 +43,14 @@ fn @f() -> i256 [selector=0x26121ff0, view, abi_params=[], abi_returns=[word], a
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_inheritance_init_order.sol:NoCtorBase ===
 @module NoCtorBase
+; creation entry
 fn @constructor() [constructor] {
   bb0:
     sstore 0, 42 !metadata(storage=slot(0))
     ret
 }
 
+; getter for `uint256 public x` [selector 0x0c55699c]
 fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -52,6 +59,7 @@ fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], a
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_inheritance_init_order.sol:NoCtorDerived ===
 @module NoCtorDerived
+; creation entry
 fn @constructor() [constructor] {
   bb0:
     sstore 0, 42 !metadata(storage=slot(0))
@@ -60,12 +68,14 @@ fn @constructor() [constructor] {
     ret
 }
 
+; getter for `uint256 public y` [selector 0xa56dfe4a]
 fn @y() -> i256 [selector=0xa56dfe4a, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     ret v0
 }
 
+; getter for `uint256 public x` [selector 0x0c55699c]
 fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))

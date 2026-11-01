@@ -111,6 +111,8 @@ pub(crate) struct Assembler<'gcx> {
     pub(in crate::backend) program_is_finalized: bool,
     /// Block currently receiving emitted instructions.
     pub(in crate::backend) current_block: Option<ir::BlockId>,
+    /// Comment for the next block that code creates, set while none is open.
+    pub(in crate::backend) pending_comment: Option<String>,
     /// Source span attached to newly emitted EVM IR operations.
     pub(in crate::backend) current_source_spans: DebugSpans,
     /// Legacy source-map modifier nesting depth attached to new EVM IR operations.
@@ -182,6 +184,7 @@ impl<'gcx> Assembler<'gcx> {
             program: ir::Module::new(sym::asm),
             program_is_finalized: false,
             current_block: None,
+            pending_comment: None,
             current_source_spans: DebugSpans::new(),
             current_modifier_depth: 0,
             block_labels: Vec::new(),
@@ -216,6 +219,7 @@ impl<'gcx> Assembler<'gcx> {
         self.program.clear();
         self.program_is_finalized = false;
         self.current_block = None;
+        self.pending_comment = None;
         self.current_source_spans.clear();
         self.current_modifier_depth = 0;
         self.block_labels.clear();

@@ -4,14 +4,14 @@
   fn @keep_phi_only_block(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
       v0 = phi [bb1: 1], [bb2: 2]
       jump bb4
-    bb4:
+    bb4:  ; preds = bb3
       v1 = add v0, 1
       ret v1
   }

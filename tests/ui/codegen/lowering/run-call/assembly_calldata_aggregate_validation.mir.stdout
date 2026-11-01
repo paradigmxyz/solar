@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/assembly_calldata_aggregate_validation.sol:AssemblyCalldataAggregateValidation ===
 @module AssemblyCalldataAggregateValidation
+; function encodeArray(address[] calldata x) internal pure returns (bytes32)
 fn @encodeArray(arg0: slice<calldata>) -> i256 [pure] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -10,17 +11,17 @@ fn @encodeArray(arg0: slice<calldata>) -> i256 [pure] {
     v4 = extract_value slice<calldata>, arg0, 1
     v5 = extract_value slice<calldata>, arg0, 0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v6 = phi [bb0: 0], [bb2: v15]
     v7 = lt v6, v4
     jumpi v7, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v16 = abi_encode [calldata_array<word<uint160>>], scratch, args arg0
     v17 = extract_value slice<memory>, v16, 0
     v18 = extract_value slice<memory>, v16, 1
     v19 = keccak256 v17, v18
     ret v19
-  bb2:
+  bb2:  ; preds = bb1
     v8 = mul v6, 32
     v9 = ptrtoint ptr<calldata> v5 to i256
     v10 = add v9, v8
@@ -33,6 +34,7 @@ fn @encodeArray(arg0: slice<calldata>) -> i256 [pure] {
     jump bb1
 }
 
+; function encodeStruct(S calldata s) internal pure returns (bytes32)
 fn @encodeStruct(arg0: slice<calldata>) -> i256 [pure] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -55,6 +57,7 @@ fn @encodeStruct(arg0: slice<calldata>) -> i256 [pure] {
     ret v14
 }
 
+; function logArray(address[] calldata x) internal
 fn @logArray(arg0: slice<calldata>) {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -65,17 +68,17 @@ fn @logArray(arg0: slice<calldata>) {
     v4 = extract_value slice<calldata>, arg0, 1
     v5 = extract_value slice<calldata>, arg0, 0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v6 = phi [bb0: 0], [bb2: v15]
     v7 = lt v6, v4
     jumpi v7, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v16 = abi_encode [calldata_array<word<uint160>>], scratch, args arg0
     v17 = extract_value slice<memory>, v16, 0
     v18 = extract_value slice<memory>, v16, 1
     log v17, v18, 0x2aa35d9b9d09e8315cc54a1b8fa10720a071241f46216976f18b6c83d90783a3
     ret
-  bb2:
+  bb2:  ; preds = bb1
     v8 = mul v6, 32
     v9 = ptrtoint ptr<calldata> v5 to i256
     v10 = add v9, v8
@@ -88,6 +91,7 @@ fn @logArray(arg0: slice<calldata>) {
     jump bb1
 }
 
+; function arrayDirect(uint256) external pure returns (bytes32) [selector 0x1bc4b3c7]
 fn @arrayDirect(arg0: i256) -> i256 [selector=0x1bc4b3c7, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 0, 0
@@ -103,17 +107,17 @@ fn @arrayDirect(arg0: i256) -> i256 [selector=0x1bc4b3c7, pure, abi_params=[uint
     v9 = extract_value slice<calldata>, v4, 1
     v10 = extract_value slice<calldata>, v4, 0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v11 = phi [bb0: 0], [bb2: v20]
     v12 = lt v11, v9
     jumpi v12, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v21 = abi_encode [calldata_array<word<uint160>>], scratch, args v4
     v22 = extract_value slice<memory>, v21, 0
     v23 = extract_value slice<memory>, v21, 1
     v24 = keccak256 v22, v23
     ret v24
-  bb2:
+  bb2:  ; preds = bb1
     v13 = mul v11, 32
     v14 = ptrtoint ptr<calldata> v10 to i256
     v15 = add v14, v13
@@ -126,6 +130,7 @@ fn @arrayDirect(arg0: i256) -> i256 [selector=0x1bc4b3c7, pure, abi_params=[uint
     jump bb1
 }
 
+; function arrayInternal(uint256) external pure returns (bytes32) [selector 0x478b5525]
 fn @arrayInternal(arg0: i256) -> i256 [selector=0x478b5525, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 0, 0
@@ -137,6 +142,7 @@ fn @arrayInternal(arg0: i256) -> i256 [selector=0x478b5525, pure, abi_params=[ui
     ret v5
 }
 
+; function arrayPastEnd(bytes calldata data) external pure returns (bytes32) [selector 0x5b524347]
 fn @arrayPastEnd(arg0: slice<calldata>) -> i256 [selector=0x5b524347, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -153,6 +159,7 @@ fn @arrayPastEnd(arg0: slice<calldata>) -> i256 [selector=0x5b524347, pure, abi_
     ret v10
 }
 
+; function structDirect(uint256) external pure returns (bytes32) [selector 0xcf7d0a4c]
 fn @structDirect(arg0: i256) -> i256 [selector=0xcf7d0a4c, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 4, 0
@@ -176,6 +183,7 @@ fn @structDirect(arg0: i256) -> i256 [selector=0xcf7d0a4c, pure, abi_params=[uin
     ret v15
 }
 
+; function structInternal(uint256) external pure returns (bytes32) [selector 0xa11cea7b]
 fn @structInternal(arg0: i256) -> i256 [selector=0xa11cea7b, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 4, 0
@@ -183,6 +191,7 @@ fn @structInternal(arg0: i256) -> i256 [selector=0xa11cea7b, pure, abi_params=[u
     ret v1
 }
 
+; function enumArray(uint256) external pure returns (bytes32) [selector 0xd6447683]
 fn @enumArray(arg0: i256) -> i256 [selector=0xd6447683, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 0, 0
@@ -198,17 +207,17 @@ fn @enumArray(arg0: i256) -> i256 [selector=0xd6447683, pure, abi_params=[uint25
     v9 = extract_value slice<calldata>, v4, 1
     v10 = extract_value slice<calldata>, v4, 0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v11 = phi [bb0: 0], [bb2: v20]
     v12 = lt v11, v9
     jumpi v12, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v21 = abi_encode [calldata_array<word<enum 2>>], scratch, args v4
     v22 = extract_value slice<memory>, v21, 0
     v23 = extract_value slice<memory>, v21, 1
     v24 = keccak256 v22, v23
     ret v24
-  bb2:
+  bb2:  ; preds = bb1
     v13 = mul v11, 32
     v14 = ptrtoint ptr<calldata> v10 to i256
     v15 = add v14, v13
@@ -221,6 +230,7 @@ fn @enumArray(arg0: i256) -> i256 [selector=0xd6447683, pure, abi_params=[uint25
     jump bb1
 }
 
+; function packed(uint256) external pure returns (bytes32) [selector 0x977eca9c]
 fn @packed(arg0: i256) -> i256 [selector=0x977eca9c, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 0, 0
@@ -236,17 +246,17 @@ fn @packed(arg0: i256) -> i256 [selector=0x977eca9c, pure, abi_params=[uint256],
     v9 = extract_value slice<calldata>, v4, 1
     v10 = extract_value slice<calldata>, v4, 0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v11 = phi [bb0: 0], [bb2: v20]
     v12 = lt v11, v9
     jumpi v12, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v21 = abi_encode_packed (array<word<uint160>> calldata v4)
     v22 = ptradd v21, 32
     v23 = mload v21
     v24 = keccak256 v22, v23
     ret v24
-  bb2:
+  bb2:  ; preds = bb1
     v13 = mul v11, 32
     v14 = ptrtoint ptr<calldata> v10 to i256
     v15 = add v14, v13
@@ -259,6 +269,7 @@ fn @packed(arg0: i256) -> i256 [selector=0x977eca9c, pure, abi_params=[uint256],
     jump bb1
 }
 
+; function logged(uint256) external returns (uint256) [selector 0xf3f1126a]
 fn @logged(arg0: i256) -> i256 [selector=0xf3f1126a, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 0, 0
@@ -274,17 +285,17 @@ fn @logged(arg0: i256) -> i256 [selector=0xf3f1126a, abi_params=[uint256], abi_r
     v9 = extract_value slice<calldata>, v4, 1
     v10 = extract_value slice<calldata>, v4, 0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v11 = phi [bb0: 0], [bb2: v20]
     v12 = lt v11, v9
     jumpi v12, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v21 = abi_encode [calldata_array<word<uint160>>], scratch, args v4
     v22 = extract_value slice<memory>, v21, 0
     v23 = extract_value slice<memory>, v21, 1
     log v22, v23, 0x2aa35d9b9d09e8315cc54a1b8fa10720a071241f46216976f18b6c83d90783a3
     ret 1
-  bb2:
+  bb2:  ; preds = bb1
     v13 = mul v11, 32
     v14 = ptrtoint ptr<calldata> v10 to i256
     v15 = add v14, v13
@@ -297,6 +308,7 @@ fn @logged(arg0: i256) -> i256 [selector=0xf3f1126a, abi_params=[uint256], abi_r
     jump bb1
 }
 
+; function loggedInternal(uint256) external returns (uint256) [selector 0x8f1fefad]
 fn @loggedInternal(arg0: i256) -> i256 [selector=0x8f1fefad, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 0, 0
@@ -308,6 +320,7 @@ fn @loggedInternal(arg0: i256) -> i256 [selector=0x8f1fefad, abi_params=[uint256
     ret 2
 }
 
+; function loggedIndexed(uint256) external returns (uint256) [selector 0x1d045b60]
 fn @loggedIndexed(arg0: i256) -> i256 [selector=0x1d045b60, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 0, 0
@@ -336,18 +349,18 @@ fn @loggedIndexed(arg0: i256) -> i256 [selector=0x1d045b60, abi_params=[uint256]
     v19 = alloc v17
     mstore v19, v5
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v20 = phi [bb0: 0], [bb2: v32]
     v21 = lt v20, v5
     jumpi v21, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v33 = abi_encode_packed (array<word<uint160>> memoryarray<1> v19)
     v34 = ptradd v33, 32
     v35 = mload v33
     v36 = keccak256 v34, v35
     log 0, 0, 0xecd6fa5826ee9847bd5c2a2e99cbf8c38cf52eaec15f0dde51e42cab0e5c4dce, v36
     ret 3
-  bb2:
+  bb2:  ; preds = bb1
     v22 = mul v20, 32
     v23 = ptrtoint ptr<calldata> v6 to i256
     v24 = add v23, v22

@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/full_width_storage_layout.sol:LargeStorageArrays ===
 @module LargeStorageArrays
+; function check() external returns (bool) [selector 0x919840ad]
 fn @check() -> i1 [selector=0x919840ad, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = lt 0xffffffffffffffff, 0x10000000000000000
@@ -45,27 +46,27 @@ fn @check() -> i1 [selector=0x919840ad, abi_params=[], abi_returns=[word<bool>],
     v32 = sload v31 !metadata(storage=symbolic(v31))
     v33 = eq 0x100000000000000000000000000000000000000010000000000000000, 0x100000000000000000000000000000000000000010000000000000000
     jumpi v33, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v34 = checked_add uint256, 0x100000000000000000000000000000000000000010000000000000000, 0x800000000000000
     v35 = checked_add uint256, v34, 1
     v36 = eq 0x100000000000000000000000000000000000000010800000000000001, v35
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v37 = phi [bb1: v36], [bb2: false]
     jumpi v37, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v38 = eq v32, 7
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v39 = phi [bb4: v38], [bb5: false]
     jumpi v39, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     jump bb9
-  bb7:
+  bb7:  ; preds = bb6
     v40 = lt 0xffffffffffffffff, 0x10000000000000000
     v41 = eq v40, false
     icall panic_if<0x32>, v41
@@ -78,12 +79,12 @@ fn @check() -> i1 [selector=0x919840ad, abi_params=[], abi_returns=[word<bool>],
     v47 = sload v46 !metadata(storage=offset(v42, 0xffffffffffffffffffffffffffffffffffffffff))
     v48 = eq v47, 7
     jump bb9
-  bb9:
+  bb9:  ; preds = bb7, bb8
     v49 = phi [bb7: v48], [bb8: false]
     jumpi v49, bb10, bb11
-  bb11:
+  bb11:  ; preds = bb9
     jump bb12
-  bb10:
+  bb10:  ; preds = bb9
     v50 = lt 0xffffffffffffffff, 0x10000000000000000
     v51 = eq v50, false
     icall panic_if<0x32>, v51
@@ -93,12 +94,12 @@ fn @check() -> i1 [selector=0x919840ad, abi_params=[], abi_returns=[word<bool>],
     v55 = sload v54 !metadata(storage=offset(v52, 0x10000000000000000000000000000000000000000))
     v56 = eq v55, 11
     jump bb12
-  bb12:
+  bb12:  ; preds = bb10, bb11
     v57 = phi [bb10: v56], [bb11: false]
     jumpi v57, bb13, bb14
-  bb14:
+  bb14:  ; preds = bb12
     jump bb15
-  bb13:
+  bb13:  ; preds = bb12
     v58 = lt 0x10000000000000000, 0x10000000000000001
     v59 = eq v58, false
     icall panic_if<0x32>, v59
@@ -112,20 +113,21 @@ fn @check() -> i1 [selector=0x919840ad, abi_params=[], abi_returns=[word<bool>],
     v67 = trunc i256 v66 to i8
     v68 = eq v67, i8 13
     jump bb15
-  bb15:
+  bb15:  ; preds = bb13, bb14
     v69 = phi [bb13: v68], [bb14: false]
     jumpi v69, bb16, bb17
-  bb17:
+  bb17:  ; preds = bb15
     jump bb18
-  bb16:
+  bb16:  ; preds = bb15
     v70 = sload 0x100000000000000000000000000000000000000010800000000000001 !metadata(storage=slot(0x100000000000000000000000000000000000000010800000000000001))
     v71 = eq v70, 17
     jump bb18
-  bb18:
+  bb18:  ; preds = bb16, bb17
     v72 = phi [bb16: v71], [bb17: false]
     ret v72
 }
 
+; function read(uint256 index) external view returns (uint256) [selector 0xed2e5a97]
 fn @read(arg0: i256) -> i256 [selector=0xed2e5a97, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = lt arg0, 0x10000000000000000

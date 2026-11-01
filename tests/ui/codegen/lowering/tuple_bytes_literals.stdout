@@ -1,23 +1,25 @@
 // === ROOT/tests/ui/codegen/lowering/tuple_bytes_literals.sol:TupleBytesLiterals ===
 @module TupleBytesLiterals
 @phase lowered
+; runtime dispatch entry
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
     v1 = ne v0, 0
     jumpi v1, bb4, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v2 = calldataload 0
     v3 = shr v2, 224
     switch v3, default bb4, [0x1cd9057 => bb2, 0xf2c31bd9 => bb3]
-  bb3:
+  bb3:  ; preds = bb1
     tail_call @words
-  bb2:
+  bb2:  ; preds = bb1
     tail_call @prefix
-  bb4 [cold]:
+  bb4 [cold]:  ; preds = bb0, bb1
     revert 0, 0
 }
 
+; function prefix(bytes memory out) external pure returns (bytes memory) [selector 0x01cd9057]
 fn @prefix() [selector=0x01cd9057, abi_wrapper, pure] {
   bb0:
     v10 = calldatasize
@@ -28,7 +30,7 @@ fn @prefix() [selector=0x01cd9057, abi_wrapper, pure] {
     v16 = gt v12, v15
     v65 = or v11, v16
     jumpi v65, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb0
     v17 = calldataload v13
     v18 = add v13, 32
     v19 = add v17, 63
@@ -44,12 +46,12 @@ fn @prefix() [selector=0x01cd9057, abi_wrapper, pure] {
     v67 = or v66, v62
     v68 = ne v67, 0
     jumpi v68, bb5, bb7
-  bb7:
+  bb7:  ; preds = bb4
     mstore v57, v17
     v24 = sub v10, v18
     v25 = gt v17, v24
     jumpi v25, bb3, bb6
-  bb6:
+  bb6:  ; preds = bb7
     v53 = add v57, 32
     calldatacopy v53, v18, v17
     v33 = sub 0, v17
@@ -62,11 +64,11 @@ fn @prefix() [selector=0x01cd9057, abi_wrapper, pure] {
     v4 = gt v0, 1
     v69 = and v1, v4
     jumpi v69, bb2, bb1
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb6
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb2:
+  bb2:  ; preds = bb6
     v49 = add v57, 33
     mstore8 v49, 120
     mstore8 v53, 48
@@ -78,14 +80,15 @@ fn @prefix() [selector=0x01cd9057, abi_wrapper, pure] {
     mstore v51, 32
     v46 = add v41, 64
     returndata v51, v46
-  bb5 [cold]:
+  bb5 [cold]:  ; preds = bb4
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3 [cold]:
+  bb3 [cold]:  ; preds = bb0, bb7
     revert 0, 0
 }
 
+; function words() external pure returns (bytes1 a, bytes2 b) [selector 0xf2c31bd9]
 fn @words() [selector=0xf2c31bd9, abi_wrapper, pure] {
   bb0:
     mstore 0, 0x3000000000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
