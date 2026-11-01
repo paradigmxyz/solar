@@ -390,11 +390,14 @@ impl<'a> Analysis<'a> {
         let func = &self.module.functions[id];
         let alias = AliasAnalysis::with_call_summaries(func, Arc::clone(self.summaries));
         let cfg = CfgInfo::new(func);
-        // A tail call hands the rest of the call to a callee, which may observe gas.
-        let tail_observes = cfg.rpo().iter().any(|&block| {
-            matches!(func.blocks[block].terminator, Some(Terminator::TailCall { function, .. })
+        // A tail call hands the rest of the call to a callee, which may observe gas. The dispatch
+        // entry runs no code of its own before the entry it picks, so its tail calls measure
+        // nothing.
+        let tail_observes = self.module.dispatch_entry() != Some(id)
+            && cfg.rpo().iter().any(|&block| {
+                matches!(func.blocks[block].terminator, Some(Terminator::TailCall { function, .. })
                 if self.summaries.get(function).is_none_or(|summary| summary.may_observe_gas()))
-        });
+            });
         let observes = tail_observes || GasObservations::any(func, &cfg, &alias);
         self.observes_gas[id] = Some(observes);
         observes
