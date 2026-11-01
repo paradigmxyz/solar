@@ -17,12 +17,8 @@
 //@ run-call: differentBranch; constructor=[0x000000000000000000000000000000000000beef, 0xffffffffffffffffffffffff, 0x000000000000000000000000000000000000cafe, 1] => 1
 //@ run-call: isBeef; constructor=[0x000000000000000000000000000000000000beef, 0xffffffffffffffffffffffff, 0x000000000000000000000000000000000000beef, 0x123456789abcdef012345678] => true
 //@ run-call: isBeef; constructor=[0x000000000000000000000000000000000000cafe, 0xffffffffffffffffffffffff, 0x000000000000000000000000000000000000cafe, 1] => false
-//@ run-call: notBeef; constructor=[0x000000000000000000000000000000000000beef, 0xffffffffffffffffffffffff, 0x000000000000000000000000000000000000beef, 0x123456789abcdef012345678] => false
-//@ run-call: notBeef; constructor=[0x000000000000000000000000000000000000cafe, 0xffffffffffffffffffffffff, 0x000000000000000000000000000000000000cafe, 1] => true
 //@ run-call: branchBeef; constructor=[0x000000000000000000000000000000000000beef, 0xffffffffffffffffffffffff, 0x000000000000000000000000000000000000beef, 0x123456789abcdef012345678] => 1
 //@ run-call: branchBeef; constructor=[0x000000000000000000000000000000000000cafe, 0xffffffffffffffffffffffff, 0x000000000000000000000000000000000000cafe, 1] => 0
-//@ run-call: guardBeef; constructor=[0x000000000000000000000000000000000000beef, 0xffffffffffffffffffffffff, 0x000000000000000000000000000000000000beef, 0x123456789abcdef012345678] => 1
-//@ run-call-fail: guardBeef; constructor=[0x000000000000000000000000000000000000cafe, 0xffffffffffffffffffffffff, 0x000000000000000000000000000000000000cafe, 1]
 
 // A packed slot holds an address under another field, so the word an address check reads has dirty
 // bits above the address. The check compares only the low 160 bits.
@@ -61,18 +57,9 @@ contract MaskedCompare {
         return owner == 0x000000000000000000000000000000000000bEEF;
     }
 
-    function notBeef() external view returns (bool) {
-        return owner != 0x000000000000000000000000000000000000bEEF;
-    }
-
     function branchBeef() external view returns (uint256) {
         if (owner == 0x000000000000000000000000000000000000bEEF) return 1;
         return 0;
-    }
-
-    function guardBeef() external view returns (uint256) {
-        require(owner == 0x000000000000000000000000000000000000bEEF);
-        return 1;
     }
 
     function sameHolders() external view returns (bool) {

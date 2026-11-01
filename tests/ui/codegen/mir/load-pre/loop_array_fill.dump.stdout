@@ -143,19 +143,19 @@ fn @fill() [selector=0x3fda5389, abi_wrapper, pure] {
 
 fn @lanes() [selector=0x713c311a, abi_wrapper, pure] {
   bb0:
-    v52 = and arg0, 0xffffffff
-    v53 = eq v52, 0
-    jumpi v53, bb4, bb5
+    v95 = shl arg0, 224
+    v96 = eq v95, 0
+    jumpi v96, bb4, bb5
   bb5:
     v54 = shr arg0, 32
-    v55 = and v54, 0xffffffff
-    v56 = eq v55, 0
-    jumpi v56, bb4, bb6
+    v97 = shl v54, 224
+    v98 = eq v97, 0
+    jumpi v98, bb4, bb6
   bb6:
     v57 = shr arg0, 64
-    v58 = and v57, 0xffffffff
-    v59 = eq v58, 0
-    v63 = zext i1 v59 to i256
+    v99 = shl v57, 224
+    v100 = eq v99, 0
+    v63 = zext i1 v100 to i256
     v65 = sub 3, v63
     jump bb4
   bb4:
@@ -174,11 +174,11 @@ fn @lanes() [selector=0x713c311a, abi_wrapper, pure] {
     v94 = calldatasize
     calldatacopy v87, v94, v10
     mstore v87, v60
-    v98 = add v87, 32
+    v104 = add v87, 32
     jump bb2
   bb2:
     v29 = phi [bb7: 0], [bb3: v39]
-    v99 = phi [bb7: v98], [bb3: v100]
+    v105 = phi [bb7: v104], [bb3: v106]
     v30 = lt v29, v60
     jumpi v30, bb3, bb1
   bb1:
@@ -192,9 +192,9 @@ fn @lanes() [selector=0x713c311a, abi_wrapper, pure] {
     v31 = shl v29, 5
     v32 = shr arg0, v31
     v33 = and v32, 0xffffffff
-    mstore v99, v33
+    mstore v105, v33
     v39 = add v29, 1
-    v100 = add v99, 32
+    v106 = add v105, 32
     jump bb2
   bb8:
     mstore 32, 65 !metadata(memory=scratch)

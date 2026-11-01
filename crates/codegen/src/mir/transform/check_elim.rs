@@ -971,6 +971,7 @@ struct MaskedCompare {
     source: ValueId,
     other: ValueId,
     bits: u32,
+    equal: bool,
 }
 
 /// Range-based overflow-check eliminator.
@@ -1802,11 +1803,19 @@ impl<'a> CheckEliminator<'a> {
             let (source, limit) = low_mask_input(func, &inst.kind)?;
             let bits = limit.bit_len() as u32;
             (inst.metadata.effect().is_none_or(|effect| effect == EffectKind::Pure)
-                && (2..256).contains(&bits)
+                && bits >= 2
                 && func.value_ty(other) == Some(MirType::I256)
                 && self.range_of(func, source, MAX_DEPTH).hi > limit
                 && self.range_of(func, other, MAX_DEPTH).hi <= limit)
-                .then_some(MaskedCompare { id, block, mask, source, other, bits })
+                .then_some(MaskedCompare {
+                    id,
+                    block,
+                    mask,
+                    source,
+                    other,
+                    bits,
+                    equal: matches!(func.inst(id).kind, InstKind::Eq(..)),
+                })
         })
     }
 
@@ -3606,19 +3615,36 @@ fn shift_masked_compares(
         let (source, limit) = low_mask_input(func, &func.inst(inst).kind)?;
         (uses[value] == 1 && limit.bit_len() as u32 == bits).then_some((source, inst))
     };
+    let mut mask_blocks = None;
     let mut chosen = FxHashMap::default();
     for compare in compares {
+        // An earlier rewrite of this pass may have replaced an operand.
+        let (InstKind::Eq(a, b) | InstKind::Ne(a, b)) = func.inst(compare.id).kind else {
+            continue;
+        };
         let result = func.inst_result_value(compare.id).unwrap();
+        let &Value::Inst(mask) = func.value(compare.mask) else { continue };
+        let loop_of = |block| loops.block_to_loop.get(&block).copied();
+        // A mask that an enclosing block holds costs the loop nothing.
+        let mask_hoisted = loop_of(compare.block).is_some_and(|looped| {
+            let blocks = mask_blocks.get_or_insert_with(|| {
+                func.blocks
+                    .iter_enumerated()
+                    .flat_map(|(block, data)| data.instructions.iter().map(move |&id| (id, block)))
+                    .collect::<FxHashMap<_, _>>()
+            });
+            blocks.get(&mask).and_then(|&block| loop_of(block)) != Some(looped)
+        });
         let branch = uses[result] == 1
             && matches!(func.blocks[compare.block].terminator,
                 Some(Terminator::Branch { condition, .. }) if condition == result);
         let read = if branch { ConditionUse::BRANCH } else { ConditionUse::VALUE };
-        let read =
-            if loops.block_to_loop.contains_key(&compare.block) { read.in_loop() } else { read };
-        let equal = matches!(func.inst(compare.id).kind, InstKind::Eq(..));
-        if uses[compare.mask] == 1
-            && target.shifts_masked_compare(compare.bits, equal, read)
-            && let &Value::Inst(mask) = func.value(compare.mask)
+        let read = if loop_of(compare.block).is_some() { read.in_loop() } else { read };
+        let zero = func.value_u256(compare.other) == Some(U256::ZERO);
+        if [(a, b), (b, a)].contains(&(compare.mask, compare.other))
+            && uses[compare.mask] == 1
+            && !mask_hoisted
+            && target.shifts_masked_compare(compare.bits, compare.equal, zero, read)
         {
             dead.insert(mask);
             chosen.insert(compare.id, compare);
@@ -3640,11 +3666,14 @@ fn shift_masked_compares(
             // difference = xor source, other
             // high = shl difference, 256 - bits
             // result = eq high, 0 | ne high, 0
-            let difference = builder.xor(compare.source, other);
+            let difference = if builder.func().value_u256(other) == Some(U256::ZERO) {
+                compare.source
+            } else {
+                builder.xor(compare.source, other)
+            };
             let count = builder.imm(256 - compare.bits);
             let high = builder.shl(difference, count);
-            let equal = matches!(inst.kind, InstKind::Eq(..));
-            let value = if equal { builder.eq_zero(high) } else { builder.ne_zero(high) };
+            let value = if compare.equal { builder.eq_zero(high) } else { builder.ne_zero(high) };
             replacements.insert(inst.result().unwrap(), value);
             if let Some(mask) = other_mask {
                 dead.insert(mask);
