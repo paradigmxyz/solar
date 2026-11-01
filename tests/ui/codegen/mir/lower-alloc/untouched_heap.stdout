@@ -1,6 +1,18 @@
 - // === ROOT/tests/ui/codegen/mir/lower-alloc/untouched_heap.mir (before lower-alloc) ===
 + // === ROOT/tests/ui/codegen/mir/lower-alloc/untouched_heap.mir (after lower-alloc) ===
   @module UntouchedHeap
+  ; runtime dispatch entry
+  fn @dispatch() [entry] {
+    bb0:
+      v0 = calldatasize
+      v1 = ne v0, 0
+      jumpi v1, bb1, bb2
+    bb2:  ; preds = bb0
+      tail_call @sibling_reads_gas
+    bb1:  ; preds = bb0
+      tail_call @sibling_fills
+  }
+  
   ; selector 0x30000001
   fn @entry_zeroed(arg0: i256) -> i256 [selector=0x30000001] {
     bb0:
@@ -602,5 +614,25 @@
 +     mstore 64, v2 !metadata(memory=scratch)
       memory_zero v0, 64
       tail_call @observer
+  }
+  
+  ; selector 0x3000001d
+  fn @sibling_fills() [selector=0x3000001d] {
+    bb0:
+-     v0 = alloc 64
+-     memory_zero v0, 64
++     v1 = heap_floor !metadata(alloc_ptr)
++     v0 = inttoptr i256 v1 to ptr<memory> !metadata(memory=scratch)
++     v2 = add v1, 64 !metadata(alloc_ptr)
++     mstore 64, v2 !metadata(memory=scratch)
+      stop
+  }
+  
+  ; selector 0x3000001e
+  fn @sibling_reads_gas() [selector=0x3000001e] {
+    bb0:
+      v0 = gas
+      mstore 0, v0
+      stop
   }
   

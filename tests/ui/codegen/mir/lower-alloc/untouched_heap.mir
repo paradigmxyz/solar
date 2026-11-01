@@ -493,3 +493,33 @@ fn @tail_observes() [selector=0x3000001c] {
     memory_zero v0, 64
     tail_call @observer
 }
+
+// The dispatch entry's tail calls observe nothing: an entry that reads gas does not make its
+// sibling keep its fill.
+fn @dispatch() [entry] {
+  bb0:
+    v0 = calldatasize
+    v1 = ne v0, 0
+    jumpi v1, bb1, bb2
+  bb1:
+    tail_call @sibling_fills
+  bb2:
+    tail_call @sibling_reads_gas
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @sibling_fills{{[( ]}}
+// CHECK-NOT: {{^[ +] +}}memory_zero
+fn @sibling_fills() [selector=0x3000001d] {
+  bb0:
+    v0 = alloc 64
+    memory_zero v0, 64
+    stop
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @sibling_reads_gas{{[( ]}}
+fn @sibling_reads_gas() [selector=0x3000001e] {
+  bb0:
+    v0 = gas
+    mstore 0, v0
+    stop
+}

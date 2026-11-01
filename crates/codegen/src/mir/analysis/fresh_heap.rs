@@ -46,9 +46,9 @@
 //! may write the range: the allocation covers it, and the memory it covers was zero.
 //!
 //! A dropped fill leaves memory unexpanded, which changes what the program can observe: its gas,
-//! and `msize`. A function that observes gas, directly or through a call or tail call, or has a
-//! caller that does, keeps its fills, and so
-//! does every function of a module that reads `msize`. A fill of more than
+//! and `msize`. A function that observes gas, directly or through a call or tail call (the
+//! dispatch entry's tail calls excepted), or has a caller that does, keeps its fills, and so does
+//! every function of a module that reads `msize`. A fill of more than
 //! [`EvmMemoryLayout::MAX_DEAD_FILL`] bytes stays too: expanding that much memory costs more gas
 //! than a call has, so the fill is what makes a huge allocation fail.
 
@@ -153,7 +153,7 @@ impl FreshHeap {
     }
 
     /// Whether the zero fill of `inst` of `func` writes memory that is still zero: the
-    /// initialization of a zeroed allocation, or a `memory_zero`.
+    /// initialization of a zeroed allocation, a `memory_zero`, or a zero word store.
     #[must_use]
     pub(crate) fn skips_zero_fill(&self, func: FunctionId, inst: InstId) -> bool {
         self.zero_fills.get(func).is_some_and(|fills| fills.contains(&inst))
