@@ -1133,6 +1133,38 @@ class RunComparisonTests(unittest.TestCase):
                     self.assertEqual(benchmark.compiler_failures([after]), [])
                     self.assertEqual(benchmark.runtime_issue_details([after]), [])
 
+    def test_solar_size_failures_trigger_the_pr_comment(self):
+        for stage in ("status", "runtime_status"):
+            with self.subTest(stage=stage), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                after = self.fixture()
+                after["compilers"]["solar-size"] = {"status": "ok", stage: "failed"}
+                for name, row in (("before", self.fixture()), ("after", after)):
+                    (root / name).mkdir()
+                    (root / name / "results.json").write_text(
+                        json.dumps({"results": [row], "timings": {"repository": 1}})
+                    )
+                with (
+                    patch.dict(os.environ, {"GITHUB_SHA": "0" * 40}, clear=True),
+                    patch("sys.stdout", new_callable=io.StringIO),
+                ):
+                    code = benchmark.main(
+                        [
+                            str(root / "before"),
+                            str(root / "after"),
+                            "--pr-comment-output",
+                            str(root / "comment.md"),
+                            "--comment-output",
+                            str(root / "should-comment"),
+                        ]
+                    )
+                self.assertEqual(code, 0)
+                self.assertEqual((root / "should-comment").read_text(), "true\n")
+                self.assertIn(
+                    "`solar-size` failed or mismatched",
+                    (root / "comment.md").read_text(),
+                )
+
     def test_solar_failures_still_trigger_comments_and_warnings(self):
         before = self.fixture()
         for stage in ("status", "runtime_status"):

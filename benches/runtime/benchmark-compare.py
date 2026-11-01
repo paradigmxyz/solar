@@ -782,6 +782,15 @@ def runtime_failed(result: dict[str, Any], compiler: str) -> bool:
     ) or bool(runtime_mismatches(result, compiler))
 
 
+def solar_size_failed(results: list[dict[str, Any]]) -> bool:
+    """Whether an opt-in `solar-size` result failed to compile or failed its runtime checks."""
+    return any(
+        compiler_data(result, "solar-size").get("status") not in (None, "ok")
+        or runtime_failed(result, "solar-size")
+        for result in results
+    )
+
+
 def runtime_issue_details(results: list[dict[str, Any]]) -> list[str]:
     details = []
     for result, solar in itertools.product(results, SOLAR_COMPILERS):
@@ -1928,6 +1937,8 @@ def pr_comment(
                 "> ⚠️ Some benchmarks have incomplete or incompatible results.",
             ]
         )
+    if solar_size_failed(results or []):
+        lines.extend(["", "> ⚠️ `solar-size` failed or mismatched on some benchmarks."])
     if behind_base:
         lines.extend(
             ["", f"> ⚠️ This branch is behind `{base_ref}`; results may be stale."]
@@ -2223,8 +2234,10 @@ def main(argv: list[str] | None = None) -> int:
         if args.baseline is None
         else ""
     )
-    should_comment = not baseline_results or comparison_has_changes(
-        comparison, args.ignore_compile_time_changes
+    should_comment = (
+        not baseline_results
+        or comparison_has_changes(comparison, args.ignore_compile_time_changes)
+        or solar_size_failed(results)
     )
     behind_base = branch_is_behind(base_ref)
     markdown = format_report(
