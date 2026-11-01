@@ -6,8 +6,8 @@
 //@ run-call-fail: RawRevert::raw 160 => 0x0000000000000000000000000000000000000000000000000000000000000000
 //@ run-call: RawRevert::sum 17, 23 => 40
 
-// A raw return may inspect memory outside the declared ABI return buffer.
-// Hoisting another route's arguments must not expose its spill stores there.
+// A raw return may inspect memory outside the declared ABI return buffer. A route that does
+// keeps its boundary, so another route's spill stores stay out of its reach.
 // CHECK-LABEL: @module RawMemory
 // CHECK: tail_call @raw
 contract RawMemory {
@@ -17,6 +17,10 @@ contract RawMemory {
 
     function sum(uint256 x, uint256 y) external pure returns (uint256) {
         return x + y;
+    }
+
+    function diff(uint256 x, uint256 y) external pure returns (uint256) {
+        return x - y;
     }
 }
 
@@ -29,5 +33,9 @@ contract RawRevert {
 
     function sum(uint256 x, uint256 y) external pure returns (uint256) {
         return x + y;
+    }
+
+    function diff(uint256 x, uint256 y) external pure returns (uint256) {
+        return x - y;
     }
 }

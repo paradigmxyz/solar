@@ -43,6 +43,11 @@ contract ICallStackReturn {
     // GAS-NEXT: push 0
     // GAS-NEXT: sload
     // GAS: sstore
+    // ADDMOD consumes the inlined result without a frame reload.
+    // GAS: [[MULTI_ENTRY]]:
+    // GAS: or
+    // GAS-NOT: mload
+    // GAS: addmod
     // The nested leaf is also inlined without reloading its result.
     // GAS: [[NESTED_ENTRY]]:
     // GAS-NOT: mload
@@ -51,11 +56,6 @@ contract ICallStackReturn {
     // GAS-NEXT: push 3
     // GAS-NEXT: add
     // GAS-NEXT: add
-    // ADDMOD consumes the inlined result without a frame reload.
-    // GAS: [[MULTI_ENTRY]]:
-    // GAS: or
-    // GAS-NOT: mload
-    // GAS: addmod
 
     // Size mode inlines the small helpers at every call site, and the backend shares the
     // repeated body again, keeping its one-word result on the physical stack and removing its
@@ -64,10 +64,8 @@ contract ICallStackReturn {
     // SIZE-LABEL: @module ICallStackReturn_runtime
     // SIZE: push 11
     // SIZE-NEXT: mul
-    // SIZE-NEXT: swap 2
-    // SIZE-NEXT: mul
-    // SIZE-NEXT: swap 2
     // SIZE-NEXT: jump
+    // SIZE-NOT: mload
     function stackAcross(uint256 x) external pure returns (uint256) {
         unchecked {
             uint256 keep = x * 3;

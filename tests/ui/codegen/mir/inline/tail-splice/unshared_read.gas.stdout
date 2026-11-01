@@ -1,0 +1,126 @@
+- // === ROOT/tests/ui/codegen/mir/inline/tail-splice/unshared_read.mir (before inline) ===
++ // === ROOT/tests/ui/codegen/mir/inline/tail-splice/unshared_read.mir (after inline) ===
+  @module UnsharedRead
+  @phase lowered
+  fn @add() {
+    bb0:
+      v0 = calldataload 4
+      v1 = calldataload 36
+      v2 = add v0, v1
+      mstore 0, v2
+      returndata 0, 32
+  }
+  
+  fn @sub() {
+    bb0:
+      v0 = calldataload 4
+      v1 = calldataload 36
+      v2 = sub v0, v1
+      mstore 0, v2
+      returndata 0, 32
+  }
+  
+  fn @stop() {
+    bb0:
+      stop
+  }
+  
+  fn @entry() [entry] {
+    bb0:
+      v0 = calldataload 0
+      v1 = shr v0, 224
+      switch v1, default bb4, [1 => bb1, 2 => bb2, 3 => bb3]
+    bb3:
+      tail_call @stop
+    bb2:
+      tail_call @sub
+    bb1:
+      tail_call @add
+    bb4:
+      revert 0, 0
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/inline/tail-splice/unshared_read.mir (before cfg-simplify) ===
++ // === ROOT/tests/ui/codegen/mir/inline/tail-splice/unshared_read.mir (after cfg-simplify) ===
+  @module UnsharedRead
+  @phase lowered
+  fn @add() {
+    bb0:
+      v0 = calldataload 4
+      v1 = calldataload 36
+      v2 = add v0, v1
+      mstore 0, v2
+      returndata 0, 32
+  }
+  
+  fn @sub() {
+    bb0:
+      v0 = calldataload 4
+      v1 = calldataload 36
+      v2 = sub v0, v1
+      mstore 0, v2
+      returndata 0, 32
+  }
+  
+  fn @stop() {
+    bb0:
+      stop
+  }
+  
+  fn @entry() [entry] {
+    bb0:
+      v0 = calldataload 0
+      v1 = shr v0, 224
+      switch v1, default bb4, [1 => bb1, 2 => bb2, 3 => bb3]
+    bb3:
+      tail_call @stop
+    bb2:
+      tail_call @sub
+    bb1:
+      tail_call @add
+    bb4:
+      revert 0, 0
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/inline/tail-splice/unshared_read.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/inline/tail-splice/unshared_read.mir (after dce) ===
+  @module UnsharedRead
+  @phase lowered
+  fn @add() {
+    bb0:
+      v0 = calldataload 4
+      v1 = calldataload 36
+      v2 = add v0, v1
+      mstore 0, v2
+      returndata 0, 32
+  }
+  
+  fn @sub() {
+    bb0:
+      v0 = calldataload 4
+      v1 = calldataload 36
+      v2 = sub v0, v1
+      mstore 0, v2
+      returndata 0, 32
+  }
+  
+  fn @stop() {
+    bb0:
+      stop
+  }
+  
+  fn @entry() [entry] {
+    bb0:
+      v0 = calldataload 0
+      v1 = shr v0, 224
+      switch v1, default bb4, [1 => bb1, 2 => bb2, 3 => bb3]
+    bb3:
+      tail_call @stop
+    bb2:
+      tail_call @sub
+    bb1:
+      tail_call @add
+    bb4:
+      revert 0, 0
+  }
+  

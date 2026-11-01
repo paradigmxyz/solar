@@ -21,10 +21,10 @@
 //!
 //! After memory lowering, frame allocation and multi-word return staging cannot
 //! be introduced again. At this stage the pass also partially clones returning
-//! guards in loops and moves eligible external wrappers into the dispatcher.
-//! Guard cloning uses the same cost comparison but retains the slow-path call. A
-//! dispatcher move needs no comparison, since it only removes call protocol and
-//! preserves each external exit.
+//! guards in loops and splices the sole-called routes of a function into its tail
+//! calls. Guard cloning uses the same cost comparison but retains the slow-path
+//! call. A splice is a block move with no call protocol, priced by the calldata
+//! read its routes share rather than by cloned bytes (see `splice_tail_calls`).
 //!
 //! Profitability compares the call protocol a clone removes, weighted by expected
 //! executions and, for statically counted loops, by iteration count, with the
@@ -512,8 +512,7 @@ impl MirInliner {
             let size = caller.instructions().count();
             let added = callees().map(|callee| callee.instructions().count()).sum::<usize>();
             let caller_target = module.target_of(gcx, caller);
-            if sites.len() < 2
-                || size + added > Self::MAX_SPLICED_CALLER_INSTRUCTIONS
+            if size + added > Self::MAX_SPLICED_CALLER_INSTRUCTIONS
                 || sites.iter().any(|&(_, callee, no_args)| {
                     !no_args
                         || call_counts[callee] != 1
@@ -1127,8 +1126,12 @@ fn is_spliceable(func: &Function) -> bool {
                 )
         })
         && func.blocks.iter().all(|block| match &block.terminator {
+            // A range over the free memory pointer's slot reads what the block stored there.
             Some(Terminator::ReturnData { offset, size } | Terminator::Revert { offset, size }) => {
-                confined(RawMemoryAccess::Read, func.value_u64(*offset), func.value_u64(*size))
+                let (offset, size) = (func.value_u64(*offset), func.value_u64(*size));
+                confined(RawMemoryAccess::Read, offset, size)
+                    || (func.block_stores_fmp_slot(block)
+                        && confined(RawMemoryAccess::Write, offset, size))
             }
             Some(
                 Terminator::Jump(_)

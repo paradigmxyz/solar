@@ -1,5 +1,10 @@
 // === ROOT/tests/ui/codegen/mir/loop-unroll/count_down.sol:CountDown ===
 @module CountDown
+fn @noop() [selector=0x5dfc2e4a, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    ret
+}
+
 fn @countDown(arg0: i256) -> i256 [selector=0x3b396421, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1

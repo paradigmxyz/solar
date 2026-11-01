@@ -1,6 +1,11 @@
 // === ROOT/tests/ui/codegen/mir/loop-unroll/count_down.sol:CountDown ===
 @module CountDown
 @phase lowered
+fn @noop() {
+  bb0:
+    stop
+}
+
 fn @countDown() {
   bb0:
     v6 = calldatasize
@@ -176,11 +181,13 @@ fn @entry() [entry] {
   bb0:
     v0 = callvalue
     v1 = ne v0, 0
-    jumpi v1, bb6, bb1
+    jumpi v1, bb7, bb1
   bb1:
     v2 = calldataload 0
     v3 = shr v2, 224
-    switch v3, default bb6, [0x3b396421 => bb2, 0x45ce5caf => bb3, 0x4930868e => bb4, 0x4e0372c8 => bb5]
+    switch v3, default bb7, [0x3b396421 => bb2, 0x45ce5caf => bb3, 0x4930868e => bb4, 0x4e0372c8 => bb5, 0x5dfc2e4a => bb6]
+  bb6:
+    tail_call @noop
   bb5:
     tail_call @stepDown
   bb4:
@@ -189,6 +196,6 @@ fn @entry() [entry] {
     tail_call @squaresDown
   bb2:
     tail_call @countDown
-  bb6:
+  bb7:
     revert 0, 0
 }

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/inline/dispatch/free_memory_slot_return.sol:Unwritten ===
+// === ROOT/tests/ui/codegen/mir/inline/tail-splice/free_memory_slot_return.sol:Unwritten ===
 @module Unwritten
 fn @raw() -> i256 [selector=0xc096a632, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
@@ -11,7 +11,13 @@ fn @sum(arg0: i256, arg1: i256) -> i256 [selector=0xcad0899b, pure, abi_params=[
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/mir/inline/dispatch/free_memory_slot_return.sol:Written ===
+fn @diff(arg0: i256, arg1: i256) -> i256 [selector=0x8f5e514a, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = checked_sub uint256, arg0, arg1
+    ret v0
+}
+
+// === ROOT/tests/ui/codegen/mir/inline/tail-splice/free_memory_slot_return.sol:Written ===
 @module Written
 fn @raw(arg0: i256) -> i256 [selector=0x302e678f, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
@@ -25,7 +31,13 @@ fn @sum(arg0: i256, arg1: i256) -> i256 [selector=0xcad0899b, pure, abi_params=[
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/mir/inline/dispatch/free_memory_slot_return.sol:Conditional ===
+fn @diff(arg0: i256, arg1: i256) -> i256 [selector=0x8f5e514a, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = checked_sub uint256, arg0, arg1
+    ret v0
+}
+
+// === ROOT/tests/ui/codegen/mir/inline/tail-splice/free_memory_slot_return.sol:Conditional ===
 @module Conditional
 fn @raw(arg0: i256) -> i256 [selector=0x302e678f, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
@@ -43,5 +55,11 @@ fn @raw(arg0: i256) -> i256 [selector=0x302e678f, pure, abi_params=[uint256], ab
 fn @sum(arg0: i256, arg1: i256) -> i256 [selector=0xcad0899b, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = checked_add uint256, arg0, arg1
+    ret v0
+}
+
+fn @diff(arg0: i256, arg1: i256) -> i256 [selector=0x8f5e514a, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = checked_sub uint256, arg0, arg1
     ret v0
 }

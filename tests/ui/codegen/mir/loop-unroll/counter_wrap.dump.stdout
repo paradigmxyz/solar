@@ -1,18 +1,47 @@
 // === ROOT/tests/ui/codegen/mir/loop-unroll/counter_wrap.sol:CounterWrap ===
 @module CounterWrap
 @phase lowered
+fn @below() {
+  bb0:
+    mstore 0, 7 !metadata(memory=scratch)
+    returndata 0, 32
+}
+
+fn @inclusive() {
+  bb0:
+    mstore 0, 7 !metadata(memory=scratch)
+    returndata 0, 32
+}
+
+fn @inclusiveStep() {
+  bb0:
+    mstore 0, 7 !metadata(memory=scratch)
+    returndata 0, 32
+}
+
+fn @fullRange() {
+  bb0:
+    mstore 0, 7 !metadata(memory=scratch)
+    returndata 0, 32
+}
+
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
     v1 = ne v0, 0
-    jumpi v1, bb3, bb1
+    jumpi v1, bb6, bb1
   bb1:
     v2 = calldataload 0
     v3 = shr v2, 224
-    switch v3, default bb3, [0xe7de724 => bb2, 0x49f58928 => bb2, 0x4ba53e45 => bb2, 0xc4e2c456 => bb2]
-  bb2:
-    mstore 0, 7
-    returndata 0, 32
+    switch v3, default bb6, [0xe7de724 => bb2, 0x49f58928 => bb3, 0x4ba53e45 => bb4, 0xc4e2c456 => bb5]
+  bb5:
+    tail_call @fullRange
+  bb4:
+    tail_call @inclusive
   bb3:
+    tail_call @inclusiveStep
+  bb2:
+    tail_call @below
+  bb6:
     revert 0, 0
 }

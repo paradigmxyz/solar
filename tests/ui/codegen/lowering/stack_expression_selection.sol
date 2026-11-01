@@ -2,14 +2,11 @@
 //@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
 //@[ir] filecheck:
 // CHECK-LABEL: @module StackExpressionSelection_runtime
-// The subtraction and XOR routes share the increment/zero-test tail.
-// CHECK: xor
-// CHECK-NEXT: jump [[TAIL:bb[0-9]+]]
-// CHECK-NEXT: [[TAIL]]:
-// CHECK: add
-// CHECK: eq
-// CHECK: sub
-// CHECK-NEXT: jump [[TAIL]]
+// The three-word routes share one increment/zero-test tail and its return.
+// CHECK: push 96
+// CHECK-NEXT: push 0
+// CHECK-NEXT: return
+// CHECK-NOT: push 96
 //@ run-call: difference 9, 4 => 5, false
 //@ run-call: difference 7, 7 => 0, true
 //@ run-call: difference 0, 1 => 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, false
