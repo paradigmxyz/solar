@@ -46,7 +46,8 @@
 //! may write the range: the allocation covers it, and the memory it covers was zero.
 //!
 //! A dropped fill leaves memory unexpanded, which changes what the program can observe: its gas,
-//! and `msize`. A function that observes gas, or has a caller that does, keeps its fills, and so
+//! and `msize`. A function that observes gas, directly or through a call or tail call, or has a
+//! caller that does, keeps its fills, and so
 //! does every function of a module that reads `msize`. A fill of more than
 //! [`EvmMemoryLayout::MAX_DEAD_FILL`] bytes stays too: expanding that much memory costs more gas
 //! than a call has, so the fill is what makes a huge allocation fail.
@@ -57,14 +58,15 @@ use super::{
     integers::unsigned_bounds_with_opcodes,
 };
 use crate::mir::{
-    AllocationFailure, AllocationInitialization, BlockId, Callee, EffectKind, Function, FunctionId,
-    InstId, InstKind, Module, PtrLocation, Terminator, Value, ValueId, memory::EvmMemoryLayout,
+    AllocationFailure, AllocationInitialization, AllocationSemantics, BlockId, Callee, EffectKind,
+    Function, FunctionId, InstId, InstKind, Module, PtrLocation, Terminator, Value, ValueId,
+    memory::EvmMemoryLayout,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
-    map::{FxHashMap, FxHashSet},
+    map::FxHashSet,
 };
 use std::sync::Arc;
 
@@ -86,12 +88,16 @@ impl FreshHeap {
         let reads_msize = module.functions.iter().any(|func| {
             func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::MSize))
         });
-        let has_fill = |func: &Function| !reads_msize && has_zero_fill(func);
-        let wanted = |func: &Function| {
+        let has_fill = module
+            .functions
+            .iter()
+            .map(|func| !reads_msize && has_zero_fill(func))
+            .collect::<IndexVec<FunctionId, _>>();
+        let wanted = |id: FunctionId, func: &Function| {
             let objective = module.objective_of(func);
-            !objective.is_none() && (has_read(func, objective.is_gas()) || has_fill(func))
+            !objective.is_none() && (has_read(func, objective.is_gas()) || has_fill[id])
         };
-        if !module.functions.iter().any(wanted) {
+        if !module.functions.iter_enumerated().any(|(id, func)| wanted(id, func)) {
             return Self::none();
         }
         let summaries = summaries();
@@ -101,7 +107,7 @@ impl FreshHeap {
         for (id, func) in module.functions.iter_enumerated() {
             let mut fresh = FxHashSet::default();
             let mut zeros = FxHashSet::default();
-            if wanted(func) {
+            if wanted(id, func) {
                 let checked = module.objective_of(func).is_gas();
                 if has_read(func, checked) && analysis.entered(Fact::Slot, id) {
                     let freshness = analysis.facts(Fact::Slot, id);
@@ -109,7 +115,7 @@ impl FreshHeap {
                         is_read(func, inst, checked) && freshness.insts.contains(&inst)
                     }));
                 }
-                if has_fill(func) && analysis.entered(Fact::Zero, id) {
+                if has_fill[id] && analysis.entered(Fact::Zero, id) {
                     zeros = analysis.zero_fills(id);
                 }
             }
@@ -129,6 +135,21 @@ impl FreshHeap {
     #[must_use]
     pub(crate) fn contains(&self, func: FunctionId, inst: InstId) -> bool {
         self.reads.get(func).is_some_and(|reads| reads.contains(&inst))
+    }
+
+    /// What the allocation `inst` of `func` must initialize: nothing when its zero fill is dead.
+    #[must_use]
+    pub(crate) fn initialization(
+        &self,
+        func: FunctionId,
+        inst: InstId,
+        semantics: AllocationSemantics,
+    ) -> AllocationInitialization {
+        if self.skips_zero_fill(func, inst) {
+            AllocationInitialization::Uninitialized
+        } else {
+            semantics.initialization
+        }
     }
 
     /// Whether the zero fill of `inst` of `func` writes memory that is still zero: the
@@ -172,8 +193,6 @@ struct Freshness {
     /// Whether the fact still holds at every return, and at every tail call to a function that
     /// keeps it. Only the zero fact tracks it.
     clean_exit: bool,
-    /// The callees that keep the fact, for the zero fact.
-    keepers: FxHashSet<FunctionId>,
 }
 
 impl Freshness {
@@ -345,7 +364,6 @@ impl<'a> Analysis<'a> {
             }
         }
         freshness.clean_exit = clean_exit;
-        freshness.keepers = keepers;
         freshness
     }
 
@@ -371,7 +389,13 @@ impl<'a> Analysis<'a> {
         }
         let func = &self.module.functions[id];
         let alias = AliasAnalysis::with_call_summaries(func, Arc::clone(self.summaries));
-        let observes = GasObservations::any(func, &CfgInfo::new(func), &alias);
+        let cfg = CfgInfo::new(func);
+        // A tail call hands the rest of the call to a callee, which may observe gas.
+        let tail_observes = cfg.rpo().iter().any(|&block| {
+            matches!(func.blocks[block].terminator, Some(Terminator::TailCall { function, .. })
+                if self.summaries.get(function).is_none_or(|summary| summary.may_observe_gas()))
+        });
+        let observes = tail_observes || GasObservations::any(func, &cfg, &alias);
         self.observes_gas[id] = Some(observes);
         observes
     }
@@ -396,14 +420,16 @@ impl<'a> Analysis<'a> {
         }
         let alias = AliasAnalysis::with_call_summaries(func, Arc::clone(self.summaries));
         let cfg = CfgInfo::new(func);
+        let keepers = self.zero_keepers(id);
         let zero = self.facts(Fact::Zero, id);
-        let mut positions = FxHashMap::default();
+        let mut positions = index_vec![None; func.num_insts()];
         for (block, data) in func.blocks.iter_enumerated() {
             for (at, &inst) in data.instructions.iter().enumerate() {
-                positions.insert(inst, (block, at));
+                positions[inst] = Some((block, at));
             }
         }
-        for (&fill, &fill_at) in &positions {
+        for (fill, fill_at) in positions.iter_enumerated() {
+            let Some(fill_at) = *fill_at else { continue };
             if let InstKind::Alloc { size, .. } = func.inst(fill).kind {
                 if is_zeroed_alloc(func, fill) && is_small(func, size) && zero.insts.contains(&fill)
                 {
@@ -415,11 +441,12 @@ impl<'a> Analysis<'a> {
                     zeroed_range(func, &alias, fill, fill_at, address, size)
                 && !func.inst(alloc).metadata.deferred_alloc()
                 && zero.insts.contains(&alloc)
-                && let Some(&alloc_at) = positions.get(&alloc)
+                && let Some(alloc_at) = positions[alloc]
                 && !written_between(func, &cfg, alloc_at, fill_at, |inst, repeats| {
                     // A copy that ends at the fill, in the fill's own block, ran just before it.
-                    let ends_here = !repeats && positions[&inst].0 == fill_at.0;
-                    may_dirty_range(func, &alias, &zero.keepers, inst, address, location, ends_here)
+                    let ends_here =
+                        !repeats && positions[inst].is_some_and(|(block, _)| block == fill_at.0);
+                    may_dirty_range(func, &alias, &keepers, inst, address, location, ends_here)
                 })
             {
                 fills.insert(fill);
@@ -427,54 +454,6 @@ impl<'a> Analysis<'a> {
         }
         fills
     }
-}
-
-/// Whether `dirty` holds for an instruction on a path from `from` to `to`, where `from` precedes
-/// `to` and dominates it. Each path is cut where it passes `from` again, as the allocation there
-/// is a new object. `dirty` also learns whether `to` runs more than once per path from `from`.
-fn written_between(
-    func: &Function,
-    cfg: &CfgInfo,
-    (from_block, from_at): (BlockId, usize),
-    (to_block, to_at): (BlockId, usize),
-    dirty: impl Fn(InstId, bool) -> bool,
-) -> bool {
-    let any = |block: BlockId, range: std::ops::Range<usize>, repeats: bool| {
-        func.blocks[block].instructions[range].iter().any(|&inst| dirty(inst, repeats))
-    };
-    if from_block == to_block {
-        return any(from_block, from_at + 1..to_at, false);
-    }
-    // Every block that reaches `to` without passing `from` lies on a path from `from`.
-    let mut seen = DenseBitSet::new_empty(func.blocks.len());
-    let mut between = Vec::new();
-    let mut worklist = cfg.predecessors(to_block).to_vec();
-    let mut loops_back = false;
-    while let Some(block) = worklist.pop() {
-        if !cfg.is_reachable(block) {
-            continue;
-        }
-        if block == to_block {
-            loops_back = true;
-        } else if seen.insert(block) {
-            between.push(block);
-            if block != from_block {
-                worklist.extend_from_slice(cfg.predecessors(block));
-            }
-        }
-    }
-    let len = |block: BlockId| func.blocks[block].instructions.len();
-    between.into_iter().any(|block| {
-        let first = if block == from_block { from_at + 1 } else { 0 };
-        any(block, first..len(block), loops_back)
-    }) || any(to_block, 0..to_at, loops_back)
-        // A loop around `to` runs the rest of its block before the next visit.
-        || loops_back && any(to_block, to_at..len(to_block), true)
-}
-
-/// Whether a fill of `size` bytes is small enough to leave: see [`EvmMemoryLayout::MAX_DEAD_FILL`].
-fn is_small(func: &Function, size: ValueId) -> bool {
-    unsigned_bounds_with_opcodes(func, size).1 <= U256::from(EvmMemoryLayout::MAX_DEAD_FILL)
 }
 
 fn is_read(func: &Function, inst: InstId, checked: bool) -> bool {
@@ -565,14 +544,16 @@ fn may_write_slot(func: &Function, alias: &AliasAnalysis, inst: InstId) -> bool 
 
 /// Whether `func` fills memory with zeros where a fresh heap makes the fill dead.
 fn has_zero_fill(func: &Function) -> bool {
-    let allocates = func.instructions().any(|inst| {
-        matches!(func.inst(inst).kind, InstKind::Alloc { .. })
-            && !func.inst(inst).metadata.deferred_alloc()
-    });
-    allocates
-        && func
-            .instructions()
-            .any(|inst| is_zeroed_alloc(func, inst) || zero_fill(func, inst).is_some())
+    let (mut allocates, mut fills) = (false, false);
+    for inst in func.instructions() {
+        if is_zeroed_alloc(func, inst) {
+            return true;
+        }
+        allocates |= matches!(func.inst(inst).kind, InstKind::Alloc { .. })
+            && !func.inst(inst).metadata.deferred_alloc();
+        fills |= zero_fill(func, inst).is_some();
+    }
+    allocates && fills
 }
 
 /// Whether `inst` is an allocation that zeroes the memory it reserves.
@@ -721,4 +702,52 @@ fn ends_at(func: &Function, address: ValueId, start: ValueId, len: ValueId) -> b
     };
     let operands = (strip(a), strip(b));
     operands == (start, len) || operands == (len, start)
+}
+
+/// Whether `dirty` holds for an instruction on a path from `from` to `to`, where `from` precedes
+/// `to` and dominates it. Each path is cut where it passes `from` again, as the allocation there
+/// is a new object. `dirty` also learns whether `to` runs more than once per path from `from`.
+fn written_between(
+    func: &Function,
+    cfg: &CfgInfo,
+    (from_block, from_at): (BlockId, usize),
+    (to_block, to_at): (BlockId, usize),
+    dirty: impl Fn(InstId, bool) -> bool,
+) -> bool {
+    let any = |block: BlockId, range: std::ops::Range<usize>, repeats: bool| {
+        func.blocks[block].instructions[range].iter().any(|&inst| dirty(inst, repeats))
+    };
+    if from_block == to_block {
+        return any(from_block, from_at + 1..to_at, false);
+    }
+    // Every block that reaches `to` without passing `from` lies on a path from `from`.
+    let mut seen = DenseBitSet::new_empty(func.blocks.len());
+    let mut between = Vec::new();
+    let mut worklist = cfg.predecessors(to_block).to_vec();
+    let mut loops_back = false;
+    while let Some(block) = worklist.pop() {
+        if !cfg.is_reachable(block) {
+            continue;
+        }
+        if block == to_block {
+            loops_back = true;
+        } else if seen.insert(block) {
+            between.push(block);
+            if block != from_block {
+                worklist.extend_from_slice(cfg.predecessors(block));
+            }
+        }
+    }
+    let len = |block: BlockId| func.blocks[block].instructions.len();
+    between.into_iter().any(|block| {
+        let first = if block == from_block { from_at + 1 } else { 0 };
+        any(block, first..len(block), loops_back)
+    }) || any(to_block, 0..to_at, loops_back)
+        // A loop around `to` runs the rest of its block before the next visit.
+        || loops_back && any(to_block, to_at..len(to_block), true)
+}
+
+/// Whether a fill of `size` bytes is small enough to leave: see [`EvmMemoryLayout::MAX_DEAD_FILL`].
+fn is_small(func: &Function, size: ValueId) -> bool {
+    unsigned_bounds_with_opcodes(func, size).1 <= U256::from(EvmMemoryLayout::MAX_DEAD_FILL)
 }

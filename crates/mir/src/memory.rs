@@ -29,8 +29,8 @@ impl EvmMemoryLayout {
     /// Maximum memory pointer accepted by Solidity-compatible allocation.
     pub const MAX_ALLOCATION_END: u64 = u64::MAX;
     /// Largest zero fill of untouched memory that may be dropped. Expanding memory to four times
-    /// this size costs more gas than a call can have, so a larger fill is what makes an
-    /// allocation of that size fail, and it stays.
+    /// this size costs about 34 million gas, so a larger fill is what makes an allocation of that
+    /// size run out of gas, and it stays.
     pub const MAX_DEAD_FILL: u64 = 1 << 20;
     /// Returns the word a word-aligned byte offset addresses.
     #[must_use]

@@ -475,3 +475,21 @@ fn @tail_in_loop(arg0: i256, arg1: i256) [selector=0x3000001b] {
   bb3:
     stop
 }
+
+// A tail call to a function that reads gas observes it too.
+// CHECK-LABEL: {{^[ +].*}}fn @observer{{[( ]}}
+fn @observer() {
+  bb0:
+    v0 = gas
+    mstore 0, v0
+    stop
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @tail_observes{{[( ]}}
+// CHECK: {{^ +}}memory_zero {{v[0-9]+}}, 64
+fn @tail_observes() [selector=0x3000001c] {
+  bb0:
+    v0 = alloc 64
+    memory_zero v0, 64
+    tail_call @observer
+}

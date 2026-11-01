@@ -557,3 +557,21 @@
       jump bb1
   }
   
+  fn @observer() {
+    bb0:
+      v0 = gas
+      mstore 0, v0
+      stop
+  }
+  
+  fn @tail_observes() [selector=0x3000001c] {
+    bb0:
+-     v0 = alloc 64
++     v1 = heap_floor !metadata(alloc_ptr)
++     v0 = inttoptr i256 v1 to ptr<memory> !metadata(memory=scratch)
++     v2 = add v1, 64 !metadata(alloc_ptr)
++     mstore 64, v2 !metadata(memory=scratch)
+      memory_zero v0, 64
+      tail_call @observer
+  }
+  

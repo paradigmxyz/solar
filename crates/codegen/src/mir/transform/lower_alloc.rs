@@ -122,7 +122,7 @@ fn share_checked_allocations(
                     builder.func().inst_result_value(inst).expect("allocation has a result");
                 // object = icall checked_alloc size
                 let object = builder.icall(helper, vec![size], MirType::MEMPTR);
-                initialize(builder, object, size, is_zeroed(fresh, func_id, inst, semantics));
+                initialize(builder, object, size, fresh.initialization(func_id, inst, semantics));
                 replacements.insert(result, object);
                 true
             });
@@ -207,7 +207,7 @@ fn lower_function(
             // continuation: mstore 64, next
             builder.switch_to_block(continuation);
             store_fmp(builder, next);
-            initialize(builder, ptr, size, is_zeroed(fresh, id, inst, semantics));
+            initialize(builder, ptr, size, fresh.initialization(id, inst, semantics));
             true
         });
     }
@@ -249,7 +249,7 @@ fn lower_function(
                     builder.func_mut().blocks[block].instructions.push(inst);
                     let next = bump(&mut builder, word, size);
                     store_fmp(&mut builder, next);
-                    initialize(&mut builder, ptr, size, is_zeroed(fresh, id, inst, semantics));
+                    initialize(&mut builder, ptr, size, fresh.initialization(id, inst, semantics));
                 }
                 // memory_zero ptr, size | mstore ptr, 0 -> dropped
                 InstKind::MemoryZero(..) | InstKind::Store(..)
@@ -276,7 +276,7 @@ fn lower_function(
                     rewrite_as_fmp_read(&mut builder, inst, is_fresh(inst));
                     let next = bump(&mut builder, ptr, size);
                     store_fmp(&mut builder, next);
-                    initialize(&mut builder, ptr, size, is_zeroed(fresh, id, inst, semantics));
+                    initialize(&mut builder, ptr, size, fresh.initialization(id, inst, semantics));
                 }
                 _ => {
                     peek.observe(builder.func(), inst);
@@ -367,19 +367,13 @@ impl FmpPeek {
     }
 }
 
-/// Whether the allocation `inst` of function `id` must write zeros: it asks for them, and the
-/// memory it reserves may be dirty.
-fn is_zeroed(
-    fresh: &FreshHeap,
-    id: FunctionId,
-    inst: InstId,
-    semantics: AllocationSemantics,
-) -> bool {
-    semantics.initialization == AllocationInitialization::Zeroed && !fresh.skips_zero_fill(id, inst)
-}
-
-fn initialize(builder: &mut FunctionBuilder<'_>, ptr: ValueId, size: ValueId, zeroed: bool) {
-    if zeroed {
+fn initialize(
+    builder: &mut FunctionBuilder<'_>,
+    ptr: ValueId,
+    size: ValueId,
+    initialization: AllocationInitialization,
+) {
+    if initialization == AllocationInitialization::Zeroed {
         builder.memory_zero(ptr, size);
     }
 }
