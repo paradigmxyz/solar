@@ -215,10 +215,11 @@ impl HotnessAnalysis {
                 all_exits_cold = false;
                 continue;
             };
+            if term.reverts() {
+                saw_exit = true;
+                continue;
+            }
             match term {
-                Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid => {
-                    saw_exit = true;
-                }
                 Terminator::TailCall { function: callee, .. } => {
                     calls = true;
                     if self.cold_functions.contains(*callee) {

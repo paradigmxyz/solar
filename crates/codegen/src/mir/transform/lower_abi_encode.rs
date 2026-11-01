@@ -83,10 +83,9 @@
 //! covers a layout nested in several larger ones as well as one encoded at several sites. A tuple
 //! shape that only cold blocks encode, and a calldata layout that no hot block and no hot layout
 //! encodes, are priced like a size build ([`Target::priced_for_cold`]): the helper's gas runs
-//! only on a failing call. Functions
-//! reachable from a constructor always encode inline: a constructor call frame is
-//! allocated at the free-memory pointer, where an outlined encoder would still
-//! be writing its unreserved output.
+//! only on a failing call. Functions reachable from a constructor always encode inline: a
+//! constructor call frame is allocated at the free-memory pointer, where an outlined encoder
+//! would still be writing its unreserved output.
 
 use crate::{
     mir::{

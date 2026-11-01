@@ -18,7 +18,8 @@ pub struct BasicBlock {
     pub predecessors: SmallVec<[BlockId; 4]>,
     /// Whether the block is expected to run rarely. Computed by the hotness analysis, which the
     /// pass manager reruns after every pass that changes the module; a pass that rewrites control
-    /// flow need not maintain it.
+    /// flow need not maintain it, but reads of it inside that pass can be stale, and new blocks
+    /// start hot.
     pub hotness: Hotness,
 }
 

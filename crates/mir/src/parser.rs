@@ -578,14 +578,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     self.parser.look_ahead(3).kind,
                     TokenKind::CloseDelim(Delimiter::Bracket)
                 );
-        if !matches!(self.parser.look_ahead(if cold { 4 } else { 1 }).kind, TokenKind::Colon) {
+        let label_tokens = if cold { 4 } else { 1 };
+        if !matches!(self.parser.look_ahead(label_tokens).kind, TokenKind::Colon) {
             return Ok(None);
         }
-        self.parser.bump();
-        if cold {
-            for _ in 0..3 {
-                self.parser.bump();
-            }
+        for _ in 0..label_tokens {
+            self.parser.bump();
         }
         self.parser.expect(TokenKind::Colon)?;
         Ok(Some((index, if cold { Hotness::Cold } else { Hotness::Hot })))

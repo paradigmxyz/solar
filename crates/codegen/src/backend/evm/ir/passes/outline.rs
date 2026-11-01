@@ -477,8 +477,8 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     let target = module.target(gcx);
     let (site_bytes, body_bytes, transfer_gas) = push_share_costs(&target);
     let mut sites = FxHashMap::<U256, SmallVec<[Site; 2]>>::default();
+    let is_gas = target.optimization().is_gas();
     for (block_id, block) in module.blocks.iter_enumerated() {
-        let is_gas = target.optimization().is_gas();
         // Size mode prices every loop block, cold or not, by the iterations it may run.
         let in_loop = if is_gas { in_hot_loop(block) } else { block.metadata.in_loop };
         if is_gas && in_loop {
