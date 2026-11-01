@@ -72,7 +72,7 @@ use crate::{
         AbiLayout, AbiType, AllocationSemantics, BlockId, Builtin, Callee, EffectKind, FrameMode,
         FrameSlotKind, Function, FunctionBuilder, FunctionId as MirFunctionId, Immediate,
         ImmutableEncoding, InstId, InstKind, Instruction, MirModuleTarget, MirPhase, MirType,
-        Module, PtrLocation, StorageAlias, Terminator, Value, ValueId,
+        Module, PtrLocation, RawMemoryAccess, StorageAlias, Terminator, Value, ValueId,
         analysis::{
             AddressSpace, CallGraphInfo, Liveness, LoopAnalyzer, MemoryCallSummaries,
             direct_callees,
@@ -90,7 +90,6 @@ use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMa
 use solar_sema::Gcx;
 
 mod all_sites;
-mod dispatch;
 mod guards;
 mod shared_runs;
 
@@ -150,10 +149,6 @@ impl MirPass for Inline {
         let mut edited_later = false;
         if physical && !tagged_only {
             edited_later = guards::inline_guards(gcx, module);
-            if !target.optimization().is_none() && dispatch::inline_dispatch(module) {
-                let _ = super::cfg_simplify::FunctionDce.run_pass(gcx, module, analyses);
-                edited_later = true;
-            }
         }
         if !edited_later {
             analyses.preserve_local_summaries();
@@ -221,6 +216,10 @@ impl MirInliner {
     /// `2^depth` bodies, and compile time would grow with them. The largest safe-Solady module
     /// takes about 4,700.
     const TAGGED_BUDGET: usize = 16 * 1024;
+    /// Instructions of a function that a tail call may absorb.
+    const MAX_SPLICED_INSTRUCTIONS: usize = 256;
+    /// Instructions a function may reach by absorbing tail-called functions.
+    const MAX_SPLICED_CALLER_INSTRUCTIONS: usize = 4096;
 }
 
 /// Statistics for MIR-level inlining.
@@ -454,7 +453,102 @@ impl MirInliner {
             }
         }
 
+        if self.physical && !self.tagged_only {
+            self.splice_tail_calls(
+                gcx,
+                module,
+                analyses,
+                &call_graph,
+                &mut call_counts,
+                &mut stats,
+            );
+        }
+
         stats
+    }
+
+    /// Moves each function into the tail call that is its only call, when all the tail calls
+    /// of a function can move and the bodies share a calldata read that `place-reads` hoists.
+    ///
+    /// The tail call passes nothing, so splicing the body into the call block is a block move:
+    /// no call protocol remains, and no code is duplicated. The body's exits become the caller's
+    /// own, since a tail call hands the caller's continuation to its callee. Moving saves nothing
+    /// by itself, since the backend jumps straight to a tail call's target; it lets later passes
+    /// see the routes of a dispatcher together. `place-reads` hoists a read only above a branch
+    /// whose every continuing path reads it, so one route left behind forfeits the hoist, and
+    /// the target prices the hoist as that pass does.
+    ///
+    /// A bound on the caller's size keeps its per-function analyses linear in the routes it
+    /// absorbs.
+    fn splice_tail_calls(
+        &self,
+        gcx: Gcx<'_>,
+        module: &mut Module,
+        analyses: &ModuleAnalyses,
+        call_graph: &CallGraphInfo,
+        call_counts: &mut IndexVec<MirFunctionId, usize>,
+        stats: &mut MirInlineStats,
+    ) {
+        let reachable = call_graph.reachable_from_entries();
+        for caller_id in module.functions.indices() {
+            if !(reachable.is_empty() || reachable.contains(caller_id))
+                || module.objective(caller_id).is_none()
+                || !analyses.runs_on(module, caller_id)
+            {
+                continue;
+            }
+            let caller = module.function(caller_id);
+            let sites = caller
+                .blocks
+                .iter_enumerated()
+                .filter_map(|(block, data)| match &data.terminator {
+                    Some(Terminator::TailCall { function, args }) => {
+                        Some((block, *function, args.is_empty()))
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            let callees = || sites.iter().map(|&(_, callee, _)| module.function(callee));
+            let size = caller.instructions().count();
+            let added = callees().map(|callee| callee.instructions().count()).sum::<usize>();
+            let caller_target = module.target_of(gcx, caller);
+            if sites.len() < 2
+                || size + added > Self::MAX_SPLICED_CALLER_INSTRUCTIONS
+                || sites.iter().any(|&(_, callee, no_args)| {
+                    !no_args
+                        || call_counts[callee] != 1
+                        || callee == caller_id
+                        || module.constructor() == Some(callee)
+                        || call_graph.is_recursive(callee)
+                        || module.objective(callee) != module.objective(caller_id)
+                        || module.function(callee).instructions().count()
+                            > Self::MAX_SPLICED_INSTRUCTIONS
+                        || !is_spliceable(module.function(callee))
+                })
+                || !shared_read_pays(&caller_target, callees())
+            {
+                continue;
+            }
+            for (block, callee_id, _) in sites {
+                let Ok([caller, callee]) =
+                    module.functions.raw.get_disjoint_mut([caller_id.index(), callee_id.index()])
+                else {
+                    unreachable!("a call to the caller itself is not spliceable");
+                };
+                let snapshot = caller.clone();
+                if splice_tail_call(caller, block, callee).is_none() {
+                    *caller = snapshot;
+                    continue;
+                }
+                stats.inlined += 1;
+                stats.consumed.push(callee_id);
+                stats.modified.push(caller_id);
+                call_counts[callee_id] = 0;
+                for function in direct_callees(callee) {
+                    call_counts[function] += 1;
+                }
+            }
+        }
     }
 
     fn summarize_module(
@@ -958,6 +1052,96 @@ fn is_terminal_call(module: &Module, kind: &InstKind) -> bool {
         return false;
     };
     never_returns(module.function(*callee))
+}
+
+/// Whether a constant calldata word that every one of `routes` reads repays being read once above
+/// them, as `place-reads` does.
+fn shared_read_pays<'a>(target: &Target, routes: impl Iterator<Item = &'a Function>) -> bool {
+    let mut shared: Option<Vec<u64>> = None;
+    let mut count = 0;
+    for route in routes {
+        let mut offsets = route
+            .instructions()
+            .filter_map(|id| {
+                let result = route.inst_result_value(id)?;
+                match route.inst(id).kind {
+                    InstKind::Load(address, _) if route.is_constant_calldata_load(result) => {
+                        route.value_u64(address)
+                    }
+                    _ => None,
+                }
+            })
+            .collect::<Vec<_>>();
+        offsets.sort_unstable();
+        offsets.dedup();
+        shared = Some(match shared {
+            Some(shared) => shared.into_iter().filter(|offset| offsets.contains(offset)).collect(),
+            None => offsets,
+        });
+        count += 1;
+    }
+    shared
+        .is_some_and(|shared| shared.iter().any(|&offset| target.hoisted_read_pays(offset, count)))
+}
+
+/// Whether the body of `func` can replace a tail call to it without changing what memory its
+/// code observes, since the caller's layout owns the memory above the scratch area: spill slots,
+/// the heap, and the free memory pointer, which only a runtime entry initializes.
+///
+/// NOTE: A body that allocates, calls, or touches memory beyond the scratch area, the zero slot
+/// it only reads, and its own static return buffer keeps the call boundary. The caller's spill
+/// slots would share those addresses, and the free memory pointer that its own entry
+/// initialization provides would be unset.
+fn is_spliceable(func: &Function) -> bool {
+    let return_end = EvmMemoryLayout::HEAP_START + func.external_static_return_size;
+    let confined = |access: RawMemoryAccess, offset: Option<u64>, size: Option<u64>| {
+        let (Some(offset), Some(size)) = (offset, size) else { return false };
+        let Some(end) = offset.checked_add(size) else { return false };
+        size == 0
+            || end <= EvmMemoryLayout::FMP_SLOT
+            || (access == RawMemoryAccess::Read
+                && offset >= EvmMemoryLayout::ZERO_SLOT
+                && end <= EvmMemoryLayout::HEAP_START)
+            || (access != RawMemoryAccess::Read && end <= EvmMemoryLayout::HEAP_START)
+            || (offset >= EvmMemoryLayout::HEAP_START && end <= return_end)
+    };
+    !func.attributes.no_inline
+        && func.params.is_empty()
+        && func.internal_frame_size == 0
+        && func.instructions().all(|id| {
+            let kind = &func.inst(id).kind;
+            let mut confined_to_scratch = true;
+            kind.visit_raw_memory(|access, offset, size| {
+                confined_to_scratch &=
+                    confined(access, func.value_u64(offset), size.constant(func));
+            });
+            confined_to_scratch
+                && !matches!(
+                    kind,
+                    InstKind::ICall { .. }
+                        | InstKind::Alloc { .. }
+                        | InstKind::Fmp
+                        | InstKind::SetFmp(_)
+                        | InstKind::AbiEncode { .. }
+                        | InstKind::MappingSlotBytes(..)
+                )
+        })
+        && func.blocks.iter().all(|block| match &block.terminator {
+            Some(Terminator::ReturnData { offset, size } | Terminator::Revert { offset, size }) => {
+                confined(RawMemoryAccess::Read, func.value_u64(*offset), func.value_u64(*size))
+            }
+            Some(
+                Terminator::Jump(_)
+                | Terminator::Branch { .. }
+                | Terminator::Switch { .. }
+                | Terminator::Return { .. }
+                | Terminator::RevertReturndata
+                | Terminator::Stop
+                | Terminator::Invalid
+                | Terminator::SelfDestruct { .. },
+            ) => true,
+            Some(Terminator::TailCall { .. }) | None => false,
+        })
 }
 
 /// Whether every path through `callee` ends the message, as a shared revert helper does.
@@ -2032,22 +2216,19 @@ fn inline_literal_call(
     Some(())
 }
 
-/// Splices an externally terminating wrapper into one dispatcher route.
-/// The caller owns rollback if cloning fails; eligibility and frame exclusion
-/// are checked by the dispatcher pass before any module mutation.
-pub(super) fn inline_dispatch_route(
-    caller: &mut Function,
-    block: BlockId,
-    callee: &Function,
-) -> Option<()> {
+/// Moves the body of `callee` into the block of `caller` that tail-calls it.
+/// The caller owns rollback if cloning fails.
+fn splice_tail_call(caller: &mut Function, block: BlockId, callee: &Function) -> Option<()> {
     let mut cloner = InlineCloner::new(caller, callee, 0, 0, Box::default());
-    cloner.external_exit = true;
+    cloner.tail = true;
     let entry = cloner.clone_blocks(BlockId::ENTRY)?;
-    // tail_call @wrapper => jump cloned_entry
-    // cloned exits retain returndata/revert/stop rather than returning to a caller
-    // NOTE: The wrapper call boundary disappears; its source checkpoint cannot
-    // describe this generated jump. Cloned body instructions keep their origins.
+    // tail_call @callee => jump cloned_entry
+    // cloned exits stay exits of the caller: the callee's results are the caller's own
+    // NOTE: The call boundary disappears; its source checkpoint cannot describe this
+    // generated jump. Cloned body instructions keep their origins.
     cloner.caller.blocks[block].set_generated_terminator(Terminator::Jump(entry));
+    cloner.caller.external_static_return_size =
+        cloner.caller.external_static_return_size.max(callee.external_static_return_size);
     rebuild_predecessors(cloner.caller);
     Some(())
 }
@@ -2061,7 +2242,8 @@ struct InlineCloner<'a> {
     value_map: FxHashMap<ValueId, ValueId>,
     block_map: IndexVec<BlockId, BlockId>,
     return_edges: Vec<(BlockId, SmallVec<[ValueId; 2]>)>,
-    external_exit: bool,
+    /// Whether the callee body replaces a tail call, so its exits are the caller's.
+    tail: bool,
 }
 
 impl<'a> InlineCloner<'a> {
@@ -2081,7 +2263,7 @@ impl<'a> InlineCloner<'a> {
             value_map: FxHashMap::default(),
             block_map: IndexVec::with_capacity(callee.blocks.len()),
             return_edges: Vec::new(),
-            external_exit: false,
+            tail: false,
         }
     }
 
@@ -2198,17 +2380,21 @@ impl<'a> InlineCloner<'a> {
                     })
                     .collect::<Option<Vec<_>>>()?,
             },
-            // returndata offset, size => returndata cloned(offset), cloned(size)
-            Terminator::ReturnData { offset, size } if self.external_exit => {
-                Terminator::ReturnData {
-                    offset: self.clone_value(*offset)?,
-                    size: self.clone_value(*size)?,
-                }
+            // exits of a tail-called body are exits of the caller
+            Terminator::ReturnData { offset, size } if self.tail => Terminator::ReturnData {
+                offset: self.clone_value(*offset)?,
+                size: self.clone_value(*size)?,
+            },
+            Terminator::Stop if self.tail => Terminator::Stop,
+            Terminator::SelfDestruct { recipient } if self.tail => {
+                Terminator::SelfDestruct { recipient: self.clone_value(*recipient)? }
             }
-            Terminator::Stop if self.external_exit => Terminator::Stop,
-            Terminator::Return { values } if self.external_exit && values.is_empty() => {
-                Terminator::Stop
-            }
+            Terminator::Return { values } if self.tail => Terminator::Return {
+                values: values
+                    .iter()
+                    .map(|value| self.clone_value(*value))
+                    .collect::<Option<SmallVec<[ValueId; 2]>>>()?,
+            },
             Terminator::Return { values } => {
                 let mapped = values
                     .iter()
