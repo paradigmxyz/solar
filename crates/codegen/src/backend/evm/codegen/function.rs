@@ -5,7 +5,6 @@ use super::{
     Liveness, LoopAnalyzer, OptimizationMode, Terminator,
 };
 use crate::mir::Callee;
-use alloy_primitives::hex;
 use std::cell::LazyCell;
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -319,105 +318,18 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    /// Comments the dispatch entry in the EVM IR text.
-    pub(super) fn comment_dispatch_entry(&mut self) {
+    /// Comments the entry block of `func` in the EVM IR text with its note. The comment never
+    /// reaches executable IR or debug information.
+    pub(super) fn comment_function_entry(&mut self, func: &Function, is_dispatch_entry: bool) {
         if self.captures_evm_ir_text() {
-            self.asm.comment_block("runtime dispatch entry");
+            let note = func
+                .entry_note(is_dispatch_entry)
+                .unwrap_or_else(|| format!("{} (synthesized)", func.name));
+            self.asm.comment_block(&note);
         }
-    }
-
-    /// Comments the entry of `func` in the EVM IR text with its source signature, and with its
-    /// role when it is an external entry. The comment never reaches executable IR or debug
-    /// information.
-    pub(super) fn comment_function_entry(&mut self, func: &Function) {
-        if !self.captures_evm_ir_text() {
-            return;
-        }
-        let source_map = self.gcx.sess.source_map();
-        let header = Some(func.declaration_span)
-            .filter(|span| !span.is_dummy())
-            .and_then(|span| source_map.span_to_snippet(span).ok())
-            .map(|source| function_header(&source));
-        let mut comment = match header {
-            Some(header) if is_function_header(&header) => header,
-            Some(header) => format!("getter for `{header}`"),
-            None => format!("{} (synthesized)", func.name),
-        };
-        if func.attributes.is_constructor {
-            comment.push_str("\ncreation entry");
-        } else if let Some(selector) = func.selector {
-            comment.push_str(&format!("\nexternal entry, selector 0x{}", hex::encode(selector)));
-        } else if func.attributes.is_fallback {
-            comment.push_str("\nexternal entry, no selector matches");
-        } else if func.attributes.is_receive {
-            comment.push_str("\nexternal entry, no calldata");
-        }
-        self.asm.comment_block(&comment);
     }
 
     fn captures_evm_ir_text(&self) -> bool {
         self.capture_evm_ir || self.capture_scheduled_evm_ir
-    }
-}
-
-/// Returns the header of the declaration in `source` on one line: everything before its body,
-/// without comments, and with runs of whitespace outside string literals collapsed.
-fn function_header(source: &str) -> String {
-    let mut header = String::new();
-    let space = |header: &mut String| {
-        if !header.is_empty() && !header.ends_with(' ') {
-            header.push(' ');
-        }
-    };
-    let mut depth = 0u32;
-    let mut chars = source.chars().peekable();
-    while let Some(c) = chars.next() {
-        match c {
-            '/' if chars.peek() == Some(&'/') => {
-                chars.by_ref().find(|&c| matches!(c, '\n' | '\r'));
-                space(&mut header);
-            }
-            '/' if chars.peek() == Some(&'*') => {
-                chars.next();
-                let mut previous = ' ';
-                chars.by_ref().find(|&c| std::mem::replace(&mut previous, c) == '*' && c == '/');
-                space(&mut header);
-            }
-            '"' | '\'' => {
-                header.push(c);
-                while let Some(literal) = chars.next() {
-                    header.push(literal);
-                    match literal {
-                        '\\' => header.extend(chars.next()),
-                        _ if literal == c => break,
-                        _ => {}
-                    }
-                }
-            }
-            '{' | ';' | '=' if depth == 0 => break,
-            c if c.is_whitespace() => space(&mut header),
-            _ => {
-                match c {
-                    '(' => depth += 1,
-                    ')' => depth = depth.saturating_sub(1),
-                    _ => {}
-                }
-                header.push(c);
-            }
-        }
-    }
-    header.truncate(header.trim_end().len());
-    header
-}
-
-/// Returns whether `header` declares a function, as opposed to a public state variable whose
-/// getter it is.
-fn is_function_header(header: &str) -> bool {
-    let word = header.split(|c: char| c.is_whitespace() || c == '(').next().unwrap_or_default();
-    match word {
-        "constructor" | "fallback" | "receive" => true,
-        // `function (uint) external public f` declares a variable of a function type.
-        "function" => !header["function".len()..].trim_start().starts_with('('),
-        _ => false,
     }
 }

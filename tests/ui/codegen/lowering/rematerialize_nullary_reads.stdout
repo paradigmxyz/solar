@@ -13,10 +13,7 @@ bb1:
   push 0
   push 0
   revert
-
-// function readTwice() external payable
-// external entry, selector 0x5895c907
-bb4:
+bb4:  ; function readTwice() external payable [selector 0x5895c907]
   calldatasize
   push 0
   mstore

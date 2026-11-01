@@ -1,7 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/library_call.sol:Lib (runtime) ===
 @module Lib_runtime
-// runtime dispatch entry
-bb0:
+bb0:  ; runtime dispatch entry
   push 0
   calldataload
   push 224
@@ -26,10 +25,7 @@ bb8 [cold]:
   push 36
   push 28
   revert
-
-//   function bump(mapping(address => uint256) storage m, address k, uint256 by) public returns (uint256)
-//   external entry, selector 0xed2f0bb8
-bb1:
+bb1:  ; function bump(mapping(address => uint256) storage m, address k, uint256 by) public returns (uint256) [selector 0xed2f0bb8]
   push_immutable 0, 20
   address
   eq
@@ -87,10 +83,7 @@ bb1:
   return
 // === ROOT/tests/ui/codegen/lowering/library_call.sol:C (runtime) ===
 @module C_runtime
-// runtime dispatch entry
-//   function inc(address k, uint256 by) external returns (uint256)
-//   external entry, selector 0x3dd41ca6
-bb0:
+bb0:  ; runtime dispatch entry + function inc(address k, uint256 by) external returns (uint256) [selector 0x3dd41ca6]
   callvalue
   push bb3
   jumpi

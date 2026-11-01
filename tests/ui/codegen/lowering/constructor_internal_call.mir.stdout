@@ -1,11 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/constructor_internal_call.sol:ConstructorICall ===
 @module ConstructorICall
+; getter for `uint256 public value` [selector 0x3fa4f245]
 fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+; constructor(uint256 x) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
   bb0:
     v0 = and arg0, 7
@@ -14,18 +16,19 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
     ret
 }
 
+; function helper(uint256 n) internal pure returns (uint256)
 fn @helper(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     v1 = checked_mul uint256, arg0, 11
     v2 = checked_sub uint256, arg0, 1
     v3 = icall @helper, v2
     v4 = checked_add uint256, v1, v3
     ret v4
-  bb1:
+  bb1:  ; preds = bb0
     ret 1
 }

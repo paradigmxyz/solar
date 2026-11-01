@@ -6,6 +6,7 @@ fn @f() {
     stop
 }
 
+; runtime dispatch entry
 fn @entry() [entry] {
   bb0:
     revert 0, 0

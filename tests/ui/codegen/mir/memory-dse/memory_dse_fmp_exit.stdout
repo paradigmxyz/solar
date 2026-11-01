@@ -144,9 +144,9 @@
       v1 = add v0, 32
 -     mstore 64, v1
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       revert v0, 4
-    bb1:
+    bb1:  ; preds = bb0
       returndata v0, 32
   }
   
@@ -156,9 +156,9 @@
       v1 = add v0, 32
       mstore 64, v1
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       revert arg1, 4
-    bb1:
+    bb1:  ; preds = bb0
       returndata v0, 32
   }
   
@@ -224,14 +224,14 @@
     bb0:
       mstore 0, 0x1111
       jumpi arg1, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       v0 = add arg0, 1
       mstore 64, v0
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       mstore 64, arg0
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
       v1 = mload 64
       returndata v1, 32
   }

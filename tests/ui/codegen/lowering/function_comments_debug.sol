@@ -1,6 +1,6 @@
 //@ compile-flags: -Ogas -Zdump=evm-ir-runtime --emit=srcmap-runtime
 
-// The comment before a function's entry block appears with debug information too, beside the
+// The comment after a function's entry label appears with debug information too, beside the
 // `invoke` attribute, and leaves the debug information as it is.
 
 contract C {

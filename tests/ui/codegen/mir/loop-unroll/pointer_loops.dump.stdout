@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/loop-unroll/pointer_loops.sol:PointerLoops ===
 @module PointerLoops
 @phase lowered
+; function toHex(bytes memory raw) external pure returns (bytes memory result) [selector 0xc5bec6fc]
 fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
   bb0:
     v33 = calldatasize
@@ -11,7 +12,7 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     v39 = gt v35, v38
     v145 = or v34, v39
     jumpi v145, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb0
     v40 = calldataload v36
     v41 = add v36, 32
     v42 = add v40, 63
@@ -27,13 +28,13 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     v147 = or v146, v107
     v148 = ne v147, 0
     jumpi v148, bb6, bb11
-  bb11:
+  bb11:  ; preds = bb5
     mstore 64, v103 !metadata(memory=scratch)
     mstore v102, v40
     v47 = sub v33, v41
     v48 = gt v40, v47
     jumpi v48, bb4, bb7
-  bb7:
+  bb7:  ; preds = bb11
     v94 = add v102, 32
     calldatacopy v94, v41, v40
     v56 = sub 0, v40
@@ -52,7 +53,7 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     v141 = and v1, 1
     v142 = ne v141, 0
     jumpi v142, bb12, bb13
-  bb12:
+  bb12:  ; preds = bb7
     v115 = add v102, 1
     v116 = mload v115
     v117 = and v116, 15
@@ -66,22 +67,22 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     mstore8 v5, v123
     v124 = add v5, 2
     jump bb13
-  bb13:
+  bb13:  ; preds = bb7, bb12
     v143 = phi [bb7: v102], [bb12: v115]
     v144 = phi [bb7: v5], [bb12: v124]
     jump bb1
-  bb1:
+  bb1:  ; preds = bb3, bb13
     v8 = phi [bb13: v143], [bb3: v130]
     v11 = phi [bb13: v144], [bb3: v139]
     v16 = ne v8, v7
     jumpi v16, bb3, bb2
-  bb2:
+  bb2:  ; preds = bb1
     mstore v11, 0
     v31 = add v11, 32
     mstore 64, v31 !metadata(memory=scratch)
     v61 = lt v3, 32
     jumpi v61, bb8, bb9
-  bb9:
+  bb9:  ; preds = bb2
     v81 = mload v3
     v82 = add v81, 31
     v84 = and v82, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -91,7 +92,7 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     mstore v98, 32
     v89 = add v84, 64
     jump bb10
-  bb8:
+  bb8:  ; preds = bb2
     v109 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v64 = add v109, 32
     mstore v109, 32
@@ -106,11 +107,11 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     mcopy v71, v5, v67 !metadata(disjoint)
     v76 = sub v74, v109
     jump bb10
-  bb10:
+  bb10:  ; preds = bb8, bb9
     v90 = phi [bb8: v109], [bb9: v98]
     v91 = phi [bb8: v76], [bb9: v89]
     returndata v90, v91
-  bb3:
+  bb3:  ; preds = bb1
     v20 = add v8, 1
     v21 = mload v20
     v22 = and v21, 15
@@ -136,14 +137,15 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     mstore8 v29, v138
     v139 = add v11, 4
     jump bb1
-  bb6:
+  bb6:  ; preds = bb5
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb4:
+  bb4:  ; preds = bb0, bb11
     revert 0, 0
 }
 
+; function sumWords(uint256[] memory values) external pure returns (uint256 s) [selector 0x5a761098]
 fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
   bb0:
     v18 = calldatasize
@@ -154,7 +156,7 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
     v24 = gt v20, v23
     v68 = or v19, v24
     jumpi v68, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb0
     v25 = calldataload v21
     v26 = add v21, 32
     v27 = gt v25, 0x7fffffffffffffe
@@ -170,7 +172,7 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
     v70 = or v69, v50
     v71 = ne v70, 0
     jumpi v71, bb6, bb8
-  bb8:
+  bb8:  ; preds = bb5
     mstore 64, v46 !metadata(memory=scratch)
     mstore v45, v25
     v31 = shl v25, 5
@@ -178,31 +180,31 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
     v33 = shr v32, 5
     v34 = gt v25, v33
     jumpi v34, bb4, bb7
-  bb7:
+  bb7:  ; preds = bb8
     v42 = add v45, 32
     calldatacopy v42, v26, v31
     v5 = add v42, v31
     v64 = and v25, 1
     v65 = ne v64, 0
     jumpi v65, bb9, bb10
-  bb9:
+  bb9:  ; preds = bb7
     v55 = mload v42
     v56 = add 0, v55
     v57 = add v42, 32
     jump bb10
-  bb10:
+  bb10:  ; preds = bb7, bb9
     v66 = phi [bb7: 0], [bb9: v56]
     v67 = phi [bb7: v42], [bb9: v57]
     jump bb1
-  bb1:
+  bb1:  ; preds = bb3, bb10
     v7 = phi [bb10: v66], [bb3: v62]
     v8 = phi [bb10: v67], [bb3: v63]
     v12 = ne v8, v5
     jumpi v12, bb3, bb2
-  bb2:
+  bb2:  ; preds = bb1
     mstore 0, v7 !metadata(memory=scratch)
     returndata 0, 32
-  bb3:
+  bb3:  ; preds = bb1
     v15 = mload v8
     v16 = add v7, v15
     v17 = add v8, 32
@@ -210,65 +212,67 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
     v62 = add v16, v61
     v63 = add v8, 64
     jump bb1
-  bb6:
+  bb6:  ; preds = bb5
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb4:
+  bb4:  ; preds = bb0, bb8
     revert 0, 0
 }
 
+; function stepThree(uint256 start, uint256 end) external pure returns (uint256 sum) [selector 0xbf2eba92]
 fn @stepThree() [selector=0xbf2eba92, abi_wrapper, pure] {
   bb0:
     v11 = calldatasize
     v12 = lt v11, 68
     jumpi v12, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb0
     v24 = sub arg1, arg0
     v25 = and v24, 1
     v26 = ne v25, 0
     jumpi v26, bb6, bb7
-  bb6:
+  bb6:  ; preds = bb5
     v17 = add 0, arg0
     v18 = add arg0, 3
     jump bb7
-  bb7:
+  bb7:  ; preds = bb5, bb6
     v27 = phi [bb5: 0], [bb6: v17]
     v28 = phi [bb5: arg0], [bb6: v18]
     jump bb1
-  bb1:
+  bb1:  ; preds = bb3, bb7
     v2 = phi [bb7: v27], [bb3: v22]
     v3 = phi [bb7: v28], [bb3: v23]
     v6 = ne v3, arg1
     jumpi v6, bb3, bb2
-  bb2:
+  bb2:  ; preds = bb1
     mstore 0, v2 !metadata(memory=scratch)
     returndata 0, 32
-  bb3:
+  bb3:  ; preds = bb1
     v9 = add v2, v3
     v10 = add v3, 3
     v22 = add v9, v10
     v23 = add v10, 3
     jump bb1
-  bb4:
+  bb4:  ; preds = bb0
     revert 0, 0
 }
 
+; runtime dispatch entry
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
     v1 = ne v0, 0
     jumpi v1, bb5, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v2 = calldataload 0
     v3 = shr v2, 224
     switch v3, default bb5, [0x5a761098 => bb2, 0xbf2eba92 => bb3, 0xc5bec6fc => bb4]
-  bb4:
+  bb4:  ; preds = bb1
     tail_call @toHex
-  bb3:
+  bb3:  ; preds = bb1
     tail_call @stepThree
-  bb2:
+  bb2:  ; preds = bb1
     tail_call @sumWords
-  bb5:
+  bb5:  ; preds = bb0, bb1
     revert 0, 0
 }

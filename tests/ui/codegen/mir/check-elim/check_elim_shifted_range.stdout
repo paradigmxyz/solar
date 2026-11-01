@@ -6,20 +6,20 @@
       v0 = add arg0, 1
       v1 = eq v0, 0
       jumpi v1, bb3, bb1
-    bb1:
+    bb1:  ; preds = bb0
       v2 = shr v0, 251
       v3 = ne v2, 0
       jumpi v3, bb3, bb2
-    bb2:
+    bb2:  ; preds = bb1
       v4 = add arg0, arg0
       v5 = lt v4, arg0
 -     jumpi v5, bb4, bb5
 +     jump bb5
-    bb5:
+    bb5:  ; preds = bb2
       ret v4
--   bb4:
+-   bb4:  ; preds = bb2
 -     revert 0, 0
-    bb3:
+    bb3:  ; preds = bb0, bb1
       ret 0
 +   bb4:
 +     revert 0, 0
@@ -30,9 +30,9 @@
       v0 = add arg0, arg0
       v1 = lt v0, arg0
       jumpi v1, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       ret v0
-    bb1:
+    bb1:  ; preds = bb0
       revert 0, 0
   }
   

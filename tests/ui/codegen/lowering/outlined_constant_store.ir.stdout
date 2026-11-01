@@ -1,7 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/outlined_constant_store.sol:OutlinedConstantStore (runtime) ===
 @module OutlinedConstantStore_runtime
-// runtime dispatch entry
-bb0:
+bb0:  ; runtime dispatch entry
   push 36
   calldatasize
   lt
@@ -34,16 +33,10 @@ bb4 [cold]:
   push 0
   push 0
   revert
-
-// function first(uint256 pointer) external pure returns (uint256 value)
-// external entry, selector 0x0b3f62f5
-bb5:
+bb5:  ; function first(uint256 pointer) external pure returns (uint256 value) [selector 0x0b3f62f5]
   push bb8
   jump bb7
-
-// function second(uint256 pointer) external pure returns (uint256 value)
-// external entry, selector 0x7896dfe3
-bb6:
+bb6:  ; function second(uint256 pointer) external pure returns (uint256 value) [selector 0x7896dfe3]
   push bb9
   jump bb7
 bb7 [ret=0, inputs=1, outputs=0]:
@@ -84,8 +77,7 @@ bb9 [continuation]:
   return
 // === ROOT/tests/ui/codegen/lowering/outlined_constant_store.sol:OutlinedNarrowing (runtime) ===
 @module OutlinedNarrowing_runtime
-// runtime dispatch entry
-bb0:
+bb0:  ; runtime dispatch entry
   push 36
   calldatasize
   lt
@@ -125,10 +117,7 @@ bb5 [cold]:
   push 0
   push 0
   revert
-
-// function narrow8(uint256 value) external pure returns (uint8)
-// external entry, selector 0x2da3006c
-bb6:
+bb6:  ; function narrow8(uint256 value) external pure returns (uint8) [selector 0x2da3006c]
   push 4
   calldataload
   push 255
@@ -160,10 +149,7 @@ bb8 [cold]:
   swap 2
   swap 1
   jump bb15
-
-// function narrow32(uint256 value) external pure returns (uint32)
-// external entry, selector 0xb5be099a
-bb9:
+bb9:  ; function narrow32(uint256 value) external pure returns (uint32) [selector 0xb5be099a]
   push 4
   calldataload
   dup 1
@@ -195,10 +181,7 @@ bb11 [cold]:
   swap 2
   swap 1
   jump bb15
-
-// function narrow128(uint256 value) external pure returns (uint128)
-// external entry, selector 0x9646654f
-bb12:
+bb12:  ; function narrow128(uint256 value) external pure returns (uint128) [selector 0x9646654f]
   push 4
   calldataload
   dup 1

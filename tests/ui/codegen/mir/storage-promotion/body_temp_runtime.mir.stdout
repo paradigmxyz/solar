@@ -1,43 +1,45 @@
 // === ROOT/tests/ui/codegen/mir/storage-promotion/body_temp_runtime.sol:BodyTemp ===
 @module BodyTemp
+; function f(uint256 n) public returns (uint256) [selector 0xb3de648b]
 fn @f(arg0: i256) -> i256 [selector=0xb3de648b, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v7]
     v3 = lt v2, v0
     jumpi v3, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     v8 = address
     v9 = gas
     v10 = address_staticcall v8, ptr<memory> 96, gas v9
     jumpi v10, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb2
     jump bb9
-  bb7:
+  bb7:  ; preds = bb2
     v11 = sload 0 !metadata(storage=slot(0))
     v12 = checked_add uint256, v11, v0
     jump bb9
-  bb9:
+  bb9:  ; preds = bb7, bb8
     v13 = phi [bb7: v12], [bb8: v0]
     ret v13
-  bb4:
+  bb4:  ; preds = bb1
     v4 = sload 0 !metadata(storage=slot(0))
     v5 = checked_mul uint256, v4, 2
     v6 = checked_add uint256, v5, 1
     sstore 0, v6 !metadata(storage=slot(0))
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v7 = checked_add uint256, v2, 1
     jump bb1
 }
 
+; function g(uint256 n) external returns (uint256) [selector 0xe420264a]
 fn @g(arg0: i256) -> i256 [selector=0xe420264a, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @f, arg0
@@ -47,6 +49,7 @@ fn @g(arg0: i256) -> i256 [selector=0xe420264a, abi_params=[uint256], abi_return
     ret v3
 }
 
+; function h(uint256 n) external returns (uint256) [selector 0xcb97492a]
 fn @h(arg0: i256) -> i256 [selector=0xcb97492a, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @f, arg0
@@ -54,6 +57,7 @@ fn @h(arg0: i256) -> i256 [selector=0xcb97492a, abi_params=[uint256], abi_return
     ret v1
 }
 
+; fallback() external [fallback]
 fn @fallback() [fallback] {
   bb0:
     ret

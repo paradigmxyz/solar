@@ -1,12 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_bytes_to_memory_checks.sol:CalldataBytesToMemoryChecks ===
 @module CalldataBytesToMemoryChecks
 @phase lowered
+; function decoded(bytes calldata b) external pure returns (uint256) [selector 0x45c91515]
 fn @decoded() [selector=0x45c91515, abi_wrapper, pure] {
   bb0:
     v11 = calldatasize
     v12 = lt v11, 36
     jumpi v12, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v13 = icall @decode_calldata_slice
     v14 = calldataload v13
     v15 = add v13, 32
@@ -16,22 +17,23 @@ fn @decoded() [selector=0x45c91515, abi_wrapper, pure] {
     calldatacopy v20, v15, v14
     mstore 0, v14
     returndata 0, 32
-  bb1:
+  bb1:  ; preds = bb0
     revert 0, 0
 }
 
+; function lengthSet(bytes calldata b, uint256 n) external pure returns (uint256) [selector 0xa5e448c2]
 fn @lengthSet() [selector=0xa5e448c2, abi_wrapper, pure] {
   bb0:
     v23 = calldatasize
     v24 = lt v23, 68
     jumpi v24, bb3, bb5
-  bb5:
+  bb5:  ; preds = bb0
     v25 = icall @decode_calldata_slice
     v27 = add v25, 32
     v3 = add arg1, 63
     v4 = lt v3, arg1
     jumpi v4, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb5
     v35 = heap_floor !metadata(alloc_ptr)
     mstore v35, arg1
     v10 = calldatasize
@@ -42,23 +44,24 @@ fn @lengthSet() [selector=0xa5e448c2, abi_wrapper, pure] {
     v38 = or v19, v37
     v39 = ne v38, 0
     jumpi v39, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb2
     v32 = add v35, 32
     calldatacopy v32, v27, arg1
     mstore 0, arg1
     returndata 0, 32
-  bb1:
+  bb1:  ; preds = bb5
     tail_call @revert_stub
-  bb3:
+  bb3:  ; preds = bb0, bb2
     revert 0, 0
 }
 
+; function offsetSet(bytes calldata b, uint256 o) external pure returns (uint256) [selector 0xba062698]
 fn @offsetSet() [selector=0xba062698, abi_wrapper, pure] {
   bb0:
     v27 = calldatasize
     v28 = lt v27, 68
     jumpi v28, bb3, bb5
-  bb5:
+  bb5:  ; preds = bb0
     v29 = icall @decode_calldata_slice
     v30 = calldataload v29
     v31 = add v29, 32
@@ -66,7 +69,7 @@ fn @offsetSet() [selector=0xba062698, abi_wrapper, pure] {
     v7 = add v30, 63
     v8 = lt v7, v30
     jumpi v8, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb5
     v39 = heap_floor !metadata(alloc_ptr)
     mstore v39, v30
     v14 = calldatasize
@@ -77,23 +80,24 @@ fn @offsetSet() [selector=0xba062698, abi_wrapper, pure] {
     v42 = or v23, v41
     v43 = ne v42, 0
     jumpi v43, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb2
     v36 = add v39, 32
     calldatacopy v36, v2, v30
     mstore 0, v30
     returndata 0, 32
-  bb1:
+  bb1:  ; preds = bb5
     tail_call @revert_stub
-  bb3:
+  bb3:  ; preds = bb0, bb2
     revert 0, 0
 }
 
+; function forwarded(bytes calldata b) public pure returns (uint256) [selector 0xbf6f2c90]
 fn @forwarded() [selector=0xbf6f2c90, abi_wrapper, pure] {
   bb0:
     v21 = calldatasize
     v22 = lt v21, 36
     jumpi v22, bb1, bb3
-  bb3:
+  bb3:  ; preds = bb0
     v23 = icall @decode_calldata_slice
     v24 = calldataload v23
     v25 = add v23, 32
@@ -105,14 +109,14 @@ fn @forwarded() [selector=0xbf6f2c90, abi_wrapper, pure] {
     v36 = or v17, v35
     v37 = ne v36, 0
     jumpi v37, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb3
     v33 = heap_floor !metadata(alloc_ptr)
     mstore v33, v24
     v30 = add v33, 32
     calldatacopy v30, v25, v24
     mstore 0, v24
     returndata 0, 32
-  bb1:
+  bb1:  ; preds = bb0, bb3
     revert 0, 0
 }
 
@@ -136,29 +140,30 @@ fn @decode_calldata_slice() -> i256 {
     v9 = gt v6, v8
     v10 = or v5, v9
     jumpi v10, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     ret v2
-  bb1:
+  bb1:  ; preds = bb0
     revert 0, 0
 }
 
+; runtime dispatch entry
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
     v1 = ne v0, 0
     jumpi v1, bb6, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v2 = calldataload 0
     v3 = shr v2, 224
     switch v3, default bb6, [0x45c91515 => bb2, 0xa5e448c2 => bb3, 0xba062698 => bb4, 0xbf6f2c90 => bb5]
-  bb5:
+  bb5:  ; preds = bb1
     tail_call @forwarded
-  bb4:
+  bb4:  ; preds = bb1
     tail_call @offsetSet
-  bb3:
+  bb3:  ; preds = bb1
     tail_call @lengthSet
-  bb2:
+  bb2:  ; preds = bb1
     tail_call @decoded
-  bb6:
+  bb6:  ; preds = bb0, bb1
     revert 0, 0
 }

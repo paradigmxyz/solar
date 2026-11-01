@@ -1,11 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_multiple_base_argument_initialization_viair.sol:ConstructorArgumentInitializationA ===
 @module ConstructorArgumentInitializationA
+; getter for `uint256 public x` [selector 0x0c55699c]
 fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+; constructor(uint256) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
   bb0:
     sstore 0, 2 !metadata(storage=slot(0))
@@ -14,12 +16,14 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_multiple_base_argument_initialization_viair.sol:ConstructorArgumentInitializationB ===
 @module ConstructorArgumentInitializationB
+; getter for `uint256 public y` [selector 0xa56dfe4a]
 fn @y() -> i256 [selector=0xa56dfe4a, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+; constructor(uint256) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
   bb0:
     sstore 0, 3 !metadata(storage=slot(0))
@@ -31,21 +35,23 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
 @types
   struct0: {i256, i256}
 
+; constructor() ConstructorArgumentInitializationA(touchB()) ConstructorArgumentInitializationB(touchA()) [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = icall @touchA
     v1 = icall @touchB
     sstore 0, 2 !metadata(storage=slot(0))
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0
     sstore 1, 3 !metadata(storage=slot(1))
     jump bb2
-  bb2:
+  bb2:  ; preds = bb1
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     ret
 }
 
+; function state() external view returns (uint256, uint256) [selector 0xc19d93fb]
 fn @state() -> struct0 [selector=0xc19d93fb, view, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -55,24 +61,28 @@ fn @state() -> struct0 [selector=0xc19d93fb, view, abi_params=[], abi_returns=[w
     ret v3
 }
 
+; getter for `uint256 public y` [selector 0xa56dfe4a]
 fn @y() -> i256 [selector=0xa56dfe4a, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     ret v0
 }
 
+; function touchB() internal returns (uint256)
 fn @touchB() -> i256 {
   bb0:
     sstore 1, 5 !metadata(storage=slot(1))
     ret 0
 }
 
+; getter for `uint256 public x` [selector 0x0c55699c]
 fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+; function touchA() internal returns (uint256)
 fn @touchA() -> i256 {
   bb0:
     sstore 0, 4 !metadata(storage=slot(0))

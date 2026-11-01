@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:ExplicitNonpayable ===
 @module ExplicitNonpayable
+; constructor(uint256) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
   bb0:
     ret
@@ -10,6 +11,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:SyntheticNonpayable ===
 @module SyntheticNonpayable
+; creation entry
 fn @constructor() [constructor] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
@@ -18,6 +20,7 @@ fn @constructor() [constructor] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:PayableBase ===
 @module PayableBase
+; constructor() payable [creation entry]
 fn @constructor() [constructor, payable] {
   bb0:
     ret
@@ -25,15 +28,17 @@ fn @constructor() [constructor, payable] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:InheritedNonpayable ===
 @module InheritedNonpayable
+; creation entry
 fn @constructor() [constructor] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0
     ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:ExplicitPayable ===
 @module ExplicitPayable
+; constructor() payable [creation entry]
 fn @constructor() [constructor, payable] {
   bb0:
     ret
@@ -48,6 +53,7 @@ fn @constructor() [constructor, payable] {
   InheritedNonpayable_creation_code_3: creation_code "ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:InheritedNonpayable"
   ExplicitPayable_creation_code_4: creation_code "ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:ExplicitPayable"
 
+; function rejectsExplicit() external payable returns (bool) [selector 0x90887b1f]
 fn @rejectsExplicit() -> i1 [selector=0x90887b1f, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = datasize ExplicitNonpayable_creation_code_0
@@ -68,6 +74,7 @@ fn @rejectsExplicit() -> i1 [selector=0x90887b1f, payable, abi_params=[], abi_re
     ret v11
 }
 
+; function rejectsImplicit() external payable returns (bool) [selector 0x05da30eb]
 fn @rejectsImplicit() -> i1 [selector=0x05da30eb, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = datasize ImplicitNonpayable_creation_code_1
@@ -86,6 +93,7 @@ fn @rejectsImplicit() -> i1 [selector=0x05da30eb, payable, abi_params=[], abi_re
     ret v9
 }
 
+; function rejectsSynthetic() external payable returns (bool) [selector 0x28868c98]
 fn @rejectsSynthetic() -> i1 [selector=0x28868c98, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = datasize SyntheticNonpayable_creation_code_2
@@ -104,6 +112,7 @@ fn @rejectsSynthetic() -> i1 [selector=0x28868c98, payable, abi_params=[], abi_r
     ret v9
 }
 
+; function rejectsInherited() external payable returns (bool) [selector 0xb3ba0b5d]
 fn @rejectsInherited() -> i1 [selector=0xb3ba0b5d, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = datasize InheritedNonpayable_creation_code_3
@@ -122,6 +131,7 @@ fn @rejectsInherited() -> i1 [selector=0xb3ba0b5d, payable, abi_params=[], abi_r
     ret v9
 }
 
+; function acceptsPayable() external payable returns (bool) [selector 0xd6e5da6b]
 fn @acceptsPayable() -> i1 [selector=0xd6e5da6b, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = datasize ExplicitPayable_creation_code_4
@@ -138,18 +148,19 @@ fn @acceptsPayable() -> i1 [selector=0xd6e5da6b, payable, abi_params=[], abi_ret
     v8 = trunc i256 v7 to i160
     v9 = ne v8, i160 0
     jumpi v9, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v10 = balance v7
     v11 = callvalue
     v12 = eq v10, v11
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v13 = phi [bb1: v12], [bb2: false]
     ret v13
 }
 
+; function deploy(bytes memory code) private returns (address deployed)
 fn @deploy(arg0: ptr<memory>) -> i256 {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256

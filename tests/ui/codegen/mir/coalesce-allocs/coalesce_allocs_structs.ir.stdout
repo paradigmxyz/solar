@@ -1,12 +1,13 @@
 // === ROOT/tests/ui/codegen/mir/coalesce-allocs/coalesce_allocs_structs.sol:CoalesceAllocsFixture ===
 @module CoalesceAllocsFixture
 @phase lowered
+; function combine(uint256 x) public pure returns (uint256) [selector 0xd9171e32]
 fn @combine() [selector=0xd9171e32, abi_wrapper, pure] {
   bb0:
     v23 = calldatasize
     v24 = lt v23, 36
     jumpi v24, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb0
     v0 = alloc 96 !metadata(deferred_alloc)
     v44 = mload 64 !metadata(memory=scratch, alloc_ptr)
     mstore v44, arg0
@@ -22,28 +23,29 @@ fn @combine() [selector=0xd9171e32, abi_wrapper, pure] {
     v22 = lt v21, v19
     v46 = or v20, v22
     jumpi v46, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb4
     mstore 0, v21 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1:  ; preds = bb4
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3:  ; preds = bb0
     revert 0, 0
 }
 
+; runtime dispatch entry
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
     v1 = ne v0, 0
     jumpi v1, bb3, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v2 = calldataload 0
     v3 = shr v2, 224
     switch v3, default bb3, [0xd9171e32 => bb2]
-  bb2:
+  bb2:  ; preds = bb1
     tail_call @combine
-  bb3:
+  bb3:  ; preds = bb0, bb1
     revert 0, 0
 }

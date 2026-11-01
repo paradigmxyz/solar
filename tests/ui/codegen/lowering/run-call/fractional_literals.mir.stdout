@@ -1,41 +1,48 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/fractional_literals.sol:FractionalDenominations ===
 @module FractionalDenominations
+; getter for `uint256 public g` [selector 0xe2179b8e]
 fn @g() -> i256 [selector=0xe2179b8e, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+; getter for `uint256 public e` [selector 0xffae15ba]
 fn @e() -> i256 [selector=0xffae15ba, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     ret v0
 }
 
+; getter for `uint256 public m` [selector 0x5a2ee019]
 fn @m() -> i256 [selector=0x5a2ee019, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
     ret v0
 }
 
+; getter for `uint256 public h` [selector 0xb8c9d365]
 fn @h() -> i256 [selector=0xb8c9d365, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 3 !metadata(storage=slot(3))
     ret v0
 }
 
+; getter for `uint256 public d` [selector 0x8a054ac2]
 fn @d() -> i256 [selector=0x8a054ac2, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 4 !metadata(storage=slot(4))
     ret v0
 }
 
+; getter for `uint256 public w` [selector 0x205c9cc7]
 fn @w() -> i256 [selector=0x205c9cc7, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 5 !metadata(storage=slot(5))
     ret v0
 }
 
+; creation entry
 fn @constructor() [constructor] {
   bb0:
     sstore 0, 0x59682f00 !metadata(storage=slot(0))
@@ -49,31 +56,37 @@ fn @constructor() [constructor] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/fractional_literals.sol:ScientificNotation ===
 @module ScientificNotation
+; function f() public pure returns (uint256) [selector 0x26121ff0]
 fn @f() -> i256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 0x4a817c800
 }
 
+; function g() public pure returns (uint256) [selector 0xe2179b8e]
 fn @g() -> i256 [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 2
 }
 
+; function h() public pure returns (uint256) [selector 0xb8c9d365]
 fn @h() -> i256 [selector=0xb8c9d365, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 25
 }
 
+; function i() public pure returns (int256) [selector 0xe5aa3d58]
 fn @i() -> i256 [selector=0xe5aa3d58, pure, abi_params=[], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     ret 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffb57e83800
 }
 
+; function j() public pure returns (int256) [selector 0xb582ec5f]
 fn @j() -> i256 [selector=0xb582ec5f, pure, abi_params=[], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     ret 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
 }
 
+; function k() public pure returns (int256) [selector 0xb4f40c61]
 fn @k() -> i256 [selector=0xb4f40c61, pure, abi_params=[], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe7

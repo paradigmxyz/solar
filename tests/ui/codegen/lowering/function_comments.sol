@@ -3,8 +3,9 @@
 //@[gas] compile-flags: -Ogas
 //@[none] compile-flags: -Onone
 
-// Each function's entry block has a comment with its source signature, and an external entry
+// Each function's entry label has a `;` comment with its source signature, and an external entry
 // also its selector. The comments are text only: they never reach executable IR or debug info.
+// MIR prints the same note before each function, and block labels list their predecessors.
 
 contract C {
     uint256 public total = 5;

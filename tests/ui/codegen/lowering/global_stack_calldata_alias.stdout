@@ -1,7 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/global_stack_calldata_alias.sol:Test (runtime) ===
 @module Test_runtime
-// runtime dispatch entry
-bb0:
+bb0:  ; runtime dispatch entry
   callvalue
   push bb3
   jumpi
@@ -29,10 +28,7 @@ bb21 [cold]:
   push 36
   push 28
   revert
-
-// function select(address account, uint256 value) external pure returns (uint256)
-// external entry, selector 0xc21f7bbb
-bb4:
+bb4:  ; function select(address account, uint256 value) external pure returns (uint256) [selector 0xc21f7bbb]
   push 4
   calldataload
   push 160

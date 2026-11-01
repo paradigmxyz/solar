@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/run-call/fresh_fmp_floor.sol:Test ===
 @module Test
+; function spills(uint256 n) external view returns (uint256) [selector 0x565c11e3]
 fn @spills(arg0: i256) -> i256 [selector=0x565c11e3, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -116,6 +117,7 @@ fn @spills(arg0: i256) -> i256 [selector=0x565c11e3, view, abi_params=[uint256],
     ret v106
 }
 
+; function mix(uint256 n) internal view returns (uint256 acc)
 fn @mix(arg0: i256) -> i256 [view] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -173,7 +175,7 @@ fn @mix(arg0: i256) -> i256 [view] {
     v52 = checked_mul uint256, v51, 61
     v53 = checked_add uint256, v52, arg0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v54 = phi [bb0: arg0], [bb3: v54]
     v55 = phi [bb0: 0], [bb3: v112]
     v56 = phi [bb0: v2], [bb3: v56]
@@ -199,11 +201,11 @@ fn @mix(arg0: i256) -> i256 [view] {
     v76 = checked_add uint256, v75, 1
     v77 = lt v74, v76
     jumpi v77, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v55
-  bb4:
+  bb4:  ; preds = bb1
     v78 = checked_add uint256, v73, v74
     v79 = xor v56, v78
     v80 = checked_add uint256, v55, v79
@@ -240,13 +242,14 @@ fn @mix(arg0: i256) -> i256 [view] {
     v111 = checked_add uint256, v109, v110
     v112 = checked_add uint256, v96, v111
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v113 = checked_add uint256, v74, 1
     jump bb1
 }
 
+; function frames(uint256 n) external view returns (uint256) [selector 0xa10340bc]
 fn @frames(arg0: i256) -> i256 [selector=0xa10340bc, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = checked_rem uint256, arg0, 5
@@ -290,6 +293,7 @@ fn @frames(arg0: i256) -> i256 [selector=0xa10340bc, view, abi_params=[uint256],
     ret v31
 }
 
+; creation entry
 fn @constructor() [constructor] {
   bb0:
     sstore 0, 3 !metadata(storage=slot(0))

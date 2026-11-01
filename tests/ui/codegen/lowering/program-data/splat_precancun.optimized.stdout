@@ -4,6 +4,7 @@
 @data
   literal_0: hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff0011"
 
+; function data() internal pure returns (bytes memory)
 fn @data() -> i256 [may_return_memory, pure] {
   bb0:
     v8 = heap_floor !metadata(alloc_ptr)
@@ -17,6 +18,7 @@ fn @data() -> i256 [may_return_memory, pure] {
     ret v8
 }
 
+; function hash() external pure returns (bytes32) [selector 0x09bd5a60]
 fn @hash() [selector=0x09bd5a60, abi_wrapper, pure] {
   bb0:
     v0 = icall @data
@@ -27,6 +29,7 @@ fn @hash() [selector=0x09bd5a60, abi_wrapper, pure] {
     returndata 0, 32
 }
 
+; function paddingIsZero() external pure returns (bool result) [selector 0x06793283]
 fn @paddingIsZero() [selector=0x06793283, abi_wrapper, pure] {
   bb0:
     v0 = icall @data
@@ -41,6 +44,7 @@ fn @paddingIsZero() [selector=0x06793283, abi_wrapper, pure] {
     returndata 0, 32
 }
 
+; function shortHash() external pure returns (bytes32) [selector 0x0c6b2786]
 fn @shortHash() [selector=0x0c6b2786, abi_wrapper, pure] {
   bb0:
     v11 = heap_floor !metadata(alloc_ptr)
@@ -53,6 +57,7 @@ fn @shortHash() [selector=0x0c6b2786, abi_wrapper, pure] {
     returndata 0, 32
 }
 
+; function fullWordsHash() external pure returns (bytes32) [selector 0x58653188]
 fn @fullWordsHash() [selector=0x58653188, abi_wrapper, pure] {
   bb0:
     v22 = heap_floor !metadata(alloc_ptr)
@@ -64,15 +69,15 @@ fn @fullWordsHash() [selector=0x58653188, abi_wrapper, pure] {
     mstore v12, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
     v14 = add v22, 96
     jump bb2
-  bb2:
+  bb2:  ; preds = bb0, bb3
     v16 = phi [bb0: 0], [bb3: v21]
     v17 = lt v16, 32
     jumpi v17, bb3, bb1
-  bb1:
+  bb1:  ; preds = bb2
     v7 = keccak256 v10, 96
     mstore 0, v7 !metadata(memory=scratch)
     returndata 0, 32
-  bb3:
+  bb3:  ; preds = bb2
     v18 = add v10, v16
     v19 = mload v18
     v20 = add v14, v16
@@ -81,24 +86,25 @@ fn @fullWordsHash() [selector=0x58653188, abi_wrapper, pure] {
     jump bb2
 }
 
+; runtime dispatch entry
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
     v1 = ne v0, 0
     jumpi v1, bb6, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v2 = calldataload 0
     v3 = shr v2, 224
     switch v3, default bb6, [0x6793283 => bb2, 0x9bd5a60 => bb3, 0xc6b2786 => bb4, 0x58653188 => bb5]
-  bb5:
+  bb5:  ; preds = bb1
     tail_call @fullWordsHash
-  bb4:
+  bb4:  ; preds = bb1
     tail_call @shortHash
-  bb3:
+  bb3:  ; preds = bb1
     tail_call @hash
-  bb2:
+  bb2:  ; preds = bb1
     tail_call @paddingIsZero
-  bb6:
+  bb6:  ; preds = bb0, bb1
     revert 0, 0
 }
 // === ROOT/tests/ui/codegen/lowering/program-data/splat_precancun.sol:C (runtime) ===
@@ -106,8 +112,7 @@ fn @entry() [entry] {
 @data
   literal_0: hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff0011"
 
-// runtime dispatch entry
-bb0:
+bb0:  ; runtime dispatch entry
   callvalue
   push bb6
   jumpi
@@ -140,15 +145,10 @@ bb6 [cold]:
   returndatasize
   returndatasize
   revert
-
-// function hash() external pure returns (bytes32)
-// external entry, selector 0x09bd5a60
-bb7:
+bb7:  ; function hash() external pure returns (bytes32) [selector 0x09bd5a60]
   push bb8
   jump bb16
-
-// function data() internal pure returns (bytes memory)
-bb16 [ret=0, inputs=1, outputs=1]:
+bb16 [ret=0, inputs=1, outputs=1]:  ; function data() internal pure returns (bytes memory)
   push 128
   push 224
   dup 2
@@ -188,10 +188,7 @@ bb17 [loop]:
   push 32
   returndatasize
   return
-
-// function paddingIsZero() external pure returns (bool result)
-// external entry, selector 0x06793283
-bb9:
+bb9:  ; function paddingIsZero() external pure returns (bool result) [selector 0x06793283]
   push bb10
   jump bb16
 bb10 [continuation]:
@@ -206,10 +203,7 @@ bb10 [continuation]:
   shr
   iszero
   jump bb17
-
-// function shortHash() external pure returns (bytes32)
-// external entry, selector 0x0c6b2786
-bb11:
+bb11:  ; function shortHash() external pure returns (bytes32) [selector 0x0c6b2786]
   push bb20
   push 128
   jump bb19
@@ -222,10 +216,7 @@ bb19 [ret=1, inputs=2, outputs=3]:
   swap 2
   swap 3
   jump
-
-// function fullWordsHash() external pure returns (bytes32)
-// external entry, selector 0x58653188
-bb12:
+bb12:  ; function fullWordsHash() external pure returns (bytes32) [selector 0x58653188]
   push 128
   dup 1
   add

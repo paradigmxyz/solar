@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256, i256}
 
+; function setUp() public [selector 0x0a9254e4]
 fn @setUp() [selector=0x0a9254e4, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = sload 24 !metadata(storage=slot(24))
@@ -24,6 +25,7 @@ fn @setUp() [selector=0x0a9254e4, abi_params=[], abi_returns=[], abi_return_para
     ret
 }
 
+; function read(uint256 base) internal view returns (uint256 a, uint256 b, uint256 c)
 fn @read(arg0: i256) -> struct0 [view] {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
@@ -37,6 +39,7 @@ fn @read(arg0: i256) -> struct0 [view] {
     ret v7
 }
 
+; function testDynamicIndex() public view returns (uint256, uint256, uint256) [selector 0x8fa50415]
 fn @testDynamicIndex() -> struct0 [selector=0x8fa50415, view, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = icall @read, 3
@@ -49,6 +52,7 @@ fn @testDynamicIndex() -> struct0 [selector=0x8fa50415, view, abi_params=[], abi
     ret v6
 }
 
+; function testConstantIndex() public returns (uint256, uint256, uint256) [selector 0xb6aa0fa8]
 fn @testConstantIndex() -> struct0 [selector=0xb6aa0fa8, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = lt 3, 4
@@ -76,6 +80,7 @@ fn @testConstantIndex() -> struct0 [selector=0xb6aa0fa8, abi_params=[], abi_retu
     ret v17
 }
 
+; function testFromMemory() public returns (uint256, uint256, uint256) [selector 0xfebd1e0e]
 fn @testFromMemory() -> struct0 [selector=0xfebd1e0e, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = alloc 96
@@ -116,6 +121,7 @@ fn @testFromMemory() -> struct0 [selector=0xfebd1e0e, abi_params=[], abi_returns
     ret v27
 }
 
+; function testNested() public returns (uint256, uint256, uint256) [selector 0xfbd4b8cc]
 fn @testNested() -> struct0 [selector=0xfbd4b8cc, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = sload 24 !metadata(storage=slot(24))
@@ -150,6 +156,7 @@ fn @testNested() -> struct0 [selector=0xfbd4b8cc, abi_params=[], abi_returns=[wo
     ret v23
 }
 
+; creation entry
 fn @constructor() [constructor] {
   bb0:
     sstore 24, 1 !metadata(storage=slot(24))

@@ -1,6 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_legality.mir (before lower-mapping-slots) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_legality.mir (after lower-mapping-slots) ===
   @module LowerEvmShapedLegality
+  ; runtime dispatch entry
   fn @entry() [entry] {
     bb0:
 -     v0 = storage_array_data_slot 7
@@ -21,6 +22,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_legality.mir (before lower-integers) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_legality.mir (after lower-integers) ===
   @module LowerEvmShapedLegality
+  ; runtime dispatch entry
   fn @entry() [entry] {
     bb0:
       mstore 0, 7 !metadata(memory=scratch)
@@ -51,6 +53,7 @@
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_legality.mir (after lower-evm-shaped) ===
   @module LowerEvmShapedLegality
 + @phase lowered
+  ; runtime dispatch entry
   fn @entry() [entry] {
     bb0:
       mstore 0, 7 !metadata(memory=scratch)

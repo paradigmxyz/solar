@@ -9,12 +9,12 @@
       mstore 0, 11
 -     v0 = mload 0
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       mstore 0, 22
 -     v2 = mload 0
 -     ret v2
 +     ret 22
-    bb1:
+    bb1:  ; preds = bb0
 -     v1 = mload 0
 -     ret v1
 +     ret 11
@@ -24,12 +24,12 @@
     bb0:
       v0 = sload 0
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       sstore 0, 7
 -     v2 = sload 0
 -     ret v2
 +     ret 7
-    bb1:
+    bb1:  ; preds = bb0
 -     v1 = sload 0
 -     ret v1
 +     ret v0
@@ -39,11 +39,11 @@
     bb0:
       v0 = loadimmutable value
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       storeimmutable value, 7
       v2 = loadimmutable value
       ret v2
-    bb1:
+    bb1:  ; preds = bb0
 -     v1 = loadimmutable value
 -     ret v1
 +     ret v0
@@ -52,15 +52,15 @@
   fn @keep_phi_immutable_loads_before_branch_stores(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       v1 = loadimmutable value
       storeimmutable value, 2
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       v0 = loadimmutable value
       storeimmutable value, 1
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
       v2 = phi [bb1: v0], [bb2: v1]
       ret v2
   }

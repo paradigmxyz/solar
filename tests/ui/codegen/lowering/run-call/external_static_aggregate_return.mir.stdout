@@ -3,6 +3,7 @@
 @types
   struct0: {ptr<memory>, i256}
 
+; function makeStruct(uint256 x) external pure returns (S memory) [selector 0x62dc8436]
 fn @makeStruct(arg0: i256) -> ptr<memory> [selector=0x62dc8436, pure, abi_params=[uint256], abi_returns=[tuple<word, word>], abi_return_params=[tuple<uint256, uint256>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -17,6 +18,7 @@ fn @makeStruct(arg0: i256) -> ptr<memory> [selector=0x62dc8436, pure, abi_params
     ret v2
 }
 
+; function makeArray(uint256 x) external pure returns (uint256[3] memory) [selector 0x9510f212]
 fn @makeArray(arg0: i256) -> ptr<memory> [selector=0x9510f212, pure, abi_params=[uint256], abi_returns=[array<3, word>], abi_return_params=[array<3, uint256>]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
@@ -32,6 +34,7 @@ fn @makeArray(arg0: i256) -> ptr<memory> [selector=0x9510f212, pure, abi_params=
     ret v1
 }
 
+; function makePair(uint256 x) external pure returns (S memory, uint256) [selector 0xf4d7be11]
 fn @makePair(arg0: i256) -> struct0 [selector=0xf4d7be11, pure, abi_params=[uint256], abi_returns=[tuple<word, word>, word], abi_return_params=[tuple<uint256, uint256>, uint256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -49,11 +52,13 @@ fn @makePair(arg0: i256) -> struct0 [selector=0xf4d7be11, pure, abi_params=[uint
     ret v7
 }
 
+; function narrow() external pure returns (uint256) [selector 0xe3b21a7a]
 fn @narrow() -> i256 [selector=0xe3b21a7a, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 1
 }
 
+; function structReturn(uint256 x) external view returns (uint256) [selector 0xc3f9a16c]
 fn @structReturn(arg0: i256) -> i256 [selector=0xc3f9a16c, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
@@ -65,9 +70,9 @@ fn @structReturn(arg0: i256) -> i256 [selector=0xc3f9a16c, view, abi_params=[uin
     v6 = zext i160 v0 to i256
     v7 = staticcall v1, v6, v3, v4, v5, 64
     jumpi v7, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v8 = returndatasize
     v9 = lt v8, 64
     icall revert_if<tuple_data_too_short>, v9
@@ -80,6 +85,7 @@ fn @structReturn(arg0: i256) -> i256 [selector=0xc3f9a16c, view, abi_params=[uin
     ret v15
 }
 
+; function arrayReturn(uint256 x) external view returns (uint256) [selector 0xad0cb941]
 fn @arrayReturn(arg0: i256) -> i256 [selector=0xad0cb941, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
@@ -91,9 +97,9 @@ fn @arrayReturn(arg0: i256) -> i256 [selector=0xad0cb941, view, abi_params=[uint
     v6 = zext i160 v0 to i256
     v7 = staticcall v1, v6, v3, v4, v5, 96
     jumpi v7, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v8 = returndatasize
     v9 = lt v8, 96
     icall revert_if<tuple_data_too_short>, v9
@@ -118,6 +124,7 @@ fn @arrayReturn(arg0: i256) -> i256 [selector=0xad0cb941, view, abi_params=[uint
     ret v24
 }
 
+; function tryStructReturn(uint256 x) external view returns (uint256) [selector 0xcc20ef0a]
 fn @tryStructReturn(arg0: i256) -> i256 [selector=0xcc20ef0a, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
@@ -129,14 +136,14 @@ fn @tryStructReturn(arg0: i256) -> i256 [selector=0xcc20ef0a, view, abi_params=[
     v6 = zext i160 v0 to i256
     v7 = staticcall v1, v6, v3, v4, v5, 64
     jumpi v7, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:
+  bb4:  ; preds = bb2
     ret 0
-  bb1:
+  bb1:  ; preds = bb0
     v8 = returndatasize
     v9 = lt v8, 64
     icall revert_if<tuple_data_too_short>, v9
@@ -151,6 +158,7 @@ fn @tryStructReturn(arg0: i256) -> i256 [selector=0xcc20ef0a, view, abi_params=[
     ret 0
 }
 
+; function pairReturn(uint256 x) external view returns (uint256) [selector 0xc6630f71]
 fn @pairReturn(arg0: i256) -> i256 [selector=0xc6630f71, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
@@ -162,9 +170,9 @@ fn @pairReturn(arg0: i256) -> i256 [selector=0xc6630f71, view, abi_params=[uint2
     v6 = zext i160 v0 to i256
     v7 = staticcall v1, v6, v3, v4, v5, 96
     jumpi v7, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v8 = returndatasize
     v9 = lt v8, 96
     icall revert_if<tuple_data_too_short>, v9
@@ -184,6 +192,7 @@ fn @pairReturn(arg0: i256) -> i256 [selector=0xc6630f71, view, abi_params=[uint2
     ret v22
 }
 
+; function shortReturn() external view returns (uint256) [selector 0xc41518f3]
 fn @shortReturn() -> i256 [selector=0xc41518f3, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
@@ -195,9 +204,9 @@ fn @shortReturn() -> i256 [selector=0xc41518f3, view, abi_params=[], abi_returns
     v6 = zext i160 v0 to i256
     v7 = staticcall v1, v6, v3, v4, v5, 64
     jumpi v7, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v8 = returndatasize
     v9 = lt v8, 64
     icall revert_if<tuple_data_too_short>, v9

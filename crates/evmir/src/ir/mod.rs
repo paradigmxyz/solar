@@ -1122,11 +1122,11 @@ impl fmt::Debug for CleanBlocks {
     }
 }
 
-/// Comment lines that the text format prints before blocks, keyed by the block's label.
+/// Comments that the text format prints after block labels, keyed by the block's label.
 ///
 /// No pass decides from them and module equality ignores them, so they cannot change what the
 /// compiler emits. A pass that removes a block drops its comment. A merge into a predecessor
-/// keeps it, indented, below the predecessor's own comment.
+/// appends the comment to the predecessor's.
 #[derive(Clone, Debug, Default)]
 pub struct BlockComments(FxHashMap<u32, String>);
 
@@ -1136,28 +1136,25 @@ impl BlockComments {
         self.0.clear();
     }
 
-    /// Returns the comment lines before the block labeled `label`, separated by newlines.
+    /// Returns the comment after the label `label`.
     pub fn get(&self, label: u32) -> Option<&str> {
         self.0.get(&label).map(String::as_str)
     }
 
-    /// Appends `line` to the comment before the block labeled `label`.
-    pub fn push(&mut self, label: u32, line: &str) {
+    /// Appends `note` to the comment after the label `label`.
+    pub fn push(&mut self, label: u32, note: &str) {
         let comment = self.0.entry(label).or_default();
         if !comment.is_empty() {
-            comment.push('\n');
+            comment.push_str(" + ");
         }
-        comment.push_str(line);
+        comment.push_str(note);
     }
 
-    /// Moves the comment before the block labeled `from`, which a merge removes, below the one
-    /// before the block labeled `into`, which continues its code. Its lines stay indented, to show
-    /// that they do not head `into`.
+    /// Moves the comment of the block labeled `from`, which a merge removes, to the end of the
+    /// one of the block labeled `into`, which continues its code.
     pub fn absorb(&mut self, into: u32, from: u32) {
         if let Some(comment) = self.0.remove(&from) {
-            for line in comment.lines() {
-                self.push(into, &format!("  {line}"));
-            }
+            self.push(into, &comment);
         }
     }
 

@@ -3,9 +3,7 @@
 @data
   C_runtime_code_0: hex"36602957005b6011602052634e487b715f526024601cfd5b6011602052634e487b715f526024601cfd5b5f3560e01c80632ddbd13a14607f578063771602f7146094578063b20e73441460be578063cf6459ff1461012b573461019057608060405260046101675b81156101895760018203600183106017576101776067565b608060405234610194575f545f525f6020035ff35b6080604052346101ae57604436106101aa576004356024358101908110610198575f525f6020035ff35b6080604052346101b657602436106101b2576004358060ea5f549182019182106101d457905f555f5490565b9060f16067565b81019081106005577f000000000000000000000000000000000000000000000000000000000000000081019081106005575f525f6020035ff35b6080604052346101be57602436106101ba576040516040810160405260078152602001662f2f202028207b60c81b90526004355f525f6020035ff35b5f549081019081106101c2575f55005b80830281159181049093141715601757565b9050600190565b5f5ffd5b5f5ffd5b6011602052634e487b715f526024601cfd5b5f5ffd5b5f5ffd5b5f5ffd5b5f5ffd5b5f5ffd5b5f5ffd5b6011602052634e487b715f526024601cfd5b6011602052634e487b715f526024601cfd"
 
-//   constructor(uint256 start)
-//   creation entry
-bb0:
+bb0:  ; constructor(uint256 start) [creation entry]
   push_data C_runtime_code_0+486
   codesize
   sub
@@ -45,9 +43,7 @@ bb0:
   push 3
   push bb11
   jump bb1
-
-// function fact(uint256 n) internal pure returns (uint256)
-bb1 [ret=0, inputs=2, outputs=1]:
+bb1 [ret=0, inputs=2, outputs=1]:  ; function fact(uint256 n) internal pure returns (uint256)
   dup 2
   iszero
   push bb7
@@ -138,9 +134,7 @@ bb15 [cold]:
   revert
 // === ROOT/tests/ui/codegen/lowering/function_comments.sol:C (runtime) ===
 @module C_runtime
-//   receive() external payable
-//   external entry, no calldata
-bb1:
+bb1:  ; receive() external payable [receive]
   calldatasize
   push bb3
   jumpi
@@ -165,10 +159,7 @@ bb49 [cold]:
   push 36
   push 28
   revert
-
-//   fallback() external
-//   external entry, no selector matches
-bb3:
+bb3:  ; fallback() external [fallback]
   push 0
   calldataload
   push 224
@@ -202,9 +193,7 @@ bb3:
   push 4
   push bb38
   jump bb44
-
-// function fact(uint256 n) internal pure returns (uint256)
-bb44 [ret=0, inputs=2, outputs=1]:
+bb44 [ret=0, inputs=2, outputs=1]:  ; function fact(uint256 n) internal pure returns (uint256)
   dup 2
   iszero
   push bb50
@@ -219,10 +208,7 @@ bb44 [ret=0, inputs=2, outputs=1]:
   jumpi
   push bb47
   jump bb44
-
-// getter for `uint256 public total`
-// external entry, selector 0x2ddbd13a
-bb11:
+bb11:  ; getter for `uint256 public total` [selector 0x2ddbd13a]
   push 128
   push 64
   mstore
@@ -238,10 +224,7 @@ bb11:
   sub
   push 0
   return
-
-// function add(uint256 a, uint256 b) external pure returns (uint256)
-// external entry, selector 0x771602f7
-bb14:
+bb14:  ; function add(uint256 a, uint256 b) external pure returns (uint256) [selector 0x771602f7]
   push 128
   push 64
   mstore
@@ -271,11 +254,7 @@ bb14:
   sub
   push 0
   return
-
-// function go(uint256 n) external returns (uint256)
-// external entry, selector 0xb20e7344
-//   function bump(uint256 x) internal returns (uint256)
-bb21:
+bb21:  ; function go(uint256 n) external returns (uint256) [selector 0xb20e7344] + function bump(uint256 x) internal returns (uint256)
   push 128
   push 64
   mstore
@@ -335,10 +314,7 @@ bb25 [continuation]:
   sub
   push 0
   return
-
-// function tag(uint256 x) external pure tagged("//  ( {") returns (uint256)
-// external entry, selector 0xcf6459ff
-bb31:
+bb31:  ; function tag(uint256 x) external pure tagged("//  ( {") returns (uint256) [selector 0xcf6459ff]
   push 128
   push 64
   mstore
@@ -477,8 +453,7 @@ bb43 [cold]:
   revert
 // === ROOT/tests/ui/codegen/lowering/function_comments.sol:C (scheduled runtime) ===
 @module C_runtime
-// runtime dispatch entry
-bb0:
+bb0:  ; runtime dispatch entry
   jump bb1
 bb1:
   calldatasize
@@ -532,10 +507,7 @@ bb10 [cold]:
   push 0
   push 0
   revert
-
-// getter for `uint256 public total`
-// external entry, selector 0x2ddbd13a
-bb11:
+bb11:  ; getter for `uint256 public total` [selector 0x2ddbd13a]
   push 128
   push 64
   mstore
@@ -557,10 +529,7 @@ bb13 [cold]:
   push 0
   push 0
   revert
-
-// function add(uint256 a, uint256 b) external pure returns (uint256)
-// external entry, selector 0x771602f7
-bb14:
+bb14:  ; function add(uint256 a, uint256 b) external pure returns (uint256) [selector 0x771602f7]
   push 128
   push 64
   mstore
@@ -614,10 +583,7 @@ bb20 [cold]:
   push 0
   push 0
   revert
-
-// function go(uint256 n) external returns (uint256)
-// external entry, selector 0xb20e7344
-bb21:
+bb21:  ; function go(uint256 n) external returns (uint256) [selector 0xb20e7344]
   push 128
   push 64
   mstore
@@ -687,10 +653,7 @@ bb30 [cold]:
   push 0
   push 0
   revert
-
-// function tag(uint256 x) external pure tagged("//  ( {") returns (uint256)
-// external entry, selector 0xcf6459ff
-bb31:
+bb31:  ; function tag(uint256 x) external pure tagged("//  ( {") returns (uint256) [selector 0xcf6459ff]
   push 128
   push 64
   mstore
@@ -738,15 +701,9 @@ bb35 [cold]:
   push 0
   push 0
   revert
-
-// receive() external payable
-// external entry, no calldata
-bb36:
+bb36:  ; receive() external payable [receive]
   stop
-
-// fallback() external
-// external entry, no selector matches
-bb37:
+bb37:  ; fallback() external [fallback]
   push 128
   push 64
   mstore
@@ -779,9 +736,7 @@ bb40 [cold]:
   push 36
   push 28
   revert
-
-// function bump(uint256 x) internal returns (uint256)
-bb41 [ret=0, inputs=2, outputs=1]:
+bb41 [ret=0, inputs=2, outputs=1]:  ; function bump(uint256 x) internal returns (uint256)
   push 0
   sload
   swap 2
@@ -811,9 +766,7 @@ bb43 [cold]:
   push 36
   push 28
   revert
-
-// function fact(uint256 n) internal pure returns (uint256)
-bb44 [ret=0, inputs=2, outputs=1]:
+bb44 [ret=0, inputs=2, outputs=1]:  ; function fact(uint256 n) internal pure returns (uint256)
   dup 2
   iszero
   push bb50

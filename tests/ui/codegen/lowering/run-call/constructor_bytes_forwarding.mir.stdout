@@ -1,11 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_bytes_forwarding.sol:ConstructorBytesBase ===
 @module ConstructorBytesBase
+; getter for `uint256 public value` [selector 0x3fa4f245]
 fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+; constructor(uint256 value_, bytes memory data_) [creation entry]
 fn @constructor(arg0: i256, arg1: ptr<memory>) [constructor, abi_params=[uint256, bytes]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
@@ -13,6 +15,7 @@ fn @constructor(arg0: i256, arg1: ptr<memory>) [constructor, abi_params=[uint256
     ret
 }
 
+; function byteAt(uint256 index) external view returns (bytes1) [selector 0x710422c6]
 fn @byteAt(arg0: i256) -> i256 [selector=0x710422c6, view, abi_params=[uint256], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
@@ -27,14 +30,14 @@ fn @byteAt(arg0: i256) -> i256 [selector=0x710422c6, view, abi_params=[uint256],
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v9 = storage_array_data_slot 1
     v10 = shr arg0, 5
     v11 = add v9, v10
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: 1]
     v13 = and arg0, 31
     v14 = sub 31, v13
@@ -53,29 +56,33 @@ fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_bytes_forwarding.sol:ConstructorBytesMain ===
 @module ConstructorBytesMain
+; constructor(bytes memory data_, uint256 value_) ConstructorBytesBase(value_, forward(data_)) [creation entry]
 fn @constructor(arg0: ptr<memory>, arg1: i256) [constructor, abi_params=[bytes, uint256]] {
   bb0:
     v0 = icall @forward, arg0
     sstore 0, arg1 !metadata(storage=slot(0))
     icall @store_storage_bytes, 1, v0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0
     jump bb2
-  bb2:
+  bb2:  ; preds = bb1
     ret
 }
 
+; function forward(bytes memory data_) internal pure returns (bytes memory)
 fn @forward(arg0: ptr<memory>) -> ptr<memory> [pure] {
   bb0:
     ret arg0
 }
 
+; getter for `uint256 public value` [selector 0x3fa4f245]
 fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+; function byteAt(uint256 index) external view returns (bytes1) [selector 0x710422c6]
 fn @byteAt(arg0: i256) -> i256 [selector=0x710422c6, view, abi_params=[uint256], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
@@ -90,14 +97,14 @@ fn @byteAt(arg0: i256) -> i256 [selector=0x710422c6, view, abi_params=[uint256],
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v9 = storage_array_data_slot 1
     v10 = shr arg0, 5
     v11 = add v9, v10
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: 1]
     v13 = and arg0, 31
     v14 = sub 31, v13
@@ -122,6 +129,7 @@ fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
 @data
   ConstructorBytesMain_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/constructor_bytes_forwarding.sol:ConstructorBytesMain"
 
+; function f(uint256 index, bytes memory data) external returns (uint256 value, bytes1 selected) [selector 0xcdc9dc79]
 fn @f(arg0: i256, arg1: ptr<memory>) -> struct0 [selector=0xcdc9dc79, abi_params=[uint256, bytes], abi_returns=[word, word<bytes1>], abi_return_params=[uint256, bytes1]] {
   bb0:
     v0 = abi_encode [memory_bytes, word], args arg1, arg0
@@ -139,17 +147,17 @@ fn @f(arg0: i256, arg1: ptr<memory>) -> struct0 [selector=0xcdc9dc79, abi_params
     v9 = create 0, v5, v3
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v11 = gas
     mstore 0, 0x3fa4f245 !metadata(memory=scratch)
     v12 = zext i160 v9 to i256
     v13 = staticcall v11, v12, 28, 4, 0, 32
     jumpi v13, bb4, bb3
-  bb3:
+  bb3:  ; preds = bb2
     revert_returndata
-  bb4:
+  bb4:  ; preds = bb2
     v14 = returndatasize
     v15 = lt v14, 32
     icall revert_if<tuple_data_too_short>, v15
@@ -161,9 +169,9 @@ fn @f(arg0: i256, arg1: ptr<memory>) -> struct0 [selector=0xcdc9dc79, abi_params
     v19 = zext i160 v9 to i256
     v20 = staticcall v18, v19, 28, 36, 0, 32
     jumpi v20, bb6, bb5
-  bb5:
+  bb5:  ; preds = bb4
     revert_returndata
-  bb6:
+  bb6:  ; preds = bb4
     v21 = returndatasize
     v22 = lt v21, 32
     icall revert_if<tuple_data_too_short>, v22

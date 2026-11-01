@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256, i256, i256, i256, i256}
 
+; function clearNested() external returns (uint256, uint256, uint256, uint256, uint256, uint256) [selector 0xdcbc9943]
 fn @clearNested() [selector=0xdcbc9943, abi_params=[], abi_returns=[word, word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = add 0, 1
@@ -82,6 +83,7 @@ fn @clearNested() [selector=0xdcbc9943, abi_params=[], abi_returns=[word, word, 
     returndata 0, 192
 }
 
+; function clearMutual() external returns (uint256, uint256, uint256, uint256, uint256, uint256) [selector 0x5baf460d]
 fn @clearMutual() [selector=0x5baf460d, abi_params=[], abi_returns=[word, word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = add 2, 1
@@ -152,13 +154,13 @@ fn @clear_recursive_storage_0(arg0: i256) {
     v1 = sload v0 !metadata(storage=offset(arg0, 1))
     sstore v0, 0 !metadata(storage=offset(arg0, 1))
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v2 = phi [bb0: 0], [bb2: v7]
     v3 = lt v2, v1
     jumpi v3, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     ret
-  bb2:
+  bb2:  ; preds = bb1
     v4 = storage_array_data_slot v0
     v5 = mul v2, 2
     v6 = add v4, v5
@@ -174,13 +176,13 @@ fn @clear_recursive_storage_1(arg0: i256) {
     v1 = sload v0 !metadata(storage=offset(arg0, 1))
     sstore v0, 0 !metadata(storage=offset(arg0, 1))
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v2 = phi [bb0: 0], [bb2: v7]
     v3 = lt v2, v1
     jumpi v3, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     ret
-  bb2:
+  bb2:  ; preds = bb1
     v4 = storage_array_data_slot v0
     v5 = mul v2, 2
     v6 = add v4, v5
@@ -196,13 +198,13 @@ fn @clear_recursive_storage_2(arg0: i256) {
     v1 = sload v0 !metadata(storage=offset(arg0, 1))
     sstore v0, 0 !metadata(storage=offset(arg0, 1))
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v2 = phi [bb0: 0], [bb2: v7]
     v3 = lt v2, v1
     jumpi v3, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     ret
-  bb2:
+  bb2:  ; preds = bb1
     v4 = storage_array_data_slot v0
     v5 = mul v2, 2
     v6 = add v4, v5

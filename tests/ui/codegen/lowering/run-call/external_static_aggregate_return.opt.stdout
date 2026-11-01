@@ -4,12 +4,13 @@
 @types
   struct0: {ptr<memory>, i256}
 
+; function makeStruct(uint256 x) external pure returns (S memory) [selector 0x62dc8436]
 fn @makeStruct() [selector=0x62dc8436, abi_wrapper, pure] {
   bb0:
     v7 = calldatasize
     v8 = lt v7, 36
     jumpi v8, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb0
     v16 = heap_floor !metadata(alloc_ptr)
     v17 = add v16, 64 !metadata(alloc_ptr)
     mstore 64, v17 !metadata(memory=scratch)
@@ -17,24 +18,25 @@ fn @makeStruct() [selector=0x62dc8436, abi_wrapper, pure] {
     v5 = add arg0, 1
     v6 = eq v5, 0
     jumpi v6, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb4
     mstore 128, arg0
     mstore 160, v5
     returndata 128, 64
-  bb1:
+  bb1:  ; preds = bb4
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3:  ; preds = bb0
     revert 0, 0
 }
 
+; function makeArray(uint256 x) external pure returns (uint256[3] memory) [selector 0x9510f212]
 fn @makeArray() [selector=0x9510f212, abi_wrapper, pure] {
   bb0:
     v10 = calldatasize
     v11 = lt v10, 36
     jumpi v11, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb0
     v31 = heap_floor !metadata(alloc_ptr)
     v32 = add v31, 192 !metadata(alloc_ptr)
     mstore 64, v32 !metadata(memory=scratch)
@@ -43,23 +45,23 @@ fn @makeArray() [selector=0x9510f212, abi_wrapper, pure] {
     v6 = add arg0, 1
     v7 = eq v6, 0
     jumpi v7, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb5
     v23 = add v31, 128
     mstore v23, v6
     v8 = add arg0, 2
     v9 = lt v8, arg0
     jumpi v9, bb1, bb3
-  bb3:
+  bb3:  ; preds = bb2
     v25 = add v31, 160
     mstore v25, v8
     jump bb6
-  bb6:
+  bb6:  ; preds = bb3, bb7
     v12 = phi [bb3: 0], [bb7: v19]
     v13 = lt v12, 3
     jumpi v13, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     returndata 128, 96
-  bb7:
+  bb7:  ; preds = bb6
     v14 = shl v12, 5
     v27 = add v30, v14
     v16 = mload v27
@@ -67,20 +69,21 @@ fn @makeArray() [selector=0x9510f212, abi_wrapper, pure] {
     mstore v18, v16
     v19 = add v12, 1
     jump bb6
-  bb1:
+  bb1:  ; preds = bb2, bb5
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb4:
+  bb4:  ; preds = bb0
     revert 0, 0
 }
 
+; function makePair(uint256 x) external pure returns (S memory, uint256) [selector 0xf4d7be11]
 fn @makePair() [selector=0xf4d7be11, abi_wrapper, pure] {
   bb0:
     v12 = calldatasize
     v13 = lt v12, 36
     jumpi v13, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb0
     v26 = heap_floor !metadata(alloc_ptr)
     v27 = add v26, 64 !metadata(alloc_ptr)
     mstore 64, v27 !metadata(memory=scratch)
@@ -88,39 +91,41 @@ fn @makePair() [selector=0xf4d7be11, abi_wrapper, pure] {
     v8 = add arg0, 1
     v9 = eq v8, 0
     jumpi v9, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb5
     mstore v2, arg0
     v23 = add v2, 32
     mstore v23, v8
     v10 = add arg0, 2
     v11 = lt v10, arg0
     jumpi v11, bb1, bb3
-  bb3:
+  bb3:  ; preds = bb2
     v14 = mload v2
     mstore 128, v14
     mstore 160, v8
     mstore 192, v10
     returndata 128, 96
-  bb1:
+  bb1:  ; preds = bb2, bb5
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb4:
+  bb4:  ; preds = bb0
     revert 0, 0
 }
 
+; function narrow() external pure returns (uint256) [selector 0xe3b21a7a]
 fn @narrow() [selector=0xe3b21a7a, abi_wrapper, pure] {
   bb0:
     mstore 0, 1 !metadata(memory=scratch)
     returndata 0, 32
 }
 
+; function structReturn(uint256 x) external view returns (uint256) [selector 0xc3f9a16c]
 fn @structReturn() [selector=0xc3f9a16c, abi_wrapper, view] {
   bb0:
     v24 = calldatasize
     v25 = lt v24, 36
     jumpi v25, bb3, bb7
-  bb7:
+  bb7:  ; preds = bb0
     v0: i256 = address
     v1 = gas
     v37 = heap_floor !metadata(alloc_ptr)
@@ -132,16 +137,16 @@ fn @structReturn() [selector=0xc3f9a16c, abi_wrapper, view] {
     v36 = add v37, 64
     v7 = staticcall v1, v0, v37, 36, v36, 64
     jumpi v7, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb7
     v22 = returndatasize
     returndatacopy 0, 0, v22 !metadata(memory=abi_return)
     v23 = returndatasize
     revert 0, v23
-  bb2:
+  bb2:  ; preds = bb7
     v8 = returndatasize
     v9 = lt v8, 64
     jumpi v9, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb2
     v21 = icall @decode_static, v36
     v12 = mload v21
     v32 = add v21, 32
@@ -149,23 +154,24 @@ fn @structReturn() [selector=0xc3f9a16c, abi_wrapper, view] {
     v16 = add v12, v14
     v17 = lt v16, v12
     jumpi v17, bb5, bb6
-  bb6:
+  bb6:  ; preds = bb4
     mstore 0, v16 !metadata(memory=scratch)
     returndata 0, 32
-  bb5:
+  bb5:  ; preds = bb4
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3:  ; preds = bb0, bb2
     revert 0, 0
 }
 
+; function arrayReturn(uint256 x) external view returns (uint256) [selector 0xad0cb941]
 fn @arrayReturn() [selector=0xad0cb941, abi_wrapper, view] {
   bb0:
     v41 = calldatasize
     v42 = lt v41, 36
     jumpi v42, bb3, bb8
-  bb8:
+  bb8:  ; preds = bb0
     v0: i256 = address
     v1 = gas
     v58 = heap_floor !metadata(alloc_ptr)
@@ -177,16 +183,16 @@ fn @arrayReturn() [selector=0xad0cb941, abi_wrapper, view] {
     v57 = add v58, 64
     v7 = staticcall v1, v0, v58, 36, v57, 96
     jumpi v7, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb8
     v39 = returndatasize
     returndatacopy 0, 0, v39 !metadata(memory=abi_return)
     v40 = returndatasize
     revert 0, v40
-  bb2:
+  bb2:  ; preds = bb8
     v8 = returndatasize
     v9 = lt v8, 96
     jumpi v9, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb2
     v34 = alloc 96 !metadata(deferred_alloc)
     mcopy v34, v57, 96
     v14 = mload v34
@@ -195,29 +201,30 @@ fn @arrayReturn() [selector=0xad0cb941, abi_wrapper, view] {
     v25 = add v14, v18
     v26 = lt v25, v14
     jumpi v26, bb5, bb6
-  bb6:
+  bb6:  ; preds = bb4
     v51 = add v34, 64
     v23 = mload v51
     v27 = add v25, v23
     v28 = lt v27, v25
     jumpi v28, bb5, bb7
-  bb7:
+  bb7:  ; preds = bb6
     mstore 0, v27 !metadata(memory=scratch)
     returndata 0, 32
-  bb5:
+  bb5:  ; preds = bb4, bb6
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3:  ; preds = bb0, bb2
     revert 0, 0
 }
 
+; function tryStructReturn(uint256 x) external view returns (uint256) [selector 0xcc20ef0a]
 fn @tryStructReturn() [selector=0xcc20ef0a, abi_wrapper, view] {
   bb0:
     v22 = calldatasize
     v23 = lt v22, 36
     jumpi v23, bb3, bb7
-  bb7:
+  bb7:  ; preds = bb0
     v0: i256 = address
     v1 = gas
     v36 = heap_floor !metadata(alloc_ptr)
@@ -229,14 +236,14 @@ fn @tryStructReturn() [selector=0xcc20ef0a, abi_wrapper, view] {
     v35 = add v36, 64
     v7 = staticcall v1, v0, v36, 36, v35, 64
     jumpi v7, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb7
     mstore 0, 0 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1:  ; preds = bb7
     v8 = returndatasize
     v9 = lt v8, 64
     jumpi v9, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb1
     v21 = icall @decode_static, v35
     v12 = mload v21
     v31 = add v21, 32
@@ -244,23 +251,24 @@ fn @tryStructReturn() [selector=0xcc20ef0a, abi_wrapper, view] {
     v16 = add v12, v14
     v17 = lt v16, v12
     jumpi v17, bb5, bb6
-  bb6:
+  bb6:  ; preds = bb4
     mstore 0, v16 !metadata(memory=scratch)
     returndata 0, 32
-  bb5:
+  bb5:  ; preds = bb4
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3:  ; preds = bb0, bb1
     revert 0, 0
 }
 
+; function pairReturn(uint256 x) external view returns (uint256) [selector 0xc6630f71]
 fn @pairReturn() [selector=0xc6630f71, abi_wrapper, view] {
   bb0:
     v49 = calldatasize
     v50 = lt v49, 36
     jumpi v50, bb3, bb7
-  bb7:
+  bb7:  ; preds = bb0
     v0: i256 = address
     v1 = gas
     v60 = heap_floor !metadata(alloc_ptr)
@@ -272,16 +280,16 @@ fn @pairReturn() [selector=0xc6630f71, abi_wrapper, view] {
     v59 = add v60, 64
     v7 = staticcall v1, v0, v60, 36, v59, 96
     jumpi v7, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb7
     v47 = returndatasize
     returndatacopy 0, 0, v47 !metadata(memory=abi_return)
     v48 = returndatasize
     revert 0, v48
-  bb2:
+  bb2:  ; preds = bb7
     v8 = returndatasize
     v9 = lt v8, 96
     jumpi v9, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb2
     v32 = alloc 64 !metadata(deferred_alloc)
     v33 = mload v59
     v42 = add v60, 128
@@ -294,17 +302,18 @@ fn @pairReturn() [selector=0xc6630f71, abi_wrapper, view] {
     v26 = lt v25, v23
     v62 = or v24, v26
     jumpi v62, bb5, bb6
-  bb6:
+  bb6:  ; preds = bb4
     mstore 0, v25 !metadata(memory=scratch)
     returndata 0, 32
-  bb5:
+  bb5:  ; preds = bb4
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3:  ; preds = bb0, bb2
     revert 0, 0
 }
 
+; function shortReturn() external view returns (uint256) [selector 0xc41518f3]
 fn @shortReturn() [selector=0xc41518f3, abi_wrapper, view] {
   bb0:
     v0: i256 = address
@@ -316,16 +325,16 @@ fn @shortReturn() [selector=0xc41518f3, abi_wrapper, view] {
     v34 = add v35, 32
     v7 = staticcall v1, v0, v35, 4, v34, 64
     jumpi v7, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v22 = returndatasize
     returndatacopy 0, 0, v22 !metadata(memory=abi_return)
     v23 = returndatasize
     revert 0, v23
-  bb2:
+  bb2:  ; preds = bb0
     v8 = returndatasize
     v9 = lt v8, 64
     jumpi v9, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb2
     v21 = icall @decode_static, v34
     v12 = mload v21
     v30 = add v21, 32
@@ -333,14 +342,14 @@ fn @shortReturn() [selector=0xc41518f3, abi_wrapper, view] {
     v16 = add v12, v14
     v17 = lt v16, v12
     jumpi v17, bb5, bb6
-  bb6:
+  bb6:  ; preds = bb4
     mstore 0, v16 !metadata(memory=scratch)
     returndata 0, 32
-  bb5:
+  bb5:  ; preds = bb4
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3:  ; preds = bb2
     revert 0, 0
 }
 
@@ -358,33 +367,34 @@ fn @decode_static(arg0: i256) -> i256 [may_return_memory] {
     ret v16
 }
 
+; runtime dispatch entry
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
     v1 = ne v0, 0
     jumpi v1, bb11, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v2 = calldataload 0
     v3 = shr v2, 224
     switch v3, default bb11, [0x62dc8436 => bb2, 0x9510f212 => bb3, 0xad0cb941 => bb4, 0xc3f9a16c => bb5, 0xc41518f3 => bb6, 0xc6630f71 => bb7, 0xcc20ef0a => bb8, 0xe3b21a7a => bb9, 0xf4d7be11 => bb10]
-  bb10:
+  bb10:  ; preds = bb1
     tail_call @makePair
-  bb9:
+  bb9:  ; preds = bb1
     tail_call @narrow
-  bb8:
+  bb8:  ; preds = bb1
     tail_call @tryStructReturn
-  bb7:
+  bb7:  ; preds = bb1
     tail_call @pairReturn
-  bb6:
+  bb6:  ; preds = bb1
     tail_call @shortReturn
-  bb5:
+  bb5:  ; preds = bb1
     tail_call @structReturn
-  bb4:
+  bb4:  ; preds = bb1
     tail_call @arrayReturn
-  bb3:
+  bb3:  ; preds = bb1
     tail_call @makeArray
-  bb2:
+  bb2:  ; preds = bb1
     tail_call @makeStruct
-  bb11:
+  bb11:  ; preds = bb0, bb1
     revert 0, 0
 }

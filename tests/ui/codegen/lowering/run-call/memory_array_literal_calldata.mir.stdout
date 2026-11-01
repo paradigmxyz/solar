@@ -1,14 +1,15 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/memory_array_literal_calldata.sol:MemoryArrayLiteralCalldata ===
 @module MemoryArrayLiteralCalldata
+; function collect(bytes calldata first, bytes calldata second) external pure returns (bytes[2] memory) [selector 0xcc62604c]
 fn @collect(arg0: slice<calldata>, arg1: slice<calldata>) -> ptr<memory> [selector=0xcc62604c, pure, abi_params=[bytes, bytes], abi_returns=[array<2, memory_bytes>], abi_return_params=[array<2, bytes>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v5]
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v6 = alloc 64
     v7 = extract_value slice<calldata>, arg0, 1
     v8 = add v7, 63
@@ -36,7 +37,7 @@ fn @collect(arg0: slice<calldata>, arg1: slice<calldata>) -> ptr<memory> [select
     v25 = ptradd v6, 32
     mstore v25, v24
     ret v6
-  bb2:
+  bb2:  ; preds = bb1
     v3 = shl v1, 5
     v4 = ptradd v0, v3
     mstore v4, 96

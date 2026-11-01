@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_with_signature_storage.sol:AbiEncodeWithSignatureStorage ===
 @module AbiEncodeWithSignatureStorage
+; function pointer() external view returns (bytes memory) [selector 0x2f5f3b3c]
 fn @pointer() -> ptr<memory> [selector=0x2f5f3b3c, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @load_storage_bytes, 0
@@ -12,14 +13,15 @@ fn @pointer() -> ptr<memory> [selector=0x2f5f3b3c, view, abi_params=[], abi_retu
     ret v6
 }
 
+; function ternary(bool condition) external view returns (bytes memory) [selector 0xee58c378]
 fn @ternary(arg0: i1) -> ptr<memory> [selector=0xee58c378, view, abi_params=[bool], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v0 = phi [bb1: 0], [bb2: 1]
     v1 = icall @load_storage_bytes, v0
     v2 = ptradd v1, 32
@@ -37,6 +39,7 @@ fn @load_storage_bytes(arg0: i256) -> ptr<memory> {
     ret v0
 }
 
+; creation entry
 fn @constructor() [constructor] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)

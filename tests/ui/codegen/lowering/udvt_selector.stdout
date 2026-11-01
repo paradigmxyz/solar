@@ -10,10 +10,7 @@
 }
 // === ROOT/tests/ui/codegen/lowering/udvt_selector.sol:UdvtSelector (runtime) ===
 @module UdvtSelector_runtime
-// runtime dispatch entry
-//   function unwrapAndAdd(Wad x, uint256 y) external pure returns (uint256)
-//   external entry, selector 0x8d2f9995
-bb0:
+bb0:  ; runtime dispatch entry + function unwrapAndAdd(Wad x, uint256 y) external pure returns (uint256) [selector 0x8d2f9995]
   callvalue
   push bb3
   jumpi

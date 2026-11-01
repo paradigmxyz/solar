@@ -19,9 +19,9 @@
     bb0:
       memory_zero 0x400, 64
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       ret 1
-    bb1:
+    bb1:  ; preds = bb0
 -     v0 = mload 0x400
 -     ret v0
 +     ret 0

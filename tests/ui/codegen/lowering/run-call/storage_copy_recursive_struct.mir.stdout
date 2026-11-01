@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i128, i256, i128, i256, i128, i256, i128, i256, i256}
 
+; function exercise() external returns (uint256, uint128, uint256, uint128, uint256, uint128, uint256, uint128, uint256, uint256) [selector 0xd32cb0fe]
 fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word, word<uint128>, word, word<uint128>, word, word<uint128>, word, word<uint128>, word, word], abi_return_params=[uint256, uint128, uint256, uint128, uint256, uint128, uint256, uint128, uint256, uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -404,14 +405,14 @@ fn @load_storage_struct_array_0(arg0: i256) -> ptr<memory> {
     mstore v4, v0
     v5 = storage_array_data_slot arg0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v6 = phi [bb0: 0], [bb2: v25]
     v7 = phi [bb0: v5], [bb2: v26]
     v8 = lt v6, v0
     jumpi v8, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     ret v4
-  bb2:
+  bb2:  ; preds = bb1
     v9 = alloc checked 96
     v10 = sload v7 !metadata(storage=symbolic(v7))
     v11 = trunc i256 v10 to i128
@@ -458,24 +459,24 @@ fn @store_recursive_storage_0_0(arg0: i256, arg1: ptr<memory>) {
     v14 = sload v10 !metadata(storage=offset(arg0, 2))
     v15 = gt v14, v13
     jumpi v15, bb1, bb2
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb4
     v16 = phi [bb1: v13], [bb4: v21]
     v17 = lt v16, v14
     jumpi v17, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb2
-  bb2:
+  bb2:  ; preds = bb0, bb5
     sstore v10, v13 !metadata(storage=offset(arg0, 2))
     jump bb6
-  bb6:
+  bb6:  ; preds = bb2, bb7
     v22 = phi [bb2: 0], [bb7: v32]
     v23 = lt v22, v13
     jumpi v23, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     ret
-  bb7:
+  bb7:  ; preds = bb6
     v24 = shl v22, 5
     v25 = inttoptr i256 v12 to ptr<memory>
     v26 = ptradd v25, v24
@@ -487,7 +488,7 @@ fn @store_recursive_storage_0_0(arg0: i256, arg1: ptr<memory>) {
     icall @store_recursive_storage_0_0, v31, v28
     v32 = add v22, 1
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v18 = storage_array_data_slot v10
     v19 = mul v16, 3
     v20 = add v18, v19
@@ -517,22 +518,22 @@ fn @clear_recursive_storage_0(arg0: i256) {
     v8 = add v7, 31
     v9 = div v8, 32
     jumpi v3, bb1, bb2
-  bb1:
+  bb1:  ; preds = bb0
     clear_storage_words v0, 0, v9
     jump bb2
-  bb2:
+  bb2:  ; preds = bb0, bb1
     sstore v0, 0 !metadata(storage=offset(arg0, 1))
     v10 = add arg0, 2
     v11 = sload v10 !metadata(storage=offset(arg0, 2))
     sstore v10, 0 !metadata(storage=offset(arg0, 2))
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2, bb4
     v12 = phi [bb2: 0], [bb4: v17]
     v13 = lt v12, v11
     jumpi v13, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     ret
-  bb4:
+  bb4:  ; preds = bb3
     v14 = storage_array_data_slot v10
     v15 = mul v12, 3
     v16 = add v14, v15

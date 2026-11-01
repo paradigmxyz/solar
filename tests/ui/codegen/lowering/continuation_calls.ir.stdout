@@ -1,7 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/continuation_calls.sol:ContinuationCalls (runtime) ===
 @module ContinuationCalls_runtime
-// runtime dispatch entry
-bb0:
+bb0:  ; runtime dispatch entry
   push 36
   calldatasize
   lt
@@ -105,18 +104,13 @@ bb23:
   push 32
   push 0
   return
-
-// function first(uint256 x) external pure returns (uint256)
-// external entry, selector 0x0b3f62f5
-bb8:
+bb8:  ; function first(uint256 x) external pure returns (uint256) [selector 0x0b3f62f5]
   push 1
   push 4
   calldataload
   push bb9
   jump bb32
-
-// function sum(uint256 x, uint256 step) internal pure returns (uint256 r)
-bb32 [loop, ret=0, inputs=3, outputs=1]:
+bb32 [loop, ret=0, inputs=3, outputs=1]:  ; function sum(uint256 x, uint256 step) internal pure returns (uint256 r)
   swap 1
   push 0
   sub
@@ -129,28 +123,19 @@ bb32 [loop, ret=0, inputs=3, outputs=1]:
   swap 2
   pop
   jump
-
-// function second(uint256 x) external pure returns (uint256)
-// external entry, selector 0x7896dfe3
-bb12:
+bb12:  ; function second(uint256 x) external pure returns (uint256) [selector 0x7896dfe3]
   push 2
   push 4
   calldataload
   push bb9
   jump bb32
-
-// function third(uint256 x) external pure returns (uint256)
-// external entry, selector 0xf1680ae6
-bb16:
+bb16:  ; function third(uint256 x) external pure returns (uint256) [selector 0xf1680ae6]
   push 3
   push 4
   calldataload
   push bb9
   jump bb32
-
-// function combined(uint256 x) external pure returns (uint256)
-// external entry, selector 0xacb6e042
-bb20:
+bb20:  ; function combined(uint256 x) external pure returns (uint256) [selector 0xacb6e042]
   push 4
   calldataload
   push 1
@@ -170,10 +155,7 @@ bb21 [continuation]:
   swap 2
   push bb23
   jump bb32
-
-// function bounded(uint256 x) external pure returns (uint256)
-// external entry, selector 0xeadcc0c3
-bb26:
+bb26:  ; function bounded(uint256 x) external pure returns (uint256) [selector 0xeadcc0c3]
   push 3
   push 4
   calldataload

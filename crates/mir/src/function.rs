@@ -29,6 +29,9 @@ pub struct Function {
     pub declaration_span: Span,
     /// Source-language identifier retained independently of the MIR symbol.
     pub debug_identifier: Option<Symbol>,
+    /// Source signature for the text dumps, set only when a dump is requested. It never affects
+    /// code generation.
+    pub debug_signature: Option<Symbol>,
     /// Function selector (4 bytes, for external functions).
     pub selector: Option<[u8; 4]>,
     /// Function attributes.
@@ -88,6 +91,7 @@ impl Function {
             name_span: name.span,
             declaration_span: name.span,
             debug_identifier: None,
+            debug_signature: None,
             selector: None,
             attributes: FunctionAttributes::default(),
             params: IndexVec::new(),
@@ -142,6 +146,28 @@ impl Function {
             } else {
                 std::slice::from_ref(&self.return_type)
             }
+        })
+    }
+
+    /// Returns the note that the text dumps print before this function: its source signature
+    /// and role, such as `function add(uint256 a) external [selector 0x771602f7]`.
+    pub fn entry_note(&self, is_dispatch_entry: bool) -> Option<String> {
+        let role = if is_dispatch_entry {
+            "runtime dispatch entry".to_string()
+        } else if self.attributes.is_constructor {
+            "creation entry".to_string()
+        } else if let Some(selector) = self.selector {
+            format!("selector 0x{:08x}", u32::from_be_bytes(selector))
+        } else if self.attributes.is_fallback {
+            "fallback".to_string()
+        } else if self.attributes.is_receive {
+            "receive".to_string()
+        } else {
+            return self.debug_signature.map(|signature| signature.to_string());
+        };
+        Some(match self.debug_signature {
+            Some(signature) => format!("{signature} [{role}]"),
+            None => role,
         })
     }
 

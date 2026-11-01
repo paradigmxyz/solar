@@ -5,6 +5,7 @@
     account: uint160
     signed: int64
   
+  ; selector 0x00000001
   fn @runtime() -> i256 [selector=0x00000001] {
     bb0:
       v0: i256 = loadimmutable account
@@ -12,6 +13,7 @@
       ret v1
   }
   
+  ; selector 0x00000002
   fn @narrower() -> i256 [selector=0x00000002] {
     bb0:
       v0: i256 = loadimmutable account
@@ -19,6 +21,7 @@
       ret v1
   }
   
+  ; selector 0x00000003
   fn @signed_value() -> i256 [selector=0x00000003] {
     bb0:
       v0: i256 = loadimmutable signed
@@ -26,11 +29,13 @@
       ret v1
   }
   
+  ; selector 0x00000004
   fn @runtime_shared() [selector=0x00000004] {
     bb0:
       tail_call @shared
   }
   
+  ; creation entry
   fn @constructor() [constructor] {
     bb0:
       v0 = icall @bridge

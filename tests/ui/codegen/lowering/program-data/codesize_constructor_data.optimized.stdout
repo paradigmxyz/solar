@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/program-data/codesize_constructor_data.sol:Child (runtime) ===
 @module Child_runtime
-// runtime dispatch entry
-//   function value() external pure returns (uint256)
-//   external entry, selector 0x3fa4f245
-bb0:
+bb0:  ; runtime dispatch entry + function value() external pure returns (uint256) [selector 0x3fa4f245]
   callvalue
   push bb3
   jumpi
@@ -28,8 +25,7 @@ bb3 [cold]:
   revert
 // === ROOT/tests/ui/codegen/lowering/program-data/codesize_constructor_data.sol:Factory (runtime) ===
 @module Factory_runtime
-// runtime dispatch entry
-bb0:
+bb0:  ; runtime dispatch entry
   callvalue
   push bb4
   jumpi
@@ -52,10 +48,7 @@ bb4 [cold]:
   push 0
   push 0
   revert
-
-// function value() external view returns (uint256)
-// external entry, selector 0x3fa4f245
-bb5:
+bb5:  ; function value() external view returns (uint256) [selector 0x3fa4f245]
   push 128
   push 64
   mstore
@@ -84,10 +77,7 @@ bb5:
   push 32
   push 0
   return
-
-// function sizeMatches() external view returns (bool)
-// external entry, selector 0x6cb0d5a7
-bb10:
+bb10:  ; function sizeMatches() external view returns (bool) [selector 0x6cb0d5a7]
   address
   extcodesize
   codesize

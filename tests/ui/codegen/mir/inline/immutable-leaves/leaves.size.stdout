@@ -6,6 +6,7 @@
     duration: uint64
     initial: uint256
   
+  ; selector 0x00000001
   fn @entry() -> i256 [selector=0x00000001] {
     bb0:
 -     v0 = icall @end
@@ -15,37 +16,37 @@
 -     v4 = add v0, v1
 -     v5 = add v2, v3
 +     jump bb8
-+   bb8:
++   bb8:  ; preds = bb0
 +     v18 = loadimmutable start
 +     v19 = zext i64 v18 to i256
 +     v20 = loadimmutable duration
 +     v21 = zext i64 v20 to i256
 +     v22 = add v19, v21
 +     jump bb7
-+   bb7:
++   bb7:  ; preds = bb8
 +     v23 = phi [bb8: v22]
 +     jump bb2
-+   bb2:
++   bb2:  ; preds = bb7
 +     v7 = mload 0
 +     v8 = loadimmutable start
 +     v9 = zext i64 v8 to i256
 +     v10 = add v7, v9
 +     jump bb1
-+   bb1:
++   bb1:  ; preds = bb2
 +     v11 = phi [bb2: v10]
 +     jump bb4
-+   bb4:
++   bb4:  ; preds = bb1
 +     v12 = add 1, 2
 +     jump bb3
-+   bb3:
++   bb3:  ; preds = bb4
 +     v13 = phi [bb4: v12]
 +     jump bb6
-+   bb6:
++   bb6:  ; preds = bb3
 +     v14 = loadimmutable start
 +     v15 = zext i64 v14 to i256
 +     v16 = add v15, v23
 +     jump bb5
-+   bb5:
++   bb5:  ; preds = bb6
 +     v17 = phi [bb6: v16]
 +     v4 = add v23, v11
 +     v5 = add v13, v17
@@ -53,6 +54,7 @@
       ret v6
   }
   
+  ; creation entry
   fn @constructor(arg0: i256, arg1: i256) [constructor] {
     bb0:
       v0 = trunc i256 arg0 to i64
@@ -62,14 +64,14 @@
 -     v2 = icall @end
 -     storeimmutable initial, v2
 +     jump bb2
-+   bb2:
++   bb2:  ; preds = bb0
 +     v3 = loadimmutable start
 +     v4 = zext i64 v3 to i256
 +     v5 = loadimmutable duration
 +     v6 = zext i64 v5 to i256
 +     v7 = add v4, v6
 +     jump bb1
-+   bb1:
++   bb1:  ; preds = bb2
 +     v8 = phi [bb2: v7]
 +     storeimmutable initial, v8
       stop
@@ -116,40 +118,41 @@
     duration: uint64
     initial: uint256
   
+  ; selector 0x00000001
   fn @entry() -> i256 [selector=0x00000001] {
     bb0:
 -     jump bb8
--   bb8:
+-   bb8:  ; preds = bb0
       v18 = loadimmutable start
       v19 = zext i64 v18 to i256
       v20 = loadimmutable duration
       v21 = zext i64 v20 to i256
       v22 = add v19, v21
 -     jump bb7
--   bb7:
+-   bb7:  ; preds = bb8
 -     v23 = phi [bb8: v22]
 -     jump bb2
--   bb2:
+-   bb2:  ; preds = bb7
       v7 = mload 0
       v8 = loadimmutable start
       v9 = zext i64 v8 to i256
       v10 = add v7, v9
 -     jump bb1
--   bb1:
+-   bb1:  ; preds = bb2
 -     v11 = phi [bb2: v10]
 -     jump bb4
--   bb4:
+-   bb4:  ; preds = bb1
       v12 = add 1, 2
 -     jump bb3
--   bb3:
+-   bb3:  ; preds = bb4
 -     v13 = phi [bb4: v12]
 -     jump bb6
--   bb6:
+-   bb6:  ; preds = bb3
       v14 = loadimmutable start
       v15 = zext i64 v14 to i256
 -     v16 = add v15, v23
 -     jump bb5
--   bb5:
+-   bb5:  ; preds = bb6
 -     v17 = phi [bb6: v16]
 -     v4 = add v23, v11
 -     v5 = add v13, v17
@@ -160,6 +163,7 @@
       ret v6
   }
   
+  ; creation entry
   fn @constructor(arg0: i256, arg1: i256) [constructor] {
     bb0:
       v0 = trunc i256 arg0 to i64
@@ -167,14 +171,14 @@
       v1 = trunc i256 arg1 to i64
       storeimmutable duration, v1
 -     jump bb2
--   bb2:
+-   bb2:  ; preds = bb0
       v3 = loadimmutable start
       v4 = zext i64 v3 to i256
       v5 = loadimmutable duration
       v6 = zext i64 v5 to i256
       v7 = add v4, v6
 -     jump bb1
--   bb1:
+-   bb1:  ; preds = bb2
 -     v8 = phi [bb2: v7]
 -     storeimmutable initial, v8
 +     storeimmutable initial, v7
@@ -189,6 +193,7 @@
     duration: uint64
     initial: uint256
   
+  ; selector 0x00000001
   fn @entry() -> i256 [selector=0x00000001] {
     bb0:
       v18 = loadimmutable start
@@ -210,6 +215,7 @@
       ret v6
   }
   
+  ; creation entry
   fn @constructor(arg0: i256, arg1: i256) [constructor] {
     bb0:
       v0 = trunc i256 arg0 to i64

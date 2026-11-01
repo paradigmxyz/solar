@@ -1,19 +1,20 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_return_reset_viair.sol:ModifierReturnResetViaIr ===
 @module ModifierReturnResetViaIr
+; function foo() external twice returns (uint256 result) [selector 0xc2985578]
 fn @foo() -> i256 [selector=0xc2985578, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = trunc i256 v0 to i8
     v2 = ne v1, i8 0
     jumpi v2, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb0
     jump bb5
-  bb3:
+  bb3:  ; preds = bb0
     jump bb5
-  bb5:
+  bb5:  ; preds = bb3, bb4
     v3 = phi [bb3: 1], [bb4: 0]
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     v4 = sload 0 !metadata(storage=slot(0))
     v5 = not 255
     v6 = and v4, v5
@@ -24,19 +25,20 @@ fn @foo() -> i256 [selector=0xc2985578, abi_params=[], abi_returns=[word], abi_r
     v10 = trunc i256 v9 to i8
     v11 = ne v10, i8 0
     jumpi v11, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb2
     jump bb9
-  bb7:
+  bb7:  ; preds = bb2
     jump bb9
-  bb9:
+  bb9:  ; preds = bb7, bb8
     v12 = phi [bb7: 1], [bb8: 0]
     jump bb6
-  bb6:
+  bb6:  ; preds = bb9
     jump bb1
-  bb1:
+  bb1:  ; preds = bb6
     ret v12
 }
 
+; creation entry
 fn @constructor() [constructor] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))

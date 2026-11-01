@@ -435,16 +435,22 @@ fn evm_ir_dump_preserves_bytecode() {
             "-O",
             mode,
             "--emit=bin,bin-runtime",
-            "-Zdump=evm-ir,evm-ir-runtime,evm-ir-runtime-scheduled",
+            "-Zdump=evm-ir,evm-ir-runtime,evm-ir-runtime-scheduled,mir",
         ]);
-        // The compiler's JSON precedes the dump on stdout.
+        // The MIR dump precedes the compiler's JSON on stdout, and the EVM IR dumps follow it.
         let stdout = String::from_utf8(output.stdout).expect("UTF-8 output");
-        assert!(stdout.contains("// function add(uint256 a, uint256 b)"), "{mode}");
-        let dumped = serde_json::Deserializer::from_str(&stdout)
-            .into_iter::<Value>()
-            .next()
-            .expect("compiler JSON")
-            .expect("parse compiler JSON");
+        assert!(
+            stdout.contains("; function add(uint256 a, uint256 b)")
+                || stdout.contains(" + function add(uint256 a, uint256 b)"),
+            "{mode}"
+        );
+        let dumped = serde_json::Deserializer::from_str(
+            &stdout[stdout.find("{\"contracts\"").expect("compiler JSON")..],
+        )
+        .into_iter::<Value>()
+        .next()
+        .expect("compiler JSON")
+        .expect("parse compiler JSON");
         assert_eq!(dumped["contracts"], baseline["contracts"], "{mode}");
     }
 }

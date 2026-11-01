@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/constructor_abi_validation.sol:ConstructorAbiValidation ===
 @module ConstructorAbiValidation
+; getter for `bool public flag` [selector 0x890eba68]
 fn @flag() -> i1 [selector=0x890eba68, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -8,6 +9,7 @@ fn @flag() -> i1 [selector=0x890eba68, view, abi_params=[], abi_returns=[word<bo
     ret v2
 }
 
+; getter for `bool public second` [selector 0x5a8ac02d]
 fn @second() -> i1 [selector=0x5a8ac02d, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -17,6 +19,7 @@ fn @second() -> i1 [selector=0x5a8ac02d, view, abi_params=[], abi_returns=[word<
     ret v3
 }
 
+; constructor(bool flag_, bool[2] memory flags) [creation entry]
 fn @constructor(arg0: i1, arg1: ptr<memory>) [constructor, abi_params=[bool, array<2, bool>]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))

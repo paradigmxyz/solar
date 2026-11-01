@@ -5,22 +5,23 @@
   struct0: {i1, i256}
   struct1: {i256, i256}
 
+; function search(uint256[] memory a, uint256 needle) external pure returns (bool found, uint256 index) [selector 0xd43fc471]
 fn @search() [selector=0xd43fc471, abi_wrapper, pure] {
   bb0:
     v49 = icall @decode_calldata_type
     v0 = mload v49
     v62 = add v49, 32
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb6
     v5 = phi [bb0: 1], [bb6: v27]
     v6 = phi [bb0: v0], [bb6: v28]
     v7 = gt v5, v6
     jumpi v7, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v35 = add v5, v6
     v36 = lt v35, v5
     jumpi v36, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb3
     v10 = shr v35, 1
     v37 = sub v10, 1
     v15 = shl v37, 5
@@ -28,25 +29,25 @@ fn @search() [selector=0xd43fc471, abi_wrapper, pure] {
     v18 = mload v60
     v19 = eq v18, arg1
     jumpi v19, bb9, bb4
-  bb4:
+  bb4:  ; preds = bb8
     v23 = gt arg1, v18
     jumpi v23, bb5, bb6
-  bb5:
+  bb5:  ; preds = bb4
     v43 = add v10, 1
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v27 = phi [bb4: v5], [bb5: v43]
     v28 = phi [bb4: v37], [bb5: v6]
     jump bb1
-  bb9:
+  bb9:  ; preds = bb8
     mstore 0, 1
     mstore 32, v37 !metadata(memory=scratch)
     returndata 0, 64
-  bb7:
+  bb7:  ; preds = bb3
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb2:
+  bb2:  ; preds = bb1
     v30 = sub v6, 1
     v29 = ne v6, 0
     v45 = zext i1 v29 to i256
@@ -56,21 +57,22 @@ fn @search() [selector=0xd43fc471, abi_wrapper, pure] {
     returndata 0, 64
 }
 
+; function lowerBound(uint256[] memory a, uint256 needle) external pure returns (uint256) [selector 0x63b7c492]
 fn @lowerBound() [selector=0x63b7c492, abi_wrapper, pure] {
   bb0:
     v25 = icall @decode_calldata_type
     v0 = mload v25
     v31 = add v25, 32
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb5
     v4 = phi [bb0: 0], [bb5: v19]
     v5 = phi [bb0: v0], [bb5: v20]
     v6 = lt v4, v5
     jumpi v6, bb3, bb2
-  bb2:
+  bb2:  ; preds = bb1
     mstore 0, v4 !metadata(memory=scratch)
     returndata 0, 32
-  bb3:
+  bb3:  ; preds = bb1
     v7 = sub v5, v4
     v8 = shr v7, 1
     v21 = add v4, v8
@@ -79,15 +81,16 @@ fn @lowerBound() [selector=0x63b7c492, abi_wrapper, pure] {
     v16 = mload v29
     v17 = lt v16, arg1
     jumpi v17, bb4, bb5
-  bb4:
+  bb4:  ; preds = bb3
     v18 = add v21, 1
     jump bb5
-  bb5:
+  bb5:  ; preds = bb3, bb4
     v19 = phi [bb4: v18], [bb3: v4]
     v20 = phi [bb4: v5], [bb3: v21]
     jump bb1
 }
 
+; function consume(uint256[] calldata proof, bool[] calldata take) external pure returns (uint256 sum, uint256 used) [selector 0x15847e62]
 fn @consume() [selector=0x15847e62, abi_wrapper, pure] {
   bb0:
     v47 = calldatasize
@@ -112,54 +115,55 @@ fn @consume() [selector=0x15847e62, abi_wrapper, pure] {
     v70 = gt v66, v69
     v83 = or v82, v70
     jumpi v83, bb7, bb11
-  bb11:
+  bb11:  ; preds = bb0
     v79 = shl v66, 5
     v80 = add v67, v79
     jump bb1
-  bb1:
+  bb1:  ; preds = bb3, bb11
     v2 = phi [bb11: 0], [bb3: v38]
     v3 = phi [bb11: 0], [bb3: v39]
     v77 = phi [bb11: v67], [bb3: v78]
     v6 = ne v77, v80
     jumpi v6, bb4, bb2
-  bb4:
+  bb4:  ; preds = bb1
     v16 = calldataload v77
     v17 = shr v16, 1
     v18 = eq v17, 0
     jumpi v18, bb8, bb7
-  bb8:
+  bb8:  ; preds = bb4
     v21 = eq v16, 0
     jumpi v21, bb3, bb5
-  bb5:
+  bb5:  ; preds = bb8
     v23 = eq v3, v54
     jumpi v23, bb2, bb6
-  bb6:
+  bb6:  ; preds = bb5
     v30 = shl v3, 5
     v34 = add v55, v30
     v35 = calldataload v34
     v45 = add v2, v35
     v46 = lt v45, v2
     jumpi v46, bb9, bb10
-  bb10:
+  bb10:  ; preds = bb6
     v37 = add v3, 1
     jump bb3
-  bb9:
+  bb9:  ; preds = bb6
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb2:
+  bb2:  ; preds = bb1, bb5
     mstore 0, v2 !metadata(memory=scratch)
     mstore 32, v3 !metadata(memory=scratch)
     returndata 0, 64
-  bb3:
+  bb3:  ; preds = bb8, bb10
     v38 = phi [bb10: v45], [bb8: v2]
     v39 = phi [bb10: v37], [bb8: v3]
     v78 = add v77, 32
     jump bb1
-  bb7:
+  bb7:  ; preds = bb4, bb0
     revert 0, 0
 }
 
+; function probe(uint256[] memory a, uint256 steps) external pure returns (uint256 sum) [selector 0x6012072a]
 fn @probe() [selector=0x6012072a, abi_wrapper, pure] {
   bb0:
     v28 = icall @decode_calldata_type
@@ -167,41 +171,41 @@ fn @probe() [selector=0x6012072a, abi_wrapper, pure] {
     v34 = add v28, 32
     v35 = sub 0, arg1
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb9
     v3 = phi [bb0: 0], [bb9: v22]
     v4 = phi [bb0: 0], [bb9: v5]
     v5 = phi [bb0: v0], [bb9: v24]
     v6 = phi [bb0: v35], [bb9: v19]
     v7 = ne v6, 0
     jumpi v7, bb3, bb2
-  bb2:
+  bb2:  ; preds = bb1
     mstore 0, v3 !metadata(memory=scratch)
     returndata 0, 32
-  bb3:
+  bb3:  ; preds = bb1
     v20 = add v4, v5
     v21 = lt v20, v4
     jumpi v21, bb6, bb7
-  bb7:
+  bb7:  ; preds = bb3
     v9 = shr v20, 1
     v11 = lt v9, v0
     jumpi v11, bb5, bb4
-  bb4:
+  bb4:  ; preds = bb7
     tail_call @revert_stub
-  bb5:
+  bb5:  ; preds = bb7
     v13 = shl v9, 5
     v32 = add v34, v13
     v16 = mload v32
     v22 = add v3, v16
     v23 = lt v22, v3
     jumpi v23, bb6, bb8
-  bb8:
+  bb8:  ; preds = bb5
     v24 = add v5, 1
     v25 = eq v24, 0
     jumpi v25, bb6, bb9
-  bb9:
+  bb9:  ; preds = bb8
     v19 = add v6, 1
     jump bb1
-  bb6:
+  bb6:  ; preds = bb3, bb5, bb8
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -222,7 +226,7 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v4 = sub v0, 36
     v5 = gt v1, v4
     jumpi v5, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v6 = calldataload v2
     v7 = add v2, 32
     v8 = gt v6, 0x7fffffffffffffe
@@ -238,7 +242,7 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v33 = or v32, v30
     v34 = ne v33, 0
     jumpi v34, bb3, bb5
-  bb5:
+  bb5:  ; preds = bb2
     mstore 64, v26 !metadata(memory=scratch)
     mstore v25, v6
     v12 = shl v6, 5
@@ -246,18 +250,19 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v14 = shr v13, 5
     v15 = gt v6, v14
     jumpi v15, bb1, bb4
-  bb4:
+  bb4:  ; preds = bb5
     v22 = add v25, 32
     calldatacopy v22, v7, v12
     ret v25
-  bb3:
+  bb3:  ; preds = bb2
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1:  ; preds = bb0, bb5
     revert 0, 0
 }
 
+; runtime dispatch entry
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
@@ -267,18 +272,18 @@ fn @entry() [entry] {
     v4 = or v0, v3
     v5 = ne v4, 0
     jumpi v5, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v6 = calldataload 0
     v7 = shr v6, 224
     switch v7, default bb1, [0x15847e62 => bb3, 0x6012072a => bb4, 0x63b7c492 => bb5, 0xd43fc471 => bb6]
-  bb6:
+  bb6:  ; preds = bb2
     tail_call @search
-  bb5:
+  bb5:  ; preds = bb2
     tail_call @lowerBound
-  bb4:
+  bb4:  ; preds = bb2
     tail_call @probe
-  bb3:
+  bb3:  ; preds = bb2
     tail_call @consume
-  bb1:
+  bb1:  ; preds = bb0, bb2
     revert 0, 0
 }

@@ -1,10 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/enum_memory_store_validation.sol:EnumMemoryStoreValidation ===
 @module EnumMemoryStoreValidation
+; function dirty() internal pure returns (Mode value)
 fn @dirty() -> i256 [pure] {
   bb0:
     ret 4
 }
 
+; function structConstructor() external pure returns (Mode) [selector 0x9b40f93f]
 fn @structConstructor() -> i8 [selector=0x9b40f93f, pure, abi_params=[], abi_returns=[word<enum 3>], abi_return_params=[enum<3, uint8>]] {
   bb0:
     v0 = alloc 32
@@ -24,6 +26,7 @@ fn @structConstructor() -> i8 [selector=0x9b40f93f, pure, abi_params=[], abi_ret
     ret v7
 }
 
+; function arrayLiteral() external pure returns (Mode) [selector 0x7e94f0e2]
 fn @arrayLiteral() -> i8 [selector=0x7e94f0e2, pure, abi_params=[], abi_returns=[word<enum 3>], abi_return_params=[enum<3, uint8>]] {
   bb0:
     v0 = alloc 32
@@ -46,6 +49,7 @@ fn @arrayLiteral() -> i8 [selector=0x7e94f0e2, pure, abi_params=[], abi_returns=
     ret v9
 }
 
+; function arrayElement() external pure returns (Mode) [selector 0x050651a8]
 fn @arrayElement() -> i8 [selector=0x050651a8, pure, abi_params=[], abi_returns=[word<enum 3>], abi_return_params=[enum<3, uint8>]] {
   bb0:
     v0 = alloc zeroed checked 64

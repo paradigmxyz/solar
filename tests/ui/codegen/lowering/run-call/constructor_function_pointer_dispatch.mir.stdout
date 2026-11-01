@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer_dispatch.sol:ConstructorFunctionPointerDispatch ===
 @module ConstructorFunctionPointerDispatch
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     icall @internal_dispatcher_p_bytes6_r_none, 3, 0x6162636465660000000000000000000000000000000000000000000000000000
@@ -7,6 +8,7 @@ fn @constructor() [constructor] {
     ret
 }
 
+; function getName() external view returns (bytes6) [selector 0x17d7de7c]
 fn @getName() -> i256 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[word<bytes6>], abi_return_params=[bytes6]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -14,6 +16,7 @@ fn @getName() -> i256 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[wo
     ret v1
 }
 
+; function leftByteShift(bytes6 value, uint256 shift) public pure returns (bytes6) [selector 0x49858898]
 fn @leftByteShift(arg0: i256, arg1: i256) -> i256 [selector=0x49858898, pure, abi_params=[bytes6, uint256], abi_returns=[word<bytes6>], abi_return_params=[bytes6]] {
   bb0:
     v0 = and arg0, 0xffffffffffff0000000000000000000000000000000000000000000000000000
@@ -23,6 +26,7 @@ fn @leftByteShift(arg0: i256, arg1: i256) -> i256 [selector=0x49858898, pure, ab
     ret v3
 }
 
+; function applyShift( function(bytes6, uint256) internal returns (bytes6) shiftOperator, uint256 bytesToShift ) internal
 fn @applyShift(arg0: i256, arg1: i256) {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -39,6 +43,7 @@ fn @applyShift(arg0: i256, arg1: i256) {
     ret
 }
 
+; function setName(bytes6 name_) private
 fn @setName(arg0: i256) {
   bb0:
     v0 = and arg0, 0xffffffffffff0000000000000000000000000000000000000000000000000000
@@ -56,10 +61,10 @@ fn @internal_dispatcher_p_bytes6_r_none(arg0: i256, arg1: i256) [function_pointe
   bb0:
     v0 = eq arg0, 3
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:
+  bb1:  ; preds = bb0
     icall @setName, arg1
     ret
 }
@@ -68,10 +73,10 @@ fn @internal_dispatcher_p_bytes6_uint256_r_bytes6(arg0: i256, arg1: i256, arg2: 
   bb0:
     v0 = eq arg0, 4
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:
+  bb1:  ; preds = bb0
     v1 = icall @leftByteShift, arg1, arg2
     ret v1
 }

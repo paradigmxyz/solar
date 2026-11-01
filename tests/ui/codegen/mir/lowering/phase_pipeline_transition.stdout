@@ -8,6 +8,7 @@ fn @f(arg0: i256) {
     returndata 128, 32
 }
 
+; runtime dispatch entry
 fn @entry() [entry] {
   bb0:
     revert 0, 0

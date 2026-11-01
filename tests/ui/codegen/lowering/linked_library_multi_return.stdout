@@ -4,6 +4,7 @@
 @types
   struct0: {i256, i256}
 
+; function pair() public pure returns (uint256, uint256) [selector 0xa8aa1b31]
 fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = insert_value struct0, undef struct0, 0, 4
@@ -16,6 +17,7 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[wo
 @types
   struct0: {i256, i256}
 
+; function pair() external pure returns (uint256, uint256) [selector 0xa8aa1b31]
 fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = abi_encode [], selector 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
@@ -24,9 +26,9 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[wo
     v3 = gas
     v4 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 64
     jumpi v4, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v5 = returndatasize
     v6 = lt v5, 64
     icall revert_if<tuple_data_too_short>, v6

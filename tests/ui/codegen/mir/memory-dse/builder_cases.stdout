@@ -38,9 +38,9 @@
 -     mstore 128, 0
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       revert 0, 0
-    bb1:
+    bb1:  ; preds = bb0
       mstore 128, 1
       returndata 128, 32
   }
@@ -50,10 +50,10 @@
       mstore 128, 7
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       mstore 128, 9
       returndata 128, 32
-    bb1:
+    bb1:  ; preds = bb0
       returndata 128, 32
   }
   
@@ -112,7 +112,7 @@
       codecopy 0, v1, 32
       v2 = mload 0
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0
       v3 = codesize
       v4 = sub v3, 64
 -     codecopy 0, v4, 32

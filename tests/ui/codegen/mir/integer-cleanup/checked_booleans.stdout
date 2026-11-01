@@ -5,9 +5,9 @@
     bb0:
       v0 = lt arg0, 2
       jumpi v0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       revert 0, 0
-    bb1:
+    bb1:  ; preds = bb0
       v1 = ne arg0, 0
 -     v2 = zext i1 v1 to i256
 -     mstore 128, v2
@@ -19,9 +19,9 @@
     bb0:
       v0 = lt arg0, 3
       jumpi v0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       revert 0, 0
-    bb1:
+    bb1:  ; preds = bb0
       v1 = ne arg0, 0
       v2 = zext i1 v1 to i256
       mstore 128, v2
@@ -40,17 +40,17 @@
     bb0:
       v0 = lt arg0, 2
       jumpi v0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       revert 0, 0
-    bb1:
+    bb1:  ; preds = bb0
       v1 = ne arg0, 0
 -     v2 = zext i1 v1 to i256
 -     mstore 128, v2
 +     mstore 128, arg0
       jumpi v1, bb3, bb4
-    bb4:
+    bb4:  ; preds = bb1
       returndata 128, 32
-    bb3:
+    bb3:  ; preds = bb1
       v3 = select v1, 5, 7
       mstore 160, v3
       returndata 128, 64
@@ -60,9 +60,9 @@
     bb0:
       v0 = lt arg0, i160 2
       jumpi v0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       revert 0, 0
-    bb1:
+    bb1:  ; preds = bb0
       v1 = ne arg0, i160 0
       v2 = zext i1 v1 to i256
       mstore 128, v2

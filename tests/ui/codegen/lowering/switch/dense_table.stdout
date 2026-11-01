@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/switch/dense_table.sol:SwitchDenseTable (runtime) ===
 @module SwitchDenseTable_runtime
-// runtime dispatch entry
-//   function select(uint256 key) external
-//   external entry, selector 0x839a19d9
-bb0:
+bb0:  ; runtime dispatch entry + function select(uint256 key) external [selector 0x839a19d9]
   callvalue
   push bb3
   jumpi

@@ -21,8 +21,7 @@ contract C {
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: push {{bb[0-9]+}}
     // CHECK-NEXT: jump [[DECODE:bb[0-9]+]]
-    // CHECK-NOT: {{^  }}
-    // CHECK: [[DECODE]]{{( \[.*\])?}}:
+    // CHECK-NEXT: [[DECODE]]{{( \[.*\])?}}:
     // CHECK: calldatacopy
     // CHECK: {{^.*[ =]call[[:space:]]}}
     // CHECK: return

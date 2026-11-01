@@ -18,7 +18,7 @@ fn @fail_word() -> i256 {
 // CHECK-LABEL: @guarded
 // CHECK:          icall @fail
 // CHECK-NEXT: -   jump bb2
-// CHECK-NEXT: +   invalid
+// CHECK: +   invalid
 fn @guarded(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = lt arg0, arg1

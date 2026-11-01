@@ -2,6 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/inline/dispatch/scalar.mir (after inline) ===
   @module ScalarDispatcher
   @phase lowered
+  ; selector 0x00000001
   fn @add() [selector=0x00000001, abi_wrapper, pure] {
     bb0:
       v0 = add arg0, arg1
@@ -9,6 +10,7 @@
       returndata 128, 32
   }
   
+  ; selector 0x00000002
   fn @sub() [selector=0x00000002, abi_wrapper, pure] {
     bb0:
       v0 = sub arg0, arg1
@@ -16,16 +18,17 @@
       returndata 128, 32
   }
   
+  ; runtime dispatch entry
   fn @entry() [entry] {
     bb0:
       v0 = calldataload 0
       v1 = shr v0, 224
       switch v1, default bb3, [1 => bb1, 2 => bb2]
-    bb2:
+    bb2:  ; preds = bb0
       tail_call @sub
-    bb1:
+    bb1:  ; preds = bb0
       tail_call @add
-    bb3:
+    bb3:  ; preds = bb0
       revert 0, 0
   }
   

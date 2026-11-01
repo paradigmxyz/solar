@@ -5,6 +5,7 @@
     first: uint8
     second: bool
   
+  ; creation entry
   fn @constructor(arg0: i256, arg1: i1) -> i256 [constructor] {
     bb0:
       v0 = trunc i256 arg0 to i8
@@ -19,6 +20,7 @@
       ret v2
   }
   
+  ; selector 0x00000001
   fn @runtime() [selector=0x00000001] {
     bb0:
       v0 = trunc i256 1 to i8
@@ -35,6 +37,7 @@
       stop
   }
   
+  ; runtime dispatch entry
   fn @router() [entry] {
     bb0:
       v0 = trunc i256 3 to i8

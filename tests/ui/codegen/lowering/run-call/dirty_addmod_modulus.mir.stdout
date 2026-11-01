@@ -1,23 +1,27 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/dirty_addmod_modulus.sol:DirtyAddmodModulus ===
 @module DirtyAddmodModulus
+; function addmodDirtyModulus(uint256 a, uint256 b) external pure returns (uint256) [selector 0x6725e18c]
 fn @addmodDirtyModulus(arg0: i256, arg1: i256) -> i256 [selector=0x6725e18c, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall checked_addmod<>, arg0, arg1, 0
     ret v0
 }
 
+; function mulmodDirtyModulus(uint256 a, uint256 b) external pure returns (uint256) [selector 0xff62232f]
 fn @mulmodDirtyModulus(arg0: i256, arg1: i256) -> i256 [selector=0xff62232f, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall checked_mulmod<>, arg0, arg1, 0
     ret v0
 }
 
+; function addmodCleanedModulus(uint256 a) external pure returns (uint256) [selector 0xa0b95242]
 fn @addmodCleanedModulus(arg0: i256) -> i256 [selector=0xa0b95242, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall checked_addmod<>, arg0, 1, 7
     ret v0
 }
 
+; function mulmodCleanedOperand(uint256 modulus) external pure returns (uint256) [selector 0xfbea5371]
 fn @mulmodCleanedOperand(arg0: i256) -> i256 [selector=0xfbea5371, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall checked_mulmod<>, 5, 3, arg0

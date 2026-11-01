@@ -1,34 +1,37 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch.mir (before lower-dispatch) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch.mir (after lower-dispatch) ===
   @module LowerDispatch
+  ; selector 0x12000000
   fn @ping() [selector=0x12000000, abi_wrapper] {
     bb0:
       stop
   }
   
+  ; selector 0x8d3a3e57
   fn @pong() [selector=0x8d3a3e57, abi_wrapper] {
     bb0:
       stop
 + }
 + 
++ ; runtime dispatch entry
 + fn @entry() [entry] {
 +   bb0:
 +     v0 = callvalue
 +     v1 = ne v0, 0
 +     jumpi v1, bb5, bb1
-+   bb1:
++   bb1:  ; preds = bb0
 +     v2 = calldatasize
 +     v3 = lt v2, 4
 +     jumpi v3, bb5, bb2
-+   bb2:
++   bb2:  ; preds = bb1
 +     v4 = calldataload 0
 +     v5 = shr v4, 224
 +     switch v5, default bb5, [0x12000000 => bb3, 0x8d3a3e57 => bb4]
-+   bb4:
++   bb4:  ; preds = bb2
 +     tail_call @pong
-+   bb3:
++   bb3:  ; preds = bb2
 +     tail_call @ping
-+   bb5:
++   bb5:  ; preds = bb0, bb1, bb2
 +     revert 0, 0
   }
   

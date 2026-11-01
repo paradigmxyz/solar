@@ -3,6 +3,7 @@
 @types
   struct0: {i256, ptr<memory>}
 
+; function pair() external pure returns (uint256, string memory) [selector 0xa8aa1b31]
 fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[uint256, bytes]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -14,6 +15,7 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[wo
     ret v3
 }
 
+; function combine(uint256[] memory values, string memory text) external pure returns (uint256, string memory) [selector 0x3488ea15]
 fn @combine(arg0: ptr<memory>, arg1: ptr<memory>) -> struct0 [selector=0x3488ea15, pure, abi_params=[array<_, uint256>, bytes], abi_returns=[word, memory_bytes], abi_return_params=[uint256, bytes]] {
   bb0:
     v0 = mload arg0
@@ -42,6 +44,7 @@ fn @combine(arg0: ptr<memory>, arg1: ptr<memory>) -> struct0 [selector=0x3488ea1
 @data
   ExternalFunctionPointerAggregateTarget_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_aggregate.sol:ExternalFunctionPointerAggregateTarget"
 
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = datasize ExternalFunctionPointerAggregateTarget_creation_code_0
@@ -50,9 +53,9 @@ fn @constructor() [constructor] {
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = sload 0 !metadata(storage=slot(0))
     v5 = not 0xffffffffffffffffffffffffffffffffffffffff
     v6 = and v4, v5
@@ -63,6 +66,7 @@ fn @constructor() [constructor] {
     ret
 }
 
+; function read() external view returns (uint256, string memory) [selector 0x57de26a4]
 fn @read() -> struct0 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[uint256, bytes]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -79,9 +83,9 @@ fn @read() -> struct0 [selector=0x57de26a4, view, abi_params=[], abi_returns=[wo
     v11 = extract_value slice<memory>, v9, 1
     v12 = staticcall v8, v7, v10, v11, 0, 0
     jumpi v12, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v13 = icall returndata_bytes<>
     v14 = abi_decode [uint256, bytes], v13
     v15 = extract_value struct0, v14, 0
@@ -91,6 +95,7 @@ fn @read() -> struct0 [selector=0x57de26a4, view, abi_params=[], abi_returns=[wo
     ret v18
 }
 
+; function readArguments() external view returns (uint256, string memory) [selector 0x372fd38b]
 fn @readArguments() -> struct0 [selector=0x372fd38b, view, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[uint256, bytes]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -125,9 +130,9 @@ fn @readArguments() -> struct0 [selector=0x372fd38b, view, abi_params=[], abi_re
     v22 = extract_value slice<memory>, v20, 1
     v23 = staticcall v17, v16, v21, v22, 0, 0
     jumpi v23, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v24 = icall returndata_bytes<>
     v25 = abi_decode [uint256, bytes], v24
     v26 = extract_value struct0, v25, 0
@@ -137,12 +142,14 @@ fn @readArguments() -> struct0 [selector=0x372fd38b, view, abi_params=[], abi_re
     ret v29
 }
 
+; function increment(uint256 value) external pure returns (uint256) [selector 0x7cf5dab0]
 fn @increment(arg0: i256) -> i256 [selector=0x7cf5dab0, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = checked_add uint256, arg0, 1
     ret v0
 }
 
+; function invoke( function(uint256) external returns (uint256) pointer, uint256 value ) external returns (uint256) [selector 0xec460bea]
 fn @invoke(arg0: i256, arg1: i256) -> i256 [selector=0xec460bea, abi_params=[function, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = and arg0, 0xffffffff
@@ -154,9 +161,9 @@ fn @invoke(arg0: i256, arg1: i256) -> i256 [selector=0xec460bea, abi_params=[fun
     mstore 32, arg1 !metadata(memory=scratch)
     v5 = call v3, v2, 0, 28, 36, 0, 32
     jumpi v5, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v6 = returndatasize
     v7 = lt v6, 32
     icall revert_if<tuple_data_too_short>, v7
@@ -165,6 +172,7 @@ fn @invoke(arg0: i256, arg1: i256) -> i256 [selector=0xec460bea, abi_params=[fun
     ret v9
 }
 
+; function pointerArgumentRoundtrip() external view returns (uint256) [selector 0x358b91d8]
 fn @pointerArgumentRoundtrip() -> i256 [selector=0x358b91d8, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
@@ -182,6 +190,7 @@ fn @pointerArgumentRoundtrip() -> i256 [selector=0x358b91d8, view, abi_params=[]
     ret v10
 }
 
+; function pointer() external view returns (function(uint256) external returns (uint256)) [selector 0x2f5f3b3c]
 fn @pointer() -> i256 [selector=0x2f5f3b3c, view, abi_params=[], abi_returns=[function], abi_return_params=[function]] {
   bb0:
     v0 = address
@@ -191,6 +200,7 @@ fn @pointer() -> i256 [selector=0x2f5f3b3c, view, abi_params=[], abi_returns=[fu
     ret v3
 }
 
+; function pointerReturnRoundtrip() external returns (uint256) [selector 0xd6aa3b50]
 fn @pointerReturnRoundtrip() -> i256 [selector=0xd6aa3b50, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
@@ -199,9 +209,9 @@ fn @pointerReturnRoundtrip() -> i256 [selector=0xd6aa3b50, abi_params=[], abi_re
     v2 = zext i160 v0 to i256
     v3 = staticcall v1, v2, 28, 4, 0, 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = icall returndata_bytes<>
     v5 = abi_decode [function], v4
     v6 = and v5, 0xffffffff
@@ -213,9 +223,9 @@ fn @pointerReturnRoundtrip() -> i256 [selector=0xd6aa3b50, abi_params=[], abi_re
     mstore 32, 8 !metadata(memory=scratch)
     v11 = call v9, v8, 0, 28, 36, 0, 32
     jumpi v11, bb4, bb3
-  bb3:
+  bb3:  ; preds = bb2
     revert_returndata
-  bb4:
+  bb4:  ; preds = bb2
     v12 = returndatasize
     v13 = lt v12, 32
     icall revert_if<tuple_data_too_short>, v13
@@ -224,6 +234,7 @@ fn @pointerReturnRoundtrip() -> i256 [selector=0xd6aa3b50, abi_params=[], abi_re
     ret v15
 }
 
+; function pointerStructRoundtrip() external returns (uint256) [selector 0xbbd5d6bf]
 fn @pointerStructRoundtrip() -> i256 [selector=0xbbd5d6bf, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 32 !metadata(preserves_fmp)
@@ -245,9 +256,9 @@ fn @pointerStructRoundtrip() -> i256 [selector=0xbbd5d6bf, abi_params=[], abi_re
     mstore 32, 8 !metadata(memory=scratch)
     v13 = call v11, v10, 0, 28, 36, 0, 32
     jumpi v13, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v14 = returndatasize
     v15 = lt v14, 32
     icall revert_if<tuple_data_too_short>, v15
@@ -256,6 +267,7 @@ fn @pointerStructRoundtrip() -> i256 [selector=0xbbd5d6bf, abi_params=[], abi_re
     ret v17
 }
 
+; function pointerArrayRoundtrip() external returns (uint256) [selector 0x38c40b23]
 fn @pointerArrayRoundtrip() -> i256 [selector=0x38c40b23, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 96
@@ -298,9 +310,9 @@ fn @pointerArrayRoundtrip() -> i256 [selector=0x38c40b23, abi_params=[], abi_ret
     mstore 32, 3 !metadata(memory=scratch)
     v30 = call v28, v27, 0, 28, 36, 0, 32
     jumpi v30, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v31 = returndatasize
     v32 = lt v31, 32
     icall revert_if<tuple_data_too_short>, v32
@@ -322,9 +334,9 @@ fn @pointerArrayRoundtrip() -> i256 [selector=0x38c40b23, abi_params=[], abi_ret
     mstore 32, 4 !metadata(memory=scratch)
     v46 = call v44, v43, 0, 28, 36, 0, 32
     jumpi v46, bb4, bb3
-  bb3:
+  bb3:  ; preds = bb2
     revert_returndata
-  bb4:
+  bb4:  ; preds = bb2
     v47 = returndatasize
     v48 = lt v47, 32
     icall revert_if<tuple_data_too_short>, v48
@@ -334,6 +346,7 @@ fn @pointerArrayRoundtrip() -> i256 [selector=0x38c40b23, abi_params=[], abi_ret
     ret v51
 }
 
+; function calldataTarget(string calldata text) external pure returns (bool) [selector 0x3b20e329]
 fn @calldataTarget(arg0: slice<calldata>) -> i1 [selector=0x3b20e329, pure, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -353,6 +366,7 @@ fn @calldataTarget(arg0: slice<calldata>) -> i1 [selector=0x3b20e329, pure, abi_
     ret v11
 }
 
+; function calldataPointerRoundtrip() external returns (bool) [selector 0x1d9b1866]
 fn @calldataPointerRoundtrip() -> i1 [selector=0x1d9b1866, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address
@@ -372,9 +386,9 @@ fn @calldataPointerRoundtrip() -> i1 [selector=0x1d9b1866, abi_params=[], abi_re
     v12 = extract_value slice<memory>, v10, 1
     v13 = call v7, v6, 0, v11, v12, 0, 32
     jumpi v13, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v14 = returndatasize
     v15 = lt v14, 32
     icall revert_if<tuple_data_too_short>, v15

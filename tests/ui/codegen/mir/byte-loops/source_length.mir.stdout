@@ -1,11 +1,13 @@
 // === ROOT/tests/ui/codegen/mir/byte-loops/source_length.sol:Test ===
 @module Test
+; function apart(bytes memory src, bytes memory dst, uint256 count) external pure returns (bytes memory) [selector 0x25c94f29]
 fn @apart(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256) -> ptr<memory> [selector=0x25c94f29, pure, abi_params=[bytes, bytes, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     icall @_copy, arg1, arg0, arg2
     ret arg1
 }
 
+; function lengthInside(bytes memory dst, uint256 count) external pure returns (bytes memory) [selector 0xa53391c5]
 fn @lengthInside(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0xa53391c5, pure, abi_params=[bytes, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
@@ -15,12 +17,14 @@ fn @lengthInside(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0xa5339
     ret arg0
 }
 
+; function apartDown(bytes memory src, bytes memory dst, uint256 count) external pure returns (bytes memory) [selector 0xe2b4389c]
 fn @apartDown(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256) -> ptr<memory> [selector=0xe2b4389c, pure, abi_params=[bytes, bytes, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     icall @_copyDown, arg1, arg0, arg2
     ret arg1
 }
 
+; function lengthInsideDown(bytes memory dst, uint256 count) external pure returns (bytes memory) [selector 0x8d73e21a]
 fn @lengthInsideDown(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0x8d73e21a, pure, abi_params=[bytes, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
@@ -30,21 +34,22 @@ fn @lengthInsideDown(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0x8
     ret arg0
 }
 
+; function _copy(bytes memory dst, bytes memory src, uint256 count) private pure
 fn @_copy(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256) [pure] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: arg2], [bb3: v2]
     v3 = phi [bb0: 0], [bb3: v19]
     v4 = lt v3, v2
     jumpi v4, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret
-  bb4:
+  bb4:  ; preds = bb1
     v5 = mload v1
     v6 = lt v3, v5
     v7 = eq v6, false
@@ -63,28 +68,29 @@ fn @_copy(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256) [pure] {
     v18 = ptradd v17, 32
     mstore8 v18, v16
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v19 = checked_add uint256, v3, 1
     jump bb1
 }
 
+; function _copyDown(bytes memory dst, bytes memory src, uint256 count) private pure
 fn @_copyDown(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256) [pure] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: arg2], [bb3: v2]
     v3 = phi [bb0: arg2], [bb3: v21]
     v4 = gt v3, 0
     jumpi v4, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret
-  bb4:
+  bb4:  ; preds = bb1
     v5 = checked_sub uint256, v3, 1
     v6 = mload v1
     v7 = lt v5, v6
@@ -105,9 +111,9 @@ fn @_copyDown(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256) [pure] {
     v20 = ptradd v19, 32
     mstore8 v20, v18
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v21 = checked_sub uint256, v3, 1
     jump bb1
 }

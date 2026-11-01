@@ -3,16 +3,17 @@
 @types
   struct0: {i256, ptr<memory>}
 
+; function test_nested() external returns (uint, bytes memory) [selector 0x9160d787]
 fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[uint256, bytes]] {
   bb0:
     v0 = alloc zeroed checked 96
     mstore v0, 2
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v6]
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v7 = alloc zeroed checked 96
     mstore v7, 2
     v8 = mload v0
@@ -61,12 +62,12 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     mstore v38, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
     v39 = mload v0
     jump bb4
-  bb4:
+  bb4:  ; preds = bb3, bb9
     v40 = phi [bb3: 0], [bb9: v61]
     v41 = phi [bb3: 0], [bb9: v59]
     v42 = lt v40, v39
     jumpi v42, bb5, bb6
-  bb6:
+  bb6:  ; preds = bb4
     v62 = mul v41, 32
     v63 = shr v41, 251
     v64 = ne v63, 0
@@ -78,12 +79,12 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     mstore v67, v62
     v68 = mload v0
     jump bb10
-  bb10:
+  bb10:  ; preds = bb6, bb15
     v69 = phi [bb6: 0], [bb15: v92]
     v70 = phi [bb6: 0], [bb15: v78]
     v71 = lt v69, v68
     jumpi v71, bb11, bb12
-  bb12:
+  bb12:  ; preds = bb10
     v93 = ptradd v67, 32
     v94 = mload v67
     v95 = keccak256 v93, v94
@@ -99,22 +100,22 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     v102 = insert_value struct0, undef struct0, 0, v99
     v103 = insert_value struct0, v102, 1, v100
     ret v103
-  bb11:
+  bb11:  ; preds = bb10
     v72 = shl v69, 5
     v73 = ptradd v0, v72
     v74 = ptradd v73, 32
     v75 = mload v74
     v76 = mload v75
     jump bb13
-  bb13:
+  bb13:  ; preds = bb11, bb14
     v77 = phi [bb11: 0], [bb14: v91]
     v78 = phi [bb11: v70], [bb14: v89]
     v79 = lt v77, v76
     jumpi v79, bb14, bb15
-  bb15:
+  bb15:  ; preds = bb13
     v92 = add v69, 1
     jump bb10
-  bb14:
+  bb14:  ; preds = bb13
     v80 = shl v77, 5
     v81 = inttoptr i256 v75 to ptr<memory>
     v82 = ptradd v81, v80
@@ -130,25 +131,25 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     icall panic_if<0x41>, v90
     v91 = add v77, 1
     jump bb13
-  bb5:
+  bb5:  ; preds = bb4
     v43 = shl v40, 5
     v44 = ptradd v0, v43
     v45 = ptradd v44, 32
     v46 = mload v45
     v47 = mload v46
     jump bb7
-  bb7:
+  bb7:  ; preds = bb5, bb8
     v48 = phi [bb5: 0], [bb8: v58]
     v49 = phi [bb5: 0], [bb8: v56]
     v50 = lt v48, v47
     jumpi v50, bb8, bb9
-  bb9:
+  bb9:  ; preds = bb7
     v59 = add v41, v49
     v60 = lt v59, v41
     icall panic_if<0x41>, v60
     v61 = add v40, 1
     jump bb4
-  bb8:
+  bb8:  ; preds = bb7
     v51 = shl v48, 5
     v52 = inttoptr i256 v46 to ptr<memory>
     v53 = ptradd v52, v51
@@ -159,7 +160,7 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     icall panic_if<0x41>, v57
     v58 = add v48, 1
     jump bb7
-  bb2:
+  bb2:  ; preds = bb1
     v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32
@@ -168,16 +169,17 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     jump bb1
 }
 
+; function test_strings() external returns (bytes memory) [selector 0xcdb50c38]
 fn @test_strings() -> ptr<memory> [selector=0xcdb50c38, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc zeroed checked 64
     mstore v0, 1
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v6]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v7 = alloc 64 !metadata(preserves_fmp)
     mstore v7, 1
     v8 = ptradd v7, 32
@@ -198,12 +200,12 @@ fn @test_strings() -> ptr<memory> [selector=0xcdb50c38, abi_params=[], abi_retur
     v18 = keccak256 v16, v17
     v19 = mload v0
     jump bb4
-  bb4:
+  bb4:  ; preds = bb3, bb5
     v20 = phi [bb3: 0], [bb5: v35]
     v21 = phi [bb3: 0], [bb5: v33]
     v22 = lt v20, v19
     jumpi v22, bb5, bb6
-  bb6:
+  bb6:  ; preds = bb4
     v36 = mul v21, 32
     v37 = shr v21, 251
     v38 = ne v37, 0
@@ -215,12 +217,12 @@ fn @test_strings() -> ptr<memory> [selector=0xcdb50c38, abi_params=[], abi_retur
     mstore v41, v36
     v42 = mload v0
     jump bb7
-  bb7:
+  bb7:  ; preds = bb6, bb11
     v43 = phi [bb6: 0], [bb11: v68]
     v44 = phi [bb6: 0], [bb11: v67]
     v45 = lt v43, v42
     jumpi v45, bb8, bb9
-  bb9:
+  bb9:  ; preds = bb7
     v69 = ptradd v41, 32
     v70 = mload v41
     v71 = keccak256 v69, v70
@@ -230,7 +232,7 @@ fn @test_strings() -> ptr<memory> [selector=0xcdb50c38, abi_params=[], abi_retur
     v73 = ptradd v72, 32
     mstore v73, 0x776f726c64000000000000000000000000000000000000000000000000000000
     ret v72
-  bb8:
+  bb8:  ; preds = bb7
     v46 = shl v43, 5
     v47 = ptradd v0, v46
     v48 = ptradd v47, 32
@@ -243,14 +245,14 @@ fn @test_strings() -> ptr<memory> [selector=0xcdb50c38, abi_params=[], abi_retur
     v54 = and v51, v53
     v55 = eq v54, 0
     jumpi v55, bb11, bb10
-  bb10:
+  bb10:  ; preds = bb8
     v56 = sub v54, 32
     v57 = add v44, v56
     v58 = ptradd v41, v57
     v59 = ptradd v58, 32
     mstore v59, 0
     jump bb11
-  bb11:
+  bb11:  ; preds = bb8, bb10
     v60 = add v49, 32
     v61 = inttoptr i256 v60 to ptr<memory>
     v62 = make_memory_slice v61, v50
@@ -262,7 +264,7 @@ fn @test_strings() -> ptr<memory> [selector=0xcdb50c38, abi_params=[], abi_retur
     v67 = add v44, v54
     v68 = add v43, 1
     jump bb7
-  bb5:
+  bb5:  ; preds = bb4
     v23 = shl v20, 5
     v24 = ptradd v0, v23
     v25 = ptradd v24, 32
@@ -279,7 +281,7 @@ fn @test_strings() -> ptr<memory> [selector=0xcdb50c38, abi_params=[], abi_retur
     icall panic_if<0x41>, v34
     v35 = add v20, 1
     jump bb4
-  bb2:
+  bb2:  ; preds = bb1
     v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32

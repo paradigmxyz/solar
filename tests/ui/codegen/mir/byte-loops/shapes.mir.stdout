@@ -1,20 +1,21 @@
 // === ROOT/tests/ui/codegen/mir/byte-loops/shapes.sol:Test ===
 @module Test
+; function fromCalldata(bytes calldata b, uint256 offset) external pure returns (bytes32 result) [selector 0xffc7a8b3]
 fn @fromCalldata(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0xffc7a8b3, pure, abi_params=[bytes, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v18]
     v3 = phi [bb0: 0], [bb3: v19]
     v4 = lt v3, 32
     jumpi v4, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v2
-  bb4:
+  bb4:  ; preds = bb1
     v5 = checked_add uint256, v1, v3
     v6 = extract_value slice<calldata>, v0, 1
     v7 = lt v5, v6
@@ -31,17 +32,18 @@ fn @fromCalldata(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0xffc7a8b3
     v17 = shr v15, v16
     v18 = or v2, v17
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v19 = checked_add uint256, v3, 1
     jump bb1
 }
 
+; function storeSome(bytes memory b, bytes32 value, uint256 count) external pure returns (bytes memory) [selector 0x713528c9]
 fn @storeSome(arg0: ptr<memory>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x713528c9, pure, abi_params=[bytes, bytes32, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: arg2], [bb3: v2]
@@ -49,11 +51,11 @@ fn @storeSome(arg0: ptr<memory>, arg1: i256, arg2: i256) -> ptr<memory> [selecto
     v4 = phi [bb0: 0], [bb3: v16]
     v5 = lt v4, v2
     jumpi v5, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v0
-  bb4:
+  bb4:  ; preds = bb1
     v6 = lt v4, 32
     v7 = eq v6, false
     icall panic_if<0x32>, v7
@@ -68,17 +70,18 @@ fn @storeSome(arg0: ptr<memory>, arg1: i256, arg2: i256) -> ptr<memory> [selecto
     v15 = ptradd v14, 32
     mstore8 v15, v13
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v16 = checked_add uint256, v4, 1
     jump bb1
 }
 
+; function loadSome(bytes memory b, uint256 offset, uint256 count) external pure returns (bytes32 result) [selector 0x982de5a7]
 fn @loadSome(arg0: ptr<memory>, arg1: i256, arg2: i256) -> i256 [selector=0x982de5a7, pure, abi_params=[bytes, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: arg2], [bb3: v2]
@@ -86,11 +89,11 @@ fn @loadSome(arg0: ptr<memory>, arg1: i256, arg2: i256) -> i256 [selector=0x982d
     v4 = phi [bb0: 0], [bb3: v18]
     v5 = lt v4, v2
     jumpi v5, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v3
-  bb4:
+  bb4:  ; preds = bb1
     v6 = checked_add uint256, v1, v4
     v7 = mload v0
     v8 = lt v6, v7
@@ -105,17 +108,18 @@ fn @loadSome(arg0: ptr<memory>, arg1: i256, arg2: i256) -> i256 [selector=0x982d
     v16 = shr v14, v15
     v17 = or v3, v16
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v18 = checked_add uint256, v4, 1
     jump bb1
 }
 
+; function within(bytes memory b, uint256 from, uint256 to, uint256 count) external pure returns (bytes memory) [selector 0x96410e74]
 fn @within(arg0: ptr<memory>, arg1: i256, arg2: i256, arg3: i256) -> ptr<memory> [selector=0x96410e74, pure, abi_params=[bytes, uint256, uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: arg2], [bb3: v2]
@@ -124,11 +128,11 @@ fn @within(arg0: ptr<memory>, arg1: i256, arg2: i256, arg3: i256) -> ptr<memory>
     v5 = phi [bb0: 0], [bb3: v23]
     v6 = lt v5, v3
     jumpi v6, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v0
-  bb4:
+  bb4:  ; preds = bb1
     v7 = checked_add uint256, v1, v5
     v8 = mload v0
     v9 = lt v7, v8
@@ -149,17 +153,18 @@ fn @within(arg0: ptr<memory>, arg1: i256, arg2: i256, arg3: i256) -> ptr<memory>
     v22 = ptradd v21, 32
     mstore8 v22, v20
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v23 = checked_add uint256, v5, 1
     jump bb1
 }
 
+; function between(bytes memory src, bytes memory dst, uint256 offset, uint256 count) external pure returns (bytes memory) [selector 0x3fa0467e]
 fn @between(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256, arg3: i256) -> ptr<memory> [selector=0x3fa0467e, pure, abi_params=[bytes, bytes, uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: arg2], [bb3: v2]
@@ -168,11 +173,11 @@ fn @between(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256, arg3: i256) -> ptr
     v5 = phi [bb0: 0], [bb3: v23]
     v6 = lt v5, v3
     jumpi v6, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v1
-  bb4:
+  bb4:  ; preds = bb1
     v7 = checked_add uint256, v2, v5
     v8 = mload v0
     v9 = lt v7, v8
@@ -193,17 +198,18 @@ fn @between(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256, arg3: i256) -> ptr
     v22 = ptradd v21, 32
     mstore8 v22, v20
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v23 = checked_add uint256, v5, 1
     jump bb1
 }
 
+; function down(bytes memory b, uint256 from, uint256 to, uint256 count) external pure returns (bytes memory) [selector 0x0d15e70b]
 fn @down(arg0: ptr<memory>, arg1: i256, arg2: i256, arg3: i256) -> ptr<memory> [selector=0x0d15e70b, pure, abi_params=[bytes, uint256, uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: arg2], [bb3: v2]
@@ -212,11 +218,11 @@ fn @down(arg0: ptr<memory>, arg1: i256, arg2: i256, arg3: i256) -> ptr<memory> [
     v5 = phi [bb0: arg3], [bb3: v25]
     v6 = gt v5, 0
     jumpi v6, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v0
-  bb4:
+  bb4:  ; preds = bb1
     v7 = checked_add uint256, v1, v5
     v8 = checked_sub uint256, v7, 1
     v9 = mload v0
@@ -239,13 +245,14 @@ fn @down(arg0: ptr<memory>, arg1: i256, arg2: i256, arg3: i256) -> ptr<memory> [
     v24 = ptradd v23, 32
     mstore8 v24, v22
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v25 = checked_sub uint256, v5, 1
     jump bb1
 }
 
+; function sliceCalldata(bytes calldata b, uint256 offset, uint256 count) external pure returns (bytes memory result) [selector 0xa10bf2ab]
 fn @sliceCalldata(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0xa10bf2ab, pure, abi_params=[bytes, uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = add arg2, 63
@@ -256,7 +263,7 @@ fn @sliceCalldata(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> 
     v4 = alloc zeroed checked v3
     mstore v4, arg2
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v5 = phi [bb0: arg0], [bb3: v5]
     v6 = phi [bb0: arg1], [bb3: v6]
     v7 = phi [bb0: arg2], [bb3: v7]
@@ -264,11 +271,11 @@ fn @sliceCalldata(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> 
     v9 = phi [bb0: 0], [bb3: v28]
     v10 = lt v9, v7
     jumpi v10, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v8
-  bb4:
+  bb4:  ; preds = bb1
     v11 = checked_add uint256, v6, v9
     v12 = extract_value slice<calldata>, v5, 1
     v13 = lt v11, v12
@@ -290,13 +297,14 @@ fn @sliceCalldata(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> 
     v27 = ptradd v26, 32
     mstore8 v27, v25
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v28 = checked_add uint256, v9, 1
     jump bb1
 }
 
+; function fresh(bytes memory src, uint256 from, uint256 count) external pure returns (bytes memory out) [selector 0xe9b29099]
 fn @fresh(arg0: ptr<memory>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0xe9b29099, pure, abi_params=[bytes, uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = checked_add uint256, arg2, 1
@@ -308,7 +316,7 @@ fn @fresh(arg0: ptr<memory>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x
     v5 = alloc zeroed checked v4
     mstore v5, v0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v6 = phi [bb0: arg0], [bb3: v6]
     v7 = phi [bb0: arg1], [bb3: v7]
     v8 = phi [bb0: arg2], [bb3: v8]
@@ -316,11 +324,11 @@ fn @fresh(arg0: ptr<memory>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x
     v10 = phi [bb0: 0], [bb3: v28]
     v11 = lt v10, v8
     jumpi v11, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v9
-  bb4:
+  bb4:  ; preds = bb1
     v12 = checked_add uint256, v7, v10
     v13 = mload v6
     v14 = lt v12, v13
@@ -341,13 +349,14 @@ fn @fresh(arg0: ptr<memory>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x
     v27 = ptradd v26, 32
     mstore8 v27, v25
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v28 = checked_add uint256, v10, 1
     jump bb1
 }
 
+; function freshPair(uint256 count) external pure returns (bytes memory out) [selector 0xded17a67]
 fn @freshPair(arg0: i256) -> ptr<memory> [selector=0xded17a67, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = add arg0, 63
@@ -358,16 +367,16 @@ fn @freshPair(arg0: i256) -> ptr<memory> [selector=0xded17a67, pure, abi_params=
     v4 = alloc zeroed checked v3
     mstore v4, arg0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v5 = phi [bb0: arg0], [bb3: v5]
     v6 = phi [bb0: ptr<memory> 96], [bb3: v6]
     v7 = phi [bb0: v4], [bb3: v7]
     v8 = phi [bb0: 0], [bb3: v20]
     v9 = lt v8, v5
     jumpi v9, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     v21 = add v5, 63
     v22 = lt v21, v5
     icall panic_if<0x41>, v22
@@ -376,7 +385,7 @@ fn @freshPair(arg0: i256) -> ptr<memory> [selector=0xded17a67, pure, abi_params=
     v25 = alloc zeroed checked v24
     mstore v25, v5
     jump bb7
-  bb7:
+  bb7:  ; preds = bb2, bb9
     v26 = phi [bb2: v5], [bb9: v26]
     v27 = phi [bb2: v25], [bb9: v27]
     v28 = phi [bb2: v7], [bb9: v28]
@@ -384,11 +393,11 @@ fn @freshPair(arg0: i256) -> ptr<memory> [selector=0xded17a67, pure, abi_params=
     v30 = phi [bb2: 0], [bb9: v46]
     v31 = lt v30, v26
     jumpi v31, bb10, bb11
-  bb11:
+  bb11:  ; preds = bb7
     jump bb8
-  bb8:
+  bb8:  ; preds = bb11
     ret v27
-  bb10:
+  bb10:  ; preds = bb7
     v32 = mload v28
     v33 = lt v30, v32
     v34 = eq v33, false
@@ -407,12 +416,12 @@ fn @freshPair(arg0: i256) -> ptr<memory> [selector=0xded17a67, pure, abi_params=
     v45 = ptradd v44, 32
     mstore8 v45, v43
     jump bb12
-  bb12:
+  bb12:  ; preds = bb10
     jump bb9
-  bb9:
+  bb9:  ; preds = bb12
     v46 = checked_add uint256, v30, 1
     jump bb7
-  bb4:
+  bb4:  ; preds = bb1
     v10 = checked_add uint256, v8, 1
     v11 = trunc i256 v10 to i8
     v12 = zext i8 v11 to i256
@@ -426,13 +435,14 @@ fn @freshPair(arg0: i256) -> ptr<memory> [selector=0xded17a67, pure, abi_params=
     v19 = ptradd v18, 32
     mstore8 v19, v17
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v20 = checked_add uint256, v8, 1
     jump bb1
 }
 
+; function viaHelper(bytes memory src, uint256 from, uint256 count) external pure returns (bytes memory out) [selector 0x9ee35419]
 fn @viaHelper(arg0: ptr<memory>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x9ee35419, pure, abi_params=[bytes, uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = add arg2, 63
@@ -446,21 +456,22 @@ fn @viaHelper(arg0: ptr<memory>, arg1: i256, arg2: i256) -> ptr<memory> [selecto
     ret v4
 }
 
+; function zeroSome(bytes memory b, uint256 offset) external pure returns (bytes memory) [selector 0x7b75313f]
 fn @zeroSome(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0x7b75313f, pure, abi_params=[bytes, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: ptr<memory> 96], [bb3: v2]
     v3 = phi [bb0: 0], [bb3: v12]
     v4 = lt v3, 7
     jumpi v4, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v0
-  bb4:
+  bb4:  ; preds = bb1
     v5 = checked_add uint256, v1, v3
     v6 = mload v0
     v7 = lt v5, v6
@@ -471,28 +482,29 @@ fn @zeroSome(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0x7b75313f,
     v11 = ptradd v10, 32
     mstore8 v11, v9
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v12 = checked_add uint256, v3, 1
     jump bb1
 }
 
+; function fillSome(bytes memory b, bytes1 c) external pure returns (bytes memory) [selector 0x613646c3]
 fn @fillSome(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0x613646c3, pure, abi_params=[bytes, bytes1], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: ptr<memory> 96], [bb3: v2]
     v3 = phi [bb0: 0], [bb3: v11]
     v4 = lt v3, 4
     jumpi v4, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v0
-  bb4:
+  bb4:  ; preds = bb1
     v5 = mload v0
     v6 = lt v3, v5
     v7 = eq v6, false
@@ -502,17 +514,18 @@ fn @fillSome(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0x613646c3,
     v10 = ptradd v9, 32
     mstore8 v10, v8
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v11 = checked_add uint256, v3, 1
     jump bb1
 }
 
+; function asciiWords(bytes memory b) external pure returns (uint256 words) [selector 0x581c0829]
 fn @asciiWords(arg0: ptr<memory>) -> i256 [selector=0x581c0829, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v7]
     v1 = phi [bb0: 0], [bb3: v29]
     v2 = phi [bb0: 0], [bb3: v30]
@@ -521,13 +534,13 @@ fn @asciiWords(arg0: ptr<memory>) -> i256 [selector=0x581c0829, pure, abi_params
     v5 = lt v4, 32
     v6 = eq v5, false
     jumpi v6, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v1
-  bb4:
+  bb4:  ; preds = bb1
     jump bb7
-  bb7:
+  bb7:  ; preds = bb4, bb9
     v7 = phi [bb4: v0], [bb9: v7]
     v8 = phi [bb4: v1], [bb9: v8]
     v9 = phi [bb4: v2], [bb9: v9]
@@ -535,26 +548,26 @@ fn @asciiWords(arg0: ptr<memory>) -> i256 [selector=0x581c0829, pure, abi_params
     v11 = phi [bb4: 0], [bb9: v25]
     v12 = lt v11, 32
     jumpi v12, bb10, bb11
-  bb11:
+  bb11:  ; preds = bb7
     jump bb8
-  bb8:
+  bb8:  ; preds = bb11
     v26 = and v10, 0x8080808080808080808080808080808080808080808080808080808080808080
     v27 = eq v26, 0
     jumpi v27, bb13, bb14
-  bb14:
+  bb14:  ; preds = bb8
     jump bb15
-  bb13:
+  bb13:  ; preds = bb8
     v28 = checked_add uint256, v8, 1
     jump bb15
-  bb15:
+  bb15:  ; preds = bb13, bb14
     v29 = phi [bb13: v28], [bb14: v8]
     jump bb6
-  bb6:
+  bb6:  ; preds = bb15
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v30 = checked_add uint256, v9, 32
     jump bb1
-  bb10:
+  bb10:  ; preds = bb7
     v13 = checked_add uint256, v9, v11
     v14 = mload v7
     v15 = lt v13, v14
@@ -569,13 +582,14 @@ fn @asciiWords(arg0: ptr<memory>) -> i256 [selector=0x581c0829, pure, abi_params
     v23 = shr v21, v22
     v24 = or v10, v23
     jump bb12
-  bb12:
+  bb12:  ; preds = bb10
     jump bb9
-  bb9:
+  bb9:  ; preds = bb12
     v25 = checked_add uint256, v11, 1
     jump bb7
 }
 
+; function copyWords(uint256[] memory a, uint256 from) external pure returns (uint256[] memory c) [selector 0xaedd6ca2]
 fn @copyWords(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0xaedd6ca2, pure, abi_params=[array<_, uint256>, uint256], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     v0 = mload arg0
@@ -598,7 +612,7 @@ fn @copyWords(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0xaedd6ca2
     v14 = alloc zeroed checked v11
     mstore v14, v1
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v15 = phi [bb0: arg0], [bb3: v15]
     v16 = phi [bb0: arg1], [bb3: v16]
     v17 = phi [bb0: v14], [bb3: v17]
@@ -606,11 +620,11 @@ fn @copyWords(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0xaedd6ca2
     v19 = phi [bb0: 0], [bb3: v35]
     v20 = lt v19, v18
     jumpi v20, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v17
-  bb4:
+  bb4:  ; preds = bb1
     v21 = checked_add uint256, v16, v19
     v22 = mload v15
     v23 = lt v21, v22
@@ -629,13 +643,14 @@ fn @copyWords(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0xaedd6ca2
     v34 = ptradd v33, 32
     mstore v34, v28
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v35 = checked_add uint256, v19, 1
     jump bb1
 }
 
+; function wordsFromCalldata(bytes32[] calldata a) external pure returns (bytes32[] memory h) [selector 0xd35cf802]
 fn @wordsFromCalldata(arg0: slice<calldata>) -> ptr<memory> [selector=0xd35cf802, pure, abi_params=[array<_, bytes32>], abi_returns=[memory_array<word>], abi_return_params=[array<_, bytes32>]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -658,18 +673,18 @@ fn @wordsFromCalldata(arg0: slice<calldata>) -> ptr<memory> [selector=0xd35cf802
     v14 = alloc zeroed checked v11
     mstore v14, v1
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v15 = phi [bb0: arg0], [bb3: v15]
     v16 = phi [bb0: v14], [bb3: v16]
     v17 = phi [bb0: 0], [bb3: v36]
     v18 = extract_value slice<calldata>, v15, 1
     v19 = lt v17, v18
     jumpi v19, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v16
-  bb4:
+  bb4:  ; preds = bb1
     v20 = extract_value slice<calldata>, v15, 1
     v21 = lt v17, v20
     v22 = eq v21, false
@@ -691,17 +706,18 @@ fn @wordsFromCalldata(arg0: slice<calldata>) -> ptr<memory> [selector=0xd35cf802
     v35 = ptradd v34, 32
     mstore v35, v29
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v36 = checked_add uint256, v17, 1
     jump bb1
 }
 
+; function withinWords(uint256[] memory a, uint256 from, uint256 to, uint256 count) external pure returns (uint256[] memory) [selector 0x3c3b880f]
 fn @withinWords(arg0: ptr<memory>, arg1: i256, arg2: i256, arg3: i256) -> ptr<memory> [selector=0x3c3b880f, pure, abi_params=[array<_, uint256>, uint256, uint256, uint256], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: arg2], [bb3: v2]
@@ -710,11 +726,11 @@ fn @withinWords(arg0: ptr<memory>, arg1: i256, arg2: i256, arg3: i256) -> ptr<me
     v5 = phi [bb0: 0], [bb3: v22]
     v6 = lt v5, v3
     jumpi v6, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v0
-  bb4:
+  bb4:  ; preds = bb1
     v7 = checked_add uint256, v1, v5
     v8 = mload v0
     v9 = lt v7, v8
@@ -734,13 +750,14 @@ fn @withinWords(arg0: ptr<memory>, arg1: i256, arg2: i256, arg3: i256) -> ptr<me
     v21 = ptradd v20, 32
     mstore v21, v14
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v22 = checked_add uint256, v5, 1
     jump bb1
 }
 
+; function fillPastWord(uint256 n) external pure returns (bytes memory b) [selector 0x36818f65]
 fn @fillPastWord(arg0: i256) -> ptr<memory> [selector=0x36818f65, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = not 31
@@ -750,18 +767,18 @@ fn @fillPastWord(arg0: i256) -> ptr<memory> [selector=0x36818f65, pure, abi_para
     v3 = alloc 0x500 !metadata(preserves_fmp)
     memory_zero v3, 0x500
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v4 = phi [bb0: arg0], [bb3: v4]
     v5 = phi [bb0: v2], [bb3: v5]
     v6 = phi [bb0: v3], [bb3: v6]
     v7 = phi [bb0: 0], [bb3: v20]
     v8 = lt v7, v4
     jumpi v8, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v5
-  bb4:
+  bb4:  ; preds = bb1
     v9 = mload v5
     v10 = lt v7, v9
     v11 = eq v10, false
@@ -777,17 +794,18 @@ fn @fillPastWord(arg0: i256) -> ptr<memory> [selector=0x36818f65, pure, abi_para
     v18 = ptradd v6, v17
     v19 = mload v18
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v20 = checked_add uint256, v7, 1
     jump bb1
 }
 
+; function _copy(bytes memory dst, uint256 at, bytes memory src, uint256 from, uint256 count) private pure
 fn @_copy(arg0: ptr<memory>, arg1: i256, arg2: ptr<memory>, arg3: i256, arg4: i256) [always_inline, pure] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: arg2], [bb3: v2]
@@ -796,11 +814,11 @@ fn @_copy(arg0: ptr<memory>, arg1: i256, arg2: ptr<memory>, arg3: i256, arg4: i2
     v5 = phi [bb0: 0], [bb3: v23]
     v6 = lt v5, v4
     jumpi v6, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret
-  bb4:
+  bb4:  ; preds = bb1
     v7 = checked_add uint256, v3, v5
     v8 = mload v2
     v9 = lt v7, v8
@@ -821,9 +839,9 @@ fn @_copy(arg0: ptr<memory>, arg1: i256, arg2: ptr<memory>, arg3: i256, arg4: i2
     v22 = ptradd v21, 32
     mstore8 v22, v20
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v23 = checked_add uint256, v5, 1
     jump bb1
 }

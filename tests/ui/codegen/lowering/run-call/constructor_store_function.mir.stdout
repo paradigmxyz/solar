@@ -1,11 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_store_function.sol:ConstructorStoreFunction ===
 @module ConstructorStoreFunction
+; getter for `uint256 public result` [selector 0x65372147]
 fn @result() -> i256 [selector=0x65372147, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
@@ -19,12 +21,14 @@ fn @constructor() [constructor] {
     ret
 }
 
+; function double(uint256 value) public pure returns (uint256) [selector 0xeee97206]
 fn @double(arg0: i256) -> i256 [selector=0xeee97206, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = checked_mul uint256, arg0, 2
     ret v0
 }
 
+; function use(uint256 value) public returns (uint256) [selector 0xab5b4456]
 fn @use(arg0: i256) -> i256 [selector=0xab5b4456, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
@@ -38,10 +42,10 @@ fn @internal_dispatcher_p_uint256_r_uint256(arg0: i256, arg1: i256) -> i256 [fun
   bb0:
     v0 = eq arg0, 3
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:
+  bb1:  ; preds = bb0
     v1 = icall @double, arg1
     ret v1
 }

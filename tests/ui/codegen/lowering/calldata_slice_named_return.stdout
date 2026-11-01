@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_named_return.sol:CalldataSliceNamedReturn ===
 @module CalldataSliceNamedReturn
 @phase lowered
+; function unwrap(bytes calldata signature) internal pure returns (bytes calldata result)
 fn @unwrap(arg0: i256, arg1: i256) -> slice<calldata> [pure, return_abi=[i256, i256]] {
   bb0:
     v1 = sub arg1, 32
@@ -8,13 +9,14 @@ fn @unwrap(arg0: i256, arg1: i256) -> slice<calldata> [pure, return_abi=[i256, i
     v5 = calldataload v4
     v6 = ne v5, 0
     jumpi v6, bb1, bb2
-  bb1:
+  bb1:  ; preds = bb0
     jump bb2
-  bb2:
+  bb2:  ; preds = bb0, bb1
     v17 = phi [bb1: v1], [bb0: arg1]
     ret arg0, v17
 }
 
+; function use(bytes calldata sig) external pure returns (uint256) [selector 0x01bd03f7]
 fn @use() [selector=0x01bd03f7, abi_wrapper, pure] {
   bb0:
     v2 = calldatasize
@@ -30,28 +32,29 @@ fn @use() [selector=0x01bd03f7, abi_wrapper, pure] {
     v13 = or v8, v12
     v26 = or v3, v13
     jumpi v26, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v0 = icall @unwrap, v10, v9
     v21 = mload 32 !metadata(memory=scratch)
     v22 = add v21, 32
     v23 = mload v22
     mstore 0, v23
     returndata 0, 32
-  bb1:
+  bb1:  ; preds = bb0
     revert 0, 0
 }
 
+; runtime dispatch entry
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
     v1 = ne v0, 0
     jumpi v1, bb3, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v2 = calldataload 0
     v3 = shr v2, 224
     switch v3, default bb3, [0x1bd03f7 => bb2]
-  bb2:
+  bb2:  ; preds = bb1
     tail_call @use
-  bb3:
+  bb3:  ; preds = bb0, bb1
     revert 0, 0
 }

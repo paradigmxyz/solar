@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/function_pointer_inline_array_options.sol:FunctionPointerInlineArrayOptions ===
 @module FunctionPointerInlineArrayOptions
+; function f() external payable returns (uint256) [selector 0x26121ff0]
 fn @f() -> i256 [selector=0x26121ff0, payable, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = callvalue
@@ -9,6 +10,7 @@ fn @f() -> i256 [selector=0x26121ff0, payable, abi_params=[], abi_returns=[word]
     ret 1
 }
 
+; function g() external payable returns (uint256) [selector 0xe2179b8e]
 fn @g() -> i256 [selector=0xe2179b8e, payable, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = callvalue
@@ -18,6 +20,7 @@ fn @g() -> i256 [selector=0xe2179b8e, payable, abi_params=[], abi_returns=[word]
     ret 2
 }
 
+; function h() public payable returns (uint256) [selector 0xb8c9d365]
 fn @h() -> i256 [selector=0xb8c9d365, payable, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64
@@ -47,9 +50,9 @@ fn @h() -> i256 [selector=0xb8c9d365, payable, abi_params=[], abi_returns=[word]
     mstore 0, v20 !metadata(memory=scratch)
     v21 = call v19, v18, 1, 28, 4, 0, 32
     jumpi v21, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v22 = returndatasize
     v23 = lt v22, 32
     icall revert_if<tuple_data_too_short>, v23

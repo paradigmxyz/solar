@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256}
 
+; function test() external returns (uint256 x, uint256 l) [selector 0xf8a8fd6d]
 fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))

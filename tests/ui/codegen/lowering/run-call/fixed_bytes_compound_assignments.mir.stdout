@@ -4,6 +4,7 @@
   struct0: {i256, i256, i256}
   struct1: {i256, i256}
 
+; function bitwise(bytes1 value) external pure returns (bytes1 orValue, bytes1 andValue, bytes1 xorValue) [selector 0xbe8f3303]
 fn @bitwise(arg0: i256) -> struct0 [selector=0xbe8f3303, pure, abi_params=[bytes1], abi_returns=[word<bytes1>, word<bytes1>, word<bytes1>], abi_return_params=[bytes1, bytes1, bytes1]] {
   bb0:
     v0 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
@@ -21,6 +22,7 @@ fn @bitwise(arg0: i256) -> struct0 [selector=0xbe8f3303, pure, abi_params=[bytes
     ret v11
 }
 
+; function shifts(bytes1 value) external pure returns (bytes1 left, bytes1 right) [selector 0x96fca76a]
 fn @shifts(arg0: i256) -> struct1 [selector=0x96fca76a, pure, abi_params=[bytes1], abi_returns=[word<bytes1>, word<bytes1>], abi_return_params=[bytes1, bytes1]] {
   bb0:
     v0 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
@@ -34,6 +36,7 @@ fn @shifts(arg0: i256) -> struct1 [selector=0x96fca76a, pure, abi_params=[bytes1
     ret v7
 }
 
+; function wide(bytes2 value) external pure returns (bytes2) [selector 0x8b537c35]
 fn @wide(arg0: i256) -> i256 [selector=0x8b537c35, pure, abi_params=[bytes2], abi_returns=[word<bytes2>], abi_return_params=[bytes2]] {
   bb0:
     v0 = and arg0, 0xffff000000000000000000000000000000000000000000000000000000000000
@@ -42,6 +45,7 @@ fn @wide(arg0: i256) -> i256 [selector=0x8b537c35, pure, abi_params=[bytes2], ab
     ret v2
 }
 
+; function storageBoundary() external returns (bytes1) [selector 0x90f7c243]
 fn @storageBoundary() -> i256 [selector=0x90f7c243, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     v0 = not 31
@@ -61,14 +65,14 @@ fn @storageBoundary() -> i256 [selector=0x90f7c243, abi_params=[], abi_returns=[
     v11 = eq v10, false
     icall panic_if<0x32>, v11
     jumpi v5, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v12 = storage_array_data_slot 0
     v13 = shr 31, 5
     v14 = add v12, v13
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v15 = phi [bb1: v14], [bb2: 0]
     v16 = and 31, 31
     v17 = sub 31, v16
@@ -94,14 +98,14 @@ fn @storageBoundary() -> i256 [selector=0x90f7c243, abi_params=[], abi_returns=[
     v35 = eq v34, false
     icall panic_if<0x32>, v35
     jumpi v29, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v36 = storage_array_data_slot 0
     v37 = shr 31, 5
     v38 = add v36, v37
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v39 = phi [bb4: v38], [bb5: 0]
     v40 = and 31, 31
     v41 = sub 31, v40
@@ -133,14 +137,14 @@ fn @storageBoundary() -> i256 [selector=0x90f7c243, abi_params=[], abi_returns=[
     v65 = eq v64, false
     icall panic_if<0x32>, v65
     jumpi v59, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     jump bb9
-  bb7:
+  bb7:  ; preds = bb6
     v66 = storage_array_data_slot 0
     v67 = shr 31, 5
     v68 = add v66, v67
     jump bb9
-  bb9:
+  bb9:  ; preds = bb7, bb8
     v69 = phi [bb7: v68], [bb8: 0]
     v70 = and 31, 31
     v71 = sub 31, v70

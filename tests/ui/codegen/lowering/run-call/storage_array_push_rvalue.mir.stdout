@@ -10,6 +10,7 @@
   struct6: {i64, i64, i256}
   struct7: {i8, i256}
 
+; function wordRvalue(uint256 dirty) external returns (uint256, uint256) [selector 0xe87bc9d1]
 fn @wordRvalue(arg0: i256) -> struct0 [selector=0xe87bc9d1, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     mstore 0, 0 !metadata(memory=scratch)
@@ -29,6 +30,7 @@ fn @wordRvalue(arg0: i256) -> struct0 [selector=0xe87bc9d1, abi_params=[uint256]
     ret v9
 }
 
+; function packedRvalue(uint256 dirty) external returns (uint8, uint8, uint256) [selector 0xc89c0702]
 fn @packedRvalue(arg0: i256) -> struct1 [selector=0xc89c0702, abi_params=[uint256], abi_returns=[word<uint8>, word<uint8>, word], abi_return_params=[uint8, uint8, uint256]] {
   bb0:
     mstore 0, 1 !metadata(memory=scratch)
@@ -69,6 +71,7 @@ fn @packedRvalue(arg0: i256) -> struct1 [selector=0xc89c0702, abi_params=[uint25
     ret v28
 }
 
+; function boolRvalue(uint256 dirty) external returns (bool, bool, uint256) [selector 0xfa200185]
 fn @boolRvalue(arg0: i256) -> struct2 [selector=0xfa200185, abi_params=[uint256], abi_returns=[word<bool>, word<bool>, word], abi_return_params=[bool, bool, uint256]] {
   bb0:
     mstore 0, 2 !metadata(memory=scratch)
@@ -111,6 +114,7 @@ fn @boolRvalue(arg0: i256) -> struct2 [selector=0xfa200185, abi_params=[uint256]
     ret v30
 }
 
+; function tagRvalue(uint256 dirty) external returns (bytes4, bytes4, uint256) [selector 0xb8842558]
 fn @tagRvalue(arg0: i256) -> struct3 [selector=0xb8842558, abi_params=[uint256], abi_returns=[word<bytes4>, word<bytes4>, word], abi_return_params=[bytes4, bytes4, uint256]] {
   bb0:
     mstore 0, 3 !metadata(memory=scratch)
@@ -151,6 +155,7 @@ fn @tagRvalue(arg0: i256) -> struct3 [selector=0xb8842558, abi_params=[uint256],
     ret v28
 }
 
+; function enumRvalue(uint256 dirty) external returns (Direction, Direction, uint256) [selector 0x8b2cec53]
 fn @enumRvalue(arg0: i256) -> struct1 [selector=0x8b2cec53, abi_params=[uint256], abi_returns=[word<enum 4>, word<enum 4>, word], abi_return_params=[enum<4, uint8>, enum<4, uint8>, uint256]] {
   bb0:
     mstore 0, 4 !metadata(memory=scratch)
@@ -209,6 +214,7 @@ fn @enumRvalue(arg0: i256) -> struct1 [selector=0x8b2cec53, abi_params=[uint256]
     ret v40
 }
 
+; function signedRvalue(uint256 dirty) external returns (int128, int128, uint256) [selector 0xb5c04c0f]
 fn @signedRvalue(arg0: i256) -> struct4 [selector=0xb5c04c0f, abi_params=[uint256], abi_returns=[word<int128>, word<int128>, word], abi_return_params=[int128, int128, uint256]] {
   bb0:
     mstore 0, 5 !metadata(memory=scratch)
@@ -251,6 +257,7 @@ fn @signedRvalue(arg0: i256) -> struct4 [selector=0xb5c04c0f, abi_params=[uint25
     ret v30
 }
 
+; function addressRvalue() external returns (address, uint256) [selector 0x2ef1cd4b]
 fn @addressRvalue() -> struct5 [selector=0x2ef1cd4b, abi_params=[], abi_returns=[word<uint160>, word], abi_return_params=[address, uint256]] {
   bb0:
     mstore 0, 6 !metadata(memory=scratch)
@@ -277,6 +284,7 @@ fn @addressRvalue() -> struct5 [selector=0x2ef1cd4b, abi_params=[], abi_returns=
     ret v16
 }
 
+; function unwrapRvalue(uint256 dirty) external returns (uint64, uint64, uint256) [selector 0x39669bbc]
 fn @unwrapRvalue(arg0: i256) -> struct6 [selector=0x39669bbc, abi_params=[uint256], abi_returns=[word<uint64>, word<uint64>, word], abi_return_params=[uint64, uint64, uint256]] {
   bb0:
     mstore 0, 7 !metadata(memory=scratch)
@@ -317,6 +325,7 @@ fn @unwrapRvalue(arg0: i256) -> struct6 [selector=0x39669bbc, abi_params=[uint25
     ret v28
 }
 
+; function cleanRvalue() external returns (uint256, uint256, uint256) [selector 0xa51842a5]
 fn @cleanRvalue() -> struct3 [selector=0xa51842a5, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -342,6 +351,7 @@ fn @cleanRvalue() -> struct3 [selector=0xa51842a5, abi_params=[], abi_returns=[w
     ret v15
 }
 
+; function bareRvalue(uint256 dirty) external returns (uint256, uint256) [selector 0x1c2b2089]
 fn @bareRvalue(arg0: i256) -> struct0 [selector=0x1c2b2089, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     mstore 0, 0 !metadata(memory=scratch)
@@ -369,6 +379,7 @@ fn @bareRvalue(arg0: i256) -> struct0 [selector=0x1c2b2089, abi_params=[uint256]
     ret v16
 }
 
+; function enumInvalidRvalue(uint256 dirty) external returns (Direction, uint256) [selector 0x12551884]
 fn @enumInvalidRvalue(arg0: i256) -> struct7 [selector=0x12551884, abi_params=[uint256], abi_returns=[word<enum 4>, word], abi_return_params=[enum<4, uint8>, uint256]] {
   bb0:
     mstore 0, 4 !metadata(memory=scratch)
@@ -400,6 +411,7 @@ fn @enumInvalidRvalue(arg0: i256) -> struct7 [selector=0x12551884, abi_params=[u
     ret v19
 }
 
+; function enumBareRvalue(uint256 dirty) external returns (uint256, uint256) [selector 0x7b8d408b]
 fn @enumBareRvalue(arg0: i256) -> struct0 [selector=0x7b8d408b, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     mstore 0, 4 !metadata(memory=scratch)
@@ -425,6 +437,7 @@ fn @enumBareRvalue(arg0: i256) -> struct0 [selector=0x7b8d408b, abi_params=[uint
     ret v14
 }
 
+; function enumTupleBare(uint256 dirty) external returns (uint256, uint256) [selector 0xc9f089ea]
 fn @enumTupleBare(arg0: i256) -> struct0 [selector=0xc9f089ea, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     mstore 0, 4 !metadata(memory=scratch)
@@ -460,13 +473,14 @@ fn @enumTupleBare(arg0: i256) -> struct0 [selector=0xc9f089ea, abi_params=[uint2
     ret v22
 }
 
+; function enumTernaryBare(uint256 dirty, bool flag) external returns (uint256, uint256) [selector 0x2209d499]
 fn @enumTernaryBare(arg0: i256, arg1: i1) -> struct0 [selector=0x2209d499, abi_params=[uint256, bool], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     mstore 0, 4 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)
     sstore v0, arg0 !metadata(storage=symbolic(v0))
     jumpi arg1, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v9 = sload 4 !metadata(storage=slot(4))
     v10 = gt v9, 0xffffffffffffffff
     icall panic_if<0x41>, v10
@@ -478,7 +492,7 @@ fn @enumTernaryBare(arg0: i256, arg1: i1) -> struct0 [selector=0x2209d499, abi_p
     v16 = mul v15, 1
     sstore 4, v11 !metadata(storage=slot(4))
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v1 = sload 4 !metadata(storage=slot(4))
     v2 = gt v1, 0xffffffffffffffff
     icall panic_if<0x41>, v2
@@ -490,7 +504,7 @@ fn @enumTernaryBare(arg0: i256, arg1: i1) -> struct0 [selector=0x2209d499, abi_p
     v8 = mul v7, 1
     sstore 4, v3 !metadata(storage=slot(4))
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     mstore 0, 4 !metadata(memory=scratch)
     v17 = keccak256 0, 32 !metadata(memory=scratch)
     v18 = sload v17 !metadata(storage=symbolic(v17))
@@ -501,6 +515,7 @@ fn @enumTernaryBare(arg0: i256, arg1: i1) -> struct0 [selector=0x2209d499, abi_p
     ret v22
 }
 
+; function enumDeclHole(uint256 dirty) external returns (uint256, uint256, uint256) [selector 0xfcfa4d59]
 fn @enumDeclHole(arg0: i256) -> struct3 [selector=0xfcfa4d59, abi_params=[uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     mstore 0, 4 !metadata(memory=scratch)
@@ -548,6 +563,7 @@ fn @enumDeclHole(arg0: i256) -> struct3 [selector=0xfcfa4d59, abi_params=[uint25
     ret v32
 }
 
+; function enumAssignHole(uint256 dirty) external returns (uint256, uint256, uint256) [selector 0xb891707d]
 fn @enumAssignHole(arg0: i256) -> struct3 [selector=0xb891707d, abi_params=[uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     mstore 0, 4 !metadata(memory=scratch)
@@ -574,6 +590,7 @@ fn @enumAssignHole(arg0: i256) -> struct3 [selector=0xb891707d, abi_params=[uint
     ret v15
 }
 
+; function enumNestedHole(uint256 dirty) external returns (uint256, uint256, uint256) [selector 0xdf286fc3]
 fn @enumNestedHole(arg0: i256) -> struct3 [selector=0xdf286fc3, abi_params=[uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     mstore 0, 4 !metadata(memory=scratch)
@@ -600,6 +617,7 @@ fn @enumNestedHole(arg0: i256) -> struct3 [selector=0xdf286fc3, abi_params=[uint
     ret v15
 }
 
+; function enumNestedInnerHole(uint256 dirty) external returns (uint256, uint256, uint256) [selector 0x1f0f0670]
 fn @enumNestedInnerHole(arg0: i256) -> struct3 [selector=0x1f0f0670, abi_params=[uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     mstore 0, 4 !metadata(memory=scratch)
@@ -627,6 +645,7 @@ fn @enumNestedInnerHole(arg0: i256) -> struct3 [selector=0x1f0f0670, abi_params=
     ret v16
 }
 
+; function enumUsedComponent(uint256 dirty) external returns (uint256, uint256) [selector 0x3af411b8]
 fn @enumUsedComponent(arg0: i256) -> struct0 [selector=0x3af411b8, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     mstore 0, 4 !metadata(memory=scratch)
@@ -658,6 +677,7 @@ fn @enumUsedComponent(arg0: i256) -> struct0 [selector=0x3af411b8, abi_params=[u
     ret v19
 }
 
+; function nestedInStmtRvalue(uint256 dirty) external returns (uint256, uint256) [selector 0xa803cfdb]
 fn @nestedInStmtRvalue(arg0: i256) -> struct0 [selector=0xa803cfdb, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     mstore 0, 0 !metadata(memory=scratch)
@@ -679,6 +699,7 @@ fn @nestedInStmtRvalue(arg0: i256) -> struct0 [selector=0xa803cfdb, abi_params=[
     ret v10
 }
 
+; function memberRvalue(uint256 dirty) external returns (uint256, uint256, uint256) [selector 0x818284d1]
 fn @memberRvalue(arg0: i256) -> struct3 [selector=0x818284d1, abi_params=[uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     mstore 0, 10 !metadata(memory=scratch)
@@ -715,6 +736,7 @@ fn @memberRvalue(arg0: i256) -> struct3 [selector=0x818284d1, abi_params=[uint25
     ret v20
 }
 
+; function pushThrough(uint256[] storage array) internal returns (uint256)
 fn @pushThrough(arg0: i256) -> i256 {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
@@ -728,6 +750,7 @@ fn @pushThrough(arg0: i256) -> i256 {
     ret v5
 }
 
+; function pointerRvalue(uint256 dirty) external returns (uint256, uint256) [selector 0xd6c30975]
 fn @pointerRvalue(arg0: i256) -> struct0 [selector=0xd6c30975, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     mstore 0, 0 !metadata(memory=scratch)
@@ -740,6 +763,7 @@ fn @pointerRvalue(arg0: i256) -> struct0 [selector=0xd6c30975, abi_params=[uint2
     ret v4
 }
 
+; function lvalueRvalue(uint256 dirty, uint256 value) external returns (uint256, uint256) [selector 0xe30ec141]
 fn @lvalueRvalue(arg0: i256, arg1: i256) -> struct0 [selector=0xe30ec141, abi_params=[uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     mstore 0, 0 !metadata(memory=scratch)
@@ -768,6 +792,7 @@ fn @lvalueRvalue(arg0: i256, arg1: i256) -> struct0 [selector=0xe30ec141, abi_pa
     ret v16
 }
 
+; function compoundRvalue(uint256 dirty, uint256 value) external returns (uint256, uint256) [selector 0x126c7201]
 fn @compoundRvalue(arg0: i256, arg1: i256) -> struct0 [selector=0x126c7201, abi_params=[uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     mstore 0, 0 !metadata(memory=scratch)
@@ -798,6 +823,7 @@ fn @compoundRvalue(arg0: i256, arg1: i256) -> struct0 [selector=0x126c7201, abi_
     ret v18
 }
 
+; function structRvalue(uint256 value) external returns (uint256, uint256, uint256) [selector 0xda0335a1]
 fn @structRvalue(arg0: i256) -> struct3 [selector=0xda0335a1, abi_params=[uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = sload 8 !metadata(storage=slot(8))
@@ -838,6 +864,7 @@ fn @structRvalue(arg0: i256) -> struct3 [selector=0xda0335a1, abi_params=[uint25
     ret v26
 }
 
+; function nestedRvalue(uint256 value) external returns (uint256, uint256, uint256) [selector 0x32226b25]
 fn @nestedRvalue(arg0: i256) -> struct3 [selector=0x32226b25, abi_params=[uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = sload 9 !metadata(storage=slot(9))

@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constant_bytes_value.sol:ConstantBytesValue ===
 @module ConstantBytesValue
+; function length() external pure returns (uint256) [selector 0x1f7b6d32]
 fn @length() -> i256 [selector=0x1f7b6d32, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
@@ -12,6 +13,7 @@ fn @length() -> i256 [selector=0x1f7b6d32, pure, abi_params=[], abi_returns=[wor
     ret v3
 }
 
+; function firstWord() external pure returns (bytes32 result) [selector 0x20cb3a4a]
 fn @firstWord() -> i256 [selector=0x20cb3a4a, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)

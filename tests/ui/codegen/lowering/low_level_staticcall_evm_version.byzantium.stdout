@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/low_level_staticcall_evm_version.sol:Caller ===
 @module Caller
+; function probe(address target) external view returns (bool) [selector 0x275e5da5]
 fn @probe(arg0: i160) -> i1 [selector=0x275e5da5, view, abi_params=[address], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = gas

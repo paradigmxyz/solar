@@ -204,7 +204,19 @@ pub(crate) fn display_function_text<'a>(
         block: &'a BasicBlock,
     ) -> impl fmt::Display + 'a {
         fmt::from_fn(move |f| {
-            writeln!(f, "  bb{}:", block_id.index())?;
+            write!(f, "  bb{}:", block_id.index())?;
+            if !block.predecessors.is_empty() {
+                write!(
+                    f,
+                    "  ; preds = {}",
+                    block.predecessors.iter().format_with(", ", |f, pred| write!(
+                        f,
+                        "bb{}",
+                        pred.index()
+                    ))
+                )?;
+            }
+            writeln!(f)?;
 
             write!(
                 f,
@@ -259,6 +271,9 @@ pub(crate) fn display_function_text<'a>(
     }
 
     fmt::from_fn(move |f| {
+        if let Some(note) = func.entry_note(is_dispatch_entry) {
+            writeln!(f, "; {note}")?;
+        }
         // Header: fn @name(params) -> returns
         write!(f, "fn @{}(", func.name)?;
         write!(

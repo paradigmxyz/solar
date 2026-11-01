@@ -212,9 +212,9 @@
       v0 = shl arg0, 248
       v1 = ne arg1, 0
       jumpi v1, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       ret 0
-    bb1:
+    bb1:  ; preds = bb0
 -     v2 = byte 0, v0
 +     v2 = and arg0, 255
       ret v2
@@ -398,9 +398,9 @@
 -     v0 = shl arg0, 248
       v1 = ne arg1, 0
       jumpi v1, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       ret 0
-    bb1:
+    bb1:  ; preds = bb0
       v2 = and arg0, 255
       ret v2
   }

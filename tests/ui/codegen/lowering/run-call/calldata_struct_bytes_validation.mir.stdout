@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/calldata_struct_bytes_validation.sol:CalldataStructBytesValidation ===
 @module CalldataStructBytesValidation
+; function copy(Value calldata value) external pure returns (uint256) [selector 0xd1ee4a1a]
 fn @copy(arg0: slice<calldata>) -> i256 [selector=0xd1ee4a1a, pure, abi_params=[tuple<bytes, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -60,6 +61,7 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0xd1ee4a1a, pure, abi_params=[
     ret v44
 }
 
+; function encodeField(Value calldata value) external pure returns (uint256) [selector 0xbd1dd83b]
 fn @encodeField(arg0: slice<calldata>) -> i256 [selector=0xbd1dd83b, pure, abi_params=[tuple<bytes, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -104,6 +106,7 @@ fn @encodeField(arg0: slice<calldata>) -> i256 [selector=0xbd1dd83b, pure, abi_p
     ret v33
 }
 
+; function encodePackedField(Value calldata value) external pure returns (uint256) [selector 0xed098724]
 fn @encodePackedField(arg0: slice<calldata>) -> i256 [selector=0xed098724, pure, abi_params=[tuple<bytes, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -148,6 +151,7 @@ fn @encodePackedField(arg0: slice<calldata>) -> i256 [selector=0xed098724, pure,
     ret v33
 }
 
+; function hashField(Value calldata value) external pure returns (bytes32) [selector 0xdd0f255f]
 fn @hashField(arg0: slice<calldata>) -> i256 [selector=0xdd0f255f, pure, abi_params=[tuple<bytes, uint256>], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -204,6 +208,7 @@ fn @hashField(arg0: slice<calldata>) -> i256 [selector=0xdd0f255f, pure, abi_par
     ret v41
 }
 
+; function indexField(Value calldata value) external pure returns (uint256) [selector 0xec2824a8]
 fn @indexField(arg0: slice<calldata>) -> i256 [selector=0xec2824a8, pure, abi_params=[tuple<bytes, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -248,6 +253,7 @@ fn @indexField(arg0: slice<calldata>) -> i256 [selector=0xec2824a8, pure, abi_pa
     ret v33
 }
 
+; function fixedField(Value calldata value) external pure returns (uint256) [selector 0x4d20e66c]
 fn @fixedField(arg0: slice<calldata>) -> i256 [selector=0x4d20e66c, pure, abi_params=[tuple<bytes, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -292,6 +298,7 @@ fn @fixedField(arg0: slice<calldata>) -> i256 [selector=0x4d20e66c, pure, abi_pa
     ret v34
 }
 
+; function copyField(Value calldata value) external pure returns (uint256) [selector 0xda205eee]
 fn @copyField(arg0: slice<calldata>) -> i256 [selector=0xda205eee, pure, abi_params=[tuple<bytes, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -346,6 +353,7 @@ fn @copyField(arg0: slice<calldata>) -> i256 [selector=0xda205eee, pure, abi_par
     ret v39
 }
 
+; function copyWords(uint256[] calldata values) external pure returns (uint256) [selector 0x7ce58428]
 fn @copyWords(arg0: slice<calldata>) -> i256 [selector=0x7ce58428, pure, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -384,6 +392,7 @@ fn @copyWords(arg0: slice<calldata>) -> i256 [selector=0x7ce58428, pure, abi_par
     ret v25
 }
 
+; function emitBytes(bytes calldata value) external returns (uint256) [selector 0xc76f0635]
 fn @emitBytes(arg0: slice<calldata>) -> i256 [selector=0xc76f0635, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -406,6 +415,7 @@ fn @emitBytes(arg0: slice<calldata>) -> i256 [selector=0xc76f0635, abi_params=[b
     ret v12
 }
 
+; function copyArray(bytes[] calldata values) external pure returns (uint256) [selector 0x58bdfbf3]
 fn @copyArray(arg0: slice<calldata>) -> i256 [selector=0x58bdfbf3, pure, abi_params=[array<_, bytes>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -429,11 +439,11 @@ fn @copyArray(arg0: slice<calldata>) -> i256 [selector=0x58bdfbf3, pure, abi_par
     v14 = alloc v12
     mstore v14, v0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v15 = phi [bb0: 0], [bb2: v53]
     v16 = lt v15, v0
     jumpi v16, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v54 = mload v14
     v55 = lt 0, v54
     v56 = eq v55, false
@@ -442,7 +452,7 @@ fn @copyArray(arg0: slice<calldata>) -> i256 [selector=0x58bdfbf3, pure, abi_par
     v58 = mload v57, ptr<memory>
     v59 = mload v58
     ret v59
-  bb2:
+  bb2:  ; preds = bb1
     v17 = mul v15, 32
     v18 = ptrtoint ptr<calldata> v1 to i256
     v19 = add v18, v17

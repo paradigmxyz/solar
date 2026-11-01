@@ -1,14 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/enum_conversion_qualified.sol:DataTypes (runtime) ===
 @module DataTypes_runtime
-// runtime dispatch entry
-bb0:
+bb0:  ; runtime dispatch entry
   push 0
   push 0
   revert
 // === ROOT/tests/ui/codegen/lowering/enum_conversion_qualified.sol:E (runtime) ===
 @module E_runtime
-// runtime dispatch entry
-bb0:
+bb0:  ; runtime dispatch entry
   push 36
   calldatasize
   lt
@@ -35,9 +33,7 @@ bb4 [cold]:
   push 0
   push 0
   revert
-
-// revert_stub (synthesized)
-bb11 [cold]:
+bb11 [cold]:  ; revert_stub (synthesized)
   push 33
   push 32
   mstore
@@ -47,10 +43,7 @@ bb11 [cold]:
   push 36
   push 28
   revert
-
-// function isNone(uint256 x) external pure returns (bool)
-// external entry, selector 0xbc477c04
-bb5:
+bb5:  ; function isNone(uint256 x) external pure returns (bool) [selector 0xbc477c04]
   push 4
   calldataload
   push 2
@@ -64,10 +57,7 @@ bb5:
   push 32
   push 0
   return
-
-// function isLocalNone(uint256 x) external pure returns (bool)
-// external entry, selector 0xb4702ebe
-bb8:
+bb8:  ; function isLocalNone(uint256 x) external pure returns (bool) [selector 0xb4702ebe]
   push 4
   calldataload
   push 1

@@ -4,6 +4,7 @@
 @types
   struct0: {i256, ptr<memory>}
 
+; function full(uint256 a) public view returns (uint256 kind, bytes memory info) [selector 0xd17b272f]
 fn @full() [selector=0xd17b272f, abi_wrapper, view] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -16,7 +17,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     mstore v86, arg0
     v7 = staticcall v2, v0, v199, 36, 0, 0
     jumpi v7, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v58 = returndatasize
     v59 = add v58, 63
     v62 = and v59, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -30,15 +31,15 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     v22 = shr v21, 224
     v23 = eq v22, 0x8c379a0
     jumpi v23, bb3, bb5
-  bb3:
+  bb3:  ; preds = bb2
     v25 = icall @try_decode_error_message, v176, v58
     jumpi v25, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb2, bb3
     v34 = eq v22, 0x4e487b71
     v36 = gt v58, 35
     v37 = and v34, v36
     jumpi v37, bb6, bb7
-  bb7:
+  bb7:  ; preds = bb5
     v210 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v149 = add v210, 64
     mstore v210, 3
@@ -55,7 +56,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     mcopy v158, v176, v154 !metadata(disjoint)
     v163 = sub v161, v210
     returndata v210, v163
-  bb6:
+  bb6:  ; preds = bb5
     v182 = add v204, 36
     v40 = mload v182
     v207 = mload 64 !metadata(memory=scratch, alloc_ptr)
@@ -72,7 +73,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     mstore v130, 32
     mcopy v139, v184, 32 !metadata(disjoint)
     returndata v208, 128
-  bb4:
+  bb4:  ; preds = bb3
     v29 = sub v58, 4
     v178 = add v204, 36
     v69 = icall @decode_aggregate.4, v178, v29
@@ -93,7 +94,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     mcopy v118, v180, v114 !metadata(memory=heap, disjoint)
     v123 = sub v121, v206
     returndata v206, v123
-  bb1:
+  bb1:  ; preds = bb0
     v48 = returndatasize
     v49 = add v48, 63
     v52 = and v49, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -126,6 +127,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     returndata v203, v104
 }
 
+; function rethrows(uint256 a) public view returns (uint256 r) [selector 0x0d7fadfb]
 fn @rethrows() [selector=0x0d7fadfb, abi_wrapper, view] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -138,7 +140,7 @@ fn @rethrows() [selector=0x0d7fadfb, abi_wrapper, view] {
     mstore v58, arg0
     v7 = staticcall v2, v0, v76, 36, 0, 0
     jumpi v7, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v41 = returndatasize
     v42 = add v41, 63
     v45 = and v42, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -152,17 +154,17 @@ fn @rethrows() [selector=0x0d7fadfb, abi_wrapper, view] {
     v20 = shr v19, 224
     v21 = eq v20, 0x8c379a0
     jumpi v21, bb4, bb6
-  bb4:
+  bb4:  ; preds = bb2
     v23 = icall @try_decode_error_message, v67, v41
     jumpi v23, bb5, bb6
-  bb6:
+  bb6:  ; preds = bb2, bb4
     revert v67, v41
-  bb5:
+  bb5:  ; preds = bb4
     v27 = sub v41, 4
     v69 = add v80, 36
     v52 = icall @decode_aggregate.4, v69, v27
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v31 = returndatasize
     v32 = add v31, 63
     v35 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -174,7 +176,7 @@ fn @rethrows() [selector=0x0d7fadfb, abi_wrapper, view] {
     returndatacopy v65, 0, v31
     v60 = icall @decode_aggregate.5, v78
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb5
     v30 = phi [bb1: v60], [bb5: 1]
     mstore 0, v30 !metadata(memory=scratch)
     returndata 0, 32
@@ -184,13 +186,13 @@ fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
   bb0:
     v1 = gt arg1, 67
     jumpi v1, bb1, bb3
-  bb1:
+  bb1:  ; preds = bb0
     v2 = add arg0, 4
     v3 = mload v2
     v4 = sub arg1, 36
     v5 = gt v3, v4
     jumpi v5, bb3, bb2
-  bb2:
+  bb2:  ; preds = bb1
     v6 = add v2, v3
     v7 = mload v6
     v8 = add v3, 36
@@ -200,7 +202,7 @@ fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
     v12 = or v9, v11
     v14 = eq v12, false
     ret v14
-  bb3:
+  bb3:  ; preds = bb0, bb1
     ret false
 }
 
@@ -209,7 +211,7 @@ fn @decode_aggregate.4(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     v3 = add arg0, arg1
     v4 = slt arg1, 32
     jumpi v4, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v5 = mload arg0
     v7 = add arg0, v5
     v10 = add v7, 32
@@ -217,19 +219,19 @@ fn @decode_aggregate.4(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     v12 = gt v10, v3
     v13 = or v11, v12
     jumpi v13, bb1, bb3
-  bb3:
+  bb3:  ; preds = bb2
     v15 = mload v7
     v17 = add v15, 63
     v18 = lt v17, v15
     jumpi v18, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     v20 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v39 = icall @alloc, v20
     mstore v39, v15
     v22 = sub v3, v10
     v23 = gt v15, v22
     jumpi v23, bb1, bb6
-  bb6:
+  bb6:  ; preds = bb5
     v34 = add v39, 32
     mcopy v34, v10, v15
     v31 = sub 0, v15
@@ -238,11 +240,11 @@ fn @decode_aggregate.4(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     v35 = add v34, v15
     calldatacopy v35, v40, v32
     ret v39
-  bb4:
+  bb4:  ; preds = bb3
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1:  ; preds = bb0, bb2, bb5
     revert 0, 0
 }
 
@@ -253,7 +255,7 @@ fn @decode_aggregate.5(arg0: i256) -> struct0 [may_return_memory, return_abi=[i2
     v3 = add v39, v1
     v4 = slt v1, 64
     jumpi v4, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v5 = mload v39
     v7 = add v39, 32
     v8 = mload v7
@@ -263,19 +265,19 @@ fn @decode_aggregate.5(arg0: i256) -> struct0 [may_return_memory, return_abi=[i2
     v15 = gt v13, v3
     v16 = or v14, v15
     jumpi v16, bb1, bb3
-  bb3:
+  bb3:  ; preds = bb2
     v18 = mload v10
     v20 = add v18, 63
     v21 = lt v20, v18
     jumpi v21, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     v23 = and v20, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v46 = icall @alloc, v23
     mstore v46, v18
     v25 = sub v3, v13
     v26 = gt v18, v25
     jumpi v26, bb1, bb6
-  bb6:
+  bb6:  ; preds = bb5
     v41 = add v46, 32
     mcopy v41, v13, v18
     v34 = sub 0, v18
@@ -284,14 +286,15 @@ fn @decode_aggregate.5(arg0: i256) -> struct0 [may_return_memory, return_abi=[i2
     v42 = add v41, v18
     calldatacopy v42, v47, v35
     ret v5, v46
-  bb4:
+  bb4:  ; preds = bb3
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1:  ; preds = bb0, bb2, bb5
     revert 0, 0
 }
 
+; runtime dispatch entry
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
@@ -301,15 +304,15 @@ fn @entry() [entry] {
     v4 = or v0, v3
     v5 = ne v4, 0
     jumpi v5, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v6 = calldataload 0
     v7 = shr v6, 224
     switch v7, default bb1, [0xd7fadfb => bb3, 0xd17b272f => bb4]
-  bb4:
+  bb4:  ; preds = bb2
     tail_call @full
-  bb3:
+  bb3:  ; preds = bb2
     tail_call @rethrows
-  bb1:
+  bb1:  ; preds = bb0, bb2
     revert 0, 0
 }
 
@@ -323,10 +326,10 @@ fn @alloc(arg0: i256) -> i256 {
     v6 = or v4, v5
     v7 = ne v6, 0
     jumpi v7, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     mstore 64, v2 !metadata(memory=scratch)
     ret v0
-  bb1:
+  bb1:  ; preds = bb0
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36

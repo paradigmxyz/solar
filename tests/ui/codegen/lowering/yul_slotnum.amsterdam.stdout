@@ -1,7 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/yul_slotnum.sol:YulSlotnum (runtime) ===
 @module YulSlotnum_runtime
-// runtime dispatch entry
-bb0:
+bb0:  ; runtime dispatch entry
   callvalue
   push bb4
   jumpi
@@ -24,10 +23,7 @@ bb4 [cold]:
   push 0
   push 0
   revert
-
-// function currentSlotSolidity() external view returns (uint64)
-// external entry, selector 0x0a02bebd
-bb5:
+bb5:  ; function currentSlotSolidity() external view returns (uint64) [selector 0x0a02bebd]
   push 0xffffffffffffffff
   slotnum
   and
@@ -36,10 +32,7 @@ bb5:
   push 32
   push 0
   return
-
-// function currentSlot() external view returns (uint256 result)
-// external entry, selector 0x3359632e
-bb6:
+bb6:  ; function currentSlot() external view returns (uint256 result) [selector 0x3359632e]
   slotnum
   push 0
   mstore

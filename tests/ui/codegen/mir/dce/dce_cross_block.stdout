@@ -5,26 +5,29 @@
     bb0:
       v0 = add arg0, 1
       jumpi arg1, bb1, bb2
-    bb1:
+    bb1:  ; preds = bb0
 -     v1 = mul arg0, arg0
       jump bb2
-    bb2:
+    bb2:  ; preds = bb0, bb1
       ret v0
   }
   
   fn @dead_cycle_to_live_phi(arg0: i256, arg1: i1) -> i256 {
     bb0:
       jump bb3
-    bb3:
+-   bb3:  ; preds = bb0, bb2
 -     v1 = phi [bb0: arg0], [bb2: v0]
++   bb3:  ; preds = bb0
 +     v1 = phi [bb0: arg0]
       ret v1
-    bb1:
+-   bb1:  ; preds = bb2
 -     v0 = add arg0, 1
 -     jump bb2
-+     invalid
-    bb2:
+-   bb2:  ; preds = bb1
 -     jumpi arg1, bb1, bb3
++   bb1:
++     invalid
++   bb2:
 +     invalid
   }
   

@@ -6,9 +6,9 @@
 -     mstore 64, 512
       calldatacopy arg0, 0, arg1
       jumpi arg2, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       revert arg0, arg1
-    bb1:
+    bb1:  ; preds = bb0
       returndata arg0, arg1
   }
   
@@ -22,9 +22,9 @@
       returndatacopy v3, 0, v0
       v4 = inttoptr i256 v3 to ptr<memory>
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       revert v3, v0
-    bb1:
+    bb1:  ; preds = bb0
       returndata v4, v0
   }
   
@@ -78,15 +78,15 @@
     bb0:
       mstore 64, 512
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v0 = phi [bb0: arg0], [bb2: v2]
       v1 = eq v0, arg2
       jumpi v1, bb3, bb2
-    bb2:
+    bb2:  ; preds = bb1
       calldatacopy v0, 0, arg1
       v2 = add v0, 32
       jump bb1
-    bb3:
+    bb3:  ; preds = bb1
       returndata v0, arg1
   }
   

@@ -3,9 +3,7 @@
 @data
   ConstructorICall_runtime_code_0: hex"34601b575f3560e01c80633fa4f24503601b575f545f5260205ff35b5f5ffd"
 
-//   constructor(uint256 x)
-//   creation entry
-bb0:
+bb0:  ; constructor(uint256 x) [creation entry]
   push_data ConstructorICall_runtime_code_0+31
   codesize
   sub
@@ -42,9 +40,7 @@ bb0:
   and
   push bb10
   jump bb1
-
-// function helper(uint256 n) internal pure returns (uint256)
-bb1 [ret=0, inputs=2, outputs=1]:
+bb1 [ret=0, inputs=2, outputs=1]:  ; function helper(uint256 n) internal pure returns (uint256)
   dup 2
   iszero
   push bb7
@@ -103,10 +99,7 @@ bb11 [cold]:
   revert
 // === ROOT/tests/ui/codegen/lowering/constructor_internal_call.sol:ConstructorICall (runtime) ===
 @module ConstructorICall_runtime
-// runtime dispatch entry
-//   getter for `uint256 public value`
-//   external entry, selector 0x3fa4f245
-bb0:
+bb0:  ; runtime dispatch entry + getter for `uint256 public value` [selector 0x3fa4f245]
   callvalue
   push bb3
   jumpi

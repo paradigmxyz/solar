@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/fallback_bytes_modified.sol:ModifiedFallbackBytes ===
 @module ModifiedFallbackBytes
+; function invoke(uint256 offset, uint256 length) external returns (bytes memory) [selector 0x33298e25]
 fn @invoke(arg0: i256, arg1: i256) -> ptr<memory> [selector=0x33298e25, abi_params=[uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = address
@@ -12,19 +13,20 @@ fn @invoke(arg0: i256, arg1: i256) -> ptr<memory> [selector=0x33298e25, abi_para
     ret v4
 }
 
+; fallback(bytes calldata input) external returns (bytes memory) [fallback]
 fn @fallback(arg0: slice<calldata>) -> ptr<memory> [fallback] {
   bb0:
     v0 = calldataload 0
     v1 = ne v0, 0
     jumpi v1, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v2 = extract_value slice<calldata>, arg0, 1
     v3 = inttoptr i256 v0 to ptr<calldata>
     v4 = make_calldata_slice v3, v2
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v5 = phi [bb1: v4], [bb2: arg0]
     v6 = calldataload 32
     v7 = extract_value slice<calldata>, v5, 0

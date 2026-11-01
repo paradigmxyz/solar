@@ -37,9 +37,9 @@
       mstore 32, arg0
 +     v0 = gt arg0, 0xffffffff
       jumpi v0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       ret arg1
-    bb1:
+    bb1:  ; preds = bb0
       revert 0, 0
   }
   
