@@ -1,0 +1,33 @@
+//@ revisions: gas none
+//@[gas] compile-flags: -Zevm-ir-pipeline=default -O gas --evm-version shanghai -Zdump=disasm-runtime
+//@[gas] filecheck: --check-prefix=GAS
+//@[none] compile-flags: -Zevm-ir-pipeline=default -O none --evm-version shanghai -Zdump=disasm-runtime
+//@[none] filecheck: --check-prefix=NONE
+
+@module cold_push_pricing
+
+// The constant has 28 significant bytes, so a shifted `PUSH28` saves one byte over the `PUSH32`
+// for 6 more gas: only code that cannot run on success takes it in a gas build.
+
+// GAS-LABEL: // === cold_push_pricing (runtime) ===
+// GAS: PUSH32 0x1234343434343434343434343434343434343434343434343434345600000000
+// GAS: PUSH28
+// GAS-NEXT: PUSH1 0x20
+// GAS-NEXT: SHL
+
+// NONE-LABEL: // === cold_push_pricing (runtime) ===
+// NONE: PUSH32 0x1234343434343434343434343434343434343434343434343434345600000000
+// NONE: PUSH32 0x1234343434343434343434343434343434343434343434343434345600000000
+bb0:
+  push 0x1234343434343434343434343434343434343434343434343434345600000000
+  push 0
+  mstore
+  push 0
+  calldataload
+  jumpi bb1, bb2
+bb1 [cold]:
+  push 0x1234343434343434343434343434343434343434343434343434345600000000
+  push 0
+  revert
+bb2:
+  stop

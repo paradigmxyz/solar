@@ -1,0 +1,46 @@
+- // === ROOT/tests/ui/codegen/mir/word-sequence/shift_pair_masks.mir (before word-sequence) ===
++ // === ROOT/tests/ui/codegen/mir/word-sequence/shift_pair_masks.mir (after word-sequence) ===
+  @module ShiftPairMasks
+  fn @extract(arg0: i256) -> i256 {
+    bb0:
+-     v0 = shr arg0, 16
+-     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
++     v2 = shl arg0, 80
++     v1 = shr v2, 96
+      ret v1
+  }
+  
+  fn @insert(arg0: i256) -> i256 {
+    bb0:
+-     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+-     v1 = shl v0, 8
++     v2 = shl arg0, 96
++     v1 = shr v2, 88
+      ret v1
+  }
+  
+  fn @narrow_extract(arg0: i256) -> i256 {
+    bb0:
+-     v0 = shr arg0, 8
+-     v1 = and v0, 0xffff
++     v2 = shl arg0, 232
++     v1 = shr v2, 240
+      ret v1
+  }
+  
+  fn @shared_mask(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = shr arg0, 16
+      v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+      v2 = shr arg1, 32
+      v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
+      v4 = add v1, v3
+      ret v4
+  }
+  
+  fn @low(arg0: i256) -> i256 {
+    bb0:
+      v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+      ret v0
+  }
+  

@@ -150,8 +150,6 @@ bb26:
   dup 2
   push 64
   shr
-  iszero
-  iszero
   or
   swap 1
   swap 3

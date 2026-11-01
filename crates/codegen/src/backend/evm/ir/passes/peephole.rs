@@ -34,6 +34,10 @@
 //! constants. Deferring this rewrite preserves earlier outlining opportunities;
 //! doing it in MIR can turn a shareable run into two smaller inline copies that
 //! occupy more bytes overall. Matching is bounded to 24 instructions per tail.
+//! A mask that compact pushes built as `PUSH0 NOT PUSH s SHR` before an `AND` becomes the
+//! shift pair `PUSH s SHL PUSH s SHR` in a fixed five-instruction window, when the pair
+//! dominates the mask in gas and bytes. A literal mask never matches, so a loop that kept one
+//! keeps it; the MIR word-sequence pass only fuses such a mask with a neighbouring shift.
 //!
 //! When no low-mask window matches, the late rules rewrite a trailing `PUSH c; SWAP1; SUB` to
 //! `materialize(-c); ADD` if the target's cheapest materialization of `-c` beats the push and the
@@ -301,6 +305,8 @@ enum Edit {
     LowMask,
     /// Replace a shuffled shift base and the trailing PUSH1 1; SWAP1; SUB.
     LowMaskWithSwap,
+    /// PUSH0; NOT; PUSH s; SHR; AND => PUSH s; SHL; PUSH s; SHR.
+    ShiftPairMask,
     RemoveFirstKeepOne,
     RemoveFirstKeepTwo,
     RemoveFirstOverwrite {
@@ -364,6 +370,16 @@ impl Edit {
                 instructions[start] = Instruction::push_value(U256::ZERO).with_debug_info_dropped();
                 instructions[start + 1] = not();
                 *instructions.last_mut().expect("matched subtraction") = not();
+            }
+            Self::ShiftPairMask => {
+                // push s; shl; push s; shr
+                // NOTE: The first shift count is a copy without source checkpoint; the other
+                // instructions keep the metadata of the one they replace, the last shift that
+                // of the `and`.
+                instructions[start] = instructions[start + 2].clone().with_debug_info_dropped();
+                overwrite(&mut instructions[start + 1], op::SHL);
+                instructions.remove(start + 3);
+                overwrite(&mut instructions[start + 3], op::SHR);
             }
             Self::Keep { len } => instructions.truncate(start + usize::from(len)),
             Self::OverwritePush0 => {

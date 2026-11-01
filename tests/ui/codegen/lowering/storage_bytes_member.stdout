@@ -611,7 +611,7 @@ bb58:
   sstore
   stop
 bb61:
-  push 128
+  push 160
   push 64
   mstore
   caller
@@ -656,24 +656,24 @@ bb61:
   push 31
   not
   and
-  push 128
+  push 160
   add
   dup 1
-  push 128
+  push 160
   gt
   swap 1
-  push 0xffffffffffffffff
-  lt
+  push 64
+  shr
   or
   push bb69
   jumpi
-  push 128
+  push 160
   mstore
   push 31
   add
   push 5
   shr
-  push 128
+  push 160
   swap 1
   swap 2
   push bb65
@@ -691,32 +691,28 @@ bb61:
 bb67:
   dup 1
   mload
-  push 32
-  dup 3
-  add
   push 31
-  dup 3
+  dup 2
   add
   push 31
   not
   and
-  push 0
-  dup 2
+  swap 1
+  push 32
   dup 4
   add
-  mstore
-  dup 3
-  dup 3
-  push 64
-  dup 7
   add
-  mcopy
-  push 32
-  dup 5
-  mstore
-  swap 2
+  push 0
   swap 1
   mstore
+  push 32
+  swap 1
+  swap 2
+  sub
+  push 32
+  dup 2
+  mstore
+  swap 1
   push 64
   add
   swap 1

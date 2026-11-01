@@ -27,17 +27,13 @@ fn @newLength(arg0: i256) -> i256 [selector=0x09661d83, pure, abi_params=[uint25
     v11 = lt v10, v3
     icall panic_if<0x41>, v11
     v12 = mul v10, 32
-    v13 = eq 32, 0
-    v14 = div v12, 32
-    v15 = eq v14, v10
-    v16 = or v13, v15
-    v17 = zext i1 v16 to i256
-    v18 = eq v17, 0
-    icall panic_if<0x41>, v18
-    v19 = alloc zeroed checked v12
-    mstore v19, v2
-    v20 = mload v19
-    ret v20
+    v13 = shr v10, 251
+    v14 = ne v13, 0
+    icall panic_if<0x41>, v14
+    v15 = alloc zeroed checked v12
+    mstore v15, v2
+    v16 = mload v15
+    ret v16
 }
 
 fn @newBytesLength(arg0: i256) -> i256 [selector=0x4f901bea, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {

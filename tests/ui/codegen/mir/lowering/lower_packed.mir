@@ -71,7 +71,8 @@ fn @edge(arg0: i1, arg1: ptr<memory>, arg2: ptr<memory>) -> ptr<memory> {
 // CHECK-LABEL: fn @prefixed_array(
 // CHECK: [[LENGTH:v[0-9]+]] = mload arg0
 // CHECK: [[BYTES:v[0-9]+]] = mul [[LENGTH]], 32
-// CHECK: div [[BYTES]], 32
+// CHECK: [[HIGH:v[0-9]+]] = shr [[LENGTH]], 251
+// CHECK-NEXT: ne [[HIGH]], 0
 // CHECK: alloc
 // CHECK: [[LOOP_BYTES:v[0-9]+]] = mul [[LENGTH]], 32
 // CHECK: [[END:v[0-9]+]] = add 1, [[LOOP_BYTES]]

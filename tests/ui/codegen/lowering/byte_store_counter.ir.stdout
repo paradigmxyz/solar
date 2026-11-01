@@ -106,7 +106,7 @@ bb73 [cold]:
   push 65
   jump bb82
 bb9:
-  push 128
+  push 160
   push 64
   mstore
   push 36
@@ -157,9 +157,9 @@ bb81 [ret=0, inputs=2, outputs=1]:
   dup 3
   dup 2
   lt
-  push 0xffffffffffffffff
-  dup 3
-  gt
+  dup 2
+  push 64
+  shr
   or
   push bb73
   jumpi
@@ -174,16 +174,13 @@ bb55 [ret=0, inputs=2, outputs=1]:
   mload
   dup 1
   dup 1
-  add
-  swap 1
-  dup 2
-  push 1
+  push 255
   shr
-  sub
   push bb51
   jumpi
+  add
+  dup 1
   push 63
-  dup 2
   add
   dup 2
   dup 2
@@ -199,38 +196,34 @@ bb55 [ret=0, inputs=2, outputs=1]:
 bb12 [continuation]:
   dup 1
   mload
-  push 32
-  dup 3
-  add
   push 31
-  dup 3
+  dup 2
   add
   push 31
   not
   and
-  push 0
-  dup 2
+  swap 1
+  push 32
   dup 4
   add
-  mstore
-  dup 3
-  dup 3
-  push 64
-  dup 7
   add
-  mcopy
-  push 32
-  dup 5
-  mstore
-  swap 2
+  push 0
   swap 1
   mstore
+  push 32
+  swap 1
+  swap 2
+  sub
+  push 32
+  dup 2
+  mstore
+  swap 1
   push 64
   add
   swap 1
   return
 bb14:
-  push 128
+  push 160
   push 64
   mstore
   push 36
@@ -396,9 +389,9 @@ bb41 [loop]:
   dup 2
   dup 2
   lt
-  push 0xffffffffffffffff
-  dup 3
-  gt
+  dup 2
+  push 64
+  shr
   or
   push bb73
   jumpi

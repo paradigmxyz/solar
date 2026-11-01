@@ -1,0 +1,43 @@
+//@compile-flags: -Zmir-pipeline=check-elim
+//@filecheck:
+@module CheckElimShiftedRange
+
+// A zero `x >> 251` bounds `x = arg0 + 1` below 2^251, so `arg0` is below 2^251 - 1 and
+// `arg0 + arg0` cannot wrap: the check folds.
+// CHECK-LABEL: {{^[ +].*}}fn @fold_sum_of_bounded{{[( ]}}
+// CHECK: - jumpi {{(arg[0-9]+|v[0-9]+)}}, bb4, bb5
+// CHECK: + jump bb5
+fn @fold_sum_of_bounded(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 1
+    v1 = eq v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = shr v0, 251
+    v3 = ne v2, 0
+    jumpi v3, bb3, bb2
+  bb2:
+    v4 = add arg0, arg0
+    v5 = lt v4, arg0
+    jumpi v5, bb4, bb5
+  bb3:
+    ret 0
+  bb4:
+    revert 0, 0
+  bb5:
+    ret v4
+}
+
+// Without the test, `arg0 + arg0` can wrap and its check stays.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_unbounded{{[( ]}}
+// CHECK: {{^[ +].*}}jumpi {{(arg[0-9]+|v[0-9]+)}}, bb1, bb2
+fn @keep_unbounded(arg0: i256) -> i256 {
+  bb0:
+    v4 = add arg0, arg0
+    v5 = lt v4, arg0
+    jumpi v5, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    ret v4
+}

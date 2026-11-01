@@ -19,37 +19,29 @@ fn @forward(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0x4
     icall revert_if<empty>, v6
     v8 = sub arg2, arg1
     v9 = mul arg1, 32
-    v10 = eq 32, 0
-    v11 = div v9, 32
-    v12 = eq v11, arg1
-    v13 = or v10, v12
-    v14 = zext i1 v13 to i256
-    v15 = eq v14, 0
-    icall panic_if<0x41>, v15
-    v16 = ptradd v2, v9
-    v17 = make_calldata_slice v16, v8
-    v18 = extract_value slice<calldata>, v17, 1
-    v19 = mul v18, 32
-    v20 = eq 32, 0
-    v21 = div v19, 32
-    v22 = eq v21, v18
-    v23 = or v20, v22
-    v24 = zext i1 v23 to i256
-    v25 = eq v24, 0
-    icall panic_if<0x41>, v25
-    v26 = abi_encode [calldata_array<word>], selector 0xe55582b700000000000000000000000000000000000000000000000000000000, args v17
-    v27 = extract_value slice<memory>, v26, 0
-    v28 = extract_value slice<memory>, v26, 1
-    v29 = zext i160 v0 to i256
-    v30 = staticcall v1, v29, v27, v28, 0, 32
-    jumpi v30, bb2, bb1
+    v10 = shr arg1, 251
+    v11 = ne v10, 0
+    icall panic_if<0x41>, v11
+    v12 = ptradd v2, v9
+    v13 = make_calldata_slice v12, v8
+    v14 = extract_value slice<calldata>, v13, 1
+    v15 = mul v14, 32
+    v16 = shr v14, 251
+    v17 = ne v16, 0
+    icall panic_if<0x41>, v17
+    v18 = abi_encode [calldata_array<word>], selector 0xe55582b700000000000000000000000000000000000000000000000000000000, args v13
+    v19 = extract_value slice<memory>, v18, 0
+    v20 = extract_value slice<memory>, v18, 1
+    v21 = zext i160 v0 to i256
+    v22 = staticcall v1, v21, v19, v20, 0, 32
+    jumpi v22, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v31 = returndatasize
-    v32 = lt v31, 32
-    icall revert_if<tuple_data_too_short>, v32
-    v33 = add 0, 0
-    v34 = mload v33
-    ret v34
+    v23 = returndatasize
+    v24 = lt v23, 32
+    icall revert_if<tuple_data_too_short>, v24
+    v25 = add 0, 0
+    v26 = mload v25
+    ret v26
 }

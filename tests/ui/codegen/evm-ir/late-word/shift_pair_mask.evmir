@@ -1,0 +1,82 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=late-word
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=late-word
+//@ run-call: f(uint256,uint256)(uint256) 0, 0 => 0
+//@ run-call: f(uint256,uint256)(uint256) 115792089237316195423570985008687907853269984665640564039457584007913129639935, 0 => 1461501637330902918203684832716283019655932542975
+//@ run-call: f(uint256,uint256)(uint256) 514631507721405306298073637848375664226723355710112857507800679889911926255, 0 => 785963102379428822407202815657924982298014109167
+//@ run-call: f(uint256,uint256)(uint256) 1461501637330902918203684832716283019655932542976, 0 => 0
+//@ run-call: f(uint256,uint256)(uint256) 0, 1 => 0
+//@ run-call: f(uint256,uint256)(uint256) 115792089237316195423570985008687907853269984665640564039457584007913129639935, 1 => 1461501637330902918203684832716283019655932542975
+//@ run-call: f(uint256,uint256)(uint256) 514631507721405306298073637848375664226723355710112857507800679889911926255, 1 => 785963102379428822407202815657924982298014109167
+//@ run-call: f(uint256,uint256)(uint256) 1461501637330902918203684832716283019655932542976, 1 => 0
+//@ run-call: f(uint256,uint256)(uint256) 0, 2 => 0
+//@ run-call: f(uint256,uint256)(uint256) 0, 3 => 0
+//@ run-call: f(uint256,uint256)(uint256) 115792089237316195423570985008687907853269984665640564039457584007913129639935, 2 => 0
+//@ run-call: f(uint256,uint256)(uint256) 115792089237316195423570985008687907853269984665640564039457584007913129639935, 3 => 115792089237316195423570985008687907853269984665640564039457584007913129639935
+//@ run-call: f(uint256,uint256)(uint256) 514631507721405306298073637848375664226723355710112857507800679889911926255, 2 => 0
+//@ run-call: f(uint256,uint256)(uint256) 514631507721405306298073637848375664226723355710112857507800679889911926255, 3 => 514631507721405306298073637848375664226723355710112857507800679889911926255
+@module ShiftPairMask
+
+bb0:
+  push 36
+  calldataload
+  indexed_jump bb1, bb2, bb3, bb4
+
+// A mask built as `PUSH0 NOT PUSH s SHR` costs two gas more than the shift pair that clears the
+// same bits, so the pair replaces it.
+bb1:
+  push 4
+  calldataload
+  push 0
+  not
+  push 96
+  shr
+  and
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+
+// A literal mask costs less than the pair, so it stays.
+bb2:
+  push 4
+  calldataload
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  and
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+
+// A shift count of 256 makes the mask zero, but its two-byte push costs the pair more bytes,
+// so the mask stays.
+bb3:
+  push 4
+  calldataload
+  push 0
+  not
+  push 256
+  shr
+  and
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+
+// A zero count keeps the whole word; the pair is still cheaper than the mask.
+bb4:
+  push 4
+  calldataload
+  push 0
+  not
+  push 0
+  shr
+  and
+  push 0
+  mstore
+  push 32
+  push 0
+  return

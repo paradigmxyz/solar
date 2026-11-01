@@ -8,7 +8,7 @@ fn @find(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x867025b4, pure, 
     v1 = phi [bb0: arg0], [bb3: v1]
     v2 = phi [bb0: arg1], [bb3: v2]
     v3 = phi [bb0: v0], [bb3: v3]
-    v4 = phi [bb0: 0], [bb3: v22]
+    v4 = phi [bb0: 0], [bb3: v18]
     v5 = extract_value slice<calldata>, v1, 1
     v6 = lt v4, v5
     jumpi v6, bb4, bb5
@@ -21,18 +21,14 @@ fn @find(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x867025b4, pure, 
     icall panic_if<0x32>, v9
     v10 = extract_value slice<calldata>, v1, 0
     v11 = mul v4, 32
-    v12 = eq 32, 0
-    v13 = div v11, 32
-    v14 = eq v13, v4
-    v15 = or v12, v14
-    v16 = zext i1 v15 to i256
-    v17 = eq v16, 0
-    icall panic_if<0x41>, v17
-    v18 = ptrtoint ptr<calldata> v10 to i256
-    v19 = add v18, v11
-    v20 = calldataload v19
-    v21 = eq v20, v2
-    jumpi v21, bb7, bb8
+    v12 = shr v4, 251
+    v13 = ne v12, 0
+    icall panic_if<0x41>, v13
+    v14 = ptrtoint ptr<calldata> v10 to i256
+    v15 = add v14, v11
+    v16 = calldataload v15
+    v17 = eq v16, v2
+    jumpi v17, bb7, bb8
   bb8:
     jump bb9
   bb9:
@@ -40,11 +36,11 @@ fn @find(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x867025b4, pure, 
   bb6:
     jump bb3
   bb3:
-    v22 = checked_add uint256, v4, 1
+    v18 = checked_add uint256, v4, 1
     jump bb1
   bb7:
     jump bb2
   bb2:
-    v23 = phi [bb7: v4], [bb5: v3]
-    ret v23
+    v19 = phi [bb7: v4], [bb5: v3]
+    ret v19
 }
