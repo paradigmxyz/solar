@@ -1,11 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_constant_write_spills.sol:ConstructorConstantWriteSpills ===
 @module ConstructorConstantWriteSpills
-fn @r() -> i256 [selector=0x6c8ae38c, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
-}
-
 fn @constructor() [constructor, payable] {
   bb0:
     v0 = callvalue
@@ -61,4 +55,10 @@ fn @constructor() [constructor, payable] {
     v49 = xor v48, v25
     sstore 0, v49 !metadata(storage=slot(0))
     ret
+}
+
+fn @r() -> i256 [selector=0x6c8ae38c, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
 }

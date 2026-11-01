@@ -11,15 +11,15 @@ fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[], abi_return_param
 @immutables
   library_deploy_address: address
 
-fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[], abi_return_params=[]] {
-  bb0:
-    ret
-}
-
 fn @constructor() [constructor] {
   bb0:
     v0 = address
     storeimmutable library_deploy_address, v0
+    ret
+}
+
+fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
     ret
 }
 

@@ -4,6 +4,35 @@
 @types
   struct0: {i256, i256, i256}
 
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb5, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb4, [0x54d20d9 => bb2, 0x7a5de1e9 => bb3]
+  bb3:
+    tail_call @pair
+  bb2:
+    tail_call @pairs
+  bb4 [cold]:
+    mstore 32, 32
+    mstore 64, 53 !metadata(memory=scratch)
+    mstore 96, 0x436f6e747261637420646f6573206e6f7420686176652066616c6c6261636b20 !metadata(memory=scratch)
+    mstore 128, 0x6e6f7220726563656976652066756e6374696f6e730000000000000000000000
+    mstore 0, 0x8c379a0
+    revert 28, 132
+  bb5 [cold]:
+    mstore 32, 32
+    mstore 64, 34
+    mstore 96, 0x45746865722073656e7420746f206e6f6e2d70617961626c652066756e637469
+    mstore 128, 0x6f6e000000000000000000000000000000000000000000000000000000000000
+    mstore 0, 0x8c379a0
+    revert 28, 132
+}
+
 fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
   bb0:
     v13 = calldatasize
@@ -446,35 +475,6 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     mstore 64, 34 !metadata(memory=scratch)
     mstore 96, 0x414249206465636f64696e673a207475706c65206461746120746f6f2073686f !metadata(memory=scratch)
     mstore 128, 0x7274000000000000000000000000000000000000000000000000000000000000
-    mstore 0, 0x8c379a0
-    revert 28, 132
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb5, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb4, [0x54d20d9 => bb2, 0x7a5de1e9 => bb3]
-  bb3:
-    tail_call @pair
-  bb2:
-    tail_call @pairs
-  bb4 [cold]:
-    mstore 32, 32
-    mstore 64, 53 !metadata(memory=scratch)
-    mstore 96, 0x436f6e747261637420646f6573206e6f7420686176652066616c6c6261636b20 !metadata(memory=scratch)
-    mstore 128, 0x6e6f7220726563656976652066756e6374696f6e730000000000000000000000
-    mstore 0, 0x8c379a0
-    revert 28, 132
-  bb5 [cold]:
-    mstore 32, 32
-    mstore 64, 34
-    mstore 96, 0x45746865722073656e7420746f206e6f6e2d70617961626c652066756e637469
-    mstore 128, 0x6f6e000000000000000000000000000000000000000000000000000000000000
     mstore 0, 0x8c379a0
     revert 28, 132
 }

@@ -4,6 +4,31 @@
 @types
   struct0: {ptr<memory>, i256}
 
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb8, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb8, [0x6bd068d => bb2, 0x4dafe7dc => bb3, 0x6fe4703b => bb4, 0xbbbb2e8a => bb5, 0xbf352668 => bb6, 0xe0041396 => bb7]
+  bb7:
+    tail_call @slice
+  bb6:
+    tail_call @rest
+  bb5:
+    tail_call @whole
+  bb4:
+    tail_call @overlapWhole
+  bb3:
+    tail_call @overlapRest
+  bb2:
+    tail_call @lengthWordCovered
+  bb8 [cold]:
+    revert 0, 0
+}
+
 fn @whole() [selector=0xbbbb2e8a, abi_wrapper, pure] {
   bb0:
     v59 = calldatasize
@@ -736,31 +761,6 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1 [cold]:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb8, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb8, [0x6bd068d => bb2, 0x4dafe7dc => bb3, 0x6fe4703b => bb4, 0xbbbb2e8a => bb5, 0xbf352668 => bb6, 0xe0041396 => bb7]
-  bb7:
-    tail_call @slice
-  bb6:
-    tail_call @rest
-  bb5:
-    tail_call @whole
-  bb4:
-    tail_call @overlapWhole
-  bb3:
-    tail_call @overlapRest
-  bb2:
-    tail_call @lengthWordCovered
-  bb8 [cold]:
     revert 0, 0
 }
 

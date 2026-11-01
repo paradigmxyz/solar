@@ -5,6 +5,13 @@
     account: uint160
     signed: int64
   
+  fn @constructor() [constructor] {
+    bb0:
+      v0 = icall @bridge
+      mstore 0, v0
+      stop
+  }
+  
   fn @runtime() -> i256 [selector=0x00000001] {
     bb0:
       v0: i256 = loadimmutable account
@@ -29,13 +36,6 @@
   fn @runtime_shared() [selector=0x00000004] {
     bb0:
       tail_call @shared
-  }
-  
-  fn @constructor() [constructor] {
-    bb0:
-      v0 = icall @bridge
-      mstore 0, v0
-      stop
   }
   
   fn @bridge() -> i256 {

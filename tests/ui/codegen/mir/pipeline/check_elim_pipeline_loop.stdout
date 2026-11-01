@@ -1,6 +1,11 @@
 // === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_loop.mir (after pipeline-default) ===
 @module CheckElimPipelineLoop
 @phase lowered
+fn @entry() [entry, cold] {
+  bb0 [cold]:
+    revert 0, 0
+}
+
 fn @sum(arg0: i256) {
   bb0:
     mstore 128, 0
@@ -26,9 +31,4 @@ fn @sum(arg0: i256) {
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-}
-
-fn @entry() [entry, cold] {
-  bb0 [cold]:
-    revert 0, 0
 }

@@ -1,6 +1,33 @@
 // === ROOT/tests/ui/codegen/mir/byte-run-loads/pack.sol:Test ===
 @module Test
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0x1158e167 => bb3, 0x63cfbce4 => bb4, 0x65313149 => bb5, 0xab0edd4e => bb6, 0xd033fb43 => bb7]
+  bb7:
+    tail_call @lowByte
+  bb6:
+    tail_call @stored
+  bb5:
+    tail_call @two
+  bb4:
+    tail_call @gapped
+  bb3:
+    tail_call @three
+  bb1 [cold]:
+    revert 0, 0
+}
+
 fn @three() [selector=0x1158e167, abi_wrapper, pure] {
   bb0:
     v38 = icall @decode_calldata_type
@@ -139,33 +166,6 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1 [cold]:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = calldatasize
-    v2 = lt v1, 36
-    v3 = zext i1 v2 to i256
-    v4 = or v0, v3
-    v5 = ne v4, 0
-    jumpi v5, bb1, bb2
-  bb2:
-    v6 = calldataload 0
-    v7 = shr v6, 224
-    switch v7, default bb1, [0x1158e167 => bb3, 0x63cfbce4 => bb4, 0x65313149 => bb5, 0xab0edd4e => bb6, 0xd033fb43 => bb7]
-  bb7:
-    tail_call @lowByte
-  bb6:
-    tail_call @stored
-  bb5:
-    tail_call @two
-  bb4:
-    tail_call @gapped
-  bb3:
-    tail_call @three
   bb1 [cold]:
     revert 0, 0
 }

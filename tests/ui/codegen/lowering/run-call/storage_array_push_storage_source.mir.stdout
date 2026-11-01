@@ -3,6 +3,12 @@
 @types
   struct0: {i256, i256, i256, i256}
 
+fn @constructor() [constructor] {
+  bb0:
+    sstore 5, 0xdead !metadata(storage=slot(5))
+    ret
+}
+
 fn @pushWide() -> struct0 [selector=0xafa784c4, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = lt 0, 2
@@ -243,10 +249,4 @@ fn @pushPacked() -> struct0 [selector=0x686690bf, abi_params=[], abi_returns=[wo
     mstore v45, v42
     v46 = add v37, 1
     jump bb4
-}
-
-fn @constructor() [constructor] {
-  bb0:
-    sstore 5, 0xdead !metadata(storage=slot(5))
-    ret
 }

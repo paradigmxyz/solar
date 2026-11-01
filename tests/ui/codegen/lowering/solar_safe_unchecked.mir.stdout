@@ -4,12 +4,6 @@
 
 // === ROOT/tests/ui/codegen/lowering/solar_safe_unchecked.sol:Base ===
 @module Base
-fn @decrement(arg0: i256) -> i256 [pure] {
-  bb0:
-    v0 = sub arg0, 1
-    ret v0
-}
-
 fn @constructor() [constructor] {
   bb0:
     v0 = icall @decrement, 0
@@ -17,8 +11,21 @@ fn @constructor() [constructor] {
     ret
 }
 
+fn @decrement(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = sub arg0, 1
+    ret v0
+}
+
 // === ROOT/tests/ui/codegen/lowering/solar_safe_unchecked.sol:Test ===
 @module Test
+fn @constructor() [constructor] {
+  bb0:
+    v0 = icall @decrement.6, 0
+    sstore 0, v0 !metadata(storage=slot(0))
+    ret
+}
+
 fn @increment(arg0: i256) -> i256 [selector=0x7cf5dab0, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = add arg0, 1
@@ -68,11 +75,4 @@ fn @decrement.6(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = sub arg0, 1
     ret v0
-}
-
-fn @constructor() [constructor] {
-  bb0:
-    v0 = icall @decrement.6, 0
-    sstore 0, v0 !metadata(storage=slot(0))
-    ret
 }

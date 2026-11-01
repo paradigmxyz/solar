@@ -1,5 +1,10 @@
 // === ROOT/tests/ui/codegen/mir/inline/dispatch/eligibility.sol:WithFallback ===
 @module WithFallback
+fn @fallback() [fallback] {
+  bb0:
+    ret
+}
+
 fn @a(arg0: i256) -> i256 [selector=0xf0fdf834, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = checked_add uint256, arg0, 1
@@ -10,11 +15,6 @@ fn @b(arg0: i256) -> i256 [selector=0xcd580ff3, pure, abi_params=[uint256], abi_
   bb0:
     v0 = checked_mul uint256, arg0, 2
     ret v0
-}
-
-fn @fallback() [fallback] {
-  bb0:
-    ret
 }
 
 // === ROOT/tests/ui/codegen/mir/inline/dispatch/eligibility.sol:WithGas ===

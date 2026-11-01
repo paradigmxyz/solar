@@ -1,18 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/dump_phase.sol:DumpPhase ===
 @module DumpPhase
 @phase lowered
-fn @f() [selector=0xb3de648b, abi_wrapper, pure] {
-  bb0:
-    v1 = calldatasize
-    v2 = lt v1, 36
-    jumpi v2, bb1, bb2
-  bb2:
-    mstore 0, arg0 !metadata(memory=scratch)
-    returndata 0, 32
-  bb1 [cold]:
-    revert 0, 0
-}
-
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
@@ -25,5 +13,17 @@ fn @entry() [entry] {
   bb2:
     tail_call @f
   bb3 [cold]:
+    revert 0, 0
+}
+
+fn @f() [selector=0xb3de648b, abi_wrapper, pure] {
+  bb0:
+    v1 = calldatasize
+    v2 = lt v1, 36
+    jumpi v2, bb1, bb2
+  bb2:
+    mstore 0, arg0 !metadata(memory=scratch)
+    returndata 0, 32
+  bb1 [cold]:
     revert 0, 0
 }
