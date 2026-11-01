@@ -1,6 +1,21 @@
 // === ROOT/tests/ui/codegen/lowering/program-data/splat_cheap_words.sol:C ===
 @module C
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0x26121ff0 => bb2]
+  bb2:
+    tail_call @f
+  bb3 [cold]:
+    revert 0, 0
+}
+
 fn @f() {
   bb0:
     v20 = heap_floor !metadata(alloc_ptr)
@@ -17,19 +32,4 @@ fn @f() {
     v8 = keccak256 v11, 160
     mstore 0, v8 !metadata(memory=scratch)
     returndata 0, 32
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb3, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb3, [0x26121ff0 => bb2]
-  bb2:
-    tail_call @f
-  bb3 [cold]:
-    revert 0, 0
 }

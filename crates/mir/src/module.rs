@@ -804,6 +804,29 @@ impl Module {
         self.functions.iter_enumerated()
     }
 
+    /// Returns the functions in print order: the constructor, the runtime entry, `receive`,
+    /// `fallback`, then the rest in their order in `functions`.
+    ///
+    /// This only orders text, so `functions` and its ids stay as they are.
+    pub fn functions_in_print_order(&self) -> impl Iterator<Item = (FunctionId, &Function)> {
+        let role = |(id, func): &(FunctionId, &Function)| {
+            if self.constructor == Some(*id) {
+                0
+            } else if self.dispatch_entry == Some(*id) {
+                1
+            } else if func.attributes.is_receive {
+                2
+            } else if func.attributes.is_fallback {
+                3
+            } else {
+                4
+            }
+        };
+        let mut functions = Vec::from_iter(self.iter_functions());
+        functions.sort_by_key(role);
+        functions.into_iter()
+    }
+
     /// Returns the human-readable textual MIR representation of this module.
     pub fn to_text(&self) -> impl fmt::Display + '_ {
         fmt::from_fn(move |f| {
@@ -837,8 +860,7 @@ impl Module {
             write!(
                 f,
                 "{}",
-                self.functions
-                    .iter_enumerated()
+                self.functions_in_print_order()
                     .map(|(id, func)| {
                         super::display::display_function_text(
                             func,
@@ -858,9 +880,8 @@ impl Module {
             write!(
                 f,
                 "{}",
-                self.functions
-                    .iter()
-                    .map(|func| super::display::display_function_dot(func, Some(self)))
+                self.functions_in_print_order()
+                    .map(|(_, func)| super::display::display_function_dot(func, Some(self)))
                     .format("\n\n")
             )
         })

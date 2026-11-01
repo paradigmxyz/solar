@@ -1,6 +1,23 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_bounds_revert.sol:CalldataSliceBoundsRevert ===
 @module CalldataSliceBoundsRevert
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb4, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb4, [0x598bfb30 => bb2, 0x8063d43b => bb3]
+  bb3:
+    tail_call @endPastLength
+  bb2:
+    tail_call @startAfterEnd
+  bb4 [cold]:
+    revert 0, 0
+}
+
 fn @endPastLength() {
   bb0:
     v27 = calldatasize
@@ -111,22 +128,5 @@ fn @decode_calldata_slice() -> i256 {
   bb2:
     ret v2
   bb1 [cold]:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb4, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb4, [0x598bfb30 => bb2, 0x8063d43b => bb3]
-  bb3:
-    tail_call @endPastLength
-  bb2:
-    tail_call @startAfterEnd
-  bb4 [cold]:
     revert 0, 0
 }

@@ -4,6 +4,23 @@
 @types
   struct0: {ptr<memory>, i256}
 
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb4, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb4, [0x1f6686bd => bb2, 0xffc7a8b3 => bb3]
+  bb3:
+    tail_call @fromCalldata
+  bb2:
+    tail_call @fromFresh
+  bb4 [cold]:
+    revert 0, 0
+}
+
 fn @fromCalldata() {
   bb0:
     v39 = calldatasize
@@ -235,21 +252,4 @@ fn @revert_stub.3() [cold] {
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb4, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb4, [0x1f6686bd => bb2, 0xffc7a8b3 => bb3]
-  bb3:
-    tail_call @fromCalldata
-  bb2:
-    tail_call @fromFresh
-  bb4 [cold]:
-    revert 0, 0
 }

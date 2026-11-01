@@ -1,0 +1,31 @@
+//@compile-flags: -Zmir-pipeline=none
+//@filecheck:
+
+// The constructor and the runtime entry print first, in that order. The other functions keep
+// their order.
+@module PrintOrderEntry
+
+// CHECK-LABEL: fn @constructor
+// CHECK-LABEL: fn @entry
+// CHECK-LABEL: fn @helper_a
+// CHECK-LABEL: fn @helper_b
+
+fn @helper_a() {
+  bb0:
+    stop
+}
+
+fn @helper_b() {
+  bb0:
+    stop
+}
+
+fn @entry() [entry] {
+  bb0:
+    stop
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    stop
+}

@@ -1,6 +1,25 @@
 // === ROOT/tests/ui/codegen/mir/loop-unroll/pointer_loops.sol:PointerLoops ===
 @module PointerLoops
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb5, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb5, [0x5a761098 => bb2, 0xbf2eba92 => bb3, 0xc5bec6fc => bb4]
+  bb4:
+    tail_call @toHex
+  bb3:
+    tail_call @stepThree
+  bb2:
+    tail_call @sumWords
+  bb5 [cold]:
+    revert 0, 0
+}
+
 fn @toHex() {
   bb0:
     v33 = calldatasize
@@ -253,24 +272,5 @@ fn @stepThree() {
     v25 = add v10, 3
     jump bb1
   bb4 [cold]:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb5, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb5, [0x5a761098 => bb2, 0xbf2eba92 => bb3, 0xc5bec6fc => bb4]
-  bb4:
-    tail_call @toHex
-  bb3:
-    tail_call @stepThree
-  bb2:
-    tail_call @sumWords
-  bb5 [cold]:
     revert 0, 0
 }

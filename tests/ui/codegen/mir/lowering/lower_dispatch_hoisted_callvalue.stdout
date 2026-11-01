@@ -2,19 +2,8 @@
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_hoisted_callvalue.mir (after lower-dispatch) ===
   @module DispatchHoisted
 - fn @a() [selector=0x00000001, abi_wrapper] {
-+ fn @a() {
-    bb0:
-      stop
-  }
-  
-- fn @b() [selector=0x00000002, abi_wrapper] {
-+ fn @b() {
-    bb0:
-      stop
-+ }
-+ 
 + fn @entry() [entry] {
-+   bb0:
+    bb0:
 +     v0 = callvalue
 +     v1 = ne v0, 0
 +     jumpi v1, bb4, bb1
@@ -28,5 +17,16 @@
 +     tail_call @a
 +   bb4 [cold]:
 +     revert 0, 0
++ }
++ 
++ fn @a() {
++   bb0:
+      stop
+  }
+  
+- fn @b() [selector=0x00000002, abi_wrapper] {
++ fn @b() {
+    bb0:
+      stop
   }
   

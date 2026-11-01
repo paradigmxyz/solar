@@ -11,11 +11,11 @@
 //! edge: an operand is live out of the predecessor it flows from and is not live into
 //! the merge block, which only sees the phi result.
 
-use crate::mir::{BlockId, Function, InstKind, ValueId, analysis::CfgInfo};
+use crate::mir::{BlockId, Function, InstKind, Value, ValueId, analysis::CfgInfo};
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::{BitMatrix, BitMatrixRow, DenseBitSet},
-    index::IndexVec,
+    index::{IndexVec, index_vec},
     map::FxHashMap,
 };
 use std::collections::VecDeque;
@@ -177,6 +177,30 @@ impl Liveness {
         }
 
         Self { live_in, live_out, last_use_in_block: Some(last_use_in_block) }
+    }
+
+    /// Returns whether every computed value is consumed in its defining block and the
+    /// function reads no arguments.
+    pub(crate) fn is_block_local(func: &Function) -> bool {
+        let mut defining_blocks = index_vec![None; func.num_insts()];
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            for &inst_id in &block.instructions {
+                defining_blocks[inst_id] = Some(block_id);
+            }
+        }
+        let is_local = |value, block_id| match func.value(value) {
+            Value::Inst(inst_id) => defining_blocks[*inst_id] == Some(block_id),
+            Value::Arg(_) => false,
+            Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => true,
+        };
+        func.blocks.iter_enumerated().all(|(block_id, block)| {
+            block.instructions.iter().all(|&inst_id| {
+                func.inst(inst_id).kind.operands().iter().all(|&value| is_local(value, block_id))
+            }) && block
+                .terminator
+                .as_ref()
+                .is_none_or(|term| term.operands().iter().all(|&value| is_local(value, block_id)))
+        })
     }
 
     /// Returns the values live at the entry of a block.

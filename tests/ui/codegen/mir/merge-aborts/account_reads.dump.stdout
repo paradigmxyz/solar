@@ -13,62 +13,100 @@ fn @entry() [entry] {
   bb2:
     v6 = calldataload 0
     v7 = shr v6, 224
-    v47 = calldataload 4
-    v48 = calldataload 36
-    v49 = calldataload 68
     switch v7, default bb1, [0x2139cfcb => bb3, 0x3ae86375 => bb4, 0x76806d71 => bb5]
   bb5:
-    v35 = shr v49, 160
-    v36 = eq v35, 0
-    jumpi v36, bb15, bb1
-  bb15:
-    v42 = add v47, v48
-    v43 = lt v42, v47
-    jumpi v43, bb6, bb13
-  bb13:
-    v38 = extcodehash v49
-    v39 = add v42, v38
-    v40 = lt v39, v42
-    jumpi v40, bb6, bb14
-  bb14:
-    mstore 0, v39
-    returndata 0, 32
+    tail_call @codeHash
   bb4:
-    v23 = shr v49, 160
-    v24 = eq v23, 0
-    jumpi v24, bb12, bb1
-  bb12:
-    v30 = add v47, v48
-    v31 = lt v30, v47
-    jumpi v31, bb6, bb10
-  bb10:
-    v26 = extcodesize v49
-    v27 = add v30, v26
-    v28 = lt v27, v30
-    jumpi v28, bb6, bb11
-  bb11:
-    mstore 0, v27
-    returndata 0, 32
+    tail_call @codeSize
   bb3:
-    v11 = shr v49, 160
-    v12 = eq v11, 0
-    jumpi v12, bb9, bb1
-  bb9:
-    v18 = add v47, v48
-    v19 = lt v18, v47
-    jumpi v19, bb6, bb7
-  bb7:
-    v14 = balance v49
-    v15 = add v18, v14
-    v16 = lt v15, v18
-    jumpi v16, bb6, bb8
-  bb8:
-    mstore 0, v15
-    returndata 0, 32
-  bb6 [cold]:
-    mstore 32, 17
-    mstore 0, 0x4e487b71
-    revert 28, 36
+    tail_call @balance
   bb1 [cold]:
     revert 0, 0
+}
+
+fn @balance() {
+  bb0:
+    v12 = calldataload 68
+    v13 = shr v12, 160
+    v14 = eq v13, 0
+    jumpi v14, bb5, bb4
+  bb4 [cold]:
+    revert 0, 0
+  bb5:
+    v19 = calldataload 36
+    v18 = calldataload 4
+    v4 = add v18, v19
+    v5 = lt v4, v18
+    jumpi v5, bb1, bb2
+  bb2:
+    v20 = calldataload 68
+    v2 = balance v20
+    v6 = add v4, v2
+    v7 = lt v6, v4
+    jumpi v7, bb1, bb3
+  bb3:
+    mstore 0, v6 !metadata(memory=scratch)
+    returndata 0, 32
+  bb1 [cold]:
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @codeSize() {
+  bb0:
+    v12 = calldataload 68
+    v13 = shr v12, 160
+    v14 = eq v13, 0
+    jumpi v14, bb5, bb4
+  bb4 [cold]:
+    revert 0, 0
+  bb5:
+    v19 = calldataload 36
+    v18 = calldataload 4
+    v4 = add v18, v19
+    v5 = lt v4, v18
+    jumpi v5, bb1, bb2
+  bb2:
+    v20 = calldataload 68
+    v2 = extcodesize v20
+    v6 = add v4, v2
+    v7 = lt v6, v4
+    jumpi v7, bb1, bb3
+  bb3:
+    mstore 0, v6 !metadata(memory=scratch)
+    returndata 0, 32
+  bb1 [cold]:
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @codeHash() {
+  bb0:
+    v12 = calldataload 68
+    v13 = shr v12, 160
+    v14 = eq v13, 0
+    jumpi v14, bb5, bb4
+  bb4 [cold]:
+    revert 0, 0
+  bb5:
+    v19 = calldataload 36
+    v18 = calldataload 4
+    v4 = add v18, v19
+    v5 = lt v4, v18
+    jumpi v5, bb1, bb2
+  bb2:
+    v20 = calldataload 68
+    v2 = extcodehash v20
+    v6 = add v4, v2
+    v7 = lt v6, v4
+    jumpi v7, bb1, bb3
+  bb3:
+    mstore 0, v6 !metadata(memory=scratch)
+    returndata 0, 32
+  bb1 [cold]:
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
 }

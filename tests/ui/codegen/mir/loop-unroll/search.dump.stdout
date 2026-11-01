@@ -13,146 +13,146 @@ fn @entry() [entry] {
   bb2:
     v6 = calldataload 0
     v7 = shr v6, 224
-    v122 = calldataload 4
-    v123 = calldataload 36
+    v113 = calldataload 4
+    v114 = calldataload 36
     switch v7, default bb1, [0x867025b4 => bb3, 0xb77153be => bb4, 0xc77230d0 => bb5]
   bb5:
-    v56 = calldatasize
-    v59 = add v122, 4
-    v60 = sub v56, 36
-    v61 = gt v122, v60
-    v69 = calldataload v59
-    v70 = add v59, 32
-    v71 = sub v56, v70
-    v72 = shr v71, 5
-    v73 = gt v69, v72
-    v121 = or v61, v73
-    jumpi v121, bb1, bb22
+    v50 = calldatasize
+    v53 = add v113, 4
+    v54 = sub v50, 36
+    v55 = gt v113, v54
+    v63 = calldataload v53
+    v64 = add v53, 32
+    v65 = sub v50, v64
+    v66 = shr v65, 5
+    v67 = gt v63, v66
+    v112 = or v55, v67
+    jumpi v112, bb1, bb22
   bb22:
-    v81 = shl v69, 5
-    v82 = add v70, v81
-    v116 = and v69, 1
-    v117 = ne v116, 0
-    jumpi v117, bb29, bb31
+    v72 = shl v63, 5
+    v73 = add v64, v72
+    v107 = and v63, 1
+    v108 = ne v107, 0
+    jumpi v108, bb29, bb31
   bb29:
-    v109 = calldataload v70
-    v110 = eq v109, v123
-    jumpi v110, bb21, bb28
+    v100 = calldataload v64
+    v101 = eq v100, v114
+    jumpi v101, bb21, bb28
   bb28:
-    v108 = add v70, 32
+    v99 = add v64, 32
     jump bb31
   bb31:
-    v118 = phi [bb22: v70], [bb28: v108]
+    v109 = phi [bb22: v64], [bb28: v99]
     jump bb17
   bb17:
-    v79 = phi [bb31: v118], [bb30: v113]
-    v63 = ne v79, v82
-    jumpi v63, bb20, bb18
+    v70 = phi [bb31: v109], [bb30: v104]
+    v57 = ne v70, v73
+    jumpi v57, bb20, bb18
   bb18:
-    mstore 0, v69
+    mstore 0, v63
     returndata 0, 32
   bb20:
-    v67 = calldataload v79
-    v68 = eq v67, v123
-    jumpi v68, bb21, bb19
+    v61 = calldataload v70
+    v62 = eq v61, v114
+    jumpi v62, bb21, bb19
   bb19:
-    v80 = add v79, 32
-    v114 = calldataload v80
-    v115 = eq v114, v123
-    jumpi v115, bb21, bb30
+    v71 = add v70, 32
+    v105 = calldataload v71
+    v106 = eq v105, v114
+    jumpi v106, bb21, bb30
   bb30:
-    v113 = add v80, 32
+    v104 = add v71, 32
     jump bb17
   bb21:
-    v105 = phi [bb20: v79], [bb29: v70], [bb19: v80]
-    v83 = sub v105, v70
-    v84 = shr v83, 5
-    mstore 0, v84
+    v96 = phi [bb20: v70], [bb29: v64], [bb19: v71]
+    v74 = sub v96, v64
+    v75 = shr v74, 5
+    mstore 0, v75
     returndata 0, 32
   bb4:
-    v32 = calldatasize
-    v35 = add v122, 4
-    v36 = sub v32, 36
-    v37 = gt v122, v36
-    v46 = calldataload v35
-    v47 = add v35, 32
-    v48 = sub v32, v47
-    v49 = shr v48, 5
-    v50 = gt v46, v49
-    v120 = or v37, v50
-    jumpi v120, bb1, bb16
+    v29 = calldatasize
+    v32 = add v113, 4
+    v33 = sub v29, 36
+    v34 = gt v113, v33
+    v43 = calldataload v32
+    v44 = add v32, 32
+    v45 = sub v29, v44
+    v46 = shr v45, 5
+    v47 = gt v43, v46
+    v111 = or v34, v47
+    jumpi v111, bb1, bb16
   bb16:
     jump bb11
   bb11:
-    v38 = phi [bb16: 0], [bb14: v41]
-    v39 = lt v38, v46
-    jumpi v39, bb13, bb12
+    v35 = phi [bb16: 0], [bb14: v38]
+    v36 = lt v35, v43
+    jumpi v36, bb13, bb12
   bb13:
-    v40 = lt v38, v123
-    jumpi v40, bb15, bb12
+    v37 = lt v35, v114
+    jumpi v37, bb15, bb12
   bb15:
-    v42 = shl v38, 5
-    v43 = add v47, v42
-    v44 = calldataload v43
-    v45 = eq v44, 0
-    jumpi v45, bb12, bb14
+    v39 = shl v35, 5
+    v40 = add v44, v39
+    v41 = calldataload v40
+    v42 = eq v41, 0
+    jumpi v42, bb12, bb14
   bb14:
-    v41 = add v38, 1
+    v38 = add v35, 1
     jump bb11
   bb12:
-    mstore 0, v38
+    mstore 0, v35
     returndata 0, 32
   bb3:
     v8 = calldatasize
-    v11 = add v122, 4
+    v11 = add v113, 4
     v12 = sub v8, 36
-    v13 = gt v122, v12
+    v13 = gt v113, v12
     v22 = calldataload v11
     v23 = add v11, 32
     v24 = sub v8, v23
     v25 = shr v24, 5
     v26 = gt v22, v25
-    v119 = or v13, v26
-    jumpi v119, bb1, bb10
+    v110 = or v13, v26
+    jumpi v110, bb1, bb10
   bb10:
-    v87 = shl v22, 5
-    v88 = add v23, v87
-    v102 = and v22, 1
-    v103 = ne v102, 0
-    jumpi v103, bb25, bb27
+    v78 = shl v22, 5
+    v79 = add v23, v78
+    v93 = and v22, 1
+    v94 = ne v93, 0
+    jumpi v94, bb25, bb27
   bb25:
-    v95 = calldataload v23
-    v96 = eq v95, v123
-    jumpi v96, bb23, bb24
+    v86 = calldataload v23
+    v87 = eq v86, v114
+    jumpi v87, bb23, bb24
   bb24:
-    v94 = add v23, 32
+    v85 = add v23, 32
     jump bb27
   bb27:
-    v104 = phi [bb10: v23], [bb24: v94]
+    v95 = phi [bb10: v23], [bb24: v85]
     jump bb6
   bb6:
-    v85 = phi [bb27: v104], [bb26: v99]
-    v15 = ne v85, v88
+    v76 = phi [bb27: v95], [bb26: v90]
+    v15 = ne v76, v79
     jumpi v15, bb9, bb7
   bb9:
-    v20 = calldataload v85
-    v21 = eq v20, v123
+    v20 = calldataload v76
+    v21 = eq v20, v114
     jumpi v21, bb23, bb8
   bb8:
-    v86 = add v85, 32
-    v100 = calldataload v86
-    v101 = eq v100, v123
-    jumpi v101, bb23, bb26
+    v77 = add v76, 32
+    v91 = calldataload v77
+    v92 = eq v91, v114
+    jumpi v92, bb23, bb26
   bb26:
-    v99 = add v86, 32
+    v90 = add v77, 32
     jump bb6
   bb23:
-    v91 = phi [bb9: v85], [bb25: v23], [bb8: v86]
-    v89 = sub v91, v23
-    v90 = shr v89, 5
+    v82 = phi [bb9: v76], [bb25: v23], [bb8: v77]
+    v80 = sub v82, v23
+    v81 = shr v80, 5
     jump bb7
   bb7:
-    v16 = phi [bb23: v90], [bb6: v22]
+    v16 = phi [bb23: v81], [bb6: v22]
     mstore 0, v16
     returndata 0, 32
   bb1 [cold]:

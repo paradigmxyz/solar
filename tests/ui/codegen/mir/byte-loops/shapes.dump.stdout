@@ -1,6 +1,53 @@
 // === ROOT/tests/ui/codegen/mir/byte-loops/shapes.sol:Test ===
 @module Test
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb19, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb19, [0xd15e70b => bb2, 0x36818f65 => bb3, 0x3c3b880f => bb4, 0x3fa0467e => bb5, 0x581c0829 => bb6, 0x613646c3 => bb7, 0x713528c9 => bb8, 0x7b75313f => bb9, 0x96410e74 => bb10, 0x982de5a7 => bb11, 0x9ee35419 => bb12, 0xa10bf2ab => bb13, 0xaedd6ca2 => bb14, 0xd35cf802 => bb15, 0xded17a67 => bb16, 0xe9b29099 => bb17, 0xffc7a8b3 => bb18]
+  bb18:
+    tail_call @fromCalldata
+  bb17:
+    tail_call @fresh
+  bb16:
+    tail_call @freshPair
+  bb15:
+    tail_call @wordsFromCalldata
+  bb14:
+    tail_call @copyWords
+  bb13:
+    tail_call @sliceCalldata
+  bb12:
+    tail_call @viaHelper
+  bb11:
+    tail_call @loadSome
+  bb10:
+    tail_call @within
+  bb9:
+    tail_call @zeroSome
+  bb8:
+    tail_call @storeSome
+  bb7:
+    tail_call @fillSome
+  bb6:
+    tail_call @asciiWords
+  bb5:
+    tail_call @between
+  bb4:
+    tail_call @withinWords
+  bb3:
+    tail_call @fillPastWord
+  bb2:
+    tail_call @down
+  bb19 [cold]:
+    revert 0, 0
+}
+
 fn @fromCalldata() {
   bb0:
     v30 = calldatasize
@@ -1389,53 +1436,6 @@ fn @decode_calldata_type.21() -> i256 [may_return_memory] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1 [cold]:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb19, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb19, [0xd15e70b => bb2, 0x36818f65 => bb3, 0x3c3b880f => bb4, 0x3fa0467e => bb5, 0x581c0829 => bb6, 0x613646c3 => bb7, 0x713528c9 => bb8, 0x7b75313f => bb9, 0x96410e74 => bb10, 0x982de5a7 => bb11, 0x9ee35419 => bb12, 0xa10bf2ab => bb13, 0xaedd6ca2 => bb14, 0xd35cf802 => bb15, 0xded17a67 => bb16, 0xe9b29099 => bb17, 0xffc7a8b3 => bb18]
-  bb18:
-    tail_call @fromCalldata
-  bb17:
-    tail_call @fresh
-  bb16:
-    tail_call @freshPair
-  bb15:
-    tail_call @wordsFromCalldata
-  bb14:
-    tail_call @copyWords
-  bb13:
-    tail_call @sliceCalldata
-  bb12:
-    tail_call @viaHelper
-  bb11:
-    tail_call @loadSome
-  bb10:
-    tail_call @within
-  bb9:
-    tail_call @zeroSome
-  bb8:
-    tail_call @storeSome
-  bb7:
-    tail_call @fillSome
-  bb6:
-    tail_call @asciiWords
-  bb5:
-    tail_call @between
-  bb4:
-    tail_call @withinWords
-  bb3:
-    tail_call @fillPastWord
-  bb2:
-    tail_call @down
-  bb19 [cold]:
     revert 0, 0
 }
 

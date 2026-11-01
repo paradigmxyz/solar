@@ -22,19 +22,6 @@ fn @getM(arg0: i256, arg1: i256) -> i256 [selector=0x1136c6ce, view, abi_params=
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_storage_argument.sol:MappingArrayParam ===
 @module MappingArrayParam
-fn @m(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x2def5e24, view, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = mapping_slot arg0, 0
-    v1 = sload v0 !metadata(storage=symbolic(v0))
-    v2 = lt arg1, v1
-    icall revert_if_zero<empty>, v2
-    v3 = storage_array_data_slot v0
-    v4 = add v3, arg1
-    v5 = mapping_slot arg2, v4
-    v6 = sload v5 !metadata(storage=symbolic(v5))
-    ret v6
-}
-
 fn @constructor() [constructor] {
   bb0:
     v0 = mapping_slot 1, 0
@@ -60,19 +47,21 @@ fn @constructor() [constructor] {
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_storage_argument.sol:ArrayParam ===
-@module ArrayParam
-fn @values(arg0: i256) -> i256 [selector=0x5e383d21, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+fn @m(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x2def5e24, view, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = lt arg0, v0
-    icall revert_if_zero<empty>, v1
-    v2 = storage_array_data_slot 0
-    v3 = add v2, arg0
-    v4 = sload v3 !metadata(storage=symbolic(v3))
-    ret v4
+    v0 = mapping_slot arg0, 0
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    v2 = lt arg1, v1
+    icall revert_if_zero<empty>, v2
+    v3 = storage_array_data_slot v0
+    v4 = add v3, arg1
+    v5 = mapping_slot arg2, v4
+    v6 = sload v5 !metadata(storage=symbolic(v5))
+    ret v6
 }
 
+// === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_storage_argument.sol:ArrayParam ===
+@module ArrayParam
 fn @constructor() [constructor] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -96,6 +85,17 @@ fn @constructor() [constructor] {
     jump bb2
   bb2:
     ret
+}
+
+fn @values(arg0: i256) -> i256 [selector=0x5e383d21, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = lt arg0, v0
+    icall revert_if_zero<empty>, v1
+    v2 = storage_array_data_slot 0
+    v3 = add v2, arg0
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    ret v4
 }
 
 fn @len() -> i256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {

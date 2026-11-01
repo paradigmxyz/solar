@@ -16,19 +16,20 @@
 
 contract LiveBranchCondition {
     // CHECK-LABEL: @module LiveBranchCondition_runtime
-    // The checked sum stays on the stack across its overflow guard until its own return, which
-    // the default run count keeps inline rather than sharing through a jump.
+    // The return store of the assembly switch is shared after dispatcher
+    // inlining. The checked sum stays on the stack across its overflow guard
+    // until its own return, which the default run count keeps inline rather
+    // than sharing through a jump.
+    // CHECK: jump [[RETURN:bb[0-9]+]]
+    // CHECK-NEXT: [[RETURN]]:
+    // CHECK-NEXT: push 0
+    // CHECK-NEXT: mstore
     // CHECK: push 0xedd004e5
     // CHECK: add
     // CHECK-NOT: mstore
     // CHECK: jumpi
     // CHECK-NOT: mload
     // CHECK: return
-    // The return store of the assembly switch is shared by its two branches.
-    // CHECK: jump [[RETURN:bb[0-9]+]]
-    // CHECK-NEXT: [[RETURN]]:
-    // CHECK-NEXT: push 0
-    // CHECK-NEXT: mstore
     function next(uint256 x) external pure returns (uint256) {
         return x + 1;
     }

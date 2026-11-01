@@ -9,6 +9,15 @@
 @immutables
   fn: uint8
 
+// CHECK-LABEL: @constructor
+// CHECK: {{^ +}}[[BASE:v[0-9]+]] = constructor_args_base
+// CHECK: {{^ +}}ret [[BASE]]
+fn @constructor() -> i256 {
+  bb0:
+    v0 = constructor_args_base
+    ret v0
+}
+
 // CHECK-LABEL: @call
 // CHECK: {{^ +}}[[SUCCESS:v[0-9]+]] = call 100, arg0, arg1, 0, 0, 0, 0
 // CHECK: {{^ +}}[[WORD:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[SUCCESS]]
@@ -123,15 +132,6 @@ fn @immutable() -> i256 {
   bb0:
     v10000 = loadimmutable fn
     v0 = zext i8 v10000 to i256
-    ret v0
-}
-
-// CHECK-LABEL: @constructor
-// CHECK: {{^ +}}[[BASE:v[0-9]+]] = constructor_args_base
-// CHECK: {{^ +}}ret [[BASE]]
-fn @constructor() -> i256 {
-  bb0:
-    v0 = constructor_args_base
     ret v0
 }
 

@@ -1,6 +1,29 @@
 // === ROOT/tests/ui/codegen/mir/lower-abi-encode/calldata_helper.sol:CalldataHelper ===
 @module CalldataHelper
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 68
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0x81fba7cd => bb3, 0xa2467f05 => bb4, 0xeb19e25e => bb5]
+  bb5:
+    tail_call @fc
+  bb4:
+    tail_call @fa
+  bb3:
+    tail_call @fb
+  bb1 [cold]:
+    revert 0, 0
+}
+
 fn @fa() {
   bb0:
     v11 = calldatasize
@@ -362,28 +385,5 @@ fn @encode_abi_calldata.4(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retur
     v107 = add v8, 32
     jump bb1
   bb4 [cold]:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = calldatasize
-    v2 = lt v1, 68
-    v3 = zext i1 v2 to i256
-    v4 = or v0, v3
-    v5 = ne v4, 0
-    jumpi v5, bb1, bb2
-  bb2:
-    v6 = calldataload 0
-    v7 = shr v6, 224
-    switch v7, default bb1, [0x81fba7cd => bb3, 0xa2467f05 => bb4, 0xeb19e25e => bb5]
-  bb5:
-    tail_call @fc
-  bb4:
-    tail_call @fa
-  bb3:
-    tail_call @fb
-  bb1 [cold]:
     revert 0, 0
 }

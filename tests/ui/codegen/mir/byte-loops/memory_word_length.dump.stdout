@@ -1,6 +1,21 @@
 // === ROOT/tests/ui/codegen/mir/byte-loops/memory_word_length.sol:Test ===
 @module Test
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0xf5088730 => bb2]
+  bb2:
+    tail_call @copy
+  bb3 [cold]:
+    revert 0, 0
+}
+
 fn @copy() {
   bb0:
     v100 = calldatasize
@@ -140,20 +155,5 @@ fn @copy() {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb16 [cold]:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb3, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb3, [0xf5088730 => bb2]
-  bb2:
-    tail_call @copy
-  bb3 [cold]:
     revert 0, 0
 }

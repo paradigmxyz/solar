@@ -43,6 +43,25 @@ fn @constructor() [constructor] {
     revert 0, 0
 }
 
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb5, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb5, [0x69d1875c => bb2, 0x86d5c4be => bb3, 0xf84b9425 => bb4]
+  bb4:
+    tail_call @loadThenAllocate
+  bb3:
+    tail_call @load
+  bb2:
+    tail_call @loadScaled
+  bb5 [cold]:
+    revert 0, 0
+}
+
 fn @load() {
   bb0:
     v0 = icall @_copy, 1
@@ -222,23 +241,4 @@ fn @revert_stub() [cold] {
     mstore 32, 34 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb5, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb5, [0x69d1875c => bb2, 0x86d5c4be => bb3, 0xf84b9425 => bb4]
-  bb4:
-    tail_call @loadThenAllocate
-  bb3:
-    tail_call @load
-  bb2:
-    tail_call @loadScaled
-  bb5 [cold]:
-    revert 0, 0
 }

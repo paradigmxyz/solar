@@ -15,13 +15,13 @@
 // CHECK-NEXT: returndatasize
 // CHECK-NEXT: calldataload
 // CHECK-NEXT: div
+// CHECK: push 8
+// CHECK-NEXT: calldatasize
+// CHECK-NEXT: mul
 // CHECK: push 256
 // CHECK-NEXT: calldatasize
 // CHECK-NEXT: div
 // CHECK: push 256
-// CHECK-NEXT: calldatasize
-// CHECK-NEXT: mul
-// CHECK: push 8
 // CHECK-NEXT: calldatasize
 // CHECK-NEXT: mul
 contract LegacyShifts {

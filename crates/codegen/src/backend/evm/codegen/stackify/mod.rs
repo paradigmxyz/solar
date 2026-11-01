@@ -436,9 +436,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             return;
         };
         let runtime = module.runtime_reachable_functions();
+        let emitting_entry = Liveness::is_block_local(&module.functions[entry]);
         let bodies =
             runtime.iter().filter(|&func_id| module.constructor() != Some(func_id)).collect();
-        match self.plan_stackified(module, call_graph, entry, true, bodies) {
+        match self.plan_stackified(module, call_graph, entry, emitting_entry, bodies) {
             Ok((info, plans)) => self.emit_runtime_stackified(module, call_graph, &info, plans),
             Err(decline) => self.report_decline(module, decline),
         }

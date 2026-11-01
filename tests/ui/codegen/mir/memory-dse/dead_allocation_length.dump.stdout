@@ -1,6 +1,29 @@
 // === ROOT/tests/ui/codegen/mir/memory-dse/dead_allocation_length.sol:DeadAllocationLength ===
 @module DeadAllocationLength
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb7, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb6, [0x132e4f3c => bb2, 0x5ed7ca5b => bb3, 0x624fbfdc => bb4, 0x8f0d6f17 => bb5]
+  bb5:
+    tail_call @relay
+  bb4:
+    tail_call @echo
+  bb3 [cold]:
+    tail_call @halt
+  bb2 [cold]:
+    tail_call @fail
+  bb6:
+    tail_call @fallback
+  bb7 [cold]:
+    revert 0, 0
+}
+
 fn @echo() {
   bb0:
     v8 = calldatasize
@@ -156,28 +179,5 @@ fn @fallback.body(arg0: i256, arg1: i256) {
   bb2:
     returndata v41, v26
   bb3 [cold]:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb7, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb6, [0x132e4f3c => bb2, 0x5ed7ca5b => bb3, 0x624fbfdc => bb4, 0x8f0d6f17 => bb5]
-  bb5:
-    tail_call @relay
-  bb4:
-    tail_call @echo
-  bb3 [cold]:
-    tail_call @halt
-  bb2 [cold]:
-    tail_call @fail
-  bb6:
-    tail_call @fallback
-  bb7 [cold]:
     revert 0, 0
 }

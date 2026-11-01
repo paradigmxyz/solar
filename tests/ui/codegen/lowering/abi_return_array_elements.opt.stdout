@@ -1,6 +1,37 @@
 // === ROOT/tests/ui/codegen/lowering/abi_return_array_elements.sol:AbiReturnArrayElements ===
 @module AbiReturnArrayElements
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0x29dcbdaa => bb3, 0x43a4968c => bb4, 0x4a6c046c => bb5, 0x74016a59 => bb6, 0x8c175a3d => bb7, 0x945bb2ba => bb8, 0xd621b19f => bb9]
+  bb9:
+    tail_call @unalignedArray
+  bb8:
+    tail_call @clean
+  bb7:
+    tail_call @aliasedStruct
+  bb6:
+    tail_call @dirty
+  bb5:
+    tail_call @aliasedBytes
+  bb4:
+    tail_call @viaHelper
+  bb3:
+    tail_call @unalignedHelper
+  bb1 [cold]:
+    revert 0, 0
+}
+
 fn @clean() {
   bb0:
     v2 = icall @decode_calldata_type.8
@@ -273,35 +304,4 @@ fn @encode_abi_array(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     v17 = phi [bb0: v3], [bb1: v15]
     v18 = sub v17, arg1
     ret v18
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = calldatasize
-    v2 = lt v1, 36
-    v3 = zext i1 v2 to i256
-    v4 = or v0, v3
-    v5 = ne v4, 0
-    jumpi v5, bb1, bb2
-  bb2:
-    v6 = calldataload 0
-    v7 = shr v6, 224
-    switch v7, default bb1, [0x29dcbdaa => bb3, 0x43a4968c => bb4, 0x4a6c046c => bb5, 0x74016a59 => bb6, 0x8c175a3d => bb7, 0x945bb2ba => bb8, 0xd621b19f => bb9]
-  bb9:
-    tail_call @unalignedArray
-  bb8:
-    tail_call @clean
-  bb7:
-    tail_call @aliasedStruct
-  bb6:
-    tail_call @dirty
-  bb5:
-    tail_call @aliasedBytes
-  bb4:
-    tail_call @viaHelper
-  bb3:
-    tail_call @unalignedHelper
-  bb1 [cold]:
-    revert 0, 0
 }

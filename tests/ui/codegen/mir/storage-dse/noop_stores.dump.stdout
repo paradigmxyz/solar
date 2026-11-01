@@ -16,6 +16,33 @@ fn @constructor() [constructor] {
     revert 0, 0
 }
 
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb9, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb9, [0x6724f0a2 => bb2, 0x7a96c521 => bb3, 0x7cb6ded3 => bb4, 0x966953d1 => bb5, 0x9c0e3f7a => bb6, 0xb437bc14 => bb7, 0xc86d784b => bb8]
+  bb8:
+    tail_call @branch
+  bb7:
+    tail_call @checked
+  bb6:
+    tail_call @write
+  bb5:
+    tail_call @masked
+  bb4:
+    tail_call @touch
+  bb3:
+    tail_call @staticTouch
+  bb2:
+    tail_call @measured
+  bb9 [cold]:
+    revert 0, 0
+}
+
 fn @touch() {
   bb0:
     v6 = calldatasize
@@ -145,31 +172,4 @@ fn @staticTouch() {
     v9 = zext i1 v7 to i256
     mstore 0, v9 !metadata(memory=scratch)
     returndata 0, 32
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb9, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb9, [0x6724f0a2 => bb2, 0x7a96c521 => bb3, 0x7cb6ded3 => bb4, 0x966953d1 => bb5, 0x9c0e3f7a => bb6, 0xb437bc14 => bb7, 0xc86d784b => bb8]
-  bb8:
-    tail_call @branch
-  bb7:
-    tail_call @checked
-  bb6:
-    tail_call @write
-  bb5:
-    tail_call @masked
-  bb4:
-    tail_call @touch
-  bb3:
-    tail_call @staticTouch
-  bb2:
-    tail_call @measured
-  bb9 [cold]:
-    revert 0, 0
 }

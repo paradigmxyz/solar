@@ -30,9 +30,6 @@
 // two iterations. A counter that never reaches its bound runs out of gas in
 // every build.
 contract CountDown {
-    // A route without arguments shares no head word, so every route keeps its own function.
-    function noop() external pure {}
-
     // Counting down by one to zero, the parity is the counter's low bit.
     // CHECK-LABEL: fn @countDown()
     // CHECK: [[N:v[0-9]+]] = calldataload 4

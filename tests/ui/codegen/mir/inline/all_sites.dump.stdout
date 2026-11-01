@@ -1,6 +1,27 @@
 // === ROOT/tests/ui/codegen/mir/inline/all_sites.sol:AllSites ===
 @module AllSites
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0x7cf5dab0 => bb3, 0xb4e7d02a => bb4]
+  bb4:
+    tail_call @accumulate
+  bb3:
+    tail_call @increment
+  bb1 [cold]:
+    revert 0, 0
+}
+
 fn @accumulate() {
   bb0:
     v12 = calldataload 4
@@ -52,25 +73,4 @@ fn @panicArithmetic() [cold] {
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = calldatasize
-    v2 = lt v1, 36
-    v3 = zext i1 v2 to i256
-    v4 = or v0, v3
-    v5 = ne v4, 0
-    jumpi v5, bb1, bb2
-  bb2:
-    v6 = calldataload 0
-    v7 = shr v6, 224
-    switch v7, default bb1, [0x7cf5dab0 => bb3, 0xb4e7d02a => bb4]
-  bb4:
-    tail_call @accumulate
-  bb3:
-    tail_call @increment
-  bb1 [cold]:
-    revert 0, 0
 }

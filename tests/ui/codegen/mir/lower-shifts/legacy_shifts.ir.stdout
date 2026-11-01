@@ -11,47 +11,34 @@ bb0:
   dup 1
   push 0x6626c818
   eq
-  push bb8
+  push bb5
   jumpi
   dup 1
   push 0x97471385
   eq
-  push bb7
+  push bb4
   jumpi
   dup 1
   push 0xcda3144d
   eq
-  push bb9
+  push bb3
   jumpi
   dup 1
   push 0xd56d625c
-  eq
-  push bb10
+  sub
+  push bb6
   jumpi
-  jump bb6
+  returndatasize
+  returndatasize
+  mstore
+  push 32
+  returndatasize
+  return
 bb6 [cold]:
   returndatasize
   returndatasize
   revert
-bb7:
-  push 256
-  calldatasize
-  div
-  returndatasize
-  mstore
-  push 32
-  returndatasize
-  return
-bb8:
-  push 256
-  calldatasize
-  mul
-  returndatasize
-  mstore
-  push 32
-  returndatasize
-  return
-bb9:
+bb3:
   push 8
   calldatasize
   mul
@@ -60,8 +47,19 @@ bb9:
   push 32
   returndatasize
   return
-bb10:
+bb4:
+  push 256
+  calldatasize
+  div
   returndatasize
+  mstore
+  push 32
+  returndatasize
+  return
+bb5:
+  push 256
+  calldatasize
+  mul
   returndatasize
   mstore
   push 32

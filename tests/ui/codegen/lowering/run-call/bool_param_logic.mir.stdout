@@ -33,6 +33,40 @@ fn @differ(arg0: i1, arg1: i1) -> i1 [selector=0x4c75808f, pure, abi_params=[boo
     ret v0
 }
 
+fn @pick(arg0: i1, arg1: i256, arg2: i256) -> i256 [selector=0xb67daf62, pure, abi_params=[bool, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v0 = phi [bb1: arg1], [bb2: arg2]
+    ret v0
+}
+
+fn @pickNegated(arg0: i1, arg1: i256, arg2: i256) -> i256 [selector=0x2c44b1a0, pure, abi_params=[bool, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = eq arg0, false
+    v1 = icall @pick, v0, arg1, arg2
+    ret v1
+}
+
+fn @store(arg0: i1) -> i1 [selector=0x35561014, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = not 255
+    v2 = and v0, v1
+    v3 = zext i1 arg0 to i256
+    v4 = and v3, 255
+    v5 = or v2, v4
+    sstore 0, v5 !metadata(storage=slot(0))
+    v6 = sload 0 !metadata(storage=slot(0))
+    v7 = trunc i256 v6 to i8
+    v8 = ne v7, i8 0
+    ret v8
+}
+
 fn @negated(arg0: i1) -> i1 [selector=0x9dfb2ec5, pure, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = eq arg0, false

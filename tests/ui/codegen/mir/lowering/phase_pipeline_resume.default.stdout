@@ -1,11 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_resume.mir (after pipeline-default) ===
 @module PhasePipelineResume
 @phase lowered
-fn @ping() {
-  bb0:
-    stop
-}
-
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
@@ -19,4 +14,9 @@ fn @entry() [entry] {
     tail_call @ping
   bb3 [cold]:
     revert 0, 0
+}
+
+fn @ping() {
+  bb0:
+    stop
 }

@@ -57,6 +57,27 @@ fn @constructor() [constructor] {
     revert 0, 0
 }
 
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0x188b85b4 => bb3, 0x9507d39a => bb4]
+  bb4:
+    tail_call @get
+  bb3:
+    tail_call @sum
+  bb1 [cold]:
+    revert 0, 0
+}
+
 fn @get() {
   bb0:
     v11 = calldataload 4
@@ -143,25 +164,4 @@ fn @sum() {
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = calldatasize
-    v2 = lt v1, 36
-    v3 = zext i1 v2 to i256
-    v4 = or v0, v3
-    v5 = ne v4, 0
-    jumpi v5, bb1, bb2
-  bb2:
-    v6 = calldataload 0
-    v7 = shr v6, 224
-    switch v7, default bb1, [0x188b85b4 => bb3, 0x9507d39a => bb4]
-  bb4:
-    tail_call @get
-  bb3:
-    tail_call @sum
-  bb1 [cold]:
-    revert 0, 0
 }

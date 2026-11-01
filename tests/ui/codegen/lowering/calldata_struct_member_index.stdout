@@ -4,6 +4,27 @@
 @types
   struct0: {i256, i256, i256}
 
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb6, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb6, [0x49eb8b89 => bb2, 0xb7a3bd0f => bb3, 0xc2dcee6a => bb4, 0xd192e846 => bb5]
+  bb5:
+    tail_call @word
+  bb4:
+    tail_call @plain
+  bb3:
+    tail_call @lengths
+  bb2:
+    tail_call @member
+  bb6 [cold]:
+    revert 0, 0
+}
+
 fn @plain() {
   bb0:
     v15 = calldatasize
@@ -250,25 +271,4 @@ fn @revert_stub.5() [cold] {
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb6, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb6, [0x49eb8b89 => bb2, 0xb7a3bd0f => bb3, 0xc2dcee6a => bb4, 0xd192e846 => bb5]
-  bb5:
-    tail_call @word
-  bb4:
-    tail_call @plain
-  bb3:
-    tail_call @lengths
-  bb2:
-    tail_call @member
-  bb6 [cold]:
-    revert 0, 0
 }

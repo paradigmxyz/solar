@@ -1,5 +1,28 @@
 // === ROOT/tests/ui/codegen/run-call/fresh_fmp_shared_floor.sol:Test ===
 @module Test
+fn @constructor() [constructor] {
+  bb0:
+    sstore 0, 3 !metadata(storage=slot(0))
+    sstore 1, 4 !metadata(storage=slot(1))
+    sstore 2, 5 !metadata(storage=slot(2))
+    sstore 3, 6 !metadata(storage=slot(3))
+    sstore 4, 7 !metadata(storage=slot(4))
+    sstore 5, 8 !metadata(storage=slot(5))
+    sstore 6, 9 !metadata(storage=slot(6))
+    sstore 7, 10 !metadata(storage=slot(7))
+    sstore 8, 11 !metadata(storage=slot(8))
+    sstore 9, 12 !metadata(storage=slot(9))
+    sstore 10, 13 !metadata(storage=slot(10))
+    sstore 11, 14 !metadata(storage=slot(11))
+    sstore 12, 15 !metadata(storage=slot(12))
+    sstore 13, 16 !metadata(storage=slot(13))
+    sstore 14, 17 !metadata(storage=slot(14))
+    sstore 15, 18 !metadata(storage=slot(15))
+    sstore 16, 19 !metadata(storage=slot(16))
+    sstore 17, 20 !metadata(storage=slot(17))
+    ret
+}
+
 fn @same() -> i1 {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -122,27 +145,4 @@ fn @viaSecond(arg0: i256) -> i1 [selector=0x630c5218, abi_params=[uint256], abi_
     v89 = add v87, v88
     sstore 18, v89 !metadata(storage=slot(18))
     ret v54
-}
-
-fn @constructor() [constructor] {
-  bb0:
-    sstore 0, 3 !metadata(storage=slot(0))
-    sstore 1, 4 !metadata(storage=slot(1))
-    sstore 2, 5 !metadata(storage=slot(2))
-    sstore 3, 6 !metadata(storage=slot(3))
-    sstore 4, 7 !metadata(storage=slot(4))
-    sstore 5, 8 !metadata(storage=slot(5))
-    sstore 6, 9 !metadata(storage=slot(6))
-    sstore 7, 10 !metadata(storage=slot(7))
-    sstore 8, 11 !metadata(storage=slot(8))
-    sstore 9, 12 !metadata(storage=slot(9))
-    sstore 10, 13 !metadata(storage=slot(10))
-    sstore 11, 14 !metadata(storage=slot(11))
-    sstore 12, 15 !metadata(storage=slot(12))
-    sstore 13, 16 !metadata(storage=slot(13))
-    sstore 14, 17 !metadata(storage=slot(14))
-    sstore 15, 18 !metadata(storage=slot(15))
-    sstore 16, 19 !metadata(storage=slot(16))
-    sstore 17, 20 !metadata(storage=slot(17))
-    ret
 }
