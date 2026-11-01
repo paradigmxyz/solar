@@ -2844,9 +2844,10 @@ impl AliasAnalysis {
         })
     }
 
-    /// Whether `value` is an allocation or the free-memory pointer, plus constant offsets.
+    /// Whether `value` is an allocation or the free-memory pointer, plus at most eight constant
+    /// offsets, so a query costs the same on a long chain.
     fn is_heap_pointer(func: &Function, mut value: ValueId) -> bool {
-        loop {
+        for _ in 0..8 {
             value = Self::memory_address_value(func, value);
             let Value::Inst(inst) = *func.value(value) else { return false };
             match func.inst(inst).kind {
@@ -2859,6 +2860,7 @@ impl AliasAnalysis {
                 _ => return false,
             }
         }
+        false
     }
 
     /// Whether `len` is stored into the length word of `object` before `user` runs: earlier in

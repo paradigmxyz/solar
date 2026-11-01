@@ -336,7 +336,19 @@ fn widest_int_operand(func: &Function, kind: &InstKind) -> Option<MirType> {
         .max_by_key(|ty| ty.integer_bits())
 }
 
+/// Whether `lower-alloc` has run: no abstract free-memory-pointer operation remains, apart from
+/// the deferred allocations it leaves for the backend.
+fn allocations_lowered(func: &Function) -> bool {
+    func.instructions().all(|inst| match func.inst(inst).kind {
+        InstKind::Fmp | InstKind::SetFmp(_) => false,
+        InstKind::Alloc { .. } => func.inst(inst).metadata.deferred_alloc(),
+        _ => true,
+    })
+}
+
 fn run(func: &mut Function, target: &Target, late: bool) -> bool {
+    // The pass adds no allocation operation, so the answer holds for the whole run.
+    let lowered = late && allocations_lowered(func);
     let mut uses = super::egraph::use_counts(func);
     let branch_only = branch_only_conditions(func, &uses);
     let mut masks = None;
@@ -364,7 +376,8 @@ fn run(func: &mut Function, target: &Target, late: bool) -> bool {
             let is_branch_only =
                 func.inst_result_value(inst).is_some_and(|value| branch_only.contains(&value));
             let mut best = None;
-            for recipe in isle::alternatives(func, &original, &seen, &mut masks, &op, target, late)
+            for recipe in
+                isle::alternatives(func, &original, &seen, &mut masks, &op, target, late, lowered)
             {
                 if let Some((after, leaves)) = recipe.cost_and_leaves(func, target, is_branch_only)
                 {

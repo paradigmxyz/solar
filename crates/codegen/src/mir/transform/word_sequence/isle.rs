@@ -50,6 +50,7 @@ pub(super) fn alternatives(
     op: &Op,
     target: &Target,
     late: bool,
+    allocations_lowered: bool,
 ) -> Vec<Recipe> {
     let mut result = Vec::new();
     let scalar_ty =
@@ -63,6 +64,7 @@ pub(super) fn alternatives(
             target,
             scalar_ty,
             late,
+            allocations_lowered,
             temporaries: FxHashMap::default(),
         },
         op,
@@ -81,6 +83,7 @@ struct Context<'a> {
     target: &'a Target,
     scalar_ty: MirType,
     late: bool,
+    allocations_lowered: bool,
     temporaries: FxHashMap<ValueId, Temporary>,
 }
 
@@ -232,16 +235,7 @@ impl generated::Context for Context<'_> {
     }
 
     fn allocations_lowered(&mut self) -> bool {
-        // `lower-alloc` has run once no abstract free-memory-pointer operation remains, apart from
-        // the deferred allocations it leaves for the backend. The block is detached from `func`,
-        // so look at its instructions apart.
-        self.block.iter().chain(self.func.blocks.iter().flat_map(|block| &block.instructions)).all(
-            |&inst| match self.func.inst(inst).kind {
-                InstKind::Fmp | InstKind::SetFmp(_) => false,
-                InstKind::Alloc { .. } => self.func.inst(inst).metadata.deferred_alloc(),
-                _ => true,
-            },
-        )
+        self.allocations_lowered
     }
 
     fn compared_mask(&mut self, value: Value, mask: U256) -> bool {
