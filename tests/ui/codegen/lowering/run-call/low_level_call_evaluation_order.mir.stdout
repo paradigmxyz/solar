@@ -4,6 +4,11 @@
   struct0: {ptr<memory>, ptr<memory>}
   struct1: {i1, ptr<memory>}
 
+fn @receive() [receive, payable] {
+  bb0:
+    ret
+}
+
 fn @receiver() -> i160 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -42,11 +47,6 @@ fn @data() -> ptr<memory> {
     v3 = alloc 32
     mstore v3, 0
     ret v3
-}
-
-fn @receive() [receive, payable] {
-  bb0:
-    ret
 }
 
 fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {

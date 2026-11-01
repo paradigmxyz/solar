@@ -422,6 +422,11 @@ fn @internal_dispatcher_p_none_r_uint8_uint16(arg0: i256) -> struct1 [function_p
 
 // === ROOT/tests/ui/codegen/lowering/run-call/dirty_internal_named_return.sol:DirtyVirtual ===
 @module DirtyVirtual
+fn @constructor() [constructor] {
+  bb0:
+    ret
+}
+
 fn @identity(arg0: i256) -> i256 [pure] {
   bb0:
     ret arg0
@@ -431,9 +436,4 @@ fn @throughVirtual() -> i256 [selector=0x1286f860, pure, abi_params=[], abi_retu
   bb0:
     v0 = icall @identity, 257
     ret v0
-}
-
-fn @constructor() [constructor] {
-  bb0:
-    ret
 }

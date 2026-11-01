@@ -1,9 +1,30 @@
 // === ROOT/tests/ui/codegen/mir/check-elim/header_bounds.sol:HeaderBounds ===
 @module HeaderBounds
 @phase lowered
-@types
-  struct0: {i1, i256}
-  struct1: {i256, i256}
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 68
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0x15847e62 => bb3, 0x6012072a => bb4, 0x63b7c492 => bb5, 0xd43fc471 => bb6]
+  bb6:
+    tail_call @search
+  bb5:
+    tail_call @lowerBound
+  bb4:
+    tail_call @probe
+  bb3:
+    tail_call @consume
+  bb1 [cold]:
+    revert 0, 0
+}
 
 fn @search() [selector=0xd43fc471, abi_wrapper, pure] {
   bb0:
@@ -254,31 +275,6 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1 [cold]:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = calldatasize
-    v2 = lt v1, 68
-    v3 = zext i1 v2 to i256
-    v4 = or v0, v3
-    v5 = ne v4, 0
-    jumpi v5, bb1, bb2
-  bb2:
-    v6 = calldataload 0
-    v7 = shr v6, 224
-    switch v7, default bb1, [0x15847e62 => bb3, 0x6012072a => bb4, 0x63b7c492 => bb5, 0xd43fc471 => bb6]
-  bb6:
-    tail_call @search
-  bb5:
-    tail_call @lowerBound
-  bb4:
-    tail_call @probe
-  bb3:
-    tail_call @consume
   bb1 [cold]:
     revert 0, 0
 }

@@ -1,6 +1,25 @@
 // === ROOT/tests/ui/codegen/mir/check-elim/remainder_bounds.sol:RemainderBounds ===
 @module RemainderBounds
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb5, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb5, [0x74dbbcbe => bb2, 0x9d6a1cd3 => bb3, 0xe4bcb1d7 => bb4]
+  bb4:
+    tail_call @pickDown
+  bb3:
+    tail_call @pick
+  bb2:
+    tail_call @pickRest
+  bb5 [cold]:
+    revert 0, 0
+}
+
 fn @pick() [selector=0x9d6a1cd3, abi_wrapper, pure] {
   bb0:
     v14 = calldatasize
@@ -121,24 +140,5 @@ fn @pickRest() [selector=0x74dbbcbe, abi_wrapper, pure] {
     mstore 0, v5 !metadata(memory=scratch)
     returndata 0, 32
   bb2 [cold]:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb5, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb5, [0x74dbbcbe => bb2, 0x9d6a1cd3 => bb3, 0xe4bcb1d7 => bb4]
-  bb4:
-    tail_call @pickDown
-  bb3:
-    tail_call @pick
-  bb2:
-    tail_call @pickRest
-  bb5 [cold]:
     revert 0, 0
 }

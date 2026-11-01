@@ -1,11 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/named_arguments_extended.sol:Base ===
 @module Base
-fn @v() -> i256 [selector=0x7c2efcba, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
-}
-
 fn @constructor(arg0: i8, arg1: i256) [constructor, abi_params=[uint8, uint256]] {
   bb0:
     v0 = zext i8 arg0 to i256
@@ -15,8 +9,24 @@ fn @constructor(arg0: i8, arg1: i256) [constructor, abi_params=[uint8, uint256]]
     ret
 }
 
+fn @v() -> i256 [selector=0x7c2efcba, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
 // === ROOT/tests/ui/codegen/lowering/run-call/named_arguments_extended.sol:Derived ===
 @module Derived
+fn @constructor() [constructor] {
+  bb0:
+    v0 = checked_mul uint256, 2, 0x3e8
+    v1 = checked_add uint256, v0, 1
+    sstore 0, v1 !metadata(storage=slot(0))
+    jump bb1
+  bb1:
+    ret
+}
+
 fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = checked_mul uint256, 4, 10
@@ -47,14 +57,4 @@ fn @v() -> i256 [selector=0x7c2efcba, view, abi_params=[], abi_returns=[word], a
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
-}
-
-fn @constructor() [constructor] {
-  bb0:
-    v0 = checked_mul uint256, 2, 0x3e8
-    v1 = checked_add uint256, v0, 1
-    sstore 0, v1 !metadata(storage=slot(0))
-    jump bb1
-  bb1:
-    ret
 }

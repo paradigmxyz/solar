@@ -1,12 +1,24 @@
 // === ROOT/tests/ui/codegen/mir/loop-unroll/complete_loops.sol:CompleteLoops ===
 @module CompleteLoops
 @phase lowered
-@types
-  struct0: {i256, i256}
-  struct1: {i256, i256}
-  struct2: {i256, i256}
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb4, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb4, [0x540a714 => bb2, 0xe5c5e9a3 => bb3]
+  bb3:
+    tail_call @decode
+  bb2:
+    tail_call @sum4
+  bb4 [cold]:
+    revert 0, 0
+}
 
-fn @u32(arg0: i256, arg1: i256) -> struct0 [pure, return_abi=[i256, i256]] {
+fn @u32(arg0: i256, arg1: i256) [pure, return_abi=[i256, i256]] {
   bb0:
     v40 = lt 0, arg1
     v41 = add arg0, 0
@@ -44,7 +56,7 @@ fn @u32(arg0: i256, arg1: i256) -> struct0 [pure, return_abi=[i256, i256]] {
     ret v77, 4
 }
 
-fn @u16(arg0: i256, arg1: i256, arg2: i256) -> struct1 [pure, return_abi=[i256, i256]] {
+fn @u16(arg0: i256, arg1: i256, arg2: i256) [pure, return_abi=[i256, i256]] {
   bb0:
     v41 = lt arg2, arg1
     v42 = add arg0, arg2
@@ -132,21 +144,4 @@ fn @revert_stub() [cold] {
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb4, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb4, [0x540a714 => bb2, 0xe5c5e9a3 => bb3]
-  bb3:
-    tail_call @decode
-  bb2:
-    tail_call @sum4
-  bb4 [cold]:
-    revert 0, 0
 }

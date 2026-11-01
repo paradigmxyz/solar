@@ -2,6 +2,23 @@
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped.mir (after lower-evm-shaped) ===
   @module LowerEvmShaped
 + @phase lowered
+  fn @constructor() [abi_wrapper, constructor, cold] {
+    bb0 [cold]:
+      v0 = callvalue
+      v1 = ne v0, 0
+      jumpi v1, bb2, bb1
+    bb1 [cold]:
+-     v2 = icall @constructor_helper, 23
+-     sstore 0, v2
+-     ret
++     tail_call @constructor_helper, 23
+    bb2 [cold]:
+-     v3 = icall @constructor_no_args
+-     sstore 0, v3
+-     ret
++     tail_call @constructor_no_args
+  }
+  
   fn @entry() [entry] {
     bb0:
       v0 = calldataload 0
@@ -165,23 +182,6 @@
 +     invalid
     bb1 [cold]:
       revert 0, 0
-  }
-  
-  fn @constructor() [abi_wrapper, constructor, cold] {
-    bb0 [cold]:
-      v0 = callvalue
-      v1 = ne v0, 0
-      jumpi v1, bb2, bb1
-    bb1 [cold]:
--     v2 = icall @constructor_helper, 23
--     sstore 0, v2
--     ret
-+     tail_call @constructor_helper, 23
-    bb2 [cold]:
--     v3 = icall @constructor_no_args
--     sstore 0, v3
--     ret
-+     tail_call @constructor_no_args
   }
   
   fn @constructor_no_args() -> i256 [cold] {

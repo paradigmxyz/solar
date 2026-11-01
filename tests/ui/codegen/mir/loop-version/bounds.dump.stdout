@@ -1,8 +1,24 @@
 // === ROOT/tests/ui/codegen/mir/loop-version/bounds.sol:Bounds ===
 @module Bounds
 @phase lowered
-@types
-  struct0: {ptr<memory>, ptr<memory>}
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb5, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb5, [0x979efdba => bb2, 0xb0bfff29 => bb3, 0xf06414cf => bb4]
+  bb4:
+    tail_call @siftUp
+  bb3:
+    tail_call @literalInLoop
+  bb2:
+    tail_call @siftValues
+  bb5 [cold]:
+    revert 0, 0
+}
 
 fn @siftValues() [selector=0x979efdba, abi_wrapper, pure] {
   bb0:
@@ -611,23 +627,4 @@ fn @revert_stub.4() [cold] {
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb5, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb5, [0x979efdba => bb2, 0xb0bfff29 => bb3, 0xf06414cf => bb4]
-  bb4:
-    tail_call @siftUp
-  bb3:
-    tail_call @literalInLoop
-  bb2:
-    tail_call @siftValues
-  bb5 [cold]:
-    revert 0, 0
 }
