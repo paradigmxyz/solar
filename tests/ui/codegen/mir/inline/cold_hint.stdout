@@ -4,59 +4,60 @@
   fn @loop_hot(arg0: i256, arg1: i256) -> i256 {
     bb0:
       jump bb1
-    bb1:
+-   bb1:  ; preds = bb0, bb2
 -     v0 = phi [bb0: 0], [bb2: v8]
 -     v1 = phi [bb0: 0], [bb2: v7]
++   bb1:  ; preds = bb0, bb11
 +     v0 = phi [bb0: 0], [bb11: v8]
 +     v1 = phi [bb0: 0], [bb11: v7]
       v2 = lt v0, arg0
       jumpi v2, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       ret v1
-    bb2:
+    bb2:  ; preds = bb1
 -     v3 = icall @classify, v0
 +     jump bb5
-+   bb5:
++   bb5:  ; preds = bb2
 +     v9 = lt v0, 32
 +     jumpi v9, bb6, bb7
-+   bb7:
++   bb7:  ; preds = bb5
 +     v10 = lt v0, 64
 +     jumpi v10, bb8, bb9
-+   bb9:
++   bb9:  ; preds = bb7
 +     jump bb10
-+   bb8:
++   bb8:  ; preds = bb7
 +     jump bb10
-+   bb10:
++   bb10:  ; preds = bb8, bb9
 +     v11 = phi [bb8: 7], [bb9: 9]
 +     v12 = and v0, 31
 +     v13 = add v11, v12
 +     jump bb4
-+   bb6:
++   bb6:  ; preds = bb5
 +     jump bb4
-+   bb4:
++   bb4:  ; preds = bb6, bb10
 +     v14 = phi [bb6: 0], [bb10: v13]
       v4 = add v0, arg1
 -     v5 = icall @classify, v4
 -     v6 = add v3, v5
 +     jump bb12
-+   bb12:
++   bb12:  ; preds = bb4
 +     v15 = lt v4, 32
 +     jumpi v15, bb13, bb14
-+   bb14:
++   bb14:  ; preds = bb12
 +     v16 = lt v4, 64
 +     jumpi v16, bb15, bb16
-+   bb16:
++   bb16:  ; preds = bb14
 +     jump bb17
-+   bb15:
++   bb15:  ; preds = bb14
 +     jump bb17
-+   bb17:
++   bb17:  ; preds = bb15, bb16
 +     v17 = phi [bb15: 7], [bb16: 9]
 +     v18 = and v4, 31
 +     v19 = add v17, v18
 +     jump bb11
-+   bb13:
++   bb13:  ; preds = bb12
 +     jump bb11
-+   bb11:
++   bb11:  ; preds = bb13, bb17
 +     v20 = phi [bb13: 0], [bb17: v19]
 +     v6 = add v14, v20
       v7 = add v1, v6
@@ -67,14 +68,14 @@
   fn @loop_cold(arg0: i256, arg1: i256) -> i256 {
     bb0:
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v0 = phi [bb0: 0], [bb2: v8]
       v1 = phi [bb0: 0], [bb2: v7]
       v2 = lt v0, arg0
       jumpi v2, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       ret v1
-    bb2 [cold]:
+    bb2 [cold]:  ; preds = bb1
       v3 = icall @classify_cold, v0
       v4 = add v0, arg1
       v5 = icall @classify_cold, v4
@@ -88,19 +89,19 @@
 -   bb0:
 -     v0 = lt arg0, 32
 -     jumpi v0, bb1, bb2
--   bb2:
+-   bb2:  ; preds = bb0
 -     v1 = lt arg0, 64
 -     jumpi v1, bb3, bb4
--   bb4:
+-   bb4:  ; preds = bb2
 -     jump bb5
--   bb3:
+-   bb3:  ; preds = bb2
 -     jump bb5
--   bb5:
+-   bb5:  ; preds = bb3, bb4
 -     v2 = phi [bb3: 7], [bb4: 9]
 -     v3 = and arg0, 31
 -     v4 = add v2, v3
 -     ret v4
--   bb1:
+-   bb1:  ; preds = bb0
 -     ret 0
   }
   
@@ -108,19 +109,19 @@
     bb0 [cold]:
       v0 = lt arg0, 32
       jumpi v0, bb1, bb2
-    bb2 [cold]:
+    bb2 [cold]:  ; preds = bb0
       v1 = lt arg0, 64
       jumpi v1, bb3, bb4
-    bb4 [cold]:
+    bb4 [cold]:  ; preds = bb2
       jump bb5
-    bb3 [cold]:
+    bb3 [cold]:  ; preds = bb2
       jump bb5
-    bb5 [cold]:
+    bb5 [cold]:  ; preds = bb3, bb4
       v2 = phi [bb3: 7], [bb4: 9]
       v3 = and arg0, 31
       v4 = add v2, v3
       ret v4
-    bb1 [cold]:
+    bb1 [cold]:  ; preds = bb0
       ret 0
   }
   
