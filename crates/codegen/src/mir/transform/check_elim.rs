@@ -208,7 +208,7 @@ use crate::{
         FunctionId, ImmutableEncoding, ImmutableId, InstId, InstKind, MirType, Module, Terminator,
         TypeSize, Value, ValueId, ValueLayout,
         analysis::{
-            CfgInfo, aborts, cold_functions,
+            CfgInfo, aborts,
             integers::{integer_bits, integer_mask, integer_max},
         },
         immutable::immutable_push_type_size,
@@ -347,7 +347,7 @@ impl MirPass for LateCheckElim {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let cold = cold_functions(module);
+        let cold = module.cold_functions();
         run_function_pass_with_cfg(module, analyses, |func, analyses| {
             let gas = analyses.runtime_target(gcx).optimization().is_gas();
             let selected = gas.then(|| analyses.cfg().cyclic_blocks());

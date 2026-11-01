@@ -21,7 +21,7 @@ fn @entry() [entry] {
     tail_call @hash
   bb2:
     tail_call @paddingIsZero
-  bb6:
+  bb6 [cold]:
     revert 0, 0
 }
 

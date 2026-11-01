@@ -14,7 +14,7 @@
       v1 = add v0, arg1
       mstore 128, v1
       returndata 128, 32
-+   bb2:
++   bb2 [cold]:
 +     revert 0, 0
   }
   

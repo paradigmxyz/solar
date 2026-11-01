@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/mir/lowering/phase_header_preserved.mir (after pipeline-default) ===
 @module PhaseHeaderPreserved
 @phase lowered
-fn @entry() [entry] {
-  bb0:
+fn @entry() [entry, cold] {
+  bb0 [cold]:
     revert 0, 0
 }
 

@@ -27,7 +27,7 @@ use super::utils::{frame_prefix, is_internal_body};
 use crate::mir::{
     ArgIdx, Callee, EffectKind, Function, FunctionId, Immediate, InstId, InstKind, MirType, Module,
     StorageAlias, Terminator, Value, ValueId,
-    analysis::{cold_functions, direct_callees},
+    analysis::direct_callees,
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
 };
@@ -82,7 +82,7 @@ impl MirPass for DeadArgElim {
 
 fn forward_returned_values(module: &mut Module, size: bool) -> usize {
     let cold =
-        if size { cold_functions(module) } else { DenseBitSet::new_empty(module.functions.len()) };
+        if size { module.cold_functions() } else { DenseBitSet::new_empty(module.functions.len()) };
     let returned = module
         .functions
         .iter_enumerated()

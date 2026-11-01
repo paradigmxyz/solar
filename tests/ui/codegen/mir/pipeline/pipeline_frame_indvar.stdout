@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/mir/pipeline/pipeline_frame_indvar.mir (after pipeline-default) ===
 @module PipelineFrameIndVar
 @phase lowered
-fn @entry() [entry] {
-  bb0:
+fn @entry() [entry, cold] {
+  bb0 [cold]:
     revert 0, 0
 }
 

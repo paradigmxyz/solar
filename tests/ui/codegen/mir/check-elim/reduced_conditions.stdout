@@ -17,7 +17,7 @@
       v7 = or v4, v6
 -     jumpi v7, bb3, bb4
 +     jumpi v6, bb3, bb4
-    bb4:
+    bb4 [cold]:
       revert 0, 0
     bb3:
       v8 = add v0, 1
@@ -43,7 +43,7 @@
       v6 = and v5, v3
 -     jumpi v6, bb3, bb4
 +     jumpi v4, bb3, bb4
-    bb4:
+    bb4 [cold]:
       revert 0, 0
     bb3:
       v7 = add v0, 1
@@ -58,7 +58,7 @@
       jumpi v2, bb1, bb2
     bb2:
       ret arg0
-    bb1:
+    bb1 [cold]:
       revert 0, 0
   }
   

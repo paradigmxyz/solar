@@ -1,8 +1,8 @@
 - // === ROOT/tests/ui/codegen/mir/dead-arg-elim/cold_tail_call.mir (before dead-arg-elim) ===
 + // === ROOT/tests/ui/codegen/mir/dead-arg-elim/cold_tail_call.mir (after dead-arg-elim) ===
   @module ColdTailCall
-  fn @revert_stub() {
-    bb0:
+  fn @revert_stub() [cold] {
+    bb0 [cold]:
       revert 0, 0
   }
   
@@ -13,7 +13,7 @@
     bb2:
 -     ret arg0
 +     ret
-    bb1:
+    bb1 [cold]:
       tail_call @revert_stub
   }
   
@@ -25,7 +25,7 @@
       mstore 0, 1
 -     ret 7
 +     ret
-    bb1:
+    bb1 [cold]:
       tail_call @revert_stub
   }
   

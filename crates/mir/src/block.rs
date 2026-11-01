@@ -2,6 +2,7 @@
 
 use super::{BlockId, InstId, InstructionMetadata, ValueId};
 use smallvec::SmallVec;
+use solar_ir::Hotness;
 use std::fmt;
 
 /// A basic block in the MIR.
@@ -15,6 +16,11 @@ pub struct BasicBlock {
     pub terminator_metadata: InstructionMetadata,
     /// Predecessor blocks, each listed once.
     pub predecessors: SmallVec<[BlockId; 4]>,
+    /// Whether the block is expected to run rarely. Computed by the hotness analysis, which the
+    /// pass manager reruns after every pass that changes the module; a pass that rewrites control
+    /// flow need not maintain it, but reads of it inside that pass can be stale, and new blocks
+    /// start hot.
+    pub hotness: Hotness,
 }
 
 impl BasicBlock {
@@ -51,6 +57,7 @@ impl BasicBlock {
             terminator: None,
             terminator_metadata,
             predecessors: SmallVec::new(),
+            hotness: Hotness::Hot,
         }
     }
 }

@@ -34,7 +34,7 @@ fn @entry() [entry] {
     tail_call @dataHash
   bb2:
     tail_call @zeroWordHash
-  bb12:
+  bb12 [cold]:
     revert 0, 0
 }
 

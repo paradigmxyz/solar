@@ -18,7 +18,7 @@ fn @constructor(arg0: i256) [abi_wrapper, constructor] {
   bb2:
     mstore 192, arg0
     ret
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -35,7 +35,7 @@ fn @entry() [entry] {
     tail_call @vested
   bb2:
     tail_call @start
-  bb4:
+  bb4 [cold]:
     revert 0, 0
 }
 
