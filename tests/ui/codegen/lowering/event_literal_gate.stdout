@@ -45,15 +45,13 @@ fn @zeros() [selector=0x4cd212eb, abi_wrapper] {
     v29 = heap_floor !metadata(alloc_ptr)
     v30 = add v29, 96 !metadata(alloc_ptr)
     mstore v29, 40
-    v25 = add v29, 32
-    v32 = calldatasize
-    calldatacopy v25, v32, 64
     v7 = add v29, 160
     mstore v30, 64
     v14 = add v7, 32
     v15 = add v7, 64
     mstore v15, 0
     mstore v7, 40
+    v25 = add v29, 32
     mcopy v14, v25, 40 !metadata(disjoint)
     v19 = add v29, 128
     mstore v19, 1

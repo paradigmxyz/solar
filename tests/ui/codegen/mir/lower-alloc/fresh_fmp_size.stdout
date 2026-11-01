@@ -6,7 +6,6 @@
 -     v0 = alloc zeroed checked arg0
 -     v1 = ptrtoint ptr<memory> v0 to i256
 +     v2 = icall @alloc, arg0
-+     memory_zero v2, arg0
 +     v1 = ptrtoint ptr<memory> v2 to i256
       ret v1
   }
@@ -16,7 +15,6 @@
 -     v0 = alloc zeroed checked arg0
 -     v1 = ptrtoint ptr<memory> v0 to i256
 +     v2 = icall @alloc, arg0
-+     memory_zero v2, arg0
 +     v1 = ptrtoint ptr<memory> v2 to i256
       ret v1
   }

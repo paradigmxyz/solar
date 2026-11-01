@@ -123,10 +123,11 @@
 // CHECK-LABEL: fn @copyWords(
 // CHECK: mcopy
 
-// A copy of words out of calldata is one `calldatacopy` after the destination's zeroing.
+// A copy of words out of calldata is one `calldatacopy`, and the zeroing of the fresh destination
+// is skipped.
 // CHECK-LABEL: fn @wordsFromCalldata(
 // CHECK: calldatacopy
-// CHECK: calldatacopy
+// CHECK-NOT: calldatacopy
 // CHECK-NOT: calldataload
 // CHECK: returndata
 

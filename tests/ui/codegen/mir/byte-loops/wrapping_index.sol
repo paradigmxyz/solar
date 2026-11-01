@@ -125,7 +125,7 @@ contract Test {
     // past the wrap, where `calldatacopy` and `calldataload` read zeros, so both keep their loops
     // behind a run-time test.
     // CHECK-LABEL: fn @wrappedCopy(
-    // CHECK: calldatacopy
+    // CHECK: calldataload
     // CHECK: mstore8
     function wrappedCopy(bytes calldata data, uint256 n) external pure returns (bytes memory out) {
         assembly {

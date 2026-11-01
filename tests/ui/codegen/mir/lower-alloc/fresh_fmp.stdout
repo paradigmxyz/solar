@@ -201,9 +201,7 @@
 +     jumpi v12, bb2, bb1
 +   bb1:
 +     mstore 64, v7 !metadata(memory=scratch)
-+     memory_zero v0, arg0
 +     v5 = icall @alloc, arg0
-+     memory_zero v5, arg0
       v2 = ptrtoint ptr<memory> v0 to i256
 -     v3 = ptrtoint ptr<memory> v1 to i256
 +     v3 = ptrtoint ptr<memory> v5 to i256
@@ -229,7 +227,6 @@
 +     jumpi v10, bb2, bb1
 +   bb1:
 +     mstore 64, v5 !metadata(memory=scratch)
-+     memory_zero v0, arg0
       v1 = ptrtoint ptr<memory> v0 to i256
       mstore 64, 160
 -     v2 = alloc zeroed checked arg0

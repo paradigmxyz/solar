@@ -16,8 +16,6 @@ fn @copyHigh() [selector=0xf4f1833d, abi_wrapper, pure] {
     v96 = ne v95, 0
     jumpi v96, bb9, bb8
   bb8:
-    v97 = calldatasize
-    calldatacopy v90, v97, v7
     mstore v90, v60
     v33 = eq v0, 0
     jumpi v33, bb2, bb4
