@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/byte-loops/empty_copy.sol:Test ===
 @module Test
 @phase lowered
-fn @memoryCopy() [selector=0x261f992c, abi_wrapper, pure] {
+fn @memoryCopy() {
   bb0:
     v27 = calldataload 4
     v28 = calldataload 36
@@ -39,7 +39,7 @@ fn @memoryCopy() [selector=0x261f992c, abi_wrapper, pure] {
     returndata v48, v41
 }
 
-fn @calldataCopy() [selector=0xa70bf1aa, abi_wrapper, pure] {
+fn @calldataCopy() {
   bb0:
     v15 = calldatasize
     v19 = calldataload 4
@@ -79,7 +79,7 @@ fn @calldataCopy() [selector=0xa70bf1aa, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @downCopy() [selector=0xc7e6d660, abi_wrapper, pure] {
+fn @downCopy() {
   bb0:
     v27 = calldataload 4
     v28 = calldataload 36
@@ -117,7 +117,7 @@ fn @downCopy() [selector=0xc7e6d660, abi_wrapper, pure] {
     returndata v48, v41
 }
 
-fn @freshCopy() [selector=0x602d1e17, abi_wrapper, pure] {
+fn @freshCopy() {
   bb0:
     v13 = calldatasize
     v17 = calldataload 4
@@ -172,7 +172,7 @@ fn @freshCopy() [selector=0x602d1e17, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @_memoryCopy(arg0: i256, arg1: i256, arg2: i256) [may_return_memory, pure] {
+fn @_memoryCopy(arg0: i256, arg1: i256, arg2: i256) [may_return_memory] {
   bb0:
     v20 = eq arg2, 0
     jumpi v20, bb2, bb4
@@ -223,7 +223,7 @@ fn @_memoryCopy(arg0: i256, arg1: i256, arg2: i256) [may_return_memory, pure] {
     ret
 }
 
-fn @_calldataCopy(arg0: i256, arg1: i256, arg2: i256, arg3: i256) [may_return_memory, pure] {
+fn @_calldataCopy(arg0: i256, arg1: i256, arg2: i256, arg3: i256) [may_return_memory] {
   bb0:
     v22 = eq arg3, 0
     jumpi v22, bb2, bb4
@@ -267,7 +267,7 @@ fn @_calldataCopy(arg0: i256, arg1: i256, arg2: i256, arg3: i256) [may_return_me
     ret
 }
 
-fn @_downCopy(arg0: i256, arg1: i256, arg2: i256) [may_return_memory, pure] {
+fn @_downCopy(arg0: i256, arg1: i256, arg2: i256) [may_return_memory] {
   bb0:
     v22 = eq arg2, 0
     jumpi v22, bb2, bb4
@@ -319,7 +319,7 @@ fn @_downCopy(arg0: i256, arg1: i256, arg2: i256) [may_return_memory, pure] {
     ret
 }
 
-fn @_freshCopy(arg0: i256, arg1: i256) -> i256 [may_return_memory, pure] {
+fn @_freshCopy(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
   bb0:
     v0 = add arg1, 63
     v1 = lt v0, arg1

@@ -54,6 +54,8 @@
       v0 = trunc i256 arg0 to i64
       storeimmutable small, v0
       icall @bridge
+      icall @assign_widths, arg0
+      icall @assign_narrow_scalars
       stop
   }
   
@@ -113,7 +115,7 @@
       revert 0, 0
   }
   
-  fn @assign_widths(arg0: i256) [constructor] {
+  fn @assign_widths(arg0: i256) {
     bb0:
       v0 = address
       v1 = zext i160 v0 to i256
@@ -139,7 +141,7 @@
       ret
   }
   
-  fn @assign_narrow_scalars() [constructor] {
+  fn @assign_narrow_scalars() {
     bb0:
 -     storeimmutable narrow_three_bytes, i24 255
 -     storeimmutable narrow_scalar, i64 255

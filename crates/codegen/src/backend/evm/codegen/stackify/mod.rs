@@ -430,19 +430,15 @@ impl<'gcx> EvmCodegen<'gcx> {
     pub(super) fn emit_runtime(&mut self, module: &Module, call_graph: &CallGraphInfo) {
         let Some(entry) = module.dispatch_entry() else {
             assert!(
-                !module.functions.iter().any(Function::is_runtime_entry),
+                module.runtime_entries().is_empty(),
                 "evm-shaped module with a runtime interface must have a MIR `entry` function"
             );
             return;
         };
         let runtime = module.runtime_reachable_functions();
         let emitting_entry = Liveness::is_block_local(&module.functions[entry]);
-        let bodies = module
-            .functions
-            .iter_enumerated()
-            .filter(|&(func_id, func)| Self::is_runtime_function(func) && runtime.contains(func_id))
-            .map(|(func_id, _)| func_id)
-            .collect();
+        let bodies =
+            runtime.iter().filter(|&func_id| module.constructor() != Some(func_id)).collect();
         match self.plan_stackified(module, call_graph, entry, emitting_entry, bodies) {
             Ok((info, plans)) => self.emit_runtime_stackified(module, call_graph, &info, plans),
             Err(decline) => self.report_decline(module, decline),
@@ -498,10 +494,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         bodies: Vec<FunctionId>,
     ) -> Result<(ModuleInfo, IndexVec<FunctionId, Option<FunctionPlan>>), Decline> {
         let functions = module.functions.len();
+        let runtime_entries = module.runtime_entries();
         let mut internal = DenseBitSet::new_empty(functions);
         for &func_id in &bodies {
             let func = &module.functions[func_id];
-            if func_id != entry && !func.is_runtime_entry() {
+            if func_id != entry && !runtime_entries.contains(func_id) {
                 internal.insert(func_id);
                 if call_graph.is_recursive(func_id) {
                     // A recursive activation cannot own a fixed frame.

@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/memory-dse/dead_allocation_length.sol:DeadAllocationLength ===
 @module DeadAllocationLength
 @phase lowered
-fn @echo() [selector=0x624fbfdc, abi_wrapper, pure] {
+fn @echo() {
   bb0:
     v8 = calldatasize
     v9 = lt v8, 36
@@ -31,7 +31,7 @@ fn @echo() [selector=0x624fbfdc, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @fail() [selector=0x132e4f3c, abi_wrapper, pure] {
+fn @fail() {
   bb0:
     v0 = calldatasize
     v1 = lt v0, 36
@@ -44,12 +44,12 @@ fn @fail() [selector=0x132e4f3c, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @halt() [selector=0x5ed7ca5b, abi_wrapper, pure] {
+fn @halt() {
   bb0:
     revert 0, 0
 }
 
-fn @relay() [selector=0x8f0d6f17, abi_wrapper] {
+fn @relay() {
   bb0:
     v20 = calldatasize
     v21 = lt v20, 36
@@ -109,7 +109,7 @@ fn @relay() [selector=0x8f0d6f17, abi_wrapper] {
     revert 0, 0
 }
 
-fn @fallback() [abi_wrapper, fallback] {
+fn @fallback() {
   bb0:
     v0 = calldatasize
     tail_call @fallback.body, 0, v0

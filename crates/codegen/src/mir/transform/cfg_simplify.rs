@@ -767,14 +767,8 @@ pub(super) fn remove_unreferenced_functions(
     candidates: &[FunctionId],
 ) -> Option<DenseBitSet<FunctionId>> {
     let count = module.functions.len();
-    let mut referenced = DenseBitSet::new_empty(count);
-    if let Some(entry) = module.dispatch_entry() {
-        referenced.insert(entry);
-    }
-    for (id, func) in module.functions.iter_enumerated() {
-        if func.is_external_entry() {
-            referenced.insert(id);
-        }
+    let mut referenced = module.root_functions();
+    for func in &module.functions {
         for callee in direct_callees(func) {
             referenced.insert(callee);
         }
@@ -807,11 +801,7 @@ fn retain_functions(module: &mut Module, keep: &DenseBitSet<FunctionId>) -> usiz
         remap[old_id] = Some(new_id);
     }
     module.functions = functions;
-    module.remap_dispatch_entry(
-        module
-            .dispatch_entry()
-            .map(|entry| remap[entry].expect("kept function cannot be the dispatch entry")),
-    );
+    module.remap_roots(|root| remap[root].expect("kept function cannot be a module root"));
     module.function_name_index.clear();
     module.function_name_index.extend(
         module.functions.iter_enumerated().map(|(id, function)| (function.name.symbol, id)),
@@ -839,8 +829,8 @@ fn retain_functions(module: &mut Module, keep: &DenseBitSet<FunctionId>) -> usiz
 
 /// Ends each block at its first call to a bodied callee proven unable to return, including a
 /// call with results, or at its first check that always fails. With `tail_calls`, a call to a
-/// selectorless, non-recursive callee becomes a [`Terminator::TailCall`]; any other call or
-/// check stays, followed by an unreachable `invalid`. Returns whether any block changed.
+/// non-recursive callee that is no external entry becomes a [`Terminator::TailCall`]; any other
+/// call or check stays, followed by an unreachable `invalid`. Returns whether any block changed.
 pub(super) fn end_nonreturning_calls(module: &mut Module, tail_calls: bool) -> bool {
     let mut changed = false;
     for func in &mut module.functions {
@@ -857,6 +847,7 @@ pub(super) fn end_nonreturning_calls(module: &mut Module, tail_calls: bool) -> b
     }
     let call_graph = CallGraphInfo::new(module);
     let returning = module.returning_functions();
+    let entries = module.external_entries();
     let mut nonreturning = DenseBitSet::new_empty(module.functions.len());
     let mut tail_callable = DenseBitSet::new_empty(module.functions.len());
     for (func_id, func) in module.functions.iter_enumerated() {
@@ -866,12 +857,7 @@ pub(super) fn end_nonreturning_calls(module: &mut Module, tail_calls: bool) -> b
         if !returning.contains(func_id) {
             nonreturning.insert(func_id);
         }
-        if tail_calls
-            && func.selector.is_none()
-            && !func.attributes.is_receive
-            && !func.attributes.is_fallback
-            && !call_graph.is_recursive(func_id)
-        {
+        if tail_calls && !entries.contains(func_id) && !call_graph.is_recursive(func_id) {
             tail_callable.insert(func_id);
         }
     }

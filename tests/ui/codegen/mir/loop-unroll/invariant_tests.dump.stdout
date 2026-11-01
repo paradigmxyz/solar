@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/loop-unroll/invariant_tests.sol:InvariantTests ===
 @module InvariantTests
 @phase lowered
-fn @periodStarts() [selector=0x2e930b8e, abi_wrapper, pure] {
+fn @periodStarts() {
   bb0:
     v26 = calldataload 4
     v27 = calldataload 36
@@ -86,7 +86,7 @@ fn @periodStarts() [selector=0x2e930b8e, abi_wrapper, pure] {
     revert 28, 36
 }
 
-fn @keep() [selector=0xdaef3dc2, abi_wrapper, pure] {
+fn @keep() {
   bb0:
     v21 = calldataload 4
     v22 = calldataload 36

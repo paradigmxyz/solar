@@ -56,7 +56,7 @@ fn @validatedTuple(arg0: i256, arg1: i256) -> struct0 [selector=0x7b478388, view
     ret v38
 }
 
-fn @tupleTarget(arg0: i256, arg1: i256) [selector=0xe1ee60dd, pure, abi_params=[uint256, uint256], abi_returns=[word<uint8>, word<bool>, word<uint128>], abi_return_params=[uint8, bool, uint128]] {
+fn @tupleTarget(arg0: i256, arg1: i256) -> struct0 [selector=0xe1ee60dd, pure, abi_params=[uint256, uint256], abi_returns=[word<uint8>, word<bool>, word<uint128>], abi_return_params=[uint8, bool, uint128]] {
   bb0:
     mstore 0, arg0 !metadata(memory=scratch)
     mstore 32, arg1 !metadata(memory=scratch)
@@ -83,7 +83,7 @@ fn @short() -> i256 [selector=0x38bea4cb, view, abi_params=[], abi_returns=[word
     ret v7
 }
 
-fn @shortTarget() [selector=0xeee93c02, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+fn @shortTarget() -> i256 [selector=0xeee93c02, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     returndata 0, 0
 }
@@ -112,7 +112,7 @@ fn @dirty() -> i8 [selector=0x7dce0fd0, view, abi_params=[], abi_returns=[word<u
     ret v11
 }
 
-fn @dirtyTarget() [selector=0xacf697c3, pure, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
+fn @dirtyTarget() -> i8 [selector=0xacf697c3, pure, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     mstore 0, 256 !metadata(memory=scratch)
     returndata 0, 32
@@ -166,7 +166,7 @@ fn @dirtyUnusedStructField() -> i8 [selector=0xc1226a60, view, abi_params=[], ab
     ret v13
 }
 
-fn @dirtyUnusedStructFieldTarget() [selector=0x38a62c01, pure, abi_params=[], abi_returns=[tuple<word<uint8>, word<bool>>], abi_return_params=[tuple<uint8, bool>]] {
+fn @dirtyUnusedStructFieldTarget() -> ptr<memory> [selector=0x38a62c01, pure, abi_params=[], abi_returns=[tuple<word<uint8>, word<bool>>], abi_return_params=[tuple<uint8, bool>]] {
   bb0:
     mstore 0, 1 !metadata(memory=scratch)
     mstore 32, 2 !metadata(memory=scratch)
@@ -574,7 +574,7 @@ fn @dynamicShort(arg0: i256) -> i1 [selector=0x73932459, view, abi_params=[uint2
     ret true
 }
 
-fn @dynamicTarget(arg0: i256) [selector=0x32079384, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @dynamicTarget(arg0: i256) -> ptr<memory> [selector=0x32079384, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     mstore 0, 32 !metadata(memory=scratch)
     mstore 32, 33 !metadata(memory=scratch)
@@ -598,7 +598,7 @@ fn @dynamicLengthOverflow() -> i256 [selector=0x5e963174, view, abi_params=[], a
     ret v6
 }
 
-fn @dynamicLengthOverflowTarget() [selector=0xe1365904, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @dynamicLengthOverflowTarget() -> ptr<memory> [selector=0xe1365904, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     mstore 0, 32 !metadata(memory=scratch)
     mstore 32, 0x10000000000000000 !metadata(memory=scratch)
@@ -622,7 +622,7 @@ fn @dynamicArrayLengthOverflow() -> i256 [selector=0xbd5e58ee, view, abi_params=
     ret v6
 }
 
-fn @dynamicArrayLengthOverflowTarget() [selector=0x839ae554, pure, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
+fn @dynamicArrayLengthOverflowTarget() -> ptr<memory> [selector=0x839ae554, pure, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     mstore 0, 32 !metadata(memory=scratch)
     mstore 32, 0x10000000000000000 !metadata(memory=scratch)

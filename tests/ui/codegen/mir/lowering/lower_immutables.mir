@@ -25,7 +25,7 @@ fn @constructor(arg0: i256, arg1: i1) -> i256 {
 
 // CHECK-LABEL: fn @runtime
 // CHECK: storeimmutable first, {{v[0-9]+}}
-fn @runtime() [selector=1] {
+fn @runtime() {
   bb0:
     v10002 = trunc i256 1 to i8
     storeimmutable first, v10002

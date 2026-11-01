@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/solar_optimize.sol:Small ===
 @module Small
 @phase lowered
-fn @sum() [selector=0x188b85b4, abi_wrapper, pure] {
+fn @sum() {
   bb0:
     v11 = calldatasize
     v12 = lt v11, 36
@@ -32,13 +32,13 @@ fn @sum() [selector=0x188b85b4, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @pattern() [selector=0xa96f1c69, abi_wrapper, pure] {
+fn @pattern() {
   bb0:
     mstore 0, 0x101010101010101010101010101010101010101010101010101010101010101 !metadata(memory=scratch)
     returndata 0, 32
 }
 
-fn @greet() [selector=0xead710c4, abi_wrapper, pure] {
+fn @greet() {
   bb0:
     v15 = calldatasize
     v16 = lt v15, 36
@@ -85,7 +85,7 @@ fn @greet() [selector=0xead710c4, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @share() [selector=0xc3d9c4b4, abi_wrapper, pure] {
+fn @share() {
   bb0:
     v3 = calldatasize
     v4 = lt v3, 36

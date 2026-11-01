@@ -130,15 +130,8 @@ impl MirPass for Egraph {
         let mut flat = DenseBitSet::new_empty(module.functions.len());
         let mut with_cfg = DenseBitSet::new_empty(module.functions.len());
         for (func_id, func) in module.functions.iter_enumerated() {
-            let empty_return = func.is_runtime_entry()
-                && func.blocks.iter().any(|block| {
-                    matches!(
-                        block.terminator,
-                        Some(Terminator::ReturnData { size, .. }) if is_zero(func, size)
-                    )
-                });
             if !fresh_mapping_entries.contains(func_id)
-                && (func.instructions().next().is_some() || empty_return)
+                && (func.instructions().next().is_some() || returns_zero_bytes(func))
             {
                 let has_edges = func
                     .blocks
@@ -182,9 +175,16 @@ impl MirPass for Egraph {
     }
 }
 
+/// Whether a block of `func` returns zero bytes, which the pass turns into `stop`.
+fn returns_zero_bytes(func: &Function) -> bool {
+    func.blocks.iter().any(|block| {
+        matches!(block.terminator, Some(Terminator::ReturnData { size, .. }) if is_zero(func, size))
+    })
+}
+
 /// Proves ABI-decoded keys remain below scratch and no code observes scratch writes.
 fn has_fresh_mapping_arguments(func: &Function) -> bool {
-    if func.selector.is_none() || func.attributes.is_constructor || func.attributes.is_abi_wrapper {
+    if func.selector.is_none() || func.attributes.is_abi_wrapper {
         return false;
     }
     let Some(abi_params) = &func.abi_params else { return false };
@@ -927,11 +927,10 @@ impl<'a> Builder<'a> {
     }
 
     /// Branches on `eq x, false` swap their targets and branch on `x`, branches
-    /// on a nonzero test branch on the tested value, and an external return
+    /// on a nonzero test branch on the tested value, and a return
     /// of zero bytes stops.
     fn rewrite_terminators(&mut self) {
         let func = &mut *self.func;
-        let externally_terminating = func.is_runtime_entry();
         for block_id in func.blocks.indices() {
             loop {
                 let Some(Terminator::Branch { condition, .. }) = func.blocks[block_id].terminator
@@ -981,8 +980,7 @@ impl<'a> Builder<'a> {
                 self.changed += 1;
             }
 
-            if externally_terminating
-                && let Some(Terminator::ReturnData { size, .. }) = func.blocks[block_id].terminator
+            if let Some(Terminator::ReturnData { size, .. }) = func.blocks[block_id].terminator
                 && is_zero(func, resolve_replacement(size, &self.merged))
             {
                 func.blocks[block_id].terminator = Some(Terminator::Stop);

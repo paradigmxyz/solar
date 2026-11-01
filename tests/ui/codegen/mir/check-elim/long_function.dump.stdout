@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/check-elim/long_function.sol:LongFunction ===
 @module LongFunction
 @phase lowered
-fn @chained() [selector=0xd2fe3d6a, abi_wrapper, pure] {
+fn @chained() {
   bb0:
     v61 = calldataload 4
     v62 = calldataload 36
@@ -132,7 +132,7 @@ fn @chained() [selector=0xd2fe3d6a, abi_wrapper, pure] {
     tail_call @revert_stub
 }
 
-fn @unchained() [selector=0xaeb2e72f, abi_wrapper, pure] {
+fn @unchained() {
   bb0:
     v63 = calldataload 4
     v64 = calldataload 36

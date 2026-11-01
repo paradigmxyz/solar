@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/cse/transient_forwarding.sol:TransientForwarding ===
 @module TransientForwarding
 @phase lowered
-fn @stored() [selector=0x8c396222, abi_wrapper] {
+fn @stored() {
   bb0:
     v1 = calldatasize
     v2 = lt v1, 36
@@ -15,7 +15,7 @@ fn @stored() [selector=0x8c396222, abi_wrapper] {
     revert 0, 0
 }
 
-fn @storedTwice() [selector=0x3f8a2dde, abi_wrapper] {
+fn @storedTwice() {
   bb0:
     v4 = calldatasize
     v5 = lt v4, 36
@@ -37,7 +37,7 @@ fn @storedTwice() [selector=0x3f8a2dde, abi_wrapper] {
     revert 0, 0
 }
 
-fn @afterCall() [selector=0x848c400d, abi_wrapper] {
+fn @afterCall() {
   bb0:
     v10 = calldatasize
     v11 = lt v10, 36
@@ -67,7 +67,7 @@ fn @afterCall() [selector=0x848c400d, abi_wrapper] {
     revert 0, 0
 }
 
-fn @otherSlot() [selector=0x37d0548b, abi_wrapper] {
+fn @otherSlot() {
   bb0:
     v8 = calldatasize
     v9 = lt v8, 36
@@ -89,7 +89,7 @@ fn @otherSlot() [selector=0x37d0548b, abi_wrapper] {
     revert 0, 0
 }
 
-fn @clear() [selector=0x52efea6e, abi_wrapper] {
+fn @clear() {
   bb0:
     tstore 0, 0 !metadata(storage=slot(0))
     stop

@@ -6,7 +6,7 @@
   struct1: {i256, i256}
   struct2: {i256, i256}
 
-fn @u32(arg0: i256, arg1: i256) -> struct0 [pure, return_abi=[i256, i256]] {
+fn @u32(arg0: i256, arg1: i256) -> struct0 [return_abi=[i256, i256]] {
   bb0:
     v40 = lt 0, arg1
     v41 = add arg0, 0
@@ -44,7 +44,7 @@ fn @u32(arg0: i256, arg1: i256) -> struct0 [pure, return_abi=[i256, i256]] {
     ret v77, 4
 }
 
-fn @u16(arg0: i256, arg1: i256, arg2: i256) -> struct1 [pure, return_abi=[i256, i256]] {
+fn @u16(arg0: i256, arg1: i256, arg2: i256) -> struct1 [return_abi=[i256, i256]] {
   bb0:
     v41 = lt arg2, arg1
     v42 = add arg0, arg2
@@ -68,7 +68,7 @@ fn @u16(arg0: i256, arg1: i256, arg2: i256) -> struct1 [pure, return_abi=[i256, 
     ret v58, v59
 }
 
-fn @decode() [selector=0xe5c5e9a3, abi_wrapper, pure] {
+fn @decode() {
   bb0:
     v8 = calldatasize
     v9 = lt v8, 36
@@ -96,7 +96,7 @@ fn @decode() [selector=0xe5c5e9a3, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @sum4() [selector=0x0540a714, abi_wrapper, pure] {
+fn @sum4() {
   bb0:
     v33 = calldatasize
     v34 = lt v33, 132

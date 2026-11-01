@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_bytes_to_memory_checks.sol:CalldataBytesToMemoryChecks ===
 @module CalldataBytesToMemoryChecks
 @phase lowered
-fn @decoded() [selector=0x45c91515, abi_wrapper, pure] {
+fn @decoded() {
   bb0:
     v11 = calldatasize
     v12 = lt v11, 36
@@ -20,7 +20,7 @@ fn @decoded() [selector=0x45c91515, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @lengthSet() [selector=0xa5e448c2, abi_wrapper, pure] {
+fn @lengthSet() {
   bb0:
     v23 = calldatasize
     v24 = lt v23, 68
@@ -54,7 +54,7 @@ fn @lengthSet() [selector=0xa5e448c2, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @offsetSet() [selector=0xba062698, abi_wrapper, pure] {
+fn @offsetSet() {
   bb0:
     v27 = calldatasize
     v28 = lt v27, 68
@@ -90,7 +90,7 @@ fn @offsetSet() [selector=0xba062698, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @forwarded() [selector=0xbf6f2c90, abi_wrapper, pure] {
+fn @forwarded() {
   bb0:
     v21 = calldatasize
     v22 = lt v21, 36

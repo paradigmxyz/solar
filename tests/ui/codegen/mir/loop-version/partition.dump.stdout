@@ -4,7 +4,7 @@
 @types
   struct0: {i256, i256, i256}
 
-fn @sort() [selector=0x9ec8b026, abi_wrapper, pure] {
+fn @sort() {
   bb0:
     v3 = calldatasize
     v4 = lt v3, 36
@@ -28,7 +28,7 @@ fn @sort() [selector=0x9ec8b026, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @partition() [selector=0xb99bdcfc, abi_wrapper, pure] {
+fn @partition() {
   bb0:
     v152 = calldatasize
     v153 = lt v152, 100
@@ -176,7 +176,7 @@ fn @partition() [selector=0xb99bdcfc, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @forged() [selector=0x189960dc, abi_wrapper, pure] {
+fn @forged() {
   bb0:
     v157 = calldatasize
     v158 = lt v157, 132
@@ -325,7 +325,7 @@ fn @forged() [selector=0x189960dc, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @_sort(arg0: i256, arg1: i256, arg2: i256) [may_return_memory, pure] {
+fn @_sort(arg0: i256, arg1: i256, arg2: i256) [may_return_memory] {
   bb0:
     v278 = shr arg0, 64
     v241 = eq v278, 0

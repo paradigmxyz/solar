@@ -54,7 +54,7 @@
 //! proves deterministic reads and complete restoration of temporary writes.
 //! Every intervening memory write invalidates these entries. Calls never sink or
 //! inherit a cached result across blocks; no read-footprint disjointness is assumed.
-//! Calls to pure leaf functions are the exception: a `pure` single-result leaf that
+//! Calls to pure leaf functions are the exception: a single-result leaf that
 //! touches no storage, writes no memory a caller sees, observes neither gas
 //! nor return data, and reads memory only on paths that revert depends
 //! on its arguments alone, so its result is reused like pure arithmetic, across dominating blocks
@@ -89,8 +89,8 @@
 //! body changes; callers must still observe any improved callee summaries.
 
 use crate::mir::{
-    BlockId, Callee, EffectKind, Function, FunctionId, Immediate, ImmutableId, InstId, InstKind,
-    Instruction, MirType, Module, OpTraits, PtrLocation, Value, ValueId,
+    BlockId, Builtin, Callee, EffectKind, Function, FunctionId, Immediate, ImmutableId, InstId,
+    InstKind, Instruction, MirType, Module, OpTraits, PtrLocation, Value, ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
         Location, LocationSize, LoopAnalyzer, LoopInfo, MemoryAddress, MemoryCallSummaries,
@@ -106,7 +106,6 @@ use solar_data_structures::{
     index::IndexVec,
     map::FxHashMap,
 };
-use solar_sema::hir::StateMutability;
 use std::{cell::OnceCell, mem, ops::Range, rc::Rc, sync::Arc};
 
 /// Function pass for local common subexpression elimination.
@@ -1675,14 +1674,14 @@ impl CommonSubexprEliminator {
 
 /// Pure leaf functions whose calls CSE may reuse: a call's result depends on its arguments alone.
 ///
-/// `pure` keeps environment, state, and gas reads out of the source, inline assembly included,
-/// except for the return data, which the function must not read. The memory summary proves that
-/// the function never touches storage or transient storage, writes no memory a caller sees, and
-/// never observes gas, and no block that can still return reads memory: a revert path
-/// may read the error data it staged, but whether a call returns, and what, then depends on its
-/// arguments alone. A repeated call with the same arguments returns the
-/// same word, and when it would revert the dominating call already reverted. A leaf calls no other
-/// function, and one result keeps the reuse a plain value substitution.
+/// Every instruction depends on its operands, memory, or the call frame alone, which keeps out
+/// immutable reads and the return data, which an external call between two calls replaces. The
+/// memory summary proves that the function never touches storage or transient storage, writes no
+/// memory a caller sees, and never observes gas, and no block that can still return reads memory:
+/// a revert path may read the error data it staged, but whether a call returns, and what, then
+/// depends on its arguments alone. A repeated call with the same arguments returns the same word,
+/// and when it would revert the dominating call already reverted. A leaf calls no other function,
+/// and one result keeps the reuse a plain value substitution.
 fn pure_leaf_functions(
     module: &Module,
     leaves: &DenseBitSet<FunctionId>,
@@ -1695,20 +1694,14 @@ fn pure_leaf_functions(
         let untouched = [AddressSpace::Storage, AddressSpace::Transient]
             .into_iter()
             .all(|space| !summary.reads(space) && !summary.writes(space));
-        if func.attributes.state_mutability != StateMutability::Pure
-            || func.return_components().len() != 1
+        if func.return_components().len() != 1
             || func.internal_frame_size != 0
             || !untouched
             || summary.writes(AddressSpace::Memory)
             || summary.may_observe_gas()
-            // `pure` assembly may read the return data, which an external call between two
-            // calls replaces.
-            || func.instructions().any(|inst| {
-                matches!(
-                    func.inst(inst).kind,
-                    InstKind::ReturnDataSize | InstKind::Copy(.., PtrLocation::Returndata)
-                )
-            })
+            || !func
+                .instructions()
+                .all(|inst| is_frame_function_of_arguments(&func.inst(inst).kind))
         {
             continue;
         }
@@ -1726,6 +1719,27 @@ fn pure_leaf_functions(
         }
     }
     pure
+}
+
+/// Whether a call's result can depend on `kind` and its arguments alone within one call frame:
+/// pure computation, memory, and the environment words that fix for the frame, calldata
+/// included. Reads of an immutable, the return data, or the live state of the chain differ
+/// between two calls.
+fn is_frame_function_of_arguments(kind: &InstKind) -> bool {
+    let reads_returndata = matches!(
+        kind,
+        InstKind::Copy(.., PtrLocation::Returndata)
+            | InstKind::ICall { function: Callee::Builtin(Builtin::ReturndataBytes), .. }
+    );
+    let reads_calldata = matches!(
+        kind,
+        InstKind::Load(_, PtrLocation::Calldata) | InstKind::Copy(.., PtrLocation::Calldata)
+    );
+    let local = matches!(
+        kind.effect_kind(),
+        EffectKind::Pure | EffectKind::MemoryRead | EffectKind::MemoryWrite
+    );
+    (local && !reads_returndata) || reads_calldata || frame_constant_key(kind).is_some()
 }
 
 /// A key for an environment read whose word is fixed for the whole call frame: a nullary

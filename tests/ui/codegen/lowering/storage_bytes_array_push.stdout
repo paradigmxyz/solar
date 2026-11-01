@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_array_push.sol:StorageBytesArrayPush ===
 @module StorageBytesArrayPush
 @phase lowered
-fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
+fn @pushStr() {
   bb0:
     v72 = calldatasize
     v73 = lt v72, 36
@@ -140,7 +140,7 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
     revert 0, 0
 }
 
-fn @popStr() [selector=0x5d7696c3, abi_wrapper] {
+fn @popStr() {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = eq v0, 0
@@ -189,7 +189,7 @@ fn @popStr() [selector=0x5d7696c3, abi_wrapper] {
     revert 28, 36
 }
 
-fn @blobAt() [selector=0x8f236983, abi_wrapper, view] {
+fn @blobAt() {
   bb0:
     v6 = calldatasize
     v7 = lt v6, 36
@@ -221,7 +221,7 @@ fn @blobAt() [selector=0x8f236983, abi_wrapper, view] {
     revert 0, 0
 }
 
-fn @pushEmpty() [selector=0x19d30117, abi_wrapper] {
+fn @pushEmpty() {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
     v5 = shr v0, 64

@@ -141,10 +141,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         })
     }
 
-    pub(in crate::backend::evm::codegen) fn is_runtime_function(func: &Function) -> bool {
-        !func.attributes.is_constructor
-    }
-
     /// Returns whether every explicit frame address belongs to the local region above the frame
     /// header and signature slots.
     ///

@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/place-reads/place_reads.mir (after place-reads) ===
   @module PlaceReads
   @phase lowered
-  fn @guarded() [selector=0x00000001, abi_wrapper] {
+  fn @guarded() {
     bb0:
       v0 = calldataload 4
       v1 = shr v0, 8
@@ -17,7 +17,7 @@
       revert 0, 0
   }
   
-  fn @looped() [selector=0x00000002, abi_wrapper] {
+  fn @looped() {
     bb0:
       v0 = calldataload 36
       v1 = calldatasize
@@ -38,7 +38,7 @@
       stop
   }
   
-  fn @elsewhere() [selector=0x00000003, abi_wrapper] {
+  fn @elsewhere() {
     bb0:
       v0 = calldatasize
       v1 = ne v0, 0
@@ -54,7 +54,7 @@
       stop
   }
   
-  fn @diamond() [selector=0x00000004, abi_wrapper] {
+  fn @diamond() {
     bb0:
       v0 = calldataload 4
       v1 = shr v0, 8
@@ -78,7 +78,7 @@
       revert 0, 0
   }
   
-  fn @routes() [selector=0x00000005, abi_wrapper] {
+  fn @routes() {
     bb0:
       v0 = calldataload 0
       v1 = shr v0, 224
@@ -103,7 +103,7 @@
       revert 0, 0
   }
   
-  fn @pair() [selector=0x00000006, abi_wrapper] {
+  fn @pair() {
     bb0:
       v0 = calldataload 0
       v1 = shr v0, 224
@@ -120,7 +120,7 @@
       revert 0, 0
   }
   
-  fn @moved() [selector=0x00000007, abi_wrapper] {
+  fn @moved() {
     bb0:
       v0 = calldatasize
       v1 = lt v0, 68

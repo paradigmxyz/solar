@@ -4,7 +4,7 @@
 @types
   struct0: {ptr<memory>, ptr<memory>}
 
-fn @constructor() [abi_wrapper, constructor] {
+fn @constructor() [constructor] {
   bb0:
     v17 = callvalue
     v18 = ne v17, 0
@@ -43,7 +43,7 @@ fn @constructor() [abi_wrapper, constructor] {
     revert 0, 0
 }
 
-fn @load() [selector=0x86d5c4be, abi_wrapper, view] {
+fn @load() {
   bb0:
     v0 = icall @_copy, 1
     v4 = mload v0
@@ -58,7 +58,7 @@ fn @load() [selector=0x86d5c4be, abi_wrapper, view] {
     returndata v17, v12
 }
 
-fn @loadThenAllocate() [selector=0xf84b9425, abi_wrapper, view] {
+fn @loadThenAllocate() {
   bb0:
     v0 = icall @_copy, 1
     v1 = mload 64 !metadata(memory=scratch)
@@ -95,7 +95,7 @@ fn @loadThenAllocate() [selector=0xf84b9425, abi_wrapper, view] {
     returndata v4, v37
 }
 
-fn @loadScaled() [selector=0x69d1875c, abi_wrapper, view] {
+fn @loadScaled() {
   bb0:
     v1 = calldatasize
     v2 = lt v1, 36
@@ -117,7 +117,7 @@ fn @loadScaled() [selector=0x69d1875c, abi_wrapper, view] {
     revert 0, 0
 }
 
-fn @_copy(arg0: i256) -> i256 [may_return_memory, view] {
+fn @_copy(arg0: i256) -> i256 [may_return_memory] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v50 = and v0, 1

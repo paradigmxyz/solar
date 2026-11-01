@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/byte-loops/wrapping_index.sol:Test ===
 @module Test
 @phase lowered
-fn @uncheckedDown() [selector=0x0a3fd26a, abi_wrapper, pure] {
+fn @uncheckedDown() {
   bb0:
     v44 = calldatasize
     v45 = lt v44, 100
@@ -64,7 +64,7 @@ fn @uncheckedDown() [selector=0x0a3fd26a, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @checkedDown() [selector=0xc6510b18, abi_wrapper, pure] {
+fn @checkedDown() {
   bb0:
     v42 = calldatasize
     v43 = lt v42, 100
@@ -132,7 +132,7 @@ fn @checkedDown() [selector=0xc6510b18, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @mixedDown() [selector=0xcbd040ed, abi_wrapper, pure] {
+fn @mixedDown() {
   bb0:
     v33 = calldatasize
     v34 = lt v33, 100
@@ -213,7 +213,7 @@ fn @mixedDown() [selector=0xcbd040ed, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @sourceFirst() [selector=0x032c601e, abi_wrapper, pure] {
+fn @sourceFirst() {
   bb0:
     v35 = calldatasize
     v36 = lt v35, 132
@@ -297,7 +297,7 @@ fn @sourceFirst() [selector=0x032c601e, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @destinationFirst() [selector=0x5072325f, abi_wrapper, pure] {
+fn @destinationFirst() {
   bb0:
     v37 = calldatasize
     v38 = lt v37, 132
@@ -383,7 +383,7 @@ fn @destinationFirst() [selector=0x5072325f, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @wrappedCopy() [selector=0xbd307fab, abi_wrapper, pure] {
+fn @wrappedCopy() {
   bb0:
     v49 = calldatasize
     v50 = lt v49, 68
@@ -452,7 +452,7 @@ fn @wrappedCopy() [selector=0xbd307fab, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @wrappedWord() [selector=0xc280cc68, abi_wrapper, pure] {
+fn @wrappedWord() {
   bb0:
     v32 = calldatasize
     v33 = lt v32, 36
@@ -488,7 +488,7 @@ fn @wrappedWord() [selector=0xc280cc68, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @wrappedArray() [selector=0x20a8a4e4, abi_wrapper, pure] {
+fn @wrappedArray() {
   bb0:
     v83 = calldatasize
     v84 = lt v83, 132

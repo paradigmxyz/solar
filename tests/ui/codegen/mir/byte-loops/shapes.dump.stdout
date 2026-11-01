@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/byte-loops/shapes.sol:Test ===
 @module Test
 @phase lowered
-fn @fromCalldata() [selector=0xffc7a8b3, abi_wrapper, pure] {
+fn @fromCalldata() {
   bb0:
     v30 = calldatasize
     v31 = lt v30, 68
@@ -27,7 +27,7 @@ fn @fromCalldata() [selector=0xffc7a8b3, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @storeSome() [selector=0x713528c9, abi_wrapper, pure] {
+fn @storeSome() {
   bb0:
     v34 = calldatasize
     v35 = lt v34, 100
@@ -74,7 +74,7 @@ fn @storeSome() [selector=0x713528c9, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @loadSome() [selector=0x982de5a7, abi_wrapper, pure] {
+fn @loadSome() {
   bb0:
     v35 = calldatasize
     v36 = lt v35, 100
@@ -113,7 +113,7 @@ fn @loadSome() [selector=0x982de5a7, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @within() [selector=0x96410e74, abi_wrapper, pure] {
+fn @within() {
   bb0:
     v69 = calldatasize
     v70 = lt v69, 132
@@ -207,7 +207,7 @@ fn @within() [selector=0x96410e74, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @between() [selector=0x3fa0467e, abi_wrapper, pure] {
+fn @between() {
   bb0:
     v71 = calldatasize
     v72 = lt v71, 132
@@ -303,7 +303,7 @@ fn @between() [selector=0x3fa0467e, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @down() [selector=0x0d15e70b, abi_wrapper, pure] {
+fn @down() {
   bb0:
     v65 = calldatasize
     v66 = lt v65, 132
@@ -404,7 +404,7 @@ fn @down() [selector=0x0d15e70b, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @sliceCalldata() [selector=0xa10bf2ab, abi_wrapper, pure] {
+fn @sliceCalldata() {
   bb0:
     v45 = calldatasize
     v46 = lt v45, 100
@@ -467,7 +467,7 @@ fn @sliceCalldata() [selector=0xa10bf2ab, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @fresh() [selector=0xe9b29099, abi_wrapper, pure] {
+fn @fresh() {
   bb0:
     v78 = calldatasize
     v79 = lt v78, 100
@@ -570,7 +570,7 @@ fn @fresh() [selector=0xe9b29099, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @freshPair() [selector=0xded17a67, abi_wrapper, pure] {
+fn @freshPair() {
   bb0:
     v91 = calldatasize
     v92 = lt v91, 36
@@ -700,7 +700,7 @@ fn @freshPair() [selector=0xded17a67, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @viaHelper() [selector=0x9ee35419, abi_wrapper, pure] {
+fn @viaHelper() {
   bb0:
     v64 = calldatasize
     v65 = lt v64, 100
@@ -792,7 +792,7 @@ fn @viaHelper() [selector=0x9ee35419, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @zeroSome() [selector=0x7b75313f, abi_wrapper, pure] {
+fn @zeroSome() {
   bb0:
     v32 = calldatasize
     v33 = lt v32, 68
@@ -855,7 +855,7 @@ fn @zeroSome() [selector=0x7b75313f, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @fillSome() [selector=0x613646c3, abi_wrapper, pure] {
+fn @fillSome() {
   bb0:
     v24 = calldataload 36
     v25 = shl v24, 8
@@ -894,7 +894,7 @@ fn @fillSome() [selector=0x613646c3, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @asciiWords() [selector=0x581c0829, abi_wrapper, pure] {
+fn @asciiWords() {
   bb0:
     v48 = calldatasize
     v49 = lt v48, 36
@@ -941,7 +941,7 @@ fn @asciiWords() [selector=0x581c0829, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @copyWords() [selector=0xaedd6ca2, abi_wrapper, pure] {
+fn @copyWords() {
   bb0:
     v81 = calldatasize
     v82 = lt v81, 68
@@ -1043,7 +1043,7 @@ fn @copyWords() [selector=0xaedd6ca2, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @wordsFromCalldata() [selector=0xd35cf802, abi_wrapper, pure] {
+fn @wordsFromCalldata() {
   bb0:
     v49 = calldatasize
     v50 = lt v49, 36
@@ -1102,7 +1102,7 @@ fn @wordsFromCalldata() [selector=0xd35cf802, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @withinWords() [selector=0x3c3b880f, abi_wrapper, pure] {
+fn @withinWords() {
   bb0:
     v78 = calldatasize
     v79 = lt v78, 132
@@ -1199,7 +1199,7 @@ fn @withinWords() [selector=0x3c3b880f, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @fillPastWord() [selector=0x36818f65, abi_wrapper, pure] {
+fn @fillPastWord() {
   bb0:
     v43 = calldatasize
     v44 = lt v43, 36

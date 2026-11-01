@@ -4,7 +4,7 @@
 @types
   struct0: {i256, i256, i256}
 
-fn @plain(arg0: i256, arg1: i256) -> i256 [pure] {
+fn @plain(arg0: i256, arg1: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -30,7 +30,7 @@ fn @plain(arg0: i256, arg1: i256) -> i256 [pure] {
     jump bb1
 }
 
-fn @fast(arg0: i256, arg1: i256) -> i256 [optimize=gas, pure] {
+fn @fast(arg0: i256, arg1: i256) -> i256 [optimize=gas] {
   bb0:
     v37 = lt arg1, 4
     jumpi v37, bb2, bb1
@@ -71,7 +71,7 @@ fn @fast(arg0: i256, arg1: i256) -> i256 [optimize=gas, pure] {
     tail_call @revert_stub
 }
 
-fn @small(arg0: i256, arg1: i256) -> i256 [pure] {
+fn @small(arg0: i256, arg1: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -97,7 +97,7 @@ fn @small(arg0: i256, arg1: i256) -> i256 [pure] {
     jump bb1
 }
 
-fn @run() [selector=0x3a276523, abi_wrapper, pure] {
+fn @run() {
   bb0:
     v6 = calldatasize
     v7 = lt v6, 36

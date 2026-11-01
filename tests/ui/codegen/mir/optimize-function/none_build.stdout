@@ -44,7 +44,7 @@ fn @sum(arg0: slice<calldata>) -> i32 [selector=0xa20eed08, pure, abi_params=[by
 // === ROOT/tests/ui/codegen/mir/optimize-function/none_build.sol:Tagged ===
 @module Tagged
 @phase lowered
-fn @sum() [selector=0xa20eed08, abi_wrapper, pure] {
+fn @sum() {
   bb0:
     v39 = calldatasize
     v40 = lt v39, 36
@@ -122,7 +122,7 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/mir/optimize-function/none_build.sol:Mixed ===
 @module Mixed
 @phase lowered
-fn @slow() [selector=0xaa8bda2d, abi_wrapper, pure] {
+fn @slow() {
   bb0:
     v25 = calldatasize
     v26 = lt v25, 36
@@ -175,7 +175,7 @@ fn @slow() [selector=0xaa8bda2d, abi_wrapper, pure] {
     revert 28, 36
 }
 
-fn @fast() [selector=0xe256fef5, abi_wrapper, optimize=gas, pure] {
+fn @fast() [optimize=gas] {
   bb0:
     v41 = icall @decode_calldata_slice, 4
     v42 = calldataload v41

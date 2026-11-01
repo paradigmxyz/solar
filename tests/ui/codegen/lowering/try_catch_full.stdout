@@ -4,7 +4,7 @@
 @types
   struct0: {i256, ptr<memory>}
 
-fn @full() [selector=0xd17b272f, abi_wrapper, view] {
+fn @full() {
   bb0:
     v72 = calldataload 4
     v0 = sload 0 !metadata(storage=slot(0))
@@ -127,7 +127,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     returndata v204, v105
 }
 
-fn @rethrows() [selector=0x0d7fadfb, abi_wrapper, view] {
+fn @rethrows() {
   bb0:
     v55 = calldataload 4
     v0 = sload 0 !metadata(storage=slot(0))

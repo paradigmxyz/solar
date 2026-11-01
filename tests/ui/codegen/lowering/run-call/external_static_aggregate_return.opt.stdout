@@ -4,7 +4,7 @@
 @types
   struct0: {ptr<memory>, i256}
 
-fn @makeStruct() [selector=0x62dc8436, abi_wrapper, pure] {
+fn @makeStruct() {
   bb0:
     v7 = calldatasize
     v8 = lt v7, 36
@@ -30,7 +30,7 @@ fn @makeStruct() [selector=0x62dc8436, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @makeArray() [selector=0x9510f212, abi_wrapper, pure] {
+fn @makeArray() {
   bb0:
     v10 = calldatasize
     v11 = lt v10, 36
@@ -77,7 +77,7 @@ fn @makeArray() [selector=0x9510f212, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @makePair() [selector=0xf4d7be11, abi_wrapper, pure] {
+fn @makePair() {
   bb0:
     v12 = calldatasize
     v13 = lt v12, 36
@@ -112,13 +112,13 @@ fn @makePair() [selector=0xf4d7be11, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @narrow() [selector=0xe3b21a7a, abi_wrapper, pure] {
+fn @narrow() {
   bb0:
     mstore 0, 1 !metadata(memory=scratch)
     returndata 0, 32
 }
 
-fn @structReturn() [selector=0xc3f9a16c, abi_wrapper, view] {
+fn @structReturn() {
   bb0:
     v24 = calldatasize
     v25 = lt v24, 36
@@ -164,7 +164,7 @@ fn @structReturn() [selector=0xc3f9a16c, abi_wrapper, view] {
     revert 0, 0
 }
 
-fn @arrayReturn() [selector=0xad0cb941, abi_wrapper, view] {
+fn @arrayReturn() {
   bb0:
     v41 = calldatasize
     v42 = lt v41, 36
@@ -217,7 +217,7 @@ fn @arrayReturn() [selector=0xad0cb941, abi_wrapper, view] {
     revert 0, 0
 }
 
-fn @tryStructReturn() [selector=0xcc20ef0a, abi_wrapper, view] {
+fn @tryStructReturn() {
   bb0:
     v22 = calldatasize
     v23 = lt v22, 36
@@ -261,7 +261,7 @@ fn @tryStructReturn() [selector=0xcc20ef0a, abi_wrapper, view] {
     revert 0, 0
 }
 
-fn @pairReturn() [selector=0xc6630f71, abi_wrapper, view] {
+fn @pairReturn() {
   bb0:
     v49 = calldatasize
     v50 = lt v49, 36
@@ -312,7 +312,7 @@ fn @pairReturn() [selector=0xc6630f71, abi_wrapper, view] {
     revert 0, 0
 }
 
-fn @shortReturn() [selector=0xc41518f3, abi_wrapper, view] {
+fn @shortReturn() {
   bb0:
     v0: i256 = address
     v1 = gas

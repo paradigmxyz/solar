@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/pre_cancun_memory_copies.sol:PreCancunMemoryCopies ===
 @module PreCancunMemoryCopies
 @phase lowered
-fn @words() [selector=0xf2c31bd9, abi_wrapper, pure] {
+fn @words() {
   bb0:
     v44 = icall @alloc, 128
     mstore v44, 3
@@ -24,7 +24,7 @@ fn @words() [selector=0xf2c31bd9, abi_wrapper, pure] {
     returndata 0, 32
 }
 
-fn @bytesTail() [selector=0x56818b01, abi_wrapper, pure] {
+fn @bytesTail() {
   bb0:
     v71 = icall @alloc, 96
     v76 = calldatasize
@@ -97,7 +97,7 @@ fn @bytesTail() [selector=0x56818b01, abi_wrapper, pure] {
     jump bb1
 }
 
-fn @concat() [selector=0x6bdbf8e6, abi_wrapper, pure] {
+fn @concat() {
   bb0:
     v60 = heap_floor !metadata(alloc_ptr)
     v61 = add v60, 160 !metadata(alloc_ptr)
@@ -136,7 +136,7 @@ fn @concat() [selector=0x6bdbf8e6, abi_wrapper, pure] {
     returndata 0, 32
 }
 
-fn @assembled() [selector=0xd1381062, abi_wrapper, pure] {
+fn @assembled() {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     mstore v0, 70
@@ -182,7 +182,7 @@ fn @assembled() [selector=0xd1381062, abi_wrapper, pure] {
     revert 28, 36
 }
 
-fn @recycled() [selector=0xa163996f, abi_wrapper, pure] {
+fn @recycled() {
   bb0:
     v45 = icall @alloc, 96
     mstore v45, 64
@@ -216,7 +216,7 @@ fn @recycled() [selector=0xa163996f, abi_wrapper, pure] {
     tail_call @revert_stub
 }
 
-fn @fresh() [selector=0xb466b76f, abi_wrapper, pure] {
+fn @fresh() {
   bb0:
     v30 = icall @alloc, 128
     mstore v30, 3
@@ -231,7 +231,7 @@ fn @fresh() [selector=0xb466b76f, abi_wrapper, pure] {
     returndata v28, 160
 }
 
-fn @freshEmpty() [selector=0x2f9cb906, abi_wrapper, pure] {
+fn @freshEmpty() {
   bb0:
     v12 = icall @alloc, 32
     mstore v12, 0
@@ -240,7 +240,7 @@ fn @freshEmpty() [selector=0x2f9cb906, abi_wrapper, pure] {
     returndata v10, 64
 }
 
-fn @recycledTail() [selector=0x52eea5e4, abi_wrapper, pure] {
+fn @recycledTail() {
   bb0:
     v44 = icall @alloc, 96
     mstore v44, 63
@@ -274,7 +274,7 @@ fn @recycledTail() [selector=0x52eea5e4, abi_wrapper, pure] {
     tail_call @revert_stub
 }
 
-fn @pair() [selector=0x9f4b9fa0, abi_wrapper, pure] {
+fn @pair() {
   bb0:
     v4 = calldatasize
     v5 = lt v4, 36

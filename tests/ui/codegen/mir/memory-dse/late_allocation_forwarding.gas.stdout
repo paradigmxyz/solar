@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/memory-dse/late_allocation_forwarding.sol:LateAllocationForwarding ===
 @module LateAllocationForwarding
 @phase lowered
-fn @emitData() [selector=0xf46547ab, abi_wrapper] {
+fn @emitData() {
   bb0:
     v5 = calldatasize
     v6 = lt v5, 36

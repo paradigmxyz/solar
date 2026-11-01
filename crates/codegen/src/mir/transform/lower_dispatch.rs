@@ -44,6 +44,11 @@
 //! strings retain distinct paths so each rejection keeps its diagnostic
 //! payload.
 //!
+//! Once `entry` exists, the routing lives in its tail calls and no function keeps an entry or ABI
+//! attribute: the pass clears the selector, visibility, mutability, `receive`, `fallback`, and
+//! ABI wrapper markers, the ABI layouts, and the proved array element widths, and the verifier
+//! rejects them from then on.
+//!
 //! The backend only consumes the final `lowered` module.
 
 use crate::mir::{
@@ -355,6 +360,9 @@ fn build_entry(
 
     let entry = module.add_function(entry);
     module.set_dispatch_entry(entry);
+    for func in &mut module.functions {
+        func.clear_entry_attributes();
+    }
 }
 
 type GuardedEntry = (FunctionId, BlockId, BlockId);

@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/loop-version/bounds_wrapping.sol:BoundsWrapping ===
 @module BoundsWrapping
 @phase lowered
-fn @empty() [selector=0xf3a3e4fe, abi_wrapper, pure] {
+fn @empty() {
   bb0:
     v14 = calldatasize
     v15 = lt v14, 36
@@ -32,7 +32,7 @@ fn @empty() [selector=0xf3a3e4fe, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @wrapped() [selector=0x08a7c76d, abi_wrapper, pure] {
+fn @wrapped() {
   bb0:
     v4 = calldatasize
     v5 = lt v4, 68
@@ -63,7 +63,7 @@ fn @wrapped() [selector=0x08a7c76d, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @_write(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory, pure] {
+fn @_write(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory] {
   bb0:
     v0 = mload arg0
     v25 = or arg0, v0

@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/inline/dispatch/eligibility.sol:WithFallback ===
 @module WithFallback
 @phase lowered
-fn @a() [selector=0xf0fdf834, abi_wrapper, pure] {
+fn @a() {
   bb0:
     v3 = calldatasize
     v4 = lt v3, 36
@@ -22,7 +22,7 @@ fn @a() [selector=0xf0fdf834, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @b() [selector=0xcd580ff3, abi_wrapper, pure] {
+fn @b() {
   bb0:
     v4 = calldatasize
     v5 = lt v4, 36
@@ -44,7 +44,7 @@ fn @b() [selector=0xcd580ff3, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @fallback() [abi_wrapper, fallback] {
+fn @fallback() {
   bb0:
     stop
 }
@@ -71,7 +71,7 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/mir/inline/dispatch/eligibility.sol:WithGas ===
 @module WithGas
 @phase lowered
-fn @a() [selector=0xf0fdf834, abi_wrapper, view] {
+fn @a() {
   bb0:
     v6 = calldataload 4
     v0 = gas
@@ -87,7 +87,7 @@ fn @a() [selector=0xf0fdf834, abi_wrapper, view] {
     revert 28, 36
 }
 
-fn @b() [selector=0xcd580ff3, abi_wrapper, pure] {
+fn @b() {
   bb0:
     v6 = calldataload 4
     v1 = add v6, v6
@@ -127,7 +127,7 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/mir/inline/dispatch/eligibility.sol:WithDynamicInputs ===
 @module WithDynamicInputs
 @phase lowered
-fn @a() [selector=0x1e3badd9, abi_wrapper, pure] {
+fn @a() {
   bb0:
     v19 = calldatasize
     v21 = calldataload 4
@@ -165,7 +165,7 @@ fn @a() [selector=0x1e3badd9, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @b() [selector=0xcd580ff3, abi_wrapper, pure] {
+fn @b() {
   bb0:
     v6 = calldataload 4
     v1 = add v6, v6
@@ -205,7 +205,7 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/mir/inline/dispatch/eligibility.sol:NarrowInputs ===
 @module NarrowInputs
 @phase lowered
-fn @a() [selector=0x2a500b7f, abi_wrapper, pure] {
+fn @a() {
   bb0:
     v3 = calldataload 4
     v4 = shr v3, 8
@@ -219,7 +219,7 @@ fn @a() [selector=0x2a500b7f, abi_wrapper, pure] {
     returndata 0, 32
 }
 
-fn @b() [selector=0xcd580ff3, abi_wrapper, pure] {
+fn @b() {
   bb0:
     v6 = calldataload 4
     v1 = add v6, v6

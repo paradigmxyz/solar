@@ -51,10 +51,7 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     sync,
 };
-use solar_interface::{
-    diagnostics::{DiagCtxt, ErrorGuaranteed},
-    kw,
-};
+use solar_interface::diagnostics::{DiagCtxt, ErrorGuaranteed};
 use std::fmt;
 
 /// Stateful MIR verifier.
@@ -129,7 +126,7 @@ impl<'a> Validator<'a> {
             self.validate_value_types(module, func);
             self.validate_memory_object_types(func);
         }
-        self.validate_function_phase(phase, func);
+        self.validate_function_phase(module, phase, func);
     }
 
     /// Checks arena references before any operation can query operand types.
@@ -694,7 +691,7 @@ impl<'a> Validator<'a> {
                     }
                 }
                 InstKind::ConstructorArgsBase
-                    if !func.attributes.is_constructor && func.name.symbol != kw::Constructor =>
+                    if !self.function.is_some_and(|id| module.constructor() == Some(id)) =>
                 {
                     self.emit(format_args!(
                         "inst{} uses the constructor argument base outside a constructor",
@@ -739,6 +736,7 @@ impl<'a> Validator<'a> {
             }
         }
         self.validate_module_phase(module, phase);
+        self.validate_entry_params(module, phase);
         self.validate_immutable_declarations(module);
         if parallel && self.functions_are_valid(module, phase) {
             return;
@@ -1058,8 +1056,7 @@ impl<'a> Validator<'a> {
                                 block,
                             );
                         }
-                        if func.selector.is_none()
-                            && func.return_components() != callee.return_components()
+                        if func.return_components() != callee.return_components()
                             && self
                                 .returning_functions
                                 .as_ref()
@@ -1361,10 +1358,8 @@ impl<'a> Validator<'a> {
             // the two signatures must agree; dead-result elimination clearing
             // only one side would leave callers adopting a phantom value. A
             // callee that never returns (an outlined revert stub) delivers
-            // nothing, and an external caller's MIR signature does not model
-            // its ABI returns, so both are exempt.
-            if func.selector.is_none()
-                && func.return_components().len() != callee.return_components().len()
+            // nothing, so it is exempt.
+            if func.return_components().len() != callee.return_components().len()
                 && self
                     .returning_functions
                     .as_ref()
@@ -1395,9 +1390,7 @@ impl<'a> Validator<'a> {
                 "module is in the `{}` phase but has an invalid `entry` routing function",
                 phase.name()
             ));
-        } else if dispatch_entry.is_none()
-            && module.functions.iter().any(Function::is_runtime_entry)
-        {
+        } else if dispatch_entry.is_none() && !module.runtime_entries().is_empty() {
             self.emit(format_args!(
                 "module is in the `{}` phase but has no `entry` routing function",
                 phase.name()
@@ -1405,20 +1398,42 @@ impl<'a> Validator<'a> {
         }
     }
 
-    /// Checks only what the phase promises, without the SSA, CFG, and type invariants.
-    fn validate_phase_contract(&mut self, module: &Module, phase: MirPhase) {
-        self.validate_module_phase(module, phase);
-        for (id, func) in module.iter_functions() {
-            self.function = Some(id);
-            self.validate_function_phase(phase, func);
+    /// Checks that a self-decoding entry has no callable MIR parameters.
+    fn validate_entry_params(&mut self, module: &Module, phase: MirPhase) {
+        for id in module.external_entries().iter() {
+            let func = module.function(id);
+            if (phase == MirPhase::Lowered || func.attributes.is_abi_wrapper)
+                && !func.params.is_empty()
+            {
+                self.function = Some(id);
+                self.emit(format_args!(
+                    "external entry `{}` still takes arguments in the `{}` phase \
+                     (expected an argument-free ABI wrapper)",
+                    func.name,
+                    phase.name()
+                ));
+            }
         }
         self.function = None;
     }
 
-    fn validate_function_phase(&mut self, phase: MirPhase, func: &Function) {
-        if phase == MirPhase::Lowered && func.is_external_entry() && !func.attributes.is_abi_wrapper
-        {
-            self.emit("external entry has no explicit ABI implementation");
+    /// Checks only what the phase promises, without the SSA, CFG, and type invariants.
+    fn validate_phase_contract(&mut self, module: &Module, phase: MirPhase) {
+        self.validate_module_phase(module, phase);
+        self.validate_entry_params(module, phase);
+        for (id, func) in module.iter_functions() {
+            self.function = Some(id);
+            self.validate_function_phase(module, phase, func);
+        }
+        self.function = None;
+    }
+
+    fn validate_function_phase(&mut self, module: &Module, phase: MirPhase, func: &Function) {
+        // `entry` carries the routing, so the entry and ABI attributes are gone once it exists.
+        if phase == MirPhase::Lowered || module.dispatch_entry().is_some() {
+            for attribute in func.entry_attributes() {
+                self.emit(format_args!("`{attribute}` survives entry lowering"));
+            }
         }
         if func.attributes.is_abi_wrapper
             && (func.abi_params.is_some()
@@ -1426,18 +1441,6 @@ impl<'a> Validator<'a> {
                 || func.abi_return_params.is_some())
         {
             self.emit("ABI wrapper retains an implicit ABI layout");
-        }
-        // A self-decoding entry has no callable MIR parameters.
-        if (phase == MirPhase::Lowered || func.attributes.is_abi_wrapper)
-            && func.is_external_entry()
-            && !func.params.is_empty()
-        {
-            self.emit(format_args!(
-                "external entry `{}` still takes arguments in the `{}` phase \
-                 (expected an argument-free ABI wrapper)",
-                func.name,
-                phase.name()
-            ));
         }
         if phase == MirPhase::Lowered {
             if let Some(ty) = first_non_word_type(func) {

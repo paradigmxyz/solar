@@ -38,10 +38,13 @@ pub(super) fn inline_guards(gcx: Gcx<'_>, module: &mut Module) -> bool {
         return false;
     }
     let mut defined = DenseBitSet::new_empty(0);
+    let entries = module.external_entries();
     let guards = module
         .functions
         .iter_enumerated()
-        .filter_map(|(id, func)| returning_guard(func, &mut defined).map(|guard| (id, guard)))
+        .filter_map(|(id, func)| {
+            returning_guard(func, entries.contains(id), &mut defined).map(|guard| (id, guard))
+        })
         .collect::<FxHashMap<_, _>>();
     if guards.is_empty() {
         return false;
@@ -121,7 +124,11 @@ fn already_guarded(caller: &Function, block: BlockId, index: usize) -> bool {
     }
 }
 
-fn returning_guard(func: &Function, defined: &mut DenseBitSet<ValueId>) -> Option<Guard> {
+fn returning_guard(
+    func: &Function,
+    is_external_entry: bool,
+    defined: &mut DenseBitSet<ValueId>,
+) -> Option<Guard> {
     if func.blocks.is_empty()
         || !func.return_components().is_empty()
         || func.params.len() > 4
@@ -129,7 +136,7 @@ fn returning_guard(func: &Function, defined: &mut DenseBitSet<ValueId>) -> Optio
         || func.internal_frame_size != 0
         || func.attributes.no_inline
         || func.is_public()
-        || func.is_external_entry()
+        || is_external_entry
         || func.instructions().take(65).count() > 64
     {
         return None;

@@ -4,7 +4,7 @@
 @types
   struct0: {i256, i256}
 
-fn @constructor() [abi_wrapper, constructor] {
+fn @constructor() [constructor] {
   bb0:
     v1 = callvalue
     v2 = ne v1, 0
@@ -38,7 +38,7 @@ fn @constructor() [abi_wrapper, constructor] {
     revert 0, 0
 }
 
-fn @f() [selector=0x26121ff0, abi_wrapper] {
+fn @f() {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v64 = and v0, 1
@@ -80,7 +80,7 @@ fn @f() [selector=0x26121ff0, abi_wrapper] {
     tail_call @revert_stub.6
 }
 
-fn @g() [selector=0xe2179b8e, abi_wrapper, view] {
+fn @g() {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v22 = and v0, 1

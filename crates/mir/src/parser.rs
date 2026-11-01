@@ -76,6 +76,7 @@ struct Parser<'sess, 'ast> {
     parser: solar_ir::ir_parse::Parser<'sess, 'ast>,
     pending_function_ref: Option<(MangledSymbol, Span)>,
     parsed_dispatch_entry: bool,
+    parsed_constructor: bool,
     function_refs: Vec<PendingFunctionRef>,
     cast_sources: Vec<(ValueId, MirType, Span)>,
     explicit_results: Vec<InstId>,
@@ -129,6 +130,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             parser: solar_ir::ir_parse::Parser::new(sess, arena, source),
             pending_function_ref: None,
             parsed_dispatch_entry: false,
+            parsed_constructor: false,
             function_refs: Vec::new(),
             cast_sources: Vec::new(),
             explicit_results: Vec::new(),
@@ -232,6 +234,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         while !self.parser.is_eof() {
             let func = self.parse_function()?;
             let is_dispatch_entry = self.parsed_dispatch_entry;
+            let is_constructor = self.parsed_constructor;
             let function = module.add_function(func);
             explicit_results.extend(self.explicit_results.drain(..).map(|inst| (function, inst)));
             cast_sources.extend(self.cast_sources.drain(..).map(|source| (function, source)));
@@ -240,6 +243,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     return Err(self.parser.error("module has multiple `entry` routing functions"));
                 }
                 module.set_dispatch_entry(function);
+            }
+            if is_constructor {
+                if module.constructor().is_some() {
+                    return Err(self.parser.error("module has multiple constructors"));
+                }
+                module.set_constructor(function);
             }
             function_refs
                 .extend(self.function_refs.drain(..).map(|reference| (function, reference)));
@@ -450,6 +459,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     fn parse_function(&mut self) -> PResult<'sess, Function> {
         self.parsed_dispatch_entry = false;
+        self.parsed_constructor = false;
         self.arg_values.clear();
         self.block_labels.clear();
         self.block_order.clear();
@@ -461,7 +471,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let func_ident = Ident::with_dummy_span(name.symbol);
         let mut func = Function::new(func_ident);
         func.name = name;
-        func.attributes.is_constructor = name.symbol == kw::Constructor;
+        self.parsed_constructor = name.symbol == kw::Constructor;
         let block_remap = {
             let mut builder = FunctionBuilder::new(&mut func);
 
@@ -655,7 +665,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     let objective = self.parser.parse_optimize_objective()?;
                     builder.func_mut().attributes.optimization = Some(objective);
                 }
-                kw::Constructor => builder.func_mut().attributes.is_constructor = true,
+                kw::Constructor => self.parsed_constructor = true,
                 kw::Receive => builder.func_mut().attributes.is_receive = true,
                 kw::Fallback => builder.func_mut().attributes.is_fallback = true,
                 kw::Pure => {

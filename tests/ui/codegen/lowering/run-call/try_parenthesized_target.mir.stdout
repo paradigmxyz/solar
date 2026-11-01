@@ -5,7 +5,7 @@ fn @ok() -> i256 [selector=0xd909b403, pure, abi_params=[], abi_returns=[word], 
     ret 5
 }
 
-fn @bad() [selector=0x9c3674fc, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+fn @bad() -> i256 [selector=0x9c3674fc, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall require<short_string>, false, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
     invalid

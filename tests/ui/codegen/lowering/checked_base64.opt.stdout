@@ -10,7 +10,7 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/lowering/checked_base64.sol:CheckedBase64 ===
 @module CheckedBase64
 @phase lowered
-fn @decode.0() [selector=0x49145c91, abi_wrapper, pure] {
+fn @decode.0() {
   bb0:
     v3 = icall @decode_calldata_type
     v0 = icall @decode.8, v3
@@ -26,7 +26,7 @@ fn @decode.0() [selector=0x49145c91, abi_wrapper, pure] {
     returndata v20, v15
 }
 
-fn @encode.1() [selector=0x12496a1b, abi_wrapper, pure] {
+fn @encode.1() {
   bb0:
     v5 = icall @decode_calldata_type
     v1 = icall @encode.4, v5, false, false
@@ -42,7 +42,7 @@ fn @encode.1() [selector=0x12496a1b, abi_wrapper, pure] {
     returndata v22, v17
 }
 
-fn @encodeFileSafe() [selector=0x2dba772b, abi_wrapper, pure] {
+fn @encodeFileSafe() {
   bb0:
     v5 = icall @decode_calldata_type
     v1 = icall @encode.4, v5, true, false
@@ -58,7 +58,7 @@ fn @encodeFileSafe() [selector=0x2dba772b, abi_wrapper, pure] {
     returndata v22, v17
 }
 
-fn @encodeNoPadding() [selector=0x3d92c956, abi_wrapper, pure] {
+fn @encodeNoPadding() {
   bb0:
     v3 = icall @decode_calldata_type
     v0 = icall @encode.4, v3, false, true
@@ -74,7 +74,7 @@ fn @encodeNoPadding() [selector=0x3d92c956, abi_wrapper, pure] {
     returndata v20, v15
 }
 
-fn @encode.4(arg0: i256, arg1: i1, arg2: i1) -> i256 [may_return_memory, pure] {
+fn @encode.4(arg0: i256, arg1: i1, arg2: i1) -> i256 [may_return_memory] {
   bb0:
     v0 = mload arg0
     v1 = mod v0, 3
@@ -337,7 +337,7 @@ fn @encode.4(arg0: i256, arg1: i1, arg2: i1) -> i256 [may_return_memory, pure] {
     revert 28, 36
 }
 
-fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
+fn @decode.8(arg0: i256) -> i256 [may_return_memory] {
   bb0:
     v0 = mload arg0
     v1 = eq v0, 0

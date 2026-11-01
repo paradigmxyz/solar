@@ -4,7 +4,7 @@
 @types
   struct0: {ptr<memory>, i256}
 
-fn @fromCalldata() [selector=0xffc7a8b3, abi_wrapper, pure] {
+fn @fromCalldata() {
   bb0:
     v39 = calldatasize
     v40 = lt v39, 68
@@ -77,7 +77,7 @@ fn @fromCalldata() [selector=0xffc7a8b3, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @fromFresh() [selector=0x1f6686bd, abi_wrapper, pure] {
+fn @fromFresh() {
   bb0:
     v94 = calldatasize
     v95 = lt v94, 36

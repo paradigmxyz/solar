@@ -469,7 +469,7 @@ fn @clearFixedDirtyWord() -> i256 [selector=0xb56337b4, abi_params=[], abi_retur
     jump bb1
 }
 
-fn @clearOddWidthDirtyWords() [selector=0xf2b0f658, abi_params=[], abi_returns=[word, word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256, uint256]] {
+fn @clearOddWidthDirtyWords() -> struct2 [selector=0xf2b0f658, abi_params=[], abi_returns=[word, word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256, uint256]] {
   bb0:
     sstore 2, 7 !metadata(storage=slot(2))
     mstore 0, 2 !metadata(memory=scratch)

@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/storage-dse/noop_stores.sol:NoopStores ===
 @module NoopStores
 @phase lowered
-fn @constructor() [abi_wrapper, constructor] {
+fn @constructor() [constructor] {
   bb0:
     v1 = callvalue
     v2 = ne v1, 0
@@ -16,7 +16,7 @@ fn @constructor() [abi_wrapper, constructor] {
     revert 0, 0
 }
 
-fn @touch() [selector=0x7cb6ded3, abi_wrapper] {
+fn @touch() {
   bb0:
     v6 = calldatasize
     v7 = lt v6, 68
@@ -30,7 +30,7 @@ fn @touch() [selector=0x7cb6ded3, abi_wrapper] {
     revert 0, 0
 }
 
-fn @masked() [selector=0x966953d1, abi_wrapper] {
+fn @masked() {
   bb0:
     v8 = calldatasize
     v9 = lt v8, 68
@@ -47,7 +47,7 @@ fn @masked() [selector=0x966953d1, abi_wrapper] {
     revert 0, 0
 }
 
-fn @branch() [selector=0xc86d784b, abi_wrapper] {
+fn @branch() {
   bb0:
     v8 = calldataload 36
     v9 = shr v8, 1
@@ -69,7 +69,7 @@ fn @branch() [selector=0xc86d784b, abi_wrapper] {
     revert 0, 0
 }
 
-fn @checked() [selector=0xb437bc14, abi_wrapper] {
+fn @checked() {
   bb0:
     v11 = calldatasize
     v12 = lt v11, 68
@@ -94,7 +94,7 @@ fn @checked() [selector=0xb437bc14, abi_wrapper] {
     revert 0, 0
 }
 
-fn @write() [selector=0x9c0e3f7a, abi_wrapper] {
+fn @write() {
   bb0:
     v8 = calldatasize
     v9 = lt v8, 68
@@ -112,7 +112,7 @@ fn @write() [selector=0x9c0e3f7a, abi_wrapper] {
     revert 0, 0
 }
 
-fn @measured() [selector=0x6724f0a2, abi_wrapper] {
+fn @measured() {
   bb0:
     v0 = gas
     v1 = sload 1 !metadata(storage=slot(1))
@@ -130,7 +130,7 @@ fn @measured() [selector=0x6724f0a2, abi_wrapper] {
     revert 28, 36
 }
 
-fn @staticTouch() [selector=0x7a96c521, abi_wrapper, view] {
+fn @staticTouch() {
   bb0:
     v0: i256 = address
     v1 = gas

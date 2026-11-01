@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/fixed_bytes_literal_assign.sol:FixedBytesLiteralAssign ===
 @module FixedBytesLiteralAssign
 @phase lowered
-fn @patch() [selector=0x7f603a02, abi_wrapper, pure] {
+fn @patch() {
   bb0:
     v16 = calldataload 4
     v17 = shr v16, 1
@@ -31,7 +31,7 @@ fn @patch() [selector=0x7f603a02, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @store() [selector=0x975057e7, abi_wrapper] {
+fn @store() {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v2 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00

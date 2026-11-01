@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/lower-builtins/packed_hash_scratch.sol:PackedHashScratch ===
 @module PackedHashScratch
 @phase lowered
-fn @threeItems() [selector=0x6e13fa5d, abi_wrapper, pure] {
+fn @threeItems() {
   bb0:
     v10 = calldataload 36
     v11 = shr v10, 160
@@ -25,7 +25,7 @@ fn @threeItems() [selector=0x6e13fa5d, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @twoItems() [selector=0x658c946c, abi_wrapper, pure] {
+fn @twoItems() {
   bb0:
     v10 = calldataload 36
     v11 = shr v10, 160
@@ -49,7 +49,7 @@ fn @twoItems() [selector=0x658c946c, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @tooLong() [selector=0x70126c55, abi_wrapper, pure] {
+fn @tooLong() {
   bb0:
     v13 = calldataload 68
     v14 = shr v13, 32

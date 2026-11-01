@@ -5,7 +5,7 @@
   struct0: {i256, ptr<memory>}
   struct1: {i256, i256}
 
-fn @signed() [selector=0x24401e82, abi_wrapper, pure] {
+fn @signed() {
   bb0:
     v15 = calldatasize
     v16 = lt v15, 36
@@ -31,7 +31,7 @@ fn @signed() [selector=0x24401e82, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @kept() [selector=0xc57c8563, abi_wrapper, pure] {
+fn @kept() {
   bb0:
     v10 = calldatasize
     v11 = lt v10, 36
@@ -67,7 +67,7 @@ fn @kept() [selector=0xc57c8563, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @narrow() [selector=0x3e18eba5, abi_wrapper, pure] {
+fn @narrow() {
   bb0:
     v14 = calldatasize
     v15 = lt v14, 36
@@ -88,7 +88,7 @@ fn @narrow() [selector=0x3e18eba5, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @empty() [selector=0xf2a75fe4, abi_wrapper, pure] {
+fn @empty() {
   bb0:
     v5 = mload 96 !metadata(memory=scratch)
     mstore 96, 0x1020304
@@ -101,7 +101,7 @@ fn @empty() [selector=0xf2a75fe4, abi_wrapper, pure] {
     returndata 0, 64
 }
 
-fn @whole() [selector=0xbbbb2e8a, abi_wrapper, pure] {
+fn @whole() {
   bb0:
     v4 = calldatasize
     v5 = lt v4, 36
@@ -117,7 +117,7 @@ fn @whole() [selector=0xbbbb2e8a, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @tooLong() [selector=0x3db8dd3c, abi_wrapper, pure] {
+fn @tooLong() {
   bb0:
     v18 = calldatasize
     v19 = lt v18, 36
@@ -141,7 +141,7 @@ fn @tooLong() [selector=0x3db8dd3c, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @forged() [selector=0xd1caa6e6, abi_wrapper, pure] {
+fn @forged() {
   bb0:
     v17 = heap_floor !metadata(alloc_ptr)
     v18 = add v17, 64 !metadata(alloc_ptr)

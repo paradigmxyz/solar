@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/byte-loops/memory_word_length.sol:Test ===
 @module Test
 @phase lowered
-fn @copy() [selector=0xf5088730, abi_wrapper, pure] {
+fn @copy() {
   bb0:
     v100 = calldatasize
     v101 = lt v100, 100

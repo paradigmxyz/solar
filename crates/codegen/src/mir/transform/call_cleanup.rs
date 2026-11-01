@@ -326,8 +326,9 @@ pub(super) fn infer_returns(module: &Module) -> ReturnBits {
 
 pub(super) fn infer_arguments(module: &Module) -> ArgumentBits {
     let mut eligible = DenseBitSet::new_empty(module.functions.len());
+    let roots = module.root_functions();
     for (id, func) in module.functions.iter_enumerated() {
-        if utils::is_internal_body(module, id, func)
+        if utils::is_internal_body(&roots, id, func)
             && !func.params.is_empty()
             && !func
                 .instructions()

@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/inline/solar_inline_forms.sol:C ===
 @module C
 @phase lowered
-fn @plain(arg0: i256, arg1: i256) -> i256 [pure] {
+fn @plain(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v4 = mul arg0, 31
     v7 = lt arg0, 0x842108421084210842108421084210842108421084210842108421084210843
@@ -20,7 +20,7 @@ fn @plain(arg0: i256, arg1: i256) -> i256 [pure] {
     revert 28, 36
 }
 
-fn @never(arg0: i256, arg1: i256) -> i256 [pure] {
+fn @never(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v4 = mul arg0, 31
     v7 = lt arg0, 0x842108421084210842108421084210842108421084210842108421084210843
@@ -39,7 +39,7 @@ fn @never(arg0: i256, arg1: i256) -> i256 [pure] {
     revert 28, 36
 }
 
-fn @f() [selector=0x13d1aa2e, abi_wrapper, pure] {
+fn @f() {
   bb0:
     v7 = calldataload 4
     v8 = calldataload 36
@@ -57,7 +57,7 @@ fn @f() [selector=0x13d1aa2e, abi_wrapper, pure] {
     revert 28, 36
 }
 
-fn @g() [selector=0x1cd65ae4, abi_wrapper, pure] {
+fn @g() {
   bb0:
     v35 = calldataload 4
     v13 = mul v35, 31
@@ -93,7 +93,7 @@ fn @g() [selector=0x1cd65ae4, abi_wrapper, pure] {
     revert 28, 36
 }
 
-fn @h() [selector=0xa61510ae, abi_wrapper, pure] {
+fn @h() {
   bb0:
     v35 = calldataload 4
     v13 = mul v35, 31
@@ -129,7 +129,7 @@ fn @h() [selector=0xa61510ae, abi_wrapper, pure] {
     revert 28, 36
 }
 
-fn @i() [selector=0xf559d781, abi_wrapper, pure] {
+fn @i() {
   bb0:
     v7 = calldataload 4
     v8 = calldataload 36

@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/shared_abi_codecs.sol:SharedAbiCodecs ===
 @module SharedAbiCodecs
 @phase lowered
-fn @encodeFirst() [selector=0xe9a7b169, abi_wrapper, pure] {
+fn @encodeFirst() {
   bb0:
     v1 = calldatasize
     v2 = lt v1, 36
@@ -28,7 +28,7 @@ fn @encodeFirst() [selector=0xe9a7b169, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @encodeSecond() [selector=0x108c1ec5, abi_wrapper, pure] {
+fn @encodeSecond() {
   bb0:
     v1 = calldatasize
     v2 = lt v1, 36
@@ -55,7 +55,7 @@ fn @encodeSecond() [selector=0x108c1ec5, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
+fn @roundTrip() {
   bb0:
     v163 = calldatasize
     v164 = lt v163, 68
@@ -368,7 +368,7 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     revert 0, 0
 }
 
-fn @encodeFirst.body(arg0: i256) -> i256 [may_return_memory, pure] {
+fn @encodeFirst.body(arg0: i256) -> i256 [may_return_memory] {
   bb0:
     v1 = icall @encode_abi_tuple, arg0
     ret v1

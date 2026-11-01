@@ -62,7 +62,7 @@
       ret v0
   }
   
-  fn @tail_entry() [selector=0x01020306] {
+  fn @tail_entry() -> ptr<memory> [selector=0x01020306] {
     bb0:
       tail_call @tail_literal
   }
@@ -194,7 +194,7 @@
       ret v0
   }
   
-  fn @tail_entry() [selector=0x01020306] {
+  fn @tail_entry() -> ptr<memory> [selector=0x01020306] {
     bb0:
       tail_call @tail_literal
   }
@@ -326,7 +326,7 @@
       ret v0
   }
   
-  fn @tail_entry() [selector=0x01020306] {
+  fn @tail_entry() -> ptr<memory> [selector=0x01020306] {
     bb0:
       tail_call @tail_literal
   }
