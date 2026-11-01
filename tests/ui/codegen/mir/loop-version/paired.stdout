@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/loop-version/paired.sol:Test ===
 @module Test
 @phase lowered
-@types
-  struct0: {ptr<memory>, ptr<memory>}
-
 fn @entry() [entry] {
   bb0:
     v0 = callvalue

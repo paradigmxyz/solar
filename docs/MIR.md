@@ -607,9 +607,15 @@ The pass runs after ABI and dispatch construction, before frame and memory
 lowering. Internal calls remain typed and aggregate-valued until this boundary.
 Every function has one `return_type`, with `void` for no result and a struct
 for a tuple. ABI lowering records the result components in a separate private
-layout, printed as `return_abi=[...]`; it preserves the logical result type.
-Both ordinary validation and the final phase check verify that layout against
-the result type. Changing the result type clears the selected ABI.
+layout, printed as `return_abi=[...]`; before `lower-structs` it preserves the
+logical result type. Both ordinary validation and the final phase check verify
+that layout against the result type. Changing the result type clears the
+selected ABI.
+
+`lower-structs` also deletes the module's struct table. A function that
+returns several words then has no result type and prints only its
+`return_abi`, which describes the scalar components; the `lowered` phase
+rejects the table, struct-typed values, and struct result types.
 
 Here, aggregate results adopt the backend convention: the first scalar result
 plus reads of the remaining result words. Those reads occur immediately after the

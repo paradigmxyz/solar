@@ -785,14 +785,14 @@ impl<'a> Validator<'a> {
     }
 
     fn validate_return_abi(&mut self, module: &Module, func: &Function) {
-        if let Some(components) = func.return_abi()
-            && !return_abi_matches(
-                module,
-                func.return_type(),
-                components,
-                &self.return_field_counts,
-            )
-        {
+        let Some(components) = func.return_abi() else { return };
+        // Without a logical result type, the components alone describe the result.
+        let valid = if func.return_type() == MirType::Void {
+            !components.iter().any(|ty| matches!(ty, MirType::Struct(_) | MirType::Void))
+        } else {
+            return_abi_matches(module, func.return_type(), components, &self.return_field_counts)
+        };
+        if !valid {
             self.emit("internal return ABI does not match the function's result type");
         }
     }
@@ -1396,6 +1396,9 @@ impl<'a> Validator<'a> {
                 phase.name()
             ));
         }
+        if phase == MirPhase::Lowered && !module.struct_types.is_empty() {
+            self.emit("struct type table survives the `lowered` phase boundary");
+        }
     }
 
     /// Checks that a self-decoding entry has no callable MIR parameters.
@@ -1550,11 +1553,6 @@ fn return_abi_matches(
     let mut pending = SmallVec::<[MirType; 4]>::from_slice(&[ty]);
     while let Some(ty) = pending.pop() {
         match ty {
-            MirType::Void => {
-                if !components.is_empty() {
-                    return false;
-                }
-            }
             MirType::Struct(id) => {
                 let Some(&Some(count)) = field_counts.get(id) else { return false };
                 if count > components.len() {
@@ -1597,8 +1595,10 @@ fn return_abi_matches(
 fn first_non_word_type(func: &Function) -> Option<MirType> {
     let non_word = |ty: MirType| !matches!(ty, MirType::I1 | MirType::I256 | MirType::Ptr(_));
     let signature = func.arg_indices().map(|index| func.arg_ty(index));
-    if let Some(ty) =
-        signature.chain(func.return_components().iter().copied()).find(|&ty| non_word(ty))
+    if let Some(ty) = signature
+        .chain(Some(func.return_type()).filter(|ty| matches!(ty, MirType::Struct(_))))
+        .chain(func.return_components().iter().copied())
+        .find(|&ty| non_word(ty))
     {
         return Some(ty);
     }

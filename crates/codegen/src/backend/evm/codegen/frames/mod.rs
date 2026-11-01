@@ -1931,9 +1931,7 @@ mod tests {
     fn heap_prefix_partial_tuple_returns() {
         let mut module = Module::new(Ident::DUMMY);
         let fields = [MirType::I256; 3];
-        let tuple = module.intern_struct(fields);
         let mut helper = Function::new(Ident::DUMMY);
-        helper.set_return_type(tuple);
         helper.set_return_abi(fields);
         let mut builder = FunctionBuilder::new(&mut helper);
         // helper(): return 7, fmp - 32, fmp - 96
@@ -1947,7 +1945,6 @@ mod tests {
         let helper = module.add_function(helper);
 
         let mut forward = Function::new(Ident::DUMMY);
-        forward.set_return_type(tuple);
         forward.set_return_abi(fields);
         // forward(): tail_call helper()
         FunctionBuilder::new(&mut forward).tail_call(helper, Vec::new());

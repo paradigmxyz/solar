@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/byte-loops/fresh_copy.sol:Test ===
 @module Test
 @phase lowered
-@types
-  struct0: {ptr<memory>, i256}
-
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
