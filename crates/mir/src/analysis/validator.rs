@@ -1427,13 +1427,13 @@ impl<'a> Validator<'a> {
         {
             self.emit("ABI wrapper retains an implicit ABI layout");
         }
-        // A self-decoding runtime wrapper has no callable MIR parameters.
+        // A self-decoding entry has no callable MIR parameters.
         if (phase == MirPhase::Lowered || func.attributes.is_abi_wrapper)
-            && func.selector.is_some()
+            && func.is_external_entry()
             && !func.params.is_empty()
         {
             self.emit(format_args!(
-                "selector function `{}` still takes arguments in the `{}` phase \
+                "external entry `{}` still takes arguments in the `{}` phase \
                  (expected an argument-free ABI wrapper)",
                 func.name,
                 phase.name()

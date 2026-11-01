@@ -47,7 +47,7 @@ fn run(func: &mut Function) -> bool {
         if let Some(result) = func.inst_result_value(inst)
             && func.is_constant_calldata_load(result)
         {
-            loads.push((BlockId::ENTRY, inst, result));
+            loads.push((inst, result));
         }
     }
     if loads.is_empty() {
@@ -55,7 +55,7 @@ fn run(func: &mut Function) -> bool {
     }
     // The blocks that read each load; a phi reads its input on the edge from its predecessor.
     let mut uses = FxHashMap::<ValueId, SmallVec<[BlockId; 2]>>::default();
-    for &(_, _, result) in &loads {
+    for &(_, result) in &loads {
         uses.insert(result, SmallVec::new());
     }
     for (block, data) in func.blocks.iter_enumerated() {
@@ -80,8 +80,8 @@ fn run(func: &mut Function) -> bool {
     }
     let cfg = CfgInfo::new(func);
     let mut sunk = Vec::new();
-    for &(block, inst, result) in &loads {
-        let mut outside = uses[&result].iter().copied().filter(|&user| user != block);
+    for &(inst, result) in &loads {
+        let mut outside = uses[&result].iter().copied().filter(|&user| user != BlockId::ENTRY);
         let Some(first) = outside.next() else { continue };
         let mut target = outside.fold(first, |a, b| cfg.dominators().common_dominator(a, b));
         while cfg.cyclic_blocks().contains(target)
@@ -89,16 +89,16 @@ fn run(func: &mut Function) -> bool {
         {
             target = idom;
         }
-        if target != block && cfg.dominators().dominates(block, target) {
-            sunk.push((block, inst, result, target));
+        if target != BlockId::ENTRY && cfg.dominators().dominates(BlockId::ENTRY, target) {
+            sunk.push((inst, result, target));
         }
     }
     if sunk.is_empty() {
         return false;
     }
-    // original read => its block and its copy at the start of the block that dominates the rest
-    let mut copies = FxHashMap::<ValueId, (BlockId, ValueId)>::default();
-    for (block, inst, result, target) in sunk {
+    // original read => its copy at the start of the block that dominates the rest
+    let mut copies = FxHashMap::<ValueId, ValueId>::default();
+    for (inst, result, target) in sunk {
         let instruction = func.inst(inst);
         let mut copy = Instruction::new(instruction.kind.clone(), instruction.result_ty);
         copy.metadata.copy_debug_context(&instruction.metadata);
@@ -109,13 +109,13 @@ fn run(func: &mut Function) -> bool {
             .position(|&other| !matches!(func.inst(other).kind, InstKind::Phi(_)))
             .unwrap_or(func.blocks[target].instructions.len());
         func.blocks[target].instructions.insert(position, copy_inst);
-        copies.insert(result, (block, copy_value));
+        copies.insert(result, copy_value);
     }
     // use of the read outside its block => use of the copy
     for block in func.blocks.indices() {
         let redirect = |value: &mut ValueId| {
-            if let Some(&(home, copy)) = copies.get(value)
-                && home != block
+            if block != BlockId::ENTRY
+                && let Some(&copy) = copies.get(value)
             {
                 *value = copy;
             }
@@ -124,8 +124,8 @@ fn run(func: &mut Function) -> bool {
             match &mut func.inst_mut(inst).kind {
                 InstKind::Phi(incoming) => {
                     for (pred, value) in incoming {
-                        if let Some(&(home, copy)) = copies.get(value)
-                            && home != *pred
+                        if *pred != BlockId::ENTRY
+                            && let Some(&copy) = copies.get(value)
                         {
                             *value = copy;
                         }

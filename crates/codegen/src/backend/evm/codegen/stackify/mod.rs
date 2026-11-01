@@ -81,8 +81,7 @@
 //! [`HEADER_REPLAN_WORK`] divided by its instruction count replans.
 //!
 //! Optimized functions also try keeping their most expensive repeated immediates on the stack,
-//! one at a time, best first, up to [`MAX_CONSTANT_TRIALS`] trials, each on
-//! top of the ones kept.
+//! one at a time, best first, up to [`MAX_CONSTANT_TRIALS`] trials, each on top of the ones kept.
 //! The trial materializes the word once in the nearest block outside loops that dominates its
 //! uses, then treats it like a live value from there through the blocks that block dominates, and
 //! as a fresh push elsewhere. An immediate whose uses sit in separate branches is also tried for
