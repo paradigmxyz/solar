@@ -578,9 +578,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if matches!(self.parser.look_ahead(1).kind, TokenKind::OpenDelim(Delimiter::Bracket)) {
             label_tokens = 2;
             loop {
+                // Each flag at most once, so a header is two flags long at most.
                 match self.parser.look_ahead(label_tokens).kind {
-                    TokenKind::Ident(sym::cold) => cold = true,
-                    TokenKind::Ident(sym::cold_hint) => cold_hint = true,
+                    TokenKind::Ident(sym::cold) if !cold => cold = true,
+                    TokenKind::Ident(sym::cold_hint) if !cold_hint => cold_hint = true,
                     _ => return Ok(None),
                 }
                 label_tokens += 1;
