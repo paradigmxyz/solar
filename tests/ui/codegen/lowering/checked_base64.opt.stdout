@@ -359,13 +359,13 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
   bb6:
     v208 = sub v199, 1
     v209 = eq v199, 0
-    jumpi v209, bb47, bb7
+    jumpi v209, bb45, bb7
   bb7:
     v22 = phi [bb6: v208], [bb4: v199]
     v210 = sub v0, 2
     v211 = lt v0, 2
-    jumpi v211, bb47, bb48
-  bb48:
+    jumpi v211, bb45, bb46
+  bb46:
     v275 = add arg0, v210
     v276 = add v275, 32
     v29 = mload v276
@@ -375,11 +375,11 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
   bb8:
     v212 = sub v22, 1
     v213 = eq v22, 0
-    jumpi v213, bb47, bb9
+    jumpi v213, bb45, bb9
   bb9:
-    v34 = phi [bb8: v212], [bb48: v22]
+    v34 = phi [bb8: v212], [bb46: v22]
     jump bb5
-  bb47:
+  bb45:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -391,9 +391,6 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     v35 = phi [bb3: v206], [bb9: v34]
     v291 = add v35, 63
     v39 = and v291, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v40 = lt v39, v35
-    jumpi v40, bb37, bb38
-  bb38:
     v285 = icall @alloc, v39
     v287 = calldatasize
     calldatacopy v285, v287, v39
@@ -401,9 +398,9 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     v293 = add arg0, 32
     jump bb10
   bb10:
-    v48 = phi [bb38: 0], [bb24: v222]
-    v49 = phi [bb38: 0], [bb24: v224]
-    v294 = phi [bb38: v293], [bb24: v295]
+    v48 = phi [bb5: 0], [bb24: v222]
+    v49 = phi [bb5: 0], [bb24: v224]
+    v294 = phi [bb5: v293], [bb24: v295]
     v50 = lt v49, v0
     jumpi v50, bb12, bb11
   bb11:
@@ -411,8 +408,8 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
   bb12:
     v51 = mload arg0
     v52 = lt v49, v51
-    jumpi v52, bb40, bb39
-  bb40:
+    jumpi v52, bb38, bb37
+  bb38:
     v56 = mload v294
     v57 = byte 0, v56
     v146 = lt v57, 32
@@ -433,15 +430,15 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     v152 = byte v151, v240
     jump bb25
   bb25:
-    v156 = phi [bb40: 0], [bb26: 0], [bb27: v152]
+    v156 = phi [bb38: 0], [bb26: 0], [bb27: v152]
     v60 = shl v156, 18
     v61 = add v49, 1
     v62 = lt v61, v0
     jumpi v62, bb13, bb14
   bb13:
     v65 = lt v61, v51
-    jumpi v65, bb41, bb39
-  bb41:
+    jumpi v65, bb39, bb37
+  bb39:
     v258 = add v294, 1
     v69 = mload v258
     v70 = byte 0, v69
@@ -463,7 +460,7 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     v166 = byte v165, v243
     jump bb28
   bb28:
-    v170 = phi [bb41: 0], [bb29: 0], [bb30: v166]
+    v170 = phi [bb39: 0], [bb29: 0], [bb30: v166]
     v73 = shl v170, 12
     v74 = or v60, v73
     jump bb14
@@ -474,8 +471,8 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     jumpi v77, bb15, bb16
   bb15:
     v80 = lt v214, v51
-    jumpi v80, bb42, bb39
-  bb42:
+    jumpi v80, bb40, bb37
+  bb40:
     v261 = add v294, 2
     v84 = mload v261
     v85 = byte 0, v84
@@ -497,7 +494,7 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     v180 = byte v179, v246
     jump bb31
   bb31:
-    v184 = phi [bb42: 0], [bb32: 0], [bb33: v180]
+    v184 = phi [bb40: 0], [bb32: 0], [bb33: v180]
     v88 = shl v184, 6
     v89 = or v75, v88
     jump bb16
@@ -508,8 +505,8 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     jumpi v92, bb17, bb18
   bb17:
     v95 = lt v216, v51
-    jumpi v95, bb43, bb39
-  bb43:
+    jumpi v95, bb41, bb37
+  bb41:
     v264 = add v294, 3
     v99 = mload v264
     v100 = byte 0, v99
@@ -531,7 +528,7 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     v194 = byte v193, v249
     jump bb34
   bb34:
-    v198 = phi [bb43: 0], [bb35: 0], [bb36: v194]
+    v198 = phi [bb41: 0], [bb35: 0], [bb36: v194]
     v103 = or v90, v198
     jump bb18
   bb18:
@@ -542,8 +539,8 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     v288 = byte 29, v104
     v110 = mload v285
     v111 = lt v48, v110
-    jumpi v111, bb44, bb39
-  bb44:
+    jumpi v111, bb42, bb37
+  bb42:
     v266 = add v285, v48
     v267 = add v266, 32
     mstore8 v267, v288
@@ -556,8 +553,8 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     v289 = byte 30, v104
     v123 = mload v285
     v124 = lt v218, v123
-    jumpi v124, bb45, bb39
-  bb45:
+    jumpi v124, bb43, bb37
+  bb43:
     v269 = add v285, v218
     v270 = add v269, 32
     mstore8 v270, v289
@@ -570,10 +567,10 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     v290 = and v104, 255
     v135 = mload v285
     v136 = lt v220, v135
-    jumpi v136, bb46, bb39
-  bb39:
+    jumpi v136, bb44, bb37
+  bb37:
     tail_call @revert_stub.7
-  bb46:
+  bb44:
     v272 = add v285, v220
     v273 = add v272, 32
     mstore8 v273, v290
@@ -583,8 +580,6 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     v224 = add v49, 4
     v295 = add v294, 4
     jump bb10
-  bb37:
-    tail_call @revert_stub.6
   bb1:
     v284 = icall @alloc, 32
     mstore v284, 0

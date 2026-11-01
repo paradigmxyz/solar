@@ -190,17 +190,14 @@ fn @digits(arg0: i256) -> i256 [may_return_memory, pure] {
   bb2:
     v46 = add v2, 63
     v11 = and v46, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v12 = lt v11, v2
-    jumpi v12, bb7, bb8
-  bb8:
     v43 = icall @alloc, v11
     v45 = calldatasize
     calldatacopy v43, v45, v11
     mstore v43, v2
     jump bb4
   bb4:
-    v14 = phi [bb8: arg0], [bb10: v32]
-    v18 = phi [bb8: v2], [bb10: v25]
+    v14 = phi [bb2: arg0], [bb8: v32]
+    v18 = phi [bb2: v2], [bb8: v25]
     v19 = ne v18, 0
     jumpi v19, bb6, bb5
   bb5:
@@ -211,17 +208,15 @@ fn @digits(arg0: i256) -> i256 [may_return_memory, pure] {
     v25 = sub v18, 1
     v26 = mload v43
     v27 = lt v25, v26
-    jumpi v27, bb10, bb9
-  bb9:
+    jumpi v27, bb8, bb7
+  bb7:
     tail_call @revert_stub.6
-  bb10:
+  bb8:
     v39 = add v43, v25
     v40 = add v39, 32
     mstore8 v40, v36
     v32 = div v14, 10
     jump bb4
-  bb7:
-    tail_call @revert_stub.5
   bb3:
     v34 = add v2, 1
     v7 = div v3, 10

@@ -2658,6 +2658,20 @@ impl<'a> CheckEliminator<'a> {
             }
         }
 
+        // Overflow check of a padded size: `lt (((x + 31) & ~31) + 32), x` holds exactly when
+        // `x + 63` wraps, so it follows the range of `x` like the checked add above.
+        if let Some(x) = padded_size_operand(func, a)
+            && b == x
+        {
+            let rx = self.range_of(func, x, depth);
+            if rx.hi.checked_add(U256::from(63)).is_some_and(|hi| hi <= integer_max(func, a)) {
+                return Some(false);
+            }
+            if rx.lo.checked_add(U256::from(63)).is_none_or(|lo| lo > integer_max(func, a)) {
+                return Some(true);
+            }
+        }
+
         // Underflow check variant `lt x, (sub x, y)`: equivalent to
         // `lt x, y` for every `y` (with wrapping subtraction).
         if let Some(&InstKind::Sub(x, y)) = inst_kind(func, b)
@@ -3577,6 +3591,30 @@ fn inst_kind(func: &Function, value: ValueId) -> Option<&InstKind> {
 }
 
 /// The value and constant of a sum `value + constant` with a nonzero constant.
+/// Returns `x` when `value` is the allocation size of a bytes object, `((x + 31) & ~31) + 32` or
+/// its `(x + 63) & ~31` spelling.
+fn padded_size_operand(func: &Function, value: ValueId) -> Option<ValueId> {
+    let constant = |value, expected| func.value_u256(value) == Some(U256::from(expected));
+    let masked = |value| {
+        let &InstKind::And(first, second) = inst_kind(func, value)? else { return None };
+        let mask = |mask| func.value_u256(mask) == Some(!U256::from(31));
+        if mask(second) { Some(first) } else { mask(first).then_some(second) }
+    };
+    let add_constant = |value, expected| {
+        let &InstKind::Add(first, second) = inst_kind(func, value)? else { return None };
+        if constant(second, expected) {
+            Some(first)
+        } else {
+            constant(first, expected).then_some(second)
+        }
+    };
+    // ((x + 31) & ~31) + 32 | (x + 63) & ~31
+    add_constant(value, 32)
+        .and_then(masked)
+        .and_then(|rounded| add_constant(rounded, 31))
+        .or_else(|| masked(value).and_then(|rounded| add_constant(rounded, 63)))
+}
+
 fn constant_offset(func: &Function, value: ValueId) -> Option<(ValueId, U256)> {
     let InstKind::Add(x, y) = *inst_kind(func, value)? else { return None };
     match (func.value_u256(x), func.value_u256(y)) {

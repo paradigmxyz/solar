@@ -5,8 +5,8 @@ fn @endPastLength() [selector=0x8063d43b, abi_wrapper, pure] {
   bb0:
     v28 = calldatasize
     v29 = lt v28, 68
-    jumpi v29, bb1, bb6
-  bb6:
+    jumpi v29, bb1, bb4
+  bb4:
     v30 = icall @decode_calldata_slice
     v31 = calldataload v30
     v2 = gt arg1, v31
@@ -28,9 +28,6 @@ fn @endPastLength() [selector=0x8063d43b, abi_wrapper, pure] {
     v17 = add v6, 31
     v19 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v20 = add v19, 32
-    v21 = lt v20, v6
-    jumpi v21, bb4, bb5
-  bb5:
     v58 = heap_floor !metadata(alloc_ptr)
     v59 = add v58, v20 !metadata(alloc_ptr)
     mstore v58, v6
@@ -44,8 +41,6 @@ fn @endPastLength() [selector=0x8063d43b, abi_wrapper, pure] {
     calldatacopy v47, v55, v6
     v52 = sub v50, v59
     returndata v59, v52
-  bb4:
-    tail_call @revert_stub
   bb1:
     revert 0, 0
 }
@@ -54,8 +49,8 @@ fn @startAfterEnd() [selector=0x598bfb30, abi_wrapper, pure] {
   bb0:
     v28 = calldatasize
     v29 = lt v28, 100
-    jumpi v29, bb1, bb6
-  bb6:
+    jumpi v29, bb1, bb4
+  bb4:
     v30 = icall @decode_calldata_slice
     v31 = calldataload v30
     v32 = add v30, 32
@@ -78,9 +73,6 @@ fn @startAfterEnd() [selector=0x598bfb30, abi_wrapper, pure] {
     v17 = add v6, 31
     v19 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v20 = add v19, 32
-    v21 = lt v20, v6
-    jumpi v21, bb4, bb5
-  bb5:
     v58 = heap_floor !metadata(alloc_ptr)
     v59 = add v58, v20 !metadata(alloc_ptr)
     mstore v58, v6
@@ -94,17 +86,8 @@ fn @startAfterEnd() [selector=0x598bfb30, abi_wrapper, pure] {
     calldatacopy v47, v55, v6
     v52 = sub v50, v59
     returndata v59, v52
-  bb4:
-    tail_call @revert_stub
   bb1:
     revert 0, 0
-}
-
-fn @revert_stub() {
-  bb0:
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }
 
 fn @decode_calldata_slice() -> i256 {
