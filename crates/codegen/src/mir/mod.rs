@@ -24,6 +24,7 @@ pub(crate) trait MirModuleTarget {
     fn target(&self, gcx: Gcx<'_>) -> Target;
 
     /// Returns the cost model of `func`'s code, for a function this module has not yet received.
+    /// A cold function is priced by [`Target::priced_for_cold`].
     fn target_of(&self, gcx: Gcx<'_>, func: &Function) -> Target;
 }
 
@@ -33,7 +34,7 @@ impl MirModuleTarget for Module {
     }
 
     fn target_of(&self, gcx: Gcx<'_>, func: &Function) -> Target {
-        Target::new(gcx, self.objective_of(func))
+        Target::new(gcx, self.objective_of(func)).priced_for_cold(func.attributes.hotness.is_cold())
     }
 }
 

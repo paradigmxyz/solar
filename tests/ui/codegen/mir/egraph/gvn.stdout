@@ -71,7 +71,7 @@
       v1 = sload v0
       v2 = eq v1, 0
       jumpi v2, bb1, bb2
-    bb2:
+    bb2 [cold]:
       icall require<custom_error []>, false, 0
       invalid
     bb1:
@@ -151,8 +151,8 @@
       ret arg0
   }
   
-  fn @mapping_payload_require(arg0: ptr<memory>) [selector=0x10000008, abi_params=[bytes], abi_returns=[]] {
-    bb0:
+  fn @mapping_payload_require(arg0: ptr<memory>) [selector=0x10000008, cold, abi_params=[bytes], abi_returns=[]] {
+    bb0 [cold]:
       v0 = mapping_slot_bytes arg0, 0
       v1 = mapping_slot_bytes arg0, 0
       icall require<custom_error [memory_bytes]>, false, 0, arg0

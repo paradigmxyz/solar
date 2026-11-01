@@ -7,7 +7,7 @@ fn @balance() {
     v13 = shr v12, 160
     v14 = eq v13, 0
     jumpi v14, bb5, bb4
-  bb4:
+  bb4 [cold]:
     revert 0, 0
   bb5:
     v19 = calldataload 36
@@ -24,7 +24,7 @@ fn @balance() {
   bb3:
     mstore 0, v6 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -36,7 +36,7 @@ fn @codeSize() {
     v13 = shr v12, 160
     v14 = eq v13, 0
     jumpi v14, bb5, bb4
-  bb4:
+  bb4 [cold]:
     revert 0, 0
   bb5:
     v19 = calldataload 36
@@ -53,7 +53,7 @@ fn @codeSize() {
   bb3:
     mstore 0, v6 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -65,7 +65,7 @@ fn @codeHash() {
     v13 = shr v12, 160
     v14 = eq v13, 0
     jumpi v14, bb5, bb4
-  bb4:
+  bb4 [cold]:
     revert 0, 0
   bb5:
     v19 = calldataload 36
@@ -82,7 +82,7 @@ fn @codeHash() {
   bb3:
     mstore 0, v6 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -107,6 +107,6 @@ fn @entry() [entry] {
     tail_call @codeSize
   bb3:
     tail_call @balance
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }

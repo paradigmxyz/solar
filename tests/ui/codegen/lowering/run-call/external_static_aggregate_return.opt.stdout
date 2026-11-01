@@ -22,11 +22,11 @@ fn @makeStruct() {
     mstore 128, v9
     mstore 160, v5
     returndata 128, 64
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -69,11 +69,11 @@ fn @makeArray() {
     mstore v19, v17
     v20 = add v13, 1
     jump bb6
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb4:
+  bb4 [cold]:
     revert 0, 0
 }
 
@@ -104,11 +104,11 @@ fn @makePair() {
     mstore 160, v8
     mstore 192, v10
     returndata 128, 96
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb4:
+  bb4 [cold]:
     revert 0, 0
 }
 
@@ -136,7 +136,7 @@ fn @structReturn() {
     v37 = add v38, 64
     v7 = staticcall v1, v0, v38, 36, v37, 64
     jumpi v7, bb2, bb1
-  bb1:
+  bb1 [cold]:
     v22 = returndatasize
     returndatacopy 0, 0, v22 !metadata(memory=abi_return)
     v23 = returndatasize
@@ -156,11 +156,11 @@ fn @structReturn() {
   bb6:
     mstore 0, v16 !metadata(memory=scratch)
     returndata 0, 32
-  bb5:
+  bb5 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -182,7 +182,7 @@ fn @arrayReturn() {
     v58 = add v59, 64
     v7 = staticcall v1, v0, v59, 36, v58, 96
     jumpi v7, bb2, bb1
-  bb1:
+  bb1 [cold]:
     v39 = returndatasize
     returndatacopy 0, 0, v39 !metadata(memory=abi_return)
     v40 = returndatasize
@@ -209,11 +209,11 @@ fn @arrayReturn() {
   bb7:
     mstore 0, v27 !metadata(memory=scratch)
     returndata 0, 32
-  bb5:
+  bb5 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -253,11 +253,11 @@ fn @tryStructReturn() {
   bb6:
     mstore 0, v16 !metadata(memory=scratch)
     returndata 0, 32
-  bb5:
+  bb5 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -279,7 +279,7 @@ fn @pairReturn() {
     v60 = add v61, 64
     v7 = staticcall v1, v0, v61, 36, v60, 96
     jumpi v7, bb2, bb1
-  bb1:
+  bb1 [cold]:
     v47 = returndatasize
     returndatacopy 0, 0, v47 !metadata(memory=abi_return)
     v48 = returndatasize
@@ -304,11 +304,11 @@ fn @pairReturn() {
   bb6:
     mstore 0, v25 !metadata(memory=scratch)
     returndata 0, 32
-  bb5:
+  bb5 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -323,7 +323,7 @@ fn @shortReturn() {
     v34 = add v35, 32
     v7 = staticcall v1, v0, v35, 4, v34, 64
     jumpi v7, bb2, bb1
-  bb1:
+  bb1 [cold]:
     v22 = returndatasize
     returndatacopy 0, 0, v22 !metadata(memory=abi_return)
     v23 = returndatasize
@@ -343,11 +343,11 @@ fn @shortReturn() {
   bb6:
     mstore 0, v16 !metadata(memory=scratch)
     returndata 0, 32
-  bb5:
+  bb5 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -392,6 +392,6 @@ fn @entry() [entry] {
     tail_call @makeArray
   bb2:
     tail_call @makeStruct
-  bb11:
+  bb11 [cold]:
     revert 0, 0
 }

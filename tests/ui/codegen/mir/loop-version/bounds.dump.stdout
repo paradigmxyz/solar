@@ -143,7 +143,7 @@ fn @siftValues() {
     mstore v186, 32
     v160 = add v158, 64
     returndata v186, v160
-  bb33:
+  bb33 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -163,7 +163,7 @@ fn @siftValues() {
   bb7:
     v50 = lt v46, v39
     jumpi v50, bb32, bb27
-  bb27:
+  bb27 [cold]:
     tail_call @revert_stub.4
   bb32:
     v52 = shl v46, 5
@@ -195,13 +195,13 @@ fn @siftValues() {
     v131 = add v122, 1
     v213 = add v212, 32
     jump bb20
-  bb38:
+  bb38 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb24:
+  bb24 [cold]:
     tail_call @revert_stub.3
-  bb35:
+  bb35 [cold]:
     revert 0, 0
 }
 
@@ -443,7 +443,7 @@ fn @siftUp() {
     mcopy v279, v295, v278 !metadata(disjoint)
     v283 = sub v281, v366
     returndata v366, v283
-  bb42:
+  bb42 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -499,7 +499,7 @@ fn @siftUp() {
     v201 = mod v200, 11
     v203 = lt v198, v212
     jumpi v203, bb41, bb26
-  bb26:
+  bb26 [cold]:
     tail_call @revert_stub.4
   bb41:
     mstore v378, v201
@@ -508,13 +508,13 @@ fn @siftUp() {
     v379 = add v378, 32
     v382 = add v381, 32
     jump bb19
-  bb47:
+  bb47 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb23:
+  bb23 [cold]:
     tail_call @revert_stub.3
-  bb44:
+  bb44 [cold]:
     revert 0, 0
 }
 
@@ -568,16 +568,16 @@ fn @literalInLoop() {
     v30 = mload v26
     v118 = add v117, 32
     jump bb3
-  bb6:
+  bb6 [cold]:
     v116 = add v108, 128
     jump bb1
-  bb1:
+  bb1 [cold]:
     v114 = phi [bb6: v108], [bb8: v115]
     v5 = lt v114, v116
     jumpi v5, bb8, bb7
-  bb7:
+  bb7 [cold]:
     tail_call @revert_stub.4
-  bb8:
+  bb8 [cold]:
     v9 = mload v114
     v105 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v106 = add v105, 64
@@ -600,19 +600,19 @@ fn @literalInLoop() {
     mstore v112, 128
     v115 = add v114, 32
     jump bb1
-  bb9:
+  bb9 [cold]:
     revert 0, 0
 }
 
-fn @revert_stub.3() {
-  bb0:
+fn @revert_stub.3() [cold] {
+  bb0 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
-fn @revert_stub.4() {
-  bb0:
+fn @revert_stub.4() [cold] {
+  bb0 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -633,6 +633,6 @@ fn @entry() [entry] {
     tail_call @literalInLoop
   bb2:
     tail_call @siftValues
-  bb5:
+  bb5 [cold]:
     revert 0, 0
 }

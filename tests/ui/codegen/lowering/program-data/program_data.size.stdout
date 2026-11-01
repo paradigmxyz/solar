@@ -171,7 +171,7 @@ fn @entry() [entry] {
     tail_call @dataHash
   bb2:
     tail_call @zeroWordHash
-  bb12:
+  bb12 [cold]:
     revert 0, 0
 }
 // === ROOT/tests/ui/codegen/lowering/program-data/program_data.sol:C (runtime) ===

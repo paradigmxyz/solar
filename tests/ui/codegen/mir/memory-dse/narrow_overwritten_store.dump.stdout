@@ -22,7 +22,7 @@ fn @hashU8() {
     v3 = keccak256 0, 33 !metadata(memory=scratch)
     mstore 0, v3 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -39,7 +39,7 @@ fn @hashWide() {
     v1 = keccak256 128, 33
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -55,7 +55,7 @@ fn @hashConst() {
     v1 = keccak256 128, 33
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -74,7 +74,7 @@ fn @tailRead() {
     mstore 192, v3
     mstore 129, v7
     returndata 192, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -88,7 +88,7 @@ fn @literal() {
     mstore 128, 0x6100000000000000000000000000000000000000000000000000000000000000
     mstore 160, v2
     returndata 128, 64
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -111,6 +111,6 @@ fn @entry() [entry] {
     tail_call @literal
   bb2:
     tail_call @hashConst
-  bb7:
+  bb7 [cold]:
     revert 0, 0
 }

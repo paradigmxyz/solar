@@ -33,7 +33,7 @@ fn @countDown() {
     v18 = add v4, v5
     v19 = sub v5, 1
     jump bb1
-  bb4:
+  bb4 [cold]:
     revert 0, 0
 }
 
@@ -89,11 +89,11 @@ fn @squaresDown() {
   bb9:
     v37 = sub v6, 1
     jump bb1
-  bb4:
+  bb4 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb5:
+  bb5 [cold]:
     revert 0, 0
 }
 
@@ -130,7 +130,7 @@ fn @stepDown() {
     v20 = add v6, v7
     v21 = sub v7, 2
     jump bb1
-  bb4:
+  bb4 [cold]:
     revert 0, 0
 }
 
@@ -168,7 +168,7 @@ fn @downTo() {
     v24 = add v9, v10
     v25 = sub v10, 1
     jump bb1
-  bb4:
+  bb4 [cold]:
     revert 0, 0
 }
 
@@ -189,6 +189,6 @@ fn @entry() [entry] {
     tail_call @squaresDown
   bb2:
     tail_call @countDown
-  bb6:
+  bb6 [cold]:
     revert 0, 0
 }

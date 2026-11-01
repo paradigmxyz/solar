@@ -56,6 +56,7 @@ use solar_data_structures::{
 use solar_interface::{
     BytePos, ByteSymbol, Ident, Result, Session, Span, Symbol, kw, source_map::SourceFile, sym,
 };
+use solar_ir::Hotness;
 use solar_parse::{PErr, PResult};
 
 // =============================================================================
@@ -537,8 +538,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     break;
                 }
 
-                if let Some(idx) = self.try_parse_block_header()? {
+                if let Some((idx, hotness)) = self.try_parse_block_header()? {
                     let bid = self.define_block(&mut builder, idx)?;
+                    builder.func_mut().blocks[bid].hotness = hotness;
                     builder.switch_to_block(bid);
                     current_block = Some((bid, idx));
                     continue;
@@ -571,7 +573,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok(func)
     }
 
-    fn try_parse_block_header(&mut self) -> PResult<'sess, Option<u32>> {
+    fn try_parse_block_header(&mut self) -> PResult<'sess, Option<(u32, Hotness)>> {
         let TokenKind::Ident(label) = self.parser.token().kind else { return Ok(None) };
         let Some(index) = label.as_str().strip_prefix("bb").filter(|s| !s.is_empty()) else {
             return Ok(None);
@@ -579,12 +581,22 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let Ok(index) = index.parse() else {
             return Ok(None);
         };
-        if !matches!(self.parser.look_ahead(1).kind, TokenKind::Colon) {
+        let cold =
+            matches!(self.parser.look_ahead(1).kind, TokenKind::OpenDelim(Delimiter::Bracket))
+                && matches!(self.parser.look_ahead(2).kind, TokenKind::Ident(sym::cold))
+                && matches!(
+                    self.parser.look_ahead(3).kind,
+                    TokenKind::CloseDelim(Delimiter::Bracket)
+                );
+        let label_tokens = if cold { 4 } else { 1 };
+        if !matches!(self.parser.look_ahead(label_tokens).kind, TokenKind::Colon) {
             return Ok(None);
         }
-        self.parser.bump();
+        for _ in 0..label_tokens {
+            self.parser.bump();
+        }
         self.parser.expect(TokenKind::Colon)?;
-        Ok(Some(index))
+        Ok(Some((index, if cold { Hotness::Cold } else { Hotness::Hot })))
     }
 
     fn define_block(
@@ -660,6 +672,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
                 sym::always_inline => builder.func_mut().attributes.always_inline = true,
                 sym::inline_hint => builder.func_mut().attributes.inline_hint = true,
+                sym::cold => builder.func_mut().attributes.hotness = Hotness::Cold,
                 sym::optimize => {
                     self.parser.expect(TokenKind::Eq)?;
                     let objective = self.parser.parse_optimize_objective()?;

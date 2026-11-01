@@ -13,7 +13,7 @@
 +     v3 = calldataload 4
 +     mstore 0, v3
       stop
-    bb2:
+    bb2 [cold]:
       revert 0, 0
   }
   
@@ -74,7 +74,7 @@
 +     v5 = phi [bb2: v6], [bb3: v6]
       mstore 0, v5
       stop
-    bb5:
+    bb5 [cold]:
       revert 0, 0
   }
   
@@ -99,7 +99,7 @@
 -     mstore 0, v2
 +     mstore 0, v5
       stop
-    bb4:
+    bb4 [cold]:
       revert 0, 0
   }
   
@@ -116,7 +116,7 @@
       v2 = calldataload 4
       mstore 0, v2
       stop
-    bb3:
+    bb3 [cold]:
       revert 0, 0
   }
   
@@ -135,11 +135,11 @@
 +     v5 = calldataload 36
 +     mstore 0, v5
       stop
-    bb3:
+    bb3 [cold]:
       revert 0, 0
   }
   
-  fn @tested() [selector=0x00000008, abi_wrapper] {
+  fn @tested() {
     bb0:
       v0 = calldatasize
       v1 = lt v0, 36
@@ -156,7 +156,7 @@
       jumpi v3, bb3, bb4
     bb3:
       stop
-    bb4:
+    bb4 [cold]:
       revert 0, 0
   }
   
@@ -181,7 +181,7 @@
       tail_call @looped
     bb1:
       tail_call @guarded
-    bb9:
+    bb9 [cold]:
       revert 0, 0
   }
   

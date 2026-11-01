@@ -45,7 +45,7 @@ fn @asValue() {
   bb5:
     v47 = phi [bb3: v60], [bb4: v55]
     returndata v47, 160
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -78,7 +78,7 @@ fn @viaCall() {
     v20 = zext i1 v7 to i256
     mstore 0, v20 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -99,6 +99,6 @@ fn @entry() [entry] {
     tail_call @asValue
   bb2:
     tail_call @viaCall
-  bb4:
+  bb4 [cold]:
     revert 0, 0
 }

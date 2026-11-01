@@ -13,25 +13,25 @@
       v1 = shr v0, 224
       v2 = eq v1, 0x9507d39a
       jumpi v2, bb1, bb2
-    bb2:
+    bb2 [cold]:
       revert 0, 0
     bb1:
       v3 = calldataload 4
       tail_call @wrapper, v3
   }
   
-  fn @revertCaller() -> i256 {
-    bb0:
+  fn @revertCaller() -> i256 [cold] {
+    bb0 [cold]:
       tail_call @revertForward
   }
   
-  fn @revertForward() {
-    bb0:
+  fn @revertForward() [cold] {
+    bb0 [cold]:
       tail_call @revertEnd
   }
   
-  fn @revertEnd() {
-    bb0:
+  fn @revertEnd() [cold] {
+    bb0 [cold]:
       revert 0, 0
   }
   

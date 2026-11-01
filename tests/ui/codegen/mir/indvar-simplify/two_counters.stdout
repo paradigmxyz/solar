@@ -36,7 +36,7 @@ fn @narrowBase() {
     v13 = add v3, 1
     v19 = add v18, 32
     jump bb1
-  bb4:
+  bb4 [cold]:
     revert 0, 0
 }
 
@@ -231,7 +231,7 @@ fn @pack() {
     mstore8 v228, v96
     v104 = lt v145, v121
     jumpi v104, bb22, bb12
-  bb12:
+  bb12 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -248,15 +248,15 @@ fn @pack() {
     v120 = add v75, 4
     v274 = add v273, 4
     jump bb5
-  bb23:
+  bb23 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb10:
+  bb10 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb25:
+  bb25 [cold]:
     revert 0, 0
 }
 
@@ -281,7 +281,7 @@ fn @rawBase() {
     mstore v10, 7
     v11 = add v10, 32
     jump bb1
-  bb4:
+  bb4 [cold]:
     revert 0, 0
 }
 
@@ -300,6 +300,6 @@ fn @entry() [entry] {
     tail_call @narrowBase
   bb2:
     tail_call @pack
-  bb5:
+  bb5 [cold]:
     revert 0, 0
 }

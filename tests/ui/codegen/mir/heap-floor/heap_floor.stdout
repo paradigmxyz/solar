@@ -26,8 +26,8 @@
       ret v2
   }
   
-  fn @revert_argument() {
-    bb0:
+  fn @revert_argument() [cold] {
+    bb0 [cold]:
       v0 = calldataload 36
       mstore 64, v0
       revert 28, 68
@@ -389,7 +389,7 @@
       mstore 64, v0
       v1 = ne arg0, 0
       jumpi v1, bb1, bb2
-    bb2:
+    bb2 [cold]:
       v3 = mload 0x10000
       revert v3, 96
     bb1:
@@ -411,7 +411,7 @@
       mstore 64, v3
       v4 = ne arg0, 0
       jumpi v4, bb1, bb2
-    bb2:
+    bb2 [cold]:
       revert v2, 32
     bb1:
       v5 = mload 64
@@ -432,7 +432,7 @@
       mstore 64, v3
       v4 = ne arg0, 0
       jumpi v4, bb1, bb2
-    bb2:
+    bb2 [cold]:
       revert v2, 32
     bb1:
       v5 = mload 64
@@ -456,7 +456,7 @@
 +     mstore 64, v7
       v3 = ne arg0, 0
       jumpi v3, bb1, bb2
-    bb2:
+    bb2 [cold]:
       revert v1, 32
     bb1:
       v4 = mload 64

@@ -8,7 +8,7 @@
 //! summaries and other module state.
 
 use crate::{
-    mir::{Module, pass::ModuleAnalyses, should_validate_ir, validate},
+    mir::{Module, analysis::HotnessAnalysis, pass::ModuleAnalyses, should_validate_ir, validate},
     timing::PassTimer,
 };
 use solar_config::OptimizationMode;
@@ -146,6 +146,9 @@ pub(crate) fn run_passes_inner(
     let mut changed = false;
     let mut analyses = ModuleAnalyses::default();
     let mut unchanged = Vec::new();
+    // Parsed or lowered MIR carries no trustworthy hotness.
+    let mut hotness = HotnessAnalysis::new();
+    hotness.run(gcx, module);
     for pass in passes {
         let pass_name = pass.name();
         let before =
@@ -170,6 +173,7 @@ pub(crate) fn run_passes_inner(
                     parallel,
                     [OptimizationMode::None, OptimizationMode::Gas, OptimizationMode::Size]
                         .map(|objective| pass.runs_on(objective)),
+                    module.functions.len(),
                 );
                 // A pass that edits the module, reported or not, outdates the check, unless the
                 // pass itself advanced the phase after its last edit.
@@ -187,6 +191,14 @@ pub(crate) fn run_passes_inner(
                     for func in module.functions.iter_mut() {
                         func.drop_dangling_storage_aliases();
                     }
+                    match analyses.changed_functions(module.functions.len()) {
+                        Some(changed) => hotness.update(gcx, module, changed),
+                        None => hotness.run(gcx, module),
+                    }
+                    debug_assert!(
+                        hotness.is_current(gcx, module),
+                        "stale MIR hotness after `{pass_name}`"
+                    );
                 }
                 pass_changed
             };

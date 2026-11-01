@@ -5,7 +5,7 @@
     bb0:
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2 !metadata(span=10..20)
-    bb2:
+    bb2 [cold]:
       revert 0, 0 !metadata(span=10..20)
     bb1:
       ret arg0 !metadata(span=30..40, modifier_depth=1)

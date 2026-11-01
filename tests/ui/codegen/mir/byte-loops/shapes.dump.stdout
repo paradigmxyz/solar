@@ -21,9 +21,9 @@ fn @fromCalldata() {
     v29 = calldataload v28
     mstore 0, v29 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     tail_call @revert_stub.17
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -57,7 +57,7 @@ fn @storeSome() {
     v33 = or v31, v32
     mstore v57, v33
     jump bb1
-  bb3:
+  bb3 [cold]:
     tail_call @revert_stub.17
   bb1:
     v42 = mload v38
@@ -70,7 +70,7 @@ fn @storeSome() {
     mstore v55, 32
     v50 = add v45, 64
     returndata v55, v50
-  bb5:
+  bb5 [cold]:
     revert 0, 0
 }
 
@@ -103,13 +103,13 @@ fn @loadSome() {
     v33 = not v32
     v34 = and v28, v33
     jump bb1
-  bb3:
+  bb3 [cold]:
     tail_call @revert_stub.17
   bb1:
     v3 = phi [bb6: 0], [bb4: v34]
     mstore 0, v3 !metadata(memory=scratch)
     returndata 0, 32
-  bb5:
+  bb5 [cold]:
     revert 0, 0
 }
 
@@ -180,7 +180,7 @@ fn @within() {
   bb12:
     v18 = lt v67, v8
     jumpi v18, bb8, bb6
-  bb6:
+  bb6 [cold]:
     tail_call @revert_stub.17
   bb8:
     v104 = add v74, v67
@@ -188,7 +188,7 @@ fn @within() {
     mstore8 v105, v14
     v23 = add v5, 1
     jump bb1
-  bb10:
+  bb10 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -203,7 +203,7 @@ fn @within() {
     mstore v91, 32
     v86 = add v81, 64
     returndata v91, v86
-  bb13:
+  bb13 [cold]:
     revert 0, 0
 }
 
@@ -276,7 +276,7 @@ fn @between() {
     v17 = mload v76
     v18 = lt v67, v17
     jumpi v18, bb8, bb6
-  bb6:
+  bb6 [cold]:
     tail_call @revert_stub.17
   bb8:
     v108 = add v76, v67
@@ -284,7 +284,7 @@ fn @between() {
     mstore8 v109, v14
     v23 = add v5, 1
     jump bb1
-  bb10:
+  bb10 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -299,7 +299,7 @@ fn @between() {
     mstore v93, 32
     v88 = add v83, 64
     returndata v93, v88
-  bb12:
+  bb12 [cold]:
     revert 0, 0
 }
 
@@ -377,7 +377,7 @@ fn @down() {
     v18 = sub v63, 1
     v20 = lt v18, v9
     jumpi v20, bb8, bb6
-  bb6:
+  bb6 [cold]:
     tail_call @revert_stub.17
   bb8:
     v100 = add v70, v18
@@ -385,7 +385,7 @@ fn @down() {
     mstore8 v101, v15
     v25 = sub v5, 1
     jump bb1
-  bb9:
+  bb9 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -400,7 +400,7 @@ fn @down() {
     mstore v87, 32
     v82 = add v77, 64
     returndata v87, v82
-  bb16:
+  bb16 [cold]:
     revert 0, 0
 }
 
@@ -445,7 +445,7 @@ fn @sliceCalldata() {
     v72 = add v74, 32
     calldatacopy v72, v44, v48
     jump bb1
-  bb5:
+  bb5 [cold]:
     tail_call @revert_stub.17
   bb1:
     v58 = add v48, 31
@@ -457,13 +457,13 @@ fn @sliceCalldata() {
     mstore v70, 32
     v65 = add v60, 64
     returndata v70, v65
-  bb10:
+  bb10 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3 [cold]:
     tail_call @revert_stub.18
-  bb7:
+  bb7 [cold]:
     revert 0, 0
 }
 
@@ -542,7 +542,7 @@ fn @fresh() {
     v22 = mload v121
     v23 = lt v21, v22
     jumpi v23, bb10, bb8
-  bb8:
+  bb8 [cold]:
     tail_call @revert_stub.17
   bb10:
     v114 = add v121, v21
@@ -560,13 +560,13 @@ fn @fresh() {
     mstore v99, 32
     v94 = add v89, 64
     returndata v99, v94
-  bb6:
+  bb6 [cold]:
     tail_call @revert_stub.18
-  bb12:
+  bb12 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb15:
+  bb15 [cold]:
     revert 0, 0
 }
 
@@ -665,7 +665,7 @@ fn @freshPair() {
     v40 = mload v134
     v41 = lt v30, v40
     jumpi v41, bb18, bb15
-  bb15:
+  bb15 [cold]:
     tail_call @revert_stub.17
   bb18:
     v125 = add v134, v30
@@ -690,13 +690,13 @@ fn @freshPair() {
     mstore8 v148, v146
     v149 = add v148, 1
     jump bb9
-  bb23:
+  bb23 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb13:
+  bb13 [cold]:
     tail_call @revert_stub.18
-  bb20:
+  bb20 [cold]:
     revert 0, 0
 }
 
@@ -763,7 +763,7 @@ fn @viaHelper() {
     v18 = mload v105
     v19 = lt v5, v18
     jumpi v19, bb10, bb8
-  bb8:
+  bb8 [cold]:
     tail_call @revert_stub.17
   bb10:
     v98 = add v105, v5
@@ -771,7 +771,7 @@ fn @viaHelper() {
     mstore8 v99, v15
     v7 = add v5, 1
     jump bb2
-  bb12:
+  bb12 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -786,9 +786,9 @@ fn @viaHelper() {
     mstore v85, 32
     v80 = add v75, 64
     returndata v85, v80
-  bb6:
+  bb6 [cold]:
     tail_call @revert_stub.18
-  bb14:
+  bb14 [cold]:
     revert 0, 0
 }
 
@@ -839,7 +839,7 @@ fn @zeroSome() {
     v6 = mload v35
     v7 = lt v30, v6
     jumpi v7, bb6, bb5
-  bb5:
+  bb5 [cold]:
     tail_call @revert_stub.17
   bb6:
     v52 = add v35, v30
@@ -847,11 +847,11 @@ fn @zeroSome() {
     mstore8 v53, 0
     v12 = add v3, 1
     jump bb1
-  bb8:
+  bb8 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb10:
+  bb10 [cold]:
     revert 0, 0
 }
 
@@ -888,9 +888,9 @@ fn @fillSome() {
     mstore v47, 32
     v39 = add v34, 64
     returndata v47, v39
-  bb1:
+  bb1 [cold]:
     tail_call @revert_stub.17
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -931,13 +931,13 @@ fn @asciiWords() {
     v47 = add v1, v45
     v30 = add v2, 32
     jump bb1
-  bb4:
+  bb4 [cold]:
     tail_call @revert_stub.17
-  bb6:
+  bb6 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb8:
+  bb8 [cold]:
     revert 0, 0
 }
 
@@ -1017,7 +1017,7 @@ fn @copyWords() {
     v29 = mload v114
     v30 = lt v19, v29
     jumpi v30, bb11, bb9
-  bb9:
+  bb9 [cold]:
     tail_call @revert_stub.17
   bb11:
     v32 = shl v19, 5
@@ -1033,13 +1033,13 @@ fn @copyWords() {
     mstore v94, 32
     v91 = add v89, 64
     returndata v94, v91
-  bb6:
+  bb6 [cold]:
     tail_call @revert_stub.18
-  bb13:
+  bb13 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb15:
+  bb15 [cold]:
     revert 0, 0
 }
 
@@ -1092,13 +1092,13 @@ fn @wordsFromCalldata() {
     mstore v72, 32
     v69 = add v67, 64
     returndata v72, v69
-  bb8:
+  bb8 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3 [cold]:
     tail_call @revert_stub.18
-  bb5:
+  bb5 [cold]:
     revert 0, 0
 }
 
@@ -1175,7 +1175,7 @@ fn @withinWords() {
   bb12:
     v17 = lt v75, v8
     jumpi v17, bb8, bb6
-  bb6:
+  bb6 [cold]:
     tail_call @revert_stub.17
   bb8:
     v19 = shl v75, 5
@@ -1184,7 +1184,7 @@ fn @withinWords() {
     mstore v107, v14
     v22 = add v5, 1
     jump bb1
-  bb10:
+  bb10 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -1195,7 +1195,7 @@ fn @withinWords() {
     mstore v93, 32
     v90 = add v88, 64
     returndata v93, v90
-  bb13:
+  bb13 [cold]:
     revert 0, 0
 }
 
@@ -1264,28 +1264,28 @@ fn @fillPastWord() {
     mstore8 v68, 97
     v15 = lt v7, 40
     jumpi v15, bb10, bb8
-  bb8:
+  bb8 [cold]:
     tail_call @revert_stub.17
   bb10:
     v20 = add v7, 1
     jump bb1
-  bb15:
+  bb15 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb12:
+  bb12 [cold]:
     revert 0, 0
 }
 
-fn @revert_stub.17() {
-  bb0:
+fn @revert_stub.17() [cold] {
+  bb0 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
-fn @revert_stub.18() {
-  bb0:
+fn @revert_stub.18() [cold] {
+  bb0 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -1306,7 +1306,7 @@ fn @decode_calldata_slice() -> i256 {
     jumpi v10, bb1, bb2
   bb2:
     ret v2
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -1340,11 +1340,11 @@ fn @decode_calldata_type.20(arg0: i256) -> i256 [may_return_memory] {
     v26 = add v25, v6
     calldatacopy v26, v30, v23
     ret v29
-  bb3:
+  bb3 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -1384,11 +1384,11 @@ fn @decode_calldata_type.21() -> i256 [may_return_memory] {
     v22 = add v25, 32
     calldatacopy v22, v7, v12
     ret v25
-  bb3:
+  bb3 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -1435,7 +1435,7 @@ fn @entry() [entry] {
     tail_call @fillPastWord
   bb2:
     tail_call @down
-  bb19:
+  bb19 [cold]:
     revert 0, 0
 }
 
@@ -1452,7 +1452,7 @@ fn @alloc(arg0: i256) -> i256 {
   bb2:
     mstore 64, v2 !metadata(memory=scratch)
     ret v0
-  bb1:
+  bb1 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36

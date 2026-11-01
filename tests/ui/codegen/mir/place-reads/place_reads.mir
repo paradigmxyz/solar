@@ -175,7 +175,7 @@ fn @moved() {
 // CHECK: bb2:
 // CHECK: + [[WORD:v[0-9]+]] = calldataload 4
 // CHECK-NEXT: + {{v[0-9]+}} = ne [[WORD]], 0
-fn @tested() [selector=0x00000008, abi_wrapper] {
+fn @tested() {
   bb0:
     v0 = calldatasize
     v1 = lt v0, 36

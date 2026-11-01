@@ -6,7 +6,7 @@ fn @fold_phi_after_promotion(arg0: i1) -> i256 {
     ret 1
 }
 
-fn @entry() [entry] {
-  bb0:
+fn @entry() [entry, cold] {
+  bb0 [cold]:
     revert 0, 0
 }

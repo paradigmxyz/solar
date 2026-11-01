@@ -19,7 +19,7 @@
     bb0:
       v0 = eq arg0, 42
       jumpi v0, bb1, bb2
-    bb2:
+    bb2 [cold]:
       mstore 0, 17
       revert 0, 32
     bb1:

@@ -49,7 +49,7 @@ fn @fill() {
     v18 = mload v84
     v19 = lt v15, v18
     jumpi v19, bb12, bb11
-  bb11:
+  bb11 [cold]:
     tail_call @revert_stub.3
   bb12:
     mstore v93, v46
@@ -126,7 +126,7 @@ fn @fill() {
     v134 = eq v133, v126
     v135 = or v132, v134
     jumpi v135, bb23, bb13
-  bb13:
+  bb13 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -135,11 +135,11 @@ fn @fill() {
     v136 = add v126, 1
     v137 = add v99, 128
     jump bb18
-  bb17:
+  bb17 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb8:
+  bb8 [cold]:
     tail_call @revert_stub.2
 }
 
@@ -199,21 +199,21 @@ fn @lanes() {
     v39 = add v29, 1
     v101 = add v100, 32
     jump bb2
-  bb8:
+  bb8 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
-fn @revert_stub.2() {
-  bb0:
+fn @revert_stub.2() [cold] {
+  bb0 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
-fn @revert_stub.3() {
-  bb0:
+fn @revert_stub.3() [cold] {
+  bb0 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -236,6 +236,6 @@ fn @entry() [entry] {
     tail_call @lanes
   bb3:
     tail_call @fill
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }

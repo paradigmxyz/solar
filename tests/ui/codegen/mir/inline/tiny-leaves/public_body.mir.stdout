@@ -19,7 +19,7 @@ fn @constructor() [constructor] {
     v4 = mload v0
     mstore 192, v4
     ret
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -50,6 +50,6 @@ fn @entry() [entry] {
     tail_call @vested
   bb2:
     tail_call @start
-  bb4:
+  bb4 [cold]:
     revert 0, 0
 }

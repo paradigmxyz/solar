@@ -1,0 +1,127 @@
+//@ compile-flags: -Ogas --optimize-runs=200 -Zevm-ir-pipeline=outline
+//@ filecheck:
+@module ColdSites
+
+// Gas mode keeps repeated hot stores inline at 200 runs, since each shared copy adds two pushes,
+// two jumps, and two jump destinations to every execution. The same stores in blocks that do not
+// run on success cost no gas, so the bytes they save are shared.
+// CHECK-LABEL: bb0:
+// CHECK-COUNT-2: push 0x30313233343536373839616263646566
+// CHECK-NOT: push bb
+bb0:
+  push 0x30313233343536373839616263646566
+  push 15
+  mstore
+  jump bb1
+bb1:
+  push 0x30313233343536373839616263646566
+  push 15
+  mstore
+  jump bb2
+
+// CHECK-LABEL: bb2 [cold]:
+// CHECK: push [[RET2:bb[0-9]+]]
+// CHECK-NEXT: jump [[STORE:bb[0-9]+]]
+bb2 [cold]:
+  push 0x3a3b3c3d3e3f404142434445464748
+  push 15
+  mstore
+  jump bb3
+
+// CHECK-LABEL: bb3 [cold]:
+// CHECK: push [[RET3:bb[0-9]+]]
+// CHECK-NEXT: jump [[STORE]]
+bb3 [cold]:
+  push 0x3a3b3c3d3e3f404142434445464748
+  push 15
+  mstore
+  jump bb4
+
+// The same holds for a repeated large push.
+// CHECK-LABEL: bb4:
+// CHECK-COUNT-2: push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+// CHECK-NOT: push bb
+bb4:
+  push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  pop
+  jump bb5
+bb5:
+  push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  pop
+  jump bb6
+
+// CHECK-LABEL: bb6 [cold]:
+// CHECK: push [[RET6:bb[0-9]+]]
+// CHECK-NEXT: jump [[PUSH:bb[0-9]+]]
+bb6 [cold]:
+  push 0xfedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210
+  pop
+  jump bb7
+// CHECK-LABEL: bb7 [cold]:
+// CHECK: push [[RET7:bb[0-9]+]]
+// CHECK-NEXT: jump [[PUSH]]
+bb7 [cold]:
+  push 0xfedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210
+  pop
+  jump bb8
+
+// A share with one hot site pays the transfer gas of that site alone, so five cold stores
+// repay it, and the hot one is shared with them.
+// CHECK-LABEL: bb8:
+// CHECK: push [[RET8:bb[0-9]+]]
+// CHECK-NEXT: jump [[MIXED:bb[0-9]+]]
+bb8:
+  push 0x4a4b4c4d4e4f505152535455565758
+  push 15
+  mstore
+  jump bb9
+
+// CHECK-LABEL: bb9 [cold]:
+// CHECK: push [[RET9:bb[0-9]+]]
+// CHECK-NEXT: jump [[MIXED]]
+bb9 [cold]:
+  push 0x4a4b4c4d4e4f505152535455565758
+  push 15
+  mstore
+  jump bb10
+bb10 [cold]:
+  push 0x4a4b4c4d4e4f505152535455565758
+  push 15
+  mstore
+  jump bb11
+bb11 [cold]:
+  push 0x4a4b4c4d4e4f505152535455565758
+  push 15
+  mstore
+  jump bb12
+bb12 [cold]:
+  push 0x4a4b4c4d4e4f505152535455565758
+  push 15
+  mstore
+  jump bb13
+bb13 [cold]:
+  push 0x4a4b4c4d4e4f505152535455565758
+  push 15
+  mstore
+  stop
+
+// One cold site does not make a hot site free: a hot store and a cold one save too few bytes to
+// repay the hot site's transfer gas, so both stay inline.
+// CHECK-LABEL: bb14:
+// CHECK-NEXT: push 0x5a5b5c5d5e5f606162636465666768
+// CHECK-NEXT: push 15
+// CHECK-NEXT: mstore
+// CHECK-NEXT: jump bb15
+bb14:
+  push 0x5a5b5c5d5e5f606162636465666768
+  push 15
+  mstore
+  jump bb15
+
+// CHECK-LABEL: bb15 [cold]:
+// CHECK-NEXT: push 0x5a5b5c5d5e5f606162636465666768
+bb15 [cold]:
+  push 0x5a5b5c5d5e5f606162636465666768
+  push 15
+  mstore
+  stop
