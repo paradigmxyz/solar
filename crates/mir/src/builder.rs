@@ -642,7 +642,23 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Emits a typed value-producing instruction with the current source and effect metadata.
-    pub fn emit_inst(&mut self, mut kind: InstKind, result_ty: Option<MirType>) -> ValueId {
+    ///
+    /// A word operation whose operands are all immediates folds to an immediate.
+    pub fn emit_inst(&mut self, kind: InstKind, result_ty: Option<MirType>) -> ValueId {
+        self.emit_inst_with(kind, result_ty, true)
+    }
+
+    /// Like [`Self::emit_inst`], but always emits an instruction, for callers that rewrite it.
+    pub fn emit_inst_unfolded(&mut self, kind: InstKind, result_ty: Option<MirType>) -> ValueId {
+        self.emit_inst_with(kind, result_ty, false)
+    }
+
+    fn emit_inst_with(
+        &mut self,
+        mut kind: InstKind,
+        result_ty: Option<MirType>,
+        fold: bool,
+    ) -> ValueId {
         debug_assert!(result_ty.is_some(), "value-producing instructions must have a result type");
         let requested = result_ty.unwrap();
         let produced = if kind.op_def().result == super::ResultKind::Integer {
@@ -678,7 +694,8 @@ impl<'a> FunctionBuilder<'a> {
             }
         };
         // result = imm op(operands)
-        if produced == MirType::I256
+        if fold
+            && produced == MirType::I256
             && let Some(word) = self.fold_word_op(&kind)
         {
             let word = self.imm(word);
