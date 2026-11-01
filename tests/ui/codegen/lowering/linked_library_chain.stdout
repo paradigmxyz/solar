@@ -1,11 +1,15 @@
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:DataTypes (runtime) ===
 @module DataTypes_runtime
+// runtime dispatch entry
 bb0:
   push 0
   push 0
   revert
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:Inner (runtime) ===
 @module Inner_runtime
+// runtime dispatch entry
+// function bump(DataTypes.Map storage m, uint256 by) public returns (uint256)
+// external entry, selector 0xfaf4836c
 bb0:
   push 0
   calldataload
@@ -63,6 +67,9 @@ bb7 [cold]:
   revert
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:Outer (runtime) ===
 @module Outer_runtime
+// runtime dispatch entry
+// function callThrough(DataTypes.Map storage m, uint256 by) public returns (uint256)
+// external entry, selector 0x5e0b1cef
 bb0:
   push 0
   calldataload
@@ -154,6 +161,9 @@ bb9 [cold]:
   revert
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:C (runtime) ===
 @module C_runtime
+// runtime dispatch entry
+// function go(uint256 by) external returns (uint256)
+// external entry, selector 0xb20e7344
 bb0:
   callvalue
   push bb3

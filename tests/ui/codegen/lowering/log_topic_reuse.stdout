@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/log_topic_reuse.sol:LogTopicReuse (runtime) ===
 @module LogTopicReuse_runtime
+// runtime dispatch entry
 bb0:
   callvalue
   push bb4
@@ -23,6 +24,9 @@ bb4 [cold]:
   push 0
   push 0
   revert
+
+// getter for `uint256 public last`
+// external entry, selector 0x47799da8
 bb5:
   push 0
   sload
@@ -31,6 +35,9 @@ bb5:
   push 32
   push 0
   return
+
+// function f(uint256 k) external
+// external entry, selector 0xb3de648b
 bb6:
   push 36
   calldatasize

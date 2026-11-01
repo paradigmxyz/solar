@@ -317,4 +317,72 @@ impl<'gcx> EvmCodegen<'gcx> {
             block_id = target;
         }
     }
+
+    /// Comments the dispatch entry in the EVM IR text.
+    pub(super) fn comment_dispatch_entry(&mut self) {
+        if self.captures_evm_ir_text() {
+            self.asm.comment_block("runtime dispatch entry");
+        }
+    }
+
+    /// Comments the entry of `func` in the EVM IR text with its source signature, and with its
+    /// role when it is an external entry. The comment never reaches executable IR or debug
+    /// information.
+    pub(super) fn comment_function_entry(&mut self, func: &Function) {
+        if !self.captures_evm_ir_text() {
+            return;
+        }
+        let source_map = self.gcx.sess.source_map();
+        let header = Some(func.declaration_span)
+            .filter(|span| !span.is_dummy())
+            .and_then(|span| source_map.span_to_snippet(span).ok())
+            .map(|source| function_header(&source));
+        match header {
+            Some(header)
+                if ["function", "constructor", "fallback", "receive"]
+                    .iter()
+                    .any(|keyword| header.starts_with(keyword)) =>
+            {
+                self.asm.comment_block(&header);
+            }
+            Some(header) => self.asm.comment_block(&format!("getter for `{header}`")),
+            None => self.asm.comment_block(&format!("{} (synthesized)", func.name)),
+        }
+        if func.attributes.is_constructor {
+            self.asm.comment_block("creation entry");
+        } else if let Some(selector) = func.selector {
+            self.asm.comment_block(&format!(
+                "external entry, selector 0x{}",
+                alloy_primitives::hex::encode(selector)
+            ));
+        } else if func.attributes.is_fallback {
+            self.asm.comment_block("external entry, no selector matches");
+        } else if func.attributes.is_receive {
+            self.asm.comment_block("external entry, no calldata");
+        }
+    }
+
+    fn captures_evm_ir_text(&self) -> bool {
+        self.capture_evm_ir || self.capture_scheduled_evm_ir
+    }
+}
+
+/// Returns the header of the declaration in `source` on one line: everything before its body.
+fn function_header(source: &str) -> String {
+    let mut depth = 0u32;
+    let end = source
+        .find(|c| match c {
+            '(' => {
+                depth += 1;
+                false
+            }
+            ')' => {
+                depth = depth.saturating_sub(1);
+                false
+            }
+            '{' | ';' | '=' => depth == 0,
+            _ => false,
+        })
+        .unwrap_or(source.len());
+    source[..end].split_whitespace().collect::<Vec<_>>().join(" ")
 }

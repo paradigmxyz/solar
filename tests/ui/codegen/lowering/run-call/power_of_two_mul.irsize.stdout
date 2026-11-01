@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/power_of_two_mul.sol:PowerOfTwoMul (runtime) ===
 @module PowerOfTwoMul_runtime
+// runtime dispatch entry
 bb0:
   callvalue
   push bb8
@@ -55,6 +56,9 @@ bb37 [cold]:
   push 36
   push 28
   revert
+
+// function checkedExp2(uint256 exponent) external pure returns (uint256)
+// external entry, selector 0xb10b60bd
 bb15:
   push 36
   calldatasize
@@ -80,6 +84,9 @@ bb34:
   push 32
   returndatasize
   return
+
+// function mul32(uint256 value) external pure returns (uint256 result)
+// external entry, selector 0xde1efc56
 bb20:
   push 36
   calldatasize
@@ -90,6 +97,9 @@ bb20:
   calldataload
   push 5
   jump bb35
+
+// function mulHigh(uint256 value) external pure returns (uint256 result)
+// external entry, selector 0x25ee2d76
 bb23:
   push 36
   calldatasize
@@ -100,6 +110,9 @@ bb23:
   calldataload
   push 255
   jump bb35
+
+// function at(uint256[] memory values, uint256 index) external pure returns (uint256)
+// external entry, selector 0xc78126ad
 bb26:
   push 4
   dup 1

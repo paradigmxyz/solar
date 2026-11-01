@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/low_level_call_calldata_bytes.sol:C (runtime) ===
 @module C_runtime
+// runtime dispatch entry
+// function callFwd(address t, bytes calldata data) external returns (bool)
+// external entry, selector 0x6b995abd
 bb0:
   push 68
   calldatasize
@@ -30,6 +33,8 @@ bb0:
   jumpi
   push bb7
   jump bb13
+
+// decode_calldata_slice (synthesized)
 bb13 [ret=0, inputs=1, outputs=1]:
   push 36
   calldataload
@@ -83,6 +88,9 @@ bb7 [continuation]:
   push 32
   push 0
   return
+
+// function delegateFwd(address t, bytes calldata data) external returns (bool)
+// external entry, selector 0x6a57f6c7
 bb9:
   push 4
   calldataload

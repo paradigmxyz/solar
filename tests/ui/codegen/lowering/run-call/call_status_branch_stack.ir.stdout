@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/call_status_branch_stack.sol:CallStatusBranchStack (runtime) ===
 @module CallStatusBranchStack_runtime
+// runtime dispatch entry
 bb0:
   push 36
   calldatasize
@@ -55,6 +56,9 @@ bb10 [cold]:
   push 36
   push 28
   revert
+
+// function get(uint256 x) external pure returns (Data memory)
+// external entry, selector 0x9507d39a
 bb7:
   push 4
   calldataload
@@ -103,6 +107,9 @@ bb7:
   push 128
   dup 1
   return
+
+// function first(uint256 x) external view returns (uint256)
+// external entry, selector 0x0b3f62f5
 bb11:
   push_immutable 0, 20
   push 128
@@ -142,6 +149,8 @@ bb11:
   jumpi
   push bb14
   jump bb34
+
+// decode_static (synthesized)
 bb34 [ret=0, inputs=2, outputs=1]:
   push 64
   mload
@@ -186,6 +195,9 @@ bb14 [continuation]:
   push 32
   push 0
   return
+
+// function second(uint256 x) external view returns (uint256)
+// external entry, selector 0x7896dfe3
 bb17:
   push_immutable 0, 20
   push 128
@@ -251,6 +263,9 @@ bb20 [continuation]:
   push 32
   push 0
   return
+
+// function third(uint256 x) external view returns (uint256)
+// external entry, selector 0xf1680ae6
 bb26:
   push_immutable 0, 20
   push 128

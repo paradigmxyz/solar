@@ -1,11 +1,15 @@
 // === ROOT/tests/ui/codegen/lowering/library_mapping_storage_param.sol:L (runtime) ===
 @module L_runtime
+// runtime dispatch entry
 bb0:
   push 0
   push 0
   revert
 // === ROOT/tests/ui/codegen/lowering/library_mapping_storage_param.sol:C (runtime) ===
 @module C_runtime
+// runtime dispatch entry
+// function total(address k) external view returns (uint256)
+// external entry, selector 0xd2514e84
 bb0:
   callvalue
   push bb3

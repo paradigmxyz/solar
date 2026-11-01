@@ -3,6 +3,7 @@
 @data
   literal_0: hex"ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
 
+// runtime dispatch entry
 bb0:
   callvalue
   push bb4
@@ -26,6 +27,9 @@ bb4 [cold]:
   push 0
   push 0
   revert
+
+// getter for `uint256 public immutable value`
+// external entry, selector 0x3fa4f245
 bb5:
   push_immutable 0, 32
   push 0
@@ -33,6 +37,9 @@ bb5:
   push 32
   push 0
   return
+
+// function payload() external pure returns (bytes memory)
+// external entry, selector 0xa878f858
 bb6:
   push 160
   push 64
@@ -67,6 +74,7 @@ bb6:
 @data
   ChildWithArg_creation_code_0: hex"61013938038061013960e03960e001601f01601f191660405260e0806101393803019060200111341760445760e05160c05260f180604860e03960c0516101035260e0f35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f858146049575b5f5ffd5b7f00000000000000000000000000000000000000000000000000000000000000005f5260205ff35b60a060405260a060808152602081016080607182396080015f9052602090036020815260c090f3ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
 
+// runtime dispatch entry
 bb0:
   callvalue
   push bb5
@@ -103,6 +111,9 @@ bb26 [cold]:
   returndatasize
   push 0
   revert
+
+// function plain() external returns (uint256)
+// external entry, selector 0x59748c98
 bb6:
   push 192
   push 64
@@ -163,6 +174,9 @@ bb28:
   push 32
   push 0
   return
+
+// function salted() external returns (uint256)
+// external entry, selector 0x1f981516
 bb12:
   push 192
   push 64
@@ -194,6 +208,9 @@ bb12:
   push 0
   create2
   jump bb28
+
+// function pair() external returns (uint256)
+// external entry, selector 0xa8aa1b31
 bb18:
   push 128
   push 64

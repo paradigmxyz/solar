@@ -1,0 +1,54 @@
+{"contracts":{"ROOT/tests/ui/codegen/lowering/function_comments_debug.sol:C":{"srcmap-runtime":":::-:0;;;;;;;;;;;;;;;;;;;332:5:0;;;;;;;;;325:13;;;;;-1:-1:-1;;;;;332:5:0;;;;;;;;"}},"sourceList":["ROOT/tests/ui/codegen/lowering/function_comments_debug.sol"],"version":"SOLC_VERSION+commit.00000000.solar.VERSION"}
+// === ROOT/tests/ui/codegen/lowering/function_comments_debug.sol:C (runtime) ===
+@module C_runtime
+// runtime dispatch entry
+// function add(uint256 a, uint256 b) external pure returns (uint256)
+// external entry, selector 0x771602f7
+bb0:
+  callvalue
+  push bb3
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x771602f7
+  sub
+  push bb3
+  jumpi
+  push 68 !metadata(invoke=add@248..344)
+  calldatasize
+  lt
+  push bb3
+  jumpi
+  push 4
+  calldataload
+  push 36 !metadata(span=332..337)
+  calldataload !metadata(span=332..337)
+  dup 2 !metadata(span=332..337)
+  add !metadata(span=332..337)
+  swap 1 !metadata(span=332..337)
+  dup 2 !metadata(span=332..337)
+  lt !metadata(span=332..337)
+  push bb7 !metadata(span=332..337)
+  jumpi !metadata(span=332..337)
+  push 0 !metadata(span=325..338)
+  mstore !metadata(span=325..338)
+  push 32 !metadata(span=325..338)
+  push 0 !metadata(span=325..338)
+  return !metadata(span=325..338, exit=return)
+bb3 [cold]:
+  push 0
+  push 0
+  revert !metadata(exit=revert)
+bb7 [cold]:
+  push 17 !metadata(span=332..337)
+  push 32 !metadata(span=332..337)
+  mstore !metadata(span=332..337)
+  push 0x4e487b71 !metadata(span=332..337)
+  push 0 !metadata(span=332..337)
+  mstore !metadata(span=332..337)
+  push 36 !metadata(span=332..337)
+  push 28 !metadata(span=332..337)
+  revert !metadata(span=332..337, exit=revert)

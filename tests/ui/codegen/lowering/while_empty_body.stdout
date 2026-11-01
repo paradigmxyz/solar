@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/while_empty_body.sol:WhileEmptyBody (runtime) ===
 @module WhileEmptyBody_runtime
+// runtime dispatch entry
+// function f(uint256 x) public pure
+// external entry, selector 0xb3de648b
 bb0:
   callvalue
   push bb3

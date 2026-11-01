@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/immutable_widths_size.sol:ImmutableWidthsSize (runtime) ===
 @module ImmutableWidthsSize_runtime
+// runtime dispatch entry
+// function read() external view returns (int8, int224, int232, bytes28, bytes29, uint8, bytes1)
+// external entry, selector 0x57de26a4
 bb0:
   callvalue
   push bb3

@@ -106,6 +106,7 @@ fn @entry() [entry] {
 @data
   literal_0: hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff0011"
 
+// runtime dispatch entry
 bb0:
   callvalue
   push bb6
@@ -139,9 +140,14 @@ bb6 [cold]:
   returndatasize
   returndatasize
   revert
+
+// function hash() external pure returns (bytes32)
+// external entry, selector 0x09bd5a60
 bb7:
   push bb8
   jump bb16
+
+// function data() internal pure returns (bytes memory)
 bb16 [ret=0, inputs=1, outputs=1]:
   push 128
   push 224
@@ -182,6 +188,9 @@ bb17 [loop]:
   push 32
   returndatasize
   return
+
+// function paddingIsZero() external pure returns (bool result)
+// external entry, selector 0x06793283
 bb9:
   push bb10
   jump bb16
@@ -197,6 +206,9 @@ bb10 [continuation]:
   shr
   iszero
   jump bb17
+
+// function shortHash() external pure returns (bytes32)
+// external entry, selector 0x0c6b2786
 bb11:
   push bb20
   push 128
@@ -210,6 +222,9 @@ bb19 [ret=1, inputs=2, outputs=3]:
   swap 2
   swap 3
   jump
+
+// function fullWordsHash() external pure returns (bytes32)
+// external entry, selector 0x58653188
 bb12:
   push 128
   dup 1

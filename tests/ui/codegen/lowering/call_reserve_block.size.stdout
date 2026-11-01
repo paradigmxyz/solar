@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/call_reserve_block.sol:ReserveCallee (runtime) ===
 @module ReserveCallee_runtime
+// runtime dispatch entry
+// function value() external pure returns (uint256)
+// external entry, selector 0x3fa4f245
 bb0:
   callvalue
   push bb3
@@ -27,6 +30,9 @@ bb3 [cold]:
   invalid
 // === ROOT/tests/ui/codegen/lowering/call_reserve_block.sol:ReserveBlock (runtime) ===
 @module ReserveBlock_runtime
+// runtime dispatch entry
+// function fixedGas() external returns (uint256)
+// external entry, selector 0x9a1f63d8
 bb0:
   callvalue
   push bb4
@@ -64,6 +70,9 @@ bb4 [cold]:
   push 0
   dup 1
   invalid
+
+// function pointer() external returns (uint256)
+// external entry, selector 0x2f5f3b3c
 bb9:
   push 0
   sload

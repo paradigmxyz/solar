@@ -109,6 +109,12 @@ impl<'gcx> Assembler<'gcx> {
         instruction.metadata.set_function_exit(exit);
     }
 
+    /// Adds a comment line before the current block in the EVM IR text format.
+    pub(crate) fn comment_block(&mut self, line: &str) {
+        let block = self.current_block();
+        self.program.comments.push(self.program.blocks[block].label, line);
+    }
+
     /// Emits a push instruction with an immediate value.
     pub(crate) fn emit_push(&mut self, value: U256) {
         self.push_ir_instruction(ir::Instruction::push_value(value));

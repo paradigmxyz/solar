@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constant_select.sol:ConstantSelect (runtime) ===
 @module ConstantSelect_runtime
+// runtime dispatch entry
 bb0:
   callvalue
   push bb12
@@ -63,6 +64,9 @@ bb80 [loop]:
   pop
   pop
   jump
+
+// function dirtyTernary(uint256 raw, uint256 x) external pure returns (uint256)
+// external entry, selector 0xcd9c288e
 bb71:
   push 68
   calldatasize
@@ -97,9 +101,14 @@ bb84 [cold]:
   push 36
   push 28
   revert
+
+// revert_stub.10 (synthesized)
 bb81 [cold]:
   push 34
   jump bb84
+
+// function choose(uint256 raw, uint256 yes, uint256 no) external pure returns (uint256)
+// external entry, selector 0x739ca28b
 bb2:
   dup 1
   push 0x1cd9057
@@ -143,6 +152,10 @@ bb2:
   push 32
   push 0
   return
+
+// function store(bytes memory value) external returns (bytes memory)
+// external entry, selector 0xb374012b
+// clear_storage_words (synthesized)
 bb16 [loop]:
   push 4
   dup 1
@@ -538,6 +551,9 @@ bb44:
   pop
   pop
   jump bb31
+
+// function word(bytes calldata value) external pure returns (bytes32)
+// external entry, selector 0xc22ee0b0
 bb45:
   push 36
   calldatasize
@@ -546,6 +562,8 @@ bb45:
   jumpi
   push bb47
   jump bb83
+
+// decode_calldata_slice (synthesized)
 bb83 [ret=0, inputs=1, outputs=1]:
   push 4
   calldataload
@@ -601,6 +619,9 @@ bb47 [continuation]:
   push 32
   push 0
   return
+
+// function prefix(bytes calldata value) external pure returns (bytes4)
+// external entry, selector 0x01cd9057
 bb49:
   push 36
   calldatasize
@@ -646,6 +667,9 @@ bb51 [continuation]:
   push 32
   push 0
   return
+
+// function signature(bool condition) external pure returns (bytes memory)
+// external entry, selector 0x59834352
 bb53:
   push 4
   calldataload
@@ -705,6 +729,9 @@ bb57:
   push 96
   swap 1
   return
+
+// function dirtySignature(uint256 raw) external pure returns (bytes memory)
+// external entry, selector 0xca22fbdf
 bb59:
   push 36
   calldatasize
@@ -789,6 +816,9 @@ bb85:
   swap 1
   mcopy
   jump bb57
+
+// function reverseSignature(uint256 raw) external pure returns (bytes memory)
+// external entry, selector 0x97ffd282
 bb65:
   push 36
   calldatasize

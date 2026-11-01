@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/lower-shifts/legacy_shifts.sol:LegacyShifts (runtime) ===
 @module LegacyShifts_runtime
+// runtime dispatch entry
 bb0:
   callvalue
   push bb6

@@ -73,6 +73,8 @@ pub struct Module {
     debug_info_tracked: bool,
     /// Block contents in which an earlier peephole run found nothing to rewrite.
     pub peephole_clean: CleanBlocks,
+    /// Comments the text format prints before blocks.
+    pub comments: BlockComments,
     /// The objective this module's code is optimized for: the build's, or the one the source
     /// contract's `@custom:solar-optimize` tag selects.
     pub optimization: OptimizationMode,
@@ -137,6 +139,7 @@ impl Module {
             code_follows: false,
             debug_info_tracked: false,
             peephole_clean: CleanBlocks::default(),
+            comments: BlockComments::default(),
             optimization: OptimizationMode::default(),
         }
     }
@@ -149,6 +152,7 @@ impl Module {
         self.code_follows = false;
         self.debug_info_tracked = false;
         self.peephole_clean.clear();
+        self.comments.clear();
         self.optimization = OptimizationMode::default();
     }
 
@@ -1116,3 +1120,53 @@ impl fmt::Debug for CleanBlocks {
         f.write_str("CleanBlocks")
     }
 }
+
+/// Comment lines that the text format prints before blocks, keyed by the block's label.
+///
+/// No pass decides from them and module equality ignores them, so they cannot change what the
+/// compiler emits. A comment belongs to its label: a pass that removes a block drops its
+/// comment, except that a merge into a predecessor keeps both.
+#[derive(Clone, Debug, Default)]
+pub struct BlockComments(FxHashMap<u32, String>);
+
+impl BlockComments {
+    /// Forgets every comment.
+    pub fn clear(&mut self) {
+        self.0.clear();
+    }
+
+    /// Returns the comment lines before the block labeled `label`, separated by newlines.
+    pub fn get(&self, label: u32) -> Option<&str> {
+        self.0.get(&label).map(String::as_str)
+    }
+
+    /// Appends `line` to the comment before the block labeled `label`.
+    pub fn push(&mut self, label: u32, line: &str) {
+        let comment = self.0.entry(label).or_default();
+        if !comment.is_empty() {
+            comment.push('\n');
+        }
+        comment.push_str(line);
+    }
+
+    /// Moves the comment before the block labeled `from`, which a merge removes, to the end of
+    /// the one before the block labeled `into`, which continues its code.
+    pub fn absorb(&mut self, into: u32, from: u32) {
+        if let Some(comment) = self.0.remove(&from) {
+            self.push(into, &comment);
+        }
+    }
+
+    /// Returns the labels that have a comment.
+    pub fn labels(&self) -> impl Iterator<Item = u32> + '_ {
+        self.0.keys().copied()
+    }
+}
+
+impl PartialEq for BlockComments {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for BlockComments {}

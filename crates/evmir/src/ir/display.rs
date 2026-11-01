@@ -54,6 +54,15 @@ fn display_block<'a>(module: &'a Module, block: &'a Block) -> impl fmt::Display 
         if let Some(depth) = metadata.entry_depth {
             attributes.push(format!("stack={depth}"));
         }
+        if let Some(comment) = module.comments.get(block.label) {
+            // A blank line sets the comment's block apart from the code before it.
+            if block.label != module.blocks[BlockId::ENTRY].label {
+                writeln!(f)?;
+            }
+            for line in comment.lines() {
+                writeln!(f, "// {line}")?;
+            }
+        }
         write!(f, "bb{}", block.label)?;
         if !attributes.is_empty() {
             write!(f, " [{}]", attributes.iter().format(", "))?;

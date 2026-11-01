@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/cold_call_fallthrough.sol:ColdCallFallthrough (runtime) ===
 @module ColdCallFallthrough_runtime
+// runtime dispatch entry
 bb0:
   push 36
   calldatasize
@@ -27,6 +28,9 @@ bb4 [cold]:
   push 0
   push 0
   revert
+
+// function nonzero(uint256 value) external pure returns (uint256)
+// external entry, selector 0x161e4029
 bb5:
   push 128
   push 64
@@ -48,6 +52,9 @@ bb5:
   sub
   push 0
   return
+
+// function belowLimit(uint256 value) external pure returns (uint256)
+// external entry, selector 0x4b692dff
 bb9:
   push 128
   push 64
@@ -70,6 +77,8 @@ bb9:
   sub
   push 0
   return
+
+// function abort(uint256 value) internal pure
 bb13:
   dup 1
   iszero
@@ -89,6 +98,8 @@ bb13:
   shl
   push 5
   jump bb20
+
+// revert_error (synthesized)
 bb20:
   push 32
   push 32

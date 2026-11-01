@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/abi_packed_calldata_bytes.sol:P (runtime) ===
 @module P_runtime
+// runtime dispatch entry
 bb0:
   push 68
   calldatasize
@@ -27,12 +28,17 @@ bb4 [cold]:
   push 0
   push 0
   revert
+
+// function h(bytes calldata a, uint256 x) external pure returns (bytes32)
+// external entry, selector 0x21bd63cb
 bb5:
   push 128
   push 64
   mstore
   push bb6
   jump bb11
+
+// decode_calldata_slice (synthesized)
 bb11 [ret=0, inputs=1, outputs=1]:
   push 4
   calldataload
@@ -88,6 +94,9 @@ bb6 [continuation]:
   push 32
   push 0
   return
+
+// function h2(bytes calldata a, address b) external pure returns (bytes32)
+// external entry, selector 0xf1245422
 bb7:
   push 128
   push 64

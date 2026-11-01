@@ -114,7 +114,13 @@ pub(super) struct FreshLabels {
 
 impl FreshLabels {
     pub(super) fn new(module: &Module) -> Self {
-        let occupied = module.blocks.iter().map(|block| block.label).collect::<FxHashSet<_>>();
+        // A removed block's comment stays, so its label stays unused too.
+        let occupied = module
+            .blocks
+            .iter()
+            .map(|block| block.label)
+            .chain(module.comments.labels())
+            .collect::<FxHashSet<_>>();
         let next =
             occupied.iter().copied().max().and_then(|label| label.checked_add(1)).unwrap_or(0);
         Self { occupied, next }

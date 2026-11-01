@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/linked_library_dynamic_fields.sol:L (runtime) ===
 @module L_runtime
+// runtime dispatch entry
 bb0:
   push 0
   calldataload
@@ -27,6 +28,9 @@ bb26 [cold]:
   push 36
   push 28
   revert
+
+// function apply_(mapping(address => uint256) storage m, P memory p) public returns (uint256)
+// external entry, selector 0xfa06cb96
 bb1:
   push_immutable 0, 20
   address
@@ -98,6 +102,8 @@ bb1:
   shl
   push bb8
   jump bb25
+
+// alloc (synthesized)
 bb25 [ret=0, inputs=2, outputs=1]:
   push 64
   mload
@@ -337,6 +343,7 @@ bb21 [cold]:
   jump bb26
 // === ROOT/tests/ui/codegen/lowering/linked_library_dynamic_fields.sol:C (runtime) ===
 @module C_runtime
+// runtime dispatch entry
 bb0:
   callvalue
   push bb4
@@ -360,6 +367,9 @@ bb4 [cold]:
   push 0
   push 0
   revert
+
+// getter for `mapping(address => uint256) public score`
+// external entry, selector 0x776f3843
 bb5:
   push 4
   calldataload
@@ -387,6 +397,9 @@ bb5:
   push 32
   push 0
   return
+
+// function go(uint256 base, uint256[] calldata xs, bytes calldata tag, address who) external returns (uint256)
+// external entry, selector 0x2220ae27
 bb8:
   push 100
   calldataload

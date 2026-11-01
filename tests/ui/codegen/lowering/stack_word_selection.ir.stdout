@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/stack_word_selection.sol:StackWords (runtime) ===
 @module StackWords_runtime
+// runtime dispatch entry
 bb0:
   push 68
   calldatasize
