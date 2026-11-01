@@ -53,6 +53,17 @@ mod mask_uses;
 
 const MAX_CONE: usize = 16;
 
+/// How far the pipeline has come when a run happens.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Stage {
+    /// Before the late rules apply.
+    Early,
+    /// The late rules apply, and abstract allocations remain.
+    Late,
+    /// The late rules apply, and `lower-alloc` has run.
+    LateLowered,
+}
+
 pub(crate) enum WordSequence {
     Early,
     Late,
@@ -348,7 +359,11 @@ fn allocations_lowered(func: &Function) -> bool {
 
 fn run(func: &mut Function, target: &Target, late: bool) -> bool {
     // The pass adds no allocation operation, so the answer holds for the whole run.
-    let lowered = late && allocations_lowered(func);
+    let stage = match (late, late && allocations_lowered(func)) {
+        (false, _) => Stage::Early,
+        (true, false) => Stage::Late,
+        (true, true) => Stage::LateLowered,
+    };
     let mut uses = super::egraph::use_counts(func);
     let branch_only = branch_only_conditions(func, &uses);
     let mut masks = None;
@@ -376,8 +391,7 @@ fn run(func: &mut Function, target: &Target, late: bool) -> bool {
             let is_branch_only =
                 func.inst_result_value(inst).is_some_and(|value| branch_only.contains(&value));
             let mut best = None;
-            for recipe in
-                isle::alternatives(func, &original, &seen, &mut masks, &op, target, late, lowered)
+            for recipe in isle::alternatives(func, &original, &seen, &mut masks, &op, target, stage)
             {
                 if let Some((after, leaves)) = recipe.cost_and_leaves(func, target, is_branch_only)
                 {

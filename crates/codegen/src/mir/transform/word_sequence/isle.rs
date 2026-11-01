@@ -4,7 +4,7 @@
 //! to earlier temporaries. They are resolved when a winning recipe is committed;
 //! rejected recipes leave the function and its metadata untouched.
 
-use super::{Recipe, Temporary, mask_uses::MaskUses, widest_int_operand};
+use super::{Recipe, Stage, Temporary, mask_uses::MaskUses, widest_int_operand};
 use crate::{
     backend::evm::op,
     mir::{
@@ -49,8 +49,7 @@ pub(super) fn alternatives(
     masks: &mut Option<MaskUses>,
     op: &Op,
     target: &Target,
-    late: bool,
-    allocations_lowered: bool,
+    stage: Stage,
 ) -> Vec<Recipe> {
     let mut result = Vec::new();
     let scalar_ty =
@@ -63,8 +62,7 @@ pub(super) fn alternatives(
             masks,
             target,
             scalar_ty,
-            late,
-            allocations_lowered,
+            stage,
             temporaries: FxHashMap::default(),
         },
         op,
@@ -82,8 +80,7 @@ struct Context<'a> {
     masks: &'a mut Option<MaskUses>,
     target: &'a Target,
     scalar_ty: MirType,
-    late: bool,
-    allocations_lowered: bool,
+    stage: Stage,
     temporaries: FxHashMap<ValueId, Temporary>,
 }
 
@@ -226,7 +223,7 @@ impl generated::Context for Context<'_> {
     }
 
     fn late_word_sequence(&mut self) -> bool {
-        self.late
+        self.stage != Stage::Early
     }
 
     fn unshared_mask(&mut self, mask: U256) -> bool {
@@ -235,7 +232,7 @@ impl generated::Context for Context<'_> {
     }
 
     fn allocations_lowered(&mut self) -> bool {
-        self.allocations_lowered
+        self.stage == Stage::LateLowered
     }
 
     fn compared_mask(&mut self, value: Value, mask: U256) -> bool {
