@@ -13,6 +13,6 @@ fn @entry() [entry] {
   bb2:
     mstore 0, 7
     returndata 0, 32
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }

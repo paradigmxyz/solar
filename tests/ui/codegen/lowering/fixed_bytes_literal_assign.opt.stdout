@@ -1,6 +1,23 @@
 // === ROOT/tests/ui/codegen/lowering/fixed_bytes_literal_assign.sol:FixedBytesLiteralAssign ===
 @module FixedBytesLiteralAssign
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb4, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb4, [0x7f603a02 => bb2, 0x975057e7 => bb3]
+  bb3:
+    tail_call @store
+  bb2:
+    tail_call @patch
+  bb4 [cold]:
+    revert 0, 0
+}
+
 fn @patch() [selector=0x7f603a02, abi_wrapper, pure] {
   bb0:
     v16 = calldataload 4
@@ -25,7 +42,7 @@ fn @patch() [selector=0x7f603a02, abi_wrapper, pure] {
     v13 = shl v12, 248
     mstore 0, v13 !metadata(memory=scratch)
     returndata 0, 32
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -38,21 +55,4 @@ fn @store() [selector=0x975057e7, abi_wrapper] {
     v7 = shl v5, 248
     mstore 0, v7 !metadata(memory=scratch)
     returndata 0, 32
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb4, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb4, [0x7f603a02 => bb2, 0x975057e7 => bb3]
-  bb3:
-    tail_call @store
-  bb2:
-    tail_call @patch
-  bb4:
-    revert 0, 0
 }

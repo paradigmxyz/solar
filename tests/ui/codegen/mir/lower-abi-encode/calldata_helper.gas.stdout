@@ -1,6 +1,29 @@
 // === ROOT/tests/ui/codegen/mir/lower-abi-encode/calldata_helper.sol:CalldataHelper ===
 @module CalldataHelper
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 68
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0x81fba7cd => bb3, 0xa2467f05 => bb4, 0xeb19e25e => bb5]
+  bb5:
+    tail_call @fc
+  bb4:
+    tail_call @fa
+  bb3:
+    tail_call @fb
+  bb1 [cold]:
+    revert 0, 0
+}
+
 fn @fa() [selector=0xa2467f05, abi_wrapper] {
   bb0:
     v11 = calldatasize
@@ -53,7 +76,7 @@ fn @fa() [selector=0xa2467f05, abi_wrapper] {
   bb4:
     v8 = call v0, arg0, 0, v187, v174, 0, 0
     jumpi v8, bb2, bb1
-  bb1:
+  bb1 [cold]:
     v9 = returndatasize
     returndatacopy 0, 0, v9 !metadata(memory=abi_return)
     v10 = returndatasize
@@ -207,7 +230,7 @@ fn @fa() [selector=0xa2467f05, abi_wrapper] {
     v190 = add v189, 64
     v192 = add v191, 64
     jump bb14
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -265,7 +288,7 @@ fn @fb() [selector=0x81fba7cd, abi_wrapper] {
   bb4:
     v8 = call v0, arg0, 0, v188, v175, 0, 0
     jumpi v8, bb2, bb1
-  bb1:
+  bb1 [cold]:
     v9 = returndatasize
     returndatacopy 0, 0, v9 !metadata(memory=abi_return)
     v10 = returndatasize
@@ -419,7 +442,7 @@ fn @fb() [selector=0x81fba7cd, abi_wrapper] {
     v191 = add v190, 64
     v193 = add v192, 64
     jump bb14
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -475,7 +498,7 @@ fn @fc() [selector=0xeb19e25e, abi_wrapper] {
   bb4:
     v8 = call v0, arg0, 0, v113, v104, 0, 0
     jumpi v8, bb2, bb1
-  bb1:
+  bb1 [cold]:
     v9 = returndatasize
     returndatacopy 0, 0, v9 !metadata(memory=abi_return)
     v10 = returndatasize
@@ -548,29 +571,6 @@ fn @fc() [selector=0xeb19e25e, abi_wrapper] {
     v116 = add v115, 64
     v118 = add v117, 64
     jump bb13
-  bb3:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = calldatasize
-    v2 = lt v1, 68
-    v3 = zext i1 v2 to i256
-    v4 = or v0, v3
-    v5 = ne v4, 0
-    jumpi v5, bb1, bb2
-  bb2:
-    v6 = calldataload 0
-    v7 = shr v6, 224
-    switch v7, default bb1, [0x81fba7cd => bb3, 0xa2467f05 => bb4, 0xeb19e25e => bb5]
-  bb5:
-    tail_call @fc
-  bb4:
-    tail_call @fa
-  bb3:
-    tail_call @fb
-  bb1:
+  bb3 [cold]:
     revert 0, 0
 }

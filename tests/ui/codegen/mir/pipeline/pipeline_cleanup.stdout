@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup.mir (after pipeline-default) ===
 @module PipelineCleanup
 @phase lowered
+fn @entry() [entry, cold] {
+  bb0 [cold]:
+    revert 0, 0
+}
+
 fn @fold_phi_after_promotion(arg0: i1) -> i256 {
   bb0:
     ret 1
-}
-
-fn @entry() [entry] {
-  bb0:
-    revert 0, 0
 }

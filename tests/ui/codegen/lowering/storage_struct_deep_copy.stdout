@@ -1,6 +1,27 @@
 // === ROOT/tests/ui/codegen/lowering/storage_struct_deep_copy.sol:StorageStructDeepCopy ===
 @module StorageStructDeepCopy
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb6, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb6, [0x4bd0273c => bb2, 0xa4ece52c => bb3, 0xa60249a3 => bb4, 0xb7ffd825 => bb5]
+  bb5:
+    tail_call @assignFixed
+  bb4:
+    tail_call @push
+  bb3:
+    tail_call @pop
+  bb2:
+    tail_call @assign
+  bb6 [cold]:
+    revert 0, 0
+}
+
 fn @assign() [selector=0x4bd0273c, abi_wrapper] {
   bb0:
     v73 = calldatasize
@@ -65,11 +86,11 @@ fn @assign() [selector=0x4bd0273c, abi_wrapper] {
     v38 = add v22, 1
     v71 = lt v38, v20
     jump bb3
-  bb8:
+  bb8 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb5:
+  bb5 [cold]:
     revert 0, 0
 }
 
@@ -149,11 +170,11 @@ fn @push() [selector=0xa60249a3, abi_wrapper] {
     v44 = add v28, 1
     v79 = lt v44, v26
     jump bb3
-  bb5:
+  bb5 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb7:
+  bb7 [cold]:
     revert 0, 0
 }
 
@@ -192,7 +213,7 @@ fn @pop() [selector=0xa4ece52c, abi_wrapper] {
     v18 = add v15, 1
     v19 = add v16, 1
     jump bb3
-  bb1:
+  bb1 [cold]:
     mstore 32, 49 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -262,31 +283,10 @@ fn @assignFixed() [selector=0xb7ffd825, abi_wrapper] {
     v42 = add v26, 1
     v75 = lt v42, v24
     jump bb3
-  bb8:
+  bb8 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb5:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb6, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb6, [0x4bd0273c => bb2, 0xa4ece52c => bb3, 0xa60249a3 => bb4, 0xb7ffd825 => bb5]
-  bb5:
-    tail_call @assignFixed
-  bb4:
-    tail_call @push
-  bb3:
-    tail_call @pop
-  bb2:
-    tail_call @assign
-  bb6:
+  bb5 [cold]:
     revert 0, 0
 }

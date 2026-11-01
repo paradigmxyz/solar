@@ -10,7 +10,7 @@
 +     v1 = add 64, 31
       mstore 0, v1
       returndata 0, 32
-    bb2:
+    bb2 [cold]:
       revert 0, 0
   }
   
@@ -42,7 +42,7 @@
     bb0:
       v0 = eq arg0, 3
       jumpi v0, bb1, bb2
-    bb2:
+    bb2 [cold]:
       revert 0, 0
     bb1:
 -     v1 = and arg0, 255

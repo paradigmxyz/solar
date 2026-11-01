@@ -15,7 +15,7 @@
 +     mstore 0, v0 !metadata(memory=scratch)
 +     v3 = sub 32, 0
 +     returndata 0, v3
-+   bb2:
++   bb2 [cold]:
 +     revert 0, 0
   }
   
@@ -34,7 +34,7 @@
 +     mstore 0, v0 !metadata(memory=scratch)
 +     v3 = sub 32, 0
 +     returndata 0, v3
-+   bb2:
++   bb2 [cold]:
 +     revert 0, 0
   }
   

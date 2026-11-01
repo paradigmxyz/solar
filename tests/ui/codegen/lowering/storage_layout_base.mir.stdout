@@ -44,17 +44,17 @@ fn @constructor() [constructor] {
 @types
   struct0: {i256, i256, i256}
 
+fn @constructor() [constructor] {
+  bb0:
+    ret
+}
+
 fn @slots() -> struct0 [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = insert_value struct0, undef struct0, 0, 2
     v1 = insert_value struct0, v0, 1, 3
     v2 = insert_value struct0, v1, 2, 4
     ret v2
-}
-
-fn @constructor() [constructor] {
-  bb0:
-    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutTransient ===

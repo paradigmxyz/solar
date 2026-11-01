@@ -1,6 +1,27 @@
 // === ROOT/tests/ui/codegen/lowering/try_catch_full.sol:TryCatchFull ===
 @module TryCatchFull
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0xd7fadfb => bb3, 0xd17b272f => bb4]
+  bb4:
+    tail_call @full
+  bb3:
+    tail_call @rethrows
+  bb1 [cold]:
+    revert 0, 0
+}
+
 fn @full() [selector=0xd17b272f, abi_wrapper, view] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -152,7 +173,7 @@ fn @rethrows() [selector=0x0d7fadfb, abi_wrapper, view] {
   bb4:
     v23 = icall @try_decode_error_message, v67, v41
     jumpi v23, bb5, bb6
-  bb6:
+  bb6 [cold]:
     revert v67, v41
   bb5:
     v27 = sub v41, 4
@@ -235,11 +256,11 @@ fn @decode_aggregate.4(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     v35 = add v34, v15
     calldatacopy v35, v40, v32
     ret v39
-  bb4:
+  bb4 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -281,32 +302,11 @@ fn @decode_aggregate.5(arg0: i256) [may_return_memory, return_abi=[i256, i256]] 
     v42 = add v41, v18
     calldatacopy v42, v47, v35
     ret v5, v46
-  bb4:
+  bb4 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = calldatasize
-    v2 = lt v1, 36
-    v3 = zext i1 v2 to i256
-    v4 = or v0, v3
-    v5 = ne v4, 0
-    jumpi v5, bb1, bb2
-  bb2:
-    v6 = calldataload 0
-    v7 = shr v6, 224
-    switch v7, default bb1, [0xd7fadfb => bb3, 0xd17b272f => bb4]
-  bb4:
-    tail_call @full
-  bb3:
-    tail_call @rethrows
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -323,7 +323,7 @@ fn @alloc(arg0: i256) -> i256 {
   bb2:
     mstore 64, v2 !metadata(memory=scratch)
     ret v0
-  bb1:
+  bb1 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36

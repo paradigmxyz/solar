@@ -1,6 +1,25 @@
 // === ROOT/tests/ui/codegen/mir/lower-builtins/packed_hash_scratch.sol:PackedHashScratch ===
 @module PackedHashScratch
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb5, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb5, [0x658c946c => bb2, 0x6e13fa5d => bb3, 0x70126c55 => bb4]
+  bb4:
+    tail_call @tooLong
+  bb3:
+    tail_call @threeItems
+  bb2:
+    tail_call @twoItems
+  bb5 [cold]:
+    revert 0, 0
+}
+
 fn @threeItems() [selector=0x6e13fa5d, abi_wrapper, pure] {
   bb0:
     v9 = calldataload 36
@@ -19,7 +38,7 @@ fn @threeItems() [selector=0x6e13fa5d, abi_wrapper, pure] {
     v6 = keccak256 0, 56 !metadata(memory=scratch)
     mstore 0, v6 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -41,7 +60,7 @@ fn @twoItems() [selector=0x658c946c, abi_wrapper, pure] {
     v6 = keccak256 0, 56 !metadata(memory=scratch)
     mstore 0, v6 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -66,25 +85,6 @@ fn @tooLong() [selector=0x70126c55, abi_wrapper, pure] {
     v8 = keccak256 v17, 68
     mstore 0, v8 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb5, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb5, [0x658c946c => bb2, 0x6e13fa5d => bb3, 0x70126c55 => bb4]
-  bb4:
-    tail_call @tooLong
-  bb3:
-    tail_call @threeItems
-  bb2:
-    tail_call @twoItems
-  bb5:
+  bb1 [cold]:
     revert 0, 0
 }

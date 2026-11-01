@@ -1,6 +1,37 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/pre_cancun_memory_copies.sol:PreCancunMemoryCopies ===
 @module PreCancunMemoryCopies
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb11, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb11, [0x2f9cb906 => bb2, 0x52eea5e4 => bb3, 0x56818b01 => bb4, 0x6bdbf8e6 => bb5, 0x9f4b9fa0 => bb6, 0xa163996f => bb7, 0xb466b76f => bb8, 0xd1381062 => bb9, 0xf2c31bd9 => bb10]
+  bb10:
+    tail_call @words
+  bb9:
+    tail_call @assembled
+  bb8:
+    tail_call @fresh
+  bb7:
+    tail_call @recycled
+  bb6:
+    tail_call @pair
+  bb5:
+    tail_call @concat
+  bb4:
+    tail_call @bytesTail
+  bb3:
+    tail_call @recycledTail
+  bb2:
+    tail_call @freshEmpty
+  bb11 [cold]:
+    revert 0, 0
+}
+
 fn @words() [selector=0xf2c31bd9, abi_wrapper, pure] {
   bb0:
     v44 = icall @alloc, 128
@@ -77,7 +108,7 @@ fn @bytesTail() [selector=0x56818b01, abi_wrapper, pure] {
     v38 = zext i1 v34 to i256
     mstore 0, v38
     returndata 0, 32
-  bb8:
+  bb8 [cold]:
     mstore 32, 65
     mstore 0, 0x4e487b71
     revert 28, 36
@@ -86,7 +117,7 @@ fn @bytesTail() [selector=0x56818b01, abi_wrapper, pure] {
     v11 = mload v71
     v12 = lt v5, v11
     jumpi v12, bb7, bb6
-  bb6:
+  bb6 [cold]:
     mstore 32, 50
     mstore 0, 0x4e487b71
     revert 28, 36
@@ -176,7 +207,7 @@ fn @assembled() [selector=0xd1381062, abi_wrapper, pure] {
     v14 = zext i1 v12 to i256
     mstore 0, v14
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     mstore 32, 65
     mstore 0, 0x4e487b71
     revert 28, 36
@@ -212,7 +243,7 @@ fn @recycled() [selector=0xa163996f, abi_wrapper, pure] {
     v32 = zext i1 v13 to i256
     mstore 0, v32
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     tail_call @revert_stub
 }
 
@@ -270,7 +301,7 @@ fn @recycledTail() [selector=0x52eea5e4, abi_wrapper, pure] {
     v14 = mload v13
     mstore 0, v14
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     tail_call @revert_stub
 }
 
@@ -333,50 +364,19 @@ fn @pair() [selector=0x9f4b9fa0, abi_wrapper, pure] {
     v3 = keccak256 v68, v56
     mstore 0, v3
     returndata 0, 32
-  bb3:
+  bb3 [cold]:
     mstore 32, 65
     mstore 0, 0x4e487b71
     revert 28, 36
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
-fn @revert_stub() {
-  bb0:
+fn @revert_stub() [cold] {
+  bb0 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb11, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb11, [0x2f9cb906 => bb2, 0x52eea5e4 => bb3, 0x56818b01 => bb4, 0x6bdbf8e6 => bb5, 0x9f4b9fa0 => bb6, 0xa163996f => bb7, 0xb466b76f => bb8, 0xd1381062 => bb9, 0xf2c31bd9 => bb10]
-  bb10:
-    tail_call @words
-  bb9:
-    tail_call @assembled
-  bb8:
-    tail_call @fresh
-  bb7:
-    tail_call @recycled
-  bb6:
-    tail_call @pair
-  bb5:
-    tail_call @concat
-  bb4:
-    tail_call @bytesTail
-  bb3:
-    tail_call @recycledTail
-  bb2:
-    tail_call @freshEmpty
-  bb11:
-    revert 0, 0
 }
 
 fn @mcopy_words(arg0: i256, arg1: i256, arg2: i256) {
@@ -464,7 +464,7 @@ fn @alloc(arg0: i256) -> i256 {
   bb2:
     mstore 64, v2 !metadata(memory=scratch)
     ret v0
-  bb1:
+  bb1 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71
     revert 28, 36

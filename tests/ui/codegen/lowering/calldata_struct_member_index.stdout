@@ -1,6 +1,27 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_struct_member_index.sol:CalldataStructMemberIndex ===
 @module CalldataStructMemberIndex
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb6, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb6, [0x49eb8b89 => bb2, 0xb7a3bd0f => bb3, 0xc2dcee6a => bb4, 0xd192e846 => bb5]
+  bb5:
+    tail_call @word
+  bb4:
+    tail_call @plain
+  bb3:
+    tail_call @lengths
+  bb2:
+    tail_call @member
+  bb6 [cold]:
+    revert 0, 0
+}
+
 fn @plain() [selector=0xc2dcee6a, abi_wrapper, pure] {
   bb0:
     v15 = calldatasize
@@ -20,7 +41,7 @@ fn @plain() [selector=0xc2dcee6a, abi_wrapper, pure] {
   bb4:
     v1 = lt arg1, v22
     jumpi v1, bb2, bb1
-  bb1:
+  bb1 [cold]:
     tail_call @revert_stub.4
   bb2:
     v4 = shl arg1, 7
@@ -29,7 +50,7 @@ fn @plain() [selector=0xc2dcee6a, abi_wrapper, pure] {
     v14 = calldataload v13
     mstore 0, v14 !metadata(memory=scratch)
     returndata 0, 32
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -74,7 +95,7 @@ fn @member() [selector=0x49eb8b89, abi_wrapper, pure] {
   bb4:
     v25 = lt arg1, v15
     jumpi v25, bb6, bb5
-  bb5:
+  bb5 [cold]:
     tail_call @revert_stub.4
   bb6:
     v28 = shl arg1, 7
@@ -83,7 +104,7 @@ fn @member() [selector=0x49eb8b89, abi_wrapper, pure] {
     v38 = calldataload v37
     mstore 0, v38 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -128,7 +149,7 @@ fn @word() [selector=0xd192e846, abi_wrapper, pure] {
   bb4:
     v25 = lt arg1, v15
     jumpi v25, bb6, bb5
-  bb5:
+  bb5 [cold]:
     tail_call @revert_stub.4
   bb6:
     v28 = shl arg1, 5
@@ -136,7 +157,7 @@ fn @word() [selector=0xd192e846, abi_wrapper, pure] {
     v33 = calldataload v32
     mstore 0, v33 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -228,41 +249,20 @@ fn @lengths() [selector=0xb7a3bd0f, abi_wrapper, pure] {
     mstore 32, v40
     mstore 64, v65
     returndata 0, 96
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
-fn @revert_stub.4() {
-  bb0:
+fn @revert_stub.4() [cold] {
+  bb0 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
-fn @revert_stub.5() {
-  bb0:
+fn @revert_stub.5() [cold] {
+  bb0 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb6, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb6, [0x49eb8b89 => bb2, 0xb7a3bd0f => bb3, 0xc2dcee6a => bb4, 0xd192e846 => bb5]
-  bb5:
-    tail_call @word
-  bb4:
-    tail_call @plain
-  bb3:
-    tail_call @lengths
-  bb2:
-    tail_call @member
-  bb6:
-    revert 0, 0
 }

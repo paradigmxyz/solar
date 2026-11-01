@@ -204,7 +204,11 @@ pub(crate) fn display_function_text<'a>(
         block: &'a BasicBlock,
     ) -> impl fmt::Display + 'a {
         fmt::from_fn(move |f| {
-            writeln!(f, "  bb{}:", block_id.index())?;
+            write!(f, "  bb{}", block_id.index())?;
+            if block.hotness.is_cold() {
+                write!(f, " [cold]")?;
+            }
+            writeln!(f, ":")?;
 
             write!(
                 f,
@@ -321,6 +325,9 @@ fn display_function_attributes(func: &Function, is_dispatch_entry: bool) -> impl
         }
         if func.attributes.inline_hint {
             write_function_attribute(f, &mut first, "inline_hint")?;
+        }
+        if func.attributes.hotness.is_cold() {
+            write_function_attribute(f, &mut first, "cold")?;
         }
         if let Some(optimization) = func.attributes.optimization {
             write_function_attribute(f, &mut first, format_args!("optimize={optimization}"))?;
