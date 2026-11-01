@@ -41,6 +41,9 @@ pub(crate) struct HotnessAnalysis {
     cold_blocks: DenseBitSet<BlockId>,
     hot_blocks: DenseBitSet<BlockId>,
     region: DenseBitSet<BlockId>,
+    /// Whether any function of the module is `cold_hint`, so a call to it can seed a region.
+    /// Set with the cold functions, from attributes no pass changes after lowering.
+    has_cold_hint: bool,
     worklist: Vec<BlockId>,
     visited: GrowableBitSet<BlockId>,
     /// The functions whose walk met a call to each function while it was not cold.
@@ -59,6 +62,7 @@ impl HotnessAnalysis {
             cold_blocks: DenseBitSet::new_empty(0),
             hot_blocks: DenseBitSet::new_empty(0),
             region: DenseBitSet::new_empty(0),
+            has_cold_hint: false,
             worklist: Vec::new(),
             visited: GrowableBitSet::new_empty(),
             callers: IndexVec::new(),
@@ -73,7 +77,7 @@ impl HotnessAnalysis {
         self.always_hot.clear();
         self.run_functions(module);
         for function in module.functions.indices() {
-            self.run_function(gcx, module, function);
+            self.update_blocks(gcx, module, function);
         }
     }
 
@@ -91,11 +95,11 @@ impl HotnessAnalysis {
         }
         if self.run_functions(module) {
             for function in module.functions.indices() {
-                self.run_function(gcx, module, function);
+                self.update_blocks(gcx, module, function);
             }
         } else {
             for function in changed.iter() {
-                self.run_function(gcx, module, function);
+                self.update_blocks(gcx, module, function);
             }
         }
     }
@@ -105,7 +109,9 @@ impl HotnessAnalysis {
     pub(crate) fn run_functions(&mut self, module: &mut Module) -> bool {
         self.compute_functions(module);
         let mut changed = false;
+        self.has_cold_hint = false;
         for (id, func) in module.functions.iter_mut_enumerated() {
+            self.has_cold_hint |= func.attributes.cold_hint;
             let new = hotness(self.cold_functions.contains(id));
             changed |= func.attributes.hotness != new;
             func.attributes.hotness = new;
@@ -116,6 +122,12 @@ impl HotnessAnalysis {
     /// Recomputes the hotness of the blocks of `function`, after its callees' attributes are
     /// current.
     pub(crate) fn run_function(&mut self, gcx: Gcx<'_>, module: &mut Module, function: FunctionId) {
+        self.has_cold_hint = module.functions.iter().any(|func| func.attributes.cold_hint);
+        self.update_blocks(gcx, module, function);
+    }
+
+    /// Writes the block hotness of `function`, once `has_cold_hint` is current.
+    fn update_blocks(&mut self, gcx: Gcx<'_>, module: &mut Module, function: FunctionId) {
         self.compute_blocks(gcx, module, function);
         for (block, body) in module.functions[function].blocks.iter_mut_enumerated() {
             body.hotness = hotness(self.cold_blocks.contains(block));
@@ -126,6 +138,7 @@ impl HotnessAnalysis {
     pub(crate) fn is_current(&mut self, gcx: Gcx<'_>, module: &Module) -> bool {
         self.always_hot.clear();
         self.compute_functions(module);
+        self.has_cold_hint = module.functions.iter().any(|func| func.attributes.cold_hint);
         module
             .functions
             .iter_enumerated()
@@ -155,7 +168,7 @@ impl HotnessAnalysis {
         self.collect_cold_blocks(module, func, !objective.is_none(), marks_failure_paths_cold);
         if func.attributes.cold_hint {
             self.cold_blocks.insert_all();
-        } else if !objective.is_none() {
+        } else if self.has_cold_hint && !objective.is_none() {
             self.mark_cold_regions(module, func);
         }
     }
@@ -169,12 +182,12 @@ impl HotnessAnalysis {
     /// meeting a seed or a cold block, or when it is cold. The walk from the entry skips the edges
     /// from a block with an edge outside `region` into it, and the blocks it does not reach are
     /// cold. A call on the only path leaves every block hot.
+    #[inline(never)]
     fn mark_cold_regions(&mut self, module: &Module, func: &Function) {
         self.hot_blocks.clear_to(func.blocks.len());
         self.worklist.clear();
         // A seed: a call to a function that is rarely run and returns.
-        let is_seed =
-            |block| block_calls(func, block, |f| module.functions[f].attributes.cold_hint);
+        let is_seed = |block| calls_cold_hint(module, func, block);
         if !func.blocks.indices().any(is_seed) {
             return;
         }
@@ -421,19 +434,26 @@ pub(crate) fn aborts(func: &Function, block: BlockId, cold: &DenseBitSet<Functio
 }
 
 fn block_aborts(func: &Function, block: BlockId, is_cold: impl Fn(FunctionId) -> bool) -> bool {
-    block_calls(func, block, is_cold)
-        || func.blocks[block].terminator.as_ref().is_some_and(Terminator::reverts)
-}
-
-/// Whether a block calls or tail calls a function `matches`.
-fn block_calls(func: &Function, block: BlockId, matches: impl Fn(FunctionId) -> bool) -> bool {
     let body = &func.blocks[block];
     body.instructions.iter().any(|&inst| {
         matches!(
             func.inst(inst).kind,
-            InstKind::ICall { function: Callee::Function(function), .. } if matches(function)
+            InstKind::ICall { function: Callee::Function(function), .. } if is_cold(function)
         )
-    }) || matches!(body.terminator, Some(Terminator::TailCall { function, .. }) if matches(function))
+    }) || body.terminator.as_ref().is_some_and(Terminator::reverts)
+        || matches!(body.terminator, Some(Terminator::TailCall { function, .. }) if is_cold(function))
+}
+
+/// Whether a block calls or tail calls a `cold_hint` function.
+fn calls_cold_hint(module: &Module, func: &Function, block: BlockId) -> bool {
+    let body = &func.blocks[block];
+    let is_hint = |function: FunctionId| module.functions[function].attributes.cold_hint;
+    body.instructions.iter().any(|&inst| {
+        matches!(
+            func.inst(inst).kind,
+            InstKind::ICall { function: Callee::Function(function), .. } if is_hint(function)
+        )
+    }) || matches!(body.terminator, Some(Terminator::TailCall { function, .. }) if is_hint(function))
 }
 
 const fn hotness(cold: bool) -> Hotness {
