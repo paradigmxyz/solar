@@ -38,7 +38,7 @@
 -     mstore 128, 0
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
-    bb2:
+    bb2 [cold]:
       revert 0, 0
     bb1:
       mstore 128, 1

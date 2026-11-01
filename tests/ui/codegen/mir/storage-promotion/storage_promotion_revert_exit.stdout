@@ -35,7 +35,7 @@
     bb5:
       v5 = add v0, 1
       jump bb1
-    bb3:
+    bb3 [cold]:
       revert 0, 0
   }
   
@@ -58,7 +58,7 @@
 +     mstore 128, v1
       v2 = lt v1, arg0
       jumpi v2, bb4, bb3
-    bb3:
+    bb3 [cold]:
 -     v3 = sload 0
 +     v3 = mload 128
       mstore 0, v3
@@ -84,7 +84,7 @@
 +     sstore 0, v1 !metadata(storage=slot(0))
       v2 = lt v1, arg0
       jumpi v2, bb4, bb3
-    bb3:
+    bb3 [cold]:
       v3 = call 100, arg0, 0, 0, 0, 0, 32
       revert 0, 32
     bb4:
@@ -108,7 +108,7 @@
 +     sstore 0, v1 !metadata(storage=slot(0))
       v2 = lt v1, arg0
       jumpi v2, bb4, bb3
-    bb3:
+    bb3 [cold]:
       v3 = trunc i256 arg0 to i160
       v4 = icall send<>, v3, 0
       icall transfer<>, v3, 0
@@ -134,7 +134,7 @@
 +     sstore 0, v1 !metadata(storage=slot(0))
       v2 = lt v1, arg0
       jumpi v2, bb4, bb3
-    bb3:
+    bb3 [cold]:
       v3 = load_storage_bytes 0
       v4 = ptradd v3, 32
       v5 = ptrtoint ptr<memory> v4 to i256

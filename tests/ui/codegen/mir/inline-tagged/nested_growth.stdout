@@ -58,7 +58,7 @@ fn @run() [selector=0xa444f5e9, abi_wrapper, pure] {
     v67 = add v63, v66
     mstore 0, v67
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -73,6 +73,6 @@ fn @entry() [entry] {
     switch v3, default bb3, [0xa444f5e9 => bb2]
   bb2:
     tail_call @run
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }

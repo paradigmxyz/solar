@@ -14,7 +14,7 @@
 -     v1 = phi [bb1: 11], [bb2: 22]
 -     ret v1
 +     ret 11
-+   bb2:
++   bb2 [cold]:
 +     invalid
   }
   
@@ -38,13 +38,15 @@
 +     jump bb2
     bb2:
       ret 22
-    bb1:
+-   bb1:
 -     ret 11
-+     invalid
-+   bb3:
-+     invalid
-    bb4:
+-   bb4:
 -     ret 44
++   bb1 [cold]:
++     invalid
++   bb3 [cold]:
++     invalid
++   bb4 [cold]:
 +     invalid
   }
   
@@ -57,7 +59,7 @@
 -     v0 = phi [bb0: arg0], [bb2: arg1]
 +     v0 = phi [bb0: arg0]
       ret v0
-+   bb2:
++   bb2 [cold]:
 +     invalid
   }
   
@@ -71,7 +73,7 @@
 +     jump bb2
     bb2:
       ret v0
-    bb3:
+    bb3 [cold]:
 -     jump bb3
 +     invalid
   }

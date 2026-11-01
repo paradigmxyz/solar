@@ -18,11 +18,11 @@ fn @sum() [selector=0xcad0899b, abi_wrapper, pure] {
   bb2:
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -39,7 +39,7 @@ fn @entry() [entry] {
     tail_call @sum
   bb2:
     tail_call @raw
-  bb4:
+  bb4 [cold]:
     revert 0, 0
 }
 
@@ -68,7 +68,7 @@ fn @entry() [entry] {
   bb7:
     mstore 0, v10
     returndata 0, 32
-  bb6:
+  bb6 [cold]:
     mstore 32, 17
     mstore 0, 0x4e487b71
     revert 28, 36
@@ -79,7 +79,7 @@ fn @entry() [entry] {
   bb5:
     mstore 64, v4
     returndata 64, 32
-  bb4:
+  bb4 [cold]:
     revert 0, 0
 }
 
@@ -99,7 +99,7 @@ fn @raw() [selector=0x302e678f, abi_wrapper, pure] {
     jump bb2
   bb2:
     returndata 64, 32
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -115,11 +115,11 @@ fn @sum() [selector=0xcad0899b, abi_wrapper, pure] {
   bb2:
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -136,6 +136,6 @@ fn @entry() [entry] {
     tail_call @sum
   bb2:
     tail_call @raw
-  bb4:
+  bb4 [cold]:
     revert 0, 0
 }

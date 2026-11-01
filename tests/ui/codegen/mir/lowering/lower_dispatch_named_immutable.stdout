@@ -20,7 +20,7 @@
 +     switch v3, default bb3, [2 => bb2]
 +   bb2:
 +     tail_call @write
-+   bb3:
++   bb3 [cold]:
 +     revert 0, 0
   }
   

@@ -9,7 +9,7 @@
     bb2:
       mstore 128, v0
       returndata 128, 32
-    bb1:
+    bb1 [cold]:
 -     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
 -     mstore 4, 17
 -     revert 0, 36
@@ -24,7 +24,7 @@
     bb2:
       mstore 128, v0
       returndata 128, 32
-    bb1:
+    bb1 [cold]:
 -     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
 -     mstore 4, 17
 -     revert 0, 36
@@ -39,7 +39,7 @@
     bb2:
       mstore 128, v0
       returndata 128, 32
-    bb1:
+    bb1 [cold]:
       mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
       mstore 4, 18
       revert 0, 36
@@ -50,7 +50,7 @@
       jumpi arg0, bb1, bb2
     bb2:
       stop
-    bb1:
+    bb1 [cold]:
       mstore 0, 1
       revert 0, 32
   }
@@ -60,7 +60,7 @@
       jumpi arg0, bb1, bb2
     bb2:
       stop
-    bb1:
+    bb1 [cold]:
       mstore 0, 1
       revert 0, 32
   }
@@ -70,7 +70,7 @@
       jumpi arg0, bb1, bb2
     bb2:
       stop
-    bb1:
+    bb1 [cold]:
       mstore 0, 1
       revert 0, 32
   }
@@ -80,13 +80,13 @@
       jumpi arg0, bb1, bb2
     bb2:
       stop
-    bb1:
+    bb1 [cold]:
       mstore 0, 1
       revert 0, 32
 + }
 + 
-+ fn @revert_stub() {
-+   bb0:
++ fn @revert_stub() [cold] {
++   bb0 [cold]:
 +     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
 +     mstore 4, 17 !metadata(memory=scratch)
 +     revert 0, 36

@@ -5,7 +5,7 @@ fn @accumulate() [selector=0xb4e7d02a, abi_wrapper] {
   bb0:
     v1 = lt arg0, 0x3e9
     jumpi v1, bb5, bb4
-  bb4:
+  bb4 [cold]:
     revert 0, 0
   bb5:
     v2 = sload 0
@@ -26,7 +26,7 @@ fn @accumulate() [selector=0xb4e7d02a, abi_wrapper] {
   bb7:
     v16 = add v6, 1
     jump bb1
-  bb6:
+  bb6 [cold]:
     tail_call @panicArithmetic
 }
 
@@ -40,12 +40,12 @@ fn @increment() [selector=0x7cf5dab0, abi_wrapper] {
     sstore 0, v6
     mstore 0, v6
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     tail_call @panicArithmetic
 }
 
-fn @panicArithmetic() [pure] {
-  bb0:
+fn @panicArithmetic() [cold, pure] {
+  bb0 [cold]:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
@@ -68,6 +68,6 @@ fn @entry() [entry] {
     tail_call @accumulate
   bb3:
     tail_call @increment
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }

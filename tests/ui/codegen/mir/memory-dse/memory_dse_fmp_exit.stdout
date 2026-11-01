@@ -10,8 +10,8 @@
       returndata v0, 32
   }
   
-  fn @remove_bump_before_heap_copy(arg0: i256, arg1: i256) {
-    bb0:
+  fn @remove_bump_before_heap_copy(arg0: i256, arg1: i256) [cold] {
+    bb0 [cold]:
       v0 = mload 64 !metadata(alloc_ptr)
       v1 = add v0, 64
 -     mstore 64, v1
@@ -69,8 +69,8 @@
       returndata 0, arg0
   }
   
-  fn @keep_bump_before_covering_constant_range() {
-    bb0:
+  fn @keep_bump_before_covering_constant_range() [cold] {
+    bb0 [cold]:
       v0 = mload 64 !metadata(alloc_ptr)
       v1 = add v0, 32
       mstore 64, v1
@@ -144,7 +144,7 @@
       v1 = add v0, 32
 -     mstore 64, v1
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2 [cold]:
       revert v0, 4
     bb1:
       returndata v0, 32
@@ -156,7 +156,7 @@
       v1 = add v0, 32
       mstore 64, v1
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2 [cold]:
       revert arg1, 4
     bb1:
       returndata v0, 32
@@ -190,8 +190,8 @@
       returndata v0, 32
   }
   
-  fn @keep_store_before_runtime_ptradd_read(arg0: i256) {
-    bb0:
+  fn @keep_store_before_runtime_ptradd_read(arg0: i256) [cold] {
+    bb0 [cold]:
       mstore 0, 0x1234
       v0 = alloc 64
       v1 = ptradd v0, arg0
@@ -200,8 +200,8 @@
       revert 32, 32
   }
   
-  fn @remove_store_before_constant_ptradd_read(arg0: i256) {
-    bb0:
+  fn @remove_store_before_constant_ptradd_read(arg0: i256) [cold] {
+    bb0 [cold]:
 -     mstore 0, 0x1234
       v0 = alloc 64
       v1 = ptradd v0, 32

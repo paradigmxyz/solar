@@ -292,7 +292,7 @@
 -     v11 = add v4, 1
 +     v13 = add v12, 32
       jump bb2
-    bb5:
+    bb5 [cold]:
       revert 0, 0
   }
   
@@ -356,7 +356,7 @@
 -     v11 = add v4, 1
 +     v13 = add v12, 32
       jump bb3
-    bb6:
+    bb6 [cold]:
       revert 0, 0
   }
   
@@ -392,7 +392,7 @@
 -     v11 = add v4, 1
 +     v14 = add v13, 32
       jump bb2
-    bb5:
+    bb5 [cold]:
       revert 0, 0
   }
   
@@ -479,7 +479,7 @@
 -     v11 = phi [bb3: v4], [bb2: arg1]
 +     v11 = phi [bb7: v17], [bb2: arg1]
       ret v11
-    bb6:
+    bb6 [cold]:
       revert 0, 0
   }
   
@@ -516,7 +516,7 @@
 +     v15 = sub v11, arg0
 +     v16 = shr v15, 5
 +     ret v16
-    bb6:
+    bb6 [cold]:
       revert 0, 0
   }
   
@@ -546,7 +546,7 @@
       jump bb2
     bb5:
       ret v6
-    bb7:
+    bb7 [cold]:
       revert 0, 0
   }
   

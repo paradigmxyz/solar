@@ -20,14 +20,14 @@ fn @sum() [selector=0x188b85b4, abi_wrapper, pure] {
   bb5:
     v9 = add v2, 1
     jump bb1
-  bb4:
+  bb4 [cold]:
     mstore 32, 17
     mstore 0, 0x4e487b71
     revert 28, 36
   bb2:
     mstore 0, v1
     returndata 0, 32
-  bb6:
+  bb6 [cold]:
     revert 0, 0
 }
 
@@ -76,11 +76,11 @@ fn @greet() [selector=0xead710c4, abi_wrapper, pure] {
     mstore v51, 32
     v41 = add v36, 64
     returndata v51, v41
-  bb1:
+  bb1 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -92,7 +92,7 @@ fn @share() [selector=0xc3d9c4b4, abi_wrapper, pure] {
   bb4:
     v1 = ne arg0, 0
     jumpi v1, bb2, bb1
-  bb1:
+  bb1 [cold]:
     mstore 32, 18 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -100,7 +100,7 @@ fn @share() [selector=0xc3d9c4b4, abi_wrapper, pure] {
     v2 = div 100, arg0
     mstore 0, v2
     returndata 0, 32
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -121,6 +121,6 @@ fn @entry() [entry] {
     tail_call @pattern
   bb2:
     tail_call @sum
-  bb6:
+  bb6 [cold]:
     revert 0, 0
 }

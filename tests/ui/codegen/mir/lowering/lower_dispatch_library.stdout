@@ -29,11 +29,11 @@
 +     jumpi v4, bb5, bb6
 +   bb6:
 +     tail_call @write
-+   bb5:
++   bb5 [cold]:
 +     revert 0, 0
 +   bb2:
 +     tail_call @view
-+   bb4:
++   bb4 [cold]:
 +     revert 0, 0
   }
   

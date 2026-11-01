@@ -48,11 +48,11 @@ fn @constructor(arg0: i256) [abi_wrapper, constructor] {
     sstore v1, v15 !metadata(storage=symbolic(v1))
     v7 = add v1, 1
     jump bb1
-  bb7:
+  bb7 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb10:
+  bb10 [cold]:
     revert 0, 0
 }
 
@@ -60,7 +60,7 @@ fn @get() [selector=0x9507d39a, abi_wrapper, view] {
   bb0:
     v0 = lt arg0, 8
     jumpi v0, bb2, bb1
-  bb1:
+  bb1 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -76,7 +76,7 @@ fn @get() [selector=0x9507d39a, abi_wrapper, view] {
   bb4:
     mstore 0, v7 !metadata(memory=scratch)
     returndata 0, 32
-  bb3:
+  bb3 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -135,7 +135,7 @@ fn @sum() [selector=0x188b85b4, abi_wrapper, pure] {
   bb8:
     v53 = add v45, 1
     jump bb6
-  bb4:
+  bb4 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -158,6 +158,6 @@ fn @entry() [entry] {
     tail_call @get
   bb3:
     tail_call @sum
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }

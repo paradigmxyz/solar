@@ -32,7 +32,7 @@ fn @countDown() [selector=0x3b396421, abi_wrapper, pure] {
     v17 = add v4, v5
     v18 = sub v5, 1
     jump bb1
-  bb4:
+  bb4 [cold]:
     revert 0, 0
 }
 
@@ -87,11 +87,11 @@ fn @squaresDown() [selector=0x45ce5caf, abi_wrapper, pure] {
   bb9:
     v36 = sub v6, 1
     jump bb1
-  bb4:
+  bb4 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb5:
+  bb5 [cold]:
     revert 0, 0
 }
 
@@ -127,7 +127,7 @@ fn @stepDown() [selector=0x4e0372c8, abi_wrapper, pure] {
     v19 = add v6, v7
     v20 = sub v7, 2
     jump bb1
-  bb4:
+  bb4 [cold]:
     revert 0, 0
 }
 
@@ -163,7 +163,7 @@ fn @downTo() [selector=0x4930868e, abi_wrapper, pure] {
     v22 = add v9, v10
     v23 = sub v10, 1
     jump bb1
-  bb4:
+  bb4 [cold]:
     revert 0, 0
 }
 
@@ -184,6 +184,6 @@ fn @entry() [entry] {
     tail_call @squaresDown
   bb2:
     tail_call @countDown
-  bb6:
+  bb6 [cold]:
     revert 0, 0
 }

@@ -16,7 +16,7 @@
     bb2:
 -     ret v4
 +     ret v1
-    bb3:
+    bb3 [cold]:
       revert 0, 0
   }
   

@@ -45,11 +45,11 @@ fn @level() [selector=0x223559c3, abi_wrapper, pure] {
     mstore v34, 32
     v29 = add v27, 64
     returndata v34, v29
-  bb3:
+  bb3 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -164,7 +164,7 @@ fn @_level(arg0: i256) -> i256 [may_return_memory, pure] {
     v110 = add v99, 1
     v57 = lt v110, v70
     jumpi v57, bb15, bb10
-  bb10:
+  bb10 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -179,7 +179,7 @@ fn @_level(arg0: i256) -> i256 [may_return_memory, pure] {
     v158 = add v157, 64
     v161 = add v160, 32
     jump bb4
-  bb8:
+  bb8 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -198,6 +198,6 @@ fn @entry() [entry] {
     tail_call @scratchLevel
   bb2:
     tail_call @level
-  bb4:
+  bb4 [cold]:
     revert 0, 0
 }

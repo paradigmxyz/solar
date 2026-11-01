@@ -37,7 +37,7 @@ fn @use() [selector=0x01bd03f7, abi_wrapper, pure] {
     v23 = mload v22
     mstore 0, v23
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -52,6 +52,6 @@ fn @entry() [entry] {
     switch v3, default bb3, [0x1bd03f7 => bb2]
   bb2:
     tail_call @use
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }

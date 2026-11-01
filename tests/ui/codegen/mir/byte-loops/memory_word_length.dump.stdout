@@ -115,7 +115,7 @@ fn @copy() [selector=0xf5088730, abi_wrapper, pure] {
     mstore v122, v29
     v37 = add v20, 1
     jump bb1
-  bb13:
+  bb13 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -123,7 +123,7 @@ fn @copy() [selector=0xf5088730, abi_wrapper, pure] {
     v38 = mload v131
     v39 = gt v38, 0
     jumpi v39, bb9, bb6
-  bb6:
+  bb6 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -132,11 +132,11 @@ fn @copy() [selector=0xf5088730, abi_wrapper, pure] {
     v42 = mload v116
     mstore 0, v42 !metadata(memory=scratch)
     returndata 0, 32
-  bb19:
+  bb19 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb16:
+  bb16 [cold]:
     revert 0, 0
 }
 
@@ -151,6 +151,6 @@ fn @entry() [entry] {
     switch v3, default bb3, [0xf5088730 => bb2]
   bb2:
     tail_call @copy
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }

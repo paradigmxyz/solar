@@ -30,7 +30,12 @@ use crate::{
 use either::Either;
 use smallvec::SmallVec;
 use solar_config::OptimizationMode;
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap, sync};
+use solar_data_structures::{
+    bit_set::{DenseBitSet, GrowableBitSet},
+    index::IndexVec,
+    map::FxHashMap,
+    sync,
+};
 use solar_interface::diagnostics::ErrorGuaranteed;
 use solar_sema::Gcx;
 use std::{any::TypeId, cell::Cell, convert::Infallible, rc::Rc, sync::Arc};
@@ -836,6 +841,10 @@ pub struct ModuleAnalyses {
     /// Function bodies on which a function-local pass most recently reported
     /// no change. Any intervening mutation of that body removes the entry.
     local_no_change: FxHashMap<TypeId, DenseBitSet<FunctionId>>,
+    /// The functions a function-local runner changed in the running pass, reported or not.
+    changed_functions: GrowableBitSet<FunctionId>,
+    /// The number of functions when the running pass began.
+    functions_at_start: usize,
     call_summaries: Option<Arc<MemoryCallSummaries>>,
     /// Local summaries of the functions no pass has changed since the last summary build.
     local_summaries: LocalSummaryCache,
@@ -870,8 +879,11 @@ impl ModuleAnalyses {
         prices_creation: bool,
         parallel: bool,
         objective_gate: [bool; 3],
+        functions: usize,
     ) {
         self.objective_gate = Some(objective_gate);
+        self.changed_functions.clear();
+        self.functions_at_start = functions;
         self.parallel = parallel;
         self.unreported_edit = false;
         self.preserved_by_pass = false;
@@ -887,6 +899,17 @@ impl ModuleAnalyses {
         self.objective_gate.is_none_or(|gate| {
             gate[usize::from(objective.is_gas()) + 2 * usize::from(objective.is_size())]
         })
+    }
+
+    /// Returns the functions the running pass changed when it ran only through the function-local
+    /// runners, which record every function they edit, and `None` when the pass edited the module
+    /// in other ways.
+    pub(crate) fn changed_functions(
+        &self,
+        functions: usize,
+    ) -> Option<&GrowableBitSet<FunctionId>> {
+        (self.preserved_by_pass && self.functions_at_start == functions)
+            .then_some(&self.changed_functions)
     }
 
     pub(crate) fn finish_pass(&mut self, changed: bool) {
@@ -1041,6 +1064,7 @@ impl ModuleAnalyses {
         changed: bool,
     ) {
         if changed {
+            self.note_changed_function(func_id);
             self.local_summaries.invalidate(func_id);
             for cached in self.local_no_change.values_mut() {
                 if func_id.index() < cached.domain_size() {
@@ -1050,6 +1074,10 @@ impl ModuleAnalyses {
         } else if let Some(key) = cache_key {
             self.no_change(key, functions).insert(func_id);
         }
+    }
+
+    fn note_changed_function(&mut self, func_id: FunctionId) {
+        self.changed_functions.insert(func_id);
     }
 
     fn invalidate_all(&mut self) {
@@ -1105,6 +1133,7 @@ fn run_function_pass_cached(
     let insts_before = func.num_insts();
     let changed = run(func, &bundle);
     if bundle.unreported_edit.get() {
+        analyses.note_changed_function(func_id);
         analyses.local_summaries.invalidate(func_id);
         analyses.unreported_edit = true;
     }
@@ -1248,6 +1277,7 @@ fn run_parallel_function_pass(
         .unwrap_or_else(|never| match never {});
     for (id, outcome) in results {
         if outcome.unreported_edit {
+            analyses.note_changed_function(id);
             analyses.local_summaries.invalidate(id);
             analyses.unreported_edit = true;
         }

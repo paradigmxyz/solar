@@ -9,7 +9,7 @@ fn @periodStarts() [selector=0x2e930b8e, abi_wrapper, pure] {
     jumpi v31, bb6, bb9
   bb6:
     jumpi v11, bb7, bb4
-  bb4:
+  bb4 [cold]:
     mstore 32, 18 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -76,7 +76,7 @@ fn @periodStarts() [selector=0x2e930b8e, abi_wrapper, pure] {
   bb12:
     v63 = add v4, 2
     jump bb1
-  bb5:
+  bb5 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -90,7 +90,7 @@ fn @keep() [selector=0xdaef3dc2, abi_wrapper, pure] {
     jumpi v26, bb6, bb9
   bb6:
     jumpi v11, bb7, bb4
-  bb4:
+  bb4 [cold]:
     mstore 32, 18 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -157,7 +157,7 @@ fn @keep() [selector=0xdaef3dc2, abi_wrapper, pure] {
   bb12:
     v58 = add v4, 2
     jump bb1
-  bb5:
+  bb5 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -180,6 +180,6 @@ fn @entry() [entry] {
     tail_call @keep
   bb3:
     tail_call @periodStarts
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }

@@ -10,7 +10,7 @@
   fn @callee() {
     bb0:
       jumpi true, bb1, bb2
-    bb2:
+    bb2 [cold]:
       revert 0, 0
     bb1:
       ret
@@ -28,7 +28,7 @@
   fn @callee() {
     bb0:
 -     jumpi true, bb1, bb2
--   bb2:
+-   bb2 [cold]:
 -     revert 0, 0
 -   bb1:
       ret
