@@ -10,32 +10,37 @@
 //! that block, and each read the block dominates uses that value. A block that only reverts does
 //! not count as a path, since a read there costs only the revert. A read common to the routes of a
 //! dispatcher is then one read before the `switch` instead of one per route, which is the smaller
-//! code, and the backend keeps it for the routes that use it. Fewer than [`MIN_HOISTED_READS`]
-//! reads below the block do not repay the longer live range, so they stay. A word already
-//! read in the block or above it is left alone, and a block with a single continuing successor
-//! hoists nothing, which keeps a guard's read apart from the body's.
+//! code, and the backend keeps it for the routes that use it. The target prices the hoist
+//! ([`Target::hoisted_read_pays`]): one read, a `dup` per further reader, and the `dup` and `swap`
+//! a word kept on the stack costs the words around it, against a read at each; too few readers do
+//! not repay the longer live range, so their reads stay. A word already read in the block or above
+//! it is left alone, and a block with a single continuing successor hoists nothing, which keeps a
+//! guard's read apart from the body's.
 //!
 //! **Placement.** The guard's read and the body's are one value after CSE, and ABI lowering emits
 //! them as one. That value is defined at the guard and lives to every later use, across calls and
 //! branches. The backend prices keeping a word as one push and a cheap `dup` per use, and leaves
-//! out the `dup` and `swap` that a long-lived word forces on the words around it: kept this way,
-//! aave-l2-encoder grows 19% in bytes. The price is right only where the definition sits at the
-//! uses it serves. For each read in a block, the pass moves every use outside that block to a copy
-//! of the read at the start of the nearest block outside every loop that dominates those uses. A
-//! phi input counts as a use at the end of its predecessor. The entry block keeps its own uses and
-//! the original, since the guard needs them, so the body path reads the word a second time and the
-//! shorter live range repays it. Another block's read moves entirely, and only when the block has
-//! no use of its own, so no path gains a read. A word whose first use sits after a
-//! branch is then not read on the path that leaves at the branch. The copy never lands inside a
-//! loop that does not contain the original.
+//! out what a long-lived word costs the words around it: the `dup` and `swap` that reach past it,
+//! and the stack height every block between the guard and the last use carries. The price is right
+//! only where the definition sits at the uses it serves. For each read in a block, the pass moves
+//! every use outside that block to a copy of the read at the start of the nearest block outside
+//! every loop that dominates those uses. A phi input counts as a use at the end of its
+//! predecessor. The entry block keeps its own uses and the original, since the guard needs them,
+//! so the body path reads the word a second time and the shorter live range repays it. Another
+//! block's read moves entirely, and only when the block has no use of its own, so no path gains a
+//! read. A word whose first use sits after a branch is then not read on the path that leaves at
+//! the branch. The copy never lands inside a loop that does not contain the original.
 //!
 //! The pass runs once, after the last CSE and before the backend, so no later pass merges the
 //! copies again.
 
-use crate::mir::{
-    BlockId, Function, InstKind, Instruction, Module, Value, ValueId,
-    analysis::CfgInfo,
-    pass::{MirPass, ModuleAnalyses, run_function_pass},
+use crate::{
+    mir::{
+        BlockId, Function, InstKind, Instruction, MirModuleTarget, Module, Value, ValueId,
+        analysis::CfgInfo,
+        pass::{MirPass, ModuleAnalyses, run_function_pass},
+    },
+    target::Target,
 };
 use smallvec::SmallVec;
 use solar_data_structures::{
@@ -45,9 +50,6 @@ use solar_data_structures::{
 };
 use solar_sema::Gcx;
 
-/// The fewest reads of a word that make one read above them smaller than the reads it replaces.
-const MIN_HOISTED_READS: usize = 3;
-
 pub(crate) struct PlaceReads;
 
 impl MirPass for PlaceReads {
@@ -55,16 +57,17 @@ impl MirPass for PlaceReads {
         "place-reads"
     }
 
-    fn run_pass(&self, _: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
+        let target = module.target(gcx);
         run_function_pass(module, analyses, |func, _| {
-            let hoisted = hoist(func);
+            let hoisted = hoist(func, &target);
             run(func) || hoisted
         })
     }
 }
 
 /// Reads each word that every path out of a branching block must read, once, in that block.
-fn hoist(func: &mut Function) -> bool {
+fn hoist(func: &mut Function, target: &Target) -> bool {
     // The constant offsets read anywhere, and the offsets each block reads.
     let mut offsets = Vec::new();
     let mut loads = Vec::new();
@@ -157,7 +160,7 @@ fn hoist(func: &mut Function) -> bool {
                     _ => None,
                 })
                 .collect::<Vec<_>>();
-            if below.len() < MIN_HOISTED_READS {
+            if !target.hoisted_read_pays(offset, below.len() as u32) {
                 continue;
             }
             // v = calldataload offset, before the branch
