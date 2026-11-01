@@ -1,12 +1,16 @@
 //! Sink calldata reads out of the entry block, to the block that dominates their other uses.
 //!
-//! The entry block runs on every path, so a calldata word at a constant offset read there, such
-//! as an ABI head word, is read by the guard that checks it and again by the body. CSE merges the
-//! two into one value defined in the entry block, which then lives from the guard to every later
-//! use, across calls and branches, and its stack copies differ from function to function where
-//! the guard-and-push code of two entries would otherwise repeat exactly and merge. The backend
-//! prices pushing such a word at each use against keeping it, and it can only choose well when
-//! the word's definition sits at the uses it serves.
+//! This pass undoes CSE's merge of the guard load with the body loads. The entry block runs on
+//! every path, so a calldata word at a constant offset read there, such as an ABI head word, is
+//! read by the guard that checks it and again by the body. CSE merges the two into one value
+//! defined in the entry block, which then lives from the guard to every later use, across calls
+//! and branches. The backend prices keeping such a word as one push and a cheap `dup` per use, and
+//! the cost of the extra `dup` and `swap` that a long-lived word forces on the words around it is
+//! not part of that price: kept this way, aave-l2-encoder saves a little gas and grows 19% in
+//! bytes. The pricing chooses well only when the word's definition sits at the uses it serves,
+//! which is where the pass puts the copy. The stack copies of the merged word also differ from
+//! function to function, where the guard-and-push code of two entries would otherwise repeat
+//! exactly and merge.
 //!
 //! For each constant-offset `calldataload` in the entry block, the pass leaves the uses in the
 //! entry block with it and moves every other use to a copy of the load at the start of the nearest
