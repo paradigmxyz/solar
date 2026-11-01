@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/byte-loops/fresh_copy.sol:Test ===
 @module Test
 @phase lowered
-@types
-  struct0: {ptr<memory>, i256}
-
 fn @whole() [selector=0xbbbb2e8a, abi_wrapper, pure] {
   bb0:
     v59 = calldatasize

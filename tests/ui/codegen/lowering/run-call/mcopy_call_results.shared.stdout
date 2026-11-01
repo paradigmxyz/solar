@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/mcopy_call_results.sol:MCopyCallResults ===
 @module MCopyCallResults
 @phase lowered
-@types
-  struct0: {i256, i256}
-
 fn @message() [selector=0x91fdccfd, abi_wrapper, pure] {
   bb0:
     v63 = calldatasize

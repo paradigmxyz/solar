@@ -1,9 +1,9 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_cleanup.mir (before lower-structs) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_cleanup.mir (after lower-structs) ===
   @module LowerEvmShapedCleanup
-  @types
-    struct0: {i256, i256}
-  
+- @types
+-   struct0: {i256, i256}
+- 
   fn @entry() {
     bb0:
       tail_call @caller
@@ -25,7 +25,7 @@
   }
   
 - fn @pair_caller() -> struct0 {
-+ fn @pair_caller() -> struct0 [return_abi=[i256, i256]] {
++ fn @pair_caller() [return_abi=[i256, i256]] {
     bb0:
 -     v0 = icall @pair_fail, 29
 +     v2 = icall @pair_fail, 29
@@ -42,7 +42,7 @@
   }
   
 - fn @pair_fail(arg0: i256) -> struct0 {
-+ fn @pair_fail(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
++ fn @pair_fail(arg0: i256) [return_abi=[i256, i256]] {
     bb0:
       mstore 0, arg0
       revert 0, 32
@@ -51,9 +51,6 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_cleanup.mir (before lower-frame-slots) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_cleanup.mir (after lower-frame-slots) ===
   @module LowerEvmShapedCleanup
-  @types
-    struct0: {i256, i256}
-  
   fn @entry() {
     bb0:
       tail_call @caller
@@ -74,7 +71,7 @@
       returndata 0, 0
   }
   
-  fn @pair_caller() -> struct0 [return_abi=[i256, i256]] {
+  fn @pair_caller() [return_abi=[i256, i256]] {
     bb0:
       v2 = icall @pair_fail, 29
 -     v3 = frame_load multi_return, word, 0 !metadata(memory=scratch)
@@ -88,7 +85,7 @@
       ret v2, v5
   }
   
-  fn @pair_fail(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
+  fn @pair_fail(arg0: i256) [return_abi=[i256, i256]] {
     bb0:
       mstore 0, arg0
       revert 0, 32
@@ -98,9 +95,6 @@
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_cleanup.mir (after lower-evm-shaped) ===
   @module LowerEvmShapedCleanup
 + @phase lowered
-  @types
-    struct0: {i256, i256}
-  
   fn @entry() {
     bb0:
       tail_call @caller
@@ -122,7 +116,7 @@
       returndata 0, 0
   }
   
-  fn @pair_caller() -> struct0 [return_abi=[i256, i256]] {
+  fn @pair_caller() [return_abi=[i256, i256]] {
     bb0:
 -     v2 = icall @pair_fail, 29
 -     v6 = mload 32 !metadata(memory=scratch)
@@ -135,7 +129,7 @@
 +     tail_call @pair_fail, 29
   }
   
-  fn @pair_fail(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
+  fn @pair_fail(arg0: i256) [return_abi=[i256, i256]] {
     bb0:
       mstore 0, arg0
       revert 0, 32

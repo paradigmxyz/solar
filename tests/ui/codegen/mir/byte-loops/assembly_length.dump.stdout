@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/byte-loops/assembly_length.sol:Test ===
 @module Test
 @phase lowered
-@types
-  struct0: {ptr<memory>, i256}
-
 fn @copy() [selector=0x53a33458, abi_wrapper, pure] {
   bb0:
     v75 = calldatasize

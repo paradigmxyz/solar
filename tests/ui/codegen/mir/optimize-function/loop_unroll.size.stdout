@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/optimize-function/loop_unroll.sol:Mixed ===
 @module Mixed
 @phase lowered
-@types
-  struct0: {i256, i256, i256}
-
 fn @plain(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     jump bb1

@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/loop-version/early_exit.sol:Test ===
 @module Test
 @phase lowered
-@types
-  struct0: {i256, ptr<memory>, ptr<memory>}
-
 fn @splitUntilZero() [selector=0x8ecf6ff0, abi_wrapper, pure] {
   bb0:
     v4 = calldatasize

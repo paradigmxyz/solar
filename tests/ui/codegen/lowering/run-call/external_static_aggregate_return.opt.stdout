@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_static_aggregate_return.sol:ExternalStaticAggregateReturn ===
 @module ExternalStaticAggregateReturn
 @phase lowered
-@types
-  struct0: {ptr<memory>, i256}
-
 fn @makeStruct() [selector=0x62dc8436, abi_wrapper, pure] {
   bb0:
     v7 = calldatasize

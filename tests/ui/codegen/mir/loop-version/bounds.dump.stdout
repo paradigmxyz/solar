@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/loop-version/bounds.sol:Bounds ===
 @module Bounds
 @phase lowered
-@types
-  struct0: {ptr<memory>, ptr<memory>}
-
 fn @siftValues() [selector=0x979efdba, abi_wrapper, pure] {
   bb0:
     v150 = calldatasize

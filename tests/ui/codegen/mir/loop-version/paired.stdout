@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/loop-version/paired.sol:Test ===
 @module Test
 @phase lowered
-@types
-  struct0: {ptr<memory>, ptr<memory>}
-
 fn @sortPairs() [selector=0x198bc552, abi_wrapper, pure] {
   bb0:
     v2 = calldatasize

@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/memory-dse/narrow_overwritten_store.sol:NarrowOverwrittenStore ===
 @module NarrowOverwrittenStore
 @phase lowered
-@types
-  struct0: {i256, i256}
-
 fn @hashU8() [selector=0xe99643f7, abi_wrapper, pure] {
   bb0:
     v6 = calldataload 4

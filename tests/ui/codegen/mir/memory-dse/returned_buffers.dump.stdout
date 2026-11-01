@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/memory-dse/returned_buffers.sol:Test ===
 @module Test
 @phase lowered
-@types
-  struct0: {ptr<memory>, ptr<memory>}
-
 fn @constructor() [abi_wrapper, constructor] {
   bb0:
     v17 = callvalue

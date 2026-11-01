@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/loop-version/pointer_word.sol:Test ===
 @module Test
 @phase lowered
-@types
-  struct0: {i1, ptr<memory>}
-
 fn @lastIndicesIn() [selector=0x16134912, abi_wrapper, pure] {
   bb0:
     v5 = calldatasize

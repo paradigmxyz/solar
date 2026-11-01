@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_nested_struct_helpers.sol:NestedStructHelpers ===
 @module NestedStructHelpers
 @phase lowered
-@types
-  struct0: {i256, i256, i256}
-
 fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
   bb0:
     v15 = icall @decode_calldata_type.3, 4, 4

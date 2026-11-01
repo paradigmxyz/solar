@@ -1,10 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/check-elim/header_bounds.sol:HeaderBounds ===
 @module HeaderBounds
 @phase lowered
-@types
-  struct0: {i1, i256}
-  struct1: {i256, i256}
-
 fn @search() [selector=0xd43fc471, abi_wrapper, pure] {
   bb0:
     v49 = icall @decode_calldata_type
