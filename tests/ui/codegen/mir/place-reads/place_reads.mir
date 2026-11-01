@@ -1,10 +1,10 @@
-//@compile-flags: -Zmir-pipeline=sink-reads
+//@compile-flags: -Zmir-pipeline=place-reads
 //@filecheck:
-@module SinkReads
+@module PlaceReads
 @phase lowered
 
 // The guard keeps its read; the body reads its own copy where the body starts.
-// CHECK-LABEL: {{^[ +].*}}after sink-reads
+// CHECK-LABEL: {{^[ +].*}}after place-reads
 // CHECK: fn @guarded()
 // CHECK: [[GUARD:v[0-9]+]] = calldataload 4
 // CHECK: = shr [[GUARD]], 8
@@ -96,11 +96,83 @@ fn @diamond() [selector=0x00000004, abi_wrapper] {
     revert 0, 0
 }
 
+// Three routes read the word, so one read before the switch replaces them.
+// CHECK-LABEL: fn @routes()
+// CHECK: + [[WORD:v[0-9]+]] = calldataload 4
+// CHECK-NEXT: switch
+// CHECK-DAG: + mstore 0, [[WORD]]
+// CHECK-DAG: + mstore 32, [[WORD]]
+// CHECK-DAG: + mstore 64, [[WORD]]
+fn @routes() [selector=0x00000005, abi_wrapper] {
+  bb0:
+    v0 = calldataload 0
+    v1 = shr v0, 224
+    switch v1, default bb4, [1 => bb1, 2 => bb2, 3 => bb3]
+  bb1:
+    v2 = calldataload 4
+    mstore 0, v2
+    stop
+  bb2:
+    v3 = calldataload 4
+    mstore 32, v3
+    stop
+  bb3:
+    v4 = calldataload 4
+    mstore 64, v4
+    stop
+  bb4:
+    revert 0, 0
+}
+
+// Two reads do not repay a longer live range, so each route keeps its own.
+// CHECK-LABEL: fn @pair()
+// CHECK-NOT: {{^[-+]}}
+// CHECK: calldataload 4
+fn @pair() [selector=0x00000006, abi_wrapper] {
+  bb0:
+    v0 = calldataload 0
+    v1 = shr v0, 224
+    switch v1, default bb3, [1 => bb1, 2 => bb2]
+  bb1:
+    v2 = calldataload 4
+    mstore 0, v2
+    stop
+  bb2:
+    v3 = calldataload 4
+    mstore 32, v3
+    stop
+  bb3:
+    revert 0, 0
+}
+
+// A read outside the entry block moves to the block of its use, so the path that leaves at the
+// branch no longer pays for it.
+// CHECK-LABEL: fn @moved()
+// CHECK: bb2:
+// CHECK: + [[MOVED:v[0-9]+]] = calldataload 36
+// CHECK-NEXT: + mstore 0, [[MOVED]]
+fn @moved() [selector=0x00000007, abi_wrapper] {
+  bb0:
+    v0 = calldatasize
+    v1 = lt v0, 68
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 36
+    v3 = calldataload 4
+    v4 = ne v3, 0
+    jumpi v4, bb2, bb3
+  bb2:
+    mstore 0, v2
+    stop
+  bb3:
+    revert 0, 0
+}
+
 fn @entry() [entry] {
   bb0:
     v0 = calldataload 0
     v1 = shr v0, 224
-    switch v1, default bb5, [1 => bb1, 2 => bb2, 3 => bb3, 4 => bb4]
+    switch v1, default bb8, [1 => bb1, 2 => bb2, 3 => bb3, 4 => bb4, 5 => bb5, 6 => bb6, 7 => bb7]
   bb1:
     tail_call @guarded
   bb2:
@@ -110,5 +182,11 @@ fn @entry() [entry] {
   bb4:
     tail_call @diamond
   bb5:
+    tail_call @routes
+  bb6:
+    tail_call @pair
+  bb7:
+    tail_call @moved
+  bb8:
     revert 0, 0
 }

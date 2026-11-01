@@ -233,7 +233,6 @@ fn @below() [selector=0x8de62f33, abi_wrapper, pure] {
     v9 = lt v8, 36
     jumpi v9, bb1, bb2
   bb2:
-    v10 = calldataload 4
     mstore 0, 7 !metadata(memory=scratch)
     v13 = heap_floor !metadata(alloc_ptr)
     v14 = add v13, 64 !metadata(alloc_ptr)
@@ -244,11 +243,12 @@ fn @below() [selector=0x8de62f33, abi_wrapper, pure] {
     v19 = ne v18, 0
     jumpi v19, bb4, bb3
   bb3:
+    v21 = calldataload 4
     mstore 64, v14 !metadata(memory=scratch)
     v20 = calldatasize
     calldatacopy v13, v20, 64
     mstore v13, 1
-    v4 = mul v13, v10
+    v4 = mul v13, v21
     v6 = sub v13, v4
     v7 = mload v6
     mstore 0, v7 !metadata(memory=scratch)

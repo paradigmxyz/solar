@@ -13,14 +13,14 @@ fn @entry() [entry] {
   bb2:
     v6 = calldataload 0
     v7 = shr v6, 224
+    v113 = calldataload 4
+    v114 = calldataload 36
     switch v7, default bb1, [0x867025b4 => bb3, 0xb77153be => bb4, 0xc77230d0 => bb5]
   bb5:
     v50 = calldatasize
-    v51 = calldataload 36
-    v52 = calldataload 4
-    v53 = add v52, 4
+    v53 = add v113, 4
     v54 = sub v50, 36
-    v55 = gt v52, v54
+    v55 = gt v113, v54
     v63 = calldataload v53
     v64 = add v53, 32
     v65 = sub v50, v64
@@ -36,7 +36,7 @@ fn @entry() [entry] {
     jumpi v108, bb29, bb31
   bb29:
     v100 = calldataload v64
-    v101 = eq v100, v51
+    v101 = eq v100, v114
     jumpi v101, bb21, bb28
   bb28:
     v99 = add v64, 32
@@ -53,12 +53,12 @@ fn @entry() [entry] {
     returndata 0, 32
   bb20:
     v61 = calldataload v70
-    v62 = eq v61, v51
+    v62 = eq v61, v114
     jumpi v62, bb21, bb19
   bb19:
     v71 = add v70, 32
     v105 = calldataload v71
-    v106 = eq v105, v51
+    v106 = eq v105, v114
     jumpi v106, bb21, bb30
   bb30:
     v104 = add v71, 32
@@ -71,11 +71,9 @@ fn @entry() [entry] {
     returndata 0, 32
   bb4:
     v29 = calldatasize
-    v30 = calldataload 36
-    v31 = calldataload 4
-    v32 = add v31, 4
+    v32 = add v113, 4
     v33 = sub v29, 36
-    v34 = gt v31, v33
+    v34 = gt v113, v33
     v43 = calldataload v32
     v44 = add v32, 32
     v45 = sub v29, v44
@@ -90,7 +88,7 @@ fn @entry() [entry] {
     v36 = lt v35, v43
     jumpi v36, bb13, bb12
   bb13:
-    v37 = lt v35, v30
+    v37 = lt v35, v114
     jumpi v37, bb15, bb12
   bb15:
     v39 = shl v35, 5
@@ -106,11 +104,9 @@ fn @entry() [entry] {
     returndata 0, 32
   bb3:
     v8 = calldatasize
-    v9 = calldataload 36
-    v10 = calldataload 4
-    v11 = add v10, 4
+    v11 = add v113, 4
     v12 = sub v8, 36
-    v13 = gt v10, v12
+    v13 = gt v113, v12
     v22 = calldataload v11
     v23 = add v11, 32
     v24 = sub v8, v23
@@ -126,7 +122,7 @@ fn @entry() [entry] {
     jumpi v94, bb25, bb27
   bb25:
     v86 = calldataload v23
-    v87 = eq v86, v9
+    v87 = eq v86, v114
     jumpi v87, bb23, bb24
   bb24:
     v85 = add v23, 32
@@ -140,12 +136,12 @@ fn @entry() [entry] {
     jumpi v15, bb9, bb7
   bb9:
     v20 = calldataload v76
-    v21 = eq v20, v9
+    v21 = eq v20, v114
     jumpi v21, bb23, bb8
   bb8:
     v77 = add v76, 32
     v91 = calldataload v77
-    v92 = eq v91, v9
+    v92 = eq v91, v114
     jumpi v92, bb23, bb26
   bb26:
     v90 = add v77, 32

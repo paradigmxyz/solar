@@ -7,20 +7,20 @@ fn @loadSome() [selector=0x982de5a7, abi_wrapper, pure] {
     v36 = lt v35, 100
     jumpi v36, bb5, bb6
   bb6:
-    v37 = calldataload 36
     v38 = calldataload 68
     v39 = icall @decode_calldata_type
     v19 = eq v38, 0
     jumpi v19, bb1, bb2
   bb2:
+    v45 = calldataload 36
     v20 = mload v39
     v21 = lt v20, v38
     v22 = sub v20, v38
-    v23 = gt v37, v22
+    v23 = gt v45, v22
     v24 = or v21, v23
     jumpi v24, bb3, bb4
   bb4:
-    v42 = add v39, v37
+    v42 = add v39, v45
     v43 = add v42, 32
     v28 = mload v43
     v29 = lt v38, 32
@@ -46,14 +46,14 @@ fn @storeSome() [selector=0x26843d1f, abi_wrapper, pure] {
     v49 = lt v48, 132
     jumpi v49, bb12, bb13
   bb13:
-    v50 = calldataload 36
-    v51 = calldataload 68
     v52 = calldataload 100
     v53 = icall @decode_calldata_type
     v19 = eq v52, 0
     jumpi v19, bb2, bb4
   bb4:
-    v72 = add v53, v50
+    v83 = calldataload 68
+    v82 = calldataload 36
+    v72 = add v53, v82
     v73 = add v72, 32
     v75 = add v53, 32
     v25 = lt v73, v75
@@ -62,7 +62,7 @@ fn @storeSome() [selector=0x26843d1f, abi_wrapper, pure] {
     v26 = mload v53
     v27 = lt v26, v52
     v28 = sub v26, v52
-    v29 = gt v50, v28
+    v29 = gt v82, v28
     v30 = or v27, v29
     v32 = gt v52, 32
     v35 = or v30, v32
@@ -75,7 +75,7 @@ fn @storeSome() [selector=0x26843d1f, abi_wrapper, pure] {
     v40 = not v39
     v42 = mload v73
     v43 = and v42, v39
-    v44 = and v51, v40
+    v44 = and v83, v40
     v45 = or v43, v44
     mstore v73, v45
     jump bb2
@@ -87,9 +87,9 @@ fn @storeSome() [selector=0x26843d1f, abi_wrapper, pure] {
     v7 = lt v5, 32
     jumpi v7, bb7, bb6
   bb7:
-    v9 = byte v5, v51
-    v46 = add v50, v5
-    v47 = lt v46, v50
+    v9 = byte v5, v83
+    v46 = add v82, v5
+    v47 = lt v46, v82
     jumpi v47, bb10, bb11
   bb11:
     v12 = mload v53

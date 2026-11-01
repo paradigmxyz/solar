@@ -7,7 +7,6 @@ fn @uncheckedDown() [selector=0x0a3fd26a, abi_wrapper, pure] {
     v45 = lt v44, 100
     jumpi v45, bb7, bb8
   bb8:
-    v46 = calldataload 36
     v47 = calldataload 68
     v48 = icall @decode_calldata_slice
     v49 = calldataload v48
@@ -32,13 +31,14 @@ fn @uncheckedDown() [selector=0x0a3fd26a, abi_wrapper, pure] {
     v31 = eq v47, 0
     jumpi v31, bb1, bb2
   bb2:
-    v33 = add v46, v47
-    v34 = lt v33, v46
+    v81 = calldataload 36
+    v33 = add v81, v47
+    v34 = lt v33, v81
     v35 = gt v33, v49
     v36 = or v34, v35
     jumpi v36, bb5, bb6
   bb6:
-    v43 = add v50, v46
+    v43 = add v50, v81
     v71 = add v73, 32
     calldatacopy v71, v43, v47
     jump bb1
@@ -70,7 +70,6 @@ fn @checkedDown() [selector=0xc6510b18, abi_wrapper, pure] {
     v43 = lt v42, 100
     jumpi v43, bb9, bb10
   bb10:
-    v44 = calldataload 36
     v45 = calldataload 68
     v46 = icall @decode_calldata_slice
     v47 = calldataload v46
@@ -95,14 +94,15 @@ fn @checkedDown() [selector=0xc6510b18, abi_wrapper, pure] {
     v31 = eq v45, 0
     jumpi v31, bb1, bb2
   bb2:
-    v33 = add v44, v45
-    v34 = lt v33, v44
+    v79 = calldataload 36
+    v33 = add v79, v45
+    v34 = lt v33, v79
     jumpi v34, bb5, bb6
   bb6:
     v35 = gt v33, v47
     jumpi v35, bb7, bb8
   bb8:
-    v41 = add v48, v44
+    v41 = add v48, v79
     v69 = add v71, 32
     calldatacopy v69, v41, v45
     jump bb1
@@ -138,7 +138,6 @@ fn @mixedDown() [selector=0xcbd040ed, abi_wrapper, pure] {
     v34 = lt v33, 100
     jumpi v34, bb11, bb12
   bb12:
-    v35 = calldataload 36
     v36 = calldataload 68
     v37 = icall @decode_calldata_slice
     v38 = calldataload v37
@@ -157,6 +156,7 @@ fn @mixedDown() [selector=0xcbd040ed, abi_wrapper, pure] {
     v71 = ne v70, 0
     jumpi v71, bb14, bb13
   bb13:
+    v73 = calldataload 36
     v72 = calldatasize
     calldatacopy v65, v72, v3
     mstore v65, v36
@@ -177,7 +177,7 @@ fn @mixedDown() [selector=0xcbd040ed, abi_wrapper, pure] {
     v53 = add v48, 64
     returndata v58, v53
   bb3:
-    v11 = add v35, v9
+    v11 = add v73, v9
     v31 = sub v11, 1
     v32 = eq v11, 0
     jumpi v32, bb9, bb10
@@ -219,8 +219,6 @@ fn @sourceFirst() [selector=0x032c601e, abi_wrapper, pure] {
     v36 = lt v35, 132
     jumpi v36, bb11, bb12
   bb12:
-    v37 = calldataload 36
-    v38 = calldataload 68
     v39 = calldataload 100
     v40 = icall @decode_calldata_slice
     v41 = calldataload v40
@@ -239,6 +237,8 @@ fn @sourceFirst() [selector=0x032c601e, abi_wrapper, pure] {
     v74 = ne v73, 0
     jumpi v74, bb14, bb13
   bb13:
+    v77 = calldataload 68
+    v76 = calldataload 36
     v75 = calldatasize
     calldatacopy v68, v75, v3
     mstore v68, v39
@@ -259,7 +259,7 @@ fn @sourceFirst() [selector=0x032c601e, abi_wrapper, pure] {
     v56 = add v51, 64
     returndata v61, v56
   bb3:
-    v12 = add v37, v10
+    v12 = add v76, v10
     v13 = sub v12, 1
     v15 = lt v13, v41
     jumpi v15, bb7, bb6
@@ -267,8 +267,8 @@ fn @sourceFirst() [selector=0x032c601e, abi_wrapper, pure] {
     v20 = add v42, v13
     v21 = calldataload v20
     v22 = byte 0, v21
-    v33 = add v38, v10
-    v34 = lt v33, v38
+    v33 = add v77, v10
+    v34 = lt v33, v77
     jumpi v34, bb9, bb10
   bb10:
     v25 = sub v33, 1
@@ -303,8 +303,6 @@ fn @destinationFirst() [selector=0x5072325f, abi_wrapper, pure] {
     v38 = lt v37, 132
     jumpi v38, bb11, bb12
   bb12:
-    v39 = calldataload 36
-    v40 = calldataload 68
     v41 = calldataload 100
     v42 = icall @decode_calldata_slice
     v43 = calldataload v42
@@ -323,6 +321,8 @@ fn @destinationFirst() [selector=0x5072325f, abi_wrapper, pure] {
     v76 = ne v75, 0
     jumpi v76, bb14, bb13
   bb13:
+    v80 = calldataload 68
+    v79 = calldataload 36
     v77 = calldatasize
     calldatacopy v70, v77, v3
     mstore v70, v41
@@ -343,11 +343,11 @@ fn @destinationFirst() [selector=0x5072325f, abi_wrapper, pure] {
     v58 = add v53, 64
     returndata v63, v58
   bb3:
-    v33 = add v40, v10
-    v34 = lt v33, v40
+    v33 = add v80, v10
+    v34 = lt v33, v80
     v13 = sub v33, 1
-    v35 = add v39, v10
-    v36 = lt v35, v39
+    v35 = add v79, v10
+    v36 = lt v35, v79
     v78 = or v34, v36
     jumpi v78, bb9, bb10
   bb10:

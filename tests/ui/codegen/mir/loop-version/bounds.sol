@@ -29,9 +29,8 @@ contract Bounds {
     // `e <= values.length`, after the pointer and loaded length pass the non-wrapping guard.
     // The fast copy reuses that length; its stores cannot reach the header and change it.
     // CHECK-LABEL: fn @siftValues(
-    // CHECK: [[END:v[0-9]+]] = calldataload 36
     // CHECK: [[ARRAY:v[0-9]+]] = heap_floor
-    // CHECK: = or [[ARRAY]], [[SIZE:v[0-9]+]]
+    // CHECK: [[END:v[0-9]+]] = calldataload 36
     // CHECK: [[BITS:v[0-9]+]] = or [[ARRAY]], [[LENGTH:v[0-9]+]]
     // CHECK-NEXT: [[HIGH:v[0-9]+]] = shr [[BITS]], 64
     // CHECK-NEXT: [[SMALL:v[0-9]+]] = eq [[HIGH]], 0

@@ -116,12 +116,12 @@ fn @pickRest() [selector=0x74dbbcbe, abi_wrapper, pure] {
   bb3:
     v9 = calldataload 4
     v10 = calldataload 36
-    v11 = calldataload 68
     v0 = lt v10, v9
     jumpi v0, bb1, bb2
   bb1:
     v2 = sub v9, v10
-    v3 = mod v11, v2
+    v13 = calldataload 68
+    v3 = mod v13, v2
     v5 = add v3, v10
     mstore 0, v5 !metadata(memory=scratch)
     returndata 0, 32

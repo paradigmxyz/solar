@@ -38,8 +38,6 @@ fn @wrapped() [selector=0x08a7c76d, abi_wrapper, pure] {
     v5 = lt v4, 68
     jumpi v5, bb1, bb2
   bb2:
-    v6 = calldataload 4
-    v7 = calldataload 36
     v10 = heap_floor !metadata(alloc_ptr)
     v11 = add v10, 64 !metadata(alloc_ptr)
     v12 = lt v11, v10
@@ -49,10 +47,12 @@ fn @wrapped() [selector=0x08a7c76d, abi_wrapper, pure] {
     v16 = ne v15, 0
     jumpi v16, bb4, bb3
   bb3:
+    v19 = calldataload 36
+    v18 = calldataload 4
     v17 = calldatasize
     calldatacopy v10, v17, 64
     mstore v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v3 = icall @_write, v10, v6, v7
+    v3 = icall @_write, v10, v18, v19
     mstore 0, v3 !metadata(memory=scratch)
     returndata 0, 32
   bb4:

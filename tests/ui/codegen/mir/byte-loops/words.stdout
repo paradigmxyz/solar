@@ -195,7 +195,6 @@ fn @slice() [selector=0xe0041396, abi_wrapper, pure] {
     v63 = lt v62, 100
     jumpi v63, bb14, bb15
   bb15:
-    v64 = calldataload 36
     v65 = calldataload 68
     v66 = icall @decode_calldata_type
     v0 = add v65, 63
@@ -219,7 +218,8 @@ fn @slice() [selector=0xe0041396, abi_wrapper, pure] {
     v27 = eq v65, 0
     jumpi v27, bb2, bb4
   bb4:
-    v85 = add v66, v64
+    v110 = calldataload 36
+    v85 = add v66, v110
     v86 = add v85, 32
     v88 = add v102, 32
     v34 = add v86, v65
@@ -235,7 +235,7 @@ fn @slice() [selector=0xe0041396, abi_wrapper, pure] {
     v46 = mload v66
     v47 = lt v46, v65
     v48 = sub v46, v65
-    v49 = gt v64, v48
+    v49 = gt v110, v48
     v50 = or v47, v49
     jumpi v50, bb8, bb11
   bb11:
@@ -246,8 +246,8 @@ fn @slice() [selector=0xe0041396, abi_wrapper, pure] {
     v10 = lt v9, v65
     jumpi v10, bb3, bb2
   bb3:
-    v60 = add v64, v9
-    v61 = lt v60, v64
+    v60 = add v110, v9
+    v61 = lt v60, v110
     jumpi v61, bb12, bb13
   bb13:
     v12 = mload v66
