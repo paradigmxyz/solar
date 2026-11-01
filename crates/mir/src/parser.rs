@@ -255,6 +255,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 .extend(self.function_refs.drain(..).map(|reference| (function, reference)));
         }
         self.resolve_function_refs(&mut module, function_refs, &explicit_results)?;
+        // After entry lowering, `[receive]` and `[fallback]` mark module roots, like `[entry]`.
+        if module.dispatch_entry().is_some() {
+            module.record_receive_and_fallback();
+            for func in &mut module.functions {
+                func.attributes.is_receive = false;
+                func.attributes.is_fallback = false;
+            }
+        }
         for (function, (value, ty, span)) in cast_sources {
             if module.functions[function].value_ty(value) != Some(ty) {
                 return Err(self

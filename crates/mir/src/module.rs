@@ -95,6 +95,10 @@ pub struct Module {
     dispatch_entry: Option<FunctionId>,
     /// The constructor, which runs in the creation code, if this module has one.
     constructor: Option<FunctionId>,
+    /// The `receive` function, recorded when `lower-dispatch` clears its attribute.
+    receive: Option<FunctionId>,
+    /// The `fallback` function, recorded when `lower-dispatch` clears its attribute.
+    fallback: Option<FunctionId>,
     /// Most recently added function for each name before disambiguation.
     pub function_name_index: FxHashMap<Symbol, FunctionId>,
     /// Canonical ABI layouts referenced by semantic encoding operations.
@@ -185,6 +189,8 @@ impl Module {
             struct_types: IndexVec::new(),
             dispatch_entry: None,
             constructor: None,
+            receive: None,
+            fallback: None,
             function_name_index: FxHashMap::default(),
             abi_layouts: Vec::new(),
             abi_param_layouts: Vec::new(),
@@ -463,10 +469,38 @@ impl Module {
         );
     }
 
-    /// Updates the module roots after remapping function IDs.
-    pub fn remap_roots(&mut self, remap: impl Fn(FunctionId) -> FunctionId) {
-        self.dispatch_entry = self.dispatch_entry.map(&remap);
-        self.constructor = self.constructor.map(&remap);
+    /// Returns the `receive` function: the one `lower-dispatch` recorded, or before it runs, the
+    /// one with the attribute.
+    #[must_use]
+    pub fn receive(&self) -> Option<FunctionId> {
+        self.receive.or_else(|| {
+            self.functions.iter_enumerated().find(|(_, func)| func.attributes.is_receive)?.0.into()
+        })
+    }
+
+    /// Returns the `fallback` function: the one `lower-dispatch` recorded, or before it runs, the
+    /// one with the attribute.
+    #[must_use]
+    pub fn fallback(&self) -> Option<FunctionId> {
+        self.fallback.or_else(|| {
+            self.functions.iter_enumerated().find(|(_, func)| func.attributes.is_fallback)?.0.into()
+        })
+    }
+
+    /// Records the `receive` and `fallback` functions, whose attributes entry lowering clears.
+    pub fn record_receive_and_fallback(&mut self) {
+        self.receive = self.receive();
+        self.fallback = self.fallback();
+    }
+
+    /// Updates the module roots after remapping function IDs. `entry` and the constructor are
+    /// always kept; `receive` and `fallback` stop being roots when dispatch inlines them away.
+    pub fn remap_roots(&mut self, remap: impl Fn(FunctionId) -> Option<FunctionId>) {
+        let kept = |root| remap(root).expect("kept function cannot be a module root");
+        self.dispatch_entry = self.dispatch_entry.map(kept);
+        self.constructor = self.constructor.map(kept);
+        self.receive = self.receive.and_then(&remap);
+        self.fallback = self.fallback.and_then(&remap);
     }
 
     /// Returns the functions the runtime enters from outside: the targets of the tail calls in
@@ -810,14 +844,15 @@ impl Module {
     ///
     /// This only orders text, so `functions` and its ids stay as they are.
     pub fn functions_in_print_order(&self) -> impl Iterator<Item = (FunctionId, &Function)> {
-        let role = |(id, func): &(FunctionId, &Function)| {
+        let (receive, fallback) = (self.receive(), self.fallback());
+        let role = |(id, _): &(FunctionId, &Function)| {
             if self.constructor == Some(*id) {
                 0
             } else if self.dispatch_entry == Some(*id) {
                 1
-            } else if func.attributes.is_receive {
+            } else if receive == Some(*id) {
                 2
-            } else if func.attributes.is_fallback {
+            } else if fallback == Some(*id) {
                 3
             } else {
                 4
@@ -858,6 +893,7 @@ impl Module {
                 }
                 writeln!(f)?;
             }
+            let (receive, fallback) = (self.receive(), self.fallback());
             write!(
                 f,
                 "{}",
@@ -868,6 +904,8 @@ impl Module {
                             Some(self),
                             self.constructor == Some(id),
                             self.dispatch_entry == Some(id),
+                            receive == Some(id),
+                            fallback == Some(id),
                         )
                     })
                     .format("\n")

@@ -38,31 +38,19 @@ fn @abi_wrapper() [abi_wrapper] {
     stop
 }
 
-//~? ERROR: [fn6] `fallback` survives entry lowering
-fn @fallback() [fallback] {
-  bb0:
-    stop
-}
-
-//~? ERROR: [fn7] `receive` survives entry lowering
-fn @receive() [receive] {
-  bb0:
-    stop
-}
-
-//~? ERROR: [fn8] `abi_params` survives entry lowering
+//~? ERROR: [fn6] `abi_params` survives entry lowering
 fn @abi_params() [abi_params=[]] {
   bb0:
     stop
 }
 
-//~? ERROR: [fn9] `abi_returns` survives entry lowering
+//~? ERROR: [fn7] `abi_returns` survives entry lowering
 fn @abi_returns() [abi_returns=[word]] {
   bb0:
     stop
 }
 
-//~? ERROR: [fn10] `abi_return_params` survives entry lowering
+//~? ERROR: [fn8] `abi_return_params` survives entry lowering
 fn @abi_return_params() [abi_return_params=[address]] {
   bb0:
     stop

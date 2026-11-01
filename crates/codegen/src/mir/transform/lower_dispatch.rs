@@ -360,6 +360,7 @@ fn build_entry(
 
     let entry = module.add_function(entry);
     module.set_dispatch_entry(entry);
+    module.record_receive_and_fallback();
     for func in &mut module.functions {
         func.clear_entry_attributes();
     }

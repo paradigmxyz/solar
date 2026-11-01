@@ -27,28 +27,28 @@
 +     revert 0, 0
 + }
 + 
-+ fn @pay() {
++ fn @recv() [receive] {
 +   bb0:
       stop
   }
   
 - ; fallback
 - fn @fb() [abi_wrapper, fallback, payable] {
-+ fn @nopay() {
++ fn @fb() [fallback] {
     bb0:
       stop
   }
   
 - ; selector 0x00000001
 - fn @pay() [selector=0x00000001, abi_wrapper, payable] {
-+ fn @recv() {
++ fn @pay() {
     bb0:
       stop
   }
   
 - ; selector 0x00000002
 - fn @nopay() [selector=0x00000002, abi_wrapper] {
-+ fn @fb() {
++ fn @nopay() {
     bb0:
       stop
   }

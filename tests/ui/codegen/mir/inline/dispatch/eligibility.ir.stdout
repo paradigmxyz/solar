@@ -21,6 +21,12 @@ fn @entry() [entry] {
     revert 0, 0
 }
 
+; fallback() external [fallback]
+fn @fallback() [fallback] {
+  bb0:
+    stop
+}
+
 ; function a(uint256 x) external pure returns (uint256) [selector 0xf0fdf834]
 fn @a() {
   bb0:
@@ -64,12 +70,6 @@ fn @b() {
     revert 28, 36
   bb3 [cold]:  ; preds = bb0
     revert 0, 0
-}
-
-; fallback() external [fallback]
-fn @fallback() {
-  bb0:
-    stop
 }
 
 // === ROOT/tests/ui/codegen/mir/inline/dispatch/eligibility.sol:WithGas ===

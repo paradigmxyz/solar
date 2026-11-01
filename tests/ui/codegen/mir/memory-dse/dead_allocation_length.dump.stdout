@@ -25,6 +25,12 @@ fn @entry() [entry] {
     revert 0, 0
 }
 
+fn @fallback() [fallback] {
+  bb0:
+    v0 = calldatasize
+    tail_call @fallback.body, 0, v0
+}
+
 ; function echo(bytes calldata data) external pure returns (bytes memory) [selector 0x624fbfdc]
 fn @echo() {
   bb0:
@@ -135,12 +141,6 @@ fn @relay() {
     revert 28, 36
   bb1 [cold]:  ; preds = bb0, bb5
     revert 0, 0
-}
-
-fn @fallback() {
-  bb0:
-    v0 = calldatasize
-    tail_call @fallback.body, 0, v0
 }
 
 fn @decode_calldata_slice() -> i256 {
