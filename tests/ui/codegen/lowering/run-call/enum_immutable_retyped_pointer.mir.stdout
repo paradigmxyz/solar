@@ -151,6 +151,20 @@ fn @raw() -> i256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word],
 @immutables
   choice: uint8
 
+fn @constructor() [constructor] {
+  bb0:
+    v0 = icall @viaPointer
+    v1 = zext i8 v0 to i256
+    v2 = zext i8 v0 to i256
+    v3 = lt v2, 2
+    v4 = eq v3, false
+    icall panic_if<0x21>, v4
+    storeimmutable choice, v0
+    jump bb1
+  bb1:
+    ret
+}
+
 fn @raw() -> i256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = loadimmutable choice
@@ -183,20 +197,6 @@ fn @internal_dispatcher_asm_p_uint256_r_uint8(arg0: i256, arg1: i256) -> i256 [f
   bb1:
     v1 = icall @five, arg1
     ret v1
-}
-
-fn @constructor() [constructor] {
-  bb0:
-    v0 = icall @viaPointer
-    v1 = zext i8 v0 to i256
-    v2 = zext i8 v0 to i256
-    v3 = lt v2, 2
-    v4 = eq v3, false
-    icall panic_if<0x21>, v4
-    storeimmutable choice, v0
-    jump bb1
-  bb1:
-    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/enum_immutable_retyped_pointer.sol:Deployer ===

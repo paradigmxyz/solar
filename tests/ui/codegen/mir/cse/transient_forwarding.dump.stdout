@@ -1,6 +1,29 @@
 // === ROOT/tests/ui/codegen/mir/cse/transient_forwarding.sol:TransientForwarding ===
 @module TransientForwarding
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb7, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb7, [0x37d0548b => bb2, 0x3f8a2dde => bb3, 0x52efea6e => bb4, 0x848c400d => bb5, 0x8c396222 => bb6]
+  bb6:
+    tail_call @stored
+  bb5:
+    tail_call @afterCall
+  bb4:
+    tail_call @clear
+  bb3:
+    tail_call @storedTwice
+  bb2:
+    tail_call @otherSlot
+  bb7 [cold]:
+    revert 0, 0
+}
+
 fn @stored() {
   bb0:
     v1 = calldatasize
@@ -93,27 +116,4 @@ fn @clear() {
   bb0:
     tstore 0, 0 !metadata(storage=slot(0))
     stop
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb7, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb7, [0x37d0548b => bb2, 0x3f8a2dde => bb3, 0x52efea6e => bb4, 0x848c400d => bb5, 0x8c396222 => bb6]
-  bb6:
-    tail_call @stored
-  bb5:
-    tail_call @afterCall
-  bb4:
-    tail_call @clear
-  bb3:
-    tail_call @storedTwice
-  bb2:
-    tail_call @otherSlot
-  bb7 [cold]:
-    revert 0, 0
 }

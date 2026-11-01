@@ -1,6 +1,21 @@
 // === ROOT/tests/ui/codegen/mir/inline-tagged/nested_growth.sol:TaggedNesting ===
 @module TaggedNesting
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0xa444f5e9 => bb2]
+  bb2:
+    tail_call @run
+  bb3 [cold]:
+    revert 0, 0
+}
+
 fn @run() {
   bb0:
     v1 = calldatasize
@@ -60,20 +75,5 @@ fn @run() {
     mstore 0, v68
     returndata 0, 32
   bb1 [cold]:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb3, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb3, [0xa444f5e9 => bb2]
-  bb2:
-    tail_call @run
-  bb3 [cold]:
     revert 0, 0
 }

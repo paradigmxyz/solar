@@ -33,14 +33,6 @@ contract StorageBytesElements {
 }
 
 contract StorageStringConstructor {
-    // CHECK-LABEL: fn @name{{[( ]}}
-    // CHECK: icall @load_storage_bytes, 0
-    string public name;
-
-    // CHECK-LABEL: fn @symbol{{[( ]}}
-    // CHECK: icall @load_storage_bytes, 1
-    string public symbol;
-
     // CHECK-LABEL: fn @constructor{{[( ]}}
     // CHECK: icall @store_storage_bytes, 0, arg0
     // CHECK: icall @store_storage_bytes, 1, arg1
@@ -48,17 +40,17 @@ contract StorageStringConstructor {
         name = name_;
         symbol = symbol_;
     }
+
+    // CHECK-LABEL: fn @name{{[( ]}}
+    // CHECK: icall @load_storage_bytes, 0
+    string public name;
+
+    // CHECK-LABEL: fn @symbol{{[( ]}}
+    // CHECK: icall @load_storage_bytes, 1
+    string public symbol;
 }
 
 contract StorageStringBase {
-    // CHECK-LABEL: fn @name{{[( ]}}
-    // CHECK: icall @load_storage_bytes, 0
-    string public name;
-
-    // CHECK-LABEL: fn @symbol{{[( ]}}
-    // CHECK: icall @load_storage_bytes, 1
-    string public symbol;
-
     // CHECK-LABEL: fn @constructor{{[( ]}}
     // CHECK: icall @store_storage_bytes, 0, arg0
     // CHECK: icall @store_storage_bytes, 1, arg1
@@ -66,6 +58,14 @@ contract StorageStringBase {
         name = name_;
         symbol = symbol_;
     }
+
+    // CHECK-LABEL: fn @name{{[( ]}}
+    // CHECK: icall @load_storage_bytes, 0
+    string public name;
+
+    // CHECK-LABEL: fn @symbol{{[( ]}}
+    // CHECK: icall @load_storage_bytes, 1
+    string public symbol;
 }
 
 contract StorageStringDerived is StorageStringBase {

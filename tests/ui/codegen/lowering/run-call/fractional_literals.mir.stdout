@@ -1,5 +1,16 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/fractional_literals.sol:FractionalDenominations ===
 @module FractionalDenominations
+fn @constructor() [constructor] {
+  bb0:
+    sstore 0, 0x59682f00 !metadata(storage=slot(0))
+    sstore 1, 0x14d1120d7b160000 !metadata(storage=slot(1))
+    sstore 2, 90 !metadata(storage=slot(2))
+    sstore 3, 0x1518 !metadata(storage=slot(3))
+    sstore 4, 0x1fa40 !metadata(storage=slot(4))
+    sstore 5, 0xdd7c0 !metadata(storage=slot(5))
+    ret
+}
+
 fn @g() -> i256 [selector=0xe2179b8e, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -34,17 +45,6 @@ fn @w() -> i256 [selector=0x205c9cc7, view, abi_params=[], abi_returns=[word], a
   bb0:
     v0 = sload 5 !metadata(storage=slot(5))
     ret v0
-}
-
-fn @constructor() [constructor] {
-  bb0:
-    sstore 0, 0x59682f00 !metadata(storage=slot(0))
-    sstore 1, 0x14d1120d7b160000 !metadata(storage=slot(1))
-    sstore 2, 90 !metadata(storage=slot(2))
-    sstore 3, 0x1518 !metadata(storage=slot(3))
-    sstore 4, 0x1fa40 !metadata(storage=slot(4))
-    sstore 5, 0xdd7c0 !metadata(storage=slot(5))
-    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/fractional_literals.sol:ScientificNotation ===

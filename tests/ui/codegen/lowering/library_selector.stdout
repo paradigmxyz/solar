@@ -2,6 +2,17 @@
 @module L
 @phase lowered
 @library
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = shr v0, 224
+    switch v1, default bb2, [0xb3de648b => bb1]
+  bb1:
+    tail_call @f
+  bb2 [cold]:
+    revert 0, 0
+}
+
 fn @f() {
   bb0:
     v0 = calldatasize
@@ -15,26 +26,9 @@ fn @f() {
     revert 0, 0
 }
 
-fn @entry() [entry] {
-  bb0:
-    v0 = calldataload 0
-    v1 = shr v0, 224
-    switch v1, default bb2, [0xb3de648b => bb1]
-  bb1:
-    tail_call @f
-  bb2 [cold]:
-    revert 0, 0
-}
-
 // === ROOT/tests/ui/codegen/lowering/library_selector.sol:C ===
 @module C
 @phase lowered
-fn @sel() {
-  bb0:
-    mstore 0, 0xb3de648b00000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    returndata 0, 32
-}
-
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
@@ -48,4 +42,10 @@ fn @entry() [entry] {
     tail_call @sel
   bb3 [cold]:
     revert 0, 0
+}
+
+fn @sel() {
+  bb0:
+    mstore 0, 0xb3de648b00000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    returndata 0, 32
 }

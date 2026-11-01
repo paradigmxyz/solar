@@ -6,19 +6,8 @@
     library_deploy_address: address
   
 - fn @view() [selector=0x00000001, abi_wrapper, view] {
-+ fn @view() {
-    bb0:
-      stop
-  }
-  
-- fn @write() [selector=0x00000002, abi_wrapper] {
-+ fn @write() {
-    bb0:
-      stop
-+ }
-+ 
 + fn @entry() [entry] {
-+   bb0:
+    bb0:
 +     jump bb1
 +   bb1:
 +     v0 = calldataload 0
@@ -37,5 +26,16 @@
 +     tail_call @view
 +   bb4 [cold]:
 +     revert 0, 0
++ }
++ 
++ fn @view() {
++   bb0:
+      stop
+  }
+  
+- fn @write() [selector=0x00000002, abi_wrapper] {
++ fn @write() {
+    bb0:
+      stop
   }
   

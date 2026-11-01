@@ -1,6 +1,23 @@
 // === ROOT/tests/ui/codegen/mir/inline/dispatch/free_memory_slot_return.sol:Unwritten ===
 @module Unwritten
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb4, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb4, [0xc096a632 => bb2, 0xcad0899b => bb3]
+  bb3:
+    tail_call @sum
+  bb2:
+    tail_call @raw
+  bb4 [cold]:
+    revert 0, 0
+}
+
 fn @raw() {
   bb0:
     returndata 64, 32
@@ -25,23 +42,6 @@ fn @sum() {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb3 [cold]:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb4, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb4, [0xc096a632 => bb2, 0xcad0899b => bb3]
-  bb3:
-    tail_call @sum
-  bb2:
-    tail_call @raw
-  bb4 [cold]:
     revert 0, 0
 }
 
@@ -89,6 +89,23 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/mir/inline/dispatch/free_memory_slot_return.sol:Conditional ===
 @module Conditional
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb4, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb4, [0x302e678f => bb2, 0xcad0899b => bb3]
+  bb3:
+    tail_call @sum
+  bb2:
+    tail_call @raw
+  bb4 [cold]:
+    revert 0, 0
+}
+
 fn @raw() {
   bb0:
     v1 = calldatasize
@@ -126,22 +143,5 @@ fn @sum() {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb3 [cold]:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb4, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb4, [0x302e678f => bb2, 0xcad0899b => bb3]
-  bb3:
-    tail_call @sum
-  bb2:
-    tail_call @raw
-  bb4 [cold]:
     revert 0, 0
 }

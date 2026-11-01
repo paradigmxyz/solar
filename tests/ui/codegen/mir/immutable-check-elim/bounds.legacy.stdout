@@ -24,6 +24,16 @@
 +   narrow_three_bytes: uint8
 +   narrow_address: uint16
   
+  fn @constructor(arg0: i256) [constructor] {
+    bb0:
+      v0 = trunc i256 arg0 to i64
+      storeimmutable small, v0
+      icall @bridge
+      icall @assign_widths, arg0
+      icall @assign_narrow_scalars
+      stop
+  }
+  
   fn @runtime() -> i256 [selector=0x00000001] {
     bb0:
       v0 = icall @bounded
@@ -46,16 +56,6 @@
       ret v2
     bb1 [cold]:
       revert 0, 0
-  }
-  
-  fn @constructor(arg0: i256) [constructor] {
-    bb0:
-      v0 = trunc i256 arg0 to i64
-      storeimmutable small, v0
-      icall @bridge
-      icall @assign_widths, arg0
-      icall @assign_narrow_scalars
-      stop
   }
   
   fn @bridge() {

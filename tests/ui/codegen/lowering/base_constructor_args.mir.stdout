@@ -1,16 +1,16 @@
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:Root ===
 @module Root
-fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
-}
-
 fn @constructor(arg0: i256, arg1: ptr<memory>) [constructor, abi_params=[uint256, bytes]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     icall @store_storage_bytes, 1, arg1
     ret
+}
+
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
 }
 
 fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
@@ -193,16 +193,16 @@ fn @order() -> struct0 [selector=0xbf15071d, view, abi_params=[], abi_returns=[w
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:InitializationBase ===
 @module InitializationBase
-fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
-}
-
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
   bb0:
     sstore 0, 2 !metadata(storage=slot(0))
     ret
+}
+
+fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
 }
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:ConstructorInitializationOrder ===
@@ -233,12 +233,6 @@ fn @touch() -> i256 {
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:NamedBase ===
 @module NamedBase
-fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
-}
-
 fn @constructor(arg0: i256, arg1: i256) [constructor, abi_params=[uint256, uint256]] {
   bb0:
     v0 = checked_mul uint256, arg0, 10
@@ -247,14 +241,14 @@ fn @constructor(arg0: i256, arg1: i256) [constructor, abi_params=[uint256, uint2
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:NamedDerived ===
-@module NamedDerived
 fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:NamedDerived ===
+@module NamedDerived
 fn @constructor() [constructor] {
   bb0:
     v0 = checked_mul uint256, 1, 10
@@ -265,18 +259,24 @@ fn @constructor() [constructor] {
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:ReturningBase ===
-@module ReturningBase
 fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:ReturningBase ===
+@module ReturningBase
 fn @constructor() [constructor] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
     ret
+}
+
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
 }
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:BaseConstructorReturn ===
@@ -311,11 +311,6 @@ fn @g() -> i256 [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word], a
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:FunctionUsageBase ===
 @module FunctionUsageBase
-fn @g() -> i256 [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    ret 2
-}
-
 fn @constructor() [constructor] {
   bb0:
     v0 = icall @g
@@ -325,8 +320,22 @@ fn @constructor() [constructor] {
     ret
 }
 
+fn @g() -> i256 [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 2
+}
+
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:FunctionUsageDerived ===
 @module FunctionUsageDerived
+fn @constructor() [constructor] {
+  bb0:
+    v0 = icall @g
+    sstore 0, v0 !metadata(storage=slot(0))
+    jump bb1
+  bb1:
+    ret
+}
+
 fn @getA() -> i256 [selector=0xd46300fd, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -336,15 +345,6 @@ fn @getA() -> i256 [selector=0xd46300fd, view, abi_params=[], abi_returns=[word]
 fn @g() -> i256 [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 2
-}
-
-fn @constructor() [constructor] {
-  bb0:
-    v0 = icall @g
-    sstore 0, v0 !metadata(storage=slot(0))
-    jump bb1
-  bb1:
-    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:VirtualFunctionUsageBaseBase ===
@@ -368,6 +368,15 @@ fn @g() -> i256 [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word], a
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:VirtualFunctionUsageBase ===
 @module VirtualFunctionUsageBase
+fn @constructor() [constructor] {
+  bb0:
+    v0 = icall @g
+    sstore 0, v0 !metadata(storage=slot(0))
+    jump bb1
+  bb1:
+    ret
+}
+
 fn @overridden() -> i256 [selector=0x275a4dcc, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 1
@@ -379,6 +388,8 @@ fn @g() -> i256 [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word], a
     ret v0
 }
 
+// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:VirtualFunctionUsageDerived ===
+@module VirtualFunctionUsageDerived
 fn @constructor() [constructor] {
   bb0:
     v0 = icall @g
@@ -388,8 +399,6 @@ fn @constructor() [constructor] {
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:VirtualFunctionUsageDerived ===
-@module VirtualFunctionUsageDerived
 fn @getA() -> i256 [selector=0xd46300fd, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -405,15 +414,6 @@ fn @g() -> i256 [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word], a
   bb0:
     v0 = icall @overridden
     ret v0
-}
-
-fn @constructor() [constructor] {
-  bb0:
-    v0 = icall @g
-    sstore 0, v0 !metadata(storage=slot(0))
-    jump bb1
-  bb1:
-    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:DomainBase ===
@@ -606,18 +606,6 @@ fn @trace(arg0: i256) -> i256 {
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:RawCarrierBase ===
 @module RawCarrierBase
-fn @raw() -> i256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
-}
-
-fn @modified() -> i256 [selector=0x45ecd3d7, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 1 !metadata(storage=slot(1))
-    ret v0
-}
-
 fn @constructor() [constructor] {
   bb0:
     sstore 1, 0x5678 !metadata(storage=slot(1))
@@ -629,6 +617,18 @@ fn @constructor() [constructor] {
     jump bb1
   bb1:
     ret
+}
+
+fn @raw() -> i256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @modified() -> i256 [selector=0x45ecd3d7, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    ret v0
 }
 
 fn @forward(arg0: i256) -> i256 [pure] {
@@ -650,6 +650,21 @@ fn @internal_dispatcher_p_uint8_r_uint8(arg0: i256, arg1: i256) -> i256 [functio
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:RawCarrierMiddle ===
 @module RawCarrierMiddle
+fn @constructor() [constructor] {
+  bb0:
+    sstore 1, 0x5678 !metadata(storage=slot(1))
+    v0 = icall @forward, 0x1234
+    v1 = icall @internal_dispatcher_p_uint8_r_uint8, 45, v0
+    sstore 0, v1 !metadata(storage=slot(0))
+    jump bb3
+  bb3:
+    jump bb2
+  bb2:
+    jump bb1
+  bb1:
+    ret
+}
+
 fn @raw() -> i256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -665,21 +680,6 @@ fn @modified() -> i256 [selector=0x45ecd3d7, view, abi_params=[], abi_returns=[w
 fn @forward(arg0: i256) -> i256 [pure] {
   bb0:
     ret arg0
-}
-
-fn @constructor() [constructor] {
-  bb0:
-    sstore 1, 0x5678 !metadata(storage=slot(1))
-    v0 = icall @forward, 0x1234
-    v1 = icall @internal_dispatcher_p_uint8_r_uint8, 45, v0
-    sstore 0, v1 !metadata(storage=slot(0))
-    jump bb3
-  bb3:
-    jump bb2
-  bb2:
-    jump bb1
-  bb1:
-    ret
 }
 
 fn @internal_dispatcher_p_uint8_r_uint8(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {

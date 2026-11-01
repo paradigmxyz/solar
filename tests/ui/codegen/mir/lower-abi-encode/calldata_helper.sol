@@ -37,13 +37,13 @@ interface Target {
 // SIZE-LABEL: fn @fc{{[( ]}}
 // SIZE: icall @encode_abi_calldata.{{[0-9]+}}
 // SIZE-COUNT-2: icall @encode_abi_calldata.{{[0-9]+}}
+// GAS-LABEL: fn @entry{{[( ]}}
 // GAS-LABEL: fn @fa{{[( ]}}
 // GAS-NOT: encode_abi_calldata
 // GAS-LABEL: fn @fb{{[( ]}}
 // GAS-NOT: encode_abi_calldata
 // GAS-LABEL: fn @fc{{[( ]}}
 // GAS-NOT: encode_abi_calldata
-// GAS-LABEL: fn @entry{{[( ]}}
 contract CalldataHelper {
     function fa(Target t, Order[] calldata orders) external {
         t.a(orders);

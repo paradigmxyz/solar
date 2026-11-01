@@ -2,6 +2,31 @@
 + // === ROOT/tests/ui/codegen/mir/place-reads/place_reads.mir (after place-reads) ===
   @module PlaceReads
   @phase lowered
+  fn @entry() [entry] {
+    bb0:
+      v0 = calldataload 0
+      v1 = shr v0, 224
+      switch v1, default bb9, [1 => bb1, 2 => bb2, 3 => bb3, 4 => bb4, 5 => bb5, 6 => bb6, 7 => bb7, 8 => bb8]
+    bb8:
+      tail_call @tested
+    bb7:
+      tail_call @moved
+    bb6:
+      tail_call @pair
+    bb5:
+      tail_call @routes
+    bb4:
+      tail_call @diamond
+    bb3:
+      tail_call @elsewhere
+    bb2:
+      tail_call @looped
+    bb1:
+      tail_call @guarded
+    bb9 [cold]:
+      revert 0, 0
+  }
+  
   fn @guarded() {
     bb0:
       v0 = calldataload 4
@@ -157,31 +182,6 @@
     bb3:
       stop
     bb4 [cold]:
-      revert 0, 0
-  }
-  
-  fn @entry() [entry] {
-    bb0:
-      v0 = calldataload 0
-      v1 = shr v0, 224
-      switch v1, default bb9, [1 => bb1, 2 => bb2, 3 => bb3, 4 => bb4, 5 => bb5, 6 => bb6, 7 => bb7, 8 => bb8]
-    bb8:
-      tail_call @tested
-    bb7:
-      tail_call @moved
-    bb6:
-      tail_call @pair
-    bb5:
-      tail_call @routes
-    bb4:
-      tail_call @diamond
-    bb3:
-      tail_call @elsewhere
-    bb2:
-      tail_call @looped
-    bb1:
-      tail_call @guarded
-    bb9 [cold]:
       revert 0, 0
   }
   

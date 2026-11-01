@@ -1,0 +1,23 @@
+- // === ROOT/tests/ui/codegen/mir/none/print_order_entry.mir (before none) ===
++ // === ROOT/tests/ui/codegen/mir/none/print_order_entry.mir (after none) ===
+  @module PrintOrderEntry
+  fn @constructor() [constructor] {
+    bb0:
+      stop
+  }
+  
+  fn @entry() [entry] {
+    bb0:
+      stop
+  }
+  
+  fn @helper_a() {
+    bb0:
+      stop
+  }
+  
+  fn @helper_b() {
+    bb0:
+      stop
+  }
+  

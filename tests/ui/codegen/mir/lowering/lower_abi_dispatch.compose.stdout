@@ -22,21 +22,6 @@
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir (after lower-dispatch) ===
   @module LowerAbiDispatch
 - fn @get() [selector=0x9507d39a, abi_wrapper] {
-+ fn @get() {
-    bb0:
-      v0 = calldatasize
-      v1 = lt v0, 36
-      jumpi v1, bb2, bb3
-    bb3:
-      v2 = calldataload 4
-      jump bb1
-    bb1:
-      mstore 128, v2
-      returndata 128, 32
-    bb2 [cold]:
-+     revert 0, 0
-+ }
-+ 
 + fn @entry() [entry] {
 +   bb0:
 +     v0 = callvalue
@@ -49,6 +34,21 @@
 +   bb2:
 +     tail_call @get
 +   bb3 [cold]:
++     revert 0, 0
++ }
++ 
++ fn @get() {
+    bb0:
+      v0 = calldatasize
+      v1 = lt v0, 36
+      jumpi v1, bb2, bb3
+    bb3:
+      v2 = calldataload 4
+      jump bb1
+    bb1:
+      mstore 128, v2
+      returndata 128, 32
+    bb2 [cold]:
       revert 0, 0
   }
   
