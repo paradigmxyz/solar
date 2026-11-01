@@ -49,6 +49,7 @@ fn @reasonLength() -> i256 [selector=0xa4bc2ef1, view, abi_params=[], abi_return
     v7 = staticcall v2, v6, 28, 4, 0, 0
     jumpi v7, bb1, bb2
   bb2:  ; preds = bb0
+    cold_path
     v8 = icall returndata_bytes<>
     v9 = ptradd v8, 32
     v10 = mload v8

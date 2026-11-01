@@ -785,6 +785,15 @@ behind a call to it that only a cold edge enters, such as a branch into the call
 path leaves its caller hot. The function and the inliner's decision to clone it are priced like
 cold code.
 
+`cold_path`, our `core::hint::cold_path`, marks the block that holds it as the start of a rarely
+run region. Lowering puts it first in every catch block of a `try`, so each catch clause, typed and
+bare, is cold: the branch into the clause is the cold edge, and the blocks only it reaches are
+cold, while the success path and the join stay hot. It takes no operand, gives no value, reads and
+writes nothing, is valid in every phase, and the backend emits no code for it. Because analysis
+finds it in the instruction list, it survives inlining, cloning, and splitting, and no pass removes,
+moves, or shares it, except that CFG cleanup, if-conversion, and terminal-block sharing drop it
+where it would only land in a block that other, hot code also enters.
+
 The scheduler carries known loop membership into EVM IR, and block merging
 preserves it. Gas-mode outlining keeps loop computations and large pushes
 inline, except in cold blocks, whose sites it prices by bytes alone. Tail

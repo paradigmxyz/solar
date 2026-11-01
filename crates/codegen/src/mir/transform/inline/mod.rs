@@ -1498,7 +1498,7 @@ fn estimate_inst_cost(
             Cost::new(24, 8)
         }
         InstKind::ICall { function: Callee::Builtin(Builtin::Require(_)), .. } => Cost::new(40, 24),
-        InstKind::ValidateAbi(_) => Cost::new(0, 0),
+        InstKind::ValidateAbi(_) | InstKind::ColdPath => Cost::new(0, 0),
         InstKind::CheckedBinary { op: crate::mir::CheckedOp::Pow, .. } => Cost::new(300, 128),
         InstKind::CheckedBinary { .. } => Cost::new(30, 20),
         InstKind::AbiEncodePacked { parts, .. } => {
@@ -1566,7 +1566,8 @@ fn estimate_inst_cost(
         | InstKind::PtrToInt(_, 256)
         | InstKind::MakeSlice { .. }
         | InstKind::InsertValue { .. }
-        | InstKind::ExtractValue { .. } => 0,
+        | InstKind::ExtractValue { .. }
+        | InstKind::ColdPath => 0,
         InstKind::MappingSlot(..) | InstKind::StorageArrayDataSlot(..) => 3,
         InstKind::MappingSlotBytes(key, _) if func.value_ty(*key) == Some(MirType::MEMPTR) => 8,
         InstKind::MappingSlotBytes(..) => 9,

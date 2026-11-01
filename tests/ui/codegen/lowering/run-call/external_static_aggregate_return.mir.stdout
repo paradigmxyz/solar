@@ -137,6 +137,7 @@ fn @tryStructReturn(arg0: i256) -> i256 [selector=0xcc20ef0a, view, abi_params=[
     v7 = staticcall v1, v6, v3, v4, v5, 64
     jumpi v7, bb1, bb2
   bb2:  ; preds = bb0
+    cold_path
     jumpi true, bb4, bb5
   bb5:  ; preds = bb2
     icall revert_if<empty>, true

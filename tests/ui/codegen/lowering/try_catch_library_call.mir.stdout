@@ -58,6 +58,7 @@ fn @direct(arg0: i1) -> i256 [selector=0xa8f96c85, pure, abi_params=[bool], abi_
     v5 = delegatecall v0, 0x1111111111111111111111111111111111111111, v3, v4, 0, 32
     jumpi v5, bb1, bb2
   bb2:  ; preds = bb0
+    cold_path
     v10 = icall returndata_bytes<>
     v11 = ptradd v10, 32
     v12 = mload v10
@@ -109,6 +110,7 @@ fn @attached(arg0: i1) -> i256 [selector=0x42425916, abi_params=[bool], abi_retu
     v5 = delegatecall v0, 0x1111111111111111111111111111111111111111, v3, v4, 0, 32
     jumpi v5, bb1, bb2
   bb2:  ; preds = bb0
+    cold_path
     v10 = icall returndata_bytes<>
     v11 = ptradd v10, 32
     v12 = mload v10
@@ -160,6 +162,7 @@ fn @attachedValue(arg0: i256, arg1: i1) -> i256 [selector=0xcece4c7f, pure, abi_
     v5 = delegatecall v0, 0x1111111111111111111111111111111111111111, v3, v4, 0, 32
     jumpi v5, bb1, bb2
   bb2:  ; preds = bb0
+    cold_path
     v10 = icall returndata_bytes<>
     v11 = ptradd v10, 32
     v12 = mload v10
@@ -211,6 +214,7 @@ fn @emptyCode() [selector=0xddb3636e, pure, abi_params=[], abi_returns=[], abi_r
     v3 = delegatecall v0, 0x1111111111111111111111111111111111111111, 28, 4, 0, 0
     jumpi v3, bb1, bb2
   bb2:  ; preds = bb0
+    cold_path
     jumpi true, bb4, bb5
   bb5:  ; preds = bb2
     icall revert_if<empty>, true

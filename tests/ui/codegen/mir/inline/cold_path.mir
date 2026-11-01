@@ -1,0 +1,31 @@
+//@compile-flags: -Ogas -Zmir-pipeline=inline
+@module ColdPathInline
+
+// `try_call` is a `try` whose catch clause loops: the marker sits at the start of its catch block,
+// so inlining it into `caller` clones the marker with the block, and the cloned catch region stays
+// cold while the cloned success path and the join stay hot.
+fn @caller(arg0: i256, arg1: i1) -> i256 {
+  bb0:
+    v0 = icall @try_call, arg1, arg0
+    v1 = add v0, 1
+    ret v1
+}
+fn @try_call(arg0: i1, arg1: i256) -> i256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    jump bb5
+  bb2:
+    cold_path
+    jump bb3
+  bb3:
+    v0 = phi [bb2: 0], [bb4: v1]
+    v2 = lt v0, arg1
+    jumpi v2, bb4, bb5
+  bb4:
+    v1 = add v0, 1
+    jump bb3
+  bb5:
+    v3 = phi [bb1: 7], [bb3: v0]
+    ret v3
+}

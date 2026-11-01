@@ -8,6 +8,7 @@ fn @unusedReturn() -> i256 [selector=0x1df86abb, view, abi_params=[], abi_return
     v1 = staticcall v0, 0x1111111111111111111111111111111111111111, 28, 4, 0, 32
     jumpi v1, bb1, bb2
   bb2:  ; preds = bb0
+    cold_path
     jumpi true, bb4, bb5
   bb5:  ; preds = bb2
     icall revert_if<empty>, true

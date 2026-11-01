@@ -25,6 +25,7 @@ fn @sameShortLiteralSalt() -> i1 [selector=0xae55518d, abi_params=[], abi_return
     v7 = ne v6, 0
     jumpi v7, bb3, bb4
   bb4:  ; preds = bb2
+    cold_path
     jumpi true, bb6, bb7
   bb7:  ; preds = bb4
     icall revert_if<empty>, true
@@ -56,6 +57,7 @@ fn @sameEmptyLiteralSalt() -> i1 [selector=0x01dd6ed9, abi_params=[], abi_return
     v7 = ne v6, 0
     jumpi v7, bb3, bb4
   bb4:  ; preds = bb2
+    cold_path
     jumpi true, bb6, bb7
   bb7:  ; preds = bb4
     icall revert_if<empty>, true
@@ -87,6 +89,7 @@ fn @sameFullLiteralSalt() -> i1 [selector=0xaf96a2f0, abi_params=[], abi_returns
     v7 = ne v6, 0
     jumpi v7, bb3, bb4
   bb4:  ; preds = bb2
+    cold_path
     jumpi true, bb6, bb7
   bb7:  ; preds = bb4
     icall revert_if<empty>, true

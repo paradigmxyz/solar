@@ -9,6 +9,7 @@ fn @bare(arg0: i160) -> i256 [selector=0x590eaf9b, abi_params=[address], abi_ret
     v2 = call v0, v1, 0, 28, 4, 0, 32
     jumpi v2, bb1, bb2
   bb2:  ; preds = bb0
+    cold_path
     jumpi true, bb4, bb5
   bb5:  ; preds = bb2
     icall revert_if<empty>, true
@@ -36,6 +37,7 @@ fn @typed(arg0: i160) -> i256 [selector=0x18d9eb38, abi_params=[address], abi_re
     v2 = call v0, v1, 0, 28, 4, 0, 32
     jumpi v2, bb1, bb2
   bb2:  ; preds = bb0
+    cold_path
     v7 = icall returndata_bytes<>
     v8 = ptradd v7, 32
     v9 = mload v7

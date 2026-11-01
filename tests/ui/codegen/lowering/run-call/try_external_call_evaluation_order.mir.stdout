@@ -90,6 +90,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v6 = call v2, v5, v3, 28, 36, 0, 32
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb0
+    cold_path
     jumpi true, bb4, bb5
   bb5:  ; preds = bb2
     icall revert_if<empty>, true

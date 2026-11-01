@@ -127,6 +127,7 @@ fn @tryCall() -> i256 [selector=0x118dfb0e, abi_params=[], abi_returns=[word], a
     v13 = call v4, v12, 0, v7, v8, v7, 192
     jumpi v13, bb3, bb4
   bb4:  ; preds = bb2
+    cold_path
     jumpi true, bb6, bb7
   bb7:  ; preds = bb4
     icall revert_if<empty>, true

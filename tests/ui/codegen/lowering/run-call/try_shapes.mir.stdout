@@ -69,6 +69,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v3 = staticcall v1, v2, 28, 4, 0, 32
     jumpi v3, bb1, bb2
   bb2:  ; preds = bb0
+    cold_path
     v8 = icall returndata_bytes<>
     v9 = ptradd v8, 32
     v10 = mload v8
@@ -114,6 +115,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v30 = staticcall v28, v29, 28, 4, 0, 32
     jumpi v30, bb9, bb10
   bb10:  ; preds = bb3
+    cold_path
     v36 = icall returndata_bytes<>
     v37 = ptradd v36, 32
     v38 = mload v36
@@ -170,6 +172,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v63 = staticcall v61, v62, 28, 36, 0, 32
     jumpi v63, bb19, bb20
   bb20:  ; preds = bb11
+    cold_path
     v69 = icall returndata_bytes<>
     v70 = ptradd v69, 32
     v71 = mload v69
@@ -217,6 +220,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v95 = staticcall v90, v94, v92, v93, v92, 64
     jumpi v95, bb26, bb27
   bb27:  ; preds = bb21
+    cold_path
     jumpi true, bb29, bb30
   bb30:  ; preds = bb27
     icall revert_if<empty>, true
@@ -248,6 +252,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v112 = staticcall 0x186a0, v111, 28, 36, 0, 32
     jumpi v112, bb31, bb32
   bb32:  ; preds = bb28
+    cold_path
     jumpi true, bb34, bb35
   bb35:  ; preds = bb32
     icall revert_if<empty>, true
@@ -272,6 +277,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v123 = ne v122, i160 0
     jumpi v123, bb36, bb37
   bb37:  ; preds = bb33
+    cold_path
     jumpi true, bb39, bb40
   bb40:  ; preds = bb37
     icall revert_if<empty>, true
@@ -299,6 +305,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v137 = call v135, v134, 0, 28, 36, 0, 32
     jumpi v137, bb41, bb42
   bb42:  ; preds = bb38
+    cold_path
     jumpi true, bb44, bb45
   bb45:  ; preds = bb42
     icall revert_if<empty>, true

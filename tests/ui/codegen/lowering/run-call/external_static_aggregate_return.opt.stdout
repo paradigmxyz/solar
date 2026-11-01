@@ -265,7 +265,8 @@ fn @tryStructReturn() [selector=0xcc20ef0a, abi_wrapper, view] {
     v35 = add v36, 64
     v7 = staticcall v1, v0, v36, 36, v35, 64
     jumpi v7, bb1, bb2
-  bb2:  ; preds = bb7
+  bb2 [cold]:  ; preds = bb7
+    cold_path
     mstore 0, 0 !metadata(memory=scratch)
     returndata 0, 32
   bb1:  ; preds = bb7

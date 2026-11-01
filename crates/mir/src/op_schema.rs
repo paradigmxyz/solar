@@ -2610,5 +2610,23 @@ define_mir_ops! {
     #[builder(signextend)]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     SignExtend(byte: ValueId, value: ValueId),
+
+    // Hints
+    /// Marks the block holding it as the start of a rarely run region, the way rustc's
+    /// `core::hint::cold_path` does: `cold_path`. It reads and writes nothing, takes no operands
+    /// and produces no value, and the backend emits no code for it. Hotness analysis reads it
+    /// from the instruction list, so it survives inlining, cloning and splitting, and nothing
+    /// removes, moves or shares it.
+    #[mir_op(
+        mnemonic = "cold_path",
+        result = None,
+        phases = PhaseSet::ALL,
+        effect = Pure,
+        traits = OpTraits::NONE,
+        side_effects = true,
+        category = None
+    )]
+    #[operand_types(func => Some(smallvec![]))]
+    ColdPath,
 }
 }

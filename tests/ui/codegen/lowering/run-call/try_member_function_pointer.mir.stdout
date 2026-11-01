@@ -52,6 +52,7 @@ fn @callField(arg0: i256) -> i256 [selector=0x0a3dccd3, abi_params=[uint256], ab
     v13 = call v11, v10, 0, 28, 36, 0, 32
     jumpi v13, bb1, bb2
   bb2:  ; preds = bb0
+    cold_path
     jumpi true, bb4, bb5
   bb5:  ; preds = bb2
     icall revert_if<empty>, true
@@ -100,6 +101,7 @@ fn @callReturnedField() -> i256 [selector=0xee2961ee, view, abi_params=[], abi_r
     v19 = staticcall v17, v16, 28, 4, 0, 32
     jumpi v19, bb3, bb4
   bb4:  ; preds = bb2
+    cold_path
     jumpi true, bb6, bb7
   bb7:  ; preds = bb4
     icall revert_if<empty>, true

@@ -36,7 +36,8 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     mstore v86, arg0
     v7 = staticcall v2, v0, v199, 36, 0, 0
     jumpi v7, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2 [cold]:  ; preds = bb0
+    cold_path
     v58 = returndatasize
     v59 = add v58, 63
     v62 = and v59, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -50,15 +51,15 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     v22 = shr v21, 224
     v23 = eq v22, 0x8c379a0
     jumpi v23, bb3, bb5
-  bb3:  ; preds = bb2
+  bb3 [cold]:  ; preds = bb2
     v25 = icall @try_decode_error_message, v176, v58
     jumpi v25, bb4, bb5
-  bb5:  ; preds = bb2, bb3
+  bb5 [cold]:  ; preds = bb2, bb3
     v34 = eq v22, 0x4e487b71
     v36 = gt v58, 35
     v37 = and v34, v36
     jumpi v37, bb6, bb7
-  bb7:  ; preds = bb5
+  bb7 [cold]:  ; preds = bb5
     v210 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v149 = add v210, 64
     mstore v210, 3
@@ -75,7 +76,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     mcopy v158, v176, v154 !metadata(disjoint)
     v163 = sub v161, v210
     returndata v210, v163
-  bb6:  ; preds = bb5
+  bb6 [cold]:  ; preds = bb5
     v182 = add v204, 36
     v40 = mload v182
     v207 = mload 64 !metadata(memory=scratch, alloc_ptr)
@@ -92,7 +93,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     mstore v130, 32
     mcopy v139, v184, 32 !metadata(disjoint)
     returndata v208, 128
-  bb4:  ; preds = bb3
+  bb4 [cold]:  ; preds = bb3
     v29 = sub v58, 4
     v178 = add v204, 36
     v69 = icall @decode_aggregate.4, v178, v29
@@ -159,7 +160,8 @@ fn @rethrows() [selector=0x0d7fadfb, abi_wrapper, view] {
     mstore v58, arg0
     v7 = staticcall v2, v0, v76, 36, 0, 0
     jumpi v7, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2 [cold]:  ; preds = bb0
+    cold_path
     v41 = returndatasize
     v42 = add v41, 63
     v45 = and v42, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -173,12 +175,12 @@ fn @rethrows() [selector=0x0d7fadfb, abi_wrapper, view] {
     v20 = shr v19, 224
     v21 = eq v20, 0x8c379a0
     jumpi v21, bb4, bb6
-  bb4:  ; preds = bb2
+  bb4 [cold]:  ; preds = bb2
     v23 = icall @try_decode_error_message, v67, v41
     jumpi v23, bb5, bb6
   bb6 [cold]:  ; preds = bb2, bb4
     revert v67, v41
-  bb5:  ; preds = bb4
+  bb5 [cold]:  ; preds = bb4
     v27 = sub v41, 4
     v69 = add v80, 36
     v52 = icall @decode_aggregate.4, v69, v27

@@ -93,6 +93,7 @@ fn @tryDirect() [selector=0x45eca8af, abi_params=[], abi_returns=[], abi_return_
     v3 = call v0, 0, 0, 28, 4, 0, 0
     jumpi v3, bb1, bb2
   bb2:  ; preds = bb0
+    cold_path
     jumpi true, bb4, bb5
   bb5:  ; preds = bb2
     icall revert_if<empty>, true
@@ -122,6 +123,7 @@ fn @tryPointer() [selector=0xce20ef7a, abi_params=[], abi_returns=[], abi_return
     v9 = call v5, v4, 0, 28, 4, 0, 0
     jumpi v9, bb1, bb2
   bb2:  ; preds = bb0
+    cold_path
     jumpi true, bb4, bb5
   bb5:  ; preds = bb2
     icall revert_if<empty>, true
@@ -145,6 +147,7 @@ fn @tryStatic() [selector=0x54f223e3, view, abi_params=[], abi_returns=[], abi_r
     v3 = staticcall v0, 0, 28, 4, 0, 0
     jumpi v3, bb1, bb2
   bb2:  ; preds = bb0
+    cold_path
     jumpi true, bb4, bb5
   bb5:  ; preds = bb2
     icall revert_if<empty>, true
@@ -171,6 +174,7 @@ fn @trySelf() -> i1 [selector=0xf948cf5e, abi_params=[], abi_returns=[word<bool>
     v6 = call v1, v5, 0, 28, 4, 0, 0
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb0
+    cold_path
     jumpi true, bb4, bb5
   bb5:  ; preds = bb2
     icall revert_if<empty>, true
@@ -252,6 +256,7 @@ fn @constructor() [constructor] {
     v6 = call v1, v5, 0, 28, 4, 0, 0
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb0
+    cold_path
     jumpi true, bb4, bb5
   bb5:  ; preds = bb2
     icall revert_if<empty>, true

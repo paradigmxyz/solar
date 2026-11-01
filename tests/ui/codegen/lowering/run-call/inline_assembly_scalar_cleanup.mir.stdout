@@ -102,6 +102,7 @@ fn @signedTry(arg0: i1) -> i256 [selector=0x3ac87366, view, abi_params=[bool], a
     v6 = staticcall v1, v5, v3, v4, 0, 0
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb0
+    cold_path
     jumpi true, bb7, bb8
   bb8:  ; preds = bb2
     icall revert_if<empty>, true

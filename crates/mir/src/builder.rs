@@ -1317,6 +1317,12 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_void_inst(InstKind::ValidateAbi(value));
     }
 
+    /// Marks the current block as the start of a rarely run region.
+    pub fn cold_path(&mut self) {
+        // cold_path
+        self.emit_void_inst(InstKind::ColdPath);
+    }
+
     /// Stores a bytes object in storage, clearing any unused old data words.
     pub fn store_storage_bytes(&mut self, slot: ValueId, object: ValueId) {
         // store_storage_bytes slot, object

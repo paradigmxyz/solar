@@ -253,6 +253,9 @@ impl InstKind {
             | Self::Phi(..)
             | Self::Select(..)
             | Self::SignExtend(..) => ControlEffects::NONE,
+            // The marker stays where lowering put it: a control effect keeps `must_execute`,
+            // `can_common`, and `can_speculate` false without a check on every query.
+            Self::ColdPath => ControlEffects { may_diverge: true, ..ControlEffects::NONE },
         };
         let kind = self.effect_kind();
         InstructionEffects {

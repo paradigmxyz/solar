@@ -19,6 +19,7 @@ fn @invoke(arg0: i256, arg1: ptr<memory>) {
     v9 = call v3, v2, 0, v5, v6, 0, 0
     jumpi v9, bb1, bb2
   bb2:  ; preds = bb0
+    cold_path
     v10 = icall returndata_bytes<>
     v11 = ptradd v10, 32
     v12 = mload v10
@@ -82,6 +83,7 @@ fn @invokePair(arg0: i256, arg1: ptr<memory>) -> struct0 {
     v7 = call v3, v2, 0, v5, v6, 0, 0
     jumpi v7, bb1, bb2
   bb2:  ; preds = bb0
+    cold_path
     jumpi true, bb4, bb5
   bb5:  ; preds = bb2
     icall revert_if<empty>, true

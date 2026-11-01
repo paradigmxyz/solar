@@ -266,6 +266,7 @@ fn @constructor() [constructor] {
     v6 = call v1, v5, 0, 28, 4, 0, 0
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb0
+    cold_path
     jumpi true, bb4, bb5
   bb5:  ; preds = bb2
     icall revert_if<empty>, true

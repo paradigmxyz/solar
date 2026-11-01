@@ -149,6 +149,7 @@ fn @liveTry() -> i256 [selector=0xc2e69a83, abi_params=[], abi_returns=[word], a
     v16 = call v14, v15, 0, v8, v9, v8, 32
     jumpi v16, bb3, bb4
   bb4:  ; preds = bb2
+    cold_path
     jumpi true, bb6, bb7
   bb7:  ; preds = bb4
     icall revert_if<empty>, true
@@ -408,6 +409,7 @@ fn @noCodeTry() -> i256 [selector=0x1908ad35, abi_params=[], abi_returns=[word],
     v10 = call v9, 0, 0, v4, v5, v4, 32
     jumpi v10, bb1, bb2
   bb2:  ; preds = bb0
+    cold_path
     jumpi true, bb4, bb5
   bb5:  ; preds = bb2
     icall revert_if<empty>, true

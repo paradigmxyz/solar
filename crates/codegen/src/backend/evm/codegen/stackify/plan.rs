@@ -775,7 +775,7 @@ impl<'a> Planner<'a> {
             .copied()
             .filter(|&inst| {
                 !self.skipped.contains(inst)
-                    && !matches!(func.inst(inst).kind, InstKind::Phi(_))
+                    && !matches!(func.inst(inst).kind, InstKind::Phi(_) | InstKind::ColdPath)
                     && Some(inst) != tail_call
             })
             .map(|inst| PlannedInst { inst, operands: func.inst(inst).kind.operands() })
