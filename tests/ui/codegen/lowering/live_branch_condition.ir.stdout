@@ -73,8 +73,8 @@ bb6 [cold]:
 // === ROOT/tests/ui/codegen/lowering/live_branch_condition.sol:ReturndataBranch (runtime) ===
 @module ReturndataBranch_runtime
 // runtime dispatch entry
-// function test(uint256 size) external view returns (uint256)
-// external entry, selector 0x29e99f07
+//   function test(uint256 size) external view returns (uint256)
+//   external entry, selector 0x29e99f07
 bb0:
   callvalue
   push bb3
@@ -130,8 +130,8 @@ bb8:
 // === ROOT/tests/ui/codegen/lowering/live_branch_condition.sol:ReloadableBranch (runtime) ===
 @module ReloadableBranch_runtime
 // runtime dispatch entry
-// function aggregate(bool choice, uint256 n) external pure returns (uint256, bool)
-// external entry, selector 0xb22b6a9f
+//   function aggregate(bool choice, uint256 n) external pure returns (uint256, bool)
+//   external entry, selector 0xb22b6a9f
 bb0:
   callvalue
   push bb3

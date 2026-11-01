@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/evm_ir_runtime_scheduled.sol:C (runtime) ===
 @module C_runtime
 // runtime dispatch entry
-// function f(uint256 x) external pure returns (uint256)
-// external entry, selector 0xb3de648b
+//   function f(uint256 x) external pure returns (uint256)
+//   external entry, selector 0xb3de648b
 bb0:
   callvalue
   push bb3

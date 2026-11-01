@@ -31,6 +31,7 @@ impl<'gcx> Assembler<'gcx> {
         debug_assert!(ir::verify::Verifier::is_valid(&module));
 
         // Parsed block labels may be sparse, but assembly indexes labels with a vector.
+        module.comments.clear();
         for (index, block) in module.blocks.iter_mut().enumerate() {
             block.label = u32::try_from(index).expect("EVM IR block index should fit in u32");
         }

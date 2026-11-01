@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/join_edge_reload.sol:JoinEdgeReload (runtime) ===
 @module JoinEdgeReload_runtime
 // runtime dispatch entry
-// function find(uint256[] calldata values, uint256 x) external pure returns (uint256 found)
-// external entry, selector 0x867025b4
+//   function find(uint256[] calldata values, uint256 x) external pure returns (uint256 found)
+//   external entry, selector 0x867025b4
 bb0:
   callvalue
   push bb3

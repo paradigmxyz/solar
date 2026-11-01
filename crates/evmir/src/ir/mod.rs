@@ -22,7 +22,7 @@ use solar_ast::TypeSize;
 use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::{
     index::{IndexVec, index_vec},
-    map::FxHashMap,
+    map::{FxHashMap, FxHashSet},
     newtype_index,
 };
 use solar_interface::{Span, Symbol, diagnostics::DiagCtxt};
@@ -1058,6 +1058,7 @@ fn remap_blocks(module: &mut Module, order: &[BlockId]) {
         remap[old_block] = Some(new_block);
     }
     module.blocks = blocks;
+    module.comments.retain(&module.blocks);
     for block in &mut module.blocks {
         for inst in &mut block.instructions {
             if let Some(PushValue::Block(block)) = &mut inst.value {
@@ -1124,8 +1125,8 @@ impl fmt::Debug for CleanBlocks {
 /// Comment lines that the text format prints before blocks, keyed by the block's label.
 ///
 /// No pass decides from them and module equality ignores them, so they cannot change what the
-/// compiler emits. A comment belongs to its label: a pass that removes a block drops its
-/// comment, except that a merge into a predecessor keeps both.
+/// compiler emits. A pass that removes a block drops its comment. A merge into a predecessor
+/// keeps it, indented below the predecessor's own comment if it has one.
 #[derive(Clone, Debug, Default)]
 pub struct BlockComments(FxHashMap<u32, String>);
 
@@ -1149,17 +1150,23 @@ impl BlockComments {
         comment.push_str(line);
     }
 
-    /// Moves the comment before the block labeled `from`, which a merge removes, to the end of
-    /// the one before the block labeled `into`, which continues its code.
+    /// Moves the comment before the block labeled `from`, which a merge removes, below the one
+    /// before the block labeled `into`, which continues its code.
     pub fn absorb(&mut self, into: u32, from: u32) {
         if let Some(comment) = self.0.remove(&from) {
-            self.push(into, &comment);
+            let indent = if self.0.contains_key(&into) { "  " } else { "" };
+            for line in comment.lines() {
+                self.push(into, &format!("{indent}{line}"));
+            }
         }
     }
 
-    /// Returns the labels that have a comment.
-    pub fn labels(&self) -> impl Iterator<Item = u32> + '_ {
-        self.0.keys().copied()
+    /// Drops the comments of blocks that `blocks` no longer holds.
+    fn retain(&mut self, blocks: &IndexVec<BlockId, Block>) {
+        if !self.0.is_empty() {
+            let labels = blocks.iter().map(|block| block.label).collect::<FxHashSet<_>>();
+            self.0.retain(|label, _| labels.contains(label));
+        }
     }
 }
 

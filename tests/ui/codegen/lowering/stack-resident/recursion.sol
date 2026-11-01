@@ -26,6 +26,7 @@ contract Recursion {
     // CHECK-NEXT: calldataload
     // CHECK-NEXT: push [[RET:bb[0-9]+]]
     // CHECK-NEXT: jump [[FACT:bb[0-9]+]]
+    // CHECK-NOT: {{^  }}
     // CHECK: [[FACT]]{{( \[.*\])?}}:
     // CHECK-NOT: mstore
     // CHECK: sub
@@ -40,6 +41,7 @@ contract Recursion {
     // CHECK-NEXT: calldataload
     // CHECK-NEXT: push [[RET]]
     // CHECK-NEXT: jump [[SUM:bb[0-9]+]]
+    // CHECK-NOT: {{^  }}
     // CHECK: [[SUM]]{{( \[.*\])?}}:
     // CHECK: sub
     // CHECK-NOT: push bb

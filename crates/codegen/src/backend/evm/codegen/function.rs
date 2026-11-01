@@ -5,6 +5,7 @@ use super::{
     Liveness, LoopAnalyzer, OptimizationMode, Terminator,
 };
 use crate::mir::Callee;
+use alloy_primitives::hex;
 use std::cell::LazyCell;
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -337,29 +338,21 @@ impl<'gcx> EvmCodegen<'gcx> {
             .filter(|span| !span.is_dummy())
             .and_then(|span| source_map.span_to_snippet(span).ok())
             .map(|source| function_header(&source));
-        match header {
-            Some(header)
-                if ["function", "constructor", "fallback", "receive"]
-                    .iter()
-                    .any(|keyword| header.starts_with(keyword)) =>
-            {
-                self.asm.comment_block(&header);
-            }
-            Some(header) => self.asm.comment_block(&format!("getter for `{header}`")),
-            None => self.asm.comment_block(&format!("{} (synthesized)", func.name)),
-        }
+        let mut comment = match header {
+            Some(header) if is_function_header(&header) => header,
+            Some(header) => format!("getter for `{header}`"),
+            None => format!("{} (synthesized)", func.name),
+        };
         if func.attributes.is_constructor {
-            self.asm.comment_block("creation entry");
+            comment.push_str("\ncreation entry");
         } else if let Some(selector) = func.selector {
-            self.asm.comment_block(&format!(
-                "external entry, selector 0x{}",
-                alloy_primitives::hex::encode(selector)
-            ));
+            comment.push_str(&format!("\nexternal entry, selector 0x{}", hex::encode(selector)));
         } else if func.attributes.is_fallback {
-            self.asm.comment_block("external entry, no selector matches");
+            comment.push_str("\nexternal entry, no selector matches");
         } else if func.attributes.is_receive {
-            self.asm.comment_block("external entry, no calldata");
+            comment.push_str("\nexternal entry, no calldata");
         }
+        self.asm.comment_block(&comment);
     }
 
     fn captures_evm_ir_text(&self) -> bool {
@@ -367,8 +360,11 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 }
 
-/// Returns the header of the declaration in `source` on one line: everything before its body.
+/// Returns the header of the declaration in `source` on one line: everything before its body or
+/// its first comment.
 fn function_header(source: &str) -> String {
+    let source = source.split("/*").next().unwrap_or_default();
+    let source = source.split("//").next().unwrap_or_default();
     let mut depth = 0u32;
     let end = source
         .find(|c| match c {
@@ -385,4 +381,16 @@ fn function_header(source: &str) -> String {
         })
         .unwrap_or(source.len());
     source[..end].split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Returns whether `header` declares a function, as opposed to a public state variable whose
+/// getter it is.
+fn is_function_header(header: &str) -> bool {
+    let word = header.split(|c: char| c.is_whitespace() || c == '(').next().unwrap_or_default();
+    match word {
+        "constructor" | "fallback" | "receive" => true,
+        // `function (uint) external public f` declares a variable of a function type.
+        "function" => !header["function".len()..].trim_start().starts_with('('),
+        _ => false,
+    }
 }

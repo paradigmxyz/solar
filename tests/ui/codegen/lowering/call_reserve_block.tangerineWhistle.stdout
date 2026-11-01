@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/call_reserve_block.sol:ReserveCallee (runtime) ===
 @module ReserveCallee_runtime
 // runtime dispatch entry
-// function value() external pure returns (uint256)
-// external entry, selector 0x3fa4f245
+//   function value() external pure returns (uint256)
+//   external entry, selector 0x3fa4f245
 bb0:
   callvalue
   push bb3
@@ -31,8 +31,8 @@ bb3 [cold]:
 // === ROOT/tests/ui/codegen/lowering/call_reserve_block.sol:ReserveBlock (runtime) ===
 @module ReserveBlock_runtime
 // runtime dispatch entry
-// function fixedGas() external returns (uint256)
-// external entry, selector 0x9a1f63d8
+//   function fixedGas() external returns (uint256)
+//   external entry, selector 0x9a1f63d8
 bb0:
   callvalue
   push bb4

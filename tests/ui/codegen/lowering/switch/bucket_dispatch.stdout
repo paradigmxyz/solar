@@ -260,159 +260,66 @@ bb21:
   push 0
   push 0
   revert
-
-// function f01() external
-// external entry, selector 0x10c772cc
 bb56:
   jump bb54
-
-// function f02() external
-// external entry, selector 0xebbd40a9
 bb57:
   jump bb54
-
-// function f03() external
-// external entry, selector 0xd758c88e
 bb58:
   jump bb2
-
-// function f04() external
-// external entry, selector 0x3d492ec4
 bb59:
   jump bb3
-
-// function f05() external
-// external entry, selector 0xcba58af7
 bb60:
   jump bb4
-
-// function f06() external
-// external entry, selector 0x8a67ee70
 bb61:
   jump bb54
-
-// function f07() external
-// external entry, selector 0x4e580bc4
 bb62:
   jump bb54
-
-// function f08() external
-// external entry, selector 0x6d738a50
 bb63:
   jump bb5
-
-// function f09() external
-// external entry, selector 0x905f7d67
 bb64:
   jump bb54
-
-// function f10() external
-// external entry, selector 0x8dc714ba
 bb65:
   jump bb6
-
-// function f11() external
-// external entry, selector 0x40bcff2a
 bb66:
   jump bb7
-
-// function f12() external
-// external entry, selector 0x6d4975a2
 bb67:
   jump bb8
-
-// function f13() external
-// external entry, selector 0x920f5c73
 bb68:
   jump bb9
-
-// function f14() external
-// external entry, selector 0x5fb43592
 bb69:
   jump bb10
-
-// function f15() external
-// external entry, selector 0x24a75cfd
 bb70:
   jump bb11
-
-// function f16() external
-// external entry, selector 0x3b88f6c2
 bb71:
   jump bb12
-
-// function f17() external
-// external entry, selector 0xaa66aa63
 bb72:
   jump bb13
-
-// function f18() external
-// external entry, selector 0x98e9a73d
 bb73:
   jump bb54
-
-// function f19() external
-// external entry, selector 0xebd25c8f
 bb74:
   jump bb14
-
-// function f20() external
-// external entry, selector 0xe6e0ae36
 bb75:
   jump bb15
-
-// function f21() external
-// external entry, selector 0x1eb6457a
 bb76:
   jump bb54
-
-// function f22() external
-// external entry, selector 0x965a68f5
 bb77:
   jump bb16
-
-// function f23() external
-// external entry, selector 0xdca2fb5a
 bb78:
   jump bb17
-
-// function f24() external
-// external entry, selector 0xcbf99d38
 bb79:
   jump bb18
-
-// function f25() external
-// external entry, selector 0x67e648b5
 bb80:
   jump bb19
-
-// function f26() external
-// external entry, selector 0x54eaadab
 bb81:
   jump bb54
-
-// function f27() external
-// external entry, selector 0x7238232f
 bb82:
   jump bb20
-
-// function f28() external
-// external entry, selector 0x1f49dbe7
 bb83:
   jump bb54
-
-// function f29() external
-// external entry, selector 0x87d912cb
 bb84:
   jump bb54
-
-// function f30() external
-// external entry, selector 0xf02a00c9
 bb85:
   jump bb21
-
-// function f31() external
-// external entry, selector 0x41052a0d
 bb86:
   jump bb54
 bb87:

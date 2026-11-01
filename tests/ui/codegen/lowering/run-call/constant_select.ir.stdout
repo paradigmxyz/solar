@@ -155,7 +155,7 @@ bb2:
 
 // function store(bytes memory value) external returns (bytes memory)
 // external entry, selector 0xb374012b
-// clear_storage_words (synthesized)
+//   clear_storage_words (synthesized)
 bb16 [loop]:
   push 4
   dup 1

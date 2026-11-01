@@ -104,8 +104,8 @@ bb11 [cold]:
 // === ROOT/tests/ui/codegen/lowering/constructor_internal_call.sol:ConstructorICall (runtime) ===
 @module ConstructorICall_runtime
 // runtime dispatch entry
-// getter for `uint256 public value`
-// external entry, selector 0x3fa4f245
+//   getter for `uint256 public value`
+//   external entry, selector 0x3fa4f245
 bb0:
   callvalue
   push bb3

@@ -8,8 +8,8 @@ bb0:
 // === ROOT/tests/ui/codegen/lowering/library_mapping_storage_param.sol:C (runtime) ===
 @module C_runtime
 // runtime dispatch entry
-// function total(address k) external view returns (uint256)
-// external entry, selector 0xd2514e84
+//   function total(address k) external view returns (uint256)
+//   external entry, selector 0xd2514e84
 bb0:
   callvalue
   push bb3

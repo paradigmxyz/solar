@@ -61,8 +61,8 @@ bb5:
 // === ROOT/tests/ui/codegen/lowering/revert_error_helper.sol:R (runtime) ===
 @module R_runtime
 // runtime dispatch entry
-// function viaLibConst(uint256 x) external pure returns (uint256)
-// external entry, selector 0x9ee36b07
+//   function viaLibConst(uint256 x) external pure returns (uint256)
+//   external entry, selector 0x9ee36b07
 bb0:
   push 36
   calldatasize

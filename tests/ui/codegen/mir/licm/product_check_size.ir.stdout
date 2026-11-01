@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/mir/licm/product_check_size.sol:ProductCheckSize (runtime) ===
 @module ProductCheckSize_runtime
 // runtime dispatch entry
-// function accumulate(uint256 x, uint256 y, uint256 n) external pure returns (uint256)
-// external entry, selector 0xf39fb277
+//   function accumulate(uint256 x, uint256 y, uint256 n) external pure returns (uint256)
+//   external entry, selector 0xf39fb277
 bb0:
   callvalue
   push bb3

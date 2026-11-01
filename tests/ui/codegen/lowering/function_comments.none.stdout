@@ -269,7 +269,7 @@ bb13:
 
 // function go(uint256 n) external returns (uint256)
 // external entry, selector 0xb20e7344
-// function bump(uint256 x) internal returns (uint256)
+//   function bump(uint256 x) internal returns (uint256)
 bb20:
   push 128
   push 64

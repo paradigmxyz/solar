@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/empty_external_return.sol:EmptyExternalReturn (runtime) ===
 @module EmptyExternalReturn_runtime
 // runtime dispatch entry
-// fallback() external
-// external entry, no selector matches
+//   fallback() external
+//   external entry, no selector matches
 bb0:
   callvalue
   push bb2

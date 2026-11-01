@@ -16,8 +16,8 @@ bb2:
 // === ROOT/tests/ui/codegen/lowering/switch/common.sol:Base64Remainder (runtime) ===
 @module Base64Remainder_runtime
 // runtime dispatch entry
-// fallback() external
-// external entry, no selector matches
+//   fallback() external
+//   external entry, no selector matches
 bb0:
   callvalue
   push bb2
@@ -58,8 +58,8 @@ bb2 [cold]:
 // === ROOT/tests/ui/codegen/lowering/switch/common.sol:SignatureLength (runtime) ===
 @module SignatureLength_runtime
 // runtime dispatch entry
-// fallback() external
-// external entry, no selector matches
+//   fallback() external
+//   external entry, no selector matches
 bb0:
   callvalue
   push bb2
@@ -104,8 +104,8 @@ bb2 [cold]:
 // === ROOT/tests/ui/codegen/lowering/switch/common.sol:RpowEdges (runtime) ===
 @module RpowEdges_runtime
 // runtime dispatch entry
-// fallback() external
-// external entry, no selector matches
+//   fallback() external
+//   external entry, no selector matches
 bb0:
   callvalue
   push bb2

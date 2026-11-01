@@ -78,8 +78,8 @@ bb4 [cold]:
 // === ROOT/tests/ui/codegen/lowering/function_comments.sol:C (runtime) ===
 @module C_runtime
 // runtime dispatch entry
-// receive() external payable
-// external entry, no calldata
+//   receive() external payable
+//   external entry, no calldata
 bb0:
   calldatasize
   push bb2

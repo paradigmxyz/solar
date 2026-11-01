@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/yul_return.sol:R (runtime) ===
 @module R_runtime
 // runtime dispatch entry
-// function echo(uint256 x) external pure returns (uint256)
-// external entry, selector 0x6279e43c
+//   function echo(uint256 x) external pure returns (uint256)
+//   external entry, selector 0x6279e43c
 bb0:
   callvalue
   push bb3

@@ -139,8 +139,8 @@ bb19 [cold]:
 // === ROOT/tests/ui/codegen/lowering/switch/shared_growth_budget.sol:SwitchSharedGrowthBudget (runtime) ===
 @module SwitchSharedGrowthBudget_runtime
 // runtime dispatch entry
-// function select(uint256 key) external pure returns (uint256 result)
-// external entry, selector 0x839a19d9
+//   function select(uint256 key) external pure returns (uint256 result)
+//   external entry, selector 0x839a19d9
 bb0:
   callvalue
   push bb3

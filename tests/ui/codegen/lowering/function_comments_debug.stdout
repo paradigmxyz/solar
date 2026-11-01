@@ -2,8 +2,8 @@
 // === ROOT/tests/ui/codegen/lowering/function_comments_debug.sol:C (runtime) ===
 @module C_runtime
 // runtime dispatch entry
-// function add(uint256 a, uint256 b) external pure returns (uint256)
-// external entry, selector 0x771602f7
+//   function add(uint256 a, uint256 b) external pure returns (uint256)
+//   external entry, selector 0x771602f7
 bb0:
   callvalue
   push bb3

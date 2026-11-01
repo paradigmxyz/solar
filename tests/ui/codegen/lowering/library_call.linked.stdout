@@ -88,8 +88,8 @@ bb1:
 // === ROOT/tests/ui/codegen/lowering/library_call.sol:C (runtime) ===
 @module C_runtime
 // runtime dispatch entry
-// function inc(address k, uint256 by) external returns (uint256)
-// external entry, selector 0x3dd41ca6
+//   function inc(address k, uint256 by) external returns (uint256)
+//   external entry, selector 0x3dd41ca6
 bb0:
   callvalue
   push bb3

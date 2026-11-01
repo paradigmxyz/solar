@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/constant_memory_offsets.sol:ConstantMemoryOffsets (runtime) ===
 @module ConstantMemoryOffsets_runtime
 // runtime dispatch entry
-// function fixedArray() public pure returns (bytes32 result)
-// external entry, selector 0x391e2457
+//   function fixedArray() public pure returns (bytes32 result)
+//   external entry, selector 0x391e2457
 bb0:
   callvalue
   push bb4

@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/checked_loop_stack.sol:CheckedLoopStorage (runtime) ===
 @module CheckedLoopStorage_runtime
 // runtime dispatch entry
-// getter for `uint256 public result`
-// external entry, selector 0x65372147
+//   getter for `uint256 public result`
+//   external entry, selector 0x65372147
 bb0:
   callvalue
   push bb4
@@ -84,8 +84,8 @@ bb8 [loop]:
 // === ROOT/tests/ui/codegen/lowering/checked_loop_stack.sol:CheckedLoopStack (runtime) ===
 @module CheckedLoopStack_runtime
 // runtime dispatch entry
-// function factorial(uint256 n) external pure returns (uint256 acc)
-// external entry, selector 0x83714834
+//   function factorial(uint256 n) external pure returns (uint256 acc)
+//   external entry, selector 0x83714834
 bb0:
   callvalue
   push bb5

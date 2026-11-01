@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/program-data/codesize_constructor_data.sol:Child (runtime) ===
 @module Child_runtime
 // runtime dispatch entry
-// function value() external pure returns (uint256)
-// external entry, selector 0x3fa4f245
+//   function value() external pure returns (uint256)
+//   external entry, selector 0x3fa4f245
 bb0:
   callvalue
   push bb3
