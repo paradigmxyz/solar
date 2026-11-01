@@ -77,13 +77,12 @@
 //! or a pointer phi the header converts to an integer, that the loop's single
 //! back edge advances by adding a literal step, or for `!=` and `> 0` also by
 //! subtracting one, and `n` is defined outside the loop. The latch may also
-//! branch to a block that aborts, such as the increment's overflow check. A `<`
+//! branch to a cold block, such as the increment's overflow check. A `<`
 //! or `<=` test also needs a literal start, except for `<=` stepping by one.
 //! The header's other instructions must be free of effects, because the
 //! original header repeats them for the iteration the main loop declined. Every
 //! branch inside the body continues the loop on one arm and leaves it on the
-//! other: to a block that aborts, such as an arithmetic panic, where a block
-//! aborts when it reverts or calls a function that never returns, or to a side
+//! other: to a cold block, such as an arithmetic panic, or to a side
 //! exit, such as the block a search reaches at its match. The body may read
 //! words computed before the loop only when the backend rebuilds them where
 //! they are read, as calldata words at fixed offsets and environment reads, or
@@ -412,18 +411,15 @@ fn jumps_to(func: &Function, block: BlockId, target: BlockId) -> bool {
     matches!(func.blocks[block].terminator, Some(Terminator::Jump(to)) if to == target)
 }
 
-/// Whether a block continues only to `target`, apart from edges into aborting blocks such as
-/// an overflow check's panic.
-fn continues_to(
-    func: &Function,
-    block: BlockId,
-    target: BlockId,
-    cold: &DenseBitSet<FunctionId>,
-) -> bool {
+/// Whether a block continues only to `target`, apart from edges into cold blocks such as an
+/// overflow check's panic.
+fn continues_to(func: &Function, block: BlockId, target: BlockId) -> bool {
     let Some(terminator) = &func.blocks[block].terminator else { return false };
     let successors = terminator.successors();
     successors.contains(&target)
-        && successors.iter().all(|&successor| successor == target || aborts(func, successor, cold))
+        && successors
+            .iter()
+            .all(|&successor| successor == target || func.blocks[successor].hotness.is_cold())
 }
 
 /// Whether the backend rebuilds a word where it is read instead of keeping it live: a calldata
@@ -440,17 +436,12 @@ fn rebuilt_at_use(func: &Function, value: ValueId) -> bool {
     }
 }
 
-fn shape(
-    func: &Function,
-    loops: &LoopInfo,
-    l: &Loop,
-    cold: &DenseBitSet<FunctionId>,
-) -> Option<Shape> {
+fn shape(func: &Function, loops: &LoopInfo, l: &Loop) -> Option<Shape> {
     let preheader = l.preheader?;
     let &[latch] = l.back_edges.as_slice() else { return None };
     if latch == l.header
         || !jumps_to(func, preheader, l.header)
-        || !continues_to(func, latch, l.header, cold)
+        || !continues_to(func, latch, l.header)
     {
         return None;
     }
@@ -470,16 +461,18 @@ fn shape(
     }
     let loop_insts = l.instructions(func);
     // Only a straight-line body gains: every branch inside it continues the loop on one arm
-    // and leaves it on the other, to an abort such as an arithmetic panic or to a side exit
+    // and leaves it on the other, to a cold block such as an arithmetic panic or to a side exit
     // such as a search's match.
     for block in l.blocks.iter() {
-        if block == l.header || aborts(func, block, cold) {
+        if block == l.header || func.blocks[block].hotness.is_cold() {
             continue;
         }
         let successors = func.blocks[block].terminator.as_ref()?.successors();
         let continuing: Vec<_> = successors
             .iter()
-            .filter(|&&successor| l.blocks.contains(successor) && !aborts(func, successor, cold))
+            .filter(|&&successor| {
+                l.blocks.contains(successor) && !func.blocks[successor].hotness.is_cold()
+            })
             .collect();
         if continuing.len() != 1 {
             return None;
@@ -620,7 +613,7 @@ fn plan(
     if !copies_loops(target) {
         return None;
     }
-    let shape = shape(func, loops, l, cold)?;
+    let shape = shape(func, loops, l)?;
     let Shape { preheader, latch, body, exit, ref loop_insts, .. } = shape;
     if !carries_few_words(func, l.header, latch, target) {
         return None;
@@ -986,7 +979,7 @@ fn plan_peel(
     if !copies_loops(target) {
         return None;
     }
-    let shape = shape(func, loops, l, cold)?;
+    let shape = shape(func, loops, l)?;
     if !carries_few_words(func, l.header, shape.latch, target) {
         return None;
     }
@@ -1053,7 +1046,7 @@ fn plan_full(
     if !copies_loops(target) {
         return None;
     }
-    let shape = shape(func, loops, l, cold)?;
+    let shape = shape(func, loops, l)?;
     let counter = counter(func, l, &shape)?;
     let trips = counter.trips.filter(|trips| (1..=MAX_COMPLETE_TRIPS).contains(trips))?;
     // As for a peel, the blocks the body leaves to read loop values only as phi inputs.
