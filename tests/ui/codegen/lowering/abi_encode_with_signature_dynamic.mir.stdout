@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/abi_encode_with_signature_dynamic.sol:AbiEncodeWithSignatureDynamic ===
 @module AbiEncodeWithSignatureDynamic
+; function callCond(address t, bool guarded, uint256 v) external returns (bool ok) [selector 0x407a1bfe]
 fn @callCond(arg0: i160, arg1: i1, arg2: i256) -> i1 [selector=0x407a1bfe, abi_params=[address, bool, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = gas
@@ -9,6 +10,7 @@ fn @callCond(arg0: i160, arg1: i1, arg2: i256) -> i1 [selector=0x407a1bfe, abi_p
     ret v3
 }
 
+; function encodeCond(bool guarded, uint256 v) external pure returns (bytes memory) [selector 0x3e8cea54]
 fn @encodeCond(arg0: i1, arg1: i256) -> ptr<memory> [selector=0x3e8cea54, pure, abi_params=[bool, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = select arg0, 0x2b8fbce800000000000000000000000000000000000000000000000000000000, 0xe74800c00000000000000000000000000000000000000000000000000000000
@@ -16,12 +18,14 @@ fn @encodeCond(arg0: i1, arg1: i256) -> ptr<memory> [selector=0x3e8cea54, pure, 
     ret v1
 }
 
+; function encodeLiteral(uint256 v) external pure returns (bytes memory) [selector 0xb7e00125]
 fn @encodeLiteral(arg0: i256) -> ptr<memory> [selector=0xb7e00125, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = abi_encode [word], object, selector 0x2b8fbce800000000000000000000000000000000000000000000000000000000, args arg0
     ret v0
 }
 
+; function encodeRuntime(string memory sig, uint256 v) external pure returns (bytes memory) [selector 0xc69a8386]
 fn @encodeRuntime(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0xc69a8386, pure, abi_params=[bytes, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = ptradd arg0, 32

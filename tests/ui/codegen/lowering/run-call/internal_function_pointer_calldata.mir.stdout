@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/internal_function_pointer_calldata.sol:InternalFunctionPointerCalldata ===
 @module InternalFunctionPointerCalldata
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -11,6 +12,7 @@ fn @constructor() [constructor] {
     ret
 }
 
+; function read(bytes calldata data) internal pure returns (bytes1)
 fn @read(arg0: slice<calldata>) -> i256 [pure] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -26,6 +28,7 @@ fn @read(arg0: slice<calldata>) -> i256 [pure] {
     ret v8
 }
 
+; function invoke(bytes calldata data) external returns (bytes1) [selector 0xa6514259]
 fn @invoke(arg0: slice<calldata>) -> i256 [selector=0xa6514259, abi_params=[bytes], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -35,6 +38,7 @@ fn @invoke(arg0: slice<calldata>) -> i256 [selector=0xa6514259, abi_params=[byte
     ret v3
 }
 
+; function run() external returns (uint8) [selector 0xc0406226]
 fn @run() -> i8 [selector=0xc0406226, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     v0 = not 31
@@ -56,9 +60,9 @@ fn @run() -> i8 [selector=0xc0406226, abi_params=[], abi_returns=[word<uint8>], 
     v13 = zext i160 v8 to i256
     v14 = call v9, v13, 0, v11, v12, 0, 32
     jumpi v14, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v15 = returndatasize
     v16 = lt v15, 32
     icall revert_if<tuple_data_too_short>, v16
@@ -77,10 +81,10 @@ fn @internal_dispatcher_p_slice_calldata_r_bytes1(arg0: i256, arg1: slice<callda
   bb0:
     v0 = eq arg0, 2
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:
+  bb1:  ; preds = bb0
     v1 = icall @read, arg1
     ret v1
 }

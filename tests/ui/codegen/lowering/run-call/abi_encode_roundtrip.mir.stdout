@@ -6,6 +6,7 @@
   struct2: {i256, i256, i256, i256}
   struct3: {ptr<memory>, ptr<memory>}
 
+; function roundtrip(uint256 value) external pure returns (uint256) [selector 0x33cddcf6]
 fn @roundtrip(arg0: i256) -> i256 [selector=0x33cddcf6, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode [word], object, args arg0
@@ -13,6 +14,7 @@ fn @roundtrip(arg0: i256) -> i256 [selector=0x33cddcf6, pure, abi_params=[uint25
     ret v1
 }
 
+; function bytesRoundtrip(bytes memory value) external pure returns (bytes memory) [selector 0x2e2230c7]
 fn @bytesRoundtrip(arg0: ptr<memory>) -> ptr<memory> [selector=0x2e2230c7, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = abi_encode [memory_bytes], object, args arg0
@@ -20,6 +22,7 @@ fn @bytesRoundtrip(arg0: ptr<memory>) -> ptr<memory> [selector=0x2e2230c7, pure,
     ret v1
 }
 
+; function wordsRoundtrip(uint256[] memory value) external pure returns (uint256) [selector 0x285417c3]
 fn @wordsRoundtrip(arg0: ptr<memory>) -> i256 [selector=0x285417c3, pure, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode [memory_array<word>], object, args arg0
@@ -47,6 +50,7 @@ fn @wordsRoundtrip(arg0: ptr<memory>) -> i256 [selector=0x285417c3, pure, abi_pa
     ret v18
 }
 
+; function nestedWordsRoundtrip(uint256[][] memory value) external pure returns (uint256) [selector 0xd8828f2f]
 fn @nestedWordsRoundtrip(arg0: ptr<memory>) -> i256 [selector=0xd8828f2f, pure, abi_params=[array<_, array<_, uint256>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode [memory_array<memory_array<word>>], object, args arg0
@@ -66,6 +70,7 @@ fn @nestedWordsRoundtrip(arg0: ptr<memory>) -> i256 [selector=0xd8828f2f, pure, 
     ret v11
 }
 
+; function mixedRoundtrip() external pure returns (uint256, uint256, uint8) [selector 0xb3f929db]
 fn @mixedRoundtrip() -> struct0 [selector=0xb3f929db, pure, abi_params=[], abi_returns=[word, word, word<uint8>], abi_return_params=[uint256, uint256, uint8]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -100,16 +105,17 @@ fn @mixedRoundtrip() -> struct0 [selector=0xb3f929db, pure, abi_params=[], abi_r
     ret v20
 }
 
+; function nestedMixedRoundtrip() external pure returns (uint256, uint256, uint256, uint256) [selector 0x337c7ce0]
 fn @nestedMixedRoundtrip() -> struct2 [selector=0x337c7ce0, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = alloc zeroed checked 96
     mstore v0, 2
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v6]
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v7 = alloc zeroed checked 96
     mstore v7, 2
     v8 = mload v0
@@ -203,7 +209,7 @@ fn @nestedMixedRoundtrip() -> struct2 [selector=0x337c7ce0, pure, abi_params=[],
     v76 = insert_value struct2, v75, 2, v72
     v77 = insert_value struct2, v76, 3, v73
     ret v77
-  bb2:
+  bb2:  ; preds = bb1
     v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32
@@ -212,6 +218,7 @@ fn @nestedMixedRoundtrip() -> struct2 [selector=0x337c7ce0, pure, abi_params=[],
     jump bb1
 }
 
+; function hash(uint256 value) external pure returns (bytes32) [selector 0xb189fd4c]
 fn @hash(arg0: i256) -> i256 [selector=0xb189fd4c, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0)

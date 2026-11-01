@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/check-elim/edge_equality_runtime.sol:EdgeEquality ===
 @module EdgeEquality
 @phase lowered
+; runtime dispatch entry
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
@@ -10,41 +11,43 @@ fn @entry() [entry] {
     v4 = or v0, v3
     v5 = ne v4, 0
     jumpi v5, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v6 = calldataload 0
     v7 = shr v6, 224
     switch v7, default bb1, [0x62b0ae87 => bb3, 0xebf5a899 => bb4]
-  bb4:
+  bb4:  ; preds = bb2
     tail_call @sizes
-  bb3:
+  bb3:  ; preds = bb2
     tail_call @pack
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0, bb2
     revert 0, 0
 }
 
+; function sizes(bytes memory data) external pure returns (uint256) [selector 0xebf5a899]
 fn @sizes() {
   bb0:
     v10 = icall @decode_calldata_type
     v0 = mload v10
     v1 = ne v0, 32
     jumpi v1, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     mstore 0, 65 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1:  ; preds = bb0
     mstore 0, 0 !metadata(memory=scratch)
     returndata 0, 32
 }
 
+; function pack(bytes memory data) external pure returns (bytes memory) [selector 0x62b0ae87]
 fn @pack() {
   bb0:
     v26 = icall @decode_calldata_type
     v0 = mload v26
     v1 = eq v0, 64
     jumpi v1, bb2, bb1
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
-  bb2:
+  bb2:  ; preds = bb0
     v41 = add v26, 32
     v55 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v56 = add v55, 128
@@ -72,7 +75,7 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v4 = sub v0, 36
     v5 = gt v1, v4
     jumpi v5, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v6 = calldataload v2
     v7 = add v2, 32
     v8 = add v6, 63
@@ -88,13 +91,13 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v38 = or v37, v34
     v39 = ne v38, 0
     jumpi v39, bb3, bb5
-  bb5:
+  bb5:  ; preds = bb2
     mstore 64, v30 !metadata(memory=scratch)
     mstore v29, v6
     v13 = sub v0, v7
     v14 = gt v6, v13
     jumpi v14, bb1, bb4
-  bb4:
+  bb4:  ; preds = bb5
     v25 = add v29, 32
     calldatacopy v25, v7, v6
     v22 = sub 0, v6
@@ -103,10 +106,10 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v26 = add v25, v6
     calldatacopy v26, v36, v23
     ret v29
-  bb3 [cold]:
+  bb3 [cold]:  ; preds = bb2
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0, bb5
     revert 0, 0
 }

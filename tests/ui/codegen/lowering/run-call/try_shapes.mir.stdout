@@ -3,12 +3,14 @@
 @types
   struct0: {i256, i256}
 
+; function f(uint x) external pure returns (uint) [selector 0xb3de648b]
 fn @f(arg0: i256) -> i256 [selector=0xb3de648b, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = checked_mul uint256, arg0, 2
     ret v0
 }
 
+; function g(uint x) external pure returns (uint, uint) [selector 0xe420264a]
 fn @g(arg0: i256) -> struct0 [selector=0xe420264a, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = checked_add uint256, arg0, 1
@@ -22,6 +24,7 @@ fn @g(arg0: i256) -> struct0 [selector=0xe420264a, pure, abi_params=[uint256], a
 @data
   Callee_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/try_shapes.sol:Callee"
 
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = datasize Callee_creation_code_0
@@ -30,9 +33,9 @@ fn @constructor() [constructor] {
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = sload 0 !metadata(storage=slot(0))
     v5 = not 0xffffffffffffffffffffffffffffffffffffffff
     v6 = and v4, v5
@@ -43,17 +46,20 @@ fn @constructor() [constructor] {
     ret
 }
 
+; function ok() external pure returns (uint) [selector 0xd909b403]
 fn @ok() -> i256 [selector=0xd909b403, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 1
 }
 
+; function bad() external pure returns (uint) [selector 0x9c3674fc]
 fn @bad() -> i256 [selector=0x9c3674fc, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall require<short_string>, false, 4, 0x626f6f6d00000000000000000000000000000000000000000000000000000000
     invalid
 }
 
+; function test_try() external returns (uint) [selector 0x8494fb4a]
 fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
@@ -62,7 +68,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v2 = zext i160 v0 to i256
     v3 = staticcall v1, v2, 28, 4, 0, 32
     jumpi v3, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v8 = icall returndata_bytes<>
     v9 = ptradd v8, 32
     v10 = mload v8
@@ -74,32 +80,32 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v16 = shr v15, 224
     v17 = eq v16, 0x8c379a0
     jumpi v17, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb2
     jump bb6
-  bb4:
+  bb4:  ; preds = bb2
     v18 = ptrtoint ptr<memory> v12 to i256
     v19 = icall @try_decode_error_message, v18, v13
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v20 = phi [bb4: v19], [bb5: false]
     jumpi v20, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     revert v12, v13
-  bb7:
+  bb7:  ; preds = bb6
     v21 = mload v8
     v22 = ptradd v8, 36
     v23 = sub v21, 4
     v24 = make_memory_slice v22, v23
     v25 = abi_decode [bytes], v24
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v4 = returndatasize
     v5 = lt v4, 32
     icall revert_if<tuple_data_too_short>, v5
     v6 = add 0, 0
     v7 = mload v6
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb7
     v26 = phi [bb1: v7], [bb7: 100]
     v27 = address
     v28 = gas
@@ -107,7 +113,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v29 = zext i160 v27 to i256
     v30 = staticcall v28, v29, 28, 4, 0, 32
     jumpi v30, bb9, bb10
-  bb10:
+  bb10:  ; preds = bb3
     v36 = icall returndata_bytes<>
     v37 = ptradd v36, 32
     v38 = mload v36
@@ -119,23 +125,23 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v44 = shr v43, 224
     v45 = eq v44, 0x8c379a0
     jumpi v45, bb12, bb13
-  bb13:
+  bb13:  ; preds = bb10
     jump bb14
-  bb12:
+  bb12:  ; preds = bb10
     v46 = ptrtoint ptr<memory> v40 to i256
     v47 = icall @try_decode_error_message, v46, v41
     jump bb14
-  bb14:
+  bb14:  ; preds = bb12, bb13
     v48 = phi [bb12: v47], [bb13: false]
     jumpi v48, bb15, bb16
-  bb16:
+  bb16:  ; preds = bb14
     jumpi true, bb17, bb18
-  bb18:
+  bb18:  ; preds = bb16
     revert v40, v41
-  bb17:
+  bb17:  ; preds = bb16
     v57 = checked_add uint256, v26, 300
     jump bb11
-  bb15:
+  bb15:  ; preds = bb14
     v49 = mload v36
     v50 = ptradd v36, 36
     v51 = sub v49, 4
@@ -145,7 +151,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v55 = checked_add uint256, 200, v54
     v56 = checked_add uint256, v26, v55
     jump bb11
-  bb9:
+  bb9:  ; preds = bb3
     v31 = returndatasize
     v32 = lt v31, 32
     icall revert_if<tuple_data_too_short>, v32
@@ -153,7 +159,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v34 = mload v33
     v35 = checked_add uint256, v26, v34
     jump bb11
-  bb11:
+  bb11:  ; preds = bb9, bb15, bb17
     v58 = phi [bb9: v35], [bb15: v56], [bb17: v57]
     v59 = sload 0 !metadata(storage=slot(0))
     v60 = trunc i256 v59 to i160
@@ -163,7 +169,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v62 = zext i160 v60 to i256
     v63 = staticcall v61, v62, 28, 36, 0, 32
     jumpi v63, bb19, bb20
-  bb20:
+  bb20:  ; preds = bb11
     v69 = icall returndata_bytes<>
     v70 = ptradd v69, 32
     v71 = mload v69
@@ -179,19 +185,19 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v81 = and v78, v80
     v82 = zext i1 v81 to i256
     jumpi v81, bb22, bb23
-  bb23:
+  bb23:  ; preds = bb20
     jumpi true, bb24, bb25
-  bb25:
+  bb25:  ; preds = bb23
     revert v73, v74
-  bb24:
+  bb24:  ; preds = bb23
     v86 = checked_add uint256, v58, 500
     jump bb21
-  bb22:
+  bb22:  ; preds = bb20
     v83 = ptradd v69, 36
     v84 = mload v83
     v85 = checked_add uint256, v58, 400
     jump bb21
-  bb19:
+  bb19:  ; preds = bb11
     v64 = returndatasize
     v65 = lt v64, 32
     icall revert_if<tuple_data_too_short>, v65
@@ -199,7 +205,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v67 = mload v66
     v68 = checked_add uint256, v58, v67
     jump bb21
-  bb21:
+  bb21:  ; preds = bb19, bb22, bb24
     v87 = phi [bb19: v68], [bb22: v85], [bb24: v86]
     v88 = sload 0 !metadata(storage=slot(0))
     v89 = trunc i256 v88 to i160
@@ -210,15 +216,15 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v94 = zext i160 v89 to i256
     v95 = staticcall v90, v94, v92, v93, v92, 64
     jumpi v95, bb26, bb27
-  bb27:
+  bb27:  ; preds = bb21
     jumpi true, bb29, bb30
-  bb30:
+  bb30:  ; preds = bb27
     icall revert_if<empty>, true
     invalid
-  bb29:
+  bb29:  ; preds = bb27
     v106 = checked_add uint256, v87, 600
     jump bb28
-  bb26:
+  bb26:  ; preds = bb21
     v96 = returndatasize
     v97 = lt v96, 64
     icall revert_if<tuple_data_too_short>, v97
@@ -231,7 +237,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v104 = checked_add uint256, v100, v103
     v105 = checked_add uint256, v87, v104
     jump bb28
-  bb28:
+  bb28:  ; preds = bb26, bb29
     v107 = phi [bb26: v105], [bb29: v106]
     v108 = sload 0 !metadata(storage=slot(0))
     v109 = trunc i256 v108 to i160
@@ -241,15 +247,15 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v111 = zext i160 v109 to i256
     v112 = staticcall 0x186a0, v111, 28, 36, 0, 32
     jumpi v112, bb31, bb32
-  bb32:
+  bb32:  ; preds = bb28
     jumpi true, bb34, bb35
-  bb35:
+  bb35:  ; preds = bb32
     icall revert_if<empty>, true
     invalid
-  bb34:
+  bb34:  ; preds = bb32
     v118 = checked_add uint256, v107, 700
     jump bb33
-  bb31:
+  bb31:  ; preds = bb28
     v113 = returndatasize
     v114 = lt v113, 32
     icall revert_if<tuple_data_too_short>, v114
@@ -257,7 +263,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v116 = mload v115
     v117 = checked_add uint256, v107, v116
     jump bb33
-  bb33:
+  bb33:  ; preds = bb31, bb34
     v119 = phi [bb31: v117], [bb34: v118]
     v120 = datasize Callee_creation_code_0
     v121 = fmp
@@ -265,18 +271,18 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v122 = create 0, v121, v120
     v123 = ne v122, i160 0
     jumpi v123, bb36, bb37
-  bb37:
+  bb37:  ; preds = bb33
     jumpi true, bb39, bb40
-  bb40:
+  bb40:  ; preds = bb37
     icall revert_if<empty>, true
     invalid
-  bb39:
+  bb39:  ; preds = bb37
     v125 = checked_add uint256, v119, 900
     jump bb38
-  bb36:
+  bb36:  ; preds = bb33
     v124 = checked_add uint256, v119, 800
     jump bb38
-  bb38:
+  bb38:  ; preds = bb36, bb39
     v126 = phi [bb36: v124], [bb39: v125]
     v127 = sload 0 !metadata(storage=slot(0))
     v128 = trunc i256 v127 to i160
@@ -292,15 +298,15 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     mstore 32, 6 !metadata(memory=scratch)
     v137 = call v135, v134, 0, 28, 36, 0, 32
     jumpi v137, bb41, bb42
-  bb42:
+  bb42:  ; preds = bb38
     jumpi true, bb44, bb45
-  bb45:
+  bb45:  ; preds = bb42
     icall revert_if<empty>, true
     invalid
-  bb44:
+  bb44:  ; preds = bb42
     v143 = checked_add uint256, v126, 0x3e8
     jump bb43
-  bb41:
+  bb41:  ; preds = bb38
     v138 = returndatasize
     v139 = lt v138, 32
     icall revert_if<tuple_data_too_short>, v139
@@ -308,7 +314,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v141 = mload v140
     v142 = checked_add uint256, v126, v141
     jump bb43
-  bb43:
+  bb43:  ; preds = bb41, bb44
     v144 = phi [bb41: v142], [bb44: v143]
     ret v144
 }
@@ -318,13 +324,13 @@ fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
     v0 = lt arg1, 68
     v1 = eq v0, false
     jumpi v1, bb1, bb3
-  bb1:
+  bb1:  ; preds = bb0
     v2 = add arg0, 4
     v3 = mload v2
     v4 = sub arg1, 36
     v5 = gt v3, v4
     jumpi v5, bb3, bb2
-  bb2:
+  bb2:  ; preds = bb1
     v6 = add v2, v3
     v7 = mload v6
     v8 = add v3, 36
@@ -335,6 +341,6 @@ fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
     v13 = zext i1 v12 to i256
     v14 = eq v13, 0
     ret v14
-  bb3:
+  bb3:  ; preds = bb0, bb1
     ret false
 }

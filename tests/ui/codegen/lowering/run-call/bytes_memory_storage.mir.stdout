@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/bytes_memory_storage.sol:BytesMemoryStorage ===
 @module BytesMemoryStorage
+; function copy() external returns (uint256) [selector 0x60726abb]
 fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -27,14 +28,14 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v17 = eq v16, false
     icall panic_if<0x32>, v17
     jumpi v11, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v18 = storage_array_data_slot 0
     v19 = shr 0, 5
     v20 = add v18, v19
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v21 = phi [bb1: v20], [bb2: 0]
     v22 = and 0, 31
     v23 = sub 31, v22
@@ -49,6 +50,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     ret v31
 }
 
+; function dirty() external returns (uint256) [selector 0x7dce0fd0]
 fn @dirty() -> i256 [selector=0x7dce0fd0, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = not 31
@@ -80,14 +82,14 @@ fn @dirty() -> i256 [selector=0x7dce0fd0, abi_params=[], abi_returns=[word], abi
     v21 = eq v20, false
     icall panic_if<0x32>, v21
     jumpi v15, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v22 = storage_array_data_slot 0
     v23 = shr 0, 5
     v24 = add v22, v23
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v25 = phi [bb1: v24], [bb2: 0]
     v26 = and 0, 31
     v27 = sub 31, v26
@@ -111,14 +113,14 @@ fn @dirty() -> i256 [selector=0x7dce0fd0, abi_params=[], abi_returns=[word], abi
     v44 = eq v43, false
     icall panic_if<0x32>, v44
     jumpi v38, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v45 = storage_array_data_slot 0
     v46 = shr 2, 5
     v47 = add v45, v46
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v48 = phi [bb4: v47], [bb5: 0]
     v49 = and 2, 31
     v50 = sub 31, v49

@@ -1,29 +1,31 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_bounds_revert.sol:CalldataSliceBoundsRevert ===
 @module CalldataSliceBoundsRevert
 @phase lowered
+; runtime dispatch entry
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
     v1 = ne v0, 0
     jumpi v1, bb4, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v2 = calldataload 0
     v3 = shr v2, 224
     switch v3, default bb4, [0x598bfb30 => bb2, 0x8063d43b => bb3]
-  bb3:
+  bb3:  ; preds = bb1
     tail_call @endPastLength
-  bb2:
+  bb2:  ; preds = bb1
     tail_call @startAfterEnd
-  bb4 [cold]:
+  bb4 [cold]:  ; preds = bb0, bb1
     revert 0, 0
 }
 
+; function endPastLength(bytes calldata data, uint256 end) external pure returns (bytes memory) [selector 0x8063d43b]
 fn @endPastLength() {
   bb0:
     v27 = calldatasize
     v28 = lt v27, 68
     jumpi v28, bb1, bb4
-  bb4:
+  bb4:  ; preds = bb0
     v29 = calldataload 36
     v30 = icall @decode_calldata_slice
     v31 = calldataload v30
@@ -31,7 +33,7 @@ fn @endPastLength() {
     v3 = eq v29, 0
     v4 = or v2, v3
     jumpi v4, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb4
     v6 = sub v29, 1
     v55 = add v30, 33
     v11 = calldatasize
@@ -42,7 +44,7 @@ fn @endPastLength() {
     v62 = or v25, v61
     v63 = ne v62, 0
     jumpi v63, bb1, bb3
-  bb3:
+  bb3:  ; preds = bb2
     v17 = add v6, 63
     v20 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v58 = heap_floor !metadata(alloc_ptr)
@@ -60,16 +62,17 @@ fn @endPastLength() {
     calldatacopy v47, v55, v6
     v52 = sub v50, v59
     returndata v59, v52
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0, bb2, bb4
     revert 0, 0
 }
 
+; function startAfterEnd(bytes calldata data, uint256 start, uint256 end) external pure returns (bytes memory) [selector 0x598bfb30]
 fn @startAfterEnd() {
   bb0:
     v27 = calldatasize
     v28 = lt v27, 100
     jumpi v28, bb1, bb4
-  bb4:
+  bb4:  ; preds = bb0
     v29 = calldataload 36
     v30 = calldataload 68
     v31 = icall @decode_calldata_slice
@@ -79,7 +82,7 @@ fn @startAfterEnd() {
     v3 = lt v30, v29
     v4 = or v2, v3
     jumpi v4, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb4
     v6 = sub v30, v29
     v56 = add v33, v29
     v11 = calldatasize
@@ -90,7 +93,7 @@ fn @startAfterEnd() {
     v63 = or v25, v62
     v64 = ne v63, 0
     jumpi v64, bb1, bb3
-  bb3:
+  bb3:  ; preds = bb2
     v17 = add v6, 63
     v20 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v59 = heap_floor !metadata(alloc_ptr)
@@ -108,7 +111,7 @@ fn @startAfterEnd() {
     calldatacopy v48, v56, v6
     v53 = sub v51, v60
     returndata v60, v53
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0, bb2, bb4
     revert 0, 0
 }
 
@@ -125,8 +128,8 @@ fn @decode_calldata_slice() -> i256 {
     v9 = gt v6, v8
     v10 = or v5, v9
     jumpi v10, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     ret v2
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }

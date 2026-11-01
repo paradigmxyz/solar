@@ -1,25 +1,27 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_parity.mir (before lower-dispatch) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_parity.mir (after lower-dispatch) ===
   @module DispatchParity
+- ; receive
 - fn @recv() [abi_wrapper, receive, payable] {
++ ; runtime dispatch entry
 + fn @entry() [entry] {
     bb0:
 +     jump bb1
-+   bb1:
++   bb1:  ; preds = bb0
 +     v0 = calldatasize
 +     v1 = ne v0, 0
 +     jumpi v1, bb3, bb2
-+   bb2:
++   bb2:  ; preds = bb1
 +     tail_call @recv
-+   bb3:
++   bb3:  ; preds = bb1
 +     v2 = calldataload 0
 +     v3 = shr v2, 224
 +     switch v3, default bb6, [1 => bb4, 2 => bb5]
-+   bb5:
++   bb5:  ; preds = bb3
 +     tail_call @nopay
-+   bb4:
++   bb4:  ; preds = bb3
 +     tail_call @pay
-+   bb6:
++   bb6:  ; preds = bb3
 +     tail_call @fb
 +   bb7 [cold]:
 +     revert 0, 0
@@ -30,18 +32,21 @@
       stop
   }
   
+- ; fallback
 - fn @fb() [abi_wrapper, fallback, payable] {
 + fn @nopay() {
     bb0:
       stop
   }
   
+- ; selector 0x00000001
 - fn @pay() [selector=0x00000001, abi_wrapper, payable] {
 + fn @recv() {
     bb0:
       stop
   }
   
+- ; selector 0x00000002
 - fn @nopay() [selector=0x00000002, abi_wrapper] {
 + fn @fb() {
     bb0:

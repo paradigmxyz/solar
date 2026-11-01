@@ -31,6 +31,7 @@ impl<'gcx> Assembler<'gcx> {
         debug_assert!(ir::verify::Verifier::is_valid(&module));
 
         // Parsed block labels may be sparse, but assembly indexes labels with a vector.
+        module.comments.clear();
         for (index, block) in module.blocks.iter_mut().enumerate() {
             block.label = u32::try_from(index).expect("EVM IR block index should fit in u32");
         }
@@ -107,6 +108,20 @@ impl<'gcx> Assembler<'gcx> {
             .last_mut()
             .expect("function exit requires an emitted operation");
         instruction.metadata.set_function_exit(exit);
+    }
+
+    /// Adds a comment to the current block in the EVM IR text format, or to the next block that
+    /// code creates when none is open, so that a comment never creates one.
+    pub(crate) fn comment_block(&mut self, note: &str) {
+        if let Some(block) = self.current_block {
+            self.program.comments.push(self.program.blocks[block].label, note);
+        } else {
+            let pending = self.pending_comment.get_or_insert_default();
+            if !pending.is_empty() {
+                pending.push_str(" + ");
+            }
+            pending.push_str(note);
+        }
     }
 
     /// Emits a push instruction with an immediate value.
@@ -405,8 +420,7 @@ impl<'gcx> Assembler<'gcx> {
         }
         block.metadata.repeats = self.repeating_code;
         block.metadata.optimization = self.block_optimization;
-        let block = self.program.add_block(block);
-        self.current_block = Some(block);
+        let block = self.add_current_block(block);
         self.block_labels.push(Some(label));
         self.label_blocks.insert(label, block);
     }
@@ -445,6 +459,17 @@ impl<'gcx> Assembler<'gcx> {
         }
     }
 
+    /// Adds `block`, makes it current, and gives it the pending comment.
+    fn add_current_block(&mut self, block: ir::Block) -> ir::BlockId {
+        let label = block.label;
+        let block = self.program.add_block(block);
+        self.current_block = Some(block);
+        if let Some(note) = self.pending_comment.take() {
+            self.program.comments.push(label, &note);
+        }
+        block
+    }
+
     fn current_block(&mut self) -> ir::BlockId {
         if let Some(block) = self.current_block {
             return block;
@@ -452,8 +477,7 @@ impl<'gcx> Assembler<'gcx> {
         let mut block = ir::Block::new(self.program.blocks.len() as u32);
         block.metadata.repeats = self.repeating_code;
         block.metadata.optimization = self.block_optimization;
-        let block = self.program.add_block(block);
-        self.current_block = Some(block);
+        let block = self.add_current_block(block);
         self.block_labels.push(None);
         block
     }

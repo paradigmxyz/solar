@@ -10,6 +10,7 @@
   struct2: {i1, i256, i256, i256, i256, i256, i256}
   struct3: {i1, ptr<memory>}
 
+; function direct(bytes calldata encoded) external pure returns (bool success, uint256 value) [selector 0x18f2e0cb]
 fn @direct(arg0: slice<calldata>) -> struct0 [selector=0x18f2e0cb, pure, abi_params=[bytes], abi_returns=[word<bool>, word], abi_return_params=[bool, uint256]] {
   bb0:
     v0 = icall @decode.3, arg0
@@ -24,6 +25,7 @@ fn @direct(arg0: slice<calldata>) -> struct0 [selector=0x18f2e0cb, pure, abi_par
     ret v8
 }
 
+; function decode(bytes calldata encoded) external pure returns (bool success, CalldataStructDecoder.Auth calldata auth) [selector 0xe5c5e9a3]
 fn @decode.1(arg0: slice<calldata>) -> struct1 [selector=0xe5c5e9a3, pure, abi_params=[bytes], abi_returns=[word<bool>, tuple<word, word, word, word, memory_bytes, memory_bytes>], abi_return_params=[bool, tuple<bytes32, bytes32, uint256, uint256, bytes, bytes>]] {
   bb0:
     v0 = icall @decode.3, arg0
@@ -34,6 +36,7 @@ fn @decode.1(arg0: slice<calldata>) -> struct1 [selector=0xe5c5e9a3, pure, abi_p
     ret v4
 }
 
+; function roundTrip() external view returns (bool, uint256, uint256, uint256, uint256, uint256, uint256) [selector 0x6643a628]
 fn @roundTrip() -> struct2 [selector=0x6643a628, view, abi_params=[], abi_returns=[word<bool>, word, word, word, word, word, word], abi_return_params=[bool, uint256, uint256, uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = address
@@ -55,9 +58,9 @@ fn @roundTrip() -> struct2 [selector=0x6643a628, view, abi_params=[], abi_return
     v12 = zext i160 v0 to i256
     v13 = staticcall v1, v12, v10, v11, 0, 0
     jumpi v13, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v14 = icall returndata_bytes<>
     v15 = abi_decode [bool, tuple<bytes32, bytes32, uint256, uint256, bytes, bytes>], v14
     v16 = extract_value struct3, v15, 0
@@ -89,6 +92,7 @@ fn @roundTrip() -> struct2 [selector=0x6643a628, view, abi_params=[], abi_return
     ret v41
 }
 
+; function decode(bytes calldata input) internal pure returns (bool success, Auth calldata auth)
 fn @decode.3(arg0: slice<calldata>) -> struct1 [pure] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0

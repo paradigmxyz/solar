@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256, i256, i256}
 
+; function copy(uint256[] calldata values) external returns (uint256, uint256, uint256, uint256) [selector 0x8d80fe50]
 fn @copy(arg0: slice<calldata>) -> struct0 [selector=0x8d80fe50, abi_params=[array<_, uint256>], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = alloc 64
@@ -82,11 +83,11 @@ fn @copy(arg0: slice<calldata>) -> struct0 [selector=0x8d80fe50, abi_params=[arr
     v59 = ptradd v0, 32
     mstore v59, v58
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb6
     v60 = phi [bb0: 0], [bb6: v103]
     v61 = lt v60, 2
     jumpi v61, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v104 = lt 0, 2
     v105 = eq v104, false
     icall panic_if<0x32>, v105
@@ -124,35 +125,35 @@ fn @copy(arg0: slice<calldata>) -> struct0 [selector=0x8d80fe50, abi_params=[arr
     v132 = insert_value struct0, v131, 2, v120
     v133 = insert_value struct0, v132, 3, v129
     ret v133
-  bb2:
+  bb2:  ; preds = bb1
     v62 = add 0, v60
     v63 = lt v60, 2
     jumpi v63, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb2
     v85 = alloc 32
     mstore v85, 0
     v86 = mload v85
     v87 = sload v62 !metadata(storage=symbolic(v60))
     v88 = gt v87, v86
     jumpi v88, bb15, bb16
-  bb15:
+  bb15:  ; preds = bb5
     jump bb17
-  bb17:
+  bb17:  ; preds = bb15, bb18
     v89 = phi [bb15: v86], [bb18: v93]
     v90 = lt v89, v87
     jumpi v90, bb18, bb19
-  bb19:
+  bb19:  ; preds = bb17
     jump bb16
-  bb16:
+  bb16:  ; preds = bb5, bb19
     sstore v62, v86 !metadata(storage=symbolic(v60))
     jump bb20
-  bb20:
+  bb20:  ; preds = bb16, bb21
     v94 = phi [bb16: 0], [bb21: v102]
     v95 = lt v94, v86
     jumpi v95, bb21, bb22
-  bb22:
+  bb22:  ; preds = bb20
     jump bb6
-  bb21:
+  bb21:  ; preds = bb20
     v96 = shl v94, 5
     v97 = ptradd v85, v96
     v98 = ptradd v97, 32
@@ -162,13 +163,13 @@ fn @copy(arg0: slice<calldata>) -> struct0 [selector=0x8d80fe50, abi_params=[arr
     sstore v101, v99 !metadata(storage=symbolic(v101))
     v102 = add v94, 1
     jump bb20
-  bb18:
+  bb18:  ; preds = bb17
     v91 = storage_array_data_slot v62
     v92 = add v91, v89
     sstore v92, 0 !metadata(storage=symbolic(v92))
     v93 = add v89, 1
     jump bb17
-  bb4:
+  bb4:  ; preds = bb2
     v64 = shl v60, 5
     v65 = ptradd v0, v64
     v66 = mload v65
@@ -176,27 +177,27 @@ fn @copy(arg0: slice<calldata>) -> struct0 [selector=0x8d80fe50, abi_params=[arr
     v68 = sload v62 !metadata(storage=symbolic(v60))
     v69 = gt v68, v67
     jumpi v69, bb7, bb8
-  bb7:
+  bb7:  ; preds = bb4
     jump bb9
-  bb9:
+  bb9:  ; preds = bb7, bb10
     v70 = phi [bb7: v67], [bb10: v74]
     v71 = lt v70, v68
     jumpi v71, bb10, bb11
-  bb11:
+  bb11:  ; preds = bb9
     jump bb8
-  bb8:
+  bb8:  ; preds = bb4, bb11
     sstore v62, v67 !metadata(storage=symbolic(v60))
     jump bb12
-  bb12:
+  bb12:  ; preds = bb8, bb13
     v75 = phi [bb8: 0], [bb13: v84]
     v76 = lt v75, v67
     jumpi v76, bb13, bb14
-  bb14:
+  bb14:  ; preds = bb12
     jump bb6
-  bb6:
+  bb6:  ; preds = bb14, bb22
     v103 = add v60, 1
     jump bb1
-  bb13:
+  bb13:  ; preds = bb12
     v77 = shl v75, 5
     v78 = inttoptr i256 v66 to ptr<memory>
     v79 = ptradd v78, v77
@@ -207,7 +208,7 @@ fn @copy(arg0: slice<calldata>) -> struct0 [selector=0x8d80fe50, abi_params=[arr
     sstore v83, v81 !metadata(storage=symbolic(v83))
     v84 = add v75, 1
     jump bb12
-  bb10:
+  bb10:  ; preds = bb9
     v72 = storage_array_data_slot v62
     v73 = add v72, v70
     sstore v73, 0 !metadata(storage=symbolic(v73))

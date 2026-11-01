@@ -3,6 +3,7 @@
 @types
   struct0: {i160, i256}
 
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -35,6 +36,7 @@ fn @constructor() [constructor] {
     ret
 }
 
+; function readCopy() external view returns (address, bytes4) [selector 0x3af23521]
 fn @readCopy() -> struct0 [selector=0x3af23521, view, abi_params=[], abi_returns=[word<uint160>, word<bytes4>], abi_return_params=[address, bytes4]] {
   bb0:
     v0 = alloc checked 64
@@ -63,6 +65,7 @@ fn @readCopy() -> struct0 [selector=0x3af23521, view, abi_params=[], abi_returns
     ret v19
 }
 
+; function readDirect() external view returns (address, bytes4) [selector 0x28da8d5d]
 fn @readDirect() -> struct0 [selector=0x28da8d5d, view, abi_params=[], abi_returns=[word<uint160>, word<bytes4>], abi_return_params=[address, bytes4]] {
   bb0:
     v0 = alloc checked 64

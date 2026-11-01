@@ -1,33 +1,35 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_bytes_to_memory_checks.sol:CalldataBytesToMemoryChecks ===
 @module CalldataBytesToMemoryChecks
 @phase lowered
+; runtime dispatch entry
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
     v1 = ne v0, 0
     jumpi v1, bb6, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v2 = calldataload 0
     v3 = shr v2, 224
     switch v3, default bb6, [0x45c91515 => bb2, 0xa5e448c2 => bb3, 0xba062698 => bb4, 0xbf6f2c90 => bb5]
-  bb5:
+  bb5:  ; preds = bb1
     tail_call @forwarded
-  bb4:
+  bb4:  ; preds = bb1
     tail_call @offsetSet
-  bb3:
+  bb3:  ; preds = bb1
     tail_call @lengthSet
-  bb2:
+  bb2:  ; preds = bb1
     tail_call @decoded
-  bb6 [cold]:
+  bb6 [cold]:  ; preds = bb0, bb1
     revert 0, 0
 }
 
+; function decoded(bytes calldata b) external pure returns (uint256) [selector 0x45c91515]
 fn @decoded() {
   bb0:
     v11 = calldatasize
     v12 = lt v11, 36
     jumpi v12, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v13 = icall @decode_calldata_slice
     v14 = calldataload v13
     v15 = add v13, 32
@@ -37,23 +39,24 @@ fn @decoded() {
     calldatacopy v20, v15, v14
     mstore 0, v14
     returndata 0, 32
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
+; function lengthSet(bytes calldata b, uint256 n) external pure returns (uint256) [selector 0xa5e448c2]
 fn @lengthSet() {
   bb0:
     v23 = calldatasize
     v24 = lt v23, 68
     jumpi v24, bb3, bb5
-  bb5:
+  bb5:  ; preds = bb0
     v25 = calldataload 36
     v26 = icall @decode_calldata_slice
     v28 = add v26, 32
     v3 = add v25, 63
     v4 = lt v3, v25
     jumpi v4, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb5
     v36 = heap_floor !metadata(alloc_ptr)
     mstore v36, v25
     v10 = calldatasize
@@ -64,23 +67,24 @@ fn @lengthSet() {
     v39 = or v19, v38
     v40 = ne v39, 0
     jumpi v40, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb2
     v33 = add v36, 32
     calldatacopy v33, v28, v25
     mstore 0, v25
     returndata 0, 32
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb5
     tail_call @revert_stub
-  bb3 [cold]:
+  bb3 [cold]:  ; preds = bb0, bb2
     revert 0, 0
 }
 
+; function offsetSet(bytes calldata b, uint256 o) external pure returns (uint256) [selector 0xba062698]
 fn @offsetSet() {
   bb0:
     v27 = calldatasize
     v28 = lt v27, 68
     jumpi v28, bb3, bb5
-  bb5:
+  bb5:  ; preds = bb0
     v29 = calldataload 36
     v30 = icall @decode_calldata_slice
     v31 = calldataload v30
@@ -89,7 +93,7 @@ fn @offsetSet() {
     v7 = add v31, 63
     v8 = lt v7, v31
     jumpi v8, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb5
     v40 = heap_floor !metadata(alloc_ptr)
     mstore v40, v31
     v14 = calldatasize
@@ -100,23 +104,24 @@ fn @offsetSet() {
     v43 = or v23, v42
     v44 = ne v43, 0
     jumpi v44, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb2
     v37 = add v40, 32
     calldatacopy v37, v2, v31
     mstore 0, v31
     returndata 0, 32
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb5
     tail_call @revert_stub
-  bb3 [cold]:
+  bb3 [cold]:  ; preds = bb0, bb2
     revert 0, 0
 }
 
+; function forwarded(bytes calldata b) public pure returns (uint256) [selector 0xbf6f2c90]
 fn @forwarded() {
   bb0:
     v21 = calldatasize
     v22 = lt v21, 36
     jumpi v22, bb1, bb3
-  bb3:
+  bb3:  ; preds = bb0
     v23 = icall @decode_calldata_slice
     v24 = calldataload v23
     v25 = add v23, 32
@@ -128,14 +133,14 @@ fn @forwarded() {
     v36 = or v17, v35
     v37 = ne v36, 0
     jumpi v37, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb3
     v33 = heap_floor !metadata(alloc_ptr)
     mstore v33, v24
     v30 = add v33, 32
     calldatacopy v30, v25, v24
     mstore 0, v24
     returndata 0, 32
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0, bb3
     revert 0, 0
 }
 
@@ -159,8 +164,8 @@ fn @decode_calldata_slice() -> i256 {
     v9 = gt v6, v8
     v10 = or v5, v9
     jumpi v10, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     ret v2
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }

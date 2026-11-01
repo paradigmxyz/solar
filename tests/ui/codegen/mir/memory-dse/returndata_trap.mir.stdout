@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/memory-dse/returndata_trap.sol:ReturndataTrap ===
 @module ReturndataTrap
+; function fail() external pure returns (uint256) [selector 0xa9cc4718]
 fn @fail() -> i256 [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = not 31
@@ -12,6 +13,7 @@ fn @fail() -> i256 [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[word]
     ret 7
 }
 
+; function pass() external pure returns (uint256) [selector 0xa7a1ed72]
 fn @pass() -> i256 [selector=0xa7a1ed72, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = not 31

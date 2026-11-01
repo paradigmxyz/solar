@@ -1,51 +1,53 @@
 // === ROOT/tests/ui/codegen/mir/loop-unroll/exchanged_phis.sol:Swap ===
 @module Swap
 @phase lowered
+; runtime dispatch entry
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
     v1 = ne v0, 0
     jumpi v1, bb3, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v2 = calldataload 0
     v3 = shr v2, 224
     switch v3, default bb3, [0xdb9a27fa => bb2]
-  bb2:
+  bb2:  ; preds = bb1
     tail_call @swaps
-  bb3 [cold]:
+  bb3 [cold]:  ; preds = bb0, bb1
     revert 0, 0
 }
 
+; function swaps(uint256 n, uint256 a, uint256 b) external pure returns (uint256) [selector 0xdb9a27fa]
 fn @swaps() {
   bb0:
     v7 = calldatasize
     v8 = lt v7, 100
     jumpi v8, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb0
     v9 = calldataload 4
     v10 = calldataload 36
     v11 = calldataload 68
     jump bb6
-  bb6:
+  bb6:  ; preds = bb5, bb7
     v15 = phi [bb5: 0], [bb7: v32]
     v33 = add v15, 3
     v34 = lt v33, v9
     jumpi v34, bb7, bb1
-  bb1:
+  bb1:  ; preds = bb3, bb6
     v1 = phi [bb6: v10], [bb3: v2]
     v2 = phi [bb6: v11], [bb3: v1]
     v4 = phi [bb6: v15], [bb3: v6]
     v5 = lt v4, v9
     jumpi v5, bb3, bb2
-  bb2:
+  bb2:  ; preds = bb1
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
-  bb3:
+  bb3:  ; preds = bb1
     v6 = add v4, 1
     jump bb1
-  bb7:
+  bb7:  ; preds = bb6
     v32 = add v15, 4
     jump bb6
-  bb4 [cold]:
+  bb4 [cold]:  ; preds = bb0
     revert 0, 0
 }

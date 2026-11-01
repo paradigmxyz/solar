@@ -6,9 +6,10 @@
       v0 = add arg0, 1
       v1 = mul arg0, arg0
 -     jump bb1
--   bb1:
+-   bb1:  ; preds = bb0
       jump bb2
-    bb2:
+-   bb2:  ; preds = bb1
++   bb2:  ; preds = bb1, bb0
       ret v0
 +   bb1:
 +     jump bb2
@@ -22,7 +23,7 @@
       v0 = add arg0, 1
       v1 = mul arg0, arg0
 -     jump bb2
--   bb2:
+-   bb2:  ; preds = bb1, bb0
       ret v0
 -   bb1:
 -     jump bb2

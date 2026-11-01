@@ -3,6 +3,7 @@
 @types
   struct0: {ptr<memory>, i256}
 
+; function whole(bytes memory s) external pure returns (bytes memory r) [selector 0xbbbb2e8a]
 fn @whole(arg0: ptr<memory>) -> ptr<memory> [selector=0xbbbb2e8a, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = mload arg0
@@ -14,18 +15,18 @@ fn @whole(arg0: ptr<memory>) -> ptr<memory> [selector=0xbbbb2e8a, pure, abi_para
     v5 = alloc zeroed checked v4
     mstore v5, v0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v6 = phi [bb0: arg0], [bb3: v6]
     v7 = phi [bb0: v5], [bb3: v7]
     v8 = phi [bb0: v0], [bb3: v8]
     v9 = phi [bb0: 0], [bb3: v25]
     v10 = lt v9, v8
     jumpi v10, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v7
-  bb4:
+  bb4:  ; preds = bb1
     v11 = mload v6
     v12 = lt v9, v11
     v13 = eq v12, false
@@ -44,13 +45,14 @@ fn @whole(arg0: ptr<memory>) -> ptr<memory> [selector=0xbbbb2e8a, pure, abi_para
     v24 = ptradd v23, 32
     mstore8 v24, v22
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v25 = checked_add uint256, v9, 1
     jump bb1
 }
 
+; function rest(bytes memory s, uint256 start) external pure returns (bytes memory r) [selector 0xbf352668]
 fn @rest(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0xbf352668, pure, abi_params=[bytes, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = mload arg0
@@ -63,7 +65,7 @@ fn @rest(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0xbf352668, pur
     v6 = alloc zeroed checked v5
     mstore v6, v1
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v7 = phi [bb0: arg0], [bb3: v7]
     v8 = phi [bb0: arg1], [bb3: v8]
     v9 = phi [bb0: v6], [bb3: v9]
@@ -71,9 +73,9 @@ fn @rest(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0xbf352668, pur
     v11 = phi [bb0: 0], [bb3: v28]
     v12 = lt v11, v10
     jumpi v12, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     v29 = ptrtoint ptr<memory> v9 to i256
     v30 = mload v9
     v31 = ptrtoint ptr<memory> v9 to i256
@@ -81,7 +83,7 @@ fn @rest(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0xbf352668, pur
     v33 = add v32, v30
     mstore v33, 0
     ret v9
-  bb4:
+  bb4:  ; preds = bb1
     v13 = checked_add uint256, v8, v11
     v14 = mload v7
     v15 = lt v13, v14
@@ -101,33 +103,34 @@ fn @rest(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0xbf352668, pur
     v27 = ptradd v26, 32
     mstore8 v27, v25
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v28 = checked_add uint256, v11, 1
     jump bb1
 }
 
+; function slice(bytes memory s, uint256 start, uint256 end) external pure returns (bytes memory r, uint256 tail) [selector 0xe0041396]
 fn @slice(arg0: ptr<memory>, arg1: i256, arg2: i256) -> struct0 [selector=0xe0041396, pure, abi_params=[bytes, uint256, uint256], abi_returns=[memory_bytes, word], abi_return_params=[bytes, uint256]] {
   bb0:
     icall @_dirty
     v0 = mload arg0
     v1 = gt arg2, v0
     jumpi v1, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v2 = mload arg0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v3 = phi [bb1: v2], [bb2: arg2]
     v4 = gt arg1, v3
     jumpi v4, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v5 = phi [bb4: v3], [bb5: arg1]
     v6 = checked_sub uint256, v3, v5
     v7 = add v6, 63
@@ -138,7 +141,7 @@ fn @slice(arg0: ptr<memory>, arg1: i256, arg2: i256) -> struct0 [selector=0xe004
     v11 = alloc zeroed checked v10
     mstore v11, v6
     jump bb7
-  bb7:
+  bb7:  ; preds = bb6, bb9
     v12 = phi [bb6: arg0], [bb9: v12]
     v13 = phi [bb6: v5], [bb9: v13]
     v14 = phi [bb6: v3], [bb9: v14]
@@ -148,9 +151,9 @@ fn @slice(arg0: ptr<memory>, arg1: i256, arg2: i256) -> struct0 [selector=0xe004
     v18 = phi [bb6: 0], [bb9: v35]
     v19 = lt v18, v17
     jumpi v19, bb10, bb11
-  bb11:
+  bb11:  ; preds = bb7
     jump bb8
-  bb8:
+  bb8:  ; preds = bb11
     v36 = ptrtoint ptr<memory> v15 to i256
     v37 = mload v15
     v38 = ptrtoint ptr<memory> v15 to i256
@@ -161,7 +164,7 @@ fn @slice(arg0: ptr<memory>, arg1: i256, arg2: i256) -> struct0 [selector=0xe004
     v42 = insert_value struct0, undef struct0, 0, v15
     v43 = insert_value struct0, v42, 1, v41
     ret v43
-  bb10:
+  bb10:  ; preds = bb7
     v20 = checked_add uint256, v13, v18
     v21 = mload v12
     v22 = lt v20, v21
@@ -181,13 +184,14 @@ fn @slice(arg0: ptr<memory>, arg1: i256, arg2: i256) -> struct0 [selector=0xe004
     v34 = ptradd v33, 32
     mstore8 v34, v32
     jump bb12
-  bb12:
+  bb12:  ; preds = bb10
     jump bb9
-  bb9:
+  bb9:  ; preds = bb12
     v35 = checked_add uint256, v18, 1
     jump bb7
 }
 
+; function overlapWhole(bytes memory s, uint256 shift) external pure returns (bytes memory) [selector 0x6fe4703b]
 fn @overlapWhole(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0x6fe4703b, pure, abi_params=[bytes, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
@@ -197,6 +201,7 @@ fn @overlapWhole(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0x6fe47
     ret v2
 }
 
+; function overlapRest(bytes memory s, uint256 start, uint256 shift) external pure returns (bytes memory) [selector 0x4dafe7dc]
 fn @overlapRest(arg0: ptr<memory>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x4dafe7dc, pure, abi_params=[bytes, uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
@@ -206,6 +211,7 @@ fn @overlapRest(arg0: ptr<memory>, arg1: i256, arg2: i256) -> ptr<memory> [selec
     ret v2
 }
 
+; function lengthWordCovered() external pure returns (bytes memory) [selector 0x06bd068d]
 fn @lengthWordCovered() -> ptr<memory> [selector=0x06bd068d, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -218,6 +224,7 @@ fn @lengthWordCovered() -> ptr<memory> [selector=0x06bd068d, pure, abi_params=[]
     ret v4
 }
 
+; function _whole(bytes memory s) private pure returns (bytes memory r)
 fn @_whole(arg0: ptr<memory>) -> ptr<memory> [pure] {
   bb0:
     v0 = mload arg0
@@ -229,18 +236,18 @@ fn @_whole(arg0: ptr<memory>) -> ptr<memory> [pure] {
     v5 = alloc zeroed checked v4
     mstore v5, v0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v6 = phi [bb0: arg0], [bb3: v6]
     v7 = phi [bb0: v5], [bb3: v7]
     v8 = phi [bb0: v0], [bb3: v8]
     v9 = phi [bb0: 0], [bb3: v25]
     v10 = lt v9, v8
     jumpi v10, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v7
-  bb4:
+  bb4:  ; preds = bb1
     v11 = mload v6
     v12 = lt v9, v11
     v13 = eq v12, false
@@ -259,13 +266,14 @@ fn @_whole(arg0: ptr<memory>) -> ptr<memory> [pure] {
     v24 = ptradd v23, 32
     mstore8 v24, v22
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v25 = checked_add uint256, v9, 1
     jump bb1
 }
 
+; function _rest(bytes memory s, uint256 start) private pure returns (bytes memory r)
 fn @_rest(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [pure] {
   bb0:
     v0 = mload arg0
@@ -278,7 +286,7 @@ fn @_rest(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [pure] {
     v6 = alloc zeroed checked v5
     mstore v6, v1
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v7 = phi [bb0: arg0], [bb3: v7]
     v8 = phi [bb0: arg1], [bb3: v8]
     v9 = phi [bb0: v6], [bb3: v9]
@@ -286,9 +294,9 @@ fn @_rest(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [pure] {
     v11 = phi [bb0: 0], [bb3: v28]
     v12 = lt v11, v10
     jumpi v12, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     v29 = ptrtoint ptr<memory> v9 to i256
     v30 = mload v9
     v31 = ptrtoint ptr<memory> v9 to i256
@@ -296,7 +304,7 @@ fn @_rest(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [pure] {
     v33 = add v32, v30
     mstore v33, 0
     ret v9
-  bb4:
+  bb4:  ; preds = bb1
     v13 = checked_add uint256, v8, v11
     v14 = mload v7
     v15 = lt v13, v14
@@ -316,40 +324,42 @@ fn @_rest(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [pure] {
     v27 = ptradd v26, 32
     mstore8 v27, v25
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v28 = checked_add uint256, v11, 1
     jump bb1
 }
 
+; function _dirty() private pure
 fn @_dirty() [pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v1 = phi [bb0: v0], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v8]
     v3 = lt v2, 0x400
     v4 = zext i1 v3 to i256
     v5 = ne v4, 0
     jumpi v5, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret
-  bb4:
+  bb4:  ; preds = bb1
     v6 = not 0
     v7 = add v1, v2
     mstore v7, v6
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v8 = add v2, 32
     jump bb1
 }
 
+; function _tail(bytes memory b) private pure returns (uint256 tail)
 fn @_tail(arg0: ptr<memory>) -> i256 [pure] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
@@ -357,9 +367,9 @@ fn @_tail(arg0: ptr<memory>) -> i256 [pure] {
     v2 = and v1, 31
     v3 = ne v2, 0
     jumpi v3, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v4 = not 31
     v5 = and v1, v4
     v6 = ptrtoint ptr<memory> arg0 to i256
@@ -370,11 +380,12 @@ fn @_tail(arg0: ptr<memory>) -> i256 [pure] {
     v11 = mul 8, v10
     v12 = shl v9, v11
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v13 = phi [bb1: v12], [bb2: 0]
     ret v13
 }
 
+; function _count(bytes memory s, uint256 n) private pure returns (bytes memory r)
 fn @_count(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [pure] {
   bb0:
     v0 = add arg1, 63
@@ -385,16 +396,16 @@ fn @_count(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [pure] {
     v4 = alloc zeroed checked v3
     mstore v4, arg1
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v5 = phi [bb0: arg0], [bb3: v5]
     v6 = phi [bb0: arg1], [bb3: v6]
     v7 = phi [bb0: v4], [bb3: v7]
     v8 = phi [bb0: 0], [bb3: v24]
     v9 = lt v8, v6
     jumpi v9, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     v25 = ptrtoint ptr<memory> v7 to i256
     v26 = mload v7
     v27 = ptrtoint ptr<memory> v7 to i256
@@ -402,7 +413,7 @@ fn @_count(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [pure] {
     v29 = add v28, v26
     mstore v29, 0
     ret v7
-  bb4:
+  bb4:  ; preds = bb1
     v10 = mload v5
     v11 = lt v8, v10
     v12 = eq v11, false
@@ -421,9 +432,9 @@ fn @_count(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [pure] {
     v23 = ptradd v22, 32
     mstore8 v23, v21
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v24 = checked_add uint256, v8, 1
     jump bb1
 }

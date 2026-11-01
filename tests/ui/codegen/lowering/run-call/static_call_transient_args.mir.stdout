@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/static_call_transient_args.sol:StaticCallTransientArgs ===
 @module StaticCallTransientArgs
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = mapping_slot 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, 0
@@ -16,17 +17,20 @@ fn @constructor() [constructor] {
     ret
 }
 
+; getter for `bytes32 public constant PROPOSER_ROLE` [selector 0x8f61f4f5]
 fn @PROPOSER_ROLE() -> i256 [selector=0x8f61f4f5, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     ret 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1
 }
 
+; function getMinDelay() public view returns (uint256) [selector 0xf27a0c92]
 fn @getMinDelay() -> i256 [selector=0xf27a0c92, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
     ret v0
 }
 
+; function isOperation(bytes32 id) public view returns (bool) [selector 0x31d50750]
 fn @isOperation(arg0: i256) -> i1 [selector=0x31d50750, view, abi_params=[bytes32], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = mapping_slot arg0, 1
@@ -35,6 +39,7 @@ fn @isOperation(arg0: i256) -> i1 [selector=0x31d50750, view, abi_params=[bytes3
     ret v2
 }
 
+; function hashOperationBatch( address[] calldata targets, uint256[] calldata values, bytes[] calldata payloads, bytes32 predecessor, bytes32 salt ) public pure returns (bytes32) [selector 0xb1c5f427]
 fn @hashOperationBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<calldata>, arg3: i256, arg4: i256) -> i256 [selector=0xb1c5f427, pure, abi_params=[array<_, address>, array<_, uint256>, array<_, bytes>, bytes32, bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -45,11 +50,11 @@ fn @hashOperationBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice
     v4 = extract_value slice<calldata>, arg0, 1
     v5 = extract_value slice<calldata>, arg0, 0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v6 = phi [bb0: 0], [bb2: v15]
     v7 = lt v6, v4
     jumpi v7, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v16 = extract_value slice<calldata>, arg1, 1
     v17 = mul v16, 32
     v18 = shr v16, 251
@@ -65,7 +70,7 @@ fn @hashOperationBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice
     v26 = extract_value slice<memory>, v24, 1
     v27 = keccak256 v25, v26
     ret v27
-  bb2:
+  bb2:  ; preds = bb1
     v8 = mul v6, 32
     v9 = ptrtoint ptr<calldata> v5 to i256
     v10 = add v9, v8
@@ -78,6 +83,7 @@ fn @hashOperationBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice
     jump bb1
 }
 
+; function scheduleBatch( address[] calldata targets, uint256[] calldata values, bytes[] calldata payloads, bytes32 predecessor, bytes32 salt, uint256 delay ) public onlyRole(PROPOSER_ROLE) returns (bytes32 id) [selector 0x8f2a0bb0]
 fn @scheduleBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<calldata>, arg3: i256, arg4: i256, arg5: i256) -> i256 [selector=0x8f2a0bb0, abi_params=[array<_, address>, array<_, uint256>, array<_, bytes>, bytes32, bytes32, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = mapping_slot 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, 0
@@ -89,30 +95,30 @@ fn @scheduleBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<call
     v6 = ne v5, i8 0
     v7 = eq v6, false
     jumpi v7, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb0
     jump bb4
-  bb4:
+  bb4:  ; preds = bb3
     v10 = extract_value slice<calldata>, arg0, 1
     v11 = extract_value slice<calldata>, arg1, 1
     v12 = ne v10, v11
     jumpi v12, bb7, bb6
-  bb6:
+  bb6:  ; preds = bb4
     v13 = extract_value slice<calldata>, arg0, 1
     v14 = extract_value slice<calldata>, arg2, 1
     v15 = ne v13, v14
     jump bb8
-  bb7:
+  bb7:  ; preds = bb4
     jump bb8
-  bb8:
+  bb8:  ; preds = bb7, bb6
     v16 = phi [bb6: v15], [bb7: true]
     jumpi v16, bb9, bb10
-  bb10:
+  bb10:  ; preds = bb8
     jump bb11
-  bb11:
+  bb11:  ; preds = bb10
     v20 = icall @hashOperationBatch, arg0, arg1, arg2, arg3, arg4
     icall @_schedule, v20, arg5
     jump bb12
-  bb12:
+  bb12:  ; preds = bb11, bb14
     v21 = phi [bb11: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1], [bb14: v21]
     v22 = phi [bb11: arg0], [bb14: v22]
     v23 = phi [bb11: arg1], [bb14: v23]
@@ -125,24 +131,24 @@ fn @scheduleBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<call
     v30 = extract_value slice<calldata>, v22, 1
     v31 = lt v29, v30
     jumpi v31, bb15, bb16
-  bb16:
+  bb16:  ; preds = bb12
     jump bb13
-  bb13:
+  bb13:  ; preds = bb16
     v90 = ne v26, 0
     jumpi v90, bb18, bb19
-  bb19:
+  bb19:  ; preds = bb13
     jump bb20
-  bb18:
+  bb18:  ; preds = bb13
     mstore 0, v26 !metadata(memory=scratch)
     log 0, 32, 0x20fda5fd27a1ea7bf5b9567f143ac5470bb059374a27e8f67cb44f946f6d0387, v28
     jump bb20
-  bb20:
+  bb20:  ; preds = bb18, bb19
     jump bb5
-  bb5:
+  bb5:  ; preds = bb20
     jump bb1
-  bb1:
+  bb1:  ; preds = bb5
     ret v28
-  bb15:
+  bb15:  ; preds = bb12
     v32 = extract_value slice<calldata>, v22, 1
     v33 = lt v29, v32
     v34 = eq v33, false
@@ -213,52 +219,54 @@ fn @scheduleBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<call
     v88 = extract_value slice<memory>, v86, 1
     log v87, v88, 0x4cf4410cc57040e44862ef0f45f3dd5a5e02db8eb8add648d4b0e236f1d07dca, v28, v29
     jump bb17
-  bb17:
+  bb17:  ; preds = bb15
     jump bb14
-  bb14:
+  bb14:  ; preds = bb17
     v89 = checked_add uint256, v29, 1
     jump bb12
-  bb9:
+  bb9:  ; preds = bb8
     v17 = extract_value slice<calldata>, arg0, 1
     v18 = extract_value slice<calldata>, arg2, 1
     v19 = extract_value slice<calldata>, arg1, 1
     icall require<custom_error [word, word, word]>, false, 0x679057600000000000000000000000000000000000000000000000000000000, v17, v18, v19
     invalid
-  bb2:
+  bb2:  ; preds = bb0
     v8 = caller
     v9 = zext i160 v8 to i256
     icall require<custom_error [word<uint160>, word]>, false, 0x161a64a00000000000000000000000000000000000000000000000000000000, v9, 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1
     invalid
 }
 
+; function _schedule(bytes32 id, uint256 delay) private
 fn @_schedule(arg0: i256, arg1: i256) {
   bb0:
     v0 = icall @isOperation, arg0
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     v1 = icall @getMinDelay
     v2 = lt arg1, v1
     jumpi v2, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb6:
+  bb6:  ; preds = bb5
     v3 = timestamp
     v4 = checked_add uint256, v3, arg1
     v5 = mapping_slot arg0, 1
     sstore v5, v4 !metadata(storage=symbolic(v5))
     ret
-  bb4:
+  bb4:  ; preds = bb3
     icall require<custom_error [word, word]>, false, 0x48b6d3db00000000000000000000000000000000000000000000000000000000, arg1, v1
     invalid
-  bb1:
+  bb1:  ; preds = bb0
     icall require<custom_error [word, word]>, false, 0xd8dce7eb00000000000000000000000000000000000000000000000000000000, arg0, 1
     invalid
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/static_call_transient_args.sol:DeepCallArguments ===
 @module DeepCallArguments
+; function wide(uint256 x) external pure returns (uint256) [selector 0x598b5337]
 fn @wide(arg0: i256) -> i256 [selector=0x598b5337, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = add arg0, 0
@@ -288,6 +296,7 @@ fn @wide(arg0: i256) -> i256 [selector=0x598b5337, pure, abi_params=[uint256], a
     ret v23
 }
 
+; function combineWide(uint256 a0, uint256 a1, uint256 a2, uint256 a3, uint256 a4, uint256 a5, uint256 a6, uint256 a7, uint256 a8, uint256 a9, uint256 a10, uint256 a11, uint256 a12, uint256 a13, uint256 a14, uint256 a15, uint256 a16, uint256 a17, uint256 a18, uint256 a19) internal pure returns (uint256)
 fn @combineWide(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, arg6: i256, arg7: i256, arg8: i256, arg9: i256, arg10: i256, arg11: i256, arg12: i256, arg13: i256, arg14: i256, arg15: i256, arg16: i256, arg17: i256, arg18: i256, arg19: i256) -> i256 [pure] {
   bb0:
     v0 = mul 1, arg0

@@ -5,6 +5,7 @@
   struct1: {i256, i256, i256, i256, i128, i256}
   struct2: {i72, i72, i72, i256}
 
+; function slots() external pure returns (uint256, uint256, uint256, uint256, uint256, uint256) [selector 0x48547d69]
 fn @slots() -> struct0 [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = insert_value struct0, undef struct0, 0, 0
@@ -16,6 +17,7 @@ fn @slots() -> struct0 [selector=0x48547d69, pure, abi_params=[], abi_returns=[w
     ret v5
 }
 
+; function preserveNeighbors() external returns (bytes9, uint256, bytes17, uint256, uint128, uint256) [selector 0xf110cb82]
 fn @preserveNeighbors() -> struct1 [selector=0xf110cb82, abi_params=[], abi_returns=[word<bytes9>, word, word<bytes17>, word, word<uint128>, word], abi_return_params=[bytes9, uint256, bytes17, uint256, uint128, uint256]] {
   bb0:
     v0 = lt 6, 7
@@ -116,10 +118,11 @@ fn @preserveNeighbors() -> struct1 [selector=0xf110cb82, abi_params=[], abi_retu
     ret v82
 }
 
+; function copyDoesNotOverlapSource() external returns (uint72 sourceTail, uint72 first, uint72 last, bytes32 cleared) [selector 0x8b005e62]
 fn @copyDoesNotOverlapSource() -> struct2 [selector=0x8b005e62, abi_params=[], abi_returns=[word<uint72>, word<uint72>, word<uint72>, word], abi_return_params=[uint72, uint72, uint72, bytes32]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: 0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v2]
@@ -127,9 +130,9 @@ fn @copyDoesNotOverlapSource() -> struct2 [selector=0x8b005e62, abi_params=[], a
     v4 = phi [bb0: 0], [bb3: v24]
     v5 = lt v4, 7
     jumpi v5, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     v25 = lt 9, 10
     v26 = eq v25, false
     icall panic_if<0x32>, v26
@@ -142,18 +145,18 @@ fn @copyDoesNotOverlapSource() -> struct2 [selector=0x8b005e62, abi_params=[], a
     sstore v30, 0x2000000000000000000000000000000000000000000000000 !metadata(storage=slot(19))
     v31 = alloc checked 224
     jump bb7
-  bb7:
+  bb7:  ; preds = bb2, bb12
     v32 = phi [bb2: 0], [bb12: v49]
     v33 = lt v32, 3
     jumpi v33, bb8, bb9
-  bb9:
+  bb9:  ; preds = bb7
     v50 = ptrtoint ptr<memory> v31 to i256
     jump bb13
-  bb13:
+  bb13:  ; preds = bb9, bb18
     v51 = phi [bb9: 0], [bb18: v58]
     v52 = lt v51, 10
     jumpi v52, bb14, bb15
-  bb15:
+  bb15:  ; preds = bb13
     v59 = lt 6, 7
     v60 = eq v59, false
     icall panic_if<0x32>, v60
@@ -193,23 +196,23 @@ fn @copyDoesNotOverlapSource() -> struct2 [selector=0x8b005e62, abi_params=[], a
     v91 = insert_value struct2, v90, 2, v84
     v92 = insert_value struct2, v91, 3, v88
     ret v92
-  bb14:
+  bb14:  ; preds = bb13
     v53 = add 11, v51
     v54 = lt v51, 7
     jumpi v54, bb16, bb17
-  bb17:
+  bb17:  ; preds = bb14
     sstore v53, 0 !metadata(storage=offset(v51, 11))
     jump bb18
-  bb16:
+  bb16:  ; preds = bb14
     v55 = shl v51, 5
     v56 = ptradd v31, v55
     v57 = mload v56
     sstore v53, v57 !metadata(storage=offset(v51, 11))
     jump bb18
-  bb18:
+  bb18:  ; preds = bb16, bb17
     v58 = add v51, 1
     jump bb13
-  bb8:
+  bb8:  ; preds = bb7
     v34 = add 0, v32
     v35 = sload v34 !metadata(storage=symbolic(v32))
     v36 = mul v32, 3
@@ -217,14 +220,14 @@ fn @copyDoesNotOverlapSource() -> struct2 [selector=0x8b005e62, abi_params=[], a
     v38 = lt v37, 3
     v39 = select v38, v37, 3
     jump bb10
-  bb10:
+  bb10:  ; preds = bb8, bb11
     v40 = phi [bb8: 0], [bb11: v48]
     v41 = lt v40, v39
     jumpi v41, bb11, bb12
-  bb12:
+  bb12:  ; preds = bb10
     v49 = add v32, 1
     jump bb7
-  bb11:
+  bb11:  ; preds = bb10
     v42 = mul v40, 72
     v43 = shr v35, v42
     v44 = shl v43, 184
@@ -234,7 +237,7 @@ fn @copyDoesNotOverlapSource() -> struct2 [selector=0x8b005e62, abi_params=[], a
     mstore v47, v44
     v48 = add v40, 1
     jump bb10
-  bb4:
+  bb4:  ; preds = bb1
     v6 = trunc i256 v4 to i72
     v7 = zext i72 v6 to i256
     v8 = shl v7, 184
@@ -256,9 +259,9 @@ fn @copyDoesNotOverlapSource() -> struct2 [selector=0x8b005e62, abi_params=[], a
     v23 = or v19, v22
     sstore v12, v23 !metadata(storage=symbolic(v11))
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v24 = checked_add uint256, v4, 1
     jump bb1
 }

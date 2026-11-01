@@ -5,12 +5,14 @@
   struct0: {i256, i256}
   struct1: {i256, i256, i256, i256, i256, i256}
 
+; function dbl(uint256 x) external pure returns (uint256) [selector 0x5d2a6863]
 fn @dbl(arg0: i256) -> i256 [selector=0x5d2a6863, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = checked_mul uint256, 2, arg0
     ret v0
 }
 
+; function pair(uint256 x) external pure returns (uint256, uint256) [selector 0x645751af]
 fn @pair(arg0: i256) -> struct0 [selector=0x645751af, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = checked_add uint256, arg0, 1
@@ -19,6 +21,7 @@ fn @pair(arg0: i256) -> struct0 [selector=0x645751af, pure, abi_params=[uint256]
     ret v2
 }
 
+; function arr(uint256 x) external pure returns (uint256[2] memory) [selector 0x71e5ee5f]
 fn @arr(arg0: i256) -> ptr<memory> [selector=0x71e5ee5f, pure, abi_params=[uint256], abi_returns=[array<2, word>], abi_return_params=[array<2, uint256>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -30,12 +33,14 @@ fn @arr(arg0: i256) -> ptr<memory> [selector=0x71e5ee5f, pure, abi_params=[uint2
     ret v1
 }
 
+; function flag(uint256 x) external pure returns (bool) [selector 0xbb760a75]
 fn @flag(arg0: i256) -> i1 [selector=0xbb760a75, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = ne arg0, 0
     ret v0
 }
 
+; function flagged(uint256 x) external pure returns (Flagged memory) [selector 0xa370c668]
 fn @flagged(arg0: i256) -> ptr<memory> [selector=0xa370c668, pure, abi_params=[uint256], abi_returns=[tuple<word<bool>, word>], abi_return_params=[tuple<bool, uint256>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -51,17 +56,20 @@ fn @flagged(arg0: i256) -> ptr<memory> [selector=0xa370c668, pure, abi_params=[u
     ret v2
 }
 
+; function total(uint256[] storage a) external view returns (uint256) [selector 0xa2fc82bf]
 fn @total(arg0: i256) -> i256 [selector=0xa2fc82bf, view, abi_params=[storageptr], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     ret v0
 }
 
+; function noret(uint256) external pure [selector 0x089b9644]
 fn @noret(arg0: i256) [selector=0x089b9644, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
+; function six(bytes memory b) external pure returns (uint256, uint256, uint256, uint256, uint256, uint256) [selector 0xb84d18fb]
 fn @six(arg0: ptr<memory>) -> struct1 [selector=0xb84d18fb, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = mload arg0
@@ -80,6 +88,7 @@ fn @six(arg0: ptr<memory>) -> struct1 [selector=0xb84d18fb, pure, abi_params=[by
   struct0: {i256, i256}
   struct1: {i256, i256, i256, i256, i256, i256}
 
+; function one(uint256 x) external pure returns (uint256) [selector 0xef56f928]
 fn @one(arg0: i256) -> i256 [selector=0xef56f928, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = fmp
@@ -96,15 +105,16 @@ fn @one(arg0: i256) -> i256 [selector=0xef56f928, pure, abi_params=[uint256], ab
     v9 = sub v8, 50
     v10 = delegatecall v9, 0x1111111111111111111111111111111111111111, v4, v5, v4, 32
     jumpi v10, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v11 = ptrtoint ptr<memory> v4 to i256
     v12 = add v11, 0
     v13 = mload v12
     ret v13
 }
 
+; function two(uint256 x) external pure returns (uint256 a, uint256 b) [selector 0xcf2a8612]
 fn @two(arg0: i256) -> struct0 [selector=0xcf2a8612, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = fmp
@@ -121,9 +131,9 @@ fn @two(arg0: i256) -> struct0 [selector=0xcf2a8612, pure, abi_params=[uint256],
     v9 = sub v8, 50
     v10 = delegatecall v9, 0x1111111111111111111111111111111111111111, v4, v5, v4, 64
     jumpi v10, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v11 = ptrtoint ptr<memory> v4 to i256
     v12 = add v11, 0
     v13 = mload v12
@@ -139,6 +149,7 @@ fn @two(arg0: i256) -> struct0 [selector=0xcf2a8612, pure, abi_params=[uint256],
     ret v22
 }
 
+; function aggregate(uint256 x) external pure returns (uint256[2] memory) [selector 0x407b7269]
 fn @aggregate(arg0: i256) -> ptr<memory> [selector=0x407b7269, pure, abi_params=[uint256], abi_returns=[array<2, word>], abi_return_params=[array<2, uint256>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -158,15 +169,16 @@ fn @aggregate(arg0: i256) -> ptr<memory> [selector=0x407b7269, pure, abi_params=
     v11 = sub v10, 50
     v12 = delegatecall v11, 0x1111111111111111111111111111111111111111, v6, v7, v6, 64
     jumpi v12, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     mcopy v1, v6, 64
     v13 = make_memory_slice v1, 64
     v14 = abi_decode [array<2, uint256>], v13
     ret v14
 }
 
+; function boolean(uint256 x) external pure returns (bool) [selector 0xbc586ed6]
 fn @boolean(arg0: i256) -> i1 [selector=0xbc586ed6, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = fmp
@@ -183,9 +195,9 @@ fn @boolean(arg0: i256) -> i1 [selector=0xbc586ed6, pure, abi_params=[uint256], 
     v9 = sub v8, 50
     v10 = delegatecall v9, 0x1111111111111111111111111111111111111111, v4, v5, v4, 32
     jumpi v10, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v11 = ptrtoint ptr<memory> v4 to i256
     v12 = add v11, 0
     v13 = mload v12
@@ -197,6 +209,7 @@ fn @boolean(arg0: i256) -> i1 [selector=0xbc586ed6, pure, abi_params=[uint256], 
     ret v17
 }
 
+; function structBool(uint256 x) external pure returns (Lib.Flagged memory) [selector 0x199436a8]
 fn @structBool(arg0: i256) -> ptr<memory> [selector=0x199436a8, pure, abi_params=[uint256], abi_returns=[tuple<word<bool>, word>], abi_return_params=[tuple<bool, uint256>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -218,15 +231,16 @@ fn @structBool(arg0: i256) -> ptr<memory> [selector=0x199436a8, pure, abi_params
     v12 = sub v11, 50
     v13 = delegatecall v12, 0x1111111111111111111111111111111111111111, v7, v8, v7, 64
     jumpi v13, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     mcopy v2, v7, 64
     v14 = make_memory_slice v2, 64
     v15 = abi_decode [tuple<bool, uint256>], v14
     ret v15
 }
 
+; function attached() external view returns (uint256) [selector 0xd9e6b370]
 fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = fmp
@@ -243,15 +257,16 @@ fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[w
     v9 = sub v8, 50
     v10 = delegatecall v9, 0x1111111111111111111111111111111111111111, v4, v5, v4, 32
     jumpi v10, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v11 = ptrtoint ptr<memory> v4 to i256
     v12 = add v11, 0
     v13 = mload v12
     ret v13
 }
 
+; function dynamicArgument(bytes memory b) external pure returns (uint256, uint256) [selector 0x11b8efbf]
 fn @dynamicArgument(arg0: ptr<memory>) -> struct0 [selector=0x11b8efbf, pure, abi_params=[bytes], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = fmp
@@ -268,9 +283,9 @@ fn @dynamicArgument(arg0: ptr<memory>) -> struct0 [selector=0x11b8efbf, pure, ab
     v9 = sub v8, 50
     v10 = delegatecall v9, 0x1111111111111111111111111111111111111111, v4, v5, v4, 192
     jumpi v10, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v11 = ptrtoint ptr<memory> v4 to i256
     v12 = add v11, 0
     v13 = mload v12
@@ -306,6 +321,7 @@ fn @dynamicArgument(arg0: ptr<memory>) -> struct0 [selector=0x11b8efbf, pure, ab
     ret v42
 }
 
+; function none(uint256 x) external pure [selector 0x2758da14]
 fn @none(arg0: i256) [selector=0x2758da14, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = abi_encode [word], selector 0x89b964400000000000000000000000000000000000000000000000000000000, args arg0
@@ -318,8 +334,8 @@ fn @none(arg0: i256) [selector=0x2758da14, pure, abi_params=[uint256], abi_retur
     v6 = sub v5, 50
     v7 = delegatecall v6, 0x1111111111111111111111111111111111111111, v1, v2, v1, 0
     jumpi v7, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     ret
 }

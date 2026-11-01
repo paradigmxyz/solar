@@ -1,11 +1,13 @@
 - // === ROOT/tests/ui/codegen/mir/none/print_order_entry.mir (before none) ===
 + // === ROOT/tests/ui/codegen/mir/none/print_order_entry.mir (after none) ===
   @module PrintOrderEntry
+  ; creation entry
   fn @constructor() [constructor] {
     bb0:
       stop
   }
   
+  ; runtime dispatch entry
   fn @entry() [entry] {
     bb0:
       stop

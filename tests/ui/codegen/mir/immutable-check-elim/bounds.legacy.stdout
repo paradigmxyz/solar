@@ -24,6 +24,7 @@
 +   narrow_three_bytes: uint8
 +   narrow_address: uint16
   
+  ; creation entry
   fn @constructor(arg0: i256) [constructor] {
     bb0:
       v0 = trunc i256 arg0 to i64
@@ -34,6 +35,7 @@
       stop
   }
   
+  ; selector 0x00000001
   fn @runtime() -> i256 [selector=0x00000001] {
     bb0:
       v0 = icall @bounded
@@ -52,9 +54,9 @@
       v2 = add v1, 1
       v3 = lt v2, v1
       jumpi v3, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       ret v2
-    bb1 [cold]:
+    bb1 [cold]:  ; preds = bb0
       revert 0, 0
   }
   
@@ -70,9 +72,9 @@
       v2 = add v1, 1
       v3 = lt v2, v1
       jumpi v3, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       stop
-    bb1 [cold]:
+    bb1 [cold]:  ; preds = bb0
       revert 0, 0
   }
   
@@ -83,9 +85,9 @@
       v2 = add v1, 1
       v3 = lt v2, v1
       jumpi v3, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       ret v2
-    bb1 [cold]:
+    bb1 [cold]:  ; preds = bb0
       revert 0, 0
   }
   
@@ -95,9 +97,9 @@
       v1 = add v0, 1
       v2 = lt v1, v0
       jumpi v2, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       ret v1
-    bb1 [cold]:
+    bb1 [cold]:  ; preds = bb0
       revert 0, 0
   }
   
@@ -108,9 +110,9 @@
       v2 = add v1, 1
       v3 = lt v2, v1
       jumpi v3, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       ret v2
-    bb1 [cold]:
+    bb1 [cold]:  ; preds = bb0
       revert 0, 0
   }
   
@@ -159,6 +161,7 @@
       ret
   }
   
+  ; selector 0x00000002
   fn @load_narrow_scalar() -> i64 [selector=0x00000002] {
     bb0:
 -     v0 = loadimmutable narrow_scalar
@@ -168,6 +171,7 @@
       ret v1
   }
   
+  ; selector 0x00000003
   fn @load_narrow_address_width() -> i160 [selector=0x00000003] {
     bb0:
 -     v0 = loadimmutable narrow_address_width
@@ -177,6 +181,7 @@
       ret v1
   }
   
+  ; selector 0x00000004
   fn @load_narrow_three_bytes() -> i24 [selector=0x00000004] {
     bb0:
 -     v0 = loadimmutable narrow_three_bytes
@@ -186,6 +191,7 @@
       ret v1
   }
   
+  ; selector 0x00000005
   fn @load_narrow_word() -> i256 [selector=0x00000005] {
     bb0:
 -     v0 = loadimmutable called
@@ -194,6 +200,7 @@
       ret v1
   }
   
+  ; selector 0x00000006
   fn @load_narrow_address() -> i160 [selector=0x00000006] {
     bb0:
 -     v0 = loadimmutable narrow_address

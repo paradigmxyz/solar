@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256}
 
+; function copied(uint256 base, uint256, uint256 count) external pure returns (uint256) [selector 0xc8ef3ab5]
 fn @copied(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xc8ef3ab5, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = add arg0, 32
@@ -11,6 +12,7 @@ fn @copied(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xc8ef3ab5, pur
     returndata v0, 32
 }
 
+; function zeroCopy(uint256 count) external pure returns (uint256) [selector 0xf16e8c2d]
 fn @zeroCopy(arg0: i256) -> i256 [selector=0xf16e8c2d, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = not 0
@@ -20,6 +22,7 @@ fn @zeroCopy(arg0: i256) -> i256 [selector=0xf16e8c2d, pure, abi_params=[uint256
     returndata 0, 32
 }
 
+; function unmatchedCount(uint256 count) external pure returns (uint256) [selector 0x747ce2e2]
 fn @unmatchedCount(arg0: i256) -> i256 [selector=0x747ce2e2, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     mstore 0, 7 !metadata(memory=scratch)
@@ -27,6 +30,7 @@ fn @unmatchedCount(arg0: i256) -> i256 [selector=0x747ce2e2, pure, abi_params=[u
     returndata 0, 32
 }
 
+; function beforeCopy(uint256) external pure returns (uint256 oldValue, uint256 newValue) [selector 0xdc08924e]
 fn @beforeCopy(arg0: i256) -> struct0 [selector=0xdc08924e, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     mstore 0, 7 !metadata(memory=scratch)
@@ -38,6 +42,7 @@ fn @beforeCopy(arg0: i256) -> struct0 [selector=0xdc08924e, pure, abi_params=[ui
     ret v3
 }
 
+; function partialCopy(uint256 value) external pure returns (uint256) [selector 0x2acedaf0]
 fn @partialCopy(arg0: i256) -> i256 [selector=0x2acedaf0, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     mstore 0, 263 !metadata(memory=scratch)
@@ -45,6 +50,7 @@ fn @partialCopy(arg0: i256) -> i256 [selector=0x2acedaf0, pure, abi_params=[uint
     returndata 0, 32
 }
 
+; function fromMemory(uint256 destination) external pure returns (uint256) [selector 0x934a1496]
 fn @fromMemory(arg0: i256) -> i256 [selector=0x934a1496, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     mstore 0, 7 !metadata(memory=scratch)
@@ -52,17 +58,19 @@ fn @fromMemory(arg0: i256) -> i256 [selector=0x934a1496, pure, abi_params=[uint2
     returndata arg0, 32
 }
 
+; function throughHelper(uint256 pointer) external pure returns (uint256) [selector 0x793709d6]
 fn @throughHelper(arg0: i256) -> i256 [selector=0x793709d6, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall @writeAndCopy, 0, 0
     returndata arg0, 32
 }
 
+; function loopRead(uint256 count) external pure returns (uint256) [selector 0xe24ad65f]
 fn @loopRead(arg0: i256) -> i256 [selector=0xe24ad65f, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     mstore 32, 7 !metadata(memory=scratch)
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v7]
@@ -71,21 +79,22 @@ fn @loopRead(arg0: i256) -> i256 [selector=0xe24ad65f, pure, abi_params=[uint256
     v5 = zext i1 v4 to i256
     v6 = ne v5, 0
     jumpi v6, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     returndata v2, 32
-  bb4:
+  bb4:  ; preds = bb1
     calldatacopy v2, 4, 32
     v7 = add v2, 32
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v8 = add v3, 1
     jump bb1
 }
 
+; function proxy(uint256 value, bool fail) external view returns (uint256) [selector 0xe05fde19]
 fn @proxy(arg0: i256, arg1: i1) -> i256 [selector=0xe05fde19, view, abi_params=[uint256, bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
@@ -100,26 +109,28 @@ fn @proxy(arg0: i256, arg1: i1) -> i256 [selector=0xe05fde19, view, abi_params=[
     v9 = ptrtoint ptr<memory> v5 to i256
     v10 = mload v5
     switch v6, default bb3, [0 => bb2]
-  bb2:
+  bb2:  ; preds = bb0
     revert v8, v10
-  bb3:
+  bb3:  ; preds = bb0
     returndata v8, v10
   bb1:
     ret 0
 }
 
+; function echo(uint256 value, bool fail) external pure returns (uint256) [selector 0x387a04f9]
 fn @echo(arg0: i256, arg1: i1) -> i256 [selector=0x387a04f9, pure, abi_params=[uint256, bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jumpi arg1, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     ret arg0
-  bb1:
+  bb1:  ; preds = bb0
     mstore 0, arg0 !metadata(memory=scratch)
     revert 0, 32
 }
 
+; function writeAndCopy(uint256 pointer, uint256 count) private pure
 fn @writeAndCopy(arg0: i256, arg1: i256) [pure] {
   bb0:
     mstore 0, 7 !metadata(memory=scratch)

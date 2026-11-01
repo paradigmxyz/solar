@@ -5,6 +5,7 @@
   struct1: {i256, i8, i256}
   struct2: {i256, i256, i256, i256, i256, i256}
 
+; function clear() external returns (uint8 first, uint8 deleted, uint8 last) [selector 0x52efea6e]
 fn @clear() -> struct0 [selector=0x52efea6e, abi_params=[], abi_returns=[word<uint8>, word<uint8>, word<uint8>], abi_return_params=[uint8, uint8, uint8]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -127,6 +128,7 @@ fn @clear() -> struct0 [selector=0x52efea6e, abi_params=[], abi_returns=[word<ui
     ret v102
 }
 
+; function clearReference() external returns (uint8 first, uint8 deleted, uint8 last) [selector 0xc844d6fe]
 fn @clearReference() -> struct0 [selector=0xc844d6fe, abi_params=[], abi_returns=[word<uint8>, word<uint8>, word<uint8>], abi_return_params=[uint8, uint8, uint8]] {
   bb0:
     v0 = lt 0, 3
@@ -232,6 +234,7 @@ fn @clearReference() -> struct0 [selector=0xc844d6fe, abi_params=[], abi_returns
     ret v88
 }
 
+; function deleteThenPush() external returns (uint256, uint8, uint256) [selector 0x63470f4e]
 fn @deleteThenPush() -> struct1 [selector=0x63470f4e, abi_params=[], abi_returns=[word, word<uint8>, word], abi_return_params=[uint256, uint8, uint256]] {
   bb0:
     sstore 0, 42 !metadata(storage=slot(0))
@@ -302,6 +305,7 @@ fn @deleteThenPush() -> struct1 [selector=0x63470f4e, abi_params=[], abi_returns
     ret v54
 }
 
+; function clearFixed() external returns (uint8 first, uint8 deleted, uint8 last) [selector 0x94bd0f54]
 fn @clearFixed() -> struct0 [selector=0x94bd0f54, abi_params=[], abi_returns=[word<uint8>, word<uint8>, word<uint8>], abi_return_params=[uint8, uint8, uint8]] {
   bb0:
     v0 = lt 0, 3
@@ -353,11 +357,11 @@ fn @clearFixed() -> struct0 [selector=0x94bd0f54, abi_params=[], abi_returns=[wo
     v41 = or v38, v40
     sstore v31, v41 !metadata(storage=offset(v30, 1))
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v42 = phi [bb0: 0], [bb2: v45]
     v43 = lt v42, 1
     jumpi v43, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v46 = lt 0, 3
     v47 = eq v46, false
     icall panic_if<0x32>, v47
@@ -395,13 +399,14 @@ fn @clearFixed() -> struct0 [selector=0x94bd0f54, abi_params=[], abi_returns=[wo
     v77 = insert_value struct0, v76, 1, v65
     v78 = insert_value struct0, v77, 2, v75
     ret v78
-  bb2:
+  bb2:  ; preds = bb1
     v44 = add 1, v42
     sstore v44, 0 !metadata(storage=offset(v42, 1))
     v45 = add v42, 1
     jump bb1
 }
 
+; function clearDynamicDirtyWord() external returns (uint256 word) [selector 0xa7b98e77]
 fn @clearDynamicDirtyWord() -> i256 [selector=0xa7b98e77, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -450,25 +455,27 @@ fn @clearDynamicDirtyWord() -> i256 [selector=0xa7b98e77, abi_params=[], abi_ret
     ret v32
 }
 
+; function clearFixedDirtyWord() external returns (uint256 word) [selector 0xb56337b4]
 fn @clearFixedDirtyWord() -> i256 [selector=0xb56337b4, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = not 0
     sstore 1, v0 !metadata(storage=slot(1))
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v4]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v5 = sload 1 !metadata(storage=slot(1))
     ret v5
-  bb2:
+  bb2:  ; preds = bb1
     v3 = add 1, v1
     sstore v3, 0 !metadata(storage=offset(v1, 1))
     v4 = add v1, 1
     jump bb1
 }
 
+; function clearOddWidthDirtyWords() external returns (uint256, uint256, uint256, uint256, uint256, uint256) [selector 0xf2b0f658]
 fn @clearOddWidthDirtyWords() -> struct2 [selector=0xf2b0f658, abi_params=[], abi_returns=[word, word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256, uint256]] {
   bb0:
     sstore 2, 7 !metadata(storage=slot(2))
@@ -499,11 +506,11 @@ fn @clearOddWidthDirtyWords() -> struct2 [selector=0xf2b0f658, abi_params=[], ab
     v16 = add v12, v15
     clear_storage_words 2, 0, v16
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v17 = phi [bb0: 0], [bb2: v20]
     v18 = lt v17, 3
     jumpi v18, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v21 = sload v0 !metadata(storage=symbolic(v0))
     mstore 0, v21 !metadata(memory=scratch)
     v22 = add v0, 1
@@ -521,7 +528,7 @@ fn @clearOddWidthDirtyWords() -> struct2 [selector=0xf2b0f658, abi_params=[], ab
     v30 = sload v29 !metadata(storage=slot(5))
     mstore 160, v30
     returndata 0, 192
-  bb2:
+  bb2:  ; preds = bb1
     v19 = add 3, v17
     sstore v19, 0 !metadata(storage=offset(v17, 3))
     v20 = add v17, 1

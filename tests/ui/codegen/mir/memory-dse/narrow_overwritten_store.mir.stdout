@@ -3,12 +3,14 @@
 @types
   struct0: {i256, i256}
 
+; function hashU8(uint8 a, bytes32 x) external pure returns (bytes32) [selector 0xe99643f7]
 fn @hashU8(arg0: i8, arg1: i256) -> i256 [selector=0xe99643f7, pure, abi_params=[uint8, bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint8 arg0, bytes32 arg1)
     ret v0
 }
 
+; function hashWide(uint256 a, bytes32 x) external pure returns (bytes32 h) [selector 0xcdd7e94c]
 fn @hashWide(arg0: i256, arg1: i256) -> i256 [selector=0xcdd7e94c, pure, abi_params=[uint256, bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = shl arg0, 248
@@ -18,6 +20,7 @@ fn @hashWide(arg0: i256, arg1: i256) -> i256 [selector=0xcdd7e94c, pure, abi_par
     ret v1
 }
 
+; function hashConst(bytes32 x) external pure returns (bytes32 h) [selector 0x227e2968]
 fn @hashConst(arg0: i256) -> i256 [selector=0x227e2968, pure, abi_params=[bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = shl 97, 248
@@ -27,6 +30,7 @@ fn @hashConst(arg0: i256) -> i256 [selector=0x227e2968, pure, abi_params=[bytes3
     ret v1
 }
 
+; function tailRead(uint256 a, uint256 x) external pure returns (uint256) [selector 0x8c0dcc20]
 fn @tailRead(arg0: i256, arg1: i256) -> i256 [selector=0x8c0dcc20, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = not 0
@@ -41,6 +45,7 @@ fn @tailRead(arg0: i256, arg1: i256) -> i256 [selector=0x8c0dcc20, pure, abi_par
     returndata 192, 32
 }
 
+; function literal(uint256 x) external pure returns (bytes32, uint256) [selector 0x41d012fd]
 fn @literal(arg0: i256) -> struct0 [selector=0x41d012fd, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[bytes32, uint256]] {
   bb0:
     mstore 128, 0x6100000000000000000000000000000000000000000000000000000000000000

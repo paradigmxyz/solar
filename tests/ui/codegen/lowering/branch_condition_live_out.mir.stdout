@@ -3,25 +3,26 @@
 @types
   struct0: {i1, i1, i256}
 
+; function comparisons(uint256 a, uint256 b) public pure returns (bool equal, bool different, uint256 result) [selector 0xb5d0691b]
 fn @comparisons(arg0: i256, arg1: i256) -> struct0 [selector=0xb5d0691b, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>, word<bool>, word], abi_return_params=[bool, bool, uint256]] {
   bb0:
     v0 = eq arg0, arg1
     v1 = ne arg1, arg0
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v2 = phi [bb1: 1], [bb2: 2]
     jumpi v1, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     v4 = checked_add uint256, v2, 10
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v3 = checked_add uint256, v2, 20
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v5 = phi [bb4: v3], [bb5: v4]
     v6 = insert_value struct0, undef struct0, 0, v0
     v7 = insert_value struct0, v6, 1, v1
@@ -29,25 +30,26 @@ fn @comparisons(arg0: i256, arg1: i256) -> struct0 [selector=0xb5d0691b, pure, a
     ret v8
 }
 
+; function zeros(uint256 value) public pure returns (bool equal, bool different, uint256 result) [selector 0xe8295588]
 fn @zeros(arg0: i256) -> struct0 [selector=0xe8295588, pure, abi_params=[uint256], abi_returns=[word<bool>, word<bool>, word], abi_return_params=[bool, bool, uint256]] {
   bb0:
     v0 = eq 0, arg0
     v1 = ne arg0, 0
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v2 = phi [bb1: 1], [bb2: 2]
     jumpi v1, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     v4 = checked_add uint256, v2, 10
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v3 = checked_add uint256, v2, 20
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v5 = phi [bb4: v3], [bb5: v4]
     v6 = insert_value struct0, undef struct0, 0, v0
     v7 = insert_value struct0, v6, 1, v1
@@ -55,23 +57,24 @@ fn @zeros(arg0: i256) -> struct0 [selector=0xe8295588, pure, abi_params=[uint256
     ret v8
 }
 
+; function pick(uint256 flag, uint256 x) public pure returns (uint256) [selector 0xa62f4550]
 fn @pick(arg0: i256, arg1: i256) -> i256 [selector=0xa62f4550, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v1 = phi [bb1: arg1], [bb2: 0]
     v2 = checked_add uint256, v1, 1
     jumpi v0, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v3 = phi [bb4: v2], [bb5: v1]
     ret v3
 }

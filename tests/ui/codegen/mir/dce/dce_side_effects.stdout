@@ -51,7 +51,7 @@
   fn @looping() {
     bb0 [cold]:
       jump bb1
-    bb1 [cold]:
+    bb1 [cold]:  ; preds = bb0, bb1
       jump bb1
   }
   

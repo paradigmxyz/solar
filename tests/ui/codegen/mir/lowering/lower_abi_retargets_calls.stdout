@@ -1,6 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_retargets_calls.mir (before lower-abi) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_retargets_calls.mir (after lower-abi) ===
   @module LowerAbiRetargets
+  ; selector 0x0a0a0a01
 - fn @pub(arg0: i256) -> i256 [selector=0x0a0a0a01, abi_returns=[word]] {
 + fn @pub() [selector=0x0a0a0a01, abi_wrapper] {
     bb0:
@@ -9,18 +10,19 @@
 +     v1 = calldatasize
 +     v2 = lt v1, 36
 +     jumpi v2, bb2, bb3
-+   bb3:
++   bb3:  ; preds = bb0
 +     v3 = calldataload 4
 +     jump bb1
-+   bb1:
++   bb1:  ; preds = bb3
 +     v0 = add v3, 1
 +     mstore 0, v0 !metadata(memory=scratch)
 +     v4 = sub 32, 0
 +     returndata 0, v4
-+   bb2 [cold]:
++   bb2 [cold]:  ; preds = bb0
 +     revert 0, 0
   }
   
+  ; selector 0x0a0a0a02
 - fn @caller(arg0: i256) -> i256 [selector=0x0a0a0a02, abi_returns=[word]] {
 + fn @caller() [selector=0x0a0a0a02, abi_wrapper] {
     bb0:
@@ -29,18 +31,19 @@
 +     v1 = calldatasize
 +     v2 = lt v1, 36
 +     jumpi v2, bb2, bb3
-+   bb3:
++   bb3:  ; preds = bb0
 +     v3 = calldataload 4
 +     jump bb1
-+   bb1:
++   bb1:  ; preds = bb3
 +     v0 = icall @pub.body, v3
 +     mstore 0, v0 !metadata(memory=scratch)
 +     v4 = sub 32, 0
 +     returndata 0, v4
-+   bb2 [cold]:
++   bb2 [cold]:  ; preds = bb0
 +     revert 0, 0
   }
   
+  ; selector 0x0a0a0a03
 - fn @literal() -> ptr<memory> [selector=0x0a0a0a03, abi_params=[], abi_returns=[memory_bytes]] {
 + fn @literal() [selector=0x0a0a0a03, abi_wrapper] {
     bb0:
@@ -56,6 +59,7 @@
 +     returndata 0, 96
   }
   
+  ; selector 0x0a0a0a04
 - fn @literalCaller() -> ptr<memory> [selector=0x0a0a0a04, abi_params=[], abi_returns=[memory_bytes]] {
 + fn @literalCaller() [selector=0x0a0a0a04, abi_wrapper] {
     bb0:
@@ -68,6 +72,7 @@
 +     returndata v2, v3
   }
   
+  ; selector 0x0a0a0a05
 - fn @longLiteral() -> ptr<memory> [selector=0x0a0a0a05, abi_params=[], abi_returns=[memory_bytes]] {
 + fn @longLiteral() [selector=0x0a0a0a05, abi_wrapper] {
     bb0:
@@ -87,6 +92,7 @@
 +     returndata 0, 128
   }
   
+  ; selector 0x0a0a0a06
 - fn @overlappingLiteral() -> ptr<memory> [selector=0x0a0a0a06, abi_params=[], abi_returns=[memory_bytes]] {
 + fn @overlappingLiteral() [selector=0x0a0a0a06, abi_wrapper] {
     bb0:
@@ -105,6 +111,7 @@
 +     returndata v6, v7
   }
   
+  ; selector 0x0a0a0a07
 - fn @constantEncoding() -> ptr<memory> [selector=0x0a0a0a07, abi_params=[], abi_returns=[memory_bytes]] {
 + fn @constantEncoding() [selector=0x0a0a0a07, abi_wrapper] {
     bb0:
@@ -117,6 +124,7 @@
 +     returndata 0, 128
   }
   
+  ; selector 0x0a0a0a08
 - fn @emptyEncoding() -> ptr<memory> [selector=0x0a0a0a08, abi_params=[], abi_returns=[memory_bytes]] {
 + fn @emptyEncoding() [selector=0x0a0a0a08, abi_wrapper] {
     bb0:
@@ -127,6 +135,7 @@
 +     returndata 0, 64
   }
   
+  ; selector 0x0a0a0a09
 - fn @narrowEncoding() -> ptr<memory> [selector=0x0a0a0a09, abi_params=[], abi_returns=[memory_bytes]] {
 + fn @narrowEncoding() [selector=0x0a0a0a09, abi_wrapper] {
     bb0:
@@ -138,24 +147,29 @@
 +     returndata v2, v3
   }
   
+  ; selector 0x0a0a0a0a
 - fn @prefixedEncoding() -> ptr<memory> [selector=0x0a0a0a0a, abi_params=[], abi_returns=[memory_bytes]] {
 + fn @prefixedEncoding() [selector=0x0a0a0a0a, abi_wrapper] {
     bb0:
       v0 = abi_encode [word], object, selector 0x1234567800000000000000000000000000000000000000000000000000000000, args 1
+-     ret v0
 +     v1 = abi_encode [memory_bytes], scratch, args v0
 +     v2 = extract_value slice<memory>, v1, 0
 +     v3 = extract_value slice<memory>, v1, 1
 +     returndata v2, v3
-+ }
-+ 
+  }
+  
+  ; selector 0x0a0a0a0b
+- fn @sliceBody() -> i256 [selector=0x0a0a0a0b, abi_params=[], abi_returns=[word]] {
 + fn @sliceBody() [selector=0x0a0a0a0b, abi_wrapper] {
-+   bb0:
+    bb0:
 +     v3 = icall @sliceBody.body
 +     mstore 0, v3 !metadata(memory=scratch)
 +     v4 = sub 32, 0
 +     returndata 0, v4
 + }
 + 
++ ; selector 0x0a0a0a0c
 + fn @sliceCaller() [selector=0x0a0a0a0c, abi_wrapper] {
 +   bb0:
 +     v0 = icall @sliceBody.body
@@ -167,12 +181,11 @@
 + fn @pub.body(arg0: i256) -> i256 {
 +   bb0:
 +     v0 = add arg0, 1
-      ret v0
-  }
-  
-- fn @sliceBody() -> i256 [selector=0x0a0a0a0b, abi_params=[], abi_returns=[word]] {
++     ret v0
++ }
++ 
 + fn @literal.body() -> ptr<memory> {
-    bb0:
++   bb0:
 +     v0 = alloc 64
 +     v1 = ptrtoint ptr<memory> v0 to i256
 +     mstore v1, 1
@@ -185,12 +198,13 @@
 +   bb0:
       v0 = make_calldata_slice ptr<calldata> 4, 32
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0
       v1 = extract_value slice<calldata>, v0, 0
       v2 = ptrtoint ptr<calldata> v1 to i256
       ret v2
 - }
 - 
+- ; selector 0x0a0a0a0c
 - fn @sliceCaller() -> i256 [selector=0x0a0a0a0c, abi_params=[], abi_returns=[word]] {
 -   bb0:
 -     v0 = icall @sliceBody

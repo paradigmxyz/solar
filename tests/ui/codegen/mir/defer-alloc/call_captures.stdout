@@ -1,6 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/defer-alloc/call_captures.mir (before defer-alloc) ===
 + // === ROOT/tests/ui/codegen/mir/defer-alloc/call_captures.mir (after defer-alloc) ===
   @module DeferAllocCallCaptures
+  ; selector 0x01020304
   fn @returning_caller() -> i256 [selector=0x01020304] {
     bb0:
       v0 = alloc 32
@@ -10,6 +11,7 @@
       ret v2
   }
   
+  ; selector 0x01020305
   fn @masking_caller() -> i256 [selector=0x01020305] {
     bb0:
       v0 = alloc 32
@@ -19,6 +21,7 @@
       ret v2
   }
   
+  ; selector 0x01020306
   fn @dereferencing_caller() -> i256 [selector=0x01020306] {
     bb0:
 -     v0 = alloc 32

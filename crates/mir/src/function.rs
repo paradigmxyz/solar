@@ -30,6 +30,9 @@ pub struct Function {
     pub declaration_span: Span,
     /// Source-language identifier retained independently of the MIR symbol.
     pub debug_identifier: Option<Symbol>,
+    /// Source signature for the text dumps, set only when a dump is requested. It never affects
+    /// code generation.
+    pub debug_signature: Option<Symbol>,
     /// Function selector (4 bytes, for external functions).
     pub selector: Option<[u8; 4]>,
     /// Function attributes.
@@ -90,6 +93,7 @@ impl Function {
             name_span: name.span,
             declaration_span: name.span,
             debug_identifier: None,
+            debug_signature: None,
             selector: None,
             attributes: FunctionAttributes::default(),
             params: IndexVec::new(),
@@ -147,6 +151,28 @@ impl Function {
         })
     }
 
+    /// Returns the note that the text dumps print before this function: its source signature
+    /// and role, such as `function add(uint256 a) external [selector 0x771602f7]`.
+    pub fn entry_note(&self, is_dispatch_entry: bool, is_constructor: bool) -> Option<String> {
+        let role = if is_dispatch_entry {
+            "runtime dispatch entry".to_string()
+        } else if is_constructor {
+            "creation entry".to_string()
+        } else if let Some(selector) = self.selector {
+            format!("selector 0x{:08x}", u32::from_be_bytes(selector))
+        } else if self.attributes.is_fallback {
+            "fallback".to_string()
+        } else if self.attributes.is_receive {
+            "receive".to_string()
+        } else {
+            return self.debug_signature.map(|signature| signature.to_string());
+        };
+        Some(match self.debug_signature {
+            Some(signature) => format!("{signature} [{role}]"),
+            None => role,
+        })
+    }
+
     /// Returns whether `lower-dispatch` routes selectors, `receive`, or `fallback` calls to this
     /// function, by the attributes that function drops once `entry` exists.
     pub fn is_dispatched(&self) -> bool {
@@ -156,6 +182,12 @@ impl Function {
     /// Clears the entry and ABI attributes, which `entry` makes obsolete: the module roots
     /// carry the routing, and the wrappers carry their decoding and encoding as ordinary MIR.
     pub fn clear_entry_attributes(&mut self) {
+        // The dumps keep the role the attributes gave this function, as part of its signature.
+        if self.debug_signature.is_some()
+            && let Some(note) = self.entry_note(false, false)
+        {
+            self.debug_signature = Some(Symbol::intern(&note));
+        }
         self.selector = None;
         self.abi_returns = None;
         self.abi_return_params = None;

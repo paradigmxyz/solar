@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/internal_function_pointer_storage_packing.sol:InternalFunctionPointerStoragePacking ===
 @module InternalFunctionPointerStoragePacking
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -83,26 +84,31 @@ fn @constructor() [constructor] {
     ret
 }
 
+; function a() internal
 fn @a() {
   bb0:
     ret
 }
 
+; function b() internal
 fn @b() {
   bb0:
     ret
 }
 
+; function c() internal
 fn @c() {
   bb0:
     ret
 }
 
+; function d() internal
 fn @d() {
   bb0:
     ret
 }
 
+; function high() external view returns (uint64 value) [selector 0x713658f3]
 fn @high() -> i256 [selector=0x713658f3, view, abi_params=[], abi_returns=[word<uint64>], abi_return_params=[uint64]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -110,6 +116,7 @@ fn @high() -> i256 [selector=0x713658f3, view, abi_params=[], abi_returns=[word<
     ret v1
 }
 
+; function arrayMatches() external view returns (bool) [selector 0xa9b873e8]
 fn @arrayMatches() -> i1 [selector=0xa9b873e8, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))

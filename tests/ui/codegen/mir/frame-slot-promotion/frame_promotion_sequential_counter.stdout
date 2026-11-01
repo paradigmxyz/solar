@@ -10,7 +10,7 @@
       v3 = ptrtoint ptr<memory> v2 to i256
 -     mstore v3, 0
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
 +     v41 = phi [bb0: 0], [bb2: v11]
 +     v43 = phi [bb0: 0], [bb2: v17]
       v4 = internal_frame_addr 160
@@ -19,12 +19,12 @@
 -     v7 = lt v6, arg0
 +     v7 = lt v43, arg0
       jumpi v7, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       v20 = internal_frame_addr 192
       v21 = ptrtoint ptr<memory> v20 to i256
 -     mstore v21, 0
       jump bb4
-    bb4:
+    bb4:  ; preds = bb3, bb5
 +     v42 = phi [bb3: v41], [bb5: v29]
 +     v44 = phi [bb3: 0], [bb5: v35]
       v22 = internal_frame_addr 192
@@ -33,13 +33,13 @@
 -     v25 = lt v24, arg0
 +     v25 = lt v44, arg0
       jumpi v25, bb5, bb6
-    bb6:
+    bb6:  ; preds = bb4
       v38 = internal_frame_addr 128
       v39 = ptrtoint ptr<memory> v38 to i256
 -     v40 = mload v39
 -     ret v40
 +     ret v42
-    bb5:
+    bb5:  ; preds = bb4
       v26 = internal_frame_addr 128
       v27 = ptrtoint ptr<memory> v26 to i256
 -     v28 = mload v27
@@ -57,7 +57,7 @@
       v37 = ptrtoint ptr<memory> v36 to i256
 -     mstore v37, v35
       jump bb4
-    bb2:
+    bb2:  ; preds = bb1
       v8 = internal_frame_addr 128
       v9 = ptrtoint ptr<memory> v8 to i256
 -     v10 = mload v9
@@ -87,29 +87,29 @@
       v2 = internal_frame_addr 160
       v3 = ptrtoint ptr<memory> v2 to i256
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v41 = phi [bb0: 0], [bb2: v11]
       v43 = phi [bb0: 0], [bb2: v17]
       v4 = internal_frame_addr 160
       v5 = ptrtoint ptr<memory> v4 to i256
       v7 = lt v43, arg0
       jumpi v7, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       v20 = internal_frame_addr 192
       v21 = ptrtoint ptr<memory> v20 to i256
       jump bb4
-    bb4:
+    bb4:  ; preds = bb3, bb5
       v42 = phi [bb3: v41], [bb5: v29]
       v44 = phi [bb3: 0], [bb5: v35]
       v22 = internal_frame_addr 192
       v23 = ptrtoint ptr<memory> v22 to i256
       v25 = lt v44, arg0
       jumpi v25, bb5, bb6
-    bb6:
+    bb6:  ; preds = bb4
       v38 = internal_frame_addr 128
       v39 = ptrtoint ptr<memory> v38 to i256
       ret v42
-    bb5:
+    bb5:  ; preds = bb4
       v26 = internal_frame_addr 128
       v27 = ptrtoint ptr<memory> v26 to i256
       v29 = add v42, 1
@@ -121,7 +121,7 @@
       v36 = internal_frame_addr 192
       v37 = ptrtoint ptr<memory> v36 to i256
       jump bb4
-    bb2:
+    bb2:  ; preds = bb1
       v8 = internal_frame_addr 128
       v9 = ptrtoint ptr<memory> v8 to i256
       v11 = add v41, 1
@@ -145,29 +145,29 @@
 -     v2 = internal_frame_addr 160
 -     v3 = ptrtoint ptr<memory> v2 to i256
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v41 = phi [bb0: 0], [bb2: v11]
       v43 = phi [bb0: 0], [bb2: v17]
 -     v4 = internal_frame_addr 160
 -     v5 = ptrtoint ptr<memory> v4 to i256
       v7 = lt v43, arg0
       jumpi v7, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
 -     v20 = internal_frame_addr 192
 -     v21 = ptrtoint ptr<memory> v20 to i256
       jump bb4
-    bb4:
+    bb4:  ; preds = bb3, bb5
       v42 = phi [bb3: v41], [bb5: v29]
       v44 = phi [bb3: 0], [bb5: v35]
 -     v22 = internal_frame_addr 192
 -     v23 = ptrtoint ptr<memory> v22 to i256
       v25 = lt v44, arg0
       jumpi v25, bb5, bb6
-    bb6:
+    bb6:  ; preds = bb4
 -     v38 = internal_frame_addr 128
 -     v39 = ptrtoint ptr<memory> v38 to i256
       ret v42
-    bb5:
+    bb5:  ; preds = bb4
 -     v26 = internal_frame_addr 128
 -     v27 = ptrtoint ptr<memory> v26 to i256
       v29 = add v42, 1
@@ -179,7 +179,7 @@
 -     v36 = internal_frame_addr 192
 -     v37 = ptrtoint ptr<memory> v36 to i256
       jump bb4
-    bb2:
+    bb2:  ; preds = bb1
 -     v8 = internal_frame_addr 128
 -     v9 = ptrtoint ptr<memory> v8 to i256
       v11 = add v41, 1

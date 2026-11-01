@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_memory_nested_struct.sol:StorageMemoryNestedStruct ===
 @module StorageMemoryNestedStruct
+; function copy() external returns (uint256) [selector 0x60726abb]
 fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -239,11 +240,11 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v185 = alloc checked v182
     mstore v185, v172
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb6
     v186 = phi [bb0: 0], [bb6: v217]
     v187 = lt v186, v172
     jumpi v187, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v218 = mload v185
     v219 = lt 0, v218
     v220 = eq v219, false
@@ -345,17 +346,17 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v302 = mload v301
     v303 = checked_add uint256, v286, v302
     ret v303
-  bb2:
+  bb2:  ; preds = bb1
     v188 = storage_array_data_slot 0
     v189 = mul v186, 6
     v190 = add v188, v189
     v191 = alloc checked 96
     jump bb4
-  bb4:
+  bb4:  ; preds = bb2, bb5
     v192 = phi [bb2: 0], [bb5: v212]
     v193 = lt v192, 3
     jumpi v193, bb5, bb6
-  bb6:
+  bb6:  ; preds = bb4
     v213 = ptrtoint ptr<memory> v191 to i256
     v214 = shl v186, 5
     v215 = ptradd v185, v214
@@ -363,7 +364,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     mstore v216, v213
     v217 = add v186, 1
     jump bb1
-  bb5:
+  bb5:  ; preds = bb4
     v194 = mul v192, 2
     v195 = add v190, v194
     v196 = alloc checked 96

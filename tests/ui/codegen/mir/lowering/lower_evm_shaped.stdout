@@ -2,31 +2,33 @@
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped.mir (after lower-evm-shaped) ===
   @module LowerEvmShaped
 + @phase lowered
+  ; creation entry
   fn @constructor() [constructor, cold] {
     bb0 [cold]:
       v0 = callvalue
       v1 = ne v0, 0
       jumpi v1, bb2, bb1
-    bb1 [cold]:
+    bb1 [cold]:  ; preds = bb0
 -     v2 = icall @constructor_helper, 23
 -     sstore 0, v2
 -     ret
 +     tail_call @constructor_helper, 23
-    bb2 [cold]:
+    bb2 [cold]:  ; preds = bb0
 -     v3 = icall @constructor_no_args
 -     sstore 0, v3
 -     ret
 +     tail_call @constructor_no_args
   }
   
+  ; runtime dispatch entry
   fn @entry() [entry] {
     bb0:
       v0 = calldataload 0
       v1 = shr v0, 224
       switch v1, default bb2, [7 => bb1]
-    bb1:
+    bb1:  ; preds = bb0
       tail_call @caller
-    bb2 [cold]:
+    bb2 [cold]:  ; preds = bb0
       revert 0, 0
   }
   
@@ -56,61 +58,63 @@
   fn @live_on_sibling(arg0: i1) -> i256 {
     bb0:
       jump bb1
-    bb1:
+-   bb1:  ; preds = bb0, bb2
 -     v0 = phi [bb0: 0], [bb2: v1]
++   bb1:  ; preds = bb0, bb4
 +     v0 = phi [bb0: 0], [bb4: v1]
       v1 = add v0, 1
       v2 = ne v1, 0
       jumpi v2, bb2, bb3
-    bb2:
+    bb2:  ; preds = bb1
 -     jumpi arg0, bb1, bb3
 +     jumpi arg0, bb4, bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
       ret v0
-+   bb4:
++   bb4:  ; preds = bb2
 +     jump bb1
   }
   
   fn @used_by_terminator() -> i256 {
     bb0:
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v0 = phi [bb0: 1], [bb2: v1]
       v1 = sub v0, 1
       jump bb2
-    bb2:
+    bb2:  ; preds = bb1
       v2 = ne v0, 0
       jumpi v2, bb1, bb3
-    bb3:
+    bb3:  ; preds = bb2
       ret 7
   }
   
   fn @switch_edge(arg0: i256) -> i256 {
     bb0:
       jump bb1
-    bb1:
+-   bb1:  ; preds = bb0, bb2
 -     v0 = phi [bb0: 0], [bb2: v1]
++   bb1:  ; preds = bb0, bb4
 +     v0 = phi [bb0: 0], [bb4: v1]
       v1 = add v0, 1
       jump bb2
-    bb2:
+    bb2:  ; preds = bb1
 -     switch arg0, default bb1, [1 => bb1, 2 => bb3]
 +     switch arg0, default bb4, [1 => bb4, 2 => bb3]
-    bb3:
+    bb3:  ; preds = bb2
       ret v0
-+   bb4:
++   bb4:  ; preds = bb2
 +     jump bb1
   }
   
   fn @dead_on_sibling(arg0: i1) -> i256 {
     bb0:
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v0 = phi [bb0: 0], [bb2: 1]
       jump bb2
-    bb2:
+    bb2:  ; preds = bb1
       jumpi arg0, bb1, bb3
-    bb3:
+    bb3:  ; preds = bb2
       ret 7
   }
   
@@ -152,16 +156,17 @@
   fn @scalar_caller(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
--   bb1 [cold]:
+-   bb1 [cold]:  ; preds = bb0
 -     v0 = icall @scalar_fail, 17 !metadata(span=50..60)
 -     v1 = add v0, 1
 -     sstore 0, v1
 -     jump bb2
-    bb2:
+-   bb2:  ; preds = bb0, bb1
 -     v2 = phi [bb0: 7], [bb1: v1]
++   bb2:  ; preds = bb0
 +     v2 = phi [bb0: 7]
       ret v2
-+   bb1 [cold]:
++   bb1 [cold]:  ; preds = bb0
 +     tail_call @scalar_fail, 17 !metadata(span=50..60)
   }
   
@@ -175,12 +180,12 @@
     bb0 [cold]:
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
-    bb2 [cold]:
+    bb2 [cold]:  ; preds = bb0
       v1 = icall @recursive_fail, arg0 !metadata(span=70..80)
 -     sstore 0, v1
 -     revert 0, 0 !metadata(span=90..100)
 +     invalid
-    bb1 [cold]:
+    bb1 [cold]:  ; preds = bb0
       revert 0, 0
   }
   
@@ -206,9 +211,9 @@
   fn @maybe_fail(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       ret 7
-    bb1 [cold]:
+    bb1 [cold]:  ; preds = bb0
       revert 0, 0
   }
   

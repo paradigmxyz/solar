@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/loop-unroll/invariant_tests.sol:InvariantTests ===
 @module InvariantTests
 @phase lowered
+; runtime dispatch entry
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
@@ -10,18 +11,19 @@ fn @entry() [entry] {
     v4 = or v0, v3
     v5 = ne v4, 0
     jumpi v5, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v6 = calldataload 0
     v7 = shr v6, 224
     switch v7, default bb1, [0x2e930b8e => bb3, 0xdaef3dc2 => bb4]
-  bb4:
+  bb4:  ; preds = bb2
     tail_call @keep
-  bb3:
+  bb3:  ; preds = bb2
     tail_call @periodStarts
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0, bb2
     revert 0, 0
 }
 
+; function periodStarts(uint256 time, uint256 period, uint256 count) external pure returns (uint256 total) [selector 0x2e930b8e]
 fn @periodStarts() {
   bb0:
     v26 = calldataload 4
@@ -30,14 +32,14 @@ fn @periodStarts() {
     v30 = sub 0, v28
     v34 = ne v30, 0
     jumpi v34, bb6, bb9
-  bb6:
+  bb6:  ; preds = bb0
     v11 = ne v27, 0
     jumpi v11, bb7, bb4
-  bb4 [cold]:
+  bb4 [cold]:  ; preds = bb6
     mstore 32, 18 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb7:
+  bb7:  ; preds = bb6
     v76 = calldataload 4
     v35 = div v76, v27
     v36 = mul v35, v27
@@ -45,17 +47,17 @@ fn @periodStarts() {
     v39 = add v76, 0xe10
     v40 = lt v39, v76
     jumpi v40, bb5, bb8
-  bb8:
+  bb8:  ; preds = bb7
     v41 = add v30, 1
     jump bb9
-  bb9:
+  bb9:  ; preds = bb0, bb8
     v42 = phi [bb0: v26], [bb8: v39]
     v43 = phi [bb0: 0], [bb8: v37]
     v44 = phi [bb0: v30], [bb8: v41]
     v67 = and v44, 1
     v68 = ne v67, 0
     jumpi v68, bb10, bb13
-  bb10:
+  bb10:  ; preds = bb9
     v49 = div v42, v27
     v50 = mul v49, v27
     v51 = add v43, v50
@@ -64,24 +66,24 @@ fn @periodStarts() {
     v54 = lt v53, v42
     v75 = or v52, v54
     jumpi v75, bb5, bb11
-  bb11:
+  bb11:  ; preds = bb10
     v55 = add v44, 1
     jump bb13
-  bb13:
+  bb13:  ; preds = bb9, bb11
     v69 = phi [bb9: v42], [bb11: v53]
     v70 = phi [bb9: v43], [bb11: v51]
     v71 = phi [bb9: v44], [bb11: v55]
     jump bb1
-  bb1:
+  bb1:  ; preds = bb12, bb13
     v0 = phi [bb13: v69], [bb12: v64]
     v3 = phi [bb13: v70], [bb12: v62]
     v4 = phi [bb13: v71], [bb12: v66]
     v5 = ne v4, 0
     jumpi v5, bb3, bb2
-  bb2:
+  bb2:  ; preds = bb1
     mstore 0, v3 !metadata(memory=scratch)
     returndata 0, 32
-  bb3:
+  bb3:  ; preds = bb1
     v12 = div v0, v27
     v13 = mul v12, v27
     v20 = add v3, v13
@@ -98,15 +100,16 @@ fn @periodStarts() {
     v65 = lt v64, v22
     v74 = or v73, v65
     jumpi v74, bb5, bb12
-  bb12:
+  bb12:  ; preds = bb3
     v66 = add v4, 2
     jump bb1
-  bb5 [cold]:
+  bb5 [cold]:  ; preds = bb7, bb10, bb3
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
+; function keep(uint256 amount, uint256 shares, uint256 count) external pure returns (uint256 total) [selector 0xdaef3dc2]
 fn @keep() {
   bb0:
     v21 = calldataload 4
@@ -115,14 +118,14 @@ fn @keep() {
     v25 = sub 0, v23
     v29 = ne v25, 0
     jumpi v29, bb6, bb9
-  bb6:
+  bb6:  ; preds = bb0
     v11 = ne v22, 0
     jumpi v11, bb7, bb4
-  bb4 [cold]:
+  bb4 [cold]:  ; preds = bb6
     mstore 32, 18 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb7:
+  bb7:  ; preds = bb6
     v71 = calldataload 4
     v30 = div v71, v22
     v31 = sub v71, v30
@@ -130,17 +133,17 @@ fn @keep() {
     v34 = add v71, 0xde0b6b3a7640000
     v35 = lt v34, v71
     jumpi v35, bb5, bb8
-  bb8:
+  bb8:  ; preds = bb7
     v36 = add v25, 1
     jump bb9
-  bb9:
+  bb9:  ; preds = bb0, bb8
     v37 = phi [bb0: v21], [bb8: v34]
     v38 = phi [bb0: 0], [bb8: v32]
     v39 = phi [bb0: v25], [bb8: v36]
     v62 = and v39, 1
     v63 = ne v62, 0
     jumpi v63, bb10, bb13
-  bb10:
+  bb10:  ; preds = bb9
     v44 = div v37, v22
     v45 = sub v37, v44
     v46 = add v38, v45
@@ -149,24 +152,24 @@ fn @keep() {
     v49 = lt v48, v37
     v70 = or v47, v49
     jumpi v70, bb5, bb11
-  bb11:
+  bb11:  ; preds = bb10
     v50 = add v39, 1
     jump bb13
-  bb13:
+  bb13:  ; preds = bb9, bb11
     v64 = phi [bb9: v37], [bb11: v48]
     v65 = phi [bb9: v38], [bb11: v46]
     v66 = phi [bb9: v39], [bb11: v50]
     jump bb1
-  bb1:
+  bb1:  ; preds = bb12, bb13
     v0 = phi [bb13: v64], [bb12: v59]
     v3 = phi [bb13: v65], [bb12: v57]
     v4 = phi [bb13: v66], [bb12: v61]
     v5 = ne v4, 0
     jumpi v5, bb3, bb2
-  bb2:
+  bb2:  ; preds = bb1
     mstore 0, v3 !metadata(memory=scratch)
     returndata 0, 32
-  bb3:
+  bb3:  ; preds = bb1
     v12 = div v0, v22
     v13 = sub v0, v12
     v15 = add v3, v13
@@ -183,10 +186,10 @@ fn @keep() {
     v60 = lt v59, v17
     v69 = or v68, v60
     jumpi v69, bb5, bb12
-  bb12:
+  bb12:  ; preds = bb3
     v61 = add v4, 2
     jump bb1
-  bb5 [cold]:
+  bb5 [cold]:  ; preds = bb7, bb10, bb3
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36

@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/storage-dse/noop_stores.sol:NoopStores ===
 @module NoopStores
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = mapping_slot 1, 0
@@ -7,6 +8,7 @@ fn @constructor() [constructor] {
     ret
 }
 
+; function touch(uint256 i, uint256 v) external [selector 0x7cb6ded3]
 fn @touch(arg0: i256, arg1: i256) [selector=0x7cb6ded3, abi_params=[uint256, uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = mapping_slot arg0, 0
@@ -19,6 +21,7 @@ fn @touch(arg0: i256, arg1: i256) [selector=0x7cb6ded3, abi_params=[uint256, uin
     ret
 }
 
+; function masked(uint256 i, uint256 v) external returns (uint256) [selector 0x966953d1]
 fn @masked(arg0: i256, arg1: i256) -> i256 [selector=0x966953d1, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mapping_slot arg0, 0
@@ -33,23 +36,25 @@ fn @masked(arg0: i256, arg1: i256) -> i256 [selector=0x966953d1, abi_params=[uin
     ret v7
 }
 
+; function branch(uint256 i, bool c) external returns (uint256) [selector 0xc86d784b]
 fn @branch(arg0: i256, arg1: i1) -> i256 [selector=0xc86d784b, abi_params=[uint256, bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
     jumpi arg1, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v2 = mapping_slot arg0, 0
     sstore v2, v1 !metadata(storage=symbolic(v2))
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v3 = mapping_slot arg0, 0
     v4 = sload v3 !metadata(storage=symbolic(v3))
     ret v4
 }
 
+; function checked(uint256 i, uint256 a) external returns (uint256) [selector 0xb437bc14]
 fn @checked(arg0: i256, arg1: i256) -> i256 [selector=0xb437bc14, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mapping_slot arg0, 0
@@ -65,6 +70,7 @@ fn @checked(arg0: i256, arg1: i256) -> i256 [selector=0xb437bc14, abi_params=[ui
     ret v8
 }
 
+; function write(uint256 i, uint256 v) external returns (uint256) [selector 0x9c0e3f7a]
 fn @write(arg0: i256, arg1: i256) -> i256 [selector=0x9c0e3f7a, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mapping_slot arg0, 0
@@ -79,6 +85,7 @@ fn @write(arg0: i256, arg1: i256) -> i256 [selector=0x9c0e3f7a, abi_params=[uint
     ret v7
 }
 
+; function measured() external returns (uint256) [selector 0x6724f0a2]
 fn @measured() -> i256 [selector=0x6724f0a2, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = gas
@@ -89,6 +96,7 @@ fn @measured() -> i256 [selector=0x6724f0a2, abi_params=[], abi_returns=[word], 
     ret v3
 }
 
+; function staticTouch() external view returns (bool ok) [selector 0x7a96c521]
 fn @staticTouch() -> i1 [selector=0x7a96c521, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address

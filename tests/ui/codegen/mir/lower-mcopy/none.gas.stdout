@@ -10,20 +10,20 @@
 -     mcopy v3, v1, 96
 +     v4 = eq 96, 0
 +     jumpi v4, bb1, bb2
-+   bb2:
++   bb2:  ; preds = bb0
 +     jump bb3
-+   bb3:
++   bb3:  ; preds = bb2, bb4
 +     v5 = phi [bb2: 0], [bb4: v10]
 +     v6 = lt v5, 96
 +     jumpi v6, bb4, bb1
-+   bb4:
++   bb4:  ; preds = bb3
 +     v7 = add v1, v5
 +     v8 = mload v7
 +     v9 = add v3, v5
 +     mstore v9, v8
 +     v10 = add v5, 32
 +     jump bb3
-+   bb1:
++   bb1:  ; preds = bb0, bb3
       ret
   }
   
@@ -32,20 +32,20 @@
 -     mcopy arg0, arg1, 32
 +     v0 = eq 32, 0
 +     jumpi v0, bb1, bb2
-+   bb2:
++   bb2:  ; preds = bb0
 +     jump bb3
-+   bb3:
++   bb3:  ; preds = bb2, bb4
 +     v1 = phi [bb2: 0], [bb4: v6]
 +     v2 = lt v1, 32
 +     jumpi v2, bb4, bb1
-+   bb4:
++   bb4:  ; preds = bb3
 +     v3 = add arg1, v1
 +     v4 = mload v3
 +     v5 = add arg0, v1
 +     mstore v5, v4
 +     v6 = add v1, 32
 +     jump bb3
-+   bb1:
++   bb1:  ; preds = bb0, bb3
       ret
   }
   

@@ -3,11 +3,13 @@
 
 // === ROOT/tests/ui/codegen/lowering/run-call/qualified_storage_access.sol:QualifiedStorage ===
 @module QualifiedStorage
+; creation entry
 fn @constructor() [constructor] {
   bb0:
     ret
 }
 
+; function signers(address signer) external returns (address[] memory) [selector 0x736c0d5b]
 fn @signers(arg0: i160) -> ptr<memory> [selector=0x736c0d5b, abi_params=[address], abi_returns=[memory_array<word<uint160>>], abi_return_params=[array<_, address>]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))

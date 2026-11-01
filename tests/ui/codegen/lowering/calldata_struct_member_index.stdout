@@ -1,27 +1,29 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_struct_member_index.sol:CalldataStructMemberIndex ===
 @module CalldataStructMemberIndex
 @phase lowered
+; runtime dispatch entry
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
     v1 = ne v0, 0
     jumpi v1, bb6, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v2 = calldataload 0
     v3 = shr v2, 224
     switch v3, default bb6, [0x49eb8b89 => bb2, 0xb7a3bd0f => bb3, 0xc2dcee6a => bb4, 0xd192e846 => bb5]
-  bb5:
+  bb5:  ; preds = bb1
     tail_call @word
-  bb4:
+  bb4:  ; preds = bb1
     tail_call @plain
-  bb3:
+  bb3:  ; preds = bb1
     tail_call @lengths
-  bb2:
+  bb2:  ; preds = bb1
     tail_call @member
-  bb6 [cold]:
+  bb6 [cold]:  ; preds = bb0, bb1
     revert 0, 0
 }
 
+; function plain(Item[] calldata items, uint256 i) external pure returns (uint256) [selector 0xc2dcee6a]
 fn @plain() {
   bb0:
     v15 = calldatasize
@@ -38,23 +40,24 @@ fn @plain() {
     v27 = gt v23, v26
     v32 = or v31, v27
     jumpi v32, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb0
     v33 = calldataload 36
     v1 = lt v33, v23
     jumpi v1, bb2, bb1
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb4
     tail_call @revert_stub.4
-  bb2:
+  bb2:  ; preds = bb4
     v4 = shl v33, 7
     v8 = add v24, v4
     v13 = add v8, 96
     v14 = calldataload v13
     mstore 0, v14 !metadata(memory=scratch)
     returndata 0, 32
-  bb3 [cold]:
+  bb3 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
+; function member(Params calldata p, uint256 i) external pure returns (uint256) [selector 0x49eb8b89]
 fn @member() {
   bb0:
     v41 = calldatasize
@@ -73,7 +76,7 @@ fn @member() {
     v5 = slt v4, 32
     v55 = or v54, v5
     jumpi v55, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v6 = calldataload v2
     v8 = add v45, v6
     v9 = calldatasize
@@ -81,7 +84,7 @@ fn @member() {
     v12 = sub v11, 31
     v13 = slt v6, v12
     jumpi v13, bb3, bb1
-  bb3:
+  bb3:  ; preds = bb2
     v15 = calldataload v8
     v16 = calldatasize
     v39 = shr v15, 64
@@ -93,23 +96,24 @@ fn @member() {
     v57 = or v39, v56
     v58 = ne v57, 0
     jumpi v58, bb1, bb4
-  bb4:
+  bb4:  ; preds = bb3
     v59 = calldataload 36
     v25 = lt v59, v15
     jumpi v25, bb6, bb5
-  bb5 [cold]:
+  bb5 [cold]:  ; preds = bb4
     tail_call @revert_stub.4
-  bb6:
+  bb6:  ; preds = bb4
     v28 = shl v59, 7
     v32 = add v19, v28
     v37 = add v32, 96
     v38 = calldataload v37
     mstore 0, v38 !metadata(memory=scratch)
     returndata 0, 32
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb2, bb3, bb0
     revert 0, 0
 }
 
+; function word(Params calldata p, uint256 i) external pure returns (uint256) [selector 0xd192e846]
 fn @word() {
   bb0:
     v36 = calldatasize
@@ -128,7 +132,7 @@ fn @word() {
     v5 = slt v4, 32
     v50 = or v49, v5
     jumpi v50, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v6 = calldataload v2
     v8 = add v40, v6
     v9 = calldatasize
@@ -136,7 +140,7 @@ fn @word() {
     v12 = sub v11, 31
     v13 = slt v6, v12
     jumpi v13, bb3, bb1
-  bb3:
+  bb3:  ; preds = bb2
     v15 = calldataload v8
     v16 = calldatasize
     v34 = shr v15, 64
@@ -148,22 +152,23 @@ fn @word() {
     v52 = or v34, v51
     v53 = ne v52, 0
     jumpi v53, bb1, bb4
-  bb4:
+  bb4:  ; preds = bb3
     v54 = calldataload 36
     v25 = lt v54, v15
     jumpi v25, bb6, bb5
-  bb5 [cold]:
+  bb5 [cold]:  ; preds = bb4
     tail_call @revert_stub.4
-  bb6:
+  bb6:  ; preds = bb4
     v28 = shl v54, 5
     v32 = add v19, v28
     v33 = calldataload v32
     mstore 0, v33 !metadata(memory=scratch)
     returndata 0, 32
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb2, bb3, bb0
     revert 0, 0
 }
 
+; function lengths(Params calldata p) external pure returns (uint256, uint256, uint256) [selector 0xb7a3bd0f]
 fn @lengths() {
   bb0:
     v83 = calldatasize
@@ -182,7 +187,7 @@ fn @lengths() {
     v5 = slt v4, 32
     v98 = or v97, v5
     jumpi v98, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v6 = calldataload v2
     v8 = add v86, v6
     v9 = calldatasize
@@ -190,7 +195,7 @@ fn @lengths() {
     v12 = sub v11, 31
     v13 = slt v6, v12
     jumpi v13, bb3, bb1
-  bb3:
+  bb3:  ; preds = bb2
     v15 = calldataload v8
     v16 = calldatasize
     v77 = shr v15, 64
@@ -208,12 +213,12 @@ fn @lengths() {
     v103 = or v100, v102
     v104 = ne v103, 0
     jumpi v104, bb1, bb4
-  bb4:
+  bb4:  ; preds = bb3
     v31 = calldataload v27
     v33 = add v86, v31
     v38 = slt v31, v12
     jumpi v38, bb5, bb1
-  bb5:
+  bb5:  ; preds = bb4
     v40 = calldataload v33
     v41 = calldatasize
     v79 = shr v40, 64
@@ -231,12 +236,12 @@ fn @lengths() {
     v109 = or v106, v108
     v110 = ne v109, 0
     jumpi v110, bb1, bb6
-  bb6:
+  bb6:  ; preds = bb5
     v56 = calldataload v52
     v58 = add v86, v56
     v63 = slt v56, v12
     jumpi v63, bb7, bb1
-  bb7:
+  bb7:  ; preds = bb6
     v65 = calldataload v58
     v66 = calldatasize
     v81 = shr v65, 64
@@ -247,12 +252,12 @@ fn @lengths() {
     v112 = or v81, v111
     v113 = ne v112, 0
     jumpi v113, bb1, bb8
-  bb8:
+  bb8:  ; preds = bb7
     mstore 0, v15
     mstore 32, v40
     mstore 64, v65
     returndata 0, 96
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb2, bb3, bb4, bb5, bb6, bb7, bb0
     revert 0, 0
 }
 

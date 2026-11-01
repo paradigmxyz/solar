@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/merge-aborts/account_reads.sol:AccountReads ===
 @module AccountReads
 @phase lowered
+; runtime dispatch entry
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
@@ -10,102 +11,105 @@ fn @entry() [entry] {
     v4 = or v0, v3
     v5 = ne v4, 0
     jumpi v5, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v6 = calldataload 0
     v7 = shr v6, 224
     switch v7, default bb1, [0x2139cfcb => bb3, 0x3ae86375 => bb4, 0x76806d71 => bb5]
-  bb5:
+  bb5:  ; preds = bb2
     tail_call @codeHash
-  bb4:
+  bb4:  ; preds = bb2
     tail_call @codeSize
-  bb3:
+  bb3:  ; preds = bb2
     tail_call @balance
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0, bb2
     revert 0, 0
 }
 
+; function balance(uint256 a, uint256 b, address target) external view returns (uint256) [selector 0x2139cfcb]
 fn @balance() {
   bb0:
     v12 = calldataload 68
     v13 = shr v12, 160
     v14 = eq v13, 0
     jumpi v14, bb5, bb4
-  bb4 [cold]:
+  bb4 [cold]:  ; preds = bb0
     revert 0, 0
-  bb5:
+  bb5:  ; preds = bb0
     v19 = calldataload 36
     v18 = calldataload 4
     v4 = add v18, v19
     v5 = lt v4, v18
     jumpi v5, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb5
     v20 = calldataload 68
     v2 = balance v20
     v6 = add v4, v2
     v7 = lt v6, v4
     jumpi v7, bb1, bb3
-  bb3:
+  bb3:  ; preds = bb2
     mstore 0, v6 !metadata(memory=scratch)
     returndata 0, 32
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb2, bb5
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
+; function codeSize(uint256 a, uint256 b, address target) external view returns (uint256) [selector 0x3ae86375]
 fn @codeSize() {
   bb0:
     v12 = calldataload 68
     v13 = shr v12, 160
     v14 = eq v13, 0
     jumpi v14, bb5, bb4
-  bb4 [cold]:
+  bb4 [cold]:  ; preds = bb0
     revert 0, 0
-  bb5:
+  bb5:  ; preds = bb0
     v19 = calldataload 36
     v18 = calldataload 4
     v4 = add v18, v19
     v5 = lt v4, v18
     jumpi v5, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb5
     v20 = calldataload 68
     v2 = extcodesize v20
     v6 = add v4, v2
     v7 = lt v6, v4
     jumpi v7, bb1, bb3
-  bb3:
+  bb3:  ; preds = bb2
     mstore 0, v6 !metadata(memory=scratch)
     returndata 0, 32
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb2, bb5
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
+; function codeHash(uint256 a, uint256 b, address target) external view returns (uint256) [selector 0x76806d71]
 fn @codeHash() {
   bb0:
     v12 = calldataload 68
     v13 = shr v12, 160
     v14 = eq v13, 0
     jumpi v14, bb5, bb4
-  bb4 [cold]:
+  bb4 [cold]:  ; preds = bb0
     revert 0, 0
-  bb5:
+  bb5:  ; preds = bb0
     v19 = calldataload 36
     v18 = calldataload 4
     v4 = add v18, v19
     v5 = lt v4, v18
     jumpi v5, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb5
     v20 = calldataload 68
     v2 = extcodehash v20
     v6 = add v4, v2
     v7 = lt v6, v4
     jumpi v7, bb1, bb3
-  bb3:
+  bb3:  ; preds = bb2
     mstore 0, v6 !metadata(memory=scratch)
     returndata 0, 32
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb2, bb5
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36

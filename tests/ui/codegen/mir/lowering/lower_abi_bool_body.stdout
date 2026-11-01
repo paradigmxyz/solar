@@ -1,70 +1,73 @@
 // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_bool_body.sol:BoolBody ===
 @module BoolBody
+; function negated(bool a, uint256 x, uint256 y) external pure returns (uint256) [selector 0xbf28d57a]
 fn @negated() [selector=0xbf28d57a, abi_wrapper, pure] {
   bb0:
     v2 = calldatasize
     v3 = lt v2, 100
     jumpi v3, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb0
     v4 = calldataload 4
     v5 = shr v4, 1
     v6 = eq v5, 0
     jumpi v6, bb4, bb2
-  bb4:
+  bb4:  ; preds = bb3
     v7 = calldataload 36
     v8 = calldataload 68
     v9 = trunc i256 v4 to i1
     jump bb1
-  bb1:
+  bb1:  ; preds = bb4
     v0 = eq v9, false
     v11 = zext i1 v0 to i256
     v1 = icall @pick.body, v11, v7, v8
     mstore 0, v1 !metadata(memory=scratch)
     v10 = sub 32, 0
     returndata 0, v10
-  bb2 [cold]:
+  bb2 [cold]:  ; preds = bb0, bb3
     revert 0, 0
 }
 
+; function pick(bool a, uint256 x, uint256 y) public pure returns (uint256) [selector 0xb67daf62]
 fn @pick() [selector=0xb67daf62, abi_wrapper, pure] {
   bb0:
     v1 = calldatasize
     v2 = lt v1, 100
     jumpi v2, bb5, bb6
-  bb6:
+  bb6:  ; preds = bb0
     v3 = calldataload 4
     v4 = shr v3, 1
     v5 = eq v4, 0
     jumpi v5, bb7, bb5
-  bb7:
+  bb7:  ; preds = bb6
     v6 = calldataload 36
     v7 = calldataload 68
     v8 = trunc i256 v3 to i1
     jump bb1
-  bb1:
+  bb1:  ; preds = bb7
     jumpi v8, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     jump bb4
-  bb2:
+  bb2:  ; preds = bb1
     jump bb4
-  bb4:
+  bb4:  ; preds = bb2, bb3
     v0 = phi [bb2: v6], [bb3: v7]
     mstore 0, v0 !metadata(memory=scratch)
     v9 = sub 32, 0
     returndata 0, v9
-  bb5 [cold]:
+  bb5 [cold]:  ; preds = bb0, bb6
     revert 0, 0
 }
 
+; function pick(bool a, uint256 x, uint256 y) public pure returns (uint256)
 fn @pick.body(arg0: i256, arg1: i256, arg2: i256) -> i256 [pure] {
   bb0:
     v1 = ne arg0, 0
     jumpi v1, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v0 = phi [bb1: arg1], [bb2: arg2]
     ret v0
 }

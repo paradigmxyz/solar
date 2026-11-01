@@ -1,17 +1,20 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationHelper ===
 @module CreationHelper
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     icall @helper
     ret
 }
 
+; getter for `uint256 public seen` [selector 0xd99aa8e2]
 fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+; function helper() internal
 fn @helper() {
   bb0:
     v0 = address
@@ -24,12 +27,13 @@ fn @helper() {
     v5 = zext i160 v0 to i256
     v6 = call v1, v5, 0, 28, 4, 0, 0
     jumpi v6, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     ret
 }
 
+; function setIt() external [selector 0x5fb11492]
 fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -40,6 +44,7 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_para
 
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationDirect ===
 @module CreationDirect
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = address
@@ -52,18 +57,20 @@ fn @constructor() [constructor] {
     v5 = zext i160 v0 to i256
     v6 = call v1, v5, 0, 28, 4, 0, 0
     jumpi v6, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     ret
 }
 
+; getter for `uint256 public seen` [selector 0xd99aa8e2]
 fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+; function setIt() external [selector 0x5fb11492]
 fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -74,6 +81,7 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_para
 
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationModifier ===
 @module CreationModifier
+; constructor() m() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = address
@@ -86,22 +94,24 @@ fn @constructor() [constructor] {
     v5 = zext i160 v0 to i256
     v6 = call v1, v5, 0, 28, 4, 0, 0
     jumpi v6, bb3, bb2
-  bb2:
+  bb2:  ; preds = bb0
     revert_returndata
-  bb3:
+  bb3:  ; preds = bb0
     jump bb4
-  bb4:
+  bb4:  ; preds = bb3
     jump bb1
-  bb1:
+  bb1:  ; preds = bb4
     ret
 }
 
+; getter for `uint256 public seen` [selector 0xd99aa8e2]
 fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+; function setIt() external [selector 0x5fb11492]
 fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -112,6 +122,7 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_para
 
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationBase ===
 @module CreationBase
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = address
@@ -124,18 +135,20 @@ fn @constructor() [constructor] {
     v5 = zext i160 v0 to i256
     v6 = call v1, v5, 0, 28, 4, 0, 0
     jumpi v6, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     ret
 }
 
+; getter for `uint256 public seen` [selector 0xd99aa8e2]
 fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+; function setIt() external [selector 0x5fb11492]
 fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -146,6 +159,7 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_para
 
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationDerived ===
 @module CreationDerived
+; constructor() CreationBase() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = address
@@ -158,22 +172,24 @@ fn @constructor() [constructor] {
     v5 = zext i160 v0 to i256
     v6 = call v1, v5, 0, 28, 4, 0, 0
     jumpi v6, bb3, bb2
-  bb2:
+  bb2:  ; preds = bb0
     revert_returndata
-  bb3:
+  bb3:  ; preds = bb0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb3
     jump bb4
-  bb4:
+  bb4:  ; preds = bb1
     ret
 }
 
+; getter for `uint256 public seen` [selector 0xd99aa8e2]
 fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+; function setIt() external [selector 0x5fb11492]
 fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -184,6 +200,7 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_para
 
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationInitializer ===
 @module CreationInitializer
+; creation entry
 fn @constructor() [constructor] {
   bb0:
     v0 = icall @init
@@ -191,18 +208,21 @@ fn @constructor() [constructor] {
     ret
 }
 
+; getter for `uint256 public seen` [selector 0xd99aa8e2]
 fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+; getter for `uint256 public x` [selector 0x0c55699c]
 fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     ret v0
 }
 
+; function init() internal returns (uint256)
 fn @init() -> i256 {
   bb0:
     v0 = address
@@ -215,12 +235,13 @@ fn @init() -> i256 {
     v5 = zext i160 v0 to i256
     v6 = call v1, v5, 0, 28, 4, 0, 0
     jumpi v6, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     ret 3
 }
 
+; function setIt() external [selector 0x5fb11492]
 fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -231,6 +252,7 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_para
 
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationTry ===
 @module CreationTry
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = address
@@ -243,25 +265,27 @@ fn @constructor() [constructor] {
     v5 = zext i160 v0 to i256
     v6 = call v1, v5, 0, 28, 4, 0, 0
     jumpi v6, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:
+  bb4:  ; preds = bb2
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb4
     ret
 }
 
+; getter for `uint256 public seen` [selector 0xd99aa8e2]
 fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+; function setIt() external [selector 0x5fb11492]
 fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -272,12 +296,14 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_para
 
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:Runtime ===
 @module Runtime
+; getter for `uint256 public seen` [selector 0xd99aa8e2]
 fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+; function helper() internal
 fn @helper() {
   bb0:
     v0 = address
@@ -290,12 +316,13 @@ fn @helper() {
     v5 = zext i160 v0 to i256
     v6 = call v1, v5, 0, 28, 4, 0, 0
     jumpi v6, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     ret
 }
 
+; function viaHelper() external returns (uint256) [selector 0x9c6f4ff5]
 fn @viaHelper() -> i256 [selector=0x9c6f4ff5, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall @helper
@@ -303,6 +330,7 @@ fn @viaHelper() -> i256 [selector=0x9c6f4ff5, abi_params=[], abi_returns=[word],
     ret v0
 }
 
+; function setIt() external [selector 0x5fb11492]
 fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -313,24 +341,27 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_para
 
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:SharedHelper ===
 @module SharedHelper
+; constructor(bool run) [creation entry]
 fn @constructor(arg0: i1) [constructor, abi_params=[bool]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     icall @helper
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     ret
 }
 
+; getter for `uint256 public seen` [selector 0xd99aa8e2]
 fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+; function helper() internal
 fn @helper() {
   bb0:
     v0 = address
@@ -343,12 +374,13 @@ fn @helper() {
     v5 = zext i160 v0 to i256
     v6 = call v1, v5, 0, 28, 4, 0, 0
     jumpi v6, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     ret
 }
 
+; function viaHelper() external returns (uint256) [selector 0x9c6f4ff5]
 fn @viaHelper() -> i256 [selector=0x9c6f4ff5, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall @helper
@@ -356,6 +388,7 @@ fn @viaHelper() -> i256 [selector=0x9c6f4ff5, abi_params=[], abi_returns=[word],
     ret v0
 }
 
+; function setIt() external [selector 0x5fb11492]
 fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -375,6 +408,7 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_para
   CreationTry_creation_code_5: creation_code "ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationTry"
   SharedHelper_creation_code_6: creation_code "ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:SharedHelper"
 
+; function viaHelper() external [selector 0x9c6f4ff5]
 fn @viaHelper() [selector=0x9c6f4ff5, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = datasize CreationHelper_creation_code_0
@@ -383,12 +417,13 @@ fn @viaHelper() [selector=0x9c6f4ff5, abi_params=[], abi_returns=[], abi_return_
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     ret
 }
 
+; function direct() external [selector 0x222b1407]
 fn @direct() [selector=0x222b1407, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = datasize CreationDirect_creation_code_1
@@ -397,12 +432,13 @@ fn @direct() [selector=0x222b1407, abi_params=[], abi_returns=[], abi_return_par
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     ret
 }
 
+; function viaModifier() external [selector 0xb93fa0d6]
 fn @viaModifier() [selector=0xb93fa0d6, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = datasize CreationModifier_creation_code_2
@@ -411,12 +447,13 @@ fn @viaModifier() [selector=0xb93fa0d6, abi_params=[], abi_returns=[], abi_retur
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     ret
 }
 
+; function viaBase() external [selector 0x0f982f84]
 fn @viaBase() [selector=0x0f982f84, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = datasize CreationDerived_creation_code_3
@@ -425,12 +462,13 @@ fn @viaBase() [selector=0x0f982f84, abi_params=[], abi_returns=[], abi_return_pa
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     ret
 }
 
+; function viaInitializer() external [selector 0x7c61d018]
 fn @viaInitializer() [selector=0x7c61d018, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = datasize CreationInitializer_creation_code_4
@@ -439,12 +477,13 @@ fn @viaInitializer() [selector=0x7c61d018, abi_params=[], abi_returns=[], abi_re
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     ret
 }
 
+; function viaTry() external [selector 0x9369e272]
 fn @viaTry() [selector=0x9369e272, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = datasize CreationTry_creation_code_5
@@ -453,12 +492,13 @@ fn @viaTry() [selector=0x9369e272, abi_params=[], abi_returns=[], abi_return_par
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     ret
 }
 
+; function viaShared() external [selector 0x86375232]
 fn @viaShared() [selector=0x86375232, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = ne true, false
@@ -475,8 +515,8 @@ fn @viaShared() [selector=0x86375232, abi_params=[], abi_returns=[], abi_return_
     v9 = create 0, v5, v4
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     ret
 }

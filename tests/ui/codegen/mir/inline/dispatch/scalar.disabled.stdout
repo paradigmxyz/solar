@@ -2,16 +2,17 @@
 + // === ROOT/tests/ui/codegen/mir/inline/dispatch/scalar.mir (after inline) ===
   @module ScalarDispatcher
   @phase lowered
+  ; runtime dispatch entry
   fn @entry() [entry] {
     bb0:
       v0 = calldataload 0
       v1 = shr v0, 224
       switch v1, default bb3, [1 => bb1, 2 => bb2]
-    bb2:
+    bb2:  ; preds = bb0
       tail_call @sub
-    bb1:
+    bb1:  ; preds = bb0
       tail_call @add
-    bb3 [cold]:
+    bb3 [cold]:  ; preds = bb0
       revert 0, 0
   }
   

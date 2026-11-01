@@ -1,10 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/function_pointer_delete.sol:FunctionPointerDelete ===
 @module FunctionPointerDelete
+; function value() internal pure returns (uint256)
 fn @value() -> i256 [pure] {
   bb0:
     ret 7
 }
 
+; function callAfterSet() external returns (uint256) [selector 0xa9885fda]
 fn @callAfterSet() -> i256 [selector=0xa9885fda, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -20,6 +22,7 @@ fn @callAfterSet() -> i256 [selector=0xa9885fda, abi_params=[], abi_returns=[wor
     ret v8
 }
 
+; function callAfterDelete() external returns (uint256) [selector 0x58819bde]
 fn @callAfterDelete() -> i256 [selector=0x58819bde, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -45,10 +48,10 @@ fn @internal_dispatcher_p_none_r_uint256(arg0: i256) -> i256 [function_pointer_d
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:
+  bb1:  ; preds = bb0
     v1 = icall @value
     ret v1
 }

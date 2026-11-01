@@ -1,11 +1,13 @@
 // === ROOT/tests/ui/codegen/mir/lower-abi-encode/literal_runtime.sol:LiteralRuntime ===
 @module LiteralRuntime
+; function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) [selector 0x150b7a02]
 fn @onERC721Received(arg0: i160, arg1: i160, arg2: i256, arg3: slice<calldata>) -> i256 [selector=0x150b7a02, pure, abi_params=[address, address, uint256, bytes], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     icall require<short_string>, false, 4, 0x150b7a0200000000000000000000000000000000000000000000000000000000
     invalid
 }
 
+; function tail4() external pure returns (bytes memory) [selector 0x7c79f4b5]
 fn @tail4() -> ptr<memory> [selector=0x7c79f4b5, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -21,6 +23,7 @@ fn @tail4() -> ptr<memory> [selector=0x7c79f4b5, pure, abi_params=[], abi_return
     ret v2
 }
 
+; function tail33() external pure returns (bytes memory) [selector 0xd615f6a1]
 fn @tail33() -> ptr<memory> [selector=0xd615f6a1, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
@@ -38,30 +41,31 @@ fn @tail33() -> ptr<memory> [selector=0xd615f6a1, pure, abi_params=[], abi_retur
     ret v3
 }
 
+; function dirty() private pure
 fn @dirty() [pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = add v0, 512
     v2 = mload 64 !metadata(memory=scratch)
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v3 = phi [bb0: v1], [bb3: v3]
     v4 = phi [bb0: v2], [bb3: v9]
     v5 = lt v4, v3
     v6 = zext i1 v5 to i256
     v7 = ne v6, 0
     jumpi v7, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret
-  bb4:
+  bb4:  ; preds = bb1
     v8 = not 0
     mstore v4, v8
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v9 = add v4, 32
     jump bb1
 }
