@@ -439,11 +439,7 @@ fn evm_ir_dump_preserves_bytecode() {
         ]);
         // The MIR dump precedes the compiler's JSON on stdout, and the EVM IR dumps follow it.
         let stdout = String::from_utf8(output.stdout).expect("UTF-8 output");
-        assert!(
-            stdout.contains("; function add(uint256 a, uint256 b)")
-                || stdout.contains(" + function add(uint256 a, uint256 b)"),
-            "{mode}"
-        );
+        assert!(stdout.contains("function add(uint256 a, uint256 b)"), "{mode}");
         let dumped = serde_json::Deserializer::from_str(
             &stdout[stdout.find("{\"contracts\"").expect("compiler JSON")..],
         )

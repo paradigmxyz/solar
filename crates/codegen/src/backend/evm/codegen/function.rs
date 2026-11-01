@@ -321,15 +321,11 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Comments the entry block of `func` in the EVM IR text with its note. The comment never
     /// reaches executable IR or debug information.
     pub(super) fn comment_function_entry(&mut self, func: &Function, is_dispatch_entry: bool) {
-        if self.captures_evm_ir_text() {
+        if self.capture_evm_ir || self.capture_scheduled_evm_ir {
             let note = func
                 .entry_note(is_dispatch_entry)
                 .unwrap_or_else(|| format!("{} (synthesized)", func.name));
             self.asm.comment_block(&note);
         }
-    }
-
-    fn captures_evm_ir_text(&self) -> bool {
-        self.capture_evm_ir || self.capture_scheduled_evm_ir
     }
 }

@@ -42,6 +42,11 @@ contract C {
         return x;
     }
 
+    function wrapped(uint256 x) external pure tagged("one \
+        two") returns (uint256) {
+        return x;
+    }
+
     receive() external payable {}
 
     fallback() external {

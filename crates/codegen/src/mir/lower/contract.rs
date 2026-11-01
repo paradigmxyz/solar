@@ -458,11 +458,13 @@ fn declaration_header(source: &str) -> String {
                 space(&mut header);
             }
             '"' | '\'' => {
+                // A line continuation inside a literal must not break the one-line header.
+                let one_line = |c: char| if matches!(c, '\n' | '\r') { ' ' } else { c };
                 header.push(c);
                 while let Some(literal) = chars.next() {
-                    header.push(literal);
+                    header.push(one_line(literal));
                     match literal {
-                        '\\' => header.extend(chars.next()),
+                        '\\' => header.extend(chars.next().map(one_line)),
                         _ if literal == c => break,
                         _ => {}
                     }
