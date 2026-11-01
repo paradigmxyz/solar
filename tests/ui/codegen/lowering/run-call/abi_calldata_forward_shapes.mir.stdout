@@ -353,18 +353,14 @@ fn @encodeForgedSlice(arg0: slice<calldata>) -> i256 [selector=0xb6061ce7, pure,
     v11 = make_calldata_slice v10, v9
     v12 = extract_value slice<calldata>, v11, 1
     v13 = mul v12, 64
-    v14 = eq 64, 0
-    v15 = div v13, 64
-    v16 = eq v15, v12
-    v17 = or v14, v16
-    v18 = zext i1 v17 to i256
-    v19 = eq v18, 0
-    icall panic_if<0x41>, v19
-    v20 = abi_encode [calldata_array<tuple<word, word>>], scratch, args v11
-    v21 = extract_value slice<memory>, v20, 0
-    v22 = extract_value slice<memory>, v20, 1
-    v23 = keccak256 v21, v22
-    ret v23
+    v14 = shr v12, 250
+    v15 = ne v14, 0
+    icall panic_if<0x41>, v15
+    v16 = abi_encode [calldata_array<tuple<word, word>>], scratch, args v11
+    v17 = extract_value slice<memory>, v16, 0
+    v18 = extract_value slice<memory>, v16, 1
+    v19 = keccak256 v17, v18
+    ret v19
 }
 
 fn @sinkWrap(arg0: slice<calldata>) -> i256 [selector=0xf23fcded, pure, abi_params=[array<_, tuple<bytes, array<2, uint256>>>], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -456,18 +452,14 @@ fn @encodeForgedPairs(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [se
     v4 = make_calldata_slice v3, arg2
     v5 = extract_value slice<calldata>, v4, 1
     v6 = mul v5, 64
-    v7 = eq 64, 0
-    v8 = div v6, 64
-    v9 = eq v8, v5
-    v10 = or v7, v9
-    v11 = zext i1 v10 to i256
-    v12 = eq v11, 0
-    icall panic_if<0x41>, v12
-    v13 = abi_encode [calldata_array<tuple<word, word>>], scratch, args v4
-    v14 = extract_value slice<memory>, v13, 0
-    v15 = extract_value slice<memory>, v13, 1
-    v16 = keccak256 v14, v15
-    ret v16
+    v7 = shr v5, 250
+    v8 = ne v7, 0
+    icall panic_if<0x41>, v8
+    v9 = abi_encode [calldata_array<tuple<word, word>>], scratch, args v4
+    v10 = extract_value slice<memory>, v9, 0
+    v11 = extract_value slice<memory>, v9, 1
+    v12 = keccak256 v10, v11
+    ret v12
 }
 
 fn @encodeFlags(arg0: slice<calldata>) -> i256 [selector=0x2faa18d0, pure, abi_params=[array<_, tuple<bool, int8, enum<3, uint8>, bytes4>>], abi_returns=[word], abi_return_params=[bytes32]] {

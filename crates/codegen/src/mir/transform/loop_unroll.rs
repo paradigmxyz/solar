@@ -50,7 +50,9 @@
 //!
 //! A bound built as `start + (m << t)`, as a pointer's end usually is, leaves
 //! `m << t` to go on entry, whose bit `t` is bit zero of `m`, so the check
-//! tests the low bit of `m` without the subtraction and the shift.
+//! tests the low bit of `m` without the subtraction and the shift. This holds
+//! for a pointer counter, and when the bound and the start add the same literal,
+//! as `(base + (m << t)) + 32` and `base + 32` do.
 //!
 //! A body that aborts unless a word computed before the loop holds, such as a
 //! division's zero check on a divisor the loop never changes, first runs one
@@ -1125,17 +1127,32 @@ fn edit_phi(func: &mut Function, phi: ValueId, edit: impl FnOnce(&mut Vec<(Block
     }
 }
 
-/// The value a header phi takes on entry from `preheader`.
-fn entry_value(func: &Function, phi: ValueId, preheader: BlockId) -> Option<ValueId> {
-    let InstKind::Phi(incoming) = func.value_inst_kind(phi)? else { return None };
-    incoming.iter().find_map(|&(from, value)| (from == preheader).then_some(value))
+/// The word a header counter takes on entry from `preheader`: its phi's incoming value, as an
+/// integer when the counter is a pointer.
+fn entry_word(func: &Function, word: ValueId, preheader: BlockId) -> Option<ValueId> {
+    let counter = match func.value_inst_kind(word)? {
+        &InstKind::PtrToInt(pointer, _) => pointer,
+        _ => word,
+    };
+    let InstKind::Phi(incoming) = func.value_inst_kind(counter)? else { return None };
+    let start = incoming.iter().find_map(|&(from, value)| (from == preheader).then_some(value))?;
+    match func.value_inst_kind(start) {
+        Some(&InstKind::IntToPtr(word)) => Some(word),
+        _ => Some(start),
+    }
 }
 
-/// The operand of `sum = add a, b` other than `start`.
+/// The distance from `start` to `sum`, when `sum = add start, d` or both add the same literal
+/// to words that differ by `d`.
 fn addend(func: &Function, sum: ValueId, start: ValueId) -> Option<ValueId> {
     match *func.value_inst_kind(sum)? {
         InstKind::Add(a, b) if a == start => Some(b),
         InstKind::Add(a, b) if b == start => Some(a),
+        InstKind::Add(a, offset) => {
+            let &InstKind::Add(base, same) = func.value_inst_kind(start)? else { return None };
+            let (offset, same) = (func.value_u256(offset)?, func.value_u256(same)?);
+            if offset == same { addend(func, a, base) } else { None }
+        }
         _ => None,
     }
 }
@@ -1258,7 +1275,7 @@ fn apply(func: &mut Function, unroll: &Unroll) -> BlockId {
         // end is, leaves `d` to go on entry.
         let mut left = if func.value_u256(unroll.bound).is_some_and(|bound| bound.is_zero()) {
             word
-        } else if let Some(distance) = entry_value(func, unroll.word, unroll.preheader)
+        } else if let Some(distance) = entry_word(func, unroll.word, unroll.preheader)
             .and_then(|start| addend(func, unroll.bound, start))
         {
             distance

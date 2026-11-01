@@ -28,49 +28,47 @@ fn @message() [selector=0x91fdccfd, abi_wrapper, pure] {
     v111 = add v3, 32
     v24 = mload v3
     v27 = add v22, v24
-    v121 = add v27, 63
-    v31 = and v121, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v120 = add v27, 63
+    v31 = and v120, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v32 = lt v31, v27
     jumpi v32, bb1, bb2
   bb2:
-    v119 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v120 = add v119, v31 !metadata(alloc_ptr)
-    mstore 64, v120
-    mstore v119, v27
-    v80 = add v119, 32
+    v118 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v119 = add v118, v31 !metadata(alloc_ptr)
+    mstore 64, v119
+    mstore v118, v27
+    v80 = add v118, 32
     icall @mcopy_words, v80, v105, v6
-    v82 = add v119, v6
+    v82 = add v118, v6
     v83 = add v82, 32
     mstore v83, 0x7c00000000000000000000000000000000000000000000000000000000000000
-    v85 = add v119, v10
+    v85 = add v118, v10
     v86 = add v85, 32
     icall @mcopy_words, v86, v107, v12
-    v88 = add v119, v15
+    v88 = add v118, v15
     v89 = add v88, 32
     mstore v89, 0x7c00000000000000000000000000000000000000000000000000000000000000
-    v91 = add v119, v16
+    v91 = add v118, v16
     v92 = add v91, 32
     icall @mcopy_words, v92, v109, v18
-    v94 = add v119, v21
+    v94 = add v118, v21
     v95 = add v94, 32
     mstore v95, 0x7c00000000000000000000000000000000000000000000000000000000000000
-    v97 = add v119, v22
+    v97 = add v118, v22
     v98 = add v97, 32
     icall @mcopy_words, v98, v111, v24
-    v100 = add v119, v27
+    v100 = add v118, v27
     v101 = add v100, 32
     mstore v101, 0
-    v69 = mload v119
-    v71 = add v69, 31
-    v73 = and v71, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v75 = add v80, v73
+    v69 = mload v118
+    v70 = add v69, 31
+    v72 = and v70, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v75 = add v80, v69
     mstore v75, 0
-    v103 = add v119, 64
-    icall @mcopy_words, v103, v80, v69
-    mstore v119, 32
-    mstore v80, v69
-    v77 = add v73, 64
-    returndata v119, v77
+    v103 = sub v118, 32
+    mstore v103, 32
+    v77 = add v72, 64
+    returndata v103, v77
   bb1:
     tail_call @revert_stub.5
   bb3:
@@ -338,10 +336,11 @@ fn @alloc(arg0: i256) -> i256 {
     v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v2 = add v0, arg0 !metadata(alloc_ptr)
     v3 = lt v2, v0
-    v7 = shr v2, 64
-    v4 = ne v7, 0
-    v5 = or v3, v4
-    jumpi v5, bb1, bb2
+    v4 = zext i1 v3 to i256
+    v5 = shr v2, 64
+    v6 = or v4, v5
+    v7 = ne v6, 0
+    jumpi v7, bb1, bb2
   bb2:
     mstore 64, v2 !metadata(memory=scratch)
     ret v0

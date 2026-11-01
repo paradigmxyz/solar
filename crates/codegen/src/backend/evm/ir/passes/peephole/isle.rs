@@ -267,16 +267,19 @@ impl<'a> PeepContext<'a> {
         match self.rules {
             Rules::Early => self.select_by_tail(),
             Rules::Final => self.final_rewrite().or_else(|| self.select_by_tail()),
-            Rules::Late => {
-                if self.instructions.len() < 5
-                    || self.instructions.last()?.as_evm_opcode() != Some(SUB)
-                {
-                    return None;
+            Rules::Late => match self.instructions.last()?.as_evm_opcode()? {
+                AND => generated::constructor_late_mask(self, Window),
+                SUB => {
+                    let end = self.instructions.len();
+                    let first = end.saturating_sub(MAX_STACK_WINDOW);
+                    let masked = end.checked_sub(5).and_then(|last| {
+                        (first..=last)
+                            .find_map(|start| generated::constructor_late_peep(self, start))
+                    });
+                    masked.or_else(|| generated::constructor_late_sub(self, Window))
                 }
-                let first = self.instructions.len().saturating_sub(MAX_STACK_WINDOW);
-                (first..=self.instructions.len() - 5)
-                    .find_map(|start| generated::constructor_late_peep(self, start))
-            }
+                _ => None,
+            },
         }
     }
 
@@ -497,6 +500,31 @@ impl generated::Context for PeepContext<'_> {
         target.dominates(target.push(result), input).then_some(result)
     }
 
+    /// The negated constant of `PUSH c; SWAP1; SUB`, when `materialize(-c); ADD` improves the
+    /// objective without raising the transient stack use above the push's.
+    fn negated_subtrahend(&mut self, _: Window) -> Option<U256> {
+        let [push, swap, sub] = self.unprotected_tail()?;
+        let instructions = self.instructions;
+        let value = instructions[push].concrete_immediate()?;
+        if instructions[swap].as_stack_op() != Some(StackOp::Swap(1))
+            || instructions[sub].as_evm_opcode() != Some(SUB)
+        {
+            return None;
+        }
+        let negated = U256::ZERO.wrapping_sub(value);
+        let target = self.target;
+        // The matched push is a literal, which compact pushes keep when its recipe does not repay.
+        // PUSH c; SWAP1; SUB => materialize(-c); ADD
+        let before = target.literal_push(value) + target.opcode(SWAP1) + target.opcode(SUB);
+        let after = target.push(negated) + target.opcode(ADD);
+        let gas_saving =
+            i64::from(target.runtime_gas(before)) - i64::from(target.runtime_gas(after));
+        let byte_saving = i64::from(before.bytes) - i64::from(after.bytes);
+        (target.improves(gas_saving, byte_saving)
+            && ImmediateMaterialization::new(target.evm_version(), negated).stack_peak() <= 1)
+            .then_some(negated)
+    }
+
     /// Removes a closed conditional jump whose literal condition is false.
     fn untaken_jump(&mut self, _: Window) -> Option<()> {
         let [condition, destination, instruction] = self.unprotected_tail()?;
@@ -608,6 +636,18 @@ impl generated::Context for PeepContext<'_> {
 
     fn u256_is_one(&mut self, value: U256) -> bool {
         value == U256::ONE
+    }
+
+    fn shift_pair_mask_profitable(&mut self, shift: U256) -> bool {
+        let target = self.target;
+        let push = target.push(shift);
+        let before = target.push(U256::ZERO)
+            + target.opcode(NOT)
+            + push
+            + target.opcode(SHR)
+            + target.opcode(AND);
+        let after = push + target.opcode(SHL) + push + target.opcode(SHR);
+        target.dominates(after, before)
     }
 
     fn invert_comparison(&mut self, _: Window) -> Option<(u8, U256, u8)> {

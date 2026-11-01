@@ -12,21 +12,24 @@ fn @copy() [selector=0x53a33458, abi_wrapper, pure] {
     v79 = add v78, 4
     v81 = sub v76, 36
     v82 = gt v78, v81
-    v163 = or v77, v82
-    jumpi v163, bb14, bb15
+    v164 = or v77, v82
+    jumpi v164, bb14, bb15
   bb15:
     v83 = calldataload v79
     v84 = add v79, 32
-    v161 = add v83, 63
-    v88 = and v161, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v162 = add v83, 63
+    v88 = and v162, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v89 = lt v88, v83
     v149 = heap_floor !metadata(alloc_ptr)
     v150 = add v149, v88 !metadata(alloc_ptr)
     v151 = lt v150, v149
-    v152 = gt v150, 0xffffffffffffffff
-    v153 = or v151, v152
-    v164 = or v89, v153
-    jumpi v164, bb16, bb18
+    v152 = zext i1 v151 to i256
+    v153 = shr v150, 64
+    v154 = or v152, v153
+    v165 = zext i1 v89 to i256
+    v166 = or v165, v154
+    v167 = ne v166, 0
+    jumpi v167, bb16, bb18
   bb18:
     mstore 64, v150 !metadata(memory=scratch)
     mstore v149, v83
@@ -38,27 +41,27 @@ fn @copy() [selector=0x53a33458, abi_wrapper, pure] {
     calldatacopy v138, v84, v83
     v100 = sub 0, v83
     v101 = and v100, 31
-    v158 = calldatasize
+    v159 = calldatasize
     v139 = add v138, v83
-    calldatacopy v139, v158, v101
+    calldatacopy v139, v159, v101
     icall @_dirty
     v0 = mload v149
     v70 = sub v0, arg1
     v71 = lt v0, arg1
     v72 = add v70, 31
     v73 = lt v72, v70
-    v165 = or v71, v73
-    jumpi v165, bb12, bb13
+    v168 = or v71, v73
+    jumpi v168, bb12, bb13
   bb13:
     v3 = and v72, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v159 = add v3, 63
-    v7 = and v159, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v160 = add v3, 63
+    v7 = and v160, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v8 = lt v7, v3
     jumpi v8, bb6, bb7
   bb7:
     v148 = icall @alloc, v7
-    v157 = calldatasize
-    calldatacopy v148, v157, v7
+    v158 = calldatasize
+    calldatacopy v148, v158, v7
     mstore v148, v70
     v37 = eq v70, 0
     jumpi v37, bb2, bb4
@@ -111,9 +114,9 @@ fn @copy() [selector=0x53a33458, abi_wrapper, pure] {
     jump bb1
   bb2:
     v34 = icall @_tail, v148
-    v155 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v107 = add v155, 64
-    mstore v155, 64
+    v156 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v107 = add v156, 64
+    mstore v156, 64
     v110 = mload v148
     v111 = add v110, 31
     v113 = and v111, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -124,10 +127,10 @@ fn @copy() [selector=0x53a33458, abi_wrapper, pure] {
     v117 = add v114, v113
     v125 = add v148, 32
     mcopy v114, v125, v110 !metadata(memory=heap, disjoint)
-    v119 = add v155, 32
+    v119 = add v156, 32
     mstore v119, v34
-    v121 = sub v117, v155
-    returndata v155, v121
+    v121 = sub v117, v156
+    returndata v156, v121
   bb6:
     tail_call @revert_stub.6
   bb12:
@@ -282,17 +285,19 @@ fn @grownPast() [selector=0xd89b44d4, abi_wrapper, pure] {
     v89 = heap_floor !metadata(alloc_ptr)
     v90 = add v89, 64 !metadata(alloc_ptr)
     v91 = lt v90, v89
-    v92 = gt v90, 0xffffffffffffffff
-    v93 = or v91, v92
-    jumpi v93, bb10, bb9
+    v92 = zext i1 v91 to i256
+    v93 = shr v90, 64
+    v94 = or v92, v93
+    v95 = ne v94, 0
+    jumpi v95, bb10, bb9
   bb9:
     mstore 64, v90 !metadata(memory=scratch)
-    v95 = calldatasize
-    calldatacopy v89, v95, 64
+    v96 = calldatasize
+    calldatacopy v89, v96, 64
     mstore v89, 1
     v88 = icall @alloc, 96
-    v97 = calldatasize
-    calldatacopy v88, v97, 96
+    v98 = calldatasize
+    calldatacopy v88, v98, 96
     mstore v88, 64
     mstore v89, 200
     v9 = add v89, 32
@@ -427,9 +432,11 @@ fn @alloc(arg0: i256) -> i256 {
     v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v2 = add v0, arg0 !metadata(alloc_ptr)
     v3 = lt v2, v0
-    v4 = gt v2, 0xffffffffffffffff
-    v5 = or v3, v4
-    jumpi v5, bb1, bb2
+    v4 = zext i1 v3 to i256
+    v5 = shr v2, 64
+    v6 = or v4, v5
+    v7 = ne v6, 0
+    jumpi v7, bb1, bb2
   bb2:
     mstore 64, v2 !metadata(memory=scratch)
     ret v0

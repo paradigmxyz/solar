@@ -47,17 +47,15 @@ fn @load() [selector=0x86d5c4be, abi_wrapper, view] {
   bb0:
     v0 = icall @_copy, 1
     v4 = mload v0
+    v5 = add v4, 31
+    v7 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v15 = add v0, 32
-    v6 = add v4, 31
-    v8 = and v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v10 = add v15, v8
+    v10 = add v15, v4
     mstore v10, 0
-    v17 = add v0, 64
-    mcopy v17, v15, v4
-    mstore v0, 32
-    mstore v15, v4
-    v12 = add v8, 64
-    returndata v0, v12
+    v17 = sub v0, 32
+    mstore v17, 32
+    v12 = add v7, 64
+    returndata v17, v12
 }
 
 fn @loadThenAllocate() [selector=0xf84b9425, abi_wrapper, view] {
@@ -105,17 +103,15 @@ fn @loadScaled() [selector=0x69d1875c, abi_wrapper, view] {
   bb2:
     v0 = icall @_copy, arg0
     v6 = mload v0
+    v7 = add v6, 31
+    v9 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v17 = add v0, 32
-    v8 = add v6, 31
-    v10 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v12 = add v17, v10
+    v12 = add v17, v6
     mstore v12, 0
-    v19 = add v0, 64
-    mcopy v19, v17, v6
-    mstore v0, 32
-    mstore v17, v6
-    v14 = add v10, 64
-    returndata v0, v14
+    v19 = sub v0, 32
+    mstore v19, 32
+    v14 = add v9, 64
+    returndata v19, v14
   bb1:
     revert 0, 0
 }
@@ -133,20 +129,22 @@ fn @_copy(arg0: i256) -> i256 [may_return_memory, view] {
     v58 = eq v52, v57
     jumpi v58, bb7, bb8
   bb8:
-    v86 = add v56, 63
-    v10 = and v86, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v87 = add v56, 63
+    v10 = and v87, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v77 = heap_floor !metadata(alloc_ptr)
     v78 = add v77, v10 !metadata(alloc_ptr)
     v79 = lt v78, v77
-    v80 = gt v78, 0xffffffffffffffff
-    v81 = or v79, v80
-    jumpi v81, bb13, bb12
+    v80 = zext i1 v79 to i256
+    v81 = shr v78, 64
+    v82 = or v80, v81
+    v83 = ne v82, 0
+    jumpi v83, bb13, bb12
   bb12:
     mstore 64, v78 !metadata(memory=scratch)
-    v83 = calldatasize
-    calldatacopy v77, v83, v10
+    v84 = calldatasize
+    calldatacopy v77, v84, v10
     mstore v77, v56
-    v84 = and arg0, 255
+    v85 = and arg0, 255
     jump bb1
   bb1:
     v16 = phi [bb12: 0], [bb6: v50]
@@ -169,7 +167,7 @@ fn @_copy(arg0: i256) -> i256 [may_return_memory, view] {
     v35 = shl v33, 3
     v36 = shr v34, v35
     v38 = and v36, 255
-    v69 = mul v38, v84
+    v69 = mul v38, v85
     v70 = gt v69, 255
     jumpi v70, bb10, bb11
   bb11:

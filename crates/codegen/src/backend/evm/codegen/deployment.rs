@@ -8,7 +8,7 @@ use super::{
 };
 use crate::{
     link::{CodeKind, LibraryTable},
-    mir::{MirPhase, analysis::cold_functions, pass_manager::should_validate_ir},
+    mir::{MirPhase, analysis::cold_functions, should_validate_ir},
 };
 use alloy_primitives::Bytes;
 use solar_interface::Symbol;
@@ -62,7 +62,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         if changed {
             module.invalidate_lowered_check();
         }
-        let Ok(lowered) = module.as_lowered(self.gcx, should_validate_ir(self.gcx)) else {
+        let Ok(lowered) = module.as_lowered(self.gcx.sess, should_validate_ir(self.gcx.sess))
+        else {
             return false;
         };
         let module = &*lowered;

@@ -80,16 +80,14 @@ fn @store32() [selector=0xd264c25a, abi_wrapper, pure] {
     jumpi v5, bb3, bb2
   bb2:
     v38 = mload v34
-    v40 = add v38, 31
-    v42 = and v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v44 = add v57, v42
+    v39 = add v38, 31
+    v41 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v44 = add v57, v38
     mstore v44, 0
-    v49 = add v34, 64
-    mcopy v49, v57, v38
-    mstore v34, 32
-    mstore v57, v38
-    v46 = add v42, 64
-    returndata v34, v46
+    v49 = sub v34, 32
+    mstore v49, 32
+    v46 = add v41, 64
+    returndata v49, v46
   bb3:
     v8 = byte v4, arg2
     v30 = add arg1, v4
@@ -121,10 +119,10 @@ fn @store2() [selector=0xe9ebf0b0, abi_wrapper, pure] {
     v40 = shl v39, 16
     v37 = calldatasize
     v38 = lt v37, 100
-    v73 = zext i1 v38 to i256
-    v74 = or v73, v40
-    v75 = ne v74, 0
-    jumpi v75, bb10, bb11
+    v72 = zext i1 v38 to i256
+    v73 = or v72, v40
+    v74 = ne v73, 0
+    jumpi v74, bb10, bb11
   bb11:
     v42 = icall @decode_calldata_type
     v65 = add v42, arg1
@@ -152,16 +150,14 @@ fn @store2() [selector=0xe9ebf0b0, abi_wrapper, pure] {
     jumpi v5, bb3, bb2
   bb2:
     v46 = mload v42
-    v48 = add v46, 31
-    v50 = and v48, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v52 = add v68, v50
+    v47 = add v46, 31
+    v49 = and v47, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v52 = add v68, v46
     mstore v52, 0
-    v60 = add v42, 64
-    mcopy v60, v68, v46
-    mstore v42, 32
-    mstore v68, v46
-    v54 = add v50, 64
-    returndata v42, v54
+    v60 = sub v42, 32
+    mstore v60, 32
+    v54 = add v49, 64
+    returndata v60, v54
   bb3:
     v8 = byte v4, arg2
     v35 = add arg1, v4
@@ -199,23 +195,25 @@ fn @slice() [selector=0xe0041396, abi_wrapper, pure] {
     v4 = lt v3, arg2
     jumpi v4, bb6, bb7
   bb7:
-    v102 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v103 = add v102, v3 !metadata(alloc_ptr)
-    v104 = lt v103, v102
-    v105 = gt v103, 0xffffffffffffffff
+    v101 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v102 = add v101, v3 !metadata(alloc_ptr)
+    v103 = lt v102, v101
+    v104 = zext i1 v103 to i256
+    v105 = shr v102, 64
     v106 = or v104, v105
-    jumpi v106, bb6, bb16
+    v107 = ne v106, 0
+    jumpi v107, bb6, bb16
   bb16:
-    mstore 64, v103 !metadata(memory=scratch)
+    mstore 64, v102 !metadata(memory=scratch)
     v108 = calldatasize
-    calldatacopy v102, v108, v3
-    mstore v102, arg2
+    calldatacopy v101, v108, v3
+    mstore v101, arg2
     v28 = eq arg2, 0
     jumpi v28, bb2, bb4
   bb4:
     v84 = add v65, arg1
     v85 = add v84, 32
-    v87 = add v102, 32
+    v87 = add v101, 32
     v35 = add v85, arg2
     v36 = add v87, arg2
     v37 = lt v87, v35
@@ -252,13 +250,13 @@ fn @slice() [selector=0xe0041396, abi_wrapper, pure] {
     v92 = add v91, 32
     v18 = mload v92
     v19 = byte 0, v18
-    v21 = mload v102
+    v21 = mload v101
     v22 = lt v10, v21
     jumpi v22, bb10, bb8
   bb8:
     tail_call @revert_stub
   bb10:
-    v94 = add v102, v10
+    v94 = add v101, v10
     v95 = add v94, 32
     mstore8 v95, v19
     v27 = add v10, 1
@@ -268,18 +266,16 @@ fn @slice() [selector=0xe0041396, abi_wrapper, pure] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb2:
-    v69 = mload v102
-    v80 = add v102, 32
-    v71 = add v69, 31
-    v73 = and v71, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v75 = add v80, v73
+    v69 = mload v101
+    v70 = add v69, 31
+    v72 = and v70, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v80 = add v101, 32
+    v75 = add v80, v69
     mstore v75, 0
-    v82 = add v102, 64
-    mcopy v82, v80, v69
-    mstore v102, 32
-    mstore v80, v69
-    v77 = add v73, 64
-    returndata v102, v77
+    v82 = sub v101, 32
+    mstore v82, 32
+    v77 = add v72, 64
+    returndata v82, v77
   bb6:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -306,16 +302,19 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
   bb2:
     v6 = calldataload v2
     v7 = add v2, 32
-    v37 = add v6, 63
-    v11 = and v37, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v38 = add v6, 63
+    v11 = and v38, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v12 = lt v11, v6
     v30 = heap_floor !metadata(alloc_ptr)
     v31 = add v30, v11 !metadata(alloc_ptr)
     v32 = lt v31, v30
-    v33 = gt v31, 0xffffffffffffffff
-    v34 = or v32, v33
-    v39 = or v12, v34
-    jumpi v39, bb3, bb5
+    v33 = zext i1 v32 to i256
+    v34 = shr v31, 64
+    v35 = or v33, v34
+    v40 = zext i1 v12 to i256
+    v41 = or v40, v35
+    v42 = ne v41, 0
+    jumpi v42, bb3, bb5
   bb5:
     mstore 64, v31 !metadata(memory=scratch)
     mstore v30, v6
@@ -327,9 +326,9 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     calldatacopy v26, v7, v6
     v23 = sub 0, v6
     v24 = and v23, 31
-    v36 = calldatasize
+    v37 = calldatasize
     v27 = add v26, v6
-    calldatacopy v27, v36, v24
+    calldatacopy v27, v37, v24
     ret v30
   bb3:
     mstore 32, 65 !metadata(memory=scratch)

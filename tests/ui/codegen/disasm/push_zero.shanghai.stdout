@@ -1,2 +1,11 @@
 // === push_zero (runtime) ===
 PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+ADDRESS
+GAS
+CALL
+POP
+PUSH0

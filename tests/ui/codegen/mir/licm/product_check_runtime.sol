@@ -17,6 +17,14 @@
 //@ run-call-fail: scaleLeft 0x5555555555555555555555555555555555555555555555555555555555555556, 3, 1 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 //@ run-call: scaleLeft 1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1 => 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 //@ run-call-fail: scaleLeft 2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@ run-call: mulAdd 2, 3, 1, 0 => 2
+//@ run-call: mulAdd 2, 3, 1, 1 => 7
+//@ run-call: mulAdd 2, 3, 1, 2 => 22
+//@ run-call: mulAdd 2, 3, 1, 3 => 67
+//@ run-call: mulAdd 5, 0, 4, 3 => 4
+//@ run-call: mulAdd 0, 5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1 => 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+//@ run-call-fail: mulAdd 0x8000000000000000000000000000000000000000000000000000000000000000, 2, 0, 1 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@ run-call-fail: mulAdd 1, 1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 pragma solidity ^0.8.0;
 
 // The checked product's factor never changes inside the loop, so the check
@@ -33,6 +41,13 @@ contract ProductCheck {
     function scaleLeft(uint256 x, uint256 y, uint256 n) external pure returns (uint256) {
         for (uint256 i = 0; i < n; ++i) {
             x = y * x;
+        }
+        return x;
+    }
+
+    function mulAdd(uint256 x, uint256 y, uint256 a, uint256 n) external pure returns (uint256) {
+        for (uint256 i = 0; i < n; ++i) {
+            x = x * y + a;
         }
         return x;
     }

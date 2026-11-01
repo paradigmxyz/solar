@@ -4,6 +4,8 @@
 //! - Liveness analysis for tracking value lifetimes
 //! - Loop analysis for detecting and analyzing natural loops
 
+pub(crate) use solar_mir::analysis::{CallGraphInfo, CfgInfo, DominatorTree, direct_callees};
+
 pub(crate) mod integers;
 
 mod alias;
@@ -17,17 +19,11 @@ pub(crate) use memory_summary::{LocalSummaryCache, MemoryCallSummaries, returnin
 
 mod memory_restoration;
 
-mod cfg;
-pub(crate) use cfg::{CfgInfo, DominatorTree};
-
 mod gas;
 pub(crate) use gas::GasObservations;
 
 mod fresh_fmp;
 pub(crate) use fresh_fmp::FreshFmpReads;
-
-mod call_graph;
-pub(crate) use call_graph::{CallGraphInfo, direct_callees};
 
 mod cold;
 pub(crate) use cold::{aborts, cold_functions};
@@ -40,9 +36,6 @@ pub(crate) use loop_analysis::{InductionVariable, Loop, LoopAnalyzer, LoopInfo};
 
 mod scalar_evolution;
 pub(crate) use scalar_evolution::{AffineExpr, AffineTerm, ScalarEvolution};
-
-mod validator;
-pub(crate) use validator::{validate, validate_legal_shifts, validate_phase};
 
 mod absolute_addresses;
 pub(crate) use absolute_addresses::{AddressInput, absolute_address_inputs};

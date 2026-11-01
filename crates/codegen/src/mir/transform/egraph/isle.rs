@@ -9,7 +9,7 @@
 
 use super::{OperandViews, canonical_operands, same_value};
 use crate::{
-    backend::evm::op,
+    backend::evm::{op, select::InstKindOpcode},
     mir::{
         ArgIdx, BlockId, Function, Immediate, InstKind, MirType, Op, ResultKind, Value as MirValue,
         ValueId, utils::eval::eval_opcode,

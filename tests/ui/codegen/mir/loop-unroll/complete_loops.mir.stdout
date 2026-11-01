@@ -115,8 +115,8 @@ fn @sum4(arg0: slice<calldata>) -> i256 [selector=0x0540a714, pure, abi_params=[
     jump bb1
   bb1:
     v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v18]
-    v2 = phi [bb0: 0], [bb3: v19]
+    v1 = phi [bb0: 0], [bb3: v14]
+    v2 = phi [bb0: 0], [bb3: v15]
     v3 = lt v2, 4
     jumpi v3, bb4, bb5
   bb5:
@@ -130,21 +130,17 @@ fn @sum4(arg0: slice<calldata>) -> i256 [selector=0x0540a714, pure, abi_params=[
     icall panic_if<0x32>, v6
     v7 = extract_value slice<calldata>, v0, 0
     v8 = mul v2, 32
-    v9 = eq 32, 0
-    v10 = div v8, 32
-    v11 = eq v10, v2
-    v12 = or v9, v11
-    v13 = zext i1 v12 to i256
-    v14 = eq v13, 0
-    icall panic_if<0x41>, v14
-    v15 = ptrtoint ptr<calldata> v7 to i256
-    v16 = add v15, v8
-    v17 = calldataload v16
-    v18 = checked_add uint256, v1, v17
+    v9 = shr v2, 251
+    v10 = ne v9, 0
+    icall panic_if<0x41>, v10
+    v11 = ptrtoint ptr<calldata> v7 to i256
+    v12 = add v11, v8
+    v13 = calldataload v12
+    v14 = checked_add uint256, v1, v13
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v19 = checked_add uint256, v2, 1
+    v15 = checked_add uint256, v2, 1
     jump bb1
 }

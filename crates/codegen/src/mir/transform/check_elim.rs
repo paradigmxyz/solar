@@ -202,7 +202,7 @@ use super::{
     egraph::{max_bits_with_args, use_counts},
 };
 use crate::{
-    backend::evm::op,
+    backend::evm::{op, select::InstKindOpcode},
     mir::{
         ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, EffectKind, Function, FunctionBuilder,
         FunctionId, ImmutableEncoding, ImmutableId, InstId, InstKind, MirType, Module, Terminator,
@@ -1776,6 +1776,8 @@ impl<'a> CheckEliminator<'a> {
             InstKind::Eq(a, b) => self.assume_eq(func, a, b, truth, depth),
             // `sub a, b` is nonzero iff `a != b`.
             InstKind::Sub(a, b) | InstKind::Xor(a, b) => self.assume_eq(func, a, b, !truth, depth),
+            // `zext x` is zero iff `x` is.
+            InstKind::Zext(x) => self.assume(func, x, truth, depth),
             // `and a, b != 0` implies both operands are nonzero.
             InstKind::And(a, b) if truth => {
                 self.assume(func, a, true, depth);
@@ -1798,6 +1800,7 @@ impl<'a> CheckEliminator<'a> {
                 } else {
                     self.narrow(x, Range::new(U256::ZERO, bound - U256::from(1)));
                 }
+                self.narrow_summand(func, x, depth);
             }
             _ => {}
         }

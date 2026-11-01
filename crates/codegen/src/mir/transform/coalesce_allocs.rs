@@ -32,8 +32,8 @@
 use crate::{
     mir::{
         AllocationFailure, AllocationInitialization, AllocationSemantics, BlockId, EffectKind,
-        Function, FunctionBuilder, InstId, InstKind, MirType, Module, PtrLocation, RawMemoryAccess,
-        Value, ValueId,
+        Function, FunctionBuilder, InstId, InstKind, MirModuleTarget, MirType, Module, PtrLocation,
+        RawMemoryAccess, Value, ValueId,
         analysis::{AliasAnalysis, ReadBounds},
         memory::EvmMemoryLayout,
         pass::MirPass,

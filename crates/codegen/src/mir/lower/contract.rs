@@ -15,7 +15,7 @@ use solar_sema::{
 };
 use std::ops::ControlFlow;
 
-use crate::mir::{Function, FunctionAttributes, FunctionBuilder, Module};
+use crate::mir::{Function, FunctionAttributes, FunctionBuilder, HirVariableId, Module};
 
 /// Builds a typed MIR module from one HIR contract.
 #[tracing::instrument(name = "mir_lowering", level = "debug", skip_all)]
@@ -138,7 +138,11 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
                 continue;
             }
             let Some(name) = variable.name else { continue };
-            let mir_id = module.add_immutable(name, state.immutable_layout(gcx, id), Some(id));
+            let mir_id = module.add_immutable(
+                name,
+                state.immutable_layout(gcx, id),
+                Some(HirVariableId::from_usize(id.index())),
+            );
             immutable_ids.insert(id, mir_id);
         }
     }

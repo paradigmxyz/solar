@@ -1,0 +1,23 @@
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=jumpi-fallthrough
+//@ run-call: pick(uint256)(uint256) 0 => 2
+//@ run-call-fail: pick(uint256)(uint256) 1
+// A cold next block never runs, so a gas build turns the branch around too and the hot path
+// saves its second transfer.
+@module ColdNext
+bb0:
+  push 4
+  calldataload
+  push bb1
+  jumpi
+  jump bb2
+bb1 [cold]:
+  push 0
+  push 0
+  revert
+bb2:
+  push 2
+  push 0
+  mstore
+  push 32
+  push 0
+  return

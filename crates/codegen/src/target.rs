@@ -5,7 +5,8 @@
 //! and stack operations, the price of deposited bytes, and how the active
 //! optimization objective ranks gas against bytes. Creation code has its own
 //! model, [`Target::priced_for`]: it runs once, and each of its bytes costs the
-//! calldata gas of the deployment transaction instead of a code deposit.
+//! calldata gas of the deployment transaction instead of a code deposit. Cold code, which does
+//! not run on success, is priced by [`Target::priced_for_cold`] like a size build.
 //! Every pass that chooses between equivalent code shapes consults [`Target`]
 //! instead of carrying its own constants, so a schedule change or a new EVM
 //! version lands here once.
@@ -126,6 +127,17 @@ impl std::iter::Sum for Cost {
     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
         iter.fold(Self::ZERO, Self::plus)
     }
+}
+
+/// What a branch's test becomes when the branch turns around.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum TurnedTest {
+    /// An `ISZERO` follows the condition.
+    Adds,
+    /// The condition's own trailing `ISZERO` goes.
+    Drops,
+    /// A trailing `EQ` becomes a `SUB`, or the reverse, at the same cost.
+    Swaps,
 }
 
 /// The cost model of the selected EVM version under the active objective.
@@ -253,6 +265,18 @@ impl Target {
             return self;
         }
         Self { expected_executions: 1, creation: true, ..self }
+    }
+
+    /// This model for code on paths that do not run on success, such as revert and panic
+    /// blocks, when `cold` is set, itself otherwise. Extra gas there is not paid by a call that
+    /// succeeds, and each byte is deposited anyway, so the gas objective prices cold code like a
+    /// size build: bytes first. Size builds already rank bytes first, and `-O none` keeps its
+    /// own model.
+    pub(crate) const fn priced_for_cold(self, cold: bool) -> Self {
+        if !cold || !self.optimization.is_gas() {
+            return self;
+        }
+        Self { optimization: OptimizationMode::Size, ..self }
     }
 
     /// Whether a bare `@custom:solar-inline` admits a clone that adds `added_bytes` and removes
@@ -445,6 +469,12 @@ impl Target {
     /// with the fewest bytes, whatever the tune.
     pub(crate) fn push(&self, value: U256) -> Cost {
         compact_pushes::immediate_materialization(self.evm_version, value)
+    }
+
+    /// Cost of pushing `value` as one literal `PUSHn`, the form a push keeps when its compact
+    /// recipe does not repay.
+    pub(crate) fn literal_push(&self, value: U256) -> Cost {
+        compact_pushes::literal_push(self.evm_version, value)
     }
 
     /// Whether reading `value` as an immediate costs no more gas than a `DUP` and at most one
@@ -772,9 +802,10 @@ impl Target {
     }
 
     /// Whether a compact recipe for an immediate, `saved_bytes` shorter than its literal push and
-    /// `extra_gas` dearer to run, is the better code. Size builds always take the bytes. Gas
-    /// and `-O none` builds take them when the deposit they save covers the extra gas over the
-    /// expected executions, [`Self::UNCOUNTED_LOOP_ITERATIONS`] times over for a push inside a
+    /// `extra_gas` dearer to run, is the better code. Size builds, and cold code priced by
+    /// [`Self::priced_for_cold`], always take the bytes.
+    /// Gas and `-O none` builds take them when the deposit they save covers the extra gas over
+    /// the expected executions, [`Self::UNCOUNTED_LOOP_ITERATIONS`] times over for a push inside a
     /// loop, so a hot loop pushes a mask as a literal rather than rebuilding it on every
     /// iteration; a tie takes the bytes, which cost no more over the deployment's lifetime.
     ///
@@ -812,6 +843,15 @@ impl Target {
         }
     }
 
+    /// Whether code that cannot reach a normal exit counts as cold, as do the code after a call
+    /// and the edges into cold blocks. Marking it moves failure loops and the code around them
+    /// out of line, which saves gas on the paths that succeed. The move saves no bytes, and the
+    /// layout it changes can widen jump labels, so a size build leaves that code in place and
+    /// moves only the blocks that abort or lead only to aborts.
+    pub(crate) const fn marks_failure_paths_cold(&self) -> bool {
+        self.optimization.is_gas()
+    }
+
     /// Cost of a jump to a block, including the pushed label and the target's landing.
     pub(crate) fn jump(&self) -> Cost {
         self.label_push() + self.opcode(op::JUMP) + self.opcode(op::JUMPDEST)
@@ -820,6 +860,51 @@ impl Target {
     /// Cost of a conditional edge, including the pushed label and the target's landing.
     pub(crate) fn branch(&self) -> Cost {
         self.label_push() + self.opcode(op::JUMPI) + self.opcode(op::JUMPDEST)
+    }
+
+    /// Whether turning the branch `PUSH next; JUMPI; PUSH other; JUMP` around into `ISZERO; PUSH
+    /// other; JUMPI`, falling into the `next` block that follows it, is the better code, when the
+    /// branch enters `next` `next_runs` times for every `other_runs` times it enters `other`.
+    /// `test` is what the test becomes, and the `JUMPDEST` of `next` goes unless another
+    /// reference keeps it (`keeps_landing`).
+    ///
+    /// The turned branch runs the test on both edges but jumps to `other` once, so it saves gas
+    /// when `other` is entered often enough. A gas build also leaves a branch whose `next` is the
+    /// hot edge of a loop, even when the test is free: falling into the loop body keeps the loop
+    /// passes from rotating the header into its latch, which saves a jump on every iteration.
+    /// Size builds take the bytes unless the extra gas of a hot loop costs more over the expected
+    /// executions than the deposit of the bytes saved.
+    pub(crate) fn falls_through_turned_branch(
+        &self,
+        next_runs: u64,
+        other_runs: u64,
+        test: TurnedTest,
+        keeps_landing: bool,
+    ) -> bool {
+        let price = |cost: Cost| (i64::from(self.runtime_gas(cost)), i64::from(cost.bytes));
+        let (iszero_gas, iszero_bytes) = price(self.opcode(op::ISZERO));
+        let (test_gas, test_bytes) = match test {
+            TurnedTest::Adds => (iszero_gas, iszero_bytes),
+            TurnedTest::Drops => (-iszero_gas, -iszero_bytes),
+            TurnedTest::Swaps => (0, 0),
+        };
+        let (jump_gas, jump_bytes) = price(self.label_push() + self.opcode(op::JUMP));
+        let (freed_gas, freed_bytes) =
+            if keeps_landing { (0, 0) } else { price(self.opcode(op::JUMPDEST)) };
+        // Entering `next` pays the test, where it paid the landing if that goes.
+        let next_extra = test_gas - freed_gas;
+        // Entering `other` pays the test, where it paid a second transfer.
+        let other_saving = jump_gas - test_gas;
+        let gas_saving = i128::from(other_runs) * i128::from(other_saving)
+            - i128::from(next_runs) * i128::from(next_extra);
+        let gas_saving = gas_saving.clamp(i64::MIN.into(), i64::MAX.into()) as i64;
+        let byte_saving = jump_bytes + freed_bytes - test_bytes;
+        let loop_continues = other_runs != 0 && next_runs > other_runs;
+        self.improves(gas_saving, byte_saving)
+            && !(loop_continues && self.optimization.is_gas())
+            && (gas_saving >= 0
+                || !self.optimization.is_size()
+                || self.deposit_repays_gas(byte_saving.unsigned_abs(), gas_saving.unsigned_abs()))
     }
 
     /// Whether encoding static calldata elements of `element_words` words keeps a block copy
@@ -842,6 +927,65 @@ impl Target {
         let guarded = Cost::new(guard.gas + copy.gas, guard.bytes + copy.bytes + looped.bytes);
         self.cmp(guarded, looped).is_lt()
     }
+
+    /// Whether a terminal return of an arbitrary memory byte string tests the pointer and writes
+    /// its tuple offset in the word before the object, with the copying encoder as the fallback
+    /// for a pointer below one word, rather than running the copying encoder alone. A word array
+    /// costs less in both shapes, and one word of payload is priced, the least a copy can cost,
+    /// so the answer holds for arrays and for every longer payload. The guarded form keeps the
+    /// copying encoder's bytes and adds its own, so it ranks by deployment lifetime and wins only
+    /// where the gas of the copy it skips repays them: never under the size objective, and under
+    /// the gas objective once the contract is expected to run enough.
+    pub(crate) fn guards_zero_copy_return(&self) -> bool {
+        let word = U256::from(op::WORD_BYTES);
+        let mask = U256::from(op::WORD_BYTES - 1);
+        let load = self.dup() + self.opcode(op::MLOAD);
+        let store = self.push(word) + self.dup() + self.opcode(op::MSTORE);
+        // len = mload object; extent = (len + 31) & ~31
+        let extent = load
+            + self.push(mask)
+            + self.opcode(op::ADD)
+            + self.push(mask)
+            + self.opcode(op::NOT)
+            + self.opcode(op::AND);
+        // mstore data + len, 0 zeroes the padding.
+        let padding = self.push(word)
+            + (self.dup() + self.opcode(op::ADD)).times(2)
+            + self.push(U256::ZERO)
+            + self.opcode(op::MSTORE);
+        // mstore object - 32, 32; total = extent + 64
+        let head = self.push(word) + self.dup() + self.opcode(op::SUB) + store;
+        let total = self.push(U256::from(2 * op::WORD_BYTES)) + self.opcode(op::ADD);
+        let in_place = extent + padding + head + total;
+        // lt object, 32; branch to the copy
+        let guard = self.push(word) + self.dup() + self.opcode(op::LT) + self.branch();
+        // start = mload 64; mstore start, 32; mstore start + 32, len; zero the padding; copy the
+        // payload to start + 64; mstore 64, start + total. A word of payload, the head, and the
+        // length are new memory.
+        let copy_move = if self.evm_version.has_mcopy() {
+            self.opcode(op::MCOPY) + self.copied_words(op::WORD_BYTES)
+        } else {
+            self.word_copy_loop()
+        };
+        let address = self.push(word) + self.dup() + self.opcode(op::ADD);
+        let copy = extent
+            + self.push(U256::from(EvmMemoryLayout::FMP_SLOT))
+            + self.opcode(op::MLOAD)
+            + store.times(2)
+            + padding
+            + address.times(3)
+            + self.dup().times(3)
+            + copy_move
+            + total
+            + self.push(U256::from(EvmMemoryLayout::FMP_SLOT))
+            + self.opcode(op::MSTORE)
+            + self.frame_words(3);
+        // Only the guard and the copy-free path run; the copy's code remains as the fallback.
+        let guarded =
+            Cost::new(guard.gas + in_place.gas, guard.bytes + in_place.bytes + copy.bytes);
+        self.cmp_lifetime(guarded, copy).is_lt()
+    }
+
     /// The factor `2**shift` that a constant shift lowered to `MUL` or `DIV` pushes, or `None`
     /// when computing it with `EXP` costs less over the deployment lifetime. Shifts of 256 or
     /// more give a zero factor, which matches the wrapped `EXP` result.
@@ -1054,6 +1198,18 @@ impl Target {
             .saturating_sub(self.jump().bytes)
     }
 
+    /// Cost of a zero read from `RETURNDATASIZE`, which holds zero until the frame runs a call or
+    /// create, or `None` when it does not dominate the literal zero push: Shanghai and later push
+    /// zero at the same price, and earlier targets before Byzantium lack the opcode. Pricing that
+    /// ignores the frame's calls, as the selector's and every pass before the late
+    /// `returndata-zero` pass do, keeps the literal price, which bounds the final cost from above.
+    pub(crate) fn returndata_zero(&self) -> Option<Cost> {
+        let cost = self.opcode(op::RETURNDATASIZE);
+        (self.evm_version.supports_returndata()
+            && self.dominates(cost, self.encoded_push(U256::ZERO)))
+        .then_some(cost)
+    }
+
     /// A single encoded PUSH, without the arithmetic recipes used for materialized constants.
     /// Labels and already selected EVM IR immediates use this encoding during assembly.
     pub(crate) fn encoded_push(&self, value: U256) -> Cost {
@@ -1102,7 +1258,11 @@ mod tests {
             constants
                 .extend([2, 7, 8, 16, 31, 32, 64, 128, 160, 224, 248, 255, 256].map(U256::from));
             for bits in [8, 16, 32, 64, 128, 160, 224, 248, 255] {
-                constants.extend([U256::ONE << bits, (U256::ONE << bits) - U256::ONE]);
+                constants.extend([
+                    U256::ONE << bits,
+                    (U256::ONE << bits) - U256::ONE,
+                    U256::MAX << bits,
+                ]);
             }
             constants.sort_unstable();
             constants.dedup();
@@ -1474,6 +1634,20 @@ mod tests {
     }
 
     #[test]
+    fn cold_code_is_priced_like_a_size_build() {
+        let gas = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
+        let size = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 200);
+        let none = Target::with(EvmVersion::Osaka, OptimizationMode::None, 200);
+        // One byte, 200 gas of deposit, does not repay 6 extra gas on 200 executions, 1,200.
+        assert!(!gas.compacts_immediate(1, 6, false));
+        assert!(gas.priced_for_cold(true).compacts_immediate(1, 6, false));
+        assert_eq!(gas.priced_for_cold(true), size);
+        assert_eq!(gas.priced_for_cold(false), gas);
+        assert_eq!(size.priced_for_cold(true), size);
+        assert_eq!(none.priced_for_cold(true), none);
+    }
+
+    #[test]
     fn deposit_repays_gas_over_expected_executions() {
         let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
         // 10 bytes deposit 2,000 gas; 9 gas on 200 executions is 1,800.
@@ -1482,6 +1656,28 @@ mod tests {
         assert!(!target.deposit_repays_gas(0, 0));
         let hot = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 10_000);
         assert!(!hot.deposit_repays_gas(10, 1));
+    }
+
+    #[test]
+    fn turned_branch_prices_both_edges() {
+        let gas = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
+        // The added `ISZERO` costs 3 gas on `next`, less the landing that goes, and a jump to
+        // `other` saves 11 gas of transfer less that test.
+        assert!(gas.falls_through_turned_branch(1, 1, TurnedTest::Adds, false));
+        assert!(gas.falls_through_turned_branch(1, 4, TurnedTest::Adds, true));
+        assert!(!gas.falls_through_turned_branch(10, 1, TurnedTest::Adds, false));
+        assert!(!gas.falls_through_turned_branch(1, 0, TurnedTest::Adds, false));
+        // A swapped test is free, so the landing that goes pays alone, and a kept landing ties.
+        assert!(gas.falls_through_turned_branch(1, 0, TurnedTest::Swaps, false));
+        assert!(!gas.falls_through_turned_branch(1, 0, TurnedTest::Swaps, true));
+        // A size build at one run takes the bytes of a hot loop, and not at a million runs.
+        let size = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 1);
+        assert!(size.falls_through_turned_branch(10, 1, TurnedTest::Adds, false));
+        // A free test still stays out of the hot edge of a loop in a gas build.
+        assert!(!gas.falls_through_turned_branch(10, 1, TurnedTest::Swaps, false));
+        assert!(size.falls_through_turned_branch(10, 1, TurnedTest::Swaps, false));
+        let hot = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 1_000_000);
+        assert!(!hot.falls_through_turned_branch(10, 1, TurnedTest::Adds, false));
     }
 
     #[test]
@@ -1519,6 +1715,21 @@ mod tests {
         assert!(!size.guards_block_copy(2));
         assert!(gas.guards_block_copy(2));
         assert!(gas.guards_block_copy(8));
+    }
+
+    #[test]
+    fn zero_copy_return_guard_pays_for_gas_over_the_lifetime() {
+        for version in [EvmVersion::Paris, EvmVersion::Cancun, EvmVersion::Osaka] {
+            // The guarded form keeps the copying encoder, so it only adds bytes.
+            let size = Target::with(version, OptimizationMode::Size, 200);
+            assert!(!size.guards_zero_copy_return());
+            // Its gas saving, even for one word, repays those bytes over 200 executions but not
+            // over one.
+            let gas = Target::with(version, OptimizationMode::Gas, 200);
+            assert!(gas.guards_zero_copy_return());
+            let once = Target::with(version, OptimizationMode::Gas, 1);
+            assert!(!once.guards_zero_copy_return());
+        }
     }
 
     #[test]
@@ -1747,6 +1958,21 @@ mod tests {
     }
 
     #[test]
+    fn returndata_zero_replaces_only_the_pre_shanghai_push() {
+        let price = |version| Target::with(version, OptimizationMode::Gas, 200).returndata_zero();
+        let paris = Target::with(EvmVersion::Paris, OptimizationMode::Gas, 200);
+        let returndata_zero = price(EvmVersion::Paris).unwrap();
+        assert_eq!(returndata_zero, paris.opcode(op::RETURNDATASIZE));
+        // Cheaper than the literal push and than a `DUP` in gas, and no larger.
+        assert!(paris.dominates(returndata_zero, paris.push(U256::ZERO)));
+        assert!(paris.dominates(returndata_zero, paris.dup()));
+        assert!(price(EvmVersion::Byzantium).is_some());
+        assert!(price(EvmVersion::Homestead).is_none());
+        assert!(price(EvmVersion::Shanghai).is_none());
+        assert!(price(EvmVersion::Osaka).is_none());
+    }
+
+    #[test]
     fn encoded_pushes_keep_their_literal_width() {
         let paris = Target::with(EvmVersion::Paris, OptimizationMode::Size, 200);
         let cancun = Target::with(EvmVersion::Cancun, OptimizationMode::Size, 200);
@@ -1757,5 +1983,13 @@ mod tests {
         }
         assert_eq!(cancun.encoded_push(U256::MAX), cancun.opcode(op::PUSH32));
         assert!(cancun.push(U256::MAX).bytes < cancun.encoded_push(U256::MAX).bytes);
+    }
+
+    #[test]
+    fn failure_paths_are_cold_for_gas_only() {
+        let target = |optimization| Target::with(EvmVersion::Osaka, optimization, 200);
+        assert!(target(OptimizationMode::Gas).marks_failure_paths_cold());
+        assert!(!target(OptimizationMode::Size).marks_failure_paths_cold());
+        assert!(!target(OptimizationMode::None).marks_failure_paths_cold());
     }
 }

@@ -24,8 +24,8 @@
 
 use super::utils::is_internal_body;
 use crate::mir::{
-    ArgIdx, Callee, Function, FunctionId, Immediate, InstId, InstKind, Module, Terminator, Value,
-    ValueId,
+    ArgIdx, Callee, Function, FunctionId, Immediate, InstId, InstKind, MirModuleTarget, Module,
+    Terminator, Value, ValueId,
     analysis::CallGraphInfo,
     pass::{MirPass, ModuleAnalyses},
     transform::{cfg_simplify, check_elim, dce, egraph, sccp},

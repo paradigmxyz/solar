@@ -55,11 +55,10 @@ bb5:
   return
 bb6:
   push_immutable 7, 32
-  push 0
-  not
+  push 96
+  shl
   push 96
   shr
-  and
   push 0
   mstore
   push 32

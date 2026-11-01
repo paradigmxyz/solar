@@ -47,7 +47,7 @@
 use crate::{
     mir::{
         BlockId, EffectKind, Function, FunctionBuilder, FunctionId, InstId, InstKind, Instruction,
-        MirType, Module, PtrLocation, Value, ValueId,
+        MirModuleTarget, MirType, Module, PtrLocation, Value, ValueId,
         analysis::{AliasAnalysis, AliasResult, MemoryBase, MemoryCallSummaries},
         memory::EvmMemoryLayout,
         pass::MirPass,

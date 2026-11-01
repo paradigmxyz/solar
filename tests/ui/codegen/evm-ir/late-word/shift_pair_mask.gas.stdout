@@ -1,0 +1,60 @@
+- // === ROOT/tests/ui/codegen/evm-ir/late-word/shift_pair_mask.evmir (before late-word) ===
++ // === ROOT/tests/ui/codegen/evm-ir/late-word/shift_pair_mask.evmir (after late-word) ===
+  @module ShiftPairMask
+  bb0:
+    push 36
+    calldataload
+    indexed_jump bb1, bb2, bb3, bb4
+  bb1:
+    push 4
+    calldataload
+-   push 0
+-   not
+    push 96
++   shl
++   push 96
+    shr
+-   and
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  bb2:
+    push 4
+    calldataload
+    push 0xffffffffffffffffffffffffffffffffffffffff
+    and
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  bb3:
+    push 4
+    calldataload
+    push 0
+    not
+    push 256
+    shr
+    and
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  bb4:
+    push 4
+    calldataload
+    push 0
+-   not
++   shl
+    push 0
+    shr
+-   and
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  

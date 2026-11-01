@@ -101,7 +101,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         changed
     }
 
-    /// Finds blocks that abort directly or can only reach other cold blocks.
+    /// Finds the blocks that abort directly or can only reach other cold blocks.
+    ///
+    /// The gas objective also marks the blocks with no path to a normal exit: backward
+    /// reachability from the blocks that leave the function without aborting (return, stop,
+    /// selfdestruct, or a tail call to a function that can return), over blocks that do not
+    /// abort, marks the hot blocks, and every other block is cold, including loops whose only
+    /// exits lead to aborts. `-O none` marks only the blocks that abort directly.
     pub(super) fn collect_cold_blocks(&self, func: &Function) -> DenseBitSet<BlockId> {
         let mut cold = DenseBitSet::new_empty(func.blocks.len());
         let mut worklist = Vec::new();
@@ -132,6 +138,27 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
         }
+        if !self.runtime_target().marks_failure_paths_cold() {
+            return cold;
+        }
+
+        let mut hot = DenseBitSet::new_empty(func.blocks.len());
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            let exits = block.terminator.as_ref().is_none_or(|term| !term.has_successors());
+            if exits && !cold.contains(block_id) {
+                hot.insert(block_id);
+                worklist.push(block_id);
+            }
+        }
+        while let Some(block_id) = worklist.pop() {
+            for &predecessor in &func.blocks[block_id].predecessors {
+                if !hot.contains(predecessor) && !cold.contains(predecessor) {
+                    hot.insert(predecessor);
+                    worklist.push(predecessor);
+                }
+            }
+        }
+        cold.union_not(&hot);
         cold
     }
 
@@ -161,6 +188,21 @@ impl<'gcx> EvmCodegen<'gcx> {
     pub(super) fn new_function_label(&mut self, function: FunctionId) -> Label {
         let label = self.asm.new_label();
         if self.cold_functions.contains(function) {
+            self.asm.mark_label_cold(label);
+        }
+        label
+    }
+
+    /// Returns true when the continuations and trampolines of a block are cold: the block is
+    /// cold and the objective marks failure paths cold.
+    pub(super) fn block_code_is_cold(&self, block_id: BlockId) -> bool {
+        self.runtime_target().marks_failure_paths_cold() && self.block_is_cold(block_id)
+    }
+
+    /// Creates the label of an edge trampoline, cold when its target is.
+    pub(super) fn new_trampoline_label(&mut self, target: BlockId) -> Label {
+        let label = self.asm.new_label();
+        if self.block_code_is_cold(target) {
             self.asm.mark_label_cold(label);
         }
         label

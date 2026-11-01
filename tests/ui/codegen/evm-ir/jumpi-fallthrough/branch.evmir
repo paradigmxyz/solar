@@ -1,0 +1,29 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=jumpi-fallthrough
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=jumpi-fallthrough
+//@ run-call: pick(uint256)(uint256) 0 => 2
+//@ run-call: pick(uint256)(uint256) 1 => 1
+//@ run-call: pick(uint256)(uint256) 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 1
+// The branch jumps to the block that follows it, and a jump takes the other path. Turned
+// around, it jumps to the other block on the test's `iszero` and falls into the next block.
+@module Branch
+bb0:
+  push 4
+  calldataload
+  push bb2
+  jumpi
+  jump bb1
+bb2:
+  push 1
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb1:
+  push 2
+  push 0
+  mstore
+  push 32
+  push 0
+  return

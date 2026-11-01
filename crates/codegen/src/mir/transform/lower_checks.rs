@@ -155,7 +155,7 @@ fn lower_function(
     true
 }
 
-fn is_check(kind: &InstKind) -> bool {
+pub(super) fn is_check(kind: &InstKind) -> bool {
     kind.op_def().phase_category == Some(PhaseCategory::ConditionalCheck)
 }
 

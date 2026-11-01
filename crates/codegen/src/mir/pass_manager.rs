@@ -8,7 +8,7 @@
 //! summaries and other module state.
 
 use crate::{
-    mir::{Module, pass::ModuleAnalyses, validate},
+    mir::{Module, pass::ModuleAnalyses, should_validate_ir, validate},
     timing::PassTimer,
 };
 use solar_config::OptimizationMode;
@@ -39,11 +39,6 @@ pub(crate) fn parse_pass_pipeline<P: Copy>(
         })
         .collect::<Result<_>>()?;
     Ok(Some(passes))
-}
-
-/// Returns whether pass managers should validate IR after each pass.
-pub(crate) fn should_validate_ir(gcx: Gcx<'_>) -> bool {
-    gcx.sess.opts.unstable.validate_ir.unwrap_or(cfg!(debug_assertions))
 }
 
 /// Returns the display label for a configured IR pipeline.
@@ -178,11 +173,12 @@ pub(crate) fn run_passes_inner(
                 );
                 // A pass that edits the module, reported or not, outdates the check, unless the
                 // pass itself advanced the phase after its last edit.
-                let lowered_checked = std::mem::take(&mut module.lowered_checked);
+                let lowered_checked = module.take_lowered_check();
                 let pass_changed = tracing::trace_span!("mir_pass", pass = pass_name)
                     .in_scope(|| pass.run_pass(gcx, module, &mut analyses));
-                module.lowered_checked |=
-                    lowered_checked && !pass_changed && !analyses.unreported_edit;
+                module.restore_lowered_check(
+                    lowered_checked && !pass_changed && !analyses.unreported_edit,
+                );
                 analyses.finish_pass(pass_changed);
                 if pass_changed || analyses.unreported_edit {
                     // Passes rename the storage alias bases they replace, but not the ones they
@@ -206,7 +202,7 @@ pub(crate) fn run_passes_inner(
             }
             assert_debug_info_handled(module, pass_name, "after");
 
-            if pass_changed && should_validate_ir(gcx) {
+            if pass_changed && should_validate_ir(gcx.sess) {
                 validate_module_after_pass(module, pass_name);
             }
         }

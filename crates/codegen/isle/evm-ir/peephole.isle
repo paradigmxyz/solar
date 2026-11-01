@@ -32,8 +32,10 @@
   (OverwritePush0)
   (LowMask)
   (LowMaskWithSwap)
+  (ShiftPairMask)
   (DropDiscardedSwap)
   (FoldConstants (value U256))
+  (AddNegated (value U256))
   (RemoveFirstKeepOne)
   (RemoveFirstKeepTwo)
   (RemoveFirstOverwrite (opcode u8))
@@ -87,6 +89,9 @@
 ;; `PUSH x; unary_op => materialize(unary_op(x))`, when bytes and gas improve.
 (decl fold_unary_constant (U256) Window)
 (extern extractor fold_unary_constant fold_unary_constant)
+;; `PUSH c; SWAP1; SUB`, when `materialize(-c); ADD` is cheaper, giving `-c`.
+(decl negated_subtrahend (U256) Window)
+(extern extractor negated_subtrahend negated_subtrahend)
 ;; `PUSH 0; PUSH block; JUMPI => empty`, respecting protected boundaries.
 (decl untaken_jump () Window)
 (extern extractor untaken_jump untaken_jump)
@@ -131,6 +136,9 @@
 (extern constructor u256_is_zero u256_is_zero)
 (decl pure u256_is_one (U256) bool)
 (extern constructor u256_is_one u256_is_one)
+;; The shift pair of a `PUSH0 NOT PUSH s SHR AND` mask dominates it in gas and bytes.
+(decl pure shift_pair_mask_profitable (U256) bool)
+(extern constructor shift_pair_mask_profitable shift_pair_mask_profitable)
 
 ;; Every rewrite ends at an opcode or a physical stack operation, and each rule's last
 ;; instruction belongs to one class: a DUP, SWAP, EXCHANGE, POP, or another opcode. The
@@ -293,6 +301,13 @@
 (extern constructor late_length late_length)
 (decl partial late_peep (LateWindow) Rewrite)
 
+;; `PUSH c; SWAP1; SUB => materialize(-c); ADD`: both compute `x - c` for the `x` on top.
+;; The right side drops the `SWAP1`, and the target's cheaper materialization may drop more.
+;; This runs only after `late_peep` fails, because the protected low-mask window ends in the
+;; same tail and rewrites it better.
+(decl partial late_sub (Window) Rewrite)
+(rule (late_sub (negated_subtrahend value)) (rewrite 3 (Edit.AddNegated value)))
+
 (decl protected_window (Inst Inst Inst Inst Inst) LateWindow)
 (extern extractor protected_window protected_window)
 (decl pure protected_count (LateWindow) bool)
@@ -312,3 +327,15 @@
 (rule 230 (peep_op (last3 (push zero) (opcode $LT) (opcode $ISZERO)))
         (if-let true (u256_is_zero zero))
         (rewrite 3 (Edit.ZeroLessIszero)))
+
+;; The rule of the late pass that masks with a built `MAX >> s`.
+(decl partial late_mask (Window) Rewrite)
+
+;; `PUSH0 NOT PUSH s SHR AND -> PUSH s SHL PUSH s SHR`: masking with `MAX >> s` clears the top
+;; `s` bits, as shifting them out and back does. Only a mask that the compact-pushes pass built
+;; from `PUSH0 NOT PUSH s SHR` matches; a literal mask costs less than the second shift. Stack
+;; scheduling can hoist such a mask away from its `AND`, so the rule waits for the final layout.
+(rule (late_mask (unprotected_last5 (push zero) (opcode $NOT) (push s) (opcode $SHR) (opcode $AND)))
+      (if-let true (u256_is_zero zero))
+      (if-let true (shift_pair_mask_profitable s))
+      (rewrite 5 (Edit.ShiftPairMask)))

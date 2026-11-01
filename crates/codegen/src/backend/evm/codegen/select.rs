@@ -106,9 +106,14 @@ pub(crate) fn opcode_lowering(op: &Op) -> Option<OpcodeLowering> {
     generated::constructor_select_opcode(&mut RuleContext, op)
 }
 
-impl InstKind {
+/// The EVM opcode that implements an instruction.
+pub(crate) trait InstKindOpcode {
     /// Returns the EVM opcode that directly implements this instruction.
-    pub(crate) fn evm_opcode(&self) -> Option<u8> {
+    fn evm_opcode(&self) -> Option<u8>;
+}
+
+impl InstKindOpcode for InstKind {
+    fn evm_opcode(&self) -> Option<u8> {
         opcode_lowering(&self.op()).map(OpcodeLowering::opcode)
     }
 }

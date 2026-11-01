@@ -51,14 +51,13 @@
 //! `x` meets. Each iteration then compares instead of dividing. The rewrite is skipped in loops
 //! that check the gas left, since the bound runs first.
 //!
-//! In gas mode the check keeps its branch, which panics when the comparison fails: flipping the
-//! branch so the check could merge with the add overflow check after it made the loop carry more
-//! words, and it measured slower. In size mode the comparison is the branch condition itself,
-//! with the edges swapped, so no `iszero` follows it and `merge-aborts` can join it with a
-//! following abort test. The bound is one more word the loop carries, and its saving depends on
-//! the stack schedule, not on the opcodes: a loop carrying seven words grew by two bytes, while
-//! loops carrying two and four shrank by one and four. Size mode therefore rewrites a factor's
-//! checks only while every loop around them stays within [`LOOP_CARRY_BUDGET`] with the bound.
+//! When the check only feeds its branch, the comparison becomes the branch condition itself, with
+//! the edges swapped, so no `iszero` follows it and `merge-aborts` can join it with a following
+//! abort test. No later pass flips a branch on `eq overflows, 0`. In size mode the bound is one
+//! more word the loop carries, and its saving depends on the stack schedule, not on the opcodes: a
+//! loop carrying seven words grew by two bytes, while loops carrying two and four shrank by one and
+//! four. Size mode therefore rewrites a factor's checks only while every loop around them stays
+//! within [`LOOP_CARRY_BUDGET`] with the bound.
 
 use crate::mir::{
     BlockId, EffectKind, Function, FunctionBuilder, Immediate, ImmutableId, InstId, InstKind,
@@ -1161,7 +1160,7 @@ fn reduce_product_checks(
     if checks.is_empty() {
         return 0;
     }
-    let uses = (!gas).then(|| super::egraph::use_counts(func));
+    let uses = super::egraph::use_counts(func);
     let mut limits = FxHashMap::default();
     for &(block, inst, x, y, zero) in &checks {
         let context = func.inst(inst).metadata.debug_context();
@@ -1180,7 +1179,7 @@ fn reduce_product_checks(
             let wide = builder.cast(zero, MirType::I256);
             builder.sub(quotient, wide)
         });
-        if uses.as_ref().is_some_and(|uses| flip_check(func, block, inst, uses)) {
+        if flip_check(func, block, inst, &uses) {
             // overflows = gt x, limit
             // jumpi overflows, abort, next
             func.inst_mut(inst).kind = InstKind::Gt(x, limit);

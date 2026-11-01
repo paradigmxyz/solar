@@ -9,7 +9,9 @@ use crate::{
     backend::evm::{
         codegen::{
             StackOp,
-            select::{OpcodeLowering, opcode_lowering, rematerializable_nullary_value},
+            select::{
+                InstKindOpcode, OpcodeLowering, opcode_lowering, rematerializable_nullary_value,
+            },
             values::{gas_minus, late_gas_reads},
         },
         ir::INDEXED_JUMP_STACK_GROWTH,

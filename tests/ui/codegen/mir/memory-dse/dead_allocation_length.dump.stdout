@@ -58,10 +58,10 @@ fn @relay() [selector=0x8f0d6f17, abi_wrapper] {
     v25 = add v23, 32
     v0: i256 = address
     v1 = gas
-    v73 = heap_floor !metadata(alloc_ptr)
-    v33 = add v73, 32
+    v72 = heap_floor !metadata(alloc_ptr)
+    v33 = add v72, 32
     mstore v33, 0x624fbfdc00000000000000000000000000000000000000000000000000000000
-    v35 = add v73, 36
+    v35 = add v72, 36
     v36 = add v35, 32
     mstore v35, 32
     v39 = add v24, 31
@@ -74,33 +74,31 @@ fn @relay() [selector=0x8f0d6f17, abi_wrapper] {
     calldatacopy v42, v25, v24
     v46 = sub v45, v35
     v47 = add v46, 4
-    v78 = add v47, 63
-    v51 = and v78, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v77 = add v47, 63
+    v51 = and v77, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v52 = lt v51, v47
     jumpi v52, bb4, bb5
   bb5:
-    v74 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v75 = add v74, v51 !metadata(alloc_ptr)
-    mstore 64, v75 !metadata(memory=scratch)
-    mstore v74, v47
-    v67 = add v74, 32
+    v73 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v74 = add v73, v51 !metadata(alloc_ptr)
+    mstore 64, v74 !metadata(memory=scratch)
+    mstore v73, v47
+    v67 = add v73, 32
     v9 = call v1, v0, 0, v67, v47, 0, 0
     v10 = returndatasize
     v11 = add v10, 31
     v13 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    mstore v75, v10
-    v69 = add v75, 32
+    mstore v74, v10
+    v69 = add v74, 32
     returndatacopy v69, 0, v10
     jumpi v9, bb2, bb1
   bb2:
-    v60 = add v69, v13
+    v60 = add v69, v10
     mstore v60, 0
-    v65 = add v75, 64
-    mcopy v65, v69, v10
-    mstore v75, 32
-    mstore v69, v10
+    v65 = sub v74, 32
+    mstore v65, 32
     v62 = add v13, 64
-    returndata v75, v62
+    returndata v65, v62
   bb4:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

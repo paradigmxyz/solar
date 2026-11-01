@@ -8,7 +8,7 @@ fn @find(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x867025b4, pure, 
     v1 = phi [bb0: arg0], [bb3: v1]
     v2 = phi [bb0: arg1], [bb3: v2]
     v3 = phi [bb0: v0], [bb3: v3]
-    v4 = phi [bb0: 0], [bb3: v22]
+    v4 = phi [bb0: 0], [bb3: v18]
     v5 = extract_value slice<calldata>, v1, 1
     v6 = lt v4, v5
     jumpi v6, bb4, bb5
@@ -21,18 +21,14 @@ fn @find(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x867025b4, pure, 
     icall panic_if<0x32>, v9
     v10 = extract_value slice<calldata>, v1, 0
     v11 = mul v4, 32
-    v12 = eq 32, 0
-    v13 = div v11, 32
-    v14 = eq v13, v4
-    v15 = or v12, v14
-    v16 = zext i1 v15 to i256
-    v17 = eq v16, 0
-    icall panic_if<0x41>, v17
-    v18 = ptrtoint ptr<calldata> v10 to i256
-    v19 = add v18, v11
-    v20 = calldataload v19
-    v21 = eq v20, v2
-    jumpi v21, bb7, bb8
+    v12 = shr v4, 251
+    v13 = ne v12, 0
+    icall panic_if<0x41>, v13
+    v14 = ptrtoint ptr<calldata> v10 to i256
+    v15 = add v14, v11
+    v16 = calldataload v15
+    v17 = eq v16, v2
+    jumpi v17, bb7, bb8
   bb8:
     jump bb9
   bb9:
@@ -40,13 +36,13 @@ fn @find(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x867025b4, pure, 
   bb6:
     jump bb3
   bb3:
-    v22 = checked_add uint256, v4, 1
+    v18 = checked_add uint256, v4, 1
     jump bb1
   bb7:
     jump bb2
   bb2:
-    v23 = phi [bb7: v4], [bb5: v3]
-    ret v23
+    v19 = phi [bb7: v4], [bb5: v3]
+    ret v19
 }
 
 fn @findReturn(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0xc77230d0, pure, abi_params=[array<_, uint256>, uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -56,15 +52,15 @@ fn @findReturn(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0xc77230d0, 
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v2]
-    v3 = phi [bb0: 0], [bb3: v21]
+    v3 = phi [bb0: 0], [bb3: v17]
     v4 = extract_value slice<calldata>, v0, 1
     v5 = lt v3, v4
     jumpi v5, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v22 = extract_value slice<calldata>, v0, 1
-    ret v22
+    v18 = extract_value slice<calldata>, v0, 1
+    ret v18
   bb4:
     v6 = extract_value slice<calldata>, v0, 1
     v7 = lt v3, v6
@@ -72,18 +68,14 @@ fn @findReturn(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0xc77230d0, 
     icall panic_if<0x32>, v8
     v9 = extract_value slice<calldata>, v0, 0
     v10 = mul v3, 32
-    v11 = eq 32, 0
-    v12 = div v10, 32
-    v13 = eq v12, v3
-    v14 = or v11, v13
-    v15 = zext i1 v14 to i256
-    v16 = eq v15, 0
-    icall panic_if<0x41>, v16
-    v17 = ptrtoint ptr<calldata> v9 to i256
-    v18 = add v17, v10
-    v19 = calldataload v18
-    v20 = eq v19, v1
-    jumpi v20, bb7, bb8
+    v11 = shr v3, 251
+    v12 = ne v11, 0
+    icall panic_if<0x41>, v12
+    v13 = ptrtoint ptr<calldata> v9 to i256
+    v14 = add v13, v10
+    v15 = calldataload v14
+    v16 = eq v15, v1
+    jumpi v16, bb7, bb8
   bb8:
     jump bb9
   bb9:
@@ -91,7 +83,7 @@ fn @findReturn(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0xc77230d0, 
   bb6:
     jump bb3
   bb3:
-    v21 = checked_add uint256, v3, 1
+    v17 = checked_add uint256, v3, 1
     jump bb1
   bb7:
     ret v3
@@ -103,8 +95,8 @@ fn @count(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0xb77153be, pure,
   bb1:
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: arg1], [bb3: v1]
-    v2 = phi [bb0: 0], [bb3: v23]
-    v3 = phi [bb0: 0], [bb3: v24]
+    v2 = phi [bb0: 0], [bb3: v19]
+    v3 = phi [bb0: 0], [bb3: v20]
     v4 = extract_value slice<calldata>, v0, 1
     v5 = lt v3, v4
     jumpi v5, bb4, bb5
@@ -125,27 +117,23 @@ fn @count(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0xb77153be, pure,
     icall panic_if<0x32>, v10
     v11 = extract_value slice<calldata>, v0, 0
     v12 = mul v3, 32
-    v13 = eq 32, 0
-    v14 = div v12, 32
-    v15 = eq v14, v3
-    v16 = or v13, v15
-    v17 = zext i1 v16 to i256
+    v13 = shr v3, 251
+    v14 = ne v13, 0
+    icall panic_if<0x41>, v14
+    v15 = ptrtoint ptr<calldata> v11 to i256
+    v16 = add v15, v12
+    v17 = calldataload v16
     v18 = eq v17, 0
-    icall panic_if<0x41>, v18
-    v19 = ptrtoint ptr<calldata> v11 to i256
-    v20 = add v19, v12
-    v21 = calldataload v20
-    v22 = eq v21, 0
-    jumpi v22, bb10, bb11
+    jumpi v18, bb10, bb11
   bb11:
     jump bb12
   bb12:
-    v23 = checked_add uint256, v2, 1
+    v19 = checked_add uint256, v2, 1
     jump bb9
   bb9:
     jump bb3
   bb3:
-    v24 = checked_add uint256, v3, 1
+    v20 = checked_add uint256, v3, 1
     jump bb1
   bb10:
     jump bb2
