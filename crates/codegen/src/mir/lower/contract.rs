@@ -375,6 +375,7 @@ pub(super) fn declaration(
         no_inline: tags.inline == Some(InlineTag::Never),
         always_inline: tags.inline == Some(InlineTag::Always),
         inline_hint: tags.inline == Some(InlineTag::Hint),
+        cold_hint: tags.cold,
         // A tag naming the contract's own objective changes nothing.
         optimization: tags.optimize.filter(|&objective| objective != contract_objective),
         ..FunctionAttributes::default()

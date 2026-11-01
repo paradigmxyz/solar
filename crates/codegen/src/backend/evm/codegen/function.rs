@@ -102,7 +102,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     pub(super) fn new_function_label(&mut self, module: &Module, function: FunctionId) -> Label {
         let label = self.asm.new_label();
-        if module.functions[function].attributes.hotness.is_cold() {
+        if module.functions[function].attributes.is_rarely_run() {
             self.asm.mark_label_cold(label);
         }
         label

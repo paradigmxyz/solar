@@ -1,0 +1,88 @@
+//@compile-flags: -Ogas -Zmir-pipeline=inline
+//@filecheck:
+@module ColdHintInline
+
+// A small branchy lookup helper is cloned at both loop sites; the same helper marked
+// `cold_hint` is priced by bytes, so its calls stay calls.
+// CHECK-LABEL: {{^[ +].*}}fn @loop_hot{{[( ]}}
+// CHECK: - {{v[0-9]+}} = icall @classify
+// CHECK: - {{v[0-9]+}} = icall @classify
+// CHECK-LABEL: {{^[ +].*}}fn @loop_cold{{[( ]}}
+// CHECK: {{^ .*}}= icall @classify_cold
+// CHECK: {{^ .*}}= icall @classify_cold
+fn @loop_hot(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v5]
+    v6 = phi [bb0: 0], [bb2: v4]
+    v1 = lt v0, arg0
+    jumpi v1, bb2, bb3
+  bb2:
+    v2 = icall @classify, v0
+    v7 = add v0, arg1
+    v3 = icall @classify, v7
+    v8 = add v2, v3
+    v4 = add v6, v8
+    v5 = add v0, 1
+    jump bb1
+  bb3:
+    ret v6
+}
+fn @loop_cold(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v5]
+    v6 = phi [bb0: 0], [bb2: v4]
+    v1 = lt v0, arg0
+    jumpi v1, bb2, bb3
+  bb2:
+    v2 = icall @classify_cold, v0
+    v7 = add v0, arg1
+    v3 = icall @classify_cold, v7
+    v8 = add v2, v3
+    v4 = add v6, v8
+    v5 = add v0, 1
+    jump bb1
+  bb3:
+    ret v6
+}
+fn @classify(arg0: i256) -> i256 {
+  bb0:
+    v0 = lt arg0, 32
+    jumpi v0, bb1, bb2
+  bb1:
+    ret 0
+  bb2:
+    v1 = lt arg0, 64
+    jumpi v1, bb3, bb4
+  bb3:
+    jump bb5
+  bb4:
+    jump bb5
+  bb5:
+    v2 = phi [bb3: 7], [bb4: 9]
+    v3 = and arg0, 31
+    v4 = add v2, v3
+    ret v4
+}
+fn @classify_cold(arg0: i256) -> i256 [cold_hint] {
+  bb0:
+    v0 = lt arg0, 32
+    jumpi v0, bb1, bb2
+  bb1:
+    ret 0
+  bb2:
+    v1 = lt arg0, 64
+    jumpi v1, bb3, bb4
+  bb3:
+    jump bb5
+  bb4:
+    jump bb5
+  bb5:
+    v2 = phi [bb3: 7], [bb4: 9]
+    v3 = and arg0, 31
+    v4 = add v2, v3
+    ret v4
+}
