@@ -1,11 +1,10 @@
-- // === ROOT/tests/ui/codegen/mir/hotness/cold_path.mir (before none) ===
-+ // === ROOT/tests/ui/codegen/mir/hotness/cold_path.mir (after none) ===
-  @module ColdPath
+- // === ROOT/tests/ui/codegen/mir/hotness/cold_hint_block.mir (before none) ===
++ // === ROOT/tests/ui/codegen/mir/hotness/cold_hint_block.mir (after none) ===
+  @module ColdHintBlock
   fn @bare(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2 [cold]:  ; preds = bb0
-      cold_path
+    bb2 [cold, cold_hint]:  ; preds = bb0
       jump bb3
     bb1:  ; preds = bb0
       jump bb3
@@ -16,8 +15,7 @@
   fn @returns(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2 [cold]:  ; preds = bb0
-      cold_path
+    bb2 [cold, cold_hint]:  ; preds = bb0
       ret 0
     bb1:  ; preds = bb0
       ret 1
@@ -26,8 +24,7 @@
   fn @loop_body(arg0: i1, arg1: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2 [cold]:  ; preds = bb0
-      cold_path
+    bb2 [cold, cold_hint]:  ; preds = bb0
       jump bb3
     bb3 [cold]:  ; preds = bb2, bb4
       jumpi arg1, bb4, bb5
@@ -44,14 +41,13 @@
   fn @typed(arg0: i1, arg1: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2 [cold]:  ; preds = bb0
-      cold_path
+    bb2 [cold, cold_hint]:  ; preds = bb0
       jumpi arg1, bb3, bb4
-    bb4 [cold]:  ; preds = bb2
+    bb4 [cold, cold_hint]:  ; preds = bb2
       jump bb5
     bb5 [cold]:  ; preds = bb4
       revert 0, 0
-    bb3 [cold]:  ; preds = bb2
+    bb3 [cold, cold_hint]:  ; preds = bb2
       jump bb6
     bb1:  ; preds = bb0
       jump bb6
@@ -62,16 +58,9 @@
   fn @only_path(arg0: i1) -> i256 {
     bb0:
       jump bb1
-    bb1:  ; preds = bb0
-      cold_path
+    bb1 [cold, cold_hint]:  ; preds = bb0
       jump bb2
     bb2:  ; preds = bb1
-      ret 1
-  }
-  
-  fn @not_abort(arg0: i1) -> i256 {
-    bb0:
-      cold_path
       ret 1
   }
   

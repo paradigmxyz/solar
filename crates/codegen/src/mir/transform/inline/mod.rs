@@ -1498,7 +1498,7 @@ fn estimate_inst_cost(
             Cost::new(24, 8)
         }
         InstKind::ICall { function: Callee::Builtin(Builtin::Require(_)), .. } => Cost::new(40, 24),
-        InstKind::ValidateAbi(_) | InstKind::ColdPath => Cost::new(0, 0),
+        InstKind::ValidateAbi(_) => Cost::new(0, 0),
         InstKind::CheckedBinary { op: crate::mir::CheckedOp::Pow, .. } => Cost::new(300, 128),
         InstKind::CheckedBinary { .. } => Cost::new(30, 20),
         InstKind::AbiEncodePacked { parts, .. } => {
@@ -1566,8 +1566,7 @@ fn estimate_inst_cost(
         | InstKind::PtrToInt(_, 256)
         | InstKind::MakeSlice { .. }
         | InstKind::InsertValue { .. }
-        | InstKind::ExtractValue { .. }
-        | InstKind::ColdPath => 0,
+        | InstKind::ExtractValue { .. } => 0,
         InstKind::MappingSlot(..) | InstKind::StorageArrayDataSlot(..) => 3,
         InstKind::MappingSlotBytes(key, _) if func.value_ty(*key) == Some(MirType::MEMPTR) => 8,
         InstKind::MappingSlotBytes(..) => 9,
@@ -1907,7 +1906,7 @@ fn inline_call_impl(
         }
     }
 
-    let continuation = caller.alloc_block();
+    let continuation = caller.alloc_block_like(call_block);
     let (old_terminator, metadata) = caller.blocks[call_block].take_terminator();
     let suffix = {
         let block = &mut caller.blocks[call_block];
@@ -2072,8 +2071,10 @@ impl<'a> InlineCloner<'a> {
     }
 
     fn clone_blocks(&mut self, continuation: BlockId) -> Option<BlockId> {
-        for _ in self.callee.blocks.indices() {
-            self.block_map.push(self.caller.alloc_block());
+        for block in self.callee.blocks.iter() {
+            let cloned = self.caller.alloc_block();
+            self.caller.blocks[cloned].cold_hint = block.cold_hint;
+            self.block_map.push(cloned);
         }
 
         for (callee_block, block) in self.callee.blocks.iter_enumerated() {

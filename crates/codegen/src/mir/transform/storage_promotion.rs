@@ -486,8 +486,8 @@ fn insert_conditional_final_store(
     temp_addr: ValueId,
     dirty_addr: ValueId,
 ) {
-    let continuation = func.alloc_block();
-    let store_block = func.alloc_block();
+    let continuation = func.alloc_block_like(exit);
+    let store_block = func.alloc_block_like(exit);
 
     let old_instructions = std::mem::take(&mut func.blocks[exit].instructions);
     let (old_terminator, terminator_metadata) = func.blocks[exit].take_terminator();

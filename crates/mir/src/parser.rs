@@ -528,9 +528,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     break;
                 }
 
-                if let Some((idx, hotness)) = self.try_parse_block_header()? {
+                if let Some((idx, hotness, cold_hint)) = self.try_parse_block_header()? {
                     let bid = self.define_block(&mut builder, idx)?;
                     builder.func_mut().blocks[bid].hotness = hotness;
+                    builder.func_mut().blocks[bid].cold_hint = cold_hint;
                     builder.switch_to_block(bid);
                     current_block = Some((bid, idx));
                     continue;
@@ -563,7 +564,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok(func)
     }
 
-    fn try_parse_block_header(&mut self) -> PResult<'sess, Option<(u32, Hotness)>> {
+    fn try_parse_block_header(&mut self) -> PResult<'sess, Option<(u32, Hotness, bool)>> {
         let TokenKind::Ident(label) = self.parser.token().kind else { return Ok(None) };
         let Some(index) = label.as_str().strip_prefix("bb").filter(|s| !s.is_empty()) else {
             return Ok(None);
@@ -571,14 +572,28 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let Ok(index) = index.parse() else {
             return Ok(None);
         };
-        let cold =
-            matches!(self.parser.look_ahead(1).kind, TokenKind::OpenDelim(Delimiter::Bracket))
-                && matches!(self.parser.look_ahead(2).kind, TokenKind::Ident(sym::cold))
-                && matches!(
-                    self.parser.look_ahead(3).kind,
-                    TokenKind::CloseDelim(Delimiter::Bracket)
-                );
-        let label_tokens = if cold { 4 } else { 1 };
+        // `bbN [cold, cold_hint]:`, each flag optional.
+        let (mut cold, mut cold_hint) = (false, false);
+        let mut label_tokens = 1;
+        if matches!(self.parser.look_ahead(1).kind, TokenKind::OpenDelim(Delimiter::Bracket)) {
+            label_tokens = 2;
+            loop {
+                match self.parser.look_ahead(label_tokens).kind {
+                    TokenKind::Ident(sym::cold) => cold = true,
+                    TokenKind::Ident(sym::cold_hint) => cold_hint = true,
+                    _ => return Ok(None),
+                }
+                label_tokens += 1;
+                match self.parser.look_ahead(label_tokens).kind {
+                    TokenKind::Comma => label_tokens += 1,
+                    TokenKind::CloseDelim(Delimiter::Bracket) => {
+                        label_tokens += 1;
+                        break;
+                    }
+                    _ => return Ok(None),
+                }
+            }
+        }
         if !matches!(self.parser.look_ahead(label_tokens).kind, TokenKind::Colon) {
             return Ok(None);
         }
@@ -586,7 +601,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             self.parser.bump();
         }
         self.parser.expect(TokenKind::Colon)?;
-        Ok(Some((index, if cold { Hotness::Cold } else { Hotness::Hot })))
+        Ok(Some((index, if cold { Hotness::Cold } else { Hotness::Hot }, cold_hint)))
     }
 
     fn define_block(

@@ -122,6 +122,8 @@ pub fn split_edge(func: &mut Function, pred: BlockId, succ: BlockId) -> BlockId 
         terminator_metadata: func.blocks[pred].terminator_metadata.clone(),
         predecessors: smallvec![pred],
         hotness: Hotness::Hot,
+        // The edge runs only when `pred` does and only leads to `succ`.
+        cold_hint: func.blocks[pred].cold_hint || func.blocks[succ].cold_hint,
     });
 
     // Retarget every occurrence of `succ` among `pred`'s successors.

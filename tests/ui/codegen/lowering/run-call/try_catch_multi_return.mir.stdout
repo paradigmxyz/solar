@@ -67,13 +67,12 @@ fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v8 = zext i160 v1 to i256
     v9 = staticcall v2, v8, v6, v7, 0, 0
     jumpi v9, bb1, bb2
-  bb2:  ; preds = bb0
-    cold_path
+  bb2 [cold_hint]:  ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5 [cold_hint]:  ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:  ; preds = bb2
+  bb4 [cold_hint]:  ; preds = bb2
     ret 0
   bb1:  ; preds = bb0
     v10 = icall returndata_bytes<>
@@ -101,13 +100,12 @@ fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v8 = zext i160 v1 to i256
     v9 = staticcall v2, v8, v6, v7, 0, 0
     jumpi v9, bb1, bb2
-  bb2:  ; preds = bb0
-    cold_path
+  bb2 [cold_hint]:  ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5 [cold_hint]:  ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:  ; preds = bb2
+  bb4 [cold_hint]:  ; preds = bb2
     ret 9
   bb1:  ; preds = bb0
     v10 = icall returndata_bytes<>

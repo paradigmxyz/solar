@@ -10,9 +10,6 @@
 //! Remove blocks that contain no instructions and only an unconditional jump,
 //! redirecting predecessors to the target.
 //!
-//! A block that holds only `cold_path` and jumps to a block it does not dominate forwards too, and
-//! drops the marker: the target is reachable without it, so it is no cold region.
-//!
 //! A branch also folds when a chain of unique incoming edges establishes the same SSA condition.
 //! The block keeps its instructions; only its terminator changes. Entry blocks and
 //! predecessors whose two arms reach the block provide no such fact. The bounded walk stops
@@ -41,13 +38,13 @@
 //! Terminal-block equivalence compares every non-operand instruction field, including semantic
 //! layouts and literal payloads, while comparing SSA operands by definition position. It ignores
 //! source context. Shared instructions and
-//! terminators retain the bounded union of their original locations instead. It also ignores
-//! `cold_path`, and the shared block keeps the marker only when every block it replaces has one.
+//! terminators retain the bounded union of their original locations instead. A shared block keeps
+//! `cold_hint` only if every block it replaces has it.
 
 use super::utils::{redirect_edge, redirect_successor_predecessors};
 use crate::mir::{
-    BasicBlock, BlockId, Builtin, Callee, Function, FunctionId, Immediate, InstId, InstKind,
-    InstructionMetadata, MirType, Module, Terminator, Value, ValueId,
+    BlockId, Builtin, Callee, Function, FunctionId, Immediate, InstKind, InstructionMetadata,
+    MirType, Module, Terminator, Value, ValueId,
     analysis::{CallGraphInfo, CfgInfo, direct_callees},
     pass::{MirPass, run_function_pass},
     utils::{eval, invalidate_unreachable_block, replace_terminator, retain_blocks},
@@ -249,7 +246,7 @@ fn deduplicate_terminal_blocks(func: &mut Function) -> bool {
         (!block.predecessors.is_empty()
             && !matches!(term, Terminator::Invalid)
             && !term.has_successors())
-        .then(|| (term.mnemonic(), block.instructions.len() - leading_marker(func, block) as usize))
+        .then(|| (term.mnemonic(), block.instructions.len()))
     };
     let mut shapes = FxHashMap::<_, usize>::default();
     for block_id in func.blocks.indices() {
@@ -279,20 +276,19 @@ fn deduplicate_terminal_blocks(func: &mut Function) -> bool {
         // Merge debug origins without changing the structural equivalence key.
         origins.clear();
         origins.extend(
-            unmarked_instructions(func, keep)
-                .zip(unmarked_instructions(func, dup))
-                .map(|(target, source)| (target, func.inst(source).metadata.debug_context())),
+            func.blocks[keep]
+                .instructions
+                .iter()
+                .zip(&func.blocks[dup].instructions)
+                .map(|(&target, &source)| (target, func.inst(source).metadata.debug_context())),
         );
         for (target, metadata) in origins.drain(..) {
             func.inst_mut(target).metadata.merge_debug_context(&metadata);
         }
         let metadata = func.blocks[dup].terminator_metadata.debug_context();
         func.blocks[keep].terminator_metadata.merge_debug_context(&metadata);
-        // A shared block is as hot as its hottest predecessor.
-        if !is_marked(func, dup) {
-            let kept_instructions = unmarked_instructions(func, keep).collect();
-            func.blocks[keep].instructions = kept_instructions;
-        }
+        // A shared block is rarely run only if every block it replaces is.
+        func.blocks[keep].cold_hint &= func.blocks[dup].cold_hint;
         for pred in std::mem::take(&mut func.blocks[dup].predecessors) {
             redirect_edge(func, pred, dup, keep);
         }
@@ -300,33 +296,6 @@ fn deduplicate_terminal_blocks(func: &mut Function) -> bool {
         func.blocks[dup].set_generated_terminator(Terminator::Invalid);
     }
     !merges.is_empty()
-}
-
-/// The instructions of a block other than `cold_path`, which terminal blocks compare equal
-/// without.
-fn unmarked_instructions(func: &Function, block: BlockId) -> impl Iterator<Item = InstId> {
-    func.blocks[block]
-        .instructions
-        .iter()
-        .copied()
-        .filter(|&inst| !matches!(func.inst(inst).kind, InstKind::ColdPath))
-}
-
-/// Whether a block starts with `cold_path`, where lowering puts it. A marker elsewhere only
-/// misses a merge with an unmarked block.
-fn leading_marker(func: &Function, block: &BasicBlock) -> bool {
-    block
-        .instructions
-        .first()
-        .is_some_and(|&inst| matches!(func.inst(inst).kind, InstKind::ColdPath))
-}
-
-/// Whether a block holds `cold_path`.
-fn is_marked(func: &Function, block: BlockId) -> bool {
-    func.blocks[block]
-        .instructions
-        .iter()
-        .any(|&inst| matches!(func.inst(inst).kind, InstKind::ColdPath))
 }
 
 /// Builds the alpha-equivalence key of a terminal block, or `None` if the
@@ -345,7 +314,7 @@ fn canonicalize_terminal_block(
     }
 
     local_defs.clear();
-    for (position, inst_id) in unmarked_instructions(func, block_id).enumerate() {
+    for (position, &inst_id) in block.instructions.iter().enumerate() {
         if let Some(result) = func.inst_result_value(inst_id) {
             local_defs.insert(result, position);
         }
@@ -362,7 +331,7 @@ fn canonicalize_terminal_block(
     };
 
     let mut insts = Vec::with_capacity(block.instructions.len());
-    for inst_id in unmarked_instructions(func, block_id) {
+    for &inst_id in &block.instructions {
         let inst = func.inst(inst_id);
         if matches!(inst.kind, InstKind::Phi(_)) {
             return None;
@@ -628,6 +597,7 @@ fn do_merge(func: &mut Function, block_id: BlockId, target: BlockId) {
     let terminator = terminator.expect("merged block must have a terminator");
 
     // block: prefix; target_instructions; target_terminator
+    // The merged block keeps the hint of `block_id`: `target` runs exactly when it does.
     func.blocks[block_id].instructions.extend(target_instructions);
     func.blocks[block_id].set_terminator(terminator, metadata);
     redirect_successor_predecessors(func, target, block_id);
@@ -674,26 +644,15 @@ fn eliminate_empty_blocks(func: &mut Function) -> bool {
 
         let cfg = || snapshot.get_or_init(|| CfgInfo::new(func));
         for block_id in func.blocks.indices() {
-            let marked = cold_path_forwarder_target(func, block_id);
-            if (empty_forwarder_target(func, block_id).is_none() && marked.is_none())
+            if empty_forwarder_target(func, block_id).is_none()
                 || (func.blocks[block_id].predecessors.is_empty() && cfg().is_reachable(block_id))
             {
-                continue;
-            }
-            // The marker covers the blocks its block dominates, so a forwarder into one of them
-            // stays.
-            // NOTE: Forwarders that are the only way into a block each lose their marker, since
-            // neither dominates it, so the block stays hot.
-            if marked.is_some_and(|target| cfg().dominators().dominates(block_id, target)) {
                 continue;
             }
 
             if !is_loop_preheader_forwarder(func, block_id, cfg())
                 && forwarder_elimination_preserves_phis(func, block_id)
             {
-                if marked.is_some() {
-                    func.blocks[block_id].instructions.clear();
-                }
                 eliminate_forwarder(func, block_id);
                 eliminated = true;
                 changed = true;
@@ -710,19 +669,6 @@ pub(super) fn empty_forwarder_target(func: &Function, block_id: BlockId) -> Opti
     match block.terminator {
         Some(Terminator::Jump(target)) if block.instructions.is_empty() && target != block_id => {
             Some(target)
-        }
-        _ => None,
-    }
-}
-
-/// Returns the target of a block that holds only one `cold_path` and a jump to another block.
-fn cold_path_forwarder_target(func: &Function, block_id: BlockId) -> Option<BlockId> {
-    let block = &func.blocks[block_id];
-    match (&block.terminator, block.instructions.as_slice()) {
-        (Some(Terminator::Jump(target)), &[inst])
-            if *target != block_id && matches!(func.inst(inst).kind, InstKind::ColdPath) =>
-        {
-            Some(*target)
         }
         _ => None,
     }

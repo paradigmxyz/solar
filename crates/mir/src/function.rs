@@ -721,6 +721,14 @@ impl Function {
         self.blocks.push(BasicBlock::new())
     }
 
+    /// Allocates a new basic block that copies or splits `like`, or runs only with it, so it keeps
+    /// the block's `cold_hint`.
+    pub fn alloc_block_like(&mut self, like: BlockId) -> BlockId {
+        let block = self.alloc_block();
+        self.blocks[block].cold_hint = self.blocks[like].cold_hint;
+        block
+    }
+
     /// Replaces all value uses according to a one-step replacement map.
     pub fn replace_uses(&mut self, replacements: &FxHashMap<ValueId, ValueId>) {
         if replacements.is_empty() {

@@ -63,13 +63,12 @@ fn @trySuccess() -> i256 [selector=0x3984eec7, view, abi_params=[], abi_returns=
     v8 = zext i160 v1 to i256
     v9 = staticcall v2, v8, 28, 36, 0, 0
     jumpi v9, bb1, bb2
-  bb2:  ; preds = bb0
-    cold_path
+  bb2 [cold_hint]:  ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5 [cold_hint]:  ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:  ; preds = bb2
+  bb4 [cold_hint]:  ; preds = bb2
     ret 9
   bb1:  ; preds = bb0
     ret 7
@@ -94,13 +93,12 @@ fn @tryFailure() -> i256 [selector=0x86763122, view, abi_params=[], abi_returns=
     v8 = zext i160 v1 to i256
     v9 = staticcall v2, v8, 28, 36, 0, 0
     jumpi v9, bb1, bb2
-  bb2:  ; preds = bb0
-    cold_path
+  bb2 [cold_hint]:  ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5 [cold_hint]:  ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:  ; preds = bb2
+  bb4 [cold_hint]:  ; preds = bb2
     ret 9
   bb1:  ; preds = bb0
     ret 7
@@ -221,8 +219,7 @@ fn @constructorWithoutArgs() -> i1 [selector=0x1f01d869, abi_params=[], abi_retu
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb1, bb2
-  bb2:  ; preds = bb0
-    cold_path
+  bb2 [cold_hint]:  ; preds = bb0
     v4 = icall returndata_bytes<>
     v5 = ptradd v4, 32
     v6 = mload v4
@@ -233,9 +230,9 @@ fn @constructorWithoutArgs() -> i1 [selector=0x1f01d869, abi_params=[], abi_retu
     v11 = mload v10
     v12 = shr v11, 224
     jumpi true, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5 [cold_hint]:  ; preds = bb2
     revert v8, v9
-  bb4:  ; preds = bb2
+  bb4 [cold_hint]:  ; preds = bb2
     v13 = ptradd v4, 32
     v14 = mload v4
     v15 = keccak256 v13, v14
@@ -331,8 +328,7 @@ fn @storageRevertPayload() -> i1 [selector=0x0156c876, abi_params=[], abi_return
     v5 = zext i160 v0 to i256
     v6 = call v1, v5, 0, 28, 36, 0, 0
     jumpi v6, bb1, bb2
-  bb2:  ; preds = bb0
-    cold_path
+  bb2 [cold_hint]:  ; preds = bb0
     v7 = icall returndata_bytes<>
     v8 = ptradd v7, 32
     v9 = mload v7
@@ -343,9 +339,9 @@ fn @storageRevertPayload() -> i1 [selector=0x0156c876, abi_params=[], abi_return
     v14 = mload v13
     v15 = shr v14, 224
     jumpi true, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5 [cold_hint]:  ; preds = bb2
     revert v11, v12
-  bb4:  ; preds = bb2
+  bb4 [cold_hint]:  ; preds = bb2
     v16 = ptradd v7, 32
     v17 = mload v7
     v18 = keccak256 v16, v17

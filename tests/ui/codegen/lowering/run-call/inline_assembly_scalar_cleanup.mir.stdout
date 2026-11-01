@@ -101,13 +101,12 @@ fn @signedTry(arg0: i1) -> i256 [selector=0x3ac87366, view, abi_params=[bool], a
     v5 = zext i160 v0 to i256
     v6 = staticcall v1, v5, v3, v4, 0, 0
     jumpi v6, bb1, bb2
-  bb2:  ; preds = bb0
-    cold_path
+  bb2 [cold_hint]:  ; preds = bb0
     jumpi true, bb7, bb8
-  bb8:  ; preds = bb2
+  bb8 [cold_hint]:  ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb7:  ; preds = bb2
+  bb7 [cold_hint]:  ; preds = bb2
     jump bb3
   bb1:  ; preds = bb0
     v7 = icall returndata_bytes<>

@@ -68,8 +68,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v2 = zext i160 v0 to i256
     v3 = staticcall v1, v2, 28, 4, 0, 32
     jumpi v3, bb1, bb2
-  bb2:  ; preds = bb0
-    cold_path
+  bb2 [cold_hint]:  ; preds = bb0
     v8 = icall returndata_bytes<>
     v9 = ptradd v8, 32
     v10 = mload v8
@@ -81,18 +80,18 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v16 = shr v15, 224
     v17 = eq v16, 0x8c379a0
     jumpi v17, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5 [cold_hint]:  ; preds = bb2
     jump bb6
-  bb4:  ; preds = bb2
+  bb4 [cold_hint]:  ; preds = bb2
     v18 = ptrtoint ptr<memory> v12 to i256
     v19 = icall @try_decode_error_message, v18, v13
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6 [cold_hint]:  ; preds = bb4, bb5
     v20 = phi [bb4: v19], [bb5: false]
     jumpi v20, bb7, bb8
-  bb8:  ; preds = bb6
+  bb8 [cold_hint]:  ; preds = bb6
     revert v12, v13
-  bb7:  ; preds = bb6
+  bb7 [cold_hint]:  ; preds = bb6
     v21 = mload v8
     v22 = ptradd v8, 36
     v23 = sub v21, 4
@@ -114,8 +113,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v29 = zext i160 v27 to i256
     v30 = staticcall v28, v29, 28, 4, 0, 32
     jumpi v30, bb9, bb10
-  bb10:  ; preds = bb3
-    cold_path
+  bb10 [cold_hint]:  ; preds = bb3
     v36 = icall returndata_bytes<>
     v37 = ptradd v36, 32
     v38 = mload v36
@@ -127,23 +125,23 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v44 = shr v43, 224
     v45 = eq v44, 0x8c379a0
     jumpi v45, bb12, bb13
-  bb13:  ; preds = bb10
+  bb13 [cold_hint]:  ; preds = bb10
     jump bb14
-  bb12:  ; preds = bb10
+  bb12 [cold_hint]:  ; preds = bb10
     v46 = ptrtoint ptr<memory> v40 to i256
     v47 = icall @try_decode_error_message, v46, v41
     jump bb14
-  bb14:  ; preds = bb12, bb13
+  bb14 [cold_hint]:  ; preds = bb12, bb13
     v48 = phi [bb12: v47], [bb13: false]
     jumpi v48, bb15, bb16
-  bb16:  ; preds = bb14
+  bb16 [cold_hint]:  ; preds = bb14
     jumpi true, bb17, bb18
-  bb18:  ; preds = bb16
+  bb18 [cold_hint]:  ; preds = bb16
     revert v40, v41
-  bb17:  ; preds = bb16
+  bb17 [cold_hint]:  ; preds = bb16
     v57 = checked_add uint256, v26, 300
     jump bb11
-  bb15:  ; preds = bb14
+  bb15 [cold_hint]:  ; preds = bb14
     v49 = mload v36
     v50 = ptradd v36, 36
     v51 = sub v49, 4
@@ -171,8 +169,7 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v62 = zext i160 v60 to i256
     v63 = staticcall v61, v62, 28, 36, 0, 32
     jumpi v63, bb19, bb20
-  bb20:  ; preds = bb11
-    cold_path
+  bb20 [cold_hint]:  ; preds = bb11
     v69 = icall returndata_bytes<>
     v70 = ptradd v69, 32
     v71 = mload v69
@@ -188,14 +185,14 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v81 = and v78, v80
     v82 = zext i1 v81 to i256
     jumpi v81, bb22, bb23
-  bb23:  ; preds = bb20
+  bb23 [cold_hint]:  ; preds = bb20
     jumpi true, bb24, bb25
-  bb25:  ; preds = bb23
+  bb25 [cold_hint]:  ; preds = bb23
     revert v73, v74
-  bb24:  ; preds = bb23
+  bb24 [cold_hint]:  ; preds = bb23
     v86 = checked_add uint256, v58, 500
     jump bb21
-  bb22:  ; preds = bb20
+  bb22 [cold_hint]:  ; preds = bb20
     v83 = ptradd v69, 36
     v84 = mload v83
     v85 = checked_add uint256, v58, 400
@@ -219,13 +216,12 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v94 = zext i160 v89 to i256
     v95 = staticcall v90, v94, v92, v93, v92, 64
     jumpi v95, bb26, bb27
-  bb27:  ; preds = bb21
-    cold_path
+  bb27 [cold_hint]:  ; preds = bb21
     jumpi true, bb29, bb30
-  bb30:  ; preds = bb27
+  bb30 [cold_hint]:  ; preds = bb27
     icall revert_if<empty>, true
     invalid
-  bb29:  ; preds = bb27
+  bb29 [cold_hint]:  ; preds = bb27
     v106 = checked_add uint256, v87, 600
     jump bb28
   bb26:  ; preds = bb21
@@ -251,13 +247,12 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v111 = zext i160 v109 to i256
     v112 = staticcall 0x186a0, v111, 28, 36, 0, 32
     jumpi v112, bb31, bb32
-  bb32:  ; preds = bb28
-    cold_path
+  bb32 [cold_hint]:  ; preds = bb28
     jumpi true, bb34, bb35
-  bb35:  ; preds = bb32
+  bb35 [cold_hint]:  ; preds = bb32
     icall revert_if<empty>, true
     invalid
-  bb34:  ; preds = bb32
+  bb34 [cold_hint]:  ; preds = bb32
     v118 = checked_add uint256, v107, 700
     jump bb33
   bb31:  ; preds = bb28
@@ -276,13 +271,12 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v122 = create 0, v121, v120
     v123 = ne v122, i160 0
     jumpi v123, bb36, bb37
-  bb37:  ; preds = bb33
-    cold_path
+  bb37 [cold_hint]:  ; preds = bb33
     jumpi true, bb39, bb40
-  bb40:  ; preds = bb37
+  bb40 [cold_hint]:  ; preds = bb37
     icall revert_if<empty>, true
     invalid
-  bb39:  ; preds = bb37
+  bb39 [cold_hint]:  ; preds = bb37
     v125 = checked_add uint256, v119, 900
     jump bb38
   bb36:  ; preds = bb33
@@ -304,13 +298,12 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     mstore 32, 6 !metadata(memory=scratch)
     v137 = call v135, v134, 0, 28, 36, 0, 32
     jumpi v137, bb41, bb42
-  bb42:  ; preds = bb38
-    cold_path
+  bb42 [cold_hint]:  ; preds = bb38
     jumpi true, bb44, bb45
-  bb45:  ; preds = bb42
+  bb45 [cold_hint]:  ; preds = bb42
     icall revert_if<empty>, true
     invalid
-  bb44:  ; preds = bb42
+  bb44 [cold_hint]:  ; preds = bb42
     v143 = checked_add uint256, v126, 0x3e8
     jump bb43
   bb41:  ; preds = bb38

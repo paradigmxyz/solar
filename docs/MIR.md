@@ -785,14 +785,15 @@ behind a call to it that only a cold edge enters, such as a branch into the call
 path leaves its caller hot. The function and the inliner's decision to clone it are priced like
 cold code.
 
-`cold_path`, our `core::hint::cold_path`, marks the block that holds it as the start of a rarely
-run region. Lowering puts it first in every catch block of a `try`, so each catch clause, typed and
-bare, is cold: the branch into the clause is the cold edge, and the blocks only it reaches are
-cold, while the success path and the join stay hot. It takes no operand, gives no value, reads and
-writes nothing, is valid in every phase, and the backend emits no code for it. Because analysis
-finds it in the instruction list, it survives inlining, cloning, and splitting, and no pass removes,
-moves, or shares it, except that CFG cleanup, if-conversion, and terminal-block sharing drop it
-where it would only land in a block that other, hot code also enters.
+A block carries `cold_hint` too, written `bb3 [cold, cold_hint]:` next to its `cold` hotness: the
+source says the block runs rarely, as for a function. Lowering sets it on every block it creates
+for a `catch` clause of a `try`, typed and bare, as LLVM treats the unwind edge of an `invoke` and
+rustc a cleanup path. The analysis only reads it. The block is cold under every objective, and it
+seeds the same region walk as a call to a `cold_hint` function, so the code only it reaches is cold
+too, while the success path and the join stay hot. Passes keep the hint with the code: a cloned
+block, as inlining and loop versioning make, copies it, both halves of a split block have it, a
+block merged into its sole predecessor takes the predecessor's, and a block that replaces equal
+blocks keeps it only if every one had it.
 
 The scheduler carries known loop membership into EVM IR, and block merging
 preserves it. Gas-mode outlining keeps loop computations and large pushes

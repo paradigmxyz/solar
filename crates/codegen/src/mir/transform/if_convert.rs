@@ -31,9 +31,6 @@
 //! Conditions are canonical booleans and cast to words before arithmetic.
 //! Later simplification turns a power-of-two multiplier into a shift.
 //!
-//! A `cold_path` in an arm, as a catch clause has, does not disqualify it: the join is reachable
-//! without the arm, so the marker goes with the arm's other instructions.
-//!
 //! Safety: an arm qualifies only when the branching block is its sole
 //! predecessor, its terminator is a jump to the join, and every instruction
 //! is a pure computation (no memory or state reads, calls, or effects), so
@@ -200,9 +197,7 @@ fn arm_join(func: &Function, block: BlockId, arm: BlockId) -> Option<BlockId> {
         || body
             .instructions
             .iter()
-            .filter(|&&inst| {
-                !matches!(func.inst(inst).kind, InstKind::Zext(_) | InstKind::ColdPath)
-            })
+            .filter(|&&inst| !matches!(func.inst(inst).kind, InstKind::Zext(_)))
             .count()
             > MAX_ARM_INSTRUCTIONS
     {
@@ -210,11 +205,10 @@ fn arm_join(func: &Function, block: BlockId, arm: BlockId) -> Option<BlockId> {
     }
     let speculatable = body.instructions.iter().all(|&inst| {
         let kind = &func.inst(inst).kind;
-        matches!(kind, InstKind::ColdPath)
-            || (!matches!(kind, InstKind::Phi(_))
-                && !kind.has_side_effects()
-                && kind.effect_kind() == EffectKind::Pure
-                && func.inst_result_value(inst).is_some())
+        !matches!(kind, InstKind::Phi(_))
+            && !kind.has_side_effects()
+            && kind.effect_kind() == EffectKind::Pure
+            && func.inst_result_value(inst).is_some()
     });
     speculatable.then_some(join)
 }
@@ -347,9 +341,6 @@ fn profitable(func: &Function, target: &Target, site: &Site, selects: &[Select])
     let mut kept_arms = Cost::ZERO;
     for arm in [site.then_arm, site.else_arm].into_iter().flatten() {
         for &inst in &func.blocks[arm].instructions {
-            if matches!(func.inst(inst).kind, InstKind::ColdPath) {
-                continue;
-            }
             let cost = inst_cost(func, target, inst);
             arms = arms.plus(cost);
             if !func.inst_result_value(inst).is_some_and(|result| replaced.contains(&result)) {
@@ -497,11 +488,7 @@ fn convert(func: &mut Function, site: &Site) {
     // block: t = f(...); e = g(...); v = select cond, t, e; jump join
     let condition = boolean_condition(func, block, site.condition);
     for arm in [site.then_arm, site.else_arm].into_iter().flatten() {
-        // The join stays reachable without the arm, so the marker goes with it.
-        let moved = std::mem::take(&mut func.blocks[arm].instructions)
-            .into_iter()
-            .filter(|&inst| !matches!(func.inst(inst).kind, InstKind::ColdPath))
-            .collect::<Vec<_>>();
+        let moved = std::mem::take(&mut func.blocks[arm].instructions);
         func.blocks[block].instructions.extend(moved);
     }
     let then_pred = site.then_arm.unwrap_or(block);

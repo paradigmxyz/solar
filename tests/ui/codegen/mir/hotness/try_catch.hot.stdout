@@ -61,8 +61,7 @@ fn @bare() [selector=0x90f2b340, abi_wrapper, view] {
     mstore 32, arg0
     v3 = staticcall v1, v0, 28, 36, 0, 32
     jumpi v3, bb1, bb2
-  bb2 [cold]:  ; preds = bb0
-    cold_path
+  bb2 [cold, cold_hint]:  ; preds = bb0
     mstore 0, 100 !metadata(memory=scratch)
     returndata 0, 32
   bb1:  ; preds = bb0
@@ -94,8 +93,7 @@ fn @typed() [selector=0x23048970, abi_wrapper, view] {
     mstore 32, arg0
     v3 = staticcall v1, v0, 28, 36, 0, 32
     jumpi v3, bb1, bb2
-  bb2 [cold]:  ; preds = bb0
-    cold_path
+  bb2 [cold, cold_hint]:  ; preds = bb0
     v44 = returndatasize
     v45 = add v44, 63
     v48 = and v45, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -109,7 +107,7 @@ fn @typed() [selector=0x23048970, abi_wrapper, view] {
     v17 = shr v16, 224
     v18 = eq v17, 0x8c379a0
     jumpi v18, bb4, bb3
-  bb4 [cold]:  ; preds = bb2
+  bb4 [cold, cold_hint]:  ; preds = bb2
     v30 = gt v44, 67
     jumpi v30, bb7, bb6
   bb7 [cold]:  ; preds = bb4
@@ -128,16 +126,16 @@ fn @typed() [selector=0x23048970, abi_wrapper, view] {
     v41 = or v38, v40
     v42 = eq v41, false
     jump bb6
-  bb6 [cold]:  ; preds = bb4, bb7, bb8
+  bb6 [cold, cold_hint]:  ; preds = bb4, bb7, bb8
     v43 = phi [bb8: v42], [bb4: false], [bb7: false]
     jumpi v43, bb5, bb3
-  bb5 [cold]:  ; preds = bb6
+  bb5 [cold, cold_hint]:  ; preds = bb6
     v97 = add v115, 36
     v24 = sub v44, 4
     v61 = add v97, v24
     v62 = slt v24, 32
     jumpi v62, bb9, bb12
-  bb12 [cold]:  ; preds = bb5
+  bb12 [cold, cold_hint]:  ; preds = bb5
     v63 = mload v97
     v65 = add v97, v63
     v68 = add v65, 32
@@ -145,12 +143,12 @@ fn @typed() [selector=0x23048970, abi_wrapper, view] {
     v70 = gt v68, v61
     v71 = or v69, v70
     jumpi v71, bb9, bb13
-  bb13 [cold]:  ; preds = bb12
+  bb13 [cold, cold_hint]:  ; preds = bb12
     v73 = mload v65
     v75 = add v73, 63
     v76 = lt v75, v73
     jumpi v76, bb14, bb15
-  bb15 [cold]:  ; preds = bb13
+  bb15 [cold, cold_hint]:  ; preds = bb13
     v78 = and v75, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v108 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v109 = add v108, v78 !metadata(alloc_ptr)
@@ -160,13 +158,13 @@ fn @typed() [selector=0x23048970, abi_wrapper, view] {
     v113 = or v111, v112
     v114 = ne v113, 0
     jumpi v114, bb14, bb17
-  bb17 [cold]:  ; preds = bb15
+  bb17 [cold, cold_hint]:  ; preds = bb15
     mstore 64, v109 !metadata(memory=scratch)
     mstore v108, v73
     v80 = sub v61, v68
     v81 = gt v73, v80
     jumpi v81, bb9, bb16
-  bb16 [cold]:  ; preds = bb17
+  bb16 [cold, cold_hint]:  ; preds = bb17
     v99 = add v108, 32
     mcopy v99, v68, v73
     v89 = sub 0, v73
@@ -178,7 +176,7 @@ fn @typed() [selector=0x23048970, abi_wrapper, view] {
     v54 = add v27, 3
     v55 = lt v54, v27
     jumpi v55, bb11, bb3
-  bb14 [cold]:  ; preds = bb13, bb15
+  bb14 [cold, cold_hint]:  ; preds = bb13, bb15
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -216,19 +214,18 @@ fn @looped() [selector=0xd3fb4026, abi_wrapper, view] {
     mstore 32, v20
     v4 = staticcall v1, v0, 28, 36, 0, 32
     jumpi v4, bb1, bb2
-  bb2 [cold]:  ; preds = bb9
-    cold_path
+  bb2 [cold, cold_hint]:  ; preds = bb9
     jump bb4
-  bb4 [cold]:  ; preds = bb2, bb11
+  bb4 [cold, cold_hint]:  ; preds = bb2, bb11
     v11 = phi [bb2: arg0], [bb11: v24]
     v12 = phi [bb2: 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffa], [bb11: v15]
     v13 = ne v12, 0
     jumpi v13, bb5, bb3
-  bb5 [cold]:  ; preds = bb4
+  bb5 [cold, cold_hint]:  ; preds = bb4
     v24 = add v11, 1
     v25 = eq v24, 0
     jumpi v25, bb8, bb11
-  bb11 [cold]:  ; preds = bb5
+  bb11 [cold, cold_hint]:  ; preds = bb5
     v15 = add v12, 1
     jump bb4
   bb1:  ; preds = bb9

@@ -1275,7 +1275,7 @@ fn apply(func: &mut Function, plan: &Plan<'_>) -> Vec<BlockId> {
     let copy = clone_loop(func, &plan.blocks);
 
     // preheader | latch: ... jump test
-    let test = func.alloc_block();
+    let test = func.alloc_block_like(header);
     redirect(func, plan.latch.unwrap_or(plan.preheader), header, test);
     let mut builder = FunctionBuilder::new_semantic(func);
     builder.switch_to_block(test);

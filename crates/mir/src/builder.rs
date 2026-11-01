@@ -175,9 +175,10 @@ impl<'a> FunctionBuilder<'a> {
         self.current_block = block;
     }
 
-    /// Creates a new basic block.
+    /// Creates a new basic block for the code the current block reaches, so it keeps the current
+    /// block's `cold_hint`.
     pub fn create_block(&mut self) -> BlockId {
-        self.func.alloc_block()
+        self.func.alloc_block_like(self.current_block)
     }
 
     /// Starts `for index in 0..length` and switches to its body.
@@ -1315,12 +1316,6 @@ impl<'a> FunctionBuilder<'a> {
     pub fn validate_abi(&mut self, value: ValueId) {
         // validate_abi value
         self.emit_void_inst(InstKind::ValidateAbi(value));
-    }
-
-    /// Marks the current block as the start of a rarely run region.
-    pub fn cold_path(&mut self) {
-        // cold_path
-        self.emit_void_inst(InstKind::ColdPath);
     }
 
     /// Stores a bytes object in storage, clearing any unused old data words.

@@ -40,8 +40,7 @@ fn @lowLevelFirst(arg0: i256) -> i256 [selector=0x7bb76e97, view, abi_params=[ui
     v2 = zext i160 v0 to i256
     v3 = staticcall v1, v2, 28, 36, 0, 32
     jumpi v3, bb1, bb2
-  bb2:  ; preds = bb0
-    cold_path
+  bb2 [cold_hint]:  ; preds = bb0
     v8 = icall returndata_bytes<>
     v9 = ptradd v8, 32
     v10 = mload v8
@@ -53,33 +52,33 @@ fn @lowLevelFirst(arg0: i256) -> i256 [selector=0x7bb76e97, view, abi_params=[ui
     v16 = shr v15, 224
     v17 = eq v16, 0x8c379a0
     jumpi v17, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5 [cold_hint]:  ; preds = bb2
     jump bb6
-  bb4:  ; preds = bb2
+  bb4 [cold_hint]:  ; preds = bb2
     v18 = ptrtoint ptr<memory> v12 to i256
     v19 = icall @try_decode_error_message, v18, v13
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6 [cold_hint]:  ; preds = bb4, bb5
     v20 = phi [bb4: v19], [bb5: false]
     jumpi v20, bb7, bb8
-  bb8:  ; preds = bb6
+  bb8 [cold_hint]:  ; preds = bb6
     v26 = eq v16, 0x4e487b71
     v27 = lt v13, 36
     v28 = eq v27, false
     v29 = and v26, v28
     v30 = zext i1 v29 to i256
     jumpi v29, bb9, bb10
-  bb10:  ; preds = bb8
+  bb10 [cold_hint]:  ; preds = bb8
     jumpi true, bb11, bb12
-  bb12:  ; preds = bb10
+  bb12 [cold_hint]:  ; preds = bb10
     revert v12, v13
-  bb11:  ; preds = bb10
+  bb11 [cold_hint]:  ; preds = bb10
     ret 100
-  bb9:  ; preds = bb8
+  bb9 [cold_hint]:  ; preds = bb8
     v31 = ptradd v8, 36
     v32 = mload v31
     ret 300
-  bb7:  ; preds = bb6
+  bb7 [cold_hint]:  ; preds = bb6
     v21 = mload v8
     v22 = ptradd v8, 36
     v23 = sub v21, 4
@@ -107,8 +106,7 @@ fn @typedFirst(arg0: i256) -> i256 [selector=0x90ba0c06, view, abi_params=[uint2
     v2 = zext i160 v0 to i256
     v3 = staticcall v1, v2, 28, 36, 0, 32
     jumpi v3, bb1, bb2
-  bb2:  ; preds = bb0
-    cold_path
+  bb2 [cold_hint]:  ; preds = bb0
     v8 = icall returndata_bytes<>
     v9 = ptradd v8, 32
     v10 = mload v8
@@ -120,33 +118,33 @@ fn @typedFirst(arg0: i256) -> i256 [selector=0x90ba0c06, view, abi_params=[uint2
     v16 = shr v15, 224
     v17 = eq v16, 0x8c379a0
     jumpi v17, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5 [cold_hint]:  ; preds = bb2
     jump bb6
-  bb4:  ; preds = bb2
+  bb4 [cold_hint]:  ; preds = bb2
     v18 = ptrtoint ptr<memory> v12 to i256
     v19 = icall @try_decode_error_message, v18, v13
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6 [cold_hint]:  ; preds = bb4, bb5
     v20 = phi [bb4: v19], [bb5: false]
     jumpi v20, bb7, bb8
-  bb8:  ; preds = bb6
+  bb8 [cold_hint]:  ; preds = bb6
     v26 = eq v16, 0x4e487b71
     v27 = lt v13, 36
     v28 = eq v27, false
     v29 = and v26, v28
     v30 = zext i1 v29 to i256
     jumpi v29, bb9, bb10
-  bb10:  ; preds = bb8
+  bb10 [cold_hint]:  ; preds = bb8
     jumpi true, bb11, bb12
-  bb12:  ; preds = bb10
+  bb12 [cold_hint]:  ; preds = bb10
     revert v12, v13
-  bb11:  ; preds = bb10
+  bb11 [cold_hint]:  ; preds = bb10
     ret 100
-  bb9:  ; preds = bb8
+  bb9 [cold_hint]:  ; preds = bb8
     v31 = ptradd v8, 36
     v32 = mload v31
     ret 300
-  bb7:  ; preds = bb6
+  bb7 [cold_hint]:  ; preds = bb6
     v21 = mload v8
     v22 = ptradd v8, 36
     v23 = sub v21, 4
@@ -174,8 +172,7 @@ fn @bareFirst(arg0: i256) -> i256 [selector=0x2f2a2d09, view, abi_params=[uint25
     v2 = zext i160 v0 to i256
     v3 = staticcall v1, v2, 28, 36, 0, 32
     jumpi v3, bb1, bb2
-  bb2:  ; preds = bb0
-    cold_path
+  bb2 [cold_hint]:  ; preds = bb0
     v8 = icall returndata_bytes<>
     v9 = ptradd v8, 32
     v10 = mload v8
@@ -191,13 +188,13 @@ fn @bareFirst(arg0: i256) -> i256 [selector=0x2f2a2d09, view, abi_params=[uint25
     v20 = and v17, v19
     v21 = zext i1 v20 to i256
     jumpi v20, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5 [cold_hint]:  ; preds = bb2
     jumpi true, bb6, bb7
-  bb7:  ; preds = bb5
+  bb7 [cold_hint]:  ; preds = bb5
     revert v12, v13
-  bb6:  ; preds = bb5
+  bb6 [cold_hint]:  ; preds = bb5
     ret 100
-  bb4:  ; preds = bb2
+  bb4 [cold_hint]:  ; preds = bb2
     v22 = ptradd v8, 36
     v23 = mload v22
     ret 300

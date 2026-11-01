@@ -57,8 +57,7 @@ fn @direct(arg0: i1) -> i256 [selector=0xa8f96c85, pure, abi_params=[bool], abi_
     v4 = extract_value slice<memory>, v2, 1
     v5 = delegatecall v0, 0x1111111111111111111111111111111111111111, v3, v4, 0, 32
     jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
-    cold_path
+  bb2 [cold_hint]:  ; preds = bb0
     v10 = icall returndata_bytes<>
     v11 = ptradd v10, 32
     v12 = mload v10
@@ -70,18 +69,18 @@ fn @direct(arg0: i1) -> i256 [selector=0xa8f96c85, pure, abi_params=[bool], abi_
     v18 = shr v17, 224
     v19 = eq v18, 0x8c379a0
     jumpi v19, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5 [cold_hint]:  ; preds = bb2
     jump bb6
-  bb4:  ; preds = bb2
+  bb4 [cold_hint]:  ; preds = bb2
     v20 = ptrtoint ptr<memory> v14 to i256
     v21 = icall @try_decode_error_message, v20, v15
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6 [cold_hint]:  ; preds = bb4, bb5
     v22 = phi [bb4: v21], [bb5: false]
     jumpi v22, bb7, bb8
-  bb8:  ; preds = bb6
+  bb8 [cold_hint]:  ; preds = bb6
     revert v14, v15
-  bb7:  ; preds = bb6
+  bb7 [cold_hint]:  ; preds = bb6
     v23 = mload v10
     v24 = ptradd v10, 36
     v25 = sub v23, 4
@@ -109,8 +108,7 @@ fn @attached(arg0: i1) -> i256 [selector=0x42425916, abi_params=[bool], abi_retu
     v4 = extract_value slice<memory>, v2, 1
     v5 = delegatecall v0, 0x1111111111111111111111111111111111111111, v3, v4, 0, 32
     jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
-    cold_path
+  bb2 [cold_hint]:  ; preds = bb0
     v10 = icall returndata_bytes<>
     v11 = ptradd v10, 32
     v12 = mload v10
@@ -122,18 +120,18 @@ fn @attached(arg0: i1) -> i256 [selector=0x42425916, abi_params=[bool], abi_retu
     v18 = shr v17, 224
     v19 = eq v18, 0x8c379a0
     jumpi v19, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5 [cold_hint]:  ; preds = bb2
     jump bb6
-  bb4:  ; preds = bb2
+  bb4 [cold_hint]:  ; preds = bb2
     v20 = ptrtoint ptr<memory> v14 to i256
     v21 = icall @try_decode_error_message, v20, v15
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6 [cold_hint]:  ; preds = bb4, bb5
     v22 = phi [bb4: v21], [bb5: false]
     jumpi v22, bb7, bb8
-  bb8:  ; preds = bb6
+  bb8 [cold_hint]:  ; preds = bb6
     revert v14, v15
-  bb7:  ; preds = bb6
+  bb7 [cold_hint]:  ; preds = bb6
     v23 = mload v10
     v24 = ptradd v10, 36
     v25 = sub v23, 4
@@ -161,8 +159,7 @@ fn @attachedValue(arg0: i256, arg1: i1) -> i256 [selector=0xcece4c7f, pure, abi_
     v4 = extract_value slice<memory>, v2, 1
     v5 = delegatecall v0, 0x1111111111111111111111111111111111111111, v3, v4, 0, 32
     jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
-    cold_path
+  bb2 [cold_hint]:  ; preds = bb0
     v10 = icall returndata_bytes<>
     v11 = ptradd v10, 32
     v12 = mload v10
@@ -174,18 +171,18 @@ fn @attachedValue(arg0: i256, arg1: i1) -> i256 [selector=0xcece4c7f, pure, abi_
     v18 = shr v17, 224
     v19 = eq v18, 0x8c379a0
     jumpi v19, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5 [cold_hint]:  ; preds = bb2
     jump bb6
-  bb4:  ; preds = bb2
+  bb4 [cold_hint]:  ; preds = bb2
     v20 = ptrtoint ptr<memory> v14 to i256
     v21 = icall @try_decode_error_message, v20, v15
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6 [cold_hint]:  ; preds = bb4, bb5
     v22 = phi [bb4: v21], [bb5: false]
     jumpi v22, bb7, bb8
-  bb8:  ; preds = bb6
+  bb8 [cold_hint]:  ; preds = bb6
     revert v14, v15
-  bb7:  ; preds = bb6
+  bb7 [cold_hint]:  ; preds = bb6
     v23 = mload v10
     v24 = ptradd v10, 36
     v25 = sub v23, 4
@@ -213,13 +210,12 @@ fn @emptyCode() [selector=0xddb3636e, pure, abi_params=[], abi_returns=[], abi_r
     icall revert_if<target_contract_has_no_code>, v2
     v3 = delegatecall v0, 0x1111111111111111111111111111111111111111, 28, 4, 0, 0
     jumpi v3, bb1, bb2
-  bb2:  ; preds = bb0
-    cold_path
+  bb2 [cold_hint]:  ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5 [cold_hint]:  ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:  ; preds = bb2
+  bb4 [cold_hint]:  ; preds = bb2
     icall require<short_string>, false, 6, 0x6361756768740000000000000000000000000000000000000000000000000000
     invalid
   bb1:  ; preds = bb0

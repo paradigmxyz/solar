@@ -10,8 +10,9 @@
 //@ run-call: looped 1 => 12
 //@ run-call: looped 2 => 9
 
-// The catch clauses of a `try` run rarely, as the unwind path of an `invoke` does: the clause
-// blocks are cold, and the success path and the join stay hot.
+// The catch clauses of a `try` run rarely, as the unwind path of an `invoke` does: lowering gives
+// the blocks of the catch side `cold_hint`, so they are cold, and the success path and the join
+// stay hot.
 
 contract C {
     function check(uint256 x) external pure returns (uint256) {
@@ -23,8 +24,7 @@ contract C {
     // CHECK-LABEL: fn @bare()
     // CHECK: staticcall
     // CHECK-NEXT: jumpi {{v[0-9]+}}, [[OK:bb[0-9]+]], [[CATCH:bb[0-9]+]]
-    // CHECK: [[CATCH]] [cold]:
-    // CHECK-NEXT: cold_path
+    // CHECK: [[CATCH]] [cold, cold_hint]:
     // CHECK: [[OK]]:
     function bare(uint256 x) public view returns (uint256) {
         try this.check(x) returns (uint256 y) {
@@ -37,8 +37,7 @@ contract C {
     // CHECK-LABEL: fn @typed()
     // CHECK: staticcall
     // CHECK-NEXT: jumpi {{v[0-9]+}}, [[OK:bb[0-9]+]], [[CATCH:bb[0-9]+]]
-    // CHECK: [[CATCH]] [cold]:
-    // CHECK-NEXT: cold_path
+    // CHECK: [[CATCH]] [cold, cold_hint]:
     // CHECK: [[OK]]:
     // CHECK: [[JOIN:bb[0-9]+]]:  ; preds = {{.*}}, {{.*}}
     // CHECK-NEXT: {{v[0-9]+}} = phi
@@ -57,9 +56,8 @@ contract C {
     // CHECK-LABEL: fn @looped()
     // CHECK: staticcall
     // CHECK-NEXT: jumpi {{v[0-9]+}}, [[OK:bb[0-9]+]], [[CATCH:bb[0-9]+]]
-    // CHECK: [[CATCH]] [cold]:
-    // CHECK-NEXT: cold_path
-    // CHECK: [[LOOP:bb[0-9]+]] [cold]:  ; preds = [[CATCH]], {{.*}}
+    // CHECK: [[CATCH]] [cold, cold_hint]:
+    // CHECK: [[LOOP:bb[0-9]+]] [cold, cold_hint]:  ; preds = [[CATCH]], {{.*}}
     // CHECK-NEXT: {{v[0-9]+}} = phi
     // CHECK: [[OK]]:
     // CHECK: [[JOIN:bb[0-9]+]]:  ; preds = {{.*}}, {{.*}}

@@ -16,11 +16,11 @@
 //! probability of the edge into the region it ends, never of a straight-line path, since the code
 //! after a call that returns still runs. A call on the only path leaves its caller hot.
 //!
-//! `cold_path` (`InstKind::ColdPath`), what lowering puts first in every catch block of a `try`, is
-//! a second seed kind with the same rule, the way LLVM treats the unwind edge of an `invoke` and
-//! rustc a cleanup path: the block that holds it is the start of a rarely run region, never an
-//! abort. The success path and the join of the `try` stay hot, and the catch clauses are cold, a
-//! loop in a clause included.
+//! A block with `BasicBlock::cold_hint` is the block version of that attribute, a fact from the
+//! source: lowering sets it on the blocks of a `catch` clause, and the analysis only reads it, as
+//! LLVM treats the unwind edge of an `invoke` and rustc a cleanup path. The block is cold, never an
+//! abort, and a seed of the region walk, so the code behind it that only a cold edge enters is cold
+//! too. The success path and the join of the `try` stay hot.
 //!
 //! A block is cold by the rules of its function's objective, the module's unless the function
 //! has one of its own:
@@ -50,9 +50,9 @@ pub(crate) struct HotnessAnalysis {
     /// Whether any function of the module is `cold_hint`, so a call to it can seed a region.
     /// Set with the cold functions, from attributes no pass changes after lowering.
     has_cold_hint: bool,
-    /// Whether the function under analysis has a block with `cold_path`, so it can seed a region.
+    /// Whether the function under analysis has a block with `cold_hint`, which seeds a region.
     /// Set with the cold blocks, by the scan for aborting blocks.
-    has_cold_path: bool,
+    has_hinted_block: bool,
     worklist: Vec<BlockId>,
     visited: GrowableBitSet<BlockId>,
     /// The functions whose walk met a call to each function while it was not cold.
@@ -72,7 +72,7 @@ impl HotnessAnalysis {
             hot_blocks: DenseBitSet::new_empty(0),
             region: DenseBitSet::new_empty(0),
             has_cold_hint: false,
-            has_cold_path: false,
+            has_hinted_block: false,
             worklist: Vec::new(),
             visited: GrowableBitSet::new_empty(),
             callers: IndexVec::new(),
@@ -178,8 +178,19 @@ impl HotnessAnalysis {
         self.collect_cold_blocks(module, func, !objective.is_none(), marks_failure_paths_cold);
         if func.attributes.cold_hint {
             self.cold_blocks.insert_all();
-        } else if (self.has_cold_hint || self.has_cold_path) && !objective.is_none() {
-            self.mark_cold_regions(module, func);
+        } else {
+            if (self.has_cold_hint || self.has_hinted_block) && !objective.is_none() {
+                self.mark_cold_regions(module, func);
+            }
+            // The hint is a fact, so it holds under every objective. It comes last: a hinted block
+            // on the only path to an exit does not make the blocks around it cold.
+            if self.has_hinted_block {
+                for (block_id, block) in func.blocks.iter_enumerated() {
+                    if block.cold_hint {
+                        self.cold_blocks.insert(block_id);
+                    }
+                }
+            }
         }
     }
 
@@ -196,9 +207,12 @@ impl HotnessAnalysis {
     fn mark_cold_regions(&mut self, module: &Module, func: &Function) {
         self.hot_blocks.clear_to(func.blocks.len());
         self.worklist.clear();
-        // A seed: a block with `cold_path`, or a call to a function that is rarely run and
-        // returns.
-        let is_seed = |block| is_seed(module, func, block);
+        // A seed: a block the source says is rarely run, or a call to a function that is rarely
+        // run and returns.
+        let has_cold_hint = self.has_cold_hint;
+        let is_seed = |block: BlockId| {
+            func.blocks[block].cold_hint || has_cold_hint && calls_cold_hint(module, func, block)
+        };
         if !func.blocks.indices().any(is_seed) {
             return;
         }
@@ -383,10 +397,11 @@ impl HotnessAnalysis {
         let is_cold =
             |function: FunctionId| module.functions[function].attributes.hotness.is_cold();
         self.cold_blocks.clear_to(func.blocks.len());
-        self.has_cold_path = false;
+        self.has_hinted_block = false;
         self.worklist.clear();
         for block_id in func.blocks.indices() {
-            if block_aborts(func, block_id, is_cold, &mut self.has_cold_path) {
+            self.has_hinted_block |= func.blocks[block_id].cold_hint;
+            if block_aborts(func, block_id, is_cold) {
                 self.cold_blocks.insert(block_id);
                 self.worklist.push(block_id);
             }
@@ -442,38 +457,29 @@ impl HotnessAnalysis {
 
 /// Whether a block aborts instead of continuing: it reverts, or calls a cold function.
 pub(crate) fn aborts(func: &Function, block: BlockId, cold: &DenseBitSet<FunctionId>) -> bool {
-    block_aborts(func, block, |function| cold.contains(function), &mut false)
+    block_aborts(func, block, |function| cold.contains(function))
 }
 
-/// Whether a block aborts, setting `holds_cold_path` if the scan meets `cold_path` first. A marker
-/// never makes a block abort, and the scan stops at the first call that does: an aborting block is
-/// cold whether it seeds a region or not.
-fn block_aborts(
-    func: &Function,
-    block: BlockId,
-    is_cold: impl Fn(FunctionId) -> bool,
-    holds_cold_path: &mut bool,
-) -> bool {
+fn block_aborts(func: &Function, block: BlockId, is_cold: impl Fn(FunctionId) -> bool) -> bool {
     let body = &func.blocks[block];
-    body.instructions.iter().any(|&inst| match func.inst(inst).kind {
-        InstKind::ICall { function: Callee::Function(function), .. } => is_cold(function),
-        InstKind::ColdPath => {
-            *holds_cold_path = true;
-            false
-        }
-        _ => false,
+    body.instructions.iter().any(|&inst| {
+        matches!(
+            func.inst(inst).kind,
+            InstKind::ICall { function: Callee::Function(function), .. } if is_cold(function)
+        )
     }) || body.terminator.as_ref().is_some_and(Terminator::reverts)
         || matches!(body.terminator, Some(Terminator::TailCall { function, .. }) if is_cold(function))
 }
 
-/// Whether a block holds `cold_path`, or calls or tail calls a `cold_hint` function.
-fn is_seed(module: &Module, func: &Function, block: BlockId) -> bool {
+/// Whether a block calls or tail calls a `cold_hint` function.
+fn calls_cold_hint(module: &Module, func: &Function, block: BlockId) -> bool {
     let body = &func.blocks[block];
     let is_hint = |function: FunctionId| module.functions[function].attributes.cold_hint;
-    body.instructions.iter().any(|&inst| match func.inst(inst).kind {
-        InstKind::ColdPath => true,
-        InstKind::ICall { function: Callee::Function(function), .. } => is_hint(function),
-        _ => false,
+    body.instructions.iter().any(|&inst| {
+        matches!(
+            func.inst(inst).kind,
+            InstKind::ICall { function: Callee::Function(function), .. } if is_hint(function)
+        )
     }) || matches!(body.terminator, Some(Terminator::TailCall { function, .. }) if is_hint(function))
 }
 

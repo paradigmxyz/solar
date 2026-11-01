@@ -329,6 +329,3 @@
 
 (decl signextend (Value Value) Value)
 (extractor (signextend byte value) (inst (Op.SignExtend byte value)))
-
-(decl coldpath () Value)
-(extractor (coldpath) (inst (Op.ColdPath)))

@@ -69,13 +69,12 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
     v5 = zext i160 v2 to i256
     v6 = call v4, v5, 0, 28, 4, 0, 32
     jumpi v6, bb3, bb4
-  bb4:  ; preds = bb2
-    cold_path
+  bb4 [cold_hint]:  ; preds = bb2
     jumpi true, bb6, bb7
-  bb7:  ; preds = bb4
+  bb7 [cold_hint]:  ; preds = bb4
     icall revert_if<empty>, true
     invalid
-  bb6:  ; preds = bb4
+  bb6 [cold_hint]:  ; preds = bb4
     jump bb5
   bb3:  ; preds = bb2
     v7 = returndatasize
@@ -108,13 +107,12 @@ fn @liveTwo() -> i256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word], a
     v8 = zext i160 v2 to i256
     v9 = call v4, v8, 0, v6, v7, v6, 64
     jumpi v9, bb3, bb4
-  bb4:  ; preds = bb2
-    cold_path
+  bb4 [cold_hint]:  ; preds = bb2
     jumpi true, bb6, bb7
-  bb7:  ; preds = bb4
+  bb7 [cold_hint]:  ; preds = bb4
     icall revert_if<empty>, true
     invalid
-  bb6:  ; preds = bb4
+  bb6 [cold_hint]:  ; preds = bb4
     jump bb5
   bb3:  ; preds = bb2
     v10 = returndatasize
@@ -153,13 +151,12 @@ fn @liveAggregate() -> i256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[wo
     v9 = zext i160 v2 to i256
     v10 = call v4, v9, 0, v6, v7, v8, 64
     jumpi v10, bb3, bb4
-  bb4:  ; preds = bb2
-    cold_path
+  bb4 [cold_hint]:  ; preds = bb2
     jumpi true, bb6, bb7
-  bb7:  ; preds = bb4
+  bb7 [cold_hint]:  ; preds = bb4
     icall revert_if<empty>, true
     invalid
-  bb6:  ; preds = bb4
+  bb6 [cold_hint]:  ; preds = bb4
     jump bb5
   bb3:  ; preds = bb2
     v11 = returndatasize
@@ -204,13 +201,12 @@ fn @liveNoReturn() -> i256 [selector=0x0f81fb69, abi_params=[], abi_returns=[wor
     v8 = zext i160 v2 to i256
     v9 = call v4, v8, 0, 28, 4, 0, 0
     jumpi v9, bb3, bb4
-  bb4:  ; preds = bb2
-    cold_path
+  bb4 [cold_hint]:  ; preds = bb2
     jumpi true, bb6, bb7
-  bb7:  ; preds = bb4
+  bb7 [cold_hint]:  ; preds = bb4
     icall revert_if<empty>, true
     invalid
-  bb6:  ; preds = bb4
+  bb6 [cold_hint]:  ; preds = bb4
     jump bb5
   bb3:  ; preds = bb2
     jump bb5
@@ -236,13 +232,12 @@ fn @liveCatch() -> i256 [selector=0x852bf1e6, abi_params=[], abi_returns=[word],
     v5 = zext i160 v2 to i256
     v6 = call v4, v5, 1, 28, 4, 0, 32
     jumpi v6, bb3, bb4
-  bb4:  ; preds = bb2
-    cold_path
+  bb4 [cold_hint]:  ; preds = bb2
     jumpi true, bb6, bb7
-  bb7:  ; preds = bb4
+  bb7 [cold_hint]:  ; preds = bb4
     icall revert_if<empty>, true
     invalid
-  bb6:  ; preds = bb4
+  bb6 [cold_hint]:  ; preds = bb4
     jump bb5
   bb3:  ; preds = bb2
     v7 = returndatasize
@@ -279,13 +274,12 @@ fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
     mstore 0, v11 !metadata(memory=scratch)
     v12 = call v10, v9, 0, 28, 4, 0, 32
     jumpi v12, bb3, bb4
-  bb4:  ; preds = bb2
-    cold_path
+  bb4 [cold_hint]:  ; preds = bb2
     jumpi true, bb6, bb7
-  bb7:  ; preds = bb4
+  bb7 [cold_hint]:  ; preds = bb4
     icall revert_if<empty>, true
     invalid
-  bb6:  ; preds = bb4
+  bb6 [cold_hint]:  ; preds = bb4
     jump bb5
   bb3:  ; preds = bb2
     v13 = returndatasize
@@ -308,13 +302,12 @@ fn @liveCreation() -> i256 [selector=0xb217934d, abi_params=[], abi_returns=[wor
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb1, bb2
-  bb2:  ; preds = bb0
-    cold_path
+  bb2 [cold_hint]:  ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5 [cold_hint]:  ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:  ; preds = bb2
+  bb4 [cold_hint]:  ; preds = bb2
     jump bb3
   bb1:  ; preds = bb0
     jump bb3
@@ -330,13 +323,12 @@ fn @noCode() -> i256 [selector=0x96c56dce, abi_params=[], abi_returns=[word], ab
     mstore 0, 0x3fa4f245 !metadata(memory=scratch)
     v1 = call v0, 0, 0, 28, 4, 0, 32
     jumpi v1, bb1, bb2
-  bb2:  ; preds = bb0
-    cold_path
+  bb2 [cold_hint]:  ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5 [cold_hint]:  ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:  ; preds = bb2
+  bb4 [cold_hint]:  ; preds = bb2
     jump bb3
   bb1:  ; preds = bb0
     v2 = returndatasize
@@ -360,13 +352,12 @@ fn @noCodeNoReturn() -> i256 [selector=0xac1b26c4, abi_params=[], abi_returns=[w
     icall revert_if<target_contract_has_no_code>, v2
     v3 = call v0, 0, 0, 28, 4, 0, 0
     jumpi v3, bb1, bb2
-  bb2:  ; preds = bb0
-    cold_path
+  bb2 [cold_hint]:  ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5 [cold_hint]:  ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:  ; preds = bb2
+  bb4 [cold_hint]:  ; preds = bb2
     jump bb3
   bb1:  ; preds = bb0
     jump bb3
