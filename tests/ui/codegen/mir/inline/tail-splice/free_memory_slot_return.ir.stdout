@@ -20,11 +20,11 @@ fn @sum() {
   bb2:
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -42,11 +42,11 @@ fn @diff() {
   bb2:
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -65,7 +65,7 @@ fn @entry() [entry] {
     tail_call @raw
   bb2:
     tail_call @diff
-  bb5:
+  bb5 [cold]:
     revert 0, 0
 }
 
@@ -106,7 +106,7 @@ fn @entry() [entry] {
   bb8:
     mstore 0, v11
     returndata 0, 32
-  bb7:
+  bb7 [cold]:
     mstore 32, 17
     mstore 0, 0x4e487b71
     revert 28, 36
@@ -117,7 +117,7 @@ fn @entry() [entry] {
   bb6:
     mstore 64, v19
     returndata 64, 32
-  bb5:
+  bb5 [cold]:
     revert 0, 0
 }
 
@@ -138,7 +138,7 @@ fn @raw() {
     jump bb2
   bb2:
     returndata 64, 32
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -156,11 +156,11 @@ fn @sum() {
   bb2:
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -178,11 +178,11 @@ fn @diff() {
   bb2:
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -201,6 +201,6 @@ fn @entry() [entry] {
     tail_call @diff
   bb2:
     tail_call @raw
-  bb5:
+  bb5 [cold]:
     revert 0, 0
 }

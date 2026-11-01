@@ -29,7 +29,7 @@
       tail_call @sub
     bb1:
       tail_call @add
-    bb3:
+    bb3 [cold]:
       revert 0, 0
   }
   
@@ -64,7 +64,7 @@
       tail_call @sub
     bb1:
       tail_call @add
-    bb3:
+    bb3 [cold]:
       revert 0, 0
   }
   
@@ -99,7 +99,7 @@
       tail_call @sub
     bb1:
       tail_call @add
-    bb3:
+    bb3 [cold]:
       revert 0, 0
   }
   

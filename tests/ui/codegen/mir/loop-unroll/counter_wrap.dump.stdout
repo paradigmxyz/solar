@@ -42,6 +42,6 @@ fn @entry() [entry] {
     tail_call @inclusiveStep
   bb2:
     tail_call @below
-  bb6:
+  bb6 [cold]:
     revert 0, 0
 }

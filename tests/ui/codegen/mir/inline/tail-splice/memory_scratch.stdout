@@ -51,7 +51,7 @@
 +     v2 = calldataload 4
 +     mstore 0, v2
 +     returndata 0, 32
-    bb4:
+    bb4 [cold]:
       revert 0, 0
   }
   
@@ -83,7 +83,7 @@
       v2 = calldataload 4
       mstore 0, v2
       returndata 0, 32
-    bb4:
+    bb4 [cold]:
       revert 0, 0
   }
   
@@ -109,7 +109,7 @@
       v2 = calldataload 4
       mstore 0, v2
       returndata 0, 32
-    bb4:
+    bb4 [cold]:
       revert 0, 0
   }
   

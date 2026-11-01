@@ -61,7 +61,7 @@
 +     v4 = add v2, v3
 +     mstore 0, v4
 +     returndata 0, 32
-    bb4:
+    bb4 [cold]:
       revert 0, 0
   }
   
@@ -98,7 +98,7 @@
       v4 = add v2, v3
       mstore 0, v4
       returndata 0, 32
-    bb4:
+    bb4 [cold]:
       revert 0, 0
   }
   
@@ -129,7 +129,7 @@
       v4 = add v2, v3
       mstore 0, v4
       returndata 0, 32
-    bb4:
+    bb4 [cold]:
       revert 0, 0
   }
   
