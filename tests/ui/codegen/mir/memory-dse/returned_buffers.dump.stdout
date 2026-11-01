@@ -157,8 +157,10 @@ fn @_copy(arg0: i256) -> i256 [may_return_memory, view] {
     jumpi v82, bb13, bb12
   bb12:
     mstore 64, v77 !metadata(memory=scratch)
+    v83 = calldatasize
+    calldatacopy v76, v83, v10
     mstore v76, v55
-    v83 = and arg0, 255
+    v84 = and arg0, 255
     jump bb1
   bb1:
     v15 = phi [bb12: 0], [bb6: v49]
@@ -181,7 +183,7 @@ fn @_copy(arg0: i256) -> i256 [may_return_memory, view] {
     v34 = shl v32, 3
     v35 = shr v33, v34
     v37 = and v35, 255
-    v68 = mul v37, v83
+    v68 = mul v37, v84
     v69 = gt v68, 255
     jumpi v69, bb10, bb11
   bb11:

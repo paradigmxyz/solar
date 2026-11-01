@@ -6,6 +6,10 @@
 //@ run-call: afterCallStaging 4 => 0
 //@ run-call: afterAssemblyWrite 4 => 0
 //@ run-call: afterAssemblyReserve 4 => 0
+//@ run-call: afterCallOutput 4 => 0
+//@ run-call: afterRewind 4 => 0
+//@ run-call-fail: entryArray 1099511627776
+//@ run-call-fail: entryBytes 1099511627776
 //@ run-call: loopEmit 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 3 => 0
 //@ run-call: afterInternalStaging 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 4 => 0
 //@ run-call: decodeTail 0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000021aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000000000000000000000000000000000000000000000000000000000 => 0
@@ -71,6 +75,27 @@ contract Test {
             mstore(ptr, not(0))
             mstore(add(ptr, 0x20), not(0))
             mstore(add(ptr, 0x40), not(0))
+        }
+        return or(new uint256[](n)) | orBytes(new bytes(n * 32));
+    }
+
+    // A call writes its output at the pointer without reserving it.
+    function afterCallOutput(uint256 n) external view returns (uint256) {
+        assembly ("memory-safe") {
+            let ptr := mload(0x40)
+            mstore(0, shl(224, 0x887b13a3))
+            pop(staticcall(gas(), address(), 0, 4, ptr, 0x100))
+        }
+        return or(new uint256[](n)) | orBytes(new bytes(n * 32));
+    }
+
+    // The pointer moves back over an allocation that holds data.
+    function afterRewind(uint256 n) external pure returns (uint256) {
+        uint256[] memory old = new uint256[](4);
+        old[0] = type(uint256).max;
+        old[3] = type(uint256).max;
+        assembly ("memory-safe") {
+            mstore(0x40, old)
         }
         return or(new uint256[](n)) | orBytes(new bytes(n * 32));
     }

@@ -152,6 +152,8 @@ fn @hashes() [selector=0x501895ae, abi_wrapper, pure] {
     v80 = ne v79, 0
     jumpi v80, bb16, bb15
   bb15:
+    v81 = calldatasize
+    calldatacopy v74, v81, v9
     mstore v74, arg0
     v37 = or v74, arg0
     v51 = shr v37, 64
@@ -160,11 +162,11 @@ fn @hashes() [selector=0x501895ae, abi_wrapper, pure] {
     v47 = and v45, v46
     jumpi v47, bb6, bb7
   bb7:
-    v81 = add v74, 32
+    v82 = add v74, 32
     jump bb1
   bb1:
     v15 = phi [bb7: 0], [bb12: v24]
-    v82 = phi [bb7: v81], [bb12: v83]
+    v83 = phi [bb7: v82], [bb12: v84]
     v16 = lt v15, arg0
     jumpi v16, bb3, bb2
   bb3:
@@ -178,16 +180,16 @@ fn @hashes() [selector=0x501895ae, abi_wrapper, pure] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb12:
-    mstore v82, v49
+    mstore v83, v49
     v24 = add v15, 1
-    v83 = add v82, 32
+    v84 = add v83, 32
     jump bb1
   bb6:
-    v84 = add v74, 32
+    v85 = add v74, 32
     jump bb4
   bb4:
     v25 = phi [bb6: 0], [bb5: v33]
-    v85 = phi [bb6: v84], [bb5: v86]
+    v86 = phi [bb6: v85], [bb5: v87]
     v26 = lt v25, arg0
     jumpi v26, bb5, bb2
   bb2:
@@ -200,9 +202,9 @@ fn @hashes() [selector=0x501895ae, abi_wrapper, pure] {
   bb5:
     mstore 0, v25 !metadata(memory=scratch)
     v50 = keccak256 0, 32 !metadata(memory=scratch)
-    mstore v85, v50
+    mstore v86, v50
     v33 = add v25, 1
-    v86 = add v85, 32
+    v87 = add v86, 32
     jump bb4
   bb16 [cold]:
     mstore 32, 65 !metadata(memory=scratch)

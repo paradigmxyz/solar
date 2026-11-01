@@ -1,0 +1,21 @@
+- // === ROOT/tests/ui/codegen/mir/lower-alloc/untouched_heap_msize.mir (before lower-alloc) ===
++ // === ROOT/tests/ui/codegen/mir/lower-alloc/untouched_heap_msize.mir (after lower-alloc) ===
+  @module UntouchedHeapMsize
+  fn @allocates() -> i256 [selector=0x30000020] {
+    bb0:
+-     v0 = alloc 64
++     v2 = heap_floor !metadata(alloc_ptr)
++     v0 = inttoptr i256 v2 to ptr<memory> !metadata(memory=scratch)
++     v3 = add v2, 64 !metadata(alloc_ptr)
++     mstore 64, v3 !metadata(memory=scratch)
+      memory_zero v0, 64
+      v1 = ptrtoint ptr<memory> v0 to i256
+      ret v1
+  }
+  
+  fn @measures() -> i256 [selector=0x30000021] {
+    bb0:
+      v0 = msize
+      ret v0
+  }
+  

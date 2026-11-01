@@ -10,7 +10,8 @@
 //! A checked allocation bumps the pointer only after testing the new end against overflow and
 //! the allocation limit, panicking otherwise. When a module has two or more, one `alloc(size)`
 //! helper owns the pointer load, check, panic, and update, and each site calls it and keeps its
-//! own zeroing; a single checked allocation splits its block around the inline check instead.
+//! own zeroing unless that is dead (see below); a single checked allocation splits its block
+//! around the inline check instead.
 //!
 //! A preserving allocation that reserves bytes an encoder already wrote through an
 //! earlier pointer read in the same block reuses that read instead of loading the
@@ -250,7 +251,7 @@ fn lower_function(
                     store_fmp(&mut builder, next);
                     initialize(&mut builder, ptr, size, is_zeroed(fresh, id, inst, semantics));
                 }
-                // The memory it zeroes still holds only zeros.
+                // memory_zero ptr, size | mstore ptr, 0 -> dropped
                 InstKind::MemoryZero(..) | InstKind::Store(..)
                     if fresh.skips_zero_fill(id, inst) =>
                 {

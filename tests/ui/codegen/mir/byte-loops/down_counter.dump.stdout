@@ -31,8 +31,8 @@ fn @fromCalldata() [selector=0xffc7a8b3, abi_wrapper, pure] {
     v48 = sub v39, v47
     v49 = gt v46, v48
     v50 = or v45, v49
-    v90 = or v40, v50
-    jumpi v90, bb7, bb8
+    v91 = or v40, v50
+    jumpi v91, bb7, bb8
   bb8:
     v0 = add arg1, 63
     v1 = lt v0, arg1
@@ -49,6 +49,8 @@ fn @fromCalldata() [selector=0xffc7a8b3, abi_wrapper, pure] {
     jumpi v88, bb10, bb9
   bb9:
     mstore 64, v83 !metadata(memory=scratch)
+    v90 = calldatasize
+    calldatacopy v82, v90, v3
     mstore v82, arg1
     v31 = eq arg1, 0
     jumpi v31, bb1, bb2
@@ -109,6 +111,8 @@ fn @fromFresh() [selector=0x1f6686bd, abi_wrapper, pure] {
     jumpi v157, bb23, bb24
   bb24:
     mstore 64, v152 !metadata(memory=scratch)
+    v160 = calldatasize
+    calldatacopy v151, v160, v3
     mstore v151, arg0
     v83 = or v151, arg0
     v92 = shr v83, 64
@@ -122,24 +126,24 @@ fn @fromFresh() [selector=0x1f6686bd, abi_wrapper, pure] {
     jumpi v10, bb3, bb2
   bb3:
     v11 = add v9, 1
-    v160 = and v11, 255
+    v161 = and v11, 255
     v15 = mload v151
     v16 = lt v9, v15
     jumpi v16, bb16, bb15
   bb16:
     v128 = add v151, v9
     v129 = add v128, 32
-    mstore8 v129, v160
+    mstore8 v129, v161
     jump bb1
   bb12:
-    v162 = add v151, 32
-    v165 = add v151, arg0
-    v166 = add v165, 32
+    v163 = add v151, 32
+    v166 = add v151, arg0
+    v167 = add v166, 32
     jump bb9
   bb9:
     v70 = phi [bb12: 0], [bb10: v72]
-    v163 = phi [bb12: v162], [bb10: v164]
-    v71 = ne v163, v166
+    v164 = phi [bb12: v163], [bb10: v165]
+    v71 = ne v164, v167
     jumpi v71, bb10, bb2
   bb2:
     v144 = mload 64 !metadata(memory=scratch, alloc_ptr)
@@ -217,9 +221,9 @@ fn @fromFresh() [selector=0x1f6686bd, abi_wrapper, pure] {
     returndata v158, v115
   bb10:
     v72 = add v70, 1
-    v161 = and v72, 255
-    mstore8 v163, v161
-    v164 = add v163, 1
+    v162 = and v72, 255
+    mstore8 v164, v162
+    v165 = add v164, 1
     jump bb9
   bb23 [cold]:
     mstore 32, 65 !metadata(memory=scratch)

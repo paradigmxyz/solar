@@ -53,6 +53,8 @@ fn @uncheckedDown() [selector=0x0a3fd26a, abi_wrapper, pure] {
     v77 = ne v76, 0
     jumpi v77, bb10, bb9
   bb9:
+    v78 = calldatasize
+    calldatacopy v71, v78, v3
     mstore v71, arg2
     v31 = eq arg2, 0
     jumpi v31, bb1, bb2
@@ -112,6 +114,8 @@ fn @checkedDown() [selector=0xc6510b18, abi_wrapper, pure] {
     v75 = ne v74, 0
     jumpi v75, bb12, bb11
   bb11:
+    v76 = calldatasize
+    calldatacopy v69, v76, v3
     mstore v69, arg2
     v31 = eq arg2, 0
     jumpi v31, bb1, bb2
@@ -176,6 +180,8 @@ fn @mixedDown() [selector=0xcbd040ed, abi_wrapper, pure] {
     v69 = ne v68, 0
     jumpi v69, bb14, bb13
   bb13:
+    v70 = calldatasize
+    calldatacopy v63, v70, v3
     mstore v63, arg2
     jump bb1
   bb1:
@@ -253,6 +259,8 @@ fn @sourceFirst() [selector=0x032c601e, abi_wrapper, pure] {
     v71 = ne v70, 0
     jumpi v71, bb14, bb13
   bb13:
+    v72 = calldatasize
+    calldatacopy v65, v72, v3
     mstore v65, arg3
     jump bb1
   bb1:
@@ -332,6 +340,8 @@ fn @destinationFirst() [selector=0x5072325f, abi_wrapper, pure] {
     v73 = ne v72, 0
     jumpi v73, bb14, bb13
   bb13:
+    v74 = calldatasize
+    calldatacopy v67, v74, v3
     mstore v67, arg3
     jump bb1
   bb1:
@@ -355,8 +365,8 @@ fn @destinationFirst() [selector=0x5072325f, abi_wrapper, pure] {
     v13 = sub v33, 1
     v35 = add arg1, v10
     v36 = lt v35, arg1
-    v74 = or v34, v36
-    jumpi v74, bb9, bb10
+    v75 = or v34, v36
+    jumpi v75, bb9, bb10
   bb10:
     v15 = sub v35, 1
     v17 = lt v15, v40
@@ -411,6 +421,8 @@ fn @wrappedCopy() [selector=0xbd307fab, abi_wrapper, pure] {
     v87 = ne v86, 0
     jumpi v87, bb12, bb11
   bb11:
+    v88 = calldatasize
+    calldatacopy v81, v88, v9
     mstore v81, arg1
     v33 = eq arg1, 0
     jumpi v33, bb2, bb4
@@ -500,14 +512,14 @@ fn @wrappedArray() [selector=0x20a8a4e4, abi_wrapper, pure] {
     v86 = add v85, 4
     v88 = sub v83, 36
     v89 = gt v85, v88
-    v124 = or v84, v89
+    v125 = or v84, v89
     v90 = calldataload v86
     v91 = add v86, 32
     v92 = sub v83, v91
     v93 = shr v92, 5
     v94 = gt v90, v93
-    v125 = or v124, v94
-    jumpi v125, bb15, bb16
+    v126 = or v125, v94
+    jumpi v126, bb15, bb16
   bb16:
     v13 = add arg3, 1
     v14 = eq v13, 0
@@ -527,6 +539,8 @@ fn @wrappedArray() [selector=0x20a8a4e4, abi_wrapper, pure] {
     v123 = ne v122, 0
     jumpi v123, bb18, bb17
   bb17:
+    v124 = calldatasize
+    calldatacopy v117, v124, v15
     mstore v117, arg3
     v44 = eq arg3, 0
     jumpi v44, bb2, bb4

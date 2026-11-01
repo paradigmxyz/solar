@@ -461,6 +461,8 @@ fn @sliceCalldata() [selector=0xa10bf2ab, abi_wrapper, pure] {
     v78 = ne v77, 0
     jumpi v78, bb10, bb9
   bb9:
+    v79 = calldatasize
+    calldatacopy v72, v79, v3
     mstore v72, arg2
     v29 = eq arg2, 0
     jumpi v29, bb1, bb2
@@ -619,6 +621,8 @@ fn @freshPair() [selector=0xded17a67, abi_wrapper, pure] {
     jumpi v140, bb23, bb22
   bb22:
     mstore 64, v135 !metadata(memory=scratch)
+    v143 = calldatasize
+    calldatacopy v134, v143, v3
     mstore v134, arg0
     v80 = or v134, arg0
     v89 = shr v80, 64
@@ -632,24 +636,24 @@ fn @freshPair() [selector=0xded17a67, abi_wrapper, pure] {
     jumpi v9, bb3, bb2
   bb3:
     v10 = add v8, 1
-    v143 = and v10, 255
+    v144 = and v10, 255
     v14 = mload v134
     v15 = lt v8, v14
     jumpi v15, bb16, bb15
   bb16:
     v118 = add v134, v8
     v119 = add v118, 32
-    mstore8 v119, v143
+    mstore8 v119, v144
     jump bb1
   bb12:
-    v145 = add v134, 32
-    v148 = add v134, arg0
-    v149 = add v148, 32
+    v146 = add v134, 32
+    v149 = add v134, arg0
+    v150 = add v149, 32
     jump bb9
   bb9:
     v67 = phi [bb12: 0], [bb10: v69]
-    v146 = phi [bb12: v145], [bb10: v147]
-    v68 = ne v146, v149
+    v147 = phi [bb12: v146], [bb10: v148]
+    v68 = ne v147, v150
     jumpi v68, bb10, bb2
   bb2:
     v133 = icall @alloc, v3
@@ -711,9 +715,9 @@ fn @freshPair() [selector=0xded17a67, abi_wrapper, pure] {
     returndata v109, v104
   bb10:
     v69 = add v67, 1
-    v144 = and v69, 255
-    mstore8 v146, v144
-    v147 = add v146, 1
+    v145 = and v69, 255
+    mstore8 v147, v145
+    v148 = add v147, 1
     jump bb9
   bb23 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
@@ -1071,14 +1075,14 @@ fn @wordsFromCalldata() [selector=0xd35cf802, abi_wrapper, pure] {
     v52 = add v51, 4
     v54 = sub v49, 36
     v55 = gt v51, v54
-    v83 = or v50, v55
+    v84 = or v50, v55
     v56 = calldataload v52
     v57 = add v52, 32
     v58 = sub v49, v57
     v59 = shr v58, 5
     v60 = gt v56, v59
-    v84 = or v83, v60
-    jumpi v84, bb5, bb6
+    v85 = or v84, v60
+    jumpi v85, bb5, bb6
   bb6:
     v47 = add v56, 1
     v9 = add v47, 1
@@ -1096,6 +1100,8 @@ fn @wordsFromCalldata() [selector=0xd35cf802, abi_wrapper, pure] {
     v82 = ne v81, 0
     jumpi v82, bb8, bb7
   bb7:
+    v83 = calldatasize
+    calldatacopy v76, v83, v11
     mstore v76, v47
     v37 = eq v56, 0
     jumpi v37, bb1, bb2

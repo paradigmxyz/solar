@@ -28,6 +28,10 @@ impl EvmMemoryLayout {
     pub const INTERNAL_FRAME_HEADER_SIZE: u64 = 2 * Self::WORD_SIZE;
     /// Maximum memory pointer accepted by Solidity-compatible allocation.
     pub const MAX_ALLOCATION_END: u64 = u64::MAX;
+    /// Largest zero fill of untouched memory that may be dropped. Expanding memory to four times
+    /// this size costs more gas than a call can have, so a larger fill is what makes an
+    /// allocation of that size fail, and it stays.
+    pub const MAX_DEAD_FILL: u64 = 1 << 20;
     /// Returns the word a word-aligned byte offset addresses.
     #[must_use]
     pub const fn word_slot(offset: u64) -> Option<u64> {

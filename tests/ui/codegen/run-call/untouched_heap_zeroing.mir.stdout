@@ -281,6 +281,96 @@ fn @afterAssemblyWrite(arg0: i256) -> i256 [selector=0x53590236, pure, abi_param
     ret v27
 }
 
+fn @afterCallOutput(arg0: i256) -> i256 [selector=0x0981ad40, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = shl 0x887b13a3, 224
+    mstore 0, v1 !metadata(memory=scratch)
+    v2 = address
+    v3 = zext i160 v2 to i256
+    v4 = gas
+    v5 = staticcall v4, v3, 0, 4, v0, 256
+    v6 = zext i1 v5 to i256
+    v7 = mul arg0, 1
+    v8 = eq 1, 0
+    v9 = div v7, 1
+    v10 = eq v9, arg0
+    v11 = or v8, v10
+    v12 = zext i1 v11 to i256
+    v13 = eq v12, 0
+    icall panic_if<0x41>, v13
+    v14 = add v7, 1
+    v15 = lt v14, v7
+    icall panic_if<0x41>, v15
+    v16 = mul v14, 32
+    v17 = shr v14, 251
+    v18 = ne v17, 0
+    icall panic_if<0x41>, v18
+    v19 = alloc zeroed checked v16
+    mstore v19, arg0
+    v20 = icall @or, v19
+    v21 = checked_mul uint256, arg0, 32
+    v22 = add v21, 63
+    v23 = lt v22, v21
+    icall panic_if<0x41>, v23
+    v24 = not 31
+    v25 = and v22, v24
+    v26 = alloc zeroed checked v25
+    mstore v26, v21
+    v27 = icall @orBytes, v26
+    v28 = or v20, v27
+    ret v28
+}
+
+fn @afterRewind(arg0: i256) -> i256 [selector=0xd109d495, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc zeroed checked 160
+    mstore v0, 4
+    v1 = mload v0
+    v2 = lt 0, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = ptradd v0, 32
+    mstore v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v5 = mload v0
+    v6 = lt 3, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = ptradd v0, 128
+    mstore v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v9 = ptrtoint ptr<memory> v0 to i256
+    mstore 64, v9 !metadata(memory=scratch)
+    v10 = mul arg0, 1
+    v11 = eq 1, 0
+    v12 = div v10, 1
+    v13 = eq v12, arg0
+    v14 = or v11, v13
+    v15 = zext i1 v14 to i256
+    v16 = eq v15, 0
+    icall panic_if<0x41>, v16
+    v17 = add v10, 1
+    v18 = lt v17, v10
+    icall panic_if<0x41>, v18
+    v19 = mul v17, 32
+    v20 = shr v17, 251
+    v21 = ne v20, 0
+    icall panic_if<0x41>, v21
+    v22 = alloc zeroed checked v19
+    mstore v22, arg0
+    v23 = icall @or, v22
+    v24 = checked_mul uint256, arg0, 32
+    v25 = add v24, 63
+    v26 = lt v25, v24
+    icall panic_if<0x41>, v26
+    v27 = not 31
+    v28 = and v25, v27
+    v29 = alloc zeroed checked v28
+    mstore v29, v24
+    v30 = icall @orBytes, v29
+    v31 = or v23, v30
+    ret v31
+}
+
 fn @afterAssemblyReserve(arg0: i256) -> i256 [selector=0x26ad54b0, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)

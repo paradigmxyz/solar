@@ -383,7 +383,7 @@ bb41 [loop]:
   not
   and
   push 128
-  swap 1
+  dup 2
   dup 2
   add
   dup 2
@@ -397,6 +397,10 @@ bb41 [loop]:
   jumpi
   push 64
   mstore
+  swap 1
+  calldatasize
+  dup 3
+  calldatacopy
   dup 2
   dup 2
   mstore

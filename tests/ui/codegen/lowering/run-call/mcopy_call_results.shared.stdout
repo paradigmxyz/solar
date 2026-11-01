@@ -167,6 +167,8 @@ fn @counting(arg0: i256) -> i256 [may_return_memory, pure] {
   bb5:
     v3 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v25 = icall @alloc, v3
+    v27 = calldatasize
+    calldatacopy v25, v27, v3
     mstore v25, arg0
     jump bb1
   bb1:
@@ -177,7 +179,7 @@ fn @counting(arg0: i256) -> i256 [may_return_memory, pure] {
     ret v25
   bb3:
     v9 = add v7, 1
-    v26 = and v9, 255
+    v28 = and v9, 255
     v13 = mload v25
     v14 = lt v7, v13
     jumpi v14, bb7, bb6
@@ -186,7 +188,7 @@ fn @counting(arg0: i256) -> i256 [may_return_memory, pure] {
   bb7:
     v21 = add v25, v7
     v22 = add v21, 32
-    mstore8 v22, v26
+    mstore8 v22, v28
     jump bb1
   bb4 [cold]:
     tail_call @revert_stub.5
