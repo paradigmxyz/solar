@@ -19,10 +19,15 @@
 //!
 //! Gas mode keeps computations and immediate pushes in known loop blocks inline, since each
 //! outlined site adds call and return jumps on every iteration and static duplicate counts cannot
-//! justify that. Size mode shares a
-//! push inside a loop only when the bytes it saves there repay those jumps over the expected
-//! executions, at the target's estimate of a loop's iterations per execution, so a constant that
-//! enough other code repeats does not slow down every iteration of an unrelated loop.
+//! justify that. Cold blocks, which do not run on a successful call, are the exception: their
+//! sites pay no gas, as [`Target::site_gas`] prices them like a size build, so a loop of cold
+//! blocks is no loop, and a share whose sites are all cold needs only to save bytes. In a share
+//! that also has hot sites, only those pay the transfer gas.
+//!
+//! Size mode shares a push inside a loop only when the bytes it saves there repay those jumps over
+//! the expected executions, at the target's estimate of a loop's iterations per execution, so a
+//! constant that enough other code repeats does not slow down every iteration of an unrelated
+//! loop.
 //!
 //! Replacing a site splits its block around the run, so both ends of a candidate run must be
 //! boundaries `keep_with_next` allows to become block boundaries.
@@ -32,6 +37,7 @@
 //! Large modules shorten the maximum considered run rather than allowing unbounded compile time.
 //! In gas mode, a module-wide screen first asks whether the widest push, or a closed whitelisted
 //! prefix that occurs at two starts, could repay its transfer gas over the expected executions.
+//! A module with a cold block is screened at no transfer gas, since a share may be all cold.
 //! When neither could, the pass builds no run tables. Machine runs are skipped only when no push
 //! can be shared either, since a rejected store run keeps its literal from becoming a push share.
 //!
@@ -102,7 +108,8 @@ fn outline(gcx: Gcx<'_>, module: &mut Module) -> bool {
 /// Returns whether any repeated push could repay its call and return gas in gas mode.
 ///
 /// A share of `n` pushes, each at most a `PUSH32` and its immediate, saves fewer than
-/// `n * (PUSH32 bytes - site bytes)` bytes, while its transfers cost `n` times the transfer gas.
+/// `n * (PUSH32 bytes - site bytes)` bytes, while its transfers cost `n` times the transfer gas
+/// at hot sites and nothing at cold ones.
 fn may_share_pushes(gcx: Gcx<'_>, module: &Module) -> bool {
     if !module.optimization.is_gas() {
         return true;
@@ -111,25 +118,31 @@ fn may_share_pushes(gcx: Gcx<'_>, module: &Module) -> bool {
     let (site_bytes, _, transfer_gas) = push_share_costs(&target);
     target.deposit_repays_gas(
         u64::from(target.opcode(op::PUSH32).bytes).saturating_sub(site_bytes as u64),
-        u64::from(transfer_gas),
+        u64::from(screen_transfer_gas(&target, module, transfer_gas)),
     )
+}
+
+/// The transfer gas per site that a screen must assume: a share with a cold site pays less than
+/// `gas` for it, so a module with a cold block is screened as if every site were cold.
+fn screen_transfer_gas(target: &Target, module: &Module, gas: u32) -> u32 {
+    target.site_gas(module.blocks.iter().any(|block| block.metadata.hotness.is_cold()), gas)
 }
 
 /// Returns whether gas mode could share some closed machine run outside loops.
 ///
 /// A share of `n` runs of `size` bytes saves fewer than `n * (size - transfer bytes)` bytes,
 /// while its transfers cost at least `n` times the gas of two pushes, two jumps, and two
-/// labels. Every candidate is a closed run of whitelisted instructions, and every site of a
-/// profitable share starts with the same shortest closed prefix that is large enough. Sharing
-/// is possible only if two starts have equal prefixes, which hashes can rule out. The screen
-/// shares the outliner's candidate budget and gives up, answering yes, once it is spent.
+/// labels, at hot sites only. Every candidate is a closed run of whitelisted instructions, and
+/// every site of a profitable share starts with the same shortest closed prefix that is large
+/// enough. Sharing is possible only if two starts have equal prefixes, which hashes can rule out.
+/// The screen shares the outliner's candidate budget and gives up, answering yes, once it is spent.
 fn may_share_machine_runs(gcx: Gcx<'_>, module: &Module) -> bool {
     if !module.optimization.is_gas() {
         return true;
     }
     let target = module.target(gcx);
     let transfer_size = transfer_size(&target);
-    let transfer_gas = transfer_gas(&target);
+    let transfer_gas = screen_transfer_gas(&target, module, transfer_gas(&target));
     let profitable = |size: usize| {
         target
             .deposit_repays_gas(size.saturating_sub(transfer_size) as u64, u64::from(transfer_gas))
@@ -138,7 +151,7 @@ fn may_share_machine_runs(gcx: Gcx<'_>, module: &Module) -> bool {
     let mut prefixes = FxHashSet::default();
     let mut budget = MAX_MACHINE_RUN_CANDIDATES;
     for block in &module.blocks {
-        if block.metadata.in_loop {
+        if in_hot_loop(block) {
             continue;
         }
         metrics.clear();
@@ -181,6 +194,26 @@ fn may_share_machine_runs(gcx: Gcx<'_>, module: &Module) -> bool {
         }
     }
     false
+}
+
+/// Whether `block` is in a loop that runs on a successful call.
+fn in_hot_loop(block: &Block) -> bool {
+    block.metadata.in_loop && !block.metadata.hotness.is_cold()
+}
+
+/// Whether `site` is in a block that does not run on a successful call.
+fn is_cold(module: &Module, site: &Site) -> bool {
+    module.blocks[site.block].metadata.hotness.is_cold()
+}
+
+/// The transfer gas `sites` pay together, which a cold site does not.
+fn sites_transfer_gas(module: &Module, target: &Target, sites: &[Site], gas: u32) -> u64 {
+    sites.iter().map(|site| u64::from(target.site_gas(is_cold(module, site), gas))).sum()
+}
+
+/// The blocks of the sites that run on a successful call.
+fn hot_blocks<'a>(module: &'a Module, sites: &'a [Site]) -> impl Iterator<Item = BlockId> + 'a {
+    sites.iter().filter(|site| !is_cold(module, site)).map(|site| site.block)
 }
 
 /// Whether any of `blocks` may run more than once.
@@ -249,7 +282,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
     let is_gas = target.optimization().is_gas();
     let is_size = target.optimization().is_size();
     let metrics = hashes.metrics(module, |block, inst| {
-        if is_gas && block.metadata.in_loop {
+        if is_gas && in_hot_loop(block) {
             return None;
         }
         shared_body_effect(inst).map(|effect| (effect, instruction_size_lower_bound(target, inst)))
@@ -306,8 +339,8 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
         // not make the calls cold, even when every site is outside a loop.
         if is_gas {
             let saved_bytes = run_size * free.len() - outlined_size;
-            // Sites that may run more than once pay the transfer gas at the runtime price.
-            let target = if repeats(module, free.iter().map(|site| site.block)) {
+            // Hot sites that may run more than once pay the transfer gas at the runtime price.
+            let target = if repeats(module, hot_blocks(module, &free)) {
                 module.runtime_target(gcx)
             } else {
                 target
@@ -315,9 +348,10 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
             let transfer_gas = transfer_gas(&target)
                 + target.runtime_gas(target.opcode(op::SWAP1))
                     * u32::from(first.outputs.saturating_add(first.inputs));
-            if !target
-                .deposit_repays_gas(saved_bytes as u64, free.len() as u64 * u64::from(transfer_gas))
-            {
+            if !target.deposit_repays_gas(
+                saved_bytes as u64,
+                sites_transfer_gas(module, &target, &free, transfer_gas),
+            ) {
                 if let [value, address, store, ..] = run
                     && address.is_encoded_push()
                     && matches!(store.opcode, op::MSTORE | op::MSTORE8)
@@ -444,8 +478,10 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     let (site_bytes, body_bytes, transfer_gas) = push_share_costs(&target);
     let mut sites = FxHashMap::<U256, SmallVec<[Site; 2]>>::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
-        let in_loop = block.metadata.in_loop;
-        if target.optimization().is_gas() && in_loop {
+        let is_gas = target.optimization().is_gas();
+        // Size mode prices every loop block, cold or not, by the iterations it may run.
+        let in_loop = if is_gas { in_hot_loop(block) } else { block.metadata.in_loop };
+        if is_gas && in_loop {
             continue;
         }
         for (index, inst) in block.instructions.iter().enumerate() {
@@ -477,8 +513,8 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
             return false;
         }
         let push_size = target.push(*value).bytes as usize;
-        // Sites that may run more than once pay the transfer gas at the runtime price.
-        let (target, transfer_gas) = if repeats(module, occurrences.iter().map(|site| site.block)) {
+        // Hot sites that may run more than once pay the transfer gas at the runtime price.
+        let (target, transfer_gas) = if repeats(module, hot_blocks(module, occurrences)) {
             let runtime = module.runtime_target(gcx);
             (runtime, push_share_costs(&runtime).2)
         } else {
@@ -491,7 +527,7 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
             && (!target.optimization().is_gas()
                 || target.deposit_repays_gas(
                     saved_bytes as u64,
-                    occurrences.len() as u64 * u64::from(transfer_gas),
+                    sites_transfer_gas(module, &target, occurrences, transfer_gas),
                 ))
     });
     let mut sites = sites.into_iter().collect::<Vec<_>>();
