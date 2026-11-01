@@ -1071,8 +1071,8 @@ pub struct Function<'hir> {
 impl Function<'_> {
     /// Returns the function name or its kind when unnamed.
     pub fn name_or_kind(&self) -> Symbol {
-        self.name.map_or_else(
-            || match self.kind {
+        self.name.map_or(
+            match self.kind {
                 FunctionKind::Constructor => kw::Constructor,
                 FunctionKind::Function => kw::Function,
                 FunctionKind::Fallback => kw::Fallback,
