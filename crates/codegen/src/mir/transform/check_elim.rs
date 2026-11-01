@@ -1123,7 +1123,7 @@ impl<'a> CheckEliminator<'a> {
     /// passing checks to remove, and branch conditions to reduce to one of their operands.
     /// `candidates` whose update is proven wrap-free in its defining block's
     /// scope are appended to `proven`. With `selected`, only folds of selected branches whose
-    /// discarded arm reverts are evaluated and returned; evaluation records no facts.
+    /// discarded arm is cold are evaluated and returned; evaluation records no facts.
     #[allow(clippy::too_many_arguments)]
     fn collect_folds(
         &mut self,
