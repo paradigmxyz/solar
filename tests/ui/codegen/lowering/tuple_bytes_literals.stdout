@@ -4,6 +4,23 @@
 @types
   struct0: {i256, i256}
 
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb4, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb4, [0x1cd9057 => bb2, 0xf2c31bd9 => bb3]
+  bb3:
+    tail_call @words
+  bb2:
+    tail_call @prefix
+  bb4:
+    revert 0, 0
+}
+
 fn @prefix() [selector=0x01cd9057, abi_wrapper, pure] {
   bb0:
     v10 = calldatasize
@@ -77,21 +94,4 @@ fn @words() [selector=0xf2c31bd9, abi_wrapper, pure] {
     mstore 0, 0x3000000000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 32, 0x7879000000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     returndata 0, 64
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb4, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb4, [0x1cd9057 => bb2, 0xf2c31bd9 => bb3]
-  bb3:
-    tail_call @words
-  bb2:
-    tail_call @prefix
-  bb4:
-    revert 0, 0
 }

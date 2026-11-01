@@ -2,20 +2,6 @@
 + // === ROOT/tests/ui/codegen/mir/inline/dispatch/scalar.mir (after inline) ===
   @module ScalarDispatcher
   @phase lowered
-- fn @add() [selector=0x00000001, abi_wrapper, pure] {
--   bb0:
--     v0 = add arg0, arg1
--     mstore 128, v0
--     returndata 128, 32
-- }
-- 
-- fn @sub() [selector=0x00000002, abi_wrapper, pure] {
--   bb0:
--     v0 = sub arg0, arg1
--     mstore 128, v0
--     returndata 128, 32
-- }
-- 
   fn @entry() [entry] {
     bb0:
       v0 = calldataload 0
@@ -39,6 +25,20 @@
 +     returndata 128, 32
     bb3:
       revert 0, 0
+- }
+- 
+- fn @add() [selector=0x00000001, abi_wrapper, pure] {
+-   bb0:
+-     v0 = add arg0, arg1
+-     mstore 128, v0
+-     returndata 128, 32
+- }
+- 
+- fn @sub() [selector=0x00000002, abi_wrapper, pure] {
+-   bb0:
+-     v0 = sub arg0, arg1
+-     mstore 128, v0
+-     returndata 128, 32
   }
   
 - // === ROOT/tests/ui/codegen/mir/inline/dispatch/scalar.mir (before cfg-simplify) ===

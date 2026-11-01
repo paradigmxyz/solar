@@ -1,12 +1,6 @@
 - // === ROOT/tests/ui/codegen/mir/validation/tail_call_roundtrip.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/validation/tail_call_roundtrip.mir (after dce) ===
   @module TailCallRoundtrip
-  fn @wrapper(arg0: i256) {
-    bb0:
-      mstore 128, arg0
-      returndata 128, 32
-  }
-  
   fn @entry() [entry] {
     bb0:
       v0 = calldataload 0
@@ -18,6 +12,12 @@
     bb1:
       v3 = calldataload 4
       tail_call @wrapper, v3
+  }
+  
+  fn @wrapper(arg0: i256) {
+    bb0:
+      mstore 128, arg0
+      returndata 128, 32
   }
   
   fn @revertCaller() -> i256 {

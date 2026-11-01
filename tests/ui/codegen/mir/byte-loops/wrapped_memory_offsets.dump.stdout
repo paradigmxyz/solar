@@ -1,6 +1,35 @@
 // === ROOT/tests/ui/codegen/mir/byte-loops/wrapped_memory_offsets.sol:Test ===
 @module Test
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v2 = calldatasize
+    v3 = lt v2, 4
+    v6 = zext i1 v3 to i256
+    v7 = or v0, v6
+    v8 = ne v7, 0
+    jumpi v8, bb8, bb1
+  bb1:
+    v4 = calldataload 0
+    v5 = shr v4, 224
+    switch v5, default bb8, [0x10ca09ba => bb2, 0x3704b700 => bb3, 0x428158c8 => bb4, 0x42a6a755 => bb5, 0x79571ebe => bb6, 0xb2066b6b => bb7]
+  bb7:
+    tail_call @wordsForward
+  bb6:
+    tail_call @bytesForward
+  bb5:
+    tail_call @freshWrapped
+  bb4:
+    tail_call @calldataIntoHeader
+  bb3:
+    tail_call @bytesBackward
+  bb2:
+    tail_call @bytesIntoHeader
+  bb8:
+    revert 0, 0
+}
+
 fn @bytesForward() [selector=0x79571ebe, abi_wrapper, pure] {
   bb0:
     v10 = calldatasize
@@ -701,35 +730,6 @@ fn @revert_stub() {
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v2 = calldatasize
-    v3 = lt v2, 4
-    v6 = zext i1 v3 to i256
-    v7 = or v0, v6
-    v8 = ne v7, 0
-    jumpi v8, bb8, bb1
-  bb1:
-    v4 = calldataload 0
-    v5 = shr v4, 224
-    switch v5, default bb8, [0x10ca09ba => bb2, 0x3704b700 => bb3, 0x428158c8 => bb4, 0x42a6a755 => bb5, 0x79571ebe => bb6, 0xb2066b6b => bb7]
-  bb7:
-    tail_call @wordsForward
-  bb6:
-    tail_call @bytesForward
-  bb5:
-    tail_call @freshWrapped
-  bb4:
-    tail_call @calldataIntoHeader
-  bb3:
-    tail_call @bytesBackward
-  bb2:
-    tail_call @bytesIntoHeader
-  bb8:
-    revert 0, 0
 }
 
 fn @alloc(arg0: i256) -> i256 {

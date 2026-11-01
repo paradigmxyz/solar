@@ -1,6 +1,27 @@
 // === ROOT/tests/ui/codegen/mir/byte-loops/empty_count.sol:Test ===
 @module Test
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb6, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb6, [0x26843d1f => bb2, 0x5a29af63 => bb3, 0x620282bd => bb4, 0x982de5a7 => bb5]
+  bb5:
+    tail_call @loadSome
+  bb4:
+    tail_call @loadNowhere
+  bb3:
+    tail_call @storeNowhere
+  bb2:
+    tail_call @storeSome
+  bb6:
+    revert 0, 0
+}
+
 fn @loadSome() [selector=0x982de5a7, abi_wrapper, pure] {
   bb0:
     v35 = calldatasize
@@ -248,26 +269,5 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb6, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb6, [0x26843d1f => bb2, 0x5a29af63 => bb3, 0x620282bd => bb4, 0x982de5a7 => bb5]
-  bb5:
-    tail_call @loadSome
-  bb4:
-    tail_call @loadNowhere
-  bb3:
-    tail_call @storeNowhere
-  bb2:
-    tail_call @storeSome
-  bb6:
     revert 0, 0
 }

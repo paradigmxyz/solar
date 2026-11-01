@@ -1,5 +1,24 @@
 // === ROOT/tests/ui/codegen/lowering/storage_packed_uint.sol:PackedUint ===
 @module PackedUint
+fn @constructor() [constructor] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = not 255
+    v2 = and v0, v1
+    v3 = and 18, 255
+    v4 = or v2, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = shl 0xffff, 8
+    v6 = sload 0 !metadata(storage=slot(0))
+    v7 = not v5
+    v8 = and v6, v7
+    v9 = and 52, 0xffff
+    v10 = shl v9, 8
+    v11 = or v8, v10
+    sstore 0, v11 !metadata(storage=slot(0))
+    ret
+}
+
 fn @a() -> i8 [selector=0x0dbe671f, view, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -41,23 +60,4 @@ fn @packed(arg0: i8, arg1: i16) -> i256 [selector=0x80c8f910, abi_params=[uint8,
     sstore 0, v13 !metadata(storage=slot(0))
     v14 = sload 0 !metadata(storage=slot(0))
     ret v14
-}
-
-fn @constructor() [constructor] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 255
-    v2 = and v0, v1
-    v3 = and 18, 255
-    v4 = or v2, v3
-    sstore 0, v4 !metadata(storage=slot(0))
-    v5 = shl 0xffff, 8
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = not v5
-    v8 = and v6, v7
-    v9 = and 52, 0xffff
-    v10 = shl v9, 8
-    v11 = or v8, v10
-    sstore 0, v11 !metadata(storage=slot(0))
-    ret
 }

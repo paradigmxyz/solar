@@ -10,6 +10,21 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/mir/inline-tagged/tagged_budgets.sol:TaggedBudgets ===
 @module TaggedBudgets
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0x9cf82c3f => bb2]
+  bb2:
+    tail_call @run
+  bb3:
+    revert 0, 0
+}
+
 fn @run() [selector=0x9cf82c3f, abi_wrapper, pure] {
   bb0:
     v1 = calldatasize
@@ -170,20 +185,5 @@ fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb3, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb3, [0x9cf82c3f => bb2]
-  bb2:
-    tail_call @run
-  bb3:
     revert 0, 0
 }

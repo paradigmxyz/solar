@@ -352,7 +352,9 @@ mod round_trip {
         if original.functions.len() != parsed.functions.len() {
             return Err("function count changed during round-trip".into());
         }
-        for (before, after) in original.functions.iter().zip(&parsed.functions) {
+        for ((_, before), (_, after)) in
+            original.functions_in_print_order().zip(parsed.functions_in_print_order())
+        {
             if before.selector.is_none()
                 && (before.return_type() != after.return_type()
                     || before.return_abi() != after.return_abi())

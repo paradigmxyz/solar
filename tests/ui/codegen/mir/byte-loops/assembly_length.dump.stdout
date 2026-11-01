@@ -4,6 +4,27 @@
 @types
   struct0: {ptr<memory>, i256}
 
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb6, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb6, [0x3fda5389 => bb2, 0x53a33458 => bb3, 0x73d8cb1e => bb4, 0xd89b44d4 => bb5]
+  bb5:
+    tail_call @grownPast
+  bb4:
+    tail_call @word
+  bb3:
+    tail_call @copy
+  bb2:
+    tail_call @fill
+  bb6:
+    revert 0, 0
+}
+
 fn @copy() [selector=0x53a33458, abi_wrapper, pure] {
   bb0:
     v75 = calldatasize
@@ -404,27 +425,6 @@ fn @revert_stub.7() {
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb6, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb6, [0x3fda5389 => bb2, 0x53a33458 => bb3, 0x73d8cb1e => bb4, 0xd89b44d4 => bb5]
-  bb5:
-    tail_call @grownPast
-  bb4:
-    tail_call @word
-  bb3:
-    tail_call @copy
-  bb2:
-    tail_call @fill
-  bb6:
-    revert 0, 0
 }
 
 fn @alloc(arg0: i256) -> i256 {

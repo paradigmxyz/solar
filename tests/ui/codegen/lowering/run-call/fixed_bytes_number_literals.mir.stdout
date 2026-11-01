@@ -1,5 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_number_literals.sol:Probe ===
 @module Probe
+fn @constructor() [constructor] {
+  bb0:
+    ret
+}
+
 fn @probe(arg0: i256) -> i256 [selector=0x14beb1ca, pure, abi_params=[bytes4], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
@@ -7,11 +12,6 @@ fn @probe(arg0: i256) -> i256 [selector=0x14beb1ca, pure, abi_params=[bytes4], a
     v2 = trunc i256 v1 to i32
     v3 = zext i32 v2 to i256
     ret v3
-}
-
-fn @constructor() [constructor] {
-  bb0:
-    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_number_literals.sol:LibGive ===
@@ -29,6 +29,29 @@ fn @constructor() [constructor] {
 
 @immutables
   immutableLiteral: bytes4
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    v1 = not 0xffffffff
+    v2 = and v0, v1
+    v3 = shr 0x1122334400000000000000000000000000000000000000000000000000000000, 224
+    v4 = and v3, 0xffffffff
+    v5 = or v2, v4
+    sstore 1, v5 !metadata(storage=slot(1))
+    v6 = shl 0xffff, 32
+    v7 = sload 1 !metadata(storage=slot(1))
+    v8 = not v6
+    v9 = and v7, v8
+    v10 = shr 0xaabb000000000000000000000000000000000000000000000000000000000000, 240
+    v11 = and v10, 0xffff
+    v12 = shl v11, 32
+    v13 = or v9, v12
+    sstore 1, v13 !metadata(storage=slot(1))
+    v14 = and 0x5566778800000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    storeimmutable immutableLiteral, v14
+    ret
+}
 
 fn @viaExternal() -> i256 [selector=0x09338c08, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
@@ -234,27 +257,4 @@ fn @stateLiterals() -> struct1 [selector=0x803da9a2, view, abi_params=[], abi_re
 fn @give(arg0: i256) -> i256 [pure] {
   bb0:
     ret arg0
-}
-
-fn @constructor() [constructor] {
-  bb0:
-    v0 = sload 1 !metadata(storage=slot(1))
-    v1 = not 0xffffffff
-    v2 = and v0, v1
-    v3 = shr 0x1122334400000000000000000000000000000000000000000000000000000000, 224
-    v4 = and v3, 0xffffffff
-    v5 = or v2, v4
-    sstore 1, v5 !metadata(storage=slot(1))
-    v6 = shl 0xffff, 32
-    v7 = sload 1 !metadata(storage=slot(1))
-    v8 = not v6
-    v9 = and v7, v8
-    v10 = shr 0xaabb000000000000000000000000000000000000000000000000000000000000, 240
-    v11 = and v10, 0xffff
-    v12 = shl v11, 32
-    v13 = or v9, v12
-    sstore 1, v13 !metadata(storage=slot(1))
-    v14 = and 0x5566778800000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    storeimmutable immutableLiteral, v14
-    ret
 }

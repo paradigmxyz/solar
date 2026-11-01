@@ -1,6 +1,27 @@
 // === ROOT/tests/ui/codegen/lowering/abi_encode_call.sol:AbiEncodeCall ===
 @module AbiEncodeCall
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v2 = calldatasize
+    v3 = lt v2, 4
+    v6 = zext i1 v3 to i256
+    v7 = or v0, v6
+    v8 = ne v7, 0
+    jumpi v8, bb4, bb1
+  bb1:
+    v4 = calldataload 0
+    v5 = shr v4, 224
+    switch v5, default bb4, [0x23d014a1 => bb2, 0x440a9300 => bb3]
+  bb3:
+    tail_call @asValue
+  bb2:
+    tail_call @viaCall
+  bb4:
+    revert 0, 0
+}
+
 fn @asValue() [selector=0x440a9300, abi_wrapper, pure] {
   bb0:
     v4 = calldataload 4
@@ -74,26 +95,5 @@ fn @viaCall() [selector=0x23d014a1, abi_wrapper] {
     mstore 0, v17 !metadata(memory=scratch)
     returndata 0, 32
   bb1:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v2 = calldatasize
-    v3 = lt v2, 4
-    v6 = zext i1 v3 to i256
-    v7 = or v0, v6
-    v8 = ne v7, 0
-    jumpi v8, bb4, bb1
-  bb1:
-    v4 = calldataload 0
-    v5 = shr v4, 224
-    switch v5, default bb4, [0x23d014a1 => bb2, 0x440a9300 => bb3]
-  bb3:
-    tail_call @asValue
-  bb2:
-    tail_call @viaCall
-  bb4:
     revert 0, 0
 }

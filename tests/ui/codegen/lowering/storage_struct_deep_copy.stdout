@@ -1,6 +1,27 @@
 // === ROOT/tests/ui/codegen/lowering/storage_struct_deep_copy.sol:StorageStructDeepCopy ===
 @module StorageStructDeepCopy
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb6, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb6, [0x4bd0273c => bb2, 0xa4ece52c => bb3, 0xa60249a3 => bb4, 0xb7ffd825 => bb5]
+  bb5:
+    tail_call @assignFixed
+  bb4:
+    tail_call @push
+  bb3:
+    tail_call @pop
+  bb2:
+    tail_call @assign
+  bb6:
+    revert 0, 0
+}
+
 fn @assign() [selector=0x4bd0273c, abi_wrapper] {
   bb0:
     v73 = calldatasize
@@ -267,26 +288,5 @@ fn @assignFixed() [selector=0xb7ffd825, abi_wrapper] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb5:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb6, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb6, [0x4bd0273c => bb2, 0xa4ece52c => bb3, 0xa60249a3 => bb4, 0xb7ffd825 => bb5]
-  bb5:
-    tail_call @assignFixed
-  bb4:
-    tail_call @push
-  bb3:
-    tail_call @pop
-  bb2:
-    tail_call @assign
-  bb6:
     revert 0, 0
 }

@@ -1,6 +1,27 @@
 // === ROOT/tests/ui/codegen/mir/loop-unroll/count_down.sol:CountDown ===
 @module CountDown
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb6, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb6, [0x3b396421 => bb2, 0x45ce5caf => bb3, 0x4930868e => bb4, 0x4e0372c8 => bb5]
+  bb5:
+    tail_call @stepDown
+  bb4:
+    tail_call @downTo
+  bb3:
+    tail_call @squaresDown
+  bb2:
+    tail_call @countDown
+  bb6:
+    revert 0, 0
+}
+
 fn @countDown() [selector=0x3b396421, abi_wrapper, pure] {
   bb0:
     v6 = calldatasize
@@ -164,26 +185,5 @@ fn @downTo() [selector=0x4930868e, abi_wrapper, pure] {
     v23 = sub v10, 1
     jump bb1
   bb4:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb6, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb6, [0x3b396421 => bb2, 0x45ce5caf => bb3, 0x4930868e => bb4, 0x4e0372c8 => bb5]
-  bb5:
-    tail_call @stepDown
-  bb4:
-    tail_call @downTo
-  bb3:
-    tail_call @squaresDown
-  bb2:
-    tail_call @countDown
-  bb6:
     revert 0, 0
 }

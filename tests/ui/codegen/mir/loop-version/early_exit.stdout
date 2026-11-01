@@ -4,6 +4,23 @@
 @types
   struct0: {i256, ptr<memory>, ptr<memory>}
 
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb4, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb4, [0x69394704 => bb2, 0x8ecf6ff0 => bb3]
+  bb3:
+    tail_call @splitUntilZero
+  bb2:
+    tail_call @overlappingSplit
+  bb4:
+    revert 0, 0
+}
+
 fn @splitUntilZero() [selector=0x8ecf6ff0, abi_wrapper, pure] {
   bb0:
     v4 = calldatasize
@@ -229,22 +246,5 @@ fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb4, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb4, [0x69394704 => bb2, 0x8ecf6ff0 => bb3]
-  bb3:
-    tail_call @splitUntilZero
-  bb2:
-    tail_call @overlappingSplit
-  bb4:
     revert 0, 0
 }

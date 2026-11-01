@@ -1,6 +1,21 @@
 // === ROOT/tests/ui/codegen/mir/inline/shared_runs.sol:SharedRuns ===
 @module SharedRuns
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0xff30d0af => bb2]
+  bb2:
+    tail_call @paint
+  bb3:
+    revert 0, 0
+}
+
 fn @paint() [selector=0xff30d0af, abi_wrapper] {
   bb0:
     v0 = icall @paintUint, 0x8ac7230489e80000
@@ -179,19 +194,4 @@ fn @encode_abi_tuple(arg0: i256) -> slice<memory> [may_return_memory, return_abi
     mcopy v9, v18, v5 !metadata(memory=heap, disjoint)
     v14 = sub v12, v24
     ret v24, v14
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb3, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb3, [0xff30d0af => bb2]
-  bb2:
-    tail_call @paint
-  bb3:
-    revert 0, 0
 }

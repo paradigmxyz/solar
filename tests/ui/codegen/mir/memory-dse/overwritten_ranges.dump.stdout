@@ -4,6 +4,29 @@
 @types
   struct0: {i256, i256}
 
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb7, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb7, [0x5e97f278 => bb2, 0x6649a3b9 => bb3, 0x7fce0203 => bb4, 0x9defb653 => bb5, 0xa6a0e5ea => bb6]
+  bb6:
+    tail_call @returndataBounds
+  bb5:
+    tail_call @partialOverwrite
+  bb4:
+    tail_call @expansion
+  bb3:
+    tail_call @allocated
+  bb2:
+    tail_call @overwritten
+  bb7:
+    revert 0, 0
+}
+
 fn @overwritten() [selector=0x5e97f278, abi_wrapper, pure] {
   bb0:
     mstore 257, 7
@@ -65,28 +88,5 @@ fn @allocated() [selector=0x6649a3b9, abi_wrapper, pure] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb7, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb7, [0x5e97f278 => bb2, 0x6649a3b9 => bb3, 0x7fce0203 => bb4, 0x9defb653 => bb5, 0xa6a0e5ea => bb6]
-  bb6:
-    tail_call @returndataBounds
-  bb5:
-    tail_call @partialOverwrite
-  bb4:
-    tail_call @expansion
-  bb3:
-    tail_call @allocated
-  bb2:
-    tail_call @overwritten
-  bb7:
     revert 0, 0
 }

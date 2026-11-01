@@ -22,20 +22,6 @@ fn @constructor(arg0: i256) [abi_wrapper, constructor] {
     revert 0, 0
 }
 
-fn @start() [selector=0xbe9a6555, abi_wrapper, view] {
-  bb0:
-    v3 = loadimmutable _start
-    mstore 0, v3
-    returndata 0, 32
-}
-
-fn @vested() [selector=0xfea5657c, abi_wrapper, view] {
-  bb0:
-    v2 = loadimmutable _start
-    mstore 0, v2
-    returndata 0, 32
-}
-
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
@@ -51,4 +37,18 @@ fn @entry() [entry] {
     tail_call @start
   bb4:
     revert 0, 0
+}
+
+fn @start() [selector=0xbe9a6555, abi_wrapper, view] {
+  bb0:
+    v3 = loadimmutable _start
+    mstore 0, v3
+    returndata 0, 32
+}
+
+fn @vested() [selector=0xfea5657c, abi_wrapper, view] {
+  bb0:
+    v2 = loadimmutable _start
+    mstore 0, v2
+    returndata 0, 32
 }

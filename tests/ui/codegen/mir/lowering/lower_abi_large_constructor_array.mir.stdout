@@ -1,11 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_large_constructor_array.sol:Huge ===
 @module Huge
-fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
-}
-
 fn @constructor(arg0: ptr<memory>, arg1: i256) [constructor, abi_params=[array<134217727, uint256>, uint256]] {
   bb0:
     v0 = lt arg1, 0x7ffffff
@@ -18,14 +12,14 @@ fn @constructor(arg0: ptr<memory>, arg1: i256) [constructor, abi_params=[array<1
     ret
 }
 
-// === ROOT/tests/ui/codegen/mir/lowering/lower_abi_large_constructor_array.sol:C ===
-@module C
 fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+// === ROOT/tests/ui/codegen/mir/lowering/lower_abi_large_constructor_array.sol:C ===
+@module C
 fn @constructor(arg0: ptr<memory>, arg1: i256) [constructor, abi_params=[array<3, uint256>, uint256]] {
   bb0:
     v0 = lt 2, 3
@@ -37,4 +31,10 @@ fn @constructor(arg0: ptr<memory>, arg1: i256) [constructor, abi_params=[array<3
     v5 = checked_sub uint256, v4, 3
     sstore 0, v5 !metadata(storage=slot(0))
     ret
+}
+
+fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
 }

@@ -1,6 +1,27 @@
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_array_push.sol:StorageBytesArrayPush ===
 @module StorageBytesArrayPush
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb6, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb6, [0x19d30117 => bb2, 0x5d7696c3 => bb3, 0x8f236983 => bb4, 0xe6e6accc => bb5]
+  bb5:
+    tail_call @pushStr
+  bb4:
+    tail_call @blobAt
+  bb3:
+    tail_call @popStr
+  bb2:
+    tail_call @pushEmpty
+  bb6:
+    revert 0, 0
+}
+
 fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
   bb0:
     v72 = calldatasize
@@ -326,25 +347,4 @@ fn @revert_stub.7() {
     mstore 32, 34 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb6, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb6, [0x19d30117 => bb2, 0x5d7696c3 => bb3, 0x8f236983 => bb4, 0xe6e6accc => bb5]
-  bb5:
-    tail_call @pushStr
-  bb4:
-    tail_call @blobAt
-  bb3:
-    tail_call @popStr
-  bb2:
-    tail_call @pushEmpty
-  bb6:
-    revert 0, 0
 }

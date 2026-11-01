@@ -3,16 +3,6 @@
 @types
   struct0: {i256, i256}
 
-fn @first() -> i256 [selector=0x3df4ddf4, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    ret 1
-}
-
-fn @second() -> i256 [selector=0x5a8ac02d, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    ret 2
-}
-
 fn @constructor() [constructor] {
   bb0:
     v0 = lt 0, 2
@@ -92,6 +82,16 @@ fn @constructor() [constructor] {
     v63 = or v60, v62
     sstore v56, v63 !metadata(storage=slot(0))
     ret
+}
+
+fn @first() -> i256 [selector=0x3df4ddf4, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 1
+}
+
+fn @second() -> i256 [selector=0x5a8ac02d, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 2
 }
 
 fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {

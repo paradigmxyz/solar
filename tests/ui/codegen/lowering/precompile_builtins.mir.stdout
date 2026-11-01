@@ -1,6 +1,39 @@
 // === ROOT/tests/ui/codegen/lowering/precompile_builtins.sol:PrecompileBuiltins ===
 @module PrecompileBuiltins
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb12, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb12, [0x8f4bed => bb2, 0x62c5650 => bb3, 0xc4b170a => bb4, 0x1a7d61f8 => bb5, 0x4aa7a4c7 => bb6, 0x5c2b7c72 => bb7, 0x65707d6f => bb8, 0xa1e754ea => bb9, 0xce746024 => bb10, 0xf1609893 => bb11]
+  bb11:
+    tail_call @shaEmpty
+  bb10:
+    tail_call @recover
+  bb9:
+    tail_call @ripemd
+  bb8:
+    tail_call @sha
+  bb7:
+    tail_call @ripemdWord
+  bb6:
+    tail_call @shaLiteral
+  bb5:
+    tail_call @shaWord
+  bb4:
+    tail_call @ripemdEmpty
+  bb3:
+    tail_call @ripemdLiteral
+  bb2:
+    tail_call @recoverInvalid
+  bb12:
+    revert 0, 0
+}
+
 fn @recover() [selector=0xce746024, abi_wrapper, pure] {
   bb0:
     v15 = heap_floor !metadata(alloc_ptr)
@@ -141,38 +174,5 @@ fn @ripemdWord() [selector=0x5c2b7c72, abi_wrapper, pure] {
     mstore 0, v9 !metadata(memory=scratch)
     returndata 0, 32
   bb3:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb12, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb12, [0x8f4bed => bb2, 0x62c5650 => bb3, 0xc4b170a => bb4, 0x1a7d61f8 => bb5, 0x4aa7a4c7 => bb6, 0x5c2b7c72 => bb7, 0x65707d6f => bb8, 0xa1e754ea => bb9, 0xce746024 => bb10, 0xf1609893 => bb11]
-  bb11:
-    tail_call @shaEmpty
-  bb10:
-    tail_call @recover
-  bb9:
-    tail_call @ripemd
-  bb8:
-    tail_call @sha
-  bb7:
-    tail_call @ripemdWord
-  bb6:
-    tail_call @shaLiteral
-  bb5:
-    tail_call @shaWord
-  bb4:
-    tail_call @ripemdEmpty
-  bb3:
-    tail_call @ripemdLiteral
-  bb2:
-    tail_call @recoverInvalid
-  bb12:
     revert 0, 0
 }

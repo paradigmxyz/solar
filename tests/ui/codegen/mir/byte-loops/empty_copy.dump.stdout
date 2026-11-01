@@ -1,6 +1,31 @@
 // === ROOT/tests/ui/codegen/mir/byte-loops/empty_copy.sol:Test ===
 @module Test
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 100
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0x261f992c => bb3, 0x602d1e17 => bb4, 0xa70bf1aa => bb5, 0xc7e6d660 => bb6]
+  bb6:
+    tail_call @downCopy
+  bb5:
+    tail_call @calldataCopy
+  bb4:
+    tail_call @freshCopy
+  bb3:
+    tail_call @memoryCopy
+  bb1:
+    revert 0, 0
+}
+
 fn @memoryCopy() [selector=0x261f992c, abi_wrapper, pure] {
   bb0:
     v50 = heap_floor !metadata(alloc_ptr)
@@ -392,31 +417,6 @@ fn @revert_stub() {
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = calldatasize
-    v2 = lt v1, 100
-    v3 = zext i1 v2 to i256
-    v4 = or v0, v3
-    v5 = ne v4, 0
-    jumpi v5, bb1, bb2
-  bb2:
-    v6 = calldataload 0
-    v7 = shr v6, 224
-    switch v7, default bb1, [0x261f992c => bb3, 0x602d1e17 => bb4, 0xa70bf1aa => bb5, 0xc7e6d660 => bb6]
-  bb6:
-    tail_call @downCopy
-  bb5:
-    tail_call @calldataCopy
-  bb4:
-    tail_call @freshCopy
-  bb3:
-    tail_call @memoryCopy
-  bb1:
-    revert 0, 0
 }
 
 fn @alloc(arg0: i256) -> i256 {

@@ -4,6 +4,21 @@
 @types
   struct0: {i256, i256, i256}
 
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0x3a276523 => bb2]
+  bb2:
+    tail_call @run
+  bb3:
+    revert 0, 0
+}
+
 fn @plain(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     jump bb1
@@ -129,19 +144,4 @@ fn @revert_stub() {
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb3, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb3, [0x3a276523 => bb2]
-  bb2:
-    tail_call @run
-  bb3:
-    revert 0, 0
 }

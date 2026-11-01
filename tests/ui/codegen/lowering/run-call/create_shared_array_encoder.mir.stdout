@@ -1,30 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/create_shared_array_encoder.sol:Child ===
 @module Child
-fn @start() -> i256 [selector=0xbe9a6555, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
-}
-
-fn @b0() -> i256 [selector=0x3602175c, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 1 !metadata(storage=slot(1))
-    ret v0
-}
-
-fn @b1() -> i256 [selector=0xee495002, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 2 !metadata(storage=slot(2))
-    ret v0
-}
-
-fn @r0() -> i160 [selector=0x659621b5, view, abi_params=[], abi_returns=[word<uint160>], abi_return_params=[address]] {
-  bb0:
-    v0 = sload 3 !metadata(storage=slot(3))
-    v1 = trunc i256 v0 to i160
-    ret v1
-}
-
 fn @constructor(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256) [constructor, abi_params=[array<_, address>, array<_, uint256>, uint256]] {
   bb0:
     sstore 0, arg2 !metadata(storage=slot(0))
@@ -57,6 +32,31 @@ fn @constructor(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256) [constructor, 
     v21 = or v18, v20
     sstore 3, v21 !metadata(storage=slot(3))
     ret
+}
+
+fn @start() -> i256 [selector=0xbe9a6555, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @b0() -> i256 [selector=0x3602175c, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    ret v0
+}
+
+fn @b1() -> i256 [selector=0xee495002, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 2 !metadata(storage=slot(2))
+    ret v0
+}
+
+fn @r0() -> i160 [selector=0x659621b5, view, abi_params=[], abi_returns=[word<uint160>], abi_return_params=[address]] {
+  bb0:
+    v0 = sload 3 !metadata(storage=slot(3))
+    v1 = trunc i256 v0 to i160
+    ret v1
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/create_shared_array_encoder.sol:CreateSharedArrayEncoder ===

@@ -1,6 +1,11 @@
 // === ROOT/tests/ui/codegen/mir/none/terminator_metadata.mir (after pipeline-default) ===
 @module TerminatorMetadata
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
 fn @checked(arg0: i256) -> i256 {
   bb0:
     v0 = ne arg0, 0
@@ -20,9 +25,4 @@ fn @mixed(arg0: i256) -> i256 {
   bb0:
     v0 = add arg0, 1 !metadata(spans=[90..100, 110..120])
     ret v0 !metadata(spans=[50..60, 70..80])
-}
-
-fn @entry() [entry] {
-  bb0:
-    revert 0, 0
 }
