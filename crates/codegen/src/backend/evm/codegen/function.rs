@@ -364,19 +364,24 @@ impl<'gcx> EvmCodegen<'gcx> {
 /// without comments, and with runs of whitespace outside string literals collapsed.
 fn function_header(source: &str) -> String {
     let mut header = String::new();
+    let space = |header: &mut String| {
+        if !header.is_empty() && !header.ends_with(' ') {
+            header.push(' ');
+        }
+    };
     let mut depth = 0u32;
     let mut chars = source.chars().peekable();
     while let Some(c) = chars.next() {
         match c {
             '/' if chars.peek() == Some(&'/') => {
-                chars.by_ref().find(|&c| c == '\n');
-                header.push(' ');
+                chars.by_ref().find(|&c| matches!(c, '\n' | '\r'));
+                space(&mut header);
             }
             '/' if chars.peek() == Some(&'*') => {
                 chars.next();
                 let mut previous = ' ';
                 chars.by_ref().find(|&c| std::mem::replace(&mut previous, c) == '*' && c == '/');
-                header.push(' ');
+                space(&mut header);
             }
             '"' | '\'' => {
                 header.push(c);
@@ -390,11 +395,7 @@ fn function_header(source: &str) -> String {
                 }
             }
             '{' | ';' | '=' if depth == 0 => break,
-            c if c.is_whitespace() => {
-                if !header.is_empty() && !header.ends_with(' ') {
-                    header.push(' ');
-                }
-            }
+            c if c.is_whitespace() => space(&mut header),
             _ => {
                 match c {
                     '(' => depth += 1,
