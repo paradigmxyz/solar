@@ -10,6 +10,31 @@ fn @entry() [entry, cold] {
 // === ROOT/tests/ui/codegen/lowering/checked_base64.sol:CheckedBase64 ===
 @module CheckedBase64
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0x12496a1b => bb3, 0x2dba772b => bb4, 0x3d92c956 => bb5, 0x49145c91 => bb6]
+  bb6:
+    tail_call @decode.0
+  bb5:
+    tail_call @encodeNoPadding
+  bb4:
+    tail_call @encodeFileSafe
+  bb3:
+    tail_call @encode.1
+  bb1 [cold]:
+    revert 0, 0
+}
+
 fn @decode.0() [selector=0x49145c91, abi_wrapper, pure] {
   bb0:
     v3 = icall @decode_calldata_type
@@ -638,31 +663,6 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1 [cold]:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = calldatasize
-    v2 = lt v1, 36
-    v3 = zext i1 v2 to i256
-    v4 = or v0, v3
-    v5 = ne v4, 0
-    jumpi v5, bb1, bb2
-  bb2:
-    v6 = calldataload 0
-    v7 = shr v6, 224
-    switch v7, default bb1, [0x12496a1b => bb3, 0x2dba772b => bb4, 0x3d92c956 => bb5, 0x49145c91 => bb6]
-  bb6:
-    tail_call @decode.0
-  bb5:
-    tail_call @encodeNoPadding
-  bb4:
-    tail_call @encodeFileSafe
-  bb3:
-    tail_call @encode.1
   bb1 [cold]:
     revert 0, 0
 }

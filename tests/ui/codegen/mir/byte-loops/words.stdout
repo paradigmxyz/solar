@@ -1,6 +1,29 @@
 // === ROOT/tests/ui/codegen/mir/byte-loops/words.sol:Test ===
 @module Test
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb7, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb7, [0x199c2cd1 => bb2, 0xa3352e1e => bb3, 0xd264c25a => bb4, 0xe0041396 => bb5, 0xe9ebf0b0 => bb6]
+  bb6:
+    tail_call @store2
+  bb5:
+    tail_call @slice
+  bb4:
+    tail_call @store32
+  bb3:
+    tail_call @load32
+  bb2:
+    tail_call @load4
+  bb7 [cold]:
+    revert 0, 0
+}
+
 fn @load32() [selector=0xa3352e1e, abi_wrapper, pure] {
   bb0:
     v27 = calldatasize
@@ -330,28 +353,5 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1 [cold]:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb7, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb7, [0x199c2cd1 => bb2, 0xa3352e1e => bb3, 0xd264c25a => bb4, 0xe0041396 => bb5, 0xe9ebf0b0 => bb6]
-  bb6:
-    tail_call @store2
-  bb5:
-    tail_call @slice
-  bb4:
-    tail_call @store32
-  bb3:
-    tail_call @load32
-  bb2:
-    tail_call @load4
-  bb7 [cold]:
     revert 0, 0
 }

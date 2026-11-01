@@ -1,6 +1,23 @@
 // === ROOT/tests/ui/codegen/mir/byte-loops/wrapped_scatter.sol:Test ===
 @module Test
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb4, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb4, [0xa3efd67d => bb2, 0xb4f7766b => bb3]
+  bb3:
+    tail_call @fill
+  bb2:
+    tail_call @scatter
+  bb4 [cold]:
+    revert 0, 0
+}
+
 fn @fill() [selector=0xb4f7766b, abi_wrapper, pure] {
   bb0:
     v39 = calldataload 68
@@ -191,22 +208,5 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1 [cold]:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb4, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb4, [0xa3efd67d => bb2, 0xb4f7766b => bb3]
-  bb3:
-    tail_call @fill
-  bb2:
-    tail_call @scatter
-  bb4 [cold]:
     revert 0, 0
 }

@@ -1,6 +1,35 @@
 // === ROOT/tests/ui/codegen/mir/byte-loops/wrapping_index.sol:Test ===
 @module Test
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb10, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb10, [0x32c601e => bb2, 0xa3fd26a => bb3, 0x20a8a4e4 => bb4, 0x5072325f => bb5, 0xbd307fab => bb6, 0xc280cc68 => bb7, 0xc6510b18 => bb8, 0xcbd040ed => bb9]
+  bb9:
+    tail_call @mixedDown
+  bb8:
+    tail_call @checkedDown
+  bb7:
+    tail_call @wrappedWord
+  bb6:
+    tail_call @wrappedCopy
+  bb5:
+    tail_call @destinationFirst
+  bb4:
+    tail_call @wrappedArray
+  bb3:
+    tail_call @uncheckedDown
+  bb2:
+    tail_call @sourceFirst
+  bb10 [cold]:
+    revert 0, 0
+}
+
 fn @uncheckedDown() [selector=0x0a3fd26a, abi_wrapper, pure] {
   bb0:
     v44 = calldatasize
@@ -600,34 +629,5 @@ fn @decode_calldata_slice() -> i256 {
   bb2:
     ret v2
   bb1 [cold]:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb10, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb10, [0x32c601e => bb2, 0xa3fd26a => bb3, 0x20a8a4e4 => bb4, 0x5072325f => bb5, 0xbd307fab => bb6, 0xc280cc68 => bb7, 0xc6510b18 => bb8, 0xcbd040ed => bb9]
-  bb9:
-    tail_call @mixedDown
-  bb8:
-    tail_call @checkedDown
-  bb7:
-    tail_call @wrappedWord
-  bb6:
-    tail_call @wrappedCopy
-  bb5:
-    tail_call @destinationFirst
-  bb4:
-    tail_call @wrappedArray
-  bb3:
-    tail_call @uncheckedDown
-  bb2:
-    tail_call @sourceFirst
-  bb10 [cold]:
     revert 0, 0
 }

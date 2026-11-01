@@ -1,0 +1,22 @@
+//@compile-flags: -Zmir-pipeline=none
+//~? ERROR: struct type table survives the `lowered` phase boundary
+//~? ERROR: [fn0] non-word type `struct0` survives the `lowered` phase boundary
+//~? ERROR: [fn1] non-word type `struct0` survives the `lowered` phase boundary
+//~? ERROR: [fn1] [bb0, inst0] struct value instruction `insert_value` survives the `lowered` phase boundary
+// `lower-structs` removes every struct type, so lowered MIR keeps neither the
+// table nor a struct result, argument, or value.
+@module ValidateLoweredStructs
+@phase lowered
+@types
+  struct0: {i256, i256}
+
+fn @result() -> struct0 [return_abi=[i256, i256]] {
+  bb0:
+    ret 1, 2
+}
+
+fn @value() {
+  bb0:
+    v0 = insert_value struct0, undef struct0, 0, 1
+    stop
+}

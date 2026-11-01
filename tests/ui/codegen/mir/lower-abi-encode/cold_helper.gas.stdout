@@ -1,6 +1,41 @@
 // === ROOT/tests/ui/codegen/mir/lower-abi-encode/cold_helper.sol:ColdHelper ===
 @module ColdHelper
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb13, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb13, [0x69e634f => bb2, 0xc3501d9 => bb3, 0xfb93e2f => bb4, 0x48699a62 => bb5, 0x49c045d6 => bb6, 0x60ed04c1 => bb7, 0x8f02cfdc => bb8, 0x90efdac2 => bb9, 0xa739d36a => bb10, 0xa7f6a144 => bb11, 0xe17e9be7 => bb12]
+  bb12:
+    tail_call @hotD
+  bb11:
+    tail_call @coldB
+  bb10:
+    tail_call @hotA
+  bb9 [cold]:
+    tail_call @coldD
+  bb8:
+    tail_call @hotC
+  bb7 [cold]:
+    tail_call @mixedColdB
+  bb6 [cold]:
+    tail_call @coldA
+  bb5 [cold]:
+    tail_call @coldC
+  bb4:
+    tail_call @hotB
+  bb3:
+    tail_call @mixedHot
+  bb2 [cold]:
+    tail_call @mixedColdA
+  bb13 [cold]:
+    revert 0, 0
+}
+
 fn @hotA() [selector=0xa739d36a, abi_wrapper] {
   bb0:
     v11 = calldatasize
@@ -1323,39 +1358,4 @@ fn @encode_abi_tuple(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb13, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb13, [0x69e634f => bb2, 0xc3501d9 => bb3, 0xfb93e2f => bb4, 0x48699a62 => bb5, 0x49c045d6 => bb6, 0x60ed04c1 => bb7, 0x8f02cfdc => bb8, 0x90efdac2 => bb9, 0xa739d36a => bb10, 0xa7f6a144 => bb11, 0xe17e9be7 => bb12]
-  bb12:
-    tail_call @hotD
-  bb11:
-    tail_call @coldB
-  bb10:
-    tail_call @hotA
-  bb9 [cold]:
-    tail_call @coldD
-  bb8:
-    tail_call @hotC
-  bb7 [cold]:
-    tail_call @mixedColdB
-  bb6 [cold]:
-    tail_call @coldA
-  bb5 [cold]:
-    tail_call @coldC
-  bb4:
-    tail_call @hotB
-  bb3:
-    tail_call @mixedHot
-  bb2 [cold]:
-    tail_call @mixedColdA
-  bb13 [cold]:
-    revert 0, 0
 }

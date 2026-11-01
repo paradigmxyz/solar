@@ -1,6 +1,23 @@
 // === ROOT/tests/ui/codegen/mir/loop-version/bounds_wrapping.sol:BoundsWrapping ===
 @module BoundsWrapping
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb4, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb4, [0x8a7c76d => bb2, 0xf3a3e4fe => bb3]
+  bb3:
+    tail_call @empty
+  bb2:
+    tail_call @wrapped
+  bb4 [cold]:
+    revert 0, 0
+}
+
 fn @empty() [selector=0xf3a3e4fe, abi_wrapper, pure] {
   bb0:
     v14 = calldatasize
@@ -113,21 +130,4 @@ fn @revert_stub() [cold] {
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb4, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb4, [0x8a7c76d => bb2, 0xf3a3e4fe => bb3]
-  bb3:
-    tail_call @empty
-  bb2:
-    tail_call @wrapped
-  bb4 [cold]:
-    revert 0, 0
 }

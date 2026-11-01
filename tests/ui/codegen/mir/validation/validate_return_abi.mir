@@ -45,3 +45,15 @@ fn @sliceBooleanLength() -> slice<memory> [return_abi=[i256, i1]] {
   bb0:
     invalid
 }
+
+// Without a result type, the components stand alone and must be scalars.
+fn @words() [return_abi=[i256, i1]] {
+  bb0:
+    invalid
+}
+
+//~? ERROR: [fn8] internal return ABI does not match the function's result type
+fn @structComponent() [return_abi=[struct0]] {
+  bb0:
+    invalid
+}

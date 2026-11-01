@@ -230,12 +230,6 @@ fn @readMixed(arg0: i8, arg1: ptr<memory>) -> i256 [selector=0xa114c21b, pure, a
 
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:ConstructorAbiFixedArray ===
 @module ConstructorAbiFixedArray
-fn @result() -> i256 [selector=0x65372147, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
-}
-
 fn @constructor(arg0: ptr<memory>, arg1: i256) [constructor, abi_params=[array<2, array<2, uint256>>, int256]] {
   bb0:
     v0 = lt 1, 2
@@ -252,14 +246,14 @@ fn @constructor(arg0: ptr<memory>, arg1: i256) [constructor, abi_params=[array<2
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:ConstructorAbiDynamic ===
-@module ConstructorAbiDynamic
 fn @result() -> i256 [selector=0x65372147, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:ConstructorAbiDynamic ===
+@module ConstructorAbiDynamic
 fn @constructor(arg0: ptr<memory>, arg1: ptr<memory>) [constructor, abi_params=[array<_, uint256>, bytes]] {
   bb0:
     v0 = mload arg0
@@ -274,14 +268,14 @@ fn @constructor(arg0: ptr<memory>, arg1: ptr<memory>) [constructor, abi_params=[
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:ConstructorAbiDynamicWords ===
-@module ConstructorAbiDynamicWords
 fn @result() -> i256 [selector=0x65372147, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:ConstructorAbiDynamicWords ===
+@module ConstructorAbiDynamicWords
 fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[array<_, uint256>]] {
   bb0:
     v0 = mload arg0
@@ -294,14 +288,14 @@ fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[array<_, uint256>]]
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:ConstructorAbiBytes ===
-@module ConstructorAbiBytes
 fn @result() -> i256 [selector=0x65372147, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:ConstructorAbiBytes ===
+@module ConstructorAbiBytes
 fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[bytes]] {
   bb0:
     v0 = mload arg0
@@ -309,14 +303,14 @@ fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[bytes]] {
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:ConstructorAbiStruct ===
-@module ConstructorAbiStruct
 fn @result() -> i256 [selector=0x65372147, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:ConstructorAbiStruct ===
+@module ConstructorAbiStruct
 fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[tuple<uint256, bytes>]] {
   bb0:
     v0 = mload arg0
@@ -326,4 +320,10 @@ fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[tuple<uint256, byte
     v4 = checked_add uint256, v0, v3
     sstore 0, v4 !metadata(storage=slot(0))
     ret
+}
+
+fn @result() -> i256 [selector=0x65372147, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
 }

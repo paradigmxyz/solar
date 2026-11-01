@@ -2,16 +2,6 @@
 //@filecheck:
 
 contract StorageLongBytesReturn {
-    // CHECK-LABEL: fn @s{{[( ]}}
-    // CHECK: {{v[0-9]+}} = icall @load_storage_bytes{{.*}}, 0
-    // CHECK: ret
-    string public s;
-
-    // CHECK-LABEL: fn @b{{[( ]}}
-    // CHECK: {{v[0-9]+}} = icall @load_storage_bytes{{.*}}, 1
-    // CHECK: ret
-    bytes public b;
-
     // CHECK-LABEL: fn @constructor{{[( ]}}
     // CHECK: sstore 0, 65
     // CHECK: [[S_DATA:v[0-9]+]] = keccak256 0, 32
@@ -34,6 +24,16 @@ contract StorageLongBytesReturn {
             sstore(add(bData, 1), 0x2100000000000000000000000000000000000000000000000000000000000000)
         }
     }
+
+    // CHECK-LABEL: fn @s{{[( ]}}
+    // CHECK: {{v[0-9]+}} = icall @load_storage_bytes{{.*}}, 0
+    // CHECK: ret
+    string public s;
+
+    // CHECK-LABEL: fn @b{{[( ]}}
+    // CHECK: {{v[0-9]+}} = icall @load_storage_bytes{{.*}}, 1
+    // CHECK: ret
+    bytes public b;
 
     // CHECK-LABEL: fn @getS{{[( ]}}
     // CHECK: {{v[0-9]+}} = icall @load_storage_bytes{{.*}}, 0

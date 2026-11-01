@@ -1,6 +1,21 @@
 // === ROOT/tests/ui/codegen/mir/loop-unroll/exchanged_phis.sol:Swap ===
 @module Swap
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0xdb9a27fa => bb2]
+  bb2:
+    tail_call @swaps
+  bb3 [cold]:
+    revert 0, 0
+}
+
 fn @swaps() [selector=0xdb9a27fa, abi_wrapper, pure] {
   bb0:
     v7 = calldatasize
@@ -29,20 +44,5 @@ fn @swaps() [selector=0xdb9a27fa, abi_wrapper, pure] {
     v29 = add v12, 4
     jump bb6
   bb4 [cold]:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb3, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb3, [0xdb9a27fa => bb2]
-  bb2:
-    tail_call @swaps
-  bb3 [cold]:
     revert 0, 0
 }
