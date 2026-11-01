@@ -1,0 +1,170 @@
+// === ROOT/tests/ui/codegen/run-call/masked_compare.sol:MaskedCompare ===
+@module MaskedCompare
+fn @constructor(arg0: i160, arg1: i96, arg2: i160, arg3: i96) [constructor, abi_params=[address, uint96, address, uint96]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v2 = and v0, v1
+    v3 = zext i160 arg0 to i256
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = or v2, v4
+    sstore 0, v5 !metadata(storage=slot(0))
+    v6 = shl 0xffffffffffffffffffffffff, 160
+    v7 = sload 0 !metadata(storage=slot(0))
+    v8 = not v6
+    v9 = and v7, v8
+    v10 = zext i96 arg1 to i256
+    v11 = and v10, 0xffffffffffffffffffffffff
+    v12 = shl v11, 160
+    v13 = or v9, v12
+    sstore 0, v13 !metadata(storage=slot(0))
+    v14 = sload 1 !metadata(storage=slot(1))
+    v15 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v16 = and v14, v15
+    v17 = zext i160 arg2 to i256
+    v18 = and v17, 0xffffffffffffffffffffffffffffffffffffffff
+    v19 = or v16, v18
+    sstore 1, v19 !metadata(storage=slot(1))
+    v20 = shl 0xffffffffffffffffffffffff, 160
+    v21 = sload 1 !metadata(storage=slot(1))
+    v22 = not v20
+    v23 = and v21, v22
+    v24 = zext i96 arg3 to i256
+    v25 = and v24, 0xffffffffffffffffffffffff
+    v26 = shl v25, 160
+    v27 = or v23, v26
+    sstore 1, v27 !metadata(storage=slot(1))
+    ret
+}
+
+fn @isOwner(arg0: i160) -> i1 [selector=0x2f54bf6e, view, abi_params=[address], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = trunc i256 v0 to i160
+    v2 = eq arg0, v1
+    ret v2
+}
+
+fn @notOwner(arg0: i160) -> i1 [selector=0x7da84a06, view, abi_params=[address], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = trunc i256 v0 to i160
+    v2 = ne arg0, v1
+    ret v2
+}
+
+fn @checkOwner(arg0: i160) -> i256 [selector=0xe0e3671c, view, abi_params=[address], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = trunc i256 v0 to i160
+    v2 = eq arg0, v1
+    jumpi v2, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    ret 0
+  bb1:
+    ret 1
+}
+
+fn @guardOwner(arg0: i160) -> i256 [selector=0x531c3150, view, abi_params=[address], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = trunc i256 v0 to i160
+    v2 = eq arg0, v1
+    v3 = eq v2, false
+    icall revert_if<empty>, v3
+    ret 1
+}
+
+fn @isBeef() -> i1 [selector=0xe1172442, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = trunc i256 v0 to i160
+    v2 = eq v1, i160 0xbeef
+    ret v2
+}
+
+fn @notBeef() -> i1 [selector=0xe0d997ad, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = trunc i256 v0 to i160
+    v2 = ne v1, i160 0xbeef
+    ret v2
+}
+
+fn @branchBeef() -> i256 [selector=0xb1f91e27, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = trunc i256 v0 to i160
+    v2 = eq v1, i160 0xbeef
+    jumpi v2, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    ret 0
+  bb1:
+    ret 1
+}
+
+fn @guardBeef() -> i256 [selector=0x398fbb1e, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = trunc i256 v0 to i160
+    v2 = eq v1, i160 0xbeef
+    v3 = eq v2, false
+    icall revert_if<empty>, v3
+    ret 1
+}
+
+fn @sameHolders() -> i1 [selector=0xca1fb041, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = trunc i256 v0 to i160
+    v2 = sload 1 !metadata(storage=slot(1))
+    v3 = trunc i256 v2 to i160
+    v4 = eq v1, v3
+    ret v4
+}
+
+fn @differentHolders() -> i1 [selector=0x7084dfa3, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = trunc i256 v0 to i160
+    v2 = sload 1 !metadata(storage=slot(1))
+    v3 = trunc i256 v2 to i160
+    v4 = ne v1, v3
+    ret v4
+}
+
+fn @sameBranch() -> i256 [selector=0xcb83bab5, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = trunc i256 v0 to i160
+    v2 = sload 1 !metadata(storage=slot(1))
+    v3 = trunc i256 v2 to i160
+    v4 = eq v1, v3
+    jumpi v4, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    ret 0
+  bb1:
+    ret 1
+}
+
+fn @differentBranch() -> i256 [selector=0x9a60e1af, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = trunc i256 v0 to i160
+    v2 = sload 1 !metadata(storage=slot(1))
+    v3 = trunc i256 v2 to i160
+    v4 = ne v1, v3
+    jumpi v4, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    ret 0
+  bb1:
+    ret 1
+}

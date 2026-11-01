@@ -58,6 +58,12 @@
 //! contradicting inner one, whose edge is dead. Phi operands and terminators keep their values.
 //! Removing a redundant mask replaces its result by its input.
 //!
+//! `integer-cleanup` also rewrites compares of a mask it keeps. An `eq` or `ne` of `x & (2^k - 1)`
+//! with a value `y` that the facts keep below `2^k` holds exactly when `(x ^ y) << (256 - k)` is
+//! zero, which needs no mask. A branch reads the shifted word of an `ne` without a test. The target
+//! prices both spellings, and the compare takes the shift when it costs less and no other
+//! instruction reads the mask.
+//!
 //! Before the dominator walk, a bounded forward analysis carries the intersection
 //! of relational facts and the union of ranges across predecessor edges. Phi
 //! ranges are evaluated in their incoming edge contexts, and so are a phi's
@@ -200,15 +206,16 @@ use super::{
     call_cleanup,
     cfg_simplify::simplify_function,
     egraph::{max_bits_with_args, use_counts},
+    utils::expand_block,
 };
 use crate::{
     backend::evm::{op, select::InstKindOpcode},
     mir::{
-        ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, EffectKind, Function, FunctionBuilder,
-        FunctionId, ImmutableEncoding, ImmutableId, InstId, InstKind, MirType, Module, Terminator,
-        TypeSize, Value, ValueId, ValueLayout,
+        ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, ConditionUse, EffectKind, Function,
+        FunctionBuilder, FunctionId, ImmutableEncoding, ImmutableId, InstId, InstKind, MirType,
+        Module, Terminator, TypeSize, Value, ValueId, ValueLayout,
         analysis::{
-            CfgInfo, aborts, cold_functions,
+            CfgInfo, LoopAnalyzer, aborts, cold_functions,
             integers::{integer_bits, integer_mask, integer_max},
         },
         immutable::immutable_push_type_size,
@@ -282,6 +289,7 @@ impl MirPass for IntegerCleanup {
                     .blocks
                     .iter()
                     .any(|block| matches!(block.terminator, Some(Terminator::Branch { .. })))
+                && !func.instructions().any(|id| masked_compare_operand(func, id))
             {
                 return false;
             }
@@ -308,14 +316,21 @@ impl MirPass for IntegerCleanup {
             let facts = index_vec![Facts::default(); func.blocks.len()];
             let _ = eliminator.collect_folds(func, &cfg, &facts, &[], &mut Vec::new(), None);
             let propagated = eliminator.apply_equalities(func) != 0;
-            if eliminator.redundant_masks.is_empty() {
-                return removed != 0 || propagated;
-            }
             let mut replacements = FxHashMap::default();
-            let mut dead = DenseBitSet::new_empty(func.num_insts());
+            let mut dead = GrowableBitSet::new_empty();
             for &(id, value) in &eliminator.redundant_masks {
                 replacements.insert(func.inst_result_value(id).unwrap(), value);
                 dead.insert(id);
+            }
+            shift_masked_compares(
+                func,
+                &eliminator.masked_compares,
+                &target,
+                &mut replacements,
+                &mut dead,
+            );
+            if replacements.is_empty() {
+                return removed != 0 || propagated;
             }
             func.replace_uses_canonicalized(&replacements);
             for block in &mut func.blocks {
@@ -947,6 +962,17 @@ struct Equality {
     repeated: Option<bool>,
 }
 
+/// An `eq` or `ne` of `and source, 2^bits - 1` with a value that fits in `bits` bits.
+struct MaskedCompare {
+    id: InstId,
+    block: BlockId,
+    /// The mask, the result of `and source, 2^bits - 1`.
+    mask: ValueId,
+    source: ValueId,
+    other: ValueId,
+    bits: u32,
+}
+
 /// Range-based overflow-check eliminator.
 #[derive(Default)]
 struct CheckEliminator<'a> {
@@ -954,6 +980,8 @@ struct CheckEliminator<'a> {
     immutable_ranges: Option<&'a FxHashMap<ImmutableId, Range>>,
     collect_masks: bool,
     redundant_masks: Vec<(InstId, ValueId)>,
+    /// The compares of a kept low mask with a value it keeps whole.
+    masked_compares: Vec<MaskedCompare>,
     /// The constant left shifts of each value a high mask cleans, as `(shift, result)`.
     shifted_high_masks: FxHashMap<ValueId, SmallVec<[(usize, ValueId); 2]>>,
     /// Records constants that dominating branches prove equal to a value, when the target
@@ -1249,6 +1277,11 @@ impl<'a> CheckEliminator<'a> {
                             && let Some(value) = self.redundant_mask(func, id)
                         {
                             self.redundant_masks.push((id, value));
+                        }
+                        if self.collect_masks
+                            && let Some(compare) = self.masked_compare(func, block, id)
+                        {
+                            self.masked_compares.push(compare);
                         }
                         // x % y < y wherever the definition's scope proves y > 0
                         if let InstKind::Mod(_, divisor) = func.inst(id).kind
@@ -1752,6 +1785,29 @@ impl<'a> CheckEliminator<'a> {
             && inst.result_ty == func.value_ty(value)
             && inst.metadata.effect().is_none_or(|effect| effect == EffectKind::Pure))
         .then_some(value)
+    }
+
+    /// The compare `id` of a mask that stays with a value the mask keeps whole, in the scope of
+    /// `block`.
+    fn masked_compare(
+        &mut self,
+        func: &Function,
+        block: BlockId,
+        id: InstId,
+    ) -> Option<MaskedCompare> {
+        let (InstKind::Eq(a, b) | InstKind::Ne(a, b)) = func.inst(id).kind else { return None };
+        [(a, b), (b, a)].into_iter().find_map(|(mask, other)| {
+            let &Value::Inst(mask_inst) = func.value(mask) else { return None };
+            let inst = func.inst(mask_inst);
+            let (source, limit) = low_mask_input(func, &inst.kind)?;
+            let bits = limit.bit_len() as u32;
+            (inst.metadata.effect().is_none_or(|effect| effect == EffectKind::Pure)
+                && (2..256).contains(&bits)
+                && func.value_ty(other) == Some(MirType::I256)
+                && self.range_of(func, source, MAX_DEPTH).hi > limit
+                && self.range_of(func, other, MAX_DEPTH).hi <= limit)
+                .then_some(MaskedCompare { id, block, mask, source, other, bits })
+        })
     }
 
     // === Fact recording ===
@@ -3518,6 +3574,84 @@ fn low_mask_input(func: &Function, kind: &InstKind) -> Option<(ValueId, U256)> {
 fn compares_with_immediate(func: &Function, kind: &InstKind, target: &Target) -> bool {
     let (InstKind::Eq(a, b) | InstKind::Ne(a, b)) = *kind else { return false };
     func.value_u256(a).xor(func.value_u256(b)).is_some_and(|value| target.is_cheap_immediate(value))
+}
+
+/// Whether `id` is an `eq` or `ne` that reads the mask of a low-bit `and`.
+fn masked_compare_operand(func: &Function, id: InstId) -> bool {
+    let (InstKind::Eq(a, b) | InstKind::Ne(a, b)) = func.inst(id).kind else { return false };
+    [a, b].into_iter().any(|value| {
+        inst_kind(func, value)
+            .and_then(|kind| low_mask_input(func, kind))
+            .is_some_and(|(_, mask)| mask.bit_len() > 1)
+    })
+}
+
+/// Rewrites each compare of a kept mask that `target` prices cheaper as the shifted difference
+/// of the words, and marks the mask dead when the compare was its only reader.
+fn shift_masked_compares(
+    func: &mut Function,
+    compares: &[MaskedCompare],
+    target: &Target,
+    replacements: &mut FxHashMap<ValueId, ValueId>,
+    dead: &mut GrowableBitSet<InstId>,
+) {
+    if compares.is_empty() {
+        return;
+    }
+    let uses = use_counts(func);
+    let loops = LoopAnalyzer::new().analyze_structure(func);
+    // A mask of both operands goes with the compare when nothing else reads it.
+    let unmasked = |func: &Function, value: ValueId, bits: u32| {
+        let &Value::Inst(inst) = func.value(value) else { return None };
+        let (source, limit) = low_mask_input(func, &func.inst(inst).kind)?;
+        (uses[value] == 1 && limit.bit_len() as u32 == bits).then_some((source, inst))
+    };
+    let mut chosen = FxHashMap::default();
+    for compare in compares {
+        let result = func.inst_result_value(compare.id).unwrap();
+        let branch = uses[result] == 1
+            && matches!(func.blocks[compare.block].terminator,
+                Some(Terminator::Branch { condition, .. }) if condition == result);
+        let read = if branch { ConditionUse::BRANCH } else { ConditionUse::VALUE };
+        let read =
+            if loops.block_to_loop.contains_key(&compare.block) { read.in_loop() } else { read };
+        let equal = matches!(func.inst(compare.id).kind, InstKind::Eq(..));
+        if uses[compare.mask] == 1
+            && target.shifts_masked_compare(compare.bits, equal, read)
+            && let &Value::Inst(mask) = func.value(compare.mask)
+        {
+            dead.insert(mask);
+            chosen.insert(compare.id, compare);
+        }
+    }
+    let mut blocks = chosen.values().map(|compare| compare.block).collect::<Vec<_>>();
+    blocks.sort_unstable();
+    blocks.dedup();
+    for block in blocks {
+        let mut builder = FunctionBuilder::new(func);
+        expand_block(&mut builder, block, |builder, id| {
+            let Some(compare) = chosen.get(&id) else { return false };
+            let (other, other_mask) = match unmasked(builder.func(), compare.other, compare.bits) {
+                Some((source, inst)) => (source, Some(inst)),
+                None => (compare.other, None),
+            };
+            let inst = builder.func().inst(id).clone();
+            builder.set_debug_context(&inst.metadata.debug_context());
+            // difference = xor source, other
+            // high = shl difference, 256 - bits
+            // result = eq high, 0 | ne high, 0
+            let difference = builder.xor(compare.source, other);
+            let count = builder.imm(256 - compare.bits);
+            let high = builder.shl(difference, count);
+            let equal = matches!(inst.kind, InstKind::Eq(..));
+            let value = if equal { builder.eq_zero(high) } else { builder.ne_zero(high) };
+            replacements.insert(inst.result().unwrap(), value);
+            if let Some(mask) = other_mask {
+                dead.insert(mask);
+            }
+            true
+        });
+    }
 }
 
 /// The word `v` of `zext(v != 0)`, which is `v` itself whenever `v` is 0 or 1, as a

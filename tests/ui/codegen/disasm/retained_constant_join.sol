@@ -20,8 +20,8 @@ contract C {
         } else {
             w = 0xdeadbeefcafebabe1234567 ^ (c - 0xdeadbeefcafebabe1234567);
         }
-        if ((b & 0xffffffffffffffff) != 0) {
-            if ((v & 0xffffffffffffffff) != 0) {
+        if ((b & 0xffffffffffffffff) > 0) {
+            if ((v & 0xffffffffffffffff) > 0) {
                 for (uint256 i; i < (w & 3) + 1; ++i) {
                     if ((c >> 7) & 1 == 1) {
                         revert();

@@ -67,9 +67,11 @@ contract NarrowComparisons {
         return a;
     }
 
-    // A word assembly may have stored dirty keeps the mask on the comparison.
+    // A word assembly may have stored dirty keeps the cleanup on the comparison, which compares
+    // the low 160 bits of the words as the shifted difference.
     // CHECK-LABEL: fn @dirty(
-    // CHECK: and {{v[0-9]+}}, 0xffffffffffffffffffffffffffffffffffffffff
+    // CHECK: [[DIFFERENCE:v[0-9]+]] = xor {{v[0-9]+}}, {{v[0-9]+}}
+    // CHECK-NEXT: shl [[DIFFERENCE]], 96
     function dirty(uint160[] memory a, uint256 i, uint256 x) external pure returns (bool) {
         assembly {
             mstore(add(add(a, 0x20), shl(5, i)), x)

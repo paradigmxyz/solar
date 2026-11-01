@@ -16,13 +16,13 @@ fn @f(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xbf06dbf1, pure, ab
     v5 = phi [bb1: 0xabcdef0123456789abcdef0123456789abcdef01234567], [bb2: 0xffffffffffffffff]
     v6 = phi [bb1: arg0], [bb2: v4]
     v7 = and arg1, 0xffffffffffffffff
-    v8 = ne v7, 0
+    v8 = gt v7, 0
     jumpi v8, bb4, bb5
   bb5:
     jump bb6
   bb4:
     v9 = and v5, 0xffffffffffffffff
-    v10 = ne v9, 0
+    v10 = gt v9, 0
     jumpi v10, bb7, bb8
   bb8:
     jump bb9
