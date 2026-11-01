@@ -198,7 +198,7 @@ impl HotnessAnalysis {
         self.worklist.clear();
         // A seed: a block with `cold_path`, or a call to a function that is rarely run and
         // returns.
-        let is_seed = |block| is_seed_block(module, func, block);
+        let is_seed = |block| is_seed(module, func, block);
         if !func.blocks.indices().any(is_seed) {
             return;
         }
@@ -467,7 +467,7 @@ fn block_aborts(
 }
 
 /// Whether a block holds `cold_path`, or calls or tail calls a `cold_hint` function.
-fn is_seed_block(module: &Module, func: &Function, block: BlockId) -> bool {
+fn is_seed(module: &Module, func: &Function, block: BlockId) -> bool {
     let body = &func.blocks[block];
     let is_hint = |function: FunctionId| module.functions[function].attributes.cold_hint;
     body.instructions.iter().any(|&inst| match func.inst(inst).kind {

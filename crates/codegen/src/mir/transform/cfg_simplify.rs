@@ -312,8 +312,8 @@ fn unmarked_instructions(func: &Function, block: BlockId) -> impl Iterator<Item 
         .filter(|&inst| !matches!(func.inst(inst).kind, InstKind::ColdPath))
 }
 
-/// Whether a block starts with `cold_path`, where lowering puts it. A marker elsewhere keeps its
-/// block from sharing with an unmarked one.
+/// Whether a block starts with `cold_path`, where lowering puts it. A marker elsewhere only
+/// misses a merge with an unmarked block.
 fn leading_marker(func: &Function, block: &BasicBlock) -> bool {
     block
         .instructions
@@ -682,6 +682,8 @@ fn eliminate_empty_blocks(func: &mut Function) -> bool {
             }
             // The marker covers the blocks its block dominates, so a forwarder into one of them
             // stays.
+            // NOTE: Forwarders that are the only way into a block each lose their marker, since
+            // neither dominates it, so the block stays hot.
             if marked.is_some_and(|target| cfg().dominators().dominates(block_id, target)) {
                 continue;
             }
