@@ -5,12 +5,12 @@ fn @periodStarts() [selector=0x2e930b8e, abi_wrapper, pure] {
   bb0:
     v26 = calldataload 4
     v27 = calldataload 36
-    v11 = ne v27, 0
     v28 = calldataload 68
     v30 = sub 0, v28
     v34 = ne v30, 0
     jumpi v34, bb6, bb9
   bb6:
+    v11 = ne v27, 0
     jumpi v11, bb7, bb4
   bb4:
     mstore 32, 18 !metadata(memory=scratch)
@@ -90,12 +90,12 @@ fn @keep() [selector=0xdaef3dc2, abi_wrapper, pure] {
   bb0:
     v21 = calldataload 4
     v22 = calldataload 36
-    v11 = ne v22, 0
     v23 = calldataload 68
     v25 = sub 0, v23
     v29 = ne v25, 0
     jumpi v29, bb6, bb9
   bb6:
+    v11 = ne v22, 0
     jumpi v11, bb7, bb4
   bb4:
     mstore 32, 18 !metadata(memory=scratch)
