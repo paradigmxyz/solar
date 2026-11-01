@@ -107,8 +107,8 @@ bb81 [cold]:
   push 34
   jump bb84
 
-// function choose(uint256 raw, uint256 yes, uint256 no) external pure returns (uint256)
-// external entry, selector 0x739ca28b
+//   function choose(uint256 raw, uint256 yes, uint256 no) external pure returns (uint256)
+//   external entry, selector 0x739ca28b
 bb2:
   dup 1
   push 0x1cd9057

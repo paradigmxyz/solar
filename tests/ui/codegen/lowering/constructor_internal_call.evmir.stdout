@@ -3,8 +3,8 @@
 @data
   ConstructorICall_runtime_code_0: hex"34601b575f3560e01c80633fa4f24503601b575f545f5260205ff35b5f5ffd"
 
-// constructor(uint256 x)
-// creation entry
+//   constructor(uint256 x)
+//   creation entry
 bb0:
   push_data ConstructorICall_runtime_code_0+31
   codesize

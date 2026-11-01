@@ -165,7 +165,7 @@ bb80 [ret=0, inputs=2, outputs=1]:
   mstore
   jump
 
-// store_storage_bytes (synthesized)
+//   store_storage_bytes (synthesized)
 bb18 [continuation]:
   dup 3
   dup 2
@@ -262,7 +262,7 @@ bb18 [continuation]:
   jumpi
   jump bb57
 
-// clear_storage_words (synthesized)
+//   clear_storage_words (synthesized)
 bb57 [ret=4, inputs=7, outputs=1]:
   dup 3
   push bb58

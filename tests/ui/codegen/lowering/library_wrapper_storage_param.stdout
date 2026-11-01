@@ -34,8 +34,8 @@ bb8 [cold]:
   push 28
   revert
 
-// function settle(DataTypes.Reserve storage r, uint256 amount) public returns (uint256)
-// external entry, selector 0xdef537e0
+//   function settle(DataTypes.Reserve storage r, uint256 amount) public returns (uint256)
+//   external entry, selector 0xdef537e0
 bb1:
   push_immutable 0, 20
   address

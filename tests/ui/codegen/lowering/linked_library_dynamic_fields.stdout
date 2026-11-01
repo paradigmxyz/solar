@@ -29,8 +29,8 @@ bb26 [cold]:
   push 28
   revert
 
-// function apply_(mapping(address => uint256) storage m, P memory p) public returns (uint256)
-// external entry, selector 0xfa06cb96
+//   function apply_(mapping(address => uint256) storage m, P memory p) public returns (uint256)
+//   external entry, selector 0xfa06cb96
 bb1:
   push_immutable 0, 20
   address

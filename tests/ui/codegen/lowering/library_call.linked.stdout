@@ -27,8 +27,8 @@ bb8 [cold]:
   push 28
   revert
 
-// function bump(mapping(address => uint256) storage m, address k, uint256 by) public returns (uint256)
-// external entry, selector 0xed2f0bb8
+//   function bump(mapping(address => uint256) storage m, address k, uint256 by) public returns (uint256)
+//   external entry, selector 0xed2f0bb8
 bb1:
   push_immutable 0, 20
   address

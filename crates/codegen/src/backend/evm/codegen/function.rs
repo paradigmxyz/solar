@@ -360,27 +360,36 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 }
 
-/// Returns the header of the declaration in `source` on one line: everything before its body or
-/// its first comment.
+/// Returns the header of the declaration in `source` on one line: everything before its body,
+/// without comments.
 fn function_header(source: &str) -> String {
-    let source = source.split("/*").next().unwrap_or_default();
-    let source = source.split("//").next().unwrap_or_default();
+    let mut header = String::new();
     let mut depth = 0u32;
-    let end = source
-        .find(|c| match c {
-            '(' => {
-                depth += 1;
-                false
+    let mut chars = source.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '/' if chars.peek() == Some(&'/') => {
+                chars.by_ref().find(|&c| c == '\n');
+                header.push(' ');
             }
-            ')' => {
-                depth = depth.saturating_sub(1);
-                false
+            '/' if chars.peek() == Some(&'*') => {
+                chars.next();
+                let mut previous = ' ';
+                chars.by_ref().find(|&c| std::mem::replace(&mut previous, c) == '*' && c == '/');
+                header.push(' ');
             }
-            '{' | ';' | '=' => depth == 0,
-            _ => false,
-        })
-        .unwrap_or(source.len());
-    source[..end].split_whitespace().collect::<Vec<_>>().join(" ")
+            '{' | ';' | '=' if depth == 0 => break,
+            _ => {
+                match c {
+                    '(' => depth += 1,
+                    ')' => depth = depth.saturating_sub(1),
+                    _ => {}
+                }
+                header.push(c);
+            }
+        }
+    }
+    header.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 /// Returns whether `header` declares a function, as opposed to a public state variable whose

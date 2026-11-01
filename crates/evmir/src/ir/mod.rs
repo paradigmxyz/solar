@@ -1126,7 +1126,7 @@ impl fmt::Debug for CleanBlocks {
 ///
 /// No pass decides from them and module equality ignores them, so they cannot change what the
 /// compiler emits. A pass that removes a block drops its comment. A merge into a predecessor
-/// keeps it, indented below the predecessor's own comment if it has one.
+/// keeps it, indented, below the predecessor's own comment.
 #[derive(Clone, Debug, Default)]
 pub struct BlockComments(FxHashMap<u32, String>);
 
@@ -1151,12 +1151,12 @@ impl BlockComments {
     }
 
     /// Moves the comment before the block labeled `from`, which a merge removes, below the one
-    /// before the block labeled `into`, which continues its code.
+    /// before the block labeled `into`, which continues its code. Its lines stay indented, to show
+    /// that they do not head `into`.
     pub fn absorb(&mut self, into: u32, from: u32) {
         if let Some(comment) = self.0.remove(&from) {
-            let indent = if self.0.contains_key(&into) { "  " } else { "" };
             for line in comment.lines() {
-                self.push(into, &format!("{indent}{line}"));
+                self.push(into, &format!("  {line}"));
             }
         }
     }

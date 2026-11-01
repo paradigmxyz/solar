@@ -424,3 +424,27 @@ fn ethdebug_omits_unresolved_library_operands() {
     }
     assert!(unresolved > 0);
 }
+
+#[test]
+fn evm_ir_dump_preserves_bytecode() {
+    let source = "../../codegen/lowering/function_comments.sol";
+    for mode in ["none", "gas", "size"] {
+        let baseline = compile_json(&[source, "-O", mode, "--emit=bin,bin-runtime"]);
+        let output = compile(&[
+            source,
+            "-O",
+            mode,
+            "--emit=bin,bin-runtime",
+            "-Zdump=evm-ir,evm-ir-runtime,evm-ir-runtime-scheduled",
+        ]);
+        // The compiler's JSON precedes the dump on stdout.
+        let stdout = String::from_utf8(output.stdout).expect("UTF-8 output");
+        assert!(stdout.contains("// function add(uint256 a, uint256 b)"), "{mode}");
+        let dumped = serde_json::Deserializer::from_str(&stdout)
+            .into_iter::<Value>()
+            .next()
+            .expect("compiler JSON")
+            .expect("parse compiler JSON");
+        assert_eq!(dumped["contracts"], baseline["contracts"], "{mode}");
+    }
+}

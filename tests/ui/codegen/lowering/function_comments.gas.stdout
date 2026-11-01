@@ -100,8 +100,8 @@ bb23 [cold]:
   push 28
   revert
 
-// fallback() external
-// external entry, no selector matches
+//   fallback() external
+//   external entry, no selector matches
 bb2:
   push 0
   calldataload

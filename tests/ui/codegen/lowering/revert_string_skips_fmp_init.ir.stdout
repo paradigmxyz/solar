@@ -44,7 +44,7 @@ bb8:
   push 0
   return
 
-// revert_error (synthesized)
+//   revert_error (synthesized)
 bb7 [cold]:
   push 0x73746f70
   push 224
