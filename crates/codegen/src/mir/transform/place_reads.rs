@@ -31,12 +31,17 @@
 //! read. A word whose first use sits after a branch is then not read on the path that leaves at
 //! the branch. The copy never lands inside a loop that does not contain the original.
 //!
+//! **Tests.** ABI lowering normalizes a validated bool at the guard, as `word != 0`, so the test
+//! sits above the branches that read it. A zero test of a read whose only use is in another block
+//! moves to that block first. The branch then tests the word itself, as the backend peels, rather
+//! than a bool kept across the paths that split before it. The test never moves into a loop.
+//!
 //! The pass runs once, after the last CSE and before the backend, so no later pass merges the
 //! copies again.
 
 use crate::{
     mir::{
-        BlockId, Function, InstKind, Instruction, MirModuleTarget, Module, Value, ValueId,
+        BlockId, Function, InstId, InstKind, Instruction, MirModuleTarget, Module, Value, ValueId,
         analysis::CfgInfo,
         pass::{MirPass, ModuleAnalyses, run_function_pass},
     },
@@ -60,10 +65,70 @@ impl MirPass for PlaceReads {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
         let target = module.target(gcx);
         run_function_pass(module, analyses, |func, _| {
+            let tested = sink_tests(func);
             let hoisted = hoist(func, &target);
-            run(func) || hoisted
+            run(func) || hoisted || tested
         })
     }
+}
+
+/// Moves each zero test of a read to the block of its only use. A word that ABI lowering
+/// normalizes at the guard would otherwise be tested before the paths split, and kept as a bool
+/// across them, instead of tested by the branch that reads it.
+fn sink_tests(func: &mut Function) -> bool {
+    // The instruction in each block that reads a value, or none for a phi or terminator.
+    let mut uses = FxHashMap::<ValueId, SmallVec<[(BlockId, Option<InstId>); 1]>>::default();
+    for (block, data) in func.blocks.iter_enumerated() {
+        for &inst in &data.instructions {
+            match &func.inst(inst).kind {
+                InstKind::Phi(incoming) => {
+                    for &(pred, operand) in incoming {
+                        uses.entry(operand).or_default().push((pred, None));
+                    }
+                }
+                kind => kind.visit_operands(|operand| {
+                    uses.entry(operand).or_default().push((block, Some(inst)));
+                }),
+            }
+        }
+        if let Some(term) = &data.terminator {
+            term.visit_operands(|operand| uses.entry(operand).or_default().push((block, None)));
+        }
+    }
+    let cfg = CfgInfo::new(func);
+    let mut moves = Vec::new();
+    for (block, data) in func.blocks.iter_enumerated() {
+        for &inst in &data.instructions {
+            let (InstKind::Eq(a, b) | InstKind::Ne(a, b)) = func.inst(inst).kind else { continue };
+            let input = match (func.value_u256(a), func.value_u256(b)) {
+                (_, Some(zero)) if zero.is_zero() => a,
+                (Some(zero), _) if zero.is_zero() => b,
+                _ => continue,
+            };
+            let Some(result) = func.inst_result_value(inst) else { continue };
+            if !func.is_constant_calldata_load(input) {
+                continue;
+            }
+            let Some(&[(use_block, user)]) = uses.get(&result).map(SmallVec::as_slice) else {
+                continue;
+            };
+            if use_block != block
+                && cfg.dominators().dominates(block, use_block)
+                && (cfg.cyclic_blocks().contains(block) || !cfg.cyclic_blocks().contains(use_block))
+            {
+                moves.push((block, inst, use_block, user));
+            }
+        }
+    }
+    for &(block, inst, use_block, user) in &moves {
+        // test = ne read, 0; ... use => ...; test = ne read, 0; use
+        func.blocks[block].instructions.retain(|&other| other != inst);
+        let position = user
+            .and_then(|user| func.blocks[use_block].instructions.iter().position(|&i| i == user))
+            .unwrap_or(func.blocks[use_block].instructions.len());
+        func.blocks[use_block].instructions.insert(position, inst);
+    }
+    !moves.is_empty()
 }
 
 /// Reads each word that every path out of a branching block must read, once, in that block.

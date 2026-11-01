@@ -11,6 +11,10 @@
 //@ run-call: differ true, false => true
 //@ run-call: differ false, true => true
 //@ run-call: differ false, false => false
+//@ run-call: negated true => false
+//@ run-call: negated false => true
+//@ run-call: unless true, 7 => 0, 8
+//@ run-call: unless false, 7 => 1, 7
 //@ run-call-fail: 0x599b0e8800000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000001
 //@ run-call-fail: 0x47a7ecc200000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000002
 //@ run-call-fail: 0x4c75808f00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002
@@ -28,5 +32,14 @@ contract BoolParamLogic {
 
     function differ(bool a, bool b) external pure returns (bool) {
         return a != b;
+    }
+
+    function negated(bool a) external pure returns (bool) {
+        return !a;
+    }
+
+    function unless(bool a, uint256 x) external pure returns (uint256, uint256) {
+        require(a || x > 0, "empty");
+        return (a ? 0 : 1, a ? x + 1 : x);
     }
 }

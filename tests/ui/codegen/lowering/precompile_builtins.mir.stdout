@@ -15,7 +15,7 @@ fn @recover() {
     v7 = gas
     v8 = staticcall v7, 1, v15, 128, 0, 32
     jumpi v8, bb2, bb1
-  bb1:
+  bb1 [cold]:
     v10 = returndatasize
     returndatacopy 0, 0, v10 !metadata(memory=abi_return)
     v11 = returndatasize
@@ -41,7 +41,7 @@ fn @recoverInvalid() {
     v7 = gas
     v8 = staticcall v7, 1, v15, 128, 0, 32
     jumpi v8, bb2, bb1
-  bb1:
+  bb1 [cold]:
     v10 = returndatasize
     returndatacopy 0, 0, v10 !metadata(memory=abi_return)
     v11 = returndatasize
@@ -104,7 +104,7 @@ fn @shaWord() {
     v6 = gas
     v7 = staticcall v6, 2, v16, 32, 0, 32
     jumpi v7, bb2, bb1
-  bb1:
+  bb1 [cold]:
     v9 = returndatasize
     returndatacopy 0, 0, v9 !metadata(memory=abi_return)
     v10 = returndatasize
@@ -113,7 +113,7 @@ fn @shaWord() {
     v8 = mload 0 !metadata(memory=scratch)
     mstore 0, v8 !metadata(memory=scratch)
     returndata 0, 32
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -132,7 +132,7 @@ fn @ripemdWord() {
     v6 = gas
     v7 = staticcall v6, 3, v17, 32, 0, 32
     jumpi v7, bb2, bb1
-  bb1:
+  bb1 [cold]:
     v10 = returndatasize
     returndatacopy 0, 0, v10 !metadata(memory=abi_return)
     v11 = returndatasize
@@ -142,7 +142,7 @@ fn @ripemdWord() {
     v9 = shl v8, 96
     mstore 0, v9 !metadata(memory=scratch)
     returndata 0, 32
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -175,6 +175,6 @@ fn @entry() [entry] {
     tail_call @ripemdLiteral
   bb2:
     tail_call @recoverInvalid
-  bb12:
+  bb12 [cold]:
     revert 0, 0
 }

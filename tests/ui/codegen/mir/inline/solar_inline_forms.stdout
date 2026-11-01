@@ -14,7 +14,7 @@ fn @plain(arg0: i256, arg1: i256) -> i256 {
     v2 = shr arg0, 3
     v3 = xor v11, v2
     ret v3
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -33,7 +33,7 @@ fn @never(arg0: i256, arg1: i256) -> i256 {
     v2 = shr arg0, 3
     v3 = xor v11, v2
     ret v3
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -51,7 +51,7 @@ fn @f() {
   bb2:
     mstore 0, v3 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -87,7 +87,7 @@ fn @g() {
   bb4:
     mstore 0, v22 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -123,7 +123,7 @@ fn @h() {
   bb5:
     mstore 0, v31 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -141,7 +141,7 @@ fn @i() {
   bb2:
     mstore 0, v3 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -168,6 +168,6 @@ fn @entry() [entry] {
     tail_call @g
   bb3:
     tail_call @f
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }

@@ -59,7 +59,7 @@ fn @run() {
     v68 = add v64, v67
     mstore 0, v68
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -74,6 +74,6 @@ fn @entry() [entry] {
     switch v3, default bb3, [0xa444f5e9 => bb2]
   bb2:
     tail_call @run
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }

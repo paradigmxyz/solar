@@ -13,7 +13,7 @@
 +     v3 = calldataload 4
 +     mstore 0, v3
       stop
-    bb2:
+    bb2 [cold]:
       revert 0, 0
   }
   
@@ -74,7 +74,7 @@
 +     v5 = phi [bb2: v6], [bb3: v6]
       mstore 0, v5
       stop
-    bb5:
+    bb5 [cold]:
       revert 0, 0
   }
   
@@ -99,7 +99,7 @@
 -     mstore 0, v2
 +     mstore 0, v5
       stop
-    bb4:
+    bb4 [cold]:
       revert 0, 0
   }
   
@@ -116,7 +116,7 @@
       v2 = calldataload 4
       mstore 0, v2
       stop
-    bb3:
+    bb3 [cold]:
       revert 0, 0
   }
   
@@ -135,7 +135,28 @@
 +     v5 = calldataload 36
 +     mstore 0, v5
       stop
+    bb3 [cold]:
+      revert 0, 0
+  }
+  
+  fn @tested() {
+    bb0:
+      v0 = calldatasize
+      v1 = lt v0, 36
+      jumpi v1, bb4, bb1
+    bb1:
+      v2 = calldataload 4
+-     v3 = ne v2, 0
+      v4 = timestamp
+      v5 = lt v4, 100
+      jumpi v5, bb4, bb2
+    bb2:
++     v6 = calldataload 4
++     v3 = ne v6, 0
+      jumpi v3, bb3, bb4
     bb3:
+      stop
+    bb4 [cold]:
       revert 0, 0
   }
   
@@ -143,7 +164,9 @@
     bb0:
       v0 = calldataload 0
       v1 = shr v0, 224
-      switch v1, default bb8, [1 => bb1, 2 => bb2, 3 => bb3, 4 => bb4, 5 => bb5, 6 => bb6, 7 => bb7]
+      switch v1, default bb9, [1 => bb1, 2 => bb2, 3 => bb3, 4 => bb4, 5 => bb5, 6 => bb6, 7 => bb7, 8 => bb8]
+    bb8:
+      tail_call @tested
     bb7:
       tail_call @moved
     bb6:
@@ -158,7 +181,7 @@
       tail_call @looped
     bb1:
       tail_call @guarded
-    bb8:
+    bb9 [cold]:
       revert 0, 0
   }
   

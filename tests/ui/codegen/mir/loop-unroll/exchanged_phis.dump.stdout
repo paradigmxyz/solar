@@ -31,7 +31,7 @@ fn @swaps() {
   bb7:
     v32 = add v15, 4
     jump bb6
-  bb4:
+  bb4 [cold]:
     revert 0, 0
 }
 
@@ -46,6 +46,6 @@ fn @entry() [entry] {
     switch v3, default bb3, [0xdb9a27fa => bb2]
   bb2:
     tail_call @swaps
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }

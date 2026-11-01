@@ -17,11 +17,11 @@
 +     jump bb5
     bb5:
       ret v4
--   bb4:
+-   bb4 [cold]:
 -     revert 0, 0
     bb3:
       ret 0
-+   bb4:
++   bb4 [cold]:
 +     revert 0, 0
   }
   
@@ -32,7 +32,7 @@
       jumpi v1, bb1, bb2
     bb2:
       ret v0
-    bb1:
+    bb1 [cold]:
       revert 0, 0
   }
   

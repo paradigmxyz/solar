@@ -67,11 +67,11 @@ fn @assign() {
     v38 = add v22, 1
     v71 = lt v38, v20
     jump bb3
-  bb8:
+  bb8 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb5:
+  bb5 [cold]:
     revert 0, 0
 }
 
@@ -153,11 +153,11 @@ fn @push() {
     v44 = add v28, 1
     v79 = lt v44, v26
     jump bb3
-  bb5:
+  bb5 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb7:
+  bb7 [cold]:
     revert 0, 0
 }
 
@@ -196,7 +196,7 @@ fn @pop() {
     v18 = add v15, 1
     v19 = add v16, 1
     jump bb3
-  bb1:
+  bb1 [cold]:
     mstore 32, 49 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -268,11 +268,11 @@ fn @assignFixed() {
     v42 = add v26, 1
     v75 = lt v42, v24
     jump bb3
-  bb8:
+  bb8 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb5:
+  bb5 [cold]:
     revert 0, 0
 }
 
@@ -293,6 +293,6 @@ fn @entry() [entry] {
     tail_call @pop
   bb2:
     tail_call @assign
-  bb6:
+  bb6 [cold]:
     revert 0, 0
 }

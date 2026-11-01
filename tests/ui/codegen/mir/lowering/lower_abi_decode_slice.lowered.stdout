@@ -17,7 +17,7 @@
 +     jumpi v7, bb1, bb3
 +   bb3:
 +     ret v6
-+   bb1:
++   bb1 [cold]:
 +     revert 0, 0
   }
   
@@ -47,7 +47,7 @@
       v7 = mload v6
       v8 = add v5, v7
       ret v8
-+   bb1:
++   bb1 [cold]:
 +     revert 0, 0
   }
   
@@ -100,11 +100,11 @@
 +     v33 = and v32, 31
 +     memory_zero v31, v33
 +     ret v22
-+   bb4:
++   bb4 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
-+   bb1:
++   bb1 [cold]:
 +     revert 0, 0
 + }
 + 
@@ -133,7 +133,7 @@
 +     jumpi v11, bb1, bb5
 +   bb5:
 +     ret v3
-+   bb1:
++   bb1 [cold]:
 +     revert 0, 0
   }
   

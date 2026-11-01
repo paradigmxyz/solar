@@ -5,14 +5,14 @@ fn @periodStarts() {
   bb0:
     v26 = calldataload 4
     v27 = calldataload 36
-    v11 = ne v27, 0
     v28 = calldataload 68
     v30 = sub 0, v28
     v34 = ne v30, 0
     jumpi v34, bb6, bb9
   bb6:
+    v11 = ne v27, 0
     jumpi v11, bb7, bb4
-  bb4:
+  bb4 [cold]:
     mstore 32, 18 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -80,7 +80,7 @@ fn @periodStarts() {
   bb12:
     v66 = add v4, 2
     jump bb1
-  bb5:
+  bb5 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -90,14 +90,14 @@ fn @keep() {
   bb0:
     v21 = calldataload 4
     v22 = calldataload 36
-    v11 = ne v22, 0
     v23 = calldataload 68
     v25 = sub 0, v23
     v29 = ne v25, 0
     jumpi v29, bb6, bb9
   bb6:
+    v11 = ne v22, 0
     jumpi v11, bb7, bb4
-  bb4:
+  bb4 [cold]:
     mstore 32, 18 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -165,7 +165,7 @@ fn @keep() {
   bb12:
     v61 = add v4, 2
     jump bb1
-  bb5:
+  bb5 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -188,6 +188,6 @@ fn @entry() [entry] {
     tail_call @keep
   bb3:
     tail_call @periodStarts
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }

@@ -27,7 +27,7 @@ fn @patch() {
     v13 = shl v12, 248
     mstore 0, v13 !metadata(memory=scratch)
     returndata 0, 32
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -55,6 +55,6 @@ fn @entry() [entry] {
     tail_call @store
   bb2:
     tail_call @patch
-  bb4:
+  bb4 [cold]:
     revert 0, 0
 }

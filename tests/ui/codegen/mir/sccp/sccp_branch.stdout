@@ -10,7 +10,7 @@
 +     jump bb1
     bb1:
       ret 1
-+   bb2:
++   bb2 [cold]:
 +     invalid
   }
   

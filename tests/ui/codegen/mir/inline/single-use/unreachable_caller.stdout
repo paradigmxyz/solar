@@ -34,7 +34,7 @@
 +     v1 = sload arg0
 +     v2 = ne v1, 0
 +     jumpi v2, bb3, bb4
-+   bb4:
++   bb4 [cold]:
 +     revert 0, 0
 +   bb3:
 +     jump bb1
@@ -48,7 +48,7 @@
       v0 = sload arg0
       v1 = ne v0, 0
       jumpi v1, bb1, bb2
-    bb2:
+    bb2 [cold]:
       revert 0, 0
     bb1:
       ret v0

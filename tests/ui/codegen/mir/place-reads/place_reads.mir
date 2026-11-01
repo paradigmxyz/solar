@@ -169,11 +169,36 @@ fn @moved() {
     revert 0, 0
 }
 
+// A zero test of a read moves to the block of its only use, so the branch tests the word itself
+// and no bool is kept across the other branch.
+// CHECK-LABEL: fn @tested()
+// CHECK: bb2:
+// CHECK: + [[WORD:v[0-9]+]] = calldataload 4
+// CHECK-NEXT: + {{v[0-9]+}} = ne [[WORD]], 0
+fn @tested() {
+  bb0:
+    v0 = calldatasize
+    v1 = lt v0, 36
+    jumpi v1, bb4, bb1
+  bb1:
+    v2 = calldataload 4
+    v3 = ne v2, 0
+    v4 = timestamp
+    v5 = lt v4, 100
+    jumpi v5, bb4, bb2
+  bb2:
+    jumpi v3, bb3, bb4
+  bb3:
+    stop
+  bb4:
+    revert 0, 0
+}
+
 fn @entry() [entry] {
   bb0:
     v0 = calldataload 0
     v1 = shr v0, 224
-    switch v1, default bb8, [1 => bb1, 2 => bb2, 3 => bb3, 4 => bb4, 5 => bb5, 6 => bb6, 7 => bb7]
+    switch v1, default bb9, [1 => bb1, 2 => bb2, 3 => bb3, 4 => bb4, 5 => bb5, 6 => bb6, 7 => bb7, 8 => bb8]
   bb1:
     tail_call @guarded
   bb2:
@@ -189,5 +214,7 @@ fn @entry() [entry] {
   bb7:
     tail_call @moved
   bb8:
+    tail_call @tested
+  bb9:
     revert 0, 0
 }

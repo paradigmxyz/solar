@@ -49,11 +49,11 @@ fn @constructor() [constructor] {
     sstore v1, v15 !metadata(storage=symbolic(v1))
     v7 = add v1, 1
     jump bb1
-  bb7:
+  bb7 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb10:
+  bb10 [cold]:
     revert 0, 0
 }
 
@@ -62,7 +62,7 @@ fn @get() {
     v11 = calldataload 4
     v0 = lt v11, 8
     jumpi v0, bb2, bb1
-  bb1:
+  bb1 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -79,7 +79,7 @@ fn @get() {
   bb4:
     mstore 0, v7 !metadata(memory=scratch)
     returndata 0, 32
-  bb3:
+  bb3 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -139,7 +139,7 @@ fn @sum() {
   bb8:
     v54 = add v46, 1
     jump bb6
-  bb4:
+  bb4 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -162,6 +162,6 @@ fn @entry() [entry] {
     tail_call @get
   bb3:
     tail_call @sum
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }

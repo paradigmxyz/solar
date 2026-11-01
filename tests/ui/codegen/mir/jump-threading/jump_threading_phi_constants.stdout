@@ -108,9 +108,9 @@
       ret 0
     bb5:
       ret 1
-+   bb3:
++   bb3 [cold]:
 +     invalid
-+   bb4:
++   bb4 [cold]:
 +     invalid
   }
   

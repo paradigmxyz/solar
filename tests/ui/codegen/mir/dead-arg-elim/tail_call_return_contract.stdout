@@ -29,24 +29,24 @@
       ret
   }
   
-  fn @abort() {
-    bb0:
+  fn @abort() [cold] {
+    bb0 [cold]:
       revert 0, 0
   }
   
-  fn @cold() -> i256 {
-    bb0:
+  fn @cold() -> i256 [cold] {
+    bb0 [cold]:
       icall @abort
       ret 7
   }
   
-  fn @forward_cold() -> i256 {
-    bb0:
+  fn @forward_cold() -> i256 [cold] {
+    bb0 [cold]:
       tail_call @cold
   }
   
-  fn @entry_cold() [selector=0x05060708] {
-    bb0:
+  fn @entry_cold() [selector=0x05060708, cold] {
+    bb0 [cold]:
       v0 = icall @forward_cold
       v1 = icall @cold
       mstore 0, v1

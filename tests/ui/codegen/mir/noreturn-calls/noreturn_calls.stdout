@@ -1,13 +1,13 @@
 - // === ROOT/tests/ui/codegen/mir/noreturn-calls/noreturn_calls.mir (before noreturn-calls) ===
 + // === ROOT/tests/ui/codegen/mir/noreturn-calls/noreturn_calls.mir (after noreturn-calls) ===
   @module NoreturnCalls
-  fn @fail() {
-    bb0:
+  fn @fail() [cold] {
+    bb0 [cold]:
       revert 0, 0
   }
   
-  fn @fail_word() -> i256 {
-    bb0:
+  fn @fail_word() -> i256 [cold] {
+    bb0 [cold]:
       revert 0, 0
   }
   
@@ -15,7 +15,7 @@
     bb0:
       v0 = lt arg0, arg1
       jumpi v0, bb2, bb1
-    bb1:
+    bb1 [cold]:
       icall @fail
 -     jump bb2
 +     invalid
@@ -23,16 +23,16 @@
       ret arg0
   }
   
-  fn @after_result(arg0: i256) -> i256 {
-    bb0:
+  fn @after_result(arg0: i256) -> i256 [cold] {
+    bb0 [cold]:
       v0 = icall @fail_word
 -     v1 = add v0, arg0
 -     ret v1
 +     invalid
   }
   
-  fn @wrap(arg0: i256) {
-    bb0:
+  fn @wrap(arg0: i256) [cold] {
+    bb0 [cold]:
       icall @fail
 -     jump bb1
 -   bb1:
@@ -40,8 +40,8 @@
 +     invalid
   }
   
-  fn @calls_wrap(arg0: i256) -> i256 {
-    bb0:
+  fn @calls_wrap(arg0: i256) -> i256 [cold] {
+    bb0 [cold]:
       icall @wrap, arg0
 -     ret arg0
 +     invalid
@@ -53,7 +53,7 @@
       jumpi v0, bb1, bb2
     bb2:
       ret
-    bb1:
+    bb1 [cold]:
       revert 0, 0
   }
   
@@ -63,16 +63,20 @@
       ret arg0
   }
   
-  fn @out_of_bounds() -> i256 {
-    bb0:
+- fn @out_of_bounds() -> i256 {
+-   bb0:
++ fn @out_of_bounds() -> i256 [cold] {
++   bb0 [cold]:
       v0 = gt 0, 0
       icall panic_if_zero<0x32>, v0
 -     ret 0
 +     invalid
   }
   
-  fn @calls_out_of_bounds() -> i256 {
-    bb0:
+- fn @calls_out_of_bounds() -> i256 {
+-   bb0:
++ fn @calls_out_of_bounds() -> i256 [cold] {
++   bb0 [cold]:
       v0 = icall @out_of_bounds
 -     ret v0
 +     invalid

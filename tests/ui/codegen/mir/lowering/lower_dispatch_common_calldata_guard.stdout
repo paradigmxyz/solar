@@ -10,7 +10,7 @@
 +     jump bb2
     bb2:
       stop
-    bb1:
+    bb1 [cold]:
       revert 0, 0
   }
   
@@ -23,7 +23,7 @@
 +     jump bb2
     bb2:
       stop
-+   bb1:
++   bb1 [cold]:
 +     revert 0, 0
 + }
 + 
@@ -44,7 +44,7 @@
 +     tail_call @b
 +   bb3:
 +     tail_call @a
-    bb1:
+    bb1 [cold]:
       revert 0, 0
   }
   
@@ -58,7 +58,7 @@
       jump bb2
     bb2:
       stop
-    bb1:
+    bb1 [cold]:
 -     revert 0, 0
 +     invalid
   }
@@ -70,7 +70,7 @@
       jump bb2
     bb2:
       stop
-    bb1:
+    bb1 [cold]:
 -     revert 0, 0
 +     invalid
   }
@@ -92,7 +92,7 @@
       tail_call @b
     bb3:
       tail_call @a
-    bb1:
+    bb1 [cold]:
       revert 0, 0
   }
   

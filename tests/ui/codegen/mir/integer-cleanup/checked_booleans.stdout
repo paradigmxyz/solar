@@ -5,7 +5,7 @@
     bb0:
       v0 = lt arg0, 2
       jumpi v0, bb1, bb2
-    bb2:
+    bb2 [cold]:
       revert 0, 0
     bb1:
       v1 = ne arg0, 0
@@ -19,7 +19,7 @@
     bb0:
       v0 = lt arg0, 3
       jumpi v0, bb1, bb2
-    bb2:
+    bb2 [cold]:
       revert 0, 0
     bb1:
       v1 = ne arg0, 0
@@ -40,7 +40,7 @@
     bb0:
       v0 = lt arg0, 2
       jumpi v0, bb1, bb2
-    bb2:
+    bb2 [cold]:
       revert 0, 0
     bb1:
       v1 = ne arg0, 0
@@ -60,7 +60,7 @@
     bb0:
       v0 = lt arg0, i160 2
       jumpi v0, bb1, bb2
-    bb2:
+    bb2 [cold]:
       revert 0, 0
     bb1:
       v1 = ne arg0, i160 0

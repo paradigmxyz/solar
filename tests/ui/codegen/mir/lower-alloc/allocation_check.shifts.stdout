@@ -17,7 +17,7 @@
 +     mstore 64, v2 !metadata(memory=scratch)
 +     memory_zero v0, arg0
       ret v0
-+   bb2:
++   bb2 [cold]:
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36

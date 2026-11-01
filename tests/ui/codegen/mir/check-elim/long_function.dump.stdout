@@ -10,7 +10,7 @@ fn @chained() {
     v2 = lt v62, v63
     v65 = and v0, v2
     jumpi v65, bb4, bb3
-  bb3:
+  bb3 [cold]:
     revert 0, 0
   bb4:
     v115 = calldataload 68
@@ -124,11 +124,11 @@ fn @chained() {
   bb7:
     mstore 0, v57 !metadata(memory=scratch)
     returndata 0, 32
-  bb6:
+  bb6 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb5:
+  bb5 [cold]:
     tail_call @revert_stub
 }
 
@@ -138,7 +138,7 @@ fn @unchained() {
     v64 = calldataload 36
     v0 = lt v63, v64
     jumpi v0, bb4, bb3
-  bb3:
+  bb3 [cold]:
     revert 0, 0
   bb4:
     v118 = calldataload 68
@@ -256,16 +256,16 @@ fn @unchained() {
   bb7:
     mstore 0, v59 !metadata(memory=scratch)
     returndata 0, 32
-  bb6:
+  bb6 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb5:
+  bb5 [cold]:
     tail_call @revert_stub
 }
 
-fn @revert_stub() {
-  bb0:
+fn @revert_stub() [cold] {
+  bb0 [cold]:
     mstore 0, 0xaf7cfeb1 !metadata(memory=scratch)
     revert 28, 4
 }
@@ -287,6 +287,6 @@ fn @entry() [entry] {
     tail_call @chained
   bb3:
     tail_call @unchained
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }

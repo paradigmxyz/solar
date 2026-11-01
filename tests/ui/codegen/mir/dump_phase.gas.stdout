@@ -10,7 +10,7 @@ fn @f() {
     v3 = calldataload 4
     mstore 0, v3 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -25,6 +25,6 @@ fn @entry() [entry] {
     switch v3, default bb3, [0xb3de648b => bb2]
   bb2:
     tail_call @f
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }

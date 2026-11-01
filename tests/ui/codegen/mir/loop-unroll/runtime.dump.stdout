@@ -233,10 +233,10 @@ fn @entry() [entry] {
   bb34:
     v85 = add v77, 1
     jump bb32
-  bb11:
+  bb11 [cold]:
     mstore 32, 17
     mstore 0, 0x4e487b71
     revert 28, 36
-  bb7:
+  bb7 [cold]:
     revert 0, 0
 }

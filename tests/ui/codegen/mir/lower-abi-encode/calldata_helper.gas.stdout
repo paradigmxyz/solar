@@ -54,7 +54,7 @@ fn @fa() {
   bb4:
     v8 = call v0, v213, 0, v188, v175, 0, 0
     jumpi v8, bb2, bb1
-  bb1:
+  bb1 [cold]:
     v9 = returndatasize
     returndatacopy 0, 0, v9 !metadata(memory=abi_return)
     v10 = returndatasize
@@ -208,7 +208,7 @@ fn @fa() {
     v192 = add v191, 64
     v194 = add v193, 64
     jump bb14
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -267,7 +267,7 @@ fn @fb() {
   bb4:
     v8 = call v0, v214, 0, v189, v176, 0, 0
     jumpi v8, bb2, bb1
-  bb1:
+  bb1 [cold]:
     v9 = returndatasize
     returndatacopy 0, 0, v9 !metadata(memory=abi_return)
     v10 = returndatasize
@@ -421,7 +421,7 @@ fn @fb() {
     v193 = add v192, 64
     v195 = add v194, 64
     jump bb14
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -478,7 +478,7 @@ fn @fc() {
   bb4:
     v8 = call v0, v131, 0, v114, v105, 0, 0
     jumpi v8, bb2, bb1
-  bb1:
+  bb1 [cold]:
     v9 = returndatasize
     returndatacopy 0, 0, v9 !metadata(memory=abi_return)
     v10 = returndatasize
@@ -551,7 +551,7 @@ fn @fc() {
     v118 = add v117, 64
     v120 = add v119, 64
     jump bb13
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -574,6 +574,6 @@ fn @entry() [entry] {
     tail_call @fa
   bb3:
     tail_call @fb
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
