@@ -372,9 +372,10 @@ fn @calldataPointerRoundtrip() -> i1 [selector=0x1d9b1866, abi_params=[], abi_re
     v15 = lt v14, 32
     icall revert_if<tuple_data_too_short>, v15
     v16 = mload 0 !metadata(memory=scratch)
-    v17 = lt v16, 2
-    v18 = eq v17, false
-    icall revert_if<empty>, v18
-    v19 = ne v16, 0
-    ret v19
+    v17 = shr v16, 1
+    v18 = eq v17, 0
+    v19 = eq v18, false
+    icall revert_if<empty>, v19
+    v20 = ne v16, 0
+    ret v20
 }

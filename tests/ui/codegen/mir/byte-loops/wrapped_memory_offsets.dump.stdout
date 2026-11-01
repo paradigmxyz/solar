@@ -69,9 +69,11 @@ fn @wordsForward() [selector=0xb2066b6b, abi_wrapper, pure] {
     v42 = heap_floor !metadata(alloc_ptr)
     v43 = add v42, 128 !metadata(alloc_ptr)
     v44 = lt v43, v42
-    v45 = gt v43, 0xffffffffffffffff
-    v46 = or v44, v45
-    jumpi v46, bb4, bb3
+    v45 = zext i1 v44 to i256
+    v46 = shr v43, 64
+    v47 = or v45, v46
+    v48 = ne v47, 0
+    jumpi v48, bb4, bb3
   bb3:
     mstore 64, v43 !metadata(memory=scratch)
     mstore v42, 3
@@ -102,33 +104,34 @@ fn @wordsForward() [selector=0xb2066b6b, abi_wrapper, pure] {
 
 fn @bytesIntoHeader() [selector=0x10ca09ba, abi_wrapper, pure] {
   bb0:
+    v8 = calldataload 36
+    v9 = shr v8, 1
     v6 = calldatasize
     v7 = lt v6, 68
-    jumpi v7, bb6, bb7
+    v23 = zext i1 v7 to i256
+    v24 = or v23, v9
+    v25 = ne v24, 0
+    jumpi v25, bb6, bb7
   bb7:
-    v8 = calldataload 36
-    v9 = lt v8, 2
-    jumpi v9, bb8, bb6
-  bb8:
-    v18 = heap_floor !metadata(alloc_ptr)
-    v19 = add v18, 64 !metadata(alloc_ptr)
-    mstore 64, v19 !metadata(memory=scratch)
+    v19 = heap_floor !metadata(alloc_ptr)
+    v20 = add v19, 64 !metadata(alloc_ptr)
+    mstore 64, v20 !metadata(memory=scratch)
+    mstore v19, 2
+    v14 = add v19, 32
+    mstore v14, 0x102000000000000000000000000000000000000000000000000000000000000
+    v18 = icall @alloc, 64
+    v22 = calldatasize
+    calldatacopy v18, v22, 64
     mstore v18, 2
-    v13 = add v18, 32
-    mstore v13, 0x102000000000000000000000000000000000000000000000000000000000000
-    v17 = icall @alloc, 64
-    v21 = calldatasize
-    calldatacopy v17, v21, 64
-    mstore v17, 2
     jumpi arg1, bb2, bb1
   bb1:
     jump bb2
   bb2:
-    v3 = phi [bb8: v18], [bb1: v17]
+    v3 = phi [bb7: v19], [bb1: v18]
     mstore v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jumpi arg1, bb3, bb4
   bb4:
-    icall @_copyBytes, v18, v3, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0, arg0
+    icall @_copyBytes, v19, v3, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0, arg0
     jump bb5
   bb3:
     icall @_copyBytesSelf, v3, arg0
@@ -180,12 +183,12 @@ fn @calldataIntoHeader() [selector=0x428158c8, abi_wrapper, pure] {
     v54 = sub v45, v53
     v55 = gt v52, v54
     v56 = or v51, v55
-    v100 = or v46, v56
+    v101 = or v46, v56
     v60 = calldataload 36
     v61 = add v60, 4
     v64 = gt v60, v50
-    v101 = or v100, v64
-    jumpi v101, bb15, bb16
+    v102 = or v101, v64
+    jumpi v102, bb15, bb16
   bb16:
     v65 = calldataload v61
     v66 = add v61, 32
@@ -195,10 +198,13 @@ fn @calldataIntoHeader() [selector=0x428158c8, abi_wrapper, pure] {
     v93 = heap_floor !metadata(alloc_ptr)
     v94 = add v93, v69 !metadata(alloc_ptr)
     v95 = lt v94, v93
-    v96 = gt v94, 0xffffffffffffffff
-    v97 = or v95, v96
-    v102 = or v68, v97
-    jumpi v102, bb17, bb19
+    v96 = zext i1 v95 to i256
+    v97 = shr v94, 64
+    v98 = or v96, v97
+    v103 = zext i1 v68 to i256
+    v104 = or v103, v98
+    v105 = ne v104, 0
+    jumpi v105, bb17, bb19
   bb19:
     mstore v93, v65
     v71 = sub v45, v66
@@ -209,9 +215,9 @@ fn @calldataIntoHeader() [selector=0x428158c8, abi_wrapper, pure] {
     calldatacopy v89, v66, v65
     v80 = sub 0, v65
     v81 = and v80, 31
-    v99 = calldatasize
+    v100 = calldatasize
     v90 = add v89, v65
-    calldatacopy v90, v99, v81
+    calldatacopy v90, v100, v81
     v40 = lt v52, arg2
     jumpi v40, bb7, bb6
   bb6:
@@ -731,9 +737,11 @@ fn @alloc(arg0: i256) -> i256 {
     v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v2 = add v0, arg0 !metadata(alloc_ptr)
     v3 = lt v2, v0
-    v4 = gt v2, 0xffffffffffffffff
-    v5 = or v3, v4
-    jumpi v5, bb1, bb2
+    v4 = zext i1 v3 to i256
+    v5 = shr v2, 64
+    v6 = or v4, v5
+    v7 = ne v6, 0
+    jumpi v7, bb1, bb2
   bb2:
     mstore 64, v2 !metadata(memory=scratch)
     ret v0

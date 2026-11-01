@@ -13,15 +13,14 @@ bb0:
   sub
   push bb3
   jumpi
-  push 68
-  calldatasize
-  lt
-  push bb3
-  jumpi
   push 36
   calldataload
   push 1
+  shr
+  push 68
+  calldatasize
   lt
+  or
   push bb3
   jumpi
   push 4
@@ -29,12 +28,12 @@ bb0:
   timestamp
   dup 2
   lt
-  push bb10
+  push bb9
   jumpi
   push 36
   calldataload
   iszero
-  push bb9
+  push bb8
   jumpi
   push 0
   mstore
@@ -45,13 +44,13 @@ bb3 [cold]:
   push 0
   push 0
   revert
-bb9 [cold]:
+bb8 [cold]:
   push 0x45524332303a503a494e56414c49445f5349474e4154555245
   push 56
   shl
   push 25
-  jump bb12
-bb12 [cold]:
+  jump bb11
+bb11 [cold]:
   push 32
   dup 1
   mstore
@@ -65,9 +64,9 @@ bb12 [cold]:
   push 100
   push 28
   revert
-bb10 [cold]:
+bb9 [cold]:
   push 0x45524332303a503a45585049524544
   push 136
   shl
   push 15
-  jump bb12
+  jump bb11

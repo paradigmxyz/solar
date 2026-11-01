@@ -142,10 +142,13 @@ fn @decode_calldata_type.8() -> i256 [may_return_memory] {
     v36 = heap_floor !metadata(alloc_ptr)
     v37 = add v36, v10 !metadata(alloc_ptr)
     v38 = lt v37, v36
-    v39 = gt v37, 0xffffffffffffffff
-    v40 = or v38, v39
-    v42 = or v8, v40
-    jumpi v42, bb3, bb9
+    v39 = zext i1 v38 to i256
+    v40 = shr v37, 64
+    v41 = or v39, v40
+    v43 = zext i1 v8 to i256
+    v44 = or v43, v41
+    v45 = ne v44, 0
+    jumpi v45, bb3, bb9
   bb9:
     mstore 64, v37 !metadata(memory=scratch)
     mstore v36, v6
@@ -201,10 +204,13 @@ fn @decode_calldata_type.9() -> i256 [may_return_memory] {
     v36 = heap_floor !metadata(alloc_ptr)
     v37 = add v36, v10 !metadata(alloc_ptr)
     v38 = lt v37, v36
-    v39 = gt v37, 0xffffffffffffffff
-    v40 = or v38, v39
-    v42 = or v8, v40
-    jumpi v42, bb3, bb9
+    v39 = zext i1 v38 to i256
+    v40 = shr v37, 64
+    v41 = or v39, v40
+    v43 = zext i1 v8 to i256
+    v44 = or v43, v41
+    v45 = ne v44, 0
+    jumpi v45, bb3, bb9
   bb9:
     mstore 64, v37 !metadata(memory=scratch)
     mstore v36, v6

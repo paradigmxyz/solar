@@ -157,9 +157,9 @@ bb81 [ret=0, inputs=2, outputs=1]:
   dup 3
   dup 2
   lt
-  push 0xffffffffffffffff
-  dup 3
-  gt
+  dup 2
+  push 64
+  shr
   or
   push bb73
   jumpi
@@ -174,16 +174,13 @@ bb55 [ret=0, inputs=2, outputs=1]:
   mload
   dup 1
   dup 1
-  add
-  swap 1
-  dup 2
-  push 1
+  push 255
   shr
-  sub
   push bb51
   jumpi
+  add
+  dup 1
   push 63
-  dup 2
   add
   dup 2
   dup 2
@@ -392,9 +389,9 @@ bb41 [loop]:
   dup 2
   dup 2
   lt
-  push 0xffffffffffffffff
-  dup 3
-  gt
+  dup 2
+  push 64
+  shr
   or
   push bb73
   jumpi

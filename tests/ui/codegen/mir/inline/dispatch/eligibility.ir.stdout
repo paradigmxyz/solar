@@ -23,14 +23,14 @@ fn @a() [selector=0xf0fdf834, abi_wrapper, pure] {
 
 fn @b() [selector=0xcd580ff3, abi_wrapper, pure] {
   bb0:
-    v8 = calldatasize
-    v9 = lt v8, 36
-    jumpi v9, bb3, bb4
+    v4 = calldatasize
+    v5 = lt v4, 36
+    jumpi v5, bb3, bb4
   bb4:
     v1 = add arg0, arg0
-    v3 = shr v1, 1
-    v7 = ne v3, arg0
-    jumpi v7, bb1, bb2
+    v2 = shr arg0, 255
+    v3 = ne v2, 0
+    jumpi v3, bb1, bb2
   bb2:
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
@@ -87,9 +87,9 @@ fn @a() [selector=0xf0fdf834, abi_wrapper, view] {
 fn @b() [selector=0xcd580ff3, abi_wrapper, pure] {
   bb0:
     v1 = add arg0, arg0
-    v3 = shr v1, 1
-    v7 = ne v3, arg0
-    jumpi v7, bb1, bb2
+    v2 = shr arg0, 255
+    v3 = ne v2, 0
+    jumpi v3, bb1, bb2
   bb2:
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
@@ -125,34 +125,34 @@ fn @entry() [entry] {
 @phase lowered
 fn @a() [selector=0x1e3badd9, abi_wrapper, pure] {
   bb0:
-    v27 = calldatasize
-    v29 = calldataload 4
-    v30 = add v29, 4
-    v32 = sub v27, 36
-    v33 = gt v29, v32
-    v34 = calldataload v30
-    v35 = add v30, 32
-    v36 = sub v27, v35
-    v37 = shr v36, 5
-    v38 = gt v34, v37
-    v56 = or v33, v38
-    v2 = shl v34, 5
-    v12 = slt v36, v2
-    v57 = or v56, v12
-    jumpi v57, bb2, bb3
+    v19 = calldatasize
+    v21 = calldataload 4
+    v22 = add v21, 4
+    v24 = sub v19, 36
+    v25 = gt v21, v24
+    v26 = calldataload v22
+    v27 = add v22, 32
+    v28 = sub v19, v27
+    v29 = shr v28, 5
+    v30 = gt v26, v29
+    v48 = or v25, v30
+    v2 = shl v26, 5
+    v8 = slt v28, v2
+    v49 = or v48, v8
+    jumpi v49, bb2, bb3
   bb3:
-    v20 = add v2, 32
-    v21 = lt v20, 32
-    jumpi v21, bb1, bb4
+    v12 = add v2, 32
+    v13 = lt v12, 32
+    jumpi v13, bb1, bb4
   bb4:
-    v54 = heap_floor !metadata(alloc_ptr)
-    mstore v54, v34
-    v50 = add v54, 32
-    calldatacopy v50, v35, v2
-    v52 = sub v54, 32
-    mstore v52, 32
-    v47 = add v2, 64
-    returndata v52, v47
+    v46 = heap_floor !metadata(alloc_ptr)
+    mstore v46, v26
+    v42 = add v46, 32
+    calldatacopy v42, v27, v2
+    v44 = sub v46, 32
+    mstore v44, 32
+    v39 = add v2, 64
+    returndata v44, v39
   bb1:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -164,9 +164,9 @@ fn @a() [selector=0x1e3badd9, abi_wrapper, pure] {
 fn @b() [selector=0xcd580ff3, abi_wrapper, pure] {
   bb0:
     v1 = add arg0, arg0
-    v3 = shr v1, 1
-    v7 = ne v3, arg0
-    jumpi v7, bb1, bb2
+    v2 = shr arg0, 255
+    v3 = ne v2, 0
+    jumpi v3, bb1, bb2
   bb2:
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
@@ -216,9 +216,9 @@ fn @a() [selector=0x2a500b7f, abi_wrapper, pure] {
 fn @b() [selector=0xcd580ff3, abi_wrapper, pure] {
   bb0:
     v1 = add arg0, arg0
-    v3 = shr v1, 1
-    v7 = ne v3, arg0
-    jumpi v7, bb1, bb2
+    v2 = shr arg0, 255
+    v3 = ne v2, 0
+    jumpi v3, bb1, bb2
   bb2:
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32

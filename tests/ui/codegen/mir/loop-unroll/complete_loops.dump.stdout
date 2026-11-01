@@ -98,26 +98,26 @@ fn @decode() [selector=0xe5c5e9a3, abi_wrapper, pure] {
 
 fn @sum4() [selector=0x0540a714, abi_wrapper, pure] {
   bb0:
-    v37 = calldatasize
-    v38 = lt v37, 132
-    jumpi v38, bb2, bb3
+    v33 = calldatasize
+    v34 = lt v33, 132
+    jumpi v34, bb2, bb3
   bb3:
-    v81 = calldataload 4
-    v82 = add 0, v81
-    v90 = calldataload 36
-    v91 = add v82, v90
-    v92 = lt v91, v82
-    v99 = calldataload 68
-    v100 = add v91, v99
-    v101 = lt v100, v91
-    v112 = or v92, v101
-    v108 = calldataload 100
-    v109 = add v100, v108
-    v110 = lt v109, v100
-    v113 = or v112, v110
-    jumpi v113, bb1, bb4
+    v77 = calldataload 4
+    v78 = add 0, v77
+    v86 = calldataload 36
+    v87 = add v78, v86
+    v88 = lt v87, v78
+    v95 = calldataload 68
+    v96 = add v87, v95
+    v97 = lt v96, v87
+    v108 = or v88, v97
+    v104 = calldataload 100
+    v105 = add v96, v104
+    v106 = lt v105, v96
+    v109 = or v108, v106
+    jumpi v109, bb1, bb4
   bb4:
-    mstore 0, v109
+    mstore 0, v105
     returndata 0, 32
   bb1:
     mstore 32, 17 !metadata(memory=scratch)

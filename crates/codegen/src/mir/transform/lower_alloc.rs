@@ -36,6 +36,14 @@ use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_interface::{Ident, sym};
 use solar_sema::Gcx;
 
+/// The bit width of the allocation limit: `next > MAX_ALLOCATION_END` is `next >> BITS != 0`.
+const ALLOCATION_END_BITS: u32 = EvmMemoryLayout::MAX_ALLOCATION_END.count_ones();
+const _: () = assert!(
+    EvmMemoryLayout::MAX_ALLOCATION_END
+        == u64::MAX >> EvmMemoryLayout::MAX_ALLOCATION_END.leading_zeros(),
+    "the allocation limit must be `2^k - 1`"
+);
+
 /// Lowers `fmp`, `set_fmp`, and `alloc` instructions.
 pub(crate) struct LowerAlloc;
 
@@ -48,17 +56,22 @@ impl MirPass for LowerAlloc {
         true
     }
 
-    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
         let fresh = FreshFmpReads::new(module, || analyses.call_summaries(module));
-        lower_alloc(module, analyses, &fresh)
+        lower_alloc(module, analyses, &fresh, gcx.sess.opts.evm_version.has_bitwise_shifting())
     }
 }
 
-fn lower_alloc(module: &mut Module, analyses: &mut ModuleAnalyses, fresh: &FreshFmpReads) -> bool {
-    let mut changed = share_checked_allocations(module, analyses, fresh);
+fn lower_alloc(
+    module: &mut Module,
+    analyses: &mut ModuleAnalyses,
+    fresh: &FreshFmpReads,
+    has_shifts: bool,
+) -> bool {
+    let mut changed = share_checked_allocations(module, analyses, fresh, has_shifts);
     changed |= run_lowering_function_pass(module, analyses, |func, function_analyses| {
         let id = function_analyses.function();
-        lower_function(func, |inst| fresh.contains(id, inst))
+        lower_function(func, has_shifts, |inst| fresh.contains(id, inst))
     });
     changed
 }
@@ -72,6 +85,7 @@ fn share_checked_allocations(
     module: &mut Module,
     analyses: &mut ModuleAnalyses,
     fresh: &FreshFmpReads,
+    has_shifts: bool,
 ) -> bool {
     let count = module
         .functions
@@ -86,7 +100,7 @@ fn share_checked_allocations(
         return false;
     }
 
-    let helper = create_checked_alloc(module);
+    let helper = create_checked_alloc(module, has_shifts);
     run_lowering_function_pass(module, analyses, |func, function_analyses| {
         let func_id = function_analyses.function();
         let mut replacements = FxHashMap::default();
@@ -121,7 +135,7 @@ fn checked_alloc(func: &Function, inst: InstId) -> Option<(ValueId, AllocationSe
         .then_some((size, semantics))
 }
 
-fn create_checked_alloc(module: &mut Module) -> FunctionId {
+fn create_checked_alloc(module: &mut Module, has_shifts: bool) -> FunctionId {
     let mut function = Function::new(Ident::with_dummy_span(sym::alloc));
     {
         let mut builder = FunctionBuilder::new(&mut function);
@@ -132,7 +146,7 @@ fn create_checked_alloc(module: &mut Module) -> FunctionId {
         let free = builder.load(slot, PtrLocation::Memory);
         mark_alloc_ptr(&mut builder, free);
         let ptr = builder.cast(free, MirType::MEMPTR);
-        let (next, invalid) = bump_checked(&mut builder, ptr, size);
+        let (next, invalid) = bump_checked(&mut builder, ptr, size, has_shifts);
         let panic = builder.create_block();
         let continuation = builder.create_block();
         builder.branch(invalid, panic, continuation);
@@ -147,7 +161,11 @@ fn create_checked_alloc(module: &mut Module) -> FunctionId {
     module.add_function(function)
 }
 
-fn lower_function(func: &mut Function, is_fresh: impl Fn(InstId) -> bool) -> bool {
+fn lower_function(
+    func: &mut Function,
+    has_shifts: bool,
+    is_fresh: impl Fn(InstId) -> bool,
+) -> bool {
     let has_abstract_memory = func.instructions().any(|inst| {
         matches!(func.inst(inst).kind, InstKind::Fmp | InstKind::SetFmp(_) | InstKind::Alloc { .. })
     });
@@ -170,8 +188,8 @@ fn lower_function(func: &mut Function, is_fresh: impl Fn(InstId) -> bool) -> boo
             // ptr = mload 64 | heap_floor
             rewrite_as_fmp_read(builder, inst, is_fresh(inst));
             // next = add ptr, size
-            // invalid = next < ptr || next > limit
-            let (next, invalid) = bump_checked(builder, ptr, size);
+            // invalid = next < ptr || next > limit, as `bump_checked` emits it
+            let (next, invalid) = bump_checked(builder, ptr, size, has_shifts);
             // branch invalid, panic, continuation
             builder.branch(invalid, panic, continuation);
 
@@ -400,14 +418,31 @@ fn bump(builder: &mut FunctionBuilder<'_>, ptr: ValueId, size: ValueId) -> Value
 }
 
 /// Emits `ptr + size` and whether it wrapped or passes the allocation limit.
+///
+/// With shifts, the check is one word zero test, `(zext(next < ptr) | (next >> 64)) != 0`, which
+/// a branch reads without materializing a boolean. Without them it is
+/// `(next < ptr) | (next > limit)`.
 fn bump_checked(
     builder: &mut FunctionBuilder<'_>,
     ptr: ValueId,
     size: ValueId,
+    has_shifts: bool,
 ) -> (ValueId, ValueId) {
     let next = bump(builder, ptr, size);
-    // invalid = next < ptr || next > limit
+    // bump_overflow = next < ptr
     let bump_overflow = builder.lt(next, ptr);
+    if has_shifts {
+        // wrapped = zext bump_overflow to i256
+        // high = shr next, 64
+        // invalid = ne (or wrapped, high), 0
+        let wrapped = builder.cast_word(bump_overflow);
+        let end = builder.cast_word(next);
+        let bits = builder.imm(ALLOCATION_END_BITS);
+        let high = builder.shr(end, bits);
+        let any = builder.or(wrapped, high);
+        return (next, builder.ne_zero(any));
+    }
+    // invalid = bump_overflow | next > limit
     let limit = builder.imm(EvmMemoryLayout::MAX_ALLOCATION_END);
     let over_limit = builder.gt(next, limit);
     (next, builder.or(bump_overflow, over_limit))

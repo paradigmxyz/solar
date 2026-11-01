@@ -198,13 +198,15 @@ fn @slice() [selector=0xe0041396, abi_wrapper, pure] {
     v98 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v99 = add v98, v2 !metadata(alloc_ptr)
     v100 = lt v99, v98
-    v101 = gt v99, 0xffffffffffffffff
-    v102 = or v100, v101
-    jumpi v102, bb6, bb16
+    v101 = zext i1 v100 to i256
+    v102 = shr v99, 64
+    v103 = or v101, v102
+    v104 = ne v103, 0
+    jumpi v104, bb6, bb16
   bb16:
     mstore 64, v99 !metadata(memory=scratch)
-    v104 = calldatasize
-    calldatacopy v98, v104, v2
+    v105 = calldatasize
+    calldatacopy v98, v105, v2
     mstore v98, arg2
     v26 = eq arg2, 0
     jumpi v26, bb2, bb4
@@ -306,10 +308,13 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v28 = heap_floor !metadata(alloc_ptr)
     v29 = add v28, v10 !metadata(alloc_ptr)
     v30 = lt v29, v28
-    v31 = gt v29, 0xffffffffffffffff
-    v32 = or v30, v31
-    v35 = or v9, v32
-    jumpi v35, bb3, bb5
+    v31 = zext i1 v30 to i256
+    v32 = shr v29, 64
+    v33 = or v31, v32
+    v36 = zext i1 v9 to i256
+    v37 = or v36, v33
+    v38 = ne v37, 0
+    jumpi v38, bb3, bb5
   bb5:
     mstore 64, v29 !metadata(memory=scratch)
     mstore v28, v6
@@ -321,9 +326,9 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     calldatacopy v24, v7, v6
     v21 = sub 0, v6
     v22 = and v21, 31
-    v34 = calldatasize
+    v35 = calldatasize
     v25 = add v24, v6
-    calldatacopy v25, v34, v22
+    calldatacopy v25, v35, v22
     ret v28
   bb3:
     mstore 32, 65 !metadata(memory=scratch)

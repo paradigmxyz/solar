@@ -125,7 +125,8 @@ contract C {
     // HOMESTEAD: [[IN:v[0-9]+]] = extract_value slice<memory>, {{[^,]+}}, 0
     // HOMESTEAD: delegatecall {{.*}}, [[IN]], 32
     // HOMESTEAD: [[WORD:v[0-9]+]] = mload
-    // HOMESTEAD: [[CLEAN:v[0-9]+]] = lt [[WORD]], 2
+    // HOMESTEAD: [[SHIFTED:v[0-9]+]] = shr [[WORD]], 1
+    // HOMESTEAD: [[CLEAN:v[0-9]+]] = eq [[SHIFTED]], 0
     // HOMESTEAD: eq [[CLEAN]], {{(0|false)}}
     // HOMESTEAD: icall revert_if<empty>, {{v[0-9]+}}
     // BYZANTIUM-LABEL: fn @boolean

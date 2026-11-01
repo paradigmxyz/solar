@@ -64,36 +64,32 @@ fn @allocateBelow(arg0: i256) -> i256 [selector=0x552a8664, pure, abi_params=[ui
     v9 = lt v8, v1
     icall panic_if<0x41>, v9
     v10 = mul v8, 32
-    v11 = eq 32, 0
-    v12 = div v10, 32
-    v13 = eq v12, v8
-    v14 = or v11, v13
-    v15 = zext i1 v14 to i256
-    v16 = eq v15, 0
-    icall panic_if<0x41>, v16
-    v17 = alloc zeroed checked v10
-    mstore v17, arg0
-    v18 = checked_sub uint256, arg0, 1
-    v19 = mload v17
-    v20 = lt v18, v19
-    v21 = eq v20, false
-    icall panic_if<0x32>, v21
-    v22 = shl v18, 5
-    v23 = ptradd v17, v22
-    v24 = ptradd v23, 32
-    mstore v24, arg0
-    v25 = mload v17
-    v26 = checked_sub uint256, arg0, 1
-    v27 = mload v17
-    v28 = lt v26, v27
-    v29 = eq v28, false
-    icall panic_if<0x32>, v29
-    v30 = shl v26, 5
-    v31 = ptradd v17, v30
-    v32 = ptradd v31, 32
-    v33 = mload v32
-    v34 = checked_add uint256, v25, v33
-    ret v34
+    v11 = shr v8, 251
+    v12 = ne v11, 0
+    icall panic_if<0x41>, v12
+    v13 = alloc zeroed checked v10
+    mstore v13, arg0
+    v14 = checked_sub uint256, arg0, 1
+    v15 = mload v13
+    v16 = lt v14, v15
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    v18 = shl v14, 5
+    v19 = ptradd v13, v18
+    v20 = ptradd v19, 32
+    mstore v20, arg0
+    v21 = mload v13
+    v22 = checked_sub uint256, arg0, 1
+    v23 = mload v13
+    v24 = lt v22, v23
+    v25 = eq v24, false
+    icall panic_if<0x32>, v25
+    v26 = shl v22, 5
+    v27 = ptradd v13, v26
+    v28 = ptradd v27, 32
+    v29 = mload v28
+    v30 = checked_add uint256, v21, v29
+    ret v30
   bb1:
     icall require<custom_error [word]>, false, 0xb24d1aa00000000000000000000000000000000000000000000000000000000, arg0
     invalid

@@ -45,42 +45,38 @@ fn @mkArr(arg0: i256) -> ptr<memory> [selector=0xfb67dbf3, pure, abi_params=[uin
     v8 = lt v7, v0
     icall panic_if<0x41>, v8
     v9 = mul v7, 32
-    v10 = eq 32, 0
-    v11 = div v9, 32
-    v12 = eq v11, v7
-    v13 = or v10, v12
-    v14 = zext i1 v13 to i256
-    v15 = eq v14, 0
-    icall panic_if<0x41>, v15
-    v16 = alloc zeroed checked v9
-    mstore v16, arg0
+    v10 = shr v7, 251
+    v11 = ne v10, 0
+    icall panic_if<0x41>, v11
+    v12 = alloc zeroed checked v9
+    mstore v12, arg0
     jump bb1
   bb1:
-    v17 = phi [bb0: arg0], [bb3: v17]
-    v18 = phi [bb0: ptr<memory> 96], [bb3: v18]
-    v19 = phi [bb0: v16], [bb3: v19]
-    v20 = phi [bb0: 0], [bb3: v29]
-    v21 = lt v20, v17
-    jumpi v21, bb4, bb5
+    v13 = phi [bb0: arg0], [bb3: v13]
+    v14 = phi [bb0: ptr<memory> 96], [bb3: v14]
+    v15 = phi [bb0: v12], [bb3: v15]
+    v16 = phi [bb0: 0], [bb3: v25]
+    v17 = lt v16, v13
+    jumpi v17, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v19
+    ret v15
   bb4:
-    v22 = checked_mul uint256, v20, 10
-    v23 = mload v19
-    v24 = lt v20, v23
-    v25 = eq v24, false
-    icall panic_if<0x32>, v25
-    v26 = shl v20, 5
-    v27 = ptradd v19, v26
-    v28 = ptradd v27, 32
-    mstore v28, v22
+    v18 = checked_mul uint256, v16, 10
+    v19 = mload v15
+    v20 = lt v16, v19
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = shl v16, 5
+    v23 = ptradd v15, v22
+    v24 = ptradd v23, 32
+    mstore v24, v18
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v29 = checked_add uint256, v20, 1
+    v25 = checked_add uint256, v16, 1
     jump bb1
 }
 
@@ -122,15 +118,11 @@ fn @squares(arg0: i256) -> ptr<memory> [selector=0x1d1d15d4, pure, abi_params=[u
     v8 = lt v7, v0
     icall panic_if<0x41>, v8
     v9 = mul v7, 32
-    v10 = eq 32, 0
-    v11 = div v9, 32
-    v12 = eq v11, v7
-    v13 = or v10, v12
-    v14 = zext i1 v13 to i256
-    v15 = eq v14, 0
-    icall panic_if<0x41>, v15
-    v16 = alloc zeroed checked v9
-    mstore v16, arg0
-    v17 = icall @fillImpl, v16, 0
-    ret v17
+    v10 = shr v7, 251
+    v11 = ne v10, 0
+    icall panic_if<0x41>, v11
+    v12 = alloc zeroed checked v9
+    mstore v12, arg0
+    v13 = icall @fillImpl, v12, 0
+    ret v13
 }
