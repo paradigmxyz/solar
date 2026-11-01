@@ -41,8 +41,6 @@ pub(crate) struct HotnessAnalysis {
     cold_blocks: DenseBitSet<BlockId>,
     hot_blocks: DenseBitSet<BlockId>,
     region: DenseBitSet<BlockId>,
-    /// Whether any function of the module is `cold_hint`, so a call to it can seed a region.
-    has_cold_hint: bool,
     worklist: Vec<BlockId>,
     visited: GrowableBitSet<BlockId>,
     /// The functions whose walk met a call to each function while it was not cold.
@@ -61,7 +59,6 @@ impl HotnessAnalysis {
             cold_blocks: DenseBitSet::new_empty(0),
             hot_blocks: DenseBitSet::new_empty(0),
             region: DenseBitSet::new_empty(0),
-            has_cold_hint: false,
             worklist: Vec::new(),
             visited: GrowableBitSet::new_empty(),
             callers: IndexVec::new(),
@@ -144,7 +141,6 @@ impl HotnessAnalysis {
     /// Finds the cold functions of `module`, into `self.cold_functions`.
     fn compute_functions(&mut self, module: &Module) {
         self.cold_functions.clear_to(module.functions.len());
-        self.has_cold_hint = module.functions.iter().any(|func| func.attributes.cold_hint);
         if !module.optimization.is_none() {
             self.collect_cold_functions(module);
         }
@@ -159,7 +155,7 @@ impl HotnessAnalysis {
         self.collect_cold_blocks(module, func, !objective.is_none(), marks_failure_paths_cold);
         if func.attributes.cold_hint {
             self.cold_blocks.insert_all();
-        } else if self.has_cold_hint && !objective.is_none() {
+        } else if !objective.is_none() {
             self.mark_cold_regions(module, func);
         }
     }
