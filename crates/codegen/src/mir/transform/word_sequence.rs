@@ -24,6 +24,9 @@
 //! Inequality recipes use the backend's EQ/ISZERO expansion and its target cost, except
 //! that a nonzero test whose every use is a branch or a check costs nothing: `JUMPI` reads
 //! the word.
+//! A width test, `x < 2^k` or `x > 2^k - 1` and the zero test of `x >> k`, takes the spelling that
+//! `Target::shifts_bits_test` prices lower for its use, as its producers do, and not the cheaper
+//! recipe: the recipe prices a wide limit as the compact recipe that a gas build does not keep.
 //! Pure, nontrapping operations without recipes stay in place without breaking
 //! the segment; they never earn deletion credit.
 //! Mask blends wait until storage forwarding and mask simplification have run,
@@ -36,8 +39,8 @@ use super::lower_checks::is_check;
 use crate::{
     backend::evm::{op, select},
     mir::{
-        EffectKind, Function, Immediate, InstId, InstKind, Instruction, MirType, Module, Op,
-        Terminator, Value, ValueId,
+        BitTestPricing, BitWidthTest, ConditionUse, EffectKind, Function, Immediate, InstId,
+        InstKind, Instruction, MirType, Module, Op, Terminator, Value, ValueId,
         pass::{MirPass, run_function_pass},
     },
     target::{Cost, Target},
@@ -363,9 +366,19 @@ fn run(func: &mut Function, target: &Target, late: bool) -> bool {
             let op = func.inst(inst).kind.op();
             let is_branch_only =
                 func.inst_result_value(inst).is_some_and(|value| branch_only.contains(&value));
+            let width = BitWidthTest::of_kind(func, &func.inst(inst).kind);
+            let read = ConditionUse { branch: is_branch_only, in_loop: false };
             let mut best = None;
             for recipe in isle::alternatives(func, &original, &seen, &mut masks, &op, target, late)
             {
+                // A width test takes the spelling the producers price, whatever the recipe's own
+                // estimate of its operands: the shift is a zero test, the comparison a limit.
+                if let Some(test) = width
+                    && let Some(shifts) = spells_shift(&recipe.root)
+                    && shifts != target.shifts_bits_test(test.bits, test.fits, read)
+                {
+                    continue;
+                }
                 if let Some((after, leaves)) = recipe.cost_and_leaves(func, target, is_branch_only)
                 {
                     let mut dead = FxHashSet::default();
@@ -456,6 +469,16 @@ fn collect_dead(
         }
         value
     });
+}
+
+/// Whether a comparison root spells a width test as the shift of the word, `eq`/`ne` against
+/// zero, or as a comparison with its limit; `None` for any other root.
+fn spells_shift(root: &Op) -> Option<bool> {
+    match root {
+        Op::Eq { .. } | Op::Ne { .. } => Some(true),
+        Op::Lt { .. } | Op::Gt { .. } => Some(false),
+        _ => None,
+    }
 }
 
 /// Values whose every use is the condition of a branch or check in their defining block, the

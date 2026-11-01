@@ -191,7 +191,10 @@ use, a `ConditionUse` of a branch or a value, in a loop or not, price lower, wit
 pass leaves for the limit (`Target::emitted_push`). A check aborts on the exceeding sense so that
 a branch reads it as a word. Passes that read a fact off a condition recognize both spellings with
 `BitWidthTest::of`, as `merge-aborts`, `indvar-simplify`, and `byte-loops` do; a pass that matches
-only one loses the fact when a producer picks the other. The word-sequence rule in
-`isle/mir/word_sequence/comparisons.isle` converts either spelling to the other when its local
-estimate is lower, as a safety net for tests that a later pass combined into a use the producer
-did not know.
+only one loses the fact when a producer picks the other. The word-sequence rules in
+`isle/mir/word_sequence/comparisons.isle` propose the other spelling of a width test, and the pass
+takes it only when `Target::shifts_bits_test` prices that spelling lower for the test's use (a
+branch-only test is a branch, any other a value, never in a loop, as a later pass may hoist it).
+It is a safety net for tests that a later pass combined into a use the producer did not know;
+recipe costs, which price a wide limit as a compact recipe that a gas build does not keep, do not
+choose between the spellings.

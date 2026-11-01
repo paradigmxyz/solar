@@ -32,9 +32,17 @@
   
   fn @also_value(arg0: i256) -> i1 {
     bb0:
--     v0 = shr arg0, 251
+-     v0 = shr arg0, 8
 -     v1 = ne v0, 0
-+     v1 = gt arg0, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     v1 = gt arg0, 255
+      icall panic_if<0x41>, v1
+      ret v1
+  }
+  
+  fn @also_value_wide(arg0: i256) -> i1 {
+    bb0:
+      v0 = shr arg0, 251
+      v1 = ne v0, 0
       icall panic_if<0x41>, v1
       ret v1
   }

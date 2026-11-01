@@ -66,15 +66,6 @@
       (if-let zero (imm (u256 0)))
       (sequence (Op.Ne r1 zero)))
 
-;; (x >> c0) == 0 => x < 1 << c0.
-;; Requires: c0 is constant, c0 < W.
-;; The inverse of the first rule: a zero test of the shifted word costs an `ISZERO`, which a
-;; comparison with a cheap limit saves.
-(rule (sequence_rewrite (Op.Eq (shr (iconst c0) x) (zero)))
-      (if-let false (u256_ge c0 (u256_add (u256 (integer_sign_bit)) (u256 1))))
-      (if-let limit (imm (u256_shl c0 (u256 1))))
-      (sequence (Op.Lt x limit)))
-
 ;; (x >> c0) != 0 => x > (1 << c0) - 1.
 ;; Requires: c0 is constant.
 ;; The inverse of the second rule: a test that a branch reads costs nothing, but a

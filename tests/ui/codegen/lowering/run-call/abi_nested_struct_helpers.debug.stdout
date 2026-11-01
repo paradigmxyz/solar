@@ -255,8 +255,8 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v32 = lt v31, v13
     v33 = add v1, v31
     v34 = lt v33, v1
-    v211 = or v32, v34
-    jumpi v211, bb4, bb5
+    v210 = or v32, v34
+    jumpi v210, bb4, bb5
   bb5:
     v28 = add v2, 1
     jump bb1
@@ -274,8 +274,8 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v65 = gt v60, v51
     v66 = sub v35, v61
     v67 = lt v66, 64
-    v212 = or v65, v67
-    jumpi v212, bb20, bb21
+    v211 = or v65, v67
+    jumpi v211, bb20, bb21
   bb21:
     v202 = mload 64 !metadata(alloc_ptr)
     v203 = add v202, 96
@@ -289,8 +289,8 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v74 = gt v69, v66
     v75 = sub v35, v70
     v76 = lt v75, 64
-    v213 = or v74, v76
-    jumpi v213, bb20, bb24
+    v212 = or v74, v76
+    jumpi v212, bb20, bb24
   bb24:
     v204 = mload 64 !metadata(alloc_ptr)
     v205 = add v204, 96
@@ -342,8 +342,8 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v114 = gt v109, v66
     v115 = sub v35, v110
     v116 = lt v115, 64
-    v214 = or v114, v116
-    jumpi v214, bb20, bb31
+    v213 = or v114, v116
+    jumpi v213, bb20, bb31
   bb31:
     v206 = mload 64 !metadata(alloc_ptr)
     v207 = add v206, 96
