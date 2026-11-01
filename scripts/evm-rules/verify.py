@@ -215,12 +215,12 @@ def main():
     report["trusted_sources_sha256"] = {
         path: hashlib.sha256((ROOT / path).read_bytes()).hexdigest()
         for path in (
-            "crates/codegen/src/mir/op_schema.rs",
+            "crates/mir/src/op_schema.rs",
             "crates/codegen/src/mir/transform/egraph/isle.rs",
             "crates/codegen/src/mir/transform/egraph.rs",
             "crates/codegen/src/mir/utils/eval.rs",
-            "crates/codegen/src/mir/memory.rs",
-            "crates/codegen/src/mir/types.rs",
+            "crates/mir/src/memory.rs",
+            "crates/mir/src/types.rs",
             "crates/codegen/src/mir/transform/lower_memory_objects.rs",
             "crates/codegen/src/mir/transform/lower_slices.rs",
             "crates/codegen/src/mir/transform/word_sequence.rs",

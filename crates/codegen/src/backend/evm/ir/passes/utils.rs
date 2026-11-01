@@ -12,7 +12,6 @@ use crate::{
     target::Target,
 };
 use solar_data_structures::{index::IndexVec, map::FxHashSet};
-use solar_sema::Gcx;
 use std::hash::{Hash, Hasher};
 
 pub(super) use crate::backend::evm::ir::{remap_block_order, retain_blocks};
@@ -46,10 +45,12 @@ impl MachineInstKey {
         ]);
         Self(operation, inst.value)
     }
+}
 
-    /// Feeds this key to `hasher` as whole words. Equal keys feed equal words, and the value's
-    /// kind in the free top bytes of the first word keeps different keys' words distinct.
-    fn hash_words(self, hasher: &mut impl Hasher) {
+/// Feeds this key to the hasher as whole words. Equal keys feed equal words, and the value's kind
+/// in the free top bytes of the first word keeps different keys' words distinct.
+impl Hash for MachineInstKey {
+    fn hash<H: Hasher>(&self, hasher: &mut H) {
         match self.1 {
             None => hasher.write_u64(self.0),
             Some(PushValue::Immediate(value)) => {
@@ -77,12 +78,6 @@ impl MachineInstKey {
                 hasher.write_u64(u64::from(size.aligned));
             }
         }
-    }
-}
-
-impl Hash for MachineInstKey {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.hash_words(state);
     }
 }
 
@@ -146,22 +141,22 @@ impl FreshLabels {
 }
 
 /// Returns a conservative lower bound for one instruction's assembled byte length.
-pub(super) fn instruction_size_lower_bound(gcx: Gcx<'_>, inst: &Instruction) -> usize {
+pub(super) fn instruction_size_lower_bound(target: Target, inst: &Instruction) -> usize {
     if !inst.is_encoded_push() {
         return inst.as_stack_op().map_or(1, |stack_op| {
             stack_op
-                .assembled_len(gcx.sess.opts.evm_version)
+                .assembled_len(target.evm_version())
                 .expect("EVM IR passes only run on target-compatible stack operations")
         });
     }
     if inst.pushed_library().is_some() {
-        return Target::new(gcx).opcode(op::PUSH20).bytes as usize;
+        return target.opcode(op::PUSH20).bytes as usize;
     }
     if let Some(type_size) = inst.immutable_type_size() {
-        return Target::new(gcx).opcode(op::push(type_size.bytes())).bytes as usize;
+        return target.opcode(op::push(type_size.bytes())).bytes as usize;
     }
     if let Some(value) = inst.concrete_immediate() {
-        return Target::new(gcx).push(value).bytes as usize;
+        return target.push(value).bytes as usize;
     }
     // Labels and data offsets are address-sensitive. They may resolve to
     // zero, so one byte is the only safe lower bound before assembly.

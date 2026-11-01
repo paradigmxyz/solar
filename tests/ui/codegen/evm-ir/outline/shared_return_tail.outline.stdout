@@ -1,0 +1,179 @@
+- // === ROOT/tests/ui/codegen/evm-ir/outline/shared_return_tail.evmir (before outline) ===
++ // === ROOT/tests/ui/codegen/evm-ir/outline/shared_return_tail.evmir (after outline) ===
+  @module shared_return_tail
+  bb0:
+-   push 64
+-   mload
+-   push 64
+-   dup 2
+-   add
+-   push 64
+-   mstore
+-   jump bb1
++   push bb15
++   jump bb13
+  bb1:
+-   push 64
+-   mload
+-   push 64
+-   dup 2
+-   add
+-   push 64
+-   mstore
+-   jump bb2
++   push bb16
++   jump bb13
+  bb2:
+-   push 64
+-   mload
+-   push 64
+-   dup 2
+-   add
+-   push 64
+-   mstore
+-   jump bb3
++   push bb17
++   jump bb13
+  bb3:
+-   push 64
+-   mload
+-   push 64
+-   dup 2
+-   add
+-   push 64
+-   mstore
+-   jump bb4
++   push bb18
++   jump bb13
+  bb4:
+-   push 64
+-   mload
+-   push 64
+-   dup 2
+-   add
+-   push 64
+-   mstore
+-   jump bb5
++   push bb19
++   jump bb13
+  bb5:
+-   push 64
+-   mload
+-   push 64
+-   dup 2
+-   add
+-   push 64
+-   mstore
+-   jump bb6
++   push bb20
++   jump bb13
+  bb6:
++   push bb21
++   jump bb13
++ bb7:
++   push bb22
++   jump bb14
++ bb8:
++   push bb23
++   jump bb14
++ bb9:
++   push bb24
++   jump bb14
++ bb10:
++   push bb25
++   jump bb14
++ bb11:
++   push bb26
++   jump bb14
++ bb12:
++   push bb27
++   jump bb14
++ bb13 [ret=0, inputs=1, outputs=1]:
+    push 64
+    mload
+    push 64
+    dup 2
+    add
+    push 64
+    mstore
+-   jump bb7
+- bb7:
++   swap 1
++   jump
++ bb14 [ret=0, inputs=1, outputs=1]:
+    push 64
+    mload
+    push 192
+    dup 2
+    add
+    push 64
+    mstore
++   swap 1
++   jump
++ bb15 [continuation]:
++   jump bb1
++ bb16 [continuation]:
++   jump bb2
++ bb17 [continuation]:
++   jump bb3
++ bb18 [continuation]:
++   jump bb4
++ bb19 [continuation]:
++   jump bb5
++ bb20 [continuation]:
++   jump bb6
++ bb21 [continuation]:
++   jump bb7
++ bb22 [continuation]:
+    jump bb8
+- bb8:
+-   push 64
+-   mload
+-   push 192
+-   dup 2
+-   add
+-   push 64
+-   mstore
++ bb23 [continuation]:
+    jump bb9
+- bb9:
+-   push 64
+-   mload
+-   push 192
+-   dup 2
+-   add
+-   push 64
+-   mstore
++ bb24 [continuation]:
+    jump bb10
+- bb10:
+-   push 64
+-   mload
+-   push 192
+-   dup 2
+-   add
+-   push 64
+-   mstore
++ bb25 [continuation]:
+    jump bb11
+- bb11:
+-   push 64
+-   mload
+-   push 192
+-   dup 2
+-   add
+-   push 64
+-   mstore
++ bb26 [continuation]:
+    jump bb12
+- bb12:
+-   push 64
+-   mload
+-   push 192
+-   dup 2
+-   add
+-   push 64
+-   mstore
++ bb27 [continuation]:
+    stop
+  

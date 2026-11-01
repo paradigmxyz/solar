@@ -27,7 +27,7 @@ use crate::{
     },
     target::Cost,
 };
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{index::IndexVec, map::FxHashSet};
 
 /// The most call sites of a callee that is inlined everywhere.
 const MAX_SITES: usize = 8;
@@ -37,19 +37,19 @@ const MAX_SITES: usize = 8;
 pub(super) fn consumed_everywhere(
     inliner: &MirInliner,
     module: &Module,
-    summaries: &FxHashMap<FunctionId, MirInlineSummary>,
-    call_counts: &FxHashMap<FunctionId, usize>,
+    summaries: &IndexVec<FunctionId, MirInlineSummary>,
+    call_counts: &IndexVec<FunctionId, usize>,
 ) -> FxHashSet<FunctionId> {
     let Some(shared_runs) = &inliner.shared_runs else { return FxHashSet::default() };
     let (internal_calls, references) = reference_counts(module);
     let mut consumed = call_counts
-        .iter()
-        .filter(|&(&callee, &sites)| {
+        .iter_enumerated()
+        .filter(|&(callee, &sites)| {
             let func = module.function(callee);
-            let Some(summary) = summaries.get(&callee) else { return false };
+            let summary = &summaries[callee];
             if !(2..=MAX_SITES).contains(&sites)
-                || internal_calls.get(&callee) != Some(&sites)
-                || references.get(&callee) != Some(&sites)
+                || internal_calls[callee] != sites
+                || references[callee] != sites
                 || func
                     .return_components()
                     .iter()
@@ -67,7 +67,7 @@ pub(super) fn consumed_everywhere(
             let lost = shared_runs.shared_bytes(&inliner.target, module, callee) as u32;
             inliner.target.cmp(expanded + Cost::new(0, lost), shared).is_le()
         })
-        .map(|(&callee, _)| callee)
+        .map(|(callee, _)| callee)
         .collect::<FxHashSet<_>>();
     drop_stack_bound(module, summaries, &mut consumed);
     consumed
@@ -77,7 +77,7 @@ pub(super) fn consumed_everywhere(
 /// skips such a site alone, which would leave copies beside the callee the price assumed gone.
 fn drop_stack_bound(
     module: &Module,
-    summaries: &FxHashMap<FunctionId, MirInlineSummary>,
+    summaries: &IndexVec<FunctionId, MirInlineSummary>,
     consumed: &mut FxHashSet<FunctionId>,
 ) {
     if consumed.is_empty() {
@@ -90,7 +90,7 @@ fn drop_stack_bound(
                 if let InstKind::ICall { function: Callee::Function(callee), .. } =
                     func.inst(inst).kind
                     && consumed.contains(&callee)
-                    && let Some(peak) = summaries[&callee].phi_stack_peak
+                    && let Some(peak) = summaries[callee].phi_stack_peak
                 {
                     let liveness =
                         liveness.get_or_insert_with(|| Liveness::compute_live_sets(func));
@@ -109,20 +109,18 @@ fn drop_stack_bound(
 /// from every function in the module. Both equal the call count of a callee exactly when no
 /// tail call and no unreachable function references it, which a single total could hide, as an
 /// unreachable call cancels a reachable tail call.
-fn reference_counts(
-    module: &Module,
-) -> (FxHashMap<FunctionId, usize>, FxHashMap<FunctionId, usize>) {
-    let mut internal_calls = FxHashMap::<FunctionId, usize>::default();
-    let mut references = FxHashMap::<FunctionId, usize>::default();
+fn reference_counts(module: &Module) -> (IndexVec<FunctionId, usize>, IndexVec<FunctionId, usize>) {
+    let mut internal_calls = IndexVec::from_vec(vec![0; module.functions.len()]);
+    let mut references = internal_calls.clone();
     for func in &module.functions {
         for inst in func.instructions() {
             if let InstKind::ICall { function: Callee::Function(callee), .. } = func.inst(inst).kind
             {
-                *internal_calls.entry(callee).or_default() += 1;
+                internal_calls[callee] += 1;
             }
         }
         for callee in direct_callees(func) {
-            *references.entry(callee).or_default() += 1;
+            references[callee] += 1;
         }
     }
     (internal_calls, references)

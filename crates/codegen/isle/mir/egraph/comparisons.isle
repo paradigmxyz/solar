@@ -1,8 +1,5 @@
 ;; Equality and ordered comparison identities.
 
-;; ~a == ~b => a == b.
-(rule (rewrite (Op.Eq (bnot a) (bnot b))) (Op.Eq a b))
-
 ;; (x ^ y) == x => y == 0.
 (rule (rewrite (Op.Eq (bxor x y) x)) (Op.Eq y (imm (u256 0))))
 
@@ -252,9 +249,6 @@
 ;; x != 0 => x.
 ;; Requires: x is boolean.
 (rule 9 (simplify (Op.Ne (and x (bool_value)) (zero))) x)
-
-;; ~a != ~b => a != b.
-(rule (rewrite (Op.Ne (bnot a) (bnot b))) (Op.Ne a b))
 
 ;; (a - b) != 0 => a != b.
 (rule (rewrite (Op.Ne (sub a b) (zero))) (Op.Ne a b))

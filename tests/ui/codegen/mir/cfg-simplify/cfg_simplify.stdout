@@ -47,6 +47,13 @@
       ret 1
   }
   
+  fn @default_only_switch(arg0: i256) -> i256 {
+    bb0:
+-     switch arg0, default bb1, []
+-   bb1:
+      ret 1
+  }
+  
   fn @constant_false_branch() -> i256 {
     bb0:
 -     jumpi false, bb1, bb2

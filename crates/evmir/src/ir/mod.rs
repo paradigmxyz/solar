@@ -19,7 +19,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_ast::TypeSize;
-use solar_config::EvmVersion;
+use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::FxHashMap,
@@ -73,6 +73,9 @@ pub struct Module {
     debug_info_tracked: bool,
     /// Block contents in which an earlier peephole run found nothing to rewrite.
     pub peephole_clean: CleanBlocks,
+    /// The objective this module's code is optimized for: the build's, or the one the source
+    /// contract's `@custom:solar-optimize` tag selects.
+    pub optimization: OptimizationMode,
 }
 
 impl Module {
@@ -134,6 +137,7 @@ impl Module {
             code_follows: false,
             debug_info_tracked: false,
             peephole_clean: CleanBlocks::default(),
+            optimization: OptimizationMode::default(),
         }
     }
 
@@ -145,6 +149,7 @@ impl Module {
         self.code_follows = false;
         self.debug_info_tracked = false;
         self.peephole_clean.clear();
+        self.optimization = OptimizationMode::default();
     }
 
     /// Enables source debug information auditing for optimization passes.
@@ -226,6 +231,9 @@ pub struct BlockMetadata {
     /// its own function: it belongs to creation code that a loop or recursion calls. Pricing
     /// treats such blocks as runtime code.
     pub repeats: bool,
+    /// The objective this block's code is optimized for when it differs from its module's: the
+    /// source function's `@custom:solar-optimize` tag.
+    pub optimization: Option<OptimizationMode>,
     /// This label's address is used only for control transfer, never as an observable word.
     /// Hidden return targets and branches separated from their pushed labels by sharing carry
     /// this property. References may be redirected to an

@@ -1,0 +1,41 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=tail-merge
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=tail-merge
+//@ filecheck:
+// The contract's size objective uses the PUSH1 label bound in either build mode, making
+// the shared conditional-jump suffix profitable.
+@module OptimizeTag
+@optimize size
+
+bb0:
+  push 0
+  calldataload
+  dup 1
+  jumpi bb1, bb2
+bb1:
+  push 1
+  push bb3
+  jumpi
+  push 0
+  mstore
+  jump bb5
+bb2:
+  push 2
+  push bb4
+  jumpi
+  push 0
+  mstore
+  jump bb5
+bb3:
+  stop
+bb4:
+  invalid
+bb5:
+  push 32
+  push 0
+  return
+// CHECK-LABEL: + bb6:
+// CHECK-NEXT: + jumpi
+// CHECK-NEXT: + push 0
+// CHECK-NEXT: + mstore
+// CHECK-NEXT: + jump bb5

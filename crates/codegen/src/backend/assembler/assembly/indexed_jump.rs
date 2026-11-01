@@ -38,7 +38,7 @@ use crate::{
     target::Target,
 };
 use alloy_primitives::U256;
-use solar_config::EvmVersion;
+use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::index::{IndexVec, index_vec};
 use solar_sema::Gcx;
 
@@ -57,7 +57,7 @@ fn push_immediate(
 /// The packed table encodings the assembler may choose.
 #[derive(Clone, Copy, Debug)]
 pub(in crate::backend) struct TablePacking {
-    /// Allow base-relative entries and two packed words (set at `-Osize`).
+    /// Allow base-relative entries and two packed words (set for the size objective).
     pub(in crate::backend) two_words: bool,
     /// Allow entries wider than one byte, picked out of a packed word with a shift and a mask
     /// (`-Zpack-wide-jump-tables`).
@@ -65,11 +65,13 @@ pub(in crate::backend) struct TablePacking {
 }
 
 impl TablePacking {
-    pub(in crate::backend) fn new(gcx: Gcx<'_>) -> Self {
+    /// The encodings of a build for `optimization`, the objective of the module being lowered.
+    pub(in crate::backend) fn new(gcx: Gcx<'_>, optimization: OptimizationMode) -> Self {
         let opts = &gcx.sess.opts;
         Self {
-            two_words: opts.optimization.is_size(),
-            wide: Target::new(gcx).packs_wide_jump_tables(opts.unstable.pack_wide_jump_tables),
+            two_words: optimization.is_size(),
+            wide: Target::new(gcx, optimization)
+                .packs_wide_jump_tables(opts.unstable.pack_wide_jump_tables),
         }
     }
 }

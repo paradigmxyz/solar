@@ -1,0 +1,8 @@
+error: unknown optimization objective `speed`
+   ╭▸ ROOT/tests/ui/codegen/mir/validation/parse_optimize_objective.mir:LL:CC
+   │
+LL │ @optimize speed
+   ╰╴          ━━━━━
+
+error: aborting due to 1 previous error
+

@@ -1,16 +1,20 @@
 //! Lower mapping-slot and storage-array slot builtins to physical hashing.
 //!
-//! This pass expands storage-location hashing at the memory boundary. Variable-size
-//! hash inputs use the free-memory pointer as transient scratch; fixed-width
-//! mapping and storage-array hashes use reserved scratch. The semantic instructions
+//! This pass runs after `lower-frame-slots` and before `lower-memory-objects`, and expands
+//! storage-location hashing at the memory boundary. Variable-size hash inputs use the
+//! free-memory pointer as transient scratch; fixed-width mapping and storage-array hashes use
+//! reserved scratch. The semantic instructions
 //! declare these writes so earlier passes cannot forward stale scratch reads.
 //! CSE can share fixed-width hashes only while their inputs and scratch writes
 //! remain unchanged. Variable-width hashes require physical alias proofs.
 //! Constant fixed-width hashes use a target-priced immediate when it is cheaper. Keep their
 //! scratch stores so assembly reads and memory expansion retain the same effects; ordinary
 //! memory DSE removes those stores only when they are unobserved.
+//!
+//! A storage array's data starts at the hash of its slot, and element `i` of an array whose
+//! elements take `element_slots` slots lives at that hash plus `i * element_slots`.
 
-use super::egraph::use_counts;
+use super::{egraph::use_counts, utils::expand_block};
 use crate::{
     backend::evm::op,
     mir::{
@@ -57,44 +61,36 @@ impl MirPass for LowerMappingSlots {
 
             let uses = use_counts(func);
             let mut replacements = FxHashMap::default();
-            let block_ids = func.blocks.indices();
-            for block_id in block_ids {
-                let instructions = std::mem::take(&mut func.blocks[block_id].instructions);
+            for block_id in func.blocks.indices() {
                 let mut builder = FunctionBuilder::new(func);
-                builder.switch_to_block(block_id);
-                for inst_id in instructions {
+                expand_block(&mut builder, block_id, |builder, inst_id| {
                     let result = builder.func().inst_result_value(inst_id);
                     let count = result.and_then(|value| uses.get(value).copied()).unwrap_or(1);
                     let replacement = match builder.func().inst(inst_id).kind {
                         InstKind::MappingSlot(key, slot) => {
-                            lower_fixed_slot_hash(&mut builder, &target, &[key, slot], count)
+                            lower_fixed_slot_hash(builder, &target, &[key, slot], count)
                         }
                         InstKind::MappingSlotBytes(key, slot) => {
-                            lower_bytes_mapping_slot(&mut builder, key, slot)
+                            lower_bytes_mapping_slot(builder, key, slot)
                         }
                         InstKind::StorageArrayDataSlot(slot) => {
-                            lower_fixed_slot_hash(&mut builder, &target, &[slot], count)
+                            lower_fixed_slot_hash(builder, &target, &[slot], count)
                         }
                         InstKind::StorageArrayElementSlot { slot, index, element_slots } => {
                             lower_storage_array_element_slot(
-                                &mut builder,
+                                builder,
                                 &target,
                                 slot,
                                 index,
                                 element_slots,
                             )
                         }
-                        _ => {
-                            builder.func_mut().blocks[block_id].instructions.push(inst_id);
-                            continue;
-                        }
+                        _ => return false,
                     };
-                    let result = builder
-                        .func()
-                        .inst_result_value(inst_id)
-                        .expect("mapping slot must produce a value");
-                    replacements.insert(result, replacement);
-                }
+                    replacements
+                        .insert(result.expect("mapping slot must produce a value"), replacement);
+                    true
+                });
             }
             func.replace_uses_canonicalized(&replacements);
             true

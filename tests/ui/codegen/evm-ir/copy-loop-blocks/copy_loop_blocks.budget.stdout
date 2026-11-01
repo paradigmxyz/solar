@@ -1,0 +1,71 @@
+- // === ROOT/tests/ui/codegen/evm-ir/copy-loop-blocks/copy_loop_blocks.evmir (before copy-loop-blocks) ===
++ // === ROOT/tests/ui/codegen/evm-ir/copy-loop-blocks/copy_loop_blocks.evmir (after copy-loop-blocks) ===
+  @module CopyLoopBlocks
+  bb0:
+    push 3
+    push 0
+    jump bb1
+  bb1 [loop]:
+    dup 2
+    dup 2
+    lt
+    push bb2
+    jumpi
+    jump bb6
+  bb2 [loop]:
+    dup 1
+    push 1
+    and
+    push bb4
+    jumpi
+    push 7
+    pop
+-   jump bb5
++   push 1
++   add
++   jump bb1
+  bb4 [loop]:
+    push 9
+    pop
+    jump bb5
+  bb5 [loop]:
+    push 1
+    add
+    jump bb1
+  bb6:
+    pop
+    pop
+    push 0
+    jump bb7
+  bb7 [loop]:
+    dup 1
+    push 4
+    lt
+    push bb9
+    jumpi
+    jump bb12
+  bb8 [loop]:
+    push 0x101010101010101010101010101010101010101010101010101010101010101
+    pop
+    push 0x202020202020202020202020202020202020202020202020202020202020202
+    pop
+    push 1
+    add
+    jump bb7
+  bb9 [loop]:
+    dup 1
+    push 2
+    eq
+    push bb10
+    jumpi
+    jump bb8
+  bb10 [loop]:
+    jump bb11
+  bb12:
+    pop
+    stop
+  bb11 [loop]:
+    push 0
+    push 0
+    return
+  

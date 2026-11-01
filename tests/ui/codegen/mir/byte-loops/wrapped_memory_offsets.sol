@@ -102,7 +102,7 @@ contract Test {
     // CHECK: jumpi
     // CHECK: mcopy [[TO]], [[FROM]], arg4
     // CHECK: mstore8
-    /// @custom:solar-noinline
+    /// @custom:solar-inline never
     function _copyBytes(bytes memory source, bytes memory destination, uint256 sOff, uint256 dOff, uint256 count)
         private pure
     {
@@ -111,7 +111,7 @@ contract Test {
         }
     }
 
-    /// @custom:solar-noinline
+    /// @custom:solar-inline never
     function _copyBytesDown(bytes memory source, bytes memory destination, uint256 sOff, uint256 dOff, uint256 count)
         private pure
     {
@@ -120,7 +120,7 @@ contract Test {
         }
     }
 
-    /// @custom:solar-noinline
+    /// @custom:solar-inline never
     function _copyWords(uint256[] memory source, uint256[] memory destination, uint256 sOff, uint256 dOff, uint256 count)
         private pure
     {
@@ -142,7 +142,7 @@ contract Test {
     // CHECK: [[SLOW]]:
     // CHECK: calldatacopy
     // CHECK: mstore8
-    /// @custom:solar-noinline
+    /// @custom:solar-inline never
     function _freshBytes(bytes memory source, uint256 offset, uint256 count)
         private pure returns (bytes memory destination)
     {
@@ -155,7 +155,7 @@ contract Test {
         }
     }
 
-    /// @custom:solar-noinline
+    /// @custom:solar-inline never
     function _copyBytesSelf(bytes memory buffer, uint256 count) private pure {
         for (uint256 k; k < count; ++k) {
             buffer[type(uint256).max - 31 + k] = buffer[k];

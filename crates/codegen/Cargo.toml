@@ -21,7 +21,7 @@ solar-config.workspace = true
 solar-data-structures.workspace = true
 solar-evmir.workspace = true
 solar-interface.workspace = true
-solar-parse.workspace = true
+solar-mir.workspace = true
 solar-sema.workspace = true
 
 alloy-primitives.workspace = true
@@ -45,6 +45,6 @@ nightly = [
     "solar-data-structures/nightly",
     "solar-evmir/nightly",
     "solar-interface/nightly",
-    "solar-parse/nightly",
+    "solar-mir/nightly",
     "solar-sema/nightly",
 ]

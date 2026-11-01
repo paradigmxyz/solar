@@ -1,0 +1,26 @@
+- // === ROOT/tests/ui/codegen/evm-ir/block-cse/dup_address.evmir (before block-cse) ===
++ // === ROOT/tests/ui/codegen/evm-ir/block-cse/dup_address.evmir (after block-cse) ===
+  @module module
+  bb0:
+    push 128
+    push 7
+    dup 2
+    mstore
+-   push 7
+-   dup 2
+-   mstore
+    pop
+    stop
+  bb1:
+    push 128
+    push 9
+    dup 1
+    dup 3
+    mstore
+-   dup 2
+-   mload
++   dup 1
+    add
+    pop
+    stop
+  

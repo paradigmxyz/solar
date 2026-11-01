@@ -17,7 +17,7 @@
 
 use super::estimate_inst_cost;
 use crate::{
-    mir::{BlockId, Function, FunctionId, Module, Value},
+    mir::{BlockId, Function, FunctionId, InstId, Module, Value},
     target::Target,
 };
 use solar_data_structures::map::{FxHashMap, FxHasher};
@@ -31,9 +31,10 @@ pub(super) struct SharedRuns {
 impl SharedRuns {
     pub(super) fn new(module: &Module) -> Self {
         let mut counts = FxHashMap::<u64, u32>::default();
+        let mut hasher = RunHasher::default();
         for func in &module.functions {
             for block in func.blocks.indices() {
-                for run in runs(func, block) {
+                for &run in hasher.runs(func, block) {
                     *counts.entry(run).or_default() += 1;
                 }
             }
@@ -50,13 +51,14 @@ impl SharedRuns {
     ) -> usize {
         let func = module.function(callee);
         let mut bytes = 0;
+        let mut hasher = RunHasher::default();
         for block in func.blocks.indices() {
-            let mut runs = runs(func, block);
+            let mut runs = hasher.runs(func, block).iter();
             // Instructions before `shared_until` lie in a run that occurs elsewhere.
             let mut shared_until = 0;
             for (index, &inst) in func.blocks[block].instructions.iter().enumerate() {
                 if let Some(run) = runs.next()
-                    && self.counts.get(&run).is_some_and(|&count| count > 1)
+                    && self.counts.get(run).is_some_and(|&count| count > 1)
                 {
                     shared_until = index + Target::SHARED_RUN_INSTRUCTIONS;
                 }
@@ -70,42 +72,44 @@ impl SharedRuns {
     }
 }
 
-/// Hashes each run of `Target::SHARED_RUN_INSTRUCTIONS` consecutive instructions of a block.
-fn runs(func: &Function, block: BlockId) -> std::vec::IntoIter<u64> {
-    const RUN: usize = Target::SHARED_RUN_INSTRUCTIONS;
-    let instructions = &func.blocks[block].instructions;
-    if instructions.len() < RUN {
-        return Vec::new().into_iter();
-    }
-    let position = instructions
-        .iter()
-        .enumerate()
-        .map(|(index, &inst)| (inst, index))
-        .collect::<FxHashMap<_, _>>();
-    let tokens = instructions
-        .iter()
-        .enumerate()
-        .map(|(index, &inst)| {
+/// Buffers for hashing the runs of a block, reused across blocks.
+#[derive(Default)]
+struct RunHasher {
+    position: FxHashMap<InstId, usize>,
+    tokens: Vec<u64>,
+    runs: Vec<u64>,
+}
+
+impl RunHasher {
+    /// Hashes each run of `Target::SHARED_RUN_INSTRUCTIONS` consecutive instructions of a block.
+    fn runs(&mut self, func: &Function, block: BlockId) -> &[u64] {
+        const RUN: usize = Target::SHARED_RUN_INSTRUCTIONS;
+        self.runs.clear();
+        let instructions = &func.blocks[block].instructions;
+        if instructions.len() < RUN {
+            return &self.runs;
+        }
+        self.position.clear();
+        self.position.extend(instructions.iter().enumerate().map(|(index, &inst)| (inst, index)));
+        self.tokens.clear();
+        self.tokens.extend(instructions.iter().enumerate().map(|(index, &inst)| {
             let inst = func.inst(inst);
             let mut key = FxHasher::default();
             inst.kind.clone_without_operands().hash(&mut key);
             inst.result_ty.hash(&mut key);
             inst.kind.visit_operands(|value| match func.value(value) {
                 Value::Inst(def) => {
-                    position.get(def).map(|&def| index.wrapping_sub(def)).hash(&mut key)
+                    self.position.get(def).map(|&def| index.wrapping_sub(def)).hash(&mut key)
                 }
                 _ => None::<usize>.hash(&mut key),
             });
             key.finish()
-        })
-        .collect::<Vec<_>>();
-    tokens
-        .windows(RUN)
-        .map(|run| {
+        }));
+        self.runs.extend(self.tokens.windows(RUN).map(|run| {
             let mut key = FxHasher::default();
             run.hash(&mut key);
             key.finish()
-        })
-        .collect::<Vec<_>>()
-        .into_iter()
+        }));
+        &self.runs
+    }
 }

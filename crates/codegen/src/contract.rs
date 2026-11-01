@@ -12,7 +12,7 @@ use crate::{
 use alloy_primitives::Bytes;
 use either::Either;
 use solar_ast::TypeSize;
-use solar_config::{DumpKind, EvmVersion, OptimizationMode};
+use solar_config::{DumpKind, EvmVersion};
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     index::IndexVec,
@@ -680,9 +680,8 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             runtime_data.as_ref(),
             crate::link::qualified_name(gcx, contract_id),
         );
-        let capture_built = capture_mir
-            && matches!(gcx.sess.opts.optimization, OptimizationMode::None)
-            && gcx.sess.opts.unstable.mir_pipeline.is_none();
+        let capture_built =
+            capture_mir && !module.is_optimized() && gcx.sess.opts.unstable.mir_pipeline.is_none();
         let built_mir = (capture_built && needs_backend).then(|| module.clone());
         let codegen = if needs_backend {
             module.set_debug_info_tracked(captures.debug_info.contains(contract_id));
@@ -772,7 +771,10 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             .immutable_references
             .iter()
             .map(|reference| ImmutableReference {
-                variable_id: module.immutable(reference.id).variable_id,
+                variable_id: module
+                    .immutable(reference.id)
+                    .variable_id
+                    .map(|id| VariableId::from_usize(id.index())),
                 start: reference.code_offset + 1,
                 type_size: reference.type_size,
             })

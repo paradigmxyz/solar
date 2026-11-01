@@ -5,6 +5,7 @@
 //@ run-call: two 0x4142 => 0x0000000000000000000000000000000000000000000000000000000000004142
 //@ run-call: gapped 0x41424344 => 0x0000000000000000000000000000000000000000000000000000000000004143
 //@ run-call: stored 0x414243 => 0x00000000000000000000000000000000000000000000000000000000414a43
+//@ run-call: lowByte 0x4142 => 0x0000000000000000000000000000000000000000000000000000000000004142
 
 // Three adjacent byte reads packed in order are one field of one word read.
 // CHECK-LABEL: fn @three
@@ -28,6 +29,10 @@
 // CHECK-LABEL: fn @stored
 // CHECK-NOT: shr {{v[0-9]+}}, 232
 
+// `and(mload(a), 0xff)` is the byte at `a + 31`, not at `a`, so it is no leaf of a run.
+// CHECK-LABEL: fn @lowByte
+// CHECK-NOT: shr {{v[0-9]+}}, 240
+
 contract Test {
     function three(bytes memory s) public pure returns (uint256) {
         if (s.length < 3) return 0;
@@ -49,5 +54,11 @@ contract Test {
         uint256 first = uint256(uint8(s[0])) << 16;
         s[1] = 0x4a;
         return first | (uint256(uint8(s[1])) << 8) | uint256(uint8(s[2]));
+    }
+
+    function lowByte(bytes memory s) public pure returns (uint256 r) {
+        assembly {
+            r := or(shl(8, and(mload(add(s, 1)), 0xff)), and(mload(add(s, 2)), 0xff))
+        }
     }
 }

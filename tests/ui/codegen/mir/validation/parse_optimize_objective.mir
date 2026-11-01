@@ -1,0 +1,11 @@
+//@compile-flags: -Zmir-pipeline=none
+
+// A module's `@optimize` line names the objective of its code: `gas` or `size`.
+@module ParseOptimizeObjective
+@optimize speed
+//~^ ERROR: unknown optimization objective `speed`
+
+fn @f() {
+  bb0:
+    stop
+}

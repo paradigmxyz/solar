@@ -1,0 +1,265 @@
+// === ROOT/tests/ui/codegen/mir/optimize-function/none_build.sol:Plain ===
+@module Plain
+fn @sum(arg0: slice<calldata>) -> i32 [selector=0xa20eed08, pure, abi_params=[bytes], abi_returns=[word<uint32>], abi_return_params=[uint32]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v21]
+    v2 = phi [bb0: 0], [bb3: v20]
+    v3 = lt v2, 4
+    jumpi v3, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v22 = trunc i256 v1 to i32
+    ret v22
+  bb4:
+    v4 = trunc i256 v1 to i32
+    v5 = shl v4, i32 8
+    v6 = extract_value slice<calldata>, v0, 1
+    v7 = lt v2, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = extract_value slice<calldata>, v0, 0
+    v10 = extract_value slice<calldata>, v0, 0
+    v11 = ptrtoint ptr<calldata> v10 to i256
+    v12 = add v11, v2
+    v13 = calldataload v12
+    v14 = byte 0, v13
+    v15 = shl v14, 248
+    v16 = shr v15, 248
+    v17 = trunc i256 v16 to i8
+    v18 = zext i8 v17 to i32
+    v19 = or v5, v18
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v20 = checked_add uint256, v2, 1
+    v21 = zext i32 v19 to i256
+    jump bb1
+}
+
+// === ROOT/tests/ui/codegen/mir/optimize-function/none_build.sol:Tagged ===
+@module Tagged
+@phase lowered
+fn @sum() [selector=0xa20eed08, abi_wrapper, pure] {
+  bb0:
+    v39 = calldatasize
+    v40 = lt v39, 36
+    v41 = calldataload 4
+    v42 = add v41, 4
+    v44 = sub v39, 36
+    v45 = gt v41, v44
+    v46 = calldataload v42
+    v47 = add v42, 32
+    v48 = sub v39, v47
+    v49 = gt v46, v48
+    v50 = or v45, v49
+    v152 = or v40, v50
+    jumpi v152, bb4, bb5
+  bb5:
+    v37 = lt v46, 4
+    jumpi v37, bb2, bb1
+  bb1:
+    v117 = add v47, 0
+    v118 = calldataload v117
+    v119 = byte 0, v118
+    v120 = or 0, v119
+    v125 = shl v120, 8
+    v126 = and v125, 0xffffffff
+    v127 = add v47, 1
+    v128 = calldataload v127
+    v129 = byte 0, v128
+    v130 = or v126, v129
+    v135 = shl v130, 8
+    v136 = and v135, 0xffffffff
+    v137 = add v47, 2
+    v138 = calldataload v137
+    v139 = byte 0, v138
+    v140 = or v136, v139
+    v145 = shl v140, 8
+    v146 = and v145, 0xffffffff
+    v147 = add v47, 3
+    v148 = calldataload v147
+    v149 = byte 0, v148
+    v150 = or v146, v149
+    mstore 0, v150
+    returndata 0, 32
+  bb2:
+    v73 = lt 0, v46
+    v84 = lt 1, v46
+    v153 = and v73, v84
+    v95 = lt 2, v46
+    v154 = and v153, v95
+    jumpi v154, bb6, bb3
+  bb6:
+    jump bb3
+  bb3:
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb4:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0xa20eed08 => bb2]
+  bb2:
+    tail_call @sum
+  bb3:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/mir/optimize-function/none_build.sol:Mixed ===
+@module Mixed
+@phase lowered
+fn @slow() [selector=0xaa8bda2d, abi_wrapper, pure] {
+  bb0:
+    v25 = calldatasize
+    v26 = lt v25, 36
+    jump bb9
+  bb9:
+    v27 = icall @decode_calldata_slice, 4
+    v28 = calldataload v27
+    v29 = add v27, 32
+    jump bb1
+  bb1:
+    jump bb2
+  bb2:
+    v1 = phi [bb1: 0], [bb8: v40]
+    v2 = phi [bb1: 0], [bb8: v23]
+    v3 = lt v2, 4
+    jumpi v3, bb3, bb4
+  bb4:
+    v37 = and v1, 0xffffffff
+    mstore 0, v1
+    v33 = sub 32, 0
+    returndata 0, v33
+  bb3:
+    v34 = and v1, 0xffffffff
+    v35 = shl v34, 8
+    v36 = and v35, 0xffffffff
+    v7 = lt v2, v28
+    v8 = eq v7, false
+    jumpi v8, bb5, bb6
+  bb6:
+    v12 = add v29, v2
+    v13 = calldataload v12
+    v14 = byte 0, v13
+    v15 = shl v14, 248
+    v16 = shr v15, 248
+    v38 = and v16, 255
+    v39 = or v36, v38
+    v40 = and v39, 0xffffffff
+    v23 = add v2, 1
+    v24 = lt v23, v2
+    jumpi v24, bb7, bb8
+  bb8:
+    jump bb2
+  bb7:
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb5:
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @fast() [selector=0xe256fef5, abi_wrapper, optimize=gas, pure] {
+  bb0:
+    v41 = icall @decode_calldata_slice, 4
+    v42 = calldataload v41
+    v43 = add v41, 32
+    v37 = lt v42, 4
+    jumpi v37, bb2, bb1
+  bb1:
+    v109 = add v43, 0
+    v110 = calldataload v109
+    v111 = byte 0, v110
+    v112 = or 0, v111
+    v117 = shl v112, 7
+    v118 = and v117, 0xffffffff
+    v119 = add v43, 1
+    v120 = calldataload v119
+    v121 = byte 0, v120
+    v122 = or v118, v121
+    v127 = shl v122, 7
+    v128 = and v127, 0xffffffff
+    v129 = add v43, 2
+    v130 = calldataload v129
+    v131 = byte 0, v130
+    v132 = or v128, v131
+    v137 = shl v132, 7
+    v138 = and v137, 0xffffffff
+    v139 = add v43, 3
+    v140 = calldataload v139
+    v141 = byte 0, v140
+    v142 = or v138, v141
+    mstore 0, v142
+    returndata 0, 32
+  bb2:
+    v65 = lt 0, v42
+    v76 = lt 1, v42
+    v144 = and v65, v76
+    v87 = lt 2, v42
+    v145 = and v144, v87
+    jumpi v145, bb4, bb3
+  bb4:
+    jump bb3
+  bb3:
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @decode_calldata_slice(arg0: i256) -> i256 {
+  bb0:
+    v0 = calldatasize
+    v1 = calldataload arg0
+    v2 = add 4, v1
+    v3 = sub v0, 4
+    v4 = sub v3, 32
+    v5 = gt v1, v4
+    v6 = calldataload v2
+    v7 = add v2, 32
+    v8 = sub v0, v7
+    v9 = gt v6, v8
+    v10 = or v5, v9
+    v11 = zext i1 v10 to i256
+    jumpi v10, bb1, bb2
+  bb2:
+    ret v2
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0xaa8bda2d => bb3, 0xe256fef5 => bb4]
+  bb4:
+    tail_call @fast
+  bb3:
+    tail_call @slow
+  bb1:
+    revert 0, 0
+}

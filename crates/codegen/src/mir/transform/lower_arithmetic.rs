@@ -120,6 +120,12 @@ impl ArithmeticLowerer<'_, '_> {
             // overflow, as in solc.
             return self.range_overflow(result, kind);
         }
+        // overflow = ne (shr factor, 256 - s), 0, for a constant factor 2 ** s
+        if kind == ArithmeticKind::Unsigned(256)
+            && let Some(overflow) = self.builder.power_of_two_mul_overflow(lhs, rhs)
+        {
+            return overflow;
+        }
         // valid = rhs == 0 || (signed ? sdiv : div)(result, rhs) == lhs
         // overflow = !valid
         let rhs_zero = self.builder.eq_zero(rhs);
@@ -265,10 +271,7 @@ impl ArithmeticLowerer<'_, '_> {
                 let result = self.builder.add(lhs, rhs);
                 let overflow = match kind {
                     ArithmeticKind::Unsigned(256) => self.builder.lt(result, lhs),
-                    ArithmeticKind::Unsigned(bits) => {
-                        let max = self.builder.imm((U256::ONE << bits) - U256::ONE);
-                        self.builder.gt(result, max)
-                    }
+                    ArithmeticKind::Unsigned(_) => self.range_overflow(result, kind),
                     ArithmeticKind::Signed(bits) => {
                         self.signed_add_sub_overflow(lhs, rhs, result, bits, true)
                     }

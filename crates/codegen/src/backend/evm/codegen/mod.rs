@@ -34,6 +34,7 @@ use crate::{
         memory::EvmMemoryLayout,
         pass::run_pipeline,
     },
+    target::Target,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -80,8 +81,8 @@ pub struct EvmCodegen<'gcx> {
     cold_functions: DenseBitSet<FunctionId>,
     /// Functions consisting only of an empty block terminated by `stop`.
     empty_stop_functions: DenseBitSet<FunctionId>,
-    /// Cold blocks in the function currently being emitted, including blocks
-    /// that only forward control to other cold blocks.
+    /// Cold blocks in the function currently being emitted: blocks that abort or only lead to
+    /// such blocks, and under the gas objective, blocks with no path to a normal exit.
     cold_blocks: DenseBitSet<BlockId>,
     /// Exact per-function spill area sizes, in bytes, recorded after emission.
     function_spill_sizes: FxHashMap<FunctionId, u64>,
@@ -159,6 +160,12 @@ pub struct EvmCodegen<'gcx> {
     capture_evm_ir: bool,
     capture_scheduled_evm_ir: bool,
     capture_debug_info: bool,
+    /// The objective of the module being generated, which its `@custom:solar-optimize` tag may
+    /// select, or of the function being emitted, which its own tag may select.
+    optimization: OptimizationMode,
+    /// The objective of the module being generated, which the layout of its immutables follows
+    /// in every function.
+    module_optimization: OptimizationMode,
 }
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -207,12 +214,17 @@ impl<'gcx> EvmCodegen<'gcx> {
             capture_evm_ir: false,
             capture_scheduled_evm_ir: false,
             capture_debug_info: false,
+            optimization: gcx.sess.opts.optimization,
+            module_optimization: gcx.sess.opts.optimization,
         }
     }
 
     /// Clears state that belongs to one lowered MIR module.
     fn reset_for_module(&mut self, module: &Module) {
+        self.optimization = module.optimization;
+        self.module_optimization = module.optimization;
         self.asm.clear();
+        self.asm.set_optimization(module.optimization);
         self.reset_artifact(module);
         self.cold_functions.clear_to(module.functions.len());
         self.empty_stop_functions.clear_to(module.functions.len());
@@ -250,6 +262,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.runtime_entry_funcs.clear();
         self.body = Body::External;
         self.emitting_entry = false;
+    }
+
+    /// Returns the runtime cost model of the module being generated, under its contract's
+    /// objective.
+    pub(crate) fn runtime_target(&self) -> Target {
+        Target::new(self.gcx, self.optimization)
     }
 
     fn reset_switch_gas_code_growth(&mut self) {

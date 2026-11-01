@@ -52,44 +52,40 @@ fn @encode(arg0: i256, arg1: i256) -> ptr<memory> [selector=0xdc0aa2af, pure, ab
     v11 = lt v10, v3
     icall panic_if<0x41>, v11
     v12 = mul v10, 32
-    v13 = eq 32, 0
-    v14 = div v12, 32
-    v15 = eq v14, v10
-    v16 = or v13, v15
-    v17 = zext i1 v16 to i256
-    v18 = eq v17, 0
-    icall panic_if<0x41>, v18
-    v19 = alloc zeroed checked v12
-    mstore v19, arg0
-    v20 = ptrtoint ptr<memory> v19 to i256
-    v21 = add v20, 32
+    v13 = shr v10, 251
+    v14 = ne v13, 0
+    icall panic_if<0x41>, v14
+    v15 = alloc zeroed checked v12
+    mstore v15, arg0
+    v16 = ptrtoint ptr<memory> v15 to i256
+    v17 = add v16, 32
     jump bb1
   bb1:
-    v22 = phi [bb0: arg0], [bb3: v22]
-    v23 = phi [bb0: arg1], [bb3: v23]
-    v24 = phi [bb0: ptr<memory> 96], [bb3: v24]
-    v25 = phi [bb0: v19], [bb3: v25]
-    v26 = phi [bb0: v21], [bb3: v26]
-    v27 = phi [bb0: 0], [bb3: v34]
-    v28 = lt v27, v22
-    v29 = zext i1 v28 to i256
-    v30 = ne v29, 0
-    jumpi v30, bb4, bb5
+    v18 = phi [bb0: arg0], [bb3: v18]
+    v19 = phi [bb0: arg1], [bb3: v19]
+    v20 = phi [bb0: ptr<memory> 96], [bb3: v20]
+    v21 = phi [bb0: v15], [bb3: v21]
+    v22 = phi [bb0: v17], [bb3: v22]
+    v23 = phi [bb0: 0], [bb3: v30]
+    v24 = lt v23, v18
+    v25 = zext i1 v24 to i256
+    v26 = ne v25, 0
+    jumpi v26, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v35 = abi_encode [memory_array<word<uint8>>], object, args v25
-    ret v35
+    v31 = abi_encode [memory_array<word<uint8>>], object, args v21
+    ret v31
   bb4:
-    v31 = add v23, v27
-    v32 = mul v27, 32
-    v33 = add v26, v32
-    mstore v33, v31
+    v27 = add v19, v23
+    v28 = mul v23, 32
+    v29 = add v22, v28
+    mstore v29, v27
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v34 = add v27, 1
+    v30 = add v23, 1
     jump bb1
 }
 

@@ -39,3 +39,19 @@
       ret v1
   }
   
+  fn @cheap_mask(arg0: i256) -> i1 {
+    bb0:
+      v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+      v1 = eq v0, 0x400000000000000000000000000000000000000000000000000000
+      v2 = eq v0, 0x800000000000000000000000000000000000000000000000000000
+      v3 = or v1, v2
+      ret v3
+  }
+  
+  fn @inequality_mask(arg0: i256) -> i1 {
+    bb0:
+      v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+      v1 = ne v0, 0x1ffc9a700000000000000000000000000000000000000000000000000000000
+      ret v1
+  }
+  

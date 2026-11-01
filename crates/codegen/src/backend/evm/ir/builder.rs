@@ -404,6 +404,7 @@ impl<'gcx> Assembler<'gcx> {
             block.metadata.in_loop = true;
         }
         block.metadata.repeats = self.repeating_code;
+        block.metadata.optimization = self.block_optimization;
         let block = self.program.add_block(block);
         self.current_block = Some(block);
         self.block_labels.push(Some(label));
@@ -450,6 +451,7 @@ impl<'gcx> Assembler<'gcx> {
         }
         let mut block = ir::Block::new(self.program.blocks.len() as u32);
         block.metadata.repeats = self.repeating_code;
+        block.metadata.optimization = self.block_optimization;
         let block = self.program.add_block(block);
         self.current_block = Some(block);
         self.block_labels.push(None);

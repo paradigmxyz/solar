@@ -1,0 +1,51 @@
+- // === ROOT/tests/ui/codegen/mir/cse/runtime_size_objects.mir (before cse) ===
++ // === ROOT/tests/ui/codegen/mir/cse/runtime_size_objects.mir (after cse) ===
+  @module RuntimeSizeObjects
+  fn @header_past_indexed_store(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = alloc checked arg0
+      v1 = alloc checked arg0
+      mstore v0, arg1
+      v2 = shl arg2, 5
+      v3 = ptradd v1, v2
+      v4 = ptradd v3, 32
+      mstore v4, 7
+      v5 = mload v0
+      ret v5
+  }
+  
+  fn @unchecked_header_may_overlap(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = alloc arg0
+      v1 = alloc checked arg0
+      mstore v0, arg1
+      v2 = shl arg2, 5
+      v3 = ptradd v1, v2
+      v4 = ptradd v3, 32
+      mstore v4, 7
+      v5 = mload v0
+      ret v5
+  }
+  
+  fn @constant_offset_may_leave(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = alloc checked arg0
+      v1 = alloc checked arg0
+      mstore v1, arg1
+      v2 = ptradd v0, 64
+      mstore v2, 7
+      v3 = mload v1
+      ret v3
+  }
+  
+  fn @same_object_offsets(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = alloc checked arg0
+      mstore v0, arg1
+      v1 = ptradd v0, 64
+      mstore v1, 7
+-     v2 = mload v0
+-     ret v2
++     ret arg1
+  }
+  

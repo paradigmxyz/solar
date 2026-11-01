@@ -9,8 +9,9 @@ use crate::mir::{
     AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AbiWordValidator,
     AddressCallKind, AllocationSemantics, ArithmeticKind, BlockId, CalldataTail, CheckedOp, DataId,
     DataRef, Function, FunctionBuilder, FunctionId, ImmutableId, InstKind, LogTopics,
-    MemoryObjectKind, MemoryObjectLayout, MirType, Module, PackedArraySource, PackedPart,
-    PanicCode, PtrLocation, RevertPayload, RevertReason, Value, ValueId, memory::EvmMemoryLayout,
+    MemoryObjectKind, MemoryObjectLayout, MirModuleTarget, MirType, Module, PackedArraySource,
+    PackedPart, PanicCode, PtrLocation, RevertPayload, RevertReason, Value, ValueId,
+    memory::EvmMemoryLayout,
 };
 use alloy_primitives::{U256, keccak256};
 use solar_ast::{BinOpKind, DataLocation, LitKind, StateMutability, TypeSize, UnOpKind};
@@ -113,7 +114,7 @@ pub(super) fn lower(
 ) -> Option<Function> {
     let gcx = context.gcx;
     let hir_function = gcx.hir.function(id);
-    let mut mir = contract::declaration(gcx, id, hir_function);
+    let mut mir = contract::declaration(gcx, id, hir_function, context.module.optimization);
     if !expose_selector {
         mir.selector = None;
     }

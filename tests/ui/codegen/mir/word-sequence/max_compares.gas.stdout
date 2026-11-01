@@ -1,0 +1,158 @@
+- // === ROOT/tests/ui/codegen/mir/word-sequence/max_compares.mir (before word-sequence) ===
++ // === ROOT/tests/ui/codegen/mir/word-sequence/max_compares.mir (after word-sequence) ===
+  @module MaxCompares
+  fn @lt_branch(arg0: i256) -> i256 {
+    bb0:
+-     v0 = lt arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     v1 = not arg0
++     v0 = ne v1, 0
+      jumpi v0, bb1, bb2
+    bb2:
+      ret 2
+    bb1:
+      ret 1
+  }
+  
+  fn @gt_branch(arg0: i256) -> i256 {
+    bb0:
+-     v0 = gt arg0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
++     v1 = not arg0
++     v0 = eq v1, 0
+      jumpi v0, bb1, bb2
+    bb2:
+      ret 2
+    bb1:
+      ret 1
+  }
+  
+  fn @eq_value(arg0: i256) -> i1 {
+    bb0:
+      v0 = eq arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      ret v0
+  }
+  
+  fn @ne_branch(arg0: i256) -> i256 {
+    bb0:
+-     v0 = ne arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     v1 = not arg0
++     v0 = ne v1, 0
+      jumpi v0, bb1, bb2
+    bb2:
+      ret 2
+    bb1:
+      ret 1
+  }
+  
+  fn @lt_value(arg0: i256) -> i1 {
+    bb0:
+      v0 = lt arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      ret v0
+  }
+  
+  fn @gt_value(arg0: i256) -> i1 {
+    bb0:
+-     v0 = gt arg0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
++     v1 = not arg0
++     v0 = eq v1, 0
+      ret v0
+  }
+  
+  fn @ne_value(arg0: i256) -> i1 {
+    bb0:
+      v0 = ne arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      ret v0
+  }
+  
+  fn @narrow(arg0: i64, arg1: i160) -> i1 {
+    bb0:
+      v0 = lt arg0, i64 0xffffffffffffffff
+      v1 = eq arg1, i160 0xffffffffffffffffffffffffffffffffffffffff
+      v2 = and v0, v1
+      ret v2
+  }
+  
+  fn @other_bounds(arg0: i256) -> i1 {
+    bb0:
+      v0 = gt arg0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd
+      v1 = lt arg0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+      v2 = and v0, v1
+      ret v2
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/word-sequence/max_compares.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/word-sequence/max_compares.mir (after dce) ===
+  @module MaxCompares
+  fn @lt_branch(arg0: i256) -> i256 {
+    bb0:
+      v1 = not arg0
+      v0 = ne v1, 0
+      jumpi v0, bb1, bb2
+    bb2:
+      ret 2
+    bb1:
+      ret 1
+  }
+  
+  fn @gt_branch(arg0: i256) -> i256 {
+    bb0:
+      v1 = not arg0
+      v0 = eq v1, 0
+      jumpi v0, bb1, bb2
+    bb2:
+      ret 2
+    bb1:
+      ret 1
+  }
+  
+  fn @eq_value(arg0: i256) -> i1 {
+    bb0:
+      v0 = eq arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      ret v0
+  }
+  
+  fn @ne_branch(arg0: i256) -> i256 {
+    bb0:
+      v1 = not arg0
+      v0 = ne v1, 0
+      jumpi v0, bb1, bb2
+    bb2:
+      ret 2
+    bb1:
+      ret 1
+  }
+  
+  fn @lt_value(arg0: i256) -> i1 {
+    bb0:
+      v0 = lt arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      ret v0
+  }
+  
+  fn @gt_value(arg0: i256) -> i1 {
+    bb0:
+      v1 = not arg0
+      v0 = eq v1, 0
+      ret v0
+  }
+  
+  fn @ne_value(arg0: i256) -> i1 {
+    bb0:
+      v0 = ne arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      ret v0
+  }
+  
+  fn @narrow(arg0: i64, arg1: i160) -> i1 {
+    bb0:
+      v0 = lt arg0, i64 0xffffffffffffffff
+      v1 = eq arg1, i160 0xffffffffffffffffffffffffffffffffffffffff
+      v2 = and v0, v1
+      ret v2
+  }
+  
+  fn @other_bounds(arg0: i256) -> i1 {
+    bb0:
+      v0 = gt arg0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd
+      v1 = lt arg0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+      v2 = and v0, v1
+      ret v2
+  }
+  

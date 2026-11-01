@@ -84,19 +84,13 @@ impl MirPass for LowerBuiltins {
                 (bytes, helper)
             })
             .collect::<FxHashMap<_, _>>();
+        let evm = gcx.sess.opts.evm_version;
         run_function_pass(module, analyses, |func, _| {
             if !func.instructions().any(|id| is_builtin(&func.inst(id).kind)) {
                 return false;
             }
             let mut replacements = FxHashMap::default();
             for block in func.blocks.indices() {
-                if !func.blocks[block]
-                    .instructions
-                    .iter()
-                    .any(|&id| is_builtin(&func.inst(id).kind))
-                {
-                    continue;
-                }
                 let mut builder = FunctionBuilder::new(func);
                 expand_block(&mut builder, block, |builder, id| {
                     if !is_builtin(&builder.func().inst(id).kind) {
@@ -106,9 +100,7 @@ impl MirPass for LowerBuiltins {
                     builder.set_debug_context(&inst.metadata);
                     match inst.kind {
                         InstKind::ICall { function: Callee::Builtin(Builtin::Transfer), args } => {
-                            let [address, amount] = *args.as_ref() else {
-                                unreachable!("validated builtin arguments")
-                            };
+                            let [address, amount] = builtin_args(&args);
                             // success = send(address, amount)
                             let success = lower_send(builder, address, amount);
                             builder.revert_returndata_unless(success);
@@ -169,9 +161,7 @@ impl MirPass for LowerBuiltins {
                                 ),
                             args,
                         } => {
-                            let [a, b, modulus] = *args.as_ref() else {
-                                unreachable!("validated builtin arguments")
-                            };
+                            let [a, b, modulus] = builtin_args(&args);
                             // panic_if_zero modulus, division_by_zero
                             // result = addmod/mulmod(a, b, modulus)
                             builder.panic_if_zero(modulus, PanicCode::DivisionByZero);
@@ -194,49 +184,31 @@ impl MirPass for LowerBuiltins {
                             super::lower_storage_bytes::load(builder, slot)
                         }
                         InstKind::AddressCall { kind, address, input, gas, value } => {
-                            lower_address_call(
-                                builder,
-                                gcx.sess.opts.evm_version,
-                                kind,
-                                address,
-                                input,
-                                gas,
-                                value,
-                            )
+                            lower_address_call(builder, evm, kind, address, input, gas, value)
                         }
                         InstKind::ICall {
                             function: Callee::Builtin(Builtin::ReturndataBytes),
                             ..
-                        } => lower_returndata(builder, gcx.sess.opts.evm_version),
+                        } => lower_returndata(builder, evm),
                         InstKind::ICall { function: Callee::Builtin(Builtin::Send), args } => {
-                            let [address, amount] = *args.as_ref() else {
-                                unreachable!("validated builtin arguments")
-                            };
+                            let [address, amount] = builtin_args(&args);
                             lower_send(builder, address, amount)
                         }
                         InstKind::ICall { function: Callee::Builtin(Builtin::Erc7201), args } => {
-                            let [input] = *args.as_ref() else {
-                                unreachable!("validated builtin arguments")
-                            };
+                            let [input] = builtin_args(&args);
                             lower_erc7201(builder, input)
                         }
-                        InstKind::ICall { function: Callee::Builtin(Builtin::Sha256), args } => {
-                            let [input] = *args.as_ref() else {
-                                unreachable!("validated builtin arguments")
-                            };
-                            lower_hash(builder, gcx.sess.opts.evm_version, input, false)
-                        }
-                        InstKind::ICall { function: Callee::Builtin(Builtin::Ripemd160), args } => {
-                            let [input] = *args.as_ref() else {
-                                unreachable!("validated builtin arguments")
-                            };
-                            lower_hash(builder, gcx.sess.opts.evm_version, input, true)
+                        InstKind::ICall {
+                            function:
+                                Callee::Builtin(builtin @ (Builtin::Sha256 | Builtin::Ripemd160)),
+                            args,
+                        } => {
+                            let [input] = builtin_args(&args);
+                            lower_hash(builder, evm, input, builtin == Builtin::Ripemd160)
                         }
                         InstKind::ICall { function: Callee::Builtin(Builtin::EcRecover), args } => {
-                            let [hash, v, r, s] = *args.as_ref() else {
-                                unreachable!("validated builtin arguments")
-                            };
-                            lower_ecrecover(builder, gcx.sess.opts.evm_version, hash, v, r, s)
+                            let [hash, v, r, s] = builtin_args(&args);
+                            lower_ecrecover(builder, evm, hash, v, r, s)
                         }
                         _ => unreachable!("builtin checked above"),
                     };
@@ -253,6 +225,10 @@ impl MirPass for LowerBuiltins {
             true
         })
     }
+}
+
+fn builtin_args<const N: usize>(args: &[ValueId]) -> [ValueId; N] {
+    args.try_into().expect("validated builtin arguments")
 }
 
 fn is_builtin(kind: &InstKind) -> bool {

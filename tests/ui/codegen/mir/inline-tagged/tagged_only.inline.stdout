@@ -1,0 +1,35 @@
+- // === ROOT/tests/ui/codegen/mir/inline-tagged/tagged_only.mir (before inline) ===
++ // === ROOT/tests/ui/codegen/mir/inline-tagged/tagged_only.mir (after inline) ===
+  @module TaggedOnly
+  fn @caller(arg0: i256) -> i256 {
+    bb0:
+-     v0 = icall @always, arg0
+-     v1 = icall @leaf, v0
+-     ret v1
+- }
+- 
+- fn @always(arg0: i256) -> i256 [always_inline] {
+-   bb0:
+-     v0 = add arg0, 1
+-     ret v0
+- }
+- 
+- fn @leaf(arg0: i256) -> i256 {
+-   bb0:
+-     v0 = mul arg0, 3
+-     ret v0
++     jump bb2
++   bb2:
++     v2 = add arg0, 1
++     jump bb1
++   bb1:
++     v3 = phi [bb2: v2]
++     jump bb4
++   bb4:
++     v4 = mul v3, 3
++     jump bb3
++   bb3:
++     v5 = phi [bb4: v4]
++     ret v5
+  }
+  

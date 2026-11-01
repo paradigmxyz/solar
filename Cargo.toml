@@ -128,9 +128,11 @@ solar-data-structures = { version = "=0.2.0", path = "crates/data-structures", d
 solar-evmir = { version = "=0.2.0", path = "crates/evmir", default-features = false }
 solar-evmir-interpreter = { version = "=0.2.0", path = "crates/evmir-interpreter", default-features = false }
 solar-interface = { version = "=0.2.0", path = "crates/interface", default-features = false }
+solar-ir = { version = "=0.2.0", path = "crates/ir", default-features = false }
 solar-lint = { version = "=0.2.0", path = "crates/lint", default-features = false }
 solar-lsp = { version = "=0.2.0", path = "crates/lsp", default-features = false }
 solar-macros = { version = "=0.2.0", path = "crates/macros", default-features = false }
+solar-mir = { version = "=0.2.0", path = "crates/mir", default-features = false }
 solar-parse = { version = "=0.2.0", path = "crates/parse", default-features = false }
 solar-sema = { version = "=0.2.0", path = "crates/sema", default-features = false }
 

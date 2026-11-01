@@ -15,6 +15,7 @@
 //! that slice producers and returns agree with their types. Legacy pointer-only pseudo-slices
 //! cannot supply a pair. Failed preflight checks report their reason without changing the module.
 
+use super::utils::expand_block;
 use crate::mir::{
     ArgIdx, Callee, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, InstKind,
     MirType, Module, PtrLocation, StructId, StructType, Terminator, Value, ValueId,
@@ -59,8 +60,9 @@ struct Layouts {
 impl Layouts {
     fn new(module: &Module) -> Option<Self> {
         let mut layouts = Self { types: module.struct_types.clone(), leaves: IndexVec::new() };
+        let mut leaves = Vec::new();
         for (id, ty) in module.struct_types.iter_enumerated() {
-            let mut leaves = Vec::new();
+            leaves.clear();
             for &field in &ty.fields {
                 match field {
                     MirType::Struct(nested) if nested < id => {
@@ -71,15 +73,15 @@ impl Layouts {
                     _ => leaves.push(field),
                 }
             }
-            layouts.leaves.push(leaves.into_boxed_slice());
+            layouts.leaves.push(leaves.as_slice().into());
         }
         Some(layouts)
     }
 
-    fn flatten(&self, ty: MirType) -> Vec<MirType> {
-        match ty {
-            MirType::Struct(id) => self.leaves[id].to_vec(),
-            _ => vec![ty],
+    fn flatten<'a>(&'a self, ty: &'a MirType) -> &'a [MirType] {
+        match *ty {
+            MirType::Struct(id) => &self.leaves[id],
+            _ => std::slice::from_ref(ty),
         }
     }
 
@@ -128,7 +130,7 @@ fn lower_structs(module: &mut Module, analyses: &mut ModuleAnalyses) -> Result<b
             .params
             .iter()
             .chain(func.return_components())
-            .map(|&ty| layouts.flatten(ty).len())
+            .map(|ty| layouts.flatten(ty).len())
             .sum();
         let offsets = super::utils::rebase_frame_offsets(func, slots)
             .ok_or("local frame offsets cannot be rebased for the expanded signature")?;
@@ -211,8 +213,15 @@ fn slice_values_are_pairs(module: &Module) -> bool {
     })
 }
 
-fn components(value: ValueId, aggregates: &FxHashMap<ValueId, Box<[ValueId]>>) -> Vec<ValueId> {
-    aggregates.get(&value).map_or_else(|| vec![value], |values| values.to_vec())
+fn components<'a>(
+    value: &'a ValueId,
+    aggregates: &'a FxHashMap<ValueId, Box<[ValueId]>>,
+) -> &'a [ValueId] {
+    aggregates.get(value).map_or_else(|| std::slice::from_ref(value), |values| values)
+}
+
+fn flatten(values: &[ValueId], aggregates: &FxHashMap<ValueId, Box<[ValueId]>>) -> Vec<ValueId> {
+    values.iter().flat_map(|value| components(value, aggregates).iter().copied()).collect()
 }
 
 fn lower_function(func: &mut Function, layouts: &Layouts) {
@@ -234,7 +243,7 @@ fn lower_function(func: &mut Function, layouts: &Layouts) {
     let mut starts = IndexVec::<ArgIdx, ArgIdx>::new();
     for &ty in &func.params {
         starts.push(params.next_idx());
-        params.extend(layouts.flatten(ty));
+        params.extend(layouts.flatten(&ty).iter().copied());
     }
     if func.params.iter().any(|ty| matches!(ty, MirType::Struct(_))) {
         func.set_params(params);
@@ -256,138 +265,123 @@ fn lower_function(func: &mut Function, layouts: &Layouts) {
     }
     // result: aggregate -> result: aggregate [return_abi = scalar leaves]
     func.set_return_abi(
-        func.return_components().iter().flat_map(|&ty| layouts.flatten(ty)).collect::<Vec<_>>(),
+        func.return_components()
+            .iter()
+            .flat_map(|ty| layouts.flatten(ty).iter().copied())
+            .collect::<Vec<_>>(),
     );
 
+    // The leaves each instruction expands to, reused across instructions.
+    let mut outputs = Vec::new();
     for block in func.blocks.indices() {
-        let instructions = std::mem::take(&mut func.blocks[block].instructions);
         let mut builder = FunctionBuilder::new(func);
-        builder.switch_to_block(block);
-        for id in instructions {
-            let inst = builder.func().inst(id).clone();
-            builder.set_debug_context(&inst.metadata);
+        expand_block(&mut builder, block, |builder, id| {
             let result = builder.func().inst_result_value(id);
             let fields = result.and_then(|value| aggregates.get(&value));
-            let outputs = match inst.kind {
+            let result_ty = builder.func().inst(id).result_ty;
+            let metadata = builder.func().inst(id).metadata.debug_context();
+            builder.set_debug_context(&metadata);
+            outputs.clear();
+            match &builder.func().inst(id).kind {
                 // NOTE: Scalar insertions and projections emit no instruction. Their source
                 // checkpoints disappear with them; do not attach them to unrelated definitions.
                 // insert_value aggregate, index, value -> replace the selected leaf range
-                InstKind::InsertValue { ty: MirType::Struct(ty), aggregate, index, value } => {
-                    let mut leaves = components(aggregate, &aggregates);
-                    let inserted =
-                        if matches!(layouts.types[ty].fields[index as usize], MirType::Slice(_)) {
-                            // slice -> ptrtoint (extract_value slice, 0), extract_value slice, 1
-                            let pointer = builder.slice_ptr(value);
-                            vec![builder.cast(pointer, MirType::I256), builder.slice_len(value)]
-                        } else {
-                            components(value, &aggregates)
-                        };
-                    leaves.splice(layouts.field_range(ty, index), inserted);
-                    leaves
+                &InstKind::InsertValue { ty: MirType::Struct(ty), aggregate, index, value } => {
+                    outputs.extend_from_slice(components(&aggregate, &aggregates));
+                    let range = layouts.field_range(ty, index);
+                    if matches!(layouts.types[ty].fields[index as usize], MirType::Slice(_)) {
+                        // slice -> ptrtoint (extract_value slice, 0), extract_value slice, 1
+                        let pointer = builder.slice_ptr(value);
+                        let pointer = builder.cast(pointer, MirType::I256);
+                        outputs.splice(range, [pointer, builder.slice_len(value)]);
+                    } else {
+                        outputs.splice(range, components(&value, &aggregates).iter().copied());
+                    }
                 }
                 // extract_value aggregate, index -> selected leaf range
-                InstKind::ExtractValue { ty: MirType::Struct(ty), aggregate, index } => {
+                &InstKind::ExtractValue { ty: MirType::Struct(ty), aggregate, index } => {
                     let leaves =
-                        components(aggregate, &aggregates)[layouts.field_range(ty, index)].to_vec();
+                        &components(&aggregate, &aggregates)[layouts.field_range(ty, index)];
                     if let MirType::Slice(location) = layouts.types[ty].fields[index as usize] {
                         // slice = make_slice(field.pointer, field.length)
-                        vec![builder.make_slice(leaves[0], leaves[1], location)]
+                        outputs.push(builder.make_slice(leaves[0], leaves[1], location));
                     } else {
-                        leaves
+                        outputs.extend_from_slice(leaves);
                     }
                 }
                 // phi struct [pred: value] -> phi field0 [pred: value.field0], ...
                 InstKind::Phi(incoming) if fields.is_some() => {
-                    let ty = inst.result_ty.unwrap();
-                    layouts
-                        .flatten(ty)
-                        .into_iter()
-                        .enumerate()
-                        .map(|(index, ty)| {
-                            let incoming = incoming
-                                .iter()
-                                .map(|&(pred, value)| (pred, components(value, &aggregates)[index]))
-                                .collect();
-                            builder.emit_inst(InstKind::Phi(incoming), Some(ty))
-                        })
-                        .collect()
+                    let incoming = incoming.clone();
+                    for (index, &ty) in layouts.flatten(&result_ty.unwrap()).iter().enumerate() {
+                        let incoming = incoming
+                            .iter()
+                            .map(|(pred, value)| (*pred, components(value, &aggregates)[index]))
+                            .collect();
+                        outputs.push(builder.emit_inst(InstKind::Phi(incoming), Some(ty)));
+                    }
                 }
                 // select cond, a, b -> select cond, a.field0, b.field0; ...
-                InstKind::Select(cond, a, b) if fields.is_some() => {
-                    let a = components(a, &aggregates);
-                    let b = components(b, &aggregates);
-                    layouts
-                        .flatten(inst.result_ty.unwrap())
-                        .into_iter()
-                        .enumerate()
-                        .map(|(index, ty)| {
-                            builder.emit_inst(InstKind::Select(cond, a[index], b[index]), Some(ty))
-                        })
-                        .collect()
+                &InstKind::Select(cond, a, b) if fields.is_some() => {
+                    let a = components(&a, &aggregates);
+                    let b = components(&b, &aggregates);
+                    for (index, &ty) in layouts.flatten(&result_ty.unwrap()).iter().enumerate() {
+                        outputs.push(
+                            builder.emit_inst(InstKind::Select(cond, a[index], b[index]), Some(ty)),
+                        );
+                    }
                 }
                 // first = icall callee, args.fields
                 // buffer = frame_load multi_return
                 // rest = mload(buffer + field_offset)
                 InstKind::ICall { function: Callee::Function(function), args, .. } => {
-                    let args =
-                        args.iter().flat_map(|&value| components(value, &aggregates)).collect();
-                    if let Some(fields) = fields {
-                        let types = layouts.flatten(inst.result_ty.unwrap());
-                        if types.is_empty() {
-                            builder.icall_void(function, args);
-                            Vec::new()
-                        } else {
-                            let first = builder.icall(function, args, types[0]);
-                            let mut values = Vec::with_capacity(fields.len());
-                            values.push(first);
-                            if fields.len() > 1 {
-                                let base = builder.frame_load(
-                                    0,
-                                    FrameMode::MultiReturn,
-                                    FrameSlotKind::Word,
-                                );
-                                for (index, &ty) in types.iter().enumerate().skip(1) {
-                                    let offset = builder.add_u64_offset(
-                                        base,
-                                        index as u64 * EvmMemoryLayout::WORD_SIZE,
-                                    );
-                                    values.push(builder.emit_inst(
-                                        InstKind::Load(offset, PtrLocation::Memory),
-                                        Some(ty),
-                                    ));
-                                }
-                            }
-                            values
-                        }
-                    } else {
+                    let function = *function;
+                    if fields.is_none() && !args.iter().any(|arg| aggregates.contains_key(arg)) {
+                        return false;
+                    }
+                    let args = flatten(args, &aggregates);
+                    let Some(fields) = fields else {
                         builder.func_mut().inst_mut(id).kind = InstKind::ICall {
                             function: Callee::Function(function),
                             args: args.into(),
                         };
-                        builder.func_mut().blocks[block].instructions.push(id);
-                        continue;
+                        return false;
+                    };
+                    let result_ty = result_ty.unwrap();
+                    let types = layouts.flatten(&result_ty);
+                    if types.is_empty() {
+                        builder.icall_void(function, args);
+                    } else {
+                        outputs.push(builder.icall(function, args, types[0]));
+                        if fields.len() > 1 {
+                            let base =
+                                builder.frame_load(0, FrameMode::MultiReturn, FrameSlotKind::Word);
+                            for (index, &ty) in types.iter().enumerate().skip(1) {
+                                let offset = builder.add_u64_offset(
+                                    base,
+                                    index as u64 * EvmMemoryLayout::WORD_SIZE,
+                                );
+                                outputs.push(builder.emit_inst(
+                                    InstKind::Load(offset, PtrLocation::Memory),
+                                    Some(ty),
+                                ));
+                            }
+                        }
                     }
                 }
-                _ => {
-                    builder.func_mut().blocks[block].instructions.push(id);
-                    continue;
-                }
-            };
+                _ => return false,
+            }
             if let Some(fields) = fields {
-                replacements.extend(fields.iter().copied().zip(outputs));
+                replacements.extend(fields.iter().copied().zip(outputs.iter().copied()));
             } else if let Some(result) = result {
                 replacements.insert(result, outputs[0]);
             }
-        }
+            true
+        });
         // return aggregate -> return field0, ..., fieldN
         // tail_call callee, aggregate -> tail_call callee, field0, ..., fieldN
-        match builder.func_mut().blocks[block].terminator.as_mut() {
-            Some(Terminator::Return { values }) => {
-                *values = values.iter().flat_map(|&value| components(value, &aggregates)).collect();
-            }
-            Some(Terminator::TailCall { args, .. }) => {
-                *args = args.iter().flat_map(|&value| components(value, &aggregates)).collect();
-            }
+        match func.blocks[block].terminator.as_mut() {
+            Some(Terminator::Return { values }) => *values = flatten(values, &aggregates).into(),
+            Some(Terminator::TailCall { args, .. }) => *args = flatten(args, &aggregates).into(),
             _ => {}
         }
     }

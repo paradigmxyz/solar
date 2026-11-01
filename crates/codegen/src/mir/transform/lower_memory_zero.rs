@@ -1,8 +1,13 @@
 //! Lower semantic memory zeroing to an EVM calldata copy.
 //!
 //! Reading beyond the end of calldata yields zero bytes, so copying from
-//! `calldatasize()` implements an arbitrary-length zero fill without a loop.
+//! `calldatasize()` implements an arbitrary-length zero fill without a loop. A 32-byte fill is
+//! one zero word store instead, which needs fewer instructions than the copy.
+//!
+//! This pass runs after `lower-alloc` and the memory DSE that follows it, which can overwrite the
+//! zero fills allocation lowering leaves, and before `lower-integers`.
 
+use super::utils::expand_block;
 use crate::mir::{Function, FunctionBuilder, InstKind, Module, PtrLocation, pass::MirPass};
 use solar_sema::Gcx;
 
@@ -37,15 +42,11 @@ fn lower_function(func: &mut Function) -> bool {
         return false;
     }
 
-    let blocks = func.blocks.indices();
-    for block in blocks {
-        let instructions = std::mem::take(&mut func.blocks[block].instructions);
+    for block in func.blocks.indices() {
         let mut builder = FunctionBuilder::new(func);
-        builder.switch_to_block(block);
-        for inst in instructions {
+        expand_block(&mut builder, block, |builder, inst| {
             let InstKind::MemoryZero(dest, size) = builder.func().inst(inst).kind else {
-                builder.func_mut().blocks[block].instructions.push(inst);
-                continue;
+                return false;
             };
             // destination = ptrtoint destination to i256
             let dest = builder.cast(dest, crate::mir::MirType::I256);
@@ -60,8 +61,8 @@ fn lower_function(func: &mut Function) -> bool {
                 builder.func_mut().inst_mut(inst).kind =
                     InstKind::Copy(dest, calldata_end, size, PtrLocation::Calldata);
             }
-            builder.func_mut().blocks[block].instructions.push(inst);
-        }
+            false
+        });
     }
     true
 }

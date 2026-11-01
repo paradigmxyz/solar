@@ -99,7 +99,7 @@
 // CHECK: mstore8
 // CHECK: mstore8
 
-// A `@custom:solar-inline` helper meets the caller's objects before this pass runs.
+// A `@custom:solar-inline always` helper meets the caller's objects before this pass runs.
 // CHECK-LABEL: fn @viaHelper(
 // CHECK: mcopy
 
@@ -257,7 +257,7 @@ contract Test {
         return a;
     }
 
-    /// @custom:solar-inline
+    /// @custom:solar-inline always
     function _copy(bytes memory dst, uint256 at, bytes memory src, uint256 from, uint256 count) private pure {
         for (uint256 k; k < count; ++k) {
             dst[at + k] = src[from + k];

@@ -1,0 +1,41 @@
+//@ compile-flags: -Zevm-ir-pipeline=block-cse
+//@ filecheck:
+@module module
+
+// A store whose constant address is copied with `dup` is the same store as one that pushes the
+// address, so the repeated store is removed.
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: mstore
+// CHECK-NEXT: - push 7
+// CHECK-NEXT: - dup 2
+// CHECK-NEXT: - mstore
+// CHECK-NEXT: pop
+bb0:
+  push 128
+  push 7
+  dup 2
+  mstore
+  push 7
+  dup 2
+  mstore
+  pop
+  stop
+
+// A load whose constant address is copied with `dup` reuses the stored word.
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: mstore
+// CHECK-NEXT: - dup 2
+// CHECK-NEXT: - mload
+// CHECK-NEXT: + dup 1
+// CHECK-NEXT: add
+bb1:
+  push 128
+  push 9
+  dup 1
+  dup 3
+  mstore
+  dup 2
+  mload
+  add
+  pop
+  stop

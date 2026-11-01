@@ -546,7 +546,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         this.peel_bytes_conversion(argument).peel_parens().kind
                     && let LitKind::Str(_, bytes, _) = &lit.kind
                     && !bytes.as_byte_str().is_empty()
-                    && stores_data_as_words(this.cx.gcx, bytes.as_byte_str())
+                    && stores_data_as_words(
+                        this.cx.module.target_of(this.cx.gcx, this.builder.func()),
+                        bytes.as_byte_str(),
+                    )
                 {
                     let value = Self::build_bytes_literal(
                         this.cx.gcx,

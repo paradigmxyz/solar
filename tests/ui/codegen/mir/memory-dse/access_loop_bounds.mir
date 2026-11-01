@@ -1,0 +1,56 @@
+//@compile-flags: -Zmir-pipeline=memory-dse
+//@filecheck:
+@module AccessLoopBounds
+
+// The backedge computes its offset using the previous iteration's oversized free pointer.
+// A successful access to the current iteration's small pointer cannot bound that earlier sum.
+// CHECK-LABEL: fn @previous_iteration
+// CHECK: {{^ +}}mstore 0, 7
+// CHECK: {{^[ +].*}}returndata 256, 32
+fn @previous_iteration() {
+  bb0:
+    mstore 0, 7
+    mstore 128, 0
+    mstore 64, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 128], [bb2: v3]
+    v1 = phi [bb0: true], [bb2: false]
+    v2 = mload 64
+    jumpi v1, bb2, bb3
+  bb2:
+    v3 = add v2, 32
+    mstore 64, 128
+    jump bb1
+  bb3:
+    v4 = mload v2
+    v5 = mload v0
+    v6 = add v4, v5
+    mstore 256, v6
+    returndata 256, 32
+}
+
+// Bounds proved before an incoming definition remain valid across the join, independently of
+// downstream accesses. Forgetting the downstream proof context must retain these safe facts.
+// CHECK-LABEL: fn @bounded_incoming
+// CHECK: - mstore 0, 7
+// CHECK: {{^[ +].*}}returndata 256, 32
+fn @bounded_incoming(arg0: i1) {
+  bb0:
+    mstore 0, 7
+    jumpi arg0, bb1, bb2
+  bb1:
+    v0 = mload 64 !metadata(alloc_ptr)
+    v1 = mload v0
+    v2 = add v0, 32
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v3 = phi [bb1: v2], [bb2: 128]
+    v4 = phi [bb1: v1], [bb2: 0]
+    v5 = mload v3
+    v6 = add v4, v5
+    mstore 256, v6
+    returndata 256, 32
+}

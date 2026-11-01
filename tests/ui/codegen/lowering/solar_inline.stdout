@@ -1,0 +1,84 @@
+// === ROOT/tests/ui/codegen/lowering/solar_inline.sol:Test ===
+@module Test
+fn @find(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0x48838276, pure, abi_params=[bytes, bytes1], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: arg1], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v10]
+    v4 = mload v0
+    v5 = lt v3, v4
+    jumpi v5, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  bb4:
+    v6 = icall @_at, v0, v3
+    v7 = and v6, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v8 = and v1, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v9 = eq v7, v8
+    jumpi v9, bb7, bb8
+  bb8:
+    jump bb9
+  bb9:
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v10 = checked_add uint256, v3, 1
+    jump bb1
+  bb7:
+    ret v3
+}
+
+fn @_at(arg0: ptr<memory>, arg1: i256) -> i256 [always_inline, pure] {
+  bb0:
+    v0 = mload arg0
+    v1 = lt arg1, v0
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = ptradd arg0, arg1
+    v4 = ptradd v3, 32
+    v5 = mload v4
+    v6 = byte 0, v5
+    v7 = shl v6, 248
+    v8 = eq v7, 0xff00000000000000000000000000000000000000000000000000000000000000
+    jumpi v8, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    ret v7
+  bb1:
+    v9 = mload arg0
+    v10 = checked_sub uint256, v9, 1
+    v11 = mload arg0
+    v12 = lt v10, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = ptradd arg0, v10
+    v15 = ptradd v14, 32
+    v16 = mload v15
+    v17 = byte 0, v16
+    v18 = shl v17, 248
+    v19 = checked_div uint256, arg1, 2
+    v20 = mload arg0
+    v21 = lt v19, v20
+    v22 = eq v21, false
+    icall panic_if<0x32>, v22
+    v23 = ptradd arg0, v19
+    v24 = ptradd v23, 32
+    v25 = mload v24
+    v26 = byte 0, v25
+    v27 = shl v26, 248
+    v28 = xor v18, v27
+    v29 = and v28, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v30 = trunc i256 arg1 to i8
+    v31 = zext i8 v30 to i256
+    v32 = shl v31, 248
+    v33 = xor v29, v32
+    v34 = and v33, 0xff00000000000000000000000000000000000000000000000000000000000000
+    ret v34
+}

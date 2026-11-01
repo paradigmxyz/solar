@@ -107,7 +107,7 @@ contract Test {
         return _rest(s, start);
     }
 
-    /// @custom:solar-noinline
+    /// @custom:solar-inline never
     function _whole(bytes memory s) private pure returns (bytes memory r) {
         uint256 n = s.length;
         r = new bytes(n);
@@ -116,7 +116,7 @@ contract Test {
         }
     }
 
-    /// @custom:solar-noinline
+    /// @custom:solar-inline never
     function _rest(bytes memory s, uint256 start) private pure returns (bytes memory r) {
         uint256 n = s.length - start;
         r = new bytes(n);
@@ -158,7 +158,7 @@ contract Test {
         return _count(s, 32);
     }
 
-    /// @custom:solar-noinline
+    /// @custom:solar-inline never
     function _count(bytes memory s, uint256 n) private pure returns (bytes memory r) {
         r = new bytes(n);
         for (uint256 k; k < n; ++k) {

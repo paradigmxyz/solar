@@ -15,18 +15,18 @@ mod coalesce_copies;
 pub(crate) mod compact_pushes;
 pub(super) mod data;
 mod dce;
-mod inline_returns;
+mod jumpi_fallthrough;
 mod late_structural;
 mod legalize_revert;
 mod loop_layout;
 mod outline;
 mod peephole;
 mod reorder_pushes;
+mod returndata_zero;
 mod share_reverts;
 mod stack_normalize;
 mod stack_reschedule;
-mod tail_dup;
-mod tail_duplicate;
+mod tail_copy;
 mod tail_merge;
 mod terminal_dedup;
 mod terminal_layout;
@@ -37,8 +37,9 @@ pub(in crate::backend::evm) use stack_reschedule::SharedSchedules;
 
 use super::Module;
 use crate::{
-    mir::pass_manager::{
-        parse_pass_pipeline, pipeline_output_name, print_pass_diff, should_validate_ir,
+    mir::{
+        pass_manager::{parse_pass_pipeline, pipeline_output_name, print_pass_diff},
+        should_validate_ir,
     },
     timing::PassTimer,
 };
@@ -47,16 +48,14 @@ use solar_interface::diagnostics::DiagCtxt;
 use solar_sema::Gcx;
 use std::any::{Any, TypeId};
 
-pub use crate::mir::pass_manager::pipeline_label;
-
 /// A streamlined trait for an EVM IR transformation pass.
-pub trait EvmPass: Any + Sync {
+trait EvmPass: Any + Sync {
     /// Command-line and pipeline name.
     fn name(&self) -> &'static str;
 
     /// Returns whether this pass is enabled with the current compiler flags.
-    fn is_enabled(&self, gcx: Gcx<'_>, _module: &Module) -> bool {
-        self.is_required() || !matches!(gcx.sess.opts.optimization, OptimizationMode::None)
+    fn is_enabled(&self, _gcx: Gcx<'_>, module: &Module) -> bool {
+        self.is_required() || !matches!(module.optimization, OptimizationMode::None)
     }
 
     /// Returns whether this pass must run independently of the optimization level.
@@ -74,7 +73,7 @@ pub trait EvmPass: Any + Sync {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool;
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Eq, PartialEq)]
 struct PassCacheKey {
     type_id: TypeId,
     name: &'static str,
@@ -97,11 +96,7 @@ impl<P: EvmPass> EvmPass for RunsAtNone<P> {
     }
 
     fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
-        gcx.sess.opts.optimization.is_none() || self.0.is_enabled(gcx, module)
-    }
-
-    fn is_required(&self) -> bool {
-        self.0.is_required()
+        module.optimization.is_none() || self.0.is_enabled(gcx, module)
     }
 
     fn cache_config(&self) -> u64 {
@@ -114,12 +109,12 @@ impl<P: EvmPass> EvmPass for RunsAtNone<P> {
 }
 
 /// All EVM IR passes exposed by `-Zevm-ir-pipeline`.
-pub static ALL_PASSES: &[&dyn EvmPass] = &[
+static ALL_PASSES: &[&dyn EvmPass] = &[
     &block_cse::BlockCse,
     &peephole::Peephole::FINAL,
     &peephole::LateWord,
     &dce::Dce,
-    &inline_returns::InlineReturns,
+    &tail_copy::InlineReturns,
     &reorder_pushes::REORDER_PUSHES,
     &reorder_pushes::REORDER_EXPRESSIONS,
     &share_reverts::ShareReverts,
@@ -135,11 +130,13 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &outline::Outline,
     &terminal_dedup::TerminalDedup,
     &tail_merge::TailMerge,
-    &tail_dup::TailDup,
+    &tail_copy::CopyLoopBlocks,
     &block_layout::BlockLayout,
     &loop_layout::LoopLayout,
     &terminal_layout::TerminalLayout,
-    &tail_duplicate::TailDuplicate,
+    &jumpi_fallthrough::JumpiFallthrough,
+    &tail_copy::CopyJoins,
+    &returndata_zero::ReturndataZero,
 ];
 
 /// The canonical EVM IR layout and code-size pipeline used by EVM codegen.
@@ -148,7 +145,6 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &peephole::Peephole::EARLY,
     &coalesce_copies::CoalesceCopies,
     &RunsAtNone(cfg_simplify::CfgSimplify::EARLY),
-    &data::PackExistingData,
     &peephole::Cleanup(compact_pushes::CompactPushes),
     &RunsAtNone(block_layout::BlockLayout),
     &share_reverts::ShareReverts,
@@ -194,7 +190,6 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &peephole::Cleanup(dce::Dce),
     &peephole::Cleanup(stack_normalize::StackNormalize::EARLY),
     &block_layout::BlockLayout,
-    &share_reverts::ShareReverts,
     &cfg_simplify::CfgSimplify::FINAL,
     &block_layout::BlockLayout,
     // Materialize literal-store runs and pack the referenced data pool before final sharing and
@@ -210,9 +205,9 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &peephole::Cleanup(dce::Dce),
     &late_structural::LateStructural,
     &peephole::Peephole::FINAL,
-    &peephole::Cleanup(inline_returns::InlineReturns),
+    &peephole::Cleanup(tail_copy::InlineReturns),
     // Copy loop joins only after the last tail merge, which would share the copies again.
-    &peephole::Cleanup(tail_dup::TailDup),
+    &peephole::Cleanup(tail_copy::CopyLoopBlocks),
     &cfg_simplify::CfgSimplify::FINAL,
     &loop_layout::LoopLayout,
     &terminal_layout::TerminalLayout,
@@ -220,37 +215,22 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &peephole::LateWord,
     // Introduce `EXCHANGE` only after every peephole has seen the plain swaps.
     &stack_normalize::StackNormalize::FINAL,
-    &tail_duplicate::TailDuplicate,
+    &tail_copy::CopyJoins,
+    // Zero reads `RETURNDATASIZE` only after every pass that treats `push 0` as a constant.
+    &RunsAtNone(returndata_zero::ReturndataZero),
 ];
 
 /// Finds an EVM IR pass by command-line name.
-pub fn lookup_pass(name: &str) -> Option<&'static dyn EvmPass> {
+fn lookup_pass(name: &str) -> Option<&'static dyn EvmPass> {
     ALL_PASSES.iter().copied().find(|pass| pass.name() == name)
 }
 
 /// Runs an EVM IR pass pipeline.
 #[must_use]
-pub fn run_passes(
+fn run_passes(
     gcx: Gcx<'_>,
     module: &mut Module,
     passes: &[&dyn EvmPass],
-    name: Option<&str>,
-) -> bool {
-    run_passes_inner(gcx, module, passes, true, name)
-}
-
-/// Runs EVM IR passes without validating after each pass.
-#[must_use]
-pub fn run_passes_no_validate(gcx: Gcx<'_>, module: &mut Module, passes: &[&dyn EvmPass]) -> bool {
-    run_passes_inner(gcx, module, passes, false, None)
-}
-
-#[must_use]
-fn run_passes_inner(
-    gcx: Gcx<'_>,
-    module: &mut Module,
-    passes: &[&dyn EvmPass],
-    validate_each: bool,
     name: Option<&str>,
 ) -> bool {
     let output_name =
@@ -274,7 +254,7 @@ fn run_passes_inner(
             let cache_key = PassCacheKey::new(*pass);
             let cached = unchanged.contains(&cache_key);
             debug_assert!(unchanged.iter().filter(|entry| **entry == cache_key).count() <= 1);
-            let target_support_before = (!cached && validate_each && should_validate_ir(gcx))
+            let target_support_before = (!cached && should_validate_ir(gcx.sess))
                 .then(|| super::verifier(gcx).target_support_snapshot(module));
             let pass_changed = !cached
                 && tracing::trace_span!("evm_ir_pass", pass = pass_name)

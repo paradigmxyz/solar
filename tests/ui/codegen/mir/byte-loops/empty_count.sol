@@ -68,14 +68,14 @@ contract Test {
         return count;
     }
 
-    /// @custom:solar-noinline
+    /// @custom:solar-inline never
     function _loadSome(bytes memory b, uint256 count) private pure returns (bytes32 result) {
         for (uint256 k; k < count; ++k) {
             result |= bytes32(b[k]) >> (8 * k);
         }
     }
 
-    /// @custom:solar-noinline
+    /// @custom:solar-inline never
     function _storeSome(bytes memory b, bytes32 value, uint256 count) private pure {
         for (uint256 k; k < count; ++k) {
             b[k] = value[k];

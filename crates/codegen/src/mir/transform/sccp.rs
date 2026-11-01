@@ -11,14 +11,15 @@
 //! - **Constant(v)**: known compile-time constant
 //! - **Bottom** (⊥): overdefined (not a constant)
 //!
-//! After reaching a fixed point, the rewrite phase replaces constant values
-//! with immediates and rewrites branches with known-constant conditions.
+//! After reaching a fixed point, the rewrite phase replaces constant results with immediates,
+//! folds branches and switches with one distinct executable successor into jumps, and
+//! invalidates blocks that are never executable. Functions without a local constant seed are
+//! skipped.
 
 use crate::mir::{
     BlockId, Function, Immediate, InstId, InstKind, Module, Terminator, Value, ValueId,
     pass::{MirPass, run_function_pass},
-    utils as mir_utils,
-    utils::eval,
+    utils::{eval, fold_terminator_to_jump, invalidate_unreachable_blocks},
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -42,7 +43,7 @@ impl MirPass for Sccp {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| SccpCx::new().run(func) != 0)
+        run_function_pass(module, analyses, |func, _| run(func) != 0)
     }
 }
 
@@ -60,32 +61,28 @@ enum LatticeValue {
 impl LatticeValue {
     /// Meet operation: merges two lattice values.
     /// Top ∧ x = x, Bottom ∧ x = Bottom, Const(a) ∧ Const(b) = if a==b Const(a) else Bottom.
-    fn meet(&self, other: &Self) -> Self {
+    fn meet(self, other: Self) -> Self {
         match (self, other) {
-            (Self::Top, x) | (x, Self::Top) => *x,
+            (Self::Top, x) | (x, Self::Top) => x,
             (Self::Bottom, _) | (_, Self::Bottom) => Self::Bottom,
             (Self::Constant(a), Self::Constant(b)) => {
                 if a == b {
-                    Self::Constant(*a)
+                    Self::Constant(a)
                 } else {
                     Self::Bottom
                 }
             }
         }
     }
-}
 
-/// SCCP statistics.
-#[derive(Debug, Default, Clone)]
-struct SccpStats {
-    /// Number of instructions replaced with constants.
-    constants_folded: usize,
-    /// Number of branches replaced with unconditional jumps.
-    branches_folded: usize,
-    /// Number of switches replaced with unconditional jumps.
-    switches_folded: usize,
-    /// Number of unreachable blocks emptied and marked invalid.
-    blocks_invalidated: usize,
+    /// Meets in `new`. Returns true if the value changed.
+    /// Lattice values can only move downward: Top → Constant → Bottom.
+    fn lower(&mut self, new: Self) -> bool {
+        let merged = self.meet(new);
+        let changed = merged != *self;
+        *self = merged;
+        changed
+    }
 }
 
 /// Active instruction and terminator users of each value.
@@ -100,336 +97,178 @@ impl ValueUsers {
         let mut inst_blocks = index_vec![BlockId::MAX; func.num_insts()];
         let mut instructions = index_vec![Vec::new(); func.num_values()];
         let mut terminators = index_vec![Vec::new(); func.num_values()];
+        // An instruction or terminator lists its operands together, so repeats are adjacent.
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
                 inst_blocks[inst_id] = block_id;
                 func.inst(inst_id).kind.visit_operands(|operand| {
-                    instructions[operand].push(inst_id);
+                    let users = &mut instructions[operand];
+                    if users.last() != Some(&inst_id) {
+                        users.push(inst_id);
+                    }
                 });
             }
             if let Some(terminator) = &block.terminator {
                 terminator.visit_operands(|operand| {
-                    terminators[operand].push(block_id);
+                    let users = &mut terminators[operand];
+                    if users.last() != Some(&block_id) {
+                        users.push(block_id);
+                    }
                 });
             }
-        }
-        for users in &mut instructions {
-            users.sort_unstable();
-            users.dedup();
-        }
-        for users in &mut terminators {
-            users.sort_unstable();
-            users.dedup();
         }
         Self { inst_blocks, instructions, terminators }
     }
 }
 
-/// Sparse Conditional Constant Propagation pass.
-#[derive(Debug, Default)]
-struct SccpCx {
-    /// Statistics from the last run.
-    stats: SccpStats,
-}
-
-impl SccpCx {
-    /// Creates a new SCCP pass.
-    fn new() -> Self {
-        Self::default()
+/// Runs SCCP on a function. Returns the total number of mutations,
+/// including unreachable-block cleanup and phi repairs.
+fn run(func: &mut Function) -> usize {
+    if !can_change(func) {
+        return 0;
     }
 
-    /// Runs SCCP on a function. Returns the total number of mutations,
-    /// including unreachable-block cleanup and phi repairs.
-    fn run(&mut self, func: &mut Function) -> usize {
-        self.stats = SccpStats::default();
+    let users = ValueUsers::new(func);
+    let Solver { lattice, executable_blocks, executable_edges, .. } = Solver::solve(func, &users);
 
-        if !can_change(func) {
-            return 0;
-        }
+    // Rewrite phase: apply the lattice results to the function.
+    rewrite(func, &lattice, &executable_blocks, &executable_edges)
+}
 
-        let num_values = func.num_values();
+/// Worklist solver holding the lattice and the executable CFG.
+struct Solver<'a> {
+    func: &'a Function,
+    users: &'a ValueUsers,
+    lattice: IndexVec<ValueId, LatticeValue>,
+    /// Blocks reached by an executable edge, plus the entry.
+    executable_blocks: DenseBitSet<BlockId>,
+    /// CFG edges that have been taken.
+    executable_edges: FxHashSet<(BlockId, BlockId)>,
+    /// `(from, to)` edges waiting to be taken.
+    cfg_worklist: VecDeque<(BlockId, BlockId)>,
+    /// Values whose lattice entry changed and whose users need re-evaluation.
+    ssa_worklist: VecDeque<ValueId>,
+}
 
-        let users = ValueUsers::new(func);
-
-        // Initialize lattice: all values start as Top.
-        let mut lattice = index_vec![LatticeValue::Top; num_values];
-
-        // Initialize non-instruction operands referenced by active MIR.
-        let mut initialize = |value| {
-            match func.value(value) {
-                Value::Arg(_) => lattice[value] = LatticeValue::Bottom,
-                Value::Immediate(imm) => {
-                    if let Some(v) = imm.as_u256() {
-                        lattice[value] = LatticeValue::Constant(v);
-                    } else {
-                        lattice[value] = LatticeValue::Bottom;
-                    }
-                }
-                Value::Undef(_) | Value::Error(_) => lattice[value] = LatticeValue::Bottom,
-                Value::Inst(_) => {} // stays Top
-            }
-        };
+impl<'a> Solver<'a> {
+    /// Propagates constants to a fixed point.
+    fn solve(func: &'a Function, users: &'a ValueUsers) -> Self {
+        // Initialize lattice: all values start as Top. Non-instruction operands referenced by
+        // active MIR are known.
+        let mut lattice = index_vec![LatticeValue::Top; func.num_values()];
         for value in func.live_values() {
-            initialize(value);
+            lattice[value] = match func.value(value) {
+                Value::Immediate(imm) => {
+                    imm.as_u256().map_or(LatticeValue::Bottom, LatticeValue::Constant)
+                }
+                Value::Arg(_) | Value::Undef(_) | Value::Error(_) => LatticeValue::Bottom,
+                Value::Inst(_) => continue,
+            };
         }
-
-        // Track which blocks are executable.
-        let mut executable_blocks = DenseBitSet::new_empty(func.blocks.len());
-        // Track which CFG edges have been taken.
-        let mut executable_edges: FxHashSet<(BlockId, BlockId)> = FxHashSet::default();
-
-        // Two worklists.
-        let mut cfg_worklist: VecDeque<(BlockId, BlockId)> = VecDeque::new(); // (from, to) edges
-        let mut ssa_worklist: VecDeque<ValueId> = VecDeque::new();
+        let mut solver = Self {
+            func,
+            users,
+            lattice,
+            executable_blocks: DenseBitSet::new_empty(func.blocks.len()),
+            executable_edges: FxHashSet::default(),
+            cfg_worklist: VecDeque::new(),
+            ssa_worklist: VecDeque::new(),
+        };
 
         // Seed: entry block is executable.
-        executable_blocks.insert(BlockId::ENTRY);
-        self.evaluate_phis_in_block(
-            func,
-            BlockId::ENTRY,
-            &mut lattice,
-            &executable_edges,
-            &mut ssa_worklist,
-        );
-        // Evaluate all instructions in the entry block.
-        self.evaluate_block(
-            func,
-            BlockId::ENTRY,
-            &mut lattice,
-            &executable_blocks,
-            &executable_edges,
-            &mut cfg_worklist,
-            &mut ssa_worklist,
-        );
+        solver.executable_blocks.insert(BlockId::ENTRY);
+        solver.visit_phis(BlockId::ENTRY);
+        solver.visit_block(BlockId::ENTRY);
 
         // Main loop: process both worklists until empty.
-        loop {
-            let mut made_progress = false;
-
+        while !solver.cfg_worklist.is_empty() || !solver.ssa_worklist.is_empty() {
             // Process CFG edges.
-            while let Some((from, to)) = cfg_worklist.pop_front() {
-                if !executable_edges.insert((from, to)) {
+            while let Some((from, to)) = solver.cfg_worklist.pop_front() {
+                if !solver.executable_edges.insert((from, to)) {
                     continue; // Already processed this edge.
                 }
-                made_progress = true;
 
-                let newly_executable = executable_blocks.insert(to);
+                let newly_executable = solver.executable_blocks.insert(to);
 
                 // Re-evaluate phi-like values in the target block.
-                self.evaluate_phis_in_block(
-                    func,
-                    to,
-                    &mut lattice,
-                    &executable_edges,
-                    &mut ssa_worklist,
-                );
+                solver.visit_phis(to);
 
                 if newly_executable {
                     // First time this block is executable — evaluate all its instructions.
-                    self.evaluate_block(
-                        func,
-                        to,
-                        &mut lattice,
-                        &executable_blocks,
-                        &executable_edges,
-                        &mut cfg_worklist,
-                        &mut ssa_worklist,
-                    );
+                    solver.visit_block(to);
                 }
             }
 
             // Process SSA value changes.
-            while let Some(vid) = ssa_worklist.pop_front() {
-                made_progress = true;
-                // Find all users of this value and re-evaluate them.
-                self.propagate_value(
-                    func,
-                    vid,
-                    &users,
-                    &mut lattice,
-                    &executable_blocks,
-                    &executable_edges,
-                    &mut cfg_worklist,
-                    &mut ssa_worklist,
-                );
-            }
-
-            if !made_progress {
-                break;
+            while let Some(value) = solver.ssa_worklist.pop_front() {
+                solver.propagate_value(value);
             }
         }
-
-        // Rewrite phase: apply the lattice results to the function.
-        self.rewrite(func, &lattice, &executable_blocks, &executable_edges)
+        solver
     }
 
-    /// Evaluates all instructions in a block.
-    #[allow(clippy::too_many_arguments)]
-    fn evaluate_block(
-        &self,
-        func: &Function,
-        block_id: BlockId,
-        lattice: &mut IndexVec<ValueId, LatticeValue>,
-        _executable_blocks: &DenseBitSet<BlockId>,
-        _executable_edges: &FxHashSet<(BlockId, BlockId)>,
-        cfg_worklist: &mut VecDeque<(BlockId, BlockId)>,
-        ssa_worklist: &mut VecDeque<ValueId>,
-    ) {
-        let block = &func.blocks[block_id];
-
-        for &inst_id in &block.instructions {
+    /// Evaluates the phis at the entry of a block.
+    fn visit_phis(&mut self, block_id: BlockId) {
+        let func = self.func;
+        for &inst_id in &func.blocks[block_id].instructions {
             if matches!(func.inst(inst_id).kind, InstKind::Phi(_)) {
-                continue;
-            }
-            if let Some(vid) = func.inst_result_value(inst_id) {
-                let new_val = self.evaluate_instruction(func, &func.inst(inst_id).kind, lattice);
-                if self.update_lattice(lattice, vid, new_val) {
-                    ssa_worklist.push_back(vid);
-                }
+                self.visit_inst(inst_id, block_id);
             }
         }
+    }
 
-        // Evaluate the terminator to determine outgoing edges.
+    /// Evaluates all non-phi instructions and the terminator of a block.
+    fn visit_block(&mut self, block_id: BlockId) {
+        let func = self.func;
+        let block = &func.blocks[block_id];
+        for &inst_id in &block.instructions {
+            if !matches!(func.inst(inst_id).kind, InstKind::Phi(_)) {
+                self.visit_inst(inst_id, block_id);
+            }
+        }
         if let Some(term) = &block.terminator {
-            self.evaluate_terminator(term, block_id, lattice, cfg_worklist);
+            self.visit_terminator(term, block_id);
         }
     }
 
-    /// Evaluates phi instructions (`InstKind::Phi`) at the entry of a block.
-    fn evaluate_phis_in_block(
-        &self,
-        func: &Function,
-        block_id: BlockId,
-        lattice: &mut IndexVec<ValueId, LatticeValue>,
-        executable_edges: &FxHashSet<(BlockId, BlockId)>,
-        ssa_worklist: &mut VecDeque<ValueId>,
-    ) {
-        let block = &func.blocks[block_id];
-        for &inst_id in &block.instructions {
-            if matches!(func.inst(inst_id).kind, InstKind::Phi(_)) {
-                self.evaluate_phi(func, block_id, inst_id, lattice, executable_edges, ssa_worklist);
-            }
-        }
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn evaluate_phi(
-        &self,
-        func: &Function,
-        block_id: BlockId,
-        inst_id: InstId,
-        lattice: &mut IndexVec<ValueId, LatticeValue>,
-        executable_edges: &FxHashSet<(BlockId, BlockId)>,
-        ssa_worklist: &mut VecDeque<ValueId>,
-    ) {
-        let InstKind::Phi(incoming) = &func.inst(inst_id).kind else { return };
-        let Some(vid) = func.inst_result_value(inst_id) else { return };
-        let mut result = LatticeValue::Top;
-        for &(pred, operand) in incoming {
-            if executable_edges.contains(&(pred, block_id)) {
-                result = result.meet(&lattice[operand]);
-            }
-        }
-        if self.update_lattice(lattice, vid, result) {
-            ssa_worklist.push_back(vid);
-        }
-    }
-
-    /// Evaluates a single instruction and returns its lattice value.
-    fn evaluate_instruction(
-        &self,
-        func: &Function,
-        kind: &InstKind,
-        lattice: &IndexVec<ValueId, LatticeValue>,
-    ) -> LatticeValue {
-        let get_const = |value| match lattice[value] {
-            LatticeValue::Constant(value) => Some(value),
-            LatticeValue::Top | LatticeValue::Bottom => None,
+    /// Evaluates an instruction and lowers its result in the lattice.
+    fn visit_inst(&mut self, inst_id: InstId, block_id: BlockId) {
+        let func = self.func;
+        let Some(value) = func.inst_result_value(inst_id) else { return };
+        let new = match &func.inst(inst_id).kind {
+            InstKind::Phi(incoming) => incoming
+                .iter()
+                .filter(|&&(pred, _)| self.executable_edges.contains(&(pred, block_id)))
+                .fold(LatticeValue::Top, |result, &(_, operand)| {
+                    result.meet(self.lattice[operand])
+                }),
+            kind => evaluate_instruction(func, kind, &self.lattice),
         };
-
-        if let InstKind::Select(condition, then_value, else_value) = *kind {
-            return match lattice[condition] {
-                LatticeValue::Constant(condition) => {
-                    let chosen = if condition.is_zero() { else_value } else { then_value };
-                    lattice[chosen]
-                }
-                LatticeValue::Bottom => lattice[then_value].meet(&lattice[else_value]),
-                LatticeValue::Top => match (get_const(then_value), get_const(else_value)) {
-                    (Some(then_value), Some(else_value)) if then_value == else_value => {
-                        LatticeValue::Constant(then_value)
-                    }
-                    _ => LatticeValue::Top,
-                },
-            };
+        if self.lattice[value].lower(new) {
+            self.ssa_worklist.push_back(value);
         }
-
-        match eval::eval_typed_inst(func, kind, |value| get_const(value).ok_or(())) {
-            Ok(Some(value)) => LatticeValue::Constant(value),
-            Ok(None) => LatticeValue::Bottom,
-            Err(()) => match *kind {
-                InstKind::Div(_, divisor)
-                | InstKind::SDiv(_, divisor)
-                | InstKind::Mod(_, divisor)
-                | InstKind::SMod(_, divisor)
-                    if get_const(divisor).is_some_and(|divisor| divisor.is_zero()) =>
-                {
-                    LatticeValue::Constant(U256::ZERO)
-                }
-                InstKind::AddMod(_, _, modulus) | InstKind::MulMod(_, _, modulus)
-                    if get_const(modulus).is_some_and(|modulus| modulus.is_zero()) =>
-                {
-                    LatticeValue::Constant(U256::ZERO)
-                }
-                _ => self.check_any_bottom(&kind.operands(), lattice),
-            },
-        }
-    }
-
-    /// Helper: if any operand is Bottom, return Bottom; otherwise Top (still waiting).
-    fn check_any_bottom(
-        &self,
-        operands: &[ValueId],
-        lattice: &IndexVec<ValueId, LatticeValue>,
-    ) -> LatticeValue {
-        for &op in operands {
-            if matches!(lattice[op], LatticeValue::Bottom) {
-                return LatticeValue::Bottom;
-            }
-        }
-        LatticeValue::Top
     }
 
     /// Evaluates a terminator to determine which outgoing edges are taken.
-    fn evaluate_terminator(
-        &self,
-        term: &Terminator,
-        block_id: BlockId,
-        lattice: &IndexVec<ValueId, LatticeValue>,
-        cfg_worklist: &mut VecDeque<(BlockId, BlockId)>,
-    ) {
+    fn visit_terminator(&mut self, term: &Terminator, block_id: BlockId) {
+        let mut take = |target| self.cfg_worklist.push_back((block_id, target));
         match term {
-            Terminator::Jump(target) => {
-                cfg_worklist.push_back((block_id, *target));
-            }
+            Terminator::Jump(target) => take(*target),
             Terminator::Branch { condition, then_block, else_block } => {
-                match &lattice[*condition] {
+                match self.lattice[*condition] {
                     LatticeValue::Constant(v) => {
-                        if !v.is_zero() {
-                            cfg_worklist.push_back((block_id, *then_block));
-                        } else {
-                            cfg_worklist.push_back((block_id, *else_block));
-                        }
+                        take(if v.is_zero() { *else_block } else { *then_block })
                     }
                     LatticeValue::Bottom => {
                         // Both edges might be taken.
-                        cfg_worklist.push_back((block_id, *then_block));
-                        cfg_worklist.push_back((block_id, *else_block));
+                        take(*then_block);
+                        take(*else_block);
                     }
                     LatticeValue::Top => {}
                 }
             }
             Terminator::Switch { value, default, cases } => {
-                match &lattice[*value] {
+                match self.lattice[*value] {
                     LatticeValue::Constant(v) => {
                         // Cases are tested in order at runtime, so a constant
                         // case match is definitive only if every earlier case
@@ -437,25 +276,23 @@ impl SccpCx {
                         // Overdefined earlier cases stay feasible; an
                         // unresolved case defers the remaining edges.
                         for &(case_val, target) in cases {
-                            match &lattice[case_val] {
+                            match self.lattice[case_val] {
                                 LatticeValue::Constant(cv) if cv == v => {
-                                    cfg_worklist.push_back((block_id, target));
+                                    take(target);
                                     return;
                                 }
                                 LatticeValue::Constant(_) => {}
-                                LatticeValue::Bottom => {
-                                    cfg_worklist.push_back((block_id, target));
-                                }
+                                LatticeValue::Bottom => take(target),
                                 LatticeValue::Top => return,
                             }
                         }
-                        cfg_worklist.push_back((block_id, *default));
+                        take(*default);
                     }
                     LatticeValue::Bottom => {
                         // All edges might be taken.
-                        cfg_worklist.push_back((block_id, *default));
+                        take(*default);
                         for &(_, target) in cases {
-                            cfg_worklist.push_back((block_id, target));
+                            take(target);
                         }
                     }
                     LatticeValue::Top => {}
@@ -474,168 +311,151 @@ impl SccpCx {
         }
     }
 
-    /// Updates the lattice value for a ValueId. Returns true if it changed.
-    /// Lattice values can only move downward: Top → Constant → Bottom.
-    fn update_lattice(
-        &self,
-        lattice: &mut IndexVec<ValueId, LatticeValue>,
-        vid: ValueId,
-        new_val: LatticeValue,
-    ) -> bool {
-        let old = &lattice[vid];
-        let merged = old.meet(&new_val);
-        if merged != *old {
-            lattice[vid] = merged;
-            true
-        } else {
-            false
-        }
-    }
-
     /// Propagates a value change to all users of that value.
-    #[allow(clippy::too_many_arguments)]
-    fn propagate_value(
-        &self,
-        func: &Function,
-        vid: ValueId,
-        users: &ValueUsers,
-        lattice: &mut IndexVec<ValueId, LatticeValue>,
-        executable_blocks: &DenseBitSet<BlockId>,
-        executable_edges: &FxHashSet<(BlockId, BlockId)>,
-        cfg_worklist: &mut VecDeque<(BlockId, BlockId)>,
-        ssa_worklist: &mut VecDeque<ValueId>,
-    ) {
-        for &inst_id in &users.instructions[vid] {
-            let block_id = users.inst_blocks[inst_id];
-            if !executable_blocks.contains(block_id) {
-                continue;
-            }
-            let inst = func.inst(inst_id);
-            if matches!(inst.kind, InstKind::Phi(_)) {
-                self.evaluate_phi(func, block_id, inst_id, lattice, executable_edges, ssa_worklist);
-            } else if let Some(result_vid) = func.inst_result_value(inst_id) {
-                let new_val = self.evaluate_instruction(func, &inst.kind, lattice);
-                if self.update_lattice(lattice, result_vid, new_val) {
-                    ssa_worklist.push_back(result_vid);
-                }
+    fn propagate_value(&mut self, value: ValueId) {
+        let func = self.func;
+        for &inst_id in &self.users.instructions[value] {
+            let block_id = self.users.inst_blocks[inst_id];
+            if self.executable_blocks.contains(block_id) {
+                self.visit_inst(inst_id, block_id);
             }
         }
 
-        for &block_id in &users.terminators[vid] {
-            if executable_blocks.contains(block_id)
+        for &block_id in &self.users.terminators[value] {
+            if self.executable_blocks.contains(block_id)
                 && let Some(terminator) = &func.blocks[block_id].terminator
             {
-                self.evaluate_terminator(terminator, block_id, lattice, cfg_worklist);
+                self.visit_terminator(terminator, block_id);
             }
         }
     }
+}
 
-    /// Rewrite phase: replace constant values with immediates and fold branches.
-    fn rewrite(
-        &mut self,
-        func: &mut Function,
-        lattice: &IndexVec<ValueId, LatticeValue>,
-        executable_blocks: &DenseBitSet<BlockId>,
-        executable_edges: &FxHashSet<(BlockId, BlockId)>,
-    ) -> usize {
-        // Phase 1: Replace instructions whose results are constant with
-        // immediate values, and remove the instruction from the block.
-        let mut const_values: FxHashMap<ValueId, ValueId> = FxHashMap::default();
-        let mut dead_insts = DenseBitSet::new_empty(func.num_insts());
+/// Evaluates a single instruction and returns its lattice value.
+fn evaluate_instruction(
+    func: &Function,
+    kind: &InstKind,
+    lattice: &IndexVec<ValueId, LatticeValue>,
+) -> LatticeValue {
+    let get_const = |value| match lattice[value] {
+        LatticeValue::Constant(value) => Some(value),
+        LatticeValue::Top | LatticeValue::Bottom => None,
+    };
 
-        let value_insts = func
-            .instructions()
-            .filter_map(|inst_id| func.inst_result_value(inst_id).map(|value| (inst_id, value)))
-            .collect::<Vec<_>>();
-        for (inst_id, vid) in value_insts {
-            if let LatticeValue::Constant(c) = &lattice[vid] {
-                // Don't fold side-effecting instructions.
-                if func.inst(inst_id).kind.has_side_effects() {
-                    continue;
-                }
-                // Create an immediate replacement of the instruction's result type.
-                let imm = Immediate::for_type(func.inst(inst_id).result_ty, *c);
-                let imm_vid = func.alloc_value(Value::Immediate(imm));
-                const_values.insert(vid, imm_vid);
-                dead_insts.insert(inst_id);
-                self.stats.constants_folded += 1;
+    if let InstKind::Select(condition, then_value, else_value) = *kind {
+        return match lattice[condition] {
+            LatticeValue::Constant(condition) => {
+                let chosen = if condition.is_zero() { else_value } else { then_value };
+                lattice[chosen]
             }
-        }
+            LatticeValue::Bottom => lattice[then_value].meet(lattice[else_value]),
+            LatticeValue::Top => match (get_const(then_value), get_const(else_value)) {
+                (Some(then_value), Some(else_value)) if then_value == else_value => {
+                    LatticeValue::Constant(then_value)
+                }
+                _ => LatticeValue::Top,
+            },
+        };
+    }
 
-        // Phase 2: Collect branch rewrites BEFORE operand replacement, because
-        // replacement may allocate new ValueIds that don't have lattice entries.
-        let mut control_rewrites: Vec<(BlockId, BlockId)> = Vec::new();
-        let mut executable_successors = DenseBitSet::new_empty(func.blocks.len());
-        for block_id in func.blocks.indices() {
-            if !executable_blocks.contains(block_id) {
+    match eval::eval_typed_inst(func, kind, |value| get_const(value).ok_or(())) {
+        Ok(Some(value)) => LatticeValue::Constant(value),
+        Ok(None) => LatticeValue::Bottom,
+        Err(()) if zero_divisor(kind, get_const) => LatticeValue::Constant(U256::ZERO),
+        // If any operand is Bottom, the result is Bottom; otherwise it is still waiting.
+        Err(()) if kind.any_operand(|value| lattice[value] == LatticeValue::Bottom) => {
+            LatticeValue::Bottom
+        }
+        Err(()) => LatticeValue::Top,
+    }
+}
+
+/// Returns whether `kind` divides or reduces by a known zero, which evaluates to zero whatever
+/// its other operands are.
+fn zero_divisor(kind: &InstKind, get: impl Fn(ValueId) -> Option<U256>) -> bool {
+    let (InstKind::Div(_, divisor)
+    | InstKind::SDiv(_, divisor)
+    | InstKind::Mod(_, divisor)
+    | InstKind::SMod(_, divisor)
+    | InstKind::AddMod(_, _, divisor)
+    | InstKind::MulMod(_, _, divisor)) = *kind
+    else {
+        return false;
+    };
+    get(divisor).is_some_and(|divisor| divisor.is_zero())
+}
+
+/// Rewrite phase: replace constant values with immediates and fold branches. Returns the number
+/// of mutations.
+fn rewrite(
+    func: &mut Function,
+    lattice: &IndexVec<ValueId, LatticeValue>,
+    executable_blocks: &DenseBitSet<BlockId>,
+    executable_edges: &FxHashSet<(BlockId, BlockId)>,
+) -> usize {
+    // Phase 1: Replace instructions whose results are constant with
+    // immediate values, and remove the instruction from the block.
+    let mut const_values = FxHashMap::default();
+    let mut dead_insts = DenseBitSet::new_empty(func.num_insts());
+
+    let value_insts = func
+        .instructions()
+        .filter_map(|inst_id| func.inst_result_value(inst_id).map(|value| (inst_id, value)))
+        .collect::<Vec<_>>();
+    for (inst_id, vid) in value_insts {
+        if let LatticeValue::Constant(c) = lattice[vid] {
+            // Don't fold side-effecting instructions.
+            if func.inst(inst_id).kind.has_side_effects() {
                 continue;
             }
-            let Some(term) = &func.blocks[block_id].terminator else {
-                continue;
-            };
-            if !matches!(term, Terminator::Branch { .. } | Terminator::Switch { .. }) {
-                continue;
-            }
-
-            executable_successors.clear();
-            for successor in term.successors() {
-                if executable_edges.contains(&(block_id, successor)) {
-                    executable_successors.insert(successor);
-                }
-            }
-            if executable_successors.count() == 1 {
-                let target = executable_successors.iter().next().expect("checked count");
-                control_rewrites.push((block_id, target));
-            }
+            // Create an immediate replacement of the instruction's result type.
+            let imm = Immediate::for_type(func.inst(inst_id).result_ty, c);
+            let imm_vid = func.alloc_value(Value::Immediate(imm));
+            const_values.insert(vid, imm_vid);
+            dead_insts.insert(inst_id);
         }
+    }
 
-        // Phase 3: Replace all uses of folded values with immediates.
-        if !const_values.is_empty() {
-            let all_insts: Vec<InstId> =
-                func.instructions().filter(|&id| !dead_insts.contains(id)).collect();
-            for inst_id in all_insts {
-                mir_utils::replace_inst_uses(func.inst_mut(inst_id), &const_values);
-            }
-            for block_id in func.blocks.indices() {
-                if let Some(term) = &mut func.blocks[block_id].terminator {
-                    mir_utils::replace_terminator_uses(term, &const_values);
-                }
-            }
+    // Phase 2: Remove dead (folded) instructions from blocks.
+    // %v = op ... -> removed
+    for block in func.blocks.iter_mut() {
+        block.instructions.retain(|&id| !dead_insts.contains(id));
+    }
+
+    // Phase 3: Replace all uses of folded values with immediates.
+    // use %v -> use constant
+    func.replace_uses(&const_values);
+
+    // Phase 4: Fold branches and switches with one distinct executable successor.
+    let mut changes = const_values.len();
+    for block_id in func.blocks.indices() {
+        if !executable_blocks.contains(block_id) {
+            continue;
         }
-
-        // Phase 4: Remove dead (folded) instructions from blocks.
-        for block_id in func.blocks.indices() {
-            func.blocks[block_id].instructions.retain(|&id| !dead_insts.contains(id));
-        }
-
-        // Phase 5: Apply branch/switch rewrites.
-        for (block_id, target) in control_rewrites {
-            let was_switch =
-                matches!(func.blocks[block_id].terminator, Some(Terminator::Switch { .. }));
+        let Some(term @ (Terminator::Branch { .. } | Terminator::Switch { .. })) =
+            &func.blocks[block_id].terminator
+        else {
+            continue;
+        };
+        let mut target = None;
+        let mut mixed = false;
+        term.for_each_successor(|to| {
+            if executable_edges.contains(&(block_id, to)) {
+                mixed |= target.is_some_and(|target| target != to);
+                target = target.or(Some(to));
+            }
+        });
+        if let Some(target) = target
+            && !mixed
+        {
             // branch/switch ..., target, ... -> jump target
-            mir_utils::fold_terminator_to_jump(func, block_id, target);
-            if was_switch {
-                self.stats.switches_folded += 1;
-            } else {
-                self.stats.branches_folded += 1;
-            }
+            fold_terminator_to_jump(func, block_id, target);
+            changes += 1;
         }
-
-        // Phase 6: Mark non-executable blocks as invalid.
-        for block_id in func.blocks.indices() {
-            if executable_blocks.contains(block_id) {
-                continue;
-            }
-            // non-executable block -> invalid
-            self.stats.blocks_invalidated +=
-                usize::from(mir_utils::invalidate_unreachable_block(func, block_id));
-        }
-
-        self.stats.constants_folded
-            + self.stats.branches_folded
-            + self.stats.switches_folded
-            + self.stats.blocks_invalidated
     }
+
+    // Phase 5: Mark non-executable blocks as invalid.
+    changes + invalidate_unreachable_blocks(func, executable_blocks)
 }
 
 /// Returns whether SCCP can discover a constant or structurally unreachable
@@ -664,31 +484,13 @@ fn can_change(func: &Function) -> bool {
                         .value_u256(*then_value)
                         .is_some_and(|then_value| func.value_u256(*else_value) == Some(then_value))
             }
-            InstKind::Div(_, divisor)
-            | InstKind::SDiv(_, divisor)
-            | InstKind::Mod(_, divisor)
-            | InstKind::SMod(_, divisor) => {
-                func.value_u256(*divisor).is_some_and(|divisor| divisor.is_zero())
-                    || eval::eval_typed_inst(func, &inst.kind, |value| {
-                        func.value_u256(value).ok_or(())
-                    })
-                    .ok()
-                    .flatten()
-                    .is_some()
+            kind => {
+                zero_divisor(kind, |value| func.value_u256(value))
+                    || eval::eval_typed_inst(func, kind, |value| func.value_u256(value).ok_or(()))
+                        .ok()
+                        .flatten()
+                        .is_some()
             }
-            InstKind::AddMod(_, _, modulus) | InstKind::MulMod(_, _, modulus) => {
-                func.value_u256(*modulus).is_some_and(|modulus| modulus.is_zero())
-                    || eval::eval_typed_inst(func, &inst.kind, |value| {
-                        func.value_u256(value).ok_or(())
-                    })
-                    .ok()
-                    .flatten()
-                    .is_some()
-            }
-            _ => eval::eval_typed_inst(func, &inst.kind, |value| func.value_u256(value).ok_or(()))
-                .ok()
-                .flatten()
-                .is_some(),
         };
         if directly_constant {
             return true;

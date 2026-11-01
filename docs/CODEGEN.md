@@ -2,7 +2,7 @@
 
 ## Operation Schema and ISLE Rules
 
-Declare each MIR operation once, as a row in `crates/codegen/src/mir/op_schema.rs`:
+Declare each MIR operation once, as a row in `crates/mir/src/op_schema.rs`:
 typed payload with named tuple operands, mnemonic, result kind, operand type
 contract, phase set, effect, traits, and side-effect flag. The macro generates
 operand traversal, the `Op` rewrite view, the ISLE prelude, a constructor per

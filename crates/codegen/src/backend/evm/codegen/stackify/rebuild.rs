@@ -43,11 +43,14 @@
 //! member dominates stays as it is.
 
 use super::materialized_at_use;
-use crate::mir::{
-    BlockId, EffectKind, Function, Immediate, InstId, InstKind, Instruction, MirType, OpTraits,
-    PtrLocation, Value, ValueId,
-    analysis::{CfgInfo, Liveness, LoopInfo},
-    utils::replace_terminator_uses,
+use crate::{
+    backend::evm::codegen::select::InstKindOpcode,
+    mir::{
+        BlockId, EffectKind, Function, Immediate, InstId, InstKind, Instruction, MirType, OpTraits,
+        PtrLocation, Value, ValueId,
+        analysis::{CfgInfo, Liveness, LoopInfo},
+        utils::replace_terminator_uses,
+    },
 };
 use alloy_primitives::U256;
 use smallvec::{SmallVec, smallvec};

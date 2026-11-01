@@ -32,19 +32,18 @@
 //! with an argument changes which values the stack ABI must preserve or spill.
 //!
 //! Boolean values are canonical by type, so double negation needs no call-graph proof.
-//! Raw-word return bounds require every explicit return to fit within one bit;
-//! tail calls to functions that may return and unknown recursive results remain
-//! conservative. These transient proofs remove normalization from comparisons and
-//! zero-extended results without changing raw call signatures or assuming that a
-//! Solidity boolean is clean.
+//! A raw-word return bound is the widest value any explicit return carries; a mask or a
+//! normalization of a call result that covers it disappears. Tail calls to functions that may
+//! return and unknown recursive results remain conservative. These transient proofs remove
+//! normalization from comparisons and zero-extended results without changing raw call
+//! signatures or assuming that a Solidity boolean is clean.
 
-use super::egraph::max_bits_with_args;
+use super::{egraph::max_bits_with_args, utils};
 use crate::mir::{
     ArgIdx, Callee, Function, FunctionId, Immediate, InstId, InstKind, Instruction, MirType,
     Module, Terminator, Value, ValueId,
     analysis::{Liveness, cold_functions},
     pass::{MirPass, ModuleAnalyses},
-    utils,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
@@ -66,6 +65,10 @@ struct CallSite<'a> {
 impl MirPass for CallCleanup {
     fn name(&self) -> &'static str {
         "call-cleanup"
+    }
+
+    fn is_contract_wide(&self) -> bool {
+        true
     }
 
     fn run_pass(
@@ -103,7 +106,7 @@ pub(super) fn cleanup(
             && native_effect(func, inst)
             && let Value::Inst(inner) = func.value(inner)
             && let Some(value) = func.inst(*inner).kind.zero_test_operand(func)
-            && func.value_ty(value) == Some(crate::mir::MirType::I1)
+            && func.value_ty(value) == Some(MirType::I1)
             && let Some(result) = func.inst_result_value(inst)
         {
             replacements.insert(result, value);
@@ -115,8 +118,7 @@ pub(super) fn cleanup(
                 .map(|mask| (a, mask))
                 .or_else(|| func.value_u256(a).map(|mask| (b, mask)))
             && mask.wrapping_add(U256::ONE) & mask == U256::ZERO
-            && max_bits_with_args(func, value, MAX_VALUE_DEPTH, &argument_bits)
-                <= mask.bit_len() as u32
+            && word_bits(func, value, &argument_bits, returns) <= mask.bit_len() as u32
             && let Some(result) = func.inst_result_value(inst)
         {
             replacements.insert(result, value);
@@ -244,16 +246,9 @@ pub(super) fn cleanup(
         // result = eq (eq boolean, false), false; use result -> use boolean
         // NOTE: Removed cleanup instructions lose their debug checkpoints;
         // their source locations must not be assigned to the replacement value.
-        func.for_each_instruction_mut(|_, inst| {
-            inst.rewrite_operands(|value| {
-                *value = utils::resolve_replacement(*value, &replacements);
-            });
-        });
+        func.replace_uses_canonicalized(&replacements);
         for block in &mut func.blocks {
             block.instructions.retain(|&inst| !dead.contains(inst));
-            if let Some(term) = &mut block.terminator {
-                utils::replace_terminator_uses_canonicalized(term, &replacements);
-            }
         }
         changed = true;
     }
@@ -282,14 +277,24 @@ fn normalized_word(
     if func.value_ty(word) != Some(MirType::I256) {
         return None;
     }
-    let bits = if let Value::Inst(call) = func.value(word)
+    (word_bits(func, word, argument_bits, returns) <= 1).then_some(word)
+}
+
+/// The proved significant bits of a word: the widest value its internal callee returns, or the
+/// local bound.
+fn word_bits(
+    func: &Function,
+    value: ValueId,
+    argument_bits: &impl Fn(ArgIdx) -> u32,
+    returns: &ReturnBits,
+) -> u32 {
+    if let Value::Inst(call) = func.value(value)
         && let InstKind::ICall { function: Callee::Function(callee), .. } = func.inst(*call).kind
     {
         returns.get(&callee).copied().unwrap_or(256)
     } else {
-        max_bits_with_args(func, word, MAX_VALUE_DEPTH, argument_bits)
-    };
-    (bits <= 1).then_some(word)
+        max_bits_with_args(func, value, MAX_VALUE_DEPTH, argument_bits)
+    }
 }
 
 /// Proves raw-word return widths without assuming facts about recursive calls.
@@ -317,7 +322,7 @@ pub(super) fn infer_returns(module: &Module) -> ReturnBits {
                     widest = Some(widest.unwrap_or(0).max(bits));
                 }
             }
-            widest.filter(|&bits| bits <= 1).map(|bits| (id, bits))
+            widest.map(|bits| (id, bits))
         })
         .collect()
 }
@@ -332,12 +337,7 @@ pub(super) fn infer_arguments_with(
 ) -> ArgumentBits {
     let mut eligible = DenseBitSet::new_empty(module.functions.len());
     for (id, func) in module.functions.iter_enumerated() {
-        if func.selector.is_none()
-            && !func.is_public()
-            && !func.attributes.is_constructor
-            && !func.attributes.is_receive
-            && !func.attributes.is_fallback
-            && module.dispatch_entry() != Some(id)
+        if utils::is_internal_body(module, id, func)
             && !func.params.is_empty()
             && !func
                 .instructions()
@@ -349,9 +349,8 @@ pub(super) fn infer_arguments_with(
     let mut calls = Vec::new();
     for (caller, func) in module.functions.iter_enumerated() {
         for inst in func.instructions() {
-            if let InstKind::ICall {
-                function: crate::mir::Callee::Function(function), args, ..
-            } = &func.inst(inst).kind
+            if let InstKind::ICall { function: Callee::Function(function), args, .. } =
+                &func.inst(inst).kind
             {
                 calls.push(CallSite { caller, callee: *function, args });
             }
@@ -372,9 +371,11 @@ pub(super) fn infer_arguments_with(
     calls.retain(|call| eligible.contains(call.callee));
 
     let mut facts = ArgumentBits::default();
+    let mut next = ArgumentBits::default();
+    let mut seen = DenseBitSet::new_empty(module.functions.len());
     for _ in 0..MAX_ROUNDS {
-        let mut next = ArgumentBits::default();
-        let mut seen = DenseBitSet::new_empty(module.functions.len());
+        next.clear();
+        seen.clear();
         for call in &calls {
             let first = seen.insert(call.callee);
             let caller = &module.functions[call.caller];
@@ -395,7 +396,7 @@ pub(super) fn infer_arguments_with(
         if next == facts {
             break;
         }
-        facts = next;
+        std::mem::swap(&mut facts, &mut next);
     }
     facts
 }
@@ -406,7 +407,7 @@ pub(super) fn argument_bits(
     index: ArgIdx,
     facts: &ArgumentBits,
 ) -> u32 {
-    if func.params.get(index) == Some(&crate::mir::MirType::I1) {
+    if func.params.get(index) == Some(&MirType::I1) {
         return 1;
     }
     facts.get(&(id, index)).copied().unwrap_or(256)

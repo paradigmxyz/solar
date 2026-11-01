@@ -1,7 +1,7 @@
 //! Legalize opcodes that older EVM targets lack.
 //!
 //! Before Byzantium, this pass replaces `REVERT` with `INVALID`, the closest available terminating
-//! behavior. Newer targets skip the pass entirely.
+//! behavior. Newer targets keep their `REVERT`s.
 //!
 //! Codegen runs this pass after the whole EVM IR pipeline, so no peephole sees its output. Shifts
 //! need no legalization here: `lower-shifts` removes them from MIR on targets without them.
@@ -20,8 +20,8 @@ impl EvmPass for LegalizeRevert {
         "legalize-revert"
     }
 
-    fn is_enabled(&self, gcx: Gcx<'_>, _module: &Module) -> bool {
-        !gcx.sess.opts.evm_version.supports_returndata()
+    fn is_required(&self) -> bool {
+        true
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
@@ -35,10 +35,8 @@ pub(in crate::backend) fn legalize_revert(gcx: Gcx<'_>, module: &mut Module) -> 
     }
 
     let mut changed = false;
-    for block in &mut module.blocks {
-        if let Some(terminator) = &mut block.terminator
-            && matches!(terminator.kind, TerminatorKind::Op(op::REVERT))
-        {
+    for terminator in module.blocks.iter_mut().filter_map(|block| block.terminator.as_mut()) {
+        if matches!(terminator.kind, TerminatorKind::Op(op::REVERT)) {
             terminator.kind = TerminatorKind::Op(op::INVALID);
             changed = true;
         }

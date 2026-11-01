@@ -32,12 +32,7 @@ impl GasObservations {
         for block in cfg.reachable().iter() {
             let mut observes = false;
             for &inst in &func.blocks[block].instructions {
-                let observation = match func.inst(inst).kind {
-                    InstKind::Gas => !forwarded.contains(inst),
-                    InstKind::ICall { .. } => alias.instruction_mod_ref(func, inst).observes_gas(),
-                    _ => func.inst(inst).kind.observes_gas(),
-                };
-                if observation {
+                if Self::instruction_observes(func, alias, &forwarded, inst) {
                     instructions.insert(inst);
                     observes = true;
                 }
@@ -120,5 +115,30 @@ impl GasObservations {
             forwarded.remove(gas_inst);
         }
         forwarded
+    }
+
+    /// Whether any reachable instruction observes gas, without constructing the propagation
+    /// needed to answer block-entry queries.
+    pub(crate) fn any(func: &Function, cfg: &CfgInfo, alias: &AliasAnalysis) -> bool {
+        let forwarded = Self::classify_forwarded_call_gas(func);
+        cfg.reachable().iter().any(|block| {
+            func.blocks[block]
+                .instructions
+                .iter()
+                .any(|&inst| Self::instruction_observes(func, alias, &forwarded, inst))
+        })
+    }
+
+    fn instruction_observes(
+        func: &Function,
+        alias: &AliasAnalysis,
+        forwarded: &DenseBitSet<InstId>,
+        inst: InstId,
+    ) -> bool {
+        match func.inst(inst).kind {
+            InstKind::Gas => !forwarded.contains(inst),
+            InstKind::ICall { .. } => alias.instruction_mod_ref(func, inst).observes_gas(),
+            _ => func.inst(inst).kind.observes_gas(),
+        }
     }
 }

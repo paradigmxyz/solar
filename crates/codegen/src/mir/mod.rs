@@ -1,112 +1,69 @@
 //! Mid-level Intermediate Representation (MIR).
 //!
-//! MIR is an SSA-form IR that sits between HIR and EVM bytecode.
+//! MIR is an SSA-form IR that sits between HIR and EVM bytecode. The IR itself, its text format,
+//! and its verifier live in `solar_mir`; this module holds the lowering from HIR and the passes.
 
-use solar_data_structures::newtype_index;
+use crate::target::Target;
+use solar_sema::Gcx;
 
-pub(crate) use crate::link::{Data, DataBytes, DataId, DataRef, DataSize, ImmutableId};
+pub(crate) use solar_mir::*;
+pub use solar_mir::{MirPhase, Module, validate};
 
 pub(crate) mod analysis;
-pub(crate) mod immutable;
 pub mod lower;
-pub(crate) mod memory;
 pub mod pass;
 pub(crate) mod pass_manager;
 mod transform;
 
-mod types;
-mod typing;
-pub(crate) use types::{
-    FrameMode, FrameSlotKind, ImmutableEncoding, MemoryObjectKind, MemoryObjectLayout, MirType,
-    PtrLocation, StructType, TypeSize, ValueLayout,
-};
-
-mod abi;
-pub(crate) use abi::{
-    AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, AbiParamLocation, AbiParamType,
-    AbiType, AbiWordValidator,
-};
-
-mod packed;
-pub(crate) use packed::{PackedArraySource, PackedPart, packed_element_bytes};
-
-mod value;
-pub(crate) use value::{Immediate, Value};
-
-mod inst;
-pub(crate) use inst::{
-    AbiEncodeMode, AddressCallKind, AllocationFailure, AllocationInitialization,
-    AllocationSemantics, EffectKind, Instruction, InstructionMetadata, MemoryRegion, StorageAlias,
-};
-
-mod arithmetic;
-pub(crate) use arithmetic::{ArithmeticKind, CheckedOp};
-
-mod checks;
-pub(crate) use checks::{
-    CalldataTail, MAX_SCRATCH_ERROR_WORDS, PanicCode, RevertKind, RevertPayload, RevertReason,
-};
-
-mod effects;
-pub(crate) use effects::ControlEffects;
-mod op_schema;
-pub(crate) use op_schema::{
-    InstKind, LogTopics, Op, OpTraits, PhaseCategory, RawMemoryAccess, RawMemorySize, ResultKind,
-};
-
-mod block;
-pub(crate) use block::{BasicBlock, Terminator};
-
-mod mangling;
-pub(crate) use mangling::{Disambiguator, MangledSymbol};
-
-mod function;
-pub(crate) use function::{Function, FunctionAttributes};
-
-mod module;
-pub(crate) use module::LoweredModule;
-pub use module::{MirPhase, Module};
-
-mod builtin;
-pub(crate) use builtin::{Builtin, Callee, RequireKind};
-
-mod builder;
-pub(crate) use builder::{ERROR_SELECTOR, FunctionBuilder};
-
-mod display;
-
-mod parser;
-
-/// Validates the invariants of a MIR module.
-pub fn validate(dcx: &solar_interface::diagnostics::DiagCtxt, module: &Module) {
-    crate::mir::analysis::validate(dcx, module);
-}
-
 pub(crate) mod utils;
 
-newtype_index! {
-    /// A function argument index in the MIR.
-    pub(crate) struct ArgIdx;
+/// The cost model of a module's code.
+pub(crate) trait MirModuleTarget {
+    /// Returns the cost model of this module's code: the contract's objective, which a function
+    /// without a tag of its own and every decision about the module as a whole use.
+    fn target(&self, gcx: Gcx<'_>) -> Target;
 
-    /// A unique identifier for a value in the MIR.
-    pub(crate) struct ValueId;
-
-    /// A unique identifier for an instruction in the MIR.
-    pub(crate) struct InstId;
-
-    /// A unique identifier for a basic block in the MIR.
-    pub(crate) struct BlockId;
-
-    /// A fixed aggregate type declared in a MIR module.
-    pub(crate) struct StructId;
-
-    /// A unique identifier for a function in the MIR.
-    pub(crate) struct FunctionId;
+    /// Returns the cost model of `func`'s code, for a function this module has not yet received.
+    fn target_of(&self, gcx: Gcx<'_>, func: &Function) -> Target;
 }
 
-impl BlockId {
-    /// The first block in every function.
-    pub(crate) const ENTRY: Self = Self::new(0);
+impl MirModuleTarget for Module {
+    fn target(&self, gcx: Gcx<'_>) -> Target {
+        Target::new(gcx, self.optimization)
+    }
+
+    fn target_of(&self, gcx: Gcx<'_>, func: &Function) -> Target {
+        Target::new(gcx, self.objective_of(func))
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod parser {
+    use super::Module;
+    use solar_interface::Session;
+
+    pub(crate) fn parse_module(sess: &Session, input: &str) -> solar_interface::Result<Module> {
+        let name = format!("test{}.mir", sess.source_map().files().len());
+        let file = sess
+            .source_map()
+            .new_source_file(solar_interface::source_map::FileName::Custom(name), input)
+            .unwrap();
+        Module::parse(sess, &file)
+    }
+}
+
+#[cfg(test)]
+mod isle {
+    use super::*;
+
+    #[test]
+    fn isle_prelude_matches_schema() {
+        snapbox::assert_data_eq!(Op::isle_prelude(), snapbox::file!["../../isle/mir/prelude.isle"]);
+        snapbox::assert_data_eq!(
+            Op::isle_extractors(),
+            snapbox::file!["../../isle/mir/extractors.isle"]
+        );
+    }
 }
 
 /// Property tests verifying that the MIR printer/parser pair is self-consistent.
@@ -125,7 +82,7 @@ impl BlockId {
 /// indices. A *second* round-trip must be stable.
 #[cfg(test)]
 mod round_trip {
-    use super::Module;
+    use super::{Module, parser::parse_module};
     use crate::mir::lower;
     use solar_interface::{ColorChoice, Session};
     use solar_sema::Compiler;
@@ -133,10 +90,6 @@ mod round_trip {
         ops::ControlFlow,
         path::{Path, PathBuf},
     };
-
-    fn parse_module(sess: &Session, input: &str) -> solar_interface::Result<Module> {
-        super::parser::parse_module(sess, input)
-    }
 
     /// Path to `tests/ui/codegen/` (the workspace's UI test directory).
     fn ui_codegen_dir() -> PathBuf {

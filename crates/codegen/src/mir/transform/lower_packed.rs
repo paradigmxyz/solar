@@ -1,4 +1,5 @@
-//! Expand packed ABI layouts after semantic optimization and before ABI and memory lowering.
+//! Packed ABI encoding for `lower-builtins`, which expands `abi_encode_packed` with it after
+//! semantic optimization and before ABI and memory lowering. This module is not a pass.
 //!
 //! Scalars write their packed width; array leaves occupy full, cleaned ABI words. The encoder
 //! computes dynamic lengths only after argument evaluation, then emits copies or nested array
@@ -25,8 +26,8 @@
 
 use crate::mir::{
     AbiType, AbiWordValidator, AllocationSemantics, BlockId, EffectKind, Function, FunctionBuilder,
-    InstKind, MemoryObjectLayout, MirType, PackedArraySource, PackedPart, PanicCode, PtrLocation,
-    Value, ValueId, ValueLayout, memory::EvmMemoryLayout, packed_element_bytes,
+    InstKind, MemoryObjectLayout, MirType, PackedArraySource, PackedPart, PtrLocation, Value,
+    ValueId, ValueLayout, memory::EvmMemoryLayout, packed_element_bytes,
 };
 use alloy_primitives::{Bytes, U256};
 
@@ -35,6 +36,17 @@ enum PackedPiece {
     Static { value: ValueId, length: u64, fixed_bytes: bool, signed: bool },
     Dynamic { source: ValueId, length: ValueId, bounded_heap: bool },
     Array { value: ValueId, length: ValueId, element: AbiType, source: PackedArraySource },
+}
+
+impl PackedPiece {
+    /// The byte length of a literal or scalar piece.
+    fn static_len(&self) -> Option<u64> {
+        match self {
+            Self::Bytes(bytes) => Some(bytes.len() as u64),
+            Self::Static { length, .. } => Some(*length),
+            Self::Dynamic { .. } | Self::Array { .. } => None,
+        }
+    }
 }
 
 pub(super) fn lower_packed(
@@ -66,21 +78,11 @@ impl PackedEncoder<'_, '_> {
         let mut pieces = Vec::with_capacity(parts.len());
         for part in parts {
             let (piece, length) = match part {
-                PackedPart::Literal(bytes) => {
-                    let length = self.builder.imm(bytes.len() as u64);
-                    (PackedPiece::Bytes(bytes), length)
-                }
-                PackedPart::Scalar { value, ty } => {
-                    let length = u64::from(ty.type_size().expect("packed scalar").bytes());
-                    (
-                        PackedPiece::Static {
-                            value,
-                            length,
-                            fixed_bytes: matches!(ty, ValueLayout::FixedBytes(_)),
-                            signed: matches!(ty, ValueLayout::Int(_)),
-                        },
-                        self.builder.imm(length),
-                    )
+                PackedPart::Literal(_) | PackedPart::Scalar { .. } => {
+                    let piece = static_piece(&part).expect("packed literal or scalar");
+                    let length =
+                        self.builder.imm(piece.static_len().expect("packed literal or scalar"));
+                    (piece, length)
                 }
                 PackedPart::Bytes(value) => {
                     let known_length =
@@ -157,9 +159,8 @@ impl PackedEncoder<'_, '_> {
         let mut index = 0;
         // for piece { write_packed(output, piece) }
         while index < pieces.len() {
-            if let Some((consumed, length)) =
-                self.try_write_packed_word(output, offset, &pieces[index..])
-            {
+            if let Some((consumed, length, value)) = self.try_pack_packed_word(&pieces[index..]) {
+                self.builder.memory_store_word(output, offset, value);
                 let length = self.builder.imm(length);
                 offset = self.add_folded(offset, length);
                 index += consumed;
@@ -170,9 +171,7 @@ impl PackedEncoder<'_, '_> {
                 PackedPiece::Bytes(bytes) => {
                     // for chunk { mstore(output + offset, chunk) }
                     for chunk in bytes.chunks(32) {
-                        let mut padded = [0u8; 32];
-                        padded[..chunk.len()].copy_from_slice(chunk);
-                        let value = self.builder.imm(U256::from_be_bytes(padded));
+                        let value = self.builder.imm(padded_word(chunk));
                         self.builder.memory_store_word(output, offset, value);
                         let length = self.builder.imm(chunk.len() as u64);
                         offset = self.add_folded(offset, length);
@@ -203,12 +202,7 @@ impl PackedEncoder<'_, '_> {
                 }
                 PackedPiece::Static { value, length, fixed_bytes, .. } => {
                     // mstore(output + offset, align(value, length))
-                    let value = if *fixed_bytes || *length == 32 {
-                        *value
-                    } else {
-                        let shift = self.builder.imm((32 - *length) * 8);
-                        self.builder.shl(*value, shift)
-                    };
+                    let value = self.align_static(*value, *length, *fixed_bytes);
                     self.builder.memory_store_word(output, offset, value);
                     let length = self.builder.imm(*length);
                     offset = self.add_folded(offset, length);
@@ -259,9 +253,7 @@ impl PackedEncoder<'_, '_> {
                 PackedPiece::Bytes(bytes) => {
                     // for chunk { mstore(base + offset, chunk) }
                     for chunk in bytes.chunks(32) {
-                        let mut padded = [0u8; 32];
-                        padded[..chunk.len()].copy_from_slice(chunk);
-                        let value = self.builder.imm(U256::from_be_bytes(padded));
+                        let value = self.builder.imm(padded_word(chunk));
                         let dest = self.packed_scratch_offset(cursor.or(base), offset);
                         self.builder.store(dest, value);
                         offset = offset.checked_add(u64::try_from(chunk.len()).ok()?)?;
@@ -279,12 +271,7 @@ impl PackedEncoder<'_, '_> {
                 }
                 PackedPiece::Static { value, length, fixed_bytes, .. } => {
                     // mstore(base + offset, align(value, length))
-                    let value = if *fixed_bytes || *length == 32 {
-                        *value
-                    } else {
-                        let shift = self.builder.imm((32 - *length) * 8);
-                        self.builder.shl(*value, shift)
-                    };
+                    let value = self.align_static(*value, *length, *fixed_bytes);
                     let dest = self.packed_scratch_offset(cursor.or(base), offset);
                     self.builder.store(dest, value);
                     offset = offset.checked_add(*length)?;
@@ -314,6 +301,16 @@ impl PackedEncoder<'_, '_> {
             return self.builder.imm(result);
         }
         self.builder.add(lhs, rhs)
+    }
+
+    /// Left-aligns a scalar of `length` bytes in its word; fixed bytes already are.
+    fn align_static(&mut self, value: ValueId, length: u64, fixed_bytes: bool) -> ValueId {
+        if fixed_bytes || length == 32 {
+            value
+        } else {
+            let shift = self.builder.imm((32 - length) * 8);
+            self.builder.shl(value, shift)
+        }
     }
 
     fn packed_scratch_offset(&mut self, base: Option<ValueId>, offset: u64) -> ValueId {
@@ -354,19 +351,8 @@ impl PackedEncoder<'_, '_> {
         // for i in 0..length {
         //     destination = output + offset + i * element_width
         // }
-        let preheader = self.builder.current_block();
-        let header = self.builder.create_block();
-        let body = self.builder.create_block();
-        let exit = self.builder.create_block();
-        self.builder.jump(header);
-
-        self.builder.switch_to_block(header);
-        let zero = self.builder.imm(0);
-        let index = self.builder.phi(vec![(preheader, zero)]);
-        let more = self.builder.lt(index, length);
-        self.builder.branch(more, body, exit);
-
-        self.builder.switch_to_block(body);
+        let loop_ = self.builder.begin_counted_loop(length);
+        let index = loop_.index();
         // index < length and the checked end_offset bound both operations.
         // element_offset = index * element_width
         // destination = offset + element_offset
@@ -389,10 +375,8 @@ impl PackedEncoder<'_, '_> {
                     AbiType::Word(Some(validator)) => {
                         if let AbiWordValidator::EnumRange(variants) = validator {
                             // valid = element < variant_count
-                            // panic_if_zero(valid, enum_conversion)
-                            let variants = self.builder.imm(*variants);
-                            let valid = self.builder.lt(element_value, variants);
-                            self.builder.panic_if_zero(valid, PanicCode::EnumConversion);
+                            // panic_if(valid == 0, enum_conversion)
+                            self.builder.validate_enum_value(*variants, element_value);
                         }
                         validator.cleanup(self.builder, element_value)
                     }
@@ -439,12 +423,7 @@ impl PackedEncoder<'_, '_> {
                 unreachable!("packed array shape")
             }
         }
-        let next = self.builder.add_u64_offset(index, 1);
-        let backedge = self.builder.current_block();
-        self.builder.jump(header);
-        self.builder.add_phi_incoming(index, backedge, next);
-
-        self.builder.switch_to_block(exit);
+        self.builder.finish_counted_loop(loop_);
         end_offset
     }
 
@@ -517,17 +496,6 @@ impl PackedEncoder<'_, '_> {
         value
     }
 
-    fn try_write_packed_word(
-        &mut self,
-        output: ValueId,
-        offset: ValueId,
-        pieces: &[PackedPiece],
-    ) -> Option<(usize, u64)> {
-        let (consumed, length, value) = self.try_pack_packed_word(pieces)?;
-        self.builder.memory_store_word(output, offset, value);
-        Some((consumed, length))
-    }
-
     /// The hash of `parts` read in place, when they are literals and scalars of at most one word
     /// in all followed by bytes in memory: the prefix borrows the last bytes of the length word of
     /// the bytes, which is written back after the hash. Only a length that inline assembly forged
@@ -541,11 +509,7 @@ impl PackedEncoder<'_, '_> {
         let pieces = static_pieces(prefix)?;
         let mut size = 0u64;
         for piece in &pieces {
-            size += match piece {
-                PackedPiece::Bytes(bytes) => bytes.len() as u64,
-                PackedPiece::Static { length, .. } => *length,
-                PackedPiece::Dynamic { .. } | PackedPiece::Array { .. } => return None,
-            };
+            size += piece.static_len()?;
         }
         if size > 32 {
             return None;
@@ -698,17 +662,26 @@ fn known_byte_length(func: &Function, object: ValueId, block: BlockId) -> Option
 
 /// The pieces of `parts` when every part is a literal or a scalar.
 fn static_pieces(parts: &[PackedPart]) -> Option<Vec<PackedPiece>> {
-    parts
-        .iter()
-        .map(|part| match part {
-            PackedPart::Literal(bytes) => Some(PackedPiece::Bytes(bytes.clone())),
-            PackedPart::Scalar { value, ty } => Some(PackedPiece::Static {
-                value: *value,
-                length: u64::from(ty.type_size()?.bytes()),
-                fixed_bytes: matches!(ty, ValueLayout::FixedBytes(_)),
-                signed: matches!(ty, ValueLayout::Int(_)),
-            }),
-            PackedPart::Bytes(_) | PackedPart::Array { .. } => None,
-        })
-        .collect()
+    parts.iter().map(static_piece).collect()
+}
+
+/// The piece of `part` when it is a literal or a scalar.
+fn static_piece(part: &PackedPart) -> Option<PackedPiece> {
+    match part {
+        PackedPart::Literal(bytes) => Some(PackedPiece::Bytes(bytes.clone())),
+        PackedPart::Scalar { value, ty } => Some(PackedPiece::Static {
+            value: *value,
+            length: u64::from(ty.type_size()?.bytes()),
+            fixed_bytes: matches!(ty, ValueLayout::FixedBytes(_)),
+            signed: matches!(ty, ValueLayout::Int(_)),
+        }),
+        PackedPart::Bytes(_) | PackedPart::Array { .. } => None,
+    }
+}
+
+/// A chunk of at most 32 bytes as a left-aligned word.
+fn padded_word(chunk: &[u8]) -> U256 {
+    let mut padded = [0u8; 32];
+    padded[..chunk.len()].copy_from_slice(chunk);
+    U256::from_be_bytes(padded)
 }

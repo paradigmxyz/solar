@@ -1,0 +1,41 @@
+- // === ROOT/tests/ui/codegen/evm-ir/block-layout/shared_call_and_stub.evmir (before block-layout) ===
++ // === ROOT/tests/ui/codegen/evm-ir/block-layout/shared_call_and_stub.evmir (after block-layout) ===
+  @module shared_call_and_stub
+  bb0:
+    calldatasize
+    jumpi bb7, bb1
+  bb1:
+    push bb6
+    jump bb5
+- bb2:
+-   push bb6
+-   jump bb4
+- bb3:
+-   push bb6
+-   jump bb4
+- bb4:
+-   push 32
+-   pop
+-   jump bb5
+  bb5:
+    push 1
+    swap 1
+    jump
+  bb6 [continuation]:
+    pop
+    stop
++ bb2:
++   push bb6
++   jump bb4
++ bb4:
++   push 32
++   pop
++   jump bb5
+  bb7:
+    push 0
+    calldataload
+    jumpi bb2, bb3
++ bb3:
++   push bb6
++   jump bb4
+  

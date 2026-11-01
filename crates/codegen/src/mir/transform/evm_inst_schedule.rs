@@ -45,6 +45,7 @@
 //! [Vyper Venom's DFT pass]: https://github.com/vyperlang/vyper/blob/730a2d36f1fca90be059c75681de5c942560ce0b/vyper/venom/passes/dft.py
 //! [solx's EVM single-use-expression pass]: https://github.com/NomicFoundation/solx-llvm/blob/a2a603232892c9824f8783b55b49d5655d77a62c/llvm/lib/Target/EVM/EVMSingleUseExpression.cpp
 
+use super::word_sequence::is_pure;
 use crate::mir::{
     BlockId, EffectKind, Function, InstId, InstKind, Instruction, Module, Terminator, Value,
     ValueId,
@@ -77,18 +78,20 @@ impl EvmInstSchedule {
         let block_ids = func.blocks.indices();
         let shared_results = Self::shared_results(func);
         let mut scratch = ScheduleScratch::new(func.num_insts());
+        let mut sink = SinkScratch::default();
+        let mut ordered = Vec::new();
         let liveness = Liveness::compute_live_sets(func);
         let users = super::egraph::use_counts(func);
 
         for block_id in block_ids {
-            changed |= Self::sink_past_barriers(func, block_id, &liveness, &users);
+            changed |= Self::sink_past_barriers(func, block_id, &liveness, &users, &mut sink);
             let original = std::mem::take(&mut func.blocks[block_id].instructions);
             if original.len() < 2 {
                 func.blocks[block_id].instructions = original;
                 continue;
             }
 
-            let mut ordered = Vec::with_capacity(original.len());
+            ordered.clear();
             let mut segment_start = 0;
             for (index, &inst_id) in original.iter().enumerate() {
                 let inst = func.inst(inst_id);
@@ -96,7 +99,7 @@ impl EvmInstSchedule {
                     continue;
                 }
 
-                let consumer = Self::stack_input_order(&inst.kind);
+                let consumer = Self::stack_input_order(inst.kind.operands());
                 Self::schedule_segment(
                     func,
                     &original[segment_start..index],
@@ -112,7 +115,7 @@ impl EvmInstSchedule {
             let terminator_inputs = func.blocks[block_id]
                 .terminator
                 .as_ref()
-                .map(Self::terminator_stack_input_order)
+                .map(|term| Self::stack_input_order(term.operands()))
                 .unwrap_or_default();
             Self::schedule_segment(
                 func,
@@ -124,7 +127,7 @@ impl EvmInstSchedule {
             );
 
             if ordered != original {
-                func.blocks[block_id].instructions = ordered;
+                func.blocks[block_id].instructions = std::mem::replace(&mut ordered, original);
                 changed = true;
             } else {
                 func.blocks[block_id].instructions = original;
@@ -133,9 +136,7 @@ impl EvmInstSchedule {
 
         changed
     }
-}
 
-impl EvmInstSchedule {
     /// Moves each pure instruction whose single user follows a barrier in the same block to just
     /// before that user, when every word it reads stays live past the user anyway: its result no
     /// longer occupies the stack across the barrier, and no operand lives longer. A pure
@@ -153,6 +154,7 @@ impl EvmInstSchedule {
         block: BlockId,
         liveness: &Liveness,
         users: &IndexVec<ValueId, u32>,
+        scratch: &mut SinkScratch,
     ) -> bool {
         let instructions = &func.blocks[block].instructions;
         let len = instructions.len();
@@ -163,9 +165,14 @@ impl EvmInstSchedule {
             func.blocks[block].terminator.as_ref().map(Terminator::operands).unwrap_or_default();
         // The user each sunk instruction moves in front of, by position, and the barriers, and
         // the barriers no instruction may cross, from each position to the end of the block.
-        let mut target = vec![None::<usize>; len];
-        let mut barriers_after = vec![0usize; len + 1];
-        let mut walls_after = vec![0usize; len + 1];
+        let SinkScratch { target, barriers_after, walls_after, anchor, attached, ordered, work } =
+            scratch;
+        target.clear();
+        target.resize(len, None);
+        barriers_after.clear();
+        barriers_after.resize(len + 1, 0);
+        walls_after.clear();
+        walls_after.resize(len + 1, 0);
         for index in (0..len).rev() {
             let inst = func.inst(instructions[index]);
             let barrier = !Self::is_movable(inst);
@@ -174,15 +181,15 @@ impl EvmInstSchedule {
                 walls_after[index + 1] + usize::from(barrier && !Self::is_crossable(inst));
         }
         // The position each instruction ends up just in front of: its own, or its user's anchor.
-        let mut anchor: Vec<usize> = (0..=len).collect();
+        anchor.clear();
+        anchor.extend(0..=len);
         let live_out = liveness.live_out(block);
         for index in (0..len).rev() {
             let inst_id = instructions[index];
             let inst = func.inst(inst_id);
-            if inst.kind.effect_kind() != EffectKind::Pure
+            if !is_pure(inst)
                 || matches!(inst.kind, InstKind::Phi(_))
                 || inst.kind.effects().control.any()
-                || inst.metadata.effect().is_some_and(|effect| effect != EffectKind::Pure)
             {
                 continue;
             }
@@ -231,14 +238,17 @@ impl EvmInstSchedule {
         }
         // Emit each kept instruction after the instructions sunk in front of it, in order, and
         // each of those after the ones sunk in front of it in turn.
-        let mut attached = vec![SmallVec::<[usize; 2]>::new(); len + 1];
+        if attached.len() <= len {
+            attached.resize_with(len + 1, SmallVec::new);
+        }
+        attached[..=len].iter_mut().for_each(SmallVec::clear);
         for (index, user) in target.iter().enumerate() {
             if let Some(user) = *user {
                 attached[user].push(index);
             }
         }
-        let mut ordered = Vec::with_capacity(len);
-        let mut work = Vec::new();
+        ordered.clear();
+        work.clear();
         for (index, sunk) in target.iter().map(Option::is_some).chain([false]).enumerate() {
             if sunk {
                 continue;
@@ -256,7 +266,7 @@ impl EvmInstSchedule {
             }
         }
         debug_assert_eq!(ordered.len(), len);
-        func.blocks[block].instructions = ordered;
+        std::mem::swap(&mut func.blocks[block].instructions, ordered);
         true
     }
 
@@ -281,14 +291,8 @@ impl EvmInstSchedule {
 
     /// Returns operands in the order their producers should run for EVM emission: deepest stack
     /// input first and the eventual top-of-stack input last.
-    fn stack_input_order(kind: &InstKind) -> SmallVec<[ValueId; 8]> {
-        let mut operands = kind.operands();
-        operands.reverse();
-        operands
-    }
-
-    fn terminator_stack_input_order(term: &Terminator) -> SmallVec<[ValueId; 8]> {
-        let mut operands = SmallVec::from_iter(term.operands());
+    fn stack_input_order(operands: impl IntoIterator<Item = ValueId>) -> SmallVec<[ValueId; 8]> {
+        let mut operands = SmallVec::from_iter(operands);
         operands.reverse();
         operands
     }
@@ -311,7 +315,7 @@ impl EvmInstSchedule {
             if !shared_results.contains(inst_id) {
                 continue;
             }
-            let inputs = Self::stack_input_order(&func.inst(inst_id).kind);
+            let inputs = Self::stack_input_order(func.inst(inst_id).kind.operands());
             Self::schedule_single_use_segment(
                 func,
                 &segment[island_start..index],
@@ -498,15 +502,14 @@ impl EvmInstSchedule {
             }
 
             scratch.work.push((inst_id, true));
-            let inputs = Self::stack_input_order(&func.inst(inst_id).kind);
-            for value in inputs.iter().rev() {
-                if let Value::Inst(dependency) = func.value(*value)
+            func.inst(inst_id).kind.visit_operands(|value| {
+                if let Value::Inst(dependency) = func.value(value)
                     && scratch.members.contains(*dependency)
                     && !scratch.visited.contains(*dependency)
                 {
                     scratch.work.push((*dependency, false));
                 }
-            }
+            });
         }
     }
 }
@@ -523,6 +526,18 @@ fn count_distinct_users(
             counts[operand] += 1;
         }
     }
+}
+
+/// Buffers of [`EvmInstSchedule::sink_past_barriers`], reused across blocks.
+#[derive(Default)]
+struct SinkScratch {
+    target: Vec<Option<usize>>,
+    barriers_after: Vec<usize>,
+    walls_after: Vec<usize>,
+    anchor: Vec<usize>,
+    attached: Vec<SmallVec<[usize; 2]>>,
+    ordered: Vec<InstId>,
+    work: Vec<(usize, bool)>,
 }
 
 struct ScheduleScratch {

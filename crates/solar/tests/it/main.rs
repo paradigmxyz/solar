@@ -12,6 +12,9 @@ mod foundry;
 mod lsp;
 
 #[cfg(feature = "cli")]
+mod optimize_tags;
+
+#[cfg(feature = "cli")]
 mod paths;
 
 #[cfg(feature = "cli")]

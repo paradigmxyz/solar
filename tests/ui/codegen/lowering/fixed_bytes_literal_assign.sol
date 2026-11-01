@@ -8,7 +8,8 @@
 // A literal assigned to a fixed-bytes place is that word. Lowering it as a
 // memory literal and reading the first word back leaves the allocation behind:
 // it writes the free-memory pointer, so no later pass can remove it. Only the
-// buffer being written to is allocated here.
+// buffer being written to is allocated here, and nothing reads the pointer
+// again before the call returns, so even its bump goes.
 contract FixedBytesLiteralAssign {
     bytes1 slot;
 

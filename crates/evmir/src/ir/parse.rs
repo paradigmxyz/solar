@@ -55,9 +55,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let name = self.parser.parse_ident()?;
 
         let mut module = Module::new(name);
+        module.optimization = self.parser.optimization();
         while self.parser.eat(TokenKind::At) {
             let section = self.parser.parse_ident()?;
             match section {
+                sym::optimize => module.optimization = self.parser.parse_optimize_objective()?,
                 sym::libraries => self.parser.parse_library_declarations()?,
                 sym::data => module.data = self.parser.parse_data_declarations()?,
                 _ => return Err(self.parser.error(format!("unknown module section `@{section}`"))),

@@ -1,0 +1,40 @@
+// === ROOT/tests/ui/codegen/mir/memory-dse/untrusted_bases.sol:UntrustedBases ===
+@module UntrustedBases
+fn @decodedAddress(arg0: ptr<memory>) [selector=0xf06d5299, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = abi_decode [uint256], arg0
+    mstore 0, 0x1234 !metadata(memory=scratch)
+    v1 = mload v0
+    mstore 0, 0 !metadata(memory=scratch)
+    mstore 128, v1
+    returndata 128, 32
+}
+
+fn @bumpedBeforeEncode() [selector=0x496d4755, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    mstore v0, 0x1111
+    v1 = add v0, 32
+    mstore 64, v1 !metadata(memory=scratch)
+    v2 = abi_encode [word], object, args 7
+    v3 = ptrtoint ptr<memory> v2 to i256
+    v4 = mload v2
+    v5 = mload v0
+    v6 = add v5, v4
+    mstore 0, v6 !metadata(memory=scratch)
+    returndata 0, 32
+}
+
+fn @copiedFreePointer(arg0: i256) -> i1 [selector=0x6af2de9e, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    mstore 0, 0xabc !metadata(memory=scratch)
+    calldatacopy 64, 4, 32 !metadata(memory=scratch)
+    v0 = mload 64 !metadata(memory=scratch)
+    mstore 32, v0 !metadata(memory=scratch)
+    v1 = mload 32 !metadata(memory=scratch)
+    v2 = keccak256 v1, 32
+    mstore 0, 0 !metadata(memory=scratch)
+    mstore 64, 128 !metadata(memory=scratch)
+    v3 = eq v2, 0x1f212fbb8f3ed578556c57cd51f8754656c7f723c2931b8f5e136c46bb23c2cf
+    ret v3
+}

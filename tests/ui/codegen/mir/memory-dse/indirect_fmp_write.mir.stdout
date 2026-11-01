@@ -1,0 +1,28 @@
+// === ROOT/tests/ui/codegen/mir/memory-dse/indirect_fmp_write.sol:Test ===
+@module Test
+fn @unknownWrite(arg0: i256) -> i256 [selector=0x7cc8e333, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    mstore 0, 7 !metadata(memory=scratch)
+    mstore arg0, 0
+    v1 = mload 64 !metadata(memory=scratch)
+    mstore 32, v1 !metadata(memory=scratch)
+    v2 = mload 32 !metadata(memory=scratch)
+    v3 = mload v2
+    mstore 64, v0 !metadata(memory=scratch)
+    ret v3
+}
+
+fn @wrappedWrite() -> i256 [selector=0x214781b5, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    mstore 64, 0x400 !metadata(memory=scratch)
+    v1 = not 0
+    mstore 56, v1 !metadata(memory=scratch)
+    v2 = mload 64 !metadata(memory=scratch)
+    v3 = add v2, 0xfffffffffffffc40
+    mstore v3, 768
+    v4 = mload 64 !metadata(memory=scratch)
+    mstore 64, v0 !metadata(memory=scratch)
+    ret v4
+}

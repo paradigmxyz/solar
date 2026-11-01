@@ -16,8 +16,9 @@
 
 use crate::mir::{
     BlockId, Function, InstKind, Instruction, Module, Terminator, Value,
-    pass::{MirPass, ModuleAnalyses},
+    pass::{MirPass, ModuleAnalyses, run_function_pass},
 };
+use solar_config::OptimizationMode;
 use solar_sema::Gcx;
 
 pub(crate) struct LoopExitRemat;
@@ -27,16 +28,12 @@ impl MirPass for LoopExitRemat {
         "loop-exit-remat"
     }
 
-    fn is_enabled(&self, gcx: Gcx<'_>, _: &Module) -> bool {
-        gcx.sess.opts.optimization.is_gas()
+    fn runs_on(&self, objective: OptimizationMode) -> bool {
+        objective.is_gas()
     }
 
-    fn run_pass(&self, _: Gcx<'_>, module: &mut Module, _: &mut ModuleAnalyses) -> bool {
-        let mut changed = false;
-        for func in &mut module.functions {
-            changed |= run(func);
-        }
-        changed
+    fn run_pass(&self, _: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
+        run_function_pass(module, analyses, |func, _| run(func))
     }
 }
 
@@ -56,10 +53,7 @@ fn run(func: &mut Function) -> bool {
             if !latch(func, header, back)
                 || exit == header
                 || func.blocks[exit].predecessors.as_slice() != [header]
-                || func.blocks[exit]
-                    .instructions
-                    .iter()
-                    .any(|&inst| matches!(func.inst(inst).kind, InstKind::Phi(_)))
+                || func.block_has_phi(exit)
             {
                 continue;
             }
@@ -83,11 +77,11 @@ fn run(func: &mut Function) -> bool {
                     && (func.blocks[exit]
                         .instructions
                         .iter()
-                        .any(|&id| func.inst(id).operands().contains(&old))
+                        .any(|&id| func.inst(id).kind.reads(old))
                         || func.blocks[exit]
                             .terminator
                             .as_ref()
-                            .is_some_and(|term| term.operands().contains(&old)))
+                            .is_some_and(|term| term.reads(old)))
                 {
                     candidates.push((exit, old, next, constant, subtract, func.value_ty(old)));
                     if candidates.len() == 2 {

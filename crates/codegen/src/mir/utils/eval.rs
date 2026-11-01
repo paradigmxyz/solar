@@ -5,7 +5,7 @@
 //! MIR folding must match 256-bit EVM wrapping and zero-divisor semantics.
 
 use crate::{
-    backend::evm::op,
+    backend::evm::{op, select::InstKindOpcode},
     mir::{
         ArithmeticKind, Builtin, Callee, CheckedOp, Function, InstKind, MirType, ResultKind,
         ValueId,

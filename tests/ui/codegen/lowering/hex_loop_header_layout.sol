@@ -5,6 +5,7 @@
 // The hex loop of Solady's `LibString.toHexStringNoPrefix`. Its header lays the carried words out
 // with the input pointer on top, so the output pointer steps by two before the last `mstore8` and
 // swaps into its old slot: the body takes five `dup`s and `swap`s, not six.
+// CHECK: push 0x30313233343536373839616263646566
 // CHECK: bb{{[0-9]+}} [loop]:
 // CHECK-NEXT: push 1
 // CHECK-NEXT: add
@@ -29,7 +30,11 @@
 // CHECK-NEXT: add
 // CHECK-NEXT: swap 4
 // CHECK-NEXT: mstore8
-// CHECK-NEXT: jump bb{{[0-9]+}}
+// CHECK-NEXT: dup 5
+// CHECK-NEXT: dup 2
+// CHECK-NEXT: sub
+// CHECK-NEXT: push bb{{[0-9]+}}
+// CHECK-NEXT: jumpi
 contract HexLoopHeaderLayout {
     function hexNoPrefix(bytes memory raw) external pure returns (string memory) {
         return toHexStringNoPrefix(raw);

@@ -1,0 +1,88 @@
+- // === ROOT/tests/ui/codegen/evm-ir/returndata-zero/returndata_zero.evmir (before returndata-zero) ===
++ // === ROOT/tests/ui/codegen/evm-ir/returndata-zero/returndata_zero.evmir (after returndata-zero) ===
+  @module module
+  bb0:
+-   push 0
++   returndatasize
+    calldataload
+    push bb1
+    jumpi
+-   push 0
++   returndatasize
+    pop
+    push bb2
+    jump bb3
+  bb1:
+-   push 0
++   returndatasize
+    pop
+    push bb7
+    pop
+    push bb4
+    jump bb5
+  bb2 [continuation]:
+    push 0
+    dup 1
+    pop
+    pop
+    stop
+  bb3 [ret=0, inputs=1, outputs=0]:
+-   push 0
++   returndatasize
+    push bb6
+    jumpi
+-   push 0
+-   push 0
+-   push 0
+-   push 0
+-   push 0
++   returndatasize
++   returndatasize
++   returndatasize
++   returndatasize
++   returndatasize
+    address
+    gas
+    call
+    pop
+    push 0
+    pop
+    jump
+  bb6:
+-   push 0
++   returndatasize
+    pop
+    stop
+  bb4 [continuation]:
+-   push 0
++   returndatasize
+    pop
+    stop
+  bb5 [ret=0, inputs=1, outputs=0]:
+-   push 0
++   returndatasize
+    pop
+    jump
+  bb7:
+    push 0
+    pop
+    stop
+  bb8:
+-   push 0
++   returndatasize
+    calldatasize
+-   dup 2
++   returndatasize
+    swap 1
+    dup 1
+-   dup 3
++   returndatasize
+    pop
+    pop
+    pop
+    pop
+    pop
+    dup 1
+    pop
+    stop
+  

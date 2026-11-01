@@ -144,12 +144,7 @@ impl ScalarEvolution {
     #[must_use]
     pub(crate) fn analyze(func: &Function, loop_data: &Loop) -> Self {
         let mut analysis = Self::default();
-        let mut loop_insts = DenseBitSet::new_empty(func.num_insts());
-        for block_id in &loop_data.blocks {
-            for &inst_id in &func.blocks[block_id].instructions {
-                loop_insts.insert(inst_id);
-            }
-        }
+        let loop_insts = loop_data.instructions(func);
         let cx = LoopContext { func, loop_data, loop_insts: &loop_insts };
         for block_id in &loop_data.blocks {
             let block = &func.blocks[block_id];

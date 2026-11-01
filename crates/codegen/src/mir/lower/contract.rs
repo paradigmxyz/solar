@@ -1,20 +1,21 @@
 //! Contract-level lowering and function discovery.
 
 use super::{function, storage::StorageLayout};
+use solar_config::OptimizationMode;
 use solar_data_structures::{
     Never,
     map::{FxHashMap, FxHashSet, FxIndexSet},
 };
 use solar_interface::{ByteSymbol, Ident, kw, sym};
 use solar_sema::{
-    Gcx,
+    Gcx, InlineTag,
     eval::ConstValue,
     hir::{self, ContractId, Visit},
     ty::TyKind,
 };
 use std::ops::ControlFlow;
 
-use crate::mir::{Function, FunctionAttributes, FunctionBuilder, Module};
+use crate::mir::{Function, FunctionAttributes, FunctionBuilder, HirVariableId, Module};
 
 /// Builds a typed MIR module from one HIR contract.
 #[tracing::instrument(name = "mir_lowering", level = "debug", skip_all)]
@@ -22,6 +23,12 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
     let contract = gcx.hir.contract(contract_id);
     let mut module = Module::new(contract.name);
     module.set_unsafe_assembly(false);
+    // Every decision about the contract's code reads the objective its tag selects.
+    module.optimization = gcx
+        .sess
+        .opts
+        .optimization
+        .select(gcx.solar_tags(hir::ItemId::Contract(contract_id)).optimize);
     let storage = StorageLayout::for_contract(gcx, contract_id);
     let mut function_ids = Vec::new();
     let mut seen_selectors = FxHashSet::default();
@@ -131,7 +138,11 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
                 continue;
             }
             let Some(name) = variable.name else { continue };
-            let mir_id = module.add_immutable(name, state.immutable_layout(gcx, id), Some(id));
+            let mir_id = module.add_immutable(
+                name,
+                state.immutable_layout(gcx, id),
+                Some(HirVariableId::from_usize(id.index())),
+            );
             immutable_ids.insert(id, mir_id);
         }
     }
@@ -170,7 +181,7 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
         >= 2;
     for &(function_id, expose_selector) in &function_ids {
         let function = gcx.hir.function(function_id);
-        let mut declaration = declaration(gcx, function_id, function);
+        let mut declaration = declaration(gcx, function_id, function, module.optimization);
         if !expose_selector {
             declaration.selector = None;
         }
@@ -345,8 +356,10 @@ pub(super) fn declaration(
     gcx: Gcx<'_>,
     function_id: hir::FunctionId,
     function: &hir::Function<'_>,
+    contract_objective: OptimizationMode,
 ) -> Function {
     let name = Ident::with_dummy_span(function.name_or_kind());
+    let tags = gcx.solar_tags(hir::ItemId::Function(function_id));
     let mut mir = Function::new(name);
     mir.declaration_span = function.span;
     mir.debug_identifier = Some(name.name);
@@ -359,7 +372,11 @@ pub(super) fn declaration(
         is_receive: function.kind == hir::FunctionKind::Receive,
         may_return_memory: false,
         is_function_pointer_dispatcher: false,
-        no_inline: false,
+        no_inline: tags.inline == Some(InlineTag::Never),
+        always_inline: tags.inline == Some(InlineTag::Always),
+        inline_hint: tags.inline == Some(InlineTag::Hint),
+        // A tag naming the contract's own objective changes nothing.
+        optimization: tags.optimize.filter(|&objective| objective != contract_objective),
         array_element_bits: Default::default(),
         array_return_element_bits: None,
     };

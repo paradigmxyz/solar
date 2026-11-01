@@ -1,0 +1,115 @@
+//@compile-flags: -Zmir-pipeline=memory-dse
+//@filecheck:
+@module MemoryDseLowWords
+
+// A scratch word that a folded hash read is dead when what follows reads only heap memory: the
+// heap lies above the scratch space and the free memory pointer.
+// CHECK-LABEL: {{^[ +].*}}fn @heap_reads{{[( ]}}
+// CHECK: - mstore 0, arg0
+// CHECK: {{^[ +].*}}returndata
+fn @heap_reads(arg0: i256) {
+  bb0:
+    mstore 0, arg0
+    v0 = alloc 64
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = mload v1
+    mstore v1, v2
+    returndata v1, 64
+}
+
+// A read through a pointer of unknown origin may reach the scratch word.
+// CHECK-LABEL: {{^[ +].*}}fn @unknown_read{{[( ]}}
+// CHECK: {{^ +}}mstore 0, arg1
+fn @unknown_read(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    mstore 0, arg1
+    v0 = mload arg0
+    mstore 0, v0
+    stop
+}
+
+// A runtime index can wrap an element read around to low memory, as one past a length that
+// assembly forged does, so the read keeps every word.
+// CHECK-LABEL: {{^[ +].*}}fn @indexed_read{{[( ]}}
+// CHECK: {{^ +}}mstore 0, arg1
+fn @indexed_read(arg0: i256, arg1: i256) {
+  bb0:
+    mstore 0, arg1
+    v0 = alloc 64
+    v1 = ptradd v0, arg0
+    v2 = ptrtoint ptr<memory> v1 to i256
+    v3 = mload v2
+    mstore 0, v3
+    returndata 0, 32
+}
+
+// A fixed frame starts at or above the heap but omits the header its offsets include, so the
+// first frame word can sit at the heap start, where an absolute store may have written it.
+// CHECK-LABEL: {{^[ +].*}}fn @frame_read{{[( ]}}
+// CHECK: {{^ +}}mstore 128, arg0
+fn @frame_read(arg0: i256) {
+  bb0:
+    mstore 128, arg0
+    v0 = internal_frame_addr 64
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = mload v1
+    mstore 0, v2
+    returndata 0, 32
+}
+
+// Writes read nothing, so a store that a later one overwrites is dead across them.
+// CHECK-LABEL: {{^[ +].*}}fn @across_writes{{[( ]}}
+// CHECK: - mstore 0, arg0
+// CHECK: {{^ +}}mstore 0, arg1
+fn @across_writes(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    mstore 0, arg0
+    v0 = alloc 64
+    v1 = ptrtoint ptr<memory> v0 to i256
+    calldatacopy v1, 0, 64
+    mstore 0, arg1
+    v2 = keccak256 0, 32
+    ret v2
+}
+
+// A shared revert helper writes its payload before reading it, so nothing earlier is live at a
+// tail call or a call to it.
+// CHECK-LABEL: {{^[ +].*}}fn @tail_revert{{[( ]}}
+// CHECK: - mstore 0, arg0
+// CHECK: {{^ +}}tail_call @panic
+fn @tail_revert(arg0: i256) {
+  bb0:
+    mstore 0, arg0
+    tail_call @panic
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @call_revert{{[( ]}}
+// CHECK: - mstore 0, arg0
+// CHECK: {{^ +}}icall @panic
+fn @call_revert(arg0: i256) {
+  bb0:
+    mstore 0, arg0
+    icall @panic
+    invalid
+}
+
+// A callee that returns may hand the word back to the caller's caller.
+// CHECK-LABEL: {{^[ +].*}}fn @tail_returning{{[( ]}}
+// CHECK: {{^ +}}mstore 0, arg0
+fn @tail_returning(arg0: i256) {
+  bb0:
+    mstore 0, arg0
+    tail_call @returns
+}
+
+fn @panic() {
+  bb0:
+    mstore 0, 0x4e487b71
+    mstore 32, 50
+    revert 28, 36
+}
+
+fn @returns() {
+  bb0:
+    ret
+}

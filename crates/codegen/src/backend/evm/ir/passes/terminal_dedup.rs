@@ -27,7 +27,7 @@
 
 use super::{
     EvmPass,
-    cfg_simplify::is_direct_jump_label,
+    cfg_simplify::mark_addressed_blocks,
     utils::{MachineInstKey, is_terminal_boundary},
 };
 use crate::backend::evm::{
@@ -49,77 +49,61 @@ impl EvmPass for TerminalDedup {
         "terminal-dedup"
     }
 
-    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        deduplicate_terminals(gcx, module)
-    }
-}
-
-#[derive(Default)]
-struct RunState {
-    /// First body of each shape, bucketed by the hash of its instruction keys and terminator.
-    canonical: FxHashMap<u64, SmallVec<[BlockId; 1]>>,
-    redirects: Vec<(BlockId, BlockId)>,
-}
-
-fn deduplicate_terminals(_gcx: Gcx<'_>, module: &mut Module) -> bool {
-    let mut state = RunState::default();
-    let mut unshareable = DenseBitSet::new_empty(module.blocks.len());
-    unshareable.insert(BlockId::ENTRY);
-    for (id, block) in module.blocks.iter_enumerated() {
-        if let Some(next) = module.next_block(id)
-            && let Some(term) = &block.terminator
-            && matches!(term.kind, TerminatorKind::Jump(to) if to == next)
-        {
-            unshareable.insert(next);
-        }
-        if let Some(next) = module.next_block(id)
-            && let Some(term) = &block.terminator
-            && matches!(term.kind, TerminatorKind::JumpI { then_block, else_block }
-                if then_block == next || else_block == next)
-        {
-            unshareable.insert(next);
-        }
-        for (at, inst) in block.instructions.iter().enumerate() {
-            if !is_direct_jump_label(block, at)
-                && let Some(to) = inst.pushed_block()
-                && !module.blocks[to].metadata.is_continuation
+    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
+        // Blocks that other code reaches by fallthrough or by an observable address.
+        let mut unshareable = DenseBitSet::new_empty(module.blocks.len());
+        unshareable.insert(BlockId::ENTRY);
+        for (id, block) in module.blocks.iter_enumerated() {
+            if let Some(next) = module.next_block(id)
+                && let Some(term) = &block.terminator
+                && match term.kind {
+                    TerminatorKind::Jump(to) => to == next,
+                    TerminatorKind::JumpI { then_block, else_block } => {
+                        then_block == next || else_block == next
+                    }
+                    _ => false,
+                }
             {
-                unshareable.insert(to);
+                unshareable.insert(next);
             }
         }
-    }
-    for block_id in module.blocks.indices() {
-        let block = &module.blocks[block_id];
-        let redirectable = !unshareable.contains(block_id);
-        let Some(hash) = terminal_block_hash(block, redirectable) else { continue };
-        let bodies = state.canonical.entry(hash).or_default();
-        if let Some(&canonical) =
-            bodies.iter().find(|&&other| same_terminal_body(&module.blocks[other], block))
-        {
-            state.redirects.push((block_id, canonical));
-        } else {
-            bodies.push(block_id);
-        }
-    }
+        mark_addressed_blocks(module, None, &mut unshareable);
 
-    let changed = !state.redirects.is_empty();
-    state.redirects.sort_unstable_by_key(|&(block, target)| (target, block));
-    for group in state.redirects.chunk_by(|a, b| a.1 == b.1) {
-        merge_debug_origins(module, group);
-        for &(block, target) in group {
-            if !module.blocks[block].metadata.hotness.is_cold() {
-                module.blocks[target].metadata.hotness = Hotness::Hot;
+        // First body of each shape, bucketed by the hash of its instruction keys and terminator.
+        let mut canonical = FxHashMap::<u64, SmallVec<[BlockId; 1]>>::default();
+        let mut redirects = Vec::new();
+        for (block_id, block) in module.blocks.iter_enumerated() {
+            let Some(hash) = terminal_block_hash(block, !unshareable.contains(block_id)) else {
+                continue;
+            };
+            let bodies = canonical.entry(hash).or_default();
+            if let Some(&target) =
+                bodies.iter().find(|&&other| same_terminal_body(&module.blocks[other], block))
+            {
+                redirects.push((block_id, target));
+            } else {
+                bodies.push(block_id);
             }
-            module.blocks[target].metadata.in_loop |= module.blocks[block].metadata.in_loop;
-            module.blocks[target].metadata.repeats |= module.blocks[block].metadata.repeats;
-            // duplicate terminal body -> jump canonical body
-            module.blocks[block].instructions.clear();
-            let mut terminator = Terminator::new(TerminatorKind::Jump(target));
-            terminator.metadata.mark_debug_info_dropped();
-            module.blocks[block].terminator = Some(terminator);
         }
+
+        redirects.sort_unstable_by_key(|&(block, target)| (target, block));
+        for group in redirects.chunk_by(|a, b| a.1 == b.1) {
+            merge_debug_origins(module, group);
+            for &(block, target) in group {
+                if !module.blocks[block].metadata.hotness.is_cold() {
+                    module.blocks[target].metadata.hotness = Hotness::Hot;
+                }
+                module.blocks[target].metadata.in_loop |= module.blocks[block].metadata.in_loop;
+                module.blocks[target].metadata.repeats |= module.blocks[block].metadata.repeats;
+                // duplicate terminal body -> jump canonical body
+                module.blocks[block].instructions.clear();
+                let mut terminator = Terminator::new(TerminatorKind::Jump(target));
+                terminator.metadata.mark_debug_info_dropped();
+                module.blocks[block].terminator = Some(terminator);
+            }
+        }
+        !redirects.is_empty()
     }
-    changed
 }
 
 fn merge_debug_origins(module: &mut Module, redirects: &[(BlockId, BlockId)]) {
@@ -168,19 +152,38 @@ fn same_terminal_body(a: &Block, b: &Block) -> bool {
             == b.terminator.as_ref().map(|term| &term.kind)
 }
 
-/// Whether blocks `a` and `b` are halting blocks with identical bodies, which run the same code.
-pub(super) fn equal_terminal_bodies(module: &Module, a: BlockId, b: BlockId) -> bool {
-    let (a, b) = (&module.blocks[a], &module.blocks[b]);
-    a.terminator.as_ref().is_some_and(|term| is_terminal_boundary(&term.kind))
-        && same_terminal_body(a, b)
-}
-
-/// Makes the terminal block `target` stand for its equal `copy`, whose paths now run it: it takes
-/// the copy's hotness and loop membership, and debug origins merge as when the copy is shared.
-pub(super) fn absorb_terminal_copy(module: &mut Module, copy: BlockId, target: BlockId) {
+/// Folds `copy` into `target` when both reach, directly or through empty jumps, distinct halting
+/// blocks with identical bodies. The block `target` reaches takes the copy's hotness and loop
+/// membership, and debug origins merge as when the copy is shared. Returns whether it folded.
+pub(super) fn absorb_equal_terminal(module: &mut Module, copy: BlockId, target: BlockId) -> bool {
+    let (copy, target) = (through_empty_jumps(module, copy), through_empty_jumps(module, target));
+    let (a, b) = (&module.blocks[copy], &module.blocks[target]);
+    if copy == target
+        || !a.terminator.as_ref().is_some_and(|term| is_terminal_boundary(&term.kind))
+        || !same_terminal_body(a, b)
+    {
+        return false;
+    }
     merge_debug_origins(module, &[(copy, target)]);
     if !module.blocks[copy].metadata.hotness.is_cold() {
         module.blocks[target].metadata.hotness = Hotness::Hot;
     }
     module.blocks[target].metadata.in_loop |= module.blocks[copy].metadata.in_loop;
+    true
+}
+
+/// The block that `block` leads to through empty blocks that only jump on.
+fn through_empty_jumps(module: &Module, block: BlockId) -> BlockId {
+    let mut target = block;
+    for _ in 0..module.blocks.len() {
+        let next = &module.blocks[target];
+        let Some(Terminator { kind: TerminatorKind::Jump(to), .. }) = &next.terminator else {
+            break;
+        };
+        if !next.instructions.is_empty() || *to == block {
+            break;
+        }
+        target = *to;
+    }
+    target
 }
