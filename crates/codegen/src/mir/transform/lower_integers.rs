@@ -44,6 +44,14 @@ impl MirPass for LowerIntegers {
         module: &mut Module,
         analyses: &mut ModuleAnalyses,
     ) -> bool {
+        if module.has_struct_values() {
+            analyses.fail(
+                gcx.dcx()
+                    .err("`lower-integers` requires scalar structs; run `lower-structs` first")
+                    .emit(),
+            );
+            return false;
+        }
         let unsupported =
             |ty: MirType| ty.integer_bits().is_some_and(|bits| !MirType::valid_integer_width(bits));
         if module.functions.iter().any(|func| {
