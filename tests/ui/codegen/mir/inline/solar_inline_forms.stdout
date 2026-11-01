@@ -1,31 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/inline/solar_inline_forms.sol:C ===
 @module C
 @phase lowered
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = calldatasize
-    v2 = lt v1, 68
-    v3 = zext i1 v2 to i256
-    v4 = or v0, v3
-    v5 = ne v4, 0
-    jumpi v5, bb1, bb2
-  bb2:
-    v6 = calldataload 0
-    v7 = shr v6, 224
-    switch v7, default bb1, [0x13d1aa2e => bb3, 0x1cd65ae4 => bb4, 0xa61510ae => bb5, 0xf559d781 => bb6]
-  bb6:
-    tail_call @i
-  bb5:
-    tail_call @h
-  bb4:
-    tail_call @g
-  bb3:
-    tail_call @f
-  bb1 [cold]:
-    revert 0, 0
-}
-
 fn @plain(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v4 = mul arg0, 31
@@ -170,4 +145,29 @@ fn @i() {
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 68
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0x13d1aa2e => bb3, 0x1cd65ae4 => bb4, 0xa61510ae => bb5, 0xf559d781 => bb6]
+  bb6:
+    tail_call @i
+  bb5:
+    tail_call @h
+  bb4:
+    tail_call @g
+  bb3:
+    tail_call @f
+  bb1 [cold]:
+    revert 0, 0
 }

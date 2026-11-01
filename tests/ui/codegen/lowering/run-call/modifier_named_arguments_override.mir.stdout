@@ -34,11 +34,6 @@ fn @positional() -> i256 [selector=0x8a0495cd, abi_params=[], abi_returns=[word]
 
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_named_arguments_override.sol:Derived ===
 @module Derived
-fn @constructor() [constructor] {
-  bb0:
-    ret
-}
-
 fn @r() -> i256 [selector=0x6c8ae38c, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -69,4 +64,9 @@ fn @positional() -> i256 [selector=0x8a0495cd, abi_params=[], abi_returns=[word]
     jump bb1
   bb1:
     ret v2
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    ret
 }

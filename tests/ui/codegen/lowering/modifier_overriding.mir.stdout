@@ -11,11 +11,6 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
 
 // === ROOT/tests/ui/codegen/lowering/modifier_overriding.sol:C ===
 @module C
-fn @constructor() [constructor] {
-  bb0:
-    ret
-}
-
 fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     jumpi false, bb2, bb3
@@ -30,4 +25,9 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     jump bb1
   bb1:
     ret v0
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    ret
 }

@@ -278,6 +278,12 @@ fn @multiReturn() -> i8 [selector=0xfeb8bba3, abi_params=[], abi_returns=[word<u
 @immutables
   value: uint8
 
+fn @value() -> i8 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
+  bb0:
+    v0 = loadimmutable value
+    ret v0
+}
+
 fn @constructor() [constructor] {
   bb0:
     v0 = icall @pair
@@ -285,12 +291,6 @@ fn @constructor() [constructor] {
     v2 = extract_value struct0, v0, 1
     storeimmutable value, v2
     ret
-}
-
-fn @value() -> i8 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
-  bb0:
-    v0 = loadimmutable value
-    ret v0
 }
 
 fn @pair() -> struct0 [pure] {

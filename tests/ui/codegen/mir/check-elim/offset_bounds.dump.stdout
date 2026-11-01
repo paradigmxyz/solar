@@ -1,21 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/check-elim/offset_bounds.sol:OffsetBounds ===
 @module OffsetBounds
 @phase lowered
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb3, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb3, [0xf4f1833d => bb2]
-  bb2:
-    tail_call @copyHigh
-  bb3 [cold]:
-    revert 0, 0
-}
-
 fn @copyHigh() {
   bb0:
     v0 = calldatasize
@@ -80,4 +65,19 @@ fn @copyHigh() {
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0xf4f1833d => bb2]
+  bb2:
+    tail_call @copyHigh
+  bb3 [cold]:
+    revert 0, 0
 }

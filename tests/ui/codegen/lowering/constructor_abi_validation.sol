@@ -2,6 +2,15 @@
 //@filecheck:
 
 contract ConstructorAbiValidation {
+    // CHECK-LABEL: fn @flag{{[( ]}}
+    // CHECK: trunc i256 {{v[0-9]+}} to i8
+    bool public flag;
+
+    // CHECK-LABEL: fn @second{{[( ]}}
+    // CHECK: shr {{[^ ,]+}}, 8{{$}}
+    // CHECK: trunc i256 {{v[0-9]+}} to i8
+    bool public second;
+
     // CHECK-LABEL: fn @constructor{{[( ]}}
     // CHECK: zext i1 arg0 to i256
     // CHECK: [[ARG1_32:v[0-9]+]] = ptradd arg1, 32
@@ -11,13 +20,4 @@ contract ConstructorAbiValidation {
         flag = flag_;
         second = flags[1];
     }
-
-    // CHECK-LABEL: fn @flag{{[( ]}}
-    // CHECK: trunc i256 {{v[0-9]+}} to i8
-    bool public flag;
-
-    // CHECK-LABEL: fn @second{{[( ]}}
-    // CHECK: shr {{[^ ,]+}}, 8{{$}}
-    // CHECK: trunc i256 {{v[0-9]+}} to i8
-    bool public second;
 }

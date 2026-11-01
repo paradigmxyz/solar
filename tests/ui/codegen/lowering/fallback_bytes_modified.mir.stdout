@@ -1,5 +1,17 @@
 // === ROOT/tests/ui/codegen/lowering/fallback_bytes_modified.sol:ModifiedFallbackBytes ===
 @module ModifiedFallbackBytes
+fn @invoke(arg0: i256, arg1: i256) -> ptr<memory> [selector=0x33298e25, abi_params=[uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [word, word], object, args arg0, arg1
+    v3 = address_call v0, v2, gas v1
+    v4 = icall returndata_bytes<>
+    v5 = eq v3, false
+    icall revert_if<empty>, v5
+    ret v4
+}
+
 fn @fallback(arg0: slice<calldata>) -> ptr<memory> [fallback] {
   bb0:
     v0 = calldataload 0
@@ -39,16 +51,4 @@ fn @fallback(arg0: slice<calldata>) -> ptr<memory> [fallback] {
     v24 = extract_value slice<calldata>, v8, 1
     calldatacopy v22, v23, v24
     ret v14
-}
-
-fn @invoke(arg0: i256, arg1: i256) -> ptr<memory> [selector=0x33298e25, abi_params=[uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
-  bb0:
-    v0 = address
-    v1 = gas
-    v2 = abi_encode [word, word], object, args arg0, arg1
-    v3 = address_call v0, v2, gas v1
-    v4 = icall returndata_bytes<>
-    v5 = eq v3, false
-    icall revert_if<empty>, v5
-    ret v4
 }

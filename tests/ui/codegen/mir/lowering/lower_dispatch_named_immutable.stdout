@@ -5,6 +5,11 @@
     library_deploy_address: address
   
 - fn @write() [selector=0x00000002, abi_wrapper] {
++ fn @write() {
+    bb0:
+      stop
++ }
++ 
 + fn @entry() [entry] {
 +   bb0:
 +     v0 = callvalue
@@ -18,10 +23,5 @@
 +     tail_call @write
 +   bb3 [cold]:
 +     revert 0, 0
-+ }
-+ 
-+ fn @write() {
-    bb0:
-      stop
   }
   

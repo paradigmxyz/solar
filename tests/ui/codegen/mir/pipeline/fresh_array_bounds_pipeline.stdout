@@ -1,11 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/pipeline/fresh_array_bounds_pipeline.mir (after pipeline-default) ===
 @module FreshArrayBoundsPipeline
 @phase lowered
-fn @entry() [entry, cold] {
-  bb0 [cold]:
-    revert 0, 0
-}
-
 fn @constant_index() -> i256 {
   bb0:
     v0 = mload 64
@@ -43,4 +38,9 @@ fn @runtime_index(arg0: i256) -> i256 {
     revert 0, 36
   bb2:
     ret 7
+}
+
+fn @entry() [entry, cold] {
+  bb0 [cold]:
+    revert 0, 0
 }

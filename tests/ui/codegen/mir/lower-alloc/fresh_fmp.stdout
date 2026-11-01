@@ -1,47 +1,6 @@
 - // === ROOT/tests/ui/codegen/mir/lower-alloc/fresh_fmp.mir (before lower-alloc) ===
 + // === ROOT/tests/ui/codegen/mir/lower-alloc/fresh_fmp.mir (after lower-alloc) ===
   @module FreshFmp
-  fn @entry() -> i256 [entry] {
-    bb0:
--     v0 = fmp
-+     v3 = mload 64 !metadata(memory=scratch, alloc_ptr)
-+     v0 = inttoptr i256 v3 to ptr<memory> !metadata(memory=scratch)
-      v1 = ptrtoint ptr<memory> v0 to i256
-      mstore v1, 1
-      v2 = calldataload 0
-      switch v2, default bb1, [1 => bb2, 2 => bb3, 3 => bb4, 4 => bb5, 5 => bb6, 6 => bb7, 7 => bb8, 8 => bb9, 9 => bb10, 10 => bb11, 11 => bb12, 12 => bb13, 13 => bb14, 14 => bb15]
-    bb15:
-      tail_call @other_checked, 0
-    bb14:
-      tail_call @checked_pair, 0
-    bb13:
-      tail_call @read_after_deferred
-    bb12:
-      tail_call @loop_reads, 0
-    bb11:
-      tail_call @calls_recursive
-    bb10:
-      tail_call @shared_late
-    bb9:
-      tail_call @shared_early
-    bb8:
-      tail_call @read_after_allocating_call
-    bb7:
-      tail_call @tail_calls
-    bb6:
-      tail_call @calls_leaf
-    bb5:
-      tail_call @read_after_unknown_store, 0
-    bb4:
-      tail_call @read_after_slot_store
-    bb3:
-      tail_call @read_after_alloc
-    bb2:
-      tail_call @entry_reads
-    bb1:
-      tail_call @dispatched
-  }
-  
   fn @entry_reads() -> i256 {
     bb0:
 -     v0 = fmp
@@ -291,6 +250,47 @@
       v1 = ptrtoint ptr<memory> v0 to i256
       mstore v1, 1
       stop
+  }
+  
+  fn @entry() -> i256 [entry] {
+    bb0:
+-     v0 = fmp
++     v3 = mload 64 !metadata(memory=scratch, alloc_ptr)
++     v0 = inttoptr i256 v3 to ptr<memory> !metadata(memory=scratch)
+      v1 = ptrtoint ptr<memory> v0 to i256
+      mstore v1, 1
+      v2 = calldataload 0
+      switch v2, default bb1, [1 => bb2, 2 => bb3, 3 => bb4, 4 => bb5, 5 => bb6, 6 => bb7, 7 => bb8, 8 => bb9, 9 => bb10, 10 => bb11, 11 => bb12, 12 => bb13, 13 => bb14, 14 => bb15]
+    bb15:
+      tail_call @other_checked, 0
+    bb14:
+      tail_call @checked_pair, 0
+    bb13:
+      tail_call @read_after_deferred
+    bb12:
+      tail_call @loop_reads, 0
+    bb11:
+      tail_call @calls_recursive
+    bb10:
+      tail_call @shared_late
+    bb9:
+      tail_call @shared_early
+    bb8:
+      tail_call @read_after_allocating_call
+    bb7:
+      tail_call @tail_calls
+    bb6:
+      tail_call @calls_leaf
+    bb5:
+      tail_call @read_after_unknown_store, 0
+    bb4:
+      tail_call @read_after_slot_store
+    bb3:
+      tail_call @read_after_alloc
+    bb2:
+      tail_call @entry_reads
+    bb1:
+      tail_call @dispatched
 + }
 + 
 + fn @alloc(arg0: i256) -> ptr<memory> {

@@ -1,13 +1,13 @@
 // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after pipeline-default) ===
 @module Pipeline
 @phase lowered
-fn @entry() [entry, cold] {
-  bb0 [cold]:
-    revert 0, 0
-}
-
 fn @noisy(arg0: i256) -> i256 {
   bb0:
     v0 = add arg0, 1
     ret v0
+}
+
+fn @entry() [entry, cold] {
+  bb0 [cold]:
+    revert 0, 0
 }

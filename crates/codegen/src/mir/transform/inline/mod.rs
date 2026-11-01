@@ -21,10 +21,8 @@
 //!
 //! After memory lowering, frame allocation and multi-word return staging cannot
 //! be introduced again. At this stage the pass also partially clones returning
-//! guards in loops and moves eligible external wrappers into the dispatcher.
-//! Guard cloning uses the same cost comparison but retains the slow-path call. A
-//! dispatcher move needs no comparison, since it only removes call protocol and
-//! preserves each external exit.
+//! guards in loops. Guard cloning uses the same cost comparison but retains the
+//! slow-path call.
 //!
 //! Profitability compares the call protocol a clone removes, weighted by expected
 //! executions and, for statically counted loops, by iteration count, with the
@@ -90,7 +88,6 @@ use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMa
 use solar_sema::Gcx;
 
 mod all_sites;
-mod dispatch;
 mod guards;
 mod shared_runs;
 
@@ -150,10 +147,6 @@ impl MirPass for Inline {
         let mut edited_later = false;
         if physical && !tagged_only {
             edited_later = guards::inline_guards(gcx, module);
-            if !target.optimization().is_none() && dispatch::inline_dispatch(module) {
-                let _ = super::cfg_simplify::FunctionDce.run_pass(gcx, module, analyses);
-                edited_later = true;
-            }
         }
         if !edited_later {
             analyses.preserve_local_summaries();
@@ -2032,26 +2025,6 @@ fn inline_literal_call(
     Some(())
 }
 
-/// Splices an externally terminating wrapper into one dispatcher route.
-/// The caller owns rollback if cloning fails; eligibility and frame exclusion
-/// are checked by the dispatcher pass before any module mutation.
-pub(super) fn inline_dispatch_route(
-    caller: &mut Function,
-    block: BlockId,
-    callee: &Function,
-) -> Option<()> {
-    let mut cloner = InlineCloner::new(caller, callee, 0, 0, Box::default());
-    cloner.external_exit = true;
-    let entry = cloner.clone_blocks(BlockId::ENTRY)?;
-    // tail_call @wrapper => jump cloned_entry
-    // cloned exits retain returndata/revert/stop rather than returning to a caller
-    // NOTE: The wrapper call boundary disappears; its source checkpoint cannot
-    // describe this generated jump. Cloned body instructions keep their origins.
-    cloner.caller.blocks[block].set_generated_terminator(Terminator::Jump(entry));
-    rebuild_predecessors(cloner.caller);
-    Some(())
-}
-
 struct InlineCloner<'a> {
     caller: &'a mut Function,
     callee: &'a Function,
@@ -2061,7 +2034,6 @@ struct InlineCloner<'a> {
     value_map: FxHashMap<ValueId, ValueId>,
     block_map: IndexVec<BlockId, BlockId>,
     return_edges: Vec<(BlockId, SmallVec<[ValueId; 2]>)>,
-    external_exit: bool,
 }
 
 impl<'a> InlineCloner<'a> {
@@ -2081,7 +2053,6 @@ impl<'a> InlineCloner<'a> {
             value_map: FxHashMap::default(),
             block_map: IndexVec::with_capacity(callee.blocks.len()),
             return_edges: Vec::new(),
-            external_exit: false,
         }
     }
 
@@ -2198,17 +2169,6 @@ impl<'a> InlineCloner<'a> {
                     })
                     .collect::<Option<Vec<_>>>()?,
             },
-            // returndata offset, size => returndata cloned(offset), cloned(size)
-            Terminator::ReturnData { offset, size } if self.external_exit => {
-                Terminator::ReturnData {
-                    offset: self.clone_value(*offset)?,
-                    size: self.clone_value(*size)?,
-                }
-            }
-            Terminator::Stop if self.external_exit => Terminator::Stop,
-            Terminator::Return { values } if self.external_exit && values.is_empty() => {
-                Terminator::Stop
-            }
             Terminator::Return { values } => {
                 let mapped = values
                     .iter()

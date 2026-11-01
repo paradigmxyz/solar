@@ -4,6 +4,12 @@
   struct0: {i256, i256}
   struct1: {i8, i256}
 
+fn @seal() -> i256 [selector=0x3fb27b85, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
 fn @constructor() [constructor] {
   bb0:
     v0 = callvalue
@@ -13,12 +19,6 @@ fn @constructor() [constructor] {
     v1 = keccak256 0, 96 !metadata(memory=scratch)
     sstore 0, v1 !metadata(storage=slot(0))
     ret
-}
-
-fn @seal() -> i256 [selector=0x3fb27b85, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
 }
 
 fn @resetHeap(arg0: i256, arg1: i256) -> i256 [selector=0x68dd8af4, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {

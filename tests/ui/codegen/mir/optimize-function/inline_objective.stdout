@@ -1,27 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/optimize-function/inline_objective.sol:Inlined ===
 @module Inlined
 @phase lowered
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = calldatasize
-    v2 = lt v1, 36
-    v3 = zext i1 v2 to i256
-    v4 = or v0, v3
-    v5 = ne v4, 0
-    jumpi v5, bb1, bb2
-  bb2:
-    v6 = calldataload 0
-    v7 = shr v6, 224
-    switch v7, default bb1, [0x3dd81fa2 => bb3, 0x955e9bc9 => bb4]
-  bb4:
-    tail_call @sizeCaller
-  bb3:
-    tail_call @gasCaller
-  bb1 [cold]:
-    revert 0, 0
-}
-
 fn @gasCaller() {
   bb0:
     v42 = icall @decode_calldata_slice
@@ -119,6 +98,27 @@ fn @decode_calldata_slice() -> i256 {
     jumpi v10, bb1, bb2
   bb2:
     ret v2
+  bb1 [cold]:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0x3dd81fa2 => bb3, 0x955e9bc9 => bb4]
+  bb4:
+    tail_call @sizeCaller
+  bb3:
+    tail_call @gasCaller
   bb1 [cold]:
     revert 0, 0
 }

@@ -6,11 +6,6 @@
 @types
   struct0: {i256, i256}
 
-fn @constructor() [constructor] {
-  bb0:
-    ret
-}
-
 fn @qualified() -> struct0 [selector=0xf25be4f2, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     sstore 0, 2 !metadata(storage=slot(0))
@@ -35,4 +30,9 @@ fn @virtualDispatch() -> struct0 [selector=0x9996f134, abi_params=[], abi_return
     v1 = insert_value struct0, undef struct0, 0, 10
     v2 = insert_value struct0, v1, 1, v0
     ret v2
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    ret
 }

@@ -1,33 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/storage-dse/transient.sol:TransientDse ===
 @module TransientDse
 @phase lowered
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb9, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb9, [0x14ee0c6f => bb2, 0x15bda24f => bb3, 0x49571f93 => bb4, 0x57de26a4 => bb5, 0x7d8540f9 => bb6, 0x820f45ad => bb7, 0x888a9e3c => bb8]
-  bb8:
-    tail_call @afterReturn
-  bb7:
-    tail_call @overwritten
-  bb6:
-    tail_call @reentrant
-  bb5:
-    tail_call @read
-  bb4 [cold]:
-    tail_call @dropped
-  bb3:
-    tail_call @clearedAfterCall
-  bb2:
-    tail_call @readU
-  bb9 [cold]:
-    revert 0, 0
-}
-
 fn @overwritten() {
   bb0:
     v3 = calldatasize
@@ -183,4 +156,31 @@ fn @readU() {
     v0 = tload 1
     mstore 0, v0 !metadata(memory=scratch)
     returndata 0, 32
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb9, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb9, [0x14ee0c6f => bb2, 0x15bda24f => bb3, 0x49571f93 => bb4, 0x57de26a4 => bb5, 0x7d8540f9 => bb6, 0x820f45ad => bb7, 0x888a9e3c => bb8]
+  bb8:
+    tail_call @afterReturn
+  bb7:
+    tail_call @overwritten
+  bb6:
+    tail_call @reentrant
+  bb5:
+    tail_call @read
+  bb4 [cold]:
+    tail_call @dropped
+  bb3:
+    tail_call @clearedAfterCall
+  bb2:
+    tail_call @readU
+  bb9 [cold]:
+    revert 0, 0
 }

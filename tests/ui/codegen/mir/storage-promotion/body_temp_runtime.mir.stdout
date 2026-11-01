@@ -1,10 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/storage-promotion/body_temp_runtime.sol:BodyTemp ===
 @module BodyTemp
-fn @fallback() [fallback] {
-  bb0:
-    ret
-}
-
 fn @f(arg0: i256) -> i256 [selector=0xb3de648b, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
@@ -57,4 +52,9 @@ fn @h(arg0: i256) -> i256 [selector=0xcb97492a, abi_params=[uint256], abi_return
     v0 = icall @f, arg0
     v1 = checked_mul uint256, v0, 3
     ret v1
+}
+
+fn @fallback() [fallback] {
+  bb0:
+    ret
 }

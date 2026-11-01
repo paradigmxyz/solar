@@ -3,6 +3,16 @@
 @types
   struct0: {i256, i256}
 
+fn @firstTarget() -> i256 [pure] {
+  bb0:
+    ret 1
+}
+
+fn @secondTarget() -> i256 [pure] {
+  bb0:
+    ret 2
+}
+
 fn @constructor() [constructor] {
   bb0:
     v0 = lt 0, 2
@@ -74,16 +84,6 @@ fn @constructor() [constructor] {
     v55 = or v52, v54
     sstore v48, v55 !metadata(storage=slot(0))
     ret
-}
-
-fn @firstTarget() -> i256 [pure] {
-  bb0:
-    ret 1
-}
-
-fn @secondTarget() -> i256 [pure] {
-  bb0:
-    ret 2
 }
 
 fn @read() -> struct0 [selector=0x57de26a4, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {

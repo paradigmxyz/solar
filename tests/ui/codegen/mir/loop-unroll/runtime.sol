@@ -38,21 +38,20 @@
 // Gas builds run these loops' bodies twice per test of their bound. The
 // overflows that `guarded` reports happen in the second copy, the first copy,
 // and the original loop.
-// CHECK-LABEL: fn @entry()
-// The dispatcher orders the bodies `stepped`, `range`, `guarded`, `squares`
-// and `sum`. `stepped` starts at five and steps by three, four copies at a
-// time.
+// `sum` counts from zero while `i < n`, and tests `i + 3 < n` once per four copies.
+// CHECK-LABEL: fn @sum()
+// CHECK: {{v[0-9]+}} = phi [{{bb[0-9]+}}: 0], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
+// CHECK-NEXT: [[L:v[0-9]+]] = phi
+// CHECK: [[L_AHEAD:v[0-9]+]] = add [[L]], 3
+// CHECK-NEXT: {{v[0-9]+}} = lt [[L_AHEAD]], {{v[0-9]+}}
+// CHECK: phi [{{bb[0-9]+}}: [[L]]]
+// `stepped` starts at five and steps by three, four copies at a time.
+// CHECK-LABEL: fn @stepped()
 // CHECK: [[I:v[0-9]+]] = phi [{{bb[0-9]+}}: 5], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
 // CHECK: [[I_AHEAD:v[0-9]+]] = add [[I]], 9
 // CHECK-NEXT: {{v[0-9]+}} = lt [[I_AHEAD]], {{v[0-9]+}}
 // CHECK: phi [{{bb[0-9]+}}: [[I]]]
-// `range` runs while `i <= end` from any start, so its main loop tests
-// `i < end` without an addition, two copies at a time.
-// CHECK: lt {{v[0-9]+}}, 68
-// CHECK: {{v[0-9]+}} = phi [{{bb[0-9]+}}: 0], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
-// CHECK-NEXT: [[R:v[0-9]+]] = phi
-// CHECK-NEXT: {{v[0-9]+}} = lt [[R]], {{v[0-9]+}}
-// CHECK: phi [{{bb[0-9]+}}: [[R]]]
+// CHECK-LABEL: fn @guarded()
 // CHECK: {{v[0-9]+}} = phi [{{bb[0-9]+}}: 0], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
 // CHECK-NEXT: [[J:v[0-9]+]] = phi
 // CHECK: [[J_AHEAD:v[0-9]+]] = add [[J]], 3
@@ -60,15 +59,19 @@
 // CHECK: phi [{{bb[0-9]+}}: [[J]]]
 // `squares` counts from one while `i <= n`, and at these runs four copies that
 // add to the counter first pay more than two testing `i < n`.
+// CHECK-LABEL: fn @squares()
 // CHECK: [[K:v[0-9]+]] = phi [{{bb[0-9]+}}: 1], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
 // CHECK-NEXT: [[K_AHEAD:v[0-9]+]] = add [[K]], 3
 // CHECK-NEXT: {{v[0-9]+}} = gt [[K_AHEAD]], {{v[0-9]+}}
 // CHECK: phi [{{bb[0-9]+}}: [[K]]]
+// `range` runs while `i <= end` from any start, so its main loop tests
+// `i < end` without an addition, two copies at a time.
+// CHECK-LABEL: fn @range()
+// CHECK: lt {{v[0-9]+}}, 68
 // CHECK: {{v[0-9]+}} = phi [{{bb[0-9]+}}: 0], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
-// CHECK-NEXT: [[L:v[0-9]+]] = phi
-// CHECK: [[L_AHEAD:v[0-9]+]] = add [[L]], 3
-// CHECK-NEXT: {{v[0-9]+}} = lt [[L_AHEAD]], {{v[0-9]+}}
-// CHECK: phi [{{bb[0-9]+}}: [[L]]]
+// CHECK-NEXT: [[R:v[0-9]+]] = phi
+// CHECK-NEXT: {{v[0-9]+}} = lt [[R]], {{v[0-9]+}}
+// CHECK: phi [{{bb[0-9]+}}: [[R]]]
 contract LoopUnroll {
     function sum(uint256 n) external pure returns (uint256 s) {
         for (uint256 i; i < n; ++i) s += i * 3 + 1;

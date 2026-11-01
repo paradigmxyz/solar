@@ -2,8 +2,6 @@
 //@ filecheck:
 
 contract FunctionPointerSignatures {
-    // CHECK-LABEL: fn @constructor(
-    // CHECK: sstore 0,
     bool flag;
     function() internal stateFn = setFlag;
 
@@ -70,4 +68,6 @@ contract FunctionPointerSignatures {
     // CHECK: fn @[[DISPATCHER_2]](
     // CHECK: eq arg0, 7
     // CHECK: icall @sum, arg1, arg2
+    // CHECK-LABEL: fn @constructor(
+    // CHECK: sstore 0,
 }

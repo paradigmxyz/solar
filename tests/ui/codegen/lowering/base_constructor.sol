@@ -2,15 +2,15 @@
 //@filecheck:
 
 contract Base {
+    // CHECK-LABEL: fn @value{{[( ]}}
+    // CHECK: {{v[0-9]+}} = sload 0
+    uint256 public value;
+
     // CHECK-LABEL: fn @constructor{{[( ]}}
     // CHECK: sstore 0, arg0
     constructor(uint256 initialValue) {
         value = initialValue;
     }
-
-    // CHECK-LABEL: fn @value{{[( ]}}
-    // CHECK: {{v[0-9]+}} = sload 0
-    uint256 public value;
 }
 
 contract Derived is Base {

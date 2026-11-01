@@ -3,11 +3,6 @@
 @types
   struct0: {i256, i256}
 
-fn @receive() [receive, payable] {
-  bb0:
-    ret
-}
-
 fn @references() -> struct0 [selector=0x6d8a3fd9, payable, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = address
@@ -61,6 +56,11 @@ fn @storageReferences() [selector=0x755532a7, view, abi_params=[], abi_returns=[
     icall panic_if<0x32>, v2
     v3 = storage_array_data_slot 1
     v4 = add v3, 0
+    ret
+}
+
+fn @receive() [receive, payable] {
+  bb0:
     ret
 }
 

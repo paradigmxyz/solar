@@ -1,6 +1,41 @@
 - // === ROOT/tests/ui/codegen/mir/lower-mcopy/helper_eligibility.mir (before lower-mcopy) ===
 + // === ROOT/tests/ui/codegen/mir/lower-mcopy/helper_eligibility.mir (after lower-mcopy) ===
   @module CopyHelperEligibility
+  fn @unknown_pointers(arg0: i256, arg1: i256, arg2: i256) {
+    bb0:
+-     mcopy arg0, arg1, arg2
+-     mcopy arg1, arg0, arg2
+-     mcopy arg0, arg1, arg2
++     icall @mcopy_words, arg0, arg1, arg2
++     icall @mcopy_words, arg1, arg0, arg2
++     icall @mcopy_words, arg0, arg1, arg2
+      ret
+  }
+  
+  fn @scratch() {
+    bb0:
+-     mcopy 0, 64, 64
++     icall @mcopy_words, 0, 64, 64
+      ret
+  }
+  
+  fn @allocation_or_constant(arg0: i256, arg1: i256, arg2: i256) {
+    bb0:
+      v0 = ne arg0, 0
+      jumpi v0, bb1, bb2
+    bb2:
+      jump bb3
+    bb1:
+      v1 = alloc 64
+      v2 = ptrtoint ptr<memory> v1 to i256
+      jump bb3
+    bb3:
+      v3 = phi [bb1: v2], [bb2: 128]
+-     mcopy v3, arg1, arg2
++     icall @mcopy_words, v3, arg1, arg2
+      ret
+  }
+  
   fn @constructor(arg0: i256, arg1: i256, arg2: i256) [constructor] {
     bb0:
 -     mcopy arg0, arg1, arg2
@@ -72,41 +107,6 @@
 +     mstore v39, v38
 +     jump bb9
 +   bb1:
-      ret
-  }
-  
-  fn @unknown_pointers(arg0: i256, arg1: i256, arg2: i256) {
-    bb0:
--     mcopy arg0, arg1, arg2
--     mcopy arg1, arg0, arg2
--     mcopy arg0, arg1, arg2
-+     icall @mcopy_words, arg0, arg1, arg2
-+     icall @mcopy_words, arg1, arg0, arg2
-+     icall @mcopy_words, arg0, arg1, arg2
-      ret
-  }
-  
-  fn @scratch() {
-    bb0:
--     mcopy 0, 64, 64
-+     icall @mcopy_words, 0, 64, 64
-      ret
-  }
-  
-  fn @allocation_or_constant(arg0: i256, arg1: i256, arg2: i256) {
-    bb0:
-      v0 = ne arg0, 0
-      jumpi v0, bb1, bb2
-    bb2:
-      jump bb3
-    bb1:
-      v1 = alloc 64
-      v2 = ptrtoint ptr<memory> v1 to i256
-      jump bb3
-    bb3:
-      v3 = phi [bb1: v2], [bb2: 128]
--     mcopy v3, arg1, arg2
-+     icall @mcopy_words, v3, arg1, arg2
       ret
   }
   

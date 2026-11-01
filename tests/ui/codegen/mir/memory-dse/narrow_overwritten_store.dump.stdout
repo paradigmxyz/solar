@@ -4,29 +4,6 @@
 @types
   struct0: {i256, i256}
 
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb7, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb7, [0x227e2968 => bb2, 0x41d012fd => bb3, 0x8c0dcc20 => bb4, 0xcdd7e94c => bb5, 0xe99643f7 => bb6]
-  bb6:
-    tail_call @hashU8
-  bb5:
-    tail_call @hashWide
-  bb4:
-    tail_call @tailRead
-  bb3:
-    tail_call @literal
-  bb2:
-    tail_call @hashConst
-  bb7 [cold]:
-    revert 0, 0
-}
-
 fn @hashU8() {
   bb0:
     v6 = calldataload 4
@@ -112,5 +89,28 @@ fn @literal() {
     mstore 160, v2
     returndata 128, 64
   bb1 [cold]:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb7, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb7, [0x227e2968 => bb2, 0x41d012fd => bb3, 0x8c0dcc20 => bb4, 0xcdd7e94c => bb5, 0xe99643f7 => bb6]
+  bb6:
+    tail_call @hashU8
+  bb5:
+    tail_call @hashWide
+  bb4:
+    tail_call @tailRead
+  bb3:
+    tail_call @literal
+  bb2:
+    tail_call @hashConst
+  bb7 [cold]:
     revert 0, 0
 }

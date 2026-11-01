@@ -5,31 +5,6 @@
   struct0: {i256, i256, i1}
   struct1: {i256, ptr<memory>, i256}
 
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = calldatasize
-    v2 = lt v1, 36
-    v3 = zext i1 v2 to i256
-    v4 = or v0, v3
-    v5 = ne v4, 0
-    jumpi v5, bb1, bb2
-  bb2:
-    v6 = calldataload 0
-    v7 = shr v6, 224
-    switch v7, default bb1, [0x6644232b => bb3, 0xaca542ca => bb4, 0xc298c02b => bb5, 0xfc7ec666 => bb6]
-  bb6:
-    tail_call @dNested
-  bb5:
-    tail_call @dFixed
-  bb4:
-    tail_call @dDynArr
-  bb3:
-    tail_call @dFlat
-  bb1 [cold]:
-    revert 0, 0
-}
-
 fn @dFlat() {
   bb0:
     v39 = icall @decode_calldata_type
@@ -394,6 +369,31 @@ fn @decode_memory_type(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_m
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
+  bb1 [cold]:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0x6644232b => bb3, 0xaca542ca => bb4, 0xc298c02b => bb5, 0xfc7ec666 => bb6]
+  bb6:
+    tail_call @dNested
+  bb5:
+    tail_call @dFixed
+  bb4:
+    tail_call @dDynArr
+  bb3:
+    tail_call @dFlat
   bb1 [cold]:
     revert 0, 0
 }

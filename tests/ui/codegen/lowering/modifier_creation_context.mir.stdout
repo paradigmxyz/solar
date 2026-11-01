@@ -51,19 +51,6 @@ fn @getData() -> i256 [selector=0x3bc5de30, view, abi_params=[], abi_returns=[wo
 
 // === ROOT/tests/ui/codegen/lowering/modifier_creation_context.sol:C ===
 @module C
-fn @constructor() [constructor] {
-  bb0:
-    icall @f4
-    icall @f1
-    jump bb3
-  bb3:
-    jump bb2
-  bb2:
-    jump bb1
-  bb1:
-    ret
-}
-
 fn @f3() [selector=0xaaf05f3d, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -111,4 +98,17 @@ fn @getData() -> i256 [selector=0x3bc5de30, view, abi_params=[], abi_returns=[wo
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    icall @f4
+    icall @f1
+    jump bb3
+  bb3:
+    jump bb2
+  bb2:
+    jump bb1
+  bb1:
+    ret
 }

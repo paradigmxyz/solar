@@ -19,13 +19,6 @@
       ret v2
   }
   
-  fn @router() [entry] {
-    bb0:
-      v0 = trunc i256 3 to i8
-      storeimmutable first, v0
-      stop
-  }
-  
   fn @runtime() {
     bb0:
       v0 = trunc i256 1 to i8
@@ -41,6 +34,13 @@
 -     storeimmutable first, v0
 +     v1 = zext i8 v0 to i256
 +     mstore 192, v1
+      stop
+  }
+  
+  fn @router() [entry] {
+    bb0:
+      v0 = trunc i256 3 to i8
+      storeimmutable first, v0
       stop
   }
   

@@ -44,21 +44,6 @@ fn @sum(arg0: slice<calldata>) -> i32 [selector=0xa20eed08, pure, abi_params=[by
 // === ROOT/tests/ui/codegen/mir/optimize-function/none_build.sol:Tagged ===
 @module Tagged
 @phase lowered
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb3, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb3, [0xa20eed08 => bb2]
-  bb2:
-    tail_call @sum
-  bb3 [cold]:
-    revert 0, 0
-}
-
 fn @sum() {
   bb0:
     v39 = calldatasize
@@ -119,30 +104,24 @@ fn @sum() {
     revert 0, 0
 }
 
-// === ROOT/tests/ui/codegen/mir/optimize-function/none_build.sol:Mixed ===
-@module Mixed
-@phase lowered
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
-    v1 = calldatasize
-    v2 = lt v1, 36
-    v3 = zext i1 v2 to i256
-    v4 = or v0, v3
-    v5 = ne v4, 0
-    jumpi v5, bb1, bb2
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0xa20eed08 => bb2]
   bb2:
-    v6 = calldataload 0
-    v7 = shr v6, 224
-    switch v7, default bb1, [0xaa8bda2d => bb3, 0xe256fef5 => bb4]
-  bb4:
-    tail_call @fast
-  bb3:
-    tail_call @slow
-  bb1 [cold]:
+    tail_call @sum
+  bb3 [cold]:
     revert 0, 0
 }
 
+// === ROOT/tests/ui/codegen/mir/optimize-function/none_build.sol:Mixed ===
+@module Mixed
+@phase lowered
 fn @slow() {
   bb0:
     v25 = calldatasize
@@ -260,6 +239,27 @@ fn @decode_calldata_slice(arg0: i256) -> i256 {
     jumpi v10, bb1, bb2
   bb2:
     ret v2
+  bb1 [cold]:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0xaa8bda2d => bb3, 0xe256fef5 => bb4]
+  bb4:
+    tail_call @fast
+  bb3:
+    tail_call @slow
   bb1 [cold]:
     revert 0, 0
 }

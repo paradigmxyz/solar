@@ -1,27 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/loop_checked_helper.sol:LoopCheckedHelper ===
 @module LoopCheckedHelper
 @phase lowered
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = calldatasize
-    v2 = lt v1, 68
-    v3 = zext i1 v2 to i256
-    v4 = or v0, v3
-    v5 = ne v4, 0
-    jumpi v5, bb1, bb2
-  bb2:
-    v6 = calldataload 0
-    v7 = shr v6, 224
-    switch v7, default bb1, [0x4256913b => bb3, 0x771602f7 => bb4]
-  bb4:
-    tail_call @add
-  bb3:
-    tail_call @accumulate
-  bb1 [cold]:
-    revert 0, 0
-}
-
 fn @panicArithmetic() [cold] {
   bb0 [cold]:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
@@ -71,4 +50,25 @@ fn @add() {
     returndata 0, 32
   bb2 [cold]:
     tail_call @panicArithmetic
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 68
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0x4256913b => bb3, 0x771602f7 => bb4]
+  bb4:
+    tail_call @add
+  bb3:
+    tail_call @accumulate
+  bb1 [cold]:
+    revert 0, 0
 }

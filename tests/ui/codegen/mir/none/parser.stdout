@@ -8,12 +8,6 @@
   @immutables
     fn: uint8
   
-  fn @constructor() -> i256 [constructor] {
-    bb0:
-      v0 = constructor_args_base
-      ret v0
-  }
-  
   fn @call(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = call 100, arg0, arg1, 0, 0, 0, 0
@@ -90,6 +84,12 @@
       v0 = loadimmutable fn
       v1 = zext i8 v0 to i256
       ret v1
+  }
+  
+  fn @constructor() -> i256 [constructor] {
+    bb0:
+      v0 = constructor_args_base
+      ret v0
   }
   
   fn @returndatasize() -> i256 {

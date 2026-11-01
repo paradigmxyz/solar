@@ -1,16 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_return_reset_viair.sol:ModifierReturnResetViaIr ===
 @module ModifierReturnResetViaIr
-fn @constructor() [constructor] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 255
-    v2 = and v0, v1
-    v3 = and 1, 255
-    v4 = or v2, v3
-    sstore 0, v4 !metadata(storage=slot(0))
-    ret
-}
-
 fn @foo() -> i256 [selector=0xc2985578, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -46,4 +35,15 @@ fn @foo() -> i256 [selector=0xc2985578, abi_params=[], abi_returns=[word], abi_r
     jump bb1
   bb1:
     ret v12
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = not 255
+    v2 = and v0, v1
+    v3 = and 1, 255
+    v4 = or v2, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    ret
 }

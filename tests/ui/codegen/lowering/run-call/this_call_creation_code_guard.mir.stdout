@@ -1,15 +1,15 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationHelper ===
 @module CreationHelper
-fn @constructor() [constructor] {
-  bb0:
-    icall @helper
-    ret
-}
-
 fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    icall @helper
+    ret
 }
 
 fn @helper() {
@@ -40,6 +40,12 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_para
 
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationDirect ===
 @module CreationDirect
+fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
 fn @constructor() [constructor] {
   bb0:
     v0 = address
@@ -58,12 +64,6 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
-}
-
 fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -74,6 +74,12 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_para
 
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationModifier ===
 @module CreationModifier
+fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
 fn @constructor() [constructor] {
   bb0:
     v0 = address
@@ -96,12 +102,6 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
-}
-
 fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -112,6 +112,12 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_para
 
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationBase ===
 @module CreationBase
+fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
 fn @constructor() [constructor] {
   bb0:
     v0 = address
@@ -128,12 +134,6 @@ fn @constructor() [constructor] {
     revert_returndata
   bb2:
     ret
-}
-
-fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
 }
 
 fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_params=[]] {
@@ -184,13 +184,6 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_para
 
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationInitializer ===
 @module CreationInitializer
-fn @constructor() [constructor] {
-  bb0:
-    v0 = icall @init
-    sstore 1, v0 !metadata(storage=slot(1))
-    ret
-}
-
 fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -229,8 +222,21 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_para
     ret
 }
 
+fn @constructor() [constructor] {
+  bb0:
+    v0 = icall @init
+    sstore 1, v0 !metadata(storage=slot(1))
+    ret
+}
+
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationTry ===
 @module CreationTry
+fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
 fn @constructor() [constructor] {
   bb0:
     v0 = address
@@ -254,12 +260,6 @@ fn @constructor() [constructor] {
     jump bb3
   bb3:
     ret
-}
-
-fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
 }
 
 fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_params=[]] {
@@ -313,6 +313,12 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_para
 
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:SharedHelper ===
 @module SharedHelper
+fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
 fn @constructor(arg0: i1) [constructor, abi_params=[bool]] {
   bb0:
     jumpi arg0, bb1, bb2
@@ -323,12 +329,6 @@ fn @constructor(arg0: i1) [constructor, abi_params=[bool]] {
     jump bb3
   bb3:
     ret
-}
-
-fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
 }
 
 fn @helper() {

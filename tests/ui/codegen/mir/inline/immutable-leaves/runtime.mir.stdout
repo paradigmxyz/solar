@@ -5,6 +5,12 @@
   duration: uint64
   initial: uint256
 
+fn @initial() -> i256 [selector=0xbb806dc9, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = loadimmutable initial
+    ret v0
+}
+
 fn @constructor(arg0: i64, arg1: i64) [constructor, abi_params=[uint64, uint64]] {
   bb0:
     storeimmutable start, arg0
@@ -14,12 +20,6 @@ fn @constructor(arg0: i64, arg1: i64) [constructor, abi_params=[uint64, uint64]]
     v2 = checked_add uint256, v0, v1
     storeimmutable initial, v2
     ret
-}
-
-fn @initial() -> i256 [selector=0xbb806dc9, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = loadimmutable initial
-    ret v0
 }
 
 fn @end() -> i256 [selector=0xefbe1c1c, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {

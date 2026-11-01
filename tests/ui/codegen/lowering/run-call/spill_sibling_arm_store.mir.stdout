@@ -37,27 +37,6 @@ fn @settle() [selector=0x11da60b4, payable, abi_params=[], abi_returns=[], abi_r
 @data
   Recorder_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/spill_sibling_arm_store.sol:Recorder"
 
-fn @constructor() [constructor] {
-  bb0:
-    v0 = datasize Recorder_creation_code_0
-    v1 = fmp
-    datacopy Recorder_creation_code_0, v1, v0
-    v2 = create 0, v1, v0
-    v3 = ne v2, i160 0
-    jumpi v3, bb2, bb1
-  bb1:
-    revert_returndata
-  bb2:
-    v4 = sload 2 !metadata(storage=slot(2))
-    v5 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v6 = and v4, v5
-    v7 = zext i160 v2 to i256
-    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
-    v9 = or v6, v8
-    sstore 2, v9 !metadata(storage=slot(2))
-    ret
-}
-
 fn @run(arg0: i128) -> i256 [selector=0x96c07422, abi_params=[int128], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -250,5 +229,26 @@ fn @take(arg0: i160, arg1: i160, arg2: i160, arg3: i256, arg4: i1) {
   bb5:
     ret
   bb1:
+    ret
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = datasize Recorder_creation_code_0
+    v1 = fmp
+    datacopy Recorder_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v4 = sload 2 !metadata(storage=slot(2))
+    v5 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v6 = and v4, v5
+    v7 = zext i160 v2 to i256
+    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
+    v9 = or v6, v8
+    sstore 2, v9 !metadata(storage=slot(2))
     ret
 }

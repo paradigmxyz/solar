@@ -1,21 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/event_literal_scratch.sol:EventLiteralScratch ===
 @module EventLiteralScratch
 @phase lowered
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb3, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb3, [0xf3f1126a => bb2]
-  bb2:
-    tail_call @logged
-  bb3 [cold]:
-    revert 0, 0
-}
-
 fn @logged() {
   bb0:
     v14 = calldatasize
@@ -47,5 +32,20 @@ fn @logged() {
     v11 = add v4, 1
     jump bb1
   bb4 [cold]:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb3, [0xf3f1126a => bb2]
+  bb2:
+    tail_call @logged
+  bb3 [cold]:
     revert 0, 0
 }

@@ -12,6 +12,30 @@
   signedInitial: uint256
   signedInitialEqual: bool
 
+fn @initial() -> i256 [selector=0xbb806dc9, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = loadimmutable initial
+    ret v0
+}
+
+fn @narrowInitial() -> i64 [selector=0xfe957d40, view, abi_params=[], abi_returns=[word<uint64>], abi_return_params=[uint64]] {
+  bb0:
+    v0 = loadimmutable narrowInitial
+    ret v0
+}
+
+fn @signedInitial() -> i256 [selector=0x19ac8d3d, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = loadimmutable signedInitial
+    ret v0
+}
+
+fn @signedInitialEqual() -> i1 [selector=0x726e5735, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = loadimmutable signedInitialEqual
+    ret v0
+}
+
 fn @constructor(arg0: i64, arg1: i64, arg2: i64) [constructor, abi_params=[uint64, uint64, int64]] {
   bb0:
     v0 = trunc i64 arg0 to i8
@@ -37,30 +61,6 @@ fn @constructor(arg0: i64, arg1: i64, arg2: i64) [constructor, abi_params=[uint6
     v11 = icall @total
     storeimmutable initial, v11
     ret
-}
-
-fn @initial() -> i256 [selector=0xbb806dc9, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = loadimmutable initial
-    ret v0
-}
-
-fn @narrowInitial() -> i64 [selector=0xfe957d40, view, abi_params=[], abi_returns=[word<uint64>], abi_return_params=[uint64]] {
-  bb0:
-    v0 = loadimmutable narrowInitial
-    ret v0
-}
-
-fn @signedInitial() -> i256 [selector=0x19ac8d3d, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = loadimmutable signedInitial
-    ret v0
-}
-
-fn @signedInitialEqual() -> i1 [selector=0x726e5735, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
-  bb0:
-    v0 = loadimmutable signedInitialEqual
-    ret v0
 }
 
 fn @narrowThreeBytes() -> i24 [selector=0x88301e03, view, abi_params=[], abi_returns=[word<uint24>], abi_return_params=[uint24]] {

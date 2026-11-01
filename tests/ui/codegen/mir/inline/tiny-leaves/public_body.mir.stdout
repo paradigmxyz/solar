@@ -23,6 +23,20 @@ fn @constructor() [constructor] {
     revert 0, 0
 }
 
+fn @start() {
+  bb0:
+    v3 = loadimmutable _start
+    mstore 0, v3
+    returndata 0, 32
+}
+
+fn @vested() {
+  bb0:
+    v2 = loadimmutable _start
+    mstore 0, v2
+    returndata 0, 32
+}
+
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
@@ -38,18 +52,4 @@ fn @entry() [entry] {
     tail_call @start
   bb4 [cold]:
     revert 0, 0
-}
-
-fn @start() {
-  bb0:
-    v3 = loadimmutable _start
-    mstore 0, v3
-    returndata 0, 32
-}
-
-fn @vested() {
-  bb0:
-    v2 = loadimmutable _start
-    mstore 0, v2
-    returndata 0, 32
 }

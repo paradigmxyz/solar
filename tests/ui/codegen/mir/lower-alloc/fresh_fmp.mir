@@ -2,48 +2,6 @@
 //@filecheck:
 @module FreshFmp
 
-// CHECK-LABEL: {{^[ +].*}}fn @entry{{[( ]}}
-// CHECK: + {{v[0-9]+}} = mload 64
-// CHECK-NOT: heap_floor
-fn @entry() -> i256 [entry] {
-  bb0:
-    v0 = fmp
-    v1 = ptrtoint ptr<memory> v0 to i256
-    mstore v1, 1
-    v2 = calldataload 0
-    switch v2, default bb1, [0x1 => bb2, 0x2 => bb3, 0x3 => bb4, 0x4 => bb5, 0x5 => bb6, 0x6 => bb7, 0x7 => bb8, 0x8 => bb9, 0x9 => bb10, 0xa => bb11, 0xb => bb12, 0xc => bb13, 0xd => bb14, 0xe => bb15]
-  bb1:
-    tail_call @dispatched
-  bb2:
-    tail_call @entry_reads
-  bb3:
-    tail_call @read_after_alloc
-  bb4:
-    tail_call @read_after_slot_store
-  bb5:
-    tail_call @read_after_unknown_store, 0
-  bb6:
-    tail_call @calls_leaf
-  bb7:
-    tail_call @tail_calls
-  bb8:
-    tail_call @read_after_allocating_call
-  bb9:
-    tail_call @shared_early
-  bb10:
-    tail_call @shared_late
-  bb11:
-    tail_call @calls_recursive
-  bb12:
-    tail_call @loop_reads, 0
-  bb13:
-    tail_call @read_after_deferred
-  bb14:
-    tail_call @checked_pair, 0
-  bb15:
-    tail_call @other_checked, 0
-}
-
 // A read in a runtime entry, before anything may write the slot, takes the heap floor, and so
 // does the pointer read of the allocation after it. Writes through a pointer derived from the
 // floor lie above the slot and keep the reads fresh. The bump still stores the pointer.
@@ -292,4 +250,46 @@ fn @dispatched() {
     v1 = ptrtoint ptr<memory> v0 to i256
     mstore v1, 1
     stop
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @entry{{[( ]}}
+// CHECK: + {{v[0-9]+}} = mload 64
+// CHECK-NOT: heap_floor
+fn @entry() -> i256 [entry] {
+  bb0:
+    v0 = fmp
+    v1 = ptrtoint ptr<memory> v0 to i256
+    mstore v1, 1
+    v2 = calldataload 0
+    switch v2, default bb1, [0x1 => bb2, 0x2 => bb3, 0x3 => bb4, 0x4 => bb5, 0x5 => bb6, 0x6 => bb7, 0x7 => bb8, 0x8 => bb9, 0x9 => bb10, 0xa => bb11, 0xb => bb12, 0xc => bb13, 0xd => bb14, 0xe => bb15]
+  bb1:
+    tail_call @dispatched
+  bb2:
+    tail_call @entry_reads
+  bb3:
+    tail_call @read_after_alloc
+  bb4:
+    tail_call @read_after_slot_store
+  bb5:
+    tail_call @read_after_unknown_store, 0
+  bb6:
+    tail_call @calls_leaf
+  bb7:
+    tail_call @tail_calls
+  bb8:
+    tail_call @read_after_allocating_call
+  bb9:
+    tail_call @shared_early
+  bb10:
+    tail_call @shared_late
+  bb11:
+    tail_call @calls_recursive
+  bb12:
+    tail_call @loop_reads, 0
+  bb13:
+    tail_call @read_after_deferred
+  bb14:
+    tail_call @checked_pair, 0
+  bb15:
+    tail_call @other_checked, 0
 }

@@ -1,25 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/egraph/late_cse_masks.sol:LateCseMasks ===
 @module LateCseMasks
 @phase lowered
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb5, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb5, [0x2845d4e6 => bb2, 0x2ddbd13a => bb3, 0x6cdb32ec => bb4]
-  bb4:
-    tail_call @second
-  bb3:
-    tail_call @total
-  bb2:
-    tail_call @first
-  bb5 [cold]:
-    revert 0, 0
-}
-
 fn @total() {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -110,4 +91,23 @@ fn @revert_stub() [cold] {
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb5, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb5, [0x2845d4e6 => bb2, 0x2ddbd13a => bb3, 0x6cdb32ec => bb4]
+  bb4:
+    tail_call @second
+  bb3:
+    tail_call @total
+  bb2:
+    tail_call @first
+  bb5 [cold]:
+    revert 0, 0
 }

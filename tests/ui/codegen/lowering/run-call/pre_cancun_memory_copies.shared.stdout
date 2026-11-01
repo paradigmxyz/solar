@@ -1,37 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/pre_cancun_memory_copies.sol:PreCancunMemoryCopies ===
 @module PreCancunMemoryCopies
 @phase lowered
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb11, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb11, [0x2f9cb906 => bb2, 0x52eea5e4 => bb3, 0x56818b01 => bb4, 0x6bdbf8e6 => bb5, 0x9f4b9fa0 => bb6, 0xa163996f => bb7, 0xb466b76f => bb8, 0xd1381062 => bb9, 0xf2c31bd9 => bb10]
-  bb10:
-    tail_call @words
-  bb9:
-    tail_call @assembled
-  bb8:
-    tail_call @fresh
-  bb7:
-    tail_call @recycled
-  bb6:
-    tail_call @pair
-  bb5:
-    tail_call @concat
-  bb4:
-    tail_call @bytesTail
-  bb3:
-    tail_call @recycledTail
-  bb2:
-    tail_call @freshEmpty
-  bb11 [cold]:
-    revert 0, 0
-}
-
 fn @words() {
   bb0:
     v44 = icall @alloc, 128
@@ -377,6 +346,37 @@ fn @revert_stub() [cold] {
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb11, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb11, [0x2f9cb906 => bb2, 0x52eea5e4 => bb3, 0x56818b01 => bb4, 0x6bdbf8e6 => bb5, 0x9f4b9fa0 => bb6, 0xa163996f => bb7, 0xb466b76f => bb8, 0xd1381062 => bb9, 0xf2c31bd9 => bb10]
+  bb10:
+    tail_call @words
+  bb9:
+    tail_call @assembled
+  bb8:
+    tail_call @fresh
+  bb7:
+    tail_call @recycled
+  bb6:
+    tail_call @pair
+  bb5:
+    tail_call @concat
+  bb4:
+    tail_call @bytesTail
+  bb3:
+    tail_call @recycledTail
+  bb2:
+    tail_call @freshEmpty
+  bb11 [cold]:
+    revert 0, 0
 }
 
 fn @mcopy_words(arg0: i256, arg1: i256, arg2: i256) {
