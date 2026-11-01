@@ -435,8 +435,6 @@ bb43:
   lt
   push bb14
   jumpi
-  push 4
-  calldataload
   caller
   push 0
   mstore
@@ -474,13 +472,18 @@ bb43:
   eq
   push bb72
   jumpi
-  dup 4
+  push 4
+  calldataload
+  swap 1
+  dup 2
   lt
   iszero
   push bb73
   jumpi
+  swap 1
   jumpi bb48, bb49
 bb48:
+  swap 1
   push 0
   mstore
   push 32
@@ -490,8 +493,10 @@ bb48:
   push 5
   shr
   add
+  swap 1
   jump bb49
 bb49:
+  swap 1
   sload
   swap 1
   push 31

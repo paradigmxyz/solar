@@ -9,17 +9,17 @@ fn @entry() [entry] {
   bb1:
     v2 = calldataload 0
     v3 = shr v2, 224
+    v215 = calldataload 4
+    v216 = calldataload 36
     switch v3, default bb6, [0x41cb7983 => bb2, 0x4256913b => bb3, 0xca939f26 => bb4, 0xd412532e => bb5]
   bb5:
     v49 = calldatasize
     v50 = lt v49, 100
     jumpi v50, bb6, bb25
   bb25:
-    v53 = calldataload 4
     v55 = calldataload 68
-    v54 = calldataload 36
-    v56 = add v53, v54
-    v57 = lt v56, v53
+    v56 = add v215, v216
+    v57 = lt v56, v215
     v51 = add v56, v55
     v52 = lt v51, v56
     v192 = or v57, v52
@@ -32,16 +32,14 @@ fn @entry() [entry] {
     v31 = lt v30, 100
     jumpi v31, bb6, bb23
   bb23:
-    v46 = calldataload 4
-    v47 = calldataload 36
     v48 = calldataload 68
-    v58 = eq v47, 0
+    v58 = eq v216, 0
     v60 = zext i1 v58 to i256
-    v59 = div 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v47
+    v59 = div 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v216
     v61 = sub v59, v60
     jump bb32
   bb32:
-    v134 = phi [bb23: v46], [bb41: v183]
+    v134 = phi [bb23: v215], [bb41: v183]
     v135 = phi [bb23: 0], [bb41: v181]
     v136 = phi [bb23: 0], [bb41: v185]
     v186 = add v136, 3
@@ -58,7 +56,7 @@ fn @entry() [entry] {
     returndata 0, 32
   bb20:
     v40 = gt v32, v61
-    v36 = mul v32, v47
+    v36 = mul v32, v216
     v41 = add v33, v36
     v42 = lt v41, v33
     v191 = or v40, v42
@@ -72,7 +70,7 @@ fn @entry() [entry] {
     jump bb18
   bb33:
     v141 = gt v134, v61
-    v138 = mul v134, v47
+    v138 = mul v134, v216
     v142 = add v135, v138
     v143 = lt v142, v135
     v211 = or v141, v143
@@ -83,7 +81,7 @@ fn @entry() [entry] {
     jumpi v145, bb10, bb35
   bb35:
     v154 = gt v144, v61
-    v151 = mul v144, v47
+    v151 = mul v144, v216
     v155 = add v142, v151
     v156 = lt v155, v142
     v212 = or v154, v156
@@ -94,7 +92,7 @@ fn @entry() [entry] {
     jumpi v158, bb10, bb37
   bb37:
     v167 = gt v157, v61
-    v164 = mul v157, v47
+    v164 = mul v157, v216
     v168 = add v155, v164
     v169 = lt v168, v155
     v213 = or v167, v169
@@ -105,7 +103,7 @@ fn @entry() [entry] {
     jumpi v171, bb10, bb39
   bb39:
     v180 = gt v170, v61
-    v177 = mul v170, v47
+    v177 = mul v170, v216
     v181 = add v168, v177
     v182 = lt v181, v168
     v214 = or v180, v182
@@ -122,19 +120,17 @@ fn @entry() [entry] {
     v21 = lt v20, 68
     jumpi v21, bb6, bb17
   bb17:
-    v28 = calldataload 4
-    v29 = calldataload 36
     jump bb29
   bb29:
-    v108 = phi [bb17: v28], [bb31: v129]
+    v108 = phi [bb17: v215], [bb31: v129]
     v109 = phi [bb17: 0], [bb31: v131]
     v132 = add v109, 3
-    v133 = lt v132, v29
+    v133 = lt v132, v216
     jumpi v133, bb30, bb13
   bb13:
     v22 = phi [bb29: v108], [bb16: v25]
     v23 = phi [bb29: v109], [bb16: v27]
-    v24 = lt v23, v29
+    v24 = lt v23, v216
     jumpi v24, bb15, bb14
   bb14:
     mstore 0, v22
@@ -164,12 +160,10 @@ fn @entry() [entry] {
     v5 = lt v4, 100
     jumpi v5, bb6, bb12
   bb12:
-    v17 = calldataload 4
-    v18 = calldataload 36
     v19 = calldataload 68
     jump bb26
   bb26:
-    v62 = phi [bb12: v17], [bb28: v103]
+    v62 = phi [bb12: v215], [bb28: v103]
     v63 = phi [bb12: 0], [bb28: v101]
     v64 = phi [bb12: 0], [bb28: v105]
     v106 = add v64, 3
@@ -190,7 +184,7 @@ fn @entry() [entry] {
     v12 = add v7, v10
     v13 = lt v12, v7
     v189 = or v188, v13
-    v14 = add v6, v18
+    v14 = add v6, v216
     v15 = lt v14, v6
     v190 = or v189, v15
     jumpi v190, bb10, bb11
@@ -203,7 +197,7 @@ fn @entry() [entry] {
     v68 = add v63, v66
     v69 = lt v68, v63
     v194 = or v193, v69
-    v70 = add v62, v18
+    v70 = add v62, v216
     v71 = lt v70, v62
     v195 = or v194, v71
     v77 = mul v70, 0xe8d4a51000
@@ -212,7 +206,7 @@ fn @entry() [entry] {
     v79 = add v68, v77
     v80 = lt v79, v68
     v198 = or v197, v80
-    v81 = add v70, v18
+    v81 = add v70, v216
     v82 = lt v81, v70
     v199 = or v198, v82
     v88 = mul v81, 0xe8d4a51000
@@ -221,7 +215,7 @@ fn @entry() [entry] {
     v90 = add v79, v88
     v91 = lt v90, v79
     v202 = or v201, v91
-    v92 = add v81, v18
+    v92 = add v81, v216
     v93 = lt v92, v81
     v203 = or v202, v93
     v99 = mul v92, 0xe8d4a51000
@@ -230,7 +224,7 @@ fn @entry() [entry] {
     v101 = add v90, v99
     v102 = lt v101, v90
     v206 = or v205, v102
-    v103 = add v92, v18
+    v103 = add v92, v216
     v104 = lt v103, v92
     v207 = or v206, v104
     jumpi v207, bb10, bb28

@@ -1,0 +1,164 @@
+- // === ROOT/tests/ui/codegen/mir/place-reads/place_reads.mir (before place-reads) ===
++ // === ROOT/tests/ui/codegen/mir/place-reads/place_reads.mir (after place-reads) ===
+  @module PlaceReads
+  @phase lowered
+  fn @guarded() {
+    bb0:
+      v0 = calldataload 4
+      v1 = shr v0, 8
+      v2 = ne v1, 0
+      jumpi v2, bb2, bb1
+    bb1:
+-     mstore 0, v0
++     v3 = calldataload 4
++     mstore 0, v3
+      stop
+    bb2:
+      revert 0, 0
+  }
+  
+  fn @looped() {
+    bb0:
+      v0 = calldataload 36
+      v1 = calldatasize
+      v2 = ne v1, 0
+      jumpi v2, bb4, bb1
+    bb1:
++     v6 = calldataload 36
+      jump bb2
+    bb2:
+      v3 = phi [bb1: 0], [bb3: v5]
+-     v4 = lt v3, v0
++     v4 = lt v3, v6
+      jumpi v4, bb3, bb4
+    bb3:
+      v5 = add v3, 1
+      jump bb2
+    bb4:
+      stop
+  }
+  
+  fn @elsewhere() {
+    bb0:
+      v0 = calldatasize
+      v1 = ne v0, 0
+      jumpi v1, bb1, bb3
+    bb1:
+      v2 = calldataload 4
+      v3 = ne v2, 0
+      jumpi v3, bb2, bb3
+    bb3:
+      stop
+    bb2:
+      mstore 0, v2
+      stop
+  }
+  
+  fn @diamond() {
+    bb0:
+      v0 = calldataload 4
+      v1 = shr v0, 8
+      v2 = ne v1, 0
+      jumpi v2, bb5, bb1
+    bb1:
++     v6 = calldataload 4
+      v3 = calldatasize
+      v4 = ne v3, 0
+      jumpi v4, bb2, bb3
+    bb3:
+      jump bb4
+    bb2:
+      jump bb4
+    bb4:
+-     v5 = phi [bb2: v0], [bb3: v0]
++     v5 = phi [bb2: v6], [bb3: v6]
+      mstore 0, v5
+      stop
+    bb5:
+      revert 0, 0
+  }
+  
+  fn @routes() {
+    bb0:
+      v0 = calldataload 0
+      v1 = shr v0, 224
++     v5 = calldataload 4 !metadata(spans=[10..20, 30..40, 50..60])
+      switch v1, default bb4, [1 => bb1, 2 => bb2, 3 => bb3]
+    bb3:
+      v4 = calldataload 4 !metadata(span=50..60)
+-     mstore 64, v4
++     mstore 64, v5
+      stop
+    bb2:
+      v3 = calldataload 4 !metadata(span=30..40)
+-     mstore 32, v3
++     mstore 32, v5
+      stop
+    bb1:
+      v2 = calldataload 4 !metadata(span=10..20)
+-     mstore 0, v2
++     mstore 0, v5
+      stop
+    bb4:
+      revert 0, 0
+  }
+  
+  fn @pair() {
+    bb0:
+      v0 = calldataload 0
+      v1 = shr v0, 224
+      switch v1, default bb3, [1 => bb1, 2 => bb2]
+    bb2:
+      v3 = calldataload 4
+      mstore 32, v3
+      stop
+    bb1:
+      v2 = calldataload 4
+      mstore 0, v2
+      stop
+    bb3:
+      revert 0, 0
+  }
+  
+  fn @moved() {
+    bb0:
+      v0 = calldatasize
+      v1 = lt v0, 68
+      jumpi v1, bb3, bb1
+    bb1:
+      v2 = calldataload 36
+      v3 = calldataload 4
+      v4 = ne v3, 0
+      jumpi v4, bb2, bb3
+    bb2:
+-     mstore 0, v2
++     v5 = calldataload 36
++     mstore 0, v5
+      stop
+    bb3:
+      revert 0, 0
+  }
+  
+  fn @entry() [entry] {
+    bb0:
+      v0 = calldataload 0
+      v1 = shr v0, 224
+      switch v1, default bb8, [1 => bb1, 2 => bb2, 3 => bb3, 4 => bb4, 5 => bb5, 6 => bb6, 7 => bb7]
+    bb7:
+      tail_call @moved
+    bb6:
+      tail_call @pair
+    bb5:
+      tail_call @routes
+    bb4:
+      tail_call @diamond
+    bb3:
+      tail_call @elsewhere
+    bb2:
+      tail_call @looped
+    bb1:
+      tail_call @guarded
+    bb8:
+      revert 0, 0
+  }
+  
