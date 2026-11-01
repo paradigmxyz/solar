@@ -347,11 +347,10 @@ fn @assign() -> struct1 [selector=0x12ae6397, abi_params=[], abi_returns=[word<u
 
 fn @clearDirtyWord() -> i256 [selector=0xc9cbcc52, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = not 0
-    sstore 2, v0 !metadata(storage=slot(2))
+    sstore 2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(storage=slot(2))
     sstore 2, 0 !metadata(storage=slot(2))
-    v1 = sload 2 !metadata(storage=slot(2))
-    ret v1
+    v0 = sload 2 !metadata(storage=slot(2))
+    ret v0
 }
 
 fn @clearStructWithMapping() -> struct2 [selector=0xb447ab5f, abi_params=[], abi_returns=[word, word<uint8>, word, word], abi_return_params=[uint256, uint8, uint256, uint256]] {

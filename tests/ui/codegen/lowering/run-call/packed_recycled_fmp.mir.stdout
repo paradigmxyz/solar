@@ -10,12 +10,11 @@ fn @payload() -> ptr<memory> [selector=0xa878f858, pure, abi_params=[], abi_retu
     mstore v2, 2
     v3 = ptradd v2, 32
     mstore v3, 0x1111000000000000000000000000000000000000000000000000000000000000
-    v4 = shl 0xabcd, 240
-    v5 = ptrtoint ptr<memory> v0 to i256
-    v6 = add v5, 32
-    mstore v6, v4
-    v7 = abi_encode_packed (bytes v2, data hex"22")
-    ret v7
+    v4 = ptrtoint ptr<memory> v0 to i256
+    v5 = add v4, 32
+    mstore v5, 0xabcd000000000000000000000000000000000000000000000000000000000000
+    v6 = abi_encode_packed (bytes v2, data hex"22")
+    ret v6
 }
 
 fn @length() -> ptr<memory> [selector=0x1f7b6d32, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

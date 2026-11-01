@@ -76,7 +76,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && matches!(expr.peel_parens().kind, ExprKind::Lit(lit) if lit.kind.is_number())
         {
             let shift = self.builder.imm(224);
-            return Some(self.builder.shl_folded(value, shift));
+            return Some(self.builder.shl(value, shift));
         }
         Some(value)
     }

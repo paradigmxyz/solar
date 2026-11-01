@@ -11,8 +11,7 @@ fn @y() -> i256 [selector=0xa56dfe4a, view, abi_params=[], abi_returns=[word], a
 
 fn @getArray() -> i256 [pure] {
   bb0:
-    v0 = sub 0, 5
-    ret v0
+    ret 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffb
 }
 
 fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {

@@ -5,8 +5,7 @@
 
 fn @getBoundaryArray() -> i256 [pure] {
   bb0:
-    v0 = sub 0, 5
-    ret v0
+    ret 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffb
 }
 
 fn @getDest() -> i256 [pure] {

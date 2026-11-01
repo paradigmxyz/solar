@@ -17,12 +17,11 @@ fn @wrappedWrite() -> i256 [selector=0x214781b5, pure, abi_params=[], abi_return
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     mstore 64, 0x400 !metadata(memory=scratch)
-    v1 = not 0
-    mstore 56, v1 !metadata(memory=scratch)
-    v2 = mload 64 !metadata(memory=scratch)
-    v3 = add v2, 0xfffffffffffffc40
-    mstore v3, 768
-    v4 = mload 64 !metadata(memory=scratch)
+    mstore 56, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(memory=scratch)
+    v1 = mload 64 !metadata(memory=scratch)
+    v2 = add v1, 0xfffffffffffffc40
+    mstore v2, 768
+    v3 = mload 64 !metadata(memory=scratch)
     mstore 64, v0 !metadata(memory=scratch)
-    ret v4
+    ret v3
 }

@@ -3,7 +3,7 @@
 @phase lowered
 fn @panicArithmetic() [cold, pure] {
   bb0 [cold]:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }

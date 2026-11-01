@@ -68,16 +68,15 @@ fn @wrapped(arg0: i256, arg1: i256) -> i256 [selector=0x08a7c76d, pure, abi_para
     mstore v4, arg0
     v5 = alloc zeroed checked 64
     mstore v5, 1
-    v6 = not 0
-    v7 = ptrtoint ptr<memory> v5 to i256
-    mstore v5, v6
-    v8 = mload v5
-    v9 = lt arg1, v8
-    v10 = eq v9, false
-    icall panic_if<0x32>, v10
-    v11 = shl arg1, 5
-    v12 = ptradd v5, v11
-    v13 = ptradd v12, 32
-    v14 = mload v13
-    ret v14
+    v6 = ptrtoint ptr<memory> v5 to i256
+    mstore v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v7 = mload v5
+    v8 = lt arg1, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = shl arg1, 5
+    v11 = ptradd v5, v10
+    v12 = ptradd v11, 32
+    v13 = mload v12
+    ret v13
 }

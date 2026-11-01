@@ -74,23 +74,18 @@ fn @readRaw(arg0: i256) -> i256 [pure] {
 
 fn @memoryStoreCleanup() -> i256 [selector=0xa32f54c2, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = not 0
-    v1 = alloc zeroed checked 64
-    mstore v1, 1
-    v2 = mload v1
-    v3 = lt 0, v2
-    v4 = eq v3, false
-    icall panic_if<0x32>, v4
-    v5 = trunc i256 v0 to i160
-    v6 = zext i160 v5 to i256
-    v7 = ptradd v1, 32
-    mstore v7, v6
-    v8 = shl 1, 160
-    v9 = sub v8, 1
-    v10 = ptrtoint ptr<memory> v1 to i256
-    v11 = add v10, 32
-    v12 = mload v11
-    v13 = eq v12, v9
-    v14 = zext i1 v13 to i256
-    ret v14
+    v0 = alloc zeroed checked 64
+    mstore v0, 1
+    v1 = mload v0
+    v2 = lt 0, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = ptradd v0, 32
+    mstore v4, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = ptrtoint ptr<memory> v0 to i256
+    v6 = add v5, 32
+    v7 = mload v6
+    v8 = eq v7, 0xffffffffffffffffffffffffffffffffffffffff
+    v9 = zext i1 v8 to i256
+    ret v9
 }

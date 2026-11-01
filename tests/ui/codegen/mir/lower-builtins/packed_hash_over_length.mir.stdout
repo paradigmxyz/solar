@@ -56,9 +56,8 @@ fn @forged() -> i256 [selector=0xd1caa6e6, pure, abi_params=[], abi_returns=[wor
   bb0:
     v0 = alloc zeroed checked 64
     mstore v0, 1
-    v1 = not 0
-    v2 = ptrtoint ptr<memory> v0 to i256
-    mstore v0, v1
-    v3 = keccak256_packed (uint8 i8 1, bytes v0)
-    ret v3
+    v1 = ptrtoint ptr<memory> v0 to i256
+    mstore v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v2 = keccak256_packed (uint8 i8 1, bytes v0)
+    ret v2
 }

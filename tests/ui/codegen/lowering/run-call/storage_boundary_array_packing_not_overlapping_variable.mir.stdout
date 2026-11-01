@@ -5,8 +5,7 @@
 
 fn @getArray() -> i256 [pure] {
   bb0:
-    v0 = sub 0, 1
-    ret v0
+    ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 }
 
 fn @getCanary() -> i256 [pure] {

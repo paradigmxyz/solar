@@ -806,127 +806,120 @@ fn @invalidLongPop() [selector=0x66075ed1, abi_params=[], abi_returns=[], abi_re
 
 fn @pushAtMaxLength() -> i256 [selector=0x35078c3f, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = shl 1, 64
-    v1 = sub v0, 1
-    v2 = mul v1, 2
-    v3 = add v2, 1
-    sstore 0, v3 !metadata(storage=slot(0))
-    v4 = sload 0 !metadata(storage=slot(0))
-    validate_storage_bytes v4
-    v5 = and v4, 1
-    v6 = eq v5, 1
-    v7 = sub 0, v5
-    v8 = or 127, v7
-    v9 = shr v4, 1
-    v10 = and v9, v8
-    v11 = lt v10, 0x10000000000000000
-    v12 = eq v11, false
-    icall panic_if<0x41>, v12
-    v13 = gt v10, 31
-    jumpi v13, bb2, bb1
+    sstore 0, 0x1ffffffffffffffff !metadata(storage=slot(0))
+    v0 = sload 0 !metadata(storage=slot(0))
+    validate_storage_bytes v0
+    v1 = and v0, 1
+    v2 = eq v1, 1
+    v3 = sub 0, v1
+    v4 = or 127, v3
+    v5 = shr v0, 1
+    v6 = and v5, v4
+    v7 = lt v6, 0x10000000000000000
+    v8 = eq v7, false
+    icall panic_if<0x41>, v8
+    v9 = gt v6, 31
+    jumpi v9, bb2, bb1
   bb1:
-    v27 = eq v10, 31
-    jumpi v27, bb3, bb4
+    v23 = eq v6, 31
+    jumpi v23, bb3, bb4
   bb4:
-    v32 = add v4, 2
-    v33 = sub 31, v10
-    v34 = mul v33, 8
-    v35 = shl 255, v34
-    v36 = not v35
-    v37 = and v32, v36
-    v38 = byte 0, 0x100000000000000000000000000000000000000000000000000000000000000
-    v39 = shl v38, v34
-    v40 = or v37, v39
-    sstore 0, v40 !metadata(storage=slot(0))
+    v28 = add v0, 2
+    v29 = sub 31, v6
+    v30 = mul v29, 8
+    v31 = shl 255, v30
+    v32 = not v31
+    v33 = and v28, v32
+    v34 = byte 0, 0x100000000000000000000000000000000000000000000000000000000000000
+    v35 = shl v34, v30
+    v36 = or v33, v35
+    sstore 0, v36 !metadata(storage=slot(0))
     jump bb5
   bb3:
-    v28 = storage_array_data_slot 0
-    v29 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v30 = byte 0, 0x100000000000000000000000000000000000000000000000000000000000000
-    v31 = or v29, v30
-    sstore v28, v31 !metadata(storage=symbolic(v28))
+    v24 = storage_array_data_slot 0
+    v25 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v26 = byte 0, 0x100000000000000000000000000000000000000000000000000000000000000
+    v27 = or v25, v26
+    sstore v24, v27 !metadata(storage=symbolic(v24))
     sstore 0, 65 !metadata(storage=slot(0))
     jump bb5
   bb2:
-    v14 = add v4, 2
-    sstore 0, v14 !metadata(storage=slot(0))
-    v15 = storage_array_data_slot 0
-    v16 = shr v10, 5
-    v17 = add v15, v16
-    v18 = and v10, 31
-    v19 = sub 31, v18
-    v20 = mul v19, 8
-    v21 = shl 255, v20
-    v22 = sload v17 !metadata(storage=symbolic(v17))
-    v23 = not v21
-    v24 = and v22, v23
-    v25 = shl 1, v20
-    v26 = or v24, v25
-    sstore v17, v26 !metadata(storage=symbolic(v17))
+    v10 = add v0, 2
+    sstore 0, v10 !metadata(storage=slot(0))
+    v11 = storage_array_data_slot 0
+    v12 = shr v6, 5
+    v13 = add v11, v12
+    v14 = and v6, 31
+    v15 = sub 31, v14
+    v16 = mul v15, 8
+    v17 = shl 255, v16
+    v18 = sload v13 !metadata(storage=symbolic(v13))
+    v19 = not v17
+    v20 = and v18, v19
+    v21 = shl 1, v16
+    v22 = or v20, v21
+    sstore v13, v22 !metadata(storage=symbolic(v13))
     jump bb5
   bb5:
-    v41 = sload 0 !metadata(storage=slot(0))
-    ret v41
+    v37 = sload 0 !metadata(storage=slot(0))
+    ret v37
 }
 
 fn @pushPastMaxLength() [selector=0xd9fa2828, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = shl 1, 64
-    v1 = mul v0, 2
-    v2 = add v1, 1
-    sstore 0, v2 !metadata(storage=slot(0))
-    v3 = sload 0 !metadata(storage=slot(0))
-    validate_storage_bytes v3
-    v4 = and v3, 1
-    v5 = eq v4, 1
-    v6 = sub 0, v4
-    v7 = or 127, v6
-    v8 = shr v3, 1
-    v9 = and v8, v7
-    v10 = lt v9, 0x10000000000000000
-    v11 = eq v10, false
-    icall panic_if<0x41>, v11
-    v12 = gt v9, 31
-    jumpi v12, bb2, bb1
+    sstore 0, 0x20000000000000001 !metadata(storage=slot(0))
+    v0 = sload 0 !metadata(storage=slot(0))
+    validate_storage_bytes v0
+    v1 = and v0, 1
+    v2 = eq v1, 1
+    v3 = sub 0, v1
+    v4 = or 127, v3
+    v5 = shr v0, 1
+    v6 = and v5, v4
+    v7 = lt v6, 0x10000000000000000
+    v8 = eq v7, false
+    icall panic_if<0x41>, v8
+    v9 = gt v6, 31
+    jumpi v9, bb2, bb1
   bb1:
-    v26 = eq v9, 31
-    jumpi v26, bb3, bb4
+    v23 = eq v6, 31
+    jumpi v23, bb3, bb4
   bb4:
-    v31 = add v3, 2
-    v32 = sub 31, v9
-    v33 = mul v32, 8
-    v34 = shl 255, v33
-    v35 = not v34
-    v36 = and v31, v35
-    v37 = byte 0, 0x100000000000000000000000000000000000000000000000000000000000000
-    v38 = shl v37, v33
-    v39 = or v36, v38
-    sstore 0, v39 !metadata(storage=slot(0))
+    v28 = add v0, 2
+    v29 = sub 31, v6
+    v30 = mul v29, 8
+    v31 = shl 255, v30
+    v32 = not v31
+    v33 = and v28, v32
+    v34 = byte 0, 0x100000000000000000000000000000000000000000000000000000000000000
+    v35 = shl v34, v30
+    v36 = or v33, v35
+    sstore 0, v36 !metadata(storage=slot(0))
     jump bb5
   bb3:
-    v27 = storage_array_data_slot 0
-    v28 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v29 = byte 0, 0x100000000000000000000000000000000000000000000000000000000000000
-    v30 = or v28, v29
-    sstore v27, v30 !metadata(storage=symbolic(v27))
+    v24 = storage_array_data_slot 0
+    v25 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v26 = byte 0, 0x100000000000000000000000000000000000000000000000000000000000000
+    v27 = or v25, v26
+    sstore v24, v27 !metadata(storage=symbolic(v24))
     sstore 0, 65 !metadata(storage=slot(0))
     jump bb5
   bb2:
-    v13 = add v3, 2
-    sstore 0, v13 !metadata(storage=slot(0))
-    v14 = storage_array_data_slot 0
-    v15 = shr v9, 5
-    v16 = add v14, v15
-    v17 = and v9, 31
-    v18 = sub 31, v17
-    v19 = mul v18, 8
-    v20 = shl 255, v19
-    v21 = sload v16 !metadata(storage=symbolic(v16))
-    v22 = not v20
-    v23 = and v21, v22
-    v24 = shl 1, v19
-    v25 = or v23, v24
-    sstore v16, v25 !metadata(storage=symbolic(v16))
+    v10 = add v0, 2
+    sstore 0, v10 !metadata(storage=slot(0))
+    v11 = storage_array_data_slot 0
+    v12 = shr v6, 5
+    v13 = add v11, v12
+    v14 = and v6, 31
+    v15 = sub 31, v14
+    v16 = mul v15, 8
+    v17 = shl 255, v16
+    v18 = sload v13 !metadata(storage=symbolic(v13))
+    v19 = not v17
+    v20 = and v18, v19
+    v21 = shl 1, v16
+    v22 = or v20, v21
+    sstore v13, v22 !metadata(storage=symbolic(v13))
     jump bb5
   bb5:
     ret
@@ -934,56 +927,53 @@ fn @pushPastMaxLength() [selector=0xd9fa2828, abi_params=[], abi_returns=[], abi
 
 fn @pushZeroPastMaxLength() [selector=0x65c6159f, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = shl 1, 64
-    v1 = mul v0, 2
-    v2 = add v1, 1
-    sstore 0, v2 !metadata(storage=slot(0))
-    v3 = sload 0 !metadata(storage=slot(0))
-    validate_storage_bytes v3
-    v4 = and v3, 1
-    v5 = eq v4, 1
-    v6 = sub 0, v4
-    v7 = or 127, v6
-    v8 = shr v3, 1
-    v9 = and v8, v7
-    v10 = add v9, 1
-    v11 = gt v10, 0x10000000000000000
-    icall panic_if<0x41>, v11
-    v12 = gt v9, 31
-    jumpi v12, bb2, bb1
+    sstore 0, 0x20000000000000001 !metadata(storage=slot(0))
+    v0 = sload 0 !metadata(storage=slot(0))
+    validate_storage_bytes v0
+    v1 = and v0, 1
+    v2 = eq v1, 1
+    v3 = sub 0, v1
+    v4 = or 127, v3
+    v5 = shr v0, 1
+    v6 = and v5, v4
+    v7 = add v6, 1
+    v8 = gt v7, 0x10000000000000000
+    icall panic_if<0x41>, v8
+    v9 = gt v6, 31
+    jumpi v9, bb2, bb1
   bb1:
-    v18 = eq v9, 31
-    jumpi v18, bb3, bb4
+    v15 = eq v6, 31
+    jumpi v15, bb3, bb4
   bb4:
-    v23 = sub 32, v10
-    v24 = mul v23, 8
-    v25 = shl 1, v24
-    v26 = sub v25, 1
-    v27 = not v26
-    v28 = and v3, v27
-    v29 = mul v10, 2
-    v30 = or v28, v29
-    sstore 0, v30 !metadata(storage=slot(0))
+    v20 = sub 32, v7
+    v21 = mul v20, 8
+    v22 = shl 1, v21
+    v23 = sub v22, 1
+    v24 = not v23
+    v25 = and v0, v24
+    v26 = mul v7, 2
+    v27 = or v25, v26
+    sstore 0, v27 !metadata(storage=slot(0))
     jump bb5
   bb3:
-    v19 = storage_array_data_slot 0
-    v20 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    sstore v19, v20 !metadata(storage=symbolic(v19))
-    v21 = shl v10, 1
-    v22 = or v21, 1
-    sstore 0, v22 !metadata(storage=slot(0))
+    v16 = storage_array_data_slot 0
+    v17 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    sstore v16, v17 !metadata(storage=symbolic(v16))
+    v18 = shl v7, 1
+    v19 = or v18, 1
+    sstore 0, v19 !metadata(storage=slot(0))
     jump bb5
   bb2:
-    v13 = shl v10, 1
-    v14 = or v13, 1
-    sstore 0, v14 !metadata(storage=slot(0))
-    v15 = storage_array_data_slot 0
-    v16 = shr v9, 5
-    v17 = add v15, v16
+    v10 = shl v7, 1
+    v11 = or v10, 1
+    sstore 0, v11 !metadata(storage=slot(0))
+    v12 = storage_array_data_slot 0
+    v13 = shr v6, 5
+    v14 = add v12, v13
     jump bb5
   bb5:
-    v31 = phi [bb2: v17], [bb3: v19], [bb4: 0]
-    v32 = and v9, 31
-    v33 = sub 31, v32
+    v28 = phi [bb2: v14], [bb3: v16], [bb4: 0]
+    v29 = and v6, 31
+    v30 = sub 31, v29
     ret
 }

@@ -47,16 +47,15 @@ fn @observed(arg0: i256) -> i256 [selector=0x3a5fe8af, pure, abi_params=[uint256
     v19 = eq v18, 0x73637261746368206c69746572616c2074686174207370616e732074776f2077
     v20 = zext i1 v19 to i256
     v21 = and v16, v20
-    v22 = shl 0x6f7264733f, 216
-    v23 = add v0, 64
-    v24 = mload v23
-    v25 = eq v24, v22
-    v26 = zext i1 v25 to i256
-    v27 = and v21, v26
-    v28 = eq v8, 0xf7ca02e8e7052e428c9661bb6f3f0ab0e7f87756e5e2172ef9b6c9f13bf7349c
-    v29 = eq v28, false
-    icall revert_if<empty>, v29
-    ret v27
+    v22 = add v0, 64
+    v23 = mload v22
+    v24 = eq v23, 0x6f7264733f000000000000000000000000000000000000000000000000000000
+    v25 = zext i1 v24 to i256
+    v26 = and v21, v25
+    v27 = eq v8, 0xf7ca02e8e7052e428c9661bb6f3f0ab0e7f87756e5e2172ef9b6c9f13bf7349c
+    v28 = eq v27, false
+    icall revert_if<empty>, v28
+    ret v26
 }
 
 fn @observedRevert(arg0: i256) [selector=0x8cf17d01, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
@@ -158,15 +157,14 @@ fn @recycledHash(arg0: i256) -> i256 [selector=0x4e86729e, pure, abi_params=[uin
     mstore v2, 2
     v3 = ptradd v2, 32
     mstore v3, 0x1111000000000000000000000000000000000000000000000000000000000000
-    v4 = shl 0xabcd, 240
-    v5 = ptrtoint ptr<memory> v0 to i256
-    v6 = add v5, 32
-    mstore v6, v4
-    v7 = abi_encode [word, memory_bytes], scratch, args arg0, v2
-    v8 = extract_value slice<memory>, v7, 0
-    v9 = extract_value slice<memory>, v7, 1
-    v10 = keccak256 v8, v9
-    ret v10
+    v4 = ptrtoint ptr<memory> v0 to i256
+    v5 = add v4, 32
+    mstore v5, 0xabcd000000000000000000000000000000000000000000000000000000000000
+    v6 = abi_encode [word, memory_bytes], scratch, args arg0, v2
+    v7 = extract_value slice<memory>, v6, 0
+    v8 = extract_value slice<memory>, v6, 1
+    v9 = keccak256 v7, v8
+    ret v9
 }
 
 fn @text() -> ptr<memory> [selector=0x1f1bd692, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -190,9 +188,8 @@ fn @recycledText() -> ptr<memory> [selector=0xb5761dae, pure, abi_params=[], abi
     mstore v2, 2
     v3 = ptradd v2, 32
     mstore v3, 0x3333000000000000000000000000000000000000000000000000000000000000
-    v4 = shl 0xabcd, 240
-    v5 = ptrtoint ptr<memory> v0 to i256
-    v6 = add v5, 32
-    mstore v6, v4
+    v4 = ptrtoint ptr<memory> v0 to i256
+    v5 = add v4, 32
+    mstore v5, 0xabcd000000000000000000000000000000000000000000000000000000000000
     ret v2
 }

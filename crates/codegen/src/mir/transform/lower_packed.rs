@@ -119,7 +119,7 @@ impl PackedEncoder<'_, '_> {
                     (PackedPiece::Array { value, length, element, source }, bytes)
                 }
             };
-            total = self.builder.add_folded(total, length);
+            total = self.builder.add(total, length);
             pieces.push(piece);
         }
         (pieces, total)
@@ -162,7 +162,7 @@ impl PackedEncoder<'_, '_> {
             if let Some((consumed, length, value)) = self.try_pack_packed_word(&pieces[index..]) {
                 self.builder.memory_store_word(output, offset, value);
                 let length = self.builder.imm(length);
-                offset = self.builder.add_folded(offset, length);
+                offset = self.builder.add(offset, length);
                 index += consumed;
                 continue;
             }
@@ -174,7 +174,7 @@ impl PackedEncoder<'_, '_> {
                         let value = self.builder.imm(padded_word(chunk));
                         self.builder.memory_store_word(output, offset, value);
                         let length = self.builder.imm(chunk.len() as u64);
-                        offset = self.builder.add_folded(offset, length);
+                        offset = self.builder.add(offset, length);
                     }
                 }
                 PackedPiece::Dynamic { source, length, .. } => {
@@ -193,7 +193,7 @@ impl PackedEncoder<'_, '_> {
                         // copy(source, output + offset)
                         self.builder.memory_copy_from_slice_at(output, offset, *source);
                     }
-                    offset = self.builder.add_folded(offset, *length);
+                    offset = self.builder.add(offset, *length);
                 }
                 PackedPiece::Array { value, length, element, source } => {
                     // offset = copy_packed_array(output, offset, value)
@@ -205,7 +205,7 @@ impl PackedEncoder<'_, '_> {
                     let value = self.align_static(*value, *length, *fixed_bytes);
                     self.builder.memory_store_word(output, offset, value);
                     let length = self.builder.imm(*length);
-                    offset = self.builder.add_folded(offset, length);
+                    offset = self.builder.add(offset, length);
                 }
             }
             index += 1;
@@ -299,7 +299,7 @@ impl PackedEncoder<'_, '_> {
             value
         } else {
             let shift = self.builder.imm((32 - length) * 8);
-            self.builder.shl_folded(value, shift)
+            self.builder.shl(value, shift)
         }
     }
 
@@ -463,9 +463,9 @@ impl PackedEncoder<'_, '_> {
                     term
                 } else {
                     let right = self.builder.imm(right);
-                    self.builder.shr_folded(term, right)
+                    self.builder.shr(term, right)
                 };
-                value = self.builder.or_folded(value, term);
+                value = self.builder.or(value, term);
                 continue;
             }
             // word |= (term & width_mask_if_signed) << shift
@@ -479,9 +479,9 @@ impl PackedEncoder<'_, '_> {
                 term
             } else {
                 let shift = self.builder.imm(shift);
-                self.builder.shl_folded(term, shift)
+                self.builder.shl(term, shift)
             };
-            value = self.builder.or_folded(value, term);
+            value = self.builder.or(value, term);
         }
         value
     }

@@ -36,9 +36,8 @@ fn @joinAddress(arg0: i1) -> i256 [selector=0xbfc95d7a, pure, abi_params=[bool],
 
 fn @dirtyAddress(arg0: i256) -> i256 [pure] {
   bb0:
-    v0 = shl 1, 160
-    v1 = or arg0, v0
-    ret v1
+    v0 = or arg0, 0x10000000000000000000000000000000000000000
+    ret v0
 }
 
 fn @dirtyBytes(arg0: i256) -> i256 [pure] {
@@ -49,9 +48,8 @@ fn @dirtyBytes(arg0: i256) -> i256 [pure] {
 
 fn @dirtyUint8(arg0: i256) -> i256 [pure] {
   bb0:
-    v0 = shl 1, 8
-    v1 = or arg0, v0
-    ret v1
+    v0 = or arg0, 256
+    ret v0
 }
 
 fn @dirtyBool(arg0: i256) -> i256 [pure] {

@@ -13,9 +13,7 @@ fn @copied(arg0: i256, arg1: i256, arg2: i256) [selector=0xc8ef3ab5, pure, abi_p
 
 fn @zeroCopy(arg0: i256) [selector=0xf16e8c2d, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = not 0
-    v1 = not 0
-    calldatacopy v1, v0, arg0
+    calldatacopy 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg0
     mstore 0, 17 !metadata(memory=scratch)
     returndata 0, 32
 }

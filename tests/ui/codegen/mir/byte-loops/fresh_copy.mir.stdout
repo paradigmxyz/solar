@@ -324,7 +324,7 @@ fn @_dirty() [pure] {
     jump bb1
   bb1:
     v1 = phi [bb0: v0], [bb3: v1]
-    v2 = phi [bb0: 0], [bb3: v8]
+    v2 = phi [bb0: 0], [bb3: v7]
     v3 = lt v2, 0x400
     v4 = zext i1 v3 to i256
     v5 = ne v4, 0
@@ -334,14 +334,13 @@ fn @_dirty() [pure] {
   bb2:
     ret
   bb4:
-    v6 = not 0
-    v7 = add v1, v2
-    mstore v7, v6
+    v6 = add v1, v2
+    mstore v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v8 = add v2, 32
+    v7 = add v2, 32
     jump bb1
 }
 
@@ -355,19 +354,18 @@ fn @_tail(arg0: ptr<memory>) -> i256 [pure] {
   bb2:
     jump bb3
   bb1:
-    v4 = not 31
-    v5 = and v1, v4
-    v6 = ptrtoint ptr<memory> arg0 to i256
-    v7 = add v6, 32
-    v8 = add v7, v5
-    v9 = mload v8
-    v10 = and v1, 31
-    v11 = mul 8, v10
-    v12 = shl v9, v11
+    v4 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v5 = ptrtoint ptr<memory> arg0 to i256
+    v6 = add v5, 32
+    v7 = add v6, v4
+    v8 = mload v7
+    v9 = and v1, 31
+    v10 = mul 8, v9
+    v11 = shl v8, v10
     jump bb3
   bb3:
-    v13 = phi [bb1: v12], [bb2: 0]
-    ret v13
+    v12 = phi [bb1: v11], [bb2: 0]
+    ret v12
 }
 
 fn @_count(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [pure] {

@@ -1511,8 +1511,8 @@ fn encode_memory_array_elements(
         }
     };
     let element_head_size = builder.imm(element.head_size());
-    let head_bytes = builder.mul_folded(len, element_head_size);
-    let initial_tail = builder.add_folded(element_area, head_bytes);
+    let head_bytes = builder.mul(len, element_head_size);
+    let initial_tail = builder.add(element_area, head_bytes);
     let source_cursor = match layout {
         MemoryObjectLayout::FixedArray { .. } => builder.cast(value, MirType::I256),
         _ => builder.memory_data(value),
@@ -1668,8 +1668,8 @@ fn encode_calldata_elements(
     helpers: &EncodeHelpers,
 ) -> ValueId {
     let stride = builder.imm(element.head_size());
-    let head_bytes = builder.mul_folded(length, stride);
-    let initial_tail = builder.add_folded(area, head_bytes);
+    let head_bytes = builder.mul(length, stride);
+    let initial_tail = builder.add(area, head_bytes);
     if !element.is_dynamic() {
         // for index in 0..length: encode_static(element, base + index * stride)
         let encode_each = |builder: &mut FunctionBuilder<'_>| {

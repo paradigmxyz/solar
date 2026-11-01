@@ -45,9 +45,8 @@ fn @mixed(arg0: i256, arg1: i256, arg2: i256) -> i1 [selector=0x8e902cd6, pure, 
 
 fn @dirty() -> i1 [selector=0x7dce0fd0, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = not 0
-    v1 = icall @mixed, 254, v0, 2
-    ret v1
+    v0 = icall @mixed, 254, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2
+    ret v0
 }
 
 fn @ordered() -> i1 [selector=0xfda8b909, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {

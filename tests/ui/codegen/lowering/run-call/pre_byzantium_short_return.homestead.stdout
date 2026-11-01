@@ -327,54 +327,53 @@ fn @partialAgg() -> ptr<memory> [selector=0xbf0809fa, abi_params=[], abi_returns
 fn @dirtyFour() -> struct1 [selector=0x42fc804f, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
-    v1 = not 0
-    v2 = add v0, 32
-    mstore v2, v1
-    v3 = add v0, 64
-    mstore v3, 0xdeadbeef
-    v4 = add v0, 96
-    mstore v4, 0x1234
-    v5 = address
-    v6 = fmp
-    v7 = ptrtoint ptr<memory> v6 to i256
-    v8 = add v7, 128
-    mstore v8, 0
-    v9 = abi_encode [], selector 0xfb8720fc00000000000000000000000000000000000000000000000000000000
-    v10 = extract_value slice<memory>, v9, 0
-    v11 = extract_value slice<memory>, v9, 1
-    v12 = zext i160 v5 to i256
-    v13 = extcodesize v12
-    v14 = eq v13, 0
-    icall revert_if<target_contract_has_no_code>, v14
-    v15 = gas
-    v16 = sub v15, 50
-    v17 = zext i160 v5 to i256
-    v18 = call v16, v17, 0, v10, v11, v10, 128
-    jumpi v18, bb2, bb1
+    v1 = add v0, 32
+    mstore v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v2 = add v0, 64
+    mstore v2, 0xdeadbeef
+    v3 = add v0, 96
+    mstore v3, 0x1234
+    v4 = address
+    v5 = fmp
+    v6 = ptrtoint ptr<memory> v5 to i256
+    v7 = add v6, 128
+    mstore v7, 0
+    v8 = abi_encode [], selector 0xfb8720fc00000000000000000000000000000000000000000000000000000000
+    v9 = extract_value slice<memory>, v8, 0
+    v10 = extract_value slice<memory>, v8, 1
+    v11 = zext i160 v4 to i256
+    v12 = extcodesize v11
+    v13 = eq v12, 0
+    icall revert_if<target_contract_has_no_code>, v13
+    v14 = gas
+    v15 = sub v14, 50
+    v16 = zext i160 v4 to i256
+    v17 = call v15, v16, 0, v9, v10, v9, 128
+    jumpi v17, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v19 = mload v10
-    v20 = ptrtoint ptr<memory> v10 to i256
-    v21 = add v20, 32
-    v22 = mload v21
-    v23 = ptrtoint ptr<memory> v10 to i256
-    v24 = add v23, 64
-    v25 = mload v24
-    v26 = ptrtoint ptr<memory> v10 to i256
-    v27 = add v26, 96
-    v28 = mload v27
-    v29 = insert_value struct1, undef struct1, 0, v19
-    v30 = insert_value struct1, v29, 1, v22
-    v31 = insert_value struct1, v30, 2, v25
-    v32 = insert_value struct1, v31, 3, v28
-    v33 = extract_value struct1, v32, 0
-    v34 = extract_value struct1, v32, 1
-    v35 = extract_value struct1, v32, 2
-    v36 = extract_value struct1, v32, 3
-    v37 = insert_value struct1, undef struct1, 0, v33
-    v38 = insert_value struct1, v37, 1, v34
-    v39 = insert_value struct1, v38, 2, v35
-    v40 = insert_value struct1, v39, 3, v36
-    ret v40
+    v18 = mload v9
+    v19 = ptrtoint ptr<memory> v9 to i256
+    v20 = add v19, 32
+    v21 = mload v20
+    v22 = ptrtoint ptr<memory> v9 to i256
+    v23 = add v22, 64
+    v24 = mload v23
+    v25 = ptrtoint ptr<memory> v9 to i256
+    v26 = add v25, 96
+    v27 = mload v26
+    v28 = insert_value struct1, undef struct1, 0, v18
+    v29 = insert_value struct1, v28, 1, v21
+    v30 = insert_value struct1, v29, 2, v24
+    v31 = insert_value struct1, v30, 3, v27
+    v32 = extract_value struct1, v31, 0
+    v33 = extract_value struct1, v31, 1
+    v34 = extract_value struct1, v31, 2
+    v35 = extract_value struct1, v31, 3
+    v36 = insert_value struct1, undef struct1, 0, v32
+    v37 = insert_value struct1, v36, 1, v33
+    v38 = insert_value struct1, v37, 2, v34
+    v39 = insert_value struct1, v38, 3, v35
+    ret v39
 }

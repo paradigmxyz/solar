@@ -2,8 +2,7 @@
 @module StorageBoundaryArrayPartialAssignment
 fn @getArray() -> i256 [pure] {
   bb0:
-    v0 = sub 0, 5
-    ret v0
+    ret 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffb
 }
 
 fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {

@@ -208,18 +208,16 @@ fn @rawPointerPair() -> struct4 [pure] {
     v2 = add v1, 64
     mstore 64, v2 !metadata(memory=scratch)
     mstore v0, 1
-    v3 = shl 17, 248
-    v4 = add v0, 32
-    mstore v4, v3
+    v3 = add v0, 32
+    mstore v3, 0x1100000000000000000000000000000000000000000000000000000000000000
     mstore v1, 1
-    v5 = shl 34, 248
-    v6 = add v1, 32
-    mstore v6, v5
-    v7 = inttoptr i256 v0 to ptr<memory>
-    v8 = inttoptr i256 v1 to ptr<memory>
-    v9 = insert_value struct4, undef struct4, 0, v7
-    v10 = insert_value struct4, v9, 1, v8
-    ret v10
+    v4 = add v1, 32
+    mstore v4, 0x2200000000000000000000000000000000000000000000000000000000000000
+    v5 = inttoptr i256 v0 to ptr<memory>
+    v6 = inttoptr i256 v1 to ptr<memory>
+    v7 = insert_value struct4, undef struct4, 0, v5
+    v8 = insert_value struct4, v7, 1, v6
+    ret v8
 }
 
 fn @freeMemoryPointer() -> i256 [pure] {

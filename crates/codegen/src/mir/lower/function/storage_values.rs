@@ -1896,7 +1896,7 @@ fn long_storage_bytes_byte_slot(
     // word_slot = storage_array_data_slot(slot) + index / 32
     let data_slot = builder.storage_array_data_slot(slot);
     let word_shift = builder.imm(5);
-    let word_index = builder.shr_folded(index, word_shift);
+    let word_index = builder.shr(index, word_shift);
     match builder.func().value_u256(word_index) {
         Some(word_index) => builder.add_offset(data_slot, word_index),
         None => builder.add(data_slot, word_index),
@@ -1913,8 +1913,8 @@ fn storage_bytes_byte_access_at(
 ) -> StorageAccess {
     // offset = 31 - index % 32
     let last_byte = builder.imm(31);
-    let index_in_word = builder.and_folded(index, last_byte);
-    let offset = builder.sub_folded(last_byte, index_in_word);
+    let index_in_word = builder.and(index, last_byte);
+    let offset = builder.sub(last_byte, index_in_word);
     let location =
         StorageLocation::packed_word(TypeSize::new_int_bits(8), StorageEncoding::FixedBytes);
     StorageAccess { slot: word_slot, location, offset: Some(offset) }

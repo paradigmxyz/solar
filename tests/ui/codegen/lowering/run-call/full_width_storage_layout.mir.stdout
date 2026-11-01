@@ -21,83 +21,77 @@ fn @check() -> i1 [selector=0x919840ad, abi_params=[], abi_returns=[word<bool>],
     v10 = or v9, 13
     sstore 0x100000000000000000000000000000000000000010800000000000000, v10 !metadata(storage=slot(0x100000000000000000000000000000000000000010800000000000000))
     sstore 0x100000000000000000000000000000000000000010800000000000001, 17 !metadata(storage=slot(0x100000000000000000000000000000000000000010800000000000001))
-    v11 = shl 1, 160
-    v12 = sub v11, 1
-    v13 = shl 1, 160
-    v14 = add v13, 1
-    v15 = mul 0xffffffffffffffff, v14
-    v16 = add v15, v12
-    v17 = sload v16 !metadata(storage=symbolic(v16))
-    v18 = eq 0x100000000000000000000000000000000000000010000000000000000, 0x100000000000000000000000000000000000000010000000000000000
-    jumpi v18, bb1, bb2
+    v11 = sload 0x10000000000000000000000000000000000000000fffffffffffffffe !metadata(storage=slot(0x10000000000000000000000000000000000000000fffffffffffffffe))
+    v12 = eq 0x100000000000000000000000000000000000000010000000000000000, 0x100000000000000000000000000000000000000010000000000000000
+    jumpi v12, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v19 = checked_add uint256, 0x100000000000000000000000000000000000000010000000000000000, 0x800000000000000
-    v20 = checked_add uint256, v19, 1
-    v21 = eq 0x100000000000000000000000000000000000000010800000000000001, v20
+    v13 = checked_add uint256, 0x100000000000000000000000000000000000000010000000000000000, 0x800000000000000
+    v14 = checked_add uint256, v13, 1
+    v15 = eq 0x100000000000000000000000000000000000000010800000000000001, v14
     jump bb3
   bb3:
-    v22 = phi [bb1: v21], [bb2: false]
-    jumpi v22, bb4, bb5
+    v16 = phi [bb1: v15], [bb2: false]
+    jumpi v16, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v23 = eq v17, 7
+    v17 = eq v11, 7
     jump bb6
   bb6:
-    v24 = phi [bb4: v23], [bb5: false]
-    jumpi v24, bb7, bb8
+    v18 = phi [bb4: v17], [bb5: false]
+    jumpi v18, bb7, bb8
   bb8:
     jump bb9
   bb7:
-    v25 = lt 0xffffffffffffffff, 0x10000000000000000
-    v26 = eq v25, false
-    icall panic_if<0x32>, v26
-    v27 = lt 0xffffffffffffffffffffffffffffffffffffffff, 0x10000000000000000000000000000000000000000
-    v28 = eq v27, false
-    icall panic_if<0x32>, v28
-    v29 = sload 0x10000000000000000000000000000000000000000fffffffffffffffe !metadata(storage=slot(0x10000000000000000000000000000000000000000fffffffffffffffe))
-    v30 = eq v29, 7
+    v19 = lt 0xffffffffffffffff, 0x10000000000000000
+    v20 = eq v19, false
+    icall panic_if<0x32>, v20
+    v21 = lt 0xffffffffffffffffffffffffffffffffffffffff, 0x10000000000000000000000000000000000000000
+    v22 = eq v21, false
+    icall panic_if<0x32>, v22
+    v23 = sload 0x10000000000000000000000000000000000000000fffffffffffffffe !metadata(storage=slot(0x10000000000000000000000000000000000000000fffffffffffffffe))
+    v24 = eq v23, 7
     jump bb9
   bb9:
-    v31 = phi [bb7: v30], [bb8: false]
-    jumpi v31, bb10, bb11
+    v25 = phi [bb7: v24], [bb8: false]
+    jumpi v25, bb10, bb11
   bb11:
     jump bb12
   bb10:
-    v32 = lt 0xffffffffffffffff, 0x10000000000000000
-    v33 = eq v32, false
-    icall panic_if<0x32>, v33
-    v34 = sload 0x10000000000000000000000000000000000000000ffffffffffffffff !metadata(storage=slot(0x10000000000000000000000000000000000000000ffffffffffffffff))
-    v35 = eq v34, 11
+    v26 = lt 0xffffffffffffffff, 0x10000000000000000
+    v27 = eq v26, false
+    icall panic_if<0x32>, v27
+    v28 = sload 0x10000000000000000000000000000000000000000ffffffffffffffff !metadata(storage=slot(0x10000000000000000000000000000000000000000ffffffffffffffff))
+    v29 = eq v28, 11
     jump bb12
   bb12:
-    v36 = phi [bb10: v35], [bb11: false]
-    jumpi v36, bb13, bb14
+    v30 = phi [bb10: v29], [bb11: false]
+    jumpi v30, bb13, bb14
   bb14:
     jump bb15
   bb13:
-    v37 = lt 0x10000000000000000, 0x10000000000000001
-    v38 = eq v37, false
-    icall panic_if<0x32>, v38
-    v39 = sload 0x100000000000000000000000000000000000000010800000000000000 !metadata(storage=slot(0x100000000000000000000000000000000000000010800000000000000))
-    v40 = shr v39, 0
-    v41 = trunc i256 v40 to i8
-    v42 = eq v41, i8 13
+    v31 = lt 0x10000000000000000, 0x10000000000000001
+    v32 = eq v31, false
+    icall panic_if<0x32>, v32
+    v33 = sload 0x100000000000000000000000000000000000000010800000000000000 !metadata(storage=slot(0x100000000000000000000000000000000000000010800000000000000))
+    v34 = shr v33, 0
+    v35 = trunc i256 v34 to i8
+    v36 = eq v35, i8 13
     jump bb15
   bb15:
-    v43 = phi [bb13: v42], [bb14: false]
-    jumpi v43, bb16, bb17
+    v37 = phi [bb13: v36], [bb14: false]
+    jumpi v37, bb16, bb17
   bb17:
     jump bb18
   bb16:
-    v44 = sload 0x100000000000000000000000000000000000000010800000000000001 !metadata(storage=slot(0x100000000000000000000000000000000000000010800000000000001))
-    v45 = eq v44, 17
+    v38 = sload 0x100000000000000000000000000000000000000010800000000000001 !metadata(storage=slot(0x100000000000000000000000000000000000000010800000000000001))
+    v39 = eq v38, 17
     jump bb18
   bb18:
-    v46 = phi [bb16: v45], [bb17: false]
-    ret v46
+    v40 = phi [bb16: v39], [bb17: false]
+    ret v40
 }
 
 fn @read(arg0: i256) -> i256 [selector=0xed2e5a97, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {

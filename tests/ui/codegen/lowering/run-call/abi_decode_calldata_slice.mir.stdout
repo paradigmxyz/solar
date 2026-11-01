@@ -30,26 +30,24 @@ fn @f(arg0: i256, arg1: i256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=
     v20 = or v18, v19
     v21 = zext i1 v20 to i256
     icall revert_if<empty>, v20
-    v22 = sub 36, 4
-    v23 = ptradd v16, 4
-    v24 = make_calldata_slice v23, v22
-    v25 = abi_decode [uint256], v24
-    v26 = calldatasize
-    v27 = make_calldata_slice ptr<calldata> 0, v26
-    v28 = extract_value slice<calldata>, v27, 0
-    v29 = extract_value slice<calldata>, v27, 1
-    v30 = gt 68, v29
-    v31 = lt 68, 36
-    v32 = or v30, v31
-    v33 = zext i1 v32 to i256
-    icall revert_if<empty>, v32
-    v34 = sub 68, 36
-    v35 = ptradd v28, 36
-    v36 = make_calldata_slice v35, v34
-    v37 = abi_decode [uint256], v36
-    v38 = insert_value struct0, undef struct0, 0, v12
-    v39 = insert_value struct0, v38, 1, v13
-    v40 = insert_value struct0, v39, 2, v25
-    v41 = insert_value struct0, v40, 3, v37
-    ret v41
+    v22 = ptradd v16, 4
+    v23 = make_calldata_slice v22, 32
+    v24 = abi_decode [uint256], v23
+    v25 = calldatasize
+    v26 = make_calldata_slice ptr<calldata> 0, v25
+    v27 = extract_value slice<calldata>, v26, 0
+    v28 = extract_value slice<calldata>, v26, 1
+    v29 = gt 68, v28
+    v30 = lt 68, 36
+    v31 = or v29, v30
+    v32 = zext i1 v31 to i256
+    icall revert_if<empty>, v31
+    v33 = ptradd v27, 36
+    v34 = make_calldata_slice v33, 32
+    v35 = abi_decode [uint256], v34
+    v36 = insert_value struct0, undef struct0, 0, v12
+    v37 = insert_value struct0, v36, 1, v13
+    v38 = insert_value struct0, v37, 2, v24
+    v39 = insert_value struct0, v38, 3, v35
+    ret v39
 }

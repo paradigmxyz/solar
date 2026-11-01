@@ -269,12 +269,10 @@ fn @increments() -> struct2 [selector=0x56aa2dc5, pure, abi_params=[], abi_retur
 
 fn @decrements() -> i256 [selector=0xa1d28959, pure, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
-    v0 = not 255
-    v1 = trunc i256 v0 to i8
-    v2 = checked_sub uint8, v1, i8 1
-    v3 = zext i8 v2 to i256
-    v4 = zext i8 v2 to i256
-    ret v4
+    v0 = checked_sub uint8, i8 0, i8 1
+    v1 = zext i8 v0 to i256
+    v2 = zext i8 v0 to i256
+    ret v2
 }
 
 fn @negation() -> i256 [selector=0x336c96f8, pure, abi_params=[], abi_returns=[word<int8>], abi_return_params=[int8]] {

@@ -1238,16 +1238,15 @@ fn @dirtyEnum() -> i256 [selector=0x676092a0, abi_params=[], abi_returns=[word],
     sstore v26, v37 !metadata(storage=symbolic(v26))
     sstore 5, v23 !metadata(storage=slot(5))
     v38 = keccak256_packed (uint256 5)
-    v39 = shl 7, 8
-    v40 = sload v38 !metadata(storage=symbolic(v38))
-    v41 = or v40, v39
-    sstore v38, v41 !metadata(storage=symbolic(v38))
-    v42 = icall @load_storage_packed_array_1_0_enum_3, 5
-    v43 = abi_encode [memory_array<word<enum 3>>], scratch, args v42
-    v44 = extract_value slice<memory>, v43, 0
-    v45 = extract_value slice<memory>, v43, 1
-    v46 = keccak256 v44, v45
-    ret v46
+    v39 = sload v38 !metadata(storage=symbolic(v38))
+    v40 = or v39, 0x700
+    sstore v38, v40 !metadata(storage=symbolic(v38))
+    v41 = icall @load_storage_packed_array_1_0_enum_3, 5
+    v42 = abi_encode [memory_array<word<enum 3>>], scratch, args v41
+    v43 = extract_value slice<memory>, v42, 0
+    v44 = extract_value slice<memory>, v42, 1
+    v45 = keccak256 v43, v44
+    ret v45
 }
 
 fn @load_storage_packed_array_1_0(arg0: i256) -> ptr<memory> {

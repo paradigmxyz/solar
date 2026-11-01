@@ -2,8 +2,7 @@
 @module StorageBoundaryArrayCopy
 fn @getX() -> i256 [pure] {
   bb0:
-    v0 = sub 0, 5
-    ret v0
+    ret 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffb
 }
 
 fn @getY() -> i256 [pure] {

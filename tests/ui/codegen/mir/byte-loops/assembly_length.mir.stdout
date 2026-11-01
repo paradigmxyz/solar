@@ -167,52 +167,51 @@ fn @grownPast() -> i256 [selector=0xd89b44d4, pure, abi_params=[], abi_returns=[
     mstore v1, 64
     v2 = ptrtoint ptr<memory> v0 to i256
     mstore v0, 200
-    v3 = not 0
-    v4 = ptrtoint ptr<memory> v0 to i256
-    v5 = add v4, 32
-    mstore v5, v3
-    v6 = ptrtoint ptr<memory> v0 to i256
-    v7 = add v6, 64
-    mstore v7, 0x101010101010101010101010101010101010101010101010101010101010101
+    v3 = ptrtoint ptr<memory> v0 to i256
+    v4 = add v3, 32
+    mstore v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v5 = ptrtoint ptr<memory> v0 to i256
+    v6 = add v5, 64
+    mstore v6, 0x101010101010101010101010101010101010101010101010101010101010101
     jump bb1
   bb1:
-    v8 = phi [bb0: 0], [bb3: v8]
-    v9 = phi [bb0: v0], [bb3: v9]
-    v10 = phi [bb0: v1], [bb3: v10]
-    v11 = phi [bb0: 0], [bb3: v28]
-    v12 = lt v11, 64
-    jumpi v12, bb4, bb5
+    v7 = phi [bb0: 0], [bb3: v7]
+    v8 = phi [bb0: v0], [bb3: v8]
+    v9 = phi [bb0: v1], [bb3: v9]
+    v10 = phi [bb0: 0], [bb3: v27]
+    v11 = lt v10, 64
+    jumpi v11, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v29 = ptrtoint ptr<memory> v10 to i256
-    v30 = add v29, 64
-    v31 = mload v30
-    ret v31
+    v28 = ptrtoint ptr<memory> v9 to i256
+    v29 = add v28, 64
+    v30 = mload v29
+    ret v30
   bb4:
-    v13 = checked_add uint256, v11, 40
-    v14 = mload v9
-    v15 = lt v13, v14
-    v16 = eq v15, false
-    icall panic_if<0x32>, v16
-    v17 = ptradd v9, v13
-    v18 = ptradd v17, 32
-    v19 = mload v18
-    v20 = byte 0, v19
-    v21 = shl v20, 248
-    v22 = mload v10
-    v23 = lt v11, v22
-    v24 = eq v23, false
-    icall panic_if<0x32>, v24
-    v25 = byte 0, v21
-    v26 = ptradd v10, v11
-    v27 = ptradd v26, 32
-    mstore8 v27, v25
+    v12 = checked_add uint256, v10, 40
+    v13 = mload v8
+    v14 = lt v12, v13
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = ptradd v8, v12
+    v17 = ptradd v16, 32
+    v18 = mload v17
+    v19 = byte 0, v18
+    v20 = shl v19, 248
+    v21 = mload v9
+    v22 = lt v10, v21
+    v23 = eq v22, false
+    icall panic_if<0x32>, v23
+    v24 = byte 0, v20
+    v25 = ptradd v9, v10
+    v26 = ptradd v25, 32
+    mstore8 v26, v24
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v28 = checked_add uint256, v11, 1
+    v27 = checked_add uint256, v10, 1
     jump bb1
 }
 
@@ -222,7 +221,7 @@ fn @_dirty() [pure] {
     jump bb1
   bb1:
     v1 = phi [bb0: v0], [bb3: v1]
-    v2 = phi [bb0: 0], [bb3: v8]
+    v2 = phi [bb0: 0], [bb3: v7]
     v3 = lt v2, 0x400
     v4 = zext i1 v3 to i256
     v5 = ne v4, 0
@@ -232,14 +231,13 @@ fn @_dirty() [pure] {
   bb2:
     ret
   bb4:
-    v6 = not 0
-    v7 = add v1, v2
-    mstore v7, v6
+    v6 = add v1, v2
+    mstore v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v8 = add v2, 32
+    v7 = add v2, 32
     jump bb1
 }
 
@@ -253,17 +251,16 @@ fn @_tail(arg0: ptr<memory>) -> i256 [pure] {
   bb2:
     jump bb3
   bb1:
-    v4 = not 31
-    v5 = and v1, v4
-    v6 = ptrtoint ptr<memory> arg0 to i256
-    v7 = add v6, 32
-    v8 = add v7, v5
-    v9 = mload v8
-    v10 = and v1, 31
-    v11 = mul 8, v10
-    v12 = shl v9, v11
+    v4 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v5 = ptrtoint ptr<memory> arg0 to i256
+    v6 = add v5, 32
+    v7 = add v6, v4
+    v8 = mload v7
+    v9 = and v1, 31
+    v10 = mul 8, v9
+    v11 = shl v8, v10
     jump bb3
   bb3:
-    v13 = phi [bb1: v12], [bb2: 0]
-    ret v13
+    v12 = phi [bb1: v11], [bb2: 0]
+    ret v12
 }

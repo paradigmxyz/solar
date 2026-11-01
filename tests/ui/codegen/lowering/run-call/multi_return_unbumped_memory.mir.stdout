@@ -16,10 +16,9 @@ fn @output() -> i256 [selector=0xf20eaeb8, pure, abi_params=[], abi_returns=[wor
 
 fn @emitWord(arg0: i256) -> struct0 {
   bb0:
-    v0 = shl 0x1234, 240
-    mstore arg0, v0
-    v1 = add arg0, 2
-    v2 = insert_value struct0, undef struct0, 0, v1
-    v3 = insert_value struct0, v2, 1, 0
-    ret v3
+    mstore arg0, 0x1234000000000000000000000000000000000000000000000000000000000000
+    v0 = add arg0, 2
+    v1 = insert_value struct0, undef struct0, 0, v0
+    v2 = insert_value struct0, v1, 1, 0
+    ret v2
 }

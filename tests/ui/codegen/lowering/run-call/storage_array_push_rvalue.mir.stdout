@@ -254,27 +254,26 @@ fn @signedRvalue(arg0: i256) -> struct4 [selector=0xb5c04c0f, abi_params=[uint25
 fn @addressRvalue() -> struct5 [selector=0x2ef1cd4b, abi_params=[], abi_returns=[word<uint160>, word], abi_return_params=[address, uint256]] {
   bb0:
     mstore 0, 6 !metadata(memory=scratch)
-    v0 = not 0
-    v1 = keccak256 0, 32 !metadata(memory=scratch)
-    sstore v1, v0 !metadata(storage=symbolic(v1))
-    v2 = sload 6 !metadata(storage=slot(6))
-    v3 = gt v2, 0xffffffffffffffff
-    icall panic_if<0x41>, v3
-    v4 = add v2, 1
-    v5 = storage_array_data_slot 6
-    v6 = div v2, 1
-    v7 = add v5, v6
-    v8 = mod v2, 1
-    v9 = mul v8, 20
-    sstore 6, v4 !metadata(storage=slot(6))
-    v10 = sload v7 !metadata(storage=symbolic(v7))
-    v11 = mul v9, 8
-    v12 = shr v10, v11
-    v13 = trunc i256 v12 to i160
-    v14 = sload 6 !metadata(storage=slot(6))
-    v15 = insert_value struct5, undef struct5, 0, v13
-    v16 = insert_value struct5, v15, 1, v14
-    ret v16
+    v0 = keccak256 0, 32 !metadata(memory=scratch)
+    sstore v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(storage=symbolic(v0))
+    v1 = sload 6 !metadata(storage=slot(6))
+    v2 = gt v1, 0xffffffffffffffff
+    icall panic_if<0x41>, v2
+    v3 = add v1, 1
+    v4 = storage_array_data_slot 6
+    v5 = div v1, 1
+    v6 = add v4, v5
+    v7 = mod v1, 1
+    v8 = mul v7, 20
+    sstore 6, v3 !metadata(storage=slot(6))
+    v9 = sload v6 !metadata(storage=symbolic(v6))
+    v10 = mul v8, 8
+    v11 = shr v9, v10
+    v12 = trunc i256 v11 to i160
+    v13 = sload 6 !metadata(storage=slot(6))
+    v14 = insert_value struct5, undef struct5, 0, v12
+    v15 = insert_value struct5, v14, 1, v13
+    ret v15
 }
 
 fn @unwrapRvalue(arg0: i256) -> struct6 [selector=0x39669bbc, abi_params=[uint256], abi_returns=[word<uint64>, word<uint64>, word], abi_return_params=[uint64, uint64, uint256]] {

@@ -74,22 +74,20 @@ fn @observed() -> i256 [selector=0xba210709, view, abi_params=[], abi_returns=[w
     v22 = eq v21, 2
     v23 = zext i1 v22 to i256
     v24 = and v23, v20
-    v25 = shl 291, 240
-    v26 = add v0, 32
-    v27 = mload v26
-    v28 = eq v27, v25
-    v29 = zext i1 v28 to i256
-    v30 = and v24, v29
-    v31 = shl 0x616263, 232
-    v32 = add v0, 96
-    v33 = mload v32
-    v34 = eq v33, v31
-    v35 = zext i1 v34 to i256
-    v36 = and v30, v35
-    v37 = add v0, 352
-    v38 = mload 64 !metadata(memory=scratch)
-    v39 = eq v38, v37
-    v40 = zext i1 v39 to i256
-    v41 = and v36, v40
-    ret v41
+    v25 = add v0, 32
+    v26 = mload v25
+    v27 = eq v26, 0x123000000000000000000000000000000000000000000000000000000000000
+    v28 = zext i1 v27 to i256
+    v29 = and v24, v28
+    v30 = add v0, 96
+    v31 = mload v30
+    v32 = eq v31, 0x6162630000000000000000000000000000000000000000000000000000000000
+    v33 = zext i1 v32 to i256
+    v34 = and v29, v33
+    v35 = add v0, 352
+    v36 = mload 64 !metadata(memory=scratch)
+    v37 = eq v36, v35
+    v38 = zext i1 v37 to i256
+    v39 = and v34, v38
+    ret v39
 }

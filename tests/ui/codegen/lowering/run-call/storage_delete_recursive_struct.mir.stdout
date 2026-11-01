@@ -33,40 +33,36 @@ fn @clearNested() [selector=0xdcbc9943, abi_params=[], abi_returns=[word, word, 
     v20 = eq v19, false
     icall panic_if<0x32>, v20
     v21 = storage_array_data_slot v17
-    v22 = not 0
-    sstore 0, v22 !metadata(storage=slot(0))
-    v23 = not 0
-    sstore v9, v23 !metadata(storage=symbolic(v9))
-    v24 = not 0
-    sstore v21, v24 !metadata(storage=symbolic(v21))
-    v25 = sload 0 !metadata(storage=slot(0))
+    sstore 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(storage=slot(0))
+    sstore v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(storage=symbolic(v9))
+    sstore v21, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(storage=symbolic(v21))
+    v22 = sload 0 !metadata(storage=slot(0))
+    v23 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000
+    v24 = or v23, 1
+    sstore 0, v24 !metadata(storage=slot(0))
+    v25 = sload v9 !metadata(storage=symbolic(v9))
     v26 = and v25, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000
-    v27 = or v26, 1
-    sstore 0, v27 !metadata(storage=slot(0))
-    v28 = sload v9 !metadata(storage=symbolic(v9))
+    v27 = or v26, 2
+    sstore v9, v27 !metadata(storage=symbolic(v9))
+    v28 = sload v21 !metadata(storage=symbolic(v21))
     v29 = and v28, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000
-    v30 = or v29, 2
-    sstore v9, v30 !metadata(storage=symbolic(v9))
-    v31 = sload v21 !metadata(storage=symbolic(v21))
-    v32 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000
-    v33 = or v32, 3
-    sstore v21, v33 !metadata(storage=symbolic(v21))
+    v30 = or v29, 3
+    sstore v21, v30 !metadata(storage=symbolic(v21))
     icall @clear_recursive_storage_0, 0
-    v34 = sload 0 !metadata(storage=slot(0))
-    mstore 0, v34 !metadata(memory=scratch)
-    v35 = add 0, 1
-    v36 = sload v35 !metadata(storage=slot(1))
-    mstore 32, v36 !metadata(memory=scratch)
-    v37 = sload v9 !metadata(storage=symbolic(v9))
-    mstore 64, v37 !metadata(memory=scratch)
-    v38 = add v9, 1
-    v39 = sload v38 !metadata(storage=offset(v9, 1))
-    mstore 96, v39 !metadata(memory=scratch)
-    v40 = sload v21 !metadata(storage=symbolic(v21))
-    mstore 128, v40
-    v41 = add v21, 1
-    v42 = sload v41 !metadata(storage=offset(v21, 1))
-    mstore 160, v42
+    v31 = sload 0 !metadata(storage=slot(0))
+    mstore 0, v31 !metadata(memory=scratch)
+    v32 = sload 1 !metadata(storage=slot(1))
+    mstore 32, v32 !metadata(memory=scratch)
+    v33 = sload v9 !metadata(storage=symbolic(v9))
+    mstore 64, v33 !metadata(memory=scratch)
+    v34 = add v9, 1
+    v35 = sload v34 !metadata(storage=offset(v9, 1))
+    mstore 96, v35 !metadata(memory=scratch)
+    v36 = sload v21 !metadata(storage=symbolic(v21))
+    mstore 128, v36
+    v37 = add v21, 1
+    v38 = sload v37 !metadata(storage=offset(v21, 1))
+    mstore 160, v38
     returndata 0, 192
 }
 
@@ -89,40 +85,36 @@ fn @clearMutual() [selector=0x5baf460d, abi_params=[], abi_returns=[word, word, 
     v11 = mul v7, 2
     v12 = add v10, v11
     sstore v6, v9 !metadata(storage=offset(v5, 1))
-    v13 = not 0
-    sstore 2, v13 !metadata(storage=slot(2))
-    v14 = not 0
-    sstore v5, v14 !metadata(storage=symbolic(v5))
-    v15 = not 0
-    sstore v12, v15 !metadata(storage=symbolic(v12))
-    v16 = sload 2 !metadata(storage=slot(2))
+    sstore 2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(storage=slot(2))
+    sstore v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(storage=symbolic(v5))
+    sstore v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(storage=symbolic(v12))
+    v13 = sload 2 !metadata(storage=slot(2))
+    v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000
+    v15 = or v14, 1
+    sstore 2, v15 !metadata(storage=slot(2))
+    v16 = sload v5 !metadata(storage=symbolic(v5))
     v17 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000
-    v18 = or v17, 1
-    sstore 2, v18 !metadata(storage=slot(2))
-    v19 = sload v5 !metadata(storage=symbolic(v5))
+    v18 = or v17, 2
+    sstore v5, v18 !metadata(storage=symbolic(v5))
+    v19 = sload v12 !metadata(storage=symbolic(v12))
     v20 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000
-    v21 = or v20, 2
-    sstore v5, v21 !metadata(storage=symbolic(v5))
-    v22 = sload v12 !metadata(storage=symbolic(v12))
-    v23 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000
-    v24 = or v23, 3
-    sstore v12, v24 !metadata(storage=symbolic(v12))
+    v21 = or v20, 3
+    sstore v12, v21 !metadata(storage=symbolic(v12))
     icall @clear_recursive_storage_1, 2
-    v25 = sload 2 !metadata(storage=slot(2))
-    mstore 0, v25 !metadata(memory=scratch)
-    v26 = add 2, 1
-    v27 = sload v26 !metadata(storage=slot(3))
-    mstore 32, v27 !metadata(memory=scratch)
-    v28 = sload v5 !metadata(storage=symbolic(v5))
-    mstore 64, v28 !metadata(memory=scratch)
-    v29 = add v5, 1
-    v30 = sload v29 !metadata(storage=offset(v5, 1))
-    mstore 96, v30 !metadata(memory=scratch)
-    v31 = sload v12 !metadata(storage=symbolic(v12))
-    mstore 128, v31
-    v32 = add v12, 1
-    v33 = sload v32 !metadata(storage=offset(v12, 1))
-    mstore 160, v33
+    v22 = sload 2 !metadata(storage=slot(2))
+    mstore 0, v22 !metadata(memory=scratch)
+    v23 = sload 3 !metadata(storage=slot(3))
+    mstore 32, v23 !metadata(memory=scratch)
+    v24 = sload v5 !metadata(storage=symbolic(v5))
+    mstore 64, v24 !metadata(memory=scratch)
+    v25 = add v5, 1
+    v26 = sload v25 !metadata(storage=offset(v5, 1))
+    mstore 96, v26 !metadata(memory=scratch)
+    v27 = sload v12 !metadata(storage=symbolic(v12))
+    mstore 128, v27
+    v28 = add v12, 1
+    v29 = sload v28 !metadata(storage=offset(v12, 1))
+    mstore 160, v29
     returndata 0, 192
 }
 

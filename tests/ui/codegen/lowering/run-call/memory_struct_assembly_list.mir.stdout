@@ -42,9 +42,8 @@ fn @dirtyFreeMemory() [view] {
     v3 = zext i160 v2 to i256
     v4 = add v3, v1
     mstore v0, v4
-    v5 = not 0
-    v6 = add v0, 32
-    mstore v6, v5
+    v5 = add v0, 32
+    mstore v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     ret
 }
 

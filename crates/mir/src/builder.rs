@@ -233,15 +233,11 @@ impl<'a> FunctionBuilder<'a> {
         self.alloc_value(Value::Immediate(Immediate::I1(value)))
     }
 
-    /// Adds a constant offset, folding zero offsets and immediate bases.
+    /// Adds a constant offset, skipping a zero offset.
     pub fn add_offset(&mut self, base: ValueId, offset: impl ToUint) -> ValueId {
         let offset = offset.to_uint();
         if offset.is_zero() {
             return base;
-        }
-        if let Some(base) = self.func.value_u256(base) {
-            // position = imm base + offset
-            return self.imm(base.wrapping_add(offset));
         }
         // position = add base, offset
         let offset = self.imm(offset);
@@ -545,7 +541,7 @@ impl<'a> FunctionBuilder<'a> {
     pub fn mask_padded_size(&mut self, rounded: ValueId) -> ValueId {
         // padded = and rounded, !31
         let mask = self.imm(!U256::from(31));
-        self.and_folded(rounded, mask)
+        self.and(rounded, mask)
     }
 
     /// Creates an undefined value.
@@ -681,6 +677,13 @@ impl<'a> FunctionBuilder<'a> {
                 kind.inferred_result_type(self.func).unwrap_or(requested)
             }
         };
+        // result = imm op(operands)
+        if produced == MirType::I256
+            && let Some(word) = self.fold_word_op(&kind)
+        {
+            let word = self.imm(word);
+            return self.cast(word, requested);
+        }
         if let InstKind::Phi(incoming) = &mut kind {
             let current = self.current_block;
             for (predecessor, value) in incoming {
@@ -699,6 +702,23 @@ impl<'a> FunctionBuilder<'a> {
             .1
             .expect("value-producing instruction must have a result");
         if produced == requested { result } else { self.cast(result, requested) }
+    }
+
+    /// Evaluates a pure word operation whose operands are all immediates.
+    fn fold_word_op(&self, kind: &InstKind) -> Option<U256> {
+        let word = |value| self.func.value_u256(value);
+        Some(match *kind {
+            InstKind::Not(value) => !word(value)?,
+            InstKind::And(lhs, rhs) => word(lhs)? & word(rhs)?,
+            InstKind::Or(lhs, rhs) => word(lhs)? | word(rhs)?,
+            InstKind::Xor(lhs, rhs) => word(lhs)? ^ word(rhs)?,
+            InstKind::Add(lhs, rhs) => word(lhs)?.wrapping_add(word(rhs)?),
+            InstKind::Sub(lhs, rhs) => word(lhs)?.wrapping_sub(word(rhs)?),
+            InstKind::Mul(lhs, rhs) => word(lhs)?.wrapping_mul(word(rhs)?),
+            InstKind::Shl(shift, value) => word(value)? << word(shift)?,
+            InstKind::Shr(shift, value) => word(value)? >> word(shift)?,
+            _ => return None,
+        })
     }
 
     /// Emits an explicit conversion between scalar carriers and memory references.
@@ -1374,14 +1394,14 @@ impl<'a> FunctionBuilder<'a> {
         // mask = not((1 << (8 * (32 - length))) - 1)
         // masked = data & mask
         let word_size = self.imm(32);
-        let unused_bytes = self.sub_folded(word_size, length);
+        let unused_bytes = self.sub(word_size, length);
         let bits = self.imm(8);
-        let shift = self.mul_folded(unused_bytes, bits);
+        let shift = self.mul(unused_bytes, bits);
         let one = self.imm(1);
-        let high_bit = self.shl_folded(one, shift);
-        let low_mask = self.sub_folded(high_bit, one);
-        let data_mask = self.not_folded(low_mask);
-        self.and_folded(data, data_mask)
+        let high_bit = self.shl(one, shift);
+        let low_mask = self.sub(high_bit, one);
+        let data_mask = self.not(low_mask);
+        self.and(data, data_mask)
     }
 
     /// Builds the header word of a short storage `bytes` value of `length` bytes.
@@ -1391,8 +1411,8 @@ impl<'a> FunctionBuilder<'a> {
         // header = mask(data, length) | length * 2
         let masked = self.mask_storage_bytes_data(data, length);
         let two = self.imm(2);
-        let tag = self.mul_folded(length, two);
-        self.or_folded(masked, tag)
+        let tag = self.mul(length, two);
+        self.or(masked, tag)
     }
 
     /// Builds the header word of a long storage `bytes` value of `length` bytes.
@@ -1923,67 +1943,5 @@ impl<'a> FunctionBuilder<'a> {
     pub fn sar(&mut self, value: ValueId, shift: ValueId) -> ValueId {
         // result = sar value, shift
         self.emit_inst(InstKind::Sar(shift, value), Some(MirType::I256))
-    }
-
-    /// Emits `!value`, or an immediate when `value` is an immediate.
-    pub fn not_folded(&mut self, value: ValueId) -> ValueId {
-        match self.func.value_u256(value) {
-            // result = imm !value
-            Some(value) => self.imm(!value),
-            // result = not value
-            None => self.not(value),
-        }
-    }
-
-    /// Emits `lhs & rhs`, or an immediate when both operands are immediates.
-    pub fn and_folded(&mut self, lhs: ValueId, rhs: ValueId) -> ValueId {
-        self.fold_word(lhs, rhs, |lhs, rhs| lhs & rhs, Self::and)
-    }
-
-    /// Emits `lhs | rhs`, or an immediate when both operands are immediates.
-    pub fn or_folded(&mut self, lhs: ValueId, rhs: ValueId) -> ValueId {
-        self.fold_word(lhs, rhs, |lhs, rhs| lhs | rhs, Self::or)
-    }
-
-    /// Emits `lhs + rhs`, or an immediate when both operands are immediates.
-    pub fn add_folded(&mut self, lhs: ValueId, rhs: ValueId) -> ValueId {
-        self.fold_word(lhs, rhs, U256::wrapping_add, Self::add)
-    }
-
-    /// Emits `lhs - rhs`, or an immediate when both operands are immediates.
-    pub fn sub_folded(&mut self, lhs: ValueId, rhs: ValueId) -> ValueId {
-        self.fold_word(lhs, rhs, U256::wrapping_sub, Self::sub)
-    }
-
-    /// Emits `lhs * rhs`, or an immediate when both operands are immediates.
-    pub fn mul_folded(&mut self, lhs: ValueId, rhs: ValueId) -> ValueId {
-        self.fold_word(lhs, rhs, U256::wrapping_mul, Self::mul)
-    }
-
-    /// Emits `value << shift`, or an immediate when both operands are immediates.
-    pub fn shl_folded(&mut self, value: ValueId, shift: ValueId) -> ValueId {
-        self.fold_word(value, shift, |value, shift| value << shift, Self::shl)
-    }
-
-    /// Emits `value >> shift`, or an immediate when both operands are immediates.
-    pub fn shr_folded(&mut self, value: ValueId, shift: ValueId) -> ValueId {
-        self.fold_word(value, shift, |value, shift| value >> shift, Self::shr)
-    }
-
-    /// Folds a binary word operation when both operands are immediates. Operands are words, so
-    /// the folded result is an `i256` immediate.
-    fn fold_word(
-        &mut self,
-        lhs: ValueId,
-        rhs: ValueId,
-        fold: fn(U256, U256) -> U256,
-        emit: fn(&mut Self, ValueId, ValueId) -> ValueId,
-    ) -> ValueId {
-        match (self.func.value_u256(lhs), self.func.value_u256(rhs)) {
-            // result = imm fold(lhs, rhs)
-            (Some(lhs), Some(rhs)) => self.imm(fold(lhs, rhs)),
-            // result = op lhs, rhs
-            _ => emit(self, lhs, rhs),
-        }
     }
 }

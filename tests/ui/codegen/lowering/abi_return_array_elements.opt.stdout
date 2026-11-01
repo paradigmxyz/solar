@@ -14,16 +14,16 @@ fn @clean() [selector=0x945bb2ba, abi_wrapper, pure] {
 
 fn @dirty() [selector=0x74016a59, abi_wrapper, pure] {
   bb0:
-    v5 = icall @decode_calldata_type.8
-    v2 = add v5, 32
-    mstore v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v22 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v11 = add v22, 32
-    mstore v22, 32
-    v15 = icall @encode_abi_array, v5, v11
-    v16 = add v11, v15
-    v18 = sub v16, v22
-    returndata v22, v18
+    v4 = icall @decode_calldata_type.8
+    v1 = add v4, 32
+    mstore v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v21 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v10 = add v21, 32
+    mstore v21, 32
+    v14 = icall @encode_abi_array, v4, v10
+    v15 = add v10, v14
+    v17 = sub v15, v21
+    returndata v21, v17
 }
 
 fn @viaHelper() [selector=0x43a4968c, abi_wrapper, pure] {
