@@ -103,8 +103,8 @@
       tail_call @raw_clean, arg0
   }
   
-  fn @revert_stub() {
-    bb0:
+  fn @revert_stub() [cold] {
+    bb0 [cold]:
       revert 0, 0
   }
   
@@ -115,7 +115,7 @@
       v0 = lt arg0, 5
       v1 = zext i1 v0 to i256
       ret v1
-    bb1:
+    bb1 [cold]:
       tail_call @revert_stub
   }
   
@@ -356,8 +356,8 @@
       tail_call @raw_clean, arg0
   }
   
-  fn @revert_stub() {
-    bb0:
+  fn @revert_stub() [cold] {
+    bb0 [cold]:
       revert 0, 0
   }
   
@@ -368,7 +368,7 @@
       v0 = lt arg0, 5
       v1 = zext i1 v0 to i256
       ret v1
-    bb1:
+    bb1 [cold]:
       tail_call @revert_stub
   }
   

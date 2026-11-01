@@ -29,6 +29,7 @@ use solar_interface::{Span, Symbol, diagnostics::DiagCtxt};
 use std::fmt;
 
 pub use crate::link::{Data, DataBytes, DataId, DataRef, DataSize};
+pub use solar_ir::Hotness;
 
 mod display;
 
@@ -312,24 +313,6 @@ impl CallEffect {
             (inputs, u8::try_from(isize::from(outputs) - growth).ok()?)
         };
         Some(Self { ret: u8::try_from(ret).ok()?, effect: StackEffect::new(inputs, outputs) })
-    }
-}
-
-/// Block hotness metadata.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub enum Hotness {
-    /// The block is expected to be frequently executed.
-    #[default]
-    Hot,
-    /// The block is expected to be infrequently executed.
-    Cold,
-}
-
-impl Hotness {
-    /// Returns whether this is cold code.
-    #[must_use]
-    pub const fn is_cold(self) -> bool {
-        matches!(self, Self::Cold)
     }
 }
 

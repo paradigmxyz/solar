@@ -34,9 +34,9 @@ fn @constructor() [abi_wrapper, constructor] {
     v16 = add v19, 1
     sstore v16, 0x2021222324252627000000000000000000000000000000000000000000000000 !metadata(storage=offset(v19, 1))
     ret
-  bb2:
+  bb2 [cold]:
     tail_call @revert_stub.6
-  bb6:
+  bb6 [cold]:
     revert 0, 0
 }
 
@@ -99,11 +99,11 @@ fn @load() [selector=0x86d5c4be, abi_wrapper, view] {
     v27 = add v20, 1
     v61 = add v60, 32
     jump bb6
-  bb9:
+  bb9 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:
     tail_call @revert_stub.6
 }
 
@@ -154,7 +154,7 @@ fn @hashes() [selector=0x501895ae, abi_wrapper, pure] {
     v18 = mload v74
     v19 = lt v15, v18
     jumpi v19, bb12, bb11
-  bb11:
+  bb11 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -185,13 +185,13 @@ fn @hashes() [selector=0x501895ae, abi_wrapper, pure] {
     v33 = add v25, 1
     v87 = add v86, 32
     jump bb4
-  bb16:
+  bb16 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb8:
+  bb8 [cold]:
     tail_call @revert_stub.7
-  bb13:
+  bb13 [cold]:
     revert 0, 0
 }
 
@@ -220,7 +220,7 @@ fn @wrapped() [selector=0x50e70d48, abi_wrapper, pure] {
     v13 = mload v17
     mstore 0, v13 !metadata(memory=scratch)
     returndata 0, 32
-  bb2:
+  bb2 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -251,11 +251,11 @@ fn @below() [selector=0x8de62f33, abi_wrapper, pure] {
     v7 = mload v6
     mstore 0, v7 !metadata(memory=scratch)
     returndata 0, 32
-  bb4:
+  bb4 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -279,15 +279,15 @@ fn @clear_storage_words(arg0: i256, arg1: i256, arg2: i256) {
     jump bb1
 }
 
-fn @revert_stub.6() {
-  bb0:
+fn @revert_stub.6() [cold] {
+  bb0 [cold]:
     mstore 32, 34 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
-fn @revert_stub.7() {
-  bb0:
+fn @revert_stub.7() [cold] {
+  bb0 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -310,6 +310,6 @@ fn @entry() [entry] {
     tail_call @wrapped
   bb2:
     tail_call @hashes
-  bb6:
+  bb6 [cold]:
     revert 0, 0
 }

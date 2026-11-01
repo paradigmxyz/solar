@@ -13,11 +13,11 @@ fn @a() [selector=0xf0fdf834, abi_wrapper, pure] {
   bb2:
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -34,11 +34,11 @@ fn @b() [selector=0xcd580ff3, abi_wrapper, pure] {
   bb2:
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -62,7 +62,7 @@ fn @entry() [entry] {
     tail_call @b
   bb4:
     tail_call @fallback
-  bb5:
+  bb5 [cold]:
     revert 0, 0
 }
 
@@ -78,7 +78,7 @@ fn @a() [selector=0xf0fdf834, abi_wrapper, view] {
   bb2:
     mstore 0, v2 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -93,7 +93,7 @@ fn @b() [selector=0xcd580ff3, abi_wrapper, pure] {
   bb2:
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -116,7 +116,7 @@ fn @entry() [entry] {
     tail_call @a
   bb3:
     tail_call @b
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -153,11 +153,11 @@ fn @a() [selector=0x1e3badd9, abi_wrapper, pure] {
     mstore v44, 32
     v39 = add v2, 64
     returndata v44, v39
-  bb1:
+  bb1 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb2:
+  bb2 [cold]:
     revert 0, 0
 }
 
@@ -170,7 +170,7 @@ fn @b() [selector=0xcd580ff3, abi_wrapper, pure] {
   bb2:
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -193,7 +193,7 @@ fn @entry() [entry] {
     tail_call @b
   bb3:
     tail_call @a
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -206,7 +206,7 @@ fn @a() [selector=0x2a500b7f, abi_wrapper, pure] {
     v4 = shr v3, 8
     v5 = eq v4, 0
     jumpi v5, bb2, bb1
-  bb1:
+  bb1 [cold]:
     revert 0, 0
   bb2:
     mstore 0, arg0
@@ -222,7 +222,7 @@ fn @b() [selector=0xcd580ff3, abi_wrapper, pure] {
   bb2:
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -245,6 +245,6 @@ fn @entry() [entry] {
     tail_call @b
   bb3:
     tail_call @a
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }

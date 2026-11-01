@@ -25,7 +25,7 @@ fn @paintUint(arg0: i256) -> i256 [may_return_memory, pure] {
     mstore 32, arg0 !metadata(memory=scratch)
     v1 = staticcall v0, 0x7109709ecfa91a80626ff3989d68f67f5b1dd12d, 28, 36, 0, 0
     jumpi v1, bb2, bb1
-  bb1:
+  bb1 [cold]:
     v16 = returndatasize
     returndatacopy 0, 0, v16 !metadata(memory=abi_return)
     v17 = returndatasize
@@ -52,7 +52,7 @@ fn @paintBool() -> i256 [may_return_memory, pure] {
     mstore 32, 1
     v3 = staticcall v0, 0x7109709ecfa91a80626ff3989d68f67f5b1dd12d, 28, 36, 0, 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1 [cold]:
     v18 = returndatasize
     returndatacopy 0, 0, v18 !metadata(memory=abi_return)
     v19 = returndatasize
@@ -98,12 +98,12 @@ fn @wrap(arg0: i256) -> i256 [may_return_memory, pure] {
     v33 = add v32, 32
     mstore v33, 0
     ret v37
-  bb1:
+  bb1 [cold]:
     tail_call @revert_stub
 }
 
-fn @revert_stub() {
-  bb0:
+fn @revert_stub() [cold] {
+  bb0 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -154,11 +154,11 @@ fn @decode_aggregate(arg0: i256) -> i256 [may_return_memory] {
     v37 = add v36, v15
     calldatacopy v37, v48, v32
     ret v41
-  bb4:
+  bb4 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -192,6 +192,6 @@ fn @entry() [entry] {
     switch v3, default bb3, [0xff30d0af => bb2]
   bb2:
     tail_call @paint
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }

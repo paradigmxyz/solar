@@ -18,7 +18,7 @@
     bb2:
       v4 = calldataload 4
       ret v4
-    bb3:
+    bb3 [cold]:
       revert 0, 0
   }
   
@@ -44,7 +44,7 @@
 +     jumpi v9, bb4, bb3
     bb3:
       stop
-    bb4:
+    bb4 [cold]:
       revert 0, 0
   }
   
@@ -64,7 +64,7 @@
 +     jumpi v6, bb3, bb2
     bb2:
       ret arg1
-    bb3:
+    bb3 [cold]:
       revert 0, 0
   }
   
@@ -79,28 +79,28 @@
 -     jumpi v2, bb2, bb3
 +     v3 = and v0, v2
 +     jumpi v3, bb2, bb3
-    bb3:
+    bb3 [cold]:
       revert 0, 0
     bb2:
       stop
   }
   
-  fn @range_loop(arg0: i256) {
-    bb0:
+  fn @range_loop(arg0: i256) [cold] {
+    bb0 [cold]:
       jump bb1
-    bb1:
+    bb1 [cold]:
       v0 = phi [bb0: arg0], [bb2: v3]
       v1 = lt v0, 4
 -     jumpi v1, bb2, bb3
 +     v4 = gt v0, 3
 +     jump bb2
-    bb2:
+    bb2 [cold]:
       v2 = gt v0, 100
       v3 = add v0, 1
 -     jumpi v2, bb3, bb1
 +     v5 = or v4, v2
 +     jumpi v5, bb3, bb1
-    bb3:
+    bb3 [cold]:
       revert 0, 0
   }
   
@@ -113,22 +113,22 @@
       jumpi v1, bb3, bb2
     bb2:
       stop
-    bb3:
+    bb3 [cold]:
       revert 0, 0
   }
   
-  fn @latch(arg0: i256) {
-    bb0:
+  fn @latch(arg0: i256) [cold] {
+    bb0 [cold]:
       jump bb1
-    bb1:
+    bb1 [cold]:
       v0 = phi [bb0: arg0], [bb2: v3]
       v1 = ne v0, 0
       jumpi v1, bb3, bb2
-    bb2:
+    bb2 [cold]:
       v2 = lt v0, 4
       v3 = add v0, 1
       jumpi v2, bb3, bb1
-    bb3:
+    bb3 [cold]:
       revert 0, 0
   }
   

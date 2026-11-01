@@ -7,7 +7,7 @@
       jumpi v0, bb2, bb1
     bb1:
       ret arg0
-    bb2:
+    bb2 [cold]:
       mstore 32, 32
       mstore 64, arg0
       mstore 0, 0x6dfcc650

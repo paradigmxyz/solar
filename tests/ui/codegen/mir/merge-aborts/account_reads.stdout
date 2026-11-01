@@ -13,7 +13,7 @@
       jumpi v4, bb3, bb2
     bb2:
       ret v3
-    bb3:
+    bb3 [cold]:
       revert 0, 0
   }
   
@@ -29,7 +29,7 @@
       jumpi v4, bb3, bb2
     bb2:
       ret v3
-    bb3:
+    bb3 [cold]:
       revert 0, 0
   }
   
@@ -45,7 +45,7 @@
       jumpi v4, bb3, bb2
     bb2:
       ret v3
-    bb3:
+    bb3 [cold]:
       revert 0, 0
   }
   

@@ -35,11 +35,11 @@ fn @sum() [selector=0x188b85b4, abi_wrapper, pure] {
     v7 = add v2, 1
     v8 = lt v7, v2
     jumpi v8, bb5, bb2
-  bb5:
+  bb5 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb7:
+  bb7 [cold]:
     revert 0, 0
 }
 
@@ -62,14 +62,14 @@ fn @fast() [selector=0xaf5dbb36, abi_wrapper, optimize=gas, pure] {
   bb5:
     v9 = add v2, 1
     jump bb1
-  bb4:
+  bb4 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb2:
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
-  bb6:
+  bb6 [cold]:
     revert 0, 0
 }
 
@@ -92,14 +92,14 @@ fn @small() [selector=0x75d838c3, abi_wrapper, optimize=size, pure] {
   bb5:
     v9 = add v2, 1
     jump bb1
-  bb4:
+  bb4 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb2:
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
-  bb6:
+  bb6 [cold]:
     revert 0, 0
 }
 
@@ -112,7 +112,7 @@ fn @twice(arg0: i256) -> i256 [always_inline, optimize=gas, pure] {
     jumpi v4, bb1, bb2
   bb2:
     ret v2
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -130,7 +130,7 @@ fn @viaInline() [selector=0xc1685ae2, abi_wrapper, pure] {
     mstore 0, v0 !metadata(memory=scratch)
     v3 = sub 32, 0
     returndata 0, v3
-  bb2:
+  bb2 [cold]:
     revert 0, 0
 }
 
@@ -148,7 +148,7 @@ fn @share() [selector=0xc3d9c4b4, abi_wrapper, optimize=size, pure] {
   bb4:
     v1 = ne arg0, 0
     jumpi v1, bb2, bb1
-  bb1:
+  bb1 [cold]:
     mstore 32, 18 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -156,7 +156,7 @@ fn @share() [selector=0xc3d9c4b4, abi_wrapper, optimize=size, pure] {
     v2 = div 100, arg0
     mstore 0, v2 !metadata(memory=scratch)
     returndata 0, 32
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -187,7 +187,7 @@ fn @constructor() [abi_wrapper, constructor] {
     mstore 192, v0
     mstore 224, 0xfffb
     ret
-  bb2:
+  bb2 [cold]:
     revert 0, 0
 }
 
@@ -206,7 +206,7 @@ fn @small.body(arg0: i256) -> i256 [optimize=size, pure] {
   bb5:
     v9 = add v2, 1
     jump bb1
-  bb4:
+  bb4 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -239,6 +239,6 @@ fn @entry() [entry] {
     tail_call @small
   bb2:
     tail_call @sum
-  bb10:
+  bb10 [cold]:
     revert 0, 0
 }

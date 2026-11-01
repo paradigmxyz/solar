@@ -205,13 +205,13 @@
       ret v0
   }
   
-  fn @empty_revert(arg0: i256) {
-    bb0:
+  fn @empty_revert(arg0: i256) [cold] {
+    bb0 [cold]:
       revert arg0, 0
   }
   
-  fn @nonempty_revert(arg0: i256) {
-    bb0:
+  fn @nonempty_revert(arg0: i256) [cold] {
+    bb0 [cold]:
       revert arg0, 1
   }
   
@@ -703,13 +703,13 @@
       ret v0
   }
   
-  fn @empty_revert(arg0: i256) {
-    bb0:
+  fn @empty_revert(arg0: i256) [cold] {
+    bb0 [cold]:
       revert arg0, 0
   }
   
-  fn @nonempty_revert(arg0: i256) {
-    bb0:
+  fn @nonempty_revert(arg0: i256) [cold] {
+    bb0 [cold]:
       revert arg0, 1
   }
   
@@ -1184,13 +1184,13 @@
       ret v0
   }
   
-  fn @empty_revert(arg0: i256) {
-    bb0:
+  fn @empty_revert(arg0: i256) [cold] {
+    bb0 [cold]:
       revert arg0, 0
   }
   
-  fn @nonempty_revert(arg0: i256) {
-    bb0:
+  fn @nonempty_revert(arg0: i256) [cold] {
+    bb0 [cold]:
       revert arg0, 1
   }
   

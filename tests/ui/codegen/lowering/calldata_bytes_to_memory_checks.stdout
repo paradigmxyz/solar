@@ -16,7 +16,7 @@ fn @decoded() [selector=0x45c91515, abi_wrapper, pure] {
     calldatacopy v20, v15, v14
     mstore 0, v14
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -47,9 +47,9 @@ fn @lengthSet() [selector=0xa5e448c2, abi_wrapper, pure] {
     calldatacopy v32, v27, arg1
     mstore 0, arg1
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     tail_call @revert_stub
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -82,9 +82,9 @@ fn @offsetSet() [selector=0xba062698, abi_wrapper, pure] {
     calldatacopy v36, v2, v30
     mstore 0, v30
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     tail_call @revert_stub
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -112,12 +112,12 @@ fn @forwarded() [selector=0xbf6f2c90, abi_wrapper, pure] {
     calldatacopy v30, v25, v24
     mstore 0, v24
     returndata 0, 32
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
-fn @revert_stub() {
-  bb0:
+fn @revert_stub() [cold] {
+  bb0 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -138,7 +138,7 @@ fn @decode_calldata_slice() -> i256 {
     jumpi v10, bb1, bb2
   bb2:
     ret v2
-  bb1:
+  bb1 [cold]:
     revert 0, 0
 }
 
@@ -159,6 +159,6 @@ fn @entry() [entry] {
     tail_call @lengthSet
   bb2:
     tail_call @decoded
-  bb6:
+  bb6 [cold]:
     revert 0, 0
 }

@@ -1,10 +1,9 @@
-//! Block order, cold blocks, phi edge splitting, and function labels for emission.
+//! Block order, phi edge splitting, and function labels for emission.
 
 use super::{
     BlockId, CfgInfo, DenseBitSet, EvmCodegen, Function, FunctionId, InstId, InstKind, Label,
-    Liveness, LoopAnalyzer, OptimizationMode, Terminator,
+    Liveness, LoopAnalyzer, Module, OptimizationMode, Terminator,
 };
-use crate::mir::Callee;
 use std::cell::LazyCell;
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -101,93 +100,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         changed
     }
 
-    /// Finds the blocks that abort directly or can only reach other cold blocks.
-    ///
-    /// The gas objective also marks the blocks with no path to a normal exit: backward
-    /// reachability from the blocks that leave the function without aborting (return, stop,
-    /// selfdestruct, or a tail call to a function that can return), over blocks that do not
-    /// abort, marks the hot blocks, and every other block is cold, including loops whose only
-    /// exits lead to aborts. `-O none` marks only the blocks that abort directly.
-    pub(super) fn collect_cold_blocks(&self, func: &Function) -> DenseBitSet<BlockId> {
-        let mut cold = DenseBitSet::new_empty(func.blocks.len());
-        let mut worklist = Vec::new();
-        for block_id in func.blocks.indices() {
-            if self.block_aborts(func, block_id) {
-                cold.insert(block_id);
-                worklist.push(block_id);
-            }
-        }
-        if matches!(self.optimization, OptimizationMode::None) {
-            return cold;
-        }
-
-        while let Some(block_id) = worklist.pop() {
-            for &predecessor in &func.blocks[block_id].predecessors {
-                if cold.contains(predecessor) {
-                    continue;
-                }
-                let Some(term) = func.blocks[predecessor].terminator.as_ref() else {
-                    continue;
-                };
-                let successors = term.successors();
-                if !successors.is_empty()
-                    && successors.iter().all(|&successor| cold.contains(successor))
-                {
-                    cold.insert(predecessor);
-                    worklist.push(predecessor);
-                }
-            }
-        }
-        if !self.runtime_target().marks_failure_paths_cold() {
-            return cold;
-        }
-
-        let mut hot = DenseBitSet::new_empty(func.blocks.len());
-        for (block_id, block) in func.blocks.iter_enumerated() {
-            let exits = block.terminator.as_ref().is_none_or(|term| !term.has_successors());
-            if exits && !cold.contains(block_id) {
-                hot.insert(block_id);
-                worklist.push(block_id);
-            }
-        }
-        while let Some(block_id) = worklist.pop() {
-            for &predecessor in &func.blocks[block_id].predecessors {
-                if !hot.contains(predecessor) && !cold.contains(predecessor) {
-                    hot.insert(predecessor);
-                    worklist.push(predecessor);
-                }
-            }
-        }
-        cold.union_not(&hot);
-        cold
-    }
-
-    /// Returns true when a block aborts directly or calls a function whose
-    /// reachable exits all abort.
-    fn block_aborts(&self, func: &Function, block_id: BlockId) -> bool {
-        let block = &func.blocks[block_id];
-        block.terminator.as_ref().is_some_and(Terminator::reverts)
-            || matches!(
-                block.terminator,
-                Some(Terminator::TailCall { function, .. })
-                    if self.cold_functions.contains(function)
-            )
-            || block.instructions.iter().any(|&inst_id| {
-                matches!(
-                    func.inst(inst_id).kind,
-                    InstKind::ICall { function: Callee::Function(function), .. }
-                        if self.cold_functions.contains(function)
-                )
-            })
-    }
-
-    pub(super) fn block_is_cold(&self, block_id: BlockId) -> bool {
-        self.cold_blocks.contains(block_id)
-    }
-
-    pub(super) fn new_function_label(&mut self, function: FunctionId) -> Label {
+    pub(super) fn new_function_label(&mut self, module: &Module, function: FunctionId) -> Label {
         let label = self.asm.new_label();
-        if self.cold_functions.contains(function) {
+        if module.functions[function].attributes.hotness.is_cold() {
             self.asm.mark_label_cold(label);
         }
         label
@@ -195,14 +110,14 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Returns true when the continuations and trampolines of a block are cold: the block is
     /// cold and the objective marks failure paths cold.
-    pub(super) fn block_code_is_cold(&self, block_id: BlockId) -> bool {
-        self.runtime_target().marks_failure_paths_cold() && self.block_is_cold(block_id)
+    pub(super) fn block_code_is_cold(&self, func: &Function, block_id: BlockId) -> bool {
+        self.runtime_target().marks_failure_paths_cold() && func.blocks[block_id].hotness.is_cold()
     }
 
     /// Creates the label of an edge trampoline, cold when its target is.
-    pub(super) fn new_trampoline_label(&mut self, target: BlockId) -> Label {
+    pub(super) fn new_trampoline_label(&mut self, func: &Function, target: BlockId) -> Label {
         let label = self.asm.new_label();
-        if self.block_code_is_cold(target) {
+        if self.block_code_is_cold(func, target) {
             self.asm.mark_label_cold(label);
         }
         label
@@ -290,7 +205,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 Some(Terminator::Branch { then_block, else_block, .. })
                     if !matches!(self.optimization, OptimizationMode::None) =>
                 {
-                    match (self.block_is_cold(*then_block), self.block_is_cold(*else_block)) {
+                    match (
+                        func.blocks[*then_block].hotness.is_cold(),
+                        func.blocks[*else_block].hotness.is_cold(),
+                    ) {
                         (true, false) => *else_block,
                         (false, true) => *then_block,
                         // jumpi condition, then; else ... exit; then ... exit

@@ -13,11 +13,11 @@ fn @overwritten() [selector=0x820f45ad, abi_wrapper] {
   bb2:
     tstore 0, v1 !metadata(storage=slot(0))
     stop
-  bb1:
+  bb1 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -33,7 +33,7 @@ fn @reentrant() [selector=0x7d8540f9, abi_wrapper] {
     mstore 0, 0x57de26a4 !metadata(memory=scratch)
     v3 = staticcall v1, v0, 28, 4, 0, 32
     jumpi v3, bb2, bb1
-  bb1:
+  bb1 [cold]:
     v11 = returndatasize
     returndatacopy 0, 0, v11 !metadata(memory=abi_return)
     v12 = returndatasize
@@ -51,11 +51,11 @@ fn @reentrant() [selector=0x7d8540f9, abi_wrapper] {
     tstore 0, v9 !metadata(storage=slot(0))
     mstore 0, v7 !metadata(memory=scratch)
     returndata 0, 32
-  bb5:
+  bb5 [cold]:
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -72,7 +72,7 @@ fn @clearedAfterCall() [selector=0x15bda24f, abi_wrapper] {
     mstore 0, 0x57de26a4 !metadata(memory=scratch)
     v3 = staticcall v1, v0, 28, 4, 0, 32
     jumpi v3, bb2, bb1
-  bb1:
+  bb1 [cold]:
     v8 = returndatasize
     returndatacopy 0, 0, v8 !metadata(memory=abi_return)
     v9 = returndatasize
@@ -87,7 +87,7 @@ fn @clearedAfterCall() [selector=0x15bda24f, abi_wrapper] {
     tstore 0, 0 !metadata(storage=slot(0))
     mstore 0, v7 !metadata(memory=scratch)
     returndata 0, 32
-  bb3:
+  bb3 [cold]:
     revert 0, 0
 }
 
@@ -117,7 +117,7 @@ fn @afterReturn() [selector=0x888a9e3c, abi_wrapper] {
     mstore 0, 0x14ee0c6f !metadata(memory=scratch)
     v3 = staticcall v1, v0, 28, 4, 0, 32
     jumpi v3, bb4, bb3
-  bb3:
+  bb3 [cold]:
     v16 = returndatasize
     returndatacopy 0, 0, v16 !metadata(memory=abi_return)
     v17 = returndatasize
@@ -130,12 +130,12 @@ fn @afterReturn() [selector=0x888a9e3c, abi_wrapper] {
     v7 = mload 0
     mstore 0, v7 !metadata(memory=scratch)
     returndata 0, 32
-  bb5:
+  bb5 [cold]:
     revert 0, 0
 }
 
-fn @dropped() [selector=0x49571f93, abi_wrapper] {
-  bb0:
+fn @dropped() [selector=0x49571f93, abi_wrapper, cold] {
+  bb0 [cold]:
     revert 0, 0
 }
 
@@ -170,12 +170,12 @@ fn @entry() [entry] {
     tail_call @reentrant
   bb5:
     tail_call @read
-  bb4:
+  bb4 [cold]:
     tail_call @dropped
   bb3:
     tail_call @clearedAfterCall
   bb2:
     tail_call @readU
-  bb9:
+  bb9 [cold]:
     revert 0, 0
 }

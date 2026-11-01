@@ -13,7 +13,7 @@
       jumpi v4, bb3, bb2
     bb2:
       ret v3
-    bb3:
+    bb3 [cold]:
       mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
       mstore 4, 17
       revert 0, 36

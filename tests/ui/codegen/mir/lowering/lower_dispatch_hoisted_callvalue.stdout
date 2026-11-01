@@ -24,7 +24,7 @@
 +     tail_call @b
 +   bb2:
 +     tail_call @a
-+   bb4:
++   bb4 [cold]:
 +     revert 0, 0
   }
   
