@@ -33,9 +33,9 @@
       v1 = ptrtoint ptr<memory> v0 to i256
       v2 = mload v1
       jumpi arg2, bb1, bb2
-    bb1:
+    bb1:  ; preds = bb0
       jump bb2
-    bb2:
+    bb2:  ; preds = bb0, bb1
       v3 = fmp
       v4 = ptrtoint ptr<memory> v3 to i256
       mstore v4, arg1
@@ -51,7 +51,7 @@
       v1 = ptrtoint ptr<memory> v0 to i256
       v2 = mload v1
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb1
       v3 = fmp
       v4 = ptrtoint ptr<memory> v3 to i256
       mstore v4, arg1
@@ -59,14 +59,14 @@
 -     v6 = add v2, v5
 +     v6 = add v2, v2
       jumpi arg2, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb1
       ret v6
   }
   
   fn @allocation_in_loop(arg0: i256, arg1: i256, arg2: i1) -> i256 {
     bb0:
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb1
       v0 = alloc 32
       v1 = ptrtoint ptr<memory> v0 to i256
       v2 = mload v1
@@ -76,7 +76,7 @@
       v5 = mload v1
       v6 = add v2, v5
       jumpi arg2, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb1
       ret v6
   }
   
@@ -111,11 +111,11 @@
       v0 = alloc 32
       v1 = ptrtoint ptr<memory> v0 to i256
       jumpi arg3, bb1, bb2
-    bb1:
+    bb1:  ; preds = bb0
       v2 = inttoptr i256 arg2 to ptr<memory>
       set_fmp v2
       jump bb2
-    bb2:
+    bb2:  ; preds = bb0, bb1
       mstore v1, arg0
       v3 = fmp
       v4 = ptrtoint ptr<memory> v3 to i256
@@ -129,7 +129,7 @@
       v0 = alloc 32
       v1 = ptrtoint ptr<memory> v0 to i256
       jumpi arg3, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       mstore v1, arg0
       v3 = fmp
       v4 = ptrtoint ptr<memory> v3 to i256
@@ -137,7 +137,7 @@
 -     v5 = mload v1
 -     ret v5
 +     ret arg0
-    bb1:
+    bb1:  ; preds = bb0
       v2 = inttoptr i256 arg2 to ptr<memory>
       set_fmp v2
       ret 0
@@ -197,7 +197,7 @@
       v1 = ptrtoint ptr<memory> v0 to i256
       v2 = alloc 32
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb1
       mstore v1, arg0
       v3 = fmp
       v4 = ptrtoint ptr<memory> v3 to i256
@@ -207,7 +207,7 @@
       v7 = ptrtoint ptr<memory> v6 to i256
       mstore v7, 5
       jumpi arg3, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb1
       ret v5
   }
   
@@ -220,7 +220,7 @@
       v4 = ptrtoint ptr<memory> v3 to i256
       mstore v4, 5
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0
       mstore v1, arg0
       v5 = fmp
       v6 = ptrtoint ptr<memory> v5 to i256

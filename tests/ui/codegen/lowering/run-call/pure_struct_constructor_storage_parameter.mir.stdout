@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i160, i1}
 
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = mapping_slot 3, 0
@@ -26,6 +27,7 @@ fn @constructor() [constructor] {
     ret
 }
 
+; function build(uint256 key, Order storage order) internal pure returns (Context memory)
 fn @build(arg0: i256, arg1: i256) -> ptr<memory> [pure] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -63,6 +65,7 @@ fn @build(arg0: i256, arg1: i256) -> ptr<memory> [pure] {
     ret v6
 }
 
+; function f(uint256 key) external view returns (uint256, address, bool) [selector 0xb3de648b]
 fn @f(arg0: i256) -> struct0 [selector=0xb3de648b, view, abi_params=[uint256], abi_returns=[word, word<uint160>, word<bool>], abi_return_params=[uint256, address, bool]] {
   bb0:
     v0 = mapping_slot arg0, 0

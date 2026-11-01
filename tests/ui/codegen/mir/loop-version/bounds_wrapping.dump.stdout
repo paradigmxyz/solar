@@ -1,59 +1,62 @@
 // === ROOT/tests/ui/codegen/mir/loop-version/bounds_wrapping.sol:BoundsWrapping ===
 @module BoundsWrapping
 @phase lowered
+; runtime dispatch entry
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
     v1 = ne v0, 0
     jumpi v1, bb4, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v2 = calldataload 0
     v3 = shr v2, 224
     switch v3, default bb4, [0x8a7c76d => bb2, 0xf3a3e4fe => bb3]
-  bb3:
+  bb3:  ; preds = bb1
     tail_call @empty
-  bb2:
+  bb2:  ; preds = bb1
     tail_call @wrapped
-  bb4 [cold]:
+  bb4 [cold]:  ; preds = bb0, bb1
     revert 0, 0
 }
 
+; function empty(uint256 count) external pure returns (uint256) [selector 0xf3a3e4fe]
 fn @empty() [selector=0xf3a3e4fe, abi_wrapper, pure] {
   bb0:
     v14 = calldatasize
     v15 = lt v14, 36
     jumpi v15, bb6, bb7
-  bb7:
+  bb7:  ; preds = bb0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb5, bb7
     v4 = phi [bb7: 0], [bb5: v13]
     v5 = lt v4, arg0
     jumpi v5, bb3, bb2
-  bb2:
+  bb2:  ; preds = bb1
     mstore 0, 7 !metadata(memory=scratch)
     returndata 0, 32
-  bb3:
+  bb3:  ; preds = bb1
     v6 = mload 0x10000000000000000
     v7 = lt v4, v6
     jumpi v7, bb5, bb4
-  bb4 [cold]:
+  bb4 [cold]:  ; preds = bb3
     tail_call @revert_stub
-  bb5:
+  bb5:  ; preds = bb3
     v9 = shl v4, 5
     v18 = add v9, 0x10000000000000020
     mstore v18, 0
     v13 = add v4, 1
     jump bb1
-  bb6 [cold]:
+  bb6 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
+; function wrapped(uint256 start, uint256 end) external pure returns (uint256) [selector 0x08a7c76d]
 fn @wrapped() [selector=0x08a7c76d, abi_wrapper, pure] {
   bb0:
     v4 = calldatasize
     v5 = lt v4, 68
     jumpi v5, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v8 = heap_floor !metadata(alloc_ptr)
     v9 = add v8, 64 !metadata(alloc_ptr)
     v10 = lt v9, v8
@@ -62,19 +65,20 @@ fn @wrapped() [selector=0x08a7c76d, abi_wrapper, pure] {
     v13 = or v11, v12
     v14 = ne v13, 0
     jumpi v14, bb4, bb3
-  bb3:
+  bb3:  ; preds = bb2
     mstore v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v3 = icall @_write, v8, arg0, arg1
     mstore 0, v3 !metadata(memory=scratch)
     returndata 0, 32
-  bb4 [cold]:
+  bb4 [cold]:  ; preds = bb2
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
+; function _write(uint256[] memory a, uint256 start, uint256 end) private pure returns (uint256 length)
 fn @_write(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory, pure] {
   bb0:
     v0 = mload arg0
@@ -82,43 +86,43 @@ fn @_write(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory, pure]
     v34 = shr v25, 64
     v29 = eq v34, 0
     jumpi v29, bb8, bb7
-  bb8:
+  bb8:  ; preds = bb0
     v33 = lt v0, arg2
     jumpi v33, bb7, bb6
-  bb6:
+  bb6:  ; preds = bb8
     v49 = shl arg1, 5
     v50 = add arg0, v49
     v51 = add v50, 32
     jump bb4
-  bb4:
+  bb4:  ; preds = bb5, bb6
     v14 = phi [bb6: arg1], [bb5: v21]
     v52 = phi [bb6: v51], [bb5: v53]
     v15 = lt v14, arg2
     jumpi v15, bb5, bb2
-  bb5:
+  bb5:  ; preds = bb4
     mstore v52, 0
     v21 = add v14, 1
     v53 = add v52, 32
     jump bb4
-  bb7:
+  bb7:  ; preds = bb0, bb8
     v44 = shl arg1, 5
     v45 = add arg0, v44
     v46 = add v45, 32
     jump bb1
-  bb1:
+  bb1:  ; preds = bb7, bb10
     v5 = phi [bb7: arg1], [bb10: v13]
     v47 = phi [bb7: v46], [bb10: v48]
     v6 = lt v5, arg2
     jumpi v6, bb3, bb2
-  bb2:
+  bb2:  ; preds = bb1, bb4
     ret v0
-  bb3:
+  bb3:  ; preds = bb1
     v7 = mload arg0
     v8 = lt v5, v7
     jumpi v8, bb10, bb9
-  bb9 [cold]:
+  bb9 [cold]:  ; preds = bb3
     tail_call @revert_stub
-  bb10:
+  bb10:  ; preds = bb3
     mstore v47, 0
     v13 = add v5, 1
     v48 = add v47, 32

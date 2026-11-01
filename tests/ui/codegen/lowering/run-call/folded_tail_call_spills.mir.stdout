@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/folded_tail_call_spills.sol:FoldedTailCallSpills ===
 @module FoldedTailCallSpills
+; function tailed(uint256 a, uint256 flag) external pure returns (bytes32) [selector 0x1b6bcc20]
 fn @tailed(arg0: i256, arg1: i256) -> i256 [selector=0x1b6bcc20, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     icall @_setPointer, 128
@@ -7,12 +8,14 @@ fn @tailed(arg0: i256, arg1: i256) -> i256 [selector=0x1b6bcc20, pure, abi_param
     ret 0
 }
 
+; function other(uint256 a, uint256 flag) external pure returns (bytes32) [selector 0x1c4d7083]
 fn @other(arg0: i256, arg1: i256) -> i256 [selector=0x1c4d7083, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     icall @_finish, arg0, arg1
     ret 0
 }
 
+; function tailedTwice(uint256 a, uint256 flag) external pure returns (bytes32) [selector 0x6a075824]
 fn @tailedTwice(arg0: i256, arg1: i256) -> i256 [selector=0x6a075824, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     icall @_setPointer, 128
@@ -20,20 +23,22 @@ fn @tailedTwice(arg0: i256, arg1: i256) -> i256 [selector=0x6a075824, pure, abi_
     ret 0
 }
 
+; function _middle(uint256 a, uint256 flag) internal pure
 fn @_middle(arg0: i256, arg1: i256) [pure] {
   bb0:
     v0 = gt arg1, 1
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     icall @_finish, arg0, arg1
     ret
-  bb1:
+  bb1:  ; preds = bb0
     icall revert_if<empty>, true
     invalid
 }
 
+; function _finish(uint256 a, uint256 flag) internal pure
 fn @_finish(arg0: i256, arg1: i256) [pure] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
@@ -55,14 +60,14 @@ fn @_finish(arg0: i256, arg1: i256) [pure] {
     v16 = keccak256_packed (uint256 arg0, uint256 16)
     v17 = ne arg1, 0
     jumpi v17, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v18 = icall @_copy, 0x400
     v19 = mload v18
     v20 = shl v19, 0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v21 = phi [bb1: v20], [bb2: 0]
     v22 = xor v0, v1
     v23 = xor v22, v2
@@ -85,12 +90,14 @@ fn @_finish(arg0: i256, arg1: i256) [pure] {
     returndata 0, 32
 }
 
+; function _setPointer(uint256 p) internal pure
 fn @_setPointer(arg0: i256) [pure] {
   bb0:
     mstore 64, arg0 !metadata(memory=scratch)
     ret
 }
 
+; function _copy(uint256 n) internal pure returns (bytes memory out)
 fn @_copy(arg0: i256) -> ptr<memory> [pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)

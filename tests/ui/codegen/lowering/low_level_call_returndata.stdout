@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/low_level_call_returndata.sol:LowLevelCallReturndata ===
 @module LowLevelCallReturndata
+; function safeTransfer(address token, address to, uint256 value) public [selector 0xd1660f99]
 fn @safeTransfer(arg0: i160, arg1: i160, arg2: i256) [selector=0xd1660f99, abi_params=[address, address, uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = gas
@@ -8,26 +9,27 @@ fn @safeTransfer(arg0: i160, arg1: i160, arg2: i256) [selector=0xd1660f99, abi_p
     v3 = address_call arg0, v2, gas v0
     v4 = icall returndata_bytes<>
     jumpi v3, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v5 = mload v4
     v6 = eq v5, 0
     jumpi v6, bb5, bb4
-  bb4:
+  bb4:  ; preds = bb1
     v7 = abi_decode [bool], v4
     jump bb6
-  bb5:
+  bb5:  ; preds = bb1
     jump bb6
-  bb6:
+  bb6:  ; preds = bb5, bb4
     v8 = phi [bb4: v7], [bb5: true]
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6, bb2
     v9 = phi [bb6: v8], [bb2: false]
     icall require<short_string>, v9, 2, 0x5446000000000000000000000000000000000000000000000000000000000000
     ret
 }
 
+; function balanceOf(address token) public view returns (uint256) [selector 0x70a08231]
 fn @balanceOf(arg0: i160) -> i256 [selector=0x70a08231, view, abi_params=[address], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = gas
@@ -42,6 +44,7 @@ fn @balanceOf(arg0: i160) -> i256 [selector=0x70a08231, view, abi_params=[addres
     ret v7
 }
 
+; function forward(address target, bytes memory payload) public returns (bytes memory) [selector 0x6fadcf72]
 fn @forward(arg0: i160, arg1: ptr<memory>) -> ptr<memory> [selector=0x6fadcf72, abi_params=[address, bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = gas

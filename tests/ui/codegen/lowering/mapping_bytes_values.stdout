@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/mapping_bytes_values.sol:MappingBytesValues ===
 @module MappingBytesValues
+; function set(uint256 key, bytes memory value) external [selector 0x8b282947]
 fn @set(arg0: i256, arg1: ptr<memory>) [selector=0x8b282947, abi_params=[uint256, bytes], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = mapping_slot arg0, 0
@@ -7,6 +8,7 @@ fn @set(arg0: i256, arg1: ptr<memory>) [selector=0x8b282947, abi_params=[uint256
     ret
 }
 
+; function setNested(uint256 outer, uint256 inner, string memory value) external [selector 0x82c2cb5e]
 fn @setNested(arg0: i256, arg1: i256, arg2: ptr<memory>) [selector=0x82c2cb5e, abi_params=[uint256, uint256, bytes], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = mapping_slot arg0, 1
@@ -15,6 +17,7 @@ fn @setNested(arg0: i256, arg1: i256, arg2: ptr<memory>) [selector=0x82c2cb5e, a
     ret
 }
 
+; function get(uint256 key) external view returns (bytes memory) [selector 0x9507d39a]
 fn @get(arg0: i256) -> ptr<memory> [selector=0x9507d39a, view, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = mapping_slot arg0, 0
@@ -22,6 +25,7 @@ fn @get(arg0: i256) -> ptr<memory> [selector=0x9507d39a, view, abi_params=[uint2
     ret v1
 }
 
+; function getNested(uint256 outer, uint256 inner) external view returns (string memory) [selector 0xf7c930ae]
 fn @getNested(arg0: i256, arg1: i256) -> ptr<memory> [selector=0xf7c930ae, view, abi_params=[uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = mapping_slot arg0, 1

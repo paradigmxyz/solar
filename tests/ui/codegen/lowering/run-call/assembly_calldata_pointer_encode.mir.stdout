@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/assembly_calldata_pointer_encode.sol:AssemblyCalldataPointerEncode ===
 @module AssemblyCalldataPointerEncode
+; function arrayCopy() external pure returns (uint256[2] memory) [selector 0xb192499e]
 fn @arrayCopy() -> ptr<memory> [selector=0xb192499e, pure, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, uint256>]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 4, 2
@@ -19,6 +20,7 @@ fn @arrayCopy() -> ptr<memory> [selector=0xb192499e, pure, abi_params=[], abi_re
     ret v7
 }
 
+; function bytesCopy() external pure returns (bytes memory) [selector 0x6310efb6]
 fn @bytesCopy() -> ptr<memory> [selector=0x6310efb6, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 0, 0
@@ -50,6 +52,7 @@ fn @bytesCopy() -> ptr<memory> [selector=0x6310efb6, pure, abi_params=[], abi_re
     ret v10
 }
 
+; function bytesHash() external pure returns (bytes32) [selector 0x05da852c]
 fn @bytesHash() -> i256 [selector=0x05da852c, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 0, 0
@@ -84,6 +87,7 @@ fn @bytesHash() -> i256 [selector=0x05da852c, pure, abi_params=[], abi_returns=[
     ret v23
 }
 
+; function bytesLength() external pure returns (uint256) [selector 0x46cab953]
 fn @bytesLength() -> i256 [selector=0x46cab953, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 0, 0
@@ -95,6 +99,7 @@ fn @bytesLength() -> i256 [selector=0x46cab953, pure, abi_params=[], abi_returns
     ret v5
 }
 
+; function arrayIndex() external pure returns (uint256) [selector 0xf1de2d43]
 fn @arrayIndex() -> i256 [selector=0xf1de2d43, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 4, 2
@@ -109,6 +114,7 @@ fn @arrayIndex() -> i256 [selector=0xf1de2d43, pure, abi_params=[], abi_returns=
     ret v7
 }
 
+; function structFirst() external pure returns (uint8) [selector 0x2165fa18]
 fn @structFirst() -> i8 [selector=0x2165fa18, pure, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     v0 = icall @makeStruct
@@ -124,6 +130,7 @@ fn @structFirst() -> i8 [selector=0x2165fa18, pure, abi_params=[], abi_returns=[
     ret v8
 }
 
+; function makeStruct() internal pure returns (Pair calldata value)
 fn @makeStruct() -> slice<calldata> [pure] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 4, 0

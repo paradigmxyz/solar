@@ -3,139 +3,144 @@
 @types
   struct0: {i256, i256}
 
+; function falseCondition() external pure returns (uint256) [selector 0x0c55a706]
 fn @falseCondition() -> i256 [selector=0x0c55a706, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb7
     v0 = phi [bb0: 0], [bb7: v0]
     v1 = phi [bb0: 0], [bb7: v3]
     v2 = gt v1, 0
     jumpi v2, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb6
-  bb6:
+  bb6:  ; preds = bb5
     v3 = checked_add uint256, v1, 1
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     jumpi false, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb3
     jump bb2
-  bb2:
+  bb2:  ; preds = bb8
     ret 42
-  bb7:
+  bb7:  ; preds = bb3
     jump bb1
-  bb4:
+  bb4:  ; preds = bb1
     ret 0
   bb9:
     invalid
 }
 
+; function countToThree() external pure returns (uint256 i) [selector 0x1da4c6ce]
 fn @countToThree() -> i256 [selector=0x1da4c6ce, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb4
     v0 = phi [bb0: 0], [bb4: v1]
     v1 = checked_add uint256, v0, 1
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1
     v2 = lt v1, 3
     jumpi v2, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v1
-  bb4:
+  bb4:  ; preds = bb3
     jump bb1
   bb6:
     invalid
 }
 
+; function conditionSideEffect() external pure returns (uint256 i, uint256 checks) [selector 0x9f218831]
 fn @conditionSideEffect() -> struct0 [selector=0x9f218831, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb4
     v0 = phi [bb0: 0], [bb4: v2]
     v1 = phi [bb0: 0], [bb4: v3]
     v2 = checked_add uint256, v0, 1
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1
     v3 = checked_add uint256, v1, 1
     v4 = lt v3, 2
     jumpi v4, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     v5 = insert_value struct0, undef struct0, 0, v2
     v6 = insert_value struct0, v5, 1, v3
     ret v6
-  bb4:
+  bb4:  ; preds = bb3
     jump bb1
   bb6:
     invalid
 }
 
+; function skipRemainder() external pure returns (uint256 sum) [selector 0x3c43b081]
 fn @skipRemainder() -> i256 [selector=0x3c43b081, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb7
     v0 = phi [bb0: 0], [bb7: v5]
     v1 = phi [bb0: 0], [bb7: v2]
     v2 = checked_add uint256, v1, 1
     v3 = lt v2, 3
     jumpi v3, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb6
-  bb6:
+  bb6:  ; preds = bb5
     v4 = checked_add uint256, v0, 10
     jump bb3
-  bb4:
+  bb4:  ; preds = bb1
     jump bb3
-  bb3:
+  bb3:  ; preds = bb4, bb6
     v5 = phi [bb6: v4], [bb4: v0]
     v6 = lt v2, 4
     jumpi v6, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb3
     jump bb2
-  bb2:
+  bb2:  ; preds = bb8
     ret v5
-  bb7:
+  bb7:  ; preds = bb3
     jump bb1
   bb9:
     invalid
 }
 
+; function nested() external pure returns (uint256 total) [selector 0x4ce2d543]
 fn @nested() -> i256 [selector=0x4ce2d543, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb10
     v0 = phi [bb0: 0], [bb10: v7]
     v1 = phi [bb0: 0], [bb10: v4]
     v2 = checked_add uint256, v1, 1
     jump bb4
-  bb4:
+  bb4:  ; preds = bb1, bb7
     v3 = phi [bb1: v0], [bb7: v7]
     v4 = phi [bb1: v2], [bb7: v4]
     v5 = phi [bb1: 0], [bb7: v6]
     v6 = checked_add uint256, v5, 1
     v7 = checked_add uint256, v3, 1
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     v8 = lt v6, 3
     jumpi v8, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     jump bb5
-  bb5:
+  bb5:  ; preds = bb8
     jump bb3
-  bb3:
+  bb3:  ; preds = bb5
     v9 = lt v4, 2
     jumpi v9, bb10, bb11
-  bb11:
+  bb11:  ; preds = bb3
     jump bb2
-  bb2:
+  bb2:  ; preds = bb11
     ret v7
-  bb10:
+  bb10:  ; preds = bb3
     jump bb1
-  bb7:
+  bb7:  ; preds = bb6
     jump bb4
   bb9:
     invalid
@@ -143,154 +148,160 @@ fn @nested() -> i256 [selector=0x4ce2d543, pure, abi_params=[], abi_returns=[wor
     invalid
 }
 
+; function whileControl() external pure returns (uint256 i) [selector 0x4eb5547e]
 fn @whileControl() -> i256 [selector=0x4eb5547e, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: 0], [bb3: v2]
     v1 = lt v0, 3
     jumpi v1, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb4
     ret v0
-  bb3:
+  bb3:  ; preds = bb1
     v2 = checked_add uint256, v0, 1
     jump bb1
   bb5:
     invalid
 }
 
+; function whileConditionalContinue() external pure returns (uint256 sum) [selector 0xd1e42237]
 fn @whileConditionalContinue() -> i256 [selector=0xd1e42237, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb6, bb5
     v0 = phi [bb0: 0], [bb5: v6], [bb6: v5]
     v1 = phi [bb0: 0], [bb5: v3], [bb6: v3]
     v2 = lt v1, 4
     jumpi v2, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb4
     ret v0
-  bb3:
+  bb3:  ; preds = bb1
     v3 = checked_add uint256, v1, 1
     v4 = lt v3, 3
     jumpi v4, bb6, bb7
-  bb7:
+  bb7:  ; preds = bb3
     jump bb8
-  bb8:
+  bb8:  ; preds = bb7
     v6 = checked_add uint256, v0, 10
     jump bb5
-  bb5:
+  bb5:  ; preds = bb8
     jump bb1
-  bb6:
+  bb6:  ; preds = bb3
     v5 = checked_add uint256, v0, 1
     jump bb1
 }
 
+; function exitUsesPreviousLoopValue() external pure returns (uint256 x) [selector 0x27efcb8a]
 fn @exitUsesPreviousLoopValue() -> i256 [selector=0x27efcb8a, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb4
     v0 = phi [bb0: 1], [bb4: v0]
     v1 = phi [bb0: 0], [bb4: v2]
     v2 = checked_add uint256, v1, 1
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1
     v3 = lt v2, 4
     jumpi v3, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     v4 = checked_add uint256, v0, v2
     ret v4
-  bb4:
+  bb4:  ; preds = bb3
     jump bb1
   bb6:
     invalid
 }
 
+; function once() external pure returns (uint256 bodyRuns) [selector 0x292a3f7e]
 fn @once() -> i256 [selector=0x292a3f7e, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb4
     v0 = phi [bb0: 0], [bb4: v1]
     v1 = checked_add uint256, v0, 1
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1
     jumpi false, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v1
-  bb4:
+  bb4:  ; preds = bb3
     jump bb1
   bb6:
     invalid
 }
 
+; function conditionSideEffects() external pure returns (uint256) [selector 0xb44652e6]
 fn @conditionSideEffects() -> i256 [selector=0xb44652e6, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb4
     v0 = phi [bb0: 0], [bb4: v0]
     v1 = phi [bb0: 0], [bb4: v3]
     v2 = phi [bb0: 0], [bb4: v4]
     v3 = checked_add uint256, v1, 1
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1
     v4 = checked_add uint256, v2, 1
     v5 = lt v4, 2
     jumpi v5, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     v6 = checked_mul uint256, v3, 10
     v7 = checked_add uint256, v6, v4
     ret v7
-  bb4:
+  bb4:  ; preds = bb3
     jump bb1
   bb6:
     invalid
 }
 
+; function nestedSideEffects() external pure returns (uint256) [selector 0x31faa90c]
 fn @nestedSideEffects() -> i256 [selector=0x31faa90c, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb10
     v0 = phi [bb0: 0], [bb10: v4]
     v1 = phi [bb0: 0], [bb10: v5]
     v2 = phi [bb0: 0], [bb10: v8]
     v3 = checked_add uint256, v1, 1
     jump bb4
-  bb4:
+  bb4:  ; preds = bb1, bb7
     v4 = phi [bb1: v0], [bb7: v4]
     v5 = phi [bb1: v3], [bb7: v5]
     v6 = phi [bb1: v2], [bb7: v8]
     v7 = phi [bb1: 0], [bb7: v9]
     v8 = checked_add uint256, v6, 1
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     v9 = checked_add uint256, v7, 1
     v10 = lt v9, 2
     jumpi v10, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     jump bb5
-  bb5:
+  bb5:  ; preds = bb8
     jump bb3
-  bb3:
+  bb3:  ; preds = bb5
     v11 = lt v5, 2
     jumpi v11, bb10, bb11
-  bb11:
+  bb11:  ; preds = bb3
     jump bb2
-  bb2:
+  bb2:  ; preds = bb11
     v12 = checked_mul uint256, v5, 10
     v13 = checked_add uint256, v12, v8
     ret v13
-  bb10:
+  bb10:  ; preds = bb3
     jump bb1
-  bb7:
+  bb7:  ; preds = bb6
     jump bb4
   bb9:
     invalid
@@ -298,24 +309,25 @@ fn @nestedSideEffects() -> i256 [selector=0x31faa90c, pure, abi_params=[], abi_r
     invalid
 }
 
+; function checkedDecrementLatch() external pure returns (uint256 sum) [selector 0x9d033d28]
 fn @checkedDecrementLatch() -> i256 [selector=0x9d033d28, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: 0], [bb3: v3]
     v1 = phi [bb0: 4], [bb3: v4]
     v2 = ne v1, 0
     jumpi v2, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v0
-  bb4:
+  bb4:  ; preds = bb1
     v3 = checked_add uint256, v0, v1
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v4 = checked_sub uint256, v1, 1
     jump bb1
 }

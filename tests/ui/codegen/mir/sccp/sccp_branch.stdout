@@ -5,10 +5,10 @@
     bb0:
 -     v0 = lt 5, 10
 -     jumpi v0, bb1, bb2
--   bb2:
+-   bb2:  ; preds = bb0
 -     ret 0
 +     jump bb1
-    bb1:
+    bb1:  ; preds = bb0
       ret 1
 +   bb2 [cold]:
 +     invalid

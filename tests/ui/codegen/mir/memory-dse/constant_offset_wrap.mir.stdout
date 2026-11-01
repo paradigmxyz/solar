@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/memory-dse/constant_offset_wrap.sol:ConstantOffsetWrap ===
 @module ConstantOffsetWrap
+; function wrappedRead() external pure returns (uint256 result) [selector 0x2d22c470]
 fn @wrappedRead() -> i256 [selector=0x2d22c470, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -14,6 +15,7 @@ fn @wrappedRead() -> i256 [selector=0x2d22c470, pure, abi_params=[], abi_returns
     ret v4
 }
 
+; function wrappedCommutedRead() external pure returns (uint256 result) [selector 0x68460939]
 fn @wrappedCommutedRead() -> i256 [selector=0x68460939, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -28,6 +30,7 @@ fn @wrappedCommutedRead() -> i256 [selector=0x68460939, pure, abi_params=[], abi
     ret v4
 }
 
+; function wrappedCopy() external pure returns (uint256 result) [selector 0x0f78c078]
 fn @wrappedCopy() -> i256 [selector=0x0f78c078, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)

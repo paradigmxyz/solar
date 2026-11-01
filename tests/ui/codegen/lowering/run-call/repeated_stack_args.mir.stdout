@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/repeated_stack_args.sol:RepeatedStackArgs ===
 @module RepeatedStackArgs
+; function run(uint256 x) external returns (uint256 result) [selector 0xa444f5e9]
 fn @run(arg0: i256) -> i256 [selector=0xa444f5e9, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = add arg0, 1
@@ -13,6 +14,7 @@ fn @run(arg0: i256) -> i256 [selector=0xa444f5e9, abi_params=[uint256], abi_retu
     ret v7
 }
 
+; function mix(uint256 a, uint256 b) internal returns (uint256)
 fn @mix(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = add arg0, arg1

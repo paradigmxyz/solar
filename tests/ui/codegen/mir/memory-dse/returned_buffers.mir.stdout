@@ -3,18 +3,21 @@
 @types
   struct0: {ptr<memory>, ptr<memory>}
 
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     store_storage_bytes_literal 0, hex"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021222324252627"
     ret
 }
 
+; function load() external view returns (bytes memory) [selector 0x86d5c4be]
 fn @load() -> ptr<memory> [selector=0x86d5c4be, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @_copy, 1
     ret v0
 }
 
+; function loadThenAllocate() external view returns (bytes memory a, bytes memory b) [selector 0xf84b9425]
 fn @loadThenAllocate() -> struct0 [selector=0xf84b9425, view, abi_params=[], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {
   bb0:
     v0 = icall @_copy, 1
@@ -31,12 +34,14 @@ fn @loadThenAllocate() -> struct0 [selector=0xf84b9425, view, abi_params=[], abi
     ret v7
 }
 
+; function loadScaled(uint256 k) external view returns (bytes memory) [selector 0x69d1875c]
 fn @loadScaled(arg0: i256) -> ptr<memory> [selector=0x69d1875c, view, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @_copy, arg0
     ret v0
 }
 
+; function _copy(uint256 k) internal view returns (bytes memory out)
 fn @_copy(arg0: i256) -> ptr<memory> [view] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -55,7 +60,7 @@ fn @_copy(arg0: i256) -> ptr<memory> [view] {
     v11 = alloc zeroed checked v10
     mstore v11, v6
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v12 = phi [bb0: arg0], [bb3: v12]
     v13 = phi [bb0: v11], [bb3: v13]
     v14 = phi [bb0: v6], [bb3: v14]
@@ -63,11 +68,11 @@ fn @_copy(arg0: i256) -> ptr<memory> [view] {
     v16 = phi [bb0: 0], [bb3: v16]
     v17 = lt v15, v14
     jumpi v17, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v13
-  bb4:
+  bb4:  ; preds = bb1
     v18 = sload v16 !metadata(storage=symbolic(v16))
     validate_storage_bytes v18
     v19 = and v18, 1
@@ -80,14 +85,14 @@ fn @_copy(arg0: i256) -> ptr<memory> [view] {
     v26 = eq v25, false
     icall panic_if<0x32>, v26
     jumpi v20, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb4
     jump bb9
-  bb7:
+  bb7:  ; preds = bb4
     v27 = storage_array_data_slot v16
     v28 = shr v15, 5
     v29 = add v27, v28
     jump bb9
-  bb9:
+  bb9:  ; preds = bb7, bb8
     v30 = phi [bb7: v29], [bb8: v16]
     v31 = and v15, 31
     v32 = sub 31, v31
@@ -110,9 +115,9 @@ fn @_copy(arg0: i256) -> ptr<memory> [view] {
     v48 = ptradd v47, 32
     mstore8 v48, v46
     jump bb6
-  bb6:
+  bb6:  ; preds = bb9
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v49 = checked_add uint256, v15, 1
     jump bb1
 }

@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/merge-aborts/account_reads.sol:AccountReads ===
 @module AccountReads
+; function balance(uint256 a, uint256 b, address target) external view returns (uint256) [selector 0x2139cfcb]
 fn @balance(arg0: i256, arg1: i256, arg2: i160) -> i256 [selector=0x2139cfcb, view, abi_params=[uint256, uint256, address], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = checked_add uint256, arg0, arg1
@@ -9,6 +10,7 @@ fn @balance(arg0: i256, arg1: i256, arg2: i160) -> i256 [selector=0x2139cfcb, vi
     ret v3
 }
 
+; function codeSize(uint256 a, uint256 b, address target) external view returns (uint256) [selector 0x3ae86375]
 fn @codeSize(arg0: i256, arg1: i256, arg2: i160) -> i256 [selector=0x3ae86375, view, abi_params=[uint256, uint256, address], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = checked_add uint256, arg0, arg1
@@ -18,6 +20,7 @@ fn @codeSize(arg0: i256, arg1: i256, arg2: i160) -> i256 [selector=0x3ae86375, v
     ret v3
 }
 
+; function codeHash(uint256 a, uint256 b, address target) external view returns (uint256) [selector 0x76806d71]
 fn @codeHash(arg0: i256, arg1: i256, arg2: i160) -> i256 [selector=0x76806d71, view, abi_params=[uint256, uint256, address], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = checked_add uint256, arg0, arg1

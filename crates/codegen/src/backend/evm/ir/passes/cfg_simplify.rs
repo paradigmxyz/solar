@@ -665,6 +665,7 @@ fn coalesce_blocks(module: &mut Module, state: &mut RunState) -> bool {
                     module.blocks[next].metadata.call_effect.get_or_insert(effect);
                 });
             }
+            module.comments.absorb(module.blocks[predecessor].label, module.blocks[target].label);
             module.blocks[predecessor].metadata.in_loop |= module.blocks[target].metadata.in_loop;
             module.blocks[predecessor].metadata.repeats |= module.blocks[target].metadata.repeats;
             module.blocks[predecessor].instructions.append(&mut instructions);

@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_to_fixed.sol:StorageBytesToFixed ===
 @module StorageBytesToFixed
+; function short() external returns (bytes4) [selector 0x38bea4cb]
 fn @short() -> i256 [selector=0x38bea4cb, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     store_storage_bytes_literal 0, hex"112233"
@@ -12,13 +13,13 @@ fn @short() -> i256 [selector=0x38bea4cb, abi_params=[], abi_returns=[word<bytes
     v5 = shr v0, 1
     v6 = and v5, v4
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v7 = storage_array_data_slot 0
     v8 = sload v7 !metadata(storage=symbolic(v7))
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v9 = phi [bb1: v8], [bb2: v0]
     v10 = lt v6, 4
     v11 = sub 4, v6
@@ -29,6 +30,7 @@ fn @short() -> i256 [selector=0x38bea4cb, abi_params=[], abi_returns=[word<bytes
     ret v15
 }
 
+; function long() external returns (bytes32) [selector 0x07bfce37]
 fn @long() -> i256 [selector=0x07bfce37, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     store_storage_bytes_literal 0, hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021"
@@ -41,13 +43,13 @@ fn @long() -> i256 [selector=0x07bfce37, abi_params=[], abi_returns=[word], abi_
     v5 = shr v0, 1
     v6 = and v5, v4
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v7 = storage_array_data_slot 0
     v8 = sload v7 !metadata(storage=symbolic(v7))
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v9 = phi [bb1: v8], [bb2: v0]
     v10 = lt v6, 32
     v11 = sub 32, v6
@@ -58,6 +60,7 @@ fn @long() -> i256 [selector=0x07bfce37, abi_params=[], abi_returns=[word], abi_
     ret v15
 }
 
+; function convertedString() external returns (bytes32) [selector 0x3d08d827]
 fn @convertedString() -> i256 [selector=0x3d08d827, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     store_storage_bytes_literal 1, hex"6162"
@@ -70,13 +73,13 @@ fn @convertedString() -> i256 [selector=0x3d08d827, abi_params=[], abi_returns=[
     v5 = shr v0, 1
     v6 = and v5, v4
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v7 = storage_array_data_slot 1
     v8 = sload v7 !metadata(storage=symbolic(v7))
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v9 = phi [bb1: v8], [bb2: v0]
     v10 = lt v6, 32
     v11 = sub 32, v6
@@ -87,6 +90,7 @@ fn @convertedString() -> i256 [selector=0x3d08d827, abi_params=[], abi_returns=[
     ret v15
 }
 
+; function convertedString31() external returns (bytes32) [selector 0x4a6ab498]
 fn @convertedString31() -> i256 [selector=0x4a6ab498, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     store_storage_bytes_literal 1, hex"6162636465666768696a6b6c6d6e6f707172737475767778797a3031323334"
@@ -99,13 +103,13 @@ fn @convertedString31() -> i256 [selector=0x4a6ab498, abi_params=[], abi_returns
     v5 = shr v0, 1
     v6 = and v5, v4
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v7 = storage_array_data_slot 1
     v8 = sload v7 !metadata(storage=symbolic(v7))
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v9 = phi [bb1: v8], [bb2: v0]
     v10 = lt v6, 32
     v11 = sub 32, v6
@@ -116,6 +120,7 @@ fn @convertedString31() -> i256 [selector=0x4a6ab498, abi_params=[], abi_returns
     ret v15
 }
 
+; function convertedString32() external returns (bytes32) [selector 0x02030859]
 fn @convertedString32() -> i256 [selector=0x02030859, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     store_storage_bytes_literal 1, hex"6162636465666768696a6b6c6d6e6f707172737475767778797a303132333435"
@@ -128,13 +133,13 @@ fn @convertedString32() -> i256 [selector=0x02030859, abi_params=[], abi_returns
     v5 = shr v0, 1
     v6 = and v5, v4
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v7 = storage_array_data_slot 1
     v8 = sload v7 !metadata(storage=symbolic(v7))
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v9 = phi [bb1: v8], [bb2: v0]
     v10 = lt v6, 32
     v11 = sub 32, v6
@@ -145,6 +150,7 @@ fn @convertedString32() -> i256 [selector=0x02030859, abi_params=[], abi_returns
     ret v15
 }
 
+; function convertedLongString() external returns (bytes32) [selector 0x31126685]
 fn @convertedLongString() -> i256 [selector=0x31126685, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     store_storage_bytes_literal 1, hex"303132333435363738396162636465663031323334353637383961626364656658"
@@ -157,13 +163,13 @@ fn @convertedLongString() -> i256 [selector=0x31126685, abi_params=[], abi_retur
     v5 = shr v0, 1
     v6 = and v5, v4
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v7 = storage_array_data_slot 1
     v8 = sload v7 !metadata(storage=symbolic(v7))
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v9 = phi [bb1: v8], [bb2: v0]
     v10 = lt v6, 32
     v11 = sub 32, v6
@@ -174,6 +180,7 @@ fn @convertedLongString() -> i256 [selector=0x31126685, abi_params=[], abi_retur
     ret v15
 }
 
+; function storagePointer() external returns (bytes4) [selector 0x8f8e9061]
 fn @storagePointer() -> i256 [selector=0x8f8e9061, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     store_storage_bytes_literal 0, hex"112233"
@@ -186,13 +193,13 @@ fn @storagePointer() -> i256 [selector=0x8f8e9061, abi_params=[], abi_returns=[w
     v5 = shr v0, 1
     v6 = and v5, v4
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v7 = storage_array_data_slot 0
     v8 = sload v7 !metadata(storage=symbolic(v7))
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v9 = phi [bb1: v8], [bb2: v0]
     v10 = lt v6, 4
     v11 = sub 4, v6
@@ -203,6 +210,7 @@ fn @storagePointer() -> i256 [selector=0x8f8e9061, abi_params=[], abi_returns=[w
     ret v15
 }
 
+; function structMember() external returns (bytes2) [selector 0x9f2d7231]
 fn @structMember() -> i256 [selector=0x9f2d7231, abi_params=[], abi_returns=[word<bytes2>], abi_return_params=[bytes2]] {
   bb0:
     store_storage_bytes_literal 2, hex"aabb"
@@ -215,13 +223,13 @@ fn @structMember() -> i256 [selector=0x9f2d7231, abi_params=[], abi_returns=[wor
     v5 = shr v0, 1
     v6 = and v5, v4
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v7 = storage_array_data_slot 2
     v8 = sload v7 !metadata(storage=symbolic(v7))
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v9 = phi [bb1: v8], [bb2: v0]
     v10 = lt v6, 2
     v11 = sub 2, v6
@@ -232,6 +240,7 @@ fn @structMember() -> i256 [selector=0x9f2d7231, abi_params=[], abi_returns=[wor
     ret v15
 }
 
+; function arrayElement() external returns (bytes2) [selector 0x050651a8]
 fn @arrayElement() -> i256 [selector=0x050651a8, abi_params=[], abi_returns=[word<bytes2>], abi_return_params=[bytes2]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -261,13 +270,13 @@ fn @arrayElement() -> i256 [selector=0x050651a8, abi_params=[], abi_returns=[wor
     v17 = shr v12, 1
     v18 = and v17, v16
     jumpi v14, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v19 = storage_array_data_slot v11
     v20 = sload v19 !metadata(storage=symbolic(v19))
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v21 = phi [bb1: v20], [bb2: v12]
     v22 = lt v18, 2
     v23 = sub 2, v18

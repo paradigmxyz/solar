@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256}
 
+; function addNegative(uint256 seed) external pure returns (uint256 result) [selector 0x672d5378]
 fn @addNegative(arg0: i256) -> i256 [selector=0x672d5378, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = add arg0, 1
@@ -14,6 +15,7 @@ fn @addNegative(arg0: i256) -> i256 [selector=0x672d5378, pure, abi_params=[uint
     ret v4
 }
 
+; function addNegativeFirst(uint256 seed) external pure returns (uint256 result) [selector 0x62e6d0ca]
 fn @addNegativeFirst(arg0: i256) -> i256 [selector=0x62e6d0ca, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = add arg0, 1
@@ -25,6 +27,7 @@ fn @addNegativeFirst(arg0: i256) -> i256 [selector=0x62e6d0ca, pure, abi_params=
     ret v4
 }
 
+; function byteStore(uint256 seed) external pure returns (uint256 result) [selector 0x072e82c0]
 fn @byteStore(arg0: i256) -> i256 [selector=0x072e82c0, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = add arg0, 1
@@ -36,6 +39,7 @@ fn @byteStore(arg0: i256) -> i256 [selector=0x072e82c0, pure, abi_params=[uint25
     ret v4
 }
 
+; function callOutput(uint256 seed) external view returns (uint256 result) [selector 0x9b878558]
 fn @callOutput(arg0: i256) -> i256 [selector=0x9b878558, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = add arg0, 1
@@ -50,6 +54,7 @@ fn @callOutput(arg0: i256) -> i256 [selector=0x9b878558, view, abi_params=[uint2
     ret v7
 }
 
+; function pair() -> first, second
 fn @pair.4() -> struct0 {
   bb0:
     v0 = not 159
@@ -60,6 +65,7 @@ fn @pair.4() -> struct0 {
     ret v4
 }
 
+; function pair() -> first, second
 fn @pair.5() -> struct0 {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -70,6 +76,7 @@ fn @pair.5() -> struct0 {
     ret v4
 }
 
+; function pair() -> first, second
 fn @pair.6() -> struct0 {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -79,6 +86,7 @@ fn @pair.6() -> struct0 {
     ret v3
 }
 
+; function pair() -> first, second
 fn @pair.7() -> struct0 {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)

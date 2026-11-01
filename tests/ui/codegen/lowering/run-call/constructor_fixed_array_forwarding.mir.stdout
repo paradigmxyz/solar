@@ -1,39 +1,42 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_fixed_array_forwarding.sol:C ===
 @module C
+; constructor(uint256 _a, uint256[3] memory _b) [creation entry]
 fn @constructor(arg0: i256, arg1: ptr<memory>) [constructor, abi_params=[uint256, array<3, uint256>]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb6
     v0 = phi [bb0: 0], [bb6: v7]
     v1 = lt v0, 3
     jumpi v1, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     ret
-  bb2:
+  bb2:  ; preds = bb1
     v2 = add 1, v0
     v3 = lt v0, 3
     jumpi v3, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb2
     sstore v2, 0 !metadata(storage=offset(v0, 1))
     jump bb6
-  bb4:
+  bb4:  ; preds = bb2
     v4 = shl v0, 5
     v5 = ptradd arg1, v4
     v6 = mload v5
     sstore v2, v6 !metadata(storage=offset(v0, 1))
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v7 = add v0, 1
     jump bb1
 }
 
+; getter for `uint256 public a` [selector 0x0dbe671f]
 fn @a() -> i256 [selector=0x0dbe671f, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+; getter for `uint256[3] public b` [selector 0xcd580ff3]
 fn @b(arg0: i256) -> i256 [selector=0xcd580ff3, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = lt arg0, 3

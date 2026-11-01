@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/folded_guard_spills.sol:FoldedGuardSpills ===
 @module FoldedGuardSpills
+; function sized(uint256 a, uint256 flag, uint256) external pure returns (bytes32 result) [selector 0xf5037775]
 fn @sized(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xf5037775, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
@@ -28,18 +29,18 @@ fn @sized(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xf5037775, pure
     v23 = and v22, v20
     v24 = ne v23, 0
     jumpi v24, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     calldatacopy v17, 0, v18
     calldatacopy v17, 0, v18
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v25 = ne arg1, 0
     jumpi v25, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v26 = not 31
     v27 = and 0x43f, v26
     v28 = alloc zeroed checked v27
@@ -47,7 +48,7 @@ fn @sized(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xf5037775, pure
     v29 = mload v28
     v30 = shl v29, 0
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v31 = phi [bb4: v30], [bb5: 0]
     v32 = xor v0, v1
     v33 = xor v32, v2
@@ -69,6 +70,7 @@ fn @sized(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xf5037775, pure
     ret v48
 }
 
+; function addressed(uint256 a, uint256 flag, uint256) external pure returns (bytes32 result) [selector 0xa249b625]
 fn @addressed(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xa249b625, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
@@ -93,18 +95,18 @@ fn @addressed(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xa249b625, 
     v19 = zext i1 v18 to i256
     v20 = ne v19, 0
     jumpi v20, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     mstore v17, 256
     mstore v17, 128
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v21 = ne arg1, 0
     jumpi v21, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v22 = not 31
     v23 = and 0x43f, v22
     v24 = alloc zeroed checked v23
@@ -112,7 +114,7 @@ fn @addressed(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xa249b625, 
     v25 = mload v24
     v26 = shl v25, 0
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v27 = phi [bb4: v26], [bb5: 0]
     v28 = xor v0, v1
     v29 = xor v28, v2
@@ -134,6 +136,7 @@ fn @addressed(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xa249b625, 
     ret v44
 }
 
+; function derived(uint256 a, uint256 flag, uint256) external pure returns (bytes32 result) [selector 0x5d97a064]
 fn @derived(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x5d97a064, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
@@ -158,25 +161,25 @@ fn @derived(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x5d97a064, pu
     v19 = zext i1 v18 to i256
     v20 = ne v19, 0
     jumpi v20, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v21 = add v17, 32
     mstore v21, 256
     v22 = add v17, 32
     mstore v22, 128
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v23 = ne arg1, 0
     jumpi v23, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v24 = icall @_copy, 0x400
     v25 = mload v24
     v26 = shl v25, 0
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v27 = phi [bb4: v26], [bb5: 0]
     v28 = xor v0, v1
     v29 = xor v28, v2
@@ -198,6 +201,7 @@ fn @derived(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x5d97a064, pu
     ret v44
 }
 
+; function derivedOnce(uint256 a, uint256 flag, uint256) external pure returns (bytes32 result) [selector 0x1304ae34]
 fn @derivedOnce(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x1304ae34, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
@@ -222,23 +226,23 @@ fn @derivedOnce(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x1304ae34
     v19 = zext i1 v18 to i256
     v20 = ne v19, 0
     jumpi v20, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v21 = add v17, 32
     mstore v21, 128
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v22 = ne arg1, 0
     jumpi v22, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v23 = icall @_copy, 0x400
     v24 = mload v23
     v25 = shl v24, 0
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v26 = phi [bb4: v25], [bb5: 0]
     v27 = xor v0, v1
     v28 = xor v27, v2
@@ -260,6 +264,7 @@ fn @derivedOnce(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x1304ae34
     ret v43
 }
 
+; function copied(uint256 a, uint256 flag, uint256) external pure returns (bytes32 result) [selector 0xc8ef3ab5]
 fn @copied(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xc8ef3ab5, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
@@ -284,23 +289,23 @@ fn @copied(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xc8ef3ab5, pur
     v19 = zext i1 v18 to i256
     v20 = ne v19, 0
     jumpi v20, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     mstore v17, 256
     mstore v17, 128
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v21 = ne arg1, 0
     jumpi v21, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v22 = icall @_copy, 0x400
     v23 = mload v22
     v24 = shl v23, 0
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v25 = phi [bb4: v24], [bb5: 0]
     v26 = xor v0, v1
     v27 = xor v26, v2
@@ -322,6 +327,7 @@ fn @copied(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xc8ef3ab5, pur
     ret v42
 }
 
+; function called(uint256 a, uint256 flag, uint256 d) external pure returns (bytes32 result) [selector 0xb59297ac]
 fn @called(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xb59297ac, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
@@ -344,23 +350,23 @@ fn @called(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xb59297ac, pur
     v17 = calldataload 100
     v18 = eq v17, 64
     jumpi v18, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     icall @_write, arg2, v17
     icall @_write, arg2, v17
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v19 = ne arg1, 0
     jumpi v19, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v20 = icall @_copy, 0x400
     v21 = mload v20
     v22 = shl v21, 0
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v23 = phi [bb4: v22], [bb5: 0]
     v24 = xor v0, v1
     v25 = xor v24, v2
@@ -382,6 +388,7 @@ fn @called(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xb59297ac, pur
     ret v40
 }
 
+; function calledDerived(uint256 a, uint256 flag, uint256 d) external pure returns (bytes32 result) [selector 0x619af4bd]
 fn @calledDerived(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x619af4bd, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
@@ -404,25 +411,25 @@ fn @calledDerived(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x619af4
     v17 = calldataload 100
     v18 = eq v17, 63
     jumpi v18, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v19 = checked_add uint256, v17, 1
     icall @_write, arg2, v19
     v20 = checked_add uint256, v17, 1
     icall @_write, arg2, v20
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v21 = ne arg1, 0
     jumpi v21, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v22 = icall @_copy, 0x400
     v23 = mload v22
     v24 = shl v23, 0
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v25 = phi [bb4: v24], [bb5: 0]
     v26 = xor v0, v1
     v27 = xor v26, v2
@@ -444,6 +451,7 @@ fn @calledDerived(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x619af4
     ret v42
 }
 
+; function masked(uint256 a, uint256 flag, uint256 d) external pure returns (bytes32 result) [selector 0xdd455ef0]
 fn @masked(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xdd455ef0, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
@@ -468,25 +476,25 @@ fn @masked(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xdd455ef0, pur
     v19 = zext i1 v18 to i256
     v20 = ne v19, 0
     jumpi v20, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v21 = and v17, 255
     calldatacopy arg2, 0, v21
     v22 = and v17, 255
     calldatacopy arg2, 0, v22
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v23 = ne arg1, 0
     jumpi v23, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v24 = icall @_copy, 0x400
     v25 = mload v24
     v26 = shl v25, 0
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v27 = phi [bb4: v26], [bb5: 0]
     v28 = xor v0, v1
     v29 = xor v28, v2
@@ -508,6 +516,7 @@ fn @masked(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xdd455ef0, pur
     ret v44
 }
 
+; function returned(uint256 a, uint256 flag, uint256 d) external pure returns (bytes32 result) [selector 0xdfd2c4db]
 fn @returned(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xdfd2c4db, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
@@ -532,14 +541,14 @@ fn @returned(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xdfd2c4db, p
     calldatacopy arg2, 0, v18
     v19 = ne arg1, 0
     jumpi v19, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v20 = icall @_copy, 0x400
     v21 = mload v20
     v22 = shl v21, 0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v23 = phi [bb1: v22], [bb2: 0]
     v24 = xor v0, v1
     v25 = xor v24, v2
@@ -561,6 +570,7 @@ fn @returned(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xdfd2c4db, p
     ret v40
 }
 
+; function _size(uint256 n) internal pure returns (uint256)
 fn @_size(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = eq arg0, 63
@@ -570,12 +580,14 @@ fn @_size(arg0: i256) -> i256 [pure] {
     ret v2
 }
 
+; function _write(uint256 d, uint256 n) internal pure
 fn @_write(arg0: i256, arg1: i256) [pure] {
   bb0:
     calldatacopy arg0, 0, arg1
     ret
 }
 
+; function _copy(uint256 n) internal pure returns (bytes memory out)
 fn @_copy(arg0: i256) -> ptr<memory> [pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)

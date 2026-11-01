@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_stride_validation.sol:AbiCalldataStrideValidation ===
 @module AbiCalldataStrideValidation
+; function read(uint256[] calldata values) external pure returns (uint256) [selector 0x9a15a5b8]
 fn @read(arg0: slice<calldata>) -> i256 [selector=0x9a15a5b8, pure, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -13,6 +14,7 @@ fn @read(arg0: slice<calldata>) -> i256 [selector=0x9a15a5b8, pure, abi_params=[
     ret v6
 }
 
+; function encode(uint256[] calldata values) external pure returns (uint256) [selector 0xb003dd86]
 fn @encode(arg0: slice<calldata>) -> i256 [selector=0xb003dd86, pure, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode [calldata_array<word>], object, args arg0
@@ -20,6 +22,7 @@ fn @encode(arg0: slice<calldata>) -> i256 [selector=0xb003dd86, pure, abi_params
     ret v1
 }
 
+; function unused(uint256[] calldata) external pure returns (uint256) [selector 0x4d959ba5]
 fn @unused(arg0: slice<calldata>) -> i256 [selector=0x4d959ba5, pure, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 1

@@ -3,12 +3,14 @@
 @types
   struct0: {i256, i256}
 
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     store_storage_bytes_literal 0, hex"010203"
     ret
 }
 
+; function f() external returns (uint256, uint256) [selector 0x26121ff0]
 fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -22,10 +24,10 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     v7 = add v6, 31
     v8 = div v7, 32
     jumpi v2, bb1, bb2
-  bb1:
+  bb1:  ; preds = bb0
     clear_storage_words 0, 0, v8
     jump bb2
-  bb2:
+  bb2:  ; preds = bb0, bb1
     sstore 0, 0 !metadata(storage=slot(0))
     store_storage_bytes_literal 0, hex"010203"
     v9 = sload 0 !metadata(storage=slot(0))
@@ -40,14 +42,14 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     v17 = eq v16, false
     icall panic_if<0x32>, v17
     jumpi v11, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb2
     jump bb5
-  bb3:
+  bb3:  ; preds = bb2
     v18 = storage_array_data_slot 0
     v19 = shr 0, 5
     v20 = add v18, v19
     jump bb5
-  bb5:
+  bb5:  ; preds = bb3, bb4
     v21 = phi [bb3: v20], [bb4: 0]
     v22 = and 0, 31
     v23 = sub 31, v22
@@ -73,14 +75,14 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     v41 = eq v40, false
     icall panic_if<0x32>, v41
     jumpi v35, bb6, bb7
-  bb7:
+  bb7:  ; preds = bb5
     jump bb8
-  bb6:
+  bb6:  ; preds = bb5
     v42 = storage_array_data_slot 0
     v43 = shr 0, 5
     v44 = add v42, v43
     jump bb8
-  bb8:
+  bb8:  ; preds = bb6, bb7
     v45 = phi [bb6: v44], [bb7: 0]
     v46 = and 0, 31
     v47 = sub 31, v46
@@ -104,6 +106,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     ret v63
 }
 
+; function g() external view returns (uint256) [selector 0xe2179b8e]
 fn @g() -> i256 [selector=0xe2179b8e, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -118,14 +121,14 @@ fn @g() -> i256 [selector=0xe2179b8e, view, abi_params=[], abi_returns=[word], a
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v9 = storage_array_data_slot 0
     v10 = shr 1, 5
     v11 = add v9, v10
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: 0]
     v13 = and 1, 31
     v14 = sub 31, v13

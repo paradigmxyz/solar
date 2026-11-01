@@ -25,7 +25,7 @@
       v3 = alloc zeroed checked v2
       mstore v3, v0
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0
       v4 = ptrtoint ptr<memory> v3 to i256
 -     v5 = mload v3
 -     v6 = add v4, v5

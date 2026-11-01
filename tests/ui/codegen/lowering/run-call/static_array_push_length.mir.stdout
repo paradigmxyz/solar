@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256}
 
+; function pushLength() external returns (uint256, uint256) [selector 0x755a645b]
 fn @pushLength() -> struct0 [selector=0x755a645b, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -19,6 +20,7 @@ fn @pushLength() -> struct0 [selector=0x755a645b, abi_params=[], abi_returns=[wo
     ret v8
 }
 
+; function discardLength() external returns (uint256) [selector 0x92a2122d]
 fn @discardLength() -> i256 [selector=0x92a2122d, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))

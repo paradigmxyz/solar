@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/yul_arg_eval_order.sol:C ===
 @module C
+; function builtinOrder() external pure returns (uint256 r) [selector 0x0eb481d9]
 fn @builtinOrder() -> i256 [selector=0x0eb481d9, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     mstore 0, 3 !metadata(memory=scratch)
@@ -9,6 +10,7 @@ fn @builtinOrder() -> i256 [selector=0x0eb481d9, pure, abi_params=[], abi_return
     ret v2
 }
 
+; function userFnOrder() external pure returns (uint256 r) [selector 0x6b0e5af2]
 fn @userFnOrder() -> i256 [selector=0x6b0e5af2, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     mstore 0, 1 !metadata(memory=scratch)
@@ -19,6 +21,7 @@ fn @userFnOrder() -> i256 [selector=0x6b0e5af2, pure, abi_params=[], abi_returns
     ret v3
 }
 
+; function deployIdiom() external returns (uint256 r) [selector 0x298d6964]
 fn @deployIdiom() -> i256 [selector=0x298d6964, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -38,18 +41,21 @@ fn @deployIdiom() -> i256 [selector=0x298d6964, abi_params=[], abi_returns=[word
     ret v10
 }
 
+; function eff() -> x
 fn @eff() -> i256 {
   bb0:
     mstore 0, 5 !metadata(memory=scratch)
     ret 10
 }
 
+; function w(v) -> x
 fn @w(arg0: i256) -> i256 {
   bb0:
     mstore 0, arg0 !metadata(memory=scratch)
     ret arg0
 }
 
+; function doCreate(ic) -> addr
 fn @doCreate(arg0: i256) -> i256 {
   bb0:
     v0 = mload arg0

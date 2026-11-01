@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256, i256}
 
+; function probe(uint256 seed) external pure returns (uint256, uint256, uint256) [selector 0xdb082440]
 fn @probe(arg0: i256) -> struct0 [selector=0xdb082440, pure, abi_params=[uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = not 31
@@ -73,6 +74,7 @@ fn @probe(arg0: i256) -> struct0 [selector=0xdb082440, pure, abi_params=[uint256
     ret v54
 }
 
+; function doubleProbe() external pure returns (uint256) [selector 0xf770a1a3]
 fn @doubleProbe() -> i256 [selector=0xf770a1a3, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -95,12 +97,14 @@ fn @doubleProbe() -> i256 [selector=0xf770a1a3, pure, abi_params=[], abi_returns
     ret v13
 }
 
+; function run(bytes memory input, uint256 marker) public pure returns (bytes memory) [selector 0x194e10ce]
 fn @run(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0x194e10ce, pure, abi_params=[bytes, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @copy, arg0, arg1
     ret v0
 }
 
+; function twice(bytes memory input, uint256 marker) public pure returns (bytes memory) [selector 0x5a2aaa96]
 fn @twice(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0x5a2aaa96, pure, abi_params=[bytes, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @copy, arg0, arg1
@@ -108,6 +112,7 @@ fn @twice(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0x5a2aaa96, pu
     ret v1
 }
 
+; function copy(bytes memory input, uint256 marker) internal pure returns (bytes memory out)
 fn @copy(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -119,7 +124,7 @@ fn @copy(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [pure] {
     v6 = ptrtoint ptr<memory> arg0 to i256
     v7 = sub v0, v6
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb11, bb5
     v8 = phi [bb0: arg0], [bb5: v8], [bb11: v8]
     v9 = phi [bb0: arg1], [bb5: v9], [bb11: v9]
     v10 = phi [bb0: v0], [bb5: v10], [bb11: v10]
@@ -130,25 +135,25 @@ fn @copy(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [pure] {
     v15 = zext i1 v14 to i256
     v16 = ne v15, 0
     jumpi v16, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb1
     jump bb2
-  bb3:
+  bb3:  ; preds = bb1
     v17 = mload v11
     v18 = byte 0, v17
     v19 = eq v18, v9
     v20 = zext i1 v19 to i256
     v21 = ne v20, 0
     jumpi v21, bb6, bb7
-  bb7:
+  bb7:  ; preds = bb3
     jump bb8
-  bb8:
+  bb8:  ; preds = bb7
     v30 = add v11, v13
     mstore v30, v17
     v31 = add v11, 1
     jump bb5
-  bb5:
+  bb5:  ; preds = bb8
     jump bb1
-  bb6:
+  bb6:  ; preds = bb3
     v22 = not v17
     v23 = add v11, v13
     mstore v23, v22
@@ -159,13 +164,13 @@ fn @copy(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [pure] {
     v28 = zext i1 v27 to i256
     v29 = ne v28, 0
     jumpi v29, bb9, bb10
-  bb10:
+  bb10:  ; preds = bb6
     jump bb11
-  bb11:
+  bb11:  ; preds = bb10
     jump bb1
-  bb9:
+  bb9:  ; preds = bb6
     jump bb2
-  bb2:
+  bb2:  ; preds = bb9, bb4
     v32 = phi [bb9: v24], [bb4: v11]
     v33 = ptrtoint ptr<memory> v8 to i256
     v34 = add v33, 32

@@ -16,9 +16,9 @@
       v0 = alloc 32 !metadata(deferred_alloc)
       mstore v0, arg0
       jumpi arg1, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       stop
-    bb1:
+    bb1:  ; preds = bb0
       v1 = mload v0
       mstore 128, v1
       returndata 128, 32

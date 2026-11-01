@@ -9,11 +9,11 @@
 -     v0 = icall @msg_data
 -     v1 = extract_value slice<calldata>, v0, 1
 +     jump bb2
-+   bb2:
++   bb2:  ; preds = bb0
 +     v2 = calldatasize
 +     v3 = make_calldata_slice ptr<calldata> 0, v2
 +     jump bb1
-+   bb1:
++   bb1:  ; preds = bb2
 +     v4 = phi [bb2: v3]
 +     v1 = extract_value slice<calldata>, v4, 1
       ret v1
@@ -24,11 +24,11 @@
 -     v0 = icall @msg_data
 -     v1 = extract_value slice<calldata>, v0, 1
 +     jump bb2
-+   bb2:
++   bb2:  ; preds = bb0
 +     v2 = calldatasize
 +     v3 = make_calldata_slice ptr<calldata> 0, v2
 +     jump bb1
-+   bb1:
++   bb1:  ; preds = bb2
 +     v4 = phi [bb2: v3]
 +     v1 = extract_value slice<calldata>, v4, 1
       ret v1
@@ -48,24 +48,24 @@
 -     v2 = extract_value struct0, v0, 0
 -     v3 = extract_value struct0, v1, 1
 +     jump bb2
-+   bb2:
++   bb2:  ; preds = bb0
 +     v5 = and arg0, 0xffff
 +     v6 = shr arg0, 16
 +     v7 = and v6, 0xffff
 +     v8 = insert_value struct0, undef struct0, 0, v5
 +     v9 = insert_value struct0, v8, 1, v7
 +     jump bb1
-+   bb1:
++   bb1:  ; preds = bb2
 +     v10 = phi struct0, [bb2: v9]
 +     jump bb4
-+   bb4:
++   bb4:  ; preds = bb1
 +     v11 = and arg1, 0xffff
 +     v12 = shr arg1, 16
 +     v13 = and v12, 0xffff
 +     v14 = insert_value struct0, undef struct0, 0, v11
 +     v15 = insert_value struct0, v14, 1, v13
 +     jump bb3
-+   bb3:
++   bb3:  ; preds = bb4
 +     v16 = phi struct0, [bb4: v15]
 +     v2 = extract_value struct0, v10, 0
 +     v3 = extract_value struct0, v16, 1

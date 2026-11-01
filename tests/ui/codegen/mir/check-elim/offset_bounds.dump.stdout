@@ -1,21 +1,23 @@
 // === ROOT/tests/ui/codegen/mir/check-elim/offset_bounds.sol:OffsetBounds ===
 @module OffsetBounds
 @phase lowered
+; runtime dispatch entry
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
     v1 = ne v0, 0
     jumpi v1, bb3, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v2 = calldataload 0
     v3 = shr v2, 224
     switch v3, default bb3, [0xf4f1833d => bb2]
-  bb2:
+  bb2:  ; preds = bb1
     tail_call @copyHigh
-  bb3 [cold]:
+  bb3 [cold]:  ; preds = bb0, bb1
     revert 0, 0
 }
 
+; function copyHigh() external pure returns (bytes memory d) [selector 0xf4f1833d]
 fn @copyHigh() [selector=0xf4f1833d, abi_wrapper, pure] {
   bb0:
     v0 = calldatasize
@@ -30,42 +32,42 @@ fn @copyHigh() [selector=0xf4f1833d, abi_wrapper, pure] {
     v95 = or v93, v94
     v96 = ne v95, 0
     jumpi v96, bb9, bb8
-  bb8:
+  bb8:  ; preds = bb0
     v97 = calldatasize
     calldatacopy v90, v97, v7
     mstore v90, v60
     v33 = eq v0, 0
     jumpi v33, bb2, bb4
-  bb4:
+  bb4:  ; preds = bb8
     v81 = add v90, 96
     v83 = add v90, 32
     v43 = lt v81, v83
     jumpi v43, bb1, bb5
-  bb5:
+  bb5:  ; preds = bb4
     calldatacopy v81, 0, v0
     jump bb2
-  bb1:
+  bb1:  ; preds = bb4, bb7
     v11 = phi [bb4: 0], [bb7: v32]
     v12 = lt v11, v0
     jumpi v12, bb3, bb2
-  bb3:
+  bb3:  ; preds = bb1
     v22 = calldataload v11
     v23 = byte 0, v22
     v25 = add v11, 64
     v26 = mload v90
     v27 = lt v25, v26
     jumpi v27, bb7, bb6
-  bb6 [cold]:
+  bb6 [cold]:  ; preds = bb3
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb7:
+  bb7:  ; preds = bb3
     v85 = add v90, v25
     v86 = add v85, 32
     mstore8 v86, v23
     v32 = add v11, 1
     jump bb1
-  bb2:
+  bb2:  ; preds = bb1, bb5, bb8
     v65 = mload v90
     v66 = add v65, 31
     v68 = and v66, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -76,7 +78,7 @@ fn @copyHigh() [selector=0xf4f1833d, abi_wrapper, pure] {
     mstore v78, 32
     v73 = add v68, 64
     returndata v78, v73
-  bb9 [cold]:
+  bb9 [cold]:  ; preds = bb0
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36

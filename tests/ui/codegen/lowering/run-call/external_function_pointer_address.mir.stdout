@@ -1,10 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_address.sol:ExternalFunctionPointerAddress ===
 @module ExternalFunctionPointerAddress
+; function g() external [selector 0xe2179b8e]
 fn @g() [selector=0xe2179b8e, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
+; function f() external view returns (bool) [selector 0x26121ff0]
 fn @f() -> i1 [selector=0x26121ff0, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address

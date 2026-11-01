@@ -4,25 +4,27 @@
 @data
   literal_0: hex"7374616e646172644e6f726d616c5761647374616e646172644e6f726d616c5761647374616e646172644e6f726d616c5761647374616e646172644e6f726d616c5761647374616e646172644e6f726d616c5761647374616e646172644e6f726d616c5761647374616e646172644e6f726d616c5761647374616e646172644e6f726d616c5761647374616e646172644e6f726d616c57616400000000000000"
 
+; runtime dispatch entry
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
     v1 = ne v0, 0
     jumpi v1, bb5, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v2 = calldataload 0
     v3 = shr v2, 224
     switch v3, default bb5, [0x4cd212eb => bb2, 0xa2e8f7e5 => bb3, 0xe582dd31 => bb4]
-  bb4:
+  bb4:  ; preds = bb1
     tail_call @stored
-  bb3:
+  bb3:  ; preds = bb1
     tail_call @copied
-  bb2:
+  bb2:  ; preds = bb1
     tail_call @zeros
-  bb5 [cold]:
+  bb5 [cold]:  ; preds = bb0, bb1
     revert 0, 0
 }
 
+; function copied() external [selector 0xa2e8f7e5]
 fn @copied() [selector=0xa2e8f7e5, abi_wrapper] {
   bb0:
     v29 = heap_floor !metadata(alloc_ptr)
@@ -43,6 +45,7 @@ fn @copied() [selector=0xa2e8f7e5, abi_wrapper] {
     stop
 }
 
+; function stored() external [selector 0xe582dd31]
 fn @stored() [selector=0xe582dd31, abi_wrapper] {
   bb0:
     v23 = heap_floor !metadata(alloc_ptr)
@@ -59,6 +62,7 @@ fn @stored() [selector=0xe582dd31, abi_wrapper] {
     stop
 }
 
+; function zeros() external [selector 0x4cd212eb]
 fn @zeros() [selector=0x4cd212eb, abi_wrapper] {
   bb0:
     v29 = heap_floor !metadata(alloc_ptr)

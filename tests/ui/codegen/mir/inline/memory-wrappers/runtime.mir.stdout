@@ -3,12 +3,14 @@
 @types
   struct0: {ptr<memory>, ptr<memory>, ptr<memory>}
 
+; function once(bytes memory input) external pure returns (bytes memory) [selector 0x356f1140]
 fn @once(arg0: ptr<memory>) -> ptr<memory> [selector=0x356f1140, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @wrap, arg0
     ret v0
 }
 
+; function twice(bytes memory input) external pure returns (bytes memory, bytes memory, bytes memory) [selector 0xff491092]
 fn @twice(arg0: ptr<memory>) -> struct0 [selector=0xff491092, pure, abi_params=[bytes], abi_returns=[memory_bytes, memory_bytes, memory_bytes], abi_return_params=[bytes, bytes, bytes]] {
   bb0:
     v0 = icall @wrap, arg0
@@ -19,6 +21,7 @@ fn @twice(arg0: ptr<memory>) -> struct0 [selector=0xff491092, pure, abi_params=[
     ret v4
 }
 
+; function wrap(bytes memory input) internal pure returns (bytes memory result)
 fn @wrap(arg0: ptr<memory>) -> ptr<memory> [pure] {
   bb0:
     v0 = icall @copy, arg0
@@ -30,6 +33,7 @@ fn @wrap(arg0: ptr<memory>) -> ptr<memory> [pure] {
     ret v0
 }
 
+; function copy(bytes memory input) internal pure returns (bytes memory result)
 fn @copy(arg0: ptr<memory>) -> ptr<memory> [pure] {
   bb0:
     v0 = mload arg0
@@ -41,18 +45,18 @@ fn @copy(arg0: ptr<memory>) -> ptr<memory> [pure] {
     v5 = alloc zeroed checked v4
     mstore v5, v0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v6 = phi [bb0: arg0], [bb3: v6]
     v7 = phi [bb0: v5], [bb3: v7]
     v8 = phi [bb0: 0], [bb3: v25]
     v9 = mload v6
     v10 = lt v8, v9
     jumpi v10, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v7
-  bb4:
+  bb4:  ; preds = bb1
     v11 = mload v6
     v12 = lt v8, v11
     v13 = eq v12, false
@@ -71,9 +75,9 @@ fn @copy(arg0: ptr<memory>) -> ptr<memory> [pure] {
     v24 = ptradd v23, 32
     mstore8 v24, v22
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v25 = checked_add uint256, v8, 1
     jump bb1
 }

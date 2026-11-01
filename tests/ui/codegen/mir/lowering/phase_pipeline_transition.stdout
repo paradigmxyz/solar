@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_transition.mir (after pipeline-default) ===
 @module PhasePipelineTransition
 @phase lowered
+; runtime dispatch entry
 fn @entry() [entry, cold] {
   bb0 [cold]:
     revert 0, 0

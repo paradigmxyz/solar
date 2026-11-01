@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/void_forwarder_runtime.sol:VoidForwarder ===
 @module VoidForwarder
+; function once(uint256 x, uint256 y) external returns (uint256) [selector 0x4c579d9d]
 fn @once(arg0: i256, arg1: i256) -> i256 [selector=0x4c579d9d, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall @forward, arg0, arg1, 7
@@ -7,6 +8,7 @@ fn @once(arg0: i256, arg1: i256) -> i256 [selector=0x4c579d9d, abi_params=[uint2
     ret v0
 }
 
+; function twice(uint256 x, uint256 y) external returns (uint256) [selector 0x09d3ef31]
 fn @twice(arg0: i256, arg1: i256) -> i256 [selector=0x09d3ef31, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall @forward, arg0, arg1, 7
@@ -15,6 +17,7 @@ fn @twice(arg0: i256, arg1: i256) -> i256 [selector=0x09d3ef31, abi_params=[uint
     ret v0
 }
 
+; function wrap(uint256 x) external returns (uint256) [selector 0xea598cb0]
 fn @wrap(arg0: i256) -> i256 [selector=0xea598cb0, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall @wrappingForward, arg0
@@ -22,18 +25,21 @@ fn @wrap(arg0: i256) -> i256 [selector=0xea598cb0, abi_params=[uint256], abi_ret
     ret v0
 }
 
+; function forward(uint256 x, uint256 y, uint256 z) internal
 fn @forward(arg0: i256, arg1: i256, arg2: i256) {
   bb0:
     icall @sink, arg1, arg0, arg2
     ret
 }
 
+; function wrappingForward(uint256 x) internal
 fn @wrappingForward(arg0: i256) {
   bb0:
     icall @uncheckedSink, arg0, 4
     ret
 }
 
+; function sink(uint256 x, uint256 y, uint256 z) internal
 fn @sink(arg0: i256, arg1: i256, arg2: i256) {
   bb0:
     v0 = ne arg0, 0
@@ -50,17 +56,18 @@ fn @sink(arg0: i256, arg1: i256, arg2: i256) {
     ret
 }
 
+; function uncheckedSink(uint256 x, uint256 y) internal
 fn @uncheckedSink(arg0: i256, arg1: i256) {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     v1 = add arg0, arg1
     sstore 0, v1 !metadata(storage=slot(0))
     ret
-  bb1:
+  bb1:  ; preds = bb0
     icall revert_if<empty>, true
     invalid
 }

@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_higher_order.sol:ExternalFunctionPointerHigherOrderTarget ===
 @module ExternalFunctionPointerHigherOrderTarget
+; function addTwo(uint256 value) external pure returns (uint256) [selector 0xcae57913]
 fn @addTwo(arg0: i256) -> i256 [selector=0xcae57913, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = checked_add uint256, arg0, 2
@@ -11,6 +12,7 @@ fn @addTwo(arg0: i256) -> i256 [selector=0xcae57913, pure, abi_params=[uint256],
 @data
   ExternalFunctionPointerHigherOrderTarget_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_higher_order.sol:ExternalFunctionPointerHigherOrderTarget"
 
+; function store(function(uint256) external returns (uint256) value) public [selector 0xf018a0a7]
 fn @store(arg0: i256) [selector=0xf018a0a7, abi_params=[function], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffff, 64
@@ -24,6 +26,7 @@ fn @store(arg0: i256) [selector=0xf018a0a7, abi_params=[function], abi_returns=[
     ret
 }
 
+; function eval(function(uint256) external returns (uint256) value) public returns (uint256) [selector 0xd54e4ce7]
 fn @eval(arg0: i256) -> i256 [selector=0xd54e4ce7, abi_params=[function], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = and arg0, 0xffffffff
@@ -35,9 +38,9 @@ fn @eval(arg0: i256) -> i256 [selector=0xd54e4ce7, abi_params=[function], abi_re
     mstore 32, 7 !metadata(memory=scratch)
     v5 = call v3, v2, 0, 28, 36, 0, 32
     jumpi v5, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v6 = returndatasize
     v7 = lt v6, 32
     icall revert_if<tuple_data_too_short>, v7
@@ -46,6 +49,7 @@ fn @eval(arg0: i256) -> i256 [selector=0xd54e4ce7, abi_params=[function], abi_re
     ret v9
 }
 
+; function t() external returns (uint256) [selector 0x92d0d153]
 fn @t() -> i256 [selector=0x92d0d153, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -62,9 +66,9 @@ fn @t() -> i256 [selector=0x92d0d153, abi_params=[], abi_returns=[word], abi_ret
     v9 = create 0, v8, v7
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v11 = zext i160 v9 to i256
     v12 = shl v11, 32
     v13 = or v12, 0xcae57913
@@ -78,9 +82,9 @@ fn @t() -> i256 [selector=0x92d0d153, abi_params=[], abi_returns=[word], abi_ret
     v18 = zext i160 v5 to i256
     v19 = call v6, v18, 0, 28, 36, 0, 0
     jumpi v19, bb4, bb3
-  bb3:
+  bb3:  ; preds = bb2
     revert_returndata
-  bb4:
+  bb4:  ; preds = bb2
     v20 = sload 0 !metadata(storage=slot(0))
     v21 = trunc i256 v20 to i64
     v22 = zext i64 v21 to i256
@@ -96,10 +100,10 @@ fn @internal_dispatcher_p_function_r_uint256(arg0: i256, arg1: i256) -> i256 [fu
   bb0:
     v0 = eq arg0, 3
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:
+  bb1:  ; preds = bb0
     v1 = icall @eval, arg1
     ret v1
 }

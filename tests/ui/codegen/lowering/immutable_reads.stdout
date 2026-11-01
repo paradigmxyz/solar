@@ -4,6 +4,7 @@
   start: uint256
   duration: uint256
 
+; constructor(uint256 s) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
   bb0:
     storeimmutable start, arg0
@@ -13,18 +14,21 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
     ret
 }
 
+; getter for `uint256 public immutable start` [selector 0xbe9a6555]
 fn @start() -> i256 [selector=0xbe9a6555, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = loadimmutable start
     ret v0
 }
 
+; getter for `uint256 public immutable duration` [selector 0x0fb5a6b4]
 fn @duration() -> i256 [selector=0x0fb5a6b4, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = loadimmutable duration
     ret v0
 }
 
+; function end() public view returns (uint256) [selector 0xefbe1c1c]
 fn @end() -> i256 [selector=0xefbe1c1c, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = loadimmutable start

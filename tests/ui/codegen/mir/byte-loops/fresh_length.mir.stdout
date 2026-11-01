@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/byte-loops/fresh_length.sol:Test ===
 @module Test
+; function copy(bytes memory source, uint256 length) external pure returns (bytes memory dest) [selector 0x53a33458]
 fn @copy(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0x53a33458, pure, abi_params=[bytes, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = mload arg0
@@ -13,7 +14,7 @@ fn @copy(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0x53a33458, pur
     v6 = ptrtoint ptr<memory> v5 to i256
     mstore v5, arg1
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v7 = phi [bb0: arg0], [bb3: v7]
     v8 = phi [bb0: arg1], [bb3: v8]
     v9 = phi [bb0: v5], [bb3: v9]
@@ -21,11 +22,11 @@ fn @copy(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0x53a33458, pur
     v11 = phi [bb0: 0], [bb3: v27]
     v12 = lt v11, v10
     jumpi v12, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v9
-  bb4:
+  bb4:  ; preds = bb1
     v13 = mload v7
     v14 = lt v11, v13
     v15 = eq v14, false
@@ -44,9 +45,9 @@ fn @copy(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [selector=0x53a33458, pur
     v26 = ptradd v25, 32
     mstore8 v26, v24
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v27 = checked_add uint256, v11, 1
     jump bb1
 }

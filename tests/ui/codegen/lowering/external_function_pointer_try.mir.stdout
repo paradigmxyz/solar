@@ -3,6 +3,7 @@
 @types
   struct0: {i256, ptr<memory>}
 
+; function invoke( function(Context memory) external fn, Context memory context ) internal
 fn @invoke(arg0: i256, arg1: ptr<memory>) {
   bb0:
     v0 = and arg0, 0xffffffff
@@ -17,7 +18,7 @@ fn @invoke(arg0: i256, arg1: ptr<memory>) {
     icall revert_if<target_contract_has_no_code>, v8
     v9 = call v3, v2, 0, v5, v6, 0, 0
     jumpi v9, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v10 = icall returndata_bytes<>
     v11 = ptradd v10, 32
     v12 = mload v10
@@ -28,18 +29,19 @@ fn @invoke(arg0: i256, arg1: ptr<memory>) {
     v17 = mload v16
     v18 = shr v17, 224
     jumpi true, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb2
     revert v14, v15
-  bb4:
+  bb4:  ; preds = bb2
     v19 = mload v10
     sstore 0, v19 !metadata(storage=slot(0))
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb4
     ret
 }
 
+; function succeed(Context memory context) external [selector 0x93edcd0d]
 fn @succeed(arg0: ptr<memory>) [selector=0x93edcd0d, abi_params=[tuple<uint256>], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = mload arg0
@@ -47,12 +49,14 @@ fn @succeed(arg0: ptr<memory>) [selector=0x93edcd0d, abi_params=[tuple<uint256>]
     ret
 }
 
+; function fail(Context memory) external pure [selector 0xe8be0a6f]
 fn @fail(arg0: ptr<memory>) [selector=0xe8be0a6f, pure, abi_params=[tuple<uint256>], abi_returns=[], abi_return_params=[]] {
   bb0:
     icall require<short_string>, false, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
     invalid
 }
 
+; function pair(Context memory context) external pure returns (uint256, string memory) [selector 0x76ea4d37]
 fn @pair(arg0: ptr<memory>) -> struct0 [selector=0x76ea4d37, pure, abi_params=[tuple<uint256>], abi_returns=[word, memory_bytes], abi_return_params=[uint256, bytes]] {
   bb0:
     v0 = mload arg0
@@ -65,6 +69,7 @@ fn @pair(arg0: ptr<memory>) -> struct0 [selector=0x76ea4d37, pure, abi_params=[t
     ret v4
 }
 
+; function invokePair( function(Context memory) external returns (uint256, string memory) fn, Context memory context ) internal returns (uint256, string memory)
 fn @invokePair(arg0: i256, arg1: ptr<memory>) -> struct0 {
   bb0:
     v0 = and arg0, 0xffffffff
@@ -76,12 +81,12 @@ fn @invokePair(arg0: i256, arg1: ptr<memory>) -> struct0 {
     v6 = extract_value slice<memory>, v4, 1
     v7 = call v3, v2, 0, v5, v6, 0, 0
     jumpi v7, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:
+  bb4:  ; preds = bb2
     v14 = alloc 64 !metadata(preserves_fmp)
     mstore v14, 6
     v15 = ptradd v14, 32
@@ -89,7 +94,7 @@ fn @invokePair(arg0: i256, arg1: ptr<memory>) -> struct0 {
     v16 = insert_value struct0, undef struct0, 0, 0
     v17 = insert_value struct0, v16, 1, v14
     ret v17
-  bb1:
+  bb1:  ; preds = bb0
     v8 = icall returndata_bytes<>
     v9 = abi_decode [uint256, bytes], v8
     v10 = extract_value struct0, v9, 0
@@ -103,6 +108,7 @@ fn @invokePair(arg0: i256, arg1: ptr<memory>) -> struct0 {
     ret v19
 }
 
+; function trySuccess() external returns (uint256) [selector 0x3984eec7]
 fn @trySuccess() -> i256 [selector=0x3984eec7, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
@@ -116,6 +122,7 @@ fn @trySuccess() -> i256 [selector=0x3984eec7, abi_params=[], abi_returns=[word]
     ret v5
 }
 
+; function tryFailure() external returns (uint256) [selector 0x86763122]
 fn @tryFailure() -> i256 [selector=0x86763122, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
@@ -129,6 +136,7 @@ fn @tryFailure() -> i256 [selector=0x86763122, abi_params=[], abi_returns=[word]
     ret v5
 }
 
+; function tryPair() external returns (uint256, string memory) [selector 0xf8a3207b]
 fn @tryPair() -> struct0 [selector=0xf8a3207b, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[uint256, bytes]] {
   bb0:
     v0 = address

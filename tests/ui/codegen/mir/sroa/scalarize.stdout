@@ -76,7 +76,7 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       v3 = add v2, 32
       jump bb1
-    bb1 [cold]:
+    bb1 [cold]:  ; preds = bb0
       revert v3, 32
   }
   
@@ -168,7 +168,7 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       v3 = add v2, 32
       jump bb1
-    bb1 [cold]:
+    bb1 [cold]:  ; preds = bb0
       revert v3, 32
   }
   

@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i8, i8}
 
+; function assign() external returns (uint256 len, Action first, Action second) [selector 0x12ae6397]
 fn @assign() -> struct0 [selector=0x12ae6397, abi_params=[], abi_returns=[word, word<enum 6>, word<enum 6>], abi_return_params=[uint256, enum<6, uint8>, enum<6, uint8>]] {
   bb0:
     v0 = alloc 64
@@ -18,22 +19,22 @@ fn @assign() -> struct0 [selector=0x12ae6397, abi_params=[], abi_returns=[word, 
     v6 = sload 0 !metadata(storage=slot(0))
     v7 = gt v6, 2
     jumpi v7, bb1, bb2
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb4
     v8 = phi [bb1: 2], [bb4: v23]
     v9 = lt v8, v6
     jumpi v9, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb2
-  bb2:
+  bb2:  ; preds = bb0, bb5
     sstore 0, 2 !metadata(storage=slot(0))
     jump bb6
-  bb6:
+  bb6:  ; preds = bb2, bb7
     v24 = phi [bb2: 0], [bb7: v44]
     v25 = lt v24, 2
     jumpi v25, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     v45 = storage_array_data_slot 0
     v46 = add v45, 0
     v47 = sload v46 !metadata(storage=symbolic(v45))
@@ -82,7 +83,7 @@ fn @assign() -> struct0 [selector=0x12ae6397, abi_params=[], abi_returns=[word, 
     v83 = insert_value struct0, v82, 1, v61
     v84 = insert_value struct0, v83, 2, v77
     ret v84
-  bb7:
+  bb7:  ; preds = bb6
     v26 = shl v24, 5
     v27 = ptradd v0, v26
     v28 = mload v27
@@ -105,7 +106,7 @@ fn @assign() -> struct0 [selector=0x12ae6397, abi_params=[], abi_returns=[word, 
     sstore v31, v43 !metadata(storage=symbolic(v31))
     v44 = add v24, 1
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v10 = storage_array_data_slot 0
     v11 = div v8, 32
     v12 = add v10, v11

@@ -1,31 +1,34 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_boundary_struct_array_multislot.sol:StorageBoundaryStructArrayMultislot ===
 @module StorageBoundaryStructArrayMultislot
+; function getSource() internal pure returns (S[3][1] storage array)
 fn @getSource() -> i256 [pure] {
   bb0:
     v0 = sub 0, 5
     ret v0
 }
 
+; function getDest() internal pure returns (S[3][1] storage array)
 fn @getDest() -> i256 [pure] {
   bb0:
     ret 5
 }
 
+; function test() public returns (uint256 sum) [selector 0xf8a8fd6d]
 fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @getSource
     v1 = icall @getDest
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v2 = phi [bb0: 0], [bb3: v2]
     v3 = phi [bb0: 0], [bb3: v31]
     v4 = phi [bb0: v0], [bb3: v4]
     v5 = phi [bb0: v1], [bb3: v5]
     v6 = lt v3, 3
     jumpi v6, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     v32 = lt 0, 1
     v33 = eq v32, false
     icall panic_if<0x32>, v33
@@ -38,20 +41,20 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v39 = add v5, v38
     v40 = alloc checked 96
     jump bb7
-  bb7:
+  bb7:  ; preds = bb2, bb8
     v41 = phi [bb2: 0], [bb8: v56]
     v42 = lt v41, 3
     jumpi v42, bb8, bb9
-  bb9:
+  bb9:  ; preds = bb7
     v57 = ptrtoint ptr<memory> v40 to i256
     jump bb10
-  bb10:
+  bb10:  ; preds = bb9, bb15
     v58 = phi [bb9: 0], [bb15: v83]
     v59 = lt v58, 3
     jumpi v59, bb11, bb12
-  bb12:
+  bb12:  ; preds = bb10
     jump bb16
-  bb16:
+  bb16:  ; preds = bb12, bb18
     v84 = phi [bb12: v2], [bb18: v121]
     v85 = phi [bb12: v3], [bb18: v85]
     v86 = phi [bb12: 0], [bb18: v122]
@@ -59,11 +62,11 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v88 = phi [bb12: v5], [bb18: v88]
     v89 = lt v86, 3
     jumpi v89, bb19, bb20
-  bb20:
+  bb20:  ; preds = bb16
     jump bb17
-  bb17:
+  bb17:  ; preds = bb20
     ret v84
-  bb19:
+  bb19:  ; preds = bb16
     v90 = lt 0, 1
     v91 = eq v90, false
     icall panic_if<0x32>, v91
@@ -103,17 +106,17 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v120 = checked_add uint256, v109, v119
     v121 = checked_add uint256, v84, v120
     jump bb21
-  bb21:
+  bb21:  ; preds = bb19
     jump bb18
-  bb18:
+  bb18:  ; preds = bb21
     v122 = checked_add uint256, v86, 1
     jump bb16
-  bb11:
+  bb11:  ; preds = bb10
     v60 = mul v58, 3
     v61 = add v39, v60
     v62 = lt v58, 3
     jumpi v62, bb13, bb14
-  bb14:
+  bb14:  ; preds = bb11
     v73 = alloc 96
     mstore v73, 0
     v74 = ptradd v73, 32
@@ -131,7 +134,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v82 = mload v81
     sstore v80, v82 !metadata(storage=offset(v61, 2))
     jump bb15
-  bb13:
+  bb13:  ; preds = bb11
     v63 = shl v58, 5
     v64 = ptradd v40, v63
     v65 = mload v64
@@ -146,10 +149,10 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v72 = mload v71
     sstore v70, v72 !metadata(storage=offset(v61, 2))
     jump bb15
-  bb15:
+  bb15:  ; preds = bb13, bb14
     v83 = add v58, 1
     jump bb10
-  bb8:
+  bb8:  ; preds = bb7
     v43 = mul v41, 3
     v44 = add v35, v43
     v45 = alloc checked 96
@@ -169,7 +172,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     mstore v55, v53
     v56 = add v41, 1
     jump bb7
-  bb4:
+  bb4:  ; preds = bb1
     v7 = alloc 96
     v8 = checked_mul uint256, v3, 3
     v9 = checked_add uint256, v8, 1
@@ -203,9 +206,9 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v30 = mload v29
     sstore v28, v30 !metadata(storage=offset(v23, 2))
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v31 = checked_add uint256, v3, 1
     jump bb1
 }
