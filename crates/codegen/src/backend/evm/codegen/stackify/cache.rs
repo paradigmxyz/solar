@@ -2,10 +2,11 @@
 //!
 //! Contracts copy the same library and internal functions, so many bodies reach planning
 //! byte-identical in several modules. Planning one is a pure function of what [`PlanKey`] holds:
-//! the body with its value, instruction and block numbering, the facts of [`ModuleInfo`] that the
-//! planner reads for the function and for each function it calls, the writes that may reach the
-//! spill area, the cost model and the call-spill level. Equal keys give equal plans, so a plan is
-//! stored once per key on the global context and later modules take a copy.
+//! the body with its value, instruction and block numbering and the hotness of its blocks, the
+//! facts of [`ModuleInfo`] that the planner reads for the function and for each function it calls,
+//! the writes that may reach the spill area, the cost model and the call-spill level. Equal keys
+//! give equal plans, so a plan is stored once per key on the global context and later modules take
+//! a copy.
 //!
 //! Callee identities are numbered per module, so the key names each callee by the order of its
 //! first appearance in the body and the stored plan does the same; a hit maps those numbers to
@@ -219,6 +220,7 @@ impl PlanKey {
                 }
             }
             block.predecessors.hash(self);
+            block.hotness.hash(self);
             match &block.terminator {
                 Some(Terminator::TailCall { function, args }) => {
                     self.word(1);
