@@ -82,20 +82,20 @@
     bb0:
       v0 = calldataload 0
       v1 = shr v0, 224
-+     v5 = calldataload 4
++     v5 = calldataload 4 !metadata(spans=[10..20, 30..40, 50..60])
       switch v1, default bb4, [1 => bb1, 2 => bb2, 3 => bb3]
     bb3:
-      v4 = calldataload 4
+      v4 = calldataload 4 !metadata(span=50..60)
 -     mstore 64, v4
 +     mstore 64, v5
       stop
     bb2:
-      v3 = calldataload 4
+      v3 = calldataload 4 !metadata(span=30..40)
 -     mstore 32, v3
 +     mstore 32, v5
       stop
     bb1:
-      v2 = calldataload 4
+      v2 = calldataload 4 !metadata(span=10..20)
 -     mstore 0, v2
 +     mstore 0, v5
       stop

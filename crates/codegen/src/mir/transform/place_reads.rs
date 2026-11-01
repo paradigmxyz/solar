@@ -146,24 +146,27 @@ fn hoist(func: &mut Function) -> bool {
             {
                 continue;
             }
-            let Some(&(_, _, first)) = loads.iter().find(|&&(_, read, _)| read == offset) else {
-                continue;
-            };
-            if loads
+            // The reads below the branch that the hoisted read replaces.
+            let below = loads
                 .iter()
                 .filter(|&&(home, read, _)| {
                     read == offset && cfg.dominators().dominates(block, home)
                 })
-                .count()
-                < MIN_HOISTED_READS
-            {
+                .filter_map(|&(_, _, result)| match *func.value(result) {
+                    Value::Inst(inst) => Some(inst),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            if below.len() < MIN_HOISTED_READS {
                 continue;
             }
-            let Value::Inst(first) = *func.value(first) else { continue };
             // v = calldataload offset, before the branch
-            let instruction = func.inst(first);
+            let instruction = func.inst(below[0]);
             let mut copy = Instruction::new(instruction.kind.clone(), instruction.result_ty);
             copy.metadata.copy_debug_context(&instruction.metadata);
+            for &other in &below[1..] {
+                copy.metadata.merge_debug_context(&func.inst(other).metadata);
+            }
             let (inst, value) = func.alloc_value_inst(copy);
             func.blocks[block].instructions.push(inst);
             // read dominated by the branch => the hoisted read
@@ -233,6 +236,7 @@ fn run(func: &mut Function) -> bool {
         let mut target = outside.fold(first, |a, b| cfg.dominators().common_dominator(a, b));
         while cfg.cyclic_blocks().contains(target)
             && let Some(idom) = cfg.dominators().idom(target)
+            && idom != target
         {
             target = idom;
         }
