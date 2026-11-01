@@ -787,16 +787,14 @@ impl<'a> Validator<'a> {
     }
 
     fn validate_return_abi(&mut self, module: &Module, func: &Function) {
-        // A function without a logical result type returns exactly its components.
-        if let Some(components) = func.return_abi()
-            && func.return_type() != MirType::Void
-            && !return_abi_matches(
-                module,
-                func.return_type(),
-                components,
-                &self.return_field_counts,
-            )
-        {
+        let Some(components) = func.return_abi() else { return };
+        // Without a logical result type, the components alone describe the result.
+        let valid = if func.return_type() == MirType::Void {
+            !components.iter().any(|ty| matches!(ty, MirType::Struct(_) | MirType::Void))
+        } else {
+            return_abi_matches(module, func.return_type(), components, &self.return_field_counts)
+        };
+        if !valid {
             self.emit("internal return ABI does not match the function's result type");
         }
     }
