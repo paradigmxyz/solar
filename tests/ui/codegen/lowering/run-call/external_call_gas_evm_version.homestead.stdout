@@ -4,6 +4,11 @@
   struct0: {i256, i256}
   struct1: {i256, i256, i256, i256, i256, i256, i256, i256}
 
+fn @receive() [receive, payable] {
+  bb0:
+    ret
+}
+
 fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
@@ -53,11 +58,6 @@ fn @agg() -> ptr<memory> [selector=0xf5e34bfa, pure, abi_params=[], abi_returns=
     v5 = ptradd v0, 32
     mstore v5, 22
     ret v0
-}
-
-fn @receive() [receive, payable] {
-  bb0:
-    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/external_call_gas_evm_version.sol:CallGasCalls ===

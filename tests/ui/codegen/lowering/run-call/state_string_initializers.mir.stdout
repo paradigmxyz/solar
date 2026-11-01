@@ -1,5 +1,26 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/state_string_initializers.sol:StateStringInitializers ===
 @module StateStringInitializers
+fn @constructor() [constructor] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 11
+    v1 = ptradd v0, 32
+    mstore v1, 0x4e61746976654552433230000000000000000000000000000000000000000000
+    icall @store_storage_bytes, 0, v0
+    v2 = alloc 64 !metadata(preserves_fmp)
+    mstore v2, 6
+    v3 = ptradd v2, 32
+    mstore v3, 0x4e45524332300000000000000000000000000000000000000000000000000000
+    icall @store_storage_bytes, 1, v2
+    v4 = sload 2 !metadata(storage=slot(2))
+    v5 = not 255
+    v6 = and v4, v5
+    v7 = and 18, 255
+    v8 = or v6, v7
+    sstore 2, v8 !metadata(storage=slot(2))
+    ret
+}
+
 fn @name() -> ptr<memory> [selector=0x06fdde03, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @load_storage_bytes, 0
@@ -23,27 +44,6 @@ fn @load_storage_bytes(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = load_storage_bytes arg0
     ret v0
-}
-
-fn @constructor() [constructor] {
-  bb0:
-    v0 = alloc 64 !metadata(preserves_fmp)
-    mstore v0, 11
-    v1 = ptradd v0, 32
-    mstore v1, 0x4e61746976654552433230000000000000000000000000000000000000000000
-    icall @store_storage_bytes, 0, v0
-    v2 = alloc 64 !metadata(preserves_fmp)
-    mstore v2, 6
-    v3 = ptradd v2, 32
-    mstore v3, 0x4e45524332300000000000000000000000000000000000000000000000000000
-    icall @store_storage_bytes, 1, v2
-    v4 = sload 2 !metadata(storage=slot(2))
-    v5 = not 255
-    v6 = and v4, v5
-    v7 = and 18, 255
-    v8 = or v6, v7
-    sstore 2, v8 !metadata(storage=slot(2))
-    ret
 }
 
 fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {

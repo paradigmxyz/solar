@@ -1,6 +1,27 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/solar_optimize.sol:Small ===
 @module Small
 @phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb6, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb6, [0x188b85b4 => bb2, 0xa96f1c69 => bb3, 0xc3d9c4b4 => bb4, 0xead710c4 => bb5]
+  bb5:
+    tail_call @greet
+  bb4:
+    tail_call @share
+  bb3:
+    tail_call @pattern
+  bb2:
+    tail_call @sum
+  bb6 [cold]:
+    revert 0, 0
+}
+
 fn @sum() [selector=0x188b85b4, abi_wrapper, pure] {
   bb0:
     v11 = calldatasize
@@ -101,26 +122,5 @@ fn @share() [selector=0xc3d9c4b4, abi_wrapper, pure] {
     mstore 0, v2
     returndata 0, 32
   bb3 [cold]:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb6, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb6, [0x188b85b4 => bb2, 0xa96f1c69 => bb3, 0xc3d9c4b4 => bb4, 0xead710c4 => bb5]
-  bb5:
-    tail_call @greet
-  bb4:
-    tail_call @share
-  bb3:
-    tail_call @pattern
-  bb2:
-    tail_call @sum
-  bb6 [cold]:
     revert 0, 0
 }

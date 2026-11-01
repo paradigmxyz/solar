@@ -4,6 +4,37 @@
 @types
   struct0: {ptr<memory>, i256}
 
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb11, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb11, [0x62dc8436 => bb2, 0x9510f212 => bb3, 0xad0cb941 => bb4, 0xc3f9a16c => bb5, 0xc41518f3 => bb6, 0xc6630f71 => bb7, 0xcc20ef0a => bb8, 0xe3b21a7a => bb9, 0xf4d7be11 => bb10]
+  bb10:
+    tail_call @makePair
+  bb9:
+    tail_call @narrow
+  bb8:
+    tail_call @tryStructReturn
+  bb7:
+    tail_call @pairReturn
+  bb6:
+    tail_call @shortReturn
+  bb5:
+    tail_call @structReturn
+  bb4:
+    tail_call @arrayReturn
+  bb3:
+    tail_call @makeArray
+  bb2:
+    tail_call @makeStruct
+  bb11 [cold]:
+    revert 0, 0
+}
+
 fn @makeStruct() [selector=0x62dc8436, abi_wrapper, pure] {
   bb0:
     v7 = calldatasize
@@ -356,35 +387,4 @@ fn @decode_static(arg0: i256) -> i256 [may_return_memory] {
     v13 = add v16, 32
     mstore v13, v8
     ret v16
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb11, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb11, [0x62dc8436 => bb2, 0x9510f212 => bb3, 0xad0cb941 => bb4, 0xc3f9a16c => bb5, 0xc41518f3 => bb6, 0xc6630f71 => bb7, 0xcc20ef0a => bb8, 0xe3b21a7a => bb9, 0xf4d7be11 => bb10]
-  bb10:
-    tail_call @makePair
-  bb9:
-    tail_call @narrow
-  bb8:
-    tail_call @tryStructReturn
-  bb7:
-    tail_call @pairReturn
-  bb6:
-    tail_call @shortReturn
-  bb5:
-    tail_call @structReturn
-  bb4:
-    tail_call @arrayReturn
-  bb3:
-    tail_call @makeArray
-  bb2:
-    tail_call @makeStruct
-  bb11 [cold]:
-    revert 0, 0
 }

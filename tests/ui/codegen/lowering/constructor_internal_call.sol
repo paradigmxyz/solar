@@ -5,10 +5,6 @@
 //@[evmir] filecheck: --check-prefix=EVMIR
 
 contract ConstructorICall {
-    // MIR-LABEL: fn @value{{[( ]}}
-    // MIR: sload 0
-    uint256 public value;
-
     // MIR-LABEL: fn @constructor{{[( ]}}
     // MIR: [[MASKED:v[0-9]+]] = and arg0, 7
     // MIR: [[VALUE:v[0-9]+]] = icall @helper, [[MASKED]]
@@ -39,6 +35,10 @@ contract ConstructorICall {
     constructor(uint256 x) {
         value = helper(x & 7);
     }
+
+    // MIR-LABEL: fn @value{{[( ]}}
+    // MIR: sload 0
+    uint256 public value;
 
     // MIR-LABEL: fn @helper{{[( ]}}
     // MIR: [[NEXT:v[0-9]+]] = checked_sub {{u?int[0-9]+}}, arg0, 1

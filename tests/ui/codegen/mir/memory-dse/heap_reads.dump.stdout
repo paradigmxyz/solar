@@ -40,6 +40,27 @@ fn @constructor() [abi_wrapper, constructor] {
     revert 0, 0
 }
 
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb6, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb6, [0x501895ae => bb2, 0x50e70d48 => bb3, 0x86d5c4be => bb4, 0x8de62f33 => bb5]
+  bb5:
+    tail_call @below
+  bb4:
+    tail_call @load
+  bb3:
+    tail_call @wrapped
+  bb2:
+    tail_call @hashes
+  bb6 [cold]:
+    revert 0, 0
+}
+
 fn @load() [selector=0x86d5c4be, abi_wrapper, view] {
   bb0:
     v1 = sload 0 !metadata(storage=slot(0))
@@ -291,25 +312,4 @@ fn @revert_stub.7() [cold] {
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb6, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb6, [0x501895ae => bb2, 0x50e70d48 => bb3, 0x86d5c4be => bb4, 0x8de62f33 => bb5]
-  bb5:
-    tail_call @below
-  bb4:
-    tail_call @load
-  bb3:
-    tail_call @wrapped
-  bb2:
-    tail_call @hashes
-  bb6 [cold]:
-    revert 0, 0
 }

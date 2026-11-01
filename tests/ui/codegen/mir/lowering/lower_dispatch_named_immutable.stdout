@@ -3,11 +3,6 @@
   @module NamedImmutable
   @immutables
     library_deploy_address: address
-  
-  fn @write() [selector=0x00000002, abi_wrapper] {
-    bb0:
-      stop
-+ }
 + 
 + fn @entry() [entry] {
 +   bb0:
@@ -22,5 +17,10 @@
 +     tail_call @write
 +   bb3 [cold]:
 +     revert 0, 0
++ }
+  
+  fn @write() [selector=0x00000002, abi_wrapper] {
+    bb0:
+      stop
   }
   

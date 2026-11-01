@@ -1,5 +1,28 @@
 // === ROOT/tests/ui/codegen/run-call/fresh_fmp_floor.sol:Test ===
 @module Test
+fn @constructor() [constructor] {
+  bb0:
+    sstore 0, 3 !metadata(storage=slot(0))
+    sstore 1, 5 !metadata(storage=slot(1))
+    sstore 2, 7 !metadata(storage=slot(2))
+    sstore 3, 11 !metadata(storage=slot(3))
+    sstore 4, 13 !metadata(storage=slot(4))
+    sstore 5, 17 !metadata(storage=slot(5))
+    sstore 6, 19 !metadata(storage=slot(6))
+    sstore 7, 23 !metadata(storage=slot(7))
+    sstore 8, 29 !metadata(storage=slot(8))
+    sstore 9, 31 !metadata(storage=slot(9))
+    sstore 10, 37 !metadata(storage=slot(10))
+    sstore 11, 41 !metadata(storage=slot(11))
+    sstore 12, 43 !metadata(storage=slot(12))
+    sstore 13, 47 !metadata(storage=slot(13))
+    sstore 14, 53 !metadata(storage=slot(14))
+    sstore 15, 59 !metadata(storage=slot(15))
+    sstore 16, 61 !metadata(storage=slot(16))
+    sstore 17, 67 !metadata(storage=slot(17))
+    ret
+}
+
 fn @spills(arg0: i256) -> i256 [selector=0x565c11e3, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -288,27 +311,4 @@ fn @frames(arg0: i256) -> i256 [selector=0xa10340bc, view, abi_params=[uint256],
     v30 = add v29, v24
     v31 = add v30, v26
     ret v31
-}
-
-fn @constructor() [constructor] {
-  bb0:
-    sstore 0, 3 !metadata(storage=slot(0))
-    sstore 1, 5 !metadata(storage=slot(1))
-    sstore 2, 7 !metadata(storage=slot(2))
-    sstore 3, 11 !metadata(storage=slot(3))
-    sstore 4, 13 !metadata(storage=slot(4))
-    sstore 5, 17 !metadata(storage=slot(5))
-    sstore 6, 19 !metadata(storage=slot(6))
-    sstore 7, 23 !metadata(storage=slot(7))
-    sstore 8, 29 !metadata(storage=slot(8))
-    sstore 9, 31 !metadata(storage=slot(9))
-    sstore 10, 37 !metadata(storage=slot(10))
-    sstore 11, 41 !metadata(storage=slot(11))
-    sstore 12, 43 !metadata(storage=slot(12))
-    sstore 13, 47 !metadata(storage=slot(13))
-    sstore 14, 53 !metadata(storage=slot(14))
-    sstore 15, 59 !metadata(storage=slot(15))
-    sstore 16, 61 !metadata(storage=slot(16))
-    sstore 17, 67 !metadata(storage=slot(17))
-    ret
 }
