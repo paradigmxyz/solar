@@ -21,7 +21,9 @@
 //@ run-call: branchBeef; constructor=[0x000000000000000000000000000000000000cafe, 0xffffffffffffffffffffffff, 0x000000000000000000000000000000000000cafe, 1] => 0
 
 // A packed slot holds an address under another field, so the word an address check reads has dirty
-// bits above the address. The check compares only the low 160 bits.
+// bits above the address. The check compares only the low 160 bits. The checks against an argument
+// keep the mask, since nothing bounds the argument when the pass runs, and control the others,
+// which compare with a constant or with another masked slot.
 contract MaskedCompare {
     address owner;
     uint96 stamp;

@@ -262,7 +262,7 @@ impl MirPass for CheckElim {
 }
 
 /// Removes integer masks and boolean renormalizations proved redundant by branches or
-/// runtime immutable widths.
+/// runtime immutable widths, and compares the masks that stay as shifted differences.
 pub(crate) struct IntegerCleanup;
 
 impl MirPass for IntegerCleanup {
