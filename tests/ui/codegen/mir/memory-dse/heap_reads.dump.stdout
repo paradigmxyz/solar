@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/memory-dse/heap_reads.sol:Test ===
 @module Test
 @phase lowered
-fn @constructor() [abi_wrapper, constructor] {
+fn @constructor() [constructor] {
   bb0:
     v17 = callvalue
     v18 = ne v17, 0
@@ -40,7 +40,7 @@ fn @constructor() [abi_wrapper, constructor] {
     revert 0, 0
 }
 
-fn @load() [selector=0x86d5c4be, abi_wrapper, view] {
+fn @load() {
   bb0:
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = and v1, 1
@@ -107,7 +107,7 @@ fn @load() [selector=0x86d5c4be, abi_wrapper, view] {
     tail_call @revert_stub.6
 }
 
-fn @hashes() [selector=0x501895ae, abi_wrapper, pure] {
+fn @hashes() {
   bb0:
     v53 = calldatasize
     v54 = lt v53, 36
@@ -196,7 +196,7 @@ fn @hashes() [selector=0x501895ae, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @wrapped() [selector=0x50e70d48, abi_wrapper, pure] {
+fn @wrapped() {
   bb0:
     mstore 0, 7 !metadata(memory=scratch)
     v19 = heap_floor !metadata(alloc_ptr)
@@ -227,7 +227,7 @@ fn @wrapped() [selector=0x50e70d48, abi_wrapper, pure] {
     revert 28, 36
 }
 
-fn @below() [selector=0x8de62f33, abi_wrapper, pure] {
+fn @below() {
   bb0:
     v8 = calldatasize
     v9 = lt v8, 36

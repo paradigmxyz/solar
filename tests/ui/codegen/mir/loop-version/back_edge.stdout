@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/loop-version/back_edge.sol:Test ===
 @module Test
 @phase lowered
-fn @shift() [selector=0x5d9cf5ea, abi_wrapper, pure] {
+fn @shift() {
   bb0:
     v83 = calldatasize
     v84 = lt v83, 132
@@ -108,7 +108,7 @@ fn @shift() [selector=0x5d9cf5ea, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @shiftFar() [selector=0x67979c1a, abi_wrapper, pure] {
+fn @shiftFar() {
   bb0:
     v84 = calldatasize
     v85 = lt v84, 100

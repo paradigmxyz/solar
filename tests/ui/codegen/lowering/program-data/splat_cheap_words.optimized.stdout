@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/program-data/splat_cheap_words.sol:C ===
 @module C
 @phase lowered
-fn @f() [selector=0x26121ff0, abi_wrapper, pure] {
+fn @f() {
   bb0:
     v20 = heap_floor !metadata(alloc_ptr)
     v11 = add v20, 32

@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/check-elim/edge_equality_runtime.sol:EdgeEquality ===
 @module EdgeEquality
 @phase lowered
-fn @sizes() [selector=0xebf5a899, abi_wrapper, pure] {
+fn @sizes() {
   bb0:
     v10 = icall @decode_calldata_type
     v0 = mload v10
@@ -15,7 +15,7 @@ fn @sizes() [selector=0xebf5a899, abi_wrapper, pure] {
     returndata 0, 32
 }
 
-fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
+fn @pack() {
   bb0:
     v26 = icall @decode_calldata_type
     v0 = mload v26

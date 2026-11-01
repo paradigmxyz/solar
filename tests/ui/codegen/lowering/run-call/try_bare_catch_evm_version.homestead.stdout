@@ -36,7 +36,7 @@ fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[], abi_return_param
     ret
 }
 
-fn @fail() [selector=0xa9cc4718, payable, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+fn @fail() -> i256 [selector=0xa9cc4718, payable, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall revert_if<empty>, true
     invalid

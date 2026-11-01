@@ -10,7 +10,7 @@
 // CHECK: = shr [[GUARD]], 8
 // CHECK: + [[BODY:v[0-9]+]] = calldataload 4
 // CHECK: + mstore 0, [[BODY]]
-fn @guarded() [selector=0x00000001, abi_wrapper] {
+fn @guarded() {
   bb0:
     v0 = calldataload 4
     v1 = shr v0, 8
@@ -28,7 +28,7 @@ fn @guarded() [selector=0x00000001, abi_wrapper] {
 // CHECK: [[BOUND:v[0-9]+]] = calldataload 36
 // CHECK: + [[COPY:v[0-9]+]] = calldataload 36
 // CHECK: + {{v[0-9]+}} = lt {{v[0-9]+}}, [[COPY]]
-fn @looped() [selector=0x00000002, abi_wrapper] {
+fn @looped() {
   bb0:
     v0 = calldataload 36
     v1 = calldatasize
@@ -50,7 +50,7 @@ fn @looped() [selector=0x00000002, abi_wrapper] {
 // Reads outside the entry block stay where they are.
 // CHECK-LABEL: fn @elsewhere()
 // CHECK-NOT: + {{v[0-9]+}} = calldataload
-fn @elsewhere() [selector=0x00000003, abi_wrapper] {
+fn @elsewhere() {
   bb0:
     v0 = calldatasize
     v2 = ne v0, 0
@@ -74,7 +74,7 @@ fn @elsewhere() [selector=0x00000003, abi_wrapper] {
 // CHECK: bb1:
 // CHECK: + [[ARMS:v[0-9]+]] = calldataload 4
 // CHECK: = phi [bb2: [[ARMS]]], [bb3: [[ARMS]]]
-fn @diamond() [selector=0x00000004, abi_wrapper] {
+fn @diamond() {
   bb0:
     v0 = calldataload 4
     v1 = shr v0, 8

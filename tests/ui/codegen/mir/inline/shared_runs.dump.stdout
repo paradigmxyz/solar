@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/inline/shared_runs.sol:SharedRuns ===
 @module SharedRuns
 @phase lowered
-fn @paint() [selector=0xff30d0af, abi_wrapper] {
+fn @paint() {
   bb0:
     v0 = icall @paintUint, 0x8ac7230489e80000
     v8 = icall @encode_abi_tuple, v0
@@ -18,7 +18,7 @@ fn @paint() [selector=0xff30d0af, abi_wrapper] {
     stop
 }
 
-fn @paintUint(arg0: i256) -> i256 [may_return_memory, pure] {
+fn @paintUint(arg0: i256) -> i256 [may_return_memory] {
   bb0:
     v0 = gas
     mstore 0, 0xb6eb6316 !metadata(memory=scratch)
@@ -45,7 +45,7 @@ fn @paintUint(arg0: i256) -> i256 [may_return_memory, pure] {
     ret v4
 }
 
-fn @paintBool() -> i256 [may_return_memory, pure] {
+fn @paintBool() -> i256 [may_return_memory] {
   bb0:
     v0 = gas
     mstore 0, 0x57177c8e !metadata(memory=scratch)
@@ -72,7 +72,7 @@ fn @paintBool() -> i256 [may_return_memory, pure] {
     ret v6
 }
 
-fn @wrap(arg0: i256) -> i256 [may_return_memory, pure] {
+fn @wrap(arg0: i256) -> i256 [may_return_memory] {
   bb0:
     v23 = add arg0, 32
     v2 = mload arg0

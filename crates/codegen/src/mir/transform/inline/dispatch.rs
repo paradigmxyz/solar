@@ -25,26 +25,15 @@ use crate::{
         memory::EvmMemoryLayout,
     },
 };
-use solar_ast::StateMutability;
 
 const MAX_DISPATCH_INSTRUCTIONS: usize = 512;
 
 pub(super) fn inline_dispatch(module: &mut Module) -> bool {
     let Some(entry_id) = module.dispatch_entry() else { return false };
-    if module.is_library
-        || module
-            .functions
-            .iter()
-            .any(|func| func.attributes.is_fallback || func.attributes.is_receive)
-    {
+    if module.is_library {
         return false;
     }
-    let routes = module
-        .functions
-        .iter_enumerated()
-        .filter(|(_, func)| func.selector.is_some())
-        .map(|(id, _)| id)
-        .collect::<Vec<_>>();
+    let routes = module.runtime_entries().iter().collect::<Vec<_>>();
     if !(2..=16).contains(&routes.len())
         || routes.iter().any(|&id| !eligible(module.function(id)))
         || routes.iter().map(|&id| module.function(id).blocks.len()).sum::<usize>() > 128
@@ -62,19 +51,19 @@ pub(super) fn inline_dispatch(module: &mut Module) -> bool {
     }
 
     let mut entry = module.function(entry_id).clone();
-    let switches = entry
-        .blocks
-        .iter()
-        .filter(|data| matches!(data.terminator, Some(Terminator::Switch { .. })))
-        .count();
-    if switches != 1 {
-        return false;
-    }
+    let mut switches = entry.blocks.iter().filter_map(|data| match &data.terminator {
+        Some(Terminator::Switch { cases, .. }) => Some(cases),
+        _ => None,
+    });
+    let (Some(cases), None) = (switches.next(), switches.next()) else { return false };
+    // A selector route is a switch case; `receive` and `fallback` keep their wrapper boundary.
+    let case_blocks = cases.iter().map(|&(_, block)| block).collect::<Vec<_>>();
     let sites = entry
         .blocks
         .iter_enumerated()
         .filter_map(|(block, data)| {
             if let Some(Terminator::TailCall { function, args }) = &data.terminator
+                && case_blocks.contains(&block)
                 && routes.contains(function)
                 && args.is_empty()
             {
@@ -100,9 +89,6 @@ pub(super) fn inline_dispatch(module: &mut Module) -> bool {
     // entry: tail_call @wrapper => entry: cloned wrapper body
     // @wrapper is no longer an external root and function DCE removes it
     *module.function_mut(entry_id) = entry;
-    for id in routes {
-        module.function_mut(id).selector = None;
-    }
     true
 }
 
@@ -110,7 +96,6 @@ fn eligible(func: &Function) -> bool {
     // A wrapper with an objective of its own keeps its code out of the dispatcher's.
     !func.attributes.no_inline
         && func.attributes.optimization.is_none()
-        && func.attributes.state_mutability == StateMutability::Pure
         && func.internal_frame_size == 0
         && func.params.is_empty()
         && func.return_components().is_empty()

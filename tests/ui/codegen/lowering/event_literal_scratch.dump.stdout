@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/event_literal_scratch.sol:EventLiteralScratch ===
 @module EventLiteralScratch
 @phase lowered
-fn @logged() [selector=0xf3f1126a, abi_wrapper] {
+fn @logged() {
   bb0:
     v14 = calldatasize
     v15 = lt v14, 36

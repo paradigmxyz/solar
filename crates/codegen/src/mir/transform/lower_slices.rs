@@ -12,10 +12,7 @@
 //! backend accepts no slice value.
 //!
 //! Slice-typed `select` and `phi` first split into pointer and length operations. An internal
-//! slice parameter becomes a pointer and a length word, except a calldata slice whose every caller
-//! forwards the calldata argument of an external entry or of another such parameter: that one
-//! stays a single word, the ABI head offset, and its projections read the length and data from
-//! calldata. External entries use the same head form. A returned slice whose producer is a real
+//! slice parameter becomes a pointer and a length word. A returned slice whose producer is a real
 //! slice returns its pointer as the result and its length in the multi-return buffer; other slice
 //! results return one word. Each signature change shifts local frame offsets, which are checked
 //! for the whole module first, so an unrepresentable offset leaves the module unchanged.
@@ -60,7 +57,6 @@ impl MirPass for LowerSlices {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ParamRepr {
     Word,
-    CompactCalldata,
     Pair,
 }
 
@@ -110,7 +106,6 @@ impl LowerSlices {
         expanded: &mut Vec<ValueId>,
     ) {
         match repr {
-            ParamRepr::CompactCalldata => expanded.push(value),
             // pointer_word = ptrtoint (extract_value value, 0) to i256
             ParamRepr::Word if builder.func().value_slice_location(value).is_some() => {
                 let pointer = builder.slice_ptr(value);
@@ -284,7 +279,7 @@ impl LowerSlices {
 
     fn expand_call_returns(
         func: &mut Function,
-        signatures: &IndexVec<FunctionId, Option<Vec<ParamRepr>>>,
+        signatures: &IndexVec<FunctionId, Vec<ParamRepr>>,
     ) -> bool {
         let mut changed = false;
         let mut replacements = FxHashMap::default();
@@ -303,7 +298,7 @@ impl LowerSlices {
                 let Some((signature, result)) = (match builder.func().inst(inst_id).kind {
                     InstKind::ICall { function: Callee::Function(function), .. } => signatures
                         .get(function)
-                        .and_then(Option::as_deref)
+                        .map(Vec::as_slice)
                         .zip(builder.func().inst_result_value(inst_id)),
                     _ => None,
                 }) else {
@@ -381,7 +376,7 @@ impl LowerSlices {
         let mut returns = Vec::with_capacity(func.return_components().len() + added_slots);
         for (&ty, repr) in func.return_components().iter().zip(signature) {
             match repr {
-                ParamRepr::Word | ParamRepr::CompactCalldata => match ty {
+                ParamRepr::Word => match ty {
                     MirType::Slice(_) => returns.push(MirType::I256),
                     _ => returns.push(ty),
                 },
@@ -397,10 +392,7 @@ impl LowerSlices {
     }
 
     fn lower_params(func: &mut Function, signature: &IndexVec<ArgIdx, ParamRepr>) -> bool {
-        if func.selector.is_some()
-            || func.blocks.is_empty()
-            || !func.params.iter().any(Self::is_slice)
-        {
+        if func.blocks.is_empty() || !func.params.iter().any(Self::is_slice) {
             return false;
         }
 
@@ -411,9 +403,6 @@ impl LowerSlices {
             match signature[index] {
                 ParamRepr::Word => {
                     new_params.push(ty);
-                }
-                ParamRepr::CompactCalldata => {
-                    new_params.push(MirType::I256);
                 }
                 ParamRepr::Pair => {
                     debug_assert!(matches!(ty, MirType::Slice(_)));
@@ -451,15 +440,10 @@ impl LowerSlices {
             func.inst_mut(inst_id).kind = InstKind::InternalFrameAddr(offset);
         }
         let mut components = FxHashMap::default();
-        let mut compact_heads = FxHashMap::default();
         let mut builder = FunctionBuilder::new(func);
         for (slice_arg, logical_index) in slice_args {
             let physical_index = physical_indices[logical_index];
             match signature[logical_index] {
-                ParamRepr::CompactCalldata => {
-                    let head = builder.func_mut().alloc_arg(physical_index);
-                    compact_heads.insert(slice_arg, head);
-                }
                 ParamRepr::Pair => {
                     let ptr = builder.func_mut().alloc_arg(physical_index);
                     let len = builder.func_mut().alloc_arg(ArgIdx::new(physical_index.index() + 1));
@@ -490,144 +474,7 @@ impl LowerSlices {
         for block in builder.func_mut().blocks.iter_mut() {
             block.instructions.retain(|inst| !removed.contains(inst));
         }
-        if !compact_heads.is_empty() {
-            Self::lower_compact_values(builder.func_mut(), &compact_heads);
-        }
         true
-    }
-
-    fn lower_compact_values(func: &mut Function, raw_heads: &FxHashMap<ValueId, ValueId>) {
-        let mut replacements = raw_heads.clone();
-        let mut spare = Vec::new();
-        // Values built in one block do not dominate the next, so the caches reset per block.
-        let mut lengths = FxHashMap::default();
-        let mut pointers = FxHashMap::default();
-        let block_ids = func.blocks.indices();
-        for block_id in block_ids {
-            let mut instructions = std::mem::replace(
-                &mut func.blocks[block_id].instructions,
-                std::mem::take(&mut spare),
-            );
-            let mut builder = FunctionBuilder::new(func);
-            builder.switch_to_block(block_id);
-            lengths.clear();
-            pointers.clear();
-            for inst_id in instructions.drain(..) {
-                let projection = builder.func().inst(inst_id).kind.slice_projection().and_then(
-                    |(slice, index)| {
-                        raw_heads.get(&slice).map(|&head| (head, index == MirType::SLICE_PTR_FIELD))
-                    },
-                );
-                if let Some((head, is_ptr)) = projection {
-                    let replacement = if is_ptr {
-                        // pointer = inttoptr (add head, 36) to ptr<calldata>
-                        *pointers.entry(head).or_insert_with(|| {
-                            let data = builder.add_u64_offset(head, 36);
-                            builder.cast(data, MirType::Ptr(PtrLocation::Calldata))
-                        })
-                    } else {
-                        *lengths.entry(head).or_insert_with(|| {
-                            let len_pos = builder.add_u64_offset(head, 4);
-                            builder.load(len_pos, PtrLocation::Calldata)
-                        })
-                    };
-                    let result = builder
-                        .func()
-                        .inst_result_value(inst_id)
-                        .expect("slice projection must produce a value");
-                    replacements.insert(result, replacement);
-                } else {
-                    builder.func_mut().blocks[block_id].instructions.push(inst_id);
-                }
-            }
-            spare = instructions;
-        }
-        func.replace_uses_canonicalized(&replacements);
-    }
-
-    fn lower_external_args(func: &mut Function) -> bool {
-        if func.selector.is_none() || func.blocks.is_empty() {
-            return false;
-        }
-        let slice_args: FxHashMap<_, _> = func
-            .arg_uses()
-            .iter_enumerated()
-            .filter(|(index, _)| func.arg_ty(*index) == MirType::Slice(PtrLocation::Calldata))
-            .flat_map(|(index, uses)| uses.iter().map(move |&value| (value, index)))
-            .collect();
-        if slice_args.is_empty() {
-            return false;
-        }
-
-        for &index in slice_args.values() {
-            func.set_arg_ty(index, MirType::I256);
-        }
-        let raw_heads: FxHashMap<_, _> = slice_args
-            .iter()
-            .map(|(&slice, &index)| {
-                let head = func.alloc_arg(index);
-                (slice, head)
-            })
-            .collect();
-        Self::lower_compact_values(func, &raw_heads);
-        true
-    }
-
-    fn infer_compact_params(module: &Module) -> FxHashSet<(FunctionId, ArgIdx)> {
-        let mut compact: FxHashSet<_> = module
-            .functions
-            .iter_enumerated()
-            .flat_map(|(function, func)| {
-                func.params.iter_enumerated().filter_map(move |(index, ty)| {
-                    matches!(ty, MirType::Slice(PtrLocation::Calldata)).then_some((function, index))
-                })
-            })
-            .collect();
-
-        let mut removed = FxHashSet::default();
-        let mut seen = FxHashSet::default();
-        loop {
-            removed.clear();
-            seen.clear();
-            for (caller_id, caller) in module.functions.iter_enumerated() {
-                for inst_id in caller.instructions() {
-                    let inst = caller.inst(inst_id);
-                    let InstKind::ICall { function: Callee::Function(callee), args, .. } =
-                        &inst.kind
-                    else {
-                        continue;
-                    };
-                    for index in module.function(*callee).params.indices() {
-                        let candidate = (*callee, index);
-                        if !compact.contains(&candidate) {
-                            continue;
-                        }
-                        seen.insert(candidate);
-                        let Some(&arg) = args.get(index.index()) else {
-                            removed.insert(candidate);
-                            continue;
-                        };
-                        let is_compact = match caller.value(arg) {
-                            Value::Arg(source)
-                                if caller.arg_ty(*source)
-                                    == MirType::Slice(PtrLocation::Calldata) =>
-                            {
-                                caller.selector.is_some() || compact.contains(&(caller_id, *source))
-                            }
-                            _ => false,
-                        };
-                        if !is_compact {
-                            removed.insert(candidate);
-                        }
-                    }
-                }
-            }
-            removed.extend(compact.iter().filter(|candidate| !seen.contains(candidate)).copied());
-            if removed.is_empty() {
-                return compact;
-            }
-            compact.retain(|candidate| !removed.contains(candidate));
-        }
     }
 
     const fn is_slice(ty: &MirType) -> bool {
@@ -681,16 +528,11 @@ impl LowerSlices {
         if module.has_struct_values() {
             return false;
         }
-        let compact = Self::infer_compact_params(module);
         let return_signatures: IndexVec<FunctionId, _> = module
             .functions
             .iter()
             .map(|func| {
-                if func.selector.is_some() {
-                    return None;
-                }
-                let signature = func
-                    .return_components()
+                func.return_components()
                     .iter()
                     .enumerate()
                     .map(|(index, ty)| {
@@ -709,43 +551,29 @@ impl LowerSlices {
                             ParamRepr::Word
                         }
                     })
-                    .collect::<Vec<_>>();
-                Some(signature)
+                    .collect::<Vec<_>>()
             })
             .collect();
         let signatures: IndexVec<FunctionId, _> = module
             .functions
-            .iter_enumerated()
-            .map(|(id, func)| {
+            .iter()
+            .map(|func| {
                 func.params
-                    .iter_enumerated()
-                    .map(|(index, ty)| match ty {
-                        MirType::Slice(PtrLocation::Calldata) if compact.contains(&(id, index)) => {
-                            ParamRepr::CompactCalldata
-                        }
-                        MirType::Slice(_) => ParamRepr::Pair,
-                        _ => ParamRepr::Word,
-                    })
+                    .iter()
+                    .map(|ty| if Self::is_slice(ty) { ParamRepr::Pair } else { ParamRepr::Word })
                     .collect::<IndexVec<ArgIdx, _>>()
             })
             .collect();
         // Signature expansion rewrites call edges throughout the module. Prove every frame-address
         // shift first so an unrepresentable parsed-MIR offset leaves the complete module untouched.
         if module.functions.iter_enumerated().any(|(id, func)| {
-            let added_slots = if func.selector.is_none()
-                && !func.blocks.is_empty()
-                && func.params.iter().any(Self::is_slice)
-            {
+            let added_slots = if !func.blocks.is_empty() && func.params.iter().any(Self::is_slice) {
                 signatures[id].iter().filter(|&&repr| repr == ParamRepr::Pair).count()
             } else {
                 0
             };
             let added_slots = added_slots
-                + return_signatures[id]
-                    .iter()
-                    .flatten()
-                    .filter(|&&repr| repr == ParamRepr::Pair)
-                    .count();
+                + return_signatures[id].iter().filter(|&&repr| repr == ParamRepr::Pair).count();
             Self::shifted_frame_offsets(func, added_slots).is_none()
         }) {
             return false;
@@ -759,10 +587,7 @@ impl LowerSlices {
             changed |= Self::split_slice_aggregates(func);
             changed |= Self::expand_call_args(func, &signatures);
             changed |= Self::expand_call_returns(func, &return_signatures);
-            changed |= Self::lower_external_args(func);
-            if let Some(signature) = &return_signatures[id] {
-                changed |= Self::lower_returns(func, signature);
-            }
+            changed |= Self::lower_returns(func, &return_signatures[id]);
             changed |= Self::lower_params(func, &signatures[id]);
             changed |= Self::lower_projections(func);
             changed

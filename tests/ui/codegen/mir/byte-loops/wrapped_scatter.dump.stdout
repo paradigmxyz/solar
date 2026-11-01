@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/byte-loops/wrapped_scatter.sol:Test ===
 @module Test
 @phase lowered
-fn @fill() [selector=0xb4f7766b, abi_wrapper, pure] {
+fn @fill() {
   bb0:
     v40 = calldataload 68
     v41 = shl v40, 8
@@ -64,7 +64,7 @@ fn @fill() [selector=0xb4f7766b, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @scatter() [selector=0xa3efd67d, abi_wrapper, pure] {
+fn @scatter() {
   bb0:
     v10 = calldatasize
     v11 = lt v10, 164
@@ -88,7 +88,7 @@ fn @scatter() [selector=0xa3efd67d, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @_scatter(arg0: i256, arg1: i256, arg2: i256, arg3: i256) [may_return_memory, pure] {
+fn @_scatter(arg0: i256, arg1: i256, arg2: i256, arg3: i256) [may_return_memory] {
   bb0:
     v18 = eq arg3, 0
     jumpi v18, bb2, bb4

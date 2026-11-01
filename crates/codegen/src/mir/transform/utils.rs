@@ -1,10 +1,11 @@
 //! Shared utilities for MIR transforms.
 
 use crate::mir::{
-    BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, Module, Terminator, ValueId,
+    BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, Terminator, ValueId,
     memory::EvmMemoryLayout,
     utils::{IndexLists, replace_terminator},
 };
+use solar_data_structures::bit_set::DenseBitSet;
 use solar_sema::hir::StateMutability;
 
 /// Whether an external entry must reject nonzero callvalue.
@@ -50,7 +51,7 @@ pub(super) fn redirect_successor_predecessors(func: &mut Function, from: BlockId
 }
 
 /// Incremental form of the shared dispatch callvalue-hoisting predicate:
-/// every external entry (selector-bearing, receive, or fallback) rejects value.
+/// every dispatched function (selector-bearing, receive, or fallback) rejects value.
 ///
 /// `LowerAbi` and `LowerDispatch` both use this while performing their
 /// existing module scans, so they must observe every function and agree.
@@ -67,7 +68,7 @@ impl Default for DispatchCallvalue {
 
 impl DispatchCallvalue {
     pub(super) fn observe(&mut self, func: &Function) {
-        if !func.is_runtime_entry() {
+        if !func.is_dispatched() {
             return;
         }
         self.any = true;
@@ -149,9 +150,14 @@ pub(super) fn redirect_edge(
     true
 }
 
-/// Returns whether `func` has a private MIR signature that direct callers may rewrite.
-pub(super) fn is_internal_body(module: &Module, id: FunctionId, func: &Function) -> bool {
-    !func.is_external_entry() && !func.is_public() && module.dispatch_entry() != Some(id)
+/// Returns whether `func` has a private MIR signature that direct callers may rewrite, given the
+/// module's [`Module::root_functions`].
+pub(super) fn is_internal_body(
+    roots: &DenseBitSet<FunctionId>,
+    id: FunctionId,
+    func: &Function,
+) -> bool {
+    !roots.contains(id) && !func.is_public()
 }
 
 /// Returns the offset of the locals region of an internal frame whose signature has `slots`

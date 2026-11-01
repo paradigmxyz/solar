@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/check-elim/check_facts.sol:CheckFacts ===
 @module CheckFacts
 @phase lowered
-fn @siftDown() [selector=0xcabbfceb, abi_wrapper, pure] {
+fn @siftDown() {
   bb0:
     v31 = calldatasize
     v32 = lt v31, 100
@@ -66,7 +66,7 @@ fn @siftDown() [selector=0xcabbfceb, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @keepsCheck() [selector=0x117f94d5, abi_wrapper, pure] {
+fn @keepsCheck() {
   bb0:
     v28 = calldatasize
     v29 = lt v28, 100
@@ -123,7 +123,7 @@ fn @keepsCheck() [selector=0x117f94d5, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @afterAllocation() [selector=0x510dcf1e, abi_wrapper, pure] {
+fn @afterAllocation() {
   bb0:
     v15 = calldatasize
     v16 = lt v15, 36

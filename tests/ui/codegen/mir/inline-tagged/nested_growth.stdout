@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/inline-tagged/nested_growth.sol:TaggedNesting ===
 @module TaggedNesting
 @phase lowered
-fn @run() [selector=0xa444f5e9, abi_wrapper, pure] {
+fn @run() {
   bb0:
     v1 = calldatasize
     v2 = lt v1, 36

@@ -3,7 +3,7 @@
 @types
   struct0: {i256, i256}
 
-fn @run(arg0: i256) [selector=0xa444f5e9, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+fn @run(arg0: i256) -> struct0 [selector=0xa444f5e9, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     switch arg0, default bb15, [0 => bb2, 1 => bb3, 2 => bb4, 3 => bb5, 4 => bb6, 5 => bb7, 6 => bb8, 7 => bb9, 8 => bb10, 9 => bb11, 10 => bb12, 11 => bb13, 12 => bb14]
   bb14:

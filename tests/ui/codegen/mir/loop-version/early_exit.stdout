@@ -4,7 +4,7 @@
 @types
   struct0: {i256, ptr<memory>, ptr<memory>}
 
-fn @splitUntilZero() [selector=0x8ecf6ff0, abi_wrapper, pure] {
+fn @splitUntilZero() {
   bb0:
     v4 = calldatasize
     v5 = lt v4, 100
@@ -42,7 +42,7 @@ fn @splitUntilZero() [selector=0x8ecf6ff0, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @overlappingSplit() [selector=0x69394704, abi_wrapper, pure] {
+fn @overlappingSplit() {
   bb0:
     v8 = calldatasize
     v9 = lt v8, 68
@@ -80,7 +80,7 @@ fn @overlappingSplit() [selector=0x69394704, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @_splitUntilZero(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory, pure] {
+fn @_splitUntilZero(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory] {
   bb0:
     v59 = add arg1, 1
     v62 = sub arg0, v59

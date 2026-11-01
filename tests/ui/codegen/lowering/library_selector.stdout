@@ -2,7 +2,7 @@
 @module L
 @phase lowered
 @library
-fn @f() [selector=0xb3de648b, abi_wrapper, pure] {
+fn @f() {
   bb0:
     v0 = calldatasize
     v1 = lt v0, 36
@@ -29,7 +29,7 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/lowering/library_selector.sol:C ===
 @module C
 @phase lowered
-fn @sel() [selector=0x41c910e1, abi_wrapper, pure] {
+fn @sel() {
   bb0:
     mstore 0, 0xb3de648b00000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     returndata 0, 32

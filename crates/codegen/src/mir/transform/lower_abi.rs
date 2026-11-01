@@ -145,12 +145,15 @@ impl MirPass for LowerAbi {
 }
 
 fn mark_abi_wrappers(module: &mut Module) -> bool {
+    let entries = module.external_entries();
+    let constructor = module.constructor();
     let mut changed = false;
-    for func in &mut module.functions {
-        if func.is_external_entry() && !func.attributes.is_abi_wrapper {
+    for id in entries.iter() {
+        let func = module.function_mut(id);
+        if !func.attributes.is_abi_wrapper {
             // ret -> stop at the external ABI boundary
             for block in &mut func.blocks {
-                if !func.attributes.is_constructor
+                if constructor != Some(id)
                     && matches!(&block.terminator, Some(Terminator::Return { values }) if values.is_empty())
                 {
                     block.terminator = Some(Terminator::Stop);
@@ -252,13 +255,13 @@ impl LowerAbiCx {
         let mut callvalue = super::utils::DispatchCallvalue::default();
         for (id, func) in module.functions.iter_enumerated() {
             callvalue.observe(func);
-            if is_wrappable_external(func) && !func.attributes.is_abi_wrapper {
+            if func.selector.is_some() && !func.attributes.is_abi_wrapper {
                 targets.push(id);
                 if !can_encode_live_returns(module, func) {
                     return None;
                 }
             }
-            if func.attributes.is_constructor && !func.attributes.is_abi_wrapper {
+            if module.constructor() == Some(id) && !func.attributes.is_abi_wrapper {
                 if super::utils::rejects_callvalue(func) {
                     rejecting_constructor = Some(id);
                 }
@@ -2691,13 +2694,6 @@ fn synthesize_memory_decode_helper(
         builder.ret([value]);
     }
     module.add_function(function)
-}
-
-/// An external entry with a body and a selector — the shape a regular wrapper
-/// is built for. Receive/fallback entries have no selector; bytes fallbacks use
-/// the separate raw-data wrapper above.
-fn is_wrappable_external(func: &Function) -> bool {
-    func.selector.is_some() && !func.attributes.is_constructor
 }
 
 /// Whether a fallback uses Solidity's raw bytes input/output ABI.

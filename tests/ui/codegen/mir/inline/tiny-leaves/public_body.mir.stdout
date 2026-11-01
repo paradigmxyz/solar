@@ -4,7 +4,7 @@
 @immutables
   _start: uint256
 
-fn @constructor() [abi_wrapper, constructor] {
+fn @constructor() [constructor] {
   bb0:
     v5 = callvalue
     v0 = constructor_args_base
@@ -23,14 +23,14 @@ fn @constructor() [abi_wrapper, constructor] {
     revert 0, 0
 }
 
-fn @start() [selector=0xbe9a6555, abi_wrapper, view] {
+fn @start() {
   bb0:
     v3 = loadimmutable _start
     mstore 0, v3
     returndata 0, 32
 }
 
-fn @vested() [selector=0xfea5657c, abi_wrapper, view] {
+fn @vested() {
   bb0:
     v2 = loadimmutable _start
     mstore 0, v2

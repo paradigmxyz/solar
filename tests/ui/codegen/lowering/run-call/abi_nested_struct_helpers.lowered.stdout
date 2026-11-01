@@ -4,7 +4,7 @@
 @types
   struct0: {i256, i256, i256}
 
-fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
+fn @pair() {
   bb0:
     v15 = icall @decode_calldata_type.3, 4, 4
     v24 = mload v15
@@ -21,7 +21,7 @@ fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
     returndata 0, 96
 }
 
-fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
+fn @pairs() {
   bb0:
     v35 = calldatasize
     v37 = calldataload 4

@@ -4,7 +4,7 @@
 @data
   literal_0: hex"7374616e646172644e6f726d616c5761647374616e646172644e6f726d616c5761647374616e646172644e6f726d616c5761647374616e646172644e6f726d616c5761647374616e646172644e6f726d616c5761647374616e646172644e6f726d616c5761647374616e646172644e6f726d616c5761647374616e646172644e6f726d616c5761647374616e646172644e6f726d616c57616400000000000000"
 
-fn @copied() [selector=0xa2e8f7e5, abi_wrapper] {
+fn @copied() {
   bb0:
     v29 = heap_floor !metadata(alloc_ptr)
     v30 = add v29, 192 !metadata(alloc_ptr)
@@ -24,7 +24,7 @@ fn @copied() [selector=0xa2e8f7e5, abi_wrapper] {
     stop
 }
 
-fn @stored() [selector=0xe582dd31, abi_wrapper] {
+fn @stored() {
   bb0:
     v23 = heap_floor !metadata(alloc_ptr)
     v8 = add v23, 64
@@ -40,7 +40,7 @@ fn @stored() [selector=0xe582dd31, abi_wrapper] {
     stop
 }
 
-fn @zeros() [selector=0x4cd212eb, abi_wrapper] {
+fn @zeros() {
   bb0:
     v29 = heap_floor !metadata(alloc_ptr)
     v30 = add v29, 96 !metadata(alloc_ptr)

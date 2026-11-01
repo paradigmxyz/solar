@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/loop-unroll/exchanged_phis.sol:Swap ===
 @module Swap
 @phase lowered
-fn @swaps() [selector=0xdb9a27fa, abi_wrapper, pure] {
+fn @swaps() {
   bb0:
     v7 = calldatasize
     v8 = lt v7, 100

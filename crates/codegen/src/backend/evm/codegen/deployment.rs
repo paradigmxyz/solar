@@ -163,9 +163,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.capture_debug_info,
         );
         let has_constructor_args = module
-            .functions
-            .iter()
-            .any(|func| func.attributes.is_constructor && reads_constructor_args(func));
+            .constructor()
+            .is_some_and(|constructor| reads_constructor_args(module.function(constructor)));
         assert!(
             !has_constructor_args
                 || deploy_code.bytecode.is_empty()
@@ -390,8 +389,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let runtime = self.asm.append_runtime_code(runtime_data, libraries);
 
         // Find constructor function if it exists
-        let constructor =
-            module.functions.iter_enumerated().find(|(_, f)| f.attributes.is_constructor);
+        let constructor = module.constructor().map(|id| (id, module.function(id)));
 
         let implicit_constructor_revert = constructor.is_none().then(|| self.asm.new_label());
         if let Some(revert) = implicit_constructor_revert {

@@ -4,7 +4,7 @@
 @types
   struct0: {ptr<memory>, i256}
 
-fn @copy() [selector=0x53a33458, abi_wrapper, pure] {
+fn @copy() {
   bb0:
     v75 = calldatasize
     v76 = lt v75, 68
@@ -146,7 +146,7 @@ fn @copy() [selector=0x53a33458, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @word() [selector=0x73d8cb1e, abi_wrapper, pure] {
+fn @word() {
   bb0:
     v43 = calldatasize
     v44 = lt v43, 68
@@ -228,7 +228,7 @@ fn @word() [selector=0x73d8cb1e, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @fill() [selector=0x3fda5389, abi_wrapper, pure] {
+fn @fill() {
   bb0:
     v28 = calldatasize
     v29 = lt v28, 36
@@ -284,7 +284,7 @@ fn @fill() [selector=0x3fda5389, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @grownPast() [selector=0xd89b44d4, abi_wrapper, pure] {
+fn @grownPast() {
   bb0:
     v89 = heap_floor !metadata(alloc_ptr)
     v90 = add v89, 64 !metadata(alloc_ptr)
@@ -360,7 +360,7 @@ fn @grownPast() [selector=0xd89b44d4, abi_wrapper, pure] {
     revert 28, 36
 }
 
-fn @_dirty() [pure] {
+fn @_dirty() {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     jump bb1
@@ -377,7 +377,7 @@ fn @_dirty() [pure] {
     jump bb1
 }
 
-fn @_tail(arg0: i256) -> i256 [may_return_memory, pure] {
+fn @_tail(arg0: i256) -> i256 [may_return_memory] {
   bb0:
     v1 = mload arg0
     v2 = and v1, 31

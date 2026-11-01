@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/inline/all_sites.sol:AllSites ===
 @module AllSites
 @phase lowered
-fn @accumulate() [selector=0xb4e7d02a, abi_wrapper] {
+fn @accumulate() {
   bb0:
     v12 = calldataload 4
     v1 = lt v12, 0x3e9
@@ -32,7 +32,7 @@ fn @accumulate() [selector=0xb4e7d02a, abi_wrapper] {
     tail_call @panicArithmetic
 }
 
-fn @increment() [selector=0x7cf5dab0, abi_wrapper] {
+fn @increment() {
   bb0:
     v5 = calldataload 4
     v0 = sload 0 !metadata(storage=slot(0))
@@ -47,7 +47,7 @@ fn @increment() [selector=0x7cf5dab0, abi_wrapper] {
     tail_call @panicArithmetic
 }
 
-fn @panicArithmetic() [pure] {
+fn @panicArithmetic() {
   bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
     mstore 4, 17 !metadata(memory=scratch)

@@ -4,7 +4,7 @@
 @types
   struct0: {ptr<memory>, ptr<memory>}
 
-fn @siftValues() [selector=0x979efdba, abi_wrapper, pure] {
+fn @siftValues() {
   bb0:
     v150 = calldatasize
     v151 = lt v150, 68
@@ -205,7 +205,7 @@ fn @siftValues() [selector=0x979efdba, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @siftUp() [selector=0xf06414cf, abi_wrapper, pure] {
+fn @siftUp() {
   bb0:
     v256 = calldatasize
     v257 = lt v256, 68
@@ -518,7 +518,7 @@ fn @siftUp() [selector=0xf06414cf, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @literalInLoop() [selector=0xb0bfff29, abi_wrapper, pure] {
+fn @literalInLoop() {
   bb0:
     v36 = calldatasize
     v37 = lt v36, 164

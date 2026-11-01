@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/storage-dse/transient.sol:TransientDse ===
 @module TransientDse
 @phase lowered
-fn @overwritten() [selector=0x820f45ad, abi_wrapper] {
+fn @overwritten() {
   bb0:
     v3 = calldatasize
     v4 = lt v3, 36
@@ -22,7 +22,7 @@ fn @overwritten() [selector=0x820f45ad, abi_wrapper] {
     revert 0, 0
 }
 
-fn @reentrant() [selector=0x7d8540f9, abi_wrapper] {
+fn @reentrant() {
   bb0:
     v13 = calldatasize
     v14 = lt v13, 36
@@ -61,7 +61,7 @@ fn @reentrant() [selector=0x7d8540f9, abi_wrapper] {
     revert 0, 0
 }
 
-fn @clearedAfterCall() [selector=0x15bda24f, abi_wrapper] {
+fn @clearedAfterCall() {
   bb0:
     v10 = calldatasize
     v11 = lt v10, 36
@@ -94,7 +94,7 @@ fn @clearedAfterCall() [selector=0x15bda24f, abi_wrapper] {
     revert 0, 0
 }
 
-fn @afterReturn() [selector=0x888a9e3c, abi_wrapper] {
+fn @afterReturn() {
   bb0:
     v20 = calldataload 4
     v21 = shr v20, 1
@@ -139,19 +139,19 @@ fn @afterReturn() [selector=0x888a9e3c, abi_wrapper] {
     revert 0, 0
 }
 
-fn @dropped() [selector=0x49571f93, abi_wrapper] {
+fn @dropped() {
   bb0:
     revert 0, 0
 }
 
-fn @read() [selector=0x57de26a4, abi_wrapper, view] {
+fn @read() {
   bb0:
     v0 = tload 0
     mstore 0, v0 !metadata(memory=scratch)
     returndata 0, 32
 }
 
-fn @readU() [selector=0x14ee0c6f, abi_wrapper, view] {
+fn @readU() {
   bb0:
     v0 = tload 1
     mstore 0, v0 !metadata(memory=scratch)

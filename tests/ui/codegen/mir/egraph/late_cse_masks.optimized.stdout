@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/egraph/late_cse_masks.sol:LateCseMasks ===
 @module LateCseMasks
 @phase lowered
-fn @total() [selector=0x2ddbd13a, abi_wrapper, view] {
+fn @total() {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     mstore 0, v0 !metadata(memory=scratch)
@@ -32,7 +32,7 @@ fn @digest(arg0: i256, arg1: i256) -> i256 {
     revert 28, 36
 }
 
-fn @first() [selector=0x2845d4e6, abi_wrapper] {
+fn @first() {
   bb0:
     v9 = calldataload 4
     v10 = shr v9, 160
@@ -57,7 +57,7 @@ fn @first() [selector=0x2845d4e6, abi_wrapper] {
     revert 0, 0
 }
 
-fn @second() [selector=0x6cdb32ec, abi_wrapper] {
+fn @second() {
   bb0:
     v15 = calldataload 4
     v16 = shr v15, 160

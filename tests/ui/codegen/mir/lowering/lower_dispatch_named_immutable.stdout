@@ -4,7 +4,8 @@
   @immutables
     library_deploy_address: address
   
-  fn @write() [selector=0x00000002, abi_wrapper] {
+- fn @write() [selector=0x00000002, abi_wrapper] {
++ fn @write() {
     bb0:
       stop
 + }

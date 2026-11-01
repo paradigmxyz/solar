@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/byte-loops/source_length.sol:Test ===
 @module Test
 @phase lowered
-fn @apart() [selector=0x25c94f29, abi_wrapper, pure] {
+fn @apart() {
   bb0:
     v0 = calldatasize
     v1 = lt v0, 100
@@ -25,7 +25,7 @@ fn @apart() [selector=0x25c94f29, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @lengthInside() [selector=0xa53391c5, abi_wrapper, pure] {
+fn @lengthInside() {
   bb0:
     v3 = calldatasize
     v4 = lt v3, 68
@@ -48,7 +48,7 @@ fn @lengthInside() [selector=0xa53391c5, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @apartDown() [selector=0xe2b4389c, abi_wrapper, pure] {
+fn @apartDown() {
   bb0:
     v0 = calldatasize
     v1 = lt v0, 100
@@ -72,7 +72,7 @@ fn @apartDown() [selector=0xe2b4389c, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @lengthInsideDown() [selector=0x8d73e21a, abi_wrapper, pure] {
+fn @lengthInsideDown() {
   bb0:
     v3 = calldatasize
     v4 = lt v3, 68
@@ -95,7 +95,7 @@ fn @lengthInsideDown() [selector=0x8d73e21a, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @_copy(arg0: i256, arg1: i256, arg2: i256) [may_return_memory, pure] {
+fn @_copy(arg0: i256, arg1: i256, arg2: i256) [may_return_memory] {
   bb0:
     v20 = eq arg2, 0
     jumpi v20, bb2, bb4
@@ -146,7 +146,7 @@ fn @_copy(arg0: i256, arg1: i256, arg2: i256) [may_return_memory, pure] {
     ret
 }
 
-fn @_copyDown(arg0: i256, arg1: i256, arg2: i256) [may_return_memory, pure] {
+fn @_copyDown(arg0: i256, arg1: i256, arg2: i256) [may_return_memory] {
   bb0:
     v22 = eq arg2, 0
     jumpi v22, bb2, bb4

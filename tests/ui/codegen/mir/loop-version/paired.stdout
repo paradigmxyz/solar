@@ -4,7 +4,7 @@
 @types
   struct0: {ptr<memory>, ptr<memory>}
 
-fn @sortPairs() [selector=0x198bc552, abi_wrapper, pure] {
+fn @sortPairs() {
   bb0:
     v2 = calldatasize
     v3 = lt v2, 68
@@ -39,7 +39,7 @@ fn @sortPairs() [selector=0x198bc552, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @sameArray() [selector=0xb6752e08, abi_wrapper, pure] {
+fn @sameArray() {
   bb0:
     v0 = calldatasize
     v1 = lt v0, 36
@@ -57,7 +57,7 @@ fn @sameArray() [selector=0xb6752e08, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @overlapping() [selector=0xb7239436, abi_wrapper, pure] {
+fn @overlapping() {
   bb0:
     v3 = calldatasize
     v4 = lt v3, 36
@@ -76,7 +76,7 @@ fn @overlapping() [selector=0xb7239436, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @_sortPairs(arg0: i256, arg1: i256) [may_return_memory, pure] {
+fn @_sortPairs(arg0: i256, arg1: i256) [may_return_memory] {
   bb0:
     v138 = add arg0, 1
     v141 = sub arg1, v138

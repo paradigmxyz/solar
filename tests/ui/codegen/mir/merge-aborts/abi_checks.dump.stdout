@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/merge-aborts/abi_checks.sol:AbiChecks ===
 @module AbiChecks
 @phase lowered
-fn @check() [selector=0x05c051e1, abi_wrapper, pure] {
+fn @check() {
   bb0:
     v3 = calldatasize
     v4 = lt v3, 132

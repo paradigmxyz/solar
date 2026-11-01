@@ -8,7 +8,7 @@
   tag: bytes4
   delta: int16
 
-fn @sum() [selector=0x188b85b4, abi_wrapper, pure] {
+fn @sum() {
   bb0:
     v11 = calldatasize
     v12 = lt v11, 36
@@ -44,7 +44,7 @@ fn @sum() [selector=0x188b85b4, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @fast() [selector=0xaf5dbb36, abi_wrapper, optimize=gas, pure] {
+fn @fast() [optimize=gas] {
   bb0:
     v11 = calldatasize
     v12 = lt v11, 36
@@ -75,7 +75,7 @@ fn @fast() [selector=0xaf5dbb36, abi_wrapper, optimize=gas, pure] {
     revert 0, 0
 }
 
-fn @small() [selector=0x75d838c3, abi_wrapper, optimize=size, pure] {
+fn @small() [optimize=size] {
   bb0:
     v11 = calldatasize
     v12 = lt v11, 36
@@ -106,7 +106,7 @@ fn @small() [selector=0x75d838c3, abi_wrapper, optimize=size, pure] {
     revert 0, 0
 }
 
-fn @twice(arg0: i256) -> i256 [always_inline, optimize=gas, pure] {
+fn @twice(arg0: i256) -> i256 [always_inline, optimize=gas] {
   bb0:
     v0 = icall @small.body, arg0
     v2 = add v0, v0
@@ -121,7 +121,7 @@ fn @twice(arg0: i256) -> i256 [always_inline, optimize=gas, pure] {
     revert 28, 36
 }
 
-fn @viaInline() [selector=0xc1685ae2, abi_wrapper, pure] {
+fn @viaInline() {
   bb0:
     v1 = calldatasize
     v2 = lt v1, 36
@@ -138,13 +138,13 @@ fn @viaInline() [selector=0xc1685ae2, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @pattern() [selector=0xa96f1c69, abi_wrapper, optimize=gas, pure] {
+fn @pattern() [optimize=gas] {
   bb0:
     mstore 0, 0x101010101010101010101010101010101010101010101010101010101010101 !metadata(memory=scratch)
     returndata 0, 32
 }
 
-fn @share() [selector=0xc3d9c4b4, abi_wrapper, optimize=size, pure] {
+fn @share() [optimize=size] {
   bb0:
     v3 = calldatasize
     v4 = lt v3, 36
@@ -165,7 +165,7 @@ fn @share() [selector=0xc3d9c4b4, abi_wrapper, optimize=size, pure] {
     revert 0, 0
 }
 
-fn @tagged() [selector=0xb176f8e0, abi_wrapper, optimize=size, view] {
+fn @tagged() [optimize=size] {
   bb0:
     v0 = loadimmutable tag
     v8: i256 = loadimmutable delta
@@ -175,14 +175,14 @@ fn @tagged() [selector=0xb176f8e0, abi_wrapper, optimize=size, view] {
     returndata 0, 64
 }
 
-fn @tagged_gas() [selector=0xa163b8fc, abi_wrapper, optimize=gas, view] {
+fn @tagged_gas() [optimize=gas] {
   bb0:
     v0 = loadimmutable tag
     mstore 0, v0 !metadata(memory=scratch)
     returndata 0, 32
 }
 
-fn @constructor() [abi_wrapper, constructor] {
+fn @constructor() [constructor] {
   bb0:
     v1 = callvalue
     v2 = ne v1, 0
@@ -196,7 +196,7 @@ fn @constructor() [abi_wrapper, constructor] {
     revert 0, 0
 }
 
-fn @small.body(arg0: i256) -> i256 [optimize=size, pure] {
+fn @small.body(arg0: i256) -> i256 [optimize=size] {
   bb0:
     jump bb1
   bb1:

@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/dump_phase.sol:DumpPhase ===
 @module DumpPhase
 @phase lowered
-fn @f() [selector=0xb3de648b, abi_wrapper, pure] {
+fn @f() {
   bb0:
     v1 = calldatasize
     v2 = lt v1, 36

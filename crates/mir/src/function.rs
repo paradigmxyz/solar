@@ -145,18 +145,44 @@ impl Function {
         })
     }
 
-    /// Returns whether this function is an external ABI entry.
-    pub fn is_external_entry(&self) -> bool {
-        self.selector.is_some()
-            || self.attributes.is_constructor
-            || self.attributes.is_receive
-            || self.attributes.is_fallback
+    /// Returns whether `lower-dispatch` routes selectors, `receive`, or `fallback` calls to this
+    /// function, by the attributes that function drops once `entry` exists.
+    pub fn is_dispatched(&self) -> bool {
+        self.selector.is_some() || self.attributes.is_receive || self.attributes.is_fallback
     }
 
-    /// Returns whether the runtime dispatches to this function: an external entry other than the
-    /// constructor.
-    pub fn is_runtime_entry(&self) -> bool {
-        self.is_external_entry() && !self.attributes.is_constructor
+    /// Clears the entry and ABI attributes, which `entry` makes obsolete: the module roots
+    /// carry the routing, and the wrappers carry their decoding and encoding as ordinary MIR.
+    pub fn clear_entry_attributes(&mut self) {
+        self.selector = None;
+        self.abi_returns = None;
+        self.abi_return_params = None;
+        self.abi_params = None;
+        self.abi_param_locations = None;
+        self.attributes.clear_entry();
+    }
+
+    /// Returns the names of the entry and ABI attributes this function still carries.
+    pub fn entry_attributes(&self) -> impl Iterator<Item = &'static str> + use<> {
+        let attributes = &self.attributes;
+        [
+            (self.selector.is_some(), "selector"),
+            (attributes.visibility != Visibility::Internal, "visibility"),
+            (attributes.state_mutability == StateMutability::Pure, "pure"),
+            (attributes.state_mutability == StateMutability::View, "view"),
+            (attributes.state_mutability == StateMutability::Payable, "payable"),
+            (attributes.is_abi_wrapper, "abi_wrapper"),
+            (attributes.is_fallback, "fallback"),
+            (attributes.is_receive, "receive"),
+            (self.abi_params.is_some(), "abi_params"),
+            (self.abi_returns.is_some(), "abi_returns"),
+            (self.abi_return_params.is_some(), "abi_return_params"),
+            (self.abi_param_locations.is_some(), "abi parameter locations"),
+            (!attributes.array_element_bits.is_empty(), "array element bits"),
+            (attributes.array_return_element_bits.is_some(), "array return element bits"),
+        ]
+        .into_iter()
+        .filter_map(|(present, name)| present.then_some(name))
     }
 
     /// Returns the value for the given ID.
@@ -862,8 +888,6 @@ pub struct FunctionAttributes {
     pub state_mutability: StateMutability,
     /// Whether the external entry decodes its own ABI inputs and encodes its outputs.
     pub is_abi_wrapper: bool,
-    /// Whether this is a constructor.
-    pub is_constructor: bool,
     /// Whether this is a fallback function.
     pub is_fallback: bool,
     /// Whether this is a receive function.
@@ -896,13 +920,25 @@ pub struct FunctionAttributes {
     pub array_return_element_bits: Option<u32>,
 }
 
+impl FunctionAttributes {
+    /// Resets the entry and ABI attributes to their defaults.
+    fn clear_entry(&mut self) {
+        self.visibility = Visibility::Internal;
+        self.state_mutability = StateMutability::NonPayable;
+        self.is_abi_wrapper = false;
+        self.is_fallback = false;
+        self.is_receive = false;
+        self.array_element_bits.clear();
+        self.array_return_element_bits = None;
+    }
+}
+
 impl Default for FunctionAttributes {
     fn default() -> Self {
         Self {
             visibility: Visibility::Internal,
             state_mutability: StateMutability::NonPayable,
             is_abi_wrapper: false,
-            is_constructor: false,
             is_fallback: false,
             is_receive: false,
             may_return_memory: false,

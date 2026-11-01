@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/byte-loops/words.sol:Test ===
 @module Test
 @phase lowered
-fn @load32() [selector=0xa3352e1e, abi_wrapper, pure] {
+fn @load32() {
   bb0:
     v27 = calldatasize
     v28 = lt v27, 68
@@ -27,7 +27,7 @@ fn @load32() [selector=0xa3352e1e, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @load4() [selector=0x199c2cd1, abi_wrapper, pure] {
+fn @load4() {
   bb0:
     v30 = calldatasize
     v31 = lt v30, 68
@@ -54,7 +54,7 @@ fn @load4() [selector=0x199c2cd1, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @store32() [selector=0xd264c25a, abi_wrapper, pure] {
+fn @store32() {
   bb0:
     v32 = calldatasize
     v33 = lt v32, 100
@@ -117,7 +117,7 @@ fn @store32() [selector=0xd264c25a, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @store2() [selector=0xe9ebf0b0, abi_wrapper, pure] {
+fn @store2() {
   bb0:
     v40 = calldataload 68
     v41 = shl v40, 16
@@ -189,7 +189,7 @@ fn @store2() [selector=0xe9ebf0b0, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @slice() [selector=0xe0041396, abi_wrapper, pure] {
+fn @slice() {
   bb0:
     v62 = calldatasize
     v63 = lt v62, 100

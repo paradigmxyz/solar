@@ -5,7 +5,7 @@
   struct0: {i256, i256, i1}
   struct1: {i256, ptr<memory>, i256}
 
-fn @dFlat() [selector=0x6644232b, abi_wrapper, pure] {
+fn @dFlat() {
   bb0:
     v39 = icall @decode_calldata_type
     v47 = add v39, 32
@@ -34,7 +34,7 @@ fn @dFlat() [selector=0x6644232b, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
+fn @dNested() {
   bb0:
     v74 = icall @decode_calldata_type
     v100 = add v74, 32
@@ -140,7 +140,7 @@ fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @dFixed() [selector=0xc298c02b, abi_wrapper, pure] {
+fn @dFixed() {
   bb0:
     v33 = icall @decode_calldata_type
     v36 = add v33, 32
@@ -185,7 +185,7 @@ fn @dFixed() [selector=0xc298c02b, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @dDynArr() [selector=0xaca542ca, abi_wrapper, pure] {
+fn @dDynArr() {
   bb0:
     v41 = icall @decode_calldata_type
     v44 = add v41, 32

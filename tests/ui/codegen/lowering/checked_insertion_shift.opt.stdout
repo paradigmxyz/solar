@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/checked_insertion_shift.sol:CheckedInsertionShift ===
 @module CheckedInsertionShift
 @phase lowered
-fn @sort() [selector=0x9ec8b026, abi_wrapper, pure] {
+fn @sort() {
   bb0:
     v54 = calldatasize
     v55 = lt v54, 36
@@ -68,7 +68,7 @@ fn @sort() [selector=0x9ec8b026, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @shiftAt() [selector=0xa227bfd8, abi_wrapper, pure] {
+fn @shiftAt() {
   bb0:
     v15 = calldatasize
     v16 = lt v15, 68

@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/load-pre/loop_array_fill.sol:LoopArrayFill ===
 @module LoopArrayFill
 @phase lowered
-fn @fill() [selector=0x3fda5389, abi_wrapper, pure] {
+fn @fill() {
   bb0:
     v64 = calldataload 4
     v7 = add v64, 1
@@ -143,7 +143,7 @@ fn @fill() [selector=0x3fda5389, abi_wrapper, pure] {
     tail_call @revert_stub.2
 }
 
-fn @lanes() [selector=0x713c311a, abi_wrapper, pure] {
+fn @lanes() {
   bb0:
     v68 = calldataload 4
     v52 = and v68, 0xffffffff

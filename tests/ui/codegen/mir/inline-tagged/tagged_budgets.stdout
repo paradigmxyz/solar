@@ -10,7 +10,7 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/mir/inline-tagged/tagged_budgets.sol:TaggedBudgets ===
 @module TaggedBudgets
 @phase lowered
-fn @run() [selector=0x9cf82c3f, abi_wrapper, pure] {
+fn @run() {
   bb0:
     v1 = calldatasize
     v2 = lt v1, 196
@@ -29,7 +29,7 @@ fn @run() [selector=0x9cf82c3f, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @f(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256) -> i256 [may_return_memory, pure] {
+fn @f(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256) -> i256 [may_return_memory] {
   bb0:
     v26 = xor arg4, arg5
     v134 = add arg1, 32

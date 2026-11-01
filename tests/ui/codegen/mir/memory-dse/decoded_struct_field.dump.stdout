@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/memory-dse/decoded_struct_field.sol:DecodedStructField ===
 @module DecodedStructField
 @phase lowered
-fn @tokenId() [selector=0x8f25c453, abi_wrapper, pure] {
+fn @tokenId() {
   bb0:
     v23 = calldatasize
     v24 = lt v23, 36

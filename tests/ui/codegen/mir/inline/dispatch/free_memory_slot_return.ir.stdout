@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/mir/inline/dispatch/free_memory_slot_return.sol:Unwritten ===
 @module Unwritten
 @phase lowered
-fn @raw() [selector=0xc096a632, abi_wrapper, pure] {
+fn @raw() {
   bb0:
     returndata 64, 32
 }
 
-fn @sum() [selector=0xcad0899b, abi_wrapper, pure] {
+fn @sum() {
   bb0:
     v3 = calldatasize
     v4 = lt v3, 68
@@ -89,7 +89,7 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/mir/inline/dispatch/free_memory_slot_return.sol:Conditional ===
 @module Conditional
 @phase lowered
-fn @raw() [selector=0x302e678f, abi_wrapper, pure] {
+fn @raw() {
   bb0:
     v1 = calldatasize
     v2 = lt v1, 36
@@ -107,7 +107,7 @@ fn @raw() [selector=0x302e678f, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @sum() [selector=0xcad0899b, abi_wrapper, pure] {
+fn @sum() {
   bb0:
     v3 = calldatasize
     v4 = lt v3, 68

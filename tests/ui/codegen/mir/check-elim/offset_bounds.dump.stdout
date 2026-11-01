@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/check-elim/offset_bounds.sol:OffsetBounds ===
 @module OffsetBounds
 @phase lowered
-fn @copyHigh() [selector=0xf4f1833d, abi_wrapper, pure] {
+fn @copyHigh() {
   bb0:
     v0 = calldatasize
     v60 = add v0, 64

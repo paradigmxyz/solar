@@ -195,6 +195,7 @@ pub(crate) fn display_function_dot<'a>(
 pub(crate) fn display_function_text<'a>(
     func: &'a Function,
     module: Option<&'a Module>,
+    is_constructor: bool,
     is_dispatch_entry: bool,
 ) -> impl fmt::Display + 'a {
     fn display_text_block<'a>(
@@ -271,10 +272,10 @@ pub(crate) fn display_function_text<'a>(
             ))
         )?;
         write!(f, ")")?;
-        if function_prints_return_values(func) && func.return_type() != super::MirType::Void {
+        if func.return_type() != super::MirType::Void {
             write!(f, " -> {}", func.return_type())?;
         }
-        write!(f, "{}", display_function_attributes(func, is_dispatch_entry))?;
+        write!(f, "{}", display_function_attributes(func, is_constructor, is_dispatch_entry))?;
         writeln!(f, " {{")?;
 
         let cfg = CfgInfo::new(func);
@@ -291,7 +292,11 @@ pub(crate) fn display_function_text<'a>(
     })
 }
 
-fn display_function_attributes(func: &Function, is_dispatch_entry: bool) -> impl fmt::Display + '_ {
+fn display_function_attributes(
+    func: &Function,
+    is_constructor: bool,
+    is_dispatch_entry: bool,
+) -> impl fmt::Display + '_ {
     fmt::from_fn(move |f| {
         let mut first = true;
         if let Some(selector) = func.selector {
@@ -304,7 +309,7 @@ fn display_function_attributes(func: &Function, is_dispatch_entry: bool) -> impl
         if func.attributes.is_abi_wrapper {
             write_function_attribute(f, &mut first, "abi_wrapper")?;
         }
-        if func.attributes.is_constructor {
+        if is_constructor {
             write_function_attribute(f, &mut first, "constructor")?;
         }
         if is_dispatch_entry {
@@ -372,14 +377,6 @@ fn write_function_attribute(
         f.write_str(", ")?;
     }
     attribute.fmt(f)
-}
-
-fn function_prints_return_values(func: &Function) -> bool {
-    func.selector.is_none()
-        || func
-            .blocks
-            .iter()
-            .any(|block| matches!(block.terminator, Some(Terminator::Return { .. })))
 }
 
 fn inst_result_index(func: &Function, inst_id: InstId) -> usize {

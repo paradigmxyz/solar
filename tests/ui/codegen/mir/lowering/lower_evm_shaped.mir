@@ -23,7 +23,7 @@ fn @entry() [entry] {
 // CHECK-LABEL: {{^[ +].*}}fn @caller{{[( ]}}
 // CHECK: - icall @fused
 // CHECK: + tail_call @fused, {{v[0-9]+}} !metadata(span=10..20, modifier_depth=1)
-fn @caller() [selector=0x00000007, abi_wrapper] {
+fn @caller() {
   bb0:
     v0 = calldataload 4
     icall fn2, v0 !metadata(span=10..20, modifier_depth=1)
@@ -205,7 +205,7 @@ fn @recursive_fail(arg0: i256) -> i256 {
 // CHECK: + tail_call @constructor_helper, 23
 // CHECK: - {{.*}}= icall @constructor_no_args
 // CHECK: + tail_call @constructor_no_args
-fn @constructor() [abi_wrapper] {
+fn @constructor() {
   bb0:
     v0 = callvalue
     v3 = ne v0, 0

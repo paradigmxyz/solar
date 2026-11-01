@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/indvar-simplify/two_counters.sol:Test ===
 @module Test
 @phase lowered
-fn @narrowBase() [selector=0xc5e77450, abi_wrapper, pure] {
+fn @narrowBase() {
   bb0:
     v22 = calldataload 4
     v23 = shr v22, 8
@@ -40,7 +40,7 @@ fn @narrowBase() [selector=0xc5e77450, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
+fn @pack() {
   bb0:
     v154 = calldatasize
     v155 = lt v154, 36
@@ -260,7 +260,7 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @rawBase() [selector=0xcc1fc46b, abi_wrapper, pure] {
+fn @rawBase() {
   bb0:
     v13 = calldatasize
     v14 = lt v13, 36

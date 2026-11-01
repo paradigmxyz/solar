@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/loop-version/scratch_hash.sol:Test ===
 @module Test
 @phase lowered
-fn @level() [selector=0x223559c3, abi_wrapper, pure] {
+fn @level() {
   bb0:
     v1 = calldatasize
     v2 = lt v1, 36
@@ -53,7 +53,7 @@ fn @level() [selector=0x223559c3, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @scratchLevel() [selector=0xdb649139, abi_wrapper, pure] {
+fn @scratchLevel() {
   bb0:
     mstore 0, 4 !metadata(memory=scratch)
     mstore 32, 1 !metadata(memory=scratch)
@@ -66,7 +66,7 @@ fn @scratchLevel() [selector=0xdb649139, abi_wrapper, pure] {
     returndata v10, v7
 }
 
-fn @_level(arg0: i256) -> i256 [may_return_memory, pure] {
+fn @_level(arg0: i256) -> i256 [may_return_memory] {
   bb0:
     v0 = mload arg0
     v1 = shr v0, 1
