@@ -254,17 +254,21 @@ impl ImmediateMaterialization {
     }
 }
 
-/// Materializes `value` as `target` prices it outside a loop.
+/// Materializes `value` as `target` prices it outside a loop. A searched program that needs more
+/// transient stack than the fixed recipe gives way to the recipe, which is what the callers'
+/// stack checks and the rewrites they replace assumed; compact pushes expands the push later
+/// under its own stack check.
 pub(super) fn materialize_immediate(
     instructions: &mut Vec<Instruction>,
     target: &Target,
     value: U256,
 ) {
-    materialize(
-        instructions,
-        &ImmediateMaterialization::select(target, value, false),
-        &Metadata::default(),
-    );
+    let mut materialization = ImmediateMaterialization::select(target, value, false);
+    let recipe = ImmediateMaterialization::new(target.evm_version(), value);
+    if materialization.stack_peak() > recipe.stack_peak() {
+        materialization = recipe;
+    }
+    materialize(instructions, &materialization, &Metadata::default());
 }
 
 /// Every replacement carries the source debug information of the push it materializes.
