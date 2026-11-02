@@ -1,0 +1,42 @@
+//@ revisions: pushes expressions
+//@[pushes] compile-flags: -Zevm-ir-pipeline=reorder-pushes -Zvalidate-ir=true
+//@[expressions] compile-flags: -Zevm-ir-pipeline=reorder-expressions -Zvalidate-ir=true
+//@ run-call: run(uint256)(uint256) 1 => 34
+//@ run-call: run(uint256)(uint256) 1022 => 34
+
+// The loop leaves one word per iteration. Its exit has no proved entry bound, and at 1022
+// iterations the original expression reaches the stack limit exactly. Moving the final push
+// before that expression would overflow it. Every call also runs in the EVM IR interpreter.
+@module ReorderStackLimitRuntime
+bb0:
+  push 4
+  calldataload
+  jump bb1
+bb1 [loop]:
+  dup 1
+  push 1
+  eq
+  jumpi bb3, bb2
+bb2 [loop]:
+  push 1
+  swap 1
+  sub
+  push 0
+  swap 1
+  jump bb1
+bb3:
+  pop
+  push 0
+  jump bb4
+bb4:
+  calldatasize
+  push 1
+  add
+  push 3
+  swap 1
+  sub
+  push 0
+  mstore
+  push 32
+  push 0
+  return

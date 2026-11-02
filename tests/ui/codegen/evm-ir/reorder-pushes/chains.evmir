@@ -63,12 +63,12 @@ bb3 [stack=1019]:
   stop
 
 // A cheap rewrite can expose a nested producer for the next candidate.
-// CHECK-LABEL: {{^[ +].*}}bb4:
+// CHECK-LABEL: {{^[ +].*}}bb4 [stack=0]:
 // CHECK-NEXT: -   calldatasize
 // CHECK-NEXT: +   push 20
 // CHECK: -   swap 1
 // CHECK: -   swap 1
-bb4:
+bb4 [stack=0]:
   calldatasize
   push 10
   swap 1

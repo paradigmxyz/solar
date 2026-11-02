@@ -27,10 +27,10 @@ bb1:
   stop
 
 // Move the push before the complete nested expression.
-// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK-LABEL: {{^[ +].*}}bb2 [stack=0]:
 // CHECK-NEXT: +   push 10
 // CHECK: -   swap 1
-bb2:
+bb2 [stack=0]:
   push 0
   calldataload
   push 31

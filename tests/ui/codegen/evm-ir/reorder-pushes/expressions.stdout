@@ -16,7 +16,7 @@
 +   calldatasize
     mod
     stop
-  bb2:
+  bb2 [stack=0]:
 +   push 10
     push 0
     calldataload

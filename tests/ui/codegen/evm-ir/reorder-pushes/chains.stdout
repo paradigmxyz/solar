@@ -40,7 +40,7 @@
 -   swap 1
     sub
     stop
-  bb4:
+  bb4 [stack=0]:
 -   calldatasize
 +   push 20
     push 10

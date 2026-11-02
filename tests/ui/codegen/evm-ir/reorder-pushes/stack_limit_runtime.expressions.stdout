@@ -1,0 +1,36 @@
+- // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/stack_limit_runtime.evmir (before reorder-expressions) ===
++ // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/stack_limit_runtime.evmir (after reorder-expressions) ===
+  @module ReorderStackLimitRuntime
+  bb0:
+    push 4
+    calldataload
+    jump bb1
+  bb1 [loop]:
+    dup 1
+    push 1
+    eq
+    jumpi bb3, bb2
+  bb2 [loop]:
+    push 1
+    swap 1
+    sub
+    push 0
+    swap 1
+    jump bb1
+  bb3:
+    pop
+    push 0
+    jump bb4
+  bb4:
+    calldatasize
+    push 1
+    add
+    push 3
+    swap 1
+    sub
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  

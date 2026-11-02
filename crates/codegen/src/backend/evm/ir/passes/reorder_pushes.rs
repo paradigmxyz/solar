@@ -19,6 +19,12 @@
 //!
 //! The expression tracker accepts only known one-result operations, rejects physical stack
 //! instructions and observations such as `PC` or `GAS`, and clears at unknown effects.
+//! Reordering can grow the transient stack even when both ranges leave one value. Each expression
+//! therefore carries its relative peak: the swap is peak-neutral when the producer's peak does
+//! not exceed the moved expression's. Otherwise a verifier-proved upper entry depth must leave
+//! room for the extra word. Dynamically entered paths and growing cycles have unknown bounds and
+//! retain the original peak. The entry-depth analysis runs only when a block contains both a
+//! `SWAP1` and a multi-input producer, which a peak-growing rewrite requires.
 //!
 //! The first expression sweep is disabled for pre-extended-stack size builds because its
 //! interaction with later structural cleanup can increase code size there. The final sweep runs
@@ -28,7 +34,7 @@
 
 use super::EvmPass;
 use crate::backend::evm::{
-    ir::{Instruction, Module},
+    ir::{Instruction, Module, verify::Verifier},
     op::{self, StackOp},
 };
 use solar_config::EvmVersion;
@@ -62,14 +68,24 @@ impl EvmPass for ReorderPushes {
         let reorder_expressions = self.reorder_legacy_size_expressions
             || !module.optimization.is_size()
             || evm_version.has_extended_stack_ops();
+        let entry_depths = (reorder_expressions
+            && module.blocks.iter().any(|block| {
+                block.instructions.iter().any(|inst| inst.as_stack_op() == Some(StackOp::Swap(1)))
+                    && block.instructions.iter().any(|inst| {
+                        let effect = inst.stack_effect();
+                        effect.inputs > 1 && effect.outputs == 1
+                    })
+            }))
+        .then(|| Verifier::stack_entry_upper_bounds(module, evm_version));
         let mut state = ReorderState::default();
         let mut changed = false;
-        for block in &mut module.blocks {
+        for (block_id, block) in module.blocks.iter_mut_enumerated() {
             changed |= state.reorder(
                 &mut block.instructions,
                 evm_version,
                 reorder_expressions,
                 self.reorder_closed_expressions,
+                entry_depths.as_ref().and_then(|depths| depths[block_id]),
             );
         }
         changed
@@ -89,6 +105,7 @@ impl ReorderState {
         evm_version: EvmVersion,
         reorder_expressions: bool,
         reorder_closed_expressions: bool,
+        mut stack: Option<usize>,
     ) -> bool {
         if !instructions.iter().any(|inst| inst.as_stack_op() == Some(StackOp::Swap(1))) {
             return false;
@@ -99,6 +116,12 @@ impl ReorderState {
         let mut changed = false;
         for node in self.sequence.nodes.indices() {
             let inst = self.sequence.instruction(node);
+            let effect = inst.stack_effect();
+            stack = stack.and_then(|depth| {
+                depth
+                    .checked_sub(usize::from(effect.inputs))?
+                    .checked_add(usize::from(effect.outputs))
+            });
             let swap1 = inst.as_stack_op() == Some(StackOp::Swap(1));
             if swap1
                 && let Some(pushed) = self.expressions.last()
@@ -120,6 +143,10 @@ impl ReorderState {
                 && let [.., producer, pushed] = self.expressions.as_slice()
                 && (pushed.immediate_recipe || (reorder_closed_expressions && pushed.movable))
                 && let Some(pushed_end) = self.sequence.last
+                && (producer.stack_peak <= pushed.stack_peak
+                    || stack
+                        .and_then(|depth| depth.checked_sub(2))
+                        .is_some_and(|base| base + 1 + producer.stack_peak <= op::MAX_STACK_DEPTH))
             {
                 let (producer, pushed) = (*producer, *pushed);
                 self.sequence.move_range_before(pushed.start, pushed_end, producer.start);
@@ -176,6 +203,8 @@ struct Expression {
     start: NodeId,
     immediate_recipe: bool,
     movable: bool,
+    /// Maximum stack growth above the depth before this closed expression.
+    stack_peak: usize,
 }
 
 fn update_expressions(
@@ -199,6 +228,7 @@ fn update_expressions(
             start: node,
             immediate_recipe: inst.is_encoded_push(),
             movable: inst.is_encoded_push() || inst.as_evm_opcode() == Some(op::CALLDATASIZE),
+            stack_peak: 1,
         });
         return;
     }
@@ -207,12 +237,16 @@ fn update_expressions(
         inst.as_evm_opcode().is_some_and(|opcode| matches!(opcode, op::NOT | op::SHL | op::SHR))
             && expressions[start..].iter().all(|expression| expression.immediate_recipe);
     let first = expressions[start].start;
+    let stack_peak = expressions[start..]
+        .iter()
+        .enumerate()
+        .fold(1, |peak, (index, expression)| peak.max(index + expression.stack_peak));
     let movable = inst
         .as_evm_opcode()
         .is_some_and(|opcode| op::is_pure(opcode) || opcode == op::CALLDATALOAD)
         && expressions[start..].iter().all(|expression| expression.movable);
     expressions.truncate(start);
-    expressions.push(Expression { start: first, immediate_recipe, movable });
+    expressions.push(Expression { start: first, immediate_recipe, movable, stack_peak });
 }
 
 newtype_index! {
