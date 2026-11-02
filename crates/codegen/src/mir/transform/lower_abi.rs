@@ -1834,7 +1834,7 @@ impl LowerAbiCx {
             // next = or folded, (load cursor)
             // next_cursor = add cursor, 32
             // jumpi (lt next_cursor, end), body, validate
-            // validate: revert_if_zero (valid next)
+            // validate: revert_if (invalid next)
             // jump done
             let zero = builder.imm(0);
             let start = builder.create_block();
