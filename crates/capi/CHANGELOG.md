@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0](https://github.com/paradigmxyz/solar/releases/tag/v0.3.0)
+
+### Bug Fixes
+
+- [cli] Free the compiler in library calls ([#1884](https://github.com/paradigmxyz/solar/issues/1884))
+- [capi] Free the compiler after each compile ([#1874](https://github.com/paradigmxyz/solar/issues/1874))
+- [release] Require crate changelogs ([#924](https://github.com/paradigmxyz/solar/issues/924))
+
+### Documentation
+
+- Update README with codegen benchmarks ([#2146](https://github.com/paradigmxyz/solar/issues/2146))
+
+### Features
+
+- [cli] Add bytecode metadata ([#1344](https://github.com/paradigmxyz/solar/issues/1344))
+- [lsp] Add initial language server support ([#870](https://github.com/paradigmxyz/solar/issues/870))
+- Add solc-compatible wasm API ([#850](https://github.com/paradigmxyz/solar/issues/850))
+
+### Miscellaneous Tasks
+
+- Release 0.2.0
+
+### Testing
+
+- [capi] Move C API smoke test to CI ([#1114](https://github.com/paradigmxyz/solar/issues/1114))
+- [capi] Reuse built cdylib ([#1013](https://github.com/paradigmxyz/solar/issues/1013))
+
 ## [0.2.0](https://github.com/paradigmxyz/solar/releases/tag/v0.2.0)
 
 ### Bug Fixes

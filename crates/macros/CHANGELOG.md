@@ -5,6 +5,58 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0](https://github.com/paradigmxyz/solar/releases/tag/v0.3.0)
+
+### Miscellaneous Tasks
+
+- Release 0.2.0
+
+## [0.1.8](https://github.com/paradigmxyz/solar/releases/tag/v0.1.8)
+
+### Miscellaneous Tasks
+
+- Release 0.1.8 ([#551](https://github.com/paradigmxyz/solar/issues/551))
+- Remove feature(doc_auto_cfg) ([#540](https://github.com/paradigmxyz/solar/issues/540))
+- Release 0.1.7 ([#492](https://github.com/paradigmxyz/solar/issues/492))
+- Release 0.1.6 ([#443](https://github.com/paradigmxyz/solar/issues/443))
+- Update docs, fix ci ([#403](https://github.com/paradigmxyz/solar/issues/403))
+
+## [0.1.5](https://github.com/paradigmxyz/solar/releases/tag/v0.1.5)
+
+### Miscellaneous Tasks
+
+- Release 0.1.5 ([#382](https://github.com/paradigmxyz/solar/issues/382))
+- Release 0.1.4 ([#341](https://github.com/paradigmxyz/solar/issues/341))
+- Release 0.1.3 ([#310](https://github.com/paradigmxyz/solar/issues/310))
+- Update hint fns ([#289](https://github.com/paradigmxyz/solar/issues/289))
+- Revert extra changelog
+
+### Performance
+
+- Use `inturn` as the interner ([#349](https://github.com/paradigmxyz/solar/issues/349))
+
+## [0.1.2](https://github.com/paradigmxyz/solar/releases/tag/v0.1.2)
+
+### Features
+
+- Implement minimal HIR visitor ([#195](https://github.com/paradigmxyz/solar/issues/195))
+
+### Miscellaneous Tasks
+
+- Release 0.1.2
+- Release 0.1.2 ([#251](https://github.com/paradigmxyz/solar/issues/251))
+
+## [0.1.1](https://github.com/paradigmxyz/solar/releases/tag/v0.1.1)
+
+### Documentation
+
+- Add icons ([#109](https://github.com/paradigmxyz/solar/issues/109))
+
+### Miscellaneous Tasks
+
+- Release 0.1.1 ([#182](https://github.com/paradigmxyz/solar/issues/182))
+- [macros] Fix expansion spans ([#175](https://github.com/paradigmxyz/solar/issues/175))
+
 ## [0.2.0](https://github.com/paradigmxyz/solar/releases/tag/v0.2.0)
 
 ## [0.1.8](https://github.com/paradigmxyz/solar/releases/tag/v0.1.8)
