@@ -1498,8 +1498,10 @@ impl Target {
             InstKind::ICall { function: Callee::Function(function), args } => {
                 self.icall(args.len(), module.function(*function).return_components().len(), 0)
             }
-            // A phi or a select is a stack move at the join.
-            InstKind::Phi(_) | InstKind::Select(..) => self.sequence(&[op::DUP1]),
+            // A phi is a stack move at the join.
+            InstKind::Phi(_) => self.sequence(&[op::DUP1]),
+            // A select runs the generic emitter.
+            InstKind::Select(..) => self.select(false),
             // Every other operation lowers to one opcode and was priced above.
             _ => {
                 debug_assert!(false, "operation without a single opcode is not priced: {kind}");
@@ -2457,6 +2459,8 @@ mod tests {
         assert_eq!(estimate(InstKind::StorageBytesLoad(value)), (Cost::new(400, 150), 1));
         assert_eq!(estimate(InstKind::StorageBytesStore(value, value)), (Cost::new(500, 180), 1));
         assert_eq!(estimate(InstKind::Zext(value)), (Cost::ZERO, 0));
+        assert_eq!(estimate(InstKind::Phi(vec![])), (target.opcode(op::DUP1), 1));
+        assert_eq!(estimate(InstKind::Select(value, value, value)), (target.select(false), 1));
         let jump = target.label_push() + target.opcode(op::JUMP);
         assert_eq!(target.terminator_estimate(&Terminator::Jump(BlockId::ENTRY)), jump);
         assert_eq!(
