@@ -541,6 +541,7 @@ class Context:
             "push_not_larger",
             "optimize_for_size",
             "late_word_sequence",
+            "allocations_lowered",
             "unshared_mask",
             "compared_mask",
         ):
