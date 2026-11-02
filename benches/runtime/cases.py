@@ -330,6 +330,9 @@ class TestCase:
     min_solc: str | None = None
     max_solc: str | None = None
     suite: str = "micro"
+    # Only a live `--solc` runs this case, and only reference compilers: ours
+    # skip it because they cannot compile its sources.
+    solc_only: bool = False
     # Compile every contract in the project input instead of one selected
     # contract. Compile-time only: no bytecode is extracted, so size, gas,
     # and runtime checks do not apply.
@@ -838,6 +841,8 @@ TEST_CASES: Sequence[TestCase] = (
         settings_profile="runtime",
         min_solc="0.5.16",
         max_solc="0.5.16",
+        # The 0.5 sources use `chainid` without parentheses.
+        solc_only=True,
     ),
     TestCase(
         test_id="openzeppelin-erc20-mock",

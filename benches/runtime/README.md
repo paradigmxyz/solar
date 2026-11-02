@@ -290,7 +290,7 @@ runtime observations.
 
 | Case | Upstream source | Revision | Files |
 | --- | --- | --- | ---: |
-| `uniswap-v2-pair` | `Uniswap/v2-core` | `ee547b17853e71ed4e0101ccfd52e70d5acded58` | 10 |
+| `uniswap-v2-pair` (solc-only) | `Uniswap/v2-core` | `ee547b17853e71ed4e0101ccfd52e70d5acded58` | 10 |
 | `openzeppelin-erc20-mock` | `OpenZeppelin/openzeppelin-contracts` | `openzeppelin-5.6.1` archive | 6 |
 | `openzeppelin-vesting-wallet` | `OpenZeppelin/openzeppelin-contracts` | `openzeppelin-5.6.1` archive | 12 |
 | `nitro-one-step-proof` | `OffchainLabs/nitro-contracts` | `0b8c04e8f5f66fe6678a4f53aa15f23da417260e` | 22 |
@@ -312,6 +312,11 @@ and Solady cases, like the normal benchmark suite, read the pinned archives ther
 the normal suite's `../../testdata/Counter.sol`. `fixtures/runtime/RuntimeFixtures.sol` holds local
 Apache-2.0 helpers with the interfaces the cold-path workloads use. Embedded sources keep their SPDX
 identifiers.
+
+`uniswap-v2-pair` is solc-only: its 0.5 sources use `chainid` without parentheses, which we do
+not support, so our compilers skip it. The case stays in the catalog (`solc_only=True`), runs only
+with a live `--solc` of version 0.5.16, and records only reference compilers. Without `--solc`,
+including with `--reference-results`, it is skipped.
 
 `counter-loop` runs shared checked-arithmetic helpers in a storage-backed accumulator loop, timing
 10, 100, and 1,000 iterations as separate calls after the increment/subtract setup of the
