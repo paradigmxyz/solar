@@ -56,12 +56,9 @@ pub(super) fn alternatives(
     let mut result = Vec::new();
     let scalar_ty =
         op.into_kind().and_then(|kind| widest_int_operand(func, &kind)).unwrap_or(MirType::I256);
-    // The tests that an `and` of booleans joins are spelled as words.
-    let scalar_ty = if stage == Stage::Spelling && scalar_ty == MirType::I1 {
-        MirType::I256
-    } else {
-        scalar_ty
-    };
+    // A root of booleans, such as the `and` that joins tests, builds words from its operands'
+    // words, whose constants do not fit a bool.
+    let scalar_ty = if scalar_ty == MirType::I1 { MirType::I256 } else { scalar_ty };
     generated::constructor_sequence_rewrite(
         &mut Context {
             func,

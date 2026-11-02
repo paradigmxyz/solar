@@ -22,8 +22,8 @@
 //! temporary selects retain that source type. Pointer and wider-than-word roots
 //! remain excluded from arithmetic selection.
 //! Inequality recipes use the backend's EQ/ISZERO expansion and its target cost, except
-//! that a nonzero test whose every use is a branch or a check costs nothing: `JUMPI` reads
-//! the word.
+//! that a nonzero test whose every use is a branch or a check, or an `or` that only such a test
+//! joins, costs nothing: `JUMPI` reads the word.
 //! Pure, nontrapping operations without recipes stay in place without breaking
 //! the segment; they never earn deletion credit.
 //! Mask blends wait until storage forwarding and mask simplification have run,
@@ -195,8 +195,9 @@ fn operation_cost(
     cost
 }
 
-/// The cost of a recipe root. A nonzero test whose every use is a branch or check condition
-/// costs nothing, because `JUMPI` takes its operand as the condition.
+/// The cost of a recipe root. A nonzero test whose every use is a branch or check condition, or
+/// an `or` that only such a test joins, costs nothing, because `JUMPI` takes its operand as the
+/// condition.
 fn root_cost(
     func: &Function,
     op: &Op,
@@ -385,12 +386,7 @@ fn run(func: &mut Function, target: &Target, pass: &WordSequence) -> bool {
     let cyclic = spelling.then(|| CfgInfo::new(func).cyclic_blocks().clone());
     let mut changed = cyclic.as_ref().is_some_and(|cyclic| spell_zero_tested(func, target, cyclic));
     let mut uses = super::egraph::use_counts(func);
-    let mut branch_only = branch_only_conditions(func, &uses);
-    if spelling {
-        // The `or` that joins tests costs the same as it would for the branch, so a test it joins
-        // is as free as one the branch reads itself.
-        branch_only = branch_read_conditions(func, &uses, branch_only);
-    }
+    let branch_only = branch_only_conditions(func, &uses);
     let mut masks = None;
     let mut ordered = Vec::new();
     let mut seen = FxHashSet::default();
@@ -532,8 +528,7 @@ fn collect_dead(
 fn spell_zero_tested(func: &mut Function, target: &Target, cyclic: &DenseBitSet<BlockId>) -> bool {
     let uses = super::egraph::use_counts(func);
     let branch_only = branch_only_conditions(func, &uses);
-    let branch_read = branch_read_conditions(func, &uses, branch_only);
-    let tested = zero_tested_words(func, &uses, &branch_read);
+    let tested = zero_tested_words(func, &uses, &branch_only);
     if tested.is_empty() {
         return false;
     }
@@ -613,22 +608,12 @@ struct ConditionRead {
     in_loop: bool,
 }
 
-/// The values of `branch_only` and the operands that only their `or` tree reads, in one block.
-fn branch_read_conditions(
-    func: &Function,
-    uses: &IndexVec<ValueId, u32>,
-    mut read: FxHashSet<ValueId>,
-) -> FxHashSet<ValueId> {
-    extend_through_or(func, uses, &mut read);
-    read
-}
-
 /// The words that only a zero test of a branch reads, each through the `or`s that join it with
 /// other words: such a word may be any word that is nonzero exactly when the original is.
 fn zero_tested_words(
     func: &Function,
     uses: &IndexVec<ValueId, u32>,
-    branch_read: &FxHashSet<ValueId>,
+    branch_only: &FxHashSet<ValueId>,
 ) -> FxHashSet<ValueId> {
     let mut tested = func
         .instructions()
@@ -637,7 +622,7 @@ fn zero_tested_words(
                 if func.value_u256(zero) == Some(U256::ZERO)
                     && func
                         .inst_result_value(inst)
-                        .is_some_and(|test| branch_read.contains(&test))
+                        .is_some_and(|test| branch_only.contains(&test))
                     && uses[word] == 1 =>
             {
                 Some(word)
@@ -679,7 +664,9 @@ fn extend_through_or(
 }
 
 /// Values whose every use is the condition of a branch or check in their defining block, the
-/// shape the backend folds into `JUMPI`. Lowering a check branches on its condition.
+/// shape the backend folds into `JUMPI`, and the tests that only the `or` of such a value joins:
+/// the `or` costs the same as it would for the branch, so a test it joins is as free as one the
+/// branch reads itself. Lowering a check branches on its condition.
 fn branch_only_conditions(func: &Function, uses: &IndexVec<ValueId, u32>) -> FxHashSet<ValueId> {
     let mut branch_uses = FxHashMap::<ValueId, u32>::default();
     let mut defined = FxHashSet::<InstId>::default();
@@ -705,5 +692,10 @@ fn branch_only_conditions(func: &Function, uses: &IndexVec<ValueId, u32>) -> FxH
             count(&defined, condition);
         }
     }
-    branch_uses.into_iter().filter_map(|(value, n)| (uses[value] == n).then_some(value)).collect()
+    let mut read = branch_uses
+        .into_iter()
+        .filter_map(|(value, n)| (uses[value] == n).then_some(value))
+        .collect();
+    extend_through_or(func, uses, &mut read);
+    read
 }
