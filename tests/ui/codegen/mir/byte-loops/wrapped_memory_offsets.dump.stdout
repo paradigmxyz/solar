@@ -142,10 +142,10 @@ fn @bytesIntoHeader() [selector=0x10ca09ba, abi_wrapper, pure, implicit_args=[i2
     v11 = shr v10, 1
     v8 = calldatasize
     v9 = lt v8, 68
-    v26 = zext i1 v9 to i256
-    v27 = or v26, v11
-    v28 = ne v27, 0
-    jumpi v28, bb6, bb7
+    v24 = zext i1 v9 to i256
+    v25 = or v24, v11
+    v26 = ne v25, 0
+    jumpi v26, bb6, bb7
   bb7:  ; preds = bb0
     v22 = heap_floor !metadata(alloc_ptr)
     v23 = add v22, 64 !metadata(alloc_ptr)
@@ -154,8 +154,6 @@ fn @bytesIntoHeader() [selector=0x10ca09ba, abi_wrapper, pure, implicit_args=[i2
     v17 = add v22, 32
     mstore v17, 0x102000000000000000000000000000000000000000000000000000000000000
     v21 = icall @alloc, 64
-    v25 = calldatasize
-    calldatacopy v21, v25, 64
     mstore v21, 2
     jumpi arg1, bb2, bb1
   bb1:  ; preds = bb7
@@ -219,12 +217,12 @@ fn @calldataIntoHeader() [selector=0x428158c8, abi_wrapper, pure] {
     v54 = sub v45, v53
     v55 = gt v52, v54
     v56 = or v51, v55
-    v103 = or v46, v56
+    v102 = or v46, v56
     v60 = calldataload 36
     v61 = add v60, 4
     v64 = gt v60, v50
-    v104 = or v103, v64
-    jumpi v104, bb15, bb16
+    v103 = or v102, v64
+    jumpi v103, bb15, bb16
   bb16:  ; preds = bb0
     v65 = calldataload v61
     v66 = add v61, 32
@@ -237,10 +235,10 @@ fn @calldataIntoHeader() [selector=0x428158c8, abi_wrapper, pure] {
     v98 = zext i1 v97 to i256
     v99 = shr v96, 64
     v100 = or v98, v99
-    v105 = zext i1 v68 to i256
-    v106 = or v105, v100
-    v107 = ne v106, 0
-    jumpi v107, bb17, bb19
+    v104 = zext i1 v68 to i256
+    v105 = or v104, v100
+    v106 = ne v105, 0
+    jumpi v106, bb17, bb19
   bb19:  ; preds = bb16
     mstore v95, v65
     v72 = sub v45, v66
@@ -249,11 +247,6 @@ fn @calldataIntoHeader() [selector=0x428158c8, abi_wrapper, pure] {
   bb18:  ; preds = bb19
     v91 = add v95, 32
     calldatacopy v91, v66, v65
-    v81 = sub 0, v65
-    v82 = and v81, 31
-    v102 = calldatasize
-    v92 = add v91, v65
-    calldatacopy v92, v102, v82
     v40 = lt v52, arg2
     jumpi v40, bb7, bb6
   bb6:  ; preds = bb18

@@ -589,11 +589,6 @@ fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
   bb5:  ; preds = bb6
     v25 = add v29, 32
     calldatacopy v25, v7, v6
-    v22 = sub 0, v6
-    v23 = and v22, 31
-    v36 = calldatasize
-    v26 = add v25, v6
-    calldatacopy v26, v36, v23
     ret v29
   bb3 [cold]:  ; preds = bb2, bb4
     mstore 32, 65 !metadata(memory=scratch)

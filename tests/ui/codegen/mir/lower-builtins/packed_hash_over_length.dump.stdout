@@ -183,8 +183,6 @@ fn @forged() [selector=0xd1caa6e6, abi_wrapper, pure] {
     v23 = ne v22, 0
     jumpi v23, bb2, bb1
   bb1:  ; preds = bb0
-    v24 = calldatasize
-    calldatacopy v17, v24, 64
     mstore v17, 1
     v15 = add v17, 31
     v12 = keccak256 v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -216,10 +214,10 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v32 = zext i1 v31 to i256
     v33 = shr v30, 64
     v34 = or v32, v33
-    v37 = zext i1 v9 to i256
-    v38 = or v37, v34
-    v39 = ne v38, 0
-    jumpi v39, bb3, bb5
+    v36 = zext i1 v9 to i256
+    v37 = or v36, v34
+    v38 = ne v37, 0
+    jumpi v38, bb3, bb5
   bb5:  ; preds = bb2
     mstore 64, v30 !metadata(memory=scratch)
     mstore v29, v6
@@ -229,11 +227,6 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
   bb4:  ; preds = bb5
     v25 = add v29, 32
     calldatacopy v25, v7, v6
-    v22 = sub 0, v6
-    v23 = and v22, 31
-    v36 = calldatasize
-    v26 = add v25, v6
-    calldatacopy v26, v36, v23
     ret v29
   bb3 [cold]:  ; preds = bb2
     mstore 32, 65 !metadata(memory=scratch)

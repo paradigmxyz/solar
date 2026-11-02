@@ -1253,11 +1253,7 @@ fn @fillPastWord() [selector=0x36818f65, abi_wrapper, pure] {
     v78 = ne v77, 0
     jumpi v78, bb15, bb14
   bb14:  ; preds = bb13
-    v81 = calldatasize
-    calldatacopy v72, v81, 96
     mstore v72, 64
-    v82 = calldatasize
-    calldatacopy v73, v82, 0x500
     v40 = gt arg0, 64
     jumpi v40, bb7, bb6
   bb6:  ; preds = bb14

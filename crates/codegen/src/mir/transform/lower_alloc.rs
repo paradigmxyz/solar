@@ -10,24 +10,29 @@
 //! A checked allocation bumps the pointer only after testing the new end against overflow and
 //! the allocation limit, panicking otherwise. When a module has two or more, one `alloc(size)`
 //! helper owns the pointer load, check, panic, and update, and each site calls it and keeps its
-//! own zeroing; a single checked allocation splits its block around the inline check instead.
+//! own zeroing unless that is dead (see below); a single checked allocation splits its block
+//! around the inline check instead.
 //!
 //! A preserving allocation that reserves bytes an encoder already wrote through an
 //! earlier pointer read in the same block reuses that read instead of loading the
 //! pointer again, as long as only writes addressed from the read word come between.
 //!
 //! A read that returns the entry's initial pointer, because nothing before it may write the
-//! slot (see [`FreshFmpReads`]), takes the heap floor, which codegen knows, instead of loading
+//! slot (see [`FreshHeap`]), takes the heap floor, which codegen knows, instead of loading
 //! the slot. Its allocation still stores the bumped pointer. An entry whose only reads of the
 //! slot are such reads then needs no initialization of it. Under the gas objective, a fresh
 //! checked allocation keeps its own inline check rather than calling the shared helper, as the
 //! helper loads the slot; the size objective keeps the call.
+//!
+//! Memory above the pointer that nothing wrote since the entry still holds zeros, so the
+//! initialization of a zeroed allocation made there, and a `memory_zero` or zero word store into
+//! it that nothing wrote before, are dead and dropped (see [`FreshHeap`]).
 
 use crate::mir::{
     AllocationFailure, AllocationInitialization, AllocationSemantics, EffectKind, Function,
     FunctionBuilder, FunctionId, InstId, InstKind, MemoryRegion, MirType, Module, PanicCode,
     PtrLocation, Value, ValueId,
-    analysis::FreshFmpReads,
+    analysis::FreshHeap,
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
     transform::utils::expand_block,
@@ -57,7 +62,7 @@ impl MirPass for LowerAlloc {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
-        let fresh = FreshFmpReads::new(module, || analyses.call_summaries(module));
+        let fresh = FreshHeap::new(module, || analyses.call_summaries(module));
         lower_alloc(module, analyses, &fresh, gcx.sess.opts.evm_version.has_bitwise_shifting())
     }
 }
@@ -65,13 +70,13 @@ impl MirPass for LowerAlloc {
 fn lower_alloc(
     module: &mut Module,
     analyses: &mut ModuleAnalyses,
-    fresh: &FreshFmpReads,
+    fresh: &FreshHeap,
     has_shifts: bool,
 ) -> bool {
     let mut changed = share_checked_allocations(module, analyses, fresh, has_shifts);
     changed |= run_lowering_function_pass(module, analyses, |func, function_analyses| {
         let id = function_analyses.function();
-        lower_function(func, has_shifts, |inst| fresh.contains(id, inst))
+        lower_function(func, has_shifts, fresh, id)
     });
     changed
 }
@@ -84,7 +89,7 @@ fn lower_alloc(
 fn share_checked_allocations(
     module: &mut Module,
     analyses: &mut ModuleAnalyses,
-    fresh: &FreshFmpReads,
+    fresh: &FreshHeap,
     has_shifts: bool,
 ) -> bool {
     let count = module
@@ -117,7 +122,7 @@ fn share_checked_allocations(
                     builder.func().inst_result_value(inst).expect("allocation has a result");
                 // object = icall checked_alloc size
                 let object = builder.icall(helper, vec![size], MirType::MEMPTR);
-                initialize(builder, object, size, semantics.initialization);
+                initialize(builder, object, size, fresh.initialization(func_id, inst, semantics));
                 replacements.insert(result, object);
                 true
             });
@@ -164,8 +169,10 @@ fn create_checked_alloc(module: &mut Module, has_shifts: bool) -> FunctionId {
 fn lower_function(
     func: &mut Function,
     has_shifts: bool,
-    is_fresh: impl Fn(InstId) -> bool,
+    fresh: &FreshHeap,
+    id: FunctionId,
 ) -> bool {
+    let is_fresh = |inst| fresh.contains(id, inst);
     let has_abstract_memory = func.instructions().any(|inst| {
         matches!(func.inst(inst).kind, InstKind::Fmp | InstKind::SetFmp(_) | InstKind::Alloc { .. })
     });
@@ -200,7 +207,7 @@ fn lower_function(
             // continuation: mstore 64, next
             builder.switch_to_block(continuation);
             store_fmp(builder, next);
-            initialize(builder, ptr, size, semantics.initialization);
+            initialize(builder, ptr, size, fresh.initialization(id, inst, semantics));
             true
         });
     }
@@ -242,7 +249,13 @@ fn lower_function(
                     builder.func_mut().blocks[block].instructions.push(inst);
                     let next = bump(&mut builder, word, size);
                     store_fmp(&mut builder, next);
-                    initialize(&mut builder, ptr, size, semantics.initialization);
+                    initialize(&mut builder, ptr, size, fresh.initialization(id, inst, semantics));
+                }
+                // memory_zero ptr, size | mstore ptr, 0 -> dropped
+                InstKind::MemoryZero(..) | InstKind::Store(..)
+                    if fresh.skips_zero_fill(id, inst) =>
+                {
+                    changed = true;
                 }
                 InstKind::SetFmp(ptr) => {
                     changed = true;
@@ -263,7 +276,7 @@ fn lower_function(
                     rewrite_as_fmp_read(&mut builder, inst, is_fresh(inst));
                     let next = bump(&mut builder, ptr, size);
                     store_fmp(&mut builder, next);
-                    initialize(&mut builder, ptr, size, semantics.initialization);
+                    initialize(&mut builder, ptr, size, fresh.initialization(id, inst, semantics));
                 }
                 _ => {
                     peek.observe(builder.func(), inst);

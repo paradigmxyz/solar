@@ -234,8 +234,6 @@ fn @wrapped() [selector=0x50e70d48, abi_wrapper, pure] {
     jumpi v25, bb2, bb1
   bb1:  ; preds = bb0
     mstore 64, v20 !metadata(memory=scratch)
-    v26 = calldatasize
-    calldatacopy v19, v26, 64
     mstore v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v4 = add v19, 32
     v5 = sub 0, v4
@@ -270,8 +268,6 @@ fn @below() [selector=0x8de62f33, abi_wrapper, pure] {
     jumpi v18, bb4, bb3
   bb3:  ; preds = bb2
     mstore 64, v13 !metadata(memory=scratch)
-    v19 = calldatasize
-    calldatacopy v12, v19, 64
     mstore v12, 1
     v4 = mul v12, arg0
     v6 = sub v12, v4

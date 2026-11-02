@@ -37,8 +37,6 @@ fn @memoryCopy() [selector=0x261f992c, abi_wrapper, pure] {
     v41 = add v50, 32
     mstore v41, 0x1122330000000000000000000000000000000000000000000000000000000000
     v49 = icall @alloc, 64
-    v53 = calldatasize
-    calldatacopy v49, v53, 64
     mstore v49, 3
     v21 = sub arg1, v49
     v8 = ne arg1, 0
@@ -79,8 +77,6 @@ fn @calldataCopy() [selector=0xa70bf1aa, abi_wrapper, pure] {
     jumpi v26, bb1, bb2
   bb2:  ; preds = bb0
     v52 = icall @alloc, 64
-    v54 = calldatasize
-    calldatacopy v52, v54, 64
     mstore v52, 3
     v11 = sub arg1, v52
     v3 = ne arg1, 0
@@ -112,8 +108,6 @@ fn @downCopy() [selector=0xc7e6d660, abi_wrapper, pure] {
     v41 = add v50, 32
     mstore v41, 0x1122330000000000000000000000000000000000000000000000000000000000
     v49 = icall @alloc, 64
-    v53 = calldatasize
-    calldatacopy v49, v53, 64
     mstore v49, 3
     v21 = sub arg1, v49
     v8 = ne arg1, 0

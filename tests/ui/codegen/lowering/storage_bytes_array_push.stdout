@@ -32,8 +32,8 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
     v75 = add v74, 4
     v77 = sub v72, 36
     v78 = gt v74, v77
-    v113 = or v73, v78
-    jumpi v113, bb15, bb16
+    v112 = or v73, v78
+    jumpi v112, bb15, bb16
   bb16:  ; preds = bb0
     v79 = calldataload v75
     v80 = add v75, 32
@@ -46,10 +46,10 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
     v108 = zext i1 v107 to i256
     v109 = shr v106, 64
     v110 = or v108, v109
-    v114 = zext i1 v82 to i256
-    v115 = or v114, v110
-    v116 = ne v115, 0
-    jumpi v116, bb17, bb19
+    v113 = zext i1 v82 to i256
+    v114 = or v113, v110
+    v115 = ne v114, 0
+    jumpi v115, bb17, bb19
   bb19:  ; preds = bb16
     mstore 64, v106 !metadata(memory=scratch)
     mstore v105, v79
@@ -59,11 +59,6 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
   bb18:  ; preds = bb19
     v99 = add v105, 32
     calldatacopy v99, v80, v79
-    v95 = sub 0, v79
-    v96 = and v95, 31
-    v112 = calldatasize
-    v100 = add v99, v79
-    calldatacopy v100, v112, v96
     v0 = sload 0 !metadata(storage=slot(0))
     v5 = shr v0, 64
     v1 = ne v5, 0
