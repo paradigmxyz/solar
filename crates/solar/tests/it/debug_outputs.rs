@@ -557,3 +557,36 @@ fn evm_ir_debug_contexts_preserve_bytecode() {
         }
     }
 }
+
+#[test]
+fn llm_rewrites_are_bytecode_neutral_and_named() {
+    const SOURCE: &str = "../../codegen/mir/llm-optimize/triangle.sol";
+    const SCRIPT: &str = "-Zllm-script=../../codegen/mir/llm-optimize/auxiliary/triangle.script";
+    let runtime = |output: &Value| {
+        output["contracts"].as_object().unwrap().values().next().unwrap()["bin-runtime"].clone()
+    };
+    let id = |output: &Value| output["ethdebug"]["compilation"]["id"].clone();
+    for mode in ["gas", "size"] {
+        let build = |llm: &[&str], emit: &str| {
+            let mut args = vec![SOURCE, "-O", mode, emit];
+            args.extend_from_slice(llm);
+            compile_json(&args)
+        };
+        let script = ["-Zllm-optimize=script", SCRIPT];
+        let plain = build(&[], "--emit=bin-runtime,ethdebug-runtime");
+        let rewritten = build(&script, "--emit=bin-runtime");
+        let debug = build(&script, "--emit=bin-runtime,ethdebug-runtime,srcmap-runtime");
+        let unasked = build(
+            &[&script[..], &["-Zllm-rounds=0"]].concat(),
+            "--emit=bin-runtime,ethdebug-runtime",
+        );
+
+        // The rewrite changes the code, and debug outputs do not change which rewrites apply.
+        assert_ne!(runtime(&rewritten), runtime(&plain), "{mode}");
+        assert_eq!(runtime(&debug), runtime(&rewritten), "{mode}");
+        // Only an applied rewrite names another compilation.
+        assert_ne!(id(&debug), id(&plain), "{mode}");
+        assert_eq!(runtime(&unasked), runtime(&plain), "{mode}");
+        assert_eq!(id(&unasked), id(&plain), "{mode}");
+    }
+}

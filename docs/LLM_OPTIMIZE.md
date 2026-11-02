@@ -334,6 +334,10 @@ The fixtures under `tests/ui/codegen/mir/llm-optimize/` use scripts to cover eve
 
 ## Embedding
 
+Standard JSON takes code-changing options from `settings.solar.unstable`, including
+`llm-optimize=live`, `llm-optimize=script`, and cache or script paths. Command-line
+code-generation flags do not override that input.
+
 `solar::codegen::llm` exposes the rewriter interface. An embedder implements `LlmRewriter`, which
 opens an `LlmSession` per function, and binds it to the session it compiles in with `bind_rewriter`,
 which returns a binding that lasts until it drops, before compiling with `-Zllm-optimize=live`. No
