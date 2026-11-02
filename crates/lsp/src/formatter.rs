@@ -398,4 +398,23 @@ printf 'contract Formatted {}'
             assert!(matches_ignore(&alias.join("src/Exact.sol"), &alias, &["src/*.sol".into()]));
         }
     }
+
+    #[cfg(windows)]
+    #[test]
+    fn glob_root_escape_preserves_windows_prefixes() {
+        for root in [
+            Path::new(r"C:\workspace[1]"),
+            Path::new(r"\\?\C:\workspace[1]"),
+            Path::new(r"\\?\UNC\server\share\workspace[1]"),
+        ] {
+            let escaped = escape_glob_root(&root.join("src/*.sol"), root);
+            assert_eq!(
+                root.components().next(),
+                Path::new(&escaped).components().next(),
+                "{escaped}"
+            );
+            let pattern = Pattern::new(&escaped).unwrap();
+            assert!(pattern.matches_path(&root.join("src/Exact.sol")), "{escaped}");
+        }
+    }
 }
