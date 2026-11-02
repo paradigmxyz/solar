@@ -32,8 +32,8 @@ compilation success, not bytecode equality or runtime equivalence.
 The DuckDB database tracks imports and attempts. Successful jobs are skipped;
 cached failures still stop the run unless --continue-on-failure is set. Use
 --retry-failures to retry them. A changed executable, command, input, timeout,
---max-rss-mb, or --tag creates new jobs. Use --tag when a wrapper's dependencies or environment
-change without changing the wrapper itself. Stricter output-validation revisions
+--max-rss-mb, or --tag creates new jobs. Use --tag when a wrapper's dependencies
+or environment change without changing the wrapper itself. Stricter output-validation revisions
 also start new jobs; older attempt directories are retained. --limit bounds new attempts, not corpus size or cached failures. Any failure makes the run exit 1, including in continue mode.
 
 Every attempt has a directory containing the complete input (inline source texts,
@@ -347,6 +347,7 @@ def execute(command, directory, timeout, input_path=None, *, env=None):
                 process = subprocess.Popen(
                     [
                         sys.executable,
+                        "-I",
                         "-S",
                         str(Path(__file__).with_name("measure.py")),
                         str(report_write),
@@ -574,7 +575,7 @@ def run(db, root, args, *, compilation_id=None, compilers=None, attempts=None):
                     and args.max_rss_mb
                     and result["max_rss_kb"] > args.max_rss_mb * 1024
                 ):
-                    reason = f"peak RSS {result['max_rss_kb'] // 1024} MB exceeds {args.max_rss_mb} MB"
+                    reason = f"peak RSS {result['max_rss_kb'] / 1024:.1f} MB exceeds {args.max_rss_mb} MB"
                 result.update(
                     {
                         "failure": reason,
@@ -679,12 +680,19 @@ def show_resources(db, limit=10):
             print(f"  {compilation_id}: {cells}")
 
 
+def positive_finite(text):
+    value = float(text)
+    if not 0 < value < float("inf"):
+        raise argparse.ArgumentTypeError("must be positive and finite")
+    return value
+
+
 def add_compiler_arguments(runner):
     runner.add_argument("--compiler", action="append", metavar="NAME=COMMAND")
     runner.add_argument("--timeout", type=float, default=120)
     runner.add_argument(
         "--max-rss-mb",
-        type=float,
+        type=positive_finite,
         help="Fail attempts whose peak RSS exceeds this many MB",
     )
     runner.add_argument("--retry-failures", action="store_true")
@@ -729,9 +737,8 @@ def main(argv=None):
     if args.action == "run" and (
         not 0 < args.timeout < float("inf")
         or (args.limit is not None and args.limit < 1)
-        or (args.max_rss_mb is not None and not 0 < args.max_rss_mb < float("inf"))
     ):
-        parser.error("--timeout, --limit and --max-rss-mb must be positive and finite")
+        parser.error("--timeout and --limit must be positive and finite")
     root = args.dir.expanduser().resolve() / args.version
     db = connect(root)
     try:
