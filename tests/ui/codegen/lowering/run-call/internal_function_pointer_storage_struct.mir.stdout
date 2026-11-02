@@ -25,7 +25,7 @@ fn @constructor() [constructor] {
     icall panic_if<0x32>, v11
     v12 = sload 1 !metadata(storage=slot(1))
     v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffff0000000000000000ffff
-    v14 = or v13, 0x20000
+    v14 = or v13, 0x10000
     sstore 1, v14 !metadata(storage=slot(1))
     v15 = lt 1, 2
     v16 = eq v15, false
@@ -46,7 +46,7 @@ fn @constructor() [constructor] {
     icall panic_if<0x32>, v26
     v27 = sload 0 !metadata(storage=slot(0))
     v28 = and v27, 0xffffffffffffffffffffffffffffffffffffffffffff0000000000000000ffff
-    v29 = or v28, 0x10000
+    v29 = or v28, 0x20000
     sstore 0, v29 !metadata(storage=slot(0))
     ret
 }
@@ -98,9 +98,9 @@ fn @internal_dispatcher_p_none_r_uint256(arg0: i256) -> i256 [function_pointer_d
     icall panic_if<0x51>, true
     invalid
   bb3:  ; preds = bb2
-    v3 = icall @secondTarget
+    v3 = icall @firstTarget
     ret v3
   bb1:  ; preds = bb0
-    v1 = icall @firstTarget
+    v1 = icall @secondTarget
     ret v1
 }

@@ -6,7 +6,7 @@ fn @constructor() [constructor] {
     sstore 0, 5 !metadata(storage=slot(0))
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
-    v2 = or v1, 6
+    v2 = or v1, 1
     sstore 1, v2 !metadata(storage=slot(1))
     ret
 }
@@ -20,7 +20,7 @@ fn @quote(arg0: i1, arg1: i256) -> i256 [selector=0x4df60b01, view, abi_params=[
   bb1:  ; preds = bb0
     jump bb3
   bb3:  ; preds = bb1, bb2
-    v0 = phi [bb1: 7], [bb2: 6]
+    v0 = phi [bb1: 2], [bb2: 1]
     v1 = icall @internal_dispatcher_p_storageptr_uint256_r_uint256, v0, 0, arg1
     ret v1
 }
@@ -28,7 +28,7 @@ fn @quote(arg0: i1, arg1: i256) -> i256 [selector=0x4df60b01, view, abi_params=[
 ; function invoke(uint256 v) external returns (uint256) [selector 0x2b30d2b8]
 fn @invoke(arg0: i256) -> i256 [selector=0x2b30d2b8, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    icall @internal_dispatcher_p_storageptr_uint256_r_none, 8, 0, arg0
+    icall @internal_dispatcher_p_storageptr_uint256_r_none, 3, 0, arg0
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
@@ -46,7 +46,7 @@ fn @callStored(arg0: i256) -> i256 [selector=0xc0c5a3a7, view, abi_params=[uint2
 ; function writeThrough(uint256 v) external returns (uint256) [selector 0x23d2c16c]
 fn @writeThrough(arg0: i256) -> i256 [selector=0x23d2c16c, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = icall @internal_dispatcher_p_storageptr_r_storageptr, 9, 0
+    v0 = icall @internal_dispatcher_p_storageptr_r_storageptr, 4, 0
     sstore v0, arg0 !metadata(storage=symbolic(v0))
     v1 = sload 0 !metadata(storage=slot(0))
     ret v1
@@ -86,10 +86,10 @@ fn @identity(arg0: i256) -> i256 [pure] {
 
 fn @internal_dispatcher_p_storageptr_uint256_r_uint256(arg0: i256, arg1: i256, arg2: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
-    v0 = eq arg0, 6
+    v0 = eq arg0, 1
     jumpi v0, bb1, bb2
   bb2:  ; preds = bb0
-    v2 = eq arg0, 7
+    v2 = eq arg0, 2
     jumpi v2, bb3, bb4
   bb4:  ; preds = bb2
     icall panic_if<0x51>, true
@@ -104,7 +104,7 @@ fn @internal_dispatcher_p_storageptr_uint256_r_uint256(arg0: i256, arg1: i256, a
 
 fn @internal_dispatcher_p_storageptr_uint256_r_none(arg0: i256, arg1: i256, arg2: i256) [function_pointer_dispatcher] {
   bb0:
-    v0 = eq arg0, 8
+    v0 = eq arg0, 3
     jumpi v0, bb1, bb2
   bb2:  ; preds = bb0
     icall panic_if<0x51>, true
@@ -116,7 +116,7 @@ fn @internal_dispatcher_p_storageptr_uint256_r_none(arg0: i256, arg1: i256, arg2
 
 fn @internal_dispatcher_p_storageptr_r_storageptr(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
-    v0 = eq arg0, 9
+    v0 = eq arg0, 4
     jumpi v0, bb1, bb2
   bb2:  ; preds = bb0
     icall panic_if<0x51>, true

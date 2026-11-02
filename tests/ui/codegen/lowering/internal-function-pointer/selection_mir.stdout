@@ -9,7 +9,7 @@ fn @choose(arg0: i1, arg1: i256) -> i256 [selector=0xced8609d, abi_params=[bool,
   bb1:  ; preds = bb0
     jump bb3
   bb3:  ; preds = bb1, bb2
-    v0 = phi [bb1: 2], [bb2: 3]
+    v0 = phi [bb1: 1], [bb2: 2]
     v1 = icall @internal_dispatcher_p_uint256_r_uint256, v0, arg1
     ret v1
 }
@@ -31,14 +31,14 @@ fn @decrement(arg0: i256) -> i256 [pure] {
 ; function callConstant(uint256 value) public returns (uint256) [selector 0x0560cf94]
 fn @callConstant(arg0: i256) -> i256 [selector=0x0560cf94, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = icall @internal_dispatcher_p_uint256_r_uint256, 2, arg0
+    v0 = icall @internal_dispatcher_p_uint256_r_uint256, 1, arg0
     ret v0
 }
 
 ; function throughCast(uint256 value) public pure returns (uint256) [selector 0x090ff363]
 fn @throughCast(arg0: i256) -> i256 [selector=0x090ff363, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = icall @castViewToPure, 7
+    v0 = icall @castViewToPure, 3
     v1 = icall @internal_dispatcher_p_uint256_r_uint256, v0, arg0
     ret v1
 }
@@ -66,13 +66,13 @@ fn @incrementView(arg0: i256) -> i256 [view] {
 
 fn @internal_dispatcher_p_uint256_r_uint256(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
-    v0 = eq arg0, 2
+    v0 = eq arg0, 1
     jumpi v0, bb1, bb2
   bb2:  ; preds = bb0
-    v2 = eq arg0, 3
+    v2 = eq arg0, 2
     jumpi v2, bb3, bb4
   bb4:  ; preds = bb2
-    v4 = eq arg0, 7
+    v4 = eq arg0, 3
     jumpi v4, bb5, bb6
   bb6:  ; preds = bb4
     icall panic_if<0x51>, true

@@ -6,7 +6,7 @@ fn @constructor() [constructor] {
     v0 = mapping_slot 0x1234, 1
     v1 = sload v0 !metadata(storage=symbolic(v0))
     v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
-    v3 = or v2, 2
+    v3 = or v2, 1
     sstore v0, v3 !metadata(storage=symbolic(v0))
     ret
 }
@@ -17,7 +17,7 @@ fn @stage0() {
     v0 = mapping_slot 0x1234, 1
     v1 = sload v0 !metadata(storage=symbolic(v0))
     v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
-    v3 = or v2, 3
+    v3 = or v2, 2
     sstore v0, v3 !metadata(storage=symbolic(v0))
     ret
 }
@@ -28,7 +28,7 @@ fn @stage1() {
     v0 = mapping_slot 0x1234, 1
     v1 = sload v0 !metadata(storage=symbolic(v0))
     v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
-    v3 = or v2, 4
+    v3 = or v2, 3
     sstore v0, v3 !metadata(storage=symbolic(v0))
     ret
 }
@@ -69,13 +69,13 @@ fn @run() -> i1 [selector=0xc0406226, abi_params=[], abi_returns=[word<bool>], a
 
 fn @internal_dispatcher_p_none_r_none(arg0: i256) [function_pointer_dispatcher] {
   bb0:
-    v0 = eq arg0, 2
+    v0 = eq arg0, 1
     jumpi v0, bb1, bb2
   bb2:  ; preds = bb0
-    v1 = eq arg0, 3
+    v1 = eq arg0, 2
     jumpi v1, bb3, bb4
   bb4:  ; preds = bb2
-    v2 = eq arg0, 4
+    v2 = eq arg0, 3
     jumpi v2, bb5, bb6
   bb6:  ; preds = bb4
     icall panic_if<0x51>, true
