@@ -1,0 +1,80 @@
+- // === ROOT/tests/ui/codegen/mir/lower-frame-slots/frame_slots_run.mir (before lower-frame-slots) ===
++ // === ROOT/tests/ui/codegen/mir/lower-frame-slots/frame_slots_run.mir (after lower-frame-slots) ===
+  @module FrameSlotRun
+  ; runtime dispatch entry
+  fn @entry() [entry] {
+    bb0:
+      v0 = calldataload 0
+      v1 = shr v0, 224
+      switch v1, default bb3, [0x37a6096a => bb1, 0x11546183 => bb2]
+    bb2:  ; preds = bb0
+      tail_call @plain
+    bb1:  ; preds = bb0
+      tail_call @scratch
+    bb3 [cold]:  ; preds = bb0
+      revert 0, 0
+  }
+  
+  fn @scratch() {
+    bb0:
+      v0 = calldataload 4
+-     frame_store scratch, word, 0, v0
+-     frame_store scratch, word, 32, 7
+-     v1 = frame_load scratch, word, 0
+-     v2 = frame_load scratch, word, 32
+-     v3 = add v1, v2
++     mstore 128, v0
++     mstore 160, 7
++     v4 = mload 128
++     v5 = mload 160
++     v3 = add v4, v5
+      mstore 0, v3
+      returndata 0, 32
+  }
+  
+  fn @plain() {
+    bb0:
+      v0 = calldataload 4
+      v1 = add v0, 1
+      mstore 0, v1
+      returndata 0, 32
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/lower-frame-slots/frame_slots_run.mir (before lower-evm-shaped) ===
++ // === ROOT/tests/ui/codegen/mir/lower-frame-slots/frame_slots_run.mir (after lower-evm-shaped) ===
+  @module FrameSlotRun
++ @phase lowered
+  ; runtime dispatch entry
+  fn @entry() [entry] {
+    bb0:
+      v0 = calldataload 0
+      v1 = shr v0, 224
+      switch v1, default bb3, [0x37a6096a => bb1, 0x11546183 => bb2]
+    bb2:  ; preds = bb0
+      tail_call @plain
+    bb1:  ; preds = bb0
+      tail_call @scratch
+    bb3 [cold]:  ; preds = bb0
+      revert 0, 0
+  }
+  
+  fn @scratch() {
+    bb0:
+      v0 = calldataload 4
+      mstore 128, v0
+      mstore 160, 7
+      v4 = mload 128
+      v5 = mload 160
+      v3 = add v4, v5
+      mstore 0, v3
+      returndata 0, 32
+  }
+  
+  fn @plain() {
+    bb0:
+      v0 = calldataload 4
+      v1 = add v0, 1
+      mstore 0, v1
+      returndata 0, 32
+  }
+  

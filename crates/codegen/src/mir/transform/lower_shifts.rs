@@ -75,6 +75,7 @@ impl MirPass for LowerShifts {
                 factors.clear();
                 expand_block(&mut builder, block, |builder, inst| {
                     if let Some(kind) = lower_shift(builder, target, &mut factors, inst) {
+                        let kind = builder.func().canonical_kind(kind);
                         builder.func_mut().inst_mut(inst).replace_kind(kind);
                         changed = true;
                     }

@@ -5,6 +5,7 @@
   struct1: {i256, i256, i256, i256, i256, i256, i256, i256, i256}
   struct2: {i256, i256, i256, i256, i256}
 
+; function inequalities(uint256 x, uint256 y, bool flag) external pure returns ( bool direct, bool difference, bool bits, bool inverted, bool boolean, bool bounded ) [selector 0xca51df96]
 fn @inequalities(arg0: i256, arg1: i256, arg2: i1) -> struct0 [selector=0xca51df96, pure, abi_params=[uint256, uint256, bool], abi_returns=[word<bool>, word<bool>, word<bool>, word<bool>, word<bool>, word<bool>], abi_return_params=[bool, bool, bool, bool, bool, bool]] {
   bb0:
     v0 = ne arg0, arg1
@@ -28,6 +29,7 @@ fn @inequalities(arg0: i256, arg1: i256, arg2: i1) -> struct0 [selector=0xca51df
     ret v17
 }
 
+; function mixed(uint256 x, uint256 y) external pure returns ( uint256 a, uint256 b, uint256 c, uint256 d, uint256 e, uint256 f, uint256 g, uint256 h, uint256 i ) [selector 0xce4cbe4b]
 fn @mixed(arg0: i256, arg1: i256) -> struct1 [selector=0xce4cbe4b, pure, abi_params=[uint256, uint256], abi_returns=[word, word, word, word, word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = xor arg0, arg1
@@ -69,28 +71,27 @@ fn @mixed(arg0: i256, arg1: i256) -> struct1 [selector=0xce4cbe4b, pure, abi_par
     ret v35
 }
 
+; function arithmetic(uint256 x, uint256 y) external pure returns ( uint256 a, uint256 b, uint256 c, uint256 d, uint256 e ) [selector 0x6cbb5ae3]
 fn @arithmetic(arg0: i256, arg1: i256) -> struct2 [selector=0x6cbb5ae3, pure, abi_params=[uint256, uint256], abi_returns=[word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256]] {
   bb0:
-    v0 = not 0
-    v1 = mul arg0, v0
-    v2 = not 0
-    v3 = sdiv arg0, v2
-    v4 = not arg1
+    v0 = mul arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v1 = sdiv arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v2 = not arg1
+    v3 = not arg0
+    v4 = sub v3, v2
     v5 = not arg0
-    v6 = sub v5, v4
-    v7 = not arg0
-    v8 = add arg0, v7
-    v9 = not 0
-    v10 = mul arg0, v9
-    v11 = add v10, arg0
-    v12 = insert_value struct2, undef struct2, 0, v1
-    v13 = insert_value struct2, v12, 1, v3
-    v14 = insert_value struct2, v13, 2, v6
-    v15 = insert_value struct2, v14, 3, v8
-    v16 = insert_value struct2, v15, 4, v11
-    ret v16
+    v6 = add v5, arg0
+    v7 = mul arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v8 = add v7, arg0
+    v9 = insert_value struct2, undef struct2, 0, v0
+    v10 = insert_value struct2, v9, 1, v1
+    v11 = insert_value struct2, v10, 2, v4
+    v12 = insert_value struct2, v11, 3, v6
+    v13 = insert_value struct2, v12, 4, v8
+    ret v13
 }
 
+; function guards(uint256 x, uint256 y) external pure returns ( uint256 a, uint256 b, uint256 c, uint256 d, uint256 e ) [selector 0x98aa2c32]
 fn @guards(arg0: i256, arg1: i256) -> struct2 [selector=0x98aa2c32, pure, abi_params=[uint256, uint256], abi_returns=[word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = mul arg0, 2

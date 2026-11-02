@@ -30,6 +30,9 @@ pub struct Function {
     pub declaration_span: Span,
     /// Source-language identifier retained independently of the MIR symbol.
     pub debug_identifier: Option<Symbol>,
+    /// Source signature for the text dumps, set only when a dump is requested. It never affects
+    /// code generation.
+    pub debug_signature: Option<Symbol>,
     /// Function selector (4 bytes, for external functions).
     pub selector: Option<[u8; 4]>,
     /// Function attributes.
@@ -38,7 +41,8 @@ pub struct Function {
     pub params: IndexVec<ArgIdx, MirType>,
     /// The function's single logical result, or `void`.
     return_type: MirType,
-    /// Components selected by internal ABI lowering. The logical result stays intact.
+    /// Components selected by internal ABI lowering. A slice result stays logical; a function
+    /// returning several words has no logical result and only these components.
     return_abi: Option<Box<[MirType]>>,
     /// ABI layout of values returned by an external entry before `lower-abi`
     /// materializes returndata encoding.
@@ -89,6 +93,7 @@ impl Function {
             name_span: name.span,
             declaration_span: name.span,
             debug_identifier: None,
+            debug_signature: None,
             selector: None,
             attributes: FunctionAttributes::default(),
             params: IndexVec::new(),
@@ -146,6 +151,28 @@ impl Function {
         })
     }
 
+    /// Returns the note that the text dumps print before this function: its source signature
+    /// and role, such as `function add(uint256 a) external [selector 0x771602f7]`.
+    pub fn entry_note(&self, is_dispatch_entry: bool, is_constructor: bool) -> Option<String> {
+        let role = if is_dispatch_entry {
+            "runtime dispatch entry".to_string()
+        } else if is_constructor {
+            "creation entry".to_string()
+        } else if let Some(selector) = self.selector {
+            format!("selector 0x{:08x}", u32::from_be_bytes(selector))
+        } else if self.attributes.is_fallback {
+            "fallback".to_string()
+        } else if self.attributes.is_receive {
+            "receive".to_string()
+        } else {
+            return self.debug_signature.map(|signature| signature.to_string());
+        };
+        Some(match self.debug_signature {
+            Some(signature) => format!("{signature} [{role}]"),
+            None => role,
+        })
+    }
+
     /// Returns whether `lower-dispatch` routes selectors, `receive`, or `fallback` calls to this
     /// function, by the attributes that function drops once `entry` exists.
     pub fn is_dispatched(&self) -> bool {
@@ -155,6 +182,12 @@ impl Function {
     /// Clears the entry and ABI attributes, which `entry` makes obsolete: the module roots
     /// carry the routing, and the wrappers carry their decoding and encoding as ordinary MIR.
     pub fn clear_entry_attributes(&mut self) {
+        // The dumps keep the role the attributes gave this function, as part of its signature.
+        if self.debug_signature.is_some()
+            && let Some(note) = self.entry_note(false, false)
+        {
+            self.debug_signature = Some(Symbol::intern(&note));
+        }
         self.selector = None;
         self.abi_returns = None;
         self.abi_return_params = None;
@@ -687,7 +720,17 @@ impl Function {
     }
 
     /// Allocates a value-producing instruction and its result value.
+    ///
+    /// Commutative operands and comparisons are put in canonical order, see
+    /// [`canonical_kind`](Self::canonical_kind).
     pub fn alloc_value_inst(&mut self, mut inst: Instruction) -> (InstId, ValueId) {
+        inst.kind = self.canonical_kind(inst.kind);
+        self.alloc_value_inst_verbatim(inst)
+    }
+
+    /// Allocates a value-producing instruction with its operands as written. Use it only when
+    /// the operands are not yet final or the text of a test must stay as written.
+    pub fn alloc_value_inst_verbatim(&mut self, mut inst: Instruction) -> (InstId, ValueId) {
         assert!(inst.result_ty.is_some(), "value-producing instruction must have a result type");
 
         let inst_id = self.instructions.next_idx();
@@ -919,6 +962,9 @@ pub struct FunctionAttributes {
     /// The widest word the single array this function returns can hold, when element
     /// cleanup proved one. Its caller can re-encode the array without cleaning it.
     pub array_return_element_bits: Option<u32>,
+    /// The `@custom:solar-cold` tag marks the function rarely run. Unlike `hotness`, it says
+    /// nothing about whether the function returns.
+    pub cold_hint: bool,
     /// Whether every reachable exit aborts, so calls to this function are rare. Computed by the
     /// hotness analysis, which the pass manager reruns after every pass that changes the module.
     pub hotness: Hotness,
@@ -953,8 +999,16 @@ impl Default for FunctionAttributes {
             optimization: None,
             array_element_bits: FxHashMap::default(),
             array_return_element_bits: None,
+            cold_hint: false,
             hotness: Hotness::Hot,
         }
+    }
+}
+
+impl FunctionAttributes {
+    /// Whether the function is rarely run: every exit aborts, or its tag says so.
+    pub fn is_rarely_run(&self) -> bool {
+        self.hotness.is_cold() || self.cold_hint
     }
 }
 

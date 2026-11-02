@@ -10,11 +10,12 @@
 @immutables
   offset: uint96
 
+; constructor(uint96[] memory batches, address receiver, uint96 startingId) [creation entry]
 fn @constructor(arg0: ptr<memory>, arg1: i160, arg2: i96) [constructor, abi_params=[array<_, uint96>, address, uint96]] {
   bb0:
     storeimmutable offset, arg2
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: arg2], [bb3: v2]
@@ -22,11 +23,11 @@ fn @constructor(arg0: ptr<memory>, arg1: i160, arg2: i96) [constructor, abi_para
     v4 = mload v0
     v5 = lt v3, v4
     jumpi v5, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret
-  bb4:
+  bb4:  ; preds = bb1
     v6 = mload v0
     v7 = lt v3, v6
     v8 = eq v7, false
@@ -38,13 +39,14 @@ fn @constructor(arg0: ptr<memory>, arg1: i160, arg2: i96) [constructor, abi_para
     v13 = trunc i256 v12 to i96
     v14 = icall @mint, v1, v13
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v15 = checked_add uint256, v3, 1
     jump bb1
 }
 
+; function latestKey() external view returns (uint96 key) [selector 0x8ee82b53]
 fn @latestKey() -> i96 [selector=0x8ee82b53, view, abi_params=[], abi_returns=[word<uint96>], abi_return_params=[uint96]] {
   bb0:
     v0 = icall @latest, 6
@@ -54,30 +56,32 @@ fn @latestKey() -> i96 [selector=0x8ee82b53, view, abi_params=[], abi_returns=[w
     ret v2
 }
 
+; function next() external view returns (uint96) [selector 0x4c8fe526]
 fn @next() -> i96 [selector=0x4c8fe526, view, abi_params=[], abi_returns=[word<uint96>], abi_return_params=[uint96]] {
   bb0:
     v0 = icall @nextId
     ret v0
 }
 
+; function push(Trace storage self, uint96 key, uint160 value) internal
 fn @push(arg0: i256, arg1: i96, arg2: i160) {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = ne v0, 0
     jumpi v1, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v2 = checked_sub uint256, v0, 1
     v3 = icall @unsafeAccess, arg0, v2
     v4 = sload v3 !metadata(storage=symbolic(v3))
     v5 = trunc i256 v4 to i96
-    v6 = gt v5, arg1
+    v6 = lt arg1, v5
     v7 = eq v6, false
     v8 = eq v7, false
     icall revert_if<empty>, v8
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v9 = alloc 64
     v10 = zext i96 arg1 to i256
     v11 = zext i160 arg2 to i256
@@ -92,38 +96,36 @@ fn @push(arg0: i256, arg1: i96, arg2: i160) {
     v17 = add v16, v13
     v18 = mload v9
     v19 = sload v17 !metadata(storage=symbolic(v17))
-    v20 = not 0xffffffffffffffffffffffff
-    v21 = and v19, v20
-    v22 = and v18, 0xffffffffffffffffffffffff
-    v23 = or v21, v22
-    sstore v17, v23 !metadata(storage=symbolic(v17))
-    v24 = ptradd v9, 32
-    v25 = mload v24
-    v26 = shl 0xffffffffffffffffffffffffffffffffffffffff, 96
-    v27 = sload v17 !metadata(storage=symbolic(v17))
-    v28 = not v26
-    v29 = and v27, v28
-    v30 = and v25, 0xffffffffffffffffffffffffffffffffffffffff
-    v31 = shl v30, 96
-    v32 = or v29, v31
-    sstore v17, v32 !metadata(storage=symbolic(v17))
+    v20 = and v19, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
+    v21 = and v18, 0xffffffffffffffffffffffff
+    v22 = or v20, v21
+    sstore v17, v22 !metadata(storage=symbolic(v17))
+    v23 = ptradd v9, 32
+    v24 = mload v23
+    v25 = sload v17 !metadata(storage=symbolic(v17))
+    v26 = and v25, 0xffffffffffffffffffffffff
+    v27 = and v24, 0xffffffffffffffffffffffffffffffffffffffff
+    v28 = shl v27, 96
+    v29 = or v26, v28
+    sstore v17, v29 !metadata(storage=symbolic(v17))
     sstore arg0, v15 !metadata(storage=symbolic(arg0))
     ret
 }
 
+; function latest(Trace storage self) internal view returns (bool exists, uint96 key, uint160 value)
 fn @latest(arg0: i256) -> struct0 [view] {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = ne v0, 0
     jumpi v1, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     v12 = insert_value struct0, undef struct0, 0, false
     v13 = insert_value struct0, v12, 1, i96 0
     v14 = insert_value struct0, v13, 2, i160 0
     ret v14
-  bb1:
+  bb1:  ; preds = bb0
     v2 = checked_sub uint256, v0, 1
     v3 = icall @unsafeAccess, arg0, v2
     v4 = sload v3 !metadata(storage=symbolic(v3))
@@ -137,6 +139,7 @@ fn @latest(arg0: i256) -> struct0 [view] {
     ret v11
 }
 
+; function unsafeAccess(Checkpoint[] storage self, uint256 index) private pure returns (Checkpoint storage result)
 fn @unsafeAccess(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     mstore 0, arg0 !metadata(memory=scratch)
@@ -145,6 +148,7 @@ fn @unsafeAccess(arg0: i256, arg1: i256) -> i256 [pure] {
     ret v1
 }
 
+; function mint(address receiver, uint96 batch) private returns (uint96 next)
 fn @mint(arg0: i160, arg1: i96) -> i96 {
   bb0:
     v0 = icall @nextId
@@ -159,6 +163,7 @@ fn @mint(arg0: i160, arg1: i96) -> i96 {
     ret v0
 }
 
+; function nextId() private view returns (uint96)
 fn @nextId() -> i96 [view] {
   bb0:
     v0 = icall @latest, 6
@@ -166,13 +171,13 @@ fn @nextId() -> i96 [view] {
     v2 = extract_value struct0, v0, 1
     v3 = extract_value struct0, v0, 2
     jumpi v1, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v5 = loadimmutable offset
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v4 = checked_add uint96, v2, i96 1
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v6 = phi [bb1: v4], [bb2: v5]
     ret v6
 }
@@ -183,18 +188,19 @@ fn @nextId() -> i96 [view] {
   CheckpointTarget_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/checkpoint_constructor.sol:CheckpointTarget"
   ConstructorMultiReturn_creation_code_1: creation_code "ROOT/tests/ui/codegen/lowering/run-call/checkpoint_constructor.sol:ConstructorMultiReturn"
 
+; function deploy() external returns (uint96) [selector 0x775c300c]
 fn @deploy() -> i96 [selector=0x775c300c, abi_params=[], abi_returns=[word<uint96>], abi_return_params=[uint96]] {
   bb0:
     v0 = alloc zeroed checked 96
     mstore v0, 2
     v1 = mload v0
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = ptradd v0, 32
     mstore v4, 0xf52
     v5 = mload v0
-    v6 = lt 1, v5
+    v6 = gt v5, 1
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = ptradd v0, 64
@@ -214,30 +220,30 @@ fn @deploy() -> i96 [selector=0x775c300c, abi_params=[], abi_returns=[word<uint9
     v18 = create 0, v14, v12
     v19 = ne v18, i160 0
     jumpi v19, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v20 = gas
     mstore 0, 0x8ee82b53 !metadata(memory=scratch)
     v21 = zext i160 v18 to i256
     v22 = staticcall v20, v21, 28, 4, 0, 32
     jumpi v22, bb4, bb3
-  bb3:
+  bb3:  ; preds = bb2
     revert_returndata
-  bb4:
+  bb4:  ; preds = bb2
     v23 = returndatasize
     v24 = lt v23, 32
     icall revert_if<tuple_data_too_short>, v24
-    v25 = add 0, 0
-    v26 = mload v25
-    v27 = shr v26, 96
-    v28 = eq v27, 0
-    v29 = eq v28, false
-    icall revert_if<empty>, v29
-    v30 = trunc i256 v26 to i96
-    ret v30
+    v25 = mload 0 !metadata(memory=scratch)
+    v26 = shr v25, 96
+    v27 = eq v26, 0
+    v28 = eq v27, false
+    icall revert_if<empty>, v28
+    v29 = trunc i256 v25 to i96
+    ret v29
 }
 
+; function multiReturn() external returns (uint8) [selector 0xfeb8bba3]
 fn @multiReturn() -> i8 [selector=0xfeb8bba3, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     v0 = datasize ConstructorMultiReturn_creation_code_1
@@ -246,28 +252,27 @@ fn @multiReturn() -> i8 [selector=0xfeb8bba3, abi_params=[], abi_returns=[word<u
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = gas
     mstore 0, 0x3fa4f245 !metadata(memory=scratch)
     v5 = zext i160 v2 to i256
     v6 = staticcall v4, v5, 28, 4, 0, 32
     jumpi v6, bb4, bb3
-  bb3:
+  bb3:  ; preds = bb2
     revert_returndata
-  bb4:
+  bb4:  ; preds = bb2
     v7 = returndatasize
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
-    v9 = add 0, 0
-    v10 = mload v9
-    v11 = shr v10, 8
-    v12 = eq v11, 0
-    v13 = eq v12, false
-    icall revert_if<empty>, v13
-    v14 = trunc i256 v10 to i8
-    ret v14
+    v9 = mload 0 !metadata(memory=scratch)
+    v10 = shr v9, 8
+    v11 = eq v10, 0
+    v12 = eq v11, false
+    icall revert_if<empty>, v12
+    v13 = trunc i256 v9 to i8
+    ret v13
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/checkpoint_constructor.sol:ConstructorMultiReturn ===
@@ -278,12 +283,7 @@ fn @multiReturn() -> i8 [selector=0xfeb8bba3, abi_params=[], abi_returns=[word<u
 @immutables
   value: uint8
 
-fn @value() -> i8 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
-  bb0:
-    v0 = loadimmutable value
-    ret v0
-}
-
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = icall @pair
@@ -293,6 +293,14 @@ fn @constructor() [constructor] {
     ret
 }
 
+; getter for `uint8 public immutable value` [selector 0x3fa4f245]
+fn @value() -> i8 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
+  bb0:
+    v0 = loadimmutable value
+    ret v0
+}
+
+; function pair() private pure returns (bool, uint8)
 fn @pair() -> struct0 [pure] {
   bb0:
     v0 = insert_value struct0, undef struct0, 0, true

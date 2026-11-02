@@ -34,7 +34,7 @@ impl MirModuleTarget for Module {
     }
 
     fn target_of(&self, gcx: Gcx<'_>, func: &Function) -> Target {
-        Target::new(gcx, self.objective_of(func)).priced_for_cold(func.attributes.hotness.is_cold())
+        Target::new(gcx, self.objective_of(func)).priced_for_cold(func.attributes.is_rarely_run())
     }
 }
 
@@ -353,7 +353,9 @@ mod round_trip {
         if original.functions.len() != parsed.functions.len() {
             return Err("function count changed during round-trip".into());
         }
-        for (before, after) in original.functions.iter().zip(&parsed.functions) {
+        for ((_, before), (_, after)) in
+            original.functions_in_print_order().zip(parsed.functions_in_print_order())
+        {
             if before.return_type() != after.return_type()
                 || before.return_abi() != after.return_abi()
             {

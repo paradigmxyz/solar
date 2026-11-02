@@ -5,13 +5,13 @@
     bb0:
       v0 = lt arg0, 10
 -     jumpi v0, bb1, bb2
--   bb2:
+-   bb2:  ; preds = bb0
 -     v2 = xor arg1, 7
 -     jump bb3
--   bb1:
+-   bb1:  ; preds = bb0, bb4
       v1 = mul arg1, 3
 -     jump bb3
--   bb3:
+-   bb3:  ; preds = bb1, bb2
 -     v3 = phi [bb1: v1], [bb2: v2]
 -     ret v3
 -   bb4:
@@ -19,7 +19,7 @@
 +     v2 = xor arg1, 7
 +     v4 = sub v1, v2
 +     v5 = zext i1 v0 to i256
-+     v6 = mul v5, v4
++     v6 = mul v4, v5
 +     v7 = add v2, v6
 +     ret v7
   }

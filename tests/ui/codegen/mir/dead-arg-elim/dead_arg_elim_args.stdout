@@ -21,19 +21,21 @@
 + fn @recursive(arg0: i1, arg1: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       ret arg1
-    bb1:
+    bb1:  ; preds = bb0
 -     v0 = icall @recursive, false, arg1, arg2
 +     v0 = icall @recursive, false, arg1
       ret v0
   }
   
+  ; selector 0x01020304
   fn @external_keeps_abi(arg0: i256, arg1: i256) -> i256 [selector=0x01020304] {
     bb0:
       ret arg0
   }
   
+  ; selector 0x01020305
   fn @entry() -> i256 [selector=0x01020305] {
     bb0:
 -     v0 = icall @forward, 1, 2, 3
@@ -58,6 +60,7 @@
 +     tail_call @tail_sink, arg0
   }
   
+  ; selector 0x01020306
   fn @tail_entry() [selector=0x01020306] {
     bb0:
 -     tail_call @tail_forward, 4, 5
@@ -68,11 +71,11 @@
 + fn @same_argument(arg0: i1, arg1: i256) {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       sstore 1, arg1
 -     ret arg1
 +     ret
-    bb1:
+    bb1:  ; preds = bb0
       sstore 0, arg1
 -     ret arg1
 +     ret
@@ -81,21 +84,22 @@
   fn @different_arguments(arg0: i1, arg1: i256, arg2: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       ret arg2
-    bb1:
+    bb1:  ; preds = bb0
       ret arg1
   }
   
   fn @tail_result(arg0: i1, arg1: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       tail_call @different_arguments, arg0, arg1, 11
-    bb1:
+    bb1:  ; preds = bb0
       ret arg1
   }
   
+  ; selector 0x01020307
   fn @forwarded_calls(arg0: i1, arg1: i256) -> i256 [selector=0x01020307] {
     bb0:
 -     v0 = icall @same_argument, arg0, arg1
@@ -117,14 +121,14 @@
   fn @constant(arg0: i1, arg1: i1, arg2: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       jumpi arg1, bb3, bb4
-    bb4 [cold]:
+    bb4 [cold]:  ; preds = bb2
       revert 0, 0
-    bb3:
+    bb3:  ; preds = bb2
       sstore 1, arg2
       ret 9
-    bb1:
+    bb1:  ; preds = bb0
       sstore 0, arg2
       ret 9
   }
@@ -132,12 +136,13 @@
   fn @different_constants(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       ret 10
-    bb1:
+    bb1:  ; preds = bb0
       ret 9
   }
   
+  ; selector 0x01020308
   fn @constant_entry(arg0: i1, arg1: i1, arg2: i256) -> i256 [selector=0x01020308] {
     bb0:
       v0 = icall @constant, arg0, arg1, arg2
@@ -147,6 +152,7 @@
       ret v2
   }
   
+  ; selector 0x01020309
   fn @constant_store(arg0: i1, arg1: i1, arg2: i256) [selector=0x01020309] {
     bb0:
       v0 = icall @constant, arg0, arg1, arg2
@@ -154,6 +160,7 @@
       ret
   }
   
+  ; selector 0x0102030a
   fn @constant_return(arg0: i1, arg1: i1, arg2: i256) -> i256 [selector=0x0102030a] {
     bb0:
       v0 = icall @constant, arg0, arg1, arg2

@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256}
 
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     sstore 0, 5 !metadata(storage=slot(0))
@@ -11,10 +12,11 @@ fn @constructor() [constructor] {
     ret
 }
 
+; function sum(uint256[] calldata keys) external view returns (uint256 total) [selector 0x0194db8e]
 fn @sum(arg0: slice<calldata>) -> i256 [selector=0x0194db8e, view, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v32]
     v2 = phi [bb0: 0], [bb3: v29]
@@ -23,11 +25,11 @@ fn @sum(arg0: slice<calldata>) -> i256 [selector=0x0194db8e, view, abi_params=[a
     v5 = extract_value slice<calldata>, v0, 1
     v6 = lt v3, v5
     jumpi v6, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v1
-  bb4:
+  bb4:  ; preds = bb1
     v7 = extract_value slice<calldata>, v0, 1
     v8 = lt v3, v7
     v9 = eq v8, false
@@ -40,11 +42,11 @@ fn @sum(arg0: slice<calldata>) -> i256 [selector=0x0194db8e, view, abi_params=[a
     v14 = ptrtoint ptr<calldata> v10 to i256
     v15 = add v14, v11
     v16 = calldataload v15
-    v17 = ne v2, v16
+    v17 = ne v16, v2
     jumpi v17, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb4
     jump bb9
-  bb7:
+  bb7:  ; preds = bb4
     v18 = extract_value slice<calldata>, v0, 1
     v19 = lt v3, v18
     v20 = eq v19, false
@@ -59,28 +61,29 @@ fn @sum(arg0: slice<calldata>) -> i256 [selector=0x0194db8e, view, abi_params=[a
     v27 = calldataload v26
     v28 = mapping_slot v27, 1
     jump bb9
-  bb9:
+  bb9:  ; preds = bb7, bb8
     v29 = phi [bb7: v27], [bb8: v2]
     v30 = phi [bb7: v28], [bb8: v4]
     v31 = sload v30 !metadata(storage=symbolic(v30))
     v32 = checked_add uint256, v1, v31
     jump bb6
-  bb6:
+  bb6:  ; preds = bb9
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v33 = checked_add uint256, v3, 1
     jump bb1
 }
 
+; function write(bool assign, uint256 value) external returns (uint256, uint256) [selector 0x6eb8533f]
 fn @write(arg0: i1, arg1: i256) -> struct0 [selector=0x6eb8533f, abi_params=[bool, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v0 = mapping_slot 1, 1
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v1 = phi [bb1: v0], [bb2: 0]
     sstore v1, arg1 !metadata(storage=symbolic(v1))
     v2 = sload 0 !metadata(storage=slot(0))

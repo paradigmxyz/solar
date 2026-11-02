@@ -1,0 +1,19 @@
+//@compile-flags: -Zmir-pipeline=none
+//@filecheck: --enable-var-scope
+// CHECK-LABEL: @branch
+// CHECK-NOT: ;
+// CHECK: {{^ +}}[[SUM:v[0-9]+]] = add 1, 2
+// CHECK: {{^ +}}ret [[SUM]]
+@module Comments
+
+; function branch(uint256 a) external [selector 0x12345678]: ( { " ' // /* hex"00"
+// A `//` comment may hold a ; as well.
+fn @branch(arg0: i1) -> i256 [selector=0x12345678] {  ; not a header
+  bb0:  ; preds = none, it's "quoted" ; twice
+    v0 = add 1, 2  ; trailing note
+    jumpi arg0, bb1, bb2
+  bb1:  ; preds = bb0
+    ret v0
+  bb2:  ;
+    ret 0
+}

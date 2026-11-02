@@ -1,17 +1,18 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/new_struct_array_elements.sol:NewStructArrayElements ===
 @module NewStructArrayElements
+; function wide() external pure returns (uint256) [selector 0xe5f38a58]
 fn @wide() -> i256 [selector=0xe5f38a58, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 96
     mstore v0, 2
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v8]
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v9 = mload v0
-    v10 = lt 0, v9
+    v10 = gt v9, 0
     v11 = eq v10, false
     icall panic_if<0x32>, v11
     v12 = ptradd v0, 32
@@ -19,14 +20,14 @@ fn @wide() -> i256 [selector=0xe5f38a58, pure, abi_params=[], abi_returns=[word]
     v14 = ptradd v13, 96
     mstore v14, 5
     v15 = mload v0
-    v16 = lt 1, v15
+    v16 = gt v15, 1
     v17 = eq v16, false
     icall panic_if<0x32>, v17
     v18 = ptradd v0, 64
     v19 = mload v18, ptr<memory>
     mstore v19, 20
     v20 = mload v0
-    v21 = lt 0, v20
+    v21 = gt v20, 0
     v22 = eq v21, false
     icall panic_if<0x32>, v22
     v23 = ptradd v0, 32
@@ -34,7 +35,7 @@ fn @wide() -> i256 [selector=0xe5f38a58, pure, abi_params=[], abi_returns=[word]
     v25 = ptradd v24, 96
     v26 = mload v25
     v27 = mload v0
-    v28 = lt 1, v27
+    v28 = gt v27, 1
     v29 = eq v28, false
     icall panic_if<0x32>, v29
     v30 = ptradd v0, 64
@@ -42,7 +43,7 @@ fn @wide() -> i256 [selector=0xe5f38a58, pure, abi_params=[], abi_returns=[word]
     v32 = mload v31
     v33 = checked_add uint256, v26, v32
     v34 = mload v0
-    v35 = lt 0, v34
+    v35 = gt v34, 0
     v36 = eq v35, false
     icall panic_if<0x32>, v36
     v37 = ptradd v0, 32
@@ -50,7 +51,7 @@ fn @wide() -> i256 [selector=0xe5f38a58, pure, abi_params=[], abi_returns=[word]
     v39 = mload v38
     v40 = checked_add uint256, v33, v39
     ret v40
-  bb2:
+  bb2:  ; preds = bb1
     v3 = alloc 128 !metadata(preserves_fmp)
     memory_zero v3, 128
     v4 = shl v1, 5
@@ -62,18 +63,19 @@ fn @wide() -> i256 [selector=0xe5f38a58, pure, abi_params=[], abi_returns=[word]
     jump bb1
 }
 
+; function nested() external pure returns (uint256) [selector 0x4ce2d543]
 fn @nested() -> i256 [selector=0x4ce2d543, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 64
     mstore v0, 1
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v12]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v13 = mload v0
-    v14 = lt 0, v13
+    v14 = gt v13, 0
     v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = ptradd v0, 32
@@ -82,7 +84,7 @@ fn @nested() -> i256 [selector=0x4ce2d543, pure, abi_params=[], abi_returns=[wor
     v19 = ptradd v18, 32
     mstore v19, 7
     v20 = mload v0
-    v21 = lt 0, v20
+    v21 = gt v20, 0
     v22 = eq v21, false
     icall panic_if<0x32>, v22
     v23 = ptradd v0, 32
@@ -91,7 +93,7 @@ fn @nested() -> i256 [selector=0x4ce2d543, pure, abi_params=[], abi_returns=[wor
     v26 = ptradd v25, 32
     v27 = mload v26
     v28 = mload v0
-    v29 = lt 0, v28
+    v29 = gt v28, 0
     v30 = eq v29, false
     icall panic_if<0x32>, v30
     v31 = ptradd v0, 32
@@ -100,7 +102,7 @@ fn @nested() -> i256 [selector=0x4ce2d543, pure, abi_params=[], abi_returns=[wor
     v34 = mload v33
     v35 = checked_add uint256, v27, v34
     ret v35
-  bb2:
+  bb2:  ; preds = bb1
     v3 = alloc 64 !metadata(preserves_fmp)
     v4 = alloc 64 !metadata(preserves_fmp)
     mstore v4, 0
@@ -119,18 +121,19 @@ fn @nested() -> i256 [selector=0x4ce2d543, pure, abi_params=[], abi_returns=[wor
     jump bb1
 }
 
+; function small() external pure returns (uint256) [selector 0x6cf3c25e]
 fn @small() -> i256 [selector=0x6cf3c25e, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 64
     mstore v0, 1
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v9]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v10 = mload v0
-    v11 = lt 0, v10
+    v11 = gt v10, 0
     v12 = eq v11, false
     icall panic_if<0x32>, v12
     v13 = ptradd v0, 32
@@ -138,14 +141,14 @@ fn @small() -> i256 [selector=0x6cf3c25e, pure, abi_params=[], abi_returns=[word
     v15 = ptradd v14, 32
     mstore v15, 3
     v16 = mload v0
-    v17 = lt 0, v16
+    v17 = gt v16, 0
     v18 = eq v17, false
     icall panic_if<0x32>, v18
     v19 = ptradd v0, 32
     v20 = mload v19, ptr<memory>
     v21 = mload v20
     v22 = mload v0
-    v23 = lt 0, v22
+    v23 = gt v22, 0
     v24 = eq v23, false
     icall panic_if<0x32>, v24
     v25 = ptradd v0, 32
@@ -154,7 +157,7 @@ fn @small() -> i256 [selector=0x6cf3c25e, pure, abi_params=[], abi_returns=[word
     v28 = mload v27
     v29 = checked_add uint256, v21, v28
     ret v29
-  bb2:
+  bb2:  ; preds = bb1
     v3 = alloc 64 !metadata(preserves_fmp)
     mstore v3, 0
     v4 = ptradd v3, 32

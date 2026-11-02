@@ -591,9 +591,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
 
+        let mut spill_ends = FxHashMap::default();
         for (func_id, spills) in self.external_spill_addr_consts.drain() {
             let base =
                 entry_bases[&func_id] + static_alloc_sizes.get(&func_id).copied().unwrap_or(0);
+            if self.capture_mir && !spills.is_empty() {
+                spill_ends.insert(func_id, base + spills.len() as u64 * WORD_BYTES as u64);
+            }
             for (rank, (id, _)) in spills.into_iter().enumerate() {
                 self.asm.set_deferred_const(id, U256::from(base + rank as u64 * WORD_BYTES as u64));
             }
@@ -698,6 +702,27 @@ impl<'gcx> EvmCodegen<'gcx> {
         for (&(func_id, offset), &(id, _)) in &self.static_frame_addr_consts {
             self.asm.set_deferred_const(id, U256::from(frame_bases[&func_id] + offset));
         }
+        let reachable_frames_end = |entry| {
+            self.runtime_entry_reachability
+                .get(&entry)
+                .into_iter()
+                .flat_map(|reachable| reachable.iter())
+                .filter_map(|func| {
+                    frame_bases.get(&func).map(|base| base + self.emitted_frame_size(module, func))
+                })
+                .max()
+        };
+        let entry_frame_ends = if self.capture_mir {
+            entry_ends
+                .keys()
+                .filter_map(|&entry| {
+                    let end = reachable_frames_end(entry).max(spill_ends.get(&entry).copied());
+                    Some((entry, end?))
+                })
+                .collect()
+        } else {
+            FxHashMap::default()
+        };
         // Every entry has a floor, whether or not it initializes the pointer: a fresh read in a
         // function it reaches takes the floor in place of the slot.
         let mut free_memory_floors: FxHashMap<FunctionId, u64> = self
@@ -705,18 +730,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .keys()
             .copied()
             .map(|entry| {
-                let static_end = self
-                    .runtime_entry_reachability
-                    .get(&entry)
-                    .into_iter()
-                    .flat_map(|reachable| reachable.iter())
-                    .filter_map(|func| {
-                        frame_bases
-                            .get(&func)
-                            .map(|base| base + self.emitted_frame_size(module, func))
-                    })
-                    .max()
-                    .unwrap_or(low_memory_end);
+                let static_end = reachable_frames_end(entry).unwrap_or(low_memory_end);
                 let floor = entry_ends
                     .get(&entry)
                     .copied()
@@ -755,6 +769,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
         }
+        self.entry_frame_ends = entry_frame_ends;
         for (entry, id) in self.runtime_free_memory_consts.drain() {
             let floor = free_memory_floors[&entry];
             self.asm.set_deferred_const(id, U256::from(floor));
@@ -762,6 +777,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         // A heap floor is the highest initial pointer of the entries that run its function before
         // control passes to another entry; one that no entry runs never executes.
         for (func_id, id) in std::mem::take(&mut self.fmp_floor_consts) {
+            if self.capture_mir {
+                self.heap_floor_sites.insert(func_id, id);
+            }
             let floor = free_memory_floors
                 .iter()
                 .filter(|&(entry, _)| {
@@ -1447,6 +1465,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
         self.asm.emit_op(op::MSTORE);
         self.runtime_free_memory_consts.insert(entry, id);
+        if self.capture_mir {
+            self.entry_heap_sites.insert(entry, id);
+        }
     }
 
     /// Whether any of `functions` reads the free memory pointer, directly or through the frame
@@ -1931,9 +1952,7 @@ mod tests {
     fn heap_prefix_partial_tuple_returns() {
         let mut module = Module::new(Ident::DUMMY);
         let fields = [MirType::I256; 3];
-        let tuple = module.intern_struct(fields);
         let mut helper = Function::new(Ident::DUMMY);
-        helper.set_return_type(tuple);
         helper.set_return_abi(fields);
         let mut builder = FunctionBuilder::new(&mut helper);
         // helper(): return 7, fmp - 32, fmp - 96
@@ -1947,7 +1966,6 @@ mod tests {
         let helper = module.add_function(helper);
 
         let mut forward = Function::new(Ident::DUMMY);
-        forward.set_return_type(tuple);
         forward.set_return_abi(fields);
         // forward(): tail_call helper()
         FunctionBuilder::new(&mut forward).tail_call(helper, Vec::new());
@@ -1963,7 +1981,7 @@ mod tests {
         builder.icall(forward, Vec::new(), MirType::I256);
         let slot = builder.imm(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
         let buffer = builder.load(slot, PtrLocation::Memory);
-        let address = builder.add_u64_offset(buffer, 64);
+        let address = builder.add_offset(buffer, 64);
         let result = builder.load(address, PtrLocation::Memory);
         builder.ret([result]);
         let caller = module.add_function(caller);

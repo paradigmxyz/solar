@@ -436,7 +436,8 @@ fn helper_name(prefix: Symbol, suffix: impl Display) -> Symbol {
 
 #[derive(Default)]
 pub(super) struct InternalFunctionPointerRegistry {
-    targets: FxHashSet<hir::FunctionId>,
+    /// Pointer targets in first-use order; a pointer value is the target's index plus one.
+    targets: FxIndexSet<hir::FunctionId>,
     dispatchers: FxHashMap<FunctionId, InternalFunctionPointerDispatch>,
     /// Functions whose pointers may reach inline assembly, which can retype them.
     assembly_exposed: FxHashSet<hir::FunctionId>,
@@ -468,8 +469,8 @@ pub(super) struct InternalFunctionPointerDispatch {
     from_assembly: bool,
 }
 
-fn internal_function_pointer_id(function_id: hir::FunctionId) -> u64 {
-    function_id.index() as u64 + 1
+fn internal_function_pointer_id(index: usize) -> u64 {
+    index as u64 + 1
 }
 
 enum CallResult {
@@ -1045,11 +1046,12 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
         .map(|(id, _)| (state.pointer_registry.dispatchers[&id].clone(), id))
         .collect::<Vec<_>>();
     for (InternalFunctionPointerDispatch { shape, from_assembly }, dispatcher) in dispatchers {
-        let mut candidates = state
+        let candidates = state
             .pointer_registry
             .targets
             .iter()
-            .filter_map(|&function_id| {
+            .enumerate()
+            .filter_map(|(index, &function_id)| {
                 let TyKind::Fn(function) = gcx.type_of_item(function_id.into()).kind else {
                     return None;
                 };
@@ -1058,16 +1060,15 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                     || (from_assembly
                         && state.pointer_registry.assembly_exposed.contains(&function_id)
                         && shape.is_word_compatible_with(&candidate_shape)))
-                .then_some((function_id, candidate_shape))
+                .then_some((index, function_id, candidate_shape))
             })
-            .filter_map(|(function_id, candidate_shape)| {
+            .filter_map(|(index, function_id, candidate_shape)| {
                 function_ids
                     .get(&function_id)
                     .copied()
-                    .map(|mir_id| (function_id, mir_id, candidate_shape))
+                    .map(|mir_id| (index, function_id, mir_id, candidate_shape))
             })
             .collect::<Vec<_>>();
-        candidates.sort_by_key(|(function_id, _, _)| function_id.index());
 
         let reserved = module.function(dispatcher);
         let mut function = Function::new(Ident::new(reserved.name.symbol, reserved.name_span));
@@ -1093,10 +1094,10 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
             //         return reinterpret(results)
             //     }
             // }
-            for (function_id, mir_id, candidate_shape) in candidates {
+            for (index, function_id, mir_id, candidate_shape) in candidates {
                 let case_block = builder.create_block();
                 let next_block = builder.create_block();
-                let id = builder.imm(internal_function_pointer_id(function_id));
+                let id = builder.imm(internal_function_pointer_id(index));
                 let is_match = builder.eq(function_value, id);
                 builder.branch(is_match, case_block, next_block);
 

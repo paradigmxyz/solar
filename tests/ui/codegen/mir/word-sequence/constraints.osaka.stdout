@@ -44,7 +44,7 @@
       v0 = not arg0
       v1 = not arg1
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0
       v2 = and v0, v1
       ret v2
   }

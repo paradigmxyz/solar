@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_dynamic_array_memory.sol:AbiCalldataDynamicArrayMemory ===
 @module AbiCalldataDynamicArrayMemory
+; function f(uint256[][] calldata values) external pure returns (uint256[][] memory) [selector 0xc26b6b9a]
 fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0xc26b6b9a, pure, abi_params=[array<_, array<_, uint256>>], abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, uint256>>]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -17,19 +18,19 @@ fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0xc26b6b9a, pure, abi_para
     v10 = shr v0, 251
     v11 = ne v10, 0
     icall panic_if<0x41>, v11
-    v12 = add 32, v9
+    v12 = add v9, 32
     v13 = lt v12, 32
     icall panic_if<0x41>, v13
     v14 = alloc v12
     mstore v14, v0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v15 = phi [bb0: 0], [bb2: v54]
     v16 = lt v15, v0
     jumpi v16, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     ret v14
-  bb2:
+  bb2:  ; preds = bb1
     v17 = mul v15, 32
     v18 = ptrtoint ptr<calldata> v1 to i256
     v19 = add v18, v17
@@ -54,13 +55,13 @@ fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0xc26b6b9a, pure, abi_para
     v35 = mul v32, 32
     v36 = add v25, 32
     v37 = sub v33, v35
-    v38 = sgt v36, v37
+    v38 = slt v37, v36
     icall revert_if<calldata_tail_too_short>, v38
     v39 = mul v32, 32
     v40 = shr v32, 251
     v41 = ne v40, 0
     icall panic_if<0x41>, v41
-    v42 = add 32, v39
+    v42 = add v39, 32
     v43 = lt v42, 32
     icall panic_if<0x41>, v43
     v44 = alloc v42
@@ -80,22 +81,24 @@ fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0xc26b6b9a, pure, abi_para
     jump bb1
 }
 
+; function lengthMemory(uint256[] memory values) external pure returns (uint256) [selector 0xdefa62e9]
 fn @lengthMemory(arg0: ptr<memory>) -> i256 [selector=0xdefa62e9, pure, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mload arg0
     ret v0
 }
 
+; function sumMemory(uint256[] memory values) external pure returns (uint256) [selector 0x13201b5d]
 fn @sumMemory(arg0: ptr<memory>) -> i256 [selector=0x13201b5d, pure, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mload arg0
-    v1 = lt 0, v0
+    v1 = gt v0, 0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = ptradd arg0, 32
     v4 = mload v3
     v5 = mload arg0
-    v6 = lt 1, v5
+    v6 = gt v5, 1
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = ptradd arg0, 64

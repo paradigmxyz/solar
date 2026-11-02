@@ -1,115 +1,120 @@
 // === ROOT/tests/ui/codegen/lowering/checked_loop_stack.sol:CheckedLoopStorage ===
 @module CheckedLoopStorage
+; getter for `uint256 public result` [selector 0x65372147]
 fn @result() -> i256 [selector=0x65372147, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+; function compute(uint256 n) external [selector 0x5ed86d5c]
 fn @compute(arg0: i256) [selector=0x5ed86d5c, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: 2], [bb3: v6]
-    v2 = gt v1, v0
+    v2 = lt v0, v1
     v3 = eq v2, false
     jumpi v3, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret
-  bb4:
+  bb4:  ; preds = bb1
     v4 = sload 0 !metadata(storage=slot(0))
     v5 = checked_mul uint256, v4, v1
     sstore 0, v5 !metadata(storage=slot(0))
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v6 = checked_add uint256, v1, 1
     jump bb1
 }
 
 // === ROOT/tests/ui/codegen/lowering/checked_loop_stack.sol:CheckedLoopStack ===
 @module CheckedLoopStack
+; function factorial(uint256 n) external pure returns (uint256 acc) [selector 0x83714834]
 fn @factorial(arg0: i256) -> i256 [selector=0x83714834, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: 1], [bb3: v5]
     v2 = phi [bb0: 2], [bb3: v6]
-    v3 = gt v2, v0
+    v3 = lt v0, v2
     v4 = eq v3, false
     jumpi v4, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v1
-  bb4:
+  bb4:  ; preds = bb1
     v5 = checked_mul uint256, v1, v2
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v6 = checked_add uint256, v2, 1
     jump bb1
 }
 
+; function checkedLatch(uint256 start, uint256 end) external pure returns (uint256 acc) [selector 0x3ed7bb22]
 fn @checkedLatch(arg0: i256, arg1: i256) -> i256 [selector=0x3ed7bb22, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v6]
     v3 = phi [bb0: arg0], [bb3: v7]
-    v4 = gt v3, v1
+    v4 = lt v1, v3
     v5 = eq v4, false
     jumpi v5, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v2
-  bb4:
+  bb4:  ; preds = bb1
     v6 = add v2, v3
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v7 = checked_add uint256, v3, 1
     jump bb1
 }
 
+; function diagnostic(uint256 start, uint256 end) external pure returns (uint256 acc) [selector 0x6f25cb96]
 fn @diagnostic(arg0: i256, arg1: i256) -> i256 [selector=0x6f25cb96, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb5
     v0 = phi [bb0: arg0], [bb5: v0]
     v1 = phi [bb0: arg1], [bb5: v1]
     v2 = phi [bb0: 0], [bb5: v6]
     v3 = phi [bb0: arg0], [bb5: v7]
-    v4 = gt v3, v1
+    v4 = lt v1, v3
     v5 = eq v4, false
     jumpi v5, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb4
     ret v2
-  bb3:
+  bb3:  ; preds = bb1
     v6 = add v2, v3
     v7 = add v3, 1
     v8 = eq v7, 0
     jumpi v8, bb6, bb7
-  bb7:
+  bb7:  ; preds = bb3
     jump bb8
-  bb8:
+  bb8:  ; preds = bb7
     jump bb5
-  bb5:
+  bb5:  ; preds = bb8
     jump bb1
-  bb6:
+  bb6:  ; preds = bb3
     icall require<custom_error [word, word]>, false, 0x760769fe00000000000000000000000000000000000000000000000000000000, v3, v6
     invalid
 }

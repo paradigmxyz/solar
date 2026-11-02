@@ -1,9 +1,9 @@
 //! MIR module (top-level container).
 
 use super::{
-    AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, Data, DataBytes, DataId, DataRef,
-    Disambiguator, Function, FunctionId, HirVariableId, ImmutableId, MangledSymbol, MirType,
-    StructId, StructType, Terminator, ValueId,
+    AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, BackendMemory, Data, DataBytes,
+    DataId, DataRef, Disambiguator, Function, FunctionId, HirVariableId, ImmutableId,
+    MangledSymbol, MirType, StructId, StructType, Terminator, ValueId,
 };
 use crate::analysis::{CallGraphInfo, CfgInfo, direct_callees, tail_callees};
 use alloy_primitives::Bytes;
@@ -95,6 +95,10 @@ pub struct Module {
     dispatch_entry: Option<FunctionId>,
     /// The constructor, which runs in the creation code, if this module has one.
     constructor: Option<FunctionId>,
+    /// The `receive` function, recorded when `lower-dispatch` clears its attribute.
+    receive: Option<FunctionId>,
+    /// The `fallback` function, recorded when `lower-dispatch` clears its attribute.
+    fallback: Option<FunctionId>,
     /// Most recently added function for each name before disambiguation.
     pub function_name_index: FxHashMap<Symbol, FunctionId>,
     /// Canonical ABI layouts referenced by semantic encoding operations.
@@ -125,6 +129,8 @@ pub struct Module {
     pub(crate) phase: MirPhase,
     /// Whether passes must account for every instruction's source debug information.
     debug_info_tracked: bool,
+    /// Resolved backend layout, used only by execution tools and final dumps.
+    pub backend_memory: Option<BackendMemory>,
     /// Whether the last full `lowered` check still describes this module: no change since
     /// `advance_phase` passed it.
     lowered_checked: bool,
@@ -185,6 +191,8 @@ impl Module {
             struct_types: IndexVec::new(),
             dispatch_entry: None,
             constructor: None,
+            receive: None,
+            fallback: None,
             function_name_index: FxHashMap::default(),
             abi_layouts: Vec::new(),
             abi_param_layouts: Vec::new(),
@@ -197,6 +205,7 @@ impl Module {
             unsafe_assembly: true,
             phase: MirPhase::Semantic,
             debug_info_tracked: false,
+            backend_memory: None,
             lowered_checked: false,
             optimization: OptimizationMode::default(),
             tagged_inline_growth: 0,
@@ -353,6 +362,7 @@ impl Module {
         self.functions.iter().any(|func| {
             let matches = |value| func.value_ty(value).is_some_and(&predicate);
             if func.arg_indices().any(|index| predicate(func.arg_ty(index)))
+                || predicate(func.return_type())
                 || func.return_components().iter().any(|&ty| predicate(ty))
             {
                 return true;
@@ -462,10 +472,38 @@ impl Module {
         );
     }
 
-    /// Updates the module roots after remapping function IDs.
-    pub fn remap_roots(&mut self, remap: impl Fn(FunctionId) -> FunctionId) {
-        self.dispatch_entry = self.dispatch_entry.map(&remap);
-        self.constructor = self.constructor.map(&remap);
+    /// Returns the `receive` function: the one `lower-dispatch` recorded, or before it runs, the
+    /// one with the attribute.
+    #[must_use]
+    pub fn receive(&self) -> Option<FunctionId> {
+        self.receive.or_else(|| {
+            self.functions.iter_enumerated().find(|(_, func)| func.attributes.is_receive)?.0.into()
+        })
+    }
+
+    /// Returns the `fallback` function: the one `lower-dispatch` recorded, or before it runs, the
+    /// one with the attribute.
+    #[must_use]
+    pub fn fallback(&self) -> Option<FunctionId> {
+        self.fallback.or_else(|| {
+            self.functions.iter_enumerated().find(|(_, func)| func.attributes.is_fallback)?.0.into()
+        })
+    }
+
+    /// Records the `receive` and `fallback` functions, whose attributes entry lowering clears.
+    pub fn record_receive_and_fallback(&mut self) {
+        self.receive = self.receive();
+        self.fallback = self.fallback();
+    }
+
+    /// Updates the module roots after remapping function IDs. `entry` and the constructor are
+    /// always kept; `receive` and `fallback` stop being roots when dispatch inlines them away.
+    pub fn remap_roots(&mut self, remap: impl Fn(FunctionId) -> Option<FunctionId>) {
+        let kept = |root| remap(root).expect("kept function cannot be a module root");
+        self.dispatch_entry = self.dispatch_entry.map(kept);
+        self.constructor = self.constructor.map(kept);
+        self.receive = self.receive.and_then(&remap);
+        self.fallback = self.fallback.and_then(&remap);
     }
 
     /// Returns the functions the runtime enters from outside: the targets of the tail calls in
@@ -804,6 +842,30 @@ impl Module {
         self.functions.iter_enumerated()
     }
 
+    /// Returns the functions in print order: the constructor, the runtime entry, `receive`,
+    /// `fallback`, then the rest in their order in `functions`.
+    ///
+    /// This only orders text, so `functions` and its ids stay as they are.
+    pub fn functions_in_print_order(&self) -> impl Iterator<Item = (FunctionId, &Function)> {
+        let (receive, fallback) = (self.receive(), self.fallback());
+        let role = |(id, _): &(FunctionId, &Function)| {
+            if self.constructor == Some(*id) {
+                0
+            } else if self.dispatch_entry == Some(*id) {
+                1
+            } else if receive == Some(*id) {
+                2
+            } else if fallback == Some(*id) {
+                3
+            } else {
+                4
+            }
+        };
+        let mut functions = Vec::from_iter(self.iter_functions());
+        functions.sort_by_key(role);
+        functions.into_iter()
+    }
+
     /// Returns the human-readable textual MIR representation of this module.
     pub fn to_text(&self) -> impl fmt::Display + '_ {
         fmt::from_fn(move |f| {
@@ -834,17 +896,22 @@ impl Module {
                 }
                 writeln!(f)?;
             }
+            if let Some(layout) = &self.backend_memory {
+                writeln!(f, "{}", layout.display(self))?;
+            }
+            let (receive, fallback) = (self.receive(), self.fallback());
             write!(
                 f,
                 "{}",
-                self.functions
-                    .iter_enumerated()
+                self.functions_in_print_order()
                     .map(|(id, func)| {
                         super::display::display_function_text(
                             func,
                             Some(self),
                             self.constructor == Some(id),
                             self.dispatch_entry == Some(id),
+                            receive == Some(id),
+                            fallback == Some(id),
                         )
                     })
                     .format("\n")
@@ -855,12 +922,14 @@ impl Module {
     /// Returns this module's DOT-format CFGs.
     pub fn to_dot(&self) -> impl fmt::Display + '_ {
         fmt::from_fn(move |f| {
+            if let Some(layout) = &self.backend_memory {
+                writeln!(f, "{}", layout.display(self))?;
+            }
             write!(
                 f,
                 "{}",
-                self.functions
-                    .iter()
-                    .map(|func| super::display::display_function_dot(func, Some(self)))
+                self.functions_in_print_order()
+                    .map(|(_, func)| super::display::display_function_dot(func, Some(self)))
                     .format("\n\n")
             )
         })

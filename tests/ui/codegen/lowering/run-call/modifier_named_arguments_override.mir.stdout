@@ -1,11 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_named_arguments_override.sol:Base ===
 @module Base
+; getter for `uint256 public r` [selector 0x6c8ae38c]
 fn @r() -> i256 [selector=0x6c8ae38c, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+; function named() public m({a: 1, b: 2}) returns (uint256) [selector 0x45f907a8]
 fn @named() -> i256 [selector=0x45f907a8, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = checked_mul uint256, 1, 100
@@ -13,12 +15,13 @@ fn @named() -> i256 [selector=0x45f907a8, abi_params=[], abi_returns=[word], abi
     sstore 0, v1 !metadata(storage=slot(0))
     v2 = sload 0 !metadata(storage=slot(0))
     jump bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb2
     ret v2
 }
 
+; function positional() public m(1, 2) returns (uint256) [selector 0x8a0495cd]
 fn @positional() -> i256 [selector=0x8a0495cd, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = checked_mul uint256, 1, 100
@@ -26,20 +29,28 @@ fn @positional() -> i256 [selector=0x8a0495cd, abi_params=[], abi_returns=[word]
     sstore 0, v1 !metadata(storage=slot(0))
     v2 = sload 0 !metadata(storage=slot(0))
     jump bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb2
     ret v2
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_named_arguments_override.sol:Derived ===
 @module Derived
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    ret
+}
+
+; getter for `uint256 public r` [selector 0x6c8ae38c]
 fn @r() -> i256 [selector=0x6c8ae38c, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+; function named() public m({a: 1, b: 2}) returns (uint256) [selector 0x45f907a8]
 fn @named() -> i256 [selector=0x45f907a8, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = checked_mul uint256, 2, 100
@@ -47,12 +58,13 @@ fn @named() -> i256 [selector=0x45f907a8, abi_params=[], abi_returns=[word], abi
     sstore 0, v1 !metadata(storage=slot(0))
     v2 = sload 0 !metadata(storage=slot(0))
     jump bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb2
     ret v2
 }
 
+; function positional() public m(1, 2) returns (uint256) [selector 0x8a0495cd]
 fn @positional() -> i256 [selector=0x8a0495cd, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = checked_mul uint256, 2, 100
@@ -60,13 +72,8 @@ fn @positional() -> i256 [selector=0x8a0495cd, abi_params=[], abi_returns=[word]
     sstore 0, v1 !metadata(storage=slot(0))
     v2 = sload 0 !metadata(storage=slot(0))
     jump bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb2
     ret v2
-}
-
-fn @constructor() [constructor] {
-  bb0:
-    ret
 }

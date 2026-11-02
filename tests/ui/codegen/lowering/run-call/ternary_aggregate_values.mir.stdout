@@ -4,14 +4,15 @@
   struct0: {i256, i256}
   struct1: {i256, i256, i256}
 
+; function choose(bool flag, uint256 a, uint256 b) external pure returns (uint256, uint256) [selector 0x28eac35d]
 fn @choose(arg0: i1, arg1: i256, arg2: i256) -> struct0 [selector=0x28eac35d, pure, abi_params=[bool, uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v0 = phi [bb1: arg1], [bb2: arg2]
     v1 = phi [bb1: arg2], [bb2: arg1]
     v2 = insert_value struct0, undef struct0, 0, v0
@@ -19,6 +20,7 @@ fn @choose(arg0: i1, arg1: i256, arg2: i256) -> struct0 [selector=0x28eac35d, pu
     ret v3
 }
 
+; function memoryChoice(bool flag, uint256 index) external pure returns (uint256, uint256, uint256) [selector 0xe6b97384]
 fn @memoryChoice(arg0: i1, arg1: i256) -> struct1 [selector=0xe6b97384, pure, abi_params=[bool, uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = alloc zeroed checked 64
@@ -28,18 +30,18 @@ fn @memoryChoice(arg0: i1, arg1: i256) -> struct1 [selector=0xe6b97384, pure, ab
     v2 = checked_add uint256, 0, 1
     v3 = eq v2, 1
     jumpi v3, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v4 = phi [bb1: arg0], [bb2: false]
     jumpi v4, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v5 = phi [bb4: v0], [bb5: v1]
     v6 = mload v5
     v7 = lt arg1, v6
@@ -55,13 +57,13 @@ fn @memoryChoice(arg0: i1, arg1: i256) -> struct1 [selector=0xe6b97384, pure, ab
     v16 = ptradd v15, 32
     mstore v16, v13
     v17 = mload v0
-    v18 = lt 0, v17
+    v18 = gt v17, 0
     v19 = eq v18, false
     icall panic_if<0x32>, v19
     v20 = ptradd v0, 32
     v21 = mload v20
     v22 = mload v1
-    v23 = lt 0, v22
+    v23 = gt v22, 0
     v24 = eq v23, false
     icall panic_if<0x32>, v24
     v25 = ptradd v1, 32

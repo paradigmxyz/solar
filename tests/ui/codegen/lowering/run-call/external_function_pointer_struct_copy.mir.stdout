@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_struct_copy.sol:ExternalFunctionPointerStructCopyTarget ===
 @module ExternalFunctionPointerStructCopyTarget
+; function copy(function() external[] calldata functions) external pure returns (Holder memory) [selector 0x0bf8d45f]
 fn @copy(arg0: slice<calldata>) -> ptr<memory> [selector=0x0bf8d45f, pure, abi_params=[array<_, function>], abi_returns=[tuple<memory_array<function>>], abi_return_params=[tuple<array<_, function>>]] {
   bb0:
     v0 = alloc 32 !metadata(preserves_fmp)
@@ -19,23 +20,23 @@ fn @copy(arg0: slice<calldata>) -> ptr<memory> [selector=0x0bf8d45f, pure, abi_p
     v11 = shr v1, 251
     v12 = ne v11, 0
     icall panic_if<0x41>, v12
-    v13 = add 32, v10
+    v13 = add v10, 32
     v14 = lt v13, 32
     icall panic_if<0x41>, v14
     v15 = alloc v13
     mstore v15, v1
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v16 = phi [bb0: 0], [bb2: v30]
     v17 = lt v16, v1
     jumpi v17, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v31 = ptrtoint ptr<memory> v15 to i256
     mstore v0, v31
     v32 = alloc 32 !metadata(preserves_fmp)
     mstore v32, 96
     ret v0
-  bb2:
+  bb2:  ; preds = bb1
     v18 = mul v16, 32
     v19 = ptrtoint ptr<calldata> v2 to i256
     v20 = add v19, v18
@@ -59,6 +60,7 @@ fn @copy(arg0: slice<calldata>) -> ptr<memory> [selector=0x0bf8d45f, pure, abi_p
 @data
   ExternalFunctionPointerStructCopyTarget_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_struct_copy.sol:ExternalFunctionPointerStructCopyTarget"
 
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = datasize ExternalFunctionPointerStructCopyTarget_creation_code_0
@@ -67,19 +69,19 @@ fn @constructor() [constructor] {
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = sload 0 !metadata(storage=slot(0))
-    v5 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v6 = and v4, v5
-    v7 = zext i160 v2 to i256
-    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
-    v9 = or v6, v8
-    sstore 0, v9 !metadata(storage=slot(0))
+    v5 = and v4, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    v6 = zext i160 v2 to i256
+    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
+    v8 = or v5, v7
+    sstore 0, v8 !metadata(storage=slot(0))
     ret
 }
 
+; function test() external view returns (bool) [selector 0xf8a8fd6d]
 fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc zeroed checked 128
@@ -89,7 +91,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v3 = shl v2, 32
     v4 = or v3, 0xd24c5a36
     v5 = mload v0
-    v6 = lt 0, v5
+    v6 = gt v5, 0
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = shl v4, 64
@@ -100,7 +102,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v12 = shl v11, 32
     v13 = or v12, 0xc5337ed4
     v14 = mload v0
-    v15 = lt 1, v14
+    v15 = gt v14, 1
     v16 = eq v15, false
     icall panic_if<0x32>, v16
     v17 = shl v13, 64
@@ -111,7 +113,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v21 = shl v20, 32
     v22 = or v21, 0xafb0db5f
     v23 = mload v0
-    v24 = lt 2, v23
+    v24 = gt v23, 2
     v25 = eq v24, false
     icall panic_if<0x32>, v25
     v26 = shl v22, 64
@@ -126,9 +128,9 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v34 = zext i160 v29 to i256
     v35 = staticcall v30, v34, v32, v33, 0, 0
     jumpi v35, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v36 = icall returndata_bytes<>
     v37 = abi_decode [tuple<array<_, function>>], v36
     v38 = mload v37, ptr<memory>
@@ -138,7 +140,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     icall revert_if<empty>, v41
     v42 = mload v37, ptr<memory>
     v43 = mload v42
-    v44 = lt 0, v43
+    v44 = gt v43, 0
     v45 = eq v44, false
     icall panic_if<0x32>, v45
     v46 = ptradd v42, 32
@@ -153,7 +155,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     icall revert_if<empty>, v54
     v55 = mload v37, ptr<memory>
     v56 = mload v55
-    v57 = lt 1, v56
+    v57 = gt v56, 1
     v58 = eq v57, false
     icall panic_if<0x32>, v58
     v59 = ptradd v55, 64
@@ -168,7 +170,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     icall revert_if<empty>, v67
     v68 = mload v37, ptr<memory>
     v69 = mload v68
-    v70 = lt 2, v69
+    v70 = gt v69, 2
     v71 = eq v70, false
     icall panic_if<0x32>, v71
     v72 = ptradd v68, 96
@@ -184,16 +186,19 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     ret true
 }
 
+; function random1() external pure [selector 0xd24c5a36]
 fn @random1() [selector=0xd24c5a36, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
+; function random2() external pure [selector 0xc5337ed4]
 fn @random2() [selector=0xc5337ed4, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
+; function random3() external pure [selector 0xafb0db5f]
 fn @random3() [selector=0xafb0db5f, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret

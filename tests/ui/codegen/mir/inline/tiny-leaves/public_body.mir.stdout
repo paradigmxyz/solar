@@ -4,52 +4,56 @@
 @immutables
   _start: uint256
 
+; constructor(uint256 start_) [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v5 = callvalue
     v0 = constructor_args_base
     v1 = constructor_args_end
     v2 = add v0, 32
-    v3 = gt v2, v1
+    v3 = lt v1, v2
     v7 = zext i1 v3 to i256
     v8 = or v5, v7
     v9 = ne v8, 0
     jumpi v9, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v4 = mload v0
     mstore 192, v4
     ret
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
-fn @start() {
+; runtime dispatch entry
+fn @entry() [entry] {
   bb0:
-    v3 = loadimmutable _start
-    mstore 0, v3
-    returndata 0, 32
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb4, bb1
+  bb1:  ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb4, [0xbe9a6555 => bb2, 0xfea5657c => bb3]
+  bb3:  ; preds = bb1
+    tail_call @vested
+  bb2:  ; preds = bb1
+    tail_call @start
+  bb4 [cold]:  ; preds = bb0, bb1
+    revert 0, 0
 }
 
-fn @vested() {
+; function start() public view returns (uint256) [selector 0xbe9a6555]
+fn @start() {
   bb0:
     v2 = loadimmutable _start
     mstore 0, v2
     returndata 0, 32
 }
 
-fn @entry() [entry] {
+; function vested() public view returns (uint256) [selector 0xfea5657c]
+fn @vested() {
   bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb4, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb4, [0xbe9a6555 => bb2, 0xfea5657c => bb3]
-  bb3:
-    tail_call @vested
-  bb2:
-    tail_call @start
-  bb4 [cold]:
-    revert 0, 0
+    v1 = loadimmutable _start
+    mstore 0, v1
+    returndata 0, 32
 }

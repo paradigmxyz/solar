@@ -4,37 +4,36 @@
   struct0: {i256, i256}
   struct1: {i256, i256, i256}
 
+; function retained(uint256 x) external pure returns (uint256 high, bool equal) [selector 0x0634616b]
 fn @retained(arg0: i256) -> struct0 [selector=0x0634616b, pure, abi_params=[uint256], abi_returns=[word, word<bool>], abi_return_params=[uint256, bool]] {
   bb0:
     v0 = byte 31, arg0
     v1 = shl v0, 248
-    v2 = shl 7, 248
-    v3 = eq v1, v2
-    v4 = zext i1 v3 to i256
-    v5 = insert_value struct0, undef struct0, 0, v1
-    v6 = insert_value struct0, v5, 1, v4
-    ret v6
+    v2 = eq v1, 0x700000000000000000000000000000000000000000000000000000000000000
+    v3 = zext i1 v2 to i256
+    v4 = insert_value struct0, undef struct0, 0, v1
+    v5 = insert_value struct0, v4, 1, v3
+    ret v5
 }
 
+; function several(uint256 x) external pure returns (bool equal, bool less, bool greater) [selector 0x640af651]
 fn @several(arg0: i256) -> struct1 [selector=0x640af651, pure, abi_params=[uint256], abi_returns=[word<bool>, word<bool>, word<bool>], abi_return_params=[bool, bool, bool]] {
   bb0:
     v0 = byte 31, arg0
     v1 = shl v0, 248
-    v2 = shl 7, 248
-    v3 = eq v1, v2
-    v4 = zext i1 v3 to i256
-    v5 = shl 8, 248
-    v6 = lt v1, v5
+    v2 = eq v1, 0x700000000000000000000000000000000000000000000000000000000000000
+    v3 = zext i1 v2 to i256
+    v4 = lt v1, 0x800000000000000000000000000000000000000000000000000000000000000
+    v5 = zext i1 v4 to i256
+    v6 = gt v1, 0x600000000000000000000000000000000000000000000000000000000000000
     v7 = zext i1 v6 to i256
-    v8 = shl 6, 248
-    v9 = gt v1, v8
-    v10 = zext i1 v9 to i256
-    v11 = insert_value struct1, undef struct1, 0, v4
-    v12 = insert_value struct1, v11, 1, v7
-    v13 = insert_value struct1, v12, 2, v10
-    ret v13
+    v8 = insert_value struct1, undef struct1, 0, v3
+    v9 = insert_value struct1, v8, 1, v5
+    v10 = insert_value struct1, v9, 2, v7
+    ret v10
 }
 
+; function repeated(uint256 x) external pure returns (uint256 result) [selector 0x0abef8a2]
 fn @repeated(arg0: i256) -> i256 [selector=0x0abef8a2, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = shl arg0, 1
@@ -42,6 +41,7 @@ fn @repeated(arg0: i256) -> i256 [selector=0x0abef8a2, pure, abi_params=[uint256
     ret v1
 }
 
+; function returned(uint256 x) external pure returns (uint256 twice, uint256 fourTimes) [selector 0xf8c883cc]
 fn @returned(arg0: i256) -> struct0 [selector=0xf8c883cc, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = shl arg0, 1

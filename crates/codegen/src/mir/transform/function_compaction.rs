@@ -956,6 +956,7 @@ fn equivalent_attributes(lhs: &Function, rhs: &Function) -> bool {
         && lhs.attributes.no_inline == rhs.attributes.no_inline
         && lhs.attributes.always_inline == rhs.attributes.always_inline
         && lhs.attributes.inline_hint == rhs.attributes.inline_hint
+        && lhs.attributes.cold_hint == rhs.attributes.cold_hint
         && lhs.attributes.optimization == rhs.attributes.optimization
         // A proved element width is part of what callers rely on: merging a body
         // whose address array is proved canonical into one that is not would make

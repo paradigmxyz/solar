@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256}
 
+; function callIdentity(uint256 x) internal view returns (uint256 r)
 fn @callIdentity(arg0: i256) -> i256 [view] {
   bb0:
     v0 = gas
@@ -10,13 +11,13 @@ fn @callIdentity(arg0: i256) -> i256 [view] {
     v2 = address_staticcall i160 4, v1, gas v0
     v3 = icall returndata_bytes<>
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v4 = mload v3
     v5 = eq v4, 32
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v6 = phi [bb1: v5], [bb2: false]
     v7 = eq v6, false
     icall revert_if<empty>, v7
@@ -26,6 +27,7 @@ fn @callIdentity(arg0: i256) -> i256 [view] {
     ret v10
 }
 
+; function identity(uint256 x) external view returns (uint256) [selector 0xac37eebb]
 fn @identity(arg0: i256) -> i256 [selector=0xac37eebb, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @callIdentity, arg0
@@ -35,6 +37,7 @@ fn @identity(arg0: i256) -> i256 [selector=0xac37eebb, view, abi_params=[uint256
     ret v3
 }
 
+; function modexp(uint256 b, uint256 e) internal view returns (uint256)
 fn @modexp(arg0: i256, arg1: i256) -> i256 [view] {
   bb0:
     v0 = gas
@@ -42,13 +45,13 @@ fn @modexp(arg0: i256, arg1: i256) -> i256 [view] {
     v2 = address_staticcall i160 5, v1, gas v0
     v3 = icall returndata_bytes<>
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v4 = mload v3
     v5 = eq v4, 32
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v6 = phi [bb1: v5], [bb2: false]
     v7 = eq v6, false
     icall revert_if<empty>, v7
@@ -56,6 +59,7 @@ fn @modexp(arg0: i256, arg1: i256) -> i256 [view] {
     ret v8
 }
 
+; function power(uint256 b) external view returns (uint256, uint256) [selector 0xcc193fb0]
 fn @power(arg0: i256) -> struct0 [selector=0xcc193fb0, view, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall @modexp, arg0, 3
@@ -65,6 +69,7 @@ fn @power(arg0: i256) -> struct0 [selector=0xcc193fb0, view, abi_params=[uint256
     ret v3
 }
 
+; function digest(uint256 a, bytes memory b) internal pure returns (bytes32)
 fn @digest(arg0: i256, arg1: ptr<memory>) -> i256 [pure] {
   bb0:
     v0 = abi_encode [word, memory_bytes], scratch, args arg0, arg1
@@ -74,6 +79,7 @@ fn @digest(arg0: i256, arg1: ptr<memory>) -> i256 [pure] {
     ret v3
 }
 
+; function hashes(uint256 a) external pure returns (bytes32, bytes32) [selector 0x501895ae]
 fn @hashes(arg0: i256) -> struct0 [selector=0x501895ae, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[bytes32, bytes32]] {
   bb0:
     v0 = abi_encode_packed (uint256 arg0)
@@ -85,44 +91,47 @@ fn @hashes(arg0: i256) -> struct0 [selector=0x501895ae, pure, abi_params=[uint25
     ret v5
 }
 
+; function build(uint256 x) internal pure returns (bytes memory)
 fn @build(arg0: i256) -> ptr<memory> [pure] {
   bb0:
     v0 = abi_encode [word], object, args arg0
     ret v0
 }
 
+; function returned(uint256 x) external pure returns (bytes memory) [selector 0xf8c883cc]
 fn @returned(arg0: i256) -> ptr<memory> [selector=0xf8c883cc, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @build, arg0
     ret v0
 }
 
+; function stored(uint256 x) external pure returns (bytes memory) [selector 0x8c396222]
 fn @stored(arg0: i256) -> ptr<memory> [selector=0x8c396222, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc zeroed checked 64
     mstore v0, 1
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v6]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v7 = abi_encode [word], object, args arg0
     v8 = mload v0
-    v9 = lt 0, v8
+    v9 = gt v8, 0
     v10 = eq v9, false
     icall panic_if<0x32>, v10
     v11 = ptrtoint ptr<memory> v7 to i256
     v12 = ptradd v0, 32
     mstore v12, v11
     v13 = mload v0
-    v14 = lt 0, v13
+    v14 = gt v13, 0
     v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = ptradd v0, 32
     v17 = mload v16, ptr<memory>
     ret v17
-  bb2:
+  bb2:  ; preds = bb1
     v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32
@@ -131,12 +140,14 @@ fn @stored(arg0: i256) -> ptr<memory> [selector=0x8c396222, pure, abi_params=[ui
     jump bb1
 }
 
+; function length(bytes memory b) internal pure returns (uint256)
 fn @length(arg0: ptr<memory>) -> i256 [pure] {
   bb0:
     v0 = mload arg0
     ret v0
 }
 
+; function passed(uint256 x) external pure returns (uint256) [selector 0x0a0155e5]
 fn @passed(arg0: i256) -> i256 [selector=0x0a0155e5, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode [word, word], object, args arg0, arg0

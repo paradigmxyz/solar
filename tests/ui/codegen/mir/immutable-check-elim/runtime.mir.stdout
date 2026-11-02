@@ -12,30 +12,7 @@
   signedInitial: uint256
   signedInitialEqual: bool
 
-fn @initial() -> i256 [selector=0xbb806dc9, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = loadimmutable initial
-    ret v0
-}
-
-fn @narrowInitial() -> i64 [selector=0xfe957d40, view, abi_params=[], abi_returns=[word<uint64>], abi_return_params=[uint64]] {
-  bb0:
-    v0 = loadimmutable narrowInitial
-    ret v0
-}
-
-fn @signedInitial() -> i256 [selector=0x19ac8d3d, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = loadimmutable signedInitial
-    ret v0
-}
-
-fn @signedInitialEqual() -> i1 [selector=0x726e5735, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
-  bb0:
-    v0 = loadimmutable signedInitialEqual
-    ret v0
-}
-
+; constructor(uint64 x, uint64 y, int64 s) [creation entry]
 fn @constructor(arg0: i64, arg1: i64, arg2: i64) [constructor, abi_params=[uint64, uint64, int64]] {
   bb0:
     v0 = trunc i64 arg0 to i8
@@ -63,6 +40,35 @@ fn @constructor(arg0: i64, arg1: i64, arg2: i64) [constructor, abi_params=[uint6
     ret
 }
 
+; getter for `uint256 public immutable initial` [selector 0xbb806dc9]
+fn @initial() -> i256 [selector=0xbb806dc9, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = loadimmutable initial
+    ret v0
+}
+
+; getter for `uint64 public immutable narrowInitial` [selector 0xfe957d40]
+fn @narrowInitial() -> i64 [selector=0xfe957d40, view, abi_params=[], abi_returns=[word<uint64>], abi_return_params=[uint64]] {
+  bb0:
+    v0 = loadimmutable narrowInitial
+    ret v0
+}
+
+; getter for `uint256 public immutable signedInitial` [selector 0x19ac8d3d]
+fn @signedInitial() -> i256 [selector=0x19ac8d3d, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = loadimmutable signedInitial
+    ret v0
+}
+
+; getter for `bool public immutable signedInitialEqual` [selector 0x726e5735]
+fn @signedInitialEqual() -> i1 [selector=0x726e5735, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = loadimmutable signedInitialEqual
+    ret v0
+}
+
+; function narrowThreeBytes() public view returns (uint24) [selector 0x88301e03]
 fn @narrowThreeBytes() -> i24 [selector=0x88301e03, view, abi_params=[], abi_returns=[word<uint24>], abi_return_params=[uint24]] {
   bb0:
     v0 = loadimmutable threeBytes
@@ -70,6 +76,7 @@ fn @narrowThreeBytes() -> i24 [selector=0x88301e03, view, abi_params=[], abi_ret
     ret v1
 }
 
+; function narrowed() public view returns (uint64) [selector 0xb689f827]
 fn @narrowed() -> i64 [selector=0xb689f827, view, abi_params=[], abi_returns=[word<uint64>], abi_return_params=[uint64]] {
   bb0:
     v0 = loadimmutable narrow
@@ -77,6 +84,7 @@ fn @narrowed() -> i64 [selector=0xb689f827, view, abi_params=[], abi_returns=[wo
     ret v1
 }
 
+; function narrowWide() public view returns (uint160) [selector 0x534abec3]
 fn @narrowWide() -> i160 [selector=0x534abec3, view, abi_params=[], abi_returns=[word<uint160>], abi_return_params=[uint160]] {
   bb0:
     v0 = loadimmutable narrowAddressWidth
@@ -84,6 +92,7 @@ fn @narrowWide() -> i160 [selector=0x534abec3, view, abi_params=[], abi_returns=
     ret v1
 }
 
+; function total() public view returns (uint256) [selector 0x2ddbd13a]
 fn @total() -> i256 [selector=0x2ddbd13a, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = loadimmutable a
@@ -94,6 +103,7 @@ fn @total() -> i256 [selector=0x2ddbd13a, view, abi_params=[], abi_returns=[word
     ret v4
 }
 
+; function runtimeOnly() public view returns (uint256) [selector 0x31407e50]
 fn @runtimeOnly() -> i256 [selector=0x31407e50, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = loadimmutable a
@@ -102,6 +112,7 @@ fn @runtimeOnly() -> i256 [selector=0x31407e50, view, abi_params=[], abi_returns
     ret v2
 }
 
+; function signedAsUnsigned() public view returns (uint256) [selector 0x13d185b3]
 fn @signedAsUnsigned() -> i256 [selector=0x13d185b3, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = loadimmutable signedValue
@@ -109,6 +120,7 @@ fn @signedAsUnsigned() -> i256 [selector=0x13d185b3, view, abi_params=[], abi_re
     ret v1
 }
 
+; function signedEqualsMinusOne() public view returns (bool) [selector 0xdd9b18d1]
 fn @signedEqualsMinusOne() -> i1 [selector=0xdd9b18d1, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = loadimmutable signedValue
@@ -116,6 +128,7 @@ fn @signedEqualsMinusOne() -> i1 [selector=0xdd9b18d1, view, abi_params=[], abi_
     ret v1
 }
 
+; function signedShift() public view returns (uint256) [selector 0x250099c3]
 fn @signedShift() -> i256 [selector=0x250099c3, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = loadimmutable signedValue
@@ -124,6 +137,7 @@ fn @signedShift() -> i256 [selector=0x250099c3, view, abi_params=[], abi_returns
     ret v2
 }
 
+; function signedNegative() public view returns (bool) [selector 0x263bf293]
 fn @signedNegative() -> i1 [selector=0x263bf293, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = loadimmutable signedValue
@@ -131,6 +145,7 @@ fn @signedNegative() -> i1 [selector=0x263bf293, view, abi_params=[], abi_return
     ret v1
 }
 
+; function signedPlusOne() public view returns (uint256) [selector 0x115fd0af]
 fn @signedPlusOne() -> i256 [selector=0x115fd0af, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = loadimmutable signedValue

@@ -15,6 +15,7 @@
       ret v0 !metadata(span=70..80)
   }
   
+  ; selector 0x01020304
   fn @entry(arg0: i256) -> i256 [selector=0x01020304] {
     bb0:
       v0 = icall @first, arg0

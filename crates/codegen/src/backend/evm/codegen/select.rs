@@ -138,3 +138,22 @@ pub(crate) fn rematerializable_nullary_value(func: &Function, value: ValueId) ->
         None
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{backend::evm::op, mir::Semantics};
+
+    #[test]
+    fn selection_matches_declared_opcodes() {
+        for kind in crate::mir::semantics::opcode_samples() {
+            let Some(Semantics::Opcode(name, _)) = kind.semantics() else { unreachable!() };
+            // Calls lower outside instruction selection.
+            let selected = kind.evm_opcode();
+            assert!(
+                selected.is_none_or(|selected| Some(selected) == op::from_mnemonic(name)),
+                "{kind:?}"
+            );
+        }
+    }
+}

@@ -3,12 +3,7 @@
 @immutables
   digest: bytes32
 
-fn @digest() -> i256 [selector=0x52a82b65, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
-  bb0:
-    v0 = loadimmutable digest
-    ret v0
-}
-
+; constructor(bytes memory first, bytes memory second) [creation entry]
 fn @constructor(arg0: ptr<memory>, arg1: ptr<memory>) [constructor, abi_params=[bytes, bytes]] {
   bb0:
     v0 = abi_encode [memory_bytes, memory_bytes], scratch, args arg0, arg1
@@ -19,6 +14,14 @@ fn @constructor(arg0: ptr<memory>, arg1: ptr<memory>) [constructor, abi_params=[
     ret
 }
 
+; getter for `bytes32 public immutable digest` [selector 0x52a82b65]
+fn @digest() -> i256 [selector=0x52a82b65, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = loadimmutable digest
+    ret v0
+}
+
+; function runtimeDigest(bytes memory first, bytes memory second) external pure returns (bytes32) [selector 0x8655a0e6]
 fn @runtimeDigest(arg0: ptr<memory>, arg1: ptr<memory>) -> i256 [selector=0x8655a0e6, pure, abi_params=[bytes, bytes], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = abi_encode [memory_bytes, memory_bytes], scratch, args arg0, arg1

@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/mapping_dynamic_literal.sol:MappingDynamicLiteral ===
 @module MappingDynamicLiteral
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     store_storage_bytes_literal 0, hex"616263"
@@ -17,6 +18,7 @@ fn @constructor() [constructor] {
     ret
 }
 
+; function readCalldata(string calldata query) external view returns (uint256) [selector 0x067cbf41]
 fn @readCalldata(arg0: slice<calldata>) -> i256 [selector=0x067cbf41, view, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mapping_slot_bytes arg0, 1
@@ -24,6 +26,7 @@ fn @readCalldata(arg0: slice<calldata>) -> i256 [selector=0x067cbf41, view, abi_
     ret v1
 }
 
+; function readMemory(string memory query) external view returns (uint256) [selector 0xfa397925]
 fn @readMemory(arg0: ptr<memory>) -> i256 [selector=0xfa397925, view, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mapping_slot_bytes arg0, 1
@@ -31,23 +34,25 @@ fn @readMemory(arg0: ptr<memory>) -> i256 [selector=0xfa397925, view, abi_params
     ret v1
 }
 
+; function readMemoryFmp(string memory query) external view returns (bool) [selector 0x8028da35]
 fn @readMemoryFmp(arg0: ptr<memory>) -> i1 [selector=0x8028da35, view, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = gt v0, 128
     jumpi v1, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v2 = mapping_slot_bytes arg0, 1
     v3 = sload v2 !metadata(storage=symbolic(v2))
     v4 = eq v3, 7
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v5 = phi [bb1: v4], [bb2: false]
     ret v5
 }
 
+; function readMemoryPublic(string memory query) public view returns (uint256) [selector 0x32851fa7]
 fn @readMemoryPublic(arg0: ptr<memory>) -> i256 [selector=0x32851fa7, view, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mapping_slot_bytes arg0, 1
@@ -55,12 +60,14 @@ fn @readMemoryPublic(arg0: ptr<memory>) -> i256 [selector=0x32851fa7, view, abi_
     ret v1
 }
 
+; function callReadMemory(string memory query) external view returns (uint256) [selector 0x68b0560d]
 fn @callReadMemory(arg0: ptr<memory>) -> i256 [selector=0x68b0560d, view, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @readMemoryPublic, arg0
     ret v0
 }
 
+; function readStorage() external view returns (uint256) [selector 0x31fadddf]
 fn @readStorage() -> i256 [selector=0x31fadddf, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = load_storage_bytes 0
@@ -69,6 +76,7 @@ fn @readStorage() -> i256 [selector=0x31fadddf, view, abi_params=[], abi_returns
     ret v2
 }
 
+; function readLongLiteral() external view returns (uint256) [selector 0xcf0dbab7]
 fn @readLongLiteral() -> i256 [selector=0xcf0dbab7, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
@@ -82,6 +90,7 @@ fn @readLongLiteral() -> i256 [selector=0xcf0dbab7, view, abi_params=[], abi_ret
     ret v4
 }
 
+; function register(string memory query) external returns (bool) [selector 0xf2c298be]
 fn @register(arg0: ptr<memory>) -> i1 [selector=0xf2c298be, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = mapping_slot_bytes arg0, 1
@@ -101,6 +110,7 @@ fn @register(arg0: ptr<memory>) -> i1 [selector=0xf2c298be, abi_params=[bytes], 
     ret v11
 }
 
+; function overwriteShort() external returns (uint256) [selector 0xa33ac7ad]
 fn @overwriteShort() -> i256 [selector=0xa33ac7ad, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @literal_bytes_word, 0x6162630000000000000000000000000000000000000000000000000000000000, 3

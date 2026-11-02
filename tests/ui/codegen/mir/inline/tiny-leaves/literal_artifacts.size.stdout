@@ -1,6 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/literal_artifacts.mir (before inline) ===
 + // === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/literal_artifacts.mir (after inline) ===
   @module LiteralArtifacts
+  ; creation entry
   fn @constructor() [constructor] {
     bb0:
 -     v0 = icall @literal
@@ -19,6 +20,7 @@
       stop
   }
   
+  ; selector 0x01020304
   fn @entry() -> ptr<memory> [selector=0x01020304] {
     bb0:
 -     v0 = icall @literal
@@ -43,6 +45,7 @@
 +     ret v1
   }
   
+  ; selector 0x01020305
   fn @shared() -> ptr<memory> [selector=0x01020305] {
     bb0:
       v0 = icall @shared_literal
@@ -62,11 +65,13 @@
       ret v0
   }
   
+  ; selector 0x01020306
   fn @tail_entry() -> ptr<memory> [selector=0x01020306] {
     bb0:
       tail_call @tail_literal
   }
   
+  ; selector 0x01020307
   fn @call_entry() -> ptr<memory> [selector=0x01020307] {
     bb0:
       v0 = icall @tail_literal
@@ -83,6 +88,7 @@
       ret v0
   }
   
+  ; selector 0x01020308
   fn @effect_entry() -> ptr<memory> [selector=0x01020308] {
     bb0:
       v0 = icall @effect_literal
@@ -113,6 +119,7 @@
       ret v0
   }
   
+  ; selector 0x01020309
   fn @unknown_entry() -> ptr<memory> [selector=0x01020309] {
     bb0:
       v0 = icall @unknown_literal
@@ -129,6 +136,7 @@
       ret v0
   }
   
+  ; selector 0x0102030a
   fn @preserved_entry() -> ptr<memory> [selector=0x0102030a] {
     bb0:
       v0 = icall @preserved_literal
@@ -148,6 +156,7 @@
 - // === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/literal_artifacts.mir (before cfg-simplify) ===
 + // === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/literal_artifacts.mir (after cfg-simplify) ===
   @module LiteralArtifacts
+  ; creation entry
   fn @constructor() [constructor] {
     bb0:
       v4 = alloc 64 !metadata(preserves_fmp)
@@ -164,6 +173,7 @@
       stop
   }
   
+  ; selector 0x01020304
   fn @entry() -> ptr<memory> [selector=0x01020304] {
     bb0:
       v1 = alloc 64 !metadata(preserves_fmp)
@@ -175,6 +185,7 @@
       ret v1
   }
   
+  ; selector 0x01020305
   fn @shared() -> ptr<memory> [selector=0x01020305] {
     bb0:
       v0 = icall @shared_literal
@@ -194,11 +205,13 @@
       ret v0
   }
   
+  ; selector 0x01020306
   fn @tail_entry() -> ptr<memory> [selector=0x01020306] {
     bb0:
       tail_call @tail_literal
   }
   
+  ; selector 0x01020307
   fn @call_entry() -> ptr<memory> [selector=0x01020307] {
     bb0:
       v0 = icall @tail_literal
@@ -215,6 +228,7 @@
       ret v0
   }
   
+  ; selector 0x01020308
   fn @effect_entry() -> ptr<memory> [selector=0x01020308] {
     bb0:
       v0 = icall @effect_literal
@@ -245,6 +259,7 @@
       ret v0
   }
   
+  ; selector 0x01020309
   fn @unknown_entry() -> ptr<memory> [selector=0x01020309] {
     bb0:
       v0 = icall @unknown_literal
@@ -261,6 +276,7 @@
       ret v0
   }
   
+  ; selector 0x0102030a
   fn @preserved_entry() -> ptr<memory> [selector=0x0102030a] {
     bb0:
       v0 = icall @preserved_literal
@@ -280,6 +296,7 @@
 - // === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/literal_artifacts.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/literal_artifacts.mir (after dce) ===
   @module LiteralArtifacts
+  ; creation entry
   fn @constructor() [constructor] {
     bb0:
       v4 = alloc 64 !metadata(preserves_fmp)
@@ -296,6 +313,7 @@
       stop
   }
   
+  ; selector 0x01020304
   fn @entry() -> ptr<memory> [selector=0x01020304] {
     bb0:
       v1 = alloc 64 !metadata(preserves_fmp)
@@ -307,6 +325,7 @@
       ret v1
   }
   
+  ; selector 0x01020305
   fn @shared() -> ptr<memory> [selector=0x01020305] {
     bb0:
       v0 = icall @shared_literal
@@ -326,11 +345,13 @@
       ret v0
   }
   
+  ; selector 0x01020306
   fn @tail_entry() -> ptr<memory> [selector=0x01020306] {
     bb0:
       tail_call @tail_literal
   }
   
+  ; selector 0x01020307
   fn @call_entry() -> ptr<memory> [selector=0x01020307] {
     bb0:
       v0 = icall @tail_literal
@@ -347,6 +368,7 @@
       ret v0
   }
   
+  ; selector 0x01020308
   fn @effect_entry() -> ptr<memory> [selector=0x01020308] {
     bb0:
       v0 = icall @effect_literal
@@ -377,6 +399,7 @@
       ret v0
   }
   
+  ; selector 0x01020309
   fn @unknown_entry() -> ptr<memory> [selector=0x01020309] {
     bb0:
       v0 = icall @unknown_literal
@@ -393,6 +416,7 @@
       ret v0
   }
   
+  ; selector 0x0102030a
   fn @preserved_entry() -> ptr<memory> [selector=0x0102030a] {
     bb0:
       v0 = icall @preserved_literal

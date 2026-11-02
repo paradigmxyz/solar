@@ -53,6 +53,17 @@ mod mask_uses;
 
 const MAX_CONE: usize = 16;
 
+/// How far the pipeline has come when a run happens.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Stage {
+    /// Before the late rules apply.
+    Early,
+    /// The late rules apply, and abstract allocations remain.
+    Late,
+    /// The late rules apply, and `lower-alloc` has run.
+    LateLowered,
+}
+
 pub(crate) enum WordSequence {
     Early,
     Late,
@@ -254,7 +265,7 @@ impl Recipe {
             &mut inserted,
         );
         let Value::Inst(last) = *func.value(result) else { unreachable!() };
-        let kind = func.inst(last).kind.clone();
+        let kind = func.canonical_kind(func.inst(last).kind.clone());
         inserted.retain(|&id| id != last);
         func.inst_mut(root).replace_kind(kind);
         inserted
@@ -307,7 +318,7 @@ fn emit_recipe(
     // typed_result = cast result
     let operation_ty = recipe_type(func, &kind, scalar_ty);
     let mut builder = crate::mir::FunctionBuilder::new(func);
-    let result = builder.emit_inst(kind, Some(operation_ty));
+    let result = builder.emit_inst_unfolded(kind, Some(operation_ty));
     let result = builder.cast(result, ty);
     let generated = func.blocks[block].instructions.split_off(start);
     for &inst in &generated {
@@ -336,7 +347,23 @@ fn widest_int_operand(func: &Function, kind: &InstKind) -> Option<MirType> {
         .max_by_key(|ty| ty.integer_bits())
 }
 
+/// Whether `lower-alloc` has run: no abstract free-memory-pointer operation remains, apart from
+/// the deferred allocations it leaves for the backend.
+fn allocations_lowered(func: &Function) -> bool {
+    func.instructions().all(|inst| match func.inst(inst).kind {
+        InstKind::Fmp | InstKind::SetFmp(_) => false,
+        InstKind::Alloc { .. } => func.inst(inst).metadata.deferred_alloc(),
+        _ => true,
+    })
+}
+
 fn run(func: &mut Function, target: &Target, late: bool) -> bool {
+    // The pass adds no allocation operation, so the answer holds for the whole run.
+    let stage = match (late, late && allocations_lowered(func)) {
+        (false, _) => Stage::Early,
+        (true, false) => Stage::Late,
+        (true, true) => Stage::LateLowered,
+    };
     let mut uses = super::egraph::use_counts(func);
     let branch_only = branch_only_conditions(func, &uses);
     let mut masks = None;
@@ -364,7 +391,7 @@ fn run(func: &mut Function, target: &Target, late: bool) -> bool {
             let is_branch_only =
                 func.inst_result_value(inst).is_some_and(|value| branch_only.contains(&value));
             let mut best = None;
-            for recipe in isle::alternatives(func, &original, &seen, &mut masks, &op, target, late)
+            for recipe in isle::alternatives(func, &original, &seen, &mut masks, &op, target, stage)
             {
                 if let Some((after, leaves)) = recipe.cost_and_leaves(func, target, is_branch_only)
                 {

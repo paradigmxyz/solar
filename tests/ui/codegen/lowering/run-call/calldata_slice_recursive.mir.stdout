@@ -1,17 +1,18 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/calldata_slice_recursive.sol:CalldataSliceRecursive ===
 @module CalldataSliceRecursive
+; function peel(bytes calldata data) internal pure returns (bytes calldata)
 fn @peel(arg0: slice<calldata>) -> slice<calldata> [pure] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = lt v0, 2
     v2 = make_calldata_slice ptr<calldata> 0, 0
     jumpi v1, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     v3 = extract_value slice<calldata>, arg0, 0
     v4 = extract_value slice<calldata>, arg0, 1
-    v5 = gt v4, v4
+    v5 = lt v4, v4
     v6 = lt v4, 1
     v7 = or v5, v6
     v8 = zext i1 v7 to i256
@@ -21,10 +22,11 @@ fn @peel(arg0: slice<calldata>) -> slice<calldata> [pure] {
     v11 = make_calldata_slice v10, v9
     v12 = icall @peel, v11
     ret v12
-  bb1:
+  bb1:  ; preds = bb0
     ret arg0
 }
 
+; function use(bytes calldata data) external pure returns (uint256) [selector 0x01bd03f7]
 fn @use(arg0: slice<calldata>) -> i256 [selector=0x01bd03f7, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @peel, arg0

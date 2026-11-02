@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256}
 
+; function roundtrip(Deposit memory d) external pure returns (Deposit memory) [selector 0x64981a30]
 fn @roundtrip(arg0: ptr<memory>) -> ptr<memory> [selector=0x64981a30, pure, abi_params=[tuple<uint256, tuple<uint256, bytes, uint256>>], abi_returns=[tuple<word, tuple<word, memory_bytes, word>>], abi_return_params=[tuple<uint256, tuple<uint256, bytes, uint256>>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -19,6 +20,7 @@ fn @roundtrip(arg0: ptr<memory>) -> ptr<memory> [selector=0x64981a30, pure, abi_
     ret arg0
 }
 
+; function fields(uint256 pre, Deposit memory d) external pure returns (bytes memory) [selector 0x5a907564]
 fn @fields(arg0: i256, arg1: ptr<memory>) -> ptr<memory> [selector=0x5a907564, pure, abi_params=[uint256, tuple<uint256, tuple<uint256, bytes, uint256>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 96
@@ -43,12 +45,13 @@ fn @fields(arg0: i256, arg1: ptr<memory>) -> ptr<memory> [selector=0x5a907564, p
     ret v15
 }
 
+; function reset(bytes calldata data) external pure returns (uint256 r) [selector 0x12a20190]
 fn @reset(arg0: slice<calldata>) -> i256 [selector=0x12a20190, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 64
     mstore v0, 1
     v1 = mload v0
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = ptradd v0, 32
@@ -56,9 +59,9 @@ fn @reset(arg0: slice<calldata>) -> i256 [selector=0x12a20190, pure, abi_params=
     v5 = ptrtoint ptr<memory> v0 to i256
     mstore 64, v5 !metadata(memory=scratch)
     v6 = extract_value slice<calldata>, arg0, 1
-    v7 = add v6, 63
-    v8 = not 31
-    v9 = and v7, v8
+    v7 = add v6, 31
+    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v9 = add v8, 32
     v10 = alloc v9
     mstore v10, v6
     v11 = ptradd v10, 32
@@ -66,7 +69,7 @@ fn @reset(arg0: slice<calldata>) -> i256 [selector=0x12a20190, pure, abi_params=
     v13 = extract_value slice<calldata>, arg0, 1
     calldatacopy v11, v12, v13
     v14 = mload v0
-    v15 = lt 0, v14
+    v15 = gt v14, 0
     v16 = eq v15, false
     icall panic_if<0x32>, v16
     v17 = ptradd v0, 32
@@ -76,6 +79,7 @@ fn @reset(arg0: slice<calldata>) -> i256 [selector=0x12a20190, pure, abi_params=
     ret v20
 }
 
+; function wrappedIndex(uint256 n, uint256 i) external pure returns (uint256) [selector 0xf6bbb82e]
 fn @wrappedIndex(arg0: i256, arg1: i256) -> i256 [selector=0xf6bbb82e, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 64
@@ -98,31 +102,31 @@ fn @wrappedIndex(arg0: i256, arg1: i256) -> i256 [selector=0xf6bbb82e, pure, abi
     v13 = alloc zeroed checked v10
     mstore v13, arg0
     v14 = mload v0
-    v15 = lt 0, v14
+    v15 = gt v14, 0
     v16 = eq v15, false
     icall panic_if<0x32>, v16
     v17 = ptradd v0, 32
     mstore v17, 7
-    v18 = not 0
-    v19 = ptrtoint ptr<memory> v13 to i256
-    mstore v13, v18
-    v20 = mload v13
-    v21 = lt arg1, v20
-    v22 = eq v21, false
-    icall panic_if<0x32>, v22
-    v23 = shl arg1, 5
-    v24 = ptradd v13, v23
-    v25 = ptradd v24, 32
-    mstore v25, 9
-    v26 = mload v0
-    v27 = lt 0, v26
-    v28 = eq v27, false
-    icall panic_if<0x32>, v28
-    v29 = ptradd v0, 32
-    v30 = mload v29
-    ret v30
+    v18 = ptrtoint ptr<memory> v13 to i256
+    mstore v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v19 = mload v13
+    v20 = lt arg1, v19
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = shl arg1, 5
+    v23 = ptradd v13, v22
+    v24 = ptradd v23, 32
+    mstore v24, 9
+    v25 = mload v0
+    v26 = gt v25, 0
+    v27 = eq v26, false
+    icall panic_if<0x32>, v27
+    v28 = ptradd v0, 32
+    v29 = mload v28
+    ret v29
 }
 
+; function earlierIndex(uint256 n, uint256 i) external pure returns (uint256, uint256) [selector 0x1d84cbcf]
 fn @earlierIndex(arg0: i256, arg1: i256) -> struct0 [selector=0x1d84cbcf, pure, abi_params=[uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = alloc zeroed checked 64
@@ -145,19 +149,18 @@ fn @earlierIndex(arg0: i256, arg1: i256) -> struct0 [selector=0x1d84cbcf, pure, 
     v13 = alloc zeroed checked v10
     mstore v13, arg0
     v14 = mload v13
-    v15 = not 0
-    v16 = ptrtoint ptr<memory> v0 to i256
-    mstore v0, v15
-    v17 = mload v0
-    v18 = lt arg1, v17
-    v19 = eq v18, false
-    icall panic_if<0x32>, v19
-    v20 = shl arg1, 5
-    v21 = ptradd v0, v20
-    v22 = ptradd v21, 32
-    mstore v22, 0x3039
-    v23 = mload v13
-    v24 = insert_value struct0, undef struct0, 0, v14
-    v25 = insert_value struct0, v24, 1, v23
-    ret v25
+    v15 = ptrtoint ptr<memory> v0 to i256
+    mstore v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v16 = mload v0
+    v17 = lt arg1, v16
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
+    v19 = shl arg1, 5
+    v20 = ptradd v0, v19
+    v21 = ptradd v20, 32
+    mstore v21, 0x3039
+    v22 = mload v13
+    v23 = insert_value struct0, undef struct0, 0, v14
+    v24 = insert_value struct0, v23, 1, v22
+    ret v24
 }

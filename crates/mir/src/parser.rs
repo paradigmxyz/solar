@@ -36,9 +36,9 @@
 use super::{
     AbiEncodeMode, AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, AbiParamType,
     AbiType, AddressCallKind, AllocationFailure, AllocationInitialization, AllocationSemantics,
-    BlockId, DataId, DataRef, DataSize, Disambiguator, EffectKind, FrameMode, FrameSlotKind,
-    Function, FunctionBuilder, FunctionId, HirExprId, Immediate, ImmutableId, InstId, InstKind,
-    Instruction, InstructionMetadata, LogTopics, MangledSymbol, MemoryObjectKind,
+    BackendMemory, BlockId, DataId, DataRef, DataSize, Disambiguator, EffectKind, FrameMode,
+    FrameSlotKind, Function, FunctionBuilder, FunctionId, HirExprId, Immediate, ImmutableId,
+    InstId, InstKind, Instruction, InstructionMetadata, LogTopics, MangledSymbol, MemoryObjectKind,
     MemoryObjectLayout, MemoryRegion, Module, StorageAlias, StructId, StructType, Terminator,
     Value, ValueId,
 };
@@ -66,7 +66,10 @@ use solar_parse::{PErr, PResult};
 pub(super) fn parse(sess: &Session, source: &SourceFile) -> Result<Module> {
     let arena = Arena::new();
     let mut parser = Parser::new(sess, &arena, source);
-    parser.parse_module().map_err(PErr::emit)
+    let mut module = parser.parse_module().map_err(PErr::emit)?;
+    module.backend_memory =
+        BackendMemory::parse(&module, &source.src).map_err(|error| sess.dcx.err(error).emit())?;
+    Ok(module)
 }
 
 // =============================================================================
@@ -255,6 +258,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 .extend(self.function_refs.drain(..).map(|reference| (function, reference)));
         }
         self.resolve_function_refs(&mut module, function_refs, &explicit_results)?;
+        // After entry lowering, `[receive]` and `[fallback]` mark module roots, like `[entry]`.
+        if module.dispatch_entry().is_some() {
+            module.record_receive_and_fallback();
+            for func in &mut module.functions {
+                func.attributes.is_receive = false;
+                func.attributes.is_fallback = false;
+            }
+        }
         for (function, (value, ty, span)) in cast_sources {
             if module.functions[function].value_ty(value) != Some(ty) {
                 return Err(self
@@ -673,6 +684,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 sym::always_inline => builder.func_mut().attributes.always_inline = true,
                 sym::inline_hint => builder.func_mut().attributes.inline_hint = true,
                 sym::cold => builder.func_mut().attributes.hotness = Hotness::Cold,
+                sym::cold_hint => builder.func_mut().attributes.cold_hint = true,
                 sym::optimize => {
                     self.parser.expect(TokenKind::Eq)?;
                     let objective = self.parser.parse_optimize_objective()?;
@@ -1376,7 +1388,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let (inst_id, result) = if let Some(result) = existing_result {
             (builder.append_instruction_with_result(inst, result), Some(result))
         } else {
-            builder.append_instruction(inst)
+            builder.append_instruction_verbatim(inst)
         };
         if declared_result.is_some() {
             self.explicit_results.push(inst_id);

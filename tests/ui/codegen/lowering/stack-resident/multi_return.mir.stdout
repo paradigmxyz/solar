@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256}
 
+; function first(uint256 a, uint256 b) external returns (uint256) [selector 0x0efae2ad]
 fn @first(arg0: i256, arg1: i256) -> i256 [selector=0x0efae2ad, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @split, arg0, arg1
@@ -15,6 +16,7 @@ fn @first(arg0: i256, arg1: i256) -> i256 [selector=0x0efae2ad, abi_params=[uint
     ret v6
 }
 
+; function second(uint256 a, uint256 b) external returns (uint256) [selector 0xc7a76601]
 fn @second(arg0: i256, arg1: i256) -> i256 [selector=0xc7a76601, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @split, arg0, arg1
@@ -27,6 +29,7 @@ fn @second(arg0: i256, arg1: i256) -> i256 [selector=0xc7a76601, abi_params=[uin
     ret v6
 }
 
+; function both(uint256 a, uint256 b) external returns (uint256) [selector 0x56d0b49d]
 fn @both(arg0: i256, arg1: i256) -> i256 [selector=0x56d0b49d, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @split, arg0, arg1
@@ -36,6 +39,7 @@ fn @both(arg0: i256, arg1: i256) -> i256 [selector=0x56d0b49d, abi_params=[uint2
     ret v3
 }
 
+; function split(uint256 a, uint256 b) internal returns (uint256, uint256)
 fn @split(arg0: i256, arg1: i256) -> struct0 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -44,7 +48,7 @@ fn @split(arg0: i256, arg1: i256) -> struct0 {
     v2 = mul arg0, arg0
     v3 = add v2, arg1
     v4 = mul arg1, 2
-    v5 = add arg0, v4
+    v5 = add v4, arg0
     v6 = sload 0 !metadata(storage=slot(0))
     v7 = xor v6, v3
     sstore 0, v7 !metadata(storage=slot(0))

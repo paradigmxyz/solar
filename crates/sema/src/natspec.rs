@@ -571,7 +571,7 @@ impl<'gcx> Resolver<'gcx> {
                 gcx.hir.contract(id).kind,
                 hir::ContractKind::Contract | hir::ContractKind::Library
             ),
-            (SolarTag::Optimize, hir::ItemId::Function(id)) => {
+            (SolarTag::Optimize | SolarTag::Cold, hir::ItemId::Function(id)) => {
                 let function = gcx.hir.function(id);
                 function.kind == hir::FunctionKind::Function && function.body.is_some()
             }
@@ -584,7 +584,23 @@ impl<'gcx> Resolver<'gcx> {
         match tag {
             SolarTag::Optimize => self.check_solar_optimize(docs, tag_span),
             SolarTag::Inline => self.check_solar_inline(docs, tag_span),
+            SolarTag::Cold => self.check_solar_cold(docs, tag_span),
             _ => {}
+        }
+    }
+
+    /// Reports a `@custom:solar-cold` tag that takes an argument, or that follows another on the
+    /// same function.
+    fn check_solar_cold(&self, docs: &[ast::DocComment<'gcx>], tag_span: Span) {
+        if self.first_duplicate_free_tag(docs, sym::solar_dash_cold, tag_span).is_some()
+            && !solar_tag_content(docs, tag_span).trim().is_empty()
+        {
+            self.gcx
+                .dcx()
+                .err("`@custom:solar-cold` takes no argument")
+                .span(tag_span)
+                .help("write `@custom:solar-cold` alone to mark the function as rarely run")
+                .emit();
         }
     }
 
@@ -948,6 +964,8 @@ pub(crate) enum SolarTag {
     /// `@custom:solar-optimize <gas|size>`: the code of the contract or function is optimized for
     /// this objective instead of the one the build selects, even in an `-O none` build.
     Optimize,
+    /// `@custom:solar-cold`: the function is rarely run, as rustc's `#[cold]` says.
+    Cold,
     /// A `solar-` tag this compiler does not define.
     Unknown,
 }
@@ -960,6 +978,7 @@ impl SolarTag {
             sym::solar_dash_safe => Some(Self::Safe),
             sym::solar_dash_trusted => Some(Self::Trusted),
             sym::solar_dash_optimize => Some(Self::Optimize),
+            sym::solar_dash_cold => Some(Self::Cold),
             _ => name.as_str().starts_with("solar-").then_some(Self::Unknown),
         }
     }
@@ -1003,13 +1022,18 @@ pub(crate) fn report_misplaced_solar_tag(
                  objective: `@custom:solar-optimize size`",
             )
             .emit(),
+        SolarTag::Cold => dcx
+            .err("`@custom:solar-cold` must document a function with a body")
+            .span(span)
+            .help("put it on a function that is rarely run")
+            .emit(),
         SolarTag::Unknown => dcx
             .err(format!("unknown tag `@custom:{name}`"))
             .span(span)
             .note("`@custom:solar-` tags are requirements this compiler checks")
             .help(
-                "the supported tags are `@custom:solar-inline`, `@custom:solar-optimize`, \
-                 `@custom:solar-safe`, and `@custom:solar-trusted`",
+                "the supported tags are `@custom:solar-cold`, `@custom:solar-inline`, \
+                 `@custom:solar-optimize`, `@custom:solar-safe`, and `@custom:solar-trusted`",
             )
             .emit(),
     }
@@ -1023,6 +1047,8 @@ pub struct SolarTags {
     /// The objective a `@custom:solar-optimize` tag names, which the code it documents uses
     /// instead of the build's.
     pub optimize: Option<OptimizationMode>,
+    /// Whether a `@custom:solar-cold` tag marks the function rarely run.
+    pub cold: bool,
 }
 
 /// What a `@custom:solar-inline` tag asks of the inliner.
@@ -1050,6 +1076,7 @@ pub(crate) fn solar_tags(gcx: Gcx<'_>, item: hir::ItemId) -> SolarTags {
                 Some(SolarTag::Optimize) if tags.optimize.is_none() => {
                     tags.optimize = optimize_objective(&gcx.hir.doc(doc).ast_comments, natspec);
                 }
+                Some(SolarTag::Cold) => tags.cold = true,
                 _ => {}
             }
         }

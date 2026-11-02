@@ -6,7 +6,7 @@
 -     v0 = icall @helper, arg0
 -     ret v0
 +     jump bb2
-+   bb2:
++   bb2:  ; preds = bb0
 +     v1 = add arg0, 1
 +     v2 = xor v1, 2
 +     v3 = add v2, 3
@@ -48,7 +48,7 @@
 +     v39 = add v38, 39
 +     v40 = xor v39, 40
 +     jump bb1
-+   bb1:
++   bb1:  ; preds = bb2
 +     v41 = phi [bb2: v40]
 +     ret v41
   }
@@ -56,19 +56,20 @@
   fn @hot(arg0: i256) -> i256 {
     bb0:
       jump bb1
-    bb1:
+-   bb1:  ; preds = bb0, bb2
 -     v0 = phi [bb0: 0], [bb2: v3]
++   bb1:  ; preds = bb0, bb4
 +     v0 = phi [bb0: 0], [bb4: v3]
       v1 = lt v0, 0x3e8
       jumpi v1, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       v4 = mload 128
       ret v4
-    bb2:
+    bb2:  ; preds = bb1
 -     v2 = icall @helper, arg0
 -     mstore 128, v2
 +     jump bb5
-+   bb5:
++   bb5:  ; preds = bb2
 +     v5 = add arg0, 1
 +     v6 = xor v5, 2
 +     v7 = add v6, 3
@@ -110,7 +111,7 @@
 +     v43 = add v42, 39
 +     v44 = xor v43, 40
 +     jump bb4
-+   bb4:
++   bb4:  ; preds = bb5
 +     v45 = phi [bb5: v44]
 +     mstore 128, v45
       v3 = add v0, 1
@@ -120,20 +121,20 @@
   fn @conditional(arg0: i256, arg1: i1) -> i256 {
     bb0:
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb4
       v0 = phi [bb0: 0], [bb4: v3]
       v1 = lt v0, 0x3e8
       jumpi v1, bb2, bb5
-    bb5:
+    bb5:  ; preds = bb1
       v4 = mload 128
       ret v4
-    bb2:
+    bb2:  ; preds = bb1
       jumpi arg1, bb3, bb4
-    bb3:
+    bb3:  ; preds = bb2
 -     v2 = icall @helper, arg0
 -     mstore 128, v2
 +     jump bb7
-+   bb7:
++   bb7:  ; preds = bb3
 +     v5 = add arg0, 1
 +     v6 = xor v5, 2
 +     v7 = add v6, 3
@@ -175,11 +176,12 @@
 +     v43 = add v42, 39
 +     v44 = xor v43, 40
 +     jump bb6
-+   bb6:
++   bb6:  ; preds = bb7
 +     v45 = phi [bb7: v44]
 +     mstore 128, v45
       jump bb4
-    bb4:
+-   bb4:  ; preds = bb2, bb3
++   bb4:  ; preds = bb2, bb6
       v3 = add v0, 1
       jump bb1
 - }

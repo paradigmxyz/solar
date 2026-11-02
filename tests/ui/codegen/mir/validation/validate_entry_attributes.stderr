@@ -8,15 +8,11 @@ error: [fn4] `payable` survives entry lowering
 
 error: [fn5] `abi_wrapper` survives entry lowering
 
-error: [fn6] `fallback` survives entry lowering
+error: [fn6] `abi_params` survives entry lowering
 
-error: [fn7] `receive` survives entry lowering
+error: [fn7] `abi_returns` survives entry lowering
 
-error: [fn8] `abi_params` survives entry lowering
+error: [fn8] `abi_return_params` survives entry lowering
 
-error: [fn9] `abi_returns` survives entry lowering
-
-error: [fn10] `abi_return_params` survives entry lowering
-
-error: aborting due to 10 previous errors
+error: aborting due to 8 previous errors
 

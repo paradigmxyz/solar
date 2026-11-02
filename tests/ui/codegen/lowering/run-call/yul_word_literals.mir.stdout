@@ -1,63 +1,68 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/yul_word_literals.sol:C ===
 @module C
+; function direct() external pure returns (bytes32 result) [selector 0x222b1407]
 fn @direct() -> i256 [selector=0x222b1407, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     ret 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
 }
 
+; function shortDirect() external pure returns (bytes32 result) [selector 0xca89fa65]
 fn @shortDirect() -> i256 [selector=0xca89fa65, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     ret 0x1234000000000000000000000000000000000000000000000000000000000000
 }
 
+; function local() external pure returns (bytes32 result) [selector 0x0f166ad4]
 fn @local() -> i256 [selector=0x0f166ad4, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     ret 0x202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f
 }
 
+; function stringDirect() external pure returns (bytes32 result) [selector 0x13f2673d]
 fn @stringDirect() -> i256 [selector=0x13f2673d, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     ret 0x68656c6c6f000000000000000000000000000000000000000000000000000000
 }
 
+; function builtin() external pure returns (bytes32 result) [selector 0x44d2c8a8]
 fn @builtin() -> i256 [selector=0x44d2c8a8, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = or 0x1234000000000000000000000000000000000000000000000000000000000000, 0
-    ret v0
+    ret 0x1234000000000000000000000000000000000000000000000000000000000000
 }
 
+; function loop() external pure returns (uint result) [selector 0xa92100cb]
 fn @loop() -> i256 [selector=0xa92100cb, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = ne 0, 0
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v1 = phi [bb1: 99], [bb2: 0]
     jump bb4
-  bb4:
+  bb4:  ; preds = bb3, bb8
     v2 = phi [bb3: v1], [bb8: v4]
     v3 = ne 1, 0
     jumpi v3, bb6, bb7
-  bb7:
+  bb7:  ; preds = bb4
     jump bb5
-  bb6:
+  bb6:  ; preds = bb4
     v4 = add v2, 1
     v5 = eq v4, 3
     v6 = zext i1 v5 to i256
     v7 = ne v6, 0
     jumpi v7, bb9, bb10
-  bb10:
+  bb10:  ; preds = bb6
     jump bb11
-  bb11:
+  bb11:  ; preds = bb10
     jump bb8
-  bb8:
+  bb8:  ; preds = bb11
     jump bb4
-  bb9:
+  bb9:  ; preds = bb6
     jump bb5
-  bb5:
+  bb5:  ; preds = bb9, bb7
     v8 = phi [bb9: v4], [bb7: v2]
     ret v8
 }

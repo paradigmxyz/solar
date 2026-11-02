@@ -9,7 +9,7 @@
 // CHECK: + [[BASE:v[0-9]+]] = constructor_args_base
 // CHECK: + [[END:v[0-9]+]] = constructor_args_end
 // CHECK: + [[REQUIRED:v[0-9]+]] = add [[BASE]], 160
-// CHECK: + {{v[0-9]+}} = gt [[REQUIRED]], [[END]]
+// CHECK: + {{v[0-9]+}} = lt [[END]], [[REQUIRED]]
 // CHECK: + [[WORD_ADDR:v[0-9]+]] = add [[BASE]], 128
 // CHECK-NEXT: + [[ARG:v[0-9]+]] = mload [[WORD_ADDR]]
 // CHECK: + [[OUTER:v[0-9]+]] = alloc 64

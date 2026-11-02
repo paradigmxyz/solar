@@ -4,26 +4,48 @@
 @data
   literal_0: hex"7374616e646172644e6f726d616c5761647374616e646172644e6f726d616c5761647374616e646172644e6f726d616c5761647374616e646172644e6f726d616c5761647374616e646172644e6f726d616c5761647374616e646172644e6f726d616c5761647374616e646172644e6f726d616c5761647374616e646172644e6f726d616c5761647374616e646172644e6f726d616c57616400000000000000"
 
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb5, bb1
+  bb1:  ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb5, [0x4cd212eb => bb2, 0xa2e8f7e5 => bb3, 0xe582dd31 => bb4]
+  bb4:  ; preds = bb1
+    tail_call @stored
+  bb3:  ; preds = bb1
+    tail_call @copied
+  bb2:  ; preds = bb1
+    tail_call @zeros
+  bb5 [cold]:  ; preds = bb0, bb1
+    revert 0, 0
+}
+
+; function copied() external [selector 0xa2e8f7e5]
 fn @copied() {
   bb0:
-    v29 = heap_floor !metadata(alloc_ptr)
-    v30 = add v29, 192 !metadata(alloc_ptr)
-    mstore v29, 153
-    v25 = add v29, 32
-    datacopy literal_0, v25, 160
-    v7 = add v29, 256
-    mstore v30, 64
-    v14 = add v7, 32
-    v15 = add v7, 160
-    mstore v15, 0
+    v28 = heap_floor !metadata(alloc_ptr)
+    v29 = add v28, 192 !metadata(alloc_ptr)
+    mstore v28, 153
+    v24 = add v28, 32
+    datacopy literal_0, v24, 160
+    v7 = add v28, 256
+    mstore v29, 64
+    v13 = add v7, 32
+    v14 = add v7, 160
+    mstore v14, 0
     mstore v7, 153
-    mcopy v14, v25, 153 !metadata(disjoint)
-    v19 = add v29, 224
-    mstore v19, 1
-    log v30, 256, 0x1fc1ee74e64a4613da0ebad7aa1e41655ed6a50b1e27ec21849a5cd4db9381dd
+    mcopy v13, v24, 153 !metadata(disjoint)
+    v18 = add v28, 224
+    mstore v18, 1
+    log v29, 256, 0x1fc1ee74e64a4613da0ebad7aa1e41655ed6a50b1e27ec21849a5cd4db9381dd
     stop
 }
 
+; function stored() external [selector 0xe582dd31]
 fn @stored() {
   bb0:
     v23 = heap_floor !metadata(alloc_ptr)
@@ -40,42 +62,22 @@ fn @stored() {
     stop
 }
 
+; function zeros() external [selector 0x4cd212eb]
 fn @zeros() {
   bb0:
-    v29 = heap_floor !metadata(alloc_ptr)
-    v30 = add v29, 96 !metadata(alloc_ptr)
-    mstore v29, 40
-    v25 = add v29, 32
-    v32 = calldatasize
-    calldatacopy v25, v32, 64
-    v7 = add v29, 160
-    mstore v30, 64
-    v14 = add v7, 32
-    v15 = add v7, 64
-    mstore v15, 0
+    v28 = heap_floor !metadata(alloc_ptr)
+    v29 = add v28, 96 !metadata(alloc_ptr)
+    mstore v28, 40
+    v7 = add v28, 160
+    mstore v29, 64
+    v13 = add v7, 32
+    v14 = add v7, 64
+    mstore v14, 0
     mstore v7, 40
-    mcopy v14, v25, 40 !metadata(disjoint)
-    v19 = add v29, 128
-    mstore v19, 1
-    log v30, 160, 0x1fc1ee74e64a4613da0ebad7aa1e41655ed6a50b1e27ec21849a5cd4db9381dd
+    v24 = add v28, 32
+    mcopy v13, v24, 40 !metadata(disjoint)
+    v18 = add v28, 128
+    mstore v18, 1
+    log v29, 160, 0x1fc1ee74e64a4613da0ebad7aa1e41655ed6a50b1e27ec21849a5cd4db9381dd
     stop
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb5, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb5, [0x4cd212eb => bb2, 0xa2e8f7e5 => bb3, 0xe582dd31 => bb4]
-  bb4:
-    tail_call @stored
-  bb3:
-    tail_call @copied
-  bb2:
-    tail_call @zeros
-  bb5 [cold]:
-    revert 0, 0
 }

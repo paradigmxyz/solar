@@ -1,32 +1,35 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_hoisted_callvalue.mir (before lower-dispatch) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_hoisted_callvalue.mir (after lower-dispatch) ===
   @module DispatchHoisted
+- ; selector 0x00000001
 - fn @a() [selector=0x00000001, abi_wrapper] {
-+ fn @a() {
++ ; runtime dispatch entry
++ fn @entry() [entry] {
     bb0:
++     v0 = callvalue
++     v1 = ne v0, 0
++     jumpi v1, bb4, bb1
++   bb1:  ; preds = bb0
++     v2 = calldataload 0
++     v3 = shr v2, 224
++     switch v3, default bb4, [1 => bb2, 2 => bb3]
++   bb3:  ; preds = bb1
++     tail_call @b
++   bb2:  ; preds = bb1
++     tail_call @a
++   bb4 [cold]:  ; preds = bb0, bb1
++     revert 0, 0
++ }
++ 
++ fn @a() {
++   bb0:
       stop
   }
   
+- ; selector 0x00000002
 - fn @b() [selector=0x00000002, abi_wrapper] {
 + fn @b() {
     bb0:
       stop
-+ }
-+ 
-+ fn @entry() [entry] {
-+   bb0:
-+     v0 = callvalue
-+     v1 = ne v0, 0
-+     jumpi v1, bb4, bb1
-+   bb1:
-+     v2 = calldataload 0
-+     v3 = shr v2, 224
-+     switch v3, default bb4, [1 => bb2, 2 => bb3]
-+   bb3:
-+     tail_call @b
-+   bb2:
-+     tail_call @a
-+   bb4 [cold]:
-+     revert 0, 0
   }
   

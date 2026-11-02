@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/loop_bound_resident.sol:LoopBoundResident (runtime) ===
 @module LoopBoundResident_runtime
-bb0:
+bb0:  ; runtime dispatch entry + function accumulate(uint256 x, uint256 y, uint256 rounds) external pure returns (uint256) [selector 0xf39fb277]
   callvalue
   push bb3
   jumpi
@@ -53,7 +53,7 @@ bb3 [cold]:
   revert
 // === ROOT/tests/ui/codegen/lowering/loop_bound_resident.sol:ScanLoop (runtime) ===
 @module ScanLoop_runtime
-bb0:
+bb0:  ; runtime dispatch entry + function orderedSuffix(uint256[] memory values) external pure returns (uint256 result) [selector 0xf6f5f115]
   callvalue
   push bb3
   jumpi
@@ -147,9 +147,9 @@ bb11 [loop]:
   pop
   jump bb8
 bb8 [loop]:
-  dup 3
-  dup 2
-  gt
+  dup 1
+  dup 4
+  lt
   iszero
   push bb10
   jumpi

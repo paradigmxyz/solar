@@ -1,10 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_rebind.sol:CalldataSliceRebind ===
 @module CalldataSliceRebind
+; function forward(bytes calldata data, uint256 start, SliceSink sink) external [selector 0xb8467e08]
 fn @forward(arg0: slice<calldata>, arg1: i256, arg2: i160) [selector=0xb8467e08, abi_params=[bytes, uint256, address], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = extract_value slice<calldata>, arg0, 1
-    v2 = gt v1, v1
+    v2 = lt v1, v1
     v3 = lt v1, arg1
     v4 = or v2, v3
     v5 = zext i1 v4 to i256
@@ -23,8 +24,8 @@ fn @forward(arg0: slice<calldata>, arg1: i256, arg2: i160) [selector=0xb8467e08,
     v16 = zext i160 arg2 to i256
     v17 = call v9, v16, 0, v11, v12, 0, 0
     jumpi v17, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     ret
 }

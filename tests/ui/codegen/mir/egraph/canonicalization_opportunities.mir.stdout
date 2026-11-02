@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/egraph/canonicalization_opportunities.sol:CanonicalizationOpportunities ===
 @module CanonicalizationOpportunities
+; function upperBound(uint x) external pure returns (bool) [selector 0x233c1d6a]
 fn @upperBound(arg0: i256) -> i1 [selector=0x233c1d6a, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = gt arg0, 999
@@ -7,6 +8,7 @@ fn @upperBound(arg0: i256) -> i1 [selector=0x233c1d6a, pure, abi_params=[uint256
     ret v1
 }
 
+; function lowerBound(uint x) external pure returns (bool) [selector 0x74380a78]
 fn @lowerBound(arg0: i256) -> i1 [selector=0x74380a78, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = lt arg0, 0x3e8
@@ -14,6 +16,7 @@ fn @lowerBound(arg0: i256) -> i1 [selector=0x74380a78, pure, abi_params=[uint256
     ret v1
 }
 
+; function signedUpper(int x) external pure returns (bool) [selector 0xd00a7c5c]
 fn @signedUpper(arg0: i256) -> i1 [selector=0xd00a7c5c, pure, abi_params=[int256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sgt arg0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
@@ -21,6 +24,7 @@ fn @signedUpper(arg0: i256) -> i1 [selector=0xd00a7c5c, pure, abi_params=[int256
     ret v1
 }
 
+; function signedLower(int x) external pure returns (bool) [selector 0xc2b80224]
 fn @signedLower(arg0: i256) -> i1 [selector=0xc2b80224, pure, abi_params=[int256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = slt arg0, 2
@@ -28,6 +32,7 @@ fn @signedLower(arg0: i256) -> i1 [selector=0xc2b80224, pure, abi_params=[int256
     ret v1
 }
 
+; function complementOrder(uint a, uint b) external pure returns (bool) [selector 0x95cff683]
 fn @complementOrder(arg0: i256, arg1: i256) -> i1 [selector=0x95cff683, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = not arg0
@@ -36,6 +41,7 @@ fn @complementOrder(arg0: i256, arg1: i256) -> i1 [selector=0x95cff683, pure, ab
     ret v2
 }
 
+; function signedComplementOrder(int a, int b) external pure returns (bool) [selector 0xbcdbda8a]
 fn @signedComplementOrder(arg0: i256, arg1: i256) -> i1 [selector=0xbcdbda8a, pure, abi_params=[int256, int256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = not arg0
@@ -44,43 +50,47 @@ fn @signedComplementOrder(arg0: i256, arg1: i256) -> i1 [selector=0xbcdbda8a, pu
     ret v2
 }
 
+; function invertSelect(bool choice, uint yes, uint no) external pure returns (uint) [selector 0x07d08f25]
 fn @invertSelect(arg0: i1, arg1: i256, arg2: i256) -> i256 [selector=0x07d08f25, pure, abi_params=[bool, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = eq arg0, false
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v1 = phi [bb1: arg1], [bb2: arg2]
     ret v1
 }
 
+; function selectTrue(bool choice, bool enabled) external pure returns (bool) [selector 0x43b35dc8]
 fn @selectTrue(arg0: i1, arg1: i1) -> i1 [selector=0x43b35dc8, pure, abi_params=[bool, bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v0 = phi [bb1: arg1], [bb2: true]
     ret v0
 }
 
+; function selectFalse(bool choice, bool enabled) external pure returns (bool) [selector 0x9532bd85]
 fn @selectFalse(arg0: i1, arg1: i1) -> i1 [selector=0x9532bd85, pure, abi_params=[bool, bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v0 = phi [bb1: arg1], [bb2: false]
     ret v0
 }
 
+; function bothNonzero(uint a, uint b) external pure returns (bool r) [selector 0x4f851be3]
 fn @bothNonzero(arg0: i256, arg1: i256) -> i256 [selector=0x4f851be3, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = eq arg1, 0
@@ -95,6 +105,7 @@ fn @bothNonzero(arg0: i256, arg1: i256) -> i256 [selector=0x4f851be3, pure, abi_
     ret v8
 }
 
+; function eitherNonzero(uint a, uint b) external pure returns (bool r) [selector 0x980ee02c]
 fn @eitherNonzero(arg0: i256, arg1: i256) -> i256 [selector=0x980ee02c, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = eq arg1, 0
@@ -109,18 +120,21 @@ fn @eitherNonzero(arg0: i256, arg1: i256) -> i256 [selector=0x980ee02c, pure, ab
     ret v8
 }
 
+; function byteMask(uint word) external pure returns (uint r) [selector 0x7aeb5711]
 fn @byteMask(arg0: i256) -> i256 [selector=0x7aeb5711, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = byte 31, arg0
     ret v0
 }
 
+; function booleanBit(bool choice) external pure returns (uint r) [selector 0xbe921bd1]
 fn @booleanBit(arg0: i256) -> i256 [selector=0xbe921bd1, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = and arg0, 1
     ret v0
 }
 
+; function boolExtend(uint x) external pure returns (bool r) [selector 0xadfa22a9]
 fn @boolExtend(arg0: i256) -> i256 [selector=0xadfa22a9, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = eq arg0, 0
@@ -132,6 +146,7 @@ fn @boolExtend(arg0: i256) -> i256 [selector=0xadfa22a9, pure, abi_params=[uint2
     ret v5
 }
 
+; function extendedOrder(uint8 a, uint8 b) external pure returns (bool) [selector 0xdee337ac]
 fn @extendedOrder(arg0: i8, arg1: i8) -> i1 [selector=0xdee337ac, pure, abi_params=[uint8, uint8], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = zext i8 arg0 to i256
@@ -140,6 +155,7 @@ fn @extendedOrder(arg0: i8, arg1: i8) -> i1 [selector=0xdee337ac, pure, abi_para
     ret v2
 }
 
+; function signedExtendedOrder(int8 a, int8 b) external pure returns (bool) [selector 0x3c6a8c49]
 fn @signedExtendedOrder(arg0: i8, arg1: i8) -> i1 [selector=0x3c6a8c49, pure, abi_params=[int8, int8], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sext i8 arg0 to i256
@@ -148,6 +164,7 @@ fn @signedExtendedOrder(arg0: i8, arg1: i8) -> i1 [selector=0x3c6a8c49, pure, ab
     ret v2
 }
 
+; function narrowAfterNot(uint x) external pure returns (uint8) [selector 0xf4208298]
 fn @narrowAfterNot(arg0: i256) -> i8 [selector=0xf4208298, pure, abi_params=[uint256], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     v0 = not arg0
@@ -155,18 +172,21 @@ fn @narrowAfterNot(arg0: i256) -> i8 [selector=0xf4208298, pure, abi_params=[uin
     ret v1
 }
 
+; function constantSub(uint x) external pure returns (uint) [selector 0xcc1f4d97]
 fn @constantSub(arg0: i256) -> i256 [selector=0xcc1f4d97, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sub arg0, 7
     ret v0
 }
 
+; function wrappedAdd(uint x) external pure returns (uint) [selector 0xdc42c9d0]
 fn @wrappedAdd(arg0: i256) -> i256 [selector=0xdc42c9d0, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = add arg0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9
     ret v0
 }
 
+; function complementXor(uint x, uint y) external pure returns (uint) [selector 0x48e8f29a]
 fn @complementXor(arg0: i256, arg1: i256) -> i256 [selector=0x48e8f29a, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = not arg0
@@ -175,6 +195,7 @@ fn @complementXor(arg0: i256, arg1: i256) -> i256 [selector=0x48e8f29a, pure, ab
     ret v2
 }
 
+; function invertedEqual(uint x) external pure returns (bool) [selector 0x5224e925]
 fn @invertedEqual(arg0: i256) -> i1 [selector=0x5224e925, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = not arg0
@@ -182,6 +203,7 @@ fn @invertedEqual(arg0: i256) -> i1 [selector=0x5224e925, pure, abi_params=[uint
     ret v1
 }
 
+; function xorEqual(uint x) external pure returns (bool) [selector 0x3ef9590f]
 fn @xorEqual(arg0: i256) -> i1 [selector=0x3ef9590f, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = xor arg0, 0x1234
@@ -189,6 +211,7 @@ fn @xorEqual(arg0: i256) -> i1 [selector=0x3ef9590f, pure, abi_params=[uint256],
     ret v1
 }
 
+; function highBit(uint x) external pure returns (bool) [selector 0x73944b56]
 fn @highBit(arg0: i256) -> i1 [selector=0x73944b56, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = shr arg0, 255
@@ -196,6 +219,7 @@ fn @highBit(arg0: i256) -> i1 [selector=0x73944b56, pure, abi_params=[uint256], 
     ret v1
 }
 
+; function zeroSign(int x) external pure returns (bool) [selector 0x7e7e1169]
 fn @zeroSign(arg0: i256) -> i1 [selector=0x7e7e1169, pure, abi_params=[int256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sar arg0, 255
@@ -203,6 +227,7 @@ fn @zeroSign(arg0: i256) -> i1 [selector=0x7e7e1169, pure, abi_params=[int256], 
     ret v1
 }
 
+; function boolOr(bool a, bool b) external pure returns (bool r) [selector 0x2fb3474d]
 fn @boolOr(arg0: i256, arg1: i256) -> i256 [selector=0x2fb3474d, pure, abi_params=[bool, bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = eq arg1, 0
@@ -215,6 +240,7 @@ fn @boolOr(arg0: i256, arg1: i256) -> i256 [selector=0x2fb3474d, pure, abi_param
     ret v6
 }
 
+; function boolAnd(bool a, bool b) external pure returns (bool r) [selector 0xd2a614e6]
 fn @boolAnd(arg0: i256, arg1: i256) -> i256 [selector=0xd2a614e6, pure, abi_params=[bool, bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = eq arg1, 0
@@ -227,32 +253,35 @@ fn @boolAnd(arg0: i256, arg1: i256) -> i256 [selector=0xd2a614e6, pure, abi_para
     ret v6
 }
 
+; function zeroSelect(bool c, uint x, uint y) external pure returns (bool) [selector 0xcb81f4c1]
 fn @zeroSelect(arg0: i1, arg1: i256, arg2: i256) -> i1 [selector=0xcb81f4c1, pure, abi_params=[bool, uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v0 = phi [bb1: arg1], [bb2: arg2]
     v1 = eq v0, 0
     ret v1
 }
 
+; function compareSelect(bool c, uint a, uint b, uint x) external pure returns (bool) [selector 0x00264645]
 fn @compareSelect(arg0: i1, arg1: i256, arg2: i256, arg3: i256) -> i1 [selector=0x00264645, pure, abi_params=[bool, uint256, uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v0 = phi [bb1: arg1], [bb2: arg2]
     v1 = eq v0, arg3
     ret v1
 }
 
+; function subtractCompare(uint a, uint b) external pure returns (bool) [selector 0x9d7a434c]
 fn @subtractCompare(arg0: i256, arg1: i256) -> i1 [selector=0x9d7a434c, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sub arg0, arg1
@@ -261,6 +290,7 @@ fn @subtractCompare(arg0: i256, arg1: i256) -> i1 [selector=0x9d7a434c, pure, ab
     ret v2
 }
 
+; function nestedMask(uint x) external pure returns (uint) [selector 0x9dcbab03]
 fn @nestedMask(arg0: i256) -> i256 [selector=0x9dcbab03, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = and arg0, 0xffff
@@ -268,60 +298,65 @@ fn @nestedMask(arg0: i256) -> i256 [selector=0x9dcbab03, pure, abi_params=[uint2
     ret v1
 }
 
+; function widenedTrue(bool flag) external pure returns (bool) [selector 0x1ed18193]
 fn @widenedTrue(arg0: i1) -> i1 [selector=0x1ed18193, pure, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v0 = phi [bb1: i8 1], [bb2: i8 0]
     v1 = zext i8 v0 to i256
     v2 = eq v1, 1
     ret v2
 }
 
+; function widenedFalse(bool flag) external pure returns (bool) [selector 0x6025bebd]
 fn @widenedFalse(arg0: i1) -> i1 [selector=0x6025bebd, pure, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v0 = phi [bb1: i8 1], [bb2: i8 0]
     v1 = zext i8 v0 to i256
     v2 = ne v1, 1
     ret v2
 }
 
+; function selectTag(bool choice) external pure returns (bool) [selector 0x7695428d]
 fn @selectTag(arg0: i1) -> i1 [selector=0x7695428d, pure, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v0 = phi [bb1: i8 7], [bb2: i8 11]
     v1 = eq v0, i8 7
     ret v1
 }
 
+; function selectDistinct(uint a, uint b) external pure returns (uint) [selector 0x6da4b258]
 fn @selectDistinct(arg0: i256, arg1: i256) -> i256 [selector=0x6da4b258, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = ne arg0, arg1
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v1 = phi [bb1: arg0], [bb2: arg1]
     ret v1
 }
 
+; function emptyCall(uint pointer) external view returns (bool ok) [selector 0x2f00bb41]
 fn @emptyCall(arg0: i256) -> i256 [selector=0x2f00bb41, view, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = gas
@@ -330,63 +365,71 @@ fn @emptyCall(arg0: i256) -> i256 [selector=0x2f00bb41, view, abi_params=[uint25
     ret v2
 }
 
+; function emptyHash(uint pointer) external pure returns (bytes32 r) [selector 0x055e7154]
 fn @emptyHash(arg0: i256) -> i256 [selector=0x055e7154, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256 arg0, 0
     ret v0
 }
 
+; function emptyRevert(uint pointer) external pure [selector 0xf7cad58b]
 fn @emptyRevert(arg0: i256) [selector=0xf7cad58b, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     revert arg0, 0
 }
 
+; function emptyLog(uint pointer) external [selector 0xade0865c]
 fn @emptyLog(arg0: i256) [selector=0xade0865c, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     log arg0, 0
     ret
 }
 
+; function emptyCopy(uint pointer) external pure [selector 0xa8964271]
 fn @emptyCopy(arg0: i256) [selector=0xa8964271, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     calldatacopy arg0, arg0, 0
     ret
 }
 
+; function emptyReturnCopy(uint offset) external pure [selector 0xf7a3d452]
 fn @emptyReturnCopy(arg0: i256) [selector=0xf7a3d452, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     returndatacopy 0, arg0, 0 !metadata(memory=scratch)
     ret
 }
 
+; function factoredNot(bool c, uint x, uint y) external pure returns (uint) [selector 0x47759ff6]
 fn @factoredNot(arg0: i1, arg1: i256, arg2: i256) -> i256 [selector=0x47759ff6, pure, abi_params=[bool, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v1 = not arg2
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v0 = not arg1
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v2 = phi [bb1: v0], [bb2: v1]
     ret v2
 }
 
+; function constantArms(bool c) external pure returns (uint) [selector 0x3235250c]
 fn @constantArms(arg0: i1) -> i256 [selector=0x3235250c, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v0 = phi [bb1: i8 5], [bb2: i8 8]
     v1 = add v0, i8 3
     v2 = zext i8 v1 to i256
     ret v2
 }
 
+; function byteNibble(uint x) external pure returns (uint r) [selector 0x8b2910af]
 fn @byteNibble(arg0: i256) -> i256 [selector=0x8b2910af, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = byte 31, arg0
@@ -394,15 +437,17 @@ fn @byteNibble(arg0: i256) -> i256 [selector=0x8b2910af, pure, abi_params=[uint2
     ret v1
 }
 
+; function clearFields(uint x, uint a, uint b) external pure returns (uint) [selector 0x2407aa5c]
 fn @clearFields(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x2407aa5c, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = not arg1
-    v1 = and arg0, v0
+    v1 = and v0, arg0
     v2 = not arg2
     v3 = and v1, v2
     ret v3
 }
 
+; function associateScale(uint x, uint y) external pure returns (uint) [selector 0xb62d0002]
 fn @associateScale(arg0: i256, arg1: i256) -> i256 [selector=0xb62d0002, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mul arg0, 3
@@ -411,6 +456,7 @@ fn @associateScale(arg0: i256, arg1: i256) -> i256 [selector=0xb62d0002, pure, a
     ret v2
 }
 
+; function oppositeShifts(uint x) external pure returns (uint r) [selector 0xbd176740]
 fn @oppositeShifts(arg0: i256) -> i256 [selector=0xbd176740, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = shl arg0, 8
@@ -419,6 +465,7 @@ fn @oppositeShifts(arg0: i256) -> i256 [selector=0xbd176740, pure, abi_params=[u
     ret v2
 }
 
+; function disjointField(uint x, uint y) external pure returns (uint) [selector 0xdca6fcdc]
 fn @disjointField(arg0: i256, arg1: i256) -> i256 [selector=0xdca6fcdc, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = and arg0, 0xff00
@@ -427,6 +474,7 @@ fn @disjointField(arg0: i256, arg1: i256) -> i256 [selector=0xdca6fcdc, pure, ab
     ret v2
 }
 
+; function complementConsumer(uint x) external pure returns (uint) [selector 0x238581a4]
 fn @complementConsumer(arg0: i256) -> i256 [selector=0x238581a4, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = add arg0, 7
@@ -435,6 +483,7 @@ fn @complementConsumer(arg0: i256) -> i256 [selector=0x238581a4, pure, abi_param
     ret v2
 }
 
+; function exactSigned(int x) external pure returns (int) [selector 0x4073a85b]
 fn @exactSigned(arg0: i256) -> i256 [selector=0x4073a85b, pure, abi_params=[int256], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     v0 = mul arg0, 8
@@ -442,6 +491,7 @@ fn @exactSigned(arg0: i256) -> i256 [selector=0x4073a85b, pure, abi_params=[int2
     ret v1
 }
 
+; function unsignedProduct(uint128 x) external pure returns (uint) [selector 0xfb8ce99a]
 fn @unsignedProduct(arg0: i128) -> i256 [selector=0xfb8ce99a, pure, abi_params=[uint128], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = zext i128 arg0 to i256
@@ -450,6 +500,7 @@ fn @unsignedProduct(arg0: i128) -> i256 [selector=0xfb8ce99a, pure, abi_params=[
     ret v2
 }
 
+; function signDiscard(uint x) external pure returns (uint r) [selector 0xb3802cbe]
 fn @signDiscard(arg0: i256) -> i256 [selector=0xb3802cbe, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = signextend 0, arg0
@@ -457,6 +508,7 @@ fn @signDiscard(arg0: i256) -> i256 [selector=0xb3802cbe, pure, abi_params=[uint
     ret v1
 }
 
+; function compareComposition(uint x, uint y) external pure returns (bool r) [selector 0x34fce0f6]
 fn @compareComposition(arg0: i256, arg1: i256) -> i256 [selector=0x34fce0f6, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = eq arg0, arg1
@@ -467,20 +519,22 @@ fn @compareComposition(arg0: i256, arg1: i256) -> i256 [selector=0x34fce0f6, pur
     ret v4
 }
 
+; function zeroSubtract(uint x, uint y) external pure returns (uint) [selector 0x7fd17438]
 fn @zeroSubtract(arg0: i256, arg1: i256) -> i256 [selector=0x7fd17438, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = eq arg0, arg1
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v1 = sub arg0, arg1
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v2 = phi [bb1: 0], [bb2: v1]
     ret v2
 }
 
+; function overflowingQuotient(uint x) external pure returns (uint r) [selector 0xd87f7bc1]
 fn @overflowingQuotient(arg0: i256) -> i256 [selector=0xd87f7bc1, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = div arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -488,6 +542,7 @@ fn @overflowingQuotient(arg0: i256) -> i256 [selector=0xd87f7bc1, pure, abi_para
     ret v1
 }
 
+; function evenScale(uint x, uint y) external pure returns (bool) [selector 0x33b03690]
 fn @evenScale(arg0: i256, arg1: i256) -> i1 [selector=0x33b03690, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = mul arg0, 2
@@ -496,6 +551,7 @@ fn @evenScale(arg0: i256, arg1: i256) -> i1 [selector=0x33b03690, pure, abi_para
     ret v2
 }
 
+; function zeroDivisor(uint x) external pure returns (uint r) [selector 0xe073f44e]
 fn @zeroDivisor(arg0: i256) -> i256 [selector=0xe073f44e, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = div arg0, 7
@@ -503,55 +559,59 @@ fn @zeroDivisor(arg0: i256) -> i256 [selector=0xe073f44e, pure, abi_params=[uint
     ret v1
 }
 
+; function selectSigned(bool c, int8 a, int8 b) external pure returns (int) [selector 0x3b8d0dd8]
 fn @selectSigned(arg0: i1, arg1: i8, arg2: i8) -> i256 [selector=0x3b8d0dd8, pure, abi_params=[bool, int8, int8], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v1 = sext i8 arg2 to i256
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v0 = sext i8 arg1 to i256
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v2 = phi [bb1: v0], [bb2: v1]
     ret v2
 }
 
+; function selectBool(bool c, bool a, bool b) external pure returns (uint) [selector 0x50fa9e9e]
 fn @selectBool(arg0: i1, arg1: i1, arg2: i1) -> i256 [selector=0x50fa9e9e, pure, abi_params=[bool, bool, bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jumpi arg2, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb2
     jump bb9
-  bb7:
+  bb7:  ; preds = bb2
     jump bb9
-  bb9:
+  bb9:  ; preds = bb7, bb8
     v1 = phi [bb7: i8 1], [bb8: i8 0]
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jumpi arg1, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb6
-  bb4:
+  bb4:  ; preds = bb1
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v0 = phi [bb4: i8 1], [bb5: i8 0]
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6, bb9
     v2 = phi [bb6: v0], [bb9: v1]
     v3 = zext i8 v2 to i256
     ret v3
 }
 
+; function xorIntersection(uint x, uint y) external pure returns (uint) [selector 0xe5393040]
 fn @xorIntersection(arg0: i256, arg1: i256) -> i256 [selector=0xe5393040, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = not arg0
     v1 = xor v0, arg1
-    v2 = and arg0, v1
+    v2 = and v1, arg0
     ret v2
 }
 
+; function neutralLeft(uint m) external pure returns (uint r) [selector 0x43cf1c74]
 fn @neutralLeft(arg0: i256) -> i256 [selector=0x43cf1c74, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mulmod 1, 5, arg0
@@ -560,19 +620,20 @@ fn @neutralLeft(arg0: i256) -> i256 [selector=0x43cf1c74, pure, abi_params=[uint
     ret v2
 }
 
+; function comparisonFlags(uint x, uint y) external pure returns (uint r) [selector 0xa85d7e79]
 fn @comparisonFlags(arg0: i256, arg1: i256) -> i256 [selector=0xa85d7e79, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = eq arg0, arg1
     v1 = zext i1 v0 to i256
     v2 = eq v1, 0
     v3 = zext i1 v2 to i256
-    v4 = gt arg0, arg1
+    v4 = lt arg1, arg0
     v5 = zext i1 v4 to i256
     v6 = xor v5, v3
     v7 = shl v6, 1
     v8 = eq arg1, arg0
     v9 = zext i1 v8 to i256
-    v10 = gt arg0, arg1
+    v10 = lt arg1, arg0
     v11 = zext i1 v10 to i256
     v12 = or v11, v9
     v13 = or v12, v7
@@ -589,7 +650,7 @@ fn @comparisonFlags(arg0: i256, arg1: i256) -> i256 [selector=0xa85d7e79, pure, 
     v24 = zext i1 v23 to i256
     v25 = eq v24, 0
     v26 = zext i1 v25 to i256
-    v27 = sgt arg0, arg1
+    v27 = slt arg1, arg0
     v28 = zext i1 v27 to i256
     v29 = or v28, v26
     v30 = shl v29, 3
@@ -604,6 +665,7 @@ fn @comparisonFlags(arg0: i256, arg1: i256) -> i256 [selector=0xa85d7e79, pure, 
     ret v38
 }
 
+; function booleanZeroFlags(bool a, bool b) external pure returns (uint r) [selector 0x0d2b8dbf]
 fn @booleanZeroFlags(arg0: i256, arg1: i256) -> i256 [selector=0x0d2b8dbf, pure, abi_params=[bool, bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = xor arg0, arg1
@@ -617,11 +679,12 @@ fn @booleanZeroFlags(arg0: i256, arg1: i256) -> i256 [selector=0x0d2b8dbf, pure,
     v8 = and arg0, arg1
     v9 = eq v8, 0
     v10 = zext i1 v9 to i256
-    v11 = or v10, v7
+    v11 = or v7, v10
     v12 = or v11, v3
     ret v12
 }
 
+; function isZeroAddress(address account) external pure returns (bool) [selector 0x18664315]
 fn @isZeroAddress(arg0: i160) -> i1 [selector=0x18664315, pure, abi_params=[address], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = zext i160 arg0 to i256
@@ -629,6 +692,7 @@ fn @isZeroAddress(arg0: i160) -> i1 [selector=0x18664315, pure, abi_params=[addr
     ret v1
 }
 
+; function isZeroSignedAddress(address account) external pure returns (bool) [selector 0xd6e60996]
 fn @isZeroSignedAddress(arg0: i160) -> i1 [selector=0xd6e60996, pure, abi_params=[address], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sext i160 arg0 to i256
@@ -636,6 +700,7 @@ fn @isZeroSignedAddress(arg0: i160) -> i1 [selector=0xd6e60996, pure, abi_params
     ret v1
 }
 
+; function mixedSigns(uint x, uint y) external pure returns (bool r) [selector 0x43adc8f7]
 fn @mixedSigns(arg0: i256, arg1: i256) -> i256 [selector=0x43adc8f7, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = slt arg1, arg0
@@ -646,6 +711,7 @@ fn @mixedSigns(arg0: i256, arg1: i256) -> i256 [selector=0x43adc8f7, pure, abi_p
     ret v4
 }
 
+; function unusedCapacity(uint x, uint y) external pure returns (uint) [selector 0x89f5bc97]
 fn @unusedCapacity(arg0: i256, arg1: i256) -> i256 [selector=0x89f5bc97, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sub 100, arg0
@@ -654,6 +720,7 @@ fn @unusedCapacity(arg0: i256, arg1: i256) -> i256 [selector=0x89f5bc97, pure, a
     ret v2
 }
 
+; function remainingBudget(uint x, uint y) external pure returns (uint) [selector 0x153f4e95]
 fn @remainingBudget(arg0: i256, arg1: i256) -> i256 [selector=0x153f4e95, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sub 100, arg0
@@ -662,6 +729,7 @@ fn @remainingBudget(arg0: i256, arg1: i256) -> i256 [selector=0x153f4e95, pure, 
     ret v2
 }
 
+; function reservationSpan(uint end, uint start) external pure returns (uint) [selector 0x5c59a33c]
 fn @reservationSpan(arg0: i256, arg1: i256) -> i256 [selector=0x5c59a33c, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = add arg1, 32
@@ -670,6 +738,7 @@ fn @reservationSpan(arg0: i256, arg1: i256) -> i256 [selector=0x5c59a33c, pure, 
     ret v2
 }
 
+; function undoBase(uint end, uint length) external pure returns (uint) [selector 0x589fd317]
 fn @undoBase(arg0: i256, arg1: i256) -> i256 [selector=0x589fd317, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sub 32, arg1
@@ -678,6 +747,7 @@ fn @undoBase(arg0: i256, arg1: i256) -> i256 [selector=0x589fd317, pure, abi_par
     ret v2
 }
 
+; function comparisonComplements(uint x, uint y) external pure returns (uint r) [selector 0xeb889202]
 fn @comparisonComplements(arg0: i256, arg1: i256) -> i256 [selector=0xeb889202, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = eq arg0, arg1

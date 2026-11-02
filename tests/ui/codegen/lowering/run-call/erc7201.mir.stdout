@@ -1,15 +1,18 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/erc7201.sol:Erc7201RunCall ===
 @module Erc7201RunCall
+; function literal() public pure returns (uint256) [selector 0x1373185e]
 fn @literal() -> i256 [selector=0x1373185e, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 0x183a6125c38840424c4a85fa12bab2ab606c4b6d0e7cc73c0c06ba5300eab500
 }
 
+; function zeroLastByteLiteral() public pure returns (uint256) [selector 0xe2eaca9d]
 fn @zeroLastByteLiteral() -> i256 [selector=0xe2eaca9d, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 0x6d0d983459328e82eacb1bf2d6fadfa38a6896e9d4cbfe0e1aa41c6281bab00
 }
 
+; function memoryParam() public pure returns (uint256) [selector 0x21aa88e0]
 fn @memoryParam() -> i256 [selector=0x21aa88e0, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -20,6 +23,7 @@ fn @memoryParam() -> i256 [selector=0x21aa88e0, pure, abi_params=[], abi_returns
     ret v2
 }
 
+; function calldataParam(string calldata id) public pure returns (uint256) [selector 0x7d4a24fb]
 fn @calldataParam(arg0: slice<calldata>) -> i256 [selector=0x7d4a24fb, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -29,15 +33,15 @@ fn @calldataParam(arg0: slice<calldata>) -> i256 [selector=0x7d4a24fb, pure, abi
     icall revert_if<invalid_calldata_tail_length>, v3
     v4 = sub v2, v1
     v5 = ptrtoint ptr<calldata> v0 to i256
-    v6 = sgt v5, v4
+    v6 = slt v4, v5
     icall revert_if<calldata_tail_too_short>, v6
     v7 = extract_value slice<calldata>, arg0, 1
-    v8 = add v7, 63
-    v9 = lt v8, v7
-    icall panic_if<0x41>, v9
-    v10 = not 31
-    v11 = and v8, v10
-    v12 = alloc v11
+    v8 = add v7, 31
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v10 = add v9, 32
+    v11 = lt v10, v7
+    icall panic_if<0x41>, v11
+    v12 = alloc v10
     mstore v12, v7
     v13 = ptradd v12, 32
     v14 = extract_value slice<calldata>, arg0, 0
@@ -47,6 +51,7 @@ fn @calldataParam(arg0: slice<calldata>) -> i256 [selector=0x7d4a24fb, pure, abi
     ret v16
 }
 
+; function storageValue() public view returns (uint256) [selector 0xa977a973]
 fn @storageValue() -> i256 [selector=0xa977a973, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = load_storage_bytes 0
@@ -54,6 +59,7 @@ fn @storageValue() -> i256 [selector=0xa977a973, view, abi_params=[], abi_return
     ret v1
 }
 
+; function constantDivision() public pure returns (uint256) [selector 0xf0f7caeb]
 fn @constantDivision() -> i256 [selector=0xf0f7caeb, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 0x81375b7412d6ac0c418d7535b9390e3cacec3cf04d4426959579371004e3c55

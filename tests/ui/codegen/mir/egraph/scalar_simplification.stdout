@@ -429,7 +429,7 @@
       v0 = trunc i256 arg0 to i160
       v1 = zext i160 v0 to i256
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0
       v2 = call 100, v1, 0, 0, 0, 0, 0
       ret v2
   }

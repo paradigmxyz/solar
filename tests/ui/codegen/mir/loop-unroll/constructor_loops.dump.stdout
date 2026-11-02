@@ -1,150 +1,64 @@
 // === ROOT/tests/ui/codegen/mir/loop-unroll/constructor_loops.sol:Constructor ===
 @module Constructor
 @phase lowered
+; constructor(uint256 s) [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v29 = callvalue
     v24 = constructor_args_base
     v25 = constructor_args_end
     v26 = add v24, 32
-    v27 = gt v26, v25
+    v27 = lt v25, v26
     v32 = zext i1 v27 to i256
     v33 = or v29, v32
     v34 = ne v33, 0
     jumpi v34, bb10, bb11
-  bb11:
+  bb11:  ; preds = bb0
     v28 = mload v24
     jump bb1
-  bb1:
+  bb1:  ; preds = bb8, bb11
     v1 = phi [bb11: 0], [bb8: v7]
     v2 = lt v1, 8
     jumpi v2, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     jump bb4
-  bb4:
+  bb4:  ; preds = bb3, bb9
     v10 = phi [bb3: 0], [bb9: v14]
     v11 = lt v10, 6
     jumpi v11, bb6, bb5
-  bb5:
+  bb5:  ; preds = bb4
     ret
-  bb6:
+  bb6:  ; preds = bb4
     v17 = mul v28, v10
     v18 = eq v10, 0
     v19 = div v17, v10
     v20 = eq v19, v28
     v21 = or v18, v20
     jumpi v21, bb9, bb7
-  bb9:
+  bb9:  ; preds = bb6
     mstore 0, v10 !metadata(memory=scratch)
     mstore 32, 8 !metadata(memory=scratch)
     v31 = keccak256 0, 64 !metadata(memory=scratch)
     sstore v31, v17 !metadata(storage=symbolic(v31))
     v14 = add v10, 1
     jump bb4
-  bb2:
+  bb2:  ; preds = bb1
     v15 = add v28, v1
     v16 = lt v15, v28
     jumpi v16, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb2
     sstore v1, v15 !metadata(storage=symbolic(v1))
     v7 = add v1, 1
     jump bb1
-  bb7 [cold]:
+  bb7 [cold]:  ; preds = bb2, bb6
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb10 [cold]:
+  bb10 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
-fn @get() {
-  bb0:
-    v11 = calldataload 4
-    v0 = lt v11, 8
-    jumpi v0, bb2, bb1
-  bb1 [cold]:
-    mstore 32, 50 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
-  bb2:
-    v14 = calldataload 4
-    v3 = sload v14
-    mstore 0, v14 !metadata(memory=scratch)
-    mstore 32, 8 !metadata(memory=scratch)
-    v13 = keccak256 0, 64 !metadata(memory=scratch)
-    v5 = sload v13
-    v7 = add v3, v5
-    v8 = lt v7, v3
-    jumpi v8, bb3, bb4
-  bb4:
-    mstore 0, v7 !metadata(memory=scratch)
-    returndata 0, 32
-  bb3 [cold]:
-    mstore 32, 17 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
-}
-
-fn @sum() {
-  bb0:
-    v21 = calldataload 4
-    jump bb6
-  bb6:
-    v23 = phi [bb0: 0], [bb8: v52]
-    v24 = phi [bb0: 0], [bb8: v54]
-    v55 = add v24, 3
-    v56 = lt v55, v21
-    jumpi v56, bb7, bb1
-  bb1:
-    v1 = phi [bb6: v23], [bb5: v17]
-    v2 = phi [bb6: v24], [bb5: v7]
-    v3 = lt v2, v21
-    jumpi v3, bb3, bb2
-  bb2:
-    mstore 0, v1 !metadata(memory=scratch)
-    returndata 0, 32
-  bb3:
-    v8 = mul v2, 3
-    v15 = add v8, 1
-    v17 = add v1, v15
-    v18 = lt v17, v1
-    jumpi v18, bb4, bb5
-  bb5:
-    v7 = add v2, 1
-    jump bb1
-  bb7:
-    v26 = mul v24, 3
-    v27 = add v26, 1
-    v28 = add v23, v27
-    v29 = lt v28, v23
-    v30 = add v24, 1
-    v34 = mul v30, 3
-    v35 = add v34, 1
-    v36 = add v28, v35
-    v37 = lt v36, v28
-    v57 = or v29, v37
-    v38 = add v30, 1
-    v42 = mul v38, 3
-    v43 = add v42, 1
-    v44 = add v36, v43
-    v45 = lt v44, v36
-    v58 = or v57, v45
-    v46 = add v38, 1
-    v50 = mul v46, 3
-    v51 = add v50, 1
-    v52 = add v44, v51
-    v53 = lt v52, v44
-    v59 = or v58, v53
-    jumpi v59, bb4, bb8
-  bb8:
-    v54 = add v46, 1
-    jump bb6
-  bb4 [cold]:
-    mstore 32, 17 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
-}
-
+; runtime dispatch entry
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
@@ -154,14 +68,104 @@ fn @entry() [entry] {
     v4 = or v0, v3
     v5 = ne v4, 0
     jumpi v5, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v6 = calldataload 0
     v7 = shr v6, 224
     switch v7, default bb1, [0x188b85b4 => bb3, 0x9507d39a => bb4]
-  bb4:
+  bb4:  ; preds = bb2
     tail_call @get
-  bb3:
+  bb3:  ; preds = bb2
     tail_call @sum
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0, bb2
     revert 0, 0
+}
+
+; function get(uint256 i) external view returns (uint256) [selector 0x9507d39a]
+fn @get() {
+  bb0:
+    v11 = calldataload 4
+    v0 = lt v11, 8
+    jumpi v0, bb2, bb1
+  bb1 [cold]:  ; preds = bb0
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb2:  ; preds = bb0
+    v13 = calldataload 4
+    v3 = sload v13
+    mstore 0, v13 !metadata(memory=scratch)
+    mstore 32, 8 !metadata(memory=scratch)
+    v12 = keccak256 0, 64 !metadata(memory=scratch)
+    v5 = sload v12
+    v7 = add v3, v5
+    v8 = lt v7, v3
+    jumpi v8, bb3, bb4
+  bb4:  ; preds = bb2
+    mstore 0, v7 !metadata(memory=scratch)
+    returndata 0, 32
+  bb3 [cold]:  ; preds = bb2
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+; function sum(uint256 n) external pure returns (uint256 s) [selector 0x188b85b4]
+fn @sum() {
+  bb0:
+    v21 = calldataload 4
+    jump bb6
+  bb6:  ; preds = bb0, bb8
+    v22 = phi [bb0: 0], [bb8: v51]
+    v23 = phi [bb0: 0], [bb8: v53]
+    v54 = add v23, 3
+    v55 = lt v54, v21
+    jumpi v55, bb7, bb1
+  bb1:  ; preds = bb5, bb6
+    v1 = phi [bb6: v22], [bb5: v17]
+    v2 = phi [bb6: v23], [bb5: v7]
+    v3 = lt v2, v21
+    jumpi v3, bb3, bb2
+  bb2:  ; preds = bb1
+    mstore 0, v1 !metadata(memory=scratch)
+    returndata 0, 32
+  bb3:  ; preds = bb1
+    v8 = mul v2, 3
+    v15 = add v8, 1
+    v17 = add v15, v1
+    v18 = lt v17, v1
+    jumpi v18, bb4, bb5
+  bb5:  ; preds = bb3
+    v7 = add v2, 1
+    jump bb1
+  bb7:  ; preds = bb6
+    v25 = mul v23, 3
+    v26 = add v25, 1
+    v27 = add v26, v22
+    v28 = lt v27, v22
+    v29 = add v23, 1
+    v33 = mul v29, 3
+    v34 = add v33, 1
+    v35 = add v34, v27
+    v36 = lt v35, v27
+    v56 = or v28, v36
+    v37 = add v29, 1
+    v41 = mul v37, 3
+    v42 = add v41, 1
+    v43 = add v42, v35
+    v44 = lt v43, v35
+    v57 = or v56, v44
+    v45 = add v37, 1
+    v49 = mul v45, 3
+    v50 = add v49, 1
+    v51 = add v50, v43
+    v52 = lt v51, v43
+    v58 = or v57, v52
+    jumpi v58, bb4, bb8
+  bb8:  ; preds = bb7
+    v53 = add v45, 1
+    jump bb6
+  bb4 [cold]:  ; preds = bb3, bb7
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
 }

@@ -1,9 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/calldata_nested_element_memory.sol:CalldataNestedElementMemory ===
 @module CalldataNestedElementMemory
+; function test1(uint8[][][] calldata values) external pure returns (uint256) [selector 0x82dda4b9]
 fn @test1(arg0: slice<calldata>) -> i256 [selector=0x82dda4b9, pure, abi_params=[array<_, array<_, array<_, uint8>>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
-    v1 = lt 1, v0
+    v1 = gt v0, 1
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = extract_value slice<calldata>, arg0, 0
@@ -30,7 +31,7 @@ fn @test1(arg0: slice<calldata>) -> i256 [selector=0x82dda4b9, pure, abi_params=
     v21 = mul v18, 32
     v22 = add v11, 32
     v23 = sub v19, v21
-    v24 = sgt v22, v23
+    v24 = slt v23, v22
     icall revert_if<calldata_tail_too_short>, v24
     v25 = inttoptr i256 v22 to ptr<calldata>
     v26 = make_calldata_slice v25, v18
@@ -49,38 +50,38 @@ fn @test1(arg0: slice<calldata>) -> i256 [selector=0x82dda4b9, pure, abi_params=
     v37 = shr v27, 251
     v38 = ne v37, 0
     icall panic_if<0x41>, v38
-    v39 = add 32, v36
+    v39 = add v36, 32
     v40 = lt v39, 32
     icall panic_if<0x41>, v40
     v41 = alloc v39
     mstore v41, v27
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb6
     v42 = phi [bb0: 0], [bb6: v88]
     v43 = lt v42, v27
     jumpi v43, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v89 = mload v41
-    v90 = lt 0, v89
+    v90 = gt v89, 0
     v91 = eq v90, false
     icall panic_if<0x32>, v91
     v92 = ptradd v41, 32
     v93 = mload v92, ptr<memory>
     v94 = mload v93
-    v95 = lt 0, v94
+    v95 = gt v94, 0
     v96 = eq v95, false
     icall panic_if<0x32>, v96
     v97 = ptradd v93, 32
     v98 = mload v97
     v99 = trunc i256 v98 to i8
     v100 = mload v41
-    v101 = lt 0, v100
+    v101 = gt v100, 0
     v102 = eq v101, false
     icall panic_if<0x32>, v102
     v103 = ptradd v41, 32
     v104 = mload v103, ptr<memory>
     v105 = mload v104
-    v106 = lt 1, v105
+    v106 = gt v105, 1
     v107 = eq v106, false
     icall panic_if<0x32>, v107
     v108 = ptradd v104, 64
@@ -88,13 +89,13 @@ fn @test1(arg0: slice<calldata>) -> i256 [selector=0x82dda4b9, pure, abi_params=
     v110 = trunc i256 v109 to i8
     v111 = checked_add uint8, v99, v110
     v112 = mload v41
-    v113 = lt 1, v112
+    v113 = gt v112, 1
     v114 = eq v113, false
     icall panic_if<0x32>, v114
     v115 = ptradd v41, 64
     v116 = mload v115, ptr<memory>
     v117 = mload v116
-    v118 = lt 0, v117
+    v118 = gt v117, 0
     v119 = eq v118, false
     icall panic_if<0x32>, v119
     v120 = ptradd v116, 32
@@ -103,7 +104,7 @@ fn @test1(arg0: slice<calldata>) -> i256 [selector=0x82dda4b9, pure, abi_params=
     v123 = checked_add uint8, v111, v122
     v124 = zext i8 v123 to i256
     ret v124
-  bb2:
+  bb2:  ; preds = bb1
     v44 = mul v42, 32
     v45 = ptrtoint ptr<calldata> v28 to i256
     v46 = add v45, v44
@@ -128,23 +129,23 @@ fn @test1(arg0: slice<calldata>) -> i256 [selector=0x82dda4b9, pure, abi_params=
     v62 = mul v59, 32
     v63 = add v52, 32
     v64 = sub v60, v62
-    v65 = sgt v63, v64
+    v65 = slt v64, v63
     icall revert_if<calldata_tail_too_short>, v65
     v66 = mul v59, 32
     v67 = shr v59, 251
     v68 = ne v67, 0
     icall panic_if<0x41>, v68
-    v69 = add 32, v66
+    v69 = add v66, 32
     v70 = lt v69, 32
     icall panic_if<0x41>, v70
     v71 = alloc v69
     mstore v71, v59
     jump bb4
-  bb4:
+  bb4:  ; preds = bb2, bb5
     v72 = phi [bb2: 0], [bb5: v83]
     v73 = lt v72, v59
     jumpi v73, bb5, bb6
-  bb6:
+  bb6:  ; preds = bb4
     v84 = ptrtoint ptr<memory> v71 to i256
     v85 = shl v42, 5
     v86 = ptradd v41, v85
@@ -152,7 +153,7 @@ fn @test1(arg0: slice<calldata>) -> i256 [selector=0x82dda4b9, pure, abi_params=
     mstore v87, v84
     v88 = add v42, 1
     jump bb1
-  bb5:
+  bb5:  ; preds = bb4
     v74 = mul v72, 32
     v75 = add v63, v74
     v76 = calldataload v75
@@ -168,10 +169,11 @@ fn @test1(arg0: slice<calldata>) -> i256 [selector=0x82dda4b9, pure, abi_params=
     jump bb4
 }
 
+; function test2(uint8[][2][] calldata values) external pure returns (uint256) [selector 0x710442c6]
 fn @test2(arg0: slice<calldata>) -> i256 [selector=0x710442c6, pure, abi_params=[array<_, array<2, array<_, uint8>>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
-    v1 = lt 1, v0
+    v1 = gt v0, 1
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = extract_value slice<calldata>, arg0, 0
@@ -201,17 +203,17 @@ fn @test2(arg0: slice<calldata>) -> i256 [selector=0x710442c6, pure, abi_params=
     icall revert_if<calldata_tail_too_short>, v24
     v25 = alloc 64
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb6
     v26 = phi [bb0: 0], [bb6: v71]
     v27 = lt v26, 2
     jumpi v27, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v72 = lt 0, 2
     v73 = eq v72, false
     icall panic_if<0x32>, v73
     v74 = mload v25, ptr<memory>
     v75 = mload v74
-    v76 = lt 0, v75
+    v76 = gt v75, 0
     v77 = eq v76, false
     icall panic_if<0x32>, v77
     v78 = ptradd v74, 32
@@ -222,7 +224,7 @@ fn @test2(arg0: slice<calldata>) -> i256 [selector=0x710442c6, pure, abi_params=
     icall panic_if<0x32>, v82
     v83 = mload v25, ptr<memory>
     v84 = mload v83
-    v85 = lt 1, v84
+    v85 = gt v84, 1
     v86 = eq v85, false
     icall panic_if<0x32>, v86
     v87 = ptradd v83, 64
@@ -235,7 +237,7 @@ fn @test2(arg0: slice<calldata>) -> i256 [selector=0x710442c6, pure, abi_params=
     v93 = ptradd v25, 32
     v94 = mload v93, ptr<memory>
     v95 = mload v94
-    v96 = lt 0, v95
+    v96 = gt v95, 0
     v97 = eq v96, false
     icall panic_if<0x32>, v97
     v98 = ptradd v94, 32
@@ -244,7 +246,7 @@ fn @test2(arg0: slice<calldata>) -> i256 [selector=0x710442c6, pure, abi_params=
     v101 = checked_add uint8, v90, v100
     v102 = zext i8 v101 to i256
     ret v102
-  bb2:
+  bb2:  ; preds = bb1
     v28 = mul v26, 32
     v29 = ptrtoint ptr<calldata> v20 to i256
     v30 = add v29, v28
@@ -269,30 +271,30 @@ fn @test2(arg0: slice<calldata>) -> i256 [selector=0x710442c6, pure, abi_params=
     v46 = mul v43, 32
     v47 = add v36, 32
     v48 = sub v44, v46
-    v49 = sgt v47, v48
+    v49 = slt v48, v47
     icall revert_if<calldata_tail_too_short>, v49
     v50 = mul v43, 32
     v51 = shr v43, 251
     v52 = ne v51, 0
     icall panic_if<0x41>, v52
-    v53 = add 32, v50
+    v53 = add v50, 32
     v54 = lt v53, 32
     icall panic_if<0x41>, v54
     v55 = alloc v53
     mstore v55, v43
     jump bb4
-  bb4:
+  bb4:  ; preds = bb2, bb5
     v56 = phi [bb2: 0], [bb5: v67]
     v57 = lt v56, v43
     jumpi v57, bb5, bb6
-  bb6:
+  bb6:  ; preds = bb4
     v68 = ptrtoint ptr<memory> v55 to i256
     v69 = shl v26, 5
     v70 = ptradd v25, v69
     mstore v70, v68
     v71 = add v26, 1
     jump bb1
-  bb5:
+  bb5:  ; preds = bb4
     v58 = mul v56, 32
     v59 = add v47, v58
     v60 = calldataload v59
@@ -308,10 +310,11 @@ fn @test2(arg0: slice<calldata>) -> i256 [selector=0x710442c6, pure, abi_params=
     jump bb4
 }
 
+; function test3(uint8[2][][2] calldata values) external pure returns (uint256) [selector 0x6e607577]
 fn @test3(arg0: slice<calldata>) -> i256 [selector=0x6e607577, pure, abi_params=[array<2, array<_, array<2, uint8>>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
-    v1 = lt 0, v0
+    v1 = gt v0, 0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = extract_value slice<calldata>, arg0, 0
@@ -338,7 +341,7 @@ fn @test3(arg0: slice<calldata>) -> i256 [selector=0x6e607577, pure, abi_params=
     v21 = mul v18, 64
     v22 = add v11, 32
     v23 = sub v19, v21
-    v24 = sgt v22, v23
+    v24 = slt v23, v22
     icall revert_if<calldata_tail_too_short>, v24
     v25 = inttoptr i256 v22 to ptr<calldata>
     v26 = make_calldata_slice v25, v18
@@ -357,19 +360,19 @@ fn @test3(arg0: slice<calldata>) -> i256 [selector=0x6e607577, pure, abi_params=
     v37 = shr v27, 251
     v38 = ne v37, 0
     icall panic_if<0x41>, v38
-    v39 = add 32, v36
+    v39 = add v36, 32
     v40 = lt v39, 32
     icall panic_if<0x41>, v40
     v41 = alloc v39
     mstore v41, v27
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb6
     v42 = phi [bb0: 0], [bb6: v67]
     v43 = lt v42, v27
     jumpi v43, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v68 = mload v41
-    v69 = lt 0, v68
+    v69 = gt v68, 0
     v70 = eq v69, false
     icall panic_if<0x32>, v70
     v71 = ptradd v41, 32
@@ -380,7 +383,7 @@ fn @test3(arg0: slice<calldata>) -> i256 [selector=0x6e607577, pure, abi_params=
     v75 = mload v72
     v76 = trunc i256 v75 to i8
     v77 = mload v41
-    v78 = lt 0, v77
+    v78 = gt v77, 0
     v79 = eq v78, false
     icall panic_if<0x32>, v79
     v80 = ptradd v41, 32
@@ -393,7 +396,7 @@ fn @test3(arg0: slice<calldata>) -> i256 [selector=0x6e607577, pure, abi_params=
     v86 = trunc i256 v85 to i8
     v87 = checked_add uint8, v76, v86
     v88 = mload v41
-    v89 = lt 1, v88
+    v89 = gt v88, 1
     v90 = eq v89, false
     icall panic_if<0x32>, v90
     v91 = ptradd v41, 64
@@ -405,7 +408,7 @@ fn @test3(arg0: slice<calldata>) -> i256 [selector=0x6e607577, pure, abi_params=
     v96 = trunc i256 v95 to i8
     v97 = checked_add uint8, v87, v96
     v98 = mload v41
-    v99 = lt 1, v98
+    v99 = gt v98, 1
     v100 = eq v99, false
     icall panic_if<0x32>, v100
     v101 = ptradd v41, 64
@@ -419,7 +422,7 @@ fn @test3(arg0: slice<calldata>) -> i256 [selector=0x6e607577, pure, abi_params=
     v108 = checked_add uint8, v97, v107
     v109 = zext i8 v108 to i256
     ret v109
-  bb2:
+  bb2:  ; preds = bb1
     v44 = mul v42, 64
     v45 = shr v42, 250
     v46 = ne v45, 0
@@ -428,11 +431,11 @@ fn @test3(arg0: slice<calldata>) -> i256 [selector=0x6e607577, pure, abi_params=
     v48 = add v47, v44
     v49 = alloc 64
     jump bb4
-  bb4:
+  bb4:  ; preds = bb2, bb5
     v50 = phi [bb2: 0], [bb5: v58]
     v51 = lt v50, 2
     jumpi v51, bb5, bb6
-  bb6:
+  bb6:  ; preds = bb4
     v59 = inttoptr i256 v48 to ptr<calldata>
     v60 = make_calldata_slice v59, 64
     v61 = extract_value slice<calldata>, v60, 0
@@ -445,7 +448,7 @@ fn @test3(arg0: slice<calldata>) -> i256 [selector=0x6e607577, pure, abi_params=
     mstore v66, v63
     v67 = add v42, 1
     jump bb1
-  bb5:
+  bb5:  ; preds = bb4
     v52 = mul v50, 32
     v53 = add v48, v52
     v54 = calldataload v53

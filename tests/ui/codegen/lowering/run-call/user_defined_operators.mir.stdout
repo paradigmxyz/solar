@@ -1,16 +1,17 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/user_defined_operators.sol:UserDefinedOperators ===
 @module UserDefinedOperators
+; function addressEq(Account[] memory accounts) external pure returns (bool) [selector 0x83ede5a4]
 fn @addressEq(arg0: ptr<memory>) -> i1 [selector=0x83ede5a4, pure, abi_params=[array<_, address>], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = mload arg0
-    v1 = lt 0, v0
+    v1 = gt v0, 0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = ptradd arg0, 32
     v4 = mload v3
     v5 = trunc i256 v4 to i160
     v6 = mload arg0
-    v7 = lt 1, v6
+    v7 = gt v6, 1
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     v9 = ptradd arg0, 64
@@ -20,42 +21,49 @@ fn @addressEq(arg0: ptr<memory>) -> i1 [selector=0x83ede5a4, pure, abi_params=[a
     ret v12
 }
 
+; function add_(Balance a, Balance b) external pure returns (uint) [selector 0xd1cbf1c5]
 fn @add_(arg0: i256, arg1: i256) -> i256 [selector=0xd1cbf1c5, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @add, arg0, arg1
     ret v0
 }
 
+; function mul_(Balance a, Balance b) external pure returns (uint) [selector 0xc42e9208]
 fn @mul_(arg0: i256, arg1: i256) -> i256 [selector=0xc42e9208, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @mul, arg0, arg1
     ret v0
 }
 
+; function eq_(Balance a, Balance b) external pure returns (bool) [selector 0xd8a1aad7]
 fn @eq_(arg0: i256, arg1: i256) -> i1 [selector=0xd8a1aad7, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @eq, arg0, arg1
     ret v0
 }
 
+; function sameAccount(Account a, Account b) pure returns (bool)
 fn @sameAccount(arg0: i160, arg1: i160) -> i1 [pure] {
   bb0:
     v0 = eq arg0, arg1
     ret v0
 }
 
+; function add(Balance a, Balance b) pure returns (Balance)
 fn @add(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = checked_add uint256, arg0, arg1
     ret v0
 }
 
+; function mul(Balance a, Balance b) pure returns (Balance)
 fn @mul(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = checked_mul uint256, arg0, arg1
     ret v0
 }
 
+; function eq(Balance a, Balance b) pure returns (bool)
 fn @eq(arg0: i256, arg1: i256) -> i1 [pure] {
   bb0:
     v0 = eq arg0, arg1

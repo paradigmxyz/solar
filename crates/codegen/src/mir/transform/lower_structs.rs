@@ -9,6 +9,9 @@
 //! here. All tail results are read immediately after their call, before another call can overwrite
 //! them.
 //!
+//! The module's struct table is deleted. A function returning several words keeps no logical
+//! result type, only its `return_abi`; a single leaf becomes the result type.
+//!
 //! This pass belongs before frame and memory-object lowering. Frame rebasing is checked for the
 //! whole module before changing signatures. Slice fields expand directly to pointer/length words;
 //! standalone slice signatures remain for slice lowering. Before expanding a slice field, check
@@ -99,7 +102,10 @@ impl Layouts {
 
 fn lower_structs(module: &mut Module, analyses: &mut ModuleAnalyses) -> Result<bool, &'static str> {
     if !module.has_struct_values() {
-        return Ok(false);
+        // Types no value or signature uses.
+        let changed = !module.struct_types.is_empty();
+        module.struct_types.clear();
+        return Ok(changed);
     }
     if module.functions.iter().any(|func| {
         func.arg_indices().any(|index| {
@@ -136,7 +142,7 @@ fn lower_structs(module: &mut Module, analyses: &mut ModuleAnalyses) -> Result<b
             .ok_or("local frame offsets cannot be rebased for the expanded signature")?;
         shifts.push(offsets);
     }
-    Ok(run_lowering_function_pass(module, analyses, |func, function_analyses| {
+    let changed = run_lowering_function_pass(module, analyses, |func, function_analyses| {
         // unreachable aggregate definitions -> removed blocks and phi inputs
         let _ = super::cfg_simplify::remove_unreachable_blocks(func);
         lower_function(func, &layouts);
@@ -145,7 +151,9 @@ fn lower_structs(module: &mut Module, analyses: &mut ModuleAnalyses) -> Result<b
             func.inst_mut(inst).kind = InstKind::InternalFrameAddr(offset);
         }
         true
-    }))
+    });
+    module.struct_types.clear();
+    Ok(changed)
 }
 
 /// Checks the slice representation contract before exposing a field's two words.
@@ -263,13 +271,20 @@ fn lower_function(func: &mut Function, layouts: &Layouts) {
             }
         }
     }
-    // result: aggregate -> result: aggregate [return_abi = scalar leaves]
-    func.set_return_abi(
-        func.return_components()
+    // result: aggregate -> result: leaf, or no result with return_abi = [leaf0, ..., leafN]
+    if matches!(func.return_type(), MirType::Struct(_)) {
+        let leaves = func
+            .return_components()
             .iter()
             .flat_map(|ty| layouts.flatten(ty).iter().copied())
-            .collect::<Vec<_>>(),
-    );
+            .collect::<Vec<_>>();
+        if let [leaf] = leaves[..] {
+            func.set_return_type(leaf);
+        } else {
+            func.set_return_type(MirType::Void);
+            func.set_return_abi(leaves);
+        }
+    }
 
     // The leaves each instruction expands to, reused across instructions.
     let mut outputs = Vec::new();
@@ -356,10 +371,8 @@ fn lower_function(func: &mut Function, layouts: &Layouts) {
                             let base =
                                 builder.frame_load(0, FrameMode::MultiReturn, FrameSlotKind::Word);
                             for (index, &ty) in types.iter().enumerate().skip(1) {
-                                let offset = builder.add_u64_offset(
-                                    base,
-                                    index as u64 * EvmMemoryLayout::WORD_SIZE,
-                                );
+                                let offset = builder
+                                    .add_offset(base, index as u64 * EvmMemoryLayout::WORD_SIZE);
                                 outputs.push(builder.emit_inst(
                                     InstKind::Load(offset, PtrLocation::Memory),
                                     Some(ty),

@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_ref_indirect_call.sol:StorageRefIndirectCall ===
 @module StorageRefIndirectCall
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -29,40 +30,43 @@ fn @constructor() [constructor] {
     ret
 }
 
+; function getFirst() internal view returns (uint256[] storage)
 fn @getFirst() -> i256 [view] {
   bb0:
     ret 0
 }
 
+; function getSecond() internal view returns (uint256[] storage)
 fn @getSecond() -> i256 [view] {
   bb0:
     ret 1
 }
 
+; function bind(bool condition) external view returns (uint256) [selector 0xb8b43f4c]
 fn @bind(arg0: i1) -> i256 [selector=0xb8b43f4c, view, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
-    v0 = phi [bb1: 2], [bb2: 3]
+  bb3:  ; preds = bb1, bb2
+    v0 = phi [bb1: 1], [bb2: 2]
     v1 = icall @internal_dispatcher_p_none_r_storageptr, v0
     jumpi arg0, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     jumpi arg0, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb4
     jump bb9
-  bb7:
+  bb7:  ; preds = bb4
     jump bb9
-  bb9:
-    v2 = phi [bb7: 3], [bb8: 2]
+  bb9:  ; preds = bb7, bb8
+    v2 = phi [bb7: 2], [bb8: 1]
     v3 = icall @internal_dispatcher_p_none_r_storageptr, v2
     jump bb6
-  bb6:
+  bb6:  ; preds = bb9, bb5
     v4 = phi [bb9: v3], [bb5: 0]
     v5 = sload v1 !metadata(storage=symbolic(v1))
     v6 = sload v4 !metadata(storage=symbolic(v4))
@@ -73,18 +77,18 @@ fn @bind(arg0: i1) -> i256 [selector=0xb8b43f4c, view, abi_params=[bool], abi_re
 
 fn @internal_dispatcher_p_none_r_storageptr(arg0: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
-    v0 = eq arg0, 2
+    v0 = eq arg0, 1
     jumpi v0, bb1, bb2
-  bb2:
-    v2 = eq arg0, 3
+  bb2:  ; preds = bb0
+    v2 = eq arg0, 2
     jumpi v2, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb2
     icall panic_if<0x51>, true
     invalid
-  bb3:
+  bb3:  ; preds = bb2
     v3 = icall @getSecond
     ret v3
-  bb1:
+  bb1:  ; preds = bb0
     v1 = icall @getFirst
     ret v1
 }

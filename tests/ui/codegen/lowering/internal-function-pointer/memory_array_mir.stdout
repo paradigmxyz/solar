@@ -1,65 +1,71 @@
 // === ROOT/tests/ui/codegen/lowering/internal-function-pointer/memory_array_mir.sol:FunctionPointerMemoryArray ===
 @module FunctionPointerMemoryArray
+; function arrayA(uint256 x) public pure returns (uint256) [selector 0xad3149a4]
 fn @arrayA(arg0: i256) -> i256 [selector=0xad3149a4, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = checked_add uint256, arg0, 1
     ret v0
 }
 
+; function arrayB(uint256 x) public pure returns (uint256) [selector 0x9b889676]
 fn @arrayB(arg0: i256) -> i256 [selector=0x9b889676, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = checked_add uint256, arg0, 2
     ret v0
 }
 
+; function arrayC(uint256 x) public pure returns (uint256) [selector 0x794b7d08]
 fn @arrayC(arg0: i256) -> i256 [selector=0x794b7d08, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = checked_add uint256, arg0, 3
     ret v0
 }
 
+; function arrayD(uint256 x) public pure returns (uint256) [selector 0xd82c9b10]
 fn @arrayD(arg0: i256) -> i256 [selector=0xd82c9b10, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = checked_add uint256, arg0, 5
     ret v0
 }
 
+; function arrayE(uint256 x) public pure returns (uint256) [selector 0x866ce1e6]
 fn @arrayE(arg0: i256) -> i256 [selector=0x866ce1e6, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = checked_add uint256, arg0, 8
     ret v0
 }
 
+; function callArray(uint256 x, uint256 index) public returns (uint256) [selector 0xefc06ab0]
 fn @callArray(arg0: i256, arg1: i256) -> i256 [selector=0xefc06ab0, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 352
     mstore v0, 10
     v1 = mload v0
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = ptradd v0, 32
     mstore v4, 1
     v5 = mload v0
-    v6 = lt 1, v5
+    v6 = gt v5, 1
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = ptradd v0, 64
     mstore v8, 2
     v9 = mload v0
-    v10 = lt 2, v9
+    v10 = gt v9, 2
     v11 = eq v10, false
     icall panic_if<0x32>, v11
     v12 = ptradd v0, 96
     mstore v12, 3
     v13 = mload v0
-    v14 = lt 3, v13
+    v14 = gt v13, 3
     v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = ptradd v0, 128
     mstore v16, 4
     v17 = mload v0
-    v18 = lt 4, v17
+    v18 = gt v17, 4
     v19 = eq v18, false
     icall panic_if<0x32>, v19
     v20 = ptradd v0, 160
@@ -80,34 +86,34 @@ fn @internal_dispatcher_p_uint256_r_uint256(arg0: i256, arg1: i256) -> i256 [fun
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v2 = eq arg0, 2
     jumpi v2, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb2
     v4 = eq arg0, 3
     jumpi v4, bb5, bb6
-  bb6:
+  bb6:  ; preds = bb4
     v6 = eq arg0, 4
     jumpi v6, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     v8 = eq arg0, 5
     jumpi v8, bb9, bb10
-  bb10:
+  bb10:  ; preds = bb8
     icall panic_if<0x51>, true
     invalid
-  bb9:
+  bb9:  ; preds = bb8
     v9 = icall @arrayE, arg1
     ret v9
-  bb7:
+  bb7:  ; preds = bb6
     v7 = icall @arrayD, arg1
     ret v7
-  bb5:
+  bb5:  ; preds = bb4
     v5 = icall @arrayC, arg1
     ret v5
-  bb3:
+  bb3:  ; preds = bb2
     v3 = icall @arrayB, arg1
     ret v3
-  bb1:
+  bb1:  ; preds = bb0
     v1 = icall @arrayA, arg1
     ret v1
 }

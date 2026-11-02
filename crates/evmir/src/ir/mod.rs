@@ -15,14 +15,14 @@
 use crate::{
     debug::{DebugFunction, DebugFunctionExit, DebugSpans, MAX_DEBUG_SPANS},
     link::{EmbeddedBytecodes, ImmutableId, LibraryId, LibraryTable},
-    op::{self, StackOp},
+    op::{self, StackOp, TrackedWord},
 };
 use alloy_primitives::U256;
 use solar_ast::TypeSize;
 use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::{
     index::{IndexVec, index_vec},
-    map::FxHashMap,
+    map::{FxHashMap, FxHashSet},
     newtype_index,
 };
 use solar_interface::{Span, Symbol, diagnostics::DiagCtxt};
@@ -74,6 +74,8 @@ pub struct Module {
     debug_info_tracked: bool,
     /// Block contents in which an earlier peephole run found nothing to rewrite.
     pub peephole_clean: CleanBlocks,
+    /// Comments the text format prints before blocks.
+    pub comments: BlockComments,
     /// The objective this module's code is optimized for: the build's, or the one the source
     /// contract's `@custom:solar-optimize` tag selects.
     pub optimization: OptimizationMode,
@@ -138,6 +140,7 @@ impl Module {
             code_follows: false,
             debug_info_tracked: false,
             peephole_clean: CleanBlocks::default(),
+            comments: BlockComments::default(),
             optimization: OptimizationMode::default(),
         }
     }
@@ -150,6 +153,7 @@ impl Module {
         self.code_follows = false;
         self.debug_info_tracked = false;
         self.peephole_clean.clear();
+        self.comments.clear();
         self.optimization = OptimizationMode::default();
     }
 
@@ -280,28 +284,18 @@ impl CallEffect {
         let mut ret = usize::from(self.ret);
         // The words the code pushes, less the words it consumes.
         let mut growth = 0isize;
-        let swapped = |slot: usize, a: usize, b: usize| match slot {
-            slot if slot == a => b,
-            slot if slot == b => a,
-            slot => slot,
-        };
         let apply = |effect: StackEffect, ret: &mut usize, growth: &mut isize| {
             *ret = ret.checked_sub(usize::from(effect.inputs))? + usize::from(effect.outputs);
             *growth += isize::from(effect.outputs) - isize::from(effect.inputs);
             Some(())
         };
         for inst in instructions {
-            match inst.as_stack_op() {
-                Some(StackOp::Dup(n)) => {
-                    if ret + 1 == usize::from(n) {
-                        return None;
-                    }
-                    ret += 1;
-                    growth += 1;
-                }
-                Some(StackOp::Swap(n)) => ret = swapped(ret, 0, usize::from(n)),
-                Some(StackOp::Exchange(n, m)) => ret = swapped(ret, usize::from(n), usize::from(m)),
-                _ => apply(inst.stack_effect(), &mut ret, &mut growth)?,
+            if let Some(stack_op) = inst.as_stack_op() {
+                let TrackedWord::At(moved) = stack_op.track(ret) else { return None };
+                ret = moved;
+                growth += stack_op.net_growth();
+            } else {
+                apply(inst.stack_effect(), &mut ret, &mut growth)?;
             }
         }
         apply(last, &mut ret, &mut growth)?;
@@ -1037,6 +1031,7 @@ fn remap_blocks(module: &mut Module, order: &[BlockId]) {
         remap[old_block] = Some(new_block);
     }
     module.blocks = blocks;
+    module.comments.retain(&module.blocks);
     for block in &mut module.blocks {
         for inst in &mut block.instructions {
             if let Some(PushValue::Block(block)) = &mut inst.value {
@@ -1099,3 +1094,56 @@ impl fmt::Debug for CleanBlocks {
         f.write_str("CleanBlocks")
     }
 }
+
+/// Comments that the text format prints after block labels, keyed by the block's label.
+///
+/// No pass decides from them and module equality ignores them, so they cannot change what the
+/// compiler emits. A pass that removes a block drops its comment. A merge into a predecessor
+/// appends the comment to the predecessor's.
+#[derive(Clone, Debug, Default)]
+pub struct BlockComments(FxHashMap<u32, String>);
+
+impl BlockComments {
+    /// Forgets every comment.
+    pub fn clear(&mut self) {
+        self.0.clear();
+    }
+
+    /// Returns the comment after the label `label`.
+    pub fn get(&self, label: u32) -> Option<&str> {
+        self.0.get(&label).map(String::as_str)
+    }
+
+    /// Appends `note` to the comment after the label `label`.
+    pub fn push(&mut self, label: u32, note: &str) {
+        let comment = self.0.entry(label).or_default();
+        if !comment.is_empty() {
+            comment.push_str(" + ");
+        }
+        comment.push_str(note);
+    }
+
+    /// Moves the comment of the block labeled `from`, which a merge removes, to the end of the
+    /// one of the block labeled `into`, which continues its code.
+    pub fn absorb(&mut self, into: u32, from: u32) {
+        if let Some(comment) = self.0.remove(&from) {
+            self.push(into, &comment);
+        }
+    }
+
+    /// Drops the comments of blocks that `blocks` no longer holds.
+    fn retain(&mut self, blocks: &IndexVec<BlockId, Block>) {
+        if !self.0.is_empty() {
+            let labels = blocks.iter().map(|block| block.label).collect::<FxHashSet<_>>();
+            self.0.retain(|label, _| labels.contains(label));
+        }
+    }
+}
+
+impl PartialEq for BlockComments {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for BlockComments {}

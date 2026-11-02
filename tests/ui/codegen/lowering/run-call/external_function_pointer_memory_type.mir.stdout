@@ -1,10 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_memory_type.sol:ExternalFunctionPointerMemoryType ===
 @module ExternalFunctionPointerMemoryType
+; function g(string calldata) external pure returns (bool) [selector 0xe6d02096]
 fn @g(arg0: slice<calldata>) -> i1 [selector=0xe6d02096, pure, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     ret true
 }
 
+; function main() external returns (bool) [selector 0xdffeadd0]
 fn @main() -> i1 [selector=0xdffeadd0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address
@@ -24,18 +26,17 @@ fn @main() -> i1 [selector=0xdffeadd0, abi_params=[], abi_returns=[word<bool>], 
     v12 = extract_value slice<memory>, v10, 1
     v13 = call v7, v6, 0, v11, v12, 0, 32
     jumpi v13, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v14 = returndatasize
     v15 = lt v14, 32
     icall revert_if<tuple_data_too_short>, v15
-    v16 = add 0, 0
-    v17 = mload v16
-    v18 = shr v17, 1
-    v19 = eq v18, 0
-    v20 = eq v19, false
-    icall revert_if<empty>, v20
-    v21 = ne v17, 0
-    ret v21
+    v16 = mload 0 !metadata(memory=scratch)
+    v17 = shr v16, 1
+    v18 = eq v17, 0
+    v19 = eq v18, false
+    icall revert_if<empty>, v19
+    v20 = ne v16, 0
+    ret v20
 }

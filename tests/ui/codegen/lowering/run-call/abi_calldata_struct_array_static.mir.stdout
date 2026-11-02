@@ -3,11 +3,12 @@
 @types
   struct0: {i256, i256, i256, i256, i256}
 
+; function f(StaticPair[] calldata value) external pure returns (uint256 length, uint256 a, uint256 b, uint256 c, uint256 d) [selector 0xa7d2e4a7]
 fn @f(arg0: slice<calldata>) -> struct0 [selector=0xa7d2e4a7, pure, abi_params=[array<_, tuple<uint256, uint256>>], abi_returns=[word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = extract_value slice<calldata>, arg0, 1
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = extract_value slice<calldata>, arg0, 0
@@ -20,7 +21,7 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0xa7d2e4a7, pure, abi_params=[
     v11 = add v10, 0
     v12 = calldataload v11
     v13 = extract_value slice<calldata>, arg0, 1
-    v14 = lt 0, v13
+    v14 = gt v13, 0
     v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = extract_value slice<calldata>, arg0, 0
@@ -33,7 +34,7 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0xa7d2e4a7, pure, abi_params=[
     v23 = add v22, 32
     v24 = calldataload v23
     v25 = extract_value slice<calldata>, arg0, 1
-    v26 = lt 1, v25
+    v26 = gt v25, 1
     v27 = eq v26, false
     icall panic_if<0x32>, v27
     v28 = extract_value slice<calldata>, arg0, 0
@@ -46,7 +47,7 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0xa7d2e4a7, pure, abi_params=[
     v35 = add v34, 0
     v36 = calldataload v35
     v37 = extract_value slice<calldata>, arg0, 1
-    v38 = lt 1, v37
+    v38 = gt v37, 1
     v39 = eq v38, false
     icall panic_if<0x32>, v39
     v40 = extract_value slice<calldata>, arg0, 0

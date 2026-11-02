@@ -1,14 +1,14 @@
 - // === ROOT/tests/ui/codegen/mir/lower-structs/slices.mir (before lower-structs) ===
 + // === ROOT/tests/ui/codegen/mir/lower-structs/slices.mir (after lower-structs) ===
   @module StructSlices
-  @types
-    struct0: {}
-    struct1: {slice<calldata>, i256}
-    struct2: {slice<memory>, struct0, struct1, slice<returndata>}
-    struct3: {ptr<memory>}
-  
+- @types
+-   struct0: {}
+-   struct1: {slice<calldata>, i256}
+-   struct2: {slice<memory>, struct0, struct1, slice<returndata>}
+-   struct3: {ptr<memory>}
+- 
 - fn @pack(arg0: slice<memory>, arg1: slice<calldata>, arg2: slice<returndata>) -> struct2 {
-+ fn @pack(arg0: slice<memory>, arg1: slice<calldata>, arg2: slice<returndata>) -> struct2 [return_abi=[i256, i256, i256, i256, i256, i256, i256]] {
++ fn @pack(arg0: slice<memory>, arg1: slice<calldata>, arg2: slice<returndata>) [return_abi=[i256, i256, i256, i256, i256, i256, i256]] {
     bb0:
 -     v0 = insert_value struct1, undef struct1, 0, arg1
 -     v1 = insert_value struct1, v0, 1, 42
@@ -71,10 +71,10 @@
   }
   
 - fn @loop(arg0: struct2, arg1: i1) -> struct2 {
-+ fn @loop(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, arg6: i256, arg7: i1) -> struct2 [return_abi=[i256, i256, i256, i256, i256, i256, i256]] {
++ fn @loop(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, arg6: i256, arg7: i1) [return_abi=[i256, i256, i256, i256, i256, i256, i256]] {
     bb0:
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
 -     v0 = phi struct2, [bb0: arg0], [bb2: v4]
 -     jumpi arg1, bb2, bb3
 +     v5 = phi [bb0: arg0], [bb2: v15]
@@ -85,10 +85,10 @@
 +     v10 = phi [bb0: arg5], [bb2: v10]
 +     v11 = phi [bb0: arg6], [bb2: v11]
 +     jumpi arg7, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
 -     ret v0
 +     ret v5, v6, v7, v8, v9, v10, v11
-    bb2:
+    bb2:  ; preds = bb1
 -     v1 = extract_value struct2, v0, 0
 -     v2 = extract_value slice<memory>, v1, 0
 +     v12 = inttoptr i256 v5 to ptr<memory>
@@ -103,21 +103,21 @@
   }
   
 - fn @forward(arg0: struct2) -> struct2 {
-+ fn @forward(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, arg6: i256) -> struct2 [return_abi=[i256, i256, i256, i256, i256, i256, i256]] {
++ fn @forward(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, arg6: i256) [return_abi=[i256, i256, i256, i256, i256, i256, i256]] {
     bb0:
 -     ret arg0
 +     ret arg0, arg1, arg2, arg3, arg4, arg5, arg6
   }
   
 - fn @tail(arg0: struct2) -> struct2 {
-+ fn @tail(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, arg6: i256) -> struct2 [return_abi=[i256, i256, i256, i256, i256, i256, i256]] {
++ fn @tail(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, arg6: i256) [return_abi=[i256, i256, i256, i256, i256, i256, i256]] {
     bb0:
 -     tail_call @forward, arg0
 +     tail_call @forward, arg0, arg1, arg2, arg3, arg4, arg5, arg6
   }
   
 - fn @from_undef() -> struct1 {
-+ fn @from_undef() -> struct1 [return_abi=[i256, i256, i256]] {
++ fn @from_undef() [return_abi=[i256, i256, i256]] {
     bb0:
 -     v0 = insert_value struct1, undef struct1, 0, undef slice<calldata>
 -     v1 = insert_value struct1, v0, 1, 42
@@ -129,14 +129,14 @@
   }
   
 - fn @phi_undef(arg0: slice<calldata>, arg1: i1) -> struct1 {
-+ fn @phi_undef(arg0: slice<calldata>, arg1: i1) -> struct1 [return_abi=[i256, i256, i256]] {
++ fn @phi_undef(arg0: slice<calldata>, arg1: i1) [return_abi=[i256, i256, i256]] {
     bb0:
       jumpi arg1, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
       v0 = phi [bb1: arg0], [bb2: undef slice<calldata>]
 -     v1 = insert_value struct1, undef struct1, 0, v0
 -     v2 = insert_value struct1, v1, 1, 42
@@ -148,7 +148,7 @@
   }
   
 - fn @select_undef(arg0: slice<calldata>, arg1: i1) -> struct1 {
-+ fn @select_undef(arg0: slice<calldata>, arg1: i1) -> struct1 [return_abi=[i256, i256, i256]] {
++ fn @select_undef(arg0: slice<calldata>, arg1: i1) [return_abi=[i256, i256, i256]] {
     bb0:
       v0 = select arg1, arg0, undef slice<calldata>
 -     v1 = insert_value struct1, undef struct1, 0, v0
@@ -163,9 +163,9 @@
   fn @checked_slice(arg0: slice<calldata>, arg1: i1) -> slice<calldata> {
     bb0:
       jumpi arg1, bb1, bb2
-    bb2 [cold]:
+    bb2 [cold]:  ; preds = bb0
       tail_call @revert_stub
-    bb1:
+    bb1:  ; preds = bb0
       ret arg0
   }
   
@@ -175,16 +175,16 @@
   }
   
 - fn @phi_call_results(arg0: i1, arg1: slice<calldata>) -> struct1 {
-+ fn @phi_call_results(arg0: i1, arg1: slice<calldata>) -> struct1 [return_abi=[i256, i256, i256]] {
++ fn @phi_call_results(arg0: i1, arg1: slice<calldata>) [return_abi=[i256, i256, i256]] {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       v1 = icall @slice_identity, arg1
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       v0 = icall @slice_identity, arg1
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
       v2 = phi [bb1: v0], [bb2: v1]
       v3 = select arg0, v2, v2
 -     v4 = insert_value struct1, undef struct1, 0, v3
@@ -202,16 +202,16 @@
   }
   
 - fn @memory_call_results(arg0: i1, arg1: ptr<memory>) -> struct3 {
-+ fn @memory_call_results(arg0: i1, arg1: ptr<memory>) -> struct3 [return_abi=[ptr<memory>]] {
++ fn @memory_call_results(arg0: i1, arg1: ptr<memory>) -> ptr<memory> {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       v1 = icall @memory_identity, arg1
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       v0 = icall @memory_identity, arg1
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
       v2 = phi [bb1: v0], [bb2: v1]
       v3 = select arg0, v2, v2
 -     v4 = insert_value struct3, undef struct3, 0, v3

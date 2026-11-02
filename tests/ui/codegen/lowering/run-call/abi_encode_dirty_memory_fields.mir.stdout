@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_dirty_memory_fields.sol:AbiEncodeDirtyMemoryFields ===
 @module AbiEncodeDirtyMemoryFields
+; function dirty() internal pure returns (S memory s)
 fn @dirty() -> ptr<memory> [pure] {
   bb0:
     v0 = alloc 192 !metadata(preserves_fmp)
@@ -36,6 +37,7 @@ fn @dirty() -> ptr<memory> [pure] {
     ret v0
 }
 
+; function encodeStruct() external pure returns (bytes32) [selector 0x01e941a3]
 fn @encodeStruct() -> i256 [selector=0x01e941a3, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = icall @dirty
@@ -46,18 +48,19 @@ fn @encodeStruct() -> i256 [selector=0x01e941a3, pure, abi_params=[], abi_return
     ret v4
 }
 
+; function encodeArray() external pure returns (bytes32) [selector 0x7a13e494]
 fn @encodeArray() -> i256 [selector=0x7a13e494, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc zeroed checked 96
     mstore v0, 2
     v1 = mload v0
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = ptradd v0, 32
     mstore v4, 3
     v5 = mload v0
-    v6 = lt 1, v5
+    v6 = gt v5, 1
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = ptradd v0, 64
@@ -75,6 +78,7 @@ fn @encodeArray() -> i256 [selector=0x7a13e494, pure, abi_params=[], abi_returns
     ret v16
 }
 
+; function encodeBadEnum() external pure returns (bytes memory) [selector 0xc72bddb9]
 fn @encodeBadEnum() -> ptr<memory> [selector=0xc72bddb9, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @dirty

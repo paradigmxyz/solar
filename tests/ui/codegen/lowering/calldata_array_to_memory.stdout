@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_array_to_memory.sol:C (runtime) ===
 @module C_runtime
-bb0:
+bb0:  ; runtime dispatch entry
   callvalue
   push bb6
   jumpi
@@ -45,10 +45,10 @@ bb35 [cold]:
   push 36
   push 28
   revert
-bb34 [cold]:
+bb34 [cold]:  ; revert_stub (synthesized)
   push 65
   jump bb35
-bb7:
+bb7:  ; getter for `uint256 public acc` [selector 0x7da1365e]
   push 0
   sload
   push 0
@@ -56,7 +56,7 @@ bb7:
   push 32
   push 0
   return
-bb8:
+bb8:  ; function viaDecl(uint256[] calldata xs) external returns (uint256) [selector 0x874b8e9d]
   push 4
   calldataload
   push 36
@@ -146,8 +146,8 @@ bb13 [loop]:
   add
   jump bb11
 bb11 [loop]:
-  dup 2
-  dup 2
+  dup 1
+  dup 3
   sub
   push bb13
   jumpi
@@ -161,7 +161,7 @@ bb11 [loop]:
   push 32
   push 0
   return
-bb18:
+bb18:  ; function viaAssign(uint256[] calldata xs) external pure returns (uint256) [selector 0x2be02e45]
   push 4
   calldataload
   push 36
@@ -224,7 +224,7 @@ bb18:
   push 32
   push 0
   return
-bb23:
+bb23:  ; function viaStructLiteral(uint256 base, uint256[] calldata xs, bytes calldata tag) external pure returns (uint256) [selector 0x3ce9e381]
   push 224
   push 64
   mstore

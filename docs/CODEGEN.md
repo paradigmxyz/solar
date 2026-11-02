@@ -4,12 +4,18 @@
 
 Declare each MIR operation once, as a row in `crates/mir/src/op_schema.rs`:
 typed payload with named tuple operands, mnemonic, result kind, operand type
-contract, phase set, effect, traits, and side-effect flag. The macro generates
-operand traversal, the `Op` rewrite view, the ISLE prelude, a constructor per
-operation (the text parser uses it for every operation built from value
-operands alone), and a `FunctionBuilder` method per variant marked
-`#[builder(name)]` or `#[builder(name, void)]`. Write custom text syntax or a
-custom builder only for an attribute the generic forms cannot express.
+contract, phase set, effect, traits, side-effect flag, and, when the operation
+has one, its meaning in `#[semantics(...)]`: an EVM opcode, named by its
+mnemonic in the opcode table, on the operands in pop order, a cast, a
+comparison, `select`, a phi, a call, or checked arithmetic (see
+`crates/mir/src/semantics.rs`). The MIR interpreter runs operations through
+`InstKind::semantics`, and a codegen test checks that instruction selection
+never picks an opcode other than the declared one. The macro generates operand
+traversal, the `Op` rewrite view, the ISLE prelude, a constructor per operation
+(the text parser uses it for every operation built from value operands alone),
+and a `FunctionBuilder` method per variant marked `#[builder(name)]` or
+`#[builder(name, void)]`. Write custom text syntax or a custom builder only for
+an attribute the generic forms cannot express.
 Declare EVM opcodes the same way in `crates/evmir/src/op.rs`, with traits and
 availability per row; `op_table.snap` snapshots the table. Add operations to
 these tables only; never add a parallel `match` that classifies them.

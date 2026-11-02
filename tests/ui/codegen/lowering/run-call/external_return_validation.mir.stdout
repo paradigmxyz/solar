@@ -4,6 +4,19 @@
   struct0: {i8, i1, i128}
   struct1: {ptr<memory>, ptr<memory>}
 
+; fallback() external [fallback]
+fn @fallback() [fallback] {
+  bb0:
+    mstore 0, 64 !metadata(memory=scratch)
+    mstore 32, 96 !metadata(memory=scratch)
+    mstore 64, 64 !metadata(memory=scratch)
+    mstore 96, 32 !metadata(memory=scratch)
+    mstore 128, 1
+    mstore 160, 7
+    returndata 0, 192
+}
+
+; function validatedTuple(uint256 value, uint256 flag) external view returns (uint8, bool, uint128) [selector 0x7b478388]
 fn @validatedTuple(arg0: i256, arg1: i256) -> struct0 [selector=0x7b478388, view, abi_params=[uint256, uint256], abi_returns=[word<uint8>, word<bool>, word<uint128>], abi_return_params=[uint8, bool, uint128]] {
   bb0:
     v0 = address
@@ -14,48 +27,47 @@ fn @validatedTuple(arg0: i256, arg1: i256) -> struct0 [selector=0x7b478388, view
     v5 = zext i160 v0 to i256
     v6 = staticcall v1, v5, v3, v4, v3, 96
     jumpi v6, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v7 = returndatasize
     v8 = lt v7, 96
     icall revert_if<tuple_data_too_short>, v8
-    v9 = ptrtoint ptr<memory> v3 to i256
-    v10 = add v9, 0
-    v11 = mload v10
-    v12 = shr v11, 8
-    v13 = eq v12, 0
-    v14 = eq v13, false
-    icall revert_if<empty>, v14
-    v15 = ptrtoint ptr<memory> v3 to i256
-    v16 = add v15, 32
-    v17 = mload v16
-    v18 = shr v17, 1
-    v19 = eq v18, 0
-    v20 = eq v19, false
-    icall revert_if<empty>, v20
-    v21 = ptrtoint ptr<memory> v3 to i256
-    v22 = add v21, 64
-    v23 = mload v22
-    v24 = shr v23, 128
-    v25 = eq v24, 0
-    v26 = eq v25, false
-    icall revert_if<empty>, v26
-    v27 = trunc i256 v11 to i8
-    v28 = ne v17, 0
-    v29 = trunc i256 v23 to i128
-    v30 = insert_value struct0, undef struct0, 0, v27
-    v31 = insert_value struct0, v30, 1, v28
-    v32 = insert_value struct0, v31, 2, v29
-    v33 = extract_value struct0, v32, 0
-    v34 = extract_value struct0, v32, 1
-    v35 = extract_value struct0, v32, 2
-    v36 = insert_value struct0, undef struct0, 0, v33
-    v37 = insert_value struct0, v36, 1, v34
-    v38 = insert_value struct0, v37, 2, v35
-    ret v38
+    v9 = mload v3
+    v10 = shr v9, 8
+    v11 = eq v10, 0
+    v12 = eq v11, false
+    icall revert_if<empty>, v12
+    v13 = ptrtoint ptr<memory> v3 to i256
+    v14 = add v13, 32
+    v15 = mload v14
+    v16 = shr v15, 1
+    v17 = eq v16, 0
+    v18 = eq v17, false
+    icall revert_if<empty>, v18
+    v19 = ptrtoint ptr<memory> v3 to i256
+    v20 = add v19, 64
+    v21 = mload v20
+    v22 = shr v21, 128
+    v23 = eq v22, 0
+    v24 = eq v23, false
+    icall revert_if<empty>, v24
+    v25 = trunc i256 v9 to i8
+    v26 = ne v15, 0
+    v27 = trunc i256 v21 to i128
+    v28 = insert_value struct0, undef struct0, 0, v25
+    v29 = insert_value struct0, v28, 1, v26
+    v30 = insert_value struct0, v29, 2, v27
+    v31 = extract_value struct0, v30, 0
+    v32 = extract_value struct0, v30, 1
+    v33 = extract_value struct0, v30, 2
+    v34 = insert_value struct0, undef struct0, 0, v31
+    v35 = insert_value struct0, v34, 1, v32
+    v36 = insert_value struct0, v35, 2, v33
+    ret v36
 }
 
+; function tupleTarget(uint256 value, uint256 flag) external pure returns (uint8, bool, uint128) [selector 0xe1ee60dd]
 fn @tupleTarget(arg0: i256, arg1: i256) -> struct0 [selector=0xe1ee60dd, pure, abi_params=[uint256, uint256], abi_returns=[word<uint8>, word<bool>, word<uint128>], abi_return_params=[uint8, bool, uint128]] {
   bb0:
     mstore 0, arg0 !metadata(memory=scratch)
@@ -64,6 +76,7 @@ fn @tupleTarget(arg0: i256, arg1: i256) -> struct0 [selector=0xe1ee60dd, pure, a
     returndata 0, 96
 }
 
+; function short() external view returns (uint256) [selector 0x38bea4cb]
 fn @short() -> i256 [selector=0x38bea4cb, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
@@ -72,22 +85,23 @@ fn @short() -> i256 [selector=0x38bea4cb, view, abi_params=[], abi_returns=[word
     v2 = zext i160 v0 to i256
     v3 = staticcall v1, v2, 28, 4, 0, 32
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = returndatasize
     v5 = lt v4, 32
     icall revert_if<tuple_data_too_short>, v5
-    v6 = add 0, 0
-    v7 = mload v6
-    ret v7
+    v6 = mload 0 !metadata(memory=scratch)
+    ret v6
 }
 
+; function shortTarget() external pure returns (uint256) [selector 0xeee93c02]
 fn @shortTarget() -> i256 [selector=0xeee93c02, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     returndata 0, 0
 }
 
+; function dirty() external view returns (uint8) [selector 0x7dce0fd0]
 fn @dirty() -> i8 [selector=0x7dce0fd0, view, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     v0 = address
@@ -96,38 +110,41 @@ fn @dirty() -> i8 [selector=0x7dce0fd0, view, abi_params=[], abi_returns=[word<u
     v2 = zext i160 v0 to i256
     v3 = staticcall v1, v2, 28, 4, 0, 32
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = returndatasize
     v5 = lt v4, 32
     icall revert_if<tuple_data_too_short>, v5
-    v6 = add 0, 0
-    v7 = mload v6
-    v8 = shr v7, 8
-    v9 = eq v8, 0
-    v10 = eq v9, false
-    icall revert_if<empty>, v10
-    v11 = trunc i256 v7 to i8
-    ret v11
+    v6 = mload 0 !metadata(memory=scratch)
+    v7 = shr v6, 8
+    v8 = eq v7, 0
+    v9 = eq v8, false
+    icall revert_if<empty>, v9
+    v10 = trunc i256 v6 to i8
+    ret v10
 }
 
+; function dirtyTarget() external pure returns (uint8) [selector 0xacf697c3]
 fn @dirtyTarget() -> i8 [selector=0xacf697c3, pure, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     mstore 0, 256 !metadata(memory=scratch)
     returndata 0, 32
 }
 
+; function dirtyValue() external pure returns (uint8) [selector 0x79df5ae3]
 fn @dirtyValue() -> i256 [selector=0x79df5ae3, pure, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     ret 256
 }
 
+; function dirtyBool() external pure returns (bool) [selector 0xf17a2b8e]
 fn @dirtyBool() -> i256 [selector=0xf17a2b8e, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     ret 2
 }
 
+; function dirtyStruct() external pure returns (Pair memory pair) [selector 0xe1193b83]
 fn @dirtyStruct() -> ptr<memory> [selector=0xe1193b83, pure, abi_params=[], abi_returns=[tuple<word<uint8>, word<bool>>], abi_return_params=[tuple<uint8, bool>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -142,6 +159,7 @@ fn @dirtyStruct() -> ptr<memory> [selector=0xe1193b83, pure, abi_params=[], abi_
     ret v0
 }
 
+; function dirtyUnusedStructField() external view returns (uint8) [selector 0xc1226a60]
 fn @dirtyUnusedStructField() -> i8 [selector=0xc1226a60, view, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     v0 = address
@@ -153,9 +171,9 @@ fn @dirtyUnusedStructField() -> i8 [selector=0xc1226a60, view, abi_params=[], ab
     v6 = zext i160 v0 to i256
     v7 = staticcall v1, v6, v3, v4, v5, 64
     jumpi v7, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v8 = returndatasize
     v9 = lt v8, 64
     icall revert_if<tuple_data_too_short>, v9
@@ -166,6 +184,7 @@ fn @dirtyUnusedStructField() -> i8 [selector=0xc1226a60, view, abi_params=[], ab
     ret v13
 }
 
+; function dirtyUnusedStructFieldTarget() external pure returns (Pair memory) [selector 0x38a62c01]
 fn @dirtyUnusedStructFieldTarget() -> ptr<memory> [selector=0x38a62c01, pure, abi_params=[], abi_returns=[tuple<word<uint8>, word<bool>>], abi_return_params=[tuple<uint8, bool>]] {
   bb0:
     mstore 0, 1 !metadata(memory=scratch)
@@ -173,6 +192,7 @@ fn @dirtyUnusedStructFieldTarget() -> ptr<memory> [selector=0x38a62c01, pure, ab
     returndata 0, 64
 }
 
+; function dirtyStructBranch(bool overwrite) external pure returns (Scalar memory value) [selector 0x6dd0f9bf]
 fn @dirtyStructBranch(arg0: i1) -> ptr<memory> [selector=0x6dd0f9bf, pure, abi_params=[bool], abi_returns=[tuple<word<uint8>>], abi_return_params=[tuple<uint8>]] {
   bb0:
     v0 = icall @dirtyValueInternal
@@ -182,20 +202,22 @@ fn @dirtyStructBranch(arg0: i1) -> ptr<memory> [selector=0x6dd0f9bf, pure, abi_p
     v3 = zext i8 v2 to i256
     mstore v1, v3
     jumpi arg0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     mstore v1, 1
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     ret v1
 }
 
+; function dirtyValueInternal() internal pure returns (uint8 value)
 fn @dirtyValueInternal() -> i256 [pure] {
   bb0:
     ret 256
 }
 
+; function dirtyInternalWiden() external pure returns (uint256) [selector 0xcdec1938]
 fn @dirtyInternalWiden() -> i256 [selector=0xcdec1938, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @dirtyValueInternal
@@ -204,6 +226,7 @@ fn @dirtyInternalWiden() -> i256 [selector=0xcdec1938, pure, abi_params=[], abi_
     ret v2
 }
 
+; function dirtyInternalAggregate() external pure returns (Pair memory) [selector 0x4697f467]
 fn @dirtyInternalAggregate() -> ptr<memory> [selector=0x4697f467, pure, abi_params=[], abi_returns=[tuple<word<uint8>, word<bool>>], abi_return_params=[tuple<uint8, bool>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -214,6 +237,7 @@ fn @dirtyInternalAggregate() -> ptr<memory> [selector=0x4697f467, pure, abi_para
     ret v2
 }
 
+; function dirtyAggregate() internal pure returns (Pair memory pair)
 fn @dirtyAggregate() -> ptr<memory> [pure] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -228,6 +252,7 @@ fn @dirtyAggregate() -> ptr<memory> [pure] {
     ret v0
 }
 
+; function distinctDynamicReturns() external returns (uint256) [selector 0x56c7de2c]
 fn @distinctDynamicReturns() -> i256 [selector=0x56c7de2c, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
@@ -238,9 +263,9 @@ fn @distinctDynamicReturns() -> i256 [selector=0x56c7de2c, abi_params=[], abi_re
     v5 = zext i160 v0 to i256
     v6 = call v1, v5, 0, v3, v4, 0, 0
     jumpi v6, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v7 = icall returndata_bytes<>
     v8 = abi_decode [tuple<array<_, uint256>>, tuple<array<_, uint256>>], v7
     v9 = extract_value struct1, v8, 0
@@ -251,14 +276,14 @@ fn @distinctDynamicReturns() -> i256 [selector=0x56c7de2c, abi_params=[], abi_re
     v14 = extract_value struct1, v12, 1
     v15 = mload v13, ptr<memory>
     v16 = mload v15
-    v17 = lt 0, v16
+    v17 = gt v16, 0
     v18 = eq v17, false
     icall panic_if<0x32>, v18
     v19 = ptradd v15, 32
     mstore v19, 9
     v20 = mload v14, ptr<memory>
     v21 = mload v20
-    v22 = lt 0, v21
+    v22 = gt v21, 0
     v23 = eq v22, false
     icall panic_if<0x32>, v23
     v24 = ptradd v20, 32
@@ -266,17 +291,7 @@ fn @distinctDynamicReturns() -> i256 [selector=0x56c7de2c, abi_params=[], abi_re
     ret v25
 }
 
-fn @fallback() [fallback] {
-  bb0:
-    mstore 0, 64 !metadata(memory=scratch)
-    mstore 32, 96 !metadata(memory=scratch)
-    mstore 64, 64 !metadata(memory=scratch)
-    mstore 96, 32 !metadata(memory=scratch)
-    mstore 128, 1
-    mstore 160, 7
-    returndata 0, 192
-}
-
+; function dirtyArray() external pure returns (bool[] memory values) [selector 0xab113bc3]
 fn @dirtyArray() -> ptr<memory> [selector=0xab113bc3, pure, abi_params=[], abi_returns=[memory_array<word<bool>>], abi_return_params=[array<_, bool>]] {
   bb0:
     v0 = alloc zeroed checked 96
@@ -290,6 +305,7 @@ fn @dirtyArray() -> ptr<memory> [selector=0xab113bc3, pure, abi_params=[], abi_r
     ret v0
 }
 
+; function dirtyMemoryFixedArray() external pure returns (bool) [selector 0x627cd2cc]
 fn @dirtyMemoryFixedArray() -> i1 [selector=0x627cd2cc, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc 32 !metadata(preserves_fmp)
@@ -304,16 +320,17 @@ fn @dirtyMemoryFixedArray() -> i1 [selector=0x627cd2cc, pure, abi_params=[], abi
     v6 = zext i8 v5 to i256
     v7 = eq v5, i8 1
     jumpi v7, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v8 = eq v6, 1
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v9 = phi [bb1: v8], [bb2: false]
     ret v9
 }
 
+; function dirtyMemoryDynamicArray() external pure returns (bool) [selector 0x85ecd2fd]
 fn @dirtyMemoryDynamicArray() -> i1 [selector=0x85ecd2fd, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc zeroed checked 64
@@ -322,7 +339,7 @@ fn @dirtyMemoryDynamicArray() -> i1 [selector=0x85ecd2fd, pure, abi_params=[], a
     v2 = add v1, 32
     mstore v2, 258
     v3 = mload v0
-    v4 = lt 0, v3
+    v4 = gt v3, 0
     v5 = eq v4, false
     icall panic_if<0x32>, v5
     v6 = ptradd v0, 32
@@ -331,16 +348,17 @@ fn @dirtyMemoryDynamicArray() -> i1 [selector=0x85ecd2fd, pure, abi_params=[], a
     v9 = zext i8 v8 to i256
     v10 = eq v8, i8 2
     jumpi v10, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v11 = eq v9, 2
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: false]
     ret v12
 }
 
+; function dirtyMemoryStruct() external pure returns (bool) [selector 0x5c3a703b]
 fn @dirtyMemoryStruct() -> i1 [selector=0x5c3a703b, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc 32 !metadata(preserves_fmp)
@@ -352,16 +370,17 @@ fn @dirtyMemoryStruct() -> i1 [selector=0x5c3a703b, pure, abi_params=[], abi_ret
     v4 = zext i8 v3 to i256
     v5 = eq v3, i8 1
     jumpi v5, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v6 = eq v4, 1
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v7 = phi [bb1: v6], [bb2: false]
     ret v7
 }
 
+; function dirtyMemoryLvalue() external pure returns (bool) [selector 0x91f3b994]
 fn @dirtyMemoryLvalue() -> i1 [selector=0x91f3b994, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc 32 !metadata(preserves_fmp)
@@ -385,25 +404,26 @@ fn @dirtyMemoryLvalue() -> i1 [selector=0x91f3b994, pure, abi_params=[], abi_ret
     ret v12
 }
 
+; function dirtyEnum() external pure returns (State value) [selector 0x676092a0]
 fn @dirtyEnum() -> i256 [selector=0x676092a0, pure, abi_params=[], abi_returns=[word<enum 2>], abi_return_params=[enum<2, uint8>]] {
   bb0:
     ret 2
 }
 
+; function dirtyEnumStorage() external returns (uint256) [selector 0x7f3d1a0c]
 fn @dirtyEnumStorage() -> i256 [selector=0x7f3d1a0c, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = lt 2, 2
     v1 = eq v0, false
     icall panic_if<0x21>, v1
     v2 = sload 0 !metadata(storage=slot(0))
-    v3 = not 255
-    v4 = and v2, v3
-    v5 = and 2, 255
-    v6 = or v4, v5
-    sstore 0, v6 !metadata(storage=slot(0))
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v4 = or v3, 2
+    sstore 0, v4 !metadata(storage=slot(0))
     ret 1
 }
 
+; function dirtyEnumStorageRead() external returns (uint256) [selector 0xb2fb782c]
 fn @dirtyEnumStorageRead() -> i256 [selector=0xb2fb782c, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     sstore 0, 2 !metadata(storage=slot(0))
@@ -416,6 +436,7 @@ fn @dirtyEnumStorageRead() -> i256 [selector=0xb2fb782c, abi_params=[], abi_retu
     ret v4
 }
 
+; function dirtyEnumExternalArg() external view returns (uint256) [selector 0x0ca35a15]
 fn @dirtyEnumExternalArg() -> i256 [selector=0x0ca35a15, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
@@ -428,22 +449,23 @@ fn @dirtyEnumExternalArg() -> i256 [selector=0x0ca35a15, view, abi_params=[], ab
     v4 = zext i160 v0 to i256
     v5 = staticcall v1, v4, 28, 36, 0, 32
     jumpi v5, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v6 = returndatasize
     v7 = lt v6, 32
     icall revert_if<tuple_data_too_short>, v7
-    v8 = add 0, 0
-    v9 = mload v8
-    ret v9
+    v8 = mload 0 !metadata(memory=scratch)
+    ret v8
 }
 
+; function enumTarget(State) external pure returns (uint256) [selector 0x5688f443]
 fn @enumTarget(arg0: i256) -> i256 [selector=0x5688f443, pure, abi_params=[enum<2, uint8>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 1
 }
 
+; function dirtyEnumStructExternalArg() external view returns (uint256) [selector 0x06fd3c7e]
 fn @dirtyEnumStructExternalArg() -> i256 [selector=0x06fd3c7e, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 32 !metadata(preserves_fmp)
@@ -458,22 +480,23 @@ fn @dirtyEnumStructExternalArg() -> i256 [selector=0x06fd3c7e, view, abi_params=
     v7 = zext i160 v2 to i256
     v8 = staticcall v3, v7, v5, v6, 0, 32
     jumpi v8, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v9 = returndatasize
     v10 = lt v9, 32
     icall revert_if<tuple_data_too_short>, v10
-    v11 = add 0, 0
-    v12 = mload v11
-    ret v12
+    v11 = mload 0 !metadata(memory=scratch)
+    ret v11
 }
 
+; function enumStructTarget(EnumPair memory) external pure returns (uint256) [selector 0x9e10d92f]
 fn @enumStructTarget(arg0: ptr<memory>) -> i256 [selector=0x9e10d92f, pure, abi_params=[tuple<enum<2, uint8>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 1
 }
 
+; function dirtyEnumArrayExternalArg() external view returns (uint256) [selector 0xa5e959d5]
 fn @dirtyEnumArrayExternalArg() -> i256 [selector=0xa5e959d5, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 64
@@ -489,22 +512,23 @@ fn @dirtyEnumArrayExternalArg() -> i256 [selector=0xa5e959d5, view, abi_params=[
     v8 = zext i160 v3 to i256
     v9 = staticcall v4, v8, v6, v7, 0, 32
     jumpi v9, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v10 = returndatasize
     v11 = lt v10, 32
     icall revert_if<tuple_data_too_short>, v11
-    v12 = add 0, 0
-    v13 = mload v12
-    ret v13
+    v12 = mload 0 !metadata(memory=scratch)
+    ret v12
 }
 
+; function enumArrayTarget(State[] memory) external pure returns (uint256) [selector 0x8529de51]
 fn @enumArrayTarget(arg0: ptr<memory>) -> i256 [selector=0x8529de51, pure, abi_params=[array<_, enum<2, uint8>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 1
 }
 
+; function dirtyEnumPacked() external pure returns (bytes memory) [selector 0x1193687a]
 fn @dirtyEnumPacked() -> ptr<memory> [selector=0x1193687a, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = lt 2, 2
@@ -514,6 +538,7 @@ fn @dirtyEnumPacked() -> ptr<memory> [selector=0x1193687a, pure, abi_params=[], 
     ret v2
 }
 
+; function dirtyEnumPackedArray() external pure returns (bytes memory) [selector 0x4cd1ded8]
 fn @dirtyEnumPackedArray() -> ptr<memory> [selector=0x4cd1ded8, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 32 !metadata(preserves_fmp)
@@ -524,21 +549,22 @@ fn @dirtyEnumPackedArray() -> ptr<memory> [selector=0x4cd1ded8, pure, abi_params
     ret v2
 }
 
+; function dirtyEnumNested() external pure returns (bytes memory) [selector 0xb5dac01b]
 fn @dirtyEnumNested() -> ptr<memory> [selector=0xb5dac01b, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 32 !metadata(preserves_fmp)
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v7]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v8 = ptrtoint ptr<memory> v0 to i256
     v9 = add v8, 32
     mstore v9, 2
     v10 = abi_encode [array<1, array<1, word<enum 2>>>], object, args v0
     ret v10
-  bb2:
+  bb2:  ; preds = bb1
     v3 = alloc 32 !metadata(preserves_fmp)
     memory_zero v3, 32
     v4 = shl v1, 5
@@ -549,6 +575,7 @@ fn @dirtyEnumNested() -> ptr<memory> [selector=0xb5dac01b, pure, abi_params=[], 
     jump bb1
 }
 
+; function dirtyBoolPacked() external pure returns (bytes memory) [selector 0x09c9026f]
 fn @dirtyBoolPacked() -> ptr<memory> [selector=0x09c9026f, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = ne 2, 0
@@ -557,6 +584,7 @@ fn @dirtyBoolPacked() -> ptr<memory> [selector=0x09c9026f, pure, abi_params=[], 
     ret v2
 }
 
+; function dynamicShort(uint256 length) external view returns (bool) [selector 0x73932459]
 fn @dynamicShort(arg0: i256) -> i1 [selector=0x73932459, view, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address
@@ -566,14 +594,15 @@ fn @dynamicShort(arg0: i256) -> i1 [selector=0x73932459, view, abi_params=[uint2
     v2 = zext i160 v0 to i256
     v3 = staticcall v1, v2, 28, 36, 0, 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = icall returndata_bytes<>
     v5 = abi_decode [bytes], v4
     ret true
 }
 
+; function dynamicTarget(uint256 length) external pure returns (bytes memory) [selector 0x32079384]
 fn @dynamicTarget(arg0: i256) -> ptr<memory> [selector=0x32079384, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     mstore 0, 32 !metadata(memory=scratch)
@@ -581,6 +610,7 @@ fn @dynamicTarget(arg0: i256) -> ptr<memory> [selector=0x32079384, pure, abi_par
     returndata 0, arg0
 }
 
+; function dynamicLengthOverflow() external view returns (uint256) [selector 0x5e963174]
 fn @dynamicLengthOverflow() -> i256 [selector=0x5e963174, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
@@ -589,15 +619,16 @@ fn @dynamicLengthOverflow() -> i256 [selector=0x5e963174, view, abi_params=[], a
     v2 = zext i160 v0 to i256
     v3 = staticcall v1, v2, 28, 4, 0, 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = icall returndata_bytes<>
     v5 = abi_decode [bytes], v4
     v6 = mload v5
     ret v6
 }
 
+; function dynamicLengthOverflowTarget() external pure returns (bytes memory) [selector 0xe1365904]
 fn @dynamicLengthOverflowTarget() -> ptr<memory> [selector=0xe1365904, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     mstore 0, 32 !metadata(memory=scratch)
@@ -605,6 +636,7 @@ fn @dynamicLengthOverflowTarget() -> ptr<memory> [selector=0xe1365904, pure, abi
     returndata 0, 64
 }
 
+; function dynamicArrayLengthOverflow() external view returns (uint256) [selector 0xbd5e58ee]
 fn @dynamicArrayLengthOverflow() -> i256 [selector=0xbd5e58ee, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
@@ -613,15 +645,16 @@ fn @dynamicArrayLengthOverflow() -> i256 [selector=0xbd5e58ee, view, abi_params=
     v2 = zext i160 v0 to i256
     v3 = staticcall v1, v2, 28, 4, 0, 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = icall returndata_bytes<>
     v5 = abi_decode [array<_, uint256>], v4
     v6 = mload v5
     ret v6
 }
 
+; function dynamicArrayLengthOverflowTarget() external pure returns (uint256[] memory) [selector 0x839ae554]
 fn @dynamicArrayLengthOverflowTarget() -> ptr<memory> [selector=0x839ae554, pure, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     mstore 0, 32 !metadata(memory=scratch)

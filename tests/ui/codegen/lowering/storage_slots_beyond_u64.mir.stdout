@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/storage_slots_beyond_u64.sol:StorageSlotsBeyondU64 ===
 @module StorageSlotsBeyondU64
+; function roundTrip(uint256 i, uint8 v, uint256 t) external returns (uint256) [selector 0xfaa172f5]
 fn @roundTrip(arg0: i256, arg1: i8, arg2: i256) -> i256 [selector=0xfaa172f5, abi_params=[uint256, uint8, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     sstore 0, 7 !metadata(storage=slot(0))
@@ -7,7 +8,7 @@ fn @roundTrip(arg0: i256, arg1: i8, arg2: i256) -> i256 [selector=0xfaa172f5, ab
     v1 = eq v0, false
     icall panic_if<0x32>, v1
     v2 = div arg0, 32
-    v3 = add 1, v2
+    v3 = add v2, 1
     v4 = mod arg0, 32
     v5 = mul v4, 1
     v6 = mul v5, 8
@@ -26,7 +27,7 @@ fn @roundTrip(arg0: i256, arg1: i8, arg2: i256) -> i256 [selector=0xfaa172f5, ab
     v17 = eq v16, false
     icall panic_if<0x32>, v17
     v18 = div arg0, 32
-    v19 = add 1, v18
+    v19 = add v18, 1
     v20 = mod arg0, 32
     v21 = mul v20, 1
     v22 = sload v19 !metadata(storage=offset(v18, 1))

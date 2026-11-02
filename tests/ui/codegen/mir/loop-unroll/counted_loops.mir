@@ -6,7 +6,7 @@
 // loop, which leaves the last iterations to the original loop with its state.
 // CHECK-LABEL: {{^[ +].*}}fn @counted{{[( ]}}
 // CHECK: - jump bb1
-// CHECK-NEXT: + jump [[MAIN:bb[0-9]+]]
+// CHECK: + jump [[MAIN:bb[0-9]+]]
 // CHECK-NEXT: + [[MAIN]]:
 // CHECK-NEXT: + [[I:v[0-9]+]] = phi [bb0: 0], {{\[}}[[LATCH:bb[0-9]+]]: [[NEXT:v[0-9]+]]]
 // CHECK-NEXT: + [[S:v[0-9]+]] = phi [bb0: 0], {{\[}}[[LATCH]]: [[SUM:v[0-9]+]]]
@@ -17,7 +17,7 @@
 // CHECK-NEXT: + {{v[0-9]+}} = phi {{\[}}[[MAIN]]: [[S]]], [bb2: {{v[0-9]+}}]
 // CHECK: + [[FIRST]]:
 // CHECK-NEXT: + [[P:v[0-9]+]] = mul [[I]], 3
-// CHECK-NEXT: + {{v[0-9]+}} = add [[S]], [[P]]
+// CHECK-NEXT: + {{v[0-9]+}} = add [[P]], [[S]]
 // CHECK-NEXT: + {{v[0-9]+}} = add [[I]], 1
 // CHECK-COUNT-2: = mul
 // CHECK: + [[LATCH]]:
@@ -85,9 +85,9 @@ fn @checked(arg0: i256, arg1: i256) -> i256 {
 // A reverting block that receives a body value through a phi gains an input
 // from each copy.
 // CHECK-LABEL: {{^[ +].*}}fn @revert_payload{{[( ]}}
-// CHECK-COUNT-4: + jumpi {{v[0-9]+}}, bb4, {{bb[0-9]+}}
 // CHECK: - v6 = phi [bb2: v3]
-// CHECK-NEXT: + v6 = phi [bb2: v3], [{{bb[0-9]+}}: {{v[0-9]+}}], [{{bb[0-9]+}}: {{v[0-9]+}}], [{{bb[0-9]+}}: {{v[0-9]+}}], [{{bb[0-9]+}}: {{v[0-9]+}}]
+// CHECK-COUNT-4: + jumpi {{v[0-9]+}}, bb4, {{bb[0-9]+}}
+// CHECK: + v6 = phi [bb2: v3], [{{bb[0-9]+}}: {{v[0-9]+}}], [{{bb[0-9]+}}: {{v[0-9]+}}], [{{bb[0-9]+}}: {{v[0-9]+}}], [{{bb[0-9]+}}: {{v[0-9]+}}]
 fn @revert_payload(arg0: i256) -> i256 {
   bb0:
     jump bb1
@@ -234,7 +234,7 @@ fn @hoisted(arg0: i256, arg1: i256) -> i256 {
 // CHECK-LABEL: {{^[ +].*}}fn @hoisted_limit{{[( ]}}
 // CHECK: + [[AHEAD:v[0-9]+]] = add {{v[0-9]+}}, 3
 // CHECK-NEXT: + {{v[0-9]+}} = lt [[AHEAD]], arg0
-// CHECK-COUNT-4: + {{v[0-9]+}} = gt {{v[0-9]+}}, v0
+// CHECK-COUNT-4: + {{v[0-9]+}} = lt v0, {{v[0-9]+}}
 fn @hoisted_limit(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v6 = shl arg1, 3
@@ -308,7 +308,7 @@ fn @effectful_header(arg0: i256) -> i256 {
 // CHECK-LABEL: {{^[ +].*}}fn @nested{{[( ]}}
 // CHECK: {{^ +}}jump bb1
 // CHECK: - jump bb3
-// CHECK-NEXT: + jump [[MAIN:bb[0-9]+]]
+// CHECK: + jump [[MAIN:bb[0-9]+]]
 // CHECK-NEXT: + [[MAIN]]:
 // CHECK-NEXT: + {{v[0-9]+}} = phi [bb2: 0], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
 fn @nested(arg0: i256, arg1: i256) -> i256 {
@@ -459,7 +459,7 @@ fn @variable_start_below(arg0: i256, arg1: i256) -> i256 {
 // CHECK-LABEL: {{^[ +].*}}fn @at_most{{[( ]}}
 // CHECK: + [[I:v[0-9]+]] = phi [bb0: 2], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
 // CHECK: + [[AHEAD:v[0-9]+]] = add [[I]], 6
-// CHECK-NEXT: + [[BEYOND:v[0-9]+]] = gt [[AHEAD]], arg0
+// CHECK-NEXT: + [[BEYOND:v[0-9]+]] = lt arg0, [[AHEAD]]
 // CHECK-NEXT: + jumpi [[BEYOND]], bb1, {{bb[0-9]+}}
 fn @at_most(arg0: i256) -> i256 {
   bb0:

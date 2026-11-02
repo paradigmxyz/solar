@@ -1,9 +1,31 @@
 // === ROOT/tests/ui/codegen/mir/memory-dse/overwritten_ranges.sol:OverwrittenRanges ===
 @module OverwrittenRanges
 @phase lowered
-@types
-  struct0: {i256, i256}
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb7, bb1
+  bb1:  ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb7, [0x5e97f278 => bb2, 0x6649a3b9 => bb3, 0x7fce0203 => bb4, 0x9defb653 => bb5, 0xa6a0e5ea => bb6]
+  bb6:  ; preds = bb1
+    tail_call @returndataBounds
+  bb5:  ; preds = bb1
+    tail_call @partialOverwrite
+  bb4:  ; preds = bb1
+    tail_call @expansion
+  bb3:  ; preds = bb1
+    tail_call @allocated
+  bb2:  ; preds = bb1
+    tail_call @overwritten
+  bb7 [cold]:  ; preds = bb0, bb1
+    revert 0, 0
+}
 
+; function overwritten() external pure returns (uint256, uint256) [selector 0x5e97f278]
 fn @overwritten() {
   bb0:
     mstore 257, 7
@@ -11,6 +33,7 @@ fn @overwritten() {
     returndata 257, 64
 }
 
+; function partialOverwrite() external pure returns (uint256, uint256) [selector 0x9defb653]
 fn @partialOverwrite() {
   bb0:
     v0 = calldatasize
@@ -19,6 +42,7 @@ fn @partialOverwrite() {
     returndata 256, 64
 }
 
+; function expansion() external pure returns (uint256 size) [selector 0x7fce0203]
 fn @expansion() {
   bb0:
     v0 = calldatasize
@@ -29,6 +53,7 @@ fn @expansion() {
     returndata 0, 32
 }
 
+; function returndataBounds() external pure returns (uint256, uint256) [selector 0xa6a0e5ea]
 fn @returndataBounds() {
   bb0:
     returndatacopy 256, 0, 64
@@ -37,21 +62,22 @@ fn @returndataBounds() {
     returndata 256, 64
 }
 
+; function allocated(uint256 x, uint256 y) external pure returns (uint256[] memory values) [selector 0x6649a3b9]
 fn @allocated() {
   bb0:
     v9 = calldatasize
     v10 = lt v9, 68
     jumpi v10, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v28 = heap_floor !metadata(alloc_ptr)
     v29 = add v28, 96 !metadata(alloc_ptr)
     v30 = lt v29, v28
     v31 = zext i1 v30 to i256
     v32 = shr v29, 64
-    v33 = or v31, v32
+    v33 = or v32, v31
     v34 = ne v33, 0
     jumpi v34, bb4, bb3
-  bb3:
+  bb3:  ; preds = bb2
     v36 = calldataload 36
     v35 = calldataload 4
     mstore v28, 2
@@ -62,33 +88,10 @@ fn @allocated() {
     v26 = sub v28, 32
     mstore v26, 32
     returndata v26, 128
-  bb4 [cold]:
+  bb4 [cold]:  ; preds = bb2
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1 [cold]:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb7, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb7, [0x5e97f278 => bb2, 0x6649a3b9 => bb3, 0x7fce0203 => bb4, 0x9defb653 => bb5, 0xa6a0e5ea => bb6]
-  bb6:
-    tail_call @returndataBounds
-  bb5:
-    tail_call @partialOverwrite
-  bb4:
-    tail_call @expansion
-  bb3:
-    tail_call @allocated
-  bb2:
-    tail_call @overwritten
-  bb7 [cold]:
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }

@@ -1,12 +1,14 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer_dispatch.sol:ConstructorFunctionPointerDispatch ===
 @module ConstructorFunctionPointerDispatch
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
-    icall @internal_dispatcher_p_bytes6_r_none, 3, 0x6162636465660000000000000000000000000000000000000000000000000000
-    icall @applyShift, 4, 3
+    icall @internal_dispatcher_p_bytes6_r_none, 1, 0x6162636465660000000000000000000000000000000000000000000000000000
+    icall @applyShift, 2, 3
     ret
 }
 
+; function getName() external view returns (bytes6) [selector 0x17d7de7c]
 fn @getName() -> i256 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[word<bytes6>], abi_return_params=[bytes6]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -14,6 +16,7 @@ fn @getName() -> i256 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[wo
     ret v1
 }
 
+; function leftByteShift(bytes6 value, uint256 shift) public pure returns (bytes6) [selector 0x49858898]
 fn @leftByteShift(arg0: i256, arg1: i256) -> i256 [selector=0x49858898, pure, abi_params=[bytes6, uint256], abi_returns=[word<bytes6>], abi_return_params=[bytes6]] {
   bb0:
     v0 = and arg0, 0xffffffffffff0000000000000000000000000000000000000000000000000000
@@ -23,6 +26,7 @@ fn @leftByteShift(arg0: i256, arg1: i256) -> i256 [selector=0x49858898, pure, ab
     ret v3
 }
 
+; function applyShift( function(bytes6, uint256) internal returns (bytes6) shiftOperator, uint256 bytesToShift ) internal
 fn @applyShift(arg0: i256, arg1: i256) {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -30,48 +34,47 @@ fn @applyShift(arg0: i256, arg1: i256) {
     v2 = icall @internal_dispatcher_p_bytes6_uint256_r_bytes6, arg0, v1, arg1
     v3 = and v2, 0xffffffffffff0000000000000000000000000000000000000000000000000000
     v4 = sload 0 !metadata(storage=slot(0))
-    v5 = not 0xffffffffffff
-    v6 = and v4, v5
-    v7 = shr v3, 208
-    v8 = and v7, 0xffffffffffff
-    v9 = or v6, v8
-    sstore 0, v9 !metadata(storage=slot(0))
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffff000000000000
+    v6 = shr v3, 208
+    v7 = and v6, 0xffffffffffff
+    v8 = or v5, v7
+    sstore 0, v8 !metadata(storage=slot(0))
     ret
 }
 
+; function setName(bytes6 name_) private
 fn @setName(arg0: i256) {
   bb0:
     v0 = and arg0, 0xffffffffffff0000000000000000000000000000000000000000000000000000
     v1 = sload 0 !metadata(storage=slot(0))
-    v2 = not 0xffffffffffff
-    v3 = and v1, v2
-    v4 = shr v0, 208
-    v5 = and v4, 0xffffffffffff
-    v6 = or v3, v5
-    sstore 0, v6 !metadata(storage=slot(0))
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffff000000000000
+    v3 = shr v0, 208
+    v4 = and v3, 0xffffffffffff
+    v5 = or v2, v4
+    sstore 0, v5 !metadata(storage=slot(0))
     ret
 }
 
 fn @internal_dispatcher_p_bytes6_r_none(arg0: i256, arg1: i256) [function_pointer_dispatcher] {
   bb0:
-    v0 = eq arg0, 3
+    v0 = eq arg0, 1
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:
+  bb1:  ; preds = bb0
     icall @setName, arg1
     ret
 }
 
 fn @internal_dispatcher_p_bytes6_uint256_r_bytes6(arg0: i256, arg1: i256, arg2: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
-    v0 = eq arg0, 4
+    v0 = eq arg0, 2
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:
+  bb1:  ; preds = bb0
     v1 = icall @leftByteShift, arg1, arg2
     ret v1
 }

@@ -1,16 +1,19 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_abi.sol:ExternalFunctionAbi ===
 @module ExternalFunctionAbi
+; function target(uint256 value) external pure returns (uint256) [selector 0x9811c7c1]
 fn @target(arg0: i256) -> i256 [selector=0x9811c7c1, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = checked_add uint256, arg0, 1
     ret v0
 }
 
+; function echo(function (uint256) external returns (uint256) fn) external pure returns (function (uint256) external returns (uint256)) [selector 0x90898ee4]
 fn @echo(arg0: i256) -> i256 [selector=0x90898ee4, pure, abi_params=[function], abi_returns=[function], abi_return_params=[function]] {
   bb0:
     ret arg0
 }
 
+; function echoHolder(Holder memory holder) external pure returns (Holder memory) [selector 0x030fb1b2]
 fn @echoHolder(arg0: ptr<memory>) -> ptr<memory> [selector=0x030fb1b2, pure, abi_params=[tuple<function, uint256>], abi_returns=[tuple<function, word>], abi_return_params=[tuple<function, uint256>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -20,11 +23,13 @@ fn @echoHolder(arg0: ptr<memory>) -> ptr<memory> [selector=0x030fb1b2, pure, abi
     ret arg0
 }
 
+; function echoArray(function (uint256) external returns (uint256)[] memory values) external pure returns (function (uint256) external returns (uint256)[] memory) [selector 0xb4b16456]
 fn @echoArray(arg0: ptr<memory>) -> ptr<memory> [selector=0xb4b16456, pure, abi_params=[array<_, function>], abi_returns=[memory_array<function>], abi_return_params=[array<_, function>]] {
   bb0:
     ret arg0
 }
 
+; function run() external returns (uint256) [selector 0xc0406226]
 fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
@@ -39,16 +44,16 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v7 = zext i160 v4 to i256
     v8 = staticcall v5, v7, 28, 36, 0, 0
     jumpi v8, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v9 = icall returndata_bytes<>
     v10 = abi_decode [function], v9
     v11 = shr v10, 32
     v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffff
     v13 = trunc i256 v12 to i160
     v14 = address
-    v15 = eq v13, v14
+    v15 = eq v14, v13
     icall require<short_string>, v15, 7, 0x6164647265737300000000000000000000000000000000000000000000000000
     v16 = and v10, 0xffffffff
     v17 = shl v16, 224
@@ -84,9 +89,9 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v41 = zext i160 v35 to i256
     v42 = staticcall v36, v41, v38, v39, v40, 64
     jumpi v42, bb4, bb3
-  bb3:
+  bb3:  ; preds = bb2
     revert_returndata
-  bb4:
+  bb4:  ; preds = bb2
     v43 = returndatasize
     v44 = lt v43, 64
     icall revert_if<tuple_data_too_short>, v44
@@ -98,7 +103,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v50 = and v49, 0xffffffffffffffffffffffffffffffffffffffff
     v51 = trunc i256 v50 to i160
     v52 = address
-    v53 = eq v51, v52
+    v53 = eq v52, v51
     icall require<short_string>, v53, 14, 0x686f6c6465722061646472657373000000000000000000000000000000000000
     v54 = mload v46
     v55 = shr v54, 64
@@ -113,7 +118,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v62 = alloc zeroed checked 64
     mstore v62, 1
     v63 = mload v62
-    v64 = lt 0, v63
+    v64 = gt v63, 0
     v65 = eq v64, false
     icall panic_if<0x32>, v65
     v66 = shl v3, 64
@@ -127,13 +132,13 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v73 = zext i160 v68 to i256
     v74 = staticcall v69, v73, v71, v72, 0, 0
     jumpi v74, bb6, bb5
-  bb5:
+  bb5:  ; preds = bb4
     revert_returndata
-  bb6:
+  bb6:  ; preds = bb4
     v75 = icall returndata_bytes<>
     v76 = abi_decode [array<_, function>], v75
     v77 = mload v76
-    v78 = lt 0, v77
+    v78 = gt v77, 0
     v79 = eq v78, false
     icall panic_if<0x32>, v79
     v80 = ptradd v76, 32
@@ -143,10 +148,10 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v84 = and v83, 0xffffffffffffffffffffffffffffffffffffffff
     v85 = trunc i256 v84 to i160
     v86 = address
-    v87 = eq v85, v86
+    v87 = eq v86, v85
     icall require<short_string>, v87, 13, 0x6172726179206164647265737300000000000000000000000000000000000000
     v88 = mload v76
-    v89 = lt 0, v88
+    v89 = gt v88, 0
     v90 = eq v89, false
     icall panic_if<0x32>, v90
     v91 = ptradd v76, 32

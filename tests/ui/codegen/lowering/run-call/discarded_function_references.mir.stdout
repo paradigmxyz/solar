@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/discarded_function_references.sol:D ===
 @module D
 @library
+; function double(uint256 self) public pure returns (uint256) [selector 0xeee97206]
 fn @double(arg0: i256) -> i256 [selector=0xeee97206, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = checked_mul uint256, 2, arg0
@@ -9,6 +10,7 @@ fn @double(arg0: i256) -> i256 [selector=0xeee97206, pure, abi_params=[uint256],
 
 // === ROOT/tests/ui/codegen/lowering/run-call/discarded_function_references.sol:DiscardedFunctionReferences ===
 @module DiscardedFunctionReferences
+; function receiverEffect() external returns (uint256) [selector 0xc5280f8d]
 fn @receiverEffect() -> i256 [selector=0xc5280f8d, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @next
@@ -16,6 +18,7 @@ fn @receiverEffect() -> i256 [selector=0xc5280f8d, abi_params=[], abi_returns=[w
     ret v1
 }
 
+; function next() internal returns (uint256)
 fn @next() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -24,24 +27,27 @@ fn @next() -> i256 {
     ret v1
 }
 
+; function receiverRevert() external pure [selector 0x2ebfeb9e]
 fn @receiverRevert() [selector=0x2ebfeb9e, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = icall @fail
     ret
 }
 
+; function fail() internal pure returns (uint256)
 fn @fail() -> i256 [pure] {
   bb0:
     icall revert_if<empty>, true
     invalid
 }
 
+; function checkedReceiver() external pure [selector 0x2496b1c7]
 fn @checkedReceiver() [selector=0x2496b1c7, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = alloc zeroed checked 64
     mstore v0, 1
     v1 = mload v0
-    v2 = lt 1, v1
+    v2 = gt v1, 1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = ptradd v0, 64
@@ -49,11 +55,13 @@ fn @checkedReceiver() [selector=0x2496b1c7, pure, abi_params=[], abi_returns=[],
     ret
 }
 
+; function builtinReferences() external pure returns (uint256) [selector 0x96f217d0]
 fn @builtinReferences() -> i256 [selector=0x96f217d0, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 7
 }
 
+; function freeReceiverEffect() external returns (uint256) [selector 0xe6b85063]
 fn @freeReceiverEffect() -> i256 [selector=0xe6b85063, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @next
@@ -61,6 +69,7 @@ fn @freeReceiverEffect() -> i256 [selector=0xe6b85063, abi_params=[], abi_return
     ret v1
 }
 
+; function tupleReceiverEffect() external returns (uint256) [selector 0x838a913a]
 fn @tupleReceiverEffect() -> i256 [selector=0x838a913a, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @next
@@ -69,6 +78,7 @@ fn @tupleReceiverEffect() -> i256 [selector=0x838a913a, abi_params=[], abi_retur
     ret v2
 }
 
+; function tupleAssignmentEffect() external returns (uint256) [selector 0x2e89541f]
 fn @tupleAssignmentEffect() -> i256 [selector=0x2e89541f, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @next
@@ -77,38 +87,42 @@ fn @tupleAssignmentEffect() -> i256 [selector=0x2e89541f, abi_params=[], abi_ret
     ret v2
 }
 
+; function freeReceiverRevert() external pure [selector 0xe1675ff9]
 fn @freeReceiverRevert() [selector=0xe1675ff9, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = icall @fail
     ret
 }
 
+; function tupleReceiverRevert() external pure returns (uint256) [selector 0x48efbf0f]
 fn @tupleReceiverRevert() -> i256 [selector=0x48efbf0f, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @fail
     ret 3
 }
 
+; function nestedReceiverEffect(bool first) external returns (uint256) [selector 0xa644188c]
 fn @nestedReceiverEffect(arg0: i1) -> i256 [selector=0xa644188c, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v1 = icall @fail
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v0 = icall @next
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v2 = sload 0 !metadata(storage=slot(0))
     ret v2
 }
 
+; function freeCheckedReceiver() external pure [selector 0x13dcdc32]
 fn @freeCheckedReceiver() [selector=0x13dcdc32, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = alloc zeroed checked 64
     mstore v0, 1
     v1 = mload v0
-    v2 = lt 1, v1
+    v2 = gt v1, 1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = ptradd v0, 64
@@ -116,6 +130,7 @@ fn @freeCheckedReceiver() [selector=0x13dcdc32, pure, abi_params=[], abi_returns
     ret
 }
 
+; function identity(uint256 self) pure returns (uint256)
 fn @identity(arg0: i256) -> i256 [pure] {
   bb0:
     ret arg0

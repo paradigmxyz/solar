@@ -1,29 +1,31 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/create_with_dynamic_args.sol:Token ===
 @module Token
+; constructor(string memory n, uint8 d) [creation entry]
+fn @constructor(arg0: ptr<memory>, arg1: i8) [constructor, abi_params=[bytes, uint8]] {
+  bb0:
+    icall @store_storage_bytes, 0, arg0
+    v0 = sload 1 !metadata(storage=slot(1))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v2 = zext i8 arg1 to i256
+    v3 = and v2, 255
+    v4 = or v1, v3
+    sstore 1, v4 !metadata(storage=slot(1))
+    ret
+}
+
+; getter for `string public name` [selector 0x06fdde03]
 fn @name() -> ptr<memory> [selector=0x06fdde03, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = load_storage_bytes 0
     ret v0
 }
 
+; getter for `uint8 public decimals` [selector 0x313ce567]
 fn @decimals() -> i8 [selector=0x313ce567, view, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = trunc i256 v0 to i8
     ret v1
-}
-
-fn @constructor(arg0: ptr<memory>, arg1: i8) [constructor, abi_params=[bytes, uint8]] {
-  bb0:
-    icall @store_storage_bytes, 0, arg0
-    v0 = sload 1 !metadata(storage=slot(1))
-    v1 = not 255
-    v2 = and v0, v1
-    v3 = zext i8 arg1 to i256
-    v4 = and v3, 255
-    v5 = or v2, v4
-    sstore 1, v5 !metadata(storage=slot(1))
-    ret
 }
 
 fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
@@ -40,6 +42,7 @@ fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
 @data
   Token_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/create_with_dynamic_args.sol:Token"
 
+; function makeAndRead() external returns (uint256, uint8) [selector 0x42c589ac]
 fn @makeAndRead() -> struct0 [selector=0x42c589ac, abi_params=[], abi_returns=[word, word<uint8>], abi_return_params=[uint256, uint8]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -61,17 +64,17 @@ fn @makeAndRead() -> struct0 [selector=0x42c589ac, abi_params=[], abi_returns=[w
     v11 = create 0, v7, v5
     v12 = ne v11, i160 0
     jumpi v12, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v13 = gas
     mstore 0, 0x6fdde03 !metadata(memory=scratch)
     v14 = zext i160 v11 to i256
     v15 = staticcall v13, v14, 28, 4, 0, 0
     jumpi v15, bb4, bb3
-  bb3:
+  bb3:  ; preds = bb2
     revert_returndata
-  bb4:
+  bb4:  ; preds = bb2
     v16 = icall returndata_bytes<>
     v17 = abi_decode [bytes], v16
     v18 = mload v17
@@ -80,20 +83,19 @@ fn @makeAndRead() -> struct0 [selector=0x42c589ac, abi_params=[], abi_returns=[w
     v20 = zext i160 v11 to i256
     v21 = staticcall v19, v20, 28, 4, 0, 32
     jumpi v21, bb6, bb5
-  bb5:
+  bb5:  ; preds = bb4
     revert_returndata
-  bb6:
+  bb6:  ; preds = bb4
     v22 = returndatasize
     v23 = lt v22, 32
     icall revert_if<tuple_data_too_short>, v23
-    v24 = add 0, 0
-    v25 = mload v24
-    v26 = shr v25, 8
-    v27 = eq v26, 0
-    v28 = eq v27, false
-    icall revert_if<empty>, v28
-    v29 = trunc i256 v25 to i8
-    v30 = insert_value struct0, undef struct0, 0, v18
-    v31 = insert_value struct0, v30, 1, v29
-    ret v31
+    v24 = mload 0 !metadata(memory=scratch)
+    v25 = shr v24, 8
+    v26 = eq v25, 0
+    v27 = eq v26, false
+    icall revert_if<empty>, v27
+    v28 = trunc i256 v24 to i8
+    v29 = insert_value struct0, undef struct0, 0, v18
+    v30 = insert_value struct0, v29, 1, v28
+    ret v30
 }

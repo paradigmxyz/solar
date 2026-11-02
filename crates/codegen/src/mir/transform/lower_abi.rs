@@ -274,7 +274,7 @@ impl LowerAbiCx {
                 if super::utils::rejects_callvalue(func) {
                     rejecting_constructor = Some(id);
                 }
-                if func.abi_params.is_some() {
+                if Self::input_layout(func).is_some() {
                     if Self::can_wrap_constructor_params(func) {
                         constructors.push(id);
                     } else {
@@ -434,7 +434,7 @@ impl LowerAbiCx {
     }
 
     fn can_wrap_constructor_params(func: &Function) -> bool {
-        let Some(layout) = &func.abi_params else { return false };
+        let Some(layout) = Self::input_layout(func) else { return false };
         func.params.len() == layout.types.len()
             && layout.types.iter().zip(&func.params).all(|(abi_ty, &param_ty)| {
                 abi_ty.mir_type() == param_ty
@@ -1099,25 +1099,31 @@ impl LowerAbiCx {
         }
         for (block, call, function) in calls {
             let (body, words) = &bodies[&function];
-            for &index in words {
-                let InstKind::ICall { args, .. } = &func.inst(call).kind else { continue };
-                let arg = args[index.index()];
-                if func.value_ty(arg) != Some(MirType::I1) {
-                    continue;
-                }
-                // arg = zext b, before the call
-                let mut zext = Instruction::new(InstKind::Zext(arg), Some(MirType::I256));
-                zext.metadata.copy_debug_context(&func.inst(call).metadata);
-                let (zext, word) = func.alloc_value_inst(zext);
-                let instructions = &mut func.blocks[block].instructions;
-                let position = instructions.iter().position(|&inst| inst == call).unwrap();
-                instructions.insert(position, zext);
-                let InstKind::ICall { args, .. } = &mut func.inst_mut(call).kind else { continue };
-                args[index.index()] = word;
-            }
+            Self::widen_word_args(func, block, call, words);
             if let InstKind::ICall { function, .. } = &mut func.inst_mut(call).kind {
                 *function = Callee::Function(*body);
             }
+        }
+    }
+
+    /// Passes each `i1` argument of `call` at the positions `words` as `zext b`, the word the body
+    /// of a wrapper takes for a bool.
+    fn widen_word_args(func: &mut Function, block: BlockId, call: InstId, words: &[ArgIdx]) {
+        for &index in words {
+            let InstKind::ICall { args, .. } = &func.inst(call).kind else { return };
+            let arg = args[index.index()];
+            if func.value_ty(arg) != Some(MirType::I1) {
+                continue;
+            }
+            // arg = zext b, before the call
+            let mut zext = Instruction::new(InstKind::Zext(arg), Some(MirType::I256));
+            zext.metadata.copy_debug_context(&func.inst(call).metadata);
+            let (zext, word) = func.alloc_value_inst(zext);
+            let instructions = &mut func.blocks[block].instructions;
+            let position = instructions.iter().position(|&inst| inst == call).unwrap();
+            instructions.insert(position, zext);
+            let InstKind::ICall { args, .. } = &mut func.inst_mut(call).kind else { return };
+            args[index.index()] = word;
         }
     }
 
@@ -1192,7 +1198,7 @@ impl LowerAbiCx {
         body_id: FunctionId,
         original_entry_inst: InstId,
         return_types: &[MirType],
-        mut args: Vec<ValueId>,
+        args: Vec<ValueId>,
         word_params: &[ArgIdx],
     ) {
         let Some(block) = func
@@ -1208,17 +1214,12 @@ impl LowerAbiCx {
         func.blocks[block].terminator = None;
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block);
-        // arg = zext b, for each bool the body takes as a word
-        for &index in word_params {
-            let word = builder.cast(args[index.index()], MirType::I256);
-            if let Value::Inst(inst) = *builder.func().value(word) {
-                builder.func_mut().inst_mut(inst).metadata.mark_debug_info_dropped();
-            }
-            args[index.index()] = word;
-        }
         if let Some((&first, rest)) = return_types.split_first() {
             let mut values = Vec::with_capacity(return_types.len());
-            values.push(builder.icall(body_id, args, first));
+            let call = builder.icall(body_id, args, first);
+            let inst = *builder.func().blocks[block].instructions.last().expect("the call");
+            Self::widen_word_args(builder.func_mut(), block, inst, word_params);
+            values.push(call);
             if !rest.is_empty() {
                 let base = builder.frame_load(0, FrameMode::MultiReturn, FrameSlotKind::Word);
                 for (index, &ty) in (1_u64..).zip(rest) {
@@ -1228,7 +1229,7 @@ impl LowerAbiCx {
                         }
                         _ => {
                             let position =
-                                builder.add_u64_offset(base, index * EvmMemoryLayout::WORD_SIZE);
+                                builder.add_offset(base, index * EvmMemoryLayout::WORD_SIZE);
                             builder.load(position, PtrLocation::Memory)
                         }
                     };
@@ -1238,6 +1239,8 @@ impl LowerAbiCx {
             builder.ret(values);
         } else {
             builder.icall_void(body_id, args);
+            let call = *builder.func().blocks[block].instructions.last().expect("the call");
+            Self::widen_word_args(builder.func_mut(), block, call, word_params);
             builder.ret([]);
         }
         // Drop the detached body blocks before lowering their now-orphaned slice projections.
@@ -1333,7 +1336,7 @@ impl LowerAbiCx {
                 layout.checked_head_size().expect("ABI head size exceeds u64 range")
             });
             let invalid = if constructor {
-                let required = builder.add_u64_offset(input_base, head_size);
+                let required = builder.add_offset(input_base, head_size);
                 builder.gt(required, input_end)
             } else {
                 let required = builder.imm(4 + head_size);
@@ -1359,7 +1362,7 @@ impl LowerAbiCx {
                 // Read the raw input word so an optimizer cannot fold the check away before it
                 // runs.
                 let offset = if constructor {
-                    builder.add_u64_offset(input_base, head_offset - 32)
+                    builder.add_offset(input_base, head_offset - 32)
                 } else {
                     builder.imm(4 + head_offset - 32)
                 };
@@ -1441,7 +1444,7 @@ impl LowerAbiCx {
                         {
                             let base = builder.icall(helper, vec![head], MirType::I256);
                             let len = builder.load(base, PtrLocation::Calldata);
-                            let data = builder.add_u64_offset(base, 32);
+                            let data = builder.add_offset(base, 32);
                             builder.make_slice(data, len, PtrLocation::Calldata)
                         } else {
                             Self::decode_aggregate_argument(
@@ -1575,7 +1578,7 @@ impl LowerAbiCx {
             }
             AbiParamType::Bytes => {
                 let len = Self::load_input_word(builder, base, constructor);
-                let data = builder.add_u64_offset(base, 32);
+                let data = builder.add_offset(base, 32);
                 Self::guard_bytes_data(builder, data, len, input_end, current, false);
             }
             AbiParamType::Scalar(_) | AbiParamType::Enum { .. } => {
@@ -1747,7 +1750,7 @@ impl LowerAbiCx {
             AbiParamType::DynamicArray(element) if Self::is_full_word_scalar(element) => {
                 let word = builder.imm(32);
                 let len = Self::load_input_word(builder, base, constructor);
-                let data = builder.add_u64_offset(base, 32);
+                let data = builder.add_offset(base, 32);
                 let (ptr, _) = builder
                     .alloc_dynamic_word_array(len, AllocationSemantics::SOLIDITY_UNINITIALIZED);
                 *current = builder.current_block();
@@ -1759,7 +1762,7 @@ impl LowerAbiCx {
             }
             AbiParamType::DynamicArray(element) if arg_type == MirType::MEMPTR => {
                 let len = Self::load_input_word(builder, base, constructor);
-                let data_base = builder.add_u64_offset(base, 32);
+                let data_base = builder.add_offset(base, 32);
                 let (ptr, _) = builder
                     .alloc_dynamic_word_array(len, AllocationSemantics::SOLIDITY_UNINITIALIZED);
                 *current = builder.current_block();
@@ -1790,7 +1793,7 @@ impl LowerAbiCx {
             }
             AbiParamType::Bytes if matches!(arg_type, MirType::Slice(_)) => {
                 let len = Self::load_input_word(builder, base, constructor);
-                let data = builder.add_u64_offset(base, 32);
+                let data = builder.add_offset(base, 32);
                 Self::guard_bytes_data(builder, data, len, input_end, current, false);
                 builder.make_slice(data, len, location)
             }
@@ -1845,7 +1848,7 @@ impl LowerAbiCx {
                     builder.alloc_word_struct(storage_fields as u64, AllocationSemantics::INTERNAL);
                 let mut offset = 0;
                 for (index, field) in fields.iter().enumerate() {
-                    let field_head = builder.add_u64_offset(base, offset);
+                    let field_head = builder.add_offset(base, offset);
                     let value = Self::decode_aggregate_argument(
                         builder,
                         field,
@@ -2024,7 +2027,7 @@ impl LowerAbiCx {
                 let mut offset = 0;
                 let mut current = builder.current_block();
                 for (index, field) in fields.iter().enumerate() {
-                    let field_head = builder.add_u64_offset(head, offset);
+                    let field_head = builder.add_offset(head, offset);
                     let value = decode(builder, field, field_head, &mut current);
                     builder.switch_to_block(current);
                     let value = Self::encode_memory_scalar(builder, field, value);
@@ -2208,7 +2211,7 @@ impl LowerAbiCx {
         element_head_size: u64,
     ) -> (ValueId, ValueId) {
         let len = Self::load_input_word(builder, base, constructor);
-        let data = builder.add_u64_offset(base, 32);
+        let data = builder.add_offset(base, 32);
         Self::guard_input_dynamic_array(builder, len, data, input_end, current, element_head_size);
         (len, data)
     }
@@ -2305,7 +2308,7 @@ impl LowerAbiCx {
             let checks_first_word =
                 is_array_like || (!to_calldata && matches!(ty, AbiParamType::FixedArray { .. }));
             let (invalid, reason) = if checks_first_word {
-                let target_end = builder.add_u64_offset(target, 32);
+                let target_end = builder.add_offset(target, 32);
                 (builder.gt(target_end, input_end), RevertReason::InvalidCalldataArrayOffset)
             } else {
                 let remaining = builder.sub(input_end, base);
@@ -2351,7 +2354,7 @@ impl LowerAbiCx {
         }
         // offset > u64::MAX || base + offset + 32 > input_end
         let target = builder.add(base, offset);
-        let target_end = builder.add_u64_offset(target, 32);
+        let target_end = builder.add_offset(target, 32);
         let max_offset = builder.imm(u64::MAX);
         let overflow = builder.gt(offset, max_offset);
         let out_of_range = builder.gt(target_end, input_end);
@@ -2630,7 +2633,7 @@ fn decode_tuple(
     let mut head_offset = 0_u64;
     for ty in &layout.types {
         builder.switch_to_block(current);
-        let head = builder.add_u64_offset(base, head_offset);
+        let head = builder.add_offset(base, head_offset);
         let value = if static_layout {
             let location = if calldata { PtrLocation::Calldata } else { PtrLocation::Memory };
             LowerAbiCx::decode_static_argument(builder, ty, head, &mut current, location)

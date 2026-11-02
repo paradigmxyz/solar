@@ -1,59 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/inline/all_sites.sol:AllSites ===
 @module AllSites
 @phase lowered
-fn @accumulate() {
-  bb0:
-    v12 = calldataload 4
-    v1 = lt v12, 0x3e9
-    jumpi v1, bb5, bb4
-  bb4 [cold]:
-    revert 0, 0
-  bb5:
-    v20 = calldataload 4
-    v2 = sload 0
-    jump bb1
-  bb1:
-    v5 = phi [bb5: v2], [bb7: v14]
-    v6 = phi [bb5: 0], [bb7: v17]
-    v7 = lt v6, v20
-    jumpi v7, bb3, bb2
-  bb2:
-    sstore 0, v5
-    mstore 0, v5
-    returndata 0, 32
-  bb3:
-    v14 = add v5, v6
-    v15 = lt v14, v5
-    jumpi v15, bb6, bb7
-  bb7:
-    v17 = add v6, 1
-    jump bb1
-  bb6 [cold]:
-    tail_call @panicArithmetic
-}
-
-fn @increment() {
-  bb0:
-    v5 = calldataload 4
-    v0 = sload 0 !metadata(storage=slot(0))
-    v7 = add v0, v5
-    v8 = lt v7, v0
-    jumpi v8, bb1, bb2
-  bb2:
-    sstore 0, v7
-    mstore 0, v7
-    returndata 0, 32
-  bb1 [cold]:
-    tail_call @panicArithmetic
-}
-
-fn @panicArithmetic() [cold] {
-  bb0 [cold]:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-}
-
+; runtime dispatch entry
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
@@ -63,14 +11,70 @@ fn @entry() [entry] {
     v4 = or v0, v3
     v5 = ne v4, 0
     jumpi v5, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v6 = calldataload 0
     v7 = shr v6, 224
     switch v7, default bb1, [0x7cf5dab0 => bb3, 0xb4e7d02a => bb4]
-  bb4:
+  bb4:  ; preds = bb2
     tail_call @accumulate
-  bb3:
+  bb3:  ; preds = bb2
     tail_call @increment
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0, bb2
     revert 0, 0
+}
+
+; function accumulate(uint256 n) public returns (uint256) [selector 0xb4e7d02a]
+fn @accumulate() {
+  bb0:
+    v12 = calldataload 4
+    v1 = lt v12, 0x3e9
+    jumpi v1, bb5, bb4
+  bb4 [cold]:  ; preds = bb0
+    revert 0, 0
+  bb5:  ; preds = bb0
+    v19 = calldataload 4
+    v2 = sload 0
+    jump bb1
+  bb1:  ; preds = bb5, bb7
+    v5 = phi [bb5: v2], [bb7: v13]
+    v6 = phi [bb5: 0], [bb7: v16]
+    v7 = lt v6, v19
+    jumpi v7, bb3, bb2
+  bb2:  ; preds = bb1
+    sstore 0, v5
+    mstore 0, v5
+    returndata 0, 32
+  bb3:  ; preds = bb1
+    v13 = add v5, v6
+    v14 = lt v13, v5
+    jumpi v14, bb6, bb7
+  bb7:  ; preds = bb3
+    v16 = add v6, 1
+    jump bb1
+  bb6 [cold]:  ; preds = bb3
+    tail_call @panicArithmetic
+}
+
+; function increment(uint256 n) public returns (uint256) [selector 0x7cf5dab0]
+fn @increment() {
+  bb0:
+    v5 = calldataload 4
+    v0 = sload 0 !metadata(storage=slot(0))
+    v6 = add v0, v5
+    v7 = lt v6, v0
+    jumpi v7, bb1, bb2
+  bb2:  ; preds = bb0
+    sstore 0, v6
+    mstore 0, v6
+    returndata 0, 32
+  bb1 [cold]:  ; preds = bb0
+    tail_call @panicArithmetic
+}
+
+; function panicArithmetic() internal pure
+fn @panicArithmetic() [cold] {
+  bb0 [cold]:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
 }

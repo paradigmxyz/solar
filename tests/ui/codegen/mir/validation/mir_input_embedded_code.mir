@@ -1,0 +1,15 @@
+//@ compile-flags: --emit=bin
+//~? ERROR: MIR input that embeds another contract's code has no bytecode to emit
+// A module given as input comes with no other contract, so the bytecode its data embeds has
+// nothing to link.
+@module Deployer
+@phase lowered
+@data
+  child_0: creation_code "child.sol:Child"
+
+fn @entry() [entry] {
+  bb0:
+    v0 = datasize child_0, 0
+    mstore 0, v0
+    returndata 0, 32
+}

@@ -18,7 +18,10 @@ use ui_test::{
     spanned::{Span, Spanned},
 };
 
+mod dump;
 mod evm_ir;
+mod oracle;
+mod trace;
 
 const CALLER: Address = Address::repeat_byte(0x22);
 
@@ -61,8 +64,8 @@ struct Outcome {
     success: bool,
     output: Vec<u8>,
     stop: String,
-    /// What the call did, when the EVM IR interpreter checks it.
-    trace: Option<evm_ir::Trace>,
+    /// What the call did, when an interpreter checks it.
+    trace: Option<trace::Trace>,
 }
 
 struct ResolvedCall<'a> {
@@ -132,7 +135,7 @@ impl RunCall {
     ) -> Result<(), String> {
         let artifacts = parse_artifacts(output)?;
         let test_path = config.status.path();
-        let abi_less = evm_ir::is_evm_ir(config);
+        let abi_less = oracle::applies(config) || evm_ir::is_evm_ir(config);
         let call = resolve_call(
             &artifacts,
             test_path,
@@ -142,7 +145,7 @@ impl RunCall {
             false,
             abi_less,
         )?;
-        let actual = execute(&call, spec_id, evm_ir::applies(config))?;
+        let actual = execute(&call, spec_id, traced(config))?;
         if !actual.success {
             return Err(format!(
                 "`{}` failed with {}: 0x{}",
@@ -159,6 +162,7 @@ impl RunCall {
                 hex::display(&call.expected)
             ));
         }
+        check_mir(config, build_manager, &self.call, &call, &actual)?;
         check_evm_ir(config, build_manager, &self.call, &call, &actual)
     }
 }
@@ -195,7 +199,7 @@ impl RunCallFail {
     ) -> Result<(), String> {
         let artifacts = parse_artifacts(output)?;
         let test_path = config.status.path();
-        let abi_less = evm_ir::is_evm_ir(config);
+        let abi_less = oracle::applies(config) || evm_ir::is_evm_ir(config);
         let call = resolve_call(
             &artifacts,
             test_path,
@@ -205,7 +209,7 @@ impl RunCallFail {
             true,
             abi_less,
         )?;
-        let actual = execute(&call, spec_id, evm_ir::applies(config))?;
+        let actual = execute(&call, spec_id, traced(config))?;
         if actual.success {
             return Err(format!(
                 "`{}` succeeded with 0x{}, expected failure",
@@ -221,6 +225,7 @@ impl RunCallFail {
                 hex::display(&call.expected)
             ));
         }
+        check_mir(config, build_manager, &self.call, &call, &actual)?;
         check_evm_ir(config, build_manager, &self.call, &call, &actual)
     }
 }
@@ -253,6 +258,36 @@ macro_rules! impl_flag {
 impl_flag!(RunCall);
 impl_flag!(RunCallFail);
 
+/// Returns whether an interpreter checks the test's calls, so that each call records a trace.
+fn traced(config: &TestConfig) -> bool {
+    oracle::applies(config) || evm_ir::applies(config)
+}
+
+/// Checks the call against the MIR interpreter when the test is written in MIR.
+fn check_mir(
+    config: &TestConfig,
+    build_manager: &BuildManager,
+    directive: &str,
+    call: &ResolvedCall<'_>,
+    actual: &Outcome,
+) -> Result<(), String> {
+    let Some(trace) = actual.trace.as_ref().filter(|_| oracle::applies(config)) else {
+        return Ok(());
+    };
+    let name = display_call(directive, call.function.as_deref());
+    let evm_version = evm_version(config)?
+        .parse()
+        .map_err(|error| format!("unsupported EVM version for the MIR interpreter: {error}"))?;
+    let call = oracle::Call {
+        contract: &call.artifact.name,
+        name: &name,
+        input: &call.input,
+        value: call.value,
+        evm_version,
+    };
+    oracle::check(config, build_manager, &call, trace)
+}
+
 /// Checks the call against the EVM IR interpreter when that check applies.
 fn check_evm_ir(
     config: &TestConfig,
@@ -261,7 +296,9 @@ fn check_evm_ir(
     call: &ResolvedCall<'_>,
     actual: &Outcome,
 ) -> Result<(), String> {
-    let Some(trace) = &actual.trace else { return Ok(()) };
+    let Some(trace) = actual.trace.as_ref().filter(|_| evm_ir::applies(config)) else {
+        return Ok(());
+    };
     let evm_version = evm_version(config)?
         .parse()
         .map_err(|error| format!("unsupported EVM version for the EVM IR interpreter: {error}"))?;
@@ -769,12 +806,8 @@ fn setup_call(artifact: &Artifact, function: Option<&Function>) -> Result<Option
 }
 
 /// Deploys the called contract, runs its `setUp()` when the call needs one, and executes the call,
-/// recording what it did for the EVM IR interpreter to check when `check_evm_ir` is set.
-fn execute(
-    call: &ResolvedCall<'_>,
-    spec_id: SpecId,
-    check_evm_ir: bool,
-) -> Result<Outcome, String> {
+/// recording what it did for the interpreter checks when `traced` is set.
+fn execute(call: &ResolvedCall<'_>, spec_id: SpecId, traced: bool) -> Result<Outcome, String> {
     let setup = setup_call(call.artifact, call.function.as_deref())?;
     let mut database = InMemoryDB::default();
     database.insert_account_info(&CALLER, AccountInfo::default().with_balance(U256::MAX));
@@ -819,12 +852,19 @@ fn execute(
             ));
         }
     }
-    let before = check_evm_ir.then(|| evm_ir::Chain::capture(&evm, contract));
+    let before = traced.then(|| trace::Chain::capture(&evm, contract));
+    let observer = trace::Observer::default();
+    if before.is_some() {
+        evm.set_inspector(observer.clone());
+    }
     let input = Bytes::copy_from_slice(&call.input);
     let gas_limit = call.gas_limit.unwrap_or_else(|| default_gas_limit(spec_id));
     let result = transact(&mut evm, nonce, TxKind::Call(contract), input, gas_limit, call.value)?;
-    let trace = before
-        .map(|before| evm_ir::Trace::new(before, &evm, result.stop, &result.output, &result.logs));
+    let trace = before.map(|before| {
+        evm.clear_inspector();
+        let (stop, output, logs) = (result.stop, &result.output, &result.logs);
+        trace::Trace::new(before, &evm, stop, output, logs, &observer)
+    });
     Ok(Outcome { trace, ..outcome(result) })
 }
 
@@ -965,6 +1005,16 @@ mod tests {
 }
 
 @module runtime"#;
+        let artifacts = parse_artifacts(output).unwrap();
+        assert_eq!(artifacts[0].name, "source.sol:Test");
+        assert_eq!(artifacts[0].bytecode, [0]);
+    }
+
+    #[test]
+    fn parses_artifacts_with_a_function_named_contracts() {
+        let output = br#"@module Test
+
+{"contracts":{"source.sol:Test":{"abi":[{"type":"function","name":"contracts","inputs":[],"outputs":[],"stateMutability":"view"}],"bin":"00"}}}"#;
         let artifacts = parse_artifacts(output).unwrap();
         assert_eq!(artifacts[0].name, "source.sol:Test");
         assert_eq!(artifacts[0].bytecode, [0]);

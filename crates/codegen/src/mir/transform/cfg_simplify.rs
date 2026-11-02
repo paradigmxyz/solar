@@ -801,7 +801,7 @@ fn retain_functions(module: &mut Module, keep: &DenseBitSet<FunctionId>) -> usiz
         remap[old_id] = Some(new_id);
     }
     module.functions = functions;
-    module.remap_roots(|root| remap[root].expect("kept function cannot be a module root"));
+    module.remap_roots(|root| remap[root]);
     module.function_name_index.clear();
     module.function_name_index.extend(
         module.functions.iter_enumerated().map(|(id, function)| (function.name.symbol, id)),

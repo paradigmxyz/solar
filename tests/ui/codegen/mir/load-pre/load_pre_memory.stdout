@@ -4,13 +4,13 @@
   fn @mload_full_diamond(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       v1 = mload 128
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       v0 = mload 128
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
       v2 = mload 128
       ret v2
   }
@@ -18,13 +18,13 @@
   fn @mstore_forwarding(arg0: i1, arg1: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       v0 = mload 128
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       mstore 128, arg1
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
       v1 = mload 128
       ret v1
   }
@@ -33,14 +33,14 @@
     bb0:
       v0 = mload 128
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       mstore8 159, 7
       jumpi arg0, bb3, bb4
-    bb4:
+    bb4:  ; preds = bb1
       ret v0
-    bb3:
+    bb3:  ; preds = bb1, bb2
       v1 = mload 128
       ret v1
   }
@@ -48,12 +48,12 @@
   fn @mload_partial_rejected(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       v0 = mload 128
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
       v1 = mload 128
       ret v1
   }
@@ -61,13 +61,13 @@
   fn @mload_partial_repeated_profitable(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
 +     v4 = mload 128
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       v0 = mload 128
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
 -     v1 = mload 128
 -     v2 = mload 128
 -     v3 = add v1, v2
@@ -79,15 +79,15 @@
   fn @mload_partial_two_available(arg0: i256) -> i256 {
     bb0:
       switch arg0, default bb3, [1 => bb1, 2 => bb2]
-    bb2:
+    bb2:  ; preds = bb0
       v1 = mload 128
       jump bb4
-    bb1:
+    bb1:  ; preds = bb0
       v0 = mload 128
       jump bb4
-    bb3:
+    bb3:  ; preds = bb0
       jump bb4
-    bb4:
+    bb4:  ; preds = bb1, bb2, bb3
       v2 = mload 128
       ret v2
   }
@@ -96,16 +96,16 @@
     bb0:
       v0 = mload 128
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
 -     v1 = mload 128
 -     v2 = lt v1, arg0
 +     v3 = phi [bb0: v0], [bb2: v3]
 +     v2 = lt v3, arg0
       jumpi v2, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
 -     ret v1
 +     ret v3
-    bb2:
+    bb2:  ; preds = bb1
       jump bb1
   }
   
@@ -113,14 +113,14 @@
     bb0:
       v0 = mload 128
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       v1 = staticcall 0x186a0, arg1, 0, 0, 0, 0
       jumpi arg0, bb3, bb4
-    bb4:
+    bb4:  ; preds = bb1
       ret v0
-    bb3:
+    bb3:  ; preds = bb1, bb2
 -     v2 = mload 128
 -     ret v2
 +     ret v0
@@ -129,13 +129,13 @@
   fn @msize_does_not_block_memory(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
 +     v6 = mload 128
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       v0 = mload 128
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
 +     v7 = phi [bb1: v0], [bb2: v6]
       v1 = msize
 -     v2 = mload 128
@@ -149,12 +149,12 @@
   fn @default_gas_call_blocks_prefix(arg0: i1, arg1: ptr<memory>) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       v0 = mload 128
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
       v1 = trunc i256 0xbeef to i160
       v2 = address_call v1, arg1
       v3 = mload 128
@@ -166,12 +166,12 @@
   fn @default_gas_call_blocks_reload(arg0: i1, arg1: ptr<memory>) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       v0 = mload 128
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
       v1 = mload 128
       v2 = trunc i256 0xbeef to i160
       v3 = address_call v2, arg1
@@ -183,12 +183,12 @@
   fn @explicit_gas_call_blocks_pre(arg0: i1, arg1: ptr<memory>) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       v0 = mload 128
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
       v1 = trunc i256 0xbeef to i160
       v2 = address_call v1, arg1, gas 0x3e8
       v3 = mload 128

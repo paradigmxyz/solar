@@ -1,0 +1,14 @@
+- // === ROOT/tests/ui/codegen/mir/function-dce/no_entries.mir (before function-dce) ===
++ // === ROOT/tests/ui/codegen/mir/function-dce/no_entries.mir (after function-dce) ===
+  @module NoEntries
+  fn @helper() -> i256 {
+    bb0:
+      ret 1
+  }
+  
+  fn @other() -> i256 {
+    bb0:
+      v0 = icall @helper
+      ret v0
+  }
+  

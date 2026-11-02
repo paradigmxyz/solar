@@ -4,6 +4,7 @@
   struct0: {i256, ptr<memory>}
   struct1: {ptr<memory>, i256}
 
+; function hash(uint256 x) external pure returns (bytes32) [selector 0xb189fd4c]
 fn @hash(arg0: i256) -> i256 [selector=0xb189fd4c, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
@@ -20,6 +21,7 @@ fn @hash(arg0: i256) -> i256 [selector=0xb189fd4c, pure, abi_params=[uint256], a
     ret v7
 }
 
+; function observed(uint256 x) external pure returns (bool result) [selector 0x3a5fe8af]
 fn @observed(arg0: i256) -> i256 [selector=0x3a5fe8af, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -47,18 +49,18 @@ fn @observed(arg0: i256) -> i256 [selector=0x3a5fe8af, pure, abi_params=[uint256
     v19 = eq v18, 0x73637261746368206c69746572616c2074686174207370616e732074776f2077
     v20 = zext i1 v19 to i256
     v21 = and v16, v20
-    v22 = shl 0x6f7264733f, 216
-    v23 = add v0, 64
-    v24 = mload v23
-    v25 = eq v24, v22
-    v26 = zext i1 v25 to i256
-    v27 = and v21, v26
-    v28 = eq v8, 0xf7ca02e8e7052e428c9661bb6f3f0ab0e7f87756e5e2172ef9b6c9f13bf7349c
-    v29 = eq v28, false
-    icall revert_if<empty>, v29
-    ret v27
+    v22 = add v0, 64
+    v23 = mload v22
+    v24 = eq v23, 0x6f7264733f000000000000000000000000000000000000000000000000000000
+    v25 = zext i1 v24 to i256
+    v26 = and v21, v25
+    v27 = eq v8, 0xf7ca02e8e7052e428c9661bb6f3f0ab0e7f87756e5e2172ef9b6c9f13bf7349c
+    v28 = eq v27, false
+    icall revert_if<empty>, v28
+    ret v26
 }
 
+; function observedRevert(uint256 x) external pure [selector 0x8cf17d01]
 fn @observedRevert(arg0: i256) [selector=0x8cf17d01, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -76,23 +78,25 @@ fn @observedRevert(arg0: i256) [selector=0x8cf17d01, pure, abi_params=[uint256],
     v9 = lt v8, 1
     v10 = zext i1 v9 to i256
     v11 = shl v10, 5
-    v12 = add 64, v11
+    v12 = add v11, 64
     revert v0, v12
 }
 
+; function fail(uint256 x) external pure [selector 0x132e4f3c]
 fn @fail(arg0: i256) [selector=0x132e4f3c, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = eq arg0, 7
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     ret
-  bb1:
+  bb1:  ; preds = bb0
     icall require<long_string hex"73637261746368206c69746572616c2074686174207370616e732074776f20776f7264732c">, false
     invalid
 }
 
+; function aliased() external pure [selector 0x1d15e393]
 fn @aliased() [selector=0x1d15e393, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -105,6 +109,7 @@ fn @aliased() [selector=0x1d15e393, pure, abi_params=[], abi_returns=[], abi_ret
     invalid
 }
 
+; function grown(uint256 n) external pure [selector 0x922be285]
 fn @grown(arg0: i256) [selector=0x922be285, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -121,6 +126,7 @@ fn @grown(arg0: i256) [selector=0x922be285, pure, abi_params=[uint256], abi_retu
     invalid
 }
 
+; function pair(uint256 x) external pure returns (uint256, string memory) [selector 0x645751af]
 fn @pair(arg0: i256) -> struct0 [selector=0x645751af, pure, abi_params=[uint256], abi_returns=[word, memory_bytes], abi_return_params=[uint256, bytes]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
@@ -134,45 +140,43 @@ fn @pair(arg0: i256) -> struct0 [selector=0x645751af, pure, abi_params=[uint256]
     ret v4
 }
 
+; function shifted() external pure returns (bytes memory, uint256) [selector 0xd461625c]
 fn @shifted() -> struct1 [selector=0xd461625c, pure, abi_params=[], abi_returns=[memory_bytes, word], abi_return_params=[bytes, uint256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 3
     v1 = ptradd v0, 32
     mstore v1, 0x6162630000000000000000000000000000000000000000000000000000000000
-    v2 = not 31
-    v3 = and 63, v2
-    v4 = alloc zeroed checked v3
-    mstore v4, 0
-    v5 = ptrtoint ptr<memory> v4 to i256
-    v6 = insert_value struct1, undef struct1, 0, v0
-    v7 = insert_value struct1, v6, 1, v5
-    ret v7
+    v2 = alloc zeroed checked 32
+    mstore v2, 0
+    v3 = ptrtoint ptr<memory> v2 to i256
+    v4 = insert_value struct1, undef struct1, 0, v0
+    v5 = insert_value struct1, v4, 1, v3
+    ret v5
 }
 
+; function recycledHash(uint256 x) external pure returns (bytes32) [selector 0x4e86729e]
 fn @recycledHash(arg0: i256) -> i256 [selector=0x4e86729e, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = not 31
-    v1 = and 95, v0
-    v2 = alloc zeroed checked v1
-    mstore v2, 32
-    v3 = ptrtoint ptr<memory> v2 to i256
-    mstore 64, v3 !metadata(memory=scratch)
-    v4 = alloc 64 !metadata(preserves_fmp)
-    mstore v4, 2
-    v5 = ptradd v4, 32
-    mstore v5, 0x1111000000000000000000000000000000000000000000000000000000000000
-    v6 = shl 0xabcd, 240
-    v7 = ptrtoint ptr<memory> v2 to i256
-    v8 = add v7, 32
-    mstore v8, v6
-    v9 = abi_encode [word, memory_bytes], scratch, args arg0, v4
-    v10 = extract_value slice<memory>, v9, 0
-    v11 = extract_value slice<memory>, v9, 1
-    v12 = keccak256 v10, v11
-    ret v12
+    v0 = alloc zeroed checked 64
+    mstore v0, 32
+    v1 = ptrtoint ptr<memory> v0 to i256
+    mstore 64, v1 !metadata(memory=scratch)
+    v2 = alloc 64 !metadata(preserves_fmp)
+    mstore v2, 2
+    v3 = ptradd v2, 32
+    mstore v3, 0x1111000000000000000000000000000000000000000000000000000000000000
+    v4 = ptrtoint ptr<memory> v0 to i256
+    v5 = add v4, 32
+    mstore v5, 0xabcd000000000000000000000000000000000000000000000000000000000000
+    v6 = abi_encode [word, memory_bytes], scratch, args arg0, v2
+    v7 = extract_value slice<memory>, v6, 0
+    v8 = extract_value slice<memory>, v6, 1
+    v9 = keccak256 v7, v8
+    ret v9
 }
 
+; function text() external pure returns (string memory) [selector 0x1f1bd692]
 fn @text() -> ptr<memory> [selector=0x1f1bd692, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
@@ -184,21 +188,19 @@ fn @text() -> ptr<memory> [selector=0x1f1bd692, pure, abi_params=[], abi_returns
     ret v0
 }
 
+; function recycledText() external pure returns (bytes memory) [selector 0xb5761dae]
 fn @recycledText() -> ptr<memory> [selector=0xb5761dae, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = not 31
-    v1 = and 95, v0
-    v2 = alloc zeroed checked v1
-    mstore v2, 32
-    v3 = ptrtoint ptr<memory> v2 to i256
-    mstore 64, v3 !metadata(memory=scratch)
-    v4 = alloc 64 !metadata(preserves_fmp)
-    mstore v4, 2
-    v5 = ptradd v4, 32
-    mstore v5, 0x3333000000000000000000000000000000000000000000000000000000000000
-    v6 = shl 0xabcd, 240
-    v7 = ptrtoint ptr<memory> v2 to i256
-    v8 = add v7, 32
-    mstore v8, v6
-    ret v4
+    v0 = alloc zeroed checked 64
+    mstore v0, 32
+    v1 = ptrtoint ptr<memory> v0 to i256
+    mstore 64, v1 !metadata(memory=scratch)
+    v2 = alloc 64 !metadata(preserves_fmp)
+    mstore v2, 2
+    v3 = ptradd v2, 32
+    mstore v3, 0x3333000000000000000000000000000000000000000000000000000000000000
+    v4 = ptrtoint ptr<memory> v0 to i256
+    v5 = add v4, 32
+    mstore v5, 0xabcd000000000000000000000000000000000000000000000000000000000000
+    ret v2
 }

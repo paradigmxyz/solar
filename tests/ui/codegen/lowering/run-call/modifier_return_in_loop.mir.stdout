@@ -1,39 +1,41 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_return_in_loop.sol:ModifierReturnInLoop ===
 @module ModifierReturnInLoop
+; function f() public run [selector 0x26121ff0]
 fn @f() [selector=0x26121ff0, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     jump bb2
-  bb2:
+  bb2:  ; preds = bb0, bb4
     v0 = phi [bb0: 1], [bb4: v5]
     v1 = lt v0, 10
     jumpi v1, bb5, bb6
-  bb6:
+  bb6:  ; preds = bb2
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     jump bb1
-  bb5:
+  bb5:  ; preds = bb2
     v2 = eq v0, 5
     jumpi v2, bb8, bb9
-  bb9:
+  bb9:  ; preds = bb5
     jump bb10
-  bb10:
+  bb10:  ; preds = bb9
     v3 = sload 0 !metadata(storage=slot(0))
     v4 = checked_add uint256, v3, 1
     sstore 0, v4 !metadata(storage=slot(0))
     jump bb11
-  bb11:
+  bb11:  ; preds = bb10
     jump bb7
-  bb7:
+  bb7:  ; preds = bb11
     jump bb4
-  bb4:
+  bb4:  ; preds = bb7
     v5 = checked_add uint256, v0, 1
     jump bb2
-  bb8:
+  bb8:  ; preds = bb5
     jump bb1
-  bb1:
+  bb1:  ; preds = bb8, bb3
     ret
 }
 
+; function fAndRead() external returns (uint256) [selector 0x4e03d23b]
 fn @fAndRead() -> i256 [selector=0x4e03d23b, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall @f

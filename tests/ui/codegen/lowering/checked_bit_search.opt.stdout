@@ -2,6 +2,7 @@
 @module LibBit
 @phase lowered
 @library
+; runtime dispatch entry
 fn @entry() [entry, cold] {
   bb0 [cold]:
     revert 0, 0
@@ -10,6 +11,31 @@ fn @entry() [entry, cold] {
 // === ROOT/tests/ui/codegen/lowering/checked_bit_search.sol:CheckedBitSearch ===
 @module CheckedBitSearch
 @phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:  ; preds = bb0
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0x2297890a => bb3, 0x27be8b2d => bb4, 0x30244f7a => bb5]
+  bb5:  ; preds = bb2
+    tail_call @clz.1
+  bb4:  ; preds = bb2
+    tail_call @fls.0
+  bb3:  ; preds = bb2
+    tail_call @ffs.2
+  bb1 [cold]:  ; preds = bb0, bb2
+    revert 0, 0
+}
+
+; function fls(uint256 x) external pure returns (uint256) [selector 0x27be8b2d]
 fn @fls.0() {
   bb0:
     v3 = calldataload 4
@@ -18,50 +44,53 @@ fn @fls.0() {
     returndata 0, 32
 }
 
+; function clz(uint256 x) external pure returns (uint256) [selector 0x30244f7a]
 fn @clz.1() {
   bb0:
     v10 = calldataload 4
     v1 = eq v10, 0
     jumpi v1, bb2, bb1
-  bb1:
-    v12 = calldataload 4
-    v2 = icall @fls.3, v12
+  bb1:  ; preds = bb0
+    v11 = calldataload 4
+    v2 = icall @fls.3, v11
     v6 = sub 255, v2
     v7 = gt v2, 255
     jumpi v7, bb3, bb2
-  bb3 [cold]:
+  bb3 [cold]:  ; preds = bb1
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb2:
+  bb2:  ; preds = bb0, bb1
     v4 = phi [bb0: 256], [bb1: v6]
     mstore 0, v4 !metadata(memory=scratch)
     returndata 0, 32
 }
 
+; function ffs(uint256 x) external pure returns (uint256) [selector 0x2297890a]
 fn @ffs.2() {
   bb0:
     v10 = calldataload 4
     v1 = eq v10, 0
     jumpi v1, bb2, bb1
-  bb1:
-    v12 = calldataload 4
-    v2 = not v12
+  bb1:  ; preds = bb0
+    v11 = calldataload 4
+    v2 = not v11
     v3 = add v2, 1
-    v4 = and v12, v3
+    v4 = and v3, v11
     v5 = icall @fls.3, v4
     jump bb2
-  bb2:
+  bb2:  ; preds = bb0, bb1
     v6 = phi [bb0: 256], [bb1: v5]
     mstore 0, v6 !metadata(memory=scratch)
     returndata 0, 32
 }
 
+; function fls(uint256 x) internal pure returns (uint256 r)
 fn @fls.3(arg0: i256) -> i256 {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v2 = gt arg0, 0xffffffffffffffffffffffffffffffff
     v44 = zext i1 v2 to i256
     v45 = shl v44, 7
@@ -94,34 +123,11 @@ fn @fls.3(arg0: i256) -> i256 {
     v37 = gt v75, 3
     v79 = zext i1 v37 to i256
     v80 = add v79, v79
-    v81 = shr v75, v80
     v84 = or v78, v80
+    v81 = shr v75, v80
     v42 = shr v81, 1
-    v43 = or v84, v42
+    v43 = or v42, v84
     ret v43
-  bb1:
+  bb1:  ; preds = bb0
     ret 256
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = calldatasize
-    v2 = lt v1, 36
-    v3 = zext i1 v2 to i256
-    v4 = or v0, v3
-    v5 = ne v4, 0
-    jumpi v5, bb1, bb2
-  bb2:
-    v6 = calldataload 0
-    v7 = shr v6, 224
-    switch v7, default bb1, [0x2297890a => bb3, 0x27be8b2d => bb4, 0x30244f7a => bb5]
-  bb5:
-    tail_call @clz.1
-  bb4:
-    tail_call @fls.0
-  bb3:
-    tail_call @ffs.2
-  bb1 [cold]:
-    revert 0, 0
 }

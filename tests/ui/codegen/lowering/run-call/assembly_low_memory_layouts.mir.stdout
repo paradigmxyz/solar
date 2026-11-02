@@ -4,12 +4,7 @@
   struct0: {i256, i256}
   struct1: {i8, i256}
 
-fn @seal() -> i256 [selector=0x3fb27b85, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
-}
-
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = callvalue
@@ -21,6 +16,14 @@ fn @constructor() [constructor] {
     ret
 }
 
+; getter for `bytes32 public seal` [selector 0x3fb27b85]
+fn @seal() -> i256 [selector=0x3fb27b85, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+; function resetHeap(uint256 a, uint256 flag) external pure returns (bytes32 result) [selector 0x68dd8af4]
 fn @resetHeap(arg0: i256, arg1: i256) -> i256 [selector=0x68dd8af4, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
@@ -43,14 +46,14 @@ fn @resetHeap(arg0: i256, arg1: i256) -> i256 [selector=0x68dd8af4, pure, abi_pa
     mstore 64, 128 !metadata(memory=scratch)
     v17 = ne arg1, 0
     jumpi v17, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v18 = icall @_copy, 0x400
     v19 = mload v18
     v20 = shl v19, 0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v21 = phi [bb1: v20], [bb2: 0]
     v22 = xor v0, v1
     v23 = xor v22, v2
@@ -68,10 +71,11 @@ fn @resetHeap(arg0: i256, arg1: i256) -> i256 [selector=0x68dd8af4, pure, abi_pa
     v35 = xor v34, v14
     v36 = xor v35, v15
     v37 = xor v36, v16
-    v38 = xor v21, v37
+    v38 = xor v37, v21
     ret v38
 }
 
+; function layout(uint256 a, uint256 words) external pure returns (bytes32 result) [selector 0x3dab18c6]
 fn @layout(arg0: i256, arg1: i256) -> i256 [selector=0x3dab18c6, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
@@ -93,12 +97,12 @@ fn @layout(arg0: i256, arg1: i256) -> i256 [selector=0x3dab18c6, pure, abi_param
     v16 = keccak256_packed (uint256 arg0, uint256 16)
     v17 = ne arg1, 0
     jumpi v17, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v18 = icall @_lay, arg0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v19 = phi [bb1: v18], [bb2: 0]
     v20 = xor v0, v1
     v21 = xor v20, v2
@@ -116,10 +120,11 @@ fn @layout(arg0: i256, arg1: i256) -> i256 [selector=0x3dab18c6, pure, abi_param
     v33 = xor v32, v14
     v34 = xor v33, v15
     v35 = xor v34, v16
-    v36 = xor v19, v35
+    v36 = xor v35, v19
     ret v36
 }
 
+; function layoutAbove(uint256 a, uint256 words) external pure returns (bytes32 result) [selector 0x3eed32d9]
 fn @layoutAbove(arg0: i256, arg1: i256) -> i256 [selector=0x3eed32d9, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
@@ -141,12 +146,12 @@ fn @layoutAbove(arg0: i256, arg1: i256) -> i256 [selector=0x3eed32d9, pure, abi_
     v16 = keccak256_packed (uint256 arg0, uint256 16)
     v17 = ne arg1, 0
     jumpi v17, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v18 = icall @_lay, arg0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v19 = phi [bb1: v18], [bb2: 0]
     v20 = calldatasize
     calldatacopy 0x2080, v20, 0x400
@@ -166,32 +171,32 @@ fn @layoutAbove(arg0: i256, arg1: i256) -> i256 [selector=0x3eed32d9, pure, abi_
     v34 = xor v33, v14
     v35 = xor v34, v15
     v36 = xor v35, v16
-    v37 = xor v19, v36
+    v37 = xor v36, v19
     ret v37
 }
 
+; function bufferAboveHeap(uint256 a, uint256 words) external pure returns (uint256 kept) [selector 0x52cf10d7]
 fn @bufferAboveHeap(arg0: i256, arg1: i256) -> i256 [selector=0x52cf10d7, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     mstore 0x2400, arg0
     v0 = ne arg1, 0
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v1 = icall @_lay, arg0
     jump bb3
-  bb3:
-    v2 = not 31
-    v3 = and 0x43f, v2
-    v4 = alloc zeroed checked v3
-    mstore v4, 0x400
-    v5 = ptrtoint ptr<memory> v4 to i256
-    v6 = mload v4
-    v7 = mload 0x2400
-    v8 = add v7, v6
-    ret v8
+  bb3:  ; preds = bb1, bb2
+    v2 = alloc zeroed checked 0x420
+    mstore v2, 0x400
+    v3 = ptrtoint ptr<memory> v2 to i256
+    v4 = mload v2
+    v5 = mload 0x2400
+    v6 = add v5, v4
+    ret v6
 }
 
+; function zeroLengthCopy(uint256) external view returns (bool lowHeap) [selector 0x634ce2de]
 fn @zeroLengthCopy(arg0: i256) -> i256 [selector=0x634ce2de, view, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = gas
@@ -205,6 +210,7 @@ fn @zeroLengthCopy(arg0: i256) -> i256 [selector=0x634ce2de, view, abi_params=[u
     ret v6
 }
 
+; function resetLoop(uint256 a, uint256 n) external pure returns (bytes32 result) [selector 0x20fd52b5]
 fn @resetLoop(arg0: i256, arg1: i256) -> i256 [selector=0x20fd52b5, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
@@ -227,7 +233,7 @@ fn @resetLoop(arg0: i256, arg1: i256) -> i256 [selector=0x20fd52b5, pure, abi_pa
     mstore 64, 128 !metadata(memory=scratch)
     v17 = mload 64 !metadata(memory=scratch)
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v18 = phi [bb0: arg0], [bb3: v18]
     v19 = phi [bb0: arg1], [bb3: v19]
     v20 = phi [bb0: 0], [bb3: v20]
@@ -249,49 +255,49 @@ fn @resetLoop(arg0: i256, arg1: i256) -> i256 [selector=0x20fd52b5, pure, abi_pa
     v36 = phi [bb0: v15], [bb3: v36]
     v37 = phi [bb0: v16], [bb3: v37]
     v38 = phi [bb0: v17], [bb3: v38]
-    v39 = phi [bb0: 0], [bb3: v46]
+    v39 = phi [bb0: 0], [bb3: v45]
     v40 = lt v39, v19
     v41 = zext i1 v40 to i256
     v42 = ne v41, 0
     jumpi v42, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
-    v47 = shl v19, 5
-    v48 = add v38, v47
-    mstore 64, v48 !metadata(memory=scratch)
-    v49 = xor v21, v22
-    v50 = xor v49, v23
-    v51 = xor v50, v24
-    v52 = xor v51, v25
-    v53 = xor v52, v26
-    v54 = xor v53, v27
-    v55 = xor v54, v28
-    v56 = xor v55, v29
-    v57 = xor v56, v30
-    v58 = xor v57, v31
-    v59 = xor v58, v32
-    v60 = xor v59, v33
-    v61 = xor v60, v34
-    v62 = xor v61, v35
-    v63 = xor v62, v36
-    v64 = xor v63, v37
-    v65 = shl v19, 0
-    v66 = xor v64, v65
-    ret v66
-  bb4:
-    v43 = not 0
-    v44 = shl v39, 5
-    v45 = add v38, v44
-    mstore v45, v43
+  bb2:  ; preds = bb5
+    v46 = shl v19, 5
+    v47 = add v46, v38
+    mstore 64, v47 !metadata(memory=scratch)
+    v48 = xor v21, v22
+    v49 = xor v48, v23
+    v50 = xor v49, v24
+    v51 = xor v50, v25
+    v52 = xor v51, v26
+    v53 = xor v52, v27
+    v54 = xor v53, v28
+    v55 = xor v54, v29
+    v56 = xor v55, v30
+    v57 = xor v56, v31
+    v58 = xor v57, v32
+    v59 = xor v58, v33
+    v60 = xor v59, v34
+    v61 = xor v60, v35
+    v62 = xor v61, v36
+    v63 = xor v62, v37
+    v64 = shl v19, 0
+    v65 = xor v63, v64
+    ret v65
+  bb4:  ; preds = bb1
+    v43 = shl v39, 5
+    v44 = add v43, v38
+    mstore v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
-    v46 = add v39, 1
+  bb3:  ; preds = bb6
+    v45 = add v39, 1
     jump bb1
 }
 
+; function revertWithTime(uint256 startTime, uint256) external pure [selector 0xa03dd0df]
 fn @revertWithTime(arg0: i256, arg1: i256) [selector=0xa03dd0df, pure, abi_params=[uint256, uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     mstore 0, 0x21ccfeb7 !metadata(memory=scratch)
@@ -301,6 +307,7 @@ fn @revertWithTime(arg0: i256, arg1: i256) [selector=0xa03dd0df, pure, abi_param
     revert 28, 68
 }
 
+; function hashScratch(uint256 a, uint256 b, uint256) external pure returns (bytes32 h, uint256 length) [selector 0xe6a9e6e6]
 fn @hashScratch.9(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0xe6a9e6e6, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word, word], abi_return_params=[bytes32, uint256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -310,16 +317,15 @@ fn @hashScratch.9(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0xe6a
     mstore 64, v1 !metadata(memory=scratch)
     v2 = keccak256 0, 96 !metadata(memory=scratch)
     mstore 64, v0 !metadata(memory=scratch)
-    v3 = not 31
-    v4 = and 68, v3
-    v5 = alloc zeroed checked v4
-    mstore v5, 5
-    v6 = mload v5
-    v7 = insert_value struct0, undef struct0, 0, v2
-    v8 = insert_value struct0, v7, 1, v6
-    ret v8
+    v3 = alloc zeroed checked 64
+    mstore v3, 5
+    v4 = mload v3
+    v5 = insert_value struct0, undef struct0, 0, v2
+    v6 = insert_value struct0, v5, 1, v4
+    ret v6
 }
 
+; function hashInHelper(uint256 a, uint256 b, uint256) external pure returns (bytes32 h) [selector 0xd93f5115]
 fn @hashInHelper(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xd93f5115, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -332,6 +338,7 @@ fn @hashInHelper(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xd93f511
     ret v2
 }
 
+; function storeInHelper(uint256 a, uint256 b, uint256) external pure returns (bytes32 h) [selector 0x0c3d9af0]
 fn @storeInHelper(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x0c3d9af0, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -341,6 +348,7 @@ fn @storeInHelper(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x0c3d9a
     ret v1
 }
 
+; function deepAddress(uint256) external pure returns (uint256 r) [selector 0xb1cb77b2]
 fn @deepAddress(arg0: i256) -> i256 [selector=0xb1cb77b2, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = calldataload 4
@@ -399,6 +407,7 @@ fn @deepAddress(arg0: i256) -> i256 [selector=0xb1cb77b2, pure, abi_params=[uint
     ret v51
 }
 
+; function hashRecursive(uint256 a, uint256 b, uint256) external pure returns (bytes32 h) [selector 0x56f931cd]
 fn @hashRecursive(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x56f931cd, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -411,6 +420,7 @@ fn @hashRecursive(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x56f931
     ret v2
 }
 
+; function hashThenCopy(uint256 a, uint256 b, uint256) external pure returns (bytes32 h) [selector 0x52d607e7]
 fn @hashThenCopy(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x52d607e7, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     mstore 0, arg0 !metadata(memory=scratch)
@@ -424,6 +434,7 @@ fn @hashThenCopy(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x52d607e
     ret v1
 }
 
+; function readScratch(uint256) external pure returns (uint256 read) [selector 0x29c22c76]
 fn @readScratch(arg0: i256) -> i256 [selector=0x29c22c76, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -434,12 +445,14 @@ fn @readScratch(arg0: i256) -> i256 [selector=0x29c22c76, pure, abi_params=[uint
     ret v2
 }
 
+; function readInHelper(uint256) external pure returns (uint256 read) [selector 0xe70d1a86]
 fn @readInHelper(arg0: i256) -> i256 [selector=0xe70d1a86, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @readWord
     ret v0
 }
 
+; function hashAt(uint256 offset, uint256) external pure returns (bytes32 h) [selector 0xf170e9dc]
 fn @hashAt(arg0: i256, arg1: i256) -> i256 [selector=0xf170e9dc, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = calldataload 36
@@ -450,6 +463,7 @@ fn @hashAt(arg0: i256, arg1: i256) -> i256 [selector=0xf170e9dc, pure, abi_param
     ret v1
 }
 
+; function mixedLoad(uint256) external pure returns (uint256 seen) [selector 0x5fc7002c]
 fn @mixedLoad(arg0: i256) -> i256 [selector=0x5fc7002c, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = calldataload 4
@@ -461,6 +475,7 @@ fn @mixedLoad(arg0: i256) -> i256 [selector=0x5fc7002c, pure, abi_params=[uint25
     ret v1
 }
 
+; function dataThenMixed(uint256) external pure returns (uint256 first, uint256 seen) [selector 0xa625ab9b]
 fn @dataThenMixed(arg0: i256) -> struct0 [selector=0xa625ab9b, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = calldataload 4
@@ -473,6 +488,7 @@ fn @dataThenMixed(arg0: i256) -> struct0 [selector=0xa625ab9b, pure, abi_params=
     ret v4
 }
 
+; function tupleReturn(uint256) external pure returns (uint256 read, uint256 other) [selector 0x6661d15f]
 fn @tupleReturn(arg0: i256) -> struct0 [selector=0x6661d15f, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -485,6 +501,7 @@ fn @tupleReturn(arg0: i256) -> struct0 [selector=0x6661d15f, pure, abi_params=[u
     ret v4
 }
 
+; function tupleThroughHelper(uint256) external pure returns (uint256, uint256) [selector 0xb567d612]
 fn @tupleThroughHelper(arg0: i256) -> struct0 [selector=0xb567d612, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall @_scratchPair
@@ -495,6 +512,7 @@ fn @tupleThroughHelper(arg0: i256) -> struct0 [selector=0xb567d612, pure, abi_pa
     ret v4
 }
 
+; function tupleThroughYul(uint256) external pure returns (uint256 read, uint256 other) [selector 0x2cb8ee56]
 fn @tupleThroughYul(arg0: i256) -> struct0 [selector=0x2cb8ee56, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall @scratchPair
@@ -505,6 +523,7 @@ fn @tupleThroughYul(arg0: i256) -> struct0 [selector=0x2cb8ee56, pure, abi_param
     ret v4
 }
 
+; function tupleReturnPublic(uint256) public pure returns (uint256 read, uint256 other) [selector 0xada7ba42]
 fn @tupleReturnPublic(arg0: i256) -> struct0 [selector=0xada7ba42, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -517,6 +536,7 @@ fn @tupleReturnPublic(arg0: i256) -> struct0 [selector=0xada7ba42, pure, abi_par
     ret v4
 }
 
+; function tupleThroughPublic(uint256 value) external pure returns (uint256, uint256) [selector 0x6993efc2]
 fn @tupleThroughPublic(arg0: i256) -> struct0 [selector=0x6993efc2, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall @tupleReturnPublic, arg0
@@ -527,6 +547,7 @@ fn @tupleThroughPublic(arg0: i256) -> struct0 [selector=0x6993efc2, pure, abi_pa
     ret v4
 }
 
+; function publicRead(uint256) public pure returns (uint256 read) [selector 0xd3e4ec77]
 fn @publicRead(arg0: i256) -> i256 [selector=0xd3e4ec77, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -537,6 +558,7 @@ fn @publicRead(arg0: i256) -> i256 [selector=0xd3e4ec77, pure, abi_params=[uint2
     ret v2
 }
 
+; function writeThroughPublicRead(uint256 value) external pure returns (uint256 seen) [selector 0x09891331]
 fn @writeThroughPublicRead(arg0: i256) -> i256 [selector=0x09891331, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @publicRead, arg0
@@ -545,6 +567,7 @@ fn @writeThroughPublicRead(arg0: i256) -> i256 [selector=0x09891331, pure, abi_p
     ret v1
 }
 
+; function returnAndWriteThroughPublicRead(uint256 value) external pure returns (uint256 read) [selector 0x047fa66e]
 fn @returnAndWriteThroughPublicRead(arg0: i256) -> i256 [selector=0x047fa66e, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @publicRead, arg0
@@ -552,6 +575,7 @@ fn @returnAndWriteThroughPublicRead(arg0: i256) -> i256 [selector=0x047fa66e, pu
     ret v0
 }
 
+; function writeThroughPublicPair(uint256 value) external pure returns (uint256 seen, uint256 other) [selector 0x10a87d15]
 fn @writeThroughPublicPair(arg0: i256) -> struct0 [selector=0x10a87d15, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall @tupleReturnPublic, arg0
@@ -564,23 +588,25 @@ fn @writeThroughPublicPair(arg0: i256) -> struct0 [selector=0x10a87d15, pure, ab
     ret v5
 }
 
+; function revertAtLoadedOffset(uint256, uint256 write) external pure [selector 0xf3970891]
 fn @revertAtLoadedOffset(arg0: i256, arg1: i256) [selector=0xf3970891, pure, abi_params=[uint256, uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = calldataload 4
     mstore 64, v0 !metadata(memory=scratch)
     v1 = ne arg1, 0
     jumpi v1, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     v3 = mload 0x10000
     revert v3, 96
-  bb1:
+  bb1:  ; preds = bb0
     v2 = mload 64 !metadata(memory=scratch)
     mstore v2, 1
     returndata 0, 0
 }
 
+; function revertBelowPointer(uint256, uint256 write) external pure [selector 0x7f4c2912]
 fn @revertBelowPointer(arg0: i256, arg1: i256) [selector=0x7f4c2912, pure, abi_params=[uint256, uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -590,18 +616,19 @@ fn @revertBelowPointer(arg0: i256, arg1: i256) [selector=0x7f4c2912, pure, abi_p
     mstore 64, v2 !metadata(memory=scratch)
     v3 = ne arg1, 0
     jumpi v3, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     v5 = mload 0 !metadata(memory=scratch)
     v6 = sub v0, v5
     revert v6, 32
-  bb1:
+  bb1:  ; preds = bb0
     v4 = mload 64 !metadata(memory=scratch)
     mstore v4, 1
     returndata 0, 0
 }
 
+; function revertPastPointer(uint256, uint256 write) external pure [selector 0x866f32cc]
 fn @revertPastPointer(arg0: i256, arg1: i256) [selector=0x866f32cc, pure, abi_params=[uint256, uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -611,87 +638,86 @@ fn @revertPastPointer(arg0: i256, arg1: i256) [selector=0x866f32cc, pure, abi_pa
     mstore 64, v2 !metadata(memory=scratch)
     v3 = ne arg1, 0
     jumpi v3, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     v5 = mload 0 !metadata(memory=scratch)
     v6 = add v0, v5
     revert v6, 32
-  bb1:
+  bb1:  ; preds = bb0
     v4 = mload 64 !metadata(memory=scratch)
     mstore v4, 1
     returndata 0, 0
 }
 
+; function hashLowObject(uint256) external pure returns (bytes32 h, uint256 length) [selector 0x32d84f21]
 fn @hashLowObject(arg0: i256) -> struct0 [selector=0x32d84f21, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[bytes32, uint256]] {
   bb0:
     v0 = calldataload 4
     mstore 64, v0 !metadata(memory=scratch)
     mstore 32, 32 !metadata(memory=scratch)
-    v1 = add 32, 32
-    v2 = mload 32 !metadata(memory=scratch)
-    v3 = keccak256 v1, v2
-    v4 = insert_value struct0, undef struct0, 0, v3
-    v5 = insert_value struct0, v4, 1, 1
-    ret v5
+    v1 = mload 32 !metadata(memory=scratch)
+    v2 = keccak256 64, v1 !metadata(memory=scratch)
+    v3 = insert_value struct0, undef struct0, 0, v2
+    v4 = insert_value struct0, v3, 1, 1
+    ret v4
 }
 
+; function byteAtSlot(uint256) external pure returns (uint8 r, uint256 length) [selector 0x73f8071e]
 fn @byteAtSlot(arg0: i256) -> struct1 [selector=0x73f8071e, pure, abi_params=[uint256], abi_returns=[word<uint8>, word], abi_return_params=[uint8, uint256]] {
   bb0:
-    v0 = not 31
-    v1 = and 64, v0
-    v2 = alloc zeroed checked v1
-    mstore v2, 1
-    v3 = not 0
-    v4 = ptrtoint ptr<memory> v2 to i256
-    mstore v2, v3
-    v5 = calldataload 4
-    mstore 64, v5 !metadata(memory=scratch)
-    v6 = ptrtoint ptr<memory> v2 to i256
-    v7 = add v6, 32
-    v8 = sub 95, v7
-    v9 = mload v2
-    v10 = lt v8, v9
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    v12 = ptradd v2, v8
-    v13 = ptradd v12, 32
-    v14 = mload v13
-    v15 = byte 0, v14
-    v16 = shl v15, 248
-    v17 = shr v16, 248
-    v18 = trunc i256 v17 to i8
-    v19 = insert_value struct1, undef struct1, 0, v18
-    v20 = insert_value struct1, v19, 1, 1
-    ret v20
+    v0 = alloc zeroed checked 64
+    mstore v0, 1
+    v1 = ptrtoint ptr<memory> v0 to i256
+    mstore v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v2 = calldataload 4
+    mstore 64, v2 !metadata(memory=scratch)
+    v3 = ptrtoint ptr<memory> v0 to i256
+    v4 = add v3, 32
+    v5 = sub 95, v4
+    v6 = mload v0
+    v7 = lt v5, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = ptradd v0, v5
+    v10 = ptradd v9, 32
+    v11 = mload v10
+    v12 = byte 0, v11
+    v13 = shl v12, 248
+    v14 = shr v13, 248
+    v15 = trunc i256 v14 to i8
+    v16 = insert_value struct1, undef struct1, 0, v15
+    v17 = insert_value struct1, v16, 1, 1
+    ret v17
 }
 
+; function wordAtSlot(uint256) external pure returns (uint256 r, uint256 length) [selector 0xcec0252a]
 fn @wordAtSlot(arg0: i256) -> struct0 [selector=0xcec0252a, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = alloc zeroed checked 64
     mstore v0, 1
-    v1 = not 0
-    v2 = ptrtoint ptr<memory> v0 to i256
-    mstore v0, v1
-    v3 = calldataload 4
-    mstore 64, v3 !metadata(memory=scratch)
-    v4 = ptrtoint ptr<memory> v0 to i256
-    v5 = add v4, 32
-    v6 = sub 64, v5
-    v7 = shr v6, 5
-    v8 = mload v0
-    v9 = lt v7, v8
-    v10 = eq v9, false
-    icall panic_if<0x32>, v10
-    v11 = shl v7, 5
-    v12 = ptradd v0, v11
-    v13 = ptradd v12, 32
-    v14 = mload v13
-    v15 = insert_value struct0, undef struct0, 0, v14
-    v16 = insert_value struct0, v15, 1, 1
-    ret v16
+    v1 = ptrtoint ptr<memory> v0 to i256
+    mstore v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v2 = calldataload 4
+    mstore 64, v2 !metadata(memory=scratch)
+    v3 = ptrtoint ptr<memory> v0 to i256
+    v4 = add v3, 32
+    v5 = sub 64, v4
+    v6 = shr v5, 5
+    v7 = mload v0
+    v8 = lt v6, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = shl v6, 5
+    v11 = ptradd v0, v10
+    v12 = ptradd v11, 32
+    v13 = mload v12
+    v14 = insert_value struct0, undef struct0, 0, v13
+    v15 = insert_value struct0, v14, 1, 1
+    ret v15
 }
 
+; function scratchPackedHash(uint256) external pure returns (bytes32) [selector 0x7e6eb03d]
 fn @scratchPackedHash(arg0: i256) -> i256 [selector=0x7e6eb03d, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = icall @_scratchWord
@@ -699,6 +725,7 @@ fn @scratchPackedHash(arg0: i256) -> i256 [selector=0x7e6eb03d, pure, abi_params
     ret v1
 }
 
+; function scratchMappingKey(uint256) external returns (uint256) [selector 0x62573392]
 fn @scratchMappingKey(arg0: i256) -> i256 [selector=0x62573392, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @_scratchWord
@@ -709,19 +736,20 @@ fn @scratchMappingKey(arg0: i256) -> i256 [selector=0x62573392, abi_params=[uint
     ret v3
 }
 
+; function scratchArrayElement(uint256) external pure returns (uint256) [selector 0x79ae4290]
 fn @scratchArrayElement(arg0: i256) -> i256 [selector=0x79ae4290, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 64
     mstore v0, 1
     v1 = icall @_scratchWord
     v2 = mload v0
-    v3 = lt 0, v2
+    v3 = gt v2, 0
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = ptradd v0, 32
     mstore v5, v1
     v6 = mload v0
-    v7 = lt 0, v6
+    v7 = gt v6, 0
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     v9 = ptradd v0, 32
@@ -729,6 +757,7 @@ fn @scratchArrayElement(arg0: i256) -> i256 [selector=0x79ae4290, pure, abi_para
     ret v10
 }
 
+; function scratchEncoded(uint256) external pure returns (uint256) [selector 0xde1fc784]
 fn @scratchEncoded(arg0: i256) -> i256 [selector=0xde1fc784, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @_scratchWord
@@ -737,6 +766,7 @@ fn @scratchEncoded(arg0: i256) -> i256 [selector=0xde1fc784, pure, abi_params=[u
     ret v2
 }
 
+; function scratchError(uint256) external pure [selector 0x0ba9186e]
 fn @scratchError(arg0: i256) [selector=0x0ba9186e, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = icall @_scratchWord
@@ -744,6 +774,7 @@ fn @scratchError(arg0: i256) [selector=0x0ba9186e, pure, abi_params=[uint256], a
     invalid
 }
 
+; function checkedScaled(uint256) external pure returns (uint256 seen) [selector 0x0cc852a0]
 fn @checkedScaled(arg0: i256) -> i256 [selector=0x0cc852a0, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = calldataload 4
@@ -754,6 +785,7 @@ fn @checkedScaled(arg0: i256) -> i256 [selector=0x0cc852a0, pure, abi_params=[ui
     ret v1
 }
 
+; function hashHelperScratch(uint256 a, uint256 b, uint256) external pure returns (bytes32 h) [selector 0x75fdf974]
 fn @hashHelperScratch(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x75fdf974, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -765,20 +797,22 @@ fn @hashHelperScratch(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x75
     ret v1
 }
 
+; function allocateAfterHelper(uint256, uint256, uint256 c) external pure returns (uint256) [selector 0x12d260c9]
 fn @allocateAfterHelper(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x12d260c9, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall @_putScratch
-    v0 = add arg2, 63
-    v1 = lt v0, arg2
-    icall panic_if<0x41>, v1
-    v2 = not 31
-    v3 = and v0, v2
-    v4 = alloc zeroed checked v3
+    v0 = add arg2, 31
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v2 = add v1, 32
+    v3 = lt v2, arg2
+    icall panic_if<0x41>, v3
+    v4 = alloc zeroed checked v2
     mstore v4, arg2
     v5 = mload v4
     ret v5
 }
 
+; function hashAroundCheckedAdd(uint256 a, uint256 b, uint256) external pure returns (bytes32 h) [selector 0xe3ce866b]
 fn @hashAroundCheckedAdd(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xe3ce866b, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -796,6 +830,7 @@ fn @hashAroundCheckedAdd(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0
     ret v7
 }
 
+; function _putScratch() internal pure
 fn @_putScratch() [pure] {
   bb0:
     v0 = calldataload 68
@@ -803,6 +838,7 @@ fn @_putScratch() [pure] {
     ret
 }
 
+; function _copy(uint256 n) internal pure returns (bytes memory out)
 fn @_copy(arg0: i256) -> ptr<memory> [pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -816,13 +852,14 @@ fn @_copy(arg0: i256) -> ptr<memory> [pure] {
     ret v4
 }
 
+; function _lay(uint256 a) internal pure returns (bytes32 h)
 fn @_lay(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = calldataload 36
     v1 = shl v0, 5
-    v2 = add 160, v1
+    v2 = add v1, 160
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v3 = phi [bb0: arg0], [bb3: v3]
     v4 = phi [bb0: 0], [bb3: v4]
     v5 = phi [bb0: v2], [bb3: v5]
@@ -831,24 +868,25 @@ fn @_lay(arg0: i256) -> i256 [pure] {
     v8 = zext i1 v7 to i256
     v9 = ne v8, 0
     jumpi v9, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     mstore v5, v3
     v11 = sub v5, 160
     v12 = add v11, 32
     v13 = keccak256 160, v12
     ret v13
-  bb4:
+  bb4:  ; preds = bb1
     mstore v6, v3
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v10 = add v6, 32
     jump bb1
 }
 
+; function _scratchWord() internal pure returns (uint256 word)
 fn @_scratchWord() -> i256 [pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -859,6 +897,7 @@ fn @_scratchWord() -> i256 [pure] {
     ret v2
 }
 
+; function _scratchPair() internal pure returns (uint256 read, uint256 other)
 fn @_scratchPair() -> struct0 [pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -871,12 +910,14 @@ fn @_scratchPair() -> struct0 [pure] {
     ret v4
 }
 
+; function hashScratch() -> r
 fn @hashScratch.49() -> i256 {
   bb0:
     v0 = keccak256 0, 96 !metadata(memory=scratch)
     ret v0
 }
 
+; function put(x, y)
 fn @put(arg0: i256, arg1: i256) {
   bb0:
     mstore 0, arg0 !metadata(memory=scratch)
@@ -886,21 +927,23 @@ fn @put(arg0: i256, arg1: i256) {
     ret
 }
 
+; function hashFrom(depth) -> r
 fn @hashFrom(arg0: i256) -> i256 {
   bb0:
     switch arg0, default bb3, [0 => bb2]
-  bb2:
+  bb2:  ; preds = bb0
     v0 = keccak256 0, 96 !metadata(memory=scratch)
     jump bb1
-  bb3:
+  bb3:  ; preds = bb0
     v1 = sub arg0, 1
     v2 = icall @hashFrom, v1
     jump bb1
-  bb1:
+  bb1:  ; preds = bb2, bb3
     v3 = phi [bb2: v0], [bb3: v2]
     ret v3
 }
 
+; function readWord() -> word
 fn @readWord() -> i256 {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -911,6 +954,7 @@ fn @readWord() -> i256 {
     ret v2
 }
 
+; function scratchPair() -> a, b
 fn @scratchPair() -> struct0 {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)

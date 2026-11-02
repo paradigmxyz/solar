@@ -1,10 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_options.sol:ExternalFunctionPointerOptions ===
 @module ExternalFunctionPointerOptions
+; function sink(uint256) external payable [selector 0xa4ba067e]
 fn @sink(arg0: i256) [selector=0xa4ba067e, payable, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
+; function gasOpt() internal returns (uint256)
 fn @gasOpt() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -15,6 +17,7 @@ fn @gasOpt() -> i256 {
     ret v3
 }
 
+; function valueOpt() internal returns (uint256)
 fn @valueOpt() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -24,6 +27,7 @@ fn @valueOpt() -> i256 {
     ret 0
 }
 
+; function arg() internal returns (uint256)
 fn @arg() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -33,6 +37,7 @@ fn @arg() -> i256 {
     ret 7
 }
 
+; function f() external returns (uint256) [selector 0x26121ff0]
 fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
@@ -54,19 +59,21 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     icall revert_if<target_contract_has_no_code>, v13
     v14 = call v8, v6, v9, 28, 36, 0, 0
     jumpi v14, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v15 = sload 0 !metadata(storage=slot(0))
     ret v15
 }
 
+; function fail(uint256) external payable [selector 0x132e4f3c]
 fn @fail(arg0: i256) [selector=0x132e4f3c, payable, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     icall revert_if<empty>, true
     invalid
 }
 
+; function receiver() internal returns (ExternalFunctionPointerOptions)
 fn @receiver() -> i160 {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
@@ -76,6 +83,7 @@ fn @receiver() -> i160 {
     ret v2
 }
 
+; function functionValue() internal returns (function(uint256) external payable)
 fn @functionValue() -> i256 {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
@@ -88,6 +96,7 @@ fn @functionValue() -> i256 {
     ret v5
 }
 
+; function discardOptions() external returns (uint256) [selector 0x0035efd4]
 fn @discardOptions() -> i256 [selector=0x0035efd4, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
@@ -97,6 +106,7 @@ fn @discardOptions() -> i256 [selector=0x0035efd4, abi_params=[], abi_returns=[w
     ret v3
 }
 
+; function optionMembers() external returns (bool) [selector 0x1b98d889]
 fn @optionMembers() -> i1 [selector=0x1b98d889, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address
@@ -108,11 +118,11 @@ fn @optionMembers() -> i1 [selector=0x1b98d889, abi_params=[], abi_returns=[word
     v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
     v7 = trunc i256 v6 to i160
     v8 = address
-    v9 = eq v7, v8
+    v9 = eq v8, v7
     jumpi v9, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v10 = address
     v11 = zext i160 v10 to i256
     v12 = shl v11, 32
@@ -122,20 +132,21 @@ fn @optionMembers() -> i1 [selector=0x1b98d889, abi_params=[], abi_returns=[word
     v16 = shl v15, 224
     v17 = eq v16, 0xa4ba067e00000000000000000000000000000000000000000000000000000000
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v18 = phi [bb1: v17], [bb2: false]
     jumpi v18, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v19 = sload 0 !metadata(storage=slot(0))
     v20 = eq v19, 22
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v21 = phi [bb4: v20], [bb5: false]
     ret v21
 }
 
+; function directSelector() external returns (bool) [selector 0x2c3bf323]
 fn @directSelector() -> i1 [selector=0x2c3bf323, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @receiver
@@ -149,42 +160,43 @@ fn @directSelector() -> i1 [selector=0x2c3bf323, abi_params=[], abi_returns=[wor
     v8 = shl v7, 224
     v9 = eq v8, 0x132e4f3c00000000000000000000000000000000000000000000000000000000
     jumpi v9, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v10 = sload 0 !metadata(storage=slot(0))
     v11 = eq v10, 32
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: false]
     jumpi v12, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v13 = sload 1 !metadata(storage=slot(1))
     v14 = eq v13, 1
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v15 = phi [bb4: v14], [bb5: false]
     ret v15
 }
 
+; function pointerSelector(bool alternate) external returns (bool) [selector 0x7700d7ca]
 fn @pointerSelector(arg0: i1) -> i1 [selector=0x7700d7ca, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v4 = address
     v5 = zext i160 v4 to i256
     v6 = shl v5, 32
     v7 = or v6, 0x132e4f3c
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v0 = address
     v1 = zext i160 v0 to i256
     v2 = shl v1, 32
     v3 = or v2, 0xa4ba067e
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v8 = phi [bb1: v3], [bb2: v7]
     v9 = icall @gasOpt
     v10 = icall @valueOpt
@@ -192,34 +204,35 @@ fn @pointerSelector(arg0: i1) -> i1 [selector=0x7700d7ca, abi_params=[bool], abi
     v12 = and v8, 0xffffffff
     v13 = shl v12, 224
     jumpi arg0, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v14 = phi [bb4: 0xa4ba067e00000000000000000000000000000000000000000000000000000000], [bb5: 0x132e4f3c00000000000000000000000000000000000000000000000000000000]
     v15 = eq v13, v14
     jumpi v15, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     jump bb9
-  bb7:
+  bb7:  ; preds = bb6
     v16 = sload 0 !metadata(storage=slot(0))
     v17 = eq v16, 23
     jump bb9
-  bb9:
+  bb9:  ; preds = bb7, bb8
     v18 = phi [bb7: v17], [bb8: false]
     jumpi v18, bb10, bb11
-  bb11:
+  bb11:  ; preds = bb9
     jump bb12
-  bb10:
+  bb10:  ; preds = bb9
     v19 = sload 1 !metadata(storage=slot(1))
     v20 = eq v19, 0
     jump bb12
-  bb12:
+  bb12:  ; preds = bb10, bb11
     v21 = phi [bb10: v20], [bb11: false]
     ret v21
 }
 
+; function returnedSelector() external returns (bool) [selector 0x9be40e11]
 fn @returnedSelector() -> i1 [selector=0x9be40e11, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @functionValue
@@ -230,22 +243,22 @@ fn @returnedSelector() -> i1 [selector=0x9be40e11, abi_params=[], abi_returns=[w
     v5 = shl v4, 224
     v6 = eq v5, 0x132e4f3c00000000000000000000000000000000000000000000000000000000
     jumpi v6, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v7 = sload 0 !metadata(storage=slot(0))
     v8 = eq v7, 23
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v9 = phi [bb1: v8], [bb2: false]
     jumpi v9, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v10 = sload 1 !metadata(storage=slot(1))
     v11 = eq v10, 1
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v12 = phi [bb4: v11], [bb5: false]
     ret v12
 }

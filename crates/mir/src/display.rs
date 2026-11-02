@@ -197,6 +197,8 @@ pub(crate) fn display_function_text<'a>(
     module: Option<&'a Module>,
     is_constructor: bool,
     is_dispatch_entry: bool,
+    is_receive: bool,
+    is_fallback: bool,
 ) -> impl fmt::Display + 'a {
     fn display_text_block<'a>(
         func: &'a Function,
@@ -209,7 +211,19 @@ pub(crate) fn display_function_text<'a>(
             if block.hotness.is_cold() {
                 write!(f, " [cold]")?;
             }
-            writeln!(f, ":")?;
+            write!(f, ":")?;
+            if !block.predecessors.is_empty() {
+                write!(
+                    f,
+                    "  ; preds = {}",
+                    block.predecessors.iter().format_with(", ", |f, pred| write!(
+                        f,
+                        "bb{}",
+                        pred.index()
+                    ))
+                )?;
+            }
+            writeln!(f)?;
 
             write!(
                 f,
@@ -264,6 +278,9 @@ pub(crate) fn display_function_text<'a>(
     }
 
     fmt::from_fn(move |f| {
+        if let Some(note) = func.entry_note(is_dispatch_entry, is_constructor) {
+            writeln!(f, "; {note}")?;
+        }
         // Header: fn @name(params) -> returns
         write!(f, "fn @{}(", func.name)?;
         write!(
@@ -279,7 +296,17 @@ pub(crate) fn display_function_text<'a>(
         if func.return_type() != super::MirType::Void {
             write!(f, " -> {}", func.return_type())?;
         }
-        write!(f, "{}", display_function_attributes(func, is_constructor, is_dispatch_entry))?;
+        write!(
+            f,
+            "{}",
+            display_function_attributes(
+                func,
+                is_constructor,
+                is_dispatch_entry,
+                is_receive,
+                is_fallback
+            )
+        )?;
         writeln!(f, " {{")?;
 
         let cfg = CfgInfo::new(func);
@@ -300,6 +327,8 @@ fn display_function_attributes(
     func: &Function,
     is_constructor: bool,
     is_dispatch_entry: bool,
+    is_receive: bool,
+    is_fallback: bool,
 ) -> impl fmt::Display + '_ {
     fmt::from_fn(move |f| {
         let mut first = true;
@@ -334,13 +363,16 @@ fn display_function_attributes(
         if func.attributes.hotness.is_cold() {
             write_function_attribute(f, &mut first, "cold")?;
         }
+        if func.attributes.cold_hint {
+            write_function_attribute(f, &mut first, "cold_hint")?;
+        }
         if let Some(optimization) = func.attributes.optimization {
             write_function_attribute(f, &mut first, format_args!("optimize={optimization}"))?;
         }
-        if func.attributes.is_receive {
+        if is_receive {
             write_function_attribute(f, &mut first, "receive")?;
         }
-        if func.attributes.is_fallback {
+        if is_fallback {
             write_function_attribute(f, &mut first, "fallback")?;
         }
         match func.attributes.state_mutability {

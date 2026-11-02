@@ -1,18 +1,20 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constant_select.sol:ConstantSelect ===
 @module ConstantSelect
+; function choose(uint256 raw, uint256 yes, uint256 no) external pure returns (uint256) [selector 0x739ca28b]
 fn @choose(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x739ca28b, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v1 = phi [bb1: arg1], [bb2: arg2]
     ret v1
 }
 
+; function store(bytes memory value) external returns (bytes memory) [selector 0xb374012b]
 fn @store(arg0: ptr<memory>) -> ptr<memory> [selector=0xb374012b, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     icall @store_storage_bytes, 0, arg0
@@ -20,6 +22,7 @@ fn @store(arg0: ptr<memory>) -> ptr<memory> [selector=0xb374012b, abi_params=[by
     ret v0
 }
 
+; function word(bytes calldata value) external pure returns (bytes32) [selector 0xc22ee0b0]
 fn @word(arg0: slice<calldata>) -> i256 [selector=0xc22ee0b0, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -27,13 +30,14 @@ fn @word(arg0: slice<calldata>) -> i256 [selector=0xc22ee0b0, pure, abi_params=[
     v2 = extract_value slice<calldata>, arg0, 1
     v3 = lt v2, 32
     v4 = sub 32, v2
-    v5 = mul 8, v4
+    v5 = mul v4, 8
     v6 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v5
     v7 = select v3, v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v8 = and v1, v7
     ret v8
 }
 
+; function prefix(bytes calldata value) external pure returns (bytes4) [selector 0x01cd9057]
 fn @prefix(arg0: slice<calldata>) -> i256 [selector=0x01cd9057, pure, abi_params=[bytes], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -41,13 +45,14 @@ fn @prefix(arg0: slice<calldata>) -> i256 [selector=0x01cd9057, pure, abi_params
     v2 = extract_value slice<calldata>, arg0, 1
     v3 = lt v2, 4
     v4 = sub 4, v2
-    v5 = mul 8, v4
+    v5 = mul v4, 8
     v6 = shl 0xffffffff00000000000000000000000000000000000000000000000000000000, v5
     v7 = select v3, v6, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v8 = and v1, v7
     ret v8
 }
 
+; function signature(bool condition) external pure returns (bytes memory) [selector 0x59834352]
 fn @signature(arg0: i1) -> ptr<memory> [selector=0x59834352, pure, abi_params=[bool], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = select arg0, 0x26121ff000000000000000000000000000000000000000000000000000000000, 0xe2179b8e00000000000000000000000000000000000000000000000000000000
@@ -55,6 +60,7 @@ fn @signature(arg0: i1) -> ptr<memory> [selector=0x59834352, pure, abi_params=[b
     ret v1
 }
 
+; function dirtySignature(uint256 raw) external pure returns (bytes memory) [selector 0xca22fbdf]
 fn @dirtySignature(arg0: i256) -> ptr<memory> [selector=0xca22fbdf, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = ne arg0, 0
@@ -63,6 +69,7 @@ fn @dirtySignature(arg0: i256) -> ptr<memory> [selector=0xca22fbdf, pure, abi_pa
     ret v2
 }
 
+; function reverseSignature(uint256 raw) external pure returns (bytes memory) [selector 0x97ffd282]
 fn @reverseSignature(arg0: i256) -> ptr<memory> [selector=0x97ffd282, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = ne arg0, 0
@@ -71,28 +78,30 @@ fn @reverseSignature(arg0: i256) -> ptr<memory> [selector=0x97ffd282, pure, abi_
     ret v2
 }
 
+; function dirtyTernary(uint256 raw, uint256 x) external pure returns (uint256) [selector 0xcd9c288e]
 fn @dirtyTernary(arg0: i256, arg1: i256) -> i256 [selector=0xcd9c288e, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v1 = phi [bb1: arg1], [bb2: 7]
     ret v1
 }
 
+; function yulBranch(uint256 raw, uint256 x) external pure returns (uint256 result) [selector 0x3701b99b]
 fn @yulBranch(arg0: i256, arg1: i256) -> i256 [selector=0x3701b99b, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v1 = phi [bb1: arg1], [bb2: 7]
     ret v1
 }

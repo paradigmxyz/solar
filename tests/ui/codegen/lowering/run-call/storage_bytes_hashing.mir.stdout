@@ -1,25 +1,25 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_hashing.sol:StorageBytesHashing ===
 @module StorageBytesHashing
+; function mappingEmpty() external returns (bool) [selector 0x20f98002]
 fn @mappingEmpty() -> i1 [selector=0x20f98002, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = not 31
-    v1 = and 63, v0
-    v2 = alloc zeroed checked v1
-    mstore v2, 0
-    v3 = mapping_slot 0, 0
-    icall @store_storage_bytes, v3, v2
-    v4 = mapping_slot 0, 0
-    v5 = icall @load_storage_bytes, v4
-    v6 = ptradd v5, 32
-    v7 = mload v5
-    v8 = keccak256 v6, v7
-    v9 = ptradd v2, 32
-    v10 = mload v2
-    v11 = keccak256 v9, v10
-    v12 = eq v8, v11
-    ret v12
+    v0 = alloc zeroed checked 32
+    mstore v0, 0
+    v1 = mapping_slot 0, 0
+    icall @store_storage_bytes, v1, v0
+    v2 = mapping_slot 0, 0
+    v3 = icall @load_storage_bytes, v2
+    v4 = ptradd v3, 32
+    v5 = mload v3
+    v6 = keccak256 v4, v5
+    v7 = ptradd v0, 32
+    v8 = mload v0
+    v9 = keccak256 v7, v8
+    v10 = eq v6, v9
+    ret v10
 }
 
+; function mappingLong(bytes32 word, bytes1 tail) external returns (bool) [selector 0xa4972bce]
 fn @mappingLong(arg0: i256, arg1: i256) -> i1 [selector=0xa4972bce, abi_params=[bytes32, bytes1], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
@@ -38,6 +38,7 @@ fn @mappingLong(arg0: i256, arg1: i256) -> i1 [selector=0xa4972bce, abi_params=[
     ret v11
 }
 
+; function mappingShort(bytes31 value) external returns (bool) [selector 0xd17dedff]
 fn @mappingShort(arg0: i256) -> i1 [selector=0xd17dedff, abi_params=[bytes31], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
@@ -56,6 +57,7 @@ fn @mappingShort(arg0: i256) -> i1 [selector=0xd17dedff, abi_params=[bytes31], a
     ret v11
 }
 
+; function mappingWord(bytes32 value) external returns (bool) [selector 0x95027de5]
 fn @mappingWord(arg0: i256) -> i1 [selector=0x95027de5, abi_params=[bytes32], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode_packed (bytes32 arg0)
@@ -73,6 +75,7 @@ fn @mappingWord(arg0: i256) -> i1 [selector=0x95027de5, abi_params=[bytes32], ab
     ret v10
 }
 
+; function mappingTwoWords(bytes32 first, bytes32 second, bytes1 tail) external returns (bool) [selector 0xb0efa5db]
 fn @mappingTwoWords(arg0: i256, arg1: i256, arg2: i256) -> i1 [selector=0xb0efa5db, abi_params=[bytes32, bytes32, bytes1], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = and arg2, 0xff00000000000000000000000000000000000000000000000000000000000000
@@ -91,6 +94,7 @@ fn @mappingTwoWords(arg0: i256, arg1: i256, arg2: i256) -> i1 [selector=0xb0efa5
     ret v11
 }
 
+; function mappingReference(bytes32 word, bytes1 tail) external returns (bool) [selector 0xe1bd71bc]
 fn @mappingReference(arg0: i256, arg1: i256) -> i1 [selector=0xe1bd71bc, abi_params=[bytes32, bytes1], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
@@ -109,6 +113,7 @@ fn @mappingReference(arg0: i256, arg1: i256) -> i1 [selector=0xe1bd71bc, abi_par
     ret v11
 }
 
+; function nestedMapping(bytes32 word, bytes1 tail) external returns (bool) [selector 0x9670c676]
 fn @nestedMapping(arg0: i256, arg1: i256) -> i1 [selector=0x9670c676, abi_params=[bytes32, bytes1], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
@@ -129,6 +134,7 @@ fn @nestedMapping(arg0: i256, arg1: i256) -> i1 [selector=0x9670c676, abi_params
     ret v13
 }
 
+; function structField(bytes32 word, bytes1 tail) external returns (bool) [selector 0xc85878d4]
 fn @structField(arg0: i256, arg1: i256) -> i1 [selector=0xc85878d4, abi_params=[bytes32, bytes1], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
@@ -145,6 +151,7 @@ fn @structField(arg0: i256, arg1: i256) -> i1 [selector=0xc85878d4, abi_params=[
     ret v9
 }
 
+; function directValue(bytes32 word, bytes1 tail) external returns (bool) [selector 0xdb5536af]
 fn @directValue(arg0: i256, arg1: i256) -> i1 [selector=0xdb5536af, abi_params=[bytes32, bytes1], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
@@ -161,6 +168,7 @@ fn @directValue(arg0: i256, arg1: i256) -> i1 [selector=0xdb5536af, abi_params=[
     ret v9
 }
 
+; function internalReference(bytes32 word, bytes1 tail) external returns (bool) [selector 0xd14b1bf5]
 fn @internalReference(arg0: i256, arg1: i256) -> i1 [selector=0xd14b1bf5, abi_params=[bytes32, bytes1], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
@@ -176,6 +184,7 @@ fn @internalReference(arg0: i256, arg1: i256) -> i1 [selector=0xd14b1bf5, abi_pa
     ret v8
 }
 
+; function hashStorageBytes(bytes storage value) internal pure returns (bytes32)
 fn @hashStorageBytes(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = icall @load_storage_bytes, arg0
@@ -185,6 +194,7 @@ fn @hashStorageBytes(arg0: i256) -> i256 [pure] {
     ret v3
 }
 
+; function mappingString(bytes32 word, bytes1 tail) external returns (bool) [selector 0x4cbcb134]
 fn @mappingString(arg0: i256, arg1: i256) -> i1 [selector=0x4cbcb134, abi_params=[bytes32, bytes1], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
@@ -203,6 +213,7 @@ fn @mappingString(arg0: i256, arg1: i256) -> i1 [selector=0x4cbcb134, abi_params
     ret v11
 }
 
+; function mappingStringErc7201(bytes32 word, bytes1 tail) external returns (bool) [selector 0x55edb0fc]
 fn @mappingStringErc7201(arg0: i256, arg1: i256) -> i1 [selector=0x55edb0fc, abi_params=[bytes32, bytes1], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000

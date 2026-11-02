@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_multiple_invocations.sol:ModifierMultipleInvocations ===
 @module ModifierMultipleInvocations
+; function f(uint256 value) external addAndRestore(2) addAndRestore(5) addAndRestore(value) returns (uint256) [selector 0xb3de648b]
 fn @f(arg0: i256) -> i256 [selector=0xb3de648b, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -13,7 +14,7 @@ fn @f(arg0: i256) -> i256 [selector=0xb3de648b, abi_params=[uint256], abi_return
     sstore 0, v5 !metadata(storage=slot(0))
     v6 = sload 0 !metadata(storage=slot(0))
     jump bb4
-  bb4:
+  bb4:  ; preds = bb0
     v7 = sload 0 !metadata(storage=slot(0))
     v8 = checked_sub uint256, v7, arg0
     sstore 0, v8 !metadata(storage=slot(0))
@@ -21,7 +22,7 @@ fn @f(arg0: i256) -> i256 [selector=0xb3de648b, abi_params=[uint256], abi_return
     v10 = eq v9, false
     icall panic_if<0x1>, v10
     jump bb3
-  bb3:
+  bb3:  ; preds = bb4
     v11 = sload 0 !metadata(storage=slot(0))
     v12 = checked_sub uint256, v11, 5
     sstore 0, v12 !metadata(storage=slot(0))
@@ -29,7 +30,7 @@ fn @f(arg0: i256) -> i256 [selector=0xb3de648b, abi_params=[uint256], abi_return
     v14 = eq v13, false
     icall panic_if<0x1>, v14
     jump bb2
-  bb2:
+  bb2:  ; preds = bb3
     v15 = sload 0 !metadata(storage=slot(0))
     v16 = checked_sub uint256, v15, 2
     sstore 0, v16 !metadata(storage=slot(0))
@@ -37,6 +38,6 @@ fn @f(arg0: i256) -> i256 [selector=0xb3de648b, abi_params=[uint256], abi_return
     v18 = eq v17, false
     icall panic_if<0x1>, v18
     jump bb1
-  bb1:
+  bb1:  ; preds = bb2
     ret v6
 }

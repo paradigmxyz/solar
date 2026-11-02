@@ -24,6 +24,8 @@ on:
         type: string
 
 env:
+  # setup-python upgrades pip, which fails while the newest pip is too new for the package policy.
+  PIP_UPLOADED_PRIOR_TO: P7D
   CARGO_TERM_COLOR: always
   RUSTC_WRAPPER: "sccache"
   SOLC_VERSION: ${{ inputs.solc_version || '0.8.38' }}
@@ -56,7 +58,7 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
 
@@ -64,7 +66,7 @@ jobs:
         with:
           toolchain: stable
 
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           cache-on-failure: true
           cache-targets: false
@@ -72,7 +74,7 @@ jobs:
       - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
 
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+        uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
         with:
           version: stable
 
@@ -215,7 +217,8 @@ jobs:
               if gh run download "$run_id" \
                 --name "$artifact" \
                 --dir "$download_dir" \
-                2>/dev/null && [[ -f "$download_dir/results.json" && -d "$download_dir/artifacts" ]]; then
+                2>/dev/null && [[ -f "$download_dir/results.json" && -d "$download_dir/artifacts" ]] &&
+                grep -q '"solc-legacy"' "$download_dir/results.json"; then
                 cp -R "$download_dir"/. target/codegen-bench/baseline/
                 echo "found=true" >> "$GITHUB_OUTPUT"
                 exit 0
@@ -249,6 +252,7 @@ jobs:
           set -euo pipefail
           if ! python3 benches/runtime/benchmark.py --verbose \
             --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
+            --solc-legacy \
             --solar target/release/solar-base \
             --mode runtime compile-time \
             --suite all \
@@ -280,6 +284,7 @@ jobs:
           args=(
             --verbose
             --solar target/release/solar-head
+            --solar-size
             --mode runtime compile-time
             --suite all
             --compile-repeats 5
@@ -297,7 +302,7 @@ jobs:
               --reference-results target/codegen-bench/baseline/results.json
             )
           else
-            args+=(--solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}")
+            args+=(--solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" --solc-legacy)
           fi
           if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" == "refs/heads/main" ]]; then
             args+=(--solx "$RUNNER_TEMP/solx/solx")
@@ -403,14 +408,14 @@ jobs:
       - uses: tempoxyz/gh-actions/vendor/dtolnay/rust-toolchain@d5402286a7abdfb7232173b3228d56473feb8a66 # 2026-09-29T02-04-45Z-d5402286
         with:
           toolchain: stable
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           cache-bin: false
           cache-on-failure: true
           cache-targets: false
       - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
       - name: Install cargo-codspeed
-        uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+        uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
         with:
           tool: cargo-codspeed
       - name: Build the benchmark targets
@@ -419,7 +424,7 @@ jobs:
           -p solar-bench
           --bench criterion
       - name: Run the benchmarks
-        uses: CodSpeedHQ/action@821a40cd6c80e3cfe387caf55668287addd808da # v5.5.0
+        uses: CodSpeedHQ/action@78102a468f96d8e0ccb92d0ec49425753fc42062 # v5.6.0
         with:
           run: >-
             cargo codspeed run -m simulation

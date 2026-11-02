@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256}
 
+; function mix(uint256 x) internal pure returns (uint256)
 fn @mix(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = mul arg0, 0x9e3779b97f4a7c15
@@ -10,17 +11,19 @@ fn @mix(arg0: i256) -> i256 [pure] {
     ret v1
 }
 
+; function step(uint256 x, uint256 y) internal pure returns (uint256, uint256)
 fn @step(arg0: i256, arg1: i256) -> struct0 [pure] {
   bb0:
     v0 = mul arg0, 3
     v1 = add v0, arg1
     v2 = shl arg1, 1
-    v3 = xor arg0, v2
+    v3 = xor v2, arg0
     v4 = insert_value struct0, undef struct0, 0, v1
     v5 = insert_value struct0, v4, 1, v3
     ret v5
 }
 
+; function g(uint256 a, uint256 b, uint256 c) external pure returns (uint256) [selector 0x191157d1]
 fn @g(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x191157d1, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mul arg0, 1
@@ -64,12 +67,12 @@ fn @g(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x191157d1, pure, ab
     v38 = and v37, 4
     v39 = eq v38, 0
     jumpi v39, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v57 = icall @step, v15, v31
     v58 = extract_value struct0, v57, 0
     v59 = extract_value struct0, v57, 1
     jump bb10
-  bb10:
+  bb10:  ; preds = bb2, bb12
     v60 = phi [bb2: arg0], [bb12: v60]
     v61 = phi [bb2: arg1], [bb12: v61]
     v62 = phi [bb2: arg2], [bb12: v62]
@@ -87,11 +90,11 @@ fn @g(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x191157d1, pure, ab
     v74 = and v71, 3
     v75 = lt v73, v74
     jumpi v75, bb13, bb14
-  bb14:
+  bb14:  ; preds = bb10
     jump bb11
-  bb11:
+  bb11:  ; preds = bb14
     jump bb16
-  bb16:
+  bb16:  ; preds = bb11, bb20
     v77 = phi [bb11: v60], [bb20: v77]
     v78 = phi [bb11: v61], [bb20: v78]
     v79 = phi [bb11: v62], [bb20: v79]
@@ -108,37 +111,37 @@ fn @g(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x191157d1, pure, ab
     v90 = phi [bb11: v73], [bb20: v90]
     v91 = phi [bb11: 0], [bb20: v92]
     jumpi true, bb18, bb19
-  bb19:
+  bb19:  ; preds = bb16
     jump bb17
-  bb18:
+  bb18:  ; preds = bb16
     v92 = add v91, 1
-    v93 = xor v81, v92
+    v93 = xor v92, v81
     v94 = and v85, 3
-    v95 = gt v92, v94
+    v95 = lt v94, v92
     jumpi v95, bb21, bb22
-  bb22:
+  bb22:  ; preds = bb18
     jump bb23
-  bb23:
+  bb23:  ; preds = bb22
     v96 = icall @mix, v93
     jump bb20
-  bb20:
+  bb20:  ; preds = bb23
     jump bb16
-  bb21:
+  bb21:  ; preds = bb18
     jump bb17
-  bb17:
+  bb17:  ; preds = bb21, bb19
     v97 = phi [bb21: v93], [bb19: v81]
     v98 = phi [bb21: v92], [bb19: v91]
     jump bb3
-  bb13:
+  bb13:  ; preds = bb10
     jump bb15
-  bb15:
+  bb15:  ; preds = bb13
     jump bb12
-  bb12:
+  bb12:  ; preds = bb15
     v76 = add v73, 1
     jump bb10
-  bb1:
+  bb1:  ; preds = bb0
     jump bb4
-  bb4:
+  bb4:  ; preds = bb1, bb6
     v40 = phi [bb1: arg0], [bb6: v40]
     v41 = phi [bb1: arg1], [bb6: v41]
     v42 = phi [bb1: arg2], [bb6: v42]
@@ -156,11 +159,11 @@ fn @g(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x191157d1, pure, ab
     v54 = and v50, 3
     v55 = lt v53, v54
     jumpi v55, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb4
     jump bb5
-  bb5:
+  bb5:  ; preds = bb8
     jump bb3
-  bb3:
+  bb3:  ; preds = bb5, bb17
     v99 = phi [bb5: v40], [bb17: v77]
     v100 = phi [bb5: v41], [bb17: v78]
     v101 = phi [bb5: v42], [bb17: v79]
@@ -192,11 +195,11 @@ fn @g(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x191157d1, pure, ab
     v127 = mul v111, 9
     v128 = xor v126, v127
     ret v128
-  bb7:
+  bb7:  ; preds = bb4
     jump bb9
-  bb9:
+  bb9:  ; preds = bb7
     jump bb6
-  bb6:
+  bb6:  ; preds = bb9
     v56 = add v53, 1
     jump bb4
 }

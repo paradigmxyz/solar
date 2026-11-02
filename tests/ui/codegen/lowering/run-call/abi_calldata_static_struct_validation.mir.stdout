@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256, i256}
 
+; function f(S memory s) external pure returns (uint256 a, uint256 b, uint256 c) [selector 0x9a869a74]
 fn @f(arg0: ptr<memory>) -> struct0 [selector=0x9a869a74, pure, abi_params=[tuple<int16, uint8, bytes2>], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
@@ -19,6 +20,7 @@ fn @f(arg0: ptr<memory>) -> struct0 [selector=0x9a869a74, pure, abi_params=[tupl
     ret v10
 }
 
+; function encodeStruct() external pure returns (bytes memory) [selector 0x01e941a3]
 fn @encodeStruct() -> ptr<memory> [selector=0x01e941a3, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @makeStruct
@@ -39,6 +41,7 @@ fn @encodeStruct() -> ptr<memory> [selector=0x01e941a3, pure, abi_params=[], abi
     ret v12
 }
 
+; function makeStruct() internal pure returns (Pair calldata value)
 fn @makeStruct() -> slice<calldata> [pure] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 4, 0

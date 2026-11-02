@@ -102,7 +102,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     pub(super) fn new_function_label(&mut self, module: &Module, function: FunctionId) -> Label {
         let label = self.asm.new_label();
-        if module.functions[function].attributes.hotness.is_cold() {
+        if module.functions[function].attributes.is_rarely_run() {
             self.asm.mark_label_cold(label);
         }
         label
@@ -233,6 +233,22 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
 
             block_id = target;
+        }
+    }
+
+    /// Comments the entry block of `func` in the EVM IR text with its note. The comment never
+    /// reaches executable IR or debug information.
+    pub(super) fn comment_function_entry(
+        &mut self,
+        func: &Function,
+        is_dispatch_entry: bool,
+        is_constructor: bool,
+    ) {
+        if self.capture_evm_ir || self.capture_scheduled_evm_ir {
+            let note = func
+                .entry_note(is_dispatch_entry, is_constructor)
+                .unwrap_or_else(|| format!("{} (synthesized)", func.name));
+            self.asm.comment_block(&note);
         }
     }
 }

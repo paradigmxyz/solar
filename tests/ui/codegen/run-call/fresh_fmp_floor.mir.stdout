@@ -1,5 +1,30 @@
 // === ROOT/tests/ui/codegen/run-call/fresh_fmp_floor.sol:Test ===
 @module Test
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    sstore 0, 3 !metadata(storage=slot(0))
+    sstore 1, 5 !metadata(storage=slot(1))
+    sstore 2, 7 !metadata(storage=slot(2))
+    sstore 3, 11 !metadata(storage=slot(3))
+    sstore 4, 13 !metadata(storage=slot(4))
+    sstore 5, 17 !metadata(storage=slot(5))
+    sstore 6, 19 !metadata(storage=slot(6))
+    sstore 7, 23 !metadata(storage=slot(7))
+    sstore 8, 29 !metadata(storage=slot(8))
+    sstore 9, 31 !metadata(storage=slot(9))
+    sstore 10, 37 !metadata(storage=slot(10))
+    sstore 11, 41 !metadata(storage=slot(11))
+    sstore 12, 43 !metadata(storage=slot(12))
+    sstore 13, 47 !metadata(storage=slot(13))
+    sstore 14, 53 !metadata(storage=slot(14))
+    sstore 15, 59 !metadata(storage=slot(15))
+    sstore 16, 61 !metadata(storage=slot(16))
+    sstore 17, 67 !metadata(storage=slot(17))
+    ret
+}
+
+; function spills(uint256 n) external view returns (uint256) [selector 0x565c11e3]
 fn @spills(arg0: i256) -> i256 [selector=0x565c11e3, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -58,18 +83,18 @@ fn @spills(arg0: i256) -> i256 [selector=0x565c11e3, view, abi_params=[uint256],
     v53 = checked_add uint256, v52, arg0
     v54 = checked_rem uint256, arg0, 5
     v55 = checked_add uint256, v54, 64
-    v56 = add v55, 63
-    v57 = lt v56, v55
-    icall panic_if<0x41>, v57
-    v58 = not 31
-    v59 = and v56, v58
-    v60 = alloc zeroed checked v59
+    v56 = add v55, 31
+    v57 = and v56, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v58 = add v57, 32
+    v59 = lt v58, v55
+    icall panic_if<0x41>, v59
+    v60 = alloc zeroed checked v58
     mstore v60, v55
     v61 = trunc i256 arg0 to i8
     v62 = zext i8 v61 to i256
     v63 = shl v62, 248
     v64 = mload v60
-    v65 = lt 1, v64
+    v65 = gt v64, 1
     v66 = eq v65, false
     icall panic_if<0x32>, v66
     v67 = byte 0, v63
@@ -116,6 +141,7 @@ fn @spills(arg0: i256) -> i256 [selector=0x565c11e3, view, abi_params=[uint256],
     ret v106
 }
 
+; function mix(uint256 n) internal view returns (uint256 acc)
 fn @mix(arg0: i256) -> i256 [view] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -173,7 +199,7 @@ fn @mix(arg0: i256) -> i256 [view] {
     v52 = checked_mul uint256, v51, 61
     v53 = checked_add uint256, v52, arg0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v54 = phi [bb0: arg0], [bb3: v54]
     v55 = phi [bb0: 0], [bb3: v112]
     v56 = phi [bb0: v2], [bb3: v56]
@@ -199,13 +225,13 @@ fn @mix(arg0: i256) -> i256 [view] {
     v76 = checked_add uint256, v75, 1
     v77 = lt v74, v76
     jumpi v77, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v55
-  bb4:
+  bb4:  ; preds = bb1
     v78 = checked_add uint256, v73, v74
-    v79 = xor v56, v78
+    v79 = xor v78, v56
     v80 = checked_add uint256, v55, v79
     v81 = checked_mul uint256, v57, 2
     v82 = checked_mul uint256, v58, 3
@@ -240,29 +266,30 @@ fn @mix(arg0: i256) -> i256 [view] {
     v111 = checked_add uint256, v109, v110
     v112 = checked_add uint256, v96, v111
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v113 = checked_add uint256, v74, 1
     jump bb1
 }
 
+; function frames(uint256 n) external view returns (uint256) [selector 0xa10340bc]
 fn @frames(arg0: i256) -> i256 [selector=0xa10340bc, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = checked_rem uint256, arg0, 5
     v1 = checked_add uint256, v0, 64
-    v2 = add v1, 63
-    v3 = lt v2, v1
-    icall panic_if<0x41>, v3
-    v4 = not 31
-    v5 = and v2, v4
-    v6 = alloc zeroed checked v5
+    v2 = add v1, 31
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v4 = add v3, 32
+    v5 = lt v4, v1
+    icall panic_if<0x41>, v5
+    v6 = alloc zeroed checked v4
     mstore v6, v1
     v7 = trunc i256 arg0 to i8
     v8 = zext i8 v7 to i256
     v9 = shl v8, 248
     v10 = mload v6
-    v11 = lt 1, v10
+    v11 = gt v10, 1
     v12 = eq v11, false
     icall panic_if<0x32>, v12
     v13 = byte 0, v9
@@ -273,7 +300,7 @@ fn @frames(arg0: i256) -> i256 [selector=0xa10340bc, view, abi_params=[uint256],
     v17 = zext i8 v16 to i256
     v18 = shl v17, 248
     v19 = mload v6
-    v20 = lt 40, v19
+    v20 = gt v19, 40
     v21 = eq v20, false
     icall panic_if<0x32>, v21
     v22 = byte 0, v18
@@ -288,27 +315,4 @@ fn @frames(arg0: i256) -> i256 [selector=0xa10340bc, view, abi_params=[uint256],
     v30 = add v29, v24
     v31 = add v30, v26
     ret v31
-}
-
-fn @constructor() [constructor] {
-  bb0:
-    sstore 0, 3 !metadata(storage=slot(0))
-    sstore 1, 5 !metadata(storage=slot(1))
-    sstore 2, 7 !metadata(storage=slot(2))
-    sstore 3, 11 !metadata(storage=slot(3))
-    sstore 4, 13 !metadata(storage=slot(4))
-    sstore 5, 17 !metadata(storage=slot(5))
-    sstore 6, 19 !metadata(storage=slot(6))
-    sstore 7, 23 !metadata(storage=slot(7))
-    sstore 8, 29 !metadata(storage=slot(8))
-    sstore 9, 31 !metadata(storage=slot(9))
-    sstore 10, 37 !metadata(storage=slot(10))
-    sstore 11, 41 !metadata(storage=slot(11))
-    sstore 12, 43 !metadata(storage=slot(12))
-    sstore 13, 47 !metadata(storage=slot(13))
-    sstore 14, 53 !metadata(storage=slot(14))
-    sstore 15, 59 !metadata(storage=slot(15))
-    sstore 16, 61 !metadata(storage=slot(16))
-    sstore 17, 67 !metadata(storage=slot(17))
-    ret
 }

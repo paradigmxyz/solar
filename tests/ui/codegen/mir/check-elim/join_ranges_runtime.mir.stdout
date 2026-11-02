@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/check-elim/join_ranges_runtime.sol:JoinedRanges ===
 @module JoinedRanges
+; function narrowSignedJoin(uint8 input) external pure returns (uint8) [selector 0xbf7ff459]
 fn @narrowSignedJoin(arg0: i8) -> i8 [selector=0xbf7ff459, pure, abi_params=[uint8], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     v0 = lt arg0, i8 128
@@ -9,11 +10,11 @@ fn @narrowSignedJoin(arg0: i8) -> i8 [selector=0xbf7ff459, pure, abi_params=[uin
     v3 = sub arg0, i8 128
     v4 = gt v3, i8 0
     jumpi v4, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v5 = phi [bb1: v3], [bb2: i8 128]
     v6 = slt v5, i8 0
     v7 = eq v6, false
@@ -22,21 +23,23 @@ fn @narrowSignedJoin(arg0: i8) -> i8 [selector=0xbf7ff459, pure, abi_params=[uin
     ret v5
 }
 
+; function guardedDifference(uint8 a, uint8 b) external pure returns (uint8) [selector 0xa113f032]
 fn @guardedDifference(arg0: i8, arg1: i8) -> i8 [selector=0xa113f032, pure, abi_params=[uint8, uint8], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     v0 = lt arg0, arg1
     v1 = eq v0, false
     jumpi v1, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     v3 = sub arg0, arg1
     ret v3
-  bb1:
+  bb1:  ; preds = bb0
     v2 = checked_sub uint8, arg0, arg1
     ret v2
 }
 
+; function truncatedNonzero(uint256 a) external pure returns (uint256) [selector 0x40d5529f]
 fn @truncatedNonzero(arg0: i256) -> i256 [selector=0x40d5529f, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = trunc i256 arg0 to i8
@@ -47,6 +50,7 @@ fn @truncatedNonzero(arg0: i256) -> i256 [selector=0x40d5529f, pure, abi_params=
     ret v3
 }
 
+; function castBound(uint256 x) external pure returns (uint256) [selector 0x5411803f]
 fn @castBound(arg0: i256) -> i256 [selector=0x5411803f, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = lt arg0, 128
@@ -60,6 +64,7 @@ fn @castBound(arg0: i256) -> i256 [selector=0x5411803f, pure, abi_params=[uint25
     ret v3
 }
 
+; function lossyCast(uint256 x) external pure returns (uint256) [selector 0x85cfc24a]
 fn @lossyCast(arg0: i256) -> i256 [selector=0x85cfc24a, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = gt arg0, 255
@@ -70,6 +75,7 @@ fn @lossyCast(arg0: i256) -> i256 [selector=0x85cfc24a, pure, abi_params=[uint25
     ret v3
 }
 
+; function signedCast(uint256 x) external pure returns (int256) [selector 0x6e846f20]
 fn @signedCast(arg0: i256) -> i256 [selector=0x6e846f20, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     v0 = lt arg0, 256
@@ -80,6 +86,7 @@ fn @signedCast(arg0: i256) -> i256 [selector=0x6e846f20, pure, abi_params=[uint2
     ret v3
 }
 
+; function signedNegative(int256 x) external pure returns (uint256) [selector 0x9338d1e7]
 fn @signedNegative(arg0: i256) -> i256 [selector=0x9338d1e7, pure, abi_params=[int256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = slt arg0, 0
@@ -88,12 +95,12 @@ fn @signedNegative(arg0: i256) -> i256 [selector=0x9338d1e7, pure, abi_params=[i
     v2 = slt arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9c
     v3 = eq v2, false
     jumpi v3, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v4 = slt arg0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff6
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v5 = phi [bb1: v4], [bb2: false]
     v6 = eq v5, false
     icall revert_if<empty>, v6
@@ -104,20 +111,21 @@ fn @signedNegative(arg0: i256) -> i256 [selector=0x9338d1e7, pure, abi_params=[i
     ret arg0
 }
 
+; function signedJoin(bool choice, int256 a, int256 b) external pure returns (int256) [selector 0xe55cb939]
 fn @signedJoin(arg0: i1, arg1: i256, arg2: i256) -> i256 [selector=0xe55cb939, pure, abi_params=[bool, int256, int256], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v2 = slt arg2, 0
     v3 = eq v2, false
     icall revert_if<empty>, v3
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v0 = slt arg1, 0
     v1 = eq v0, false
     icall revert_if<empty>, v1
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v4 = phi [bb1: arg1], [bb2: arg2]
     v5 = slt v4, 1
     v6 = eq v5, false
@@ -125,17 +133,18 @@ fn @signedJoin(arg0: i1, arg1: i256, arg2: i256) -> i256 [selector=0xe55cb939, p
     ret v4
 }
 
+; function signedPositive(int256 x) external pure returns (uint256) [selector 0x416bff4f]
 fn @signedPositive(arg0: i256) -> i256 [selector=0x416bff4f, pure, abi_params=[int256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = slt arg0, 0
     v1 = eq v0, false
     jumpi v1, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v2 = slt arg0, 100
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v3 = phi [bb1: v2], [bb2: false]
     v4 = eq v3, false
     icall revert_if<empty>, v4
@@ -145,6 +154,7 @@ fn @signedPositive(arg0: i256) -> i256 [selector=0x416bff4f, pure, abi_params=[i
     ret arg0
 }
 
+; function crossSign(int256 x) external pure returns (uint256) [selector 0x6ff25a1c]
 fn @crossSign(arg0: i256) -> i256 [selector=0x6ff25a1c, pure, abi_params=[int256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = slt arg0, 100
@@ -156,20 +166,21 @@ fn @crossSign(arg0: i256) -> i256 [selector=0x6ff25a1c, pure, abi_params=[int256
     ret arg0
 }
 
+; function choose(bool choice, uint256 a, uint256 b) external pure returns (uint256) [selector 0x28eac35d]
 fn @choose(arg0: i1, arg1: i256, arg2: i256) -> i256 [selector=0x28eac35d, pure, abi_params=[bool, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v2 = lt arg2, 80
     v3 = eq v2, false
     icall revert_if<empty>, v3
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v0 = lt arg1, 100
     v1 = eq v0, false
     icall revert_if<empty>, v1
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v4 = phi [bb1: arg1], [bb2: arg2]
     v5 = lt v4, 100
     v6 = eq v5, false
@@ -178,6 +189,7 @@ fn @choose(arg0: i1, arg1: i256, arg2: i256) -> i256 [selector=0x28eac35d, pure,
     ret v7
 }
 
+; function boundedLoop(uint256 limit) external pure returns (uint256 i) [selector 0x46b5a18f]
 fn @boundedLoop(arg0: i256) -> i256 [selector=0x46b5a18f, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = gt arg0, 100
@@ -185,73 +197,75 @@ fn @boundedLoop(arg0: i256) -> i256 [selector=0x46b5a18f, pure, abi_params=[uint
     v2 = eq v1, false
     icall revert_if<empty>, v2
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb5
     v3 = phi [bb0: arg0], [bb5: v3]
     v4 = phi [bb0: 0], [bb5: v6]
     v5 = lt v4, v3
     jumpi v5, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb4
     v7 = gt v4, 100
     v8 = eq v7, false
     v9 = eq v8, false
     icall revert_if<empty>, v9
     ret v4
-  bb3:
+  bb3:  ; preds = bb1
     v6 = checked_add uint256, v4, 1
     jump bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb1
 }
 
+; function wrapLoop(uint256 limit) external pure returns (uint8 x) [selector 0xe58d2ef9]
 fn @wrapLoop(arg0: i256) -> i8 [selector=0xe58d2ef9, pure, abi_params=[uint256], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v7]
     v2 = phi [bb0: 0], [bb3: v6]
     v3 = lt v2, v0
     jumpi v3, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     v8 = trunc i256 v1 to i8
     ret v8
-  bb4:
+  bb4:  ; preds = bb1
     v4 = trunc i256 v1 to i8
     v5 = add v4, i8 1
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v6 = checked_add uint256, v2, 1
     v7 = zext i8 v5 to i256
     jump bb1
 }
 
+; function checked(uint256 limit) external pure returns (uint8 x) [selector 0x2e53fee2]
 fn @checked(arg0: i256) -> i8 [selector=0x2e53fee2, pure, abi_params=[uint256], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v7]
     v2 = phi [bb0: 0], [bb3: v6]
     v3 = lt v2, v0
     jumpi v3, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     v8 = trunc i256 v1 to i8
     ret v8
-  bb4:
+  bb4:  ; preds = bb1
     v4 = trunc i256 v1 to i8
     v5 = checked_add uint8, v4, i8 1
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v6 = checked_add uint256, v2, 1
     v7 = zext i8 v5 to i256
     jump bb1

@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/storage-dse/control_flow_runtime.sol:StorageControlFlow ===
 @module StorageControlFlow
+; function halted(uint256 kind, bool condition) external returns (uint256) [selector 0x85726af7]
 fn @halted(arg0: i256, arg1: i1) -> i256 [selector=0x85726af7, abi_params=[uint256, bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
@@ -15,13 +16,14 @@ fn @halted(arg0: i256, arg1: i1) -> i256 [selector=0x85726af7, abi_params=[uint2
     v9 = zext i160 v0 to i256
     v10 = call v1, v9, 0, v4, v5, 0, 0
     jumpi v10, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v11 = sload 0 !metadata(storage=slot(0))
     ret v11
 }
 
+; function writeAcrossHalt(uint256 kind, bool condition) external [selector 0x4db2264e]
 fn @writeAcrossHalt(arg0: i256, arg1: i1) [selector=0x4db2264e, abi_params=[uint256, bool], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
@@ -30,26 +32,28 @@ fn @writeAcrossHalt(arg0: i256, arg1: i1) [selector=0x4db2264e, abi_params=[uint
     ret
 }
 
+; function haltIndirect(uint256 kind, bool condition) internal
 fn @haltIndirect(arg0: i256, arg1: i1) {
   bb0:
     icall @halt, arg0, arg1
     ret
 }
 
+; function halt(uint256 kind, bool condition) internal
 fn @halt(arg0: i256, arg1: i1) {
   bb0:
     jumpi arg1, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb4, bb2
     ret
-  bb1:
+  bb1:  ; preds = bb0
     switch arg0, default bb7, [0 => bb5, 1 => bb6]
-  bb6:
+  bb6:  ; preds = bb1
     returndata 0, 0
-  bb5:
+  bb5:  ; preds = bb1
     stop
-  bb7:
+  bb7:  ; preds = bb1
     v0 = caller
     v1 = zext i160 v0 to i256
     selfdestruct v1
@@ -57,16 +61,17 @@ fn @halt(arg0: i256, arg1: i1) {
     jump bb3
 }
 
+; function changingSlot() external returns (uint256 result) [selector 0xf8e62371]
 fn @changingSlot() -> i256 [selector=0xf8e62371, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: 0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v7]
     jumpi true, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb4:
+  bb4:  ; preds = bb1
     sstore v1, 1 !metadata(storage=symbolic(v1))
     v2 = lt v1, 2
     v3 = zext i1 v2 to i256
@@ -74,23 +79,24 @@ fn @changingSlot() -> i256 [selector=0xf8e62371, abi_params=[], abi_returns=[wor
     v5 = zext i1 v4 to i256
     v6 = ne v5, 0
     jumpi v6, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb4
     jump bb9
-  bb9:
+  bb9:  ; preds = bb8
     sstore v1, 2 !metadata(storage=symbolic(v1))
     jump bb6
-  bb6:
+  bb6:  ; preds = bb9
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v7 = add v1, 1
     jump bb1
-  bb7:
+  bb7:  ; preds = bb4
     jump bb2
-  bb2:
+  bb2:  ; preds = bb7, bb5
     v8 = sload 0 !metadata(storage=slot(0))
     ret v8
 }
 
+; function observer() external returns (uint256 old) [selector 0xeb70e498]
 fn @observer() -> i256 [selector=0xeb70e498, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
@@ -100,85 +106,86 @@ fn @observer() -> i256 [selector=0xeb70e498, abi_params=[], abi_returns=[word], 
     v2 = zext i160 v0 to i256
     v3 = staticcall v1, v2, 28, 4, 0, 32
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = returndatasize
     v5 = lt v4, 32
     icall revert_if<tuple_data_too_short>, v5
-    v6 = add 0, 0
-    v7 = mload v6
+    v6 = mload 0 !metadata(memory=scratch)
     sstore 0, 2 !metadata(storage=slot(0))
-    ret v7
+    ret v6
 }
 
+; function readWord() external view returns (uint256) [selector 0x05cd82f4]
 fn @readWord() -> i256 [selector=0x05cd82f4, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+; function write(bool choice) external returns (uint256) [selector 0x6ebfc750]
 fn @write(arg0: i1) -> i256 [selector=0x6ebfc750, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
     jumpi arg0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     sstore 0, 3 !metadata(storage=slot(0))
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     sstore 0, 2 !metadata(storage=slot(0))
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+; function observed(bool choice) external returns (uint256 old) [selector 0xc61230fa]
 fn @observed(arg0: i1) -> i256 [selector=0xc61230fa, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
     jumpi arg0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     sstore 0, 3 !metadata(storage=slot(0))
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v0 = sload 0 !metadata(storage=slot(0))
     sstore 0, 2 !metadata(storage=slot(0))
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v1 = phi [bb1: v0], [bb2: 0]
     ret v1
 }
 
+; function pack(uint8 x, uint8 y) external returns (uint256) [selector 0x5a5ffdde]
 fn @pack(arg0: i8, arg1: i8) -> i256 [selector=0x5a5ffdde, abi_params=[uint8, uint8], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = not 255
-    v2 = and v0, v1
-    v3 = zext i8 arg0 to i256
-    v4 = and v3, 255
-    v5 = or v2, v4
-    sstore 1, v5 !metadata(storage=slot(1))
-    v6 = shl 255, 8
-    v7 = sload 1 !metadata(storage=slot(1))
-    v8 = not v6
-    v9 = and v7, v8
-    v10 = zext i8 arg1 to i256
-    v11 = and v10, 255
-    v12 = shl v11, 8
-    v13 = or v9, v12
-    sstore 1, v13 !metadata(storage=slot(1))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v2 = zext i8 arg0 to i256
+    v3 = and v2, 255
+    v4 = or v1, v3
+    sstore 1, v4 !metadata(storage=slot(1))
+    v5 = sload 1 !metadata(storage=slot(1))
+    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
+    v7 = zext i8 arg1 to i256
+    v8 = and v7, 255
+    v9 = shl v8, 8
+    v10 = or v6, v9
+    sstore 1, v10 !metadata(storage=slot(1))
+    v11 = sload 1 !metadata(storage=slot(1))
+    v12 = trunc i256 v11 to i8
+    v13 = zext i8 v12 to i256
     v14 = sload 1 !metadata(storage=slot(1))
-    v15 = trunc i256 v14 to i8
-    v16 = zext i8 v15 to i256
-    v17 = sload 1 !metadata(storage=slot(1))
-    v18 = shr v17, 8
-    v19 = trunc i256 v18 to i8
-    v20 = zext i8 v19 to i256
-    v21 = shl v20, 8
-    v22 = or v16, v21
-    ret v22
+    v15 = shr v14, 8
+    v16 = trunc i256 v15 to i8
+    v17 = zext i8 v16 to i256
+    v18 = shl v17, 8
+    v19 = or v18, v13
+    ret v19
 }
 
+; function preserve(uint8 x, uint8 y) external returns (uint256) [selector 0xced1063a]
 fn @preserve(arg0: i8, arg1: i8) -> i256 [selector=0xced1063a, abi_params=[uint8, uint8], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     sstore 0, 0xffffffffffffffff !metadata(storage=slot(0))

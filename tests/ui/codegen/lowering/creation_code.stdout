@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/creation_code.sol:CreationCodeChild ===
 @module CreationCodeChild
+; constructor(uint256 value) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
   bb0:
     ret
@@ -10,6 +11,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
 @data
   CreationCodeChild_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/creation_code.sol:CreationCodeChild"
 
+; function creationCode() external pure returns (bytes memory) [selector 0x7213edad]
 fn @creationCode() -> ptr<memory> [selector=0x7213edad, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = datasize CreationCodeChild_creation_code_0

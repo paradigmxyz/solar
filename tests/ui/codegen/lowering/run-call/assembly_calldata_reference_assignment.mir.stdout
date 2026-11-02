@@ -4,6 +4,7 @@
   struct0: {i256, i256}
   struct1: {i256, i256, i256}
 
+; function structs(One calldata first, Two calldata second) external pure returns (uint256, uint256) [selector 0x46afc9f8]
 fn @structs(arg0: slice<calldata>, arg1: slice<calldata>) -> struct0 [selector=0x46afc9f8, pure, abi_params=[tuple<uint256>, tuple<uint256, uint256>], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg1, 0
@@ -25,12 +26,13 @@ fn @structs(arg0: slice<calldata>, arg1: slice<calldata>) -> struct0 [selector=0
     ret v15
 }
 
+; function staticArray(uint256[2][2] calldata values) external pure returns (uint256, uint256) [selector 0xaa2fa031]
 fn @staticArray(arg0: slice<calldata>) -> struct0 [selector=0xaa2fa031, pure, abi_params=[array<2, array<2, uint256>>], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = make_calldata_slice ptr<calldata> 4, v0
     v2 = extract_value slice<calldata>, v1, 1
-    v3 = lt 0, v2
+    v3 = gt v2, 0
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = extract_value slice<calldata>, v1, 0
@@ -39,7 +41,7 @@ fn @staticArray(arg0: slice<calldata>) -> struct0 [selector=0xaa2fa031, pure, ab
     v8 = inttoptr i256 v7 to ptr<calldata>
     v9 = make_calldata_slice v8, 2
     v10 = extract_value slice<calldata>, v9, 1
-    v11 = lt 0, v10
+    v11 = gt v10, 0
     v12 = eq v11, false
     icall panic_if<0x32>, v12
     v13 = extract_value slice<calldata>, v9, 0
@@ -47,7 +49,7 @@ fn @staticArray(arg0: slice<calldata>) -> struct0 [selector=0xaa2fa031, pure, ab
     v15 = add v14, 0
     v16 = calldataload v15
     v17 = extract_value slice<calldata>, v1, 1
-    v18 = lt 1, v17
+    v18 = gt v17, 1
     v19 = eq v18, false
     icall panic_if<0x32>, v19
     v20 = extract_value slice<calldata>, v1, 0
@@ -56,7 +58,7 @@ fn @staticArray(arg0: slice<calldata>) -> struct0 [selector=0xaa2fa031, pure, ab
     v23 = inttoptr i256 v22 to ptr<calldata>
     v24 = make_calldata_slice v23, 2
     v25 = extract_value slice<calldata>, v24, 1
-    v26 = lt 1, v25
+    v26 = gt v25, 1
     v27 = eq v26, false
     icall panic_if<0x32>, v27
     v28 = extract_value slice<calldata>, v24, 0
@@ -68,6 +70,7 @@ fn @staticArray(arg0: slice<calldata>) -> struct0 [selector=0xaa2fa031, pure, ab
     ret v33
 }
 
+; function dynamicArray(uint256[2][] calldata values) external pure returns (uint256, uint256, uint256) [selector 0xb8731349]
 fn @dynamicArray(arg0: slice<calldata>) -> struct1 [selector=0xb8731349, pure, abi_params=[array<_, array<2, uint256>>], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -76,7 +79,7 @@ fn @dynamicArray(arg0: slice<calldata>) -> struct1 [selector=0xb8731349, pure, a
     v3 = make_calldata_slice v2, 2
     v4 = extract_value slice<calldata>, v3, 1
     v5 = extract_value slice<calldata>, v3, 1
-    v6 = lt 0, v5
+    v6 = gt v5, 0
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = extract_value slice<calldata>, v3, 0
@@ -85,7 +88,7 @@ fn @dynamicArray(arg0: slice<calldata>) -> struct1 [selector=0xb8731349, pure, a
     v11 = inttoptr i256 v10 to ptr<calldata>
     v12 = make_calldata_slice v11, 2
     v13 = extract_value slice<calldata>, v12, 1
-    v14 = lt 0, v13
+    v14 = gt v13, 0
     v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = extract_value slice<calldata>, v12, 0
@@ -93,7 +96,7 @@ fn @dynamicArray(arg0: slice<calldata>) -> struct1 [selector=0xb8731349, pure, a
     v18 = add v17, 0
     v19 = calldataload v18
     v20 = extract_value slice<calldata>, v3, 1
-    v21 = lt 1, v20
+    v21 = gt v20, 1
     v22 = eq v21, false
     icall panic_if<0x32>, v22
     v23 = extract_value slice<calldata>, v3, 0
@@ -102,7 +105,7 @@ fn @dynamicArray(arg0: slice<calldata>) -> struct1 [selector=0xb8731349, pure, a
     v26 = inttoptr i256 v25 to ptr<calldata>
     v27 = make_calldata_slice v26, 2
     v28 = extract_value slice<calldata>, v27, 1
-    v29 = lt 1, v28
+    v29 = gt v28, 1
     v30 = eq v29, false
     icall panic_if<0x32>, v30
     v31 = extract_value slice<calldata>, v27, 0
@@ -115,6 +118,7 @@ fn @dynamicArray(arg0: slice<calldata>) -> struct1 [selector=0xb8731349, pure, a
     ret v37
 }
 
+; function dynamicWords(uint256[] calldata values) external pure returns (uint256[] memory) [selector 0x148d46ad]
 fn @dynamicWords(arg0: slice<calldata>) -> ptr<memory> [selector=0x148d46ad, pure, abi_params=[array<_, uint256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -136,7 +140,7 @@ fn @dynamicWords(arg0: slice<calldata>) -> ptr<memory> [selector=0x148d46ad, pur
     v14 = shr v4, 251
     v15 = ne v14, 0
     icall panic_if<0x41>, v15
-    v16 = add 32, v13
+    v16 = add v13, 32
     v17 = lt v16, 32
     icall panic_if<0x41>, v17
     v18 = alloc v16
@@ -149,6 +153,7 @@ fn @dynamicWords(arg0: slice<calldata>) -> ptr<memory> [selector=0x148d46ad, pur
     ret v18
 }
 
+; function dynamicFixed(uint256[2][] calldata values) external pure returns (uint256[2][] memory) [selector 0x71cafd78]
 fn @dynamicFixed(arg0: slice<calldata>) -> ptr<memory> [selector=0x71cafd78, pure, abi_params=[array<_, array<2, uint256>>], abi_returns=[memory_array<array<2, word>>], abi_return_params=[array<_, array<2, uint256>>]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -170,19 +175,19 @@ fn @dynamicFixed(arg0: slice<calldata>) -> ptr<memory> [selector=0x71cafd78, pur
     v14 = shr v4, 251
     v15 = ne v14, 0
     icall panic_if<0x41>, v15
-    v16 = add 32, v13
+    v16 = add v13, 32
     v17 = lt v16, 32
     icall panic_if<0x41>, v17
     v18 = alloc v16
     mstore v18, v4
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v19 = phi [bb0: 0], [bb2: v35]
     v20 = lt v19, v4
     jumpi v20, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     ret v18
-  bb2:
+  bb2:  ; preds = bb1
     v21 = mul v19, 64
     v22 = shr v19, 250
     v23 = ne v22, 0
@@ -204,6 +209,7 @@ fn @dynamicFixed(arg0: slice<calldata>) -> ptr<memory> [selector=0x71cafd78, pur
     jump bb1
 }
 
+; function dynamicNarrow(uint8[] calldata values) external pure returns (uint8[] memory) [selector 0x320b552a]
 fn @dynamicNarrow(arg0: slice<calldata>) -> ptr<memory> [selector=0x320b552a, pure, abi_params=[array<_, uint8>], abi_returns=[memory_array<word<uint8>>], abi_return_params=[array<_, uint8>]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -225,19 +231,19 @@ fn @dynamicNarrow(arg0: slice<calldata>) -> ptr<memory> [selector=0x320b552a, pu
     v14 = shr v4, 251
     v15 = ne v14, 0
     icall panic_if<0x41>, v15
-    v16 = add 32, v13
+    v16 = add v13, 32
     v17 = lt v16, 32
     icall panic_if<0x41>, v17
     v18 = alloc v16
     mstore v18, v4
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v19 = phi [bb0: 0], [bb2: v31]
     v20 = lt v19, v4
     jumpi v20, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     ret v18
-  bb2:
+  bb2:  ; preds = bb1
     v21 = mul v19, 32
     v22 = ptrtoint ptr<calldata> v5 to i256
     v23 = add v22, v21
@@ -254,6 +260,7 @@ fn @dynamicNarrow(arg0: slice<calldata>) -> ptr<memory> [selector=0x320b552a, pu
     jump bb1
 }
 
+; function dynamicNested(uint256[][] calldata values) external pure returns (uint256[][] memory) [selector 0x24abb2f5]
 fn @dynamicNested(arg0: slice<calldata>) -> ptr<memory> [selector=0x24abb2f5, pure, abi_params=[array<_, array<_, uint256>>], abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, uint256>>]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -275,19 +282,19 @@ fn @dynamicNested(arg0: slice<calldata>) -> ptr<memory> [selector=0x24abb2f5, pu
     v14 = shr v4, 251
     v15 = ne v14, 0
     icall panic_if<0x41>, v15
-    v16 = add 32, v13
+    v16 = add v13, 32
     v17 = lt v16, 32
     icall panic_if<0x41>, v17
     v18 = alloc v16
     mstore v18, v4
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v19 = phi [bb0: 0], [bb2: v58]
     v20 = lt v19, v4
     jumpi v20, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     ret v18
-  bb2:
+  bb2:  ; preds = bb1
     v21 = mul v19, 32
     v22 = ptrtoint ptr<calldata> v5 to i256
     v23 = add v22, v21
@@ -312,13 +319,13 @@ fn @dynamicNested(arg0: slice<calldata>) -> ptr<memory> [selector=0x24abb2f5, pu
     v39 = mul v36, 32
     v40 = add v29, 32
     v41 = sub v37, v39
-    v42 = sgt v40, v41
+    v42 = slt v41, v40
     icall revert_if<calldata_tail_too_short>, v42
     v43 = mul v36, 32
     v44 = shr v36, 251
     v45 = ne v44, 0
     icall panic_if<0x41>, v45
-    v46 = add 32, v43
+    v46 = add v43, 32
     v47 = lt v46, 32
     icall panic_if<0x41>, v47
     v48 = alloc v46
@@ -338,41 +345,42 @@ fn @dynamicNested(arg0: slice<calldata>) -> ptr<memory> [selector=0x24abb2f5, pu
     jump bb1
 }
 
+; function dynamicOverflow(uint256[] calldata values) external pure returns (uint256[] memory) [selector 0x51072adf]
 fn @dynamicOverflow(arg0: slice<calldata>) -> ptr<memory> [selector=0x51072adf, pure, abi_params=[array<_, uint256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = make_calldata_slice ptr<calldata> 68, v0
-    v2 = not 0
-    v3 = extract_value slice<calldata>, v1, 0
-    v4 = make_calldata_slice v3, v2
-    v5 = extract_value slice<calldata>, v4, 1
-    v6 = extract_value slice<calldata>, v4, 0
-    v7 = mul v5, 32
-    v8 = shr v5, 251
-    v9 = ne v8, 0
-    icall panic_if<0x41>, v9
-    v10 = calldatasize
-    v11 = ptrtoint ptr<calldata> v6 to i256
-    v12 = sub v10, v11
-    v13 = slt v12, v7
-    icall revert_if<calldata_tail_too_short>, v13
-    v14 = mul v5, 32
-    v15 = shr v5, 251
-    v16 = ne v15, 0
-    icall panic_if<0x41>, v16
-    v17 = add 32, v14
-    v18 = lt v17, 32
-    icall panic_if<0x41>, v18
-    v19 = alloc v17
-    mstore v19, v5
-    v20 = make_calldata_slice v6, v14
-    v21 = ptradd v19, 32
-    v22 = extract_value slice<calldata>, v20, 0
-    v23 = extract_value slice<calldata>, v20, 1
-    calldatacopy v21, v22, v23
-    ret v19
+    v2 = extract_value slice<calldata>, v1, 0
+    v3 = make_calldata_slice v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v4 = extract_value slice<calldata>, v3, 1
+    v5 = extract_value slice<calldata>, v3, 0
+    v6 = mul v4, 32
+    v7 = shr v4, 251
+    v8 = ne v7, 0
+    icall panic_if<0x41>, v8
+    v9 = calldatasize
+    v10 = ptrtoint ptr<calldata> v5 to i256
+    v11 = sub v9, v10
+    v12 = slt v11, v6
+    icall revert_if<calldata_tail_too_short>, v12
+    v13 = mul v4, 32
+    v14 = shr v4, 251
+    v15 = ne v14, 0
+    icall panic_if<0x41>, v15
+    v16 = add v13, 32
+    v17 = lt v16, 32
+    icall panic_if<0x41>, v17
+    v18 = alloc v16
+    mstore v18, v4
+    v19 = make_calldata_slice v5, v13
+    v20 = ptradd v18, 32
+    v21 = extract_value slice<calldata>, v19, 0
+    v22 = extract_value slice<calldata>, v19, 1
+    calldatacopy v20, v21, v22
+    ret v18
 }
 
+; function dynamicEmptyAtEnd(uint256[] calldata values) external pure returns (uint256[] memory) [selector 0x93d2ba08]
 fn @dynamicEmptyAtEnd(arg0: slice<calldata>) -> ptr<memory> [selector=0x93d2ba08, pure, abi_params=[array<_, uint256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     v0 = calldatasize
@@ -396,7 +404,7 @@ fn @dynamicEmptyAtEnd(arg0: slice<calldata>) -> ptr<memory> [selector=0x93d2ba08
     v16 = shr v6, 251
     v17 = ne v16, 0
     icall panic_if<0x41>, v17
-    v18 = add 32, v15
+    v18 = add v15, 32
     v19 = lt v18, 32
     icall panic_if<0x41>, v19
     v20 = alloc v18
@@ -409,6 +417,7 @@ fn @dynamicEmptyAtEnd(arg0: slice<calldata>) -> ptr<memory> [selector=0x93d2ba08
     ret v20
 }
 
+; function dynamicEmptyPastEnd(uint256[] calldata values) external pure returns (uint256[] memory) [selector 0x77beb5ce]
 fn @dynamicEmptyPastEnd(arg0: slice<calldata>) -> ptr<memory> [selector=0x77beb5ce, pure, abi_params=[array<_, uint256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     v0 = calldatasize
@@ -433,7 +442,7 @@ fn @dynamicEmptyPastEnd(arg0: slice<calldata>) -> ptr<memory> [selector=0x77beb5
     v17 = shr v7, 251
     v18 = ne v17, 0
     icall panic_if<0x41>, v18
-    v19 = add 32, v16
+    v19 = add v16, 32
     v20 = lt v19, 32
     icall panic_if<0x41>, v20
     v21 = alloc v19
@@ -446,42 +455,42 @@ fn @dynamicEmptyPastEnd(arg0: slice<calldata>) -> ptr<memory> [selector=0x77beb5
     ret v21
 }
 
+; function dynamicWrappingEnd(uint256[] calldata values) external pure returns (uint256[] memory) [selector 0x4c797599]
 fn @dynamicWrappingEnd(arg0: slice<calldata>) -> ptr<memory> [selector=0x4c797599, pure, abi_params=[array<_, uint256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
-    v0 = not 0
-    v1 = extract_value slice<calldata>, arg0, 1
-    v2 = inttoptr i256 v0 to ptr<calldata>
-    v3 = make_calldata_slice v2, v1
-    v4 = extract_value slice<calldata>, v3, 0
-    v5 = make_calldata_slice v4, 1
-    v6 = extract_value slice<calldata>, v5, 1
-    v7 = extract_value slice<calldata>, v5, 0
-    v8 = mul v6, 32
-    v9 = shr v6, 251
-    v10 = ne v9, 0
-    icall panic_if<0x41>, v10
-    v11 = calldatasize
-    v12 = ptrtoint ptr<calldata> v7 to i256
-    v13 = sub v11, v12
-    v14 = slt v13, v8
-    icall revert_if<calldata_tail_too_short>, v14
-    v15 = mul v6, 32
-    v16 = shr v6, 251
-    v17 = ne v16, 0
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = make_calldata_slice ptr<calldata> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v0
+    v2 = extract_value slice<calldata>, v1, 0
+    v3 = make_calldata_slice v2, 1
+    v4 = extract_value slice<calldata>, v3, 1
+    v5 = extract_value slice<calldata>, v3, 0
+    v6 = mul v4, 32
+    v7 = shr v4, 251
+    v8 = ne v7, 0
+    icall panic_if<0x41>, v8
+    v9 = calldatasize
+    v10 = ptrtoint ptr<calldata> v5 to i256
+    v11 = sub v9, v10
+    v12 = slt v11, v6
+    icall revert_if<calldata_tail_too_short>, v12
+    v13 = mul v4, 32
+    v14 = shr v4, 251
+    v15 = ne v14, 0
+    icall panic_if<0x41>, v15
+    v16 = add v13, 32
+    v17 = lt v16, 32
     icall panic_if<0x41>, v17
-    v18 = add 32, v15
-    v19 = lt v18, 32
-    icall panic_if<0x41>, v19
-    v20 = alloc v18
-    mstore v20, v6
-    v21 = make_calldata_slice v7, v15
-    v22 = ptradd v20, 32
-    v23 = extract_value slice<calldata>, v21, 0
-    v24 = extract_value slice<calldata>, v21, 1
-    calldatacopy v22, v23, v24
-    ret v20
+    v18 = alloc v16
+    mstore v18, v4
+    v19 = make_calldata_slice v5, v13
+    v20 = ptradd v18, 32
+    v21 = extract_value slice<calldata>, v19, 0
+    v22 = extract_value slice<calldata>, v19, 1
+    calldatacopy v20, v21, v22
+    ret v18
 }
 
+; function returnedSlice(bytes calldata values) external pure returns (bytes4) [selector 0x515c2822]
 fn @returnedSlice(arg0: slice<calldata>) -> i256 [selector=0x515c2822, pure, abi_params=[bytes], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = icall @slice, arg0, 0
@@ -492,6 +501,7 @@ fn @returnedSlice(arg0: slice<calldata>) -> i256 [selector=0x515c2822, pure, abi
     ret v4
 }
 
+; function emptyUnassignedSlice() external pure returns (uint256) [selector 0xfe14379c]
 fn @emptyUnassignedSlice() -> i256 [selector=0xfe14379c, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 0, 0
@@ -501,12 +511,14 @@ fn @emptyUnassignedSlice() -> i256 [selector=0xfe14379c, pure, abi_params=[], ab
     ret v3
 }
 
+; function sliceLength(bytes calldata value) internal pure returns (uint256)
 fn @sliceLength(arg0: slice<calldata>) -> i256 [pure] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     ret v0
 }
 
+; function slice(bytes calldata values, uint256 offset) internal pure returns (bytes calldata result)
 fn @slice(arg0: slice<calldata>, arg1: i256) -> slice<calldata> [pure] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
