@@ -32,7 +32,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [codegen] Bind call results across reads ([#1908](https://github.com/paradigmxyz/solar/issues/1908))
 - [codegen] Distinguish control-flow costs ([#1906](https://github.com/paradigmxyz/solar/issues/1906))
 - [sema] Reject every unfolded constant in asm ([#1900](https://github.com/paradigmxyz/solar/issues/1900))
-- [sema] Reject every unfolded constant in asm ([#1900](https://github.com/paradigmxyz/solar/issues/1900))
 - [sema] Reject out-of-range literal indexes ([#1898](https://github.com/paradigmxyz/solar/issues/1898))
 - [codegen] Use calldata access checks on returns ([#1876](https://github.com/paradigmxyz/solar/issues/1876))
 - [codegen] Lower storage reference conversions ([#1870](https://github.com/paradigmxyz/solar/issues/1870))
