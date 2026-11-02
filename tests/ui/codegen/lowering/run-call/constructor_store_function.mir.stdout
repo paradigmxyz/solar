@@ -5,7 +5,7 @@ fn @constructor() [constructor] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
-    v2 = or v1, 3
+    v2 = or v1, 1
     sstore 1, v2 !metadata(storage=slot(1))
     v3 = icall @use, 2
     sstore 0, v3 !metadata(storage=slot(0))
@@ -38,7 +38,7 @@ fn @use(arg0: i256) -> i256 [selector=0xab5b4456, abi_params=[uint256], abi_retu
 
 fn @internal_dispatcher_p_uint256_r_uint256(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
-    v0 = eq arg0, 3
+    v0 = eq arg0, 1
     jumpi v0, bb1, bb2
   bb2:  ; preds = bb0
     icall panic_if<0x51>, true
