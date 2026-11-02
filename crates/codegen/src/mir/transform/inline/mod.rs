@@ -515,8 +515,7 @@ impl MirInliner {
         Pricing { target, call_count, consume_all }: Pricing,
         preferred_large_call_site: Option<(MirFunctionId, InstId)>,
     ) -> bool {
-        // A clone of a function the tag marks cold costs bytes the cold code does not repay in gas.
-        let target = target.priced_for_cold(module.function(site.callee).attributes.cold_hint);
+        let target = target.priced_for_callee(&module.function(site.callee).attributes);
         let single_call = call_count == 1;
         // Inlining every call site removes the callee, as it does for a sole-use helper.
         let sole = single_call || consume_all;
