@@ -1384,7 +1384,7 @@ impl IndVarSimplifier {
     /// Operations a family's pointer costs per iteration: one duplication per
     /// primary use, an add per sibling use, the latch update, and the carried word.
     fn family_cost_after(members: &[(AddressKey, Vec<ValueId>)], carried: usize) -> usize {
-        let carry = 2 + carried.saturating_sub(4);
+        let carry = 2 + carried.saturating_sub(Target::SHALLOW_CARRIED_WORDS);
         let byte_pointer = if members[0].0.scale.abs() == 1 { 2 } else { 0 };
         members
             .iter()

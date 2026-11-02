@@ -88,17 +88,20 @@
 //! Unchanged functions without internal calls can skip later runs until their
 //! body changes; callers must still observe any improved callee summaries.
 
-use crate::mir::{
-    BlockId, Callee, EffectKind, Function, FunctionId, Immediate, ImmutableId, InstId, InstKind,
-    Instruction, MirType, Module, OpTraits, PtrLocation, Value, ValueId,
-    analysis::{
-        Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
-        Location, LocationSize, LoopAnalyzer, LoopInfo, MemoryAddress, MemoryCallSummaries,
-        MemoryLocation, returning_blocks,
+use crate::{
+    mir::{
+        BlockId, Callee, EffectKind, Function, FunctionId, Immediate, ImmutableId, InstId,
+        InstKind, Instruction, MirType, Module, OpTraits, PtrLocation, Value, ValueId,
+        analysis::{
+            Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
+            Location, LocationSize, LoopAnalyzer, LoopInfo, MemoryAddress, MemoryCallSummaries,
+            MemoryLocation, returning_blocks,
+        },
+        memory::EvmMemoryLayout,
+        pass::{MirPass, run_selected_function_pass, run_selected_function_pass_cached},
+        utils as mir_utils,
     },
-    memory::EvmMemoryLayout,
-    pass::{MirPass, run_selected_function_pass, run_selected_function_pass_cached},
-    utils as mir_utils,
+    target::Target,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -300,11 +303,6 @@ enum OperandKey {
     /// `caller`, keyed by its kind so that expressions over different reads match.
     FrameConstant(&'static str),
 }
-
-/// Live-in words below which a loop-varying read is reused across one edge
-/// instead of reloaded: the `DUP` reach less room for the block's own
-/// temporaries.
-const DIRECT_REUSE_LIVE_BUDGET: usize = 12;
 
 /// Words of one `memory_zero` that seed the cache with zero, bounding the entries a large fill
 /// adds.
@@ -824,7 +822,7 @@ impl CommonSubexprEliminator {
         // other words are live here.
         if let Some(home) = home(*cached_inst)
             && func.blocks[block].predecessors.contains(&home)
-            && liveness.live_in(block).count() < DIRECT_REUSE_LIVE_BUDGET
+            && liveness.live_in(block).count() < Target::DIRECT_REUSE_LIVE_BUDGET
         {
             return true;
         }

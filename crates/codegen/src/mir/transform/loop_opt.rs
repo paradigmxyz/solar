@@ -57,17 +57,22 @@
 //! more word the loop carries, and its saving depends on the stack schedule, not on the opcodes: a
 //! loop carrying seven words grew by two bytes, while loops carrying two and four shrank by one and
 //! four. Size mode therefore rewrites a factor's checks only while every loop around them stays
-//! within [`LOOP_CARRY_BUDGET`] with the bound.
+//! within [`Target::LOOP_CARRY_BUDGET`] with the bound.
 
-use crate::mir::{
-    BlockId, EffectKind, Function, FunctionBuilder, Immediate, ImmutableId, InstId, InstKind,
-    Instruction, MirType, Module, OpTraits, PtrLocation, StorageAlias, Terminator, Value, ValueId,
-    analysis::{
-        AddressSpace, AffineExpr, AliasAnalysis, AliasResult, CfgInfo, DominatorTree, Location,
-        LocationSize, Loop, LoopAnalyzer, MemoryAddress, MemoryLocation, ModRef, ScalarEvolution,
+use crate::{
+    mir::{
+        BlockId, EffectKind, Function, FunctionBuilder, Immediate, ImmutableId, InstId, InstKind,
+        Instruction, MirType, Module, OpTraits, PtrLocation, StorageAlias, Terminator, Value,
+        ValueId,
+        analysis::{
+            AddressSpace, AffineExpr, AliasAnalysis, AliasResult, CfgInfo, DominatorTree, Location,
+            LocationSize, Loop, LoopAnalyzer, MemoryAddress, MemoryLocation, ModRef,
+            ScalarEvolution,
+        },
+        pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
+        utils as mir_utils,
     },
-    pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
-    utils as mir_utils,
+    target::Target,
 };
 use alloy_primitives::U256;
 use arrayvec::ArrayVec;
@@ -77,14 +82,6 @@ use solar_data_structures::{
     map::{FxHashMap, FxHashSet},
 };
 use std::{cmp::Reverse, rc::Rc};
-
-/// Most words a loop may carry after a below-threshold hoist or, in size mode, a product check's
-/// hoisted bound. The count is the header's phis plus the values defined outside the loop that
-/// its body reads, which the backend keeps on the stack through the loop when they fit. Past this
-/// many, its layouts spill loop values to frame slots, and a hoisted base then costs more in
-/// reloads of the words it displaced than its in-loop recomputation saved: the hash-probe loop of
-/// `hasDuplicate` lost 2.4% carrying eight, while `reverse` with four gained 8%.
-const LOOP_CARRY_BUDGET: usize = 5;
 
 /// Function pass for loop-invariant code motion.
 pub(crate) struct Licm;
@@ -188,17 +185,14 @@ impl Scratch {
     }
 }
 
-/// Minimum estimated gas saved per iteration before an instruction is considered a LICM root.
-const MIN_LICM_PROFIT: u16 = 3;
-
 /// Maximum number of instructions hoisted from one loop.
 const MAX_LICM_HOISTED_INSTS: usize = 8;
 
 /// Loop optimizer.
 struct LoopOptimizer {
     /// Whether pure arithmetic executed on every iteration is hoisted even when its per-iteration
-    /// saving is below [`MIN_LICM_PROFIT`]. The backend carries a preheader value on the stack
-    /// through a loop or rebuilds it at its use sites, whichever its pricing prefers, so
+    /// saving is below [`Target::MIN_LICM_PROFIT_GAS`]. The backend carries a preheader value on
+    /// the stack through a loop or rebuilds it at its use sites, whichever its pricing prefers, so
     /// hoisting only widens its choice; the cost is bytecode when the value is spilled, which
     /// gas mode accepts.
     hoist_cheap: bool,
@@ -442,9 +436,9 @@ impl LoopOptimizer {
                     )
                 })
                 .collect::<Vec<_>>();
-            if self.licm_profit(func, root) < MIN_LICM_PROFIT
+            if self.licm_profit(func, root) < Target::MIN_LICM_PROFIT_GAS
                 && nest.iter().any(|&(header, delta)| {
-                    carried[&header].saturating_add_signed(delta) > LOOP_CARRY_BUDGET
+                    carried[&header].saturating_add_signed(delta) > Target::LOOP_CARRY_BUDGET
                 })
             {
                 continue;
@@ -667,15 +661,17 @@ impl LoopOptimizer {
         })
     }
 
-    fn licm_profit(&self, func: &Function, inst_id: InstId) -> u16 {
+    fn licm_profit(&self, func: &Function, inst_id: InstId) -> u32 {
         match func.inst(inst_id).kind {
-            InstKind::Load(_, PtrLocation::Storage | PtrLocation::Transient) => 100,
-            InstKind::Keccak256(_, _) => 30,
+            InstKind::Load(_, PtrLocation::Storage | PtrLocation::Transient) => {
+                Target::LICM_STATE_READ_GAS
+            }
+            InstKind::Keccak256(_, _) => Target::LICM_HASH_GAS,
             InstKind::MappingSlot(_, _)
             | InstKind::MappingSlotBytes(_, _)
             | InstKind::StorageArrayDataSlot(_)
-            | InstKind::StorageArrayElementSlot { .. } => 30,
-            InstKind::Exp(_, _) => 10,
+            | InstKind::StorageArrayElementSlot { .. } => Target::LICM_HASH_GAS,
+            InstKind::Exp(_, _) => Target::LICM_EXP_GAS,
             InstKind::Mul(_, _)
             | InstKind::Div(_, _)
             | InstKind::SDiv(_, _)
@@ -683,8 +679,8 @@ impl LoopOptimizer {
             | InstKind::SMod(_, _)
             | InstKind::AddMod(_, _, _)
             | InstKind::MulMod(_, _, _)
-            | InstKind::Clz(_) => 5,
-            InstKind::Load(..) => 3,
+            | InstKind::Clz(_) => Target::LICM_ARITHMETIC_GAS,
+            InstKind::Load(..) => Target::LICM_MEMORY_READ_GAS,
             _ => 0,
         }
     }
@@ -695,7 +691,7 @@ impl LoopOptimizer {
         inst_id: InstId,
         ctx: LoopOptContext<'_>,
     ) -> bool {
-        self.licm_profit(func, inst_id) >= MIN_LICM_PROFIT
+        self.licm_profit(func, inst_id) >= Target::MIN_LICM_PROFIT_GAS
             || (ctx.loop_data.trip_count.is_some_and(|trip_count| trip_count > 1)
                 && self.is_affine_address_base_used_in_loop(func, inst_id, ctx))
             || (ctx.dominates_backedges(inst_id)
@@ -1151,7 +1147,7 @@ fn reduce_product_checks(
         let mut admitted = FxHashMap::default();
         checks.retain(|&(.., y, _)| {
             *admitted.entry(y).or_insert_with(|| {
-                let fits = worst[&y] + bounds < LOOP_CARRY_BUDGET;
+                let fits = worst[&y] + bounds < Target::LOOP_CARRY_BUDGET;
                 bounds += usize::from(fits);
                 fits
             })

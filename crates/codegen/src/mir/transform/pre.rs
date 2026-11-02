@@ -324,12 +324,8 @@ impl PreCostModel<'_> {
         let saved = read * input.loads.len() as i64 * input.predecessors.len() as i64;
         let splits =
             input.insertions.iter().filter(|&&pred| splits_edge(input.func, pred)).count() as i64;
-        let transfer = self
-            .target
-            .opcode(op::PUSH2)
-            .plus(self.target.opcode(op::JUMP))
-            .plus(self.target.opcode(op::JUMPDEST));
-        let inserted = read * input.insertions.len() as i64 + splits * i64::from(transfer.gas);
+        let inserted =
+            read * input.insertions.len() as i64 + splits * i64::from(self.target.jump().gas);
         let phi = if !input.needs_phi || input.loop_carried {
             0
         } else {
