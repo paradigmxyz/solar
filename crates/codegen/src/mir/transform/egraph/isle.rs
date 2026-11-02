@@ -392,8 +392,7 @@ impl generated::Context for RuleContext<'_> {
     }
 
     fn inst_data(&mut self, value: Value) -> Option<Op> {
-        let op = 
-        self
+        let op = self
             .views
             .iter()
             .flatten()
