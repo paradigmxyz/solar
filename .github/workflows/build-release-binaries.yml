@@ -9,12 +9,25 @@ on:
         required: false
         type: string
   workflow_dispatch:
+  # Release builds otherwise run only on tag pushes, so catch breakage before a release.
+  schedule:
+    - cron: "0 3 * * 1"
+  pull_request:
+    paths:
+      - .github/workflows/build-release-binaries.yml
+      - .github/workflows/release.yml
+      - benches/runtime/benchmark.py
+      - benches/runtime/cases.py
+      - dist-workspace.toml
+      - scripts/pgo/**
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
+  # setup-python upgrades pip, which fails while the newest pip is too new for the package policy.
+  PIP_UPLOADED_PRIOR_TO: P7D
   CARGO_INCREMENTAL: 0
   CARGO_TERM_COLOR: always
 
@@ -239,16 +252,14 @@ jobs:
       - name: Create local artifact manifest
         shell: bash
         env:
-          PLAN: ${{ inputs.plan }}
+          # The full plan embeds the changelog and can exceed the kernel's per-variable limit.
+          TAG: ${{ inputs.plan != '' && fromJson(inputs.plan).announcement_tag || '' }}
         run: |
           set -euo pipefail
 
           tag_args=()
-          if [[ -n "$PLAN" ]]; then
-            tag="$(jq -r '.announcement_tag // empty' <<< "$PLAN")"
-            if [[ -n "$tag" ]]; then
-              tag_args=(--tag "$tag")
-            fi
+          if [[ -n "$TAG" ]]; then
+            tag_args=(--tag "$TAG")
           fi
           manifest="$RUNNER_TEMP/local-dist-manifest.json"
           dist manifest "${tag_args[@]}" \

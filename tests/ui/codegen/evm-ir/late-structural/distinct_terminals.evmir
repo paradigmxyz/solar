@@ -1,0 +1,38 @@
+//@ revisions: simplify late
+//@[simplify] compile-flags: -Ogas -Zevm-ir-pipeline=cfg-simplify
+//@[simplify] filecheck: --check-prefix=SIMPLIFY
+//@[late] compile-flags: -Ogas -Zevm-ir-pipeline=late-structural
+//@[late] filecheck: --check-prefix=LATE
+//@ run-call: pick(uint256)(uint256) 1 => 1
+//@ run-call-fail: pick(uint256)(uint256) 0 => 0x
+// No two terminal blocks are equal, so `late-structural` has nothing to deduplicate and skips
+// its follow-up passes: the forwarding block `bb2`, which `cfg-simplify` removes when it runs on
+// its own, stays.
+// SIMPLIFY: - push bb2
+// SIMPLIFY-NEXT: + push bb3
+// SIMPLIFY: - bb2:
+// LATE: @module DistinctTerminals
+// LATE-NOT: {{^[-+] }}
+// LATE: {{^ +}}bb2:
+// LATE-NOT: {{^[-+] }}
+@module DistinctTerminals
+
+bb0:
+  push 4
+  calldataload
+  push bb2
+  jumpi
+  jump bb1
+bb1 [cold]:
+  push 0
+  push 0
+  revert
+bb2:
+  jump bb3
+bb3:
+  push 1
+  push 0
+  mstore
+  push 32
+  push 0
+  return

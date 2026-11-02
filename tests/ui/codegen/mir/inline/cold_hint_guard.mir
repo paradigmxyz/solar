@@ -1,0 +1,65 @@
+//@compile-flags: -Ogas -Zmir-pipeline=inline
+//@filecheck:
+@module ColdHintGuard
+@phase lowered
+
+// A returning guard called in a loop has its test cloned before the calls, so the successful
+// case skips them. The same guard marked `cold_hint` is priced by bytes: its calls stay calls.
+// CHECK-LABEL: {{^[ +].*}}fn @loop_hot{{[( ]}}
+// CHECK: + jumpi
+// CHECK-LABEL: {{^[ +].*}}fn @loop_cold{{[( ]}}
+// CHECK: icall @check_cold, v0, v0
+// CHECK-NOT: {{^\+}}
+// CHECK-LABEL: {{^[ +].*}}fn @check{{[( ]}}
+fn @loop_hot(arg0: i256) {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v2]
+    v1 = lt v0, 8
+    jumpi v1, bb2, bb3
+  bb2:
+    icall @check, v0, arg0
+    icall @check, v0, v0
+    v2 = add v0, 1
+    jump bb1
+  bb3:
+    icall @check, 42, arg0
+    ret
+}
+fn @loop_cold(arg0: i256) {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v2]
+    v1 = lt v0, 8
+    jumpi v1, bb2, bb3
+  bb2:
+    icall @check_cold, v0, arg0
+    icall @check_cold, v0, v0
+    v2 = add v0, 1
+    jump bb1
+  bb3:
+    icall @check_cold, 42, arg0
+    ret
+}
+fn @check(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = eq arg0, arg1 !metadata(effect=pure)
+    jumpi v0, bb1, bb2
+  bb1:
+    ret
+  bb2:
+    sstore 0, arg0
+    ret
+}
+fn @check_cold(arg0: i256, arg1: i256) [cold_hint] {
+  bb0:
+    v0 = eq arg0, arg1 !metadata(effect=pure)
+    jumpi v0, bb1, bb2
+  bb1:
+    ret
+  bb2:
+    sstore 0, arg0
+    ret
+}

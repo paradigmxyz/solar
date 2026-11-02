@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/cfg-simplify/function_dce_calls.mir (before function-dce) ===
-+ // === ROOT/tests/ui/codegen/mir/cfg-simplify/function_dce_calls.mir (after function-dce) ===
+- // === ROOT/tests/ui/codegen/mir/function-dce/function_dce_calls.mir (before function-dce) ===
++ // === ROOT/tests/ui/codegen/mir/function-dce/function_dce_calls.mir (after function-dce) ===
   @module FunctionDceCalls
 - fn @dead_helper() -> i256 {
 -   bb0:
