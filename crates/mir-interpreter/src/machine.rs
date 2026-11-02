@@ -73,7 +73,7 @@ use std::{convert::Infallible, ops::ControlFlow, sync::Arc};
 
 /// Bytes of memory an execution may use: growing memory to 16 MiB costs about 538 million gas,
 /// more than any block holds.
-pub(crate) const MEMORY_LIMIT: u64 = 1 << 24;
+pub const MEMORY_LIMIT: u64 = 1 << 24;
 
 /// The opcodes a run executes on its memory, besides the pure opcodes it evaluates.
 const MEMORY_OPCODES: [u8; 6] =
