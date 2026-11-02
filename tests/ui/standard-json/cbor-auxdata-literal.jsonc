@@ -24,7 +24,7 @@
   "language": "Solidity",
   "sources": {
     "A.sol": {
-      "content": "contract A { function f() external pure returns (bytes32) { return 0x11fea165736f6c617243000300000b11223344556677889900aabbccddeeff00; } function g() external pure returns (bytes memory) { return hex\"fea165736f6c617243000300000b\"; } }"
+      "content": "contract A { function f() external pure returns (bytes32) { return 0x11fea165736f6c617243000000000b11223344556677889900aabbccddeeff00; } function g() external pure returns (bytes memory) { return hex\"fea165736f6c617243000000000b\"; } }"
     }
   },
   "settings": {
