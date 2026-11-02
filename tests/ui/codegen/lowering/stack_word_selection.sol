@@ -30,8 +30,13 @@
 // GAS-NEXT: return
 // SIZE-LABEL: @module StackWords_runtime
 // In size mode the dispatched functions share their ABI return tail.
-// SIZE: jump bb{{[0-9]+}}
-// SIZE: push 0
+// SIZE: jump [[JOIN:bb[0-9]+]]
+// SIZE-NEXT: [[JOIN]]:
+// SIZE-NEXT: swap 3
+// SIZE-NEXT: and
+// SIZE-NEXT: jump [[TAIL:bb[0-9]+]]
+// SIZE-NEXT: [[TAIL]]:
+// SIZE-NEXT: push 0
 // SIZE-NEXT: mstore
 // SIZE-NEXT: push 32
 // SIZE-NEXT: mstore
@@ -41,6 +46,7 @@
 // SIZE-NEXT: push 0
 // SIZE-NEXT: return
 // SIZE-NOT: {{^ *return$}}
+// SIZE: jump [[TAIL]]
 //@ run-call: sum 9, 4 => 0, 13, 13
 //@ run-call: sum 7, 7 => 7, 7, 14
 //@ run-call: xor 9, 4 => 0, 13, 13

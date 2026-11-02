@@ -497,7 +497,7 @@ impl Module {
     }
 
     /// Updates the module roots after remapping function IDs. `entry` and the constructor are
-    /// always kept; `receive` and `fallback` stop being roots when dispatch inlines them away.
+    /// always kept; `receive` and `fallback` stop being roots when nothing reaches them.
     pub fn remap_roots(&mut self, remap: impl Fn(FunctionId) -> Option<FunctionId>) {
         let kept = |root| remap(root).expect("kept function cannot be a module root");
         self.dispatch_entry = self.dispatch_entry.map(kept);
