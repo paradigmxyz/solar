@@ -6,11 +6,12 @@
 // total allocation size, or free-memory pointer bump.
 contract MemoryAllocationPanic {
     // CHECK-LABEL: fn @makeBytes{{[( ]}}
-    // CHECK: [[PADDED:v[0-9]+]] = add arg0, 63
-    // CHECK: [[PADDED_OVERFLOW:v[0-9]+]] = lt [[PADDED]], arg0
-    // CHECK: icall panic_if<0x41>, [[PADDED_OVERFLOW]]
+    // CHECK: [[ROUNDED:v[0-9]+]] = add arg0, 31
     // CHECK: [[MASK:v[0-9]+]] = not 31
-    // CHECK: [[BYTES:v[0-9]+]] = and [[PADDED]], [[MASK]]
+    // CHECK: [[PADDED:v[0-9]+]] = and [[ROUNDED]], [[MASK]]
+    // CHECK: [[BYTES:v[0-9]+]] = add [[PADDED]], 32
+    // CHECK: [[BYTES_OVERFLOW:v[0-9]+]] = lt [[BYTES]], arg0
+    // CHECK: icall panic_if<0x41>, [[BYTES_OVERFLOW]]
     // CHECK: alloc zeroed checked [[BYTES]]
     function makeBytes(uint256 n) external pure returns (uint256) {
         bytes memory b = new bytes(n);

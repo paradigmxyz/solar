@@ -256,37 +256,36 @@ bb47 [ret=0, inputs=1, outputs=1]:  ; decode_calldata_type (synthesized)
   push bb6
   jumpi
   add
-  push 31
-  push 32
-  dup 3
-  calldataload
-  swap 3
-  dup 4
   dup 1
+  calldataload
+  swap 1
+  push 32
+  add
   push 63
+  dup 3
   add
-  swap 4
+  push 31
   not
-  dup 5
   and
-  push 160
-  add
-  swap 4
+  dup 3
+  dup 2
   lt
-  dup 4
+  push 160
+  swap 2
+  dup 3
+  add
+  dup 3
+  dup 2
+  lt
+  dup 2
   push 64
   shr
-  dup 5
-  push 160
-  gt
   or
+  swap 1
+  swap 2
   or
   push bb15
   jumpi
-  add
-  swap 1
-  push 160
-  swap 1
   push 64
   mstore
   dup 3
