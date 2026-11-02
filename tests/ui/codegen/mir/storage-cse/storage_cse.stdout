@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/cse/storage_cse.mir (before storage-cse) ===
-+ // === ROOT/tests/ui/codegen/mir/cse/storage_cse.mir (after storage-cse) ===
+- // === ROOT/tests/ui/codegen/mir/storage-cse/storage_cse.mir (before storage-cse) ===
++ // === ROOT/tests/ui/codegen/mir/storage-cse/storage_cse.mir (after storage-cse) ===
   @module StorageCse
   fn @reuse_across_disjoint_constant_store() -> i256 {
     bb0:

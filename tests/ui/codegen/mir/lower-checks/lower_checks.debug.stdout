@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lowering/lower_checks.mir (before lower-checks) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/lower_checks.mir (after lower-checks) ===
+- // === ROOT/tests/ui/codegen/mir/lower-checks/lower_checks.mir (before lower-checks) ===
++ // === ROOT/tests/ui/codegen/mir/lower-checks/lower_checks.mir (after lower-checks) ===
   @module LowerChecks
   fn @branch_checks(arg0: i1, arg1: i256) -> i256 {
     bb0:
