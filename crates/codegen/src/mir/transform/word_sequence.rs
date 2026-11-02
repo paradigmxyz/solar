@@ -402,8 +402,11 @@ fn run(func: &mut Function, target: &Target, pass: &WordSequence) -> bool {
             if !removable(func, func.inst(inst), target) {
                 let instruction = func.inst(inst);
                 // Spelling a test moves no read: it adds pure operations at the test, so only a
-                // write, a call or an observation of the execution ends the segment.
-                if !(spelling && instruction.kind.effect_kind().is_read_only())
+                // write, a call or an observation of the execution ends the segment, and the
+                // remaining gas is one.
+                let reads_only = instruction.kind.effect_kind().is_read_only()
+                    && !instruction.kind.observes_gas();
+                if !(spelling && reads_only)
                     && (!is_pure(instruction) || !instruction.kind.effects().can_speculate())
                 {
                     seen.clear();

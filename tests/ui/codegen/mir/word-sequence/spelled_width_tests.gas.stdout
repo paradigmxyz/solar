@@ -88,3 +88,13 @@
       ret v0
   }
   
+  fn @gas_barrier(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = not arg0
+      v1 = not arg1
+      v2 = gas
+      v3 = and v0, v1
+      v4 = xor v3, v2
+      ret v4
+  }
+  
