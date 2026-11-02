@@ -13,6 +13,7 @@ divergence entry is [TYPECK-022](SOLC_DIVERGENCE.md#typeck-022-customsolar--tags
 | `solar-safe [memory] [arithmetic]` | a contract or a library | No inline assembly by default; checked arithmetic is an optional requirement. |
 | `solar-trusted` | a function, a modifier, a contract, or a library | Reviewed code that `solar-safe` takes on trust. |
 | `solar-inline [always\|never]` | a function that internal calls reach | Favor inlining it, always inline it, or never inline it. |
+| `solar-cold` | a function with a body | The function is rarely run: price it by bytes, and keep it out of the hot path. |
 | `solar-optimize gas` or `size` | a non-abstract contract, a library, or a function with a body | Optimize its code for this objective instead of the build's, even in an `-O none` build. |
 
 ## `solar-safe` and `solar-trusted`
@@ -70,6 +71,27 @@ each call by the objective of the function that makes it.
   objective, without weighing the gas it saves or the shape of its body. The bound is the
   target's cost model (`Target::inline_hint_admits`). The legality, stack, and caller growth
   budgets still apply, so the hint never inlines a call that the inliner may not.
+
+## `solar-cold`
+
+```solidity
+/// @custom:solar-cold
+function rebalance() internal { ... }
+```
+
+The tag documents a function with a body that is not a constructor, a modifier, or a `receive` or
+`fallback` function, appears once, and takes no argument. It is `#[cold]` in rustc: the function
+is rarely run, and may still return. The compiler prices its code like the code of a failure path,
+by bytes rather than gas, and the gas objective lays it out of the way of the code that runs. The
+code behind a call to it that only a cold edge enters, such as a branch into the call, is cold
+too; a call on the only path leaves its caller hot, since the code after a call that returns still
+runs. In an `-O none` build the function's own code is cold, and the code behind its calls is not.
+The inliner clones it only where that saves bytes, unless `solar-inline always` asks for every
+clone.
+
+The tag never makes a call an abort. Code after a call to a cold function runs, as it does after a
+call to any function that returns, so the compiler does not treat that code as unreachable or
+assume the path through the call is never taken.
 
 ## `solar-optimize`
 
