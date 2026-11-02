@@ -10,7 +10,7 @@
 //!
 //! This rewrite builds a second candidate for the planner, a copy of the function in which the
 //! values that cross a crowded point, a point where more words than the reach are live, are cheap
-//! to compute again:
+//! to compute again, and the loop-carried values only the code after the loop reads:
 //!
 //! - Values that differ by a constant: an affine form, a wrapping sum of other words times
 //!   constants plus a constant, groups the crossing values whose words and factors agree, such as a
@@ -18,6 +18,10 @@
 //!   dominates the others' becomes the group's base, and every other member is computed as `base +
 //!   (c - c_base)`, or a subtraction when that constant is shorter. The base then stays live in
 //!   place of the members, and each member costs one addition.
+//! - A loop-carried value whose step is a constant: a header phi `old` whose uses, besides the
+//!   header's own, lie outside its loop, while the header computes `next = old + c`. Carrying both
+//!   words through the loop's branch costs a drop on every backedge, so each use outside the loop
+//!   computes `old` as `next - c` instead, and `old` dies at the step.
 //! - Every crossing value is computed again right before each of its uses past a crowded point, in
 //!   its own block after the point or in later blocks: a member from its base, any other value from
 //!   its own operation chain of at most [`MAX_REBUILT_OPS`] opcodes when every stack word the chain
@@ -77,7 +81,7 @@ const MAX_AFFINE_TERMS: usize = 4;
 
 /// How a value is computed again.
 enum Recipe {
-    /// From another value plus a wrapping constant; its definition is replaced too.
+    /// From another value plus a wrapping constant.
     Offset(ValueId, U256),
     /// From its own operations, operands first.
     Chain(Chain),
@@ -91,6 +95,9 @@ type Chain = SmallVec<[InstId; 4]>;
 
 /// The stack words an operation chain reads.
 type Leaves = SmallVec<[ValueId; 2]>;
+
+/// The uses of a value by block and position, a terminator's at the block's length.
+type Uses = SmallVec<[(BlockId, usize); 4]>;
 
 /// A word as a wrapping sum of other words times constants, plus a constant.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -135,10 +142,12 @@ impl Affine {
     }
 }
 
-/// Returns a copy of `func` that computes the values crossing its crowded points again, as the
-/// module documentation describes, or `None` when no value qualifies. `extra` counts the words
-/// the stack holds besides the live values, such as the return address.
-pub(super) fn rebuild_crowded_values(
+/// Returns a copy of `func` that computes values again, as the module documentation describes, or
+/// `None` when no value qualifies. The values crossing crowded points qualify only when `spills`,
+/// the function's first plan spills. `extra` counts the words the stack holds besides the live
+/// values, such as the return address.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn rebuild_values(
     func: &Function,
     internal: bool,
     liveness: &Liveness,
@@ -146,9 +155,14 @@ pub(super) fn rebuild_crowded_values(
     loops: &LoopInfo,
     reach: usize,
     extra: usize,
+    spills: bool,
 ) -> Option<Function> {
     let fresh = |value: ValueId| materialized_at_use(func, internal, value);
-    let (crowded, points) = crowded_points(func, liveness, &fresh, reach, extra)?;
+    let (crowded, points) = if spills {
+        crowded_points(func, liveness, &fresh, reach, extra)
+    } else {
+        (DenseBitSet::new_empty(func.num_values()), FxHashMap::default())
+    };
     let mut defs = FxHashMap::<ValueId, (BlockId, usize)>::default();
     for (block, data) in func.blocks.iter_enumerated() {
         for (index, &inst) in data.instructions.iter().enumerate() {
@@ -162,22 +176,17 @@ pub(super) fn rebuild_crowded_values(
         .filter(|&value| !fresh(value) && defs.contains_key(&value) && rebuildable(func, value))
         .collect();
 
-    // The uses of a value past a crowded point, or `None` when one of them cannot take a copy.
     let containing = |block: BlockId| {
         loops.all_loops().filter(move |lp| lp.blocks.contains(block)).map(|lp| lp.header)
     };
-    let uses_past_crowding = |value: ValueId| -> Option<SmallVec<[(BlockId, usize); 4]>> {
-        let (home, def_index) = defs[&value];
-        let first_point = points
-            .get(&home)
-            .and_then(|points| points.iter().copied().find(|&point| point > def_index));
-        let home_loops: SmallVec<[BlockId; 2]> = containing(home).collect();
-        let mut uses = SmallVec::new();
+    // The uses of a value that `wanted` accepts by block and position, or `None` when one of them
+    // is a phi input, which cannot take a copy.
+    let uses_where = |value: ValueId, wanted: &dyn Fn(BlockId, usize) -> bool| -> Option<Uses> {
+        let mut uses = Uses::new();
         for (block, data) in func.blocks.iter_enumerated() {
-            let past = |index| block != home || first_point.is_some_and(|point| point <= index);
             for (index, &inst) in data.instructions.iter().enumerate() {
                 let kind = &func.inst(inst).kind;
-                if past(index) && kind.operands().contains(&value) {
+                if wanted(block, index) && kind.operands().contains(&value) {
                     if matches!(kind, InstKind::Phi(_)) {
                         return None;
                     }
@@ -185,12 +194,24 @@ pub(super) fn rebuild_crowded_values(
                 }
             }
             let end = data.instructions.len();
-            if past(end)
+            if wanted(block, end)
                 && data.terminator.as_ref().is_some_and(|term| term.operands().contains(&value))
             {
                 uses.push((block, end));
             }
         }
+        Some(uses)
+    };
+    // The uses of a value past a crowded point, or `None` when one of them cannot take a copy.
+    let uses_past_crowding = |value: ValueId| -> Option<Uses> {
+        let (home, def_index) = defs[&value];
+        let first_point = points
+            .get(&home)
+            .and_then(|points| points.iter().copied().find(|&point| point > def_index));
+        let home_loops: SmallVec<[BlockId; 2]> = containing(home).collect();
+        let uses = uses_where(value, &|block, index| {
+            block != home || first_point.is_some_and(|point| point <= index)
+        })?;
         // A copy inside a loop that does not contain the definition runs on every iteration.
         for &(block, _) in &uses {
             if !containing(block).all(|header| home_loops.contains(&header)) {
@@ -233,6 +254,8 @@ pub(super) fn rebuild_crowded_values(
     };
     let mut recipes = FxHashMap::<ValueId, Recipe>::default();
     let mut bases = FxHashSet::<ValueId>::default();
+    // The members whose definitions become additions to their bases.
+    let mut replaced = Vec::<(ValueId, ValueId, U256)>::new();
     for members in groups.values().filter(|members| members.len() > 1) {
         let Some(&base) =
             members.iter().find(|&&base| members.iter().all(|&other| dominates(base, other)))
@@ -243,6 +266,31 @@ pub(super) fn rebuild_crowded_values(
         for &member in members.iter().filter(|&&member| member != base) {
             let offset = forms[&member].constant.wrapping_sub(forms[&base].constant);
             recipes.insert(member, Recipe::Offset(base, offset));
+            replaced.push((member, base, offset));
+        }
+    }
+    // A header phi `old` read after its loop, from the step `next = old + c` the header computes:
+    // `old = next - c`.
+    let mut exits = FxHashMap::<ValueId, Uses>::default();
+    for (header, data) in func.blocks.iter_enumerated() {
+        for &inst in &data.instructions {
+            let InstKind::Phi(incoming) = &func.inst(inst).kind else { continue };
+            let Some(old) = func.inst_result_value(inst) else { continue };
+            let step = incoming.iter().find_map(|&(_, next)| {
+                let form = affine_form(func, next, &mut 0)?;
+                (next != old
+                    && defs.get(&next).is_some_and(|&(block, _)| block == header)
+                    && form.terms.as_slice() == [(old, U256::ONE)])
+                .then_some((next, form.constant))
+            });
+            if let Some((next, step)) = step
+                && let Some(uses) =
+                    uses_where(old, &|block, _| !containing(block).any(|other| other == header))
+                && !uses.is_empty()
+            {
+                recipes.insert(old, Recipe::Offset(next, step.wrapping_neg()));
+                exits.insert(old, uses);
+            }
         }
     }
     for &value in &candidates {
@@ -264,22 +312,16 @@ pub(super) fn rebuild_crowded_values(
     // Each use that reads a copy, by block and position.
     let mut sites = FxHashMap::<BlockId, Vec<(usize, ValueId)>>::default();
     for &value in recipes.keys() {
-        for (block, index) in uses_past_crowding(value).unwrap_or_default() {
+        let uses = exits.remove(&value).or_else(|| uses_past_crowding(value));
+        for (block, index) in uses.unwrap_or_default() {
             sites.entry(block).or_default().push((index, value));
         }
     }
 
     let mut result = func.clone();
     // v = <operations over the base's words>  ->  v = add base, offset
-    let mut members: Vec<(ValueId, ValueId, U256)> = recipes
-        .iter()
-        .filter_map(|(&value, recipe)| match *recipe {
-            Recipe::Offset(base, offset) => Some((value, base, offset)),
-            Recipe::Chain(_) => None,
-        })
-        .collect();
-    members.sort_unstable_by_key(|&(value, ..)| value);
-    for (value, base, offset) in members {
+    replaced.sort_unstable_by_key(|&(value, ..)| value);
+    for (value, base, offset) in replaced {
         let Value::Inst(def) = *result.value(value) else { unreachable!("rebuilt instruction") };
         let kind = offset_kind(&mut result, base, offset);
         result.inst_mut(def).replace_kind(kind);
@@ -362,14 +404,14 @@ pub(super) fn rebuild_crowded_values(
 /// The crowded points: per block, the positions right before an instruction, or before the
 /// terminator at the block's length, where more stack words than `reach` are live, counting
 /// `extra` words besides the live values that are not pushed fresh. Returns the values live at
-/// any such point and the points of each block in order, or `None` when there is none.
+/// any such point and the points of each block in order.
 fn crowded_points(
     func: &Function,
     liveness: &Liveness,
     fresh: &dyn Fn(ValueId) -> bool,
     reach: usize,
     extra: usize,
-) -> Option<(DenseBitSet<ValueId>, FxHashMap<BlockId, Points>)> {
+) -> (DenseBitSet<ValueId>, FxHashMap<BlockId, Points>) {
     let mut crowded = DenseBitSet::new_empty(func.num_values());
     let mut points = FxHashMap::<BlockId, Points>::default();
     let mut live = DenseBitSet::new_empty(func.num_values());
@@ -414,7 +456,7 @@ fn crowded_points(
             points.insert(block, block_points);
         }
     }
-    (!points.is_empty()).then_some((crowded, points))
+    (crowded, points)
 }
 
 /// The affine form of a 256-bit word through at most [`MAX_AFFINE_OPS`] additions,

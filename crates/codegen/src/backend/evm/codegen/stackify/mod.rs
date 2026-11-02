@@ -795,11 +795,17 @@ impl<'gcx> EvmCodegen<'gcx> {
         let analysis =
             analysis.get_or_insert_with(|| self.analyze(func, info, func_id, hazards, writers));
         let mut plan = self.plan_function_stackified(func, info, func_id, analysis, call_spill)?;
-        // A first plan that spills competes with one that computes cheap values again instead.
+        // A first plan competes with one that computes cheap values again instead.
         if call_spill == CallSpill::None
-            && plan.spill_words() != 0
-            && let Some(rebuilt) =
-                self.plan_rebuilt(func, info, func_id, analysis, hazards, writers)
+            && let Some(rebuilt) = self.plan_rebuilt(
+                func,
+                info,
+                func_id,
+                analysis,
+                hazards,
+                writers,
+                plan.spill_words() != 0,
+            )
             && self.prices_lower(info, func_id, &rebuilt, &plan)
         {
             plan = rebuilt;
@@ -1047,8 +1053,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         Some(chain)
     }
 
-    /// Plans the copy of `func` that rebuilds cheap values past its crowded points, when it has
-    /// one; see [`rebuild`].
+    /// Plans the copy of `func` that computes cheap values again, when it has one; see [`rebuild`].
+    /// `spills` tells whether the first plan spills.
+    #[allow(clippy::too_many_arguments)]
     fn plan_rebuilt(
         &self,
         func: &Function,
@@ -1057,13 +1064,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         analysis: &Analysis,
         hazards: &FxHashSet<InstId>,
         writers: &DenseBitSet<FunctionId>,
+        spills: bool,
     ) -> Option<FunctionPlan> {
         let target = self.target(info, func_id);
         if !(target.optimization().is_gas() || target.optimization().is_size()) {
             return None;
         }
         let internal = info.internal.contains(func_id);
-        let rebuilt = rebuild::rebuild_crowded_values(
+        let rebuilt = rebuild::rebuild_values(
             func,
             internal,
             &analysis.liveness,
@@ -1071,6 +1079,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             &analysis.loops,
             self.gcx.sess.opts.evm_version.reachable_stack_depth(),
             usize::from(info.returning.contains(func_id)),
+            spills,
         )?;
         let analysis = self.analyze(&rebuilt, info, func_id, hazards, writers);
         let mut plan = self
