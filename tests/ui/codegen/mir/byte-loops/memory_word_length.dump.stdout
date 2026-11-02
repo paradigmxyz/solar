@@ -26,18 +26,18 @@ fn @copy() [selector=0xf5088730, abi_wrapper, pure] {
   bb17:  ; preds = bb0
     v125 = heap_floor !metadata(alloc_ptr)
     v126 = add v125, 96 !metadata(alloc_ptr)
-    v140 = shr v126, 64
+    v139 = shr v126, 64
     v127 = lt v126, v125
-    v142 = zext i1 v127 to i256
-    v143 = or v140, v142
-    v129 = ne v143, 0
+    v141 = zext i1 v127 to i256
+    v142 = or v139, v141
+    v129 = ne v142, 0
     jumpi v129, bb19, bb18
   bb18:  ; preds = bb17
     mstore 64, v126 !metadata(memory=scratch)
     mstore v125, 2
     v132 = add v126, 96
-    v145 = shr v132, 64
-    v134 = ne v145, 0
+    v144 = shr v132, 64
+    v134 = ne v144, 0
     jumpi v134, bb19, bb20
   bb20:  ; preds = bb18
     mstore 64, v132 !metadata(memory=scratch)

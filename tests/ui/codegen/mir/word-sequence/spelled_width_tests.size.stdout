@@ -102,3 +102,20 @@
       ret v4
   }
   
+  fn @leaf_gas_barrier(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+-     v0 = gt arg0, 0xffffffffffffffff
++     v5 = shr arg0, 64
++     v0 = ne v5, 0
+      v1 = zext i1 v0 to i256
+      v2 = gas
+-     v3 = or v1, arg1
++     v3 = or v5, arg1
+      v4 = ne v3, 0
+      jumpi v4, bb1, bb2
+    bb2:  ; preds = bb0
+      ret v2
+    bb1 [cold]:  ; preds = bb0
+      revert 0, 0
+  }
+  

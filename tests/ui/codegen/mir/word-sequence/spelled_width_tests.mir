@@ -126,3 +126,23 @@ fn @gas_barrier(arg0: i256, arg1: i256) -> i256 {
     v4 = xor v3, v2
     ret v4
 }
+
+// A width test that joins a zero-tested word as a shift is computed where the comparison was, so
+// it stays before an observation of the remaining gas.
+// CHECK-LABEL: {{^[ +].*}}fn @leaf_gas_barrier{{[( ]}}
+// CHECK: [[HIGH:v[0-9]+]] = shr arg0, 64
+// CHECK: = gas
+// CHECK: = or [[HIGH]], arg1
+fn @leaf_gas_barrier(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = gt arg0, 0xffffffffffffffff
+    v1 = zext i1 v0 to i256
+    v2 = gas
+    v3 = or v1, arg1
+    v4 = ne v3, 0
+    jumpi v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    ret v2
+}

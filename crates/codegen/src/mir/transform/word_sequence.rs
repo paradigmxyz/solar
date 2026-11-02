@@ -538,20 +538,27 @@ fn spell_zero_tested(func: &mut Function, target: &Target, cyclic: &DenseBitSet<
     let mut changed = false;
     for block in func.blocks.indices() {
         let original = func.blocks[block].instructions.clone();
-        let mut spelled = Vec::with_capacity(original.len());
+        let defined = original.iter().copied().collect::<FxHashSet<_>>();
+        // The shifts, each placed where the comparison it replaces was computed.
+        let mut shifts = FxHashMap::default();
         for &inst in &original {
             if let InstKind::Or(a, b) = func.inst(inst).kind
                 && func.inst_result_value(inst).is_some_and(|value| tested.contains(&value))
             {
                 let in_loop = cyclic.contains(block);
                 let [a, b] = [a, b].map(|leaf| {
-                    let (word, inserted) = zero_tested_leaf(func, target, &uses, leaf, in_loop);
+                    let (word, shift) =
+                        zero_tested_leaf(func, target, &uses, &defined, leaf, in_loop);
                     changed |= word != leaf;
-                    spelled.extend(inserted);
+                    shifts.extend(shift);
                     word
                 });
                 func.inst_mut(inst).replace_kind(InstKind::Or(a, b));
             }
+        }
+        let mut spelled = Vec::with_capacity(original.len() + shifts.len());
+        for &inst in &original {
+            spelled.extend(shifts.remove(&inst));
             spelled.push(inst);
         }
         func.blocks[block].instructions = spelled;
@@ -560,14 +567,16 @@ fn spell_zero_tested(func: &mut Function, target: &Target, cyclic: &DenseBitSet<
 }
 
 /// The word that stands for `leaf` in a word that only a zero test reads, and the instruction
-/// that computes it, when it is not `leaf` itself.
+/// that computes it with the comparison it replaces, when it is not `leaf` itself. The shift goes
+/// where that comparison is, so no work moves across an observation of the execution.
 fn zero_tested_leaf(
     func: &mut Function,
     target: &Target,
     uses: &IndexVec<ValueId, u32>,
+    defined: &FxHashSet<InstId>,
     leaf: ValueId,
     in_loop: bool,
-) -> (ValueId, Option<InstId>) {
+) -> (ValueId, Option<(InstId, InstId)>) {
     let Some(&InstKind::Zext(test)) = func.value_inst_kind(leaf) else { return (leaf, None) };
     if uses[leaf] != 1 {
         return (leaf, None);
@@ -583,6 +592,8 @@ fn zero_tested_leaf(
         // zext (x > 2 ** k - 1) => x >> k
         Some(InstKind::Gt(word, limit))
             if func.value_ty(word) == Some(MirType::I256)
+                && let Value::Inst(comparison) = *func.value(test)
+                && defined.contains(&comparison)
                 && let Some(limit) = func.value_u256(limit)
                 && let Some(bits) = limit
                     .checked_add(U256::ONE)
@@ -597,7 +608,7 @@ fn zero_tested_leaf(
                 Instruction::new(InstKind::Shr(shift, word), Some(MirType::I256))
                     .with_debug_info_dropped(),
             );
-            (word, Some(inst))
+            (word, Some((comparison, inst)))
         }
         _ => (leaf, None),
     }

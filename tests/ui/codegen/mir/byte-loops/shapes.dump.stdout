@@ -997,8 +997,8 @@ fn @copyWords() [selector=0xaedd6ca2, abi_wrapper, pure] {
     jumpi v10, bb6, bb7
   bb7:  ; preds = bb14
     v11 = shl v9, 5
-    v116 = shr v9, 251
-    v12 = ne v116, 0
+    v115 = shr v9, 251
+    v12 = ne v115, 0
     jumpi v12, bb6, bb8
   bb8:  ; preds = bb7
     v110 = icall @alloc, v11
