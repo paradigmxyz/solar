@@ -93,6 +93,7 @@ pub(super) fn inline_guards(gcx: Gcx<'_>, module: &mut Module) -> bool {
 }
 
 fn profitable(target: &Target, guard: &Guard) -> bool {
+    let target = &target.priced_for_callee(&guard.function.attributes);
     let prefix = target.block_code_estimate(&guard.function, BlockId::ENTRY);
     let protocol = target.icall(guard.function.params.len(), 0, 0)
         + target.internal_return(guard.function.params.len(), 0);

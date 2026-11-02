@@ -778,6 +778,13 @@ parsed `cold` is overwritten, and after every pass that changes the module, so p
 backend read current values. The gas objective prices cold code like a size build, because it
 does not run on a successful call and its bytes are deposited anyway.
 
+A function the `@custom:solar-cold` tag marks carries the attribute `cold_hint`, which parsing
+keeps. It says the function is rarely run and nothing about whether it returns, so it never makes a
+call an abort and leaves `cold` alone. Every block of the function is cold, and so is the code
+behind a call to it that only a cold edge enters, such as a branch into the call. A call on the only
+path leaves its caller hot. The function and the inliner's decision to clone it are priced like
+cold code.
+
 The scheduler carries known loop membership into EVM IR, and block merging
 preserves it. Gas-mode outlining keeps loop computations and large pushes
 inline, except in cold blocks, whose sites it prices by bytes alone. Tail
