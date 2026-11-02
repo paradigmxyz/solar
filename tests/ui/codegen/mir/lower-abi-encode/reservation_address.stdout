@@ -1,6 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (before lower-abi-encode) ===
 + // === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (after lower-abi-encode) ===
   @module ReservationAddress
+  ; selector 0x01020304
   fn @encode_empty() [selector=0x01020304, pure] {
     bb0:
       v0 = make_calldata_slice ptr<calldata> 0, 0
@@ -38,6 +39,7 @@
 - // === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (after egraph) ===
   @module ReservationAddress
+  ; selector 0x01020304
   fn @encode_empty() [selector=0x01020304, pure] {
     bb0:
       v0 = make_calldata_slice ptr<calldata> 0, 0
@@ -76,6 +78,7 @@
 - // === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (after dce) ===
   @module ReservationAddress
+  ; selector 0x01020304
   fn @encode_empty() [selector=0x01020304, pure] {
     bb0:
 -     v0 = make_calldata_slice ptr<calldata> 0, 0
@@ -98,6 +101,7 @@
 - // === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (before defer-alloc) ===
 + // === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (after defer-alloc) ===
   @module ReservationAddress
+  ; selector 0x01020304
   fn @encode_empty() [selector=0x01020304, pure] {
     bb0:
       v4 = fmp

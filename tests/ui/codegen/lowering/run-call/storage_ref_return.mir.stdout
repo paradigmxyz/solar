@@ -3,12 +3,14 @@
 @types
   struct0: {i256, i256}
 
+; function _getPool(bytes32 id) internal view returns (State storage)
 fn @_getPool(arg0: i256) -> i256 [view] {
   bb0:
     v0 = mapping_slot arg0, 0
     ret v0
 }
 
+; function run() external returns (uint256, uint256) [selector 0xc0406226]
 fn @run() -> struct0 [selector=0xc0406226, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = mapping_slot 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd, 0

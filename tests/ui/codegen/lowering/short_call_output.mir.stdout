@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256}
 
+; function shortOutput() external returns (bool success, uint256 word) [selector 0x66ec2a88]
 fn @shortOutput() -> struct0 [selector=0x66ec2a88, abi_params=[], abi_returns=[word<bool>, word], abi_return_params=[bool, uint256]] {
   bb0:
     mstore 0, 7 !metadata(memory=scratch)

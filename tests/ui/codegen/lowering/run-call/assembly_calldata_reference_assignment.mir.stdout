@@ -4,6 +4,7 @@
   struct0: {i256, i256}
   struct1: {i256, i256, i256}
 
+; function structs(One calldata first, Two calldata second) external pure returns (uint256, uint256) [selector 0x46afc9f8]
 fn @structs(arg0: slice<calldata>, arg1: slice<calldata>) -> struct0 [selector=0x46afc9f8, pure, abi_params=[tuple<uint256>, tuple<uint256, uint256>], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg1, 0
@@ -25,6 +26,7 @@ fn @structs(arg0: slice<calldata>, arg1: slice<calldata>) -> struct0 [selector=0
     ret v15
 }
 
+; function staticArray(uint256[2][2] calldata values) external pure returns (uint256, uint256) [selector 0xaa2fa031]
 fn @staticArray(arg0: slice<calldata>) -> struct0 [selector=0xaa2fa031, pure, abi_params=[array<2, array<2, uint256>>], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -68,6 +70,7 @@ fn @staticArray(arg0: slice<calldata>) -> struct0 [selector=0xaa2fa031, pure, ab
     ret v33
 }
 
+; function dynamicArray(uint256[2][] calldata values) external pure returns (uint256, uint256, uint256) [selector 0xb8731349]
 fn @dynamicArray(arg0: slice<calldata>) -> struct1 [selector=0xb8731349, pure, abi_params=[array<_, array<2, uint256>>], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -115,6 +118,7 @@ fn @dynamicArray(arg0: slice<calldata>) -> struct1 [selector=0xb8731349, pure, a
     ret v37
 }
 
+; function dynamicWords(uint256[] calldata values) external pure returns (uint256[] memory) [selector 0x148d46ad]
 fn @dynamicWords(arg0: slice<calldata>) -> ptr<memory> [selector=0x148d46ad, pure, abi_params=[array<_, uint256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -149,6 +153,7 @@ fn @dynamicWords(arg0: slice<calldata>) -> ptr<memory> [selector=0x148d46ad, pur
     ret v18
 }
 
+; function dynamicFixed(uint256[2][] calldata values) external pure returns (uint256[2][] memory) [selector 0x71cafd78]
 fn @dynamicFixed(arg0: slice<calldata>) -> ptr<memory> [selector=0x71cafd78, pure, abi_params=[array<_, array<2, uint256>>], abi_returns=[memory_array<array<2, word>>], abi_return_params=[array<_, array<2, uint256>>]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -176,13 +181,13 @@ fn @dynamicFixed(arg0: slice<calldata>) -> ptr<memory> [selector=0x71cafd78, pur
     v18 = alloc v16
     mstore v18, v4
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v19 = phi [bb0: 0], [bb2: v35]
     v20 = lt v19, v4
     jumpi v20, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     ret v18
-  bb2:
+  bb2:  ; preds = bb1
     v21 = mul v19, 64
     v22 = shr v19, 250
     v23 = ne v22, 0
@@ -204,6 +209,7 @@ fn @dynamicFixed(arg0: slice<calldata>) -> ptr<memory> [selector=0x71cafd78, pur
     jump bb1
 }
 
+; function dynamicNarrow(uint8[] calldata values) external pure returns (uint8[] memory) [selector 0x320b552a]
 fn @dynamicNarrow(arg0: slice<calldata>) -> ptr<memory> [selector=0x320b552a, pure, abi_params=[array<_, uint8>], abi_returns=[memory_array<word<uint8>>], abi_return_params=[array<_, uint8>]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -231,13 +237,13 @@ fn @dynamicNarrow(arg0: slice<calldata>) -> ptr<memory> [selector=0x320b552a, pu
     v18 = alloc v16
     mstore v18, v4
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v19 = phi [bb0: 0], [bb2: v31]
     v20 = lt v19, v4
     jumpi v20, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     ret v18
-  bb2:
+  bb2:  ; preds = bb1
     v21 = mul v19, 32
     v22 = ptrtoint ptr<calldata> v5 to i256
     v23 = add v22, v21
@@ -254,6 +260,7 @@ fn @dynamicNarrow(arg0: slice<calldata>) -> ptr<memory> [selector=0x320b552a, pu
     jump bb1
 }
 
+; function dynamicNested(uint256[][] calldata values) external pure returns (uint256[][] memory) [selector 0x24abb2f5]
 fn @dynamicNested(arg0: slice<calldata>) -> ptr<memory> [selector=0x24abb2f5, pure, abi_params=[array<_, array<_, uint256>>], abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, uint256>>]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -281,13 +288,13 @@ fn @dynamicNested(arg0: slice<calldata>) -> ptr<memory> [selector=0x24abb2f5, pu
     v18 = alloc v16
     mstore v18, v4
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v19 = phi [bb0: 0], [bb2: v58]
     v20 = lt v19, v4
     jumpi v20, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     ret v18
-  bb2:
+  bb2:  ; preds = bb1
     v21 = mul v19, 32
     v22 = ptrtoint ptr<calldata> v5 to i256
     v23 = add v22, v21
@@ -338,6 +345,7 @@ fn @dynamicNested(arg0: slice<calldata>) -> ptr<memory> [selector=0x24abb2f5, pu
     jump bb1
 }
 
+; function dynamicOverflow(uint256[] calldata values) external pure returns (uint256[] memory) [selector 0x51072adf]
 fn @dynamicOverflow(arg0: slice<calldata>) -> ptr<memory> [selector=0x51072adf, pure, abi_params=[array<_, uint256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -372,6 +380,7 @@ fn @dynamicOverflow(arg0: slice<calldata>) -> ptr<memory> [selector=0x51072adf, 
     ret v18
 }
 
+; function dynamicEmptyAtEnd(uint256[] calldata values) external pure returns (uint256[] memory) [selector 0x93d2ba08]
 fn @dynamicEmptyAtEnd(arg0: slice<calldata>) -> ptr<memory> [selector=0x93d2ba08, pure, abi_params=[array<_, uint256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     v0 = calldatasize
@@ -408,6 +417,7 @@ fn @dynamicEmptyAtEnd(arg0: slice<calldata>) -> ptr<memory> [selector=0x93d2ba08
     ret v20
 }
 
+; function dynamicEmptyPastEnd(uint256[] calldata values) external pure returns (uint256[] memory) [selector 0x77beb5ce]
 fn @dynamicEmptyPastEnd(arg0: slice<calldata>) -> ptr<memory> [selector=0x77beb5ce, pure, abi_params=[array<_, uint256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     v0 = calldatasize
@@ -445,6 +455,7 @@ fn @dynamicEmptyPastEnd(arg0: slice<calldata>) -> ptr<memory> [selector=0x77beb5
     ret v21
 }
 
+; function dynamicWrappingEnd(uint256[] calldata values) external pure returns (uint256[] memory) [selector 0x4c797599]
 fn @dynamicWrappingEnd(arg0: slice<calldata>) -> ptr<memory> [selector=0x4c797599, pure, abi_params=[array<_, uint256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -479,6 +490,7 @@ fn @dynamicWrappingEnd(arg0: slice<calldata>) -> ptr<memory> [selector=0x4c79759
     ret v18
 }
 
+; function returnedSlice(bytes calldata values) external pure returns (bytes4) [selector 0x515c2822]
 fn @returnedSlice(arg0: slice<calldata>) -> i256 [selector=0x515c2822, pure, abi_params=[bytes], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = icall @slice, arg0, 0
@@ -489,6 +501,7 @@ fn @returnedSlice(arg0: slice<calldata>) -> i256 [selector=0x515c2822, pure, abi
     ret v4
 }
 
+; function emptyUnassignedSlice() external pure returns (uint256) [selector 0xfe14379c]
 fn @emptyUnassignedSlice() -> i256 [selector=0xfe14379c, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 0, 0
@@ -498,12 +511,14 @@ fn @emptyUnassignedSlice() -> i256 [selector=0xfe14379c, pure, abi_params=[], ab
     ret v3
 }
 
+; function sliceLength(bytes calldata value) internal pure returns (uint256)
 fn @sliceLength(arg0: slice<calldata>) -> i256 [pure] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     ret v0
 }
 
+; function slice(bytes calldata values, uint256 offset) internal pure returns (bytes calldata result)
 fn @slice(arg0: slice<calldata>, arg1: i256) -> slice<calldata> [pure] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0

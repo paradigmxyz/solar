@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/byte-loops/wrapped_memory_offsets.sol:Test ===
 @module Test
+; function bytesForward(uint256 count) external pure returns (bytes memory destination) [selector 0x79571ebe]
 fn @bytesForward(arg0: i256) -> ptr<memory> [selector=0x79571ebe, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -17,6 +18,7 @@ fn @bytesForward(arg0: i256) -> ptr<memory> [selector=0x79571ebe, pure, abi_para
     ret v0
 }
 
+; function bytesBackward(uint256 count) external pure returns (bytes memory destination) [selector 0x3704b700]
 fn @bytesBackward(arg0: i256) -> ptr<memory> [selector=0x3704b700, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -35,6 +37,7 @@ fn @bytesBackward(arg0: i256) -> ptr<memory> [selector=0x3704b700, pure, abi_par
     ret v0
 }
 
+; function wordsForward(uint256 count) external pure returns (uint256[] memory destination) [selector 0xb2066b6b]
 fn @wordsForward(arg0: i256) -> ptr<memory> [selector=0xb2066b6b, pure, abi_params=[uint256], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     v0 = alloc zeroed checked 128
@@ -69,6 +72,7 @@ fn @wordsForward(arg0: i256) -> ptr<memory> [selector=0xb2066b6b, pure, abi_para
     ret v0
 }
 
+; function bytesIntoHeader(uint256 count, bool sameObject) external pure returns (bool) [selector 0x10ca09ba]
 fn @bytesIntoHeader(arg0: i256, arg1: i1) -> i1 [selector=0x10ca09ba, pure, abi_params=[uint256, bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -78,25 +82,26 @@ fn @bytesIntoHeader(arg0: i256, arg1: i1) -> i1 [selector=0x10ca09ba, pure, abi_
     v2 = alloc zeroed checked 64
     mstore v2, 2
     jumpi arg1, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v3 = phi [bb1: v0], [bb2: v2]
     v4 = ptrtoint ptr<memory> v3 to i256
     mstore v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jumpi arg1, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     icall @_copyBytes, v0, v3, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0, arg0
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     icall @_copyBytesSelf, v3, arg0
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     ret true
 }
 
+; function freshWrapped(uint256 count) external pure returns (bytes memory) [selector 0x42a6a755]
 fn @freshWrapped(arg0: i256) -> ptr<memory> [selector=0x42a6a755, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -110,12 +115,13 @@ fn @freshWrapped(arg0: i256) -> ptr<memory> [selector=0x42a6a755, pure, abi_para
     ret v5
 }
 
+; function calldataIntoHeader(bytes calldata source, bytes memory destination, uint256 count) external pure returns (bool) [selector 0x428158c8]
 fn @calldataIntoHeader(arg0: slice<calldata>, arg1: ptr<memory>, arg2: i256) -> i1 [selector=0x428158c8, pure, abi_params=[bytes, bytes, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = ptrtoint ptr<memory> arg1 to i256
     v1 = add v0, 32
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v2 = phi [bb0: arg0], [bb3: v2]
     v3 = phi [bb0: v1], [bb3: v3]
     v4 = phi [bb0: arg2], [bb3: v4]
@@ -123,11 +129,11 @@ fn @calldataIntoHeader(arg0: slice<calldata>, arg1: ptr<memory>, arg2: i256) -> 
     v6 = phi [bb0: 0], [bb3: v26]
     v7 = lt v6, v4
     jumpi v7, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret true
-  bb4:
+  bb4:  ; preds = bb1
     v8 = extract_value slice<calldata>, v2, 1
     v9 = lt v6, v8
     v10 = eq v9, false
@@ -150,17 +156,18 @@ fn @calldataIntoHeader(arg0: slice<calldata>, arg1: ptr<memory>, arg2: i256) -> 
     v25 = ptradd v24, 32
     mstore8 v25, v22
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v26 = checked_add uint256, v6, 1
     jump bb1
 }
 
+; function _copyBytes(bytes memory source, bytes memory destination, uint256 sOff, uint256 dOff, uint256 count) private pure
 fn @_copyBytes(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256, arg3: i256, arg4: i256) [pure] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: arg2], [bb3: v2]
@@ -169,11 +176,11 @@ fn @_copyBytes(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256, arg3: i256, arg
     v5 = phi [bb0: 0], [bb3: v23]
     v6 = lt v5, v4
     jumpi v6, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret
-  bb4:
+  bb4:  ; preds = bb1
     v7 = checked_add uint256, v2, v5
     v8 = mload v0
     v9 = lt v7, v8
@@ -194,17 +201,18 @@ fn @_copyBytes(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256, arg3: i256, arg
     v22 = ptradd v21, 32
     mstore8 v22, v20
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v23 = checked_add uint256, v5, 1
     jump bb1
 }
 
+; function _copyBytesDown(bytes memory source, bytes memory destination, uint256 sOff, uint256 dOff, uint256 count) private pure
 fn @_copyBytesDown(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256, arg3: i256, arg4: i256) [pure] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: arg2], [bb3: v2]
@@ -213,11 +221,11 @@ fn @_copyBytesDown(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256, arg3: i256,
     v5 = phi [bb0: arg4], [bb3: v25]
     v6 = gt v5, 0
     jumpi v6, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret
-  bb4:
+  bb4:  ; preds = bb1
     v7 = checked_add uint256, v2, v5
     v8 = checked_sub uint256, v7, 1
     v9 = mload v0
@@ -240,17 +248,18 @@ fn @_copyBytesDown(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256, arg3: i256,
     v24 = ptradd v23, 32
     mstore8 v24, v22
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v25 = checked_sub uint256, v5, 1
     jump bb1
 }
 
+; function _copyWords(uint256[] memory source, uint256[] memory destination, uint256 sOff, uint256 dOff, uint256 count) private pure
 fn @_copyWords(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256, arg3: i256, arg4: i256) [pure] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: arg2], [bb3: v2]
@@ -259,11 +268,11 @@ fn @_copyWords(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256, arg3: i256, arg
     v5 = phi [bb0: 0], [bb3: v22]
     v6 = lt v5, v4
     jumpi v6, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret
-  bb4:
+  bb4:  ; preds = bb1
     v7 = checked_add uint256, v2, v5
     v8 = mload v0
     v9 = lt v7, v8
@@ -283,13 +292,14 @@ fn @_copyWords(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256, arg3: i256, arg
     v21 = ptradd v20, 32
     mstore v21, v14
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v22 = checked_add uint256, v5, 1
     jump bb1
 }
 
+; function _freshBytes(bytes memory source, uint256 offset, uint256 count) private pure returns (bytes memory destination)
 fn @_freshBytes(arg0: ptr<memory>, arg1: i256, arg2: i256) -> ptr<memory> [pure] {
   bb0:
     v0 = add arg2, 63
@@ -299,7 +309,7 @@ fn @_freshBytes(arg0: ptr<memory>, arg1: i256, arg2: i256) -> ptr<memory> [pure]
     v3 = alloc zeroed checked v2
     mstore v3, arg2
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v4 = phi [bb0: arg0], [bb3: v4]
     v5 = phi [bb0: arg1], [bb3: v5]
     v6 = phi [bb0: arg2], [bb3: v6]
@@ -307,15 +317,15 @@ fn @_freshBytes(arg0: ptr<memory>, arg1: i256, arg2: i256) -> ptr<memory> [pure]
     v8 = phi [bb0: 0], [bb3: v25]
     v9 = lt v8, v6
     jumpi v9, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     v26 = ptrtoint ptr<memory> v7 to i256
     v27 = add v26, 32
     v28 = add v27, v6
     mstore v28, 0
     ret v7
-  bb4:
+  bb4:  ; preds = bb1
     v10 = checked_add uint256, v5, v8
     v11 = mload v4
     v12 = lt v10, v11
@@ -335,27 +345,28 @@ fn @_freshBytes(arg0: ptr<memory>, arg1: i256, arg2: i256) -> ptr<memory> [pure]
     v24 = ptradd v23, 32
     mstore8 v24, v22
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v25 = checked_add uint256, v8, 1
     jump bb1
 }
 
+; function _copyBytesSelf(bytes memory buffer, uint256 count) private pure
 fn @_copyBytesSelf(arg0: ptr<memory>, arg1: i256) [pure] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v19]
     v3 = lt v2, v1
     jumpi v3, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret
-  bb4:
+  bb4:  ; preds = bb1
     v4 = mload v0
     v5 = lt v2, v4
     v6 = eq v5, false
@@ -375,9 +386,9 @@ fn @_copyBytesSelf(arg0: ptr<memory>, arg1: i256) [pure] {
     v18 = ptradd v17, 32
     mstore8 v18, v16
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v19 = checked_add uint256, v2, 1
     jump bb1
 }

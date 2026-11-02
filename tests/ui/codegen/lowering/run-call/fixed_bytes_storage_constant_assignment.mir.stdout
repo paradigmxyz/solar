@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_storage_constant_assignment.sol:FixedBytesStorageConstantAssignment ===
 @module FixedBytesStorageConstantAssignment
+; function structField() external returns (bytes2) [selector 0x3442156e]
 fn @structField() -> i256 [selector=0x3442156e, abi_params=[], abi_returns=[word<bytes2>], abi_return_params=[bytes2]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -12,6 +13,7 @@ fn @structField() -> i256 [selector=0x3442156e, abi_params=[], abi_returns=[word
     ret v4
 }
 
+; function stateVariable() external returns (bytes4) [selector 0xe1967eae]
 fn @stateVariable() -> i256 [selector=0xe1967eae, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))

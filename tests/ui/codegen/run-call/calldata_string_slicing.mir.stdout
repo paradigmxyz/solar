@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/run-call/calldata_string_slicing.sol:CalldataStringSlicing ===
 @module CalldataStringSlicing
+; function slice(string calldata value, uint256 split) external pure returns (string memory) [selector 0x8b150516]
 fn @slice(arg0: slice<calldata>, arg1: i256) -> ptr<memory> [selector=0x8b150516, pure, abi_params=[bytes, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -26,6 +27,7 @@ fn @slice(arg0: slice<calldata>, arg1: i256) -> ptr<memory> [selector=0x8b150516
     ret v18
 }
 
+; function segment(string calldata value, uint256 start, uint256 end) external pure returns (string memory) [selector 0xdfcfbb62]
 fn @segment(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0xdfcfbb62, pure, abi_params=[bytes, uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -61,6 +63,7 @@ fn @segment(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [selec
     ret v20
 }
 
+; function nested( string calldata value, uint256 outerStart, uint256 outerEnd, uint256 innerStart, uint256 innerEnd ) external pure returns (string memory) [selector 0xe1463c2d]
 fn @nested(arg0: slice<calldata>, arg1: i256, arg2: i256, arg3: i256, arg4: i256) -> ptr<memory> [selector=0xe1463c2d, pure, abi_params=[bytes, uint256, uint256, uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0

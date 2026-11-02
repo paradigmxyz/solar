@@ -1,43 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/memory-dse/dead_allocation_length.sol:DeadAllocationLength ===
 @module DeadAllocationLength
-fn @echo(arg0: slice<calldata>) -> ptr<memory> [selector=0x624fbfdc, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
-  bb0:
-    v0 = extract_value slice<calldata>, arg0, 1
-    v1 = add v0, 63
-    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v3 = alloc v2
-    mstore v3, v0
-    v4 = ptradd v3, 32
-    v5 = extract_value slice<calldata>, arg0, 0
-    v6 = extract_value slice<calldata>, arg0, 1
-    calldatacopy v4, v5, v6
-    ret v3
-}
-
-fn @fail(arg0: i256) [selector=0x132e4f3c, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
-  bb0:
-    mstore 0, arg0 !metadata(memory=scratch)
-    revert 0, 32
-}
-
-fn @halt() [selector=0x5ed7ca5b, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
-  bb0:
-    icall revert_if<empty>, true
-    invalid
-}
-
-fn @relay(arg0: slice<calldata>) -> ptr<memory> [selector=0x8f0d6f17, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
-  bb0:
-    v0 = address
-    v1 = gas
-    v2 = abi_encode [calldata_bytes], object, selector 0x624fbfdc00000000000000000000000000000000000000000000000000000000, args arg0
-    v3 = address_call v0, v2, gas v1
-    v4 = icall returndata_bytes<>
-    v5 = eq v3, false
-    icall revert_if<empty>, v5
-    ret v4
-}
-
+; fallback(bytes calldata input) external returns (bytes memory) [fallback]
 fn @fallback(arg0: slice<calldata>) -> ptr<memory> [fallback] {
   bb0:
     v0 = address
@@ -61,14 +24,56 @@ fn @fallback(arg0: slice<calldata>) -> ptr<memory> [fallback] {
     v16 = icall returndata_bytes<>
     v17 = eq v15, false
     jumpi v17, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     ret v16
-  bb1:
+  bb1:  ; preds = bb0
     v18 = ptrtoint ptr<memory> v16 to i256
     v19 = mload v16
     v20 = ptrtoint ptr<memory> v16 to i256
     v21 = add v20, 32
     revert v21, v19
+}
+
+; function echo(bytes calldata data) external pure returns (bytes memory) [selector 0x624fbfdc]
+fn @echo(arg0: slice<calldata>) -> ptr<memory> [selector=0x624fbfdc, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = add v0, 63
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v3 = alloc v2
+    mstore v3, v0
+    v4 = ptradd v3, 32
+    v5 = extract_value slice<calldata>, arg0, 0
+    v6 = extract_value slice<calldata>, arg0, 1
+    calldatacopy v4, v5, v6
+    ret v3
+}
+
+; function fail(uint256 code) external pure [selector 0x132e4f3c]
+fn @fail(arg0: i256) [selector=0x132e4f3c, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    mstore 0, arg0 !metadata(memory=scratch)
+    revert 0, 32
+}
+
+; function halt() external pure [selector 0x5ed7ca5b]
+fn @halt() [selector=0x5ed7ca5b, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    icall revert_if<empty>, true
+    invalid
+}
+
+; function relay(bytes calldata data) external returns (bytes memory out) [selector 0x8f0d6f17]
+fn @relay(arg0: slice<calldata>) -> ptr<memory> [selector=0x8f0d6f17, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [calldata_bytes], object, selector 0x624fbfdc00000000000000000000000000000000000000000000000000000000, args arg0
+    v3 = address_call v0, v2, gas v1
+    v4 = icall returndata_bytes<>
+    v5 = eq v3, false
+    icall revert_if<empty>, v5
+    ret v4
 }

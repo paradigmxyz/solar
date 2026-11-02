@@ -4,6 +4,7 @@
   struct0: {i8, i8, i16, i8, i24}
   struct1: {i256, i32}
 
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -29,6 +30,7 @@ fn @constructor() [constructor] {
     ret
 }
 
+; function read() external view returns (uint8, uint8, uint16, int8, uint24) [selector 0x57de26a4]
 fn @read() -> struct0 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word<uint8>, word<uint8>, word<uint16>, word<int8>, word<uint24>], abi_return_params=[uint8, uint8, uint16, int8, uint24]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -60,12 +62,14 @@ fn @read() -> struct0 [selector=0x57de26a4, view, abi_params=[], abi_returns=[wo
     ret v25
 }
 
+; function raw() external view returns (bytes32 value) [selector 0xc096a632]
 fn @raw() -> i256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+; function selector() external pure returns (bytes4 sig, uint32 numeric) [selector 0xea3d508a]
 fn @selector() -> struct1 [selector=0xea3d508a, pure, abi_params=[], abi_returns=[word<bytes4>, word<uint32>], abi_return_params=[bytes4, uint32]] {
   bb0:
     v0 = calldataload 0

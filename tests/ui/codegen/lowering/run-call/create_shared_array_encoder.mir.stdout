@@ -1,30 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/create_shared_array_encoder.sol:Child ===
 @module Child
-fn @start() -> i256 [selector=0xbe9a6555, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
-}
-
-fn @b0() -> i256 [selector=0x3602175c, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 1 !metadata(storage=slot(1))
-    ret v0
-}
-
-fn @b1() -> i256 [selector=0xee495002, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 2 !metadata(storage=slot(2))
-    ret v0
-}
-
-fn @r0() -> i160 [selector=0x659621b5, view, abi_params=[], abi_returns=[word<uint160>], abi_return_params=[address]] {
-  bb0:
-    v0 = sload 3 !metadata(storage=slot(3))
-    v1 = trunc i256 v0 to i160
-    ret v1
-}
-
+; constructor(address[] memory receivers, uint256[] memory batches, uint256 startingId) [creation entry]
 fn @constructor(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256) [constructor, abi_params=[array<_, address>, array<_, uint256>, uint256]] {
   bb0:
     sstore 0, arg2 !metadata(storage=slot(0))
@@ -58,6 +34,35 @@ fn @constructor(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256) [constructor, 
     ret
 }
 
+; getter for `uint256 public start` [selector 0xbe9a6555]
+fn @start() -> i256 [selector=0xbe9a6555, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+; getter for `uint256 public b0` [selector 0x3602175c]
+fn @b0() -> i256 [selector=0x3602175c, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    ret v0
+}
+
+; getter for `uint256 public b1` [selector 0xee495002]
+fn @b1() -> i256 [selector=0xee495002, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 2 !metadata(storage=slot(2))
+    ret v0
+}
+
+; getter for `address public r0` [selector 0x659621b5]
+fn @r0() -> i160 [selector=0x659621b5, view, abi_params=[], abi_returns=[word<uint160>], abi_return_params=[address]] {
+  bb0:
+    v0 = sload 3 !metadata(storage=slot(3))
+    v1 = trunc i256 v0 to i160
+    ret v1
+}
+
 // === ROOT/tests/ui/codegen/lowering/run-call/create_shared_array_encoder.sol:CreateSharedArrayEncoder ===
 @module CreateSharedArrayEncoder
 @types
@@ -66,6 +71,7 @@ fn @constructor(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256) [constructor, 
 @data
   Child_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/create_shared_array_encoder.sol:Child"
 
+; function one(address account) internal pure returns (address[] memory accounts)
 fn @one(arg0: i160) -> ptr<memory> [pure] {
   bb0:
     v0 = alloc zeroed checked 64
@@ -80,6 +86,7 @@ fn @one(arg0: i160) -> ptr<memory> [pure] {
     ret v0
 }
 
+; function createPair() external returns (uint256, uint256, uint256, uint256) [selector 0x9e78fb4f]
 fn @createPair() -> struct0 [selector=0x9e78fb4f, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = alloc zeroed checked 96
@@ -125,17 +132,17 @@ fn @createPair() -> struct0 [selector=0x9e78fb4f, abi_params=[], abi_returns=[wo
     v27 = create 0, v23, v21
     v28 = ne v27, i160 0
     jumpi v28, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v29 = gas
     mstore 0, 0xbe9a6555 !metadata(memory=scratch)
     v30 = zext i160 v27 to i256
     v31 = staticcall v29, v30, 28, 4, 0, 32
     jumpi v31, bb4, bb3
-  bb3:
+  bb3:  ; preds = bb2
     revert_returndata
-  bb4:
+  bb4:  ; preds = bb2
     v32 = returndatasize
     v33 = lt v32, 32
     icall revert_if<tuple_data_too_short>, v33
@@ -145,9 +152,9 @@ fn @createPair() -> struct0 [selector=0x9e78fb4f, abi_params=[], abi_returns=[wo
     v36 = zext i160 v27 to i256
     v37 = staticcall v35, v36, 28, 4, 0, 32
     jumpi v37, bb6, bb5
-  bb5:
+  bb5:  ; preds = bb4
     revert_returndata
-  bb6:
+  bb6:  ; preds = bb4
     v38 = returndatasize
     v39 = lt v38, 32
     icall revert_if<tuple_data_too_short>, v39
@@ -157,9 +164,9 @@ fn @createPair() -> struct0 [selector=0x9e78fb4f, abi_params=[], abi_returns=[wo
     v42 = zext i160 v27 to i256
     v43 = staticcall v41, v42, 28, 4, 0, 32
     jumpi v43, bb8, bb7
-  bb7:
+  bb7:  ; preds = bb6
     revert_returndata
-  bb8:
+  bb8:  ; preds = bb6
     v44 = returndatasize
     v45 = lt v44, 32
     icall revert_if<tuple_data_too_short>, v45
@@ -169,9 +176,9 @@ fn @createPair() -> struct0 [selector=0x9e78fb4f, abi_params=[], abi_returns=[wo
     v48 = zext i160 v27 to i256
     v49 = staticcall v47, v48, 28, 4, 0, 32
     jumpi v49, bb10, bb9
-  bb9:
+  bb9:  ; preds = bb8
     revert_returndata
-  bb10:
+  bb10:  ; preds = bb8
     v50 = returndatasize
     v51 = lt v50, 32
     icall revert_if<tuple_data_too_short>, v51
@@ -189,6 +196,7 @@ fn @createPair() -> struct0 [selector=0x9e78fb4f, abi_params=[], abi_returns=[wo
     ret v61
 }
 
+; function createSingle() external returns (uint256, uint256, uint256, uint256) [selector 0xebef2b99]
 fn @createSingle() -> struct0 [selector=0xebef2b99, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = alloc zeroed checked 96
@@ -221,17 +229,17 @@ fn @createSingle() -> struct0 [selector=0xebef2b99, abi_params=[], abi_returns=[
     v19 = create 0, v15, v13
     v20 = ne v19, i160 0
     jumpi v20, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v21 = gas
     mstore 0, 0xbe9a6555 !metadata(memory=scratch)
     v22 = zext i160 v19 to i256
     v23 = staticcall v21, v22, 28, 4, 0, 32
     jumpi v23, bb4, bb3
-  bb3:
+  bb3:  ; preds = bb2
     revert_returndata
-  bb4:
+  bb4:  ; preds = bb2
     v24 = returndatasize
     v25 = lt v24, 32
     icall revert_if<tuple_data_too_short>, v25
@@ -241,9 +249,9 @@ fn @createSingle() -> struct0 [selector=0xebef2b99, abi_params=[], abi_returns=[
     v28 = zext i160 v19 to i256
     v29 = staticcall v27, v28, 28, 4, 0, 32
     jumpi v29, bb6, bb5
-  bb5:
+  bb5:  ; preds = bb4
     revert_returndata
-  bb6:
+  bb6:  ; preds = bb4
     v30 = returndatasize
     v31 = lt v30, 32
     icall revert_if<tuple_data_too_short>, v31
@@ -253,9 +261,9 @@ fn @createSingle() -> struct0 [selector=0xebef2b99, abi_params=[], abi_returns=[
     v34 = zext i160 v19 to i256
     v35 = staticcall v33, v34, 28, 4, 0, 32
     jumpi v35, bb8, bb7
-  bb7:
+  bb7:  ; preds = bb6
     revert_returndata
-  bb8:
+  bb8:  ; preds = bb6
     v36 = returndatasize
     v37 = lt v36, 32
     icall revert_if<tuple_data_too_short>, v37
@@ -265,9 +273,9 @@ fn @createSingle() -> struct0 [selector=0xebef2b99, abi_params=[], abi_returns=[
     v40 = zext i160 v19 to i256
     v41 = staticcall v39, v40, 28, 4, 0, 32
     jumpi v41, bb10, bb9
-  bb9:
+  bb9:  ; preds = bb8
     revert_returndata
-  bb10:
+  bb10:  ; preds = bb8
     v42 = returndatasize
     v43 = lt v42, 32
     icall revert_if<tuple_data_too_short>, v43

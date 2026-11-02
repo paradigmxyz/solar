@@ -4,6 +4,7 @@
   struct0: {i256, i256}
   struct1: {i256, i256, i256}
 
+; function beforeAlloc() external pure returns (uint256 slot, uint256 ptr) [selector 0xd136cbc1]
 fn @beforeAlloc() -> struct0 [selector=0xd136cbc1, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -15,6 +16,7 @@ fn @beforeAlloc() -> struct0 [selector=0xd136cbc1, pure, abi_params=[], abi_retu
     ret v4
 }
 
+; function afterAlloc() external pure returns (uint256 slot) [selector 0x8942454f]
 fn @afterAlloc() -> i256 [selector=0x8942454f, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 64
@@ -30,6 +32,7 @@ fn @afterAlloc() -> i256 [selector=0x8942454f, pure, abi_params=[], abi_returns=
     ret v6
 }
 
+; function skipped() external pure returns (uint256 ptr, uint256 first) [selector 0xab55c11f]
 fn @skipped() -> struct0 [selector=0xab55c11f, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -54,6 +57,7 @@ fn @skipped() -> struct0 [selector=0xab55c11f, pure, abi_params=[], abi_returns=
     ret v14
 }
 
+; function scratch() external pure returns (uint256 start, uint256 mid, uint256 end) [selector 0x3e6c22d4]
 fn @scratch() -> struct1 [selector=0x3e6c22d4, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)

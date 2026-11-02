@@ -6,6 +6,7 @@
   struct2: {i256, i8}
   struct3: {i8, i8, i8, i8}
 
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -82,6 +83,7 @@ fn @constructor() [constructor] {
     ret
 }
 
+; function read() external view returns (uint8, uint8, uint256) [selector 0x57de26a4]
 fn @read() -> struct0 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word<uint8>, word<uint8>, word], abi_return_params=[uint8, uint8, uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -96,6 +98,7 @@ fn @read() -> struct0 [selector=0x57de26a4, view, abi_params=[], abi_returns=[wo
     ret v8
 }
 
+; function copyValues() external view returns (uint8, uint8, uint256) [selector 0xd888038d]
 fn @copyValues() -> struct0 [selector=0xd888038d, view, abi_params=[], abi_returns=[word<uint8>, word<uint8>, word], abi_return_params=[uint8, uint8, uint256]] {
   bb0:
     v0 = alloc checked 96
@@ -125,12 +128,14 @@ fn @copyValues() -> struct0 [selector=0xd888038d, view, abi_params=[], abi_retur
     ret v20
 }
 
+; function raw() external view returns (bytes32 result) [selector 0xc096a632]
 fn @raw() -> i256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+; function write(uint8 a, uint8 b, uint256 c) external returns (uint8, uint8, uint256) [selector 0x529e141c]
 fn @write(arg0: i8, arg1: i8, arg2: i256) -> struct0 [selector=0x529e141c, abi_params=[uint8, uint8, uint256], abi_returns=[word<uint8>, word<uint8>, word], abi_return_params=[uint8, uint8, uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -159,6 +164,7 @@ fn @write(arg0: i8, arg1: i8, arg2: i256) -> struct0 [selector=0x529e141c, abi_p
     ret v19
 }
 
+; function replace(uint8 a, uint8 b, uint256 c) external returns (uint8, uint8, uint256) [selector 0xcde69356]
 fn @replace(arg0: i8, arg1: i8, arg2: i256) -> struct0 [selector=0xcde69356, abi_params=[uint8, uint8, uint256], abi_returns=[word<uint8>, word<uint8>, word], abi_return_params=[uint8, uint8, uint256]] {
   bb0:
     v0 = alloc 96
@@ -198,6 +204,7 @@ fn @replace(arg0: i8, arg1: i8, arg2: i256) -> struct0 [selector=0xcde69356, abi
     ret v27
 }
 
+; function arrayRead(uint256 i) external view returns (uint8) [selector 0x0ef5e270]
 fn @arrayRead(arg0: i256) -> i8 [selector=0x0ef5e270, view, abi_params=[uint256], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     v0 = lt arg0, 4
@@ -214,6 +221,7 @@ fn @arrayRead(arg0: i256) -> i8 [selector=0x0ef5e270, view, abi_params=[uint256]
     ret v9
 }
 
+; function arrayWrite(uint256 i, uint8 x) external returns (uint8) [selector 0xf78d2d7a]
 fn @arrayWrite(arg0: i256, arg1: i8) -> i8 [selector=0xf78d2d7a, abi_params=[uint256, uint8], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     v0 = lt arg0, 4
@@ -247,6 +255,7 @@ fn @arrayWrite(arg0: i256, arg1: i8) -> i8 [selector=0xf78d2d7a, abi_params=[uin
     ret v24
 }
 
+; function mixedRead() external view returns (address, bool, uint16) [selector 0x3e58c576]
 fn @mixedRead() -> struct1 [selector=0x3e58c576, view, abi_params=[], abi_returns=[word<uint160>, word<bool>, word<uint16>], abi_return_params=[address, bool, uint16]] {
   bb0:
     v0 = sload 3 !metadata(storage=slot(3))
@@ -264,6 +273,7 @@ fn @mixedRead() -> struct1 [selector=0x3e58c576, view, abi_params=[], abi_return
     ret v11
 }
 
+; function encodedRead() external view returns (bytes4, int8) [selector 0xb2b63fb7]
 fn @encodedRead() -> struct2 [selector=0xb2b63fb7, view, abi_params=[], abi_returns=[word<bytes4>, word<int8>], abi_return_params=[bytes4, int8]] {
   bb0:
     v0 = sload 4 !metadata(storage=slot(4))
@@ -277,6 +287,7 @@ fn @encodedRead() -> struct2 [selector=0xb2b63fb7, view, abi_params=[], abi_retu
     ret v7
 }
 
+; function encodedWrite(bytes4 tag, int8 signed) external returns (bytes4, int8) [selector 0xf0fbe3a2]
 fn @encodedWrite(arg0: i256, arg1: i8) -> struct2 [selector=0xf0fbe3a2, abi_params=[bytes4, int8], abi_returns=[word<bytes4>, word<int8>], abi_return_params=[bytes4, int8]] {
   bb0:
     v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
@@ -304,6 +315,7 @@ fn @encodedWrite(arg0: i256, arg1: i8) -> struct2 [selector=0xf0fbe3a2, abi_para
     ret v19
 }
 
+; function encodedArrayRead(uint256 i) external view returns (bytes4, int8) [selector 0xdf819380]
 fn @encodedArrayRead(arg0: i256) -> struct2 [selector=0xdf819380, view, abi_params=[uint256], abi_returns=[word<bytes4>, word<int8>], abi_return_params=[bytes4, int8]] {
   bb0:
     v0 = lt arg0, 2
@@ -334,6 +346,7 @@ fn @encodedArrayRead(arg0: i256) -> struct2 [selector=0xdf819380, view, abi_para
     ret v22
 }
 
+; function encodedArrayWrite(uint256 i, bytes4 tag, int8 signed) external returns (bytes4, int8) [selector 0xe381ba9e]
 fn @encodedArrayWrite(arg0: i256, arg1: i256, arg2: i8) -> struct2 [selector=0xe381ba9e, abi_params=[uint256, bytes4, int8], abi_returns=[word<bytes4>, word<int8>], abi_return_params=[bytes4, int8]] {
   bb0:
     v0 = lt arg0, 2
@@ -399,6 +412,7 @@ fn @encodedArrayWrite(arg0: i256, arg1: i256, arg2: i8) -> struct2 [selector=0xe
     ret v53
 }
 
+; function replaceArray() external returns (uint8, uint8, uint8, uint8) [selector 0x47102f59]
 fn @replaceArray() -> struct3 [selector=0x47102f59, abi_params=[], abi_returns=[word<uint8>, word<uint8>, word<uint8>, word<uint8>], abi_return_params=[uint8, uint8, uint8, uint8]] {
   bb0:
     v0 = alloc 128 !metadata(preserves_fmp)
@@ -423,11 +437,11 @@ fn @replaceArray() -> struct3 [selector=0x47102f59, abi_params=[], abi_returns=[
     v11 = ptradd v0, 96
     mstore v11, 8
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb6
     v12 = phi [bb0: 0], [bb6: v37]
     v13 = lt v12, 4
     jumpi v13, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v38 = lt 0, 4
     v39 = eq v38, false
     icall panic_if<0x32>, v39
@@ -457,14 +471,14 @@ fn @replaceArray() -> struct3 [selector=0x47102f59, abi_params=[], abi_returns=[
     v60 = insert_value struct3, v59, 2, v52
     v61 = insert_value struct3, v60, 3, v57
     ret v61
-  bb2:
+  bb2:  ; preds = bb1
     v14 = div v12, 32
     v15 = add 2, v14
     v16 = mod v12, 32
     v17 = mul v16, 1
     v18 = lt v12, 4
     jumpi v18, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb2
     v30 = mul v17, 8
     v31 = shl 255, v30
     v32 = sload v15 !metadata(storage=offset(v14, 2))
@@ -474,7 +488,7 @@ fn @replaceArray() -> struct3 [selector=0x47102f59, abi_params=[], abi_returns=[
     v36 = or v34, v35
     sstore v15, v36 !metadata(storage=offset(v14, 2))
     jump bb6
-  bb4:
+  bb4:  ; preds = bb2
     v19 = shl v12, 5
     v20 = ptradd v0, v19
     v21 = mload v20
@@ -488,7 +502,7 @@ fn @replaceArray() -> struct3 [selector=0x47102f59, abi_params=[], abi_returns=[
     v29 = or v26, v28
     sstore v15, v29 !metadata(storage=offset(v14, 2))
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v37 = add v12, 1
     jump bb1
 }

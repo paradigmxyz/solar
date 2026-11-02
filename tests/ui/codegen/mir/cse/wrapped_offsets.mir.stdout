@@ -1,11 +1,12 @@
 // === ROOT/tests/ui/codegen/mir/cse/wrapped_offsets.sol:WrappedOffsets ===
 @module WrappedOffsets
+; function copy(bytes calldata source, bytes memory destination, uint256 count) external pure returns (bool) [selector 0x1337a7c8]
 fn @copy(arg0: slice<calldata>, arg1: ptr<memory>, arg2: i256) -> i1 [selector=0x1337a7c8, pure, abi_params=[bytes, bytes, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = ptrtoint ptr<memory> arg1 to i256
     mstore arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v1 = phi [bb0: arg0], [bb3: v1]
     v2 = phi [bb0: arg1], [bb3: v2]
     v3 = phi [bb0: arg2], [bb3: v3]
@@ -13,11 +14,11 @@ fn @copy(arg0: slice<calldata>, arg1: ptr<memory>, arg2: i256) -> i1 [selector=0
     v5 = phi [bb0: 0], [bb3: v24]
     v6 = lt v5, v3
     jumpi v6, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret true
-  bb4:
+  bb4:  ; preds = bb1
     v7 = extract_value slice<calldata>, v1, 1
     v8 = lt v5, v7
     v9 = eq v8, false
@@ -39,13 +40,14 @@ fn @copy(arg0: slice<calldata>, arg1: ptr<memory>, arg2: i256) -> i1 [selector=0
     v23 = ptradd v22, 32
     mstore8 v23, v21
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v24 = checked_add uint256, v5, 1
     jump bb1
 }
 
+; function reset() external pure returns (uint256) [selector 0xd826f88f]
 fn @reset() -> i256 [selector=0xd826f88f, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 64

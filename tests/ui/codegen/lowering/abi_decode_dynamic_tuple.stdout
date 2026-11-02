@@ -3,6 +3,7 @@
 @types
   struct0: {i256, ptr<memory>, ptr<memory>}
 
+; function decode(bytes memory data) external pure returns (uint256 a, string memory s, bytes memory b) [selector 0xe5c5e9a3]
 fn @decode(arg0: ptr<memory>) -> struct0 [selector=0xe5c5e9a3, pure, abi_params=[bytes], abi_returns=[word, memory_bytes, memory_bytes], abi_return_params=[uint256, bytes, bytes]] {
   bb0:
     v0 = abi_decode [uint256, bytes, bytes], arg0
@@ -15,6 +16,7 @@ fn @decode(arg0: ptr<memory>) -> struct0 [selector=0xe5c5e9a3, pure, abi_params=
     ret v6
 }
 
+; function roundtrip(uint256 a, string memory s, bytes memory b) external pure returns (uint256, string memory, bytes memory) [selector 0x7403d1b5]
 fn @roundtrip(arg0: i256, arg1: ptr<memory>, arg2: ptr<memory>) -> struct0 [selector=0x7403d1b5, pure, abi_params=[uint256, bytes, bytes], abi_returns=[word, memory_bytes, memory_bytes], abi_return_params=[uint256, bytes, bytes]] {
   bb0:
     v0 = abi_encode [word, memory_bytes, memory_bytes], object, args arg0, arg1, arg2
@@ -28,6 +30,7 @@ fn @roundtrip(arg0: i256, arg1: ptr<memory>, arg2: ptr<memory>) -> struct0 [sele
     ret v7
 }
 
+; function decodeBytes(bytes memory data) external pure returns (bytes memory) [selector 0x197621ce]
 fn @decodeBytes(arg0: ptr<memory>) -> ptr<memory> [selector=0x197621ce, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = abi_decode [bytes], arg0

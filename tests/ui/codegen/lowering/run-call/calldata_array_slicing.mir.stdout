@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/calldata_array_slicing.sol:CalldataArraySlicing ===
 @module CalldataArraySlicing
+; function sliceLength(uint256[] calldata values, uint256 start, uint256 end) external pure returns (uint256) [selector 0x3d277245]
 fn @sliceLength(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0x3d277245, pure, abi_params=[array<_, uint256>, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -20,6 +21,7 @@ fn @sliceLength(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector
     ret v12
 }
 
+; function sliceIndex( uint256[] calldata values, uint256 start, uint256 end, uint256 index ) external pure returns (uint256) [selector 0x4fc857f6]
 fn @sliceIndex(arg0: slice<calldata>, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector=0x4fc857f6, pure, abi_params=[array<_, uint256>, uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -51,6 +53,7 @@ fn @sliceIndex(arg0: slice<calldata>, arg1: i256, arg2: i256, arg3: i256) -> i25
     ret v21
 }
 
+; function chainedIndex(uint256[] calldata values) external pure returns (uint256) [selector 0xb5f9dbd8]
 fn @chainedIndex(arg0: slice<calldata>) -> i256 [selector=0xb5f9dbd8, pure, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -84,6 +87,7 @@ fn @chainedIndex(arg0: slice<calldata>) -> i256 [selector=0xb5f9dbd8, pure, abi_
     ret v24
 }
 
+; function nestedSliceLength( uint256[] calldata values, uint256 start, uint256 end, uint256 nestedStart, uint256 nestedEnd ) external pure returns (uint256) [selector 0x4b325b31]
 fn @nestedSliceLength(arg0: slice<calldata>, arg1: i256, arg2: i256, arg3: i256, arg4: i256) -> i256 [selector=0x4b325b31, pure, abi_params=[array<_, uint256>, uint256, uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -118,6 +122,7 @@ fn @nestedSliceLength(arg0: slice<calldata>, arg1: i256, arg2: i256, arg3: i256,
     ret v24
 }
 
+; function startSliceLength(uint256[] calldata values, uint256 start) external pure returns (uint256) [selector 0xaedb6eba]
 fn @startSliceLength(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0xaedb6eba, pure, abi_params=[array<_, uint256>, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -138,6 +143,7 @@ fn @startSliceLength(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0xaedb
     ret v12
 }
 
+; function endSliceLength(uint256[] calldata values, uint256 end) external pure returns (uint256) [selector 0x478be0ed]
 fn @endSliceLength(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x478be0ed, pure, abi_params=[array<_, uint256>, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -154,6 +160,7 @@ fn @endSliceLength(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x478be0
     ret v9
 }
 
+; function startSliceIndex(uint256[] calldata values, uint256 start, uint256 index) external pure returns (uint256) [selector 0xbb59bf0c]
 fn @startSliceIndex(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0xbb59bf0c, pure, abi_params=[array<_, uint256>, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -185,6 +192,7 @@ fn @startSliceIndex(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [sele
     ret v21
 }
 
+; function endSliceIndex(uint256[] calldata values, uint256 end, uint256 index) external pure returns (uint256) [selector 0x0420e48e]
 fn @endSliceIndex(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0x0420e48e, pure, abi_params=[array<_, uint256>, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -212,6 +220,7 @@ fn @endSliceIndex(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [select
     ret v18
 }
 
+; function bytesSlice(bytes calldata values, uint256 start, uint256 end) external pure returns (bytes memory) [selector 0x165cd355]
 fn @bytesSlice(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x165cd355, pure, abi_params=[bytes, uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -247,6 +256,7 @@ fn @bytesSlice(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [se
     ret v20
 }
 
+; function chainedBytesIndex(bytes calldata values) external pure returns (bytes1) [selector 0x96fa77f1]
 fn @chainedBytesIndex(arg0: slice<calldata>) -> i256 [selector=0x96fa77f1, pure, abi_params=[bytes], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0

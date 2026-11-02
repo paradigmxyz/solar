@@ -5,31 +5,37 @@
   struct0: {i256, ptr<memory>}
   struct1: {i256, i256}
 
+; function arrRef(uint256[] storage a) external pure returns (uint256[] storage) [selector 0x1fbd3e50]
 fn @arrRef(arg0: i256) -> i256 [selector=0x1fbd3e50, pure, abi_params=[storageptr], abi_returns=[word], abi_return_params=[storageptr]] {
   bb0:
     ret arg0
 }
 
+; function bytesRef(bytes storage b) external pure returns (bytes storage) [selector 0x4d5b8d56]
 fn @bytesRef(arg0: i256) -> i256 [selector=0x4d5b8d56, pure, abi_params=[storageptr], abi_returns=[word], abi_return_params=[storageptr]] {
   bb0:
     ret arg0
 }
 
+; function plainRef(Plain storage p) external pure returns (Plain storage) [selector 0xd4ba1053]
 fn @plainRef(arg0: i256) -> i256 [selector=0xd4ba1053, pure, abi_params=[storageptr], abi_returns=[word], abi_return_params=[storageptr]] {
   bb0:
     ret arg0
 }
 
+; function fixedRef(uint256[3] storage a) external pure returns (uint256[3] storage) [selector 0x23fe6d5e]
 fn @fixedRef(arg0: i256) -> i256 [selector=0x23fe6d5e, pure, abi_params=[storageptr], abi_returns=[word], abi_return_params=[storageptr]] {
   bb0:
     ret arg0
 }
 
+; function mapRef(mapping(uint256 => uint256) storage m) external pure returns (mapping(uint256 => uint256) storage) [selector 0xca34aaa5]
 fn @mapRef(arg0: i256) -> i256 [selector=0xca34aaa5, pure, abi_params=[storageptr], abi_returns=[word], abi_return_params=[storageptr]] {
   bb0:
     ret arg0
 }
 
+; function aggRef(Plain storage p) external pure returns (Plain storage, uint256[2] memory) [selector 0xed18bf21]
 fn @aggRef(arg0: i256) -> struct0 [selector=0xed18bf21, pure, abi_params=[storageptr], abi_returns=[word, array<2, word>], abi_return_params=[storageptr, array<2, uint256>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -43,6 +49,7 @@ fn @aggRef(arg0: i256) -> struct0 [selector=0xed18bf21, pure, abi_params=[storag
     ret v4
 }
 
+; function pairRef(uint256[] storage a) external view returns (uint256, uint256[] storage) [selector 0x4a3c24da]
 fn @pairRef(arg0: i256) -> struct1 [selector=0x4a3c24da, view, abi_params=[storageptr], abi_returns=[word, word], abi_return_params=[uint256, storageptr]] {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
@@ -57,6 +64,7 @@ fn @pairRef(arg0: i256) -> struct1 [selector=0x4a3c24da, view, abi_params=[stora
   struct0: {i256, i256}
   struct1: {i256, ptr<memory>}
 
+; function len() external view returns (uint256) [selector 0x56d88e27]
 fn @len() -> i256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode [word], selector 0x1fbd3e5000000000000000000000000000000000000000000000000000000000, args 0
@@ -68,14 +76,15 @@ fn @len() -> i256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word],
     icall revert_if<target_contract_has_no_code>, v5
     v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 32
     jumpi v6, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v7 = mload v1
     v8 = sload v7 !metadata(storage=symbolic(v7))
     ret v8
 }
 
+; function bytesLen() external view returns (uint256) [selector 0x6a4634a6]
 fn @bytesLen() -> i256 [selector=0x6a4634a6, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode [word], selector 0x4d5b8d5600000000000000000000000000000000000000000000000000000000, args 1
@@ -87,9 +96,9 @@ fn @bytesLen() -> i256 [selector=0x6a4634a6, view, abi_params=[], abi_returns=[w
     icall revert_if<target_contract_has_no_code>, v5
     v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 32
     jumpi v6, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v7 = mload v1
     v8 = sload v7 !metadata(storage=symbolic(v7))
     validate_storage_bytes v8
@@ -102,6 +111,7 @@ fn @bytesLen() -> i256 [selector=0x6a4634a6, view, abi_params=[], abi_returns=[w
     ret v14
 }
 
+; function member() external view returns (uint256) [selector 0xe3f6b544]
 fn @member() -> i256 [selector=0xe3f6b544, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode [word], selector 0xd4ba105300000000000000000000000000000000000000000000000000000000, args 2
@@ -113,14 +123,15 @@ fn @member() -> i256 [selector=0xe3f6b544, view, abi_params=[], abi_returns=[wor
     icall revert_if<target_contract_has_no_code>, v5
     v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 32
     jumpi v6, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v7 = mload v1
     v8 = sload v7 !metadata(storage=symbolic(v7))
     ret v8
 }
 
+; function pair() external view returns (uint256, uint256) [selector 0xa8aa1b31]
 fn @pair() -> struct0 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = abi_encode [word], selector 0x4a3c24da00000000000000000000000000000000000000000000000000000000, args 0
@@ -132,9 +143,9 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[wo
     icall revert_if<target_contract_has_no_code>, v5
     v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 64
     jumpi v6, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v7 = mload v1
     v8 = ptrtoint ptr<memory> v1 to i256
     v9 = add v8, 32
@@ -149,6 +160,7 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[wo
     ret v17
 }
 
+; function fixedLast() external view returns (uint256) [selector 0x1dc0aacb]
 fn @fixedLast() -> i256 [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode [word], selector 0x23fe6d5e00000000000000000000000000000000000000000000000000000000, args 3
@@ -160,9 +172,9 @@ fn @fixedLast() -> i256 [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[
     icall revert_if<target_contract_has_no_code>, v5
     v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 32
     jumpi v6, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v7 = mload v1
     v8 = lt 2, 3
     v9 = eq v8, false
@@ -172,6 +184,7 @@ fn @fixedLast() -> i256 [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[
     ret v11
 }
 
+; function mapValue(uint256 key) external view returns (uint256) [selector 0x152381f4]
 fn @mapValue(arg0: i256) -> i256 [selector=0x152381f4, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode [word], selector 0xca34aaa500000000000000000000000000000000000000000000000000000000, args 6
@@ -183,15 +196,16 @@ fn @mapValue(arg0: i256) -> i256 [selector=0x152381f4, view, abi_params=[uint256
     icall revert_if<target_contract_has_no_code>, v5
     v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 32
     jumpi v6, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v7 = mload v1
     v8 = mapping_slot arg0, v7
     v9 = sload v8 !metadata(storage=symbolic(v8))
     ret v9
 }
 
+; function agg() external view returns (uint256, uint256) [selector 0xf5e34bfa]
 fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = alloc 96
@@ -204,9 +218,9 @@ fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[wor
     icall revert_if<target_contract_has_no_code>, v6
     v7 = delegatecall v4, 0x1111111111111111111111111111111111111111, v2, v3, v2, 96
     jumpi v7, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     mcopy v0, v2, 96
     v8 = make_memory_slice v0, 96
     v9 = abi_decode [storageptr, array<2, uint256>], v8
@@ -227,6 +241,7 @@ fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[wor
     ret v22
 }
 
+; function attached() external view returns (uint256) [selector 0xd9e6b370]
 fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode [word], selector 0x1fbd3e5000000000000000000000000000000000000000000000000000000000, args 0
@@ -238,9 +253,9 @@ fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[w
     icall revert_if<target_contract_has_no_code>, v5
     v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 32
     jumpi v6, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v7 = mload v1
     v8 = sload v7 !metadata(storage=symbolic(v7))
     ret v8

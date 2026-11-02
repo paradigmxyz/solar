@@ -1,10 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/try_catch_panic.sol:TryCatchPanicTarget ===
 @module TryCatchPanicTarget
+; function ok() external pure [selector 0xd909b403]
 fn @ok() [selector=0xd909b403, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
+; function fail() external pure [selector 0xa9cc4718]
 fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = eq false, false
@@ -17,6 +19,7 @@ fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[], abi_return
 @data
   TryCatchPanicTarget_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/try_catch_panic.sol:TryCatchPanicTarget"
 
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = datasize TryCatchPanicTarget_creation_code_0
@@ -25,9 +28,9 @@ fn @constructor() [constructor] {
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = sload 0 !metadata(storage=slot(0))
     v5 = and v4, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
     v6 = zext i160 v2 to i256
@@ -37,6 +40,7 @@ fn @constructor() [constructor] {
     ret
 }
 
+; function success() external view returns (uint256) [selector 0x0b93381b]
 fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -50,7 +54,7 @@ fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v6 = zext i160 v1 to i256
     v7 = staticcall v2, v6, 28, 4, 0, 0
     jumpi v7, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v8 = icall returndata_bytes<>
     v9 = ptradd v8, 32
     v10 = mload v8
@@ -66,18 +70,19 @@ fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v20 = and v17, v19
     v21 = zext i1 v20 to i256
     jumpi v20, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb2
     revert v12, v13
-  bb4:
+  bb4:  ; preds = bb2
     v22 = ptradd v8, 36
     v23 = mload v22
     ret v23
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1
     ret 7
 }
 
+; function failure() external view returns (uint256) [selector 0x76ffb887]
 fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -91,7 +96,7 @@ fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v6 = zext i160 v1 to i256
     v7 = staticcall v2, v6, 28, 4, 0, 0
     jumpi v7, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v8 = icall returndata_bytes<>
     v9 = ptradd v8, 32
     v10 = mload v8
@@ -107,14 +112,14 @@ fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v20 = and v17, v19
     v21 = zext i1 v20 to i256
     jumpi v20, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb2
     revert v12, v13
-  bb4:
+  bb4:  ; preds = bb2
     v22 = ptradd v8, 36
     v23 = mload v22
     ret v23
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1
     ret 0
 }

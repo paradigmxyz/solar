@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256, i256}
 
+; function access() external returns (uint256 index, uint256 arrayLength, uint256 bytesLength) [selector 0x71907f17]
 fn @access() -> struct0 [selector=0x71907f17, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))

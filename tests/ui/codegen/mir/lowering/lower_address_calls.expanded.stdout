@@ -27,7 +27,7 @@
 +     v7 = add v6, 63 !metadata(span=30..40, modifier_depth=3)
 +     v8 = lt v7, v6 !metadata(span=30..40, modifier_depth=3)
 +     jumpi v8, bb1, bb2 !metadata(span=30..40, modifier_depth=3)
-+   bb2:
++   bb2:  ; preds = bb0
 +     v9 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0 !metadata(span=30..40, modifier_depth=3)
 +     v10 = alloc v9 !metadata(span=30..40, modifier_depth=3)
 +     mstore v10, v6 !metadata(span=30..40, modifier_depth=3)
@@ -37,7 +37,7 @@
 +     v14 = extract_value slice<returndata>, v11, 1 !metadata(span=30..40, modifier_depth=3)
 +     returndatacopy v12, v13, v14 !metadata(span=30..40, modifier_depth=3)
 +     ret v10
-+   bb1 [cold]:
++   bb1 [cold]:  ; preds = bb0
 +     mstore 32, 65 !metadata(memory=scratch, span=30..40, modifier_depth=3)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=30..40, modifier_depth=3)
 +     revert 28, 36 !metadata(span=30..40, modifier_depth=3)

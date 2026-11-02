@@ -3,6 +3,13 @@
 @types
   struct0: {i256, i256}
 
+; receive() external payable [receive]
+fn @receive() [receive, payable] {
+  bb0:
+    ret
+}
+
+; function references() external payable returns (uint256, uint256) [selector 0x6d8a3fd9]
 fn @references() -> struct0 [selector=0x6d8a3fd9, payable, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = address
@@ -14,6 +21,7 @@ fn @references() -> struct0 [selector=0x6d8a3fd9, payable, abi_params=[], abi_re
     ret v5
 }
 
+; function receiverEffects() external returns (uint256) [selector 0xdaf5e9a0]
 fn @receiverEffects() -> i256 [selector=0xdaf5e9a0, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @next
@@ -29,6 +37,7 @@ fn @receiverEffects() -> i256 [selector=0xdaf5e9a0, abi_params=[], abi_returns=[
     ret v9
 }
 
+; function tupleEffects() external returns (uint256) [selector 0xef457c9f]
 fn @tupleEffects() -> i256 [selector=0xef457c9f, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @next
@@ -37,17 +46,20 @@ fn @tupleEffects() -> i256 [selector=0xef457c9f, abi_params=[], abi_returns=[wor
     ret v2
 }
 
+; function moduleSelector() external pure returns (bytes4) [selector 0x9bdc8e27]
 fn @moduleSelector() -> i256 [selector=0x9bdc8e27, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     ret 0x26121ff000000000000000000000000000000000000000000000000000000000
 }
 
+; function revertingReceiver() external pure [selector 0x4f422a71]
 fn @revertingReceiver() [selector=0x4f422a71, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = icall @fail
     ret
 }
 
+; function storageReferences() external view [selector 0x755532a7]
 fn @storageReferences() [selector=0x755532a7, view, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
@@ -58,11 +70,7 @@ fn @storageReferences() [selector=0x755532a7, view, abi_params=[], abi_returns=[
     ret
 }
 
-fn @receive() [receive, payable] {
-  bb0:
-    ret
-}
-
+; function next() internal returns (address payable)
 fn @next() -> i160 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -72,12 +80,14 @@ fn @next() -> i160 {
     ret v2
 }
 
+; function fail() internal pure returns (address payable)
 fn @fail() -> i160 [pure] {
   bb0:
     icall revert_if<empty>, true
     invalid
 }
 
+; function helper() pure returns (uint256)
 fn @helper() -> i256 [pure] {
   bb0:
     ret 1

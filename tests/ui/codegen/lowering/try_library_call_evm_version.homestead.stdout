@@ -1,12 +1,14 @@
 // === ROOT/tests/ui/codegen/lowering/try_library_call_evm_version.sol:TryLib ===
 @module TryLib
 @library
+; function double(uint256 x) external pure returns (uint256) [selector 0xeee97206]
 fn @double(arg0: i256) -> i256 [selector=0xeee97206, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = checked_mul uint256, 2, arg0
     ret v0
 }
 
+; function noop(uint256) external pure [selector 0x67190395]
 fn @noop(arg0: i256) [selector=0x67190395, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
@@ -17,12 +19,14 @@ fn @noop(arg0: i256) [selector=0x67190395, pure, abi_params=[uint256], abi_retur
 @libraries
   TryLib_0: "ROOT/tests/ui/codegen/lowering/try_library_call_evm_version.sol:TryLib"
 
+; getter for `uint256 public seen` [selector 0xd99aa8e2]
 fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+; function libCall(uint256 x) external returns (uint256 r) [selector 0x34ea0c3e]
 fn @libCall(arg0: i256) -> i256 [selector=0x34ea0c3e, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = library_address TryLib_0
@@ -42,22 +46,23 @@ fn @libCall(arg0: i256) -> i256 [selector=0x34ea0c3e, abi_params=[uint256], abi_
     v12 = zext i160 v0 to i256
     v13 = delegatecall v11, v12, v5, v6, v5, 32
     jumpi v13, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:
+  bb4:  ; preds = bb2
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v14 = mload v5
     sstore 0, v14 !metadata(storage=slot(0))
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb4
     v15 = phi [bb1: v14], [bb4: 7]
     ret v15
 }
 
+; function libNoReturn(uint256 x) external returns (uint256 r) [selector 0x364676bf]
 fn @libNoReturn(arg0: i256) -> i256 [selector=0x364676bf, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = library_address TryLib_0
@@ -73,17 +78,17 @@ fn @libNoReturn(arg0: i256) -> i256 [selector=0x364676bf, abi_params=[uint256], 
     v9 = zext i160 v0 to i256
     v10 = delegatecall v8, v9, v2, v3, v2, 0
     jumpi v10, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:
+  bb4:  ; preds = bb2
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     sstore 0, 1 !metadata(storage=slot(0))
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb4
     v11 = phi [bb1: 1], [bb4: 7]
     ret v11
 }

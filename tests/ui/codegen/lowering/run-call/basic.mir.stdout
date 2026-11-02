@@ -4,12 +4,14 @@
   struct0: {i256, i1}
   struct1: {i256, i256}
 
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     sstore 0, 40 !metadata(storage=slot(0))
     ret
 }
 
+; function add(uint256 value) external view returns (uint256) [selector 0x1003e2d2]
 fn @add(arg0: i256) -> i256 [selector=0x1003e2d2, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -17,12 +19,14 @@ fn @add(arg0: i256) -> i256 [selector=0x1003e2d2, view, abi_params=[uint256], ab
     ret v1
 }
 
+; function negate(bool value) external pure returns (bool) [selector 0xb9225c15]
 fn @negate(arg0: i1) -> i1 [selector=0xb9225c15, pure, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = eq arg0, false
     ret v0
 }
 
+; function pair(uint256 value, bool flag) external pure returns (uint256, bool) [selector 0xedaceefe]
 fn @pair(arg0: i256, arg1: i1) -> struct0 [selector=0xedaceefe, pure, abi_params=[uint256, bool], abi_returns=[word, word<bool>], abi_return_params=[uint256, bool]] {
   bb0:
     v0 = checked_add uint256, arg0, 1
@@ -32,21 +36,22 @@ fn @pair(arg0: i256, arg1: i1) -> struct0 [selector=0xedaceefe, pure, abi_params
     ret v3
 }
 
+; function sum(uint256[] calldata values) external pure returns (uint256 result) [selector 0x0194db8e]
 fn @sum(arg0: slice<calldata>) -> i256 [selector=0x0194db8e, pure, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v15]
     v2 = phi [bb0: 0], [bb3: v16]
     v3 = extract_value slice<calldata>, v0, 1
     v4 = lt v2, v3
     jumpi v4, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v1
-  bb4:
+  bb4:  ; preds = bb1
     v5 = extract_value slice<calldata>, v0, 1
     v6 = lt v2, v5
     v7 = eq v6, false
@@ -61,13 +66,14 @@ fn @sum(arg0: slice<calldata>) -> i256 [selector=0x0194db8e, pure, abi_params=[a
     v14 = calldataload v13
     v15 = checked_add uint256, v1, v14
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v16 = checked_add uint256, v2, 1
     jump bb1
 }
 
+; function increment() external returns (uint256) [selector 0xd09de08a]
 fn @increment() -> i256 [selector=0xd09de08a, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -76,6 +82,7 @@ fn @increment() -> i256 [selector=0xd09de08a, abi_params=[], abi_returns=[word],
     ret v1
 }
 
+; function testInline() external view [selector 0x2bb29eb9]
 fn @testInline() [selector=0x2bb29eb9, view, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -85,6 +92,7 @@ fn @testInline() [selector=0x2bb29eb9, view, abi_params=[], abi_returns=[], abi_
     ret
 }
 
+; function fullyInitializedNamedStruct() external pure returns (DynamicHolder memory holder) [selector 0x03e8d290]
 fn @fullyInitializedNamedStruct() -> ptr<memory> [selector=0x03e8d290, pure, abi_params=[], abi_returns=[tuple<memory_array<word>, memory_bytes>], abi_return_params=[tuple<array<_, uint256>, bytes>]] {
   bb0:
     v0 = alloc zeroed checked 64
@@ -103,11 +111,12 @@ fn @fullyInitializedNamedStruct() -> ptr<memory> [selector=0x03e8d290, pure, abi
     ret v1
 }
 
+; function reservedSpillFreshness(bool first) external returns (uint256 out) [selector 0x45f98aed]
 fn @reservedSpillFreshness(arg0: i1) -> i256 [selector=0x45f98aed, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     jumpi arg0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     sstore 0, 99 !metadata(storage=slot(0))
     v5 = checked_add uint256, v0, 7
     v6 = icall @pairInternal, v5
@@ -116,19 +125,20 @@ fn @reservedSpillFreshness(arg0: i1) -> i256 [selector=0x45f98aed, abi_params=[b
     v9 = checked_add uint256, v7, v8
     v10 = checked_add uint256, v9, v0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v1 = icall @pairInternal, v0
     v2 = extract_value struct1, v1, 0
     v3 = extract_value struct1, v1, 1
     v4 = checked_add uint256, v2, v3
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v11 = phi [bb1: v4], [bb2: v10]
     v12 = phi [bb1: v2], [bb2: v0]
     v13 = phi [bb1: v3], [bb2: v0]
     ret v11
 }
 
+; function pairInternal(uint256 value) internal pure returns (uint256, uint256)
 fn @pairInternal(arg0: i256) -> struct1 [pure] {
   bb0:
     v0 = checked_add uint256, arg0, 1
@@ -138,6 +148,7 @@ fn @pairInternal(arg0: i256) -> struct1 [pure] {
     ret v3
 }
 
+; function fill(uint256 length) external pure returns (uint256[4] memory values) [selector 0x3fda5389]
 fn @fill(arg0: i256) -> ptr<memory> [selector=0x3fda5389, pure, abi_params=[uint256], abi_returns=[array<4, word>], abi_return_params=[array<4, uint256>]] {
   bb0:
     v0 = gt arg0, 4
@@ -147,26 +158,26 @@ fn @fill(arg0: i256) -> ptr<memory> [selector=0x3fda5389, pure, abi_params=[uint
     v3 = alloc 128 !metadata(preserves_fmp)
     memory_zero v3, 128
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v4 = phi [bb0: arg0], [bb3: v4]
     v5 = phi [bb0: v3], [bb3: v5]
     v6 = phi [bb0: 0], [bb3: v12]
     v7 = lt v6, v4
     jumpi v7, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v5
-  bb4:
+  bb4:  ; preds = bb1
     v8 = add v6, 7
     v9 = shl v6, 5
     v10 = ptrtoint ptr<memory> v5 to i256
     v11 = add v10, v9
     mstore v11, v8
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v12 = checked_add uint256, v6, 1
     jump bb1
 }

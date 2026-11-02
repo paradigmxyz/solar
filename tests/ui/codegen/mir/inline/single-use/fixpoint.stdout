@@ -1,6 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/inline/single-use/fixpoint.mir (before inline) ===
 + // === ROOT/tests/ui/codegen/mir/inline/single-use/fixpoint.mir (after inline) ===
   @module InlineFixpoint
+  ; selector 0x00000001
   fn @entry(arg0: i256) -> i256 [selector=0x00000001] {
     bb0:
 -     v0 = icall @wrapper, arg0
@@ -18,15 +19,15 @@
 -     v0 = add arg0, 1
 -     ret v0
 +     jump bb2
-+   bb2:
++   bb2:  ; preds = bb0
 +     jump bb4
-+   bb4:
++   bb4:  ; preds = bb2
 +     v3 = add arg0, 1
 +     jump bb3
-+   bb3:
++   bb3:  ; preds = bb4
 +     v4 = phi [bb4: v3]
 +     jump bb1
-+   bb1:
++   bb1:  ; preds = bb3
 +     v2 = phi [bb3: v4]
 +     ret v2
   }

@@ -1,10 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_packed_external_function.sol:AbiEncodePackedExternalFunction ===
 @module AbiEncodePackedExternalFunction
+; function target() external [selector 0xd4b83992]
 fn @target() [selector=0xd4b83992, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
+; function matches() external view returns (bool) [selector 0x55590d58]
 fn @matches() -> i1 [selector=0x55590d58, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address

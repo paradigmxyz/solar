@@ -3,6 +3,7 @@
 @types
   struct0: {ptr<memory>, ptr<memory>}
 
+; function f() external returns (bytes memory, bytes memory) [selector 0x26121ff0]
 fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {
   bb0:
     v0 = alloc 128 !metadata(preserves_fmp)
@@ -60,6 +61,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[memory_byte
     ret v34
 }
 
+; function g() external returns (bytes memory, bytes memory) [selector 0xe2179b8e]
 fn @g() -> struct0 [selector=0xe2179b8e, abi_params=[], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {
   bb0:
     v0 = alloc 128 !metadata(preserves_fmp)
@@ -117,6 +119,7 @@ fn @g() -> struct0 [selector=0xe2179b8e, abi_params=[], abi_returns=[memory_byte
     ret v34
 }
 
+; function h() external returns (bytes memory, bytes memory) [selector 0xb8c9d365]
 fn @h() -> struct0 [selector=0xb8c9d365, abi_params=[], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {
   bb0:
     v0 = alloc 128 !metadata(preserves_fmp)

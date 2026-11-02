@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/immutable_widths.sol:ImmutableWidths (runtime) ===
 @module ImmutableWidths_runtime
-bb0:
+bb0:  ; runtime dispatch entry
   callvalue
   push bb4
   jumpi
@@ -23,7 +23,7 @@ bb4 [cold]:
   push 0
   push 0
   revert
-bb5:
+bb5:  ; function read() external view returns (uint8, int16, bytes3, address, uint, Tiny, bool) [selector 0x57de26a4]
   push_immutable 0, 1
   push_immutable 1, 2
   push 1
@@ -63,7 +63,7 @@ bb5:
   push 224
   push 128
   return
-bb6:
+bb6:  ; function readRaw() external view returns (address) [selector 0xf8bad2c3]
   push_immutable 7, 32
   push 0
   not

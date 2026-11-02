@@ -1,9 +1,25 @@
 // === ROOT/tests/ui/codegen/lowering/tuple_bytes_literals.sol:TupleBytesLiterals ===
 @module TupleBytesLiterals
 @phase lowered
-@types
-  struct0: {i256, i256}
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb4, bb1
+  bb1:  ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb4, [0x1cd9057 => bb2, 0xf2c31bd9 => bb3]
+  bb3:  ; preds = bb1
+    tail_call @words
+  bb2:  ; preds = bb1
+    tail_call @prefix
+  bb4 [cold]:  ; preds = bb0, bb1
+    revert 0, 0
+}
 
+; function prefix(bytes memory out) external pure returns (bytes memory) [selector 0x01cd9057]
 fn @prefix() [selector=0x01cd9057, abi_wrapper, pure] {
   bb0:
     v10 = calldatasize
@@ -12,9 +28,9 @@ fn @prefix() [selector=0x01cd9057, abi_wrapper, pure] {
     v13 = add v12, 4
     v15 = sub v10, 36
     v16 = gt v12, v15
-    v63 = or v11, v16
-    jumpi v63, bb3, bb4
-  bb4:
+    v62 = or v11, v16
+    jumpi v62, bb3, bb4
+  bb4:  ; preds = bb0
     v17 = calldataload v13
     v18 = add v13, 32
     v19 = add v17, 63
@@ -26,33 +42,28 @@ fn @prefix() [selector=0x01cd9057, abi_wrapper, pure] {
     v58 = zext i1 v57 to i256
     v59 = shr v56, 64
     v60 = or v58, v59
-    v64 = zext i1 v20 to i256
-    v65 = or v64, v60
-    v66 = ne v65, 0
-    jumpi v66, bb5, bb7
-  bb7:
+    v63 = zext i1 v20 to i256
+    v64 = or v63, v60
+    v65 = ne v64, 0
+    jumpi v65, bb5, bb7
+  bb7:  ; preds = bb4
     mstore v55, v17
     v23 = sub v10, v18
     v24 = gt v17, v23
     jumpi v24, bb3, bb6
-  bb6:
+  bb6:  ; preds = bb7
     v51 = add v55, 32
     calldatacopy v51, v18, v17
-    v32 = sub 0, v17
-    v33 = and v32, 31
-    v62 = calldatasize
-    v52 = add v51, v17
-    calldatacopy v52, v62, v33
     v0 = mload v55
     v1 = gt v0, 0
     v4 = gt v0, 1
-    v67 = and v1, v4
-    jumpi v67, bb2, bb1
-  bb1 [cold]:
+    v66 = and v1, v4
+    jumpi v66, bb2, bb1
+  bb1 [cold]:  ; preds = bb6
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb2:
+  bb2:  ; preds = bb6
     v47 = add v55, 33
     mstore8 v47, 120
     mstore8 v51, 48
@@ -64,34 +75,18 @@ fn @prefix() [selector=0x01cd9057, abi_wrapper, pure] {
     mstore v49, 32
     v44 = add v39, 64
     returndata v49, v44
-  bb5 [cold]:
+  bb5 [cold]:  ; preds = bb4
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3 [cold]:
+  bb3 [cold]:  ; preds = bb0, bb7
     revert 0, 0
 }
 
+; function words() external pure returns (bytes1 a, bytes2 b) [selector 0xf2c31bd9]
 fn @words() [selector=0xf2c31bd9, abi_wrapper, pure] {
   bb0:
     mstore 0, 0x3000000000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 32, 0x7879000000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     returndata 0, 64
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb4, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb4, [0x1cd9057 => bb2, 0xf2c31bd9 => bb3]
-  bb3:
-    tail_call @words
-  bb2:
-    tail_call @prefix
-  bb4 [cold]:
-    revert 0, 0
 }

@@ -4,6 +4,7 @@
   struct0: {i256, i256, i256}
   struct1: {i256, i256}
 
+; function g() internal view returns (uint256 a, uint256 b, uint256[] storage c)
 fn @g() -> struct0 [view] {
   bb0:
     v0 = insert_value struct0, undef struct0, 0, 1
@@ -12,6 +13,7 @@ fn @g() -> struct0 [view] {
     ret v2
 }
 
+; function h() external pure returns (uint256 a, uint256 b) [selector 0xb8c9d365]
 fn @h() -> struct1 [selector=0xb8c9d365, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = insert_value struct1, undef struct1, 0, 5
@@ -19,6 +21,7 @@ fn @h() -> struct1 [selector=0xb8c9d365, pure, abi_params=[], abi_returns=[word,
     ret v1
 }
 
+; function f() public returns (uint256) [selector 0x26121ff0]
 fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -37,9 +40,9 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v10 = zext i160 v5 to i256
     v11 = staticcall v6, v10, v8, v9, v8, 64
     jumpi v11, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v12 = returndatasize
     v13 = lt v12, 64
     icall revert_if<tuple_data_too_short>, v13
@@ -53,32 +56,32 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v21 = extract_value struct1, v19, 1
     v22 = ne v20, 5
     jumpi v22, bb4, bb3
-  bb3:
+  bb3:  ; preds = bb2
     v23 = ne v21, 6
     jump bb5
-  bb4:
+  bb4:  ; preds = bb2
     jump bb5
-  bb5:
+  bb5:  ; preds = bb4, bb3
     v24 = phi [bb3: v23], [bb4: true]
     jumpi v24, bb6, bb7
-  bb7:
+  bb7:  ; preds = bb5
     jump bb8
-  bb8:
+  bb8:  ; preds = bb7
     v25 = icall @g
     v26 = extract_value struct0, v25, 0
     v27 = extract_value struct0, v25, 1
     v28 = extract_value struct0, v25, 2
     v29 = ne v26, 1
     jumpi v29, bb10, bb9
-  bb9:
+  bb9:  ; preds = bb8
     v30 = ne v27, 2
     jump bb11
-  bb10:
+  bb10:  ; preds = bb8
     jump bb11
-  bb11:
+  bb11:  ; preds = bb10, bb9
     v31 = phi [bb9: v30], [bb10: true]
     jumpi v31, bb13, bb12
-  bb12:
+  bb12:  ; preds = bb11
     v32 = sload v28 !metadata(storage=symbolic(v28))
     v33 = lt 0, v32
     v34 = eq v33, false
@@ -87,47 +90,47 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v36 = sload v35 !metadata(storage=symbolic(v35))
     v37 = ne v36, 3
     jump bb14
-  bb13:
+  bb13:  ; preds = bb11
     jump bb14
-  bb14:
+  bb14:  ; preds = bb13, bb12
     v38 = phi [bb12: v37], [bb13: true]
     jumpi v38, bb15, bb16
-  bb16:
+  bb16:  ; preds = bb14
     jump bb17
-  bb17:
+  bb17:  ; preds = bb16
     v39 = ne v27, 2
     jumpi v39, bb19, bb18
-  bb18:
+  bb18:  ; preds = bb17
     v40 = ne v26, 1
     jump bb20
-  bb19:
+  bb19:  ; preds = bb17
     jump bb20
-  bb20:
+  bb20:  ; preds = bb19, bb18
     v41 = phi [bb18: v40], [bb19: true]
     jumpi v41, bb21, bb22
-  bb22:
+  bb22:  ; preds = bb20
     jump bb23
-  bb23:
+  bb23:  ; preds = bb22
     v42 = ne 8, 8
     jumpi v42, bb25, bb24
-  bb24:
+  bb24:  ; preds = bb23
     v43 = ne 10, 10
     jump bb26
-  bb25:
+  bb25:  ; preds = bb23
     jump bb26
-  bb26:
+  bb26:  ; preds = bb25, bb24
     v44 = phi [bb24: v43], [bb25: true]
     jumpi v44, bb27, bb28
-  bb28:
+  bb28:  ; preds = bb26
     jump bb29
-  bb29:
+  bb29:  ; preds = bb28
     ret 0
-  bb27:
+  bb27:  ; preds = bb26
     ret 4
-  bb21:
+  bb21:  ; preds = bb20
     ret 3
-  bb15:
+  bb15:  ; preds = bb14
     ret 2
-  bb6:
+  bb6:  ; preds = bb5
     ret 1
 }

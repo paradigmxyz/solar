@@ -3,16 +3,19 @@
 @types
   struct0: {i256, i256}
 
+; function getArray() internal pure returns (uint64[10][1] storage array)
 fn @getArray() -> i256 [pure] {
   bb0:
     ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 }
 
+; function getCanary() internal pure returns (Canary storage canary)
 fn @getCanary() -> i256 [pure] {
   bb0:
     ret 2
 }
 
+; function test() public returns (uint256 sum, uint256 sentinel) [selector 0xf8a8fd6d]
 fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall @getCanary
@@ -42,11 +45,11 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v13 = eq v12, false
     icall panic_if<0x32>, v13
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb6
     v14 = phi [bb0: 0], [bb6: v39]
     v15 = lt v14, 10
     jumpi v15, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v40 = alloc 160
     mstore v40, 11
     v41 = ptradd v40, 32
@@ -61,13 +64,13 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v46 = eq v45, false
     icall panic_if<0x32>, v46
     jump bb7
-  bb7:
+  bb7:  ; preds = bb3, bb12
     v47 = phi [bb3: 0], [bb12: v72]
     v48 = lt v47, 10
     jumpi v48, bb8, bb9
-  bb9:
+  bb9:  ; preds = bb7
     jump bb13
-  bb13:
+  bb13:  ; preds = bb9, bb15
     v73 = phi [bb9: 0], [bb15: v94]
     v74 = phi [bb9: 0], [bb15: v74]
     v75 = phi [bb9: 0], [bb15: v95]
@@ -78,14 +81,14 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     icall panic_if<0x32>, v79
     v80 = lt v75, 10
     jumpi v80, bb16, bb17
-  bb17:
+  bb17:  ; preds = bb13
     jump bb14
-  bb14:
+  bb14:  ; preds = bb17
     v96 = sload v76 !metadata(storage=symbolic(v76))
     v97 = insert_value struct0, undef struct0, 0, v73
     v98 = insert_value struct0, v97, 1, v96
     ret v98
-  bb16:
+  bb16:  ; preds = bb13
     v81 = lt 0, 1
     v82 = eq v81, false
     icall panic_if<0x32>, v82
@@ -103,19 +106,19 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v93 = zext i64 v92 to i256
     v94 = checked_add uint256, v73, v93
     jump bb18
-  bb18:
+  bb18:  ; preds = bb16
     jump bb15
-  bb15:
+  bb15:  ; preds = bb18
     v95 = checked_add uint256, v75, 1
     jump bb13
-  bb8:
+  bb8:  ; preds = bb7
     v49 = div v47, 4
     v50 = add v1, v49
     v51 = mod v47, 4
     v52 = mul v51, 8
     v53 = lt v47, 5
     jumpi v53, bb10, bb11
-  bb11:
+  bb11:  ; preds = bb8
     v65 = mul v52, 8
     v66 = shl 0xffffffffffffffff, v65
     v67 = sload v50 !metadata(storage=symbolic(v50))
@@ -125,7 +128,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v71 = or v69, v70
     sstore v50, v71 !metadata(storage=symbolic(v50))
     jump bb12
-  bb10:
+  bb10:  ; preds = bb8
     v54 = shl v47, 5
     v55 = ptradd v40, v54
     v56 = mload v55
@@ -139,17 +142,17 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v64 = or v61, v63
     sstore v50, v64 !metadata(storage=symbolic(v50))
     jump bb12
-  bb12:
+  bb12:  ; preds = bb10, bb11
     v72 = add v47, 1
     jump bb7
-  bb2:
+  bb2:  ; preds = bb1
     v16 = div v14, 4
     v17 = add v1, v16
     v18 = mod v14, 4
     v19 = mul v18, 8
     v20 = lt v14, 10
     jumpi v20, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb2
     v32 = mul v19, 8
     v33 = shl 0xffffffffffffffff, v32
     v34 = sload v17 !metadata(storage=symbolic(v17))
@@ -159,7 +162,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v38 = or v36, v37
     sstore v17, v38 !metadata(storage=symbolic(v17))
     jump bb6
-  bb4:
+  bb4:  ; preds = bb2
     v21 = shl v14, 5
     v22 = ptradd v2, v21
     v23 = mload v22
@@ -173,7 +176,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v31 = or v28, v30
     sstore v17, v31 !metadata(storage=symbolic(v17))
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v39 = add v14, 1
     jump bb1
 }

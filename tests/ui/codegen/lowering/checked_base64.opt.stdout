@@ -2,6 +2,7 @@
 @module Base64
 @phase lowered
 @library
+; runtime dispatch entry
 fn @entry() [entry, cold] {
   bb0 [cold]:
     revert 0, 0
@@ -10,6 +11,33 @@ fn @entry() [entry, cold] {
 // === ROOT/tests/ui/codegen/lowering/checked_base64.sol:CheckedBase64 ===
 @module CheckedBase64
 @phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:  ; preds = bb0
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0x12496a1b => bb3, 0x2dba772b => bb4, 0x3d92c956 => bb5, 0x49145c91 => bb6]
+  bb6:  ; preds = bb2
+    tail_call @decode.0
+  bb5:  ; preds = bb2
+    tail_call @encodeNoPadding
+  bb4:  ; preds = bb2
+    tail_call @encodeFileSafe
+  bb3:  ; preds = bb2
+    tail_call @encode.1
+  bb1 [cold]:  ; preds = bb0, bb2
+    revert 0, 0
+}
+
+; function decode(string memory data) external pure returns (bytes memory) [selector 0x49145c91]
 fn @decode.0() [selector=0x49145c91, abi_wrapper, pure] {
   bb0:
     v3 = icall @decode_calldata_type
@@ -26,6 +54,7 @@ fn @decode.0() [selector=0x49145c91, abi_wrapper, pure] {
     returndata v19, v14
 }
 
+; function encode(bytes memory data) external pure returns (string memory) [selector 0x12496a1b]
 fn @encode.1() [selector=0x12496a1b, abi_wrapper, pure] {
   bb0:
     v5 = icall @decode_calldata_type
@@ -42,6 +71,7 @@ fn @encode.1() [selector=0x12496a1b, abi_wrapper, pure] {
     returndata v21, v16
 }
 
+; function encodeFileSafe(bytes memory data) external pure returns (string memory) [selector 0x2dba772b]
 fn @encodeFileSafe() [selector=0x2dba772b, abi_wrapper, pure] {
   bb0:
     v5 = icall @decode_calldata_type
@@ -58,6 +88,7 @@ fn @encodeFileSafe() [selector=0x2dba772b, abi_wrapper, pure] {
     returndata v21, v16
 }
 
+; function encodeNoPadding(bytes memory data) external pure returns (string memory) [selector 0x3d92c956]
 fn @encodeNoPadding() [selector=0x3d92c956, abi_wrapper, pure] {
   bb0:
     v3 = icall @decode_calldata_type
@@ -74,6 +105,7 @@ fn @encodeNoPadding() [selector=0x3d92c956, abi_wrapper, pure] {
     returndata v19, v14
 }
 
+; function encode(bytes memory data, bool fileSafe, bool noPadding) internal pure returns (string memory result)
 fn @encode.4(arg0: i256, arg1: i1, arg2: i1) -> i256 [may_return_memory, pure] {
   bb0:
     v0 = mload arg0
@@ -91,18 +123,18 @@ fn @encode.4(arg0: i256, arg1: i1, arg2: i1) -> i256 [may_return_memory, pure] {
     v232 = or v231, v170
     v233 = ne v232, 0
     jumpi v233, bb56, bb57
-  bb57:
+  bb57:  ; preds = bb0
     jumpi arg2, bb1, bb2
-  bb1:
+  bb1:  ; preds = bb57
     v172 = sub v169, v184
     v173 = lt v169, v184
     jumpi v173, bb56, bb2
-  bb2:
+  bb2:  ; preds = bb1, bb57
     v10 = phi [bb1: v172], [bb57: v169]
     v11 = add v10, 63
     v12 = lt v11, v10
     jumpi v12, bb46, bb47
-  bb47:
+  bb47:  ; preds = bb2
     v13 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v225 = icall @alloc, v13
     v227 = calldatasize
@@ -110,19 +142,19 @@ fn @encode.4(arg0: i256, arg1: i1, arg2: i1) -> i256 [may_return_memory, pure] {
     mstore v225, v10
     v228 = add v225, 32
     jump bb3
-  bb3:
+  bb3:  ; preds = bb15, bb47
     v23 = phi [bb47: 0], [bb15: v178]
     v24 = phi [bb47: 0], [bb15: v180]
     v229 = phi [bb47: v228], [bb15: v230]
     v25 = lt v24, v0
     jumpi v25, bb5, bb4
-  bb4:
+  bb4:  ; preds = bb3
     ret v225
-  bb5:
+  bb5:  ; preds = bb3
     v26 = mload arg0
     v27 = lt v24, v26
     jumpi v27, bb49, bb48
-  bb49:
+  bb49:  ; preds = bb5
     v198 = add arg0, v24
     v199 = add v198, 32
     v31 = mload v199
@@ -131,10 +163,10 @@ fn @encode.4(arg0: i256, arg1: i1, arg2: i1) -> i256 [may_return_memory, pure] {
     v38 = add v24, 1
     v39 = lt v38, v0
     jumpi v39, bb6, bb7
-  bb6:
+  bb6:  ; preds = bb49
     v42 = lt v38, v26
     jumpi v42, bb50, bb48
-  bb50:
+  bb50:  ; preds = bb6
     v201 = add arg0, v38
     v202 = add v201, 32
     v46 = mload v202
@@ -142,213 +174,214 @@ fn @encode.4(arg0: i256, arg1: i1, arg2: i1) -> i256 [may_return_memory, pure] {
     v52 = shl v47, 8
     v53 = or v37, v52
     jump bb7
-  bb7:
+  bb7:  ; preds = bb49, bb50
     v54 = phi [bb50: v53], [bb49: v37]
     v174 = add v24, 2
     v56 = lt v174, v0
     jumpi v56, bb8, bb9
-  bb8:
+  bb8:  ; preds = bb7
     v59 = lt v174, v26
     jumpi v59, bb51, bb48
-  bb51:
+  bb51:  ; preds = bb8
     v204 = add arg0, v174
     v205 = add v204, 32
     v63 = mload v205
     v64 = byte 0, v63
     v69 = or v54, v64
     jump bb9
-  bb9:
+  bb9:  ; preds = bb7, bb51
     v70 = phi [bb51: v69], [bb7: v54]
     v71 = shr v70, 18
     jumpi arg1, bb19, bb21
-  bb19:
+  bb19:  ; preds = bb9
     v121 = gt v71, 61
     jumpi v121, bb20, bb21
-  bb21:
+  bb21:  ; preds = bb9, bb19
     v123 = lt v71, 32
     jumpi v123, bb22, bb23
-  bb23:
+  bb23:  ; preds = bb21
     v127 = and v71, 31
     v128 = byte v127, 0x6768696a6b6c6d6e6f707172737475767778797a303132333435363738392b2f
     v129 = shl v128, 248
     jump bb24
-  bb22:
+  bb22:  ; preds = bb21
     v125 = byte v71, 0x4142434445464748494a4b4c4d4e4f505152535455565758595a616263646566
     v126 = shl v125, 248
     jump bb24
-  bb24:
+  bb24:  ; preds = bb22, bb23
     v130 = phi [bb22: v126], [bb23: v129]
     jump bb18
-  bb20:
+  bb20:  ; preds = bb19
     v122 = eq v71, 62
     v185 = zext i1 v122 to i256
     v186 = mul v185, 0xce00000000000000000000000000000000000000000000000000000000000000
     v187 = add v186, 0x5f00000000000000000000000000000000000000000000000000000000000000
     jump bb18
-  bb18:
+  bb18:  ; preds = bb20, bb24
     v131 = phi [bb20: v187], [bb24: v130]
     v74 = mload v225
     v75 = lt v23, v74
     jumpi v75, bb54, bb48
-  bb54:
+  bb54:  ; preds = bb18
     v77 = byte 0, v131
     mstore8 v229, v77
     v80 = shr v70, 12
     v81 = and v80, 63
     jumpi arg1, bb40, bb42
-  bb40:
+  bb40:  ; preds = bb54
     v154 = gt v81, 61
     jumpi v154, bb41, bb42
-  bb42:
+  bb42:  ; preds = bb40, bb54
     v156 = lt v81, 32
     jumpi v156, bb43, bb44
-  bb44:
+  bb44:  ; preds = bb42
     v160 = and v81, 31
     v161 = byte v160, 0x6768696a6b6c6d6e6f707172737475767778797a303132333435363738392b2f
     v162 = shl v161, 248
     jump bb45
-  bb43:
+  bb43:  ; preds = bb42
     v158 = byte v81, 0x4142434445464748494a4b4c4d4e4f505152535455565758595a616263646566
     v159 = shl v158, 248
     jump bb45
-  bb45:
+  bb45:  ; preds = bb43, bb44
     v163 = phi [bb43: v159], [bb44: v162]
     jump bb39
-  bb41:
+  bb41:  ; preds = bb40
     v155 = eq v81, 62
     v194 = zext i1 v155 to i256
     v195 = mul v194, 0xce00000000000000000000000000000000000000000000000000000000000000
     v196 = add v195, 0x5f00000000000000000000000000000000000000000000000000000000000000
     jump bb39
-  bb39:
+  bb39:  ; preds = bb41, bb45
     v164 = phi [bb41: v196], [bb45: v163]
     v83 = add v23, 1
     v84 = mload v225
     v85 = lt v83, v84
     jumpi v85, bb55, bb48
-  bb55:
+  bb55:  ; preds = bb39
     v87 = byte 0, v164
     v217 = add v229, 1
     mstore8 v217, v87
     v90 = add v23, 2
     v91 = lt v90, v10
     jumpi v91, bb10, bb11
-  bb10:
+  bb10:  ; preds = bb55
     jumpi v39, bb12, bb13
-  bb12:
+  bb12:  ; preds = bb10
     v94 = shr v70, 6
     v95 = and v94, 63
     jumpi arg1, bb26, bb28
-  bb26:
+  bb26:  ; preds = bb12
     v132 = gt v95, 61
     jumpi v132, bb27, bb28
-  bb28:
+  bb28:  ; preds = bb12, bb26
     v134 = lt v95, 32
     jumpi v134, bb29, bb30
-  bb30:
+  bb30:  ; preds = bb28
     v138 = and v95, 31
     v139 = byte v138, 0x6768696a6b6c6d6e6f707172737475767778797a303132333435363738392b2f
     v140 = shl v139, 248
     jump bb31
-  bb29:
+  bb29:  ; preds = bb28
     v136 = byte v95, 0x4142434445464748494a4b4c4d4e4f505152535455565758595a616263646566
     v137 = shl v136, 248
     jump bb31
-  bb31:
+  bb31:  ; preds = bb29, bb30
     v141 = phi [bb29: v137], [bb30: v140]
     jump bb25
-  bb27:
+  bb27:  ; preds = bb26
     v133 = eq v95, 62
     v188 = zext i1 v133 to i256
     v189 = mul v188, 0xce00000000000000000000000000000000000000000000000000000000000000
     v190 = add v189, 0x5f00000000000000000000000000000000000000000000000000000000000000
     jump bb25
-  bb25:
+  bb25:  ; preds = bb27, bb31
     v142 = phi [bb27: v190], [bb31: v141]
     jump bb13
-  bb13:
+  bb13:  ; preds = bb10, bb25
     v97 = phi [bb25: v142], [bb10: 0x3d00000000000000000000000000000000000000000000000000000000000000]
     v99 = mload v225
     v100 = lt v90, v99
     jumpi v100, bb52, bb48
-  bb52:
+  bb52:  ; preds = bb13
     v102 = byte 0, v97
     v208 = add v229, 2
     mstore8 v208, v102
     jump bb11
-  bb11:
+  bb11:  ; preds = bb52, bb55
     v176 = add v23, 3
     v106 = lt v176, v10
     jumpi v106, bb14, bb15
-  bb14:
+  bb14:  ; preds = bb11
     jumpi v56, bb16, bb17
-  bb16:
+  bb16:  ; preds = bb14
     v109 = and v70, 63
     jumpi arg1, bb33, bb35
-  bb33:
+  bb33:  ; preds = bb16
     v143 = gt v109, 61
     jumpi v143, bb34, bb35
-  bb35:
+  bb35:  ; preds = bb16, bb33
     v145 = lt v109, 32
     jumpi v145, bb36, bb37
-  bb37:
+  bb37:  ; preds = bb35
     v149 = and v109, 31
     v150 = byte v149, 0x6768696a6b6c6d6e6f707172737475767778797a303132333435363738392b2f
     v151 = shl v150, 248
     jump bb38
-  bb36:
+  bb36:  ; preds = bb35
     v147 = byte v109, 0x4142434445464748494a4b4c4d4e4f505152535455565758595a616263646566
     v148 = shl v147, 248
     jump bb38
-  bb38:
+  bb38:  ; preds = bb36, bb37
     v152 = phi [bb36: v148], [bb37: v151]
     jump bb32
-  bb34:
+  bb34:  ; preds = bb33
     v144 = eq v109, 62
     v191 = zext i1 v144 to i256
     v192 = mul v191, 0xce00000000000000000000000000000000000000000000000000000000000000
     v193 = add v192, 0x5f00000000000000000000000000000000000000000000000000000000000000
     jump bb32
-  bb32:
+  bb32:  ; preds = bb34, bb38
     v153 = phi [bb34: v193], [bb38: v152]
     jump bb17
-  bb17:
+  bb17:  ; preds = bb14, bb32
     v111 = phi [bb32: v153], [bb14: 0x3d00000000000000000000000000000000000000000000000000000000000000]
     v113 = mload v225
     v114 = lt v176, v113
     jumpi v114, bb53, bb48
-  bb48 [cold]:
+  bb48 [cold]:  ; preds = bb5, bb6, bb8, bb13, bb17, bb18, bb39
     tail_call @revert_stub.7
-  bb53:
+  bb53:  ; preds = bb17
     v116 = byte 0, v111
     v211 = add v229, 3
     mstore8 v211, v116
     jump bb15
-  bb15:
+  bb15:  ; preds = bb11, bb53
     v178 = add v23, 4
     v180 = add v24, 3
     v230 = add v229, 4
     jump bb3
-  bb46 [cold]:
+  bb46 [cold]:  ; preds = bb2
     tail_call @revert_stub.6
-  bb56 [cold]:
+  bb56 [cold]:  ; preds = bb1, bb0
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
+; function decode(string memory data) internal pure returns (bytes memory result)
 fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
   bb0:
     v0 = mload arg0
     v1 = eq v0, 0
     jumpi v1, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v3 = shr v0, 2
     v195 = mul v3, 3
     v5 = and v0, 3
     v6 = ne v5, 0
     jumpi v6, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb2
     v9 = sub v0, 1
     v247 = add arg0, v9
     v248 = add v247, 32
@@ -356,38 +389,38 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     v16 = byte 0, v15
     v18 = eq v16, 61
     jumpi v18, bb6, bb7
-  bb6:
+  bb6:  ; preds = bb4
     v204 = sub v195, 1
     v205 = eq v195, 0
     jumpi v205, bb45, bb7
-  bb7:
+  bb7:  ; preds = bb4, bb6
     v20 = phi [bb6: v204], [bb4: v195]
     v206 = sub v0, 2
     v207 = lt v0, 2
     jumpi v207, bb45, bb46
-  bb46:
+  bb46:  ; preds = bb7
     v271 = add arg0, v206
     v272 = add v271, 32
     v27 = mload v272
     v28 = byte 0, v27
     v30 = eq v28, 61
     jumpi v30, bb8, bb9
-  bb8:
+  bb8:  ; preds = bb46
     v208 = sub v20, 1
     v209 = eq v20, 0
     jumpi v209, bb45, bb9
-  bb9:
+  bb9:  ; preds = bb8, bb46
     v32 = phi [bb8: v208], [bb46: v20]
     jump bb5
-  bb45 [cold]:
+  bb45 [cold]:  ; preds = bb6, bb7, bb8
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
+  bb3:  ; preds = bb2
     v7 = sub v5, 1
     v202 = add v195, v7
     jump bb5
-  bb5:
+  bb5:  ; preds = bb3, bb9
     v33 = phi [bb3: v202], [bb9: v32]
     v34 = add v33, 63
     v36 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -397,27 +430,27 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     mstore v281, v33
     v287 = add arg0, 32
     jump bb10
-  bb10:
+  bb10:  ; preds = bb5, bb24
     v44 = phi [bb5: 0], [bb24: v218]
     v45 = phi [bb5: 0], [bb24: v220]
     v288 = phi [bb5: v287], [bb24: v289]
     v46 = lt v45, v0
     jumpi v46, bb12, bb11
-  bb11:
+  bb11:  ; preds = bb10
     ret v281
-  bb12:
+  bb12:  ; preds = bb10
     v47 = mload arg0
     v48 = lt v45, v47
     jumpi v48, bb38, bb37
-  bb38:
+  bb38:  ; preds = bb12
     v52 = mload v288
     v53 = byte 0, v52
     v142 = lt v53, 32
     jumpi v142, bb25, bb26
-  bb26:
+  bb26:  ; preds = bb38
     v143 = gt v53, 127
     jumpi v143, bb25, bb27
-  bb27:
+  bb27:  ; preds = bb26
     v144 = lt v53, 64
     v145 = lt v53, 96
     v222 = zext i1 v145 to i256
@@ -429,25 +462,25 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     v147 = and v53, 31
     v148 = byte v147, v236
     jump bb25
-  bb25:
+  bb25:  ; preds = bb26, bb27, bb38
     v152 = phi [bb38: 0], [bb26: 0], [bb27: v148]
     v56 = shl v152, 18
     v57 = add v45, 1
     v58 = lt v57, v0
     jumpi v58, bb13, bb14
-  bb13:
+  bb13:  ; preds = bb25
     v61 = lt v57, v47
     jumpi v61, bb39, bb37
-  bb39:
+  bb39:  ; preds = bb13
     v254 = add v288, 1
     v65 = mload v254
     v66 = byte 0, v65
     v156 = lt v66, 32
     jumpi v156, bb28, bb29
-  bb29:
+  bb29:  ; preds = bb39
     v157 = gt v66, 127
     jumpi v157, bb28, bb30
-  bb30:
+  bb30:  ; preds = bb29
     v158 = lt v66, 64
     v159 = lt v66, 96
     v225 = zext i1 v159 to i256
@@ -459,29 +492,29 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     v161 = and v66, 31
     v162 = byte v161, v239
     jump bb28
-  bb28:
+  bb28:  ; preds = bb29, bb30, bb39
     v166 = phi [bb39: 0], [bb29: 0], [bb30: v162]
     v69 = shl v166, 12
     v70 = or v56, v69
     jump bb14
-  bb14:
+  bb14:  ; preds = bb25, bb28
     v71 = phi [bb28: v70], [bb25: v56]
     v210 = add v45, 2
     v73 = lt v210, v0
     jumpi v73, bb15, bb16
-  bb15:
+  bb15:  ; preds = bb14
     v76 = lt v210, v47
     jumpi v76, bb40, bb37
-  bb40:
+  bb40:  ; preds = bb15
     v257 = add v288, 2
     v80 = mload v257
     v81 = byte 0, v80
     v170 = lt v81, 32
     jumpi v170, bb31, bb32
-  bb32:
+  bb32:  ; preds = bb40
     v171 = gt v81, 127
     jumpi v171, bb31, bb33
-  bb33:
+  bb33:  ; preds = bb32
     v172 = lt v81, 64
     v173 = lt v81, 96
     v228 = zext i1 v173 to i256
@@ -493,29 +526,29 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     v175 = and v81, 31
     v176 = byte v175, v242
     jump bb31
-  bb31:
+  bb31:  ; preds = bb32, bb33, bb40
     v180 = phi [bb40: 0], [bb32: 0], [bb33: v176]
     v84 = shl v180, 6
     v85 = or v71, v84
     jump bb16
-  bb16:
+  bb16:  ; preds = bb14, bb31
     v86 = phi [bb31: v85], [bb14: v71]
     v212 = add v45, 3
     v88 = lt v212, v0
     jumpi v88, bb17, bb18
-  bb17:
+  bb17:  ; preds = bb16
     v91 = lt v212, v47
     jumpi v91, bb41, bb37
-  bb41:
+  bb41:  ; preds = bb17
     v260 = add v288, 3
     v95 = mload v260
     v96 = byte 0, v95
     v184 = lt v96, 32
     jumpi v184, bb34, bb35
-  bb35:
+  bb35:  ; preds = bb41
     v185 = gt v96, 127
     jumpi v185, bb34, bb36
-  bb36:
+  bb36:  ; preds = bb35
     v186 = lt v96, 64
     v187 = lt v96, 96
     v231 = zext i1 v187 to i256
@@ -527,60 +560,60 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     v189 = and v96, 31
     v190 = byte v189, v245
     jump bb34
-  bb34:
+  bb34:  ; preds = bb35, bb36, bb41
     v194 = phi [bb41: 0], [bb35: 0], [bb36: v190]
     v99 = or v86, v194
     jump bb18
-  bb18:
+  bb18:  ; preds = bb16, bb34
     v100 = phi [bb34: v99], [bb16: v86]
     v101 = lt v44, v33
     jumpi v101, bb19, bb20
-  bb19:
+  bb19:  ; preds = bb18
     v284 = byte 29, v100
     v106 = mload v281
     v107 = lt v44, v106
     jumpi v107, bb42, bb37
-  bb42:
+  bb42:  ; preds = bb19
     v262 = add v281, v44
     v263 = add v262, 32
     mstore8 v263, v284
     jump bb20
-  bb20:
+  bb20:  ; preds = bb18, bb42
     v214 = add v44, 1
     v113 = lt v214, v33
     jumpi v113, bb21, bb22
-  bb21:
+  bb21:  ; preds = bb20
     v285 = byte 30, v100
     v119 = mload v281
     v120 = lt v214, v119
     jumpi v120, bb43, bb37
-  bb43:
+  bb43:  ; preds = bb21
     v265 = add v281, v214
     v266 = add v265, 32
     mstore8 v266, v285
     jump bb22
-  bb22:
+  bb22:  ; preds = bb20, bb43
     v216 = add v44, 2
     v126 = lt v216, v33
     jumpi v126, bb23, bb24
-  bb23:
+  bb23:  ; preds = bb22
     v286 = and v100, 255
     v131 = mload v281
     v132 = lt v216, v131
     jumpi v132, bb44, bb37
-  bb37 [cold]:
+  bb37 [cold]:  ; preds = bb12, bb13, bb15, bb17, bb19, bb21, bb23
     tail_call @revert_stub.7
-  bb44:
+  bb44:  ; preds = bb23
     v268 = add v281, v216
     v269 = add v268, 32
     mstore8 v269, v286
     jump bb24
-  bb24:
+  bb24:  ; preds = bb22, bb44
     v218 = add v44, 3
     v220 = add v45, 4
     v289 = add v288, 4
     jump bb10
-  bb1:
+  bb1:  ; preds = bb0
     v280 = icall @alloc, 32
     mstore v280, 0
     ret v280
@@ -608,7 +641,7 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v4 = sub v0, 36
     v5 = gt v1, v4
     jumpi v5, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v6 = calldataload v2
     v7 = add v2, 32
     v8 = add v6, 63
@@ -620,55 +653,25 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v31 = zext i1 v30 to i256
     v32 = shr v29, 64
     v33 = or v31, v32
-    v36 = zext i1 v9 to i256
-    v37 = or v36, v33
-    v38 = ne v37, 0
-    jumpi v38, bb3, bb5
-  bb5:
+    v35 = zext i1 v9 to i256
+    v36 = or v35, v33
+    v37 = ne v36, 0
+    jumpi v37, bb3, bb5
+  bb5:  ; preds = bb2
     mstore 64, v29 !metadata(memory=scratch)
     mstore v28, v6
     v12 = sub v0, v7
     v13 = gt v6, v12
     jumpi v13, bb1, bb4
-  bb4:
+  bb4:  ; preds = bb5
     v24 = add v28, 32
     calldatacopy v24, v7, v6
-    v21 = sub 0, v6
-    v22 = and v21, 31
-    v35 = calldatasize
-    v25 = add v24, v6
-    calldatacopy v25, v35, v22
     ret v28
-  bb3 [cold]:
+  bb3 [cold]:  ; preds = bb2
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1 [cold]:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = calldatasize
-    v2 = lt v1, 36
-    v3 = zext i1 v2 to i256
-    v4 = or v0, v3
-    v5 = ne v4, 0
-    jumpi v5, bb1, bb2
-  bb2:
-    v6 = calldataload 0
-    v7 = shr v6, 224
-    switch v7, default bb1, [0x12496a1b => bb3, 0x2dba772b => bb4, 0x3d92c956 => bb5, 0x49145c91 => bb6]
-  bb6:
-    tail_call @decode.0
-  bb5:
-    tail_call @encodeNoPadding
-  bb4:
-    tail_call @encodeFileSafe
-  bb3:
-    tail_call @encode.1
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0, bb5
     revert 0, 0
 }
 
@@ -682,10 +685,10 @@ fn @alloc(arg0: i256) -> i256 {
     v6 = or v4, v5
     v7 = ne v6, 0
     jumpi v7, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     mstore 64, v2 !metadata(memory=scratch)
     ret v0
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36

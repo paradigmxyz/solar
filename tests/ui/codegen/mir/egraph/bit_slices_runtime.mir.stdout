@@ -7,6 +7,7 @@
   struct3: {i256, i256, i256}
   struct4: {i256, i256, i256, i256}
 
+; function narrowRoundtrip(uint8 x, uint160 y) external pure returns (uint8, uint8, uint160) [selector 0x63c6b518]
 fn @narrowRoundtrip(arg0: i8, arg1: i160) -> struct0 [selector=0x63c6b518, pure, abi_params=[uint8, uint160], abi_returns=[word<uint8>, word<uint8>, word<uint160>], abi_return_params=[uint8, uint8, uint160]] {
   bb0:
     v0 = shl arg0, i8 1
@@ -24,6 +25,7 @@ fn @narrowRoundtrip(arg0: i8, arg1: i160) -> struct0 [selector=0x63c6b518, pure,
     ret v11
 }
 
+; function comparisons(uint256 x) external pure returns (bool, bool, bool, bool) [selector 0xe32e96a3]
 fn @comparisons(arg0: i256) -> struct1 [selector=0xe32e96a3, pure, abi_params=[uint256], abi_returns=[word<bool>, word<bool>, word<bool>, word<bool>], abi_return_params=[bool, bool, bool, bool]] {
   bb0:
     v0 = lt 13, arg0
@@ -37,6 +39,7 @@ fn @comparisons(arg0: i256) -> struct1 [selector=0xe32e96a3, pure, abi_params=[u
     ret v7
 }
 
+; function masked(uint256 x) external pure returns (uint256 low, uint256 high) [selector 0x38caca52]
 fn @masked(arg0: i256) -> struct2 [selector=0x38caca52, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = shl arg0, 32
@@ -50,6 +53,7 @@ fn @masked(arg0: i256) -> struct2 [selector=0x38caca52, pure, abi_params=[uint25
     ret v7
 }
 
+; function offsets(uint256 x) external pure returns (uint256 result) [selector 0x81914619]
 fn @offsets(arg0: i256) -> i256 [selector=0x81914619, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sub arg0, 8
@@ -58,6 +62,7 @@ fn @offsets(arg0: i256) -> i256 [selector=0x81914619, pure, abi_params=[uint256]
     ret v2
 }
 
+; function addressRoundtrip() external view returns (bool result) [selector 0xe6132fae]
 fn @addressRoundtrip() -> i256 [selector=0xe6132fae, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address
@@ -72,6 +77,7 @@ fn @addressRoundtrip() -> i256 [selector=0xe6132fae, view, abi_params=[], abi_re
     ret v8
 }
 
+; function repeated(uint256 x, uint256 index) external pure returns (uint256 result) [selector 0x6196485c]
 fn @repeated(arg0: i256, arg1: i256) -> i256 [selector=0x6196485c, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = signextend arg1, arg0
@@ -79,6 +85,7 @@ fn @repeated(arg0: i256, arg1: i256) -> i256 [selector=0x6196485c, pure, abi_par
     ret v1
 }
 
+; function chains(uint256 x) external pure returns (uint256 left, uint256 right, uint256 signed) [selector 0x550325b5]
 fn @chains(arg0: i256) -> struct3 [selector=0x550325b5, pure, abi_params=[uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = shl arg0, 8
@@ -93,6 +100,7 @@ fn @chains(arg0: i256) -> struct3 [selector=0x550325b5, pure, abi_params=[uint25
     ret v8
 }
 
+; function overflow(uint256 x) external pure returns (uint256 left, uint256 right, uint256 signed) [selector 0x517550bf]
 fn @overflow(arg0: i256) -> struct3 [selector=0x517550bf, pure, abi_params=[uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = shl arg0, 1
@@ -107,6 +115,7 @@ fn @overflow(arg0: i256) -> struct3 [selector=0x517550bf, pure, abi_params=[uint
     ret v8
 }
 
+; function slices(uint256 x) external pure returns (uint256 low, uint256 high, uint256 signed, uint256 nested) [selector 0xe84df24a]
 fn @slices(arg0: i256) -> struct4 [selector=0xe84df24a, pure, abi_params=[uint256], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = shl arg0, 248

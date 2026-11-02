@@ -5,31 +5,37 @@
   struct0: {i256, ptr<memory>}
   struct1: {i256, i256}
 
+; function arrRef(uint256[] storage a) external pure returns (uint256[] storage) [selector 0x1fbd3e50]
 fn @arrRef(arg0: i256) -> i256 [selector=0x1fbd3e50, pure, abi_params=[storageptr], abi_returns=[word], abi_return_params=[storageptr]] {
   bb0:
     ret arg0
 }
 
+; function bytesRef(bytes storage b) external pure returns (bytes storage) [selector 0x4d5b8d56]
 fn @bytesRef(arg0: i256) -> i256 [selector=0x4d5b8d56, pure, abi_params=[storageptr], abi_returns=[word], abi_return_params=[storageptr]] {
   bb0:
     ret arg0
 }
 
+; function plainRef(Plain storage p) external pure returns (Plain storage) [selector 0xd4ba1053]
 fn @plainRef(arg0: i256) -> i256 [selector=0xd4ba1053, pure, abi_params=[storageptr], abi_returns=[word], abi_return_params=[storageptr]] {
   bb0:
     ret arg0
 }
 
+; function fixedRef(uint256[3] storage a) external pure returns (uint256[3] storage) [selector 0x23fe6d5e]
 fn @fixedRef(arg0: i256) -> i256 [selector=0x23fe6d5e, pure, abi_params=[storageptr], abi_returns=[word], abi_return_params=[storageptr]] {
   bb0:
     ret arg0
 }
 
+; function mapRef(mapping(uint256 => uint256) storage m) external pure returns (mapping(uint256 => uint256) storage) [selector 0xca34aaa5]
 fn @mapRef(arg0: i256) -> i256 [selector=0xca34aaa5, pure, abi_params=[storageptr], abi_returns=[word], abi_return_params=[storageptr]] {
   bb0:
     ret arg0
 }
 
+; function aggRef(Plain storage p) external pure returns (Plain storage, uint256[2] memory) [selector 0xed18bf21]
 fn @aggRef(arg0: i256) -> struct0 [selector=0xed18bf21, pure, abi_params=[storageptr], abi_returns=[word, array<2, word>], abi_return_params=[storageptr, array<2, uint256>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -43,6 +49,7 @@ fn @aggRef(arg0: i256) -> struct0 [selector=0xed18bf21, pure, abi_params=[storag
     ret v4
 }
 
+; function pairRef(uint256[] storage a) external view returns (uint256, uint256[] storage) [selector 0x4a3c24da]
 fn @pairRef(arg0: i256) -> struct1 [selector=0x4a3c24da, view, abi_params=[storageptr], abi_returns=[word, word], abi_return_params=[uint256, storageptr]] {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
@@ -57,6 +64,7 @@ fn @pairRef(arg0: i256) -> struct1 [selector=0x4a3c24da, view, abi_params=[stora
   struct0: {i256, i256}
   struct1: {i256, ptr<memory>}
 
+; function len() external view returns (uint256) [selector 0x56d88e27]
 fn @len() -> i256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = fmp
@@ -73,14 +81,15 @@ fn @len() -> i256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word],
     v9 = sub v8, 50
     v10 = delegatecall v9, 0x1111111111111111111111111111111111111111, v4, v5, v4, 32
     jumpi v10, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v11 = mload v4
     v12 = sload v11 !metadata(storage=symbolic(v11))
     ret v12
 }
 
+; function bytesLen() external view returns (uint256) [selector 0x6a4634a6]
 fn @bytesLen() -> i256 [selector=0x6a4634a6, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = fmp
@@ -97,9 +106,9 @@ fn @bytesLen() -> i256 [selector=0x6a4634a6, view, abi_params=[], abi_returns=[w
     v9 = sub v8, 50
     v10 = delegatecall v9, 0x1111111111111111111111111111111111111111, v4, v5, v4, 32
     jumpi v10, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v11 = mload v4
     v12 = sload v11 !metadata(storage=symbolic(v11))
     validate_storage_bytes v12
@@ -112,6 +121,7 @@ fn @bytesLen() -> i256 [selector=0x6a4634a6, view, abi_params=[], abi_returns=[w
     ret v18
 }
 
+; function member() external view returns (uint256) [selector 0xe3f6b544]
 fn @member() -> i256 [selector=0xe3f6b544, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = fmp
@@ -128,14 +138,15 @@ fn @member() -> i256 [selector=0xe3f6b544, view, abi_params=[], abi_returns=[wor
     v9 = sub v8, 50
     v10 = delegatecall v9, 0x1111111111111111111111111111111111111111, v4, v5, v4, 32
     jumpi v10, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v11 = mload v4
     v12 = sload v11 !metadata(storage=symbolic(v11))
     ret v12
 }
 
+; function pair() external view returns (uint256, uint256) [selector 0xa8aa1b31]
 fn @pair() -> struct0 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = fmp
@@ -152,9 +163,9 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[wo
     v9 = sub v8, 50
     v10 = delegatecall v9, 0x1111111111111111111111111111111111111111, v4, v5, v4, 64
     jumpi v10, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v11 = mload v4
     v12 = ptrtoint ptr<memory> v4 to i256
     v13 = add v12, 32
@@ -169,6 +180,7 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[wo
     ret v21
 }
 
+; function fixedLast() external view returns (uint256) [selector 0x1dc0aacb]
 fn @fixedLast() -> i256 [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = fmp
@@ -185,9 +197,9 @@ fn @fixedLast() -> i256 [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[
     v9 = sub v8, 50
     v10 = delegatecall v9, 0x1111111111111111111111111111111111111111, v4, v5, v4, 32
     jumpi v10, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v11 = mload v4
     v12 = lt 2, 3
     v13 = eq v12, false
@@ -197,6 +209,7 @@ fn @fixedLast() -> i256 [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[
     ret v15
 }
 
+; function mapValue(uint256 key) external view returns (uint256) [selector 0x152381f4]
 fn @mapValue(arg0: i256) -> i256 [selector=0x152381f4, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = fmp
@@ -213,15 +226,16 @@ fn @mapValue(arg0: i256) -> i256 [selector=0x152381f4, view, abi_params=[uint256
     v9 = sub v8, 50
     v10 = delegatecall v9, 0x1111111111111111111111111111111111111111, v4, v5, v4, 32
     jumpi v10, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v11 = mload v4
     v12 = mapping_slot arg0, v11
     v13 = sload v12 !metadata(storage=symbolic(v12))
     ret v13
 }
 
+; function agg() external view returns (uint256, uint256) [selector 0xf5e34bfa]
 fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = alloc 96
@@ -239,9 +253,9 @@ fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[wor
     v10 = sub v9, 50
     v11 = delegatecall v10, 0x1111111111111111111111111111111111111111, v5, v6, v5, 96
     jumpi v11, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     mcopy v0, v5, 96
     v12 = make_memory_slice v0, 96
     v13 = abi_decode [storageptr, array<2, uint256>], v12
@@ -262,6 +276,7 @@ fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[wor
     ret v26
 }
 
+; function attached() external view returns (uint256) [selector 0xd9e6b370]
 fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = fmp
@@ -278,9 +293,9 @@ fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[w
     v9 = sub v8, 50
     v10 = delegatecall v9, 0x1111111111111111111111111111111111111111, v4, v5, v4, 32
     jumpi v10, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v11 = mload v4
     v12 = sload v11 !metadata(storage=symbolic(v11))
     ret v12

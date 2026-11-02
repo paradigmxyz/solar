@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/stack-resident/ret_spill_forwarding_buffer.sol:C ===
 @module C
+; function h(uint256 a1, uint256 a2, uint256 a3, uint256 a4, uint256 a5, uint256 a6, uint256 a7, uint256 a8, uint256 a9, uint256 a10, uint256 a11, uint256 a12, uint256 a13, uint256 a14, uint256 a15, uint256 a16, uint256 a17) internal pure returns (uint256 r)
 fn @h(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, arg6: i256, arg7: i256, arg8: i256, arg9: i256, arg10: i256, arg11: i256, arg12: i256, arg13: i256, arg14: i256, arg15: i256, arg16: i256) -> i256 [pure] {
   bb0:
     v0 = calldatasize
@@ -40,6 +41,7 @@ fn @h(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, ar
     ret v33
 }
 
+; function g(uint256 a1, uint256 a2, uint256 a3, uint256 a4, uint256 a5, uint256 a6, uint256 a7, uint256 a8, uint256 a9, uint256 a10, uint256 a11, uint256 a12, uint256 a13, uint256 a14, uint256 a15, uint256 a16, uint256 a17) external pure returns (uint256) [selector 0x15e4a00c]
 fn @g(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, arg6: i256, arg7: i256, arg8: i256, arg9: i256, arg10: i256, arg11: i256, arg12: i256, arg13: i256, arg14: i256, arg15: i256, arg16: i256) -> i256 [selector=0x15e4a00c, pure, abi_params=[uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @h, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16
@@ -47,6 +49,7 @@ fn @g(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, ar
     ret v1
 }
 
+; function g2(uint256 a1, uint256 a2, uint256 a3, uint256 a4, uint256 a5, uint256 a6, uint256 a7, uint256 a8, uint256 a9, uint256 a10, uint256 a11, uint256 a12, uint256 a13, uint256 a14, uint256 a15, uint256 a16, uint256 a17) external pure returns (uint256) [selector 0x9397d4fb]
 fn @g2(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, arg6: i256, arg7: i256, arg8: i256, arg9: i256, arg10: i256, arg11: i256, arg12: i256, arg13: i256, arg14: i256, arg15: i256, arg16: i256) -> i256 [selector=0x9397d4fb, pure, abi_params=[uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @h, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16

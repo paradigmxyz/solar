@@ -11,17 +11,18 @@ library ConstructorLibrary {
 }
 
 contract ConstructorInternalLibraryCall {
-    // CHECK-LABEL: fn @value{{[( ]}}
-    // CHECK: sload 0
-    uint256 public value;
-
     // CHECK-LABEL: fn @constructor{{[( ]}}
     // CHECK: [[MASKED:v[0-9]+]] = and arg0, 7
     // CHECK: [[VALUE:v[0-9]+]] = icall @helper, [[MASKED]]
     // CHECK: sstore 0, [[VALUE]]
-    // CHECK-LABEL: fn @helper{{[( ]}}
-    // CHECK: icall @helper
     constructor(uint256 x) {
         value = ConstructorLibrary.helper(x & 7);
     }
+
+    // CHECK-LABEL: fn @value{{[( ]}}
+    // CHECK: sload 0
+    uint256 public value;
+
+    // CHECK-LABEL: fn @helper{{[( ]}}
+    // CHECK: icall @helper
 }

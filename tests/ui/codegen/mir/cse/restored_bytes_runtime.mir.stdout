@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256}
 
+; function temporary(uint256 p) internal pure returns (uint256 result)
 fn @temporary(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = mload arg0
@@ -13,6 +14,7 @@ fn @temporary(arg0: i256) -> i256 [pure] {
     ret v2
 }
 
+; function check(uint256 value) external pure returns (uint256 result, uint256 restored) [selector 0x5f72f450]
 fn @check(arg0: i256) -> struct0 [selector=0x5f72f450, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)

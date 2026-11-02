@@ -5,6 +5,7 @@
   struct1: {i256, ptr<memory>, ptr<memory>}
   struct2: {i256, i256, i256}
 
+; function decodePair(uint256, uint256) external pure returns (uint256, uint256) [selector 0xabce00be]
 fn @decodePair(arg0: i256, arg1: i256) -> struct0 [selector=0xabce00be, pure, abi_params=[uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall @_toPairReturnType, 11
@@ -17,6 +18,7 @@ fn @decodePair(arg0: i256, arg1: i256) -> struct0 [selector=0xabce00be, pure, ab
     ret v6
 }
 
+; function decodePairLater(uint256, uint256) external pure returns (uint256) [selector 0x4186506d]
 fn @decodePairLater(arg0: i256, arg1: i256) -> i256 [selector=0x4186506d, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @_toPairReturnType, 11
@@ -29,6 +31,7 @@ fn @decodePairLater(arg0: i256, arg1: i256) -> i256 [selector=0x4186506d, pure, 
     ret v6
 }
 
+; function decodePairField(uint256, uint256) external pure returns (uint256, uint256) [selector 0x3c031c90]
 fn @decodePairField(arg0: i256, arg1: i256) -> struct0 [selector=0x3c031c90, pure, abi_params=[uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = alloc 32
@@ -44,6 +47,7 @@ fn @decodePairField(arg0: i256, arg1: i256) -> struct0 [selector=0x3c031c90, pur
     ret v8
 }
 
+; function decodeBytes(bytes calldata) external pure returns (bytes memory) [selector 0x197621ce]
 fn @decodeBytes(arg0: slice<calldata>) -> ptr<memory> [selector=0x197621ce, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @_toBytesReturnType, 12
@@ -51,6 +55,7 @@ fn @decodeBytes(arg0: slice<calldata>) -> ptr<memory> [selector=0x197621ce, pure
     ret v1
 }
 
+; function sumPair(uint256 a, uint256 b) external pure returns (uint256) [selector 0xc766468d]
 fn @sumPair(arg0: i256, arg1: i256) -> i256 [selector=0xc766468d, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @_toPairInput, 13
@@ -62,6 +67,7 @@ fn @sumPair(arg0: i256, arg1: i256) -> i256 [selector=0xc766468d, pure, abi_para
     ret v3
 }
 
+; function swapArrays(uint256[] memory left, uint256[] memory right) external pure returns (uint256, uint256[] memory, uint256[] memory) [selector 0x6568294d]
 fn @swapArrays(arg0: ptr<memory>, arg1: ptr<memory>) -> struct1 [selector=0x6568294d, pure, abi_params=[array<_, uint256>, array<_, uint256>], abi_returns=[word, memory_array<word>, memory_array<word>], abi_return_params=[uint256, array<_, uint256>, array<_, uint256>]] {
   bb0:
     v0 = icall @_toArrayTypes, 14
@@ -75,6 +81,7 @@ fn @swapArrays(arg0: ptr<memory>, arg1: ptr<memory>) -> struct1 [selector=0x6568
     ret v7
 }
 
+; function applyPair(uint256 a, uint256 b) external pure returns (uint256) [selector 0x91b58050]
 fn @applyPair(arg0: i256, arg1: i256) -> i256 [selector=0x91b58050, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @_toPairApply, 15
@@ -86,12 +93,14 @@ fn @applyPair(arg0: i256, arg1: i256) -> i256 [selector=0x91b58050, pure, abi_pa
     ret v3
 }
 
+; function isOdd(uint256 value) external pure returns (bool) [selector 0xd8b3a2eb]
 fn @isOdd(arg0: i256) -> i1 [selector=0xd8b3a2eb, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @internal_dispatcher_p_uint256_r_bool, 17, arg0
     ret v0
 }
 
+; function widenNarrow(uint256 value) external pure returns (uint256, uint256) [selector 0x699a082f]
 fn @widenNarrow(arg0: i256) -> struct0 [selector=0x699a082f, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall @_toWideInput, 18
@@ -103,12 +112,14 @@ fn @widenNarrow(arg0: i256) -> struct0 [selector=0x699a082f, pure, abi_params=[u
     ret v5
 }
 
+; function callInvalid() external pure returns (uint256) [selector 0xa0a3185b]
 fn @callInvalid() -> i256 [selector=0xa0a3185b, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @internal_dispatcher_asm_p_uint256_r_uint256, 0x1234, 0
     ret v0
 }
 
+; function _decodePair(CalldataPointer cdPtr) internal pure returns (MemoryPointer mPtr)
 fn @_decodePair(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -123,6 +134,7 @@ fn @_decodePair(arg0: i256) -> i256 [pure] {
     ret v0
 }
 
+; function _decodeBytes(CalldataPointer cdPtrLength) internal pure returns (MemoryPointer mPtrLength)
 fn @_decodeBytes(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -136,6 +148,7 @@ fn @_decodeBytes(arg0: i256) -> i256 [pure] {
     ret v0
 }
 
+; function _sumWords(MemoryPointer mPtr) internal pure returns (uint256 sum)
 fn @_sumWords(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = add arg0, 32
@@ -145,6 +158,7 @@ fn @_sumWords(arg0: i256) -> i256 [pure] {
     ret v3
 }
 
+; function _swapWords(MemoryPointer first, MemoryPointer second) internal pure returns (uint256 count, MemoryPointer left, MemoryPointer right)
 fn @_swapWords(arg0: i256, arg1: i256) -> struct2 [pure] {
   bb0:
     v0 = insert_value struct2, undef struct2, 0, 2
@@ -153,12 +167,14 @@ fn @_swapWords(arg0: i256, arg1: i256) -> struct2 [pure] {
     ret v2
 }
 
+; function _applyWord(MemoryPointer value, function(MemoryPointer) internal pure returns (uint256) fn) internal pure returns (uint256)
 fn @_applyWord(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = icall @internal_dispatcher_asm_p_uint256_r_uint256, arg1, arg0
     ret v0
 }
 
+; function _productOf(Pair memory pair) internal pure returns (uint256)
 fn @_productOf(arg0: ptr<memory>) -> i256 [pure] {
   bb0:
     v0 = mload arg0
@@ -168,6 +184,7 @@ fn @_productOf(arg0: ptr<memory>) -> i256 [pure] {
     ret v3
 }
 
+; function _isOdd(uint256 value) internal pure returns (bool)
 fn @_isOdd(arg0: i256) -> i1 [pure] {
   bb0:
     v0 = checked_rem uint256, arg0, 2
@@ -175,6 +192,7 @@ fn @_isOdd(arg0: i256) -> i1 [pure] {
     ret v1
 }
 
+; function _rawAndTyped(uint8 narrow) internal pure returns (uint256 raw, uint256 typed)
 fn @_rawAndTyped(arg0: i256) -> struct0 [pure] {
   bb0:
     v0 = trunc i256 arg0 to i8
@@ -184,37 +202,44 @@ fn @_rawAndTyped(arg0: i256) -> struct0 [pure] {
     ret v3
 }
 
+; function _toPairReturnType( function(CalldataPointer) internal pure returns (MemoryPointer) inFn ) internal pure returns (function(CalldataPointer) internal pure returns (Pair memory) outFn)
 fn @_toPairReturnType(arg0: i256) -> i256 [pure] {
   bb0:
     ret arg0
 }
 
+; function _toPairDecoder(WordDecoder memory inDecoder) internal pure returns (PairDecoder memory outDecoder)
 fn @_toPairDecoder(arg0: ptr<memory>) -> ptr<memory> [pure] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
     ret arg0
 }
 
+; function _toBytesReturnType( function(CalldataPointer) internal pure returns (MemoryPointer) inFn ) internal pure returns (function(CalldataPointer) internal pure returns (bytes memory) outFn)
 fn @_toBytesReturnType(arg0: i256) -> i256 [pure] {
   bb0:
     ret arg0
 }
 
+; function _toPairInput(function(MemoryPointer) internal pure returns (uint256) inFn) internal pure returns (function(Pair memory) internal pure returns (uint256) outFn)
 fn @_toPairInput(arg0: i256) -> i256 [pure] {
   bb0:
     ret arg0
 }
 
+; function _toPairApply( function(MemoryPointer, function(MemoryPointer) internal pure returns (uint256)) internal pure returns (uint256) inFn ) internal pure returns ( function(Pair memory, function(Pair memory) internal pure returns (uint256)) internal pure returns (uint256) outFn )
 fn @_toPairApply(arg0: i256) -> i256 [pure] {
   bb0:
     ret arg0
 }
 
+; function _toWideInput(function(uint8) internal pure returns (uint256, uint256) inFn) internal pure returns (function(uint256) internal pure returns (uint256, uint256) outFn)
 fn @_toWideInput(arg0: i256) -> i256 [pure] {
   bb0:
     ret arg0
 }
 
+; function _toArrayTypes( function(MemoryPointer, MemoryPointer) internal pure returns (uint256, MemoryPointer, MemoryPointer) inFn ) internal pure returns ( function(uint256[] memory, uint256[] memory) internal pure returns (uint256, uint256[] memory, uint256[] memory) outFn )
 fn @_toArrayTypes(arg0: i256) -> i256 [pure] {
   bb0:
     ret arg0
@@ -224,32 +249,32 @@ fn @internal_dispatcher_asm_p_uint256_r_memorystruct(arg0: i256, arg1: i256) -> 
   bb0:
     v0 = eq arg0, 11
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v3 = eq arg0, 12
     jumpi v3, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb2
     v6 = eq arg0, 13
     jumpi v6, bb5, bb6
-  bb6:
+  bb6:  ; preds = bb4
     v9 = eq arg0, 16
     jumpi v9, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     icall panic_if<0x51>, true
     invalid
-  bb7:
+  bb7:  ; preds = bb6
     v10 = inttoptr i256 arg1 to ptr<memory>
     v11 = icall @_productOf, v10
     v12 = inttoptr i256 v11 to ptr<memory>
     ret v12
-  bb5:
+  bb5:  ; preds = bb4
     v7 = icall @_sumWords, arg1
     v8 = inttoptr i256 v7 to ptr<memory>
     ret v8
-  bb3:
+  bb3:  ; preds = bb2
     v4 = icall @_decodeBytes, arg1
     v5 = inttoptr i256 v4 to ptr<memory>
     ret v5
-  bb1:
+  bb1:  ; preds = bb0
     v1 = icall @_decodePair, arg1
     v2 = inttoptr i256 v1 to ptr<memory>
     ret v2
@@ -259,32 +284,32 @@ fn @internal_dispatcher_asm_p_uint256_r_memorybytes(arg0: i256, arg1: i256) -> p
   bb0:
     v0 = eq arg0, 11
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v3 = eq arg0, 12
     jumpi v3, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb2
     v6 = eq arg0, 13
     jumpi v6, bb5, bb6
-  bb6:
+  bb6:  ; preds = bb4
     v9 = eq arg0, 16
     jumpi v9, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     icall panic_if<0x51>, true
     invalid
-  bb7:
+  bb7:  ; preds = bb6
     v10 = inttoptr i256 arg1 to ptr<memory>
     v11 = icall @_productOf, v10
     v12 = inttoptr i256 v11 to ptr<memory>
     ret v12
-  bb5:
+  bb5:  ; preds = bb4
     v7 = icall @_sumWords, arg1
     v8 = inttoptr i256 v7 to ptr<memory>
     ret v8
-  bb3:
+  bb3:  ; preds = bb2
     v4 = icall @_decodeBytes, arg1
     v5 = inttoptr i256 v4 to ptr<memory>
     ret v5
-  bb1:
+  bb1:  ; preds = bb0
     v1 = icall @_decodePair, arg1
     v2 = inttoptr i256 v1 to ptr<memory>
     ret v2
@@ -294,30 +319,30 @@ fn @internal_dispatcher_asm_p_memorystruct_r_uint256(arg0: i256, arg1: ptr<memor
   bb0:
     v0 = eq arg0, 11
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v3 = eq arg0, 12
     jumpi v3, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb2
     v6 = eq arg0, 13
     jumpi v6, bb5, bb6
-  bb6:
+  bb6:  ; preds = bb4
     v9 = eq arg0, 16
     jumpi v9, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     icall panic_if<0x51>, true
     invalid
-  bb7:
+  bb7:  ; preds = bb6
     v10 = icall @_productOf, arg1
     ret v10
-  bb5:
+  bb5:  ; preds = bb4
     v7 = ptrtoint ptr<memory> arg1 to i256
     v8 = icall @_sumWords, v7
     ret v8
-  bb3:
+  bb3:  ; preds = bb2
     v4 = ptrtoint ptr<memory> arg1 to i256
     v5 = icall @_decodeBytes, v4
     ret v5
-  bb1:
+  bb1:  ; preds = bb0
     v1 = ptrtoint ptr<memory> arg1 to i256
     v2 = icall @_decodePair, v1
     ret v2
@@ -327,10 +352,10 @@ fn @internal_dispatcher_asm_p_memoryarray_memoryarray_r_uint256_memoryarray_memo
   bb0:
     v0 = eq arg0, 14
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:
+  bb1:  ; preds = bb0
     v1 = ptrtoint ptr<memory> arg1 to i256
     v2 = ptrtoint ptr<memory> arg2 to i256
     v3 = icall @_swapWords, v1, v2
@@ -349,10 +374,10 @@ fn @internal_dispatcher_asm_p_memorystruct_function_r_uint256(arg0: i256, arg1: 
   bb0:
     v0 = eq arg0, 15
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:
+  bb1:  ; preds = bb0
     v1 = ptrtoint ptr<memory> arg1 to i256
     v2 = icall @_applyWord, v1, arg2
     ret v2
@@ -362,10 +387,10 @@ fn @internal_dispatcher_p_uint256_r_bool(arg0: i256, arg1: i256) -> i1 [function
   bb0:
     v0 = eq arg0, 17
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:
+  bb1:  ; preds = bb0
     v1 = icall @_isOdd, arg1
     ret v1
 }
@@ -374,10 +399,10 @@ fn @internal_dispatcher_asm_p_uint256_r_uint256_uint256(arg0: i256, arg1: i256) 
   bb0:
     v0 = eq arg0, 18
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:
+  bb1:  ; preds = bb0
     v1 = icall @_rawAndTyped, arg1
     ret v1
 }
@@ -386,29 +411,29 @@ fn @internal_dispatcher_asm_p_uint256_r_uint256(arg0: i256, arg1: i256) -> i256 
   bb0:
     v0 = eq arg0, 11
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v2 = eq arg0, 12
     jumpi v2, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb2
     v4 = eq arg0, 13
     jumpi v4, bb5, bb6
-  bb6:
+  bb6:  ; preds = bb4
     v6 = eq arg0, 16
     jumpi v6, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     icall panic_if<0x51>, true
     invalid
-  bb7:
+  bb7:  ; preds = bb6
     v7 = inttoptr i256 arg1 to ptr<memory>
     v8 = icall @_productOf, v7
     ret v8
-  bb5:
+  bb5:  ; preds = bb4
     v5 = icall @_sumWords, arg1
     ret v5
-  bb3:
+  bb3:  ; preds = bb2
     v3 = icall @_decodeBytes, arg1
     ret v3
-  bb1:
+  bb1:  ; preds = bb0
     v1 = icall @_decodePair, arg1
     ret v1
 }

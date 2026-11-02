@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/cse/alloc_wrapped_write.sol:AllocWrappedWrite ===
 @module AllocWrappedWrite
+; function wrapped(uint256 x, uint256 y, uint256 i) external pure returns (uint256) [selector 0x89a8e302]
 fn @wrapped(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x89a8e302, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 64

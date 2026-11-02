@@ -5,12 +5,14 @@
   struct1: {i256, i256, i256}
   struct2: {i256, i256}
 
+; getter for `uint256 public transient temporary` [selector 0x52099d8b]
 fn @temporary() -> i256 [selector=0x52099d8b, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = tload 0
     ret v0
 }
 
+; function separateSpaces(uint256 stored, uint256 temporaryValue) external returns ( uint256 storedValue, uint256 transientValue, uint256 storedWord, uint256 transientWord, uint256 storedSlot, uint256 transientSlot ) [selector 0x9ef32708]
 fn @separateSpaces(arg0: i256, arg1: i256) -> struct0 [selector=0x9ef32708, abi_params=[uint256, uint256], abi_returns=[word, word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256, uint256]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
@@ -28,6 +30,7 @@ fn @separateSpaces(arg0: i256, arg1: i256) -> struct0 [selector=0x9ef32708, abi_
     ret v9
 }
 
+; function packed() external returns (uint16, uint16, uint256 word) [selector 0x8f23d5f6]
 fn @packed() -> struct1 [selector=0x8f23d5f6, abi_params=[], abi_returns=[word<uint16>, word<uint16>, word], abi_return_params=[uint16, uint16, uint256]] {
   bb0:
     v0 = tload 1
@@ -52,6 +55,7 @@ fn @packed() -> struct1 [selector=0x8f23d5f6, abi_params=[], abi_returns=[word<u
     ret v16
 }
 
+; function signed() external returns (int16) [selector 0x232a6b9d]
 fn @signed() -> i16 [selector=0x232a6b9d, abi_params=[], abi_returns=[word<int16>], abi_return_params=[int16]] {
   bb0:
     v0 = tload 1
@@ -65,6 +69,7 @@ fn @signed() -> i16 [selector=0x232a6b9d, abi_params=[], abi_returns=[word<int16
     ret v6
 }
 
+; function clear() external returns (uint256 value, uint256 word) [selector 0x52efea6e]
 fn @clear() -> struct2 [selector=0x52efea6e, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     tstore 0, 42
@@ -76,6 +81,7 @@ fn @clear() -> struct2 [selector=0x52efea6e, abi_params=[], abi_returns=[word, w
     ret v3
 }
 
+; function getter() external returns (uint256) [selector 0x993a04b7]
 fn @getter() -> i256 [selector=0x993a04b7, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     tstore 0, 77
@@ -85,9 +91,9 @@ fn @getter() -> i256 [selector=0x993a04b7, abi_params=[], abi_returns=[word], ab
     v2 = zext i160 v0 to i256
     v3 = staticcall v1, v2, 28, 4, 0, 32
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = returndatasize
     v5 = lt v4, 32
     icall revert_if<tuple_data_too_short>, v5
@@ -97,6 +103,7 @@ fn @getter() -> i256 [selector=0x993a04b7, abi_params=[], abi_returns=[word], ab
 
 // === ROOT/tests/ui/codegen/lowering/run-call/transient_storage.sol:TransientModifier ===
 @module TransientModifier
+; function run() external bump(value) returns (uint16) [selector 0xc0406226]
 fn @run() -> i16 [selector=0xc0406226, abi_params=[], abi_returns=[word<uint16>], abi_return_params=[uint16]] {
   bb0:
     v0 = tload 0
@@ -122,8 +129,8 @@ fn @run() -> i16 [selector=0xc0406226, abi_params=[], abi_returns=[word<uint16>]
     v18 = tload 0
     v19 = trunc i256 v18 to i16
     jump bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb2
     ret v19
 }

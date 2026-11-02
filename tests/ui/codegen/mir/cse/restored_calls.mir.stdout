@@ -4,6 +4,7 @@
   struct0: {i256, i256}
   struct1: {i256, i256, i256}
 
+; function same(uint256 x, uint256 n) external pure returns (uint256 sum, uint256 afterValue) [selector 0xc32c70b1]
 fn @same(arg0: i256, arg1: i256) -> struct0 [selector=0xc32c70b1, pure, abi_params=[uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = gt arg1, 8
@@ -29,6 +30,7 @@ fn @same(arg0: i256, arg1: i256) -> struct0 [selector=0xc32c70b1, pure, abi_para
     ret v15
 }
 
+; function repeated(uint256 x, uint256 n, bool change) external pure returns (uint256 first, uint256 second, uint256 afterValue) [selector 0xd6d01539]
 fn @repeated(arg0: i256, arg1: i256, arg2: i1) -> struct1 [selector=0xd6d01539, pure, abi_params=[uint256, uint256, bool], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = gt arg1, 8
@@ -45,14 +47,14 @@ fn @repeated(arg0: i256, arg1: i256, arg2: i1) -> struct1 [selector=0xd6d01539, 
     mstore v7, 1
     v8 = icall @scan, v3, arg1
     jumpi arg2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v9 = ptrtoint ptr<memory> v3 to i256
     v10 = add v9, 95
     mstore8 v10, 0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v11 = icall @scan, v3, arg1
     v12 = ptrtoint ptr<memory> v3 to i256
     v13 = add v12, 32
@@ -63,6 +65,7 @@ fn @repeated(arg0: i256, arg1: i256, arg2: i1) -> struct1 [selector=0xd6d01539, 
     ret v17
 }
 
+; function scan(bytes memory data, uint256 n) internal pure returns (uint256 result)
 fn @scan(arg0: ptr<memory>, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
@@ -70,7 +73,7 @@ fn @scan(arg0: ptr<memory>, arg1: i256) -> i256 [pure] {
     v2 = mload v1
     mstore v1, 0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v3 = phi [bb0: arg0], [bb3: v3]
     v4 = phi [bb0: arg1], [bb3: v4]
     v5 = phi [bb0: 0], [bb3: v14]
@@ -81,23 +84,24 @@ fn @scan(arg0: ptr<memory>, arg1: i256) -> i256 [pure] {
     v10 = zext i1 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     mstore v6, v7
     ret v5
-  bb4:
+  bb4:  ; preds = bb1
     v12 = add v6, 32
     v13 = mload v12
     v14 = add v5, v13
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v15 = add v8, 1
     jump bb1
 }
 
+; function restored(uint256 x, uint256 n) external pure returns (uint256 result, uint256 afterValue) [selector 0x70ef4778]
 fn @restored(arg0: i256, arg1: i256) -> struct0 [selector=0x70ef4778, pure, abi_params=[uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = gt arg1, 8
@@ -118,6 +122,7 @@ fn @restored(arg0: i256, arg1: i256) -> struct0 [selector=0x70ef4778, pure, abi_
     ret v11
 }
 
+; function temporary(bytes memory data, uint256 n) internal pure returns (uint256 result)
 fn @temporary(arg0: ptr<memory>, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
@@ -125,7 +130,7 @@ fn @temporary(arg0: ptr<memory>, arg1: i256) -> i256 [pure] {
     v2 = mload v1
     mstore v1, 17
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v3 = phi [bb0: arg0], [bb3: v3]
     v4 = phi [bb0: arg1], [bb3: v4]
     v5 = phi [bb0: 0], [bb3: v13]
@@ -136,22 +141,23 @@ fn @temporary(arg0: ptr<memory>, arg1: i256) -> i256 [pure] {
     v10 = zext i1 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     mstore v6, v7
     ret v5
-  bb4:
+  bb4:  ; preds = bb1
     v12 = mload v6
     v13 = add v5, v12
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v14 = add v8, 1
     jump bb1
 }
 
+; function dirty(uint256 x, bool restore) external pure returns (uint256 afterValue) [selector 0xd5f2e1b7]
 fn @dirty(arg0: i256, arg1: i256) -> i256 [selector=0xd5f2e1b7, pure, abi_params=[uint256, bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 64
@@ -166,6 +172,7 @@ fn @dirty(arg0: i256, arg1: i256) -> i256 [selector=0xd5f2e1b7, pure, abi_params
     ret v5
 }
 
+; function conditional(bytes memory data, bool restore) internal pure
 fn @conditional(arg0: ptr<memory>, arg1: i256) [pure] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
@@ -174,11 +181,11 @@ fn @conditional(arg0: ptr<memory>, arg1: i256) [pure] {
     mstore v1, 17
     v3 = ne arg1, 0
     jumpi v3, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     mstore v1, v2
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     ret
 }

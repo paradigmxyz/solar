@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/scan_exit_constants.sol:ScanExitConstants ===
 @module ScanExitConstants
+; function check(uint256 length, uint256 badIndex) external pure returns (bool result) [selector 0x8fefd8ea]
 fn @check(arg0: i256, arg1: i256) -> i256 [selector=0x8fefd8ea, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = gt arg0, 0x400
@@ -13,7 +14,7 @@ fn @check(arg0: i256, arg1: i256) -> i256 [selector=0x8fefd8ea, pure, abi_params
     v6 = alloc zeroed checked v5
     mstore v6, arg0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v7 = phi [bb0: arg0], [bb3: v7]
     v8 = phi [bb0: arg1], [bb3: v8]
     v9 = phi [bb0: 0], [bb3: v9]
@@ -21,9 +22,9 @@ fn @check(arg0: i256, arg1: i256) -> i256 [selector=0x8fefd8ea, pure, abi_params
     v11 = phi [bb0: 0], [bb3: v21]
     v12 = lt v11, v7
     jumpi v12, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     v22 = ptrtoint ptr<memory> v10 to i256
     v23 = add v22, 32
     v24 = add v23, v7
@@ -37,14 +38,14 @@ fn @check(arg0: i256, arg1: i256) -> i256 [selector=0x8fefd8ea, pure, abi_params
     v31 = eq v30, false
     icall revert_if<empty>, v31
     ret v25
-  bb4:
+  bb4:  ; preds = bb1
     v13 = eq v11, v8
     jumpi v13, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb4
     jump bb9
-  bb7:
+  bb7:  ; preds = bb4
     jump bb9
-  bb9:
+  bb9:  ; preds = bb7, bb8
     v14 = phi [bb7: 0x8000000000000000000000000000000000000000000000000000000000000000], [bb8: 0x4100000000000000000000000000000000000000000000000000000000000000]
     v15 = mload v10
     v16 = lt v11, v15
@@ -55,29 +56,30 @@ fn @check(arg0: i256, arg1: i256) -> i256 [selector=0x8fefd8ea, pure, abi_params
     v20 = ptradd v19, 32
     mstore8 v20, v18
     jump bb6
-  bb6:
+  bb6:  ; preds = bb9
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v21 = checked_add uint256, v11, 1
     jump bb1
 }
 
+; function scan(bytes memory data) internal pure returns (bool result)
 fn @scan(arg0: ptr<memory>) -> i256 [pure] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
     v1 = mload arg0
     v2 = ne v1, 0
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v3 = ptrtoint ptr<memory> arg0 to i256
     v4 = add v3, 32
     v5 = add v4, v1
     v6 = mload v5
     mstore v5, 0
     jump bb4
-  bb4:
+  bb4:  ; preds = bb1, bb8
     v7 = phi [bb1: arg0], [bb8: v7]
     v8 = phi [bb1: 1], [bb8: v8]
     v9 = phi [bb1: v1], [bb8: v9]
@@ -85,16 +87,16 @@ fn @scan(arg0: ptr<memory>) -> i256 [pure] {
     v11 = phi [bb1: v5], [bb8: v11]
     v12 = phi [bb1: v6], [bb8: v12]
     jumpi true, bb6, bb7
-  bb7:
+  bb7:  ; preds = bb4
     jump bb5
-  bb6:
+  bb6:  ; preds = bb4
     v13 = mload v10
     v14 = and v13, 0x8080808080808080808080808080808080808080808080808080808080808080
     v15 = ne v14, 0
     jumpi v15, bb9, bb10
-  bb10:
+  bb10:  ; preds = bb6
     jump bb11
-  bb11:
+  bb11:  ; preds = bb10
     v16 = add v10, 32
     v17 = lt v16, v11
     v18 = zext i1 v17 to i256
@@ -102,22 +104,22 @@ fn @scan(arg0: ptr<memory>) -> i256 [pure] {
     v20 = zext i1 v19 to i256
     v21 = ne v20, 0
     jumpi v21, bb12, bb13
-  bb13:
+  bb13:  ; preds = bb11
     jump bb14
-  bb14:
+  bb14:  ; preds = bb13
     jump bb8
-  bb8:
+  bb8:  ; preds = bb14
     jump bb4
-  bb12:
+  bb12:  ; preds = bb11
     jump bb5
-  bb9:
+  bb9:  ; preds = bb6
     jump bb5
-  bb5:
+  bb5:  ; preds = bb9, bb12, bb7
     v22 = phi [bb9: 0], [bb12: v8], [bb7: v8]
     v23 = phi [bb9: v10], [bb12: v16], [bb7: v10]
     mstore v11, v12
     jump bb3
-  bb3:
+  bb3:  ; preds = bb5, bb2
     v24 = phi [bb5: v7], [bb2: arg0]
     v25 = phi [bb5: v22], [bb2: 1]
     v26 = phi [bb5: v9], [bb2: v1]

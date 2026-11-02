@@ -1,4 +1,7 @@
 //! Shared parser primitives for the textual MIR and EVM IR formats.
+//!
+//! Both formats take `//` and `/* */` comments from the Solidity lexer, and `;` comments, which
+//! run to the end of the line, from [`Parser::new`].
 
 use crate::link::{
     CodeKind, ContractCode, Data, DataId, LibraryId, LibraryRelocation, LibraryTable, QualifiedName,
@@ -12,7 +15,7 @@ use solar_data_structures::index::IndexVec;
 use solar_interface::{
     Session, Span, Symbol, config::OptimizationMode, kw, source_map::SourceFile, sym,
 };
-use solar_parse::PErr;
+use solar_parse::{Lexer, PErr};
 
 /// Shared parser primitives for the textual IR parsers.
 pub struct Parser<'sess, 'ast> {
@@ -22,8 +25,11 @@ pub struct Parser<'sess, 'ast> {
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     pub fn new(sess: &'sess Session, arena: &'ast Arena, source: &SourceFile) -> Self {
+        let blanked = blank_semicolon_comments(&source.src);
+        let src = blanked.as_deref().unwrap_or(&source.src);
+        let tokens = Lexer::with_start_pos(sess, src, source.start_pos).into_tokens();
         Self {
-            parser: solar_parse::Parser::from_source_file(sess, arena, source),
+            parser: solar_parse::Parser::new(sess, arena, tokens),
             libraries: LibraryTable::default(),
         }
     }
@@ -368,4 +374,41 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         };
         Ok(self.optimization().select(Some(selected)))
     }
+}
+
+/// Returns `src` with each `;` comment replaced by spaces, so that the lexer skips it and every
+/// byte offset stays the same, or `None` when it has none. A `;` inside a `//` or `/* */` comment
+/// or a string literal does not start a comment.
+fn blank_semicolon_comments(src: &str) -> Option<String> {
+    let bytes = src.as_bytes();
+    let line_end = |from: usize| {
+        bytes[from..]
+            .iter()
+            .position(|&b| matches!(b, b'\n' | b'\r'))
+            .map_or(bytes.len(), |n| from + n)
+    };
+    let mut blanked = None::<Vec<u8>>;
+    let mut at = 0;
+    while at < bytes.len() {
+        match bytes[at] {
+            b'/' if bytes.get(at + 1) == Some(&b'/') => at = line_end(at),
+            b'/' if bytes.get(at + 1) == Some(&b'*') => {
+                at = src[at + 2..].find("*/").map_or(bytes.len(), |n| at + n + 4);
+            }
+            quote @ (b'"' | b'\'') => {
+                at += 1;
+                while at < bytes.len() && bytes[at] != quote {
+                    at += if bytes[at] == b'\\' { 2 } else { 1 };
+                }
+                at += 1;
+            }
+            b';' => {
+                let end = line_end(at);
+                blanked.get_or_insert_with(|| bytes.to_vec())[at..end].fill(b' ');
+                at = end;
+            }
+            _ => at += 1,
+        }
+    }
+    blanked.map(|bytes| String::from_utf8(bytes).expect("blanking keeps UTF-8 valid"))
 }

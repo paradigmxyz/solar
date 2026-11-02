@@ -3,6 +3,7 @@
 @types
   struct0: {i8, i32, i120}
 
+; function read() external returns (uint8, uint32, uint120) [selector 0x57de26a4]
 fn @read() -> struct0 [selector=0x57de26a4, abi_params=[], abi_returns=[word<uint8>, word<uint32>, word<uint120>], abi_return_params=[uint8, uint32, uint120]] {
   bb0:
     v0 = lt 32, 33

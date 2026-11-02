@@ -1,9 +1,10 @@
 // === ROOT/tests/ui/codegen/mir/loop-unroll/invariant_tests.sol:InvariantTests ===
 @module InvariantTests
+; function periodStarts(uint256 time, uint256 period, uint256 count) external pure returns (uint256 total) [selector 0x2e930b8e]
 fn @periodStarts(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x2e930b8e, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v9]
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: arg2], [bb3: v2]
@@ -11,27 +12,28 @@ fn @periodStarts(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x2e930b8
     v4 = phi [bb0: 0], [bb3: v10]
     v5 = lt v4, v2
     jumpi v5, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v3
-  bb4:
+  bb4:  ; preds = bb1
     v6 = checked_div uint256, v0, v1
     v7 = checked_mul uint256, v6, v1
     v8 = checked_add uint256, v3, v7
     v9 = checked_add uint256, v0, 0xe10
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v10 = checked_add uint256, v4, 1
     jump bb1
 }
 
+; function keep(uint256 amount, uint256 shares, uint256 count) external pure returns (uint256 total) [selector 0xdaef3dc2]
 fn @keep(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xdaef3dc2, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v9]
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: arg2], [bb3: v2]
@@ -39,19 +41,19 @@ fn @keep(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xdaef3dc2, pure,
     v4 = phi [bb0: 0], [bb3: v10]
     v5 = lt v4, v2
     jumpi v5, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v3
-  bb4:
+  bb4:  ; preds = bb1
     v6 = checked_div uint256, v0, v1
     v7 = checked_sub uint256, v0, v6
     v8 = checked_add uint256, v3, v7
     v9 = checked_add uint256, v0, 0xde0b6b3a7640000
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v10 = checked_add uint256, v4, 1
     jump bb1
 }

@@ -1,6 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_resume.mir (before const-fold) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_resume.mir (after const-fold) ===
   @module PhasePipelineResume
+  ; selector 0x5c36b186
   fn @ping() [selector=0x5c36b186, abi_wrapper] {
     bb0:
       stop
@@ -16,20 +17,20 @@
 -     jumpi v1, bb1, bb2
 +     sstore 0, 0
 +     jumpi true, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       ret 999
-    bb1:
+    bb1:  ; preds = bb0
       ret v3
   }
   
   fn @constant_phi(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
 -     v0 = phi [bb1: 42], [bb2: 42]
 -     ret v0
 +     ret 42
@@ -59,6 +60,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_resume.mir (before branch-simplify) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_resume.mir (after branch-simplify) ===
   @module PhasePipelineResume
+  ; selector 0x5c36b186
   fn @ping() [selector=0x5c36b186, abi_wrapper] {
     bb0:
       stop
@@ -70,21 +72,21 @@
       v3 = mul v2, 8
       sstore 0, 0
 -     jumpi true, bb1, bb2
--   bb2:
+-   bb2:  ; preds = bb0
 -     ret 999
 +     jump bb1
-    bb1:
+    bb1:  ; preds = bb0
       ret v3
   }
   
   fn @constant_phi(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
       ret 42
   }
   
@@ -106,6 +108,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_resume.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_resume.mir (after dce) ===
   @module PhasePipelineResume
+  ; selector 0x5c36b186
   fn @ping() [selector=0x5c36b186, abi_wrapper] {
     bb0:
       stop
@@ -117,18 +120,18 @@
       v3 = mul v2, 8
       sstore 0, 0
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0
       ret v3
   }
   
   fn @constant_phi(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
       ret 42
   }
   

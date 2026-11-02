@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256, i256, i256}
 
+; function words(uint256 x, uint256 y) external pure returns (bool equal, uint256 different, uint256 low, uint256 other) [selector 0xa5a43888]
 fn @words(arg0: i256, arg1: i256) -> struct0 [selector=0xa5a43888, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>, word, word, word], abi_return_params=[bool, uint256, uint256, uint256]] {
   bb0:
     v0 = xor arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff

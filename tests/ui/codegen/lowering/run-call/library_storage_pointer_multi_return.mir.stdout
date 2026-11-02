@@ -12,6 +12,7 @@
   struct4: {ptr<memory>, i256, ptr<memory>}
   struct5: {i256, i256, i256}
 
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -43,6 +44,7 @@ fn @constructor() [constructor] {
     ret
 }
 
+; function forwardPair() external view returns (uint256, uint256[] memory) [selector 0x9948ca45]
 fn @forwardPair() -> struct0 [selector=0x9948ca45, view, abi_params=[], abi_returns=[word, memory_array<word>], abi_return_params=[uint256, array<_, uint256>]] {
   bb0:
     v0 = icall @pair, 0
@@ -54,6 +56,7 @@ fn @forwardPair() -> struct0 [selector=0x9948ca45, view, abi_params=[], abi_retu
     ret v5
 }
 
+; function forwardBytesPair() external view returns (uint256, bytes memory) [selector 0x244e77d3]
 fn @forwardBytesPair() -> struct0 [selector=0x244e77d3, view, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[uint256, bytes]] {
   bb0:
     v0 = icall @bytesPair, 1
@@ -65,6 +68,7 @@ fn @forwardBytesPair() -> struct0 [selector=0x244e77d3, view, abi_params=[], abi
     ret v5
 }
 
+; function forwardStructPair() external view returns (uint256, Lib.S memory) [selector 0x89663e35]
 fn @forwardStructPair() -> struct0 [selector=0x89663e35, view, abi_params=[], abi_returns=[word, tuple<word, memory_array<word>>], abi_return_params=[uint256, tuple<uint256, array<_, uint256>>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -87,6 +91,7 @@ fn @forwardStructPair() -> struct0 [selector=0x89663e35, view, abi_params=[], ab
     ret v12
 }
 
+; function forwardNarrowPair() external view returns (uint256, uint256[] memory) [selector 0x1c173dc4]
 fn @forwardNarrowPair() -> struct0 [selector=0x1c173dc4, view, abi_params=[], abi_returns=[word, memory_array<word>], abi_return_params=[uint256, array<_, uint256>]] {
   bb0:
     v0 = icall @narrowPair, 0
@@ -99,6 +104,7 @@ fn @forwardNarrowPair() -> struct0 [selector=0x1c173dc4, view, abi_params=[], ab
     ret v6
 }
 
+; function forwardLeadingPair() external view returns (uint256[] memory, uint256) [selector 0x59d1f54e]
 fn @forwardLeadingPair() -> struct3 [selector=0x59d1f54e, view, abi_params=[], abi_returns=[memory_array<word>, word], abi_return_params=[array<_, uint256>, uint256]] {
   bb0:
     v0 = icall @leadingPair, 0
@@ -110,6 +116,7 @@ fn @forwardLeadingPair() -> struct3 [selector=0x59d1f54e, view, abi_params=[], a
     ret v5
 }
 
+; function forwardTriple() external view returns (uint256[] memory, uint256, bytes memory) [selector 0xd5d6b86b]
 fn @forwardTriple() -> struct4 [selector=0xd5d6b86b, view, abi_params=[], abi_returns=[memory_array<word>, word, memory_bytes], abi_return_params=[array<_, uint256>, uint256, bytes]] {
   bb0:
     v0 = icall @triple, 0, 1
@@ -124,6 +131,7 @@ fn @forwardTriple() -> struct4 [selector=0xd5d6b86b, view, abi_params=[], abi_re
     ret v8
 }
 
+; function declarePair() external view returns (uint256, uint256[] memory) [selector 0x2538210e]
 fn @declarePair() -> struct0 [selector=0x2538210e, view, abi_params=[], abi_returns=[word, memory_array<word>], abi_return_params=[uint256, array<_, uint256>]] {
   bb0:
     v0 = icall @pair, 0
@@ -135,6 +143,7 @@ fn @declarePair() -> struct0 [selector=0x2538210e, view, abi_params=[], abi_retu
     ret v5
 }
 
+; function assignPair() external view returns (uint256, uint256[] memory) [selector 0x9355e772]
 fn @assignPair() -> struct0 [selector=0x9355e772, view, abi_params=[], abi_returns=[word, memory_array<word>], abi_return_params=[uint256, array<_, uint256>]] {
   bb0:
     v0 = icall @pair, 0
@@ -146,6 +155,7 @@ fn @assignPair() -> struct0 [selector=0x9355e772, view, abi_params=[], abi_retur
     ret v5
 }
 
+; function keepStorage() internal view returns (uint256, uint256[] storage)
 fn @keepStorage() -> struct1 [view] {
   bb0:
     v0 = icall @pair, 0
@@ -156,6 +166,7 @@ fn @keepStorage() -> struct1 [view] {
     ret v4
 }
 
+; function forwardKeepingStorage() external view returns (uint256, uint256) [selector 0xe85db471]
 fn @forwardKeepingStorage() -> struct1 [selector=0xe85db471, view, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall @keepStorage
@@ -167,6 +178,7 @@ fn @forwardKeepingStorage() -> struct1 [selector=0xe85db471, view, abi_params=[]
     ret v5
 }
 
+; function pair(uint256[] storage a) internal view returns (uint256, uint256[] storage)
 fn @pair(arg0: i256) -> struct1 [view] {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
@@ -175,6 +187,7 @@ fn @pair(arg0: i256) -> struct1 [view] {
     ret v2
 }
 
+; function bytesPair(bytes storage b) internal view returns (uint256, bytes storage)
 fn @bytesPair(arg0: i256) -> struct1 [view] {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
@@ -190,6 +203,7 @@ fn @bytesPair(arg0: i256) -> struct1 [view] {
     ret v8
 }
 
+; function structPair(S storage s) internal view returns (uint256, S storage)
 fn @structPair(arg0: i256) -> struct1 [view] {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
@@ -198,6 +212,7 @@ fn @structPair(arg0: i256) -> struct1 [view] {
     ret v2
 }
 
+; function narrowPair(uint256[] storage a) internal view returns (uint8, uint256[] storage)
 fn @narrowPair(arg0: i256) -> struct2 [view] {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
@@ -207,6 +222,7 @@ fn @narrowPair(arg0: i256) -> struct2 [view] {
     ret v3
 }
 
+; function leadingPair(uint256[] storage a) internal view returns (uint256[] storage, uint256)
 fn @leadingPair(arg0: i256) -> struct1 [view] {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
@@ -215,6 +231,7 @@ fn @leadingPair(arg0: i256) -> struct1 [view] {
     ret v2
 }
 
+; function triple(uint256[] storage a, bytes storage b) internal view returns (uint256[] storage, uint256, bytes storage)
 fn @triple(arg0: i256, arg1: i256) -> struct5 [view] {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))

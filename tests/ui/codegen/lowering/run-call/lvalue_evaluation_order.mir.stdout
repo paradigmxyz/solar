@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256, i256}
 
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -24,6 +25,7 @@ fn @constructor() [constructor] {
     ret
 }
 
+; function compound() external returns (uint256, uint256, uint256) [selector 0xf69e2046]
 fn @compound() -> struct0 [selector=0xf69e2046, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
@@ -58,6 +60,7 @@ fn @compound() -> struct0 [selector=0xf69e2046, abi_params=[], abi_returns=[word
     ret v23
 }
 
+; function postIncrement() external returns (uint256, uint256, uint256) [selector 0x016e4842]
 fn @postIncrement() -> struct0 [selector=0x016e4842, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
@@ -92,6 +95,7 @@ fn @postIncrement() -> struct0 [selector=0x016e4842, abi_params=[], abi_returns=
     ret v23
 }
 
+; function value() external returns (uint256) [selector 0x3fa4f245]
 fn @value() -> i256 [selector=0x3fa4f245, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
@@ -105,6 +109,7 @@ fn @value() -> i256 [selector=0x3fa4f245, abi_params=[], abi_returns=[word], abi
     ret 7
 }
 
+; function pushSideEffect() external returns (uint256, uint256, uint256) [selector 0x0753e3a7]
 fn @pushSideEffect() -> struct0 [selector=0x0753e3a7, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = address
@@ -113,9 +118,9 @@ fn @pushSideEffect() -> struct0 [selector=0x0753e3a7, abi_params=[], abi_returns
     v2 = zext i160 v0 to i256
     v3 = call v1, v2, 0, 28, 4, 0, 32
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = returndatasize
     v5 = lt v4, 32
     icall revert_if<tuple_data_too_short>, v5

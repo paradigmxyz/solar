@@ -4,6 +4,7 @@
   struct0: {ptr<memory>, i256}
   struct1: {i256, i256}
 
+; function pad(bytes memory s, uint256 start) external pure returns (bytes memory r, uint256 tail) [selector 0xb20ac612]
 fn @pad(arg0: ptr<memory>, arg1: i256) -> struct0 [selector=0xb20ac612, pure, abi_params=[bytes, uint256], abi_returns=[memory_bytes, word], abi_return_params=[bytes, uint256]] {
   bb0:
     icall @_dirty
@@ -16,7 +17,7 @@ fn @pad(arg0: ptr<memory>, arg1: i256) -> struct0 [selector=0xb20ac612, pure, ab
     v5 = alloc zeroed checked v4
     mstore v5, v1
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v6 = phi [bb0: arg0], [bb3: v6]
     v7 = phi [bb0: arg1], [bb3: v7]
     v8 = phi [bb0: v5], [bb3: v8]
@@ -25,15 +26,15 @@ fn @pad(arg0: ptr<memory>, arg1: i256) -> struct0 [selector=0xb20ac612, pure, ab
     v11 = phi [bb0: 0], [bb3: v28]
     v12 = lt v11, v10
     jumpi v12, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     icall @_zeroPad, v8
     v29 = icall @_tail, v8
     v30 = insert_value struct0, undef struct0, 0, v8
     v31 = insert_value struct0, v30, 1, v29
     ret v31
-  bb4:
+  bb4:  ; preds = bb1
     v13 = checked_add uint256, v7, v11
     v14 = mload v6
     v15 = lt v13, v14
@@ -53,13 +54,14 @@ fn @pad(arg0: ptr<memory>, arg1: i256) -> struct0 [selector=0xb20ac612, pure, ab
     v27 = ptradd v26, 32
     mstore8 v27, v25
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v28 = checked_add uint256, v11, 1
     jump bb1
 }
 
+; function truncate(bytes32 word, uint256 n) external pure returns (bytes memory r, uint256 tail) [selector 0xe0b7b2e6]
 fn @truncate(arg0: i256, arg1: i256) -> struct0 [selector=0xe0b7b2e6, pure, abi_params=[bytes32, uint256], abi_returns=[memory_bytes, word], abi_return_params=[bytes, uint256]] {
   bb0:
     icall @_dirty
@@ -67,12 +69,12 @@ fn @truncate(arg0: i256, arg1: i256) -> struct0 [selector=0xe0b7b2e6, pure, abi_
     v1 = mload v0
     v2 = gt arg1, v1
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v3 = mload v0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v4 = phi [bb1: v3], [bb2: arg1]
     v5 = ptrtoint ptr<memory> v0 to i256
     mstore v0, v4
@@ -86,6 +88,7 @@ fn @truncate(arg0: i256, arg1: i256) -> struct0 [selector=0xe0b7b2e6, pure, abi_
     ret v11
 }
 
+; function next() external pure returns (uint256 first, uint256 second) [selector 0x4c8fe526]
 fn @next() -> struct1 [selector=0x4c8fe526, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = alloc zeroed checked 64
@@ -102,6 +105,7 @@ fn @next() -> struct1 [selector=0x4c8fe526, pure, abi_params=[], abi_returns=[wo
     ret v6
 }
 
+; function wrap(bytes memory s, uint256 n) external pure returns (uint256) [selector 0x2d3d4ade]
 fn @wrap(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0x2d3d4ade, pure, abi_params=[bytes, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
@@ -114,6 +118,7 @@ fn @wrap(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0x2d3d4ade, pure, abi_
     ret v4
 }
 
+; function _zeroPad(bytes memory b) private pure
 fn @_zeroPad(arg0: ptr<memory>) [pure] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
@@ -125,32 +130,34 @@ fn @_zeroPad(arg0: ptr<memory>) [pure] {
     ret
 }
 
+; function _dirty() private pure
 fn @_dirty() [pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v1 = phi [bb0: v0], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v7]
     v3 = lt v2, 0x400
     v4 = zext i1 v3 to i256
     v5 = ne v4, 0
     jumpi v5, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret
-  bb4:
+  bb4:  ; preds = bb1
     v6 = add v1, v2
     mstore v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v7 = add v2, 32
     jump bb1
 }
 
+; function _tail(bytes memory b) private pure returns (uint256 tail)
 fn @_tail(arg0: ptr<memory>) -> i256 [pure] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
@@ -158,9 +165,9 @@ fn @_tail(arg0: ptr<memory>) -> i256 [pure] {
     v2 = and v1, 31
     v3 = ne v2, 0
     jumpi v3, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v4 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v5 = ptrtoint ptr<memory> arg0 to i256
     v6 = add v5, 32
@@ -170,7 +177,7 @@ fn @_tail(arg0: ptr<memory>) -> i256 [pure] {
     v10 = mul 8, v9
     v11 = shl v8, v10
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: 0]
     ret v12
 }

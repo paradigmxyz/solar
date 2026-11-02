@@ -60,11 +60,11 @@
     bb0:
       v0 = byte 31, arg0
       jumpi arg1, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
       v1 = phi [bb1: v0], [bb2: 7]
 -     v2 = and v1, 255
 -     ret v2

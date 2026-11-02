@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/empty_external_return.sol:EmptyExternalReturn (runtime) ===
 @module EmptyExternalReturn_runtime
-bb0:
+bb0:  ; runtime dispatch entry + fallback() external [fallback]
   callvalue
   push bb2
   jumpi

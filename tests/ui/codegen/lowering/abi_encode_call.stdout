@@ -1,6 +1,29 @@
 // === ROOT/tests/ui/codegen/lowering/abi_encode_call.sol:AbiEncodeCall ===
 @module AbiEncodeCall
 @phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v2 = calldatasize
+    v3 = lt v2, 4
+    v6 = zext i1 v3 to i256
+    v7 = or v0, v6
+    v8 = ne v7, 0
+    jumpi v8, bb4, bb1
+  bb1:  ; preds = bb0
+    v4 = calldataload 0
+    v5 = shr v4, 224
+    switch v5, default bb4, [0x23d014a1 => bb2, 0x440a9300 => bb3]
+  bb3:  ; preds = bb1
+    tail_call @asValue
+  bb2:  ; preds = bb1
+    tail_call @viaCall
+  bb4 [cold]:  ; preds = bb0, bb1
+    revert 0, 0
+}
+
+; function asValue(address to, uint256 v) external pure returns (bytes memory) [selector 0x440a9300]
 fn @asValue() [selector=0x440a9300, abi_wrapper, pure] {
   bb0:
     v4 = calldataload 4
@@ -11,7 +34,7 @@ fn @asValue() [selector=0x440a9300, abi_wrapper, pure] {
     v58 = or v57, v5
     v59 = ne v58, 0
     jumpi v59, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v54 = heap_floor !metadata(alloc_ptr)
     v55 = add v54, 128 !metadata(alloc_ptr)
     mstore 64, v55 !metadata(memory=scratch)
@@ -24,13 +47,13 @@ fn @asValue() [selector=0x440a9300, abi_wrapper, pure] {
     mstore v14, arg1
     v16 = lt v54, 32
     jumpi v16, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb2
     v40 = add v47, 68
     mstore v40, 0
     v51 = sub v54, 32
     mstore v51, 32
     jump bb5
-  bb3:
+  bb3:  ; preds = bb2
     v56 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v19 = add v56, 32
     mstore v56, 32
@@ -40,13 +63,14 @@ fn @asValue() [selector=0x440a9300, abi_wrapper, pure] {
     mstore v19, 68
     mcopy v25, v47, 68 !metadata(disjoint)
     jump bb5
-  bb5:
+  bb5:  ; preds = bb3, bb4
     v43 = phi [bb3: v56], [bb4: v51]
     returndata v43, 160
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
+; function viaCall(address token, address to, uint256 v) public returns (bool ok) [selector 0x23d014a1]
 fn @viaCall() [selector=0x23d014a1, abi_wrapper] {
   bb0:
     v8 = calldatasize
@@ -60,7 +84,7 @@ fn @viaCall() [selector=0x23d014a1, abi_wrapper] {
     v32 = or v30, v14
     v33 = ne v32, 0
     jumpi v33, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v0 = gas
     v27 = heap_floor !metadata(alloc_ptr)
     v24 = add v27, 32
@@ -73,27 +97,6 @@ fn @viaCall() [selector=0x23d014a1, abi_wrapper] {
     v17 = zext i1 v7 to i256
     mstore 0, v17 !metadata(memory=scratch)
     returndata 0, 32
-  bb1 [cold]:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v2 = calldatasize
-    v3 = lt v2, 4
-    v6 = zext i1 v3 to i256
-    v7 = or v0, v6
-    v8 = ne v7, 0
-    jumpi v8, bb4, bb1
-  bb1:
-    v4 = calldataload 0
-    v5 = shr v4, 224
-    switch v5, default bb4, [0x23d014a1 => bb2, 0x440a9300 => bb3]
-  bb3:
-    tail_call @asValue
-  bb2:
-    tail_call @viaCall
-  bb4 [cold]:
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }

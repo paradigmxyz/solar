@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i1}
 
+; function bump() external returns (bool) [selector 0x68110b2f]
 fn @bump() -> i1 [selector=0x68110b2f, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -11,21 +12,22 @@ fn @bump() -> i1 [selector=0x68110b2f, abi_params=[], abi_returns=[word<bool>], 
     ret true
 }
 
+; function andSkipsRhs() external returns (uint256, bool) [selector 0x59db58e9]
 fn @andSkipsRhs() -> struct0 [selector=0x59db58e9, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[uint256, bool]] {
   bb0:
     jumpi false, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v0 = address
     v1 = gas
     mstore 0, 0x68110b2f !metadata(memory=scratch)
     v2 = zext i160 v0 to i256
     v3 = call v1, v2, 0, 28, 4, 0, 32
     jumpi v3, bb5, bb4
-  bb4:
+  bb4:  ; preds = bb1
     revert_returndata
-  bb5:
+  bb5:  ; preds = bb1
     v4 = returndatasize
     v5 = lt v4, 32
     icall revert_if<tuple_data_too_short>, v5
@@ -36,7 +38,7 @@ fn @andSkipsRhs() -> struct0 [selector=0x59db58e9, abi_params=[], abi_returns=[w
     icall revert_if<empty>, v9
     v10 = ne v6, 0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb5, bb2
     v11 = phi [bb5: v10], [bb2: false]
     v12 = sload 0 !metadata(storage=slot(0))
     v13 = insert_value struct0, undef struct0, 0, v12
@@ -44,19 +46,20 @@ fn @andSkipsRhs() -> struct0 [selector=0x59db58e9, abi_params=[], abi_returns=[w
     ret v14
 }
 
+; function orSkipsRhs() external returns (uint256, bool) [selector 0x136ed8bf]
 fn @orSkipsRhs() -> struct0 [selector=0x136ed8bf, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[uint256, bool]] {
   bb0:
     jumpi true, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v0 = address
     v1 = gas
     mstore 0, 0x68110b2f !metadata(memory=scratch)
     v2 = zext i160 v0 to i256
     v3 = call v1, v2, 0, 28, 4, 0, 32
     jumpi v3, bb5, bb4
-  bb4:
+  bb4:  ; preds = bb1
     revert_returndata
-  bb5:
+  bb5:  ; preds = bb1
     v4 = returndatasize
     v5 = lt v4, 32
     icall revert_if<tuple_data_too_short>, v5
@@ -67,9 +70,9 @@ fn @orSkipsRhs() -> struct0 [selector=0x136ed8bf, abi_params=[], abi_returns=[wo
     icall revert_if<empty>, v9
     v10 = ne v6, 0
     jump bb3
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2, bb5
     v11 = phi [bb5: v10], [bb2: true]
     v12 = sload 0 !metadata(storage=slot(0))
     v13 = insert_value struct0, undef struct0, 0, v12
@@ -77,21 +80,22 @@ fn @orSkipsRhs() -> struct0 [selector=0x136ed8bf, abi_params=[], abi_returns=[wo
     ret v14
 }
 
+; function andRunsRhs() external returns (uint256, bool) [selector 0x87ab0848]
 fn @andRunsRhs() -> struct0 [selector=0x87ab0848, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[uint256, bool]] {
   bb0:
     jumpi true, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v0 = address
     v1 = gas
     mstore 0, 0x68110b2f !metadata(memory=scratch)
     v2 = zext i160 v0 to i256
     v3 = call v1, v2, 0, 28, 4, 0, 32
     jumpi v3, bb5, bb4
-  bb4:
+  bb4:  ; preds = bb1
     revert_returndata
-  bb5:
+  bb5:  ; preds = bb1
     v4 = returndatasize
     v5 = lt v4, 32
     icall revert_if<tuple_data_too_short>, v5
@@ -102,7 +106,7 @@ fn @andRunsRhs() -> struct0 [selector=0x87ab0848, abi_params=[], abi_returns=[wo
     icall revert_if<empty>, v9
     v10 = ne v6, 0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb5, bb2
     v11 = phi [bb5: v10], [bb2: false]
     v12 = sload 0 !metadata(storage=slot(0))
     v13 = insert_value struct0, undef struct0, 0, v12
@@ -110,19 +114,20 @@ fn @andRunsRhs() -> struct0 [selector=0x87ab0848, abi_params=[], abi_returns=[wo
     ret v14
 }
 
+; function orRunsRhs() external returns (uint256, bool) [selector 0x6baa9b2a]
 fn @orRunsRhs() -> struct0 [selector=0x6baa9b2a, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[uint256, bool]] {
   bb0:
     jumpi false, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v0 = address
     v1 = gas
     mstore 0, 0x68110b2f !metadata(memory=scratch)
     v2 = zext i160 v0 to i256
     v3 = call v1, v2, 0, 28, 4, 0, 32
     jumpi v3, bb5, bb4
-  bb4:
+  bb4:  ; preds = bb1
     revert_returndata
-  bb5:
+  bb5:  ; preds = bb1
     v4 = returndatasize
     v5 = lt v4, 32
     icall revert_if<tuple_data_too_short>, v5
@@ -133,9 +138,9 @@ fn @orRunsRhs() -> struct0 [selector=0x6baa9b2a, abi_params=[], abi_returns=[wor
     icall revert_if<empty>, v9
     v10 = ne v6, 0
     jump bb3
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2, bb5
     v11 = phi [bb5: v10], [bb2: true]
     v12 = sload 0 !metadata(storage=slot(0))
     v13 = insert_value struct0, undef struct0, 0, v12

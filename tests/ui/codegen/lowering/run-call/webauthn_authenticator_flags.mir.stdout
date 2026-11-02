@@ -3,6 +3,7 @@
 @data
   literal_0: hex"68de9469627f4002c727fe634985a916f4414d6309d81cc2a26ca3f1785725b649ddbb03b8b89d41b77e5e5ad00b388d3e95043177ee2ef763a67a3e2cd40000"
 
+; function test() external pure returns (bool) [selector 0xf8a8fd6d]
 fn @test() -> i256 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @auth
@@ -10,6 +11,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word<
     ret v1
 }
 
+; function testFlags() external pure returns (bool) [selector 0x74da97f7]
 fn @testFlags() -> i256 [selector=0x74da97f7, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @auth
@@ -23,6 +25,7 @@ fn @testFlags() -> i256 [selector=0x74da97f7, pure, abi_params=[], abi_returns=[
     ret v7
 }
 
+; function testTypedConstant() external pure returns (bool) [selector 0x62655512]
 fn @testTypedConstant() -> i1 [selector=0x62655512, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @auth
@@ -41,6 +44,7 @@ fn @testTypedConstant() -> i1 [selector=0x62655512, pure, abi_params=[], abi_ret
     ret v11
 }
 
+; function auth() internal pure returns (Auth memory auth)
 fn @auth() -> ptr<memory> [pure] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
@@ -65,6 +69,7 @@ fn @auth() -> ptr<memory> [pure] {
     ret v2
 }
 
+; function check(bool requireUserVerification, Auth memory auth) internal pure returns (bool result)
 fn @check(arg0: i256, arg1: ptr<memory>) -> i256 [pure] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)

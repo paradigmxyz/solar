@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/mapping_internal_function_pointer.sol:MappingInternalFunctionPointer ===
 @module MappingInternalFunctionPointer
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = mapping_slot 0x1234, 1
@@ -10,6 +11,7 @@ fn @constructor() [constructor] {
     ret
 }
 
+; function stage0() internal
 fn @stage0() {
   bb0:
     v0 = mapping_slot 0x1234, 1
@@ -20,6 +22,7 @@ fn @stage0() {
     ret
 }
 
+; function stage1() internal
 fn @stage1() {
   bb0:
     v0 = mapping_slot 0x1234, 1
@@ -30,6 +33,7 @@ fn @stage1() {
     ret
 }
 
+; function stage2() internal
 fn @stage2() {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -39,6 +43,7 @@ fn @stage2() {
     ret
 }
 
+; function run() external returns (bool) [selector 0xc0406226]
 fn @run() -> i1 [selector=0xc0406226, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = mapping_slot 0x1234, 1
@@ -66,22 +71,22 @@ fn @internal_dispatcher_p_none_r_none(arg0: i256) [function_pointer_dispatcher] 
   bb0:
     v0 = eq arg0, 2
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v1 = eq arg0, 3
     jumpi v1, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb2
     v2 = eq arg0, 4
     jumpi v2, bb5, bb6
-  bb6:
+  bb6:  ; preds = bb4
     icall panic_if<0x51>, true
     invalid
-  bb5:
+  bb5:  ; preds = bb4
     icall @stage2
     ret
-  bb3:
+  bb3:  ; preds = bb2
     icall @stage1
     ret
-  bb1:
+  bb1:  ; preds = bb0
     icall @stage0
     ret
 }

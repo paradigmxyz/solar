@@ -1,19 +1,20 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/discarded_ternary_calldata_conversion.sol:DiscardedTernaryCalldataConversion ===
 @module DiscardedTernaryCalldataConversion
+; function choose(bool takeCalldata, uint256[][] calldata values) external pure [selector 0xfbc46747]
 fn @choose(arg0: i1, arg1: slice<calldata>) [selector=0xfbc46747, pure, abi_params=[bool, array<_, array<_, uint256>>], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = alloc zeroed checked 32
     mstore v0, 0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v6]
     v2 = lt v1, 0
     jumpi v2, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     jumpi arg0, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v7 = extract_value slice<calldata>, arg1, 1
     v8 = extract_value slice<calldata>, arg1, 0
     v9 = mul v7, 32
@@ -35,15 +36,15 @@ fn @choose(arg0: i1, arg1: slice<calldata>) [selector=0xfbc46747, pure, abi_para
     v21 = alloc v19
     mstore v21, v7
     jump bb7
-  bb7:
+  bb7:  ; preds = bb4, bb8
     v22 = phi [bb4: 0], [bb8: v61]
     v23 = lt v22, v7
     jumpi v23, bb8, bb9
-  bb9:
+  bb9:  ; preds = bb7
     jump bb6
-  bb6:
+  bb6:  ; preds = bb9, bb5
     ret
-  bb8:
+  bb8:  ; preds = bb7
     v24 = mul v22, 32
     v25 = ptrtoint ptr<calldata> v8 to i256
     v26 = add v25, v24
@@ -92,7 +93,7 @@ fn @choose(arg0: i1, arg1: slice<calldata>) [selector=0xfbc46747, pure, abi_para
     mstore v60, v57
     v61 = add v22, 1
     jump bb7
-  bb2:
+  bb2:  ; preds = bb1
     v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32
@@ -101,16 +102,17 @@ fn @choose(arg0: i1, arg1: slice<calldata>) [selector=0xfbc46747, pure, abi_para
     jump bb1
 }
 
+; function test(bool takeCalldata, bool malformed) external returns (bool success) [selector 0x7442b287]
 fn @test(arg0: i1, arg1: i1) -> i1 [selector=0x7442b287, abi_params=[bool, bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc zeroed checked 64
     mstore v0, 1
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v6]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v7 = alloc zeroed checked 64
     mstore v7, 1
     v8 = mload v0
@@ -135,19 +137,19 @@ fn @test(arg0: i1, arg1: i1) -> i1 [selector=0x7442b287, abi_params=[bool, bool]
     v22 = zext i1 arg0 to i256
     v23 = abi_encode [word<bool>, memory_array<memory_array<word>>], object, selector 0xfbc4674700000000000000000000000000000000000000000000000000000000, args v22, v0
     jumpi arg1, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v24 = ptrtoint ptr<memory> v23 to i256
     v25 = add v24, 132
     mstore v25, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v26 = address
     v27 = gas
     v28 = address_call v26, v23, gas v27
     ret v28
-  bb2:
+  bb2:  ; preds = bb1
     v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32

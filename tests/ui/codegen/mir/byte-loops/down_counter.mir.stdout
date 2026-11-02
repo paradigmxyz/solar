@@ -3,6 +3,7 @@
 @types
   struct0: {ptr<memory>, i256}
 
+; function fromCalldata(bytes calldata src, uint256 count) external pure returns (bytes memory out, uint256 k) [selector 0xffc7a8b3]
 fn @fromCalldata(arg0: slice<calldata>, arg1: i256) -> struct0 [selector=0xffc7a8b3, pure, abi_params=[bytes, uint256], abi_returns=[memory_bytes, word], abi_return_params=[bytes, uint256]] {
   bb0:
     v0 = add arg1, 63
@@ -12,20 +13,20 @@ fn @fromCalldata(arg0: slice<calldata>, arg1: i256) -> struct0 [selector=0xffc7a
     v3 = alloc zeroed checked v2
     mstore v3, arg1
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v4 = phi [bb0: arg0], [bb3: v4]
     v5 = phi [bb0: arg1], [bb3: v5]
     v6 = phi [bb0: v3], [bb3: v6]
     v7 = phi [bb0: arg1], [bb3: v27]
     v8 = gt v7, 0
     jumpi v8, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     v28 = insert_value struct0, undef struct0, 0, v6
     v29 = insert_value struct0, v28, 1, v7
     ret v29
-  bb4:
+  bb4:  ; preds = bb1
     v9 = checked_sub uint256, v7, 1
     v10 = extract_value slice<calldata>, v4, 1
     v11 = lt v9, v10
@@ -48,13 +49,14 @@ fn @fromCalldata(arg0: slice<calldata>, arg1: i256) -> struct0 [selector=0xffc7a
     v26 = ptradd v25, 32
     mstore8 v26, v24
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v27 = checked_sub uint256, v7, 1
     jump bb1
 }
 
+; function fromFresh(uint256 count) external pure returns (bytes memory out, uint256 k) [selector 0x1f6686bd]
 fn @fromFresh(arg0: i256) -> struct0 [selector=0x1f6686bd, pure, abi_params=[uint256], abi_returns=[memory_bytes, word], abi_return_params=[bytes, uint256]] {
   bb0:
     v0 = add arg0, 63
@@ -64,7 +66,7 @@ fn @fromFresh(arg0: i256) -> struct0 [selector=0x1f6686bd, pure, abi_params=[uin
     v3 = alloc zeroed checked v2
     mstore v3, arg0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v4 = phi [bb0: arg0], [bb3: v4]
     v5 = phi [bb0: ptr<memory> 96], [bb3: v5]
     v6 = phi [bb0: 0], [bb3: v6]
@@ -72,9 +74,9 @@ fn @fromFresh(arg0: i256) -> struct0 [selector=0x1f6686bd, pure, abi_params=[uin
     v8 = phi [bb0: 0], [bb3: v20]
     v9 = lt v8, v4
     jumpi v9, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     v21 = add v4, 63
     v22 = lt v21, v4
     icall panic_if<0x41>, v22
@@ -82,7 +84,7 @@ fn @fromFresh(arg0: i256) -> struct0 [selector=0x1f6686bd, pure, abi_params=[uin
     v24 = alloc zeroed checked v23
     mstore v24, v4
     jump bb7
-  bb7:
+  bb7:  ; preds = bb2, bb9
     v25 = phi [bb2: v4], [bb9: v25]
     v26 = phi [bb2: v24], [bb9: v26]
     v27 = phi [bb2: v4], [bb9: v47]
@@ -90,13 +92,13 @@ fn @fromFresh(arg0: i256) -> struct0 [selector=0x1f6686bd, pure, abi_params=[uin
     v29 = phi [bb2: v8], [bb9: v29]
     v30 = gt v27, 0
     jumpi v30, bb10, bb11
-  bb11:
+  bb11:  ; preds = bb7
     jump bb8
-  bb8:
+  bb8:  ; preds = bb11
     v48 = insert_value struct0, undef struct0, 0, v26
     v49 = insert_value struct0, v48, 1, v27
     ret v49
-  bb10:
+  bb10:  ; preds = bb7
     v31 = checked_sub uint256, v27, 1
     v32 = mload v28
     v33 = lt v31, v32
@@ -117,12 +119,12 @@ fn @fromFresh(arg0: i256) -> struct0 [selector=0x1f6686bd, pure, abi_params=[uin
     v46 = ptradd v45, 32
     mstore8 v46, v44
     jump bb12
-  bb12:
+  bb12:  ; preds = bb10
     jump bb9
-  bb9:
+  bb9:  ; preds = bb12
     v47 = checked_sub uint256, v27, 1
     jump bb7
-  bb4:
+  bb4:  ; preds = bb1
     v10 = checked_add uint256, v8, 1
     v11 = trunc i256 v10 to i8
     v12 = zext i8 v11 to i256
@@ -136,9 +138,9 @@ fn @fromFresh(arg0: i256) -> struct0 [selector=0x1f6686bd, pure, abi_params=[uin
     v19 = ptradd v18, 32
     mstore8 v19, v17
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v20 = checked_add uint256, v8, 1
     jump bb1
 }

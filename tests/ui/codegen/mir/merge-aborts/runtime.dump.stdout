@@ -1,147 +1,148 @@
 // === ROOT/tests/ui/codegen/mir/merge-aborts/runtime.sol:MergeAborts ===
 @module MergeAborts
 @phase lowered
+; runtime dispatch entry
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
     v1 = ne v0, 0
     jumpi v1, bb6, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v2 = calldataload 0
     v3 = shr v2, 224
     v4 = calldataload 4
     v5 = calldataload 36
     v6 = calldataload 68
     switch v3, default bb6, [0x41cb7983 => bb2, 0x4256913b => bb3, 0xca939f26 => bb4, 0xd412532e => bb5]
-  bb5:
+  bb5:  ; preds = bb1
     v44 = calldatasize
     v45 = lt v44, 100
     jumpi v45, bb6, bb25
-  bb25:
+  bb25:  ; preds = bb5
     v48 = add v4, v5
     v49 = lt v48, v4
     v46 = add v48, v6
     v47 = lt v46, v48
     v188 = or v49, v47
     jumpi v188, bb10, bb24
-  bb24:
+  bb24:  ; preds = bb25
     mstore 0, v46
     returndata 0, 32
-  bb4:
+  bb4:  ; preds = bb1
     v28 = calldatasize
     v29 = lt v28, 100
     jumpi v29, bb6, bb23
-  bb23:
+  bb23:  ; preds = bb4
     v50 = eq v5, 0
     v52 = zext i1 v50 to i256
     v51 = div 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v5
     v53 = sub v51, v52
     jump bb32
-  bb32:
+  bb32:  ; preds = bb23, bb41
     v126 = phi [bb23: v4], [bb41: v179]
     v127 = phi [bb23: 0], [bb41: v177]
     v128 = phi [bb23: 0], [bb41: v181]
     v182 = add v128, 3
     v183 = lt v182, v6
     jumpi v183, bb33, bb18
-  bb18:
+  bb18:  ; preds = bb22, bb32
     v30 = phi [bb32: v126], [bb22: v41]
     v31 = phi [bb32: v127], [bb22: v39]
     v32 = phi [bb32: v128], [bb22: v43]
     v33 = lt v32, v6
     jumpi v33, bb20, bb19
-  bb19:
+  bb19:  ; preds = bb18
     mstore 0, v31
     returndata 0, 32
-  bb20:
+  bb20:  ; preds = bb18
     v38 = gt v30, v53
     v34 = mul v30, v5
     v39 = add v31, v34
     v40 = lt v39, v31
     v187 = or v38, v40
     jumpi v187, bb10, bb21
-  bb21:
+  bb21:  ; preds = bb20
     v41 = add v30, 1
     v42 = eq v41, 0
     jumpi v42, bb10, bb22
-  bb22:
+  bb22:  ; preds = bb21
     v43 = add v32, 1
     jump bb18
-  bb33:
+  bb33:  ; preds = bb32
     v134 = gt v126, v53
     v130 = mul v126, v5
     v135 = add v127, v130
     v136 = lt v135, v127
     v207 = or v134, v136
     jumpi v207, bb10, bb34
-  bb34:
+  bb34:  ; preds = bb33
     v137 = add v126, 1
     v138 = eq v137, 0
     jumpi v138, bb10, bb35
-  bb35:
+  bb35:  ; preds = bb34
     v148 = gt v137, v53
     v144 = mul v137, v5
     v149 = add v135, v144
     v150 = lt v149, v135
     v208 = or v148, v150
     jumpi v208, bb10, bb36
-  bb36:
+  bb36:  ; preds = bb35
     v151 = add v137, 1
     v152 = eq v151, 0
     jumpi v152, bb10, bb37
-  bb37:
+  bb37:  ; preds = bb36
     v162 = gt v151, v53
     v158 = mul v151, v5
     v163 = add v149, v158
     v164 = lt v163, v149
     v209 = or v162, v164
     jumpi v209, bb10, bb38
-  bb38:
+  bb38:  ; preds = bb37
     v165 = add v151, 1
     v166 = eq v165, 0
     jumpi v166, bb10, bb39
-  bb39:
+  bb39:  ; preds = bb38
     v176 = gt v165, v53
     v172 = mul v165, v5
     v177 = add v163, v172
     v178 = lt v177, v163
     v210 = or v176, v178
     jumpi v210, bb10, bb40
-  bb40:
+  bb40:  ; preds = bb39
     v179 = add v165, 1
     v180 = eq v179, 0
     jumpi v180, bb10, bb41
-  bb41:
+  bb41:  ; preds = bb40
     v181 = add v128, 4
     jump bb32
-  bb3:
+  bb3:  ; preds = bb1
     v20 = calldatasize
     v21 = lt v20, 68
     jumpi v21, bb6, bb17
-  bb17:
+  bb17:  ; preds = bb3
     jump bb29
-  bb29:
+  bb29:  ; preds = bb17, bb31
     v100 = phi [bb17: v4], [bb31: v121]
     v101 = phi [bb17: 0], [bb31: v123]
     v124 = add v101, 3
     v125 = lt v124, v5
     jumpi v125, bb30, bb13
-  bb13:
+  bb13:  ; preds = bb16, bb29
     v22 = phi [bb29: v100], [bb16: v25]
     v23 = phi [bb29: v101], [bb16: v27]
     v24 = lt v23, v5
     jumpi v24, bb15, bb14
-  bb14:
+  bb14:  ; preds = bb13
     mstore 0, v22
     returndata 0, 32
-  bb15:
+  bb15:  ; preds = bb13
     v25 = add v22, v23
     v26 = lt v25, v22
     jumpi v26, bb10, bb16
-  bb16:
+  bb16:  ; preds = bb15
     v27 = add v23, 1
     jump bb13
-  bb30:
+  bb30:  ; preds = bb29
     v103 = add v100, v101
     v105 = add v101, 1
     v109 = add v103, v105
@@ -151,32 +152,32 @@ fn @entry() [entry] {
     v121 = add v115, v117
     v206 = lt v121, v100
     jumpi v206, bb10, bb31
-  bb31:
+  bb31:  ; preds = bb30
     v123 = add v117, 1
     jump bb29
-  bb2:
+  bb2:  ; preds = bb1
     v7 = calldatasize
     v8 = lt v7, 100
     jumpi v8, bb6, bb12
-  bb12:
+  bb12:  ; preds = bb2
     jump bb26
-  bb26:
+  bb26:  ; preds = bb12, bb28
     v54 = phi [bb12: v4], [bb28: v95]
     v55 = phi [bb12: 0], [bb28: v93]
     v56 = phi [bb12: 0], [bb28: v97]
     v98 = add v56, 3
     v99 = lt v98, v6
     jumpi v99, bb27, bb7
-  bb7:
+  bb7:  ; preds = bb11, bb26
     v9 = phi [bb26: v54], [bb11: v17]
     v10 = phi [bb26: v55], [bb11: v15]
     v11 = phi [bb26: v56], [bb11: v19]
     v12 = lt v11, v6
     jumpi v12, bb9, bb8
-  bb8:
+  bb8:  ; preds = bb7
     mstore 0, v10
     returndata 0, 32
-  bb9:
+  bb9:  ; preds = bb7
     v184 = gt v9, 0x119799812dea11197f27f0f6e885c8ba7eb31f476caf7411a863387
     v13 = mul v9, 0xe8d4a51000
     v15 = add v10, v13
@@ -186,10 +187,10 @@ fn @entry() [entry] {
     v18 = lt v17, v9
     v186 = or v185, v18
     jumpi v186, bb10, bb11
-  bb11:
+  bb11:  ; preds = bb9
     v19 = add v11, 1
     jump bb7
-  bb27:
+  bb27:  ; preds = bb26
     v189 = gt v54, 0x119799812dea11197f27f0f6e885c8ba7eb31f476caf7411a863387
     v58 = mul v54, 0xe8d4a51000
     v60 = add v55, v58
@@ -226,13 +227,13 @@ fn @entry() [entry] {
     v96 = lt v95, v84
     v203 = or v202, v96
     jumpi v203, bb10, bb28
-  bb28:
+  bb28:  ; preds = bb27
     v97 = add v56, 4
     jump bb26
-  bb10 [cold]:
+  bb10 [cold]:  ; preds = bb9, bb15, bb20, bb21, bb25, bb27, bb30, bb33, bb34, bb35, bb36, bb37, bb38, bb39, bb40
     mstore 32, 17
     mstore 0, 0x4e487b71
     revert 28, 36
-  bb6 [cold]:
+  bb6 [cold]:  ; preds = bb0, bb1, bb2, bb3, bb4, bb5
     revert 0, 0
 }

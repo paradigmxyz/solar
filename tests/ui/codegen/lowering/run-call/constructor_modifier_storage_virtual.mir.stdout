@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_modifier_storage_virtual.sol:ConstructorModifierStorageVirtualBase ===
 @module ConstructorModifierStorageVirtualBase
+; constructor() initialize(values) [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = icall @value
@@ -12,12 +13,13 @@ fn @constructor() [constructor] {
     sstore v5, v0 !metadata(storage=symbolic(v5))
     sstore 0, v3 !metadata(storage=slot(0))
     jump bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb2
     ret
 }
 
+; function value() internal pure virtual returns (uint256)
 fn @value() -> i256 [pure] {
   bb0:
     ret 1
@@ -28,25 +30,7 @@ fn @value() -> i256 [pure] {
 @types
   struct0: {i256, i256}
 
-fn @value() -> i256 [pure] {
-  bb0:
-    ret 2
-}
-
-fn @result() -> struct0 [selector=0x65372147, view, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = sload 0 !metadata(storage=slot(0))
-    v2 = lt 0, v1
-    v3 = eq v2, false
-    icall panic_if<0x32>, v3
-    v4 = storage_array_data_slot 0
-    v5 = sload v4 !metadata(storage=symbolic(v4))
-    v6 = insert_value struct0, undef struct0, 0, v0
-    v7 = insert_value struct0, v6, 1, v5
-    ret v7
-}
-
+; creation entry
 fn @constructor() [constructor] {
   bb0:
     v0 = icall @value
@@ -59,10 +43,31 @@ fn @constructor() [constructor] {
     sstore v5, v0 !metadata(storage=symbolic(v5))
     sstore 0, v3 !metadata(storage=slot(0))
     jump bb3
-  bb3:
+  bb3:  ; preds = bb0
     jump bb2
-  bb2:
+  bb2:  ; preds = bb3
     jump bb1
-  bb1:
+  bb1:  ; preds = bb2
     ret
+}
+
+; function value() internal pure override returns (uint256)
+fn @value() -> i256 [pure] {
+  bb0:
+    ret 2
+}
+
+; function result() external view returns (uint256, uint256) [selector 0x65372147]
+fn @result() -> struct0 [selector=0x65372147, view, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = lt 0, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = storage_array_data_slot 0
+    v5 = sload v4 !metadata(storage=symbolic(v4))
+    v6 = insert_value struct0, undef struct0, 0, v0
+    v7 = insert_value struct0, v6, 1, v5
+    ret v7
 }

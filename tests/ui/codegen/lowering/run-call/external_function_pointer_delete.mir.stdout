@@ -1,10 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_delete.sol:ExternalFunctionPointerDelete ===
 @module ExternalFunctionPointerDelete
+; function value() external [selector 0x3fa4f245]
 fn @value() [selector=0x3fa4f245, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
+; function clear() external returns (bool) [selector 0x52efea6e]
 fn @clear() -> i1 [selector=0x52efea6e, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address

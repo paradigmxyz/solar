@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256}
 
+; function odd(uint256 x) external pure returns (uint256 result) [selector 0x0602c36a]
 fn @odd(arg0: i256) -> i256 [selector=0x0602c36a, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = shl arg0, 1
@@ -10,6 +11,7 @@ fn @odd(arg0: i256) -> i256 [selector=0x0602c36a, pure, abi_params=[uint256], ab
     ret v1
 }
 
+; function doublePlus(uint256 x, uint256 y) external pure returns (uint256 result) [selector 0x3b0f99ab]
 fn @doublePlus(arg0: i256, arg1: i256) -> i256 [selector=0x3b0f99ab, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = shl arg0, 1
@@ -17,6 +19,7 @@ fn @doublePlus(arg0: i256, arg1: i256) -> i256 [selector=0x3b0f99ab, pure, abi_p
     ret v1
 }
 
+; function shared(uint256 x, uint256 y) external pure returns (uint256 doubled, uint256 sum) [selector 0xa03ce1ed]
 fn @shared(arg0: i256, arg1: i256) -> struct0 [selector=0xa03ce1ed, pure, abi_params=[uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = shl arg0, 1

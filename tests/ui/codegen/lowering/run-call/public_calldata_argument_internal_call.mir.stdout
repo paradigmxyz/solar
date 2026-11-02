@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/public_calldata_argument_internal_call.sol:PublicCalldataArgumentInternalCall ===
 @module PublicCalldataArgumentInternalCall
+; function f(bytes calldata data) public pure returns (bytes32) [selector 0xd45754f8]
 fn @f(arg0: slice<calldata>) -> i256 [selector=0xd45754f8, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -38,6 +39,7 @@ fn @f(arg0: slice<calldata>) -> i256 [selector=0xd45754f8, pure, abi_params=[byt
     ret v26
 }
 
+; function g(bytes calldata data) external pure returns (bytes32) [selector 0xc0b88415]
 fn @g(arg0: slice<calldata>) -> i256 [selector=0xc0b88415, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -51,6 +53,7 @@ fn @g(arg0: slice<calldata>) -> i256 [selector=0xc0b88415, pure, abi_params=[byt
     ret v7
 }
 
+; function h(bytes calldata data) public pure returns (bytes memory) [selector 0xb2e4ec10]
 fn @h(arg0: slice<calldata>) -> ptr<memory> [selector=0xb2e4ec10, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -86,6 +89,7 @@ fn @h(arg0: slice<calldata>) -> ptr<memory> [selector=0xb2e4ec10, pure, abi_para
     ret v20
 }
 
+; function k(bytes calldata data) external pure returns (bytes memory) [selector 0x6258b270]
 fn @k(arg0: slice<calldata>) -> ptr<memory> [selector=0x6258b270, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -99,6 +103,7 @@ fn @k(arg0: slice<calldata>) -> ptr<memory> [selector=0x6258b270, pure, abi_para
     ret v7
 }
 
+; function m(uint256[] calldata a) public pure returns (uint256[] memory) [selector 0x8fddd5ba]
 fn @m(arg0: slice<calldata>) -> ptr<memory> [selector=0x8fddd5ba, pure, abi_params=[array<_, uint256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -139,6 +144,7 @@ fn @m(arg0: slice<calldata>) -> ptr<memory> [selector=0x8fddd5ba, pure, abi_para
     ret v23
 }
 
+; function n(uint256[] calldata a) external pure returns (uint256[] memory) [selector 0xca68a50c]
 fn @n(arg0: slice<calldata>) -> ptr<memory> [selector=0xca68a50c, pure, abi_params=[array<_, uint256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0

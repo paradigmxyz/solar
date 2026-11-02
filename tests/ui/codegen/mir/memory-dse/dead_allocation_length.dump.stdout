@@ -1,12 +1,44 @@
 // === ROOT/tests/ui/codegen/mir/memory-dse/dead_allocation_length.sol:DeadAllocationLength ===
 @module DeadAllocationLength
 @phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb7, bb1
+  bb1:  ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb6, [0x132e4f3c => bb2, 0x5ed7ca5b => bb3, 0x624fbfdc => bb4, 0x8f0d6f17 => bb5]
+  bb5:  ; preds = bb1
+    tail_call @relay
+  bb4:  ; preds = bb1
+    tail_call @echo
+  bb3 [cold]:  ; preds = bb1
+    tail_call @halt
+  bb2 [cold]:  ; preds = bb1
+    tail_call @fail
+  bb6:  ; preds = bb1
+    tail_call @fallback
+  bb7 [cold]:  ; preds = bb0
+    revert 0, 0
+}
+
+; fallback
+fn @fallback() [abi_wrapper, fallback] {
+  bb0:
+    v0 = calldatasize
+    tail_call @fallback.body, 0, v0
+}
+
+; function echo(bytes calldata data) external pure returns (bytes memory) [selector 0x624fbfdc]
 fn @echo() [selector=0x624fbfdc, abi_wrapper, pure] {
   bb0:
     v7 = calldatasize
     v8 = lt v7, 36
     jumpi v8, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v9 = icall @decode_calldata_slice
     v10 = calldataload v9
     v11 = add v9, 32
@@ -27,33 +59,36 @@ fn @echo() [selector=0x624fbfdc, abi_wrapper, pure] {
     calldatacopy v25, v11, v10
     v30 = sub v28, v36
     returndata v36, v30
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
+; function fail(uint256 code) external pure [selector 0x132e4f3c]
 fn @fail() [selector=0x132e4f3c, abi_wrapper, cold, pure] {
   bb0 [cold]:
     v0 = calldatasize
     v1 = lt v0, 36
     jumpi v1, bb1, bb2
-  bb2 [cold]:
+  bb2 [cold]:  ; preds = bb0
     mstore 0, arg0
     revert 0, 32
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
+; function halt() external pure [selector 0x5ed7ca5b]
 fn @halt() [selector=0x5ed7ca5b, abi_wrapper, cold, pure] {
   bb0 [cold]:
     revert 0, 0
 }
 
+; function relay(bytes calldata data) external returns (bytes memory out) [selector 0x8f0d6f17]
 fn @relay() [selector=0x8f0d6f17, abi_wrapper] {
   bb0:
     v19 = calldatasize
     v20 = lt v19, 36
     jumpi v20, bb1, bb3
-  bb3:
+  bb3:  ; preds = bb0
     v21 = icall @decode_calldata_slice
     v22 = calldataload v21
     v23 = add v21, 32
@@ -78,7 +113,7 @@ fn @relay() [selector=0x8f0d6f17, abi_wrapper] {
     v45 = add v44, 63
     v46 = lt v45, v44
     jumpi v46, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     v47 = and v45, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v67 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v68 = add v67, v47 !metadata(alloc_ptr)
@@ -91,7 +126,7 @@ fn @relay() [selector=0x8f0d6f17, abi_wrapper] {
     v63 = add v68, 32
     returndatacopy v63, 0, v10
     jumpi v9, bb2, bb1
-  bb2:
+  bb2:  ; preds = bb5
     v50 = add v10, 31
     v51 = and v50, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v54 = add v63, v10
@@ -100,18 +135,12 @@ fn @relay() [selector=0x8f0d6f17, abi_wrapper] {
     mstore v59, 32
     v56 = add v51, 64
     returndata v59, v56
-  bb4 [cold]:
+  bb4 [cold]:  ; preds = bb3
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0, bb5
     revert 0, 0
-}
-
-fn @fallback() [abi_wrapper, fallback] {
-  bb0:
-    v0 = calldatasize
-    tail_call @fallback.body, 0, v0
 }
 
 fn @decode_calldata_slice() -> i256 {
@@ -127,19 +156,20 @@ fn @decode_calldata_slice() -> i256 {
     v9 = gt v6, v8
     v10 = or v5, v9
     jumpi v10, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     ret v2
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
+; fallback(bytes calldata input) external returns (bytes memory)
 fn @fallback.body(arg0: i256, arg1: i256) {
   bb0:
     v0: i256 = address
     v1 = gas
     v5 = lt arg1, 4
     jumpi v5, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb0
     v8 = sub arg1, 4
     v38 = add arg0, 4
     v44 = heap_floor !metadata(alloc_ptr)
@@ -150,33 +180,10 @@ fn @fallback.body(arg0: i256, arg1: i256) {
     v40 = add v45, 32
     returndatacopy v40, 0, v26
     jumpi v25, bb2, bb1
-  bb1 [cold]:
+  bb1 [cold]:  ; preds = bb4
     revert v40, v26
-  bb2:
+  bb2:  ; preds = bb4
     returndata v40, v26
-  bb3 [cold]:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb7, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb6, [0x132e4f3c => bb2, 0x5ed7ca5b => bb3, 0x624fbfdc => bb4, 0x8f0d6f17 => bb5]
-  bb5:
-    tail_call @relay
-  bb4:
-    tail_call @echo
-  bb3 [cold]:
-    tail_call @halt
-  bb2 [cold]:
-    tail_call @fail
-  bb6:
-    tail_call @fallback
-  bb7 [cold]:
+  bb3 [cold]:  ; preds = bb0
     revert 0, 0
 }

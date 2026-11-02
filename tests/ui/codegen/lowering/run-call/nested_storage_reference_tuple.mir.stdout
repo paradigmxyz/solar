@@ -5,6 +5,7 @@
   struct1: {i256, i256}
   struct2: {i256, i256, i256}
 
+; function fromCall() external returns (uint256, uint256, uint256, uint256) [selector 0xbe4b486b]
 fn @fromCall() -> struct0 [selector=0xbe4b486b, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     icall @initialize
@@ -38,6 +39,7 @@ fn @fromCall() -> struct0 [selector=0xbe4b486b, abi_params=[], abi_returns=[word
     ret v19
 }
 
+; function fromTuple() external returns (uint256, uint256, uint256, uint256) [selector 0x7550b31f]
 fn @fromTuple() -> struct0 [selector=0x7550b31f, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     icall @initialize
@@ -74,6 +76,7 @@ fn @fromTuple() -> struct0 [selector=0x7550b31f, abi_params=[], abi_returns=[wor
     ret v20
 }
 
+; function fromFunctionPointer() external returns (uint256, uint256, uint256, uint256) [selector 0xceab4ac0]
 fn @fromFunctionPointer() -> struct0 [selector=0xceab4ac0, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     icall @initialize
@@ -84,11 +87,11 @@ fn @fromFunctionPointer() -> struct0 [selector=0xceab4ac0, abi_params=[], abi_re
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     jumpi true, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v4 = phi [bb1: 6], [bb2: 6]
     v5 = icall @internal_dispatcher_p_none_r_storageptr_storageptr, v4
     v6 = extract_value struct1, v5, 0
@@ -114,6 +117,7 @@ fn @fromFunctionPointer() -> struct0 [selector=0xceab4ac0, abi_params=[], abi_re
     ret v20
 }
 
+; function fromDeclaration() external returns (uint256, uint256, uint256) [selector 0x3d9dfb25]
 fn @fromDeclaration() -> struct2 [selector=0x3d9dfb25, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     icall @initialize
@@ -135,6 +139,7 @@ fn @fromDeclaration() -> struct2 [selector=0x3d9dfb25, abi_params=[], abi_return
     ret v10
 }
 
+; function initialize() private
 fn @initialize() {
   bb0:
     v0 = lt 0, 3
@@ -148,6 +153,7 @@ fn @initialize() {
     ret
 }
 
+; function pair() private view returns (Item storage first, Item storage second)
 fn @pair() -> struct1 [view] {
   bb0:
     v0 = lt 1, 3
@@ -165,10 +171,10 @@ fn @internal_dispatcher_p_none_r_storageptr_storageptr(arg0: i256) -> struct1 [f
   bb0:
     v0 = eq arg0, 6
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:
+  bb1:  ; preds = bb0
     v1 = icall @pair
     ret v1
 }

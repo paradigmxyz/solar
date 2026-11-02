@@ -1,12 +1,13 @@
 // === ROOT/tests/ui/codegen/mir/lowering/phase_header_preserved.mir (after pipeline-default) ===
 @module PhaseHeaderPreserved
 @phase lowered
-fn @f() {
-  bb0:
-    stop
-}
-
+; runtime dispatch entry
 fn @entry() [entry, cold] {
   bb0 [cold]:
     revert 0, 0
+}
+
+fn @f() {
+  bb0:
+    stop
 }

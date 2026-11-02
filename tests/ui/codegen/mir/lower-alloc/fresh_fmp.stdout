@@ -1,6 +1,18 @@
 - // === ROOT/tests/ui/codegen/mir/lower-alloc/fresh_fmp.mir (before lower-alloc) ===
 + // === ROOT/tests/ui/codegen/mir/lower-alloc/fresh_fmp.mir (after lower-alloc) ===
   @module FreshFmp
+  ; runtime dispatch entry
+  fn @entry() [entry] {
+    bb0:
+-     v0 = fmp
++     v2 = mload 64 !metadata(memory=scratch, alloc_ptr)
++     v0 = inttoptr i256 v2 to ptr<memory> !metadata(memory=scratch)
+      v1 = ptrtoint ptr<memory> v0 to i256
+      mstore v1, 1
+      tail_call @dispatched
+  }
+  
+  ; selector 0x10000001
   fn @entry_reads() -> i256 [selector=0x10000001] {
     bb0:
 -     v0 = fmp
@@ -18,6 +30,7 @@
       ret v3
   }
   
+  ; selector 0x10000002
   fn @read_after_alloc() -> i256 [selector=0x10000002] {
     bb0:
 -     v0 = alloc 32
@@ -32,6 +45,7 @@
       ret v2
   }
   
+  ; selector 0x10000003
   fn @read_after_slot_store() -> i256 [selector=0x10000003] {
     bb0:
       mstore 64, 160
@@ -42,6 +56,7 @@
       ret v1
   }
   
+  ; selector 0x10000004
   fn @read_after_unknown_store(arg0: i256) -> i256 [selector=0x10000004] {
     bb0:
       mstore arg0, 1
@@ -67,6 +82,7 @@
       ret v0
   }
   
+  ; selector 0x10000005
   fn @calls_leaf() -> i256 [selector=0x10000005] {
     bb0:
       v0 = icall @pure_helper, 1
@@ -85,6 +101,7 @@
       stop
   }
   
+  ; selector 0x10000006
   fn @tail_calls() [selector=0x10000006] {
     bb0:
       tail_call @tail_reads, 7
@@ -101,6 +118,7 @@
       ret v1
   }
   
+  ; selector 0x10000007
   fn @read_after_allocating_call() -> i256 [selector=0x10000007] {
     bb0:
       v0 = icall @allocator
@@ -121,12 +139,14 @@
       ret v1
   }
   
+  ; selector 0x10000008
   fn @shared_early() -> i256 [selector=0x10000008] {
     bb0:
       v0 = icall @shared
       ret v0
   }
   
+  ; selector 0x10000009
   fn @shared_late() -> i256 [selector=0x10000009] {
     bb0:
       mstore 64, 160
@@ -142,25 +162,27 @@
       v1 = ptrtoint ptr<memory> v0 to i256
       v2 = ne arg0, 0
       jumpi v2, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       ret v1
-    bb1:
+    bb1:  ; preds = bb0
       v3 = sub arg0, 1
       v4 = icall @recursive, v3
       v5 = add v4, v1
       ret v5
   }
   
+  ; selector 0x1000000a
   fn @calls_recursive() -> i256 [selector=0x1000000a] {
     bb0:
       v0 = icall @recursive, 3
       ret v0
   }
   
+  ; selector 0x1000000b
   fn @loop_reads(arg0: i256) -> i256 [selector=0x1000000b] {
     bb0:
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb1
 -     v0 = fmp
 +     v4 = mload 64 !metadata(memory=scratch, alloc_ptr)
 +     v0 = inttoptr i256 v4 to ptr<memory> !metadata(memory=scratch)
@@ -172,10 +194,11 @@
 +     mstore 64, v6 !metadata(memory=scratch)
       v3 = ne arg0, 0
       jumpi v3, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb1
       ret v1
   }
   
+  ; selector 0x1000000c
   fn @read_after_deferred() -> i256 [selector=0x1000000c] {
     bb0:
       v0 = alloc 32 !metadata(deferred_alloc)
@@ -186,6 +209,7 @@
       ret v2
   }
   
+  ; selector 0x1000000d
   fn @checked_pair(arg0: i256) -> i256 [selector=0x1000000d] {
     bb0:
 -     v0 = alloc zeroed checked arg0
@@ -199,7 +223,7 @@
 +     v11 = or v9, v10
 +     v12 = ne v11, 0
 +     jumpi v12, bb2, bb1
-+   bb1:
++   bb1:  ; preds = bb0
 +     mstore 64, v7 !metadata(memory=scratch)
 +     memory_zero v0, arg0
 +     v5 = icall @alloc, arg0
@@ -209,12 +233,13 @@
 +     v3 = ptrtoint ptr<memory> v5 to i256
       v4 = add v2, v3
       ret v4
-+   bb2 [cold]:
++   bb2 [cold]:  ; preds = bb0
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   
+  ; selector 0x1000000e
   fn @other_checked(arg0: i256) -> i256 [selector=0x1000000e] {
     bb0:
 -     v0 = alloc zeroed checked arg0
@@ -227,7 +252,7 @@
 +     v9 = or v7, v8
 +     v10 = ne v9, 0
 +     jumpi v10, bb2, bb1
-+   bb1:
++   bb1:  ; preds = bb0
 +     mstore 64, v5 !metadata(memory=scratch)
 +     memory_zero v0, arg0
       v1 = ptrtoint ptr<memory> v0 to i256
@@ -236,12 +261,13 @@
 +     v3 = icall @alloc, arg0
 +     memory_zero v3, arg0
       ret v1
-+   bb2 [cold]:
++   bb2 [cold]:  ; preds = bb0
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   
+  ; selector 0x1000000f
   fn @dispatched() [selector=0x1000000f] {
     bb0:
 -     v0 = fmp
@@ -250,16 +276,6 @@
       v1 = ptrtoint ptr<memory> v0 to i256
       mstore v1, 1
       stop
-  }
-  
-  fn @entry() [entry] {
-    bb0:
--     v0 = fmp
-+     v2 = mload 64 !metadata(memory=scratch, alloc_ptr)
-+     v0 = inttoptr i256 v2 to ptr<memory> !metadata(memory=scratch)
-      v1 = ptrtoint ptr<memory> v0 to i256
-      mstore v1, 1
-      tail_call @dispatched
 + }
 + 
 + fn @alloc(arg0: i256) -> ptr<memory> {
@@ -273,10 +289,10 @@
 +     v6 = or v4, v5
 +     v7 = ne v6, 0
 +     jumpi v7, bb1, bb2
-+   bb2:
++   bb2:  ; preds = bb0
 +     mstore 64, v2 !metadata(memory=scratch)
 +     ret v1
-+   bb1 [cold]:
++   bb1 [cold]:  ; preds = bb0
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36

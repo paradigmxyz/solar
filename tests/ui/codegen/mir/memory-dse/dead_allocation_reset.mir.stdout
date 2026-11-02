@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/memory-dse/dead_allocation_reset.sol:DeadAllocationReset ===
 @module DeadAllocationReset
+; function f(uint256 x) external pure returns (uint256 r) [selector 0xb3de648b]
 fn @f(arg0: i256) -> i256 [selector=0xb3de648b, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 96
@@ -23,6 +24,7 @@ fn @f(arg0: i256) -> i256 [selector=0xb3de648b, pure, abi_params=[uint256], abi_
     ret v11
 }
 
+; function neighbour(uint256 x) external pure returns (uint256 r) [selector 0xf7374c27]
 fn @neighbour(arg0: i256) -> i256 [selector=0xf7374c27, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 32 !metadata(preserves_fmp)
@@ -39,6 +41,7 @@ fn @neighbour(arg0: i256) -> i256 [selector=0xf7374c27, pure, abi_params=[uint25
     ret v6
 }
 
+; function grown(uint256 n) external pure returns (uint256 r) [selector 0x922be285]
 fn @grown(arg0: i256) -> i256 [selector=0x922be285, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = add arg0, 63
@@ -56,6 +59,7 @@ fn @grown(arg0: i256) -> i256 [selector=0x922be285, pure, abi_params=[uint256], 
     ret v7
 }
 
+; function wrapped(uint256 x, uint256 i) external pure returns (uint256) [selector 0x08a7c76d]
 fn @wrapped(arg0: i256, arg1: i256) -> i256 [selector=0x08a7c76d, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 64

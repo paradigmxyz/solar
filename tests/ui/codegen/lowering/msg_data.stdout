@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/msg_data.sol:MsgData ===
 @module MsgData
+; function len() external pure returns (uint256) [selector 0x56d88e27]
 fn @len() -> i256 [selector=0x56d88e27, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = calldatasize
@@ -8,6 +9,7 @@ fn @len() -> i256 [selector=0x56d88e27, pure, abi_params=[], abi_returns=[word],
     ret v2
 }
 
+; function copy() external pure returns (bytes memory) [selector 0x60726abb]
 fn @copy() -> ptr<memory> [selector=0x60726abb, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = calldatasize
@@ -35,6 +37,7 @@ fn @copy() -> ptr<memory> [selector=0x60726abb, pure, abi_params=[], abi_returns
     ret v13
 }
 
+; function environment() external view returns (uint256 value) [selector 0x74e2b63c]
 fn @environment() -> i256 [selector=0x74e2b63c, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = coinbase
@@ -70,6 +73,7 @@ fn @environment() -> i256 [selector=0x74e2b63c, view, abi_params=[], abi_returns
     ret v29
 }
 
+; function tail(uint256 a, uint256 b) external pure returns (bytes memory) [selector 0xb62868c3]
 fn @tail(arg0: i256, arg1: i256) -> ptr<memory> [selector=0xb62868c3, pure, abi_params=[uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = calldatasize

@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/return_aggregate_cleanup.sol:ReturnAggregateCleanup ===
 @module ReturnAggregateCleanup
+; function dirtyStruct() external pure returns (Pair memory p) [selector 0xe1193b83]
 fn @dirtyStruct() -> ptr<memory> [selector=0xe1193b83, pure, abi_params=[], abi_returns=[tuple<word<uint160>, word>], abi_return_params=[tuple<address, uint256>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -25,6 +26,7 @@ fn @dirtyStruct() -> ptr<memory> [selector=0xe1193b83, pure, abi_params=[], abi_
     ret v0
 }
 
+; function dirtyFixedArray() external pure returns (address[2] memory a) [selector 0xcb2a9045]
 fn @dirtyFixedArray() -> ptr<memory> [selector=0xcb2a9045, pure, abi_params=[], abi_returns=[array<2, word<uint160>>], abi_return_params=[array<2, address>]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -37,16 +39,17 @@ fn @dirtyFixedArray() -> ptr<memory> [selector=0xcb2a9045, pure, abi_params=[], 
     ret v0
 }
 
+; function dirtyNested() external pure returns (Pair[] memory list) [selector 0x40e736da]
 fn @dirtyNested() -> ptr<memory> [selector=0x40e736da, pure, abi_params=[], abi_returns=[memory_array<tuple<word<uint160>, word>>], abi_return_params=[array<_, tuple<address, uint256>>]] {
   bb0:
     v0 = alloc zeroed checked 64
     mstore v0, 1
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v9]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v10 = mload v0
     v11 = lt 0, v10
     v12 = eq v11, false
@@ -64,7 +67,7 @@ fn @dirtyNested() -> ptr<memory> [selector=0x40e736da, pure, abi_params=[], abi_
     v21 = ptrtoint ptr<memory> v20 to i256
     mstore v20, 0xabc00000000000000000000000000000000000000ff
     ret v0
-  bb2:
+  bb2:  ; preds = bb1
     v3 = alloc 64 !metadata(preserves_fmp)
     mstore v3, 0
     v4 = ptradd v3, 32
@@ -78,6 +81,7 @@ fn @dirtyNested() -> ptr<memory> [selector=0x40e736da, pure, abi_params=[], abi_
     jump bb1
 }
 
+; function sharedDirtyChildren() external pure returns (address[][] memory list) [selector 0x2671b4c3]
 fn @sharedDirtyChildren() -> ptr<memory> [selector=0x2671b4c3, pure, abi_params=[], abi_returns=[memory_array<memory_array<word<uint160>>>], abi_return_params=[array<_, array<_, address>>]] {
   bb0:
     v0 = alloc zeroed checked 96
@@ -85,11 +89,11 @@ fn @sharedDirtyChildren() -> ptr<memory> [selector=0x2671b4c3, pure, abi_params=
     v1 = alloc zeroed checked 96
     mstore v1, 2
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v2 = phi [bb0: 0], [bb2: v7]
     v3 = lt v2, 2
     jumpi v3, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v8 = mload v1
     v9 = lt 0, v8
     v10 = eq v9, false
@@ -111,7 +115,7 @@ fn @sharedDirtyChildren() -> ptr<memory> [selector=0x2671b4c3, pure, abi_params=
     v21 = add v20, 64
     mstore v21, 0x8000000000000000000000000000000000000000000000000000000000000001
     ret v1
-  bb2:
+  bb2:  ; preds = bb1
     v4 = shl v2, 5
     v5 = ptradd v1, v4
     v6 = ptradd v5, 32
@@ -120,6 +124,7 @@ fn @sharedDirtyChildren() -> ptr<memory> [selector=0x2671b4c3, pure, abi_params=
     jump bb1
 }
 
+; function badEnum() external pure returns (Tagged memory t) [selector 0xcae49006]
 fn @badEnum() -> ptr<memory> [selector=0xcae49006, pure, abi_params=[], abi_returns=[tuple<word<enum 2>>], abi_return_params=[tuple<enum<2, uint8>>]] {
   bb0:
     v0 = alloc 32 !metadata(preserves_fmp)

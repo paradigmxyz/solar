@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/modifiers.sol:Modifiers ===
 @module Modifiers
+; function rec(uint256 d) internal returns (uint256)
 fn @rec(arg0: i256) -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -9,18 +10,20 @@ fn @rec(arg0: i256) -> i256 {
     ret arg0
 }
 
+; function guarded(uint256 x) public pure guard(x) returns (uint256) [selector 0x5e284975]
 fn @guarded(arg0: i256) -> i256 [selector=0x5e284975, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = lt arg0, 10
     icall require<short_string>, v0, 5, 0x6775617264000000000000000000000000000000000000000000000000000000
     v1 = checked_add uint256, arg0, 1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb2
     ret v1
 }
 
+; function literalString() public pure guard(0) returns (string memory) [selector 0x660cf51a]
 fn @literalString() -> ptr<memory> [selector=0x660cf51a, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = lt 0, 10
@@ -30,23 +33,25 @@ fn @literalString() -> ptr<memory> [selector=0x660cf51a, pure, abi_params=[], ab
     v2 = ptradd v1, 32
     mstore v2, 0x6162630000000000000000000000000000000000000000000000000000000000
     jump bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb2
     ret v1
 }
 
+; function literalBytes() public pure guard(0) returns (bytes4) [selector 0x95549276]
 fn @literalBytes() -> i256 [selector=0x95549276, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = lt 0, 10
     icall require<short_string>, v0, 5, 0x6775617264000000000000000000000000000000000000000000000000000000
     jump bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb2
     ret 0x1122334400000000000000000000000000000000000000000000000000000000
 }
 
+; function calldataBytes(bytes calldata value) external pure guard(0) returns (bytes memory) [selector 0x7965815f]
 fn @calldataBytes(arg0: slice<calldata>) -> ptr<memory> [selector=0x7965815f, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = lt 0, 10
@@ -61,12 +66,13 @@ fn @calldataBytes(arg0: slice<calldata>) -> ptr<memory> [selector=0x7965815f, pu
     v7 = extract_value slice<calldata>, arg0, 1
     calldatacopy v5, v6, v7
     jump bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb2
     ret v4
 }
 
+; function inner(uint256 v) internal mA(rec(1)) mB(rec(2))
 fn @inner(arg0: i256) {
   bb0:
     v0 = icall @rec, 1
@@ -75,16 +81,17 @@ fn @inner(arg0: i256) {
     v3 = icall @rec, 21
     v4 = icall @rec, 3
     jump bb3
-  bb3:
+  bb3:  ; preds = bb0
     v5 = icall @rec, 29
     jump bb2
-  bb2:
+  bb2:  ; preds = bb3
     v6 = icall @rec, 19
     jump bb1
-  bb1:
+  bb1:  ; preds = bb2
     ret
 }
 
+; function orderFull(uint256 v) public returns (uint256) [selector 0xcd96f9ce]
 fn @orderFull(arg0: i256) -> i256 [selector=0xcd96f9ce, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall @inner, arg0
@@ -92,6 +99,7 @@ fn @orderFull(arg0: i256) -> i256 [selector=0xcd96f9ce, abi_params=[uint256], ab
     ret v0
 }
 
+; function double(uint256 v) public twice returns (uint256) [selector 0xeee97206]
 fn @double(arg0: i256) -> i256 [selector=0xeee97206, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -99,104 +107,109 @@ fn @double(arg0: i256) -> i256 [selector=0xeee97206, abi_params=[uint256], abi_r
     sstore 0, v1 !metadata(storage=slot(0))
     v2 = sload 0 !metadata(storage=slot(0))
     jump bb2
-  bb2:
+  bb2:  ; preds = bb0
     v3 = sload 0 !metadata(storage=slot(0))
     v4 = checked_add uint256, v3, arg0
     sstore 0, v4 !metadata(storage=slot(0))
     v5 = sload 0 !metadata(storage=slot(0))
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     jump bb1
-  bb1:
+  bb1:  ; preds = bb3
     ret v5
 }
 
+; function maybe(bool c) public pure skipIf(c) returns (uint256 out) [selector 0xe13e4d4f]
 fn @maybe(arg0: i1) -> i256 [selector=0xe13e4d4f, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jumpi arg0, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb0
     jump bb4
-  bb4:
+  bb4:  ; preds = bb3
     jump bb5
-  bb5:
+  bb5:  ; preds = bb4
     jump bb1
-  bb2:
+  bb2:  ; preds = bb0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb2, bb5
     v0 = phi [bb2: 0], [bb5: 7]
     ret v0
 }
 
+; function retMid() public check1001 bump returns (uint256) [selector 0x436126b8]
 fn @retMid() -> i256 [selector=0x436126b8, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
     jump bb3
-  bb3:
+  bb3:  ; preds = bb0
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add uint256, v0, 0x3e8
     sstore 0, v1 !metadata(storage=slot(0))
     jump bb2
-  bb2:
+  bb2:  ; preds = bb3
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = eq v2, 0x3e9
     icall require<short_string>, v3, 4, 0x706f737400000000000000000000000000000000000000000000000000000000
     jump bb1
-  bb1:
+  bb1:  ; preds = bb2
     ret 9
 }
 
+; function lazy(bool c) public expectT0 skipIf(c) mA(rec(7)) returns (uint256 out) [selector 0x90bca39b]
 fn @lazy(arg0: i1) -> i256 [selector=0x90bca39b, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jumpi arg0, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb0
     jump bb5
-  bb5:
+  bb5:  ; preds = bb4
     v0 = icall @rec, 7
     v1 = icall @rec, 11
     jump bb7
-  bb7:
+  bb7:  ; preds = bb5
     v2 = icall @rec, 19
     jump bb6
-  bb6:
+  bb6:  ; preds = bb7
     jump bb2
-  bb3:
+  bb3:  ; preds = bb0
     jump bb2
-  bb2:
+  bb2:  ; preds = bb3, bb6
     v3 = phi [bb3: 0], [bb6: 5]
     v4 = sload 0 !metadata(storage=slot(0))
     v5 = eq v4, 0
     icall require<short_string>, v5, 4, 0x6c617a7900000000000000000000000000000000000000000000000000000000
     jump bb1
-  bb1:
+  bb1:  ; preds = bb2
     ret v3
 }
 
+; function clamped(uint256 x) public clamp(x) returns (uint256) [selector 0x50df8187]
 fn @clamped(arg0: i256) -> i256 [selector=0x50df8187, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = gt arg0, 5
     jumpi v0, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb0
     jump bb4
-  bb2:
+  bb2:  ; preds = bb0
     jump bb4
-  bb4:
+  bb4:  ; preds = bb2, bb3
     v1 = phi [bb2: 5], [bb3: arg0]
     sstore 0, v1 !metadata(storage=slot(0))
     v2 = sload 0 !metadata(storage=slot(0))
     jump bb5
-  bb5:
+  bb5:  ; preds = bb4
     jump bb1
-  bb1:
+  bb1:  ; preds = bb5
     ret v2
 }
 
+; function repeatedInner() internal remember(1) remember(2)
 fn @repeatedInner() {
   bb0:
     v0 = checked_add uint256, 1, 10
     v1 = checked_add uint256, 2, 10
     sstore 0, 0 !metadata(storage=slot(0))
     jump bb3
-  bb3:
+  bb3:  ; preds = bb0
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = checked_mul uint256, v2, 0x3e8
     v4 = checked_mul uint256, 2, 100
@@ -204,7 +217,7 @@ fn @repeatedInner() {
     v6 = checked_add uint256, v5, v1
     sstore 0, v6 !metadata(storage=slot(0))
     jump bb2
-  bb2:
+  bb2:  ; preds = bb3
     v7 = sload 0 !metadata(storage=slot(0))
     v8 = checked_mul uint256, v7, 0x3e8
     v9 = checked_mul uint256, 1, 100
@@ -212,10 +225,11 @@ fn @repeatedInner() {
     v11 = checked_add uint256, v10, v0
     sstore 0, v11 !metadata(storage=slot(0))
     jump bb1
-  bb1:
+  bb1:  ; preds = bb2
     ret
 }
 
+; function repeated() public returns (uint256) [selector 0xc7642fc4]
 fn @repeated() -> i256 [selector=0xc7642fc4, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall @repeatedInner
@@ -225,6 +239,7 @@ fn @repeated() -> i256 [selector=0xc7642fc4, abi_params=[], abi_returns=[word], 
 
 // === ROOT/tests/ui/codegen/lowering/run-call/modifiers.sol:ModBase ===
 @module ModBase
+; function guardedV() public vguard returns (uint256) [selector 0x099f200a]
 fn @guardedV() -> i256 [selector=0x099f200a, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -232,14 +247,21 @@ fn @guardedV() -> i256 [selector=0x099f200a, abi_params=[], abi_returns=[word], 
     sstore 0, v1 !metadata(storage=slot(0))
     v2 = sload 0 !metadata(storage=slot(0))
     jump bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb2
     ret v2
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/modifiers.sol:ModDerived ===
 @module ModDerived
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    ret
+}
+
+; function guardedV() public vguard returns (uint256) [selector 0x099f200a]
 fn @guardedV() -> i256 [selector=0x099f200a, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -247,25 +269,15 @@ fn @guardedV() -> i256 [selector=0x099f200a, abi_params=[], abi_returns=[word], 
     sstore 0, v1 !metadata(storage=slot(0))
     v2 = sload 0 !metadata(storage=slot(0))
     jump bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb2
     ret v2
-}
-
-fn @constructor() [constructor] {
-  bb0:
-    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/modifiers.sol:CtorMod ===
 @module CtorMod
-fn @v() -> i256 [selector=0x7c2efcba, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
-}
-
+; constructor() init [creation entry]
 fn @constructor() [constructor] {
   bb0:
     sstore 0, 42 !metadata(storage=slot(0))
@@ -273,11 +285,18 @@ fn @constructor() [constructor] {
     v1 = checked_add uint256, v0, 7
     sstore 0, v1 !metadata(storage=slot(0))
     jump bb2
-  bb2:
+  bb2:  ; preds = bb0
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = checked_add uint256, v2, 1
     sstore 0, v3 !metadata(storage=slot(0))
     jump bb1
-  bb1:
+  bb1:  ; preds = bb2
     ret
+}
+
+; getter for `uint256 public v` [selector 0x7c2efcba]
+fn @v() -> i256 [selector=0x7c2efcba, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
 }

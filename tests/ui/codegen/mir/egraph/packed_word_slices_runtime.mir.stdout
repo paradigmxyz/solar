@@ -4,6 +4,7 @@
   struct0: {i256, i256, i256}
   struct1: {i256, i256, i256, i256}
 
+; function discardMasks(uint256 x) external pure returns (uint256 left, uint256 right, uint256 last) [selector 0x5ca9b896]
 fn @discardMasks(arg0: i256) -> struct0 [selector=0x5ca9b896, pure, abi_params=[uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = and arg0, 255
@@ -18,6 +19,7 @@ fn @discardMasks(arg0: i256) -> struct0 [selector=0x5ca9b896, pure, abi_params=[
     ret v8
 }
 
+; function adjustBytes(uint256 x) external pure returns (uint256 low, uint256 high, uint256 zero) [selector 0x00154503]
 fn @adjustBytes(arg0: i256) -> struct0 [selector=0x00154503, pure, abi_params=[uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = shl arg0, 248
@@ -32,6 +34,7 @@ fn @adjustBytes(arg0: i256) -> struct0 [selector=0x00154503, pure, abi_params=[u
     ret v8
 }
 
+; function preserveBits(uint256 x) external pure returns (uint256 clipped, uint256 last, uint256 unaligned, uint256 outOfRange) [selector 0xc75ef748]
 fn @preserveBits(arg0: i256) -> struct1 [selector=0xc75ef748, pure, abi_params=[uint256], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = and arg0, 127

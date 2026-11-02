@@ -1,34 +1,36 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/try_catch_clause_order.sol:C ===
 @module C
+; function boom(uint256 k) external pure returns (uint256) [selector 0xb443a085]
 fn @boom(arg0: i256) -> i256 [selector=0xb443a085, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     v1 = eq arg0, 2
     jumpi v1, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb6:
+  bb6:  ; preds = bb5
     v3 = eq arg0, 3
     jumpi v3, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     jump bb9
-  bb9:
+  bb9:  ; preds = bb8
     ret 42
-  bb7:
+  bb7:  ; preds = bb6
     icall revert_if<empty>, true
     invalid
-  bb4:
+  bb4:  ; preds = bb3
     v2 = checked_div uint256, 1, 0
     ret v2
-  bb1:
+  bb1:  ; preds = bb0
     icall require<short_string>, false, 4, 0x6e6f706500000000000000000000000000000000000000000000000000000000
     invalid
 }
 
+; function lowLevelFirst(uint256 k) public view returns (uint256) [selector 0x7bb76e97]
 fn @lowLevelFirst(arg0: i256) -> i256 [selector=0x7bb76e97, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
@@ -38,7 +40,7 @@ fn @lowLevelFirst(arg0: i256) -> i256 [selector=0x7bb76e97, view, abi_params=[ui
     v2 = zext i160 v0 to i256
     v3 = staticcall v1, v2, 28, 36, 0, 32
     jumpi v3, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v7 = icall returndata_bytes<>
     v8 = ptradd v7, 32
     v9 = mload v7
@@ -50,40 +52,40 @@ fn @lowLevelFirst(arg0: i256) -> i256 [selector=0x7bb76e97, view, abi_params=[ui
     v15 = shr v14, 224
     v16 = eq v15, 0x8c379a0
     jumpi v16, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb2
     jump bb6
-  bb4:
+  bb4:  ; preds = bb2
     v17 = ptrtoint ptr<memory> v11 to i256
     v18 = icall @try_decode_error_message, v17, v12
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v19 = phi [bb4: v18], [bb5: false]
     jumpi v19, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     v25 = eq v15, 0x4e487b71
     v26 = lt v12, 36
     v27 = eq v26, false
     v28 = and v25, v27
     v29 = zext i1 v28 to i256
     jumpi v28, bb9, bb10
-  bb10:
+  bb10:  ; preds = bb8
     jumpi true, bb11, bb12
-  bb12:
+  bb12:  ; preds = bb10
     revert v11, v12
-  bb11:
+  bb11:  ; preds = bb10
     ret 100
-  bb9:
+  bb9:  ; preds = bb8
     v30 = ptradd v7, 36
     v31 = mload v30
     ret 300
-  bb7:
+  bb7:  ; preds = bb6
     v20 = mload v7
     v21 = ptradd v7, 36
     v22 = sub v20, 4
     v23 = make_memory_slice v21, v22
     v24 = abi_decode [bytes], v23
     ret 200
-  bb1:
+  bb1:  ; preds = bb0
     v4 = returndatasize
     v5 = lt v4, 32
     icall revert_if<tuple_data_too_short>, v5
@@ -93,6 +95,7 @@ fn @lowLevelFirst(arg0: i256) -> i256 [selector=0x7bb76e97, view, abi_params=[ui
     ret 0
 }
 
+; function typedFirst(uint256 k) public view returns (uint256) [selector 0x90ba0c06]
 fn @typedFirst(arg0: i256) -> i256 [selector=0x90ba0c06, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
@@ -102,7 +105,7 @@ fn @typedFirst(arg0: i256) -> i256 [selector=0x90ba0c06, view, abi_params=[uint2
     v2 = zext i160 v0 to i256
     v3 = staticcall v1, v2, 28, 36, 0, 32
     jumpi v3, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v7 = icall returndata_bytes<>
     v8 = ptradd v7, 32
     v9 = mload v7
@@ -114,40 +117,40 @@ fn @typedFirst(arg0: i256) -> i256 [selector=0x90ba0c06, view, abi_params=[uint2
     v15 = shr v14, 224
     v16 = eq v15, 0x8c379a0
     jumpi v16, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb2
     jump bb6
-  bb4:
+  bb4:  ; preds = bb2
     v17 = ptrtoint ptr<memory> v11 to i256
     v18 = icall @try_decode_error_message, v17, v12
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v19 = phi [bb4: v18], [bb5: false]
     jumpi v19, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     v25 = eq v15, 0x4e487b71
     v26 = lt v12, 36
     v27 = eq v26, false
     v28 = and v25, v27
     v29 = zext i1 v28 to i256
     jumpi v28, bb9, bb10
-  bb10:
+  bb10:  ; preds = bb8
     jumpi true, bb11, bb12
-  bb12:
+  bb12:  ; preds = bb10
     revert v11, v12
-  bb11:
+  bb11:  ; preds = bb10
     ret 100
-  bb9:
+  bb9:  ; preds = bb8
     v30 = ptradd v7, 36
     v31 = mload v30
     ret 300
-  bb7:
+  bb7:  ; preds = bb6
     v20 = mload v7
     v21 = ptradd v7, 36
     v22 = sub v20, 4
     v23 = make_memory_slice v21, v22
     v24 = abi_decode [bytes], v23
     ret 200
-  bb1:
+  bb1:  ; preds = bb0
     v4 = returndatasize
     v5 = lt v4, 32
     icall revert_if<tuple_data_too_short>, v5
@@ -157,6 +160,7 @@ fn @typedFirst(arg0: i256) -> i256 [selector=0x90ba0c06, view, abi_params=[uint2
     ret 0
 }
 
+; function bareFirst(uint256 k) public view returns (uint256) [selector 0x2f2a2d09]
 fn @bareFirst(arg0: i256) -> i256 [selector=0x2f2a2d09, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
@@ -166,7 +170,7 @@ fn @bareFirst(arg0: i256) -> i256 [selector=0x2f2a2d09, view, abi_params=[uint25
     v2 = zext i160 v0 to i256
     v3 = staticcall v1, v2, 28, 36, 0, 32
     jumpi v3, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v7 = icall returndata_bytes<>
     v8 = ptradd v7, 32
     v9 = mload v7
@@ -182,17 +186,17 @@ fn @bareFirst(arg0: i256) -> i256 [selector=0x2f2a2d09, view, abi_params=[uint25
     v19 = and v16, v18
     v20 = zext i1 v19 to i256
     jumpi v19, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb2
     jumpi true, bb6, bb7
-  bb7:
+  bb7:  ; preds = bb5
     revert v11, v12
-  bb6:
+  bb6:  ; preds = bb5
     ret 100
-  bb4:
+  bb4:  ; preds = bb2
     v21 = ptradd v7, 36
     v22 = mload v21
     ret 300
-  bb1:
+  bb1:  ; preds = bb0
     v4 = returndatasize
     v5 = lt v4, 32
     icall revert_if<tuple_data_too_short>, v5
@@ -207,13 +211,13 @@ fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
     v0 = lt arg1, 68
     v1 = eq v0, false
     jumpi v1, bb1, bb3
-  bb1:
+  bb1:  ; preds = bb0
     v2 = add arg0, 4
     v3 = mload v2
     v4 = sub arg1, 36
     v5 = gt v3, v4
     jumpi v5, bb3, bb2
-  bb2:
+  bb2:  ; preds = bb1
     v6 = add v2, v3
     v7 = mload v6
     v8 = add v3, 36
@@ -224,6 +228,6 @@ fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
     v13 = zext i1 v12 to i256
     v14 = eq v13, 0
     ret v14
-  bb3:
+  bb3:  ; preds = bb0, bb1
     ret false
 }

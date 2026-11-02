@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/element-cleanup/grown_length.sol:GrownLength ===
 @module GrownLength
+; function dirty() internal pure
 fn @dirty() [pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -10,6 +11,7 @@ fn @dirty() [pure] {
     ret
 }
 
+; function find(uint256 n, uint256 i, address x) internal pure returns (bool)
 fn @find(arg0: i256, arg1: i256, arg2: i160) -> i1 [pure] {
   bb0:
     v0 = mul arg0, 1
@@ -44,6 +46,7 @@ fn @find(arg0: i256, arg1: i256, arg2: i160) -> i1 [pure] {
     ret v22
 }
 
+; function test(uint256 i) external pure returns (bool) [selector 0x29e99f07]
 fn @test(arg0: i256) -> i1 [selector=0x29e99f07, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     icall @dirty
@@ -51,16 +54,17 @@ fn @test(arg0: i256) -> i1 [selector=0x29e99f07, pure, abi_params=[uint256], abi
     ret v0
 }
 
+; function other(uint256 n) external pure returns (bool) [selector 0x369984d6]
 fn @other(arg0: i256) -> i1 [selector=0x369984d6, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @find, arg0, 0, i160 0
     jumpi v0, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v1 = icall @find, arg0, 1, i160 1
     jump bb3
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2, bb1
     v2 = phi [bb1: v1], [bb2: true]
     ret v2
 }

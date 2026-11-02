@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/try_member_function_pointer.sol:TryMemberFunctionPointer ===
 @module TryMemberFunctionPointer
+; function double(uint256 value) external pure returns (uint256) [selector 0xeee97206]
 fn @double(arg0: i256) -> i256 [selector=0xeee97206, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = ne arg0, 0
@@ -8,11 +9,13 @@ fn @double(arg0: i256) -> i256 [selector=0xeee97206, pure, abi_params=[uint256],
     ret v1
 }
 
+; function seven() external pure returns (uint256) [selector 0x78710d37]
 fn @seven() -> i256 [selector=0x78710d37, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 7
 }
 
+; function file() external view returns (File memory) [selector 0x8525855d]
 fn @file() -> ptr<memory> [selector=0x8525855d, view, abi_params=[], abi_returns=[tuple<function>], abi_return_params=[tuple<function>]] {
   bb0:
     v0 = alloc 32 !metadata(preserves_fmp)
@@ -27,6 +30,7 @@ fn @file() -> ptr<memory> [selector=0x8525855d, view, abi_params=[], abi_returns
     ret v1
 }
 
+; function callField(uint256 value) external returns (uint256) [selector 0x0a3dccd3]
 fn @callField(arg0: i256) -> i256 [selector=0x0a3dccd3, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 32
@@ -47,14 +51,14 @@ fn @callField(arg0: i256) -> i256 [selector=0x0a3dccd3, abi_params=[uint256], ab
     mstore 32, arg0 !metadata(memory=scratch)
     v13 = call v11, v10, 0, 28, 36, 0, 32
     jumpi v13, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:
+  bb4:  ; preds = bb2
     ret 1
-  bb1:
+  bb1:  ; preds = bb0
     v14 = returndatasize
     v15 = lt v14, 32
     icall revert_if<tuple_data_too_short>, v15
@@ -64,6 +68,7 @@ fn @callField(arg0: i256) -> i256 [selector=0x0a3dccd3, abi_params=[uint256], ab
     ret 0
 }
 
+; function callReturnedField() external view returns (uint256) [selector 0xee2961ee]
 fn @callReturnedField() -> i256 [selector=0xee2961ee, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
@@ -75,9 +80,9 @@ fn @callReturnedField() -> i256 [selector=0xee2961ee, view, abi_params=[], abi_r
     v6 = zext i160 v0 to i256
     v7 = staticcall v1, v6, v3, v4, v5, 32
     jumpi v7, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v8 = returndatasize
     v9 = lt v8, 32
     icall revert_if<tuple_data_too_short>, v9
@@ -93,14 +98,14 @@ fn @callReturnedField() -> i256 [selector=0xee2961ee, view, abi_params=[], abi_r
     mstore 0, v18 !metadata(memory=scratch)
     v19 = staticcall v17, v16, 28, 4, 0, 32
     jumpi v19, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb2
     jumpi true, bb6, bb7
-  bb7:
+  bb7:  ; preds = bb4
     icall revert_if<empty>, true
     invalid
-  bb6:
+  bb6:  ; preds = bb4
     ret 0
-  bb3:
+  bb3:  ; preds = bb2
     v20 = returndatasize
     v21 = lt v20, 32
     icall revert_if<tuple_data_too_short>, v21

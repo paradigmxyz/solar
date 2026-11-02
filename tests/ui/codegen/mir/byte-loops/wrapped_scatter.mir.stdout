@@ -1,11 +1,12 @@
 // === ROOT/tests/ui/codegen/mir/byte-loops/wrapped_scatter.sol:Test ===
 @module Test
+; function fill(bytes memory buffer, uint256 offset, bytes1 value) external pure returns (bool) [selector 0xb4f7766b]
 fn @fill(arg0: ptr<memory>, arg1: i256, arg2: i256) -> i1 [selector=0xb4f7766b, pure, abi_params=[bytes, uint256, bytes1], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
     mstore arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v1 = phi [bb0: arg0], [bb3: v1]
     v2 = phi [bb0: arg1], [bb3: v2]
     v3 = phi [bb0: arg2], [bb3: v3]
@@ -13,11 +14,11 @@ fn @fill(arg0: ptr<memory>, arg1: i256, arg2: i256) -> i1 [selector=0xb4f7766b, 
     v5 = phi [bb0: 0], [bb3: v14]
     v6 = lt v5, 2
     jumpi v6, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret true
-  bb4:
+  bb4:  ; preds = bb1
     v7 = checked_add uint256, v2, v5
     v8 = mload v1
     v9 = lt v7, v8
@@ -28,35 +29,37 @@ fn @fill(arg0: ptr<memory>, arg1: i256, arg2: i256) -> i1 [selector=0xb4f7766b, 
     v13 = ptradd v12, 32
     mstore8 v13, v11
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v14 = checked_add uint256, v5, 1
     jump bb1
 }
 
+; function scatter(bytes memory buffer, uint256 offset, bytes32 value, uint256 count, uint256 pointer) external pure returns (bool) [selector 0xa3efd67d]
 fn @scatter(arg0: ptr<memory>, arg1: i256, arg2: i256, arg3: i256, arg4: i256) -> i1 [selector=0xa3efd67d, pure, abi_params=[bytes, uint256, bytes32, uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
     mstore arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v1 = ne arg4, 0
     jumpi v1, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v2 = ptrtoint ptr<memory> arg0 to i256
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v3 = phi [bb1: arg4], [bb2: v2]
     v4 = inttoptr i256 v3 to ptr<memory>
     icall @_scatter, v4, arg1, arg2, arg3
     ret true
 }
 
+; function _scatter(bytes memory buffer, uint256 offset, bytes32 value, uint256 count) private pure
 fn @_scatter(arg0: ptr<memory>, arg1: i256, arg2: i256, arg3: i256) [pure] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: arg2], [bb3: v2]
@@ -64,11 +67,11 @@ fn @_scatter(arg0: ptr<memory>, arg1: i256, arg2: i256, arg3: i256) [pure] {
     v4 = phi [bb0: 0], [bb3: v17]
     v5 = lt v4, v3
     jumpi v5, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret
-  bb4:
+  bb4:  ; preds = bb1
     v6 = lt v4, 32
     v7 = eq v6, false
     icall panic_if<0x32>, v7
@@ -84,9 +87,9 @@ fn @_scatter(arg0: ptr<memory>, arg1: i256, arg2: i256, arg3: i256) [pure] {
     v16 = ptradd v15, 32
     mstore8 v16, v14
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v17 = checked_add uint256, v4, 1
     jump bb1
 }

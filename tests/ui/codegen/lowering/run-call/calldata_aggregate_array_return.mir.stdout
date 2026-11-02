@@ -3,12 +3,14 @@
 @types
   struct0: {i256, slice<calldata>}
 
+; function structs(Pair[] calldata p) external pure returns (Pair[] calldata) [selector 0x29869070]
 fn @structs(arg0: slice<calldata>) -> slice<calldata> [selector=0x29869070, pure, abi_params=[array<_, tuple<uint256, uint256>>], abi_returns=[memory_array<tuple<word, word>>], abi_return_params=[array<_, tuple<uint256, uint256>>]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 0, 0
     ret arg0
 }
 
+; function slice(Pair[] calldata p) external pure returns (Pair[] calldata) [selector 0x82cbd9d7]
 fn @slice(arg0: slice<calldata>) -> slice<calldata> [selector=0x82cbd9d7, pure, abi_params=[array<_, tuple<uint256, uint256>>], abi_returns=[memory_array<tuple<word, word>>], abi_return_params=[array<_, tuple<uint256, uint256>>]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 0, 0
@@ -24,23 +26,27 @@ fn @slice(arg0: slice<calldata>) -> slice<calldata> [selector=0x82cbd9d7, pure, 
     ret v8
 }
 
+; function rows(uint256[2][] calldata p) public pure returns (uint256[2][] calldata) [selector 0xc1ac1d8e]
 fn @rows(arg0: slice<calldata>) -> slice<calldata> [selector=0xc1ac1d8e, pure, abi_params=[array<_, array<2, uint256>>], abi_returns=[memory_array<array<2, word>>], abi_return_params=[array<_, array<2, uint256>>]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 0, 0
     ret arg0
 }
 
+; function nested(uint256[][] calldata p) public pure returns (uint256[][] calldata r) [selector 0xd3965fea]
 fn @nested(arg0: slice<calldata>) -> slice<calldata> [selector=0xd3965fea, pure, abi_params=[array<_, array<_, uint256>>], abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, uint256>>]] {
   bb0:
     ret arg0
 }
 
+; function narrow(Narrow[] calldata p) external pure returns (Narrow[] calldata) [selector 0xe999a4e4]
 fn @narrow(arg0: slice<calldata>) -> slice<calldata> [selector=0xe999a4e4, pure, abi_params=[array<_, tuple<uint8, bool>>], abi_returns=[memory_array<tuple<word<uint8>, word<bool>>>], abi_return_params=[array<_, tuple<uint8, bool>>]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 0, 0
     ret arg0
 }
 
+; function pair(Pair[] calldata p) external pure returns (uint256, Pair[] calldata) [selector 0xe0d8cd77]
 fn @pair(arg0: slice<calldata>) -> struct0 [selector=0xe0d8cd77, pure, abi_params=[array<_, tuple<uint256, uint256>>], abi_returns=[word, memory_array<tuple<word, word>>], abi_return_params=[uint256, array<_, tuple<uint256, uint256>>]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 0, 0
@@ -49,12 +55,14 @@ fn @pair(arg0: slice<calldata>) -> struct0 [selector=0xe0d8cd77, pure, abi_param
     ret v2
 }
 
+; function dynamic(Dynamic[] calldata p) external pure returns (Dynamic[] calldata) [selector 0xf3613c37]
 fn @dynamic(arg0: slice<calldata>) -> slice<calldata> [selector=0xf3613c37, pure, abi_params=[array<_, tuple<uint256, array<_, uint256>>>], abi_returns=[memory_array<tuple<word, memory_array<word>>>], abi_return_params=[array<_, tuple<uint256, array<_, uint256>>>]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 0, 0
     ret arg0
 }
 
+; function row(Pair[][] calldata p, uint256 i) external pure returns (Pair[] calldata) [selector 0x538f7fda]
 fn @row(arg0: slice<calldata>, arg1: i256) -> slice<calldata> [selector=0x538f7fda, pure, abi_params=[array<_, array<_, tuple<uint256, uint256>>>, uint256], abi_returns=[memory_array<tuple<word, word>>], abi_return_params=[array<_, tuple<uint256, uint256>>]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 0, 0
@@ -97,6 +105,7 @@ fn @row(arg0: slice<calldata>, arg1: i256) -> slice<calldata> [selector=0x538f7f
     ret v30
 }
 
+; function member(Outer calldata o) external pure returns (Pair[] calldata) [selector 0xef3fa208]
 fn @member(arg0: slice<calldata>) -> slice<calldata> [selector=0xef3fa208, pure, abi_params=[tuple<array<_, tuple<uint256, uint256>>, uint256>], abi_returns=[memory_array<tuple<word, word>>], abi_return_params=[array<_, tuple<uint256, uint256>>]] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 0, 0

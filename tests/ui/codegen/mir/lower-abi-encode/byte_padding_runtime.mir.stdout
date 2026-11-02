@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/lower-abi-encode/byte_padding_runtime.sol:BytePadding ===
 @module BytePadding
+; function check(uint256 length) external pure returns (bool) [selector 0x5f72f450]
 fn @check(arg0: i256) -> i1 [selector=0x5f72f450, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = gt arg0, 65
@@ -13,21 +14,21 @@ fn @check(arg0: i256) -> i1 [selector=0x5f72f450, pure, abi_params=[uint256], ab
     v6 = alloc zeroed checked v5
     mstore v6, arg0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v7 = phi [bb0: arg0], [bb3: v7]
     v8 = phi [bb0: 0], [bb3: v8]
     v9 = phi [bb0: v6], [bb3: v9]
     v10 = phi [bb0: 0], [bb3: v23]
     v11 = lt v10, v7
     jumpi v11, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     v24 = mload 64 !metadata(memory=scratch)
     v25 = add v24, 512
     v26 = mload 64 !metadata(memory=scratch)
     jump bb7
-  bb7:
+  bb7:  ; preds = bb2, bb9
     v27 = phi [bb2: v7], [bb9: v27]
     v28 = phi [bb2: v8], [bb9: v28]
     v29 = phi [bb2: v9], [bb9: v29]
@@ -38,9 +39,9 @@ fn @check(arg0: i256) -> i1 [selector=0x5f72f450, pure, abi_params=[uint256], ab
     v34 = zext i1 v33 to i256
     v35 = ne v34, 0
     jumpi v35, bb10, bb11
-  bb11:
+  bb11:  ; preds = bb7
     jump bb8
-  bb8:
+  bb8:  ; preds = bb11
     v37 = abi_encode [memory_bytes, memory_bytes], object, args v29, v29
     v38 = checked_add uint256, v27, 31
     v39 = and v38, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -58,18 +59,18 @@ fn @check(arg0: i256) -> i1 [selector=0x5f72f450, pure, abi_params=[uint256], ab
     v50 = mload v49
     v51 = eq v47, 64
     jumpi v51, bb13, bb14
-  bb14:
+  bb14:  ; preds = bb8
     jump bb15
-  bb13:
+  bb13:  ; preds = bb8
     v52 = checked_add uint256, 96, v39
     v53 = eq v50, v52
     jump bb15
-  bb15:
+  bb15:  ; preds = bb13, bb14
     v54 = phi [bb13: v53], [bb14: false]
     v55 = eq v54, false
     icall revert_if<empty>, v55
     jump bb16
-  bb16:
+  bb16:  ; preds = bb15, bb18
     v56 = phi [bb15: v27], [bb18: v76]
     v57 = phi [bb15: v28], [bb18: v77]
     v58 = phi [bb15: v29], [bb18: v78]
@@ -83,18 +84,18 @@ fn @check(arg0: i256) -> i1 [selector=0x5f72f450, pure, abi_params=[uint256], ab
     v66 = phi [bb15: 0], [bb18: v114]
     v67 = lt v66, 2
     jumpi v67, bb19, bb20
-  bb20:
+  bb20:  ; preds = bb16
     jump bb17
-  bb17:
+  bb17:  ; preds = bb20
     ret true
-  bb19:
+  bb19:  ; preds = bb16
     v68 = eq v66, 0
     jumpi v68, bb22, bb23
-  bb23:
+  bb23:  ; preds = bb19
     jump bb24
-  bb22:
+  bb22:  ; preds = bb19
     jump bb24
-  bb24:
+  bb24:  ; preds = bb22, bb23
     v69 = phi [bb22: v64], [bb23: v65]
     v70 = ptrtoint ptr<memory> v62 to i256
     v71 = add v70, 32
@@ -104,7 +105,7 @@ fn @check(arg0: i256) -> i1 [selector=0x5f72f450, pure, abi_params=[uint256], ab
     v75 = eq v74, false
     icall revert_if<empty>, v75
     jump bb25
-  bb25:
+  bb25:  ; preds = bb24, bb27
     v76 = phi [bb24: v56], [bb27: v76]
     v77 = phi [bb24: v57], [bb27: v77]
     v78 = phi [bb24: v58], [bb27: v78]
@@ -121,16 +122,16 @@ fn @check(arg0: i256) -> i1 [selector=0x5f72f450, pure, abi_params=[uint256], ab
     v89 = phi [bb24: 0], [bb27: v113]
     v90 = lt v89, v83
     jumpi v90, bb28, bb29
-  bb29:
+  bb29:  ; preds = bb25
     jump bb26
-  bb26:
+  bb26:  ; preds = bb29
     jump bb21
-  bb21:
+  bb21:  ; preds = bb26
     jump bb18
-  bb18:
+  bb18:  ; preds = bb21
     v114 = checked_add uint256, v86, 1
     jump bb16
-  bb28:
+  bb28:  ; preds = bb25
     v91 = checked_add uint256, v87, 32
     v92 = checked_add uint256, v91, v89
     v93 = mload v82
@@ -144,9 +145,9 @@ fn @check(arg0: i256) -> i1 [selector=0x5f72f450, pure, abi_params=[uint256], ab
     v100 = shl v99, 248
     v101 = lt v89, v76
     jumpi v101, bb31, bb32
-  bb32:
+  bb32:  ; preds = bb28
     jump bb33
-  bb31:
+  bb31:  ; preds = bb28
     v102 = mload v78
     v103 = lt v89, v102
     v104 = eq v103, false
@@ -157,26 +158,26 @@ fn @check(arg0: i256) -> i1 [selector=0x5f72f450, pure, abi_params=[uint256], ab
     v108 = byte 0, v107
     v109 = shl v108, 248
     jump bb33
-  bb33:
+  bb33:  ; preds = bb31, bb32
     v110 = phi [bb31: v109], [bb32: 0]
     v111 = eq v100, v110
     v112 = eq v111, false
     icall revert_if<empty>, v112
     jump bb30
-  bb30:
+  bb30:  ; preds = bb33
     jump bb27
-  bb27:
+  bb27:  ; preds = bb30
     v113 = checked_add uint256, v89, 1
     jump bb25
-  bb10:
+  bb10:  ; preds = bb7
     mstore v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jump bb12
-  bb12:
+  bb12:  ; preds = bb10
     jump bb9
-  bb9:
+  bb9:  ; preds = bb12
     v36 = add v32, 32
     jump bb7
-  bb4:
+  bb4:  ; preds = bb1
     v12 = checked_mul uint256, v10, 37
     v13 = checked_add uint256, v12, 11
     v14 = trunc i256 v13 to i8
@@ -191,9 +192,9 @@ fn @check(arg0: i256) -> i1 [selector=0x5f72f450, pure, abi_params=[uint256], ab
     v22 = ptradd v21, 32
     mstore8 v22, v20
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v23 = checked_add uint256, v10, 1
     jump bb1
 }

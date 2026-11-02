@@ -3,11 +3,13 @@
 @data
   literal_0: hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
 
+; function value() external pure returns (uint256) [selector 0x3fa4f245]
 fn @value() -> i256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 7
 }
 
+; function payload() external pure returns (bytes memory) [selector 0xa878f858]
 fn @payload() -> ptr<memory> [selector=0xa878f858, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 160 !metadata(preserves_fmp)
@@ -23,6 +25,7 @@ fn @payload() -> ptr<memory> [selector=0xa878f858, pure, abi_params=[], abi_retu
   CodeTarget_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/program-data/contract_code_data.sol:CodeTarget"
   CodeTarget_runtime_code_1: runtime_code "ROOT/tests/ui/codegen/lowering/program-data/contract_code_data.sol:CodeTarget"
 
+; function deployCreationCode() external returns (uint256) [selector 0x5986dddb]
 fn @deployCreationCode() -> i256 [selector=0x5986dddb, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = datasize CodeTarget_creation_code_0
@@ -46,9 +49,9 @@ fn @deployCreationCode() -> i256 [selector=0x5986dddb, abi_params=[], abi_return
     v14 = zext i160 v11 to i256
     v15 = staticcall v13, v14, 28, 4, 0, 32
     jumpi v15, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v16 = returndatasize
     v17 = lt v16, 32
     icall revert_if<tuple_data_too_short>, v17
@@ -56,6 +59,7 @@ fn @deployCreationCode() -> i256 [selector=0x5986dddb, abi_params=[], abi_return
     ret v18
 }
 
+; function runtimeCodeMatches() external returns (bool) [selector 0x337e11d0]
 fn @runtimeCodeMatches() -> i1 [selector=0x337e11d0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = datasize CodeTarget_creation_code_0
@@ -64,9 +68,9 @@ fn @runtimeCodeMatches() -> i1 [selector=0x337e11d0, abi_params=[], abi_returns=
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = datasize CodeTarget_runtime_code_1
     v5 = datasize CodeTarget_runtime_code_1, 63, aligned
     v6 = alloc v5 !metadata(preserves_fmp)

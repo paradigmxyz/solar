@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/readonly-eval/runtime_calls.sol:RuntimeCalls ===
 @module RuntimeCalls
+; function emptyBytes() external pure returns (bool) [selector 0x55c4baff]
 fn @emptyBytes() -> i256 [selector=0x55c4baff, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc 32
@@ -8,6 +9,7 @@ fn @emptyBytes() -> i256 [selector=0x55c4baff, pure, abi_params=[], abi_returns=
     ret v1
 }
 
+; function nonemptyBytes() external pure returns (bool) [selector 0xe23ba52c]
 fn @nonemptyBytes() -> i256 [selector=0xe23ba52c, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -18,6 +20,7 @@ fn @nonemptyBytes() -> i256 [selector=0xe23ba52c, pure, abi_params=[], abi_retur
     ret v2
 }
 
+; function isEmpty(bytes memory data) internal pure returns (bool result)
 fn @isEmpty(arg0: ptr<memory>) -> i256 [pure] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
@@ -27,6 +30,7 @@ fn @isEmpty(arg0: ptr<memory>) -> i256 [pure] {
     ret v3
 }
 
+; function constantWord() external pure returns (uint256) [selector 0xf7bfd103]
 fn @constantWord() -> i256 [selector=0xf7bfd103, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 64
@@ -38,6 +42,7 @@ fn @constantWord() -> i256 [selector=0xf7bfd103, pure, abi_params=[], abi_return
     ret v3
 }
 
+; function dynamicWord(uint256 value) external pure returns (uint256) [selector 0x0c872375]
 fn @dynamicWord(arg0: i256) -> i256 [selector=0x0c872375, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 64
@@ -49,6 +54,7 @@ fn @dynamicWord(arg0: i256) -> i256 [selector=0x0c872375, pure, abi_params=[uint
     ret v3
 }
 
+; function afterOverwrite(uint256 value) external pure returns (uint256) [selector 0xb7519bca]
 fn @afterOverwrite(arg0: i256) -> i256 [selector=0xb7519bca, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 64
@@ -61,6 +67,7 @@ fn @afterOverwrite(arg0: i256) -> i256 [selector=0xb7519bca, pure, abi_params=[u
     ret v3
 }
 
+; function constantShort() external pure returns (bytes32) [selector 0xe64f6587]
 fn @constantShort() -> i256 [selector=0xe64f6587, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -71,12 +78,14 @@ fn @constantShort() -> i256 [selector=0xe64f6587, pure, abi_params=[], abi_retur
     ret v2
 }
 
+; function dynamicShort(bytes memory data) external pure returns (bytes32) [selector 0x5def3fed]
 fn @dynamicShort(arg0: ptr<memory>) -> i256 [selector=0x5def3fed, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = icall @short, arg0
     ret v0
 }
 
+; function read(bytes memory data) internal pure returns (uint256 result)
 fn @read(arg0: ptr<memory>) -> i256 [pure] {
   bb0:
     v0 = mload arg0
@@ -89,6 +98,7 @@ fn @read(arg0: ptr<memory>) -> i256 [pure] {
     ret v5
 }
 
+; function short(bytes memory data) internal pure returns (bytes32 result)
 fn @short(arg0: ptr<memory>) -> i256 [pure] {
   bb0:
     v0 = mload arg0
@@ -110,6 +120,7 @@ fn @short(arg0: ptr<memory>) -> i256 [pure] {
     ret v14
 }
 
+; function overwrite(bytes memory data, uint256 value) internal pure
 fn @overwrite(arg0: ptr<memory>, arg1: i256) [pure] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256

@@ -8,11 +8,11 @@
       mstore v1, 1
       v2 = ne arg0, 0
       jumpi v2, bb1, bb2
-    bb1:
+    bb1:  ; preds = bb0
       v3 = ptradd v0, 32
       mstore v3, 0x3100000000000000000000000000000000000000000000000000000000000000
       jump bb2
-    bb2:
+    bb2:  ; preds = bb0, bb1
 -     v4 = abi_encode [memory_bytes], args v0
 -     ret v4
 +     v5 = fmp

@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_validation.sol:StorageBytesValidation ===
 @module StorageBytesValidation
+; function unusedInvalidLength() external [selector 0x200cc212]
 fn @unusedInvalidLength() [selector=0x200cc212, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
@@ -14,6 +15,7 @@ fn @unusedInvalidLength() [selector=0x200cc212, abi_params=[], abi_returns=[], a
     ret
 }
 
+; function unusedInvalidCopy() external [selector 0x6ec2db3e]
 fn @unusedInvalidCopy() [selector=0x6ec2db3e, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
@@ -21,6 +23,7 @@ fn @unusedInvalidCopy() [selector=0x6ec2db3e, abi_params=[], abi_returns=[], abi
     ret
 }
 
+; function invalidShort() external returns (bytes memory) [selector 0xa647fa44]
 fn @invalidShort() -> ptr<memory> [selector=0xa647fa44, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
@@ -28,6 +31,7 @@ fn @invalidShort() -> ptr<memory> [selector=0xa647fa44, abi_params=[], abi_retur
     ret v0
 }
 
+; function invalidLong() external returns (bytes memory) [selector 0x540f7c10]
 fn @invalidLong() -> ptr<memory> [selector=0x540f7c10, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
@@ -35,6 +39,7 @@ fn @invalidLong() -> ptr<memory> [selector=0x540f7c10, abi_params=[], abi_return
     ret v0
 }
 
+; function invalidShortDelete() external [selector 0x1cba07c2]
 fn @invalidShortDelete() [selector=0x1cba07c2, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
@@ -49,14 +54,15 @@ fn @invalidShortDelete() [selector=0x1cba07c2, abi_params=[], abi_returns=[], ab
     v7 = add v6, 31
     v8 = div v7, 32
     jumpi v2, bb1, bb2
-  bb1:
+  bb1:  ; preds = bb0
     clear_storage_words 0, 0, v8
     jump bb2
-  bb2:
+  bb2:  ; preds = bb0, bb1
     sstore 0, 0 !metadata(storage=slot(0))
     ret
 }
 
+; function invalidLongDelete() external [selector 0x7dd42e48]
 fn @invalidLongDelete() [selector=0x7dd42e48, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
@@ -71,14 +77,15 @@ fn @invalidLongDelete() [selector=0x7dd42e48, abi_params=[], abi_returns=[], abi
     v7 = add v6, 31
     v8 = div v7, 32
     jumpi v2, bb1, bb2
-  bb1:
+  bb1:  ; preds = bb0
     clear_storage_words 0, 0, v8
     jump bb2
-  bb2:
+  bb2:  ; preds = bb0, bb1
     sstore 0, 0 !metadata(storage=slot(0))
     ret
 }
 
+; function invalidShortLength() external returns (uint256) [selector 0xe7a318a7]
 fn @invalidShortLength() -> i256 [selector=0xe7a318a7, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
@@ -93,6 +100,7 @@ fn @invalidShortLength() -> i256 [selector=0xe7a318a7, abi_params=[], abi_return
     ret v6
 }
 
+; function invalidLongLength() external returns (uint256) [selector 0xc14ec391]
 fn @invalidLongLength() -> i256 [selector=0xc14ec391, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
@@ -107,6 +115,7 @@ fn @invalidLongLength() -> i256 [selector=0xc14ec391, abi_params=[], abi_returns
     ret v6
 }
 
+; function invalidShortIndex() external returns (bytes1) [selector 0x94523747]
 fn @invalidShortIndex() -> i256 [selector=0x94523747, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
@@ -122,12 +131,12 @@ fn @invalidShortIndex() -> i256 [selector=0x94523747, abi_params=[], abi_returns
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v9 = storage_array_data_slot 0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v10 = phi [bb1: v9], [bb2: 0]
     v11 = sload v10 !metadata(storage=symbolic(v10))
     v12 = shr v11, 248
@@ -135,6 +144,7 @@ fn @invalidShortIndex() -> i256 [selector=0x94523747, abi_params=[], abi_returns
     ret v13
 }
 
+; function invalidLongIndex() external returns (bytes1) [selector 0xb45f5bca]
 fn @invalidLongIndex() -> i256 [selector=0xb45f5bca, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
@@ -150,12 +160,12 @@ fn @invalidLongIndex() -> i256 [selector=0xb45f5bca, abi_params=[], abi_returns=
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v9 = storage_array_data_slot 0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v10 = phi [bb1: v9], [bb2: 0]
     v11 = sload v10 !metadata(storage=symbolic(v10))
     v12 = shr v11, 248
@@ -163,6 +173,7 @@ fn @invalidLongIndex() -> i256 [selector=0xb45f5bca, abi_params=[], abi_returns=
     ret v13
 }
 
+; function invalidShortIndexWrite() external [selector 0x9cb6505e]
 fn @invalidShortIndexWrite() [selector=0x9cb6505e, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
@@ -178,12 +189,12 @@ fn @invalidShortIndexWrite() [selector=0x9cb6505e, abi_params=[], abi_returns=[]
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v9 = storage_array_data_slot 0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v10 = phi [bb1: v9], [bb2: 0]
     v11 = sload v10 !metadata(storage=symbolic(v10))
     v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -192,6 +203,7 @@ fn @invalidShortIndexWrite() [selector=0x9cb6505e, abi_params=[], abi_returns=[]
     ret
 }
 
+; function invalidLongIndexWrite() external [selector 0x31e8b582]
 fn @invalidLongIndexWrite() [selector=0x31e8b582, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
@@ -207,12 +219,12 @@ fn @invalidLongIndexWrite() [selector=0x31e8b582, abi_params=[], abi_returns=[],
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v9 = storage_array_data_slot 0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v10 = phi [bb1: v9], [bb2: 0]
     v11 = sload v10 !metadata(storage=symbolic(v10))
     v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -221,6 +233,7 @@ fn @invalidLongIndexWrite() [selector=0x31e8b582, abi_params=[], abi_returns=[],
     ret
 }
 
+; function invalidShortIndexDelete() external [selector 0x5a79d84c]
 fn @invalidShortIndexDelete() [selector=0x5a79d84c, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
@@ -236,12 +249,12 @@ fn @invalidShortIndexDelete() [selector=0x5a79d84c, abi_params=[], abi_returns=[
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v9 = storage_array_data_slot 0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v10 = phi [bb1: v9], [bb2: 0]
     v11 = sload v10 !metadata(storage=symbolic(v10))
     v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -250,6 +263,7 @@ fn @invalidShortIndexDelete() [selector=0x5a79d84c, abi_params=[], abi_returns=[
     ret
 }
 
+; function invalidLongIndexDelete() external [selector 0x3cb34688]
 fn @invalidLongIndexDelete() [selector=0x3cb34688, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
@@ -265,12 +279,12 @@ fn @invalidLongIndexDelete() [selector=0x3cb34688, abi_params=[], abi_returns=[]
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v9 = storage_array_data_slot 0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v10 = phi [bb1: v9], [bb2: 0]
     v11 = sload v10 !metadata(storage=symbolic(v10))
     v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -279,6 +293,7 @@ fn @invalidLongIndexDelete() [selector=0x3cb34688, abi_params=[], abi_returns=[]
     ret
 }
 
+; function encodingCheckedBeforeBounds() external returns (bytes1) [selector 0x4f384528]
 fn @encodingCheckedBeforeBounds() -> i256 [selector=0x4f384528, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
@@ -294,13 +309,13 @@ fn @encodingCheckedBeforeBounds() -> i256 [selector=0x4f384528, abi_params=[], a
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v9 = storage_array_data_slot 0
     v10 = add v9, 3
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v11 = phi [bb1: v10], [bb2: 0]
     v12 = sload v11 !metadata(storage=symbolic(v11))
     v13 = shr v12, 216
@@ -308,6 +323,7 @@ fn @encodingCheckedBeforeBounds() -> i256 [selector=0x4f384528, abi_params=[], a
     ret v14
 }
 
+; function encodingCheckedBeforeBoundsWrite() external [selector 0xc6da2038]
 fn @encodingCheckedBeforeBoundsWrite() [selector=0xc6da2038, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
@@ -323,13 +339,13 @@ fn @encodingCheckedBeforeBoundsWrite() [selector=0xc6da2038, abi_params=[], abi_
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v9 = storage_array_data_slot 0
     v10 = add v9, 3
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v11 = phi [bb1: v10], [bb2: 0]
     v12 = sload v11 !metadata(storage=symbolic(v11))
     v13 = and v12, 0xffffffff00ffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -338,6 +354,7 @@ fn @encodingCheckedBeforeBoundsWrite() [selector=0xc6da2038, abi_params=[], abi_
     ret
 }
 
+; function invalidShortPush() external [selector 0x6753fa56]
 fn @invalidShortPush() [selector=0x6753fa56, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
@@ -354,10 +371,10 @@ fn @invalidShortPush() [selector=0x6753fa56, abi_params=[], abi_returns=[], abi_
     icall panic_if<0x41>, v8
     v9 = gt v6, 31
     jumpi v9, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v23 = eq v6, 31
     jumpi v23, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb1
     v28 = add v0, 2
     v29 = sub 31, v6
     v30 = mul v29, 8
@@ -369,7 +386,7 @@ fn @invalidShortPush() [selector=0x6753fa56, abi_params=[], abi_returns=[], abi_
     v36 = or v33, v35
     sstore 0, v36 !metadata(storage=slot(0))
     jump bb5
-  bb3:
+  bb3:  ; preds = bb1
     v24 = storage_array_data_slot 0
     v25 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     v26 = byte 0, 0x100000000000000000000000000000000000000000000000000000000000000
@@ -377,7 +394,7 @@ fn @invalidShortPush() [selector=0x6753fa56, abi_params=[], abi_returns=[], abi_
     sstore v24, v27 !metadata(storage=symbolic(v24))
     sstore 0, 65 !metadata(storage=slot(0))
     jump bb5
-  bb2:
+  bb2:  ; preds = bb0
     v10 = add v0, 2
     sstore 0, v10 !metadata(storage=slot(0))
     v11 = storage_array_data_slot 0
@@ -394,10 +411,11 @@ fn @invalidShortPush() [selector=0x6753fa56, abi_params=[], abi_returns=[], abi_
     v22 = or v20, v21
     sstore v13, v22 !metadata(storage=symbolic(v13))
     jump bb5
-  bb5:
+  bb5:  ; preds = bb2, bb3, bb4
     ret
 }
 
+; function invalidLongPush() external [selector 0xefd41847]
 fn @invalidLongPush() [selector=0xefd41847, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
@@ -414,10 +432,10 @@ fn @invalidLongPush() [selector=0xefd41847, abi_params=[], abi_returns=[], abi_r
     icall panic_if<0x41>, v8
     v9 = gt v6, 31
     jumpi v9, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v23 = eq v6, 31
     jumpi v23, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb1
     v28 = add v0, 2
     v29 = sub 31, v6
     v30 = mul v29, 8
@@ -429,7 +447,7 @@ fn @invalidLongPush() [selector=0xefd41847, abi_params=[], abi_returns=[], abi_r
     v36 = or v33, v35
     sstore 0, v36 !metadata(storage=slot(0))
     jump bb5
-  bb3:
+  bb3:  ; preds = bb1
     v24 = storage_array_data_slot 0
     v25 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     v26 = byte 0, 0x100000000000000000000000000000000000000000000000000000000000000
@@ -437,7 +455,7 @@ fn @invalidLongPush() [selector=0xefd41847, abi_params=[], abi_returns=[], abi_r
     sstore v24, v27 !metadata(storage=symbolic(v24))
     sstore 0, 65 !metadata(storage=slot(0))
     jump bb5
-  bb2:
+  bb2:  ; preds = bb0
     v10 = add v0, 2
     sstore 0, v10 !metadata(storage=slot(0))
     v11 = storage_array_data_slot 0
@@ -454,10 +472,11 @@ fn @invalidLongPush() [selector=0xefd41847, abi_params=[], abi_returns=[], abi_r
     v22 = or v20, v21
     sstore v13, v22 !metadata(storage=symbolic(v13))
     jump bb5
-  bb5:
+  bb5:  ; preds = bb2, bb3, bb4
     ret
 }
 
+; function invalidShortPushZero() external [selector 0xcba0ded0]
 fn @invalidShortPushZero() [selector=0xcba0ded0, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
@@ -474,10 +493,10 @@ fn @invalidShortPushZero() [selector=0xcba0ded0, abi_params=[], abi_returns=[], 
     icall panic_if<0x41>, v8
     v9 = gt v6, 31
     jumpi v9, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v15 = eq v6, 31
     jumpi v15, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb1
     v20 = sub 32, v7
     v21 = mul v20, 8
     v22 = shl 1, v21
@@ -488,7 +507,7 @@ fn @invalidShortPushZero() [selector=0xcba0ded0, abi_params=[], abi_returns=[], 
     v27 = or v25, v26
     sstore 0, v27 !metadata(storage=slot(0))
     jump bb5
-  bb3:
+  bb3:  ; preds = bb1
     v16 = storage_array_data_slot 0
     v17 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     sstore v16, v17 !metadata(storage=symbolic(v16))
@@ -496,7 +515,7 @@ fn @invalidShortPushZero() [selector=0xcba0ded0, abi_params=[], abi_returns=[], 
     v19 = or v18, 1
     sstore 0, v19 !metadata(storage=slot(0))
     jump bb5
-  bb2:
+  bb2:  ; preds = bb0
     v10 = shl v7, 1
     v11 = or v10, 1
     sstore 0, v11 !metadata(storage=slot(0))
@@ -504,13 +523,14 @@ fn @invalidShortPushZero() [selector=0xcba0ded0, abi_params=[], abi_returns=[], 
     v13 = shr v6, 5
     v14 = add v12, v13
     jump bb5
-  bb5:
+  bb5:  ; preds = bb2, bb3, bb4
     v28 = phi [bb2: v14], [bb3: v16], [bb4: 0]
     v29 = and v6, 31
     v30 = sub 31, v29
     ret
 }
 
+; function invalidLongPushZero() external [selector 0xe8ec99d3]
 fn @invalidLongPushZero() [selector=0xe8ec99d3, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
@@ -527,10 +547,10 @@ fn @invalidLongPushZero() [selector=0xe8ec99d3, abi_params=[], abi_returns=[], a
     icall panic_if<0x41>, v8
     v9 = gt v6, 31
     jumpi v9, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v15 = eq v6, 31
     jumpi v15, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb1
     v20 = sub 32, v7
     v21 = mul v20, 8
     v22 = shl 1, v21
@@ -541,7 +561,7 @@ fn @invalidLongPushZero() [selector=0xe8ec99d3, abi_params=[], abi_returns=[], a
     v27 = or v25, v26
     sstore 0, v27 !metadata(storage=slot(0))
     jump bb5
-  bb3:
+  bb3:  ; preds = bb1
     v16 = storage_array_data_slot 0
     v17 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     sstore v16, v17 !metadata(storage=symbolic(v16))
@@ -549,7 +569,7 @@ fn @invalidLongPushZero() [selector=0xe8ec99d3, abi_params=[], abi_returns=[], a
     v19 = or v18, 1
     sstore 0, v19 !metadata(storage=slot(0))
     jump bb5
-  bb2:
+  bb2:  ; preds = bb0
     v10 = shl v7, 1
     v11 = or v10, 1
     sstore 0, v11 !metadata(storage=slot(0))
@@ -557,13 +577,14 @@ fn @invalidLongPushZero() [selector=0xe8ec99d3, abi_params=[], abi_returns=[], a
     v13 = shr v6, 5
     v14 = add v12, v13
     jump bb5
-  bb5:
+  bb5:  ; preds = bb2, bb3, bb4
     v28 = phi [bb2: v14], [bb3: v16], [bb4: 0]
     v29 = and v6, 31
     v30 = sub 31, v29
     ret
 }
 
+; function invalidShortPushAssign() external [selector 0xa1663e71]
 fn @invalidShortPushAssign() [selector=0xa1663e71, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
@@ -580,10 +601,10 @@ fn @invalidShortPushAssign() [selector=0xa1663e71, abi_params=[], abi_returns=[]
     icall panic_if<0x41>, v8
     v9 = gt v6, 31
     jumpi v9, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v15 = eq v6, 31
     jumpi v15, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb1
     v20 = sub 32, v7
     v21 = mul v20, 8
     v22 = shl 1, v21
@@ -594,7 +615,7 @@ fn @invalidShortPushAssign() [selector=0xa1663e71, abi_params=[], abi_returns=[]
     v27 = or v25, v26
     sstore 0, v27 !metadata(storage=slot(0))
     jump bb5
-  bb3:
+  bb3:  ; preds = bb1
     v16 = storage_array_data_slot 0
     v17 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     sstore v16, v17 !metadata(storage=symbolic(v16))
@@ -602,7 +623,7 @@ fn @invalidShortPushAssign() [selector=0xa1663e71, abi_params=[], abi_returns=[]
     v19 = or v18, 1
     sstore 0, v19 !metadata(storage=slot(0))
     jump bb5
-  bb2:
+  bb2:  ; preds = bb0
     v10 = shl v7, 1
     v11 = or v10, 1
     sstore 0, v11 !metadata(storage=slot(0))
@@ -610,7 +631,7 @@ fn @invalidShortPushAssign() [selector=0xa1663e71, abi_params=[], abi_returns=[]
     v13 = shr v6, 5
     v14 = add v12, v13
     jump bb5
-  bb5:
+  bb5:  ; preds = bb2, bb3, bb4
     v28 = phi [bb2: v14], [bb3: v16], [bb4: 0]
     v29 = and v6, 31
     v30 = sub 31, v29
@@ -625,6 +646,7 @@ fn @invalidShortPushAssign() [selector=0xa1663e71, abi_params=[], abi_returns=[]
     ret
 }
 
+; function invalidLongPushAssign() external [selector 0x666fac34]
 fn @invalidLongPushAssign() [selector=0x666fac34, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
@@ -641,10 +663,10 @@ fn @invalidLongPushAssign() [selector=0x666fac34, abi_params=[], abi_returns=[],
     icall panic_if<0x41>, v8
     v9 = gt v6, 31
     jumpi v9, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v15 = eq v6, 31
     jumpi v15, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb1
     v20 = sub 32, v7
     v21 = mul v20, 8
     v22 = shl 1, v21
@@ -655,7 +677,7 @@ fn @invalidLongPushAssign() [selector=0x666fac34, abi_params=[], abi_returns=[],
     v27 = or v25, v26
     sstore 0, v27 !metadata(storage=slot(0))
     jump bb5
-  bb3:
+  bb3:  ; preds = bb1
     v16 = storage_array_data_slot 0
     v17 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     sstore v16, v17 !metadata(storage=symbolic(v16))
@@ -663,7 +685,7 @@ fn @invalidLongPushAssign() [selector=0x666fac34, abi_params=[], abi_returns=[],
     v19 = or v18, 1
     sstore 0, v19 !metadata(storage=slot(0))
     jump bb5
-  bb2:
+  bb2:  ; preds = bb0
     v10 = shl v7, 1
     v11 = or v10, 1
     sstore 0, v11 !metadata(storage=slot(0))
@@ -671,7 +693,7 @@ fn @invalidLongPushAssign() [selector=0x666fac34, abi_params=[], abi_returns=[],
     v13 = shr v6, 5
     v14 = add v12, v13
     jump bb5
-  bb5:
+  bb5:  ; preds = bb2, bb3, bb4
     v28 = phi [bb2: v14], [bb3: v16], [bb4: 0]
     v29 = and v6, 31
     v30 = sub 31, v29
@@ -686,6 +708,7 @@ fn @invalidLongPushAssign() [selector=0x666fac34, abi_params=[], abi_returns=[],
     ret
 }
 
+; function invalidShortPop() external [selector 0xeaec3c61]
 fn @invalidShortPop() [selector=0xeaec3c61, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
@@ -701,11 +724,11 @@ fn @invalidShortPop() [selector=0xeaec3c61, abi_params=[], abi_returns=[], abi_r
     icall panic_if<0x31>, v7
     v8 = eq v6, 32
     jumpi v8, bb4, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v13 = sub v6, 1
     v14 = lt v6, 32
     jumpi v14, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v23 = storage_array_data_slot 0
     v24 = shr v13, 5
     v25 = add v23, v24
@@ -722,7 +745,7 @@ fn @invalidShortPop() [selector=0xeaec3c61, abi_params=[], abi_returns=[], abi_r
     v35 = sub v0, 2
     sstore 0, v35 !metadata(storage=slot(0))
     jump bb5
-  bb2:
+  bb2:  ; preds = bb1
     v15 = sub 32, v13
     v16 = mul v15, 8
     v17 = shl 1, v16
@@ -733,7 +756,7 @@ fn @invalidShortPop() [selector=0xeaec3c61, abi_params=[], abi_returns=[], abi_r
     v22 = or v20, v21
     sstore 0, v22 !metadata(storage=slot(0))
     jump bb5
-  bb4:
+  bb4:  ; preds = bb0
     v9 = storage_array_data_slot 0
     v10 = sload v9 !metadata(storage=symbolic(v9))
     v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
@@ -741,10 +764,11 @@ fn @invalidShortPop() [selector=0xeaec3c61, abi_params=[], abi_returns=[], abi_r
     sstore 0, v12 !metadata(storage=slot(0))
     sstore v9, 0 !metadata(storage=symbolic(v9))
     jump bb5
-  bb5:
+  bb5:  ; preds = bb4, bb2, bb3
     ret
 }
 
+; function invalidLongPop() external [selector 0x66075ed1]
 fn @invalidLongPop() [selector=0x66075ed1, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
@@ -760,11 +784,11 @@ fn @invalidLongPop() [selector=0x66075ed1, abi_params=[], abi_returns=[], abi_re
     icall panic_if<0x31>, v7
     v8 = eq v6, 32
     jumpi v8, bb4, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v13 = sub v6, 1
     v14 = lt v6, 32
     jumpi v14, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v23 = storage_array_data_slot 0
     v24 = shr v13, 5
     v25 = add v23, v24
@@ -781,7 +805,7 @@ fn @invalidLongPop() [selector=0x66075ed1, abi_params=[], abi_returns=[], abi_re
     v35 = sub v0, 2
     sstore 0, v35 !metadata(storage=slot(0))
     jump bb5
-  bb2:
+  bb2:  ; preds = bb1
     v15 = sub 32, v13
     v16 = mul v15, 8
     v17 = shl 1, v16
@@ -792,7 +816,7 @@ fn @invalidLongPop() [selector=0x66075ed1, abi_params=[], abi_returns=[], abi_re
     v22 = or v20, v21
     sstore 0, v22 !metadata(storage=slot(0))
     jump bb5
-  bb4:
+  bb4:  ; preds = bb0
     v9 = storage_array_data_slot 0
     v10 = sload v9 !metadata(storage=symbolic(v9))
     v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
@@ -800,10 +824,11 @@ fn @invalidLongPop() [selector=0x66075ed1, abi_params=[], abi_returns=[], abi_re
     sstore 0, v12 !metadata(storage=slot(0))
     sstore v9, 0 !metadata(storage=symbolic(v9))
     jump bb5
-  bb5:
+  bb5:  ; preds = bb4, bb2, bb3
     ret
 }
 
+; function pushAtMaxLength() external returns (uint256 header) [selector 0x35078c3f]
 fn @pushAtMaxLength() -> i256 [selector=0x35078c3f, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     sstore 0, 0x1ffffffffffffffff !metadata(storage=slot(0))
@@ -820,10 +845,10 @@ fn @pushAtMaxLength() -> i256 [selector=0x35078c3f, abi_params=[], abi_returns=[
     icall panic_if<0x41>, v8
     v9 = gt v6, 31
     jumpi v9, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v23 = eq v6, 31
     jumpi v23, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb1
     v28 = add v0, 2
     v29 = sub 31, v6
     v30 = mul v29, 8
@@ -835,7 +860,7 @@ fn @pushAtMaxLength() -> i256 [selector=0x35078c3f, abi_params=[], abi_returns=[
     v36 = or v33, v35
     sstore 0, v36 !metadata(storage=slot(0))
     jump bb5
-  bb3:
+  bb3:  ; preds = bb1
     v24 = storage_array_data_slot 0
     v25 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     v26 = byte 0, 0x100000000000000000000000000000000000000000000000000000000000000
@@ -843,7 +868,7 @@ fn @pushAtMaxLength() -> i256 [selector=0x35078c3f, abi_params=[], abi_returns=[
     sstore v24, v27 !metadata(storage=symbolic(v24))
     sstore 0, 65 !metadata(storage=slot(0))
     jump bb5
-  bb2:
+  bb2:  ; preds = bb0
     v10 = add v0, 2
     sstore 0, v10 !metadata(storage=slot(0))
     v11 = storage_array_data_slot 0
@@ -860,11 +885,12 @@ fn @pushAtMaxLength() -> i256 [selector=0x35078c3f, abi_params=[], abi_returns=[
     v22 = or v20, v21
     sstore v13, v22 !metadata(storage=symbolic(v13))
     jump bb5
-  bb5:
+  bb5:  ; preds = bb2, bb3, bb4
     v37 = sload 0 !metadata(storage=slot(0))
     ret v37
 }
 
+; function pushPastMaxLength() external [selector 0xd9fa2828]
 fn @pushPastMaxLength() [selector=0xd9fa2828, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 0x20000000000000001 !metadata(storage=slot(0))
@@ -881,10 +907,10 @@ fn @pushPastMaxLength() [selector=0xd9fa2828, abi_params=[], abi_returns=[], abi
     icall panic_if<0x41>, v8
     v9 = gt v6, 31
     jumpi v9, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v23 = eq v6, 31
     jumpi v23, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb1
     v28 = add v0, 2
     v29 = sub 31, v6
     v30 = mul v29, 8
@@ -896,7 +922,7 @@ fn @pushPastMaxLength() [selector=0xd9fa2828, abi_params=[], abi_returns=[], abi
     v36 = or v33, v35
     sstore 0, v36 !metadata(storage=slot(0))
     jump bb5
-  bb3:
+  bb3:  ; preds = bb1
     v24 = storage_array_data_slot 0
     v25 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     v26 = byte 0, 0x100000000000000000000000000000000000000000000000000000000000000
@@ -904,7 +930,7 @@ fn @pushPastMaxLength() [selector=0xd9fa2828, abi_params=[], abi_returns=[], abi
     sstore v24, v27 !metadata(storage=symbolic(v24))
     sstore 0, 65 !metadata(storage=slot(0))
     jump bb5
-  bb2:
+  bb2:  ; preds = bb0
     v10 = add v0, 2
     sstore 0, v10 !metadata(storage=slot(0))
     v11 = storage_array_data_slot 0
@@ -921,10 +947,11 @@ fn @pushPastMaxLength() [selector=0xd9fa2828, abi_params=[], abi_returns=[], abi
     v22 = or v20, v21
     sstore v13, v22 !metadata(storage=symbolic(v13))
     jump bb5
-  bb5:
+  bb5:  ; preds = bb2, bb3, bb4
     ret
 }
 
+; function pushZeroPastMaxLength() external [selector 0x65c6159f]
 fn @pushZeroPastMaxLength() [selector=0x65c6159f, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 0x20000000000000001 !metadata(storage=slot(0))
@@ -941,10 +968,10 @@ fn @pushZeroPastMaxLength() [selector=0x65c6159f, abi_params=[], abi_returns=[],
     icall panic_if<0x41>, v8
     v9 = gt v6, 31
     jumpi v9, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v15 = eq v6, 31
     jumpi v15, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb1
     v20 = sub 32, v7
     v21 = mul v20, 8
     v22 = shl 1, v21
@@ -955,7 +982,7 @@ fn @pushZeroPastMaxLength() [selector=0x65c6159f, abi_params=[], abi_returns=[],
     v27 = or v25, v26
     sstore 0, v27 !metadata(storage=slot(0))
     jump bb5
-  bb3:
+  bb3:  ; preds = bb1
     v16 = storage_array_data_slot 0
     v17 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     sstore v16, v17 !metadata(storage=symbolic(v16))
@@ -963,7 +990,7 @@ fn @pushZeroPastMaxLength() [selector=0x65c6159f, abi_params=[], abi_returns=[],
     v19 = or v18, 1
     sstore 0, v19 !metadata(storage=slot(0))
     jump bb5
-  bb2:
+  bb2:  ; preds = bb0
     v10 = shl v7, 1
     v11 = or v10, 1
     sstore 0, v11 !metadata(storage=slot(0))
@@ -971,7 +998,7 @@ fn @pushZeroPastMaxLength() [selector=0x65c6159f, abi_params=[], abi_returns=[],
     v13 = shr v6, 5
     v14 = add v12, v13
     jump bb5
-  bb5:
+  bb5:  ; preds = bb2, bb3, bb4
     v28 = phi [bb2: v14], [bb3: v16], [bb4: 0]
     v29 = and v6, 31
     v30 = sub 31, v29

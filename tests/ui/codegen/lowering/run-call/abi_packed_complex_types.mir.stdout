@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256, i256}
 
+; function f() external returns (bytes32 hash1, bytes32 hash2, bytes32 hash3) [selector 0x26121ff0]
 fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word, word], abi_return_params=[bytes32, bytes32, bytes32]] {
   bb0:
     v0 = alloc zeroed checked 128
@@ -48,11 +49,11 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     sstore 1, v27 !metadata(storage=slot(1))
     v28 = alloc checked 96
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb6
     v29 = phi [bb0: 0], [bb6: v47]
     v30 = lt v29, 2
     jumpi v30, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v48 = abi_encode_packed (array<word<uint120>> memoryfixedarray<3, 1> v28)
     v49 = ptradd v48, 32
     v50 = mload v48
@@ -65,7 +66,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     v57 = insert_value struct0, v56, 1, v55
     v58 = insert_value struct0, v57, 2, 0xe7490fade3a8e31113ecb6c0d2635e28a6f5ca8359a57afe914827f41ddf0848
     ret v58
-  bb2:
+  bb2:  ; preds = bb1
     v31 = add 0, v29
     v32 = sload v31 !metadata(storage=symbolic(v29))
     v33 = mul v29, 2
@@ -73,14 +74,14 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     v35 = lt v34, 2
     v36 = select v35, v34, 2
     jump bb4
-  bb4:
+  bb4:  ; preds = bb2, bb5
     v37 = phi [bb2: 0], [bb5: v46]
     v38 = lt v37, v36
     jumpi v38, bb5, bb6
-  bb6:
+  bb6:  ; preds = bb4
     v47 = add v29, 1
     jump bb1
-  bb5:
+  bb5:  ; preds = bb4
     v39 = mul v37, 120
     v40 = shr v32, v39
     v41 = trunc i256 v40 to i120
@@ -93,6 +94,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     jump bb4
 }
 
+; function hashAbi() external pure returns (bytes32) [selector 0x7f75b06e]
 fn @hashAbi() -> i256 [selector=0x7f75b06e, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc zeroed checked 128
@@ -122,16 +124,17 @@ fn @hashAbi() -> i256 [selector=0x7f75b06e, pure, abi_params=[], abi_returns=[wo
     ret v16
 }
 
+; function hashNestedAbi() external pure returns (bytes32) [selector 0x821258ba]
 fn @hashNestedAbi() -> i256 [selector=0x821258ba, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc zeroed checked 64
     mstore v0, 1
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v8]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v9 = mload v0
     v10 = lt 0, v9
     v11 = eq v10, false
@@ -158,7 +161,7 @@ fn @hashNestedAbi() -> i256 [selector=0x821258ba, pure, abi_params=[], abi_retur
     v26 = extract_value slice<memory>, v24, 1
     v27 = keccak256 v25, v26
     ret v27
-  bb2:
+  bb2:  ; preds = bb1
     v3 = alloc 64 !metadata(preserves_fmp)
     memory_zero v3, 64
     v4 = shl v1, 5
@@ -170,6 +173,7 @@ fn @hashNestedAbi() -> i256 [selector=0x821258ba, pure, abi_params=[], abi_retur
     jump bb1
 }
 
+; function hashStructAbi() external pure returns (bytes32) [selector 0x46dfc0fe]
 fn @hashStructAbi() -> i256 [selector=0x46dfc0fe, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -200,12 +204,14 @@ fn @hashStructAbi() -> i256 [selector=0x46dfc0fe, pure, abi_params=[], abi_retur
     ret v16
 }
 
+; function hashScalarAbi() external pure returns (bytes32) [selector 0x9a69e01a]
 fn @hashScalarAbi() -> i256 [selector=0x9a69e01a, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 2)
     ret v0
 }
 
+; function scalarCall() external view returns (uint256) [selector 0x6c091940]
 fn @scalarCall() -> i256 [selector=0x6c091940, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
@@ -215,9 +221,9 @@ fn @scalarCall() -> i256 [selector=0x6c091940, view, abi_params=[], abi_returns=
     v2 = zext i160 v0 to i256
     v3 = staticcall v1, v2, 28, 36, 0, 32
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = returndatasize
     v5 = lt v4, 32
     icall revert_if<tuple_data_too_short>, v5
@@ -225,6 +231,7 @@ fn @scalarCall() -> i256 [selector=0x6c091940, view, abi_params=[], abi_returns=
     ret v6
 }
 
+; function echoScalar(uint8 x) external pure returns (uint256) [selector 0x1f3c3a7b]
 fn @echoScalar(arg0: i256) -> i256 [selector=0x1f3c3a7b, pure, abi_params=[uint8], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = trunc i256 arg0 to i8

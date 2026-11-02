@@ -4,6 +4,7 @@
   struct0: {i256, i256, i256, i256}
   struct1: {i256, i256}
 
+; function f(uint256 a, uint256 b) external pure returns (uint256 c, uint256 d, uint256 e, uint256 f_) [selector 0x13d1aa2e]
 fn @f(arg0: i256, arg1: i256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=[uint256, uint256], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = calldatasize

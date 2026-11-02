@@ -1,21 +1,25 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_unused_aggregate_validation.sol:AbiCalldataUnusedAggregateValidation ===
 @module AbiCalldataUnusedAggregateValidation
+; function unusedBytes(bytes calldata) external pure returns (uint256) [selector 0x46e5c92b]
 fn @unusedBytes(arg0: slice<calldata>) -> i256 [selector=0x46e5c92b, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 1
 }
 
+; function unusedMemoryBytes(bytes memory) external pure returns (uint256) [selector 0x2758f02b]
 fn @unusedMemoryBytes(arg0: ptr<memory>) -> i256 [selector=0x2758f02b, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 2
 }
 
+; function unusedMemoryFmp(bytes memory) external pure returns (uint256 result) [selector 0xc3b2ecc1]
 fn @unusedMemoryFmp(arg0: ptr<memory>) -> i256 [selector=0xc3b2ecc1, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     ret v0
 }
 
+; function memoryGrowth() external view returns (uint256) [selector 0x1de751fc]
 fn @memoryGrowth() -> i256 [selector=0x1de751fc, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
@@ -28,9 +32,9 @@ fn @memoryGrowth() -> i256 [selector=0x1de751fc, view, abi_params=[], abi_return
     v6 = zext i160 v0 to i256
     v7 = staticcall v1, v6, v4, v5, 0, 32
     jumpi v7, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v8 = returndatasize
     v9 = lt v8, 32
     icall revert_if<tuple_data_too_short>, v9
@@ -45,9 +49,9 @@ fn @memoryGrowth() -> i256 [selector=0x1de751fc, view, abi_params=[], abi_return
     v17 = zext i160 v11 to i256
     v18 = staticcall v12, v17, v15, v16, 0, 32
     jumpi v18, bb4, bb3
-  bb3:
+  bb3:  ; preds = bb2
     revert_returndata
-  bb4:
+  bb4:  ; preds = bb2
     v19 = returndatasize
     v20 = lt v19, 32
     icall revert_if<tuple_data_too_short>, v20
@@ -56,16 +60,19 @@ fn @memoryGrowth() -> i256 [selector=0x1de751fc, view, abi_params=[], abi_return
     ret v22
 }
 
+; function unusedStruct(Values calldata) external pure returns (uint256) [selector 0xf3a326f8]
 fn @unusedStruct(arg0: slice<calldata>) -> i256 [selector=0xf3a326f8, pure, abi_params=[tuple<uint256, bytes, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 1
 }
 
+; function unusedNested(Nested calldata) external pure returns (uint256) [selector 0x4cdbec5f]
 fn @unusedNested(arg0: slice<calldata>) -> i256 [selector=0x4cdbec5f, pure, abi_params=[tuple<array<_, array<_, uint256>>, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 1
 }
 
+; function readNested(Nested calldata values) external pure returns (uint256) [selector 0xee08554b]
 fn @readNested(arg0: slice<calldata>) -> i256 [selector=0xee08554b, pure, abi_params=[tuple<array<_, array<_, uint256>>, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0

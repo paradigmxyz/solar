@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/array_copy_cleanup_uint40.sol:ArrayCopyCleanupUint40 ===
 @module ArrayCopyCleanupUint40
+; function f() public returns (bool) [selector 0x26121ff0]
 fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -374,27 +375,27 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v306 = sload 0 !metadata(storage=slot(0))
     v307 = gt v306, v305
     jumpi v307, bb1, bb2
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb4
     v308 = phi [bb1: v305], [bb4: v322]
     v309 = lt v308, v306
     jumpi v309, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb2
-  bb2:
+  bb2:  ; preds = bb0, bb5
     sstore 0, v305 !metadata(storage=slot(0))
     jump bb6
-  bb6:
+  bb6:  ; preds = bb2, bb7
     v323 = phi [bb2: 0], [bb7: v342]
     v324 = lt v323, v305
     jumpi v324, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     v343 = div v305, 6
     v344 = mod v305, 6
     v345 = eq v344, 0
     jumpi v345, bb10, bb9
-  bb9:
+  bb9:  ; preds = bb8
     v346 = mul v344, 40
     v347 = shl 1, v346
     v348 = sub v347, 1
@@ -404,7 +405,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v352 = and v351, v348
     sstore v350, v352 !metadata(storage=symbolic(v350))
     jump bb10
-  bb10:
+  bb10:  ; preds = bb8, bb9
     sstore 0, 20 !metadata(storage=slot(0))
     v353 = sload 0 !metadata(storage=slot(0))
     v354 = lt 0, v353
@@ -641,7 +642,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v546 = eq v545, false
     icall panic_if<0x1>, v546
     ret true
-  bb7:
+  bb7:  ; preds = bb6
     v325 = shl v323, 5
     v326 = ptradd v300, v325
     v327 = ptradd v326, 32
@@ -662,7 +663,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     sstore v331, v341 !metadata(storage=symbolic(v331))
     v342 = add v323, 1
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v310 = storage_array_data_slot 0
     v311 = div v308, 6
     v312 = add v310, v311

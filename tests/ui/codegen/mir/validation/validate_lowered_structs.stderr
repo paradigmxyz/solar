@@ -1,0 +1,10 @@
+error: struct type table survives the `lowered` phase boundary
+
+error: [fn0] non-word type `struct0` survives the `lowered` phase boundary
+
+error: [fn1] non-word type `struct0` survives the `lowered` phase boundary
+
+error: [fn1] [bb0, inst0] struct value instruction `insert_value` survives the `lowered` phase boundary
+
+error: aborting due to 4 previous errors
+
