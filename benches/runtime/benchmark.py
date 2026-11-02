@@ -331,6 +331,9 @@ class CompilerSpec:
     path: Path
     kind: str
     args: tuple[str, ...] = ("--standard-json",)
+    # Settings that replace the case's own in this compiler's Standard JSON input.
+    via_ir: bool | None = None
+    optimizer_runs: int | None = None
 
 
 def standard_json_input(test_case: TestCase) -> str:
@@ -397,6 +400,14 @@ def with_optimizer_runs(input_text: str, optimizer_runs: int | None) -> str:
     return json.dumps(payload)
 
 
+def with_via_ir(input_text: str, via_ir: bool | None) -> str:
+    if via_ir is None:
+        return input_text
+    payload = json.loads(input_text)
+    payload.setdefault("settings", {})["viaIR"] = via_ir
+    return json.dumps(payload)
+
+
 def compiler_input(
     test_case: TestCase,
     evm_version: str | None,
@@ -425,6 +436,18 @@ def compiler_input(
     return input_text, timeout, hashlib.sha256(input_text.encode()).hexdigest()
 
 
+def spec_compiler_input(
+    prepared_input: tuple[str, int, str], spec: CompilerSpec
+) -> tuple[str, int, str]:
+    """Applies the spec's settings to the shared input and fingerprints the result."""
+    if spec.via_ir is None and spec.optimizer_runs is None:
+        return prepared_input
+    input_text, timeout, _ = prepared_input
+    input_text = with_optimizer_runs(input_text, spec.optimizer_runs)
+    input_text = with_via_ir(input_text, spec.via_ir)
+    return input_text, timeout, hashlib.sha256(input_text.encode()).hexdigest()
+
+
 def artifact_compiler_input(input_text: str, test_case: TestCase, kind: str) -> str:
     payload = json.loads(input_text)
     source = test_case.source_name or test_case.source or f"{test_case.test_id}.sol"
@@ -441,15 +464,39 @@ def artifact_compiler_input(input_text: str, test_case: TestCase, kind: str) -> 
             for segment in ("bytecode", "deployedBytecode")
             for field in ("llvmIrUnoptimized", "llvmIr")
         )
-    payload.setdefault("settings", {})["outputSelection"] = {
-        source: {test_case.contract_name: outputs}
-    }
+    # Solar's dump covers every contract, so its output does too.
+    selection = (
+        {"*": {"*": outputs}}
+        if kind == "solar"
+        else {source: {test_case.contract_name: outputs}}
+    )
+    payload.setdefault("settings", {})["outputSelection"] = selection
     return json.dumps(payload, sort_keys=True, separators=(",", ":"))
+
+
+SOLAR_DUMP_HEADING = re.compile(
+    r"^// === (?P<name>.+?)(?: \((?P<kind>creation|runtime|deployment)\))? ===$",
+    re.MULTILINE,
+)
+# An inlined library or an abstract contract has no code but a reverting entry.
+SOLAR_DUMP_STUB = re.compile(
+    r"^fn @entry\(\) \[entry, cold\] \{\n  bb0 \[cold\]:\n    revert 0, 0\n\}$",
+    re.MULTILINE,
+)
+SOLAR_DUMP_FILES = (
+    "mir.mir",
+    "creation.evmir",
+    "runtime.evmir",
+    "creation.disasm",
+    "runtime.disasm",
+)
 
 
 def split_solar_artifact_output(
     stdout: str, contract_path: str
 ) -> tuple[dict[str, str], str]:
+    # Each file lists the selected contract first, then the rest by name, so the diff of an
+    # unchanged contract stays empty. Contracts without code of their own are left out.
     marker = "\n{"
     json_start = stdout.rfind(marker)
     if json_start < 0 and stdout.startswith("{"):
@@ -459,30 +506,48 @@ def split_solar_artifact_output(
 
     dump = stdout[:json_start].strip()
     output = stdout[json_start + 1 :]
-    escaped = re.escape(contract_path)
-    headings = list(
-        re.finditer(
-            rf"^// === {escaped}(?: \((creation|runtime|deployment)\))? ===$",
-            dump,
-            re.MULTILINE,
-        )
-    )
-    names = (
-        "mir.mir",
-        "creation.evmir",
-        "runtime.evmir",
-        "creation.disasm",
-        "runtime.disasm",
-    )
-    if len(headings) != len(names):
-        raise ValueError(
-            f"expected {len(names)} Solar artifact sections, found {len(headings)}"
-        )
-    artifacts = {}
-    following = [*headings[1:], None]
-    for name, match, next_match in zip(names, headings, following, strict=True):
+    sections: dict[str, dict[str, str]] = {name: {} for name in SOLAR_DUMP_FILES}
+    seen: dict[str, set[str]] = {}
+    headings = list(SOLAR_DUMP_HEADING.finditer(dump))
+    for match, next_match in zip(headings, [*headings[1:], None], strict=True):
+        contract, kind = match["name"], match["kind"]
+        # The creation and runtime EVM IR come before the deployment and runtime
+        # disassembly, so a runtime section that follows `deployment` is assembly.
+        previous = seen.setdefault(contract, set())
+        name = {
+            None: "mir.mir",
+            "creation": "creation.evmir",
+            "deployment": "creation.disasm",
+            "runtime": "runtime.disasm"
+            if "deployment" in previous
+            else "runtime.evmir",
+        }[kind]
+        previous.add(kind or "mir")
         end = next_match.start() if next_match else len(dump)
-        artifacts[name] = dump[match.end() : end].strip() + "\n"
+        sections[name][contract] = dump[match.start() : end].strip() + "\n"
+
+    found = sum(contract_path in files for files in sections.values())
+    if found != len(SOLAR_DUMP_FILES):
+        raise ValueError(
+            f"expected {len(SOLAR_DUMP_FILES)} Solar artifact sections for "
+            f"{contract_path}, found {found}"
+        )
+    stubs = {
+        contract
+        for contract, mir in sections["mir.mir"].items()
+        if contract != contract_path
+        and len(re.findall(r"^fn ", mir, re.MULTILINE)) == 1
+        and SOLAR_DUMP_STUB.search(mir)
+    }
+    artifacts = {
+        name: "\n".join(
+            files[contract]
+            for contract in sorted(
+                files.keys() - stubs, key=lambda item: (item != contract_path, item)
+            )
+        )
+        for name, files in sections.items()
+    }
     return artifacts, output
 
 
@@ -490,7 +555,9 @@ def selected_contract_output(
     output: dict[str, Any], test_case: TestCase
 ) -> dict[str, Any]:
     contracts = output.get("contracts") or {}
-    for source_contracts in contracts.values():
+    source = test_case.source_name or test_case.source or f"{test_case.test_id}.sol"
+    # Solar's artifact output has every contract, so another source may reuse the name.
+    for source_contracts in (contracts.get(source) or {}, *contracts.values()):
         if test_case.contract_name in source_contracts:
             return source_contracts[test_case.contract_name]
     return {}
@@ -539,8 +606,7 @@ def write_artifacts(
     source = test_case.source_name or test_case.source or f"{test_case.test_id}.sol"
     contract_path = f"{source}:{test_case.contract_name}"
     if spec.kind == "solar":
-        kinds = ",".join(ARTIFACT_DUMP_KINDS)
-        cmd.extend(["--color", "never", f"-Zdump={kinds}={contract_path}"])
+        cmd.extend(["--color", "never", f"-Zdump={','.join(ARTIFACT_DUMP_KINDS)}"])
     proc = run(cmd, input_text=input_text, timeout=timeout)
     if proc.returncode != 0:
         return (proc.stderr or proc.stdout or "artifact compiler failed")[:1000]
@@ -1940,10 +2006,30 @@ def workload_signature(data: dict[str, Any]) -> tuple[object, ...]:
     return tuple(signature)
 
 
+def prepare_input(
+    test_case: TestCase, evm_version: str | None, optimizer_runs: int | None
+) -> tuple[str, int, str] | None:
+    if test_case.project_file is not None and not test_case.project_path.exists():
+        return None
+    return compiler_input(test_case, evm_version, optimizer_runs)
+
+
+def order_compilers(compilers: dict[str, Any]) -> dict[str, Any]:
+    """Orders compiler results solar, solar-size, solc, solc-legacy, then the rest."""
+    order = ("solar", "solar-size", "solc", "solc-legacy")
+    return dict(
+        sorted(
+            compilers.items(),
+            key=lambda item: order.index(item[0]) if item[0] in order else len(order),
+        )
+    )
+
+
 def merge_reference_compiler(
     entry: dict[str, Any],
     references: dict[tuple[str, str], dict[str, Any]],
     compiler_id: str,
+    input_fingerprint: str | None,
 ) -> bool:
     reference = references.get(result_key(entry))
     if reference is None:
@@ -1957,12 +2043,7 @@ def merge_reference_compiler(
         return False
 
     reference_fingerprint = reference_data.get("input_fingerprint")
-    current_fingerprints = {
-        data.get("input_fingerprint")
-        for data in compilers.values()
-        if isinstance(data, dict) and data.get("input_fingerprint")
-    }
-    if not reference_fingerprint or reference_fingerprint not in current_fingerprints:
+    if not reference_fingerprint or reference_fingerprint != input_fingerprint:
         return False
     if entry.get("gas_profile") != reference.get("gas_profile"):
         return False
@@ -2084,12 +2165,11 @@ def run_test_case(
         entry["project"] = test_case.project.name
         entry["source"] = test_case.source
     reference_solc = next((spec.path for spec in specs if spec.kind == "solc"), None)
-    prepared_input = (
-        None
-        if test_case.project_file is not None and not test_case.project_path.exists()
-        else compiler_input(test_case, evm_version, optimizer_runs)
-    )
+    shared_input = prepare_input(test_case, evm_version, optimizer_runs)
     for spec in specs:
+        prepared_input = (
+            None if shared_input is None else spec_compiler_input(shared_input, spec)
+        )
         verbose_log(verbose, f"[{test_case.test_id}] compiling with {spec.compiler_id}")
         compiled = compile_case(
             spec,
@@ -2286,6 +2366,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Also benchmark solc using this binary (default: disabled)",
     )
     parser.add_argument(
+        "--solc-legacy",
+        action="store_true",
+        help="Also benchmark the --solc binary with viaIR disabled (default: disabled)",
+    )
+    parser.add_argument(
         "--solx",
         help="Also benchmark solx using this binary (default: disabled)",
     )
@@ -2298,6 +2383,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         type=int,
         default=8,
         help="Oksolc worker count (default: 8, matching Solar's default)",
+    )
+    parser.add_argument(
+        "--solar-size",
+        action="store_true",
+        help="Also benchmark solar with optimizer runs forced to 1, optimizing for size "
+        "(default: disabled; conflicts with --optimizer-runs)",
     )
     parser.add_argument(
         "--solar",
@@ -2425,6 +2516,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.compile_repeats = 1
     if args.reference_results and (args.solc or args.solx):
         parser.error("--reference-results cannot be combined with --solc or --solx")
+    if args.solc_legacy and not args.solc:
+        parser.error("--solc-legacy requires --solc")
+    if args.solar_size and args.optimizer_runs is not None:
+        parser.error("--solar-size cannot be combined with --optimizer-runs")
     try:
         reference_results = (
             load_reference_results(args.reference_results)
@@ -2505,6 +2600,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.solc:
         assert solc is not None
         specs.append(CompilerSpec("solc", f"solc {solc_version}", solc, "solc"))
+    if args.solc_legacy:
+        assert solc is not None
+        specs.append(
+            CompilerSpec(
+                "solc-legacy",
+                f"solc-legacy {solc_version}",
+                solc,
+                "solc-legacy",
+                via_ir=False,
+            )
+        )
     if args.solx:
         solx = find_binary(args.solx, ["solx"])
         if solx is None:
@@ -2537,10 +2643,25 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         )
     specs.append(CompilerSpec("solar", f"solar {solar_version}", solar, "solar"))
+    if args.solar_size:
+        specs.append(
+            CompilerSpec(
+                "solar-size",
+                f"solar-size {solar_version}",
+                solar,
+                "solar",
+                optimizer_runs=1,
+            )
+        )
     reference_specs = (
         [
-            CompilerSpec(name, name, Path(name), name)
-            for name in ("solc", "solx", "oksolc")
+            CompilerSpec(name, name, Path(name), name, via_ir=via_ir)
+            for name, via_ir in (
+                ("solc", None),
+                ("solc-legacy", False),
+                ("solx", None),
+                ("oksolc", None),
+            )
             if name not in {spec.compiler_id for spec in specs}
         ]
         if args.reference_results
@@ -2693,9 +2814,21 @@ def main(argv: Sequence[str] | None = None) -> int:
                 run_case(test) if parallel_results is None else next(parallel_results)
             )
             merged_specs = []
+            shared_input = (
+                prepare_input(test, args.evm_version, args.optimizer_runs)
+                if reference_specs and "benchmark_error" not in result
+                else None
+            )
             for reference_spec in reference_specs:
                 compiler_id = reference_spec.compiler_id
-                if merge_reference_compiler(result, reference_results, compiler_id):
+                if merge_reference_compiler(
+                    result,
+                    reference_results,
+                    compiler_id,
+                    spec_compiler_input(shared_input, reference_spec)[2]
+                    if shared_input
+                    else None,
+                ):
                     merged_specs.append(reference_spec)
                     if (
                         args.artifacts is not None
@@ -2723,6 +2856,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     )
             if args.gas and merged_specs:
                 compare_runtime_results(result, (*merged_specs, *specs))
+            result["compilers"] = order_compilers(result["compilers"])
             results.append(result)
         if current_suite is not None and suite_started is not None:
             timings[current_suite] = (

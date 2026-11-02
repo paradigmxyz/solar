@@ -7,7 +7,7 @@
 ; function f(uint256[] memory values) public returns (uint256) [selector 0x7bc5bbbf]
 fn @f(arg0: ptr<memory>) -> i256 [selector=0x7bc5bbbf, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = icall @reduce, arg0, 2, 0
+    v0 = icall @reduce, arg0, 1, 0
     ret v0
 }
 
@@ -55,7 +55,7 @@ fn @sum(arg0: i256, arg1: i256) -> i256 [pure] {
 
 fn @internal_dispatcher_p_uint256_uint256_r_uint256(arg0: i256, arg1: i256, arg2: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
-    v0 = eq arg0, 2
+    v0 = eq arg0, 1
     jumpi v0, bb1, bb2
   bb2:  ; preds = bb0
     icall panic_if<0x51>, true

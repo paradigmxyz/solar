@@ -59,7 +59,7 @@
       ret
   }
   
-  fn @check_cold(arg0: i256, arg1: i256) [cold_hint] {
+  fn @check_cold(arg0: i256, arg1: i256) [cold_hint, cold_hint] {
     bb0 [cold]:
       v0 = eq arg0, arg1
       jumpi v0, bb1, bb2

@@ -35,9 +35,8 @@ fn @probe() -> i256 [selector=0xb74af5a9, view, abi_params=[], abi_returns=[word
     v11 = returndatasize
     v12 = lt v11, 32
     icall revert_if<tuple_data_too_short>, v12
-    v13 = add 0, 0
-    v14 = mload v13
-    ret v14
+    v13 = mload 0 !metadata(memory=scratch)
+    ret v13
 }
 
 ; function observed() external view returns (bool result) [selector 0xba210709]
@@ -66,35 +65,32 @@ fn @observed() -> i256 [selector=0xba210709, view, abi_params=[], abi_returns=[w
     v12 = returndatasize
     v13 = lt v12, 32
     icall revert_if<tuple_data_too_short>, v13
-    v14 = add 0, 0
-    v15 = mload v14
-    v16 = eq v15, 0xb658c1ef50aec2efb3e26c5587e8ce1ae4d46226f3a28b97bac4fe573717b1f8
-    v17 = eq v16, false
-    icall revert_if<empty>, v17
-    v18 = add v0, 64
-    v19 = mload v18
-    v20 = eq v19, 3
-    v21 = zext i1 v20 to i256
-    v22 = mload v0
-    v23 = eq v22, 2
-    v24 = zext i1 v23 to i256
-    v25 = and v24, v21
-    v26 = shl 291, 240
-    v27 = add v0, 32
-    v28 = mload v27
-    v29 = eq v28, v26
-    v30 = zext i1 v29 to i256
-    v31 = and v25, v30
-    v32 = shl 0x616263, 232
-    v33 = add v0, 96
-    v34 = mload v33
-    v35 = eq v34, v32
-    v36 = zext i1 v35 to i256
-    v37 = and v31, v36
-    v38 = add v0, 352
-    v39 = mload 64 !metadata(memory=scratch)
-    v40 = eq v39, v38
-    v41 = zext i1 v40 to i256
-    v42 = and v37, v41
-    ret v42
+    v14 = mload 0 !metadata(memory=scratch)
+    v15 = eq v14, 0xb658c1ef50aec2efb3e26c5587e8ce1ae4d46226f3a28b97bac4fe573717b1f8
+    v16 = eq v15, false
+    icall revert_if<empty>, v16
+    v17 = add v0, 64
+    v18 = mload v17
+    v19 = eq v18, 3
+    v20 = zext i1 v19 to i256
+    v21 = mload v0
+    v22 = eq v21, 2
+    v23 = zext i1 v22 to i256
+    v24 = and v23, v20
+    v25 = add v0, 32
+    v26 = mload v25
+    v27 = eq v26, 0x123000000000000000000000000000000000000000000000000000000000000
+    v28 = zext i1 v27 to i256
+    v29 = and v24, v28
+    v30 = add v0, 96
+    v31 = mload v30
+    v32 = eq v31, 0x6162630000000000000000000000000000000000000000000000000000000000
+    v33 = zext i1 v32 to i256
+    v34 = and v29, v33
+    v35 = add v0, 352
+    v36 = mload 64 !metadata(memory=scratch)
+    v37 = eq v36, v35
+    v38 = zext i1 v37 to i256
+    v39 = and v34, v38
+    ret v39
 }

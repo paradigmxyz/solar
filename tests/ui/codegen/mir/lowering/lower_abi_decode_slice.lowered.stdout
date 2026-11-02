@@ -76,13 +76,13 @@
 +   bb3:  ; preds = bb2
 +     v16 = mload v8
 +     v17 = add v8, 32
-+     v18 = add v16, 63
-+     v19 = lt v18, v16
-+     jumpi v19, bb4, bb5
++     v18 = add v16, 31
++     v19 = and v18, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
++     v20 = add v19, 32
++     v21 = lt v20, v16
++     jumpi v21, bb4, bb5
 +   bb5:  ; preds = bb3
-+     v20 = not 31
-+     v21 = and v18, v20
-+     v22 = alloc checked v21
++     v22 = alloc checked v20
 +     mstore v22, v16
 +     v23 = sub v4, v17
 +     v24 = gt v16, v23

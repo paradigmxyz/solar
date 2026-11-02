@@ -44,10 +44,9 @@ fn @bare(arg0: i256) -> i256 [selector=0x90f2b340, view, abi_params=[uint256], a
     v4 = returndatasize
     v5 = lt v4, 32
     icall revert_if<tuple_data_too_short>, v5
-    v6 = add 0, 0
-    v7 = mload v6
-    v8 = checked_add uint256, v7, 1
-    ret v8
+    v6 = mload 0 !metadata(memory=scratch)
+    v7 = checked_add uint256, v6, 1
+    ret v7
   bb3:
     ret 0
 }
@@ -63,52 +62,51 @@ fn @typed(arg0: i256) -> i256 [selector=0x23048970, view, abi_params=[uint256], 
     v3 = staticcall v1, v2, 28, 36, 0, 32
     jumpi v3, bb1, bb2
   bb2 [cold_hint]:  ; preds = bb0
-    v9 = icall returndata_bytes<>
-    v10 = ptradd v9, 32
-    v11 = mload v9
-    v12 = make_memory_slice v10, v11
-    v13 = extract_value slice<memory>, v12, 0
-    v14 = extract_value slice<memory>, v12, 1
-    v15 = extract_value slice<memory>, v12, 0
-    v16 = mload v15
-    v17 = shr v16, 224
-    v18 = eq v17, 0x8c379a0
-    jumpi v18, bb4, bb5
+    v8 = icall returndata_bytes<>
+    v9 = ptradd v8, 32
+    v10 = mload v8
+    v11 = make_memory_slice v9, v10
+    v12 = extract_value slice<memory>, v11, 0
+    v13 = extract_value slice<memory>, v11, 1
+    v14 = extract_value slice<memory>, v11, 0
+    v15 = mload v14
+    v16 = shr v15, 224
+    v17 = eq v16, 0x8c379a0
+    jumpi v17, bb4, bb5
   bb5 [cold_hint]:  ; preds = bb2
     jump bb6
   bb4 [cold_hint]:  ; preds = bb2
-    v19 = ptrtoint ptr<memory> v13 to i256
-    v20 = icall @try_decode_error_message, v19, v14
+    v18 = ptrtoint ptr<memory> v12 to i256
+    v19 = icall @try_decode_error_message, v18, v13
     jump bb6
   bb6 [cold_hint]:  ; preds = bb4, bb5
-    v21 = phi [bb4: v20], [bb5: false]
-    jumpi v21, bb7, bb8
+    v20 = phi [bb4: v19], [bb5: false]
+    jumpi v20, bb7, bb8
   bb8 [cold_hint]:  ; preds = bb6
     jumpi true, bb9, bb10
   bb10 [cold_hint]:  ; preds = bb8
-    revert v13, v14
+    revert v12, v13
   bb9 [cold_hint]:  ; preds = bb8
     jump bb3
   bb7 [cold_hint]:  ; preds = bb6
-    v22 = mload v9
-    v23 = ptradd v9, 36
-    v24 = sub v22, 4
-    v25 = make_memory_slice v23, v24
-    v26 = abi_decode [bytes], v25
-    v27 = mload v26
-    v28 = checked_add uint256, v27, 3
+    v21 = mload v8
+    v22 = ptradd v8, 36
+    v23 = sub v21, 4
+    v24 = make_memory_slice v22, v23
+    v25 = abi_decode [bytes], v24
+    v26 = mload v25
+    v27 = checked_add uint256, v26, 3
     jump bb3
   bb1:  ; preds = bb0
     v4 = returndatasize
     v5 = lt v4, 32
     icall revert_if<tuple_data_too_short>, v5
-    v6 = add 0, 0
-    v7 = mload v6
-    v8 = checked_add uint256, v7, 2
+    v6 = mload 0 !metadata(memory=scratch)
+    v7 = checked_add uint256, v6, 2
     jump bb3
   bb3:  ; preds = bb1, bb7, bb9
-    v29 = phi [bb1: v8], [bb7: v28], [bb9: 4]
-    ret v29
+    v28 = phi [bb1: v7], [bb7: v27], [bb9: 4]
+    ret v28
 }
 
 ; function looped(uint256 x) public view returns (uint256) [selector 0xd3fb4026]
@@ -130,37 +128,36 @@ fn @looped(arg0: i256) -> i256 [selector=0xd3fb4026, view, abi_params=[uint256],
   bb4 [cold_hint]:  ; preds = bb2
     jump bb6
   bb6 [cold_hint]:  ; preds = bb4, bb8
-    v9 = phi [bb4: arg0], [bb8: v9]
-    v10 = phi [bb4: 0], [bb8: v10]
-    v11 = phi [bb4: arg0], [bb8: v14]
-    v12 = phi [bb4: 0], [bb8: v15]
-    v13 = lt v12, 6
-    jumpi v13, bb9, bb10
+    v8 = phi [bb4: arg0], [bb8: v8]
+    v9 = phi [bb4: 0], [bb8: v9]
+    v10 = phi [bb4: arg0], [bb8: v13]
+    v11 = phi [bb4: 0], [bb8: v14]
+    v12 = lt v11, 6
+    jumpi v12, bb9, bb10
   bb10 [cold_hint]:  ; preds = bb6
     jump bb7
   bb7 [cold_hint]:  ; preds = bb10
     jump bb3
   bb9 [cold_hint]:  ; preds = bb6
-    v14 = checked_add uint256, v11, 1
+    v13 = checked_add uint256, v10, 1
     jump bb11
   bb11 [cold_hint]:  ; preds = bb9
     jump bb8
   bb8 [cold_hint]:  ; preds = bb11
-    v15 = checked_add uint256, v12, 1
+    v14 = checked_add uint256, v11, 1
     jump bb6
   bb1:  ; preds = bb0
     v5 = returndatasize
     v6 = lt v5, 32
     icall revert_if<tuple_data_too_short>, v6
-    v7 = add 0, 0
-    v8 = mload v7
+    v7 = mload 0 !metadata(memory=scratch)
     jump bb3
   bb3:  ; preds = bb1, bb7
-    v16 = phi [bb1: arg0], [bb7: v9]
-    v17 = phi [bb1: 0], [bb7: v10]
-    v18 = phi [bb1: v8], [bb7: v11]
-    v19 = checked_add uint256, v18, 5
-    ret v19
+    v15 = phi [bb1: arg0], [bb7: v8]
+    v16 = phi [bb1: 0], [bb7: v9]
+    v17 = phi [bb1: v7], [bb7: v10]
+    v18 = checked_add uint256, v17, 5
+    ret v18
 }
 
 fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {

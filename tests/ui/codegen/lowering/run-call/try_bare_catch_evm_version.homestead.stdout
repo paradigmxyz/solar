@@ -88,13 +88,11 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
   bb6 [cold_hint]:  ; preds = bb4
     jump bb5
   bb3:  ; preds = bb2
-    v17 = ptrtoint ptr<memory> v8 to i256
-    v18 = add v17, 0
-    v19 = mload v18
+    v17 = mload v8
     jump bb5
   bb5:  ; preds = bb3, bb6
-    v20 = phi [bb3: v19], [bb6: 7]
-    ret v20
+    v18 = phi [bb3: v17], [bb6: 7]
+    ret v18
 }
 
 ; function liveTwo() external returns (uint256 r) [selector 0xa9b44a2a]
@@ -133,17 +131,15 @@ fn @liveTwo() -> i256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word], a
   bb6 [cold_hint]:  ; preds = bb4
     jump bb5
   bb3:  ; preds = bb2
-    v17 = ptrtoint ptr<memory> v8 to i256
-    v18 = add v17, 0
-    v19 = mload v18
-    v20 = ptrtoint ptr<memory> v8 to i256
-    v21 = add v20, 32
-    v22 = mload v21
-    v23 = checked_add uint256, v19, v22
+    v17 = mload v8
+    v18 = ptrtoint ptr<memory> v8 to i256
+    v19 = add v18, 32
+    v20 = mload v19
+    v21 = checked_add uint256, v17, v20
     jump bb5
   bb5:  ; preds = bb3, bb6
-    v24 = phi [bb3: v23], [bb6: 7]
-    ret v24
+    v22 = phi [bb3: v21], [bb6: 7]
+    ret v22
 }
 
 ; function liveAggregate() external returns (uint256 r) [selector 0xc64a4ee9]
@@ -276,13 +272,11 @@ fn @liveCatch() -> i256 [selector=0x852bf1e6, abi_params=[], abi_returns=[word],
   bb6 [cold_hint]:  ; preds = bb4
     jump bb5
   bb3:  ; preds = bb2
-    v17 = ptrtoint ptr<memory> v8 to i256
-    v18 = add v17, 0
-    v19 = mload v18
+    v17 = mload v8
     jump bb5
   bb5:  ; preds = bb3, bb6
-    v20 = phi [bb3: v19], [bb6: 7]
-    ret v20
+    v18 = phi [bb3: v17], [bb6: 7]
+    ret v18
 }
 
 ; function livePointer() external returns (uint256 r) [selector 0x6347cf88]
@@ -325,13 +319,11 @@ fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
   bb6 [cold_hint]:  ; preds = bb4
     jump bb5
   bb3:  ; preds = bb2
-    v21 = ptrtoint ptr<memory> v14 to i256
-    v22 = add v21, 0
-    v23 = mload v22
+    v21 = mload v14
     jump bb5
   bb5:  ; preds = bb3, bb6
-    v24 = phi [bb3: v23], [bb6: 7]
-    ret v24
+    v22 = phi [bb3: v21], [bb6: 7]
+    ret v22
 }
 
 ; function liveCreation() external returns (uint256 r) [selector 0xb217934d]
@@ -382,13 +374,11 @@ fn @noCode() -> i256 [selector=0x96c56dce, abi_params=[], abi_returns=[word], ab
   bb4 [cold_hint]:  ; preds = bb2
     jump bb3
   bb1:  ; preds = bb0
-    v11 = ptrtoint ptr<memory> v4 to i256
-    v12 = add v11, 0
-    v13 = mload v12
+    v11 = mload v4
     jump bb3
   bb3:  ; preds = bb1, bb4
-    v14 = phi [bb1: v13], [bb4: 7]
-    ret v14
+    v12 = phi [bb1: v11], [bb4: 7]
+    ret v12
 }
 
 ; function noCodeNoReturn() external returns (uint256 r) [selector 0xac1b26c4]

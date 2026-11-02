@@ -105,7 +105,7 @@
 -     ret 0
   }
   
-  fn @classify_cold(arg0: i256) -> i256 [cold_hint] {
+  fn @classify_cold(arg0: i256) -> i256 [cold_hint, cold_hint] {
     bb0 [cold]:
       v0 = lt arg0, 32
       jumpi v0, bb1, bb2

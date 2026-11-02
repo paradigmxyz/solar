@@ -35,14 +35,14 @@ fn @apart() [selector=0x25c94f29, abi_wrapper, pure] {
     icall @_copy, v3, v2, arg2
     v7 = mload v3
     v8 = add v7, 31
-    v10 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v18 = add v3, 32
-    v13 = add v18, v7
-    mstore v13, 0
-    v20 = sub v3, 32
-    mstore v20, 32
-    v15 = add v10, 64
-    returndata v20, v15
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v17 = add v3, 32
+    v12 = add v17, v7
+    mstore v12, 0
+    v19 = sub v3, 32
+    mstore v19, 32
+    v14 = add v9, 64
+    returndata v19, v14
   bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
@@ -59,13 +59,13 @@ fn @lengthInside() [selector=0xa53391c5, abi_wrapper, pure] {
     icall @_copy, v5, v1, arg1
     v9 = mload v5
     v10 = add v9, 31
-    v12 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v15 = add v1, v9
-    mstore v15, 0
-    v22 = sub v5, 32
-    mstore v22, 32
-    v17 = add v12, 64
-    returndata v22, v17
+    v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v14 = add v1, v9
+    mstore v14, 0
+    v21 = sub v5, 32
+    mstore v21, 32
+    v16 = add v11, 64
+    returndata v21, v16
   bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
@@ -82,14 +82,14 @@ fn @apartDown() [selector=0xe2b4389c, abi_wrapper, pure] {
     icall @_copyDown, v3, v2, arg2
     v7 = mload v3
     v8 = add v7, 31
-    v10 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v18 = add v3, 32
-    v13 = add v18, v7
-    mstore v13, 0
-    v20 = sub v3, 32
-    mstore v20, 32
-    v15 = add v10, 64
-    returndata v20, v15
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v17 = add v3, 32
+    v12 = add v17, v7
+    mstore v12, 0
+    v19 = sub v3, 32
+    mstore v19, 32
+    v14 = add v9, 64
+    returndata v19, v14
   bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
@@ -106,13 +106,13 @@ fn @lengthInsideDown() [selector=0x8d73e21a, abi_wrapper, pure] {
     icall @_copyDown, v5, v1, arg1
     v9 = mload v5
     v10 = add v9, 31
-    v12 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v15 = add v1, v9
-    mstore v15, 0
-    v22 = sub v5, 32
-    mstore v22, 32
-    v17 = add v12, 64
-    returndata v22, v17
+    v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v14 = add v1, v9
+    mstore v14, 0
+    v21 = sub v5, 32
+    mstore v21, 32
+    v16 = add v11, 64
+    returndata v21, v16
   bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
@@ -240,13 +240,13 @@ fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
   bb2:  ; preds = bb0
     v6 = calldataload v2
     v7 = add v2, 32
-    v8 = add v6, 63
-    v9 = lt v8, v6
-    jumpi v9, bb3, bb4
+    v37 = add v6, 63
+    v10 = and v37, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v11 = lt v10, v6
+    jumpi v11, bb3, bb4
   bb4:  ; preds = bb2
-    v11 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v29 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v30 = add v29, v11 !metadata(alloc_ptr)
+    v30 = add v29, v10 !metadata(alloc_ptr)
     v31 = lt v30, v29
     v32 = zext i1 v31 to i256
     v33 = shr v30, 64

@@ -34,33 +34,32 @@ fn @endPastLength() [selector=0x8063d43b, abi_wrapper, pure] {
     jumpi v4, bb1, bb2
   bb2:  ; preds = bb4
     v6 = sub arg1, 1
-    v54 = add v29, 33
+    v53 = add v29, 33
     v11 = calldatasize
     v25 = shr v6, 64
     v13 = sub v11, v6
-    v15 = sgt v54, v13
-    v60 = zext i1 v15 to i256
-    v61 = or v25, v60
-    v62 = ne v61, 0
-    jumpi v62, bb1, bb3
+    v15 = sgt v53, v13
+    v59 = zext i1 v15 to i256
+    v60 = or v25, v59
+    v61 = ne v60, 0
+    jumpi v61, bb1, bb3
   bb3:  ; preds = bb2
-    v17 = add v6, 63
-    v20 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v57 = heap_floor !metadata(alloc_ptr)
-    v58 = add v57, v20 !metadata(alloc_ptr)
-    mstore v57, v6
-    v39 = add v58, 32
-    mstore v58, 32
-    v44 = add v6, 31
-    v45 = and v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v46 = add v39, 32
-    v47 = add v39, v45
-    mstore v47, 0
+    v17 = add v6, 31
+    v18 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v19 = add v18, 32
+    v56 = heap_floor !metadata(alloc_ptr)
+    v57 = add v56, v19 !metadata(alloc_ptr)
+    mstore v56, v6
+    v39 = add v57, 32
+    mstore v57, 32
+    v45 = add v39, 32
+    v46 = add v39, v18
+    mstore v46, 0
     mstore v39, v6
-    v49 = add v46, v45
-    calldatacopy v46, v54, v6
-    v51 = sub v49, v58
-    returndata v58, v51
+    v48 = add v45, v18
+    calldatacopy v45, v53, v6
+    v50 = sub v48, v57
+    returndata v57, v50
   bb1 [cold]:  ; preds = bb0, bb2, bb4
     revert 0, 0
 }
@@ -81,33 +80,32 @@ fn @startAfterEnd() [selector=0x598bfb30, abi_wrapper, pure] {
     jumpi v4, bb1, bb2
   bb2:  ; preds = bb4
     v6 = sub arg2, arg1
-    v54 = add v31, arg1
+    v53 = add v31, arg1
     v11 = calldatasize
     v25 = shr v6, 64
     v13 = sub v11, v6
-    v15 = sgt v54, v13
-    v60 = zext i1 v15 to i256
-    v61 = or v25, v60
-    v62 = ne v61, 0
-    jumpi v62, bb1, bb3
+    v15 = sgt v53, v13
+    v59 = zext i1 v15 to i256
+    v60 = or v25, v59
+    v61 = ne v60, 0
+    jumpi v61, bb1, bb3
   bb3:  ; preds = bb2
-    v17 = add v6, 63
-    v20 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v57 = heap_floor !metadata(alloc_ptr)
-    v58 = add v57, v20 !metadata(alloc_ptr)
-    mstore v57, v6
-    v39 = add v58, 32
-    mstore v58, 32
-    v44 = add v6, 31
-    v45 = and v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v46 = add v39, 32
-    v47 = add v39, v45
-    mstore v47, 0
+    v17 = add v6, 31
+    v18 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v19 = add v18, 32
+    v56 = heap_floor !metadata(alloc_ptr)
+    v57 = add v56, v19 !metadata(alloc_ptr)
+    mstore v56, v6
+    v39 = add v57, 32
+    mstore v57, 32
+    v45 = add v39, 32
+    v46 = add v39, v18
+    mstore v46, 0
     mstore v39, v6
-    v49 = add v46, v45
-    calldatacopy v46, v54, v6
-    v51 = sub v49, v58
-    returndata v58, v51
+    v48 = add v45, v18
+    calldatacopy v45, v53, v6
+    v50 = sub v48, v57
+    returndata v57, v50
   bb1 [cold]:  ; preds = bb0, bb2, bb4
     revert 0, 0
 }

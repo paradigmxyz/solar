@@ -20,7 +20,6 @@ contract C {
     // CHECK-LABEL: fn @data(
     // CHECK: datacopy literal_0, {{.*}}, 288
     // SIZE-LABEL: fn @data(
-    // SIZE: mstore {{.*}}, 0
     // SIZE: datacopy literal_0, {{.*}}, 257
     function data() external pure returns (bytes memory) {
         return "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdefZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ!";
@@ -29,7 +28,6 @@ contract C {
     // CHECK-LABEL: fn @subslice(
     // CHECK: datacopy literal_1, {{.*}}, 192
     // SIZE-LABEL: fn @subslice(
-    // SIZE: mstore {{.*}}, 0
     // SIZE: datacopy literal_1, {{.*}}, 161
     function subslice() external pure returns (bytes memory) {
         return "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdefZ";

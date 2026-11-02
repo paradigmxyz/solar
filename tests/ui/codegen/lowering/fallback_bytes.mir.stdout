@@ -7,9 +7,9 @@
 fn @fallback(arg0: slice<calldata>) -> ptr<memory> [fallback] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
-    v1 = add v0, 63
-    v2 = not 31
-    v3 = and v1, v2
+    v1 = add v0, 31
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v3 = add v2, 32
     v4 = alloc v3
     mstore v4, v0
     v5 = ptradd v4, 32

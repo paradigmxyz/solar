@@ -39,13 +39,13 @@
 +   bb2:  ; preds = bb0
 +     v10 = add v7, 31 !metadata(span=20..30, modifier_depth=2)
 +     v11 = div v10, 32 !metadata(span=20..30, modifier_depth=2)
-+     v12 = add v7, 63 !metadata(span=20..30, modifier_depth=2)
-+     v13 = lt v12, v7 !metadata(span=20..30, modifier_depth=2)
-+     jumpi v13, bb3, bb4 !metadata(span=20..30, modifier_depth=2)
++     v12 = add v7, 31 !metadata(span=20..30, modifier_depth=2)
++     v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0 !metadata(span=20..30, modifier_depth=2)
++     v14 = add v13, 32 !metadata(span=20..30, modifier_depth=2)
++     v15 = lt v14, v7 !metadata(span=20..30, modifier_depth=2)
++     jumpi v15, bb3, bb4 !metadata(span=20..30, modifier_depth=2)
 +   bb4:  ; preds = bb2
-+     v14 = not 31 !metadata(span=20..30, modifier_depth=2)
-+     v15 = and v12, v14 !metadata(span=20..30, modifier_depth=2)
-+     v16 = alloc checked v15 !metadata(span=20..30, modifier_depth=2)
++     v16 = alloc checked v14 !metadata(span=20..30, modifier_depth=2)
 +     mstore v16, v7 !metadata(span=20..30, modifier_depth=2)
 +     jumpi v3, bb6, bb5 !metadata(span=20..30, modifier_depth=2)
 +   bb5:  ; preds = bb4
@@ -103,13 +103,13 @@
 +   bb5:  ; preds = bb1
 +     v11 = add v8, 31
 +     v12 = div v11, 32
-+     v13 = add v8, 63
-+     v14 = lt v13, v8
-+     jumpi v14, bb6, bb7
++     v13 = add v8, 31
++     v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
++     v15 = add v14, 32
++     v16 = lt v15, v8
++     jumpi v16, bb6, bb7
 +   bb7:  ; preds = bb5
-+     v15 = not 31
-+     v16 = and v13, v15
-+     v17 = alloc checked v16
++     v17 = alloc checked v15
 +     mstore v17, v8
 +     jumpi v4, bb9, bb8
 +   bb8:  ; preds = bb7

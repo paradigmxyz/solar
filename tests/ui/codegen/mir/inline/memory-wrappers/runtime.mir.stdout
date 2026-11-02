@@ -37,12 +37,12 @@ fn @wrap(arg0: ptr<memory>) -> ptr<memory> [pure] {
 fn @copy(arg0: ptr<memory>) -> ptr<memory> [pure] {
   bb0:
     v0 = mload arg0
-    v1 = add v0, 63
-    v2 = lt v1, v0
-    icall panic_if<0x41>, v2
-    v3 = not 31
-    v4 = and v1, v3
-    v5 = alloc zeroed checked v4
+    v1 = add v0, 31
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v3 = add v2, 32
+    v4 = lt v3, v0
+    icall panic_if<0x41>, v4
+    v5 = alloc zeroed checked v3
     mstore v5, v0
     jump bb1
   bb1:  ; preds = bb0, bb3

@@ -10,14 +10,11 @@
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
-    v0 = not 0
-    v1 = not 0
-    v2 = not 0
-    storeimmutable id, v0
+    storeimmutable id, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     storeimmutable flag, 256
-    storeimmutable owner, v1
+    storeimmutable owner, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     storeimmutable small, i8 255
-    storeimmutable wrapped, v2
+    storeimmutable wrapped, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     ret
 }
 

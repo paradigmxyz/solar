@@ -1,0 +1,13 @@
+- // === ROOT/tests/ui/codegen/mir/none/bytecode.mir (before none) ===
++ // === ROOT/tests/ui/codegen/mir/none/bytecode.mir (after none) ===
+  @module Bytecode
+  @phase lowered
+  ; runtime dispatch entry
+  fn @entry() [entry] {
+    bb0:
+      v0 = calldataload 0
+      v1 = add v0, 1
+      mstore 0, v1
+      returndata 0, 32
+  }
+  

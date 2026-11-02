@@ -47,13 +47,12 @@ fn @libCall(arg0: i256) -> i256 [selector=0x34ea0c3e, abi_params=[uint256], abi_
     v4 = returndatasize
     v5 = lt v4, 32
     icall revert_if<tuple_data_too_short>, v5
-    v6 = add 0, 0
-    v7 = mload v6
-    sstore 0, v7 !metadata(storage=slot(0))
+    v6 = mload 0 !metadata(memory=scratch)
+    sstore 0, v6 !metadata(storage=slot(0))
     jump bb3
   bb3:  ; preds = bb1, bb4
-    v8 = phi [bb1: v7], [bb4: 7]
-    ret v8
+    v7 = phi [bb1: v6], [bb4: 7]
+    ret v7
 }
 
 ; function libNoReturn(uint256 x) external returns (uint256 r) [selector 0x364676bf]

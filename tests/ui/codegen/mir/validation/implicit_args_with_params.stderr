@@ -1,0 +1,8 @@
+error: a function with parameters has no implicit arguments
+   ╭▸ ROOT/tests/ui/codegen/mir/validation/implicit_args_with_params.mir:LL:CC
+   │
+LL │ fn @f(arg0: i256) [implicit_args=[i1]] {
+   ╰╴                                ━
+
+error: aborting due to 1 previous error
+

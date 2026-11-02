@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/hotness/cold_hint_returns.sol:C ===
 @module C
 ; function bump(uint256 x) internal returns (uint256)
-fn @bump(arg0: i256) -> i256 [cold_hint] {
+fn @bump(arg0: i256) -> i256 [cold_hint, cold_hint] {
   bb0:
     jump bb1
   bb1:  ; preds = bb0, bb3

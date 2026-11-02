@@ -112,7 +112,7 @@ fn analysis(gcx: Gcx<'_>) -> Result<ControlFlow<()>> {
     }
 
     if !gcx.sess.opts.language.is_source() {
-        return Ok(ControlFlow::Continue(()));
+        return Ok(after_analysis(gcx));
     }
 
     if let Some(dump) = &gcx.sess.opts.unstable.dump
@@ -167,7 +167,16 @@ fn analysis(gcx: Gcx<'_>) -> Result<ControlFlow<()>> {
 
     typeck::check(gcx);
 
-    Ok(ControlFlow::Continue(()))
+    Ok(after_analysis(gcx))
+}
+
+/// Analysis is the last stage, so no later `advance_stage` call can stop at it.
+fn after_analysis(gcx: Gcx<'_>) -> ControlFlow<()> {
+    if gcx.sess.stop_after(CompilerStage::Analysis) {
+        ControlFlow::Break(())
+    } else {
+        ControlFlow::Continue(())
+    }
 }
 
 fn dump_ast(sess: &Session, sources: &Sources<'_>, paths: Option<&[String]>) -> Result<()> {

@@ -10,13 +10,13 @@
 +     v3 = make_memory_slice v1, v2
 +     v4 = extract_value slice<memory>, v3, 1
 +     v5 = add 5, v4
-+     v6 = add v5, 63
-+     v7 = lt v6, v5
-+     jumpi v7, bb1, bb2
++     v6 = add v5, 31
++     v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
++     v8 = add v7, 32
++     v9 = lt v8, v5
++     jumpi v9, bb1, bb2
 +   bb2:  ; preds = bb0
-+     v8 = not 31
-+     v9 = and v6, v8
-+     v10 = alloc v9 !metadata(preserves_fmp)
++     v10 = alloc v8 !metadata(preserves_fmp)
 +     mstore v10, v5
 +     v11 = zext i16 arg0 to i256
 +     v12 = shl v11, 216
@@ -46,12 +46,10 @@
 +     v2 = and v1, 0xffff
 +     v3 = shl v2, 232
 +     v4 = or 0xab00000000000000000000000000000000000000000000000000000000000000, v3
-+     v5 = and 0xcdef000000000000000000000000000000000000000000000000000000000000, 0xffff000000000000000000000000000000000000000000000000000000000000
-+     v6 = shr v5, 24
-+     v7 = or v4, v6
-+     mstore 0, v7 !metadata(memory=scratch)
-+     v8 = keccak256 0, 5 !metadata(memory=scratch)
-+     ret v8
++     v5 = or v4, 0xcdef000000000000000000000000000000000000000000000000000000
++     mstore 0, v5 !metadata(memory=scratch)
++     v6 = keccak256 0, 5 !metadata(memory=scratch)
++     ret v6
   }
   
   fn @create2_salt(arg0: i256, arg1: i160, arg2: i256) -> i256 {
@@ -285,13 +283,13 @@
 +     jumpi v4, bb1, bb2
 +   bb2:  ; preds = bb0
 +     v5 = add 1, v2
-+     v6 = add v5, 63
-+     v7 = lt v6, v5
-+     jumpi v7, bb1, bb3
++     v6 = add v5, 31
++     v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
++     v8 = add v7, 32
++     v9 = lt v8, v5
++     jumpi v9, bb1, bb3
 +   bb3:  ; preds = bb2
-+     v8 = not 31
-+     v9 = and v6, v8
-+     v10 = alloc v9 !metadata(preserves_fmp)
++     v10 = alloc v8 !metadata(preserves_fmp)
 +     mstore v10, v5
 +     v11 = ptradd v10, 32
 +     mstore v11, 0xab00000000000000000000000000000000000000000000000000000000000000

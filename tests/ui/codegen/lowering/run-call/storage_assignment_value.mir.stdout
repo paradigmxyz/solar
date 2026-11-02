@@ -56,9 +56,9 @@ fn @assignmentStruct() -> ptr<memory> [selector=0x2e58a5e6, abi_params=[], abi_r
 fn @assignmentCalldata(arg0: slice<calldata>) -> ptr<memory> [selector=0x47c196ab, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
-    v1 = add v0, 63
-    v2 = not 31
-    v3 = and v1, v2
+    v1 = add v0, 31
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v3 = add v2, 32
     v4 = alloc v3
     mstore v4, v0
     v5 = ptradd v4, 32

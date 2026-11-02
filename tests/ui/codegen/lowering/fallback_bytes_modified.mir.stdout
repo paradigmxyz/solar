@@ -19,12 +19,12 @@ fn @fallback(arg0: slice<calldata>) -> ptr<memory> [fallback] {
     v7 = extract_value slice<calldata>, v5, 0
     v8 = make_calldata_slice v7, v6
     v9 = extract_value slice<calldata>, v8, 1
-    v10 = add v9, 63
-    v11 = lt v10, v9
-    icall panic_if<0x41>, v11
-    v12 = not 31
-    v13 = and v10, v12
-    v14 = alloc v13
+    v10 = add v9, 31
+    v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v12 = add v11, 32
+    v13 = lt v12, v9
+    icall panic_if<0x41>, v13
+    v14 = alloc v12
     mstore v14, v9
     v15 = extract_value slice<calldata>, v8, 0
     v16 = extract_value slice<calldata>, v8, 1

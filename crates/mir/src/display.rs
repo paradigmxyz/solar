@@ -350,6 +350,9 @@ fn display_function_attributes(func: &Function, is_dispatch_entry: bool) -> impl
         if func.attributes.cold_hint {
             write_function_attribute(f, &mut first, "cold_hint")?;
         }
+        if func.attributes.cold_hint {
+            write_function_attribute(f, &mut first, "cold_hint")?;
+        }
         if let Some(optimization) = func.attributes.optimization {
             write_function_attribute(f, &mut first, format_args!("optimize={optimization}"))?;
         }
@@ -370,6 +373,16 @@ fn display_function_attributes(func: &Function, is_dispatch_entry: bool) -> impl
                 f,
                 &mut first,
                 format_args!("return_abi=[{}]", components.iter().format(", ")),
+            )?;
+        }
+        // ABI wrappers read calldata head words as arguments they do not declare.
+        if func.params.is_empty() && func.arg_indices().any(|arg| func.arg_ty(arg) != MirType::I256)
+        {
+            let types = func.arg_indices().map(|arg| func.arg_ty(arg));
+            write_function_attribute(
+                f,
+                &mut first,
+                format_args!("implicit_args=[{}]", types.format(", ")),
             )?;
         }
         if let Some(layout) = &func.abi_params {
