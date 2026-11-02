@@ -481,7 +481,9 @@ impl AbiWordValidator {
                 let one = builder.imm(1);
                 builder.gt(word, one)
             }
-            // A lone variant is a zero test, as no width test has a limit of `0`.
+            // No word is valid without variants, and a lone variant is a zero test, as no width
+            // test has a limit of `0`.
+            Self::EnumRange(0) => builder.imm_bool(true),
             Self::EnumRange(1) => builder.ne_zero(word),
             Self::EnumRange(variants) => {
                 let last = builder.imm(variants.wrapping_sub(1));
