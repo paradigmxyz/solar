@@ -1,47 +1,51 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_modifier_parameter_frame_viair.sol:ConstructorModifierParameterFrameBase ===
 @module ConstructorModifierParameterFrameBase
+; constructor(uint256 x) repeat [creation entry]
+fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
+  bb0:
+    v0 = checked_add uint256, arg0, 1
+    sstore 0, v0 !metadata(storage=slot(0))
+    jump bb2
+  bb2:  ; preds = bb0
+    v1 = checked_add uint256, arg0, 1
+    sstore 0, v1 !metadata(storage=slot(0))
+    jump bb3
+  bb3:  ; preds = bb2
+    jump bb1
+  bb1:  ; preds = bb3
+    ret
+}
+
+; getter for `uint256 public observed` [selector 0xba210709]
 fn @observed() -> i256 [selector=0xba210709, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
-  bb0:
-    v0 = checked_add uint256, arg0, 1
-    sstore 0, v0 !metadata(storage=slot(0))
-    jump bb2
-  bb2:
-    v1 = checked_add uint256, arg0, 1
-    sstore 0, v1 !metadata(storage=slot(0))
-    jump bb3
-  bb3:
-    jump bb1
-  bb1:
-    ret
-}
-
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_modifier_parameter_frame_viair.sol:ConstructorModifierParameterFrame ===
 @module ConstructorModifierParameterFrame
+; constructor() ConstructorModifierParameterFrameBase(5) [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = checked_add uint256, 5, 1
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb3
-  bb3:
+  bb3:  ; preds = bb0
     v1 = checked_add uint256, 5, 1
     sstore 0, v1 !metadata(storage=slot(0))
     jump bb4
-  bb4:
+  bb4:  ; preds = bb3
     jump bb2
-  bb2:
+  bb2:  ; preds = bb4
     jump bb1
-  bb1:
+  bb1:  ; preds = bb2
     jump bb5
-  bb5:
+  bb5:  ; preds = bb1
     ret
 }
 
+; getter for `uint256 public observed` [selector 0xba210709]
 fn @observed() -> i256 [selector=0xba210709, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))

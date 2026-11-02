@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256, i256, i256, i256}
 
+; function f(StaticPair[] calldata value) external pure returns (uint256 length, uint256 a, uint256 b, uint256 c, uint256 d) [selector 0xa7d2e4a7]
 fn @f(arg0: slice<calldata>) -> struct0 [selector=0xa7d2e4a7, pure, abi_params=[array<_, tuple<uint256, uint256>>], abi_returns=[word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1

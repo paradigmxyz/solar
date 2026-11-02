@@ -6,10 +6,10 @@
       v0 = add arg0, 1
       v1 = lt v0, arg0
       jumpi v1, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       mstore 128, v0
       returndata 128, 32
-    bb1:
+    bb1 [cold]:  ; preds = bb0
 -     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
 -     mstore 4, 17
 -     revert 0, 36
@@ -21,10 +21,10 @@
       v0 = mul arg0, 2
       v1 = lt v0, arg0
       jumpi v1, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       mstore 128, v0
       returndata 128, 32
-    bb1:
+    bb1 [cold]:  ; preds = bb0
 -     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
 -     mstore 4, 17
 -     revert 0, 36
@@ -36,10 +36,10 @@
       v0 = sub arg0, 1
       v1 = gt v0, arg0
       jumpi v1, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       mstore 128, v0
       returndata 128, 32
-    bb1:
+    bb1 [cold]:  ; preds = bb0
       mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
       mstore 4, 18
       revert 0, 36
@@ -48,9 +48,9 @@
   fn @small_a(arg0: i1) {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       stop
-    bb1:
+    bb1 [cold]:  ; preds = bb0
 -     mstore 0, 1
 -     revert 0, 32
 +     tail_call @revert_stub.8
@@ -59,9 +59,9 @@
   fn @small_b(arg0: i1) {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       stop
-    bb1:
+    bb1 [cold]:  ; preds = bb0
 -     mstore 0, 1
 -     revert 0, 32
 +     tail_call @revert_stub.8
@@ -70,9 +70,9 @@
   fn @small_c(arg0: i1) {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       stop
-    bb1:
+    bb1 [cold]:  ; preds = bb0
 -     mstore 0, 1
 -     revert 0, 32
 +     tail_call @revert_stub.8
@@ -81,22 +81,22 @@
   fn @small_d(arg0: i1) {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       stop
-    bb1:
+    bb1 [cold]:  ; preds = bb0
 -     mstore 0, 1
 +     tail_call @revert_stub.8
 + }
 + 
-+ fn @revert_stub.7() {
-+   bb0:
++ fn @revert_stub.7() [cold] {
++   bb0 [cold]:
 +     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
 +     mstore 4, 17 !metadata(memory=scratch)
 +     revert 0, 36
 + }
 + 
-+ fn @revert_stub.8() {
-+   bb0:
++ fn @revert_stub.8() [cold] {
++   bb0 [cold]:
 +     mstore 0, 1 !metadata(memory=scratch)
       revert 0, 32
   }

@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i24}
 
+; function clearAndPush() external returns (uint256 len, uint24 first) [selector 0x1698ee0c]
 fn @clearAndPush() -> struct0 [selector=0x1698ee0c, abi_params=[], abi_returns=[word, word<uint24>], abi_return_params=[uint256, uint24]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))

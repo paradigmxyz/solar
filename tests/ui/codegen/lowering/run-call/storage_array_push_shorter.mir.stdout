@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256, i256}
 
+; function pushShorterMemory() external returns (uint256, uint256, uint256) [selector 0x465dc3fc]
 fn @pushShorterMemory() -> struct0 [selector=0x465dc3fc, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = alloc 64
@@ -21,11 +22,11 @@ fn @pushShorterMemory() -> struct0 [selector=0x465dc3fc, abi_params=[], abi_retu
     v8 = mul v4, 3
     v9 = add v7, v8
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb6
     v10 = phi [bb0: 0], [bb6: v17]
     v11 = lt v10, 3
     jumpi v11, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     sstore 0, v6 !metadata(storage=slot(0))
     v18 = sload 0 !metadata(storage=slot(0))
     v19 = lt 0, v18
@@ -67,24 +68,25 @@ fn @pushShorterMemory() -> struct0 [selector=0x465dc3fc, abi_params=[], abi_retu
     v49 = insert_value struct0, v48, 1, v37
     v50 = insert_value struct0, v49, 2, v47
     ret v50
-  bb2:
+  bb2:  ; preds = bb1
     v12 = add v9, v10
     v13 = lt v10, 2
     jumpi v13, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb2
     sstore v12, 0 !metadata(storage=symbolic(v12))
     jump bb6
-  bb4:
+  bb4:  ; preds = bb2
     v14 = shl v10, 5
     v15 = ptradd v0, v14
     v16 = mload v15
     sstore v12, v16 !metadata(storage=symbolic(v12))
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v17 = add v10, 1
     jump bb1
 }
 
+; function pushShorterLiteral() external returns (uint256, uint256, uint256) [selector 0x6f3a582e]
 fn @pushShorterLiteral() -> struct0 [selector=0x6f3a582e, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = alloc 64
@@ -99,11 +101,11 @@ fn @pushShorterLiteral() -> struct0 [selector=0x6f3a582e, abi_params=[], abi_ret
     v6 = mul v2, 3
     v7 = add v5, v6
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb6
     v8 = phi [bb0: 0], [bb6: v15]
     v9 = lt v8, 3
     jumpi v9, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     sstore 0, v4 !metadata(storage=slot(0))
     v16 = sload 0 !metadata(storage=slot(0))
     v17 = lt 0, v16
@@ -145,24 +147,25 @@ fn @pushShorterLiteral() -> struct0 [selector=0x6f3a582e, abi_params=[], abi_ret
     v47 = insert_value struct0, v46, 1, v35
     v48 = insert_value struct0, v47, 2, v45
     ret v48
-  bb2:
+  bb2:  ; preds = bb1
     v10 = add v7, v8
     v11 = lt v8, 2
     jumpi v11, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb2
     sstore v10, 0 !metadata(storage=symbolic(v10))
     jump bb6
-  bb4:
+  bb4:  ; preds = bb2
     v12 = shl v8, 5
     v13 = ptradd v0, v12
     v14 = mload v13
     sstore v10, v14 !metadata(storage=symbolic(v10))
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v15 = add v8, 1
     jump bb1
 }
 
+; function pushNarrowMemory() external returns (uint256, uint256, uint256) [selector 0xedb7ea7a]
 fn @pushNarrowMemory() -> struct0 [selector=0xedb7ea7a, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = alloc 64
@@ -177,11 +180,11 @@ fn @pushNarrowMemory() -> struct0 [selector=0xedb7ea7a, abi_params=[], abi_retur
     v6 = mul v2, 3
     v7 = add v5, v6
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb6
     v8 = phi [bb0: 0], [bb6: v15]
     v9 = lt v8, 3
     jumpi v9, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     sstore 0, v4 !metadata(storage=slot(0))
     v16 = sload 0 !metadata(storage=slot(0))
     v17 = lt 0, v16
@@ -223,20 +226,20 @@ fn @pushNarrowMemory() -> struct0 [selector=0xedb7ea7a, abi_params=[], abi_retur
     v47 = insert_value struct0, v46, 1, v35
     v48 = insert_value struct0, v47, 2, v45
     ret v48
-  bb2:
+  bb2:  ; preds = bb1
     v10 = add v7, v8
     v11 = lt v8, 2
     jumpi v11, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb2
     sstore v10, 0 !metadata(storage=symbolic(v10))
     jump bb6
-  bb4:
+  bb4:  ; preds = bb2
     v12 = shl v8, 5
     v13 = ptradd v0, v12
     v14 = mload v13
     sstore v10, v14 !metadata(storage=symbolic(v10))
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v15 = add v8, 1
     jump bb1
 }

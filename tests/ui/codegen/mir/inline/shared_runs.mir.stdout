@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/inline/shared_runs.sol:SharedRuns ===
 @module SharedRuns
+; function paint() external [selector 0xff30d0af]
 fn @paint() [selector=0xff30d0af, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = icall @paintUint, 0x8ac7230489e80000
@@ -15,6 +16,7 @@ fn @paint() [selector=0xff30d0af, abi_params=[], abi_returns=[], abi_return_para
     ret
 }
 
+; function paintUint(uint256 value) private pure returns (string memory)
 fn @paintUint(arg0: i256) -> ptr<memory> [pure] {
   bb0:
     v0 = gas
@@ -22,15 +24,16 @@ fn @paintUint(arg0: i256) -> ptr<memory> [pure] {
     mstore 32, arg0 !metadata(memory=scratch)
     v1 = staticcall v0, 0x7109709ecfa91a80626ff3989d68f67f5b1dd12d, 28, 36, 0, 0
     jumpi v1, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v2 = icall returndata_bytes<>
     v3 = abi_decode [bytes], v2
     v4 = icall @wrap, v3
     ret v4
 }
 
+; function paintBool(bool value) private pure returns (string memory)
 fn @paintBool(arg0: i1) -> ptr<memory> [pure] {
   bb0:
     v0 = gas
@@ -40,15 +43,16 @@ fn @paintBool(arg0: i1) -> ptr<memory> [pure] {
     mstore 32, v2 !metadata(memory=scratch)
     v3 = staticcall v0, 0x7109709ecfa91a80626ff3989d68f67f5b1dd12d, 28, 36, 0, 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = icall returndata_bytes<>
     v5 = abi_decode [bytes], v4
     v6 = icall @wrap, v5
     ret v6
 }
 
+; function wrap(string memory text) private pure returns (string memory)
 fn @wrap(arg0: ptr<memory>) -> ptr<memory> [pure] {
   bb0:
     v0 = abi_encode_packed (data hex"3c", bytes arg0, data hex"3e")

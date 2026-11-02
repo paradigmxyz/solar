@@ -4,6 +4,7 @@
   struct0: {i256, i256}
   struct1: {i256, i256, i256}
 
+; function masked(uint256 account) public view returns (uint256 value) [selector 0x38caca52]
 fn @masked(arg0: i256) -> i256 [selector=0x38caca52, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -11,6 +12,7 @@ fn @masked(arg0: i256) -> i256 [selector=0x38caca52, view, abi_params=[uint256],
     ret v1
 }
 
+; function wide(uint256 account) public view returns (uint256 value) [selector 0x598b5337]
 fn @wide(arg0: i256) -> i256 [selector=0x598b5337, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = and 0x800000000000000000000000ffffffffffffffffffffffffffffffffffffffff, arg0
@@ -18,6 +20,7 @@ fn @wide(arg0: i256) -> i256 [selector=0x598b5337, view, abi_params=[uint256], a
     ret v1
 }
 
+; function shared(uint256 account) public view returns (uint256 value, uint256 clean) [selector 0x727ee1fa]
 fn @shared(arg0: i256) -> struct0 [selector=0x727ee1fa, view, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -27,6 +30,7 @@ fn @shared(arg0: i256) -> struct0 [selector=0x727ee1fa, view, abi_params=[uint25
     ret v3
 }
 
+; function funded() external payable returns (uint256, uint256, uint256) [selector 0xf3a504f2]
 fn @funded() -> struct1 [selector=0xf3a504f2, payable, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = address

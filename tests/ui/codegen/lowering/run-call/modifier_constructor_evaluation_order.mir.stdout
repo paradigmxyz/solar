@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_constructor_evaluation_order.sol:EvaluationOrderA ===
 @module EvaluationOrderA
+; constructor(uint256) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
   bb0:
     ret
@@ -7,6 +8,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_constructor_evaluation_order.sol:EvaluationOrderB ===
 @module EvaluationOrderB
+; constructor(uint256) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
   bb0:
     ret
@@ -14,6 +16,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_constructor_evaluation_order.sol:EvaluationOrderC ===
 @module EvaluationOrderC
+; constructor(uint256) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
   bb0:
     ret
@@ -21,38 +24,41 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_constructor_evaluation_order.sol:D ===
 @module D
+; constructor() m2(f(1)) EvaluationOrderB(f(2)) m1(f(3)) EvaluationOrderC(f(4)) m3(f(5)) EvaluationOrderA(f(6)) [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = icall @f, 4
     v1 = icall @f, 2
     v2 = icall @f, 6
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0
     jump bb2
-  bb2:
+  bb2:  ; preds = bb1
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     v3 = icall @f, 1
     v4 = icall @f, 3
     v5 = icall @f, 5
     v6 = icall @f, 7
     jump bb7
-  bb7:
+  bb7:  ; preds = bb3
     jump bb6
-  bb6:
+  bb6:  ; preds = bb7
     jump bb5
-  bb5:
+  bb5:  ; preds = bb6
     jump bb4
-  bb4:
+  bb4:  ; preds = bb5
     ret
 }
 
+; function query() external view returns (uint256[] memory) [selector 0x2c46b205]
 fn @query() -> ptr<memory> [selector=0x2c46b205, view, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     v0 = icall @load_storage_word_array, 0
     ret v0
 }
 
+; function f(uint256 value) internal returns (uint256)
 fn @f(arg0: i256) -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))

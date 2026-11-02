@@ -55,9 +55,9 @@
 +     v1 = mload v4
       v2 = ne v1, 0
       jumpi v2, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       ret 0
-    bb1:
+    bb1:  ; preds = bb0
 -     v3 = mload v0
 +     v5 = ptrtoint ptr<memory> v0 to i256
 +     v3 = mload v5
@@ -72,9 +72,9 @@
 +     v1 = mload v5
       v2 = ne v1, 0
       jumpi v2, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       ret 0
-    bb1:
+    bb1:  ; preds = bb0
 -     v3 = mload v0
 +     v6 = ptrtoint ptr<memory> v0 to i256
 +     v3 = mload v6
@@ -90,9 +90,9 @@
 +     v1 = mload v5
       v2 = ne v1, 0
       jumpi v2, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       ret 0
-    bb1:
+    bb1:  ; preds = bb0
 -     v3 = mload v0
 +     v6 = ptrtoint ptr<memory> v0 to i256
 +     v3 = mload v6
@@ -112,7 +112,7 @@
 +     v6 = add v5, 32
 +     mstore v6, 0
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0
 -     v4 = mload v0
 +     v7 = ptrtoint ptr<memory> v0 to i256
 +     v4 = mload v7
@@ -138,12 +138,12 @@
       mstore v0, 3
       v1 = ne arg1, 0
       jumpi v1, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       mstore v0, 4
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
 -     v2 = mload arg0
 +     v3 = ptrtoint ptr<memory> arg0 to i256
 +     v2 = mload v3
@@ -156,15 +156,15 @@
       v0 = ptrtoint ptr<memory> arg0 to i256
       mstore v0, 7
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
 -     v1 = mload arg0
 +     v3 = ptrtoint ptr<memory> arg0 to i256
 +     v1 = mload v3
       v2 = ne v1, 0
       jumpi v2, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       ret v1
-    bb2:
+    bb2:  ; preds = bb1
       mstore v0, 0
       jump bb1
   }
@@ -255,9 +255,9 @@
       v1 = mload v4
       v2 = ne v1, 0
       jumpi v2, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       ret 0
-    bb1:
+    bb1:  ; preds = bb0
       v5 = ptrtoint ptr<memory> v0 to i256
       v3 = mload v5
       ret v3
@@ -270,9 +270,9 @@
       v1 = mload v5
       v2 = ne v1, 0
       jumpi v2, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       ret 0
-    bb1:
+    bb1:  ; preds = bb0
       v6 = ptrtoint ptr<memory> v0 to i256
       v3 = mload v6
       v4 = add v1, v3
@@ -286,9 +286,9 @@
       v1 = mload v5
       v2 = ne v1, 0
       jumpi v2, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       ret 0
-    bb1:
+    bb1:  ; preds = bb0
       v6 = ptrtoint ptr<memory> v0 to i256
       v3 = mload v6
       v4 = add v1, v3
@@ -304,7 +304,7 @@
       v6 = add v5, 32
       mstore v6, 0
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0
       v7 = ptrtoint ptr<memory> v0 to i256
       v4 = mload v7
       ret v4
@@ -326,12 +326,12 @@
       mstore v0, 3
       v1 = ne arg1, 0
       jumpi v1, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       mstore v0, 4
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
       v3 = ptrtoint ptr<memory> arg0 to i256
       v2 = mload v3
       ret v2
@@ -342,14 +342,14 @@
       v0 = ptrtoint ptr<memory> arg0 to i256
       mstore v0, 7
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v3 = ptrtoint ptr<memory> arg0 to i256
       v1 = mload v3
       v2 = ne v1, 0
       jumpi v2, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       ret v1
-    bb2:
+    bb2:  ; preds = bb1
       mstore v0, 0
       jump bb1
   }
@@ -442,9 +442,9 @@
       v1 = mload v4
       v2 = ne v1, 0
       jumpi v2, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       ret 0
-    bb1:
+    bb1:  ; preds = bb0
 -     v5 = ptrtoint ptr<memory> v0 to i256
 -     v3 = mload v5
 +     v3 = mload v4
@@ -458,9 +458,9 @@
       v1 = mload v5
       v2 = ne v1, 0
       jumpi v2, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       ret 0
-    bb1:
+    bb1:  ; preds = bb0
 -     v6 = ptrtoint ptr<memory> v0 to i256
 -     v3 = mload v6
 -     v4 = add v1, v3
@@ -475,9 +475,9 @@
       v1 = mload v5
       v2 = ne v1, 0
       jumpi v2, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       ret 0
-    bb1:
+    bb1:  ; preds = bb0
 -     v6 = ptrtoint ptr<memory> v0 to i256
 -     v3 = mload v6
 -     v4 = add v1, v3
@@ -495,7 +495,7 @@
 +     v6 = add v1, 32
       mstore v6, 0
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0
 -     v7 = ptrtoint ptr<memory> v0 to i256
 -     v4 = mload v7
 -     ret v4
@@ -519,12 +519,12 @@
       mstore v0, 3
       v1 = ne arg1, 0
       jumpi v1, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       mstore v0, 4
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
 -     v3 = ptrtoint ptr<memory> arg0 to i256
 -     v2 = mload v3
 +     v2 = mload v0
@@ -536,15 +536,15 @@
       v0 = ptrtoint ptr<memory> arg0 to i256
       mstore v0, 7
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
 -     v3 = ptrtoint ptr<memory> arg0 to i256
 -     v1 = mload v3
 +     v1 = mload v0
       v2 = ne v1, 0
       jumpi v2, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       ret v1
-    bb2:
+    bb2:  ; preds = bb1
       mstore v0, 0
       jump bb1
   }

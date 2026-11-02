@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/egraph/seeded_runtime.sol:SeededWords ===
 @module SeededWords
+; function rule0(uint256 x, uint256 y) external pure returns (uint256 result) [selector 0x225a5e11]
 fn @rule0(arg0: i256, arg1: i256) -> i256 [selector=0x225a5e11, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = and arg0, arg1
@@ -8,6 +9,7 @@ fn @rule0(arg0: i256, arg1: i256) -> i256 [selector=0x225a5e11, pure, abi_params
     ret v2
 }
 
+; function rule1(uint256 x, uint256 y) external pure returns (uint256 result) [selector 0xc8b00c15]
 fn @rule1(arg0: i256, arg1: i256) -> i256 [selector=0xc8b00c15, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = xor arg0, arg1
@@ -16,6 +18,7 @@ fn @rule1(arg0: i256, arg1: i256) -> i256 [selector=0xc8b00c15, pure, abi_params
     ret v2
 }
 
+; function rule2(uint256 x, uint256 y) external pure returns (uint256 result) [selector 0xf4355633]
 fn @rule2(arg0: i256, arg1: i256) -> i256 [selector=0xf4355633, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = or arg0, arg1
@@ -24,6 +27,7 @@ fn @rule2(arg0: i256, arg1: i256) -> i256 [selector=0xf4355633, pure, abi_params
     ret v2
 }
 
+; function rule3(uint256 x, uint256 y) external pure returns (uint256 result) [selector 0xb94358f4]
 fn @rule3(arg0: i256, arg1: i256) -> i256 [selector=0xb94358f4, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = and arg0, arg1
@@ -32,6 +36,7 @@ fn @rule3(arg0: i256, arg1: i256) -> i256 [selector=0xb94358f4, pure, abi_params
     ret v2
 }
 
+; function rule4(uint256 x, uint256 y) external pure returns (uint256 result) [selector 0xff1fce5d]
 fn @rule4(arg0: i256, arg1: i256) -> i256 [selector=0xff1fce5d, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = not arg1
@@ -40,6 +45,7 @@ fn @rule4(arg0: i256, arg1: i256) -> i256 [selector=0xff1fce5d, pure, abi_params
     ret v2
 }
 
+; function rule5(uint256 x, uint256 y) external pure returns (uint256 result) [selector 0xcd71d5f9]
 fn @rule5(arg0: i256, arg1: i256) -> i256 [selector=0xcd71d5f9, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = not arg0
@@ -48,6 +54,7 @@ fn @rule5(arg0: i256, arg1: i256) -> i256 [selector=0xcd71d5f9, pure, abi_params
     ret v2
 }
 
+; function rule6(uint256 x, uint256 y) external pure returns (uint256 result) [selector 0xd018bb99]
 fn @rule6(arg0: i256, arg1: i256) -> i256 [selector=0xd018bb99, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = and arg0, arg1
@@ -56,6 +63,7 @@ fn @rule6(arg0: i256, arg1: i256) -> i256 [selector=0xd018bb99, pure, abi_params
     ret v2
 }
 
+; function rule7(uint256 x, uint256 y) external pure returns (uint256 result) [selector 0xd6009447]
 fn @rule7(arg0: i256, arg1: i256) -> i256 [selector=0xd6009447, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = or arg0, arg1
@@ -64,6 +72,7 @@ fn @rule7(arg0: i256, arg1: i256) -> i256 [selector=0xd6009447, pure, abi_params
     ret v2
 }
 
+; function checked(uint256 x, uint256 y) external pure returns (uint256) [selector 0xb437bc14]
 fn @checked(arg0: i256, arg1: i256) -> i256 [selector=0xb437bc14, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = checked_add uint256, arg0, arg1

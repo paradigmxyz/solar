@@ -4,6 +4,7 @@
   struct0: {i256, i256}
   struct1: {i8, i8, i8, i8}
 
+; function setUp() external [selector 0x0a9254e4]
 fn @setUp() [selector=0x0a9254e4, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = alloc 32
@@ -31,6 +32,7 @@ fn @setUp() [selector=0x0a9254e4, abi_params=[], abi_returns=[], abi_return_para
     ret
 }
 
+; function f() internal view returns (uint, S storage)
 fn @f() -> struct0 [view] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -44,6 +46,7 @@ fn @f() -> struct0 [view] {
     ret v6
 }
 
+; function test_g() external returns (uint, uint) [selector 0xc51b800f]
 fn @test_g() -> struct0 [selector=0xc51b800f, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall @f
@@ -74,6 +77,7 @@ fn @test_g() -> struct0 [selector=0xc51b800f, abi_params=[], abi_returns=[word, 
     ret v19
 }
 
+; function test_h() external returns (uint) [selector 0xeafd81e0]
 fn @test_h() -> i256 [selector=0xeafd81e0, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @f
@@ -91,6 +95,7 @@ fn @test_h() -> i256 [selector=0xeafd81e0, abi_params=[], abi_returns=[word], ab
     ret v9
 }
 
+; function mapping_reference() external returns (uint8, uint8, uint8, uint8) [selector 0xc5744cb1]
 fn @mapping_reference() -> struct1 [selector=0xc5744cb1, abi_params=[], abi_returns=[word<uint8>, word<uint8>, word<uint8>, word<uint8>], abi_return_params=[uint8, uint8, uint8, uint8]] {
   bb0:
     v0 = mapping_slot 1, 2

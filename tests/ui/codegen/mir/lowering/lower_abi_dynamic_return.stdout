@@ -1,6 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (before element-cleanup) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (after element-cleanup) ===
   @module LowerAbiDynamicReturn
+  ; selector 0x0dead001
   fn @givesBytes(arg0: ptr<memory>) -> ptr<memory> [selector=0x0dead001, abi_returns=[memory_bytes]] {
     bb0:
       ret arg0
@@ -13,13 +14,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v9]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       ret v0
-    bb2:
+    bb2:  ; preds = bb1
       v5 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
       v6 = shl v3, 5
       v7 = ptradd v0, 32
@@ -29,12 +30,14 @@
       jump bb1
   }
   
+  ; selector 0x0dead002
   fn @givesAddresses() -> ptr<memory> [selector=0x0dead002, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
     bb0:
       v0 = icall @canonicalAddresses
       ret v0
   }
   
+  ; selector 0x0dead003
   fn @givesAddressesAgain() -> ptr<memory> [selector=0x0dead003, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
     bb0:
       v0 = icall @canonicalAddresses
@@ -48,13 +51,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v12]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       ret v0
-    bb2:
+    bb2:  ; preds = bb1
       v5 = icall @canonicalAddresses
       v6 = ptrtoint ptr<memory> v5 to i256
       v7 = inttoptr i256 v6 to ptr<memory>
@@ -67,12 +70,14 @@
       jump bb1
   }
   
+  ; selector 0x0dead005
   fn @givesAddressArrays() -> ptr<memory> [selector=0x0dead005, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
     bb0:
       v0 = icall @canonicalAddressArrays
       ret v0
   }
   
+  ; selector 0x0dead006
   fn @givesAddressArraysAgain() -> ptr<memory> [selector=0x0dead006, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
     bb0:
       v0 = icall @canonicalAddressArrays
@@ -86,13 +91,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v11]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       ret v0
-    bb2:
+    bb2:  ; preds = bb1
       v5 = icall @canonicalAddresses
       v6 = ptradd v5, 32
       mstore v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -105,18 +110,21 @@
       jump bb1
   }
   
+  ; selector 0x0dead007
   fn @givesDirtyAddressArrays() -> ptr<memory> [selector=0x0dead007, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
     bb0:
       v0 = icall @dirtyAddressArrays
       ret v0
   }
   
+  ; selector 0x0dead008
   fn @givesDirtyAddressArraysAgain() -> ptr<memory> [selector=0x0dead008, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
     bb0:
       v0 = icall @dirtyAddressArrays
       ret v0
   }
   
+  ; selector 0x0dead004
   fn @givesZeroedTuple() -> ptr<memory> [selector=0x0dead004, abi_returns=[tuple<word, word>], abi_return_params=[tuple<uint128, address>]] {
     bb0:
       v0 = alloc checked 64
@@ -132,13 +140,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v12]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       ret v0
-    bb2:
+    bb2:  ; preds = bb1
       v5 = icall @canonicalAddresses
       v6 = ptrtoint ptr<memory> v5 to i256
       v7 = inttoptr i256 v6 to ptr<memory>
@@ -159,13 +167,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v16]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       ret v0
-    bb2:
+    bb2:  ; preds = bb1
       v5 = icall @canonicalAddresses
       v6 = ptrtoint ptr<memory> v5 to i256
       v7 = shl v3, 5
@@ -190,13 +198,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v10]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       ret v0
-    bb2:
+    bb2:  ; preds = bb1
       v5 = icall @canonicalAddresses
       v6 = ptrtoint ptr<memory> v5 to i256
       v7 = shl v3, 5
@@ -218,24 +226,28 @@
       ret
   }
   
+  ; selector 0x0dead009
   fn @givesDirtyAddressAliases() -> ptr<memory> [selector=0x0dead009, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
     bb0:
       v0 = icall @dirtyAddressAliases
       ret v0
   }
   
+  ; selector 0x0dead00a
   fn @givesDirtyAddressReloads() -> ptr<memory> [selector=0x0dead00a, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
     bb0:
       v0 = icall @dirtyAddressReloads
       ret v0
   }
   
+  ; selector 0x0dead00b
   fn @givesEscapingAddressArrays() -> ptr<memory> [selector=0x0dead00b, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
     bb0:
       v0 = icall @escapingAddressArrays
       ret v0
   }
   
+  ; selector 0x0dead00c
   fn @givesZeroedThenDirtyTuple() -> ptr<memory> [selector=0x0dead00c, abi_returns=[tuple<word>], abi_return_params=[tuple<uint8>]] {
     bb0:
       v0 = alloc checked 32
@@ -245,6 +257,7 @@
       ret v0
   }
   
+  ; selector 0x0dead00d
   fn @givesPartlyZeroedTuple() -> ptr<memory> [selector=0x0dead00d, abi_returns=[tuple<word, word>], abi_return_params=[tuple<uint8, uint8>]] {
     bb0:
       v0 = alloc checked 64
@@ -253,26 +266,28 @@
       ret v0
   }
   
+  ; selector 0x0dead00e
   fn @givesConditionallyZeroedTuple(arg0: i1) -> ptr<memory> [selector=0x0dead00e, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<uint8>]] {
     bb0:
       v0 = alloc checked 32
       jumpi arg0, bb1, bb2
-    bb1:
+    bb1:  ; preds = bb0
       v1 = ptrtoint ptr<memory> v0 to i256
       memory_zero v1, 32
       jump bb2
-    bb2:
+    bb2:  ; preds = bb0, bb1
       ret v0
   }
   
+  ; selector 0x0dead00f
   fn @givesConditionallyStoredTuple(arg0: i1) -> ptr<memory> [selector=0x0dead00f, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<uint8>]] {
     bb0:
       v0 = alloc checked 32
       jumpi arg0, bb1, bb2
-    bb1:
+    bb1:  ; preds = bb0
       mstore v0, 1
       jump bb2
-    bb2:
+    bb2:  ; preds = bb0, bb1
       ret v0
   }
   
@@ -288,6 +303,7 @@
       ret v0
   }
   
+  ; selector 0x0dead010
   fn @givesAliasedAddressContainer() -> ptr<memory> [selector=0x0dead010, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
     bb0:
       v0 = alloc checked 32
@@ -295,6 +311,7 @@
       ret v1
   }
   
+  ; selector 0x0dead011
   fn @givesRawMemoryWrite() -> ptr<memory> [selector=0x0dead011, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
     bb0:
       v0 = icall @canonicalAddresses
@@ -306,13 +323,14 @@
     bb0:
       v0 = alloc checked 32
       jumpi arg0, bb1, bb2
-    bb1:
+    bb1:  ; preds = bb0
       mstore v0, 1
       jump bb2
-    bb2:
+    bb2:  ; preds = bb0, bb1
       ret v0
   }
   
+  ; selector 0x0dead012
   fn @givesConditionalFixedArray(arg0: i1) -> ptr<memory> [selector=0x0dead012, abi_params=[bool], abi_returns=[array<1, word>], abi_return_params=[array<1, uint8>]] {
     bb0:
       v0 = icall @conditionalFixedArray, arg0
@@ -326,13 +344,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jumpi arg0, bb1, bb3
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v9]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb0, bb1
       ret v0
-    bb2:
+    bb2:  ; preds = bb1
       v5 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
       v6 = shl v3, 5
       v7 = ptradd v0, 32
@@ -347,13 +365,13 @@
       v0 = alloc checked 96
       v1 = add 2, 0
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v2 = phi [bb0: 0], [bb2: v9]
       v3 = lt v2, v1
       jumpi v3, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       ret v0
-    bb2:
+    bb2:  ; preds = bb1
       v4 = ptrtoint ptr<memory> v0 to i256
       mstore v4, v1
       v5 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
@@ -365,18 +383,21 @@
       jump bb1
   }
   
+  ; selector 0x0dead013
   fn @givesBypassedArrayLoop(arg0: i1) -> ptr<memory> [selector=0x0dead013, abi_params=[bool], abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
     bb0:
       v0 = icall @bypassedArrayLoop, arg0
       ret v0
   }
   
+  ; selector 0x0dead014
   fn @givesLateArrayLength() -> ptr<memory> [selector=0x0dead014, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
     bb0:
       v0 = icall @lateArrayLength
       ret v0
   }
   
+  ; selector 0x0dead015
   fn @givesOverlappingAllocationWrite() -> ptr<memory> [selector=0x0dead015, abi_returns=[tuple<word>], abi_return_params=[tuple<uint8>]] {
     bb0:
       v0 = alloc checked 32
@@ -393,6 +414,7 @@
       ret v0
   }
   
+  ; selector 0x0dead018
   fn @givesStorageAddresses() -> ptr<memory> [selector=0x0dead018, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
     bb0:
       v0 = icall @canonicalStorageAddresses, 0
@@ -408,12 +430,14 @@
       ret v0
   }
   
+  ; selector 0x0dead019
   fn @givesDirtyStorageAddresses() -> ptr<memory> [selector=0x0dead019, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
     bb0:
       v0 = icall @dirtyStorageAddresses, 0
       ret v0
   }
   
+  ; selector 0x0dead020
   fn @nativeCleanTuple(arg0: i128) -> ptr<memory> [selector=0x0dead020, abi_params=[uint128], abi_returns=[tuple<word>], abi_return_params=[tuple<uint128>]] {
     bb0:
       v0 = alloc checked 32
@@ -425,6 +449,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (before lower-builtins) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (after lower-builtins) ===
   @module LowerAbiDynamicReturn
+  ; selector 0x0dead001
   fn @givesBytes(arg0: ptr<memory>) -> ptr<memory> [selector=0x0dead001, abi_returns=[memory_bytes]] {
     bb0:
       ret arg0
@@ -437,13 +462,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v9]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       ret v0
-    bb2:
+    bb2:  ; preds = bb1
       v5 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
       v6 = shl v3, 5
       v7 = ptradd v0, 32
@@ -453,12 +478,14 @@
       jump bb1
   }
   
+  ; selector 0x0dead002
   fn @givesAddresses() -> ptr<memory> [selector=0x0dead002, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
     bb0:
       v0 = icall @canonicalAddresses
       ret v0
   }
   
+  ; selector 0x0dead003
   fn @givesAddressesAgain() -> ptr<memory> [selector=0x0dead003, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
     bb0:
       v0 = icall @canonicalAddresses
@@ -472,13 +499,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v12]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       ret v0
-    bb2:
+    bb2:  ; preds = bb1
       v5 = icall @canonicalAddresses
       v6 = ptrtoint ptr<memory> v5 to i256
       v7 = inttoptr i256 v6 to ptr<memory>
@@ -491,12 +518,14 @@
       jump bb1
   }
   
+  ; selector 0x0dead005
   fn @givesAddressArrays() -> ptr<memory> [selector=0x0dead005, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
     bb0:
       v0 = icall @canonicalAddressArrays
       ret v0
   }
   
+  ; selector 0x0dead006
   fn @givesAddressArraysAgain() -> ptr<memory> [selector=0x0dead006, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
     bb0:
       v0 = icall @canonicalAddressArrays
@@ -510,13 +539,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v11]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       ret v0
-    bb2:
+    bb2:  ; preds = bb1
       v5 = icall @canonicalAddresses
       v6 = ptradd v5, 32
       mstore v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -529,18 +558,21 @@
       jump bb1
   }
   
+  ; selector 0x0dead007
   fn @givesDirtyAddressArrays() -> ptr<memory> [selector=0x0dead007, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
     bb0:
       v0 = icall @dirtyAddressArrays
       ret v0
   }
   
+  ; selector 0x0dead008
   fn @givesDirtyAddressArraysAgain() -> ptr<memory> [selector=0x0dead008, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
     bb0:
       v0 = icall @dirtyAddressArrays
       ret v0
   }
   
+  ; selector 0x0dead004
   fn @givesZeroedTuple() -> ptr<memory> [selector=0x0dead004, abi_returns=[tuple<word, word>], abi_return_params=[tuple<uint128, address>]] {
     bb0:
       v0 = alloc checked 64
@@ -556,13 +588,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v12]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       ret v0
-    bb2:
+    bb2:  ; preds = bb1
       v5 = icall @canonicalAddresses
       v6 = ptrtoint ptr<memory> v5 to i256
       v7 = inttoptr i256 v6 to ptr<memory>
@@ -583,13 +615,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v16]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       ret v0
-    bb2:
+    bb2:  ; preds = bb1
       v5 = icall @canonicalAddresses
       v6 = ptrtoint ptr<memory> v5 to i256
       v7 = shl v3, 5
@@ -614,13 +646,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v10]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       ret v0
-    bb2:
+    bb2:  ; preds = bb1
       v5 = icall @canonicalAddresses
       v6 = ptrtoint ptr<memory> v5 to i256
       v7 = shl v3, 5
@@ -642,24 +674,28 @@
       ret
   }
   
+  ; selector 0x0dead009
   fn @givesDirtyAddressAliases() -> ptr<memory> [selector=0x0dead009, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
     bb0:
       v0 = icall @dirtyAddressAliases
       ret v0
   }
   
+  ; selector 0x0dead00a
   fn @givesDirtyAddressReloads() -> ptr<memory> [selector=0x0dead00a, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
     bb0:
       v0 = icall @dirtyAddressReloads
       ret v0
   }
   
+  ; selector 0x0dead00b
   fn @givesEscapingAddressArrays() -> ptr<memory> [selector=0x0dead00b, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
     bb0:
       v0 = icall @escapingAddressArrays
       ret v0
   }
   
+  ; selector 0x0dead00c
   fn @givesZeroedThenDirtyTuple() -> ptr<memory> [selector=0x0dead00c, abi_returns=[tuple<word>], abi_return_params=[tuple<uint8>]] {
     bb0:
       v0 = alloc checked 32
@@ -669,6 +705,7 @@
       ret v0
   }
   
+  ; selector 0x0dead00d
   fn @givesPartlyZeroedTuple() -> ptr<memory> [selector=0x0dead00d, abi_returns=[tuple<word, word>], abi_return_params=[tuple<uint8, uint8>]] {
     bb0:
       v0 = alloc checked 64
@@ -677,26 +714,28 @@
       ret v0
   }
   
+  ; selector 0x0dead00e
   fn @givesConditionallyZeroedTuple(arg0: i1) -> ptr<memory> [selector=0x0dead00e, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<uint8>]] {
     bb0:
       v0 = alloc checked 32
       jumpi arg0, bb1, bb2
-    bb1:
+    bb1:  ; preds = bb0
       v1 = ptrtoint ptr<memory> v0 to i256
       memory_zero v1, 32
       jump bb2
-    bb2:
+    bb2:  ; preds = bb0, bb1
       ret v0
   }
   
+  ; selector 0x0dead00f
   fn @givesConditionallyStoredTuple(arg0: i1) -> ptr<memory> [selector=0x0dead00f, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<uint8>]] {
     bb0:
       v0 = alloc checked 32
       jumpi arg0, bb1, bb2
-    bb1:
+    bb1:  ; preds = bb0
       mstore v0, 1
       jump bb2
-    bb2:
+    bb2:  ; preds = bb0, bb1
       ret v0
   }
   
@@ -712,6 +751,7 @@
       ret v0
   }
   
+  ; selector 0x0dead010
   fn @givesAliasedAddressContainer() -> ptr<memory> [selector=0x0dead010, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
     bb0:
       v0 = alloc checked 32
@@ -719,6 +759,7 @@
       ret v1
   }
   
+  ; selector 0x0dead011
   fn @givesRawMemoryWrite() -> ptr<memory> [selector=0x0dead011, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
     bb0:
       v0 = icall @canonicalAddresses
@@ -730,13 +771,14 @@
     bb0:
       v0 = alloc checked 32
       jumpi arg0, bb1, bb2
-    bb1:
+    bb1:  ; preds = bb0
       mstore v0, 1
       jump bb2
-    bb2:
+    bb2:  ; preds = bb0, bb1
       ret v0
   }
   
+  ; selector 0x0dead012
   fn @givesConditionalFixedArray(arg0: i1) -> ptr<memory> [selector=0x0dead012, abi_params=[bool], abi_returns=[array<1, word>], abi_return_params=[array<1, uint8>]] {
     bb0:
       v0 = icall @conditionalFixedArray, arg0
@@ -750,13 +792,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jumpi arg0, bb1, bb3
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v9]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb0, bb1
       ret v0
-    bb2:
+    bb2:  ; preds = bb1
       v5 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
       v6 = shl v3, 5
       v7 = ptradd v0, 32
@@ -771,13 +813,13 @@
       v0 = alloc checked 96
       v1 = add 2, 0
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v2 = phi [bb0: 0], [bb2: v9]
       v3 = lt v2, v1
       jumpi v3, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       ret v0
-    bb2:
+    bb2:  ; preds = bb1
       v4 = ptrtoint ptr<memory> v0 to i256
       mstore v4, v1
       v5 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
@@ -789,18 +831,21 @@
       jump bb1
   }
   
+  ; selector 0x0dead013
   fn @givesBypassedArrayLoop(arg0: i1) -> ptr<memory> [selector=0x0dead013, abi_params=[bool], abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
     bb0:
       v0 = icall @bypassedArrayLoop, arg0
       ret v0
   }
   
+  ; selector 0x0dead014
   fn @givesLateArrayLength() -> ptr<memory> [selector=0x0dead014, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
     bb0:
       v0 = icall @lateArrayLength
       ret v0
   }
   
+  ; selector 0x0dead015
   fn @givesOverlappingAllocationWrite() -> ptr<memory> [selector=0x0dead015, abi_returns=[tuple<word>], abi_return_params=[tuple<uint8>]] {
     bb0:
       v0 = alloc checked 32
@@ -818,20 +863,20 @@
 +     v1 = sload arg0 !metadata(storage=symbolic(arg0))
 +     v2 = gt v1, 0x7fffffffffffffe
 +     jumpi v2, bb1, bb2
-+   bb2:
++   bb2:  ; preds = bb0
 +     v3 = add v1, 1
 +     v4 = mul v3, 32
 +     v5 = alloc checked v4
 +     mstore v5, v1
 +     v6 = storage_array_data_slot arg0
 +     jump bb3
-+   bb3:
++   bb3:  ; preds = bb2, bb4
 +     v7 = phi [bb2: 0], [bb4: v19]
 +     v8 = lt v7, v1
 +     jumpi v8, bb4, bb5
-+   bb5:
++   bb5:  ; preds = bb3
 +     ret v5
-+   bb4:
++   bb4:  ; preds = bb3
 +     v9 = div v7, 1
 +     v10 = add v6, v9
 +     v11 = sload v10 !metadata(storage=symbolic(v10))
@@ -845,12 +890,13 @@
 +     mstore v18, v15
 +     v19 = add v7, 1
 +     jump bb3
-+   bb1:
++   bb1 [cold]:  ; preds = bb0
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   
+  ; selector 0x0dead018
   fn @givesStorageAddresses() -> ptr<memory> [selector=0x0dead018, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
     bb0:
       v0 = icall @canonicalStorageAddresses, 0
@@ -864,24 +910,24 @@
 +     v3 = sload arg0 !metadata(storage=symbolic(arg0))
 +     v4 = gt v3, 0x7fffffffffffffe
 +     jumpi v4, bb1, bb2
-+   bb2:
++   bb2:  ; preds = bb0
 +     v5 = add v3, 1
 +     v6 = mul v5, 32
 +     v7 = alloc checked v6
 +     mstore v7, v3
 +     v8 = storage_array_data_slot arg0
 +     jump bb3
-+   bb3:
++   bb3:  ; preds = bb2, bb4
 +     v9 = phi [bb2: 0], [bb4: v21]
 +     v10 = lt v9, v3
 +     jumpi v10, bb4, bb5
-+   bb5:
++   bb5:  ; preds = bb3
 +     v1 = ptradd v7, 32
       v2 = ptrtoint ptr<memory> v1 to i256
       mstore v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 -     ret v0
 +     ret v7
-+   bb4:
++   bb4:  ; preds = bb3
 +     v11 = div v9, 1
 +     v12 = add v8, v11
 +     v13 = sload v12 !metadata(storage=symbolic(v12))
@@ -895,18 +941,20 @@
 +     mstore v20, v17
 +     v21 = add v9, 1
 +     jump bb3
-+   bb1:
++   bb1 [cold]:  ; preds = bb0
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   
+  ; selector 0x0dead019
   fn @givesDirtyStorageAddresses() -> ptr<memory> [selector=0x0dead019, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
     bb0:
       v0 = icall @dirtyStorageAddresses, 0
       ret v0
   }
   
+  ; selector 0x0dead020
   fn @nativeCleanTuple(arg0: i128) -> ptr<memory> [selector=0x0dead020, abi_params=[uint128], abi_returns=[tuple<word>], abi_return_params=[tuple<uint128>]] {
     bb0:
       v0 = alloc checked 32
@@ -918,6 +966,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (before lower-abi) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (after lower-abi) ===
   @module LowerAbiDynamicReturn
+  ; selector 0x0dead001
 - fn @givesBytes(arg0: ptr<memory>) -> ptr<memory> [selector=0x0dead001, abi_returns=[memory_bytes]] {
 + fn @givesBytes() [selector=0x0dead001, abi_wrapper, implicit_args=[ptr<memory>]] {
     bb0:
@@ -925,14 +974,14 @@
 +     v0 = calldatasize
 +     v1 = lt v0, 36
 +     jumpi v1, bb2, bb3
-+   bb3:
++   bb3:  ; preds = bb0
 +     jump bb1
-+   bb1:
++   bb1:  ; preds = bb3
 +     v2 = abi_encode [memory_bytes], scratch, args arg0
 +     v3 = extract_value slice<memory>, v2, 0
 +     v4 = extract_value slice<memory>, v2, 1
 +     returndata v3, v4
-+   bb2:
++   bb2 [cold]:  ; preds = bb0
 +     revert 0, 0
   }
   
@@ -943,13 +992,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v9]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       ret v0
-    bb2:
+    bb2:  ; preds = bb1
       v5 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
       v6 = shl v3, 5
       v7 = ptradd v0, 32
@@ -959,6 +1008,7 @@
       jump bb1
   }
   
+  ; selector 0x0dead002
 - fn @givesAddresses() -> ptr<memory> [selector=0x0dead002, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
 + fn @givesAddresses() [selector=0x0dead002, abi_wrapper] {
     bb0:
@@ -968,25 +1018,25 @@
 +     v2 = add v1, 1
 +     v3 = lt v2, v1
 +     jumpi v3, bb1, bb2
-+   bb2:
++   bb2:  ; preds = bb0
 +     v4 = mul v2, 32
 +     v5 = shr v2, 251
 +     v6 = ne v5, 0
 +     jumpi v6, bb1, bb3
-+   bb3:
++   bb3:  ; preds = bb2
 +     v7 = alloc v4
 +     mstore v7, v1
 +     jump bb4
-+   bb4:
++   bb4:  ; preds = bb3, bb5
 +     v8 = phi [bb3: 0], [bb5: v18]
 +     v9 = lt v8, v1
 +     jumpi v9, bb5, bb6
-+   bb6:
++   bb6:  ; preds = bb4
 +     v19 = abi_encode [memory_array<word>], scratch, args v7
 +     v20 = extract_value slice<memory>, v19, 0
 +     v21 = extract_value slice<memory>, v19, 1
 +     returndata v20, v21
-+   bb5:
++   bb5:  ; preds = bb4
 +     v10 = shl v8, 5
 +     v11 = ptradd v0, v10
 +     v12 = ptradd v11, 32
@@ -998,12 +1048,13 @@
 +     mstore v17, v14
 +     v18 = add v8, 1
 +     jump bb4
-+   bb1:
++   bb1 [cold]:  ; preds = bb0, bb2
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   
+  ; selector 0x0dead003
 - fn @givesAddressesAgain() -> ptr<memory> [selector=0x0dead003, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
 + fn @givesAddressesAgain() [selector=0x0dead003, abi_wrapper] {
     bb0:
@@ -1013,25 +1064,25 @@
 +     v2 = add v1, 1
 +     v3 = lt v2, v1
 +     jumpi v3, bb1, bb2
-+   bb2:
++   bb2:  ; preds = bb0
 +     v4 = mul v2, 32
 +     v5 = shr v2, 251
 +     v6 = ne v5, 0
 +     jumpi v6, bb1, bb3
-+   bb3:
++   bb3:  ; preds = bb2
 +     v7 = alloc v4
 +     mstore v7, v1
 +     jump bb4
-+   bb4:
++   bb4:  ; preds = bb3, bb5
 +     v8 = phi [bb3: 0], [bb5: v18]
 +     v9 = lt v8, v1
 +     jumpi v9, bb5, bb6
-+   bb6:
++   bb6:  ; preds = bb4
 +     v19 = abi_encode [memory_array<word>], scratch, args v7
 +     v20 = extract_value slice<memory>, v19, 0
 +     v21 = extract_value slice<memory>, v19, 1
 +     returndata v20, v21
-+   bb5:
++   bb5:  ; preds = bb4
 +     v10 = shl v8, 5
 +     v11 = ptradd v0, v10
 +     v12 = ptradd v11, 32
@@ -1043,7 +1094,7 @@
 +     mstore v17, v14
 +     v18 = add v8, 1
 +     jump bb4
-+   bb1:
++   bb1 [cold]:  ; preds = bb0, bb2
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1056,13 +1107,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v12]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       ret v0
-    bb2:
+    bb2:  ; preds = bb1
       v5 = icall @canonicalAddresses
       v6 = ptrtoint ptr<memory> v5 to i256
       v7 = inttoptr i256 v6 to ptr<memory>
@@ -1075,6 +1126,7 @@
       jump bb1
   }
   
+  ; selector 0x0dead005
 - fn @givesAddressArrays() -> ptr<memory> [selector=0x0dead005, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
 + fn @givesAddressArrays() [selector=0x0dead005, abi_wrapper] {
     bb0:
@@ -1084,25 +1136,25 @@
 +     v2 = add v1, 1
 +     v3 = lt v2, v1
 +     jumpi v3, bb1, bb2
-+   bb2:
++   bb2:  ; preds = bb0
 +     v4 = mul v2, 32
 +     v5 = shr v2, 251
 +     v6 = ne v5, 0
 +     jumpi v6, bb1, bb3
-+   bb3:
++   bb3:  ; preds = bb2
 +     v7 = alloc v4
 +     mstore v7, v1
 +     jump bb4
-+   bb4:
++   bb4:  ; preds = bb3, bb11
 +     v8 = phi [bb3: 0], [bb11: v37]
 +     v9 = lt v8, v1
 +     jumpi v9, bb5, bb6
-+   bb6:
++   bb6:  ; preds = bb4
 +     v38 = abi_encode [memory_array<memory_array<word>>], scratch, args v7
 +     v39 = extract_value slice<memory>, v38, 0
 +     v40 = extract_value slice<memory>, v38, 1
 +     returndata v39, v40
-+   bb5:
++   bb5:  ; preds = bb4
 +     v10 = shl v8, 5
 +     v11 = ptradd v0, v10
 +     v12 = ptradd v11, 32
@@ -1111,20 +1163,20 @@
 +     v15 = add v14, 1
 +     v16 = lt v15, v14
 +     jumpi v16, bb1, bb7
-+   bb7:
++   bb7:  ; preds = bb5
 +     v17 = mul v15, 32
 +     v18 = shr v15, 251
 +     v19 = ne v18, 0
 +     jumpi v19, bb1, bb8
-+   bb8:
++   bb8:  ; preds = bb7
 +     v20 = alloc v17
 +     mstore v20, v14
 +     jump bb9
-+   bb9:
++   bb9:  ; preds = bb8, bb10
 +     v21 = phi [bb8: 0], [bb10: v32]
 +     v22 = lt v21, v14
 +     jumpi v22, bb10, bb11
-+   bb11:
++   bb11:  ; preds = bb9
 +     v33 = shl v8, 5
 +     v34 = ptradd v7, v33
 +     v35 = ptradd v34, 32
@@ -1132,7 +1184,7 @@
 +     mstore v35, v36
 +     v37 = add v8, 1
 +     jump bb4
-+   bb10:
++   bb10:  ; preds = bb9
 +     v23 = shl v21, 5
 +     v24 = inttoptr i256 v13 to ptr<memory>
 +     v25 = ptradd v24, v23
@@ -1145,12 +1197,13 @@
 +     mstore v31, v28
 +     v32 = add v21, 1
 +     jump bb9
-+   bb1:
++   bb1 [cold]:  ; preds = bb0, bb2, bb5, bb7
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   
+  ; selector 0x0dead006
 - fn @givesAddressArraysAgain() -> ptr<memory> [selector=0x0dead006, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
 + fn @givesAddressArraysAgain() [selector=0x0dead006, abi_wrapper] {
     bb0:
@@ -1160,25 +1213,25 @@
 +     v2 = add v1, 1
 +     v3 = lt v2, v1
 +     jumpi v3, bb1, bb2
-+   bb2:
++   bb2:  ; preds = bb0
 +     v4 = mul v2, 32
 +     v5 = shr v2, 251
 +     v6 = ne v5, 0
 +     jumpi v6, bb1, bb3
-+   bb3:
++   bb3:  ; preds = bb2
 +     v7 = alloc v4
 +     mstore v7, v1
 +     jump bb4
-+   bb4:
++   bb4:  ; preds = bb3, bb11
 +     v8 = phi [bb3: 0], [bb11: v37]
 +     v9 = lt v8, v1
 +     jumpi v9, bb5, bb6
-+   bb6:
++   bb6:  ; preds = bb4
 +     v38 = abi_encode [memory_array<memory_array<word>>], scratch, args v7
 +     v39 = extract_value slice<memory>, v38, 0
 +     v40 = extract_value slice<memory>, v38, 1
 +     returndata v39, v40
-+   bb5:
++   bb5:  ; preds = bb4
 +     v10 = shl v8, 5
 +     v11 = ptradd v0, v10
 +     v12 = ptradd v11, 32
@@ -1187,20 +1240,20 @@
 +     v15 = add v14, 1
 +     v16 = lt v15, v14
 +     jumpi v16, bb1, bb7
-+   bb7:
++   bb7:  ; preds = bb5
 +     v17 = mul v15, 32
 +     v18 = shr v15, 251
 +     v19 = ne v18, 0
 +     jumpi v19, bb1, bb8
-+   bb8:
++   bb8:  ; preds = bb7
 +     v20 = alloc v17
 +     mstore v20, v14
 +     jump bb9
-+   bb9:
++   bb9:  ; preds = bb8, bb10
 +     v21 = phi [bb8: 0], [bb10: v32]
 +     v22 = lt v21, v14
 +     jumpi v22, bb10, bb11
-+   bb11:
++   bb11:  ; preds = bb9
 +     v33 = shl v8, 5
 +     v34 = ptradd v7, v33
 +     v35 = ptradd v34, 32
@@ -1208,7 +1261,7 @@
 +     mstore v35, v36
 +     v37 = add v8, 1
 +     jump bb4
-+   bb10:
++   bb10:  ; preds = bb9
 +     v23 = shl v21, 5
 +     v24 = inttoptr i256 v13 to ptr<memory>
 +     v25 = ptradd v24, v23
@@ -1221,7 +1274,7 @@
 +     mstore v31, v28
 +     v32 = add v21, 1
 +     jump bb9
-+   bb1:
++   bb1 [cold]:  ; preds = bb0, bb2, bb5, bb7
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1234,13 +1287,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v11]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       ret v0
-    bb2:
+    bb2:  ; preds = bb1
       v5 = icall @canonicalAddresses
       v6 = ptradd v5, 32
       mstore v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -1253,6 +1306,7 @@
       jump bb1
   }
   
+  ; selector 0x0dead007
 - fn @givesDirtyAddressArrays() -> ptr<memory> [selector=0x0dead007, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
 + fn @givesDirtyAddressArrays() [selector=0x0dead007, abi_wrapper] {
     bb0:
@@ -1262,25 +1316,25 @@
 +     v2 = add v1, 1
 +     v3 = lt v2, v1
 +     jumpi v3, bb1, bb2
-+   bb2:
++   bb2:  ; preds = bb0
 +     v4 = mul v2, 32
 +     v5 = shr v2, 251
 +     v6 = ne v5, 0
 +     jumpi v6, bb1, bb3
-+   bb3:
++   bb3:  ; preds = bb2
 +     v7 = alloc v4
 +     mstore v7, v1
 +     jump bb4
-+   bb4:
++   bb4:  ; preds = bb3, bb11
 +     v8 = phi [bb3: 0], [bb11: v37]
 +     v9 = lt v8, v1
 +     jumpi v9, bb5, bb6
-+   bb6:
++   bb6:  ; preds = bb4
 +     v38 = abi_encode [memory_array<memory_array<word>>], scratch, args v7
 +     v39 = extract_value slice<memory>, v38, 0
 +     v40 = extract_value slice<memory>, v38, 1
 +     returndata v39, v40
-+   bb5:
++   bb5:  ; preds = bb4
 +     v10 = shl v8, 5
 +     v11 = ptradd v0, v10
 +     v12 = ptradd v11, 32
@@ -1289,20 +1343,20 @@
 +     v15 = add v14, 1
 +     v16 = lt v15, v14
 +     jumpi v16, bb1, bb7
-+   bb7:
++   bb7:  ; preds = bb5
 +     v17 = mul v15, 32
 +     v18 = shr v15, 251
 +     v19 = ne v18, 0
 +     jumpi v19, bb1, bb8
-+   bb8:
++   bb8:  ; preds = bb7
 +     v20 = alloc v17
 +     mstore v20, v14
 +     jump bb9
-+   bb9:
++   bb9:  ; preds = bb8, bb10
 +     v21 = phi [bb8: 0], [bb10: v32]
 +     v22 = lt v21, v14
 +     jumpi v22, bb10, bb11
-+   bb11:
++   bb11:  ; preds = bb9
 +     v33 = shl v8, 5
 +     v34 = ptradd v7, v33
 +     v35 = ptradd v34, 32
@@ -1310,7 +1364,7 @@
 +     mstore v35, v36
 +     v37 = add v8, 1
 +     jump bb4
-+   bb10:
++   bb10:  ; preds = bb9
 +     v23 = shl v21, 5
 +     v24 = inttoptr i256 v13 to ptr<memory>
 +     v25 = ptradd v24, v23
@@ -1323,12 +1377,13 @@
 +     mstore v31, v28
 +     v32 = add v21, 1
 +     jump bb9
-+   bb1:
++   bb1 [cold]:  ; preds = bb0, bb2, bb5, bb7
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   
+  ; selector 0x0dead008
 - fn @givesDirtyAddressArraysAgain() -> ptr<memory> [selector=0x0dead008, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
 + fn @givesDirtyAddressArraysAgain() [selector=0x0dead008, abi_wrapper] {
     bb0:
@@ -1338,25 +1393,25 @@
 +     v2 = add v1, 1
 +     v3 = lt v2, v1
 +     jumpi v3, bb1, bb2
-+   bb2:
++   bb2:  ; preds = bb0
 +     v4 = mul v2, 32
 +     v5 = shr v2, 251
 +     v6 = ne v5, 0
 +     jumpi v6, bb1, bb3
-+   bb3:
++   bb3:  ; preds = bb2
 +     v7 = alloc v4
 +     mstore v7, v1
 +     jump bb4
-+   bb4:
++   bb4:  ; preds = bb3, bb11
 +     v8 = phi [bb3: 0], [bb11: v37]
 +     v9 = lt v8, v1
 +     jumpi v9, bb5, bb6
-+   bb6:
++   bb6:  ; preds = bb4
 +     v38 = abi_encode [memory_array<memory_array<word>>], scratch, args v7
 +     v39 = extract_value slice<memory>, v38, 0
 +     v40 = extract_value slice<memory>, v38, 1
 +     returndata v39, v40
-+   bb5:
++   bb5:  ; preds = bb4
 +     v10 = shl v8, 5
 +     v11 = ptradd v0, v10
 +     v12 = ptradd v11, 32
@@ -1365,20 +1420,20 @@
 +     v15 = add v14, 1
 +     v16 = lt v15, v14
 +     jumpi v16, bb1, bb7
-+   bb7:
++   bb7:  ; preds = bb5
 +     v17 = mul v15, 32
 +     v18 = shr v15, 251
 +     v19 = ne v18, 0
 +     jumpi v19, bb1, bb8
-+   bb8:
++   bb8:  ; preds = bb7
 +     v20 = alloc v17
 +     mstore v20, v14
 +     jump bb9
-+   bb9:
++   bb9:  ; preds = bb8, bb10
 +     v21 = phi [bb8: 0], [bb10: v32]
 +     v22 = lt v21, v14
 +     jumpi v22, bb10, bb11
-+   bb11:
++   bb11:  ; preds = bb9
 +     v33 = shl v8, 5
 +     v34 = ptradd v7, v33
 +     v35 = ptradd v34, 32
@@ -1386,7 +1441,7 @@
 +     mstore v35, v36
 +     v37 = add v8, 1
 +     jump bb4
-+   bb10:
++   bb10:  ; preds = bb9
 +     v23 = shl v21, 5
 +     v24 = inttoptr i256 v13 to ptr<memory>
 +     v25 = ptradd v24, v23
@@ -1399,12 +1454,13 @@
 +     mstore v31, v28
 +     v32 = add v21, 1
 +     jump bb9
-+   bb1:
++   bb1 [cold]:  ; preds = bb0, bb2, bb5, bb7
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   
+  ; selector 0x0dead004
 - fn @givesZeroedTuple() -> ptr<memory> [selector=0x0dead004, abi_returns=[tuple<word, word>], abi_return_params=[tuple<uint128, address>]] {
 + fn @givesZeroedTuple() [selector=0x0dead004, abi_wrapper] {
     bb0:
@@ -1431,13 +1487,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v12]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       ret v0
-    bb2:
+    bb2:  ; preds = bb1
       v5 = icall @canonicalAddresses
       v6 = ptrtoint ptr<memory> v5 to i256
       v7 = inttoptr i256 v6 to ptr<memory>
@@ -1458,13 +1514,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v16]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       ret v0
-    bb2:
+    bb2:  ; preds = bb1
       v5 = icall @canonicalAddresses
       v6 = ptrtoint ptr<memory> v5 to i256
       v7 = shl v3, 5
@@ -1489,13 +1545,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v10]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       ret v0
-    bb2:
+    bb2:  ; preds = bb1
       v5 = icall @canonicalAddresses
       v6 = ptrtoint ptr<memory> v5 to i256
       v7 = shl v3, 5
@@ -1517,6 +1573,7 @@
       ret
   }
   
+  ; selector 0x0dead009
 - fn @givesDirtyAddressAliases() -> ptr<memory> [selector=0x0dead009, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
 + fn @givesDirtyAddressAliases() [selector=0x0dead009, abi_wrapper] {
     bb0:
@@ -1526,25 +1583,25 @@
 +     v2 = add v1, 1
 +     v3 = lt v2, v1
 +     jumpi v3, bb1, bb2
-+   bb2:
++   bb2:  ; preds = bb0
 +     v4 = mul v2, 32
 +     v5 = shr v2, 251
 +     v6 = ne v5, 0
 +     jumpi v6, bb1, bb3
-+   bb3:
++   bb3:  ; preds = bb2
 +     v7 = alloc v4
 +     mstore v7, v1
 +     jump bb4
-+   bb4:
++   bb4:  ; preds = bb3, bb11
 +     v8 = phi [bb3: 0], [bb11: v37]
 +     v9 = lt v8, v1
 +     jumpi v9, bb5, bb6
-+   bb6:
++   bb6:  ; preds = bb4
 +     v38 = abi_encode [memory_array<memory_array<word>>], scratch, args v7
 +     v39 = extract_value slice<memory>, v38, 0
 +     v40 = extract_value slice<memory>, v38, 1
 +     returndata v39, v40
-+   bb5:
++   bb5:  ; preds = bb4
 +     v10 = shl v8, 5
 +     v11 = ptradd v0, v10
 +     v12 = ptradd v11, 32
@@ -1553,20 +1610,20 @@
 +     v15 = add v14, 1
 +     v16 = lt v15, v14
 +     jumpi v16, bb1, bb7
-+   bb7:
++   bb7:  ; preds = bb5
 +     v17 = mul v15, 32
 +     v18 = shr v15, 251
 +     v19 = ne v18, 0
 +     jumpi v19, bb1, bb8
-+   bb8:
++   bb8:  ; preds = bb7
 +     v20 = alloc v17
 +     mstore v20, v14
 +     jump bb9
-+   bb9:
++   bb9:  ; preds = bb8, bb10
 +     v21 = phi [bb8: 0], [bb10: v32]
 +     v22 = lt v21, v14
 +     jumpi v22, bb10, bb11
-+   bb11:
++   bb11:  ; preds = bb9
 +     v33 = shl v8, 5
 +     v34 = ptradd v7, v33
 +     v35 = ptradd v34, 32
@@ -1574,7 +1631,7 @@
 +     mstore v35, v36
 +     v37 = add v8, 1
 +     jump bb4
-+   bb10:
++   bb10:  ; preds = bb9
 +     v23 = shl v21, 5
 +     v24 = inttoptr i256 v13 to ptr<memory>
 +     v25 = ptradd v24, v23
@@ -1587,12 +1644,13 @@
 +     mstore v31, v28
 +     v32 = add v21, 1
 +     jump bb9
-+   bb1:
++   bb1 [cold]:  ; preds = bb0, bb2, bb5, bb7
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   
+  ; selector 0x0dead00a
 - fn @givesDirtyAddressReloads() -> ptr<memory> [selector=0x0dead00a, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
 + fn @givesDirtyAddressReloads() [selector=0x0dead00a, abi_wrapper] {
     bb0:
@@ -1602,25 +1660,25 @@
 +     v2 = add v1, 1
 +     v3 = lt v2, v1
 +     jumpi v3, bb1, bb2
-+   bb2:
++   bb2:  ; preds = bb0
 +     v4 = mul v2, 32
 +     v5 = shr v2, 251
 +     v6 = ne v5, 0
 +     jumpi v6, bb1, bb3
-+   bb3:
++   bb3:  ; preds = bb2
 +     v7 = alloc v4
 +     mstore v7, v1
 +     jump bb4
-+   bb4:
++   bb4:  ; preds = bb3, bb11
 +     v8 = phi [bb3: 0], [bb11: v37]
 +     v9 = lt v8, v1
 +     jumpi v9, bb5, bb6
-+   bb6:
++   bb6:  ; preds = bb4
 +     v38 = abi_encode [memory_array<memory_array<word>>], scratch, args v7
 +     v39 = extract_value slice<memory>, v38, 0
 +     v40 = extract_value slice<memory>, v38, 1
 +     returndata v39, v40
-+   bb5:
++   bb5:  ; preds = bb4
 +     v10 = shl v8, 5
 +     v11 = ptradd v0, v10
 +     v12 = ptradd v11, 32
@@ -1629,20 +1687,20 @@
 +     v15 = add v14, 1
 +     v16 = lt v15, v14
 +     jumpi v16, bb1, bb7
-+   bb7:
++   bb7:  ; preds = bb5
 +     v17 = mul v15, 32
 +     v18 = shr v15, 251
 +     v19 = ne v18, 0
 +     jumpi v19, bb1, bb8
-+   bb8:
++   bb8:  ; preds = bb7
 +     v20 = alloc v17
 +     mstore v20, v14
 +     jump bb9
-+   bb9:
++   bb9:  ; preds = bb8, bb10
 +     v21 = phi [bb8: 0], [bb10: v32]
 +     v22 = lt v21, v14
 +     jumpi v22, bb10, bb11
-+   bb11:
++   bb11:  ; preds = bb9
 +     v33 = shl v8, 5
 +     v34 = ptradd v7, v33
 +     v35 = ptradd v34, 32
@@ -1650,7 +1708,7 @@
 +     mstore v35, v36
 +     v37 = add v8, 1
 +     jump bb4
-+   bb10:
++   bb10:  ; preds = bb9
 +     v23 = shl v21, 5
 +     v24 = inttoptr i256 v13 to ptr<memory>
 +     v25 = ptradd v24, v23
@@ -1663,12 +1721,13 @@
 +     mstore v31, v28
 +     v32 = add v21, 1
 +     jump bb9
-+   bb1:
++   bb1 [cold]:  ; preds = bb0, bb2, bb5, bb7
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   
+  ; selector 0x0dead00b
 - fn @givesEscapingAddressArrays() -> ptr<memory> [selector=0x0dead00b, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
 + fn @givesEscapingAddressArrays() [selector=0x0dead00b, abi_wrapper] {
     bb0:
@@ -1678,25 +1737,25 @@
 +     v2 = add v1, 1
 +     v3 = lt v2, v1
 +     jumpi v3, bb1, bb2
-+   bb2:
++   bb2:  ; preds = bb0
 +     v4 = mul v2, 32
 +     v5 = shr v2, 251
 +     v6 = ne v5, 0
 +     jumpi v6, bb1, bb3
-+   bb3:
++   bb3:  ; preds = bb2
 +     v7 = alloc v4
 +     mstore v7, v1
 +     jump bb4
-+   bb4:
++   bb4:  ; preds = bb3, bb11
 +     v8 = phi [bb3: 0], [bb11: v37]
 +     v9 = lt v8, v1
 +     jumpi v9, bb5, bb6
-+   bb6:
++   bb6:  ; preds = bb4
 +     v38 = abi_encode [memory_array<memory_array<word>>], scratch, args v7
 +     v39 = extract_value slice<memory>, v38, 0
 +     v40 = extract_value slice<memory>, v38, 1
 +     returndata v39, v40
-+   bb5:
++   bb5:  ; preds = bb4
 +     v10 = shl v8, 5
 +     v11 = ptradd v0, v10
 +     v12 = ptradd v11, 32
@@ -1705,20 +1764,20 @@
 +     v15 = add v14, 1
 +     v16 = lt v15, v14
 +     jumpi v16, bb1, bb7
-+   bb7:
++   bb7:  ; preds = bb5
 +     v17 = mul v15, 32
 +     v18 = shr v15, 251
 +     v19 = ne v18, 0
 +     jumpi v19, bb1, bb8
-+   bb8:
++   bb8:  ; preds = bb7
 +     v20 = alloc v17
 +     mstore v20, v14
 +     jump bb9
-+   bb9:
++   bb9:  ; preds = bb8, bb10
 +     v21 = phi [bb8: 0], [bb10: v32]
 +     v22 = lt v21, v14
 +     jumpi v22, bb10, bb11
-+   bb11:
++   bb11:  ; preds = bb9
 +     v33 = shl v8, 5
 +     v34 = ptradd v7, v33
 +     v35 = ptradd v34, 32
@@ -1726,7 +1785,7 @@
 +     mstore v35, v36
 +     v37 = add v8, 1
 +     jump bb4
-+   bb10:
++   bb10:  ; preds = bb9
 +     v23 = shl v21, 5
 +     v24 = inttoptr i256 v13 to ptr<memory>
 +     v25 = ptradd v24, v23
@@ -1739,12 +1798,13 @@
 +     mstore v31, v28
 +     v32 = add v21, 1
 +     jump bb9
-+   bb1:
++   bb1 [cold]:  ; preds = bb0, bb2, bb5, bb7
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   
+  ; selector 0x0dead00c
 - fn @givesZeroedThenDirtyTuple() -> ptr<memory> [selector=0x0dead00c, abi_returns=[tuple<word>], abi_return_params=[tuple<uint8>]] {
 + fn @givesZeroedThenDirtyTuple() [selector=0x0dead00c, abi_wrapper] {
     bb0:
@@ -1765,6 +1825,7 @@
 +     returndata 128, v8
   }
   
+  ; selector 0x0dead00d
 - fn @givesPartlyZeroedTuple() -> ptr<memory> [selector=0x0dead00d, abi_returns=[tuple<word, word>], abi_return_params=[tuple<uint8, uint8>]] {
 + fn @givesPartlyZeroedTuple() [selector=0x0dead00d, abi_wrapper] {
     bb0:
@@ -1793,32 +1854,33 @@
 +     returndata 128, v15
   }
   
+  ; selector 0x0dead00e
 - fn @givesConditionallyZeroedTuple(arg0: i1) -> ptr<memory> [selector=0x0dead00e, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<uint8>]] {
 + fn @givesConditionallyZeroedTuple() [selector=0x0dead00e, abi_wrapper, implicit_args=[i1]] {
     bb0:
--     v0 = alloc checked 32
--     jumpi arg0, bb1, bb2
 +     v2 = calldatasize
 +     v3 = lt v2, 36
 +     jumpi v3, bb4, bb5
-+   bb5:
++   bb5:  ; preds = bb0
 +     v4 = calldataload 4
 +     v5 = shr v4, 1
 +     v6 = eq v5, 0
 +     jumpi v6, bb6, bb4
-+   bb6:
++   bb6:  ; preds = bb5
 +     jump bb1
-    bb1:
-+     v0 = alloc checked 32
++   bb1:  ; preds = bb6
+      v0 = alloc checked 32
+-     jumpi arg0, bb1, bb2
+-   bb1:  ; preds = bb0
 +     jumpi arg0, bb2, bb3
-+   bb2:
++   bb2:  ; preds = bb1
       v1 = ptrtoint ptr<memory> v0 to i256
       memory_zero v1, 32
 -     jump bb2
--   bb2:
+-   bb2:  ; preds = bb0, bb1
 -     ret v0
 +     jump bb3
-+   bb3:
++   bb3:  ; preds = bb1, bb2
 +     v7 = alloc 32
 +     v8 = mload v0
 +     v9 = and v8, 255
@@ -1829,35 +1891,36 @@
 +     v12 = add 128, 32
 +     v13 = sub v12, 128
 +     returndata 128, v13
-+   bb4:
++   bb4 [cold]:  ; preds = bb0, bb5
 +     revert 0, 0
   }
   
+  ; selector 0x0dead00f
 - fn @givesConditionallyStoredTuple(arg0: i1) -> ptr<memory> [selector=0x0dead00f, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<uint8>]] {
 + fn @givesConditionallyStoredTuple() [selector=0x0dead00f, abi_wrapper, implicit_args=[i1]] {
     bb0:
--     v0 = alloc checked 32
--     jumpi arg0, bb1, bb2
 +     v1 = calldatasize
 +     v2 = lt v1, 36
 +     jumpi v2, bb4, bb5
-+   bb5:
++   bb5:  ; preds = bb0
 +     v3 = calldataload 4
 +     v4 = shr v3, 1
 +     v5 = eq v4, 0
 +     jumpi v5, bb6, bb4
-+   bb6:
++   bb6:  ; preds = bb5
 +     jump bb1
-    bb1:
--     mstore v0, 1
--     jump bb2
-+     v0 = alloc checked 32
++   bb1:  ; preds = bb6
+      v0 = alloc checked 32
+-     jumpi arg0, bb1, bb2
+-   bb1:  ; preds = bb0
 +     jumpi arg0, bb2, bb3
-    bb2:
++   bb2:  ; preds = bb1
+      mstore v0, 1
+-     jump bb2
+-   bb2:  ; preds = bb0, bb1
 -     ret v0
-+     mstore v0, 1
 +     jump bb3
-+   bb3:
++   bb3:  ; preds = bb1, bb2
 +     v6 = alloc 32
 +     v7 = mload v0
 +     v8 = and v7, 255
@@ -1868,7 +1931,7 @@
 +     v11 = add 128, 32
 +     v12 = sub v11, 128
 +     returndata 128, v12
-+   bb4:
++   bb4 [cold]:  ; preds = bb0, bb5
 +     revert 0, 0
   }
   
@@ -1884,6 +1947,7 @@
       ret v0
   }
   
+  ; selector 0x0dead010
 - fn @givesAliasedAddressContainer() -> ptr<memory> [selector=0x0dead010, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
 + fn @givesAliasedAddressContainer() [selector=0x0dead010, abi_wrapper] {
     bb0:
@@ -1894,25 +1958,25 @@
 +     v3 = add v2, 1
 +     v4 = lt v3, v2
 +     jumpi v4, bb1, bb2
-+   bb2:
++   bb2:  ; preds = bb0
 +     v5 = mul v3, 32
 +     v6 = shr v3, 251
 +     v7 = ne v6, 0
 +     jumpi v7, bb1, bb3
-+   bb3:
++   bb3:  ; preds = bb2
 +     v8 = alloc v5
 +     mstore v8, v2
 +     jump bb4
-+   bb4:
++   bb4:  ; preds = bb3, bb5
 +     v9 = phi [bb3: 0], [bb5: v19]
 +     v10 = lt v9, v2
 +     jumpi v10, bb5, bb6
-+   bb6:
++   bb6:  ; preds = bb4
 +     v20 = abi_encode [memory_array<word>], scratch, args v8
 +     v21 = extract_value slice<memory>, v20, 0
 +     v22 = extract_value slice<memory>, v20, 1
 +     returndata v21, v22
-+   bb5:
++   bb5:  ; preds = bb4
 +     v11 = shl v9, 5
 +     v12 = ptradd v1, v11
 +     v13 = ptradd v12, 32
@@ -1924,12 +1988,13 @@
 +     mstore v18, v15
 +     v19 = add v9, 1
 +     jump bb4
-+   bb1:
++   bb1 [cold]:  ; preds = bb0, bb2
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   
+  ; selector 0x0dead011
 - fn @givesRawMemoryWrite() -> ptr<memory> [selector=0x0dead011, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
 + fn @givesRawMemoryWrite() [selector=0x0dead011, abi_wrapper] {
     bb0:
@@ -1940,25 +2005,25 @@
 +     v2 = add v1, 1
 +     v3 = lt v2, v1
 +     jumpi v3, bb1, bb2
-+   bb2:
++   bb2:  ; preds = bb0
 +     v4 = mul v2, 32
 +     v5 = shr v2, 251
 +     v6 = ne v5, 0
 +     jumpi v6, bb1, bb3
-+   bb3:
++   bb3:  ; preds = bb2
 +     v7 = alloc v4
 +     mstore v7, v1
 +     jump bb4
-+   bb4:
++   bb4:  ; preds = bb3, bb5
 +     v8 = phi [bb3: 0], [bb5: v18]
 +     v9 = lt v8, v1
 +     jumpi v9, bb5, bb6
-+   bb6:
++   bb6:  ; preds = bb4
 +     v19 = abi_encode [memory_array<word>], scratch, args v7
 +     v20 = extract_value slice<memory>, v19, 0
 +     v21 = extract_value slice<memory>, v19, 1
 +     returndata v20, v21
-+   bb5:
++   bb5:  ; preds = bb4
 +     v10 = shl v8, 5
 +     v11 = ptradd v0, v10
 +     v12 = ptradd v11, 32
@@ -1970,7 +2035,7 @@
 +     mstore v17, v14
 +     v18 = add v8, 1
 +     jump bb4
-+   bb1:
++   bb1 [cold]:  ; preds = bb0, bb2
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1980,46 +2045,47 @@
     bb0:
       v0 = alloc checked 32
       jumpi arg0, bb1, bb2
-    bb1:
+    bb1:  ; preds = bb0
       mstore v0, 1
       jump bb2
-    bb2:
+    bb2:  ; preds = bb0, bb1
       ret v0
   }
   
+  ; selector 0x0dead012
 - fn @givesConditionalFixedArray(arg0: i1) -> ptr<memory> [selector=0x0dead012, abi_params=[bool], abi_returns=[array<1, word>], abi_return_params=[array<1, uint8>]] {
 + fn @givesConditionalFixedArray() [selector=0x0dead012, abi_wrapper, implicit_args=[i1]] {
     bb0:
 +     v1 = calldatasize
 +     v2 = lt v1, 36
 +     jumpi v2, bb2, bb3
-+   bb3:
++   bb3:  ; preds = bb0
 +     v3 = calldataload 4
 +     v4 = shr v3, 1
 +     v5 = eq v4, 0
 +     jumpi v5, bb4, bb2
-+   bb4:
++   bb4:  ; preds = bb3
 +     jump bb1
-+   bb1:
++   bb1:  ; preds = bb4
       v0 = icall @conditionalFixedArray, arg0
 -     ret v0
 +     v6 = alloc 32
 +     jump bb5
-+   bb5:
++   bb5:  ; preds = bb1, bb6
 +     v7 = phi [bb1: 0], [bb6: v15]
 +     v8 = lt v7, 1
 +     jumpi v8, bb6, bb7
-+   bb7:
++   bb7:  ; preds = bb5
 +     jump bb8
-+   bb8:
++   bb8:  ; preds = bb7, bb9
 +     v16 = phi [bb7: 0], [bb9: v23]
 +     v17 = lt v16, 1
 +     jumpi v17, bb9, bb10
-+   bb10:
++   bb10:  ; preds = bb8
 +     v24 = add 128, 32
 +     v25 = sub v24, 128
 +     returndata 128, v25
-+   bb9:
++   bb9:  ; preds = bb8
 +     v18 = shl v16, 5
 +     v19 = ptradd v6, v18
 +     v20 = mload v19
@@ -2028,7 +2094,7 @@
 +     mstore v22, v20
 +     v23 = add v16, 1
 +     jump bb8
-+   bb6:
++   bb6:  ; preds = bb5
 +     v9 = shl v7, 5
 +     v10 = ptradd v0, v9
 +     v11 = mload v10
@@ -2038,7 +2104,7 @@
 +     mstore v14, v12
 +     v15 = add v7, 1
 +     jump bb5
-+   bb2:
++   bb2 [cold]:  ; preds = bb0, bb3
 +     revert 0, 0
   }
   
@@ -2049,13 +2115,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jumpi arg0, bb1, bb3
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v9]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb0, bb1
       ret v0
-    bb2:
+    bb2:  ; preds = bb1
       v5 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
       v6 = shl v3, 5
       v7 = ptradd v0, 32
@@ -2070,13 +2136,13 @@
       v0 = alloc checked 96
       v1 = add 2, 0
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v2 = phi [bb0: 0], [bb2: v9]
       v3 = lt v2, v1
       jumpi v3, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       ret v0
-    bb2:
+    bb2:  ; preds = bb1
       v4 = ptrtoint ptr<memory> v0 to i256
       mstore v4, v1
       v5 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
@@ -2088,45 +2154,46 @@
       jump bb1
   }
   
+  ; selector 0x0dead013
 - fn @givesBypassedArrayLoop(arg0: i1) -> ptr<memory> [selector=0x0dead013, abi_params=[bool], abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
 + fn @givesBypassedArrayLoop() [selector=0x0dead013, abi_wrapper, implicit_args=[i1]] {
     bb0:
 +     v1 = calldatasize
 +     v2 = lt v1, 36
 +     jumpi v2, bb2, bb3
-+   bb3:
++   bb3:  ; preds = bb0
 +     v3 = calldataload 4
 +     v4 = shr v3, 1
 +     v5 = eq v4, 0
 +     jumpi v5, bb4, bb2
-+   bb4:
++   bb4:  ; preds = bb3
 +     jump bb1
-+   bb1:
++   bb1:  ; preds = bb4
       v0 = icall @bypassedArrayLoop, arg0
 -     ret v0
 +     v6 = mload v0
 +     v7 = add v6, 1
 +     v8 = lt v7, v6
 +     jumpi v8, bb5, bb6
-+   bb6:
++   bb6:  ; preds = bb1
 +     v9 = mul v7, 32
 +     v10 = shr v7, 251
 +     v11 = ne v10, 0
 +     jumpi v11, bb5, bb7
-+   bb7:
++   bb7:  ; preds = bb6
 +     v12 = alloc v9
 +     mstore v12, v6
 +     jump bb8
-+   bb8:
++   bb8:  ; preds = bb7, bb9
 +     v13 = phi [bb7: 0], [bb9: v23]
 +     v14 = lt v13, v6
 +     jumpi v14, bb9, bb10
-+   bb10:
++   bb10:  ; preds = bb8
 +     v24 = abi_encode [memory_array<word>], scratch, args v12
 +     v25 = extract_value slice<memory>, v24, 0
 +     v26 = extract_value slice<memory>, v24, 1
 +     returndata v25, v26
-+   bb9:
++   bb9:  ; preds = bb8
 +     v15 = shl v13, 5
 +     v16 = ptradd v0, v15
 +     v17 = ptradd v16, 32
@@ -2138,14 +2205,15 @@
 +     mstore v22, v19
 +     v23 = add v13, 1
 +     jump bb8
-+   bb5:
++   bb5 [cold]:  ; preds = bb1, bb6
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
-+   bb2:
++   bb2 [cold]:  ; preds = bb0, bb3
 +     revert 0, 0
   }
   
+  ; selector 0x0dead014
 - fn @givesLateArrayLength() -> ptr<memory> [selector=0x0dead014, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
 + fn @givesLateArrayLength() [selector=0x0dead014, abi_wrapper] {
     bb0:
@@ -2155,25 +2223,25 @@
 +     v2 = add v1, 1
 +     v3 = lt v2, v1
 +     jumpi v3, bb1, bb2
-+   bb2:
++   bb2:  ; preds = bb0
 +     v4 = mul v2, 32
 +     v5 = shr v2, 251
 +     v6 = ne v5, 0
 +     jumpi v6, bb1, bb3
-+   bb3:
++   bb3:  ; preds = bb2
 +     v7 = alloc v4
 +     mstore v7, v1
 +     jump bb4
-+   bb4:
++   bb4:  ; preds = bb3, bb5
 +     v8 = phi [bb3: 0], [bb5: v18]
 +     v9 = lt v8, v1
 +     jumpi v9, bb5, bb6
-+   bb6:
++   bb6:  ; preds = bb4
 +     v19 = abi_encode [memory_array<word>], scratch, args v7
 +     v20 = extract_value slice<memory>, v19, 0
 +     v21 = extract_value slice<memory>, v19, 1
 +     returndata v20, v21
-+   bb5:
++   bb5:  ; preds = bb4
 +     v10 = shl v8, 5
 +     v11 = ptradd v0, v10
 +     v12 = ptradd v11, 32
@@ -2185,12 +2253,13 @@
 +     mstore v17, v14
 +     v18 = add v8, 1
 +     jump bb4
-+   bb1:
++   bb1 [cold]:  ; preds = bb0, bb2
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   
+  ; selector 0x0dead015
 - fn @givesOverlappingAllocationWrite() -> ptr<memory> [selector=0x0dead015, abi_returns=[tuple<word>], abi_return_params=[tuple<uint8>]] {
 + fn @givesOverlappingAllocationWrite() [selector=0x0dead015, abi_wrapper] {
     bb0:
@@ -2217,20 +2286,20 @@
       v1 = sload arg0 !metadata(storage=symbolic(arg0))
       v2 = gt v1, 0x7fffffffffffffe
       jumpi v2, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       v3 = add v1, 1
       v4 = mul v3, 32
       v5 = alloc checked v4
       mstore v5, v1
       v6 = storage_array_data_slot arg0
       jump bb3
-    bb3:
+    bb3:  ; preds = bb2, bb4
       v7 = phi [bb2: 0], [bb4: v19]
       v8 = lt v7, v1
       jumpi v8, bb4, bb5
-    bb5:
+    bb5:  ; preds = bb3
       ret v5
-    bb4:
+    bb4:  ; preds = bb3
       v9 = div v7, 1
       v10 = add v6, v9
       v11 = sload v10 !metadata(storage=symbolic(v10))
@@ -2244,12 +2313,13 @@
       mstore v18, v15
       v19 = add v7, 1
       jump bb3
-    bb1:
+    bb1 [cold]:  ; preds = bb0
       mstore 32, 65 !metadata(memory=scratch)
       mstore 0, 0x4e487b71 !metadata(memory=scratch)
       revert 28, 36
   }
   
+  ; selector 0x0dead018
 - fn @givesStorageAddresses() -> ptr<memory> [selector=0x0dead018, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
 + fn @givesStorageAddresses() [selector=0x0dead018, abi_wrapper] {
     bb0:
@@ -2266,23 +2336,23 @@
       v3 = sload arg0 !metadata(storage=symbolic(arg0))
       v4 = gt v3, 0x7fffffffffffffe
       jumpi v4, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       v5 = add v3, 1
       v6 = mul v5, 32
       v7 = alloc checked v6
       mstore v7, v3
       v8 = storage_array_data_slot arg0
       jump bb3
-    bb3:
+    bb3:  ; preds = bb2, bb4
       v9 = phi [bb2: 0], [bb4: v21]
       v10 = lt v9, v3
       jumpi v10, bb4, bb5
-    bb5:
+    bb5:  ; preds = bb3
       v1 = ptradd v7, 32
       v2 = ptrtoint ptr<memory> v1 to i256
       mstore v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       ret v7
-    bb4:
+    bb4:  ; preds = bb3
       v11 = div v9, 1
       v12 = add v8, v11
       v13 = sload v12 !metadata(storage=symbolic(v12))
@@ -2296,12 +2366,13 @@
       mstore v20, v17
       v21 = add v9, 1
       jump bb3
-    bb1:
+    bb1 [cold]:  ; preds = bb0
       mstore 32, 65 !metadata(memory=scratch)
       mstore 0, 0x4e487b71 !metadata(memory=scratch)
       revert 28, 36
   }
   
+  ; selector 0x0dead019
 - fn @givesDirtyStorageAddresses() -> ptr<memory> [selector=0x0dead019, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
 + fn @givesDirtyStorageAddresses() [selector=0x0dead019, abi_wrapper] {
     bb0:
@@ -2311,25 +2382,25 @@
 +     v2 = add v1, 1
 +     v3 = lt v2, v1
 +     jumpi v3, bb1, bb2
-+   bb2:
++   bb2:  ; preds = bb0
 +     v4 = mul v2, 32
 +     v5 = shr v2, 251
 +     v6 = ne v5, 0
 +     jumpi v6, bb1, bb3
-+   bb3:
++   bb3:  ; preds = bb2
 +     v7 = alloc v4
 +     mstore v7, v1
 +     jump bb4
-+   bb4:
++   bb4:  ; preds = bb3, bb5
 +     v8 = phi [bb3: 0], [bb5: v18]
 +     v9 = lt v8, v1
 +     jumpi v9, bb5, bb6
-+   bb6:
++   bb6:  ; preds = bb4
 +     v19 = abi_encode [memory_array<word>], scratch, args v7
 +     v20 = extract_value slice<memory>, v19, 0
 +     v21 = extract_value slice<memory>, v19, 1
 +     returndata v20, v21
-+   bb5:
++   bb5:  ; preds = bb4
 +     v10 = shl v8, 5
 +     v11 = ptradd v0, v10
 +     v12 = ptradd v11, 32
@@ -2341,26 +2412,27 @@
 +     mstore v17, v14
 +     v18 = add v8, 1
 +     jump bb4
-+   bb1:
++   bb1 [cold]:  ; preds = bb0, bb2
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
   }
   
+  ; selector 0x0dead020
 - fn @nativeCleanTuple(arg0: i128) -> ptr<memory> [selector=0x0dead020, abi_params=[uint128], abi_returns=[tuple<word>], abi_return_params=[tuple<uint128>]] {
 + fn @nativeCleanTuple() [selector=0x0dead020, abi_wrapper, implicit_args=[i128]] {
     bb0:
 +     v2 = calldatasize
 +     v3 = lt v2, 36
 +     jumpi v3, bb2, bb3
-+   bb3:
++   bb3:  ; preds = bb0
 +     v4 = calldataload 4
 +     v5 = shr v4, 128
 +     v6 = eq v5, 0
 +     jumpi v6, bb4, bb2
-+   bb4:
++   bb4:  ; preds = bb3
 +     jump bb1
-+   bb1:
++   bb1:  ; preds = bb4
       v0 = alloc checked 32
       v1 = zext i128 arg0 to i256
       mstore v0, v1
@@ -2371,7 +2443,7 @@
 +     v9 = add 128, 32
 +     v10 = sub v9, 128
 +     returndata 128, v10
-+   bb2:
++   bb2 [cold]:  ; preds = bb0, bb3
 +     revert 0, 0
   }
   

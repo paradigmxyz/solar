@@ -1,9 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/stack-resident/spilled_phi_input_reloaded_after_store.sol:C ===
 @module C
+; function fib(uint256 n) external pure returns (uint256 r) [selector 0xc6c2ea17]
 fn @fib(arg0: i256) -> i256 [selector=0xc6c2ea17, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v1]
     v2 = phi [bb0: 1], [bb3: v3]
@@ -27,9 +28,9 @@ fn @fib(arg0: i256) -> i256 [selector=0xc6c2ea17, pure, abi_params=[uint256], ab
     v20 = phi [bb0: 0], [bb3: v40]
     v21 = lt v20, v0
     jumpi v21, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     v41 = mul v2, 4
     v42 = mul v3, 14
     v43 = xor v41, v42
@@ -66,7 +67,7 @@ fn @fib(arg0: i256) -> i256 [selector=0xc6c2ea17, pure, abi_params=[uint256], ab
     v74 = mul v19, 22
     v75 = xor v73, v74
     ret v75
-  bb4:
+  bb4:  ; preds = bb1
     v22 = mul v3, 2
     v23 = add v2, v22
     v24 = mul v5, 3
@@ -86,9 +87,9 @@ fn @fib(arg0: i256) -> i256 [selector=0xc6c2ea17, pure, abi_params=[uint256], ab
     v38 = mul v19, 10
     v39 = add v18, v38
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v40 = add v20, 1
     jump bb1
 }

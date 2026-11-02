@@ -1,11 +1,13 @@
 // === ROOT/tests/ui/codegen/run-call/narrow_left_shift.sol:NarrowLeftShift ===
 @module NarrowLeftShift
+; function leftU8(uint8 value, uint8 bits) external pure returns (uint8) [selector 0xb0f599fc]
 fn @leftU8(arg0: i8, arg1: i8) -> i8 [selector=0xb0f599fc, pure, abi_params=[uint8, uint8], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     v0 = shl arg0, arg1
     ret v0
 }
 
+; function leftU16(uint16 value, uint8 bits) external pure returns (uint16) [selector 0x091a4010]
 fn @leftU16(arg0: i16, arg1: i8) -> i16 [selector=0x091a4010, pure, abi_params=[uint16, uint8], abi_returns=[word<uint16>], abi_return_params=[uint16]] {
   bb0:
     v0 = zext i8 arg1 to i16
@@ -13,12 +15,14 @@ fn @leftU16(arg0: i16, arg1: i8) -> i16 [selector=0x091a4010, pure, abi_params=[
     ret v1
 }
 
+; function leftI8(int8 value, uint8 bits) external pure returns (int8) [selector 0xf8edc0fc]
 fn @leftI8(arg0: i8, arg1: i8) -> i8 [selector=0xf8edc0fc, pure, abi_params=[int8, uint8], abi_returns=[word<int8>], abi_return_params=[int8]] {
   bb0:
     v0 = shl arg0, arg1
     ret v0
 }
 
+; function leftI16(int16 value, uint8 bits) external pure returns (int16) [selector 0xde5140b9]
 fn @leftI16(arg0: i16, arg1: i8) -> i16 [selector=0xde5140b9, pure, abi_params=[int16, uint8], abi_returns=[word<int16>], abi_return_params=[int16]] {
   bb0:
     v0 = zext i8 arg1 to i16
@@ -26,24 +30,28 @@ fn @leftI16(arg0: i16, arg1: i8) -> i16 [selector=0xde5140b9, pure, abi_params=[
     ret v1
 }
 
+; function uncheckedU8(uint8 value, uint8 bits) external pure returns (uint8 result) [selector 0x2f83e050]
 fn @uncheckedU8(arg0: i8, arg1: i8) -> i8 [selector=0x2f83e050, pure, abi_params=[uint8, uint8], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     v0 = shl arg0, arg1
     ret v0
 }
 
+; function leftU256(uint256 value, uint256 bits) external pure returns (uint256) [selector 0xb89f4ea2]
 fn @leftU256(arg0: i256, arg1: i256) -> i256 [selector=0xb89f4ea2, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = shl arg0, arg1
     ret v0
 }
 
+; function rightU8(uint8 value, uint8 bits) external pure returns (uint8) [selector 0xf8942fcd]
 fn @rightU8(arg0: i8, arg1: i8) -> i8 [selector=0xf8942fcd, pure, abi_params=[uint8, uint8], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     v0 = shr arg0, arg1
     ret v0
 }
 
+; function rightI8(int8 value, uint8 bits) external pure returns (int8) [selector 0x06a33d87]
 fn @rightI8(arg0: i8, arg1: i8) -> i8 [selector=0x06a33d87, pure, abi_params=[int8, uint8], abi_returns=[word<int8>], abi_return_params=[int8]] {
   bb0:
     v0 = sar arg0, arg1

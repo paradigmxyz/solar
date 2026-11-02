@@ -1,9 +1,29 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_nested_struct_helpers.sol:NestedStructHelpers ===
 @module NestedStructHelpers
 @phase lowered
-@types
-  struct0: {i256, i256, i256}
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:  ; preds = bb0
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0x54d20d9 => bb3, 0x7a5de1e9 => bb4]
+  bb4:  ; preds = bb2
+    tail_call @pair
+  bb3:  ; preds = bb2
+    tail_call @pairs
+  bb1 [cold]:  ; preds = bb0, bb2
+    revert 0, 0
+}
 
+; function pair(Pair memory p) external pure returns (uint256, uint256, uint256) [selector 0x7a5de1e9]
 fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
   bb0:
     v15 = icall @decode_calldata_type.3, 4, 4
@@ -21,6 +41,7 @@ fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
     returndata 0, 96
 }
 
+; function pairs(Pair[] memory ps) external pure returns (uint256 sum) [selector 0x054d20d9]
 fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
   bb0:
     v35 = calldatasize
@@ -29,7 +50,7 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v40 = sub v35, 36
     v41 = gt v37, v40
     jumpi v41, bb6, bb7
-  bb7:
+  bb7:  ; preds = bb0
     v42 = calldataload v38
     v43 = add v38, 32
     v44 = gt v42, 0x7fffffffffffffe
@@ -45,24 +66,24 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v101 = or v100, v86
     v102 = ne v101, 0
     jumpi v102, bb8, bb13
-  bb13:
+  bb13:  ; preds = bb7
     mstore 64, v82 !metadata(memory=scratch)
     mstore v81, v42
     v49 = sub v35, v43
     v50 = shr v49, 5
     v51 = gt v42, v50
     jumpi v51, bb6, bb9
-  bb9:
+  bb9:  ; preds = bb13
     v96 = add v81, 32
     jump bb10
-  bb10:
+  bb10:  ; preds = bb9, bb11
     v52 = phi [bb9: v42], [bb11: v61]
     v53 = phi [bb9: v43], [bb11: v62]
     v54 = phi [bb9: 0], [bb11: v63]
     v97 = phi [bb9: v96], [bb11: v98]
     v55 = gt v52, 0
     jumpi v55, bb11, bb12
-  bb12:
+  bb12:  ; preds = bb10
     v29 = mload v81
     v88 = add v81, 32
     v91 = gt v29, 0x20000000000000000
@@ -71,15 +92,15 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v94 = add v81, v93
     v95 = add v94, 32
     jump bb1
-  bb1:
+  bb1:  ; preds = bb5, bb12
     v1 = phi [bb12: 0], [bb5: v33]
     v89 = phi [bb12: v88], [bb5: v90]
     v4 = ne v89, v95
     jumpi v4, bb3, bb2
-  bb2:
+  bb2:  ; preds = bb1
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
-  bb3:
+  bb3:  ; preds = bb1
     v75 = mload v89
     v76 = mload v75
     v13 = mload v76
@@ -94,14 +115,14 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v34 = lt v33, v1
     v99 = or v32, v34
     jumpi v99, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     v90 = add v89, 32
     jump bb1
-  bb4:
+  bb4 [cold]:  ; preds = bb3
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb11:
+  bb11:  ; preds = bb10
     v56 = icall @decode_calldata_type.3, v53, v43
     mstore v97, v56
     v61 = sub v52, 1
@@ -109,11 +130,11 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v63 = add v54, 1
     v98 = add v97, 32
     jump bb10
-  bb8:
+  bb8 [cold]:  ; preds = bb7
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb6:
+  bb6 [cold]:  ; preds = bb0, bb13
     revert 0, 0
 }
 
@@ -128,7 +149,7 @@ fn @decode_calldata_type.2(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     v6 = lt v5, 64
     v56 = or v4, v6
     jumpi v56, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v53 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v54 = add v53, 96 !metadata(alloc_ptr)
     mstore 64, v54 !metadata(memory=scratch)
@@ -140,13 +161,13 @@ fn @decode_calldata_type.2(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     v13 = sub v5, 32
     v14 = gt v10, v13
     jumpi v14, bb1, bb3
-  bb3:
+  bb3:  ; preds = bb2
     v15 = calldataload v11
     v16 = add v11, 32
     v17 = add v15, 63
     v18 = lt v17, v15
     jumpi v18, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     v20 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v46 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v47 = add v46, v20 !metadata(alloc_ptr)
@@ -156,13 +177,13 @@ fn @decode_calldata_type.2(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     v51 = or v49, v50
     v52 = ne v51, 0
     jumpi v52, bb4, bb7
-  bb7:
+  bb7:  ; preds = bb5
     mstore 64, v47 !metadata(memory=scratch)
     mstore v46, v15
     v22 = sub v0, v16
     v23 = gt v15, v22
     jumpi v23, bb1, bb6
-  bb6:
+  bb6:  ; preds = bb7
     v37 = add v46, 32
     calldatacopy v37, v16, v15
     v31 = sub 0, v15
@@ -175,11 +196,11 @@ fn @decode_calldata_type.2(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     v42 = add v53, 64
     mstore v42, v2
     ret v53
-  bb4:
+  bb4 [cold]:  ; preds = bb3, bb5
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:  ; preds = bb0, bb2, bb7
     revert 0, 0
 }
 
@@ -194,7 +215,7 @@ fn @decode_calldata_type.3(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     v6 = lt v5, 64
     v22 = or v4, v6
     jumpi v22, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v20 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v21 = add v20, 96 !metadata(alloc_ptr)
     mstore 64, v21 !metadata(memory=scratch)
@@ -207,27 +228,6 @@ fn @decode_calldata_type.3(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     v18 = add v20, 64
     mstore v18, v2
     ret v20
-  bb1:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = calldatasize
-    v2 = lt v1, 36
-    v3 = zext i1 v2 to i256
-    v4 = or v0, v3
-    v5 = ne v4, 0
-    jumpi v5, bb1, bb2
-  bb2:
-    v6 = calldataload 0
-    v7 = shr v6, 224
-    switch v7, default bb1, [0x54d20d9 => bb3, 0x7a5de1e9 => bb4]
-  bb4:
-    tail_call @pair
-  bb3:
-    tail_call @pairs
-  bb1:
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }

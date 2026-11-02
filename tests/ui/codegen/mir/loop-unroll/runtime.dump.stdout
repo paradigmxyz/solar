@@ -1,43 +1,44 @@
 // === ROOT/tests/ui/codegen/mir/loop-unroll/runtime.sol:LoopUnroll ===
 @module LoopUnroll
 @phase lowered
+; runtime dispatch entry
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
     v1 = ne v0, 0
     jumpi v1, bb7, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v2 = calldataload 0
     v3 = shr v2, 224
     v4 = calldataload 4
     v5 = calldataload 36
     switch v3, default bb7, [0x188b85b4 => bb2, 0x1d1d15d4 => bb3, 0x252fc58f => bb4, 0x55680991 => bb5, 0x8129c875 => bb6]
-  bb6:
+  bb6:  ; preds = bb1
     v41 = calldatasize
     v42 = lt v41, 36
     jumpi v42, bb7, bb31
-  bb31:
+  bb31:  ; preds = bb6
     jump bb43
-  bb43:
+  bb43:  ; preds = bb31, bb44
     v152 = phi [bb31: 0], [bb44: v174]
     v153 = phi [bb31: 5], [bb44: v175]
     v176 = add v153, 9
     v177 = lt v176, v4
     jumpi v177, bb44, bb28
-  bb28:
+  bb28:  ; preds = bb30, bb43
     v43 = phi [bb43: v152], [bb30: v47]
     v44 = phi [bb43: v153], [bb30: v48]
     v45 = lt v44, v4
     jumpi v45, bb30, bb29
-  bb29:
+  bb29:  ; preds = bb28
     mstore 0, v43
     returndata 0, 32
-  bb30:
+  bb30:  ; preds = bb28
     v46 = mul v43, 7
     v47 = add v46, v44
     v48 = add v44, 3
     jump bb28
-  bb44:
+  bb44:  ; preds = bb43
     v155 = mul v152, 7
     v156 = add v155, v153
     v157 = add v153, 3
@@ -51,65 +52,65 @@ fn @entry() [entry] {
     v174 = add v173, v169
     v175 = add v169, 3
     jump bb43
-  bb5:
+  bb5:  ; preds = bb1
     v33 = calldatasize
     v34 = lt v33, 68
     jumpi v34, bb7, bb27
-  bb27:
+  bb27:  ; preds = bb5
     jump bb41
-  bb41:
+  bb41:  ; preds = bb27, bb42
     v139 = phi [bb27: 0], [bb42: v148]
     v140 = phi [bb27: v4], [bb42: v149]
     v151 = lt v140, v5
     jumpi v151, bb42, bb24
-  bb24:
+  bb24:  ; preds = bb26, bb41
     v35 = phi [bb41: v139], [bb26: v38]
     v36 = phi [bb41: v140], [bb26: v39]
     v37 = gt v36, v5
     jumpi v37, bb25, bb26
-  bb26:
+  bb26:  ; preds = bb24
     v38 = add v35, v36
     v39 = add v36, 1
     v40 = eq v39, 0
     jumpi v40, bb11, bb24
-  bb25:
+  bb25:  ; preds = bb24
     mstore 0, v35
     returndata 0, 32
-  bb42:
+  bb42:  ; preds = bb41
     v142 = add v139, v140
     v143 = add v140, 1
     v148 = add v142, v143
     v149 = add v143, 1
     v150 = eq v149, 0
     jumpi v150, bb11, bb41
-  bb4:
+  bb4:  ; preds = bb1
     v25 = calldatasize
     v26 = lt v25, 68
     jumpi v26, bb7, bb23
-  bb23:
+  bb23:  ; preds = bb4
     jump bb38
-  bb38:
+  bb38:  ; preds = bb23, bb40
     v113 = phi [bb23: 0], [bb40: v134]
     v114 = phi [bb23: 0], [bb40: v136]
     v137 = add v114, 3
     v138 = lt v137, v4
     jumpi v138, bb39, bb19
-  bb19:
+  bb19:  ; preds = bb22, bb38
     v27 = phi [bb38: v113], [bb22: v30]
     v28 = phi [bb38: v114], [bb22: v32]
     v29 = lt v28, v4
     jumpi v29, bb21, bb20
-  bb20:
+  bb20:  ; preds = bb19
     mstore 0, v27
     returndata 0, 32
-  bb21:
+  bb21:  ; preds = bb19
     v30 = add v27, v5
     v31 = lt v30, v27
     jumpi v31, bb11, bb22
-  bb22:
+  bb22:  ; preds = bb21
     v32 = add v28, 1
     jump bb19
-  bb39:
+  bb39:  ; preds = bb38
     v116 = add v113, v5
     v117 = lt v116, v113
     v122 = add v116, v5
@@ -122,22 +123,22 @@ fn @entry() [entry] {
     v135 = lt v134, v128
     v186 = or v185, v135
     jumpi v186, bb11, bb40
-  bb40:
+  bb40:  ; preds = bb39
     v136 = add v114, 4
     jump bb38
-  bb3:
+  bb3:  ; preds = bb1
     v16 = calldatasize
     v17 = lt v16, 36
     jumpi v17, bb7, bb18
-  bb18:
+  bb18:  ; preds = bb3
     jump bb35
-  bb35:
+  bb35:  ; preds = bb18, bb37
     v83 = phi [bb18: 0], [bb37: v108]
     v84 = phi [bb18: 1], [bb37: v110]
     v111 = add v84, 3
     v112 = gt v111, v4
     jumpi v112, bb14, bb36
-  bb36:
+  bb36:  ; preds = bb35
     v86 = mul v84, v84
     v87 = add v83, v86
     v88 = lt v87, v83
@@ -157,55 +158,55 @@ fn @entry() [entry] {
     v109 = lt v108, v101
     v183 = or v182, v109
     jumpi v183, bb11, bb37
-  bb37:
+  bb37:  ; preds = bb36
     v110 = add v103, 1
     jump bb35
-  bb14:
+  bb14:  ; preds = bb17, bb35
     v18 = phi [bb35: v83], [bb17: v22]
     v19 = phi [bb35: v84], [bb17: v24]
     v20 = gt v19, v4
     jumpi v20, bb15, bb16
-  bb16:
+  bb16:  ; preds = bb14
     v21 = mul v19, v19
     v22 = add v18, v21
     v23 = lt v22, v18
     jumpi v23, bb11, bb17
-  bb17:
+  bb17:  ; preds = bb16
     v24 = add v19, 1
     jump bb14
-  bb15:
+  bb15:  ; preds = bb14
     mstore 0, v18
     returndata 0, 32
-  bb2:
+  bb2:  ; preds = bb1
     v6 = calldatasize
     v7 = lt v6, 36
     jumpi v7, bb7, bb13
-  bb13:
+  bb13:  ; preds = bb2
     jump bb32
-  bb32:
+  bb32:  ; preds = bb13, bb34
     v49 = phi [bb13: 0], [bb34: v78]
     v50 = phi [bb13: 0], [bb34: v80]
     v81 = add v50, 3
     v82 = lt v81, v4
     jumpi v82, bb33, bb8
-  bb8:
+  bb8:  ; preds = bb12, bb32
     v8 = phi [bb32: v49], [bb12: v13]
     v9 = phi [bb32: v50], [bb12: v15]
     v10 = lt v9, v4
     jumpi v10, bb10, bb9
-  bb9:
+  bb9:  ; preds = bb8
     mstore 0, v8
     returndata 0, 32
-  bb10:
+  bb10:  ; preds = bb8
     v11 = mul v9, 3
     v12 = add v11, 1
     v13 = add v8, v12
     v14 = lt v13, v8
     jumpi v14, bb11, bb12
-  bb12:
+  bb12:  ; preds = bb10
     v15 = add v9, 1
     jump bb8
-  bb33:
+  bb33:  ; preds = bb32
     v52 = mul v50, 3
     v53 = add v52, 1
     v54 = add v49, v53
@@ -229,13 +230,13 @@ fn @entry() [entry] {
     v79 = lt v78, v70
     v180 = or v179, v79
     jumpi v180, bb11, bb34
-  bb34:
+  bb34:  ; preds = bb33
     v80 = add v72, 1
     jump bb32
-  bb11:
+  bb11 [cold]:  ; preds = bb10, bb16, bb21, bb26, bb33, bb36, bb39, bb42
     mstore 32, 17
     mstore 0, 0x4e487b71
     revert 28, 36
-  bb7:
+  bb7 [cold]:  ; preds = bb0, bb1, bb2, bb3, bb4, bb5, bb6
     revert 0, 0
 }

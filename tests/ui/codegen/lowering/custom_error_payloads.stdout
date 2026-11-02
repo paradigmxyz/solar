@@ -1,11 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/custom_error_payloads.sol:CustomErrorPayloads ===
 @module CustomErrorPayloads
+; function revert_empty() public pure [selector 0xc8567119]
 fn @revert_empty() [selector=0xc8567119, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     icall require<custom_error []>, false, 0x4f3d7def00000000000000000000000000000000000000000000000000000000
     invalid
 }
 
+; function revert_args() public pure [selector 0x3a185347]
 fn @revert_args() [selector=0x3a185347, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -16,12 +18,14 @@ fn @revert_args() [selector=0x3a185347, pure, abi_params=[], abi_returns=[], abi
     invalid
 }
 
+; function require_empty(bool ok) public pure [selector 0xfa8d4a29]
 fn @require_empty(arg0: i1) [selector=0xfa8d4a29, pure, abi_params=[bool], abi_returns=[], abi_return_params=[]] {
   bb0:
     icall require<custom_error []>, arg0, 0x4f3d7def00000000000000000000000000000000000000000000000000000000
     ret
 }
 
+; function require_named(bool ok) public pure [selector 0x868ff2e0]
 fn @require_named(arg0: i1) [selector=0x868ff2e0, pure, abi_params=[bool], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)

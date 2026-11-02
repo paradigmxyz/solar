@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256}
 
+; function test() external returns (uint256, uint256) [selector 0xf8a8fd6d]
 fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = mapping_slot 0, 0
@@ -53,6 +54,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     ret v34
 }
 
+; function read(uint256 index) external view returns (uint256) [selector 0xed2e5a97]
 fn @read(arg0: i256) -> i256 [selector=0xed2e5a97, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mapping_slot 0, 0
@@ -69,6 +71,7 @@ fn @read(arg0: i256) -> i256 [selector=0xed2e5a97, view, abi_params=[uint256], a
     ret v8
 }
 
+; function hasExpectedLength() external view returns (bool) [selector 0xa2fb6983]
 fn @hasExpectedLength() -> i1 [selector=0xa2fb6983, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = mapping_slot 0, 0

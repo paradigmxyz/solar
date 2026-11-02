@@ -1,6 +1,29 @@
 // === ROOT/tests/ui/codegen/mir/optimize-function/inline_objective.sol:Inlined ===
 @module Inlined
 @phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:  ; preds = bb0
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0x3dd81fa2 => bb3, 0x955e9bc9 => bb4]
+  bb4:  ; preds = bb2
+    tail_call @sizeCaller
+  bb3:  ; preds = bb2
+    tail_call @gasCaller
+  bb1 [cold]:  ; preds = bb0, bb2
+    revert 0, 0
+}
+
+; function gasCaller(bytes calldata data) external pure returns (uint32) [selector 0x3dd81fa2]
 fn @gasCaller() [selector=0x3dd81fa2, abi_wrapper, pure] {
   bb0:
     v42 = icall @decode_calldata_slice
@@ -8,7 +31,7 @@ fn @gasCaller() [selector=0x3dd81fa2, abi_wrapper, pure] {
     v44 = add v42, 32
     v38 = lt v43, 4
     jumpi v38, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v110 = add v44, 0
     v111 = calldataload v110
     v112 = byte 0, v111
@@ -33,41 +56,42 @@ fn @gasCaller() [selector=0x3dd81fa2, abi_wrapper, pure] {
     v143 = or v139, v142
     mstore 0, v143
     returndata 0, 32
-  bb2:
+  bb2 [cold]:  ; preds = bb0
     v66 = lt 0, v43
     v77 = lt 1, v43
     v145 = and v66, v77
     v88 = lt 2, v43
     v146 = and v145, v88
     jumpi v146, bb4, bb3
-  bb4:
+  bb4 [cold]:  ; preds = bb2
     jump bb3
-  bb3:
+  bb3 [cold]:  ; preds = bb2, bb4
     tail_call @revert_stub
 }
 
+; function sizeCaller(bytes calldata data) external pure returns (uint32) [selector 0x955e9bc9]
 fn @sizeCaller() [selector=0x955e9bc9, abi_wrapper, optimize=size, pure] {
   bb0:
     v26 = icall @decode_calldata_slice
     v27 = calldataload v26
     v28 = add v26, 32
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb5
     v1 = phi [bb0: 0], [bb5: v37]
     v2 = phi [bb0: 0], [bb5: v5]
     v3 = lt v2, 4
     jumpi v3, bb3, bb2
-  bb2:
+  bb2:  ; preds = bb1
     mstore 0, v1
     returndata 0, 32
-  bb3:
+  bb3:  ; preds = bb1
     v34 = shl v1, 7
     v35 = and v34, 0xffffffff
     v10 = lt v2, v27
     jumpi v10, bb5, bb4
-  bb4:
+  bb4 [cold]:  ; preds = bb3
     tail_call @revert_stub
-  bb5:
+  bb5:  ; preds = bb3
     v15 = add v28, v2
     v16 = calldataload v15
     v17 = byte 0, v16
@@ -76,8 +100,8 @@ fn @sizeCaller() [selector=0x955e9bc9, abi_wrapper, optimize=size, pure] {
     jump bb1
 }
 
-fn @revert_stub() {
-  bb0:
+fn @revert_stub() [cold] {
+  bb0 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -96,29 +120,8 @@ fn @decode_calldata_slice() -> i256 {
     v9 = gt v6, v8
     v10 = or v5, v9
     jumpi v10, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     ret v2
-  bb1:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = calldatasize
-    v2 = lt v1, 36
-    v3 = zext i1 v2 to i256
-    v4 = or v0, v3
-    v5 = ne v4, 0
-    jumpi v5, bb1, bb2
-  bb2:
-    v6 = calldataload 0
-    v7 = shr v6, 224
-    switch v7, default bb1, [0x3dd81fa2 => bb3, 0x955e9bc9 => bb4]
-  bb4:
-    tail_call @sizeCaller
-  bb3:
-    tail_call @gasCaller
-  bb1:
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }

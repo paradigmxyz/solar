@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/memory_zeroed_allocation.sol:MemoryZeroedAllocation ===
 @module MemoryZeroedAllocation
+; function readDynamic(uint256 length, uint256 index) external pure returns (uint256) [selector 0x8be2a62b]
 fn @readDynamic(arg0: i256, arg1: i256) -> i256 [selector=0x8be2a62b, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mul arg0, 1
@@ -30,6 +31,7 @@ fn @readDynamic(arg0: i256, arg1: i256) -> i256 [selector=0x8be2a62b, pure, abi_
     ret v19
 }
 
+; function readNested(uint256 outerLength, uint256 innerLength, uint256 outer, uint256 inner) external pure returns (uint256) [selector 0x9abd415d]
 fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector=0x9abd415d, pure, abi_params=[uint256, uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mul arg0, 1
@@ -50,13 +52,13 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
     v12 = alloc zeroed checked v9
     mstore v12, arg0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v13 = phi [bb0: 0], [bb2: v18]
     v14 = lt v13, arg0
     jumpi v14, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     jump bb4
-  bb4:
+  bb4:  ; preds = bb3, bb6
     v19 = phi [bb3: arg0], [bb6: v19]
     v20 = phi [bb3: arg1], [bb6: v20]
     v21 = phi [bb3: arg2], [bb6: v21]
@@ -66,9 +68,9 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
     v25 = phi [bb3: 0], [bb6: v47]
     v26 = lt v25, v19
     jumpi v26, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb4
     jump bb5
-  bb5:
+  bb5:  ; preds = bb8
     v48 = mload v24
     v49 = lt v21, v48
     v50 = eq v49, false
@@ -86,7 +88,7 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
     v60 = ptradd v59, 32
     v61 = mload v60
     ret v61
-  bb7:
+  bb7:  ; preds = bb4
     v27 = mul v20, 1
     v28 = eq 1, 0
     v29 = div v27, 1
@@ -114,12 +116,12 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
     v46 = ptradd v45, 32
     mstore v46, v43
     jump bb9
-  bb9:
+  bb9:  ; preds = bb7
     jump bb6
-  bb6:
+  bb6:  ; preds = bb9
     v47 = checked_add uint256, v25, 1
     jump bb4
-  bb2:
+  bb2:  ; preds = bb1
     v15 = shl v13, 5
     v16 = ptradd v12, v15
     v17 = ptradd v16, 32
@@ -128,6 +130,7 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
     jump bb1
 }
 
+; function readFixed(uint256 index) external pure returns (uint256) [selector 0x6a11db72]
 fn @readFixed(arg0: i256) -> i256 [selector=0x6a11db72, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
@@ -141,6 +144,7 @@ fn @readFixed(arg0: i256) -> i256 [selector=0x6a11db72, pure, abi_params=[uint25
     ret v5
 }
 
+; function readStatic(uint256 length, uint256 index) external pure returns (uint256) [selector 0xf90f6c35]
 fn @readStatic(arg0: i256, arg1: i256) -> i256 [selector=0xf90f6c35, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mul arg0, 1
@@ -161,11 +165,11 @@ fn @readStatic(arg0: i256, arg1: i256) -> i256 [selector=0xf90f6c35, pure, abi_p
     v12 = alloc zeroed checked v9
     mstore v12, arg0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v13 = phi [bb0: 0], [bb2: v20]
     v14 = lt v13, arg0
     jumpi v14, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v21 = mload v12
     v22 = lt arg1, v21
     v23 = eq v22, false
@@ -179,7 +183,7 @@ fn @readStatic(arg0: i256, arg1: i256) -> i256 [selector=0xf90f6c35, pure, abi_p
     icall panic_if<0x32>, v29
     v30 = mload v27
     ret v30
-  bb2:
+  bb2:  ; preds = bb1
     v15 = alloc 128 !metadata(preserves_fmp)
     memory_zero v15, 128
     v16 = shl v13, 5

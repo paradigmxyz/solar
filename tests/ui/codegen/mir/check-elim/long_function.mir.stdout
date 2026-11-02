@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/check-elim/long_function.sol:LongFunction ===
 @module LongFunction
+; function chained(uint256 a, uint256 b, uint256 c) external pure returns (uint256 r) [selector 0xd2fe3d6a]
 fn @chained(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xd2fe3d6a, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = lt arg0, arg1
@@ -10,410 +11,411 @@ fn @chained(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xd2fe3d6a, pu
     icall revert_if<empty>, v3
     v4 = eq arg2, 1
     jumpi v4, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     v5 = eq arg2, 2
     jumpi v5, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb6:
+  bb6:  ; preds = bb5
     v6 = eq arg2, 3
     jumpi v6, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     jump bb9
-  bb9:
+  bb9:  ; preds = bb8
     v7 = eq arg2, 4
     jumpi v7, bb10, bb11
-  bb11:
+  bb11:  ; preds = bb9
     jump bb12
-  bb12:
+  bb12:  ; preds = bb11
     v8 = eq arg2, 5
     jumpi v8, bb13, bb14
-  bb14:
+  bb14:  ; preds = bb12
     jump bb15
-  bb15:
+  bb15:  ; preds = bb14
     v9 = eq arg2, 6
     jumpi v9, bb16, bb17
-  bb17:
+  bb17:  ; preds = bb15
     jump bb18
-  bb18:
+  bb18:  ; preds = bb17
     v10 = eq arg2, 7
     jumpi v10, bb19, bb20
-  bb20:
+  bb20:  ; preds = bb18
     jump bb21
-  bb21:
+  bb21:  ; preds = bb20
     v11 = eq arg2, 8
     jumpi v11, bb22, bb23
-  bb23:
+  bb23:  ; preds = bb21
     jump bb24
-  bb24:
+  bb24:  ; preds = bb23
     v12 = eq arg2, 9
     jumpi v12, bb25, bb26
-  bb26:
+  bb26:  ; preds = bb24
     jump bb27
-  bb27:
+  bb27:  ; preds = bb26
     v13 = eq arg2, 10
     jumpi v13, bb28, bb29
-  bb29:
+  bb29:  ; preds = bb27
     jump bb30
-  bb30:
+  bb30:  ; preds = bb29
     v14 = eq arg2, 11
     jumpi v14, bb31, bb32
-  bb32:
+  bb32:  ; preds = bb30
     jump bb33
-  bb33:
+  bb33:  ; preds = bb32
     v15 = eq arg2, 12
     jumpi v15, bb34, bb35
-  bb35:
+  bb35:  ; preds = bb33
     jump bb36
-  bb36:
+  bb36:  ; preds = bb35
     v16 = eq arg2, 13
     jumpi v16, bb37, bb38
-  bb38:
+  bb38:  ; preds = bb36
     jump bb39
-  bb39:
+  bb39:  ; preds = bb38
     v17 = eq arg2, 14
     jumpi v17, bb40, bb41
-  bb41:
+  bb41:  ; preds = bb39
     jump bb42
-  bb42:
+  bb42:  ; preds = bb41
     v18 = eq arg2, 15
     jumpi v18, bb43, bb44
-  bb44:
+  bb44:  ; preds = bb42
     jump bb45
-  bb45:
+  bb45:  ; preds = bb44
     v19 = eq arg2, 16
     jumpi v19, bb46, bb47
-  bb47:
+  bb47:  ; preds = bb45
     jump bb48
-  bb48:
+  bb48:  ; preds = bb47
     v20 = eq arg2, 17
     jumpi v20, bb49, bb50
-  bb50:
+  bb50:  ; preds = bb48
     jump bb51
-  bb51:
+  bb51:  ; preds = bb50
     v21 = eq arg2, 18
     jumpi v21, bb52, bb53
-  bb53:
+  bb53:  ; preds = bb51
     jump bb54
-  bb54:
+  bb54:  ; preds = bb53
     v22 = eq arg2, 19
     jumpi v22, bb55, bb56
-  bb56:
+  bb56:  ; preds = bb54
     jump bb57
-  bb57:
+  bb57:  ; preds = bb56
     v23 = eq arg2, 20
     jumpi v23, bb58, bb59
-  bb59:
+  bb59:  ; preds = bb57
     jump bb60
-  bb60:
+  bb60:  ; preds = bb59
     v24 = eq arg2, 21
     jumpi v24, bb61, bb62
-  bb62:
+  bb62:  ; preds = bb60
     jump bb63
-  bb63:
+  bb63:  ; preds = bb62
     v25 = eq arg2, 22
     jumpi v25, bb64, bb65
-  bb65:
+  bb65:  ; preds = bb63
     jump bb66
-  bb66:
+  bb66:  ; preds = bb65
     v26 = eq arg2, 23
     jumpi v26, bb67, bb68
-  bb68:
+  bb68:  ; preds = bb66
     jump bb69
-  bb69:
+  bb69:  ; preds = bb68
     v27 = eq arg2, 24
     jumpi v27, bb70, bb71
-  bb71:
+  bb71:  ; preds = bb69
     jump bb72
-  bb72:
+  bb72:  ; preds = bb71
     v28 = eq arg2, 25
     jumpi v28, bb73, bb74
-  bb74:
+  bb74:  ; preds = bb72
     jump bb75
-  bb75:
+  bb75:  ; preds = bb74
     v29 = eq arg2, 26
     jumpi v29, bb76, bb77
-  bb77:
+  bb77:  ; preds = bb75
     jump bb78
-  bb78:
+  bb78:  ; preds = bb77
     v30 = eq arg2, 27
     jumpi v30, bb79, bb80
-  bb80:
+  bb80:  ; preds = bb78
     jump bb81
-  bb81:
+  bb81:  ; preds = bb80
     v31 = eq arg2, 28
     jumpi v31, bb82, bb83
-  bb83:
+  bb83:  ; preds = bb81
     jump bb84
-  bb84:
+  bb84:  ; preds = bb83
     v32 = eq arg2, 29
     jumpi v32, bb85, bb86
-  bb86:
+  bb86:  ; preds = bb84
     jump bb87
-  bb87:
+  bb87:  ; preds = bb86
     v33 = eq arg2, 30
     jumpi v33, bb88, bb89
-  bb89:
+  bb89:  ; preds = bb87
     jump bb90
-  bb90:
+  bb90:  ; preds = bb89
     v34 = eq arg2, 31
     jumpi v34, bb91, bb92
-  bb92:
+  bb92:  ; preds = bb90
     jump bb93
-  bb93:
+  bb93:  ; preds = bb92
     v35 = eq arg2, 32
     jumpi v35, bb94, bb95
-  bb95:
+  bb95:  ; preds = bb93
     jump bb96
-  bb96:
+  bb96:  ; preds = bb95
     v36 = eq arg2, 33
     jumpi v36, bb97, bb98
-  bb98:
+  bb98:  ; preds = bb96
     jump bb99
-  bb99:
+  bb99:  ; preds = bb98
     v37 = eq arg2, 34
     jumpi v37, bb100, bb101
-  bb101:
+  bb101:  ; preds = bb99
     jump bb102
-  bb102:
+  bb102:  ; preds = bb101
     v38 = eq arg2, 35
     jumpi v38, bb103, bb104
-  bb104:
+  bb104:  ; preds = bb102
     jump bb105
-  bb105:
+  bb105:  ; preds = bb104
     v39 = eq arg2, 36
     jumpi v39, bb106, bb107
-  bb107:
+  bb107:  ; preds = bb105
     jump bb108
-  bb108:
+  bb108:  ; preds = bb107
     v40 = eq arg2, 37
     jumpi v40, bb109, bb110
-  bb110:
+  bb110:  ; preds = bb108
     jump bb111
-  bb111:
+  bb111:  ; preds = bb110
     v41 = eq arg2, 38
     jumpi v41, bb112, bb113
-  bb113:
+  bb113:  ; preds = bb111
     jump bb114
-  bb114:
+  bb114:  ; preds = bb113
     v42 = eq arg2, 39
     jumpi v42, bb115, bb116
-  bb116:
+  bb116:  ; preds = bb114
     jump bb117
-  bb117:
+  bb117:  ; preds = bb116
     v43 = eq arg2, 40
     jumpi v43, bb118, bb119
-  bb119:
+  bb119:  ; preds = bb117
     jump bb120
-  bb120:
+  bb120:  ; preds = bb119
     v44 = eq arg2, 41
     jumpi v44, bb121, bb122
-  bb122:
+  bb122:  ; preds = bb120
     jump bb123
-  bb123:
+  bb123:  ; preds = bb122
     v45 = eq arg2, 42
     jumpi v45, bb124, bb125
-  bb125:
+  bb125:  ; preds = bb123
     jump bb126
-  bb126:
+  bb126:  ; preds = bb125
     v46 = eq arg2, 43
     jumpi v46, bb127, bb128
-  bb128:
+  bb128:  ; preds = bb126
     jump bb129
-  bb129:
+  bb129:  ; preds = bb128
     v47 = eq arg2, 44
     jumpi v47, bb130, bb131
-  bb131:
+  bb131:  ; preds = bb129
     jump bb132
-  bb132:
+  bb132:  ; preds = bb131
     v48 = eq arg2, 45
     jumpi v48, bb133, bb134
-  bb134:
+  bb134:  ; preds = bb132
     jump bb135
-  bb135:
+  bb135:  ; preds = bb134
     v49 = eq arg2, 46
     jumpi v49, bb136, bb137
-  bb137:
+  bb137:  ; preds = bb135
     jump bb138
-  bb138:
+  bb138:  ; preds = bb137
     v50 = eq arg2, 47
     jumpi v50, bb139, bb140
-  bb140:
+  bb140:  ; preds = bb138
     jump bb141
-  bb141:
+  bb141:  ; preds = bb140
     v51 = eq arg2, 48
     jumpi v51, bb142, bb143
-  bb143:
+  bb143:  ; preds = bb141
     jump bb144
-  bb144:
+  bb144:  ; preds = bb143
     v52 = eq arg2, 49
     jumpi v52, bb145, bb146
-  bb146:
+  bb146:  ; preds = bb144
     jump bb147
-  bb147:
+  bb147:  ; preds = bb146
     v53 = eq arg2, 50
     jumpi v53, bb148, bb149
-  bb149:
+  bb149:  ; preds = bb147
     jump bb150
-  bb150:
+  bb150:  ; preds = bb149
     v54 = checked_sub uint256, arg2, arg1
     v55 = checked_sub uint256, arg2, arg0
     v56 = checked_add uint256, v54, v55
     ret v56
-  bb148:
+  bb148:  ; preds = bb147
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb145:
+  bb145:  ; preds = bb144
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb142:
+  bb142:  ; preds = bb141
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb139:
+  bb139:  ; preds = bb138
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb136:
+  bb136:  ; preds = bb135
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb133:
+  bb133:  ; preds = bb132
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb130:
+  bb130:  ; preds = bb129
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb127:
+  bb127:  ; preds = bb126
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb124:
+  bb124:  ; preds = bb123
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb121:
+  bb121:  ; preds = bb120
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb118:
+  bb118:  ; preds = bb117
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb115:
+  bb115:  ; preds = bb114
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb112:
+  bb112:  ; preds = bb111
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb109:
+  bb109:  ; preds = bb108
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb106:
+  bb106:  ; preds = bb105
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb103:
+  bb103:  ; preds = bb102
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb100:
+  bb100:  ; preds = bb99
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb97:
+  bb97:  ; preds = bb96
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb94:
+  bb94:  ; preds = bb93
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb91:
+  bb91:  ; preds = bb90
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb88:
+  bb88:  ; preds = bb87
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb85:
+  bb85:  ; preds = bb84
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb82:
+  bb82:  ; preds = bb81
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb79:
+  bb79:  ; preds = bb78
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb76:
+  bb76:  ; preds = bb75
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb73:
+  bb73:  ; preds = bb72
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb70:
+  bb70:  ; preds = bb69
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb67:
+  bb67:  ; preds = bb66
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb64:
+  bb64:  ; preds = bb63
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb61:
+  bb61:  ; preds = bb60
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb58:
+  bb58:  ; preds = bb57
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb55:
+  bb55:  ; preds = bb54
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb52:
+  bb52:  ; preds = bb51
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb49:
+  bb49:  ; preds = bb48
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb46:
+  bb46:  ; preds = bb45
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb43:
+  bb43:  ; preds = bb42
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb40:
+  bb40:  ; preds = bb39
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb37:
+  bb37:  ; preds = bb36
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb34:
+  bb34:  ; preds = bb33
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb31:
+  bb31:  ; preds = bb30
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb28:
+  bb28:  ; preds = bb27
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb25:
+  bb25:  ; preds = bb24
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb22:
+  bb22:  ; preds = bb21
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb19:
+  bb19:  ; preds = bb18
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb16:
+  bb16:  ; preds = bb15
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb13:
+  bb13:  ; preds = bb12
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb10:
+  bb10:  ; preds = bb9
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb7:
+  bb7:  ; preds = bb6
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb4:
+  bb4:  ; preds = bb3
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb1:
+  bb1:  ; preds = bb0
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
 }
 
+; function unchained(uint256 a, uint256 b, uint256 c) external pure returns (uint256 r) [selector 0xaeb2e72f]
 fn @unchained(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xaeb2e72f, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = lt arg0, arg1
@@ -421,406 +423,406 @@ fn @unchained(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xaeb2e72f, 
     icall revert_if<empty>, v1
     v2 = eq arg2, 1
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     v3 = eq arg2, 2
     jumpi v3, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb6:
+  bb6:  ; preds = bb5
     v4 = eq arg2, 3
     jumpi v4, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     jump bb9
-  bb9:
+  bb9:  ; preds = bb8
     v5 = eq arg2, 4
     jumpi v5, bb10, bb11
-  bb11:
+  bb11:  ; preds = bb9
     jump bb12
-  bb12:
+  bb12:  ; preds = bb11
     v6 = eq arg2, 5
     jumpi v6, bb13, bb14
-  bb14:
+  bb14:  ; preds = bb12
     jump bb15
-  bb15:
+  bb15:  ; preds = bb14
     v7 = eq arg2, 6
     jumpi v7, bb16, bb17
-  bb17:
+  bb17:  ; preds = bb15
     jump bb18
-  bb18:
+  bb18:  ; preds = bb17
     v8 = eq arg2, 7
     jumpi v8, bb19, bb20
-  bb20:
+  bb20:  ; preds = bb18
     jump bb21
-  bb21:
+  bb21:  ; preds = bb20
     v9 = eq arg2, 8
     jumpi v9, bb22, bb23
-  bb23:
+  bb23:  ; preds = bb21
     jump bb24
-  bb24:
+  bb24:  ; preds = bb23
     v10 = eq arg2, 9
     jumpi v10, bb25, bb26
-  bb26:
+  bb26:  ; preds = bb24
     jump bb27
-  bb27:
+  bb27:  ; preds = bb26
     v11 = eq arg2, 10
     jumpi v11, bb28, bb29
-  bb29:
+  bb29:  ; preds = bb27
     jump bb30
-  bb30:
+  bb30:  ; preds = bb29
     v12 = eq arg2, 11
     jumpi v12, bb31, bb32
-  bb32:
+  bb32:  ; preds = bb30
     jump bb33
-  bb33:
+  bb33:  ; preds = bb32
     v13 = eq arg2, 12
     jumpi v13, bb34, bb35
-  bb35:
+  bb35:  ; preds = bb33
     jump bb36
-  bb36:
+  bb36:  ; preds = bb35
     v14 = eq arg2, 13
     jumpi v14, bb37, bb38
-  bb38:
+  bb38:  ; preds = bb36
     jump bb39
-  bb39:
+  bb39:  ; preds = bb38
     v15 = eq arg2, 14
     jumpi v15, bb40, bb41
-  bb41:
+  bb41:  ; preds = bb39
     jump bb42
-  bb42:
+  bb42:  ; preds = bb41
     v16 = eq arg2, 15
     jumpi v16, bb43, bb44
-  bb44:
+  bb44:  ; preds = bb42
     jump bb45
-  bb45:
+  bb45:  ; preds = bb44
     v17 = eq arg2, 16
     jumpi v17, bb46, bb47
-  bb47:
+  bb47:  ; preds = bb45
     jump bb48
-  bb48:
+  bb48:  ; preds = bb47
     v18 = eq arg2, 17
     jumpi v18, bb49, bb50
-  bb50:
+  bb50:  ; preds = bb48
     jump bb51
-  bb51:
+  bb51:  ; preds = bb50
     v19 = eq arg2, 18
     jumpi v19, bb52, bb53
-  bb53:
+  bb53:  ; preds = bb51
     jump bb54
-  bb54:
+  bb54:  ; preds = bb53
     v20 = eq arg2, 19
     jumpi v20, bb55, bb56
-  bb56:
+  bb56:  ; preds = bb54
     jump bb57
-  bb57:
+  bb57:  ; preds = bb56
     v21 = eq arg2, 20
     jumpi v21, bb58, bb59
-  bb59:
+  bb59:  ; preds = bb57
     jump bb60
-  bb60:
+  bb60:  ; preds = bb59
     v22 = eq arg2, 21
     jumpi v22, bb61, bb62
-  bb62:
+  bb62:  ; preds = bb60
     jump bb63
-  bb63:
+  bb63:  ; preds = bb62
     v23 = eq arg2, 22
     jumpi v23, bb64, bb65
-  bb65:
+  bb65:  ; preds = bb63
     jump bb66
-  bb66:
+  bb66:  ; preds = bb65
     v24 = eq arg2, 23
     jumpi v24, bb67, bb68
-  bb68:
+  bb68:  ; preds = bb66
     jump bb69
-  bb69:
+  bb69:  ; preds = bb68
     v25 = eq arg2, 24
     jumpi v25, bb70, bb71
-  bb71:
+  bb71:  ; preds = bb69
     jump bb72
-  bb72:
+  bb72:  ; preds = bb71
     v26 = eq arg2, 25
     jumpi v26, bb73, bb74
-  bb74:
+  bb74:  ; preds = bb72
     jump bb75
-  bb75:
+  bb75:  ; preds = bb74
     v27 = eq arg2, 26
     jumpi v27, bb76, bb77
-  bb77:
+  bb77:  ; preds = bb75
     jump bb78
-  bb78:
+  bb78:  ; preds = bb77
     v28 = eq arg2, 27
     jumpi v28, bb79, bb80
-  bb80:
+  bb80:  ; preds = bb78
     jump bb81
-  bb81:
+  bb81:  ; preds = bb80
     v29 = eq arg2, 28
     jumpi v29, bb82, bb83
-  bb83:
+  bb83:  ; preds = bb81
     jump bb84
-  bb84:
+  bb84:  ; preds = bb83
     v30 = eq arg2, 29
     jumpi v30, bb85, bb86
-  bb86:
+  bb86:  ; preds = bb84
     jump bb87
-  bb87:
+  bb87:  ; preds = bb86
     v31 = eq arg2, 30
     jumpi v31, bb88, bb89
-  bb89:
+  bb89:  ; preds = bb87
     jump bb90
-  bb90:
+  bb90:  ; preds = bb89
     v32 = eq arg2, 31
     jumpi v32, bb91, bb92
-  bb92:
+  bb92:  ; preds = bb90
     jump bb93
-  bb93:
+  bb93:  ; preds = bb92
     v33 = eq arg2, 32
     jumpi v33, bb94, bb95
-  bb95:
+  bb95:  ; preds = bb93
     jump bb96
-  bb96:
+  bb96:  ; preds = bb95
     v34 = eq arg2, 33
     jumpi v34, bb97, bb98
-  bb98:
+  bb98:  ; preds = bb96
     jump bb99
-  bb99:
+  bb99:  ; preds = bb98
     v35 = eq arg2, 34
     jumpi v35, bb100, bb101
-  bb101:
+  bb101:  ; preds = bb99
     jump bb102
-  bb102:
+  bb102:  ; preds = bb101
     v36 = eq arg2, 35
     jumpi v36, bb103, bb104
-  bb104:
+  bb104:  ; preds = bb102
     jump bb105
-  bb105:
+  bb105:  ; preds = bb104
     v37 = eq arg2, 36
     jumpi v37, bb106, bb107
-  bb107:
+  bb107:  ; preds = bb105
     jump bb108
-  bb108:
+  bb108:  ; preds = bb107
     v38 = eq arg2, 37
     jumpi v38, bb109, bb110
-  bb110:
+  bb110:  ; preds = bb108
     jump bb111
-  bb111:
+  bb111:  ; preds = bb110
     v39 = eq arg2, 38
     jumpi v39, bb112, bb113
-  bb113:
+  bb113:  ; preds = bb111
     jump bb114
-  bb114:
+  bb114:  ; preds = bb113
     v40 = eq arg2, 39
     jumpi v40, bb115, bb116
-  bb116:
+  bb116:  ; preds = bb114
     jump bb117
-  bb117:
+  bb117:  ; preds = bb116
     v41 = eq arg2, 40
     jumpi v41, bb118, bb119
-  bb119:
+  bb119:  ; preds = bb117
     jump bb120
-  bb120:
+  bb120:  ; preds = bb119
     v42 = eq arg2, 41
     jumpi v42, bb121, bb122
-  bb122:
+  bb122:  ; preds = bb120
     jump bb123
-  bb123:
+  bb123:  ; preds = bb122
     v43 = eq arg2, 42
     jumpi v43, bb124, bb125
-  bb125:
+  bb125:  ; preds = bb123
     jump bb126
-  bb126:
+  bb126:  ; preds = bb125
     v44 = eq arg2, 43
     jumpi v44, bb127, bb128
-  bb128:
+  bb128:  ; preds = bb126
     jump bb129
-  bb129:
+  bb129:  ; preds = bb128
     v45 = eq arg2, 44
     jumpi v45, bb130, bb131
-  bb131:
+  bb131:  ; preds = bb129
     jump bb132
-  bb132:
+  bb132:  ; preds = bb131
     v46 = eq arg2, 45
     jumpi v46, bb133, bb134
-  bb134:
+  bb134:  ; preds = bb132
     jump bb135
-  bb135:
+  bb135:  ; preds = bb134
     v47 = eq arg2, 46
     jumpi v47, bb136, bb137
-  bb137:
+  bb137:  ; preds = bb135
     jump bb138
-  bb138:
+  bb138:  ; preds = bb137
     v48 = eq arg2, 47
     jumpi v48, bb139, bb140
-  bb140:
+  bb140:  ; preds = bb138
     jump bb141
-  bb141:
+  bb141:  ; preds = bb140
     v49 = eq arg2, 48
     jumpi v49, bb142, bb143
-  bb143:
+  bb143:  ; preds = bb141
     jump bb144
-  bb144:
+  bb144:  ; preds = bb143
     v50 = eq arg2, 49
     jumpi v50, bb145, bb146
-  bb146:
+  bb146:  ; preds = bb144
     jump bb147
-  bb147:
+  bb147:  ; preds = bb146
     v51 = eq arg2, 50
     jumpi v51, bb148, bb149
-  bb149:
+  bb149:  ; preds = bb147
     jump bb150
-  bb150:
+  bb150:  ; preds = bb149
     v52 = checked_sub uint256, arg2, arg1
     v53 = checked_sub uint256, arg2, arg0
     v54 = checked_add uint256, v52, v53
     ret v54
-  bb148:
+  bb148:  ; preds = bb147
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb145:
+  bb145:  ; preds = bb144
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb142:
+  bb142:  ; preds = bb141
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb139:
+  bb139:  ; preds = bb138
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb136:
+  bb136:  ; preds = bb135
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb133:
+  bb133:  ; preds = bb132
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb130:
+  bb130:  ; preds = bb129
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb127:
+  bb127:  ; preds = bb126
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb124:
+  bb124:  ; preds = bb123
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb121:
+  bb121:  ; preds = bb120
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb118:
+  bb118:  ; preds = bb117
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb115:
+  bb115:  ; preds = bb114
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb112:
+  bb112:  ; preds = bb111
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb109:
+  bb109:  ; preds = bb108
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb106:
+  bb106:  ; preds = bb105
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb103:
+  bb103:  ; preds = bb102
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb100:
+  bb100:  ; preds = bb99
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb97:
+  bb97:  ; preds = bb96
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb94:
+  bb94:  ; preds = bb93
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb91:
+  bb91:  ; preds = bb90
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb88:
+  bb88:  ; preds = bb87
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb85:
+  bb85:  ; preds = bb84
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb82:
+  bb82:  ; preds = bb81
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb79:
+  bb79:  ; preds = bb78
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb76:
+  bb76:  ; preds = bb75
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb73:
+  bb73:  ; preds = bb72
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb70:
+  bb70:  ; preds = bb69
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb67:
+  bb67:  ; preds = bb66
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb64:
+  bb64:  ; preds = bb63
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb61:
+  bb61:  ; preds = bb60
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb58:
+  bb58:  ; preds = bb57
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb55:
+  bb55:  ; preds = bb54
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb52:
+  bb52:  ; preds = bb51
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb49:
+  bb49:  ; preds = bb48
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb46:
+  bb46:  ; preds = bb45
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb43:
+  bb43:  ; preds = bb42
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb40:
+  bb40:  ; preds = bb39
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb37:
+  bb37:  ; preds = bb36
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb34:
+  bb34:  ; preds = bb33
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb31:
+  bb31:  ; preds = bb30
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb28:
+  bb28:  ; preds = bb27
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb25:
+  bb25:  ; preds = bb24
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb22:
+  bb22:  ; preds = bb21
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb19:
+  bb19:  ; preds = bb18
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb16:
+  bb16:  ; preds = bb15
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb13:
+  bb13:  ; preds = bb12
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb10:
+  bb10:  ; preds = bb9
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb7:
+  bb7:  ; preds = bb6
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb4:
+  bb4:  ; preds = bb3
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
-  bb1:
+  bb1:  ; preds = bb0
     icall require<custom_error []>, false, 0xaf7cfeb100000000000000000000000000000000000000000000000000000000
     invalid
 }

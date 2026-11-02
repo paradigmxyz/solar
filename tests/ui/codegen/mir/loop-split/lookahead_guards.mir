@@ -7,13 +7,13 @@
 // the original loop, which the main loop's exit enters with its counters.
 // CHECK-LABEL: {{^[ +].*}}fn @group_loop{{[( ]}}
 // CHECK: - jump bb1
+// CHECK: - {{v[0-9]+}} = phi [bb0: 0], [bb5: {{v[0-9]+}}]
 // CHECK: + jump [[MAIN:bb[0-9]+]]
 // CHECK: + [[MAIN]]:
 // CHECK: + [[I:v[0-9]+]] = phi [bb0: 0], {{\[}}[[LATCH:bb[0-9]+]]: [[NEXT:v[0-9]+]]]
 // CHECK: + [[A:v[0-9]+]] = add [[I]], 3
 // CHECK: + [[C:v[0-9]+]] = lt [[A]], arg1
 // CHECK: + jumpi [[C]], {{bb[0-9]+}}, bb1
-// CHECK: - {{v[0-9]+}} = phi [bb0: 0], [bb5: {{v[0-9]+}}]
 // CHECK: + {{v[0-9]+}} = phi {{\[}}[[MAIN]]: [[I]]], [bb5: {{v[0-9]+}}]
 // CHECK: + [[LATCH]]:
 // CHECK: + [[NEXT]] = add [[I]], 4

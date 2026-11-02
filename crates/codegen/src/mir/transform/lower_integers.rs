@@ -44,17 +44,22 @@ impl MirPass for LowerIntegers {
         module: &mut Module,
         analyses: &mut ModuleAnalyses,
     ) -> bool {
+        if module.has_struct_values() {
+            analyses.fail(
+                gcx.dcx()
+                    .err("`lower-integers` requires scalar structs; run `lower-structs` first")
+                    .emit(),
+            );
+            return false;
+        }
         let unsupported =
             |ty: MirType| ty.integer_bits().is_some_and(|bits| !MirType::valid_integer_width(bits));
-        if module.struct_types.iter().any(|ty| ty.fields.iter().copied().any(unsupported))
-            || module.functions.iter().any(|func| {
-                unsupported(func.return_type())
-                    || func.return_components().iter().copied().any(unsupported)
-                    || (0..func.num_values()).any(|index| {
-                        func.value_ty(ValueId::from_usize(index)).is_some_and(unsupported)
-                    })
-            })
-        {
+        if module.functions.iter().any(|func| {
+            unsupported(func.return_type())
+                || func.return_components().iter().copied().any(unsupported)
+                || (0..func.num_values())
+                    .any(|index| func.value_ty(ValueId::from_usize(index)).is_some_and(unsupported))
+        }) {
             analyses.fail(
                 gcx.dcx()
                     .err("integer lowering supports i1 and byte widths from i8 through i256")
@@ -62,22 +67,13 @@ impl MirPass for LowerIntegers {
             );
             return false;
         }
-        let mut changed = false;
-        for ty in &mut module.struct_types {
-            for field in &mut ty.fields {
-                let lowered = lower_type(*field);
-                changed |= lowered != *field;
-                *field = lowered;
-            }
-        }
         let signed_immutables = module
             .iter_immutables()
             .filter_map(|(id, immutable)| matches!(immutable.ty, ValueLayout::Int(_)).then_some(id))
             .collect();
-        changed |= run_lowering_function_pass(module, analyses, |func, _| {
+        run_lowering_function_pass(module, analyses, |func, _| {
             lower_function(func, &signed_immutables)
-        });
-        changed
+        })
     }
 }
 

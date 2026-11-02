@@ -4,13 +4,13 @@
   fn @full_diamond(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       v1 = sload 5
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       v0 = sload 5
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
 -     v2 = sload 5
 -     ret v2
 +     v3 = phi [bb1: v0], [bb2: v1]
@@ -20,13 +20,13 @@
   fn @store_forward_arm(arg0: i1, arg1: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       v0 = sload 5
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       sstore 5, arg1
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
 -     v1 = sload 5
 -     ret v1
 +     v2 = phi [bb1: arg1], [bb2: v0]
@@ -36,13 +36,13 @@
   fn @partial_insert_diamond(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
 +     v2 = sload 5
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       v0 = sload 5
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
 -     v1 = sload 5
 -     ret v1
 +     v3 = phi [bb1: v0], [bb2: v2]
@@ -52,13 +52,13 @@
   fn @transient_store_forward(arg0: i1, arg1: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       v0 = tload 5
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       tstore 5, arg1
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
 -     v1 = tload 5
 -     ret v1
 +     v2 = phi [bb1: arg1], [bb2: v0]
@@ -68,13 +68,13 @@
   fn @memory_join(arg0: i1, arg1: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       mstore 128, arg1
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       mstore 128, arg1
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
 -     v0 = mload 128
 -     ret v0
 +     ret arg1
@@ -83,12 +83,12 @@
   fn @call_blocks_load_motion(arg0: i1, arg1: i256, arg2: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       v0 = sload 5
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
       v1 = staticcall arg2, arg1, 0, 0, 0, 0
       v2 = sload 5
       ret v2

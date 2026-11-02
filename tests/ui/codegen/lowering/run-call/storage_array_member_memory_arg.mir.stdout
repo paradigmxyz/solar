@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256}
 
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -32,6 +33,7 @@ fn @constructor() [constructor] {
     ret
 }
 
+; function test() external view returns (uint256 length, uint256 sum) [selector 0xf8a8fd6d]
 fn @test() -> struct0 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall @load_storage_word_array, 0
@@ -43,24 +45,25 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[wo
     ret v5
 }
 
+; function consume(uint256[] memory values) internal pure returns (uint256 length, uint256 sum)
 fn @consume(arg0: ptr<memory>) -> struct0 [pure] {
   bb0:
     v0 = mload arg0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v1 = phi [bb0: arg0], [bb3: v1]
     v2 = phi [bb0: v0], [bb3: v2]
     v3 = phi [bb0: 0], [bb3: v13]
     v4 = phi [bb0: 0], [bb3: v14]
     v5 = lt v4, v2
     jumpi v5, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     v15 = insert_value struct0, undef struct0, 0, v2
     v16 = insert_value struct0, v15, 1, v3
     ret v16
-  bb4:
+  bb4:  ; preds = bb1
     v6 = mload v1
     v7 = lt v4, v6
     v8 = eq v7, false
@@ -71,9 +74,9 @@ fn @consume(arg0: ptr<memory>) -> struct0 [pure] {
     v12 = mload v11
     v13 = checked_add uint256, v3, v12
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v14 = checked_add uint256, v4, 1
     jump bb1
 }

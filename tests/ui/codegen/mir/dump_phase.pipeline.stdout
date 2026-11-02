@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/dump_phase.sol:DumpPhase (after none) ===
 @module DumpPhase
+; selector 0xb3de648b
 fn @f(arg0: i256) -> i256 [selector=0xb3de648b, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = checked_add uint256, arg0, 0

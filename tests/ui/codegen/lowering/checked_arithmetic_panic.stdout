@@ -1,31 +1,34 @@
 // === ROOT/tests/ui/codegen/lowering/checked_arithmetic_panic.sol:CheckedArithmeticPanic ===
 @module CheckedArithmeticPanic
+; function add(uint256 a, uint256 b) public pure returns (uint256) [selector 0x771602f7]
 fn @add(arg0: i256, arg1: i256) -> i256 [selector=0x771602f7, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v1 = add arg0, arg1
     v2 = lt v1, arg0
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     ret v1
-  bb1:
+  bb1 [cold]:  ; preds = bb0
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
+; function sub(uint256 a, uint256 b) public pure returns (uint256) [selector 0xb67d77c5]
 fn @sub(arg0: i256, arg1: i256) -> i256 [selector=0xb67d77c5, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v1 = sub arg0, arg1
     v2 = lt arg0, arg1
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     ret v1
-  bb1:
+  bb1 [cold]:  ; preds = bb0
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
+; function mul(uint256 a, uint256 b) public pure returns (uint256) [selector 0xc8a4ac9c]
 fn @mul(arg0: i256, arg1: i256) -> i256 [selector=0xc8a4ac9c, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v1 = mul arg0, arg1
@@ -36,39 +39,41 @@ fn @mul(arg0: i256, arg1: i256) -> i256 [selector=0xc8a4ac9c, pure, abi_params=[
     v6 = zext i1 v5 to i256
     v7 = eq v6, 0
     jumpi v7, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     ret v1
-  bb1:
+  bb1 [cold]:  ; preds = bb0
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
+; function div_zero(uint256 a, uint256 b) public pure returns (uint256) [selector 0xf37348f3]
 fn @div_zero(arg0: i256, arg1: i256) -> i256 [selector=0xf37348f3, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v1 = ne arg1, 0
     jumpi v1, bb2, bb1
-  bb1:
+  bb1 [cold]:  ; preds = bb0
     mstore 32, 18 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb2:
+  bb2:  ; preds = bb0
     v2 = div arg0, arg1
     ret v2
 }
 
+; function pow(uint256 a, uint256 b) public pure returns (uint256) [selector 0x2e4c697f]
 fn @pow(arg0: i256, arg1: i256) -> i256 [selector=0x2e4c697f, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb6
     v1 = phi [bb0: 1], [bb6: v17]
     v2 = phi [bb0: arg0], [bb6: v19]
     v3 = phi [bb0: arg1], [bb6: v18]
     v4 = gt v3, 0
     jumpi v4, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     ret v1
-  bb2:
+  bb2:  ; preds = bb1
     v5 = and v3, 1
     v6 = mul v1, v2
     v7 = eq v2, 0
@@ -81,7 +86,7 @@ fn @pow(arg0: i256, arg1: i256) -> i256 [selector=0x2e4c697f, pure, abi_params=[
     v14 = and v5, v13
     v15 = ne v14, 0
     jumpi v15, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb2
     v16 = ne v5, 0
     v17 = select v16, v6, v1
     v18 = shr v3, 1
@@ -96,14 +101,15 @@ fn @pow(arg0: i256, arg1: i256) -> i256 [selector=0x2e4c697f, pure, abi_params=[
     v27 = and v26, v25
     v28 = zext i1 v27 to i256
     jumpi v27, bb4, bb6
-  bb6:
+  bb6:  ; preds = bb5
     jump bb1
-  bb4:
+  bb4 [cold]:  ; preds = bb2, bb5
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
+; function signed_add(int256 a, int256 b) public pure returns (int256) [selector 0xd51c5580]
 fn @signed_add(arg0: i256, arg1: i256) -> i256 [selector=0xd51c5580, pure, abi_params=[int256, int256], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     v1 = add arg0, arg1
@@ -119,27 +125,29 @@ fn @signed_add(arg0: i256, arg1: i256) -> i256 [selector=0xd51c5580, pure, abi_p
     v11 = and v10, v8
     v12 = ne v11, 0
     jumpi v12, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     ret v1
-  bb1:
+  bb1 [cold]:  ; preds = bb0
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
+; function signed_neg(int256 a) public pure returns (int256) [selector 0x85cce915]
 fn @signed_neg(arg0: i256) -> i256 [selector=0x85cce915, pure, abi_params=[int256], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     v1 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
     jumpi v1, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v2 = sub 0, arg0
     ret v2
-  bb1:
+  bb1 [cold]:  ; preds = bb0
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
+; function narrow_add(uint8 a, uint8 b) public pure returns (uint8) [selector 0xeb8645e0]
 fn @narrow_add(arg0: i8, arg1: i8) -> i8 [selector=0xeb8645e0, pure, abi_params=[uint8, uint8], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     v1 = zext i8 arg0 to i256
@@ -147,47 +155,52 @@ fn @narrow_add(arg0: i8, arg1: i8) -> i8 [selector=0xeb8645e0, pure, abi_params=
     v3 = add v1, v2
     v4 = gt v3, 255
     jumpi v4, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v5 = trunc i256 v3 to i8
     ret v5
-  bb1:
+  bb1 [cold]:  ; preds = bb0
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
+; function unchecked_add(uint256 a, uint256 b) public pure returns (uint256) [selector 0xda71cb6d]
 fn @unchecked_add(arg0: i256, arg1: i256) -> i256 [selector=0xda71cb6d, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = add arg0, arg1
     ret v0
 }
 
+; function unchecked_neg(int256 a) public pure returns (int256) [selector 0xd00932b4]
 fn @unchecked_neg(arg0: i256) -> i256 [selector=0xd00932b4, pure, abi_params=[int256], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     v0 = sub 0, arg0
     ret v0
 }
 
+; function unchecked_pow(uint256 a, uint256 b) public pure returns (uint256) [selector 0xef90b373]
 fn @unchecked_pow(arg0: i256, arg1: i256) -> i256 [selector=0xef90b373, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = exp arg0, arg1
     ret v0
 }
 
+; function unchecked_call(uint256 a, uint256 b) public pure returns (uint256) [selector 0x27805c8b]
 fn @unchecked_call(arg0: i256, arg1: i256) -> i256 [selector=0x27805c8b, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @checked_inner, arg0, arg1
     ret v0
 }
 
+; function checked_inner(uint256 a, uint256 b) internal pure returns (uint256)
 fn @checked_inner(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v1 = add arg0, arg1
     v2 = lt v1, arg0
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     ret v1
-  bb1:
+  bb1 [cold]:  ; preds = bb0
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36

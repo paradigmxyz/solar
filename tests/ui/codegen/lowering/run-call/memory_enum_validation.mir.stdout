@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/memory_enum_validation.sol:MemoryEnumValidation ===
 @module MemoryEnumValidation
+; function structField() external pure returns (Mode) [selector 0x3442156e]
 fn @structField() -> i8 [selector=0x3442156e, pure, abi_params=[], abi_returns=[word<enum 2>], abi_return_params=[enum<2, uint8>]] {
   bb0:
     v0 = alloc 32
@@ -20,6 +21,7 @@ fn @structField() -> i8 [selector=0x3442156e, pure, abi_params=[], abi_returns=[
     ret v7
 }
 
+; function fixedArrayElement() external pure returns (Mode) [selector 0x43876e90]
 fn @fixedArrayElement() -> i8 [selector=0x43876e90, pure, abi_params=[], abi_returns=[word<enum 2>], abi_return_params=[enum<2, uint8>]] {
   bb0:
     v0 = alloc 32 !metadata(preserves_fmp)
@@ -40,6 +42,7 @@ fn @fixedArrayElement() -> i8 [selector=0x43876e90, pure, abi_params=[], abi_ret
     ret v7
 }
 
+; function dynamicArrayElement() external pure returns (Mode) [selector 0xff96177b]
 fn @dynamicArrayElement() -> i8 [selector=0xff96177b, pure, abi_params=[], abi_returns=[word<enum 2>], abi_return_params=[enum<2, uint8>]] {
   bb0:
     v0 = alloc zeroed checked 64

@@ -1,9 +1,33 @@
 // === ROOT/tests/ui/codegen/lowering/abi_decode_dynamic_arrays.sol:AbiDecodeDynamicArrays ===
 @module AbiDecodeDynamicArrays
 @phase lowered
-@types
-  struct0: {i256, ptr<memory>, ptr<memory>}
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:  ; preds = bb0
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0x5a7641c8 => bb3, 0x6791505c => bb4, 0x68f4ce0b => bb5, 0xcfb203c5 => bb6]
+  bb6:  ; preds = bb2
+    tail_call @bools
+  bb5:  ; preds = bb2
+    tail_call @strs
+  bb4:  ; preds = bb2
+    tail_call @mixed
+  bb3:  ; preds = bb2
+    tail_call @words
+  bb1 [cold]:  ; preds = bb0, bb2
+    revert 0, 0
+}
 
+; function words(bytes memory b) public pure returns (uint256[] memory) [selector 0x5a7641c8]
 fn @words() [selector=0x5a7641c8, abi_wrapper, pure] {
   bb0:
     v33 = icall @decode_calldata_type
@@ -12,7 +36,7 @@ fn @words() [selector=0x5a7641c8, abi_wrapper, pure] {
     v4 = add v43, v2
     v5 = slt v2, 32
     jumpi v5, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v6 = mload v43
     v8 = add v43, v6
     v11 = add v8, 32
@@ -20,11 +44,11 @@ fn @words() [selector=0x5a7641c8, abi_wrapper, pure] {
     v13 = gt v11, v4
     v14 = or v12, v13
     jumpi v14, bb1, bb3
-  bb3:
+  bb3:  ; preds = bb2
     v16 = mload v8
     v18 = gt v16, 0x7fffffffffffffe
     jumpi v18, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     v19 = add v16, 1
     v20 = shl v19, 5
     v50 = icall @alloc, v20
@@ -34,21 +58,22 @@ fn @words() [selector=0x5a7641c8, abi_wrapper, pure] {
     v24 = shr v23, 5
     v25 = gt v16, v24
     jumpi v25, bb1, bb6
-  bb6:
+  bb6:  ; preds = bb5
     v45 = add v50, 32
     mcopy v45, v11, v22
     v47 = sub v50, 32
     mstore v47, 32
     v40 = add v22, 64
     returndata v47, v40
-  bb4:
+  bb4 [cold]:  ; preds = bb3
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:  ; preds = bb0, bb2, bb5
     revert 0, 0
 }
 
+; function bools(bytes memory b) public pure returns (bool[] memory) [selector 0xcfb203c5]
 fn @bools() [selector=0xcfb203c5, abi_wrapper, pure] {
   bb0:
     v40 = icall @decode_calldata_type
@@ -57,7 +82,7 @@ fn @bools() [selector=0xcfb203c5, abi_wrapper, pure] {
     v4 = add v72, v2
     v5 = slt v2, 32
     jumpi v5, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v6 = mload v72
     v8 = add v72, v6
     v11 = add v8, 32
@@ -65,11 +90,11 @@ fn @bools() [selector=0xcfb203c5, abi_wrapper, pure] {
     v13 = gt v11, v4
     v14 = or v12, v13
     jumpi v14, bb1, bb3
-  bb3:
+  bb3:  ; preds = bb2
     v16 = mload v8
     v18 = gt v16, 0x7fffffffffffffe
     jumpi v18, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     v19 = add v16, 1
     v20 = shl v19, 5
     v82 = icall @alloc, v20
@@ -78,17 +103,17 @@ fn @bools() [selector=0xcfb203c5, abi_wrapper, pure] {
     v24 = shr v23, 5
     v25 = gt v16, v24
     jumpi v25, bb1, bb6
-  bb6:
+  bb6:  ; preds = bb5
     v84 = add v82, 32
     jump bb7
-  bb7:
+  bb7:  ; preds = bb6, bb10
     v26 = phi [bb6: v16], [bb10: v35]
     v27 = phi [bb6: v11], [bb10: v36]
     v28 = phi [bb6: 0], [bb10: v37]
     v85 = phi [bb6: v84], [bb10: v86]
     v29 = gt v26, 0
     jumpi v29, bb8, bb9
-  bb9:
+  bb9:  ; preds = bb7
     v83 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v46 = add v83, 32
     mstore v83, 32
@@ -99,7 +124,7 @@ fn @bools() [selector=0xcfb203c5, abi_wrapper, pure] {
     v55 = sub v74, v51
     v56 = ne v49, 0
     jumpi v56, bb11, bb12
-  bb11:
+  bb11:  ; preds = bb9, bb11
     v57 = phi [bb9: v49], [bb11: v63]
     v58 = phi [bb9: v51], [bb11: v64]
     v59 = add v58, v55
@@ -111,29 +136,30 @@ fn @bools() [selector=0xcfb203c5, abi_wrapper, pure] {
     v64 = add v58, 32
     v65 = ne v63, 0
     jumpi v65, bb11, bb12
-  bb12:
+  bb12:  ; preds = bb9, bb11
     v66 = phi [bb9: v51], [bb11: v64]
     v68 = sub v66, v83
     returndata v83, v68
-  bb8:
+  bb8:  ; preds = bb7
     v30 = mload v27
     v31 = lt v30, 2
     jumpi v31, bb10, bb1
-  bb10:
+  bb10:  ; preds = bb8
     mstore v85, v30
     v35 = sub v26, 1
     v36 = add v27, 32
     v37 = add v28, 1
     v86 = add v85, 32
     jump bb7
-  bb4:
+  bb4 [cold]:  ; preds = bb3
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:  ; preds = bb0, bb2, bb5, bb8
     revert 0, 0
 }
 
+; function strs(bytes memory b) public pure returns (string[] memory) [selector 0x68f4ce0b]
 fn @strs() [selector=0x68f4ce0b, abi_wrapper, pure] {
   bb0:
     v65 = icall @decode_calldata_type
@@ -142,7 +168,7 @@ fn @strs() [selector=0x68f4ce0b, abi_wrapper, pure] {
     v4 = add v104, v2
     v5 = slt v2, 32
     jumpi v5, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v6 = mload v104
     v8 = add v104, v6
     v11 = add v8, 32
@@ -150,11 +176,11 @@ fn @strs() [selector=0x68f4ce0b, abi_wrapper, pure] {
     v13 = gt v11, v4
     v14 = or v12, v13
     jumpi v14, bb1, bb3
-  bb3:
+  bb3:  ; preds = bb2
     v16 = mload v8
     v18 = gt v16, 0x7fffffffffffffe
     jumpi v18, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     v19 = add v16, 1
     v20 = shl v19, 5
     v119 = icall @alloc, v20
@@ -163,15 +189,15 @@ fn @strs() [selector=0x68f4ce0b, abi_wrapper, pure] {
     v24 = shr v23, 5
     v25 = gt v16, v24
     jumpi v25, bb1, bb6
-  bb6:
+  bb6:  ; preds = bb5
     jump bb7
-  bb7:
+  bb7:  ; preds = bb6, bb12
     v26 = phi [bb6: v16], [bb12: v60]
     v27 = phi [bb6: v11], [bb12: v61]
     v28 = phi [bb6: 0], [bb12: v62]
     v29 = gt v26, 0
     jumpi v29, bb8, bb9
-  bb9:
+  bb9:  ; preds = bb7
     v121 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v71 = add v121, 32
     mstore v121, 32
@@ -182,17 +208,17 @@ fn @strs() [selector=0x68f4ce0b, abi_wrapper, pure] {
     v77 = add v75, v76
     v106 = add v119, 32
     jump bb13
-  bb13:
+  bb13:  ; preds = bb9, bb14
     v79 = phi [bb9: v74], [bb14: v94]
     v80 = phi [bb9: v77], [bb14: v93]
     v81 = phi [bb9: v75], [bb14: v95]
     v82 = phi [bb9: v106], [bb14: v97]
     v83 = gt v79, 0
     jumpi v83, bb14, bb15
-  bb15:
+  bb15:  ; preds = bb13
     v100 = sub v80, v121
     returndata v121, v100
-  bb14:
+  bb14:  ; preds = bb13
     v84 = mload v82
     v85 = sub v80, v75
     mstore v81, v85
@@ -210,7 +236,7 @@ fn @strs() [selector=0x68f4ce0b, abi_wrapper, pure] {
     v95 = add v81, 32
     v97 = add v82, 32
     jump bb13
-  bb8:
+  bb8:  ; preds = bb7
     v30 = mload v27
     v31 = add v11, v30
     v33 = add v31, 32
@@ -218,19 +244,19 @@ fn @strs() [selector=0x68f4ce0b, abi_wrapper, pure] {
     v35 = gt v33, v4
     v36 = or v34, v35
     jumpi v36, bb1, bb10
-  bb10:
+  bb10:  ; preds = bb8
     v38 = mload v31
     v40 = add v38, 63
     v41 = lt v40, v38
     jumpi v41, bb4, bb11
-  bb11:
+  bb11:  ; preds = bb10
     v43 = and v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v120 = icall @alloc, v43
     mstore v120, v38
     v45 = sub v4, v33
     v46 = gt v38, v45
     jumpi v46, bb1, bb12
-  bb12:
+  bb12:  ; preds = bb11
     v108 = add v120, 32
     mcopy v108, v33, v38
     v54 = sub 0, v38
@@ -246,14 +272,15 @@ fn @strs() [selector=0x68f4ce0b, abi_wrapper, pure] {
     v61 = add v27, 32
     v62 = add v28, 1
     jump bb7
-  bb4:
+  bb4 [cold]:  ; preds = bb3, bb10
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:  ; preds = bb0, bb2, bb5, bb8, bb11
     revert 0, 0
 }
 
+; function mixed(bytes memory b) public pure returns (uint256, uint256[] memory, string memory) [selector 0x6791505c]
 fn @mixed() [selector=0x6791505c, abi_wrapper, pure] {
   bb0:
     v75 = icall @decode_calldata_type
@@ -262,7 +289,7 @@ fn @mixed() [selector=0x6791505c, abi_wrapper, pure] {
     v10 = add v108, v8
     v11 = slt v8, 96
     jumpi v11, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v12 = mload v108
     v14 = add v108, 32
     v15 = mload v14
@@ -272,11 +299,11 @@ fn @mixed() [selector=0x6791505c, abi_wrapper, pure] {
     v22 = gt v20, v10
     v23 = or v21, v22
     jumpi v23, bb1, bb3
-  bb3:
+  bb3:  ; preds = bb2
     v25 = mload v17
     v27 = gt v25, 0x7fffffffffffffe
     jumpi v27, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     v28 = add v25, 1
     v29 = shl v28, 5
     v120 = icall @alloc, v29
@@ -286,7 +313,7 @@ fn @mixed() [selector=0x6791505c, abi_wrapper, pure] {
     v33 = shr v32, 5
     v34 = gt v25, v33
     jumpi v34, bb1, bb6
-  bb6:
+  bb6:  ; preds = bb5
     v110 = add v120, 32
     mcopy v110, v20, v31
     v41 = add v108, 64
@@ -297,19 +324,19 @@ fn @mixed() [selector=0x6791505c, abi_wrapper, pure] {
     v49 = gt v47, v10
     v50 = or v48, v49
     jumpi v50, bb1, bb7
-  bb7:
+  bb7:  ; preds = bb6
     v52 = mload v44
     v54 = add v52, 63
     v55 = lt v54, v52
     jumpi v55, bb4, bb8
-  bb8:
+  bb8:  ; preds = bb7
     v57 = and v54, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v121 = icall @alloc, v57
     mstore v121, v52
     v59 = sub v10, v47
     v60 = gt v52, v59
     jumpi v60, bb1, bb9
-  bb9:
+  bb9:  ; preds = bb8
     v112 = add v121, 32
     mcopy v112, v47, v52
     v68 = sub 0, v52
@@ -342,11 +369,11 @@ fn @mixed() [selector=0x6791505c, abi_wrapper, pure] {
     mcopy v99, v112, v95 !metadata(disjoint)
     v104 = sub v102, v122
     returndata v122, v104
-  bb4:
+  bb4 [cold]:  ; preds = bb3, bb7
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:  ; preds = bb0, bb2, bb5, bb6, bb8
     revert 0, 0
 }
 
@@ -358,7 +385,7 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v4 = sub v0, 36
     v5 = gt v1, v4
     jumpi v5, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v6 = calldataload v2
     v7 = add v2, 32
     v8 = add v6, 63
@@ -374,13 +401,13 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v38 = or v37, v34
     v39 = ne v38, 0
     jumpi v39, bb3, bb5
-  bb5:
+  bb5:  ; preds = bb2
     mstore 64, v30 !metadata(memory=scratch)
     mstore v29, v6
     v13 = sub v0, v7
     v14 = gt v6, v13
     jumpi v14, bb1, bb4
-  bb4:
+  bb4:  ; preds = bb5
     v25 = add v29, 32
     calldatacopy v25, v7, v6
     v22 = sub 0, v6
@@ -389,36 +416,11 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v26 = add v25, v6
     calldatacopy v26, v36, v23
     ret v29
-  bb3:
+  bb3 [cold]:  ; preds = bb2
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = calldatasize
-    v2 = lt v1, 36
-    v3 = zext i1 v2 to i256
-    v4 = or v0, v3
-    v5 = ne v4, 0
-    jumpi v5, bb1, bb2
-  bb2:
-    v6 = calldataload 0
-    v7 = shr v6, 224
-    switch v7, default bb1, [0x5a7641c8 => bb3, 0x6791505c => bb4, 0x68f4ce0b => bb5, 0xcfb203c5 => bb6]
-  bb6:
-    tail_call @bools
-  bb5:
-    tail_call @strs
-  bb4:
-    tail_call @mixed
-  bb3:
-    tail_call @words
-  bb1:
+  bb1 [cold]:  ; preds = bb0, bb5
     revert 0, 0
 }
 
@@ -432,10 +434,10 @@ fn @alloc(arg0: i256) -> i256 {
     v6 = or v4, v5
     v7 = ne v6, 0
     jumpi v7, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     mstore 64, v2 !metadata(memory=scratch)
     ret v0
-  bb1:
+  bb1 [cold]:  ; preds = bb0
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
