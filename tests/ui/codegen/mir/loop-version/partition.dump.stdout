@@ -467,11 +467,11 @@ fn @_sort(arg0: i256, arg1: i256, arg2: i256) [may_return_memory, pure] {
     mstore v294, v39
     mstore v291, v38
     mstore v288, v37
-    v229 = mload arg0
     v230 = lt v1, v5
     v231 = lt v5, 0x400000000000000000000000000000000000000000000000000000000000000
     v232 = and v230, v231
     v233 = zext i1 v232 to i256
+    v229 = mload arg0
     v234 = lt v5, v229
     v235 = zext i1 v234 to i256
     v236 = and v233, v235

@@ -65,8 +65,8 @@ fn @whole() [selector=0xbbbb2e8a, abi_wrapper, pure] {
   bb6:  ; preds = bb4
     v99 = calldatasize
     calldatacopy v81, v99, v2
-    v52 = add v81, v0
     v53 = lt v81, v30
+    v52 = add v81, v0
     v54 = lt v61, v52
     v55 = and v53, v54
     jumpi v55, bb1, bb7
@@ -166,8 +166,8 @@ fn @rest() [selector=0xbf352668, abi_wrapper, pure] {
   bb6:  ; preds = bb4
     v132 = calldatasize
     calldatacopy v113, v132, v3
-    v69 = add v113, v86
     v70 = lt v113, v43
+    v69 = add v113, v86
     v71 = lt v92, v69
     v72 = and v70, v71
     v79 = or v72, v54
@@ -241,13 +241,13 @@ fn @slice() [selector=0xe0041396, abi_wrapper, pure] {
     v123 = icall @decode_calldata_type
     icall @_dirty
     v0 = mload v123
-    v1 = lt v0, arg2
     v113 = sub v0, arg2
+    v1 = lt v0, arg2
     v114 = zext i1 v1 to i256
     v115 = mul v113, v114
     v116 = add v115, arg2
-    v4 = lt v116, arg1
     v117 = sub v116, arg1
+    v4 = lt v116, arg1
     v118 = zext i1 v4 to i256
     v119 = mul v117, v118
     v120 = add v119, arg1
@@ -288,8 +288,8 @@ fn @slice() [selector=0xe0041396, abi_wrapper, pure] {
   bb6:  ; preds = bb4
     v174 = calldatasize
     calldatacopy v149, v174, v8
-    v82 = add v149, v6
     v83 = lt v149, v53
+    v82 = add v149, v6
     v84 = lt v123, v82
     v85 = and v83, v84
     v92 = or v85, v64
@@ -468,8 +468,8 @@ fn @_whole(arg0: i256) -> i256 [may_return_memory, pure] {
     v51 = add arg0, 32
     v53 = add v65, 32
     v36 = add v51, v0
-    v37 = add v53, v0
     v38 = lt v53, v36
+    v37 = add v53, v0
     v39 = lt arg0, v37
     v40 = and v38, v39
     jumpi v40, bb1, bb5
@@ -559,8 +559,8 @@ fn @_rest(arg0: i256, arg1: i256) -> i256 [may_return_memory, pure] {
   bb6:  ; preds = bb4
     v116 = calldatasize
     calldatacopy v97, v116, v3
-    v72 = add v97, v89
     v73 = lt v97, v43
+    v72 = add v97, v89
     v74 = lt arg0, v72
     v75 = and v73, v74
     v82 = or v75, v54
@@ -664,8 +664,8 @@ fn @_count(arg0: i256, arg1: i256) -> i256 [may_return_memory, pure] {
   bb6:  ; preds = bb4
     v78 = calldatasize
     calldatacopy v62, v78, v1
-    v52 = add v62, arg1
     v53 = lt v62, v34
+    v52 = add v62, arg1
     v54 = lt arg0, v52
     v55 = and v53, v54
     jumpi v55, bb1, bb7

@@ -99,10 +99,10 @@ fn @_lastIndicesIn(arg0: i256, arg1: i256, arg2: i256) -> i1 [may_return_memory,
     v60 = or arg2, v57
     v61 = shl v57, 5
     v63 = add v61, 31
+    v82 = shr v60, 64
     v66 = lt v65, v63
     v70 = sub arg0, v62
     v71 = lt v70, v63
-    v82 = shr v60, 64
     v84 = or v66, v71
     v86 = zext i1 v84 to i256
     v87 = or v82, v86

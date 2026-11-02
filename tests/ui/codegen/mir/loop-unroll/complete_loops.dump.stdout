@@ -22,29 +22,29 @@ fn @entry() [entry] {
 ; function u32(bytes calldata data, uint256 start) internal pure returns (uint32 value, uint256 offset)
 fn @u32(arg0: i256, arg1: i256) [pure, return_abi=[i256, i256]] {
   bb0:
-    v40 = lt 0, arg1
     v41 = add arg0, 0
     v42 = calldataload v41
     v43 = byte 0, v42
     v44 = or 0, v43
     v49 = shl v44, 8
     v50 = and v49, 0xffffffff
-    v51 = lt 1, arg1
-    v79 = and v40, v51
     v52 = add arg0, 1
     v53 = calldataload v52
     v54 = byte 0, v53
     v55 = or v50, v54
     v60 = shl v55, 8
     v61 = and v60, 0xffffffff
-    v62 = lt 2, arg1
-    v80 = and v79, v62
     v63 = add arg0, 2
     v64 = calldataload v63
     v65 = byte 0, v64
     v66 = or v61, v65
     v71 = shl v66, 8
     v72 = and v71, 0xffffffff
+    v40 = lt 0, arg1
+    v51 = lt 1, arg1
+    v79 = and v40, v51
+    v62 = lt 2, arg1
+    v80 = and v79, v62
     v73 = lt 3, arg1
     v81 = and v80, v73
     jumpi v81, bb2, bb1

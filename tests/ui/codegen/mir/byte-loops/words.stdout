@@ -143,10 +143,10 @@ fn @store32() [selector=0xd264c25a, abi_wrapper, pure] {
 ; function store2(bytes memory b, uint256 offset, bytes2 value) external pure returns (bytes memory) [selector 0xe9ebf0b0]
 fn @store2() [selector=0xe9ebf0b0, abi_wrapper, pure] {
   bb0:
-    v36 = calldatasize
-    v37 = lt v36, 100
     v38 = calldataload 68
     v39 = shl v38, 16
+    v36 = calldatasize
+    v37 = lt v36, 100
     v70 = zext i1 v37 to i256
     v71 = or v39, v70
     v72 = ne v71, 0
@@ -244,8 +244,8 @@ fn @slice() [selector=0xe0041396, abi_wrapper, pure] {
     v83 = add v82, 32
     v85 = add v99, 32
     v34 = add v83, arg2
-    v35 = add v85, arg2
     v36 = lt v85, v34
+    v35 = add v85, arg2
     v37 = lt v64, v35
     v38 = and v36, v37
     v87 = add v64, 32

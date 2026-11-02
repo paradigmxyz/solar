@@ -167,8 +167,8 @@ fn @fromFresh() [selector=0x1f6686bd, abi_wrapper, pure] {
     v120 = add v150, 32
     v122 = add v143, 32
     v58 = add v120, arg0
-    v59 = add v122, arg0
     v60 = lt v122, v58
+    v59 = add v122, arg0
     v61 = lt v150, v59
     v62 = and v60, v61
     jumpi v62, bb4, bb8

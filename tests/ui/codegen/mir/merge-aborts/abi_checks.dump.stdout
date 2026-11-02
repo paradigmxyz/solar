@@ -20,10 +20,10 @@ fn @entry() [entry] {
 ; function check(bool a, address b, uint96 c, int24 d) external pure returns (uint256 r) [selector 0x05c051e1]
 fn @check() [selector=0x05c051e1, abi_wrapper, pure] {
   bb0:
-    v3 = calldatasize
-    v4 = lt v3, 132
     v5 = calldataload 4
     v6 = shr v5, 1
+    v3 = calldatasize
+    v4 = lt v3, 132
     v17 = zext i1 v4 to i256
     v18 = or v6, v17
     v8 = calldataload 36

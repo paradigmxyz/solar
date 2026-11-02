@@ -91,9 +91,9 @@ fn @storeSome() [selector=0x26843d1f, abi_wrapper, pure] {
     v37 = select v36, arg3, 32
     v38 = shl v37, 3
     v39 = shr 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v38
-    v40 = not v39
     v42 = mload v69
     v43 = and v42, v39
+    v40 = not v39
     v44 = and v40, arg2
     v45 = or v43, v44
     mstore v69, v45
@@ -212,9 +212,9 @@ fn @_storeSome(arg0: i256, arg1: i256, arg2: i256) [may_return_memory, pure] {
     v24 = select v23, arg2, 32
     v25 = shl v24, 3
     v26 = shr 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v25
-    v27 = not v26
     v29 = mload v34
     v30 = and v29, v26
+    v27 = not v26
     v31 = and v27, arg1
     v32 = or v30, v31
     mstore v34, v32

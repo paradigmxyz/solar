@@ -41,9 +41,9 @@ fn @entry() [entry] {
 fn @hotA() [selector=0xa739d36a, abi_wrapper] {
   bb0:
     v11 = calldatasize
-    v12 = lt v11, 68
     v13 = calldataload 4
     v14 = shr v13, 160
+    v12 = lt v11, 68
     v154 = zext i1 v12 to i256
     v155 = or v14, v154
     v16 = calldataload 36
@@ -206,9 +206,9 @@ fn @hotA() [selector=0xa739d36a, abi_wrapper] {
 fn @hotB() [selector=0x0fb93e2f, abi_wrapper] {
   bb0:
     v11 = calldatasize
-    v12 = lt v11, 68
     v13 = calldataload 4
     v14 = shr v13, 160
+    v12 = lt v11, 68
     v155 = zext i1 v12 to i256
     v156 = or v14, v155
     v16 = calldataload 36
@@ -442,10 +442,10 @@ fn @coldB() [selector=0xa7f6a144, abi_wrapper, pure] {
 ; function hotC(Target t, uint256 code, bytes memory data) external [selector 0x8f02cfdc]
 fn @hotC() [selector=0x8f02cfdc, abi_wrapper] {
   bb0:
-    v12 = calldatasize
-    v13 = lt v12, 100
     v14 = calldataload 4
     v15 = shr v14, 160
+    v12 = calldatasize
+    v13 = lt v12, 100
     v70 = zext i1 v13 to i256
     v71 = or v15, v70
     v72 = ne v71, 0
@@ -522,10 +522,10 @@ fn @hotC() [selector=0x8f02cfdc, abi_wrapper] {
 ; function hotD(Target t, uint256 code, bytes memory data) external [selector 0xe17e9be7]
 fn @hotD() [selector=0xe17e9be7, abi_wrapper] {
   bb0:
-    v15 = calldatasize
-    v16 = lt v15, 100
     v17 = calldataload 4
     v18 = shr v17, 160
+    v15 = calldatasize
+    v16 = lt v15, 100
     v73 = zext i1 v16 to i256
     v74 = or v18, v73
     v75 = ne v74, 0
@@ -681,9 +681,9 @@ fn @coldD() [selector=0x90efdac2, abi_wrapper, cold, pure] {
 fn @mixedHot() [selector=0x0c3501d9, abi_wrapper] {
   bb0:
     v21 = calldatasize
-    v22 = lt v21, 132
     v23 = calldataload 4
     v24 = shr v23, 160
+    v22 = lt v21, 132
     v189 = zext i1 v22 to i256
     v190 = or v24, v189
     v26 = calldataload 36

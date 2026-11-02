@@ -67,6 +67,8 @@ fn @shift() [selector=0x5d9cf5ea, abi_wrapper, pure] {
     v53 = shl v49, 5
     v54 = add v87, 1
     v55 = add v53, 31
+    v122 = add v121, 32
+    v125 = add v124, 32
     v57 = sub v85, v54
     v58 = lt v57, v55
     v60 = zext i1 v58 to i256
@@ -81,8 +83,6 @@ fn @shift() [selector=0x5d9cf5ea, abi_wrapper, pure] {
     v79 = shr v52, 64
     v81 = or v79, v70
     v73 = eq v81, 0
-    v122 = add v121, 32
-    v125 = add v124, 32
     jumpi v73, bb6, bb1
   bb6:  ; preds = bb9
     jump bb4
@@ -173,6 +173,8 @@ fn @shiftFar() [selector=0x67979c1a, abi_wrapper, pure] {
     v53 = or v86, v50
     v54 = shl v50, 5
     v56 = add v54, 31
+    v118 = add v117, 32
+    v121 = add v120, 32
     v58 = sub v85, v55
     v59 = lt v58, v56
     v61 = zext i1 v59 to i256
@@ -187,8 +189,6 @@ fn @shiftFar() [selector=0x67979c1a, abi_wrapper, pure] {
     v79 = shr v53, 64
     v81 = or v79, v70
     v73 = eq v81, 0
-    v118 = add v117, 32
-    v121 = add v120, 32
     jumpi v73, bb6, bb1
   bb6:  ; preds = bb9
     jump bb4

@@ -22,10 +22,10 @@ fn @entry() [entry] {
 ; function fill(bytes memory buffer, uint256 offset, bytes1 value) external pure returns (bool) [selector 0xb4f7766b]
 fn @fill() [selector=0xb4f7766b, abi_wrapper, pure] {
   bb0:
-    v35 = calldatasize
-    v36 = lt v35, 100
     v37 = calldataload 68
     v38 = shl v37, 8
+    v35 = calldatasize
+    v36 = lt v35, 100
     v56 = zext i1 v36 to i256
     v57 = or v38, v56
     v58 = ne v57, 0
@@ -90,8 +90,8 @@ fn @scatter() [selector=0xa3efd67d, abi_wrapper, pure] {
   bb2:  ; preds = bb0
     v11 = icall @decode_calldata_type
     mstore v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v1 = ne arg4, 0
     v5 = sub arg4, v11
+    v1 = ne arg4, 0
     v6 = zext i1 v1 to i256
     v7 = mul v5, v6
     v8 = add v11, v7
@@ -127,9 +127,9 @@ fn @_scatter(arg0: i256, arg1: i256, arg2: i256, arg3: i256) [may_return_memory,
     v36 = select v35, arg3, 32
     v37 = shl v36, 3
     v38 = shr 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v37
-    v39 = not v38
     v41 = mload v49
     v42 = and v41, v38
+    v39 = not v38
     v43 = and v39, arg2
     v44 = or v42, v43
     mstore v49, v44

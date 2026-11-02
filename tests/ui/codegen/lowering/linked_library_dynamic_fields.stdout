@@ -361,13 +361,13 @@ bb4 [cold]:
   push 0
   revert
 bb5:  ; getter for `mapping(address => uint256) public score` [selector 0x776f3843]
-  push 36
-  calldatasize
-  lt
   push 4
   calldataload
   push 160
   shr
+  push 36
+  calldatasize
+  lt
   or
   push bb4
   jumpi
@@ -388,13 +388,13 @@ bb5:  ; getter for `mapping(address => uint256) public score` [selector 0x776f38
   push 0
   return
 bb8:  ; function go(uint256 base, uint256[] calldata xs, bytes calldata tag, address who) external returns (uint256) [selector 0x2220ae27]
-  push 132
-  calldatasize
-  lt
   push 100
   calldataload
   push 160
   shr
+  push 132
+  calldatasize
+  lt
   or
   push 36
   calldataload

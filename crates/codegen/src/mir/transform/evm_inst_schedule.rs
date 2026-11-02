@@ -15,7 +15,8 @@
 //! moving one use changes which physical copy should survive for later consumers. Single-use
 //! islands between those pinned producers are still scheduled independently; references left in the
 //! arena by eliminated instructions do not count as sharing. The pass also preserves the producer
-//! order of binary operations whose lowering already costs both equivalent operand orientations.
+//! order of binary operations whose lowering already costs both equivalent operand orientations,
+//! so the canonical operand order of such an operation does not decide which producer runs first.
 //! Instruction and value identities do not change; codegen recomputes liveness from the resulting
 //! order before stack scheduling.
 //!
@@ -348,9 +349,10 @@ impl EvmInstSchedule {
         }
         let output_start = ordered.len();
         scratch.clear_segment();
-        for &inst_id in segment {
+        for (position, &inst_id) in segment.iter().enumerate() {
             scratch.members.insert(inst_id);
             scratch.active_members.push(inst_id);
+            scratch.original_positions[inst_id] = position;
         }
         for &inst_id in segment {
             func.inst(inst_id).kind.visit_operands(|operand| {
@@ -414,9 +416,6 @@ impl EvmInstSchedule {
         candidate: &[InstId],
         scratch: &mut ScheduleScratch,
     ) -> bool {
-        for (position, &inst_id) in original.iter().enumerate() {
-            scratch.original_positions[inst_id] = position;
-        }
         for (position, &inst_id) in candidate.iter().enumerate() {
             scratch.candidate_positions[inst_id] = position;
         }
@@ -502,14 +501,24 @@ impl EvmInstSchedule {
             }
 
             scratch.work.push((inst_id, true));
-            func.inst(inst_id).kind.visit_operands(|value| {
+            let kind = &func.inst(inst_id).kind;
+            let mut dependencies = SmallVec::<[InstId; 2]>::new();
+            kind.visit_operands(|value| {
                 if let Value::Inst(dependency) = func.value(value)
                     && scratch.members.contains(*dependency)
                     && !scratch.visited.contains(*dependency)
                 {
-                    scratch.work.push((*dependency, false));
+                    dependencies.push(*dependency);
                 }
             });
+            // The backend takes either operand order of a reorderable operation, so its producers
+            // keep their stored order whichever operand order is canonical.
+            if kind.reorderable_binary_operands().is_some() {
+                dependencies.sort_by_key(|&dependency| {
+                    std::cmp::Reverse(scratch.original_positions[dependency])
+                });
+            }
+            scratch.work.extend(dependencies.into_iter().map(|dependency| (dependency, false)));
         }
     }
 }
