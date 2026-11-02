@@ -92,7 +92,7 @@ fn @scan(arg0: ptr<memory>, arg1: i256) -> i256 [pure] {
   bb4:  ; preds = bb1
     v12 = add v6, 32
     v13 = mload v12
-    v14 = add v5, v13
+    v14 = add v13, v5
     jump bb6
   bb6:  ; preds = bb4
     jump bb3
@@ -148,7 +148,7 @@ fn @temporary(arg0: ptr<memory>, arg1: i256) -> i256 [pure] {
     ret v5
   bb4:  ; preds = bb1
     v12 = mload v6
-    v13 = add v5, v12
+    v13 = add v12, v5
     jump bb6
   bb6:  ; preds = bb4
     jump bb3

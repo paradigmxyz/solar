@@ -75,7 +75,7 @@ fn @squaresDown() [selector=0x45ce5caf, abi_wrapper, pure] {
     v23 = eq v22, arg0
     jumpi v23, bb8, bb4
   bb8:  ; preds = bb7
-    v24 = add 0, v21
+    v24 = add v21, 0
     v26 = sub arg0, 1
     jump bb10
   bb10:  ; preds = bb6, bb8
@@ -95,7 +95,7 @@ fn @squaresDown() [selector=0x45ce5caf, abi_wrapper, pure] {
     v9 = div v7, v2
     v10 = eq v9, v2
     v40 = eq v10, false
-    v14 = add v1, v7
+    v14 = add v7, v1
     v15 = lt v14, v1
     v41 = or v40, v15
     v6 = sub v2, 1
@@ -104,7 +104,7 @@ fn @squaresDown() [selector=0x45ce5caf, abi_wrapper, pure] {
     v32 = eq v31, v6
     v42 = eq v32, false
     v43 = or v41, v42
-    v33 = add v14, v30
+    v33 = add v30, v14
     v34 = lt v33, v14
     v44 = or v43, v34
     jumpi v44, bb4, bb9

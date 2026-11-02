@@ -140,7 +140,7 @@ fn @encode.4(arg0: ptr<memory>, arg1: i1, arg2: i1) -> ptr<memory> [pure] {
     v67 = shr v66, 248
     v68 = trunc i256 v67 to i8
     v69 = zext i8 v68 to i256
-    v70 = or v55, v69
+    v70 = or v69, v55
     jump bb18
   bb18:  ; preds = bb16, bb17
     v71 = phi [bb16: v70], [bb17: v55]
@@ -430,7 +430,7 @@ fn @decode.8(arg0: ptr<memory>) -> ptr<memory> [pure] {
     v83 = shl v82, 248
     v84 = icall @_decode, v83
     v85 = shl v84, 6
-    v86 = or v72, v85
+    v86 = or v85, v72
     jump bb24
   bb24:  ; preds = bb22, bb23
     v87 = phi [bb22: v86], [bb23: v72]
@@ -451,7 +451,7 @@ fn @decode.8(arg0: ptr<memory>) -> ptr<memory> [pure] {
     v97 = byte 0, v96
     v98 = shl v97, 248
     v99 = icall @_decode, v98
-    v100 = or v87, v99
+    v100 = or v99, v87
     jump bb27
   bb27:  ; preds = bb25, bb26
     v101 = phi [bb25: v100], [bb26: v87]

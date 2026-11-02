@@ -63,7 +63,7 @@ fn @clear() -> struct0 [selector=0x52efea6e, abi_params=[], abi_returns=[word<ui
     sstore v35, v44 !metadata(storage=symbolic(v35))
     sstore 0, v32 !metadata(storage=slot(0))
     v45 = sload 0 !metadata(storage=slot(0))
-    v46 = lt 1, v45
+    v46 = gt v45, 1
     v47 = eq v46, false
     icall panic_if<0x32>, v47
     v48 = storage_array_data_slot 0
@@ -72,7 +72,7 @@ fn @clear() -> struct0 [selector=0x52efea6e, abi_params=[], abi_returns=[word<ui
     v51 = or v50, 0
     sstore v48, v51 !metadata(storage=symbolic(v48))
     v52 = sload 0 !metadata(storage=slot(0))
-    v53 = lt 0, v52
+    v53 = gt v52, 0
     v54 = eq v53, false
     icall panic_if<0x32>, v54
     v55 = storage_array_data_slot 0
@@ -80,7 +80,7 @@ fn @clear() -> struct0 [selector=0x52efea6e, abi_params=[], abi_returns=[word<ui
     v57 = shr v56, 0
     v58 = trunc i256 v57 to i8
     v59 = sload 0 !metadata(storage=slot(0))
-    v60 = lt 1, v59
+    v60 = gt v59, 1
     v61 = eq v60, false
     icall panic_if<0x32>, v61
     v62 = storage_array_data_slot 0
@@ -88,7 +88,7 @@ fn @clear() -> struct0 [selector=0x52efea6e, abi_params=[], abi_returns=[word<ui
     v64 = shr v63, 8
     v65 = trunc i256 v64 to i8
     v66 = sload 0 !metadata(storage=slot(0))
-    v67 = lt 2, v66
+    v67 = gt v66, 2
     v68 = eq v67, false
     icall panic_if<0x32>, v68
     v69 = storage_array_data_slot 0
@@ -206,7 +206,7 @@ fn @deleteThenPush() -> struct1 [selector=0x63470f4e, abi_params=[], abi_returns
     sstore 6, v23 !metadata(storage=slot(6))
     v36 = sload 0 !metadata(storage=slot(0))
     v37 = sload 6 !metadata(storage=slot(6))
-    v38 = lt 0, v37
+    v38 = gt v37, 0
     v39 = eq v38, false
     icall panic_if<0x32>, v39
     v40 = storage_array_data_slot 6
@@ -273,7 +273,7 @@ fn @clearFixed() -> struct0 [selector=0x94bd0f54, abi_params=[], abi_returns=[wo
     v36 = insert_value struct0, v35, 2, v33
     ret v36
   bb2:  ; preds = bb1
-    v17 = add 1, v15
+    v17 = add v15, 1
     sstore v17, 0 !metadata(storage=offset(v15, 1))
     v18 = add v15, 1
     jump bb1
@@ -340,7 +340,7 @@ fn @clearFixedDirtyWord() -> i256 [selector=0xb56337b4, abi_params=[], abi_retur
     v4 = sload 1 !metadata(storage=slot(1))
     ret v4
   bb2:  ; preds = bb1
-    v2 = add 1, v0
+    v2 = add v0, 1
     sstore v2, 0 !metadata(storage=offset(v0, 1))
     v3 = add v0, 1
     jump bb1
@@ -390,7 +390,7 @@ fn @clearOddWidthDirtyWords() [selector=0xf2b0f658, abi_params=[], abi_returns=[
     mstore 160, v20
     returndata 0, 192
   bb2:  ; preds = bb1
-    v11 = add 3, v9
+    v11 = add v9, 3
     sstore v11, 0 !metadata(storage=offset(v9, 3))
     v12 = add v9, 1
     jump bb1

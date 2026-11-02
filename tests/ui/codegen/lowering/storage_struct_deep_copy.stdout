@@ -26,12 +26,12 @@ fn @entry() [entry] {
 ; function assign(address a, bytes4 x) public [selector 0x4bd0273c]
 fn @assign() [selector=0x4bd0273c, abi_wrapper] {
   bb0:
-    v69 = calldatasize
-    v70 = lt v69, 68
     v71 = calldataload 4
     v72 = shr v71, 160
+    v69 = calldatasize
+    v70 = lt v69, 68
     v85 = zext i1 v70 to i256
-    v86 = or v85, v72
+    v86 = or v72, v85
     v74 = calldataload 36
     v75 = shl v74, 32
     v88 = or v86, v75
@@ -43,7 +43,7 @@ fn @assign() [selector=0x4bd0273c, abi_wrapper] {
     v80 = lt v79, v78
     v81 = zext i1 v80 to i256
     v82 = shr v79, 64
-    v83 = or v81, v82
+    v83 = or v82, v81
     v84 = ne v83, 0
     jumpi v84, bb8, bb7
   bb7:  ; preds = bb6
@@ -76,10 +76,10 @@ fn @assign() [selector=0x4bd0273c, abi_wrapper] {
   bb4:  ; preds = bb3
     v23 = shr v20, 3
     v24 = sub v23, 0x4ef1d2ad89edf8c4d91132028e8195cdf30bb4b5053d4f8cd260341d4805f30a
+    v29 = sload v24 !metadata(storage=offset(v23, 0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6))
     v25 = and v20, 7
     v27 = shl v25, 5
     v28 = shl 0xffffffff, v27
-    v29 = sload v24 !metadata(storage=offset(v23, 0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6))
     v30 = not v28
     v31 = and v29, v30
     sstore v24, v31 !metadata(storage=offset(v23, 0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6))
@@ -97,12 +97,12 @@ fn @assign() [selector=0x4bd0273c, abi_wrapper] {
 ; function push(address a, bytes4 x) public [selector 0xa60249a3]
 fn @push() [selector=0xa60249a3, abi_wrapper] {
   bb0:
-    v78 = calldatasize
-    v79 = lt v78, 68
     v80 = calldataload 4
     v81 = shr v80, 160
+    v78 = calldatasize
+    v79 = lt v78, 68
     v95 = zext i1 v79 to i256
-    v96 = or v95, v81
+    v96 = or v81, v95
     v83 = calldataload 36
     v84 = shl v83, 32
     v98 = or v96, v84
@@ -114,7 +114,7 @@ fn @push() [selector=0xa60249a3, abi_wrapper] {
     v90 = lt v89, v88
     v91 = zext i1 v90 to i256
     v92 = shr v89, 64
-    v93 = or v91, v92
+    v93 = or v92, v91
     v94 = ne v93, 0
     jumpi v94, bb5, bb9
   bb9:  ; preds = bb8
@@ -159,10 +159,10 @@ fn @push() [selector=0xa60249a3, abi_wrapper] {
     v30 = shr v27, 3
     v87 = keccak256 0, 32 !metadata(memory=scratch)
     v31 = add v87, v30
+    v36 = sload v31 !metadata(storage=symbolic(v31))
     v32 = and v27, 7
     v34 = shl v32, 5
     v35 = shl 0xffffffff, v34
-    v36 = sload v31 !metadata(storage=symbolic(v31))
     v37 = not v35
     v38 = and v36, v37
     sstore v31, v38 !metadata(storage=symbolic(v31))
@@ -222,12 +222,12 @@ fn @pop() [selector=0xa4ece52c, abi_wrapper] {
 ; function assignFixed(address a, bytes4 x) public [selector 0xb7ffd825]
 fn @assignFixed() [selector=0xb7ffd825, abi_wrapper] {
   bb0:
-    v71 = calldatasize
-    v72 = lt v71, 68
     v73 = calldataload 4
     v74 = shr v73, 160
+    v71 = calldatasize
+    v72 = lt v71, 68
     v87 = zext i1 v72 to i256
-    v88 = or v87, v74
+    v88 = or v74, v87
     v76 = calldataload 36
     v77 = shl v76, 32
     v90 = or v88, v77
@@ -239,7 +239,7 @@ fn @assignFixed() [selector=0xb7ffd825, abi_wrapper] {
     v82 = lt v81, v80
     v83 = zext i1 v82 to i256
     v84 = shr v81, 64
-    v85 = or v83, v84
+    v85 = or v84, v83
     v86 = ne v85, 0
     jumpi v86, bb8, bb7
   bb7:  ; preds = bb6
@@ -272,10 +272,10 @@ fn @assignFixed() [selector=0xb7ffd825, abi_wrapper] {
   bb4:  ; preds = bb3
     v25 = shr v22, 3
     v26 = sub v25, 0x75ca53043ea007e5c65182cbb028f60d7179ff4b55739a3949b401801c942e65
+    v31 = sload v26 !metadata(storage=offset(v25, 0x8a35acfbc15ff81a39ae7d344fd709f28e8600b4aa8c65c6b64bfe7fe36bd19b))
     v27 = and v22, 7
     v29 = shl v27, 5
     v30 = shl 0xffffffff, v29
-    v31 = sload v26 !metadata(storage=offset(v25, 0x8a35acfbc15ff81a39ae7d344fd709f28e8600b4aa8c65c6b64bfe7fe36bd19b))
     v32 = not v30
     v33 = and v31, v32
     sstore v26, v33 !metadata(storage=offset(v25, 0x8a35acfbc15ff81a39ae7d344fd709f28e8600b4aa8c65c6b64bfe7fe36bd19b))

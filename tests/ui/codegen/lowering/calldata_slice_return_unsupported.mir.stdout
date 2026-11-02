@@ -12,7 +12,7 @@ fn @peel(arg0: slice<calldata>) -> slice<calldata> [pure] {
   bb3:  ; preds = bb2
     v3 = extract_value slice<calldata>, arg0, 0
     v4 = extract_value slice<calldata>, arg0, 1
-    v5 = gt v4, v4
+    v5 = lt v4, v4
     v6 = lt v4, 1
     v7 = or v5, v6
     v8 = zext i1 v7 to i256

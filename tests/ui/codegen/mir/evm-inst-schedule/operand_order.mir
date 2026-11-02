@@ -28,10 +28,15 @@ fn @read_order(arg0: i256, arg1: i256) -> i256 {
     ret v4
 }
 
+// The producers of a commutative operation keep their stored order, whichever operand order is
+// canonical: the offset, produced before the tree, runs before it.
 // CHECK-LABEL: {{^[ +].*}}fn @commutative_tree_order{{[( ]}}
-// CHECK-NOT: {{^[+-]}}
-// CHECK: [[ALIGNED:v[0-9]+]] = and {{v[0-9]+}},
-// CHECK: [[ADDRESS:v[0-9]+]] = add {{v[0-9]+}}, {{v[0-9]+}}
+// CHECK: + [[OFFSET:v[0-9]+]] = add arg1, 64
+// CHECK-NEXT: [[SHIFTED:v[0-9]+]] = add arg0, 31
+// CHECK-NEXT: [[ALIGNED:v[0-9]+]] = and [[SHIFTED]],
+// CHECK-NEXT: - [[OFFSET]] = add arg1, 64
+// CHECK-NEXT: [[END:v[0-9]+]] = sub [[ALIGNED]], 32
+// CHECK-NEXT: [[ADDRESS:v[0-9]+]] = add [[OFFSET]], [[END]]
 // CHECK-NEXT: mstore [[ADDRESS]], 0
 fn @commutative_tree_order(arg0: i256, arg1: i256) {
   bb0:

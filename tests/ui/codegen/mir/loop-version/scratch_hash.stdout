@@ -27,7 +27,7 @@ fn @level() [selector=0x223559c3, abi_wrapper, pure] {
     v3 = calldataload 4
     v4 = add v3, 4
     v6 = sub v1, 36
-    v7 = gt v3, v6
+    v7 = lt v6, v3
     v44 = or v2, v7
     jumpi v44, bb1, bb2
   bb2:  ; preds = bb0
@@ -41,9 +41,9 @@ fn @level() [selector=0x223559c3, abi_wrapper, pure] {
     v39 = lt v38, v37
     v40 = zext i1 v39 to i256
     v41 = shr v38, 64
-    v42 = or v40, v41
+    v42 = or v41, v40
     v45 = zext i1 v10 to i256
-    v46 = or v45, v42
+    v46 = or v42, v45
     v47 = ne v46, 0
     jumpi v47, bb3, bb5
   bb5:  ; preds = bb2
@@ -52,7 +52,7 @@ fn @level() [selector=0x223559c3, abi_wrapper, pure] {
     v14 = shl v8, 5
     v15 = sub v1, v9
     v16 = shr v15, 5
-    v17 = gt v8, v16
+    v17 = lt v16, v8
     jumpi v17, bb1, bb4
   bb4:  ; preds = bb5
     v32 = add v37, 32
@@ -102,7 +102,7 @@ fn @_level(arg0: i256) -> i256 [may_return_memory, pure] {
     v144 = lt v143, v142
     v145 = zext i1 v144 to i256
     v146 = shr v143, 64
-    v147 = or v145, v146
+    v147 = or v146, v145
     v148 = ne v147, 0
     jumpi v148, bb8, bb16
   bb16:  ; preds = bb9
@@ -111,10 +111,9 @@ fn @_level(arg0: i256) -> i256 [may_return_memory, pure] {
     calldatacopy v142, v149, v11
     mstore v142, v1
     v70 = mload arg0
-    v73 = or v142, v1
     v74 = shl v1, 5
-    v75 = add v142, 1
     v76 = add v74, 31
+    v75 = add v142, 1
     v78 = sub arg0, v75
     v79 = lt v78, v76
     v81 = zext i1 v79 to i256
@@ -124,6 +123,7 @@ fn @_level(arg0: i256) -> i256 [may_return_memory, pure] {
     v87 = lt arg0, 64
     v88 = zext i1 v87 to i256
     v89 = or v85, v88
+    v73 = or v142, v1
     v114 = shr v73, 64
     v116 = or v114, v89
     v92 = eq v116, 0

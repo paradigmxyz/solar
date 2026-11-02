@@ -5,7 +5,7 @@
 // The helpers of a variable and an arithmetic shift keep the shift's source span.
 // CHECK-LABEL: {{^[ +].*}}fn @spans{{[( ]}}
 // CHECK: + {{v[0-9]+}} = exp 2, arg1 !metadata(span=30..40)
-// CHECK-NEXT: + {{v[0-9]+}} = mul arg0, {{v[0-9]+}} !metadata(span=30..40)
+// CHECK-NEXT: + {{v[0-9]+}} = mul {{v[0-9]+}}, arg0 !metadata(span=30..40)
 // CHECK: + {{v[0-9]+}} = slt arg0, 0 !metadata(span=50..60)
 // CHECK: + {{v[0-9]+}} = div {{v[0-9]+}}, 256 !metadata(span=50..60)
 // CHECK: + {{v[0-9]+}} = xor {{v[0-9]+}}, {{v[0-9]+}} !metadata(span=50..60)

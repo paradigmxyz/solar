@@ -28,7 +28,7 @@ fn @testTypedConstant() -> i1 [selector=0x62655512, pure, abi_params=[], abi_ret
     v0 = icall @auth
     v1 = mload v0, ptr<memory>
     v2 = mload v1
-    v3 = lt 32, v2
+    v3 = gt v2, 32
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = ptradd v1, 64
@@ -108,8 +108,8 @@ fn @check(arg0: i256, arg1: ptr<memory>) -> i256 [pure] {
     v31 = keccak256 v30, v15
     v32 = eq v31, v29
     v33 = zext i1 v32 to i256
-    v34 = and v33, v26
-    v35 = add 20, v12
+    v34 = and v26, v33
+    v35 = add v12, 20
     v36 = lt v35, v5
     v37 = zext i1 v36 to i256
     v38 = or v12, v9
@@ -133,7 +133,7 @@ fn @check(arg0: i256, arg1: ptr<memory>) -> i256 [pure] {
     v55 = eq v54, 0
     v56 = zext i1 v55 to i256
     v57 = shl v56, 2
-    v58 = or 1, v57
+    v58 = or v57, 1
     v59 = ptrtoint ptr<memory> arg1 to i256
     v60 = mload arg1
     v61 = add v60, 33

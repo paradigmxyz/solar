@@ -7,7 +7,7 @@
 //! constants on the right of declared commutative pairs and comparisons, using
 //! the same canonicalization as e-graph insertion and materialization.
 
-use super::{OperandViews, canonical_operands, same_value};
+use super::{OperandViews, same_value};
 use crate::{
     backend::evm::{op, select::InstKindOpcode},
     mir::{
@@ -101,14 +101,14 @@ impl<'a> RuleContext<'a> {
     }
 
     /// Appends every equivalent instruction the rules can build for `op`,
-    /// whose operands must be in [`canonical_operands`] order.
+    /// whose operands must be in [`Function::canonical_op`] order.
     pub(super) fn rewrite(&mut self, op: &Op, alternatives: &mut Vec<Op>) {
         self.integer_ty = self.operation_type(op).unwrap_or(MirType::I256);
         generated::constructor_rewrite(self, op, alternatives);
     }
 
     /// Returns the value `op` is equal to, when a rule applies. The operands
-    /// of `op` must be in [`canonical_operands`] order.
+    /// of `op` must be in [`Function::canonical_op`] order.
     pub(super) fn simplify(&mut self, op: &Op) -> Option<ValueId> {
         self.integer_ty = self.operation_type(op).unwrap_or(MirType::I256);
         generated::constructor_simplify(self, op)
@@ -355,7 +355,7 @@ impl generated::Context for RuleContext<'_> {
                     self.operation_type(op).unwrap_or(MirType::I256) == self.integer_ty
                 }
             })
-            .map(|op| canonical_operands(self.func, op))
+            .map(|op| self.func.canonical_op(op))
     }
 
     fn iconst(&mut self, value: Value) -> Option<U256> {

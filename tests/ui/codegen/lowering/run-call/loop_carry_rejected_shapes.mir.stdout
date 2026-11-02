@@ -83,7 +83,7 @@ fn @firstAbove(arg0: i256) -> i256 [selector=0x0d7505f6, pure, abi_params=[uint2
   bb1:  ; preds = bb0, bb5
     v0 = phi [bb0: arg0], [bb5: v0]
     v1 = phi [bb0: 0], [bb5: v4]
-    v2 = gt v1, v0
+    v2 = lt v0, v1
     v3 = eq v2, false
     jumpi v3, bb3, bb4
   bb4:  ; preds = bb1

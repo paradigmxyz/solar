@@ -51,7 +51,7 @@ fn @container(arg0: i256, arg1: i256) -> struct1 {
     v2 = icall @walk, v1, v0
     v3 = extract_value struct1, v2, 0
     v4 = extract_value struct1, v2, 1
-    v5 = add 160, arg0
+    v5 = add arg0, 160
     mstore8 arg1, v5
     v6 = add v4, 1
     v7 = insert_value struct1, undef struct1, 0, v3

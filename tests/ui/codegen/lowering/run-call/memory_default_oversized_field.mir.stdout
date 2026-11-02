@@ -47,7 +47,7 @@ fn @dynamicElement() -> i256 [selector=0x11dbd815, pure, abi_params=[], abi_retu
     jumpi v2, bb2, bb3
   bb3:  ; preds = bb1
     v9 = mload v0
-    v10 = lt 0, v9
+    v10 = gt v9, 0
     v11 = eq v10, false
     icall panic_if<0x32>, v11
     v12 = ptradd v0, 32

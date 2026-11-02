@@ -118,14 +118,14 @@ fn @stored(arg0: i256) -> ptr<memory> [selector=0x8c396222, pure, abi_params=[ui
   bb3:  ; preds = bb1
     v7 = abi_encode [word], object, args arg0
     v8 = mload v0
-    v9 = lt 0, v8
+    v9 = gt v8, 0
     v10 = eq v9, false
     icall panic_if<0x32>, v10
     v11 = ptrtoint ptr<memory> v7 to i256
     v12 = ptradd v0, 32
     mstore v12, v11
     v13 = mload v0
-    v14 = lt 0, v13
+    v14 = gt v13, 0
     v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = ptradd v0, 32

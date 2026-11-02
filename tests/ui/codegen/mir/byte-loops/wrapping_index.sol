@@ -32,7 +32,7 @@ contract Test {
     // CHECK-NOT: mstore8
     // CHECK: [[END:v[0-9]+]] = add arg1, arg2
     // CHECK-NEXT: [[WRAPS:v[0-9]+]] = lt [[END]], arg1
-    // CHECK-NEXT: [[PAST:v[0-9]+]] = gt [[END]], {{v[0-9]+}}
+    // CHECK-NEXT: [[PAST:v[0-9]+]] = lt {{v[0-9]+}}, [[END]]
     // CHECK-NEXT: [[FAILS:v[0-9]+]] = or [[WRAPS]], [[PAST]]
     // CHECK-NEXT: jumpi [[FAILS]]
     // CHECK: calldatacopy

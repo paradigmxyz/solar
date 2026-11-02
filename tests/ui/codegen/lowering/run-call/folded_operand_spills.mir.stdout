@@ -49,7 +49,7 @@ fn @constantCopy(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xd4b4046
     v35 = xor v34, v14
     v36 = xor v35, v15
     v37 = xor v36, v16
-    v38 = xor v21, v37
+    v38 = xor v37, v21
     ret v38
 }
 
@@ -104,7 +104,7 @@ fn @xoredCopy(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x472d6876, 
     v37 = xor v36, v14
     v38 = xor v37, v15
     v39 = xor v38, v16
-    v40 = xor v23, v39
+    v40 = xor v39, v23
     ret v40
 }
 
@@ -156,7 +156,7 @@ fn @passedPointer(arg0: i256, arg1: i256) -> i256 [selector=0xfbc52b73, pure, ab
     v35 = xor v34, v14
     v36 = xor v35, v15
     v37 = xor v36, v16
-    v38 = xor v21, v37
+    v38 = xor v37, v21
     ret v38
 }
 
@@ -208,7 +208,7 @@ fn @highPointer(arg0: i256, arg1: i256) -> i256 [selector=0x90af289d, pure, abi_
     v35 = xor v34, v14
     v36 = xor v35, v15
     v37 = xor v36, v16
-    v38 = xor v21, v37
+    v38 = xor v37, v21
     ret v38
 }
 
@@ -262,7 +262,7 @@ fn @raisedPointer(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x630f32
     v36 = xor v35, v14
     v37 = xor v36, v15
     v38 = xor v37, v16
-    v39 = xor v22, v38
+    v39 = xor v38, v22
     ret v39
 }
 
@@ -317,7 +317,7 @@ fn @inlinedReturndataCopy(arg0: i256, arg1: i256) -> i256 [selector=0xc8ee4561, 
     v37 = xor v36, v14
     v38 = xor v37, v15
     v39 = xor v38, v16
-    v40 = xor v23, v39
+    v40 = xor v39, v23
     ret v40
 }
 
@@ -372,7 +372,7 @@ fn @inlinedXorCopy(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x00288
     v37 = xor v36, v14
     v38 = xor v37, v15
     v39 = xor v38, v16
-    v40 = xor v23, v39
+    v40 = xor v39, v23
     ret v40
 }
 
@@ -428,7 +428,7 @@ fn @inlinedMemoryCopy(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x02
     v37 = xor v36, v14
     v38 = xor v37, v15
     v39 = xor v38, v16
-    v40 = xor v23, v39
+    v40 = xor v39, v23
     ret v40
 }
 
@@ -482,7 +482,7 @@ fn @inlinedByteCopy(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x6192
     v36 = xor v35, v14
     v37 = xor v36, v15
     v38 = xor v37, v16
-    v39 = xor v22, v38
+    v39 = xor v38, v22
     ret v39
 }
 
@@ -553,7 +553,7 @@ fn @inlinedSelectCopy(arg0: i256, arg1: i256) -> i256 [selector=0xb39526b0, pure
     v41 = xor v40, v14
     v42 = xor v41, v15
     v43 = xor v42, v16
-    v44 = xor v27, v43
+    v44 = xor v43, v27
     ret v44
 }
 
@@ -606,7 +606,7 @@ fn @farRaisedPointer(arg0: i256, arg1: i256) -> i256 [selector=0x9caab65c, pure,
     v35 = xor v34, v14
     v36 = xor v35, v15
     v37 = xor v36, v16
-    v38 = xor v21, v37
+    v38 = xor v37, v21
     ret v38
 }
 
@@ -667,7 +667,7 @@ fn @twoPointers(arg0: i256, arg1: i256) -> i256 [selector=0x7c9988a0, pure, abi_
     v36 = xor v35, v14
     v37 = xor v36, v15
     v38 = xor v37, v16
-    v39 = xor v22, v38
+    v39 = xor v38, v22
     ret v39
 }
 
@@ -720,7 +720,7 @@ fn @nearSpillPointer(arg0: i256, arg1: i256) -> i256 [selector=0xc2786ba1, pure,
     v35 = xor v34, v14
     v36 = xor v35, v15
     v37 = xor v36, v16
-    v38 = xor v21, v37
+    v38 = xor v37, v21
     ret v38
 }
 
@@ -781,7 +781,7 @@ fn @comparisonPointer(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xcf
     v38 = xor v37, v14
     v39 = xor v38, v15
     v40 = xor v39, v16
-    v41 = xor v24, v40
+    v41 = xor v40, v24
     ret v41
 }
 
@@ -843,7 +843,7 @@ fn @shiftedPointer(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x5035a
     v39 = xor v38, v14
     v40 = xor v39, v15
     v41 = xor v40, v16
-    v42 = xor v25, v41
+    v42 = xor v41, v25
     ret v42
 }
 
@@ -907,7 +907,7 @@ fn @shiftedCopy(arg0: i256, arg1: i256) -> i256 [selector=0xe8fd2ffe, pure, abi_
     v40 = xor v39, v14
     v41 = xor v40, v15
     v42 = xor v41, v16
-    v43 = xor v26, v42
+    v43 = xor v42, v26
     ret v43
 }
 
@@ -970,7 +970,7 @@ fn @subtractedCopy(arg0: i256, arg1: i256) -> i256 [selector=0x6e3a8e5c, pure, a
     v39 = xor v38, v14
     v40 = xor v39, v15
     v41 = xor v40, v16
-    v42 = xor v25, v41
+    v42 = xor v41, v25
     ret v42
 }
 

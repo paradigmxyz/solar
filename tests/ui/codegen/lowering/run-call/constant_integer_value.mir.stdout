@@ -77,12 +77,12 @@ fn @mulWadDown(arg0: i256, arg1: i256) -> i256 [pure] {
 fn @mulDivDown(arg0: i256, arg1: i256, arg2: i256) -> i256 [pure] {
   bb0:
     v0 = div 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg1
-    v1 = gt arg0, v0
+    v1 = lt v0, arg0
     v2 = zext i1 v1 to i256
-    v3 = mul arg1, v2
+    v3 = mul v2, arg1
     v4 = eq v3, 0
     v5 = zext i1 v4 to i256
-    v6 = mul arg2, v5
+    v6 = mul v5, arg2
     v7 = eq v6, 0
     v8 = zext i1 v7 to i256
     v9 = ne v8, 0

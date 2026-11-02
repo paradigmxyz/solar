@@ -37,7 +37,7 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
     jumpi v37, bb4, bb5
   bb4:  ; preds = bb0
     v27 = mload v1
-    v28 = add 0, v27
+    v28 = add v27, 0
     v29 = add v1, 32
     jump bb5
   bb5:  ; preds = bb0, bb4
@@ -47,17 +47,17 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
   bb1:  ; preds = bb3, bb5
     v9 = phi [bb5: v38], [bb3: v34]
     v10 = phi [bb5: v39], [bb3: v35]
-    v14 = ne v10, v7
+    v14 = ne v7, v10
     jumpi v14, bb3, bb2
   bb2:  ; preds = bb1
     mstore 0, v9 !metadata(memory=scratch)
     returndata 0, 32
   bb3:  ; preds = bb1
     v17 = mload v10
-    v18 = add v9, v17
+    v18 = add v17, v9
     v19 = add v10, 32
     v33 = mload v19
-    v34 = add v18, v33
+    v34 = add v33, v18
     v35 = add v10, 64
     jump bb1
 }
@@ -78,7 +78,7 @@ fn @sumPastEnd() [selector=0x7d3da1e5, abi_wrapper, pure] {
     jumpi v39, bb4, bb5
   bb4:  ; preds = bb0
     v27 = mload v1
-    v28 = add 0, v27
+    v28 = add v27, 0
     v29 = add v1, 32
     jump bb5
   bb5:  ; preds = bb0, bb4
@@ -88,17 +88,17 @@ fn @sumPastEnd() [selector=0x7d3da1e5, abi_wrapper, pure] {
   bb1:  ; preds = bb3, bb5
     v9 = phi [bb5: v40], [bb3: v34]
     v10 = phi [bb5: v41], [bb3: v35]
-    v14 = ne v10, v7
+    v14 = ne v7, v10
     jumpi v14, bb3, bb2
   bb2:  ; preds = bb1
     mstore 0, v9 !metadata(memory=scratch)
     returndata 0, 32
   bb3:  ; preds = bb1
     v17 = mload v10
-    v18 = add v9, v17
+    v18 = add v17, v9
     v19 = add v10, 32
     v33 = mload v19
-    v34 = add v18, v33
+    v34 = add v33, v18
     v35 = add v10, 64
     jump bb1
 }
@@ -109,7 +109,7 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v1 = calldataload 4
     v2 = add v1, 4
     v4 = sub v0, 36
-    v5 = gt v1, v4
+    v5 = lt v4, v1
     jumpi v5, bb1, bb2
   bb2:  ; preds = bb0
     v6 = calldataload v2
@@ -122,9 +122,9 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v27 = lt v26, v25
     v28 = zext i1 v27 to i256
     v29 = shr v26, 64
-    v30 = or v28, v29
+    v30 = or v29, v28
     v32 = zext i1 v8 to i256
-    v33 = or v32, v30
+    v33 = or v30, v32
     v34 = ne v33, 0
     jumpi v34, bb3, bb5
   bb5:  ; preds = bb2
@@ -133,7 +133,7 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v12 = shl v6, 5
     v13 = sub v0, v7
     v14 = shr v13, 5
-    v15 = gt v6, v14
+    v15 = lt v14, v6
     jumpi v15, bb1, bb4
   bb4:  ; preds = bb5
     v22 = add v25, 32
