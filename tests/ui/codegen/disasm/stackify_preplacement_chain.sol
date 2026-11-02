@@ -4,6 +4,7 @@
 //@ run-call: f 1, 2 => 3
 //@ run-call: f 5, 6 => 4
 
+// The test checks compile time and results, so it runs `-Ogas` and `-Osize` without a MIR dump.
 // Each `round` returns two values that the next call takes, so the single-use producers of a
 // call's operand form a chain in which every call is reached through each of its two results.
 // Finding where the chain feeding a consumer starts must visit each instruction once and stop
