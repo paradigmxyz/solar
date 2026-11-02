@@ -1,0 +1,6 @@
+error: [fn2] [bb0] tail call to returning function `double` survives the `lowered` phase boundary
+
+error: [fn4] [bb0] tail call to returning function `forwards` survives the `lowered` phase boundary
+
+error: aborting due to 2 previous errors
+
