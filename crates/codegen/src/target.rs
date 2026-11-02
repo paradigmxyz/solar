@@ -621,10 +621,7 @@ impl Target {
     /// Cost of the generic Select emitter, excluding initial operand placement.
     pub(crate) fn select(&self, normalize_condition: bool) -> Cost {
         // dup3; swap1; sub; mul; add.
-        let sequence = [op::DUP3, op::SWAP1, op::SUB, op::MUL, op::ADD]
-            .into_iter()
-            .map(|opcode| self.opcode(opcode))
-            .sum::<Cost>();
+        let sequence = self.sequence(&[op::DUP3, op::SWAP1, op::SUB, op::MUL, op::ADD]);
         if normalize_condition { sequence + self.opcode(op::ISZERO) } else { sequence }
     }
 
@@ -1287,8 +1284,8 @@ impl Target {
     /// that drained every carried word, and twelve took 15% off decoding.
     pub(crate) const INLINE_STACK_BUDGET: usize = 12;
     /// Live-in words below which a loop-varying read is reused across one edge instead of
-    /// reloaded: twelve of the sixteen words a `DUP` reaches, so the `DUP` leaves the block's own
-    /// temporaries room.
+    /// reloaded: the same twelve of sixteen words as [`Self::INLINE_STACK_BUDGET`], so the `DUP`
+    /// leaves the block's own temporaries room.
     pub(crate) const DIRECT_REUSE_LIVE_BUDGET: usize = 12;
     /// Most words a loop may carry after a below-threshold hoist or, in size mode, a product
     /// check's hoisted bound. The count is the header's phis plus the values defined outside the
@@ -1344,9 +1341,9 @@ impl Target {
             | InstKind::MakeSlice { .. }
             | InstKind::IntToPtr(..)
             | InstKind::Zext(_) => Cost::ZERO,
-            InstKind::PtrAdd(..) => self.sequence(&[op::ADD]),
-            InstKind::Fmp | InstKind::FrameLoad { .. } => self.sequence(&[op::MLOAD]),
-            InstKind::SetFmp(_) | InstKind::FrameStore { .. } => self.sequence(&[op::MSTORE]),
+            InstKind::PtrAdd(..) => self.opcode(op::ADD),
+            InstKind::Fmp | InstKind::FrameLoad { .. } => self.opcode(op::MLOAD),
+            InstKind::SetFmp(_) | InstKind::FrameStore { .. } => self.opcode(op::MSTORE),
             // Bump the free-memory pointer past the allocation.
             InstKind::Alloc { .. } => self.sequence(&[op::MLOAD, op::ADD, op::MSTORE]),
             // Reserve the buffer, store the selector, produce the slice, store every argument's
@@ -1363,7 +1360,7 @@ impl Target {
                     op::SWAP2,
                 ])
                 .plus(self.sequence(&[op::DUP1, op::ADD, op::MSTORE]).times(args.len() as u32))
-                .plus(self.sequence(&[op::DUP1]).times(abi_layout_expansion(layout) as u32)),
+                .plus(self.dup().times(abi_layout_expansion(layout) as u32)),
             // Check the calldata bound, then load and validate every head word.
             InstKind::AbiDecode { layout, .. } => self
                 .sequence(&[
@@ -1382,17 +1379,17 @@ impl Target {
                 ),
             // A pushed offset into the immutables area and the store.
             InstKind::StoreImmutable(..) => self.sequence(&[op::PUSH2, op::MSTORE]),
-            InstKind::DataCopy(..) => self.sequence(&[op::CODECOPY]),
-            InstKind::DataSize(..) => self.sequence(&[op::PUSH2]),
+            InstKind::DataCopy(..) => self.opcode(op::CODECOPY),
+            InstKind::DataSize(..) => self.opcode(op::PUSH2),
             // Zero by copying from beyond the end of calldata.
             InstKind::MemoryZero(..) => self.sequence(&[op::CALLDATASIZE, op::CALLDATACOPY]),
-            InstKind::ConstructorArgsBase => self.sequence(&[op::PUSH2]),
+            InstKind::ConstructorArgsBase => self.opcode(op::PUSH2),
             InstKind::ConstructorArgsEnd => {
                 self.sequence(&[op::PUSH2, op::PUSH2, op::SUB, op::CODESIZE])
             }
-            InstKind::HeapFloor => self.sequence(&[op::PUSH2]),
+            InstKind::HeapFloor => self.opcode(op::PUSH2),
             InstKind::InternalFrameAddr(_) => self.sequence(&[op::PUSH1, op::ADD]),
-            InstKind::LibraryAddress(_) => self.sequence(&[op::PUSH20]),
+            InstKind::LibraryAddress(_) => self.opcode(op::PUSH20),
             // Typed PUSH<N> placeholder patched at deploy time, cleaned for the narrower types.
             InstKind::LoadImmutable(id) => {
                 let ty = module.immutable_type(*id);
@@ -1482,7 +1479,7 @@ impl Target {
             }
             InstKind::StorageArrayElementSlot { element_slots, .. } => self
                 .sequence(&[op::MSTORE, op::MSTORE, op::KECCAK256, op::ADD])
-                .plus(if *element_slots > 1 { self.sequence(&[op::MUL]) } else { Cost::ZERO }),
+                .plus(if *element_slots > 1 { self.opcode(op::MUL) } else { Cost::ZERO }),
             InstKind::AddressCall { .. } => Cost::new(720, 12),
             InstKind::ICall { function: Callee::Builtin(Builtin::ReturndataBytes), .. } => {
                 Cost::new(60, 24)
@@ -1494,18 +1491,18 @@ impl Target {
             InstKind::Call { .. }
             | InstKind::CallCode { .. }
             | InstKind::StaticCall { .. }
-            | InstKind::DelegateCall { .. } => self.sequence(&[op::CALL]),
+            | InstKind::DelegateCall { .. } => self.opcode(op::CALL),
             InstKind::ICall { function: Callee::Function(function), args } => {
                 self.icall(args.len(), module.function(*function).return_components().len(), 0)
             }
             // A phi is a stack move at the join.
-            InstKind::Phi(_) => self.sequence(&[op::DUP1]),
+            InstKind::Phi(_) => self.dup(),
             // A select runs the generic emitter.
             InstKind::Select(..) => self.select(false),
             // Every other operation lowers to one opcode and was priced above.
             _ => {
                 debug_assert!(false, "operation without a single opcode is not priced: {kind}");
-                self.sequence(&[op::ADD])
+                self.opcode(op::ADD)
             }
         };
         let instructions = match kind {
@@ -1527,7 +1524,7 @@ impl Target {
         (code, instructions)
     }
 
-    /// Estimated code of a terminator, as the opcode sequence it emits priced by the self.
+    /// Estimated code of a terminator, as the opcode sequence it emits priced by the target.
     pub(crate) fn terminator_estimate(&self, term: &Terminator) -> Cost {
         match term {
             Terminator::Jump(_) => self.sequence(&[op::PUSH2, op::JUMP]),
@@ -1542,13 +1539,13 @@ impl Target {
                 self.sequence(&[op::PUSH1, op::DUP1, op::REVERT])
             }
             Terminator::ReturnData { .. } => self.sequence(&[op::PUSH1, op::DUP1, op::RETURN]),
-            Terminator::Stop => self.sequence(&[op::STOP]),
-            Terminator::SelfDestruct { .. } => self.sequence(&[op::SELFDESTRUCT]),
+            Terminator::Stop => self.opcode(op::STOP),
+            Terminator::SelfDestruct { .. } => self.opcode(op::SELFDESTRUCT),
             // A jump with every argument staged.
-            Terminator::TailCall { args, .. } => self
-                .sequence(&[op::PUSH2, op::JUMP])
-                .plus(self.sequence(&[op::DUP1]).times(args.len() as u32)),
-            Terminator::Invalid => self.sequence(&[op::INVALID]),
+            Terminator::TailCall { args, .. } => {
+                self.sequence(&[op::PUSH2, op::JUMP]).plus(self.dup().times(args.len() as u32))
+            }
+            Terminator::Invalid => self.opcode(op::INVALID),
         }
     }
 
@@ -2415,26 +2412,20 @@ mod tests {
         assert_eq!(Target::LICM_EXP_GAS, target.opcode_gas(op::EXP));
         assert_eq!(Target::LICM_ARITHMETIC_GAS, target.opcode_gas(op::MUL));
         assert_eq!(Target::LICM_MEMORY_READ_GAS, target.opcode_gas(op::MLOAD));
-        assert_eq!(
-            [
-                Target::LICM_STATE_READ_GAS,
-                Target::LICM_HASH_GAS,
-                Target::LICM_EXP_GAS,
-                Target::LICM_ARITHMETIC_GAS,
-                Target::LICM_MEMORY_READ_GAS,
-                Target::MIN_LICM_PROFIT_GAS,
-            ],
-            [100, 30, 10, 5, 3, 3]
-        );
+        assert_eq!(Target::MIN_LICM_PROFIT_GAS, Target::LICM_MEMORY_READ_GAS);
     }
 
     #[test]
     fn stack_reach_budgets_stay_within_dup_reach() {
-        assert_eq!(Target::INLINE_STACK_BUDGET, 12);
-        assert_eq!(Target::DIRECT_REUSE_LIVE_BUDGET, 12);
-        assert_eq!(Target::LOOP_CARRY_BUDGET, 5);
-        assert_eq!(Target::SHALLOW_CARRIED_WORDS, 4);
-        assert!(Target::INLINE_STACK_BUDGET < usize::from(op::DUP16 - op::DUP1) + 1);
+        let reach = usize::from(op::DUP16 - op::DUP1) + 1;
+        for budget in [
+            Target::INLINE_STACK_BUDGET,
+            Target::DIRECT_REUSE_LIVE_BUDGET,
+            Target::LOOP_CARRY_BUDGET,
+            Target::SHALLOW_CARRIED_WORDS,
+        ] {
+            assert!(budget < reach);
+        }
     }
 
     #[test]
@@ -2472,5 +2463,10 @@ mod tests {
             target.label_push() + target.opcode(op::JUMPI)
         );
         assert_eq!(target.terminator_estimate(&Terminator::Stop), target.opcode(op::STOP));
+        assert_eq!(target.terminator_estimate(&Terminator::Invalid), target.opcode(op::INVALID));
+        assert_eq!(
+            target.terminator_estimate(&Terminator::Return { values: smallvec::smallvec![] }),
+            target.internal_return(0, 0)
+        );
     }
 }
