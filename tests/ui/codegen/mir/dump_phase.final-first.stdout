@@ -11,7 +11,6 @@ fn @f(arg0: i256) -> i256 [selector=0xb3de648b, pure, abi_params=[uint256], abi_
 @module DumpPhase
 @phase lowered
 // backend-memory-v1
-// backend-entry 1 0x80
 
 ; runtime dispatch entry
 fn @entry() [entry] {
@@ -43,8 +42,7 @@ fn @f() [selector=0xb3de648b, abi_wrapper, pure] {
     jumpi v2, bb2, bb3
   bb3:  ; preds = bb1
     mstore 0, v1 !metadata(memory=scratch)
-    v5 = sub 32, 0
-    returndata 0, v5
+    returndata 0, 32
   bb2 [cold]:  ; preds = bb1
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

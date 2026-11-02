@@ -24,7 +24,7 @@
             "cborAuxdata": {
               "A.sol:Child": [
                 {
-                  "offset": 40,
+                  "offset": 33,
                   "value": "0xa2646970667358221220755284d59e8444598167041099f020163c7ebe81d7636aa42ef59d9bcaa49bcc65736f6c6172430002000034"
                 }
               ]
@@ -48,17 +48,17 @@
             "cborAuxdata": {
               "A.sol:Child": [
                 {
-                  "offset": 428,
+                  "offset": 415,
                   "value": "0xa2646970667358221220755284d59e8444598167041099f020163c7ebe81d7636aa42ef59d9bcaa49bcc65736f6c6172430002000034"
                 },
                 {
-                  "offset": 522,
+                  "offset": 502,
                   "value": "0xa2646970667358221220755284d59e8444598167041099f020163c7ebe81d7636aa42ef59d9bcaa49bcc65736f6c6172430002000034"
                 }
               ],
               "A.sol:C": [
                 {
-                  "offset": 577,
+                  "offset": 557,
                   "value": "0xa264697066735822122003753e84d6d2605cc1e11e0ac04246cafc5e54a0705b935c94e24f612fd1b85b65736f6c6172430002000034"
                 }
               ]
@@ -68,7 +68,7 @@
             "immutableReferences": {
               "12": [
                 {
-                  "start": 125,
+                  "start": 123,
                   "length": 32
                 }
               ]
@@ -76,17 +76,17 @@
             "cborAuxdata": {
               "A.sol:Child": [
                 {
-                  "offset": 397,
+                  "offset": 384,
                   "value": "0xa2646970667358221220755284d59e8444598167041099f020163c7ebe81d7636aa42ef59d9bcaa49bcc65736f6c6172430002000034"
                 },
                 {
-                  "offset": 491,
+                  "offset": 471,
                   "value": "0xa2646970667358221220755284d59e8444598167041099f020163c7ebe81d7636aa42ef59d9bcaa49bcc65736f6c6172430002000034"
                 }
               ],
               "A.sol:C": [
                 {
-                  "offset": 546,
+                  "offset": 526,
                   "value": "0xa264697066735822122003753e84d6d2605cc1e11e0ac04246cafc5e54a0705b935c94e24f612fd1b85b65736f6c6172430002000034"
                 }
               ]
@@ -100,23 +100,23 @@
             "cborAuxdata": {
               "A.sol:Child": [
                 {
-                  "offset": 494,
+                  "offset": 479,
                   "value": "0xa2646970667358221220755284d59e8444598167041099f020163c7ebe81d7636aa42ef59d9bcaa49bcc65736f6c6172430002000034"
                 },
                 {
-                  "offset": 588,
+                  "offset": 566,
                   "value": "0xa2646970667358221220755284d59e8444598167041099f020163c7ebe81d7636aa42ef59d9bcaa49bcc65736f6c6172430002000034"
                 }
               ],
               "A.sol:C": [
                 {
-                  "offset": 643,
+                  "offset": 621,
                   "value": "0xa264697066735822122003753e84d6d2605cc1e11e0ac04246cafc5e54a0705b935c94e24f612fd1b85b65736f6c6172430002000034"
                 }
               ],
               "A.sol:D": [
                 {
-                  "offset": 698,
+                  "offset": 676,
                   "value": "0xa264697066735822122027fb060d02ea2452c35ee9f5cc72c4cd3cbfae28382e30c2b22272674b65723965736f6c6172430002000034"
                 }
               ]

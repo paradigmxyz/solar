@@ -42,7 +42,7 @@ pub(super) fn load(
         // }
         let per_slot = 32 / bytes;
         let per_slot_value = builder.imm(per_slot);
-        let rounded = builder.add_u64_offset(length, u64::from(per_slot - 1));
+        let rounded = builder.add_offset(length, u64::from(per_slot - 1));
         let words = builder.div(rounded, per_slot_value);
         builder.counted_loop(words, |builder, word_index| {
             let word_slot = builder.add(data_slot, word_index);

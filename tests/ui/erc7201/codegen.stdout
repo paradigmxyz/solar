@@ -37,19 +37,18 @@ fn @calldataParam(arg0: slice<calldata>) -> i256 [selector=0x7d4a24fb, pure, abi
     icall revert_if<calldata_tail_too_short>, v6
     v7 = extract_value slice<calldata>, arg0, 1
     v8 = add v7, 31
-    v9 = not 31
-    v10 = and v8, v9
-    v11 = add v10, 32
-    v12 = lt v11, v7
-    icall panic_if<0x41>, v12
-    v13 = alloc v11
-    mstore v13, v7
-    v14 = ptradd v13, 32
-    v15 = extract_value slice<calldata>, arg0, 0
-    v16 = extract_value slice<calldata>, arg0, 1
-    calldatacopy v14, v15, v16
-    v17 = icall erc7201<>, v13
-    ret v17
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v10 = add v9, 32
+    v11 = lt v10, v7
+    icall panic_if<0x41>, v11
+    v12 = alloc v10
+    mstore v12, v7
+    v13 = ptradd v12, 32
+    v14 = extract_value slice<calldata>, arg0, 0
+    v15 = extract_value slice<calldata>, arg0, 1
+    calldatacopy v13, v14, v15
+    v16 = icall erc7201<>, v12
+    ret v16
 }
 
 ; function storageValue() public view returns (uint256) [selector 0xa977a973]

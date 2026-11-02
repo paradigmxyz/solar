@@ -45,14 +45,12 @@ fn @masked(arg0: i256) -> struct2 [selector=0x38caca52, pure, abi_params=[uint25
     v0 = shl arg0, 32
     v1 = or v0, 0x12345678
     v2 = and v1, 0xffffffff
-    v3 = shl 255, 248
-    v4 = shl 18, 248
-    v5 = shr arg0, 8
-    v6 = or v5, v4
-    v7 = and v6, v3
-    v8 = insert_value struct2, undef struct2, 0, v2
-    v9 = insert_value struct2, v8, 1, v7
-    ret v9
+    v3 = shr arg0, 8
+    v4 = or v3, 0x1200000000000000000000000000000000000000000000000000000000000000
+    v5 = and v4, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v6 = insert_value struct2, undef struct2, 0, v2
+    v7 = insert_value struct2, v6, 1, v5
+    ret v7
 }
 
 ; function offsets(uint256 x) external pure returns (uint256 result) [selector 0x81914619]
@@ -106,17 +104,15 @@ fn @chains(arg0: i256) -> struct3 [selector=0x550325b5, pure, abi_params=[uint25
 fn @overflow(arg0: i256) -> struct3 [selector=0x517550bf, pure, abi_params=[uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = shl arg0, 1
-    v1 = not 0
-    v2 = shl v0, v1
-    v3 = shr arg0, 255
-    v4 = shr v3, 1
-    v5 = sar arg0, 1
-    v6 = not 0
-    v7 = sar v5, v6
-    v8 = insert_value struct3, undef struct3, 0, v2
-    v9 = insert_value struct3, v8, 1, v4
-    v10 = insert_value struct3, v9, 2, v7
-    ret v10
+    v1 = shl v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v2 = shr arg0, 255
+    v3 = shr v2, 1
+    v4 = sar arg0, 1
+    v5 = sar v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v6 = insert_value struct3, undef struct3, 0, v1
+    v7 = insert_value struct3, v6, 1, v3
+    v8 = insert_value struct3, v7, 2, v5
+    ret v8
 }
 
 ; function slices(uint256 x) external pure returns (uint256 low, uint256 high, uint256 signed, uint256 nested) [selector 0xe84df24a]
