@@ -9,6 +9,17 @@ on:
         required: false
         type: string
   workflow_dispatch:
+  # Release builds otherwise run only on tag pushes, so catch breakage before a release.
+  schedule:
+    - cron: "0 3 * * 1"
+  pull_request:
+    paths:
+      - .github/workflows/build-release-binaries.yml
+      - .github/workflows/release.yml
+      - benches/runtime/benchmark.py
+      - benches/runtime/cases.py
+      - dist-workspace.toml
+      - scripts/pgo/**
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
