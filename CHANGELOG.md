@@ -20,8 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   follows a new model ([#1004]), and functions can be marked cold ([#948]).
   Optimizations are written as ISLE rules over an e-graph, driven by a
   declarative operation schema ([#1373], [#1509]). The Amsterdam EVM version is
-  supported ([#1288]). The stack scheduler spills values beyond `DUP16`/`SWAP16`
-  reach to memory, so there are no "stack too deep" errors
+  supported ([#1288]). When too many values are live on the stack, the stack
+  scheduler spills some to memory instead of failing with "stack too deep"
   ([#1187], [#1368], [#2006], [#2093]). The compiler warns whenever it
   generates code.
 - **Optimizer.** `-O gas` (the default) and `-O size` target runtime gas and
