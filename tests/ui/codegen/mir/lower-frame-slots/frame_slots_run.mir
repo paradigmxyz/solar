@@ -1,0 +1,41 @@
+//@ compile-flags: -Zmir-pipeline=lower-frame-slots,lower-evm-shaped
+//@ run-call: scratch(uint256)(uint256) 5 => 12
+//@ run-call: plain(uint256)(uint256) 5 => 6
+// Lowered frame slots execute: an external function reads back what it stored at the fixed
+// addresses from the heap start. Internal-frame slots are not run here: MIR text cannot set a
+// function's frame size, which the backend needs to place them.
+@module FrameSlotRun
+@phase semantic
+
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = shr v0, 224
+    switch v1, default bb3, [0x37a6096a => bb1, 0x11546183 => bb2]
+  bb1:
+    tail_call @scratch
+  bb2:
+    tail_call @plain
+  bb3:
+    revert 0, 0
+}
+
+fn @scratch() [selector=0x37a6096a, abi_wrapper] {
+  bb0:
+    v0 = calldataload 4
+    frame_store scratch, word, 0, v0
+    frame_store scratch, word, 32, 7
+    v1 = frame_load scratch, word, 0
+    v2 = frame_load scratch, word, 32
+    v3 = add v1, v2
+    mstore 0, v3
+    returndata 0, 32
+}
+
+fn @plain() [selector=0x11546183, abi_wrapper] {
+  bb0:
+    v0 = calldataload 4
+    v1 = add v0, 1
+    mstore 0, v1
+    returndata 0, 32
+}

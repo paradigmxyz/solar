@@ -1,0 +1,67 @@
+//@ compile-flags: -Zmir-pipeline=simplify-phis
+//@ filecheck:
+//@ run-call: same(uint256)(uint256) 0 => 0
+//@ run-call: same(uint256)(uint256) 7 => 7
+//@ run-call: distinct(uint256)(uint256) 0 => 2
+//@ run-call: distinct(uint256)(uint256) 1 => 1
+// A phi whose incoming values are all one value is that value, and replacing one phi makes
+// the phi it fed trivial in turn. A phi that merges different values stays.
+@module TrivialPhis
+@phase lowered
+
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = shr v0, 224
+    switch v1, default bb3, [0x8f5383a4 => bb1, 0xa5330720 => bb2]
+  bb1:
+    tail_call @same
+  bb2:
+    tail_call @distinct
+  bb3:
+    revert 0, 0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @same{{[( ]}}
+// CHECK: - {{v[0-9]+}} = phi [bb1: v0], [bb2: v0]
+// CHECK: - {{v[0-9]+}} = phi [bb{{[0-9]+}}: {{v[0-9]+}}], [bb{{[0-9]+}}: {{v[0-9]+}}]
+// CHECK: + mstore 0, v0
+fn @same() [selector=0x8f5383a4, abi_wrapper] {
+  bb0:
+    v0 = calldataload 4
+    v1 = ne v0, 0
+    jumpi v1, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v2 = phi [bb1: v0], [bb2: v0]
+    jumpi v1, bb4, bb5
+  bb4:
+    jump bb6
+  bb5:
+    jump bb6
+  bb6:
+    v3 = phi [bb4: v2], [bb5: v2]
+    mstore 0, v3
+    returndata 0, 32
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @distinct{{[( ]}}
+// CHECK: {{^ +}}{{v[0-9]+}} = phi [bb1: 1], [bb2: 2]
+// CHECK-NOT: {{^[-+]}}
+fn @distinct() [selector=0xa5330720, abi_wrapper] {
+  bb0:
+    v0 = calldataload 4
+    v1 = ne v0, 0
+    jumpi v1, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v2 = phi [bb1: 1], [bb2: 2]
+    mstore 0, v2
+    returndata 0, 32
+}

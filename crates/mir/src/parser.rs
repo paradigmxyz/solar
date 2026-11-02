@@ -685,6 +685,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 sym::always_inline => builder.func_mut().attributes.always_inline = true,
                 sym::inline_hint => builder.func_mut().attributes.inline_hint = true,
                 sym::cold => builder.func_mut().attributes.hotness = Hotness::Cold,
+                sym::cold_hint => builder.func_mut().attributes.cold_hint = true,
                 sym::optimize => {
                     self.parser.expect(TokenKind::Eq)?;
                     let objective = self.parser.parse_optimize_objective()?;

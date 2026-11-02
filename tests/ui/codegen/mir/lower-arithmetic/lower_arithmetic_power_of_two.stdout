@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lowering/lower_arithmetic_power_of_two.mir (before lower-arithmetic) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/lower_arithmetic_power_of_two.mir (after lower-arithmetic) ===
+- // === ROOT/tests/ui/codegen/mir/lower-arithmetic/lower_arithmetic_power_of_two.mir (before lower-arithmetic) ===
++ // === ROOT/tests/ui/codegen/mir/lower-arithmetic/lower_arithmetic_power_of_two.mir (after lower-arithmetic) ===
   @module PowerOfTwoMul
   fn @right(arg0: i256) -> i256 {
     bb0:
