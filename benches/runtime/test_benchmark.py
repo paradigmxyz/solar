@@ -1363,6 +1363,24 @@ class ArtifactTests(unittest.TestCase):
             )
         self.assertEqual(json.loads(output), {"contracts": {}})
 
+    def test_selected_contract_output_prefers_the_cases_own_source(self) -> None:
+        case = benchmark.TEST_CASES[0]
+        source = case.source_name or case.source or f"{case.test_id}.sol"
+        output = {
+            "contracts": {
+                "other.sol": {case.contract_name: {"abi": "other"}},
+                source: {case.contract_name: {"abi": "own"}},
+            }
+        }
+
+        self.assertEqual(
+            benchmark.selected_contract_output(output, case), {"abi": "own"}
+        )
+        del output["contracts"][source]
+        self.assertEqual(
+            benchmark.selected_contract_output(output, case), {"abi": "other"}
+        )
+
     def test_solar_dump_without_the_target_is_rejected(self) -> None:
         stdout = '// === A.sol:A ===\nmir\n{"contracts":{}}'
 

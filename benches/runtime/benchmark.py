@@ -543,7 +543,9 @@ def selected_contract_output(
     output: dict[str, Any], test_case: TestCase
 ) -> dict[str, Any]:
     contracts = output.get("contracts") or {}
-    for source_contracts in contracts.values():
+    source = test_case.source_name or test_case.source or f"{test_case.test_id}.sol"
+    # Solar's artifact output has every contract, so another source may reuse the name.
+    for source_contracts in (contracts.get(source) or {}, *contracts.values()):
         if test_case.contract_name in source_contracts:
             return source_contracts[test_case.contract_name]
     return {}
