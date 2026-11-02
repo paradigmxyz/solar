@@ -28,8 +28,8 @@ fn @chained() {
   bb0:
     v61 = calldataload 4
     v62 = calldataload 36
-    v63 = calldataload 68
     v0 = lt v61, v62
+    v63 = calldataload 68
     v2 = lt v62, v63
     v64 = and v0, v2
     jumpi v64, bb4, bb3

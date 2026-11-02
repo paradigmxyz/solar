@@ -562,23 +562,22 @@ bb47 [continuation]:
   push 32
   add
   calldataload
-  push 32
+  push 0
+  not
   dup 3
-  lt
-  swap 2
   push 32
   sub
   push 3
   shl
+  shl
+  swap 2
+  push 32
+  gt
   push 0
   not
+  add
   swap 1
-  shl
-  swap 1
-  push 1
-  swap 1
-  swap 3
-  sub
+  swap 2
   or
   and
   push 0
@@ -601,10 +600,7 @@ bb51 [continuation]:
   push 32
   add
   calldataload
-  push 4
-  dup 3
-  lt
-  swap 2
+  dup 2
   push 4
   sub
   push 3
@@ -616,11 +612,12 @@ bb51 [continuation]:
   dup 1
   swap 2
   shl
+  swap 3
+  push 4
+  gt
   dup 2
-  swap 4
-  swap 1
-  dup 3
-  swap 1
+  dup 1
+  swap 5
   sub
   mul
   add

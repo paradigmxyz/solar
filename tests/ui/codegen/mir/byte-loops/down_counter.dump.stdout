@@ -27,11 +27,11 @@ fn @fromCalldata() {
     v42 = calldataload 4
     v43 = add v42, 4
     v45 = sub v39, 36
-    v46 = gt v42, v45
+    v46 = lt v45, v42
     v47 = calldataload v43
     v48 = add v43, 32
     v49 = sub v39, v48
-    v50 = gt v47, v49
+    v50 = lt v49, v47
     v51 = or v46, v50
     v91 = or v40, v51
     jumpi v91, bb7, bb8
@@ -48,7 +48,7 @@ fn @fromCalldata() {
     v84 = lt v83, v82
     v85 = zext i1 v84 to i256
     v86 = shr v83, 64
-    v87 = or v85, v86
+    v87 = or v86, v85
     v88 = ne v87, 0
     jumpi v88, bb10, bb9
   bb9:  ; preds = bb4
@@ -59,7 +59,7 @@ fn @fromCalldata() {
     v31 = eq v92, 0
     jumpi v31, bb1, bb2
   bb2:  ; preds = bb9
-    v33 = gt v92, v47
+    v33 = lt v47, v92
     jumpi v33, bb5, bb6
   bb6:  ; preds = bb2
     v79 = add v82, 32
@@ -110,7 +110,7 @@ fn @fromFresh() {
     v153 = lt v152, v151
     v154 = zext i1 v153 to i256
     v155 = shr v152, 64
-    v156 = or v154, v155
+    v156 = or v155, v154
     v157 = ne v156, 0
     jumpi v157, bb23, bb24
   bb24:  ; preds = bb14
@@ -147,7 +147,7 @@ fn @fromFresh() {
   bb9:  ; preds = bb10, bb12
     v70 = phi [bb12: 0], [bb10: v72]
     v166 = phi [bb12: v165], [bb10: v167]
-    v71 = ne v166, v169
+    v71 = ne v169, v166
     jumpi v71, bb10, bb2
   bb2:  ; preds = bb1, bb9
     v144 = mload 64 !metadata(memory=scratch, alloc_ptr)
@@ -155,7 +155,7 @@ fn @fromFresh() {
     v146 = lt v145, v144
     v147 = zext i1 v146 to i256
     v148 = shr v145, 64
-    v149 = or v147, v148
+    v149 = or v148, v147
     v150 = ne v149, 0
     jumpi v150, bb23, bb22
   bb22:  ; preds = bb2
@@ -169,14 +169,14 @@ fn @fromFresh() {
     v121 = add v151, 32
     v123 = add v144, 32
     v58 = add v121, v96
-    v59 = add v123, v96
     v60 = lt v123, v58
+    v59 = add v123, v96
     v61 = lt v151, v59
     v62 = and v60, v61
     jumpi v62, bb4, bb8
   bb8:  ; preds = bb7
     v64 = mload v151
-    v65 = gt v96, v64
+    v65 = lt v64, v96
     jumpi v65, bb15, bb19
   bb19:  ; preds = bb8
     mcopy v123, v121, v96

@@ -60,10 +60,10 @@ fn @lengthSet() {
   bb2:  ; preds = bb5
     v35 = heap_floor !metadata(alloc_ptr)
     mstore v35, v25
-    v10 = calldatasize
     v19 = shr v25, 64
+    v10 = calldatasize
     v12 = sub v10, v25
-    v14 = sgt v28, v12
+    v14 = slt v12, v28
     v39 = zext i1 v14 to i256
     v40 = or v19, v39
     v41 = ne v40, 0
@@ -98,10 +98,10 @@ fn @offsetSet() {
   bb2:  ; preds = bb5
     v39 = heap_floor !metadata(alloc_ptr)
     mstore v39, v31
-    v14 = calldatasize
     v23 = shr v31, 64
+    v14 = calldatasize
     v16 = sub v14, v31
-    v18 = sgt v2, v16
+    v18 = slt v16, v2
     v43 = zext i1 v18 to i256
     v44 = or v23, v43
     v45 = ne v44, 0
@@ -127,10 +127,10 @@ fn @forwarded() {
     v23 = icall @decode_calldata_slice
     v24 = calldataload v23
     v25 = add v23, 32
-    v2 = calldatasize
     v17 = shr v24, 64
+    v2 = calldatasize
     v4 = sub v2, v24
-    v6 = sgt v25, v4
+    v6 = slt v4, v25
     v36 = zext i1 v6 to i256
     v37 = or v17, v36
     v38 = ne v37, 0
@@ -159,11 +159,11 @@ fn @decode_calldata_slice() -> i256 {
     v1 = calldataload 4
     v2 = add v1, 4
     v4 = sub v0, 36
-    v5 = gt v1, v4
+    v5 = lt v4, v1
     v6 = calldataload v2
     v7 = add v2, 32
     v8 = sub v0, v7
-    v9 = gt v6, v8
+    v9 = lt v8, v6
     v10 = or v5, v9
     jumpi v10, bb1, bb2
   bb2:  ; preds = bb0

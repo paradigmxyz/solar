@@ -43,7 +43,7 @@ fn @periodStarts() {
     v75 = calldataload 4
     v34 = div v75, v27
     v35 = mul v34, v27
-    v36 = add 0, v35
+    v36 = add v35, 0
     v38 = add v75, 0xe10
     v39 = lt v38, v75
     jumpi v39, bb5, bb8
@@ -60,7 +60,7 @@ fn @periodStarts() {
   bb10:  ; preds = bb9
     v48 = div v41, v27
     v49 = mul v48, v27
-    v50 = add v42, v49
+    v50 = add v49, v42
     v51 = lt v50, v42
     v52 = add v41, 0xe10
     v53 = lt v52, v41
@@ -86,14 +86,14 @@ fn @periodStarts() {
   bb3:  ; preds = bb1
     v12 = div v0, v27
     v13 = mul v12, v27
-    v20 = add v3, v13
+    v20 = add v13, v3
     v21 = lt v20, v3
     v22 = add v0, 0xe10
     v23 = lt v22, v0
     v71 = or v21, v23
     v59 = div v22, v27
     v60 = mul v59, v27
-    v61 = add v20, v60
+    v61 = add v60, v20
     v62 = lt v61, v20
     v72 = or v71, v62
     v63 = add v22, 0xe10
@@ -129,7 +129,7 @@ fn @keep() {
     v70 = calldataload 4
     v29 = div v70, v22
     v30 = sub v70, v29
-    v31 = add 0, v30
+    v31 = add v30, 0
     v33 = add v70, 0xde0b6b3a7640000
     v34 = lt v33, v70
     jumpi v34, bb5, bb8
@@ -146,7 +146,7 @@ fn @keep() {
   bb10:  ; preds = bb9
     v43 = div v36, v22
     v44 = sub v36, v43
-    v45 = add v37, v44
+    v45 = add v44, v37
     v46 = lt v45, v37
     v47 = add v36, 0xde0b6b3a7640000
     v48 = lt v47, v36
@@ -172,14 +172,14 @@ fn @keep() {
   bb3:  ; preds = bb1
     v12 = div v0, v22
     v13 = sub v0, v12
-    v15 = add v3, v13
+    v15 = add v13, v3
     v16 = lt v15, v3
     v17 = add v0, 0xde0b6b3a7640000
     v18 = lt v17, v0
     v66 = or v16, v18
     v54 = div v17, v22
     v55 = sub v17, v54
-    v56 = add v15, v55
+    v56 = add v55, v15
     v57 = lt v56, v15
     v67 = or v66, v57
     v58 = add v17, 0xde0b6b3a7640000

@@ -85,13 +85,13 @@ fn @roundTrip() {
     v166 = calldataload 36
     v167 = add v166, 4
     v169 = sub v163, 36
-    v170 = gt v166, v169
+    v170 = lt v169, v166
     v225 = or v164, v170
     v171 = calldataload v167
     v172 = add v167, 32
     v173 = sub v163, v172
     v174 = shr v173, 5
-    v175 = gt v171, v174
+    v175 = lt v174, v171
     v226 = or v225, v175
     jumpi v226, bb5, bb30
   bb30:  ; preds = bb0
@@ -131,7 +131,7 @@ fn @roundTrip() {
   bb19:  ; preds = bb3
     v98 = mload v181
     v100 = add v181, v98
-    v103 = gt v98, v94
+    v103 = lt v94, v98
     v104 = sub v96, v100
     v105 = lt v104, 64
     v229 = or v103, v105
@@ -147,7 +147,7 @@ fn @roundTrip() {
     v110 = add v100, v109
     v112 = add v110, 32
     v113 = gt v109, 0xffffffffffffffff
-    v114 = gt v112, v96
+    v114 = lt v96, v112
     v115 = or v113, v114
     jumpi v115, bb5, bb21
   bb21:  ; preds = bb20
@@ -161,7 +161,7 @@ fn @roundTrip() {
     mstore v215, v117
     v124 = sub v96, v112
     v125 = shr v124, 5
-    v126 = gt v117, v125
+    v126 = lt v125, v117
     jumpi v126, bb5, bb23
   bb23:  ; preds = bb22
     jump bb24
@@ -219,7 +219,7 @@ fn @roundTrip() {
     v132 = add v112, v131
     v134 = add v132, 32
     v135 = gt v131, 0xffffffffffffffff
-    v136 = gt v134, v96
+    v136 = lt v96, v134
     v137 = or v135, v136
     jumpi v137, bb5, bb27
   bb27:  ; preds = bb25
@@ -234,7 +234,7 @@ fn @roundTrip() {
     v145 = shl v139, 5
     v146 = sub v96, v134
     v147 = shr v146, 5
-    v148 = gt v139, v147
+    v148 = lt v147, v139
     jumpi v148, bb5, bb29
   bb29:  ; preds = bb28
     v198 = add v216, 32
@@ -270,7 +270,7 @@ fn @roundTrip() {
     v36 = shl v33, 5
     v37 = add v26, 32
     v38 = sub v34, v36
-    v39 = sgt v37, v38
+    v39 = slt v38, v37
     jumpi v39, bb5, bb10
   bb10:  ; preds = bb9
     v43 = add v36, 32
@@ -306,7 +306,7 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v1 = calldataload 4
     v2 = add v1, 4
     v3 = sub v0, 4
-    v4 = gt v1, v3
+    v4 = lt v3, v1
     v5 = sub v0, v2
     v6 = lt v5, 64
     v76 = or v4, v6
@@ -321,7 +321,7 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v10 = calldataload v9
     v11 = add v2, v10
     v13 = sub v5, 32
-    v14 = gt v10, v13
+    v14 = lt v13, v10
     jumpi v14, bb1, bb3
   bb3:  ; preds = bb2
     v15 = calldataload v11
@@ -335,7 +335,7 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     mstore v72, v15
     v22 = sub v0, v16
     v23 = shr v22, 5
-    v24 = gt v15, v23
+    v24 = lt v23, v15
     jumpi v24, bb1, bb6
   bb6:  ; preds = bb5
     jump bb7
@@ -355,7 +355,7 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v29 = calldataload v26
     v30 = add v16, v29
     v32 = sub v22, 32
-    v33 = gt v29, v32
+    v33 = lt v32, v29
     jumpi v33, bb1, bb10
   bb10:  ; preds = bb8
     v34 = calldataload v30
@@ -370,7 +370,7 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v40 = shl v34, 5
     v41 = sub v0, v35
     v42 = shr v41, 5
-    v43 = gt v34, v42
+    v43 = lt v42, v34
     jumpi v43, bb1, bb12
   bb12:  ; preds = bb11
     v64 = add v73, 32
@@ -473,7 +473,7 @@ fn @alloc(arg0: i256) -> i256 {
     v3 = lt v2, v0
     v4 = zext i1 v3 to i256
     v5 = shr v2, 64
-    v6 = or v4, v5
+    v6 = or v5, v4
     v7 = ne v6, 0
     jumpi v7, bb1, bb2
   bb2:  ; preds = bb0

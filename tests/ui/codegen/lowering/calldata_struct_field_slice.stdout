@@ -42,7 +42,7 @@ fn @factory.0() {
     v3 = calldataload 4
     v4 = add v3, 4
     v5 = sub v1, 4
-    v6 = gt v3, v5
+    v6 = lt v5, v3
     v7 = sub v1, v4
     v8 = lt v7, 256
     v50 = or v6, v8
@@ -66,7 +66,7 @@ fn @factory.0() {
     v42 = shr v40, 64
     v44 = add v35, 32
     v45 = sub v41, v40
-    v46 = sgt v44, v45
+    v46 = slt v45, v44
     v52 = zext i1 v46 to i256
     v53 = or v42, v52
     v54 = ne v53, 0
@@ -94,7 +94,7 @@ fn @tailHash.1() {
     v3 = calldataload 4
     v4 = add v3, 4
     v5 = sub v1, 4
-    v6 = gt v3, v5
+    v6 = lt v5, v3
     v7 = sub v1, v4
     v8 = lt v7, 256
     v58 = or v6, v8
@@ -118,7 +118,7 @@ fn @tailHash.1() {
     v36 = shr v34, 64
     v38 = add v29, 32
     v39 = sub v35, v34
-    v40 = sgt v38, v39
+    v40 = slt v39, v38
     v60 = zext i1 v40 to i256
     v61 = or v36, v60
     v62 = ne v61, 0
@@ -131,7 +131,7 @@ fn @tailHash.1() {
     v22 = add v38, 20
     v24 = calldatasize
     v43 = sub v24, v20
-    v45 = sgt v22, v43
+    v45 = slt v43, v22
     jumpi v45, bb1, bb7
   bb7:  ; preds = bb2
     v49 = heap_floor
@@ -155,7 +155,7 @@ fn @midWord.2() {
     v41 = calldataload 4
     v42 = add v41, 4
     v43 = sub v39, 4
-    v44 = gt v41, v43
+    v44 = lt v43, v41
     v45 = sub v39, v42
     v46 = lt v45, 256
     v52 = or v44, v46
@@ -179,7 +179,7 @@ fn @midWord.2() {
     v15 = shr v13, 64
     v17 = add v8, 32
     v18 = sub v14, v13
-    v19 = sgt v17, v18
+    v19 = slt v18, v17
     v54 = zext i1 v19 to i256
     v55 = or v15, v54
     v24 = lt v13, 32

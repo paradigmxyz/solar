@@ -21,12 +21,12 @@ fn @entry() [entry] {
     v50 = calldatasize
     v53 = add v113, 4
     v54 = sub v50, 36
-    v55 = gt v113, v54
+    v55 = lt v54, v113
     v63 = calldataload v53
     v64 = add v53, 32
     v65 = sub v50, v64
     v66 = shr v65, 5
-    v67 = gt v63, v66
+    v67 = lt v66, v63
     v112 = or v55, v67
     jumpi v112, bb1, bb22
   bb22:  ; preds = bb5
@@ -47,7 +47,7 @@ fn @entry() [entry] {
     jump bb17
   bb17:  ; preds = bb30, bb31
     v70 = phi [bb31: v109], [bb30: v104]
-    v57 = ne v70, v73
+    v57 = ne v73, v70
     jumpi v57, bb20, bb18
   bb18:  ; preds = bb17
     mstore 0, v63
@@ -74,12 +74,12 @@ fn @entry() [entry] {
     v29 = calldatasize
     v32 = add v113, 4
     v33 = sub v29, 36
-    v34 = gt v113, v33
+    v34 = lt v33, v113
     v43 = calldataload v32
     v44 = add v32, 32
     v45 = sub v29, v44
     v46 = shr v45, 5
-    v47 = gt v43, v46
+    v47 = lt v46, v43
     v111 = or v34, v47
     jumpi v111, bb1, bb16
   bb16:  ; preds = bb4
@@ -107,12 +107,12 @@ fn @entry() [entry] {
     v8 = calldatasize
     v11 = add v113, 4
     v12 = sub v8, 36
-    v13 = gt v113, v12
+    v13 = lt v12, v113
     v22 = calldataload v11
     v23 = add v11, 32
     v24 = sub v8, v23
     v25 = shr v24, 5
-    v26 = gt v22, v25
+    v26 = lt v25, v22
     v110 = or v13, v26
     jumpi v110, bb1, bb10
   bb10:  ; preds = bb3
@@ -133,7 +133,7 @@ fn @entry() [entry] {
     jump bb6
   bb6:  ; preds = bb26, bb27
     v76 = phi [bb27: v95], [bb26: v90]
-    v15 = ne v76, v79
+    v15 = ne v79, v76
     jumpi v15, bb9, bb7
   bb9:  ; preds = bb6
     v20 = calldataload v76

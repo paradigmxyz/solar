@@ -37,7 +37,7 @@ fn @lastIndexOf() {
     v3 = sub v0, 1
     v21 = sub v40, v3
     v22 = zext i1 v2 to i256
-    v23 = mul v22, v21
+    v23 = mul v21, v22
     v24 = add v3, v23
     v34 = shl v24, 5
     v35 = add v29, v34
@@ -77,7 +77,7 @@ fn @keepsCheck() {
     v20 = sub v39, v0
     v2 = lt v39, v0
     v21 = zext i1 v2 to i256
-    v22 = mul v21, v20
+    v22 = mul v20, v21
     v23 = add v0, v22
     v33 = shl v23, 5
     v34 = add v28, v33
@@ -117,7 +117,7 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v1 = calldataload 4
     v2 = add v1, 4
     v4 = sub v0, 36
-    v5 = gt v1, v4
+    v5 = lt v4, v1
     jumpi v5, bb1, bb2
   bb2:  ; preds = bb0
     v6 = calldataload v2
@@ -130,9 +130,9 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v27 = lt v26, v25
     v28 = zext i1 v27 to i256
     v29 = shr v26, 64
-    v30 = or v28, v29
+    v30 = or v29, v28
     v32 = zext i1 v8 to i256
-    v33 = or v32, v30
+    v33 = or v30, v32
     v34 = ne v33, 0
     jumpi v34, bb3, bb5
   bb5:  ; preds = bb2
@@ -141,7 +141,7 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v12 = shl v6, 5
     v13 = sub v0, v7
     v14 = shr v13, 5
-    v15 = gt v6, v14
+    v15 = lt v14, v6
     jumpi v15, bb1, bb4
   bb4:  ; preds = bb5
     v22 = add v25, 32

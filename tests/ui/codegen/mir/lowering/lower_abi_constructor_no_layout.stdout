@@ -13,7 +13,7 @@
 +     v1 = constructor_args_base
 +     v2 = constructor_args_end
 +     v3 = add v1, 64
-+     v4 = gt v3, v2
++     v4 = lt v2, v3
 +     jumpi v4, bb3, bb4
 +   bb4:  ; preds = bb1
 +     v5 = mload v1

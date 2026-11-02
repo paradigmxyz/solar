@@ -76,7 +76,7 @@ fn @ffs.2() {
     v11 = calldataload 4
     v2 = not v11
     v3 = add v2, 1
-    v4 = and v11, v3
+    v4 = and v3, v11
     v5 = icall @fls.3, v4
     jump bb2
   bb2:  ; preds = bb0, bb1
@@ -123,10 +123,10 @@ fn @fls.3(arg0: i256) -> i256 {
     v37 = gt v75, 3
     v79 = zext i1 v37 to i256
     v80 = add v79, v79
-    v81 = shr v75, v80
     v84 = or v78, v80
+    v81 = shr v75, v80
     v42 = shr v81, 1
-    v43 = or v84, v42
+    v43 = or v42, v84
     ret v43
   bb1:  ; preds = bb0
     ret 256

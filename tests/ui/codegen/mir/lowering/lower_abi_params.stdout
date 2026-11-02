@@ -29,13 +29,13 @@
 +     jumpi v7, bb2, bb3
 +   bb3:  ; preds = bb0
 +     v8 = calldataload 4
-+     v9 = add 4, v8
++     v9 = add v8, 4
 +     v10 = sub v6, 4
-+     v11 = gt v8, v10
++     v11 = lt v10, v8
 +     jumpi v11, bb4, bb5
 +   bb5:  ; preds = bb3
 +     v12 = sub v6, v9
-+     v13 = gt 64, v12
++     v13 = lt v12, 64
 +     jumpi v13, bb4, bb6
 +   bb6:  ; preds = bb5
 +     v14 = alloc 96
@@ -43,7 +43,7 @@
 +     v16 = add v9, v15
 +     v17 = sub v6, v9
 +     v18 = sub v17, 32
-+     v19 = gt v15, v18
++     v19 = lt v18, v15
 +     jumpi v19, bb4, bb7
 +   bb7:  ; preds = bb6
 +     v20 = calldataload v16
@@ -58,7 +58,7 @@
 +     v26 = mul v20, 32
 +     v27 = sub v6, v21
 +     v28 = shr v27, 5
-+     v29 = gt v20, v28
++     v29 = lt v28, v20
 +     jumpi v29, bb4, bb10
 +   bb10:  ; preds = bb9
 +     v30 = inttoptr i256 v21 to ptr<calldata>

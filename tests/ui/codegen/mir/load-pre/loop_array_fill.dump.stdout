@@ -41,7 +41,7 @@ fn @fill() {
     v86 = lt v85, v84
     v87 = zext i1 v86 to i256
     v88 = shr v85, 64
-    v89 = or v87, v88
+    v89 = or v88, v87
     v90 = ne v89, 0
     jumpi v90, bb17, bb16
   bb16:  ; preds = bb10
@@ -194,7 +194,7 @@ fn @lanes() {
     v90 = lt v89, v88
     v91 = zext i1 v90 to i256
     v92 = shr v89, 64
-    v93 = or v91, v92
+    v93 = or v92, v91
     v94 = ne v93, 0
     jumpi v94, bb8, bb7
   bb7:  ; preds = bb4

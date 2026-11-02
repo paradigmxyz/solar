@@ -49,11 +49,11 @@ contract OpcodeSelection {
             // CHECK: {{^ +}}lt{{$}}
             mstore(608, lt(calldataload(4), calldataload(36)))
             // CHECK: {{^ +}}gt{{$}}
-            mstore(640, gt(calldataload(4), calldataload(36)))
+            mstore(640, gt(calldataload(4), 1))
             // CHECK: {{^ +}}slt{{$}}
             mstore(672, slt(calldataload(4), calldataload(36)))
             // CHECK: {{^ +}}sgt{{$}}
-            mstore(704, sgt(calldataload(4), calldataload(36)))
+            mstore(704, sgt(calldataload(4), 1))
             // CHECK: {{^ +}}eq{{$}}
             mstore(736, eq(calldataload(4), calldataload(36)))
             // CHECK: {{^ +}}mload{{$}}

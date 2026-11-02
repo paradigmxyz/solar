@@ -174,7 +174,7 @@ fn @preserveInput() -> struct0 [selector=0xd24f7044, abi_params=[], abi_returns=
     v7 = eq v5, false
     icall revert_if<empty>, v7
     v8 = mload v0
-    v9 = lt 0, v8
+    v9 = gt v8, 0
     v10 = eq v9, false
     icall panic_if<0x32>, v10
     v11 = byte 0, 0x9900000000000000000000000000000000000000000000000000000000000000

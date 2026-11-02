@@ -343,7 +343,7 @@ fn @loggedIndexed(arg0: i256) -> i256 [selector=0x1d045b60, abi_params=[uint256]
     v15 = shr v5, 251
     v16 = ne v15, 0
     icall panic_if<0x41>, v16
-    v17 = add 32, v14
+    v17 = add v14, 32
     v18 = lt v17, 32
     icall panic_if<0x41>, v18
     v19 = alloc v17

@@ -63,7 +63,7 @@ fn @wrapped() {
     v10 = lt v9, v8
     v11 = zext i1 v10 to i256
     v12 = shr v9, 64
-    v13 = or v11, v12
+    v13 = or v12, v11
     v14 = ne v13, 0
     jumpi v14, bb4, bb3
   bb3:  ; preds = bb2

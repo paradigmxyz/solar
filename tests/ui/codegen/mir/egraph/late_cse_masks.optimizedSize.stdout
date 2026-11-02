@@ -60,7 +60,7 @@ fn @first() {
     v3 = calldatasize
     v4 = lt v3, 68
     v16 = zext i1 v4 to i256
-    v17 = or v16, v6
+    v17 = or v6, v16
     v18 = ne v17, 0
     jumpi v18, bb1, bb2
   bb2:  ; preds = bb0
@@ -86,7 +86,7 @@ fn @second() {
     v9 = calldatasize
     v10 = lt v9, 68
     v22 = zext i1 v10 to i256
-    v23 = or v22, v12
+    v23 = or v12, v22
     v24 = ne v23, 0
     jumpi v24, bb3, bb4
   bb4:  ; preds = bb0

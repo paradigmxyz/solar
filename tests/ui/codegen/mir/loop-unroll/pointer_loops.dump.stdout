@@ -29,7 +29,7 @@ fn @toHex() {
     v35 = calldataload 4
     v36 = add v35, 4
     v38 = sub v33, 36
-    v39 = gt v35, v38
+    v39 = lt v38, v35
     v144 = or v34, v39
     jumpi v144, bb4, bb5
   bb5:  ; preds = bb0
@@ -43,16 +43,16 @@ fn @toHex() {
     v102 = lt v101, v100
     v103 = zext i1 v102 to i256
     v104 = shr v101, 64
-    v105 = or v103, v104
+    v105 = or v104, v103
     v145 = zext i1 v45 to i256
-    v146 = or v145, v105
+    v146 = or v105, v145
     v147 = ne v146, 0
     jumpi v147, bb6, bb11
   bb11:  ; preds = bb5
     mstore 64, v101 !metadata(memory=scratch)
     mstore v100, v40
     v47 = sub v33, v41
-    v48 = gt v40, v47
+    v48 = lt v47, v40
     jumpi v48, bb4, bb7
   bb7:  ; preds = bb11
     v92 = add v100, 32
@@ -167,7 +167,7 @@ fn @sumWords() {
     v20 = calldataload 4
     v21 = add v20, 4
     v23 = sub v18, 36
-    v24 = gt v20, v23
+    v24 = lt v23, v20
     v67 = or v19, v24
     jumpi v67, bb4, bb5
   bb5:  ; preds = bb0
@@ -181,9 +181,9 @@ fn @sumWords() {
     v46 = lt v45, v44
     v47 = zext i1 v46 to i256
     v48 = shr v45, 64
-    v49 = or v47, v48
+    v49 = or v48, v47
     v68 = zext i1 v27 to i256
-    v69 = or v68, v49
+    v69 = or v49, v68
     v70 = ne v69, 0
     jumpi v70, bb6, bb8
   bb8:  ; preds = bb5
@@ -192,7 +192,7 @@ fn @sumWords() {
     v31 = shl v25, 5
     v32 = sub v18, v26
     v33 = shr v32, 5
-    v34 = gt v25, v33
+    v34 = lt v33, v25
     jumpi v34, bb4, bb7
   bb7:  ; preds = bb8
     v41 = add v44, 32
@@ -203,7 +203,7 @@ fn @sumWords() {
     jumpi v64, bb9, bb10
   bb9:  ; preds = bb7
     v54 = mload v41
-    v55 = add 0, v54
+    v55 = add v54, 0
     v56 = add v41, 32
     jump bb10
   bb10:  ; preds = bb7, bb9
@@ -213,17 +213,17 @@ fn @sumWords() {
   bb1:  ; preds = bb3, bb10
     v7 = phi [bb10: v65], [bb3: v61]
     v8 = phi [bb10: v66], [bb3: v62]
-    v12 = ne v8, v5
+    v12 = ne v5, v8
     jumpi v12, bb3, bb2
   bb2:  ; preds = bb1
     mstore 0, v7 !metadata(memory=scratch)
     returndata 0, 32
   bb3:  ; preds = bb1
     v15 = mload v8
-    v16 = add v7, v15
+    v16 = add v15, v7
     v17 = add v8, 32
     v60 = mload v17
-    v61 = add v16, v60
+    v61 = add v60, v16
     v62 = add v8, 64
     jump bb1
   bb6 [cold]:  ; preds = bb5
@@ -258,7 +258,7 @@ fn @stepThree() {
   bb1:  ; preds = bb3, bb7
     v2 = phi [bb7: v28], [bb3: v23]
     v3 = phi [bb7: v29], [bb3: v24]
-    v6 = ne v3, v14
+    v6 = ne v14, v3
     jumpi v6, bb3, bb2
   bb2:  ; preds = bb1
     mstore 0, v2 !metadata(memory=scratch)

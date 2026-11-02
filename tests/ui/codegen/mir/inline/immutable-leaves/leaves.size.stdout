@@ -67,7 +67,7 @@
 +   bb6:  ; preds = bb3
 +     v14 = loadimmutable start
 +     v15 = zext i64 v14 to i256
-+     v16 = add v15, v23
++     v16 = add v23, v15
 +     jump bb5
 +   bb5:  ; preds = bb6
 +     v17 = phi [bb6: v16]
@@ -172,13 +172,13 @@
 -   bb6:  ; preds = bb3
       v14 = loadimmutable start
       v15 = zext i64 v14 to i256
--     v16 = add v15, v23
+-     v16 = add v23, v15
 -     jump bb5
 -   bb5:  ; preds = bb6
 -     v17 = phi [bb6: v16]
 -     v4 = add v23, v11
 -     v5 = add v13, v17
-+     v16 = add v15, v22
++     v16 = add v22, v15
 +     v4 = add v22, v10
 +     v5 = add v12, v16
       v6 = add v4, v5
@@ -224,7 +224,7 @@
       v12 = add 1, 2
       v14 = loadimmutable start
       v15 = zext i64 v14 to i256
-      v16 = add v15, v22
+      v16 = add v22, v15
       v4 = add v22, v10
       v5 = add v12, v16
       v6 = add v4, v5

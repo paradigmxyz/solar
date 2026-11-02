@@ -615,6 +615,17 @@ pub enum StackOp {
     Pop,
 }
 
+/// Where a word is after a [`StackOp`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TrackedWord {
+    /// The word is this many positions below the top, counting the top as zero.
+    At(usize),
+    /// As `At`, and the operation also put a copy of the word on top.
+    Copied(usize),
+    /// The operation discarded the word.
+    Dropped,
+}
+
 macro_rules! define_stack_op_schema {
     (
         $(
@@ -692,6 +703,33 @@ impl StackOp {
                 }
             }
             Self::Pop => 1,
+        }
+    }
+
+    /// Returns where the word `word` positions below the top, counting the top as zero, is after
+    /// this operation.
+    #[must_use]
+    pub const fn track(self, word: usize) -> TrackedWord {
+        const fn swapped(word: usize, a: usize, b: usize) -> usize {
+            if word == a {
+                b
+            } else if word == b {
+                a
+            } else {
+                word
+            }
+        }
+        match self {
+            Self::Dup(depth) if word + 1 == depth as usize => TrackedWord::Copied(word + 1),
+            Self::Dup(_) => TrackedWord::At(word + 1),
+            Self::Swap(depth) => TrackedWord::At(swapped(word, 0, depth as usize)),
+            Self::Exchange(first, second) => {
+                TrackedWord::At(swapped(word, first as usize, second as usize))
+            }
+            Self::Pop => match word.checked_sub(1) {
+                Some(below) => TrackedWord::At(below),
+                None => TrackedWord::Dropped,
+            },
         }
     }
 

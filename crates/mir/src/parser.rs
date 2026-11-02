@@ -1388,7 +1388,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let (inst_id, result) = if let Some(result) = existing_result {
             (builder.append_instruction_with_result(inst, result), Some(result))
         } else {
-            builder.append_instruction(inst)
+            builder.append_instruction_verbatim(inst)
         };
         if declared_result.is_some() {
             self.explicit_results.push(inst_id);

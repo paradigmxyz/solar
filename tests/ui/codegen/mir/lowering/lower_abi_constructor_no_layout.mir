@@ -6,7 +6,7 @@
 // CHECK: + [[BASE:v[0-9]+]] = constructor_args_base
 // CHECK: + [[END:v[0-9]+]] = constructor_args_end
 // CHECK: + [[REQUIRED:v[0-9]+]] = add [[BASE]], 64
-// CHECK: + {{v[0-9]+}} = gt [[REQUIRED]], [[END]]
+// CHECK: + {{v[0-9]+}} = lt [[END]], [[REQUIRED]]
 // CHECK: + [[WORD:v[0-9]+]] = mload
 // CHECK: + {{v[0-9]+}} = add [[WORD]], {{v[0-9]+}}
 @module LowerAbiConstructorNoLayout

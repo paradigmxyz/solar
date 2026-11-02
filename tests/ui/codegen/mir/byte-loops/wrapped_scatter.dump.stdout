@@ -27,7 +27,7 @@ fn @fill() {
     v35 = calldatasize
     v36 = lt v35, 100
     v57 = zext i1 v36 to i256
-    v58 = or v57, v39
+    v58 = or v39, v57
     v59 = ne v58, 0
     jumpi v59, bb10, bb11
   bb11:  ; preds = bb0
@@ -99,7 +99,7 @@ fn @scatter() {
     v5 = sub v14, v15
     v1 = ne v14, 0
     v6 = zext i1 v1 to i256
-    v7 = mul v6, v5
+    v7 = mul v5, v6
     v8 = add v15, v7
     icall @_scatter, v8, v11, v12, v13
     mstore 0, 1
@@ -123,7 +123,7 @@ fn @_scatter(arg0: i256, arg1: i256, arg2: i256, arg3: i256) [may_return_memory]
     v25 = mload arg0
     v26 = lt v25, arg3
     v27 = sub v25, arg3
-    v28 = gt arg1, v27
+    v28 = lt v27, arg1
     v29 = or v26, v28
     v31 = gt arg3, 32
     v34 = or v29, v31
@@ -133,10 +133,10 @@ fn @_scatter(arg0: i256, arg1: i256, arg2: i256, arg3: i256) [may_return_memory]
     v36 = select v35, arg3, 32
     v37 = shl v36, 3
     v38 = shr 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v37
-    v39 = not v38
     v41 = mload v49
     v42 = and v41, v38
-    v43 = and arg2, v39
+    v39 = not v38
+    v43 = and v39, arg2
     v44 = or v42, v43
     mstore v49, v44
     jump bb2
@@ -185,7 +185,7 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v1 = calldataload 4
     v2 = add v1, 4
     v4 = sub v0, 36
-    v5 = gt v1, v4
+    v5 = lt v4, v1
     jumpi v5, bb1, bb2
   bb2:  ; preds = bb0
     v6 = calldataload v2
@@ -198,16 +198,16 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v31 = lt v30, v29
     v32 = zext i1 v31 to i256
     v33 = shr v30, 64
-    v34 = or v32, v33
+    v34 = or v33, v32
     v38 = zext i1 v11 to i256
-    v39 = or v38, v34
+    v39 = or v34, v38
     v40 = ne v39, 0
     jumpi v40, bb3, bb5
   bb5:  ; preds = bb2
     mstore 64, v30 !metadata(memory=scratch)
     mstore v29, v6
     v13 = sub v0, v7
-    v14 = gt v6, v13
+    v14 = lt v13, v6
     jumpi v14, bb1, bb4
   bb4:  ; preds = bb5
     v25 = add v29, 32

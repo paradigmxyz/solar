@@ -33,7 +33,7 @@ contract Test {
     // CHECK: [[FROM:v[0-9]+]] = calldataload 36
     // CHECK: [[END:v[0-9]+]] = add [[FROM]], {{v[0-9]+}}
     // CHECK-NEXT: [[WRAPS:v[0-9]+]] = lt [[END]], [[FROM]]
-    // CHECK-NEXT: [[PAST:v[0-9]+]] = gt [[END]], {{v[0-9]+}}
+    // CHECK-NEXT: [[PAST:v[0-9]+]] = lt {{v[0-9]+}}, [[END]]
     // CHECK-NEXT: [[FAILS:v[0-9]+]] = or [[WRAPS]], [[PAST]]
     // CHECK-NEXT: jumpi [[FAILS]]
     // CHECK: calldatacopy

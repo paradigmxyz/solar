@@ -33,7 +33,7 @@ fn @hashU8() {
     v4 = calldatasize
     v5 = lt v4, 68
     v12 = zext i1 v5 to i256
-    v13 = or v12, v7
+    v13 = or v7, v12
     v14 = ne v13, 0
     jumpi v14, bb1, bb2
   bb2:  ; preds = bb0

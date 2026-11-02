@@ -27,7 +27,7 @@ fn @patch() {
     v14 = calldatasize
     v15 = lt v14, 36
     v26 = zext i1 v15 to i256
-    v27 = or v26, v17
+    v27 = or v17, v26
     v28 = ne v27, 0
     jumpi v28, bb3, bb4
   bb4:  ; preds = bb0

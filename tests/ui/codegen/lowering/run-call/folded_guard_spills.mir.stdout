@@ -64,7 +64,7 @@ fn @sized(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xf5037775, pure
     v43 = xor v42, v14
     v44 = xor v43, v15
     v45 = xor v44, v16
-    v46 = xor v29, v45
+    v46 = xor v45, v29
     ret v46
 }
 
@@ -128,7 +128,7 @@ fn @addressed(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xa249b625, 
     v39 = xor v38, v14
     v40 = xor v39, v15
     v41 = xor v40, v16
-    v42 = xor v25, v41
+    v42 = xor v41, v25
     ret v42
 }
 
@@ -193,7 +193,7 @@ fn @derived(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x5d97a064, pu
     v41 = xor v40, v14
     v42 = xor v41, v15
     v43 = xor v42, v16
-    v44 = xor v27, v43
+    v44 = xor v43, v27
     ret v44
 }
 
@@ -256,7 +256,7 @@ fn @derivedOnce(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x1304ae34
     v40 = xor v39, v14
     v41 = xor v40, v15
     v42 = xor v41, v16
-    v43 = xor v26, v42
+    v43 = xor v42, v26
     ret v43
 }
 
@@ -319,7 +319,7 @@ fn @copied(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xc8ef3ab5, pur
     v39 = xor v38, v14
     v40 = xor v39, v15
     v41 = xor v40, v16
-    v42 = xor v25, v41
+    v42 = xor v41, v25
     ret v42
 }
 
@@ -380,7 +380,7 @@ fn @called(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xb59297ac, pur
     v37 = xor v36, v14
     v38 = xor v37, v15
     v39 = xor v38, v16
-    v40 = xor v23, v39
+    v40 = xor v39, v23
     ret v40
 }
 
@@ -443,7 +443,7 @@ fn @calledDerived(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x619af4
     v39 = xor v38, v14
     v40 = xor v39, v15
     v41 = xor v40, v16
-    v42 = xor v25, v41
+    v42 = xor v41, v25
     ret v42
 }
 
@@ -508,7 +508,7 @@ fn @masked(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xdd455ef0, pur
     v41 = xor v40, v14
     v42 = xor v41, v15
     v43 = xor v42, v16
-    v44 = xor v27, v43
+    v44 = xor v43, v27
     ret v44
 }
 
@@ -562,7 +562,7 @@ fn @returned(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xdfd2c4db, p
     v37 = xor v36, v14
     v38 = xor v37, v15
     v39 = xor v38, v16
-    v40 = xor v23, v39
+    v40 = xor v39, v23
     ret v40
 }
 

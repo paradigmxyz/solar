@@ -13,7 +13,7 @@
 +     v5 = constructor_args_base
 +     v6 = constructor_args_end
 +     v7 = add v5, 160
-+     v8 = gt v7, v6
++     v8 = lt v6, v7
 +     jumpi v8, bb3, bb4
 +   bb4:  ; preds = bb1
 +     v9 = add v5, 128

@@ -35,14 +35,14 @@ fn @emitEvent() [selector=0x7b0cb839, abi_params=[], abi_returns=[], abi_return_
     icall panic_if<0x41>, v16
     v17 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v18 = div v17, 32
-    v19 = add 1, v18
+    v19 = add v18, 1
     v20 = lt v19, 1
     icall panic_if<0x41>, v20
     v21 = mul v19, 32
     v22 = shr v19, 251
     v23 = ne v22, 0
     icall panic_if<0x41>, v23
-    v24 = add 32, v21
+    v24 = add v21, 32
     v25 = lt v24, 32
     icall panic_if<0x41>, v25
     v26 = alloc v24
@@ -62,7 +62,7 @@ fn @emitEvent() [selector=0x7b0cb839, abi_params=[], abi_returns=[], abi_return_
     jumpi v36, bb2, bb1
   bb1:  ; preds = bb0
     v37 = sub v35, 32
-    v38 = add 32, v37
+    v38 = add v37, 32
     v39 = ptradd v26, v38
     v40 = ptradd v39, 32
     mstore v40, 0
@@ -75,7 +75,7 @@ fn @emitEvent() [selector=0x7b0cb839, abi_params=[], abi_returns=[], abi_return_
     v45 = extract_value slice<memory>, v43, 0
     v46 = extract_value slice<memory>, v43, 1
     mcopy v44, v45, v46
-    v47 = add 32, v35
+    v47 = add v35, 32
     v48 = ptradd v26, 32
     v49 = mload v26
     v50 = keccak256 v48, v49

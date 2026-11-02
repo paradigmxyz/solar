@@ -133,7 +133,7 @@ fn @afterReturn() {
     v16 = calldatasize
     v17 = lt v16, 36
     v24 = zext i1 v17 to i256
-    v25 = or v24, v19
+    v25 = or v19, v24
     v26 = ne v25, 0
     jumpi v26, bb5, bb7
   bb7:  ; preds = bb0

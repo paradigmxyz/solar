@@ -74,7 +74,7 @@ fn @allocated() {
     v30 = lt v29, v28
     v31 = zext i1 v30 to i256
     v32 = shr v29, 64
-    v33 = or v31, v32
+    v33 = or v32, v31
     v34 = ne v33, 0
     jumpi v34, bb4, bb3
   bb3:  ; preds = bb2

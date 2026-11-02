@@ -69,11 +69,11 @@ fn @sum() {
     v41 = calldataload 4
     v42 = add v41, 4
     v44 = sub v39, 36
-    v45 = gt v41, v44
+    v45 = lt v44, v41
     v46 = calldataload v42
     v47 = add v42, 32
     v48 = sub v39, v47
-    v49 = gt v46, v48
+    v49 = lt v48, v46
     v50 = or v45, v49
     v151 = or v40, v50
     jumpi v151, bb4, bb5
@@ -252,14 +252,14 @@ fn @decode_calldata_slice(arg0: i256) -> i256 {
   bb0:
     v0 = calldatasize
     v1 = calldataload arg0
-    v2 = add 4, v1
+    v2 = add v1, 4
     v3 = sub v0, 4
     v4 = sub v3, 32
-    v5 = gt v1, v4
+    v5 = lt v4, v1
     v6 = calldataload v2
     v7 = add v2, 32
     v8 = sub v0, v7
-    v9 = gt v6, v8
+    v9 = lt v8, v6
     v10 = or v5, v9
     v11 = zext i1 v10 to i256
     jumpi v10, bb1, bb2

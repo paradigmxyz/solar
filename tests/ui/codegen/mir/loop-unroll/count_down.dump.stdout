@@ -77,7 +77,7 @@ fn @squaresDown() {
     v24 = eq v23, v18
     jumpi v24, bb8, bb4
   bb8:  ; preds = bb7
-    v25 = add 0, v22
+    v25 = add v22, 0
     v27 = sub v18, 1
     jump bb10
   bb10:  ; preds = bb6, bb8
@@ -97,7 +97,7 @@ fn @squaresDown() {
     v9 = div v7, v2
     v10 = eq v9, v2
     v41 = eq v10, false
-    v14 = add v1, v7
+    v14 = add v7, v1
     v15 = lt v14, v1
     v42 = or v41, v15
     v6 = sub v2, 1
@@ -106,7 +106,7 @@ fn @squaresDown() {
     v33 = eq v32, v6
     v43 = eq v33, false
     v44 = or v42, v43
-    v34 = add v14, v31
+    v34 = add v31, v14
     v35 = lt v34, v14
     v45 = or v44, v35
     jumpi v45, bb4, bb9
@@ -183,7 +183,7 @@ fn @downTo() {
   bb1:  ; preds = bb3, bb7
     v2 = phi [bb7: v28], [bb3: v23]
     v3 = phi [bb7: v29], [bb3: v24]
-    v6 = ne v3, v14
+    v6 = ne v14, v3
     jumpi v6, bb3, bb2
   bb2:  ; preds = bb1
     mstore 0, v2 !metadata(memory=scratch)

@@ -29,7 +29,7 @@ fn @copy() {
     v132 = lt v131, v130
     v133 = zext i1 v132 to i256
     v134 = shr v131, 64
-    v135 = or v133, v134
+    v135 = or v134, v133
     v136 = ne v135, 0
     jumpi v136, bb19, bb18
   bb18:  ; preds = bb17
@@ -39,7 +39,7 @@ fn @copy() {
     v139 = lt v138, v131
     v140 = zext i1 v139 to i256
     v141 = shr v138, 64
-    v142 = or v140, v141
+    v142 = or v141, v140
     v143 = ne v142, 0
     jumpi v143, bb19, bb20
   bb20:  ; preds = bb18
@@ -71,8 +71,8 @@ fn @copy() {
     v107 = add v131, v46
     v108 = add v107, 32
     v52 = add v105, v42
-    v53 = add v108, v42
     v54 = lt v108, v52
+    v53 = add v108, v42
     v55 = lt v130, v53
     v56 = and v54, v55
     v57 = zext i1 v56 to i256
@@ -91,9 +91,9 @@ fn @copy() {
   bb5:  ; preds = bb4
     v74 = gt v146, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v75 = not v146
-    v76 = gt v144, v75
+    v76 = lt v75, v144
     v77 = or v74, v76
-    v82 = gt v145, v75
+    v82 = lt v75, v145
     v83 = or v74, v82
     v86 = or v77, v83
     jumpi v86, bb6, bb12

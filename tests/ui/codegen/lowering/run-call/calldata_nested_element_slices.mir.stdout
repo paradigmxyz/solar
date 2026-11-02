@@ -20,7 +20,7 @@ fn @nestedBytes() -> i256 [selector=0x126aa804, view, abi_params=[], abi_returns
     v8 = ptradd v7, 32
     mstore v8, 0x1122000000000000000000000000000000000000000000000000000000000000
     v9 = mload v0
-    v10 = lt 0, v9
+    v10 = gt v9, 0
     v11 = eq v10, false
     icall panic_if<0x32>, v11
     v12 = ptrtoint ptr<memory> v7 to i256
@@ -31,7 +31,7 @@ fn @nestedBytes() -> i256 [selector=0x126aa804, view, abi_params=[], abi_returns
     v15 = ptradd v14, 32
     mstore v15, 0x3344550000000000000000000000000000000000000000000000000000000000
     v16 = mload v0
-    v17 = lt 1, v16
+    v17 = gt v16, 1
     v18 = eq v17, false
     icall panic_if<0x32>, v18
     v19 = ptrtoint ptr<memory> v14 to i256
@@ -109,7 +109,7 @@ fn @sum(arg0: slice<calldata>) -> i256 [selector=0xe3db0bf3, pure, abi_params=[a
     icall revert_if<invalid_calldata_tail_length>, v28
     v29 = add v19, 32
     v30 = sub v27, v26
-    v31 = sgt v29, v30
+    v31 = slt v30, v29
     icall revert_if<calldata_tail_too_short>, v31
     v32 = inttoptr i256 v29 to ptr<calldata>
     v33 = make_calldata_slice v32, v26
@@ -146,7 +146,7 @@ fn @structMember() -> struct0 [selector=0x9f2d7231, view, abi_params=[], abi_ret
     v16 = ptradd v11, 64
     mstore v16, v14
     v17 = mload v0
-    v18 = lt 0, v17
+    v18 = gt v17, 0
     v19 = eq v18, false
     icall panic_if<0x32>, v19
     v20 = ptrtoint ptr<memory> v11 to i256
@@ -202,7 +202,7 @@ fn @structMember() -> struct0 [selector=0x9f2d7231, view, abi_params=[], abi_ret
 fn @inspect(arg0: slice<calldata>) -> struct0 [selector=0x903f85b3, pure, abi_params=[array<_, tuple<address, uint256, bytes>>], abi_returns=[word, word<bool>], abi_return_params=[uint256, bool]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
-    v1 = lt 0, v0
+    v1 = gt v0, 0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = extract_value slice<calldata>, arg0, 0
@@ -247,7 +247,7 @@ fn @inspect(arg0: slice<calldata>) -> struct0 [selector=0x903f85b3, pure, abi_pa
     icall revert_if<invalid_calldata_tail_length>, v37
     v38 = add v28, 32
     v39 = sub v36, v35
-    v40 = sgt v38, v39
+    v40 = slt v39, v38
     icall revert_if<calldata_tail_too_short>, v40
     v41 = inttoptr i256 v38 to ptr<calldata>
     v42 = make_calldata_slice v41, v35
@@ -259,7 +259,7 @@ fn @inspect(arg0: slice<calldata>) -> struct0 [selector=0x903f85b3, pure, abi_pa
     v48 = calldatasize
     v49 = make_calldata_slice ptr<calldata> 0, v48
     v50 = extract_value slice<calldata>, v49, 1
-    v51 = gt v46, v50
+    v51 = lt v50, v46
     v52 = eq v51, false
     v53 = insert_value struct0, undef struct0, 0, v47
     v54 = insert_value struct0, v53, 1, v52
@@ -319,7 +319,7 @@ fn @_decode(arg0: slice<calldata>, arg1: i1) -> struct1 [pure] {
   bb2:  ; preds = bb0
     v11 = extract_value slice<calldata>, arg0, 0
     v12 = extract_value slice<calldata>, arg0, 1
-    v13 = gt v12, v12
+    v13 = lt v12, v12
     v14 = lt v12, 2
     v15 = or v13, v14
     v16 = zext i1 v15 to i256
@@ -332,7 +332,7 @@ fn @_decode(arg0: slice<calldata>, arg1: i1) -> struct1 [pure] {
     v1 = extract_value slice<calldata>, arg0, 0
     v2 = extract_value slice<calldata>, arg0, 1
     v3 = extract_value slice<calldata>, arg0, 1
-    v4 = gt v2, v2
+    v4 = lt v2, v2
     v5 = lt v2, v3
     v6 = or v4, v5
     v7 = zext i1 v6 to i256

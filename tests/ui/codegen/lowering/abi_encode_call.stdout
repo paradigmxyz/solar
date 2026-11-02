@@ -31,7 +31,7 @@ fn @asValue() {
     v2 = calldatasize
     v3 = lt v2, 68
     v60 = zext i1 v3 to i256
-    v61 = or v60, v5
+    v61 = or v5, v60
     v62 = ne v61, 0
     jumpi v62, bb1, bb2
   bb2:  ; preds = bb0
@@ -75,12 +75,12 @@ fn @asValue() {
 ; function viaCall(address token, address to, uint256 v) public returns (bool ok) [selector 0x23d014a1]
 fn @viaCall() {
   bb0:
-    v8 = calldatasize
-    v9 = lt v8, 100
     v10 = calldataload 4
     v11 = shr v10, 160
+    v8 = calldatasize
+    v9 = lt v8, 100
     v33 = zext i1 v9 to i256
-    v34 = or v33, v11
+    v34 = or v11, v33
     v13 = calldataload 36
     v14 = shr v13, 160
     v36 = or v34, v14

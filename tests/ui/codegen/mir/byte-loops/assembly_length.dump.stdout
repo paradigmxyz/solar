@@ -31,7 +31,7 @@ fn @copy() {
     v78 = calldataload 4
     v79 = add v78, 4
     v81 = sub v75, 36
-    v82 = gt v78, v81
+    v82 = lt v81, v78
     v161 = or v76, v82
     jumpi v161, bb14, bb15
   bb15:  ; preds = bb0
@@ -45,16 +45,16 @@ fn @copy() {
     v149 = lt v148, v147
     v150 = zext i1 v149 to i256
     v151 = shr v148, 64
-    v152 = or v150, v151
+    v152 = or v151, v150
     v162 = zext i1 v88 to i256
-    v163 = or v162, v152
+    v163 = or v152, v162
     v164 = ne v163, 0
     jumpi v164, bb16, bb18
   bb18:  ; preds = bb15
     mstore 64, v148 !metadata(memory=scratch)
     mstore v147, v83
     v90 = sub v75, v84
-    v91 = gt v83, v90
+    v91 = lt v90, v83
     jumpi v91, bb14, bb17
   bb17:  ; preds = bb18
     v166 = calldataload 36
@@ -86,8 +86,8 @@ fn @copy() {
     v126 = add v125, 32
     v128 = add v146, 32
     v43 = add v126, v69
-    v44 = add v128, v69
     v45 = lt v128, v43
+    v44 = add v128, v69
     v46 = lt v147, v44
     v47 = and v45, v46
     v51 = lt v126, v136
@@ -97,7 +97,7 @@ fn @copy() {
     v55 = mload v147
     v56 = lt v55, v69
     v57 = sub v55, v69
-    v58 = gt v166, v57
+    v58 = lt v57, v166
     v59 = or v56, v58
     jumpi v59, bb8, bb11
   bb11:  ; preds = bb5
@@ -309,7 +309,7 @@ fn @grownPast() {
     v85 = lt v84, v83
     v86 = zext i1 v85 to i256
     v87 = shr v84, 64
-    v88 = or v86, v87
+    v88 = or v87, v86
     v89 = ne v88, 0
     jumpi v89, bb10, bb9
   bb9:  ; preds = bb0
@@ -324,8 +324,8 @@ fn @grownPast() {
     v65 = add v83, 72
     v67 = add v82, 32
     v37 = add v65, 64
-    v38 = add v67, 64
     v39 = lt v67, v37
+    v38 = add v67, 64
     v40 = lt v83, v38
     v41 = and v39, v40
     v45 = lt v65, v4
@@ -433,7 +433,7 @@ fn @alloc(arg0: i256) -> i256 {
     v3 = lt v2, v0
     v4 = zext i1 v3 to i256
     v5 = shr v2, 64
-    v6 = or v4, v5
+    v6 = or v5, v4
     v7 = ne v6, 0
     jumpi v7, bb1, bb2
   bb2:  ; preds = bb0

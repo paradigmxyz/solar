@@ -151,7 +151,7 @@ fn @finish() {
 fn @toggleBit(arg0: i256, arg1: i256) -> i1 {
   bb0:
     v0 = shr arg1, 8
-    v1 = xor arg0, v0
+    v1 = xor v0, arg0
     v2 = mapping_slot v1, 3
     v3 = sload v2 !metadata(storage=symbolic(v2))
     v4 = and arg1, 255

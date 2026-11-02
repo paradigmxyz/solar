@@ -87,7 +87,7 @@ fn @_explicitTrim(arg0: slice<calldata>) -> slice<calldata> [pure] {
   bb1:  ; preds = bb0
     v3 = extract_value slice<calldata>, arg0, 0
     v4 = extract_value slice<calldata>, arg0, 1
-    v5 = gt v4, v4
+    v5 = lt v4, v4
     v6 = lt v4, 4
     v7 = or v5, v6
     v8 = zext i1 v7 to i256
@@ -117,7 +117,7 @@ fn @_split(arg0: slice<calldata>) -> struct1 [pure] {
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = extract_value slice<calldata>, arg0, 1
     v2 = extract_value slice<calldata>, arg0, 1
-    v3 = gt v1, v1
+    v3 = lt v1, v1
     v4 = lt v1, v2
     v5 = or v3, v4
     v6 = zext i1 v5 to i256

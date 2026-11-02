@@ -228,19 +228,19 @@ fn @live() -> ptr<memory> [pure] {
     v0 = alloc zeroed checked 128
     mstore v0, 3
     v1 = mload v0
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = ptradd v0, 32
     mstore v4, 1
     v5 = mload v0
-    v6 = lt 1, v5
+    v6 = gt v5, 1
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = ptradd v0, 64
     mstore v8, 2
     v9 = mload v0
-    v10 = lt 2, v9
+    v10 = gt v9, 2
     v11 = eq v10, false
     icall panic_if<0x32>, v11
     v12 = ptradd v0, 96
@@ -278,19 +278,19 @@ fn @word() -> struct0 [selector=0x2f64d386, view, abi_params=[], abi_returns=[wo
     v10 = icall @fmp
     v11 = checked_sub uint256, v10, v1
     v12 = mload v0
-    v13 = lt 0, v12
+    v13 = gt v12, 0
     v14 = eq v13, false
     icall panic_if<0x32>, v14
     v15 = ptradd v0, 32
     v16 = mload v15
     v17 = mload v0
-    v18 = lt 1, v17
+    v18 = gt v17, 1
     v19 = eq v18, false
     icall panic_if<0x32>, v19
     v20 = ptradd v0, 64
     v21 = mload v20
     v22 = mload v0
-    v23 = lt 2, v22
+    v23 = gt v22, 2
     v24 = eq v23, false
     icall panic_if<0x32>, v24
     v25 = ptradd v0, 96
@@ -326,19 +326,19 @@ fn @voidCall() -> struct1 [selector=0x2a76b869, abi_params=[], abi_returns=[word
     v10 = icall @fmp
     v11 = checked_sub uint256, v10, v1
     v12 = mload v0
-    v13 = lt 0, v12
+    v13 = gt v12, 0
     v14 = eq v13, false
     icall panic_if<0x32>, v14
     v15 = ptradd v0, 32
     v16 = mload v15
     v17 = mload v0
-    v18 = lt 1, v17
+    v18 = gt v17, 1
     v19 = eq v18, false
     icall panic_if<0x32>, v19
     v20 = ptradd v0, 64
     v21 = mload v20
     v22 = mload v0
-    v23 = lt 2, v22
+    v23 = gt v22, 2
     v24 = eq v23, false
     icall panic_if<0x32>, v24
     v25 = ptradd v0, 96
@@ -378,19 +378,19 @@ fn @twoWords() -> struct0 [selector=0x0d171307, view, abi_params=[], abi_returns
     v17 = extract_value struct2, v16, 0
     v18 = extract_value struct2, v16, 1
     v19 = mload v0
-    v20 = lt 0, v19
+    v20 = gt v19, 0
     v21 = eq v20, false
     icall panic_if<0x32>, v21
     v22 = ptradd v0, 32
     v23 = mload v22
     v24 = mload v0
-    v25 = lt 1, v24
+    v25 = gt v24, 1
     v26 = eq v25, false
     icall panic_if<0x32>, v26
     v27 = ptradd v0, 64
     v28 = mload v27
     v29 = mload v0
-    v30 = lt 2, v29
+    v30 = gt v29, 2
     v31 = eq v30, false
     icall panic_if<0x32>, v31
     v32 = ptradd v0, 96
@@ -435,19 +435,19 @@ fn @staticArray() -> struct0 [selector=0x12cb326d, view, abi_params=[], abi_retu
     v19 = ptradd v13, 32
     v20 = mload v19
     v21 = mload v0
-    v22 = lt 0, v21
+    v22 = gt v21, 0
     v23 = eq v22, false
     icall panic_if<0x32>, v23
     v24 = ptradd v0, 32
     v25 = mload v24
     v26 = mload v0
-    v27 = lt 1, v26
+    v27 = gt v26, 1
     v28 = eq v27, false
     icall panic_if<0x32>, v28
     v29 = ptradd v0, 64
     v30 = mload v29
     v31 = mload v0
-    v32 = lt 2, v31
+    v32 = gt v31, 2
     v33 = eq v32, false
     icall panic_if<0x32>, v33
     v34 = ptradd v0, 96
@@ -478,7 +478,7 @@ fn @dynamicReturn() -> struct1 [selector=0x43f14bbb, view, abi_params=[], abi_re
     v6 = icall returndata_bytes<>
     v7 = abi_decode [bytes], v6
     v8 = mload v7
-    v9 = lt 2, v8
+    v9 = gt v8, 2
     v10 = eq v9, false
     icall panic_if<0x32>, v10
     v11 = ptradd v7, 34
@@ -489,19 +489,19 @@ fn @dynamicReturn() -> struct1 [selector=0x43f14bbb, view, abi_params=[], abi_re
     v16 = trunc i256 v15 to i8
     v17 = zext i8 v16 to i256
     v18 = mload v0
-    v19 = lt 0, v18
+    v19 = gt v18, 0
     v20 = eq v19, false
     icall panic_if<0x32>, v20
     v21 = ptradd v0, 32
     v22 = mload v21
     v23 = mload v0
-    v24 = lt 1, v23
+    v24 = gt v23, 1
     v25 = eq v24, false
     icall panic_if<0x32>, v25
     v26 = ptradd v0, 64
     v27 = mload v26
     v28 = mload v0
-    v29 = lt 2, v28
+    v29 = gt v28, 2
     v30 = eq v29, false
     icall panic_if<0x32>, v30
     v31 = ptradd v0, 96
@@ -520,13 +520,13 @@ fn @dynamicInput() -> struct1 [selector=0xb78f73fc, view, abi_params=[], abi_ret
     v1 = alloc zeroed checked 96
     mstore v1, 2
     v2 = mload v1
-    v3 = lt 0, v2
+    v3 = gt v2, 0
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = ptradd v1, 32
     mstore v5, 1
     v6 = mload v1
-    v7 = lt 1, v6
+    v7 = gt v6, 1
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     v9 = ptradd v1, 64
@@ -548,19 +548,19 @@ fn @dynamicInput() -> struct1 [selector=0xb78f73fc, view, abi_params=[], abi_ret
     icall revert_if<tuple_data_too_short>, v19
     v20 = mload 0 !metadata(memory=scratch)
     v21 = mload v0
-    v22 = lt 0, v21
+    v22 = gt v21, 0
     v23 = eq v22, false
     icall panic_if<0x32>, v23
     v24 = ptradd v0, 32
     v25 = mload v24
     v26 = mload v0
-    v27 = lt 1, v26
+    v27 = gt v26, 1
     v28 = eq v27, false
     icall panic_if<0x32>, v28
     v29 = ptradd v0, 64
     v30 = mload v29
     v31 = mload v0
-    v32 = lt 2, v31
+    v32 = gt v31, 2
     v33 = eq v32, false
     icall panic_if<0x32>, v33
     v34 = ptradd v0, 96
@@ -600,19 +600,19 @@ fn @memoryArgument() -> struct0 [selector=0xb42f2513, view, abi_params=[], abi_r
     v15 = icall @fmp
     v16 = checked_sub uint256, v15, v3
     v17 = mload v0
-    v18 = lt 0, v17
+    v18 = gt v17, 0
     v19 = eq v18, false
     icall panic_if<0x32>, v19
     v20 = ptradd v0, 32
     v21 = mload v20
     v22 = mload v0
-    v23 = lt 1, v22
+    v23 = gt v22, 1
     v24 = eq v23, false
     icall panic_if<0x32>, v24
     v25 = ptradd v0, 64
     v26 = mload v25
     v27 = mload v0
-    v28 = lt 2, v27
+    v28 = gt v27, 2
     v29 = eq v28, false
     icall panic_if<0x32>, v29
     v30 = ptradd v0, 96
@@ -647,19 +647,19 @@ fn @noArguments() -> struct0 [selector=0xa1cafdf0, view, abi_params=[], abi_retu
     v10 = icall @fmp
     v11 = checked_sub uint256, v10, v1
     v12 = mload v0
-    v13 = lt 0, v12
+    v13 = gt v12, 0
     v14 = eq v13, false
     icall panic_if<0x32>, v14
     v15 = ptradd v0, 32
     v16 = mload v15
     v17 = mload v0
-    v18 = lt 1, v17
+    v18 = gt v17, 1
     v19 = eq v18, false
     icall panic_if<0x32>, v19
     v20 = ptradd v0, 64
     v21 = mload v20
     v22 = mload v0
-    v23 = lt 2, v22
+    v23 = gt v22, 2
     v24 = eq v23, false
     icall panic_if<0x32>, v24
     v25 = ptradd v0, 96
@@ -732,19 +732,19 @@ fn @functionArgument() -> struct0 [selector=0x0b08fc61, view, abi_params=[], abi
     v15 = icall @fmp
     v16 = checked_sub uint256, v15, v1
     v17 = mload v0
-    v18 = lt 0, v17
+    v18 = gt v17, 0
     v19 = eq v18, false
     icall panic_if<0x32>, v19
     v20 = ptradd v0, 32
     v21 = mload v20
     v22 = mload v0
-    v23 = lt 1, v22
+    v23 = gt v22, 1
     v24 = eq v23, false
     icall panic_if<0x32>, v24
     v25 = ptradd v0, 64
     v26 = mload v25
     v27 = mload v0
-    v28 = lt 2, v27
+    v28 = gt v27, 2
     v29 = eq v28, false
     icall panic_if<0x32>, v29
     v30 = ptradd v0, 96
@@ -787,19 +787,19 @@ fn @twoScalars() -> struct0 [selector=0x5de774b9, view, abi_params=[], abi_retur
     v13 = icall @fmp
     v14 = checked_sub uint256, v13, v1
     v15 = mload v0
-    v16 = lt 0, v15
+    v16 = gt v15, 0
     v17 = eq v16, false
     icall panic_if<0x32>, v17
     v18 = ptradd v0, 32
     v19 = mload v18
     v20 = mload v0
-    v21 = lt 1, v20
+    v21 = gt v20, 1
     v22 = eq v21, false
     icall panic_if<0x32>, v22
     v23 = ptradd v0, 64
     v24 = mload v23
     v25 = mload v0
-    v26 = lt 2, v25
+    v26 = gt v25, 2
     v27 = eq v26, false
     icall panic_if<0x32>, v27
     v28 = ptradd v0, 96

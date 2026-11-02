@@ -24,9 +24,9 @@
 +     v10 = and arg2, 31
 +     v11 = sub 32, v10
 +     v12 = shl v11, 3
-+     v13 = add arg1, v1
++     v13 = add v1, arg1
 +     v14 = mload v13
-+     v15 = add arg0, v1
++     v15 = add v1, arg0
 +     v16 = mload v15
 +     v17 = xor v14, v16
 +     v18 = shr v17, v12
@@ -50,9 +50,9 @@
 +     v22 = and arg2, 31
 +     v23 = sub 32, v22
 +     v24 = shl v23, 3
-+     v25 = add arg1, v1
++     v25 = add v1, arg1
 +     v26 = mload v25
-+     v27 = add arg0, v1
++     v27 = add v1, arg0
 +     v28 = mload v27
 +     v29 = xor v26, v28
 +     v30 = shr v29, v24
@@ -66,9 +66,9 @@
 +     jumpi v34, bb1, bb10
 +   bb10:  ; preds = bb9
 +     v35 = sub v33, 32
-+     v36 = add arg1, v35
++     v36 = add v35, arg1
 +     v37 = mload v36
-+     v38 = add arg0, v35
++     v38 = add v35, arg0
 +     mstore v38, v37
 +     jump bb9
 +   bb1:  ; preds = bb0, bb7, bb8, bb9
@@ -132,9 +132,9 @@
 +     v10 = and arg1, 31
 +     v11 = sub 32, v10
 +     v12 = shl v11, 3
-+     v13 = add arg0, v1
++     v13 = add v1, arg0
 +     v14 = mload v13
-+     v15 = add 128, v1
++     v15 = add v1, 128
 +     v16 = mload v15
 +     v17 = xor v14, v16
 +     v18 = shr v17, v12
@@ -145,7 +145,7 @@
 +   bb6:  ; preds = bb5
 +     v5 = add arg0, v3
 +     v6 = mload v5
-+     v7 = add 128, v3
++     v7 = add v3, 128
 +     mstore v7, v6
 +     v8 = add v3, 32
 +     jump bb5
@@ -158,9 +158,9 @@
 +     v22 = and arg1, 31
 +     v23 = sub 32, v22
 +     v24 = shl v23, 3
-+     v25 = add arg0, v1
++     v25 = add v1, arg0
 +     v26 = mload v25
-+     v27 = add 128, v1
++     v27 = add v1, 128
 +     v28 = mload v27
 +     v29 = xor v26, v28
 +     v30 = shr v29, v24
@@ -174,9 +174,9 @@
 +     jumpi v34, bb1, bb10
 +   bb10:  ; preds = bb9
 +     v35 = sub v33, 32
-+     v36 = add arg0, v35
++     v36 = add v35, arg0
 +     v37 = mload v36
-+     v38 = add 128, v35
++     v38 = add v35, 128
 +     mstore v38, v37
 +     jump bb9
 +   bb1:  ; preds = bb0, bb7, bb8, bb9
@@ -206,7 +206,7 @@
 +     v11 = and arg1, 31
 +     v12 = sub 32, v11
 +     v13 = shl v12, 3
-+     v14 = add arg0, v2
++     v14 = add v2, arg0
 +     v15 = mload v14
 +     v16 = add v0, v2
 +     v17 = mload v16
@@ -232,7 +232,7 @@
 +     v23 = and arg1, 31
 +     v24 = sub 32, v23
 +     v25 = shl v24, 3
-+     v26 = add arg0, v2
++     v26 = add v2, arg0
 +     v27 = mload v26
 +     v28 = add v0, v2
 +     v29 = mload v28
@@ -248,7 +248,7 @@
 +     jumpi v35, bb1, bb10
 +   bb10:  ; preds = bb9
 +     v36 = sub v34, 32
-+     v37 = add arg0, v36
++     v37 = add v36, arg0
 +     v38 = mload v37
 +     v39 = add v0, v36
 +     mstore v39, v38
@@ -281,7 +281,7 @@
 +     v12 = and arg2, 31
 +     v13 = sub 32, v12
 +     v14 = shl v13, 3
-+     v15 = add arg1, v3
++     v15 = add v3, arg1
 +     v16 = mload v15
 +     v17 = add v1, v3
 +     v18 = mload v17
@@ -307,7 +307,7 @@
 +     v24 = and arg2, 31
 +     v25 = sub 32, v24
 +     v26 = shl v25, 3
-+     v27 = add arg1, v3
++     v27 = add v3, arg1
 +     v28 = mload v27
 +     v29 = add v1, v3
 +     v30 = mload v29
@@ -323,7 +323,7 @@
 +     jumpi v36, bb1, bb10
 +   bb10:  ; preds = bb9
 +     v37 = sub v35, 32
-+     v38 = add arg1, v37
++     v38 = add v37, arg1
 +     v39 = mload v38
 +     v40 = add v1, v37
 +     mstore v40, v39
@@ -355,7 +355,7 @@
 +     v11 = and arg1, 31
 +     v12 = sub 32, v11
 +     v13 = shl v12, 3
-+     v14 = add arg0, v2
++     v14 = add v2, arg0
 +     v15 = mload v14
 +     v16 = add v0, v2
 +     v17 = mload v16
@@ -381,7 +381,7 @@
 +     v23 = and arg1, 31
 +     v24 = sub 32, v23
 +     v25 = shl v24, 3
-+     v26 = add arg0, v2
++     v26 = add v2, arg0
 +     v27 = mload v26
 +     v28 = add v0, v2
 +     v29 = mload v28
@@ -397,7 +397,7 @@
 +     jumpi v35, bb1, bb10
 +   bb10:  ; preds = bb9
 +     v36 = sub v34, 32
-+     v37 = add arg0, v36
++     v37 = add v36, arg0
 +     v38 = mload v37
 +     v39 = add v0, v36
 +     mstore v39, v38
@@ -430,9 +430,9 @@
 +     mstore 64, v13 !metadata(memory=scratch)
 +     jump bb1
 +   bb4:  ; preds = bb3
-+     v3 = add 64, v1
++     v3 = add v1, 64
 +     v4 = mload v3
-+     v5 = add 0, v1
++     v5 = add v1, 0
 +     mstore v5, v4
 +     v6 = add v1, 32
 +     jump bb3
@@ -461,9 +461,9 @@
 +     v10 = and arg2, 31
 +     v11 = sub 32, v10
 +     v12 = shl v11, 3
-+     v13 = add arg1, v1
++     v13 = add v1, arg1
 +     v14 = mload v13
-+     v15 = add arg0, v1
++     v15 = add v1, arg0
 +     v16 = mload v15
 +     v17 = xor v14, v16
 +     v18 = shr v17, v12
@@ -487,9 +487,9 @@
 +     v22 = and arg2, 31
 +     v23 = sub 32, v22
 +     v24 = shl v23, 3
-+     v25 = add arg1, v1
++     v25 = add v1, arg1
 +     v26 = mload v25
-+     v27 = add arg0, v1
++     v27 = add v1, arg0
 +     v28 = mload v27
 +     v29 = xor v26, v28
 +     v30 = shr v29, v24
@@ -503,9 +503,9 @@
 +     jumpi v34, bb1, bb10
 +   bb10:  ; preds = bb9
 +     v35 = sub v33, 32
-+     v36 = add arg1, v35
++     v36 = add v35, arg1
 +     v37 = mload v36
-+     v38 = add arg0, v35
++     v38 = add v35, arg0
 +     mstore v38, v37
 +     jump bb9
 +   bb1:  ; preds = bb0, bb7, bb8, bb9

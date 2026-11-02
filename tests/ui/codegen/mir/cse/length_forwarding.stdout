@@ -30,7 +30,7 @@ fn @relay() {
     v5 = calldataload 4
     v6 = add v5, 4
     v8 = sub v3, 36
-    v9 = gt v5, v8
+    v9 = lt v8, v5
     jumpi v9, bb1, bb2
   bb2:  ; preds = bb0
     v10 = calldataload v6
@@ -44,16 +44,16 @@ fn @relay() {
     v68 = lt v67, v66
     v69 = zext i1 v68 to i256
     v70 = shr v67, 64
-    v71 = or v69, v70
+    v71 = or v70, v69
     v74 = zext i1 v15 to i256
-    v75 = or v74, v71
+    v75 = or v71, v74
     v76 = ne v75, 0
     jumpi v76, bb3, bb5
   bb5:  ; preds = bb2
     mstore 64, v67 !metadata(memory=scratch)
     mstore v66, v10
     v17 = sub v3, v11
-    v18 = gt v10, v17
+    v18 = lt v17, v10
     jumpi v18, bb1, bb4
   bb4:  ; preds = bb5
     v57 = add v66, 32
@@ -95,9 +95,9 @@ fn @alloc() {
     v12 = lt v11, v10
     v13 = zext i1 v12 to i256
     v14 = shr v11, 64
-    v15 = or v13, v14
+    v15 = or v14, v13
     v20 = zext i1 v3 to i256
-    v21 = or v20, v15
+    v21 = or v15, v20
     v22 = ne v21, 0
     jumpi v22, bb1, bb2
   bb2:  ; preds = bb0
