@@ -1079,16 +1079,22 @@ impl<'a> Planner<'a> {
             }
             let Some(&def) = def_position.get(&value) else { continue };
             // The chain: single-use producers feeding the roots within this block, as the
-            // position of its first instruction.
+            // position of its first instruction. Each position is visited once, and the walk
+            // stops at the first position below the window, where the callers reject any start.
             let first = |roots: &[usize]| {
                 let mut work = roots.to_vec();
+                let mut seen = work.iter().copied().collect::<FxHashSet<_>>();
                 let mut start = work[0];
                 while let Some(position) = work.pop() {
                     start = start.min(position);
+                    if consumer - position > MAX_PREPLACEMENT_WINDOW {
+                        break;
+                    }
                     for &operand in &planned[position].operands {
                         if self.use_counts[operand] == 1
                             && let Some(&producer) = def_position.get(&operand)
                             && producer < position
+                            && seen.insert(producer)
                         {
                             work.push(producer);
                         }
