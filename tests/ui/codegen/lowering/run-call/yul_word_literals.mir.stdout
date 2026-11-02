@@ -27,8 +27,7 @@ fn @stringDirect() -> i256 [selector=0x13f2673d, pure, abi_params=[], abi_return
 ; function builtin() external pure returns (bytes32 result) [selector 0x44d2c8a8]
 fn @builtin() -> i256 [selector=0x44d2c8a8, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = or 0x1234000000000000000000000000000000000000000000000000000000000000, 0
-    ret v0
+    ret 0x1234000000000000000000000000000000000000000000000000000000000000
 }
 
 ; function loop() external pure returns (uint result) [selector 0xa92100cb]

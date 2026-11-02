@@ -77,17 +77,15 @@ fn @nestedDynamicDefaults() -> struct1 [selector=0xd34386dc, pure, abi_params=[]
     v10 = add v9, 64
     v11 = mload v10
     v12 = icall @freeMemoryPointer
-    v13 = not 31
-    v14 = and 64, v13
-    v15 = alloc zeroed checked v14
-    mstore v15, 1
-    v16 = ptrtoint ptr<memory> v15 to i256
-    v17 = eq v16, v12
-    v18 = insert_value struct1, undef struct1, 0, v5
-    v19 = insert_value struct1, v18, 1, v8
-    v20 = insert_value struct1, v19, 2, v11
-    v21 = insert_value struct1, v20, 3, v17
-    ret v21
+    v13 = alloc zeroed checked 64
+    mstore v13, 1
+    v14 = ptrtoint ptr<memory> v13 to i256
+    v15 = eq v14, v12
+    v16 = insert_value struct1, undef struct1, 0, v5
+    v17 = insert_value struct1, v16, 1, v8
+    v18 = insert_value struct1, v17, 2, v11
+    v19 = insert_value struct1, v18, 3, v15
+    ret v19
 }
 
 ; function defaultBytesReturn() external pure returns (bytes memory data) [selector 0x2a63b10a]
@@ -224,18 +222,16 @@ fn @rawPointerPair() -> struct4 [pure] {
     v2 = add v1, 64
     mstore 64, v2 !metadata(memory=scratch)
     mstore v0, 1
-    v3 = shl 17, 248
-    v4 = add v0, 32
-    mstore v4, v3
+    v3 = add v0, 32
+    mstore v3, 0x1100000000000000000000000000000000000000000000000000000000000000
     mstore v1, 1
-    v5 = shl 34, 248
-    v6 = add v1, 32
-    mstore v6, v5
-    v7 = inttoptr i256 v0 to ptr<memory>
-    v8 = inttoptr i256 v1 to ptr<memory>
-    v9 = insert_value struct4, undef struct4, 0, v7
-    v10 = insert_value struct4, v9, 1, v8
-    ret v10
+    v4 = add v1, 32
+    mstore v4, 0x2200000000000000000000000000000000000000000000000000000000000000
+    v5 = inttoptr i256 v0 to ptr<memory>
+    v6 = inttoptr i256 v1 to ptr<memory>
+    v7 = insert_value struct4, undef struct4, 0, v5
+    v8 = insert_value struct4, v7, 1, v6
+    ret v8
 }
 
 ; function freeMemoryPointer() private pure returns (uint256 pointer)

@@ -280,15 +280,15 @@ fn @encode_abi_calldata.4(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retur
     v5 = add v2, v4
     jump bb1
   bb1:  ; preds = bb0, bb9
-    v6 = phi [bb0: arg1], [bb9: v103]
-    v7 = phi [bb0: v5], [bb9: v102]
-    v8 = phi [bb0: v2], [bb9: v106]
-    v9 = phi [bb0: arg0], [bb9: v105]
+    v6 = phi [bb0: arg1], [bb9: v102]
+    v7 = phi [bb0: v5], [bb9: v101]
+    v8 = phi [bb0: v2], [bb9: v105]
+    v9 = phi [bb0: arg0], [bb9: v104]
     v10 = gt v6, 0
     jumpi v10, bb2, bb3
   bb3:  ; preds = bb1
-    v108 = sub v7, arg2
-    ret v108
+    v107 = sub v7, arg2
+    ret v107
   bb2:  ; preds = bb1
     v11 = calldataload v9
     v12 = calldatasize
@@ -302,8 +302,8 @@ fn @encode_abi_calldata.4(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retur
     mstore v8, v22
     v24 = add v7, 128
     v25 = calldataload v19
-    v128 = shr v25, 160
-    v26 = ne v128, 0
+    v127 = shr v25, 160
+    v26 = ne v127, 0
     jumpi v26, bb4, bb6
   bb6:  ; preds = bb5
     mstore v7, v25
@@ -314,20 +314,20 @@ fn @encode_abi_calldata.4(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retur
     v33 = sub v31, v19
     v34 = sub v33, 31
     v35 = slt v30, v34
-    v119 = eq v35, false
+    v118 = eq v35, false
     v38 = add v19, v30
     v39 = calldataload v38
-    v130 = shr v39, 64
-    v132 = zext i1 v119 to i256
-    v133 = or v132, v130
+    v129 = shr v39, 64
+    v131 = zext i1 v118 to i256
+    v132 = or v131, v129
     v41 = shl v39, 6
     v42 = add v38, 32
     v43 = sub v31, v41
     v44 = sgt v42, v43
-    v135 = zext i1 v44 to i256
-    v136 = or v133, v135
-    v121 = ne v136, 0
-    jumpi v121, bb4, bb7
+    v134 = zext i1 v44 to i256
+    v135 = or v132, v134
+    v120 = ne v135, 0
+    jumpi v120, bb4, bb7
   bb7:  ; preds = bb6
     mstore v29, 128
     v49 = icall @encode_abi_calldata.3, v42, v39, v24
@@ -337,20 +337,20 @@ fn @encode_abi_calldata.4(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retur
     v54 = calldataload v52
     v55 = calldatasize
     v59 = slt v54, v34
-    v122 = eq v59, false
+    v121 = eq v59, false
     v62 = add v19, v54
     v63 = calldataload v62
-    v138 = shr v63, 64
-    v140 = zext i1 v122 to i256
-    v141 = or v140, v138
+    v137 = shr v63, 64
+    v139 = zext i1 v121 to i256
+    v140 = or v139, v137
     v65 = shl v63, 6
     v66 = add v62, 32
     v67 = sub v55, v65
     v68 = sgt v66, v67
-    v143 = zext i1 v68 to i256
-    v144 = or v141, v143
-    v124 = ne v144, 0
-    jumpi v124, bb4, bb8
+    v142 = zext i1 v68 to i256
+    v143 = or v140, v142
+    v123 = ne v143, 0
+    jumpi v123, bb4, bb8
   bb8:  ; preds = bb7
     v71 = sub v50, v7
     mstore v53, v71
@@ -361,33 +361,33 @@ fn @encode_abi_calldata.4(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retur
     v78 = calldataload v76
     v79 = calldatasize
     v83 = slt v78, v34
-    v125 = eq v83, false
+    v124 = eq v83, false
     v86 = add v19, v78
     v87 = calldataload v86
-    v146 = shr v87, 64
-    v148 = zext i1 v125 to i256
-    v149 = or v148, v146
+    v145 = shr v87, 64
+    v147 = zext i1 v124 to i256
+    v148 = or v147, v145
     v89 = add v86, 32
     v90 = sub v79, v87
     v91 = sgt v89, v90
-    v151 = zext i1 v91 to i256
-    v152 = or v149, v151
-    v127 = ne v152, 0
-    jumpi v127, bb4, bb9
+    v150 = zext i1 v91 to i256
+    v151 = or v148, v150
+    v126 = ne v151, 0
+    jumpi v126, bb4, bb9
   bb9:  ; preds = bb8
     v94 = sub v74, v7
     mstore v77, v94
     v96 = add v87, 31
-    v98 = and v96, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v99 = add v74, 32
-    v100 = add v74, v98
-    mstore v100, 0
+    v97 = and v96, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v98 = add v74, 32
+    v99 = add v74, v97
+    mstore v99, 0
     mstore v74, v87
-    v102 = add v99, v98
-    calldatacopy v99, v89, v87
-    v103 = sub v6, 1
-    v105 = add v9, 32
-    v106 = add v8, 32
+    v101 = add v98, v97
+    calldatacopy v98, v89, v87
+    v102 = sub v6, 1
+    v104 = add v9, 32
+    v105 = add v8, 32
     jump bb1
   bb4 [cold]:  ; preds = bb2, bb5, bb6, bb7, bb8
     revert 0, 0

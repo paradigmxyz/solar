@@ -333,7 +333,7 @@ fn emit_recipe(
     // typed_result = cast result
     let operation_ty = recipe_type(func, &kind, scalar_ty);
     let mut builder = crate::mir::FunctionBuilder::new(func);
-    let result = builder.emit_inst(kind, Some(operation_ty));
+    let result = builder.emit_inst_unfolded(kind, Some(operation_ty));
     let result = builder.cast(result, ty);
     let generated = func.blocks[block].instructions.split_off(start);
     for &inst in &generated {

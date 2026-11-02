@@ -31,10 +31,10 @@ fn @tokenId() [selector=0x8f25c453, abi_wrapper, pure] {
     v27 = sub v18, v26
     v28 = gt v25, v27
     v29 = or v24, v28
-    v35 = or v19, v29
+    v34 = or v19, v29
     v6 = slt v25, 128
-    v36 = or v35, v6
-    jumpi v36, bb1, bb2
+    v35 = or v34, v6
+    jumpi v35, bb1, bb2
   bb2:  ; preds = bb0
     v7 = alloc 128 !metadata(deferred_alloc)
     v8 = calldataload v26

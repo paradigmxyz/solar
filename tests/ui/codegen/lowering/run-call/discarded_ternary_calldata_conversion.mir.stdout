@@ -137,16 +137,15 @@ fn @test(arg0: i1, arg1: i1) -> i1 [selector=0x7442b287, abi_params=[bool, bool]
   bb5:  ; preds = bb3
     jump bb6
   bb4:  ; preds = bb3
-    v24 = not 0
-    v25 = ptrtoint ptr<memory> v23 to i256
-    v26 = add v25, 132
-    mstore v26, v24
+    v24 = ptrtoint ptr<memory> v23 to i256
+    v25 = add v24, 132
+    mstore v25, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jump bb6
   bb6:  ; preds = bb4, bb5
-    v27 = address
-    v28 = gas
-    v29 = address_call v27, v23, gas v28
-    ret v29
+    v26 = address
+    v27 = gas
+    v28 = address_call v26, v23, gas v27
+    ret v28
   bb2:  ; preds = bb1
     v3 = shl v1, 5
     v4 = ptradd v0, v3

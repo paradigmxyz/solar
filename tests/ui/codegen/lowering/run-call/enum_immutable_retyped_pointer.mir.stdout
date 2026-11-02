@@ -95,7 +95,7 @@ fn @internal_dispatcher_asm_p_uint256_r_uint8(arg0: i256, arg1: i256) -> i256 [f
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
-    v0 = icall @internal_dispatcher_asm_p_uint256_r_uint8, 6, 0
+    v0 = icall @internal_dispatcher_asm_p_uint256_r_uint8, 1, 0
     v1 = lt v0, 2
     v2 = eq v1, false
     icall panic_if<0x21>, v2
@@ -120,7 +120,7 @@ fn @wide(arg0: i256) -> i256 [pure] {
 
 fn @internal_dispatcher_asm_p_uint256_r_uint8(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
-    v0 = eq arg0, 6
+    v0 = eq arg0, 1
     jumpi v0, bb1, bb2
   bb2:  ; preds = bb0
     icall panic_if<0x51>, true

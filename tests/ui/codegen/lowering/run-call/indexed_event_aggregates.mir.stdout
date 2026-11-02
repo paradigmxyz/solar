@@ -200,67 +200,66 @@ fn @test_strings() -> ptr<memory> [selector=0xcdb50c38, abi_params=[], abi_retur
     v19 = mload v0
     jump bb4
   bb4:  ; preds = bb3, bb5
-    v20 = phi [bb3: 0], [bb5: v35]
-    v21 = phi [bb3: 0], [bb5: v33]
+    v20 = phi [bb3: 0], [bb5: v34]
+    v21 = phi [bb3: 0], [bb5: v32]
     v22 = lt v20, v19
     jumpi v22, bb5, bb6
   bb6:  ; preds = bb4
-    v36 = mul v21, 32
-    v37 = gt v21, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    icall panic_if<0x41>, v37
-    v38 = add 32, v36
-    v39 = lt v38, 32
-    icall panic_if<0x41>, v39
-    v40 = alloc v38
-    mstore v40, v36
-    v41 = mload v0
+    v35 = mul v21, 32
+    v36 = gt v21, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v36
+    v37 = add 32, v35
+    v38 = lt v37, 32
+    icall panic_if<0x41>, v38
+    v39 = alloc v37
+    mstore v39, v35
+    v40 = mload v0
     jump bb7
   bb7:  ; preds = bb6, bb11
-    v42 = phi [bb6: 0], [bb11: v67]
-    v43 = phi [bb6: 0], [bb11: v66]
-    v44 = lt v42, v41
-    jumpi v44, bb8, bb9
+    v41 = phi [bb6: 0], [bb11: v65]
+    v42 = phi [bb6: 0], [bb11: v64]
+    v43 = lt v41, v40
+    jumpi v43, bb8, bb9
   bb9:  ; preds = bb7
-    v68 = ptradd v40, 32
-    v69 = mload v40
-    v70 = keccak256 v68, v69
-    log 0, 0, 0xe9d28597fb984e7305318ffadc229c4d310bb7cf174b53aff9316f6e3cc105e8, v18, v70
-    v71 = alloc 64 !metadata(preserves_fmp)
-    mstore v71, 5
-    v72 = ptradd v71, 32
-    mstore v72, 0x776f726c64000000000000000000000000000000000000000000000000000000
-    ret v71
+    v66 = ptradd v39, 32
+    v67 = mload v39
+    v68 = keccak256 v66, v67
+    log 0, 0, 0xe9d28597fb984e7305318ffadc229c4d310bb7cf174b53aff9316f6e3cc105e8, v18, v68
+    v69 = alloc 64 !metadata(preserves_fmp)
+    mstore v69, 5
+    v70 = ptradd v69, 32
+    mstore v70, 0x776f726c64000000000000000000000000000000000000000000000000000000
+    ret v69
   bb8:  ; preds = bb7
-    v45 = shl v42, 5
-    v46 = ptradd v0, v45
-    v47 = ptradd v46, 32
+    v44 = shl v41, 5
+    v45 = ptradd v0, v44
+    v46 = ptradd v45, 32
+    v47 = mload v46
     v48 = mload v47
-    v49 = mload v48
-    v50 = add v49, 31
-    v51 = lt v50, v49
-    icall panic_if<0x41>, v51
-    v52 = not 31
-    v53 = and v50, v52
-    v54 = eq v53, 0
-    jumpi v54, bb11, bb10
+    v49 = add v48, 31
+    v50 = lt v49, v48
+    icall panic_if<0x41>, v50
+    v51 = and v49, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v52 = eq v51, 0
+    jumpi v52, bb11, bb10
   bb10:  ; preds = bb8
-    v55 = sub v53, 32
-    v56 = add v43, v55
-    v57 = ptradd v40, v56
-    v58 = ptradd v57, 32
-    mstore v58, 0
+    v53 = sub v51, 32
+    v54 = add v42, v53
+    v55 = ptradd v39, v54
+    v56 = ptradd v55, 32
+    mstore v56, 0
     jump bb11
   bb11:  ; preds = bb8, bb10
-    v59 = add v48, 32
-    v60 = inttoptr i256 v59 to ptr<memory>
-    v61 = make_memory_slice v60, v49
-    v62 = ptradd v40, v43
-    v63 = ptradd v62, 32
-    v64 = extract_value slice<memory>, v61, 0
-    v65 = extract_value slice<memory>, v61, 1
-    mcopy v63, v64, v65
-    v66 = add v43, v53
-    v67 = add v42, 1
+    v57 = add v47, 32
+    v58 = inttoptr i256 v57 to ptr<memory>
+    v59 = make_memory_slice v58, v48
+    v60 = ptradd v39, v42
+    v61 = ptradd v60, 32
+    v62 = extract_value slice<memory>, v59, 0
+    v63 = extract_value slice<memory>, v59, 1
+    mcopy v61, v62, v63
+    v64 = add v42, v51
+    v65 = add v41, 1
     jump bb7
   bb5:  ; preds = bb4
     v23 = shl v20, 5
@@ -271,13 +270,12 @@ fn @test_strings() -> ptr<memory> [selector=0xcdb50c38, abi_params=[], abi_retur
     v28 = add v27, 31
     v29 = lt v28, v27
     icall panic_if<0x41>, v29
-    v30 = not 31
-    v31 = and v28, v30
-    v32 = div v31, 32
-    v33 = add v21, v32
-    v34 = lt v33, v21
-    icall panic_if<0x41>, v34
-    v35 = add v20, 1
+    v30 = and v28, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v31 = div v30, 32
+    v32 = add v21, v31
+    v33 = lt v32, v21
+    icall panic_if<0x41>, v33
+    v34 = add v20, 1
     jump bb4
   bb2:  ; preds = bb1
     v3 = shl v1, 5

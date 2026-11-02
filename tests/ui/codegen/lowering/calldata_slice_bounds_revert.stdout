@@ -22,44 +22,44 @@ fn @entry() [entry] {
 ; function endPastLength(bytes calldata data, uint256 end) external pure returns (bytes memory) [selector 0x8063d43b]
 fn @endPastLength() [selector=0x8063d43b, abi_wrapper, pure] {
   bb0:
-    v26 = calldatasize
-    v27 = lt v26, 68
-    jumpi v27, bb1, bb4
+    v25 = calldatasize
+    v26 = lt v25, 68
+    jumpi v26, bb1, bb4
   bb4:  ; preds = bb0
-    v28 = icall @decode_calldata_slice
-    v29 = calldataload v28
-    v2 = gt arg1, v29
+    v27 = icall @decode_calldata_slice
+    v28 = calldataload v27
+    v2 = gt arg1, v28
     v3 = eq arg1, 0
     v4 = or v2, v3
     jumpi v4, bb1, bb2
   bb2:  ; preds = bb4
     v6 = sub arg1, 1
-    v53 = add v28, 33
+    v51 = add v27, 33
     v11 = calldatasize
-    v60 = shr v6, 64
+    v58 = shr v6, 64
     v13 = sub v11, v6
-    v15 = sgt v53, v13
-    v62 = zext i1 v15 to i256
-    v63 = or v60, v62
-    v59 = ne v63, 0
-    jumpi v59, bb1, bb3
+    v15 = sgt v51, v13
+    v60 = zext i1 v15 to i256
+    v61 = or v58, v60
+    v57 = ne v61, 0
+    jumpi v57, bb1, bb3
   bb3:  ; preds = bb2
     v17 = add v6, 31
-    v19 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v20 = add v19, 32
-    v56 = heap_floor !metadata(alloc_ptr)
-    v57 = add v56, v20 !metadata(alloc_ptr)
-    mstore v56, v6
-    v38 = add v57, 32
-    mstore v57, 32
-    v45 = add v38, 32
-    v46 = add v38, v19
-    mstore v46, 0
-    mstore v38, v6
-    v48 = add v45, v19
-    calldatacopy v45, v53, v6
-    v50 = sub v48, v57
-    returndata v57, v50
+    v18 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v19 = add v18, 32
+    v54 = heap_floor !metadata(alloc_ptr)
+    v55 = add v54, v19 !metadata(alloc_ptr)
+    mstore v54, v6
+    v37 = add v55, 32
+    mstore v55, 32
+    v43 = add v37, 32
+    v44 = add v37, v18
+    mstore v44, 0
+    mstore v37, v6
+    v46 = add v43, v18
+    calldatacopy v43, v51, v6
+    v48 = sub v46, v55
+    returndata v55, v48
   bb1 [cold]:  ; preds = bb0, bb2, bb4
     revert 0, 0
 }
@@ -67,45 +67,45 @@ fn @endPastLength() [selector=0x8063d43b, abi_wrapper, pure] {
 ; function startAfterEnd(bytes calldata data, uint256 start, uint256 end) external pure returns (bytes memory) [selector 0x598bfb30]
 fn @startAfterEnd() [selector=0x598bfb30, abi_wrapper, pure] {
   bb0:
-    v26 = calldatasize
-    v27 = lt v26, 100
-    jumpi v27, bb1, bb4
+    v25 = calldatasize
+    v26 = lt v25, 100
+    jumpi v26, bb1, bb4
   bb4:  ; preds = bb0
-    v28 = icall @decode_calldata_slice
-    v29 = calldataload v28
-    v30 = add v28, 32
-    v2 = gt arg2, v29
+    v27 = icall @decode_calldata_slice
+    v28 = calldataload v27
+    v29 = add v27, 32
+    v2 = gt arg2, v28
     v3 = lt arg2, arg1
     v4 = or v2, v3
     jumpi v4, bb1, bb2
   bb2:  ; preds = bb4
     v6 = sub arg2, arg1
-    v53 = add v30, arg1
+    v51 = add v29, arg1
     v11 = calldatasize
-    v60 = shr v6, 64
+    v58 = shr v6, 64
     v13 = sub v11, v6
-    v15 = sgt v53, v13
-    v62 = zext i1 v15 to i256
-    v63 = or v60, v62
-    v59 = ne v63, 0
-    jumpi v59, bb1, bb3
+    v15 = sgt v51, v13
+    v60 = zext i1 v15 to i256
+    v61 = or v58, v60
+    v57 = ne v61, 0
+    jumpi v57, bb1, bb3
   bb3:  ; preds = bb2
     v17 = add v6, 31
-    v19 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v20 = add v19, 32
-    v56 = heap_floor !metadata(alloc_ptr)
-    v57 = add v56, v20 !metadata(alloc_ptr)
-    mstore v56, v6
-    v38 = add v57, 32
-    mstore v57, 32
-    v45 = add v38, 32
-    v46 = add v38, v19
-    mstore v46, 0
-    mstore v38, v6
-    v48 = add v45, v19
-    calldatacopy v45, v53, v6
-    v50 = sub v48, v57
-    returndata v57, v50
+    v18 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v19 = add v18, 32
+    v54 = heap_floor !metadata(alloc_ptr)
+    v55 = add v54, v19 !metadata(alloc_ptr)
+    mstore v54, v6
+    v37 = add v55, 32
+    mstore v55, 32
+    v43 = add v37, 32
+    v44 = add v37, v18
+    mstore v44, 0
+    mstore v37, v6
+    v46 = add v43, v18
+    calldatacopy v43, v51, v6
+    v48 = sub v46, v55
+    returndata v55, v48
   bb1 [cold]:  ; preds = bb0, bb2, bb4
     revert 0, 0
 }

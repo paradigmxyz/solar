@@ -11,11 +11,10 @@ fn @recover() -> i160 [selector=0xce746024, pure, abi_params=[], abi_returns=[wo
 ; function recoverInvalidDirtyScratch() external pure returns (address) [selector 0x5721fb2d]
 fn @recoverInvalidDirtyScratch() -> i160 [selector=0x5721fb2d, pure, abi_params=[], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
-    v0 = not 0
-    mstore 0, v0 !metadata(memory=scratch)
-    v1 = icall ecrecover<>, 0, 0, 0, 0
-    v2 = trunc i256 v1 to i160
-    ret v2
+    mstore 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(memory=scratch)
+    v0 = icall ecrecover<>, 0, 0, 0, 0
+    v1 = trunc i256 v0 to i160
+    ret v1
 }
 
 ; function recoverUnderGasPressure() external view returns (uint256 zeros) [selector 0x8ea61220]
@@ -23,8 +22,8 @@ fn @recoverUnderGasPressure() -> i256 [selector=0x8ea61220, view, abi_params=[],
   bb0:
     jump bb1
   bb1:  ; preds = bb0, bb3
-    v0 = phi [bb0: 0], [bb3: v16]
-    v1 = phi [bb0: 0x7d0], [bb3: v17]
+    v0 = phi [bb0: 0], [bb3: v15]
+    v1 = phi [bb0: 0x7d0], [bb3: v16]
     v2 = lt v1, 0x1b58
     jumpi v2, bb4, bb5
   bb5:  ; preds = bb1
@@ -49,27 +48,26 @@ fn @recoverUnderGasPressure() -> i256 [selector=0x8ea61220, view, abi_params=[],
     v7 = returndatasize
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
-    v9 = add 0, 0
-    v10 = mload v9
-    v11 = gt v10, 0xffffffffffffffffffffffffffffffffffffffff
-    icall revert_if<empty>, v11
-    v12 = trunc i256 v10 to i160
-    v13 = ne v12, i160 0x7e5f4552091a69125d5dfcb7b8c2659029395bdf
-    jumpi v13, bb10, bb11
+    v9 = mload 0 !metadata(memory=scratch)
+    v10 = gt v9, 0xffffffffffffffffffffffffffffffffffffffff
+    icall revert_if<empty>, v10
+    v11 = trunc i256 v9 to i160
+    v12 = ne v11, i160 0x7e5f4552091a69125d5dfcb7b8c2659029395bdf
+    jumpi v12, bb10, bb11
   bb11:  ; preds = bb7
     jump bb12
   bb10:  ; preds = bb7
-    v14 = checked_add uint256, v0, 1
+    v13 = checked_add uint256, v0, 1
     jump bb12
   bb12:  ; preds = bb10, bb11
-    v15 = phi [bb10: v14], [bb11: v0]
+    v14 = phi [bb10: v13], [bb11: v0]
     jump bb9
   bb9:  ; preds = bb12, bb13
-    v16 = phi [bb12: v15], [bb13: v0]
+    v15 = phi [bb12: v14], [bb13: v0]
     jump bb6
   bb6:  ; preds = bb9
     jump bb3
   bb3:  ; preds = bb6
-    v17 = checked_add uint256, v1, 11
+    v16 = checked_add uint256, v1, 11
     jump bb1
 }

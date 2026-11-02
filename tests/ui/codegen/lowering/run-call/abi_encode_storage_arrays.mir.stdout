@@ -223,80 +223,69 @@ fn @readDynamicStorage(arg0: slice<calldata>) -> struct0 [selector=0x26153afa, a
     v62 = eq v61, false
     icall panic_if<0x32>, v62
     v63 = storage_array_data_slot 0
-    v64 = mul 0, 2
-    v65 = add v63, v64
-    v66 = lt 0, 2
-    v67 = eq v66, false
-    icall panic_if<0x32>, v67
-    v68 = add v65, 0
-    v69 = sload v68 !metadata(storage=symbolic(v65))
-    v70 = sload 0 !metadata(storage=slot(0))
-    v71 = lt 0, v70
+    v64 = lt 0, 2
+    v65 = eq v64, false
+    icall panic_if<0x32>, v65
+    v66 = sload v63 !metadata(storage=symbolic(v63))
+    v67 = sload 0 !metadata(storage=slot(0))
+    v68 = lt 0, v67
+    v69 = eq v68, false
+    icall panic_if<0x32>, v69
+    v70 = storage_array_data_slot 0
+    v71 = lt 1, 2
     v72 = eq v71, false
     icall panic_if<0x32>, v72
-    v73 = storage_array_data_slot 0
-    v74 = mul 0, 2
-    v75 = add v73, v74
-    v76 = lt 1, 2
+    v73 = add v70, 1
+    v74 = sload v73 !metadata(storage=offset(v70, 1))
+    v75 = sload 0 !metadata(storage=slot(0))
+    v76 = lt 1, v75
     v77 = eq v76, false
     icall panic_if<0x32>, v77
-    v78 = add v75, 1
-    v79 = sload v78 !metadata(storage=offset(v75, 1))
-    v80 = sload 0 !metadata(storage=slot(0))
-    v81 = lt 1, v80
-    v82 = eq v81, false
-    icall panic_if<0x32>, v82
-    v83 = storage_array_data_slot 0
-    v84 = mul 1, 2
-    v85 = add v83, v84
-    v86 = lt 0, 2
-    v87 = eq v86, false
-    icall panic_if<0x32>, v87
-    v88 = add v85, 0
-    v89 = sload v88 !metadata(storage=symbolic(v85))
-    v90 = sload 0 !metadata(storage=slot(0))
-    v91 = lt 1, v90
-    v92 = eq v91, false
-    icall panic_if<0x32>, v92
-    v93 = storage_array_data_slot 0
-    v94 = mul 1, 2
-    v95 = add v93, v94
-    v96 = lt 1, 2
-    v97 = eq v96, false
-    icall panic_if<0x32>, v97
-    v98 = add v95, 1
-    v99 = sload v98 !metadata(storage=offset(v95, 1))
+    v78 = storage_array_data_slot 0
+    v79 = add v78, 2
+    v80 = lt 0, 2
+    v81 = eq v80, false
+    icall panic_if<0x32>, v81
+    v82 = sload v79 !metadata(storage=offset(v78, 2))
+    v83 = sload 0 !metadata(storage=slot(0))
+    v84 = lt 1, v83
+    v85 = eq v84, false
+    icall panic_if<0x32>, v85
+    v86 = storage_array_data_slot 0
+    v87 = add v86, 2
+    v88 = lt 1, 2
+    v89 = eq v88, false
+    icall panic_if<0x32>, v89
+    v90 = add v87, 1
+    v91 = sload v90 !metadata(storage=offset(v86, 3))
+    v92 = sload 0 !metadata(storage=slot(0))
+    v93 = lt 2, v92
+    v94 = eq v93, false
+    icall panic_if<0x32>, v94
+    v95 = storage_array_data_slot 0
+    v96 = add v95, 4
+    v97 = lt 0, 2
+    v98 = eq v97, false
+    icall panic_if<0x32>, v98
+    v99 = sload v96 !metadata(storage=offset(v95, 4))
     v100 = sload 0 !metadata(storage=slot(0))
     v101 = lt 2, v100
     v102 = eq v101, false
     icall panic_if<0x32>, v102
     v103 = storage_array_data_slot 0
-    v104 = mul 2, 2
-    v105 = add v103, v104
-    v106 = lt 0, 2
-    v107 = eq v106, false
-    icall panic_if<0x32>, v107
-    v108 = add v105, 0
-    v109 = sload v108 !metadata(storage=symbolic(v105))
-    v110 = sload 0 !metadata(storage=slot(0))
-    v111 = lt 2, v110
-    v112 = eq v111, false
-    icall panic_if<0x32>, v112
-    v113 = storage_array_data_slot 0
-    v114 = mul 2, 2
-    v115 = add v113, v114
-    v116 = lt 1, 2
-    v117 = eq v116, false
-    icall panic_if<0x32>, v117
-    v118 = add v115, 1
-    v119 = sload v118 !metadata(storage=offset(v115, 1))
-    v120 = insert_value struct0, undef struct0, 0, v69
-    v121 = insert_value struct0, v120, 1, v79
-    v122 = insert_value struct0, v121, 2, v89
-    v123 = insert_value struct0, v122, 3, v99
-    v124 = insert_value struct0, v123, 4, v109
-    v125 = insert_value struct0, v124, 5, v119
-    ret v125
+    v104 = add v103, 4
+    v105 = lt 1, 2
+    v106 = eq v105, false
+    icall panic_if<0x32>, v106
+    v107 = add v104, 1
+    v108 = sload v107 !metadata(storage=offset(v103, 5))
+    v109 = insert_value struct0, undef struct0, 0, v66
+    v110 = insert_value struct0, v109, 1, v74
+    v111 = insert_value struct0, v110, 2, v82
+    v112 = insert_value struct0, v111, 3, v91
+    v113 = insert_value struct0, v112, 4, v99
+    v114 = insert_value struct0, v113, 5, v108
+    ret v114
   bb13:  ; preds = bb12
     v44 = shl v42, 5
     v45 = ptradd v12, v44

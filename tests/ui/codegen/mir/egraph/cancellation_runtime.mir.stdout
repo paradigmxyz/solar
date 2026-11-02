@@ -96,9 +96,8 @@ fn @dynamicPower(arg0: i256, arg1: i256) -> struct2 [selector=0x26dfdcc8, pure, 
 ; function signedRemainder(uint256 x) external pure returns (uint256 result) [selector 0xf6544855]
 fn @signedRemainder(arg0: i256) -> i256 [selector=0xf6544855, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = not 0
-    v1 = smod arg0, v0
-    ret v1
+    v0 = smod arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    ret v0
 }
 
 ; function compare(uint256 x, uint256 y) external pure returns (bool equal, bool less) [selector 0xf360234c]

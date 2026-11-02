@@ -371,11 +371,13 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
                 config.program.args.push("--emit=abi,bin".into());
                 config.stdout_filter(RUN_CALL_STDOUT_FILTER_PATTERN, "");
             }
-            // An EVM IR test that runs a pipeline keeps its output and drops only the compiler's
-            // JSON; one that runs none would only print itself back.
-            Mode::EvmIr => {
+            // An IR test that runs a pipeline keeps its output and drops only the compiler's JSON;
+            // one that runs none would only print itself back.
+            Mode::Mir | Mode::EvmIr => {
                 config.program.args.push("--emit=abi,bin".into());
-                let pattern = if src.contains("-Zevm-ir-pipeline") {
+                let pipeline =
+                    if cfg.mode == Mode::Mir { "-Zmir-pipeline" } else { "-Zevm-ir-pipeline" };
+                let pattern = if src.contains(pipeline) {
                     RUN_CALL_DUMP_STDOUT_FILTER_PATTERN
                 } else {
                     RUN_CALL_STDOUT_FILTER_PATTERN

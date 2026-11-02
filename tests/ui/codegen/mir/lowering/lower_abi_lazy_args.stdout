@@ -3,7 +3,7 @@
   @module LowerAbiLazyArgs
   ; selector 0x0d2020dd
 - fn @flag(arg0: i1) -> i1 [selector=0x0d2020dd, abi_returns=[word]] {
-+ fn @flag() [selector=0x0d2020dd, abi_wrapper] {
++ fn @flag() [selector=0x0d2020dd, abi_wrapper, implicit_args=[i1]] {
     bb0:
 -     ret arg0
 +     v0 = calldatasize
@@ -19,8 +19,7 @@
 +     v4 = ne arg0, false
 +     v5 = zext i1 v4 to i256
 +     mstore 0, v5 !metadata(memory=scratch)
-+     v6 = sub 32, 0
-+     returndata 0, v6
++     returndata 0, 32
 +   bb2 [cold]:  ; preds = bb0, bb3
 +     revert 0, 0
   }

@@ -119,9 +119,9 @@ fn @_sortPairs(arg0: i256, arg1: i256) [may_return_memory, pure] {
   bb16:  ; preds = bb3
     v18 = mload v236
     v238 = shl v2, 5
-    v239 = add arg1, v238
+    v239 = add arg0, v238
     v242 = shl v2, 5
-    v243 = add arg0, v242
+    v243 = add arg1, v242
     jump bb4
   bb4:  ; preds = bb16, bb22
     v24 = phi [bb16: v2], [bb22: v26]
@@ -135,7 +135,7 @@ fn @_sortPairs(arg0: i256, arg1: i256) [may_return_memory, pure] {
     v28 = lt v26, v27
     jumpi v28, bb19, bb15
   bb19:  ; preds = bb6
-    v33 = mload v244
+    v33 = mload v240
     v34 = gt v33, v11
     jumpi v34, bb7, bb5
   bb5:  ; preds = bb4, bb19
@@ -196,9 +196,9 @@ fn @_sortPairs(arg0: i256, arg1: i256) [may_return_memory, pure] {
     v221 = add v231, v81
     v89 = mload v221
     v246 = shl v78, 5
-    v247 = add v231, v246
+    v247 = add v230, v246
     v250 = shl v78, 5
-    v251 = add v230, v250
+    v251 = add v231, v250
     jump bb10
   bb10:  ; preds = bb13, bb23
     v90 = phi [bb23: v78], [bb13: v102]
@@ -208,7 +208,7 @@ fn @_sortPairs(arg0: i256, arg1: i256) [may_return_memory, pure] {
     jumpi v91, bb12, bb11
   bb12:  ; preds = bb10
     v102 = sub v90, 1
-    v188 = sub v252, 32
+    v188 = sub v248, 32
     v108 = mload v188
     v109 = gt v108, v84
     jumpi v109, bb13, bb11
@@ -222,25 +222,25 @@ fn @_sortPairs(arg0: i256, arg1: i256) [may_return_memory, pure] {
     jump bb8
   bb13:  ; preds = bb12
     v116 = mload v188
-    mstore v252, v116
-    v194 = sub v248, 32
+    mstore v248, v116
+    v194 = sub v252, 32
     v127 = mload v194
-    mstore v248, v127
+    mstore v252, v127
     v249 = sub v248, 32
     v253 = sub v252, 32
     jump bb10
   bb7:  ; preds = bb19
-    v43 = mload v244
+    v43 = mload v240
     v45 = lt v24, v27
     jumpi v45, bb20, bb15
   bb20:  ; preds = bb7
-    v212 = add v244, 32
+    v212 = add v240, 32
     mstore v212, v43
     v51 = mload arg1
     v52 = lt v26, v51
     jumpi v52, bb21, bb15
   bb21:  ; preds = bb20
-    v57 = mload v240
+    v57 = mload v244
     v59 = lt v24, v51
     jumpi v59, bb22, bb15
   bb15 [cold]:  ; preds = bb3, bb5, bb6, bb7, bb9, bb17, bb20, bb21
@@ -248,7 +248,7 @@ fn @_sortPairs(arg0: i256, arg1: i256) [may_return_memory, pure] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb22:  ; preds = bb21
-    v218 = add v240, 32
+    v218 = add v244, 32
     mstore v218, v57
     v241 = sub v240, 32
     v245 = sub v244, 32

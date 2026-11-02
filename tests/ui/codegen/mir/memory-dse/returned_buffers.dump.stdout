@@ -67,14 +67,14 @@ fn @load() [selector=0x86d5c4be, abi_wrapper, view] {
     v0 = icall @_copy, 1
     v4 = mload v0
     v5 = add v4, 31
-    v7 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v15 = add v0, 32
-    v10 = add v15, v4
-    mstore v10, 0
-    v17 = sub v0, 32
-    mstore v17, 32
-    v12 = add v7, 64
-    returndata v17, v12
+    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v14 = add v0, 32
+    v9 = add v14, v4
+    mstore v9, 0
+    v16 = sub v0, 32
+    mstore v16, 32
+    v11 = add v6, 64
+    returndata v16, v11
 }
 
 ; function loadThenAllocate() external view returns (bytes memory a, bytes memory b) [selector 0xf84b9425]
@@ -83,36 +83,36 @@ fn @loadThenAllocate() [selector=0xf84b9425, abi_wrapper, view] {
     v0 = icall @_copy, 1
     v1 = mload 64 !metadata(memory=scratch)
     mstore v1, 3
-    v3 = add v1, 32
-    mstore v3, 0x100000000000000000000000000000000000000000000000000000000000000
-    v4 = add v1, 64
-    mstore 64, v4 !metadata(memory=scratch)
-    v13 = add v4, 64
-    mstore v4, 64
-    v16 = mload v0
-    v17 = add v16, 31
-    v19 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v20 = add v13, 32
-    v21 = add v13, v19
-    mstore v21, 0
-    mstore v13, v16
-    v41 = add v0, 32
-    v23 = add v20, v19
-    mcopy v20, v41, v16 !metadata(memory=heap, disjoint)
-    v27 = sub v23, v4
-    v25 = add v4, 32
-    mstore v25, v27
-    v28 = mload v1
-    v29 = add v28, 31
-    v31 = and v29, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v32 = add v23, 32
-    v33 = add v23, v31
-    mstore v33, 0
-    mstore v23, v28
-    v35 = add v32, v31
-    mcopy v32, v3, v28 !metadata(disjoint)
-    v37 = sub v35, v4
-    returndata v4, v37
+    v2 = add v1, 32
+    mstore v2, 0x100000000000000000000000000000000000000000000000000000000000000
+    v3 = add v1, 64
+    mstore 64, v3 !metadata(memory=scratch)
+    v12 = add v3, 64
+    mstore v3, 64
+    v15 = mload v0
+    v16 = add v15, 31
+    v17 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v18 = add v12, 32
+    v19 = add v12, v17
+    mstore v19, 0
+    mstore v12, v15
+    v38 = add v0, 32
+    v21 = add v18, v17
+    mcopy v18, v38, v15 !metadata(memory=heap, disjoint)
+    v25 = sub v21, v3
+    v23 = add v3, 32
+    mstore v23, v25
+    v26 = mload v1
+    v27 = add v26, 31
+    v28 = and v27, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v29 = add v21, 32
+    v30 = add v21, v28
+    mstore v30, 0
+    mstore v21, v26
+    v32 = add v29, v28
+    mcopy v29, v2, v26 !metadata(disjoint)
+    v34 = sub v32, v3
+    returndata v3, v34
 }
 
 ; function loadScaled(uint256 k) external view returns (bytes memory) [selector 0x69d1875c]
@@ -125,14 +125,14 @@ fn @loadScaled() [selector=0x69d1875c, abi_wrapper, view] {
     v0 = icall @_copy, arg0
     v6 = mload v0
     v7 = add v6, 31
-    v9 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v17 = add v0, 32
-    v12 = add v17, v6
-    mstore v12, 0
-    v19 = sub v0, 32
-    mstore v19, 32
-    v14 = add v9, 64
-    returndata v19, v14
+    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v16 = add v0, 32
+    v11 = add v16, v6
+    mstore v11, 0
+    v18 = sub v0, 32
+    mstore v18, 32
+    v13 = add v8, 64
+    returndata v18, v13
   bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
@@ -141,70 +141,70 @@ fn @loadScaled() [selector=0x69d1875c, abi_wrapper, view] {
 fn @_copy(arg0: i256) -> i256 [may_return_memory, view] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v51 = and v0, 1
-    v52 = eq v51, 1
-    v53 = sub 0, v51
-    v54 = or v53, 127
-    v55 = shr v0, 1
-    v56 = and v55, v54
-    v57 = lt v56, 32
-    v58 = eq v52, v57
-    jumpi v58, bb7, bb8
+    v50 = and v0, 1
+    v51 = eq v50, 1
+    v52 = sub 0, v50
+    v53 = or v52, 127
+    v54 = shr v0, 1
+    v55 = and v54, v53
+    v56 = lt v55, 32
+    v57 = eq v51, v56
+    jumpi v57, bb7, bb8
   bb8:  ; preds = bb0
-    v86 = add v56, 63
-    v10 = and v86, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v77 = heap_floor !metadata(alloc_ptr)
-    v78 = add v77, v10 !metadata(alloc_ptr)
-    v88 = shr v78, 64
-    v79 = lt v78, v77
-    v90 = zext i1 v79 to i256
-    v91 = or v90, v88
-    v81 = ne v91, 0
-    jumpi v81, bb13, bb12
+    v85 = add v55, 63
+    v9 = and v85, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v76 = heap_floor !metadata(alloc_ptr)
+    v77 = add v76, v9 !metadata(alloc_ptr)
+    v87 = shr v77, 64
+    v78 = lt v77, v76
+    v89 = zext i1 v78 to i256
+    v90 = or v89, v87
+    v80 = ne v90, 0
+    jumpi v80, bb13, bb12
   bb12:  ; preds = bb8
-    mstore 64, v78 !metadata(memory=scratch)
-    v83 = calldatasize
-    calldatacopy v77, v83, v10
-    mstore v77, v56
-    v84 = and arg0, 255
+    mstore 64, v77 !metadata(memory=scratch)
+    v82 = calldatasize
+    calldatacopy v76, v82, v9
+    mstore v76, v55
+    v83 = and arg0, 255
     jump bb1
   bb1:  ; preds = bb6, bb12
-    v16 = phi [bb12: 0], [bb6: v50]
-    v18 = lt v16, v56
-    jumpi v18, bb9, bb2
+    v15 = phi [bb12: 0], [bb6: v49]
+    v17 = lt v15, v55
+    jumpi v17, bb9, bb2
   bb2:  ; preds = bb1
-    ret v77
+    ret v76
   bb9:  ; preds = bb1
-    jumpi v52, bb3, bb4
+    jumpi v51, bb3, bb4
   bb3:  ; preds = bb9
     mstore 0, 0 !metadata(memory=scratch)
-    v29 = shr v16, 5
-    v30 = add v29, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
+    v28 = shr v15, 5
+    v29 = add v28, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
     jump bb4
   bb4:  ; preds = bb3, bb9
-    v31 = phi [bb3: v30], [bb9: 0]
-    v34 = sload v31 !metadata(storage=symbolic(v31))
-    v32 = and v16, 31
-    v33 = sub 31, v32
-    v35 = shl v33, 3
-    v36 = shr v34, v35
-    v38 = and v36, 255
-    v69 = mul v38, v84
-    v70 = gt v69, 255
-    jumpi v70, bb10, bb11
+    v30 = phi [bb3: v29], [bb9: 0]
+    v33 = sload v30 !metadata(storage=symbolic(v30))
+    v31 = and v15, 31
+    v32 = sub 31, v31
+    v34 = shl v32, 3
+    v35 = shr v33, v34
+    v37 = and v35, 255
+    v68 = mul v37, v83
+    v69 = gt v68, 255
+    jumpi v69, bb10, bb11
   bb11:  ; preds = bb4
-    v44 = mload v77
-    v45 = lt v16, v44
-    jumpi v45, bb6, bb5
+    v43 = mload v76
+    v44 = lt v15, v43
+    jumpi v44, bb6, bb5
   bb5 [cold]:  ; preds = bb11
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb6:  ; preds = bb11
-    v73 = add v77, v16
-    v74 = add v73, 32
-    mstore8 v74, v69
-    v50 = add v16, 1
+    v72 = add v76, v15
+    v73 = add v72, 32
+    mstore8 v73, v68
+    v49 = add v15, 1
     jump bb1
   bb10 [cold]:  ; preds = bb4
     mstore 32, 17 !metadata(memory=scratch)

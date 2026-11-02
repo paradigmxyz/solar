@@ -39,8 +39,11 @@ Pipeline: lex -> parse -> sema (AST -> HIR, typeck) -> MIR -> EVM IR -> bytecode
   visitors.
 - `crates/sema`: `ast_lowering/` (name resolution, AST -> HIR), `hir/`, `ty/`,
   `typeck/`, `output/` (ABI, NatSpec, storage layout).
-- `crates/mir`: the MIR data model, operation schema (`op_schema.rs`), text
-  format (`parser.rs`, `display.rs`), and verifier (`analysis/validator.rs`).
+- `crates/mir`: the MIR data model, operation schema (`op_schema.rs`) and the
+  semantics it declares (`semantics.rs`), text format (`parser.rs`,
+  `display.rs`, with the backend memory records of `backend_memory.rs`), and
+  verifier (`analysis/validator.rs`). `crates/mir-interpreter`: runs lowered
+  MIR.
 - `crates/codegen`: `mir/lower/` (HIR -> MIR), `mir/transform/` (one file per
   MIR pass), `mir/pass.rs` (pass registry and pipelines),
   `backend/evm/codegen/` (instruction selection, stack scheduling),
@@ -170,6 +173,8 @@ deliberate omissions. A one-line restatement of the name is not enough.
   - MIR passes: `tests/ui/codegen/mir/<pass-name>/` (command-line pass name).
   - `lower-abi`, `lower-dispatch`, `lower-evm-shaped`:
     `tests/ui/codegen/mir/lowering/`.
+  - Lowered MIR checked against the MIR interpreter with `run-call`:
+    `tests/ui/codegen/mir/interp/`.
   - EVM IR passes: `tests/ui/codegen/evm-ir/<pass-name>/` (`-Zevm-ir-pipeline`
     name).
   - EVM IR checked against the EVM IR interpreter with `run-call`:
@@ -212,9 +217,9 @@ Other directives: `//@ compile-flags: ...`, `//@[rev] compile-flags: ...`,
   failure. See the [tester guide](tools/tester/README.md#runtime-directives)
   for settings. Use them for one isolated call; use `tests/foundry/`
   (`cargo tq foundry`) for multiple transactions, state, actors, events,
-  cheatcodes, or complex setup. `.evmir` tests also run each call through the
-  EVM IR interpreter and name the function by signature and outputs, as in
-  `add(uint256,uint256)(uint256) 2, 3 => 5`.
+  cheatcodes, or complex setup. Lowered `.mir` and `.evmir` tests also run each
+  call through the MIR or EVM IR interpreter and name the function by signature
+  and outputs, as in `add(uint256,uint256)(uint256) 2, 3 => 5`.
 - `//@ filecheck: ARGS` runs LLVM FileCheck on the `.stdout` with `ARGS`.
 
 Use FileCheck when full snapshots are too brittle or the test checks order,

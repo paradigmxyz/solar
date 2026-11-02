@@ -56,19 +56,19 @@ fn @digest(arg0: i256, arg1: i256) -> i256 {
 fn @first() [selector=0x2845d4e6, abi_wrapper] {
   bb0:
     v5 = calldataload 4
-    v14 = shr v5, 160
+    v13 = shr v5, 160
     v3 = calldatasize
     v4 = lt v3, 68
-    v16 = zext i1 v4 to i256
-    v17 = or v16, v14
-    v13 = ne v17, 0
-    jumpi v13, bb1, bb2
+    v15 = zext i1 v4 to i256
+    v16 = or v15, v13
+    v12 = ne v16, 0
+    jumpi v12, bb1, bb2
   bb2:  ; preds = bb0
     v0 = icall @digest, arg0, arg1
     mstore 0, arg0
     mstore 32, arg1
-    v11 = keccak256 0, 64
-    v2 = eq v0, v11
+    v10 = keccak256 0, 64
+    v2 = eq v0, v10
     v8 = zext i1 v2 to i256
     mstore 0, v8
     returndata 0, 32
@@ -80,13 +80,13 @@ fn @first() [selector=0x2845d4e6, abi_wrapper] {
 fn @second() [selector=0x6cdb32ec, abi_wrapper] {
   bb0:
     v11 = calldataload 4
-    v20 = shr v11, 160
+    v19 = shr v11, 160
     v9 = calldatasize
     v10 = lt v9, 68
-    v22 = zext i1 v10 to i256
-    v23 = or v22, v20
-    v19 = ne v23, 0
-    jumpi v19, bb3, bb4
+    v21 = zext i1 v10 to i256
+    v22 = or v21, v19
+    v18 = ne v22, 0
+    jumpi v18, bb3, bb4
   bb4:  ; preds = bb0
     v5 = add arg1, 1
     v6 = eq v5, 0
@@ -95,8 +95,8 @@ fn @second() [selector=0x6cdb32ec, abi_wrapper] {
     v1 = icall @digest, arg0, v5
     mstore 0, arg0
     mstore 32, v5
-    v17 = keccak256 0, 64
-    v4 = eq v1, v17
+    v16 = keccak256 0, 64
+    v4 = eq v1, v16
     v14 = zext i1 v4 to i256
     mstore 0, v14
     returndata 0, 32

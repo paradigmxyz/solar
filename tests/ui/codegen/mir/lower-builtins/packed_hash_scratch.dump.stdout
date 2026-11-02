@@ -24,21 +24,21 @@ fn @entry() [entry] {
 ; function threeItems(uint256 role, address holder) external pure returns (bytes32) [selector 0x6e13fa5d]
 fn @threeItems() [selector=0x6e13fa5d, abi_wrapper, pure] {
   bb0:
-    v9 = calldataload 36
-    v13 = shr v9, 160
-    v7 = calldatasize
-    v8 = lt v7, 68
-    v15 = zext i1 v8 to i256
-    v16 = or v15, v13
-    v12 = ne v16, 0
-    jumpi v12, bb1, bb2
+    v7 = calldataload 36
+    v10 = shr v7, 160
+    v5 = calldatasize
+    v6 = lt v5, 68
+    v12 = zext i1 v6 to i256
+    v13 = or v12, v10
+    v9 = ne v13, 0
+    jumpi v9, bb1, bb2
   bb2:  ; preds = bb0
     mstore 0, arg0
-    v4 = shl arg1, 64
-    v5 = or v4, 0xee9853bb00000000000000000000000000000000000000000000000000000000
-    mstore 32, v5 !metadata(memory=scratch)
-    v6 = keccak256 0, 56 !metadata(memory=scratch)
-    mstore 0, v6 !metadata(memory=scratch)
+    v2 = shl arg1, 64
+    v3 = or v2, 0xee9853bb00000000000000000000000000000000000000000000000000000000
+    mstore 32, v3 !metadata(memory=scratch)
+    v4 = keccak256 0, 56 !metadata(memory=scratch)
+    mstore 0, v4 !metadata(memory=scratch)
     returndata 0, 32
   bb1 [cold]:  ; preds = bb0
     revert 0, 0
@@ -48,13 +48,13 @@ fn @threeItems() [selector=0x6e13fa5d, abi_wrapper, pure] {
 fn @twoItems() [selector=0x658c946c, abi_wrapper, pure] {
   bb0:
     v9 = calldataload 36
-    v13 = shr v9, 160
+    v12 = shr v9, 160
     v7 = calldatasize
     v8 = lt v7, 68
-    v15 = zext i1 v8 to i256
-    v16 = or v15, v13
-    v12 = ne v16, 0
-    jumpi v12, bb1, bb2
+    v14 = zext i1 v8 to i256
+    v15 = or v14, v12
+    v11 = ne v15, 0
+    jumpi v11, bb1, bb2
   bb2:  ; preds = bb0
     mstore 0, arg0
     v1 = or arg1, 0xee9853bb0000000000000000000000000000000000000000
@@ -71,22 +71,22 @@ fn @twoItems() [selector=0x658c946c, abi_wrapper, pure] {
 fn @tooLong() [selector=0x70126c55, abi_wrapper, pure] {
   bb0:
     v11 = calldataload 68
-    v18 = shr v11, 32
+    v17 = shr v11, 32
     v9 = calldatasize
     v10 = lt v9, 100
-    v20 = zext i1 v10 to i256
-    v21 = or v20, v18
-    v17 = ne v21, 0
-    jumpi v17, bb1, bb2
+    v19 = zext i1 v10 to i256
+    v20 = or v19, v17
+    v16 = ne v20, 0
+    jumpi v16, bb1, bb2
   bb2:  ; preds = bb0
-    v16 = heap_floor !metadata(alloc_ptr)
-    mstore v16, arg0
-    v3 = add v16, 32
+    v15 = heap_floor !metadata(alloc_ptr)
+    mstore v15, arg0
+    v3 = add v15, 32
     mstore v3, arg1
     v5 = shl arg2, 224
-    v7 = add v16, 64
+    v7 = add v15, 64
     mstore v7, v5
-    v8 = keccak256 v16, 68
+    v8 = keccak256 v15, 68
     mstore 0, v8 !metadata(memory=scratch)
     returndata 0, 32
   bb1 [cold]:  ; preds = bb0

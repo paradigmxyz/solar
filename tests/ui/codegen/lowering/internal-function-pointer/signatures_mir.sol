@@ -8,7 +8,7 @@ contract FunctionPointerSignatures {
     function() internal stateFn = setFlag;
 
     // CHECK-LABEL: fn @callVoid(
-    // CHECK: icall @[[DISPATCHER_0:internal_dispatcher_[A-Za-z0-9_]+]], 2
+    // CHECK: icall @[[DISPATCHER_0:internal_dispatcher_[A-Za-z0-9_]+]], 1
     function callVoid() public returns (bool) {
         function() internal fn = setFlag;
         fn();
@@ -60,7 +60,7 @@ contract FunctionPointerSignatures {
     }
 
     // CHECK: fn @[[DISPATCHER_0]](
-    // CHECK: eq arg0, 2
+    // CHECK: eq arg0, 1
     // CHECK: icall panic_if<0x51>, true
     // CHECK: icall @setFlag
     // CHECK: fn @[[DISPATCHER_1]](
@@ -68,6 +68,6 @@ contract FunctionPointerSignatures {
     // CHECK: [[PAIR_RESULT:v[0-9]+]] = icall @pair, arg1
     // CHECK: ret [[PAIR_RESULT]]
     // CHECK: fn @[[DISPATCHER_2]](
-    // CHECK: eq arg0, 7
+    // CHECK: eq arg0, 3
     // CHECK: icall @sum, arg1, arg2
 }

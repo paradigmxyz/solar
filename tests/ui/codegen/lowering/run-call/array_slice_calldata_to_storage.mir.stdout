@@ -64,9 +64,8 @@ fn @copy(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0xaabf
     v47 = eq v46, false
     icall panic_if<0x32>, v47
     v48 = storage_array_data_slot 0
-    v49 = add v48, 0
-    v50 = sload v49 !metadata(storage=symbolic(v48))
-    ret v50
+    v49 = sload v48 !metadata(storage=symbolic(v48))
+    ret v49
   bb7:  ; preds = bb6
     v38 = shl v36, 5
     v39 = ptradd v23, v38

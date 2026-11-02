@@ -32,8 +32,8 @@ fn @shift() [selector=0x5d9cf5ea, abi_wrapper, pure] {
     v18 = shl arg3, 5
     v107 = add v82, v18
     v108 = add v107, 32
-    v116 = add v83, 32
-    v119 = add v81, 32
+    v116 = add v81, 32
+    v119 = add v83, 32
     jump bb1
   bb1:  ; preds = bb9, bb16
     v5 = phi [bb16: 0], [bb9: v29]
@@ -43,7 +43,7 @@ fn @shift() [selector=0x5d9cf5ea, abi_wrapper, pure] {
     v7 = lt v5, v6
     jumpi v7, bb3, bb2
   bb3:  ; preds = bb1
-    v14 = mload v120
+    v14 = mload v117
     v15 = mload v82
     v16 = lt arg3, v15
     jumpi v16, bb8, bb7
@@ -57,7 +57,7 @@ fn @shift() [selector=0x5d9cf5ea, abi_wrapper, pure] {
     v24 = lt v5, v23
     jumpi v24, bb9, bb7
   bb9:  ; preds = bb13
-    mstore v117, v75
+    mstore v120, v75
     v29 = add v5, 1
     v46 = mload v81
     v47 = mload v82
@@ -130,100 +130,100 @@ fn @shift() [selector=0x5d9cf5ea, abi_wrapper, pure] {
 ; function shiftFar(uint256[] memory a, uint256[] memory c, uint256 k) external pure returns (uint256[] memory) [selector 0x67979c1a]
 fn @shiftFar() [selector=0x67979c1a, abi_wrapper, pure] {
   bb0:
-    v80 = calldatasize
-    v81 = lt v80, 100
-    jumpi v81, bb15, bb16
+    v79 = calldatasize
+    v80 = lt v79, 100
+    jumpi v80, bb15, bb16
   bb16:  ; preds = bb0
-    v82 = icall @decode_calldata_type, 4
-    v83 = icall @decode_calldata_type, 36
-    v19 = shl arg2, 5
-    v107 = add v19, 0x10000000000000020
-    v56 = add v83, 1
-    v113 = add v83, 32
-    v116 = add v82, 32
+    v81 = icall @decode_calldata_type, 4
+    v82 = icall @decode_calldata_type, 36
+    v18 = shl arg2, 5
+    v106 = add v18, 0x10000000000000020
+    v55 = add v82, 1
+    v112 = add v81, 32
+    v115 = add v82, 32
     jump bb1
   bb1:  ; preds = bb9, bb16
-    v6 = phi [bb16: 0], [bb9: v31]
-    v114 = phi [bb16: v113], [bb9: v115]
-    v117 = phi [bb16: v116], [bb9: v118]
-    v7 = mload v82
-    v8 = lt v6, v7
-    jumpi v8, bb3, bb2
+    v5 = phi [bb16: 0], [bb9: v30]
+    v113 = phi [bb16: v112], [bb9: v114]
+    v116 = phi [bb16: v115], [bb9: v117]
+    v6 = mload v81
+    v7 = lt v5, v6
+    jumpi v7, bb3, bb2
   bb3:  ; preds = bb1
-    v15 = mload v117
-    v16 = mload 0x10000000000000000
-    v17 = lt arg2, v16
-    jumpi v17, bb8, bb7
+    v14 = mload v113
+    v15 = mload 0x10000000000000000
+    v16 = lt arg2, v15
+    jumpi v16, bb8, bb7
   bb8:  ; preds = bb3
-    v23 = mload v107
-    v76 = add v15, v23
-    v77 = lt v76, v15
-    jumpi v77, bb12, bb13
+    v22 = mload v106
+    v75 = add v14, v22
+    v76 = lt v75, v14
+    jumpi v76, bb12, bb13
   bb13:  ; preds = bb8
-    v25 = mload v83
-    v26 = lt v6, v25
-    jumpi v26, bb9, bb7
+    v24 = mload v82
+    v25 = lt v5, v24
+    jumpi v25, bb9, bb7
   bb9:  ; preds = bb13
-    mstore v114, v76
-    v31 = add v6, 1
-    v48 = mload v82
-    v49 = mload 0x10000000000000000
-    v50 = mload v107
-    v51 = mload v83
-    v54 = or v83, v51
-    v55 = shl v51, 5
-    v57 = add v55, 31
-    v59 = sub v82, v56
-    v60 = lt v59, v57
-    v62 = zext i1 v60 to i256
-    v63 = sub 0x10000000000000000, v56
-    v64 = lt v63, v57
-    v65 = zext i1 v64 to i256
-    v66 = or v62, v65
-    v68 = sub v107, v56
-    v69 = lt v68, v57
-    v70 = zext i1 v69 to i256
-    v71 = or v66, v70
-    v119 = shr v54, 64
-    v120 = or v119, v71
-    v74 = eq v120, 0
-    v115 = add v114, 32
-    v118 = add v117, 32
-    jumpi v74, bb6, bb1
+    mstore v116, v75
+    v30 = add v5, 1
+    v47 = mload v81
+    v48 = mload 0x10000000000000000
+    v49 = mload v106
+    v50 = mload v82
+    v53 = or v82, v50
+    v54 = shl v50, 5
+    v56 = add v54, 31
+    v58 = sub v81, v55
+    v59 = lt v58, v56
+    v61 = zext i1 v59 to i256
+    v62 = sub 0x10000000000000000, v55
+    v63 = lt v62, v56
+    v64 = zext i1 v63 to i256
+    v65 = or v61, v64
+    v67 = sub v106, v55
+    v68 = lt v67, v56
+    v69 = zext i1 v68 to i256
+    v70 = or v65, v69
+    v118 = shr v53, 64
+    v119 = or v118, v70
+    v73 = eq v119, 0
+    v114 = add v113, 32
+    v117 = add v116, 32
+    jumpi v73, bb6, bb1
   bb6:  ; preds = bb9
     jump bb4
   bb4:  ; preds = bb6, bb11
-    v32 = phi [bb6: v31], [bb11: v47]
-    v34 = lt v32, v48
-    jumpi v34, bb5, bb2
+    v31 = phi [bb6: v30], [bb11: v46]
+    v33 = lt v31, v47
+    jumpi v33, bb5, bb2
   bb2:  ; preds = bb1, bb4
-    v87 = mload v83
-    v88 = shl v87, 5
-    v93 = sub v83, 32
-    mstore v93, 32
-    v90 = add v88, 64
-    returndata v93, v90
+    v86 = mload v82
+    v87 = shl v86, 5
+    v92 = sub v82, 32
+    mstore v92, 32
+    v89 = add v87, 64
+    returndata v92, v89
   bb5:  ; preds = bb4
-    v35 = shl v32, 5
-    v98 = add v82, v35
-    v99 = add v98, 32
-    v38 = mload v99
-    v40 = lt arg2, v49
-    jumpi v40, bb10, bb7
+    v34 = shl v31, 5
+    v97 = add v81, v34
+    v98 = add v97, 32
+    v37 = mload v98
+    v39 = lt arg2, v48
+    jumpi v39, bb10, bb7
   bb10:  ; preds = bb5
-    v78 = add v38, v50
-    v79 = lt v78, v38
-    jumpi v79, bb12, bb14
+    v77 = add v37, v49
+    v78 = lt v77, v37
+    jumpi v78, bb12, bb14
   bb14:  ; preds = bb10
-    v44 = lt v32, v51
-    jumpi v44, bb11, bb7
+    v43 = lt v31, v50
+    jumpi v43, bb11, bb7
   bb7 [cold]:  ; preds = bb3, bb5, bb13, bb14
     tail_call @revert_stub
   bb11:  ; preds = bb14
-    v104 = add v83, v35
-    v105 = add v104, 32
-    mstore v105, v78
-    v47 = add v32, 1
+    v103 = add v82, v34
+    v104 = add v103, 32
+    mstore v104, v77
+    v46 = add v31, 1
     jump bb4
   bb12 [cold]:  ; preds = bb8, bb10
     mstore 32, 17 !metadata(memory=scratch)

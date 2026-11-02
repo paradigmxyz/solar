@@ -5,12 +5,11 @@ fn @constructor(arg0: ptr<memory>, arg1: i8) [constructor, abi_params=[bytes, ui
   bb0:
     icall @store_storage_bytes, 0, arg0
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = not 255
-    v2 = and v0, v1
-    v3 = zext i8 arg1 to i256
-    v4 = and v3, 255
-    v5 = or v2, v4
-    sstore 1, v5 !metadata(storage=slot(1))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v2 = zext i8 arg1 to i256
+    v3 = and v2, 255
+    v4 = or v1, v3
+    sstore 1, v4 !metadata(storage=slot(1))
     ret
 }
 
@@ -90,12 +89,11 @@ fn @makeAndRead() -> struct0 [selector=0x42c589ac, abi_params=[], abi_returns=[w
     v22 = returndatasize
     v23 = lt v22, 32
     icall revert_if<tuple_data_too_short>, v23
-    v24 = add 0, 0
-    v25 = mload v24
-    v26 = gt v25, 255
-    icall revert_if<empty>, v26
-    v27 = trunc i256 v25 to i8
-    v28 = insert_value struct0, undef struct0, 0, v18
-    v29 = insert_value struct0, v28, 1, v27
-    ret v29
+    v24 = mload 0 !metadata(memory=scratch)
+    v25 = gt v24, 255
+    icall revert_if<empty>, v25
+    v26 = trunc i256 v24 to i8
+    v27 = insert_value struct0, undef struct0, 0, v18
+    v28 = insert_value struct0, v27, 1, v26
+    ret v28
 }

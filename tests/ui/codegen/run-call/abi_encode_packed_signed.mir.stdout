@@ -54,13 +54,12 @@ fn @signedCall(arg0: i8) -> i8 [selector=0x036e241f, view, abi_params=[int8], ab
     v5 = returndatasize
     v6 = lt v5, 32
     icall revert_if<tuple_data_too_short>, v6
-    v7 = add 0, 0
-    v8 = mload v7
-    v9 = signextend 0, v8
-    v10 = ne v8, v9
-    icall revert_if<empty>, v10
-    v11 = trunc i256 v8 to i8
-    ret v11
+    v7 = mload 0 !metadata(memory=scratch)
+    v8 = signextend 0, v7
+    v9 = ne v7, v8
+    icall revert_if<empty>, v9
+    v10 = trunc i256 v7 to i8
+    ret v10
 }
 
 ; function signedWord(int8 value) external pure returns (int256 result) [selector 0x1b01a17f]

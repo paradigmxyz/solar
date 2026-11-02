@@ -1,0 +1,24 @@
+// CHECK: "errors": [
+// CHECK: "message": "unresolved symbol `undefined_name`"
+// CHECK-NOT: "mismatched types"
+// CHECK: "sources": {}
+// CHECK-NOT: "contracts"
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract C { function f() public pure returns (uint256) { bool b = 1; return b; } function g() public { undefined_name = 1; } }"
+    }
+  },
+  "settings": {
+    "stopAfter": "lowering",
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi",
+          "evm.bytecode.object"
+        ]
+      }
+    }
+  }
+}
