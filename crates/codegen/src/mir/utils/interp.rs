@@ -10,12 +10,10 @@ use std::convert::Infallible;
 pub(crate) use solar_mir_interpreter::{
     Host, Log,
     testing::{
-        Limit, Limits, Machine, Memory, Meter, Outcome, ProbeExecution as Execution, StorageAccess,
-        mix64,
+        Limit, Limits, MEMORY_LIMIT, Machine, Memory, Meter, Outcome, ProbeExecution as Execution,
+        StorageAccess, mix64,
     },
 };
-
-pub(crate) const MEMORY_LIMIT: u64 = 1 << 24;
 
 /// Whether the shared probe can execute the instruction without a host.
 pub(crate) fn supports(kind: &InstKind) -> bool {
