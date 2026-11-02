@@ -993,8 +993,7 @@ struct DataScan {
 /// subtracted from `CODESIZE` or copied from. `pinned` is the tail of an earlier scan, which new
 /// entries may follow.
 fn scan_data_references(module: &Module, pinned: Option<DataId>) -> Option<DataScan> {
-    let tail =
-        pinned.or_else(|| module.code_follows.then(|| module.data.indices().last()).flatten());
+    let tail = pinned.or_else(|| module.data.indices().next_back().filter(|_| module.code_follows));
     let mut referenced = DenseBitSet::new_empty(module.data.len());
     let mut in_place = false;
     let mut stack = Vec::new();
