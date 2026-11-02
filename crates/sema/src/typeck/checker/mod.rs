@@ -986,6 +986,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 match (true_ty, false_ty) {
                     (Some(true_ty), Some(false_ty)) => {
                         true_ty.common_type(false_ty, self.gcx).unwrap_or_else(|| {
+                            // .span(vec![true_.span, false_.span])
                             self.gcx.mk_ty_err(self.dcx().emit_err(
                                 expr.span,
                                 None,
