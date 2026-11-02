@@ -478,6 +478,11 @@ SOLAR_DUMP_HEADING = re.compile(
     r"^// === (?P<name>.+?)(?: \((?P<kind>creation|runtime|deployment)\))? ===$",
     re.MULTILINE,
 )
+# An inlined library or an abstract contract has no code but a reverting entry.
+SOLAR_DUMP_STUB = re.compile(
+    r"^fn @entry\(\) \[entry, cold\] \{\n  bb0 \[cold\]:\n    revert 0, 0\n\}$",
+    re.MULTILINE,
+)
 SOLAR_DUMP_FILES = (
     "mir.mir",
     "creation.evmir",
@@ -491,7 +496,7 @@ def split_solar_artifact_output(
     stdout: str, contract_path: str
 ) -> tuple[dict[str, str], str]:
     # Each file lists the selected contract first, then the rest by name, so the diff of an
-    # unchanged contract stays empty.
+    # unchanged contract stays empty. Contracts without code of their own are left out.
     marker = "\n{"
     json_start = stdout.rfind(marker)
     if json_start < 0 and stdout.startswith("{"):
@@ -527,11 +532,18 @@ def split_solar_artifact_output(
             f"expected {len(SOLAR_DUMP_FILES)} Solar artifact sections for "
             f"{contract_path}, found {found}"
         )
+    stubs = {
+        contract
+        for contract, mir in sections["mir.mir"].items()
+        if contract != contract_path
+        and len(re.findall(r"^fn ", mir, re.MULTILINE)) == 1
+        and SOLAR_DUMP_STUB.search(mir)
+    }
     artifacts = {
         name: "\n".join(
             files[contract]
             for contract in sorted(
-                files, key=lambda item: (item != contract_path, item)
+                files.keys() - stubs, key=lambda item: (item != contract_path, item)
             )
         )
         for name, files in sections.items()

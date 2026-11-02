@@ -1309,9 +1309,9 @@ class ArtifactTests(unittest.TestCase):
         )
 
     def test_solar_dump_covers_every_contract_with_the_target_first(self) -> None:
-        def dump(contract: str, tag: str) -> list[str]:
+        def dump(contract: str, tag: str, mir: str | None = None) -> list[str]:
             return [
-                f"// === {contract} ===\nmir {tag}",
+                f"// === {contract} ===\n{mir or f'mir {tag}'}",
                 f"// === {contract} (creation) ===\ncreation ir {tag}",
                 f"// === {contract} (runtime) ===\nruntime ir {tag}",
                 f"// === {contract} (deployment) ===\ncreation asm {tag}",
@@ -1319,19 +1319,25 @@ class ArtifactTests(unittest.TestCase):
             ]
 
         # Solar prints each kind for all contracts in turn.
-        a, b, c = (
+        stub = (
+            "@module Stub\n@library\n; runtime dispatch entry\n"
+            "fn @entry() [entry, cold] {\n  bb0 [cold]:\n    revert 0, 0\n}"
+        )
+        a, b, c, d = (
             dump("C.sol:Lib", "lib"),
             dump("B.sol:Target", "target"),
             dump("A.sol:Child", "child"),
+            dump("D.sol:Stub", "stub", stub),
         )
         stdout = "\n\n".join(
-            part for group in zip(a, b, c, strict=True) for part in group
+            part for group in zip(a, b, c, d, strict=True) for part in group
         )
         stdout += '\n{"contracts":{}}'
 
         artifacts, output = benchmark.split_solar_artifact_output(
             stdout, "B.sol:Target"
         )
+        self.assertNotIn("Stub", "".join(artifacts.values()))
 
         self.assertEqual(
             list(artifacts),
@@ -1362,6 +1368,31 @@ class ArtifactTests(unittest.TestCase):
                 ),
             )
         self.assertEqual(json.loads(output), {"contracts": {}})
+
+    def test_solar_dump_keeps_a_target_without_code(self) -> None:
+        stub = (
+            "@module Target\nfn @entry() [entry, cold] {\n  bb0 [cold]:\n"
+            "    revert 0, 0\n}"
+        )
+        stdout = (
+            "\n".join(
+                f"// === {c}{k} ===\n{stub}"
+                for k in (
+                    "",
+                    " (creation)",
+                    " (runtime)",
+                    " (deployment)",
+                    " (runtime)",
+                )
+                for c in ("A.sol:A", "B.sol:B")
+            )
+            + '\n{"contracts":{}}'
+        )
+
+        artifacts, _ = benchmark.split_solar_artifact_output(stdout, "B.sol:B")
+
+        self.assertIn("B.sol:B", artifacts["mir.mir"])
+        self.assertNotIn("A.sol:A", artifacts["mir.mir"])
 
     def test_selected_contract_output_prefers_the_cases_own_source(self) -> None:
         case = benchmark.TEST_CASES[0]
