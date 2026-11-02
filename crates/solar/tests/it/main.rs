@@ -22,3 +22,6 @@ mod standard_json;
 
 #[cfg(feature = "cli")]
 mod mir_final;
+
+#[cfg(feature = "cli")]
+mod source_set_bytecode;

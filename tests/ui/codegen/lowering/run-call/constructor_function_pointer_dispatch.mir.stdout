@@ -3,8 +3,8 @@
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
-    icall @internal_dispatcher_p_bytes6_r_none, 3, 0x6162636465660000000000000000000000000000000000000000000000000000
-    icall @applyShift, 4, 3
+    icall @internal_dispatcher_p_bytes6_r_none, 1, 0x6162636465660000000000000000000000000000000000000000000000000000
+    icall @applyShift, 2, 3
     ret
 }
 
@@ -57,7 +57,7 @@ fn @setName(arg0: i256) {
 
 fn @internal_dispatcher_p_bytes6_r_none(arg0: i256, arg1: i256) [function_pointer_dispatcher] {
   bb0:
-    v0 = eq arg0, 3
+    v0 = eq arg0, 1
     jumpi v0, bb1, bb2
   bb2:  ; preds = bb0
     icall panic_if<0x51>, true
@@ -69,7 +69,7 @@ fn @internal_dispatcher_p_bytes6_r_none(arg0: i256, arg1: i256) [function_pointe
 
 fn @internal_dispatcher_p_bytes6_uint256_r_bytes6(arg0: i256, arg1: i256, arg2: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
-    v0 = eq arg0, 4
+    v0 = eq arg0, 2
     jumpi v0, bb1, bb2
   bb2:  ; preds = bb0
     icall panic_if<0x51>, true

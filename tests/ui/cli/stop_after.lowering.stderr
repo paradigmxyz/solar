@@ -1,0 +1,8 @@
+error: unresolved symbol `undefined_name`
+   ╭▸ ROOT/tests/ui/cli/stop_after.sol:LL:CC
+   │
+LL │         undefined_name = 1;
+   ╰╴        ━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

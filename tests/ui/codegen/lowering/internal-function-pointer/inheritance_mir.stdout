@@ -38,7 +38,7 @@ fn @target.3() -> i256 {
 ; function callThroughVirtualPointer() internal returns (uint256)
 fn @callThroughVirtualPointer() -> i256 {
   bb0:
-    v0 = icall @internal_dispatcher_p_none_r_uint256, 3
+    v0 = icall @internal_dispatcher_p_none_r_uint256, 2
     ret v0
 }
 
@@ -47,7 +47,7 @@ fn @internal_dispatcher_p_none_r_uint256(arg0: i256) -> i256 [function_pointer_d
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
   bb2:  ; preds = bb0
-    v2 = eq arg0, 3
+    v2 = eq arg0, 2
     jumpi v2, bb3, bb4
   bb4:  ; preds = bb2
     icall panic_if<0x51>, true

@@ -1,0 +1,71 @@
+error: `@custom:solar-cold` must document a function with a body
+   ╭▸ ROOT/tests/ui/natspec/solar_cold.sol:LL:CC
+   │
+LL │         /// @custom:solar-cold
+   │              ━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on a function that is rarely run
+
+error: `@custom:solar-cold` must document a function with a body
+   ╭▸ ROOT/tests/ui/natspec/solar_cold.sol:LL:CC
+   │
+LL │     /// @custom:solar-cold
+   │          ━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on a function that is rarely run
+
+error: `@custom:solar-cold` must document a function with a body
+   ╭▸ ROOT/tests/ui/natspec/solar_cold.sol:LL:CC
+   │
+LL │     /// @custom:solar-cold
+   │          ━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on a function that is rarely run
+
+error: `@custom:solar-cold` must document a function with a body
+   ╭▸ ROOT/tests/ui/natspec/solar_cold.sol:LL:CC
+   │
+LL │     /// @custom:solar-cold
+   │          ━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on a function that is rarely run
+
+error: `@custom:solar-cold` must document a function with a body
+   ╭▸ ROOT/tests/ui/natspec/solar_cold.sol:LL:CC
+   │
+LL │     /// @custom:solar-cold
+   │          ━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on a function that is rarely run
+
+error: `@custom:solar-cold` takes no argument
+   ╭▸ ROOT/tests/ui/natspec/solar_cold.sol:LL:CC
+   │
+LL │     /// @custom:solar-cold always
+   │          ━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: write `@custom:solar-cold` alone to mark the function as rarely run
+
+error: duplicate `@custom:solar-cold` tag
+   ╭▸ ROOT/tests/ui/natspec/solar_cold.sol:LL:CC
+   │
+LL │     /// @custom:solar-cold
+   │          ━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the first tag is here
+   ╭▸ ROOT/tests/ui/natspec/solar_cold.sol:LL:CC
+   │
+LL │     /// @custom:solar-cold
+   │          ━━━━━━━━━━━━━━━━━
+   ╰ help: keep one `@custom:solar-cold` tag
+
+error: `@custom:solar-cold` must document a function with a body
+   ╭▸ ROOT/tests/ui/natspec/solar_cold.sol:LL:CC
+   │
+LL │ /// @custom:solar-cold
+   │      ━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on a function that is rarely run
+
+error: aborting due to 8 previous errors
+

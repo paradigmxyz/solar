@@ -289,13 +289,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn materialize_default_bindings(&mut self) {
-        let ids = self
+        let mut ids = self
             .default_bindings
             .iter()
             .chain(self.deferred_bindings.iter())
             .copied()
             .filter(|id| !self.values.contains_key(id))
             .collect::<Vec<_>>();
+        // Declaration order, not the hash order of the ids, which shifts with unrelated sources.
+        ids.sort_unstable();
         for id in ids {
             let ty = self.cx.gcx.type_of_item(id.into());
             let value = self.default_binding_value(ty);

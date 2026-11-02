@@ -1,0 +1,47 @@
+{
+  "errors": [
+    {
+      "sourceLocation": {
+        "file": "A.sol",
+        "start": 104,
+        "end": 118
+      },
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "unresolved symbol `undefined_name`",
+      "formattedMessage": "error: unresolved symbol `undefined_name`\n   ╭▸ A.sol:LL:CC\n   │\nLL │ contract C { function f() public pure returns (uint256) { bool b = 1; return b; } function g() public { undefined_name = 1; } }\n   ╰╴                                                                                                        ━━━━━━━━━━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "A.sol",
+        "start": 67,
+        "end": 68
+      },
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "mismatched types",
+      "formattedMessage": "error: mismatched types\n   ╭▸ A.sol:LL:CC\n   │\nLL │ contract C { function f() public pure returns (uint256) { bool b = 1; return b; } function g() public { undefined_name = 1; } }\n   ╰╴                                                                   ━ expected `bool`, found `int_literal[1]`\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "A.sol",
+        "start": 77,
+        "end": 78
+      },
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "mismatched types",
+      "formattedMessage": "error: mismatched types\n   ╭▸ A.sol:LL:CC\n   │\nLL │ contract C { function f() public pure returns (uint256) { bool b = 1; return b; } function g() public { undefined_name = 1; } }\n   ╰╴                                                                             ━ expected `uint256`, found `bool`\n\n"
+    }
+  ],
+  "sources": {}
+}

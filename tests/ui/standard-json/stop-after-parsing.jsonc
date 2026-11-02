@@ -1,0 +1,24 @@
+// CHECK-NOT: "errors"
+// CHECK: "sources": {
+// CHECK: "A.sol": {
+// CHECK: "id": 0
+// CHECK-NOT: "contracts"
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract C { function f() public pure returns (uint256) { bool b = 1; return b; } function g() public { undefined_name = 1; } }"
+    }
+  },
+  "settings": {
+    "stopAfter": "parsing",
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi",
+          "evm.bytecode.object"
+        ]
+      }
+    }
+  }
+}
