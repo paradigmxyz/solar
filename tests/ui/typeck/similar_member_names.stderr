@@ -1,0 +1,38 @@
+error: member `totl` not found on type `struct S storage`
+   ╭▸ ROOT/tests/ui/typeck/similar_member_names.sol:LL:CC
+   │
+LL │         s.totl;
+   ╰╴          ━━━━ help: a member with a similar name exists: `total`
+
+error: member `b` not found on type `struct S storage`
+   ╭▸ ROOT/tests/ui/typeck/similar_member_names.sol:LL:CC
+   │
+LL │         s.b;
+   ╰╴          ━
+
+error: member `balanse` not found on type `address`
+   ╭▸ ROOT/tests/ui/typeck/similar_member_names.sol:LL:CC
+   │
+LL │         addr.balanse;
+   ╰╴             ━━━━━━━ help: a member with a similar name exists: `balance`
+
+error: member `sendr` not found on type `msg`
+   ╭▸ ROOT/tests/ui/typeck/similar_member_names.sol:LL:CC
+   │
+LL │         msg.sendr;
+   ╰╴            ━━━━━ help: a member with a similar name exists: `sender`
+
+error: member `getVlaue` not found on type `contract C`
+   ╭▸ ROOT/tests/ui/typeck/similar_member_names.sol:LL:CC
+   │
+LL │         this.getVlaue();
+   ╰╴             ━━━━━━━━ help: a member with a similar name exists: `getValue`
+
+error: member `unrelated` not found on type `contract C`
+   ╭▸ ROOT/tests/ui/typeck/similar_member_names.sol:LL:CC
+   │
+LL │         this.unrelated();
+   ╰╴             ━━━━━━━━━
+
+error: aborting due to 6 previous errors
+

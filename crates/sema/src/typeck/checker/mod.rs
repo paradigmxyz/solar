@@ -22,7 +22,7 @@ use solar_data_structures::{
 use solar_interface::{
     Ident, Symbol,
     config::EvmVersion,
-    diagnostics::{DiagBuilder, DiagCtxt, DiagId, ErrorGuaranteed},
+    diagnostics::{Applicability, DiagBuilder, DiagCtxt, DiagId, ErrorGuaranteed},
     error_code, kw, sym,
 };
 use std::ops::ControlFlow;
@@ -851,8 +851,8 @@ impl<'gcx> TypeChecker<'gcx> {
                             "member `{ident}` not found on type `{}`",
                             receiver_ty.display(self.gcx)
                         );
-                        // TODO: Did you mean ...?
                         let err = self.dcx().err(msg).span(ident.span);
+                        let err = self.suggest_similar_member(err, ident, receiver_ty);
                         self.gcx.mk_ty_err(err.emit())
                     }
                     Err(MemberAccessError::Ambiguous) => {
@@ -2630,7 +2630,11 @@ impl<'gcx> TypeChecker<'gcx> {
                 } else {
                     format!("no matching member `{ident}` found on type `{receiver}`")
                 };
-                self.gcx.mk_ty_err(self.dcx().emit_err(ident.span, msg))
+                let mut err = self.dcx().err(msg).span(ident.span);
+                if possible_members.is_empty() {
+                    err = self.suggest_similar_member(err, ident, receiver_ty);
+                }
+                self.gcx.mk_ty_err(err.emit())
             }
         };
         self.register_ty(callee, ty);
@@ -2706,6 +2710,43 @@ impl<'gcx> TypeChecker<'gcx> {
             OverloadError::Ambiguous => ("no unique declarations found", error_code!(4487)),
         };
         hir::Res::Err(self.dcx().err(msg).code(code).span(span).emit())
+    }
+
+    /// Suggests a member of `receiver_ty` whose name is close to `ident`.
+    ///
+    /// Uses solc's limits for similar declaration names: an edit distance of at most 2, or half
+    /// the name's length for names of up to 3 characters, and less than the length of both names.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.38/libsolidity/analysis/DeclarationContainer.cpp#L173-L199>
+    fn suggest_similar_member<'a>(
+        &self,
+        err: DiagBuilder<'a, ErrorGuaranteed>,
+        ident: Ident,
+        receiver_ty: Ty<'gcx>,
+    ) -> DiagBuilder<'a, ErrorGuaranteed> {
+        let name = ident.as_str();
+        let max_distance = if name.len() > 3 { 2 } else { name.len() / 2 };
+        let similar = self
+            .gcx
+            .members_of(receiver_ty, self.source, self.contract)
+            .filter_map(|member| {
+                let candidate = member.name.as_str();
+                // solc skips long pairs, as the distance is quadratic in their lengths.
+                if name.len() * candidate.len() > 80 * 80 {
+                    return None;
+                }
+                let distance = strsim::osa_distance(name, candidate);
+                (distance <= max_distance && distance < name.len() && distance < candidate.len())
+                    .then_some((distance, member.name))
+            })
+            .min_by_key(|&(distance, _)| distance);
+        let Some((_, similar)) = similar else { return err };
+        err.span_suggestion(
+            ident.span,
+            "a member with a similar name exists",
+            similar.to_string(),
+            Applicability::MaybeIncorrect,
+        )
     }
 
     /// Reports a member access or call that several members match.

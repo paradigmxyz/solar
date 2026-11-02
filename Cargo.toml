@@ -186,6 +186,7 @@ quote = "1.0"
 syn = "3.0"
 
 derive_more = { version = "2.0", features = ["full"] }
+strsim = "0.11"
 strum = "0.28"
 thiserror = ">=1"
 
