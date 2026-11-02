@@ -373,10 +373,10 @@ def execute(command, directory, timeout, input_path=None, *, env=None):
                     pass
                 process.wait()
             result["returncode"] = process.returncode
-            # A killed run writes no report, so its RSS stays unknown.
+            # A killed run writes no report, so its RSS stays unknown; a malformed one is an error.
             if data := report.read():
                 result.update(json.loads(data))
-        except OSError as error:
+        except (OSError, ValueError) as error:
             result["error"] = str(error)
     result["seconds"] = time.monotonic() - started
     return result
