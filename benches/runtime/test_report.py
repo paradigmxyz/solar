@@ -696,6 +696,51 @@ class CommonBenchmarkResultTests(unittest.TestCase):
             ["codegen_runtime_suite/large"],
         )
 
+    def test_omits_gas_after_runtime_failure(self):
+        rows = [
+            result(
+                test_id,
+                suite="micro",
+                status="ok",
+                gas_status="ok",
+                runtime_status="ok",
+                total_gas=10,
+                runtime_size=40,
+                deploy_gas=20,
+                bytecode_size=30,
+                peak_rss_bytes=100,
+            )
+            for test_id in ("good", "bad")
+        ]
+        expected = self.write_result(rows)
+        del expected["benchmarks"][0]["gas"]
+        for status in ("failed", "mismatch", "cross-compiler mismatch"):
+            with self.subTest(status=status):
+                current = copy.deepcopy(rows)
+                bad = current[1]
+                if status == "cross-compiler mismatch":
+                    bad["runtime_mismatches"] = [
+                        {"label": "value", "values": {"solar": "2", "solc": "1"}}
+                    ]
+                else:
+                    bad["compilers"]["solar"]["runtime_status"] = status
+                original = copy.deepcopy(current)
+                self.assertEqual(self.write_result(current), expected)
+                self.assertEqual(current, original)
+
+    def test_reference_runtime_failure_keeps_gas(self):
+        row = result(
+            suite="micro",
+            status="ok",
+            gas_status="ok",
+            runtime_status="ok",
+            total_gas=10,
+            deploy_gas=20,
+        )
+        expected = self.write_result([row])
+        row["compilers"]["solc"] = {"status": "ok", "runtime_status": "failed"}
+        self.assertEqual(self.write_result([row]), expected)
+
 
 if __name__ == "__main__":
     unittest.main()

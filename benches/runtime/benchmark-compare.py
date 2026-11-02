@@ -1994,12 +1994,14 @@ def common_benchmark(
         return cast(list[int], values)
 
     gas = {}
-    total_gas_values = complete_values("total_gas")
-    deploy_gas_values = complete_values("deploy_gas")
-    if total_gas_values is not None:
-        gas["runtime"] = metric(sum(total_gas_values), "gas", "total")
-    if deploy_gas_values is not None:
-        gas["deployment"] = metric(sum(deploy_gas_values), "gas", "total")
+    # Successful transactions do not make gas comparable when the program's results are wrong.
+    if not any(runtime_failed(result, "solar") for result in results):
+        total_gas_values = complete_values("total_gas")
+        deploy_gas_values = complete_values("deploy_gas")
+        if total_gas_values is not None:
+            gas["runtime"] = metric(sum(total_gas_values), "gas", "total")
+        if deploy_gas_values is not None:
+            gas["deployment"] = metric(sum(deploy_gas_values), "gas", "total")
     if gas:
         benchmark["gas"] = gas
 
