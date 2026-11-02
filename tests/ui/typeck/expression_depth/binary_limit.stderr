@@ -1,0 +1,10 @@
+error: recursion limit reached
+   ╭▸ ROOT/tests/ui/typeck/expression_depth/binary_limit.sol:LL:CC
+   │
+LL │ …     x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + …
+   │       ━
+   │
+   ╰ help: reduce expression nesting or split the expression into smaller parts
+
+error: aborting due to 1 previous error
+

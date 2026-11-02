@@ -94,11 +94,15 @@ pub(crate) fn lower(compiler: &mut CompilerRef<'_>) -> Result<ControlFlow<()>> {
 
     compiler.gcx_mut().sources.topo_sort();
 
-    debug_span!("all_ast_passes").in_scope(|| {
-        gcx.dcx().par_for_each(gcx.sources.par_asts(), |ast| {
-            ast_passes::run(gcx.sess, ast);
-        });
+    let results = debug_span!("all_ast_passes").in_scope(|| {
+        let (results, diagnostics) =
+            gcx.dcx().par_defer(gcx.sources.par_asts(), |ast| ast_passes::run(gcx.sess, ast));
+        gcx.dcx().emit_deferred(diagnostics);
+        results
     });
+    for result in results {
+        result?;
+    }
 
     ast_lowering::lower(compiler.gcx_mut());
 

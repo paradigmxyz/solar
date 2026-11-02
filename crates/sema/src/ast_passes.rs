@@ -1,22 +1,23 @@
 //! AST-related passes.
 
 use solar_ast::{self as ast, visit::Visit};
-use solar_data_structures::Never;
 use solar_interface::{
-    Ident, Session, Span, config::version::solc_semver_version, diagnostics::DiagCtxt, error_code,
-    sym,
+    Ident, Result, Session, Span,
+    config::version::solc_semver_version,
+    diagnostics::{DiagCtxt, ErrorGuaranteed},
+    error_code, sym,
 };
 use std::ops::ControlFlow;
 
 #[instrument(name = "ast_passes", level = "debug", skip_all)]
-pub(crate) fn run<'ast>(sess: &Session, ast: &'ast ast::SourceUnit<'ast>) {
-    validate(sess, ast);
+pub(crate) fn run<'ast>(sess: &Session, ast: &'ast ast::SourceUnit<'ast>) -> Result {
+    validate(sess, ast)
 }
 
 /// Performs AST validation.
-fn validate<'ast>(sess: &Session, ast: &'ast ast::SourceUnit<'ast>) {
+fn validate<'ast>(sess: &Session, ast: &'ast ast::SourceUnit<'ast>) -> Result {
     let mut validator = AstValidator::new(sess);
-    let _ = validator.visit_source_unit(ast);
+    validator.visit_source_unit(ast).break_value().map_or(Ok(()), Err)
 }
 
 /// AST validator.
@@ -29,6 +30,7 @@ struct AstValidator<'sess, 'ast> {
     placeholder_count: u32,
     yul_for_part: YulForPart,
     in_yul_function: bool,
+    expr_depth: usize,
 }
 
 impl<'sess, 'ast> AstValidator<'sess, 'ast> {
@@ -42,6 +44,7 @@ impl<'sess, 'ast> AstValidator<'sess, 'ast> {
             placeholder_count: 0,
             yul_for_part: YulForPart::None,
             in_yul_function: false,
+            expr_depth: 0,
         }
     }
 
@@ -172,7 +175,7 @@ impl<'sess, 'ast> AstValidator<'sess, 'ast> {
         &mut self,
         part: YulForPart,
         block: &'ast ast::yul::Block<'ast>,
-    ) -> ControlFlow<Never> {
+    ) -> ControlFlow<ErrorGuaranteed> {
         let prev = std::mem::replace(&mut self.yul_for_part, part);
         let r = self.visit_yul_block(block);
         self.yul_for_part = prev;
@@ -204,10 +207,12 @@ impl<'sess, 'ast> AstValidator<'sess, 'ast> {
         }
         check(inner.value_name);
     }
+
+    const MAX_EXPR_DEPTH: usize = 1024;
 }
 
 impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
-    type BreakValue = Never;
+    type BreakValue = ErrorGuaranteed;
 
     fn visit_item(&mut self, item: &'ast ast::Item<'ast>) -> ControlFlow<Self::BreakValue> {
         self.item_span = item.span;
@@ -479,7 +484,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         let r = self.walk_item_function(func);
         self.function_kind = None;
 
-        if func.kind.is_modifier() && func.is_implemented() {
+        if r.is_continue() && func.kind.is_modifier() && func.is_implemented() {
             let num_placeholders_increased = self.placeholder_count - current_placeholder_count;
             if num_placeholders_increased == 0
                 && let Some(func_name) = func.header.name
@@ -538,13 +543,27 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
     }
 
     fn visit_expr(&mut self, expr: &'ast ast::Expr<'ast>) -> ControlFlow<Self::BreakValue> {
+        // The parser bounds recursive descent, but builds binary and postfix chains iteratively.
+        // Bound their resulting tree too, before recursive lowering and type checking walk it.
+        if self.expr_depth == Self::MAX_EXPR_DEPTH {
+            return ControlFlow::Break(
+                self.dcx()
+                    .err("recursion limit reached")
+                    .span(expr.span)
+                    .help("reduce expression nesting or split the expression into smaller parts")
+                    .emit(),
+            );
+        }
         let ast::Expr { kind, .. } = expr;
         if let ast::ExprKind::Lit(lit, subdenomination) = kind {
             self.check_underscores_in_number_literals(lit);
             self.check_subdenominations_for_number_literals(lit, subdenomination);
             self.check_address_checksums(lit);
         }
-        self.walk_expr(expr)
+        self.expr_depth += 1;
+        let result = self.walk_expr(expr);
+        self.expr_depth -= 1;
+        result
     }
 
     fn visit_ty(&mut self, ty: &'ast solar_ast::Type<'ast>) -> ControlFlow<Self::BreakValue> {
