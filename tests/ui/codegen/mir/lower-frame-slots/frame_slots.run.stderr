@@ -1,4 +1,0 @@
-error: codegen cannot lower `spill`: frame address outside the local region
-
-error: aborting due to 1 previous error
-

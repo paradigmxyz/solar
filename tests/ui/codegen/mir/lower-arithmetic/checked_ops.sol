@@ -19,6 +19,11 @@
 //@[run] run-call: powNeg 3 => -27
 //@[run] run-call: mul64 4294967295, 4294967297 => 18446744073709551615
 //@[run] run-call-fail: mul64 4294967296, 4294967296 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@[run] run-call: mul256 3, 5 => 15
+//@[run] run-call: mul256 0xffffffffffffffffffffffffffffffff, 0x100000000000000000000000000000001 => 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+//@[run] run-call-fail: mul256 0x100000000000000000000000000000000, 0x100000000000000000000000000000000 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@[run] run-call: sub8 5, 3 => 2
+//@[run] run-call-fail: sub8 3, 5 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 //@[run] run-call: wrap 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1 => 0
 // Checked operations become scalar arithmetic followed by a panic branch on the overflow
 // condition. Unchecked arithmetic has nothing to expand.
@@ -91,6 +96,26 @@ contract CheckedOps {
     // CHECK-NOT: div
     function mul64(uint64 a, uint64 b) public pure returns (uint64) {
         return a * b;
+    }
+
+    // A 256-bit product also tests the quotient.
+    // CHECK-LABEL: fn @mul256(
+    // CHECK: [[PRODUCT:v[0-9]+]] = mul arg0, arg1
+    // CHECK: div [[PRODUCT]], arg1
+    // CHECK-NOT: checked_mul
+    function mul256(uint256 a, uint256 b) public pure returns (uint256) {
+        return a * b;
+    }
+
+    // An unsigned difference underflows when the minuend is below the subtrahend.
+    // CHECK-LABEL: fn @sub8(
+    // CHECK: [[A:v[0-9]+]] = zext i8 arg0 to i256
+    // CHECK-NEXT: [[B:v[0-9]+]] = zext i8 arg1 to i256
+    // CHECK-NEXT: sub [[A]], [[B]]
+    // CHECK-NEXT: lt [[A]], [[B]]
+    // CHECK-NOT: checked_sub
+    function sub8(uint8 a, uint8 b) public pure returns (uint8) {
+        return a - b;
     }
 
     // CHECK-LABEL: fn @wrap(

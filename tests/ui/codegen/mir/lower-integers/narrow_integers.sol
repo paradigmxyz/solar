@@ -12,7 +12,8 @@
 //@[run] run-call: flag true, false => false
 // Narrow integers widen to words: arithmetic masks its result to the declared width, and signed
 // comparisons and widening sign-extend their operands. Word-sized integers and booleans keep
-// their operations.
+// their operations. ABI decoding hands the signed functions sign-extended words, so their
+// run-calls only show that the lowered code still runs; the CHECK lines pin the sign extension.
 
 contract NarrowIntegers {
     // CHECK-LABEL: fn @wrap8(

@@ -4,7 +4,7 @@
 //@ run-call: same(uint256)(uint256) 4 => 8
 //@ run-call: repeated(uint256)(uint256) 0 => 100
 //@ run-call: repeated(uint256)(uint256) 4 => 41
-//@ run-call: switched(uint256)(uint256) 1 => 11
+//@ run-call: switched(uint256)(uint256) 1 => 111
 //@ run-call: switched(uint256)(uint256) 2 => 22
 //@ run-call: switched(uint256)(uint256) 3 => 33
 //@ run-call: unknown(uint256)(uint256) 0 => 100
@@ -104,7 +104,7 @@ fn @switched() [selector=0x10198fd2, abi_wrapper] {
   bb1:
     switch v0, default bb3, [1 => bb2, 2 => bb3]
   bb2:
-    mstore 0, 11
+    mstore 0, 111
     returndata 0, 32
   bb3:
     v1 = mul v0, 11

@@ -21,9 +21,9 @@ contract Checks {
 
     // A bare `require` reverts without data.
     // CHECK-LABEL: fn @req(
+    // CHECK-NOT: icall require
     // CHECK: jumpi
     // CHECK: revert 0, 0
-    // CHECK-NOT: icall require
     function req(uint256 x) public pure returns (uint256) {
         require(x != 0);
         return x;
@@ -31,8 +31,8 @@ contract Checks {
 
     // A short message calls the shared `revert_error` helper instead of staging the payload.
     // CHECK-LABEL: fn @reqMsg(
-    // CHECK: icall @revert_error, 4, 0x7a65726f
     // CHECK-NOT: icall require
+    // CHECK: icall @revert_error, 4, 0x7a65726f
     function reqMsg(uint256 x) public pure returns (uint256) {
         require(x != 0, "zero");
         return x;

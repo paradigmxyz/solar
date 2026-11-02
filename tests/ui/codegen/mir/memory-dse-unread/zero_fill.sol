@@ -1,6 +1,6 @@
-//@ revisions: standard unread run
-//@[standard] compile-flags: -Zmir-pipeline=memory-dse -Zdump=mir
-//@[standard] filecheck: --check-prefix=STANDARD
+//@ revisions: base unread run
+//@[base] compile-flags: -Zmir-pipeline=memory-dse -Zdump=mir
+//@[base] filecheck: --check-prefix=BASE
 //@[unread] compile-flags: -Zmir-pipeline=memory-dse-unread -Zdump=mir
 //@[unread] filecheck: --check-prefix=UNREAD
 //@[run] compile-flags: -Zmir-pipeline=memory-dse-unread,lower-checks,lower-builtins,lower-arithmetic,lower-abi,lower-abi-encode,lower-dispatch,lower-structs,lower-frame-slots,lower-mapping-slots,lower-memory-objects,lower-slices,lower-alloc,lower-memory-zero,lower-integers,lower-evm-shaped
@@ -14,8 +14,8 @@
 // element, or the allocation escaping into `abi.encode`, keeps it.
 
 contract UnreadAllocations {
-    // STANDARD-LABEL: fn @writeOnly(
-    // STANDARD: memory_zero
+    // BASE-LABEL: fn @writeOnly(
+    // BASE: memory_zero
     // UNREAD-LABEL: fn @writeOnly(
     // UNREAD-NOT: memory_zero
     function writeOnly(uint256 x) public pure returns (uint256) {
@@ -25,8 +25,8 @@ contract UnreadAllocations {
         return x;
     }
 
-    // STANDARD-LABEL: fn @indexedRead(
-    // STANDARD: memory_zero
+    // BASE-LABEL: fn @indexedRead(
+    // BASE: memory_zero
     // UNREAD-LABEL: fn @indexedRead(
     // UNREAD: memory_zero
     function indexedRead(uint256 x, uint256 i) public pure returns (uint256) {
@@ -35,8 +35,8 @@ contract UnreadAllocations {
         return a[i];
     }
 
-    // STANDARD-LABEL: fn @escaped(
-    // STANDARD: memory_zero
+    // BASE-LABEL: fn @escaped(
+    // BASE: memory_zero
     // UNREAD-LABEL: fn @escaped(
     // UNREAD: memory_zero
     function escaped(uint256 x) public pure returns (bytes memory) {

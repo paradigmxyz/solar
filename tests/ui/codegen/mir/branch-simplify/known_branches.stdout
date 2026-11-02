@@ -85,7 +85,7 @@
 -     switch v0, default bb3, [1 => bb2, 2 => bb3]
 +     switch v0, default bb3, [1 => bb2]
     bb2:  ; preds = bb1
-      mstore 0, 11
+      mstore 0, 111
       returndata 0, 32
     bb3:  ; preds = bb1
       v1 = mul v0, 11
