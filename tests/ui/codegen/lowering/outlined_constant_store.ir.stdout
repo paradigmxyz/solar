@@ -120,9 +120,10 @@ bb5 [cold]:
 bb6:  ; function narrow8(uint256 value) external pure returns (uint8) [selector 0x2da3006c]
   push 4
   calldataload
-  push 255
+  push 256
   dup 2
-  gt
+  lt
+  iszero
   push bb8
   jumpi
   jump bb7

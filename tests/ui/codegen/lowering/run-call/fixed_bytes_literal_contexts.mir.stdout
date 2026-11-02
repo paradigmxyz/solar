@@ -160,59 +160,58 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v78 = add 0, 0
     v79 = mload v78
     v80 = shl v79, 8
-    v81 = eq v80, 0
-    v82 = eq v81, false
-    icall revert_if<empty>, v82
-    v83 = sload 1 !metadata(storage=slot(1))
-    validate_storage_bytes v83
-    v84 = and v83, 1
-    v85 = eq v84, 1
-    v86 = sub 0, v84
-    v87 = or 127, v86
-    v88 = shr v83, 1
-    v89 = and v88, v87
-    v90 = lt 0, v89
-    v91 = eq v90, false
-    icall panic_if<0x32>, v91
-    jumpi v85, bb8, bb9
+    v81 = ne v80, 0
+    icall revert_if<empty>, v81
+    v82 = sload 1 !metadata(storage=slot(1))
+    validate_storage_bytes v82
+    v83 = and v82, 1
+    v84 = eq v83, 1
+    v85 = sub 0, v83
+    v86 = or 127, v85
+    v87 = shr v82, 1
+    v88 = and v87, v86
+    v89 = lt 0, v88
+    v90 = eq v89, false
+    icall panic_if<0x32>, v90
+    jumpi v84, bb8, bb9
   bb9:  ; preds = bb7
     jump bb10
   bb8:  ; preds = bb7
-    v92 = storage_array_data_slot 1
-    v93 = shr 0, 5
-    v94 = add v92, v93
+    v91 = storage_array_data_slot 1
+    v92 = shr 0, 5
+    v93 = add v91, v92
     jump bb10
   bb10:  ; preds = bb8, bb9
-    v95 = phi [bb8: v94], [bb9: 1]
-    v96 = and 0, 31
-    v97 = sub 31, v96
-    v98 = sload v95 !metadata(storage=symbolic(v95))
-    v99 = mul v97, 8
-    v100 = shr v98, v99
-    v101 = shl v100, 248
-    v102 = sload 2 !metadata(storage=slot(2))
-    v103 = lt 0, v102
-    v104 = eq v103, false
-    icall panic_if<0x32>, v104
-    v105 = storage_array_data_slot 2
-    v106 = div 0, 32
-    v107 = add v105, v106
-    v108 = mod 0, 32
-    v109 = mul v108, 1
-    v110 = sload v107 !metadata(storage=symbolic(v107))
-    v111 = mul v109, 8
-    v112 = shr v110, v111
-    v113 = shl v112, 248
-    v114 = insert_value struct0, undef struct0, 0, v61
-    v115 = insert_value struct0, v114, 1, v63
-    v116 = insert_value struct0, v115, 2, v64
-    v117 = insert_value struct0, v116, 3, v65
-    v118 = insert_value struct0, v117, 4, v67
-    v119 = insert_value struct0, v118, 5, v70
-    v120 = insert_value struct0, v119, 6, v79
-    v121 = insert_value struct0, v120, 7, v101
-    v122 = insert_value struct0, v121, 8, v113
-    ret v122
+    v94 = phi [bb8: v93], [bb9: 1]
+    v95 = and 0, 31
+    v96 = sub 31, v95
+    v97 = sload v94 !metadata(storage=symbolic(v94))
+    v98 = mul v96, 8
+    v99 = shr v97, v98
+    v100 = shl v99, 248
+    v101 = sload 2 !metadata(storage=slot(2))
+    v102 = lt 0, v101
+    v103 = eq v102, false
+    icall panic_if<0x32>, v103
+    v104 = storage_array_data_slot 2
+    v105 = div 0, 32
+    v106 = add v104, v105
+    v107 = mod 0, 32
+    v108 = mul v107, 1
+    v109 = sload v106 !metadata(storage=symbolic(v106))
+    v110 = mul v108, 8
+    v111 = shr v109, v110
+    v112 = shl v111, 248
+    v113 = insert_value struct0, undef struct0, 0, v61
+    v114 = insert_value struct0, v113, 1, v63
+    v115 = insert_value struct0, v114, 2, v64
+    v116 = insert_value struct0, v115, 3, v65
+    v117 = insert_value struct0, v116, 4, v67
+    v118 = insert_value struct0, v117, 5, v70
+    v119 = insert_value struct0, v118, 6, v79
+    v120 = insert_value struct0, v119, 7, v100
+    v121 = insert_value struct0, v120, 8, v112
+    ret v121
 }
 
 ; function throughModifier() external record(0x05) returns (bytes1) [selector 0x6b6c6d94]

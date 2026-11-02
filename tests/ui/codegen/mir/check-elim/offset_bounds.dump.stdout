@@ -22,19 +22,19 @@ fn @copyHigh() [selector=0xf4f1833d, abi_wrapper, pure] {
   bb0:
     v0 = calldatasize
     v61 = add v0, 64
-    v99 = add v61, 63
-    v7 = and v99, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v98 = add v61, 63
+    v7 = and v98, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v91 = heap_floor !metadata(alloc_ptr)
     v92 = add v91, v7 !metadata(alloc_ptr)
+    v100 = shr v92, 64
     v93 = lt v92, v91
-    v94 = zext i1 v93 to i256
-    v95 = shr v92, 64
-    v96 = or v94, v95
-    v97 = ne v96, 0
-    jumpi v97, bb9, bb8
+    v102 = zext i1 v93 to i256
+    v103 = or v102, v100
+    v95 = ne v103, 0
+    jumpi v95, bb9, bb8
   bb8:  ; preds = bb0
-    v98 = calldatasize
-    calldatacopy v91, v98, v7
+    v97 = calldatasize
+    calldatacopy v91, v97, v7
     mstore v91, v61
     v34 = eq v0, 0
     jumpi v34, bb2, bb4

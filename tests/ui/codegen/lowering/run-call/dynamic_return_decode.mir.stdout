@@ -204,28 +204,27 @@ fn @getNested() -> ptr<memory> [selector=0x2ec68451, view, abi_params=[], abi_re
     v9 = lt v8, v1
     icall panic_if<0x41>, v9
     v10 = mul v8, 32
-    v11 = shr v8, 251
-    v12 = ne v11, 0
-    icall panic_if<0x41>, v12
-    v13 = alloc checked v10
-    mstore v13, v0
+    v11 = gt v8, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v11
+    v12 = alloc checked v10
+    mstore v12, v0
     jump bb1
   bb1:  ; preds = bb0, bb2
-    v14 = phi [bb0: 0], [bb2: v23]
-    v15 = lt v14, v0
-    jumpi v15, bb2, bb3
+    v13 = phi [bb0: 0], [bb2: v22]
+    v14 = lt v13, v0
+    jumpi v14, bb2, bb3
   bb3:  ; preds = bb1
-    ret v13
+    ret v12
   bb2:  ; preds = bb1
-    v16 = storage_array_data_slot 5
-    v17 = add v16, v14
-    v18 = icall @load_storage_word_array, v17
-    v19 = ptrtoint ptr<memory> v18 to i256
-    v20 = shl v14, 5
-    v21 = ptradd v13, v20
-    v22 = ptradd v21, 32
-    mstore v22, v19
-    v23 = add v14, 1
+    v15 = storage_array_data_slot 5
+    v16 = add v15, v13
+    v17 = icall @load_storage_word_array, v16
+    v18 = ptrtoint ptr<memory> v17 to i256
+    v19 = shl v13, 5
+    v20 = ptradd v12, v19
+    v21 = ptradd v20, 32
+    mstore v21, v18
+    v22 = add v13, 1
     jump bb1
 }
 

@@ -398,51 +398,49 @@ fn @wrappedArray(arg0: slice<calldata>, arg1: i256, arg2: i256, arg3: i256) -> p
     v14 = lt v13, v6
     icall panic_if<0x41>, v14
     v15 = mul v13, 32
-    v16 = shr v13, 251
-    v17 = ne v16, 0
-    icall panic_if<0x41>, v17
-    v18 = alloc zeroed checked v15
-    mstore v18, arg3
+    v16 = gt v13, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v16
+    v17 = alloc zeroed checked v15
+    mstore v17, arg3
     jump bb1
   bb1:  ; preds = bb0, bb3
-    v19 = phi [bb0: v5], [bb3: v19]
-    v20 = phi [bb0: arg1], [bb3: v20]
-    v21 = phi [bb0: arg2], [bb3: v21]
-    v22 = phi [bb0: arg3], [bb3: v22]
-    v23 = phi [bb0: v18], [bb3: v23]
-    v24 = phi [bb0: 0], [bb3: v43]
-    v25 = lt v24, v22
-    jumpi v25, bb4, bb5
+    v18 = phi [bb0: v5], [bb3: v18]
+    v19 = phi [bb0: arg1], [bb3: v19]
+    v20 = phi [bb0: arg2], [bb3: v20]
+    v21 = phi [bb0: arg3], [bb3: v21]
+    v22 = phi [bb0: v17], [bb3: v22]
+    v23 = phi [bb0: 0], [bb3: v41]
+    v24 = lt v23, v21
+    jumpi v24, bb4, bb5
   bb5:  ; preds = bb1
     jump bb2
   bb2:  ; preds = bb5
-    ret v23
+    ret v22
   bb4:  ; preds = bb1
-    v26 = checked_add uint256, v21, v24
-    v27 = extract_value slice<calldata>, v19, 1
-    v28 = lt v26, v27
-    v29 = eq v28, false
-    icall panic_if<0x32>, v29
-    v30 = extract_value slice<calldata>, v19, 0
-    v31 = mul v26, 32
-    v32 = shr v26, 251
-    v33 = ne v32, 0
-    icall panic_if<0x41>, v33
-    v34 = ptrtoint ptr<calldata> v30 to i256
-    v35 = add v34, v31
-    v36 = calldataload v35
-    v37 = mload v23
-    v38 = lt v24, v37
-    v39 = eq v38, false
-    icall panic_if<0x32>, v39
-    v40 = shl v24, 5
-    v41 = ptradd v23, v40
-    v42 = ptradd v41, 32
-    mstore v42, v36
+    v25 = checked_add uint256, v20, v23
+    v26 = extract_value slice<calldata>, v18, 1
+    v27 = lt v25, v26
+    v28 = eq v27, false
+    icall panic_if<0x32>, v28
+    v29 = extract_value slice<calldata>, v18, 0
+    v30 = mul v25, 32
+    v31 = gt v25, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v31
+    v32 = ptrtoint ptr<calldata> v29 to i256
+    v33 = add v32, v30
+    v34 = calldataload v33
+    v35 = mload v22
+    v36 = lt v23, v35
+    v37 = eq v36, false
+    icall panic_if<0x32>, v37
+    v38 = shl v23, 5
+    v39 = ptradd v22, v38
+    v40 = ptradd v39, 32
+    mstore v40, v34
     jump bb6
   bb6:  ; preds = bb4
     jump bb3
   bb3:  ; preds = bb6
-    v43 = checked_add uint256, v24, 1
+    v41 = checked_add uint256, v23, 1
     jump bb1
 }

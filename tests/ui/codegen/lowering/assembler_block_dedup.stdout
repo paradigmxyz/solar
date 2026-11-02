@@ -47,7 +47,7 @@ bb9:  ; function c(bool fail) public pure returns (uint256) [selector 0xfeb97429
   push 4
   calldataload
   push 1
-  shr
+  lt
   or
   push 4
   calldataload

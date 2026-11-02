@@ -77,13 +77,11 @@ fn @_first(arg0: slice<calldata>) -> i256 {
     v4 = ptrtoint ptr<calldata> v3 to i256
     v5 = add v4, 0
     v6 = calldataload v5
-    v7 = shr v6, 160
-    v8 = eq v7, 0
-    v9 = eq v8, false
-    icall revert_if<empty>, v9
-    v10 = trunc i256 v6 to i160
-    v11 = zext i160 v10 to i256
-    ret v11
+    v7 = gt v6, 0xffffffffffffffffffffffffffffffffffffffff
+    icall revert_if<empty>, v7
+    v8 = trunc i256 v6 to i160
+    v9 = zext i160 v8 to i256
+    ret v9
 }
 
 ; function _copyFirst(address[] calldata a) internal returns (uint256)
@@ -94,51 +92,47 @@ fn @_copyFirst(arg0: slice<calldata>) -> i256 {
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = extract_value slice<calldata>, arg0, 0
     v2 = mul v0, 32
-    v3 = shr v0, 251
-    v4 = ne v3, 0
-    icall panic_if<0x41>, v4
-    v5 = calldatasize
-    v6 = ptrtoint ptr<calldata> v1 to i256
-    v7 = sub v5, v6
-    v8 = slt v7, v2
-    icall revert_if<calldata_tail_too_short>, v8
-    v9 = mul v0, 32
-    v10 = shr v0, 251
-    v11 = ne v10, 0
+    v3 = gt v0, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v3
+    v4 = calldatasize
+    v5 = ptrtoint ptr<calldata> v1 to i256
+    v6 = sub v4, v5
+    v7 = slt v6, v2
+    icall revert_if<calldata_tail_too_short>, v7
+    v8 = mul v0, 32
+    v9 = gt v0, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v9
+    v10 = add 32, v8
+    v11 = lt v10, 32
     icall panic_if<0x41>, v11
-    v12 = add 32, v9
-    v13 = lt v12, 32
-    icall panic_if<0x41>, v13
-    v14 = alloc v12
-    mstore v14, v0
+    v12 = alloc v10
+    mstore v12, v0
     jump bb1
   bb1:  ; preds = bb0, bb2
-    v15 = phi [bb0: 0], [bb2: v27]
-    v16 = lt v15, v0
-    jumpi v16, bb2, bb3
+    v13 = phi [bb0: 0], [bb2: v23]
+    v14 = lt v13, v0
+    jumpi v14, bb2, bb3
   bb3:  ; preds = bb1
-    v28 = mload v14
-    v29 = lt 0, v28
-    v30 = eq v29, false
-    icall panic_if<0x32>, v30
-    v31 = ptradd v14, 32
-    v32 = mload v31
-    v33 = trunc i256 v32 to i160
-    v34 = zext i160 v33 to i256
-    ret v34
+    v24 = mload v12
+    v25 = lt 0, v24
+    v26 = eq v25, false
+    icall panic_if<0x32>, v26
+    v27 = ptradd v12, 32
+    v28 = mload v27
+    v29 = trunc i256 v28 to i160
+    v30 = zext i160 v29 to i256
+    ret v30
   bb2:  ; preds = bb1
-    v17 = mul v15, 32
-    v18 = ptrtoint ptr<calldata> v1 to i256
-    v19 = add v18, v17
-    v20 = calldataload v19
-    v21 = shr v20, 160
-    v22 = eq v21, 0
-    v23 = eq v22, false
-    icall revert_if<empty>, v23
-    v24 = shl v15, 5
-    v25 = ptradd v14, v24
-    v26 = ptradd v25, 32
-    mstore v26, v20
-    v27 = add v15, 1
+    v15 = mul v13, 32
+    v16 = ptrtoint ptr<calldata> v1 to i256
+    v17 = add v16, v15
+    v18 = calldataload v17
+    v19 = gt v18, 0xffffffffffffffffffffffffffffffffffffffff
+    icall revert_if<empty>, v19
+    v20 = shl v13, 5
+    v21 = ptradd v12, v20
+    v22 = ptradd v21, 32
+    mstore v22, v18
+    v23 = add v13, 1
     jump bb1
 }

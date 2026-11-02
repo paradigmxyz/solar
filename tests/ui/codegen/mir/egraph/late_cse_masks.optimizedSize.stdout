@@ -56,21 +56,21 @@ fn @digest(arg0: i256, arg1: i256) -> i256 {
 fn @first() [selector=0x2845d4e6, abi_wrapper] {
   bb0:
     v5 = calldataload 4
-    v6 = shr v5, 160
+    v14 = shr v5, 160
     v3 = calldatasize
     v4 = lt v3, 68
-    v14 = zext i1 v4 to i256
-    v15 = or v14, v6
-    v16 = ne v15, 0
-    jumpi v16, bb1, bb2
+    v16 = zext i1 v4 to i256
+    v17 = or v16, v14
+    v13 = ne v17, 0
+    jumpi v13, bb1, bb2
   bb2:  ; preds = bb0
     v0 = icall @digest, arg0, arg1
     mstore 0, arg0
     mstore 32, arg1
-    v12 = keccak256 0, 64
-    v2 = eq v0, v12
-    v9 = zext i1 v2 to i256
-    mstore 0, v9
+    v11 = keccak256 0, 64
+    v2 = eq v0, v11
+    v8 = zext i1 v2 to i256
+    mstore 0, v8
     returndata 0, 32
   bb1 [cold]:  ; preds = bb0
     revert 0, 0
@@ -80,13 +80,13 @@ fn @first() [selector=0x2845d4e6, abi_wrapper] {
 fn @second() [selector=0x6cdb32ec, abi_wrapper] {
   bb0:
     v11 = calldataload 4
-    v12 = shr v11, 160
+    v20 = shr v11, 160
     v9 = calldatasize
     v10 = lt v9, 68
-    v20 = zext i1 v10 to i256
-    v21 = or v20, v12
-    v22 = ne v21, 0
-    jumpi v22, bb3, bb4
+    v22 = zext i1 v10 to i256
+    v23 = or v22, v20
+    v19 = ne v23, 0
+    jumpi v19, bb3, bb4
   bb4:  ; preds = bb0
     v5 = add arg1, 1
     v6 = eq v5, 0
@@ -95,10 +95,10 @@ fn @second() [selector=0x6cdb32ec, abi_wrapper] {
     v1 = icall @digest, arg0, v5
     mstore 0, arg0
     mstore 32, v5
-    v18 = keccak256 0, 64
-    v4 = eq v1, v18
-    v15 = zext i1 v4 to i256
-    mstore 0, v15
+    v17 = keccak256 0, 64
+    v4 = eq v1, v17
+    v14 = zext i1 v4 to i256
+    mstore 0, v14
     returndata 0, 32
   bb1 [cold]:  ; preds = bb4
     tail_call @revert_stub

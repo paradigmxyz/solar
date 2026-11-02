@@ -456,48 +456,37 @@ impl AbiWordValidator {
         })
     }
 
-    /// Builds the condition that is true when `word` is canonical.
-    pub fn condition(self, builder: &mut FunctionBuilder<'_>, word: ValueId) -> ValueId {
+    /// Builds the condition that is true when `word` is not canonical, as a check that aborts on
+    /// it reads it: a width test is the comparison with its limit, `x > 2 ** bits - 1`.
+    pub fn violation(self, builder: &mut FunctionBuilder<'_>, word: ValueId) -> ValueId {
         match self {
-            Self::Unsigned(bits) | Self::LeftAligned(bits) => {
-                // shifted = word >> bits (or word << bits)
-                // valid = shifted == 0
+            Self::Unsigned(bits) => {
+                // invalid = word > 2 ** bits - 1
+                let limit = builder.imm(U256::MAX >> (256 - usize::from(bits)));
+                builder.gt(word, limit)
+            }
+            Self::LeftAligned(bits) => {
+                // shifted = word << bits
+                // invalid = shifted != 0
                 let shift = builder.imm(u64::from(bits));
-                let shifted = if matches!(self, Self::Unsigned(_)) {
-                    builder.shr(word, shift)
-                } else {
-                    builder.shl(word, shift)
-                };
-                builder.eq_zero(shifted)
+                let shifted = builder.shl(word, shift);
+                builder.ne_zero(shifted)
             }
             Self::SignExtend(byte_index) => {
                 let byte_index = builder.imm(byte_index);
                 let canonical = builder.signextend(byte_index, word);
-                builder.eq(word, canonical)
+                builder.ne(word, canonical)
             }
             Self::Bool => {
-                let two = builder.imm(2);
-                builder.lt(word, two)
+                let one = builder.imm(1);
+                builder.gt(word, one)
             }
+            // A lone variant is a zero test, as no width test has a limit of `0`.
+            Self::EnumRange(1) => builder.ne_zero(word),
             Self::EnumRange(variants) => {
-                let variants = builder.imm(variants);
-                builder.lt(word, variants)
+                let last = builder.imm(variants.wrapping_sub(1));
+                builder.gt(word, last)
             }
-        }
-    }
-
-    /// Builds the condition that is true when `word` is canonical, for a check that runs once.
-    ///
-    /// A `bool` or a power-of-two enum tests a shifted word, as a `uintN` does, which
-    /// `merge-aborts` joins with the call's other checks. [`Self::condition`] keeps the
-    /// comparison with a literal, which a loop's check turns around for free.
-    pub fn condition_once(self, builder: &mut FunctionBuilder<'_>, word: ValueId) -> ValueId {
-        match self {
-            Self::Bool => Self::Unsigned(1).condition(builder, word),
-            Self::EnumRange(variants) if variants > 1 && variants.is_power_of_two() => {
-                Self::Unsigned(variants.trailing_zeros() as u16).condition(builder, word)
-            }
-            _ => self.condition(builder, word),
         }
     }
 

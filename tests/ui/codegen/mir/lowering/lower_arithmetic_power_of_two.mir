@@ -2,11 +2,10 @@
 //@ filecheck:
 @module PowerOfTwoMul
 
-// A product by 2 ** s wraps exactly when the other factor has a bit at or above 256 - s.
+// A product by 2 ** s wraps exactly when the other factor exceeds `MAX >> s`.
 // CHECK-LABEL: fn @right(
 // CHECK: [[PRODUCT:v[0-9]+]] = mul arg0, 32
-// CHECK-NEXT: [[HIGH:v[0-9]+]] = shr arg0, 251
-// CHECK-NEXT: [[WRAPS:v[0-9]+]] = ne [[HIGH]], 0
+// CHECK-NEXT: [[WRAPS:v[0-9]+]] = gt arg0, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 // CHECK-NEXT: jumpi [[WRAPS]]
 fn @right(arg0: i256) -> i256 {
   bb0:
@@ -16,8 +15,7 @@ fn @right(arg0: i256) -> i256 {
 
 // CHECK-LABEL: fn @left(
 // CHECK: mul 2, arg0
-// CHECK-NEXT: [[HIGH:v[0-9]+]] = shr arg0, 255
-// CHECK-NEXT: ne [[HIGH]], 0
+// CHECK-NEXT: gt arg0, 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fn @left(arg0: i256) -> i256 {
   bb0:
     v0 = checked_mul uint256, 2, arg0

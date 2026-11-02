@@ -31,19 +31,30 @@
 //! A low-bit mask that follows a right shift or precedes a left shift becomes one shift pair
 //! in gas builds, when no other instruction reads the mask constant; masks alone are left to
 //! the EVM IR `late-word` peephole, which sees the mask's materialization.
+//!
+//! A test that a word fits in `k` bits is the comparison `x < 2 ** k`, or `x > 2 ** k - 1` for its
+//! negation, in every run but the last, and the early and late runs turn the shift and mask shapes
+//! of such a test into that comparison as enabling recipes. The last run, the
+//! `spell-width-tests` pass in the lowered pipeline, sees the final uses and chooses the spelling
+//! with [`Target::shifts_bits_test`]: a branch or the `or` that joins tests for a branch reads a
+//! shifted word for free, so those tests become `(x >> k) != 0` and the join one word; an `and` of
+//! a fits test and a zero test becomes one word zero test; a test of the width of a shift the block
+//! already computes reads that shift. Only comparisons, `or` and `and` are roots there.
 
 use super::lower_checks::is_check;
 use crate::{
     backend::evm::{op, select},
     mir::{
-        EffectKind, Function, Immediate, InstId, InstKind, Instruction, MirType, Module, Op,
-        Terminator, Value, ValueId,
+        BlockId, EffectKind, Function, Immediate, InstId, InstKind, Instruction, MirType, Module,
+        Op, Terminator, Value, ValueId,
+        analysis::CfgInfo,
         pass::{MirPass, run_function_pass},
     },
     target::{Cost, Target},
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
+    bit_set::DenseBitSet,
     index::IndexVec,
     map::{FxHashMap, FxHashSet},
 };
@@ -62,16 +73,22 @@ enum Stage {
     Late,
     /// The late rules apply, and `lower-alloc` has run.
     LateLowered,
+    /// The module is lowered, and the width tests take their final spelling.
+    Spelling,
 }
 
 pub(crate) enum WordSequence {
     Early,
     Late,
+    Spelling,
 }
 
 impl MirPass for WordSequence {
     fn name(&self) -> &'static str {
-        "word-sequence"
+        match self {
+            Self::Early | Self::Late => "word-sequence",
+            Self::Spelling => "spell-width-tests",
+        }
     }
 
     fn run_pass(
@@ -80,9 +97,7 @@ impl MirPass for WordSequence {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, analyses| {
-            run(func, &analyses.target(gcx), matches!(self, Self::Late))
-        })
+        run_function_pass(module, analyses, |func, analyses| run(func, &analyses.target(gcx), self))
     }
 }
 
@@ -357,17 +372,26 @@ fn allocations_lowered(func: &Function) -> bool {
     })
 }
 
-fn run(func: &mut Function, target: &Target, late: bool) -> bool {
+fn run(func: &mut Function, target: &Target, pass: &WordSequence) -> bool {
     // The pass adds no allocation operation, so the answer holds for the whole run.
-    let stage = match (late, late && allocations_lowered(func)) {
-        (false, _) => Stage::Early,
-        (true, false) => Stage::Late,
-        (true, true) => Stage::LateLowered,
+    let stage = match pass {
+        WordSequence::Early => Stage::Early,
+        WordSequence::Late if allocations_lowered(func) => Stage::LateLowered,
+        WordSequence::Late => Stage::Late,
+        WordSequence::Spelling => Stage::Spelling,
     };
+    let spelling = stage == Stage::Spelling;
+    // The blocks in a loop, which only the spelling of width tests needs.
+    let cyclic = spelling.then(|| CfgInfo::new(func).cyclic_blocks().clone());
+    let mut changed = cyclic.as_ref().is_some_and(|cyclic| spell_zero_tested(func, target, cyclic));
     let mut uses = super::egraph::use_counts(func);
-    let branch_only = branch_only_conditions(func, &uses);
+    let mut branch_only = branch_only_conditions(func, &uses);
+    if spelling {
+        // The `or` that joins tests costs the same as it would for the branch, so a test it joins
+        // is as free as one the branch reads itself.
+        branch_only = branch_read_conditions(func, &uses, branch_only);
+    }
     let mut masks = None;
-    let mut changed = false;
     let mut ordered = Vec::new();
     let mut seen = FxHashSet::default();
     let mut deleted = FxHashSet::default();
@@ -381,17 +405,33 @@ fn run(func: &mut Function, target: &Target, late: bool) -> bool {
         for &inst in &original {
             if !removable(func, func.inst(inst), target) {
                 let instruction = func.inst(inst);
-                if !is_pure(instruction) || !instruction.kind.effects().can_speculate() {
+                // Spelling a test moves no read: it adds pure operations at the test, so only a
+                // write, a call or an observation of the execution ends the segment.
+                if !(spelling && instruction.kind.effect_kind().is_read_only())
+                    && (!is_pure(instruction) || !instruction.kind.effects().can_speculate())
+                {
                     seen.clear();
                 }
                 ordered.push(inst);
                 continue;
             }
             let op = func.inst(inst).kind.op();
+            if spelling
+                && !matches!(op, Op::Lt { .. } | Op::Gt { .. } | Op::Or { .. } | Op::And { .. })
+            {
+                seen.insert(inst);
+                ordered.push(inst);
+                continue;
+            }
             let is_branch_only =
                 func.inst_result_value(inst).is_some_and(|value| branch_only.contains(&value));
+            let read = ConditionRead {
+                branch: is_branch_only,
+                in_loop: cyclic.as_ref().is_some_and(|cyclic| cyclic.contains(block)),
+            };
             let mut best = None;
-            for recipe in isle::alternatives(func, &original, &seen, &mut masks, &op, target, stage)
+            for recipe in
+                isle::alternatives(func, &original, &seen, &mut masks, &op, target, stage, read)
             {
                 if let Some((after, leaves)) = recipe.cost_and_leaves(func, target, is_branch_only)
                 {
@@ -483,6 +523,159 @@ fn collect_dead(
         }
         value
     });
+}
+
+/// Spells the leaves of an `or` that only the zero test of a branch reads. That word may be any
+/// word that is nonzero exactly when a leaf holds, so a leaf `zext (x != 0)` is `x`, and a width
+/// test `zext (x > 2 ** k - 1)` is the shift `x >> k` where the target prices the shift below
+/// the comparison for a test that a branch reads.
+fn spell_zero_tested(func: &mut Function, target: &Target, cyclic: &DenseBitSet<BlockId>) -> bool {
+    let uses = super::egraph::use_counts(func);
+    let branch_only = branch_only_conditions(func, &uses);
+    let branch_read = branch_read_conditions(func, &uses, branch_only);
+    let tested = zero_tested_words(func, &uses, &branch_read);
+    if tested.is_empty() {
+        return false;
+    }
+    let mut changed = false;
+    for block in func.blocks.indices() {
+        let original = func.blocks[block].instructions.clone();
+        let mut spelled = Vec::with_capacity(original.len());
+        for &inst in &original {
+            if let InstKind::Or(a, b) = func.inst(inst).kind
+                && func.inst_result_value(inst).is_some_and(|value| tested.contains(&value))
+            {
+                let in_loop = cyclic.contains(block);
+                let [a, b] = [a, b].map(|leaf| {
+                    let (word, inserted) = zero_tested_leaf(func, target, &uses, leaf, in_loop);
+                    changed |= word != leaf;
+                    spelled.extend(inserted);
+                    word
+                });
+                func.inst_mut(inst).replace_kind(InstKind::Or(a, b));
+            }
+            spelled.push(inst);
+        }
+        func.blocks[block].instructions = spelled;
+    }
+    changed
+}
+
+/// The word that stands for `leaf` in a word that only a zero test reads, and the instruction
+/// that computes it, when it is not `leaf` itself.
+fn zero_tested_leaf(
+    func: &mut Function,
+    target: &Target,
+    uses: &IndexVec<ValueId, u32>,
+    leaf: ValueId,
+    in_loop: bool,
+) -> (ValueId, Option<InstId>) {
+    let Some(&InstKind::Zext(test)) = func.value_inst_kind(leaf) else { return (leaf, None) };
+    if uses[leaf] != 1 {
+        return (leaf, None);
+    }
+    match func.value_inst_kind(test).cloned() {
+        // zext (x != 0) => x
+        Some(InstKind::Ne(word, zero))
+            if func.value_u256(zero) == Some(U256::ZERO)
+                && func.value_ty(word) == Some(MirType::I256) =>
+        {
+            (word, None)
+        }
+        // zext (x > 2 ** k - 1) => x >> k
+        Some(InstKind::Gt(word, limit))
+            if func.value_ty(word) == Some(MirType::I256)
+                && let Some(limit) = func.value_u256(limit)
+                && let Some(bits) = limit
+                    .checked_add(U256::ONE)
+                    .and_then(|power| {
+                        (power > U256::ONE && power.is_power_of_two()).then_some(power)
+                    })
+                    .map(|power| power.trailing_zeros() as u32)
+                && target.shifts_bits_test(bits, false, true, in_loop) =>
+        {
+            let shift = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(bits))));
+            let (inst, word) = func.alloc_value_inst(
+                Instruction::new(InstKind::Shr(shift, word), Some(MirType::I256))
+                    .with_debug_info_dropped(),
+            );
+            (word, Some(inst))
+        }
+        _ => (leaf, None),
+    }
+}
+
+/// How the result of a test is read, which prices its spelling.
+#[derive(Clone, Copy, Default)]
+struct ConditionRead {
+    /// A branch reads the word, through the `or` that joins it with other tests, if any.
+    branch: bool,
+    in_loop: bool,
+}
+
+/// The values of `branch_only` and the operands that only their `or` tree reads, in one block.
+fn branch_read_conditions(
+    func: &Function,
+    uses: &IndexVec<ValueId, u32>,
+    mut read: FxHashSet<ValueId>,
+) -> FxHashSet<ValueId> {
+    extend_through_or(func, uses, &mut read);
+    read
+}
+
+/// The words that only a zero test of a branch reads, each through the `or`s that join it with
+/// other words: such a word may be any word that is nonzero exactly when the original is.
+fn zero_tested_words(
+    func: &Function,
+    uses: &IndexVec<ValueId, u32>,
+    branch_read: &FxHashSet<ValueId>,
+) -> FxHashSet<ValueId> {
+    let mut tested = func
+        .instructions()
+        .filter_map(|inst| match func.inst(inst).kind {
+            InstKind::Ne(word, zero)
+                if func.value_u256(zero) == Some(U256::ZERO)
+                    && func
+                        .inst_result_value(inst)
+                        .is_some_and(|test| branch_read.contains(&test))
+                    && uses[word] == 1 =>
+            {
+                Some(word)
+            }
+            _ => None,
+        })
+        .collect();
+    extend_through_or(func, uses, &mut tested);
+    tested
+}
+
+/// Adds to `values` the operands that only an `or` of `values` reads, when the same block defines
+/// them.
+fn extend_through_or(
+    func: &Function,
+    uses: &IndexVec<ValueId, u32>,
+    values: &mut FxHashSet<ValueId>,
+) {
+    let mut defined = FxHashSet::default();
+    for block in &func.blocks {
+        defined.clear();
+        defined.extend(block.instructions.iter().copied());
+        // Results come before their operands, so one backward walk reaches a whole tree.
+        for &inst in block.instructions.iter().rev() {
+            if func.inst_result_value(inst).is_some_and(|value| values.contains(&value))
+                && let InstKind::Or(a, b) = func.inst(inst).kind
+            {
+                for operand in [a, b] {
+                    if uses[operand] == 1
+                        && let Value::Inst(def) = *func.value(operand)
+                        && defined.contains(&def)
+                    {
+                        values.insert(operand);
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// Values whose every use is the condition of a branch or check in their defining block, the

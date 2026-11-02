@@ -41,14 +41,14 @@ fn @relay() [selector=0x76421988, abi_wrapper] {
     v16 = lt v15, v10
     v69 = heap_floor !metadata(alloc_ptr)
     v70 = add v69, v15 !metadata(alloc_ptr)
+    v77 = shr v70, 64
     v71 = lt v70, v69
-    v72 = zext i1 v71 to i256
-    v73 = shr v70, 64
-    v74 = or v72, v73
-    v77 = zext i1 v16 to i256
-    v78 = or v77, v74
-    v79 = ne v78, 0
-    jumpi v79, bb3, bb5
+    v79 = zext i1 v71 to i256
+    v80 = or v79, v77
+    v82 = zext i1 v16 to i256
+    v83 = or v82, v80
+    v76 = ne v83, 0
+    jumpi v76, bb3, bb5
   bb5:  ; preds = bb2
     mstore 64, v70 !metadata(memory=scratch)
     mstore v69, v10
@@ -59,17 +59,17 @@ fn @relay() [selector=0x76421988, abi_wrapper] {
     v60 = add v69, 32
     calldatacopy v60, v11, v10
     v61 = add v60, v10
-    v76 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v34 = add v76, 32
-    mstore v76, 32
+    v75 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v34 = add v75, 32
+    mstore v75, 32
     v41 = add v34, 32
     v42 = add v34, v14
     mstore v42, 0
     mstore v34, v10
     v44 = add v41, v14
     mcopy v41, v60, v10 !metadata(disjoint)
-    v46 = sub v44, v76
-    log v76, v46, 0x3e9992c940c54ea252d3a34557cc3d3014281525c43d694f89d5f3dfd820b07d
+    v46 = sub v44, v75
+    log v75, v46, 0x3e9992c940c54ea252d3a34557cc3d3014281525c43d694f89d5f3dfd820b07d
     mstore v61, 0
     v63 = sub v69, 32
     mstore v63, 32
@@ -86,22 +86,22 @@ fn @relay() [selector=0x76421988, abi_wrapper] {
 ; function alloc(uint256 n) external pure returns (uint256) [selector 0x191ac2d2]
 fn @alloc() [selector=0x191ac2d2, abi_wrapper, pure] {
   bb0:
-    v19 = add arg0, 63
-    v3 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v18 = add arg0, 63
+    v3 = and v18, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v4 = lt v3, arg0
     v11 = heap_floor !metadata(alloc_ptr)
     v12 = add v11, v3 !metadata(alloc_ptr)
+    v21 = shr v12, 64
     v13 = lt v12, v11
-    v14 = zext i1 v13 to i256
-    v15 = shr v12, 64
-    v16 = or v14, v15
-    v21 = zext i1 v4 to i256
-    v22 = or v21, v16
-    v23 = ne v22, 0
-    jumpi v23, bb1, bb2
+    v23 = zext i1 v13 to i256
+    v24 = or v23, v21
+    v26 = zext i1 v4 to i256
+    v27 = or v26, v24
+    v20 = ne v27, 0
+    jumpi v20, bb1, bb2
   bb2:  ; preds = bb0
-    v18 = calldatasize
-    calldatacopy v11, v18, v3
+    v17 = calldatasize
+    calldatacopy v11, v17, v3
     mstore v11, arg0
     mstore 0, arg0 !metadata(memory=scratch)
     returndata 0, 32

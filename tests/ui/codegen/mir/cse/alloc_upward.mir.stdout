@@ -97,35 +97,34 @@ fn @wrappedIndex(arg0: i256, arg1: i256) -> i256 [selector=0xf6bbb82e, pure, abi
     v9 = lt v8, v1
     icall panic_if<0x41>, v9
     v10 = mul v8, 32
-    v11 = shr v8, 251
-    v12 = ne v11, 0
-    icall panic_if<0x41>, v12
-    v13 = alloc zeroed checked v10
-    mstore v13, arg0
-    v14 = mload v0
-    v15 = lt 0, v14
-    v16 = eq v15, false
-    icall panic_if<0x32>, v16
-    v17 = ptradd v0, 32
-    mstore v17, 7
-    v18 = not 0
-    v19 = ptrtoint ptr<memory> v13 to i256
-    mstore v13, v18
-    v20 = mload v13
-    v21 = lt arg1, v20
-    v22 = eq v21, false
-    icall panic_if<0x32>, v22
-    v23 = shl arg1, 5
-    v24 = ptradd v13, v23
-    v25 = ptradd v24, 32
-    mstore v25, 9
-    v26 = mload v0
-    v27 = lt 0, v26
-    v28 = eq v27, false
-    icall panic_if<0x32>, v28
-    v29 = ptradd v0, 32
-    v30 = mload v29
-    ret v30
+    v11 = gt v8, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v11
+    v12 = alloc zeroed checked v10
+    mstore v12, arg0
+    v13 = mload v0
+    v14 = lt 0, v13
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = ptradd v0, 32
+    mstore v16, 7
+    v17 = not 0
+    v18 = ptrtoint ptr<memory> v12 to i256
+    mstore v12, v17
+    v19 = mload v12
+    v20 = lt arg1, v19
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = shl arg1, 5
+    v23 = ptradd v12, v22
+    v24 = ptradd v23, 32
+    mstore v24, 9
+    v25 = mload v0
+    v26 = lt 0, v25
+    v27 = eq v26, false
+    icall panic_if<0x32>, v27
+    v28 = ptradd v0, 32
+    v29 = mload v28
+    ret v29
 }
 
 ; function earlierIndex(uint256 n, uint256 i) external pure returns (uint256, uint256) [selector 0x1d84cbcf]
@@ -145,25 +144,24 @@ fn @earlierIndex(arg0: i256, arg1: i256) -> struct0 [selector=0x1d84cbcf, pure, 
     v9 = lt v8, v1
     icall panic_if<0x41>, v9
     v10 = mul v8, 32
-    v11 = shr v8, 251
-    v12 = ne v11, 0
-    icall panic_if<0x41>, v12
-    v13 = alloc zeroed checked v10
-    mstore v13, arg0
-    v14 = mload v13
-    v15 = not 0
-    v16 = ptrtoint ptr<memory> v0 to i256
-    mstore v0, v15
-    v17 = mload v0
-    v18 = lt arg1, v17
-    v19 = eq v18, false
-    icall panic_if<0x32>, v19
-    v20 = shl arg1, 5
-    v21 = ptradd v0, v20
-    v22 = ptradd v21, 32
-    mstore v22, 0x3039
-    v23 = mload v13
-    v24 = insert_value struct0, undef struct0, 0, v14
-    v25 = insert_value struct0, v24, 1, v23
-    ret v25
+    v11 = gt v8, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v11
+    v12 = alloc zeroed checked v10
+    mstore v12, arg0
+    v13 = mload v12
+    v14 = not 0
+    v15 = ptrtoint ptr<memory> v0 to i256
+    mstore v0, v14
+    v16 = mload v0
+    v17 = lt arg1, v16
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
+    v19 = shl arg1, 5
+    v20 = ptradd v0, v19
+    v21 = ptradd v20, 32
+    mstore v21, 0x3039
+    v22 = mload v12
+    v23 = insert_value struct0, undef struct0, 0, v13
+    v24 = insert_value struct0, v23, 1, v22
+    ret v24
 }

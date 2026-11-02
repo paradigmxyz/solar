@@ -1324,9 +1324,9 @@ impl LowerAbiCx {
                     logical_values[index] = Some(word);
                 }
                 let Some(validator) = validator else { continue };
-                let valid = validator.condition_once(&mut builder, word);
+                let invalid = validator.violation(&mut builder, word);
                 let next = builder.create_block();
-                builder.branch(valid, next, validator_revert);
+                builder.branch(invalid, validator_revert, next);
                 current = next;
             }
 
@@ -2075,9 +2075,8 @@ impl LowerAbiCx {
         location: PtrLocation,
     ) -> ValueId {
         builder.switch_to_block(*current);
-        let mut valid = builder.imm(1);
-        let value = Self::decode_static_value(builder, ty, head, &mut valid, location);
-        let invalid = builder.eq_zero(valid);
+        let mut invalid = builder.imm_bool(false);
+        let value = Self::decode_static_value(builder, ty, head, &mut invalid, location);
         *current = builder.revert_if(invalid, RevertReason::Empty);
         value
     }
@@ -2086,13 +2085,13 @@ impl LowerAbiCx {
         builder: &mut FunctionBuilder<'_>,
         ty: &AbiParamType,
         head: ValueId,
-        valid: &mut ValueId,
+        invalid: &mut ValueId,
         location: PtrLocation,
     ) -> ValueId {
         if let Some(validator) = ty.word_validator() {
             let value = builder.load(head, location);
-            let condition = validator.condition(builder, value);
-            *valid = builder.and(*valid, condition);
+            let violation = validator.violation(builder, value);
+            *invalid = builder.or(*invalid, violation);
             return Self::normalize_abi_word(builder, ty, value);
         }
         if matches!(ty, AbiParamType::Scalar(_)) {
@@ -2521,8 +2520,8 @@ impl LowerAbiCx {
         value: ValueId,
         validator: AbiWordValidator,
     ) {
-        let valid = validator.condition(builder, value);
-        builder.revert_if_zero(valid, RevertReason::Empty);
+        let invalid = validator.violation(builder, value);
+        builder.revert_if(invalid, RevertReason::Empty);
     }
 
     /// Prepends `if callvalue() != 0 { revert(0, 0) }` to an external entry.

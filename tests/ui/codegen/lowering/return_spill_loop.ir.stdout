@@ -58,12 +58,12 @@ bb7:  ; function probe(uint256 seed) external pure returns (uint256, uint256, ui
   push 64
   dup 2
   add
-  dup 2
-  dup 2
-  lt
-  dup 2
+  dup 1
   push 64
   shr
+  dup 3
+  dup 3
+  lt
   or
   push bb15
   jumpi
@@ -274,12 +274,12 @@ bb47 [ret=0, inputs=1, outputs=1]:  ; decode_calldata_type (synthesized)
   swap 2
   dup 3
   add
-  dup 3
-  dup 2
-  lt
-  dup 2
+  dup 1
   push 64
   shr
+  dup 4
+  dup 3
+  lt
   or
   swap 1
   swap 2

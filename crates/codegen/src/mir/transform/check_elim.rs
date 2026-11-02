@@ -1767,20 +1767,6 @@ impl<'a> CheckEliminator<'a> {
                 self.assume(func, a, false, depth);
                 self.assume(func, b, false, depth);
             }
-            // `x >> k` is zero iff `x < 2^k`, the range test word-sequence prefers.
-            InstKind::Shr(shift, x)
-                if let Some(shift) = func.value_u256(shift)
-                    && shift > U256::ZERO
-                    && shift < U256::from(256) =>
-            {
-                let bound = U256::from(1) << shift.to::<usize>();
-                if truth {
-                    self.narrow(x, Range::new(bound, U256::MAX));
-                } else {
-                    self.narrow(x, Range::new(U256::ZERO, bound - U256::from(1)));
-                }
-                self.narrow_summand(func, x, depth);
-            }
             _ => {}
         }
     }

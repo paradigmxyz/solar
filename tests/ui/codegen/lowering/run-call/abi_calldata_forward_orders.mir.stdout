@@ -154,42 +154,41 @@ fn @forwardOne(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x82731354, 
     icall panic_if<0x32>, v4
     v5 = extract_value slice<calldata>, arg0, 0
     v6 = mul arg1, 32
-    v7 = shr arg1, 251
-    v8 = ne v7, 0
-    icall panic_if<0x41>, v8
-    v9 = ptrtoint ptr<calldata> v5 to i256
-    v10 = add v9, v6
-    v11 = calldatasize
-    v12 = sub v11, v10
-    v13 = slt v12, 32
-    icall revert_if<calldata_tail_too_short>, v13
-    v14 = calldataload v10
-    v15 = ptrtoint ptr<calldata> v5 to i256
-    v16 = add v15, v14
-    v17 = calldatasize
-    v18 = ptrtoint ptr<calldata> v5 to i256
-    v19 = sub v17, v18
-    v20 = sub v19, 127
-    v21 = slt v14, v20
-    v22 = eq v21, false
-    icall revert_if<invalid_calldata_tail_offset>, v22
-    v23 = inttoptr i256 v16 to ptr<calldata>
-    v24 = make_calldata_slice v23, 32
-    v25 = abi_encode [tuple<word<uint160>, calldata_array<tuple<word<uint160>, word>>, calldata_array<tuple<word<uint160>, word>>, calldata_bytes>], selector 0xdc7b1a2700000000000000000000000000000000000000000000000000000000, args v24
-    v26 = extract_value slice<memory>, v25, 0
-    v27 = extract_value slice<memory>, v25, 1
-    v28 = zext i160 v0 to i256
-    v29 = staticcall v1, v28, v26, v27, 0, 32
-    jumpi v29, bb2, bb1
+    v7 = gt arg1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v7
+    v8 = ptrtoint ptr<calldata> v5 to i256
+    v9 = add v8, v6
+    v10 = calldatasize
+    v11 = sub v10, v9
+    v12 = slt v11, 32
+    icall revert_if<calldata_tail_too_short>, v12
+    v13 = calldataload v9
+    v14 = ptrtoint ptr<calldata> v5 to i256
+    v15 = add v14, v13
+    v16 = calldatasize
+    v17 = ptrtoint ptr<calldata> v5 to i256
+    v18 = sub v16, v17
+    v19 = sub v18, 127
+    v20 = slt v13, v19
+    v21 = eq v20, false
+    icall revert_if<invalid_calldata_tail_offset>, v21
+    v22 = inttoptr i256 v15 to ptr<calldata>
+    v23 = make_calldata_slice v22, 32
+    v24 = abi_encode [tuple<word<uint160>, calldata_array<tuple<word<uint160>, word>>, calldata_array<tuple<word<uint160>, word>>, calldata_bytes>], selector 0xdc7b1a2700000000000000000000000000000000000000000000000000000000, args v23
+    v25 = extract_value slice<memory>, v24, 0
+    v26 = extract_value slice<memory>, v24, 1
+    v27 = zext i160 v0 to i256
+    v28 = staticcall v1, v27, v25, v26, 0, 32
+    jumpi v28, bb2, bb1
   bb1:  ; preds = bb0
     revert_returndata
   bb2:  ; preds = bb0
-    v30 = returndatasize
-    v31 = lt v30, 32
-    icall revert_if<tuple_data_too_short>, v31
-    v32 = add 0, 0
-    v33 = mload v32
-    ret v33
+    v29 = returndatasize
+    v30 = lt v29, 32
+    icall revert_if<tuple_data_too_short>, v30
+    v31 = add 0, 0
+    v32 = mload v31
+    ret v32
 }
 
 ; function encode(Order[] calldata orders) external pure returns (bytes32) [selector 0xcc54082e]

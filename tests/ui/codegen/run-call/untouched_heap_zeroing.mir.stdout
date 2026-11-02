@@ -115,13 +115,12 @@ fn @entryArray(arg0: i256) -> i256 [selector=0xac109d6c, pure, abi_params=[uint2
     v8 = lt v7, v0
     icall panic_if<0x41>, v8
     v9 = mul v7, 32
-    v10 = shr v7, 251
-    v11 = ne v10, 0
-    icall panic_if<0x41>, v11
-    v12 = alloc zeroed checked v9
-    mstore v12, arg0
-    v13 = icall @or, v12
-    ret v13
+    v10 = gt v7, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v10
+    v11 = alloc zeroed checked v9
+    mstore v11, arg0
+    v12 = icall @or, v11
+    ret v12
 }
 
 ; function entryBytes(uint256 n) external pure returns (uint256) [selector 0x42f56a3c]
@@ -172,24 +171,23 @@ fn @afterEmit(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0xf30aff6f, a
     v11 = lt v10, v3
     icall panic_if<0x41>, v11
     v12 = mul v10, 32
-    v13 = shr v10, 251
-    v14 = ne v13, 0
-    icall panic_if<0x41>, v14
-    v15 = alloc zeroed checked v12
-    mstore v15, arg1
-    v16 = icall @or, v15
-    v17 = checked_mul uint256, arg1, 32
-    v18 = add v17, 31
-    v19 = not 31
-    v20 = and v18, v19
-    v21 = add v20, 32
-    v22 = lt v21, v17
-    icall panic_if<0x41>, v22
-    v23 = alloc zeroed checked v21
-    mstore v23, v17
-    v24 = icall @orBytes, v23
-    v25 = or v16, v24
-    ret v25
+    v13 = gt v10, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v13
+    v14 = alloc zeroed checked v12
+    mstore v14, arg1
+    v15 = icall @or, v14
+    v16 = checked_mul uint256, arg1, 32
+    v17 = add v16, 31
+    v18 = not 31
+    v19 = and v17, v18
+    v20 = add v19, 32
+    v21 = lt v20, v16
+    icall panic_if<0x41>, v21
+    v22 = alloc zeroed checked v20
+    mstore v22, v16
+    v23 = icall @orBytes, v22
+    v24 = or v15, v23
+    ret v24
 }
 
 ; function afterCallStaging(uint256 n) external view returns (uint256) [selector 0xeb8c79d7]
@@ -229,25 +227,24 @@ fn @afterCallStaging(arg0: i256) -> i256 [selector=0xeb8c79d7, view, abi_params=
     v24 = lt v23, v16
     icall panic_if<0x41>, v24
     v25 = mul v23, 32
-    v26 = shr v23, 251
-    v27 = ne v26, 0
-    icall panic_if<0x41>, v27
-    v28 = alloc zeroed checked v25
-    mstore v28, arg0
-    v29 = icall @or, v28
-    v30 = or v15, v29
-    v31 = checked_mul uint256, arg0, 32
-    v32 = add v31, 31
-    v33 = not 31
-    v34 = and v32, v33
-    v35 = add v34, 32
-    v36 = lt v35, v31
-    icall panic_if<0x41>, v36
-    v37 = alloc zeroed checked v35
-    mstore v37, v31
-    v38 = icall @orBytes, v37
-    v39 = or v30, v38
-    ret v39
+    v26 = gt v23, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v26
+    v27 = alloc zeroed checked v25
+    mstore v27, arg0
+    v28 = icall @or, v27
+    v29 = or v15, v28
+    v30 = checked_mul uint256, arg0, 32
+    v31 = add v30, 31
+    v32 = not 31
+    v33 = and v31, v32
+    v34 = add v33, 32
+    v35 = lt v34, v30
+    icall panic_if<0x41>, v35
+    v36 = alloc zeroed checked v34
+    mstore v36, v30
+    v37 = icall @orBytes, v36
+    v38 = or v29, v37
+    ret v38
 }
 
 ; function afterAssemblyWrite(uint256 n) external pure returns (uint256) [selector 0x53590236]
@@ -274,24 +271,23 @@ fn @afterAssemblyWrite(arg0: i256) -> i256 [selector=0x53590236, pure, abi_param
     v14 = lt v13, v6
     icall panic_if<0x41>, v14
     v15 = mul v13, 32
-    v16 = shr v13, 251
-    v17 = ne v16, 0
-    icall panic_if<0x41>, v17
-    v18 = alloc zeroed checked v15
-    mstore v18, arg0
-    v19 = icall @or, v18
-    v20 = checked_mul uint256, arg0, 32
-    v21 = add v20, 31
-    v22 = not 31
-    v23 = and v21, v22
-    v24 = add v23, 32
-    v25 = lt v24, v20
-    icall panic_if<0x41>, v25
-    v26 = alloc zeroed checked v24
-    mstore v26, v20
-    v27 = icall @orBytes, v26
-    v28 = or v19, v27
-    ret v28
+    v16 = gt v13, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v16
+    v17 = alloc zeroed checked v15
+    mstore v17, arg0
+    v18 = icall @or, v17
+    v19 = checked_mul uint256, arg0, 32
+    v20 = add v19, 31
+    v21 = not 31
+    v22 = and v20, v21
+    v23 = add v22, 32
+    v24 = lt v23, v19
+    icall panic_if<0x41>, v24
+    v25 = alloc zeroed checked v23
+    mstore v25, v19
+    v26 = icall @orBytes, v25
+    v27 = or v18, v26
+    ret v27
 }
 
 ; function afterCallOutput(uint256 n) external view returns (uint256) [selector 0x0981ad40]
@@ -317,24 +313,23 @@ fn @afterCallOutput(arg0: i256) -> i256 [selector=0x0981ad40, view, abi_params=[
     v15 = lt v14, v7
     icall panic_if<0x41>, v15
     v16 = mul v14, 32
-    v17 = shr v14, 251
-    v18 = ne v17, 0
-    icall panic_if<0x41>, v18
-    v19 = alloc zeroed checked v16
-    mstore v19, arg0
-    v20 = icall @or, v19
-    v21 = checked_mul uint256, arg0, 32
-    v22 = add v21, 31
-    v23 = not 31
-    v24 = and v22, v23
-    v25 = add v24, 32
-    v26 = lt v25, v21
-    icall panic_if<0x41>, v26
-    v27 = alloc zeroed checked v25
-    mstore v27, v21
-    v28 = icall @orBytes, v27
-    v29 = or v20, v28
-    ret v29
+    v17 = gt v14, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v17
+    v18 = alloc zeroed checked v16
+    mstore v18, arg0
+    v19 = icall @or, v18
+    v20 = checked_mul uint256, arg0, 32
+    v21 = add v20, 31
+    v22 = not 31
+    v23 = and v21, v22
+    v24 = add v23, 32
+    v25 = lt v24, v20
+    icall panic_if<0x41>, v25
+    v26 = alloc zeroed checked v24
+    mstore v26, v20
+    v27 = icall @orBytes, v26
+    v28 = or v19, v27
+    ret v28
 }
 
 ; function afterRewind(uint256 n) external pure returns (uint256) [selector 0xd109d495]
@@ -368,24 +363,23 @@ fn @afterRewind(arg0: i256) -> i256 [selector=0xd109d495, pure, abi_params=[uint
     v18 = lt v17, v10
     icall panic_if<0x41>, v18
     v19 = mul v17, 32
-    v20 = shr v17, 251
-    v21 = ne v20, 0
-    icall panic_if<0x41>, v21
-    v22 = alloc zeroed checked v19
-    mstore v22, arg0
-    v23 = icall @or, v22
-    v24 = checked_mul uint256, arg0, 32
-    v25 = add v24, 31
-    v26 = not 31
-    v27 = and v25, v26
-    v28 = add v27, 32
-    v29 = lt v28, v24
-    icall panic_if<0x41>, v29
-    v30 = alloc zeroed checked v28
-    mstore v30, v24
-    v31 = icall @orBytes, v30
-    v32 = or v23, v31
-    ret v32
+    v20 = gt v17, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v20
+    v21 = alloc zeroed checked v19
+    mstore v21, arg0
+    v22 = icall @or, v21
+    v23 = checked_mul uint256, arg0, 32
+    v24 = add v23, 31
+    v25 = not 31
+    v26 = and v24, v25
+    v27 = add v26, 32
+    v28 = lt v27, v23
+    icall panic_if<0x41>, v28
+    v29 = alloc zeroed checked v27
+    mstore v29, v23
+    v30 = icall @orBytes, v29
+    v31 = or v22, v30
+    ret v31
 }
 
 ; function afterAssemblyReserve(uint256 n) external pure returns (uint256) [selector 0x26ad54b0]
@@ -411,24 +405,23 @@ fn @afterAssemblyReserve(arg0: i256) -> i256 [selector=0x26ad54b0, pure, abi_par
     v13 = lt v12, v5
     icall panic_if<0x41>, v13
     v14 = mul v12, 32
-    v15 = shr v12, 251
-    v16 = ne v15, 0
-    icall panic_if<0x41>, v16
-    v17 = alloc zeroed checked v14
-    mstore v17, arg0
-    v18 = icall @or, v17
-    v19 = checked_mul uint256, arg0, 32
-    v20 = add v19, 31
-    v21 = not 31
-    v22 = and v20, v21
-    v23 = add v22, 32
-    v24 = lt v23, v19
-    icall panic_if<0x41>, v24
-    v25 = alloc zeroed checked v23
-    mstore v25, v19
-    v26 = icall @orBytes, v25
-    v27 = or v18, v26
-    ret v27
+    v15 = gt v12, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v15
+    v16 = alloc zeroed checked v14
+    mstore v16, arg0
+    v17 = icall @or, v16
+    v18 = checked_mul uint256, arg0, 32
+    v19 = add v18, 31
+    v20 = not 31
+    v21 = and v19, v20
+    v22 = add v21, 32
+    v23 = lt v22, v18
+    icall panic_if<0x41>, v23
+    v24 = alloc zeroed checked v22
+    mstore v24, v18
+    v25 = icall @orBytes, v24
+    v26 = or v17, v25
+    ret v26
 }
 
 ; function loopEmit(bytes calldata data, uint256 n) external returns (uint256 acc) [selector 0x290d3b9f]
@@ -506,24 +499,23 @@ fn @afterInternalStaging(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x
     v17 = lt v16, v9
     icall panic_if<0x41>, v17
     v18 = mul v16, 32
-    v19 = shr v16, 251
-    v20 = ne v19, 0
-    icall panic_if<0x41>, v20
-    v21 = alloc zeroed checked v18
-    mstore v21, arg1
-    v22 = icall @or, v21
-    v23 = checked_mul uint256, arg1, 32
-    v24 = add v23, 31
-    v25 = not 31
-    v26 = and v24, v25
-    v27 = add v26, 32
-    v28 = lt v27, v23
-    icall panic_if<0x41>, v28
-    v29 = alloc zeroed checked v27
-    mstore v29, v23
-    v30 = icall @orBytes, v29
-    v31 = or v22, v30
-    ret v31
+    v19 = gt v16, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v19
+    v20 = alloc zeroed checked v18
+    mstore v20, arg1
+    v21 = icall @or, v20
+    v22 = checked_mul uint256, arg1, 32
+    v23 = add v22, 31
+    v24 = not 31
+    v25 = and v23, v24
+    v26 = add v25, 32
+    v27 = lt v26, v22
+    icall panic_if<0x41>, v27
+    v28 = alloc zeroed checked v26
+    mstore v28, v22
+    v29 = icall @orBytes, v28
+    v30 = or v21, v29
+    ret v30
 }
 
 ; function decodeTail(bytes calldata raw) external pure returns (uint256 word) [selector 0x16e013a7]

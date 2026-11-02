@@ -463,15 +463,15 @@ fn @sliceCalldata() [selector=0xa10bf2ab, abi_wrapper, pure] {
   bb4:  ; preds = bb8
     v73 = heap_floor !metadata(alloc_ptr)
     v74 = add v73, v3 !metadata(alloc_ptr)
+    v80 = shr v74, 64
     v75 = lt v74, v73
-    v76 = zext i1 v75 to i256
-    v77 = shr v74, 64
-    v78 = or v76, v77
-    v79 = ne v78, 0
-    jumpi v79, bb10, bb9
+    v82 = zext i1 v75 to i256
+    v83 = or v82, v80
+    v77 = ne v83, 0
+    jumpi v77, bb10, bb9
   bb9:  ; preds = bb4
-    v80 = calldatasize
-    calldatacopy v73, v80, v3
+    v79 = calldatasize
+    calldatacopy v73, v79, v3
     mstore v73, arg2
     v30 = eq arg2, 0
     jumpi v30, bb1, bb2
@@ -611,31 +611,31 @@ fn @fresh() [selector=0xe9b29099, abi_wrapper, pure] {
 ; function freshPair(uint256 count) external pure returns (bytes memory out) [selector 0xded17a67]
 fn @freshPair() [selector=0xded17a67, abi_wrapper, pure] {
   bb0:
-    v93 = calldatasize
-    v94 = lt v93, 36
-    jumpi v94, bb20, bb21
+    v91 = calldatasize
+    v92 = lt v91, 36
+    jumpi v92, bb20, bb21
   bb21:  ; preds = bb0
-    v148 = add arg0, 63
-    v3 = and v148, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v145 = add arg0, 63
+    v3 = and v145, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v4 = lt v3, arg0
     jumpi v4, bb13, bb14
   bb14:  ; preds = bb21
-    v136 = heap_floor !metadata(alloc_ptr)
-    v137 = add v136, v3 !metadata(alloc_ptr)
-    v138 = lt v137, v136
-    v139 = zext i1 v138 to i256
-    v140 = shr v137, 64
-    v141 = or v139, v140
-    v142 = ne v141, 0
-    jumpi v142, bb23, bb22
+    v134 = heap_floor !metadata(alloc_ptr)
+    v135 = add v134, v3 !metadata(alloc_ptr)
+    v152 = shr v135, 64
+    v136 = lt v135, v134
+    v154 = zext i1 v136 to i256
+    v155 = or v154, v152
+    v138 = ne v155, 0
+    jumpi v138, bb23, bb22
   bb22:  ; preds = bb14
-    mstore 64, v137 !metadata(memory=scratch)
-    v145 = calldatasize
-    calldatacopy v136, v145, v3
-    mstore v136, arg0
-    v82 = or v136, arg0
-    v91 = shr v82, 64
-    v86 = eq v91, 0
+    mstore 64, v135 !metadata(memory=scratch)
+    v142 = calldatasize
+    calldatacopy v134, v142, v3
+    mstore v134, arg0
+    v82 = or v134, arg0
+    v157 = shr v82, 64
+    v86 = eq v157, 0
     jumpi v86, bb12, bb11
   bb11:  ; preds = bb22
     jump bb1
@@ -645,88 +645,88 @@ fn @freshPair() [selector=0xded17a67, abi_wrapper, pure] {
     jumpi v10, bb3, bb2
   bb3:  ; preds = bb1
     v11 = add v9, 1
-    v146 = and v11, 255
-    v15 = mload v136
+    v143 = and v11, 255
+    v15 = mload v134
     v16 = lt v9, v15
     jumpi v16, bb16, bb15
   bb16:  ; preds = bb3
-    v120 = add v136, v9
-    v121 = add v120, 32
-    mstore8 v121, v146
+    v118 = add v134, v9
+    v119 = add v118, 32
+    mstore8 v119, v143
     jump bb1
   bb12:  ; preds = bb22
-    v150 = add v136, 32
-    v153 = add v136, arg0
-    v154 = add v153, 32
+    v147 = add v134, 32
+    v150 = add v134, arg0
+    v151 = add v150, 32
     jump bb9
   bb9:  ; preds = bb10, bb12
     v69 = phi [bb12: 0], [bb10: v71]
-    v151 = phi [bb12: v150], [bb10: v152]
-    v70 = ne v151, v154
+    v148 = phi [bb12: v147], [bb10: v149]
+    v70 = ne v148, v151
     jumpi v70, bb10, bb2
   bb2:  ; preds = bb1, bb9
-    v135 = icall @alloc, v3
-    v144 = calldatasize
-    calldatacopy v135, v144, v3
-    mstore v135, arg0
+    v133 = icall @alloc, v3
+    v141 = calldatasize
+    calldatacopy v133, v141, v3
+    mstore v133, arg0
     v49 = eq arg0, 0
     jumpi v49, bb5, bb7
   bb7:  ; preds = bb2
-    v113 = add v136, 32
-    v115 = add v135, 32
-    v55 = add v113, arg0
-    v56 = add v115, arg0
-    v57 = lt v115, v55
-    v58 = lt v136, v56
+    v111 = add v134, 32
+    v113 = add v133, 32
+    v55 = add v111, arg0
+    v56 = add v113, arg0
+    v57 = lt v113, v55
+    v58 = lt v134, v56
     v59 = and v57, v58
     jumpi v59, bb4, bb8
   bb8:  ; preds = bb7
-    v61 = mload v136
+    v61 = mload v134
     v62 = lt v61, arg0
     jumpi v62, bb15, bb19
   bb19:  ; preds = bb8
-    mcopy v115, v113, arg0
+    mcopy v113, v111, arg0
     jump bb5
   bb4:  ; preds = bb7, bb18
     v32 = phi [bb7: 0], [bb18: v48]
     v33 = lt v32, arg0
     jumpi v33, bb6, bb5
   bb6:  ; preds = bb4
-    v34 = mload v136
+    v34 = mload v134
     v35 = lt v32, v34
     jumpi v35, bb17, bb15
   bb17:  ; preds = bb6
-    v123 = add v136, v32
-    v124 = add v123, 32
-    v39 = mload v124
+    v121 = add v134, v32
+    v122 = add v121, 32
+    v39 = mload v122
     v40 = byte 0, v39
-    v42 = mload v135
+    v42 = mload v133
     v43 = lt v32, v42
     jumpi v43, bb18, bb15
   bb15 [cold]:  ; preds = bb3, bb6, bb8, bb17
     tail_call @revert_stub.17
   bb18:  ; preds = bb17
-    v126 = add v135, v32
-    v127 = add v126, 32
-    mstore8 v127, v40
+    v124 = add v133, v32
+    v125 = add v124, 32
+    mstore8 v125, v40
     v48 = add v32, 1
     jump bb4
   bb5:  ; preds = bb2, bb4, bb19
-    v98 = mload v135
-    v99 = add v98, 31
-    v101 = and v99, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v109 = add v135, 32
-    v104 = add v109, v98
-    mstore v104, 0
-    v111 = sub v135, 32
-    mstore v111, 32
-    v106 = add v101, 64
-    returndata v111, v106
+    v96 = mload v133
+    v97 = add v96, 31
+    v99 = and v97, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v107 = add v133, 32
+    v102 = add v107, v96
+    mstore v102, 0
+    v109 = sub v133, 32
+    mstore v109, 32
+    v104 = add v99, 64
+    returndata v109, v104
   bb10:  ; preds = bb9
     v71 = add v69, 1
-    v147 = and v71, 255
-    mstore8 v151, v147
-    v152 = add v151, 1
+    v144 = and v71, 255
+    mstore8 v148, v144
+    v149 = add v148, 1
     jump bb9
   bb23 [cold]:  ; preds = bb14
     mstore 32, 65 !metadata(memory=scratch)
@@ -982,95 +982,94 @@ fn @asciiWords() [selector=0x581c0829, abi_wrapper, pure] {
 ; function copyWords(uint256[] memory a, uint256 from) external pure returns (uint256[] memory c) [selector 0xaedd6ca2]
 fn @copyWords() [selector=0xaedd6ca2, abi_wrapper, pure] {
   bb0:
-    v81 = calldatasize
-    v82 = lt v81, 68
-    jumpi v82, bb15, bb16
+    v78 = calldatasize
+    v79 = lt v78, 68
+    jumpi v79, bb15, bb16
   bb16:  ; preds = bb0
-    v83 = icall @decode_calldata_type.21
-    v0 = mload v83
-    v76 = sub v0, arg1
-    v77 = lt v0, arg1
-    jumpi v77, bb13, bb14
+    v80 = icall @decode_calldata_type.21
+    v0 = mload v80
+    v74 = sub v0, arg1
+    v75 = lt v0, arg1
+    jumpi v75, bb13, bb14
   bb14:  ; preds = bb16
-    v9 = add v76, 1
+    v9 = add v74, 1
     v10 = eq v9, 0
     jumpi v10, bb6, bb7
   bb7:  ; preds = bb14
     v11 = shl v9, 5
-    v12 = shr v9, 251
-    v13 = ne v12, 0
-    jumpi v13, bb6, bb8
+    v116 = shr v9, 251
+    v12 = ne v116, 0
+    jumpi v12, bb6, bb8
   bb8:  ; preds = bb7
-    v113 = icall @alloc, v11
-    v115 = calldatasize
-    calldatacopy v113, v115, v11
-    mstore v113, v76
-    v36 = eq v76, 0
-    jumpi v36, bb2, bb4
+    v110 = icall @alloc, v11
+    v112 = calldatasize
+    calldatacopy v110, v112, v11
+    mstore v110, v74
+    v35 = eq v74, 0
+    jumpi v35, bb2, bb4
   bb4:  ; preds = bb8
-    v37 = shl v76, 5
-    v38 = shl arg1, 5
-    v95 = add v83, v38
-    v96 = add v95, 32
-    v98 = add v113, 32
-    v45 = add v96, v37
-    v46 = add v98, v37
-    v47 = lt v98, v45
-    v48 = lt v83, v46
-    v49 = and v47, v48
-    v50 = zext i1 v49 to i256
-    v100 = add v83, 32
-    v53 = lt v96, v100
-    v54 = zext i1 v53 to i256
-    v55 = or v50, v54
-    v57 = gt v76, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v58 = zext i1 v57 to i256
-    v59 = or v55, v58
-    v60 = ne v59, 0
-    jumpi v60, bb1, bb5
+    v36 = shl v74, 5
+    v37 = shl arg1, 5
+    v92 = add v80, v37
+    v93 = add v92, 32
+    v95 = add v110, 32
+    v44 = add v93, v36
+    v45 = add v95, v36
+    v46 = lt v95, v44
+    v47 = lt v80, v45
+    v48 = and v46, v47
+    v49 = zext i1 v48 to i256
+    v97 = add v80, 32
+    v52 = lt v93, v97
+    v53 = zext i1 v52 to i256
+    v54 = or v49, v53
+    v113 = shr v74, 251
+    v57 = or v54, v113
+    v58 = ne v57, 0
+    jumpi v58, bb1, bb5
   bb5:  ; preds = bb4
-    v61 = mload v83
-    v62 = lt v61, v76
-    v63 = sub v61, v76
-    v64 = gt arg1, v63
-    v65 = or v62, v64
-    jumpi v65, bb9, bb12
+    v59 = mload v80
+    v60 = lt v59, v74
+    v61 = sub v59, v74
+    v62 = gt arg1, v61
+    v63 = or v60, v62
+    jumpi v63, bb9, bb12
   bb12:  ; preds = bb5
-    mcopy v98, v96, v37
+    mcopy v95, v93, v36
     jump bb2
   bb1:  ; preds = bb4, bb11
-    v19 = phi [bb4: 0], [bb11: v35]
-    v20 = lt v19, v76
-    jumpi v20, bb3, bb2
+    v18 = phi [bb4: 0], [bb11: v34]
+    v19 = lt v18, v74
+    jumpi v19, bb3, bb2
   bb3:  ; preds = bb1
-    v78 = add arg1, v19
-    v22 = mload v83
-    v23 = lt v78, v22
-    jumpi v23, bb10, bb9
+    v76 = add arg1, v18
+    v21 = mload v80
+    v22 = lt v76, v21
+    jumpi v22, bb10, bb9
   bb10:  ; preds = bb3
-    v25 = shl v78, 5
-    v102 = add v83, v25
-    v103 = add v102, 32
-    v28 = mload v103
-    v29 = mload v113
-    v30 = lt v19, v29
-    jumpi v30, bb11, bb9
+    v24 = shl v76, 5
+    v99 = add v80, v24
+    v100 = add v99, 32
+    v27 = mload v100
+    v28 = mload v110
+    v29 = lt v18, v28
+    jumpi v29, bb11, bb9
   bb9 [cold]:  ; preds = bb3, bb5, bb10
     tail_call @revert_stub.17
   bb11:  ; preds = bb10
-    v32 = shl v19, 5
-    v105 = add v113, v32
-    v106 = add v105, 32
-    mstore v106, v28
-    v35 = add v19, 1
+    v31 = shl v18, 5
+    v102 = add v110, v31
+    v103 = add v102, 32
+    mstore v103, v27
+    v34 = add v18, 1
     jump bb1
   bb2:  ; preds = bb1, bb8, bb12
-    v87 = mload v113
-    v88 = shl v87, 5
-    v93 = sub v113, 32
-    mstore v93, 32
-    v90 = add v88, 64
-    returndata v93, v90
+    v84 = mload v110
+    v85 = shl v84, 5
+    v90 = sub v110, 32
+    mstore v90, 32
+    v87 = add v85, 64
+    returndata v90, v87
   bb6 [cold]:  ; preds = bb7, bb14
     tail_call @revert_stub.18
   bb13 [cold]:  ; preds = bb16
@@ -1084,53 +1083,53 @@ fn @copyWords() [selector=0xaedd6ca2, abi_wrapper, pure] {
 ; function wordsFromCalldata(bytes32[] calldata a) external pure returns (bytes32[] memory h) [selector 0xd35cf802]
 fn @wordsFromCalldata() [selector=0xd35cf802, abi_wrapper, pure] {
   bb0:
-    v49 = calldatasize
-    v50 = lt v49, 36
-    v51 = calldataload 4
-    v52 = add v51, 4
-    v54 = sub v49, 36
-    v55 = gt v51, v54
-    v84 = or v50, v55
-    v56 = calldataload v52
-    v57 = add v52, 32
-    v58 = sub v49, v57
-    v59 = shr v58, 5
-    v60 = gt v56, v59
-    v85 = or v84, v60
-    jumpi v85, bb5, bb6
+    v47 = calldatasize
+    v48 = lt v47, 36
+    v49 = calldataload 4
+    v50 = add v49, 4
+    v52 = sub v47, 36
+    v53 = gt v49, v52
+    v81 = or v48, v53
+    v54 = calldataload v50
+    v55 = add v50, 32
+    v56 = sub v47, v55
+    v57 = shr v56, 5
+    v58 = gt v54, v57
+    v82 = or v81, v58
+    jumpi v82, bb5, bb6
   bb6:  ; preds = bb0
-    v47 = add v56, 1
-    v9 = add v47, 1
+    v45 = add v54, 1
+    v9 = add v45, 1
     v11 = shl v9, 5
-    v12 = shr v9, 251
-    v13 = ne v12, 0
-    jumpi v13, bb3, bb4
+    v88 = shr v9, 251
+    v12 = ne v88, 0
+    jumpi v12, bb3, bb4
   bb4:  ; preds = bb6
-    v76 = heap_floor !metadata(alloc_ptr)
-    v77 = add v76, v11 !metadata(alloc_ptr)
-    v78 = lt v77, v76
-    v79 = zext i1 v78 to i256
-    v80 = shr v77, 64
-    v81 = or v79, v80
-    v82 = ne v81, 0
-    jumpi v82, bb8, bb7
+    v74 = heap_floor !metadata(alloc_ptr)
+    v75 = add v74, v11 !metadata(alloc_ptr)
+    v83 = shr v75, 64
+    v76 = lt v75, v74
+    v85 = zext i1 v76 to i256
+    v86 = or v85, v83
+    v78 = ne v86, 0
+    jumpi v78, bb8, bb7
   bb7:  ; preds = bb4
-    v83 = calldatasize
-    calldatacopy v76, v83, v11
-    mstore v76, v47
-    v37 = eq v56, 0
-    jumpi v37, bb1, bb2
+    v80 = calldatasize
+    calldatacopy v74, v80, v11
+    mstore v74, v45
+    v35 = eq v54, 0
+    jumpi v35, bb1, bb2
   bb2:  ; preds = bb7
-    v38 = shl v56, 5
-    v74 = add v76, 32
-    calldatacopy v74, v57, v38
+    v36 = shl v54, 5
+    v72 = add v74, 32
+    calldatacopy v72, v55, v36
     jump bb1
   bb1:  ; preds = bb2, bb7
-    v67 = shl v47, 5
-    v72 = sub v76, 32
-    mstore v72, 32
-    v69 = add v67, 64
-    returndata v72, v69
+    v65 = shl v45, 5
+    v70 = sub v74, 32
+    mstore v70, 32
+    v67 = add v65, 64
+    returndata v70, v67
   bb8 [cold]:  ; preds = bb4
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -1144,81 +1143,80 @@ fn @wordsFromCalldata() [selector=0xd35cf802, abi_wrapper, pure] {
 ; function withinWords(uint256[] memory a, uint256 from, uint256 to, uint256 count) external pure returns (uint256[] memory) [selector 0x3c3b880f]
 fn @withinWords() [selector=0x3c3b880f, abi_wrapper, pure] {
   bb0:
-    v78 = calldatasize
-    v79 = lt v78, 132
-    jumpi v79, bb13, bb14
+    v76 = calldatasize
+    v77 = lt v76, 132
+    jumpi v77, bb13, bb14
   bb14:  ; preds = bb0
-    v80 = icall @decode_calldata_type.21
+    v78 = icall @decode_calldata_type.21
     v23 = eq arg3, 0
     jumpi v23, bb2, bb4
   bb4:  ; preds = bb14
     v24 = shl arg3, 5
     v25 = shl arg1, 5
-    v92 = add v80, v25
-    v93 = add v92, 32
+    v90 = add v78, v25
+    v91 = add v90, 32
     v28 = shl arg2, 5
-    v95 = add v80, v28
-    v96 = add v95, 32
-    v33 = add v93, v24
-    v34 = lt v93, v96
-    v35 = lt v96, v33
+    v93 = add v78, v28
+    v94 = add v93, 32
+    v33 = add v91, v24
+    v34 = lt v91, v94
+    v35 = lt v94, v33
     v36 = and v34, v35
     v37 = zext i1 v36 to i256
-    v98 = add v80, 32
-    v40 = lt v93, v98
+    v96 = add v78, 32
+    v40 = lt v91, v96
     v41 = zext i1 v40 to i256
     v42 = or v37, v41
-    v45 = lt v96, v98
+    v45 = lt v94, v96
     v46 = zext i1 v45 to i256
     v47 = or v42, v46
-    v49 = gt arg3, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v50 = zext i1 v49 to i256
-    v51 = or v47, v50
-    v52 = ne v51, 0
-    jumpi v52, bb1, bb5
+    v106 = shr arg3, 251
+    v50 = or v47, v106
+    v51 = ne v50, 0
+    jumpi v51, bb1, bb5
   bb5:  ; preds = bb4
-    v53 = mload v80
-    v54 = lt v53, arg3
-    v55 = sub v53, arg3
-    v56 = gt arg1, v55
-    v57 = or v54, v56
-    v62 = gt arg2, v55
-    v63 = or v54, v62
-    v66 = or v57, v63
-    jumpi v66, bb6, bb9
+    v52 = mload v78
+    v53 = lt v52, arg3
+    v54 = sub v52, arg3
+    v55 = gt arg1, v54
+    v56 = or v53, v55
+    v61 = gt arg2, v54
+    v62 = or v53, v61
+    v65 = or v56, v62
+    jumpi v65, bb6, bb9
   bb9:  ; preds = bb5
-    mcopy v96, v93, v24
+    mcopy v94, v91, v24
     jump bb2
   bb1:  ; preds = bb4, bb8
     v5 = phi [bb4: 0], [bb8: v22]
     v6 = lt v5, arg3
     jumpi v6, bb3, bb2
   bb3:  ; preds = bb1
-    v73 = add arg1, v5
-    v74 = lt v73, arg1
-    jumpi v74, bb10, bb11
+    v72 = add arg1, v5
+    v73 = lt v72, arg1
+    jumpi v73, bb10, bb11
   bb11:  ; preds = bb3
-    v8 = mload v80
-    v9 = lt v73, v8
+    v8 = mload v78
+    v9 = lt v72, v8
     jumpi v9, bb7, bb6
   bb7:  ; preds = bb11
-    v11 = shl v73, 5
-    v100 = add v80, v11
-    v101 = add v100, 32
-    v14 = mload v101
-    v75 = add arg2, v5
-    v76 = lt v75, arg2
-    jumpi v76, bb10, bb12
+    v11 = shl v72, 5
+    v98 = add v78, v11
+    v99 = add v98, 32
+    v14 = mload v99
+    v74 = add arg2, v5
+    v75 = lt v74, arg2
+    jumpi v75, bb10, bb12
   bb12:  ; preds = bb7
-    v17 = lt v75, v8
+    v17 = lt v74, v8
     jumpi v17, bb8, bb6
   bb6 [cold]:  ; preds = bb5, bb11, bb12
     tail_call @revert_stub.17
   bb8:  ; preds = bb12
-    v19 = shl v75, 5
-    v103 = add v80, v19
-    v104 = add v103, 32
-    mstore v104, v14
+    v19 = shl v74, 5
+    v101 = add v78, v19
+    v102 = add v101, 32
+    mstore v102, v14
     v22 = add v5, 1
     jump bb1
   bb10 [cold]:  ; preds = bb3, bb7
@@ -1226,12 +1224,12 @@ fn @withinWords() [selector=0x3c3b880f, abi_wrapper, pure] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb2:  ; preds = bb1, bb9, bb14
-    v84 = mload v80
-    v85 = shl v84, 5
-    v90 = sub v80, 32
-    mstore v90, 32
-    v87 = add v85, 64
-    returndata v90, v87
+    v82 = mload v78
+    v83 = shl v82, 5
+    v88 = sub v78, 32
+    mstore v88, 32
+    v85 = add v83, 64
+    returndata v88, v85
   bb13 [cold]:  ; preds = bb0
     revert 0, 0
 }
@@ -1239,20 +1237,20 @@ fn @withinWords() [selector=0x3c3b880f, abi_wrapper, pure] {
 ; function fillPastWord(uint256 n) external pure returns (bytes memory b) [selector 0x36818f65]
 fn @fillPastWord() [selector=0x36818f65, abi_wrapper, pure] {
   bb0:
-    v43 = calldatasize
-    v44 = lt v43, 36
-    jumpi v44, bb12, bb13
+    v41 = calldatasize
+    v42 = lt v41, 36
+    jumpi v42, bb12, bb13
   bb13:  ; preds = bb0
-    v72 = heap_floor !metadata(alloc_ptr)
-    v73 = add v72, 96 !metadata(alloc_ptr)
-    v74 = lt v73, v72
-    v75 = zext i1 v74 to i256
-    v76 = shr v73, 64
-    v77 = or v75, v76
-    v78 = ne v77, 0
-    jumpi v78, bb15, bb14
+    v70 = heap_floor !metadata(alloc_ptr)
+    v71 = add v70, 96 !metadata(alloc_ptr)
+    v78 = shr v71, 64
+    v72 = lt v71, v70
+    v80 = zext i1 v72 to i256
+    v81 = or v80, v78
+    v74 = ne v81, 0
+    jumpi v74, bb15, bb14
   bb14:  ; preds = bb13
-    mstore v72, 64
+    mstore v70, 64
     v40 = gt arg0, 64
     jumpi v40, bb7, bb6
   bb6:  ; preds = bb14
@@ -1262,9 +1260,9 @@ fn @fillPastWord() [selector=0x36818f65, abi_wrapper, pure] {
     v22 = lt v21, arg0
     jumpi v22, bb5, bb2
   bb5:  ; preds = bb4
-    v63 = add v72, v21
-    v64 = add v63, 32
-    mstore8 v64, 97
+    v61 = add v70, v21
+    v62 = add v61, 32
+    mstore8 v62, 97
     v27 = lt v21, 40
     jumpi v27, bb11, bb8
   bb11:  ; preds = bb5
@@ -1277,24 +1275,24 @@ fn @fillPastWord() [selector=0x36818f65, abi_wrapper, pure] {
     v8 = lt v7, arg0
     jumpi v8, bb3, bb2
   bb2:  ; preds = bb1, bb4
-    v48 = mload v72
-    v49 = add v48, 31
-    v51 = and v49, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v59 = add v72, 32
-    v54 = add v59, v48
-    mstore v54, 0
-    v61 = sub v72, 32
-    mstore v61, 32
-    v56 = add v51, 64
-    returndata v61, v56
+    v46 = mload v70
+    v47 = add v46, 31
+    v49 = and v47, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v57 = add v70, 32
+    v52 = add v57, v46
+    mstore v52, 0
+    v59 = sub v70, 32
+    mstore v59, 32
+    v54 = add v49, 64
+    returndata v59, v54
   bb3:  ; preds = bb1
-    v9 = mload v72
+    v9 = mload v70
     v10 = lt v7, v9
     jumpi v10, bb9, bb8
   bb9:  ; preds = bb3
-    v66 = add v72, v7
-    v67 = add v66, 32
-    mstore8 v67, 97
+    v64 = add v70, v7
+    v65 = add v64, 32
+    mstore8 v65, 97
     v15 = lt v7, 40
     jumpi v15, bb10, bb8
   bb8 [cold]:  ; preds = bb3, bb5, bb9
@@ -1392,19 +1390,18 @@ fn @decode_calldata_type.21() -> i256 [may_return_memory] {
   bb2:  ; preds = bb0
     v6 = calldataload v2
     v7 = add v2, 32
-    v8 = gt v6, 0x7fffffffffffffe
+    v32 = shr v6, 59
     v9 = add v6, 1
     v10 = shl v9, 5
     v25 = heap_floor !metadata(alloc_ptr)
     v26 = add v25, v10 !metadata(alloc_ptr)
+    v34 = shr v26, 64
     v27 = lt v26, v25
-    v28 = zext i1 v27 to i256
-    v29 = shr v26, 64
-    v30 = or v28, v29
-    v32 = zext i1 v8 to i256
-    v33 = or v32, v30
-    v34 = ne v33, 0
-    jumpi v34, bb3, bb5
+    v36 = zext i1 v27 to i256
+    v37 = or v36, v34
+    v39 = or v32, v37
+    v31 = ne v39, 0
+    jumpi v31, bb3, bb5
   bb5:  ; preds = bb2
     mstore 64, v26 !metadata(memory=scratch)
     mstore v25, v6
@@ -1429,12 +1426,12 @@ fn @alloc(arg0: i256) -> i256 {
   bb0:
     v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v2 = add v0, arg0 !metadata(alloc_ptr)
+    v7 = shr v2, 64
     v3 = lt v2, v0
-    v4 = zext i1 v3 to i256
-    v5 = shr v2, 64
-    v6 = or v4, v5
-    v7 = ne v6, 0
-    jumpi v7, bb1, bb2
+    v9 = zext i1 v3 to i256
+    v10 = or v9, v7
+    v5 = ne v10, 0
+    jumpi v5, bb1, bb2
   bb2:  ; preds = bb0
     mstore 64, v2 !metadata(memory=scratch)
     ret v0

@@ -210,7 +210,7 @@
                 {
                   "offset": 36,
                   "operation": {
-                    "mnemonic": "SHR"
+                    "mnemonic": "LT"
                   }
                 },
                 {

@@ -36,8 +36,8 @@ bb0:  ; constructor(uint8 unsignedValue_, int8 signedValue_, bytes1 fixedBytesVa
   jumpi
   dup 1
   mload
-  push 8
-  shr
+  push 255
+  lt
   push bb5
   jumpi
   push 32

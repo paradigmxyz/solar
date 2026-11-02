@@ -491,10 +491,58 @@ impl Target {
         compact_pushes::immediate_materialization(self.evm_version, value)
     }
 
+    /// Cost of pushing `value` as the compact-push pass leaves it: the literal where the recipe
+    /// [`Self::push`] prices does not repay its gas, as for a mask in a gas build.
+    pub(crate) fn emitted_push(&self, value: U256, in_loop: bool) -> Cost {
+        compact_pushes::emitted_immediate(self, value, in_loop)
+    }
+
     /// Cost of pushing `value` as one literal `PUSHn`, the form a push keeps when its compact
     /// recipe does not repay.
     pub(crate) fn literal_push(&self, value: U256) -> Cost {
         compact_pushes::literal_push(self.evm_version, value)
+    }
+
+    /// Whether a width test, that a word fits in `bits` bits when `fits` and that it does not
+    /// otherwise, is the shift `x >> bits` against zero rather than the comparison with its limit
+    /// (`x < 2^bits`, `x > 2^bits - 1`). A `branch` reads the word of a test of the other sense
+    /// for free, and a `value` pays `ISZERO`s: one to turn the word into a fit, two into a
+    /// boolean. The comparison pays the push of its limit, as the compact-push pass leaves it,
+    /// which grows with `bits`. The shift wins when it is no dearer in bytes and gas and cheaper
+    /// in one; equal prices keep the comparison. A shift that saves bytes and costs gas is taken
+    /// as a compact recipe is, by [`Self::compacts_immediate`]. Without shifts only the
+    /// comparison exists.
+    pub(crate) fn shifts_bits_test(
+        &self,
+        bits: u32,
+        fits: bool,
+        branch: bool,
+        in_loop: bool,
+    ) -> bool {
+        if !self.evm_version.has_bitwise_shifting() || !(1..256).contains(&bits) {
+            return false;
+        }
+        let zero_tests = match (fits, branch) {
+            (false, true) => Cost::ZERO,
+            (true, _) => self.opcode(op::ISZERO),
+            (false, false) => self.opcode(op::ISZERO) + self.opcode(op::ISZERO),
+        };
+        let shift = self.push(U256::from(bits)) + self.opcode(op::SHR) + zero_tests;
+        let compare = if fits {
+            self.emitted_push(U256::ONE << bits, in_loop) + self.opcode(op::LT)
+        } else {
+            self.emitted_push((U256::ONE << bits) - U256::ONE, in_loop) + self.opcode(op::GT)
+        };
+        let (shift_gas, compare_gas) = (self.runtime_gas(shift), self.runtime_gas(compare));
+        if shift.bytes <= compare.bytes && shift_gas <= compare_gas {
+            return shift.bytes < compare.bytes || shift_gas < compare_gas;
+        }
+        shift.bytes < compare.bytes
+            && self.compacts_immediate(
+                u64::from(compare.bytes - shift.bytes),
+                u64::from(shift_gas - compare_gas),
+                in_loop,
+            )
     }
 
     /// Whether reading `value` as an immediate costs no more gas than a `DUP` and at most one
@@ -1373,6 +1421,20 @@ mod tests {
         let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
         assert_eq!(target.select(false), Cost::new(17, 5).with_steps(5));
         assert_eq!(target.select(true), Cost::new(20, 6).with_steps(6));
+    }
+
+    #[test]
+    fn width_tests_spell_by_price() {
+        let gas = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
+        // A branch reads `x >> 64` for free, and the limit `2^64 - 1` is a nine-byte push.
+        assert!(gas.shifts_bits_test(64, false, true, false));
+        // A limit as short as the shift's own push keeps the comparison on equal prices.
+        assert!(!gas.shifts_bits_test(8, false, true, false));
+        assert!(!gas.shifts_bits_test(1, true, false, false));
+        // Without shifts only the comparison exists.
+        let legacy = Target::with(EvmVersion::Byzantium, OptimizationMode::Gas, 200);
+        assert!(!legacy.shifts_bits_test(64, false, true, false));
+        assert_eq!(gas.emitted_push(U256::from(1), false), gas.literal_push(U256::from(1)));
     }
 
     #[test]

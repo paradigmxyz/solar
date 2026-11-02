@@ -40,12 +40,12 @@ bb6:  ; function dynamicArray() public pure returns (bytes32 result) [selector 0
   dup 1
   dup 2
   add
-  dup 2
-  dup 2
-  lt
-  swap 1
+  dup 1
   push 64
   shr
+  swap 1
+  dup 3
+  gt
   or
   push bb8
   jumpi

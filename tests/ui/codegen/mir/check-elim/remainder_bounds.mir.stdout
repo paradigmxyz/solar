@@ -11,13 +11,12 @@ fn @pick(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x9d6a1cd3, pure, 
     icall panic_if<0x32>, v4
     v5 = extract_value slice<calldata>, arg0, 0
     v6 = mul v1, 32
-    v7 = shr v1, 251
-    v8 = ne v7, 0
-    icall panic_if<0x41>, v8
-    v9 = ptrtoint ptr<calldata> v5 to i256
-    v10 = add v9, v6
-    v11 = calldataload v10
-    ret v11
+    v7 = gt v1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v7
+    v8 = ptrtoint ptr<calldata> v5 to i256
+    v9 = add v8, v6
+    v10 = calldataload v9
+    ret v10
 }
 
 ; function pickDown(uint256[] memory a, uint256 r) external pure returns (uint256 s) [selector 0xe4bcb1d7]

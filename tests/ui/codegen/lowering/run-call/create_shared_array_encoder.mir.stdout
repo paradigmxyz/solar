@@ -188,17 +188,15 @@ fn @createPair() -> struct0 [selector=0x9e78fb4f, abi_params=[], abi_returns=[wo
     icall revert_if<tuple_data_too_short>, v54
     v55 = add 0, 0
     v56 = mload v55
-    v57 = shr v56, 160
-    v58 = eq v57, 0
-    v59 = eq v58, false
-    icall revert_if<empty>, v59
-    v60 = trunc i256 v56 to i160
-    v61 = zext i160 v60 to i256
-    v62 = insert_value struct0, undef struct0, 0, v35
-    v63 = insert_value struct0, v62, 1, v42
-    v64 = insert_value struct0, v63, 2, v49
-    v65 = insert_value struct0, v64, 3, v61
-    ret v65
+    v57 = gt v56, 0xffffffffffffffffffffffffffffffffffffffff
+    icall revert_if<empty>, v57
+    v58 = trunc i256 v56 to i160
+    v59 = zext i160 v58 to i256
+    v60 = insert_value struct0, undef struct0, 0, v35
+    v61 = insert_value struct0, v60, 1, v42
+    v62 = insert_value struct0, v61, 2, v49
+    v63 = insert_value struct0, v62, 3, v59
+    ret v63
 }
 
 ; function createSingle() external returns (uint256, uint256, uint256, uint256) [selector 0xebef2b99]
@@ -289,15 +287,13 @@ fn @createSingle() -> struct0 [selector=0xebef2b99, abi_params=[], abi_returns=[
     icall revert_if<tuple_data_too_short>, v46
     v47 = add 0, 0
     v48 = mload v47
-    v49 = shr v48, 160
-    v50 = eq v49, 0
-    v51 = eq v50, false
-    icall revert_if<empty>, v51
-    v52 = trunc i256 v48 to i160
-    v53 = zext i160 v52 to i256
-    v54 = insert_value struct0, undef struct0, 0, v27
-    v55 = insert_value struct0, v54, 1, v34
-    v56 = insert_value struct0, v55, 2, v41
-    v57 = insert_value struct0, v56, 3, v53
-    ret v57
+    v49 = gt v48, 0xffffffffffffffffffffffffffffffffffffffff
+    icall revert_if<empty>, v49
+    v50 = trunc i256 v48 to i160
+    v51 = zext i160 v50 to i256
+    v52 = insert_value struct0, undef struct0, 0, v27
+    v53 = insert_value struct0, v52, 1, v34
+    v54 = insert_value struct0, v53, 2, v41
+    v55 = insert_value struct0, v54, 3, v51
+    ret v55
 }

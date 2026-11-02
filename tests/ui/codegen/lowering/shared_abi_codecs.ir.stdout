@@ -80,215 +80,221 @@ fn @encodeSecond() [selector=0x108c1ec5, abi_wrapper, pure] {
 ; function roundTrip(uint256 tag, uint256[][] calldata values) external pure returns (uint256) [selector 0x00746047]
 fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
   bb0:
-    v163 = calldatasize
-    v164 = lt v163, 68
-    v165 = calldataload 36
-    v166 = add v165, 4
-    v168 = sub v163, 36
+    v158 = calldatasize
+    v159 = lt v158, 68
+    v160 = calldataload 36
+    v161 = add v160, 4
+    v163 = sub v158, 36
+    v164 = gt v160, v163
+    v220 = or v159, v164
+    v165 = calldataload v161
+    v166 = add v161, 32
+    v167 = sub v158, v166
+    v168 = shr v167, 5
     v169 = gt v165, v168
-    v225 = or v164, v169
-    v170 = calldataload v166
-    v171 = add v166, 32
-    v172 = sub v163, v171
-    v173 = shr v172, 5
-    v174 = gt v170, v173
-    v226 = or v225, v174
-    jumpi v226, bb5, bb30
-  bb30:  ; preds = bb0
-    v223 = heap_floor !metadata(alloc_ptr)
-    v224 = add v223, 64
-    mstore 64, v224
-    v3 = shl v170, 5
-    v6 = calldatasize
-    v8 = sub v6, v171
-    v9 = slt v8, v3
-    jumpi v9, bb5, bb6
-  bb6:  ; preds = bb30
-    v13 = add v3, 32
-    v14 = lt v13, 32
-    jumpi v14, bb4, bb7
+    v221 = or v220, v169
+    jumpi v221, bb5, bb28
+  bb28:  ; preds = bb0
+    v218 = heap_floor !metadata(alloc_ptr)
+    v219 = add v218, 64
+    mstore 64, v219
+    v3 = shl v165, 5
+    v5 = calldatasize
+    v7 = sub v5, v166
+    v8 = slt v7, v3
+    jumpi v8, bb5, bb6
+  bb6:  ; preds = bb28
+    v11 = add v3, 32
+    v12 = lt v11, 32
+    jumpi v12, bb4, bb7
   bb7:  ; preds = bb6
-    v217 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v218 = add v217, v13 !metadata(alloc_ptr)
-    mstore 64, v218
-    mstore v217, v170
+    v212 = mload 64 !metadata(alloc_ptr)
+    v213 = add v212, v11 !metadata(alloc_ptr)
+    mstore 64, v213
+    mstore v212, v165
     jump bb1
-  bb1:  ; preds = bb7, bb10
-    v16 = phi [bb7: 0], [bb10: v55]
-    v17 = lt v16, v170
-    jumpi v17, bb2, bb3
+  bb1:  ; preds = bb7, bb8
+    v14 = phi [bb7: 0], [bb8: v52]
+    v15 = lt v14, v165
+    jumpi v15, bb2, bb3
   bb3:  ; preds = bb1
-    mstore v223, arg0
-    v179 = add v223, 32
-    mstore v179, v217
-    v58 = icall @encodeFirst.body, v223
-    v181 = add v58, 32
-    v94 = mload v58
-    v96 = add v181, v94
-    v97 = slt v94, 32
-    jumpi v97, bb5, bb19
-  bb19:  ; preds = bb3
-    v98 = mload v181
-    v100 = add v181, v98
-    v103 = gt v98, v94
-    v104 = sub v96, v100
-    v105 = lt v104, 64
-    v229 = or v103, v105
-    jumpi v229, bb5, bb20
+    mstore v218, arg0
+    v174 = add v218, 32
+    mstore v174, v212
+    v55 = icall @encodeFirst.body, v218
+    v176 = add v55, 32
+    v89 = mload v55
+    v91 = add v176, v89
+    v92 = slt v89, 32
+    jumpi v92, bb5, bb17
+  bb17:  ; preds = bb3
+    v93 = mload v176
+    v95 = add v176, v93
+    v98 = gt v93, v89
+    v99 = sub v91, v95
+    v100 = lt v99, 64
+    v226 = or v98, v100
+    jumpi v226, bb5, bb18
+  bb18:  ; preds = bb17
+    v216 = mload 64 !metadata(alloc_ptr)
+    v217 = add v216, 64
+    mstore 64, v217
+    v102 = mload v95
+    mstore v216, v102
+    v103 = add v95, 32
+    v104 = mload v103
+    v105 = add v95, v104
+    v107 = add v105, 32
+    v235 = shr v104, 64
+    v109 = gt v107, v91
+    v237 = zext i1 v109 to i256
+    v238 = or v235, v237
+    v110 = ne v238, 0
+    jumpi v110, bb5, bb19
+  bb19:  ; preds = bb18
+    v112 = mload v105
+    v240 = shr v112, 59
+    v114 = ne v240, 0
+    jumpi v114, bb4, bb20
   bb20:  ; preds = bb19
-    v221 = mload 64 !metadata(alloc_ptr)
-    v222 = add v221, 64
-    mstore 64, v222
-    v107 = mload v100
-    mstore v221, v107
-    v108 = add v100, 32
-    v109 = mload v108
-    v110 = add v100, v109
-    v112 = add v110, 32
-    v113 = gt v109, 0xffffffffffffffff
-    v114 = gt v112, v96
-    v115 = or v113, v114
-    jumpi v115, bb5, bb21
+    v115 = add v112, 1
+    v116 = shl v115, 5
+    v210 = icall @alloc, v116
+    mstore v210, v112
+    v119 = sub v91, v107
+    v120 = shr v119, 5
+    v121 = gt v112, v120
+    jumpi v121, bb5, bb21
   bb21:  ; preds = bb20
-    v117 = mload v110
-    v119 = gt v117, 0x7fffffffffffffe
-    jumpi v119, bb4, bb22
-  bb22:  ; preds = bb21
-    v120 = add v117, 1
-    v121 = shl v120, 5
-    v215 = icall @alloc, v121
-    mstore v215, v117
-    v124 = sub v96, v112
-    v125 = shr v124, 5
-    v126 = gt v117, v125
-    jumpi v126, bb5, bb23
-  bb23:  ; preds = bb22
-    jump bb24
-  bb24:  ; preds = bb23, bb29
-    v127 = phi [bb23: v117], [bb29: v158]
-    v128 = phi [bb23: v112], [bb29: v159]
-    v129 = phi [bb23: 0], [bb29: v160]
-    v130 = gt v127, 0
-    jumpi v130, bb25, bb26
-  bb26:  ; preds = bb24
-    v196 = add v221, 32
-    mstore v196, v215
-    v60 = mload v221
-    v63 = mload v215
-    v64 = gt v63, 0
-    jumpi v64, bb12, bb11
-  bb12:  ; preds = bb26
-    v188 = add v215, 32
-    v207 = mload v188
-    v68 = mload v207
-    v69 = gt v68, 0
-    jumpi v69, bb13, bb11
-  bb13:  ; preds = bb12
-    v190 = add v207, 32
-    v72 = mload v190
-    v89 = add v60, v72
-    v90 = lt v89, v60
-    jumpi v90, bb16, bb17
-  bb17:  ; preds = bb13
-    v77 = gt v63, 1
-    jumpi v77, bb14, bb11
-  bb14:  ; preds = bb17
-    v192 = add v215, 64
-    v208 = mload v192
-    v81 = mload v208
-    v82 = gt v81, 0
-    jumpi v82, bb15, bb11
-  bb11 [cold]:  ; preds = bb12, bb14, bb17, bb26
+    jump bb22
+  bb22:  ; preds = bb21, bb27
+    v122 = phi [bb21: v112], [bb27: v153]
+    v123 = phi [bb21: v107], [bb27: v154]
+    v124 = phi [bb21: 0], [bb27: v155]
+    v125 = gt v122, 0
+    jumpi v125, bb23, bb24
+  bb24:  ; preds = bb22
+    v191 = add v216, 32
+    mstore v191, v210
+    v57 = mload v216
+    v60 = mload v210
+    v61 = gt v60, 0
+    jumpi v61, bb10, bb9
+  bb10:  ; preds = bb24
+    v183 = add v210, 32
+    v202 = mload v183
+    v65 = mload v202
+    v66 = gt v65, 0
+    jumpi v66, bb11, bb9
+  bb11:  ; preds = bb10
+    v185 = add v202, 32
+    v69 = mload v185
+    v84 = add v57, v69
+    v85 = lt v84, v57
+    jumpi v85, bb14, bb15
+  bb15:  ; preds = bb11
+    v74 = gt v60, 1
+    jumpi v74, bb12, bb9
+  bb12:  ; preds = bb15
+    v187 = add v210, 64
+    v203 = mload v187
+    v78 = mload v203
+    v79 = gt v78, 0
+    jumpi v79, bb13, bb9
+  bb9 [cold]:  ; preds = bb10, bb12, bb15, bb24
     mstore 32, 50
     mstore 0, 0x4e487b71
     revert 28, 36
-  bb15:  ; preds = bb14
-    v194 = add v208, 32
-    v85 = mload v194
-    v91 = add v89, v85
-    v92 = lt v91, v89
-    jumpi v92, bb16, bb18
-  bb18:  ; preds = bb15
-    mstore 0, v91
+  bb13:  ; preds = bb12
+    v189 = add v203, 32
+    v82 = mload v189
+    v86 = add v84, v82
+    v87 = lt v86, v84
+    jumpi v87, bb14, bb16
+  bb16:  ; preds = bb13
+    mstore 0, v86
     returndata 0, 32
-  bb16 [cold]:  ; preds = bb13, bb15
+  bb14 [cold]:  ; preds = bb11, bb13
     tail_call @revert_stub
-  bb25:  ; preds = bb24
-    v131 = mload v128
-    v132 = add v112, v131
-    v134 = add v132, 32
-    v135 = gt v131, 0xffffffffffffffff
-    v136 = gt v134, v96
-    v137 = or v135, v136
-    jumpi v137, bb5, bb27
-  bb27:  ; preds = bb25
-    v139 = mload v132
-    v141 = gt v139, 0x7fffffffffffffe
-    jumpi v141, bb4, bb28
-  bb28:  ; preds = bb27
-    v142 = add v139, 1
-    v143 = shl v142, 5
-    v216 = icall @alloc, v143
-    mstore v216, v139
-    v145 = shl v139, 5
-    v146 = sub v96, v134
-    v147 = shr v146, 5
-    v148 = gt v139, v147
-    jumpi v148, bb5, bb29
-  bb29:  ; preds = bb28
-    v198 = add v216, 32
-    mcopy v198, v134, v145
-    v154 = shl v129, 5
-    v200 = add v215, v154
-    v201 = add v200, 32
-    mstore v201, v216
-    v158 = sub v127, 1
-    v159 = add v128, 32
-    v160 = add v129, 1
-    jump bb24
+  bb23:  ; preds = bb22
+    v126 = mload v123
+    v127 = add v107, v126
+    v129 = add v127, 32
+    v242 = shr v126, 64
+    v131 = gt v129, v91
+    v244 = zext i1 v131 to i256
+    v245 = or v242, v244
+    v132 = ne v245, 0
+    jumpi v132, bb5, bb25
+  bb25:  ; preds = bb23
+    v134 = mload v127
+    v247 = shr v134, 59
+    v136 = ne v247, 0
+    jumpi v136, bb4, bb26
+  bb26:  ; preds = bb25
+    v137 = add v134, 1
+    v138 = shl v137, 5
+    v211 = icall @alloc, v138
+    mstore v211, v134
+    v140 = shl v134, 5
+    v141 = sub v91, v129
+    v142 = shr v141, 5
+    v143 = gt v134, v142
+    jumpi v143, bb5, bb27
+  bb27:  ; preds = bb26
+    v193 = add v211, 32
+    mcopy v193, v129, v140
+    v149 = shl v124, 5
+    v195 = add v210, v149
+    v196 = add v195, 32
+    mstore v196, v211
+    v153 = sub v122, 1
+    v154 = add v123, 32
+    v155 = add v124, 1
+    jump bb22
   bb2:  ; preds = bb1
-    v18 = shl v16, 5
-    v20 = add v171, v18
-    v21 = calldatasize
-    v22 = sub v21, v20
-    v23 = slt v22, 32
-    v24 = calldataload v20
-    v26 = add v171, v24
-    v30 = sub v8, 31
-    v31 = slt v24, v30
-    v227 = eq v31, false
-    v228 = or v23, v227
-    jumpi v228, bb5, bb8
+    v16 = shl v14, 5
+    v18 = add v166, v16
+    v19 = calldatasize
+    v20 = sub v19, v18
+    v21 = slt v20, 32
+    v22 = calldataload v18
+    v24 = add v166, v22
+    v28 = sub v7, 31
+    v29 = slt v22, v28
+    v222 = eq v29, false
+    v223 = or v21, v222
+    v31 = calldataload v24
+    v32 = calldatasize
+    v227 = shr v31, 64
+    v229 = zext i1 v223 to i256
+    v230 = or v229, v227
+    v34 = shl v31, 5
+    v35 = add v24, 32
+    v36 = sub v32, v34
+    v37 = sgt v35, v36
+    v232 = zext i1 v37 to i256
+    v233 = or v230, v232
+    v225 = ne v233, 0
+    jumpi v225, bb5, bb8
   bb8:  ; preds = bb2
-    v33 = calldataload v26
-    v34 = calldatasize
-    v87 = shr v33, 64
-    v35 = ne v87, 0
-    jumpi v35, bb5, bb9
-  bb9:  ; preds = bb8
-    v36 = shl v33, 5
-    v37 = add v26, 32
-    v38 = sub v34, v36
-    v39 = sgt v37, v38
-    jumpi v39, bb5, bb10
-  bb10:  ; preds = bb9
-    v43 = add v36, 32
-    v219 = mload 64 !metadata(alloc_ptr)
-    v220 = add v219, v43 !metadata(alloc_ptr)
-    mstore 64, v220
-    mstore v219, v33
-    v183 = add v219, 32
-    calldatacopy v183, v37, v36
-    v185 = add v217, v18
-    v186 = add v185, 32
-    mstore v186, v219
-    v55 = add v16, 1
+    v40 = add v34, 32
+    v214 = mload 64 !metadata(alloc_ptr)
+    v215 = add v214, v40 !metadata(alloc_ptr)
+    mstore 64, v215
+    mstore v214, v31
+    v178 = add v214, 32
+    calldatacopy v178, v35, v34
+    v180 = add v212, v16
+    v181 = add v180, 32
+    mstore v181, v214
+    v52 = add v14, 1
     jump bb1
-  bb4 [cold]:  ; preds = bb6, bb21, bb27
+  bb4 [cold]:  ; preds = bb6, bb19, bb25
     mstore 32, 65
     mstore 0, 0x4e487b71
     revert 28, 36
-  bb5 [cold]:  ; preds = bb3, bb2, bb8, bb9, bb19, bb20, bb22, bb25, bb28, bb0, bb30
+  bb5 [cold]:  ; preds = bb3, bb2, bb17, bb18, bb20, bb23, bb26, bb0, bb28
     revert 0, 0
 }
 
@@ -325,7 +331,8 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
   bb3:  ; preds = bb2
     v15 = calldataload v11
     v16 = add v11, 32
-    v17 = gt v15, 0x7fffffffffffffe
+    v77 = shr v15, 59
+    v17 = ne v77, 0
     jumpi v17, bb4, bb5
   bb5:  ; preds = bb3
     v18 = add v15, 1
@@ -359,7 +366,8 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
   bb10:  ; preds = bb8
     v34 = calldataload v30
     v35 = add v30, 32
-    v36 = gt v34, 0x7fffffffffffffe
+    v79 = shr v34, 59
+    v36 = ne v79, 0
     jumpi v36, bb4, bb11
   bb11:  ; preds = bb10
     v37 = add v34, 1
@@ -469,12 +477,12 @@ fn @alloc(arg0: i256) -> i256 {
   bb0:
     v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v2 = add v0, arg0 !metadata(alloc_ptr)
+    v7 = shr v2, 64
     v3 = lt v2, v0
-    v4 = zext i1 v3 to i256
-    v5 = shr v2, 64
-    v6 = or v4, v5
-    v7 = ne v6, 0
-    jumpi v7, bb1, bb2
+    v9 = zext i1 v3 to i256
+    v10 = or v9, v7
+    v5 = ne v10, 0
+    jumpi v5, bb1, bb2
   bb2:  ; preds = bb0
     mstore 64, v2 !metadata(memory=scratch)
     ret v0

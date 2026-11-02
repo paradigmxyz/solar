@@ -118,19 +118,18 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
   bb2:  ; preds = bb0
     v6 = calldataload v2
     v7 = add v2, 32
-    v8 = gt v6, 0x7fffffffffffffe
+    v32 = shr v6, 59
     v9 = add v6, 1
     v10 = shl v9, 5
     v25 = heap_floor !metadata(alloc_ptr)
     v26 = add v25, v10 !metadata(alloc_ptr)
+    v34 = shr v26, 64
     v27 = lt v26, v25
-    v28 = zext i1 v27 to i256
-    v29 = shr v26, 64
-    v30 = or v28, v29
-    v32 = zext i1 v8 to i256
-    v33 = or v32, v30
-    v34 = ne v33, 0
-    jumpi v34, bb3, bb5
+    v36 = zext i1 v27 to i256
+    v37 = or v36, v34
+    v39 = or v32, v37
+    v31 = ne v39, 0
+    jumpi v31, bb3, bb5
   bb5:  ; preds = bb2
     mstore 64, v26 !metadata(memory=scratch)
     mstore v25, v6

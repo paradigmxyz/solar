@@ -545,18 +545,16 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Returns whether the 256-bit unsigned product of `lhs` and `rhs` wraps, when one factor is
-    /// a constant power of two 2 ** s, s >= 1: the other factor then needs a bit at or above
-    /// 256 - s. Other constants keep the quotient test.
+    /// a constant power of two 2 ** s, s >= 1: the other factor then exceeds `MAX >> s`. Other
+    /// constants keep the quotient test.
     pub fn power_of_two_mul_overflow(&mut self, lhs: ValueId, rhs: ValueId) -> Option<ValueId> {
         let (factor, c) = [(lhs, rhs), (rhs, lhs)].into_iter().find_map(|(factor, constant)| {
             let c = self.func.value_u256(constant)?;
             (c > U256::ONE && c.is_power_of_two()).then_some((factor, c))
         })?;
-        // high = shr factor, 256 - s
-        // overflow = ne high, 0
-        let shift = self.imm(U256::from(256 - c.trailing_zeros()));
-        let high = self.shr(factor, shift);
-        Some(self.ne_zero(high))
+        // overflow = gt factor, MAX >> s
+        let limit = self.imm(U256::MAX >> c.trailing_zeros());
+        Some(self.gt(factor, limit))
     }
 
     /// Rounds `rounded` down to a multiple of 32.
@@ -937,10 +935,12 @@ impl<'a> FunctionBuilder<'a> {
         let one = self.imm(1);
         let word_size = self.imm(EvmMemoryLayout::WORD_SIZE);
         let size = if semantics.failure == AllocationFailure::Checked {
-            // panic_if length > MAX_ALLOCATION_END / WORD_SIZE - 1, 0x41
+            // panic_if length > MAX_ALLOCATION_END / WORD_SIZE, 0x41
             // size = (length + 1) * WORD_SIZE
-            let limit =
-                self.imm(EvmMemoryLayout::MAX_ALLOCATION_END / EvmMemoryLayout::WORD_SIZE - 1);
+            //
+            // The limit is `2^59 - 1`, a width test. That length passes, but its size `2^64` ends
+            // past the allocation limit, which the checked allocation panics on with the same code.
+            let limit = self.imm(EvmMemoryLayout::MAX_ALLOCATION_END / EvmMemoryLayout::WORD_SIZE);
             let invalid = self.gt(length, limit);
             self.panic_if(invalid, PanicCode::MemoryAllocationOverflow);
             let words = self.add(length, one);

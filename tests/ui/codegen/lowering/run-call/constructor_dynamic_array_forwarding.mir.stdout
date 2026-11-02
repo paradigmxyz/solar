@@ -251,12 +251,10 @@ fn @f(arg0: i256, arg1: ptr<memory>) -> struct0 [selector=0x1b2902dd, abi_params
     icall revert_if<tuple_data_too_short>, v22
     v23 = add 0, 0
     v24 = mload v23
-    v25 = shr v24, 160
-    v26 = eq v25, 0
-    v27 = eq v26, false
-    icall revert_if<empty>, v27
-    v28 = trunc i256 v24 to i160
-    v29 = insert_value struct0, undef struct0, 0, v17
-    v30 = insert_value struct0, v29, 1, v28
-    ret v30
+    v25 = gt v24, 0xffffffffffffffffffffffffffffffffffffffff
+    icall revert_if<empty>, v25
+    v26 = trunc i256 v24 to i160
+    v27 = insert_value struct0, undef struct0, 0, v17
+    v28 = insert_value struct0, v27, 1, v26
+    ret v28
 }

@@ -42,45 +42,45 @@ fn @hotA() [selector=0xa739d36a, abi_wrapper] {
   bb0:
     v11 = calldatasize
     v13 = calldataload 4
-    v14 = shr v13, 160
+    v50 = shr v13, 160
     v12 = lt v11, 68
-    v48 = zext i1 v12 to i256
-    v49 = or v48, v14
-    v16 = calldataload 36
-    v17 = add v16, 4
-    v19 = sub v11, 36
-    v20 = gt v16, v19
-    v51 = zext i1 v20 to i256
-    v52 = or v49, v51
-    v21 = calldataload v17
-    v22 = add v17, 32
-    v23 = sub v11, v22
-    v24 = shr v23, 5
-    v25 = gt v21, v24
-    v54 = zext i1 v25 to i256
-    v55 = or v52, v54
-    v56 = ne v55, 0
-    jumpi v56, bb3, bb5
+    v52 = zext i1 v12 to i256
+    v53 = or v52, v50
+    v15 = calldataload 36
+    v16 = add v15, 4
+    v18 = sub v11, 36
+    v19 = gt v15, v18
+    v55 = zext i1 v19 to i256
+    v56 = or v53, v55
+    v20 = calldataload v16
+    v21 = add v16, 32
+    v22 = sub v11, v21
+    v23 = shr v22, 5
+    v24 = gt v20, v23
+    v58 = zext i1 v24 to i256
+    v59 = or v56, v58
+    v49 = ne v59, 0
+    jumpi v49, bb3, bb5
   bb5:  ; preds = bb0
     v0 = gas
-    v45 = heap_floor !metadata(alloc_ptr)
-    mstore v45, 0x79aa521a00000000000000000000000000000000000000000000000000000000
-    v30 = add v45, 4
-    v31 = add v30, 32
-    mstore v30, 32
-    v34 = icall @encode_abi_calldata.16, v22, v21, v31
-    v35 = add v31, v34
-    v36 = sub v35, v30
-    v37 = add v36, 4
-    v38 = add v36, 32
-    v46 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v47 = add v46, v38 !metadata(alloc_ptr)
-    mstore 64, v47 !metadata(memory=scratch)
+    v44 = heap_floor !metadata(alloc_ptr)
+    mstore v44, 0x79aa521a00000000000000000000000000000000000000000000000000000000
+    v29 = add v44, 4
+    v30 = add v29, 32
+    mstore v29, 32
+    v33 = icall @encode_abi_calldata.16, v21, v20, v30
+    v34 = add v30, v33
+    v35 = sub v34, v29
+    v36 = add v35, 4
+    v37 = add v35, 32
+    v45 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v46 = add v45, v37 !metadata(alloc_ptr)
+    mstore 64, v46 !metadata(memory=scratch)
     v5 = extcodesize arg0
     v6 = eq v5, 0
     jumpi v6, bb3, bb4
   bb4:  ; preds = bb5
-    v8 = call v0, arg0, 0, v46, v37, 0, 0
+    v8 = call v0, arg0, 0, v45, v36, 0, 0
     jumpi v8, bb2, bb1
   bb1 [cold]:  ; preds = bb4
     v9 = returndatasize
@@ -98,47 +98,47 @@ fn @hotB() [selector=0x0fb93e2f, abi_wrapper] {
   bb0:
     v11 = calldatasize
     v13 = calldataload 4
-    v14 = shr v13, 160
+    v51 = shr v13, 160
     v12 = lt v11, 68
-    v49 = zext i1 v12 to i256
-    v50 = or v49, v14
-    v16 = calldataload 36
-    v17 = add v16, 4
-    v19 = sub v11, 36
-    v20 = gt v16, v19
-    v52 = zext i1 v20 to i256
-    v53 = or v50, v52
-    v21 = calldataload v17
-    v22 = add v17, 32
-    v23 = sub v11, v22
-    v24 = shr v23, 5
-    v25 = gt v21, v24
-    v55 = zext i1 v25 to i256
-    v56 = or v53, v55
-    v57 = ne v56, 0
-    jumpi v57, bb3, bb5
+    v53 = zext i1 v12 to i256
+    v54 = or v53, v51
+    v15 = calldataload 36
+    v16 = add v15, 4
+    v18 = sub v11, 36
+    v19 = gt v15, v18
+    v56 = zext i1 v19 to i256
+    v57 = or v54, v56
+    v20 = calldataload v16
+    v21 = add v16, 32
+    v22 = sub v11, v21
+    v23 = shr v22, 5
+    v24 = gt v20, v23
+    v59 = zext i1 v24 to i256
+    v60 = or v57, v59
+    v50 = ne v60, 0
+    jumpi v50, bb3, bb5
   bb5:  ; preds = bb0
     v0 = gas
-    v46 = heap_floor !metadata(alloc_ptr)
-    mstore v46, 0xd9ca7f9400000000000000000000000000000000000000000000000000000000
-    v30 = add v46, 4
-    v31 = add v30, 64
-    mstore v30, 64
-    v34 = icall @encode_abi_calldata.16, v22, v21, v31
-    v35 = add v31, v34
-    v36 = add v30, 32
-    mstore v36, 1
-    v37 = sub v35, v30
-    v38 = add v37, 4
-    v39 = add v37, 32
-    v47 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v48 = add v47, v39 !metadata(alloc_ptr)
-    mstore 64, v48 !metadata(memory=scratch)
+    v45 = heap_floor !metadata(alloc_ptr)
+    mstore v45, 0xd9ca7f9400000000000000000000000000000000000000000000000000000000
+    v29 = add v45, 4
+    v30 = add v29, 64
+    mstore v29, 64
+    v33 = icall @encode_abi_calldata.16, v21, v20, v30
+    v34 = add v30, v33
+    v35 = add v29, 32
+    mstore v35, 1
+    v36 = sub v34, v29
+    v37 = add v36, 4
+    v38 = add v36, 32
+    v46 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v47 = add v46, v38 !metadata(alloc_ptr)
+    mstore 64, v47 !metadata(memory=scratch)
     v5 = extcodesize arg0
     v6 = eq v5, 0
     jumpi v6, bb3, bb4
   bb4:  ; preds = bb5
-    v8 = call v0, arg0, 0, v47, v38, 0, 0
+    v8 = call v0, arg0, 0, v46, v37, 0, 0
     jumpi v8, bb2, bb1
   bb1 [cold]:  ; preds = bb4
     v9 = returndatasize
@@ -225,26 +225,26 @@ fn @coldB() [selector=0xa7f6a144, abi_wrapper, pure] {
 fn @hotC() [selector=0x8f02cfdc, abi_wrapper] {
   bb0:
     v14 = calldataload 4
-    v15 = shr v14, 160
+    v25 = shr v14, 160
     v12 = calldatasize
     v13 = lt v12, 100
-    v25 = zext i1 v13 to i256
-    v26 = or v25, v15
-    v27 = ne v26, 0
-    jumpi v27, bb3, bb5
+    v27 = zext i1 v13 to i256
+    v28 = or v27, v25
+    v24 = ne v28, 0
+    jumpi v24, bb3, bb5
   bb5:  ; preds = bb0
-    v17 = icall @decode_calldata_type, 68
+    v16 = icall @decode_calldata_type, 68
     v0 = gas
-    v18 = icall @encode_abi_tuple.17, arg1, v17
-    v19 = icall @encode_abi_tuple.18, v18, 0x5ab004dc00000000000000000000000000000000000000000000000000000000
-    v20 = mload 32 !metadata(memory=scratch)
-    v21 = add v20, 32
-    v22 = mload v21
+    v17 = icall @encode_abi_tuple.17, arg1, v16
+    v18 = icall @encode_abi_tuple.18, v17, 0x5ab004dc00000000000000000000000000000000000000000000000000000000
+    v19 = mload 32 !metadata(memory=scratch)
+    v20 = add v19, 32
+    v21 = mload v20
     v6 = extcodesize arg0
     v7 = eq v6, 0
     jumpi v7, bb3, bb4
   bb4:  ; preds = bb5
-    v9 = call v0, arg0, 0, v19, v22, 0, 0
+    v9 = call v0, arg0, 0, v18, v21, 0, 0
     jumpi v9, bb2, bb1
   bb1 [cold]:  ; preds = bb4
     v10 = returndatasize
@@ -261,30 +261,30 @@ fn @hotC() [selector=0x8f02cfdc, abi_wrapper] {
 fn @hotD() [selector=0xe17e9be7, abi_wrapper] {
   bb0:
     v17 = calldataload 4
-    v18 = shr v17, 160
+    v28 = shr v17, 160
     v15 = calldatasize
     v16 = lt v15, 100
-    v28 = zext i1 v16 to i256
-    v29 = or v28, v18
-    v30 = ne v29, 0
-    jumpi v30, bb3, bb7
+    v30 = zext i1 v16 to i256
+    v31 = or v30, v28
+    v27 = ne v31, 0
+    jumpi v27, bb3, bb7
   bb7:  ; preds = bb0
-    v20 = icall @decode_calldata_type, 68
+    v19 = icall @decode_calldata_type, 68
     v0 = gas
     v11 = add arg1, 1
     v12 = eq v11, 0
     jumpi v12, bb5, bb6
   bb6:  ; preds = bb7
-    v21 = icall @encode_abi_tuple.17, v11, v20
-    v22 = icall @encode_abi_tuple.18, v21, 0x5ab004dc00000000000000000000000000000000000000000000000000000000
-    v23 = mload 32 !metadata(memory=scratch)
-    v24 = add v23, 32
-    v25 = mload v24
+    v20 = icall @encode_abi_tuple.17, v11, v19
+    v21 = icall @encode_abi_tuple.18, v20, 0x5ab004dc00000000000000000000000000000000000000000000000000000000
+    v22 = mload 32 !metadata(memory=scratch)
+    v23 = add v22, 32
+    v24 = mload v23
     v7 = extcodesize arg0
     v8 = eq v7, 0
     jumpi v8, bb3, bb4
   bb4:  ; preds = bb6
-    v10 = call v0, arg0, 0, v22, v25, 0, 0
+    v10 = call v0, arg0, 0, v21, v24, 0, 0
     jumpi v10, bb2, bb1
   bb1 [cold]:  ; preds = bb4
     v13 = returndatasize
@@ -372,59 +372,59 @@ fn @mixedHot() [selector=0x0c3501d9, abi_wrapper] {
   bb0:
     v21 = calldatasize
     v23 = calldataload 4
-    v24 = shr v23, 160
+    v68 = shr v23, 160
     v22 = lt v21, 132
-    v66 = zext i1 v22 to i256
-    v67 = or v66, v24
-    v26 = calldataload 36
-    v27 = add v26, 4
-    v29 = sub v21, 36
-    v30 = gt v26, v29
-    v69 = zext i1 v30 to i256
-    v70 = or v67, v69
-    v31 = calldataload v27
-    v32 = add v27, 32
-    v33 = sub v21, v32
-    v34 = shr v33, 5
-    v35 = gt v31, v34
-    v72 = zext i1 v35 to i256
-    v73 = or v70, v72
-    v74 = ne v73, 0
-    jumpi v74, bb4, bb7
+    v70 = zext i1 v22 to i256
+    v71 = or v70, v68
+    v25 = calldataload 36
+    v26 = add v25, 4
+    v28 = sub v21, 36
+    v29 = gt v25, v28
+    v73 = zext i1 v29 to i256
+    v74 = or v71, v73
+    v30 = calldataload v26
+    v31 = add v26, 32
+    v32 = sub v21, v31
+    v33 = shr v32, 5
+    v34 = gt v30, v33
+    v76 = zext i1 v34 to i256
+    v77 = or v74, v76
+    v67 = ne v77, 0
+    jumpi v67, bb4, bb7
   bb7:  ; preds = bb0
-    v38 = icall @decode_calldata_type, 100
+    v37 = icall @decode_calldata_type, 100
     v0 = gas
+    v62 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    mstore v62, 0x7733222800000000000000000000000000000000000000000000000000000000
+    v40 = add v62, 4
+    v41 = add v40, 32
+    mstore v40, 32
+    v44 = icall @encode_abi_calldata.14, v31, v30, v41
+    v45 = add v41, v44
+    v46 = sub v45, v40
+    v47 = add v46, 4
+    v48 = add v46, 32
     v63 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    mstore v63, 0x7733222800000000000000000000000000000000000000000000000000000000
-    v41 = add v63, 4
-    v42 = add v41, 32
-    mstore v41, 32
-    v45 = icall @encode_abi_calldata.14, v32, v31, v42
-    v46 = add v42, v45
-    v47 = sub v46, v41
-    v48 = add v47, 4
-    v49 = add v47, 32
-    v64 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v65 = add v64, v49 !metadata(alloc_ptr)
-    mstore 64, v65 !metadata(memory=scratch)
+    v64 = add v63, v48 !metadata(alloc_ptr)
+    mstore 64, v64 !metadata(memory=scratch)
     v5 = extcodesize arg0
     v6 = eq v5, 0
     jumpi v6, bb4, bb5
   bb5:  ; preds = bb7
-    v8 = call v0, arg0, 0, v64, v48, 0, 0
+    v8 = call v0, arg0, 0, v63, v47, 0, 0
     jumpi v8, bb2, bb1
   bb2:  ; preds = bb5
     v9 = gas
-    v52 = icall @encode_abi_tuple.20, arg2, v38, arg2
-    v53 = icall @encode_abi_tuple.18, v52, 0x5ab004dc00000000000000000000000000000000000000000000000000000000
-    v58 = mload 32 !metadata(memory=scratch)
-    v59 = add v58, 32
-    v60 = mload v59
+    v51 = icall @encode_abi_tuple.20, arg2, v37, arg2
+    v52 = icall @encode_abi_tuple.18, v51, 0x5ab004dc00000000000000000000000000000000000000000000000000000000
+    v57 = mload 32 !metadata(memory=scratch)
+    v58 = add v57, 32
+    v59 = mload v58
     v15 = extcodesize arg0
     v16 = eq v15, 0
     jumpi v16, bb4, bb6
   bb6:  ; preds = bb2
-    v18 = call v9, arg0, 0, v53, v60, 0, 0
+    v18 = call v9, arg0, 0, v52, v59, 0, 0
     jumpi v18, bb3, bb1
   bb1 [cold]:  ; preds = bb5, bb6
     v19 = returndatasize
@@ -567,19 +567,19 @@ fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
   bb2:  ; preds = bb0
     v6 = calldataload v2
     v7 = add v2, 32
-    v37 = add v6, 63
-    v11 = and v37, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v36 = add v6, 63
+    v11 = and v36, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v12 = lt v11, v6
     jumpi v12, bb3, bb4
   bb4:  ; preds = bb2
     v30 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v31 = add v30, v11 !metadata(alloc_ptr)
+    v38 = shr v31, 64
     v32 = lt v31, v30
-    v33 = zext i1 v32 to i256
-    v34 = shr v31, 64
-    v35 = or v33, v34
-    v36 = ne v35, 0
-    jumpi v36, bb3, bb6
+    v40 = zext i1 v32 to i256
+    v41 = or v40, v38
+    v34 = ne v41, 0
+    jumpi v34, bb3, bb6
   bb6:  ; preds = bb4
     mstore 64, v31 !metadata(memory=scratch)
     mstore v30, v6
@@ -606,30 +606,30 @@ fn @encode_abi_calldata.13(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retu
     v5 = add v2, v4
     jump bb1
   bb1:  ; preds = bb0, bb5
-    v6 = phi [bb0: 0], [bb5: v19]
+    v6 = phi [bb0: 0], [bb5: v18]
     v7 = lt v6, arg1
     jumpi v7, bb2, bb3
   bb3:  ; preds = bb1
-    v20 = sub v5, arg2
-    ret v20
+    v19 = sub v5, arg2
+    ret v19
   bb2:  ; preds = bb1
     v8 = shl v6, 6
     v10 = add arg0, v8
     v11 = add v2, v8
     v12 = calldataload v10
-    v13 = shr v12, 160
-    v14 = eq v13, 0
-    jumpi v14, bb5, bb4
-  bb4 [cold]:  ; preds = bb2
-    revert 0, 0
+    v21 = shr v12, 160
+    v13 = ne v21, 0
+    jumpi v13, bb4, bb5
   bb5:  ; preds = bb2
     mstore v11, v12
-    v16 = add v10, 32
-    v17 = calldataload v16
-    v15 = add v11, 32
-    mstore v15, v17
-    v19 = add v6, 1
+    v15 = add v10, 32
+    v16 = calldataload v15
+    v14 = add v11, 32
+    mstore v14, v16
+    v18 = add v6, 1
     jump bb1
+  bb4 [cold]:  ; preds = bb2
+    revert 0, 0
 }
 
 fn @encode_abi_calldata.14(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory] {
@@ -639,16 +639,16 @@ fn @encode_abi_calldata.14(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retu
     v4 = shl arg1, 5
     v5 = add v2, v4
     jump bb1
-  bb1:  ; preds = bb0, bb9
-    v6 = phi [bb0: arg1], [bb9: v52]
-    v7 = phi [bb0: v5], [bb9: v45]
-    v8 = phi [bb0: v2], [bb9: v55]
-    v9 = phi [bb0: arg0], [bb9: v54]
+  bb1:  ; preds = bb0, bb7
+    v6 = phi [bb0: arg1], [bb7: v51]
+    v7 = phi [bb0: v5], [bb7: v45]
+    v8 = phi [bb0: v2], [bb7: v54]
+    v9 = phi [bb0: arg0], [bb7: v53]
     v10 = gt v6, 0
     jumpi v10, bb2, bb3
   bb3:  ; preds = bb1
-    v57 = sub v7, arg2
-    ret v57
+    v56 = sub v7, arg2
+    ret v56
   bb2:  ; preds = bb1
     v11 = calldataload v9
     v12 = calldatasize
@@ -666,36 +666,37 @@ fn @encode_abi_calldata.14(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retu
     v28 = sub v26, v19
     v29 = sub v28, 31
     v30 = slt v25, v29
-    jumpi v30, bb6, bb4
-  bb6:  ; preds = bb5
+    v63 = eq v30, false
     v33 = add v19, v25
     v34 = calldataload v33
-    v58 = shr v34, 64
-    v35 = ne v58, 0
-    jumpi v35, bb4, bb7
-  bb7:  ; preds = bb6
+    v66 = shr v34, 64
+    v68 = zext i1 v63 to i256
+    v69 = or v68, v66
     v36 = shl v34, 6
     v37 = add v33, 32
     v38 = sub v26, v36
     v39 = sgt v37, v38
-    jumpi v39, bb4, bb8
-  bb8:  ; preds = bb7
+    v71 = zext i1 v39 to i256
+    v72 = or v69, v71
+    v65 = ne v72, 0
+    jumpi v65, bb4, bb6
+  bb6:  ; preds = bb5
     mstore v7, 64
     v44 = icall @encode_abi_calldata.13, v37, v34, v24
     v45 = add v24, v44
     v48 = add v7, 32
     v47 = add v19, 32
     v49 = calldataload v47
-    v50 = shr v49, 160
-    v51 = eq v50, 0
-    jumpi v51, bb9, bb4
-  bb9:  ; preds = bb8
+    v74 = shr v49, 160
+    v50 = ne v74, 0
+    jumpi v50, bb4, bb7
+  bb7:  ; preds = bb6
     mstore v48, v49
-    v52 = sub v6, 1
-    v54 = add v9, 32
-    v55 = add v8, 32
+    v51 = sub v6, 1
+    v53 = add v9, 32
+    v54 = add v8, 32
     jump bb1
-  bb4 [cold]:  ; preds = bb2, bb5, bb6, bb7, bb8
+  bb4 [cold]:  ; preds = bb2, bb5, bb6
     revert 0, 0
 }
 
@@ -706,11 +707,11 @@ fn @encode_abi_calldata.15(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retu
     v4 = shl arg1, 5
     v5 = add v2, v4
     jump bb1
-  bb1:  ; preds = bb0, bb8
-    v6 = phi [bb0: arg1], [bb8: v50]
-    v7 = phi [bb0: v5], [bb8: v45]
-    v8 = phi [bb0: v2], [bb8: v53]
-    v9 = phi [bb0: arg0], [bb8: v52]
+  bb1:  ; preds = bb0, bb6
+    v6 = phi [bb0: arg1], [bb6: v50]
+    v7 = phi [bb0: v5], [bb6: v45]
+    v8 = phi [bb0: v2], [bb6: v53]
+    v9 = phi [bb0: arg0], [bb6: v52]
     v10 = gt v6, 0
     jumpi v10, bb2, bb3
   bb3:  ; preds = bb1
@@ -733,20 +734,21 @@ fn @encode_abi_calldata.15(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retu
     v28 = sub v26, v19
     v29 = sub v28, 31
     v30 = slt v25, v29
-    jumpi v30, bb6, bb4
-  bb6:  ; preds = bb5
+    v62 = eq v30, false
     v33 = add v19, v25
     v34 = calldataload v33
-    v56 = shr v34, 64
-    v35 = ne v56, 0
-    jumpi v35, bb4, bb7
-  bb7:  ; preds = bb6
+    v65 = shr v34, 64
+    v67 = zext i1 v62 to i256
+    v68 = or v67, v65
     v36 = shl v34, 6
     v37 = add v33, 32
     v38 = sub v26, v36
     v39 = sgt v37, v38
-    jumpi v39, bb4, bb8
-  bb8:  ; preds = bb7
+    v70 = zext i1 v39 to i256
+    v71 = or v68, v70
+    v64 = ne v71, 0
+    jumpi v64, bb4, bb6
+  bb6:  ; preds = bb5
     mstore v7, 64
     v44 = icall @encode_abi_calldata.13, v37, v34, v24
     v45 = add v24, v44
@@ -758,7 +760,7 @@ fn @encode_abi_calldata.15(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retu
     v52 = add v9, 32
     v53 = add v8, 32
     jump bb1
-  bb4 [cold]:  ; preds = bb2, bb5, bb6, bb7
+  bb4 [cold]:  ; preds = bb2, bb5
     revert 0, 0
 }
 
@@ -769,16 +771,16 @@ fn @encode_abi_calldata.16(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retu
     v4 = shl arg1, 5
     v5 = add v2, v4
     jump bb1
-  bb1:  ; preds = bb0, bb12
-    v6 = phi [bb0: arg1], [bb12: v80]
-    v7 = phi [bb0: v5], [bb12: v79]
-    v8 = phi [bb0: v2], [bb12: v83]
-    v9 = phi [bb0: arg0], [bb12: v82]
+  bb1:  ; preds = bb0, bb8
+    v6 = phi [bb0: arg1], [bb8: v79]
+    v7 = phi [bb0: v5], [bb8: v78]
+    v8 = phi [bb0: v2], [bb8: v82]
+    v9 = phi [bb0: arg0], [bb8: v81]
     v10 = gt v6, 0
     jumpi v10, bb2, bb3
   bb3:  ; preds = bb1
-    v85 = sub v7, arg2
-    ret v85
+    v84 = sub v7, arg2
+    ret v84
   bb2:  ; preds = bb1
     v11 = calldataload v9
     v12 = calldatasize
@@ -792,68 +794,70 @@ fn @encode_abi_calldata.16(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retu
     mstore v8, v22
     v24 = add v7, 96
     v25 = calldataload v19
-    v26 = shr v25, 160
-    v27 = eq v26, 0
-    jumpi v27, bb6, bb4
+    v98 = shr v25, 160
+    v26 = ne v98, 0
+    jumpi v26, bb4, bb6
   bb6:  ; preds = bb5
     mstore v7, v25
-    v30 = add v7, 32
-    v29 = add v19, 32
-    v31 = calldataload v29
-    v32 = calldatasize
-    v34 = sub v32, v19
-    v35 = sub v34, 31
-    v36 = slt v31, v35
-    jumpi v36, bb7, bb4
+    v29 = add v7, 32
+    v28 = add v19, 32
+    v30 = calldataload v28
+    v31 = calldatasize
+    v33 = sub v31, v19
+    v34 = sub v33, 31
+    v35 = slt v30, v34
+    v92 = eq v35, false
+    v38 = add v19, v30
+    v39 = calldataload v38
+    v100 = shr v39, 64
+    v102 = zext i1 v92 to i256
+    v103 = or v102, v100
+    v41 = shl v39, 6
+    v42 = add v38, 32
+    v43 = sub v31, v41
+    v44 = sgt v42, v43
+    v105 = zext i1 v44 to i256
+    v106 = or v103, v105
+    v94 = ne v106, 0
+    jumpi v94, bb4, bb7
   bb7:  ; preds = bb6
-    v39 = add v19, v31
-    v40 = calldataload v39
-    v86 = shr v40, 64
-    v41 = ne v86, 0
-    jumpi v41, bb4, bb8
+    mstore v29, 96
+    v49 = icall @encode_abi_calldata.13, v42, v39, v24
+    v50 = add v24, v49
+    v53 = add v7, 64
+    v52 = add v19, 64
+    v54 = calldataload v52
+    v55 = calldatasize
+    v59 = slt v54, v34
+    v95 = eq v59, false
+    v62 = add v19, v54
+    v63 = calldataload v62
+    v108 = shr v63, 64
+    v110 = zext i1 v95 to i256
+    v111 = or v110, v108
+    v65 = add v62, 32
+    v66 = sub v55, v63
+    v67 = sgt v65, v66
+    v113 = zext i1 v67 to i256
+    v114 = or v111, v113
+    v97 = ne v114, 0
+    jumpi v97, bb4, bb8
   bb8:  ; preds = bb7
-    v42 = shl v40, 6
-    v43 = add v39, 32
-    v44 = sub v32, v42
-    v45 = sgt v43, v44
-    jumpi v45, bb4, bb9
-  bb9:  ; preds = bb8
-    mstore v30, 96
-    v50 = icall @encode_abi_calldata.13, v43, v40, v24
-    v51 = add v24, v50
-    v54 = add v7, 64
-    v53 = add v19, 64
-    v55 = calldataload v53
-    v56 = calldatasize
-    v60 = slt v55, v35
-    jumpi v60, bb10, bb4
-  bb10:  ; preds = bb9
-    v63 = add v19, v55
-    v64 = calldataload v63
-    v88 = shr v64, 64
-    v65 = ne v88, 0
-    jumpi v65, bb4, bb11
-  bb11:  ; preds = bb10
-    v66 = add v63, 32
-    v67 = sub v56, v64
-    v68 = sgt v66, v67
-    jumpi v68, bb4, bb12
-  bb12:  ; preds = bb11
-    v71 = sub v51, v7
-    mstore v54, v71
-    v73 = add v64, 31
-    v75 = and v73, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v76 = add v51, 32
-    v77 = add v51, v75
-    mstore v77, 0
-    mstore v51, v64
-    v79 = add v76, v75
-    calldatacopy v76, v66, v64
-    v80 = sub v6, 1
-    v82 = add v9, 32
-    v83 = add v8, 32
+    v70 = sub v50, v7
+    mstore v53, v70
+    v72 = add v63, 31
+    v74 = and v72, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v75 = add v50, 32
+    v76 = add v50, v74
+    mstore v76, 0
+    mstore v50, v63
+    v78 = add v75, v74
+    calldatacopy v75, v65, v63
+    v79 = sub v6, 1
+    v81 = add v9, 32
+    v82 = add v8, 32
     jump bb1
-  bb4 [cold]:  ; preds = bb2, bb5, bb6, bb7, bb8, bb9, bb10, bb11
+  bb4 [cold]:  ; preds = bb2, bb5, bb6, bb7
     revert 0, 0
 }
 

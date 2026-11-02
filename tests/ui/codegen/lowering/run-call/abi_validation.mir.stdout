@@ -31,12 +31,10 @@ fn @vAddress(arg0: i160) -> i160 [selector=0x23347413, view, abi_params=[address
     icall revert_if<tuple_data_too_short>, v6
     v7 = add 0, 0
     v8 = mload v7
-    v9 = shr v8, 160
-    v10 = eq v9, 0
-    v11 = eq v10, false
-    icall revert_if<empty>, v11
-    v12 = trunc i256 v8 to i160
-    ret v12
+    v9 = gt v8, 0xffffffffffffffffffffffffffffffffffffffff
+    icall revert_if<empty>, v9
+    v10 = trunc i256 v8 to i160
+    ret v10
 }
 
 ; function vAddressTarget(address value) external pure returns (address) [selector 0x9e9aa54a]

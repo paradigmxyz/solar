@@ -117,6 +117,18 @@
       (if-let combined (make (Op.Or x y))) (if-let zero (imm (u256 0)))
       (sequence (Op.Ne combined zero)))
 
+;; a | (w != 0) => (a | w) != 0.
+;; Requires: a is boolean.
+(rule (sequence_rewrite (Op.Or (and a (bool_value)) (ne w (zero))))
+      (if-let combined (make (Op.Or a w))) (if-let zero (imm (u256 0)))
+      (sequence (Op.Ne combined zero)))
+
+;; (w != 0) | a => (w | a) != 0.
+;; Requires: a is boolean.
+(rule (sequence_rewrite (Op.Or (ne w (zero)) (and a (bool_value))))
+      (if-let combined (make (Op.Or w a))) (if-let zero (imm (u256 0)))
+      (sequence (Op.Ne combined zero)))
+
 ;; (x & ~a) & ~b => x & ~(a | b).
 (rule (sequence_rewrite (Op.And (band x (bnot a)) (bnot b)))
       (if-let both (make (Op.Or a b))) (if-let complement (make (Op.Not both)))

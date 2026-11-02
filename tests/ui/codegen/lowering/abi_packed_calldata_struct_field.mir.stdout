@@ -34,13 +34,11 @@ fn @pack(arg0: slice<calldata>) -> ptr<memory> [selector=0xc917a597, pure, abi_p
     v24 = ptrtoint ptr<calldata> v23 to i256
     v25 = add v24, 0
     v26 = calldataload v25
-    v27 = shr v26, 160
-    v28 = eq v27, 0
-    v29 = eq v28, false
-    icall revert_if<empty>, v29
-    v30 = trunc i256 v26 to i160
-    v31 = abi_encode_packed (bytes v22, uint160 v30)
-    ret v31
+    v27 = gt v26, 0xffffffffffffffffffffffffffffffffffffffff
+    icall revert_if<empty>, v27
+    v28 = trunc i256 v26 to i160
+    v29 = abi_encode_packed (bytes v22, uint160 v28)
+    ret v29
 }
 
 ; function packHash(ForwardRequestData calldata request) external pure returns (bytes32) [selector 0x26915e91]
@@ -77,11 +75,9 @@ fn @packHash(arg0: slice<calldata>) -> i256 [selector=0x26915e91, pure, abi_para
     v24 = ptrtoint ptr<calldata> v23 to i256
     v25 = add v24, 0
     v26 = calldataload v25
-    v27 = shr v26, 160
-    v28 = eq v27, 0
-    v29 = eq v28, false
-    icall revert_if<empty>, v29
-    v30 = trunc i256 v26 to i160
-    v31 = keccak256_packed (bytes v22, uint160 v30)
-    ret v31
+    v27 = gt v26, 0xffffffffffffffffffffffffffffffffffffffff
+    icall revert_if<empty>, v27
+    v28 = trunc i256 v26 to i160
+    v29 = keccak256_packed (bytes v22, uint160 v28)
+    ret v29
 }

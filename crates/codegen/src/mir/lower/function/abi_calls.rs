@@ -755,9 +755,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 },
             }
         };
-        // if !valid(value) { revert(0, 0) }
-        let valid = validator.condition_once(&mut self.builder, value);
-        let invalid = self.builder.eq_zero(valid);
+        // if invalid(value) { revert(0, 0) }
+        let invalid = validator.violation(&mut self.builder, value);
         self.builder.revert_if(invalid, RevertReason::Empty);
         if is_external_function {
             // value = value >> 64

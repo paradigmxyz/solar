@@ -178,3 +178,26 @@ The stack scheduler plans against a `Target` and orders plans by
 estimates, built from the opcode table. Never write gas or byte literals in
 passes, the stack scheduler, or the backend: add a tier or query to the model
 and pin it with a unit test there.
+
+## Width tests
+
+A test that a word fits in `k` bits has two spellings, `x < 2^k` and `x >> k == 0`, and its negation
+`x > 2^k - 1` and `x >> k != 0`, for 1 <= k < 256. The compare is the canonical form in MIR, as
+in LLVM: producers write `lt x, 2^k` for "fits" and `gt x, 2^k - 1` for "exceeds", with no pricing, and
+the passes that read a fact off a width test (`merge-aborts`, `check-elim`, `indvar-simplify`,
+`byte-loops`) match only that form. A zero test stays `eq x, 0` and `ne x, 0`; k = 0 is never a width
+test, and a producer never writes `lt x, 1` or `gt x, 0`.
+
+The `word-sequence` runs turn every other shape into the canonical compare, wherever it comes from,
+user code and Yul included: `(x >> k) != 0` and `(x >> k) > 0`, `(x >> k) == 0`, and `x & ~(2^k - 1)`
+tested against zero. The e-graph writes the inverse of a width test, `(x < 2^k) == 0`, as
+`x > 2^k - 1` whatever the price of the limit.
+
+The spelling is chosen once, in `spell-width-tests`, a `word-sequence` run late in the lowered
+pipeline, where the final uses are known. A branch reads a shifted word without a test, so
+`ne (shr x, k), 0` costs nothing there and a bool pays `ISZERO`s, while the compare pays the push of
+its limit, which grows with `k`. `Target::shifts_bits_test` prices the two, with the push the
+compact-push pass leaves for the limit (`Target::emitted_push`); equal prices keep the compare. The
+pass also joins tests that a branch reads into one word, `and (x < 2^k), (y == 0)` as
+`((x >> k) | y) == 0` and an `or` of exceeding tests as one `ne`, and reuses a shift `x >> k` the
+block already computes for a test of the same width.
