@@ -326,9 +326,11 @@ fn find_runs(gcx: Gcx<'_>, module: &Module) -> FxHashMap<Bytes, Vec<Rewrite>> {
     groups
 }
 
-/// Finds the literal-store run that starts at `start`. A later start that writes the same bytes
-/// and ends at the same place wins when it saves at least as much: leading instructions that the
-/// copy would only rebuild add nothing.
+/// Finds the literal-store run that starts at `start`, or the best run inside its reach. A later
+/// start replaces it when its run pays for itself and the first does not, as when a short word such
+/// as a length sits between long strings and would only grow the data, or when it saves at least
+/// as much and ends in the same place: leading instructions that the copy would only rebuild add
+/// nothing.
 fn find_run(
     target: &Target,
     block: BlockId,
@@ -337,12 +339,14 @@ fn find_run(
     scratch: &mut RunScratch,
 ) -> Option<(Bytes, Rewrite)> {
     let mut best = scan_run(target, block, instructions, start, scratch)?;
-    for later in start + 1..best.first_store {
-        if let Some(run) = scan_run(target, block, instructions, later, scratch)
-            && run.rewrite.end == best.rewrite.end
-            && run.data == best.data
-            && run.rewrite.saves_at_least(&best.rewrite, target)
-        {
+    for later in start + 1..best.rewrite.end {
+        let Some(run) = scan_run(target, block, instructions, later, scratch) else { continue };
+        let better = match run.is_profitable(target) != best.is_profitable(target) {
+            true => run.is_profitable(target),
+            false if run.rewrite.end == best.rewrite.end => run.saves_at_least(&best, target),
+            false => run.is_profitable(target) && !best.saves_at_least(&run, target),
+        };
+        if better {
             best = run;
         }
     }
@@ -373,6 +377,7 @@ struct RunScratch {
     stack: Vec<RunWord>,
     stores: Vec<(u64, U256, bool)>,
     ranges: Vec<(u64, u64)>,
+    ends: Vec<RunEnd>,
     extras: Vec<RunWord>,
 }
 
@@ -380,10 +385,11 @@ struct RunScratch {
 struct Run {
     rewrite: Rewrite,
     data: Bytes,
-    first_store: usize,
+    zero: bool,
 }
 
-/// The state of a run scan after a store; the stack words above `kept` are saved separately.
+/// A point where a run scan can stop: after a store that leaves the stores in one range and a stack
+/// a copy can rebuild. `extras` indexes the stack words above `kept` in `RunScratch::extras`.
 struct RunEnd {
     end: usize,
     old: Cost,
@@ -391,11 +397,47 @@ struct RunEnd {
     range: (u64, u64),
     inputs: usize,
     kept: usize,
+    extras: Range<usize>,
+}
+
+impl Run {
+    /// The cost of the copy with the bytes it adds to the data pool, when it needs data.
+    fn pooled_new(&self) -> Cost {
+        let data = if self.zero { 0 } else { self.data.len() as u32 };
+        self.rewrite.new + Cost::new(0, data)
+    }
+
+    /// Whether this run pays for its data alone, without sharing it with other sites.
+    fn is_profitable(&self, target: &Target) -> bool {
+        let saving = Improvement {
+            runtime_gas: i64::from(target.runtime_gas(self.rewrite.old))
+                - i64::from(target.runtime_gas(self.pooled_new())),
+            bytes: i64::from(self.rewrite.old.bytes) - i64::from(self.pooled_new().bytes),
+        };
+        saving.is_profitable(target)
+    }
+
+    /// Whether this saves at least as much as `other`, counting the data each adds.
+    fn saves_at_least(&self, other: &Self, target: &Target) -> bool {
+        target
+            .cmp(other.rewrite.old + self.pooled_new(), self.rewrite.old + other.pooled_new())
+            .is_le()
+    }
+
+    /// Whether this beats `other`: a run that pays for itself beats one that does not, and
+    /// otherwise the run that saves at least as much wins.
+    fn beats(&self, other: &Self, target: &Target) -> bool {
+        match self.is_profitable(target) != other.is_profitable(target) {
+            true => self.is_profitable(target),
+            false => self.saves_at_least(other, target),
+        }
+    }
 }
 
 /// Symbolically runs the pushes, stack operations, constant expressions, and constant `MSTORE`
-/// and `MSTORE8`s from `start`, and returns the longest prefix whose stores fill one contiguous
-/// range and whose final stack a copy can rebuild.
+/// and `MSTORE8`s from `start`, and returns the prefix whose stores fill one contiguous range and
+/// whose final stack a copy can rebuild, that saves the most. A longer prefix can save less: stores
+/// of other constants after a zero fill would turn it into data.
 fn scan_run(
     target: &Target,
     block: BlockId,
@@ -406,16 +448,15 @@ fn scan_run(
     if !is_split_point(instructions, start) {
         return None;
     }
-    let RunScratch { stack, stores, ranges, extras } = scratch;
+    let RunScratch { stack, stores, ranges, ends, extras } = scratch;
     stack.clear();
     stores.clear();
     ranges.clear();
+    ends.clear();
     extras.clear();
     let mut inputs = 0;
     let mut old = Cost::ZERO;
     let mut base = None;
-    let mut first_store = None;
-    let mut best = None;
     let ensure = |stack: &mut Vec<RunWord>, inputs: &mut usize, depth: usize| {
         while stack.len() < depth {
             stack.insert(0, RunWord::input(*inputs));
@@ -451,7 +492,6 @@ fn scan_run(
             {
                 break;
             }
-            first_store.get_or_insert(index);
             stores.push((offset, value.offset, opcode == op::MSTORE));
             insert_range(ranges, (offset, offset + width));
             old += target.opcode(opcode);
@@ -465,9 +505,17 @@ fn scan_run(
                 && is_split_point(instructions, end)
                 && (kept == inputs || kept == stack.len())
             {
-                extras.clear();
+                let first_extra = extras.len();
                 extras.extend_from_slice(&stack[kept..]);
-                best = Some(RunEnd { end, old, stores: stores.len(), range, inputs, kept });
+                ends.push(RunEnd {
+                    end,
+                    old,
+                    stores: stores.len(),
+                    range,
+                    inputs,
+                    kept,
+                    extras: first_extra..extras.len(),
+                });
             }
             continue;
         }
@@ -491,7 +539,36 @@ fn scan_run(
         stack.push(result);
     }
 
-    let RunEnd { end, old, stores: store_count, range: (low, high), inputs, kept } = best?;
+    let destination = base.flatten();
+    let mut best = None::<Run>;
+    for run_end in ends.iter() {
+        if let Some(run) = finish_run(
+            target,
+            block,
+            start,
+            destination,
+            stores,
+            &extras[run_end.extras.clone()],
+            run_end,
+        ) && best.as_ref().is_none_or(|best| run.beats(best, target))
+        {
+            best = Some(run);
+        }
+    }
+    best
+}
+
+/// Prices the copy that replaces the run that stops at `run_end`.
+fn finish_run(
+    target: &Target,
+    block: BlockId,
+    start: usize,
+    destination: Option<usize>,
+    stores: &[(u64, U256, bool)],
+    extras: &[RunWord],
+    run_end: &RunEnd,
+) -> Option<Run> {
+    let RunEnd { end, old, stores: store_count, range: (low, high), inputs, kept, .. } = *run_end;
     let mut data = vec![0; (high - low) as usize];
     for &(offset, value, word) in &stores[..store_count] {
         let at = (offset - low) as usize;
@@ -507,7 +584,7 @@ fn scan_run(
         return None;
     }
     let zero = data.iter().all(|&byte| byte == 0);
-    let destination = RunWord { slot: base.flatten(), offset: U256::from(low) };
+    let destination = RunWord { slot: destination, offset: U256::from(low) };
     let tail = copy_tail(destination, zero, inputs, kept, extras);
     // Reserve PUSH3 for an unresolved data address.
     let source = if zero { target.opcode(op::CALLDATASIZE) } else { target.opcode(op::PUSH3) };
@@ -516,7 +593,7 @@ fn scan_run(
         new += instruction_cost(target, inst)?;
     }
     let rewrite = Rewrite { block, start, end, size: data.len(), old, new, tail, repeats: false };
-    Some(Run { rewrite, data: data.into(), first_store: first_store? })
+    Some(Run { rewrite, data: data.into(), zero })
 }
 
 /// Adds `range` to the sorted disjoint `ranges`, merging touching ranges.

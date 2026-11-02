@@ -175,7 +175,7 @@ fn emit_payload(
         RevertPayload::LongString(symbol) => {
             let bytes = symbol.as_byte_str();
             // pointer = fmp
-            // write message at pointer + 68: stores, a splat, or a data copy by cost
+            // write message at pointer + 68
             // mstore pointer + 36, length
             // mstore pointer, Error.selector
             // mstore pointer + 4, 32
@@ -183,7 +183,7 @@ fn emit_payload(
             let padded = bytes.len().next_multiple_of(32);
             let pointer = builder.fmp();
             let dest = DataDest { base: pointer, offset: 68 };
-            copy_data_to_memory(gcx, module, builder, dest, bytes, padded, None);
+            copy_data_to_memory(builder, dest, bytes, padded);
             // NOTE: the selector word zeroes bytes 4..32, so the offset store follows it, and the
             // message-independent stores come last so that tail merging shares them.
             for (offset, word) in
