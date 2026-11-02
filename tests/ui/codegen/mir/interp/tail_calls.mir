@@ -8,8 +8,6 @@
 // Returning tail calls forward results and discard unused arguments.
 @module TailCalls
 @phase lowered
-@types
-  struct0: {i256, i256, i256, i256}
 
 fn @entry() [entry] {
   bb0:
@@ -72,12 +70,12 @@ fn @divmod() [selector=0x8efe1b6c, abi_wrapper] {
     returndata 0, 128
 }
 
-fn @forward_four(arg0: i256, arg1: i256) -> struct0 [return_abi=[i256, i256, i256, i256]] {
+fn @forward_four(arg0: i256, arg1: i256) [return_abi=[i256, i256, i256, i256]] {
   bb0:
     tail_call @four, arg0, arg1
 }
 
-fn @four(arg0: i256, arg1: i256) -> struct0 [return_abi=[i256, i256, i256, i256]] {
+fn @four(arg0: i256, arg1: i256) [return_abi=[i256, i256, i256, i256]] {
   bb0:
     v0 = div arg0, arg1
     v1 = mod arg0, arg1

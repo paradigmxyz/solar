@@ -13,8 +13,6 @@
 // callee that stops or returns data ends the transaction, whether it was called or tail called.
 @module Calls
 @phase lowered
-@types
-  struct0: {i256, i256}
 
 fn @entry() [entry] {
   bb0:
@@ -89,7 +87,7 @@ fn @divmod_read() [selector=0xcd0bd889, abi_wrapper] {
     returndata 0, 96
 }
 
-fn @quot_rem(arg0: i256, arg1: i256) -> struct0 [return_abi=[i256, i256]] {
+fn @quot_rem(arg0: i256, arg1: i256) [return_abi=[i256, i256]] {
   bb0:
     v0 = eq arg1, 0
     jumpi v0, bb1, bb2

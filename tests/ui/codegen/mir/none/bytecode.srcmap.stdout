@@ -2,6 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/none/bytecode.mir (after none) ===
   @module Bytecode
   @phase lowered
+  ; runtime dispatch entry
   fn @entry() [entry] {
     bb0:
       v0 = calldataload 0

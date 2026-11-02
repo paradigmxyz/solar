@@ -2,12 +2,10 @@
 + // === ROOT/tests/ui/codegen/mir/dce/dce_backend_memory.mir (after dce) ===
   @module Stale
   @phase lowered
-  @types
-    struct0: {i256, i256}
-  
 - // backend-memory-v1
 - // backend-stack 0 0 1,2,3 3
 - 
+  ; runtime dispatch entry
   fn @entry() [entry] {
     bb0:
       v0 = icall @pair
@@ -17,7 +15,7 @@
       stop
   }
   
-  fn @pair() -> struct0 [return_abi=[i256, i256]] {
+  fn @pair() [return_abi=[i256, i256]] {
     bb0:
       ret 7, 8
   }

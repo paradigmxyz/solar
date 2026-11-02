@@ -7,8 +7,6 @@
 // Backend placements must stay below this threshold in both execution models.
 @module BackendMemory
 @phase lowered
-@types
-  struct0: {i256, i256}
 
 fn @entry() [entry] {
   bb0:
@@ -44,7 +42,7 @@ fn @results() [selector=2, abi_wrapper] {
     returndata 0, 32
 }
 
-fn @pair() -> struct0 [return_abi=[i256, i256]] {
+fn @pair() [return_abi=[i256, i256]] {
   bb0:
     ret 7, 8
 }
