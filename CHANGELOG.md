@@ -7,6 +7,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.0](https://github.com/paradigmxyz/solar/releases/tag/v0.3.0)
 
+> [!WARNING]
+> This is the first release with code generation, and it is experimental. Try it
+> locally and report bugs, but do not deploy contracts compiled by Solar to
+> production yet.
+
+### Highlights
+
+- **Code generation (experimental).** The compiler now turns Solidity into EVM
+  bytecode through its own pipeline: typed MIR, then EVM IR, then stack
+  scheduling, then the assembler. MIR lowering runs in phases ([#921]), memory
+  follows a new model ([#1004]), and functions can be marked cold ([#948]).
+  Optimizations are written as ISLE rules over an e-graph, driven by a
+  declarative operation schema ([#1373], [#1509]). The Amsterdam EVM version is
+  supported ([#1288]). The compiler warns whenever it generates code.
+- **Optimizer.** `-O gas` (the default) and `-O size` target runtime gas and
+  bytecode size ([#1080], [#2045], [#2047]). There is inlining, memory DSE,
+  SCCP, LICM and CSE, plus native integer widths ([#1525]). Word rewrite rules
+  are proved in Lean 4 against an EVM model ([`2c31d78`]).
+- **New IR crates and interpreters.** `solar-mir` and `solar-evmir` hold the IR
+  data models and text formats ([#2202], [#1782]). New MIR and EVM IR
+  interpreters run lowered code, and the test suite checks it with `run-call`
+  directives ([#1759], [#1782], [#1026]).
+- **Standard JSON.** Standard JSON input now drives codegen ([#1102]),
+  including `settings.debug` ([#1382]), CBOR auxdata positions keyed by
+  contract ([#2142], [#2149]), and codegen flags taken only from the input
+  ([#2143]). Unknown fields are ignored ([#1574]) and outputs are built in
+  parallel ([#1602], [#2023]).
+- **Outputs and metadata.** The compiler now emits bytecode metadata
+  ([#1344]), NatSpec docs and storage layout ([#933]), debug info for optimized
+  code ([#1325]) and debug artifacts ([#1408]). Solar builds are named in
+  metadata and version output ([#2141]), and Solar-specific NatSpec tags are
+  recognized ([#2101]).
+- **Frontend.** Type checking is on by default ([#939]). We ported solc's
+  control-flow analyzer ([#1737]), added the view/pure checker ([#980]),
+  rewrote constant evaluation ([#1878], [#1896]), support fractional number
+  literals ([#1752]) and resolve imports like solc ([#1740]). Many diagnostics
+  now carry solc's error codes ([#1810], [#1821], [#1823]). Parser recovery
+  handles incomplete input ([#942]).
+- **Frontend performance.** Type checking runs in parallel per item ([#2061]).
+  Query and attached-function caches are faster ([#1857], [#2109]), parser
+  stack frames are smaller ([#1741]), the binary uses mimalloc v2 ([#2129]),
+  and release binaries are built with PGO ([#1327]).
+- **Language server.** The language server now has completions, signature
+  help, rename, hover, call and type hierarchies, CodeLens, pull and workspace
+  diagnostics, flychecks, and quick fixes ([#930], [#941], [#950], [#1031],
+  [#1035], [#1050], [#1111], [#1130], [#1646]). It reads Foundry configs
+  ([#1243], [#1320]), exposes an embedding API ([#1209]) and indexes
+  workspaces incrementally ([#1422], [#1447], [#1471]). The VS Code and Zed
+  clients now live in Foundry ([#1415]).
+- **Linting.** The new `solar-lint` crate provides an extensible lint
+  framework ([#1025]), backed by sema query helpers ([#952], [#954], [#955]).
+- **solc compatibility.** We track solc 0.8.38 ([#1434], [#2021]). Intended
+  differences from solc are recorded in
+  [`docs/SOLC_DIVERGENCE.md`](https://github.com/paradigmxyz/solar/blob/main/docs/SOLC_DIVERGENCE.md)
+  ([#980]). A new `compiler-diff` tool compares outputs and execution against
+  solc ([#1498]). Real Foundry projects run as a differential suite ([#1213],
+  [#2046]), and Solar ships in Foundry releases ([#2133]).
+
 ### Bug Fixes
 
 - [codegen] Make bytecode independent of unrelated sources ([#2242](https://github.com/paradigmxyz/solar/issues/2242))
@@ -1035,6 +1093,79 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [capi] Reuse built cdylib ([#1013](https://github.com/paradigmxyz/solar/issues/1013))
 - [codegen] Reorganize UI tests ([#978](https://github.com/paradigmxyz/solar/issues/978))
 - Support Standard JSON fixture dirs ([#946](https://github.com/paradigmxyz/solar/issues/946))
+
+[#921]: https://github.com/paradigmxyz/solar/issues/921
+[#930]: https://github.com/paradigmxyz/solar/issues/930
+[#933]: https://github.com/paradigmxyz/solar/issues/933
+[#939]: https://github.com/paradigmxyz/solar/issues/939
+[#941]: https://github.com/paradigmxyz/solar/issues/941
+[#942]: https://github.com/paradigmxyz/solar/issues/942
+[#948]: https://github.com/paradigmxyz/solar/issues/948
+[#950]: https://github.com/paradigmxyz/solar/issues/950
+[#952]: https://github.com/paradigmxyz/solar/issues/952
+[#954]: https://github.com/paradigmxyz/solar/issues/954
+[#955]: https://github.com/paradigmxyz/solar/issues/955
+[#980]: https://github.com/paradigmxyz/solar/issues/980
+[#1004]: https://github.com/paradigmxyz/solar/issues/1004
+[#1025]: https://github.com/paradigmxyz/solar/issues/1025
+[#1026]: https://github.com/paradigmxyz/solar/issues/1026
+[#1031]: https://github.com/paradigmxyz/solar/issues/1031
+[#1035]: https://github.com/paradigmxyz/solar/issues/1035
+[#1050]: https://github.com/paradigmxyz/solar/issues/1050
+[#1080]: https://github.com/paradigmxyz/solar/issues/1080
+[#1102]: https://github.com/paradigmxyz/solar/issues/1102
+[#1111]: https://github.com/paradigmxyz/solar/issues/1111
+[#1130]: https://github.com/paradigmxyz/solar/issues/1130
+[#1209]: https://github.com/paradigmxyz/solar/issues/1209
+[#1213]: https://github.com/paradigmxyz/solar/issues/1213
+[#1243]: https://github.com/paradigmxyz/solar/issues/1243
+[#1288]: https://github.com/paradigmxyz/solar/issues/1288
+[#1320]: https://github.com/paradigmxyz/solar/issues/1320
+[#1325]: https://github.com/paradigmxyz/solar/issues/1325
+[#1327]: https://github.com/paradigmxyz/solar/issues/1327
+[#1344]: https://github.com/paradigmxyz/solar/issues/1344
+[#1373]: https://github.com/paradigmxyz/solar/issues/1373
+[#1382]: https://github.com/paradigmxyz/solar/issues/1382
+[#1408]: https://github.com/paradigmxyz/solar/issues/1408
+[#1415]: https://github.com/paradigmxyz/solar/issues/1415
+[#1422]: https://github.com/paradigmxyz/solar/issues/1422
+[#1434]: https://github.com/paradigmxyz/solar/issues/1434
+[#1447]: https://github.com/paradigmxyz/solar/issues/1447
+[#1471]: https://github.com/paradigmxyz/solar/issues/1471
+[#1498]: https://github.com/paradigmxyz/solar/issues/1498
+[#1509]: https://github.com/paradigmxyz/solar/issues/1509
+[#1525]: https://github.com/paradigmxyz/solar/issues/1525
+[#1574]: https://github.com/paradigmxyz/solar/issues/1574
+[#1602]: https://github.com/paradigmxyz/solar/issues/1602
+[#1646]: https://github.com/paradigmxyz/solar/issues/1646
+[#1737]: https://github.com/paradigmxyz/solar/issues/1737
+[#1740]: https://github.com/paradigmxyz/solar/issues/1740
+[#1741]: https://github.com/paradigmxyz/solar/issues/1741
+[#1752]: https://github.com/paradigmxyz/solar/issues/1752
+[#1759]: https://github.com/paradigmxyz/solar/issues/1759
+[#1782]: https://github.com/paradigmxyz/solar/issues/1782
+[#1810]: https://github.com/paradigmxyz/solar/issues/1810
+[#1821]: https://github.com/paradigmxyz/solar/issues/1821
+[#1823]: https://github.com/paradigmxyz/solar/issues/1823
+[#1857]: https://github.com/paradigmxyz/solar/issues/1857
+[#1878]: https://github.com/paradigmxyz/solar/issues/1878
+[#1896]: https://github.com/paradigmxyz/solar/issues/1896
+[#2021]: https://github.com/paradigmxyz/solar/issues/2021
+[#2023]: https://github.com/paradigmxyz/solar/issues/2023
+[#2045]: https://github.com/paradigmxyz/solar/issues/2045
+[#2046]: https://github.com/paradigmxyz/solar/issues/2046
+[#2047]: https://github.com/paradigmxyz/solar/issues/2047
+[#2061]: https://github.com/paradigmxyz/solar/issues/2061
+[#2101]: https://github.com/paradigmxyz/solar/issues/2101
+[#2109]: https://github.com/paradigmxyz/solar/issues/2109
+[#2129]: https://github.com/paradigmxyz/solar/issues/2129
+[#2133]: https://github.com/paradigmxyz/solar/issues/2133
+[#2141]: https://github.com/paradigmxyz/solar/issues/2141
+[#2142]: https://github.com/paradigmxyz/solar/issues/2142
+[#2143]: https://github.com/paradigmxyz/solar/issues/2143
+[#2149]: https://github.com/paradigmxyz/solar/issues/2149
+[#2202]: https://github.com/paradigmxyz/solar/issues/2202
+[`2c31d78`]: https://github.com/paradigmxyz/solar/commit/2c31d78c0d
 
 ## [0.2.0](https://github.com/paradigmxyz/solar/releases/tag/v0.2.0)
 
