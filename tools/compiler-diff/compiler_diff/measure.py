@@ -5,19 +5,29 @@ Usage: measure.py FD COMMAND [ARG...]
 A child forked from the large corpus process keeps that process's RSS peak across
 `exec`, so the runner cannot measure small compilers itself. This small process
 spawns the command instead; `wait4` then gives the largest RSS of the command and
-the descendants it waited for.
+the descendants it waited for. The numbers include this helper's own few
+megabytes, about 11 MB on Linux.
 """
 
 import json
 import os
+import signal
 import sys
 
 
 def main(fd, argv):
+    # Keep the pipe out of the command, or reading it would wait for its descendants.
+    os.set_inheritable(fd, False)
     try:
-        pid = os.posix_spawnp(argv[0], argv, os.environ)
+        # Python ignores SIGPIPE and SIGXFSZ; the command must not inherit that.
+        pid = os.posix_spawnp(
+            argv[0],
+            argv,
+            os.environ,
+            setsigdef=[signal.SIGPIPE, signal.SIGXFSZ],
+        )
     except OSError as error:
-        report = {"error": str(error)}
+        report = {"returncode": None, "error": str(error)}
     else:
         _, status, usage = os.wait4(pid, 0)
         # Linux reports kilobytes, macOS bytes.

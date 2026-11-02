@@ -52,12 +52,13 @@ Every attempt also records wall time, peak RSS, and whether it timed out, in
 attempts from older runs have none). Peak RSS is the largest resident set of
 the compiler or any descendant it waited for, taken with `wait4` from a small
 helper process, because a child forked from the large runner would inherit the
-runner's own peak. A timeout counts as a failure, as does an attempt whose peak
-RSS exceeds `--max-rss-mb`, which is checked after the compiler exits. Both
-limits are part of the job identity. A timed-out attempt has no RSS, since its
-process group is killed. `run` and `status` end with the timeouts and the ten
-worst inputs by time and by peak RSS, each with every compiler's numbers on the
-same input, for example:
+runner's own peak; the numbers include the helper's own 11 MB or so on Linux. A
+timeout counts as a failure, as does an attempt whose peak RSS exceeds
+`--max-rss-mb`, which is checked after the compiler exits. Both limits are part
+of the job identity (an unset RSS limit changes nothing). A timed-out attempt
+has no RSS, since its process group is killed. `run` and `status` end with the
+timeouts and the ten worst inputs by time and by peak RSS, each with every
+compiler's numbers on the same input, for example:
 
 ```text
 timeouts: 1

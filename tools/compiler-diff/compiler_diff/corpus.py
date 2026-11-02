@@ -31,8 +31,8 @@ compilation success, not bytecode equality or runtime equivalence.
 
 The DuckDB database tracks imports and attempts. Successful jobs are skipped;
 cached failures still stop the run unless --continue-on-failure is set. Use
---retry-failures to retry them. A changed executable, command, input, timeout, or
---tag creates new jobs. Use --tag when a wrapper's dependencies or environment
+--retry-failures to retry them. A changed executable, command, input, timeout,
+--max-rss-mb, or --tag creates new jobs. Use --tag when a wrapper's dependencies or environment
 change without changing the wrapper itself. Stricter output-validation revisions
 also start new jobs; older attempt directories are retained. --limit bounds new attempts, not corpus size or cached failures. Any failure makes the run exit 1, including in continue mode.
 
@@ -499,8 +499,9 @@ def run(db, root, args, *, compilation_id=None, compilers=None, attempts=None):
                         request,
                         identity,
                         args.timeout,
-                        args.max_rss_mb,
                         args.tag,
+                        # Last and only when set, so existing jobs keep their identity.
+                        *([args.max_rss_mb] if args.max_rss_mb else []),
                     ]
                 )
                 previous = db.execute(
@@ -728,8 +729,9 @@ def main(argv=None):
     if args.action == "run" and (
         not 0 < args.timeout < float("inf")
         or (args.limit is not None and args.limit < 1)
+        or (args.max_rss_mb is not None and not 0 < args.max_rss_mb < float("inf"))
     ):
-        parser.error("--timeout and --limit must be positive and finite")
+        parser.error("--timeout, --limit and --max-rss-mb must be positive and finite")
     root = args.dir.expanduser().resolve() / args.version
     db = connect(root)
     try:
@@ -838,6 +840,11 @@ class Tests(unittest.TestCase):
         result = execute([str(self.root / "no-compiler")], directory, 1)
         self.assertIsNotNone(output_error(directory, result))
 
+    def test_background_process_does_not_delay_result(self):
+        result = execute(["sh", "-c", "sleep 5 &"], self.root, 20)
+        self.assertEqual(result["returncode"], 0)
+        self.assertLess(result["seconds"], 4)
+
     def test_resources(self):
         self.seed()
         output = (
@@ -850,7 +857,6 @@ class Tests(unittest.TestCase):
         quiet = self.fake("quiet", output)
         slow = self.fake("slow", "import time; time.sleep(10)")
         args = self.arguments(hog, quiet, slow)
-        args.timeout = 1
         args.max_rss_mb = 100
         args.continue_on_failure = True
         self.assertEqual(run(self.db, self.root, args), 1)
