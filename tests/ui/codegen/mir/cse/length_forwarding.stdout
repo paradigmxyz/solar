@@ -1,6 +1,29 @@
 // === ROOT/tests/ui/codegen/mir/cse/length_forwarding.sol:Test ===
 @module Test
 @phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:  ; preds = bb0
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0x191ac2d2 => bb3, 0x76421988 => bb4]
+  bb4:  ; preds = bb2
+    tail_call @relay
+  bb3:  ; preds = bb2
+    tail_call @alloc
+  bb1 [cold]:  ; preds = bb0, bb2
+    revert 0, 0
+}
+
+; function relay(string memory s) external returns (string memory) [selector 0x76421988]
 fn @relay() [selector=0x76421988, abi_wrapper] {
   bb0:
     v3 = calldatasize
@@ -9,7 +32,7 @@ fn @relay() [selector=0x76421988, abi_wrapper] {
     v8 = sub v3, 36
     v9 = gt v5, v8
     jumpi v9, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v10 = calldataload v6
     v11 = add v6, 32
     v12 = add v10, 31
@@ -22,24 +45,20 @@ fn @relay() [selector=0x76421988, abi_wrapper] {
     v72 = zext i1 v71 to i256
     v73 = shr v70, 64
     v74 = or v72, v73
-    v78 = zext i1 v16 to i256
-    v79 = or v78, v74
-    v80 = ne v79, 0
-    jumpi v80, bb3, bb5
-  bb5:
+    v77 = zext i1 v16 to i256
+    v78 = or v77, v74
+    v79 = ne v78, 0
+    jumpi v79, bb3, bb5
+  bb5:  ; preds = bb2
     mstore 64, v70 !metadata(memory=scratch)
     mstore v69, v10
     v18 = sub v3, v11
     v19 = gt v10, v18
     jumpi v19, bb1, bb4
-  bb4:
+  bb4:  ; preds = bb5
     v60 = add v69, 32
     calldatacopy v60, v11, v10
     v61 = add v60, v10
-    v27 = sub 0, v10
-    v28 = and v27, 31
-    v77 = calldatasize
-    calldatacopy v61, v77, v28
     v76 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v34 = add v76, 32
     mstore v76, 32
@@ -56,14 +75,15 @@ fn @relay() [selector=0x76421988, abi_wrapper] {
     mstore v63, 32
     v57 = add v14, 64
     returndata v63, v57
-  bb3:
+  bb3 [cold]:  ; preds = bb2
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:  ; preds = bb0, bb5
     revert 0, 0
 }
 
+; function alloc(uint256 n) external pure returns (uint256) [selector 0x191ac2d2]
 fn @alloc() [selector=0x191ac2d2, abi_wrapper, pure] {
   bb0:
     v19 = add arg0, 63
@@ -79,35 +99,14 @@ fn @alloc() [selector=0x191ac2d2, abi_wrapper, pure] {
     v22 = or v21, v16
     v23 = ne v22, 0
     jumpi v23, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v18 = calldatasize
     calldatacopy v11, v18, v3
     mstore v11, arg0
     mstore 0, arg0 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:  ; preds = bb0
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = calldatasize
-    v2 = lt v1, 36
-    v3 = zext i1 v2 to i256
-    v4 = or v0, v3
-    v5 = ne v4, 0
-    jumpi v5, bb1, bb2
-  bb2:
-    v6 = calldataload 0
-    v7 = shr v6, 224
-    switch v7, default bb1, [0x191ac2d2 => bb3, 0x76421988 => bb4]
-  bb4:
-    tail_call @relay
-  bb3:
-    tail_call @alloc
-  bb1:
-    revert 0, 0
 }
