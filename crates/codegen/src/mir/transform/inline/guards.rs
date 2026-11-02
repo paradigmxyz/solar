@@ -93,8 +93,7 @@ pub(super) fn inline_guards(gcx: Gcx<'_>, module: &mut Module) -> bool {
 }
 
 fn profitable(target: &Target, guard: &Guard) -> bool {
-    // A clone of a function the tag marks cold costs bytes the cold code does not repay in gas.
-    let target = &target.priced_for_cold(guard.function.attributes.cold_hint);
+    let target = &target.priced_for_callee(&guard.function.attributes);
     let prefix = target.block_code_estimate(&guard.function, BlockId::ENTRY);
     let protocol = target.icall(guard.function.params.len(), 0, 0)
         + target.internal_return(guard.function.params.len(), 0);

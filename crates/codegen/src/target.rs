@@ -20,8 +20,8 @@
 use crate::{
     backend::evm::{ir::compact_pushes, op, select},
     mir::{
-        BlockId, Function, Hotness, InstId, Op, Terminator, Value, ValueId, analysis::AddressSpace,
-        memory::EvmMemoryLayout,
+        BlockId, Function, FunctionAttributes, Hotness, InstId, Op, Terminator, Value, ValueId,
+        analysis::AddressSpace, memory::EvmMemoryLayout,
     },
 };
 use alloy_primitives::U256;
@@ -277,6 +277,13 @@ impl Target {
             return self;
         }
         Self { optimization: OptimizationMode::Size, ..self }
+    }
+
+    /// This model for a clone of the function with `callee` attributes, priced like cold code when
+    /// its `@custom:solar-cold` tag says it is rarely run: the clone's gas runs rarely, and its
+    /// bytes are deposited anyway.
+    pub(crate) const fn priced_for_callee(self, callee: &FunctionAttributes) -> Self {
+        self.priced_for_cold(callee.cold_hint)
     }
 
     /// The gas a call to shared code adds to a site's execution, `gas` unless `cold` code is
@@ -1678,6 +1685,9 @@ mod tests {
         assert_eq!(gas.priced_for_cold(false), gas);
         assert_eq!(size.priced_for_cold(true), size);
         assert_eq!(none.priced_for_cold(true), none);
+        let cold_hint = FunctionAttributes { cold_hint: true, ..FunctionAttributes::default() };
+        assert_eq!(gas.priced_for_callee(&cold_hint), size);
+        assert_eq!(gas.priced_for_callee(&FunctionAttributes::default()), gas);
         assert_eq!(gas.site_gas(false, 7), 7);
         assert_eq!(gas.site_gas(true, 7), 0);
         assert_eq!(size.site_gas(true, 7), 7);
