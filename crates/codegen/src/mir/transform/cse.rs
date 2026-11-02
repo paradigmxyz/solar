@@ -1236,7 +1236,7 @@ impl CommonSubexprEliminator {
             Some(ExprKey::Cast(cast, operand, func.inst(inst_id).result_ty))
         };
 
-        match kind {
+        match &*kind.less_than_form() {
             // A pure leaf call depends on its arguments alone, so no side effect invalidates it.
             InstKind::ICall { function: Callee::Function(function), args }
                 if self.is_pure_call(kind) =>
@@ -1313,11 +1313,9 @@ impl CommonSubexprEliminator {
             InstKind::Shr(a, b) => Some(ExprKey::Shr(operand(*a), operand(*b))),
             InstKind::Sar(a, b) => Some(ExprKey::Sar(operand(*a), operand(*b))),
             InstKind::Byte(a, b) => Some(ExprKey::Byte(operand(*a), operand(*b))),
-            // Swapped comparisons - canonicalize `a > b` as `b < a` so they unify
+            // A greater-than shares the key of its swapped less-than, see `less_than_form`
             InstKind::Lt(a, b) => Some(ExprKey::Lt(operand(*a), operand(*b))),
-            InstKind::Gt(a, b) => Some(ExprKey::Lt(operand(*b), operand(*a))),
             InstKind::SLt(a, b) => Some(ExprKey::SLt(operand(*a), operand(*b))),
-            InstKind::SGt(a, b) => Some(ExprKey::SLt(operand(*b), operand(*a))),
             InstKind::SignExtend(a, b) => Some(ExprKey::SignExtend(operand(*a), operand(*b))),
 
             // Unary operations

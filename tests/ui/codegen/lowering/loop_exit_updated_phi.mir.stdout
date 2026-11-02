@@ -19,7 +19,7 @@ fn @decimal(arg0: i256) -> ptr<memory> [selector=0xf371efa4, pure, abi_params=[u
   bb3:  ; preds = bb1
     v6 = sub v4, 1
     v7 = mod v3, 10
-    v8 = add 48, v7
+    v8 = add v7, 48
     mstore8 v6, v8
     v9 = div v3, 10
     v10 = eq v9, 0

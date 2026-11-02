@@ -13,7 +13,7 @@ fn @constructor() [constructor] {
   bb3:  ; preds = bb1
     v7 = mload v0
     v8 = sload 0 !metadata(storage=slot(0))
-    v9 = gt v8, v7
+    v9 = lt v7, v8
     jumpi v9, bb4, bb5
   bb4:  ; preds = bb3
     jump bb6
@@ -36,7 +36,7 @@ fn @constructor() [constructor] {
     v48 = ptradd v47, 32
     mstore v48, 2
     v49 = sload 0 !metadata(storage=slot(0))
-    v50 = lt 0, v49
+    v50 = gt v49, 0
     v51 = eq v50, false
     icall panic_if<0x32>, v51
     v52 = storage_array_data_slot 0
@@ -66,7 +66,7 @@ fn @constructor() [constructor] {
     v70 = ptradd v68, 64
     mstore v70, 5
     v71 = sload 0 !metadata(storage=slot(0))
-    v72 = lt 1, v71
+    v72 = gt v71, 1
     v73 = eq v72, false
     icall panic_if<0x32>, v73
     v74 = storage_array_data_slot 0
@@ -219,7 +219,7 @@ fn @constructor() [constructor] {
     ret
   bb74:  ; preds = bb73
     v187 = mul v185, 2
-    v188 = add 4, v187
+    v188 = add v187, 4
     v189 = lt v185, 2
     jumpi v189, bb76, bb77
   bb77:  ; preds = bb74
@@ -396,7 +396,7 @@ fn @constructor() [constructor] {
     v28 = add v27, v21
     v29 = mload v26
     v30 = sload v28 !metadata(storage=symbolic(v28))
-    v31 = gt v30, v29
+    v31 = lt v29, v30
     jumpi v31, bb15, bb16
   bb15:  ; preds = bb13
     jump bb17
@@ -520,7 +520,7 @@ fn @test2() -> ptr<memory> [selector=0x66e41cb7, view, abi_params=[], abi_return
   bb6:  ; preds = bb4
     ret v6
   bb5:  ; preds = bb4
-    v9 = add 1, v7
+    v9 = add v7, 1
     v10 = icall @load_storage_word_array, v9
     v11 = ptrtoint ptr<memory> v10 to i256
     v12 = shl v7, 5
@@ -612,7 +612,7 @@ fn @test4() -> ptr<memory> [selector=0x8f0d282d, view, abi_params=[], abi_return
     ret v8
   bb5:  ; preds = bb4
     v11 = mul v9, 2
-    v12 = add 4, v11
+    v12 = add v11, 4
     v13 = alloc checked 64
     jump bb7
   bb7:  ; preds = bb5, bb8

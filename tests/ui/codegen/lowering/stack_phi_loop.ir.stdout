@@ -108,8 +108,8 @@ bb15:  ; function sequential(uint256 a, uint256 b) public pure returns (uint256)
 bb23 [loop]:
   push 1
   add
-  dup 1
-  dup 3
+  dup 2
+  dup 2
   add
   swap 2
   dup 3

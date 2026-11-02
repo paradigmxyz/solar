@@ -189,7 +189,7 @@ fn @union(arg0: ptr<memory>, arg1: ptr<memory>) -> ptr<memory> [selector=0x1bd57
     v43 = eq v34, v42
     jumpi v43, bb9, bb10
   bb10:  ; preds = bb6
-    v54 = gt v34, v42
+    v54 = lt v42, v34
     jumpi v54, bb12, bb13
   bb13:  ; preds = bb10
     v64 = checked_add uint256, v21, 1
@@ -261,14 +261,14 @@ fn @dirty(arg0: ptr<memory>, arg1: i256, arg2: i256) -> i1 [selector=0x3748b14b,
     v3 = add v2, v0
     mstore v3, arg2
     v4 = mload arg0
-    v5 = lt 0, v4
+    v5 = gt v4, 0
     v6 = eq v5, false
     icall panic_if<0x32>, v6
     v7 = ptradd arg0, 32
     v8 = mload v7
     v9 = trunc i256 v8 to i160
     v10 = mload arg0
-    v11 = lt 1, v10
+    v11 = gt v10, 1
     v12 = eq v11, false
     icall panic_if<0x32>, v12
     v13 = ptradd arg0, 64
@@ -282,7 +282,7 @@ fn @dirty(arg0: ptr<memory>, arg1: i256, arg2: i256) -> i1 [selector=0x3748b14b,
 fn @below(arg0: ptr<memory>, arg1: i256) -> i1 [selector=0x7a7f0aa1, pure, abi_params=[array<_, uint160>, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = mload arg0
-    v1 = lt 0, v0
+    v1 = gt v0, 0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = ptradd arg0, 32
@@ -297,7 +297,7 @@ fn @below(arg0: ptr<memory>, arg1: i256) -> i1 [selector=0x7a7f0aa1, pure, abi_p
 fn @_truncate(arg0: ptr<memory>, arg1: i256) [pure] {
   bb0:
     v0 = mload arg0
-    v1 = gt arg1, v0
+    v1 = lt v0, arg1
     jumpi v1, bb1, bb2
   bb2:  ; preds = bb0
     jump bb3
@@ -317,7 +317,7 @@ fn @_outOfBounds() -> i256 [pure] {
     v0 = alloc zeroed checked 32
     mstore v0, 0
     v1 = mload v0
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = ptradd v0, 32

@@ -27,7 +27,7 @@ fn @patch() [selector=0x7f603a02, abi_wrapper, pure, implicit_args=[i1]] {
     v14 = calldatasize
     v15 = lt v14, 36
     v23 = zext i1 v15 to i256
-    v24 = or v23, v17
+    v24 = or v17, v23
     v25 = ne v24, 0
     jumpi v25, bb3, bb4
   bb4:  ; preds = bb0

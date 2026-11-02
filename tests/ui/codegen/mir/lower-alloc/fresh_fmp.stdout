@@ -220,7 +220,7 @@
 +     v8 = lt v7, v6
 +     v9 = zext i1 v8 to i256
 +     v10 = shr v7, 64
-+     v11 = or v9, v10
++     v11 = or v10, v9
 +     v12 = ne v11, 0
 +     jumpi v12, bb2, bb1
 +   bb1:  ; preds = bb0
@@ -249,7 +249,7 @@
 +     v6 = lt v5, v4
 +     v7 = zext i1 v6 to i256
 +     v8 = shr v5, 64
-+     v9 = or v7, v8
++     v9 = or v8, v7
 +     v10 = ne v9, 0
 +     jumpi v10, bb2, bb1
 +   bb1:  ; preds = bb0
@@ -286,7 +286,7 @@
 +     v3 = lt v2, v0
 +     v4 = zext i1 v3 to i256
 +     v5 = shr v2, 64
-+     v6 = or v4, v5
++     v6 = or v5, v4
 +     v7 = ne v6, 0
 +     jumpi v7, bb1, bb2
 +   bb2:  ; preds = bb0

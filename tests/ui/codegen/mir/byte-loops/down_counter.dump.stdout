@@ -27,11 +27,11 @@ fn @fromCalldata() [selector=0xffc7a8b3, abi_wrapper, pure] {
     v41 = calldataload 4
     v42 = add v41, 4
     v44 = sub v39, 36
-    v45 = gt v41, v44
+    v45 = lt v44, v41
     v46 = calldataload v42
     v47 = add v42, 32
     v48 = sub v39, v47
-    v49 = gt v46, v48
+    v49 = lt v48, v46
     v50 = or v45, v49
     v90 = or v40, v50
     jumpi v90, bb7, bb8
@@ -47,7 +47,7 @@ fn @fromCalldata() [selector=0xffc7a8b3, abi_wrapper, pure] {
     v83 = lt v82, v81
     v84 = zext i1 v83 to i256
     v85 = shr v82, 64
-    v86 = or v84, v85
+    v86 = or v85, v84
     v87 = ne v86, 0
     jumpi v87, bb10, bb9
   bb9:  ; preds = bb4
@@ -58,7 +58,7 @@ fn @fromCalldata() [selector=0xffc7a8b3, abi_wrapper, pure] {
     v31 = eq arg1, 0
     jumpi v31, bb1, bb2
   bb2:  ; preds = bb9
-    v33 = gt arg1, v46
+    v33 = lt v46, arg1
     jumpi v33, bb5, bb6
   bb6:  ; preds = bb2
     v78 = add v81, 32
@@ -108,7 +108,7 @@ fn @fromFresh() [selector=0x1f6686bd, abi_wrapper, pure] {
     v152 = lt v151, v150
     v153 = zext i1 v152 to i256
     v154 = shr v151, 64
-    v155 = or v153, v154
+    v155 = or v154, v153
     v156 = ne v155, 0
     jumpi v156, bb23, bb24
   bb24:  ; preds = bb14
@@ -145,7 +145,7 @@ fn @fromFresh() [selector=0x1f6686bd, abi_wrapper, pure] {
   bb9:  ; preds = bb10, bb12
     v70 = phi [bb12: 0], [bb10: v72]
     v165 = phi [bb12: v164], [bb10: v166]
-    v71 = ne v165, v168
+    v71 = ne v168, v165
     jumpi v71, bb10, bb2
   bb2:  ; preds = bb1, bb9
     v143 = mload 64 !metadata(memory=scratch, alloc_ptr)
@@ -153,7 +153,7 @@ fn @fromFresh() [selector=0x1f6686bd, abi_wrapper, pure] {
     v145 = lt v144, v143
     v146 = zext i1 v145 to i256
     v147 = shr v144, 64
-    v148 = or v146, v147
+    v148 = or v147, v146
     v149 = ne v148, 0
     jumpi v149, bb23, bb22
   bb22:  ; preds = bb2
@@ -167,14 +167,14 @@ fn @fromFresh() [selector=0x1f6686bd, abi_wrapper, pure] {
     v120 = add v150, 32
     v122 = add v143, 32
     v58 = add v120, arg0
-    v59 = add v122, arg0
     v60 = lt v122, v58
+    v59 = add v122, arg0
     v61 = lt v150, v59
     v62 = and v60, v61
     jumpi v62, bb4, bb8
   bb8:  ; preds = bb7
     v64 = mload v150
-    v65 = gt arg0, v64
+    v65 = lt v64, arg0
     jumpi v65, bb15, bb19
   bb19:  ; preds = bb8
     mcopy v122, v120, arg0

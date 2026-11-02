@@ -166,10 +166,10 @@ fn @storageBytesTargets() -> struct0 [selector=0x58cc8be8, abi_params=[], abi_re
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
-    v7 = lt 0, v6
+    v7 = gt v6, 0
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
@@ -185,10 +185,10 @@ fn @storageBytesTargets() -> struct0 [selector=0x58cc8be8, abi_params=[], abi_re
     v12 = and v11, 1
     v13 = eq v12, 1
     v14 = sub 0, v12
-    v15 = or 127, v14
+    v15 = or v14, 127
     v16 = shr v11, 1
     v17 = and v16, v15
-    v18 = lt 1, v17
+    v18 = gt v17, 1
     v19 = eq v18, false
     icall panic_if<0x32>, v19
     jumpi v13, bb4, bb5
@@ -212,10 +212,10 @@ fn @storageBytesTargets() -> struct0 [selector=0x58cc8be8, abi_params=[], abi_re
     v29 = and v28, 1
     v30 = eq v29, 1
     v31 = sub 0, v29
-    v32 = or 127, v31
+    v32 = or v31, 127
     v33 = shr v28, 1
     v34 = and v33, v32
-    v35 = lt 0, v34
+    v35 = gt v34, 0
     v36 = eq v35, false
     icall panic_if<0x32>, v36
     jumpi v30, bb7, bb8
@@ -234,10 +234,10 @@ fn @storageBytesTargets() -> struct0 [selector=0x58cc8be8, abi_params=[], abi_re
     v43 = and v42, 1
     v44 = eq v43, 1
     v45 = sub 0, v43
-    v46 = or 127, v45
+    v46 = or v45, 127
     v47 = shr v42, 1
     v48 = and v47, v46
-    v49 = lt 1, v48
+    v49 = gt v48, 1
     v50 = eq v49, false
     icall panic_if<0x32>, v50
     jumpi v44, bb10, bb11

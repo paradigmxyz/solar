@@ -211,7 +211,7 @@ fn @arrayRead(arg0: i256) -> i8 [selector=0x0ef5e270, view, abi_params=[uint256]
     v1 = eq v0, false
     icall panic_if<0x32>, v1
     v2 = div arg0, 32
-    v3 = add 2, v2
+    v3 = add v2, 2
     v4 = mod arg0, 32
     v5 = mul v4, 1
     v6 = sload v3 !metadata(storage=offset(v2, 2))
@@ -228,7 +228,7 @@ fn @arrayWrite(arg0: i256, arg1: i8) -> i8 [selector=0xf78d2d7a, abi_params=[uin
     v1 = eq v0, false
     icall panic_if<0x32>, v1
     v2 = div arg0, 32
-    v3 = add 2, v2
+    v3 = add v2, 2
     v4 = mod arg0, 32
     v5 = mul v4, 1
     v6 = mul v5, 8
@@ -245,7 +245,7 @@ fn @arrayWrite(arg0: i256, arg1: i8) -> i8 [selector=0xf78d2d7a, abi_params=[uin
     v16 = eq v15, false
     icall panic_if<0x32>, v16
     v17 = div arg0, 32
-    v18 = add 2, v17
+    v18 = add v17, 2
     v19 = mod arg0, 32
     v20 = mul v19, 1
     v21 = sload v18 !metadata(storage=offset(v17, 2))
@@ -322,7 +322,7 @@ fn @encodedArrayRead(arg0: i256) -> struct2 [selector=0xdf819380, view, abi_para
     v1 = eq v0, false
     icall panic_if<0x32>, v1
     v2 = div arg0, 8
-    v3 = add 5, v2
+    v3 = add v2, 5
     v4 = mod arg0, 8
     v5 = mul v4, 4
     v6 = sload v3 !metadata(storage=offset(v2, 5))
@@ -333,7 +333,7 @@ fn @encodedArrayRead(arg0: i256) -> struct2 [selector=0xdf819380, view, abi_para
     v11 = eq v10, false
     icall panic_if<0x32>, v11
     v12 = div arg0, 32
-    v13 = add 6, v12
+    v13 = add v12, 6
     v14 = mod arg0, 32
     v15 = mul v14, 1
     v16 = sload v13 !metadata(storage=offset(v12, 6))
@@ -353,7 +353,7 @@ fn @encodedArrayWrite(arg0: i256, arg1: i256, arg2: i8) -> struct2 [selector=0xe
     v1 = eq v0, false
     icall panic_if<0x32>, v1
     v2 = div arg0, 8
-    v3 = add 5, v2
+    v3 = add v2, 5
     v4 = mod arg0, 8
     v5 = mul v4, 4
     v6 = and arg1, 0xffffffff00000000000000000000000000000000000000000000000000000000
@@ -371,7 +371,7 @@ fn @encodedArrayWrite(arg0: i256, arg1: i256, arg2: i8) -> struct2 [selector=0xe
     v17 = eq v16, false
     icall panic_if<0x32>, v17
     v18 = div arg0, 32
-    v19 = add 6, v18
+    v19 = add v18, 6
     v20 = mod arg0, 32
     v21 = mul v20, 1
     v22 = mul v21, 8
@@ -388,7 +388,7 @@ fn @encodedArrayWrite(arg0: i256, arg1: i256, arg2: i8) -> struct2 [selector=0xe
     v32 = eq v31, false
     icall panic_if<0x32>, v32
     v33 = div arg0, 8
-    v34 = add 5, v33
+    v34 = add v33, 5
     v35 = mod arg0, 8
     v36 = mul v35, 4
     v37 = sload v34 !metadata(storage=offset(v33, 5))
@@ -399,7 +399,7 @@ fn @encodedArrayWrite(arg0: i256, arg1: i256, arg2: i8) -> struct2 [selector=0xe
     v42 = eq v41, false
     icall panic_if<0x32>, v42
     v43 = div arg0, 32
-    v44 = add 6, v43
+    v44 = add v43, 6
     v45 = mod arg0, 32
     v46 = mul v45, 1
     v47 = sload v44 !metadata(storage=offset(v43, 6))
@@ -473,7 +473,7 @@ fn @replaceArray() -> struct3 [selector=0x47102f59, abi_params=[], abi_returns=[
     ret v61
   bb2:  ; preds = bb1
     v14 = div v12, 32
-    v15 = add 2, v14
+    v15 = add v14, 2
     v16 = mod v12, 32
     v17 = mul v16, 1
     v18 = lt v12, 4

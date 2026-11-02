@@ -45,7 +45,7 @@ fn @invert(arg0: i256) -> i256 [selector=0x7351ee37, pure, abi_params=[uint256],
 fn @nestedAnd(arg0: i256, arg1: i256) -> i256 [selector=0xe7b0d2bc, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = and arg0, arg1
-    v1 = and arg0, v0
+    v1 = and v0, arg0
     ret v1
 }
 
@@ -53,7 +53,7 @@ fn @nestedAnd(arg0: i256, arg1: i256) -> i256 [selector=0xe7b0d2bc, pure, abi_pa
 fn @nestedOr(arg0: i256, arg1: i256) -> i256 [selector=0xd42f18e5, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = or arg0, arg1
-    v1 = or arg0, v0
+    v1 = or v0, arg0
     ret v1
 }
 
@@ -151,7 +151,7 @@ fn @nestedQuotient(arg0: i256) -> i256 [selector=0x82768581, pure, abi_params=[u
 fn @subset(arg0: i256, arg1: i256) -> i1 [selector=0xdbd46377, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = and arg0, arg1
-    v1 = gt v0, arg0
+    v1 = lt arg0, v0
     ret v1
 }
 
@@ -262,7 +262,7 @@ fn @signedMinQuotient(arg0: i256) -> i256 [selector=0xd828c064, pure, abi_params
 fn @fixedComplement(arg0: i256) -> i1 [selector=0xd4c9e305, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = not arg0
-    v1 = eq arg0, v0
+    v1 = eq v0, arg0
     ret v1
 }
 
@@ -270,7 +270,7 @@ fn @fixedComplement(arg0: i256) -> i1 [selector=0xd4c9e305, pure, abi_params=[ui
 fn @shiftedOrder(arg0: i256, arg1: i256) -> i1 [selector=0x8b0f8fc8, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = shr arg0, arg1
-    v1 = gt v0, arg0
+    v1 = lt arg0, v0
     ret v1
 }
 
@@ -365,7 +365,7 @@ fn @combinedFee(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x556c4a41
 fn @signedDelta(arg0: i256, arg1: i256) -> i256 [selector=0x190c21be, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sub 0, arg1
-    v1 = add arg0, v0
+    v1 = add v0, arg0
     ret v1
 }
 

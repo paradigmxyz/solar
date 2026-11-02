@@ -6,14 +6,14 @@ fn @unaligned(arg0: i8) -> i256 [selector=0x41df2bd1, pure, abi_params=[uint8], 
     v0 = alloc zeroed checked 96
     mstore v0, 2
     v1 = mload v0
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = zext i8 arg0 to i256
     v5 = ptradd v0, 32
     mstore v5, v4
     v6 = mload v0
-    v7 = lt 1, v6
+    v7 = gt v6, 1
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     v9 = ptradd v0, 64
@@ -31,7 +31,7 @@ fn @unaligned(arg0: i8) -> i256 [selector=0x41df2bd1, pure, abi_params=[uint8], 
     jump bb3
   bb3:  ; preds = bb1, bb2
     v15 = mload v0
-    v16 = lt 1, v15
+    v16 = gt v15, 1
     v17 = eq v16, false
     icall panic_if<0x32>, v17
     v18 = ptradd v0, 64
@@ -39,7 +39,7 @@ fn @unaligned(arg0: i8) -> i256 [selector=0x41df2bd1, pure, abi_params=[uint8], 
     v20 = trunc i256 v19 to i8
     v21 = zext i8 v20 to i256
     v22 = mload v0
-    v23 = lt 0, v22
+    v23 = gt v22, 0
     v24 = eq v23, false
     icall panic_if<0x32>, v24
     v25 = ptradd v0, 32
@@ -57,14 +57,14 @@ fn @forged(arg0: i8) -> i256 [selector=0x55a4b81d, pure, abi_params=[uint8], abi
     v0 = alloc zeroed checked 96
     mstore v0, 2
     v1 = mload v0
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = zext i8 arg0 to i256
     v5 = ptradd v0, 32
     mstore v5, v4
     v6 = mload v0
-    v7 = lt 1, v6
+    v7 = gt v6, 1
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     v9 = ptradd v0, 64
@@ -74,7 +74,7 @@ fn @forged(arg0: i8) -> i256 [selector=0x55a4b81d, pure, abi_params=[uint8], abi
     v12 = inttoptr i256 v11 to ptr<memory>
     icall @_lower, v12
     v13 = mload v0
-    v14 = lt 1, v13
+    v14 = gt v13, 1
     v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = ptradd v0, 64
@@ -82,7 +82,7 @@ fn @forged(arg0: i8) -> i256 [selector=0x55a4b81d, pure, abi_params=[uint8], abi
     v18 = trunc i256 v17 to i8
     v19 = zext i8 v18 to i256
     v20 = mload v0
-    v21 = lt 0, v20
+    v21 = gt v20, 0
     v22 = eq v21, false
     icall panic_if<0x32>, v22
     v23 = ptradd v0, 32

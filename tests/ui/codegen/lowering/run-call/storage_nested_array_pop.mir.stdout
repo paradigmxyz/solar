@@ -133,7 +133,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v85 = storage_array_data_slot 1
     v86 = add v85, v81
     v87 = sload v86 !metadata(storage=symbolic(v86))
-    v88 = lt 0, v87
+    v88 = gt v87, 0
     v89 = eq v88, false
     icall panic_if<0x32>, v89
     v90 = storage_array_data_slot v86
@@ -164,7 +164,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v120 = storage_array_data_slot 1
     v121 = add v120, v116
     v122 = sload v121 !metadata(storage=symbolic(v121))
-    v123 = lt 1, v122
+    v123 = gt v122, 1
     v124 = eq v123, false
     icall panic_if<0x32>, v124
     v125 = storage_array_data_slot v121
@@ -196,7 +196,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v156 = storage_array_data_slot 1
     v157 = add v156, v152
     v158 = sload v157 !metadata(storage=symbolic(v157))
-    v159 = lt 2, v158
+    v159 = gt v158, 2
     v160 = eq v159, false
     icall panic_if<0x32>, v160
     v161 = storage_array_data_slot v157
@@ -330,7 +330,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v11 = add v10, v7
     v12 = mload v6
     v13 = sload v11 !metadata(storage=symbolic(v11))
-    v14 = gt v13, v12
+    v14 = lt v12, v13
     jumpi v14, bb7, bb8
   bb7:  ; preds = bb4
     jump bb9

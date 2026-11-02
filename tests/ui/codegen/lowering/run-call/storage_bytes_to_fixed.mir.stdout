@@ -9,7 +9,7 @@ fn @short() -> i256 [selector=0x38bea4cb, abi_params=[], abi_returns=[word<bytes
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
     jumpi v2, bb1, bb2
@@ -23,10 +23,10 @@ fn @short() -> i256 [selector=0x38bea4cb, abi_params=[], abi_returns=[word<bytes
     v9 = phi [bb1: v8], [bb2: v0]
     v10 = lt v6, 4
     v11 = sub 4, v6
-    v12 = mul 8, v11
+    v12 = mul v11, 8
     v13 = shl 0xffffffff00000000000000000000000000000000000000000000000000000000, v12
     v14 = select v10, v13, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v15 = and v9, v14
+    v15 = and v14, v9
     ret v15
 }
 
@@ -39,7 +39,7 @@ fn @long() -> i256 [selector=0x07bfce37, abi_params=[], abi_returns=[word], abi_
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
     jumpi v2, bb1, bb2
@@ -53,10 +53,10 @@ fn @long() -> i256 [selector=0x07bfce37, abi_params=[], abi_returns=[word], abi_
     v9 = phi [bb1: v8], [bb2: v0]
     v10 = lt v6, 32
     v11 = sub 32, v6
-    v12 = mul 8, v11
+    v12 = mul v11, 8
     v13 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v12
     v14 = select v10, v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v15 = and v9, v14
+    v15 = and v14, v9
     ret v15
 }
 
@@ -69,7 +69,7 @@ fn @convertedString() -> i256 [selector=0x3d08d827, abi_params=[], abi_returns=[
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
     jumpi v2, bb1, bb2
@@ -83,10 +83,10 @@ fn @convertedString() -> i256 [selector=0x3d08d827, abi_params=[], abi_returns=[
     v9 = phi [bb1: v8], [bb2: v0]
     v10 = lt v6, 32
     v11 = sub 32, v6
-    v12 = mul 8, v11
+    v12 = mul v11, 8
     v13 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v12
     v14 = select v10, v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v15 = and v9, v14
+    v15 = and v14, v9
     ret v15
 }
 
@@ -99,7 +99,7 @@ fn @convertedString31() -> i256 [selector=0x4a6ab498, abi_params=[], abi_returns
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
     jumpi v2, bb1, bb2
@@ -113,10 +113,10 @@ fn @convertedString31() -> i256 [selector=0x4a6ab498, abi_params=[], abi_returns
     v9 = phi [bb1: v8], [bb2: v0]
     v10 = lt v6, 32
     v11 = sub 32, v6
-    v12 = mul 8, v11
+    v12 = mul v11, 8
     v13 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v12
     v14 = select v10, v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v15 = and v9, v14
+    v15 = and v14, v9
     ret v15
 }
 
@@ -129,7 +129,7 @@ fn @convertedString32() -> i256 [selector=0x02030859, abi_params=[], abi_returns
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
     jumpi v2, bb1, bb2
@@ -143,10 +143,10 @@ fn @convertedString32() -> i256 [selector=0x02030859, abi_params=[], abi_returns
     v9 = phi [bb1: v8], [bb2: v0]
     v10 = lt v6, 32
     v11 = sub 32, v6
-    v12 = mul 8, v11
+    v12 = mul v11, 8
     v13 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v12
     v14 = select v10, v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v15 = and v9, v14
+    v15 = and v14, v9
     ret v15
 }
 
@@ -159,7 +159,7 @@ fn @convertedLongString() -> i256 [selector=0x31126685, abi_params=[], abi_retur
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
     jumpi v2, bb1, bb2
@@ -173,10 +173,10 @@ fn @convertedLongString() -> i256 [selector=0x31126685, abi_params=[], abi_retur
     v9 = phi [bb1: v8], [bb2: v0]
     v10 = lt v6, 32
     v11 = sub 32, v6
-    v12 = mul 8, v11
+    v12 = mul v11, 8
     v13 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v12
     v14 = select v10, v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v15 = and v9, v14
+    v15 = and v14, v9
     ret v15
 }
 
@@ -189,7 +189,7 @@ fn @storagePointer() -> i256 [selector=0x8f8e9061, abi_params=[], abi_returns=[w
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
     jumpi v2, bb1, bb2
@@ -203,10 +203,10 @@ fn @storagePointer() -> i256 [selector=0x8f8e9061, abi_params=[], abi_returns=[w
     v9 = phi [bb1: v8], [bb2: v0]
     v10 = lt v6, 4
     v11 = sub 4, v6
-    v12 = mul 8, v11
+    v12 = mul v11, 8
     v13 = shl 0xffffffff00000000000000000000000000000000000000000000000000000000, v12
     v14 = select v10, v13, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v15 = and v9, v14
+    v15 = and v14, v9
     ret v15
 }
 
@@ -219,7 +219,7 @@ fn @structMember() -> i256 [selector=0x9f2d7231, abi_params=[], abi_returns=[wor
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
     jumpi v2, bb1, bb2
@@ -233,10 +233,10 @@ fn @structMember() -> i256 [selector=0x9f2d7231, abi_params=[], abi_returns=[wor
     v9 = phi [bb1: v8], [bb2: v0]
     v10 = lt v6, 2
     v11 = sub 2, v6
-    v12 = mul 8, v11
+    v12 = mul v11, 8
     v13 = shl 0xffff000000000000000000000000000000000000000000000000000000000000, v12
     v14 = select v10, v13, 0xffff000000000000000000000000000000000000000000000000000000000000
-    v15 = and v9, v14
+    v15 = and v14, v9
     ret v15
 }
 
@@ -256,7 +256,7 @@ fn @arrayElement() -> i256 [selector=0x050651a8, abi_params=[], abi_returns=[wor
     icall @store_storage_bytes, v6, v0
     sstore 3, v4 !metadata(storage=slot(3))
     v7 = sload 3 !metadata(storage=slot(3))
-    v8 = lt 0, v7
+    v8 = gt v7, 0
     v9 = eq v8, false
     icall panic_if<0x32>, v9
     v10 = storage_array_data_slot 3
@@ -265,7 +265,7 @@ fn @arrayElement() -> i256 [selector=0x050651a8, abi_params=[], abi_returns=[wor
     v12 = and v11, 1
     v13 = eq v12, 1
     v14 = sub 0, v12
-    v15 = or 127, v14
+    v15 = or v14, 127
     v16 = shr v11, 1
     v17 = and v16, v15
     jumpi v13, bb1, bb2
@@ -279,10 +279,10 @@ fn @arrayElement() -> i256 [selector=0x050651a8, abi_params=[], abi_returns=[wor
     v20 = phi [bb1: v19], [bb2: v11]
     v21 = lt v17, 2
     v22 = sub 2, v17
-    v23 = mul 8, v22
+    v23 = mul v22, 8
     v24 = shl 0xffff000000000000000000000000000000000000000000000000000000000000, v23
     v25 = select v21, v24, 0xffff000000000000000000000000000000000000000000000000000000000000
-    v26 = and v20, v25
+    v26 = and v25, v20
     ret v26
 }
 

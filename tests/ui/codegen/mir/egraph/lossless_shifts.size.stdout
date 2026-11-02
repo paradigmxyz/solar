@@ -58,7 +58,8 @@
       v3 = shl v1, 248
       v4 = eq v2, v3
       v5 = lt v2, v3
-      v6 = gt v2, v3
+-     v6 = gt v2, v3
++     v6 = lt v3, v2
       v7 = zext i1 v4 to i256
       v8 = zext i1 v5 to i256
       v9 = zext i1 v6 to i256
@@ -139,7 +140,8 @@
       v2 = shl v0, 248
       v3 = shl v1, 248
       v4 = slt v2, v3
-      v5 = sgt v2, v3
+-     v5 = sgt v2, v3
++     v5 = slt v3, v2
       v6 = zext i1 v4 to i256
       v7 = zext i1 v5 to i256
       ret v6, v7
@@ -229,7 +231,7 @@
       v2 = shl v0, 248
       v3 = shl v1, 248
 -     v4 = gt v2, v3
-+     v4 = gt v0, v1
++     v4 = lt v1, v0
       v5 = zext i1 v4 to i256
       ret v5
   }
@@ -306,7 +308,7 @@
       v3 = shl v1, 248
       v4 = eq v2, v3
       v5 = lt v2, v3
-      v6 = gt v2, v3
+      v6 = lt v3, v2
       v7 = zext i1 v4 to i256
       v8 = zext i1 v5 to i256
       v9 = zext i1 v6 to i256
@@ -375,7 +377,7 @@
       v2 = shl v0, 248
       v3 = shl v1, 248
       v4 = slt v2, v3
-      v5 = sgt v2, v3
+      v5 = slt v3, v2
       v6 = zext i1 v4 to i256
       v7 = zext i1 v5 to i256
       ret v6, v7
@@ -458,7 +460,7 @@
       v1 = byte 31, arg1
 -     v2 = shl v0, 248
 -     v3 = shl v1, 248
-      v4 = gt v0, v1
+      v4 = lt v1, v0
       v5 = zext i1 v4 to i256
       ret v5
   }

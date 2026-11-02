@@ -70,7 +70,7 @@ fn @backCounter(arg0: i256, arg1: i256) -> i256 [selector=0x23d62a6b, pure, abi_
     v55 = phi [bb1: v25], [bb6: v55]
     v56 = phi [bb1: v27], [bb6: v56]
     v57 = phi [bb1: 1], [bb6: v65]
-    v58 = gt v57, v56
+    v58 = lt v56, v57
     v59 = zext i1 v58 to i256
     v60 = eq v59, 0
     v61 = zext i1 v60 to i256
@@ -134,7 +134,7 @@ fn @backCounter(arg0: i256, arg1: i256) -> i256 [selector=0x23d62a6b, pure, abi_
     ret v115
   bb7:  ; preds = bb4
     v63 = mul v57, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v64 = add v55, v63
+    v64 = add v63, v55
     mstore v64, 0
     jump bb9
   bb9:  ; preds = bb7
@@ -419,7 +419,7 @@ fn @forgedByCopy(arg0: i256, arg1: i256) -> i256 [selector=0xb00c0c76, pure, abi
     v50 = xor v49, v21
     v51 = xor v50, v22
     v52 = xor v51, v23
-    v53 = xor v29, v52
+    v53 = xor v52, v29
     ret v53
 }
 
@@ -492,7 +492,7 @@ fn @forgedByByteStore(arg0: i256, arg1: i256) -> i256 [selector=0x3ed71bdc, pure
     v50 = xor v49, v21
     v51 = xor v50, v22
     v52 = xor v51, v23
-    v53 = xor v29, v52
+    v53 = xor v52, v29
     ret v53
 }
 
@@ -631,11 +631,11 @@ fn @forgedByLoop(arg0: i256, arg1: i256) -> i256 [selector=0x0173241e, pure, abi
     v117 = xor v116, v89
     v118 = xor v117, v90
     v119 = xor v118, v91
-    v120 = xor v96, v119
+    v120 = xor v119, v96
     ret v120
   bb7:  ; preds = bb4
     v59 = mul v54, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v60 = add v53, v59
+    v60 = add v59, v53
     v61 = eq v60, 64
     v62 = zext i1 v61 to i256
     v63 = ne v62, 0
@@ -789,7 +789,7 @@ fn @lowerPointer(arg0: i256, arg1: i256) -> i256 [selector=0x05a6b998, pure, abi
     v52 = xor v51, v21
     v53 = xor v52, v22
     v54 = xor v53, v23
-    v55 = xor v31, v54
+    v55 = xor v54, v31
     ret v55
 }
 
@@ -926,7 +926,7 @@ fn @retaggedResult(arg0: i256, arg1: i256) -> i256 [selector=0x1e208f71, pure, a
     v52 = xor v51, v21
     v53 = xor v52, v22
     v54 = xor v53, v23
-    v55 = xor v31, v54
+    v55 = xor v54, v31
     ret v55
 }
 
@@ -1000,7 +1000,7 @@ fn @misalignedStore(arg0: i256, arg1: i256) -> i256 [selector=0x208da339, pure, 
     v51 = xor v50, v21
     v52 = xor v51, v22
     v53 = xor v52, v23
-    v54 = xor v30, v53
+    v54 = xor v53, v30
     ret v54
 }
 
@@ -1111,7 +1111,7 @@ fn @tupleRetag(arg0: i256, arg1: i256) -> i256 [selector=0x4e76de70, pure, abi_p
     v54 = xor v53, v21
     v55 = xor v54, v22
     v56 = xor v55, v23
-    v57 = xor v33, v56
+    v57 = xor v56, v33
     ret v57
 }
 
@@ -1188,7 +1188,7 @@ fn @tupleAccess(arg0: i256, arg1: i256) -> i256 [selector=0x214aed3c, pure, abi_
     v54 = xor v53, v21
     v55 = xor v54, v22
     v56 = xor v55, v23
-    v57 = xor v33, v56
+    v57 = xor v56, v33
     ret v57
 }
 

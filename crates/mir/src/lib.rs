@@ -38,6 +38,8 @@ pub use packed::{PackedArraySource, PackedPart, packed_element_bytes};
 mod value;
 pub use value::{Immediate, Value};
 
+mod canonical;
+
 mod inst;
 pub use inst::{
     AbiEncodeMode, AddressCallKind, AllocationFailure, AllocationInitialization,
