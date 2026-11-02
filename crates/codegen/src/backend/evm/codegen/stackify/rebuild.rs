@@ -18,10 +18,9 @@
 //!   dominates the others' becomes the group's base, and every other member is computed as `base +
 //!   (c - c_base)`, or a subtraction when that constant is shorter. The base then stays live in
 //!   place of the members, and each member costs one addition.
-//! - A loop-carried value whose step is a constant: a header phi `old` whose uses, besides the
-//!   header's own, lie outside its loop, while the header computes `next = old + c`. Carrying both
-//!   words through the loop's branch costs a drop on every backedge, so each use outside the loop
-//!   computes `old` as `next - c` instead, and `old` dies at the step.
+//! - A loop-carried value whose step is a constant: a header phi `old` read after its loop while
+//!   the header computes `next = old + c`. Carrying both words through the loop's branch costs a
+//!   drop on every backedge, so each use after the loop computes `old` as `next - c` instead.
 //! - Every crossing value is computed again right before each of its uses past a crowded point, in
 //!   its own block after the point or in later blocks: a member from its base, any other value from
 //!   its own operation chain of at most [`MAX_REBUILT_OPS`] opcodes when every stack word the chain
@@ -81,8 +80,11 @@ const MAX_AFFINE_TERMS: usize = 4;
 
 /// How a value is computed again.
 enum Recipe {
-    /// From another value plus a wrapping constant.
+    /// From another value plus a wrapping constant; its definition is replaced too.
     Offset(ValueId, U256),
+    /// From the value that steps it in its loop's header, at the uses after the loop; its
+    /// definition stays.
+    Step(ValueId, U256, Uses),
     /// From its own operations, operands first.
     Chain(Chain),
 }
@@ -143,26 +145,21 @@ impl Affine {
 }
 
 /// Returns a copy of `func` that computes values again, as the module documentation describes, or
-/// `None` when no value qualifies. The values crossing crowded points qualify only when `spills`,
-/// the function's first plan spills. `extra` counts the words the stack holds besides the live
-/// values, such as the return address.
-#[allow(clippy::too_many_arguments)]
+/// `None` when no value qualifies. The values crossing crowded points qualify only with
+/// `crowding`, the reach and the count of extra words the stack holds besides the live values, such
+/// as the return address.
 pub(super) fn rebuild_values(
     func: &Function,
     internal: bool,
     liveness: &Liveness,
     cfg: &CfgInfo,
     loops: &LoopInfo,
-    reach: usize,
-    extra: usize,
-    spills: bool,
+    crowding: Option<(usize, usize)>,
 ) -> Option<Function> {
     let fresh = |value: ValueId| materialized_at_use(func, internal, value);
-    let (crowded, points) = if spills {
-        crowded_points(func, liveness, &fresh, reach, extra)
-    } else {
-        (DenseBitSet::new_empty(func.num_values()), FxHashMap::default())
-    };
+    let (crowded, points) = crowding
+        .and_then(|(reach, extra)| crowded_points(func, liveness, &fresh, reach, extra))
+        .unwrap_or_else(|| (DenseBitSet::new_empty(func.num_values()), FxHashMap::default()));
     let mut defs = FxHashMap::<ValueId, (BlockId, usize)>::default();
     for (block, data) in func.blocks.iter_enumerated() {
         for (index, &inst) in data.instructions.iter().enumerate() {
@@ -254,8 +251,6 @@ pub(super) fn rebuild_values(
     };
     let mut recipes = FxHashMap::<ValueId, Recipe>::default();
     let mut bases = FxHashSet::<ValueId>::default();
-    // The members whose definitions become additions to their bases.
-    let mut replaced = Vec::<(ValueId, ValueId, U256)>::new();
     for members in groups.values().filter(|members| members.len() > 1) {
         let Some(&base) =
             members.iter().find(|&&base| members.iter().all(|&other| dominates(base, other)))
@@ -266,30 +261,26 @@ pub(super) fn rebuild_values(
         for &member in members.iter().filter(|&&member| member != base) {
             let offset = forms[&member].constant.wrapping_sub(forms[&base].constant);
             recipes.insert(member, Recipe::Offset(base, offset));
-            replaced.push((member, base, offset));
         }
     }
     // A header phi `old` read after its loop, from the step `next = old + c` the header computes:
     // `old = next - c`.
-    let mut exits = FxHashMap::<ValueId, Uses>::default();
-    for (header, data) in func.blocks.iter_enumerated() {
-        for &inst in &data.instructions {
+    for lp in loops.all_loops() {
+        for &inst in &func.blocks[lp.header].instructions {
             let InstKind::Phi(incoming) = &func.inst(inst).kind else { continue };
             let Some(old) = func.inst_result_value(inst) else { continue };
             let step = incoming.iter().find_map(|&(_, next)| {
+                if next == old || defs.get(&next).is_none_or(|&(block, _)| block != lp.header) {
+                    return None;
+                }
                 let form = affine_form(func, next, &mut 0)?;
-                (next != old
-                    && defs.get(&next).is_some_and(|&(block, _)| block == header)
-                    && form.terms.as_slice() == [(old, U256::ONE)])
-                .then_some((next, form.constant))
+                (form.terms.as_slice() == [(old, U256::ONE)]).then_some((next, form.constant))
             });
             if let Some((next, step)) = step
-                && let Some(uses) =
-                    uses_where(old, &|block, _| !containing(block).any(|other| other == header))
+                && let Some(uses) = uses_where(old, &|block, _| !lp.blocks.contains(block))
                 && !uses.is_empty()
             {
-                recipes.insert(old, Recipe::Offset(next, step.wrapping_neg()));
-                exits.insert(old, uses);
+                recipes.insert(old, Recipe::Step(next, step.wrapping_neg(), uses));
             }
         }
     }
@@ -311,8 +302,11 @@ pub(super) fn rebuild_values(
 
     // Each use that reads a copy, by block and position.
     let mut sites = FxHashMap::<BlockId, Vec<(usize, ValueId)>>::default();
-    for &value in recipes.keys() {
-        let uses = exits.remove(&value).or_else(|| uses_past_crowding(value));
+    for (&value, recipe) in &recipes {
+        let uses = match recipe {
+            Recipe::Step(.., uses) => Some(uses.clone()),
+            _ => uses_past_crowding(value),
+        };
         for (block, index) in uses.unwrap_or_default() {
             sites.entry(block).or_default().push((index, value));
         }
@@ -320,8 +314,15 @@ pub(super) fn rebuild_values(
 
     let mut result = func.clone();
     // v = <operations over the base's words>  ->  v = add base, offset
-    replaced.sort_unstable_by_key(|&(value, ..)| value);
-    for (value, base, offset) in replaced {
+    let mut members: Vec<(ValueId, ValueId, U256)> = recipes
+        .iter()
+        .filter_map(|(&value, recipe)| match *recipe {
+            Recipe::Offset(base, offset) => Some((value, base, offset)),
+            Recipe::Chain(_) | Recipe::Step(..) => None,
+        })
+        .collect();
+    members.sort_unstable_by_key(|&(value, ..)| value);
+    for (value, base, offset) in members {
         let Value::Inst(def) = *result.value(value) else { unreachable!("rebuilt instruction") };
         let kind = offset_kind(&mut result, base, offset);
         result.inst_mut(def).replace_kind(kind);
@@ -341,8 +342,12 @@ pub(super) fn rebuild_values(
                 result.inst(original[index]).metadata.debug_context()
             };
             let copy = match recipes[&value] {
-                Recipe::Offset(base, offset) if offset.is_zero() => base,
-                Recipe::Offset(base, offset) => {
+                Recipe::Offset(base, offset) | Recipe::Step(base, offset, _)
+                    if offset.is_zero() =>
+                {
+                    base
+                }
+                Recipe::Offset(base, offset) | Recipe::Step(base, offset, _) => {
                     // v' = add base, offset
                     let kind = offset_kind(&mut result, base, offset);
                     let mut copy = Instruction::new(kind, Some(MirType::I256));
@@ -404,14 +409,14 @@ pub(super) fn rebuild_values(
 /// The crowded points: per block, the positions right before an instruction, or before the
 /// terminator at the block's length, where more stack words than `reach` are live, counting
 /// `extra` words besides the live values that are not pushed fresh. Returns the values live at
-/// any such point and the points of each block in order.
+/// any such point and the points of each block in order, or `None` when there is none.
 fn crowded_points(
     func: &Function,
     liveness: &Liveness,
     fresh: &dyn Fn(ValueId) -> bool,
     reach: usize,
     extra: usize,
-) -> (DenseBitSet<ValueId>, FxHashMap<BlockId, Points>) {
+) -> Option<(DenseBitSet<ValueId>, FxHashMap<BlockId, Points>)> {
     let mut crowded = DenseBitSet::new_empty(func.num_values());
     let mut points = FxHashMap::<BlockId, Points>::default();
     let mut live = DenseBitSet::new_empty(func.num_values());
@@ -456,7 +461,7 @@ fn crowded_points(
             points.insert(block, block_points);
         }
     }
-    (crowded, points)
+    (!points.is_empty()).then_some((crowded, points))
 }
 
 /// The affine form of a 256-bit word through at most [`MAX_AFFINE_OPS`] additions,

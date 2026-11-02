@@ -1077,9 +1077,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             &analysis.liveness,
             &analysis.cfg,
             &analysis.loops,
-            self.gcx.sess.opts.evm_version.reachable_stack_depth(),
-            usize::from(info.returning.contains(func_id)),
-            spills,
+            spills.then(|| {
+                (
+                    self.gcx.sess.opts.evm_version.reachable_stack_depth(),
+                    usize::from(info.returning.contains(func_id)),
+                )
+            }),
         )?;
         let analysis = self.analyze(&rebuilt, info, func_id, hazards, writers);
         let mut plan = self
