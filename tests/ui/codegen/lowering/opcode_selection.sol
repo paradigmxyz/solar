@@ -48,12 +48,18 @@ contract OpcodeSelection {
             mstore(576, byte(calldataload(4), calldataload(36)))
             // CHECK: {{^ +}}lt{{$}}
             mstore(608, lt(calldataload(4), calldataload(36)))
+            // MIR keeps `gt a, b` of two values as `lt b, a`, and both operands are pushed again at
+            // their use, so the scheduler has no reason to mirror it back to `gt`.
+            // CHECK: {{^ +}}lt{{$}}
+            mstore(640, gt(calldataload(4), calldataload(36)))
             // CHECK: {{^ +}}gt{{$}}
-            mstore(640, gt(calldataload(4), 1))
+            mstore(2272, gt(calldataload(4), 1))
             // CHECK: {{^ +}}slt{{$}}
             mstore(672, slt(calldataload(4), calldataload(36)))
+            // CHECK: {{^ +}}slt{{$}}
+            mstore(704, sgt(calldataload(4), calldataload(36)))
             // CHECK: {{^ +}}sgt{{$}}
-            mstore(704, sgt(calldataload(4), 1))
+            mstore(2304, sgt(calldataload(4), 1))
             // CHECK: {{^ +}}eq{{$}}
             mstore(736, eq(calldataload(4), calldataload(36)))
             // CHECK: {{^ +}}mload{{$}}
