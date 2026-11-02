@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/program-data/splat_precancun.sol:C ===
 @module C
 @phase lowered
-@data
-  literal_0: hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff0011"
-
 ; runtime dispatch entry
 fn @entry() [entry] {
   bb0:
@@ -29,13 +26,23 @@ fn @entry() [entry] {
 ; function data() internal pure returns (bytes memory)
 fn @data() -> i256 [may_return_memory, pure] {
   bb0:
-    v8 = heap_floor !metadata(alloc_ptr)
-    v9 = add v8, 224 !metadata(alloc_ptr)
-    mstore 64, v9 !metadata(memory=scratch)
-    mstore v8, 161
-    v6 = add v8, 32
-    datacopy literal_0, v6, 161
-    ret v8
+    v20 = heap_floor !metadata(alloc_ptr)
+    v21 = add v20, 224 !metadata(alloc_ptr)
+    mstore 64, v21 !metadata(memory=scratch)
+    mstore v20, 161
+    v8 = add v20, 32
+    mstore v8, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
+    v10 = add v20, 64
+    mstore v10, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
+    v12 = add v20, 96
+    mstore v12, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
+    v14 = add v20, 128
+    mstore v14, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
+    v16 = add v20, 160
+    mstore v16, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
+    v18 = add v20, 192
+    mstore v18, 0x1100000000000000000000000000000000000000000000000000000000000000
+    ret v20
 }
 
 ; function hash() external pure returns (bytes32) [selector 0x09bd5a60]
@@ -107,9 +114,6 @@ fn @fullWordsHash() [selector=0x58653188, abi_wrapper, pure] {
 }
 // === ROOT/tests/ui/codegen/lowering/program-data/splat_precancun.sol:C (runtime) ===
 @module C_runtime
-@data
-  literal_0: hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff0011"
-
 bb0:  ; runtime dispatch entry
   callvalue
   push bb6
@@ -156,15 +160,13 @@ bb16 [ret=0, inputs=1, outputs=1]:  ; function data() internal pure returns (byt
   push 161
   dup 2
   mstore
-  push 161
-  push 32
-  dup 3
-  add
-  push_data literal_0
+  returndatasize
+  not
+  dup 2
+  shr
+  push bb29
   swap 1
-  codecopy
-  swap 1
-  jump
+  jump bb28
 bb8 [continuation]:
   dup 1
   mload
@@ -197,10 +199,10 @@ bb10 [continuation]:
   iszero
   jump bb17
 bb11:  ; function shortHash() external pure returns (bytes32) [selector 0x0c6b2786]
-  push bb20
+  push bb25
   push 128
-  jump bb19
-bb19 [ret=1, inputs=2, outputs=3]:
+  jump bb20
+bb20 [ret=1, inputs=2, outputs=3]:
   push 32
   dup 2
   add
@@ -215,9 +217,9 @@ bb12:  ; function fullWordsHash() external pure returns (bytes32) [selector 0x58
   add
   push 64
   mstore
-  push bb21
+  push bb26
   push 128
-  jump bb19
+  jump bb20
 bb15 [loop]:
   dup 1
   dup 4
@@ -241,7 +243,54 @@ bb13 [loop]:
   push 96
   swap 1
   jump bb18
-bb20 [continuation]:
+bb21 [continuation]:
+  push 160
+  dup 3
+  add
+  mstore
+  push 17
+  push 248
+  shl
+  push 192
+  dup 3
+  add
+  mstore
+  swap 1
+  jump
+bb22 [continuation]:
+  push 128
+  push bb21
+  jump bb27
+bb27:
+  swap 3
+  swap 2
+  swap 1
+  dup 3
+  add
+  mstore
+  push bb30
+  push 0
+  not
+  push 128
+  shr
+  jump bb28
+bb28 [ret=1, inputs=2, outputs=1]:
+  push 0
+  not
+  div
+  push 0x112233445566778899aabbccddeeff00
+  mul
+  swap 1
+  jump
+bb23 [continuation]:
+  push 96
+  push bb22
+  jump bb27
+bb24 [continuation]:
+  push 64
+  push bb23
+  jump bb27
+bb25 [continuation]:
   dup 2
   mstore
   swap 1
@@ -255,7 +304,7 @@ bb20 [continuation]:
   push 33
   swap 1
   jump bb18
-bb21 [continuation]:
+bb26 [continuation]:
   dup 1
   dup 3
   mstore
@@ -268,3 +317,11 @@ bb21 [continuation]:
   add
   returndatasize
   jump bb13
+bb29 [continuation]:
+  push 32
+  push bb24
+  jump bb27
+bb30 [continuation]:
+  swap 1
+  swap 2
+  jump

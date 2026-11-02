@@ -1,10 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/program-data/program_data.sol:C ===
 @module C
 @phase lowered
-@data
-  literal_0: hex"41414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465665a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a21"
-  literal_1: hex"303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465665a"
-
 ; runtime dispatch entry
 fn @entry() [entry] {
   bb0:
@@ -42,29 +38,51 @@ fn @entry() [entry] {
 ; function data() external pure returns (bytes memory) [selector 0x73d4a13a]
 fn @data() [selector=0x73d4a13a, abi_wrapper, pure] {
   bb0:
-    v22 = heap_floor !metadata(alloc_ptr)
-    mstore v22, 257
-    v18 = add v22, 32
-    datacopy literal_0, v18, 257
-    v11 = add v18, 257
-    mstore v11, 0
-    v20 = sub v22, 32
-    mstore v20, 32
-    returndata v20, 352
+    v34 = heap_floor !metadata(alloc_ptr)
+    v15 = add v34, 32
+    mstore v34, 32
+    mstore v15, 257
+    v18 = add v15, 32
+    mstore v18, 0x4141414141414141414141414141414141414141414141414141414141414141
+    v20 = add v18, 32
+    mstore v20, 0x4141414141414141414141414141414141414141414141414141414141414141
+    v21 = add v18, 64
+    mstore v21, 0x3031323334353637383961626364656630313233343536373839616263646566
+    v22 = add v18, 96
+    mstore v22, 0x3031323334353637383961626364656630313233343536373839616263646566
+    v23 = add v18, 128
+    mstore v23, 0x3031323334353637383961626364656630313233343536373839616263646566
+    v24 = add v18, 160
+    mstore v24, 0x3031323334353637383961626364656630313233343536373839616263646566
+    v25 = add v18, 192
+    mstore v25, 0x3031323334353637383961626364656630313233343536373839616263646566
+    v26 = add v18, 224
+    mstore v26, 0x5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a
+    v27 = add v18, 256
+    mstore v27, 0x2100000000000000000000000000000000000000000000000000000000000000
+    returndata v34, 352
 }
 
 ; function subslice() external pure returns (bytes memory) [selector 0xb9ad073e]
 fn @subslice() [selector=0xb9ad073e, abi_wrapper, pure] {
   bb0:
-    v22 = heap_floor !metadata(alloc_ptr)
-    mstore v22, 161
-    v18 = add v22, 32
-    datacopy literal_1, v18, 161
-    v11 = add v18, 161
-    mstore v11, 0
-    v20 = sub v22, 32
-    mstore v20, 32
-    returndata v20, 256
+    v28 = heap_floor !metadata(alloc_ptr)
+    v12 = add v28, 32
+    mstore v28, 32
+    mstore v12, 161
+    v15 = add v12, 32
+    mstore v15, 0x3031323334353637383961626364656630313233343536373839616263646566
+    v17 = add v15, 32
+    mstore v17, 0x3031323334353637383961626364656630313233343536373839616263646566
+    v18 = add v15, 64
+    mstore v18, 0x3031323334353637383961626364656630313233343536373839616263646566
+    v19 = add v15, 96
+    mstore v19, 0x3031323334353637383961626364656630313233343536373839616263646566
+    v20 = add v15, 128
+    mstore v20, 0x3031323334353637383961626364656630313233343536373839616263646566
+    v21 = add v15, 160
+    mstore v21, 0x5a00000000000000000000000000000000000000000000000000000000000000
+    returndata v28, 256
 }
 
 ; function dataHash() external pure returns (bytes32) [selector 0x1b3012a3]
@@ -181,9 +199,6 @@ fn @splatData.body() -> i256 [may_return_memory, pure] {
 }
 // === ROOT/tests/ui/codegen/lowering/program-data/program_data.sol:C (runtime) ===
 @module C_runtime
-@data
-  literal_0: hex"41414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465665a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a21"
-
 bb0:  ; runtime dispatch entry
   callvalue
   push bb12
@@ -248,61 +263,104 @@ bb12 [cold]:
   push 0
   revert
 bb13:  ; function data() external pure returns (bytes memory) [selector 0x73d4a13a]
-  push 32
-  push 160
-  dup 1
-  dup 1
-  push 64
-  mstore
-  swap 2
-  add
-  push 257
-  dup 1
-  dup 4
-  mstore
-  push_data literal_0
-  dup 3
-  codecopy
-  push 257
-  add
-  push 0
-  swap 1
-  mstore
-  push 32
-  swap 1
-  sub
+  push 128
   push 32
   dup 2
+  add
+  push 32
+  dup 3
   mstore
-  push 352
+  push 257
+  dup 2
+  mstore
+  push 32
+  add
+  push 255
+  push 0
+  not
+  div
+  push 65
+  mul
+  dup 2
+  mstore
+  push 255
+  push 0
+  not
+  div
+  push 65
+  mul
+  push 32
+  push bb36
+  jump bb37
+bb37:
+  swap 3
+  swap 2
   swap 1
-  return
+  dup 3
+  add
+  mstore
+  push 0
+  not
+  push 128
+  shr
+  push 0
+  not
+  div
+  push 0x30313233343536373839616263646566
+  mul
+  swap 1
+  swap 2
+  jump
 bb14:  ; function subslice() external pure returns (bytes memory) [selector 0xb9ad073e]
-  push 32
-  push 160
-  dup 1
-  dup 1
-  push 64
-  mstore
-  swap 2
-  add
-  push 161
-  dup 1
-  dup 4
-  mstore
-  push_data literal_0+64
-  dup 3
-  codecopy
-  push 161
-  add
-  push 0
-  swap 1
-  mstore
-  push 32
-  swap 1
-  sub
+  push 128
   push 32
   dup 2
+  add
+  push 32
+  dup 3
+  mstore
+  push 161
+  dup 2
+  mstore
+  push 32
+  add
+  push 0
+  not
+  dup 3
+  shr
+  push 0
+  not
+  div
+  push 0x30313233343536373839616263646566
+  mul
+  dup 1
+  dup 3
+  mstore
+  dup 1
+  push 32
+  dup 4
+  add
+  mstore
+  dup 1
+  push 64
+  dup 4
+  add
+  mstore
+  dup 1
+  push 96
+  dup 4
+  add
+  mstore
+  dup 3
+  dup 3
+  add
+  mstore
+  push 160
+  add
+  push 90
+  push 248
+  shl
+  swap 1
   mstore
   push 256
   swap 1
@@ -445,3 +503,44 @@ bb25:  ; function splatHash() external pure returns (bytes32) [selector 0x38f844
   mstore
   push bb30
   jump bb28
+bb32 [continuation]:
+  push 192
+  dup 3
+  add
+  mstore
+  push 255
+  push 0
+  not
+  div
+  push 90
+  mul
+  push 224
+  dup 3
+  add
+  mstore
+  push 256
+  add
+  push 33
+  push 248
+  shl
+  swap 1
+  mstore
+  push 352
+  swap 1
+  return
+bb33 [continuation]:
+  push 160
+  push bb32
+  jump bb37
+bb34 [continuation]:
+  push 128
+  push bb33
+  jump bb37
+bb35 [continuation]:
+  push 96
+  push bb34
+  jump bb37
+bb36 [continuation]:
+  push 64
+  push bb35
+  jump bb37

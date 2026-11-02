@@ -67,7 +67,7 @@ impl MirPass for LowerChecks {
         }
         let helper = needs_helper.then(|| create_short_string_helper(module, &helper_context));
         let mut changed = false;
-        // Long strings intern their data in the module while a function is rewritten.
+        // The module prices each function while the function is rewritten.
         let mut functions = std::mem::take(&mut module.functions);
         for function in &mut functions {
             let optimized = !module.objective_of(function).is_none();
@@ -175,7 +175,7 @@ fn emit_payload(
         RevertPayload::LongString(symbol) => {
             let bytes = symbol.as_byte_str();
             // pointer = fmp
-            // write message at pointer + 68
+            // write message at pointer + 68: stores, or a splat
             // mstore pointer + 36, length
             // mstore pointer, Error.selector
             // mstore pointer + 4, 32
@@ -183,7 +183,7 @@ fn emit_payload(
             let padded = bytes.len().next_multiple_of(32);
             let pointer = builder.fmp();
             let dest = DataDest { base: pointer, offset: 68 };
-            copy_data_to_memory(builder, dest, bytes, padded);
+            copy_data_to_memory(gcx, module, builder, dest, bytes, padded);
             // NOTE: the selector word zeroes bytes 4..32, so the offset store follows it, and the
             // message-independent stores come last so that tail merging shares them.
             for (offset, word) in

@@ -1,7 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/program-data/cross_artifact_data.sol:C (runtime) ===
 @module C_runtime
 @data
-  literal_0: hex"11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+  literal_0: hex"cbf9537252dcceadd764b6a32fbb09adeae109c4a997203975352b878b145c8a42d884cf4cfda72d8e1d5dd92589082d852a7122873ee805add58942167a3852"
+  literal_1: hex"1111111166fcb60e0e8ff18463b0e4b2ba29703474f064ac68f700f5b02b3dc666f45bdeaa2ccaedcd2b5157410e4dee4af2b34f430a073447de636c0e806c957ba684d6431fb5ead7424d09e15d024c5848f23d1fa6f7361d7f618d1532e70e"
 
 bb0:  ; runtime dispatch entry + function runtimeData() external pure returns (bytes memory) [selector 0x69ad4ffa]
   callvalue
@@ -16,32 +17,57 @@ bb0:  ; runtime dispatch entry + function runtimeData() external pure returns (b
   sub
   push bb3
   jumpi
-  push 160
-  push 64
-  mstore
-  push 160
-  dup 1
-  dup 2
-  mstore
-  push 32
+  push 128
+  push 224
   dup 2
   add
-  dup 2
-  push_data literal_0
+  push 192
   dup 3
+  mstore
+  push 96
+  push_data literal_1
+  push 32
+  dup 5
+  add
   codecopy
+  dup 2
+  push 32
+  add
+  push 0x20e2a6668de7f47e8467e546d53ec8e2a1257bdb256c9b3e4fbb498146ef7030
+  dup 4
+  dup 5
+  add
+  mstore
+  push 64
+  push_data literal_0
+  push 160
+  dup 6
+  add
+  codecopy
+  swap 2
+  push 256
+  add
+  push 32
+  dup 3
+  mstore
+  push 32
   dup 2
   add
   push 0
-  swap 1
+  push 192
+  dup 4
+  add
   mstore
-  push 32
+  push 192
   swap 1
-  sub
-  push 32
-  dup 2
+  swap 2
   mstore
-  push 224
+  push 192
+  swap 2
+  swap 3
+  swap 1
+  mcopy
+  push 256
   swap 1
   return
 bb3 [cold]:

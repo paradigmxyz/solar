@@ -1020,17 +1020,12 @@ impl Target {
         self.cmp_lifetime(folded, computed).is_le().then_some(factor)
     }
 
-    /// Whether legacy splat expansion beats the selected ordinary lowering in size.
-    /// For word stores, the first two stores are common; price each remaining materialized
-    /// word, offset, store, and stack moves. For a data copy, include the pool and the splat's
-    /// two seed stores. Each copy pays for its own loop, including setup and stack moves,
-    /// without relying on helper sharing or later unrolling.
-    pub(crate) fn legacy_splat_is_profitable(
-        &self,
-        word: U256,
-        size: usize,
-        data_copy: bool,
-    ) -> bool {
+    /// Whether legacy splat expansion beats both ways the data can otherwise be written, word
+    /// stores and a copy from the data pool, in size. For word stores, the first two stores are
+    /// common; price each remaining materialized word, offset, store, and stack moves. For a data
+    /// copy, include the pool and the splat's two seed stores. Each copy pays for its own loop,
+    /// including setup and stack moves, without relying on helper sharing or later unrolling.
+    pub(crate) fn legacy_splat_is_profitable(&self, word: U256, size: usize) -> bool {
         let word_size = op::WORD_BYTES;
         let loop_body = self.word_copy_loop();
         let mut copies = Cost::ZERO;
@@ -1040,29 +1035,26 @@ impl Target {
             copies += loop_body + self.push(U256::from(filled)) + self.push(U256::from(chunk));
             filled += chunk;
         }
-        if data_copy {
-            let seed = self.push(word)
-                + self.dup().times(3)
-                + self.opcode(op::MSTORE).times(2)
-                + self.push(U256::from(word_size))
-                + self.opcode(op::ADD);
-            let copy = self.push(U256::from(size))
-                + self.opcode(op::PUSH3)
-                + self.dup()
-                + self.opcode(op::CODECOPY);
-            ((copies + seed).bytes as usize) < size.saturating_add(copy.bytes as usize)
-        } else {
-            let stores = (2..size / word_size)
-                .map(|index| {
-                    self.push(word)
-                        + self.push(U256::from(index * word_size))
-                        + self.dup().times(2)
-                        + self.opcode(op::ADD)
-                        + self.opcode(op::MSTORE)
-                })
-                .sum::<Cost>();
-            copies.bytes < stores.bytes
-        }
+        let seed = self.push(word)
+            + self.dup().times(3)
+            + self.opcode(op::MSTORE).times(2)
+            + self.push(U256::from(word_size))
+            + self.opcode(op::ADD);
+        let copy = self.push(U256::from(size))
+            + self.opcode(op::PUSH3)
+            + self.dup()
+            + self.opcode(op::CODECOPY);
+        let stores = (2..size / word_size)
+            .map(|index| {
+                self.push(word)
+                    + self.push(U256::from(index * word_size))
+                    + self.dup().times(2)
+                    + self.opcode(op::ADD)
+                    + self.opcode(op::MSTORE)
+            })
+            .sum::<Cost>();
+        ((copies + seed).bytes as usize) < size.saturating_add(copy.bytes as usize)
+            && copies.bytes < stores.bytes
     }
 
     /// One iteration of a word-by-word memory copy loop, with its counter and cursor moves.
@@ -1796,16 +1788,16 @@ mod tests {
     }
 
     #[test]
-    fn legacy_splats_price_copy_loops_against_stores() {
+    fn legacy_splats_price_copy_loops_against_stores_and_a_data_copy() {
         let target = Target::with(EvmVersion::Paris, OptimizationMode::Size, 1);
-        assert!(!target.legacy_splat_is_profitable(U256::from(1), 160, false));
-        assert!(!target.legacy_splat_is_profitable(U256::from(1), 256, false));
-        assert!(target.legacy_splat_is_profitable(U256::from(1), 1024, false));
-        assert!(target.legacy_splat_is_profitable(U256::from(1), 2048, false));
-        assert!(target.legacy_splat_is_profitable(U256::from(1), 5120, false));
+        assert!(!target.legacy_splat_is_profitable(U256::from(1), 160));
+        assert!(!target.legacy_splat_is_profitable(U256::from(1), 256));
+        assert!(target.legacy_splat_is_profitable(U256::from(1), 1024));
+        assert!(target.legacy_splat_is_profitable(U256::from(1), 2048));
+        assert!(target.legacy_splat_is_profitable(U256::from(1), 5120));
         let word = U256::from_be_bytes([0x11; 32]);
-        assert!(target.legacy_splat_is_profitable(word, 96, true));
-        assert!(target.legacy_splat_is_profitable(word, 5120, true));
+        assert!(target.legacy_splat_is_profitable(word, 96));
+        assert!(target.legacy_splat_is_profitable(word, 5120));
     }
 
     #[test]

@@ -1,29 +1,45 @@
 // === ROOT/tests/ui/codegen/lowering/program-data/cross_artifact_data.sol:C ===
 @module C
-@data
-  literal_0: hex"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-  literal_1: hex"11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
-
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
-    v0 = alloc 256 !metadata(preserves_fmp)
-    mstore v0, 224
+    v0 = alloc 224
+    mstore v0, 192
     v1 = ptradd v0, 32
-    datacopy literal_0, v1, 224
-    v2 = abi_encode [memory_bytes], scratch, args v0
-    v3 = extract_value slice<memory>, v2, 0
-    v4 = extract_value slice<memory>, v2, 1
-    log v3, v4, 0xacc2ed49161ac5ef0f14f68f834478c81d087a53b25b23d751b2bfac5fc859df
+    mstore v1, 0xaaaaaaaaa54dca182530bb1d6d132cded6237b2ed91e3f721fcb1971174494d6
+    v2 = ptradd v0, 64
+    mstore v2, 0x493c9d5c3460be31201e69fedaa0eee8b9997f5c7c2999fdafe593253cd654af
+    v3 = ptradd v0, 96
+    mstore v3, 0x4dfad71427a0aeb3fee9232f8af2211f9ee491c5b10becb5563bfc1e6f93427e
+    v4 = ptradd v0, 128
+    mstore v4, 0xcbc8fe2955e5cd8e46dc8ed4b7c2764d2a5a4d767706f85d8690024ad6bda340
+    v5 = ptradd v0, 160
+    mstore v5, 0x1be9c8cbccc935f6cd1f61226ae15338ae1a34004d33ba0d246ac04c81b1baf2
+    v6 = ptradd v0, 192
+    mstore v6, 0x3e3bf9eef5f79f2b4934af87f5520b69b94b0d982e85bb55b672a872637acd74
+    v7 = abi_encode [memory_bytes], scratch, args v0
+    v8 = extract_value slice<memory>, v7, 0
+    v9 = extract_value slice<memory>, v7, 1
+    log v8, v9, 0xacc2ed49161ac5ef0f14f68f834478c81d087a53b25b23d751b2bfac5fc859df
     ret
 }
 
 ; function runtimeData() external pure returns (bytes memory) [selector 0x69ad4ffa]
 fn @runtimeData() -> ptr<memory> [selector=0x69ad4ffa, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = alloc 192 !metadata(preserves_fmp)
-    mstore v0, 160
+    v0 = alloc 224 !metadata(preserves_fmp)
+    mstore v0, 192
     v1 = ptradd v0, 32
-    datacopy literal_1, v1, 160
+    mstore v1, 0x1111111166fcb60e0e8ff18463b0e4b2ba29703474f064ac68f700f5b02b3dc6
+    v2 = ptradd v0, 64
+    mstore v2, 0x66f45bdeaa2ccaedcd2b5157410e4dee4af2b34f430a073447de636c0e806c95
+    v3 = ptradd v0, 96
+    mstore v3, 0x7ba684d6431fb5ead7424d09e15d024c5848f23d1fa6f7361d7f618d1532e70e
+    v4 = ptradd v0, 128
+    mstore v4, 0x20e2a6668de7f47e8467e546d53ec8e2a1257bdb256c9b3e4fbb498146ef7030
+    v5 = ptradd v0, 160
+    mstore v5, 0xcbf9537252dcceadd764b6a32fbb09adeae109c4a997203975352b878b145c8a
+    v6 = ptradd v0, 192
+    mstore v6, 0x42d884cf4cfda72d8e1d5dd92589082d852a7122873ee805add58942167a3852
     ret v0
 }

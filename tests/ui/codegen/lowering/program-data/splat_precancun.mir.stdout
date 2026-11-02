@@ -1,16 +1,22 @@
 // === ROOT/tests/ui/codegen/lowering/program-data/splat_precancun.sol:C ===
 @module C
-@data
-  literal_0: hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff001100000000000000000000000000000000000000000000000000000000000000"
-  literal_1: hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f200102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f200102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"
-
 ; function data() internal pure returns (bytes memory)
 fn @data() -> ptr<memory> [pure] {
   bb0:
     v0 = alloc 224 !metadata(preserves_fmp)
     mstore v0, 161
     v1 = ptradd v0, 32
-    datacopy literal_0, v1, 192
+    mstore v1, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
+    v2 = ptradd v0, 64
+    mstore v2, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
+    v3 = ptradd v0, 96
+    mstore v3, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
+    v4 = ptradd v0, 128
+    mstore v4, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
+    v5 = ptradd v0, 160
+    mstore v5, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
+    v6 = ptradd v0, 192
+    mstore v6, 0x1100000000000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
@@ -61,9 +67,13 @@ fn @fullWordsHash() -> i256 [selector=0x58653188, pure, abi_params=[], abi_retur
     v0 = alloc 128 !metadata(preserves_fmp)
     mstore v0, 96
     v1 = ptradd v0, 32
-    datacopy literal_1, v1, 96
-    v2 = ptradd v0, 32
-    v3 = mload v0
-    v4 = keccak256 v2, v3
-    ret v4
+    mstore v1, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+    v2 = ptradd v0, 64
+    mstore v2, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+    v3 = ptradd v0, 96
+    mstore v3, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+    v4 = ptradd v0, 32
+    v5 = mload v0
+    v6 = keccak256 v4, v5
+    ret v6
 }
