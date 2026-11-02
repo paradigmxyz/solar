@@ -1,0 +1,176 @@
+{
+  "sources": {
+    "handle.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "handle.sol": {
+      "Orders": {
+        "storageLayout": {
+          "storage": [
+            {
+              "astId": 2,
+              "contract": "handle.sol:Orders",
+              "label": "markets",
+              "offset": 0,
+              "slot": "0",
+              "type": "t_array(t_bytes32)dyn_storage"
+            },
+            {
+              "astId": 3,
+              "contract": "handle.sol:Orders",
+              "label": "orders",
+              "offset": 0,
+              "slot": "1",
+              "type": "t_mapping(t_uint256,t_struct(Order)11_storage)"
+            }
+          ],
+          "types": {
+            "t_array(t_bytes32)dyn_storage": {
+              "encoding": "dynamic_array",
+              "label": "bytes32[]",
+              "numberOfBytes": "32",
+              "base": "t_bytes32"
+            },
+            "t_bytes32": {
+              "encoding": "inplace",
+              "label": "bytes32",
+              "numberOfBytes": "32"
+            },
+            "t_mapping(t_uint256,t_struct(Order)11_storage)": {
+              "encoding": "mapping",
+              "label": "mapping(uint256 => struct Orders.Order)",
+              "numberOfBytes": "32",
+              "key": "t_uint256",
+              "value": "t_struct(Order)11_storage"
+            },
+            "t_uint256": {
+              "encoding": "inplace",
+              "label": "uint256",
+              "numberOfBytes": "32"
+            },
+            "t_struct(Order)11_storage": {
+              "encoding": "inplace",
+              "label": "struct Orders.Order",
+              "numberOfBytes": "64",
+              "members": [
+                {
+                  "astId": 5,
+                  "contract": "handle.sol:Orders",
+                  "label": "maker",
+                  "offset": 0,
+                  "slot": "0",
+                  "type": "t_address"
+                },
+                {
+                  "astId": 6,
+                  "contract": "handle.sol:Orders",
+                  "label": "marketId",
+                  "offset": 20,
+                  "slot": "0",
+                  "type": "t_uint72"
+                },
+                {
+                  "astId": 7,
+                  "contract": "handle.sol:Orders",
+                  "label": "amount",
+                  "offset": 0,
+                  "slot": "1",
+                  "type": "t_uint128"
+                },
+                {
+                  "astId": 8,
+                  "contract": "handle.sol:Orders",
+                  "label": "price",
+                  "offset": 16,
+                  "slot": "1",
+                  "type": "t_uint128"
+                }
+              ]
+            },
+            "t_address": {
+              "encoding": "inplace",
+              "label": "address",
+              "numberOfBytes": "20"
+            },
+            "t_uint72": {
+              "encoding": "inplace",
+              "label": "uint72",
+              "numberOfBytes": "9"
+            },
+            "t_uint128": {
+              "encoding": "inplace",
+              "label": "uint128",
+              "numberOfBytes": "16"
+            }
+          },
+          "handles": {
+            "t_struct(Order)11_storage": [
+              {
+                "member": "marketId",
+                "dictionary": {
+                  "astId": 2,
+                  "contract": "handle.sol:Orders",
+                  "label": "markets",
+                  "offset": 0,
+                  "slot": "0",
+                  "type": "t_array(t_bytes32)dyn_storage"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "Plain": {
+        "storageLayout": {
+          "storage": [
+            {
+              "astId": 4,
+              "contract": "handle.sol:Plain",
+              "label": "order",
+              "offset": 0,
+              "slot": "0",
+              "type": "t_struct(Order)12_storage"
+            }
+          ],
+          "types": {
+            "t_struct(Order)12_storage": {
+              "encoding": "inplace",
+              "label": "struct Plain.Order",
+              "numberOfBytes": "64",
+              "members": [
+                {
+                  "astId": 9,
+                  "contract": "handle.sol:Plain",
+                  "label": "maker",
+                  "offset": 0,
+                  "slot": "0",
+                  "type": "t_address"
+                },
+                {
+                  "astId": 10,
+                  "contract": "handle.sol:Plain",
+                  "label": "marketId",
+                  "offset": 0,
+                  "slot": "1",
+                  "type": "t_bytes32"
+                }
+              ]
+            },
+            "t_address": {
+              "encoding": "inplace",
+              "label": "address",
+              "numberOfBytes": "20"
+            },
+            "t_bytes32": {
+              "encoding": "inplace",
+              "label": "bytes32",
+              "numberOfBytes": "32"
+            }
+          }
+        }
+      }
+    }
+  }
+}

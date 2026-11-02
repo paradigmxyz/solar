@@ -364,7 +364,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         PreparedTupleAssignment::StorageReference { id, access }
                     }
                     rhs => {
-                        let place = self.resolve_lvalue_place(element)?;
+                        let place = match self.resolve_inline_array_place(element) {
+                            Some(place) => place,
+                            None => self.resolve_lvalue_place(element)?,
+                        };
                         PreparedTupleAssignment::Value { place, rhs }
                     }
                 })

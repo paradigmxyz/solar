@@ -1,0 +1,222 @@
+{
+  "sources": {
+    "fused.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "fused.sol": {
+      "Accounts": {
+        "storageLayout": {
+          "storage": [
+            {
+              "astId": 2,
+              "contract": "fused.sol:Accounts",
+              "label": "total",
+              "offset": 0,
+              "slot": "0",
+              "type": "t_uint256"
+            },
+            {
+              "astId": 3,
+              "contract": "fused.sol:Accounts",
+              "label": "balance",
+              "offset": 0,
+              "slot": "1",
+              "type": "t_mapping(t_address,t_uint128)"
+            },
+            {
+              "astId": 4,
+              "contract": "fused.sol:Accounts",
+              "label": "nonce",
+              "offset": 0,
+              "slot": "2",
+              "type": "t_mapping(t_address,t_uint64)"
+            },
+            {
+              "astId": 5,
+              "contract": "fused.sol:Accounts",
+              "label": "expiry",
+              "offset": 0,
+              "slot": "3",
+              "type": "t_mapping(t_address,t_uint64)"
+            },
+            {
+              "astId": 6,
+              "contract": "fused.sol:Accounts",
+              "label": "owner",
+              "offset": 0,
+              "slot": "4",
+              "type": "t_mapping(t_uint256,t_address)"
+            },
+            {
+              "astId": 7,
+              "contract": "fused.sol:Accounts",
+              "label": "amount",
+              "offset": 0,
+              "slot": "5",
+              "type": "t_mapping(t_uint256,t_uint256)"
+            },
+            {
+              "astId": 8,
+              "contract": "fused.sol:Accounts",
+              "label": "open",
+              "offset": 0,
+              "slot": "6",
+              "type": "t_mapping(t_uint256,t_bool)"
+            }
+          ],
+          "types": {
+            "t_uint256": {
+              "encoding": "inplace",
+              "label": "uint256",
+              "numberOfBytes": "32"
+            },
+            "t_mapping(t_address,t_uint128)": {
+              "encoding": "mapping",
+              "label": "mapping(address => uint128)",
+              "numberOfBytes": "32",
+              "key": "t_address",
+              "value": "t_uint128"
+            },
+            "t_address": {
+              "encoding": "inplace",
+              "label": "address",
+              "numberOfBytes": "20"
+            },
+            "t_uint128": {
+              "encoding": "inplace",
+              "label": "uint128",
+              "numberOfBytes": "16"
+            },
+            "t_mapping(t_address,t_uint64)": {
+              "encoding": "mapping",
+              "label": "mapping(address => uint64)",
+              "numberOfBytes": "32",
+              "key": "t_address",
+              "value": "t_uint64"
+            },
+            "t_uint64": {
+              "encoding": "inplace",
+              "label": "uint64",
+              "numberOfBytes": "8"
+            },
+            "t_mapping(t_uint256,t_address)": {
+              "encoding": "mapping",
+              "label": "mapping(uint256 => address)",
+              "numberOfBytes": "32",
+              "key": "t_uint256",
+              "value": "t_address"
+            },
+            "t_mapping(t_uint256,t_uint256)": {
+              "encoding": "mapping",
+              "label": "mapping(uint256 => uint256)",
+              "numberOfBytes": "32",
+              "key": "t_uint256",
+              "value": "t_uint256"
+            },
+            "t_mapping(t_uint256,t_bool)": {
+              "encoding": "mapping",
+              "label": "mapping(uint256 => bool)",
+              "numberOfBytes": "32",
+              "key": "t_uint256",
+              "value": "t_bool"
+            },
+            "t_bool": {
+              "encoding": "inplace",
+              "label": "bool",
+              "numberOfBytes": "1"
+            }
+          },
+          "fused": {
+            "1": [
+              {
+                "astId": 3,
+                "contract": "fused.sol:Accounts",
+                "label": "balance",
+                "offset": 0,
+                "slot": "0",
+                "type": "t_uint128"
+              },
+              {
+                "astId": 4,
+                "contract": "fused.sol:Accounts",
+                "label": "nonce",
+                "offset": 16,
+                "slot": "0",
+                "type": "t_uint64"
+              },
+              {
+                "astId": 5,
+                "contract": "fused.sol:Accounts",
+                "label": "expiry",
+                "offset": 24,
+                "slot": "0",
+                "type": "t_uint64"
+              }
+            ],
+            "4": [
+              {
+                "astId": 6,
+                "contract": "fused.sol:Accounts",
+                "label": "owner",
+                "offset": 0,
+                "slot": "0",
+                "type": "t_address"
+              },
+              {
+                "astId": 7,
+                "contract": "fused.sol:Accounts",
+                "label": "amount",
+                "offset": 0,
+                "slot": "1",
+                "type": "t_uint256"
+              },
+              {
+                "astId": 8,
+                "contract": "fused.sol:Accounts",
+                "label": "open",
+                "offset": 0,
+                "slot": "2",
+                "type": "t_bool"
+              }
+            ]
+          }
+        }
+      },
+      "Plain": {
+        "storageLayout": {
+          "storage": [
+            {
+              "astId": 9,
+              "contract": "fused.sol:Plain",
+              "label": "balance",
+              "offset": 0,
+              "slot": "0",
+              "type": "t_mapping(t_address,t_uint256)"
+            }
+          ],
+          "types": {
+            "t_mapping(t_address,t_uint256)": {
+              "encoding": "mapping",
+              "label": "mapping(address => uint256)",
+              "numberOfBytes": "32",
+              "key": "t_address",
+              "value": "t_uint256"
+            },
+            "t_address": {
+              "encoding": "inplace",
+              "label": "address",
+              "numberOfBytes": "20"
+            },
+            "t_uint256": {
+              "encoding": "inplace",
+              "label": "uint256",
+              "numberOfBytes": "32"
+            }
+          }
+        }
+      }
+    }
+  }
+}

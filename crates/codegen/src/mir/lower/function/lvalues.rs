@@ -114,6 +114,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         match *place {
             LValuePlace::Variable { id, span } => self.load_variable(id, span),
             LValuePlace::Storage { ty, access, span } => self.load_storage_value(ty, access, span),
+            LValuePlace::InlineElement { ty, slot, index, array, span } => {
+                let access = self.current_inline_array_element(slot, index, array);
+                self.load_storage_value(ty, access, span)
+            }
             LValuePlace::MemoryField { object, field, ty } => {
                 // value = mload (ptradd object, field * 32)
                 let value = self.builder.memory_load_field_as(
@@ -163,6 +167,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 None => self.store_storage_value(ty, access, value, span),
             },
+            LValuePlace::InlineElement { ty, slot, index, array, span } => {
+                let access = self.current_inline_array_element(slot, index, array);
+                self.store_storage_value_with_source(
+                    ty,
+                    source_ty.unwrap_or(ty),
+                    access,
+                    value,
+                    span,
+                )
+            }
             LValuePlace::MemoryField { object, field, ty } => {
                 let value = self.encode_memory_scalar(ty, value);
                 self.builder.memory_store_field(object, field, value);

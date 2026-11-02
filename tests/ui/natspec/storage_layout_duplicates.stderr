@@ -1,0 +1,28 @@
+error: duplicate `@custom:solar-storage` tag
+   ╭▸ ROOT/tests/ui/natspec/storage_layout_duplicates.sol:LL:CC
+   │
+LL │     /// @custom:solar-storage fuse first
+   │          ━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the first tag is here
+   ╭▸ ROOT/tests/ui/natspec/storage_layout_duplicates.sol:LL:CC
+   │
+LL │     /// @custom:solar-storage bitmap
+   │          ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep one `@custom:solar-storage` tag
+
+error: duplicate `@custom:solar-storage` tag
+   ╭▸ ROOT/tests/ui/natspec/storage_layout_duplicates.sol:LL:CC
+   │
+LL │     /// @custom:solar-storage bitmap
+   │          ━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the first tag is here
+   ╭▸ ROOT/tests/ui/natspec/storage_layout_duplicates.sol:LL:CC
+   │
+LL │     /// @custom:solar-storage fuse second
+   │          ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep one `@custom:solar-storage` tag
+
+error: aborting due to 2 previous errors
+

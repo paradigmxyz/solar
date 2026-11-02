@@ -14,6 +14,10 @@ divergence entry is [TYPECK-022](SOLC_DIVERGENCE.md#typeck-022-customsolar--tags
 | `solar-trusted` | a function, a modifier, a contract, or a library | Reviewed code that `solar-safe` takes on trust. |
 | `solar-inline [always\|never]` | a function that internal calls reach | Favor inlining it, always inline it, or never inline it. |
 | `solar-optimize gas` or `size` | a non-abstract contract, a library, or a function with a body | Optimize its code for this objective instead of the build's, even in an `-O none` build. |
+| `solar-storage fuse <group>` | mapping state variables with one key type | Keep the group's values for each key in one packed record. |
+| `solar-storage inline` | a dynamic storage array state variable | Keep short arrays and their length in the array's own slot. |
+| `solar-storage bitmap` | a mapping from an unsigned integer to `bool` | Pack 256 consecutive keys into one storage word. |
+| `solar-storage handle <field> <dictionary>` | a struct declared in a contract | Store a dictionary index in place of the named field's value. |
 
 ## `solar-safe` and `solar-trusted`
 
@@ -121,3 +125,28 @@ What stays with the objective of the contract, since it concerns several functio
 So in a contract built unoptimized, a tagged function gets the function-local MIR passes,
 inlining into its code, and its stack scheduling and constant encodings, but not the
 contract-wide passes above.
+
+## `solar-storage`
+
+The tag selects a storage layout: `fuse <group>`, `inline`, `bitmap`, or
+`handle <field> <dictionary>`. It preserves Solidity-level reads and writes but changes the raw
+storage layout. Other compilers ignore it and use the standard layout. Do not upgrade between
+the two layouts or share storage between contracts compiled with different layouts without a
+migration.
+
+`solar-storage fuse <group>` groups at least two mappings of the same contract with the same key
+type and value-type values. Their values for one key pack like a struct, in declaration order.
+`solar-storage bitmap` instead packs a mapping's boolean values into bits. Both kinds of mapping
+may only be indexed; storage references and assembly access to their slots are rejected.
+
+`solar-storage inline` keeps a dynamic storage array's length and elements in its own slot while
+they fit, then uses the standard array layout when it grows. Elements must be value types
+narrower than a word. Indexing, length, push, pop, delete and copies into memory are supported;
+storage references, whole-array assignment and assembly access to its slot are rejected.
+
+`solar-storage handle <field> <dictionary>` replaces a word-sized value-type field with a
+nine-byte handle: the dictionary index plus one, or zero for the zero value. The dictionary is a
+dynamic storage array of the field's type in the same contract. It may only grow, and the field may
+only be assigned a dictionary element or zero. Structs with handles cannot be assigned to
+storage as a whole. Reads resolve the handle through the dictionary, so reading one field can
+cost an extra storage read. The storage-layout output describes all four layouts.

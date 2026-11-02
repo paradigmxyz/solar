@@ -50,7 +50,7 @@ LL │     /// @custom:solar-noinline
    │          ━━━━━━━━━━━━━━━━━━━━━
    │
    ├ note: `@custom:solar-` tags are requirements this compiler checks
-   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-optimize`, `@custom:solar-safe`, and `@custom:solar-trusted`
+   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-trusted`, and `@custom:solar-storage`
 
 error: aborting due to 6 previous errors
 

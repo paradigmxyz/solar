@@ -1,0 +1,86 @@
+error: `@custom:solar-storage` must document a storage state variable or a struct declared in a contract
+   ╭▸ ROOT/tests/ui/natspec/solar_storage.sol:LL:CC
+   │
+LL │         /// @custom:solar-storage bitmap
+   ╰╴             ━━━━━━━━━━━━━━━━━━━━
+
+error: `@custom:solar-storage` must name a layout: `fuse`, `inline`, `bitmap`, or `handle`
+   ╭▸ ROOT/tests/ui/natspec/solar_storage.sol:LL:CC
+   │
+LL │     /// @custom:solar-storage
+   │          ━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: write `@custom:solar-storage inline` to keep short arrays in their own slot
+
+error: `@custom:solar-storage` must name a layout: `fuse`, `inline`, `bitmap`, or `handle`
+   ╭▸ ROOT/tests/ui/natspec/solar_storage.sol:LL:CC
+   │
+LL │     /// @custom:solar-storage inlien
+   │          ━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: write `@custom:solar-storage inline` to keep short arrays in their own slot
+
+error: `@custom:solar-storage bitmap` takes no arguments
+   ╭▸ ROOT/tests/ui/natspec/solar_storage.sol:LL:CC
+   │
+LL │     /// @custom:solar-storage bitmap extra
+   │          ━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove the arguments after the layout name
+
+error: duplicate `@custom:solar-storage` tag
+   ╭▸ ROOT/tests/ui/natspec/solar_storage.sol:LL:CC
+   │
+LL │     /// @custom:solar-storage inline
+   │          ━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the first tag is here
+   ╭▸ ROOT/tests/ui/natspec/solar_storage.sol:LL:CC
+   │
+LL │     /// @custom:solar-storage inline
+   │          ━━━━━━━━━━━━━━━━━━━━
+   ╰ help: keep one `@custom:solar-storage` tag
+
+error: `@custom:solar-inline` must document a function that internal calls reach
+   ╭▸ ROOT/tests/ui/natspec/solar_storage.sol:LL:CC
+   │
+LL │     /// @custom:solar-inline
+   │          ━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on an internal, private or public function with a body
+
+error: unknown tag `@custom:solar-fuse`
+   ╭▸ ROOT/tests/ui/natspec/solar_storage.sol:LL:CC
+   │
+LL │     /// @custom:solar-fuse account
+   │          ━━━━━━━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-` tags are requirements this compiler checks
+   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-trusted`, and `@custom:solar-storage`
+
+error: unknown tag `@custom:solar-bitmap`
+   ╭▸ ROOT/tests/ui/natspec/solar_storage.sol:LL:CC
+   │
+LL │     /// @custom:solar-bitmap
+   │          ━━━━━━━━━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-` tags are requirements this compiler checks
+   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-trusted`, and `@custom:solar-storage`
+
+error: unknown tag `@custom:solar-handle`
+   ╭▸ ROOT/tests/ui/natspec/solar_storage.sol:LL:CC
+   │
+LL │     /// @custom:solar-handle id dictionary
+   │          ━━━━━━━━━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-` tags are requirements this compiler checks
+   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-trusted`, and `@custom:solar-storage`
+
+error: `@custom:solar-storage inline` must document a dynamic storage array state variable
+   ╭▸ ROOT/tests/ui/natspec/solar_storage.sol:LL:CC
+   │
+LL │     /// @custom:solar-storage inline
+   ╰╴         ━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 10 previous errors
+
