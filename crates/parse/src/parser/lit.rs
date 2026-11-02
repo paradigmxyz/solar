@@ -53,7 +53,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     pub(super) fn expect_no_subdenomination(&mut self) {
         if let Some(_sub) = self.parse_subdenomination() {
             let span = self.prev_token.span;
-            self.dcx().emit_err(span, "subdenominations aren't allowed here");
+            self.dcx().emit_err(span, None, "subdenominations aren't allowed here");
         }
     }
 
@@ -101,7 +101,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         if slot.is_some() {
             *slot = None;
             let msg = "sub-denominations are only allowed on number and rational literals";
-            self.dcx().emit_err(span, msg);
+            self.dcx().emit_err(span, None, msg);
         }
     }
 

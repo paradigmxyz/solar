@@ -3,11 +3,11 @@
 //! Modified from rustc's [`DiagCtxt`](https://github.com/rust-lang/rust/blob/3b58636b30eb364ac72aeaf03d46347084ed87d1/compiler/rustc_errors/src/lib.rs).
 
 use super::{
-    BugAbort, Diag, DiagBuilder, DiagMsg, DynEmitter, EmissionGuarantee, EmittedDiagnostics,
-    ErrorGuaranteed, FatalAbort, HumanBufferEmitter, Level, MultiSpan, SilentEmitter,
-    emitter::HumanEmitter,
+    BugAbort, Diag, DiagBuilder, DiagId, DiagMsg, DynEmitter, EmissionGuarantee,
+    EmittedDiagnostics, ErrorGuaranteed, FatalAbort, HumanBufferEmitter, Level, MultiSpan,
+    SilentEmitter, emitter::HumanEmitter,
 };
-use crate::{Result, SourceMap, Span};
+use crate::{Result, SourceMap};
 use anstream::ColorChoice;
 use rayon::prelude::*;
 use solar_config::{CompileOpts, ErrorFormat};
@@ -687,45 +687,26 @@ impl DiagCtxt {
         self.diag(Level::Error, msg)
     }
 
-    /// Emits an error at `span` with the given `msg`.
+    /// Creates a builder at the `Error` level with the given `span`, optional `code`, and `msg`.
     #[track_caller]
-    pub fn emit_err(&self, span: impl Into<MultiSpan>, msg: impl Into<DiagMsg>) -> ErrorGuaranteed {
-        self.err(msg).span(span).emit()
-    }
-
-    /// Emits an error at `span` with an attached note.
-    #[track_caller]
-    pub fn emit_err_note(
+    pub fn err_at(
         &self,
         span: impl Into<MultiSpan>,
+        code: impl Into<Option<DiagId>>,
         msg: impl Into<DiagMsg>,
-        note: impl Into<DiagMsg>,
-    ) -> ErrorGuaranteed {
-        self.err(msg).span(span).note(note).emit()
+    ) -> DiagBuilder<'_, ErrorGuaranteed> {
+        self.diag_at(Level::Error, span, code, msg)
     }
 
-    /// Emits an error at `span` with an attached span note.
+    /// Emits an error with the given `span`, optional `code`, and `msg`.
     #[track_caller]
-    pub fn emit_err_span_note(
+    pub fn emit_err(
         &self,
         span: impl Into<MultiSpan>,
+        code: impl Into<Option<DiagId>>,
         msg: impl Into<DiagMsg>,
-        note_span: impl Into<MultiSpan>,
-        note: impl Into<DiagMsg>,
     ) -> ErrorGuaranteed {
-        self.err(msg).span(span).span_note(note_span, note).emit()
-    }
-
-    /// Emits an error at `span` with an attached span label.
-    #[track_caller]
-    pub fn emit_err_label(
-        &self,
-        span: impl Into<MultiSpan>,
-        msg: impl Into<DiagMsg>,
-        label_span: Span,
-        label: impl Into<DiagMsg>,
-    ) -> ErrorGuaranteed {
-        self.err(msg).span(span).span_label(label_span, label).emit()
+        self.err_at(span, code, msg).emit()
     }
 
     /// Creates a builder at the `Warning` level with the given `msg`.
@@ -734,6 +715,30 @@ impl DiagCtxt {
     #[track_caller]
     pub fn warn(&self, msg: impl Into<DiagMsg>) -> DiagBuilder<'_, ()> {
         self.diag(Level::Warning, msg)
+    }
+
+    /// Creates a builder at the `Warning` level with the given `span`, optional `code`, and `msg`.
+    ///
+    /// Attempting to `.emit()` the builder will only emit if `can_emit_warnings` is `true`.
+    #[track_caller]
+    pub fn warn_at(
+        &self,
+        span: impl Into<MultiSpan>,
+        code: impl Into<Option<DiagId>>,
+        msg: impl Into<DiagMsg>,
+    ) -> DiagBuilder<'_, ()> {
+        self.diag_at(Level::Warning, span, code, msg)
+    }
+
+    /// Emits a warning with the given `span`, optional `code`, and `msg`.
+    #[track_caller]
+    pub fn emit_warn(
+        &self,
+        span: impl Into<MultiSpan>,
+        code: impl Into<Option<DiagId>>,
+        msg: impl Into<DiagMsg>,
+    ) {
+        self.warn_at(span, code, msg).emit()
     }
 
     /// Creates a builder at the `Help` level with the given `msg`.
@@ -746,6 +751,22 @@ impl DiagCtxt {
     #[track_caller]
     pub fn note(&self, msg: impl Into<DiagMsg>) -> DiagBuilder<'_, ()> {
         self.diag(Level::Note, msg)
+    }
+
+    /// Creates a builder at `level` with `span`, setting `code` only if it is `Some`.
+    #[track_caller]
+    fn diag_at<G: EmissionGuarantee>(
+        &self,
+        level: Level,
+        span: impl Into<MultiSpan>,
+        code: impl Into<Option<DiagId>>,
+        msg: impl Into<DiagMsg>,
+    ) -> DiagBuilder<'_, G> {
+        let diag = self.diag(level, msg).span(span);
+        match code.into() {
+            Some(code) => diag.code(code),
+            None => diag,
+        }
     }
 }
 

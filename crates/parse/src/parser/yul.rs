@@ -272,7 +272,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         if !has_cases {
             let span = lo.to(self.prev_token.span);
             if !has_default {
-                self.dcx().emit_err(span, "`switch` statement has no cases");
+                self.dcx().emit_err(span, None, "`switch` statement has no cases");
             } else {
                 self.dcx()
                     .warn("`switch` statement has only a default case")
@@ -353,8 +353,11 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 self.parse_yul_expr_call_with(ident).map(ExprKind::Call)
             } else if path.segments().len() == 1 && self.is_reserved_yul_expr_ident(*path.first()) {
                 let name = path.first();
-                self.dcx()
-                    .emit_err(path.span(), format!("builtin function `{name}` must be called"));
+                self.dcx().emit_err(
+                    path.span(),
+                    None,
+                    format!("builtin function `{name}` must be called"),
+                );
                 Ok(ExprKind::Path(path))
             } else {
                 self.check_valid_path(&path);
@@ -387,7 +390,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     #[track_caller]
     fn expect_single_ident_path(&mut self, path: AstPath<'_>) -> Ident {
         if path.segments().len() > 1 {
-            self.dcx().emit_err(path.span(), "fully-qualified paths aren't allowed here");
+            self.dcx().emit_err(path.span(), None, "fully-qualified paths aren't allowed here");
         }
         *path.last()
     }

@@ -1101,7 +1101,7 @@ impl<'gcx> Gcx<'gcx> {
             | hir::ItemId::Udvt(_) => self.type_of_item(id),
             _ => {
                 let msg = "name has to refer to a valid user-defined type";
-                self.mk_ty_err(self.dcx().emit_err(span, msg))
+                self.mk_ty_err(self.dcx().emit_err(span, None, msg))
             }
         }
     }
@@ -1869,7 +1869,7 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
                 let kind = f.description();
                 let msg = format!("{subject} cannot be parameter or return types of public {kind}s");
                 let span = gcx.hir.variable(var_id).ty.span;
-                result = Err(gcx.dcx().emit_err(span, msg));
+                result = Err(gcx.dcx().emit_err(span, None, msg));
             }
         }
         if result.is_err() {
@@ -2012,7 +2012,7 @@ pub fn type_of_item(gcx: _, id: hir::ItemId) -> Ty<'gcx> {
                 TyKind::Udvt(ty, id)
             } else {
                 let msg = "the underlying type of UDVTs must be an elementary value type";
-                return gcx.mk_ty_err(gcx.dcx().emit_err(udvt.ty.span, msg));
+                return gcx.mk_ty_err(gcx.dcx().emit_err(udvt.ty.span, None, msg));
             }
         }
         hir::ItemId::Error(id) => {
@@ -2247,12 +2247,12 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
             Some(Transient) => {
                 if mut_specified {
                     let msg = "transient cannot be used as data location for constant or immutable variables";
-                    gcx.dcx().emit_err(var.span, msg);
+                    gcx.dcx().emit_err(var.span, None, msg);
                 }
                 if var.initializer.is_some() {
                     let msg =
                         "initialization of transient storage state variables is not supported";
-                    gcx.dcx().emit_err(var.span, msg);
+                    gcx.dcx().emit_err(var.span, None, msg);
                 }
                 Transient
             }
