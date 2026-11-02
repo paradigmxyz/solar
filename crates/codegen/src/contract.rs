@@ -1,11 +1,11 @@
 //! Contract bytecode generation and dependency orchestration.
 
 use crate::{
-    EvmCodegen,
+    Backend, EvmCodegen,
     backend::evm::{CodegenState, DebugInfo, EvmArtifact, ir},
     link::{
-        ContractBytecodes, EmbeddedBytecodes, LibraryRelocation, LibraryTable, QualifiedName,
-        RelocatableBytecode, Trailer,
+        ContractBytecodes, DataBytes, EmbeddedBytecodes, LibraryRelocation, LibraryTable,
+        QualifiedName, RelocatableBytecode, Trailer,
     },
     mir::{Module, lower, pass::run_pipeline},
 };
@@ -53,9 +53,11 @@ pub struct ContractArtifact {
     /// The [`RuntimeDataFn`] values of this contract and the contracts it embeds in the runtime
     /// bytecode, in ascending order.
     pub runtime_trailers: Vec<Trailer>,
-    /// Captured MIR, built under `-O none` when no explicit pipeline is configured and
+    /// Captured MIR, built under `-O none` without an explicit pipeline, and
     /// post-pipeline otherwise.
     pub mir: Option<Module>,
+    /// Lowered MIR retained independently of the built snapshot.
+    pub final_mir: Option<Module>,
     /// Final deployment-prefix EVM IR immediately before byte emission.
     pub deployment_evm_ir: Option<ir::Module>,
     /// Final runtime EVM IR immediately before byte emission.
@@ -166,7 +168,8 @@ impl ContractSelection {
 ///
 /// Contracts in `contracts` retain bytecode in the returned artifact.
 /// Contracts in `capture_mir` retain built MIR under `-O none` when no explicit pipeline is
-/// configured and final MIR otherwise.
+/// configured and final MIR otherwise, and, with `-Zdump=mir-final`, the final MIR in
+/// `final_mir`.
 /// Contracts in `capture_evm_ir` retain their final EVM IR in the returned artifact.
 /// Values returned by `runtime_data` are emitted as trailing runtime program data.
 /// Contracts in `capture_debug_info` retain final instruction locations.
@@ -257,6 +260,32 @@ pub fn generate_contract_bytecodes(
         }
     }
     Ok(generated)
+}
+
+/// Generates the bytecode of a lowered MIR module given as input. Its pipeline already ran, so
+/// the backend runs no passes of its own, and `module` ends as the final MIR the backend compiled.
+/// The artifact keeps the final EVM IR of both programs, which dumps of MIR input print.
+///
+/// A module given as input comes with no other contract, so data holding another contract's
+/// bytecode has nothing to link it to, and is an error.
+pub fn generate_mir_input_bytecode(gcx: Gcx<'_>, module: &mut Module) -> Result<EvmArtifact> {
+    if let Some(code) = module.data.iter().find_map(|data| match data.bytes {
+        DataBytes::Deferred(code) => Some(code),
+        DataBytes::Known(_) => None,
+    }) {
+        let message = "MIR input that embeds another contract's code has no bytecode to emit";
+        let note = format!("its data holds `{code}`, which only compiling that contract generates");
+        return Err(gcx.dcx().err(message).note(note).emit());
+    }
+    let mut codegen = EvmCodegen::new(gcx);
+    codegen.set_run_pipeline(false);
+    codegen.set_capture_mir(true);
+    codegen.set_capture_evm_ir(true);
+    codegen.set_capture_scheduled_evm_ir(dumps_scheduled_evm_ir(gcx));
+    let artifact = codegen.lower_module(module, &EmbeddedBytecodes::default());
+    module.backend_memory = artifact.backend_memory.clone();
+    gcx.dcx().has_errors()?;
+    Ok(artifact)
 }
 
 #[derive(Clone, Copy)]
@@ -669,10 +698,12 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
         let mut module = lower::lower_contract(gcx, contract_id);
         gcx.dcx().has_errors()?;
         let capture_mir = captures.mir.contains(contract_id);
+        let final_mir = dumps_final_mir(gcx);
         let needs_backend = captures.bytecode.contains(contract_id)
             || captures.evm_ir.contains(contract_id)
             || captures.debug_info.contains(contract_id)
-            || !graph.dependents[contract_id].is_empty();
+            || !graph.dependents[contract_id].is_empty()
+            || final_mir;
         let runtime_data =
             captures.runtime_data.filter(|_| needs_backend).map(|data| data(contract_id));
         append_runtime_data(
@@ -686,7 +717,7 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
         let codegen = if needs_backend {
             module.set_debug_info_tracked(captures.debug_info.contains(contract_id));
             let mut codegen = Box::new(EvmCodegen::new(gcx));
-            codegen.set_capture_mir(capture_mir && !capture_built);
+            codegen.set_capture_mir(capture_mir && (!capture_built || final_mir));
             codegen.set_capture_evm_ir(captures.evm_ir.contains(contract_id));
             codegen.set_capture_scheduled_evm_ir(
                 captures.evm_ir.contains(contract_id) && dumps_scheduled_evm_ir(gcx),
@@ -785,6 +816,11 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
         );
         let runtime_link_references =
             collect_library_references(&artifact.runtime_library_relocations, &artifact.libraries);
+        let final_mir = (capture_mir && dumps_final_mir(gcx)).then(|| {
+            let mut snapshot = module.clone();
+            snapshot.backend_memory = artifact.backend_memory.clone();
+            snapshot
+        });
         let mir = capture_mir.then(|| built_mir.unwrap_or(module));
 
         Ok(ContractArtifact {
@@ -796,6 +832,7 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             deployment_trailers: artifact.deployment_trailers,
             runtime_trailers: artifact.runtime_trailers,
             mir,
+            final_mir,
             deployment_evm_ir: artifact.deployment_evm_ir,
             runtime_evm_ir: artifact.runtime_evm_ir,
             runtime_scheduled_evm_ir: artifact.runtime_scheduled_evm_ir,
@@ -888,4 +925,14 @@ pub(crate) fn warn_code_size_limits(
         }
         diag.emit();
     }
+}
+
+/// Returns whether `-Zdump=mir-final` asks for the MIR the backend compiles.
+fn dumps_final_mir(gcx: Gcx<'_>) -> bool {
+    gcx.sess
+        .opts
+        .unstable
+        .dump
+        .as_ref()
+        .is_some_and(|dump| dump.kinds.contains(&DumpKind::MirFinal))
 }

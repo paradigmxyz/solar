@@ -136,7 +136,7 @@ fn @wordsForward() [selector=0xb2066b6b, abi_wrapper, pure] {
 }
 
 ; function bytesIntoHeader(uint256 count, bool sameObject) external pure returns (bool) [selector 0x10ca09ba]
-fn @bytesIntoHeader() [selector=0x10ca09ba, abi_wrapper, pure] {
+fn @bytesIntoHeader() [selector=0x10ca09ba, abi_wrapper, pure, implicit_args=[i256, i1]] {
   bb0:
     v10 = calldataload 36
     v11 = shr v10, 1

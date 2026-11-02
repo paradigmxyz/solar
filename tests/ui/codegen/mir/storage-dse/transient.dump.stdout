@@ -123,7 +123,7 @@ fn @clearedAfterCall() [selector=0x15bda24f, abi_wrapper] {
 }
 
 ; function afterReturn(bool early) external returns (uint256) [selector 0x888a9e3c]
-fn @afterReturn() [selector=0x888a9e3c, abi_wrapper] {
+fn @afterReturn() [selector=0x888a9e3c, abi_wrapper, implicit_args=[i1]] {
   bb0:
     v20 = calldataload 4
     v21 = shr v20, 1
