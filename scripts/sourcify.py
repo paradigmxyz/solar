@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.14"
-# dependencies = ["duckdb==1.5.0"]
+# dependencies = ["duckdb==1.5.6"]
 # ///
 """Compatibility entry point for tools/compiler-diff."""
 
