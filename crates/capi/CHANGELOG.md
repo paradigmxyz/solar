@@ -23,15 +23,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [lsp] Add initial language server support ([#870](https://github.com/paradigmxyz/solar/issues/870))
 - Add solc-compatible wasm API ([#850](https://github.com/paradigmxyz/solar/issues/850))
 
-### Miscellaneous Tasks
-
-- Release 0.2.0
-
-### Testing
-
-- [capi] Move C API smoke test to CI ([#1114](https://github.com/paradigmxyz/solar/issues/1114))
-- [capi] Reuse built cdylib ([#1013](https://github.com/paradigmxyz/solar/issues/1013))
-
 ## [0.2.0](https://github.com/paradigmxyz/solar/releases/tag/v0.2.0)
 
 ### Bug Fixes

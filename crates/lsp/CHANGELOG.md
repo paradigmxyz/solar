@@ -41,9 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [lsp] Complete symbols in incomplete code ([#1475](https://github.com/paradigmxyz/solar/issues/1475))
 - [lsp] Index NatSpec symbol references ([#1486](https://github.com/paradigmxyz/solar/issues/1486))
 - [lsp] Index the whole project workspace ([#1404](https://github.com/paradigmxyz/solar/issues/1404))
-- [ci] Repair main workflow failures ([#1335](https://github.com/paradigmxyz/solar/issues/1335))
 - [lsp] Gate Unix-only test import ([#1315](https://github.com/paradigmxyz/solar/issues/1315))
-- [bench] Add CodSpeed context ([#1234](https://github.com/paradigmxyz/solar/issues/1234))
 - [parse] Preserve continued string whitespace ([#1211](https://github.com/paradigmxyz/solar/issues/1211))
 - [lsp] Harden import completion ([#1171](https://github.com/paradigmxyz/solar/issues/1171))
 - [sema] Align project edge cases with solc ([#1088](https://github.com/paradigmxyz/solar/issues/1088))
@@ -111,16 +109,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [lsp] Register watched file notifications ([#880](https://github.com/paradigmxyz/solar/issues/880))
 - [lsp] Add initial language server support ([#870](https://github.com/paradigmxyz/solar/issues/870))
 
-### Miscellaneous Tasks
-
-- Remove the LSP benchmarks ([#2151](https://github.com/paradigmxyz/solar/issues/2151))
-- Fix merge conflicts
-- Release 0.2.0
-
-### Other
-
-- Repin rust-toolchain to current v1 ([#1644](https://github.com/paradigmxyz/solar/issues/1644))
-
 ### Performance
 
 - [codegen] Speed up MIR and EVM IR passes ([#1556](https://github.com/paradigmxyz/solar/issues/1556))
@@ -175,27 +163,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [lsp] Cache derived document data ([#1351](https://github.com/paradigmxyz/solar/issues/1351))
 - [lsp] Optimize span location conversion ([#1353](https://github.com/paradigmxyz/solar/issues/1353))
 - [lsp] Cache workspace path matches ([#1350](https://github.com/paradigmxyz/solar/issues/1350))
-
-### Refactor
-
-- [lsp] Slim tests and deduplicate code ([#1621](https://github.com/paradigmxyz/solar/issues/1621))
-- [hir] Represent call options once ([#1580](https://github.com/paradigmxyz/solar/issues/1580))
-- [lsp] Deduplicate LSP and benchmarks ([#1402](https://github.com/paradigmxyz/solar/issues/1402))
-- [codegen] Rewrite MIR codegen ([#1161](https://github.com/paradigmxyz/solar/issues/1161))
-- Centralize function naming ([#1341](https://github.com/paradigmxyz/solar/issues/1341))
-- [lsp] Share HIR printer for hovers ([#1056](https://github.com/paradigmxyz/solar/issues/1056))
-- Use sparse index maps ([#1009](https://github.com/paradigmxyz/solar/issues/1009))
-- [interface] Sync rustc diagnostics ([#938](https://github.com/paradigmxyz/solar/issues/938))
-
-### Styling
-
-- [lsp] Add shared test fixtures ([#900](https://github.com/paradigmxyz/solar/issues/900))
-
-### Testing
-
-- Compare paths with `/` on Windows ([#1742](https://github.com/paradigmxyz/solar/issues/1742))
-- [lsp] Wait for symbol storage cleanup ([#1397](https://github.com/paradigmxyz/solar/issues/1397))
-- [lsp] Avoid watched-file test race ([#1225](https://github.com/paradigmxyz/solar/issues/1225))
 
 ## [0.2.0](https://github.com/paradigmxyz/solar/releases/tag/v0.2.0)
 
