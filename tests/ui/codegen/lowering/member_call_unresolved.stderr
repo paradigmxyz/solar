@@ -10,7 +10,7 @@ error: unresolved symbol `Missing`
 LL │     function f(Missing m) external {
    ╰╴               ━━━━━━━
 
-error: unresolved symbol `missing`
+error[7576]: unresolved symbol `missing`
    ╭▸ ROOT/tests/ui/codegen/lowering/member_call_unresolved.sol:LL:CC
    │
 LL │         keccak256(missing);

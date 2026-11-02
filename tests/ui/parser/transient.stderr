@@ -1,10 +1,10 @@
-error: data location can only be specified for array, struct or mapping types
+error[6651]: data location can only be specified for array, struct or mapping types
    ╭▸ ROOT/tests/ui/parser/transient.sol:LL:CC
    │
 LL │     function g(uint256 transient transient) external {
    ╰╴               ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error: invalid data location `transient`
+error[6651]: invalid data location `transient`
    ╭▸ ROOT/tests/ui/parser/transient.sol:LL:CC
    │
 LL │     function g2(uint256[] transient transient) external {

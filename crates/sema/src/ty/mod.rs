@@ -2210,7 +2210,7 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
             } else {
                 "expected data location".to_string()
             };
-            let mut err = gcx.dcx().err(msg).span(var.span);
+            let mut err = gcx.dcx().err(msg).code(error_code!(6651)).span(var.span);
             if has_reference_or_mapping_type() {
                 let note = format!(
                     "data location must be {expected} for {vis}{descr}{got}",

@@ -4,49 +4,49 @@ error: unresolved symbol `M`
 LL │     mapping(M => uint) m;
    ╰╴            ━
 
-error: unresolved symbol `M`
+error[7576]: unresolved symbol `M`
    ╭▸ ROOT/tests/ui/typeck/error_operand_no_cascade.sol:LL:CC
    │
 LL │         M[1:2];
    ╰╴        ━
 
-error: unresolved symbol `M`
+error[7576]: unresolved symbol `M`
    ╭▸ ROOT/tests/ui/typeck/error_operand_no_cascade.sol:LL:CC
    │
 LL │         abi.decode(cd, (M));
    ╰╴                        ━
 
-error: unresolved symbol `M`
+error[7576]: unresolved symbol `M`
    ╭▸ ROOT/tests/ui/typeck/error_operand_no_cascade.sol:LL:CC
    │
 LL │         abi.encodeCall(M, ());
    ╰╴                       ━
 
-error: unresolved symbol `M`
+error[7576]: unresolved symbol `M`
    ╭▸ ROOT/tests/ui/typeck/error_operand_no_cascade.sol:LL:CC
    │
 LL │         bytes.concat(M);
    ╰╴                     ━
 
-error: unresolved symbol `M`
+error[7576]: unresolved symbol `M`
    ╭▸ ROOT/tests/ui/typeck/error_operand_no_cascade.sol:LL:CC
    │
 LL │         string.concat(M);
    ╰╴                      ━
 
-error: unresolved symbol `M`
+error[7576]: unresolved symbol `M`
    ╭▸ ROOT/tests/ui/typeck/error_operand_no_cascade.sol:LL:CC
    │
 LL │         [M, 1];
    ╰╴         ━
 
-error: unresolved symbol `M`
+error[7576]: unresolved symbol `M`
    ╭▸ ROOT/tests/ui/typeck/error_operand_no_cascade.sol:LL:CC
    │
 LL │         [M][0];
    ╰╴         ━
 
-error: unresolved symbol `M`
+error[7576]: unresolved symbol `M`
    ╭▸ ROOT/tests/ui/typeck/error_operand_no_cascade.sol:LL:CC
    │
 LL │         (uint a, uint b) = M;

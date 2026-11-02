@@ -1869,11 +1869,11 @@ impl<'gcx> ResolveContext<'gcx> {
             ast::ExprKind::CallOptions(..) => self.lower_call_options(expr),
             ast::ExprKind::Delete(expr) => hir::ExprKind::Delete(self.lower_expr(expr)),
             ast::ExprKind::Ident(name) => {
-                match self.resolve_paths(ast::PathSlice::from_ref(name)) {
+                match self.resolver.resolve_paths(ast::PathSlice::from_ref(name), &self.scopes) {
                     Ok(decls) => hir::ExprKind::Ident(
                         self.arena.alloc_slice_fill_iter(decls.iter().map(|decl| decl.res)),
                     ),
-                    Err(guar) => hir::ExprKind::Err(guar),
+                    Err(e) => hir::ExprKind::Err(self.resolver.emit_ident_resolver_error(e)),
                 }
             }
             ast::ExprKind::Index(expr, index) => match index {
@@ -2235,6 +2235,18 @@ impl<'gcx> SymbolResolver<'gcx> {
 
     fn emit_resolver_error(&self) -> impl Fn(ResolverError) -> ErrorGuaranteed + '_ {
         move |e| self.dcx.emit_err(e.span(), e.format())
+    }
+
+    /// Emits a resolver error for an identifier expression, which solc reports as an undeclared
+    /// identifier.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.38/libsolidity/analysis/ReferencesResolver.cpp#L118-L133>
+    fn emit_ident_resolver_error(&self, e: ResolverError) -> ErrorGuaranteed {
+        let mut diag = self.dcx.err(e.format()).span(e.span());
+        if let ResolverErrorKind::Unresolved = e.kind {
+            diag = diag.code(error_code!(7576));
+        }
+        diag.emit()
     }
 
     fn resolve_path(
