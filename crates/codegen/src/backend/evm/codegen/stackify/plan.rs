@@ -1251,9 +1251,28 @@ impl<'a> Planner<'a> {
         Ok(())
     }
 
-    /// Swaps the word at `depth` to the top.
+    /// Swaps the word at `depth` to the top. When it is beyond reach and no value can be spilled
+    /// to bring it closer, the junk above it is dropped instead.
     #[inline(always)]
-    fn swap_up(&self, sim: &mut Sim, depth: usize) -> Result<(), Fail> {
+    fn swap_up(&self, sim: &mut Sim, mut depth: usize) -> Result<(), Fail> {
+        if depth > self.reach {
+            let fail = self.deep(sim, sim.stack.len().checked_sub(depth + 1));
+            if !matches!(fail, Fail::Deep(None, _)) {
+                return Err(fail);
+            }
+            // [..., word, ..., junk, ..., top] -> [..., word, ..., top] until `word` is in reach
+            while depth > self.reach
+                && let Some(junk) =
+                    sim.stack.iter().rev().take(self.reach + 1).position(|&s| s == Slot::Junk)
+            {
+                self.swap_up(sim, junk)?;
+                self.stack_op(sim, StackOp::Pop)?;
+                depth -= 1;
+            }
+            if depth > self.reach {
+                return Err(fail);
+            }
+        }
         if depth == 0 {
             return Ok(());
         }
