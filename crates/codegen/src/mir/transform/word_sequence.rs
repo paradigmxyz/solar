@@ -539,8 +539,9 @@ fn spell_zero_tested(func: &mut Function, target: &Target, cyclic: &DenseBitSet<
     for block in func.blocks.indices() {
         let original = func.blocks[block].instructions.clone();
         let defined = original.iter().copied().collect::<FxHashSet<_>>();
-        // The shifts, each placed where the comparison it replaces was computed.
-        let mut shifts = FxHashMap::default();
+        // The shifts, each placed where the comparison it replaces was computed; one comparison
+        // can have several leaves.
+        let mut shifts = FxHashMap::<InstId, Vec<InstId>>::default();
         for &inst in &original {
             if let InstKind::Or(a, b) = func.inst(inst).kind
                 && func.inst_result_value(inst).is_some_and(|value| tested.contains(&value))
@@ -550,7 +551,9 @@ fn spell_zero_tested(func: &mut Function, target: &Target, cyclic: &DenseBitSet<
                     let (word, shift) =
                         zero_tested_leaf(func, target, &uses, &defined, leaf, in_loop);
                     changed |= word != leaf;
-                    shifts.extend(shift);
+                    if let Some((comparison, shift)) = shift {
+                        shifts.entry(comparison).or_default().push(shift);
+                    }
                     word
                 });
                 func.inst_mut(inst).replace_kind(InstKind::Or(a, b));
@@ -558,7 +561,7 @@ fn spell_zero_tested(func: &mut Function, target: &Target, cyclic: &DenseBitSet<
         }
         let mut spelled = Vec::with_capacity(original.len() + shifts.len());
         for &inst in &original {
-            spelled.extend(shifts.remove(&inst));
+            spelled.extend(shifts.remove(&inst).into_iter().flatten());
             spelled.push(inst);
         }
         func.blocks[block].instructions = spelled;

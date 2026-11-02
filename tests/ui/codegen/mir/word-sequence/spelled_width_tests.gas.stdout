@@ -115,3 +115,23 @@
       revert 0, 0
   }
   
+  fn @shared_comparison(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+-     v0 = gt arg0, 0xffffffffffffffff
++     v6 = shr arg0, 64
++     v7 = shr arg0, 64
++     v0 = ne v6, 0
+      v1 = zext i1 v0 to i256
+      v2 = zext i1 v0 to i256
+-     v3 = or v1, arg1
+-     v4 = or v3, v2
++     v3 = or v6, arg1
++     v4 = or v3, v7
+      v5 = ne v4, 0
+      jumpi v5, bb1, bb2
+    bb2:  ; preds = bb0
+      ret arg0
+    bb1 [cold]:  ; preds = bb0
+      revert 0, 0
+  }
+  

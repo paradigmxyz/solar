@@ -146,3 +146,24 @@ fn @leaf_gas_barrier(arg0: i256, arg1: i256) -> i256 {
   bb2:
     ret v2
 }
+
+// Two leaves of one comparison each get a shift, both computed where the comparison was.
+// CHECK-LABEL: {{^[ +].*}}fn @shared_comparison{{[( ]}}
+// CHECK: [[A:v[0-9]+]] = shr arg0, 64
+// CHECK: [[B:v[0-9]+]] = shr arg0, 64
+// CHECK: = or [[A]], arg1
+// CHECK: = or {{v[0-9]+}}, [[B]]
+fn @shared_comparison(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = gt arg0, 0xffffffffffffffff
+    v1 = zext i1 v0 to i256
+    v2 = zext i1 v0 to i256
+    v3 = or v1, arg1
+    v4 = or v3, v2
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    ret arg0
+}
