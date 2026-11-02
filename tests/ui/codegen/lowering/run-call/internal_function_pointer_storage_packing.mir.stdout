@@ -5,7 +5,7 @@ fn @constructor() [constructor] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
-    v2 = or v1, 2
+    v2 = or v1, 1
     sstore 0, v2 !metadata(storage=slot(0))
     v3 = sload 0 !metadata(storage=slot(0))
     v4 = and v3, 0xffffffffffffffffffffffffffffffff0000000000000000ffffffffffffffff
@@ -16,28 +16,28 @@ fn @constructor() [constructor] {
     icall panic_if<0x32>, v7
     v8 = sload 1 !metadata(storage=slot(1))
     v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
-    v10 = or v9, 2
+    v10 = or v9, 1
     sstore 1, v10 !metadata(storage=slot(1))
     v11 = lt 1, 4
     v12 = eq v11, false
     icall panic_if<0x32>, v12
     v13 = sload 1 !metadata(storage=slot(1))
     v14 = and v13, 0xffffffffffffffffffffffffffffffff0000000000000000ffffffffffffffff
-    v15 = or v14, 0x30000000000000000
+    v15 = or v14, 0x20000000000000000
     sstore 1, v15 !metadata(storage=slot(1))
     v16 = lt 2, 4
     v17 = eq v16, false
     icall panic_if<0x32>, v17
     v18 = sload 1 !metadata(storage=slot(1))
     v19 = and v18, 0xffffffffffffffff0000000000000000ffffffffffffffffffffffffffffffff
-    v20 = or v19, 0x400000000000000000000000000000000
+    v20 = or v19, 0x300000000000000000000000000000000
     sstore 1, v20 !metadata(storage=slot(1))
     v21 = lt 3, 4
     v22 = eq v21, false
     icall panic_if<0x32>, v22
     v23 = sload 1 !metadata(storage=slot(1))
     v24 = and v23, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v25 = or v24, 0x5000000000000000000000000000000000000000000000000
+    v25 = or v24, 0x4000000000000000000000000000000000000000000000000
     sstore 1, v25 !metadata(storage=slot(1))
     ret
 }

@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0](https://github.com/paradigmxyz/solar/releases/tag/v0.3.0)
+
+### Bug Fixes
+
+- [sema] Drop cached output allocations again ([#1889](https://github.com/paradigmxyz/solar/issues/1889))
+- [sema] Report direct struct cycles next to arrays ([#1819](https://github.com/paradigmxyz/solar/issues/1819))
+- [parser] Raise the recursion limit to 256 ([#1704](https://github.com/paradigmxyz/solar/issues/1704))
+- [sema] Drop cached output allocations ([#1349](https://github.com/paradigmxyz/solar/issues/1349))
+- [yul] Complete EVM version checks
+- [sema] Downgrade NatSpec errors to warnings ([#1281](https://github.com/paradigmxyz/solar/issues/1281))
+- [docs] Avoid rustdoc ICE on re-exports ([#912](https://github.com/paradigmxyz/solar/issues/912))
+- Align import resolution with solc ([#860](https://github.com/paradigmxyz/solar/issues/860))
+
+### Features
+
+- [codegen] Print pass diffs ([#1001](https://github.com/paradigmxyz/solar/issues/1001))
+- Update solidity to 0.8.35 ([#874](https://github.com/paradigmxyz/solar/issues/874))
+- Codegen ([#822](https://github.com/paradigmxyz/solar/issues/822))
+
+### Performance
+
+- [evm] Retain several constants on the stack ([#2122](https://github.com/paradigmxyz/solar/issues/2122))
+- [codegen] Plan function stack layouts in parallel ([#2007](https://github.com/paradigmxyz/solar/issues/2007))
+- [codegen] Speed up analyses and spill planning ([#1606](https://github.com/paradigmxyz/solar/issues/1606))
+- [codegen] Speed up MIR and EVM IR passes ([#1556](https://github.com/paradigmxyz/solar/issues/1556))
+- [codegen] Improve EVM stack scheduling ([#1305](https://github.com/paradigmxyz/solar/issues/1305))
+- [codegen] Use dense sets for IDs ([#958](https://github.com/paradigmxyz/solar/issues/958))
+
 ## [0.2.0](https://github.com/paradigmxyz/solar/releases/tag/v0.2.0)
 
 ### Bug Fixes

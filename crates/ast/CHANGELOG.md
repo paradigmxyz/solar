@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0](https://github.com/paradigmxyz/solar/releases/tag/v0.3.0)
+
+### Bug Fixes
+
+- [parse] Stop pragma versions at the first error ([#1854](https://github.com/paradigmxyz/solar/issues/1854))
+- [parse] Parse `fixedMxN` and `ufixedMxN` types ([#1724](https://github.com/paradigmxyz/solar/issues/1724))
+- [parser] Recover malformed member access ([#914](https://github.com/paradigmxyz/solar/issues/914))
+- [docs] Avoid rustdoc ICE on re-exports ([#912](https://github.com/paradigmxyz/solar/issues/912))
+- [sema] Inherit public variable getter docs ([#825](https://github.com/paradigmxyz/solar/issues/825))
+- [sema] Align natspec validation ([#771](https://github.com/paradigmxyz/solar/issues/771))
+- Replace unnecessary repetitions of structure name ([#581](https://github.com/paradigmxyz/solar/issues/581))
+
+### Features
+
+- Support fractional number literals ([#1752](https://github.com/paradigmxyz/solar/issues/1752))
+- [sema] Warn on unmatched version pragmas ([#1761](https://github.com/paradigmxyz/solar/issues/1761))
+- [codegen] Support narrow immutables ([#1003](https://github.com/paradigmxyz/solar/issues/1003))
+- [sema] Implement using for ([#773](https://github.com/paradigmxyz/solar/issues/773))
+- [sema] Lower inline yul to hir ([#769](https://github.com/paradigmxyz/solar/issues/769))
+- [sema] Lower natspec ([#768](https://github.com/paradigmxyz/solar/issues/768))
+- [ast] Change TypeSize to store bits instead of bytes ([#671](https://github.com/paradigmxyz/solar/issues/671))
+- [ast] Naive natspec ([#470](https://github.com/paradigmxyz/solar/issues/470))
+- [sema] Experimental typeck ([#563](https://github.com/paradigmxyz/solar/issues/563))
+- [ast] Add some methods to BinOpKind, DataLocation ([#555](https://github.com/paradigmxyz/solar/issues/555))
+
 ## [0.2.0](https://github.com/paradigmxyz/solar/releases/tag/v0.2.0)
 
 ### Bug Fixes

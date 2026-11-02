@@ -3,7 +3,7 @@
 ; function compareBytes32(bytes32 a, bytes32 b) external pure returns (bool) [selector 0x824a2a4e]
 fn @compareBytes32(arg0: i256, arg1: i256) -> i1 [selector=0x824a2a4e, pure, abi_params=[bytes32, bytes32], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = icall @internal_dispatcher_p_uint256_uint256_r_bool, 2, arg0, arg1
+    v0 = icall @internal_dispatcher_p_uint256_uint256_r_bool, 1, arg0, arg1
     v1 = ne v0, 0
     ret v1
 }
@@ -11,7 +11,7 @@ fn @compareBytes32(arg0: i256, arg1: i256) -> i1 [selector=0x824a2a4e, pure, abi
 ; function compareAddress(uint256 a, uint256 b) external pure returns (bool) [selector 0xf627b917]
 fn @compareAddress(arg0: i256, arg1: i256) -> i1 [selector=0xf627b917, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = icall @internal_dispatcher_p_uint256_uint256_r_bool, 4, arg0, arg1
+    v0 = icall @internal_dispatcher_p_uint256_uint256_r_bool, 2, arg0, arg1
     v1 = ne v0, 0
     ret v1
 }
@@ -19,7 +19,7 @@ fn @compareAddress(arg0: i256, arg1: i256) -> i1 [selector=0xf627b917, pure, abi
 ; function compareInt256(uint256 a, uint256 b) external pure returns (bool) [selector 0x28717b2d]
 fn @compareInt256(arg0: i256, arg1: i256) -> i1 [selector=0x28717b2d, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = icall @internal_dispatcher_p_uint256_uint256_r_bool, 6, arg0, arg1
+    v0 = icall @internal_dispatcher_p_uint256_uint256_r_bool, 3, arg0, arg1
     v1 = ne v0, 0
     ret v1
 }
@@ -47,13 +47,13 @@ fn @_int256Less(arg0: i256, arg1: i256) -> i1 [pure] {
 
 fn @internal_dispatcher_p_uint256_uint256_r_bool(arg0: i256, arg1: i256, arg2: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
-    v0 = eq arg0, 2
+    v0 = eq arg0, 1
     jumpi v0, bb1, bb2
   bb2:  ; preds = bb0
-    v3 = eq arg0, 4
+    v3 = eq arg0, 2
     jumpi v3, bb3, bb4
   bb4:  ; preds = bb2
-    v10 = eq arg0, 6
+    v10 = eq arg0, 3
     jumpi v10, bb5, bb6
   bb6:  ; preds = bb4
     icall panic_if<0x51>, true
