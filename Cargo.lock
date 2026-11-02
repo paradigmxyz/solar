@@ -4410,6 +4410,7 @@ dependencies = [
  "solar-evmir",
  "solar-interface",
  "solar-mir",
+ "solar-mir-interpreter",
  "solar-sema",
  "tempfile",
  "tracing",

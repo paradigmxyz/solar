@@ -143,6 +143,8 @@ pub struct Module {
     /// The objective this module's code is optimized for: the build's, or the one the contract's
     /// `@custom:solar-optimize` tag selects. A function's own tag may select another.
     pub optimization: OptimizationMode,
+    /// Digests of accepted external optimizer rewrites, in application order.
+    pub rewrite_digests: Vec<alloy_primitives::B256>,
     /// Instructions `@custom:solar-inline` clones have added, which the inliner bounds over all
     /// of its runs.
     pub tagged_inline_growth: usize,
@@ -233,6 +235,7 @@ impl Module {
             backend_memory: None,
             lowered_checked: false,
             optimization: OptimizationMode::default(),
+            rewrite_digests: Vec::new(),
             tagged_inline_growth: 0,
         }
     }

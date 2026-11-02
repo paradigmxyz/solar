@@ -1,0 +1,9 @@
+//@ compile-flags: -Zllm-optimize=live -Zllm-script=candidates.script
+@module Options
+@phase lowered
+fn @main() [entry] {
+  bb0:
+    stop
+}
+
+//~? ERROR: `-Zllm-script` requires `-Zllm-optimize=script`

@@ -1,0 +1,97 @@
+llm-optimize Storage @main: not offered: is the dispatch entry
+llm-optimize Storage @credit: offered at 10558 gas, 78 bytes
+llm-optimize Storage @credit: round 1: rejected at equivalence: the original logs 1 event, but the candidate 0 events
+  on arg0 = 0x2a0, arg1 = 0x280, free memory pointer 0x220, storage slot 0x3cc134d39ff81490616dc79b0e5b65ca7900f6b4e610335c58b5173118ad59b = 0x0
+llm-optimize Storage @credit: round 2: rejected at equivalence: the candidate writes storage slot 0x1, which the original never writes
+  on arg0 = 0x2a0, arg1 = 0x280, free memory pointer 0x220, storage slot 0x3cc134d39ff81490616dc79b0e5b65ca7900f6b4e610335c58b5173118ad59b = 0x0
+llm-optimize Storage @credit: round 3: accepted at 10455 gas, 76 bytes
+llm-optimize Storage @credit: round 4: nothing cheaper
+llm-optimize Storage @credit: rewritten from 10558 gas, 78 bytes to 10455 gas, 76 bytes
+llm-optimize Storage @move: offered at 12617 gas, 63 bytes
+llm-optimize Storage @move: round 1: rejected at equivalence: storage slot 0x55a5bd2f1561a275dba97a3e23bf64b586a74cc4c4a2dc9f1c147ffdbbce1122, which held 0xa43bee2780e71c8aa2a1c7dc870f9befdadc53ef56f8c5828f0ee2b26c5df3f7, ends as 0xa43bee2780e71c8aa2a1c7dc870f9befdadc53ef56f8c5828f0ee2b26c5df3f7 in the original but 0xa43bee2780e71c8aa2a1c7dc870f9befdadc53ef56f8c5828f0ee2b26c5df426 in the candidate
+  on arg0 = 0x40, arg1 = 0x2f, free memory pointer 0xde, `caller` = 0x40, storage slot 0x55a5bd2f1561a275dba97a3e23bf64b586a74cc4c4a2dc9f1c147ffdbbce1122 = 0xa43bee2780e71c8aa2a1c7dc870f9befdadc53ef56f8c5828f0ee2b26c5df3f7
+llm-optimize Storage @move: round 2: nothing cheaper
+llm-optimize Storage @locked: not offered: never sees its `tload` in bb0 come out nonzero in a test that does not revert
+llm-optimize Storage @burn: offered at 58 gas, 29 bytes
+llm-optimize Storage @burn: round 1: rejected at equivalence: the original writes storage slot 0x9, which the candidate never writes; the write fails in a static call even when it stores what the slot held
+  on arg0 = 0x0, free memory pointer 0x180, storage slot 0x9 = 0xfa79439adf260bf702931b6f1856327f8d8c26a1c17b34c2c9f480045f4c353a
+llm-optimize Storage @burn: round 2: nothing cheaper
+- // === ROOT/tests/ui/codegen/mir/llm-optimize/storage.mir (before llm-optimize) ===
++ // === ROOT/tests/ui/codegen/mir/llm-optimize/storage.mir (after llm-optimize) ===
+  @module Storage
+  @phase lowered
+  ; runtime dispatch entry
+  fn @main() [entry] {
+    bb0:
+      v0 = calldataload 0
+      v1 = calldataload 32
+      v2 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+      icall @credit, v2, v1
+      icall @move, v2, v1
+      icall @locked, v1
+      icall @burn, v1
+      stop
+  }
+  
+  fn @credit(arg0: i256, arg1: i256) {
+    bb0:
+      mstore 0, arg0
+      mstore 32, 0
+      v0 = keccak256 0, 64
+      v1 = sload v0
+      v2 = add v1, arg1
+      sstore v0, v2
+-     v3 = sload v0
+-     mstore 0, v3
++     mstore 0, v2
+      log 0, 32, 0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef, arg0
+      ret
+  }
+  
+  fn @move(arg0: i256, arg1: i256) {
+    bb0:
+      v0: i256 = caller
+      mstore 0, v0
+      mstore 32, 0
+      v1 = keccak256 0, 64
+      v2 = sload v1
+      v3 = lt v2, arg1
+      jumpi v3, bb1, bb2
+    bb2:  ; preds = bb0
+      v4 = sub v2, arg1
+      sstore v1, v4
+      mstore 0, arg0
+      v5 = keccak256 0, 64
+      v6 = sload v5
+      v7 = add v6, arg1
+      sstore v5, v7
+      ret
+    bb1 [cold]:  ; preds = bb0
+      revert 0, 0
+  }
+  
+  fn @locked(arg0: i256) {
+    bb0:
+      v0 = tload 0
+      v1 = ne v0, 0
+      jumpi v1, bb1, bb2
+    bb2:  ; preds = bb0
+      tstore 0, 1
+      sstore 5, arg0
+      tstore 0, 0
+      ret
+    bb1 [cold]:  ; preds = bb0
+      revert 0, 0
+  }
+  
+  fn @burn(arg0: i256) {
+    bb0:
+      v0 = lt arg0, 100
+      jumpi v0, bb1, bb2
+    bb2:  ; preds = bb0
+      ret
+    bb1 [cold]:  ; preds = bb0
+      sstore 9, arg0
+      revert 0, 0
+  }
+  

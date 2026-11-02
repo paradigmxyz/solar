@@ -106,7 +106,7 @@ impl PhaseSet {
     }
 
     /// Returns whether this operation is valid in `phase`.
-    pub(crate) const fn contains(self, phase: MirPhase) -> bool {
+    pub const fn contains(self, phase: MirPhase) -> bool {
         self.0 & (1u8 << phase as u8) != 0
     }
 }
@@ -769,7 +769,7 @@ macro_rules! define_mir_ops {
             /// Value produced by the operation.
             pub result: ResultKind,
             /// Phases in which this operation is valid.
-            pub(crate) phases: PhaseSet,
+            pub phases: PhaseSet,
             /// Conservative effect classification.
             pub effect: EffectKind,
             /// Declarative operation properties.
@@ -781,6 +781,8 @@ macro_rules! define_mir_ops {
         }
 
         impl $inst_name {
+            /// Every operation's declared mnemonic.
+            pub const MNEMONICS: &[&str] = &[$($mnemonic,)+];
             /// Returns the schema's exact operand signature, or `None` when result or module
             /// information is required by the dedicated type checker.
             #[allow(unused_variables)]
