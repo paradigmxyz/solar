@@ -314,9 +314,10 @@ Apache-2.0 helpers with the interfaces the cold-path workloads use. Embedded sou
 identifiers.
 
 `uniswap-v2-pair` is solc-only: its 0.5 sources use `chainid` without parentheses, which we do
-not support, so our compilers skip it. The case stays in the catalog (`solc_only=True`), runs only
-with a live `--solc` of version 0.5.16, and records only reference compilers. Without `--solc`,
-including with `--reference-results`, it is skipped.
+not support, so our compilers skip it. The case stays in the catalog (`solc_only=True`) and is
+skipped without a live `--solc`, including with `--reference-results`. With one, only reference
+compilers run it. They do not compile it yet: the `runtime` profile sets `viaIR`, which solc 0.5.16
+rejects.
 
 `counter-loop` runs shared checked-arithmetic helpers in a storage-backed accumulator loop, timing
 10, 100, and 1,000 iterations as separate calls after the increment/subtract setup of the
