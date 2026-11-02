@@ -1219,7 +1219,7 @@ impl<'a> Planner<'a> {
     fn restore_saved(&self, sim: &mut Sim, saved: &[Victim]) -> Result<(), Fail> {
         let mut pending = SmallVec::<[Victim; 4]>::from_slice(saved);
         while !pending.is_empty() {
-            let (index, depth) = pending
+            let (index, mut depth) = pending
                 .iter()
                 .map(|victim| sim.depth_of(victim.saved_slot()).expect("saved word"))
                 .enumerate()
@@ -1230,6 +1230,23 @@ impl<'a> Planner<'a> {
                     _ => 0,
                 })
                 .expect("pending saved words");
+            // With no value to spill for the saved word, the dead results above it are dropped.
+            // [..., saved, ..., junk, ..., top] -> [..., saved, ..., top]
+            if depth > self.reach
+                && matches!(
+                    self.deep(sim, sim.stack.len().checked_sub(depth + 1)),
+                    Fail::Deep(None, _)
+                )
+            {
+                while depth > self.reach
+                    && let Some(junk) =
+                        sim.stack.iter().rev().take(self.reach + 1).position(|&s| s == Slot::Junk)
+                {
+                    self.swap_up(sim, junk)?;
+                    self.stack_op(sim, StackOp::Pop)?;
+                    depth -= 1;
+                }
+            }
             // swap saved; store
             self.swap_up(sim, depth)?;
             match pending.swap_remove(index) {
@@ -1251,28 +1268,9 @@ impl<'a> Planner<'a> {
         Ok(())
     }
 
-    /// Swaps the word at `depth` to the top. When it is beyond reach and no value can be spilled
-    /// to bring it closer, the junk above it is dropped instead.
+    /// Swaps the word at `depth` to the top.
     #[inline(always)]
-    fn swap_up(&self, sim: &mut Sim, mut depth: usize) -> Result<(), Fail> {
-        if depth > self.reach {
-            let fail = self.deep(sim, sim.stack.len().checked_sub(depth + 1));
-            if !matches!(fail, Fail::Deep(None, _)) {
-                return Err(fail);
-            }
-            // [..., word, ..., junk, ..., top] -> [..., word, ..., top] until `word` is in reach
-            while depth > self.reach
-                && let Some(junk) =
-                    sim.stack.iter().rev().take(self.reach + 1).position(|&s| s == Slot::Junk)
-            {
-                self.swap_up(sim, junk)?;
-                self.stack_op(sim, StackOp::Pop)?;
-                depth -= 1;
-            }
-            if depth > self.reach {
-                return Err(fail);
-            }
-        }
+    fn swap_up(&self, sim: &mut Sim, depth: usize) -> Result<(), Fail> {
         if depth == 0 {
             return Ok(());
         }
