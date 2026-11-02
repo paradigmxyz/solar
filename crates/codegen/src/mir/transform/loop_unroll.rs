@@ -852,14 +852,6 @@ fn max_trips(
     Some(u64::try_from(trips).unwrap_or(u64::MAX))
 }
 
-/// The cost of a header test: `compare` on the counter and the bound, then a conditional jump.
-fn tested_cost(target: &Target, compare: u8) -> Cost {
-    target.opcode(compare)
-        + target.dup().times(2)
-        + target.opcode(op::PUSH2)
-        + target.opcode(op::JUMPI)
-}
-
 /// How much lifetime gas the tests and jumps the main loop skips save over the deposit of its
 /// code; positive when unrolling pays.
 fn lifetime_saving(
@@ -876,7 +868,7 @@ fn lifetime_saving(
         MainTest::AheadBeyond(_) | MainTest::Below => op::GT,
         MainTest::Parity => op::SUB,
     };
-    let tested = tested_cost(target, compare);
+    let tested = target.loop_header_test(compare);
     let skip = tested + target.jump();
     let groups = u32::try_from(trips / u64::from(factor)).unwrap_or(u32::MAX);
     let saving = match main_test {
@@ -1025,7 +1017,7 @@ fn plan_peel(
     }
     // Every iteration after the first skips each test's conditional jump, and the copy holds
     // one more header and body.
-    let test = target.opcode(op::JUMPI) + target.opcode(op::PUSH2) + target.dup();
+    let test = target.loop_exit_jump();
     let skipped = test.times(u32::try_from(tests.len()).unwrap_or(u32::MAX));
     let iterations = u32::try_from(Target::UNCOUNTED_LOOP_ITERATIONS - 1).unwrap_or(u32::MAX);
     let saving = target.runtime_gas(skipped.times(iterations));
@@ -1070,7 +1062,7 @@ fn plan_full(
         Test::AtMost | Test::UpTo => op::GT,
         Test::Reaches => op::SUB,
     };
-    let tested = tested_cost(target, compare);
+    let tested = target.loop_header_test(compare);
     let trips = u32::try_from(trips).ok()?;
     let saving = (tested + target.jump()).times(trips) + tested;
     let body: Cost = l
