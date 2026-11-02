@@ -215,7 +215,6 @@ def train_solar(
             str(RUNTIME_BENCHMARK),
             "--solar",
             str(binary),
-            "--solar-only",
             "--mode",
             "runtime",
             "--tests",
