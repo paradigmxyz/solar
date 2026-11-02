@@ -244,8 +244,11 @@ fn emit_natspec_debug(gcx: Gcx<'_>, item_id: hir::ItemId, resolved: ResolvedNatS
     } else {
         "<unnamed>".into()
     };
-    let mut diag =
-        gcx.dcx().err(format!("resolved NatSpec for {item_desc} {item_name}")).span(item.span());
+    let mut diag = gcx.dcx().err_at(
+        item.span(),
+        None,
+        format!("resolved NatSpec for {item_desc} {item_name}"),
+    );
     let resolver = Resolver::new(gcx);
     if let Some((span, inherited_item)) = resolved.inheritdoc_target {
         diag = diag.span_note(
@@ -415,15 +418,14 @@ impl<'gcx> Resolver<'gcx> {
                         if params.contains(&name.name) {
                             local_tags.push(*natspec);
                         } else {
-                            self.gcx
-                                .dcx()
-                                .warn(format!(
+                            self.gcx.dcx().emit_warn(
+                                tag_span,
+                                error_code!(3881),
+                                format!(
                                     "tag `@param` references non-existent parameter '{}'",
                                     name.name
-                                ))
-                                .code(error_code!(3881))
-                                .span(tag_span)
-                                .emit();
+                                ),
+                            );
                         };
                     }
                     NatSpecKind::Return { .. } => {
@@ -451,17 +453,16 @@ impl<'gcx> Resolver<'gcx> {
                         let return_count = rets.len();
 
                         let return_valid = if state.return_count > return_count {
-                            self.gcx
-                                .dcx()
-                                .warn(format!(
+                            self.gcx.dcx().emit_warn(
+                                tag_span,
+                                error_code!(2604),
+                                format!(
                                     "too many `@return` tags: function has {} return value{}, found {}",
                                     return_count,
                                     if return_count == 1 { "" } else { "s" },
                                     state.return_count
-                                ))
-                                .code(error_code!(2604))
-                                .span(tag_span)
-                                .emit();
+                                ),
+                            );
                             false
                         } else {
                             true
@@ -498,12 +499,11 @@ impl<'gcx> Resolver<'gcx> {
             natspec.content_start as usize,
             natspec.content_end as usize,
         ) else {
-            self.gcx
-                .dcx()
-                .warn("tag `@return` does not contain the name of its return parameter")
-                .code(error_code!(5856))
-                .span(natspec.span)
-                .emit();
+            self.gcx.dcx().emit_warn(
+                natspec.span,
+                error_code!(5856),
+                "tag `@return` does not contain the name of its return parameter",
+            );
             return None;
         };
 
@@ -519,24 +519,22 @@ impl<'gcx> Resolver<'gcx> {
             if rets.iter().any(|&id| {
                 self.gcx.hir.variable(id).name.is_some_and(|name| name.name == documented_name)
             }) {
-                self.gcx
-                    .dcx()
-                    .warn(format!(
+                self.gcx.dcx().emit_warn(
+                    name_span,
+                    error_code!(5856),
+                    format!(
                         "mismatched `@return` parameter: expected `{}`, found `{documented_name}`",
                         expected.name
-                    ))
-                    .code(error_code!(5856))
-                    .span(name_span)
-                    .emit();
+                    ),
+                );
             } else {
-                self.gcx
-                    .dcx()
-                    .warn(format!(
+                self.gcx.dcx().emit_warn(
+                    natspec.span,
+                    error_code!(5856),
+                    format!(
                         "tag `@return` references non-existent return parameter '{documented_name}'"
-                    ))
-                    .code(error_code!(5856))
-                    .span(natspec.span)
-                    .emit();
+                    ),
+                );
             }
             return None;
         }
@@ -597,8 +595,7 @@ impl<'gcx> Resolver<'gcx> {
         {
             self.gcx
                 .dcx()
-                .err("`@custom:solar-cold` takes no argument")
-                .span(tag_span)
+                .err_at(tag_span, None, "`@custom:solar-cold` takes no argument")
                 .help("write `@custom:solar-cold` alone to mark the function as rarely run")
                 .emit();
         }
@@ -614,8 +611,11 @@ impl<'gcx> Resolver<'gcx> {
         if inline_tag(docs, natspec).is_none() {
             self.gcx
                 .dcx()
-                .err("`@custom:solar-inline` takes no argument, `always` or `never`")
-                .span(tag_span)
+                .err_at(
+                    tag_span,
+                    None,
+                    "`@custom:solar-inline` takes no argument, `always` or `never`",
+                )
                 .help("write `@custom:solar-inline always` to clone every legal call")
                 .emit();
         }
@@ -631,8 +631,11 @@ impl<'gcx> Resolver<'gcx> {
         if optimize_objective(docs, natspec).is_none() {
             self.gcx
                 .dcx()
-                .err("`@custom:solar-optimize` must name one objective, `gas` or `size`")
-                .span(tag_span)
+                .err_at(
+                    tag_span,
+                    None,
+                    "`@custom:solar-optimize` must name one objective, `gas` or `size`",
+                )
                 .help("write `@custom:solar-optimize size` to optimize this code for size")
                 .emit();
         }
@@ -655,8 +658,7 @@ impl<'gcx> Resolver<'gcx> {
         {
             self.gcx
                 .dcx()
-                .err(format!("duplicate `@custom:{name}` tag"))
-                .span(tag_span)
+                .err_at(tag_span, None, format!("duplicate `@custom:{name}` tag"))
                 .span_note(first.span, "the first tag is here")
                 .help(format!("keep one `@custom:{name}` tag"))
                 .emit();
@@ -668,22 +670,20 @@ impl<'gcx> Resolver<'gcx> {
     #[cold]
     fn emit_forbidden_tag_warning(&self, tag_name: &str, tag_span: Span, item_id: hir::ItemId) {
         let item_desc = self.gcx.hir.item(item_id).description();
-        self.gcx
-            .dcx()
-            .warn(format!("tag `{tag_name}` not valid for {item_desc}s"))
-            .code(error_code!(6546))
-            .span(tag_span)
-            .emit();
+        self.gcx.dcx().emit_warn(
+            tag_span,
+            error_code!(6546),
+            format!("tag `{tag_name}` not valid for {item_desc}s"),
+        );
     }
 
     #[cold]
     fn emit_duplicate_tag_warning(&self, tag_name: &str, tag_span: Span) {
-        self.gcx
-            .dcx()
-            .warn(format!("tag {tag_name} can only be given once"))
-            .code(error_code!(5142))
-            .span(tag_span)
-            .emit();
+        self.gcx.dcx().emit_warn(
+            tag_span,
+            error_code!(5142),
+            format!("tag {tag_name} can only be given once"),
+        );
     }
 
     /// Helper to validate tags that can only be defined once.
@@ -726,13 +726,14 @@ impl<'gcx> Resolver<'gcx> {
         let contract_id = self.gcx.natspec_contract_in_source(cache_key);
 
         let Some(contract_id) = contract_id else {
-            dcx.warn(format!(
-                "tag `@inheritdoc` references inexistent contract \"{}\"",
-                contract_ident.name
-            ))
-            .code(error_code!(9397))
-            .span(tag_span)
-            .emit();
+            dcx.emit_warn(
+                tag_span,
+                error_code!(9397),
+                format!(
+                    "tag `@inheritdoc` references inexistent contract \"{}\"",
+                    contract_ident.name
+                ),
+            );
             return None;
         };
 
@@ -745,25 +746,27 @@ impl<'gcx> Resolver<'gcx> {
         if let Some(contract) = item_contract {
             let linearized_bases = &self.gcx.hir.contract(contract).linearized_bases;
             if contract == contract_id || !linearized_bases.contains(&contract_id) {
-                dcx.warn(format!(
-                    "tag `@inheritdoc` references contract \"{}\", which is not a base of this contract",
-                    contract_ident.name
-                ))
-                .code(error_code!(4682))
-                .span(tag_span)
-                .emit();
+                dcx.emit_warn(
+                    tag_span,
+                    error_code!(4682),
+                    format!(
+                        "tag `@inheritdoc` references contract \"{}\", which is not a base of this contract",
+                        contract_ident.name
+                    ),
+                );
                 return None;
             }
         }
 
         let Some(inherited_item) = self.find_inherited_item(item_id, contract_id) else {
-            dcx.warn(format!(
-                "tag `@inheritdoc` references contract \"{}\", but the contract does not contain a matching item that can be inherited",
-                contract_ident.name
-            ))
-            .code(error_code!(4682))
-            .span(tag_span)
-            .emit();
+            dcx.emit_warn(
+                tag_span,
+                error_code!(4682),
+                format!(
+                    "tag `@inheritdoc` references contract \"{}\", but the contract does not contain a matching item that can be inherited",
+                    contract_ident.name
+                ),
+            );
             return None;
         };
 
@@ -994,42 +997,44 @@ pub(crate) fn report_misplaced_solar_tag(
 ) -> ErrorGuaranteed {
     match tag {
         SolarTag::Inline => dcx
-            .err(format!("`@custom:{name}` must document a function that internal calls reach"))
-            .span(span)
+            .err_at(
+                span,
+                None,
+                format!("`@custom:{name}` must document a function that internal calls reach"),
+            )
             .help("put it on an internal, private or public function with a body")
             .emit(),
         SolarTag::Safe => dcx
-            .err("`@custom:solar-safe` must document a contract or a library")
-            .span(span)
+            .err_at(span, None, "`@custom:solar-safe` must document a contract or a library")
             .help("put it on the contract whose code must be free of inline assembly")
             .emit(),
         SolarTag::Trusted => dcx
-            .err(
+            .err_at(
+                span,
+                None,
                 "`@custom:solar-trusted` must document a function, a modifier, a contract, or a \
                  library",
             )
-            .span(span)
             .help("put it on the reviewed code a `@custom:solar-safe` contract runs")
             .emit(),
         SolarTag::Optimize => dcx
-            .err(
+            .err_at(
+                span,
+                None,
                 "`@custom:solar-optimize` must document a non-abstract contract, a library, or a \
                  function with a body",
             )
-            .span(span)
             .help(
                 "put it on the contract, library or function whose code to optimize, naming the \
                  objective: `@custom:solar-optimize size`",
             )
             .emit(),
         SolarTag::Cold => dcx
-            .err("`@custom:solar-cold` must document a function with a body")
-            .span(span)
+            .err_at(span, None, "`@custom:solar-cold` must document a function with a body")
             .help("put it on a function that is rarely run")
             .emit(),
         SolarTag::Unknown => dcx
-            .err(format!("unknown tag `@custom:{name}`"))
-            .span(span)
+            .err_at(span, None, format!("unknown tag `@custom:{name}`"))
             .note("`@custom:solar-` tags are requirements this compiler checks")
             .help(
                 "the supported tags are `@custom:solar-cold`, `@custom:solar-inline`, \

@@ -221,7 +221,7 @@ impl<'gcx> ConstEval<'gcx> {
             Ok(ConstValue::Int(int)) => int,
             Ok(ConstValue::Rational(_)) => {
                 let msg = "array length cannot be fractional";
-                return Err(dcx.err(msg).code(error_code!(3208)).span(size.span).emit());
+                return Err(dcx.emit_err(size.span, error_code!(3208), msg));
             }
             Ok(_) => return Err(self.emit_error(size, EE::NotAnInteger.spanned(size.span), cx)),
             Err(err) => return Err(self.emit_error(size, err, cx)),
@@ -237,7 +237,7 @@ impl<'gcx> ConstEval<'gcx> {
         };
         if int.is_zero() {
             let msg = "array length must be greater than zero";
-            Err(dcx.err(msg).code(error_code!(1406)).span(size.span).emit())
+            Err(dcx.emit_err(size.span, error_code!(1406), msg))
         } else {
             Ok(int)
         }
@@ -497,9 +497,7 @@ impl<'gcx> ConstEval<'gcx> {
         let mut diag = self
             .gcx
             .dcx()
-            .err(msg)
-            .code(code)
-            .span(expr.span)
+            .err_at(expr.span, code, msg)
             .span_label(err.span, "evaluation of constant value failed here");
         // Tell the user what solc's evaluator accepts in an array length.
         if cx == ConstContext::ArrayLength

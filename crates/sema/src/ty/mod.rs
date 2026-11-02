@@ -1623,7 +1623,7 @@ impl<'gcx> Gcx<'gcx> {
 
     /// Builds the error for a literal at `span` that is too large for any integer type.
     pub(crate) fn literal_too_large_err(self, span: Span) -> DiagBuilder<'gcx, ErrorGuaranteed> {
-        self.dcx().err(EvalErrorKind::LiteralTooLarge.msg()).span(span)
+        self.dcx().err_at(span, None, EvalErrorKind::LiteralTooLarge.msg())
     }
 
     /// Builds the error for a builtin binary operator that does not apply to its operands.
@@ -1637,12 +1637,7 @@ impl<'gcx> Gcx<'gcx> {
         let (lhs, rhs) = (lhs.display(self).to_string(), rhs.display(self).to_string());
         let msg = format!("cannot apply builtin operator `{op}` to `{lhs}` and `{rhs}`");
         let code = if assign { error_code!(7366) } else { error_code!(2271) };
-        self.dcx()
-            .err(msg)
-            .code(code)
-            .span(op.span)
-            .span_label(lhs_span, lhs)
-            .span_label(rhs_span, rhs)
+        self.dcx().err_at(op.span, code, msg).span_label(lhs_span, lhs).span_label(rhs_span, rhs)
     }
 }
 
@@ -1893,7 +1888,12 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
                 gcx.item_signature(f_id.into()),
                 gcx.item_signature(prev.into()),
             );
-            gcx.dcx().err(msg).span(c.name.span).span_note(f.span, "first function").span_note(f2.span, "second function").note(full_note).emit();
+            gcx.dcx()
+                .err_at(c.name.span, None, msg)
+                .span_note(f.span, "first function")
+                .span_note(f2.span, "second function")
+                .note(full_note)
+                .emit();
         }
 
         Some(InterfaceFunction { selector, id: f_id, ty })
@@ -2041,7 +2041,7 @@ pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
         Some(_) if chains.reaches_cycle => return Recursiveness::Recursive,
         Some(_) => return Recursiveness::None,
     };
-    Recursiveness::Infinite(gcx.dcx().err(msg).code(code).span(gcx.item_span(id)).emit())
+    Recursiveness::Infinite(gcx.dcx().emit_err(gcx.item_span(id), code, msg))
 }
 
 /// Returns the reference chains of every struct.
@@ -2210,7 +2210,7 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
             } else {
                 "expected data location".to_string()
             };
-            let mut err = gcx.dcx().err(msg).span(var.span);
+            let mut err = gcx.dcx().err_at(var.span, None, msg);
             if has_reference_or_mapping_type() {
                 let note = format!(
                     "data location must be {expected} for {vis}{descr}{got}",
@@ -2274,11 +2274,11 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
     // Only value types fit in a single transient storage slot.
     // Reference: <https://github.com/argotorg/solidity/blob/v0.8.36/libsolidity/analysis/DeclarationTypeChecker.cpp#L537-L538>
     if ty_loc == Transient && !ty.is_value_type() && !ty.references_error() {
-        gcx.dcx()
-            .err("transient data location is only supported for value types")
-            .code(error_code!(1834))
-            .span(var.span)
-            .emit();
+        gcx.dcx().emit_err(
+            var.span,
+            error_code!(1834),
+            "transient data location is only supported for value types",
+        );
     }
 
     // solc reports this as a fatal error, so the error type stops follow-up diagnostics. An array
@@ -2297,12 +2297,11 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
         && !matches!(ty.kind, TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String))
         && (!ty.references_error() || innermost_element_resolves())
     {
-        let guar = gcx
-            .dcx()
-            .err("only constants of value type and byte array type are implemented")
-            .code(error_code!(9259))
-            .span(var.span)
-            .emit();
+        let guar = gcx.dcx().emit_err(
+            var.span,
+            error_code!(9259),
+            "only constants of value type and byte array type are implemented",
+        );
         return gcx.mk_ty_err(guar);
     }
 
