@@ -18,24 +18,6 @@ bb23 [cold]:
 bb47 [cold]:
   push 50
   jump bb69
-bb68 [loop]:
-  dup 2
-  dup 5
-  push 1
-  add
-  swap 5
-  sload
-  swap 1
-  push 32
-  add
-  swap 3
-  mstore
-  dup 3
-  dup 5
-  sub
-  push bb68
-  jumpi
-  jump bb67
 bb22 [cold]:
   push 34
   jump bb69
@@ -755,6 +737,24 @@ bb65 [loop]:
   swap 3
   pop
   swap 3
+  dup 3
+  dup 5
+  sub
+  push bb68
+  jumpi
+  jump bb67
+bb68 [loop]:
+  dup 2
+  dup 5
+  push 1
+  add
+  swap 5
+  sload
+  swap 1
+  push 32
+  add
+  swap 3
+  mstore
   dup 3
   dup 5
   sub

@@ -73,32 +73,6 @@ bb82 [cold]:
   push 36
   push 28
   revert
-bb84:
-  push 68
-  calldatasize
-  lt
-  push bb11
-  jumpi
-  push 7
-  push 36
-  calldataload
-  sub
-  push 4
-  calldataload
-  iszero
-  iszero
-  mul
-  push 7
-  jump bb80
-bb80:
-  add
-  jump bb79
-bb79:
-  push 0
-  mstore
-  push 32
-  push 0
-  return
 bb12:  ; function choose(uint256 raw, uint256 yes, uint256 no) external pure returns (uint256) [selector 0x739ca28b]
   push 100
   calldatasize
@@ -117,6 +91,15 @@ bb12:  ; function choose(uint256 raw, uint256 yes, uint256 no) external pure ret
   iszero
   mul
   jump bb80
+bb80:
+  add
+  jump bb79
+bb79:
+  push 0
+  mstore
+  push 32
+  push 0
+  return
 bb15:  ; function store(bytes memory value) external returns (bytes memory) [selector 0xb374012b]
   push 4
   dup 1
@@ -751,3 +734,20 @@ bb74 [loop]:
   push 1
   add
   jump bb72
+bb84:
+  push 68
+  calldatasize
+  lt
+  push bb11
+  jumpi
+  push 7
+  push 36
+  calldataload
+  sub
+  push 4
+  calldataload
+  iszero
+  iszero
+  mul
+  push 7
+  jump bb80

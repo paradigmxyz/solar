@@ -8,10 +8,12 @@
 //! final lowering can then omit jumps whose target is the next emitted block
 //! without encoding physical layout assumptions in the IR. Independent hot
 //! traces are placed before cold terminal traces so unlikely exit paths do not
-//! interrupt hot code. Small, independently movable traces, ending in a terminal or a jump, are
-//! packed below the PUSH1 address limit by reference density. Moving the entire trace preserves
-//! its fallthrough edges, including a call followed by a shared failure block. Packing also
-//! reserves address space for one-byte indexed jump tables to avoid widening their lookups.
+//! interrupt hot code. Small, independently movable traces ending in a terminal, or cold ones
+//! ending in a jump to a shared tail, are packed below the PUSH1 address limit by reference
+//! density. Hot traces that end in a jump stay put: moving one changed which caller falls
+//! through into a shared tail, and gas builds measured the extra jump. Moving the entire trace
+//! preserves its fallthrough edges, including a call followed by a shared failure block. Packing
+//! also reserves address space for one-byte indexed jump tables to avoid widening their lookups.
 //! Size estimates guide placement; assembly still resolves the exact offsets and widths.
 //! In size mode, shared indirect-return tails prefer the predecessor with strictly more incoming
 //! references. This keeps the more frequently shared outlined entry adjacent to its return tail,
@@ -205,7 +207,8 @@ fn pack_terminal_traces(est: SizeEstimator, module: &Module, order: &mut Vec<Blo
             references += placement.references[block];
             position += 1;
             if is_physical_terminal_boundary(&module.blocks[block], order.get(position).copied()) {
-                if size <= 32
+                if packs_low(&module.blocks[block])
+                    && size <= 32
                     && references >= 2
                     && (position == start + 1
                         || (block_offset > 0xff && placement.references[block] >= 4))
@@ -454,6 +457,13 @@ pub(super) fn jumpi_targets(block: &Block) -> impl Iterator<Item = BlockId> + '_
 
 fn is_terminal_block(block: &Block) -> bool {
     terminator_kind(block).is_some_and(is_terminal_boundary)
+}
+
+/// Whether a trace ending in the block may move below the PUSH1 limit: the block ends execution, or
+/// is a cold block that jumps on, such as a stub that pushes a revert payload and jumps to the
+/// shared revert tail.
+fn packs_low(block: &Block) -> bool {
+    is_terminal_block(block) || block.metadata.hotness.is_cold()
 }
 
 pub(super) fn is_physical_terminal_boundary(block: &Block, next: Option<BlockId>) -> bool {
