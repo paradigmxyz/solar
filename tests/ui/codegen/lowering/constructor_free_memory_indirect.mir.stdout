@@ -177,13 +177,13 @@ fn @constructor() [constructor] {
     v1 = alloc zeroed checked 64
     mstore v1, 1
     v2 = mload v1
-    v3 = lt 0, v2
+    v3 = gt v2, 0
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = ptradd v1, 32
     mstore v5, 5
     v6 = mload v0
-    v7 = lt 2, v6
+    v7 = gt v6, 2
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     v9 = ptradd v0, 96

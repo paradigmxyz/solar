@@ -71,7 +71,7 @@ fn @ffs.2() [selector=0x2297890a, abi_wrapper, pure] {
   bb1:  ; preds = bb0
     v2 = not arg0
     v3 = add v2, 1
-    v4 = and arg0, v3
+    v4 = and v3, arg0
     v5 = icall @fls.3, v4
     jump bb2
   bb2:  ; preds = bb0, bb1
@@ -119,10 +119,10 @@ fn @fls.3(arg0: i256) -> i256 [pure] {
     v37 = gt v82, 3
     v86 = zext i1 v37 to i256
     v87 = add v86, v86
-    v88 = shr v82, v87
     v91 = or v85, v87
+    v88 = shr v82, v87
     v42 = shr v88, 1
-    v43 = or v91, v42
+    v43 = or v42, v91
     ret v43
   bb1:  ; preds = bb0
     ret 256

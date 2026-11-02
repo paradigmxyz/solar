@@ -85,7 +85,7 @@ fn @mkArr(arg0: i256) -> ptr<memory> [selector=0xfb67dbf3, pure, abi_params=[uin
 fn @fillImpl(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [pure] {
   bb0:
     v0 = mload arg0
-    v1 = eq arg1, v0
+    v1 = eq v0, arg1
     jumpi v1, bb1, bb2
   bb2:  ; preds = bb0
     jump bb3

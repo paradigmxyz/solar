@@ -13,7 +13,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     jump bb2
   bb2:  ; preds = bb5
     v10 = sload 0 !metadata(storage=slot(0))
-    v11 = lt 0, v10
+    v11 = gt v10, 0
     v12 = eq v11, false
     icall panic_if<0x32>, v12
     v13 = storage_array_data_slot 0
@@ -25,7 +25,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v18 = or v17, 1
     sstore v13, v18 !metadata(storage=symbolic(v13))
     v19 = sload 0 !metadata(storage=slot(0))
-    v20 = lt 0, v19
+    v20 = gt v19, 0
     v21 = eq v20, false
     icall panic_if<0x32>, v21
     v22 = storage_array_data_slot 0
@@ -38,7 +38,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v28 = or v27, 2
     sstore v25, v28 !metadata(storage=offset(v22, 1))
     v29 = sload 0 !metadata(storage=slot(0))
-    v30 = lt 1, v29
+    v30 = gt v29, 1
     v31 = eq v30, false
     icall panic_if<0x32>, v31
     v32 = storage_array_data_slot 0
@@ -51,7 +51,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v38 = or v37, 0x3000000000000000000
     sstore v33, v38 !metadata(storage=offset(v32, 2))
     v39 = sload 0 !metadata(storage=slot(0))
-    v40 = lt 1, v39
+    v40 = gt v39, 1
     v41 = eq v40, false
     icall panic_if<0x32>, v41
     v42 = storage_array_data_slot 0
@@ -65,7 +65,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v49 = or v48, 0x4000000000000000000
     sstore v46, v49 !metadata(storage=offset(v42, 3))
     v50 = sload 0 !metadata(storage=slot(0))
-    v51 = lt 2, v50
+    v51 = gt v50, 2
     v52 = eq v51, false
     icall panic_if<0x32>, v52
     v53 = storage_array_data_slot 0
@@ -78,7 +78,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v59 = or v58, 5
     sstore v54, v59 !metadata(storage=offset(v53, 4))
     v60 = sload 0 !metadata(storage=slot(0))
-    v61 = lt 3, v60
+    v61 = gt v60, 3
     v62 = eq v61, false
     icall panic_if<0x32>, v62
     v63 = storage_array_data_slot 0
@@ -91,7 +91,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v69 = or v68, 0x6000000000000000000000000000000000000
     sstore v64, v69 !metadata(storage=offset(v63, 6))
     v70 = sload 0 !metadata(storage=slot(0))
-    v71 = lt 3, v70
+    v71 = gt v70, 3
     v72 = eq v71, false
     icall panic_if<0x32>, v72
     v73 = storage_array_data_slot 0
@@ -128,7 +128,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     jumpi v95, bb8, bb9
   bb9:  ; preds = bb7
     v124 = mload v93
-    v125 = lt 0, v124
+    v125 = gt v124, 0
     v126 = eq v125, false
     icall panic_if<0x32>, v126
     v127 = ptradd v93, 32
@@ -139,7 +139,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v131 = mload v128
     v132 = trunc i256 v131 to i72
     v133 = mload v93
-    v134 = lt 0, v133
+    v134 = gt v133, 0
     v135 = eq v134, false
     icall panic_if<0x32>, v135
     v136 = ptradd v93, 32
@@ -152,7 +152,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v142 = trunc i256 v141 to i72
     v143 = checked_add uint72, v132, v142
     v144 = mload v93
-    v145 = lt 1, v144
+    v145 = gt v144, 1
     v146 = eq v145, false
     icall panic_if<0x32>, v146
     v147 = ptradd v93, 64
@@ -165,7 +165,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v153 = trunc i256 v152 to i72
     v154 = checked_add uint72, v143, v153
     v155 = mload v93
-    v156 = lt 1, v155
+    v156 = gt v155, 1
     v157 = eq v156, false
     icall panic_if<0x32>, v157
     v158 = ptradd v93, 64
@@ -178,7 +178,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v164 = trunc i256 v163 to i72
     v165 = checked_add uint72, v154, v164
     v166 = mload v93
-    v167 = lt 2, v166
+    v167 = gt v166, 2
     v168 = eq v167, false
     icall panic_if<0x32>, v168
     v169 = ptradd v93, 96
@@ -190,7 +190,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v174 = trunc i256 v173 to i72
     v175 = checked_add uint72, v165, v174
     v176 = mload v93
-    v177 = lt 3, v176
+    v177 = gt v176, 3
     v178 = eq v177, false
     icall panic_if<0x32>, v178
     v179 = ptradd v93, 128
@@ -203,7 +203,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v185 = trunc i256 v184 to i72
     v186 = checked_add uint72, v175, v185
     v187 = mload v93
-    v188 = lt 3, v187
+    v188 = gt v187, 3
     v189 = eq v188, false
     icall panic_if<0x32>, v189
     v190 = ptradd v93, 128

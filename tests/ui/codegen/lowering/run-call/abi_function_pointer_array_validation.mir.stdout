@@ -16,7 +16,7 @@ fn @g(arg0: slice<calldata>) -> i256 [selector=0xc16ea9d4, pure, abi_params=[arr
 fn @h(arg0: slice<calldata>) -> i256 [selector=0xdae6c3bf, pure, abi_params=[array<_, function>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
-    v1 = lt 0, v0
+    v1 = gt v0, 0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = extract_value slice<calldata>, arg0, 0
@@ -67,7 +67,7 @@ fn @invoke(arg0: i256, arg1: i1, arg2: i256) -> i256 [view] {
     v3 = shl v2, 32
     v4 = or v3, 0xd4b83992
     v5 = mload v0
-    v6 = lt 0, v5
+    v6 = gt v5, 0
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = shl v4, 64

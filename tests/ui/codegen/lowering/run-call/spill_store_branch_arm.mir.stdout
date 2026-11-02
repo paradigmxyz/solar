@@ -457,7 +457,7 @@ fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], ab
   bb10:  ; preds = bb4
     v76 = ptradd v6, 32
     v77 = mload v76
-    v78 = sgt v49, v77
+    v78 = slt v77, v49
     v79 = eq v78, false
     icall require<short_string>, v79, 1, 0x6700000000000000000000000000000000000000000000000000000000000000
     v80 = sgt v42, 0
@@ -487,7 +487,7 @@ fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], ab
     icall require<short_string>, v62, 1, 0x6300000000000000000000000000000000000000000000000000000000000000
     v63 = ptradd v6, 32
     v64 = mload v63
-    v65 = sgt v49, v64
+    v65 = slt v64, v49
     v66 = eq v65, false
     icall require<short_string>, v66, 1, 0x6400000000000000000000000000000000000000000000000000000000000000
     jump bb8

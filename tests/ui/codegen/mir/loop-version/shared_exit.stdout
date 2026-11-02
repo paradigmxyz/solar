@@ -85,10 +85,10 @@ fn @_lastIndices(arg0: i256, arg1: i256) -> i1 [may_return_memory, pure] {
     v40 = mload arg0
     v41 = mload arg1
     v44 = or arg1, v41
+    v75 = shr v44, 64
     v45 = shl v41, 5
     v47 = add v45, 31
     v50 = lt v49, v47
-    v75 = shr v44, 64
     v76 = zext i1 v50 to i256
     v77 = or v75, v76
     v55 = eq v77, 0
@@ -136,7 +136,7 @@ fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
     v1 = calldataload arg0
     v2 = add v1, 4
     v4 = sub v0, 36
-    v5 = gt v1, v4
+    v5 = lt v4, v1
     jumpi v5, bb1, bb2
   bb2:  ; preds = bb0
     v6 = calldataload v2
@@ -152,7 +152,7 @@ fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
     v33 = shr v26, 64
     v27 = lt v26, v25
     v35 = zext i1 v27 to i256
-    v36 = or v35, v33
+    v36 = or v33, v35
     v29 = ne v36, 0
     jumpi v29, bb3, bb6
   bb6:  ; preds = bb4
@@ -161,7 +161,7 @@ fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
     v12 = shl v6, 5
     v13 = sub v0, v7
     v14 = shr v13, 5
-    v15 = gt v6, v14
+    v15 = lt v14, v6
     jumpi v15, bb1, bb5
   bb5:  ; preds = bb6
     v22 = add v25, 32

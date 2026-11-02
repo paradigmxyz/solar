@@ -17,7 +17,7 @@ fn @fixedArray(arg0: i256) -> i256 [selector=0x9a5009ac, view, abi_params=[uint2
   bb0:
     v0 = lt arg0, 2
     icall revert_if_zero<empty>, v0
-    v1 = add 1, arg0
+    v1 = add arg0, 1
     v2 = sload v1 !metadata(storage=offset(arg0, 1))
     ret v2
 }

@@ -32,7 +32,7 @@ fn @staticArray(arg0: slice<calldata>) -> struct0 [selector=0xaa2fa031, pure, ab
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = make_calldata_slice ptr<calldata> 4, v0
     v2 = extract_value slice<calldata>, v1, 1
-    v3 = lt 0, v2
+    v3 = gt v2, 0
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = extract_value slice<calldata>, v1, 0
@@ -41,7 +41,7 @@ fn @staticArray(arg0: slice<calldata>) -> struct0 [selector=0xaa2fa031, pure, ab
     v8 = inttoptr i256 v7 to ptr<calldata>
     v9 = make_calldata_slice v8, 2
     v10 = extract_value slice<calldata>, v9, 1
-    v11 = lt 0, v10
+    v11 = gt v10, 0
     v12 = eq v11, false
     icall panic_if<0x32>, v12
     v13 = extract_value slice<calldata>, v9, 0
@@ -49,7 +49,7 @@ fn @staticArray(arg0: slice<calldata>) -> struct0 [selector=0xaa2fa031, pure, ab
     v15 = add v14, 0
     v16 = calldataload v15
     v17 = extract_value slice<calldata>, v1, 1
-    v18 = lt 1, v17
+    v18 = gt v17, 1
     v19 = eq v18, false
     icall panic_if<0x32>, v19
     v20 = extract_value slice<calldata>, v1, 0
@@ -58,7 +58,7 @@ fn @staticArray(arg0: slice<calldata>) -> struct0 [selector=0xaa2fa031, pure, ab
     v23 = inttoptr i256 v22 to ptr<calldata>
     v24 = make_calldata_slice v23, 2
     v25 = extract_value slice<calldata>, v24, 1
-    v26 = lt 1, v25
+    v26 = gt v25, 1
     v27 = eq v26, false
     icall panic_if<0x32>, v27
     v28 = extract_value slice<calldata>, v24, 0
@@ -79,7 +79,7 @@ fn @dynamicArray(arg0: slice<calldata>) -> struct1 [selector=0xb8731349, pure, a
     v3 = make_calldata_slice v2, 2
     v4 = extract_value slice<calldata>, v3, 1
     v5 = extract_value slice<calldata>, v3, 1
-    v6 = lt 0, v5
+    v6 = gt v5, 0
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = extract_value slice<calldata>, v3, 0
@@ -88,7 +88,7 @@ fn @dynamicArray(arg0: slice<calldata>) -> struct1 [selector=0xb8731349, pure, a
     v11 = inttoptr i256 v10 to ptr<calldata>
     v12 = make_calldata_slice v11, 2
     v13 = extract_value slice<calldata>, v12, 1
-    v14 = lt 0, v13
+    v14 = gt v13, 0
     v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = extract_value slice<calldata>, v12, 0
@@ -96,7 +96,7 @@ fn @dynamicArray(arg0: slice<calldata>) -> struct1 [selector=0xb8731349, pure, a
     v18 = add v17, 0
     v19 = calldataload v18
     v20 = extract_value slice<calldata>, v3, 1
-    v21 = lt 1, v20
+    v21 = gt v20, 1
     v22 = eq v21, false
     icall panic_if<0x32>, v22
     v23 = extract_value slice<calldata>, v3, 0
@@ -105,7 +105,7 @@ fn @dynamicArray(arg0: slice<calldata>) -> struct1 [selector=0xb8731349, pure, a
     v26 = inttoptr i256 v25 to ptr<calldata>
     v27 = make_calldata_slice v26, 2
     v28 = extract_value slice<calldata>, v27, 1
-    v29 = lt 1, v28
+    v29 = gt v28, 1
     v30 = eq v29, false
     icall panic_if<0x32>, v30
     v31 = extract_value slice<calldata>, v27, 0
@@ -138,7 +138,7 @@ fn @dynamicWords(arg0: slice<calldata>) -> ptr<memory> [selector=0x148d46ad, pur
     v12 = mul v4, 32
     v13 = gt v4, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     icall panic_if<0x41>, v13
-    v14 = add 32, v12
+    v14 = add v12, 32
     v15 = lt v14, 32
     icall panic_if<0x41>, v15
     v16 = alloc v14
@@ -171,7 +171,7 @@ fn @dynamicFixed(arg0: slice<calldata>) -> ptr<memory> [selector=0x71cafd78, pur
     v12 = mul v4, 32
     v13 = gt v4, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     icall panic_if<0x41>, v13
-    v14 = add 32, v12
+    v14 = add v12, 32
     v15 = lt v14, 32
     icall panic_if<0x41>, v15
     v16 = alloc v14
@@ -224,7 +224,7 @@ fn @dynamicNarrow(arg0: slice<calldata>) -> ptr<memory> [selector=0x320b552a, pu
     v12 = mul v4, 32
     v13 = gt v4, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     icall panic_if<0x41>, v13
-    v14 = add 32, v12
+    v14 = add v12, 32
     v15 = lt v14, 32
     icall panic_if<0x41>, v15
     v16 = alloc v14
@@ -271,7 +271,7 @@ fn @dynamicNested(arg0: slice<calldata>) -> ptr<memory> [selector=0x24abb2f5, pu
     v12 = mul v4, 32
     v13 = gt v4, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     icall panic_if<0x41>, v13
-    v14 = add 32, v12
+    v14 = add v12, 32
     v15 = lt v14, 32
     icall panic_if<0x41>, v15
     v16 = alloc v14
@@ -308,12 +308,12 @@ fn @dynamicNested(arg0: slice<calldata>) -> ptr<memory> [selector=0x24abb2f5, pu
     v37 = mul v34, 32
     v38 = add v27, 32
     v39 = sub v35, v37
-    v40 = sgt v38, v39
+    v40 = slt v39, v38
     icall revert_if<calldata_tail_too_short>, v40
     v41 = mul v34, 32
     v42 = gt v34, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     icall panic_if<0x41>, v42
-    v43 = add 32, v41
+    v43 = add v41, 32
     v44 = lt v43, 32
     icall panic_if<0x41>, v44
     v45 = alloc v43
@@ -353,7 +353,7 @@ fn @dynamicOverflow(arg0: slice<calldata>) -> ptr<memory> [selector=0x51072adf, 
     v12 = mul v4, 32
     v13 = gt v4, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     icall panic_if<0x41>, v13
-    v14 = add 32, v12
+    v14 = add v12, 32
     v15 = lt v14, 32
     icall panic_if<0x41>, v15
     v16 = alloc v14
@@ -388,7 +388,7 @@ fn @dynamicEmptyAtEnd(arg0: slice<calldata>) -> ptr<memory> [selector=0x93d2ba08
     v14 = mul v6, 32
     v15 = gt v6, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     icall panic_if<0x41>, v15
-    v16 = add 32, v14
+    v16 = add v14, 32
     v17 = lt v16, 32
     icall panic_if<0x41>, v17
     v18 = alloc v16
@@ -424,7 +424,7 @@ fn @dynamicEmptyPastEnd(arg0: slice<calldata>) -> ptr<memory> [selector=0x77beb5
     v15 = mul v7, 32
     v16 = gt v7, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     icall panic_if<0x41>, v16
-    v17 = add 32, v15
+    v17 = add v15, 32
     v18 = lt v17, 32
     icall panic_if<0x41>, v18
     v19 = alloc v17
@@ -457,7 +457,7 @@ fn @dynamicWrappingEnd(arg0: slice<calldata>) -> ptr<memory> [selector=0x4c79759
     v12 = mul v4, 32
     v13 = gt v4, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     icall panic_if<0x41>, v13
-    v14 = add 32, v12
+    v14 = add v12, 32
     v15 = lt v14, 32
     icall panic_if<0x41>, v15
     v16 = alloc v14

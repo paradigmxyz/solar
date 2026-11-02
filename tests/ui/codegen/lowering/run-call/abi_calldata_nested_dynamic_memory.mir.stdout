@@ -16,7 +16,7 @@ fn @g(arg0: slice<calldata>) -> ptr<memory> [selector=0xc12c508e, pure, abi_para
     v8 = mul v0, 32
     v9 = gt v0, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     icall panic_if<0x41>, v9
-    v10 = add 32, v8
+    v10 = add v8, 32
     v11 = lt v10, 32
     icall panic_if<0x41>, v11
     v12 = alloc v10
@@ -53,12 +53,12 @@ fn @g(arg0: slice<calldata>) -> ptr<memory> [selector=0xc12c508e, pure, abi_para
     v33 = mul v30, 32
     v34 = add v23, 32
     v35 = sub v31, v33
-    v36 = sgt v34, v35
+    v36 = slt v35, v34
     icall revert_if<calldata_tail_too_short>, v36
     v37 = mul v30, 32
     v38 = gt v30, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     icall panic_if<0x41>, v38
-    v39 = add 32, v37
+    v39 = add v37, 32
     v40 = lt v39, 32
     icall panic_if<0x41>, v40
     v41 = alloc v39
@@ -98,12 +98,12 @@ fn @g(arg0: slice<calldata>) -> ptr<memory> [selector=0xc12c508e, pure, abi_para
     v59 = mul v56, 32
     v60 = add v50, 32
     v61 = sub v57, v59
-    v62 = sgt v60, v61
+    v62 = slt v61, v60
     icall revert_if<calldata_tail_too_short>, v62
     v63 = mul v56, 32
     v64 = gt v56, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     icall panic_if<0x41>, v64
-    v65 = add 32, v63
+    v65 = add v63, 32
     v66 = lt v65, 32
     icall panic_if<0x41>, v66
     v67 = alloc v65
@@ -139,7 +139,7 @@ fn @h(arg0: slice<calldata>) -> ptr<memory> [selector=0xba9ef85f, pure, abi_para
     v8 = mul v0, 32
     v9 = gt v0, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     icall panic_if<0x41>, v9
-    v10 = add 32, v8
+    v10 = add v8, 32
     v11 = lt v10, 32
     icall panic_if<0x41>, v11
     v12 = alloc v10
@@ -176,12 +176,12 @@ fn @h(arg0: slice<calldata>) -> ptr<memory> [selector=0xba9ef85f, pure, abi_para
     v33 = mul v30, 64
     v34 = add v23, 32
     v35 = sub v31, v33
-    v36 = sgt v34, v35
+    v36 = slt v35, v34
     icall revert_if<calldata_tail_too_short>, v36
     v37 = mul v30, 32
     v38 = gt v30, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     icall panic_if<0x41>, v38
-    v39 = add 32, v37
+    v39 = add v37, 32
     v40 = lt v39, 32
     icall panic_if<0x41>, v40
     v41 = alloc v39

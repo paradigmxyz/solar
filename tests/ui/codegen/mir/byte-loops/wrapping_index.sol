@@ -32,7 +32,7 @@ contract Test {
     // CHECK-NOT: mstore8
     // CHECK: [[END:v[0-9]+]] = add arg1, arg2
     // CHECK-NEXT: [[WRAPS:v[0-9]+]] = lt [[END]], arg1
-    // CHECK-NEXT: [[PAST:v[0-9]+]] = gt [[END]], {{v[0-9]+}}
+    // CHECK-NEXT: [[PAST:v[0-9]+]] = lt {{v[0-9]+}}, [[END]]
     // CHECK-NEXT: [[FAILS:v[0-9]+]] = or [[WRAPS]], [[PAST]]
     // CHECK-NEXT: jumpi [[FAILS]]
     // CHECK: calldatacopy
@@ -158,9 +158,9 @@ contract Test {
     // CHECK-NEXT: [[SCALE_WRAPS:v[0-9]+]] = shr [[INDEX_END]], 251
     // CHECK-NEXT: [[INDEX_WRAPS:v[0-9]+]] = lt [[INDEX_END]], arg2
     // CHECK-NEXT: [[WRAPS_WORD:v[0-9]+]] = zext i1 [[INDEX_WRAPS]] to i256
-    // CHECK-NEXT: [[INDEX_FAILS:v[0-9]+]] = or [[WRAPS_WORD]], [[SCALE_WRAPS]]
+    // CHECK-NEXT: [[INDEX_FAILS:v[0-9]+]] = or [[SCALE_WRAPS]], [[WRAPS_WORD]]
     // CHECK-NEXT: [[FAILS_WORD:v[0-9]+]] = zext i1 {{v[0-9]+}} to i256
-    // CHECK-NEXT: [[FALLBACK_WORD:v[0-9]+]] = or [[FAILS_WORD]], [[INDEX_FAILS]]
+    // CHECK-NEXT: [[FALLBACK_WORD:v[0-9]+]] = or [[INDEX_FAILS]], [[FAILS_WORD]]
     // CHECK-NEXT: [[FALLBACK:v[0-9]+]] = ne [[FALLBACK_WORD]], 0
     // CHECK-NEXT: jumpi [[FALLBACK]]
     // CHECK: calldatacopy

@@ -31,7 +31,7 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
     v72 = calldataload 4
     v73 = add v72, 4
     v75 = sub v70, 36
-    v76 = gt v72, v75
+    v76 = lt v75, v72
     v111 = or v71, v76
     jumpi v111, bb15, bb16
   bb16:  ; preds = bb0
@@ -45,16 +45,16 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
     v113 = shr v104, 64
     v105 = lt v104, v103
     v115 = zext i1 v105 to i256
-    v116 = or v115, v113
+    v116 = or v113, v115
     v118 = zext i1 v82 to i256
-    v119 = or v118, v116
+    v119 = or v116, v118
     v112 = ne v119, 0
     jumpi v112, bb17, bb19
   bb19:  ; preds = bb16
     mstore 64, v104 !metadata(memory=scratch)
     mstore v103, v77
     v84 = sub v70, v78
-    v85 = gt v77, v84
+    v85 = lt v84, v77
     jumpi v85, bb15, bb18
   bb18:  ; preds = bb19
     v97 = add v103, 32
@@ -89,8 +89,8 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
     v23 = lt v15, 32
     v65 = eq v23, false
     v66 = zext i1 v65 to i256
-    v24 = mul v66, v22
-    v25 = gt v11, v15
+    v24 = mul v22, v66
+    v25 = lt v15, v11
     v26 = and v7, v25
     jumpi v26, bb7, bb8
   bb7:  ; preds = bb6
@@ -277,7 +277,7 @@ fn @load_storage_bytes(arg0: i256) -> i256 [may_return_memory] {
     v47 = shr v36, 64
     v37 = lt v36, v35
     v49 = zext i1 v37 to i256
-    v50 = or v49, v47
+    v50 = or v47, v49
     v39 = ne v50, 0
     jumpi v39, bb9, bb8
   bb8:  ; preds = bb2
@@ -297,7 +297,7 @@ fn @load_storage_bytes(arg0: i256) -> i256 [may_return_memory] {
   bb6:  ; preds = bb4, bb7
     v41 = phi [bb4: v28], [bb7: v42]
     v44 = phi [bb4: v43], [bb7: v45]
-    v21 = ne v41, v46
+    v21 = ne v46, v41
     jumpi v21, bb7, bb5
   bb5:  ; preds = bb3, bb6
     ret v35

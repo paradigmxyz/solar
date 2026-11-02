@@ -358,7 +358,7 @@ fn @wrappedWord(arg0: slice<calldata>) -> i256 [selector=0xc280cc68, pure, abi_p
     v15 = shl v14, 248
     v16 = checked_mul uint256, 8, v4
     v17 = shr v15, v16
-    v18 = or v3, v17
+    v18 = or v17, v3
     jump bb6
   bb6:  ; preds = bb4
     jump bb3

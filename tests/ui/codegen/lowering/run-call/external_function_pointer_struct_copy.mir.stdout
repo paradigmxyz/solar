@@ -18,7 +18,7 @@ fn @copy(arg0: slice<calldata>) -> ptr<memory> [selector=0x0bf8d45f, pure, abi_p
     v9 = mul v1, 32
     v10 = gt v1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     icall panic_if<0x41>, v10
-    v11 = add 32, v9
+    v11 = add v9, 32
     v12 = lt v11, 32
     icall panic_if<0x41>, v12
     v13 = alloc v11
@@ -88,7 +88,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v3 = shl v2, 32
     v4 = or v3, 0xd24c5a36
     v5 = mload v0
-    v6 = lt 0, v5
+    v6 = gt v5, 0
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = shl v4, 64
@@ -99,7 +99,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v12 = shl v11, 32
     v13 = or v12, 0xc5337ed4
     v14 = mload v0
-    v15 = lt 1, v14
+    v15 = gt v14, 1
     v16 = eq v15, false
     icall panic_if<0x32>, v16
     v17 = shl v13, 64
@@ -110,7 +110,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v21 = shl v20, 32
     v22 = or v21, 0xafb0db5f
     v23 = mload v0
-    v24 = lt 2, v23
+    v24 = gt v23, 2
     v25 = eq v24, false
     icall panic_if<0x32>, v25
     v26 = shl v22, 64
@@ -137,7 +137,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     icall revert_if<empty>, v41
     v42 = mload v37, ptr<memory>
     v43 = mload v42
-    v44 = lt 0, v43
+    v44 = gt v43, 0
     v45 = eq v44, false
     icall panic_if<0x32>, v45
     v46 = ptradd v42, 32
@@ -152,7 +152,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     icall revert_if<empty>, v54
     v55 = mload v37, ptr<memory>
     v56 = mload v55
-    v57 = lt 1, v56
+    v57 = gt v56, 1
     v58 = eq v57, false
     icall panic_if<0x32>, v58
     v59 = ptradd v55, 64
@@ -167,7 +167,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     icall revert_if<empty>, v67
     v68 = mload v37, ptr<memory>
     v69 = mload v68
-    v70 = lt 2, v69
+    v70 = gt v69, 2
     v71 = eq v70, false
     icall panic_if<0x32>, v71
     v72 = ptradd v68, 96

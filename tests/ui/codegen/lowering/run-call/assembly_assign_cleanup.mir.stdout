@@ -87,7 +87,7 @@ fn @memoryStoreCleanup() -> i256 [selector=0xa32f54c2, pure, abi_params=[], abi_
     v0 = alloc zeroed checked 64
     mstore v0, 1
     v1 = mload v0
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = ptradd v0, 32

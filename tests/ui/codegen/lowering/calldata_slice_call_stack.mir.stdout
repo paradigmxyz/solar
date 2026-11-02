@@ -80,7 +80,7 @@ fn @execute(arg0: i160, arg1: i160, arg2: i256, arg3: slice<calldata>) [selector
     v39 = lt v38, 32
     icall revert_if<tuple_data_too_short>, v39
     v40 = mload 0 !metadata(memory=scratch)
-    v41 = gt v32, v40
+    v41 = lt v40, v32
     jumpi v41, bb9, bb10
   bb10:  ; preds = bb8
     jump bb11

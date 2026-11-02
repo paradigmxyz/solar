@@ -54,7 +54,7 @@ fn @or(arg0: ptr<memory>) -> i256 [pure] {
     v9 = ptradd v0, v8
     v10 = ptradd v9, 32
     v11 = mload v10
-    v12 = or v1, v11
+    v12 = or v11, v1
     jump bb6
   bb6:  ; preds = bb4
     jump bb3
@@ -91,7 +91,7 @@ fn @orBytes(arg0: ptr<memory>) -> i256 [pure] {
     v13 = shr v12, 248
     v14 = trunc i256 v13 to i8
     v15 = zext i8 v14 to i256
-    v16 = or v1, v15
+    v16 = or v15, v1
     jump bb6
   bb6:  ; preds = bb4
     jump bb3
@@ -329,13 +329,13 @@ fn @afterRewind(arg0: i256) -> i256 [selector=0xd109d495, pure, abi_params=[uint
     v0 = alloc zeroed checked 160
     mstore v0, 4
     v1 = mload v0
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = ptradd v0, 32
     mstore v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v5 = mload v0
-    v6 = lt 3, v5
+    v6 = gt v5, 3
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = ptradd v0, 128
@@ -434,9 +434,9 @@ fn @loopEmit(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x290d3b9f, ab
     v8 = alloc zeroed checked 160
     mstore v8, 4
     v9 = icall @or, v8
-    v10 = or v2, v9
+    v10 = or v9, v2
     v11 = mload v8
-    v12 = lt 0, v11
+    v12 = gt v11, 0
     v13 = eq v12, false
     icall panic_if<0x32>, v13
     v14 = ptradd v8, 32

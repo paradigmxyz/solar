@@ -62,8 +62,8 @@ contract Test {
     // CHECK: [[FROM:v[0-9]+]] = add arg1, 32
     // CHECK-NEXT: [[TO:v[0-9]+]] = add arg0, 32
     // CHECK-NEXT: [[END:v[0-9]+]] = add [[FROM]], arg2
-    // CHECK-NEXT: [[LAST:v[0-9]+]] = add [[TO]], arg2
     // CHECK-NEXT: [[BELOW:v[0-9]+]] = lt [[TO]], [[END]]
+    // CHECK-NEXT: [[LAST:v[0-9]+]] = add [[TO]], arg2
     // CHECK-NEXT: [[ABOVE:v[0-9]+]] = lt arg1, [[LAST]]
     // CHECK-NEXT: [[MEETS:v[0-9]+]] = and [[BELOW]], [[ABOVE]]
     // CHECK-NEXT: jumpi [[MEETS]], {{bb[0-9]+}}, {{bb[0-9]+}}
@@ -80,8 +80,8 @@ contract Test {
     // CHECK: [[FROM:v[0-9]+]] = add arg1, 32
     // CHECK-NEXT: [[TO:v[0-9]+]] = add arg0, 32
     // CHECK-NEXT: [[END:v[0-9]+]] = add [[FROM]], arg2
-    // CHECK-NEXT: [[LAST:v[0-9]+]] = add [[TO]], arg2
     // CHECK-NEXT: [[BELOW:v[0-9]+]] = lt [[TO]], [[END]]
+    // CHECK-NEXT: [[LAST:v[0-9]+]] = add [[TO]], arg2
     // CHECK-NEXT: [[ABOVE:v[0-9]+]] = lt arg1, [[LAST]]
     // CHECK-NEXT: [[MEETS:v[0-9]+]] = and [[BELOW]], [[ABOVE]]
     // CHECK-NEXT: jumpi [[MEETS]], {{bb[0-9]+}}, {{bb[0-9]+}}

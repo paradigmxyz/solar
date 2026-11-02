@@ -1096,7 +1096,8 @@ impl<'a> CheckEliminator<'a> {
         }
         // checked_op a, b that cannot fail -> op a, b
         for (id, kind) in &unfailing {
-            func.inst_mut(*id).replace_kind(kind.clone());
+            let kind = func.canonical_kind(kind.clone());
+            func.inst_mut(*id).replace_kind(kind);
         }
         let propagated = self.apply_equalities(func);
         // branch proven_condition, keep, discard => jump keep
@@ -3035,7 +3036,11 @@ fn universal_relations(func: &Function, relevant: &DenseBitSet<ValueId>) -> FxHa
 fn clamp_limit(func: &Function, x: ValueId, adjustment: ValueId) -> Option<ValueId> {
     let &InstKind::Mul(first, second) = inst_kind(func, adjustment)? else { return None };
     for (condition, difference) in [(first, second), (second, first)] {
-        let Some(&InstKind::Gt(tested, limit)) = inst_kind(func, condition) else { continue };
+        let Some(&(InstKind::Gt(tested, limit) | InstKind::Lt(limit, tested))) =
+            inst_kind(func, condition)
+        else {
+            continue;
+        };
         if tested != x {
             continue;
         }

@@ -992,7 +992,7 @@ fn @checkFixed() -> i1 [selector=0x11c1e644, abi_params=[], abi_returns=[word<bo
     v198 = phi [bb40: v197], [bb41: false]
     ret v198
   bb32:  ; preds = bb31
-    v154 = add 10, v152
+    v154 = add v152, 10
     v155 = sload v154 !metadata(storage=offset(v152, 10))
     v156 = mul v152, 8
     v157 = sub 9, v156
@@ -1017,7 +1017,7 @@ fn @checkFixed() -> i1 [selector=0x11c1e644, abi_params=[], abi_returns=[word<bo
     v168 = add v160, 1
     jump bb34
   bb26:  ; preds = bb25
-    v135 = add 9, v133
+    v135 = add v133, 9
     v136 = sload v135 !metadata(storage=offset(v133, 9))
     v137 = mul v133, 10
     v138 = sub 7, v137
@@ -1042,7 +1042,7 @@ fn @checkFixed() -> i1 [selector=0x11c1e644, abi_params=[], abi_returns=[word<bo
     v149 = add v141, 1
     jump bb28
   bb20:  ; preds = bb19
-    v115 = add 7, v113
+    v115 = add v113, 7
     v116 = sload v115 !metadata(storage=offset(v113, 7))
     v117 = mul v113, 32
     v118 = sub 40, v117
@@ -1089,7 +1089,7 @@ fn @checkFixed() -> i1 [selector=0x11c1e644, abi_params=[], abi_returns=[word<bo
     v97 = eq v96, false
     icall panic_if<0x32>, v97
     v98 = div v80, 8
-    v99 = add 10, v98
+    v99 = add v98, 10
     v100 = mod v80, 8
     v101 = mul v100, 4
     v102 = mul v101, 8
@@ -1129,7 +1129,7 @@ fn @checkFixed() -> i1 [selector=0x11c1e644, abi_params=[], abi_returns=[word<bo
     v59 = eq v58, false
     icall panic_if<0x32>, v59
     v60 = div v43, 10
-    v61 = add 9, v60
+    v61 = add v60, 9
     v62 = mod v43, 10
     v63 = mul v62, 3
     v64 = mul v63, 8
@@ -1169,7 +1169,7 @@ fn @checkFixed() -> i1 [selector=0x11c1e644, abi_params=[], abi_returns=[word<bo
     v23 = eq v22, false
     icall panic_if<0x32>, v23
     v24 = div v7, 32
-    v25 = add 7, v24
+    v25 = add v24, 7
     v26 = mod v7, 32
     v27 = mul v26, 1
     v28 = mul v27, 8

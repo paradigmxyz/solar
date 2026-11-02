@@ -31,7 +31,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>], 
     v54 = and v53, 1
     v55 = eq v54, 1
     v56 = sub 0, v54
-    v57 = or 127, v56
+    v57 = or v56, 127
     v58 = shr v53, 1
     v59 = and v58, v57
     v60 = lt v50, v59
@@ -65,7 +65,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>], 
     v79 = and v78, 1
     v80 = eq v79, 1
     v81 = sub 0, v79
-    v82 = or 127, v81
+    v82 = or v81, 127
     v83 = shr v78, 1
     v84 = and v83, v82
     v85 = checked_add int256, v50, 1
@@ -77,7 +77,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>], 
     v89 = and v88, 1
     v90 = eq v89, 1
     v91 = sub 0, v89
-    v92 = or 127, v91
+    v92 = or v91, 127
     v93 = shr v88, 1
     v94 = and v93, v92
     v95 = eq v94, 0
@@ -141,7 +141,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>], 
     v9 = and v8, 1
     v10 = eq v9, 1
     v11 = sub 0, v9
-    v12 = or 127, v11
+    v12 = or v11, 127
     v13 = shr v8, 1
     v14 = and v13, v12
     v15 = lt v14, 0x10000000000000000

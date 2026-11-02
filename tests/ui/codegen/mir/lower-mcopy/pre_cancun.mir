@@ -33,7 +33,7 @@
 // PRE: + mstore {{v[0-9]+}}, [[REVERSE_MERGED]]
 // PRE: + [[REVERSE_OFFSET:v[0-9]+]] = phi
 // PRE: + [[REVERSE_NEXT:v[0-9]+]] = sub [[REVERSE_OFFSET]], 32
-// PRE: + [[REVERSE_SOURCE:v[0-9]+]] = add arg1, [[REVERSE_NEXT]]
+// PRE: + [[REVERSE_SOURCE:v[0-9]+]] = add [[REVERSE_NEXT]], arg1
 // PRE: + [[REVERSE_WORD:v[0-9]+]] = mload [[REVERSE_SOURCE]]
 // PRE: + mstore {{v[0-9]+}}, [[REVERSE_WORD]]
 // PRE: {{^[ +].*}}ret arg0

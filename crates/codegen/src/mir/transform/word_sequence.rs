@@ -281,7 +281,7 @@ impl Recipe {
             &mut inserted,
         );
         let Value::Inst(last) = *func.value(result) else { unreachable!() };
-        let kind = func.inst(last).kind.clone();
+        let kind = func.canonical_kind(func.inst(last).kind.clone());
         inserted.retain(|&id| id != last);
         func.inst_mut(root).replace_kind(kind);
         inserted

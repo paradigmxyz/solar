@@ -90,7 +90,7 @@ fn @signedUserMemory() -> i256 [selector=0xe8190462, pure, abi_params=[], abi_re
     v0 = alloc zeroed checked 64
     mstore v0, 1
     v1 = mload v0
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = sext i16 0xffff to i256
@@ -179,7 +179,7 @@ fn @firstByteInt8(arg0: i8, arg1: i8) -> i256 [selector=0xdf400c36, pure, abi_pa
   bb0:
     v0 = abi_encode_packed (uint8 arg0, int8 arg1)
     v1 = mload v0
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = ptradd v0, 32
@@ -194,7 +194,7 @@ fn @firstByteInt16(arg0: i8, arg1: i16) -> i256 [selector=0x3ed4619b, pure, abi_
   bb0:
     v0 = abi_encode_packed (uint8 arg0, int16 arg1)
     v1 = mload v0
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = ptradd v0, 32
@@ -209,7 +209,7 @@ fn @firstByteInt32(arg0: i8, arg1: i32) -> i256 [selector=0x538ea5fe, pure, abi_
   bb0:
     v0 = abi_encode_packed (uint8 arg0, int32 arg1)
     v1 = mload v0
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = ptradd v0, 32
@@ -224,7 +224,7 @@ fn @firstByteSigned16() -> i256 [selector=0x951569ca, pure, abi_params=[], abi_r
   bb0:
     v0 = abi_encode_packed (uint8 i8 0, int16 i16 0xffff)
     v1 = mload v0
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = ptradd v0, 32

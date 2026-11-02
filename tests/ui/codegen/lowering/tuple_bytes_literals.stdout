@@ -27,7 +27,7 @@ fn @prefix() [selector=0x01cd9057, abi_wrapper, pure] {
     v12 = calldataload 4
     v13 = add v12, 4
     v15 = sub v10, 36
-    v16 = gt v12, v15
+    v16 = lt v15, v12
     v62 = or v11, v16
     jumpi v62, bb3, bb4
   bb4:  ; preds = bb0
@@ -42,15 +42,15 @@ fn @prefix() [selector=0x01cd9057, abi_wrapper, pure] {
     v65 = shr v57, 64
     v58 = lt v57, v56
     v67 = zext i1 v58 to i256
-    v68 = or v67, v65
+    v68 = or v65, v67
     v70 = zext i1 v22 to i256
-    v71 = or v70, v68
+    v71 = or v68, v70
     v63 = ne v71, 0
     jumpi v63, bb5, bb7
   bb7:  ; preds = bb4
     mstore v56, v17
     v24 = sub v10, v18
-    v25 = gt v17, v24
+    v25 = lt v24, v17
     jumpi v25, bb3, bb6
   bb6:  ; preds = bb7
     v52 = add v56, 32

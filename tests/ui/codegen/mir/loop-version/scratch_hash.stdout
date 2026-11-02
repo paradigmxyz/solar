@@ -27,7 +27,7 @@ fn @level() [selector=0x223559c3, abi_wrapper, pure] {
     v3 = calldataload 4
     v4 = add v3, 4
     v6 = sub v1, 36
-    v7 = gt v3, v6
+    v7 = lt v6, v3
     v43 = or v2, v7
     jumpi v43, bb1, bb2
   bb2:  ; preds = bb0
@@ -41,7 +41,7 @@ fn @level() [selector=0x223559c3, abi_wrapper, pure] {
     v47 = shr v38, 64
     v39 = lt v38, v37
     v49 = zext i1 v39 to i256
-    v50 = or v49, v47
+    v50 = or v47, v49
     v52 = or v45, v50
     v44 = ne v52, 0
     jumpi v44, bb3, bb5
@@ -51,7 +51,7 @@ fn @level() [selector=0x223559c3, abi_wrapper, pure] {
     v14 = shl v8, 5
     v15 = sub v1, v9
     v16 = shr v15, 5
-    v17 = gt v8, v16
+    v17 = lt v16, v8
     jumpi v17, bb1, bb4
   bb4:  ; preds = bb5
     v32 = add v37, 32
@@ -101,7 +101,7 @@ fn @_level(arg0: i256) -> i256 [may_return_memory, pure] {
     v152 = shr v132, 64
     v133 = lt v132, v131
     v154 = zext i1 v133 to i256
-    v155 = or v154, v152
+    v155 = or v152, v154
     v135 = ne v155, 0
     jumpi v135, bb8, bb16
   bb16:  ; preds = bb9
@@ -110,10 +110,9 @@ fn @_level(arg0: i256) -> i256 [may_return_memory, pure] {
     calldatacopy v131, v137, v11
     mstore v131, v1
     v69 = mload arg0
-    v72 = or v131, v1
     v73 = shl v1, 5
-    v74 = add v131, 1
     v75 = add v73, 31
+    v74 = add v131, 1
     v77 = sub arg0, v74
     v78 = lt v77, v75
     v80 = zext i1 v78 to i256
@@ -123,6 +122,7 @@ fn @_level(arg0: i256) -> i256 [may_return_memory, pure] {
     v86 = lt arg0, 64
     v87 = zext i1 v86 to i256
     v88 = or v84, v87
+    v72 = or v131, v1
     v157 = shr v72, 64
     v159 = or v157, v88
     v91 = eq v159, 0

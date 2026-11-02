@@ -590,9 +590,18 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Appends a fully constructed instruction to the current block.
-    pub fn append_instruction(&mut self, inst: Instruction) -> (InstId, Option<ValueId>) {
+    pub fn append_instruction(&mut self, mut inst: Instruction) -> (InstId, Option<ValueId>) {
+        inst.kind = self.func.canonical_kind(inst.kind);
+        self.append_instruction_verbatim(inst)
+    }
+
+    /// Appends an instruction to the current block with its operands as written.
+    pub(crate) fn append_instruction_verbatim(
+        &mut self,
+        inst: Instruction,
+    ) -> (InstId, Option<ValueId>) {
         let (inst_id, result) = if inst.result_ty.is_some() {
-            let (inst_id, result) = self.func.alloc_value_inst(inst);
+            let (inst_id, result) = self.func.alloc_value_inst_verbatim(inst);
             (inst_id, Some(result))
         } else {
             (self.func.alloc_inst(inst), None)

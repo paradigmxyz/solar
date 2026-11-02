@@ -1182,7 +1182,7 @@ fn reduce_product_checks(
         if flip_check(func, block, inst, &uses) {
             // overflows = gt x, limit
             // jumpi overflows, abort, next
-            func.inst_mut(inst).kind = InstKind::Gt(x, limit);
+            func.inst_mut(inst).kind = func.canonical_kind(InstKind::Gt(x, limit));
             continue;
         }
         // overflows = gt x, limit
@@ -1194,7 +1194,7 @@ fn reduce_product_checks(
         func.blocks[block].instructions.insert(position, overflows_inst);
         // valid = eq overflows, 0
         let zero = func.alloc_value(Value::Immediate(Immediate::I1(false)));
-        func.inst_mut(inst).kind = InstKind::Eq(overflows, zero);
+        func.inst_mut(inst).kind = func.canonical_kind(InstKind::Eq(overflows, zero));
     }
     checks.len()
 }
@@ -1384,7 +1384,7 @@ fn reassociate_invariant_offsets(
         func.blocks[preheader].instructions.push(sum_inst);
         for (outer, inner, y) in sites {
             // outer = add t, y
-            func.inst_mut(outer).kind = InstKind::Add(t, y);
+            func.inst_mut(outer).kind = func.canonical_kind(InstKind::Add(t, y));
             let block = inst_blocks[inner].expect("the inner sum is in a block");
             func.blocks[block].instructions.retain(|&inst| inst != inner);
             rewritten += 1;

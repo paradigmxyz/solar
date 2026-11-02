@@ -29,7 +29,7 @@ fn @copyHigh() [selector=0xf4f1833d, abi_wrapper, pure] {
     v98 = shr v90, 64
     v91 = lt v90, v89
     v100 = zext i1 v91 to i256
-    v101 = or v100, v98
+    v101 = or v98, v100
     v93 = ne v101, 0
     jumpi v93, bb9, bb8
   bb8:  ; preds = bb0

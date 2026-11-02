@@ -58,19 +58,19 @@ fn @live() -> ptr<memory> [pure] {
     v0 = alloc zeroed checked 128
     mstore v0, 3
     v1 = mload v0
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = ptradd v0, 32
     mstore v4, 1
     v5 = mload v0
-    v6 = lt 1, v5
+    v6 = gt v5, 1
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = ptradd v0, 64
     mstore v8, 2
     v9 = mload v0
-    v10 = lt 2, v9
+    v10 = gt v9, 2
     v11 = eq v10, false
     icall panic_if<0x32>, v11
     v12 = ptradd v0, 96
@@ -102,19 +102,19 @@ fn @plain() -> struct0 [selector=0x59748c98, abi_params=[], abi_returns=[word, w
     v6 = icall @fmp
     v7 = checked_sub uint256, v6, v1
     v8 = mload v0
-    v9 = lt 0, v8
+    v9 = gt v8, 0
     v10 = eq v9, false
     icall panic_if<0x32>, v10
     v11 = ptradd v0, 32
     v12 = mload v11
     v13 = mload v0
-    v14 = lt 1, v13
+    v14 = gt v13, 1
     v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = ptradd v0, 64
     v17 = mload v16
     v18 = mload v0
-    v19 = lt 2, v18
+    v19 = gt v18, 2
     v20 = eq v19, false
     icall panic_if<0x32>, v20
     v21 = ptradd v0, 96
@@ -162,19 +162,19 @@ fn @staticArguments() -> struct0 [selector=0x2295c846, abi_params=[], abi_return
     v11 = icall @fmp
     v12 = checked_sub uint256, v11, v1
     v13 = mload v0
-    v14 = lt 0, v13
+    v14 = gt v13, 0
     v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = ptradd v0, 32
     v17 = mload v16
     v18 = mload v0
-    v19 = lt 1, v18
+    v19 = gt v18, 1
     v20 = eq v19, false
     icall panic_if<0x32>, v20
     v21 = ptradd v0, 64
     v22 = mload v21
     v23 = mload v0
-    v24 = lt 2, v23
+    v24 = gt v23, 2
     v25 = eq v24, false
     icall panic_if<0x32>, v25
     v26 = ptradd v0, 96
@@ -229,19 +229,19 @@ fn @dynamicArguments() -> struct0 [selector=0xd79ddb88, abi_params=[], abi_retur
     v15 = icall @fmp
     v16 = checked_sub uint256, v15, v1
     v17 = mload v0
-    v18 = lt 0, v17
+    v18 = gt v17, 0
     v19 = eq v18, false
     icall panic_if<0x32>, v19
     v20 = ptradd v0, 32
     v21 = mload v20
     v22 = mload v0
-    v23 = lt 1, v22
+    v23 = gt v22, 1
     v24 = eq v23, false
     icall panic_if<0x32>, v24
     v25 = ptradd v0, 64
     v26 = mload v25
     v27 = mload v0
-    v28 = lt 2, v27
+    v28 = gt v27, 2
     v29 = eq v28, false
     icall panic_if<0x32>, v29
     v30 = ptradd v0, 96
@@ -284,19 +284,19 @@ fn @salted() -> struct0 [selector=0x1f981516, abi_params=[], abi_returns=[word, 
     v7 = icall @fmp
     v8 = checked_sub uint256, v7, v1
     v9 = mload v0
-    v10 = lt 0, v9
+    v10 = gt v9, 0
     v11 = eq v10, false
     icall panic_if<0x32>, v11
     v12 = ptradd v0, 32
     v13 = mload v12
     v14 = mload v0
-    v15 = lt 1, v14
+    v15 = gt v14, 1
     v16 = eq v15, false
     icall panic_if<0x32>, v16
     v17 = ptradd v0, 64
     v18 = mload v17
     v19 = mload v0
-    v20 = lt 2, v19
+    v20 = gt v19, 2
     v21 = eq v20, false
     icall panic_if<0x32>, v21
     v22 = ptradd v0, 96

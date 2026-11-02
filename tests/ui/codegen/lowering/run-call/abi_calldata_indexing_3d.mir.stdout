@@ -90,7 +90,7 @@ fn @f(arg0: slice<calldata>, arg1: i256, arg2: i256, arg3: i256) -> struct0 [sel
     v68 = mul v65, 32
     v69 = add v58, 32
     v70 = sub v66, v68
-    v71 = sgt v69, v70
+    v71 = slt v70, v69
     icall revert_if<calldata_tail_too_short>, v71
     v72 = inttoptr i256 v69 to ptr<calldata>
     v73 = make_calldata_slice v72, v65
@@ -152,7 +152,7 @@ fn @f(arg0: slice<calldata>, arg1: i256, arg2: i256, arg3: i256) -> struct0 [sel
     v120 = mul v117, 32
     v121 = add v110, 32
     v122 = sub v118, v120
-    v123 = sgt v121, v122
+    v123 = slt v122, v121
     icall revert_if<calldata_tail_too_short>, v123
     v124 = inttoptr i256 v121 to ptr<calldata>
     v125 = make_calldata_slice v124, v117

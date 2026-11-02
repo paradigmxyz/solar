@@ -29,13 +29,13 @@ fn @pick() [selector=0x9d6a1cd3, abi_wrapper, pure] {
     v15 = calldataload 4
     v16 = add v15, 4
     v18 = sub v13, 36
-    v19 = gt v15, v18
+    v19 = lt v18, v15
     v27 = or v14, v19
     v20 = calldataload v16
     v21 = add v16, 32
     v22 = sub v13, v21
     v23 = shr v22, 5
-    v24 = gt v20, v23
+    v24 = lt v23, v20
     v28 = or v27, v24
     jumpi v28, bb3, bb4
   bb4:  ; preds = bb0
@@ -64,7 +64,7 @@ fn @pickDown() [selector=0xe4bcb1d7, abi_wrapper, pure] {
     v21 = calldataload 4
     v22 = add v21, 4
     v24 = sub v19, 36
-    v25 = gt v21, v24
+    v25 = lt v24, v21
     v55 = or v20, v25
     jumpi v55, bb6, bb7
   bb7:  ; preds = bb0
@@ -78,7 +78,7 @@ fn @pickDown() [selector=0xe4bcb1d7, abi_wrapper, pure] {
     v59 = shr v49, 64
     v50 = lt v49, v48
     v61 = zext i1 v50 to i256
-    v62 = or v61, v59
+    v62 = or v59, v61
     v64 = or v57, v62
     v56 = ne v64, 0
     jumpi v56, bb8, bb10
@@ -88,7 +88,7 @@ fn @pickDown() [selector=0xe4bcb1d7, abi_wrapper, pure] {
     v32 = shl v26, 5
     v33 = sub v19, v27
     v34 = shr v33, 5
-    v35 = gt v26, v34
+    v35 = lt v34, v26
     jumpi v35, bb6, bb9
   bb9:  ; preds = bb10
     v45 = add v48, 32
@@ -109,7 +109,7 @@ fn @pickDown() [selector=0xe4bcb1d7, abi_wrapper, pure] {
     v11 = shl v7, 5
     v43 = add v54, v11
     v14 = mload v43
-    v17 = add v3, v14
+    v17 = add v14, v3
     v18 = lt v17, v3
     jumpi v18, bb4, bb5
   bb5:  ; preds = bb3

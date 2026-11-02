@@ -52,7 +52,7 @@
 -     v7 = or v5, v6
 +     v8 = shr arg0, 160
 +     v10 = zext i1 v1 to i256
-+     v11 = or v10, v8
++     v11 = or v8, v10
 +     v13 = shr arg1, 16
 +     v15 = or v11, v13
 +     v17 = shr arg2, 32

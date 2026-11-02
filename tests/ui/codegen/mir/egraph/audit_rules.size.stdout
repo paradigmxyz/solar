@@ -375,7 +375,8 @@
   
   fn @or_inequality(arg0: i256, arg1: i256) -> i1 {
     bb0:
-      v0 = sgt arg0, arg1
+-     v0 = sgt arg0, arg1
++     v0 = slt arg1, arg0
       v1 = ne arg1, arg0
 -     v2 = or v1, v0
 -     ret v2
@@ -384,7 +385,8 @@
   
   fn @xor_inequality(arg0: i256, arg1: i256) -> i1 {
     bb0:
-      v0 = gt arg0, arg1
+-     v0 = gt arg0, arg1
++     v0 = lt arg1, arg0
       v1 = ne arg1, arg0
 -     v2 = xor v1, v0
 +     v2 = lt arg0, arg1
@@ -396,13 +398,14 @@
       v0 = slt arg0, arg1
       v1 = ne arg0, arg1
 -     v2 = xor v1, v0
-+     v2 = sgt arg0, arg1
++     v2 = slt arg1, arg0
       ret v2
   }
   
   fn @inclusive_gt(arg0: i256, arg1: i256) -> i1 {
     bb0:
-      v0 = gt arg0, arg1
+-     v0 = gt arg0, arg1
++     v0 = lt arg1, arg0
       v1 = eq arg1, arg0
       v2 = or v1, v0
       ret v2
@@ -410,7 +413,8 @@
   
   fn @signed_inclusive_gt(arg0: i256, arg1: i256) -> i1 {
     bb0:
-      v0 = sgt arg0, arg1
+-     v0 = sgt arg0, arg1
++     v0 = slt arg1, arg0
       v1 = eq arg0, arg1
       v2 = xor v1, v0
       ret v2
@@ -436,10 +440,12 @@
   
   fn @opposite_signed_conflict(arg0: i256, arg1: i256) -> i1 {
     bb0:
-      v0 = sgt arg0, arg1
-      v1 = sgt arg1, arg0
+-     v0 = sgt arg0, arg1
+-     v1 = sgt arg1, arg0
 -     v2 = and v1, v0
 -     ret v2
++     v0 = slt arg1, arg0
++     v1 = slt arg0, arg1
 +     ret false
   }
   
@@ -639,7 +645,7 @@
 -     v1 = mul arg1, arg2
 -     v2 = add v0, v1
 +     v3 = add arg0, arg1
-+     v2 = mul arg2, v3
++     v2 = mul v3, arg2
       ret v2
   }
   
@@ -867,14 +873,14 @@
   
   fn @or_inequality(arg0: i256, arg1: i256) -> i1 {
     bb0:
-      v0 = sgt arg0, arg1
+      v0 = slt arg1, arg0
       v1 = ne arg1, arg0
       ret v1
   }
   
   fn @xor_inequality(arg0: i256, arg1: i256) -> i1 {
     bb0:
-      v0 = gt arg0, arg1
+      v0 = lt arg1, arg0
       v1 = ne arg1, arg0
       v2 = lt arg0, arg1
       ret v2
@@ -884,13 +890,13 @@
     bb0:
       v0 = slt arg0, arg1
       v1 = ne arg0, arg1
-      v2 = sgt arg0, arg1
+      v2 = slt arg1, arg0
       ret v2
   }
   
   fn @inclusive_gt(arg0: i256, arg1: i256) -> i1 {
     bb0:
--     v0 = gt arg0, arg1
+-     v0 = lt arg1, arg0
 -     v1 = eq arg1, arg0
 -     v2 = or v1, v0
 +     v3 = lt arg0, arg1
@@ -900,7 +906,7 @@
   
   fn @signed_inclusive_gt(arg0: i256, arg1: i256) -> i1 {
     bb0:
--     v0 = sgt arg0, arg1
+-     v0 = slt arg1, arg0
 -     v1 = eq arg0, arg1
 -     v2 = xor v1, v0
 +     v3 = slt arg0, arg1
@@ -925,8 +931,8 @@
   
   fn @opposite_signed_conflict(arg0: i256, arg1: i256) -> i1 {
     bb0:
-      v0 = sgt arg0, arg1
-      v1 = sgt arg1, arg0
+      v0 = slt arg1, arg0
+      v1 = slt arg0, arg1
       ret false
   }
   
@@ -1120,7 +1126,7 @@
   fn @factored_mul(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     bb0:
       v3 = add arg0, arg1
-      v2 = mul arg2, v3
+      v2 = mul v3, arg2
       ret v2
   }
   
@@ -1335,14 +1341,14 @@
   
   fn @or_inequality(arg0: i256, arg1: i256) -> i1 {
     bb0:
-      v0 = sgt arg0, arg1
+      v0 = slt arg1, arg0
       v1 = ne arg1, arg0
       ret v1
   }
   
   fn @xor_inequality(arg0: i256, arg1: i256) -> i1 {
     bb0:
-      v0 = gt arg0, arg1
+      v0 = lt arg1, arg0
       v1 = ne arg1, arg0
       v2 = lt arg0, arg1
       ret v2
@@ -1352,7 +1358,7 @@
     bb0:
       v0 = slt arg0, arg1
       v1 = ne arg0, arg1
-      v2 = sgt arg0, arg1
+      v2 = slt arg1, arg0
       ret v2
   }
   
@@ -1387,8 +1393,8 @@
   
   fn @opposite_signed_conflict(arg0: i256, arg1: i256) -> i1 {
     bb0:
-      v0 = sgt arg0, arg1
-      v1 = sgt arg1, arg0
+      v0 = slt arg1, arg0
+      v1 = slt arg0, arg1
       ret false
   }
   

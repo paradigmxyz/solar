@@ -29,7 +29,7 @@ fn @threeItems() [selector=0x6e13fa5d, abi_wrapper, pure] {
     v5 = calldatasize
     v6 = lt v5, 68
     v12 = zext i1 v6 to i256
-    v13 = or v12, v10
+    v13 = or v10, v12
     v9 = ne v13, 0
     jumpi v9, bb1, bb2
   bb2:  ; preds = bb0
@@ -52,7 +52,7 @@ fn @twoItems() [selector=0x658c946c, abi_wrapper, pure] {
     v7 = calldatasize
     v8 = lt v7, 68
     v14 = zext i1 v8 to i256
-    v15 = or v14, v12
+    v15 = or v12, v14
     v11 = ne v15, 0
     jumpi v11, bb1, bb2
   bb2:  ; preds = bb0
@@ -75,7 +75,7 @@ fn @tooLong() [selector=0x70126c55, abi_wrapper, pure] {
     v9 = calldatasize
     v10 = lt v9, 100
     v19 = zext i1 v10 to i256
-    v20 = or v19, v17
+    v20 = or v17, v19
     v16 = ne v20, 0
     jumpi v16, bb1, bb2
   bb2:  ; preds = bb0

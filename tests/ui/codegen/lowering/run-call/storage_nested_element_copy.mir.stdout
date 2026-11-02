@@ -13,7 +13,7 @@ fn @constructor() [constructor] {
   bb3:  ; preds = bb1
     v14 = mload v0
     v15 = sload 3 !metadata(storage=slot(3))
-    v16 = gt v15, v14
+    v16 = lt v14, v15
     jumpi v16, bb7, bb8
   bb7:  ; preds = bb3
     jump bb9
@@ -41,7 +41,7 @@ fn @constructor() [constructor] {
   bb46:  ; preds = bb44
     v156 = mload v149
     v157 = sload 0 !metadata(storage=slot(0))
-    v158 = gt v157, v156
+    v158 = lt v156, v157
     jumpi v158, bb47, bb48
   bb47:  ; preds = bb46
     jump bb49
@@ -68,14 +68,14 @@ fn @constructor() [constructor] {
     jumpi v258, bb77, bb78
   bb78:  ; preds = bb76
     v263 = sload 0 !metadata(storage=slot(0))
-    v264 = lt 1, v263
+    v264 = gt v263, 1
     v265 = eq v264, false
     icall panic_if<0x32>, v265
     v266 = storage_array_data_slot 0
     v267 = add v266, 1
     v268 = mload v256
     v269 = sload v267 !metadata(storage=offset(v266, 1))
-    v270 = gt v269, v268
+    v270 = lt v268, v269
     jumpi v270, bb79, bb80
   bb79:  ; preds = bb78
     jump bb81
@@ -94,13 +94,13 @@ fn @constructor() [constructor] {
     jumpi v283, bb85, bb86
   bb86:  ; preds = bb84
     v339 = sload 0 !metadata(storage=slot(0))
-    v340 = lt 1, v339
+    v340 = gt v339, 1
     v341 = eq v340, false
     icall panic_if<0x32>, v341
     v342 = storage_array_data_slot 0
     v343 = add v342, 1
     v344 = sload v343 !metadata(storage=offset(v342, 1))
-    v345 = lt 0, v344
+    v345 = gt v344, 0
     v346 = eq v345, false
     icall panic_if<0x32>, v346
     v347 = storage_array_data_slot v343
@@ -123,13 +123,13 @@ fn @constructor() [constructor] {
     sstore v353, v362 !metadata(storage=symbolic(v353))
     sstore v347, v350 !metadata(storage=symbolic(v347))
     v363 = sload 0 !metadata(storage=slot(0))
-    v364 = lt 1, v363
+    v364 = gt v363, 1
     v365 = eq v364, false
     icall panic_if<0x32>, v365
     v366 = storage_array_data_slot 0
     v367 = add v366, 1
     v368 = sload v367 !metadata(storage=offset(v366, 1))
-    v369 = lt 0, v368
+    v369 = gt v368, 0
     v370 = eq v369, false
     icall panic_if<0x32>, v370
     v371 = storage_array_data_slot v367
@@ -152,13 +152,13 @@ fn @constructor() [constructor] {
     sstore v377, v386 !metadata(storage=symbolic(v377))
     sstore v371, v374 !metadata(storage=symbolic(v371))
     v387 = sload 0 !metadata(storage=slot(0))
-    v388 = lt 1, v387
+    v388 = gt v387, 1
     v389 = eq v388, false
     icall panic_if<0x32>, v389
     v390 = storage_array_data_slot 0
     v391 = add v390, 1
     v392 = sload v391 !metadata(storage=offset(v390, 1))
-    v393 = lt 1, v392
+    v393 = gt v392, 1
     v394 = eq v393, false
     icall panic_if<0x32>, v394
     v395 = storage_array_data_slot v391
@@ -182,13 +182,13 @@ fn @constructor() [constructor] {
     sstore v402, v411 !metadata(storage=symbolic(v402))
     sstore v396, v399 !metadata(storage=offset(v395, 1))
     v412 = sload 0 !metadata(storage=slot(0))
-    v413 = lt 1, v412
+    v413 = gt v412, 1
     v414 = eq v413, false
     icall panic_if<0x32>, v414
     v415 = storage_array_data_slot 0
     v416 = add v415, 1
     v417 = sload v416 !metadata(storage=offset(v415, 1))
-    v418 = lt 1, v417
+    v418 = gt v417, 1
     v419 = eq v418, false
     icall panic_if<0x32>, v419
     v420 = storage_array_data_slot v416
@@ -224,7 +224,7 @@ fn @constructor() [constructor] {
     icall panic_if<0x32>, v445
     v446 = mload v437
     v447 = sload 1 !metadata(storage=slot(1))
-    v448 = gt v447, v446
+    v448 = lt v446, v447
     jumpi v448, bb100, bb101
   bb100:  ; preds = bb99
     jump bb102
@@ -246,7 +246,7 @@ fn @constructor() [constructor] {
     v518 = eq v517, false
     icall panic_if<0x32>, v518
     v519 = sload 1 !metadata(storage=slot(1))
-    v520 = lt 0, v519
+    v520 = gt v519, 0
     v521 = eq v520, false
     icall panic_if<0x32>, v521
     v522 = storage_array_data_slot 1
@@ -272,7 +272,7 @@ fn @constructor() [constructor] {
     v539 = eq v538, false
     icall panic_if<0x32>, v539
     v540 = sload 1 !metadata(storage=slot(1))
-    v541 = lt 0, v540
+    v541 = gt v540, 0
     v542 = eq v541, false
     icall panic_if<0x32>, v542
     v543 = storage_array_data_slot 1
@@ -298,7 +298,7 @@ fn @constructor() [constructor] {
     v560 = eq v559, false
     icall panic_if<0x32>, v560
     v561 = sload 1 !metadata(storage=slot(1))
-    v562 = lt 1, v561
+    v562 = gt v561, 1
     v563 = eq v562, false
     icall panic_if<0x32>, v563
     v564 = storage_array_data_slot 1
@@ -325,7 +325,7 @@ fn @constructor() [constructor] {
     v582 = eq v581, false
     icall panic_if<0x32>, v582
     v583 = sload 1 !metadata(storage=slot(1))
-    v584 = lt 1, v583
+    v584 = gt v583, 1
     v585 = eq v584, false
     icall panic_if<0x32>, v585
     v586 = storage_array_data_slot 1
@@ -349,7 +349,7 @@ fn @constructor() [constructor] {
     sstore v593, v602 !metadata(storage=symbolic(v593))
     sstore v587, v590 !metadata(storage=offset(v586, 1))
     v603 = sload 3 !metadata(storage=slot(3))
-    v604 = lt 0, v603
+    v604 = gt v603, 0
     v605 = eq v604, false
     icall panic_if<0x32>, v605
     v606 = storage_array_data_slot 3
@@ -375,7 +375,7 @@ fn @constructor() [constructor] {
     sstore v614, v623 !metadata(storage=symbolic(v614))
     sstore v606, v611 !metadata(storage=symbolic(v606))
     v624 = sload 3 !metadata(storage=slot(3))
-    v625 = lt 0, v624
+    v625 = gt v624, 0
     v626 = eq v625, false
     icall panic_if<0x32>, v626
     v627 = storage_array_data_slot 3
@@ -401,7 +401,7 @@ fn @constructor() [constructor] {
     sstore v635, v644 !metadata(storage=symbolic(v635))
     sstore v627, v632 !metadata(storage=symbolic(v627))
     v645 = sload 3 !metadata(storage=slot(3))
-    v646 = lt 0, v645
+    v646 = gt v645, 0
     v647 = eq v646, false
     icall panic_if<0x32>, v647
     v648 = storage_array_data_slot 3
@@ -428,7 +428,7 @@ fn @constructor() [constructor] {
     sstore v657, v666 !metadata(storage=symbolic(v657))
     sstore v651, v654 !metadata(storage=offset(v648, 1))
     v667 = sload 3 !metadata(storage=slot(3))
-    v668 = lt 0, v667
+    v668 = gt v667, 0
     v669 = eq v668, false
     icall panic_if<0x32>, v669
     v670 = storage_array_data_slot 3
@@ -464,7 +464,7 @@ fn @constructor() [constructor] {
     v467 = add v466, v460
     v468 = mload v465
     v469 = sload v467 !metadata(storage=symbolic(v467))
-    v470 = gt v469, v468
+    v470 = lt v468, v469
     jumpi v470, bb108, bb109
   bb108:  ; preds = bb106
     jump bb110
@@ -565,7 +565,7 @@ fn @constructor() [constructor] {
     v289 = add v288, v282
     v290 = mload v287
     v291 = sload v289 !metadata(storage=symbolic(v289))
-    v292 = gt v291, v290
+    v292 = lt v290, v291
     jumpi v292, bb87, bb88
   bb87:  ; preds = bb85
     jump bb89
@@ -666,7 +666,7 @@ fn @constructor() [constructor] {
     v183 = add v182, v176
     v184 = mload v181
     v185 = sload v183 !metadata(storage=symbolic(v183))
-    v186 = gt v185, v184
+    v186 = lt v184, v185
     jumpi v186, bb58, bb59
   bb58:  ; preds = bb56
     jump bb60
@@ -695,7 +695,7 @@ fn @constructor() [constructor] {
     v205 = add v204, v198
     v206 = mload v203
     v207 = sload v205 !metadata(storage=symbolic(v205))
-    v208 = gt v207, v206
+    v208 = lt v206, v207
     jumpi v208, bb66, bb67
   bb66:  ; preds = bb64
     jump bb68
@@ -838,7 +838,7 @@ fn @constructor() [constructor] {
     mstore v98, 0
     v99 = mload v98
     v100 = sload v44 !metadata(storage=symbolic(v44))
-    v101 = gt v100, v99
+    v101 = lt v99, v100
     jumpi v101, bb34, bb35
   bb34:  ; preds = bb22
     jump bb36
@@ -915,7 +915,7 @@ fn @constructor() [constructor] {
     v48 = mload v47
     v49 = mload v48
     v50 = sload v44 !metadata(storage=symbolic(v44))
-    v51 = gt v50, v49
+    v51 = lt v49, v50
     jumpi v51, bb24, bb25
   bb24:  ; preds = bb21
     jump bb26
@@ -1041,7 +1041,7 @@ fn @constructor() [constructor] {
 fn @copyDynamic() -> i256 [selector=0x902a0a84, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = lt 1, v0
+    v1 = gt v0, 1
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = storage_array_data_slot 0
@@ -1072,7 +1072,7 @@ fn @copyDynamic() -> i256 [selector=0x902a0a84, abi_params=[], abi_returns=[word
     v28 = ptrtoint ptr<memory> v17 to i256
     v29 = mload v17
     v30 = sload 4 !metadata(storage=slot(4))
-    v31 = gt v30, v29
+    v31 = lt v29, v30
     jumpi v31, bb4, bb5
   bb4:  ; preds = bb3
     jump bb6
@@ -1091,12 +1091,12 @@ fn @copyDynamic() -> i256 [selector=0x902a0a84, abi_params=[], abi_returns=[word
     jumpi v44, bb10, bb11
   bb11:  ; preds = bb9
     v100 = sload 4 !metadata(storage=slot(4))
-    v101 = lt 0, v100
+    v101 = gt v100, 0
     v102 = eq v101, false
     icall panic_if<0x32>, v102
     v103 = storage_array_data_slot 4
     v104 = sload v103 !metadata(storage=symbolic(v103))
-    v105 = lt 0, v104
+    v105 = gt v104, 0
     v106 = eq v105, false
     icall panic_if<0x32>, v106
     v107 = storage_array_data_slot v103
@@ -1104,12 +1104,12 @@ fn @copyDynamic() -> i256 [selector=0x902a0a84, abi_params=[], abi_returns=[word
     v109 = shr v108, 0
     v110 = trunc i256 v109 to i8
     v111 = sload 4 !metadata(storage=slot(4))
-    v112 = lt 0, v111
+    v112 = gt v111, 0
     v113 = eq v112, false
     icall panic_if<0x32>, v113
     v114 = storage_array_data_slot 4
     v115 = sload v114 !metadata(storage=symbolic(v114))
-    v116 = lt 1, v115
+    v116 = gt v115, 1
     v117 = eq v116, false
     icall panic_if<0x32>, v117
     v118 = storage_array_data_slot v114
@@ -1118,13 +1118,13 @@ fn @copyDynamic() -> i256 [selector=0x902a0a84, abi_params=[], abi_returns=[word
     v121 = trunc i256 v120 to i8
     v122 = checked_add uint8, v110, v121
     v123 = sload 4 !metadata(storage=slot(4))
-    v124 = lt 1, v123
+    v124 = gt v123, 1
     v125 = eq v124, false
     icall panic_if<0x32>, v125
     v126 = storage_array_data_slot 4
     v127 = add v126, 1
     v128 = sload v127 !metadata(storage=offset(v126, 1))
-    v129 = lt 0, v128
+    v129 = gt v128, 0
     v130 = eq v129, false
     icall panic_if<0x32>, v130
     v131 = storage_array_data_slot v127
@@ -1133,13 +1133,13 @@ fn @copyDynamic() -> i256 [selector=0x902a0a84, abi_params=[], abi_returns=[word
     v134 = trunc i256 v133 to i8
     v135 = checked_add uint8, v122, v134
     v136 = sload 4 !metadata(storage=slot(4))
-    v137 = lt 1, v136
+    v137 = gt v136, 1
     v138 = eq v137, false
     icall panic_if<0x32>, v138
     v139 = storage_array_data_slot 4
     v140 = add v139, 1
     v141 = sload v140 !metadata(storage=offset(v139, 1))
-    v142 = lt 1, v141
+    v142 = gt v141, 1
     v143 = eq v142, false
     icall panic_if<0x32>, v143
     v144 = storage_array_data_slot v140
@@ -1158,7 +1158,7 @@ fn @copyDynamic() -> i256 [selector=0x902a0a84, abi_params=[], abi_returns=[word
     v50 = add v49, v43
     v51 = mload v48
     v52 = sload v50 !metadata(storage=symbolic(v50))
-    v53 = gt v52, v51
+    v53 = lt v51, v52
     jumpi v53, bb12, bb13
   bb12:  ; preds = bb10
     jump bb14
@@ -1288,7 +1288,7 @@ fn @copyFixed() -> i256 [selector=0x23235673, abi_params=[], abi_returns=[word],
     v25 = ptrtoint ptr<memory> v14 to i256
     v26 = mload v14
     v27 = sload 4 !metadata(storage=slot(4))
-    v28 = gt v27, v26
+    v28 = lt v26, v27
     jumpi v28, bb4, bb5
   bb4:  ; preds = bb3
     jump bb6
@@ -1307,12 +1307,12 @@ fn @copyFixed() -> i256 [selector=0x23235673, abi_params=[], abi_returns=[word],
     jumpi v41, bb10, bb11
   bb11:  ; preds = bb9
     v97 = sload 4 !metadata(storage=slot(4))
-    v98 = lt 0, v97
+    v98 = gt v97, 0
     v99 = eq v98, false
     icall panic_if<0x32>, v99
     v100 = storage_array_data_slot 4
     v101 = sload v100 !metadata(storage=symbolic(v100))
-    v102 = lt 0, v101
+    v102 = gt v101, 0
     v103 = eq v102, false
     icall panic_if<0x32>, v103
     v104 = storage_array_data_slot v100
@@ -1320,12 +1320,12 @@ fn @copyFixed() -> i256 [selector=0x23235673, abi_params=[], abi_returns=[word],
     v106 = shr v105, 0
     v107 = trunc i256 v106 to i8
     v108 = sload 4 !metadata(storage=slot(4))
-    v109 = lt 0, v108
+    v109 = gt v108, 0
     v110 = eq v109, false
     icall panic_if<0x32>, v110
     v111 = storage_array_data_slot 4
     v112 = sload v111 !metadata(storage=symbolic(v111))
-    v113 = lt 1, v112
+    v113 = gt v112, 1
     v114 = eq v113, false
     icall panic_if<0x32>, v114
     v115 = storage_array_data_slot v111
@@ -1334,13 +1334,13 @@ fn @copyFixed() -> i256 [selector=0x23235673, abi_params=[], abi_returns=[word],
     v118 = trunc i256 v117 to i8
     v119 = checked_add uint8, v107, v118
     v120 = sload 4 !metadata(storage=slot(4))
-    v121 = lt 1, v120
+    v121 = gt v120, 1
     v122 = eq v121, false
     icall panic_if<0x32>, v122
     v123 = storage_array_data_slot 4
     v124 = add v123, 1
     v125 = sload v124 !metadata(storage=offset(v123, 1))
-    v126 = lt 0, v125
+    v126 = gt v125, 0
     v127 = eq v126, false
     icall panic_if<0x32>, v127
     v128 = storage_array_data_slot v124
@@ -1349,13 +1349,13 @@ fn @copyFixed() -> i256 [selector=0x23235673, abi_params=[], abi_returns=[word],
     v131 = trunc i256 v130 to i8
     v132 = checked_add uint8, v119, v131
     v133 = sload 4 !metadata(storage=slot(4))
-    v134 = lt 1, v133
+    v134 = gt v133, 1
     v135 = eq v134, false
     icall panic_if<0x32>, v135
     v136 = storage_array_data_slot 4
     v137 = add v136, 1
     v138 = sload v137 !metadata(storage=offset(v136, 1))
-    v139 = lt 1, v138
+    v139 = gt v138, 1
     v140 = eq v139, false
     icall panic_if<0x32>, v140
     v141 = storage_array_data_slot v137
@@ -1374,7 +1374,7 @@ fn @copyFixed() -> i256 [selector=0x23235673, abi_params=[], abi_returns=[word],
     v47 = add v46, v40
     v48 = mload v45
     v49 = sload v47 !metadata(storage=symbolic(v47))
-    v50 = gt v49, v48
+    v50 = lt v48, v49
     jumpi v50, bb12, bb13
   bb12:  ; preds = bb10
     jump bb14
@@ -1476,7 +1476,7 @@ fn @copyFixed() -> i256 [selector=0x23235673, abi_params=[], abi_returns=[word],
 fn @copyMixed() -> i256 [selector=0x0eb8f89e, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 3 !metadata(storage=slot(3))
-    v1 = lt 0, v0
+    v1 = gt v0, 0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = storage_array_data_slot 3
@@ -1498,7 +1498,7 @@ fn @copyMixed() -> i256 [selector=0x0eb8f89e, abi_params=[], abi_returns=[word],
     v121 = eq v120, false
     icall panic_if<0x32>, v121
     v122 = sload 5 !metadata(storage=slot(5))
-    v123 = lt 0, v122
+    v123 = gt v122, 0
     v124 = eq v123, false
     icall panic_if<0x32>, v124
     v125 = storage_array_data_slot 5
@@ -1509,7 +1509,7 @@ fn @copyMixed() -> i256 [selector=0x0eb8f89e, abi_params=[], abi_returns=[word],
     v130 = eq v129, false
     icall panic_if<0x32>, v130
     v131 = sload 5 !metadata(storage=slot(5))
-    v132 = lt 1, v131
+    v132 = gt v131, 1
     v133 = eq v132, false
     icall panic_if<0x32>, v133
     v134 = storage_array_data_slot 5
@@ -1521,7 +1521,7 @@ fn @copyMixed() -> i256 [selector=0x0eb8f89e, abi_params=[], abi_returns=[word],
     v140 = eq v139, false
     icall panic_if<0x32>, v140
     v141 = sload 6 !metadata(storage=slot(6))
-    v142 = lt 0, v141
+    v142 = gt v141, 0
     v143 = eq v142, false
     icall panic_if<0x32>, v143
     v144 = storage_array_data_slot 6
@@ -1533,7 +1533,7 @@ fn @copyMixed() -> i256 [selector=0x0eb8f89e, abi_params=[], abi_returns=[word],
     v150 = eq v149, false
     icall panic_if<0x32>, v150
     v151 = sload 6 !metadata(storage=slot(6))
-    v152 = lt 1, v151
+    v152 = gt v151, 1
     v153 = eq v152, false
     icall panic_if<0x32>, v153
     v154 = storage_array_data_slot 6
@@ -1544,7 +1544,7 @@ fn @copyMixed() -> i256 [selector=0x0eb8f89e, abi_params=[], abi_returns=[word],
     v159 = zext i8 v158 to i256
     ret v159
   bb5:  ; preds = bb4
-    v16 = add 5, v14
+    v16 = add v14, 5
     v17 = lt v14, 2
     jumpi v17, bb7, bb8
   bb8:  ; preds = bb5
@@ -1552,7 +1552,7 @@ fn @copyMixed() -> i256 [selector=0x0eb8f89e, abi_params=[], abi_returns=[word],
     mstore v70, 0
     v71 = mload v70
     v72 = sload v16 !metadata(storage=offset(v14, 5))
-    v73 = gt v72, v71
+    v73 = lt v71, v72
     jumpi v73, bb20, bb21
   bb20:  ; preds = bb8
     jump bb22
@@ -1629,7 +1629,7 @@ fn @copyMixed() -> i256 [selector=0x0eb8f89e, abi_params=[], abi_returns=[word],
     v20 = mload v19
     v21 = mload v20
     v22 = sload v16 !metadata(storage=offset(v14, 5))
-    v23 = gt v22, v21
+    v23 = lt v21, v22
     jumpi v23, bb10, bb11
   bb10:  ; preds = bb7
     jump bb12

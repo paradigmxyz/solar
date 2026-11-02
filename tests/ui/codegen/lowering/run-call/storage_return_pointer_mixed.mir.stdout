@@ -83,7 +83,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     jumpi v31, bb13, bb12
   bb12:  ; preds = bb11
     v32 = sload v28 !metadata(storage=symbolic(v28))
-    v33 = lt 0, v32
+    v33 = gt v32, 0
     v34 = eq v33, false
     icall panic_if<0x32>, v34
     v35 = storage_array_data_slot v28

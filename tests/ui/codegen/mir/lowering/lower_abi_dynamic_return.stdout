@@ -2050,7 +2050,7 @@
 +     v18 = ptradd v5, v17
 +     v19 = mload v18
 +     v20 = mul v15, 32
-+     v21 = add 128, v20
++     v21 = add v20, 128
 +     mstore v21, v19
 +     v22 = add v15, 1
 +     jump bb8

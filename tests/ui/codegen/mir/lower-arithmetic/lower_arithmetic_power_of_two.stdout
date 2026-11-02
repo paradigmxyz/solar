@@ -20,7 +20,7 @@
     bb0:
 -     v0 = checked_mul uint256, 2, arg0
 -     ret v0
-+     v1 = mul 2, arg0
++     v1 = mul arg0, 2
 +     v2 = gt arg0, 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 +     jumpi v2, bb1, bb2
 +   bb2:  ; preds = bb0

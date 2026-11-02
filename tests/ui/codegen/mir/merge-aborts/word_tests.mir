@@ -56,7 +56,7 @@ fn @three_words(arg0: i256, arg1: i256, arg2: i256) {
 // A signed `intN` range check that aborts when it fails is a zero test of a word too: a nonzero
 // `x ^ signextend(b, x)`. The checks of parameters branch once, with the address check.
 // CHECK-LABEL: {{^[ +].*}}fn @signed_check{{[( ]}}
-// CHECK: + [[SIGNED:v[0-9]+]] = xor arg1, [[EXTENDED:v[0-9]+]]
+// CHECK: + [[SIGNED:v[0-9]+]] = xor [[EXTENDED:v[0-9]+]], arg1
 // CHECK-NEXT: + [[BOTH:v[0-9]+]] = or {{v[0-9]+}}, [[SIGNED]]
 // CHECK-NEXT: + [[TEST:v[0-9]+]] = ne [[BOTH]], 0
 // CHECK-NEXT: + jumpi [[TEST]], bb3, bb2

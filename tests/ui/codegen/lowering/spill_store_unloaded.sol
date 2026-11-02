@@ -15,7 +15,7 @@ contract SpillStoreUnloaded {
     // CHECK: eq
     // CHECK: mul
     // CHECK-NOT: mstore
-    // CHECK: gt
+    // CHECK: lt
     // CHECK-NEXT: push [[OTHER:bb[0-9]+]]
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: swap 1

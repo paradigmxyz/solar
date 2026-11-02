@@ -92,7 +92,7 @@ fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_retu
     ret v83
   bb8:  ; preds = bb7
     v36 = div v34, 4
-    v37 = add 3, v36
+    v37 = add v36, 3
     v38 = mod v34, 4
     v39 = mul v38, 8
     v40 = lt v34, 1
@@ -126,7 +126,7 @@ fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_retu
     jump bb7
   bb2:  ; preds = bb1
     v8 = div v6, 1
-    v9 = add 0, v8
+    v9 = add v8, 0
     v10 = mod v6, 1
     v11 = mul v10, 24
     v12 = lt v6, 1
@@ -220,7 +220,7 @@ fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_retu
     ret v83
   bb8:  ; preds = bb7
     v36 = div v34, 4
-    v37 = add 3, v36
+    v37 = add v36, 3
     v38 = mod v34, 4
     v39 = mul v38, 8
     v40 = lt v34, 1
@@ -254,7 +254,7 @@ fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_retu
     jump bb7
   bb2:  ; preds = bb1
     v8 = div v6, 1
-    v9 = add 0, v8
+    v9 = add v8, 0
     v10 = mod v6, 1
     v11 = mul v10, 24
     v12 = lt v6, 1
@@ -348,7 +348,7 @@ fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns
     ret v83
   bb8:  ; preds = bb7
     v36 = div v34, 4
-    v37 = add 4, v36
+    v37 = add v36, 4
     v38 = mod v34, 4
     v39 = mul v38, 8
     v40 = lt v34, 1
@@ -382,7 +382,7 @@ fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns
     jump bb7
   bb2:  ; preds = bb1
     v8 = div v6, 1
-    v9 = add 1, v8
+    v9 = add v8, 1
     v10 = mod v6, 1
     v11 = mul v10, 24
     v12 = lt v6, 1

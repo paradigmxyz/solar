@@ -16,7 +16,7 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0x2f4f3794, pure, abi_params=[
     v8 = mul v0, 32
     v9 = gt v0, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     icall panic_if<0x41>, v9
-    v10 = add 32, v8
+    v10 = add v8, 32
     v11 = lt v10, 32
     icall panic_if<0x41>, v11
     v12 = alloc v10
@@ -29,7 +29,7 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0x2f4f3794, pure, abi_params=[
   bb3:  ; preds = bb1
     v64 = mload v12
     v65 = mload v12
-    v66 = lt 0, v65
+    v66 = gt v65, 0
     v67 = eq v66, false
     icall panic_if<0x32>, v67
     v68 = ptradd v12, 32
@@ -38,14 +38,14 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0x2f4f3794, pure, abi_params=[
     v71 = mload v70
     v72 = checked_add uint256, v64, v71
     v73 = mload v12
-    v74 = lt 1, v73
+    v74 = gt v73, 1
     v75 = eq v74, false
     icall panic_if<0x32>, v75
     v76 = ptradd v12, 64
     v77 = mload v76, ptr<memory>
     v78 = mload v77, ptr<memory>
     v79 = mload v78
-    v80 = lt 0, v79
+    v80 = gt v79, 0
     v81 = eq v80, false
     icall panic_if<0x32>, v81
     v82 = ptradd v78, 32
@@ -90,12 +90,12 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0x2f4f3794, pure, abi_params=[
     v44 = mul v41, 32
     v45 = add v35, 32
     v46 = sub v42, v44
-    v47 = sgt v45, v46
+    v47 = slt v46, v45
     icall revert_if<calldata_tail_too_short>, v47
     v48 = mul v41, 32
     v49 = gt v41, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     icall panic_if<0x41>, v49
-    v50 = add 32, v48
+    v50 = add v48, 32
     v51 = lt v50, 32
     icall panic_if<0x41>, v51
     v52 = alloc v50

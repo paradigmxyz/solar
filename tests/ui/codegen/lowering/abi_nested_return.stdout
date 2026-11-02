@@ -17,7 +17,7 @@ fn @structArray(arg0: i256) -> ptr<memory> [selector=0x0f634b74, pure, abi_param
     v12 = ptradd v10, 32
     mstore v12, v11
     v13 = mload v0
-    v14 = lt 0, v13
+    v14 = gt v13, 0
     v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = ptrtoint ptr<memory> v10 to i256
@@ -66,7 +66,7 @@ fn @nestedArray(arg0: i256) -> ptr<memory> [selector=0x5abcbd75, pure, abi_param
     v18 = alloc zeroed checked v16
     mstore v18, arg0
     v19 = mload v0
-    v20 = lt 0, v19
+    v20 = gt v19, 0
     v21 = eq v20, false
     icall panic_if<0x32>, v21
     v22 = ptrtoint ptr<memory> v18 to i256

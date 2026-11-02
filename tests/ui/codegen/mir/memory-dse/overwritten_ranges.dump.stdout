@@ -74,7 +74,7 @@ fn @allocated() [selector=0x6649a3b9, abi_wrapper, pure] {
     v32 = shr v27, 64
     v28 = lt v27, v26
     v34 = zext i1 v28 to i256
-    v35 = or v34, v32
+    v35 = or v32, v34
     v30 = ne v35, 0
     jumpi v30, bb4, bb3
   bb3:  ; preds = bb2

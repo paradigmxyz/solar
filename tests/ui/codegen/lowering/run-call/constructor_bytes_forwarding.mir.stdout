@@ -23,7 +23,7 @@ fn @byteAt(arg0: i256) -> i256 [selector=0x710422c6, view, abi_params=[uint256],
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt arg0, v6
@@ -90,7 +90,7 @@ fn @byteAt(arg0: i256) -> i256 [selector=0x710422c6, view, abi_params=[uint256],
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt arg0, v6

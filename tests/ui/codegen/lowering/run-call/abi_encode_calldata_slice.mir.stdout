@@ -5,7 +5,7 @@ fn @encPackedBytes(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory>
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = extract_value slice<calldata>, arg0, 1
-    v2 = gt arg2, v1
+    v2 = lt v1, arg2
     v3 = lt arg2, arg1
     v4 = or v2, v3
     v5 = zext i1 v4 to i256
@@ -22,7 +22,7 @@ fn @encPackedBytesReference(arg0: slice<calldata>, arg1: i256, arg2: i256) -> pt
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = extract_value slice<calldata>, arg0, 1
-    v2 = gt arg2, v1
+    v2 = lt v1, arg2
     v3 = lt arg2, arg1
     v4 = or v2, v3
     v5 = zext i1 v4 to i256
@@ -39,7 +39,7 @@ fn @encBytes(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [sele
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = extract_value slice<calldata>, arg0, 1
-    v2 = gt arg2, v1
+    v2 = lt v1, arg2
     v3 = lt arg2, arg1
     v4 = or v2, v3
     v5 = zext i1 v4 to i256
@@ -56,7 +56,7 @@ fn @encBytesReference(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memo
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = extract_value slice<calldata>, arg0, 1
-    v2 = gt arg2, v1
+    v2 = lt v1, arg2
     v3 = lt arg2, arg1
     v4 = or v2, v3
     v5 = zext i1 v4 to i256
@@ -73,7 +73,7 @@ fn @encUint256(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [se
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = extract_value slice<calldata>, arg0, 1
-    v2 = gt arg2, v1
+    v2 = lt v1, arg2
     v3 = lt arg2, arg1
     v4 = or v2, v3
     v5 = zext i1 v4 to i256
@@ -93,7 +93,7 @@ fn @encUint256Reference(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<me
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = extract_value slice<calldata>, arg0, 1
-    v2 = gt arg2, v1
+    v2 = lt v1, arg2
     v3 = lt arg2, arg1
     v4 = or v2, v3
     v5 = zext i1 v4 to i256
@@ -113,7 +113,7 @@ fn @encPackedUint256(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memor
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = extract_value slice<calldata>, arg0, 1
-    v2 = gt arg2, v1
+    v2 = lt v1, arg2
     v3 = lt arg2, arg1
     v4 = or v2, v3
     v5 = zext i1 v4 to i256
@@ -133,7 +133,7 @@ fn @encPackedUint256Reference(arg0: slice<calldata>, arg1: i256, arg2: i256) -> 
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = extract_value slice<calldata>, arg0, 1
-    v2 = gt arg2, v1
+    v2 = lt v1, arg2
     v3 = lt arg2, arg1
     v4 = or v2, v3
     v5 = zext i1 v4 to i256
@@ -153,7 +153,7 @@ fn @encPackedUint8(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory>
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = extract_value slice<calldata>, arg0, 1
-    v2 = gt arg2, v1
+    v2 = lt v1, arg2
     v3 = lt arg2, arg1
     v4 = or v2, v3
     v5 = zext i1 v4 to i256
@@ -177,7 +177,7 @@ fn @encPackedUint8(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory>
     v19 = mul v11, 32
     v20 = gt v11, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     icall panic_if<0x41>, v20
-    v21 = add 32, v19
+    v21 = add v19, 32
     v22 = lt v21, 32
     icall panic_if<0x41>, v22
     v23 = alloc v21
@@ -261,21 +261,21 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[], abi_r
     v0 = alloc zeroed checked 64
     mstore v0, 3
     v1 = mload v0
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = byte 0, 0x4100000000000000000000000000000000000000000000000000000000000000
     v5 = ptradd v0, 32
     mstore8 v5, v4
     v6 = mload v0
-    v7 = lt 1, v6
+    v7 = gt v6, 1
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     v9 = byte 0, 0x4200000000000000000000000000000000000000000000000000000000000000
     v10 = ptradd v0, 33
     mstore8 v10, v9
     v11 = mload v0
-    v12 = lt 2, v11
+    v12 = gt v11, 2
     v13 = eq v12, false
     icall panic_if<0x32>, v13
     v14 = byte 0, 0x4200000000000000000000000000000000000000000000000000000000000000
@@ -299,7 +299,7 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[], abi_r
     v21 = phi [bb4: v17], [bb9: v21]
     v22 = phi [bb4: v17], [bb9: v62]
     v23 = mload v20
-    v24 = gt v22, v23
+    v24 = lt v23, v22
     v25 = eq v24, false
     jumpi v25, bb10, bb11
   bb11:  ; preds = bb7
@@ -380,19 +380,19 @@ fn @testUint256() [selector=0xd2aeef3b, view, abi_params=[], abi_returns=[], abi
     v0 = alloc zeroed checked 128
     mstore v0, 3
     v1 = mload v0
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = ptradd v0, 32
     mstore v4, 65
     v5 = mload v0
-    v6 = lt 1, v5
+    v6 = gt v5, 1
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = ptradd v0, 64
     mstore v8, 66
     v9 = mload v0
-    v10 = lt 2, v9
+    v10 = gt v9, 2
     v11 = eq v10, false
     icall panic_if<0x32>, v11
     v12 = ptradd v0, 96
@@ -415,7 +415,7 @@ fn @testUint256() [selector=0xd2aeef3b, view, abi_params=[], abi_returns=[], abi
     v18 = phi [bb4: v14], [bb9: v18]
     v19 = phi [bb4: v14], [bb9: v59]
     v20 = mload v17
-    v21 = gt v19, v20
+    v21 = lt v20, v19
     v22 = eq v21, false
     jumpi v22, bb10, bb11
   bb11:  ; preds = bb7

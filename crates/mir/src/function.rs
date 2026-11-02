@@ -676,7 +676,17 @@ impl Function {
     }
 
     /// Allocates a value-producing instruction and its result value.
+    ///
+    /// Commutative operands and comparisons are put in canonical order, see
+    /// [`canonical_kind`](Self::canonical_kind).
     pub fn alloc_value_inst(&mut self, mut inst: Instruction) -> (InstId, ValueId) {
+        inst.kind = self.canonical_kind(inst.kind);
+        self.alloc_value_inst_verbatim(inst)
+    }
+
+    /// Allocates a value-producing instruction with its operands as written. Use it only when
+    /// the operands are not yet final or the text of a test must stay as written.
+    pub fn alloc_value_inst_verbatim(&mut self, mut inst: Instruction) -> (InstId, ValueId) {
         assert!(inst.result_ty.is_some(), "value-producing instruction must have a result type");
 
         let inst_id = self.instructions.next_idx();

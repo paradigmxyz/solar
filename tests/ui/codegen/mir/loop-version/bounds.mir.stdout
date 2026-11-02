@@ -34,7 +34,7 @@ fn @siftValues(arg0: i256, arg1: i256) -> ptr<memory> [selector=0x979efdba, pure
     jump bb2
   bb2:  ; preds = bb5
     v26 = mload v14
-    v27 = lt 0, v26
+    v27 = gt v26, 0
     v28 = eq v27, false
     icall panic_if<0x32>, v28
     v29 = ptradd v14, 32
@@ -87,7 +87,7 @@ fn @siftValues(arg0: i256, arg1: i256) -> ptr<memory> [selector=0x979efdba, pure
     v52 = ptradd v32, v51
     v53 = ptradd v52, 32
     v54 = mload v53
-    v55 = gt v44, v54
+    v55 = lt v54, v44
     jumpi v55, bb16, bb17
   bb17:  ; preds = bb13
     jump bb18
@@ -183,13 +183,13 @@ fn @siftUp(arg0: i256, arg1: i256) -> struct0 [selector=0xf06414cf, pure, abi_pa
     jump bb2
   bb2:  ; preds = bb5
     v45 = mload v26
-    v46 = lt 0, v45
+    v46 = gt v45, 0
     v47 = eq v46, false
     icall panic_if<0x32>, v47
     v48 = ptradd v26, 32
     mstore v48, 100
     v49 = mload v27
-    v50 = lt 0, v49
+    v50 = gt v49, 0
     v51 = eq v50, false
     icall panic_if<0x32>, v51
     v52 = ptradd v27, 32
@@ -254,7 +254,7 @@ fn @siftUp(arg0: i256, arg1: i256) -> struct0 [selector=0xf06414cf, pure, abi_pa
     v78 = ptradd v56, v77
     v79 = ptradd v78, 32
     v80 = mload v79
-    v81 = gt v70, v80
+    v81 = lt v80, v70
     jumpi v81, bb16, bb17
   bb17:  ; preds = bb13
     jump bb18

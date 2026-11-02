@@ -30,7 +30,7 @@ fn @test() -> ptr<memory> [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
     v46 = and v45, 1
     v47 = eq v46, 1
     v48 = sub 0, v46
-    v49 = or 127, v48
+    v49 = or v48, 127
     v50 = shr v45, 1
     v51 = and v50, v49
     v52 = eq v51, 0
@@ -90,7 +90,7 @@ fn @test() -> ptr<memory> [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
     v4 = and v3, 1
     v5 = eq v4, 1
     v6 = sub 0, v4
-    v7 = or 127, v6
+    v7 = or v6, 127
     v8 = shr v3, 1
     v9 = and v8, v7
     v10 = lt v9, 0x10000000000000000
@@ -167,7 +167,7 @@ fn @testNoPop() -> ptr<memory> [selector=0xa43e8948, abi_params=[], abi_returns=
     v4 = and v3, 1
     v5 = eq v4, 1
     v6 = sub 0, v4
-    v7 = or 127, v6
+    v7 = or v6, 127
     v8 = shr v3, 1
     v9 = and v8, v7
     v10 = lt v9, 0x10000000000000000
@@ -241,7 +241,7 @@ fn @testOnePop() -> i8 [selector=0x38de92b5, abi_params=[], abi_returns=[word<ui
     v42 = and v41, 1
     v43 = eq v42, 1
     v44 = sub 0, v42
-    v45 = or 127, v44
+    v45 = or v44, 127
     v46 = shr v41, 1
     v47 = and v46, v45
     v48 = eq v47, 0
@@ -294,10 +294,10 @@ fn @testOnePop() -> i8 [selector=0x38de92b5, abi_params=[], abi_returns=[word<ui
     v78 = and v77, 1
     v79 = eq v78, 1
     v80 = sub 0, v78
-    v81 = or 127, v80
+    v81 = or v80, 127
     v82 = shr v77, 1
     v83 = and v82, v81
-    v84 = lt 0, v83
+    v84 = gt v83, 0
     v85 = eq v84, false
     icall panic_if<0x32>, v85
     jumpi v79, bb17, bb18
@@ -320,7 +320,7 @@ fn @testOnePop() -> i8 [selector=0x38de92b5, abi_params=[], abi_returns=[word<ui
     v4 = and v3, 1
     v5 = eq v4, 1
     v6 = sub 0, v4
-    v7 = or 127, v6
+    v7 = or v6, 127
     v8 = shr v3, 1
     v9 = and v8, v7
     v10 = lt v9, 0x10000000000000000

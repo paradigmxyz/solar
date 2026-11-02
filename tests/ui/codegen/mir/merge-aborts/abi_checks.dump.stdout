@@ -34,10 +34,10 @@ fn @check() [selector=0x05c051e1, abi_wrapper, pure] {
     v10 = ne v23, 0
     v16 = or v15, v10
     v11 = calldataload 100
-    v12 = signextend 2, v11
     v17 = zext i1 v16 to i256
+    v12 = signextend 2, v11
     v18 = xor v11, v12
-    v19 = or v17, v18
+    v19 = or v18, v17
     v20 = ne v19, 0
     jumpi v20, bb1, bb2
   bb2:  ; preds = bb0

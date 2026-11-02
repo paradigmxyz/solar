@@ -52,7 +52,7 @@ fn @run(arg0: i256, arg1: i256) [selector=0x0a3395f5, abi_params=[uint256, bool]
     jump bb3
   bb3:  ; preds = bb1, bb2
     v15 = phi [bb1: v14], [bb2: v0]
-    v16 = add v15, v0
+    v16 = add v0, v15
     v17 = add v16, v1
     v18 = add v17, v2
     v19 = add v18, v3

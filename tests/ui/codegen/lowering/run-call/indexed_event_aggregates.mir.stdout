@@ -17,32 +17,32 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     v7 = alloc zeroed checked 96
     mstore v7, 2
     v8 = mload v0
-    v9 = lt 0, v8
+    v9 = gt v8, 0
     v10 = eq v9, false
     icall panic_if<0x32>, v10
     v11 = ptrtoint ptr<memory> v7 to i256
     v12 = ptradd v0, 32
     mstore v12, v11
     v13 = mload v0
-    v14 = lt 0, v13
+    v14 = gt v13, 0
     v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = ptradd v0, 32
     v17 = mload v16, ptr<memory>
     v18 = mload v17
-    v19 = lt 0, v18
+    v19 = gt v18, 0
     v20 = eq v19, false
     icall panic_if<0x32>, v20
     v21 = ptradd v17, 32
     mstore v21, 1
     v22 = mload v0
-    v23 = lt 0, v22
+    v23 = gt v22, 0
     v24 = eq v23, false
     icall panic_if<0x32>, v24
     v25 = ptradd v0, 32
     v26 = mload v25, ptr<memory>
     v27 = mload v26
-    v28 = lt 1, v27
+    v28 = gt v27, 1
     v29 = eq v28, false
     icall panic_if<0x32>, v29
     v30 = ptradd v26, 64
@@ -50,7 +50,7 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     v31 = alloc zeroed checked 32
     mstore v31, 0
     v32 = mload v0
-    v33 = lt 1, v32
+    v33 = gt v32, 1
     v34 = eq v33, false
     icall panic_if<0x32>, v34
     v35 = ptrtoint ptr<memory> v31 to i256
@@ -71,7 +71,7 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     v62 = mul v41, 32
     v63 = gt v41, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     icall panic_if<0x41>, v63
-    v64 = add 32, v62
+    v64 = add v62, 32
     v65 = lt v64, 32
     icall panic_if<0x41>, v65
     v66 = alloc v64
@@ -184,7 +184,7 @@ fn @test_strings() -> ptr<memory> [selector=0xcdb50c38, abi_params=[], abi_retur
     v8 = ptradd v7, 32
     mstore v8, 0x7800000000000000000000000000000000000000000000000000000000000000
     v9 = mload v0
-    v10 = lt 0, v9
+    v10 = gt v9, 0
     v11 = eq v10, false
     icall panic_if<0x32>, v11
     v12 = ptrtoint ptr<memory> v7 to i256
@@ -208,7 +208,7 @@ fn @test_strings() -> ptr<memory> [selector=0xcdb50c38, abi_params=[], abi_retur
     v35 = mul v21, 32
     v36 = gt v21, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     icall panic_if<0x41>, v36
-    v37 = add 32, v35
+    v37 = add v35, 32
     v38 = lt v37, 32
     icall panic_if<0x41>, v38
     v39 = alloc v37
@@ -244,7 +244,7 @@ fn @test_strings() -> ptr<memory> [selector=0xcdb50c38, abi_params=[], abi_retur
     jumpi v52, bb11, bb10
   bb10:  ; preds = bb8
     v53 = sub v51, 32
-    v54 = add v42, v53
+    v54 = add v53, v42
     v55 = ptradd v39, v54
     v56 = ptradd v55, 32
     mstore v56, 0
@@ -258,7 +258,7 @@ fn @test_strings() -> ptr<memory> [selector=0xcdb50c38, abi_params=[], abi_retur
     v62 = extract_value slice<memory>, v59, 0
     v63 = extract_value slice<memory>, v59, 1
     mcopy v61, v62, v63
-    v64 = add v42, v51
+    v64 = add v51, v42
     v65 = add v41, 1
     jump bb7
   bb5:  ; preds = bb4
@@ -272,7 +272,7 @@ fn @test_strings() -> ptr<memory> [selector=0xcdb50c38, abi_params=[], abi_retur
     icall panic_if<0x41>, v29
     v30 = and v28, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v31 = div v30, 32
-    v32 = add v21, v31
+    v32 = add v31, v21
     v33 = lt v32, v21
     icall panic_if<0x41>, v33
     v34 = add v20, 1

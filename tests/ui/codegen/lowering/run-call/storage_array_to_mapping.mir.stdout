@@ -13,7 +13,7 @@ fn @constructor() [constructor] {
   bb3:  ; preds = bb1
     v7 = mload v0
     v8 = sload 1 !metadata(storage=slot(1))
-    v9 = gt v8, v7
+    v9 = lt v7, v8
     jumpi v9, bb4, bb5
   bb4:  ; preds = bb3
     jump bb6
@@ -34,13 +34,13 @@ fn @constructor() [constructor] {
     v78 = alloc zeroed checked 96
     mstore v78, 2
     v79 = sload 1 !metadata(storage=slot(1))
-    v80 = lt 0, v79
+    v80 = gt v79, 0
     v81 = eq v80, false
     icall panic_if<0x32>, v81
     v82 = storage_array_data_slot 1
     v83 = mload v78
     v84 = sload v82 !metadata(storage=symbolic(v82))
-    v85 = gt v84, v83
+    v85 = lt v83, v84
     jumpi v85, bb22, bb23
   bb22:  ; preds = bb11
     jump bb24
@@ -74,12 +74,12 @@ fn @constructor() [constructor] {
     jump bb31
   bb31:  ; preds = bb29, bb30
     v131 = sload 1 !metadata(storage=slot(1))
-    v132 = lt 0, v131
+    v132 = gt v131, 0
     v133 = eq v132, false
     icall panic_if<0x32>, v133
     v134 = storage_array_data_slot 1
     v135 = sload v134 !metadata(storage=symbolic(v134))
-    v136 = lt 0, v135
+    v136 = gt v135, 0
     v137 = eq v136, false
     icall panic_if<0x32>, v137
     v138 = storage_array_data_slot v134
@@ -88,12 +88,12 @@ fn @constructor() [constructor] {
     v141 = or v140, 10
     sstore v138, v141 !metadata(storage=symbolic(v138))
     v142 = sload 1 !metadata(storage=slot(1))
-    v143 = lt 0, v142
+    v143 = gt v142, 0
     v144 = eq v143, false
     icall panic_if<0x32>, v144
     v145 = storage_array_data_slot 1
     v146 = sload v145 !metadata(storage=symbolic(v145))
-    v147 = lt 1, v146
+    v147 = gt v146, 1
     v148 = eq v147, false
     icall panic_if<0x32>, v148
     v149 = storage_array_data_slot v145
@@ -104,14 +104,14 @@ fn @constructor() [constructor] {
     v153 = alloc zeroed checked 128
     mstore v153, 3
     v154 = sload 1 !metadata(storage=slot(1))
-    v155 = lt 1, v154
+    v155 = gt v154, 1
     v156 = eq v155, false
     icall panic_if<0x32>, v156
     v157 = storage_array_data_slot 1
     v158 = add v157, 1
     v159 = mload v153
     v160 = sload v158 !metadata(storage=offset(v157, 1))
-    v161 = gt v160, v159
+    v161 = lt v159, v160
     jumpi v161, bb32, bb33
   bb32:  ; preds = bb31
     jump bb34
@@ -145,13 +145,13 @@ fn @constructor() [constructor] {
     jump bb41
   bb41:  ; preds = bb39, bb40
     v207 = sload 1 !metadata(storage=slot(1))
-    v208 = lt 1, v207
+    v208 = gt v207, 1
     v209 = eq v208, false
     icall panic_if<0x32>, v209
     v210 = storage_array_data_slot 1
     v211 = add v210, 1
     v212 = sload v211 !metadata(storage=offset(v210, 1))
-    v213 = lt 0, v212
+    v213 = gt v212, 0
     v214 = eq v213, false
     icall panic_if<0x32>, v214
     v215 = storage_array_data_slot v211
@@ -160,13 +160,13 @@ fn @constructor() [constructor] {
     v218 = or v217, 12
     sstore v215, v218 !metadata(storage=symbolic(v215))
     v219 = sload 1 !metadata(storage=slot(1))
-    v220 = lt 1, v219
+    v220 = gt v219, 1
     v221 = eq v220, false
     icall panic_if<0x32>, v221
     v222 = storage_array_data_slot 1
     v223 = add v222, 1
     v224 = sload v223 !metadata(storage=offset(v222, 1))
-    v225 = lt 1, v224
+    v225 = gt v224, 1
     v226 = eq v225, false
     icall panic_if<0x32>, v226
     v227 = storage_array_data_slot v223
@@ -175,13 +175,13 @@ fn @constructor() [constructor] {
     v230 = or v229, 0xd00
     sstore v227, v230 !metadata(storage=symbolic(v227))
     v231 = sload 1 !metadata(storage=slot(1))
-    v232 = lt 1, v231
+    v232 = gt v231, 1
     v233 = eq v232, false
     icall panic_if<0x32>, v233
     v234 = storage_array_data_slot 1
     v235 = add v234, 1
     v236 = sload v235 !metadata(storage=offset(v234, 1))
-    v237 = lt 2, v236
+    v237 = gt v236, 2
     v238 = eq v237, false
     icall panic_if<0x32>, v238
     v239 = storage_array_data_slot v235
@@ -309,7 +309,7 @@ fn @constructor() [constructor] {
     v28 = add v27, v21
     v29 = mload v26
     v30 = sload v28 !metadata(storage=symbolic(v28))
-    v31 = gt v30, v29
+    v31 = lt v29, v30
     jumpi v31, bb12, bb13
   bb12:  ; preds = bb10
     jump bb14
@@ -433,7 +433,7 @@ fn @from_storage() -> ptr<memory> [selector=0x904f60db, abi_params=[], abi_retur
     v24 = ptrtoint ptr<memory> v13 to i256
     v25 = mload v13
     v26 = sload v0 !metadata(storage=symbolic(v0))
-    v27 = gt v26, v25
+    v27 = lt v25, v26
     jumpi v27, bb4, bb5
   bb4:  ; preds = bb3
     jump bb6
@@ -496,7 +496,7 @@ fn @from_storage() -> ptr<memory> [selector=0x904f60db, abi_params=[], abi_retur
     v46 = add v45, v39
     v47 = mload v44
     v48 = sload v46 !metadata(storage=symbolic(v46))
-    v49 = gt v48, v47
+    v49 = lt v47, v48
     jumpi v49, bb12, bb13
   bb12:  ; preds = bb10
     jump bb14
@@ -624,7 +624,7 @@ fn @from_storage_ptr() -> ptr<memory> [selector=0x764eb525, abi_params=[], abi_r
     v24 = ptrtoint ptr<memory> v13 to i256
     v25 = mload v13
     v26 = sload v0 !metadata(storage=symbolic(v0))
-    v27 = gt v26, v25
+    v27 = lt v25, v26
     jumpi v27, bb4, bb5
   bb4:  ; preds = bb3
     jump bb6
@@ -687,7 +687,7 @@ fn @from_storage_ptr() -> ptr<memory> [selector=0x764eb525, abi_params=[], abi_r
     v46 = add v45, v39
     v47 = mload v44
     v48 = sload v46 !metadata(storage=symbolic(v46))
-    v49 = gt v48, v47
+    v49 = lt v47, v48
     jumpi v49, bb12, bb13
   bb12:  ; preds = bb10
     jump bb14
@@ -814,7 +814,7 @@ fn @from_memory() -> ptr<memory> [selector=0x841ae8f5, abi_params=[], abi_return
     v23 = mapping_slot 0, 0
     v24 = mload v12
     v25 = sload v23 !metadata(storage=symbolic(v23))
-    v26 = gt v25, v24
+    v26 = lt v24, v25
     jumpi v26, bb4, bb5
   bb4:  ; preds = bb3
     jump bb6
@@ -877,7 +877,7 @@ fn @from_memory() -> ptr<memory> [selector=0x841ae8f5, abi_params=[], abi_return
     v45 = add v44, v38
     v46 = mload v43
     v47 = sload v45 !metadata(storage=symbolic(v45))
-    v48 = gt v47, v46
+    v48 = lt v46, v47
     jumpi v48, bb12, bb13
   bb12:  ; preds = bb10
     jump bb14
@@ -991,7 +991,7 @@ fn @from_calldata(arg0: slice<calldata>) -> ptr<memory> [selector=0xbc57f638, ab
     v8 = mul v0, 32
     v9 = gt v0, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     icall panic_if<0x41>, v9
-    v10 = add 32, v8
+    v10 = add v8, 32
     v11 = lt v10, 32
     icall panic_if<0x41>, v11
     v12 = alloc v10
@@ -1005,7 +1005,7 @@ fn @from_calldata(arg0: slice<calldata>) -> ptr<memory> [selector=0xbc57f638, ab
     v57 = mapping_slot 0, 0
     v58 = mload v12
     v59 = sload v57 !metadata(storage=symbolic(v57))
-    v60 = gt v59, v58
+    v60 = lt v58, v59
     jumpi v60, bb7, bb8
   bb7:  ; preds = bb3
     jump bb9
@@ -1068,7 +1068,7 @@ fn @from_calldata(arg0: slice<calldata>) -> ptr<memory> [selector=0xbc57f638, ab
     v79 = add v78, v72
     v80 = mload v77
     v81 = sload v79 !metadata(storage=symbolic(v79))
-    v82 = gt v81, v80
+    v82 = lt v80, v81
     jumpi v82, bb15, bb16
   bb15:  ; preds = bb13
     jump bb17
@@ -1178,12 +1178,12 @@ fn @from_calldata(arg0: slice<calldata>) -> ptr<memory> [selector=0xbc57f638, ab
     v33 = mul v30, 32
     v34 = add v23, 32
     v35 = sub v31, v33
-    v36 = sgt v34, v35
+    v36 = slt v35, v34
     icall revert_if<calldata_tail_too_short>, v36
     v37 = mul v30, 32
     v38 = gt v30, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     icall panic_if<0x41>, v38
-    v39 = add 32, v37
+    v39 = add v37, 32
     v40 = lt v39, 32
     icall panic_if<0x41>, v40
     v41 = alloc v39

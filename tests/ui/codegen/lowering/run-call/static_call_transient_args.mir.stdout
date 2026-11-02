@@ -197,7 +197,7 @@ fn @scheduleBatch(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<call
     icall revert_if<invalid_calldata_tail_length>, v74
     v75 = add v65, 32
     v76 = sub v73, v72
-    v77 = sgt v75, v76
+    v77 = slt v76, v75
     icall revert_if<calldata_tail_too_short>, v77
     v78 = inttoptr i256 v75 to ptr<calldata>
     v79 = make_calldata_slice v78, v72
@@ -287,44 +287,44 @@ fn @wide(arg0: i256) -> i256 [selector=0x598b5337, pure, abi_params=[uint256], a
 ; function combineWide(uint256 a0, uint256 a1, uint256 a2, uint256 a3, uint256 a4, uint256 a5, uint256 a6, uint256 a7, uint256 a8, uint256 a9, uint256 a10, uint256 a11, uint256 a12, uint256 a13, uint256 a14, uint256 a15, uint256 a16, uint256 a17, uint256 a18, uint256 a19) internal pure returns (uint256)
 fn @combineWide(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, arg6: i256, arg7: i256, arg8: i256, arg9: i256, arg10: i256, arg11: i256, arg12: i256, arg13: i256, arg14: i256, arg15: i256, arg16: i256, arg17: i256, arg18: i256, arg19: i256) -> i256 [pure] {
   bb0:
-    v0 = mul 1, arg0
-    v1 = mul 2, arg1
+    v0 = mul arg0, 1
+    v1 = mul arg1, 2
     v2 = add v0, v1
-    v3 = mul 3, arg2
+    v3 = mul arg2, 3
     v4 = add v2, v3
-    v5 = mul 4, arg3
+    v5 = mul arg3, 4
     v6 = add v4, v5
-    v7 = mul 5, arg4
+    v7 = mul arg4, 5
     v8 = add v6, v7
-    v9 = mul 6, arg5
+    v9 = mul arg5, 6
     v10 = add v8, v9
-    v11 = mul 7, arg6
+    v11 = mul arg6, 7
     v12 = add v10, v11
-    v13 = mul 8, arg7
+    v13 = mul arg7, 8
     v14 = add v12, v13
-    v15 = mul 9, arg8
+    v15 = mul arg8, 9
     v16 = add v14, v15
-    v17 = mul 10, arg9
+    v17 = mul arg9, 10
     v18 = add v16, v17
-    v19 = mul 11, arg10
+    v19 = mul arg10, 11
     v20 = add v18, v19
-    v21 = mul 12, arg11
+    v21 = mul arg11, 12
     v22 = add v20, v21
-    v23 = mul 13, arg12
+    v23 = mul arg12, 13
     v24 = add v22, v23
-    v25 = mul 14, arg13
+    v25 = mul arg13, 14
     v26 = add v24, v25
-    v27 = mul 15, arg14
+    v27 = mul arg14, 15
     v28 = add v26, v27
-    v29 = mul 16, arg15
+    v29 = mul arg15, 16
     v30 = add v28, v29
-    v31 = mul 17, arg16
+    v31 = mul arg16, 17
     v32 = add v30, v31
-    v33 = mul 18, arg17
+    v33 = mul arg17, 18
     v34 = add v32, v33
-    v35 = mul 19, arg18
+    v35 = mul arg18, 19
     v36 = add v34, v35
-    v37 = mul 20, arg19
+    v37 = mul arg19, 20
     v38 = add v36, v37
     ret v38
 }

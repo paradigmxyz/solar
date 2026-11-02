@@ -40,7 +40,7 @@ fn @fill() [selector=0x3fda5389, abi_wrapper, pure] {
     v137 = shr v81, 64
     v82 = lt v81, v80
     v139 = zext i1 v82 to i256
-    v140 = or v139, v137
+    v140 = or v137, v139
     v84 = ne v140, 0
     jumpi v84, bb17, bb16
   bb16:  ; preds = bb10
@@ -191,7 +191,7 @@ fn @lanes() [selector=0x713c311a, abi_wrapper, pure] {
     v96 = shr v85, 64
     v86 = lt v85, v84
     v98 = zext i1 v86 to i256
-    v99 = or v98, v96
+    v99 = or v96, v98
     v88 = ne v99, 0
     jumpi v88, bb8, bb7
   bb7:  ; preds = bb4

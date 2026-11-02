@@ -158,7 +158,7 @@ fn @_copy(arg0: i256) -> i256 [may_return_memory, view] {
     v87 = shr v77, 64
     v78 = lt v77, v76
     v89 = zext i1 v78 to i256
-    v90 = or v89, v87
+    v90 = or v87, v89
     v80 = ne v90, 0
     jumpi v80, bb13, bb12
   bb12:  ; preds = bb8

@@ -16,7 +16,7 @@ fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0xc26b6b9a, pure, abi_para
     v8 = mul v0, 32
     v9 = gt v0, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     icall panic_if<0x41>, v9
-    v10 = add 32, v8
+    v10 = add v8, 32
     v11 = lt v10, 32
     icall panic_if<0x41>, v11
     v12 = alloc v10
@@ -53,12 +53,12 @@ fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0xc26b6b9a, pure, abi_para
     v33 = mul v30, 32
     v34 = add v23, 32
     v35 = sub v31, v33
-    v36 = sgt v34, v35
+    v36 = slt v35, v34
     icall revert_if<calldata_tail_too_short>, v36
     v37 = mul v30, 32
     v38 = gt v30, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     icall panic_if<0x41>, v38
-    v39 = add 32, v37
+    v39 = add v37, 32
     v40 = lt v39, 32
     icall panic_if<0x41>, v40
     v41 = alloc v39
@@ -89,13 +89,13 @@ fn @lengthMemory(arg0: ptr<memory>) -> i256 [selector=0xdefa62e9, pure, abi_para
 fn @sumMemory(arg0: ptr<memory>) -> i256 [selector=0x13201b5d, pure, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mload arg0
-    v1 = lt 0, v0
+    v1 = gt v0, 0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = ptradd arg0, 32
     v4 = mload v3
     v5 = mload arg0
-    v6 = lt 1, v5
+    v6 = gt v5, 1
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = ptradd arg0, 64

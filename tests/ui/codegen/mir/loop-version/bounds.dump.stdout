@@ -42,7 +42,7 @@ fn @siftValues() [selector=0x979efdba, abi_wrapper, pure] {
     v208 = shr v193, 64
     v194 = lt v193, v192
     v210 = zext i1 v194 to i256
-    v211 = or v210, v208
+    v211 = or v208, v210
     v196 = ne v211, 0
     jumpi v196, bb38, bb37
   bb37:  ; preds = bb26
@@ -115,7 +115,7 @@ fn @siftValues() [selector=0x979efdba, abi_wrapper, pure] {
     v92 = shl v88, 5
     v163 = add v199, v92
     v95 = mload v163
-    v96 = gt v87, v95
+    v96 = lt v95, v87
     jumpi v96, bb15, bb16
   bb15:  ; preds = bb13
     jump bb16
@@ -186,7 +186,7 @@ fn @siftValues() [selector=0x979efdba, abi_wrapper, pure] {
     v184 = add v192, v51
     v185 = add v184, 32
     v54 = mload v185
-    v55 = gt v44, v54
+    v55 = lt v54, v44
     jumpi v55, bb9, bb10
   bb9:  ; preds = bb32
     jump bb10
@@ -242,7 +242,7 @@ fn @siftUp() [selector=0xf06414cf, abi_wrapper, pure] {
     v369 = shr v339, 64
     v340 = lt v339, v338
     v371 = zext i1 v340 to i256
-    v372 = or v371, v369
+    v372 = or v369, v371
     v342 = ne v372, 0
     jumpi v342, bb47, bb46
   bb46:  ; preds = bb25
@@ -254,7 +254,7 @@ fn @siftUp() [selector=0xf06414cf, abi_wrapper, pure] {
     v379 = shr v345, 64
     v346 = lt v345, v339
     v381 = zext i1 v346 to i256
-    v382 = or v381, v379
+    v382 = or v379, v381
     v348 = ne v382, 0
     jumpi v348, bb47, bb48
   bb48:  ; preds = bb46
@@ -275,8 +275,8 @@ fn @siftUp() [selector=0xf06414cf, abi_wrapper, pure] {
     v228 = add v226, 31
     v227 = add v339, 1
     v230 = sub v338, v227
-    v231 = lt v230, v228
     v384 = shr v225, 64
+    v231 = lt v230, v228
     v240 = or v220, v231
     v386 = zext i1 v240 to i256
     v387 = or v384, v386
@@ -333,15 +333,15 @@ fn @siftUp() [selector=0xf06414cf, abi_wrapper, pure] {
     v281 = add v339, 32
     v53 = mload v281
     v171 = or v338, v45
+    v181 = or v171, v339
+    v182 = or v181, v49
+    v374 = shr v182, 64
     v172 = shl v45, 5
     v174 = add v172, 31
     v177 = lt v219, v174
-    v181 = or v171, v339
-    v182 = or v181, v49
     v183 = shl v49, 5
     v185 = add v183, 31
     v188 = lt v230, v185
-    v374 = shr v182, 64
     v242 = or v177, v188
     v376 = zext i1 v242 to i256
     v377 = or v374, v376
@@ -375,7 +375,7 @@ fn @siftUp() [selector=0xf06414cf, abi_wrapper, pure] {
     v298 = add v338, v77
     v299 = add v298, 32
     v80 = mload v299
-    v81 = gt v70, v80
+    v81 = lt v80, v70
     jumpi v81, bb9, bb10
   bb9:  ; preds = bb34
     jump bb10
@@ -480,7 +480,7 @@ fn @siftUp() [selector=0xf06414cf, abi_wrapper, pure] {
     v141 = shl v137, 5
     v311 = add v353, v141
     v144 = mload v311
-    v145 = gt v136, v144
+    v145 = lt v144, v136
     jumpi v145, bb15, bb16
   bb15:  ; preds = bb38
     jump bb16
@@ -553,7 +553,7 @@ fn @literalInLoop() [selector=0xb0bfff29, abi_wrapper, pure] {
   bb3:  ; preds = bb4, bb5
     v19 = phi [bb5: 0], [bb4: v30]
     v112 = phi [bb5: v103], [bb4: v113]
-    v21 = ne v112, v115
+    v21 = ne v115, v112
     jumpi v21, bb4, bb2
   bb2:  ; preds = bb3
     mstore 0, v19 !metadata(memory=scratch)

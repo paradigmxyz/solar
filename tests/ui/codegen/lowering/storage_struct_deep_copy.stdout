@@ -26,16 +26,16 @@ fn @entry() [entry] {
 ; function assign(address a, bytes4 x) public [selector 0x4bd0273c]
 fn @assign() [selector=0x4bd0273c, abi_wrapper] {
   bb0:
+    v73 = calldataload 36
+    v74 = shl v73, 32
     v69 = calldatasize
     v70 = lt v69, 68
     v71 = calldataload 4
     v87 = shr v71, 160
     v72 = ne v87, 0
     v83 = or v70, v72
-    v73 = calldataload 36
-    v74 = shl v73, 32
     v84 = zext i1 v83 to i256
-    v85 = or v84, v74
+    v85 = or v74, v84
     v86 = ne v85, 0
     jumpi v86, bb5, bb6
   bb6:  ; preds = bb0
@@ -44,7 +44,7 @@ fn @assign() [selector=0x4bd0273c, abi_wrapper] {
     v89 = shr v78, 64
     v79 = lt v78, v77
     v91 = zext i1 v79 to i256
-    v92 = or v91, v89
+    v92 = or v89, v91
     v81 = ne v92, 0
     jumpi v81, bb8, bb7
   bb7:  ; preds = bb6
@@ -77,10 +77,10 @@ fn @assign() [selector=0x4bd0273c, abi_wrapper] {
   bb4:  ; preds = bb3
     v23 = shr v20, 3
     v24 = sub v23, 0x4ef1d2ad89edf8c4d91132028e8195cdf30bb4b5053d4f8cd260341d4805f30a
+    v29 = sload v24 !metadata(storage=offset(v23, 0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6))
     v25 = and v20, 7
     v27 = shl v25, 5
     v28 = shl 0xffffffff, v27
-    v29 = sload v24 !metadata(storage=offset(v23, 0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6))
     v30 = not v28
     v31 = and v29, v30
     sstore v24, v31 !metadata(storage=offset(v23, 0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6))
@@ -98,16 +98,16 @@ fn @assign() [selector=0x4bd0273c, abi_wrapper] {
 ; function push(address a, bytes4 x) public [selector 0xa60249a3]
 fn @push() [selector=0xa60249a3, abi_wrapper] {
   bb0:
+    v80 = calldataload 36
+    v81 = shl v80, 32
     v76 = calldatasize
     v77 = lt v76, 68
     v78 = calldataload 4
     v95 = shr v78, 160
     v79 = ne v95, 0
     v91 = or v77, v79
-    v80 = calldataload 36
-    v81 = shl v80, 32
     v92 = zext i1 v91 to i256
-    v93 = or v92, v81
+    v93 = or v81, v92
     v94 = ne v93, 0
     jumpi v94, bb7, bb8
   bb8:  ; preds = bb0
@@ -116,7 +116,7 @@ fn @push() [selector=0xa60249a3, abi_wrapper] {
     v97 = shr v86, 64
     v87 = lt v86, v85
     v99 = zext i1 v87 to i256
-    v100 = or v99, v97
+    v100 = or v97, v99
     v89 = ne v100, 0
     jumpi v89, bb5, bb9
   bb9:  ; preds = bb8
@@ -161,10 +161,10 @@ fn @push() [selector=0xa60249a3, abi_wrapper] {
     v30 = shr v27, 3
     v84 = keccak256 0, 32 !metadata(memory=scratch)
     v31 = add v84, v30
+    v36 = sload v31 !metadata(storage=symbolic(v31))
     v32 = and v27, 7
     v34 = shl v32, 5
     v35 = shl 0xffffffff, v34
-    v36 = sload v31 !metadata(storage=symbolic(v31))
     v37 = not v35
     v38 = and v36, v37
     sstore v31, v38 !metadata(storage=symbolic(v31))
@@ -224,16 +224,16 @@ fn @pop() [selector=0xa4ece52c, abi_wrapper] {
 ; function assignFixed(address a, bytes4 x) public [selector 0xb7ffd825]
 fn @assignFixed() [selector=0xb7ffd825, abi_wrapper] {
   bb0:
+    v75 = calldataload 36
+    v76 = shl v75, 32
     v71 = calldatasize
     v72 = lt v71, 68
     v73 = calldataload 4
     v89 = shr v73, 160
     v74 = ne v89, 0
     v85 = or v72, v74
-    v75 = calldataload 36
-    v76 = shl v75, 32
     v86 = zext i1 v85 to i256
-    v87 = or v86, v76
+    v87 = or v76, v86
     v88 = ne v87, 0
     jumpi v88, bb5, bb6
   bb6:  ; preds = bb0
@@ -242,7 +242,7 @@ fn @assignFixed() [selector=0xb7ffd825, abi_wrapper] {
     v91 = shr v80, 64
     v81 = lt v80, v79
     v93 = zext i1 v81 to i256
-    v94 = or v93, v91
+    v94 = or v91, v93
     v83 = ne v94, 0
     jumpi v83, bb8, bb7
   bb7:  ; preds = bb6
@@ -275,10 +275,10 @@ fn @assignFixed() [selector=0xb7ffd825, abi_wrapper] {
   bb4:  ; preds = bb3
     v25 = shr v22, 3
     v26 = sub v25, 0x75ca53043ea007e5c65182cbb028f60d7179ff4b55739a3949b401801c942e65
+    v31 = sload v26 !metadata(storage=offset(v25, 0x8a35acfbc15ff81a39ae7d344fd709f28e8600b4aa8c65c6b64bfe7fe36bd19b))
     v27 = and v22, 7
     v29 = shl v27, 5
     v30 = shl 0xffffffff, v29
-    v31 = sload v26 !metadata(storage=offset(v25, 0x8a35acfbc15ff81a39ae7d344fd709f28e8600b4aa8c65c6b64bfe7fe36bd19b))
     v32 = not v30
     v33 = and v31, v32
     sstore v26, v33 !metadata(storage=offset(v25, 0x8a35acfbc15ff81a39ae7d344fd709f28e8600b4aa8c65c6b64bfe7fe36bd19b))

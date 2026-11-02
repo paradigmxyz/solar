@@ -68,7 +68,7 @@
 +     v10 = add v9, v6
 +     v11 = add v10, 32
 +     v12 = gt v6, 0xffffffffffffffff
-+     v13 = gt v11, v4
++     v13 = lt v4, v11
 +     v14 = or v12, v13
 +     v15 = zext i1 v14 to i256
 +     jumpi v14, bb1, bb3
@@ -84,7 +84,7 @@
 +     v22 = alloc checked v20
 +     mstore v22, v16
 +     v23 = sub v4, v17
-+     v24 = gt v16, v23
++     v24 = lt v23, v16
 +     jumpi v24, bb1, bb6
 +   bb6:  ; preds = bb5
 +     v25 = inttoptr i256 v17 to ptr<memory>

@@ -50,7 +50,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v3 = and v2, 1
     v4 = eq v3, 1
     v5 = sub 0, v3
-    v6 = or 127, v5
+    v6 = or v5, 127
     v7 = shr v2, 1
     v8 = and v7, v6
     v9 = lt v8, 0x10000000000000000
@@ -151,10 +151,10 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v76 = and v75, 1
     v77 = eq v76, 1
     v78 = sub 0, v76
-    v79 = or 127, v78
+    v79 = or v78, 127
     v80 = shr v75, 1
     v81 = and v80, v79
-    v82 = lt 0, v81
+    v82 = gt v81, 0
     v83 = eq v82, false
     icall panic_if<0x32>, v83
     jumpi v77, bb8, bb9
@@ -169,7 +169,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v87 = shr v86, 248
     v88 = shl v87, 248
     v89 = sload 2 !metadata(storage=slot(2))
-    v90 = lt 0, v89
+    v90 = gt v89, 0
     v91 = eq v90, false
     icall panic_if<0x32>, v91
     v92 = storage_array_data_slot 2

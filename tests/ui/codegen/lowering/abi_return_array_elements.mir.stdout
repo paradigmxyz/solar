@@ -31,7 +31,7 @@ fn @aliasedStruct(arg0: ptr<memory>) -> i256 [selector=0x8c175a3d, pure, abi_par
     v2 = add v1, 32
     mstore v2, 257
     v3 = mload arg0
-    v4 = lt 0, v3
+    v4 = gt v3, 0
     v5 = eq v4, false
     icall panic_if<0x32>, v5
     v6 = ptradd arg0, 32
@@ -46,14 +46,14 @@ fn @aliasedBytes(arg0: ptr<memory>) -> i256 [selector=0x4a6c046c, pure, abi_para
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
     v1 = mload arg0
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = byte 0, 0x100000000000000000000000000000000000000000000000000000000000000
     v5 = add v0, 32
     mstore8 v5, v4
     v6 = mload arg0
-    v7 = lt 0, v6
+    v7 = gt v6, 0
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     v9 = ptradd arg0, 32
@@ -75,7 +75,7 @@ fn @unalignedArray(arg0: ptr<memory>) -> i256 [selector=0xd621b19f, pure, abi_pa
     icall panic_if<0x32>, v4
     mstore v2, 1
     v5 = mload arg0
-    v6 = lt 1, v5
+    v6 = gt v5, 1
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = ptradd arg0, 64
@@ -95,7 +95,7 @@ fn @unalignedHelper(arg0: ptr<memory>) -> i256 [selector=0x29dcbdaa, pure, abi_p
     v3 = inttoptr i256 v2 to ptr<memory>
     icall @_writeElement, v3
     v4 = mload arg0
-    v5 = lt 1, v4
+    v5 = gt v4, 1
     v6 = eq v5, false
     icall panic_if<0x32>, v6
     v7 = ptradd arg0, 64

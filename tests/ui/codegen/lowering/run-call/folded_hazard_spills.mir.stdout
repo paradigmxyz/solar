@@ -48,7 +48,7 @@ fn @grownHeap(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xdc67ef3c, 
     v35 = xor v34, v14
     v36 = xor v35, v15
     v37 = xor v36, v16
-    v38 = xor v21, v37
+    v38 = xor v37, v21
     ret v38
 }
 
@@ -100,7 +100,7 @@ fn @chosenPointer(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x9eac57
     v35 = xor v34, v14
     v36 = xor v35, v15
     v37 = xor v36, v16
-    v38 = xor v21, v37
+    v38 = xor v37, v21
     ret v38
 }
 
@@ -154,7 +154,7 @@ fn @farCopy(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x5eb4cb8d, pu
     v35 = xor v34, v14
     v36 = xor v35, v15
     v37 = xor v36, v16
-    v38 = xor v21, v37
+    v38 = xor v37, v21
     ret v38
 }
 
@@ -210,7 +210,7 @@ fn @callResultCopy(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xa9f15
     v38 = xor v37, v14
     v39 = xor v38, v15
     v40 = xor v39, v16
-    v41 = xor v24, v40
+    v41 = xor v40, v24
     ret v41
 }
 
@@ -274,7 +274,7 @@ fn @choiceCopy(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x4d4f38fa,
     v40 = xor v39, v14
     v41 = xor v40, v15
     v42 = xor v41, v16
-    v43 = xor v26, v42
+    v43 = xor v42, v26
     ret v43
 }
 
@@ -347,7 +347,7 @@ fn @mergedPointer(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x44a83f
     v43 = xor v42, v14
     v44 = xor v43, v15
     v45 = xor v44, v16
-    v46 = xor v29, v45
+    v46 = xor v45, v29
     ret v46
 }
 

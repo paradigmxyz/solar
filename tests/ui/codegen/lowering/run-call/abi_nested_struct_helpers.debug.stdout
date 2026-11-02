@@ -45,7 +45,7 @@ fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
     jumpi v17, bb3, bb4
   bb4:  ; preds = bb2
     v18 = sub v13, 4
-    v19 = gt v15, v18
+    v19 = lt v18, v15
     v20 = sub v13, v16
     v21 = lt v20, 64
     v144 = or v19, v21
@@ -60,7 +60,7 @@ fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
     v25 = ne v149, 0
     jumpi v25, bb7, bb8
   bb8:  ; preds = bb6
-    v27 = gt v23, v20
+    v27 = lt v20, v23
     v28 = sub v13, v24
     v29 = lt v28, 64
     v145 = or v27, v29
@@ -79,7 +79,7 @@ fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
     jumpi v35, bb7, bb10
   bb10:  ; preds = bb9
     v36 = add v34, 32
-    v37 = gt v36, v13
+    v37 = lt v13, v36
     jumpi v37, bb11, bb12
   bb12:  ; preds = bb10
     v38 = calldataload v34
@@ -91,7 +91,7 @@ fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
     v131 = icall @alloc, v42
     mstore v131, v38
     v45 = sub v13, v36
-    v46 = gt v38, v45
+    v46 = lt v45, v38
     jumpi v46, bb15, bb16
   bb16:  ; preds = bb14
     v101 = add v131, 32
@@ -108,7 +108,7 @@ fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
     v63 = ne v153, 0
     jumpi v63, bb7, bb17
   bb17:  ; preds = bb16
-    v65 = gt v61, v20
+    v65 = lt v20, v61
     v66 = sub v13, v62
     v67 = lt v66, 64
     v146 = or v65, v67
@@ -127,7 +127,7 @@ fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
     jumpi v73, bb7, bb19
   bb19:  ; preds = bb18
     v74 = add v72, 32
-    v75 = gt v74, v13
+    v75 = lt v13, v74
     jumpi v75, bb11, bb20
   bb20:  ; preds = bb19
     v76 = calldataload v72
@@ -139,7 +139,7 @@ fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
     v132 = icall @alloc, v80
     mstore v132, v76
     v83 = sub v13, v74
-    v84 = gt v76, v83
+    v84 = lt v83, v76
     jumpi v84, bb15, bb22
   bb22:  ; preds = bb21
     v108 = add v132, 32
@@ -228,7 +228,7 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     jumpi v39, bb8, bb9
   bb9:  ; preds = bb7
     v40 = add v38, 32
-    v41 = gt v40, v35
+    v41 = lt v35, v40
     jumpi v41, bb10, bb11
   bb11:  ; preds = bb9
     v42 = calldataload v38
@@ -242,7 +242,7 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     mstore v190, v42
     v49 = sub v35, v40
     v50 = shr v49, 5
-    v52 = gt v42, v50
+    v52 = lt v50, v42
     jumpi v52, bb14, bb15
   bb15:  ; preds = bb13
     jump bb16
@@ -277,7 +277,7 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v25 = mload v180
     v31 = add v13, v25
     v32 = lt v31, v13
-    v33 = add v1, v31
+    v33 = add v31, v1
     v34 = lt v33, v1
     v205 = or v32, v34
     jumpi v205, bb4, bb5
@@ -295,7 +295,7 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v59 = ne v213, 0
     jumpi v59, bb10, bb19
   bb19:  ; preds = bb17
-    v61 = gt v57, v49
+    v61 = lt v49, v57
     v62 = sub v35, v58
     v63 = lt v62, 64
     v206 = or v61, v63
@@ -310,7 +310,7 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v67 = ne v215, 0
     jumpi v67, bb22, bb23
   bb23:  ; preds = bb21
-    v69 = gt v65, v62
+    v69 = lt v62, v65
     v70 = sub v35, v66
     v71 = lt v70, 64
     v207 = or v69, v71
@@ -329,7 +329,7 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     jumpi v77, bb22, bb25
   bb25:  ; preds = bb24
     v78 = add v76, 32
-    v79 = gt v78, v35
+    v79 = lt v35, v78
     jumpi v79, bb10, bb26
   bb26:  ; preds = bb25
     v80 = calldataload v76
@@ -341,7 +341,7 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v191 = icall @alloc, v84
     mstore v191, v80
     v87 = sub v35, v78
-    v88 = gt v80, v87
+    v88 = lt v87, v80
     jumpi v88, bb28, bb29
   bb29:  ; preds = bb27
     v157 = add v191, 32
@@ -363,7 +363,7 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v105 = ne v219, 0
     jumpi v105, bb22, bb30
   bb30:  ; preds = bb29
-    v107 = gt v103, v62
+    v107 = lt v62, v103
     v108 = sub v35, v104
     v109 = lt v108, 64
     v208 = or v107, v109
@@ -382,7 +382,7 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     jumpi v115, bb22, bb32
   bb32:  ; preds = bb31
     v116 = add v114, 32
-    v117 = gt v116, v35
+    v117 = lt v35, v116
     jumpi v117, bb10, bb33
   bb33:  ; preds = bb32
     v118 = calldataload v114
@@ -394,7 +394,7 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v192 = icall @alloc, v122
     mstore v192, v118
     v125 = sub v35, v116
-    v126 = gt v118, v125
+    v126 = lt v125, v118
     jumpi v126, bb28, bb35
   bb35:  ; preds = bb34
     v164 = add v192, 32
@@ -482,7 +482,7 @@ fn @alloc(arg0: i256) -> i256 {
     v7 = shr v2, 64
     v3 = lt v2, v0
     v9 = zext i1 v3 to i256
-    v10 = or v9, v7
+    v10 = or v7, v9
     v5 = ne v10, 0
     jumpi v5, bb1, bb2
   bb2:  ; preds = bb0

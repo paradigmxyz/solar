@@ -35,7 +35,7 @@ fn @validate(arg0: slice<calldata>) -> i256 [selector=0xadfc46c0, pure, abi_para
 fn @validateArray(arg0: slice<calldata>) -> i256 [selector=0xc124fd97, pure, abi_params=[array<_, function>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
-    v1 = lt 0, v0
+    v1 = gt v0, 0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = extract_value slice<calldata>, arg0, 0
@@ -255,7 +255,7 @@ fn @memoryArrayToStorage(arg0: i256) -> i256 [selector=0xe3183809, abi_params=[u
     mstore v2, arg0
     v3 = mload v0
     v4 = sload 1 !metadata(storage=slot(1))
-    v5 = gt v4, v3
+    v5 = lt v3, v4
     jumpi v5, bb1, bb2
   bb1:  ; preds = bb0
     jump bb3
@@ -276,7 +276,7 @@ fn @memoryArrayToStorage(arg0: i256) -> i256 [selector=0xe3183809, abi_params=[u
     v42 = address
     v43 = gas
     v44 = sload 1 !metadata(storage=slot(1))
-    v45 = lt 0, v44
+    v45 = gt v44, 0
     v46 = eq v45, false
     icall panic_if<0x32>, v46
     v47 = storage_array_data_slot 1

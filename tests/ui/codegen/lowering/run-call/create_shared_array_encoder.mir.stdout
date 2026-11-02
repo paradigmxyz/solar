@@ -5,21 +5,21 @@ fn @constructor(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256) [constructor, 
   bb0:
     sstore 0, arg2 !metadata(storage=slot(0))
     v0 = mload arg1
-    v1 = lt 0, v0
+    v1 = gt v0, 0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = ptradd arg1, 32
     v4 = mload v3
     sstore 1, v4 !metadata(storage=slot(1))
     v5 = mload arg1
-    v6 = lt 1, v5
+    v6 = gt v5, 1
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = ptradd arg1, 64
     v9 = mload v8
     sstore 2, v9 !metadata(storage=slot(2))
     v10 = mload arg0
-    v11 = lt 0, v10
+    v11 = gt v10, 0
     v12 = eq v11, false
     icall panic_if<0x32>, v12
     v13 = ptradd arg0, 32
@@ -77,7 +77,7 @@ fn @one(arg0: i160) -> ptr<memory> [pure] {
     v0 = alloc zeroed checked 64
     mstore v0, 1
     v1 = mload v0
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = zext i160 arg0 to i256
@@ -92,13 +92,13 @@ fn @createPair() -> struct0 [selector=0x9e78fb4f, abi_params=[], abi_returns=[wo
     v0 = alloc zeroed checked 96
     mstore v0, 2
     v1 = mload v0
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = ptradd v0, 32
     mstore v4, 0x1234
     v5 = mload v0
-    v6 = lt 1, v5
+    v6 = gt v5, 1
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = ptradd v0, 64
@@ -106,13 +106,13 @@ fn @createPair() -> struct0 [selector=0x9e78fb4f, abi_params=[], abi_returns=[wo
     v9 = alloc zeroed checked 96
     mstore v9, 2
     v10 = mload v9
-    v11 = lt 0, v10
+    v11 = gt v10, 0
     v12 = eq v11, false
     icall panic_if<0x32>, v12
     v13 = ptradd v9, 32
     mstore v13, 100
     v14 = mload v9
-    v15 = lt 1, v14
+    v15 = gt v14, 1
     v16 = eq v15, false
     icall panic_if<0x32>, v16
     v17 = ptradd v9, 64
@@ -200,13 +200,13 @@ fn @createSingle() -> struct0 [selector=0xebef2b99, abi_params=[], abi_returns=[
     v0 = alloc zeroed checked 96
     mstore v0, 2
     v1 = mload v0
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = ptradd v0, 32
     mstore v4, 1
     v5 = mload v0
-    v6 = lt 1, v5
+    v6 = gt v5, 1
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = ptradd v0, 64

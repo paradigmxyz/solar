@@ -188,7 +188,7 @@ fn @settle(arg0: i160, arg1: i160, arg2: i160, arg3: i256, arg4: i1) {
     revert_returndata
   bb5:  ; preds = bb3
     v7 = address
-    v8 = ne arg2, v7
+    v8 = ne v7, arg2
     jumpi v8, bb6, bb7
   bb7:  ; preds = bb5
     jump bb8

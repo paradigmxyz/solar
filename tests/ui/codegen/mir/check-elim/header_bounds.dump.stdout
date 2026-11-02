@@ -37,7 +37,7 @@ fn @search() [selector=0xd43fc471, abi_wrapper, pure] {
   bb1:  ; preds = bb0, bb6
     v5 = phi [bb0: 1], [bb6: v27]
     v6 = phi [bb0: v0], [bb6: v28]
-    v7 = gt v5, v6
+    v7 = lt v6, v5
     jumpi v7, bb2, bb3
   bb3:  ; preds = bb1
     v35 = add v5, v6
@@ -54,7 +54,7 @@ fn @search() [selector=0xd43fc471, abi_wrapper, pure] {
     v19 = eq v18, arg1
     jumpi v19, bb9, bb4
   bb4:  ; preds = bb8
-    v23 = gt arg1, v18
+    v23 = lt v18, arg1
     jumpi v23, bb5, bb6
   bb5:  ; preds = bb4
     v43 = add v10, 1
@@ -75,7 +75,7 @@ fn @search() [selector=0xd43fc471, abi_wrapper, pure] {
     v30 = sub v6, 1
     v29 = ne v6, 0
     v46 = zext i1 v29 to i256
-    v47 = mul v46, v30
+    v47 = mul v30, v46
     mstore 0, 0
     mstore 32, v47 !metadata(memory=scratch)
     returndata 0, 64
@@ -99,7 +99,7 @@ fn @lowerBound() [selector=0x63b7c492, abi_wrapper, pure] {
   bb3:  ; preds = bb1
     v7 = sub v5, v4
     v8 = shr v7, 1
-    v21 = add v4, v8
+    v21 = add v8, v4
     v13 = shl v21, 5
     v28 = add v30, v13
     v16 = mload v28
@@ -121,22 +121,22 @@ fn @consume() [selector=0x15847e62, abi_wrapper, pure] {
     v45 = calldataload 4
     v46 = add v45, 4
     v48 = sub v43, 36
-    v49 = gt v45, v48
+    v49 = lt v48, v45
     v50 = calldataload v46
     v51 = add v46, 32
     v52 = sub v43, v51
     v53 = shr v52, 5
-    v54 = gt v50, v53
+    v54 = lt v53, v50
     v73 = or v49, v54
     v57 = calldataload 36
     v58 = add v57, 4
-    v61 = gt v57, v48
+    v61 = lt v48, v57
     v74 = or v73, v61
     v62 = calldataload v58
     v63 = add v58, 32
     v64 = sub v43, v63
     v65 = shr v64, 5
-    v66 = gt v62, v65
+    v66 = lt v65, v62
     v75 = or v74, v66
     jumpi v75, bb7, bb11
   bb11:  ; preds = bb0
@@ -147,7 +147,7 @@ fn @consume() [selector=0x15847e62, abi_wrapper, pure] {
     v2 = phi [bb11: 0], [bb3: v34]
     v3 = phi [bb11: 0], [bb3: v35]
     v69 = phi [bb11: v63], [bb3: v70]
-    v6 = ne v69, v72
+    v6 = ne v72, v69
     jumpi v6, bb4, bb2
   bb4:  ; preds = bb1
     v15 = calldataload v69
@@ -157,13 +157,13 @@ fn @consume() [selector=0x15847e62, abi_wrapper, pure] {
     v18 = eq v15, 0
     jumpi v18, bb3, bb5
   bb5:  ; preds = bb8
-    v20 = eq v3, v50
+    v20 = eq v50, v3
     jumpi v20, bb2, bb6
   bb6:  ; preds = bb5
     v27 = shl v3, 5
     v30 = add v51, v27
     v31 = calldataload v30
-    v41 = add v2, v31
+    v41 = add v31, v2
     v42 = lt v41, v2
     jumpi v42, bb9, bb10
   bb10:  ; preds = bb6
@@ -218,7 +218,7 @@ fn @probe() [selector=0x6012072a, abi_wrapper, pure] {
     v13 = shl v9, 5
     v31 = add v33, v13
     v16 = mload v31
-    v22 = add v3, v16
+    v22 = add v16, v3
     v23 = lt v22, v3
     jumpi v23, bb6, bb8
   bb8:  ; preds = bb5
@@ -247,7 +247,7 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v1 = calldataload 4
     v2 = add v1, 4
     v4 = sub v0, 36
-    v5 = gt v1, v4
+    v5 = lt v4, v1
     jumpi v5, bb1, bb2
   bb2:  ; preds = bb0
     v6 = calldataload v2
@@ -260,7 +260,7 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v34 = shr v26, 64
     v27 = lt v26, v25
     v36 = zext i1 v27 to i256
-    v37 = or v36, v34
+    v37 = or v34, v36
     v39 = or v32, v37
     v31 = ne v39, 0
     jumpi v31, bb3, bb5
@@ -270,7 +270,7 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v12 = shl v6, 5
     v13 = sub v0, v7
     v14 = shr v13, 5
-    v15 = gt v6, v14
+    v15 = lt v14, v6
     jumpi v15, bb1, bb4
   bb4:  ; preds = bb5
     v22 = add v25, 32
