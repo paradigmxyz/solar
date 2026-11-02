@@ -1239,10 +1239,7 @@ impl Target {
             self.opcode(op::push(value.byte_len().max(1) as u8))
         }
     }
-}
 
-/// Prices of the loop passes' header tests and closed forms.
-impl Target {
     /// Cost of a loop's conditional exit on a duplicated condition: the `DUP`, the pushed label,
     /// and the `JUMPI`.
     pub(crate) fn loop_exit_jump(&self) -> Cost {
