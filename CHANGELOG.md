@@ -20,7 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   follows a new model ([#1004]), and functions can be marked cold ([#948]).
   Optimizations are written as ISLE rules over an e-graph, driven by a
   declarative operation schema ([#1373], [#1509]). The Amsterdam EVM version is
-  supported ([#1288]). The compiler warns whenever it generates code.
+  supported ([#1288]). The stack scheduler spills values beyond `DUP16`/`SWAP16`
+  reach to memory, so there are no "stack too deep" errors
+  ([#1187], [#1368], [#2006], [#2093]). The compiler warns whenever it
+  generates code.
 - **Optimizer.** `-O gas` (the default) and `-O size` target runtime gas and
   bytecode size ([#1080], [#2045], [#2047]). There is inlining, memory DSE,
   SCCP, LICM and CSE, plus native integer widths ([#1525]). Word rewrite rules
@@ -757,6 +760,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#1102]: https://github.com/paradigmxyz/solar/issues/1102
 [#1111]: https://github.com/paradigmxyz/solar/issues/1111
 [#1130]: https://github.com/paradigmxyz/solar/issues/1130
+[#1187]: https://github.com/paradigmxyz/solar/issues/1187
 [#1209]: https://github.com/paradigmxyz/solar/issues/1209
 [#1213]: https://github.com/paradigmxyz/solar/issues/1213
 [#1243]: https://github.com/paradigmxyz/solar/issues/1243
@@ -765,6 +769,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#1325]: https://github.com/paradigmxyz/solar/issues/1325
 [#1327]: https://github.com/paradigmxyz/solar/issues/1327
 [#1344]: https://github.com/paradigmxyz/solar/issues/1344
+[#1368]: https://github.com/paradigmxyz/solar/issues/1368
 [#1373]: https://github.com/paradigmxyz/solar/issues/1373
 [#1382]: https://github.com/paradigmxyz/solar/issues/1382
 [#1408]: https://github.com/paradigmxyz/solar/issues/1408
@@ -791,12 +796,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#1857]: https://github.com/paradigmxyz/solar/issues/1857
 [#1878]: https://github.com/paradigmxyz/solar/issues/1878
 [#1896]: https://github.com/paradigmxyz/solar/issues/1896
+[#2006]: https://github.com/paradigmxyz/solar/issues/2006
 [#2021]: https://github.com/paradigmxyz/solar/issues/2021
 [#2023]: https://github.com/paradigmxyz/solar/issues/2023
 [#2045]: https://github.com/paradigmxyz/solar/issues/2045
 [#2046]: https://github.com/paradigmxyz/solar/issues/2046
 [#2047]: https://github.com/paradigmxyz/solar/issues/2047
 [#2061]: https://github.com/paradigmxyz/solar/issues/2061
+[#2093]: https://github.com/paradigmxyz/solar/issues/2093
 [#2101]: https://github.com/paradigmxyz/solar/issues/2101
 [#2109]: https://github.com/paradigmxyz/solar/issues/2109
 [#2129]: https://github.com/paradigmxyz/solar/issues/2129
