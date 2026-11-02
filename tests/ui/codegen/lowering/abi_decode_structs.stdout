@@ -28,7 +28,7 @@ fn @entry() [entry] {
 }
 
 ; function dFlat(bytes memory b) public pure returns (uint256, address, bool) [selector 0x6644232b]
-fn @dFlat() [selector=0x6644232b, abi_wrapper, pure] {
+fn @dFlat() {
   bb0:
     v39 = icall @decode_calldata_type
     v44 = add v39, 32
@@ -58,7 +58,7 @@ fn @dFlat() [selector=0x6644232b, abi_wrapper, pure] {
 }
 
 ; function dNested(bytes memory b) public pure returns (uint256, string memory, uint256) [selector 0xfc7ec666]
-fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
+fn @dNested() {
   bb0:
     v74 = icall @decode_calldata_type
     v99 = add v74, 32
@@ -165,7 +165,7 @@ fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
 }
 
 ; function dFixed(bytes memory b) public pure returns (uint256) [selector 0xc298c02b]
-fn @dFixed() [selector=0xc298c02b, abi_wrapper, pure] {
+fn @dFixed() {
   bb0:
     v33 = icall @decode_calldata_type
     v35 = add v33, 32
@@ -211,7 +211,7 @@ fn @dFixed() [selector=0xc298c02b, abi_wrapper, pure] {
 }
 
 ; function dDynArr(bytes memory b) public pure returns (uint256 count) [selector 0xaca542ca]
-fn @dDynArr() [selector=0xaca542ca, abi_wrapper, pure] {
+fn @dDynArr() {
   bb0:
     v41 = icall @decode_calldata_type
     v43 = add v41, 32

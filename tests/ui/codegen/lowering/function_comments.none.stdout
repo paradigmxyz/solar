@@ -21,7 +21,7 @@ bb0:  ; constructor(uint256 start) [creation entry]
   push 64
   mstore
   callvalue
-  push bb15
+  push bb16
   jumpi
   push 224
   push 224
@@ -29,19 +29,18 @@ bb0:  ; constructor(uint256 start) [creation entry]
   codesize
   sub
   add
-  swap 1
   push 32
+  dup 3
   add
   gt
-  push bb14
+  push bb15
   jumpi
-  push 224
   mload
   push 5
   push 0
   sstore
   push 3
-  push bb11
+  push bb12
   jump bb1
 bb1 [ret=0, inputs=2, outputs=1]:  ; function fact(uint256 n) internal pure returns (uint256)
   dup 2
@@ -91,13 +90,13 @@ bb7:
   push 1
   swap 1
   jump
-bb11 [continuation]:
+bb12 [continuation]:
   dup 2
   add
   dup 2
   dup 2
   lt
-  push bb13
+  push bb14
   jumpi
   push 0
   sstore
@@ -114,7 +113,7 @@ bb11 [continuation]:
   mstore
   push 224
   return
-bb13 [cold]:
+bb14 [cold]:
   push 17
   push 32
   mstore
@@ -124,11 +123,11 @@ bb13 [cold]:
   push 36
   push 28
   revert
-bb14 [cold]:
+bb15 [cold]:
   push 0
   push 0
   revert
-bb15 [cold]:
+bb16 [cold]:
   push 0
   push 0
   revert
@@ -139,7 +138,7 @@ bb0:  ; runtime dispatch entry + receive() external payable [receive]
   push bb2
   jumpi
   stop
-bb28 [cold]:
+bb30 [cold]:
   push 17
   push 32
   mstore
@@ -149,7 +148,7 @@ bb28 [cold]:
   push 36
   push 28
   revert
-bb54 [cold]:
+bb56 [cold]:
   push 17
   push 32
   mstore
@@ -177,17 +176,17 @@ bb2:  ; fallback() external [fallback]
   dup 1
   push 0xb20e7344
   eq
-  push bb21
+  push bb22
   jumpi
   dup 1
   push 0xc47dcaa4
   eq
-  push bb36
+  push bb38
   jumpi
   dup 1
   push 0xcf6459ff
   eq
-  push bb31
+  push bb33
   jumpi
   callvalue
   push bb10
@@ -196,12 +195,12 @@ bb2:  ; fallback() external [fallback]
   push 64
   mstore
   push 4
-  push bb43
-  jump bb49
-bb49 [ret=0, inputs=2, outputs=1]:  ; function fact(uint256 n) internal pure returns (uint256)
+  push bb45
+  jump bb51
+bb51 [ret=0, inputs=2, outputs=1]:  ; function fact(uint256 n) internal pure returns (uint256)
   dup 2
   iszero
-  push bb55
+  push bb57
   jumpi
   push 1
   dup 3
@@ -209,10 +208,10 @@ bb49 [ret=0, inputs=2, outputs=1]:  ; function fact(uint256 n) internal pure ret
   push 1
   dup 4
   lt
-  push bb54
+  push bb56
   jumpi
-  push bb52
-  jump bb49
+  push bb54
+  jump bb51
 bb11:  ; getter for `uint256 public total` [selector 0x2ddbd13a]
   callvalue
   push bb13
@@ -226,12 +225,12 @@ bb11:  ; getter for `uint256 public total` [selector 0x2ddbd13a]
   return
 bb14:  ; function add(uint256 a, uint256 b) external pure returns (uint256) [selector 0x771602f7]
   callvalue
-  push bb20
+  push bb21
   jumpi
   push 68
   calldatasize
   lt
-  push bb19
+  push bb20
   jumpi
   push 4
   calldataload
@@ -242,29 +241,29 @@ bb14:  ; function add(uint256 a, uint256 b) external pure returns (uint256) [sel
   swap 1
   dup 2
   lt
-  push bb18
+  push bb19
   jumpi
   push 0
   mstore
   push 32
   push 0
   return
-bb21:  ; function go(uint256 n) external returns (uint256) [selector 0xb20e7344] + function bump(uint256 x) internal returns (uint256)
+bb22:  ; function go(uint256 n) external returns (uint256) [selector 0xb20e7344] + function bump(uint256 x) internal returns (uint256)
   push 128
   push 64
   mstore
   callvalue
-  push bb30
+  push bb32
   jumpi
   push 36
   calldatasize
   lt
-  push bb29
+  push bb31
   jumpi
   push 4
   calldataload
   dup 1
-  push bb24
+  push bb26
   push 0
   sload
   swap 2
@@ -273,7 +272,7 @@ bb21:  ; function go(uint256 n) external returns (uint256) [selector 0xb20e7344]
   swap 2
   dup 3
   lt
-  push bb48
+  push bb50
   jumpi
   swap 1
   push 0
@@ -282,17 +281,17 @@ bb21:  ; function go(uint256 n) external returns (uint256) [selector 0xb20e7344]
   sload
   swap 1
   jump
-bb24 [continuation]:
+bb26 [continuation]:
   swap 1
-  push bb25
-  jump bb49
-bb25 [continuation]:
+  push bb27
+  jump bb51
+bb27 [continuation]:
   dup 2
   add
   swap 1
   dup 2
   lt
-  push bb28
+  push bb30
   jumpi
   push_immutable 0, 32
   dup 2
@@ -300,24 +299,24 @@ bb25 [continuation]:
   swap 1
   dup 2
   lt
-  push bb28
+  push bb30
   jumpi
   push 0
   mstore
   push 32
   push 0
   return
-bb31:  ; function tag(uint256 x) external pure tagged("//  ( {") returns (uint256) [selector 0xcf6459ff]
+bb33:  ; function tag(uint256 x) external pure tagged("//  ( {") returns (uint256) [selector 0xcf6459ff]
   push 128
   push 64
   mstore
   callvalue
-  push bb35
+  push bb37
   jumpi
   push 36
   calldatasize
   lt
-  push bb34
+  push bb36
   jumpi
   push 64
   mload
@@ -343,17 +342,17 @@ bb31:  ; function tag(uint256 x) external pure tagged("//  ( {") returns (uint25
   push 32
   push 0
   return
-bb36:  ; function wrapped(uint256 x) external pure tagged("one \         two") returns (uint256) [selector 0xc47dcaa4]
+bb38:  ; function wrapped(uint256 x) external pure tagged("one \         two") returns (uint256) [selector 0xc47dcaa4]
   push 128
   push 64
   mstore
   callvalue
-  push bb40
+  push bb42
   jumpi
   push 36
   calldatasize
   lt
-  push bb39
+  push bb41
   jumpi
   push 64
   mload
@@ -379,7 +378,7 @@ bb36:  ; function wrapped(uint256 x) external pure tagged("one \         two") r
   push 32
   push 0
   return
-bb43 [continuation]:
+bb45 [continuation]:
   push 0
   sload
   swap 1
@@ -388,12 +387,12 @@ bb43 [continuation]:
   swap 1
   dup 2
   lt
-  push bb45
+  push bb47
   jumpi
   push 0
   sstore
   stop
-bb52 [continuation]:
+bb54 [continuation]:
   dup 3
   dup 2
   mul
@@ -407,10 +406,10 @@ bb52 [continuation]:
   eq
   or
   iszero
-  push bb54
+  push bb56
   jumpi
   jump
-bb55:
+bb57:
   swap 1
   pop
   push 1
@@ -424,7 +423,7 @@ bb13 [cold]:
   push 0
   push 0
   revert
-bb18 [cold]:
+bb19 [cold]:
   push 17
   push 32
   mstore
@@ -433,40 +432,40 @@ bb18 [cold]:
   mstore
   push 36
   push 28
-  revert
-bb19 [cold]:
-  push 0
-  push 0
   revert
 bb20 [cold]:
   push 0
   push 0
   revert
-bb29 [cold]:
+bb21 [cold]:
   push 0
   push 0
   revert
-bb30 [cold]:
+bb31 [cold]:
   push 0
   push 0
   revert
-bb34 [cold]:
+bb32 [cold]:
   push 0
   push 0
   revert
-bb35 [cold]:
+bb36 [cold]:
   push 0
   push 0
   revert
-bb39 [cold]:
+bb37 [cold]:
   push 0
   push 0
   revert
-bb40 [cold]:
+bb41 [cold]:
   push 0
   push 0
   revert
-bb45 [cold]:
+bb42 [cold]:
+  push 0
+  push 0
+  revert
+bb47 [cold]:
   push 17
   push 32
   mstore
@@ -476,7 +475,7 @@ bb45 [cold]:
   push 36
   push 28
   revert
-bb48 [cold]:
+bb50 [cold]:
   push 17
   push 32
   mstore
@@ -494,7 +493,7 @@ bb0:  ; runtime dispatch entry
   jumpi
   jump bb1
 bb1:
-  jump bb41
+  jump bb43
 bb2:
   push 0
   calldataload
@@ -527,11 +526,11 @@ bb2:
   jumpi
   jump bb8
 bb3:
-  jump bb31
+  jump bb33
 bb4:
-  jump bb36
+  jump bb38
 bb5:
-  jump bb21
+  jump bb22
 bb6:
   jump bb14
 bb7:
@@ -542,7 +541,7 @@ bb8:
   jumpi
   jump bb9
 bb9:
-  jump bb42
+  jump bb44
 bb10 [cold]:
   push 0
   push 0
@@ -566,19 +565,21 @@ bb13 [cold]:
   revert
 bb14:  ; function add(uint256 a, uint256 b) external pure returns (uint256) [selector 0x771602f7]
   callvalue
-  push bb20
+  push bb21
   jumpi
   jump bb15
 bb15:
   push 68
   calldatasize
   lt
-  push bb19
+  push bb20
   jumpi
   jump bb16
 bb16:
   push 4
   calldataload
+  jump bb17
+bb17:
   push 36
   calldataload
   dup 2
@@ -586,16 +587,16 @@ bb16:
   swap 1
   dup 2
   lt
-  push bb18
+  push bb19
   jumpi
-  jump bb17
-bb17:
+  jump bb18
+bb18:
   push 0
   mstore
   push 32
   push 0
   return
-bb18 [cold]:
+bb19 [cold]:
   push 17
   push 32
   mstore
@@ -605,65 +606,67 @@ bb18 [cold]:
   push 36
   push 28
   revert
-bb19 [cold]:
-  push 0
-  push 0
-  revert
 bb20 [cold]:
   push 0
   push 0
   revert
-bb21:  ; function go(uint256 n) external returns (uint256) [selector 0xb20e7344]
+bb21 [cold]:
+  push 0
+  push 0
+  revert
+bb22:  ; function go(uint256 n) external returns (uint256) [selector 0xb20e7344]
   push 128
   push 64
   mstore
   callvalue
-  push bb30
-  jumpi
-  jump bb22
-bb22:
-  push 36
-  calldatasize
-  lt
-  push bb29
+  push bb32
   jumpi
   jump bb23
 bb23:
+  push 36
+  calldatasize
+  lt
+  push bb31
+  jumpi
+  jump bb24
+bb24:
   push 4
   calldataload
+  jump bb25
+bb25:
   dup 1
-  push bb24
-  jump bb46
-bb24 [continuation]:
+  push bb26
+  jump bb48
+bb26 [continuation]:
   swap 1
-  push bb25
-  jump bb49
-bb25 [continuation]:
+  push bb27
+  jump bb51
+bb27 [continuation]:
   dup 2
   add
   swap 1
   dup 2
   lt
-  push bb28
+  push bb30
   jumpi
-  jump bb26
-bb26:
+  jump bb28
+bb28:
   push_immutable 0, 32
   dup 2
   add
   swap 1
   dup 2
   lt
-  push bb28
+  push bb30
   jumpi
-  jump bb27
-bb27:
+  jump bb29
+bb29:
   push 0
   mstore
   push 32
   push 0
   return
-bb28 [cold]:
+bb30 [cold]:
   push 17
   push 32
   mstore
@@ -673,30 +676,30 @@ bb28 [cold]:
   push 36
   push 28
   revert
-bb29 [cold]:
+bb31 [cold]:
   push 0
   push 0
   revert
-bb30 [cold]:
+bb32 [cold]:
   push 0
   push 0
   revert
-bb31:  ; function tag(uint256 x) external pure tagged("//  ( {") returns (uint256) [selector 0xcf6459ff]
+bb33:  ; function tag(uint256 x) external pure tagged("//  ( {") returns (uint256) [selector 0xcf6459ff]
   push 128
   push 64
   mstore
   callvalue
-  push bb35
+  push bb37
   jumpi
-  jump bb32
-bb32:
+  jump bb34
+bb34:
   push 36
   calldatasize
   lt
-  push bb34
+  push bb36
   jumpi
-  jump bb33
-bb33:
+  jump bb35
+bb35:
   push 64
   mload
   push 64
@@ -719,30 +722,30 @@ bb33:
   push 32
   push 0
   return
-bb34 [cold]:
+bb36 [cold]:
   push 0
   push 0
   revert
-bb35 [cold]:
+bb37 [cold]:
   push 0
   push 0
   revert
-bb36:  ; function wrapped(uint256 x) external pure tagged("one \         two") returns (uint256) [selector 0xc47dcaa4]
+bb38:  ; function wrapped(uint256 x) external pure tagged("one \         two") returns (uint256) [selector 0xc47dcaa4]
   push 128
   push 64
   mstore
   callvalue
-  push bb40
+  push bb42
   jumpi
-  jump bb37
-bb37:
+  jump bb39
+bb39:
   push 36
   calldatasize
   lt
-  push bb39
+  push bb41
   jumpi
-  jump bb38
-bb38:
+  jump bb40
+bb40:
   push 64
   mload
   push 64
@@ -765,24 +768,24 @@ bb38:
   push 32
   push 0
   return
-bb39 [cold]:
+bb41 [cold]:
   push 0
   push 0
   revert
-bb40 [cold]:
+bb42 [cold]:
   push 0
   push 0
   revert
-bb41:  ; receive() external payable [receive]
+bb43:  ; receive() external payable [receive]
   stop
-bb42:  ; fallback() external [fallback]
+bb44:  ; fallback() external [fallback]
   push 128
   push 64
   mstore
   push 4
-  push bb43
-  jump bb49
-bb43 [continuation]:
+  push bb45
+  jump bb51
+bb45 [continuation]:
   push 0
   sload
   swap 1
@@ -791,14 +794,14 @@ bb43 [continuation]:
   swap 1
   dup 2
   lt
-  push bb45
+  push bb47
   jumpi
-  jump bb44
-bb44:
+  jump bb46
+bb46:
   push 0
   sstore
   stop
-bb45 [cold]:
+bb47 [cold]:
   push 17
   push 32
   mstore
@@ -808,7 +811,7 @@ bb45 [cold]:
   push 36
   push 28
   revert
-bb46 [ret=0, inputs=2, outputs=1]:  ; function bump(uint256 x) internal returns (uint256)
+bb48 [ret=0, inputs=2, outputs=1]:  ; function bump(uint256 x) internal returns (uint256)
   push 0
   sload
   swap 2
@@ -817,10 +820,10 @@ bb46 [ret=0, inputs=2, outputs=1]:  ; function bump(uint256 x) internal returns 
   swap 2
   dup 3
   lt
-  push bb48
+  push bb50
   jumpi
-  jump bb47
-bb47:
+  jump bb49
+bb49:
   swap 1
   push 0
   sstore
@@ -828,7 +831,7 @@ bb47:
   sload
   swap 1
   jump
-bb48 [cold]:
+bb50 [cold]:
   push 17
   push 32
   mstore
@@ -838,26 +841,26 @@ bb48 [cold]:
   push 36
   push 28
   revert
-bb49 [ret=0, inputs=2, outputs=1]:  ; function fact(uint256 n) internal pure returns (uint256)
+bb51 [ret=0, inputs=2, outputs=1]:  ; function fact(uint256 n) internal pure returns (uint256)
   dup 2
   iszero
-  push bb55
+  push bb57
   jumpi
-  jump bb50
-bb50:
+  jump bb52
+bb52:
   push 1
   dup 3
   sub
   push 1
   dup 4
   lt
-  push bb54
+  push bb56
   jumpi
+  jump bb53
+bb53:
+  push bb54
   jump bb51
-bb51:
-  push bb52
-  jump bb49
-bb52 [continuation]:
+bb54 [continuation]:
   dup 3
   dup 2
   mul
@@ -871,12 +874,12 @@ bb52 [continuation]:
   eq
   or
   iszero
-  push bb54
+  push bb56
   jumpi
-  jump bb53
-bb53:
+  jump bb55
+bb55:
   jump
-bb54 [cold]:
+bb56 [cold]:
   push 17
   push 32
   mstore
@@ -886,7 +889,7 @@ bb54 [cold]:
   push 36
   push 28
   revert
-bb55:
+bb57:
   swap 1
   pop
   push 1

@@ -24,7 +24,7 @@ fn @entry() [entry] {
 }
 
 ; function pair(Pair memory p) external pure returns (uint256, uint256, uint256) [selector 0x7a5de1e9]
-fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
+fn @pair() {
   bb0:
     v15 = icall @decode_calldata_type.3, 4, 4
     v21 = mload v15
@@ -42,7 +42,7 @@ fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
 }
 
 ; function pairs(Pair[] memory ps) external pure returns (uint256 sum) [selector 0x054d20d9]
-fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
+fn @pairs() {
   bb0:
     v35 = calldatasize
     v37 = calldataload 4

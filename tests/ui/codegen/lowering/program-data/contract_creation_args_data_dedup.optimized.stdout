@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/program-data/contract_creation_args_data_dedup.sol:ChildWithArg (runtime) ===
 @module ChildWithArg_runtime
 @data
-  literal_0: hex"ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
+  literal_0: hex"ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
 
 bb0:  ; runtime dispatch entry
   callvalue
@@ -34,57 +34,38 @@ bb5:  ; getter for `uint256 public immutable value` [selector 0x3fa4f245]
   push 0
   return
 bb6:  ; function payload() external pure returns (bytes memory) [selector 0xa878f858]
-  push 128
   push 160
+  push 64
+  mstore
+  push 160
+  push 128
+  dup 2
+  mstore
+  push 32
   dup 2
   add
-  dup 2
-  dup 3
-  mstore
-  push 96
+  push 128
   push_data literal_0
-  push 32
-  dup 5
-  add
-  codecopy
-  dup 2
-  push 32
-  add
-  push 0xffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100
-  dup 4
-  dup 5
-  add
-  mstore
-  swap 2
-  push 192
-  add
-  push 32
   dup 3
-  mstore
-  push 32
-  dup 2
+  codecopy
+  push 128
   add
   push 0
-  push 128
-  dup 4
-  add
-  mstore
-  push 128
   swap 1
-  swap 2
   mstore
-  push 128
-  swap 2
-  swap 3
+  push 32
   swap 1
-  mcopy
+  sub
+  push 32
+  dup 2
+  mstore
   push 192
   swap 1
   return
 // === ROOT/tests/ui/codegen/lowering/program-data/contract_creation_args_data_dedup.sol:FactoryWithArgs (runtime) ===
 @module FactoryWithArgs_runtime
 @data
-  ChildWithArg_creation_code_0: hex"61014d38038061014d60e03960e001601f01601f191660405260e061014d38030161010011341760435760e05160c05261010680604760e03960c0516101035260e0f35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f858146049575b5f5ffd5b7f00000000000000000000000000000000000000000000000000000000000000005f5260205ff35b608060a08101818252606060a66020840139816020017fffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100838401529160c00160208252602081015f6080830152608090915260809192905e60c090f3ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
+  ChildWithArg_creation_code_0: hex"61013738038061013760e03960e001601f01601f191660405260e080610137380301602082011134176042575160c05260f180604660e03960c0516101035260e0f35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f858146049575b5f5ffd5b7f00000000000000000000000000000000000000000000000000000000000000005f5260205ff35b60a060405260a060808152602081016080607182396080015f9052602090036020815260c090f3ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
 
 bb0:  ; runtime dispatch entry
   callvalue
@@ -137,17 +118,17 @@ bb6:  ; function plain() external returns (uint256) [selector 0x59748c98]
   mstore
   push 64
   mload
-  push 333
+  push 311
   push_data ChildWithArg_creation_code_0
   dup 3
   codecopy
   push 32
   dup 3
-  push 333
+  push 311
   dup 4
   add
   mcopy
-  push 365
+  push 343
   swap 1
   push 0
   create
@@ -197,18 +178,18 @@ bb12:  ; function salted() external returns (uint256) [selector 0x1f981516]
   mstore
   push 64
   mload
-  push 333
+  push 311
   push_data ChildWithArg_creation_code_0
   dup 3
   codecopy
   push 32
   dup 3
-  push 333
+  push 311
   dup 4
   add
   mcopy
   push 1
-  push 365
+  push 343
   dup 3
   push 0
   create2
@@ -230,18 +211,18 @@ bb18:  ; function pair() external returns (uint256) [selector 0xa8aa1b31]
   push 3
   dup 2
   mstore
-  push 333
+  push 311
   push_data ChildWithArg_creation_code_0
   dup 4
   codecopy
   push 32
   dup 2
-  push 333
+  push 311
   dup 5
   add
   mcopy
   pop
-  push 365
+  push 343
   swap 1
   push 0
   create
@@ -266,18 +247,18 @@ bb18:  ; function pair() external returns (uint256) [selector 0xa8aa1b31]
   push 4
   dup 2
   mstore
-  push 333
+  push 311
   push_data ChildWithArg_creation_code_0
   dup 4
   codecopy
   push 32
   dup 2
-  push 333
+  push 311
   dup 5
   add
   mcopy
   pop
-  push 365
+  push 343
   swap 1
   push 0
   create

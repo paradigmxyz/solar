@@ -1,0 +1,220 @@
+//@compile-flags: -Zmir-pipeline=place-reads
+//@filecheck:
+@module PlaceReads
+@phase lowered
+
+// The guard keeps its read; the body reads its own copy where the body starts.
+// CHECK-LABEL: {{^[ +].*}}after place-reads
+// CHECK: fn @guarded()
+// CHECK: [[GUARD:v[0-9]+]] = calldataload 4
+// CHECK: = shr [[GUARD]], 8
+// CHECK: + [[BODY:v[0-9]+]] = calldataload 4
+// CHECK: + mstore 0, [[BODY]]
+fn @guarded() {
+  bb0:
+    v0 = calldataload 4
+    v1 = shr v0, 8
+    v2 = ne v1, 0
+    jumpi v2, bb2, bb1
+  bb1:
+    mstore 0, v0
+    stop
+  bb2:
+    revert 0, 0
+}
+
+// A read in a loop sinks only to the block before the loop, never into it.
+// CHECK-LABEL: fn @looped()
+// CHECK: [[BOUND:v[0-9]+]] = calldataload 36
+// CHECK: + [[COPY:v[0-9]+]] = calldataload 36
+// CHECK: + {{v[0-9]+}} = lt {{v[0-9]+}}, [[COPY]]
+fn @looped() {
+  bb0:
+    v0 = calldataload 36
+    v1 = calldatasize
+    v5 = ne v1, 0
+    jumpi v5, bb2, bb1
+  bb1:
+    jump bb3
+  bb3:
+    v2 = phi [bb1: 0], [bb4: v4]
+    v3 = lt v2, v0
+    jumpi v3, bb4, bb2
+  bb4:
+    v4 = add v2, 1
+    jump bb3
+  bb2:
+    stop
+}
+
+// Reads outside the entry block stay where they are.
+// CHECK-LABEL: fn @elsewhere()
+// CHECK-NOT: + {{v[0-9]+}} = calldataload
+fn @elsewhere() {
+  bb0:
+    v0 = calldatasize
+    v2 = ne v0, 0
+    jumpi v2, bb1, bb2
+  bb1:
+    v1 = calldataload 4
+    v3 = ne v1, 0
+    jumpi v3, bb3, bb2
+  bb3:
+    mstore 0, v1
+    stop
+  bb2:
+    stop
+}
+
+// Phi inputs read on the edge from their predecessors, so the copy goes to the block above both
+// arms rather than the entry.
+// CHECK-LABEL: fn @diamond()
+// CHECK: [[GUARD:v[0-9]+]] = calldataload 4
+// CHECK: = shr [[GUARD]], 8
+// CHECK: bb1:
+// CHECK: + [[ARMS:v[0-9]+]] = calldataload 4
+// CHECK: = phi [bb2: [[ARMS]]], [bb3: [[ARMS]]]
+fn @diamond() {
+  bb0:
+    v0 = calldataload 4
+    v1 = shr v0, 8
+    v2 = ne v1, 0
+    jumpi v2, bb5, bb1
+  bb1:
+    v3 = calldatasize
+    v4 = ne v3, 0
+    jumpi v4, bb2, bb3
+  bb2:
+    jump bb4
+  bb3:
+    jump bb4
+  bb4:
+    v5 = phi [bb2: v0], [bb3: v0]
+    mstore 0, v5
+    stop
+  bb5:
+    revert 0, 0
+}
+
+// Three routes read the word, so one read before the switch replaces them. It keeps the origin of
+// every route's read, not of one.
+// CHECK-LABEL: fn @routes()
+// CHECK: + [[WORD:v[0-9]+]] = calldataload 4 !metadata(spans=[10..20, 30..40, 50..60])
+// CHECK-NEXT: switch
+// CHECK-DAG: + mstore 0, [[WORD]]
+// CHECK-DAG: + mstore 32, [[WORD]]
+// CHECK-DAG: + mstore 64, [[WORD]]
+fn @routes() {
+  bb0:
+    v0 = calldataload 0
+    v1 = shr v0, 224
+    switch v1, default bb4, [1 => bb1, 2 => bb2, 3 => bb3]
+  bb1:
+    v2 = calldataload 4 !metadata(span=10..20)
+    mstore 0, v2
+    stop
+  bb2:
+    v3 = calldataload 4 !metadata(span=30..40)
+    mstore 32, v3
+    stop
+  bb3:
+    v4 = calldataload 4 !metadata(span=50..60)
+    mstore 64, v4
+    stop
+  bb4:
+    revert 0, 0
+}
+
+// Two reads do not repay a longer live range, so each route keeps its own.
+// CHECK-LABEL: fn @pair()
+// CHECK-NOT: {{^[-+]}}
+// CHECK: calldataload 4
+fn @pair() {
+  bb0:
+    v0 = calldataload 0
+    v1 = shr v0, 224
+    switch v1, default bb3, [1 => bb1, 2 => bb2]
+  bb1:
+    v2 = calldataload 4
+    mstore 0, v2
+    stop
+  bb2:
+    v3 = calldataload 4
+    mstore 32, v3
+    stop
+  bb3:
+    revert 0, 0
+}
+
+// A read outside the entry block moves to the block of its use, so the path that leaves at the
+// branch no longer pays for it.
+// CHECK-LABEL: fn @moved()
+// CHECK: bb2:
+// CHECK: + [[MOVED:v[0-9]+]] = calldataload 36
+// CHECK-NEXT: + mstore 0, [[MOVED]]
+fn @moved() {
+  bb0:
+    v0 = calldatasize
+    v1 = lt v0, 68
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 36
+    v3 = calldataload 4
+    v4 = ne v3, 0
+    jumpi v4, bb2, bb3
+  bb2:
+    mstore 0, v2
+    stop
+  bb3:
+    revert 0, 0
+}
+
+// A zero test of a read moves to the block of its only use, so the branch tests the word itself
+// and no bool is kept across the other branch.
+// CHECK-LABEL: fn @tested()
+// CHECK: bb2:
+// CHECK: + [[WORD:v[0-9]+]] = calldataload 4
+// CHECK-NEXT: + {{v[0-9]+}} = ne [[WORD]], 0
+fn @tested() {
+  bb0:
+    v0 = calldatasize
+    v1 = lt v0, 36
+    jumpi v1, bb4, bb1
+  bb1:
+    v2 = calldataload 4
+    v3 = ne v2, 0
+    v4 = timestamp
+    v5 = lt v4, 100
+    jumpi v5, bb4, bb2
+  bb2:
+    jumpi v3, bb3, bb4
+  bb3:
+    stop
+  bb4:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = shr v0, 224
+    switch v1, default bb9, [1 => bb1, 2 => bb2, 3 => bb3, 4 => bb4, 5 => bb5, 6 => bb6, 7 => bb7, 8 => bb8]
+  bb1:
+    tail_call @guarded
+  bb2:
+    tail_call @looped
+  bb3:
+    tail_call @elsewhere
+  bb4:
+    tail_call @diamond
+  bb5:
+    tail_call @routes
+  bb6:
+    tail_call @pair
+  bb7:
+    tail_call @moved
+  bb8:
+    tail_call @tested
+  bb9:
+    revert 0, 0
+}

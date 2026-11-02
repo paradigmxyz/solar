@@ -476,6 +476,17 @@ impl Target {
         self.opcode(op::DUP1)
     }
 
+    /// Whether reading the calldata word at `offset` once before a branch, for the `reads` readers
+    /// below it, is cheaper than reading it at each: a push and a `CALLDATALOAD` per read, against
+    /// one read, a `DUP` for each further reader, and the `DUP` and `SWAP` that a word kept on the
+    /// stack costs the words around it.
+    pub(crate) fn hoisted_read_pays(&self, offset: u64, reads: u32) -> bool {
+        let read = self.push(U256::from(offset)).plus(self.opcode(op::CALLDATALOAD));
+        let carry = self.dup().plus(self.opcode(op::SWAP1));
+        let shared = read.plus(self.dup().times(reads.saturating_sub(1))).plus(carry);
+        self.cmp_lifetime(shared, read.times(reads)).is_lt()
+    }
+
     /// Cost of one logical stack operation after target lowering, or `None` when the target
     /// cannot lower it. An `EXCHANGE` before Amsterdam costs its three swaps.
     pub(crate) fn stack_op(&self, stack_op: op::StackOp) -> Option<Cost> {
@@ -2061,6 +2072,18 @@ mod tests {
         assert!(target(OptimizationMode::Gas).marks_failure_paths_cold());
         assert!(!target(OptimizationMode::Size).marks_failure_paths_cold());
         assert!(!target(OptimizationMode::None).marks_failure_paths_cold());
+    }
+
+    #[test]
+    fn hoisted_read_needs_three_readers() {
+        for mode in [OptimizationMode::Gas, OptimizationMode::Size] {
+            let target =
+                Target::with(EvmVersion::Cancun, mode, Target::DEFAULT_EXPECTED_EXECUTIONS);
+            assert!(!target.hoisted_read_pays(4, 1), "{mode:?}");
+            assert!(!target.hoisted_read_pays(4, 2), "{mode:?}");
+            assert!(target.hoisted_read_pays(4, 3), "{mode:?}");
+            assert!(target.hoisted_read_pays(4, 8), "{mode:?}");
+        }
     }
 
     #[test]

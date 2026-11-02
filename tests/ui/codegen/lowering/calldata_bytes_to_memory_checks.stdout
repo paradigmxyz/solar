@@ -24,7 +24,7 @@ fn @entry() [entry] {
 }
 
 ; function decoded(bytes calldata b) external pure returns (uint256) [selector 0x45c91515]
-fn @decoded() [selector=0x45c91515, abi_wrapper, pure] {
+fn @decoded() {
   bb0:
     v11 = calldatasize
     v12 = lt v11, 36
@@ -44,33 +44,34 @@ fn @decoded() [selector=0x45c91515, abi_wrapper, pure] {
 }
 
 ; function lengthSet(bytes calldata b, uint256 n) external pure returns (uint256) [selector 0xa5e448c2]
-fn @lengthSet() [selector=0xa5e448c2, abi_wrapper, pure] {
+fn @lengthSet() {
   bb0:
     v23 = calldatasize
     v24 = lt v23, 68
     jumpi v24, bb3, bb5
   bb5:  ; preds = bb0
-    v25 = icall @decode_calldata_slice
-    v27 = add v25, 32
-    v36 = add arg1, 63
-    v5 = and v36, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v6 = lt v5, arg1
+    v25 = calldataload 36
+    v26 = icall @decode_calldata_slice
+    v28 = add v26, 32
+    v37 = add v25, 63
+    v5 = and v37, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v6 = lt v5, v25
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb5
-    v34 = heap_floor !metadata(alloc_ptr)
-    mstore v34, arg1
-    v19 = shr arg1, 64
+    v35 = heap_floor !metadata(alloc_ptr)
+    mstore v35, v25
+    v19 = shr v25, 64
     v10 = calldatasize
-    v12 = sub v10, arg1
-    v14 = slt v12, v27
-    v38 = zext i1 v14 to i256
-    v39 = or v19, v38
-    v40 = ne v39, 0
-    jumpi v40, bb3, bb4
+    v12 = sub v10, v25
+    v14 = slt v12, v28
+    v39 = zext i1 v14 to i256
+    v40 = or v19, v39
+    v41 = ne v40, 0
+    jumpi v41, bb3, bb4
   bb4:  ; preds = bb2
-    v31 = add v34, 32
-    calldatacopy v31, v27, arg1
-    mstore 0, arg1
+    v32 = add v35, 32
+    calldatacopy v32, v28, v25
+    mstore 0, v25
     returndata 0, 32
   bb1 [cold]:  ; preds = bb5
     tail_call @revert_stub
@@ -79,35 +80,36 @@ fn @lengthSet() [selector=0xa5e448c2, abi_wrapper, pure] {
 }
 
 ; function offsetSet(bytes calldata b, uint256 o) external pure returns (uint256) [selector 0xba062698]
-fn @offsetSet() [selector=0xba062698, abi_wrapper, pure] {
+fn @offsetSet() {
   bb0:
     v27 = calldatasize
     v28 = lt v27, 68
     jumpi v28, bb3, bb5
   bb5:  ; preds = bb0
-    v29 = icall @decode_calldata_slice
-    v30 = calldataload v29
-    v31 = add v29, 32
-    v2 = add v31, arg1
-    v40 = add v30, 63
-    v9 = and v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v10 = lt v9, v30
+    v29 = calldataload 36
+    v30 = icall @decode_calldata_slice
+    v31 = calldataload v30
+    v32 = add v30, 32
+    v2 = add v32, v29
+    v41 = add v31, 63
+    v9 = and v41, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v10 = lt v9, v31
     jumpi v10, bb1, bb2
   bb2:  ; preds = bb5
-    v38 = heap_floor !metadata(alloc_ptr)
-    mstore v38, v30
-    v23 = shr v30, 64
+    v39 = heap_floor !metadata(alloc_ptr)
+    mstore v39, v31
+    v23 = shr v31, 64
     v14 = calldatasize
-    v16 = sub v14, v30
+    v16 = sub v14, v31
     v18 = slt v16, v2
-    v42 = zext i1 v18 to i256
-    v43 = or v23, v42
-    v44 = ne v43, 0
-    jumpi v44, bb3, bb4
+    v43 = zext i1 v18 to i256
+    v44 = or v23, v43
+    v45 = ne v44, 0
+    jumpi v45, bb3, bb4
   bb4:  ; preds = bb2
-    v35 = add v38, 32
-    calldatacopy v35, v2, v30
-    mstore 0, v30
+    v36 = add v39, 32
+    calldatacopy v36, v2, v31
+    mstore 0, v31
     returndata 0, 32
   bb1 [cold]:  ; preds = bb5
     tail_call @revert_stub
@@ -116,7 +118,7 @@ fn @offsetSet() [selector=0xba062698, abi_wrapper, pure] {
 }
 
 ; function forwarded(bytes calldata b) public pure returns (uint256) [selector 0xbf6f2c90]
-fn @forwarded() [selector=0xbf6f2c90, abi_wrapper, pure] {
+fn @forwarded() {
   bb0:
     v21 = calldatasize
     v22 = lt v21, 36

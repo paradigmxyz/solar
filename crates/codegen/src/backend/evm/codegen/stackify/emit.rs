@@ -11,7 +11,7 @@ use crate::{
                 select::{InstKindOpcode, rematerializable_nullary_value},
                 values::gas_minus,
             },
-            op::{self, WORD_BYTES},
+            op,
         },
     },
     mir::{
@@ -39,7 +39,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.emitting_entry = info.emitting_entry;
         let plan = plans[entry].take().expect("entry plan");
         self.enter_function(module, &module.functions[entry]);
-        self.comment_function_entry(&module.functions[entry], true);
+        self.comment_function_entry(&module.functions[entry], true, false);
         self.emit_stackified_body(entry, module, plan);
         self.leave_function(module);
         self.emitting_entry = false;
@@ -53,7 +53,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.enter_function(module, func);
             self.asm.define_label(self.function_labels[&func_id]);
             self.mark_debug_function_invoke(func);
-            self.comment_function_entry(func, false);
+            self.comment_function_entry(func, false, false);
             self.emit_entry_free_memory_start(module, call_graph, func_id);
             self.emit_stackified_body(func_id, module, plan);
             self.leave_function(module);
@@ -93,7 +93,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.define_label(constructor_label);
         }
         self.mark_debug_function_invoke(func);
-        self.comment_function_entry(func, false);
+        self.comment_function_entry(func, false, true);
         self.body = Body::Constructor(constructor);
         let plan = plans[constructor].take().expect("constructor plan");
         self.emit_stackified_body(constructor, module, plan);
@@ -150,7 +150,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 None => self.asm.define_label(label),
             }
             self.mark_debug_function_invoke(func);
-            self.comment_function_entry(func, false);
+            self.comment_function_entry(func, false, false);
             self.body = Body::Internal(func_id);
             self.emit_stackified_body(func_id, module, plan);
             self.leave_function(module);
@@ -572,14 +572,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     self.asm.emit_op(opcode);
                 }
             },
-            Value::Arg(index) if self.in_constructor => self.emit_constructor_arg_load(*index),
-            Value::Arg(index) => {
-                // External arguments: push 4 + 32 * index; calldataload
-                let offset = 4 + (index.index() as u64) * WORD_BYTES as u64;
-                self.asm.emit_push(U256::from(offset));
-                self.asm.emit_op(op::CALLDATALOAD);
-            }
-            Value::Error(_) => unreachable!("value {value:?} is not materialized"),
+            Value::Arg(_) | Value::Error(_) => unreachable!("value {value:?} is not materialized"),
         }
     }
 

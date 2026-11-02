@@ -5,19 +5,20 @@
   _start: uint256
 
 ; constructor(uint256 start_) [creation entry]
-fn @constructor(arg0: i256) [abi_wrapper, constructor] {
+fn @constructor() [constructor] {
   bb0:
-    v4 = callvalue
-    v1 = constructor_args_end
+    v5 = callvalue
     v0 = constructor_args_base
+    v1 = constructor_args_end
     v2 = add v0, 32
     v3 = lt v1, v2
-    v6 = zext i1 v3 to i256
-    v7 = or v4, v6
-    v8 = ne v7, 0
-    jumpi v8, bb1, bb2
+    v7 = zext i1 v3 to i256
+    v8 = or v5, v7
+    v9 = ne v8, 0
+    jumpi v9, bb1, bb2
   bb2:  ; preds = bb0
-    mstore 192, arg0
+    v4 = mload v0
+    mstore 192, v4
     ret
   bb1 [cold]:  ; preds = bb0
     revert 0, 0
@@ -42,7 +43,7 @@ fn @entry() [entry] {
 }
 
 ; function start() public view returns (uint256) [selector 0xbe9a6555]
-fn @start() [selector=0xbe9a6555, abi_wrapper, view] {
+fn @start() {
   bb0:
     v2 = loadimmutable _start
     mstore 0, v2
@@ -50,7 +51,7 @@ fn @start() [selector=0xbe9a6555, abi_wrapper, view] {
 }
 
 ; function vested() public view returns (uint256) [selector 0xfea5657c]
-fn @vested() [selector=0xfea5657c, abi_wrapper, view] {
+fn @vested() {
   bb0:
     v1 = loadimmutable _start
     mstore 0, v1

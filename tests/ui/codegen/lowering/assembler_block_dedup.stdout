@@ -43,14 +43,13 @@ bb7:  ; function a() public pure returns (uint256) [selector 0x0dbe671f]
 bb9:  ; function c(bool fail) public pure returns (uint256) [selector 0xfeb97429]
   push 4
   calldataload
+  dup 1
   push 1
   shr
-  push 36
   calldatasize
-  lt
+  push 36
+  gt
   or
-  push 4
-  calldataload
   or
   push bb6
   jumpi

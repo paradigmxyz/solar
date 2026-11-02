@@ -25,15 +25,14 @@ fn @entry() [entry] {
     revert 0, 0
 }
 
-; fallback
-fn @fallback() [abi_wrapper, fallback] {
+fn @fallback() [fallback] {
   bb0:
     v0 = calldatasize
     tail_call @fallback.body, 0, v0
 }
 
 ; function echo(bytes calldata data) external pure returns (bytes memory) [selector 0x624fbfdc]
-fn @echo() [selector=0x624fbfdc, abi_wrapper, pure] {
+fn @echo() {
   bb0:
     v8 = calldatasize
     v9 = lt v8, 36
@@ -63,26 +62,27 @@ fn @echo() [selector=0x624fbfdc, abi_wrapper, pure] {
 }
 
 ; function fail(uint256 code) external pure [selector 0x132e4f3c]
-fn @fail() [selector=0x132e4f3c, abi_wrapper, cold, pure] {
+fn @fail() [cold] {
   bb0 [cold]:
     v0 = calldatasize
     v1 = lt v0, 36
     jumpi v1, bb1, bb2
   bb2 [cold]:  ; preds = bb0
-    mstore 0, arg0
+    v2 = calldataload 4
+    mstore 0, v2
     revert 0, 32
   bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
 ; function halt() external pure [selector 0x5ed7ca5b]
-fn @halt() [selector=0x5ed7ca5b, abi_wrapper, cold, pure] {
+fn @halt() [cold] {
   bb0 [cold]:
     revert 0, 0
 }
 
 ; function relay(bytes calldata data) external returns (bytes memory out) [selector 0x8f0d6f17]
-fn @relay() [selector=0x8f0d6f17, abi_wrapper] {
+fn @relay() {
   bb0:
     v20 = calldatasize
     v21 = lt v20, 36

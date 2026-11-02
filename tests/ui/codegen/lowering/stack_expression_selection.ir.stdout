@@ -127,17 +127,17 @@ bb17:  ; function sharedDifference(uint256 a, uint256 b) public pure returns (ui
   sub
   jump bb34
 bb20:  ; function difference(uint256 a, uint256 b) public pure returns (uint256 d, bool equal) [selector 0xa95cb7f7]
-  push 68
   calldatasize
-  lt
+  push 68
+  gt
   push bb10
   jumpi
-  push 4
-  calldataload
   push 36
   calldataload
-  dup 1
-  dup 3
+  push 4
+  calldataload
+  dup 2
+  dup 2
   sub
   push 0
   mstore
@@ -148,17 +148,17 @@ bb20:  ; function difference(uint256 a, uint256 b) public pure returns (uint256 
   push 0
   return
 bb23:  ; function reverseDifference(uint256 a, uint256 b) public pure returns (uint256 d, bool equal) [selector 0x132a45fc]
-  push 68
   calldatasize
-  lt
+  push 68
+  gt
   push bb10
   jumpi
-  push 4
-  calldataload
   push 36
   calldataload
-  dup 2
-  dup 2
+  push 4
+  calldataload
+  dup 1
+  dup 3
   sub
   push 0
   mstore
@@ -169,17 +169,17 @@ bb23:  ; function reverseDifference(uint256 a, uint256 b) public pure returns (u
   push 0
   return
 bb26:  ; function xorDifference(uint256 a, uint256 b) public pure returns (uint256 d, bool equal) [selector 0x30ca6808]
-  push 68
   calldatasize
-  lt
+  push 68
+  gt
   push bb10
   jumpi
-  push 4
-  calldataload
   push 36
   calldataload
-  dup 1
-  dup 3
+  push 4
+  calldataload
+  dup 2
+  dup 2
   xor
   push 0
   mstore

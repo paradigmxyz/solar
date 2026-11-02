@@ -16,19 +16,21 @@
       revert 0, 0
   }
   
-  ; selector 0x00000001
-  fn @add() [selector=0x00000001, abi_wrapper, pure] {
+  fn @add() {
     bb0:
-      v0 = add arg0, arg1
-      mstore 128, v0
+      v0 = calldataload 4
+      v1 = calldataload 36
+      v2 = add v0, v1
+      mstore 128, v2
       returndata 128, 32
   }
   
-  ; selector 0x00000002
-  fn @sub() [selector=0x00000002, abi_wrapper, pure] {
+  fn @sub() {
     bb0:
-      v0 = sub arg0, arg1
-      mstore 128, v0
+      v0 = calldataload 4
+      v1 = calldataload 36
+      v2 = sub v0, v1
+      mstore 128, v2
       returndata 128, 32
   }
   

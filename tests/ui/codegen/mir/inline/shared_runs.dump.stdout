@@ -18,7 +18,7 @@ fn @entry() [entry] {
 }
 
 ; function paint() external [selector 0xff30d0af]
-fn @paint() [selector=0xff30d0af, abi_wrapper] {
+fn @paint() {
   bb0:
     v0 = icall @paintUint, 0x8ac7230489e80000
     v8 = icall @encode_abi_tuple, v0
@@ -36,7 +36,7 @@ fn @paint() [selector=0xff30d0af, abi_wrapper] {
 }
 
 ; function paintUint(uint256 value) private pure returns (string memory)
-fn @paintUint(arg0: i256) -> i256 [may_return_memory, pure] {
+fn @paintUint(arg0: i256) -> i256 [may_return_memory] {
   bb0:
     v0 = gas
     mstore 0, 0xb6eb6316 !metadata(memory=scratch)
@@ -64,7 +64,7 @@ fn @paintUint(arg0: i256) -> i256 [may_return_memory, pure] {
 }
 
 ; function paintBool(bool value) private pure returns (string memory)
-fn @paintBool() -> i256 [may_return_memory, pure] {
+fn @paintBool() -> i256 [may_return_memory] {
   bb0:
     v0 = gas
     mstore 0, 0x57177c8e !metadata(memory=scratch)
@@ -92,7 +92,7 @@ fn @paintBool() -> i256 [may_return_memory, pure] {
 }
 
 ; function wrap(string memory text) private pure returns (string memory)
-fn @wrap(arg0: i256) -> i256 [may_return_memory, pure] {
+fn @wrap(arg0: i256) -> i256 [may_return_memory] {
   bb0:
     v23 = add arg0, 32
     v2 = mload arg0

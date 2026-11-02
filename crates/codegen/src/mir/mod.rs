@@ -356,9 +356,8 @@ mod round_trip {
         for ((_, before), (_, after)) in
             original.functions_in_print_order().zip(parsed.functions_in_print_order())
         {
-            if before.selector.is_none()
-                && (before.return_type() != after.return_type()
-                    || before.return_abi() != after.return_abi())
+            if before.return_type() != after.return_type()
+                || before.return_abi() != after.return_abi()
             {
                 return Err(format!("return types of `{}` changed during round-trip", before.name));
             }

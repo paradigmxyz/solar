@@ -28,11 +28,12 @@ fn @entry() [entry] {
 }
 
 ; function search(uint256[] memory a, uint256 needle) external pure returns (bool found, uint256 index) [selector 0xd43fc471]
-fn @search() [selector=0xd43fc471, abi_wrapper, pure] {
+fn @search() {
   bb0:
-    v49 = icall @decode_calldata_type
-    v0 = mload v49
-    v58 = add v49, 32
+    v49 = calldataload 36
+    v50 = icall @decode_calldata_type
+    v0 = mload v50
+    v59 = add v50, 32
     jump bb1
   bb1:  ; preds = bb0, bb6
     v5 = phi [bb0: 1], [bb6: v27]
@@ -47,12 +48,12 @@ fn @search() [selector=0xd43fc471, abi_wrapper, pure] {
     v10 = shr v35, 1
     v37 = sub v10, 1
     v15 = shl v37, 5
-    v56 = add v58, v15
-    v18 = mload v56
-    v19 = eq v18, arg1
+    v57 = add v59, v15
+    v18 = mload v57
+    v19 = eq v18, v49
     jumpi v19, bb9, bb4
   bb4:  ; preds = bb8
-    v23 = lt v18, arg1
+    v23 = lt v18, v49
     jumpi v23, bb5, bb6
   bb5:  ; preds = bb4
     v43 = add v10, 1
@@ -80,11 +81,12 @@ fn @search() [selector=0xd43fc471, abi_wrapper, pure] {
 }
 
 ; function lowerBound(uint256[] memory a, uint256 needle) external pure returns (uint256) [selector 0x63b7c492]
-fn @lowerBound() [selector=0x63b7c492, abi_wrapper, pure] {
+fn @lowerBound() {
   bb0:
-    v25 = icall @decode_calldata_type
-    v0 = mload v25
-    v30 = add v25, 32
+    v25 = calldataload 36
+    v26 = icall @decode_calldata_type
+    v0 = mload v26
+    v31 = add v26, 32
     jump bb1
   bb1:  ; preds = bb0, bb5
     v4 = phi [bb0: 0], [bb5: v19]
@@ -99,9 +101,9 @@ fn @lowerBound() [selector=0x63b7c492, abi_wrapper, pure] {
     v8 = shr v7, 1
     v21 = add v8, v4
     v13 = shl v21, 5
-    v28 = add v30, v13
-    v16 = mload v28
-    v17 = lt v16, arg1
+    v29 = add v31, v13
+    v16 = mload v29
+    v17 = lt v16, v25
     jumpi v17, bb4, bb5
   bb4:  ; preds = bb3
     v18 = add v21, 1
@@ -113,7 +115,7 @@ fn @lowerBound() [selector=0x63b7c492, abi_wrapper, pure] {
 }
 
 ; function consume(uint256[] calldata proof, bool[] calldata take) external pure returns (uint256 sum, uint256 used) [selector 0x15847e62]
-fn @consume() [selector=0x15847e62, abi_wrapper, pure] {
+fn @consume() {
   bb0:
     v47 = calldatasize
     v49 = calldataload 4
@@ -186,18 +188,19 @@ fn @consume() [selector=0x15847e62, abi_wrapper, pure] {
 }
 
 ; function probe(uint256[] memory a, uint256 steps) external pure returns (uint256 sum) [selector 0x6012072a]
-fn @probe() [selector=0x6012072a, abi_wrapper, pure] {
+fn @probe() {
   bb0:
-    v28 = icall @decode_calldata_type
-    v0 = mload v28
-    v33 = add v28, 32
-    v34 = sub 0, arg1
+    v28 = calldataload 36
+    v29 = icall @decode_calldata_type
+    v0 = mload v29
+    v34 = add v29, 32
+    v35 = sub 0, v28
     jump bb1
   bb1:  ; preds = bb0, bb9
     v3 = phi [bb0: 0], [bb9: v22]
     v4 = phi [bb0: 0], [bb9: v5]
     v5 = phi [bb0: v0], [bb9: v24]
-    v6 = phi [bb0: v34], [bb9: v19]
+    v6 = phi [bb0: v35], [bb9: v19]
     v7 = ne v6, 0
     jumpi v7, bb3, bb2
   bb2:  ; preds = bb1
@@ -215,8 +218,8 @@ fn @probe() [selector=0x6012072a, abi_wrapper, pure] {
     tail_call @revert_stub
   bb5:  ; preds = bb7
     v13 = shl v9, 5
-    v31 = add v33, v13
-    v16 = mload v31
+    v32 = add v34, v13
+    v16 = mload v32
     v22 = add v16, v3
     v23 = lt v22, v3
     jumpi v23, bb6, bb8

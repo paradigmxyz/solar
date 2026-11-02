@@ -22,19 +22,21 @@ fn @entry() [entry] {
 }
 
 ; function narrowBase(uint8 base, uint256 extra) public pure returns (uint256 sum) [selector 0xc5e77450]
-fn @narrowBase() [selector=0xc5e77450, abi_wrapper, pure] {
+fn @narrowBase() {
   bb0:
     v22 = calldataload 4
     v23 = shr v22, 8
     v20 = calldatasize
     v21 = lt v20, 68
-    v25 = zext i1 v21 to i256
-    v26 = or v23, v25
-    v27 = ne v26, 0
-    jumpi v27, bb4, bb5
+    v28 = zext i1 v21 to i256
+    v29 = or v23, v28
+    v30 = ne v29, 0
+    jumpi v30, bb4, bb5
   bb5:  ; preds = bb0
-    v14 = add arg1, arg1
-    v16 = add v14, arg0
+    v31 = calldataload 4
+    v25 = calldataload 36
+    v14 = add v25, v25
+    v16 = add v14, v31
     v17 = add v16, 7
     jump bb1
   bb1:  ; preds = bb3, bb5
@@ -48,7 +50,7 @@ fn @narrowBase() [selector=0xc5e77450, abi_wrapper, pure] {
     returndata 0, 32
   bb3:  ; preds = bb1
     v6 = shl v3, 5
-    v7 = add v6, arg0
+    v7 = add v6, v31
     v9 = add v7, v14
     v10 = add v9, v2
     v12 = xor v10, v18
@@ -60,7 +62,7 @@ fn @narrowBase() [selector=0xc5e77450, abi_wrapper, pure] {
 }
 
 ; function pack(bytes memory s) public pure returns (bytes memory out) [selector 0x62b0ae87]
-fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
+fn @pack() {
   bb0:
     v154 = calldatasize
     v155 = lt v154, 36
@@ -275,16 +277,17 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
 }
 
 ; function rawBase(uint256 base) external pure returns (uint256 result) [selector 0xcc1fc46b]
-fn @rawBase() [selector=0xcc1fc46b, abi_wrapper, pure] {
+fn @rawBase() {
   bb0:
     v13 = calldatasize
     v14 = lt v13, 36
     jumpi v14, bb4, bb5
   bb5:  ; preds = bb0
-    v12 = add arg0, 64
+    v15 = calldataload 4
+    v12 = add v15, 64
     jump bb1
   bb1:  ; preds = bb3, bb5
-    v10 = phi [bb5: arg0], [bb3: v11]
+    v10 = phi [bb5: v15], [bb3: v11]
     v3 = ne v12, v10
     jumpi v3, bb3, bb2
   bb2:  ; preds = bb1

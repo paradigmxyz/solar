@@ -118,7 +118,7 @@ pub(super) fn lower(
         mir.selector = None;
     }
     let has_constructor_params =
-        mir.attributes.is_constructor && !hir_function.parameters.is_empty();
+        hir_function.kind == hir::FunctionKind::Constructor && !hir_function.parameters.is_empty();
     if mir.selector.is_some() || has_constructor_params {
         let mut type_lowerer = types::TypeLowerer::new(gcx);
         let input_shapes = hir_function
@@ -194,7 +194,6 @@ pub(super) fn lower_synthetic_constructor(
     let span = context.gcx.hir.contract(contract_id).span;
     let mut mir =
         Function::new(solar_interface::Ident::with_dummy_span(solar_interface::kw::Constructor));
-    mir.attributes.is_constructor = true;
     let mut lowerer = FunctionLowerer::new(context.reborrow(), &mut mir);
     lowerer.lower_implicit_base_constructors(contract_id)?;
     lowerer.lower_state_initializers(contract_id)?;

@@ -20,9 +20,10 @@ contract CoalesceAllocsFixture {
     // The deferred outer allocation must not coalesce with its dynamic child
     // allocations.
     // CHECK-LABEL: fn @combine
+    // CHECK: [[X:v[0-9]+]] = calldataload 4
     // CHECK: [[OUTER_PTR:v[0-9]+]] = alloc 96
     // CHECK: [[FIRST:v[0-9]+]] = mload 64
-    // CHECK: mstore [[FIRST]], arg0
+    // CHECK: mstore [[FIRST]], [[X]]
     // CHECK: [[SECOND:v[0-9]+]] = add [[FIRST]], 64
     // CHECK: mstore [[SECOND]], 2
     // CHECK: returndata

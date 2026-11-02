@@ -195,7 +195,10 @@ pub(crate) fn display_function_dot<'a>(
 pub(crate) fn display_function_text<'a>(
     func: &'a Function,
     module: Option<&'a Module>,
+    is_constructor: bool,
     is_dispatch_entry: bool,
+    is_receive: bool,
+    is_fallback: bool,
 ) -> impl fmt::Display + 'a {
     fn display_text_block<'a>(
         func: &'a Function,
@@ -275,7 +278,7 @@ pub(crate) fn display_function_text<'a>(
     }
 
     fmt::from_fn(move |f| {
-        if let Some(note) = func.entry_note(is_dispatch_entry) {
+        if let Some(note) = func.entry_note(is_dispatch_entry, is_constructor) {
             writeln!(f, "; {note}")?;
         }
         // Header: fn @name(params) -> returns
@@ -290,10 +293,20 @@ pub(crate) fn display_function_text<'a>(
             ))
         )?;
         write!(f, ")")?;
-        if function_prints_return_values(func) && func.return_type() != super::MirType::Void {
+        if func.return_type() != super::MirType::Void {
             write!(f, " -> {}", func.return_type())?;
         }
-        write!(f, "{}", display_function_attributes(func, is_dispatch_entry))?;
+        write!(
+            f,
+            "{}",
+            display_function_attributes(
+                func,
+                is_constructor,
+                is_dispatch_entry,
+                is_receive,
+                is_fallback
+            )
+        )?;
         writeln!(f, " {{")?;
 
         let cfg = CfgInfo::new(func);
@@ -310,7 +323,13 @@ pub(crate) fn display_function_text<'a>(
     })
 }
 
-fn display_function_attributes(func: &Function, is_dispatch_entry: bool) -> impl fmt::Display + '_ {
+fn display_function_attributes(
+    func: &Function,
+    is_constructor: bool,
+    is_dispatch_entry: bool,
+    is_receive: bool,
+    is_fallback: bool,
+) -> impl fmt::Display + '_ {
     fmt::from_fn(move |f| {
         let mut first = true;
         if let Some(selector) = func.selector {
@@ -323,7 +342,7 @@ fn display_function_attributes(func: &Function, is_dispatch_entry: bool) -> impl
         if func.attributes.is_abi_wrapper {
             write_function_attribute(f, &mut first, "abi_wrapper")?;
         }
-        if func.attributes.is_constructor {
+        if is_constructor {
             write_function_attribute(f, &mut first, "constructor")?;
         }
         if is_dispatch_entry {
@@ -350,10 +369,10 @@ fn display_function_attributes(func: &Function, is_dispatch_entry: bool) -> impl
         if let Some(optimization) = func.attributes.optimization {
             write_function_attribute(f, &mut first, format_args!("optimize={optimization}"))?;
         }
-        if func.attributes.is_receive {
+        if is_receive {
             write_function_attribute(f, &mut first, "receive")?;
         }
-        if func.attributes.is_fallback {
+        if is_fallback {
             write_function_attribute(f, &mut first, "fallback")?;
         }
         match func.attributes.state_mutability {
@@ -367,16 +386,6 @@ fn display_function_attributes(func: &Function, is_dispatch_entry: bool) -> impl
                 f,
                 &mut first,
                 format_args!("return_abi=[{}]", components.iter().format(", ")),
-            )?;
-        }
-        // ABI wrappers read calldata head words as arguments they do not declare.
-        if func.params.is_empty() && func.arg_indices().any(|arg| func.arg_ty(arg) != MirType::I256)
-        {
-            let types = func.arg_indices().map(|arg| func.arg_ty(arg));
-            write_function_attribute(
-                f,
-                &mut first,
-                format_args!("implicit_args=[{}]", types.format(", ")),
             )?;
         }
         if let Some(layout) = &func.abi_params {
@@ -407,14 +416,6 @@ fn write_function_attribute(
         f.write_str(", ")?;
     }
     attribute.fmt(f)
-}
-
-fn function_prints_return_values(func: &Function) -> bool {
-    func.selector.is_none()
-        || func
-            .blocks
-            .iter()
-            .any(|block| matches!(block.terminator, Some(Terminator::Return { .. })))
 }
 
 fn inst_result_index(func: &Function, inst_id: InstId) -> usize {

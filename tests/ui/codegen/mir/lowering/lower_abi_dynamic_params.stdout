@@ -5,14 +5,18 @@
 - fn @takesBytes(arg0: i256, arg1: i256) [selector=0x0dead002] {
 + fn @takesBytes() [selector=0x0dead002, abi_wrapper] {
     bb0:
+-     v0 = mload arg0
+-     v1 = add v0, arg1
 +     v2 = calldatasize
 +     v3 = lt v2, 68
 +     jumpi v3, bb2, bb3
 +   bb3:  ; preds = bb0
++     v4 = calldataload 4
++     v5 = calldataload 36
 +     jump bb1
 +   bb1:  ; preds = bb3
-      v0 = mload arg0
-      v1 = add v0, arg1
++     v0 = mload v4
++     v1 = add v0, v5
       mstore 128, v1
       returndata 128, 32
 +   bb2 [cold]:  ; preds = bb0

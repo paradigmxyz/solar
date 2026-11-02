@@ -555,20 +555,7 @@ impl<'a> Run<'_, 'a, '_> {
         if self.frames.len() >= self.limits.depth {
             return ControlFlow::Break(Outcome::Limit(Limit::Depth));
         }
-        let external = self.transaction.is_some() && body.is_external_entry();
-        let args = match &self.transaction {
-            // arg i = calldataload 4 + 32 * i
-            Some(transaction) if external && args.is_empty() => body
-                .arg_indices()
-                .map(|index| {
-                    let offset = 4 + index.index() as u64 * WORD_BYTES;
-                    calldata_word(transaction.calldata, U256::from(offset))
-                })
-                .collect(),
-            _ => args,
-        };
-        let params = if external { body.arg_indices().count() } else { body.params.len() };
-        if args.len() != params || body.arg_indices().count() != args.len() {
+        if args.len() != body.params.len() || body.arg_indices().count() != args.len() {
             return ControlFlow::Break(Outcome::Unsupported("call with mismatched arguments"));
         }
         if body.blocks.is_empty() {
@@ -1377,17 +1364,18 @@ fn @entry() [entry] {
 @data
   literal_0: hex\"0102\"
 
-fn @echo() [selector=0x00000001, abi_wrapper] {
+fn @echo() {
   bb0:
+    v900 = calldataload 4
     v0 = alloc 32 !metadata(deferred_alloc)
     datacopy literal_0, v0, 2
     v1 = mload v0
-    v2 = eq arg0, 0
+    v2 = eq v900, 0
     jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    mstore 0, arg0
+    mstore 0, v900
     mstore 32, v1
     returndata 0, 64
 }
@@ -1397,7 +1385,7 @@ fn @entry() [entry] {
     tail_call @echo
 }
 ";
-        // An external entry reads its argument from calldata after the selector.
+        // A runtime entry reads its argument from calldata after the selector.
         let calldata = [&[0, 0, 0, 1][..], &U256::from(42).to_be_bytes::<32>()].concat();
         let data = U256::from(0x0102) << 240;
         let words = [U256::from(42), data].map(|word| word.to_be_bytes::<32>());

@@ -36,7 +36,7 @@ fn @entry() [entry] {
 }
 
 ; function data() external pure returns (bytes memory) [selector 0x73d4a13a]
-fn @data() [selector=0x73d4a13a, abi_wrapper, pure] {
+fn @data() {
   bb0:
     v34 = heap_floor !metadata(alloc_ptr)
     v15 = add v34, 32
@@ -64,7 +64,7 @@ fn @data() [selector=0x73d4a13a, abi_wrapper, pure] {
 }
 
 ; function subslice() external pure returns (bytes memory) [selector 0xb9ad073e]
-fn @subslice() [selector=0xb9ad073e, abi_wrapper, pure] {
+fn @subslice() {
   bb0:
     v28 = heap_floor !metadata(alloc_ptr)
     v12 = add v28, 32
@@ -86,21 +86,21 @@ fn @subslice() [selector=0xb9ad073e, abi_wrapper, pure] {
 }
 
 ; function dataHash() external pure returns (bytes32) [selector 0x1b3012a3]
-fn @dataHash() [selector=0x1b3012a3, abi_wrapper, pure] {
+fn @dataHash() {
   bb0:
     mstore 0, 0xfc1266ee7e93ac2873e7623af26456cf53c18a33ce56a117ef3ef0d901c28394 !metadata(memory=scratch)
     returndata 0, 32
 }
 
 ; function subsliceHash() external pure returns (bytes32) [selector 0xe5a3e763]
-fn @subsliceHash() [selector=0xe5a3e763, abi_wrapper, pure] {
+fn @subsliceHash() {
   bb0:
     mstore 0, 0xfe104a769973081412d46a6d04c990a5e9cc804baf45fa43d99b7dbee24984b8 !metadata(memory=scratch)
     returndata 0, 32
 }
 
 ; function zeroData() public pure returns (bytes memory) [selector 0x6ec059cd]
-fn @zeroData() [selector=0x6ec059cd, abi_wrapper, pure] {
+fn @zeroData() {
   bb0:
     v2 = icall @zeroData.body
     v6 = mload v2
@@ -116,7 +116,7 @@ fn @zeroData() [selector=0x6ec059cd, abi_wrapper, pure] {
 }
 
 ; function zeroWord() public pure returns (bytes memory) [selector 0x4c092794]
-fn @zeroWord() [selector=0x4c092794, abi_wrapper, pure] {
+fn @zeroWord() {
   bb0:
     mstore 0, 32 !metadata(memory=scratch)
     mstore 32, 32
@@ -125,7 +125,7 @@ fn @zeroWord() [selector=0x4c092794, abi_wrapper, pure] {
 }
 
 ; function splatData() public pure returns (bytes memory) [selector 0xe1910fda]
-fn @splatData() [selector=0xe1910fda, abi_wrapper, pure] {
+fn @splatData() {
   bb0:
     v6 = icall @splatData.body
     v10 = mload v6
@@ -141,7 +141,7 @@ fn @splatData() [selector=0xe1910fda, abi_wrapper, pure] {
 }
 
 ; function zeroHash() external pure returns (bytes32) [selector 0x672c8259]
-fn @zeroHash() [selector=0x672c8259, abi_wrapper, pure] {
+fn @zeroHash() {
   bb0:
     v0 = icall @zeroData.body
     v2 = mload v0
@@ -152,7 +152,7 @@ fn @zeroHash() [selector=0x672c8259, abi_wrapper, pure] {
 }
 
 ; function zeroWordHash() external pure returns (bytes32) [selector 0x0d00d797]
-fn @zeroWordHash() [selector=0x0d00d797, abi_wrapper, pure] {
+fn @zeroWordHash() {
   bb0:
     v7 = heap_floor
     mstore v7, 32
@@ -164,7 +164,7 @@ fn @zeroWordHash() [selector=0x0d00d797, abi_wrapper, pure] {
 }
 
 ; function splatHash() external pure returns (bytes32) [selector 0x38f844b9]
-fn @splatHash() [selector=0x38f844b9, abi_wrapper, pure] {
+fn @splatHash() {
   bb0:
     v0 = icall @splatData.body
     v2 = mload v0
@@ -175,7 +175,7 @@ fn @splatHash() [selector=0x38f844b9, abi_wrapper, pure] {
 }
 
 ; function zeroData() public pure returns (bytes memory)
-fn @zeroData.body() -> i256 [may_return_memory, pure] {
+fn @zeroData.body() -> i256 [may_return_memory] {
   bb0:
     v5 = heap_floor !metadata(alloc_ptr)
     mstore v5, 160
@@ -183,7 +183,7 @@ fn @zeroData.body() -> i256 [may_return_memory, pure] {
 }
 
 ; function splatData() public pure returns (bytes memory)
-fn @splatData.body() -> i256 [may_return_memory, pure] {
+fn @splatData.body() -> i256 [may_return_memory] {
   bb0:
     v15 = heap_floor !metadata(alloc_ptr)
     mstore v15, 160

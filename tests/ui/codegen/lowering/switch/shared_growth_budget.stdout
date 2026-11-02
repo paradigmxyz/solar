@@ -21,17 +21,19 @@ bb0:  ; constructor(uint256 key) [creation entry]
   push 64
   mstore
   push 192
+  dup 1
   push_data SwitchSharedGrowthBudget_runtime_code_0+198
   codesize
   sub
   add
-  push 224
+  push 32
+  dup 3
+  add
   gt
   callvalue
   or
   push bb19
   jumpi
-  push 192
   mload
   dup 1
   push 0x87d912cb

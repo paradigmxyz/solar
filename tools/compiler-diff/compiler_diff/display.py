@@ -30,7 +30,7 @@ def show_attempt(directory, label):
                 print(f"    target: {record['fully_qualified_name']}")
             else:
                 print(
-                    f"    exit: {record.get('returncode')}; seconds: {record.get('seconds', 'unknown')}"
+                    f"    exit: {record.get('returncode')}; seconds: {record.get('seconds', 'unknown')}; max rss kb: {record.get('max_rss_kb') or 'unknown'}"
                 )
                 if record.get("failure"):
                     print(f"    failure: {record['failure']}")

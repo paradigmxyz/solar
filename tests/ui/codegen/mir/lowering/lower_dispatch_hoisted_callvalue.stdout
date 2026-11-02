@@ -1,9 +1,11 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_hoisted_callvalue.mir (before lower-dispatch) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_hoisted_callvalue.mir (after lower-dispatch) ===
   @module DispatchHoisted
+- ; selector 0x00000001
+- fn @a() [selector=0x00000001, abi_wrapper] {
 + ; runtime dispatch entry
 + fn @entry() [entry] {
-+   bb0:
+    bb0:
 +     v0 = callvalue
 +     v1 = ne v0, 0
 +     jumpi v1, bb4, bb1
@@ -19,14 +21,14 @@
 +     revert 0, 0
 + }
 + 
-  ; selector 0x00000001
-  fn @a() [selector=0x00000001, abi_wrapper] {
-    bb0:
++ fn @a() {
++   bb0:
       stop
   }
   
-  ; selector 0x00000002
-  fn @b() [selector=0x00000002, abi_wrapper] {
+- ; selector 0x00000002
+- fn @b() [selector=0x00000002, abi_wrapper] {
++ fn @b() {
     bb0:
       stop
   }

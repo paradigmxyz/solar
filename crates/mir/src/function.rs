@@ -153,10 +153,10 @@ impl Function {
 
     /// Returns the note that the text dumps print before this function: its source signature
     /// and role, such as `function add(uint256 a) external [selector 0x771602f7]`.
-    pub fn entry_note(&self, is_dispatch_entry: bool) -> Option<String> {
+    pub fn entry_note(&self, is_dispatch_entry: bool, is_constructor: bool) -> Option<String> {
         let role = if is_dispatch_entry {
             "runtime dispatch entry".to_string()
-        } else if self.attributes.is_constructor {
+        } else if is_constructor {
             "creation entry".to_string()
         } else if let Some(selector) = self.selector {
             format!("selector 0x{:08x}", u32::from_be_bytes(selector))
@@ -173,18 +173,50 @@ impl Function {
         })
     }
 
-    /// Returns whether this function is an external ABI entry.
-    pub fn is_external_entry(&self) -> bool {
-        self.selector.is_some()
-            || self.attributes.is_constructor
-            || self.attributes.is_receive
-            || self.attributes.is_fallback
+    /// Returns whether `lower-dispatch` routes selectors, `receive`, or `fallback` calls to this
+    /// function, by the attributes that function drops once `entry` exists.
+    pub fn is_dispatched(&self) -> bool {
+        self.selector.is_some() || self.attributes.is_receive || self.attributes.is_fallback
     }
 
-    /// Returns whether the runtime dispatches to this function: an external entry other than the
-    /// constructor.
-    pub fn is_runtime_entry(&self) -> bool {
-        self.is_external_entry() && !self.attributes.is_constructor
+    /// Clears the entry and ABI attributes, which `entry` makes obsolete: the module roots
+    /// carry the routing, and the wrappers carry their decoding and encoding as ordinary MIR.
+    pub fn clear_entry_attributes(&mut self) {
+        // The dumps keep the role the attributes gave this function, as part of its signature.
+        if self.debug_signature.is_some()
+            && let Some(note) = self.entry_note(false, false)
+        {
+            self.debug_signature = Some(Symbol::intern(&note));
+        }
+        self.selector = None;
+        self.abi_returns = None;
+        self.abi_return_params = None;
+        self.abi_params = None;
+        self.abi_param_locations = None;
+        self.attributes.clear_entry();
+    }
+
+    /// Returns the names of the entry and ABI attributes this function still carries.
+    pub fn entry_attributes(&self) -> impl Iterator<Item = &'static str> + use<> {
+        let attributes = &self.attributes;
+        [
+            (self.selector.is_some(), "selector"),
+            (attributes.visibility != Visibility::Internal, "visibility"),
+            (attributes.state_mutability == StateMutability::Pure, "pure"),
+            (attributes.state_mutability == StateMutability::View, "view"),
+            (attributes.state_mutability == StateMutability::Payable, "payable"),
+            (attributes.is_abi_wrapper, "abi_wrapper"),
+            (attributes.is_fallback, "fallback"),
+            (attributes.is_receive, "receive"),
+            (self.abi_params.is_some(), "abi_params"),
+            (self.abi_returns.is_some(), "abi_returns"),
+            (self.abi_return_params.is_some(), "abi_return_params"),
+            (self.abi_param_locations.is_some(), "abi parameter locations"),
+            (!attributes.array_element_bits.is_empty(), "array element bits"),
+            (attributes.array_return_element_bits.is_some(), "array return element bits"),
+        ]
+        .into_iter()
+        .filter_map(|(present, name)| present.then_some(name))
     }
 
     /// Returns the value for the given ID.
@@ -224,6 +256,14 @@ impl Function {
             Value::Inst(inst) => Some(&self.inst(*inst).kind),
             _ => None,
         }
+    }
+
+    /// Returns whether `id` loads the calldata word at a constant offset, which nothing changes
+    /// during the call.
+    #[must_use]
+    pub fn is_constant_calldata_load(&self, id: ValueId) -> bool {
+        matches!(self.value_inst_kind(id), Some(InstKind::Load(address, PtrLocation::Calldata))
+            if self.value_u64(*address).is_some())
     }
 
     /// Returns the slice location of a value, if it is slice-typed.
@@ -657,12 +697,6 @@ impl Function {
         self.alloc_arg(index)
     }
 
-    /// Adds a retained argument type and allocates its value without changing the signature.
-    pub(crate) fn alloc_implicit_arg(&mut self, ty: MirType) -> ValueId {
-        let index = self.arg_types.push(ty);
-        self.alloc_arg(index)
-    }
-
     /// Allocates a value referring to an existing argument.
     pub fn alloc_arg(&mut self, index: ArgIdx) -> ValueId {
         let _ = self.arg_ty(index);
@@ -673,6 +707,16 @@ impl Function {
     pub fn set_params(&mut self, params: IndexVec<ArgIdx, MirType>) {
         self.arg_types = params.clone();
         self.params = params;
+    }
+
+    /// Removes every parameter. Argument values left in the arena become undefined.
+    pub fn clear_params(&mut self) {
+        for value in &mut self.values {
+            if let Value::Arg(index) = *value {
+                *value = Value::Undef(self.arg_types[index]);
+            }
+        }
+        self.set_params(IndexVec::new());
     }
 
     /// Allocates a value-producing instruction and its result value.
@@ -888,8 +932,6 @@ pub struct FunctionAttributes {
     pub state_mutability: StateMutability,
     /// Whether the external entry decodes its own ABI inputs and encodes its outputs.
     pub is_abi_wrapper: bool,
-    /// Whether this is a constructor.
-    pub is_constructor: bool,
     /// Whether this is a fallback function.
     pub is_fallback: bool,
     /// Whether this is a receive function.
@@ -928,13 +970,25 @@ pub struct FunctionAttributes {
     pub hotness: Hotness,
 }
 
+impl FunctionAttributes {
+    /// Resets the entry and ABI attributes to their defaults.
+    fn clear_entry(&mut self) {
+        self.visibility = Visibility::Internal;
+        self.state_mutability = StateMutability::NonPayable;
+        self.is_abi_wrapper = false;
+        self.is_fallback = false;
+        self.is_receive = false;
+        self.array_element_bits.clear();
+        self.array_return_element_bits = None;
+    }
+}
+
 impl Default for FunctionAttributes {
     fn default() -> Self {
         Self {
             visibility: Visibility::Internal,
             state_mutability: StateMutability::NonPayable,
             is_abi_wrapper: false,
-            is_constructor: false,
             is_fallback: false,
             is_receive: false,
             may_return_memory: false,

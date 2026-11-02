@@ -24,7 +24,7 @@ fn @entry() [entry] {
 }
 
 ; function sumWords(uint256[] memory a) external pure returns (uint256 s) [selector 0x5a761098]
-fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
+fn @sumWords() {
   bb0:
     v22 = icall @decode_calldata_type
     v1 = add v22, 32
@@ -63,7 +63,7 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
 }
 
 ; function sumPastEnd(uint256[] memory a) external pure returns (uint256 s) [selector 0x7d3da1e5]
-fn @sumPastEnd() [selector=0x7d3da1e5, abi_wrapper, pure] {
+fn @sumPastEnd() {
   bb0:
     v22 = icall @decode_calldata_type
     v1 = add v22, 32

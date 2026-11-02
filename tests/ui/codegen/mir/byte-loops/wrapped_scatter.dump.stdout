@@ -20,35 +20,37 @@ fn @entry() [entry] {
 }
 
 ; function fill(bytes memory buffer, uint256 offset, bytes1 value) external pure returns (bool) [selector 0xb4f7766b]
-fn @fill() [selector=0xb4f7766b, abi_wrapper, pure] {
+fn @fill() {
   bb0:
-    v37 = calldataload 68
-    v38 = shl v37, 8
+    v38 = calldataload 68
+    v39 = shl v38, 8
     v35 = calldatasize
     v36 = lt v35, 100
-    v56 = zext i1 v36 to i256
-    v57 = or v38, v56
-    v58 = ne v57, 0
-    jumpi v58, bb10, bb11
+    v57 = zext i1 v36 to i256
+    v58 = or v39, v57
+    v59 = ne v58, 0
+    jumpi v59, bb10, bb11
   bb11:  ; preds = bb0
-    v40 = icall @decode_calldata_type
-    mstore v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v15 = byte 0, arg2
+    v61 = calldataload 68
+    v60 = calldataload 36
+    v41 = icall @decode_calldata_type
+    mstore v41, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v15 = byte 0, v61
     v16 = mul v15, 0x101010101010101010101010101010101010101010101010101010101010101
-    v50 = add v40, arg1
-    v51 = add v50, 32
-    v53 = add v40, 32
-    v22 = lt v51, v53
+    v51 = add v41, v60
+    v52 = add v51, 32
+    v54 = add v41, 32
+    v22 = lt v52, v54
     jumpi v22, bb1, bb4
   bb4:  ; preds = bb11
-    v26 = gt arg1, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd
+    v26 = gt v60, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd
     jumpi v26, bb5, bb7
   bb7:  ; preds = bb4
-    v29 = mload v51
-    v43 = xor v29, v16
-    v44 = and v43, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v32 = xor v16, v44
-    mstore v51, v32
+    v29 = mload v52
+    v44 = xor v29, v16
+    v45 = and v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v32 = xor v16, v45
+    mstore v52, v32
     jump bb2
   bb1:  ; preds = bb6, bb11
     v5 = phi [bb11: 0], [bb6: v14]
@@ -58,19 +60,19 @@ fn @fill() [selector=0xb4f7766b, abi_wrapper, pure] {
     mstore 0, 1
     returndata 0, 32
   bb3:  ; preds = bb1
-    v33 = add arg1, v5
-    v34 = lt v33, arg1
+    v33 = add v60, v5
+    v34 = lt v33, v60
     jumpi v34, bb8, bb9
   bb9:  ; preds = bb3
-    v8 = mload v40
+    v8 = mload v41
     v9 = lt v33, v8
     jumpi v9, bb6, bb5
   bb5 [cold]:  ; preds = bb4, bb9
     tail_call @revert_stub
   bb6:  ; preds = bb9
-    v47 = add v40, v33
-    v48 = add v47, 32
-    mstore8 v48, v15
+    v48 = add v41, v33
+    v49 = add v48, 32
+    mstore8 v49, v15
     v14 = add v5, 1
     jump bb1
   bb8 [cold]:  ; preds = bb3
@@ -82,20 +84,24 @@ fn @fill() [selector=0xb4f7766b, abi_wrapper, pure] {
 }
 
 ; function scatter(bytes memory buffer, uint256 offset, bytes32 value, uint256 count, uint256 pointer) external pure returns (bool) [selector 0xa3efd67d]
-fn @scatter() [selector=0xa3efd67d, abi_wrapper, pure] {
+fn @scatter() {
   bb0:
     v9 = calldatasize
     v10 = lt v9, 164
     jumpi v10, bb1, bb2
   bb2:  ; preds = bb0
-    v11 = icall @decode_calldata_type
-    mstore v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v5 = sub arg4, v11
-    v1 = ne arg4, 0
+    v11 = calldataload 36
+    v12 = calldataload 68
+    v13 = calldataload 100
+    v14 = calldataload 132
+    v15 = icall @decode_calldata_type
+    mstore v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v5 = sub v14, v15
+    v1 = ne v14, 0
     v6 = zext i1 v1 to i256
     v7 = mul v5, v6
-    v8 = add v11, v7
-    icall @_scatter, v8, arg1, arg2, arg3
+    v8 = add v15, v7
+    icall @_scatter, v8, v11, v12, v13
     mstore 0, 1
     returndata 0, 32
   bb1 [cold]:  ; preds = bb0
@@ -103,7 +109,7 @@ fn @scatter() [selector=0xa3efd67d, abi_wrapper, pure] {
 }
 
 ; function _scatter(bytes memory buffer, uint256 offset, bytes32 value, uint256 count) private pure
-fn @_scatter(arg0: i256, arg1: i256, arg2: i256, arg3: i256) [may_return_memory, pure] {
+fn @_scatter(arg0: i256, arg1: i256, arg2: i256, arg3: i256) [may_return_memory] {
   bb0:
     v18 = eq arg3, 0
     jumpi v18, bb2, bb4

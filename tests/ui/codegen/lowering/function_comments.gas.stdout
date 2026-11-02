@@ -21,17 +21,19 @@ bb0:  ; constructor(uint256 start) [creation entry]
   push 64
   mstore
   push 224
+  dup 1
   push_data C_runtime_code_0+308
   codesize
   sub
   add
-  push 256
+  push 32
+  dup 3
+  add
   gt
   callvalue
   or
   push bb4
   jumpi
-  push 224
   mload
   push 6
   dup 2

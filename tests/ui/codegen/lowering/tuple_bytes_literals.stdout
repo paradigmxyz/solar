@@ -20,7 +20,7 @@ fn @entry() [entry] {
 }
 
 ; function prefix(bytes memory out) external pure returns (bytes memory) [selector 0x01cd9057]
-fn @prefix() [selector=0x01cd9057, abi_wrapper, pure] {
+fn @prefix() {
   bb0:
     v10 = calldatasize
     v11 = lt v10, 36
@@ -82,7 +82,7 @@ fn @prefix() [selector=0x01cd9057, abi_wrapper, pure] {
 }
 
 ; function words() external pure returns (bytes1 a, bytes2 b) [selector 0xf2c31bd9]
-fn @words() [selector=0xf2c31bd9, abi_wrapper, pure] {
+fn @words() {
   bb0:
     mstore 0, 0x3000000000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 32, 0x7879000000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

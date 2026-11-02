@@ -46,10 +46,10 @@ bb7 [loop]:  ; function loopCarried(uint256 n, bool flag) public pure returns (u
   jumpi
   push 4
   calldataload
-  push 36
-  calldataload
   push 3
   not
+  push 36
+  calldataload
   mul
   push 11
   add
@@ -255,8 +255,8 @@ bb37:  ; function storeAfterLoop(uint256 a, uint256 b, uint256 iterations) publi
   dup 4
   jump bb39
 bb41 [loop]:
-  dup 4
-  dup 2
+  dup 1
+  dup 5
   mul
   swap 1
   dup 4

@@ -36,7 +36,7 @@ fn @entry() [entry] {
 }
 
 ; function factory(PackedUserOperation calldata op) external pure returns (address) [selector 0x1af91295]
-fn @factory.0() [selector=0x1af91295, abi_wrapper, pure] {
+fn @factory.0() {
   bb0:
     v1 = calldatasize
     v3 = calldataload 4
@@ -88,7 +88,7 @@ fn @factory.0() [selector=0x1af91295, abi_wrapper, pure] {
 }
 
 ; function tailHash(PackedUserOperation calldata op) external pure returns (bytes32) [selector 0x9850c81b]
-fn @tailHash.1() [selector=0x9850c81b, abi_wrapper, pure] {
+fn @tailHash.1() {
   bb0:
     v1 = calldatasize
     v3 = calldataload 4
@@ -149,7 +149,7 @@ fn @tailHash.1() [selector=0x9850c81b, abi_wrapper, pure] {
 }
 
 ; function midWord(PackedUserOperation calldata op) external pure returns (bytes32) [selector 0xbb6106d2]
-fn @midWord.2() [selector=0xbb6106d2, abi_wrapper, pure] {
+fn @midWord.2() {
   bb0:
     v39 = calldatasize
     v41 = calldataload 4
