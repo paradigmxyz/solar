@@ -28,7 +28,8 @@ impl OpcodeTraits {
     /// The result is a deterministic function of the stack operands alone: no memory, storage,
     /// or environment dependency, so two occurrences with equal operands produce the same value.
     pub const PURE: Self = Self(1 << 0);
-    /// The operands may be swapped without changing the result.
+    /// The top two stack operands may be swapped without changing the result; deeper operands keep
+    /// their place.
     pub const COMMUTATIVE: Self = Self(1 << 1);
     /// The operation may write to memory, invalidating cached memory reads.
     pub const WRITES_MEMORY: Self = Self(1 << 2);
@@ -335,8 +336,8 @@ opcodes! {
     0x05 => SDIV => sdiv => stack_io(2, 1) => traits(PURE) => gas(low) => available(legacy);
     0x06 => MOD => mod => stack_io(2, 1) => traits(PURE) => gas(low) => available(legacy);
     0x07 => SMOD => smod => stack_io(2, 1) => traits(PURE) => gas(low) => available(legacy);
-    0x08 => ADDMOD => addmod => stack_io(3, 1) => traits(PURE) => gas(mid) => available(legacy);
-    0x09 => MULMOD => mulmod => stack_io(3, 1) => traits(PURE) => gas(mid) => available(legacy);
+    0x08 => ADDMOD => addmod => stack_io(3, 1) => traits(PURE | COMMUTATIVE) => gas(mid) => available(legacy);
+    0x09 => MULMOD => mulmod => stack_io(3, 1) => traits(PURE | COMMUTATIVE) => gas(mid) => available(legacy);
     0x0a => EXP => exp => stack_io(2, 1) => traits(PURE) => gas(exp) => available(legacy);
     0x0b => SIGNEXTEND => signextend => stack_io(2, 1) => traits(PURE) => gas(low) => available(legacy);
     0x10 => LT => lt => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(legacy) => result_bits(1);
@@ -515,7 +516,8 @@ impl OpDef {
         }
     }
 
-    /// Returns whether this operation's operands may be swapped without changing its result.
+    /// Returns whether the top two stack operands of this operation may be swapped without changing
+    /// its result.
     #[must_use]
     pub const fn is_commutative(self) -> bool {
         self.traits.contains(OpcodeTraits::COMMUTATIVE)
@@ -874,7 +876,8 @@ pub fn is_available(opcode: u8, evm_version: EvmVersion) -> bool {
     }
 }
 
-/// Returns whether an opcode's operands may be swapped without changing its result.
+/// Returns whether the top two stack operands of an opcode may be swapped without changing its
+/// result.
 #[must_use]
 pub const fn is_commutative(op: u8) -> bool {
     match definition(op) {
@@ -883,7 +886,7 @@ pub const fn is_commutative(op: u8) -> bool {
     }
 }
 
-/// Returns the equivalent binary opcode after swapping its stack operands.
+/// Returns the equivalent opcode after swapping its top two stack operands.
 #[must_use]
 pub const fn swapped_binary_opcode(opcode: u8) -> Option<u8> {
     if is_commutative(opcode) {

@@ -21,9 +21,9 @@
 //! removes any simpler identities that become adjacent. The length bound keeps symbolic
 //! resynthesis and cache keys independent of function size.
 //!
-//! A run directly before a commutative binary operation or a comparison with a mirrored form may
-//! leave the top two words in either order: the alternative also normalizes the run followed by
-//! `SWAP1` and wins when cheaper, and then a comparison flips to its mirrored form.
+//! A run directly before an operation that commutes its top two operands or a comparison with a
+//! mirrored form may leave the top two words in either order: the alternative also normalizes the
+//! run followed by `SWAP1` and wins when cheaper, and then a comparison flips to its mirrored form.
 //!
 //! `SWAP` is the canonical form of a two-word exchange until the last peephole has run, so
 //! consumer rules such as `SWAP1 ADD -> ADD` see every top swap. The ordinary instance never

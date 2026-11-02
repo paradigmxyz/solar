@@ -381,7 +381,7 @@ def emit_rule(lhs, rhs, prices=None):
             return expr
         children = tuple(canonical(a) for a in expr.args)
         if expr.op in prices.ops and prices.ops[expr.op][2]:
-            children = tuple(sorted(children, key=Expr.text))
+            children = (*sorted(children[:2], key=Expr.text), *children[2:])
         return Expr(expr.op, children)
 
     rhs = canonical(rhs)
@@ -436,7 +436,7 @@ def variants(expr, prices):
     for children in product(*(variants(a, prices) for a in expr.args)):
         result.add(Expr(expr.op, children))
         if prices.ops[expr.op][2]:
-            result.add(Expr(expr.op, tuple(reversed(children))))
+            result.add(Expr(expr.op, (*reversed(children[:2]), *children[2:])))
     return sorted(result, key=Expr.text)
 
 
