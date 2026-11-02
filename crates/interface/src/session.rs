@@ -374,7 +374,7 @@ impl Session {
     /// Returns `true` if compilation should stop after the given stage.
     #[inline]
     pub fn stop_after(&self, stage: CompilerStage) -> bool {
-        self.opts.stop_after >= Some(stage)
+        self.opts.stop_after.is_some_and(|stop_after| stop_after <= stage)
     }
 
     /// Returns the number of threads to use for parallelism.
