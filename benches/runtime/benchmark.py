@@ -441,15 +441,37 @@ def artifact_compiler_input(input_text: str, test_case: TestCase, kind: str) -> 
             for segment in ("bytecode", "deployedBytecode")
             for field in ("llvmIrUnoptimized", "llvmIr")
         )
-    payload.setdefault("settings", {})["outputSelection"] = {
-        source: {test_case.contract_name: outputs}
-    }
+    # Solar's dump covers every contract, so its output does too.
+    selection = (
+        {"*": {"*": outputs}}
+        if kind == "solar"
+        else {source: {test_case.contract_name: outputs}}
+    )
+    payload.setdefault("settings", {})["outputSelection"] = selection
     return json.dumps(payload, sort_keys=True, separators=(",", ":"))
+
+
+SOLAR_DUMP_HEADING = re.compile(
+    r"^// === (?P<name>.+?)(?: \((?P<kind>creation|runtime|deployment)\))? ===$",
+    re.MULTILINE,
+)
+SOLAR_DUMP_FILES = (
+    "mir.mir",
+    "creation.evmir",
+    "runtime.evmir",
+    "creation.disasm",
+    "runtime.disasm",
+)
 
 
 def split_solar_artifact_output(
     stdout: str, contract_path: str
 ) -> tuple[dict[str, str], str]:
+    """Splits a Solar dump of every contract into one file per kind and Standard JSON.
+
+    Each file holds a headed section per contract: the selected contract first, then the
+    others by name, so diffs of unchanged contracts stay empty.
+    """
     marker = "\n{"
     json_start = stdout.rfind(marker)
     if json_start < 0 and stdout.startswith("{"):
@@ -459,30 +481,41 @@ def split_solar_artifact_output(
 
     dump = stdout[:json_start].strip()
     output = stdout[json_start + 1 :]
-    escaped = re.escape(contract_path)
-    headings = list(
-        re.finditer(
-            rf"^// === {escaped}(?: \((creation|runtime|deployment)\))? ===$",
-            dump,
-            re.MULTILINE,
-        )
-    )
-    names = (
-        "mir.mir",
-        "creation.evmir",
-        "runtime.evmir",
-        "creation.disasm",
-        "runtime.disasm",
-    )
-    if len(headings) != len(names):
-        raise ValueError(
-            f"expected {len(names)} Solar artifact sections, found {len(headings)}"
-        )
-    artifacts = {}
-    following = [*headings[1:], None]
-    for name, match, next_match in zip(names, headings, following, strict=True):
+    sections: dict[str, dict[str, str]] = {name: {} for name in SOLAR_DUMP_FILES}
+    seen: dict[str, set[str]] = {}
+    headings = list(SOLAR_DUMP_HEADING.finditer(dump))
+    for match, next_match in zip(headings, [*headings[1:], None], strict=True):
+        contract, kind = match["name"], match["kind"]
+        # The creation and runtime EVM IR come before the deployment and runtime
+        # disassembly, so a runtime section that follows `deployment` is assembly.
+        previous = seen.setdefault(contract, set())
+        name = {
+            None: "mir.mir",
+            "creation": "creation.evmir",
+            "deployment": "creation.disasm",
+            "runtime": "runtime.disasm"
+            if "deployment" in previous
+            else "runtime.evmir",
+        }[kind]
+        previous.add(kind or "mir")
         end = next_match.start() if next_match else len(dump)
-        artifacts[name] = dump[match.end() : end].strip() + "\n"
+        sections[name][contract] = dump[match.start() : end].strip() + "\n"
+
+    found = sum(contract_path in files for files in sections.values())
+    if found != len(SOLAR_DUMP_FILES):
+        raise ValueError(
+            f"expected {len(SOLAR_DUMP_FILES)} Solar artifact sections for "
+            f"{contract_path}, found {found}"
+        )
+    artifacts = {
+        name: "\n".join(
+            files[contract]
+            for contract in sorted(
+                files, key=lambda item: (item != contract_path, item)
+            )
+        )
+        for name, files in sections.items()
+    }
     return artifacts, output
 
 
@@ -540,7 +573,7 @@ def write_artifacts(
     contract_path = f"{source}:{test_case.contract_name}"
     if spec.kind == "solar":
         kinds = ",".join(ARTIFACT_DUMP_KINDS)
-        cmd.extend(["--color", "never", f"-Zdump={kinds}={contract_path}"])
+        cmd.extend(["--color", "never", f"-Zdump={kinds}"])
     proc = run(cmd, input_text=input_text, timeout=timeout)
     if proc.returncode != 0:
         return (proc.stderr or proc.stdout or "artifact compiler failed")[:1000]

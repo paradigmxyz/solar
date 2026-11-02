@@ -63,7 +63,10 @@ Each compiler directory has a `sources/` tree of every embedded Standard JSON so
 contents, line endings, and extensionless names; source URLs are not fetched. Paths must be
 relative, with no empty, `.` or `..` parts, drive prefixes, backslashes, or control characters;
 symlinks and file/directory collisions are capture errors. Each compiler saves disassembly,
-bytecode, and raw Standard JSON input and output. Ours adds MIR and creation and runtime EVM IR.
+bytecode, and raw Standard JSON input and output. Ours adds MIR, creation and runtime EVM IR, and
+creation and runtime disassembly (`mir.mir`, `*.evmir`, `*.disasm`) for every contract the case
+compiles, including libraries and contracts built with `new`: each file has a headed section per
+contract, the case's own contract first and the rest by name.
 Solc and solx add unoptimized `ir.yul` and optimized `optimized-ir.yul` when returned (solx 0.1.8
 omits `irOptimized`). Solx adds creation and runtime LLVM IR before and after optimization
 (`*.unoptimized.ll`, `*.optimized.ll`). If `--reference-results` names a result beside an
