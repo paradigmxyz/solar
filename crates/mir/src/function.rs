@@ -721,12 +721,24 @@ impl Function {
         self.blocks.push(BasicBlock::new())
     }
 
+    /// Allocates a new basic block with the given `cold_hint`, for a copy of a block of another
+    /// function.
+    pub fn alloc_block_hinted(&mut self, cold_hint: bool) -> BlockId {
+        let block = self.alloc_block();
+        self.blocks[block].cold_hint = cold_hint;
+        block
+    }
+
     /// Allocates a new basic block that copies or splits `like`, or runs only with it, so it keeps
     /// the block's `cold_hint`.
     pub fn alloc_block_like(&mut self, like: BlockId) -> BlockId {
-        let block = self.alloc_block();
-        self.blocks[block].cold_hint = self.blocks[like].cold_hint;
-        block
+        self.alloc_block_hinted(self.blocks[like].cold_hint)
+    }
+
+    /// Allocates a new basic block for the edge from `pred` to `succ`. It runs only when `pred`
+    /// does and only leads to `succ`, so it is cold if either is.
+    pub fn alloc_edge_block(&mut self, pred: BlockId, succ: BlockId) -> BlockId {
+        self.alloc_block_hinted(self.blocks[pred].cold_hint || self.blocks[succ].cold_hint)
     }
 
     /// Replaces all value uses according to a one-step replacement map.

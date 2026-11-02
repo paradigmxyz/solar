@@ -2072,9 +2072,7 @@ impl<'a> InlineCloner<'a> {
 
     fn clone_blocks(&mut self, continuation: BlockId) -> Option<BlockId> {
         for block in self.callee.blocks.iter() {
-            let cloned = self.caller.alloc_block();
-            self.caller.blocks[cloned].cold_hint = block.cold_hint;
-            self.block_map.push(cloned);
+            self.block_map.push(self.caller.alloc_block_hinted(block.cold_hint));
         }
 
         for (callee_block, block) in self.callee.blocks.iter_enumerated() {

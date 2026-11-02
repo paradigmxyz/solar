@@ -52,8 +52,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         let changed = !splits.is_empty();
         for (pred, succ) in splits {
-            let edge = func.alloc_block_like(pred);
-            func.blocks[edge].cold_hint |= func.blocks[succ].cold_hint;
+            let edge = func.alloc_edge_block(pred, succ);
             func.blocks[edge].terminator = Some(Terminator::Jump(succ));
             func.blocks[edge].predecessors.push(pred);
             match func.blocks[pred].terminator.as_mut() {
