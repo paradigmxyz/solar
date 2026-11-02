@@ -84,7 +84,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         let data = self.parse_yul_lit()?;
         if !matches!(data.kind, LitKind::Str(StrKind::Str | StrKind::Hex, ..)) {
             let msg = "only string and hex string literals are allowed in `data` segments";
-            return Err(self.dcx().err(msg).span(data.span));
+            return Err(self.dcx().err_at(data.span, None, msg));
         }
         let span = lo.to(self.prev_token.span);
         Ok(Data { span, name, data })
@@ -95,12 +95,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         assert!(subdenomination.is_none());
         // Yul numbers are integers; see PARSE-005.
         if let LitKind::Rational(..) = lit.kind {
-            let guar = self
-                .dcx()
-                .err("invalid number literal")
-                .code(error_code!(4828))
-                .span(lit.span)
-                .emit();
+            let guar = self.dcx().emit_err(lit.span, error_code!(4828), "invalid number literal");
             lit.kind = LitKind::Err(guar);
         }
         Ok(lit)
@@ -194,7 +189,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             let expr = self.parse_yul_expr()?;
             let ExprKind::Call(_expr) = &expr.kind else {
                 let msg = "only function calls are allowed in multi-assignment";
-                return Err(self.dcx().err(msg).span(expr.span));
+                return Err(self.dcx().err_at(expr.span, None, msg));
             };
             Ok(StmtKind::AssignMulti(paths, expr))
         } else {
@@ -274,11 +269,11 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             if !has_default {
                 self.dcx().emit_err(span, None, "`switch` statement has no cases");
             } else {
-                self.dcx()
-                    .warn("`switch` statement has only a default case")
-                    .span(span)
-                    .code(error_code!(9592))
-                    .emit();
+                self.dcx().emit_warn(
+                    span,
+                    error_code!(9592),
+                    "`switch` statement has only a default case",
+                );
             }
         }
         let cases = self.alloc_vec(cases);

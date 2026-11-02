@@ -155,11 +155,11 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                     if matches!(kind, RawLiteralKind::Int { .. } | RawLiteralKind::Rational { .. })
                         && self.cursor.as_bytes().first().is_some_and(|&c| is_id_start_byte(c))
                     {
-                        self.dcx()
-                            .err("identifier-start is not allowed at end of a number")
-                            .code(error_code!(8936))
-                            .span(self.new_span(self.pos, self.pos + 1))
-                            .emit();
+                        self.dcx().emit_err(
+                            self.new_span(self.pos, self.pos + 1),
+                            error_code!(8936),
+                            "identifier-start is not allowed at end of a number",
+                        );
                     }
                     let (kind, symbol) = self.cook_literal(start, self.pos, kind);
                     TokenKind::Literal(kind, symbol)
@@ -242,7 +242,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
 
         let span = self.new_span(start, self.pos + BytePos::from_usize(repeats * c.len_utf8()));
         let msg = format!("unknown start of token: {}", escaped_char(c));
-        let mut err = self.dcx().err(msg).span(span);
+        let mut err = self.dcx().err_at(span, None, msg);
         if let Some(sugg) = sugg {
             match sugg {
                 unicode_chars::TokenSubstitution::DirectedQuotes {
@@ -407,9 +407,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
     #[cold]
     fn emit_bidi_error(&self, start: BytePos, msg: &str, what: &str) {
         self.dcx()
-            .err(format!("{msg} in {what}"))
-            .code(error_code!(8936))
-            .span(self.new_span(start, self.pos))
+            .err_at(self.new_span(start, self.pos), error_code!(8936), format!("{msg} in {what}"))
             .note("these codepoints change the order in which text is displayed, so code can render differently from how it compiles")
             .help("balance each U+202A..U+202E marker with a U+202C (POP DIRECTIONAL FORMATTING), or remove them")
             .emit();

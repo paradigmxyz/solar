@@ -48,7 +48,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             Ok(StmtKind::Return(expr))
         } else if self.eat_keyword(kw::Throw) {
             let msg = "`throw` statements have been removed; use `revert`, `require`, or `assert` instead";
-            Err(self.dcx().err(msg).span(self.prev_token.span))
+            Err(self.dcx().err_at(self.prev_token.span, None, msg))
         } else if self.eat_keyword(kw::Try) {
             semi = false;
             self.parse_stmt_try().map(|stmt| StmtKind::Try(self.alloc(stmt)))
@@ -188,11 +188,11 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             && self.validate_str_lit(dialect)
             && dialect.value != sym::evmasm
         {
-            self.dcx()
-                .err("`evmasm` is the only supported assembly dialect")
-                .code(error_code!(4531))
-                .span(dialect.span)
-                .emit();
+            self.dcx().emit_err(
+                dialect.span,
+                error_code!(4531),
+                "`evmasm` is the only supported assembly dialect",
+            );
         }
         let flags = if self.check(TokenKind::OpenDelim(Delimiter::Parenthesis)) {
             self.parse_paren_comma_seq(false, |this| {
