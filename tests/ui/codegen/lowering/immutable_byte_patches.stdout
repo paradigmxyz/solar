@@ -57,14 +57,14 @@ bb0:  ; constructor(uint8 unsignedValue_, int8 signedValue_, bytes1 fixedBytesVa
   shl
   push bb5
   jumpi
-  push 288
-  mload
-  push 192
-  mstore
   push 255
   push 320
   mload
   and
+  push 288
+  mload
+  push 192
+  mstore
   push 224
   mstore
   push 255

@@ -47,39 +47,22 @@ bb0:  ; runtime dispatch entry + function fixedGas() external returns (uint256) 
   sub
   push bb4
   jumpi
+  push bb14
+  jump bb11
+bb11 [ret=0, inputs=1, outputs=2]:
+  push 0xffffffffffffffffffffffffffffffffffffffff
   push 0
   sload
-  push 0xffffffffffffffffffffffffffffffffffffffff
-  and
-  push bb12
-  push 128
-  jump bb11
-bb11 [ret=1, inputs=2, outputs=1]:
-  push 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-  dup 2
-  mstore
-  swap 1
+  swap 2
   jump
 bb4 [cold]:
   push 0
   dup 1
   invalid
 bb9:  ; function pointer() external returns (uint256) [selector 0x2f5f3b3c]
-  push 0
-  sload
-  push 0
-  push 160
-  mstore
-  push 128
-  push 32
-  dup 2
-  add
-  push 64
-  mstore
-  push bb13
-  swap 1
+  push bb16
   jump bb11
-bb12 [continuation]:
+bb13 [continuation]:
   dup 2
   extcodesize
   iszero
@@ -104,10 +87,19 @@ bb10:
   push 32
   push 0
   return
-bb13 [continuation]:
-  push 0xffffffffffffffffffffffffffffffffffffffff
-  dup 3
+bb14 [continuation]:
   and
+  push bb13
+  push 128
+  jump bb12
+bb12 [ret=1, inputs=2, outputs=1]:
+  push 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+  dup 2
+  mstore
+  swap 1
+  jump
+bb15 [continuation]:
+  swap 1
   extcodesize
   iszero
   push bb4
@@ -123,3 +115,17 @@ bb13 [continuation]:
   sub !metadata(keep_with_next)
   call
   jump bb10
+bb16 [continuation]:
+  dup 2
+  push 32
+  push 128
+  push 0
+  push 160
+  mstore
+  add
+  push 64
+  mstore
+  and
+  push bb15
+  push 128
+  jump bb12

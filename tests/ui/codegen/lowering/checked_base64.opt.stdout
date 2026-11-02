@@ -110,9 +110,9 @@ fn @encode.4(arg0: i256, arg1: i1, arg2: i1) -> i256 [may_return_memory, pure] {
   bb0:
     v0 = mload arg0
     v1 = mod v0, 3
+    v166 = sub 3, v1
     v183 = ne v1, 0
     v184 = zext i1 v183 to i256
-    v166 = sub 3, v1
     v185 = mul v166, v184
     v168 = add v0, 2
     v169 = lt v168, v0
@@ -451,11 +451,11 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     v144 = gt v54, 127
     jumpi v144, bb25, bb27
   bb27:  ; preds = bb26
+    v145 = lt v54, 64
     v146 = lt v54, 96
     v223 = zext i1 v146 to i256
     v224 = mul v223, 0xffe5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e6000000003f
     v225 = add v224, 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000
-    v145 = lt v54, 64
     v235 = zext i1 v145 to i256
     v236 = mul v235, 0xfffffefdfcfbfaf9f8f7f7343431f33125252525252525252524e6ffffffffc1
     v237 = add v225, v236
@@ -481,11 +481,11 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     v158 = gt v67, 127
     jumpi v158, bb28, bb30
   bb30:  ; preds = bb29
+    v159 = lt v67, 64
     v160 = lt v67, 96
     v226 = zext i1 v160 to i256
     v227 = mul v226, 0xffe5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e6000000003f
     v228 = add v227, 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000
-    v159 = lt v67, 64
     v238 = zext i1 v159 to i256
     v239 = mul v238, 0xfffffefdfcfbfaf9f8f7f7343431f33125252525252525252524e6ffffffffc1
     v240 = add v228, v239
@@ -515,11 +515,11 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     v172 = gt v82, 127
     jumpi v172, bb31, bb33
   bb33:  ; preds = bb32
+    v173 = lt v82, 64
     v174 = lt v82, 96
     v229 = zext i1 v174 to i256
     v230 = mul v229, 0xffe5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e6000000003f
     v231 = add v230, 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000
-    v173 = lt v82, 64
     v241 = zext i1 v173 to i256
     v242 = mul v241, 0xfffffefdfcfbfaf9f8f7f7343431f33125252525252525252524e6ffffffffc1
     v243 = add v231, v242
@@ -549,11 +549,11 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
     v186 = gt v97, 127
     jumpi v186, bb34, bb36
   bb36:  ; preds = bb35
+    v187 = lt v97, 64
     v188 = lt v97, 96
     v232 = zext i1 v188 to i256
     v233 = mul v232, 0xffe5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e6000000003f
     v234 = add v233, 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000
-    v187 = lt v97, 64
     v244 = zext i1 v187 to i256
     v245 = mul v244, 0xfffffefdfcfbfaf9f8f7f7343431f33125252525252525252524e6ffffffffc1
     v246 = add v234, v245

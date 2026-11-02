@@ -41,15 +41,15 @@ fn @sortPairs() [selector=0x198bc552, abi_wrapper, pure] {
     v33 = add v4, 32
     v18 = add v16, v15
     mcopy v16, v33, v15 !metadata(memory=heap, disjoint)
-    v22 = sub v18, v39
     v20 = add v39, 32
+    v22 = sub v18, v39
     mstore v20, v22
     v23 = mload v5
     mstore v18, v23
     v24 = shl v23, 5
     v25 = add v18, 32
-    v27 = add v25, v24
     v35 = add v5, 32
+    v27 = add v25, v24
     mcopy v25, v35, v24 !metadata(memory=heap, disjoint)
     v29 = sub v27, v39
     returndata v39, v29
@@ -157,24 +157,24 @@ fn @_sortPairs(arg0: i256, arg1: i256) [may_return_memory, pure] {
     v77 = add v2, 1
     v132 = mload arg0
     v133 = mload arg1
-    v239 = add v238, 32
-    v242 = add v241, 32
     v136 = or arg0, v132
-    v146 = or v136, arg1
-    v147 = or v146, v133
-    v172 = shr v147, 64
     v137 = shl v132, 5
     v139 = add v137, 31
     v142 = lt v141, v139
+    v146 = or v136, arg1
+    v147 = or v146, v133
     v148 = shl v133, 5
-    v150 = add v148, 31
     v149 = add arg1, 1
+    v150 = add v148, 31
     v152 = sub arg0, v149
     v153 = lt v152, v150
+    v172 = shr v147, 64
     v174 = or v142, v153
     v176 = zext i1 v174 to i256
     v177 = or v172, v176
     v158 = eq v177, 0
+    v239 = add v238, 32
+    v242 = add v241, 32
     jumpi v158, bb14, bb1
   bb14:  ; preds = bb18
     v235 = add arg0, 32

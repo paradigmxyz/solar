@@ -99,8 +99,8 @@ fn @loadThenAllocate() [selector=0xf84b9425, abi_wrapper, view] {
     v38 = add v0, 32
     v21 = add v18, v17
     mcopy v18, v38, v15 !metadata(memory=heap, disjoint)
-    v25 = sub v21, v3
     v23 = add v3, 32
+    v25 = sub v21, v3
     mstore v23, v25
     v26 = mload v1
     v27 = add v26, 31
@@ -183,9 +183,9 @@ fn @_copy(arg0: i256) -> i256 [may_return_memory, view] {
     jump bb4
   bb4:  ; preds = bb3, bb9
     v30 = phi [bb3: v29], [bb9: 0]
-    v33 = sload v30 !metadata(storage=symbolic(v30))
     v31 = and v15, 31
     v32 = sub 31, v31
+    v33 = sload v30 !metadata(storage=symbolic(v30))
     v34 = shl v32, 3
     v35 = shr v33, v34
     v37 = and v35, 255

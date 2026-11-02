@@ -31,13 +31,13 @@ bb1:  ; function bump(mapping(address => uint256) storage m, address k, uint256 
   eq
   push bb3
   jumpi
+  push 100
+  calldatasize
+  lt
   push 36
   calldataload
   push 160
   shr
-  push 100
-  calldatasize
-  lt
   or
   push bb3
   jumpi
@@ -99,13 +99,13 @@ bb0:  ; runtime dispatch entry + function inc(address k, uint256 by) external re
   push 128
   push 64
   mstore
+  push 68
+  calldatasize
+  lt
   push 4
   calldataload
   push 160
   shr
-  push 68
-  calldatasize
-  lt
   or
   push bb3
   jumpi

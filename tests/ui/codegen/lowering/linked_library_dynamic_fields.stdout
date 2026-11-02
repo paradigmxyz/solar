@@ -194,15 +194,15 @@ bb12 [continuation]:
   calldatacopy
   dup 4
   add
-  calldatasize
-  swap 4
+  swap 3
   push 0
   sub
   push 31
   and
+  calldatasize
+  swap 1
   swap 2
   swap 4
-  swap 1
   calldatacopy
   pop
   dup 1
@@ -273,18 +273,16 @@ bb19 [loop]:
   swap 2
   dup 9
   add
+  swap 8
+  dup 9
+  lt
   swap 3
   push 32
   add
-  swap 8
-  dup 4
-  lt
+  swap 3
   swap 1
   swap 2
   or
-  swap 7
-  swap 2
-  swap 7
   push bb22
   jumpi
   jump bb15
@@ -361,13 +359,13 @@ bb4 [cold]:
   push 0
   revert
 bb5:  ; getter for `mapping(address => uint256) public score` [selector 0x776f3843]
+  push 36
+  calldatasize
+  lt
   push 4
   calldataload
   push 160
   shr
-  push 36
-  calldatasize
-  lt
   or
   push bb4
   jumpi
@@ -388,13 +386,13 @@ bb5:  ; getter for `mapping(address => uint256) public score` [selector 0x776f38
   push 0
   return
 bb8:  ; function go(uint256 base, uint256[] calldata xs, bytes calldata tag, address who) external returns (uint256) [selector 0x2220ae27]
+  push 132
+  calldatasize
+  lt
   push 100
   calldataload
   push 160
   shr
-  push 132
-  calldatasize
-  lt
   or
   push 36
   calldataload
@@ -578,12 +576,13 @@ bb8:  ; function go(uint256 base, uint256[] calldata xs, bytes calldata tag, add
   swap 8
   swap 1
   mcopy
-  dup 3
-  dup 3
-  sub
   push 64
-  dup 5
+  dup 4
   add
+  dup 4
+  dup 4
+  sub
+  swap 1
   mstore
   swap 7
   mload

@@ -42,8 +42,8 @@ fn @data() -> i256 [may_return_memory, pure] {
 fn @hash() [selector=0x09bd5a60, abi_wrapper, pure] {
   bb0:
     v0 = icall @data
-    v2 = mload v0
     v5 = add v0, 32
+    v2 = mload v0
     v3 = keccak256 v5, v2
     mstore 0, v3 !metadata(memory=scratch)
     returndata 0, 32
@@ -166,13 +166,14 @@ bb16 [ret=0, inputs=1, outputs=1]:  ; function data() internal pure returns (byt
   swap 1
   jump
 bb8 [continuation]:
-  dup 1
-  mload
-  swap 1
   push 32
+  dup 2
   add
+  swap 1
+  mload
   jump bb18
 bb18 [loop]:
+  swap 1
   keccak256
   jump bb17
 bb17 [loop]:
@@ -239,7 +240,6 @@ bb13 [loop]:
   pop
   pop
   push 96
-  swap 1
   jump bb18
 bb20 [continuation]:
   dup 2
@@ -253,7 +253,6 @@ bb20 [continuation]:
   swap 1
   mstore
   push 33
-  swap 1
   jump bb18
 bb21 [continuation]:
   dup 1

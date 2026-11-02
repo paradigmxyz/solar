@@ -137,6 +137,7 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     v27 = and v26, 15
     v28 = mload v27
     mstore8 v11, v28
+    v29 = add v11, 2
     v129 = add v20, 1
     v130 = mload v129
     v131 = and v130, 15
@@ -147,7 +148,6 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     v135 = shr v134, 4
     v136 = and v135, 15
     v137 = mload v136
-    v29 = add v11, 2
     mstore8 v29, v137
     v138 = add v11, 4
     jump bb1

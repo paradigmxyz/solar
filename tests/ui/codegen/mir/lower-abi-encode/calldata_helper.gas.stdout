@@ -101,8 +101,8 @@ fn @fa() [selector=0xa2467f05, abi_wrapper] {
     jumpi v59, bb10, bb3
   bb10:  ; preds = bb9
     mstore v39, v57
-    v62 = add v39, 32
     v61 = add v51, 32
+    v62 = add v39, 32
     v63 = calldataload v61
     v64 = calldatasize
     v66 = sub v64, v51
@@ -137,8 +137,8 @@ fn @fa() [selector=0xa2467f05, abi_wrapper] {
     v87 = ne v195, v188
     jumpi v87, bb15, bb16
   bb16:  ; preds = bb14
-    v102 = add v39, 64
     v101 = add v51, 64
+    v102 = add v39, 64
     v103 = calldataload v101
     v104 = calldatasize
     v108 = slt v103, v67
@@ -172,8 +172,8 @@ fn @fa() [selector=0xa2467f05, abi_wrapper] {
     v127 = ne v203, v196
     jumpi v127, bb22, bb23
   bb23:  ; preds = bb21
-    v142 = add v39, 96
     v141 = add v51, 96
+    v142 = add v39, 96
     v143 = calldataload v141
     v144 = calldatasize
     v148 = slt v143, v67
@@ -211,9 +211,9 @@ fn @fa() [selector=0xa2467f05, abi_wrapper] {
     jumpi v134, bb24, bb3
   bb24:  ; preds = bb22
     mstore v198, v132
+    v135 = add v198, 32
     v136 = add v196, 32
     v137 = calldataload v136
-    v135 = add v198, 32
     mstore v135, v137
     v197 = add v196, 64
     v199 = add v198, 64
@@ -225,9 +225,9 @@ fn @fa() [selector=0xa2467f05, abi_wrapper] {
     jumpi v94, bb17, bb3
   bb17:  ; preds = bb15
     mstore v190, v92
+    v95 = add v190, 32
     v96 = add v188, 32
     v97 = calldataload v96
-    v95 = add v190, 32
     mstore v95, v97
     v189 = add v188, 64
     v191 = add v190, 64
@@ -314,8 +314,8 @@ fn @fb() [selector=0x81fba7cd, abi_wrapper] {
     jumpi v59, bb10, bb3
   bb10:  ; preds = bb9
     mstore v39, v57
-    v62 = add v39, 32
     v61 = add v51, 32
+    v62 = add v39, 32
     v63 = calldataload v61
     v64 = calldatasize
     v66 = sub v64, v51
@@ -350,8 +350,8 @@ fn @fb() [selector=0x81fba7cd, abi_wrapper] {
     v87 = ne v196, v189
     jumpi v87, bb15, bb16
   bb16:  ; preds = bb14
-    v102 = add v39, 64
     v101 = add v51, 64
+    v102 = add v39, 64
     v103 = calldataload v101
     v104 = calldatasize
     v108 = slt v103, v67
@@ -385,8 +385,8 @@ fn @fb() [selector=0x81fba7cd, abi_wrapper] {
     v127 = ne v204, v197
     jumpi v127, bb22, bb23
   bb23:  ; preds = bb21
-    v142 = add v39, 96
     v141 = add v51, 96
+    v142 = add v39, 96
     v143 = calldataload v141
     v144 = calldatasize
     v148 = slt v143, v67
@@ -424,9 +424,9 @@ fn @fb() [selector=0x81fba7cd, abi_wrapper] {
     jumpi v134, bb24, bb3
   bb24:  ; preds = bb22
     mstore v199, v132
+    v135 = add v199, 32
     v136 = add v197, 32
     v137 = calldataload v136
-    v135 = add v199, 32
     mstore v135, v137
     v198 = add v197, 64
     v200 = add v199, 64
@@ -438,9 +438,9 @@ fn @fb() [selector=0x81fba7cd, abi_wrapper] {
     jumpi v94, bb17, bb3
   bb17:  ; preds = bb15
     mstore v191, v92
+    v95 = add v191, 32
     v96 = add v189, 32
     v97 = calldataload v96
-    v95 = add v191, 32
     mstore v95, v97
     v190 = add v189, 64
     v192 = add v191, 64
@@ -554,8 +554,8 @@ fn @fc() [selector=0xeb19e25e, abi_wrapper] {
     jumpi v81, bb14, bb15
   bb15:  ; preds = bb13
     v95 = add v51, 32
-    v97 = calldataload v95
     v96 = add v39, 32
+    v97 = calldataload v95
     mstore v96, v97
     v98 = sub v38, 1
     v100 = add v41, 32
@@ -568,9 +568,9 @@ fn @fc() [selector=0xeb19e25e, abi_wrapper] {
     jumpi v88, bb16, bb3
   bb16:  ; preds = bb14
     mstore v117, v86
+    v89 = add v117, 32
     v90 = add v115, 32
     v91 = calldataload v90
-    v89 = add v117, 32
     mstore v89, v91
     v116 = add v115, 64
     v118 = add v117, 64

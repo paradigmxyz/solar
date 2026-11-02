@@ -168,10 +168,10 @@ fn @decode_aggregate(arg0: i256) -> i256 [may_return_memory] {
   bb6:  ; preds = bb7
     v36 = add v41, 32
     mcopy v36, v10, v15
+    v37 = add v36, v15
     v31 = sub 0, v15
     v32 = and v31, 31
     v48 = calldatasize
-    v37 = add v36, v15
     calldatacopy v37, v48, v32
     ret v41
   bb4 [cold]:  ; preds = bb3, bb5
@@ -194,8 +194,8 @@ fn @encode_abi_tuple(arg0: i256) -> slice<memory> [may_return_memory, return_abi
     v9 = add v2, v7
     mstore v9, 0
     mstore v2, v5
-    v11 = add v8, v7
     v17 = add arg0, 32
+    v11 = add v8, v7
     mcopy v8, v17, v5 !metadata(memory=heap, disjoint)
     v13 = sub v11, v23
     ret v23, v13

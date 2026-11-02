@@ -79,8 +79,8 @@ fn @bytesTail() [selector=0x56818b01, abi_wrapper, pure] {
     v46 = add v40, v44
     mstore v46, 0
     mstore v40, v42
-    v48 = add v45, v44
     v57 = add v67, 32
+    v48 = add v45, v44
     icall @mcopy_words, v45, v57, v42 !metadata(memory=heap, effect=memory_write)
     v49 = sub v48, v39
     v72 = add v49, 63
@@ -343,8 +343,8 @@ fn @pair() [selector=0x9f4b9fa0, abi_wrapper, pure] {
     mstore v31, v11
     v40 = add v37, v14
     icall @mcopy_words, v37, v57, v11
-    v44 = sub v40, v65
     v42 = add v65, 32
+    v44 = sub v40, v65
     mstore v42, v44
     v48 = add v40, 32
     v49 = add v40, v14

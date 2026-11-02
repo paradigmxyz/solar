@@ -124,10 +124,10 @@ fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
   bb9:  ; preds = bb8
     v107 = add v125, 32
     mcopy v107, v47, v52
+    v108 = add v107, v52
     v68 = sub 0, v52
     v69 = and v68, 31
     v129 = calldatasize
-    v108 = add v107, v52
     calldatacopy v108, v129, v69
     v110 = add v26, 64
     mstore v110, v125
@@ -149,8 +149,8 @@ fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
     v89 = add v80, v87
     mstore v89, 0
     mstore v80, v85
-    v91 = add v88, v87
     v114 = add v122, 32
+    v91 = add v88, v87
     mcopy v88, v114, v85 !metadata(memory=heap, disjoint)
     v93 = add v128, 64
     mstore v93, v9
@@ -351,10 +351,10 @@ fn @decode_memory_type(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_m
   bb6:  ; preds = bb5
     v64 = add v77, 32
     mcopy v64, v12, v17
+    v65 = add v64, v17
     v33 = sub 0, v17
     v34 = and v33, 31
     v81 = calldatasize
-    v65 = add v64, v17
     calldatacopy v65, v81, v34
     v67 = add v79, 32
     mstore v67, v77

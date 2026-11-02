@@ -84,6 +84,9 @@ bb4 [cold]:
 bb9:  ; function pointer() external returns (uint256) [selector 0x2f5f3b3c]
   push 0
   sload
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  dup 2
+  and
   push 0
   push 160
   mstore
@@ -96,9 +99,7 @@ bb9:  ; function pointer() external returns (uint256) [selector 0x2f5f3b3c]
   push 0x3fa4f24500000000000000000000000000000000000000000000000000000000
   dup 2
   mstore
-  push 0xffffffffffffffffffffffffffffffffffffffff
-  dup 3
-  and
+  swap 1
   extcodesize
   iszero
   push bb4

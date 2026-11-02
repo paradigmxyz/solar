@@ -40,8 +40,8 @@ fn @encodeFirst() [selector=0xe9a7b169, abi_wrapper, pure] {
     v17 = add v10, v15
     mstore v17, 0
     mstore v10, v13
-    v19 = add v16, v15
     v25 = add v4, 32
+    v19 = add v16, v15
     mcopy v16, v25, v13 !metadata(memory=heap, disjoint)
     v21 = sub v19, v28
     returndata v28, v21
@@ -68,8 +68,8 @@ fn @encodeSecond() [selector=0x108c1ec5, abi_wrapper, pure] {
     v17 = add v10, v15
     mstore v17, 0
     mstore v10, v13
-    v19 = add v16, v15
     v25 = add v7, 32
+    v19 = add v16, v15
     mcopy v16, v25, v13 !metadata(memory=heap, disjoint)
     v21 = sub v19, v28
     returndata v28, v21
@@ -424,8 +424,8 @@ fn @encode_abi_array(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     mstore v7, v13
     v14 = shl v13, 5
     v15 = add v7, 32
-    v17 = add v15, v14
     v16 = add v11, 32
+    v17 = add v15, v14
     mcopy v15, v16, v14 !metadata(memory=heap, disjoint)
     v18 = sub v6, 1
     v19 = add v8, 32

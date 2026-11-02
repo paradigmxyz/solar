@@ -85,8 +85,8 @@ fn @copy() [selector=0x53a33458, abi_wrapper, pure] {
     v125 = add v124, 32
     v127 = add v145, 32
     v43 = add v125, v69
-    v45 = lt v127, v43
     v44 = add v127, v69
+    v45 = lt v127, v43
     v46 = lt v146, v44
     v47 = and v45, v46
     v51 = lt v125, v135
@@ -139,8 +139,8 @@ fn @copy() [selector=0x53a33458, abi_wrapper, pure] {
     v112 = add v105, v110
     mstore v112, 0
     mstore v105, v108
-    v114 = add v111, v110
     v122 = add v145, 32
+    v114 = add v111, v110
     mcopy v111, v122, v108 !metadata(memory=heap, disjoint)
     v116 = add v153, 32
     mstore v116, v33
@@ -320,8 +320,8 @@ fn @grownPast() [selector=0xd89b44d4, abi_wrapper, pure] {
     v65 = add v83, 72
     v67 = add v82, 32
     v37 = add v65, 64
-    v39 = lt v67, v37
     v38 = add v67, 64
+    v39 = lt v67, v37
     v40 = lt v83, v38
     v41 = and v39, v40
     v45 = lt v65, v4

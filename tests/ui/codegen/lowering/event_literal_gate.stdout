@@ -68,13 +68,13 @@ fn @zeros() [selector=0x4cd212eb, abi_wrapper] {
     v28 = heap_floor !metadata(alloc_ptr)
     v29 = add v28, 96 !metadata(alloc_ptr)
     mstore v28, 40
+    v24 = add v28, 32
     v7 = add v28, 160
     mstore v29, 64
     v13 = add v7, 32
     v14 = add v7, 64
     mstore v14, 0
     mstore v7, 40
-    v24 = add v28, 32
     mcopy v13, v24, 40 !metadata(disjoint)
     v18 = add v28, 128
     mstore v18, 1

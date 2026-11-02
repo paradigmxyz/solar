@@ -68,8 +68,8 @@ fn @uncheckedDown() [selector=0x0a3fd26a, abi_wrapper, pure] {
     v36 = or v34, v35
     jumpi v36, bb5, bb6
   bb6:  ; preds = bb2
-    v43 = add v48, arg1
     v68 = add v70, 32
+    v43 = add v48, arg1
     calldatacopy v68, v43, arg2
     jump bb1
   bb5 [cold]:  ; preds = bb2
@@ -130,8 +130,8 @@ fn @checkedDown() [selector=0xc6510b18, abi_wrapper, pure] {
     v35 = lt v45, v33
     jumpi v35, bb7, bb8
   bb8:  ; preds = bb6
-    v41 = add v46, arg1
     v66 = add v68, 32
+    v41 = add v46, arg1
     calldatacopy v66, v41, arg2
     jump bb1
   bb7 [cold]:  ; preds = bb6

@@ -24,10 +24,10 @@ fn @entry() [entry] {
 ; function narrowBase(uint8 base, uint256 extra) public pure returns (uint256 sum) [selector 0xc5e77450]
 fn @narrowBase() [selector=0xc5e77450, abi_wrapper, pure] {
   bb0:
-    v22 = calldataload 4
-    v23 = shr v22, 8
     v20 = calldatasize
     v21 = lt v20, 68
+    v22 = calldataload 4
+    v23 = shr v22, 8
     v25 = zext i1 v21 to i256
     v26 = or v23, v25
     v27 = ne v26, 0
@@ -122,10 +122,10 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     mstore v252, v138
     v121 = mload v259
     v125 = or v252, v138
-    v149 = shr v125, 64
     v127 = add v252, 1
     v130 = sub v259, v127
     v131 = lt v130, v3
+    v149 = shr v125, 64
     v151 = zext i1 v131 to i256
     v152 = or v149, v151
     v136 = eq v152, 0

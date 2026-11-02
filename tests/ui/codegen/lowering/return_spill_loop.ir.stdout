@@ -404,16 +404,15 @@ bb49 [continuation]:
   swap 1
   swap 4
   mstore
-  dup 3
-  add
   swap 4
   push 32
   add
-  swap 1
-  swap 2
+  dup 4
+  swap 5
+  dup 4
+  add
+  swap 3
   mcopy
-  dup 1
-  swap 2
   sub
   swap 1
   return

@@ -26,10 +26,10 @@ fn @entry() [entry] {
 ; function asValue(address to, uint256 v) external pure returns (bytes memory) [selector 0x440a9300]
 fn @asValue() [selector=0x440a9300, abi_wrapper, pure] {
   bb0:
-    v4 = calldataload 4
-    v5 = shr v4, 160
     v2 = calldatasize
     v3 = lt v2, 68
+    v4 = calldataload 4
+    v5 = shr v4, 160
     v57 = zext i1 v3 to i256
     v58 = or v5, v57
     v59 = ne v58, 0
@@ -73,10 +73,10 @@ fn @asValue() [selector=0x440a9300, abi_wrapper, pure] {
 ; function viaCall(address token, address to, uint256 v) public returns (bool ok) [selector 0x23d014a1]
 fn @viaCall() [selector=0x23d014a1, abi_wrapper] {
   bb0:
-    v10 = calldataload 4
-    v11 = shr v10, 160
     v8 = calldatasize
     v9 = lt v8, 100
+    v10 = calldataload 4
+    v11 = shr v10, 160
     v29 = zext i1 v9 to i256
     v30 = or v11, v29
     v13 = calldataload 36

@@ -74,13 +74,13 @@ bb14 [cold]:
   push 0
   revert
 bb15 [loop]:  ; function pushRange(uint8 from, uint8 count) external [selector 0x4407bb95]
+  push 68
+  calldatasize
+  lt
   push 4
   calldataload
   push 8
   shr
-  push 68
-  calldatasize
-  lt
   or
   push 36
   calldataload
@@ -221,12 +221,12 @@ bb27 [loop]:
   dup 4
   push 0
   mstore
-  dup 1
-  push 5
-  shr
   push 32
   push 0
   keccak256
+  dup 2
+  push 5
+  shr
   add
   swap 1
   push 31
@@ -235,11 +235,12 @@ bb27 [loop]:
   sub
   push 3
   shl
-  dup 2
-  sload
   push 255
-  dup 3
+  dup 2
   shl
+  dup 3
+  sload
+  swap 1
   not
   and
   swap 2
@@ -314,16 +315,14 @@ bb30:  ; function popOne() external [selector 0x53b8a6c6]
   dup 3
   push 0
   mstore
-  dup 1
-  push 5
-  shr
   push 32
   push 0
   keccak256
+  dup 2
+  push 5
+  shr
   add
-  dup 1
-  sload
-  swap 2
+  swap 1
   push 31
   and
   push 31
@@ -333,9 +332,10 @@ bb30:  ; function popOne() external [selector 0x53b8a6c6]
   push 255
   swap 1
   shl
-  not
+  dup 2
+  sload
   swap 1
-  swap 2
+  not
   and
   swap 1
   sstore
@@ -496,13 +496,13 @@ bb48:
   swap 1
   jump bb49
 bb49:
-  swap 1
-  sload
-  swap 1
   push 31
   and
   push 31
   sub
+  swap 1
+  sload
+  swap 1
   push 3
   shl
   shr
@@ -514,13 +514,13 @@ bb49:
   push 0
   return
 bb52:  ; function setAt(uint256 i, bytes1 b) external [selector 0xbee6975a]
+  push 68
+  calldatasize
+  lt
   push 36
   calldataload
   push 8
   shl
-  push 68
-  calldatasize
-  lt
   or
   push bb14
   jumpi
@@ -591,11 +591,12 @@ bb58:
   sub
   push 3
   shl
-  dup 2
-  sload
   push 255
-  dup 3
+  dup 2
   shl
+  dup 3
+  sload
+  swap 1
   not
   and
   push 36

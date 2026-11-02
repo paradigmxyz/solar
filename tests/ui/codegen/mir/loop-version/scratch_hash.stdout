@@ -111,9 +111,10 @@ fn @_level(arg0: i256) -> i256 [may_return_memory, pure] {
     calldatacopy v142, v149, v11
     mstore v142, v1
     v70 = mload arg0
+    v73 = or v142, v1
     v74 = shl v1, 5
-    v76 = add v74, 31
     v75 = add v142, 1
+    v76 = add v74, 31
     v78 = sub arg0, v75
     v79 = lt v78, v76
     v81 = zext i1 v79 to i256
@@ -123,7 +124,6 @@ fn @_level(arg0: i256) -> i256 [may_return_memory, pure] {
     v87 = lt arg0, 64
     v88 = zext i1 v87 to i256
     v89 = or v85, v88
-    v73 = or v142, v1
     v114 = shr v73, 64
     v116 = or v114, v89
     v92 = eq v116, 0

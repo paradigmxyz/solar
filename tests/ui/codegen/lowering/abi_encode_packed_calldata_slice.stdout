@@ -60,15 +60,15 @@ bb15 [ret=0, inputs=1, outputs=1]:  ; decode_calldata_slice (synthesized)
   swap 1
   jump
 bb7 [continuation]:
-  push 32
-  dup 2
-  add
-  swap 1
-  calldataload
   dup 3
-  gt
-  dup 4
-  dup 4
+  dup 3
+  lt
+  dup 3
+  dup 3
+  push 32
+  add
+  swap 3
+  calldataload
   lt
   or
   push bb4

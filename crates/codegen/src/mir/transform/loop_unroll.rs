@@ -140,8 +140,8 @@
 //! group advances the counter once. A copy that reads its step only as the
 //! address of one memory or calldata access, as a pointer's copies read their
 //! elements, sums too: its other offsets read the group's first pointer as
-//! `add p, s + c`, `evm-inst-schedule` moves the one remaining step next to its
-//! access, and the copies stop rewriting the pointer's stack slot between them.
+//! `add p, s + c`, and the one remaining step is read only by its access, so the
+//! copies stop rewriting the pointer's stack slot between them.
 //! A step read as a value, such as a counter added to an accumulator, keeps its
 //! chain: pinning the base on the stack measured slower there.
 //!
@@ -1216,10 +1216,10 @@ fn fold_steps(func: &mut Function, blocks: &[BlockId]) {
     for &block in blocks {
         for inst in func.blocks[block].instructions.clone() {
             // A sum reads the earlier step's base instead when nothing else reads the step, or
-            // only one access as its address: the step then lives only up to that access, which
-            // `evm-inst-schedule` moves next to it, and the copies stop rewriting the pointer's
-            // slot between them. A step read as a value, such as a counter added to an
-            // accumulator, keeps its chain: pinning the base on the stack measured slower there.
+            // only one access as its address: the step then lives only up to that access, and the
+            // copies stop rewriting the pointer's slot between them. A step read as a value, such
+            // as a counter added to an accumulator, keeps its chain: pinning the base on the stack
+            // measured slower there.
             if let Some((inner, outer)) = literal_sum(func, inst)
                 && let others = uses[inner] - sums.get(&inner).copied().unwrap_or_default()
                 && (others == 0 || (others == 1 && addresses.get(&inner) == Some(&1)))

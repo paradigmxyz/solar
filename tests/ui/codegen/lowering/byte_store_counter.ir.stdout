@@ -564,15 +564,15 @@ bb77 [continuation]:
   calldatacopy
   dup 4
   add
-  calldatasize
-  swap 4
+  swap 3
   push 0
   sub
   push 31
   and
+  calldatasize
+  swap 1
   swap 2
   swap 4
-  swap 1
   calldatacopy
   pop
   swap 1

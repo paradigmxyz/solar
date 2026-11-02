@@ -74,8 +74,8 @@ fn @fromCalldata() [selector=0xffc7a8b3, abi_wrapper, pure] {
     v66 = add v59, v1
     mstore v66, 0
     mstore v59, arg1
-    v68 = add v65, v1
     v76 = add v81, 32
+    v68 = add v65, v1
     mcopy v65, v76, arg1 !metadata(disjoint)
     v70 = add v88, 32
     mstore v70, 0
@@ -167,8 +167,8 @@ fn @fromFresh() [selector=0x1f6686bd, abi_wrapper, pure] {
     v120 = add v150, 32
     v122 = add v143, 32
     v58 = add v120, arg0
-    v60 = lt v122, v58
     v59 = add v122, arg0
+    v60 = lt v122, v58
     v61 = lt v150, v59
     v62 = and v60, v61
     jumpi v62, bb4, bb8
@@ -214,8 +214,8 @@ fn @fromFresh() [selector=0x1f6686bd, abi_wrapper, pure] {
     v108 = add v101, v106
     mstore v108, 0
     mstore v101, v104
-    v110 = add v107, v106
     v118 = add v143, 32
+    v110 = add v107, v106
     mcopy v107, v118, v104 !metadata(memory=heap, disjoint)
     v112 = add v157, 32
     mstore v112, 0

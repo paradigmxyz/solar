@@ -121,7 +121,7 @@ fn legal(op: &Op, target: &Target) -> bool {
 }
 
 /// Whether an instruction and its effect override are pure.
-pub(super) fn is_pure(inst: &Instruction) -> bool {
+fn is_pure(inst: &Instruction) -> bool {
     inst.kind.effect_kind() == EffectKind::Pure
         && inst.metadata.effect().is_none_or(|effect| effect == EffectKind::Pure)
 }

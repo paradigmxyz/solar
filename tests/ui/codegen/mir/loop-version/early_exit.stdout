@@ -42,15 +42,15 @@ fn @splitUntilZero() [selector=0x8ecf6ff0, abi_wrapper, pure] {
     v38 = add v7, 32
     v23 = add v21, v20
     mcopy v21, v38, v20 !metadata(memory=heap, disjoint)
-    v27 = sub v23, v44
     v25 = add v44, 64
+    v27 = sub v23, v44
     mstore v25, v27
     v28 = mload v8
     mstore v23, v28
     v29 = shl v28, 5
     v30 = add v23, 32
-    v32 = add v30, v29
     v40 = add v8, 32
+    v32 = add v30, v29
     mcopy v30, v40, v29 !metadata(memory=heap, disjoint)
     v34 = sub v32, v44
     returndata v44, v34
@@ -81,15 +81,15 @@ fn @overlappingSplit() [selector=0x69394704, abi_wrapper, pure] {
     v41 = add v11, 32
     v26 = add v24, v23
     mcopy v24, v41, v23 !metadata(memory=heap, disjoint)
-    v30 = sub v26, v45
     v28 = add v45, 64
+    v30 = sub v26, v45
     mstore v28, v30
     v31 = mload v1
     mstore v26, v31
     v32 = shl v31, 5
     v33 = add v26, 32
-    v35 = add v33, v32
     v42 = add v1, 32
+    v35 = add v33, v32
     mcopy v33, v42, v32 !metadata(memory=heap, disjoint)
     v37 = sub v35, v45
     returndata v45, v37
@@ -150,8 +150,6 @@ fn @_splitUntilZero(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memo
     v74 = shl v54, 5
     v75 = add arg2, 1
     v76 = add v74, 31
-    v125 = add v124, 32
-    v128 = add v127, 32
     v78 = sub arg0, v75
     v79 = lt v78, v76
     v80 = zext i1 v79 to i256
@@ -163,6 +161,8 @@ fn @_splitUntilZero(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memo
     v93 = shr v73, 64
     v95 = or v93, v86
     v89 = eq v95, 0
+    v125 = add v124, 32
+    v128 = add v127, 32
     jumpi v89, bb9, bb1
   bb9:  ; preds = bb12
     jump bb6

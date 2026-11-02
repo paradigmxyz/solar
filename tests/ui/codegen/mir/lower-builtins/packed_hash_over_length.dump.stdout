@@ -44,10 +44,10 @@ fn @signed() [selector=0x24401e82, abi_wrapper, pure] {
     v4 = add v0, 48
     v9 = or v4, 0x19457468657265756d205369676e6564204d6573736167653a0a00
     mstore v17, v9
+    v19 = add v17, 5
     v11 = add v0, 27
     v12 = sar v0, 255
     v13 = or v11, v12
-    v19 = add v17, 5
     v14 = keccak256 v19, v13
     mstore v17, v0
     mstore 0, v14 !metadata(memory=scratch)
@@ -66,10 +66,10 @@ fn @kept() [selector=0xc57c8563, abi_wrapper, pure] {
     v11 = icall @decode_calldata_type
     v3 = mload v11
     mstore v11, 7
+    v34 = add v11, 31
     v5 = add v3, 1
     v6 = sar v3, 255
     v7 = or v5, v6
-    v34 = add v11, 31
     v8 = keccak256 v34, v7
     mstore v11, v3
     v42 = mload 64 !metadata(memory=scratch, alloc_ptr)
@@ -84,8 +84,8 @@ fn @kept() [selector=0xc57c8563, abi_wrapper, pure] {
     v26 = add v17, v24
     mstore v26, 0
     mstore v17, v22
-    v28 = add v25, v24
     v36 = add v11, 32
+    v28 = add v25, v24
     mcopy v25, v36, v22 !metadata(memory=heap, disjoint)
     v30 = sub v28, v42
     returndata v42, v30
@@ -103,10 +103,10 @@ fn @narrow() [selector=0x3e18eba5, abi_wrapper, pure] {
     v9 = icall @decode_calldata_type
     v1 = mload v9
     mstore v9, 0xfffeabcd
+    v11 = add v9, 28
     v3 = add v1, 4
     v4 = sar v1, 255
     v5 = or v3, v4
-    v11 = add v9, 28
     v6 = keccak256 v11, v5
     mstore v9, v1
     mstore 0, v6 !metadata(memory=scratch)

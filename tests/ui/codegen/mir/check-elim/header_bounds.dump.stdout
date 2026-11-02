@@ -70,8 +70,8 @@ fn @search() [selector=0xd43fc471, abi_wrapper, pure] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb2:  ; preds = bb1
-    v30 = sub v6, 1
     v29 = ne v6, 0
+    v30 = sub v6, 1
     v45 = zext i1 v29 to i256
     v46 = mul v30, v45
     mstore 0, 0

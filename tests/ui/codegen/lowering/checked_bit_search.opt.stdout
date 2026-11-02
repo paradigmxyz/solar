@@ -118,8 +118,8 @@ fn @fls.3(arg0: i256) -> i256 [pure] {
     v37 = gt v75, 3
     v79 = zext i1 v37 to i256
     v80 = add v79, v79
-    v84 = or v78, v80
     v81 = shr v75, v80
+    v84 = or v78, v80
     v42 = shr v81, 1
     v43 = or v42, v84
     ret v43

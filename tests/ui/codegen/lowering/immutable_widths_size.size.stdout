@@ -28,29 +28,29 @@ bb0:  ; runtime dispatch entry + function read() external view returns (int8, in
   push_immutable 6, 1
   push 248
   shl
+  swap 6
+  push 0
+  signextend
   swap 5
   push 27
   signextend
   swap 4
   push 28
   signextend
-  swap 6
-  push 0
-  signextend
+  swap 5
   push 128
   mstore
   swap 3
   push 160
   mstore
-  swap 4
+  swap 3
   push 192
   mstore
   push 224
   mstore
-  swap 2
+  swap 1
   push 256
   mstore
-  swap 1
   push 288
   mstore
   push 320

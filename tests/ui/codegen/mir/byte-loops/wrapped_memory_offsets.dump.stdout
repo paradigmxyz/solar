@@ -138,10 +138,10 @@ fn @wordsForward() [selector=0xb2066b6b, abi_wrapper, pure] {
 ; function bytesIntoHeader(uint256 count, bool sameObject) external pure returns (bool) [selector 0x10ca09ba]
 fn @bytesIntoHeader() [selector=0x10ca09ba, abi_wrapper, pure, implicit_args=[i256, i1]] {
   bb0:
-    v7 = calldataload 36
-    v8 = shr v7, 1
     v5 = calldatasize
     v6 = lt v5, 68
+    v7 = calldataload 36
+    v8 = shr v7, 1
     v20 = zext i1 v6 to i256
     v21 = or v8, v20
     v22 = ne v21, 0
@@ -326,8 +326,8 @@ fn @_copyBytes(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [may_
     v75 = add arg1, arg3
     v76 = add v75, 32
     v32 = add v73, arg4
-    v34 = lt v76, v32
     v33 = add v76, arg4
+    v34 = lt v76, v32
     v35 = lt arg0, v33
     v36 = and v34, v35
     v37 = zext i1 v36 to i256
@@ -408,8 +408,8 @@ fn @_copyBytesDown(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [
     v71 = add arg1, arg3
     v72 = add v71, 32
     v34 = add v69, arg4
-    v36 = lt v72, v34
     v35 = add v72, arg4
+    v36 = lt v72, v34
     v37 = lt arg0, v35
     v38 = and v36, v37
     v39 = zext i1 v38 to i256
@@ -498,8 +498,8 @@ fn @_copyWords(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [may_
     v84 = add arg1, v28
     v85 = add v84, 32
     v34 = add v82, v24
-    v36 = lt v85, v34
     v35 = add v85, v24
+    v36 = lt v85, v34
     v37 = lt arg0, v35
     v38 = and v36, v37
     v39 = zext i1 v38 to i256
@@ -612,8 +612,8 @@ fn @_freshBytes(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory, 
   bb6:  ; preds = bb4
     v104 = calldatasize
     calldatacopy v87, v104, v1
-    v65 = lt v87, v35
     v64 = add v87, arg2
+    v65 = lt v87, v35
     v66 = lt arg0, v64
     v67 = and v65, v66
     v74 = or v67, v46
@@ -678,8 +678,8 @@ fn @_copyBytesSelf(arg0: i256, arg1: i256) [may_return_memory, pure] {
     jumpi v20, bb2, bb4
   bb4:  ; preds = bb0
     v54 = add arg0, 32
-    v27 = lt v54, arg0
     v26 = add v54, arg1
+    v27 = lt v54, arg0
     v28 = lt arg0, v26
     v29 = and v27, v28
     v33 = lt arg0, v54

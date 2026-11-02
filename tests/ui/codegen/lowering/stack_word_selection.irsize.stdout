@@ -25,17 +25,19 @@ bb0:  ; runtime dispatch entry
   pop
   dup 2
   dup 2
-  xor
+  or
   swap 1
   dup 3
   dup 2
-  and
+  xor
   swap 3
-  or
+  and
   jump bb11
 bb11:
+  swap 1
   push 0
   mstore
+  swap 1
   push 32
   mstore
   push 64
@@ -56,13 +58,13 @@ bb2:
   pop
   dup 2
   dup 2
-  or
+  and
   swap 1
   dup 3
   dup 2
-  xor
+  or
   swap 3
-  and
+  xor
   jump bb11
 bb3:
   dup 1
@@ -73,13 +75,13 @@ bb3:
   pop
   dup 2
   dup 2
-  xor
+  and
   swap 1
   dup 3
   dup 2
-  or
+  xor
   swap 3
-  and
+  or
   jump bb11
 bb4:
   push 0xcad0899b
@@ -90,9 +92,9 @@ bb4:
   dup 2
   dup 2
   dup 2
-  add
-  swap 4
   or
-  swap 2
+  swap 4
   and
+  swap 2
+  add
   jump bb11

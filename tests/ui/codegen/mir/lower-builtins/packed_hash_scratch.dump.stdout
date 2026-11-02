@@ -24,10 +24,10 @@ fn @entry() [entry] {
 ; function threeItems(uint256 role, address holder) external pure returns (bytes32) [selector 0x6e13fa5d]
 fn @threeItems() [selector=0x6e13fa5d, abi_wrapper, pure] {
   bb0:
-    v7 = calldataload 36
-    v8 = shr v7, 160
     v5 = calldatasize
     v6 = lt v5, 68
+    v7 = calldataload 36
+    v8 = shr v7, 160
     v10 = zext i1 v6 to i256
     v11 = or v8, v10
     v12 = ne v11, 0
@@ -47,17 +47,17 @@ fn @threeItems() [selector=0x6e13fa5d, abi_wrapper, pure] {
 ; function twoItems(uint256 role, address holder) external pure returns (bytes32) [selector 0x658c946c]
 fn @twoItems() [selector=0x658c946c, abi_wrapper, pure] {
   bb0:
-    v9 = calldataload 36
-    v10 = shr v9, 160
     v7 = calldatasize
     v8 = lt v7, 68
+    v9 = calldataload 36
+    v10 = shr v9, 160
     v12 = zext i1 v8 to i256
     v13 = or v10, v12
     v14 = ne v13, 0
     jumpi v14, bb1, bb2
   bb2:  ; preds = bb0
-    mstore 0, arg0
     v1 = or arg1, 0xee9853bb0000000000000000000000000000000000000000
+    mstore 0, arg0
     v5 = shl v1, 64
     mstore 32, v5 !metadata(memory=scratch)
     v6 = keccak256 0, 56 !metadata(memory=scratch)
@@ -70,10 +70,10 @@ fn @twoItems() [selector=0x658c946c, abi_wrapper, pure] {
 ; function tooLong(uint256 a, uint256 b, uint32 c) external pure returns (bytes32) [selector 0x70126c55]
 fn @tooLong() [selector=0x70126c55, abi_wrapper, pure] {
   bb0:
-    v11 = calldataload 68
-    v12 = shr v11, 32
     v9 = calldatasize
     v10 = lt v9, 100
+    v11 = calldataload 68
+    v12 = shr v11, 32
     v17 = zext i1 v10 to i256
     v18 = or v12, v17
     v19 = ne v18, 0

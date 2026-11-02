@@ -229,8 +229,8 @@ fn @strs() [selector=0x68f4ce0b, abi_wrapper, pure] {
     v90 = add v88, v80
     mstore v90, 0
     mstore v80, v86
-    v92 = add v89, v88
     v91 = add v84, 32
+    v92 = add v89, v88
     mcopy v89, v91, v86 !metadata(memory=heap, disjoint)
     v93 = sub v79, 1
     v94 = add v81, 32
@@ -259,10 +259,10 @@ fn @strs() [selector=0x68f4ce0b, abi_wrapper, pure] {
   bb12:  ; preds = bb11
     v107 = add v119, 32
     mcopy v107, v33, v38
+    v108 = add v107, v38
     v54 = sub 0, v38
     v55 = and v54, 31
     v121 = calldatasize
-    v108 = add v107, v38
     calldatacopy v108, v121, v55
     v56 = shl v28, 5
     v110 = add v118, v56
@@ -339,10 +339,10 @@ fn @mixed() [selector=0x6791505c, abi_wrapper, pure] {
   bb9:  ; preds = bb8
     v111 = add v120, 32
     mcopy v111, v47, v52
+    v112 = add v111, v52
     v68 = sub 0, v52
     v69 = and v68, 31
     v122 = calldatasize
-    v112 = add v111, v52
     calldatacopy v112, v122, v69
     v121 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v81 = add v121, 96
@@ -355,8 +355,8 @@ fn @mixed() [selector=0x6791505c, abi_wrapper, pure] {
     v88 = add v81, 32
     v90 = add v88, v87
     mcopy v88, v109, v87 !metadata(disjoint)
-    v94 = sub v90, v121
     v92 = add v121, 64
+    v94 = sub v90, v121
     mstore v92, v94
     v95 = mload v120
     v96 = add v95, 31

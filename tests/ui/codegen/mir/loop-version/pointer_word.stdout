@@ -40,8 +40,8 @@ fn @lastIndicesIn() [selector=0x16134912, abi_wrapper, pure] {
     mstore v17, v22
     v23 = shl v22, 5
     v24 = add v17, 32
-    v26 = add v24, v23
     v32 = add v9, 32
+    v26 = add v24, v23
     mcopy v24, v32, v23 !metadata(memory=heap, disjoint)
     v28 = sub v26, v36
     returndata v36, v28
@@ -99,10 +99,10 @@ fn @_lastIndicesIn(arg0: i256, arg1: i256, arg2: i256) -> i1 [may_return_memory,
     v60 = or arg2, v57
     v61 = shl v57, 5
     v63 = add v61, 31
-    v82 = shr v60, 64
     v66 = lt v65, v63
     v70 = sub arg0, v62
     v71 = lt v70, v63
+    v82 = shr v60, 64
     v84 = or v66, v71
     v86 = zext i1 v84 to i256
     v87 = or v82, v86
