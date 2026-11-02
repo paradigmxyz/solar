@@ -363,6 +363,9 @@ fn display_function_attributes(
         if func.attributes.hotness.is_cold() {
             write_function_attribute(f, &mut first, "cold")?;
         }
+        if func.attributes.cold_hint {
+            write_function_attribute(f, &mut first, "cold_hint")?;
+        }
         if let Some(optimization) = func.attributes.optimization {
             write_function_attribute(f, &mut first, format_args!("optimize={optimization}"))?;
         }

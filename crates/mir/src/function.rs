@@ -952,6 +952,9 @@ pub struct FunctionAttributes {
     /// The widest word the single array this function returns can hold, when element
     /// cleanup proved one. Its caller can re-encode the array without cleaning it.
     pub array_return_element_bits: Option<u32>,
+    /// The `@custom:solar-cold` tag marks the function rarely run. Unlike `hotness`, it says
+    /// nothing about whether the function returns.
+    pub cold_hint: bool,
     /// Whether every reachable exit aborts, so calls to this function are rare. Computed by the
     /// hotness analysis, which the pass manager reruns after every pass that changes the module.
     pub hotness: Hotness,
@@ -986,8 +989,16 @@ impl Default for FunctionAttributes {
             optimization: None,
             array_element_bits: FxHashMap::default(),
             array_return_element_bits: None,
+            cold_hint: false,
             hotness: Hotness::Hot,
         }
+    }
+}
+
+impl FunctionAttributes {
+    /// Whether the function is rarely run: every exit aborts, or its tag says so.
+    pub fn is_rarely_run(&self) -> bool {
+        self.hotness.is_cold() || self.cold_hint
     }
 }
 

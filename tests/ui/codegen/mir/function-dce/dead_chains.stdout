@@ -1,0 +1,58 @@
+- // === ROOT/tests/ui/codegen/mir/function-dce/dead_chains.mir (before function-dce) ===
++ // === ROOT/tests/ui/codegen/mir/function-dce/dead_chains.mir (after function-dce) ===
+  @module DeadChains
+  @phase lowered
+  ; runtime dispatch entry
+  fn @entry() [entry] {
+    bb0:
+      v0 = calldataload 0
+      v1 = shr v0, 224
+      switch v1, default bb2, [0xa444f5e9 => bb1]
+    bb1:  ; preds = bb0
+      tail_call @run
+    bb2 [cold]:  ; preds = bb0
+      revert 0, 0
+  }
+  
+  fn @run() {
+    bb0:
+      v0 = calldataload 4
+      v1 = icall @middle, v0
+      mstore 0, v1
+      returndata 0, 32
+  }
+  
+  fn @middle(arg0: i256) -> i256 {
+    bb0:
+      tail_call @leaf, arg0
+  }
+  
+  fn @leaf(arg0: i256) -> i256 {
+    bb0:
+      v0 = add arg0, 22
+-     ret v0
+- }
+- 
+- fn @dead_top(arg0: i256) -> i256 {
+-   bb0:
+-     v0 = icall @dead_leaf, arg0
+-     ret v0
+- }
+- 
+- fn @dead_leaf(arg0: i256) -> i256 {
+-   bb0:
+-     ret arg0
+- }
+- 
+- fn @dead_ping(arg0: i256) -> i256 {
+-   bb0:
+-     v0 = icall @dead_pong, arg0
+-     ret v0
+- }
+- 
+- fn @dead_pong(arg0: i256) -> i256 {
+-   bb0:
+-     v0 = icall @dead_ping, arg0
+      ret v0
+  }
+  

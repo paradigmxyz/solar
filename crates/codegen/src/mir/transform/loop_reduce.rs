@@ -23,7 +23,6 @@
 //! unknown rather than inheriting an arbitrary iteration's source checkpoint.
 
 use crate::{
-    backend::evm::op,
     mir::{
         BlockId, Function, FunctionBuilder, InstId, InstKind, MirType, Module, Terminator, Value,
         ValueId,
@@ -33,7 +32,6 @@ use crate::{
     },
     target::{Cost, Target},
 };
-use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
 
 /// Evaluates linear and quadratic additive recurrences at loop exits.
@@ -161,17 +159,7 @@ fn plan(func: &Function, l: &Loop, target: Target) -> Option<ClosedForm> {
         }
     }
 
-    let linear_cost = target.opcode(op::MUL) + target.opcode(op::ADD) + target.dup().times(2);
-    let mut after =
-        linear_cost.times(recurrences.len() as u32) + linear_cost.times(quadratic) + target.jump();
-    if quadratic != 0 {
-        after += target.opcode(op::SHR)
-            + target.opcode(op::SUB)
-            + target.opcode(op::OR)
-            + target.opcode(op::MUL)
-            + target.push(U256::from(1)).times(3)
-            + target.dup();
-    }
+    let after = target.loop_closed_form(recurrences.len() as u32, quadratic);
     let header_cost = target.block_code_estimate(func, header);
     let body_cost = body.iter().map(|&block| target.block_code_estimate(func, block)).sum::<Cost>();
     let trips = func.value_u64(count).unwrap_or(Target::UNCOUNTED_LOOP_ITERATIONS);

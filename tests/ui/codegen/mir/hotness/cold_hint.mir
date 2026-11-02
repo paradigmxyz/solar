@@ -1,0 +1,123 @@
+//@ revisions: gas size none
+//@[gas] compile-flags: -Zmir-pipeline=none -Ogas
+//@[size] compile-flags: -Zmir-pipeline=none -Osize
+//@[none] compile-flags: -Zmir-pipeline=none -O none
+@module ColdHint
+
+// A `cold_hint` function is rarely run, so every block of it is cold, but it may return: the
+// analysis leaves its `hotness` alone, and a call to it does not abort.
+fn @slow(arg0: i1) -> i256 [cold_hint] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    ret 1
+  bb2:
+    ret 2
+}
+
+// A call to it on the only path leaves every block of the caller hot: only a cold edge makes the
+// code behind a call cold, never a straight-line path.
+fn @always(arg0: i1) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = icall @slow, arg0
+    jump bb2
+  bb2:
+    ret v0
+}
+
+// A branch into a call is a cold edge: the call's block and the block only it reaches are cold,
+// while the test and the join stay hot.
+fn @region(arg0: i1) -> i256 {
+  bb0:
+    jumpi arg0, bb1, bb3
+  bb1:
+    v0 = icall @slow, arg0
+    jump bb2
+  bb2:
+    jump bb3
+  bb3:
+    ret 2
+}
+
+// Only the region behind the innermost branch to the call is cold.
+fn @nested(arg0: i1, arg1: i1) -> i256 {
+  bb0:
+    jumpi arg0, bb1, bb4
+  bb1:
+    jumpi arg1, bb2, bb4
+  bb2:
+    v0 = icall @slow, arg0
+    jump bb3
+  bb3:
+    jump bb4
+  bb4:
+    ret 2
+}
+
+// A call in a loop body behind a test is cold; the loop around it stays hot.
+fn @loop_body(arg0: i1, arg1: i1) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    jumpi arg0, bb2, bb5
+  bb2:
+    jumpi arg1, bb3, bb4
+  bb3:
+    v0 = icall @slow, arg0
+    jump bb4
+  bb4:
+    jump bb1
+  bb5:
+    ret 2
+}
+
+// A loop before the call does not make the call's path cold: the call is still on the only path
+// to the exit.
+fn @loop_then_call(arg0: i1) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    jumpi arg0, bb2, bb3
+  bb2:
+    jump bb1
+  bb3:
+    v0 = icall @slow, arg0
+    jump bb4
+  bb4:
+    ret v0
+}
+
+// A loop that only reaches a revert stays as the objective leaves it, a seed elsewhere in the
+// function or not: a size build keeps it hot, and the gas objective marks it cold.
+fn @failure_loop(arg0: i1, arg1: i1, arg2: i1) -> i256 {
+  bb0:
+    jumpi arg0, bb1, bb4
+  bb1:
+    jumpi arg1, bb2, bb3
+  bb2:
+    jump bb1
+  bb3:
+    jump bb5
+  bb4:
+    jumpi arg2, bb6, bb7
+  bb5:
+    revert 0, 0
+  bb6:
+    v0 = icall @slow, arg0
+    ret v0
+  bb7:
+    ret 1
+}
+
+// A call that returns is the only way out of a branch whose other edge aborts, so it is not cold.
+fn @abort_or_call(arg0: i1) -> i256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v0 = icall @slow, arg0
+    ret v0
+}

@@ -34,7 +34,7 @@ impl MirModuleTarget for Module {
     }
 
     fn target_of(&self, gcx: Gcx<'_>, func: &Function) -> Target {
-        Target::new(gcx, self.objective_of(func)).priced_for_cold(func.attributes.hotness.is_cold())
+        Target::new(gcx, self.objective_of(func)).priced_for_cold(func.attributes.is_rarely_run())
     }
 }
 

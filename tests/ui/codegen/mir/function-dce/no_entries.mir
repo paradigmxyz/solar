@@ -1,0 +1,19 @@
+//@ compile-flags: -Zmir-pipeline=function-dce
+//@ filecheck:
+// A module with no entry point has no reachable set to prune against, so it keeps every function.
+@module NoEntries
+
+// CHECK-NOT: {{^- +fn @}}
+// CHECK: {{^ +fn @helper}}
+fn @helper() -> i256 {
+  bb0:
+    ret 1
+}
+
+// CHECK: {{^ +fn @other}}
+// CHECK-NOT: {{^- +fn @}}
+fn @other() -> i256 {
+  bb0:
+    v0 = icall @helper
+    ret v0
+}
