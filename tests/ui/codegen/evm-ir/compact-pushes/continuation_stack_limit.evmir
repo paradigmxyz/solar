@@ -342,3 +342,18 @@ bb57:
   push 0xffffffffffffffffffffffffffffffffffffffff
   pop
   jump
+
+// An address that its block pushes and jumps through, with no edge back into the block, grows its
+// stack by one word on every round of the bound, so the search for the bound must give up and
+// leave the other block's push alone.
+// CHECK-LABEL: bb59:
+// CHECK-NEXT: {{^ +}}push 0xffffffffffffffffffffffffffffffffffffffff
+bb58 [stack=0]:
+  push 1
+  push bb58
+  jump
+
+bb59:
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  pop
+  stop

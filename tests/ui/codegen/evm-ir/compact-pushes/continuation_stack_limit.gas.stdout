@@ -244,4 +244,12 @@
     push 0xffffffffffffffffffffffffffffffffffffffff
     pop
     jump
+  bb58 [stack=0]:
+    push 1
+    push bb58
+    jump
+  bb59:
+    push 0xffffffffffffffffffffffffffffffffffffffff
+    pop
+    stop
   
