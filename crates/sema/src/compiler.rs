@@ -310,6 +310,7 @@ fn log_ast_arenas_stats(arenas: &mut ThreadLocal<solar_ast::Arena>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use solar_interface::config::{CompileOpts, CompilerStage};
     use std::path::PathBuf;
 
     // --- copy from `crates/interface/src/session.rs`
@@ -445,6 +446,28 @@ mod tests {
             parse_dummy_file(c);
             parse_dummy_file(c);
         });
+    }
+
+    fn stop_after_test(stop_after: CompilerStage, expected: [ControlFlow<()>; 2]) {
+        let opts = CompileOpts { stop_after: Some(stop_after), ..Default::default() };
+        let sess = Session::builder().opts(opts).with_test_emitter().build();
+        let mut compiler = Compiler::new(sess);
+        compiler.enter_mut(|c| {
+            parse_dummy_file(c);
+            let lowering = c.lower_asts().unwrap();
+            let analysis = if lowering.is_continue() { c.analysis().unwrap() } else { lowering };
+            assert_eq!([lowering, analysis], expected, "--stop-after={stop_after}");
+            assert_eq!(c.gcx().stage(), Some(stop_after));
+        });
+    }
+
+    #[test]
+    fn stop_after() {
+        use ControlFlow::{Break, Continue};
+
+        stop_after_test(CompilerStage::Parsing, [Break(()), Break(())]);
+        stop_after_test(CompilerStage::Lowering, [Continue(()), Break(())]);
+        stop_after_test(CompilerStage::Analysis, [Continue(()), Break(())]);
     }
 
     #[test]
