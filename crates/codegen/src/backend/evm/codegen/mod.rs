@@ -311,11 +311,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             .iter()
             .any(|func| func.attributes.is_fallback && !func.params.is_empty())
         {
-            self.gcx
-                .dcx()
-                .err("codegen does not support `fallback(bytes) returns (bytes)` yet")
-                .span(module.name.span)
-                .emit();
+            self.gcx.dcx().emit_err(
+                module.name.span,
+                None,
+                "codegen does not support `fallback(bytes) returns (bytes)` yet",
+            );
             return true;
         }
 
@@ -336,8 +336,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 let span = inst.metadata.source_span().unwrap_or(module.name.span);
                 self.gcx
                     .dcx()
-                    .err(message)
-                    .span(span)
+                    .err_at(span, None, message)
                     .note(format!("remaining MIR slice is in function `{}`", func.name))
                     .emit();
                 emitted = true;

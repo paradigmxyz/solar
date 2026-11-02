@@ -475,11 +475,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             Decline::StackLimit => self.report_stack_limit_error(),
             Decline::Unsupported(func, reason) => {
                 let func = &module.functions[func];
-                self.gcx
-                    .dcx()
-                    .err(format!("codegen cannot lower `{}`: {reason}", func.name))
-                    .span(func.name_span)
-                    .emit();
+                self.gcx.dcx().emit_err(
+                    func.name_span,
+                    None,
+                    format!("codegen cannot lower `{}`: {reason}", func.name),
+                );
             }
         }
     }
