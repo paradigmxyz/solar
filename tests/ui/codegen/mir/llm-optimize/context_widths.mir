@@ -1,0 +1,29 @@
+//@ compile-flags: -Zmir-pipeline=llm-optimize -Zllm-optimize=script -Zllm-trace --evm-version=cancun
+//@ compile-flags: -Zllm-script=../../tests/ui/codegen/mir/llm-optimize/auxiliary/context_widths.script
+// The EVM bounds no gas price to 64 bits, and the compiler relies on no such bound either: a
+// candidate dropping the mask that keeps `gasprice`'s low 64 bits is rejected. An address has 160
+// bits, so dropping the mask of `caller` passes.
+@module ContextWidths
+@phase lowered
+fn @main() [entry] {
+  bb0:
+    v0 = icall @price
+    v1 = icall @sender
+    v2 = add v0, v1
+    mstore 0, v2
+    returndata 0, 32
+}
+
+fn @price() -> i256 {
+  bb0:
+    v0 = gasprice
+    v1 = and v0, 0xffffffffffffffff
+    ret v1
+}
+
+fn @sender() -> i256 {
+  bb0:
+    v0: i256 = caller
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    ret v1
+}

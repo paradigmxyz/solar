@@ -81,6 +81,14 @@ pub struct Function {
 }
 
 impl Function {
+    /// Replaces the executable body while retaining the original signature and attributes.
+    pub fn replace_body(&mut self, body: Self) {
+        debug_assert_eq!(self.params, body.params);
+        self.arg_types = body.arg_types;
+        self.values = body.values;
+        self.instructions = body.instructions;
+        self.blocks = body.blocks;
+    }
     /// Creates a new function.
     #[must_use]
     pub fn new(name: Ident) -> Self {

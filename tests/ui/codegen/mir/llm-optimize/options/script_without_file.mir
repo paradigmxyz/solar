@@ -1,0 +1,9 @@
+//@ compile-flags: -Zllm-optimize=script
+@module Options
+@phase lowered
+fn @main() [entry] {
+  bb0:
+    stop
+}
+
+//~? ERROR: `-Zllm-optimize=script` requires `-Zllm-script`

@@ -1,0 +1,2 @@
+error: `-Zllm-optimize=script` requires `-Zllm-script`
+

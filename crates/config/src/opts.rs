@@ -2,8 +2,8 @@
 
 use crate::{
     ColorChoice, CompilerOutput, CompilerStage, Debugify, Dump, ErrorFormat, EvmVersion,
-    HumanEmitterKind, ImportRemapping, Language, LibraryAddress, OptimizationMode, RevertStrings,
-    SwitchLowering, Threads, Tune,
+    HumanEmitterKind, ImportRemapping, Language, LibraryAddress, LlmEffort, LlmOptimizeMode,
+    OptimizationMode, RevertStrings, SwitchLowering, Threads, Tune,
 };
 use std::{num::NonZeroUsize, path::PathBuf};
 
@@ -477,6 +477,63 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(skip))]
     pub forget_gcx: bool,
 
+    /// Rewrite eligible functions of lowered MIR with the `llm-optimize` pass, taking rewrites
+    /// from the cache (`replay`), a model (`live`), or a script (`script`). Rewrites are tested,
+    /// not proved.
+    #[cfg_attr(
+        feature = "clap",
+        arg(
+            long,
+            value_enum,
+            require_equals = true,
+            value_name = "MODE",
+            hide_possible_values = true
+        )
+    )]
+    pub llm_optimize: Option<LlmOptimizeMode>,
+
+    /// Directory of `llm-optimize` rewrites, read in every mode and written unless replaying.
+    #[cfg_attr(
+        feature = "clap",
+        arg(long, require_equals = true, value_name = "DIR", value_hint = ValueHint::DirPath)
+    )]
+    pub llm_cache: Option<PathBuf>,
+
+    /// File of scripted `llm-optimize` candidates, for `-Zllm-optimize=script`.
+    #[cfg_attr(
+        feature = "clap",
+        arg(long, require_equals = true, value_name = "FILE", value_hint = ValueHint::FilePath)
+    )]
+    pub llm_script: Option<PathBuf>,
+
+    /// Model that `-Zllm-optimize=live` asks, as `PROVIDER/MODEL` with provider `openai`,
+    /// `anthropic`, `opencode`, or `openai-chat`; a model without a provider is an OpenAI one.
+    #[cfg_attr(feature = "clap", arg(long, require_equals = true, value_name = "MODEL"))]
+    pub llm_model: Option<String>,
+
+    /// Base URL of the API `-Zllm-optimize=live` asks, replacing its provider's.
+    #[cfg_attr(feature = "clap", arg(long, require_equals = true, value_name = "URL"))]
+    pub llm_endpoint: Option<String>,
+
+    /// Reasoning effort `-Zllm-optimize=live` asks the model for.
+    #[cfg_attr(
+        feature = "clap",
+        arg(long, value_enum, require_equals = true, value_name = "EFFORT")
+    )]
+    pub llm_effort: Option<LlmEffort>,
+
+    /// Candidates `llm-optimize` asks for per function (default: 6).
+    #[cfg_attr(feature = "clap", arg(long, require_equals = true, value_name = "N"))]
+    pub llm_rounds: Option<usize>,
+
+    /// Generated inputs `llm-optimize` runs each candidate on (default: 512).
+    #[cfg_attr(feature = "clap", arg(long, require_equals = true, value_name = "N"))]
+    pub llm_samples: Option<usize>,
+
+    /// Print what `llm-optimize` offers, hears, and decides.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub llm_trace: bool,
+
     // ----------------------------------------
     // Please add new options above this point!
     // ----------------------------------------
@@ -544,6 +601,15 @@ impl UnstableOpts {
             time_passes: _,
             forget_gcx: _,
             help: _,
+            llm_optimize,
+            llm_cache,
+            llm_script,
+            llm_model,
+            llm_endpoint,
+            llm_effort,
+            llm_rounds,
+            llm_samples,
+            llm_trace,
             _non_exhaustive: _,
             #[cfg(test)]
                 test_bool: _,
@@ -560,6 +626,15 @@ impl UnstableOpts {
         self.switch_max_bit_slice_gas_code_growth = switch_max_bit_slice_gas_code_growth;
         self.tune = tune;
         self.pack_wide_jump_tables = pack_wide_jump_tables;
+        self.llm_optimize = llm_optimize;
+        self.llm_cache = llm_cache;
+        self.llm_script = llm_script;
+        self.llm_model = llm_model;
+        self.llm_endpoint = llm_endpoint;
+        self.llm_effort = llm_effort;
+        self.llm_rounds = llm_rounds;
+        self.llm_samples = llm_samples;
+        self.llm_trace = llm_trace;
     }
 }
 
