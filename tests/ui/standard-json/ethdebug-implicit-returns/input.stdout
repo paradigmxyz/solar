@@ -1330,7 +1330,7 @@
       "id": "solar-COMPILATION_ID",
       "compiler": {
         "name": "solar",
-        "version": "VERSION"
+        "version": "0.0.0"
       },
       "sources": [
         {
