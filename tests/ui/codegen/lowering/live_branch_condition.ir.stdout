@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/live_branch_condition.sol:LiveBranchCondition (runtime) ===
 @module LiveBranchCondition_runtime
-bb0:  ; runtime dispatch entry
+bb0:  ; runtime dispatch entry + function next(uint256 x) external pure returns (uint256) [selector 0xedd004e5]
   push 36
   calldatasize
   lt
   callvalue
   or
-  push bb12
+  push bb4
   jumpi
   push 0
   calldataload
@@ -14,54 +14,54 @@ bb0:  ; runtime dispatch entry
   shr
   dup 1
   push 0x75de2d6b
-  sub
-  push bb2
+  eq
+  push bb8
   jumpi
-  pop
+  dup 1
+  push 0xedd004e5
+  sub
+  push bb4
+  jumpi
+  push 1
+  push 4
+  calldataload
+  add
+  dup 1
+  iszero
+  push bb7
+  jumpi
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb4 [cold]:
+  push 0
+  push 0
+  revert
+bb8:  ; function both(uint256 x) external pure returns (uint256) [selector 0x75de2d6b]
   push 4
   calldataload
   dup 1
   dup 1
-  push bb8
+  push bb9
   jumpi
   pop
   push 7
   add
-  jump bb11
-bb11:
+  jump bb12
+bb12:
   push 0
   mstore
   push 32
   push 0
   return
-bb12 [cold]:
-  push 0
-  push 0
-  revert
-bb2:
-  push 0xedd004e5
-  sub
-  push bb12
-  jumpi
-  push 4
-  calldataload
-  push 1
-  add
-  dup 1
-  iszero
-  push bb6
-  jumpi
-  push 0
-  mstore
-  push 32
-  push 0
-  return
-bb8:
+bb9:
   pop
   push 9
   add
-  jump bb11
-bb6 [cold]:
+  jump bb12
+bb7 [cold]:
   push 17
   push 32
   mstore

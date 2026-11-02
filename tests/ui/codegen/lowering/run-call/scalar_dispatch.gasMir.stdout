@@ -14,75 +14,108 @@ fn @entry() [entry] {
   bb2:  ; preds = bb0
     v6 = calldataload 0
     v7 = shr v6, 224
-    v49 = calldataload 4
-    v50 = calldataload 36
-    v51 = calldataload 68
     switch v7, default bb1, [0xf92ced6 => bb3, 0x214636e1 => bb4, 0x82829e9f => bb5, 0xe6dd5714 => bb6]
   bb6:  ; preds = bb2
-    jump bb16
-  bb16:  ; preds = bb6, bb18
-    v42 = phi [bb6: v49], [bb18: v46]
-    v43 = phi [bb6: v50], [bb18: v47]
-    v44 = phi [bb6: 0], [bb18: v48]
-    v45 = lt v44, v51
-    jumpi v45, bb18, bb17
-  bb17:  ; preds = bb16
-    mstore 0, v42
-    returndata 0, 32
-  bb18:  ; preds = bb16
-    v46 = and v42, v43
-    v47 = add v43, v44
-    v48 = add v44, 1
-    jump bb16
+    tail_call @sumDifference
   bb5:  ; preds = bb2
-    jump bb13
-  bb13:  ; preds = bb5, bb15
-    v32 = phi [bb5: v49], [bb15: v36]
-    v33 = phi [bb5: v50], [bb15: v37]
-    v34 = phi [bb5: 0], [bb15: v38]
-    v35 = lt v34, v51
-    jumpi v35, bb15, bb14
-  bb14:  ; preds = bb13
-    mstore 0, v32
-    returndata 0, 32
-  bb15:  ; preds = bb13
-    v36 = sub v33, v32
-    v37 = add v33, v34
-    v38 = add v34, 1
-    jump bb13
+    tail_call @complement
   bb4:  ; preds = bb2
-    jump bb10
-  bb10:  ; preds = bb4, bb12
-    v22 = phi [bb4: v49], [bb12: v26]
-    v23 = phi [bb4: v50], [bb12: v27]
-    v24 = phi [bb4: 0], [bb12: v28]
-    v25 = lt v24, v51
-    jumpi v25, bb12, bb11
-  bb11:  ; preds = bb10
-    mstore 0, v22
-    returndata 0, 32
-  bb12:  ; preds = bb10
-    v26 = xor v22, v23
-    v27 = add v23, v24
-    v28 = add v24, 1
-    jump bb10
+    tail_call @difference
   bb3:  ; preds = bb2
-    jump bb7
-  bb7:  ; preds = bb3, bb9
-    v11 = phi [bb3: v49], [bb9: v16]
-    v12 = phi [bb3: v50], [bb9: v17]
-    v13 = phi [bb3: 0], [bb9: v18]
-    v14 = lt v13, v51
-    jumpi v14, bb9, bb8
-  bb8:  ; preds = bb7
-    mstore 0, v11
-    returndata 0, 32
-  bb9:  ; preds = bb7
-    v15 = not v12
-    v16 = and v15, v11
-    v17 = add v12, v13
-    v18 = add v13, 1
-    jump bb7
+    tail_call @absorb
   bb1 [cold]:  ; preds = bb0, bb2
     revert 0, 0
+}
+
+; function difference(uint256 x, uint256 y, uint256 rounds) external pure returns (uint256) [selector 0x214636e1]
+fn @difference() {
+  bb0:
+    v15 = calldataload 4
+    v16 = calldataload 36
+    v17 = calldataload 68
+    jump bb1
+  bb1:  ; preds = bb0, bb3
+    v0 = phi [bb0: v15], [bb3: v10]
+    v1 = phi [bb0: v16], [bb3: v11]
+    v4 = phi [bb0: 0], [bb3: v12]
+    v5 = lt v4, v17
+    jumpi v5, bb3, bb2
+  bb2:  ; preds = bb1
+    mstore 0, v0 !metadata(memory=scratch)
+    returndata 0, 32
+  bb3:  ; preds = bb1
+    v10 = xor v0, v1
+    v11 = add v1, v4
+    v12 = add v4, 1
+    jump bb1
+}
+
+; function sumDifference(uint256 x, uint256 y, uint256 rounds) external pure returns (uint256) [selector 0xe6dd5714]
+fn @sumDifference() {
+  bb0:
+    v15 = calldataload 4
+    v16 = calldataload 36
+    v17 = calldataload 68
+    jump bb1
+  bb1:  ; preds = bb0, bb3
+    v0 = phi [bb0: v15], [bb3: v10]
+    v1 = phi [bb0: v16], [bb3: v11]
+    v4 = phi [bb0: 0], [bb3: v12]
+    v5 = lt v4, v17
+    jumpi v5, bb3, bb2
+  bb2:  ; preds = bb1
+    mstore 0, v0 !metadata(memory=scratch)
+    returndata 0, 32
+  bb3:  ; preds = bb1
+    v10 = and v0, v1
+    v11 = add v1, v4
+    v12 = add v4, 1
+    jump bb1
+}
+
+; function complement(uint256 x, uint256 y, uint256 rounds) external pure returns (uint256) [selector 0x82829e9f]
+fn @complement() {
+  bb0:
+    v15 = calldataload 4
+    v16 = calldataload 36
+    v17 = calldataload 68
+    jump bb1
+  bb1:  ; preds = bb0, bb3
+    v0 = phi [bb0: v15], [bb3: v10]
+    v1 = phi [bb0: v16], [bb3: v11]
+    v4 = phi [bb0: 0], [bb3: v12]
+    v5 = lt v4, v17
+    jumpi v5, bb3, bb2
+  bb2:  ; preds = bb1
+    mstore 0, v0 !metadata(memory=scratch)
+    returndata 0, 32
+  bb3:  ; preds = bb1
+    v10 = sub v1, v0
+    v11 = add v1, v4
+    v12 = add v4, 1
+    jump bb1
+}
+
+; function absorb(uint256 x, uint256 y, uint256 rounds) external pure returns (uint256) [selector 0x0f92ced6]
+fn @absorb() {
+  bb0:
+    v17 = calldataload 4
+    v18 = calldataload 36
+    v19 = calldataload 68
+    jump bb1
+  bb1:  ; preds = bb0, bb3
+    v0 = phi [bb0: v17], [bb3: v10]
+    v1 = phi [bb0: v18], [bb3: v11]
+    v4 = phi [bb0: 0], [bb3: v12]
+    v5 = lt v4, v19
+    jumpi v5, bb3, bb2
+  bb2:  ; preds = bb1
+    mstore 0, v0 !metadata(memory=scratch)
+    returndata 0, 32
+  bb3:  ; preds = bb1
+    v13 = not v1
+    v10 = and v13, v0
+    v11 = add v1, v4
+    v12 = add v4, 1
+    jump bb1
 }

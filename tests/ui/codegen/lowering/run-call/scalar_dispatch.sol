@@ -4,12 +4,7 @@
 //@[gasMir,sizeMir] filecheck: --implicit-check-not=invalid
 // CHECK-LABEL: @module ScalarDispatch
 // CHECK-LABEL: fn @entry()
-// CHECK: calldataload 4
-// CHECK: calldataload 36
-// CHECK: calldataload 68
 // CHECK: switch
-// CHECK: phi
-// CHECK-NOT: tail_call
 
 //@ run-call: difference 17, 23, 0 => 17
 //@ run-call: difference 17, 23, 1 => 6

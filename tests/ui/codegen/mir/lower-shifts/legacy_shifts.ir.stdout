@@ -11,43 +11,29 @@ bb0:  ; runtime dispatch entry
   dup 1
   push 0x6626c818
   eq
-  push bb5
+  push bb8
   jumpi
   dup 1
   push 0x97471385
   eq
-  push bb4
+  push bb7
   jumpi
   dup 1
   push 0xcda3144d
   eq
-  push bb3
+  push bb9
   jumpi
   dup 1
   push 0xd56d625c
-  sub
-  push bb6
+  eq
+  push bb10
   jumpi
-  returndatasize
-  returndatasize
-  mstore
-  push 32
-  returndatasize
-  return
+  jump bb6
 bb6 [cold]:
   returndatasize
   returndatasize
   revert
-bb3:
-  push 8
-  calldatasize
-  mul
-  returndatasize
-  mstore
-  push 32
-  returndatasize
-  return
-bb4:
+bb7:  ; function shr8() external pure returns (uint256) [selector 0x97471385]
   push 256
   calldatasize
   div
@@ -56,10 +42,26 @@ bb4:
   push 32
   returndatasize
   return
-bb5:
+bb8:  ; function shl8() external pure returns (uint256) [selector 0x6626c818]
   push 256
   calldatasize
   mul
+  returndatasize
+  mstore
+  push 32
+  returndatasize
+  return
+bb9:  ; function shl3() external pure returns (uint256) [selector 0xcda3144d]
+  push 8
+  calldatasize
+  mul
+  returndatasize
+  mstore
+  push 32
+  returndatasize
+  return
+bb10:  ; function selectorShift() external pure returns (uint256) [selector 0xd56d625c]
+  returndatasize
   returndatasize
   mstore
   push 32
