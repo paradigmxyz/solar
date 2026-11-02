@@ -51,6 +51,8 @@ fn @constructor(arg0: i256) [constructor] {
     v10001 = trunc i256 arg0 to i64
     storeimmutable small, v10001
     icall @bridge
+    icall @assign_widths, arg0
+    icall @assign_narrow_scalars
     stop
 }
 
@@ -113,7 +115,7 @@ fn @unrooted() -> i256 {
 }
 
 // Every assignment contributes to the encoding width, including helper calls.
-fn @assign_widths(arg0: i256) [constructor] {
+fn @assign_widths(arg0: i256) {
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256
@@ -133,7 +135,7 @@ fn @assign_called(arg0: i256) {
     ret
 }
 
-fn @assign_narrow_scalars() [constructor] {
+fn @assign_narrow_scalars() {
   bb0:
     storeimmutable narrow_three_bytes, i24 255
     storeimmutable narrow_scalar, i64 255

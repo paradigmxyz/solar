@@ -11,8 +11,9 @@
 // copy that became one `calldatacopy` or `mcopy` reads zero, not the count it started from.
 contract Test {
     // CHECK-LABEL: fn @fromCalldata(
+    // CHECK: [[COUNT:v[0-9]+]] = calldataload 36
     // CHECK-NOT: mstore8
-    // CHECK: calldatacopy {{v[0-9]+}}, {{v[0-9]+}}, arg1
+    // CHECK: calldatacopy {{v[0-9]+}}, {{v[0-9]+}}, [[COUNT]]
     // CHECK: mcopy
     // CHECK-NEXT: [[K:v[0-9]+]] = add {{v[0-9]+}}, 32
     // CHECK-NEXT: mstore [[K]], 0
@@ -29,7 +30,8 @@ contract Test {
 
     // Between two fresh buffers, the copy needs no overlap test.
     // CHECK-LABEL: fn @fromFresh(
-    // CHECK: mcopy {{v[0-9]+}}, {{v[0-9]+}}, arg0
+    // CHECK: [[COUNT:v[0-9]+]] = calldataload 4
+    // CHECK: mcopy {{v[0-9]+}}, {{v[0-9]+}}, [[COUNT]]
     // CHECK: mcopy
     // CHECK-NEXT: [[K:v[0-9]+]] = add {{v[0-9]+}}, 32
     // CHECK-NEXT: mstore [[K]], 0

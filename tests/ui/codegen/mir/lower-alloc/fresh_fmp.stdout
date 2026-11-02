@@ -2,18 +2,48 @@
 + // === ROOT/tests/ui/codegen/mir/lower-alloc/fresh_fmp.mir (after lower-alloc) ===
   @module FreshFmp
   ; runtime dispatch entry
-  fn @entry() [entry] {
+  fn @entry() -> i256 [entry] {
     bb0:
 -     v0 = fmp
-+     v2 = mload 64 !metadata(memory=scratch, alloc_ptr)
-+     v0 = inttoptr i256 v2 to ptr<memory> !metadata(memory=scratch)
++     v3 = mload 64 !metadata(memory=scratch, alloc_ptr)
++     v0 = inttoptr i256 v3 to ptr<memory> !metadata(memory=scratch)
       v1 = ptrtoint ptr<memory> v0 to i256
       mstore v1, 1
+      v2 = calldataload 0
+      switch v2, default bb1, [1 => bb2, 2 => bb3, 3 => bb4, 4 => bb5, 5 => bb6, 6 => bb7, 7 => bb8, 8 => bb9, 9 => bb10, 10 => bb11, 11 => bb12, 12 => bb13, 13 => bb14, 14 => bb15]
+    bb15:  ; preds = bb0
+      tail_call @other_checked, 0
+    bb14:  ; preds = bb0
+      tail_call @checked_pair, 0
+    bb13:  ; preds = bb0
+      tail_call @read_after_deferred
+    bb12:  ; preds = bb0
+      tail_call @loop_reads, 0
+    bb11:  ; preds = bb0
+      tail_call @calls_recursive
+    bb10:  ; preds = bb0
+      tail_call @shared_late
+    bb9:  ; preds = bb0
+      tail_call @shared_early
+    bb8:  ; preds = bb0
+      tail_call @read_after_allocating_call
+    bb7:  ; preds = bb0
+      tail_call @tail_calls
+    bb6:  ; preds = bb0
+      tail_call @calls_leaf
+    bb5:  ; preds = bb0
+      tail_call @read_after_unknown_store, 0
+    bb4:  ; preds = bb0
+      tail_call @read_after_slot_store
+    bb3:  ; preds = bb0
+      tail_call @read_after_alloc
+    bb2:  ; preds = bb0
+      tail_call @entry_reads
+    bb1:  ; preds = bb0
       tail_call @dispatched
   }
   
-  ; selector 0x10000001
-  fn @entry_reads() -> i256 [selector=0x10000001] {
+  fn @entry_reads() -> i256 {
     bb0:
 -     v0 = fmp
 +     v4 = heap_floor !metadata(alloc_ptr)
@@ -30,8 +60,7 @@
       ret v3
   }
   
-  ; selector 0x10000002
-  fn @read_after_alloc() -> i256 [selector=0x10000002] {
+  fn @read_after_alloc() -> i256 {
     bb0:
 -     v0 = alloc 32
 -     v1 = fmp
@@ -45,8 +74,7 @@
       ret v2
   }
   
-  ; selector 0x10000003
-  fn @read_after_slot_store() -> i256 [selector=0x10000003] {
+  fn @read_after_slot_store() -> i256 {
     bb0:
       mstore 64, 160
 -     v0 = fmp
@@ -56,8 +84,7 @@
       ret v1
   }
   
-  ; selector 0x10000004
-  fn @read_after_unknown_store(arg0: i256) -> i256 [selector=0x10000004] {
+  fn @read_after_unknown_store(arg0: i256) -> i256 {
     bb0:
       mstore arg0, 1
 -     v0 = fmp
@@ -82,8 +109,7 @@
       ret v0
   }
   
-  ; selector 0x10000005
-  fn @calls_leaf() -> i256 [selector=0x10000005] {
+  fn @calls_leaf() -> i256 {
     bb0:
       v0 = icall @pure_helper, 1
       v1 = icall @leaf_reads
@@ -101,8 +127,7 @@
       stop
   }
   
-  ; selector 0x10000006
-  fn @tail_calls() [selector=0x10000006] {
+  fn @tail_calls() {
     bb0:
       tail_call @tail_reads, 7
   }
@@ -118,8 +143,7 @@
       ret v1
   }
   
-  ; selector 0x10000007
-  fn @read_after_allocating_call() -> i256 [selector=0x10000007] {
+  fn @read_after_allocating_call() -> i256 {
     bb0:
       v0 = icall @allocator
 -     v1 = fmp
@@ -139,15 +163,13 @@
       ret v1
   }
   
-  ; selector 0x10000008
-  fn @shared_early() -> i256 [selector=0x10000008] {
+  fn @shared_early() -> i256 {
     bb0:
       v0 = icall @shared
       ret v0
   }
   
-  ; selector 0x10000009
-  fn @shared_late() -> i256 [selector=0x10000009] {
+  fn @shared_late() -> i256 {
     bb0:
       mstore 64, 160
       v0 = icall @shared
@@ -171,15 +193,13 @@
       ret v5
   }
   
-  ; selector 0x1000000a
-  fn @calls_recursive() -> i256 [selector=0x1000000a] {
+  fn @calls_recursive() -> i256 {
     bb0:
       v0 = icall @recursive, 3
       ret v0
   }
   
-  ; selector 0x1000000b
-  fn @loop_reads(arg0: i256) -> i256 [selector=0x1000000b] {
+  fn @loop_reads(arg0: i256) -> i256 {
     bb0:
       jump bb1
     bb1:  ; preds = bb0, bb1
@@ -198,8 +218,7 @@
       ret v1
   }
   
-  ; selector 0x1000000c
-  fn @read_after_deferred() -> i256 [selector=0x1000000c] {
+  fn @read_after_deferred() -> i256 {
     bb0:
       v0 = alloc 32 !metadata(deferred_alloc)
 -     v1 = fmp
@@ -209,8 +228,7 @@
       ret v2
   }
   
-  ; selector 0x1000000d
-  fn @checked_pair(arg0: i256) -> i256 [selector=0x1000000d] {
+  fn @checked_pair(arg0: i256) -> i256 {
     bb0:
 -     v0 = alloc zeroed checked arg0
 -     v1 = alloc zeroed checked arg0
@@ -239,8 +257,7 @@
 +     revert 28, 36
   }
   
-  ; selector 0x1000000e
-  fn @other_checked(arg0: i256) -> i256 [selector=0x1000000e] {
+  fn @other_checked(arg0: i256) -> i256 {
     bb0:
 -     v0 = alloc zeroed checked arg0
 +     v4 = heap_floor !metadata(alloc_ptr)
@@ -267,8 +284,7 @@
 +     revert 28, 36
   }
   
-  ; selector 0x1000000f
-  fn @dispatched() [selector=0x1000000f] {
+  fn @dispatched() {
     bb0:
 -     v0 = fmp
 +     v2 = heap_floor !metadata(alloc_ptr)

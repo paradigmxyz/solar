@@ -24,7 +24,7 @@ fn @entry() [entry] {
 }
 
 ; function gasCaller(bytes calldata data) external pure returns (uint32) [selector 0x3dd81fa2]
-fn @gasCaller() [selector=0x3dd81fa2, abi_wrapper, pure] {
+fn @gasCaller() {
   bb0:
     v42 = icall @decode_calldata_slice
     v43 = calldataload v42
@@ -70,7 +70,7 @@ fn @gasCaller() [selector=0x3dd81fa2, abi_wrapper, pure] {
 }
 
 ; function sizeCaller(bytes calldata data) external pure returns (uint32) [selector 0x955e9bc9]
-fn @sizeCaller() [selector=0x955e9bc9, abi_wrapper, optimize=size, pure] {
+fn @sizeCaller() [optimize=size] {
   bb0:
     v26 = icall @decode_calldata_slice
     v27 = calldataload v26

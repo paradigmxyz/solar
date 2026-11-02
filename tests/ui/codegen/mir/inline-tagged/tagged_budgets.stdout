@@ -28,15 +28,19 @@ fn @entry() [entry] {
 }
 
 ; function run(bytes memory x, bytes memory out, uint256 a, uint256 b, uint256 c, uint256 d) external pure returns (uint256) [selector 0x9cf82c3f]
-fn @run() [selector=0x9cf82c3f, abi_wrapper, pure] {
+fn @run() {
   bb0:
     v1 = calldatasize
     v2 = lt v1, 196
     jumpi v2, bb1, bb2
   bb2:  ; preds = bb0
-    v3 = icall @decode_calldata_type, 4
-    v4 = icall @decode_calldata_type, 36
-    v0 = icall @f, v3, v4, arg2, arg3, arg4, arg5
+    v3 = calldataload 68
+    v4 = calldataload 100
+    v5 = calldataload 132
+    v6 = calldataload 164
+    v7 = icall @decode_calldata_type, 4
+    v8 = icall @decode_calldata_type, 36
+    v0 = icall @f, v7, v8, v3, v4, v5, v6
     mstore 0, v0 !metadata(memory=scratch)
     returndata 0, 32
   bb1 [cold]:  ; preds = bb0
@@ -44,7 +48,7 @@ fn @run() [selector=0x9cf82c3f, abi_wrapper, pure] {
 }
 
 ; function f(bytes memory x, bytes memory out, uint256 a, uint256 b2, uint256 c, uint256 d) internal pure returns (uint256 o)
-fn @f(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256) -> i256 [may_return_memory, pure] {
+fn @f(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256) -> i256 [may_return_memory] {
   bb0:
     v26 = xor arg4, arg5
     v134 = add arg1, 32

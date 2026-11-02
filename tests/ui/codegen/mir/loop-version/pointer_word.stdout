@@ -18,7 +18,7 @@ fn @entry() [entry] {
 }
 
 ; function lastIndicesIn(uint256[] memory a, uint256[] memory items, uint256[] memory last) external pure returns (bool, uint256[] memory) [selector 0x16134912]
-fn @lastIndicesIn() [selector=0x16134912, abi_wrapper, pure] {
+fn @lastIndicesIn() {
   bb0:
     v5 = calldatasize
     v6 = lt v5, 100
@@ -50,7 +50,7 @@ fn @lastIndicesIn() [selector=0x16134912, abi_wrapper, pure] {
 }
 
 ; function _lastIndicesIn(Bag memory bag, uint256[] memory a, uint256[] memory last) private pure returns (bool zero)
-fn @_lastIndicesIn(arg0: i256, arg1: i256, arg2: i256) -> i1 [may_return_memory, pure] {
+fn @_lastIndicesIn(arg0: i256, arg1: i256, arg2: i256) -> i1 [may_return_memory] {
   bb0:
     v0 = mload arg1
     v62 = add arg2, 1

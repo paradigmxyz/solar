@@ -298,7 +298,7 @@ fn @dynamicRevert() -> i256 [selector=0x5dbb0715, abi_params=[], abi_returns=[wo
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:RevertingProducer ===
 @module RevertingProducer
 ; function fail() external pure returns (bytes memory) [selector 0xa9cc4718]
-fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @fail() -> ptr<memory> [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     mstore 0, 0x1234 !metadata(memory=scratch)
     revert 0, 228

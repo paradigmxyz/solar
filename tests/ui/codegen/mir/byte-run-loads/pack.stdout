@@ -30,7 +30,7 @@ fn @entry() [entry] {
 }
 
 ; function three(bytes memory s) public pure returns (uint256) [selector 0x1158e167]
-fn @three() [selector=0x1158e167, abi_wrapper, pure] {
+fn @three() {
   bb0:
     v38 = icall @decode_calldata_type
     v0 = mload v38
@@ -48,7 +48,7 @@ fn @three() [selector=0x1158e167, abi_wrapper, pure] {
 }
 
 ; function two(bytes memory s) public pure returns (uint256) [selector 0x65313149]
-fn @two() [selector=0x65313149, abi_wrapper, pure] {
+fn @two() {
   bb0:
     v26 = icall @decode_calldata_type
     v0 = mload v26
@@ -66,7 +66,7 @@ fn @two() [selector=0x65313149, abi_wrapper, pure] {
 }
 
 ; function gapped(bytes memory s) public pure returns (uint256) [selector 0x63cfbce4]
-fn @gapped() [selector=0x63cfbce4, abi_wrapper, pure] {
+fn @gapped() {
   bb0:
     v26 = icall @decode_calldata_type
     v0 = mload v26
@@ -87,7 +87,7 @@ fn @gapped() [selector=0x63cfbce4, abi_wrapper, pure] {
 }
 
 ; function stored(bytes memory s) public pure returns (uint256) [selector 0xab0edd4e]
-fn @stored() [selector=0xab0edd4e, abi_wrapper, pure] {
+fn @stored() {
   bb0:
     v43 = icall @decode_calldata_type
     v0 = mload v43
@@ -114,7 +114,7 @@ fn @stored() [selector=0xab0edd4e, abi_wrapper, pure] {
 }
 
 ; function lowByte(bytes memory s) public pure returns (uint256 r) [selector 0xd033fb43]
-fn @lowByte() [selector=0xd033fb43, abi_wrapper, pure] {
+fn @lowByte() {
   bb0:
     v12 = icall @decode_calldata_type
     v1 = add v12, 2

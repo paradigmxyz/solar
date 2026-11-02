@@ -86,7 +86,6 @@ use crate::{
     target::{Cost, Target},
 };
 use smallvec::SmallVec;
-use solar_ast::StateMutability;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_sema::Gcx;
 
@@ -267,10 +266,11 @@ struct MirInlineSummary {
     void_forwarder_adds_args: bool,
     /// A frameless initializer returning at most one word of literal bytes.
     is_small_literal_return: bool,
+    /// Whether the runtime or the creation code enters the function from outside.
     is_entry_point: bool,
-    is_constructor: bool,
     is_function_pointer_dispatcher: bool,
-    is_pure: bool,
+    /// Whether the body reads anything but its operands and memory.
+    is_impure: bool,
     is_scalar: bool,
 }
 
@@ -294,7 +294,8 @@ impl MirInliner {
             .map(|(id, func)| (id, scalar_stack_peak(func)))
             .collect::<FxHashMap<_, _>>();
 
-        let mut summaries = self.summarize_module(module);
+        let entries = module.external_entries();
+        let mut summaries = self.summarize_module(module, &entries);
 
         let mut artifact_calls = (!self.straight_line.is_empty()
             || summaries.iter().any(|summary| summary.is_small_literal_return))
@@ -350,7 +351,7 @@ impl MirInliner {
                     && summaries[caller_id].instruction_count.saturating_sub(base_instructions)
                         > if site.loop_depth > 0 { 128 } else { 64 };
                 let framed_constructor_call =
-                    summaries[caller_id].is_constructor && summary.internal_frame_size != 0;
+                    module.constructor() == Some(caller_id) && summary.internal_frame_size != 0;
                 if grew_too_much
                     || framed_constructor_call
                     || call_graph.is_recursive(site.callee)
@@ -410,7 +411,13 @@ impl MirInliner {
                 else {
                     unreachable!("a call to the caller itself is not inlineable");
                 };
-                if inline_call(caller, site.block, site.inst_index, callee) {
+                if inline_call(
+                    caller,
+                    site.block,
+                    site.inst_index,
+                    callee,
+                    entries.contains(caller_id),
+                ) {
                     stats.inlined += 1;
                     stats.modified.push(caller_id);
                     // The price of its sites was for the body it had.
@@ -438,7 +445,8 @@ impl MirInliner {
                     summaries[caller_id] = summarize_function(
                         &self.target,
                         module,
-                        module.function(caller_id),
+                        &entries,
+                        caller_id,
                         self.physical,
                     );
                     cursor = (site.block.index(), 0);
@@ -449,11 +457,15 @@ impl MirInliner {
         stats
     }
 
-    fn summarize_module(&self, module: &Module) -> IndexVec<MirFunctionId, MirInlineSummary> {
+    fn summarize_module(
+        &self,
+        module: &Module,
+        entries: &DenseBitSet<MirFunctionId>,
+    ) -> IndexVec<MirFunctionId, MirInlineSummary> {
         module
             .functions
-            .iter()
-            .map(|func| summarize_function(&self.target, module, func, self.physical))
+            .indices()
+            .map(|id| summarize_function(&self.target, module, entries, id, self.physical))
             .collect()
     }
 
@@ -545,7 +557,6 @@ impl MirInliner {
                 && !single_call
                 && !can_specialize_dispatcher)
             || summary.is_entry_point
-            || summary.is_constructor
             || (summary.has_phi
                 && !always
                 && !(summary.phi_stack_peak.is_some() && (sole || hot || hinted)))
@@ -601,7 +612,7 @@ impl MirInliner {
             && module.function(caller).blocks.len() == 1
             && module.function(caller).instructions().count() == 1
             && site.has_constant_argument
-            && summary.is_pure
+            && !summary.is_impure
             && summary.is_scalar
             && summary.block_count == 1
             && summary.instruction_count <= 64
@@ -974,28 +985,26 @@ fn never_returns(callee: &Function) -> bool {
 fn summarize_function(
     target: &Target,
     module: &Module,
-    func: &Function,
+    entries: &DenseBitSet<MirFunctionId>,
+    id: MirFunctionId,
     objects_lowered: bool,
 ) -> MirInlineSummary {
+    let func = module.function(id);
     let mut summary = MirInlineSummary {
         block_count: func.blocks.len(),
         return_values: func.return_components().len(),
         param_count: func.params.len(),
         internal_frame_size: func.internal_frame_size,
-        is_entry_point: func.attributes.is_fallback
-            || func.attributes.is_receive
-            || func.selector.is_some(),
-        is_constructor: func.attributes.is_constructor,
+        is_entry_point: entries.contains(id),
         has_reference_return: func.return_components().iter().any(|&ty| match ty {
             MirType::MEMPTR => !objects_lowered,
             MirType::Slice(_) => true,
             _ => false,
         }),
-        is_transparent_forwarder: is_transparent_forwarder(module, func),
+        is_transparent_forwarder: is_transparent_forwarder(module, entries, id, func),
         is_small_literal_return: is_small_literal_return(func),
         is_check_wrapper: is_check_wrapper(func),
         is_function_pointer_dispatcher: func.attributes.is_function_pointer_dispatcher,
-        is_pure: func.attributes.state_mutability == StateMutability::Pure,
         has_loop: !func.blocks.is_empty() && has_back_edge(func),
         ..MirInlineSummary::default()
     };
@@ -1056,6 +1065,7 @@ fn summarize_function(
                 _ => {}
             }
             let effect = kind.effect_kind();
+            summary.is_impure |= !matches!(effect, EffectKind::Pure | EffectKind::MemoryRead);
             all_scalar_ops = all_scalar_ops
                 && (matches!(
                     effect,
@@ -1274,9 +1284,14 @@ fn is_check_wrapper(func: &Function) -> bool {
     )
 }
 
-fn is_transparent_forwarder(module: &Module, func: &Function) -> bool {
+fn is_transparent_forwarder(
+    module: &Module,
+    entries: &DenseBitSet<MirFunctionId>,
+    id: MirFunctionId,
+    func: &Function,
+) -> bool {
     if func.attributes.no_inline
-        || func.is_external_entry()
+        || entries.contains(id)
         || func.blocks.len() != 1
         || func.internal_frame_size != 0
         || func.return_components().len() > 1
@@ -1677,6 +1692,8 @@ fn specialize_function_pointers(module: &mut Module) -> usize {
         return 0;
     }
 
+    let entries = module.external_entries();
+    let constructor = module.constructor();
     let mut specialized = 0;
     for index in 0..module.functions.len() {
         let caller = MirFunctionId::from_usize(index);
@@ -1712,8 +1729,8 @@ fn specialize_function_pointers(module: &mut Module) -> usize {
                 // uninitialized internal-frame pointer, so a framed dispatcher must never
                 // be inlined into one. Dispatchers are frameless by construction today;
                 // this mirrors `framed_constructor_call` in case that ever changes.
-                && !(dispatcher.internal_frame_size != 0 && caller_func.attributes.is_constructor)
-                && inline_call(caller_func, block, inst_index, dispatcher)
+                && !(dispatcher.internal_frame_size != 0 && constructor == Some(caller))
+                && inline_call(caller_func, block, inst_index, dispatcher, entries.contains(caller))
             {
                 specialized += 1;
                 cursor = (block.index(), 0);
@@ -1848,9 +1865,10 @@ fn inline_call(
     call_block: BlockId,
     call_inst_index: usize,
     callee: &Function,
+    caller_is_external: bool,
 ) -> bool {
     let snapshot = caller.clone();
-    if inline_call_impl(caller, call_block, call_inst_index, callee).is_some() {
+    if inline_call_impl(caller, call_block, call_inst_index, callee, caller_is_external).is_some() {
         true
     } else {
         *caller = snapshot;
@@ -1863,6 +1881,7 @@ fn inline_call_impl(
     call_block: BlockId,
     call_inst_index: usize,
     callee: &Function,
+    caller_is_external: bool,
 ) -> Option<()> {
     let call_inst = caller.blocks[call_block].instructions[call_inst_index];
     let InstKind::ICall { args, .. } = caller.inst(call_inst).kind.clone() else {
@@ -1919,7 +1938,6 @@ fn inline_call_impl(
     }
     redirect_successor_predecessors(caller, call_block, continuation);
 
-    let caller_is_external = caller.is_external_entry();
     let caller_frame_prefix = if caller_is_external {
         0
     } else {
@@ -2022,9 +2040,8 @@ pub(super) fn inline_dispatch_route(
     caller: &mut Function,
     block: BlockId,
     callee: &Function,
-    args: Box<[ValueId]>,
 ) -> Option<()> {
-    let mut cloner = InlineCloner::new(caller, callee, 0, 0, args);
+    let mut cloner = InlineCloner::new(caller, callee, 0, 0, Box::default());
     cloner.external_exit = true;
     let entry = cloner.clone_blocks(BlockId::ENTRY)?;
     // tail_call @wrapper => jump cloned_entry

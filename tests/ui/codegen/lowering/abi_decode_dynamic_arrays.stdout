@@ -28,7 +28,7 @@ fn @entry() [entry] {
 }
 
 ; function words(bytes memory b) public pure returns (uint256[] memory) [selector 0x5a7641c8]
-fn @words() [selector=0x5a7641c8, abi_wrapper, pure] {
+fn @words() {
   bb0:
     v33 = icall @decode_calldata_type
     v43 = add v33, 32
@@ -74,7 +74,7 @@ fn @words() [selector=0x5a7641c8, abi_wrapper, pure] {
 }
 
 ; function bools(bytes memory b) public pure returns (bool[] memory) [selector 0xcfb203c5]
-fn @bools() [selector=0xcfb203c5, abi_wrapper, pure] {
+fn @bools() {
   bb0:
     v40 = icall @decode_calldata_type
     v72 = add v40, 32
@@ -160,7 +160,7 @@ fn @bools() [selector=0xcfb203c5, abi_wrapper, pure] {
 }
 
 ; function strs(bytes memory b) public pure returns (string[] memory) [selector 0x68f4ce0b]
-fn @strs() [selector=0x68f4ce0b, abi_wrapper, pure] {
+fn @strs() {
   bb0:
     v65 = icall @decode_calldata_type
     v103 = add v65, 32
@@ -281,7 +281,7 @@ fn @strs() [selector=0x68f4ce0b, abi_wrapper, pure] {
 }
 
 ; function mixed(bytes memory b) public pure returns (uint256, uint256[] memory, string memory) [selector 0x6791505c]
-fn @mixed() [selector=0x6791505c, abi_wrapper, pure] {
+fn @mixed() {
   bb0:
     v75 = icall @decode_calldata_type
     v107 = add v75, 32

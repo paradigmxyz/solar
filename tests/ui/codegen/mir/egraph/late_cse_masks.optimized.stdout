@@ -22,7 +22,7 @@ fn @entry() [entry] {
 }
 
 ; getter for `uint256 public total` [selector 0x2ddbd13a]
-fn @total() [selector=0x2ddbd13a, abi_wrapper, view] {
+fn @total() {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     mstore 0, v0 !metadata(memory=scratch)
@@ -55,52 +55,56 @@ fn @digest(arg0: i256, arg1: i256) -> i256 {
 }
 
 ; function first(address owner, uint256 amount) external returns (bool) [selector 0x2845d4e6]
-fn @first() [selector=0x2845d4e6, abi_wrapper] {
+fn @first() {
   bb0:
     v9 = calldataload 4
     v10 = shr v9, 160
     v7 = calldatasize
     v8 = lt v7, 68
-    v14 = zext i1 v8 to i256
-    v15 = or v10, v14
-    v16 = ne v15, 0
-    jumpi v16, bb1, bb2
+    v17 = zext i1 v8 to i256
+    v18 = or v10, v17
+    v19 = ne v18, 0
+    jumpi v19, bb1, bb2
   bb2:  ; preds = bb0
-    v0 = icall @digest, arg0, arg1
-    mstore 0, arg0
-    mstore 32, arg1
+    v20 = calldataload 4
+    v12 = calldataload 36
+    v0 = icall @digest, v20, v12
+    mstore 0, v20
+    mstore 32, v12
     v6 = keccak256 0, 64 !metadata(memory=scratch)
     v2 = eq v0, v6
-    v13 = zext i1 v2 to i256
-    mstore 0, v13 !metadata(memory=scratch)
+    v15 = zext i1 v2 to i256
+    mstore 0, v15 !metadata(memory=scratch)
     returndata 0, 32
   bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
 ; function second(address owner, uint256 amount) external returns (bool) [selector 0x6cdb32ec]
-fn @second() [selector=0x6cdb32ec, abi_wrapper] {
+fn @second() {
   bb0:
     v15 = calldataload 4
     v16 = shr v15, 160
     v13 = calldatasize
     v14 = lt v13, 68
-    v20 = zext i1 v14 to i256
-    v21 = or v16, v20
-    v22 = ne v21, 0
-    jumpi v22, bb3, bb4
+    v23 = zext i1 v14 to i256
+    v24 = or v16, v23
+    v25 = ne v24, 0
+    jumpi v25, bb3, bb4
   bb4:  ; preds = bb0
-    v9 = add arg1, 1
+    v18 = calldataload 36
+    v9 = add v18, 1
     v10 = eq v9, 0
     jumpi v10, bb1, bb2
   bb2:  ; preds = bb4
-    v1 = icall @digest, arg0, v9
-    mstore 0, arg0
+    v26 = calldataload 4
+    v1 = icall @digest, v26, v9
+    mstore 0, v26
     mstore 32, v9
     v8 = keccak256 0, 64 !metadata(memory=scratch)
     v4 = eq v1, v8
-    v19 = zext i1 v4 to i256
-    mstore 0, v19 !metadata(memory=scratch)
+    v21 = zext i1 v4 to i256
+    mstore 0, v21 !metadata(memory=scratch)
     returndata 0, 32
   bb1 [cold]:  ; preds = bb4
     mstore 32, 17 !metadata(memory=scratch)

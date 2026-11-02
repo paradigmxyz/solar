@@ -14,9 +14,9 @@
 // === ROOT/tests/ui/codegen/mir/none/bytecode.mir:Bytecode (runtime) ===
 @module Bytecode_runtime
 bb0:  ; runtime dispatch entry
+  push 1
   push 0
   calldataload
-  push 1
   add
   push 0
   mstore
@@ -24,13 +24,13 @@ bb0:  ; runtime dispatch entry
   push 0
   return
 // === ROOT/tests/ui/codegen/mir/none/bytecode.mir:Bytecode (runtime) ===
+PUSH1 0x01
 PUSH0
 CALLDATALOAD
-PUSH1 0x01
 ADD
 PUSH0
 MSTORE
 PUSH1 0x20
 PUSH0
 RETURN
-{"contracts":{"ROOT/tests/ui/codegen/mir/none/bytecode.mir:Bytecode":{"abi":[],"bin-runtime":"5f356001015f5260205ff3"}},"version":"VERSION"}
+{"contracts":{"ROOT/tests/ui/codegen/mir/none/bytecode.mir:Bytecode":{"abi":[],"bin-runtime":"60015f35015f5260205ff3"}},"version":"VERSION"}

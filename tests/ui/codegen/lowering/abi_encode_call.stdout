@@ -24,78 +24,83 @@ fn @entry() [entry] {
 }
 
 ; function asValue(address to, uint256 v) external pure returns (bytes memory) [selector 0x440a9300]
-fn @asValue() [selector=0x440a9300, abi_wrapper, pure] {
+fn @asValue() {
   bb0:
     v4 = calldataload 4
     v5 = shr v4, 160
     v2 = calldatasize
     v3 = lt v2, 68
-    v57 = zext i1 v3 to i256
-    v58 = or v5, v57
-    v59 = ne v58, 0
-    jumpi v59, bb1, bb2
+    v60 = zext i1 v3 to i256
+    v61 = or v5, v60
+    v62 = ne v61, 0
+    jumpi v62, bb1, bb2
   bb2:  ; preds = bb0
-    v54 = heap_floor !metadata(alloc_ptr)
-    v55 = add v54, 128 !metadata(alloc_ptr)
-    mstore 64, v55 !metadata(memory=scratch)
-    mstore v54, 68
-    v47 = add v54, 32
-    mstore v47, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-    v49 = add v54, 36
-    mstore v49, arg0
-    v14 = add v49, 32
-    mstore v14, arg1
-    v16 = lt v54, 32
-    jumpi v16, bb3, bb4
+    v63 = calldataload 4
+    v7 = calldataload 36
+    v56 = heap_floor !metadata(alloc_ptr)
+    v57 = add v56, 128 !metadata(alloc_ptr)
+    mstore 64, v57 !metadata(memory=scratch)
+    mstore v56, 68
+    v49 = add v56, 32
+    mstore v49, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v51 = add v56, 36
+    mstore v51, v63
+    v16 = add v51, 32
+    mstore v16, v7
+    v18 = lt v56, 32
+    jumpi v18, bb3, bb4
   bb4:  ; preds = bb2
-    v40 = add v47, 68
-    mstore v40, 0
-    v51 = sub v54, 32
-    mstore v51, 32
+    v42 = add v49, 68
+    mstore v42, 0
+    v53 = sub v56, 32
+    mstore v53, 32
     jump bb5
   bb3:  ; preds = bb2
-    v56 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v19 = add v56, 32
-    mstore v56, 32
-    v25 = add v19, 32
-    v26 = add v19, 96
-    mstore v26, 0
-    mstore v19, 68
-    mcopy v25, v47, 68 !metadata(disjoint)
+    v58 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v21 = add v58, 32
+    mstore v58, 32
+    v27 = add v21, 32
+    v28 = add v21, 96
+    mstore v28, 0
+    mstore v21, 68
+    mcopy v27, v49, 68 !metadata(disjoint)
     jump bb5
   bb5:  ; preds = bb3, bb4
-    v43 = phi [bb3: v56], [bb4: v51]
-    returndata v43, 160
+    v45 = phi [bb3: v58], [bb4: v53]
+    returndata v45, 160
   bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
 ; function viaCall(address token, address to, uint256 v) public returns (bool ok) [selector 0x23d014a1]
-fn @viaCall() [selector=0x23d014a1, abi_wrapper] {
+fn @viaCall() {
   bb0:
     v10 = calldataload 4
     v11 = shr v10, 160
     v8 = calldatasize
     v9 = lt v8, 100
-    v29 = zext i1 v9 to i256
-    v30 = or v11, v29
+    v33 = zext i1 v9 to i256
+    v34 = or v11, v33
     v13 = calldataload 36
     v14 = shr v13, 160
-    v32 = or v30, v14
-    v33 = ne v32, 0
-    jumpi v33, bb1, bb2
+    v36 = or v34, v14
+    v37 = ne v36, 0
+    jumpi v37, bb1, bb2
   bb2:  ; preds = bb0
+    v39 = calldataload 36
+    v38 = calldataload 4
+    v16 = calldataload 68
     v0 = gas
-    v27 = heap_floor !metadata(alloc_ptr)
-    v24 = add v27, 32
-    mstore v24, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-    v26 = add v27, 36
-    mstore v26, arg1
-    v22 = add v26, 32
-    mstore v22, arg2
-    v7 = call v0, arg0, 0, v24, 68, 0, 0
-    v17 = zext i1 v7 to i256
-    mstore 0, v17 !metadata(memory=scratch)
+    v30 = heap_floor !metadata(alloc_ptr)
+    v27 = add v30, 32
+    mstore v27, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v29 = add v30, 36
+    mstore v29, v39
+    v25 = add v29, 32
+    mstore v25, v16
+    v7 = call v0, v38, 0, v27, 68, 0, 0
+    v20 = zext i1 v7 to i256
+    mstore 0, v20 !metadata(memory=scratch)
     returndata 0, 32
   bb1 [cold]:  ; preds = bb0
     revert 0, 0

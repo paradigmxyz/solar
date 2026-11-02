@@ -30,7 +30,7 @@ fn @entry() [entry] {
 }
 
 ; function signed(bytes memory s) external pure returns (bytes32) [selector 0x24401e82]
-fn @signed() [selector=0x24401e82, abi_wrapper, pure] {
+fn @signed() {
   bb0:
     v15 = calldatasize
     v16 = lt v15, 36
@@ -57,7 +57,7 @@ fn @signed() [selector=0x24401e82, abi_wrapper, pure] {
 }
 
 ; function kept(bytes memory s) external pure returns (bytes32 h, bytes memory r) [selector 0xc57c8563]
-fn @kept() [selector=0xc57c8563, abi_wrapper, pure] {
+fn @kept() {
   bb0:
     v9 = calldatasize
     v10 = lt v9, 36
@@ -94,7 +94,7 @@ fn @kept() [selector=0xc57c8563, abi_wrapper, pure] {
 }
 
 ; function narrow(bytes memory s) external pure returns (bytes32) [selector 0x3e18eba5]
-fn @narrow() [selector=0x3e18eba5, abi_wrapper, pure] {
+fn @narrow() {
   bb0:
     v7 = calldatasize
     v8 = lt v7, 36
@@ -116,7 +116,7 @@ fn @narrow() [selector=0x3e18eba5, abi_wrapper, pure] {
 }
 
 ; function empty() external pure returns (bytes32 h, uint256 length) [selector 0xf2a75fe4]
-fn @empty() [selector=0xf2a75fe4, abi_wrapper, pure] {
+fn @empty() {
   bb0:
     v4 = mload 96 !metadata(memory=scratch)
     mstore 96, 0x1020304 !metadata(memory=scratch)
@@ -130,7 +130,7 @@ fn @empty() [selector=0xf2a75fe4, abi_wrapper, pure] {
 }
 
 ; function whole(bytes memory s) external pure returns (bytes32) [selector 0xbbbb2e8a]
-fn @whole() [selector=0xbbbb2e8a, abi_wrapper, pure] {
+fn @whole() {
   bb0:
     v4 = calldatasize
     v5 = lt v4, 36
@@ -147,7 +147,7 @@ fn @whole() [selector=0xbbbb2e8a, abi_wrapper, pure] {
 }
 
 ; function tooLong(bytes memory s) external pure returns (bytes32) [selector 0x3db8dd3c]
-fn @tooLong() [selector=0x3db8dd3c, abi_wrapper, pure] {
+fn @tooLong() {
   bb0:
     v17 = calldatasize
     v18 = lt v17, 36
@@ -172,7 +172,7 @@ fn @tooLong() [selector=0x3db8dd3c, abi_wrapper, pure] {
 }
 
 ; function forged() external pure returns (bytes32) [selector 0xd1caa6e6]
-fn @forged() [selector=0xd1caa6e6, abi_wrapper, pure] {
+fn @forged() {
   bb0:
     v12 = heap_floor !metadata(alloc_ptr)
     v13 = add v12, 64 !metadata(alloc_ptr)

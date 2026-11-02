@@ -16,8 +16,7 @@
       revert 0, 0
   }
   
-  ; selector 0x8f5383a4
-  fn @same() [selector=0x8f5383a4, abi_wrapper] {
+  fn @same() {
     bb0:
       v0 = calldataload 4
       v1 = ne v0, 0
@@ -40,8 +39,7 @@
       returndata 0, 32
   }
   
-  ; selector 0xa5330720
-  fn @distinct() [selector=0xa5330720, abi_wrapper] {
+  fn @distinct() {
     bb0:
       v0 = calldataload 4
       v1 = ne v0, 0

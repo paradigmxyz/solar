@@ -2,7 +2,7 @@
 //! the call graph. The verifier lives here too.
 
 mod call_graph;
-pub use call_graph::{CallGraphInfo, direct_callees};
+pub use call_graph::{CallGraphInfo, direct_callees, tail_callees};
 
 mod cfg;
 pub use cfg::{CfgInfo, DominatorTree};

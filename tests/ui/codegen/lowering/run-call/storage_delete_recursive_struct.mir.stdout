@@ -4,7 +4,7 @@
   struct0: {i256, i256, i256, i256, i256, i256}
 
 ; function clearNested() external returns (uint256, uint256, uint256, uint256, uint256, uint256) [selector 0xdcbc9943]
-fn @clearNested() [selector=0xdcbc9943, abi_params=[], abi_returns=[word, word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256, uint256]] {
+fn @clearNested() -> struct0 [selector=0xdcbc9943, abi_params=[], abi_returns=[word, word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = gt v0, 0xffffffffffffffff
@@ -68,7 +68,7 @@ fn @clearNested() [selector=0xdcbc9943, abi_params=[], abi_returns=[word, word, 
 }
 
 ; function clearMutual() external returns (uint256, uint256, uint256, uint256, uint256, uint256) [selector 0x5baf460d]
-fn @clearMutual() [selector=0x5baf460d, abi_params=[], abi_returns=[word, word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256, uint256]] {
+fn @clearMutual() -> struct0 [selector=0x5baf460d, abi_params=[], abi_returns=[word, word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = sload 3 !metadata(storage=slot(3))
     v1 = gt v0, 0xffffffffffffffff

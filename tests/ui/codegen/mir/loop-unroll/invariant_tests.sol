@@ -22,16 +22,19 @@
 // iteration never tests the divisor.
 contract InvariantTests {
     // CHECK-LABEL: fn @periodStarts()
-    // CHECK: [[NONZERO:v[0-9]+]] = ne arg1, 0
+    // CHECK: [[TIME:v[0-9]+]] = calldataload 4
+    // CHECK-NEXT: [[PERIOD:v[0-9]+]] = calldataload 36
+    // CHECK: [[NONZERO:v[0-9]+]] = ne [[PERIOD]], 0
     // CHECK: jumpi [[NONZERO]], [[FIRST:bb[0-9]+]], {{bb[0-9]+}}
     // CHECK: [[FIRST]]:
-    // CHECK-NEXT: div arg0, arg1
+    // CHECK-NEXT: [[FIRST:v[0-9]+]] = calldataload 4
+    // CHECK-NEXT: div [[FIRST]], [[PERIOD]]
     // CHECK-NOT: jumpi [[NONZERO]]
     // CHECK: [[BIT:v[0-9]+]] = and {{v[0-9]+}}, 1
     // CHECK-NEXT: [[ODD:v[0-9]+]] = ne [[BIT]], 0
     // CHECK-NEXT: jumpi [[ODD]],
     // CHECK-NOT: jumpi [[NONZERO]]
-    // CHECK-COUNT-3: div {{v[0-9]+}}, arg1
+    // CHECK-COUNT-3: div {{v[0-9]+}}, [[PERIOD]]
     // CHECK-LABEL: fn @keep()
     function periodStarts(uint256 time, uint256 period, uint256 count)
         external

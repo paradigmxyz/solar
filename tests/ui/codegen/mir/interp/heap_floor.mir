@@ -11,7 +11,7 @@ fn @entry() [entry] {
     tail_call @floor
 }
 
-fn @floor() [selector=1, abi_wrapper] {
+fn @floor() {
   bb0:
     v0 = heap_floor
     v1 = mload 64

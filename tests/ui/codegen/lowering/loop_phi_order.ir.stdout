@@ -12,36 +12,37 @@ bb0:  ; runtime dispatch entry
   calldataload
   push 36
   calldataload
-  push 68
-  calldataload
-  push 100
-  calldataload
-  swap 4
+  swap 2
   dup 1
   push 0x5423941f
   sub
   push bb2
   jumpi
   pop
-  push 132
   calldatasize
-  lt
+  push 132
+  gt
   push bb20
   jumpi
+  push 68
+  calldataload
+  push 100
+  calldataload
+  swap 3
   push 0
   swap 3
   jump bb17
 bb19 [loop]:
-  dup 3
+  dup 2
   dup 5
   push 1
   add
   swap 5
-  dup 4
+  dup 5
   add
-  swap 3
+  swap 4
   add
-  swap 3
+  swap 2
   xor
   jump bb17
 bb17 [loop]:
@@ -52,7 +53,6 @@ bb17 [loop]:
   jumpi
   push 0
   mstore
-  swap 1
   push 32
   mstore
   push 64
@@ -99,23 +99,23 @@ bb2:
   lt
   push bb20
   jumpi
-  swap 3
-  pop
+  push 68
+  calldataload
   push 0
   swap 2
   jump bb12
 bb14 [loop]:
-  dup 2
+  dup 4
   dup 4
   push 1
   add
   swap 4
   add
-  swap 2
+  swap 4
   sub
   jump bb12
 bb12 [loop]:
-  dup 4
+  dup 2
   dup 4
   lt
   push bb14
@@ -130,9 +130,6 @@ bb3 [loop]:
   sub
   push bb20
   jumpi
-  pop
-  swap 2
-  pop
   calldatasize
   push 68
   gt

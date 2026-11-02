@@ -26,7 +26,7 @@ fn @constructor() [constructor] {
 }
 
 ; function run(uint256 length, bool choose) external returns (uint256) [selector 0x0a3395f5]
-fn @run(arg0: i256, arg1: i256) [selector=0x0a3395f5, abi_params=[uint256, bool], abi_returns=[word], abi_return_params=[uint256]] {
+fn @run(arg0: i256, arg1: i256) -> i256 [selector=0x0a3395f5, abi_params=[uint256, bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = sload 1 !metadata(storage=slot(1))

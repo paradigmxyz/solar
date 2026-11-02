@@ -18,7 +18,7 @@ fn @entry() [entry] {
 }
 
 ; function unwrap(bytes calldata signature) internal pure returns (bytes calldata result)
-fn @unwrap(arg0: i256, arg1: i256) -> slice<calldata> [pure, return_abi=[i256, i256]] {
+fn @unwrap(arg0: i256, arg1: i256) -> slice<calldata> [return_abi=[i256, i256]] {
   bb0:
     v1 = sub arg1, 32
     v4 = add v1, arg0
@@ -33,7 +33,7 @@ fn @unwrap(arg0: i256, arg1: i256) -> slice<calldata> [pure, return_abi=[i256, i
 }
 
 ; function use(bytes calldata sig) external pure returns (uint256) [selector 0x01bd03f7]
-fn @use() [selector=0x01bd03f7, abi_wrapper, pure] {
+fn @use() {
   bb0:
     v2 = calldatasize
     v3 = lt v2, 36

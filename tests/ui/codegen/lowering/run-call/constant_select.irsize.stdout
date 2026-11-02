@@ -60,8 +60,8 @@ bb11 [cold]:
   revert
 bb75 [cold]:  ; revert_stub.11 (synthesized)
   push 34
-  jump bb84
-bb84 [cold]:
+  jump bb85
+bb85 [cold]:
   push 32
   mstore
   push 0x4e487b71
@@ -499,8 +499,27 @@ bb39:  ; function signature(bool condition) external pure returns (bytes memory)
   calldatasize
   lt
   or
+  jump bb84
+bb84:
   push bb11
   jumpi
+  push 0xe2179b8e
+  push 224
+  shl
+  push 4
+  calldataload
+  iszero
+  iszero
+  push 0x26121ff0
+  jump bb83
+bb83:
+  push 224
+  shl
+  dup 3
+  swap 1
+  sub
+  mul
+  add
   push 128
   push 64
   dup 2
@@ -511,24 +530,10 @@ bb39:  ; function signature(bool condition) external pure returns (bytes memory)
   push 32
   dup 3
   add
-  push 0xe2179b8e
-  push 224
-  shl
-  push 4
-  calldataload
-  push 0x26121ff0
-  push 224
-  shl
-  dup 3
-  swap 1
-  sub
-  mul
-  add
-  dup 2
+  swap 3
+  dup 4
   mstore
-  swap 2
-  jump bb83
-bb83:
+  swap 1
   push 96
   add
   push 32
@@ -556,40 +561,7 @@ bb42:  ; function dirtySignature(uint256 raw) external pure returns (bytes memor
   push 36
   calldatasize
   lt
-  push bb11
-  jumpi
-  push 0xe2179b8e
-  push 224
-  shl
-  push 4
-  calldataload
-  iszero
-  iszero
-  push 0x26121ff0
-  jump bb85
-bb85:
-  push 224
-  shl
-  dup 3
-  swap 1
-  sub
-  mul
-  add
-  push 128
-  push 64
-  dup 2
-  add
-  push 4
-  dup 3
-  mstore
-  push 32
-  dup 3
-  add
-  swap 3
-  dup 4
-  mstore
-  swap 1
-  jump bb83
+  jump bb84
 bb45:  ; function reverseSignature(uint256 raw) external pure returns (bytes memory) [selector 0x97ffd282]
   push 36
   calldatasize
@@ -604,7 +576,7 @@ bb45:  ; function reverseSignature(uint256 raw) external pure returns (bytes mem
   iszero
   iszero
   push 0xe2179b8e
-  jump bb85
+  jump bb83
 bb58 [continuation]:
   swap 1
   pop
@@ -730,7 +702,7 @@ bb74 [loop]:
   jump bb72
 bb29 [cold]:
   push 65
-  jump bb84
+  jump bb85
 bb86:
   push 68
   calldatasize
