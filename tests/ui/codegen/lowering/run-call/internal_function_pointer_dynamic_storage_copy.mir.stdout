@@ -54,7 +54,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v60 = sload v55 !metadata(storage=symbolic(v55))
     v61 = not v59
     v62 = and v60, v61
-    v63 = and 2, 0xffffffffffffffff
+    v63 = and 1, 0xffffffffffffffff
     v64 = shl v63, v58
     v65 = or v62, v64
     sstore v55, v65 !metadata(storage=symbolic(v55))
@@ -203,7 +203,7 @@ fn @load_storage_packed_array_8_0(arg0: i256) -> ptr<memory> {
 
 fn @internal_dispatcher_p_none_r_uint256(arg0: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
-    v0 = eq arg0, 2
+    v0 = eq arg0, 1
     jumpi v0, bb1, bb2
   bb2:  ; preds = bb0
     icall panic_if<0x51>, true

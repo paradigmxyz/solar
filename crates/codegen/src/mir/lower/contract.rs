@@ -87,6 +87,7 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
             }
         }
     }
+    let section_start = function_ids.len();
     for function_id in reachable.iter() {
         let function = gcx.hir.function(function_id);
         let library_function = function
@@ -101,6 +102,8 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
             function_ids.push((function_id, false));
         }
     }
+    sort_by_source_position(gcx, &mut function_ids[section_start..]);
+    let section_start = function_ids.len();
     for library_id in gcx.hir.contract_ids() {
         let library = gcx.hir.contract(library_id);
         if library.kind != hir::ContractKind::Library {
@@ -126,6 +129,7 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
             }
         }
     }
+    sort_by_source_position(gcx, &mut function_ids[section_start..]);
     let mut seen_ids = FxHashSet::default();
     let function_ids =
         function_ids.into_iter().filter(|(id, _)| seen_ids.insert(*id)).collect::<Vec<_>>();
@@ -483,4 +487,13 @@ fn declaration_header(source: &str) -> String {
     }
     header.truncate(header.trim_end().len());
     header
+}
+
+/// Orders functions by source file name and position instead of by compilation-wide HIR id, so
+/// that unrelated sources in the same compilation do not change the order.
+fn sort_by_source_position(gcx: Gcx<'_>, function_ids: &mut [(hir::FunctionId, bool)]) {
+    function_ids.sort_by_key(|&(id, _)| {
+        let function = gcx.hir.function(id);
+        (&gcx.hir.source(function.source).file.name, function.span.lo())
+    });
 }

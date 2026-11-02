@@ -6,7 +6,7 @@ fn @constructor() [constructor] {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 0xffffffffffffffff
     v2 = and v0, v1
-    v3 = and 2, 0xffffffffffffffff
+    v3 = and 1, 0xffffffffffffffff
     v4 = or v2, v3
     sstore 0, v4 !metadata(storage=slot(0))
     v5 = shl 0xffffffffffffffff, 64
@@ -29,7 +29,7 @@ fn @constructor() [constructor] {
     v20 = sload v15 !metadata(storage=offset(v14, 1))
     v21 = not v19
     v22 = and v20, v21
-    v23 = and 2, 0xffffffffffffffff
+    v23 = and 1, 0xffffffffffffffff
     v24 = shl v23, v18
     v25 = or v22, v24
     sstore v15, v25 !metadata(storage=offset(v14, 1))
@@ -45,7 +45,7 @@ fn @constructor() [constructor] {
     v34 = sload v29 !metadata(storage=offset(v28, 1))
     v35 = not v33
     v36 = and v34, v35
-    v37 = and 3, 0xffffffffffffffff
+    v37 = and 2, 0xffffffffffffffff
     v38 = shl v37, v32
     v39 = or v36, v38
     sstore v29, v39 !metadata(storage=offset(v28, 1))
@@ -61,7 +61,7 @@ fn @constructor() [constructor] {
     v48 = sload v43 !metadata(storage=offset(v42, 1))
     v49 = not v47
     v50 = and v48, v49
-    v51 = and 4, 0xffffffffffffffff
+    v51 = and 3, 0xffffffffffffffff
     v52 = shl v51, v46
     v53 = or v50, v52
     sstore v43, v53 !metadata(storage=offset(v42, 1))
@@ -77,7 +77,7 @@ fn @constructor() [constructor] {
     v62 = sload v57 !metadata(storage=offset(v56, 1))
     v63 = not v61
     v64 = and v62, v63
-    v65 = and 5, 0xffffffffffffffff
+    v65 = and 4, 0xffffffffffffffff
     v66 = shl v65, v60
     v67 = or v64, v66
     sstore v57, v67 !metadata(storage=offset(v56, 1))

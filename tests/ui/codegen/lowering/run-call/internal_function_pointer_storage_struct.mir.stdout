@@ -36,7 +36,7 @@ fn @constructor() [constructor] {
     v22 = sload v20 !metadata(storage=slot(1))
     v23 = not v21
     v24 = and v22, v23
-    v25 = and 2, 0xffffffffffffffff
+    v25 = and 1, 0xffffffffffffffff
     v26 = shl v25, 16
     v27 = or v24, v26
     sstore v20, v27 !metadata(storage=slot(1))
@@ -70,7 +70,7 @@ fn @constructor() [constructor] {
     v50 = sload v48 !metadata(storage=slot(0))
     v51 = not v49
     v52 = and v50, v51
-    v53 = and 1, 0xffffffffffffffff
+    v53 = and 2, 0xffffffffffffffff
     v54 = shl v53, 16
     v55 = or v52, v54
     sstore v48, v55 !metadata(storage=slot(0))
@@ -126,9 +126,9 @@ fn @internal_dispatcher_p_none_r_uint256(arg0: i256) -> i256 [function_pointer_d
     icall panic_if<0x51>, true
     invalid
   bb3:  ; preds = bb2
-    v3 = icall @secondTarget
+    v3 = icall @firstTarget
     ret v3
   bb1:  ; preds = bb0
-    v1 = icall @firstTarget
+    v1 = icall @secondTarget
     ret v1
 }

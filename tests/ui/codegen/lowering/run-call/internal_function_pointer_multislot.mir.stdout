@@ -30,7 +30,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v5 = zext i160 v4 to i256
     v6 = shl v5, 32
     v7 = or v6, 0xc2985578
-    v8 = icall @internal_dispatcher_p_function_function_r_function, 1, v3, v7
+    v8 = icall @internal_dispatcher_p_function_function_r_function, 2, v3, v7
     v9 = and v8, 0xffffffff
     v10 = shl v9, 224
     v11 = shr v8, 32
@@ -47,14 +47,14 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     icall revert_if<tuple_data_too_short>, v16
     v17 = add 0, 0
     v18 = mload v17
-    v19 = icall @internal_dispatcher_p_uint256_uint256_r_uint256, 2, 5, 1
+    v19 = icall @internal_dispatcher_p_uint256_uint256_r_uint256, 1, 5, 1
     v20 = checked_add uint256, v18, v19
     ret v20
 }
 
 fn @internal_dispatcher_p_function_function_r_function(arg0: i256, arg1: i256, arg2: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
-    v0 = eq arg0, 1
+    v0 = eq arg0, 2
     jumpi v0, bb1, bb2
   bb2:  ; preds = bb0
     icall panic_if<0x51>, true
@@ -66,7 +66,7 @@ fn @internal_dispatcher_p_function_function_r_function(arg0: i256, arg1: i256, a
 
 fn @internal_dispatcher_p_uint256_uint256_r_uint256(arg0: i256, arg1: i256, arg2: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
-    v0 = eq arg0, 2
+    v0 = eq arg0, 1
     jumpi v0, bb1, bb2
   bb2:  ; preds = bb0
     icall panic_if<0x51>, true

@@ -919,7 +919,7 @@
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x05"
+                      "0x01"
                     ]
                   },
                   "context": {
@@ -1013,7 +1013,7 @@
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x06"
+                      "0x02"
                     ]
                   },
                   "context": {
@@ -1059,7 +1059,7 @@
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x05"
+                      "0x01"
                     ]
                   }
                 },
@@ -1101,7 +1101,7 @@
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x06"
+                      "0x02"
                     ]
                   }
                 },

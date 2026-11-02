@@ -50,7 +50,7 @@ fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_retu
     jumpi v7, bb2, bb3
   bb3:  ; preds = bb1
     v34 = alloc 32
-    mstore v34, 5
+    mstore v34, 1
     jump bb7
   bb7:  ; preds = bb3, bb12
     v35 = phi [bb3: 0], [bb12: v61]
@@ -191,7 +191,7 @@ fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_retu
     jumpi v7, bb2, bb3
   bb3:  ; preds = bb1
     v34 = alloc 32
-    mstore v34, 6
+    mstore v34, 2
     jump bb7
   bb7:  ; preds = bb3, bb12
     v35 = phi [bb3: 0], [bb12: v61]
@@ -332,7 +332,7 @@ fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns
     jumpi v7, bb2, bb3
   bb3:  ; preds = bb1
     v34 = alloc 32
-    mstore v34, 6
+    mstore v34, 2
     jump bb7
   bb7:  ; preds = bb3, bb12
     v35 = phi [bb3: 0], [bb12: v61]
@@ -458,10 +458,10 @@ fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns
 
 fn @internal_dispatcher_p_none_r_uint256(arg0: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
-    v0 = eq arg0, 5
+    v0 = eq arg0, 1
     jumpi v0, bb1, bb2
   bb2:  ; preds = bb0
-    v2 = eq arg0, 6
+    v2 = eq arg0, 2
     jumpi v2, bb3, bb4
   bb4:  ; preds = bb2
     icall panic_if<0x51>, true

@@ -3,7 +3,7 @@
 ; function dispatchAddress(address value) external pure returns (address) [selector 0x58955a9d]
 fn @dispatchAddress(arg0: i256) -> i256 [selector=0x58955a9d, pure, abi_params=[address], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
-    v0 = icall @internal_dispatcher_p_address_r_address, 5, arg0
+    v0 = icall @internal_dispatcher_p_address_r_address, 1, arg0
     ret v0
 }
 
@@ -227,7 +227,7 @@ fn @boolBits() -> i256 [selector=0xc674afd7, pure, abi_params=[], abi_returns=[w
 
 fn @internal_dispatcher_p_address_r_address(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
-    v0 = eq arg0, 5
+    v0 = eq arg0, 1
     jumpi v0, bb1, bb2
   bb2:  ; preds = bb0
     icall panic_if<0x51>, true
@@ -253,7 +253,7 @@ fn @inspectSigned(arg0: i256) -> i256 [pure] {
 fn @signedPointer() -> i256 [selector=0x9c657eab, pure, abi_params=[], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     v0 = sext i8 255 to i256
-    v1 = icall @internal_dispatcher_p_int8_r_int256, 20, v0
+    v1 = icall @internal_dispatcher_p_int8_r_int256, 1, v0
     ret v1
 }
 
@@ -275,7 +275,7 @@ fn @identity(arg0: i256) -> i256 [pure] {
 ; function throughPointer() external pure returns (uint256 raw) [selector 0xb80d6cd3]
 fn @throughPointer() -> i256 [selector=0xb80d6cd3, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = icall @internal_dispatcher_p_uint8_r_uint8, 23, 257
+    v0 = icall @internal_dispatcher_p_uint8_r_uint8, 2, 257
     ret v0
 }
 
@@ -290,7 +290,7 @@ fn @cleanPair() -> struct0 [pure] {
 ; function cleanPairDispatch() external pure returns (uint8, uint16) [selector 0xc5500c7d]
 fn @cleanPairDispatch() -> struct0 [selector=0xc5500c7d, pure, abi_params=[], abi_returns=[word<uint8>, word<uint16>], abi_return_params=[uint8, uint16]] {
   bb0:
-    v0 = icall @internal_dispatcher_p_none_r_uint8_uint16, 25
+    v0 = icall @internal_dispatcher_p_none_r_uint8_uint16, 3
     v1 = extract_value struct1, v0, 0
     v2 = extract_value struct1, v0, 1
     v3 = trunc i256 v1 to i8
@@ -412,7 +412,7 @@ fn @signedCarrierSign(arg0: i256) -> i256 [pure] {
 
 fn @internal_dispatcher_p_int8_r_int256(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
-    v0 = eq arg0, 20
+    v0 = eq arg0, 1
     jumpi v0, bb1, bb2
   bb2:  ; preds = bb0
     icall panic_if<0x51>, true
@@ -424,7 +424,7 @@ fn @internal_dispatcher_p_int8_r_int256(arg0: i256, arg1: i256) -> i256 [functio
 
 fn @internal_dispatcher_p_uint8_r_uint8(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
-    v0 = eq arg0, 23
+    v0 = eq arg0, 2
     jumpi v0, bb1, bb2
   bb2:  ; preds = bb0
     icall panic_if<0x51>, true
@@ -436,7 +436,7 @@ fn @internal_dispatcher_p_uint8_r_uint8(arg0: i256, arg1: i256) -> i256 [functio
 
 fn @internal_dispatcher_p_none_r_uint8_uint16(arg0: i256) -> struct1 [function_pointer_dispatcher] {
   bb0:
-    v0 = eq arg0, 25
+    v0 = eq arg0, 3
     jumpi v0, bb1, bb2
   bb2:  ; preds = bb0
     icall panic_if<0x51>, true
