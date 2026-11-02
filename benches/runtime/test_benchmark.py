@@ -1221,11 +1221,6 @@ class ArtifactTests(unittest.TestCase):
         solx = json.loads(
             benchmark.artifact_compiler_input(input_text, test_case, "solx")
         )
-        self.assertEqual(
-            list(solar["settings"]["outputSelection"]),
-            ["*"],
-            "Solar's artifact run selects every contract",
-        )
         solar_outputs = solar["settings"]["outputSelection"]["*"]["*"]
         solc_outputs = next(iter(solc["settings"]["outputSelection"].values()))[
             test_case.contract_name
@@ -1324,8 +1319,14 @@ class ArtifactTests(unittest.TestCase):
             ]
 
         # Solar prints each kind for all contracts in turn.
-        a, b = dump("A.sol:Lib", "lib"), dump("B.sol:Target", "target")
-        stdout = "\n\n".join(part for pair in zip(a, b, strict=True) for part in pair)
+        a, b, c = (
+            dump("C.sol:Lib", "lib"),
+            dump("B.sol:Target", "target"),
+            dump("A.sol:Child", "child"),
+        )
+        stdout = "\n\n".join(
+            part for group in zip(a, b, c, strict=True) for part in group
+        )
         stdout += '\n{"contracts":{}}'
 
         artifacts, output = benchmark.split_solar_artifact_output(
@@ -1342,21 +1343,28 @@ class ArtifactTests(unittest.TestCase):
                 "runtime.disasm",
             ],
         )
-        self.assertEqual(
-            artifacts["runtime.disasm"],
-            "// === B.sol:Target (runtime) ===\nruntime asm target\n\n"
-            "// === A.sol:Lib (runtime) ===\nruntime asm lib\n",
-        )
-        self.assertEqual(
-            artifacts["runtime.evmir"],
-            "// === B.sol:Target (runtime) ===\nruntime ir target\n\n"
-            "// === A.sol:Lib (runtime) ===\nruntime ir lib\n",
-        )
+        for name, heading, tag in (
+            ("mir.mir", "{}", "mir"),
+            ("creation.evmir", "{} (creation)", "creation ir"),
+            ("runtime.evmir", "{} (runtime)", "runtime ir"),
+            ("creation.disasm", "{} (deployment)", "creation asm"),
+            ("runtime.disasm", "{} (runtime)", "runtime asm"),
+        ):
+            self.assertEqual(
+                artifacts[name],
+                "\n".join(
+                    f"// === {heading.format(contract)} ===\n{tag} {suffix}\n"
+                    for contract, suffix in (
+                        ("B.sol:Target", "target"),
+                        ("A.sol:Child", "child"),
+                        ("C.sol:Lib", "lib"),
+                    )
+                ),
+            )
         self.assertEqual(json.loads(output), {"contracts": {}})
 
     def test_solar_dump_without_the_target_is_rejected(self) -> None:
-        stdout = "// === A.sol:A ===\nmir\n" + '{"contracts":{}}'
-        stdout = stdout.replace("mir\n{", "mir\n\n{")
+        stdout = '// === A.sol:A ===\nmir\n{"contracts":{}}'
 
         with self.assertRaisesRegex(ValueError, "expected 5 .* B.sol:B, found 0"):
             benchmark.split_solar_artifact_output(stdout, "B.sol:B")

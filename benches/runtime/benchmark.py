@@ -490,11 +490,8 @@ SOLAR_DUMP_FILES = (
 def split_solar_artifact_output(
     stdout: str, contract_path: str
 ) -> tuple[dict[str, str], str]:
-    """Splits a Solar dump of every contract into one file per kind and Standard JSON.
-
-    Each file holds a headed section per contract: the selected contract first, then the
-    others by name, so diffs of unchanged contracts stay empty.
-    """
+    # Each file lists the selected contract first, then the rest by name, so the diff of an
+    # unchanged contract stays empty.
     marker = "\n{"
     json_start = stdout.rfind(marker)
     if json_start < 0 and stdout.startswith("{"):
@@ -595,8 +592,7 @@ def write_artifacts(
     source = test_case.source_name or test_case.source or f"{test_case.test_id}.sol"
     contract_path = f"{source}:{test_case.contract_name}"
     if spec.kind == "solar":
-        kinds = ",".join(ARTIFACT_DUMP_KINDS)
-        cmd.extend(["--color", "never", f"-Zdump={kinds}"])
+        cmd.extend(["--color", "never", f"-Zdump={','.join(ARTIFACT_DUMP_KINDS)}"])
     proc = run(cmd, input_text=input_text, timeout=timeout)
     if proc.returncode != 0:
         return (proc.stderr or proc.stdout or "artifact compiler failed")[:1000]

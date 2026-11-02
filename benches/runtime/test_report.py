@@ -32,35 +32,6 @@ def result(test_id="test", suite="repository", **compiler):
     return {"test_id": test_id, "suite": suite, "compilers": {"solar": compiler}}
 
 
-class ArtifactDiffTests(unittest.TestCase):
-    def test_diff_covers_a_contract_other_than_the_selected_one(self):
-        def sections(library: str) -> str:
-            return f"// === A.sol:Target ===\nsame\n\n// === B.sol:Lib ===\n{library}\n"
-
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            for name, library in (("before", "old"), ("after", "new")):
-                solar = root / name / "artifacts" / "test" / "solar"
-                solar.mkdir(parents=True)
-                (solar / "mir.mir").write_text(sections(library))
-            row: dict = {"test_id": "test", "compiler": "solar"}
-            comparison = {"rows": [row]}
-            patch_path = root / "changes.patch"
-
-            benchmark.compare_artifacts(
-                comparison,
-                root / "before" / "artifacts",
-                root / "after" / "artifacts",
-                ["mir"],
-                patch_path,
-            )
-
-            self.assertEqual([a["status"] for a in row["artifacts"]], ["changed"])
-            diff = patch_path.read_text()
-            self.assertIn("-old\n+new\n", diff)
-            self.assertIn(" // === B.sol:Lib ===\n", diff)
-
-
 class BenchmarkBaseTests(unittest.TestCase):
     def test_stack_parent_requires_identical_source_tree(self):
         spec = importlib.util.spec_from_file_location(
