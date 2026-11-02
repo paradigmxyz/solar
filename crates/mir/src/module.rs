@@ -190,8 +190,8 @@ impl Module {
 
     /// Parses one function as a candidate replacement for one of this module's functions.
     ///
-    /// Candidates are untrusted, so they are held to a stricter grammar than [`Self::parse`]
-    /// accepts: see [`super::parser::parse_candidate`]. [`Self::candidate_text`] prints it.
+    /// Candidates cannot declare types or other functions, attach metadata, use undefined
+    /// values, or refer to functions by numeric ID. [`Self::candidate_text`] prints this grammar.
     pub fn parse_function(
         &self,
         sess: &solar_interface::Session,
