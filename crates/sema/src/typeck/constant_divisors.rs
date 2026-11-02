@@ -70,7 +70,7 @@ impl<'gcx> Visit<'gcx> for Checker<'gcx> {
             {
                 let msg =
                     if op.kind == hir::BinOpKind::Div { "division by zero" } else { "modulo zero" };
-                self.gcx.dcx().err(msg).code(error_code!(1211)).span(expr.span).emit();
+                self.gcx.dcx().emit_err(expr.span, error_code!(1211), msg);
             }
             hir::ExprKind::Call(
                 callee,
@@ -81,7 +81,7 @@ impl<'gcx> Visit<'gcx> for Checker<'gcx> {
             ) && self.is_zero(modulus) =>
             {
                 let msg = "arithmetic modulo zero";
-                self.gcx.dcx().err(msg).code(error_code!(4195)).span(expr.span).emit();
+                self.gcx.dcx().emit_err(expr.span, error_code!(4195), msg);
             }
             _ => {}
         }

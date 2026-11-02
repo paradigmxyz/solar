@@ -494,14 +494,14 @@ impl Reported {
                     continue;
                 }
                 let action = if returned { "returned" } else { "accessed" };
-                let mut diag = gcx
-                    .dcx()
-                    .err(format!(
+                let mut diag = gcx.dcx().err_at(
+                    span,
+                    error_code!(3464),
+                    format!(
                         "this variable is of {location} pointer type and can be {action} without \
                          prior assignment, which would lead to undefined behaviour"
-                    ))
-                    .code(error_code!(3464))
-                    .span(span);
+                    ),
+                );
                 if !returned {
                     diag = diag.span_note(variable.span, "the variable was declared here");
                 }
@@ -519,9 +519,7 @@ impl Reported {
                     None => "unnamed return variable can remain unassigned".to_string(),
                 };
                 gcx.dcx()
-                    .warn(msg)
-                    .code(error_code!(6321))
-                    .span(span)
+                    .warn_at(span, error_code!(6321), msg)
                     .help(
                         "add an explicit return with value to all non-reverting code paths or \
                          name the variable",
@@ -531,7 +529,7 @@ impl Reported {
         }
         for &span in &analysis.unreachable {
             if self.unreachable.insert(span) {
-                gcx.dcx().warn("unreachable code").code(error_code!(5740)).span(span).emit();
+                gcx.dcx().emit_warn(span, error_code!(5740), "unreachable code");
             }
         }
     }

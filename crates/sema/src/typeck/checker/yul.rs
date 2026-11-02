@@ -29,7 +29,7 @@ impl<'gcx> TypeChecker<'gcx> {
             LitKind::Address(_) | LitKind::Bool(_) => return self.gcx.types.uint(256),
             LitKind::BigNumber(_) => {
                 let msg = "number literal too large (> 256 bits)";
-                let err = self.dcx().err(msg).code(error_code!(6708)).span(lit.span);
+                let err = self.dcx().err_at(lit.span, error_code!(6708), msg);
                 return self.gcx.mk_ty_err(err.emit());
             }
             _ => {}
@@ -58,58 +58,55 @@ impl<'gcx> TypeChecker<'gcx> {
                 return Ok(false);
             }
             if self.in_lvalue() {
-                return Err(self
-                    .dcx()
-                    .err("only local variables can be assigned to in inline assembly")
-                    .code(error_code!(1990))
-                    .span(span)
-                    .emit());
+                return Err(self.dcx().emit_err(
+                    span,
+                    error_code!(1990),
+                    "only local variables can be assigned to in inline assembly",
+                ));
             }
             if let hir::ItemId::Function(_) = item {
-                return Err(self
-                    .dcx()
-                    .err("access to functions is not allowed in inline assembly")
-                    .code(error_code!(2025))
-                    .span(span)
-                    .emit());
+                return Err(self.dcx().emit_err(
+                    span,
+                    error_code!(2025),
+                    "access to functions is not allowed in inline assembly",
+                ));
             }
             return Ok(false);
         };
         let var = self.gcx.hir.variable(var_id);
 
         if var.is_immutable() {
-            return Err(self
-                .dcx()
-                .err("assembly access to immutable variables is not supported")
-                .code(error_code!(3773))
-                .span(span)
-                .emit());
+            return Err(self.dcx().emit_err(
+                span,
+                error_code!(3773),
+                "assembly access to immutable variables is not supported",
+            ));
         }
 
         if var.is_constant() && self.is_constant_recursive(var_id) {
-            return Err(self
-                .dcx()
-                .err("constant variable is circular")
-                .code(error_code!(3558))
-                .span(span)
-                .emit());
+            return Err(self.dcx().emit_err(
+                span,
+                error_code!(3558),
+                "constant variable is circular",
+            ));
         }
 
         if var.is_constant() && !self.in_lvalue() && !ty.is_value_type() {
-            return Err(self
-                .dcx()
-                .err("only direct number constants are supported in inline assembly")
-                .code(error_code!(7615))
-                .span(span)
-                .emit());
+            return Err(self.dcx().emit_err(
+                span,
+                error_code!(7615),
+                "only direct number constants are supported in inline assembly",
+            ));
         }
 
         if var.is_state_variable() && !var.is_constant() {
             return Err(self
                 .dcx()
-                .err("only local variables are supported in inline assembly")
-                .code(error_code!(1408))
-                .span(span)
+                .err_at(
+                    span,
+                    error_code!(1408),
+                    "only local variables are supported in inline assembly",
+                )
                 .help("use `.slot` and `.offset` to access storage or transient storage variables")
                 .emit());
         }
@@ -117,9 +114,11 @@ impl<'gcx> TypeChecker<'gcx> {
         if ty.data_stored_in(DataLocation::Storage) || ty.data_stored_in(DataLocation::Transient) {
             return Err(self
                 .dcx()
-                .err("storage reference variables need a suffix in inline assembly")
-                .code(error_code!(9068))
-                .span(span)
+                .err_at(
+                    span,
+                    error_code!(9068),
+                    "storage reference variables need a suffix in inline assembly",
+                )
                 .help("use `.slot` or `.offset`")
                 .emit());
         }
@@ -127,20 +126,21 @@ impl<'gcx> TypeChecker<'gcx> {
         if is_dynamic_calldata_array(ty) {
             return Err(self
                 .dcx()
-                .err("calldata variables need a suffix in inline assembly")
-                .code(error_code!(1397))
-                .span(span)
+                .err_at(
+                    span,
+                    error_code!(1397),
+                    "calldata variables need a suffix in inline assembly",
+                )
                 .help("use `.offset` or `.length`")
                 .emit());
         }
 
         if matches!(ty.kind, TyKind::Fn(f) if f.is_external()) {
-            return Err(self
-                .dcx()
-                .err("only types that use one stack slot are supported")
-                .code(error_code!(9857))
-                .span(span)
-                .emit());
+            return Err(self.dcx().emit_err(
+                span,
+                error_code!(9857),
+                "only types that use one stack slot are supported",
+            ));
         }
 
         Ok(true)
@@ -289,7 +289,7 @@ impl<'gcx> TypeChecker<'gcx> {
             }
         };
 
-        self.gcx.mk_ty_err(self.dcx().err(msg).code(code).span(span).emit())
+        self.gcx.mk_ty_err(self.dcx().emit_err(span, code, msg))
     }
 
     fn check_yul_member_base(
