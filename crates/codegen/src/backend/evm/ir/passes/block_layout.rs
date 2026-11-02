@@ -8,10 +8,10 @@
 //! final lowering can then omit jumps whose target is the next emitted block
 //! without encoding physical layout assumptions in the IR. Independent hot
 //! traces are placed before cold terminal traces so unlikely exit paths do not
-//! interrupt hot code. Small, independently movable traces ending in a terminal, or cold ones
-//! ending in a jump to a shared tail, are packed below the PUSH1 address limit by reference
+//! interrupt hot code. Small, independently movable traces ending in a terminal or cold and
+//! ending in a jump, such as a revert stub, are packed below the PUSH1 address limit by reference
 //! density. Hot traces that end in a jump stay put: moving one changes which caller falls
-//! through into a shared tail, and gas builds measured the extra jump. Moving the entire trace
+//! through into a shared tail, and the other caller pays an extra jump. Moving the entire trace
 //! preserves its fallthrough edges, including a call followed by a shared failure block. Packing
 //! also reserves address space for one-byte indexed jump tables to avoid widening their lookups.
 //! Size estimates guide placement; assembly still resolves the exact offsets and widths.
@@ -207,8 +207,8 @@ fn pack_terminal_traces(est: SizeEstimator, module: &Module, order: &mut Vec<Blo
             references += placement.references[block];
             position += 1;
             if is_physical_terminal_boundary(&module.blocks[block], order.get(position).copied()) {
-                // A trace ends in a terminal or a jump. Cold jump-ending traces qualify too: they
-                // are stubs that push a revert payload and jump to the shared revert tail.
+                // A trace ends in a terminal or a jump. Cold jump-ending traces qualify too, such
+                // as a stub that pushes a revert payload and jumps to the shared revert tail.
                 if (is_terminal_block(&module.blocks[block])
                     || module.blocks[block].metadata.hotness.is_cold())
                     && size <= 32

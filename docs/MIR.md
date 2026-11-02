@@ -704,7 +704,8 @@ terminators. Layout places the taken arm before its join so assembly can omit
 the arm’s jump. Known loops and cold arms keep their existing order, and the
 conversion preserves source origins and keeps glued instructions intact. Debug events move to retained operations where representable.
 
-EVM layout packs small shared terminal traces below the PUSH1 address limit.
+EVM layout packs small shared terminal traces, and cold traces that end in a jump such
+as revert stubs, below the PUSH1 address limit.
 It moves the whole fallthrough trace, so moving a shared exit does not insert
 jumps between its predecessor blocks. Multi-block traces must end at an exit
 with at least four references beyond the low-address range; the stricter limit
