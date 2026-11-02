@@ -3,12 +3,14 @@
 @types
   struct0: {i256, i256}
 
+; getter for `uint256 public acc` [selector 0x7da1365e]
 fn @acc() -> i256 [selector=0x7da1365e, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+; getter for `uint256[8] public s` [selector 0x52efd685]
 fn @s(arg0: i256) -> i256 [selector=0x52efd685, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = lt arg0, 8
@@ -18,6 +20,7 @@ fn @s(arg0: i256) -> i256 [selector=0x52efd685, view, abi_params=[uint256], abi_
     ret v2
 }
 
+; function mix(uint256 x) internal pure returns (uint256)
 fn @mix(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = mul arg0, 0x9e3779b97f4a7c15
@@ -25,6 +28,7 @@ fn @mix(arg0: i256) -> i256 [pure] {
     ret v1
 }
 
+; function step(uint256 x, uint256 y) internal pure returns (uint256, uint256)
 fn @step(arg0: i256, arg1: i256) -> struct0 [pure] {
   bb0:
     v0 = mul arg0, 3
@@ -36,6 +40,7 @@ fn @step(arg0: i256, arg1: i256) -> struct0 [pure] {
     ret v5
 }
 
+; function g(uint256 a, uint256 b, uint256 c) external returns (uint256) [selector 0x191157d1]
 fn @g(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x191157d1, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mul arg0, 1
@@ -75,7 +80,7 @@ fn @g(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x191157d1, abi_para
     v34 = add v32, v33
     v35 = add v34, 16
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb5
     v36 = phi [bb0: arg0], [bb5: v36]
     v37 = phi [bb0: arg1], [bb5: v37]
     v38 = phi [bb0: arg2], [bb5: v38]
@@ -91,24 +96,24 @@ fn @g(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x191157d1, abi_para
     v48 = phi [bb0: v35], [bb5: v54]
     v49 = phi [bb0: 0], [bb5: v50]
     jumpi true, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb1
     jump bb2
-  bb3:
+  bb3:  ; preds = bb1
     v50 = add v49, 1
     v51 = xor v44, v50
     v52 = and v46, 3
     v53 = gt v50, v52
     jumpi v53, bb6, bb7
-  bb7:
+  bb7:  ; preds = bb3
     jump bb8
-  bb8:
+  bb8:  ; preds = bb7
     v54 = icall @mix, v51
     jump bb5
-  bb5:
+  bb5:  ; preds = bb8
     jump bb1
-  bb6:
+  bb6:  ; preds = bb3
     jump bb2
-  bb2:
+  bb2:  ; preds = bb6, bb4
     v55 = phi [bb6: v51], [bb4: v44]
     v56 = phi [bb6: v50], [bb4: v49]
     v57 = icall @step, v43, v47
@@ -126,11 +131,11 @@ fn @g(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x191157d1, abi_para
     v68 = and v48, 2
     v69 = eq v68, 0
     jumpi v69, bb9, bb10
-  bb10:
+  bb10:  ; preds = bb2
     v76 = icall @mix, v67
     v77 = xor v76, v42
     jump bb11
-  bb9:
+  bb9:  ; preds = bb2
     v70 = sload 0 !metadata(storage=slot(0))
     v71 = add v70, v55
     sstore 0, v71 !metadata(storage=slot(0))
@@ -141,7 +146,7 @@ fn @g(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x191157d1, abi_para
     v75 = add 1, v72
     sstore v75, v55 !metadata(storage=offset(v72, 1))
     jump bb11
-  bb11:
+  bb11:  ; preds = bb9, bb10
     v78 = phi [bb9: v41], [bb10: v77]
     v79 = mul v40, 1
     v80 = mul v78, 2

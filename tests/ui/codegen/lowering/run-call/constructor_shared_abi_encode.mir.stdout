@@ -1,11 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_shared_abi_encode.sol:DynamicSink ===
 @module DynamicSink
+; getter for `uint256 public calls` [selector 0x305f72b7]
 fn @calls() -> i256 [selector=0x305f72b7, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+; function record(address, string calldata) external [selector 0x01b2c698]
 fn @record(arg0: i160, arg1: slice<calldata>) [selector=0x01b2c698, abi_params=[address, bytes], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -16,6 +18,7 @@ fn @record(arg0: i160, arg1: slice<calldata>) [selector=0x01b2c698, abi_params=[
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_shared_abi_encode.sol:DynamicCaller ===
 @module DynamicCaller
+; constructor(DynamicSink sink) [creation entry]
 fn @constructor(arg0: i160) [constructor, abi_params=[address]] {
   bb0:
     icall @recordFirst, arg0
@@ -23,6 +26,7 @@ fn @constructor(arg0: i160) [constructor, abi_params=[address]] {
     ret
 }
 
+; function recordFirst(DynamicSink sink) internal
 fn @recordFirst(arg0: i160) {
   bb0:
     v0 = gas
@@ -40,12 +44,13 @@ fn @recordFirst(arg0: i160) {
     v9 = zext i160 arg0 to i256
     v10 = call v0, v9, 0, v4, v5, 0, 0
     jumpi v10, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     ret
 }
 
+; function recordSecond(DynamicSink sink) internal
 fn @recordSecond(arg0: i160) {
   bb0:
     v0 = gas
@@ -63,9 +68,9 @@ fn @recordSecond(arg0: i160) {
     v9 = zext i160 arg0 to i256
     v10 = call v0, v9, 0, v4, v5, 0, 0
     jumpi v10, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     ret
 }
 
@@ -75,6 +80,7 @@ fn @recordSecond(arg0: i160) {
   DynamicSink_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/constructor_shared_abi_encode.sol:DynamicSink"
   DynamicCaller_creation_code_1: creation_code "ROOT/tests/ui/codegen/lowering/run-call/constructor_shared_abi_encode.sol:DynamicCaller"
 
+; function run() external returns (uint256) [selector 0xc0406226]
 fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = datasize DynamicSink_creation_code_0
@@ -83,9 +89,9 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = zext i160 v2 to i256
     v5 = abi_encode [word<uint160>], args v4
     v6 = datasize DynamicCaller_creation_code_1
@@ -99,21 +105,20 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v12 = create 0, v8, v7
     v13 = ne v12, i160 0
     jumpi v13, bb4, bb3
-  bb3:
+  bb3:  ; preds = bb2
     revert_returndata
-  bb4:
+  bb4:  ; preds = bb2
     v14 = gas
     mstore 0, 0x305f72b7 !metadata(memory=scratch)
     v15 = zext i160 v2 to i256
     v16 = staticcall v14, v15, 28, 4, 0, 32
     jumpi v16, bb6, bb5
-  bb5:
+  bb5:  ; preds = bb4
     revert_returndata
-  bb6:
+  bb6:  ; preds = bb4
     v17 = returndatasize
     v18 = lt v17, 32
     icall revert_if<tuple_data_too_short>, v18
-    v19 = add 0, 0
-    v20 = mload v19
-    ret v20
+    v19 = mload 0 !metadata(memory=scratch)
+    ret v19
 }

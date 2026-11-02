@@ -18,8 +18,8 @@
 //! counts words independently of address wraparound.
 
 use crate::mir::{
-    AllocationSemantics, ConditionUse, Function, FunctionBuilder, FunctionId, InstKind, MirType,
-    Module, PanicCode, ValueId,
+    AllocationSemantics, Function, FunctionBuilder, FunctionId, InstKind, MirType, Module,
+    PanicCode, ValueId,
 };
 use alloy_primitives::U256;
 use solar_interface::{Ident, sym};
@@ -103,8 +103,8 @@ pub(super) fn clear_words(
     builder.branch(condition, body, exit);
     builder.switch_to_block(body);
     builder.sstore(element_slot, zero);
-    let next = builder.add_u64_offset(index, 1);
-    let next_slot = builder.add_u64_offset(element_slot, 1);
+    let next = builder.add_offset(index, 1);
+    let next_slot = builder.add_offset(element_slot, 1);
     let backedge = builder.current_block();
     builder.jump(header);
     builder.add_phi_incoming(index, backedge, next);
@@ -247,7 +247,8 @@ pub(super) fn store_literal(
     // old_is_long, old_length = validate_storage_bytes(header)
     // branch old_is_long && old_length > length, cleanup, write
     let (old_is_long, old_length) = validate(builder, header);
-    let shrunk = builder.gt_literal(old_length, bytes.len() as u64, ConditionUse::VALUE);
+    let length = builder.imm(bytes.len() as u64);
+    let shrunk = builder.gt(old_length, length);
     let needs_cleanup = builder.and(old_is_long, shrunk);
     let cleanup_block = builder.create_block();
     let write_block = builder.create_block();

@@ -1,142 +1,142 @@
 // === ROOT/tests/ui/codegen/mir/loop-unroll/search.sol:Search ===
 @module Search
+; function find(uint256[] calldata values, uint256 x) external pure returns (uint256 found) [selector 0x867025b4]
 fn @find(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x867025b4, pure, abi_params=[array<_, uint256>, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v1 = phi [bb0: arg0], [bb3: v1]
     v2 = phi [bb0: arg1], [bb3: v2]
     v3 = phi [bb0: v0], [bb3: v3]
-    v4 = phi [bb0: 0], [bb3: v18]
+    v4 = phi [bb0: 0], [bb3: v17]
     v5 = extract_value slice<calldata>, v1, 1
     v6 = lt v4, v5
     jumpi v6, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb4:
+  bb4:  ; preds = bb1
     v7 = extract_value slice<calldata>, v1, 1
     v8 = lt v4, v7
     v9 = eq v8, false
     icall panic_if<0x32>, v9
     v10 = extract_value slice<calldata>, v1, 0
     v11 = mul v4, 32
-    v12 = shr v4, 251
-    v13 = ne v12, 0
-    icall panic_if<0x41>, v13
-    v14 = ptrtoint ptr<calldata> v10 to i256
-    v15 = add v14, v11
-    v16 = calldataload v15
-    v17 = eq v16, v2
-    jumpi v17, bb7, bb8
-  bb8:
+    v12 = gt v4, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v12
+    v13 = ptrtoint ptr<calldata> v10 to i256
+    v14 = add v13, v11
+    v15 = calldataload v14
+    v16 = eq v15, v2
+    jumpi v16, bb7, bb8
+  bb8:  ; preds = bb4
     jump bb9
-  bb9:
+  bb9:  ; preds = bb8
     jump bb6
-  bb6:
+  bb6:  ; preds = bb9
     jump bb3
-  bb3:
-    v18 = checked_add uint256, v4, 1
+  bb3:  ; preds = bb6
+    v17 = checked_add uint256, v4, 1
     jump bb1
-  bb7:
+  bb7:  ; preds = bb4
     jump bb2
-  bb2:
-    v19 = phi [bb7: v4], [bb5: v3]
-    ret v19
+  bb2:  ; preds = bb7, bb5
+    v18 = phi [bb7: v4], [bb5: v3]
+    ret v18
 }
 
+; function findReturn(uint256[] calldata values, uint256 x) external pure returns (uint256) [selector 0xc77230d0]
 fn @findReturn(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0xc77230d0, pure, abi_params=[array<_, uint256>, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v2]
-    v3 = phi [bb0: 0], [bb3: v17]
+    v3 = phi [bb0: 0], [bb3: v16]
     v4 = extract_value slice<calldata>, v0, 1
     v5 = lt v3, v4
     jumpi v5, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
-    v18 = extract_value slice<calldata>, v0, 1
-    ret v18
-  bb4:
+  bb2:  ; preds = bb5
+    v17 = extract_value slice<calldata>, v0, 1
+    ret v17
+  bb4:  ; preds = bb1
     v6 = extract_value slice<calldata>, v0, 1
     v7 = lt v3, v6
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     v9 = extract_value slice<calldata>, v0, 0
     v10 = mul v3, 32
-    v11 = shr v3, 251
-    v12 = ne v11, 0
-    icall panic_if<0x41>, v12
-    v13 = ptrtoint ptr<calldata> v9 to i256
-    v14 = add v13, v10
-    v15 = calldataload v14
-    v16 = eq v15, v1
-    jumpi v16, bb7, bb8
-  bb8:
+    v11 = gt v3, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v11
+    v12 = ptrtoint ptr<calldata> v9 to i256
+    v13 = add v12, v10
+    v14 = calldataload v13
+    v15 = eq v14, v1
+    jumpi v15, bb7, bb8
+  bb8:  ; preds = bb4
     jump bb9
-  bb9:
+  bb9:  ; preds = bb8
     jump bb6
-  bb6:
+  bb6:  ; preds = bb9
     jump bb3
-  bb3:
-    v17 = checked_add uint256, v3, 1
+  bb3:  ; preds = bb6
+    v16 = checked_add uint256, v3, 1
     jump bb1
-  bb7:
+  bb7:  ; preds = bb4
     ret v3
 }
 
+; function count(uint256[] calldata values, uint256 limit) external pure returns (uint256 n) [selector 0xb77153be]
 fn @count(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0xb77153be, pure, abi_params=[array<_, uint256>, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: arg1], [bb3: v1]
-    v2 = phi [bb0: 0], [bb3: v19]
-    v3 = phi [bb0: 0], [bb3: v20]
+    v2 = phi [bb0: 0], [bb3: v18]
+    v3 = phi [bb0: 0], [bb3: v19]
     v4 = extract_value slice<calldata>, v0, 1
     v5 = lt v3, v4
     jumpi v5, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb6
-  bb4:
+  bb4:  ; preds = bb1
     v6 = lt v3, v1
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v7 = phi [bb4: v6], [bb5: false]
     jumpi v7, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     jump bb2
-  bb7:
+  bb7:  ; preds = bb6
     v8 = extract_value slice<calldata>, v0, 1
     v9 = lt v3, v8
     v10 = eq v9, false
     icall panic_if<0x32>, v10
     v11 = extract_value slice<calldata>, v0, 0
     v12 = mul v3, 32
-    v13 = shr v3, 251
-    v14 = ne v13, 0
-    icall panic_if<0x41>, v14
-    v15 = ptrtoint ptr<calldata> v11 to i256
-    v16 = add v15, v12
-    v17 = calldataload v16
-    v18 = eq v17, 0
-    jumpi v18, bb10, bb11
-  bb11:
+    v13 = gt v3, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v13
+    v14 = ptrtoint ptr<calldata> v11 to i256
+    v15 = add v14, v12
+    v16 = calldataload v15
+    v17 = eq v16, 0
+    jumpi v17, bb10, bb11
+  bb11:  ; preds = bb7
     jump bb12
-  bb12:
-    v19 = checked_add uint256, v2, 1
+  bb12:  ; preds = bb11
+    v18 = checked_add uint256, v2, 1
     jump bb9
-  bb9:
+  bb9:  ; preds = bb12
     jump bb3
-  bb3:
-    v20 = checked_add uint256, v3, 1
+  bb3:  ; preds = bb9
+    v19 = checked_add uint256, v3, 1
     jump bb1
-  bb10:
+  bb10:  ; preds = bb7
     jump bb2
-  bb2:
+  bb2:  ; preds = bb10, bb8
     ret v2
 }

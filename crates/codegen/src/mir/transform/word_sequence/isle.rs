@@ -4,7 +4,10 @@
 //! to earlier temporaries. They are resolved when a winning recipe is committed;
 //! rejected recipes leave the function and its metadata untouched.
 
-use super::{Recipe, Temporary, mask_uses::MaskUses, widest_int_operand};
+use super::{
+    super::egraph::max_bits_with_args, ConditionRead, Recipe, Stage, Temporary,
+    mask_uses::MaskUses, widest_int_operand,
+};
 use crate::{
     backend::evm::op,
     mir::{
@@ -14,11 +17,15 @@ use crate::{
     target::Target,
 };
 use alloy_primitives::U256;
-use solar_data_structures::map::{FxHashMap, FxHashSet};
-use solar_mir::BitWidthTest;
+use solar_data_structures::{
+    index::IndexVec,
+    map::{FxHashMap, FxHashSet},
+};
 
 type Value = ValueId;
 const MAX_ISLE_RETURNS: usize = 16;
+/// How many definitions deep the known bits of a value are followed.
+const MAX_FACT_DEPTH: u32 = 8;
 const MAX_TEMPORARIES: usize = 64;
 
 #[allow(
@@ -43,27 +50,38 @@ mod generated {
     include!(concat!(env!("OUT_DIR"), "/word_sequence.isle.rs"));
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn alternatives(
     func: &Function,
     block: &[InstId],
     seen: &FxHashSet<InstId>,
     masks: &mut Option<MaskUses>,
+    uses: &IndexVec<ValueId, u32>,
     op: &Op,
     target: &Target,
-    late: bool,
+    stage: Stage,
+    read: ConditionRead,
 ) -> Vec<Recipe> {
     let mut result = Vec::new();
     let scalar_ty =
         op.into_kind().and_then(|kind| widest_int_operand(func, &kind)).unwrap_or(MirType::I256);
+    // The tests that an `and` of booleans joins are spelled as words.
+    let scalar_ty = if stage == Stage::Spelling && scalar_ty == MirType::I1 {
+        MirType::I256
+    } else {
+        scalar_ty
+    };
     generated::constructor_sequence_rewrite(
         &mut Context {
             func,
             block,
             seen,
             masks,
+            uses,
             target,
             scalar_ty,
-            late,
+            stage,
+            read,
             temporaries: FxHashMap::default(),
         },
         op,
@@ -79,9 +97,13 @@ struct Context<'a> {
     seen: &'a FxHashSet<InstId>,
     /// Built by the first mask query of the function.
     masks: &'a mut Option<MaskUses>,
+    /// The readers of each value, which the run keeps current.
+    uses: &'a IndexVec<ValueId, u32>,
     target: &'a Target,
     scalar_ty: MirType,
-    late: bool,
+    stage: Stage,
+    /// How the root's result is read.
+    read: ConditionRead,
     temporaries: FxHashMap<ValueId, Temporary>,
 }
 
@@ -129,7 +151,7 @@ impl generated::Context for Context<'_> {
         if a >= U256::from(256) { U256::ZERO } else { (b << a.to::<usize>()) & self.mask() }
     }
     fn power_of_two_shift(&mut self, value: U256) -> Option<U256> {
-        BitWidthTest::width_of_power(value).map(U256::from)
+        (value > U256::ONE && value.is_power_of_two()).then(|| U256::from(value.trailing_zeros()))
     }
 
     fn low_mask_shift(&mut self, mask: U256) -> Option<U256> {
@@ -224,12 +246,66 @@ impl generated::Context for Context<'_> {
     }
 
     fn late_word_sequence(&mut self) -> bool {
-        self.late
+        matches!(self.stage, Stage::Late | Stage::LateLowered)
+    }
+
+    fn spelling_widths(&mut self) -> bool {
+        self.stage == Stage::Spelling
+    }
+
+    fn width_shifts(&mut self, bits: U256, fits: bool) -> bool {
+        u32::try_from(bits).is_ok_and(|bits| {
+            self.target.shifts_bits_test(bits, fits, self.read.branch, self.read.in_loop)
+        })
+    }
+
+    fn masked_shifts(&mut self, shift: U256, equal: bool, zero: bool) -> bool {
+        u32::try_from(shift).is_ok_and(|shift| {
+            self.target.shifts_masked_compare(
+                256 - shift,
+                equal,
+                zero,
+                self.read.branch,
+                self.read.in_loop,
+            )
+        })
+    }
+
+    fn fits_below_shift(&mut self, value: Value, shift: U256) -> bool {
+        u32::try_from(shift).is_ok_and(|shift| {
+            max_bits_with_args(self.func, value, MAX_FACT_DEPTH, &|_| 256) <= 256 - shift
+        })
+    }
+
+    fn sole_reader(&mut self, value: Value) -> bool {
+        self.uses.get(value) == Some(&1)
+    }
+
+    fn zero_operand(&mut self, value: Value) -> bool {
+        self.func.value_u256(value) == Some(U256::ZERO)
+    }
+
+    fn shared_shift(&mut self, bits: U256, value: Value) -> Option<Value> {
+        // The earliest such shift, so that the choice does not depend on the set's order.
+        let inst = self
+            .seen
+            .iter()
+            .copied()
+            .filter(|&inst| {
+                matches!(self.func.inst(inst).kind, InstKind::Shr(shift, shifted)
+                    if shifted == value && self.func.value_u256(shift) == Some(bits))
+            })
+            .min()?;
+        self.func.inst_result_value(inst)
     }
 
     fn unshared_mask(&mut self, mask: U256) -> bool {
         // A repeated constant can stay on the stack, where each use costs only a copy.
         self.masks().unshared(mask)
+    }
+
+    fn allocations_lowered(&mut self) -> bool {
+        self.stage == Stage::LateLowered
     }
 
     fn compared_mask(&mut self, value: Value, mask: U256) -> bool {

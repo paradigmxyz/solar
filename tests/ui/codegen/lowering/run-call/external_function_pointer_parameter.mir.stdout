@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_parameter.sol:ExternalFunctionPointerParameter ===
 @module ExternalFunctionPointerParameter
+; function f(uint256 value) public returns (uint256) [selector 0xb3de648b]
 fn @f(arg0: i256) -> i256 [selector=0xb3de648b, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
@@ -14,17 +15,17 @@ fn @f(arg0: i256) -> i256 [selector=0xb3de648b, abi_params=[uint256], abi_return
     v9 = zext i160 v0 to i256
     v10 = call v1, v9, 0, v7, v8, 0, 32
     jumpi v10, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v11 = returndatasize
     v12 = lt v11, 32
     icall revert_if<tuple_data_too_short>, v12
-    v13 = add 0, 0
-    v14 = mload v13
-    ret v14
+    v13 = mload 0 !metadata(memory=scratch)
+    ret v13
 }
 
+; function f2(uint256 value) public returns (uint256) [selector 0xbf3724af]
 fn @f2(arg0: i256) -> i256 [selector=0xbf3724af, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
@@ -35,6 +36,7 @@ fn @f2(arg0: i256) -> i256 [selector=0xbf3724af, abi_params=[uint256], abi_retur
     ret v4
 }
 
+; function eval(function(uint256) external returns (uint256) callback, uint256 value) public returns (uint256) [selector 0xc61581a0]
 fn @eval(arg0: i256, arg1: i256) -> i256 [selector=0xc61581a0, abi_params=[function, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = and arg0, 0xffffffff
@@ -46,17 +48,17 @@ fn @eval(arg0: i256, arg1: i256) -> i256 [selector=0xc61581a0, abi_params=[funct
     mstore 32, arg1 !metadata(memory=scratch)
     v5 = call v3, v2, 0, 28, 36, 0, 32
     jumpi v5, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v6 = returndatasize
     v7 = lt v6, 32
     icall revert_if<tuple_data_too_short>, v7
-    v8 = add 0, 0
-    v9 = mload v8
-    ret v9
+    v8 = mload 0 !metadata(memory=scratch)
+    ret v8
 }
 
+; function increment(uint256 value) public pure returns (uint256) [selector 0x7cf5dab0]
 fn @increment(arg0: i256) -> i256 [selector=0x7cf5dab0, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = checked_add uint256, arg0, 1

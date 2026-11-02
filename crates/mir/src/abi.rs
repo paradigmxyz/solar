@@ -1,6 +1,6 @@
 //! Semantic ABI layout descriptors used by MIR encoding operations.
 
-use super::{ConditionUse, FunctionBuilder, PtrLocation, ValueId, ValueLayout};
+use super::{FunctionBuilder, PtrLocation, ValueId, ValueLayout};
 use alloy_primitives::U256;
 use std::{fmt, sync::Arc};
 
@@ -456,41 +456,15 @@ impl AbiWordValidator {
         })
     }
 
-    /// Builds the condition that is true when `word` is canonical.
-    pub fn condition(
-        self,
-        builder: &mut FunctionBuilder<'_>,
-        word: ValueId,
-        read: ConditionUse,
-    ) -> ValueId {
+    /// Builds the condition that is true when `word` is not canonical, as a check that aborts on
+    /// it reads it: a width test is the comparison with its limit, `x > 2 ** bits - 1`.
+    pub fn violation(self, builder: &mut FunctionBuilder<'_>, word: ValueId) -> ValueId {
         match self {
-            Self::Unsigned(bits) => builder.fits_in_bits(word, bits.into(), read),
-            Self::LeftAligned(bits) => {
-                // shifted = word << bits
-                // valid = shifted == 0
-                let shift = builder.imm(u64::from(bits));
-                let shifted = builder.shl(word, shift);
-                builder.eq_zero(shifted)
+            Self::Unsigned(bits) => {
+                // invalid = word > 2 ** bits - 1
+                let limit = builder.imm(U256::MAX >> (256 - usize::from(bits)));
+                builder.gt(word, limit)
             }
-            Self::SignExtend(byte_index) => {
-                let byte_index = builder.imm(byte_index);
-                let canonical = builder.signextend(byte_index, word);
-                builder.eq(word, canonical)
-            }
-            Self::Bool => builder.fits_in_bits(word, 1, read),
-            Self::EnumRange(variants) => builder.lt_literal(word, variants, read),
-        }
-    }
-
-    /// Builds the condition that is true when `word` is not canonical, the one a check aborts on.
-    pub fn violation(
-        self,
-        builder: &mut FunctionBuilder<'_>,
-        word: ValueId,
-        read: ConditionUse,
-    ) -> ValueId {
-        match self {
-            Self::Unsigned(bits) => builder.exceeds_bits(word, bits.into(), read),
             Self::LeftAligned(bits) => {
                 // shifted = word << bits
                 // invalid = shifted != 0
@@ -503,12 +477,16 @@ impl AbiWordValidator {
                 let canonical = builder.signextend(byte_index, word);
                 builder.ne(word, canonical)
             }
-            Self::Bool => builder.exceeds_bits(word, 1, read),
-            Self::EnumRange(variants) => match variants.checked_sub(1) {
-                Some(last) => builder.gt_literal(word, last, read),
-                // An enum without variants has no valid word.
-                None => builder.imm_bool(true),
-            },
+            Self::Bool => {
+                let one = builder.imm(1);
+                builder.gt(word, one)
+            }
+            // A lone variant is a zero test, as no width test has a limit of `0`.
+            Self::EnumRange(1) => builder.ne_zero(word),
+            Self::EnumRange(variants) => {
+                let last = builder.imm(variants.wrapping_sub(1));
+                builder.gt(word, last)
+            }
         }
     }
 

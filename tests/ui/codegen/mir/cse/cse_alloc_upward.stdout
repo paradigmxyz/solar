@@ -21,7 +21,7 @@
       v1 = ptrtoint ptr<memory> v0 to i256
       v2 = mload v1
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0
       v3 = alloc 64
       v4 = ptrtoint ptr<memory> v3 to i256
       v5 = add v4, 32

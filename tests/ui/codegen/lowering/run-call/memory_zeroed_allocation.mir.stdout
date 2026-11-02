@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/memory_zeroed_allocation.sol:MemoryZeroedAllocation ===
 @module MemoryZeroedAllocation
+; function readDynamic(uint256 length, uint256 index) external pure returns (uint256) [selector 0x8be2a62b]
 fn @readDynamic(arg0: i256, arg1: i256) -> i256 [selector=0x8be2a62b, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mul arg0, 1
@@ -14,22 +15,22 @@ fn @readDynamic(arg0: i256, arg1: i256) -> i256 [selector=0x8be2a62b, pure, abi_
     v8 = lt v7, v0
     icall panic_if<0x41>, v8
     v9 = mul v7, 32
-    v10 = shr v7, 251
-    v11 = ne v10, 0
-    icall panic_if<0x41>, v11
-    v12 = alloc zeroed checked v9
-    mstore v12, arg0
-    v13 = mload v12
-    v14 = lt arg1, v13
-    v15 = eq v14, false
-    icall panic_if<0x32>, v15
-    v16 = shl arg1, 5
-    v17 = ptradd v12, v16
-    v18 = ptradd v17, 32
-    v19 = mload v18
-    ret v19
+    v10 = gt v7, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v10
+    v11 = alloc zeroed checked v9
+    mstore v11, arg0
+    v12 = mload v11
+    v13 = lt arg1, v12
+    v14 = eq v13, false
+    icall panic_if<0x32>, v14
+    v15 = shl arg1, 5
+    v16 = ptradd v11, v15
+    v17 = ptradd v16, 32
+    v18 = mload v17
+    ret v18
 }
 
+; function readNested(uint256 outerLength, uint256 innerLength, uint256 outer, uint256 inner) external pure returns (uint256) [selector 0x9abd415d]
 fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector=0x9abd415d, pure, abi_params=[uint256, uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mul arg0, 1
@@ -44,90 +45,89 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
     v8 = lt v7, v0
     icall panic_if<0x41>, v8
     v9 = mul v7, 32
-    v10 = shr v7, 251
-    v11 = ne v10, 0
-    icall panic_if<0x41>, v11
-    v12 = alloc zeroed checked v9
-    mstore v12, arg0
+    v10 = gt v7, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v10
+    v11 = alloc zeroed checked v9
+    mstore v11, arg0
     jump bb1
-  bb1:
-    v13 = phi [bb0: 0], [bb2: v18]
-    v14 = lt v13, arg0
-    jumpi v14, bb2, bb3
-  bb3:
+  bb1:  ; preds = bb0, bb2
+    v12 = phi [bb0: 0], [bb2: v17]
+    v13 = lt v12, arg0
+    jumpi v13, bb2, bb3
+  bb3:  ; preds = bb1
     jump bb4
-  bb4:
-    v19 = phi [bb3: arg0], [bb6: v19]
-    v20 = phi [bb3: arg1], [bb6: v20]
-    v21 = phi [bb3: arg2], [bb6: v21]
-    v22 = phi [bb3: arg3], [bb6: v22]
-    v23 = phi [bb3: 0], [bb6: v23]
-    v24 = phi [bb3: v12], [bb6: v24]
-    v25 = phi [bb3: 0], [bb6: v47]
-    v26 = lt v25, v19
-    jumpi v26, bb7, bb8
-  bb8:
+  bb4:  ; preds = bb3, bb6
+    v18 = phi [bb3: arg0], [bb6: v18]
+    v19 = phi [bb3: arg1], [bb6: v19]
+    v20 = phi [bb3: arg2], [bb6: v20]
+    v21 = phi [bb3: arg3], [bb6: v21]
+    v22 = phi [bb3: 0], [bb6: v22]
+    v23 = phi [bb3: v11], [bb6: v23]
+    v24 = phi [bb3: 0], [bb6: v45]
+    v25 = lt v24, v18
+    jumpi v25, bb7, bb8
+  bb8:  ; preds = bb4
     jump bb5
-  bb5:
-    v48 = mload v24
-    v49 = lt v21, v48
-    v50 = eq v49, false
-    icall panic_if<0x32>, v50
-    v51 = shl v21, 5
-    v52 = ptradd v24, v51
-    v53 = ptradd v52, 32
-    v54 = mload v53, ptr<memory>
-    v55 = mload v54
-    v56 = lt v22, v55
-    v57 = eq v56, false
-    icall panic_if<0x32>, v57
-    v58 = shl v22, 5
-    v59 = ptradd v54, v58
-    v60 = ptradd v59, 32
-    v61 = mload v60
-    ret v61
-  bb7:
-    v27 = mul v20, 1
-    v28 = eq 1, 0
-    v29 = div v27, 1
-    v30 = eq v29, v20
-    v31 = or v28, v30
-    v32 = zext i1 v31 to i256
-    v33 = eq v32, 0
-    icall panic_if<0x41>, v33
-    v34 = add v27, 1
-    v35 = lt v34, v27
-    icall panic_if<0x41>, v35
-    v36 = mul v34, 32
-    v37 = shr v34, 251
-    v38 = ne v37, 0
-    icall panic_if<0x41>, v38
-    v39 = alloc zeroed checked v36
-    mstore v39, v20
-    v40 = mload v24
-    v41 = lt v25, v40
-    v42 = eq v41, false
-    icall panic_if<0x32>, v42
-    v43 = ptrtoint ptr<memory> v39 to i256
-    v44 = shl v25, 5
-    v45 = ptradd v24, v44
-    v46 = ptradd v45, 32
-    mstore v46, v43
+  bb5:  ; preds = bb8
+    v46 = mload v23
+    v47 = lt v20, v46
+    v48 = eq v47, false
+    icall panic_if<0x32>, v48
+    v49 = shl v20, 5
+    v50 = ptradd v23, v49
+    v51 = ptradd v50, 32
+    v52 = mload v51, ptr<memory>
+    v53 = mload v52
+    v54 = lt v21, v53
+    v55 = eq v54, false
+    icall panic_if<0x32>, v55
+    v56 = shl v21, 5
+    v57 = ptradd v52, v56
+    v58 = ptradd v57, 32
+    v59 = mload v58
+    ret v59
+  bb7:  ; preds = bb4
+    v26 = mul v19, 1
+    v27 = eq 1, 0
+    v28 = div v26, 1
+    v29 = eq v28, v19
+    v30 = or v27, v29
+    v31 = zext i1 v30 to i256
+    v32 = eq v31, 0
+    icall panic_if<0x41>, v32
+    v33 = add v26, 1
+    v34 = lt v33, v26
+    icall panic_if<0x41>, v34
+    v35 = mul v33, 32
+    v36 = gt v33, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v36
+    v37 = alloc zeroed checked v35
+    mstore v37, v19
+    v38 = mload v23
+    v39 = lt v24, v38
+    v40 = eq v39, false
+    icall panic_if<0x32>, v40
+    v41 = ptrtoint ptr<memory> v37 to i256
+    v42 = shl v24, 5
+    v43 = ptradd v23, v42
+    v44 = ptradd v43, 32
+    mstore v44, v41
     jump bb9
-  bb9:
+  bb9:  ; preds = bb7
     jump bb6
-  bb6:
-    v47 = checked_add uint256, v25, 1
+  bb6:  ; preds = bb9
+    v45 = checked_add uint256, v24, 1
     jump bb4
-  bb2:
-    v15 = shl v13, 5
-    v16 = ptradd v12, v15
-    v17 = ptradd v16, 32
-    mstore v17, 96
-    v18 = add v13, 1
+  bb2:  ; preds = bb1
+    v14 = shl v12, 5
+    v15 = ptradd v11, v14
+    v16 = ptradd v15, 32
+    mstore v16, 96
+    v17 = add v12, 1
     jump bb1
 }
 
+; function readFixed(uint256 index) external pure returns (uint256) [selector 0x6a11db72]
 fn @readFixed(arg0: i256) -> i256 [selector=0x6a11db72, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
@@ -141,6 +141,7 @@ fn @readFixed(arg0: i256) -> i256 [selector=0x6a11db72, pure, abi_params=[uint25
     ret v5
 }
 
+; function readStatic(uint256 length, uint256 index) external pure returns (uint256) [selector 0xf90f6c35]
 fn @readStatic(arg0: i256, arg1: i256) -> i256 [selector=0xf90f6c35, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mul arg0, 1
@@ -155,38 +156,37 @@ fn @readStatic(arg0: i256, arg1: i256) -> i256 [selector=0xf90f6c35, pure, abi_p
     v8 = lt v7, v0
     icall panic_if<0x41>, v8
     v9 = mul v7, 32
-    v10 = shr v7, 251
-    v11 = ne v10, 0
-    icall panic_if<0x41>, v11
-    v12 = alloc zeroed checked v9
-    mstore v12, arg0
+    v10 = gt v7, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v10
+    v11 = alloc zeroed checked v9
+    mstore v11, arg0
     jump bb1
-  bb1:
-    v13 = phi [bb0: 0], [bb2: v20]
-    v14 = lt v13, arg0
-    jumpi v14, bb2, bb3
-  bb3:
-    v21 = mload v12
-    v22 = lt arg1, v21
-    v23 = eq v22, false
-    icall panic_if<0x32>, v23
-    v24 = shl arg1, 5
-    v25 = ptradd v12, v24
-    v26 = ptradd v25, 32
-    v27 = mload v26, ptr<memory>
-    v28 = lt 0, 4
-    v29 = eq v28, false
-    icall panic_if<0x32>, v29
-    v30 = mload v27
-    ret v30
-  bb2:
-    v15 = alloc 128 !metadata(preserves_fmp)
-    memory_zero v15, 128
-    v16 = shl v13, 5
-    v17 = ptradd v12, v16
-    v18 = ptradd v17, 32
-    v19 = ptrtoint ptr<memory> v15 to i256
-    mstore v18, v19
-    v20 = add v13, 1
+  bb1:  ; preds = bb0, bb2
+    v12 = phi [bb0: 0], [bb2: v19]
+    v13 = lt v12, arg0
+    jumpi v13, bb2, bb3
+  bb3:  ; preds = bb1
+    v20 = mload v11
+    v21 = lt arg1, v20
+    v22 = eq v21, false
+    icall panic_if<0x32>, v22
+    v23 = shl arg1, 5
+    v24 = ptradd v11, v23
+    v25 = ptradd v24, 32
+    v26 = mload v25, ptr<memory>
+    v27 = lt 0, 4
+    v28 = eq v27, false
+    icall panic_if<0x32>, v28
+    v29 = mload v26
+    ret v29
+  bb2:  ; preds = bb1
+    v14 = alloc 128 !metadata(preserves_fmp)
+    memory_zero v14, 128
+    v15 = shl v12, 5
+    v16 = ptradd v11, v15
+    v17 = ptradd v16, 32
+    v18 = ptrtoint ptr<memory> v14 to i256
+    mstore v17, v18
+    v19 = add v12, 1
     jump bb1
 }

@@ -6,7 +6,7 @@ use solar_data_structures::{
     Never,
     map::{FxHashMap, FxHashSet, FxIndexSet},
 };
-use solar_interface::{ByteSymbol, Ident, kw, sym};
+use solar_interface::{ByteSymbol, Ident, Span, Symbol, kw, sym};
 use solar_sema::{
     Gcx, InlineTag,
     eval::ConstValue,
@@ -87,6 +87,8 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
             }
         }
     }
+    let sources = import_closure_order(gcx, contract.source);
+    let section_start = function_ids.len();
     for function_id in reachable.iter() {
         let function = gcx.hir.function(function_id);
         let library_function = function
@@ -101,6 +103,8 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
             function_ids.push((function_id, false));
         }
     }
+    sort_by_source_position(gcx, &sources, &mut function_ids[section_start..]);
+    let section_start = function_ids.len();
     for library_id in gcx.hir.contract_ids() {
         let library = gcx.hir.contract(library_id);
         if library.kind != hir::ContractKind::Library {
@@ -126,6 +130,7 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
             }
         }
     }
+    sort_by_source_position(gcx, &sources, &mut function_ids[section_start..]);
     let mut seen_ids = FxHashSet::default();
     let function_ids =
         function_ids.into_iter().filter(|(id, _)| seen_ids.insert(*id)).collect::<Vec<_>>();
@@ -363,6 +368,9 @@ pub(super) fn declaration(
     let mut mir = Function::new(name);
     mir.declaration_span = function.span;
     mir.debug_identifier = Some(name.name);
+    if gcx.sess.opts.unstable.dump.is_some() {
+        mir.debug_signature = debug_signature(gcx, function.span);
+    }
     mir.attributes = FunctionAttributes {
         visibility: function.visibility,
         state_mutability: function.state_mutability,
@@ -377,8 +385,7 @@ pub(super) fn declaration(
         inline_hint: tags.inline == Some(InlineTag::Hint),
         // A tag naming the contract's own objective changes nothing.
         optimization: tags.optimize.filter(|&objective| objective != contract_objective),
-        array_element_bits: Default::default(),
-        array_return_element_bits: None,
+        ..FunctionAttributes::default()
     };
 
     if function.kind == hir::FunctionKind::Function
@@ -414,4 +421,113 @@ fn storage_bytes_count<'gcx>(
         }
         _ => 0,
     }
+}
+
+/// Returns the source signature of the declaration at `span` for the text dumps: its header, or
+/// the declaration of a public state variable for its getter.
+fn debug_signature(gcx: Gcx<'_>, span: Span) -> Option<Symbol> {
+    let source = gcx.sess.source_map().span_to_snippet(span).ok()?;
+    let header = declaration_header(&source);
+    let word = header.split(|c: char| c.is_whitespace() || c == '(').next().unwrap_or_default();
+    let is_function = match word {
+        "constructor" | "fallback" | "receive" => true,
+        // `function (uint) external public f` declares a variable of a function type.
+        "function" => !header["function".len()..].trim_start().starts_with('('),
+        _ => false,
+    };
+    Some(Symbol::intern(&if is_function { header } else { format!("getter for `{header}`") }))
+}
+
+/// Returns the header of the declaration in `source` on one line: everything before its body,
+/// without comments, and with runs of whitespace outside string literals collapsed.
+fn declaration_header(source: &str) -> String {
+    let mut header = String::new();
+    let space = |header: &mut String| {
+        if !header.is_empty() && !header.ends_with(' ') {
+            header.push(' ');
+        }
+    };
+    let mut depth = 0u32;
+    let mut chars = source.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '/' if chars.peek() == Some(&'/') => {
+                chars.by_ref().find(|&c| matches!(c, '\n' | '\r'));
+                space(&mut header);
+            }
+            '/' if chars.peek() == Some(&'*') => {
+                chars.next();
+                let mut previous = ' ';
+                chars.by_ref().find(|&c| std::mem::replace(&mut previous, c) == '*' && c == '/');
+                space(&mut header);
+            }
+            '"' | '\'' => {
+                // A line continuation inside a literal must not break the one-line header.
+                let one_line = |c: char| if matches!(c, '\n' | '\r') { ' ' } else { c };
+                header.push(c);
+                while let Some(literal) = chars.next() {
+                    header.push(one_line(literal));
+                    match literal {
+                        '\\' => header.extend(chars.next().map(one_line)),
+                        _ if literal == c => break,
+                        _ => {}
+                    }
+                }
+            }
+            '{' | ';' | '=' if depth == 0 => break,
+            c if c.is_whitespace() => space(&mut header),
+            _ => {
+                match c {
+                    '(' => depth += 1,
+                    ')' => depth = depth.saturating_sub(1),
+                    _ => {}
+                }
+                header.push(c);
+            }
+        }
+    }
+    header.truncate(header.trim_end().len());
+    header
+}
+
+/// Orders the sources in the import closure of `source` the way `Sources::topo_sort` orders all
+/// sources: a depth-first post-order over imports from the closure's sources in file name order.
+/// Unlike the compilation-wide order, it does not depend on sources outside the closure.
+fn import_closure_order(gcx: Gcx<'_>, source: hir::SourceId) -> FxIndexSet<hir::SourceId> {
+    fn visit(
+        gcx: Gcx<'_>,
+        id: hir::SourceId,
+        seen: &mut FxHashSet<hir::SourceId>,
+        order: &mut FxIndexSet<hir::SourceId>,
+    ) {
+        if seen.insert(id) {
+            for &(_, import) in gcx.hir.source(id).imports {
+                visit(gcx, import, seen, order);
+            }
+            order.insert(id);
+        }
+    }
+
+    let mut closure = FxIndexSet::default();
+    visit(gcx, source, &mut FxHashSet::default(), &mut closure);
+    let mut roots = closure.into_iter().collect::<Vec<_>>();
+    roots.sort_by_key(|&id| &gcx.hir.source(id).file.name);
+    let (mut seen, mut order) = (FxHashSet::default(), FxIndexSet::default());
+    for id in roots {
+        visit(gcx, id, &mut seen, &mut order);
+    }
+    order
+}
+
+/// Orders functions by source position within `sources` instead of by compilation-wide HIR id, so
+/// that unrelated sources in the same compilation do not change the order.
+fn sort_by_source_position(
+    gcx: Gcx<'_>,
+    sources: &FxIndexSet<hir::SourceId>,
+    function_ids: &mut [(hir::FunctionId, bool)],
+) {
+    function_ids.sort_by_key(|&(id, _)| {
+        let function = gcx.hir.function(id);
+        (sources.get_index_of(&function.source), function.span.lo())
+    });
 }

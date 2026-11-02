@@ -85,13 +85,13 @@ impl MirPass for LowerBuiltins {
             })
             .collect::<FxHashMap<_, _>>();
         let evm = gcx.sess.opts.evm_version;
-        run_function_pass(module, analyses, |func, analyses| {
+        run_function_pass(module, analyses, |func, _| {
             if !func.instructions().any(|id| is_builtin(&func.inst(id).kind)) {
                 return false;
             }
             let mut replacements = FxHashMap::default();
             for block in func.blocks.indices() {
-                let mut builder = FunctionBuilder::new(func).with_bit_tests(analyses.target(gcx));
+                let mut builder = FunctionBuilder::new(func);
                 expand_block(&mut builder, block, |builder, id| {
                     if !is_builtin(&builder.func().inst(id).kind) {
                         return false;
@@ -345,7 +345,7 @@ fn lower_ecrecover(
     let input = builder.fmp();
     let input = builder.cast_word(input);
     for (offset, value) in [(0, hash), (32, v), (64, r), (96, s)] {
-        let address = builder.add_u64_offset(input, offset);
+        let address = builder.add_offset(input, offset);
         let value = builder.cast_word(value);
         builder.store(address, value);
     }

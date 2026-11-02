@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/storage-dse/transient.sol:TransientDse ===
 @module TransientDse
+; function overwritten(uint256 x) external [selector 0x820f45ad]
 fn @overwritten(arg0: i256) [selector=0x820f45ad, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     tstore 0, arg0
@@ -8,6 +9,7 @@ fn @overwritten(arg0: i256) [selector=0x820f45ad, abi_params=[uint256], abi_retu
     ret
 }
 
+; function reentrant(uint256 x) external returns (uint256) [selector 0x7d8540f9]
 fn @reentrant(arg0: i256) -> i256 [selector=0x7d8540f9, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     tstore 0, arg0
@@ -17,19 +19,19 @@ fn @reentrant(arg0: i256) -> i256 [selector=0x7d8540f9, abi_params=[uint256], ab
     v2 = zext i160 v0 to i256
     v3 = staticcall v1, v2, 28, 4, 0, 32
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = returndatasize
     v5 = lt v4, 32
     icall revert_if<tuple_data_too_short>, v5
-    v6 = add 0, 0
-    v7 = mload v6
-    v8 = checked_add uint256, arg0, 1
-    tstore 0, v8
-    ret v7
+    v6 = mload 0 !metadata(memory=scratch)
+    v7 = checked_add uint256, arg0, 1
+    tstore 0, v7
+    ret v6
 }
 
+; function clearedAfterCall(uint256 x) external returns (uint256) [selector 0x15bda24f]
 fn @clearedAfterCall(arg0: i256) -> i256 [selector=0x15bda24f, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     tstore 0, arg0
@@ -40,60 +42,59 @@ fn @clearedAfterCall(arg0: i256) -> i256 [selector=0x15bda24f, abi_params=[uint2
     v2 = zext i160 v0 to i256
     v3 = staticcall v1, v2, 28, 4, 0, 32
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = returndatasize
     v5 = lt v4, 32
     icall revert_if<tuple_data_too_short>, v5
-    v6 = add 0, 0
-    v7 = mload v6
+    v6 = mload 0 !metadata(memory=scratch)
     tstore 1, 2
     tstore 0, 0
-    ret v7
+    ret v6
 }
 
+; function afterReturn(bool early) external returns (uint256) [selector 0x888a9e3c]
 fn @afterReturn(arg0: i1) -> i256 [selector=0x888a9e3c, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     tstore 1, 1
     jumpi arg0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     tstore 1, 2
-    v8 = address
-    v9 = gas
+    v7 = address
+    v8 = gas
     mstore 0, 0x14ee0c6f !metadata(memory=scratch)
-    v10 = zext i160 v8 to i256
-    v11 = staticcall v9, v10, 28, 4, 0, 32
-    jumpi v11, bb7, bb6
-  bb6:
+    v9 = zext i160 v7 to i256
+    v10 = staticcall v8, v9, 28, 4, 0, 32
+    jumpi v10, bb7, bb6
+  bb6:  ; preds = bb3
     revert_returndata
-  bb7:
-    v12 = returndatasize
-    v13 = lt v12, 32
-    icall revert_if<tuple_data_too_short>, v13
-    v14 = add 0, 0
-    v15 = mload v14
-    ret v15
-  bb1:
+  bb7:  ; preds = bb3
+    v11 = returndatasize
+    v12 = lt v11, 32
+    icall revert_if<tuple_data_too_short>, v12
+    v13 = mload 0 !metadata(memory=scratch)
+    ret v13
+  bb1:  ; preds = bb0
     v0 = address
     v1 = gas
     mstore 0, 0x14ee0c6f !metadata(memory=scratch)
     v2 = zext i160 v0 to i256
     v3 = staticcall v1, v2, 28, 4, 0, 32
     jumpi v3, bb5, bb4
-  bb4:
+  bb4:  ; preds = bb1
     revert_returndata
-  bb5:
+  bb5:  ; preds = bb1
     v4 = returndatasize
     v5 = lt v4, 32
     icall revert_if<tuple_data_too_short>, v5
-    v6 = add 0, 0
-    v7 = mload v6
-    ret v7
+    v6 = mload 0 !metadata(memory=scratch)
+    ret v6
 }
 
+; function dropped(uint256 x) external [selector 0x49571f93]
 fn @dropped(arg0: i256) [selector=0x49571f93, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     tstore 0, arg0
@@ -101,12 +102,14 @@ fn @dropped(arg0: i256) [selector=0x49571f93, abi_params=[uint256], abi_returns=
     invalid
 }
 
+; function read() external view returns (uint256) [selector 0x57de26a4]
 fn @read() -> i256 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = tload 0
     ret v0
 }
 
+; function readU() external view returns (uint256) [selector 0x14ee0c6f]
 fn @readU() -> i256 [selector=0x14ee0c6f, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = tload 1

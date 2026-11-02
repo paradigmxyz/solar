@@ -205,13 +205,13 @@
       ret v0
   }
   
-  fn @empty_revert(arg0: i256) {
-    bb0:
+  fn @empty_revert(arg0: i256) [cold] {
+    bb0 [cold]:
       revert arg0, 0
   }
   
-  fn @nonempty_revert(arg0: i256) {
-    bb0:
+  fn @nonempty_revert(arg0: i256) [cold] {
+    bb0 [cold]:
       revert arg0, 1
   }
   
@@ -234,7 +234,8 @@
   fn @compact_inclusive_bound(arg0: i256) -> i1 {
     bb0:
       v0 = gt arg0, 255
-      v1 = eq v0, false
+-     v1 = eq v0, false
++     v1 = lt arg0, 256
       ret v1
   }
   
@@ -703,13 +704,13 @@
       ret v0
   }
   
-  fn @empty_revert(arg0: i256) {
-    bb0:
+  fn @empty_revert(arg0: i256) [cold] {
+    bb0 [cold]:
       revert arg0, 0
   }
   
-  fn @nonempty_revert(arg0: i256) {
-    bb0:
+  fn @nonempty_revert(arg0: i256) [cold] {
+    bb0 [cold]:
       revert arg0, 1
   }
   
@@ -734,7 +735,7 @@
   fn @compact_inclusive_bound(arg0: i256) -> i1 {
     bb0:
       v0 = gt arg0, 255
-      v1 = eq v0, false
+      v1 = lt arg0, 256
       ret v1
   }
   
@@ -1184,13 +1185,13 @@
       ret v0
   }
   
-  fn @empty_revert(arg0: i256) {
-    bb0:
+  fn @empty_revert(arg0: i256) [cold] {
+    bb0 [cold]:
       revert arg0, 0
   }
   
-  fn @nonempty_revert(arg0: i256) {
-    bb0:
+  fn @nonempty_revert(arg0: i256) [cold] {
+    bb0 [cold]:
       revert arg0, 1
   }
   
@@ -1212,7 +1213,7 @@
   fn @compact_inclusive_bound(arg0: i256) -> i1 {
     bb0:
       v0 = gt arg0, 255
-      v1 = eq v0, false
+      v1 = lt arg0, 256
       ret v1
   }
   

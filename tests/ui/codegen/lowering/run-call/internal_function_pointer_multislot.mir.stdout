@@ -1,21 +1,25 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/internal_function_pointer_multislot.sol:InternalFunctionPointerMultislot ===
 @module InternalFunctionPointerMultislot
+; function m( function() external returns (uint256) a, function() external returns (uint256) b ) internal pure returns (function() external returns (uint256))
 fn @m(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     ret arg0
 }
 
+; function s(uint256 a, uint256 b) internal pure returns (uint256)
 fn @s(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = checked_add uint256, arg0, arg1
     ret v0
 }
 
+; function foo() external pure returns (uint256) [selector 0xc2985578]
 fn @foo() -> i256 [selector=0xc2985578, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 6
 }
 
+; function test() public returns (uint256) [selector 0xf8a8fd6d]
 fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
@@ -26,7 +30,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v5 = zext i160 v4 to i256
     v6 = shl v5, 32
     v7 = or v6, 0xc2985578
-    v8 = icall @internal_dispatcher_p_function_function_r_function, 1, v3, v7
+    v8 = icall @internal_dispatcher_p_function_function_r_function, 2, v3, v7
     v9 = and v8, 0xffffffff
     v10 = shl v9, 224
     v11 = shr v8, 32
@@ -35,39 +39,38 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     mstore 0, v13 !metadata(memory=scratch)
     v14 = call v12, v11, 0, 28, 4, 0, 32
     jumpi v14, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v15 = returndatasize
     v16 = lt v15, 32
     icall revert_if<tuple_data_too_short>, v16
-    v17 = add 0, 0
-    v18 = mload v17
-    v19 = icall @internal_dispatcher_p_uint256_uint256_r_uint256, 2, 5, 1
-    v20 = checked_add uint256, v18, v19
-    ret v20
+    v17 = mload 0 !metadata(memory=scratch)
+    v18 = icall @internal_dispatcher_p_uint256_uint256_r_uint256, 1, 5, 1
+    v19 = checked_add uint256, v17, v18
+    ret v19
 }
 
 fn @internal_dispatcher_p_function_function_r_function(arg0: i256, arg1: i256, arg2: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
-    v0 = eq arg0, 1
+    v0 = eq arg0, 2
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:
+  bb1:  ; preds = bb0
     v1 = icall @m, arg1, arg2
     ret v1
 }
 
 fn @internal_dispatcher_p_uint256_uint256_r_uint256(arg0: i256, arg1: i256, arg2: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
-    v0 = eq arg0, 2
+    v0 = eq arg0, 1
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:
+  bb1:  ; preds = bb0
     v1 = icall @s, arg1, arg2
     ret v1
 }

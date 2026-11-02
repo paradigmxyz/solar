@@ -10,3 +10,6 @@
 pub mod debug;
 pub mod ir_parse;
 pub mod link;
+
+mod hotness;
+pub use hotness::Hotness;

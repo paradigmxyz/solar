@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_static_tuple_lazy_validation.sol:AbiCalldataStaticTupleLazyValidation ===
 @module AbiCalldataStaticTupleLazyValidation
+; function use(Values calldata values) external pure returns (uint256) [selector 0x4637216b]
 fn @use(arg0: slice<calldata>) -> i256 [selector=0x4637216b, pure, abi_params=[tuple<uint8, uint8>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -13,11 +14,13 @@ fn @use(arg0: slice<calldata>) -> i256 [selector=0x4637216b, pure, abi_params=[t
     ret v6
 }
 
+; function unused(Values calldata) external pure returns (uint256) [selector 0xb7a18a02]
 fn @unused(arg0: slice<calldata>) -> i256 [selector=0xb7a18a02, pure, abi_params=[tuple<uint8, uint8>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 1
 }
 
+; function encodeWords(Words calldata values) external pure returns (uint256) [selector 0x5d8a4779]
 fn @encodeWords(arg0: slice<calldata>) -> i256 [selector=0x5d8a4779, pure, abi_params=[tuple<uint256, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode [tuple<word, word>], object, args arg0

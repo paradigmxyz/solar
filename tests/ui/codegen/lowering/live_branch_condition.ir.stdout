@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/live_branch_condition.sol:LiveBranchCondition (runtime) ===
 @module LiveBranchCondition_runtime
-bb0:
+bb0:  ; runtime dispatch entry
   push 36
   calldatasize
   lt
@@ -71,7 +71,7 @@ bb6 [cold]:
   revert
 // === ROOT/tests/ui/codegen/lowering/live_branch_condition.sol:ReturndataBranch (runtime) ===
 @module ReturndataBranch_runtime
-bb0:
+bb0:  ; runtime dispatch entry + function test(uint256 size) external view returns (uint256) [selector 0x29e99f07]
   callvalue
   push bb3
   jumpi
@@ -125,7 +125,7 @@ bb8:
   return
 // === ROOT/tests/ui/codegen/lowering/live_branch_condition.sol:ReloadableBranch (runtime) ===
 @module ReloadableBranch_runtime
-bb0:
+bb0:  ; runtime dispatch entry + function aggregate(bool choice, uint256 n) external pure returns (uint256, bool) [selector 0xb22b6a9f]
   callvalue
   push bb3
   jumpi

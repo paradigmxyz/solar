@@ -58,12 +58,6 @@
 //! contradicting inner one, whose edge is dead. Phi operands and terminators keep their values.
 //! Removing a redundant mask replaces its result by its input.
 //!
-//! `integer-cleanup` also rewrites compares of a mask it keeps. An `eq` or `ne` of `x & (2^k - 1)`
-//! with a value `y` that the facts keep below `2^k` holds exactly when `(x ^ y) << (256 - k)` is
-//! zero, which needs no mask. A branch reads the shifted word of an `ne` without a test. The target
-//! prices both spellings, and the compare takes the shift when it costs less and no other
-//! instruction reads the mask.
-//!
 //! Before the dominator walk, a bounded forward analysis carries the intersection
 //! of relational facts and the union of ranges across predecessor edges. Phi
 //! ranges are evaluated in their incoming edge contexts, and so are a phi's
@@ -206,16 +200,15 @@ use super::{
     call_cleanup,
     cfg_simplify::simplify_function,
     egraph::{max_bits_with_args, use_counts},
-    utils::expand_block,
 };
 use crate::{
     backend::evm::{op, select::InstKindOpcode},
     mir::{
-        ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, ConditionUse, EffectKind, Function,
-        FunctionBuilder, FunctionId, ImmutableEncoding, ImmutableId, InstId, InstKind, MirType,
-        Module, Terminator, TypeSize, Value, ValueId, ValueLayout,
+        ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, EffectKind, Function, FunctionBuilder,
+        FunctionId, ImmutableEncoding, ImmutableId, InstId, InstKind, MirType, Module, Terminator,
+        TypeSize, Value, ValueId, ValueLayout,
         analysis::{
-            CfgInfo, LoopAnalyzer, aborts, cold_functions,
+            CfgInfo,
             integers::{integer_bits, integer_mask, integer_max},
         },
         immutable::immutable_push_type_size,
@@ -262,7 +255,7 @@ impl MirPass for CheckElim {
 }
 
 /// Removes integer masks and boolean renormalizations proved redundant by branches or
-/// runtime immutable widths, and compares the masks that stay as shifted differences.
+/// runtime immutable widths.
 pub(crate) struct IntegerCleanup;
 
 impl MirPass for IntegerCleanup {
@@ -289,7 +282,6 @@ impl MirPass for IntegerCleanup {
                     .blocks
                     .iter()
                     .any(|block| matches!(block.terminator, Some(Terminator::Branch { .. })))
-                && !func.instructions().any(|id| masked_compare_operand(func, id))
             {
                 return false;
             }
@@ -316,21 +308,14 @@ impl MirPass for IntegerCleanup {
             let facts = index_vec![Facts::default(); func.blocks.len()];
             let _ = eliminator.collect_folds(func, &cfg, &facts, &[], &mut Vec::new(), None);
             let propagated = eliminator.apply_equalities(func) != 0;
+            if eliminator.redundant_masks.is_empty() {
+                return removed != 0 || propagated;
+            }
             let mut replacements = FxHashMap::default();
-            let mut dead = GrowableBitSet::new_empty();
+            let mut dead = DenseBitSet::new_empty(func.num_insts());
             for &(id, value) in &eliminator.redundant_masks {
                 replacements.insert(func.inst_result_value(id).unwrap(), value);
                 dead.insert(id);
-            }
-            shift_masked_compares(
-                func,
-                &eliminator.masked_compares,
-                &target,
-                &mut replacements,
-                &mut dead,
-            );
-            if replacements.is_empty() {
-                return removed != 0 || propagated;
             }
             func.replace_uses_canonicalized(&replacements);
             for block in &mut func.blocks {
@@ -362,16 +347,16 @@ impl MirPass for LateCheckElim {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let cold = cold_functions(module);
         run_function_pass_with_cfg(module, analyses, |func, analyses| {
             let gas = analyses.runtime_target(gcx).optimization().is_gas();
             let selected = gas.then(|| analyses.cfg().cyclic_blocks());
             if selected.is_some_and(DenseBitSet::is_empty) {
                 return false;
             }
-            // Only folds of selected branches with a reverting arm are kept, and `lower-checks`
+            // Only folds of selected branches with a cold arm are kept, and `lower-checks`
             // has already expanded every check, so without such a branch the elimination
-            // cannot change anything.
+            // cannot change anything. This only selects profitable candidates; range analysis
+            // proves the discarded edge unreachable.
             if let Some(selected) = selected
                 && !selected.iter().any(|block| {
                     let Some(Terminator::Branch { then_block, else_block, .. }) =
@@ -379,17 +364,13 @@ impl MirPass for LateCheckElim {
                     else {
                         return false;
                     };
-                    leads_to_revert(func, then_block, &cold)
-                        || leads_to_revert(func, else_block, &cold)
+                    func.blocks[then_block].hotness.is_cold()
+                        || func.blocks[else_block].hotness.is_cold()
                 })
             {
                 return false;
             }
-            let changed = CheckEliminator::default().run(
-                func,
-                analyses.cfg(),
-                selected.map(|blocks| (blocks, &cold)),
-            ) != 0;
+            let changed = CheckEliminator::default().run(func, analyses.cfg(), selected) != 0;
             if changed {
                 // branch proven_condition, checked, panic => jump checked
                 // Remove unreachable panic blocks and merge the successful continuation.
@@ -398,21 +379,6 @@ impl MirPass for LateCheckElim {
             changed
         })
     }
-}
-
-/// Recognizes short unconditional failure paths: a chain of jumps to a block that aborts,
-/// including through outlined revert helpers and other functions that never return.
-/// This only selects profitable candidates; range analysis proves the edge unreachable.
-fn leads_to_revert(func: &Function, mut block: BlockId, cold: &DenseBitSet<FunctionId>) -> bool {
-    // Bound classification work and leave cycles or longer paths unclassified.
-    for _ in 0..8 {
-        if aborts(func, block, cold) {
-            return true;
-        }
-        let Some(Terminator::Jump(next)) = func.blocks[block].terminator else { return false };
-        block = next;
-    }
-    false
 }
 
 /// Applies runtime immutable bounds after getter inlining exposes their loads.
@@ -962,18 +928,6 @@ struct Equality {
     repeated: Option<bool>,
 }
 
-/// An `eq` or `ne` of `and source, 2^bits - 1` with a value that fits in `bits` bits.
-struct MaskedCompare {
-    id: InstId,
-    block: BlockId,
-    /// The mask, the result of `and source, 2^bits - 1`.
-    mask: ValueId,
-    source: ValueId,
-    other: ValueId,
-    bits: u32,
-    equal: bool,
-}
-
 /// Range-based overflow-check eliminator.
 #[derive(Default)]
 struct CheckEliminator<'a> {
@@ -981,8 +935,6 @@ struct CheckEliminator<'a> {
     immutable_ranges: Option<&'a FxHashMap<ImmutableId, Range>>,
     collect_masks: bool,
     redundant_masks: Vec<(InstId, ValueId)>,
-    /// The compares of a kept low mask with a value it keeps whole.
-    masked_compares: Vec<MaskedCompare>,
     /// The constant left shifts of each value a high mask cleans, as `(shift, result)`.
     shifted_high_masks: FxHashMap<ValueId, SmallVec<[(usize, ValueId); 2]>>,
     /// Records constants that dominating branches prove equal to a value, when the target
@@ -1053,7 +1005,7 @@ impl<'a> CheckEliminator<'a> {
         mut self,
         func: &mut Function,
         cfg: &CfgInfo,
-        selected: Option<(&DenseBitSet<BlockId>, &DenseBitSet<FunctionId>)>,
+        selected: Option<&DenseBitSet<BlockId>>,
     ) -> usize {
         if !func.blocks.iter().any(|block| {
             matches!(
@@ -1171,7 +1123,7 @@ impl<'a> CheckEliminator<'a> {
     /// passing checks to remove, and branch conditions to reduce to one of their operands.
     /// `candidates` whose update is proven wrap-free in its defining block's
     /// scope are appended to `proven`. With `selected`, only folds of selected branches whose
-    /// discarded arm reverts are evaluated and returned; evaluation records no facts.
+    /// discarded arm is cold are evaluated and returned; evaluation records no facts.
     #[allow(clippy::too_many_arguments)]
     fn collect_folds(
         &mut self,
@@ -1180,13 +1132,14 @@ impl<'a> CheckEliminator<'a> {
         facts: &IndexVec<BlockId, Facts>,
         candidates: &[MonotonePhi],
         proven: &mut Vec<MonotonePhi>,
-        selected: Option<(&DenseBitSet<BlockId>, &DenseBitSet<FunctionId>)>,
+        selected: Option<&DenseBitSet<BlockId>>,
     ) -> Folds {
         enum Walk {
             Enter(BlockId),
             Exit { range_mark: usize, relation_mark: usize, equality_mark: usize },
         }
 
+        let is_cold = |block: BlockId| func.blocks[block].hotness.is_cold();
         let mut folds = Vec::new();
         let mut checks = DenseBitSet::new_empty(func.num_insts());
         let mut reductions = Vec::new();
@@ -1279,11 +1232,6 @@ impl<'a> CheckEliminator<'a> {
                         {
                             self.redundant_masks.push((id, value));
                         }
-                        if self.collect_masks
-                            && let Some(compare) = self.masked_compare(func, block, id)
-                        {
-                            self.masked_compares.push(compare);
-                        }
                         // x % y < y wherever the definition's scope proves y > 0
                         if let InstKind::Mod(_, divisor) = func.inst(id).kind
                             && let Some(value) = func.inst_result_value(id)
@@ -1331,18 +1279,15 @@ impl<'a> CheckEliminator<'a> {
                         && let Some(Terminator::Branch { condition, then_block, else_block }) =
                             func.blocks[block].terminator.as_ref()
                         && then_block != else_block
-                        && selected.is_none_or(|(selected, cold)| {
+                        && selected.is_none_or(|selected| {
                             selected.contains(block)
-                                && (leads_to_revert(func, *then_block, cold)
-                                    || leads_to_revert(func, *else_block, cold))
+                                && (is_cold(*then_block) || is_cold(*else_block))
                         })
                     {
                         match self.eval_truth(func, *condition, MAX_DEPTH) {
                             Some(truth)
-                                if selected.is_none_or(|(_, cold)| {
-                                    let discarded = if truth { *else_block } else { *then_block };
-                                    leads_to_revert(func, discarded, cold)
-                                }) =>
+                                if selected.is_none()
+                                    || is_cold(if truth { *else_block } else { *then_block }) =>
                             {
                                 folds.push((block, if truth { *then_block } else { *else_block }));
                             }
@@ -1436,7 +1381,7 @@ impl<'a> CheckEliminator<'a> {
         definitions: &IndexVec<InstId, Option<BlockId>>,
         mut bounds: Vec<HeaderBound>,
         facts: &mut IndexVec<BlockId, Facts>,
-        selected: Option<(&DenseBitSet<BlockId>, &DenseBitSet<FunctionId>)>,
+        selected: Option<&DenseBitSet<BlockId>>,
     ) {
         const MAX_ROUNDS: usize = 4;
         for _ in 0..MAX_ROUNDS {
@@ -1788,37 +1733,6 @@ impl<'a> CheckEliminator<'a> {
         .then_some(value)
     }
 
-    /// The compare `id` of a mask that stays with a value the mask keeps whole, in the scope of
-    /// `block`.
-    fn masked_compare(
-        &mut self,
-        func: &Function,
-        block: BlockId,
-        id: InstId,
-    ) -> Option<MaskedCompare> {
-        let (InstKind::Eq(a, b) | InstKind::Ne(a, b)) = func.inst(id).kind else { return None };
-        [(a, b), (b, a)].into_iter().find_map(|(mask, other)| {
-            let &Value::Inst(mask_inst) = func.value(mask) else { return None };
-            let inst = func.inst(mask_inst);
-            let (source, limit) = low_mask_input(func, &inst.kind)?;
-            let bits = limit.bit_len() as u32;
-            (inst.metadata.effect().is_none_or(|effect| effect == EffectKind::Pure)
-                && bits >= 2
-                && func.value_ty(other) == Some(MirType::I256)
-                && self.range_of(func, source, MAX_DEPTH).hi > limit
-                && self.range_of(func, other, MAX_DEPTH).hi <= limit)
-                .then_some(MaskedCompare {
-                    id,
-                    block,
-                    mask,
-                    source,
-                    other,
-                    bits,
-                    equal: matches!(func.inst(id).kind, InstKind::Eq(..)),
-                })
-        })
-    }
-
     // === Fact recording ===
 
     /// Records the consequences of `value` being `truth` on the current
@@ -1852,20 +1766,6 @@ impl<'a> CheckEliminator<'a> {
             InstKind::Or(a, b) if !truth => {
                 self.assume(func, a, false, depth);
                 self.assume(func, b, false, depth);
-            }
-            // `x >> k` is zero iff `x < 2^k`, the range test word-sequence prefers.
-            InstKind::Shr(shift, x)
-                if let Some(shift) = func.value_u256(shift)
-                    && shift > U256::ZERO
-                    && shift < U256::from(256) =>
-            {
-                let bound = U256::from(1) << shift.to::<usize>();
-                if truth {
-                    self.narrow(x, Range::new(bound, U256::MAX));
-                } else {
-                    self.narrow(x, Range::new(U256::ZERO, bound - U256::from(1)));
-                }
-                self.narrow_summand(func, x, depth);
             }
             _ => {}
         }
@@ -2719,6 +2619,20 @@ impl<'a> CheckEliminator<'a> {
                 return Some(false);
             }
             if rx.lo.checked_add(ry.lo).is_none_or(|lo| lo > integer_max(func, a)) {
+                return Some(true);
+            }
+        }
+
+        // Overflow check of a padded size: `lt (((x + 31) & ~31) + 32), x` holds exactly when
+        // `x + 63` wraps, so it follows the range of `x` like the checked add above.
+        if let Some(x) = padded_size_operand(func, a)
+            && b == x
+        {
+            let rx = self.range_of(func, x, depth);
+            if rx.hi.checked_add(U256::from(63)).is_some_and(|hi| hi <= integer_max(func, a)) {
+                return Some(false);
+            }
+            if rx.lo.checked_add(U256::from(63)).is_none_or(|lo| lo > integer_max(func, a)) {
                 return Some(true);
             }
         }
@@ -3585,104 +3499,6 @@ fn compares_with_immediate(func: &Function, kind: &InstKind, target: &Target) ->
     func.value_u256(a).xor(func.value_u256(b)).is_some_and(|value| target.is_cheap_immediate(value))
 }
 
-/// Whether `id` is an `eq` or `ne` that reads the mask of a low-bit `and`.
-fn masked_compare_operand(func: &Function, id: InstId) -> bool {
-    let (InstKind::Eq(a, b) | InstKind::Ne(a, b)) = func.inst(id).kind else { return false };
-    [a, b].into_iter().any(|value| {
-        inst_kind(func, value)
-            .and_then(|kind| low_mask_input(func, kind))
-            .is_some_and(|(_, mask)| mask.bit_len() > 1)
-    })
-}
-
-/// Rewrites each compare of a kept mask that `target` prices cheaper as the shifted difference
-/// of the words, and marks the mask dead when the compare was its only reader.
-fn shift_masked_compares(
-    func: &mut Function,
-    compares: &[MaskedCompare],
-    target: &Target,
-    replacements: &mut FxHashMap<ValueId, ValueId>,
-    dead: &mut GrowableBitSet<InstId>,
-) {
-    if compares.is_empty() {
-        return;
-    }
-    let uses = use_counts(func);
-    let loops = LoopAnalyzer::new().analyze_structure(func);
-    // A mask of both operands goes with the compare when nothing else reads it.
-    let unmasked = |func: &Function, value: ValueId, bits: u32| {
-        let &Value::Inst(inst) = func.value(value) else { return None };
-        let (source, limit) = low_mask_input(func, &func.inst(inst).kind)?;
-        (uses[value] == 1 && limit.bit_len() as u32 == bits).then_some((source, inst))
-    };
-    let mut mask_blocks = None;
-    let mut chosen = FxHashMap::default();
-    for compare in compares {
-        // An earlier rewrite of this pass may have replaced an operand.
-        let (InstKind::Eq(a, b) | InstKind::Ne(a, b)) = func.inst(compare.id).kind else {
-            continue;
-        };
-        let result = func.inst_result_value(compare.id).unwrap();
-        let &Value::Inst(mask) = func.value(compare.mask) else { continue };
-        let loop_of = |block| loops.block_to_loop.get(&block).copied();
-        // A mask that an enclosing block holds costs the loop nothing.
-        let mask_hoisted = loop_of(compare.block).is_some_and(|looped| {
-            let blocks = mask_blocks.get_or_insert_with(|| {
-                func.blocks
-                    .iter_enumerated()
-                    .flat_map(|(block, data)| data.instructions.iter().map(move |&id| (id, block)))
-                    .collect::<FxHashMap<_, _>>()
-            });
-            blocks.get(&mask).and_then(|&block| loop_of(block)) != Some(looped)
-        });
-        let branch = uses[result] == 1
-            && matches!(func.blocks[compare.block].terminator,
-                Some(Terminator::Branch { condition, .. }) if condition == result);
-        let read = if branch { ConditionUse::BRANCH } else { ConditionUse::VALUE };
-        let read = if loop_of(compare.block).is_some() { read.in_loop() } else { read };
-        let zero = func.value_u256(compare.other) == Some(U256::ZERO);
-        if [(a, b), (b, a)].contains(&(compare.mask, compare.other))
-            && uses[compare.mask] == 1
-            && !mask_hoisted
-            && target.shifts_masked_compare(compare.bits, compare.equal, zero, read)
-        {
-            dead.insert(mask);
-            chosen.insert(compare.id, compare);
-        }
-    }
-    let mut blocks = chosen.values().map(|compare| compare.block).collect::<Vec<_>>();
-    blocks.sort_unstable();
-    blocks.dedup();
-    for block in blocks {
-        let mut builder = FunctionBuilder::new(func);
-        expand_block(&mut builder, block, |builder, id| {
-            let Some(compare) = chosen.get(&id) else { return false };
-            let (other, other_mask) = match unmasked(builder.func(), compare.other, compare.bits) {
-                Some((source, inst)) => (source, Some(inst)),
-                None => (compare.other, None),
-            };
-            let inst = builder.func().inst(id).clone();
-            builder.set_debug_context(&inst.metadata.debug_context());
-            // difference = xor source, other
-            // high = shl difference, 256 - bits
-            // result = eq high, 0 | ne high, 0
-            let difference = if builder.func().value_u256(other) == Some(U256::ZERO) {
-                compare.source
-            } else {
-                builder.xor(compare.source, other)
-            };
-            let count = builder.imm(256 - compare.bits);
-            let high = builder.shl(difference, count);
-            let value = if compare.equal { builder.eq_zero(high) } else { builder.ne_zero(high) };
-            replacements.insert(inst.result().unwrap(), value);
-            if let Some(mask) = other_mask {
-                dead.insert(mask);
-            }
-            true
-        });
-    }
-}
-
 /// The word `v` of `zext(v != 0)`, which is `v` itself whenever `v` is 0 or 1, as a
 /// boolean that ABI decoding already checked is.
 fn widened_nonzero_test(func: &Function, kind: &InstKind) -> Option<ValueId> {
@@ -3740,6 +3556,30 @@ fn inst_kind(func: &Function, value: ValueId) -> Option<&InstKind> {
 }
 
 /// The value and constant of a sum `value + constant` with a nonzero constant.
+/// Returns `x` when `value` is the allocation size of a bytes object, `((x + 31) & ~31) + 32` or
+/// its `(x + 63) & ~31` spelling.
+fn padded_size_operand(func: &Function, value: ValueId) -> Option<ValueId> {
+    let constant = |value, expected| func.value_u256(value) == Some(U256::from(expected));
+    let masked = |value| {
+        let &InstKind::And(first, second) = inst_kind(func, value)? else { return None };
+        let mask = |mask| func.value_u256(mask) == Some(!U256::from(31));
+        if mask(second) { Some(first) } else { mask(first).then_some(second) }
+    };
+    let add_constant = |value, expected| {
+        let &InstKind::Add(first, second) = inst_kind(func, value)? else { return None };
+        if constant(second, expected) {
+            Some(first)
+        } else {
+            constant(first, expected).then_some(second)
+        }
+    };
+    // ((x + 31) & ~31) + 32 | (x + 63) & ~31
+    add_constant(value, 32)
+        .and_then(masked)
+        .and_then(|rounded| add_constant(rounded, 31))
+        .or_else(|| masked(value).and_then(|rounded| add_constant(rounded, 63)))
+}
+
 fn constant_offset(func: &Function, value: ValueId) -> Option<(ValueId, U256)> {
     let InstKind::Add(x, y) = *inst_kind(func, value)? else { return None };
     match (func.value_u256(x), func.value_u256(y)) {

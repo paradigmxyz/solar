@@ -18,10 +18,11 @@
 //@ run-call-fail: 0xececb20a000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000007ffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
 //@ run-call-fail: 0xececb20a00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000800000000000000 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
 
-// A test that a word fits in `k` bits is spelled as a shift or a comparison, whichever the
-// objective prices lower. Both sides of each limit behave the same either way: the highest word
-// that fits passes and the lowest that does not reverts. A decoded length at or past `2**59 - 1`
-// words panics before allocating, as the allocation end passes the limit.
+// A test that a word fits in `k` bits is the comparison with its limit until the late pass that
+// spells it as a shift or keeps the comparison, whichever the objective prices lower. Both sides
+// of each limit behave the same either way: the highest word that fits passes and the lowest that
+// does not reverts. A decoded length at or past `2**59 - 1` words panics before allocating, as
+// the allocation end passes the limit.
 contract FitsInBits {
     enum Dir {
         Up,

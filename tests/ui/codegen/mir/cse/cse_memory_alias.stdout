@@ -110,12 +110,12 @@
     bb0:
       mstore 128, 2
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       mstore 128, 3
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
       v0 = mload 128
       ret v0
   }

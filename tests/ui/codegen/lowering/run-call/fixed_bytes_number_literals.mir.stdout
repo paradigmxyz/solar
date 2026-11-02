@@ -1,5 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_number_literals.sol:Probe ===
 @module Probe
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    ret
+}
+
+; function probe(bytes4 s) external pure returns (uint256) [selector 0x14beb1ca]
 fn @probe(arg0: i256) -> i256 [selector=0x14beb1ca, pure, abi_params=[bytes4], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
@@ -7,11 +14,6 @@ fn @probe(arg0: i256) -> i256 [selector=0x14beb1ca, pure, abi_params=[bytes4], a
     v2 = trunc i256 v1 to i32
     v3 = zext i32 v2 to i256
     ret v3
-}
-
-fn @constructor() [constructor] {
-  bb0:
-    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_number_literals.sol:LibGive ===
@@ -30,6 +32,22 @@ fn @constructor() [constructor] {
 @immutables
   immutableLiteral: bytes4
 
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000
+    v2 = or v1, 0x11223344
+    sstore 1, v2 !metadata(storage=slot(1))
+    v3 = sload 1 !metadata(storage=slot(1))
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffff0000ffffffff
+    v5 = or v4, 0xaabb00000000
+    sstore 1, v5 !metadata(storage=slot(1))
+    storeimmutable immutableLiteral, 0x5566778800000000000000000000000000000000000000000000000000000000
+    ret
+}
+
+; function viaExternal() public returns (uint256) [selector 0x09338c08]
 fn @viaExternal() -> i256 [selector=0x09338c08, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = datasize Probe_creation_code_0
@@ -38,78 +56,81 @@ fn @viaExternal() -> i256 [selector=0x09338c08, abi_params=[], abi_returns=[word
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = gas
-    v5 = and 0x102030400000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
     mstore 0, 0x14beb1ca !metadata(memory=scratch)
-    mstore 32, v5 !metadata(memory=scratch)
-    v6 = zext i160 v2 to i256
-    v7 = call v4, v6, 0, 28, 36, 0, 32
-    jumpi v7, bb4, bb3
-  bb3:
+    mstore 32, 0x102030400000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    v5 = zext i160 v2 to i256
+    v6 = call v4, v5, 0, 28, 36, 0, 32
+    jumpi v6, bb4, bb3
+  bb3:  ; preds = bb2
     revert_returndata
-  bb4:
-    v8 = returndatasize
-    v9 = lt v8, 32
-    icall revert_if<tuple_data_too_short>, v9
-    v10 = add 0, 0
-    v11 = mload v10
-    ret v11
+  bb4:  ; preds = bb2
+    v7 = returndatasize
+    v8 = lt v7, 32
+    icall revert_if<tuple_data_too_short>, v8
+    v9 = mload 0 !metadata(memory=scratch)
+    ret v9
 }
 
+; function giveInternal(bytes4 s) internal pure returns (bytes4)
 fn @giveInternal(arg0: i256) -> i256 [pure] {
   bb0:
     ret arg0
 }
 
+; function viaInternal() public pure returns (bytes4) [selector 0xf1c8352f]
 fn @viaInternal() -> i256 [selector=0xf1c8352f, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = icall @giveInternal, 0x1122334400000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
+; function viaLibrary() public pure returns (bytes4) [selector 0x14bbf91b]
 fn @viaLibrary() -> i256 [selector=0x14bbf91b, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = icall @give, 0x2122232400000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
+; function retLit() public pure returns (bytes4) [selector 0xad0d29ff]
 fn @retLit() -> i256 [selector=0xad0d29ff, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     ret 0xaabbccdd00000000000000000000000000000000000000000000000000000000
 }
 
+; function declLit() public pure returns (bytes4) [selector 0xe5489b44]
 fn @declLit() -> i256 [selector=0xe5489b44, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
-    v0 = shl 0x55667788, 224
-    ret v0
+    ret 0x5566778800000000000000000000000000000000000000000000000000000000
 }
 
+; function assignLit() public pure returns (bytes4 x) [selector 0xa4d2a382]
 fn @assignLit() -> i256 [selector=0xa4d2a382, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     ret 0x6677889900000000000000000000000000000000000000000000000000000000
 }
 
+; function mapKeyCross() public returns (uint256) [selector 0xef866c75]
 fn @mapKeyCross() -> i256 [selector=0xef866c75, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = and 0x3132333400000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v1 = mapping_slot v0, 0
-    sstore v1, 5 !metadata(storage=symbolic(v1))
-    v2 = shl 0x31323334, 224
-    v3 = and v2, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v4 = mapping_slot v3, 0
-    v5 = sload v4 !metadata(storage=symbolic(v4))
-    ret v5
+    v0 = mapping_slot 0x3132333400000000000000000000000000000000000000000000000000000000, 0
+    sstore v0, 5 !metadata(storage=symbolic(v0))
+    v1 = mapping_slot 0x3132333400000000000000000000000000000000000000000000000000000000, 0
+    v2 = sload v1 !metadata(storage=symbolic(v1))
+    ret v2
 }
 
+; function compareControl() public pure returns (bool) [selector 0x86f1fef0]
 fn @compareControl() -> i1 [selector=0x86f1fef0, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = eq 0x4142434400000000000000000000000000000000000000000000000000000000, 0x4142434400000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
+; function bytesObjectCast() public pure returns (bytes4) [selector 0x3edbb59d]
 fn @bytesObjectCast() -> i256 [selector=0x3edbb59d, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -128,6 +149,7 @@ fn @bytesObjectCast() -> i256 [selector=0x3edbb59d, pure, abi_params=[], abi_ret
     ret v10
 }
 
+; function returnedBytesObjectCast() public pure returns (uint256) [selector 0x28a9d934]
 fn @returnedBytesObjectCast() -> i256 [selector=0x28a9d934, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @returnBytes
@@ -146,6 +168,7 @@ fn @returnedBytesObjectCast() -> i256 [selector=0x28a9d934, pure, abi_params=[],
     ret v12
 }
 
+; function returnBytes() internal pure returns (bool, bytes memory)
 fn @returnBytes() -> struct0 [pure] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -157,6 +180,7 @@ fn @returnBytes() -> struct0 [pure] {
     ret v3
 }
 
+; function takeSlice(bytes calldata data) external pure returns (bytes32) [selector 0x4f4c8d8b]
 fn @takeSlice(arg0: slice<calldata>) -> i256 [selector=0x4f4c8d8b, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -166,21 +190,21 @@ fn @takeSlice(arg0: slice<calldata>) -> i256 [selector=0x4f4c8d8b, pure, abi_par
     v4 = or v2, v3
     v5 = zext i1 v4 to i256
     icall revert_if<empty>, v4
-    v6 = sub 5, 0
-    v7 = ptradd v0, 0
-    v8 = make_calldata_slice v7, v6
-    v9 = extract_value slice<calldata>, v8, 0
-    v10 = calldataload v9
-    v11 = extract_value slice<calldata>, v8, 1
-    v12 = lt v11, 32
-    v13 = sub 32, v11
-    v14 = mul 8, v13
-    v15 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v14
-    v16 = select v12, v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v17 = and v10, v16
-    ret v17
+    v6 = ptradd v0, 0
+    v7 = make_calldata_slice v6, 5
+    v8 = extract_value slice<calldata>, v7, 0
+    v9 = calldataload v8
+    v10 = extract_value slice<calldata>, v7, 1
+    v11 = lt v10, 32
+    v12 = sub 32, v10
+    v13 = mul 8, v12
+    v14 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v13
+    v15 = select v11, v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v16 = and v9, v15
+    ret v16
 }
 
+; function calldataSliceCast() public view returns (bytes32) [selector 0x93f40587]
 fn @calldataSliceCast() -> i256 [selector=0x93f40587, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = address
@@ -195,28 +219,30 @@ fn @calldataSliceCast() -> i256 [selector=0x93f40587, view, abi_params=[], abi_r
     v7 = zext i160 v0 to i256
     v8 = staticcall v1, v7, v5, v6, 0, 32
     jumpi v8, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v9 = returndatasize
     v10 = lt v9, 32
     icall revert_if<tuple_data_too_short>, v10
-    v11 = add 0, 0
-    v12 = mload v11
-    ret v12
+    v11 = mload 0 !metadata(memory=scratch)
+    ret v11
 }
 
+; function stringAddressCast() public pure returns (address) [selector 0x6e03912b]
 fn @stringAddressCast() -> i160 [selector=0x6e03912b, pure, abi_params=[], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
     ret i160 0x6d696c6164790000000000000000000000000000
 }
 
+; function emptyStringCompare() public pure returns (bool) [selector 0x97e464f0]
 fn @emptyStringCompare() -> i1 [selector=0x97e464f0, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = eq 0, 0
     ret v0
 }
 
+; function stateLiterals() public view returns (bytes4, bytes2, bytes4) [selector 0x803da9a2]
 fn @stateLiterals() -> struct1 [selector=0x803da9a2, view, abi_params=[], abi_returns=[word<bytes4>, word<bytes2>, word<bytes4>], abi_return_params=[bytes4, bytes2, bytes4]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
@@ -231,30 +257,8 @@ fn @stateLiterals() -> struct1 [selector=0x803da9a2, view, abi_params=[], abi_re
     ret v8
 }
 
+; function give(bytes4 s) internal pure returns (bytes4)
 fn @give(arg0: i256) -> i256 [pure] {
   bb0:
     ret arg0
-}
-
-fn @constructor() [constructor] {
-  bb0:
-    v0 = sload 1 !metadata(storage=slot(1))
-    v1 = not 0xffffffff
-    v2 = and v0, v1
-    v3 = shr 0x1122334400000000000000000000000000000000000000000000000000000000, 224
-    v4 = and v3, 0xffffffff
-    v5 = or v2, v4
-    sstore 1, v5 !metadata(storage=slot(1))
-    v6 = shl 0xffff, 32
-    v7 = sload 1 !metadata(storage=slot(1))
-    v8 = not v6
-    v9 = and v7, v8
-    v10 = shr 0xaabb000000000000000000000000000000000000000000000000000000000000, 240
-    v11 = and v10, 0xffff
-    v12 = shl v11, 32
-    v13 = or v9, v12
-    sstore 1, v13 !metadata(storage=slot(1))
-    v14 = and 0x5566778800000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    storeimmutable immutableLiteral, v14
-    ret
 }

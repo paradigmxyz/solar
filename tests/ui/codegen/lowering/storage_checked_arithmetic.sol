@@ -40,10 +40,9 @@ contract StorageCheckedArithmetic {
     // CHECK: [[LHS:v[0-9]+]] = zext i128 [[NARROW]] to i256
     // CHECK: [[AMOUNT:v[0-9]+]] = zext i128 arg1 to i256
     // CHECK: [[NEW:v[0-9]+]] = add [[LHS]], [[AMOUNT]]
-    // CHECK: shr [[NEW]], 128
+    // CHECK: gt [[NEW]], 0xffffffffffffffffffffffffffffffff
     // CHECK: sload {{v[0-9]+}}
-    // CHECK: not 0xffffffffffffffffffffffffffffffff
-    // CHECK: and {{v[0-9]+}}, {{v[0-9]+}}
+    // CHECK: and {{v[0-9]+}}, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
     // CHECK: and {{v[0-9]+}}, 0xffffffffffffffffffffffffffffffff
     // CHECK: or {{v[0-9]+}}, {{v[0-9]+}}
     // CHECK: sstore {{v[0-9]+}}, {{v[0-9]+}}
@@ -64,8 +63,7 @@ contract StorageCheckedArithmetic {
     // CHECK: slt [[NEW]], 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
     // CHECK: sgt [[NEW]], 127
     // CHECK: sload {{v[0-9]+}}
-    // CHECK: not {{v[0-9]+}}
-    // CHECK: and {{v[0-9]+}}, {{v[0-9]+}}
+    // CHECK: and {{v[0-9]+}}, 0xffffffffffffffffffffffffffffff00ffffffffffffffffffffffffffffffff
     // CHECK: and {{v[0-9]+}}, 255
     // CHECK: shl {{v[0-9]+}}, 128
     // CHECK: or {{v[0-9]+}}, {{v[0-9]+}}

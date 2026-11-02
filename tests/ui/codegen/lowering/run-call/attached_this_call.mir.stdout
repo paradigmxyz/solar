@@ -4,6 +4,7 @@
 
 // === ROOT/tests/ui/codegen/lowering/run-call/attached_this_call.sol:AttachedThisCall ===
 @module AttachedThisCall
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = address
@@ -11,34 +12,35 @@ fn @constructor() [constructor] {
     v2 = address
     v3 = eq v1, v2
     v4 = sload 0 !metadata(storage=slot(0))
-    v5 = not 255
-    v6 = and v4, v5
-    v7 = zext i1 v3 to i256
-    v8 = and v7, 255
-    v9 = or v6, v8
-    sstore 0, v9 !metadata(storage=slot(0))
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v6 = zext i1 v3 to i256
+    v7 = and v6, 255
+    v8 = or v5, v7
+    sstore 0, v8 !metadata(storage=slot(0))
     ret
 }
 
+; function attachedThis() external view returns (bool) [selector 0x9c4e0a78]
 fn @attachedThis() -> i1 [selector=0x9c4e0a78, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = trunc i256 v0 to i8
     v2 = ne v1, i8 0
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v3 = address
     v4 = icall @selfAddress, v3
     v5 = address
     v6 = eq v4, v5
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v7 = phi [bb1: v6], [bb2: false]
     ret v7
 }
 
+; function attachedValue() external view returns (uint256) [selector 0xe18b1132]
 fn @attachedValue() -> i256 [selector=0xe18b1132, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
@@ -46,16 +48,19 @@ fn @attachedValue() -> i256 [selector=0xe18b1132, view, abi_params=[], abi_retur
     ret v1
 }
 
+; function value() external pure returns (uint256) [selector 0x3fa4f245]
 fn @value() -> i256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 12
 }
 
+; function selfAddress(AttachedThisCall receiver) internal pure returns (address)
 fn @selfAddress(arg0: i160) -> i160 [pure] {
   bb0:
     ret arg0
 }
 
+; function addValue(AttachedThisCall receiver, uint256 value) internal pure returns (uint256)
 fn @addValue(arg0: i160, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = gas
@@ -63,14 +68,13 @@ fn @addValue(arg0: i160, arg1: i256) -> i256 [pure] {
     v1 = zext i160 arg0 to i256
     v2 = staticcall v0, v1, 28, 4, 0, 32
     jumpi v2, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v3 = returndatasize
     v4 = lt v3, 32
     icall revert_if<tuple_data_too_short>, v4
-    v5 = add 0, 0
-    v6 = mload v5
-    v7 = checked_add uint256, v6, arg1
-    ret v7
+    v5 = mload 0 !metadata(memory=scratch)
+    v6 = checked_add uint256, v5, arg1
+    ret v6
 }

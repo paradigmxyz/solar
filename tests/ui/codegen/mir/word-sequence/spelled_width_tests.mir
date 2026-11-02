@@ -1,0 +1,113 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zmir-pipeline=spell-width-tests
+//@[size] compile-flags: -Osize -Zmir-pipeline=spell-width-tests
+//@ filecheck:
+@module SpelledWidthTests
+@phase lowered
+
+// A branch reads a nonzero test for free, so `x > 2^k - 1` is the shorter `x >> k` when the
+// branch is its only use.
+// CHECK-LABEL: {{^[ +].*}}fn @branch_only{{[( ]}}
+// CHECK: - {{v[0-9]+}} = gt arg0, 0xffffffffffffffff
+// CHECK: + [[HIGH:v[0-9]+]] = shr arg0, 64
+// CHECK: + {{v[0-9]+}} = ne [[HIGH]], 0
+fn @branch_only(arg0: i256) -> i256 {
+  bb0:
+    v0 = gt arg0, 0xffffffffffffffff
+    jumpi v0, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    ret arg0
+}
+
+// A test that is also a value keeps the comparison, which costs less than shifting and then
+// normalizing the word to a boolean.
+// CHECK-LABEL: {{^[ +].*}}fn @also_value{{[( ]}}
+// CHECK-NOT: shr
+// CHECK: gt arg0, 0xffffffff
+fn @also_value(arg0: i256) -> i1 {
+  bb0:
+    v0 = gt arg0, 0xffffffff
+    jumpi v0, bb1, bb2
+  bb1:
+    ret v0
+  bb2:
+    ret v0
+}
+
+// The backend folds a nonzero test into `JUMPI` only in the branching block, so a test defined
+// in another block keeps the comparison.
+// CHECK-LABEL: {{^[ +].*}}fn @other_block{{[( ]}}
+// CHECK-NOT: shr
+// CHECK: gt arg0, 0xffffffffffffffff
+fn @other_block(arg0: i256) -> i256 {
+  bb0:
+    v0 = gt arg0, 0xffffffffffffffff
+    jump bb1
+  bb1:
+    jumpi v0, bb2, bb3
+  bb2:
+    revert 0, 0
+  bb3:
+    ret arg0
+}
+
+// The tests that an `or` joins and a branch reads are one shifted word: each width gets its own
+// shift, and a boolean joins as a word. A width whose limit is as short as its shift keeps the
+// comparison.
+// CHECK-LABEL: {{^[ +].*}}fn @joined{{[( ]}}
+// CHECK: + [[A:v[0-9]+]] = shr arg0, 160
+// CHECK: + [[B:v[0-9]+]] = shr arg1, 16
+// CHECK: + [[C:v[0-9]+]] = shr arg2, 32
+// CHECK: + [[ANY:v[0-9]+]] = ne {{v[0-9]+}}, 0
+// CHECK: jumpi [[ANY]]
+fn @joined(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v0 = calldatasize
+    v1 = lt v0, 228
+    v2 = gt arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v3 = or v1, v2
+    v4 = gt arg1, 0xffff
+    v5 = or v3, v4
+    v6 = gt arg2, 0xffffffff
+    v7 = or v5, v6
+    jumpi v7, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    ret arg0
+}
+
+// A width test and a zero test that an `and` joins are one word zero test.
+// CHECK-LABEL: {{^[ +].*}}fn @fits_and_zero{{[( ]}}
+// CHECK: + [[HIGH:v[0-9]+]] = shr arg0, 64
+// CHECK: + [[ANY:v[0-9]+]] = or [[HIGH]], arg1
+// CHECK: + {{v[0-9]+}} = eq [[ANY]], 0
+fn @fits_and_zero(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = lt arg0, 0x10000000000000000
+    v1 = eq arg1, 0
+    v2 = and v0, v1
+    jumpi v2, bb1, bb2
+  bb1:
+    ret arg0
+  bb2:
+    revert 0, 0
+}
+
+// A shift the block computes already prices a test of the same width at its zero test.
+// CHECK-LABEL: {{^[ +].*}}fn @shared_shift{{[( ]}}
+// CHECK: [[HIGH:v[0-9]+]] = shr arg0, 8
+// CHECK-NOT: shr
+// CHECK: + {{v[0-9]+}} = eq [[HIGH]], 0
+fn @shared_shift(arg0: i256) -> i256 {
+  bb0:
+    v0 = shr arg0, 8
+    v1 = lt arg0, 256
+    jumpi v1, bb1, bb2
+  bb1:
+    ret v0
+  bb2:
+    ret arg0
+}

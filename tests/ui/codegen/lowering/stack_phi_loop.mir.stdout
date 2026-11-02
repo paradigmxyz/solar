@@ -1,17 +1,18 @@
 // === ROOT/tests/ui/codegen/lowering/stack_phi_loop.sol:StackPhiLoop ===
 @module StackPhiLoop
+; function loopCarried(uint256 n, bool flag) public pure returns (uint256) [selector 0x71b76bb2]
 fn @loopCarried(arg0: i256, arg1: i1) -> i256 [selector=0x71b76bb2, pure, abi_params=[uint256, bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jumpi arg1, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v0 = phi [bb1: i8 7], [bb2: i8 11]
     v1 = zext i8 v0 to i256
     jump bb4
-  bb4:
+  bb4:  ; preds = bb3, bb6
     v2 = phi [bb3: arg0], [bb6: v2]
     v3 = phi [bb3: arg1], [bb6: v3]
     v4 = phi [bb3: 0], [bb6: v4]
@@ -20,26 +21,27 @@ fn @loopCarried(arg0: i256, arg1: i1) -> i256 [selector=0x71b76bb2, pure, abi_pa
     v7 = phi [bb3: 0], [bb6: v12]
     v8 = lt v7, v2
     jumpi v8, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb4
     jump bb5
-  bb5:
+  bb5:  ; preds = bb8
     ret v6
-  bb7:
+  bb7:  ; preds = bb4
     v9 = checked_mul uint256, v7, 3
     v10 = checked_add uint256, v9, v5
     v11 = checked_add uint256, v6, v10
     jump bb9
-  bb9:
+  bb9:  ; preds = bb7
     jump bb6
-  bb6:
+  bb6:  ; preds = bb9
     v12 = checked_add uint256, v7, 1
     jump bb4
 }
 
+; function sequential(uint256 a, uint256 b) public pure returns (uint256) [selector 0xfb08deb2]
 fn @sequential(arg0: i256, arg1: i256) -> i256 [selector=0xfb08deb2, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v2]
@@ -47,11 +49,11 @@ fn @sequential(arg0: i256, arg1: i256) -> i256 [selector=0xfb08deb2, pure, abi_p
     v4 = phi [bb0: 0], [bb3: v8]
     v5 = lt v4, v0
     jumpi v5, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     jump bb7
-  bb7:
+  bb7:  ; preds = bb2, bb9
     v9 = phi [bb2: v0], [bb9: v9]
     v10 = phi [bb2: v1], [bb9: v10]
     v11 = phi [bb2: v2], [bb9: v11]
@@ -60,35 +62,36 @@ fn @sequential(arg0: i256, arg1: i256) -> i256 [selector=0xfb08deb2, pure, abi_p
     v14 = phi [bb2: 0], [bb9: v19]
     v15 = lt v14, v10
     jumpi v15, bb10, bb11
-  bb11:
+  bb11:  ; preds = bb7
     jump bb8
-  bb8:
+  bb8:  ; preds = bb11
     ret v12
-  bb10:
+  bb10:  ; preds = bb7
     v16 = checked_mul uint256, v14, 2
     v17 = checked_add uint256, v16, 3
     v18 = checked_add uint256, v12, v17
     jump bb12
-  bb12:
+  bb12:  ; preds = bb10
     jump bb9
-  bb9:
+  bb9:  ; preds = bb12
     v19 = checked_add uint256, v14, 1
     jump bb7
-  bb4:
+  bb4:  ; preds = bb1
     v6 = checked_add uint256, v4, 1
     v7 = checked_add uint256, v3, v6
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v8 = checked_add uint256, v4, 1
     jump bb1
 }
 
+; function nested(uint256 outer, uint256 inner) public pure returns (uint256) [selector 0x50d1f082]
 fn @nested(arg0: i256, arg1: i256) -> i256 [selector=0x50d1f082, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v6]
     v1 = phi [bb0: arg1], [bb3: v7]
     v2 = phi [bb0: 0], [bb3: v8]
@@ -96,13 +99,13 @@ fn @nested(arg0: i256, arg1: i256) -> i256 [selector=0x50d1f082, pure, abi_param
     v4 = phi [bb0: 0], [bb3: v17]
     v5 = lt v4, v0
     jumpi v5, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v3
-  bb4:
+  bb4:  ; preds = bb1
     jump bb7
-  bb7:
+  bb7:  ; preds = bb4, bb9
     v6 = phi [bb4: v0], [bb9: v6]
     v7 = phi [bb4: v1], [bb9: v7]
     v8 = phi [bb4: v2], [bb9: v8]
@@ -111,31 +114,32 @@ fn @nested(arg0: i256, arg1: i256) -> i256 [selector=0x50d1f082, pure, abi_param
     v11 = phi [bb4: 0], [bb9: v16]
     v12 = lt v11, v7
     jumpi v12, bb10, bb11
-  bb11:
+  bb11:  ; preds = bb7
     jump bb8
-  bb8:
+  bb8:  ; preds = bb11
     jump bb6
-  bb6:
+  bb6:  ; preds = bb8
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v17 = checked_add uint256, v10, 1
     jump bb1
-  bb10:
+  bb10:  ; preds = bb7
     v13 = checked_add uint256, v10, v11
     v14 = checked_add uint256, v13, 1
     v15 = checked_add uint256, v9, v14
     jump bb12
-  bb12:
+  bb12:  ; preds = bb10
     jump bb9
-  bb9:
+  bb9:  ; preds = bb12
     v16 = checked_add uint256, v11, 1
     jump bb7
 }
 
+; function storeAfterLoop(uint256 a, uint256 b, uint256 iterations) public [selector 0xd8c2ef0a]
 fn @storeAfterLoop(arg0: i256, arg1: i256, arg2: i256) [selector=0xd8c2ef0a, abi_params=[uint256, uint256, uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: arg2], [bb3: v2]
@@ -143,21 +147,21 @@ fn @storeAfterLoop(arg0: i256, arg1: i256, arg2: i256) [selector=0xd8c2ef0a, abi
     v4 = phi [bb0: 0], [bb3: v11]
     v5 = lt v4, v2
     jumpi v5, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     sstore 0, v3 !metadata(storage=slot(0))
     ret
-  bb4:
+  bb4:  ; preds = bb1
     v6 = checked_mul uint256, v3, v1
     v7 = checked_add uint256, v6, v0
     v8 = checked_div uint256, v7, 2
     v9 = checked_rem uint256, v8, 0xf4240
     v10 = checked_add uint256, v9, 1
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v11 = checked_add uint256, v4, 1
     jump bb1
 }

@@ -1,17 +1,20 @@
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageBytesElements ===
 @module StorageBytesElements
+; getter for `bytes public b` [selector 0x4df7e3d0]
 fn @b() -> ptr<memory> [selector=0x4df7e3d0, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = load_storage_bytes 0
     ret v0
 }
 
+; function init(bytes memory value) public [selector 0x4ddf47d4]
 fn @init(arg0: ptr<memory>) [selector=0x4ddf47d4, abi_params=[bytes], abi_returns=[], abi_return_params=[]] {
   bb0:
     icall @store_storage_bytes, 0, arg0
     ret
 }
 
+; function poke() public [selector 0x18178358]
 fn @poke() [selector=0x18178358, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -26,30 +29,21 @@ fn @poke() [selector=0x18178358, abi_params=[], abi_returns=[], abi_return_param
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v9 = storage_array_data_slot 0
-    v10 = shr 5, 5
-    v11 = add v9, v10
     jump bb3
-  bb3:
-    v12 = phi [bb1: v11], [bb2: 0]
-    v13 = and 5, 31
-    v14 = sub 31, v13
-    v15 = mul v14, 8
-    v16 = shl 255, v15
-    v17 = sload v12 !metadata(storage=symbolic(v12))
-    v18 = not v16
-    v19 = and v17, v18
-    v20 = shr 0xaa00000000000000000000000000000000000000000000000000000000000000, 248
-    v21 = and v20, 255
-    v22 = shl v21, v15
-    v23 = or v19, v22
-    sstore v12, v23 !metadata(storage=symbolic(v12))
+  bb3:  ; preds = bb1, bb2
+    v10 = phi [bb1: v9], [bb2: 0]
+    v11 = sload v10 !metadata(storage=symbolic(v10))
+    v12 = and v11, 0xffffffffff00ffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v13 = or v12, 0xaa0000000000000000000000000000000000000000000000000000
+    sstore v10, v13 !metadata(storage=symbolic(v10))
     ret
 }
 
+; function hashB() public view returns (bytes32) [selector 0xdf45d88e]
 fn @hashB() -> i256 [selector=0xdf45d88e, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = load_storage_bytes 0
@@ -67,18 +61,7 @@ fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
 
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageStringConstructor ===
 @module StorageStringConstructor
-fn @name() -> ptr<memory> [selector=0x06fdde03, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
-  bb0:
-    v0 = icall @load_storage_bytes, 0
-    ret v0
-}
-
-fn @symbol() -> ptr<memory> [selector=0x95d89b41, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
-  bb0:
-    v0 = icall @load_storage_bytes, 1
-    ret v0
-}
-
+; constructor(string memory name_, string memory symbol_) [creation entry]
 fn @constructor(arg0: ptr<memory>, arg1: ptr<memory>) [constructor, abi_params=[bytes, bytes]] {
   bb0:
     icall @store_storage_bytes, 0, arg0
@@ -86,9 +69,17 @@ fn @constructor(arg0: ptr<memory>, arg1: ptr<memory>) [constructor, abi_params=[
     ret
 }
 
-fn @load_storage_bytes(arg0: i256) -> ptr<memory> {
+; getter for `string public name` [selector 0x06fdde03]
+fn @name() -> ptr<memory> [selector=0x06fdde03, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = load_storage_bytes arg0
+    v0 = icall @load_storage_bytes, 0
+    ret v0
+}
+
+; getter for `string public symbol` [selector 0x95d89b41]
+fn @symbol() -> ptr<memory> [selector=0x95d89b41, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = icall @load_storage_bytes, 1
     ret v0
 }
 
@@ -96,22 +87,17 @@ fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
+}
+
+fn @load_storage_bytes(arg0: i256) -> ptr<memory> {
+  bb0:
+    v0 = load_storage_bytes arg0
+    ret v0
 }
 
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageStringBase ===
 @module StorageStringBase
-fn @name() -> ptr<memory> [selector=0x06fdde03, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
-  bb0:
-    v0 = icall @load_storage_bytes, 0
-    ret v0
-}
-
-fn @symbol() -> ptr<memory> [selector=0x95d89b41, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
-  bb0:
-    v0 = icall @load_storage_bytes, 1
-    ret v0
-}
-
+; constructor(string memory name_, string memory symbol_) [creation entry]
 fn @constructor(arg0: ptr<memory>, arg1: ptr<memory>) [constructor, abi_params=[bytes, bytes]] {
   bb0:
     icall @store_storage_bytes, 0, arg0
@@ -119,9 +105,17 @@ fn @constructor(arg0: ptr<memory>, arg1: ptr<memory>) [constructor, abi_params=[
     ret
 }
 
-fn @load_storage_bytes(arg0: i256) -> ptr<memory> {
+; getter for `string public name` [selector 0x06fdde03]
+fn @name() -> ptr<memory> [selector=0x06fdde03, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = load_storage_bytes arg0
+    v0 = icall @load_storage_bytes, 0
+    ret v0
+}
+
+; getter for `string public symbol` [selector 0x95d89b41]
+fn @symbol() -> ptr<memory> [selector=0x95d89b41, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = icall @load_storage_bytes, 1
     ret v0
 }
 
@@ -131,8 +125,15 @@ fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
     ret
 }
 
+fn @load_storage_bytes(arg0: i256) -> ptr<memory> {
+  bb0:
+    v0 = load_storage_bytes arg0
+    ret v0
+}
+
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageStringDerived ===
 @module StorageStringDerived
+; constructor() StorageStringBase("ERC20Mock", "E20M") [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -146,18 +147,20 @@ fn @constructor() [constructor] {
     icall @store_storage_bytes, 0, v0
     icall @store_storage_bytes, 1, v2
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0
     jump bb2
-  bb2:
+  bb2:  ; preds = bb1
     ret
 }
 
+; getter for `string public name` [selector 0x06fdde03]
 fn @name() -> ptr<memory> [selector=0x06fdde03, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @load_storage_bytes, 0
     ret v0
 }
 
+; getter for `string public symbol` [selector 0x95d89b41]
 fn @symbol() -> ptr<memory> [selector=0x95d89b41, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @load_storage_bytes, 1
@@ -178,24 +181,7 @@ fn @load_storage_bytes(arg0: i256) -> ptr<memory> {
 
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageStringImplicitDerived ===
 @module StorageStringImplicitDerived
-fn @name() -> ptr<memory> [selector=0x06fdde03, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
-  bb0:
-    v0 = icall @load_storage_bytes, 0
-    ret v0
-}
-
-fn @symbol() -> ptr<memory> [selector=0x95d89b41, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
-  bb0:
-    v0 = icall @load_storage_bytes, 1
-    ret v0
-}
-
-fn @load_storage_bytes(arg0: i256) -> ptr<memory> {
-  bb0:
-    v0 = load_storage_bytes arg0
-    ret v0
-}
-
+; creation entry
 fn @constructor() [constructor] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -209,8 +195,28 @@ fn @constructor() [constructor] {
     icall @store_storage_bytes, 0, v0
     icall @store_storage_bytes, 1, v2
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0
     ret
+}
+
+; getter for `string public name` [selector 0x06fdde03]
+fn @name() -> ptr<memory> [selector=0x06fdde03, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = icall @load_storage_bytes, 0
+    ret v0
+}
+
+; getter for `string public symbol` [selector 0x95d89b41]
+fn @symbol() -> ptr<memory> [selector=0x95d89b41, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = icall @load_storage_bytes, 1
+    ret v0
+}
+
+fn @load_storage_bytes(arg0: i256) -> ptr<memory> {
+  bb0:
+    v0 = load_storage_bytes arg0
+    ret v0
 }
 
 fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {

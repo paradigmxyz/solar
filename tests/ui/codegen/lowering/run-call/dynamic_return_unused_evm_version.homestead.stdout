@@ -6,6 +6,7 @@
 @data
   literal_0: hex"30313233343536373839616263646566303132333435363738396162636465663031000000000000000000000000000000000000000000000000000000000000"
 
+; function dynBytes() external pure returns (bytes memory) [selector 0x7271bb2c]
 fn @dynBytes() -> ptr<memory> [selector=0x7271bb2c, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
@@ -15,6 +16,7 @@ fn @dynBytes() -> ptr<memory> [selector=0x7271bb2c, pure, abi_params=[], abi_ret
     ret v0
 }
 
+; function dynString() external pure returns (string memory) [selector 0x2f4e7409]
 fn @dynString() -> ptr<memory> [selector=0x2f4e7409, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -24,6 +26,7 @@ fn @dynString() -> ptr<memory> [selector=0x2f4e7409, pure, abi_params=[], abi_re
     ret v0
 }
 
+; function mixed() external pure returns (uint256, bytes memory) [selector 0x354df1f9]
 fn @mixed() -> struct0 [selector=0x354df1f9, pure, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[uint256, bytes]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -43,6 +46,7 @@ fn @mixed() -> struct0 [selector=0x354df1f9, pure, abi_params=[], abi_returns=[w
 @data
   DynamicCallee_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_unused_evm_version.sol:DynamicCallee"
 
+; function live() external returns (uint256) [selector 0x957aa58c]
 fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = datasize DynamicCallee_creation_code_0
@@ -51,9 +55,9 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = fmp
     v5 = ptrtoint ptr<memory> v4 to i256
     v6 = add v5, 32
@@ -70,15 +74,14 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
     v15 = zext i160 v2 to i256
     v16 = call v14, v15, 0, v8, v9, v8, 32
     jumpi v16, bb4, bb3
-  bb3:
+  bb3:  ; preds = bb2
     revert_returndata
-  bb4:
-    v17 = ptrtoint ptr<memory> v8 to i256
-    v18 = add v17, 0
-    v19 = mload v18
+  bb4:  ; preds = bb2
+    v17 = mload v8
     ret 1
 }
 
+; function liveString() external returns (uint256) [selector 0x86c92c52]
 fn @liveString() -> i256 [selector=0x86c92c52, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = datasize DynamicCallee_creation_code_0
@@ -87,9 +90,9 @@ fn @liveString() -> i256 [selector=0x86c92c52, abi_params=[], abi_returns=[word]
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = fmp
     v5 = ptrtoint ptr<memory> v4 to i256
     v6 = add v5, 32
@@ -106,15 +109,14 @@ fn @liveString() -> i256 [selector=0x86c92c52, abi_params=[], abi_returns=[word]
     v15 = zext i160 v2 to i256
     v16 = call v14, v15, 0, v8, v9, v8, 32
     jumpi v16, bb4, bb3
-  bb3:
+  bb3:  ; preds = bb2
     revert_returndata
-  bb4:
-    v17 = ptrtoint ptr<memory> v8 to i256
-    v18 = add v17, 0
-    v19 = mload v18
+  bb4:  ; preds = bb2
+    v17 = mload v8
     ret 1
 }
 
+; function liveTry() external returns (uint256 r) [selector 0xc2e69a83]
 fn @liveTry() -> i256 [selector=0xc2e69a83, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = datasize DynamicCallee_creation_code_0
@@ -123,9 +125,9 @@ fn @liveTry() -> i256 [selector=0xc2e69a83, abi_params=[], abi_returns=[word], a
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = fmp
     v5 = ptrtoint ptr<memory> v4 to i256
     v6 = add v5, 32
@@ -142,23 +144,22 @@ fn @liveTry() -> i256 [selector=0xc2e69a83, abi_params=[], abi_returns=[word], a
     v15 = zext i160 v2 to i256
     v16 = call v14, v15, 0, v8, v9, v8, 32
     jumpi v16, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb2
     jumpi true, bb6, bb7
-  bb7:
+  bb7:  ; preds = bb4
     icall revert_if<empty>, true
     invalid
-  bb6:
+  bb6:  ; preds = bb4
     jump bb5
-  bb3:
-    v17 = ptrtoint ptr<memory> v8 to i256
-    v18 = add v17, 0
-    v19 = mload v18
+  bb3:  ; preds = bb2
+    v17 = mload v8
     jump bb5
-  bb5:
-    v20 = phi [bb3: 1], [bb6: 2]
-    ret v20
+  bb5:  ; preds = bb3, bb6
+    v18 = phi [bb3: 1], [bb6: 2]
+    ret v18
 }
 
+; function liveMixed() external returns (uint256 r) [selector 0xaf1b6bff]
 fn @liveMixed() -> i256 [selector=0xaf1b6bff, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = datasize DynamicCallee_creation_code_0
@@ -167,9 +168,9 @@ fn @liveMixed() -> i256 [selector=0xaf1b6bff, abi_params=[], abi_returns=[word],
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = fmp
     v5 = ptrtoint ptr<memory> v4 to i256
     v6 = add v5, 64
@@ -186,22 +187,21 @@ fn @liveMixed() -> i256 [selector=0xaf1b6bff, abi_params=[], abi_returns=[word],
     v15 = zext i160 v2 to i256
     v16 = call v14, v15, 0, v8, v9, v8, 64
     jumpi v16, bb4, bb3
-  bb3:
+  bb3:  ; preds = bb2
     revert_returndata
-  bb4:
-    v17 = ptrtoint ptr<memory> v8 to i256
-    v18 = add v17, 0
-    v19 = mload v18
-    v20 = ptrtoint ptr<memory> v8 to i256
-    v21 = add v20, 32
-    v22 = mload v21
-    v23 = insert_value struct0, undef struct0, 0, v19
-    v24 = insert_value struct0, v23, 1, v22
-    v25 = extract_value struct0, v24, 0
-    v26 = extract_value struct0, v24, 1
-    ret v25
+  bb4:  ; preds = bb2
+    v17 = mload v8
+    v18 = ptrtoint ptr<memory> v8 to i256
+    v19 = add v18, 32
+    v20 = mload v19
+    v21 = insert_value struct0, undef struct0, 0, v17
+    v22 = insert_value struct0, v21, 1, v20
+    v23 = extract_value struct0, v22, 0
+    v24 = extract_value struct0, v22, 1
+    ret v23
 }
 
+; function liveTuple() external returns (uint256) [selector 0x04e1eee0]
 fn @liveTuple() -> i256 [selector=0x04e1eee0, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = datasize DynamicCallee_creation_code_0
@@ -210,9 +210,9 @@ fn @liveTuple() -> i256 [selector=0x04e1eee0, abi_params=[], abi_returns=[word],
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = fmp
     v5 = ptrtoint ptr<memory> v4 to i256
     v6 = add v5, 32
@@ -229,37 +229,34 @@ fn @liveTuple() -> i256 [selector=0x04e1eee0, abi_params=[], abi_returns=[word],
     v15 = zext i160 v2 to i256
     v16 = call v14, v15, 0, v8, v9, v8, 32
     jumpi v16, bb4, bb3
-  bb3:
+  bb3:  ; preds = bb2
     revert_returndata
-  bb4:
-    v17 = ptrtoint ptr<memory> v8 to i256
-    v18 = add v17, 0
-    v19 = mload v18
-    v20 = fmp
-    v21 = ptrtoint ptr<memory> v20 to i256
-    v22 = add v21, 32
-    mstore v22, 0
-    v23 = abi_encode [], selector 0x2f4e740900000000000000000000000000000000000000000000000000000000
-    v24 = extract_value slice<memory>, v23, 0
-    v25 = extract_value slice<memory>, v23, 1
-    v26 = zext i160 v2 to i256
-    v27 = extcodesize v26
-    v28 = eq v27, 0
-    icall revert_if<target_contract_has_no_code>, v28
-    v29 = gas
-    v30 = sub v29, 50
-    v31 = zext i160 v2 to i256
-    v32 = call v30, v31, 0, v24, v25, v24, 32
-    jumpi v32, bb6, bb5
-  bb5:
+  bb4:  ; preds = bb2
+    v17 = mload v8
+    v18 = fmp
+    v19 = ptrtoint ptr<memory> v18 to i256
+    v20 = add v19, 32
+    mstore v20, 0
+    v21 = abi_encode [], selector 0x2f4e740900000000000000000000000000000000000000000000000000000000
+    v22 = extract_value slice<memory>, v21, 0
+    v23 = extract_value slice<memory>, v21, 1
+    v24 = zext i160 v2 to i256
+    v25 = extcodesize v24
+    v26 = eq v25, 0
+    icall revert_if<target_contract_has_no_code>, v26
+    v27 = gas
+    v28 = sub v27, 50
+    v29 = zext i160 v2 to i256
+    v30 = call v28, v29, 0, v22, v23, v22, 32
+    jumpi v30, bb6, bb5
+  bb5:  ; preds = bb4
     revert_returndata
-  bb6:
-    v33 = ptrtoint ptr<memory> v24 to i256
-    v34 = add v33, 0
-    v35 = mload v34
+  bb6:  ; preds = bb4
+    v31 = mload v22
     ret 1
 }
 
+; function livePointer() external returns (uint256) [selector 0x6347cf88]
 fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = datasize DynamicCallee_creation_code_0
@@ -268,9 +265,9 @@ fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = zext i160 v2 to i256
     v5 = shl v4, 32
     v6 = or v5, 0x7271bb2c
@@ -291,15 +288,14 @@ fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
     v19 = sub v18, 50
     v20 = call v19, v9, 0, v14, v15, v14, 32
     jumpi v20, bb4, bb3
-  bb3:
+  bb3:  ; preds = bb2
     revert_returndata
-  bb4:
-    v21 = ptrtoint ptr<memory> v14 to i256
-    v22 = add v21, 0
-    v23 = mload v22
+  bb4:  ; preds = bb2
+    v21 = mload v14
     ret 1
 }
 
+; function liveLoop() external returns (uint256 r) [selector 0xcb9e3e0f]
 fn @liveLoop() -> i256 [selector=0xcb9e3e0f, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = datasize DynamicCallee_creation_code_0
@@ -308,21 +304,21 @@ fn @liveLoop() -> i256 [selector=0xcb9e3e0f, abi_params=[], abi_returns=[word], 
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
-    v4 = phi [bb2: 0], [bb5: v24]
+  bb3:  ; preds = bb2, bb5
+    v4 = phi [bb2: 0], [bb5: v22]
     v5 = phi [bb2: v2], [bb5: v5]
-    v6 = phi [bb2: 0], [bb5: v25]
+    v6 = phi [bb2: 0], [bb5: v23]
     v7 = lt v6, 3
     jumpi v7, bb6, bb7
-  bb7:
+  bb7:  ; preds = bb3
     jump bb4
-  bb4:
+  bb4:  ; preds = bb7
     ret v4
-  bb6:
+  bb6:  ; preds = bb3
     v8 = fmp
     v9 = ptrtoint ptr<memory> v8 to i256
     v10 = add v9, 32
@@ -339,21 +335,20 @@ fn @liveLoop() -> i256 [selector=0xcb9e3e0f, abi_params=[], abi_returns=[word], 
     v19 = zext i160 v5 to i256
     v20 = call v18, v19, 0, v12, v13, v12, 32
     jumpi v20, bb10, bb9
-  bb9:
+  bb9:  ; preds = bb6
     revert_returndata
-  bb10:
-    v21 = ptrtoint ptr<memory> v12 to i256
-    v22 = add v21, 0
-    v23 = mload v22
-    v24 = checked_add uint256, v4, 1
+  bb10:  ; preds = bb6
+    v21 = mload v12
+    v22 = checked_add uint256, v4, 1
     jump bb8
-  bb8:
+  bb8:  ; preds = bb10
     jump bb5
-  bb5:
-    v25 = checked_add uint256, v6, 1
+  bb5:  ; preds = bb8
+    v23 = checked_add uint256, v6, 1
     jump bb3
 }
 
+; function noCode() external returns (uint256) [selector 0x96c56dce]
 fn @noCode() -> i256 [selector=0x96c56dce, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = fmp
@@ -370,15 +365,14 @@ fn @noCode() -> i256 [selector=0x96c56dce, abi_params=[], abi_returns=[word], ab
     v9 = sub v8, 50
     v10 = call v9, 0, 0, v4, v5, v4, 32
     jumpi v10, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
-    v11 = ptrtoint ptr<memory> v4 to i256
-    v12 = add v11, 0
-    v13 = mload v12
+  bb2:  ; preds = bb0
+    v11 = mload v4
     ret 1
 }
 
+; function noCodeTry() external returns (uint256 r) [selector 0x1908ad35]
 fn @noCodeTry() -> i256 [selector=0x1908ad35, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = fmp
@@ -395,19 +389,17 @@ fn @noCodeTry() -> i256 [selector=0x1908ad35, abi_params=[], abi_returns=[word],
     v9 = sub v8, 50
     v10 = call v9, 0, 0, v4, v5, v4, 32
     jumpi v10, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:
+  bb4:  ; preds = bb2
     jump bb3
-  bb1:
-    v11 = ptrtoint ptr<memory> v4 to i256
-    v12 = add v11, 0
-    v13 = mload v12
+  bb1:  ; preds = bb0
+    v11 = mload v4
     jump bb3
-  bb3:
-    v14 = phi [bb1: 1], [bb4: 2]
-    ret v14
+  bb3:  ; preds = bb1, bb4
+    v12 = phi [bb1: 1], [bb4: 2]
+    ret v12
 }

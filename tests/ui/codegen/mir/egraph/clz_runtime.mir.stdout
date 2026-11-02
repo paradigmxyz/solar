@@ -4,6 +4,7 @@
   struct0: {i256, i256, i256, i256}
   struct1: {i256, i256, i256, i256, i256, i256, i256, i256, i256, i256}
 
+; function inequalities(uint256 value) external pure returns ( uint256 notOne, uint256 nonzero, uint256 bounded, uint256 boundedSwapped ) [selector 0x6774d5e5]
 fn @inequalities(arg0: i256) -> struct0 [selector=0x6774d5e5, pure, abi_params=[uint256], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = clz arg0
@@ -33,6 +34,7 @@ fn @inequalities(arg0: i256) -> struct0 [selector=0x6774d5e5, pure, abi_params=[
     ret v23
 }
 
+; function simplify(uint256 value) external pure returns ( uint256 isNegative, uint256 isOne, uint256 isZero, uint256 highByte, uint256 shiftedOut, uint256 masked, uint256 nextByte, uint256 quotient, uint256 remainder, uint256 knownNegative ) [selector 0xb009c6b8]
 fn @simplify(arg0: i256) -> struct1 [selector=0xb009c6b8, pure, abi_params=[uint256], abi_returns=[word, word, word, word, word, word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = clz arg0

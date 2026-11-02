@@ -4,12 +4,18 @@
 
 Declare each MIR operation once, as a row in `crates/mir/src/op_schema.rs`:
 typed payload with named tuple operands, mnemonic, result kind, operand type
-contract, phase set, effect, traits, and side-effect flag. The macro generates
-operand traversal, the `Op` rewrite view, the ISLE prelude, a constructor per
-operation (the text parser uses it for every operation built from value
-operands alone), and a `FunctionBuilder` method per variant marked
-`#[builder(name)]` or `#[builder(name, void)]`. Write custom text syntax or a
-custom builder only for an attribute the generic forms cannot express.
+contract, phase set, effect, traits, side-effect flag, and, when the operation
+has one, its meaning in `#[semantics(...)]`: an EVM opcode, named by its
+mnemonic in the opcode table, on the operands in pop order, a cast, a
+comparison, `select`, a phi, a call, or checked arithmetic (see
+`crates/mir/src/semantics.rs`). The MIR interpreter runs operations through
+`InstKind::semantics`, and a codegen test checks that instruction selection
+never picks an opcode other than the declared one. The macro generates operand
+traversal, the `Op` rewrite view, the ISLE prelude, a constructor per operation
+(the text parser uses it for every operation built from value operands alone),
+and a `FunctionBuilder` method per variant marked `#[builder(name)]` or
+`#[builder(name, void)]`. Write custom text syntax or a custom builder only for
+an attribute the generic forms cannot express.
 Declare EVM opcodes the same way in `crates/evmir/src/op.rs`, with traits and
 availability per row; `op_table.snap` snapshots the table. Add operations to
 these tables only; never add a parallel `match` that classifies them.
@@ -181,17 +187,23 @@ and pin it with a unit test there.
 
 ## Width tests
 
-A test that a word fits in `k` bits has two spellings, `x >> k == 0` and `x < 2^k`, and its negation
-`x >> k != 0` and `x > 2^k - 1`. A branch or check reads the shifted word without a test, so
-`ne (shr k, x), 0` costs nothing in a branch, while a boolean pays `ISZERO`s and the comparison pays
-the push of its limit. Producers never write either spelling. `FunctionBuilder::fits_in_bits`,
-`exceeds_bits`, `lt_literal`, and `gt_literal` ask `Target::shifts_bits_test` (through the
-`BitTestPricing` that `FunctionBuilder::with_bit_tests` takes) which spelling the objective and the
-use, a `ConditionUse` of a branch or a value, in a loop or not, price lower, with the push the compact-push
-pass leaves for the limit (`Target::emitted_push`). A check aborts on the exceeding sense so that
-a branch reads it as a word. Passes that read a fact off a condition recognize both spellings with
-`BitWidthTest::of`, as `merge-aborts`, `indvar-simplify`, and `byte-loops` do; a pass that matches
-only one loses the fact when a producer picks the other. The word-sequence rule in
-`isle/mir/word_sequence/comparisons.isle` converts either spelling to the other when its local
-estimate is lower, as a safety net for tests that a later pass combined into a use the producer
-did not know.
+A test that a word fits in `k` bits has two spellings, `x < 2^k` and `x >> k == 0`, and its negation
+`x > 2^k - 1` and `x >> k != 0`, for 1 <= k < 256. The compare is the canonical form in MIR, as
+in LLVM: producers write `lt x, 2^k` for "fits" and `gt x, 2^k - 1` for "exceeds", with no pricing, and
+the passes that read a fact off a width test (`merge-aborts`, `check-elim`, `indvar-simplify`,
+`byte-loops`) match only that form. A zero test stays `eq x, 0` and `ne x, 0`; k = 0 is never a width
+test, and a producer never writes `lt x, 1` or `gt x, 0`.
+
+The `word-sequence` runs turn every other shape into the canonical compare, wherever it comes from,
+user code and Yul included: `(x >> k) != 0` and `(x >> k) > 0`, `(x >> k) == 0`, and `x & ~(2^k - 1)`
+tested against zero. The e-graph writes the inverse of a width test, `(x < 2^k) == 0`, as
+`x > 2^k - 1` whatever the price of the limit.
+
+The spelling is chosen once, in `spell-width-tests`, a `word-sequence` run late in the lowered
+pipeline, where the final uses are known. A branch reads a shifted word without a test, so
+`ne (shr x, k), 0` costs nothing there and a bool pays `ISZERO`s, while the compare pays the push of
+its limit, which grows with `k`. `Target::shifts_bits_test` prices the two, with the push the
+compact-push pass leaves for the limit (`Target::emitted_push`); equal prices keep the compare. The
+pass also joins tests that a branch reads into one word, `and (x < 2^k), (y == 0)` as
+`((x >> k) | y) == 0` and an `or` of exceeding tests as one `ne`, and reuses a shift `x >> k` the
+block already computes for a test of the same width.

@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/msg_data.sol:MsgData ===
 @module MsgData
+; function len() external pure returns (uint256) [selector 0x56d88e27]
 fn @len() -> i256 [selector=0x56d88e27, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = calldatasize
@@ -8,6 +9,7 @@ fn @len() -> i256 [selector=0x56d88e27, pure, abi_params=[], abi_returns=[word],
     ret v2
 }
 
+; function copy() external pure returns (bytes memory) [selector 0x60726abb]
 fn @copy() -> ptr<memory> [selector=0x60726abb, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = calldatasize
@@ -15,28 +17,28 @@ fn @copy() -> ptr<memory> [selector=0x60726abb, pure, abi_params=[], abi_returns
     v2 = extract_value slice<calldata>, v1, 0
     v3 = extract_value slice<calldata>, v1, 1
     v4 = calldatasize
-    v5 = shr v3, 64
-    v6 = ne v5, 0
-    icall revert_if<invalid_calldata_tail_length>, v6
-    v7 = sub v4, v3
-    v8 = ptrtoint ptr<calldata> v2 to i256
-    v9 = sgt v8, v7
-    icall revert_if<calldata_tail_too_short>, v9
-    v10 = extract_value slice<calldata>, v1, 1
-    v11 = add v10, 63
-    v12 = lt v11, v10
-    icall panic_if<0x41>, v12
-    v13 = not 31
-    v14 = and v11, v13
-    v15 = alloc v14
-    mstore v15, v10
-    v16 = ptradd v15, 32
-    v17 = extract_value slice<calldata>, v1, 0
-    v18 = extract_value slice<calldata>, v1, 1
-    calldatacopy v16, v17, v18
-    ret v15
+    v5 = gt v3, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v5
+    v6 = sub v4, v3
+    v7 = ptrtoint ptr<calldata> v2 to i256
+    v8 = sgt v7, v6
+    icall revert_if<calldata_tail_too_short>, v8
+    v9 = extract_value slice<calldata>, v1, 1
+    v10 = add v9, 31
+    v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v12 = add v11, 32
+    v13 = lt v12, v9
+    icall panic_if<0x41>, v13
+    v14 = alloc v12
+    mstore v14, v9
+    v15 = ptradd v14, 32
+    v16 = extract_value slice<calldata>, v1, 0
+    v17 = extract_value slice<calldata>, v1, 1
+    calldatacopy v15, v16, v17
+    ret v14
 }
 
+; function environment() external view returns (uint256 value) [selector 0x74e2b63c]
 fn @environment() -> i256 [selector=0x74e2b63c, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = coinbase
@@ -72,6 +74,7 @@ fn @environment() -> i256 [selector=0x74e2b63c, view, abi_params=[], abi_returns
     ret v29
 }
 
+; function tail(uint256 a, uint256 b) external pure returns (bytes memory) [selector 0xb62868c3]
 fn @tail(arg0: i256, arg1: i256) -> ptr<memory> [selector=0xb62868c3, pure, abi_params=[uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = calldatasize
@@ -89,24 +92,23 @@ fn @tail(arg0: i256, arg1: i256) -> ptr<memory> [selector=0xb62868c3, pure, abi_
     v11 = extract_value slice<calldata>, v10, 0
     v12 = extract_value slice<calldata>, v10, 1
     v13 = calldatasize
-    v14 = shr v12, 64
-    v15 = ne v14, 0
-    icall revert_if<invalid_calldata_tail_length>, v15
-    v16 = sub v13, v12
-    v17 = ptrtoint ptr<calldata> v11 to i256
-    v18 = sgt v17, v16
-    icall revert_if<calldata_tail_too_short>, v18
-    v19 = extract_value slice<calldata>, v10, 1
-    v20 = add v19, 63
-    v21 = lt v20, v19
-    icall panic_if<0x41>, v21
-    v22 = not 31
-    v23 = and v20, v22
-    v24 = alloc v23
-    mstore v24, v19
-    v25 = ptradd v24, 32
-    v26 = extract_value slice<calldata>, v10, 0
-    v27 = extract_value slice<calldata>, v10, 1
-    calldatacopy v25, v26, v27
-    ret v24
+    v14 = gt v12, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v14
+    v15 = sub v13, v12
+    v16 = ptrtoint ptr<calldata> v11 to i256
+    v17 = sgt v16, v15
+    icall revert_if<calldata_tail_too_short>, v17
+    v18 = extract_value slice<calldata>, v10, 1
+    v19 = add v18, 31
+    v20 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v21 = add v20, 32
+    v22 = lt v21, v18
+    icall panic_if<0x41>, v22
+    v23 = alloc v21
+    mstore v23, v18
+    v24 = ptradd v23, 32
+    v25 = extract_value slice<calldata>, v10, 0
+    v26 = extract_value slice<calldata>, v10, 1
+    calldatacopy v24, v25, v26
+    ret v23
 }

@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_memory_nested_bytes.sol:StorageMemoryNestedBytes ===
 @module StorageMemoryNestedBytes
+; function copy() external returns (uint256) [selector 0x60726abb]
 fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -7,87 +8,83 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v1 = ptradd v0, 32
     mstore v1, 0x6162630000000000000000000000000000000000000000000000000000000000
     v2 = sload 0 !metadata(storage=slot(0))
-    v3 = shr v2, 64
-    v4 = ne v3, 0
-    icall panic_if<0x41>, v4
-    v5 = add v2, 1
-    v6 = storage_array_data_slot 0
-    v7 = add v6, v2
-    icall @store_storage_bytes, v7, v0
-    sstore 0, v5 !metadata(storage=slot(0))
-    v8 = not 31
-    v9 = and 103, v8
-    v10 = alloc zeroed checked v9
-    mstore v10, 40
-    v11 = mload v10
-    v12 = lt 39, v11
-    v13 = eq v12, false
-    icall panic_if<0x32>, v13
-    v14 = byte 0, 0x4200000000000000000000000000000000000000000000000000000000000000
-    v15 = ptradd v10, 71
-    mstore8 v15, v14
-    v16 = sload 0 !metadata(storage=slot(0))
-    v17 = shr v16, 64
-    v18 = ne v17, 0
-    icall panic_if<0x41>, v18
-    v19 = add v16, 1
-    v20 = storage_array_data_slot 0
-    v21 = add v20, v16
-    icall @store_storage_bytes, v21, v10
-    sstore 0, v19 !metadata(storage=slot(0))
-    v22 = icall @load_storage_bytes_array, 0
-    v23 = mload v22
-    v24 = lt 0, v23
-    v25 = eq v24, false
-    icall panic_if<0x32>, v25
-    v26 = ptradd v22, 32
-    v27 = mload v26, ptr<memory>
-    v28 = mload v27
-    v29 = mload v22
-    v30 = lt 1, v29
-    v31 = eq v30, false
-    icall panic_if<0x32>, v31
-    v32 = ptradd v22, 64
-    v33 = mload v32, ptr<memory>
-    v34 = mload v33
-    v35 = checked_add uint256, v28, v34
-    v36 = mload v22
-    v37 = lt 0, v36
-    v38 = eq v37, false
-    icall panic_if<0x32>, v38
-    v39 = ptradd v22, 32
-    v40 = mload v39, ptr<memory>
+    v3 = gt v2, 0xffffffffffffffff
+    icall panic_if<0x41>, v3
+    v4 = add v2, 1
+    v5 = storage_array_data_slot 0
+    v6 = add v5, v2
+    icall @store_storage_bytes, v6, v0
+    sstore 0, v4 !metadata(storage=slot(0))
+    v7 = alloc zeroed checked 96
+    mstore v7, 40
+    v8 = mload v7
+    v9 = lt 39, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = byte 0, 0x4200000000000000000000000000000000000000000000000000000000000000
+    v12 = ptradd v7, 71
+    mstore8 v12, v11
+    v13 = sload 0 !metadata(storage=slot(0))
+    v14 = gt v13, 0xffffffffffffffff
+    icall panic_if<0x41>, v14
+    v15 = add v13, 1
+    v16 = storage_array_data_slot 0
+    v17 = add v16, v13
+    icall @store_storage_bytes, v17, v7
+    sstore 0, v15 !metadata(storage=slot(0))
+    v18 = icall @load_storage_bytes_array, 0
+    v19 = mload v18
+    v20 = lt 0, v19
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = ptradd v18, 32
+    v23 = mload v22, ptr<memory>
+    v24 = mload v23
+    v25 = mload v18
+    v26 = lt 1, v25
+    v27 = eq v26, false
+    icall panic_if<0x32>, v27
+    v28 = ptradd v18, 64
+    v29 = mload v28, ptr<memory>
+    v30 = mload v29
+    v31 = checked_add uint256, v24, v30
+    v32 = mload v18
+    v33 = lt 0, v32
+    v34 = eq v33, false
+    icall panic_if<0x32>, v34
+    v35 = ptradd v18, 32
+    v36 = mload v35, ptr<memory>
+    v37 = mload v36
+    v38 = lt 1, v37
+    v39 = eq v38, false
+    icall panic_if<0x32>, v39
+    v40 = ptradd v36, 33
     v41 = mload v40
-    v42 = lt 1, v41
-    v43 = eq v42, false
-    icall panic_if<0x32>, v43
-    v44 = ptradd v40, 33
-    v45 = mload v44
-    v46 = byte 0, v45
-    v47 = shl v46, 248
-    v48 = shr v47, 248
-    v49 = trunc i256 v48 to i8
-    v50 = zext i8 v49 to i256
-    v51 = checked_add uint256, v35, v50
-    v52 = mload v22
-    v53 = lt 1, v52
-    v54 = eq v53, false
-    icall panic_if<0x32>, v54
-    v55 = ptradd v22, 64
-    v56 = mload v55, ptr<memory>
+    v42 = byte 0, v41
+    v43 = shl v42, 248
+    v44 = shr v43, 248
+    v45 = trunc i256 v44 to i8
+    v46 = zext i8 v45 to i256
+    v47 = checked_add uint256, v31, v46
+    v48 = mload v18
+    v49 = lt 1, v48
+    v50 = eq v49, false
+    icall panic_if<0x32>, v50
+    v51 = ptradd v18, 64
+    v52 = mload v51, ptr<memory>
+    v53 = mload v52
+    v54 = lt 39, v53
+    v55 = eq v54, false
+    icall panic_if<0x32>, v55
+    v56 = ptradd v52, 71
     v57 = mload v56
-    v58 = lt 39, v57
-    v59 = eq v58, false
-    icall panic_if<0x32>, v59
-    v60 = ptradd v56, 71
-    v61 = mload v60
-    v62 = byte 0, v61
-    v63 = shl v62, 248
-    v64 = shr v63, 248
-    v65 = trunc i256 v64 to i8
-    v66 = zext i8 v65 to i256
-    v67 = checked_add uint256, v51, v66
-    ret v67
+    v58 = byte 0, v57
+    v59 = shl v58, 248
+    v60 = shr v59, 248
+    v61 = trunc i256 v60 to i8
+    v62 = zext i8 v61 to i256
+    v63 = checked_add uint256, v47, v62
+    ret v63
 }
 
 fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {

@@ -6,6 +6,7 @@
   struct2: {i256, i256, i256}
   struct3: {i256, i256}
 
+; function narrow(uint256 x, uint256 y) external pure returns (uint256 value, uint256 equal, uint256 less, uint256 greater) [selector 0x6945dd4d]
 fn @narrow(arg0: i256, arg1: i256) -> struct0 [selector=0x6945dd4d, pure, abi_params=[uint256, uint256], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = byte 31, arg0
@@ -26,50 +27,50 @@ fn @narrow(arg0: i256, arg1: i256) -> struct0 [selector=0x6945dd4d, pure, abi_pa
     ret v14
 }
 
+; function aligned(uint256 x) external pure returns (uint256 a, uint256 b, uint256 c, uint256 d, uint256 e, uint256 f) [selector 0x86ae3e38]
 fn @aligned(arg0: i256) -> struct1 [selector=0x86ae3e38, pure, abi_params=[uint256], abi_returns=[word, word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = byte 31, arg0
     v1 = shl v0, 248
-    v2 = shl 7, 248
-    v3 = eq v1, v2
-    v4 = zext i1 v3 to i256
-    v5 = lt v1, v2
-    v6 = zext i1 v5 to i256
-    v7 = gt v1, v2
-    v8 = zext i1 v7 to i256
-    v9 = eq v2, v1
-    v10 = zext i1 v9 to i256
-    v11 = lt v2, v1
-    v12 = zext i1 v11 to i256
-    v13 = gt v2, v1
-    v14 = zext i1 v13 to i256
-    v15 = insert_value struct1, undef struct1, 0, v4
-    v16 = insert_value struct1, v15, 1, v6
-    v17 = insert_value struct1, v16, 2, v8
-    v18 = insert_value struct1, v17, 3, v10
-    v19 = insert_value struct1, v18, 4, v12
-    v20 = insert_value struct1, v19, 5, v14
-    ret v20
+    v2 = eq v1, 0x700000000000000000000000000000000000000000000000000000000000000
+    v3 = zext i1 v2 to i256
+    v4 = lt v1, 0x700000000000000000000000000000000000000000000000000000000000000
+    v5 = zext i1 v4 to i256
+    v6 = gt v1, 0x700000000000000000000000000000000000000000000000000000000000000
+    v7 = zext i1 v6 to i256
+    v8 = eq 0x700000000000000000000000000000000000000000000000000000000000000, v1
+    v9 = zext i1 v8 to i256
+    v10 = lt 0x700000000000000000000000000000000000000000000000000000000000000, v1
+    v11 = zext i1 v10 to i256
+    v12 = gt 0x700000000000000000000000000000000000000000000000000000000000000, v1
+    v13 = zext i1 v12 to i256
+    v14 = insert_value struct1, undef struct1, 0, v3
+    v15 = insert_value struct1, v14, 1, v5
+    v16 = insert_value struct1, v15, 2, v7
+    v17 = insert_value struct1, v16, 3, v9
+    v18 = insert_value struct1, v17, 4, v11
+    v19 = insert_value struct1, v18, 5, v13
+    ret v19
 }
 
+; function unaligned(uint256 x) external pure returns (uint256 a, uint256 b, uint256 c) [selector 0x6035a068]
 fn @unaligned(arg0: i256) -> struct2 [selector=0x6035a068, pure, abi_params=[uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = byte 31, arg0
     v1 = shl v0, 248
-    v2 = shl 7, 248
-    v3 = add v2, 1
-    v4 = eq v1, v3
+    v2 = eq v1, 0x700000000000000000000000000000000000000000000000000000000000001
+    v3 = zext i1 v2 to i256
+    v4 = lt v1, 0x700000000000000000000000000000000000000000000000000000000000001
     v5 = zext i1 v4 to i256
-    v6 = lt v1, v3
+    v6 = gt v1, 0x700000000000000000000000000000000000000000000000000000000000001
     v7 = zext i1 v6 to i256
-    v8 = gt v1, v3
-    v9 = zext i1 v8 to i256
-    v10 = insert_value struct2, undef struct2, 0, v5
-    v11 = insert_value struct2, v10, 1, v7
-    v12 = insert_value struct2, v11, 2, v9
-    ret v12
+    v8 = insert_value struct2, undef struct2, 0, v3
+    v9 = insert_value struct2, v8, 1, v5
+    v10 = insert_value struct2, v9, 2, v7
+    ret v10
 }
 
+; function truncating(uint256 x) external pure returns (uint256 value) [selector 0xdbd8726b]
 fn @truncating(arg0: i256) -> i256 [selector=0xdbd8726b, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = shl arg0, 248
@@ -77,6 +78,7 @@ fn @truncating(arg0: i256) -> i256 [selector=0xdbd8726b, pure, abi_params=[uint2
     ret v1
 }
 
+; function signedCompare(uint256 x, uint256 y) external pure returns (uint256 less, uint256 greater) [selector 0xd094ad81]
 fn @signedCompare(arg0: i256, arg1: i256) -> struct3 [selector=0xd094ad81, pure, abi_params=[uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = byte 31, arg0
@@ -92,6 +94,7 @@ fn @signedCompare(arg0: i256, arg1: i256) -> struct3 [selector=0xd094ad81, pure,
     ret v9
 }
 
+; function equal(uint256 x, uint256 y) external pure returns (bool result) [selector 0x30191626]
 fn @equal(arg0: i256, arg1: i256) -> i256 [selector=0x30191626, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = byte 31, arg1
@@ -103,16 +106,17 @@ fn @equal(arg0: i256, arg1: i256) -> i256 [selector=0x30191626, pure, abi_params
     ret v5
 }
 
+; function isSeven(uint256 x) external pure returns (bool result) [selector 0xf14f88c5]
 fn @isSeven(arg0: i256) -> i256 [selector=0xf14f88c5, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = shl 7, 248
-    v1 = byte 31, arg0
-    v2 = shl v1, 248
-    v3 = eq v2, v0
-    v4 = zext i1 v3 to i256
-    ret v4
+    v0 = byte 31, arg0
+    v1 = shl v0, 248
+    v2 = eq v1, 0x700000000000000000000000000000000000000000000000000000000000000
+    v3 = zext i1 v2 to i256
+    ret v3
 }
 
+; function less(uint256 x, uint256 y) external pure returns (bool result) [selector 0x2d738965]
 fn @less(arg0: i256, arg1: i256) -> i256 [selector=0x2d738965, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = byte 31, arg1
@@ -124,16 +128,17 @@ fn @less(arg0: i256, arg1: i256) -> i256 [selector=0x2d738965, pure, abi_params=
     ret v5
 }
 
+; function belowSeven(uint256 x) external pure returns (bool result) [selector 0x5c9802fa]
 fn @belowSeven(arg0: i256) -> i256 [selector=0x5c9802fa, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = shl 7, 248
-    v1 = byte 31, arg0
-    v2 = shl v1, 248
-    v3 = lt v2, v0
-    v4 = zext i1 v3 to i256
-    ret v4
+    v0 = byte 31, arg0
+    v1 = shl v0, 248
+    v2 = lt v1, 0x700000000000000000000000000000000000000000000000000000000000000
+    v3 = zext i1 v2 to i256
+    ret v3
 }
 
+; function greater(uint256 x, uint256 y) external pure returns (bool result) [selector 0x71343515]
 fn @greater(arg0: i256, arg1: i256) -> i256 [selector=0x71343515, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = byte 31, arg1
@@ -145,12 +150,12 @@ fn @greater(arg0: i256, arg1: i256) -> i256 [selector=0x71343515, pure, abi_para
     ret v5
 }
 
+; function aboveSeven(uint256 x) external pure returns (bool result) [selector 0x0a8d6615]
 fn @aboveSeven(arg0: i256) -> i256 [selector=0x0a8d6615, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = shl 7, 248
-    v1 = byte 31, arg0
-    v2 = shl v1, 248
-    v3 = gt v2, v0
-    v4 = zext i1 v3 to i256
-    ret v4
+    v0 = byte 31, arg0
+    v1 = shl v0, 248
+    v2 = gt v1, 0x700000000000000000000000000000000000000000000000000000000000000
+    v3 = zext i1 v2 to i256
+    ret v3
 }

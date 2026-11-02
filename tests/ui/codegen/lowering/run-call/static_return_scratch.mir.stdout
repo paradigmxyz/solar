@@ -10,12 +10,14 @@
 @data
   literal_0: hex"6162636465666768696a6b6c6d6e6f707172737475767778797a303132333435363738394142434445464748494a4b4c4d4e4f505152535455565758595a2d2b"
 
+; function one(uint256 x) external pure returns (uint256) [selector 0xef56f928]
 fn @one(arg0: i256) -> i256 [selector=0xef56f928, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = checked_add uint256, arg0, 1
     ret v0
 }
 
+; function two(uint256 x) external pure returns (uint256, uint256) [selector 0xcf2a8612]
 fn @two(arg0: i256) -> struct0 [selector=0xcf2a8612, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = checked_add uint256, arg0, 1
@@ -24,6 +26,7 @@ fn @two(arg0: i256) -> struct0 [selector=0xcf2a8612, pure, abi_params=[uint256],
     ret v2
 }
 
+; function three(uint256 x) external pure returns (uint256, uint256, uint256) [selector 0xa7697424]
 fn @three(arg0: i256) -> struct1 [selector=0xa7697424, pure, abi_params=[uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = checked_add uint256, arg0, 1
@@ -34,11 +37,13 @@ fn @three(arg0: i256) -> struct1 [selector=0xa7697424, pure, abi_params=[uint256
     ret v4
 }
 
+; function unused(uint256) external pure [selector 0xbef217cc]
 fn @unused(arg0: i256) [selector=0xbef217cc, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
+; function swapped() external pure returns (uint256 x, uint256 y) [selector 0x817ba96a]
 fn @swapped() -> struct0 [selector=0x817ba96a, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     mstore 0, 1 !metadata(memory=scratch)
@@ -50,6 +55,7 @@ fn @swapped() -> struct0 [selector=0x817ba96a, pure, abi_params=[], abi_returns=
     ret v3
 }
 
+; function aliasedArrays() external pure returns (uint256[1] memory p, uint256[1] memory q) [selector 0xf54f1c28]
 fn @aliasedArrays() -> struct2 [selector=0xf54f1c28, pure, abi_params=[], abi_returns=[array<1, word>, array<1, word>], abi_return_params=[array<1, uint256>, array<1, uint256>]] {
   bb0:
     mstore 0, 1 !metadata(memory=scratch)
@@ -59,6 +65,7 @@ fn @aliasedArrays() -> struct2 [selector=0xf54f1c28, pure, abi_params=[], abi_re
     ret v1
 }
 
+; function scalarThenAlias() external pure returns (uint256 x, uint256[1] memory q) [selector 0x69021083]
 fn @scalarThenAlias() -> struct3 [selector=0x69021083, pure, abi_params=[], abi_returns=[word, array<1, word>], abi_return_params=[uint256, array<1, uint256>]] {
   bb0:
     mstore 0, 7 !metadata(memory=scratch)
@@ -67,6 +74,7 @@ fn @scalarThenAlias() -> struct3 [selector=0x69021083, pure, abi_params=[], abi_
     ret v1
 }
 
+; function four(uint256 x) external pure returns (uint256, uint256, uint256, uint256) [selector 0xe2595336]
 fn @four(arg0: i256) -> struct4 [selector=0xe2595336, pure, abi_params=[uint256], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = checked_add uint256, arg0, 1
@@ -79,6 +87,7 @@ fn @four(arg0: i256) -> struct4 [selector=0xe2595336, pure, abi_params=[uint256]
     ret v6
 }
 
+; function pointerWords() external pure returns (uint256 a, uint256 b, uint256 c, uint256 d) [selector 0x3b5b734e]
 fn @pointerWords() -> struct4 [selector=0x3b5b734e, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = mload 96 !metadata(memory=scratch)
@@ -92,24 +101,26 @@ fn @pointerWords() -> struct4 [selector=0x3b5b734e, pure, abi_params=[], abi_ret
     ret v7
 }
 
+; function modified(uint256 x) external pure clobber returns (uint256 a, uint256 b, uint256 c) [selector 0xd492dffb]
 fn @modified(arg0: i256) -> struct1 [selector=0xd492dffb, pure, abi_params=[uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = checked_add uint256, arg0, 1
     v1 = checked_add uint256, arg0, 2
     jump bb2
-  bb2:
+  bb2:  ; preds = bb0
     mstore 0, 1 !metadata(memory=scratch)
     mstore 32, 2 !metadata(memory=scratch)
     mstore 64, 3 !metadata(memory=scratch)
     mstore 96, 4 !metadata(memory=scratch)
     jump bb1
-  bb1:
+  bb1:  ; preds = bb2
     v2 = insert_value struct1, undef struct1, 0, arg0
     v3 = insert_value struct1, v2, 1, v0
     v4 = insert_value struct1, v3, 2, v1
     ret v4
 }
 
+; function structFields() external pure returns (uint256, uint256, uint256) [selector 0x94c60039]
 fn @structFields() -> struct1 [selector=0x94c60039, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
@@ -121,17 +132,16 @@ fn @structFields() -> struct1 [selector=0x94c60039, pure, abi_params=[], abi_ret
     mstore 0, 1 !metadata(memory=scratch)
     mstore 32, 2 !metadata(memory=scratch)
     mstore 64, 3 !metadata(memory=scratch)
-    v3 = add 0, 64
-    v4 = mload v3
-    v5 = add 0, 32
-    v6 = mload v5
-    v7 = mload 0 !metadata(memory=scratch)
-    v8 = insert_value struct1, undef struct1, 0, v4
-    v9 = insert_value struct1, v8, 1, v6
-    v10 = insert_value struct1, v9, 2, v7
-    ret v10
+    v3 = mload 64 !metadata(memory=scratch)
+    v4 = mload 32 !metadata(memory=scratch)
+    v5 = mload 0 !metadata(memory=scratch)
+    v6 = insert_value struct1, undef struct1, 0, v3
+    v7 = insert_value struct1, v6, 1, v4
+    v8 = insert_value struct1, v7, 2, v5
+    ret v8
 }
 
+; function shortString() external pure returns (string memory) [selector 0x2f9c7ab1]
 fn @shortString() -> ptr<memory> [selector=0x2f9c7ab1, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -141,6 +151,7 @@ fn @shortString() -> ptr<memory> [selector=0x2f9c7ab1, pure, abi_params=[], abi_
     ret v0
 }
 
+; function longString() external pure returns (string memory) [selector 0x68a55dc0]
 fn @longString() -> ptr<memory> [selector=0x68a55dc0, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)

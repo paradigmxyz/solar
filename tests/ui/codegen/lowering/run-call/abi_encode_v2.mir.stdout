@@ -1,17 +1,20 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_v2.sol:AbiEncodeV2 ===
 @module AbiEncodeV2
+; function f0() public pure returns (bytes memory) [selector 0xa5850475]
 fn @f0() -> ptr<memory> [selector=0xa5850475, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = abi_encode [], object
     ret v0
 }
 
+; function f1() public pure returns (bytes memory) [selector 0xc27fc305]
 fn @f1() -> ptr<memory> [selector=0xc27fc305, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = abi_encode [word, word], object, args 1, 2
     ret v0
 }
 
+; function f2() public pure returns (bytes memory) [selector 0x9942ec6f]
 fn @f2() -> ptr<memory> [selector=0x9942ec6f, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @literal_bytes_word, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
@@ -19,6 +22,7 @@ fn @f2() -> ptr<memory> [selector=0x9942ec6f, pure, abi_params=[], abi_returns=[
     ret v1
 }
 
+; function f3() public pure returns (bytes memory r) [selector 0xaaf05f3d]
 fn @f3() -> ptr<memory> [selector=0xaaf05f3d, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @literal_bytes_word, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
@@ -59,75 +63,72 @@ fn @f3() -> ptr<memory> [selector=0xaaf05f3d, pure, abi_params=[], abi_returns=[
     ret v1
 }
 
+; function f4() public returns (bytes memory r) [selector 0xc3f90202]
 fn @f4() -> ptr<memory> [selector=0xc3f90202, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @literal_bytes_word, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     sstore 0, 7 !metadata(storage=slot(0))
-    v1 = add 0, 1
-    v2 = sload v1 !metadata(storage=slot(1))
-    v3 = shr v2, 64
-    v4 = ne v3, 0
-    icall panic_if<0x41>, v4
-    v5 = add v2, 1
-    v6 = storage_array_data_slot v1
-    v7 = add v6, v2
-    sstore v7, 2 !metadata(storage=symbolic(v7))
-    sstore v1, v5 !metadata(storage=slot(1))
-    v8 = add 0, 1
-    v9 = sload v8 !metadata(storage=slot(1))
-    v10 = shr v9, 64
-    v11 = ne v10, 0
-    icall panic_if<0x41>, v11
-    v12 = add v9, 1
-    v13 = storage_array_data_slot v8
-    v14 = add v13, v9
-    sstore v14, 3 !metadata(storage=symbolic(v14))
-    sstore v8, v12 !metadata(storage=slot(1))
-    v15 = alloc checked 64
-    v16 = sload 0 !metadata(storage=slot(0))
-    mstore v15, v16
-    v17 = add 0, 1
-    v18 = icall @load_storage_word_array, v17
-    v19 = ptrtoint ptr<memory> v18 to i256
-    v20 = ptradd v15, 32
-    mstore v20, v19
-    v21 = abi_encode [word, memory_bytes, tuple<word, memory_array<word>>, word], object, args 1, v0, v15, 2
-    v22 = alloc 64 !metadata(preserves_fmp)
-    mstore v22, 3
-    v23 = ptradd v22, 32
-    mstore v23, 0x6465660000000000000000000000000000000000000000000000000000000000
-    v24 = mload v22
-    v25 = lt 0, v24
-    v26 = eq v25, false
-    icall panic_if<0x32>, v26
-    v27 = ptradd v22, 32
-    v28 = mload v27
-    v29 = byte 0, v28
-    v30 = shl v29, 248
-    v31 = eq v30, 0x6400000000000000000000000000000000000000000000000000000000000000
-    v32 = eq v31, false
-    icall revert_if<empty>, v32
-    v33 = mload v22
+    v1 = sload 1 !metadata(storage=slot(1))
+    v2 = gt v1, 0xffffffffffffffff
+    icall panic_if<0x41>, v2
+    v3 = add v1, 1
+    v4 = storage_array_data_slot 1
+    v5 = add v4, v1
+    sstore v5, 2 !metadata(storage=symbolic(v5))
+    sstore 1, v3 !metadata(storage=slot(1))
+    v6 = sload 1 !metadata(storage=slot(1))
+    v7 = gt v6, 0xffffffffffffffff
+    icall panic_if<0x41>, v7
+    v8 = add v6, 1
+    v9 = storage_array_data_slot 1
+    v10 = add v9, v6
+    sstore v10, 3 !metadata(storage=symbolic(v10))
+    sstore 1, v8 !metadata(storage=slot(1))
+    v11 = alloc checked 64
+    v12 = sload 0 !metadata(storage=slot(0))
+    mstore v11, v12
+    v13 = icall @load_storage_word_array, 1
+    v14 = ptrtoint ptr<memory> v13 to i256
+    v15 = ptradd v11, 32
+    mstore v15, v14
+    v16 = abi_encode [word, memory_bytes, tuple<word, memory_array<word>>, word], object, args 1, v0, v11, 2
+    v17 = alloc 64 !metadata(preserves_fmp)
+    mstore v17, 3
+    v18 = ptradd v17, 32
+    mstore v18, 0x6465660000000000000000000000000000000000000000000000000000000000
+    v19 = mload v17
+    v20 = lt 0, v19
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = ptradd v17, 32
+    v23 = mload v22
+    v24 = byte 0, v23
+    v25 = shl v24, 248
+    v26 = eq v25, 0x6400000000000000000000000000000000000000000000000000000000000000
+    v27 = eq v26, false
+    icall revert_if<empty>, v27
+    v28 = mload v17
+    v29 = lt 0, v28
+    v30 = eq v29, false
+    icall panic_if<0x32>, v30
+    v31 = byte 0, 0x6500000000000000000000000000000000000000000000000000000000000000
+    v32 = ptradd v17, 32
+    mstore8 v32, v31
+    v33 = mload v17
     v34 = lt 0, v33
     v35 = eq v34, false
     icall panic_if<0x32>, v35
-    v36 = byte 0, 0x6500000000000000000000000000000000000000000000000000000000000000
-    v37 = ptradd v22, 32
-    mstore8 v37, v36
-    v38 = mload v22
-    v39 = lt 0, v38
-    v40 = eq v39, false
-    icall panic_if<0x32>, v40
-    v41 = ptradd v22, 32
-    v42 = mload v41
-    v43 = byte 0, v42
-    v44 = shl v43, 248
-    v45 = eq v44, 0x6500000000000000000000000000000000000000000000000000000000000000
-    v46 = eq v45, false
-    icall revert_if<empty>, v46
-    ret v21
+    v36 = ptradd v17, 32
+    v37 = mload v36
+    v38 = byte 0, v37
+    v39 = shl v38, 248
+    v40 = eq v39, 0x6500000000000000000000000000000000000000000000000000000000000000
+    v41 = eq v40, false
+    icall revert_if<empty>, v41
+    ret v16
 }
 
+; function literalRemainsLive() public pure returns (bool) [selector 0x8eddb2e8]
 fn @literalRemainsLive() -> i1 [selector=0x8eddb2e8, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @literal_bytes_word, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
@@ -137,13 +138,13 @@ fn @literalRemainsLive() -> i1 [selector=0x8eddb2e8, pure, abi_params=[], abi_re
     v4 = keccak256 v2, v3
     v5 = eq v4, 0x4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45
     jumpi v5, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v6 = mload v1
     v7 = ne v6, 0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v8 = phi [bb1: v7], [bb2: false]
     ret v8
 }

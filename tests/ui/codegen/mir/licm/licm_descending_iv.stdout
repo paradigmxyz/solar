@@ -4,14 +4,14 @@
   fn @keep_mload_descending_iv() -> i256 {
     bb0:
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v0 = phi [bb0: 0], [bb2: v3]
       v1 = phi [bb0: 64], [bb2: v4]
       v2 = lt v1, 100
       jumpi v2, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       ret v0
-    bb2:
+    bb2:  ; preds = bb1
       v3 = mload 0
 -     sstore v1, v3
 +     sstore v1, v3 !metadata(storage=symbolic(v1))
@@ -24,14 +24,14 @@
     bb0:
 +     v3 = mload 0
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v0 = phi [bb0: 0], [bb2: v3]
       v1 = phi [bb0: 64], [bb2: v4]
       v2 = lt v1, 100
       jumpi v2, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       ret v0
-    bb2:
+    bb2:  ; preds = bb1
 -     v3 = mload 0
 -     sstore v1, v3
 +     sstore v1, v3 !metadata(storage=symbolic(v1))

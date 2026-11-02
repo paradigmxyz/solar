@@ -4,6 +4,7 @@
   struct0: {i256, i256}
   struct1: {i256, i256, i256}
 
+; function shift(uint256 value, uint256 amount) external pure returns (uint256 left, uint256 right) [selector 0xe50322a2]
 fn @shift(arg0: i256, arg1: i256) -> struct0 [selector=0xe50322a2, pure, abi_params=[uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = shl arg0, arg1
@@ -13,26 +14,27 @@ fn @shift(arg0: i256, arg1: i256) -> struct0 [selector=0xe50322a2, pure, abi_par
     ret v3
 }
 
+; function signedShift(int256 value, uint256 amount) external pure returns (int256) [selector 0xa579f6d8]
 fn @signedShift(arg0: i256, arg1: i256) -> i256 [selector=0xa579f6d8, pure, abi_params=[int256, uint256], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     v0 = sar arg0, arg1
     ret v0
 }
 
+; function packedStorage() external returns (uint256) [selector 0x6e5f4079]
 fn @packedStorage() -> i256 [selector=0x6e5f4079, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffffff
-    v2 = and v0, v1
-    v3 = and 0x123456, 0xffffff
-    v4 = or v2, v3
-    sstore 0, v4 !metadata(storage=slot(0))
-    v5 = sload 0 !metadata(storage=slot(0))
-    v6 = trunc i256 v5 to i24
-    v7 = zext i24 v6 to i256
-    ret v7
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffff000000
+    v2 = or v1, 0x123456
+    sstore 0, v2 !metadata(storage=slot(0))
+    v3 = sload 0 !metadata(storage=slot(0))
+    v4 = trunc i256 v3 to i24
+    v5 = zext i24 v4 to i256
+    ret v5
 }
 
+; function partialCopy() external pure returns (bytes32 out) [selector 0xb787ef80]
 fn @partialCopy() -> i256 [selector=0xb787ef80, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -47,6 +49,7 @@ fn @partialCopy() -> i256 [selector=0xb787ef80, pure, abi_params=[], abi_returns
     ret v6
 }
 
+; function nested(int256 value) external pure returns (uint256 left, uint256 right, int256 signed) [selector 0x847c0acd]
 fn @nested(arg0: i256) -> struct1 [selector=0x847c0acd, pure, abi_params=[int256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, int256]] {
   bb0:
     v0 = shl arg0, 3
@@ -61,6 +64,7 @@ fn @nested(arg0: i256) -> struct1 [selector=0x847c0acd, pure, abi_params=[int256
     ret v8
 }
 
+; function saturated(int256 value) external pure returns (uint256 left, uint256 right, int256 signed) [selector 0x0bfcb37e]
 fn @saturated(arg0: i256) -> struct1 [selector=0x0bfcb37e, pure, abi_params=[int256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, int256]] {
   bb0:
     v0 = shl arg0, 128

@@ -74,6 +74,38 @@
 (decl pure late_word_sequence () bool)
 (extern constructor late_word_sequence late_word_sequence)
 
+;; The run gives the width tests their final spelling, once their uses are known.
+(decl pure spelling_widths () bool)
+(extern constructor spelling_widths spelling_widths)
+
+;; The target prices the shift `x >> k` against zero below the comparison with the limit for a
+;; width test of `k` bits of the root's use: `fits` for `x < 2 ** k`, else `x > 2 ** k - 1`.
+(decl pure width_shifts (U256 bool) bool)
+(extern constructor width_shifts width_shifts)
+
+;; The target prices `(x ^ y) << s` against zero below `x & m` against `y`, for a mask `m` of the
+;; low `W - s` bits, in the root's use: `equal` for an `eq`, else an `ne`, and `zero` for a `y` of
+;; zero, which needs no difference.
+(decl pure masked_shifts (U256 bool bool) bool)
+(extern constructor masked_shifts masked_shifts)
+
+;; The value has at most `W - s` significant bits, by what its definition shows.
+(decl pure fits_below_shift (Value U256) bool)
+(extern constructor fits_below_shift fits_below_shift)
+
+;; No instruction but the root reads the value, so the root removes it.
+(decl pure sole_reader (Value) bool)
+(extern constructor sole_reader sole_reader)
+
+;; The value is the constant zero.
+(decl pure zero_operand (Value) bool)
+(extern constructor zero_operand zero_operand)
+
+;; The word `x >> k` an earlier instruction of the block already computes, which a width test of
+;; `k` bits of `x` reads for the price of its zero test.
+(decl pure partial shared_shift (U256 Value) Value)
+(extern constructor shared_shift shared_shift)
+
 ;; The constant masks one value: no other instruction reads it, apart from a
 ;; redundant second `and` with the same mask. A profitability condition only.
 (decl pure unshared_mask (U256) bool)
@@ -82,3 +114,8 @@
 ;; `x & m` is compared with a constant that `m` keeps. A profitability condition only.
 (decl pure compared_mask (Value U256) bool)
 (extern constructor compared_mask compared_mask)
+
+;; The function holds no abstract free-memory-pointer operation: `lower-alloc` has run, so CSE has
+;; already forwarded the lengths that share a padding. A profitability condition only.
+(decl pure allocations_lowered () bool)
+(extern constructor allocations_lowered allocations_lowered)

@@ -20,8 +20,8 @@
 use crate::{
     backend::evm::{ir::compact_pushes, op, select},
     mir::{
-        BitTestPricing, BlockId, ConditionUse, Function, InstId, Op, Terminator, Value, ValueId,
-        analysis::AddressSpace, memory::EvmMemoryLayout,
+        BlockId, Function, Hotness, InstId, Op, Terminator, Value, ValueId, analysis::AddressSpace,
+        memory::EvmMemoryLayout,
     },
 };
 use alloy_primitives::U256;
@@ -273,10 +273,17 @@ impl Target {
     /// size build: bytes first. Size builds already rank bytes first, and `-O none` keeps its
     /// own model.
     pub(crate) const fn priced_for_cold(self, cold: bool) -> Self {
-        if !cold || !self.optimization.is_gas() {
+        if !self.ignores_cold_gas(cold) {
             return self;
         }
         Self { optimization: OptimizationMode::Size, ..self }
+    }
+
+    /// The gas a call to shared code adds to a site's execution, `gas` unless `cold` code is
+    /// priced differently by [`Self::priced_for_cold`]: a cold site is ranked by bytes alone,
+    /// so it pays nothing.
+    pub(crate) const fn site_gas(self, cold: bool, gas: u32) -> u32 {
+        if self.ignores_cold_gas(cold) { 0 } else { gas }
     }
 
     /// Whether a bare `@custom:solar-inline` admits a clone that adds `added_bytes` and removes
@@ -325,10 +332,23 @@ impl Target {
         self.expected_executions
     }
 
+    /// The weight of a block of `hotness` outside every loop. Gas in a cold block is not paid by a
+    /// call that succeeds, so the gas objective weighs it at zero, whatever loops enclose it, and
+    /// only its bytes count. Other objectives weigh every block alike.
+    pub(crate) const fn block_weight(&self, hotness: Hotness) -> u32 {
+        if self.ignores_cold_gas(hotness.is_cold()) { 0 } else { 1 }
+    }
+
     /// The weight of a block inside one more loop than a block of weight `weight`.
     pub(crate) const fn nested_block_weight(weight: u32) -> u32 {
         let weight = weight.saturating_mul(Self::LOOP_BLOCK_WEIGHT);
         if weight < Self::MAX_BLOCK_WEIGHT { weight } else { Self::MAX_BLOCK_WEIGHT }
+    }
+
+    /// Whether the gas of `cold` code is ignored: only the gas objective does, as it ranks cold
+    /// code by bytes.
+    const fn ignores_cold_gas(&self, cold: bool) -> bool {
+        cold && self.optimization.is_gas()
     }
 
     /// Whether the build expects enough executions to copy loop bodies for runtime gas.
@@ -481,6 +501,97 @@ impl Target {
     /// recipe does not repay.
     pub(crate) fn literal_push(&self, value: U256) -> Cost {
         compact_pushes::literal_push(self.evm_version, value)
+    }
+
+    /// Whether a width test, that a word fits in `bits` bits when `fits` and that it does not
+    /// otherwise, is the shift `x >> bits` against zero rather than the comparison with its limit
+    /// (`x < 2^bits`, `x > 2^bits - 1`). A `branch` reads the word of a test of the other sense
+    /// for free, and a `value` pays `ISZERO`s: one to turn the word into a fit, two into a
+    /// boolean. The comparison pays the push of its limit, as the compact-push pass leaves it,
+    /// which grows with `bits`. The shift wins when it is no dearer in bytes and gas and cheaper
+    /// in one; equal prices keep the comparison. A shift that saves bytes and costs gas is taken
+    /// as a compact recipe is, by [`Self::compacts_immediate`]. Without shifts only the
+    /// comparison exists.
+    pub(crate) fn shifts_bits_test(
+        &self,
+        bits: u32,
+        fits: bool,
+        branch: bool,
+        in_loop: bool,
+    ) -> bool {
+        if !self.evm_version.has_bitwise_shifting() || !(1..256).contains(&bits) {
+            return false;
+        }
+        let zero_tests = match (fits, branch) {
+            (false, true) => Cost::ZERO,
+            (true, _) => self.opcode(op::ISZERO),
+            (false, false) => self.opcode(op::ISZERO) + self.opcode(op::ISZERO),
+        };
+        let shift = self.push(U256::from(bits)) + self.opcode(op::SHR) + zero_tests;
+        let compare = if fits {
+            self.emitted_push(U256::ONE << bits, in_loop) + self.opcode(op::LT)
+        } else {
+            self.emitted_push((U256::ONE << bits) - U256::ONE, in_loop) + self.opcode(op::GT)
+        };
+        let (shift_gas, compare_gas) = (self.runtime_gas(shift), self.runtime_gas(compare));
+        if shift.bytes <= compare.bytes && shift_gas <= compare_gas {
+            return shift.bytes < compare.bytes || shift_gas < compare_gas;
+        }
+        shift.bytes < compare.bytes
+            && self.compacts_immediate(
+                u64::from(compare.bytes - shift.bytes),
+                u64::from(shift_gas - compare_gas),
+                in_loop,
+            )
+    }
+
+    /// Whether `eq` (`equal`) or `ne` of a word masked to `bits` bits and a word that fits in
+    /// `bits` bits is the shifted difference `(x ^ y) << (256 - bits)` against zero rather than
+    /// the masked word against `y`. A `zero` operand needs no difference: the compare is the zero
+    /// test of the masked word, or of the word shifted.
+    ///
+    /// The mask the shift replaces is priced as the backend spells it: the literal or compact push
+    /// of [`Self::emitted_push`] and an `AND`, or the shift pair that clears the same bits when
+    /// that dominates. A `branch` reads the shifted word of an `ne` without a test; an `eq` and a
+    /// materialized boolean pay `ISZERO`s, as `ne` does against `EQ`. The shift wins when it is no
+    /// dearer in bytes and gas and cheaper in one, so a tie, as at 8 bits, keeps the mask; a shift
+    /// that saves bytes and costs gas is taken as a compact recipe is, by
+    /// [`Self::compacts_immediate`]. Without shifts only the mask exists.
+    pub(crate) fn shifts_masked_compare(
+        &self,
+        bits: u32,
+        equal: bool,
+        zero: bool,
+        branch: bool,
+        in_loop: bool,
+    ) -> bool {
+        if !self.evm_version.has_bitwise_shifting() || !(2..256).contains(&bits) {
+            return false;
+        }
+        let iszero = self.opcode(op::ISZERO);
+        let (shift_tests, compare_tests) = match (equal, branch) {
+            (true, _) => (iszero, Cost::ZERO),
+            (false, true) => (Cost::ZERO, Cost::ZERO),
+            (false, false) => (iszero + iszero, iszero),
+        };
+        let count = U256::from(256 - bits);
+        let difference = if zero { Cost::ZERO } else { self.opcode(op::XOR) };
+        let shift = difference + self.push(count) + self.opcode(op::SHL) + shift_tests;
+        let mask = self.emitted_push(U256::MAX >> (256 - bits), in_loop) + self.opcode(op::AND);
+        let pair =
+            self.push(count) + self.opcode(op::SHL) + self.push(count) + self.opcode(op::SHR);
+        let clear = if self.dominates(pair, mask) { pair } else { mask };
+        let compare = clear + if zero { shift_tests } else { self.opcode(op::EQ) + compare_tests };
+        let (shift_gas, compare_gas) = (self.runtime_gas(shift), self.runtime_gas(compare));
+        if shift.bytes <= compare.bytes && shift_gas <= compare_gas {
+            return shift.bytes < compare.bytes || shift_gas < compare_gas;
+        }
+        shift.bytes < compare.bytes
+            && self.compacts_immediate(
+                u64::from(compare.bytes - shift.bytes),
+                u64::from(shift_gas - compare_gas),
+                in_loop,
+            )
     }
 
     /// Whether reading `value` as an immediate costs no more gas than a `DUP` and at most one
@@ -1227,97 +1338,6 @@ impl Target {
     }
 }
 
-impl BitTestPricing for Target {
-    /// Whether a test of `fits` (the word fits in `bits` bits) or its negation, read as `read`,
-    /// is the shift `x >> bits` against zero rather than a comparison with the limit
-    /// (`x < 2^bits`, `x > 2^bits - 1`).
-    ///
-    /// A word that has a bit at or above `bits` is nonzero after the shift, which a branch or check
-    /// reads without a test; the other sense, and a materialized boolean, pay `ISZERO`s. The
-    /// comparison pays the push of its limit, which grows with `bits`. The shift wins when it is
-    /// no dearer in bytes and gas and cheaper in one: equal prices keep the comparison, which
-    /// every reader of a condition handles, where the shift measured larger code. A shift that
-    /// saves bytes and costs gas is taken as a compact recipe is, by [`Self::compacts_immediate`].
-    /// Without shifts only the comparison exists.
-    fn shifts_bits_test(&self, bits: u32, fits: bool, read: ConditionUse) -> bool {
-        if !self.evm_version.has_bitwise_shifting() || !(1..256).contains(&bits) {
-            return false;
-        }
-        let zero_tests = match (fits, read.branch) {
-            (false, true) => Cost::ZERO,
-            (true, _) => self.opcode(op::ISZERO),
-            (false, false) => self.opcode(op::ISZERO) + self.opcode(op::ISZERO),
-        };
-        let shift = self.push(U256::from(bits)) + self.opcode(op::SHR) + zero_tests;
-        let compare = if fits {
-            self.emitted_push(U256::ONE << bits, read.in_loop) + self.opcode(op::LT)
-        } else {
-            self.emitted_push((U256::ONE << bits) - U256::ONE, read.in_loop) + self.opcode(op::GT)
-        };
-        let (shift_gas, compare_gas) = (self.runtime_gas(shift), self.runtime_gas(compare));
-        if shift.bytes <= compare.bytes && shift_gas <= compare_gas {
-            return shift.bytes < compare.bytes || shift_gas < compare_gas;
-        }
-        shift.bytes < compare.bytes
-            && self.compacts_immediate(
-                u64::from(compare.bytes - shift.bytes),
-                u64::from(shift_gas - compare_gas),
-                read.in_loop,
-            )
-    }
-}
-
-impl Target {
-    /// Whether `eq` (`equal`) or `ne` of a word masked to `bits` bits and a word that fits in
-    /// `bits` bits, read as `read`, is the shifted difference `(x ^ y) << (256 - bits)` against
-    /// zero rather than the masked word against `y`. A `zero` operand needs no difference: the
-    /// compare is the zero test of the masked word, or of the word shifted.
-    ///
-    /// The mask the shift replaces is priced as the backend spells it: the literal or compact push
-    /// of [`Self::emitted_push`] and an `AND`, or the shift pair that clears the same bits when
-    /// that dominates. A branch reads the shifted word of an `ne` without a test; an `eq` and a
-    /// materialized boolean pay `ISZERO`s, as `ne` does against `EQ`. The shift wins when it is no
-    /// dearer in bytes and gas and cheaper in one, so a tie, as at 8 bits, keeps the mask; a shift
-    /// that saves bytes and costs gas is taken as a compact recipe is, by
-    /// [`Self::compacts_immediate`].
-    pub(crate) fn shifts_masked_compare(
-        &self,
-        bits: u32,
-        equal: bool,
-        zero: bool,
-        read: ConditionUse,
-    ) -> bool {
-        if !self.evm_version.has_bitwise_shifting() || !(2..256).contains(&bits) {
-            return false;
-        }
-        let iszero = self.opcode(op::ISZERO);
-        let (shift_tests, compare_tests) = match (equal, read.branch) {
-            (true, _) => (iszero, Cost::ZERO),
-            (false, true) => (Cost::ZERO, Cost::ZERO),
-            (false, false) => (iszero + iszero, iszero),
-        };
-        let count = U256::from(256 - bits);
-        let difference = if zero { Cost::ZERO } else { self.opcode(op::XOR) };
-        let shift = difference + self.push(count) + self.opcode(op::SHL) + shift_tests;
-        let mask =
-            self.emitted_push(U256::MAX >> (256 - bits), read.in_loop) + self.opcode(op::AND);
-        let pair =
-            self.push(count) + self.opcode(op::SHL) + self.push(count) + self.opcode(op::SHR);
-        let clear = if self.dominates(pair, mask) { pair } else { mask };
-        let compare = clear + if zero { shift_tests } else { self.opcode(op::EQ) + compare_tests };
-        let (shift_gas, compare_gas) = (self.runtime_gas(shift), self.runtime_gas(compare));
-        if shift.bytes <= compare.bytes && shift_gas <= compare_gas {
-            return shift.bytes < compare.bytes || shift_gas < compare_gas;
-        }
-        shift.bytes < compare.bytes
-            && self.compacts_immediate(
-                u64::from(compare.bytes - shift.bytes),
-                u64::from(shift_gas - compare_gas),
-                read.in_loop,
-            )
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1453,6 +1473,20 @@ mod tests {
     }
 
     #[test]
+    fn width_tests_spell_by_price() {
+        let gas = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
+        // A branch reads `x >> 64` for free, and the limit `2^64 - 1` is a nine-byte push.
+        assert!(gas.shifts_bits_test(64, false, true, false));
+        // A limit as short as the shift's own push keeps the comparison on equal prices.
+        assert!(!gas.shifts_bits_test(8, false, true, false));
+        assert!(!gas.shifts_bits_test(1, true, false, false));
+        // Without shifts only the comparison exists.
+        let legacy = Target::with(EvmVersion::Byzantium, OptimizationMode::Gas, 200);
+        assert!(!legacy.shifts_bits_test(64, false, true, false));
+        assert_eq!(gas.emitted_push(U256::from(1), false), gas.literal_push(U256::from(1)));
+    }
+
+    #[test]
     fn objectives_rank_costs() {
         let gas = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
         let size = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 200);
@@ -1518,90 +1552,54 @@ mod tests {
     }
 
     #[test]
-    fn bits_test_spelling_follows_price() {
-        let gas = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
-        let size = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 1);
-        let (value, branch) = (ConditionUse::VALUE, ConditionUse::BRANCH);
-        // A branch reads a word with a bit above the width as the shifted word, which ties the
-        // comparison with a short limit, and the tie keeps the comparison. A wide limit costs
-        // more than the shift.
-        for bits in [1, 8] {
-            assert!(!gas.shifts_bits_test(bits, false, branch), "{bits}");
-            assert!(!size.shifts_bits_test(bits, false, branch), "{bits}");
-        }
-        for bits in [64, 160] {
-            assert!(gas.shifts_bits_test(bits, false, branch), "{bits}");
-            assert!(size.shifts_bits_test(bits, false, branch), "{bits}");
-        }
-        // A fit pays an `ISZERO` for the shifted word, a boolean two. The comparison keeps a
-        // short limit, in size builds up to the width that shortens the code, and in a loop,
-        // where the gas repeats, up to a limit that costs a recipe.
-        for bits in [1, 8] {
-            assert!(
-                !gas.shifts_bits_test(bits, true, value)
-                    && !size.shifts_bits_test(bits, true, value)
-            );
-            assert!(
-                !gas.shifts_bits_test(bits, true, branch)
-                    && !size.shifts_bits_test(bits, false, value)
-            );
-        }
-        assert!(!gas.shifts_bits_test(16, true, value) && size.shifts_bits_test(16, true, value));
-        assert!(gas.shifts_bits_test(32, true, value));
-        assert!(!gas.shifts_bits_test(32, true, value.in_loop()));
-        assert!(!gas.shifts_bits_test(64, false, value) && size.shifts_bits_test(64, false, value));
-        assert!(gas.shifts_bits_test(128, false, value));
-        // Without shifts only the comparison exists, and no width is a test.
-        let byzantium = Target::with(EvmVersion::Byzantium, OptimizationMode::Size, 1);
-        assert!(!byzantium.shifts_bits_test(64, false, branch));
-        assert!(
-            !gas.shifts_bits_test(0, false, branch) && !gas.shifts_bits_test(256, false, branch)
-        );
-    }
-
-    #[test]
     fn masked_compare_spelling_follows_price() {
         let gas = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
         let size = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 1);
-        let (value, branch) = (ConditionUse::VALUE, ConditionUse::BRANCH);
+        // `(bits, equal, zero, branch, in_loop)`.
+        let gas = |bits, equal, zero, branch, in_loop| {
+            gas.shifts_masked_compare(bits, equal, zero, branch, in_loop)
+        };
+        let size = |bits, equal, zero, branch, in_loop| {
+            size.shifts_masked_compare(bits, equal, zero, branch, in_loop)
+        };
         // A short mask costs no more than the shift and its zero tests, and a tie keeps the mask.
-        for read in [value, branch] {
+        for branch in [false, true] {
             for equal in [false, true] {
-                assert!(!gas.shifts_masked_compare(8, equal, false, read));
-                assert!(!size.shifts_masked_compare(8, equal, false, read));
+                assert!(!gas(8, equal, false, branch, false));
+                assert!(!size(8, equal, false, branch, false));
             }
         }
         // A branch reads the shifted word of an `ne` for free, which saves a byte at 16 bits; the
         // `ISZERO` of an `eq` or a boolean takes it back.
-        assert!(gas.shifts_masked_compare(16, false, false, branch));
-        assert!(!gas.shifts_masked_compare(16, true, false, branch));
-        assert!(!gas.shifts_masked_compare(16, false, false, value));
-        // A mask of a few bytes is a cheap push, which the `ISZERO`s of the shift cost gas to beat;
-        // size builds take the bytes. A wide mask is a shift pair or a long push, dearer than the
-        // shift and its tests.
-        assert!(gas.shifts_masked_compare(32, false, false, branch));
-        assert!(!gas.shifts_masked_compare(32, true, false, branch));
-        assert!(!gas.shifts_masked_compare(32, false, false, value));
-        assert!(size.shifts_masked_compare(32, true, false, value));
+        assert!(gas(16, false, false, true, false));
+        assert!(!gas(16, true, false, true, false));
+        assert!(!gas(16, false, false, false, false));
+        // A mask of a few bytes is a cheap push, which the `ISZERO`s of the shift cost gas to
+        // beat; size builds take the bytes. A wide mask is a shift pair or a long push, dearer
+        // than the shift and its tests.
+        assert!(gas(32, false, false, true, false));
+        assert!(!gas(32, true, false, true, false));
+        assert!(!gas(32, false, false, false, false));
+        assert!(size(32, true, false, false, false));
         for bits in [64, 160, 248] {
-            for (equal, read) in [(true, branch), (false, branch), (true, value), (false, value)] {
-                assert!(gas.shifts_masked_compare(bits, equal, false, read), "{bits}");
-                assert!(size.shifts_masked_compare(bits, equal, false, read), "{bits}");
+            for (equal, branch) in [(true, true), (false, true), (true, false), (false, false)] {
+                assert!(gas(bits, equal, false, branch, false), "{bits}");
+                assert!(size(bits, equal, false, branch, false), "{bits}");
             }
         }
         // A loop keeps the literal mask where the shift costs gas on every iteration.
-        assert!(gas.shifts_masked_compare(160, false, false, branch.in_loop()));
-        assert!(!gas.shifts_masked_compare(160, true, false, branch.in_loop()));
+        assert!(gas(160, false, false, true, true));
+        assert!(!gas(160, true, false, true, true));
         // Without shifts, and for a width that is no mask, the mask stays.
         let byzantium = Target::with(EvmVersion::Byzantium, OptimizationMode::Size, 1);
-        assert!(!byzantium.shifts_masked_compare(160, false, false, branch));
-        assert!(!gas.shifts_masked_compare(1, false, false, branch));
-        assert!(!gas.shifts_masked_compare(256, false, false, branch));
+        assert!(!byzantium.shifts_masked_compare(160, false, false, true, false));
+        assert!(!gas(1, false, false, true, false));
+        assert!(!gas(256, false, false, true, false));
         // A zero operand needs no difference, so the shift ties the mask at 8 bits and beats a
         // longer push at 32, an `eq` or `ne`, as a value or a branch.
-        for (equal, read) in [(true, branch), (false, branch), (true, value), (false, value)] {
-            assert!(!gas.shifts_masked_compare(8, equal, true, read));
-            assert!(gas.shifts_masked_compare(32, equal, true, read));
+        for (equal, branch) in [(true, true), (false, true), (true, false), (false, false)] {
+            assert!(!gas(8, equal, true, branch, false));
+            assert!(gas(32, equal, true, branch, false));
         }
     }
 
@@ -1738,6 +1736,19 @@ mod tests {
     }
 
     #[test]
+    fn cold_blocks_weigh_nothing_for_gas_only() {
+        let target = |optimization| Target::with(EvmVersion::Osaka, optimization, 200);
+        let gas = target(OptimizationMode::Gas);
+        assert_eq!(gas.block_weight(Hotness::Hot), 1);
+        assert_eq!(gas.block_weight(Hotness::Cold), 0);
+        // A cold loop stays at zero.
+        assert_eq!(Target::nested_block_weight(gas.block_weight(Hotness::Cold)), 0);
+        for optimization in [OptimizationMode::Size, OptimizationMode::None] {
+            assert_eq!(target(optimization).block_weight(Hotness::Cold), 1);
+        }
+    }
+
+    #[test]
     fn nested_block_weights() {
         assert_eq!(Target::nested_block_weight(1), 8);
         assert_eq!(Target::nested_block_weight(64), 512);
@@ -1830,6 +1841,10 @@ mod tests {
         assert_eq!(gas.priced_for_cold(false), gas);
         assert_eq!(size.priced_for_cold(true), size);
         assert_eq!(none.priced_for_cold(true), none);
+        assert_eq!(gas.site_gas(false, 7), 7);
+        assert_eq!(gas.site_gas(true, 7), 0);
+        assert_eq!(size.site_gas(true, 7), 7);
+        assert_eq!(none.site_gas(true, 7), 7);
     }
 
     #[test]

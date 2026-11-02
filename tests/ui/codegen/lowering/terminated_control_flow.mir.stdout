@@ -1,13 +1,14 @@
 // === ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:TryTarget ===
 @module TryTarget
+; function invoke(bool fail) external pure [selector 0x2605fe98]
 fn @invoke(arg0: i1) [selector=0x2605fe98, pure, abi_params=[bool], abi_returns=[], abi_return_params=[]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     ret
-  bb1:
+  bb1:  ; preds = bb0
     icall revert_if<empty>, true
     invalid
 }
@@ -23,6 +24,7 @@ fn @invoke(arg0: i1) [selector=0x2605fe98, pure, abi_params=[bool], abi_returns=
   RevertsInConstructor_creation_code_2: creation_code "ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:RevertsInConstructor"
   RevertsWithoutArgs_creation_code_3: creation_code "ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:RevertsWithoutArgs"
 
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = datasize TryTarget_creation_code_0
@@ -31,19 +33,19 @@ fn @constructor() [constructor] {
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = sload 1 !metadata(storage=slot(1))
-    v5 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v6 = and v4, v5
-    v7 = zext i160 v2 to i256
-    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
-    v9 = or v6, v8
-    sstore 1, v9 !metadata(storage=slot(1))
+    v5 = and v4, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    v6 = zext i160 v2 to i256
+    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
+    v8 = or v5, v7
+    sstore 1, v8 !metadata(storage=slot(1))
     ret
 }
 
+; function trySuccess() external view returns (uint256) [selector 0x3984eec7]
 fn @trySuccess() -> i256 [selector=0x3984eec7, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
@@ -60,19 +62,20 @@ fn @trySuccess() -> i256 [selector=0x3984eec7, view, abi_params=[], abi_returns=
     v8 = zext i160 v1 to i256
     v9 = staticcall v2, v8, 28, 36, 0, 0
     jumpi v9, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:
+  bb4:  ; preds = bb2
     ret 9
-  bb1:
+  bb1:  ; preds = bb0
     ret 7
   bb3:
     ret 0
 }
 
+; function tryFailure() external view returns (uint256) [selector 0x86763122]
 fn @tryFailure() -> i256 [selector=0x86763122, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
@@ -89,19 +92,20 @@ fn @tryFailure() -> i256 [selector=0x86763122, view, abi_params=[], abi_returns=
     v8 = zext i160 v1 to i256
     v9 = staticcall v2, v8, 28, 36, 0, 0
     jumpi v9, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:
+  bb4:  ; preds = bb2
     ret 9
-  bb1:
+  bb1:  ; preds = bb0
     ret 7
   bb3:
     ret 0
 }
 
+; function constructorStop() external returns (uint256) [selector 0x2114ee15]
 fn @constructorStop() -> i256 [selector=0x2114ee15, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = datasize StopsInConstructor_creation_code_1
@@ -110,14 +114,15 @@ fn @constructorStop() -> i256 [selector=0x2114ee15, abi_params=[], abi_returns=[
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = zext i160 v2 to i256
     v5 = extcodesize v4
     ret v5
 }
 
+; function stopInHelper() external pure [selector 0xd738ac61]
 fn @stopInHelper() [selector=0xd738ac61, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     icall @stopHelper
@@ -125,11 +130,13 @@ fn @stopInHelper() [selector=0xd738ac61, pure, abi_params=[], abi_returns=[], ab
     invalid
 }
 
+; function stopHelper() internal pure
 fn @stopHelper() [pure] {
   bb0:
     stop
 }
 
+; function scalarFailure(uint256 reason) external pure returns (uint256) [selector 0x97ca1c76]
 fn @scalarFailure(arg0: i256) -> i256 [selector=0x97ca1c76, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @failScalar, arg0
@@ -137,12 +144,14 @@ fn @scalarFailure(arg0: i256) -> i256 [selector=0x97ca1c76, pure, abi_params=[ui
     ret v1
 }
 
+; function failScalar(uint256 reason) internal pure returns (uint256)
 fn @failScalar(arg0: i256) -> i256 [pure] {
   bb0:
     mstore 0, arg0 !metadata(memory=scratch)
     revert 0, 32
 }
 
+; function pairFailure(uint256 reason) external pure returns (uint256, uint256) [selector 0xbdf5d4d3]
 fn @pairFailure(arg0: i256) -> struct0 [selector=0xbdf5d4d3, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall @failPair, arg0
@@ -155,28 +164,31 @@ fn @pairFailure(arg0: i256) -> struct0 [selector=0xbdf5d4d3, pure, abi_params=[u
     ret v6
 }
 
+; function failPair(uint256 reason) internal pure returns (uint256, uint256)
 fn @failPair(arg0: i256) -> struct0 [pure] {
   bb0:
     mstore 0, arg0 !metadata(memory=scratch)
     revert 0, 32
 }
 
+; function recursiveFailure(uint256 depth, uint256 reason) public pure returns (uint256) [selector 0x0d8ae7f2]
 fn @recursiveFailure(arg0: i256, arg1: i256) -> i256 [selector=0x0d8ae7f2, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     v1 = checked_sub uint256, arg0, 1
     v2 = icall @recursiveFailure, v1, arg1
     v3 = checked_add uint256, v2, 1
     ret v3
-  bb1:
+  bb1:  ; preds = bb0
     mstore 0, arg1 !metadata(memory=scratch)
     revert 0, 32
 }
 
+; function constructorFailure(uint256 reason) external returns (address) [selector 0x61e5bcd1]
 fn @constructorFailure(arg0: i256) -> i160 [selector=0x61e5bcd1, abi_params=[uint256], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
     v0 = abi_encode [word], args arg0
@@ -191,12 +203,13 @@ fn @constructorFailure(arg0: i256) -> i160 [selector=0x61e5bcd1, abi_params=[uin
     v7 = create 0, v3, v2
     v8 = ne v7, i160 0
     jumpi v8, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     ret v7
 }
 
+; function constructorWithoutArgs() external returns (bool) [selector 0x1f01d869]
 fn @constructorWithoutArgs() -> i1 [selector=0x1f01d869, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = datasize RevertsWithoutArgs_creation_code_3
@@ -205,7 +218,7 @@ fn @constructorWithoutArgs() -> i1 [selector=0x1f01d869, abi_params=[], abi_retu
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v4 = icall returndata_bytes<>
     v5 = ptradd v4, 32
     v6 = mload v4
@@ -216,9 +229,9 @@ fn @constructorWithoutArgs() -> i1 [selector=0x1f01d869, abi_params=[], abi_retu
     v11 = mload v10
     v12 = shr v11, 224
     jumpi true, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb2
     revert v8, v9
-  bb4:
+  bb4:  ; preds = bb2
     v13 = ptradd v4, 32
     v14 = mload v4
     v15 = keccak256 v13, v14
@@ -234,28 +247,31 @@ fn @constructorWithoutArgs() -> i1 [selector=0x1f01d869, abi_params=[], abi_retu
     v25 = keccak256 v23, v24
     v26 = eq v15, v25
     ret v26
-  bb1:
+  bb1:  ; preds = bb0
     ret false
   bb3:
     ret false
 }
 
+; function oversizedReturn() external pure [selector 0xe98a2448]
 fn @oversizedReturn() [selector=0xe98a2448, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     mstore 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0, 7
     returndata 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0, 32
 }
 
+; function unaffordableReturn() external pure [selector 0x0acfbfd5]
 fn @unaffordableReturn() [selector=0x0acfbfd5, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     mstore 0x123456789abcdef0, 7
     returndata 0x123456789abcdef0, 32
 }
 
+; function precompileReturndata(uint256 rounds, uint256 kind) external pure returns (uint256 total) [selector 0x3553277c]
 fn @precompileReturndata(arg0: i256, arg1: i256) -> i256 [selector=0x3553277c, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb10
     v0 = phi [bb0: arg0], [bb10: v0]
     v1 = phi [bb0: arg1], [bb10: v1]
     v2 = phi [bb0: 0], [bb10: v6]
@@ -265,38 +281,39 @@ fn @precompileReturndata(arg0: i256, arg1: i256) -> i256 [selector=0x3553277c, p
     v6 = add v2, v5
     v7 = eq v1, 0
     jumpi v7, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     v10 = eq v1, 1
     jumpi v10, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb5
     v13 = icall ecrecover<>, 1, 28, 0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898, 0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
     jump bb9
-  bb7:
+  bb7:  ; preds = bb5
     v11 = abi_encode [word], object, args v3
     v12 = icall ripemd160<>, v11
     jump bb9
-  bb9:
+  bb9:  ; preds = bb7, bb8
     jump bb6
-  bb4:
+  bb4:  ; preds = bb1
     v8 = abi_encode [word], object, args v3
     v9 = icall sha256<>, v8
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb9
     v14 = checked_add uint256, v3, 1
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v15 = lt v14, v0
     jumpi v15, bb10, bb11
-  bb11:
+  bb11:  ; preds = bb3
     jump bb2
-  bb2:
+  bb2:  ; preds = bb11
     ret v6
-  bb10:
+  bb10:  ; preds = bb3
     jump bb1
   bb12:
     invalid
 }
 
+; function storageRevertPayload() external returns (bool) [selector 0x0156c876]
 fn @storageRevertPayload() -> i1 [selector=0x0156c876, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address
@@ -310,7 +327,7 @@ fn @storageRevertPayload() -> i1 [selector=0x0156c876, abi_params=[], abi_return
     v5 = zext i160 v0 to i256
     v6 = call v1, v5, 0, 28, 36, 0, 0
     jumpi v6, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v7 = icall returndata_bytes<>
     v8 = ptradd v7, 32
     v9 = mload v7
@@ -321,54 +338,56 @@ fn @storageRevertPayload() -> i1 [selector=0x0156c876, abi_params=[], abi_return
     v14 = mload v13
     v15 = shr v14, 224
     jumpi true, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb2
     revert v11, v12
-  bb4:
+  bb4:  ; preds = bb2
     v16 = ptradd v7, 32
     v17 = mload v7
     v18 = keccak256 v16, v17
     v19 = eq v18, 0x90941e664046c4fb4064f646fbaafc5dc7ff860596426813c026a5a9c424233
     ret v19
-  bb1:
+  bb1:  ; preds = bb0
     ret false
   bb3:
     ret false
 }
 
+; function failWithStorageBytes(uint256 rounds) external [selector 0x49740e5b]
 fn @failWithStorageBytes(arg0: i256) [selector=0x49740e5b, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 2 !metadata(storage=slot(0))
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v7]
     v2 = lt v1, v0
     jumpi v2, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret
-  bb4:
+  bb4:  ; preds = bb1
     v3 = sload 0 !metadata(storage=slot(0))
     v4 = add v3, 2
     sstore 0, v4 !metadata(storage=slot(0))
     v5 = eq v1, 2
     jumpi v5, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb4
     jump bb9
-  bb9:
+  bb9:  ; preds = bb8
     jump bb6
-  bb6:
+  bb6:  ; preds = bb9
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v7 = checked_add uint256, v1, 1
     jump bb1
-  bb7:
+  bb7:  ; preds = bb4
     v6 = load_storage_bytes 0
     icall require<custom_error [memory_bytes]>, false, 0xe53184de00000000000000000000000000000000000000000000000000000000, v6
     invalid
 }
 
+; function maybeFailure(bool fail) external pure returns (uint256) [selector 0x5f6d6eda]
 fn @maybeFailure(arg0: i1) -> i256 [selector=0x5f6d6eda, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @maybeFail, arg0
@@ -376,31 +395,33 @@ fn @maybeFailure(arg0: i1) -> i256 [selector=0x5f6d6eda, pure, abi_params=[bool]
     ret v1
 }
 
+; function maybeFail(bool fail) internal pure returns (uint256)
 fn @maybeFail(arg0: i1) -> i256 [pure] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     ret 6
-  bb1:
+  bb1:  ; preds = bb0
     icall revert_if<empty>, true
     invalid
 }
 
+; function breakSkipsTail() external pure returns (uint256 result) [selector 0xa299c6cb]
 fn @breakSkipsTail() -> i256 [selector=0xa299c6cb, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0
     v0 = phi [bb0: 0]
     v1 = phi [bb0: 0]
     v2 = lt v1, 1
     jumpi v2, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb4:
+  bb4:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb4, bb5
     ret v0
   bb3:
     invalid
@@ -408,21 +429,22 @@ fn @breakSkipsTail() -> i256 [selector=0xa299c6cb, pure, abi_params=[], abi_retu
     invalid
 }
 
+; function continueSkipsTail() external pure returns (uint256 result) [selector 0xc45ef923]
 fn @continueSkipsTail() -> i256 [selector=0xc45ef923, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: 0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v3]
     v2 = lt v1, 1
     jumpi v2, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v0
-  bb4:
+  bb4:  ; preds = bb1
     jump bb3
-  bb3:
+  bb3:  ; preds = bb4
     v3 = checked_add uint256, v1, 1
     jump bb1
   bb6:
@@ -431,11 +453,13 @@ fn @continueSkipsTail() -> i256 [selector=0xc45ef923, pure, abi_params=[], abi_r
 
 // === ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:StopsInConstructor ===
 @module StopsInConstructor
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     stop
 }
 
+; function present() external pure returns (uint256) [selector 0xe735afb2]
 fn @present() -> i256 [selector=0xe735afb2, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 1
@@ -443,6 +467,7 @@ fn @present() -> i256 [selector=0xe735afb2, pure, abi_params=[], abi_returns=[wo
 
 // === ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:RevertsInConstructor ===
 @module RevertsInConstructor
+; constructor(uint256 reason) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
   bb0:
     v0 = icall @fail, arg0
@@ -450,6 +475,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
     ret
 }
 
+; function fail(uint256 reason) internal pure returns (uint256)
 fn @fail(arg0: i256) -> i256 [pure] {
   bb0:
     mstore 0, arg0 !metadata(memory=scratch)
@@ -458,6 +484,7 @@ fn @fail(arg0: i256) -> i256 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:RevertsWithoutArgs ===
 @module RevertsWithoutArgs
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = icall @fail
@@ -465,6 +492,7 @@ fn @constructor() [constructor] {
     ret
 }
 
+; function fail() internal view returns (uint256)
 fn @fail() -> i256 [view] {
   bb0:
     v0 = number
@@ -476,12 +504,12 @@ fn @fail() -> i256 [view] {
     v6 = gas
     v7 = gt v6, 0
     jumpi v7, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb1:
+  bb1:  ; preds = bb0
     mstore 0, v1 !metadata(memory=scratch)
     mstore 32, v3 !metadata(memory=scratch)
     mstore 64, v5 !metadata(memory=scratch)

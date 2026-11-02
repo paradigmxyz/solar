@@ -1,15 +1,18 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_function_pointer_array_validation.sol:AbiFunctionPointerArrayValidation ===
 @module AbiFunctionPointerArrayValidation
+; function target() external pure [selector 0xd4b83992]
 fn @target() [selector=0xd4b83992, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
+; function g(function() external[] calldata pointers) external pure returns (uint r) [selector 0xc16ea9d4]
 fn @g(arg0: slice<calldata>) -> i256 [selector=0xc16ea9d4, pure, abi_params=[array<_, function>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 2
 }
 
+; function h(function() external[] calldata pointers) external pure returns (uint r) [selector 0xdae6c3bf]
 fn @h(arg0: slice<calldata>) -> i256 [selector=0xdae6c3bf, pure, abi_params=[array<_, function>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -27,29 +30,34 @@ fn @h(arg0: slice<calldata>) -> i256 [selector=0xdae6c3bf, pure, abi_params=[arr
     ret 3
 }
 
+; function m(function() external[] memory pointers) external pure returns (uint r) [selector 0x4d6e4a29]
 fn @m(arg0: ptr<memory>) -> i256 [selector=0x4d6e4a29, pure, abi_params=[array<_, function>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 4
 }
 
+; function checkG(bool invalid) external view returns (uint) [selector 0xb89497e4]
 fn @checkG(arg0: i1) -> i256 [selector=0xb89497e4, view, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @invoke, 0xc16ea9d400000000000000000000000000000000000000000000000000000000, arg0, 2
     ret v0
 }
 
+; function checkH(bool invalid) external view returns (uint) [selector 0x5137faa5]
 fn @checkH(arg0: i1) -> i256 [selector=0x5137faa5, view, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @invoke, 0xdae6c3bf00000000000000000000000000000000000000000000000000000000, arg0, 3
     ret v0
 }
 
+; function checkM(bool invalid) external view returns (uint) [selector 0xfad9a4f1]
 fn @checkM(arg0: i1) -> i256 [selector=0xfad9a4f1, view, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @invoke, 0x4d6e4a2900000000000000000000000000000000000000000000000000000000, arg0, 4
     ret v0
 }
 
+; function invoke(bytes4 selector, bool invalid, uint expected) internal view returns (uint)
 fn @invoke(arg0: i256, arg1: i1, arg2: i256) -> i256 [view] {
   bb0:
     v0 = alloc zeroed checked 64
@@ -67,15 +75,15 @@ fn @invoke(arg0: i256, arg1: i1, arg2: i256) -> i256 [view] {
     mstore v9, v8
     v10 = abi_encode [memory_array<function>], object, selector arg0, args v0
     jumpi arg1, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v11 = ptrtoint ptr<memory> v10 to i256
     v12 = add v11, 32
     v13 = add v12, 92
     mstore8 v13, 88
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v14 = address
     v15 = gas
     v16 = address_staticcall v14, v10, gas v15

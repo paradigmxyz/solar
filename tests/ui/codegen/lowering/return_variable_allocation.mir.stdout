@@ -3,12 +3,14 @@
 @types
   struct0: {i256, i256, i256}
 
+; function memorySize() internal pure returns (uint s)
 fn @memorySize() -> i256 [pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     ret v0
 }
 
+; function f() public returns (uint, uint, uint) [selector 0x26121ff0]
 fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = icall @memorySize
@@ -27,6 +29,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     ret v12
 }
 
+; function g() internal returns (uint[40] memory)
 fn @g() -> ptr<memory> {
   bb0:
     v0 = alloc 0x500 !metadata(preserves_fmp)
@@ -34,6 +37,7 @@ fn @g() -> ptr<memory> {
     ret v0
 }
 
+; function h() internal returns (uint[40] memory t)
 fn @h() -> ptr<memory> {
   bb0:
     v0 = alloc 0x500 !metadata(preserves_fmp)
@@ -41,6 +45,7 @@ fn @h() -> ptr<memory> {
     ret v0
 }
 
+; function i() internal returns (uint[40] memory)
 fn @i() -> ptr<memory> {
   bb0:
     v0 = alloc 0x500 !metadata(preserves_fmp)

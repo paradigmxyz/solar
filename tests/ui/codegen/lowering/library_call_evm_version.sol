@@ -125,8 +125,8 @@ contract C {
     // HOMESTEAD: [[IN:v[0-9]+]] = extract_value slice<memory>, {{[^,]+}}, 0
     // HOMESTEAD: delegatecall {{.*}}, [[IN]], 32
     // HOMESTEAD: [[WORD:v[0-9]+]] = mload
-    // HOMESTEAD: [[DIRTY:v[0-9]+]] = gt [[WORD]], 1
-    // HOMESTEAD-NEXT: icall revert_if<empty>, [[DIRTY]]
+    // HOMESTEAD: gt [[WORD]], 1
+    // HOMESTEAD: icall revert_if<empty>, {{v[0-9]+}}
     // BYZANTIUM-LABEL: fn @boolean
     // BYZANTIUM: delegatecall {{.*}}, 0, 32
     function boolean(uint256 x) external pure returns (bool) {

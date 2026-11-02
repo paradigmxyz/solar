@@ -7,11 +7,12 @@
 // external parameters.
 // Like solc via-ir, every value-type argument word must be its canonical ABI
 // encoding or the call reverts with empty revert data (`revert(0, 0)`):
-// - uintN, address/contract, bool: no bit at or above the width; the check aborts on
-//   `shr(bits, word) != 0` or on `word > 2^bits - 1`, whichever the cost model prices lower
+// - uintN: high bits zero (`iszero(shr(bits, word))`)
 // - intN: word equals its sign extension (`eq(word, signextend(N/8-1, word))`)
+// - address/contract: top 96 bits zero
+// - bool: no bits above the lowest (`iszero(shr(1, word))`)
 // - bytesN: low 32-N bytes zero (`iszero(shl(bits, word))`)
-// - enum: word < member count (the check aborts on `word > count - 1`)
+// - enum: word < member count (`lt(word, count)`, or `iszero(shr(bits, word))` for a power of two)
 // Full-word types (uint256, int256, bytes32) need no canonicalization
 // validator, but still need the short-calldata guard. The validators read the
 // raw word through the semantic calldata-slice boundary so optimization
@@ -40,15 +41,14 @@ contract CalldataValidation {
 
     // CHECK-LABEL: fn @vBool{{[( ]}}
     // CHECK: [[RAW:v[0-9]+]] = calldataload 4
-    // CHECK: gt [[RAW]], 1
+    // CHECK: {{v[0-9]+}} = gt [[RAW]], 1
     function vBool(bool x) external pure returns (bool) {
         return x;
     }
 
     // CHECK-LABEL: fn @vAddress{{[( ]}}
     // CHECK: [[RAW:v[0-9]+]] = calldataload 4
-    // CHECK: [[HIGH:v[0-9]+]] = shr [[RAW]], 160
-    // CHECK: ne [[HIGH]], 0
+    // CHECK: gt [[RAW]], 0xffffffffffffffffffffffffffffffffffffffff
     function vAddress(address x) external pure returns (address) {
         return x;
     }
@@ -71,7 +71,7 @@ contract CalldataValidation {
     // The ABI wrapper validates the narrow input, so widening needs no mask.
     // CHECK-LABEL: fn @vWidened{{[( ]}}
     // CHECK: [[RAW:v[0-9]+]] = calldataload 4
-    // CHECK: gt [[RAW]], 255
+    // CHECK: {{v[0-9]+}} = gt [[RAW]], 255
     // CHECK-NOT: = and arg0
     // CHECK: [[WIDE:v[0-9]+]] = zext i8 arg0 to i16
     // CHECK: [[WORD:v[0-9]+]] = zext i16 [[WIDE]] to i256
@@ -82,7 +82,7 @@ contract CalldataValidation {
 
     // CHECK-LABEL: fn @vMulti{{[( ]}}
     // CHECK: [[A:v[0-9]+]] = calldataload 4
-    // CHECK: {{v[0-9]+}} = shr [[A]], 32
+    // CHECK: {{v[0-9]+}} = gt [[A]], 0xffffffff
     // CHECK: [[B:v[0-9]+]] = calldataload 36
     // CHECK: {{v[0-9]+}} = signextend 0, [[B]]
     function vMulti(uint32 a, int8 b) external pure returns (uint256) {

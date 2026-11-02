@@ -146,3 +146,42 @@ fn @latch(arg0: i256) {
   bb3:
     revert 0, 0
 }
+
+// Width tests are comparisons with their limits here, as the earlier passes leave them. They
+// join as booleans, and the late pass that spells width tests turns the join into one word.
+// CHECK-LABEL: {{^[ +].*}}fn @width_tests{{[( ]}}
+// CHECK: {{^[ +].*}}[[WIDE:v[0-9]+]] = gt arg0, 0xffffffffffffffffffffffffffffffffffffffff
+// CHECK: + [[BOTH:v[0-9]+]] = or [[WIDE]], {{v[0-9]+}}
+// CHECK-NEXT: + jumpi [[BOTH]], bb3, bb2
+fn @width_tests(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = gt arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    jumpi v0, bb3, bb1
+  bb1:
+    v1 = gt arg1, 0xffff
+    jumpi v1, bb3, bb2
+  bb2:
+    ret arg1
+  bb3:
+    revert 0, 0
+}
+
+// A signed check that aborts when `x != signextend(b, x)` holds, next to a test that aborts on
+// its false edge, does not join as a word and keeps its polarity: both tests stay as they are.
+// CHECK-LABEL: {{^[ +].*}}fn @signed_ne_after{{[( ]}}
+// CHECK-NOT: xor
+// CHECK-NOT: = and
+// CHECK: jumpi {{v[0-9]+}}, bb3, bb1
+fn @signed_ne_after(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = signextend 0, arg1
+    v1 = ne arg1, v0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = lt arg0, 3
+    jumpi v2, bb2, bb3
+  bb2:
+    stop
+  bb3:
+    revert 0, 0
+}

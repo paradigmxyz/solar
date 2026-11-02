@@ -1,39 +1,41 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_abi.mir (before lower-abi) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi.mir (after lower-abi) ===
   @module LowerAbi
+  ; selector 0x771602f7
 - fn @add(arg0: i256, arg1: i256) [selector=0x771602f7] {
 + fn @add() [selector=0x771602f7, abi_wrapper] {
     bb0:
 +     v1 = calldatasize
 +     v2 = lt v1, 68
 +     jumpi v2, bb2, bb3
-+   bb3:
++   bb3:  ; preds = bb0
 +     jump bb1
-+   bb1:
++   bb1:  ; preds = bb3
       v0 = add arg0, arg1
       mstore 128, v0
       returndata 128, 32
-+   bb2:
++   bb2 [cold]:  ; preds = bb0
 +     revert 0, 0
   }
   
+  ; selector 0x0d2020dd
 - fn @flag(arg0: i1) [selector=0x0d2020dd] {
-+ fn @flag() [selector=0x0d2020dd, abi_wrapper] {
++ fn @flag() [selector=0x0d2020dd, abi_wrapper, implicit_args=[i1]] {
     bb0:
 +     v1 = calldatasize
 +     v2 = lt v1, 36
 +     jumpi v2, bb2, bb3
-+   bb3:
++   bb3:  ; preds = bb0
 +     v3 = calldataload 4
 +     v4 = gt v3, 1
 +     jumpi v4, bb2, bb4
-+   bb4:
++   bb4:  ; preds = bb3
 +     jump bb1
-+   bb1:
++   bb1:  ; preds = bb4
       v0 = zext i1 arg0 to i256
       mstore 128, v0
       returndata 128, 32
-+   bb2:
++   bb2 [cold]:  ; preds = bb0, bb3
 +     revert 0, 0
   }
   

@@ -3,6 +3,7 @@
 @types
   struct0: {ptr<memory>, i256}
 
+; function backCounter(uint256 a, uint256 flag) external pure returns (bytes32 result) [selector 0x23d62a6b]
 fn @backCounter(arg0: i256, arg1: i256) -> i256 [selector=0x23d62a6b, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
@@ -31,14 +32,14 @@ fn @backCounter(arg0: i256, arg1: i256) -> i256 [selector=0x23d62a6b, pure, abi_
     v23 = keccak256_packed (uint256 arg0, uint256 23)
     v24 = ne arg1, 0
     jumpi v24, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v25 = mload 64 !metadata(memory=scratch)
     v26 = sub v25, 128
     v27 = div v26, 32
     jump bb4
-  bb4:
+  bb4:  ; preds = bb1, bb6
     v28 = phi [bb1: arg0], [bb6: v28]
     v29 = phi [bb1: arg1], [bb6: v29]
     v30 = phi [bb1: 0], [bb6: v30]
@@ -68,46 +69,47 @@ fn @backCounter(arg0: i256, arg1: i256) -> i256 [selector=0x23d62a6b, pure, abi_
     v54 = phi [bb1: v23], [bb6: v54]
     v55 = phi [bb1: v25], [bb6: v55]
     v56 = phi [bb1: v27], [bb6: v56]
-    v57 = phi [bb1: 1], [bb6: v66]
+    v57 = phi [bb1: 1], [bb6: v65]
     v58 = gt v57, v56
     v59 = zext i1 v58 to i256
     v60 = eq v59, 0
     v61 = zext i1 v60 to i256
     v62 = ne v61, 0
     jumpi v62, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb4
     jump bb5
-  bb5:
+  bb5:  ; preds = bb8
     jump bb3
-  bb3:
-    v67 = phi [bb5: v28], [bb2: arg0]
-    v68 = phi [bb5: v29], [bb2: arg1]
-    v69 = phi [bb5: v30], [bb2: 0]
-    v70 = phi [bb5: v31], [bb2: v0]
-    v71 = phi [bb5: v32], [bb2: v1]
-    v72 = phi [bb5: v33], [bb2: v2]
-    v73 = phi [bb5: v34], [bb2: v3]
-    v74 = phi [bb5: v35], [bb2: v4]
-    v75 = phi [bb5: v36], [bb2: v5]
-    v76 = phi [bb5: v37], [bb2: v6]
-    v77 = phi [bb5: v38], [bb2: v7]
-    v78 = phi [bb5: v39], [bb2: v8]
-    v79 = phi [bb5: v40], [bb2: v9]
-    v80 = phi [bb5: v41], [bb2: v10]
-    v81 = phi [bb5: v42], [bb2: v11]
-    v82 = phi [bb5: v43], [bb2: v12]
-    v83 = phi [bb5: v44], [bb2: v13]
-    v84 = phi [bb5: v45], [bb2: v14]
-    v85 = phi [bb5: v46], [bb2: v15]
-    v86 = phi [bb5: v47], [bb2: v16]
-    v87 = phi [bb5: v48], [bb2: v17]
-    v88 = phi [bb5: v49], [bb2: v18]
-    v89 = phi [bb5: v50], [bb2: v19]
-    v90 = phi [bb5: v51], [bb2: v20]
-    v91 = phi [bb5: v52], [bb2: v21]
-    v92 = phi [bb5: v53], [bb2: v22]
-    v93 = phi [bb5: v54], [bb2: v23]
-    v94 = xor v70, v71
+  bb3:  ; preds = bb5, bb2
+    v66 = phi [bb5: v28], [bb2: arg0]
+    v67 = phi [bb5: v29], [bb2: arg1]
+    v68 = phi [bb5: v30], [bb2: 0]
+    v69 = phi [bb5: v31], [bb2: v0]
+    v70 = phi [bb5: v32], [bb2: v1]
+    v71 = phi [bb5: v33], [bb2: v2]
+    v72 = phi [bb5: v34], [bb2: v3]
+    v73 = phi [bb5: v35], [bb2: v4]
+    v74 = phi [bb5: v36], [bb2: v5]
+    v75 = phi [bb5: v37], [bb2: v6]
+    v76 = phi [bb5: v38], [bb2: v7]
+    v77 = phi [bb5: v39], [bb2: v8]
+    v78 = phi [bb5: v40], [bb2: v9]
+    v79 = phi [bb5: v41], [bb2: v10]
+    v80 = phi [bb5: v42], [bb2: v11]
+    v81 = phi [bb5: v43], [bb2: v12]
+    v82 = phi [bb5: v44], [bb2: v13]
+    v83 = phi [bb5: v45], [bb2: v14]
+    v84 = phi [bb5: v46], [bb2: v15]
+    v85 = phi [bb5: v47], [bb2: v16]
+    v86 = phi [bb5: v48], [bb2: v17]
+    v87 = phi [bb5: v49], [bb2: v18]
+    v88 = phi [bb5: v50], [bb2: v19]
+    v89 = phi [bb5: v51], [bb2: v20]
+    v90 = phi [bb5: v52], [bb2: v21]
+    v91 = phi [bb5: v53], [bb2: v22]
+    v92 = phi [bb5: v54], [bb2: v23]
+    v93 = xor v69, v70
+    v94 = xor v93, v71
     v95 = xor v94, v72
     v96 = xor v95, v73
     v97 = xor v96, v74
@@ -129,21 +131,20 @@ fn @backCounter(arg0: i256, arg1: i256) -> i256 [selector=0x23d62a6b, pure, abi_
     v113 = xor v112, v90
     v114 = xor v113, v91
     v115 = xor v114, v92
-    v116 = xor v115, v93
-    ret v116
-  bb7:
-    v63 = not 31
-    v64 = mul v57, v63
-    v65 = add v55, v64
-    mstore v65, 0
+    ret v115
+  bb7:  ; preds = bb4
+    v63 = mul v57, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v64 = add v55, v63
+    mstore v64, 0
     jump bb9
-  bb9:
+  bb9:  ; preds = bb7
     jump bb6
-  bb6:
-    v66 = add v57, 1
+  bb6:  ; preds = bb9
+    v65 = add v57, 1
     jump bb4
 }
 
+; function backLoop(uint256 a, uint256 flag) external pure returns (bytes32 result) [selector 0x3587ea19]
 fn @backLoop(arg0: i256, arg1: i256) -> i256 [selector=0x3587ea19, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
@@ -172,12 +173,12 @@ fn @backLoop(arg0: i256, arg1: i256) -> i256 [selector=0x3587ea19, pure, abi_par
     v23 = keccak256_packed (uint256 arg0, uint256 23)
     v24 = ne arg1, 0
     jumpi v24, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v25 = mload 64 !metadata(memory=scratch)
     jump bb4
-  bb4:
+  bb4:  ; preds = bb1, bb6
     v26 = phi [bb1: arg0], [bb6: v26]
     v27 = phi [bb1: arg1], [bb6: v27]
     v28 = phi [bb1: 0], [bb6: v28]
@@ -211,11 +212,11 @@ fn @backLoop(arg0: i256, arg1: i256) -> i256 [selector=0x3587ea19, pure, abi_par
     v56 = zext i1 v55 to i256
     v57 = ne v56, 0
     jumpi v57, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb4
     jump bb5
-  bb5:
+  bb5:  ; preds = bb8
     jump bb3
-  bb3:
+  bb3:  ; preds = bb5, bb2
     v60 = phi [bb5: v26], [bb2: arg0]
     v61 = phi [bb5: v27], [bb2: arg1]
     v62 = phi [bb5: v28], [bb2: 0]
@@ -267,17 +268,18 @@ fn @backLoop(arg0: i256, arg1: i256) -> i256 [selector=0x3587ea19, pure, abi_par
     v108 = xor v107, v85
     v109 = xor v108, v86
     ret v109
-  bb7:
+  bb7:  ; preds = bb4
     v58 = sub v54, 32
     mstore v58, 0
     jump bb9
-  bb9:
+  bb9:  ; preds = bb7
     jump bb6
-  bb6:
+  bb6:  ; preds = bb9
     v59 = sub v54, 32
     jump bb4
 }
 
+; function laundered(uint256 a, uint256 flag) external view returns (bytes32 result) [selector 0xe7e5e0e4]
 fn @laundered(arg0: i256, arg1: i256) -> i256 [selector=0xe7e5e0e4, view, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
@@ -306,9 +308,9 @@ fn @laundered(arg0: i256, arg1: i256) -> i256 [selector=0xe7e5e0e4, view, abi_pa
     v23 = keccak256_packed (uint256 arg0, uint256 23)
     v24 = ne arg1, 0
     jumpi v24, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v25 = mload 64 !metadata(memory=scratch)
     v26 = gas
     v27 = staticcall v26, 4, 64, 32, 0, 32
@@ -320,7 +322,7 @@ fn @laundered(arg0: i256, arg1: i256) -> i256 [selector=0xe7e5e0e4, view, abi_pa
     v33 = add v25, v32
     calldatacopy v33, v31, v30
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v34 = xor v0, v1
     v35 = xor v34, v2
     v36 = xor v35, v3
@@ -347,6 +349,7 @@ fn @laundered(arg0: i256, arg1: i256) -> i256 [selector=0xe7e5e0e4, view, abi_pa
     ret v56
 }
 
+; function forgedByCopy(uint256 a, uint256 flag) external pure returns (bytes32 result) [selector 0xb00c0c76]
 fn @forgedByCopy(arg0: i256, arg1: i256) -> i256 [selector=0xb00c0c76, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
@@ -375,23 +378,23 @@ fn @forgedByCopy(arg0: i256, arg1: i256) -> i256 [selector=0xb00c0c76, pure, abi
     v23 = keccak256_packed (uint256 arg0, uint256 23)
     v24 = ne arg1, 0
     jumpi v24, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     mstore 32, 128 !metadata(memory=scratch)
     calldatacopy 64, 68, 32 !metadata(memory=scratch)
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v25 = ne arg1, 0
     jumpi v25, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v26 = icall @_copy, 0x400
     v27 = mload v26
     v28 = shl v27, 0
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v29 = phi [bb4: v28], [bb5: 0]
     v30 = xor v0, v1
     v31 = xor v30, v2
@@ -420,6 +423,7 @@ fn @forgedByCopy(arg0: i256, arg1: i256) -> i256 [selector=0xb00c0c76, pure, abi
     ret v53
 }
 
+; function forgedByByteStore(uint256 a, uint256 flag) external pure returns (bytes32 result) [selector 0x3ed71bdc]
 fn @forgedByByteStore(arg0: i256, arg1: i256) -> i256 [selector=0x3ed71bdc, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
@@ -448,51 +452,51 @@ fn @forgedByByteStore(arg0: i256, arg1: i256) -> i256 [selector=0x3ed71bdc, pure
     v23 = keccak256_packed (uint256 arg0, uint256 23)
     v24 = ne arg1, 0
     jumpi v24, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
-    v25 = shl 128, 128
-    mstore 80, v25 !metadata(memory=scratch)
+  bb1:  ; preds = bb0
+    mstore 80, 0x8000000000000000000000000000000000 !metadata(memory=scratch)
     jump bb3
-  bb3:
-    v26 = ne arg1, 0
-    jumpi v26, bb4, bb5
-  bb5:
+  bb3:  ; preds = bb1, bb2
+    v25 = ne arg1, 0
+    jumpi v25, bb4, bb5
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
-    v27 = icall @_copy, 0x400
-    v28 = mload v27
-    v29 = shl v28, 0
+  bb4:  ; preds = bb3
+    v26 = icall @_copy, 0x400
+    v27 = mload v26
+    v28 = shl v27, 0
     jump bb6
-  bb6:
-    v30 = phi [bb4: v29], [bb5: 0]
-    v31 = xor v0, v1
-    v32 = xor v31, v2
-    v33 = xor v32, v3
-    v34 = xor v33, v4
-    v35 = xor v34, v5
-    v36 = xor v35, v6
-    v37 = xor v36, v7
-    v38 = xor v37, v8
-    v39 = xor v38, v9
-    v40 = xor v39, v10
-    v41 = xor v40, v11
-    v42 = xor v41, v12
-    v43 = xor v42, v13
-    v44 = xor v43, v14
-    v45 = xor v44, v15
-    v46 = xor v45, v16
-    v47 = xor v46, v17
-    v48 = xor v47, v18
-    v49 = xor v48, v19
-    v50 = xor v49, v20
-    v51 = xor v50, v21
-    v52 = xor v51, v22
-    v53 = xor v52, v23
-    v54 = xor v30, v53
-    ret v54
+  bb6:  ; preds = bb4, bb5
+    v29 = phi [bb4: v28], [bb5: 0]
+    v30 = xor v0, v1
+    v31 = xor v30, v2
+    v32 = xor v31, v3
+    v33 = xor v32, v4
+    v34 = xor v33, v5
+    v35 = xor v34, v6
+    v36 = xor v35, v7
+    v37 = xor v36, v8
+    v38 = xor v37, v9
+    v39 = xor v38, v10
+    v40 = xor v39, v11
+    v41 = xor v40, v12
+    v42 = xor v41, v13
+    v43 = xor v42, v14
+    v44 = xor v43, v15
+    v45 = xor v44, v16
+    v46 = xor v45, v17
+    v47 = xor v46, v18
+    v48 = xor v47, v19
+    v49 = xor v48, v20
+    v50 = xor v49, v21
+    v51 = xor v50, v22
+    v52 = xor v51, v23
+    v53 = xor v29, v52
+    ret v53
 }
 
+; function forgedByLoop(uint256 a, uint256 flag) external pure returns (bytes32 result) [selector 0x0173241e]
 fn @forgedByLoop(arg0: i256, arg1: i256) -> i256 [selector=0x0173241e, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
@@ -521,12 +525,12 @@ fn @forgedByLoop(arg0: i256, arg1: i256) -> i256 [selector=0x0173241e, pure, abi
     v23 = keccak256_packed (uint256 arg0, uint256 23)
     v24 = ne arg1, 0
     jumpi v24, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v25 = mload 64 !metadata(memory=scratch)
     jump bb4
-  bb4:
+  bb4:  ; preds = bb1, bb6
     v26 = phi [bb1: arg0], [bb6: v26]
     v27 = phi [bb1: arg1], [bb6: v27]
     v28 = phi [bb1: 0], [bb6: v28]
@@ -555,56 +559,57 @@ fn @forgedByLoop(arg0: i256, arg1: i256) -> i256 [selector=0x0173241e, pure, abi
     v51 = phi [bb1: v22], [bb6: v51]
     v52 = phi [bb1: v23], [bb6: v52]
     v53 = phi [bb1: v25], [bb6: v53]
-    v54 = phi [bb1: 1], [bb6: v65]
+    v54 = phi [bb1: 1], [bb6: v64]
     v55 = div v53, 32
     v56 = lt v54, v55
     v57 = zext i1 v56 to i256
     v58 = ne v57, 0
     jumpi v58, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb4
     jump bb5
-  bb5:
+  bb5:  ; preds = bb8
     jump bb3
-  bb3:
-    v66 = phi [bb5: v26], [bb2: arg0]
-    v67 = phi [bb5: v27], [bb2: arg1]
-    v68 = phi [bb5: v28], [bb2: 0]
-    v69 = phi [bb5: v29], [bb2: v0]
-    v70 = phi [bb5: v30], [bb2: v1]
-    v71 = phi [bb5: v31], [bb2: v2]
-    v72 = phi [bb5: v32], [bb2: v3]
-    v73 = phi [bb5: v33], [bb2: v4]
-    v74 = phi [bb5: v34], [bb2: v5]
-    v75 = phi [bb5: v35], [bb2: v6]
-    v76 = phi [bb5: v36], [bb2: v7]
-    v77 = phi [bb5: v37], [bb2: v8]
-    v78 = phi [bb5: v38], [bb2: v9]
-    v79 = phi [bb5: v39], [bb2: v10]
-    v80 = phi [bb5: v40], [bb2: v11]
-    v81 = phi [bb5: v41], [bb2: v12]
-    v82 = phi [bb5: v42], [bb2: v13]
-    v83 = phi [bb5: v43], [bb2: v14]
-    v84 = phi [bb5: v44], [bb2: v15]
-    v85 = phi [bb5: v45], [bb2: v16]
-    v86 = phi [bb5: v46], [bb2: v17]
-    v87 = phi [bb5: v47], [bb2: v18]
-    v88 = phi [bb5: v48], [bb2: v19]
-    v89 = phi [bb5: v49], [bb2: v20]
-    v90 = phi [bb5: v50], [bb2: v21]
-    v91 = phi [bb5: v51], [bb2: v22]
-    v92 = phi [bb5: v52], [bb2: v23]
-    v93 = ne v67, 0
-    jumpi v93, bb13, bb14
-  bb14:
+  bb3:  ; preds = bb5, bb2
+    v65 = phi [bb5: v26], [bb2: arg0]
+    v66 = phi [bb5: v27], [bb2: arg1]
+    v67 = phi [bb5: v28], [bb2: 0]
+    v68 = phi [bb5: v29], [bb2: v0]
+    v69 = phi [bb5: v30], [bb2: v1]
+    v70 = phi [bb5: v31], [bb2: v2]
+    v71 = phi [bb5: v32], [bb2: v3]
+    v72 = phi [bb5: v33], [bb2: v4]
+    v73 = phi [bb5: v34], [bb2: v5]
+    v74 = phi [bb5: v35], [bb2: v6]
+    v75 = phi [bb5: v36], [bb2: v7]
+    v76 = phi [bb5: v37], [bb2: v8]
+    v77 = phi [bb5: v38], [bb2: v9]
+    v78 = phi [bb5: v39], [bb2: v10]
+    v79 = phi [bb5: v40], [bb2: v11]
+    v80 = phi [bb5: v41], [bb2: v12]
+    v81 = phi [bb5: v42], [bb2: v13]
+    v82 = phi [bb5: v43], [bb2: v14]
+    v83 = phi [bb5: v44], [bb2: v15]
+    v84 = phi [bb5: v45], [bb2: v16]
+    v85 = phi [bb5: v46], [bb2: v17]
+    v86 = phi [bb5: v47], [bb2: v18]
+    v87 = phi [bb5: v48], [bb2: v19]
+    v88 = phi [bb5: v49], [bb2: v20]
+    v89 = phi [bb5: v50], [bb2: v21]
+    v90 = phi [bb5: v51], [bb2: v22]
+    v91 = phi [bb5: v52], [bb2: v23]
+    v92 = ne v66, 0
+    jumpi v92, bb13, bb14
+  bb14:  ; preds = bb3
     jump bb15
-  bb13:
-    v94 = icall @_copy, 0x400
-    v95 = mload v94
-    v96 = shl v95, 0
+  bb13:  ; preds = bb3
+    v93 = icall @_copy, 0x400
+    v94 = mload v93
+    v95 = shl v94, 0
     jump bb15
-  bb15:
-    v97 = phi [bb13: v96], [bb14: v68]
-    v98 = xor v69, v70
+  bb15:  ; preds = bb13, bb14
+    v96 = phi [bb13: v95], [bb14: v67]
+    v97 = xor v68, v69
+    v98 = xor v97, v70
     v99 = xor v98, v71
     v100 = xor v99, v72
     v101 = xor v100, v73
@@ -626,31 +631,30 @@ fn @forgedByLoop(arg0: i256, arg1: i256) -> i256 [selector=0x0173241e, pure, abi
     v117 = xor v116, v89
     v118 = xor v117, v90
     v119 = xor v118, v91
-    v120 = xor v119, v92
-    v121 = xor v97, v120
-    ret v121
-  bb7:
-    v59 = not 31
-    v60 = mul v54, v59
-    v61 = add v53, v60
-    v62 = eq v61, 64
-    v63 = zext i1 v62 to i256
-    v64 = ne v63, 0
-    jumpi v64, bb10, bb11
-  bb11:
+    v120 = xor v96, v119
+    ret v120
+  bb7:  ; preds = bb4
+    v59 = mul v54, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v60 = add v53, v59
+    v61 = eq v60, 64
+    v62 = zext i1 v61 to i256
+    v63 = ne v62, 0
+    jumpi v63, bb10, bb11
+  bb11:  ; preds = bb7
     jump bb12
-  bb10:
-    mstore v61, 128
+  bb10:  ; preds = bb7
+    mstore v60, 128
     jump bb12
-  bb12:
+  bb12:  ; preds = bb10, bb11
     jump bb9
-  bb9:
+  bb9:  ; preds = bb12
     jump bb6
-  bb6:
-    v65 = add v54, 1
+  bb6:  ; preds = bb9
+    v64 = add v54, 1
     jump bb4
 }
 
+; function stepFromFloor(uint256 a, uint256 flag) external pure returns (bytes32 result) [selector 0x6f4b828c]
 fn @stepFromFloor(arg0: i256, arg1: i256) -> i256 [selector=0x6f4b828c, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
@@ -679,15 +683,15 @@ fn @stepFromFloor(arg0: i256, arg1: i256) -> i256 [selector=0x6f4b828c, pure, ab
     v23 = keccak256_packed (uint256 arg0, uint256 23)
     v24 = ne arg1, 0
     jumpi v24, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     mstore 64, arg1 !metadata(memory=scratch)
     v25 = mload 64 !metadata(memory=scratch)
     v26 = sub v25, 32
     mstore v26, 0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v27 = xor v0, v1
     v28 = xor v27, v2
     v29 = xor v28, v3
@@ -714,6 +718,7 @@ fn @stepFromFloor(arg0: i256, arg1: i256) -> i256 [selector=0x6f4b828c, pure, ab
     ret v49
 }
 
+; function lowerPointer(uint256 a, uint256 flag) external pure returns (bytes32 result) [selector 0x05a6b998]
 fn @lowerPointer(arg0: i256, arg1: i256) -> i256 [selector=0x05a6b998, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
@@ -742,24 +747,24 @@ fn @lowerPointer(arg0: i256, arg1: i256) -> i256 [selector=0x05a6b998, pure, abi
     v23 = keccak256_packed (uint256 arg0, uint256 23)
     v24 = ne arg1, 0
     jumpi v24, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v25 = mload 64 !metadata(memory=scratch)
     v26 = sub v25, 32
     mstore 64, v26 !metadata(memory=scratch)
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v27 = ne arg1, 0
     jumpi v27, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v28 = icall @_copy, 0x400
     v29 = mload v28
     v30 = shl v29, 0
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v31 = phi [bb4: v30], [bb5: 0]
     v32 = xor v0, v1
     v33 = xor v32, v2
@@ -788,6 +793,7 @@ fn @lowerPointer(arg0: i256, arg1: i256) -> i256 [selector=0x05a6b998, pure, abi
     ret v55
 }
 
+; function recursiveStepBack(uint256 a, uint256 flag) external pure returns (bytes32 result) [selector 0x5c31a411]
 fn @recursiveStepBack(arg0: i256, arg1: i256) -> i256 [selector=0x5c31a411, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
@@ -816,13 +822,13 @@ fn @recursiveStepBack(arg0: i256, arg1: i256) -> i256 [selector=0x5c31a411, pure
     v23 = keccak256_packed (uint256 arg0, uint256 23)
     v24 = ne arg1, 0
     jumpi v24, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v25 = mload 64 !metadata(memory=scratch)
     icall @_stepBack, v25, 12
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v26 = xor v0, v1
     v27 = xor v26, v2
     v28 = xor v27, v3
@@ -849,6 +855,7 @@ fn @recursiveStepBack(arg0: i256, arg1: i256) -> i256 [selector=0x5c31a411, pure
     ret v48
 }
 
+; function retaggedResult(uint256 a, uint256 flag) external pure returns (bytes32 result) [selector 0x1e208f71]
 fn @retaggedResult(arg0: i256, arg1: i256) -> i256 [selector=0x1e208f71, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
@@ -877,24 +884,24 @@ fn @retaggedResult(arg0: i256, arg1: i256) -> i256 [selector=0x1e208f71, pure, a
     v23 = keccak256_packed (uint256 arg0, uint256 23)
     v24 = ne arg1, 0
     jumpi v24, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v25 = icall @_retag, 128, 3
     v26 = ptrtoint ptr<memory> v25 to i256
     mstore 64, v26 !metadata(memory=scratch)
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v27 = ne arg1, 0
     jumpi v27, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v28 = icall @_copy, 0x400
     v29 = mload v28
     v30 = shl v29, 0
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v31 = phi [bb4: v30], [bb5: 0]
     v32 = xor v0, v1
     v33 = xor v32, v2
@@ -923,6 +930,7 @@ fn @retaggedResult(arg0: i256, arg1: i256) -> i256 [selector=0x1e208f71, pure, a
     ret v55
 }
 
+; function misalignedStore(uint256 a, uint256 flag) external pure returns (bytes32 result) [selector 0x208da339]
 fn @misalignedStore(arg0: i256, arg1: i256) -> i256 [selector=0x208da339, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
@@ -951,23 +959,23 @@ fn @misalignedStore(arg0: i256, arg1: i256) -> i256 [selector=0x208da339, pure, 
     v23 = keccak256_packed (uint256 arg0, uint256 23)
     v24 = ne arg1, 0
     jumpi v24, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v25 = mload 64 !metadata(memory=scratch)
     mstore 80, v25 !metadata(memory=scratch)
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v26 = ne arg1, 0
     jumpi v26, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v27 = icall @_copy, 0x400
     v28 = mload v27
     v29 = shl v28, 0
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v30 = phi [bb4: v29], [bb5: 0]
     v31 = xor v0, v1
     v32 = xor v31, v2
@@ -996,38 +1004,41 @@ fn @misalignedStore(arg0: i256, arg1: i256) -> i256 [selector=0x208da339, pure, 
     ret v54
 }
 
+; function _stepBack(uint256 p, uint256 n) internal pure
 fn @_stepBack(arg0: i256, arg1: i256) [pure] {
   bb0:
     v0 = eq arg1, 0
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     v1 = sub arg0, 32
     mstore v1, 0
     v2 = checked_sub uint256, arg0, 32
     v3 = checked_sub uint256, arg1, 1
     icall @_stepBack, v2, v3
     ret
-  bb1:
+  bb1:  ; preds = bb0
     ret
 }
 
+; function _retag(uint256 x, uint256 n) internal pure returns (bytes memory b)
 fn @_retag(arg0: i256, arg1: i256) -> ptr<memory> [pure] {
   bb0:
     v0 = ne arg1, 0
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     v3 = inttoptr i256 arg0 to ptr<memory>
     ret v3
-  bb1:
+  bb1:  ; preds = bb0
     v1 = checked_sub uint256, arg1, 1
     v2 = icall @_retag, arg0, v1
     ret v2
 }
 
+; function tupleRetag(uint256 a, uint256 flag) external pure returns (bytes32 result) [selector 0x4e76de70]
 fn @tupleRetag(arg0: i256, arg1: i256) -> i256 [selector=0x4e76de70, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
@@ -1056,26 +1067,26 @@ fn @tupleRetag(arg0: i256, arg1: i256) -> i256 [selector=0x4e76de70, pure, abi_p
     v23 = keccak256_packed (uint256 arg0, uint256 23)
     v24 = ne arg1, 0
     jumpi v24, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v25 = icall @_pair, arg1
     v26 = extract_value struct0, v25, 0
     v27 = extract_value struct0, v25, 1
     v28 = ptrtoint ptr<memory> v26 to i256
     mstore 64, v28 !metadata(memory=scratch)
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v29 = ne arg1, 0
     jumpi v29, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v30 = icall @_copy, 0x400
     v31 = mload v30
     v32 = shl v31, 0
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v33 = phi [bb4: v32], [bb5: 0]
     v34 = xor v0, v1
     v35 = xor v34, v2
@@ -1104,6 +1115,7 @@ fn @tupleRetag(arg0: i256, arg1: i256) -> i256 [selector=0x4e76de70, pure, abi_p
     ret v57
 }
 
+; function tupleAccess(uint256 a, uint256 flag) external pure returns (bytes32 result) [selector 0x214aed3c]
 fn @tupleAccess(arg0: i256, arg1: i256) -> i256 [selector=0x214aed3c, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (uint256 arg0, uint256 0)
@@ -1132,26 +1144,26 @@ fn @tupleAccess(arg0: i256, arg1: i256) -> i256 [selector=0x214aed3c, pure, abi_
     v23 = keccak256_packed (uint256 arg0, uint256 23)
     v24 = ne arg1, 0
     jumpi v24, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v25 = icall @_pair, 64
     v26 = extract_value struct0, v25, 0
     v27 = extract_value struct0, v25, 1
     v28 = ptrtoint ptr<memory> v26 to i256
     mstore v26, arg1
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v29 = ne arg1, 0
     jumpi v29, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v30 = icall @_copy, 0x400
     v31 = mload v30
     v32 = shl v31, 0
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v33 = phi [bb4: v32], [bb5: 0]
     v34 = xor v0, v1
     v35 = xor v34, v2
@@ -1180,6 +1192,7 @@ fn @tupleAccess(arg0: i256, arg1: i256) -> i256 [selector=0x214aed3c, pure, abi_
     ret v57
 }
 
+; function _pair(uint256 x) internal pure returns (bytes memory b, uint256 n)
 fn @_pair(arg0: i256) -> struct0 [pure] {
   bb0:
     v0 = inttoptr i256 arg0 to ptr<memory>
@@ -1188,6 +1201,7 @@ fn @_pair(arg0: i256) -> struct0 [pure] {
     ret v2
 }
 
+; function _copy(uint256 n) internal pure returns (bytes memory out)
 fn @_copy(arg0: i256) -> ptr<memory> [pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)

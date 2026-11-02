@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_revert_reasons.sol:StorageRevertReasons ===
 @module StorageRevertReasons
+; function mappingShort() external [selector 0x9b5bf7ac]
 fn @mappingShort() [selector=0x9b5bf7ac, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = mapping_slot 0, 0
@@ -10,6 +11,7 @@ fn @mappingShort() [selector=0x9b5bf7ac, abi_params=[], abi_returns=[], abi_retu
     invalid
 }
 
+; function mappingLong() external [selector 0xaf8ee9a6]
 fn @mappingLong() [selector=0xaf8ee9a6, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = mapping_slot 1, 0
@@ -20,6 +22,7 @@ fn @mappingLong() [selector=0xaf8ee9a6, abi_params=[], abi_returns=[], abi_retur
     invalid
 }
 
+; function mappingReference() external [selector 0x49b1855e]
 fn @mappingReference() [selector=0x49b1855e, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = mapping_slot 2, 0
@@ -30,6 +33,7 @@ fn @mappingReference() [selector=0x49b1855e, abi_params=[], abi_returns=[], abi_
     invalid
 }
 
+; function nestedMapping() external [selector 0x041c73d0]
 fn @nestedMapping() [selector=0x041c73d0, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = mapping_slot 0, 1
@@ -42,6 +46,7 @@ fn @nestedMapping() [selector=0x041c73d0, abi_params=[], abi_returns=[], abi_ret
     invalid
 }
 
+; function structRequire() external [selector 0x8bb9ced2]
 fn @structRequire() [selector=0x8bb9ced2, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     store_storage_bytes_literal 2, hex"78"
@@ -50,12 +55,13 @@ fn @structRequire() [selector=0x8bb9ced2, abi_params=[], abi_returns=[], abi_ret
     ret
 }
 
+; function calldataReason(string calldata reason) external pure [selector 0x3f2c0e1e]
 fn @calldataReason(arg0: slice<calldata>) [selector=0x3f2c0e1e, pure, abi_params=[bytes], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
-    v1 = add v0, 63
-    v2 = not 31
-    v3 = and v1, v2
+    v1 = add v0, 31
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v3 = add v2, 32
     v4 = alloc v3
     mstore v4, v0
     v5 = ptradd v4, 32

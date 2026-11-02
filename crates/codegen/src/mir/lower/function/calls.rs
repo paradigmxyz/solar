@@ -533,8 +533,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return None;
         };
         let function_id = self.resolve_call_target(expr, function_id);
-        self.cx.state.pointer_registry.targets.insert(function_id);
-        Some(self.builder.imm(internal_function_pointer_id(function_id)))
+        let (index, _) = self.cx.state.pointer_registry.targets.insert_full(function_id);
+        Some(self.builder.imm(internal_function_pointer_id(index)))
     }
 
     pub(super) fn ensure_internal_function_pointer_dispatcher(
@@ -1584,7 +1584,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             _ => AbiWordValidator::from_return_layout(types::TypeLowerer::value_layout(ty)),
         };
         let Some(validator) = validator else { return };
-        let invalid = validator.violation(&mut self.builder, value, ConditionUse::BRANCH);
+        let invalid = validator.violation(&mut self.builder, value);
         self.builder.revert_if(invalid, RevertReason::Empty);
     }
 

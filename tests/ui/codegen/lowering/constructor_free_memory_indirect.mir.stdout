@@ -1,5 +1,20 @@
 // === ROOT/tests/ui/codegen/lowering/constructor_free_memory_indirect.sol:Base ===
 @module Base
+; constructor() [creation entry]
+fn @constructor() [constructor] {
+  bb0:
+    v0 = icall @freeMemoryStarted
+    v1 = ne v0, 0
+    v2 = sload 0 !metadata(storage=slot(0))
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v4 = zext i1 v1 to i256
+    v5 = and v4, 255
+    v6 = or v3, v5
+    sstore 0, v6 !metadata(storage=slot(0))
+    ret
+}
+
+; getter for `bool public started` [selector 0x1f2698ab]
 fn @started() -> i256 [selector=0x1f2698ab, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -9,20 +24,7 @@ fn @started() -> i256 [selector=0x1f2698ab, view, abi_params=[], abi_returns=[wo
     ret v3
 }
 
-fn @constructor() [constructor] {
-  bb0:
-    v0 = icall @freeMemoryStarted
-    v1 = ne v0, 0
-    v2 = sload 0 !metadata(storage=slot(0))
-    v3 = not 255
-    v4 = and v2, v3
-    v5 = zext i1 v1 to i256
-    v6 = and v5, 255
-    v7 = or v4, v6
-    sstore 0, v7 !metadata(storage=slot(0))
-    ret
-}
-
+; function freeMemoryStarted() pure returns (bool started)
 fn @freeMemoryStarted() -> i256 [pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -35,29 +37,31 @@ fn @freeMemoryStarted() -> i256 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/constructor_free_memory_indirect.sol:ThroughBase ===
 @module ThroughBase
+; constructor() [creation entry]
+fn @constructor() [constructor] {
+  bb0:
+    v0 = icall @freeMemoryStarted
+    v1 = ne v0, 0
+    v2 = sload 0 !metadata(storage=slot(0))
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v4 = zext i1 v1 to i256
+    v5 = and v4, 255
+    v6 = or v3, v5
+    sstore 0, v6 !metadata(storage=slot(0))
+    jump bb1
+  bb1:  ; preds = bb0
+    sstore 1, 1 !metadata(storage=slot(1))
+    ret
+}
+
+; getter for `uint256 public value` [selector 0x3fa4f245]
 fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     ret v0
 }
 
-fn @constructor() [constructor] {
-  bb0:
-    v0 = icall @freeMemoryStarted
-    v1 = ne v0, 0
-    v2 = sload 0 !metadata(storage=slot(0))
-    v3 = not 255
-    v4 = and v2, v3
-    v5 = zext i1 v1 to i256
-    v6 = and v5, 255
-    v7 = or v4, v6
-    sstore 0, v7 !metadata(storage=slot(0))
-    jump bb1
-  bb1:
-    sstore 1, 1 !metadata(storage=slot(1))
-    ret
-}
-
+; getter for `bool public started` [selector 0x1f2698ab]
 fn @started() -> i256 [selector=0x1f2698ab, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -67,6 +71,7 @@ fn @started() -> i256 [selector=0x1f2698ab, view, abi_params=[], abi_returns=[wo
     ret v3
 }
 
+; function freeMemoryStarted() pure returns (bool started)
 fn @freeMemoryStarted() -> i256 [pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -79,6 +84,25 @@ fn @freeMemoryStarted() -> i256 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/constructor_free_memory_indirect.sol:ThroughModifier ===
 @module ThroughModifier
+; constructor() recordFreeMemory [creation entry]
+fn @constructor() [constructor] {
+  bb0:
+    v0 = icall @freeMemoryStarted
+    v1 = ne v0, 0
+    v2 = sload 0 !metadata(storage=slot(0))
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v4 = zext i1 v1 to i256
+    v5 = and v4, 255
+    v6 = or v3, v5
+    sstore 0, v6 !metadata(storage=slot(0))
+    jump bb2
+  bb2:  ; preds = bb0
+    jump bb1
+  bb1:  ; preds = bb2
+    ret
+}
+
+; getter for `bool public started` [selector 0x1f2698ab]
 fn @started() -> i256 [selector=0x1f2698ab, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -88,24 +112,7 @@ fn @started() -> i256 [selector=0x1f2698ab, view, abi_params=[], abi_returns=[wo
     ret v3
 }
 
-fn @constructor() [constructor] {
-  bb0:
-    v0 = icall @freeMemoryStarted
-    v1 = ne v0, 0
-    v2 = sload 0 !metadata(storage=slot(0))
-    v3 = not 255
-    v4 = and v2, v3
-    v5 = zext i1 v1 to i256
-    v6 = and v5, 255
-    v7 = or v4, v6
-    sstore 0, v7 !metadata(storage=slot(0))
-    jump bb2
-  bb2:
-    jump bb1
-  bb1:
-    ret
-}
-
+; function freeMemoryStarted() pure returns (bool started)
 fn @freeMemoryStarted() -> i256 [pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -118,6 +125,14 @@ fn @freeMemoryStarted() -> i256 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/constructor_free_memory_indirect.sol:ThroughHelper ===
 @module ThroughHelper
+; constructor() [creation entry]
+fn @constructor() [constructor] {
+  bb0:
+    icall @record
+    ret
+}
+
+; getter for `bool public started` [selector 0x1f2698ab]
 fn @started() -> i256 [selector=0x1f2698ab, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -127,26 +142,21 @@ fn @started() -> i256 [selector=0x1f2698ab, view, abi_params=[], abi_returns=[wo
     ret v3
 }
 
-fn @constructor() [constructor] {
-  bb0:
-    icall @record
-    ret
-}
-
+; function record() internal
 fn @record() {
   bb0:
     v0 = icall @freeMemoryStarted
     v1 = ne v0, 0
     v2 = sload 0 !metadata(storage=slot(0))
-    v3 = not 255
-    v4 = and v2, v3
-    v5 = zext i1 v1 to i256
-    v6 = and v5, 255
-    v7 = or v4, v6
-    sstore 0, v7 !metadata(storage=slot(0))
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v4 = zext i1 v1 to i256
+    v5 = and v4, 255
+    v6 = or v3, v5
+    sstore 0, v6 !metadata(storage=slot(0))
     ret
 }
 
+; function freeMemoryStarted() pure returns (bool started)
 fn @freeMemoryStarted() -> i256 [pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -159,12 +169,7 @@ fn @freeMemoryStarted() -> i256 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/constructor_free_memory_indirect.sol:Allocating ===
 @module Allocating
-fn @digest() -> i256 [selector=0x52a82b65, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
-}
-
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = alloc zeroed checked 128
@@ -191,6 +196,14 @@ fn @constructor() [constructor] {
     ret
 }
 
+; getter for `bytes32 public digest` [selector 0x52a82b65]
+fn @digest() -> i256 [selector=0x52a82b65, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+; function matches() external view returns (bool) [selector 0x55590d58]
 fn @matches() -> i1 [selector=0x55590d58, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -200,14 +213,16 @@ fn @matches() -> i1 [selector=0x55590d58, view, abi_params=[], abi_returns=[word
 
 // === ROOT/tests/ui/codegen/lowering/constructor_free_memory_indirect.sol:WithArgument ===
 @module WithArgument
-fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
-}
-
+; constructor(uint256 v) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     ret
+}
+
+; getter for `uint256 public value` [selector 0x3fa4f245]
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
 }

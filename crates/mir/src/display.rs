@@ -204,7 +204,23 @@ pub(crate) fn display_function_text<'a>(
         block: &'a BasicBlock,
     ) -> impl fmt::Display + 'a {
         fmt::from_fn(move |f| {
-            writeln!(f, "  bb{}:", block_id.index())?;
+            write!(f, "  bb{}", block_id.index())?;
+            if block.hotness.is_cold() {
+                write!(f, " [cold]")?;
+            }
+            write!(f, ":")?;
+            if !block.predecessors.is_empty() {
+                write!(
+                    f,
+                    "  ; preds = {}",
+                    block.predecessors.iter().format_with(", ", |f, pred| write!(
+                        f,
+                        "bb{}",
+                        pred.index()
+                    ))
+                )?;
+            }
+            writeln!(f)?;
 
             write!(
                 f,
@@ -259,6 +275,9 @@ pub(crate) fn display_function_text<'a>(
     }
 
     fmt::from_fn(move |f| {
+        if let Some(note) = func.entry_note(is_dispatch_entry) {
+            writeln!(f, "; {note}")?;
+        }
         // Header: fn @name(params) -> returns
         write!(f, "fn @{}(", func.name)?;
         write!(
@@ -322,6 +341,9 @@ fn display_function_attributes(func: &Function, is_dispatch_entry: bool) -> impl
         if func.attributes.inline_hint {
             write_function_attribute(f, &mut first, "inline_hint")?;
         }
+        if func.attributes.hotness.is_cold() {
+            write_function_attribute(f, &mut first, "cold")?;
+        }
         if let Some(optimization) = func.attributes.optimization {
             write_function_attribute(f, &mut first, format_args!("optimize={optimization}"))?;
         }
@@ -342,6 +364,16 @@ fn display_function_attributes(func: &Function, is_dispatch_entry: bool) -> impl
                 f,
                 &mut first,
                 format_args!("return_abi=[{}]", components.iter().format(", ")),
+            )?;
+        }
+        // ABI wrappers read calldata head words as arguments they do not declare.
+        if func.params.is_empty() && func.arg_indices().any(|arg| func.arg_ty(arg) != MirType::I256)
+        {
+            let types = func.arg_indices().map(|arg| func.arg_ty(arg));
+            write_function_attribute(
+                f,
+                &mut first,
+                format_args!("implicit_args=[{}]", types.format(", ")),
             )?;
         }
         if let Some(layout) = &func.abi_params {

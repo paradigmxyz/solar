@@ -10,13 +10,36 @@
 // `@entry` supplies the lowered representation's runtime dispatch function.
 @module LowerEvmShaped
 @phase semantic
+
+// Constructor code tail-calls nonreturning helpers like any other code.
+// CHECK-LABEL: {{^[ +].*}}fn @constructor{{[( ]}}
+// CHECK: - {{.*}}= icall @constructor_helper, 23
+// CHECK: - sstore 0,
+// CHECK: + tail_call @constructor_helper, 23
+// CHECK: - {{.*}}= icall @constructor_no_args
+// CHECK: + tail_call @constructor_no_args
+fn @constructor() [abi_wrapper] {
+  bb0:
+    v0 = callvalue
+    v3 = ne v0, 0
+    jumpi v3, bb2, bb1
+  bb1:
+    v1 = icall @constructor_helper, 23
+    sstore 0, v1
+    ret
+  bb2:
+    v2 = icall @constructor_no_args
+    sstore 0, v2
+    ret
+}
+
 fn @entry() [entry] {
   bb0:
     v0 = calldataload 0
     v2 = shr v0, 224
     switch v2, default bb2, [7 => bb1]
   bb1:
-    tail_call fn1
+    tail_call fn2
   bb2:
     revert 0, 0
 }
@@ -26,7 +49,7 @@ fn @entry() [entry] {
 fn @caller() [selector=0x00000007, abi_wrapper] {
   bb0:
     v0 = calldataload 4
-    icall fn2, v0 !metadata(span=10..20, modifier_depth=1)
+    icall fn3, v0 !metadata(span=10..20, modifier_depth=1)
     stop !metadata(span=30..40, modifier_depth=2)
 }
 fn @fused(arg0: i256) {
@@ -40,7 +63,7 @@ fn @fused(arg0: i256) {
 // CHECK: {{^[ +].*}}icall @spin
 fn @spin(arg0: i256) {
   bb0:
-    icall fn3, arg0
+    icall fn4, arg0
     revert 0, 0
 }
 
@@ -143,19 +166,22 @@ fn @void_helper() {
     ret
 }
 
-// CHECK-LABEL: {{^[ +].*}}fn @tail_return_caller{{[( ]}}
-// CHECK: {{^[ +].*}}icall @tail_return_helper
-// CHECK: {{^[ +].*}}sstore 0, 7
-fn @tail_return_caller() {
+// A function whose tail call reaches a function that never returns never returns either, so its
+// callers drop their continuations too. A tail call to a returning function is not lowered MIR.
+// CHECK-LABEL: {{^[ +].*}}fn @wrapper_caller{{[( ]}}
+// CHECK: - icall @stop_wrapper
+// CHECK: - sstore 0, 7
+// CHECK: + tail_call @stop_wrapper
+fn @wrapper_caller() {
   bb0:
-    icall @tail_return_helper
+    icall @stop_wrapper
     sstore 0, 7
     ret
 }
 
-fn @tail_return_helper() {
+fn @stop_wrapper() {
   bb0:
-    tail_call @void_helper
+    tail_call @stop_helper
 }
 
 // Removing the call result also removes its edge from a still-reachable phi.
@@ -196,28 +222,6 @@ fn @recursive_fail(arg0: i256) -> i256 {
     v0 = icall @recursive_fail, arg0 !metadata(span=70..80)
     sstore 0, v0
     revert 0, 0 !metadata(span=90..100)
-}
-
-// Constructor code tail-calls nonreturning helpers like any other code.
-// CHECK-LABEL: {{^[ +].*}}fn @constructor{{[( ]}}
-// CHECK: - {{.*}}= icall @constructor_helper, 23
-// CHECK: - sstore 0,
-// CHECK: + tail_call @constructor_helper, 23
-// CHECK: - {{.*}}= icall @constructor_no_args
-// CHECK: + tail_call @constructor_no_args
-fn @constructor() [abi_wrapper] {
-  bb0:
-    v0 = callvalue
-    v3 = ne v0, 0
-    jumpi v3, bb2, bb1
-  bb1:
-    v1 = icall @constructor_helper, 23
-    sstore 0, v1
-    ret
-  bb2:
-    v2 = icall @constructor_no_args
-    sstore 0, v2
-    ret
 }
 
 fn @constructor_no_args() -> i256 {

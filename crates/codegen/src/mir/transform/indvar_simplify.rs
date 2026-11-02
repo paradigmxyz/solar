@@ -108,8 +108,8 @@
 use super::egraph::max_bits_with_args;
 use crate::{
     mir::{
-        ArithmeticKind, BitWidthTest, BlockId, CheckedOp, Function, FunctionBuilder, Immediate,
-        InstId, InstKind, Instruction, MemoryRegion, MirType, Module, Terminator, Value, ValueId,
+        ArithmeticKind, BlockId, CheckedOp, Function, FunctionBuilder, Immediate, InstId, InstKind,
+        Instruction, MemoryRegion, MirType, Module, Terminator, Value, ValueId,
         analysis::{
             AffineTerm, AliasAnalysis, CfgInfo, InductionVariable, Loop, LoopAnalyzer,
             ScalarEvolution, integers::unsigned_bounds,
@@ -446,9 +446,14 @@ impl IndVarSimplifier {
         let mut families = families.into_values().collect::<Vec<_>>();
         for members in &mut families {
             // The most used offset carries the pointer; ties go to the smallest offset.
-            members
-                .sort_by_key(|(key, values)| (std::cmp::Reverse(values.len()), key.constant.abs()));
+            members.sort_by_key(|(key, values)| {
+                (std::cmp::Reverse(values.len()), key.constant.abs(), values.iter().min().copied())
+            });
         }
+        // Hash iteration order follows value numbering; order families by their first value so
+        // the chosen pointers do not change when unrelated instructions shift the numbering.
+        families
+            .sort_by_key(|members| members.iter().flat_map(|(_, values)| values).min().copied());
 
         // With the counter free once every address is a pointer, an ascending pointer
         // that cannot wrap takes over the exit test and the counter dies; that credit
@@ -1928,14 +1933,6 @@ fn implies_at_most(
     let implies =
         |condition, nonzero| implies_at_most(func, condition, nonzero, value, limit, depth);
     let is_zero = |operand| func.value_u256(operand).is_some_and(|operand| operand.is_zero());
-    // A width test bounds its word by the width, in either spelling.
-    if let Some(test) = BitWidthTest::of_kind(func, &func.inst(inst_id).kind)
-        && test.word == value
-        && nonzero == test.fits
-        && test.limit() <= limit
-    {
-        return true;
-    }
     match (&func.inst(inst_id).kind, nonzero) {
         // value <= x, or value < x
         (&InstKind::Gt(a, x), false)

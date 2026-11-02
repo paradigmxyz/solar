@@ -6,18 +6,21 @@
 @immutables
   value: uint256
 
-fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
-  bb0:
-    v0 = loadimmutable value
-    ret v0
-}
-
+; constructor(uint256 value_) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
   bb0:
     storeimmutable value, arg0
     ret
 }
 
+; getter for `uint256 public immutable value` [selector 0x3fa4f245]
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = loadimmutable value
+    ret v0
+}
+
+; function payload() external pure returns (bytes memory) [selector 0xa878f858]
 fn @payload() -> ptr<memory> [selector=0xa878f858, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 160 !metadata(preserves_fmp)
@@ -32,6 +35,7 @@ fn @payload() -> ptr<memory> [selector=0xa878f858, pure, abi_params=[], abi_retu
 @data
   ChildWithArg_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/program-data/contract_creation_args_data_dedup.sol:ChildWithArg"
 
+; function plain() external returns (uint256) [selector 0x59748c98]
 fn @plain() -> i256 [selector=0x59748c98, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode [word], args 11
@@ -46,25 +50,25 @@ fn @plain() -> i256 [selector=0x59748c98, abi_params=[], abi_returns=[word], abi
     v7 = create 0, v3, v2
     v8 = ne v7, i160 0
     jumpi v8, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v9 = gas
     mstore 0, 0x3fa4f245 !metadata(memory=scratch)
     v10 = zext i160 v7 to i256
     v11 = staticcall v9, v10, 28, 4, 0, 32
     jumpi v11, bb4, bb3
-  bb3:
+  bb3:  ; preds = bb2
     revert_returndata
-  bb4:
+  bb4:  ; preds = bb2
     v12 = returndatasize
     v13 = lt v12, 32
     icall revert_if<tuple_data_too_short>, v13
-    v14 = add 0, 0
-    v15 = mload v14
-    ret v15
+    v14 = mload 0 !metadata(memory=scratch)
+    ret v14
 }
 
+; function salted() external returns (uint256) [selector 0x1f981516]
 fn @salted() -> i256 [selector=0x1f981516, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode [word], args 22
@@ -79,26 +83,26 @@ fn @salted() -> i256 [selector=0x1f981516, abi_params=[], abi_returns=[word], ab
     v7: i256 = create2 0, v3, v2, 1
     v8 = ne v7, 0
     jumpi v8, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v9 = trunc i256 v7 to i160
     v10 = gas
     mstore 0, 0x3fa4f245 !metadata(memory=scratch)
     v11 = zext i160 v9 to i256
     v12 = staticcall v10, v11, 28, 4, 0, 32
     jumpi v12, bb4, bb3
-  bb3:
+  bb3:  ; preds = bb2
     revert_returndata
-  bb4:
+  bb4:  ; preds = bb2
     v13 = returndatasize
     v14 = lt v13, 32
     icall revert_if<tuple_data_too_short>, v14
-    v15 = add 0, 0
-    v16 = mload v15
-    ret v16
+    v15 = mload 0 !metadata(memory=scratch)
+    ret v15
 }
 
+; function pair() external returns (uint256) [selector 0xa8aa1b31]
 fn @pair() -> i256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode [word], args 3
@@ -113,9 +117,9 @@ fn @pair() -> i256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word], abi_
     v7 = create 0, v3, v2
     v8 = ne v7, i160 0
     jumpi v8, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v9 = abi_encode [word], args 4
     v10 = datasize ChildWithArg_creation_code_0
     v11 = datasize ChildWithArg_creation_code_0, 32
@@ -128,35 +132,33 @@ fn @pair() -> i256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word], abi_
     v16 = create 0, v12, v11
     v17 = ne v16, i160 0
     jumpi v17, bb4, bb3
-  bb3:
+  bb3:  ; preds = bb2
     revert_returndata
-  bb4:
+  bb4:  ; preds = bb2
     v18 = gas
     mstore 0, 0x3fa4f245 !metadata(memory=scratch)
     v19 = zext i160 v7 to i256
     v20 = staticcall v18, v19, 28, 4, 0, 32
     jumpi v20, bb6, bb5
-  bb5:
+  bb5:  ; preds = bb4
     revert_returndata
-  bb6:
+  bb6:  ; preds = bb4
     v21 = returndatasize
     v22 = lt v21, 32
     icall revert_if<tuple_data_too_short>, v22
-    v23 = add 0, 0
-    v24 = mload v23
-    v25 = gas
+    v23 = mload 0 !metadata(memory=scratch)
+    v24 = gas
     mstore 0, 0x3fa4f245 !metadata(memory=scratch)
-    v26 = zext i160 v16 to i256
-    v27 = staticcall v25, v26, 28, 4, 0, 32
-    jumpi v27, bb8, bb7
-  bb7:
+    v25 = zext i160 v16 to i256
+    v26 = staticcall v24, v25, 28, 4, 0, 32
+    jumpi v26, bb8, bb7
+  bb7:  ; preds = bb6
     revert_returndata
-  bb8:
-    v28 = returndatasize
-    v29 = lt v28, 32
-    icall revert_if<tuple_data_too_short>, v29
-    v30 = add 0, 0
-    v31 = mload v30
-    v32 = checked_add uint256, v24, v31
-    ret v32
+  bb8:  ; preds = bb6
+    v27 = returndatasize
+    v28 = lt v27, 32
+    icall revert_if<tuple_data_too_short>, v28
+    v29 = mload 0 !metadata(memory=scratch)
+    v30 = checked_add uint256, v23, v29
+    ret v30
 }

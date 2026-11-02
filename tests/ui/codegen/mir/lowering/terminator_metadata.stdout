@@ -1,6 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/terminator_metadata.mir (before lower-abi) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/terminator_metadata.mir (after lower-abi) ===
   @module TerminatorMetadata
+  ; selector 0xac37eebb
 - fn @identity(arg0: i256) -> i256 [selector=0xac37eebb, abi_params=[uint256], abi_returns=[word]] {
 + fn @identity() [selector=0xac37eebb, abi_wrapper] {
     bb0:
@@ -8,18 +9,17 @@
 +     v0 = calldatasize
 +     v1 = lt v0, 36
 +     jumpi v1, bb2, bb3
-+   bb3:
++   bb3:  ; preds = bb0
 +     jump bb1
-+   bb1:
++   bb1:  ; preds = bb3
 +     mstore 0, arg0 !metadata(memory=scratch, span=30..40)
-+     v2 = sub 32, 0 !metadata(span=30..40)
-+     returndata 0, v2 !metadata(span=30..40)
-+   bb2:
++     returndata 0, 32 !metadata(span=30..40)
++   bb2 [cold]:  ; preds = bb0
 +     revert 0, 0
   }
   
-  fn @bubble() {
-    bb0:
+  fn @bubble() [cold] {
+    bb0 [cold]:
 -     revert_returndata !metadata(spans=[50..60, 70..80], modifier_depth=2)
 +     v0 = returndatasize !metadata(spans=[50..60, 70..80], modifier_depth=2)
 +     returndatacopy 0, 0, v0 !metadata(memory=abi_return, spans=[50..60, 70..80], modifier_depth=2)
@@ -30,23 +30,23 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/terminator_metadata.mir (before lower-abi-encode) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/terminator_metadata.mir (after lower-abi-encode) ===
   @module TerminatorMetadata
+  ; selector 0xac37eebb
   fn @identity() [selector=0xac37eebb, abi_wrapper] {
     bb0:
       v0 = calldatasize
       v1 = lt v0, 36
       jumpi v1, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb0
       jump bb1
-    bb1:
+    bb1:  ; preds = bb3
       mstore 0, arg0 !metadata(memory=scratch, span=30..40)
-      v2 = sub 32, 0 !metadata(span=30..40)
-      returndata 0, v2 !metadata(span=30..40)
-    bb2:
+      returndata 0, 32 !metadata(span=30..40)
+    bb2 [cold]:  ; preds = bb0
       revert 0, 0
   }
   
-  fn @bubble() {
-    bb0:
+  fn @bubble() [cold] {
+    bb0 [cold]:
       v0 = returndatasize !metadata(spans=[50..60, 70..80], modifier_depth=2)
       returndatacopy 0, 0, v0 !metadata(memory=abi_return, spans=[50..60, 70..80], modifier_depth=2)
       v1 = returndatasize !metadata(spans=[50..60, 70..80], modifier_depth=2)

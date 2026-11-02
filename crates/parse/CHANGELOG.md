@@ -5,6 +5,64 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0](https://github.com/paradigmxyz/solar/releases/tag/v0.3.0)
+
+### Bug Fixes
+
+- [sema] Reject every unfolded constant in asm ([#1900](https://github.com/paradigmxyz/solar/issues/1900))
+- [parse] Validate assembly dialect and flag strings ([#1882](https://github.com/paradigmxyz/solar/issues/1882))
+- [parse] Reject `address payable` mapping keys ([#1883](https://github.com/paradigmxyz/solar/issues/1883))
+- [parse] Require names in variable declarations ([#1885](https://github.com/paradigmxyz/solar/issues/1885))
+- [parse] Reject unclosed sequences at EOF ([#1887](https://github.com/paradigmxyz/solar/issues/1887))
+- [parse] Limit recursion in types and `**` chains ([#1865](https://github.com/paradigmxyz/solar/issues/1865))
+- [parse] Stop pragma versions at the first error ([#1854](https://github.com/paradigmxyz/solar/issues/1854))
+- [parse] Use string token span for unescaping ([#1851](https://github.com/paradigmxyz/solar/issues/1851))
+- [parse] Reject unbalanced bidi override markers ([#1852](https://github.com/paradigmxyz/solar/issues/1852))
+- [parse] Treat denominated hex addresses as numbers ([#1829](https://github.com/paradigmxyz/solar/issues/1829))
+- [sema] Check special function signatures ([#1767](https://github.com/paradigmxyz/solar/issues/1767))
+- [parser] Raise the recursion limit to 256 ([#1704](https://github.com/paradigmxyz/solar/issues/1704))
+- [parse] Parse `fixedMxN` and `ufixedMxN` types ([#1724](https://github.com/paradigmxyz/solar/issues/1724))
+- [parser] Accept extra version components ([#1567](https://github.com/paradigmxyz/solar/issues/1567))
+- [parser] Keep Yul builtin name checks ([#1584](https://github.com/paradigmxyz/solar/issues/1584))
+- Validate Yul builtin names in sema ([#1568](https://github.com/paradigmxyz/solar/issues/1568))
+- [lsp] Complete symbols in incomplete code ([#1475](https://github.com/paradigmxyz/solar/issues/1475))
+- [parser] Match solc syntax errors ([#1308](https://github.com/paradigmxyz/solar/issues/1308))
+- [yul] Parse versioned builtin names ([#1284](https://github.com/paradigmxyz/solar/issues/1284))
+- [parse] Preserve continued string whitespace ([#1211](https://github.com/paradigmxyz/solar/issues/1211))
+- [parser] Distinguish underscore identifiers ([#1217](https://github.com/paradigmxyz/solar/issues/1217))
+- [lsp] Harden import completion ([#1171](https://github.com/paradigmxyz/solar/issues/1171))
+- [sema] Align project edge cases with solc ([#1088](https://github.com/paradigmxyz/solar/issues/1088))
+- [parser] Recover malformed member access ([#914](https://github.com/paradigmxyz/solar/issues/914))
+- [docs] Avoid rustdoc ICE on re-exports ([#912](https://github.com/paradigmxyz/solar/issues/912))
+- [parser] Clear error literal denominations ([#896](https://github.com/paradigmxyz/solar/issues/896))
+- Add codes to warnings ([#839](https://github.com/paradigmxyz/solar/issues/839))
+- [parse] Preserve hex escape bytes ([#831](https://github.com/paradigmxyz/solar/issues/831))
+- [sema] Align natspec validation ([#771](https://github.com/paradigmxyz/solar/issues/771))
+- [parser] Parse exponentiation right-assoc ([#767](https://github.com/paradigmxyz/solar/issues/767))
+- [sema] Canonicalize bare integer aliases ([#761](https://github.com/paradigmxyz/solar/issues/761))
+- [parse] Ignore mid-line '@' in doc cmnts ([#597](https://github.com/paradigmxyz/solar/issues/597))
+- Do not break on close paren for struct ([#562](https://github.com/paradigmxyz/solar/issues/562))
+- [parser] Neg. exp. empty check, disallow plus ([#561](https://github.com/paradigmxyz/solar/issues/561))
+
+### Features
+
+- [sema] Evaluate constants after type checking ([#1896](https://github.com/paradigmxyz/solar/issues/1896))
+- Support fractional number literals ([#1752](https://github.com/paradigmxyz/solar/issues/1752))
+- [lsp] Add semantic rename support ([#950](https://github.com/paradigmxyz/solar/issues/950))
+- [parser] Recover incomplete input ([#942](https://github.com/paradigmxyz/solar/issues/942))
+- [lsp] Add auto-completion support ([#915](https://github.com/paradigmxyz/solar/issues/915))
+- Improve parser/lowering ([#835](https://github.com/paradigmxyz/solar/issues/835))
+- [parser] Add import callback ([#823](https://github.com/paradigmxyz/solar/issues/823))
+- [sema] Lower inline yul to hir ([#769](https://github.com/paradigmxyz/solar/issues/769))
+- [sema] Lower natspec ([#768](https://github.com/paradigmxyz/solar/issues/768))
+- SIMD optimizations, bug fixes, and struct codegen improvements
+- [ast] Change TypeSize to store bits instead of bytes ([#671](https://github.com/paradigmxyz/solar/issues/671))
+- [ast] Naive natspec ([#470](https://github.com/paradigmxyz/solar/issues/470))
+
+### Performance
+
+- [parser] Shrink parser stack frames ([#1741](https://github.com/paradigmxyz/solar/issues/1741))
+
 ## [0.2.0](https://github.com/paradigmxyz/solar/releases/tag/v0.2.0)
 
 ### Bug Fixes

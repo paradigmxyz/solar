@@ -522,6 +522,11 @@ class Context:
                 ]
             )
             return shift
+        if name == "shared_shift" and len(values) == 2:
+            self.contracts.add(
+                "shared_shift: the Rust constructor returns an existing `x >> k` word"
+            )
+            return Expr("shr", (values[0], values[1]))
         if name == "power_of_two_shift" and len(values) == 1:
             shift = self.fresh()
             self.assumptions.extend(
@@ -541,6 +546,12 @@ class Context:
             "push_not_larger",
             "optimize_for_size",
             "late_word_sequence",
+            "spelling_widths",
+            "width_shifts",
+            "masked_shifts",
+            "sole_reader",
+            "zero_operand",
+            "allocations_lowered",
             "unshared_mask",
             "compared_mask",
         ):
@@ -573,6 +584,16 @@ class Context:
             "mask_covers": lambda: Cond("eq", (Expr("and", tuple(values)), values[1])),
             "masks_clean_address": lambda: Cond(
                 "eq", (Expr("and", tuple(values)), values[1])
+            ),
+            "fits_below_shift": lambda: Cond(
+                "eq",
+                (
+                    Expr(
+                        "shr",
+                        (Expr("sub", (Expr.const(256), values[1])), values[0]),
+                    ),
+                    Expr.const(0),
+                ),
             ),
             "shifted_out": lambda: Cond(
                 "eq", (Expr("shr", tuple(values)), Expr.const(0))

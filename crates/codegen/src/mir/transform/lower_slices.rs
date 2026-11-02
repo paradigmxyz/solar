@@ -323,7 +323,7 @@ impl LowerSlices {
 
                 let slot = builder.imm(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
                 let base = builder.load(slot, PtrLocation::Memory);
-                let length_address = builder.add_u64_offset(base, EvmMemoryLayout::WORD_SIZE);
+                let length_address = builder.add_offset(base, EvmMemoryLayout::WORD_SIZE);
                 let length = builder.load(length_address, PtrLocation::Memory);
                 // pointer = inttoptr result to ptr<location>
                 // slice = make_slice pointer, length
@@ -522,12 +522,12 @@ impl LowerSlices {
                     let replacement = if is_ptr {
                         // pointer = inttoptr (add head, 36) to ptr<calldata>
                         *pointers.entry(head).or_insert_with(|| {
-                            let data = builder.add_u64_offset(head, 36);
+                            let data = builder.add_offset(head, 36);
                             builder.cast(data, MirType::Ptr(PtrLocation::Calldata))
                         })
                     } else {
                         *lengths.entry(head).or_insert_with(|| {
-                            let len_pos = builder.add_u64_offset(head, 4);
+                            let len_pos = builder.add_offset(head, 4);
                             builder.load(len_pos, PtrLocation::Calldata)
                         })
                     };

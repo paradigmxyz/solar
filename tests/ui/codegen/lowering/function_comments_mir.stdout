@@ -1,0 +1,47 @@
+// === ROOT/tests/ui/codegen/lowering/function_comments_mir.sol:C ===
+@module C
+; constructor(uint256 start) [creation entry]
+fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
+  bb0:
+    sstore 0, arg0 !metadata(storage=slot(0))
+    ret
+}
+
+; receive() external payable [receive]
+fn @receive() [receive, payable] {
+  bb0:
+    ret
+}
+
+; fallback() external [fallback]
+fn @fallback() [fallback] {
+  bb0:
+    ret
+}
+
+; getter for `uint256 public total` [selector 0x2ddbd13a]
+fn @total() -> i256 [selector=0x2ddbd13a, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+; function pick(bool left, uint256 a, uint256 b) external pure returns (uint256) [selector 0xb67daf62]
+fn @pick(arg0: i1, arg1: i256, arg2: i256) -> i256 [selector=0xb67daf62, pure, abi_params=[bool, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:  ; preds = bb0
+    jump bb3
+  bb3:  ; preds = bb2
+    v0 = icall @step, arg2
+    ret v0
+  bb1:  ; preds = bb0
+    ret arg1
+}
+
+; function step(uint256 x) internal pure returns (uint256)
+fn @step(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = checked_add uint256, arg0, 1
+    ret v0
+}

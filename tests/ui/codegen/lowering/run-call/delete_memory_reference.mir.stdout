@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256, i256}
 
+; function array() external pure returns (uint256, uint256, uint256) [selector 0xb0ec2ae1]
 fn @array() -> struct0 [selector=0xb0ec2ae1, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = alloc zeroed checked 64
@@ -29,6 +30,7 @@ fn @array() -> struct0 [selector=0xb0ec2ae1, pure, abi_params=[], abi_returns=[w
     ret v15
 }
 
+; function bytesValue() external pure returns (uint256, uint256, bytes2) [selector 0x5a286ac0]
 fn @bytesValue() -> struct0 [selector=0x5a286ac0, pure, abi_params=[], abi_returns=[word, word, word<bytes2>], abi_return_params=[uint256, uint256, bytes2]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)

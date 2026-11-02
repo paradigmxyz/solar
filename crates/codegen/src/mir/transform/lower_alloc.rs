@@ -10,30 +10,32 @@
 //! A checked allocation bumps the pointer only after testing the new end against overflow and
 //! the allocation limit, panicking otherwise. When a module has two or more, one `alloc(size)`
 //! helper owns the pointer load, check, panic, and update, and each site calls it and keeps its
-//! own zeroing; a single checked allocation splits its block around the inline check instead.
+//! own zeroing unless that is dead (see below); a single checked allocation splits its block
+//! around the inline check instead.
 //!
 //! A preserving allocation that reserves bytes an encoder already wrote through an
 //! earlier pointer read in the same block reuses that read instead of loading the
 //! pointer again, as long as only writes addressed from the read word come between.
 //!
 //! A read that returns the entry's initial pointer, because nothing before it may write the
-//! slot (see [`FreshFmpReads`]), takes the heap floor, which codegen knows, instead of loading
+//! slot (see [`FreshHeap`]), takes the heap floor, which codegen knows, instead of loading
 //! the slot. Its allocation still stores the bumped pointer. An entry whose only reads of the
 //! slot are such reads then needs no initialization of it. Under the gas objective, a fresh
 //! checked allocation keeps its own inline check rather than calling the shared helper, as the
 //! helper loads the slot; the size objective keeps the call.
+//!
+//! Memory above the pointer that nothing wrote since the entry still holds zeros, so the
+//! initialization of a zeroed allocation made there, and a `memory_zero` or zero word store into
+//! it that nothing wrote before, are dead and dropped (see [`FreshHeap`]).
 
-use crate::{
-    mir::{
-        AllocationFailure, AllocationInitialization, AllocationSemantics, ConditionUse, EffectKind,
-        Function, FunctionBuilder, FunctionId, InstId, InstKind, MemoryRegion, MirModuleTarget,
-        MirType, Module, PanicCode, PtrLocation, Value, ValueId,
-        analysis::FreshFmpReads,
-        memory::EvmMemoryLayout,
-        pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
-        transform::utils::expand_block,
-    },
-    target::Target,
+use crate::mir::{
+    AllocationFailure, AllocationInitialization, AllocationSemantics, EffectKind, Function,
+    FunctionBuilder, FunctionId, InstId, InstKind, MemoryRegion, MirType, Module, PanicCode,
+    PtrLocation, Value, ValueId,
+    analysis::FreshHeap,
+    memory::EvmMemoryLayout,
+    pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
+    transform::utils::expand_block,
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_interface::{Ident, sym};
@@ -51,22 +53,17 @@ impl MirPass for LowerAlloc {
         true
     }
 
-    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
-        let fresh = FreshFmpReads::new(module, || analyses.call_summaries(module));
-        lower_alloc(gcx, module, analyses, &fresh)
+    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
+        let fresh = FreshHeap::new(module, || analyses.call_summaries(module));
+        lower_alloc(module, analyses, &fresh)
     }
 }
 
-fn lower_alloc(
-    gcx: Gcx<'_>,
-    module: &mut Module,
-    analyses: &mut ModuleAnalyses,
-    fresh: &FreshFmpReads,
-) -> bool {
-    let mut changed = share_checked_allocations(gcx, module, analyses, fresh);
+fn lower_alloc(module: &mut Module, analyses: &mut ModuleAnalyses, fresh: &FreshHeap) -> bool {
+    let mut changed = share_checked_allocations(module, analyses, fresh);
     changed |= run_lowering_function_pass(module, analyses, |func, function_analyses| {
         let id = function_analyses.function();
-        lower_function(func, function_analyses.target(gcx), |inst| fresh.contains(id, inst))
+        lower_function(func, fresh, id)
     });
     changed
 }
@@ -77,10 +74,9 @@ fn lower_alloc(
 /// The helper owns only the pointer load, checked bump, panic, and update.
 /// Callers retain their initialization, so allocation ordering stays intact.
 fn share_checked_allocations(
-    gcx: Gcx<'_>,
     module: &mut Module,
     analyses: &mut ModuleAnalyses,
-    fresh: &FreshFmpReads,
+    fresh: &FreshHeap,
 ) -> bool {
     let count = module
         .functions
@@ -95,13 +91,12 @@ fn share_checked_allocations(
         return false;
     }
 
-    let helper = create_checked_alloc(module, module.target(gcx));
+    let helper = create_checked_alloc(module);
     run_lowering_function_pass(module, analyses, |func, function_analyses| {
         let func_id = function_analyses.function();
         let mut replacements = FxHashMap::default();
         for block in func.blocks.indices() {
-            let mut builder =
-                FunctionBuilder::new(func).with_bit_tests(function_analyses.target(gcx));
+            let mut builder = FunctionBuilder::new(func);
             expand_block(&mut builder, block, |builder, inst| {
                 let Some((size, semantics)) = checked_alloc(builder.func(), inst) else {
                     return false;
@@ -113,7 +108,7 @@ fn share_checked_allocations(
                     builder.func().inst_result_value(inst).expect("allocation has a result");
                 // object = icall checked_alloc size
                 let object = builder.icall(helper, vec![size], MirType::MEMPTR);
-                initialize(builder, object, size, semantics.initialization);
+                initialize(builder, object, size, fresh.initialization(func_id, inst, semantics));
                 replacements.insert(result, object);
                 true
             });
@@ -131,10 +126,10 @@ fn checked_alloc(func: &Function, inst: InstId) -> Option<(ValueId, AllocationSe
         .then_some((size, semantics))
 }
 
-fn create_checked_alloc(module: &mut Module, target: Target) -> FunctionId {
+fn create_checked_alloc(module: &mut Module) -> FunctionId {
     let mut function = Function::new(Ident::with_dummy_span(sym::alloc));
     {
-        let mut builder = FunctionBuilder::new(&mut function).with_bit_tests(target);
+        let mut builder = FunctionBuilder::new(&mut function);
         let size = builder.add_param(MirType::I256);
         builder.set_return_type(MirType::MEMPTR);
         let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
@@ -157,7 +152,8 @@ fn create_checked_alloc(module: &mut Module, target: Target) -> FunctionId {
     module.add_function(function)
 }
 
-fn lower_function(func: &mut Function, target: Target, is_fresh: impl Fn(InstId) -> bool) -> bool {
+fn lower_function(func: &mut Function, fresh: &FreshHeap, id: FunctionId) -> bool {
+    let is_fresh = |inst| fresh.contains(id, inst);
     let has_abstract_memory = func.instructions().any(|inst| {
         matches!(func.inst(inst).kind, InstKind::Fmp | InstKind::SetFmp(_) | InstKind::Alloc { .. })
     });
@@ -167,7 +163,7 @@ fn lower_function(func: &mut Function, target: Target, is_fresh: impl Fn(InstId)
 
     let mut changed = false;
     for block in func.blocks.indices() {
-        let mut builder = FunctionBuilder::new(func).with_bit_tests(target);
+        let mut builder = FunctionBuilder::new(func);
         expand_block(&mut builder, block, |builder, inst| {
             let Some((size, semantics)) = checked_alloc(builder.func(), inst) else {
                 return false;
@@ -180,7 +176,7 @@ fn lower_function(func: &mut Function, target: Target, is_fresh: impl Fn(InstId)
             // ptr = mload 64 | heap_floor
             rewrite_as_fmp_read(builder, inst, is_fresh(inst));
             // next = add ptr, size
-            // invalid = next < ptr || next > limit, as `bump_checked` emits it
+            // invalid = next < ptr || next > limit
             let (next, invalid) = bump_checked(builder, ptr, size);
             // branch invalid, panic, continuation
             builder.branch(invalid, panic, continuation);
@@ -192,7 +188,7 @@ fn lower_function(func: &mut Function, target: Target, is_fresh: impl Fn(InstId)
             // continuation: mstore 64, next
             builder.switch_to_block(continuation);
             store_fmp(builder, next);
-            initialize(builder, ptr, size, semantics.initialization);
+            initialize(builder, ptr, size, fresh.initialization(id, inst, semantics));
             true
         });
     }
@@ -234,7 +230,13 @@ fn lower_function(func: &mut Function, target: Target, is_fresh: impl Fn(InstId)
                     builder.func_mut().blocks[block].instructions.push(inst);
                     let next = bump(&mut builder, word, size);
                     store_fmp(&mut builder, next);
-                    initialize(&mut builder, ptr, size, semantics.initialization);
+                    initialize(&mut builder, ptr, size, fresh.initialization(id, inst, semantics));
+                }
+                // memory_zero ptr, size | mstore ptr, 0 -> dropped
+                InstKind::MemoryZero(..) | InstKind::Store(..)
+                    if fresh.skips_zero_fill(id, inst) =>
+                {
+                    changed = true;
                 }
                 InstKind::SetFmp(ptr) => {
                     changed = true;
@@ -255,7 +257,7 @@ fn lower_function(func: &mut Function, target: Target, is_fresh: impl Fn(InstId)
                     rewrite_as_fmp_read(&mut builder, inst, is_fresh(inst));
                     let next = bump(&mut builder, ptr, size);
                     store_fmp(&mut builder, next);
-                    initialize(&mut builder, ptr, size, semantics.initialization);
+                    initialize(&mut builder, ptr, size, fresh.initialization(id, inst, semantics));
                 }
                 _ => {
                     peek.observe(builder.func(), inst);
@@ -410,21 +412,17 @@ fn bump(builder: &mut FunctionBuilder<'_>, ptr: ValueId, size: ValueId) -> Value
 }
 
 /// Emits `ptr + size` and whether it wrapped or passes the allocation limit.
-///
-/// When the target reads a shifted word for free, the check is one word zero test,
-/// `(zext(next < ptr) | (next >> 64)) != 0`, which a branch reads without materializing a
-/// boolean. Otherwise it is `(next < ptr) | (next > limit)`.
 fn bump_checked(
     builder: &mut FunctionBuilder<'_>,
     ptr: ValueId,
     size: ValueId,
 ) -> (ValueId, ValueId) {
     let next = bump(builder, ptr, size);
-    // bump_overflow = next < ptr
+    // invalid = next < ptr || next > limit
     let bump_overflow = builder.lt(next, ptr);
-    // invalid = bump_overflow | next > limit
-    let bits = EvmMemoryLayout::MAX_ALLOCATION_END_BITS;
-    (next, builder.exceeds_bits_or(bump_overflow, next, bits, ConditionUse::BRANCH))
+    let limit = builder.imm(EvmMemoryLayout::MAX_ALLOCATION_END);
+    let over_limit = builder.gt(next, limit);
+    (next, builder.or(bump_overflow, over_limit))
 }
 
 /// Marks the instruction that defines `value` as a word the allocator produced, a heap pointer

@@ -491,7 +491,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let pointer = self.load_variable(id, span)?;
                 let mask = self.builder.imm(u32::MAX);
                 let selector = self.builder.and(value, mask);
-                let address_mask = self.builder.not(mask);
+                // address_mask = !0xffffffff
+                let address_mask = self.builder.imm(!U256::from(u32::MAX));
                 let address = self.builder.and(pointer, address_mask);
                 self.builder.or(address, selector)
             }

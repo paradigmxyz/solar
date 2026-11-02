@@ -1,82 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/abi_encode_call.sol:AbiEncodeCall ===
 @module AbiEncodeCall
 @phase lowered
-fn @asValue() [selector=0x440a9300, abi_wrapper, pure] {
-  bb0:
-    v4 = calldataload 4
-    v5 = shr v4, 160
-    v2 = calldatasize
-    v3 = lt v2, 68
-    v59 = zext i1 v3 to i256
-    v60 = or v59, v5
-    v61 = ne v60, 0
-    jumpi v61, bb1, bb2
-  bb2:
-    v56 = heap_floor !metadata(alloc_ptr)
-    v57 = add v56, 128 !metadata(alloc_ptr)
-    mstore 64, v57 !metadata(memory=scratch)
-    mstore v56, 68
-    v49 = add v56, 32
-    mstore v49, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-    v51 = add v56, 36
-    mstore v51, arg0
-    v14 = add v51, 32
-    mstore v14, arg1
-    v16 = lt v56, 32
-    jumpi v16, bb3, bb4
-  bb4:
-    v42 = add v49, 68
-    mstore v42, 0
-    v53 = sub v56, 32
-    mstore v53, 32
-    jump bb5
-  bb3:
-    v58 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v19 = add v58, 32
-    mstore v58, 32
-    v26 = add v19, 32
-    v27 = add v19, 96
-    mstore v27, 0
-    mstore v19, 68
-    mcopy v26, v49, 68 !metadata(disjoint)
-    jump bb5
-  bb5:
-    v45 = phi [bb3: v58], [bb4: v53]
-    returndata v45, 160
-  bb1:
-    revert 0, 0
-}
-
-fn @viaCall() [selector=0x23d014a1, abi_wrapper] {
-  bb0:
-    v8 = calldatasize
-    v9 = lt v8, 100
-    v10 = calldataload 4
-    v11 = shr v10, 160
-    v30 = zext i1 v9 to i256
-    v31 = or v30, v11
-    v13 = calldataload 36
-    v14 = shr v13, 160
-    v33 = or v31, v14
-    v34 = ne v33, 0
-    jumpi v34, bb1, bb2
-  bb2:
-    v0 = gas
-    v28 = heap_floor !metadata(alloc_ptr)
-    v25 = add v28, 32
-    mstore v25, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-    v27 = add v28, 36
-    mstore v27, arg1
-    v23 = add v27, 32
-    mstore v23, arg2
-    v7 = call v0, arg0, 0, v25, 68, 0, 0
-    v17 = zext i1 v7 to i256
-    mstore 0, v17 !metadata(memory=scratch)
-    returndata 0, 32
-  bb1:
-    revert 0, 0
-}
-
+; runtime dispatch entry
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
@@ -86,14 +11,92 @@ fn @entry() [entry] {
     v7 = or v0, v6
     v8 = ne v7, 0
     jumpi v8, bb4, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v4 = calldataload 0
     v5 = shr v4, 224
     switch v5, default bb4, [0x23d014a1 => bb2, 0x440a9300 => bb3]
-  bb3:
+  bb3:  ; preds = bb1
     tail_call @asValue
-  bb2:
+  bb2:  ; preds = bb1
     tail_call @viaCall
-  bb4:
+  bb4 [cold]:  ; preds = bb0, bb1
+    revert 0, 0
+}
+
+; function asValue(address to, uint256 v) external pure returns (bytes memory) [selector 0x440a9300]
+fn @asValue() [selector=0x440a9300, abi_wrapper, pure] {
+  bb0:
+    v4 = calldataload 4
+    v57 = shr v4, 160
+    v2 = calldatasize
+    v3 = lt v2, 68
+    v59 = zext i1 v3 to i256
+    v60 = or v59, v57
+    v56 = ne v60, 0
+    jumpi v56, bb1, bb2
+  bb2:  ; preds = bb0
+    v53 = heap_floor !metadata(alloc_ptr)
+    v54 = add v53, 128 !metadata(alloc_ptr)
+    mstore 64, v54 !metadata(memory=scratch)
+    mstore v53, 68
+    v46 = add v53, 32
+    mstore v46, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v48 = add v53, 36
+    mstore v48, arg0
+    v13 = add v48, 32
+    mstore v13, arg1
+    v15 = lt v53, 32
+    jumpi v15, bb3, bb4
+  bb4:  ; preds = bb2
+    v39 = add v46, 68
+    mstore v39, 0
+    v50 = sub v53, 32
+    mstore v50, 32
+    jump bb5
+  bb3:  ; preds = bb2
+    v55 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v18 = add v55, 32
+    mstore v55, 32
+    v24 = add v18, 32
+    v25 = add v18, 96
+    mstore v25, 0
+    mstore v18, 68
+    mcopy v24, v46, 68 !metadata(disjoint)
+    jump bb5
+  bb5:  ; preds = bb3, bb4
+    v42 = phi [bb3: v55], [bb4: v50]
+    returndata v42, 160
+  bb1 [cold]:  ; preds = bb0
+    revert 0, 0
+}
+
+; function viaCall(address token, address to, uint256 v) public returns (bool ok) [selector 0x23d014a1]
+fn @viaCall() [selector=0x23d014a1, abi_wrapper] {
+  bb0:
+    v8 = calldatasize
+    v9 = lt v8, 100
+    v10 = calldataload 4
+    v29 = shr v10, 160
+    v31 = zext i1 v9 to i256
+    v32 = or v31, v29
+    v12 = calldataload 36
+    v34 = shr v12, 160
+    v36 = or v32, v34
+    v28 = ne v36, 0
+    jumpi v28, bb1, bb2
+  bb2:  ; preds = bb0
+    v0 = gas
+    v25 = heap_floor !metadata(alloc_ptr)
+    v22 = add v25, 32
+    mstore v22, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v24 = add v25, 36
+    mstore v24, arg1
+    v20 = add v24, 32
+    mstore v20, arg2
+    v7 = call v0, arg0, 0, v22, 68, 0, 0
+    v15 = zext i1 v7 to i256
+    mstore 0, v15 !metadata(memory=scratch)
+    returndata 0, 32
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }

@@ -1,0 +1,21 @@
+//@compile-flags: -Zmir-pipeline=lower-alloc
+//@filecheck:
+@module UntouchedHeapMsize
+
+// A module that reads `msize` keeps every fill: a dropped one leaves memory unexpanded, and
+// `msize` would report less than the program allocated.
+// CHECK-LABEL: {{^[ +].*}}fn @allocates{{[( ]}}
+// CHECK: {{^ +}}memory_zero {{v[0-9]+}}, 64
+fn @allocates() -> i256 [selector=0x30000020] {
+  bb0:
+    v0 = alloc 64
+    memory_zero v0, 64
+    v1 = ptrtoint ptr<memory> v0 to i256
+    ret v1
+}
+
+fn @measures() -> i256 [selector=0x30000021] {
+  bb0:
+    v0 = msize
+    ret v0
+}

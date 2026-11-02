@@ -1,0 +1,26 @@
+//@ revisions: none gas size
+//@[none] compile-flags: -O none
+//@[gas] compile-flags: -O gas
+//@[size] compile-flags: -O size
+//@ run-call: 0x00000001 => 0x0000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000a0
+// MSIZE rounds accesses to words; zero-sized hashing does not expand memory.
+@module MemorySize
+@phase lowered
+fn @entry() [entry] {
+  bb0:
+    tail_call @sizes
+}
+
+fn @sizes() [selector=1, abi_wrapper] {
+  bb0:
+    v0 = msize
+    mstore8 65, 1
+    v1 = msize
+    v2 = mload 128
+    v3 = keccak256 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0
+    v4 = msize
+    mstore 0, v0
+    mstore 32, v1
+    mstore 64, v4
+    returndata 0, 96
+}

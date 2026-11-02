@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/abi_encode_packed_padding.sol:EncodePackedPadding ===
 @module EncodePackedPadding
+; function padding(address implementation) external pure returns (uint256) [selector 0x7b3bd6e0]
 fn @padding(arg0: i160) -> i256 [selector=0x7b3bd6e0, pure, abi_params=[address], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall @_dirty
@@ -16,6 +17,7 @@ fn @padding(arg0: i160) -> i256 [selector=0x7b3bd6e0, pure, abi_params=[address]
     ret v5
 }
 
+; function fromCalldata(bytes calldata data) external pure returns (uint256) [selector 0x00319bae]
 fn @fromCalldata(arg0: slice<calldata>) -> i256 [selector=0x00319bae, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall @_dirty
@@ -24,6 +26,7 @@ fn @fromCalldata(arg0: slice<calldata>) -> i256 [selector=0x00319bae, pure, abi_
     ret v1
 }
 
+; function wordAligned(bytes calldata data) external pure returns (uint256) [selector 0xc0b853b2]
 fn @wordAligned(arg0: slice<calldata>) -> i256 [selector=0xc0b853b2, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall @_dirty
@@ -32,45 +35,45 @@ fn @wordAligned(arg0: slice<calldata>) -> i256 [selector=0xc0b853b2, pure, abi_p
     ret v1
 }
 
+; function _dirty() private pure
 fn @_dirty() [pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v1 = phi [bb0: v0], [bb3: v1]
-    v2 = phi [bb0: 0], [bb3: v8]
+    v2 = phi [bb0: 0], [bb3: v7]
     v3 = lt v2, 0x400
     v4 = zext i1 v3 to i256
     v5 = ne v4, 0
     jumpi v5, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret
-  bb4:
-    v6 = not 0
-    v7 = add v1, v2
-    mstore v7, v6
+  bb4:  ; preds = bb1
+    v6 = add v1, v2
+    mstore v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
-    v8 = add v2, 32
+  bb3:  ; preds = bb6
+    v7 = add v2, 32
     jump bb1
 }
 
+; function _tail(bytes memory b) private pure returns (uint256 tail)
 fn @_tail(arg0: ptr<memory>) -> i256 [pure] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
     v1 = mload arg0
-    v2 = not 31
-    v3 = and v1, v2
-    v4 = ptrtoint ptr<memory> arg0 to i256
-    v5 = add v4, 32
-    v6 = add v5, v3
-    v7 = mload v6
-    v8 = and v1, 31
-    v9 = mul 8, v8
-    v10 = shl v7, v9
-    ret v10
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v3 = ptrtoint ptr<memory> arg0 to i256
+    v4 = add v3, 32
+    v5 = add v4, v2
+    v6 = mload v5
+    v7 = and v1, 31
+    v8 = mul 8, v7
+    v9 = shl v6, v8
+    ret v9
 }

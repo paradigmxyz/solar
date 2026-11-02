@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256, i256}
 
+; function g() internal returns (uint256, S storage, uint256)
 fn @g() -> struct0 {
   bb0:
     sstore 0, 7 !metadata(storage=slot(0))
@@ -12,6 +13,7 @@ fn @g() -> struct0 {
     ret v2
 }
 
+; function f() public returns (bool) [selector 0x26121ff0]
 fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @g
@@ -20,26 +22,26 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v3 = extract_value struct0, v0, 2
     v4 = ne v1, 1
     jumpi v4, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v5 = sload v2 !metadata(storage=symbolic(v2))
     v6 = ne v5, 7
     jump bb3
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2, bb1
     v7 = phi [bb1: v6], [bb2: true]
     jumpi v7, bb5, bb4
-  bb4:
+  bb4:  ; preds = bb3
     v8 = ne v3, 2
     jump bb6
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb6:
+  bb6:  ; preds = bb5, bb4
     v9 = phi [bb4: v8], [bb5: true]
     jumpi v9, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     jump bb9
-  bb9:
+  bb9:  ; preds = bb8
     v10 = icall @g
     v11 = extract_value struct0, v10, 0
     v12 = extract_value struct0, v10, 1
@@ -47,34 +49,34 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v14 = sload v12 !metadata(storage=symbolic(v12))
     v15 = ne v14, 7
     jumpi v15, bb10, bb11
-  bb11:
+  bb11:  ; preds = bb9
     jump bb12
-  bb12:
+  bb12:  ; preds = bb11
     v16 = icall @g
     v17 = extract_value struct0, v16, 0
     v18 = extract_value struct0, v16, 1
     v19 = extract_value struct0, v16, 2
     v20 = ne v17, 1
     jumpi v20, bb13, bb14
-  bb14:
+  bb14:  ; preds = bb12
     jump bb15
-  bb15:
+  bb15:  ; preds = bb14
     v21 = icall @g
     v22 = extract_value struct0, v21, 0
     v23 = extract_value struct0, v21, 1
     v24 = extract_value struct0, v21, 2
     v25 = ne v24, 2
     jumpi v25, bb16, bb17
-  bb17:
+  bb17:  ; preds = bb15
     jump bb18
-  bb18:
+  bb18:  ; preds = bb17
     ret true
-  bb16:
+  bb16:  ; preds = bb15
     ret false
-  bb13:
+  bb13:  ; preds = bb12
     ret false
-  bb10:
+  bb10:  ; preds = bb9
     ret false
-  bb7:
+  bb7:  ; preds = bb6
     ret false
 }

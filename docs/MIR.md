@@ -603,9 +603,15 @@ The pass runs after ABI and dispatch construction, before frame and memory
 lowering. Internal calls remain typed and aggregate-valued until this boundary.
 Every function has one `return_type`, with `void` for no result and a struct
 for a tuple. ABI lowering records the result components in a separate private
-layout, printed as `return_abi=[...]`; it preserves the logical result type.
-Both ordinary validation and the final phase check verify that layout against
-the result type. Changing the result type clears the selected ABI.
+layout, printed as `return_abi=[...]`; before `lower-structs` it preserves the
+logical result type. Both ordinary validation and the final phase check verify
+that layout against the result type. Changing the result type clears the
+selected ABI.
+
+`lower-structs` also deletes the module's struct table. A function that
+returns several words then has no result type and prints only its
+`return_abi`, which describes the scalar components; the `lowered` phase
+rejects the table, struct-typed values, and struct result types.
 
 Here, aggregate results adopt the backend convention: the first scalar result
 plus reads of the remaining result words. Those reads occur immediately after the
@@ -764,8 +770,41 @@ paths. Ambiguous function-entry events are dropped after selecting the rewrite.
 
 The lowered pipeline folds constant results before branch cleanup and stack scheduling. It keeps other value identities and instruction choices intact to avoid lengthening live ranges after representation lowering.
 
+MIR blocks and functions carry a hotness attribute, written `bb3 [cold]:` for a block and `cold`
+in a function's attribute list. A function is cold when every exit it can reach aborts, and a
+block is cold when it aborts or only leads to cold blocks; the gas objective also marks blocks with
+no path to a normal exit. The pass manager recomputes the attributes before the first pass, so a
+parsed `cold` is overwritten, and after every pass that changes the module, so passes and the
+backend read current values. The gas objective prices cold code like a size build, because it
+does not run on a successful call and its bytes are deposited anyway.
+
 The scheduler carries known loop membership into EVM IR, and block merging
 preserves it. Gas-mode outlining keeps loop computations and large pushes
-inline. Tail merging can reuse an existing non-loop tail from a loop, but loop
-blocks do not seed new sharing groups. Index non-loop paths first so their
-position in the block list does not prevent reuse.
+inline, except in cold blocks, whose sites it prices by bytes alone. Tail
+merging can reuse an existing non-loop tail from a loop, but loop blocks do not
+seed new sharing groups. Index non-loop paths first so their position in the
+block list does not prevent reuse.
+
+### Backend layout in final dumps
+
+`-Zdump=mir-final` runs backend placement and appends versioned
+`// backend-memory-v1` comments to the lowered module. `solar-mir` parses and
+prints them (`crates/mir/src/backend_memory.rs`), and the backend fills them in
+`backend/evm/codegen/`. The records give static allocation addresses, dynamic
+FMP increments, published return-buffer addresses, entry FMP initialization,
+heap-floor constants, the end of the frames and spill slots each runtime entry
+reaches, and return projections kept on the stack. They describe the runtime
+artifact; constructor execution is not modeled. Allocation and instruction
+ordinals follow printed block order (RPO followed by unreachable blocks), so the
+parser can recover them even when it renumbers SSA values. Duplicate or
+malformed records are rejected. Stack-return records must independently match
+the MIR buffer offsets and cannot hide an escaping pointer or cross a memory
+effect.
+
+These records are execution metadata and never affect optimization or emitted
+bytecode. `-O none -Zdump=mir,mir-final` retains both the built and final
+modules. The MIR interpreter (`crates/mir-interpreter`) declines
+layout-dependent operations in handwritten MIR that omits their placements, and
+`msize` until memory reaches the recorded frame end. It does not infer
+independence by trying two synthetic addresses: both can give the same wrong
+result for a pointer comparison.

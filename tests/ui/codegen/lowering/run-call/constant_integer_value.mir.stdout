@@ -4,6 +4,7 @@
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constant_integer_value.sol:ConstantIntegerValue ===
 @module ConstantIntegerValue
+; function calc() external pure returns (uint256) [selector 0x96f1b6be]
 fn @calc() -> i256 [selector=0x96f1b6be, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @mulWadDown, 0x8ac7230489e80000, 0xaa87bee538000
@@ -11,18 +12,21 @@ fn @calc() -> i256 [selector=0x96f1b6be, pure, abi_params=[], abi_returns=[word]
     ret v1
 }
 
+; function avgEdge() external pure returns (uint256) [selector 0xbb94a0c5]
 fn @avgEdge() -> i256 [selector=0xbb94a0c5, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @average, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
     ret v0
 }
 
+; function negativeConstant() external pure returns (bool) [selector 0xce4ac84e]
 fn @negativeConstant() -> i1 [selector=0xce4ac84e, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @isMinTick, i24 0xf27618
     ret v0
 }
 
+; function average(uint256 x, uint256 y) internal pure returns (uint256)
 fn @average(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = and arg0, arg1
@@ -32,37 +36,44 @@ fn @average(arg0: i256, arg1: i256) -> i256 [pure] {
     ret v3
 }
 
+; function zeroNegativePower() external pure returns (uint) [selector 0x8d04abf9]
 fn @zeroNegativePower() -> i256 [selector=0x8d04abf9, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 0
 }
 
+; function decimal() external pure returns (uint) [selector 0x76809ce3]
 fn @decimal() -> i256 [selector=0x76809ce3, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 0x429d069189e0000
 }
 
+; function negativeExponent() external pure returns (uint) [selector 0x13a47541]
 fn @negativeExponent() -> i256 [selector=0x13a47541, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 5
 }
 
+; function fraction() external pure returns (uint) [selector 0xd8894bb5]
 fn @fraction() -> i256 [selector=0xd8894bb5, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 1
 }
 
+; function typedDivision() external pure returns (uint) [selector 0xb00dd952]
 fn @typedDivision() -> i256 [selector=0xb00dd952, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 0
 }
 
+; function mulWadDown(uint256 x, uint256 y) internal pure returns (uint256)
 fn @mulWadDown(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = icall @mulDivDown, arg0, arg1, 0xde0b6b3a7640000
     ret v0
 }
 
+; function mulDivDown(uint256 x, uint256 y, uint256 denominator) internal pure returns (uint256 z)
 fn @mulDivDown(arg0: i256, arg1: i256, arg2: i256) -> i256 [pure] {
   bb0:
     v0 = div 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg1
@@ -76,16 +87,17 @@ fn @mulDivDown(arg0: i256, arg1: i256, arg2: i256) -> i256 [pure] {
     v8 = zext i1 v7 to i256
     v9 = ne v8, 0
     jumpi v9, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     v10 = mul arg0, arg1
     v11 = div v10, arg2
     ret v11
-  bb1:
+  bb1:  ; preds = bb0
     revert 0, 0
 }
 
+; function isMinTick(int24 tick) internal pure returns (bool)
 fn @isMinTick(arg0: i24) -> i1 [pure] {
   bb0:
     v0 = eq arg0, i24 0xf27618

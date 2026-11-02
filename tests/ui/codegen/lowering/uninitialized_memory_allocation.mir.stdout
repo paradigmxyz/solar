@@ -7,6 +7,7 @@
   struct3: {i256, i256}
   struct4: {ptr<memory>, ptr<memory>}
 
+; function fixedArray() external pure returns (uint256) [selector 0x391e2457]
 fn @fixedArray() -> i256 [selector=0x391e2457, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @freeMemoryPointer
@@ -17,6 +18,7 @@ fn @fixedArray() -> i256 [selector=0x391e2457, pure, abi_params=[], abi_returns=
     ret v3
 }
 
+; function structure() external pure returns (uint256) [selector 0x6c92f462]
 fn @structure() -> i256 [selector=0x6c92f462, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @freeMemoryPointer
@@ -29,6 +31,7 @@ fn @structure() -> i256 [selector=0x6c92f462, pure, abi_params=[], abi_returns=[
     ret v4
 }
 
+; function aliasDoesNotAllocate() external pure returns (uint256) [selector 0xb2b4bf46]
 fn @aliasDoesNotAllocate() -> i256 [selector=0xb2b4bf46, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
@@ -39,6 +42,7 @@ fn @aliasDoesNotAllocate() -> i256 [selector=0xb2b4bf46, pure, abi_params=[], ab
     ret v3
 }
 
+; function dynamicDefaults() external pure returns (uint256 allocated, uint256 bytesPointer, uint256 arrayPointer, uint256 lengths) [selector 0xd295ba8d]
 fn @dynamicDefaults() -> struct0 [selector=0xd295ba8d, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = icall @freeMemoryPointer
@@ -54,6 +58,7 @@ fn @dynamicDefaults() -> struct0 [selector=0xd295ba8d, pure, abi_params=[], abi_
     ret v9
 }
 
+; function nestedDynamicDefaults() external pure returns (uint256 allocated, uint256 bytesPointer, uint256 arrayPointer, bool nextIsFree) [selector 0xd34386dc]
 fn @nestedDynamicDefaults() -> struct1 [selector=0xd34386dc, pure, abi_params=[], abi_returns=[word, word, word, word<bool>], abi_return_params=[uint256, uint256, uint256, bool]] {
   bb0:
     v0 = icall @freeMemoryPointer
@@ -72,40 +77,41 @@ fn @nestedDynamicDefaults() -> struct1 [selector=0xd34386dc, pure, abi_params=[]
     v10 = add v9, 64
     v11 = mload v10
     v12 = icall @freeMemoryPointer
-    v13 = not 31
-    v14 = and 64, v13
-    v15 = alloc zeroed checked v14
-    mstore v15, 1
-    v16 = ptrtoint ptr<memory> v15 to i256
-    v17 = eq v16, v12
-    v18 = insert_value struct1, undef struct1, 0, v5
-    v19 = insert_value struct1, v18, 1, v8
-    v20 = insert_value struct1, v19, 2, v11
-    v21 = insert_value struct1, v20, 3, v17
-    ret v21
+    v13 = alloc zeroed checked 64
+    mstore v13, 1
+    v14 = ptrtoint ptr<memory> v13 to i256
+    v15 = eq v14, v12
+    v16 = insert_value struct1, undef struct1, 0, v5
+    v17 = insert_value struct1, v16, 1, v8
+    v18 = insert_value struct1, v17, 2, v11
+    v19 = insert_value struct1, v18, 3, v15
+    ret v19
 }
 
+; function defaultBytesReturn() external pure returns (bytes memory data) [selector 0x2a63b10a]
 fn @defaultBytesReturn() -> ptr<memory> [selector=0x2a63b10a, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     ret ptr<memory> 96
 }
 
+; function defaultThroughICall() external pure returns (bool) [selector 0x4ed54f6b]
 fn @defaultThroughICall() -> i1 [selector=0x4ed54f6b, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @isEmpty, ptr<memory> 96
     ret v0
 }
 
+; function fixedArrayDynamicDefaults() external pure returns (uint256 allocated, uint256 firstPointer, uint256 secondPointer) [selector 0x94633452]
 fn @fixedArrayDynamicDefaults() -> struct2 [selector=0x94633452, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = icall @freeMemoryPointer
     v1 = alloc 64 !metadata(preserves_fmp)
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v2 = phi [bb0: 0], [bb2: v6]
     v3 = lt v2, 2
     jumpi v3, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v7 = icall @freeMemoryPointer
     v8 = checked_sub uint256, v7, v0
     v9 = ptrtoint ptr<memory> v1 to i256
@@ -117,7 +123,7 @@ fn @fixedArrayDynamicDefaults() -> struct2 [selector=0x94633452, pure, abi_param
     v15 = insert_value struct2, v14, 1, v10
     v16 = insert_value struct2, v15, 2, v13
     ret v16
-  bb2:
+  bb2:  ; preds = bb1
     v4 = shl v2, 5
     v5 = ptradd v1, v4
     mstore v5, 96
@@ -125,6 +131,7 @@ fn @fixedArrayDynamicDefaults() -> struct2 [selector=0x94633452, pure, abi_param
     jump bb1
 }
 
+; function nestedStaticDefaults() external pure returns (uint256) [selector 0x1ebfa70d]
 fn @nestedStaticDefaults() -> i256 [selector=0x1ebfa70d, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @freeMemoryPointer
@@ -146,6 +153,7 @@ fn @nestedStaticDefaults() -> i256 [selector=0x1ebfa70d, pure, abi_params=[], ab
     ret v10
 }
 
+; function literalBytes() public pure returns (bytes memory) [selector 0x95549276]
 fn @literalBytes() -> ptr<memory> [selector=0x95549276, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -155,6 +163,7 @@ fn @literalBytes() -> ptr<memory> [selector=0x95549276, pure, abi_params=[], abi
     ret v0
 }
 
+; function literalAllocation() external pure returns (uint256) [selector 0x222f8ae4]
 fn @literalAllocation() -> i256 [selector=0x222f8ae4, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @freeMemoryPointer
@@ -164,6 +173,7 @@ fn @literalAllocation() -> i256 [selector=0x222f8ae4, pure, abi_params=[], abi_r
     ret v3
 }
 
+; function rawAssemblyPointers() external pure returns (uint256, uint256) [selector 0x46fec25e]
 fn @rawAssemblyPointers() -> struct3 [selector=0x46fec25e, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall @rawPointerPair
@@ -196,6 +206,7 @@ fn @rawAssemblyPointers() -> struct3 [selector=0x46fec25e, pure, abi_params=[], 
     ret v24
 }
 
+; function isEmpty(bytes memory data) private pure returns (bool)
 fn @isEmpty(arg0: ptr<memory>) -> i1 [pure] {
   bb0:
     v0 = mload arg0
@@ -203,6 +214,7 @@ fn @isEmpty(arg0: ptr<memory>) -> i1 [pure] {
     ret v1
 }
 
+; function rawPointerPair() private pure returns (bytes memory first, bytes memory second)
 fn @rawPointerPair() -> struct4 [pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -210,20 +222,19 @@ fn @rawPointerPair() -> struct4 [pure] {
     v2 = add v1, 64
     mstore 64, v2 !metadata(memory=scratch)
     mstore v0, 1
-    v3 = shl 17, 248
-    v4 = add v0, 32
-    mstore v4, v3
+    v3 = add v0, 32
+    mstore v3, 0x1100000000000000000000000000000000000000000000000000000000000000
     mstore v1, 1
-    v5 = shl 34, 248
-    v6 = add v1, 32
-    mstore v6, v5
-    v7 = inttoptr i256 v0 to ptr<memory>
-    v8 = inttoptr i256 v1 to ptr<memory>
-    v9 = insert_value struct4, undef struct4, 0, v7
-    v10 = insert_value struct4, v9, 1, v8
-    ret v10
+    v4 = add v1, 32
+    mstore v4, 0x2200000000000000000000000000000000000000000000000000000000000000
+    v5 = inttoptr i256 v0 to ptr<memory>
+    v6 = inttoptr i256 v1 to ptr<memory>
+    v7 = insert_value struct4, undef struct4, 0, v5
+    v8 = insert_value struct4, v7, 1, v6
+    ret v8
 }
 
+; function freeMemoryPointer() private pure returns (uint256 pointer)
 fn @freeMemoryPointer() -> i256 [pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)

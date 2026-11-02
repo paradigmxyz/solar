@@ -9,7 +9,10 @@
 
 use solar_data_structures::newtype_index;
 
-pub use solar_ir::link::{Data, DataBytes, DataId, DataRef, DataSize, ImmutableId};
+pub use solar_ir::{
+    Hotness,
+    link::{Data, DataBytes, DataId, DataRef, DataSize, ImmutableId},
+};
 
 pub mod analysis;
 pub mod immutable;
@@ -28,9 +31,6 @@ pub use abi::{
     AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, AbiParamLocation, AbiParamType,
     AbiType, AbiWordValidator,
 };
-
-mod bit_width;
-pub use bit_width::{BitTestPricing, BitWidthTest, ConditionUse};
 
 mod packed;
 pub use packed::{PackedArraySource, PackedPart, packed_element_bytes};
@@ -60,6 +60,9 @@ pub use op_schema::{
     RawMemorySize, ResultKind,
 };
 
+pub mod semantics;
+pub use semantics::Semantics;
+
 mod block;
 pub use block::{BasicBlock, Terminator};
 
@@ -68,6 +71,9 @@ pub use mangling::{Disambiguator, MangledSymbol};
 
 mod function;
 pub use function::{Function, FunctionAttributes};
+
+mod backend_memory;
+pub use backend_memory::{AllocationPlacement, BackendMemory, StackReturn};
 
 mod module;
 pub use module::{Immutable, LoweredModule, MirPhase, Module, should_validate_ir};

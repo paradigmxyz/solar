@@ -118,9 +118,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         fields: impl IntoIterator<Item = Ty<'gcx>>,
         base: ValueId,
     ) {
-        let mut offset = 0;
+        let mut offset = 0u64;
         for field_ty in fields {
-            let position = self.builder.add_u64_offset(base, offset);
+            let position = self.builder.add_offset(base, offset);
             self.validate_calldata_static_value(field_ty, position);
             let Some(field_size) = self.types.abi_type(field_ty).map(|ty| ty.head_size()) else {
                 return;
@@ -713,7 +713,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         length: ValueId,
         stride: Option<u64>,
     ) -> ValueId {
-        let Some(stride) = stride else { return self.builder.add_u64_offset(value_pos, 32) };
+        let Some(stride) = stride else { return self.builder.add_offset(value_pos, 32) };
         // calldata_tail_data(value_pos + 32, length, stride)
         let calldata_size = self.builder.calldatasize();
         self.builder.calldata_tail_data(
@@ -755,8 +755,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 },
             }
         };
-        // if !valid(value) { revert(0, 0) }
-        let invalid = validator.violation(&mut self.builder, value, ConditionUse::BRANCH);
+        // if invalid(value) { revert(0, 0) }
+        let invalid = validator.violation(&mut self.builder, value);
         self.builder.revert_if(invalid, RevertReason::Empty);
         if is_external_function {
             // value = value >> 64
@@ -882,7 +882,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         //     object[field] = decode_at(field, base + field.offset, base)
         // }
         for (index, field) in fields.iter().copied().enumerate() {
-            let head = self.builder.add_u64_offset(base, offset);
+            let head = self.builder.add_offset(base, offset);
             let value =
                 self.materialize_calldata_value_at_inner(field, head, base, span, nested_validate)?;
             let value = self.encode_memory_scalar(field, value);

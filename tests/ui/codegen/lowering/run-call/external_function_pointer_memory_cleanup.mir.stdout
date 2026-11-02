@@ -3,17 +3,20 @@
 @types
   struct0: {i256, i256}
 
+; function dummy() external [selector 0x32e43a11]
 fn @dummy() [selector=0x32e43a11, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
+; function raw(function() external) external pure returns (uint256 value) [selector 0xbd2d517e]
 fn @raw(arg0: i256) -> i256 [selector=0xbd2d517e, pure, abi_params=[function], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = calldataload 4
     ret v0
 }
 
+; function validate(Holder calldata holder) external pure returns (uint256 value) [selector 0xadfc46c0]
 fn @validate(arg0: slice<calldata>) -> i256 [selector=0xadfc46c0, pure, abi_params=[tuple<function>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -28,6 +31,7 @@ fn @validate(arg0: slice<calldata>) -> i256 [selector=0xadfc46c0, pure, abi_para
     ret v7
 }
 
+; function validateArray(function() external[] calldata values) external pure returns (uint256 value) [selector 0xc124fd97]
 fn @validateArray(arg0: slice<calldata>) -> i256 [selector=0xc124fd97, pure, abi_params=[array<_, function>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -46,6 +50,7 @@ fn @validateArray(arg0: slice<calldata>) -> i256 [selector=0xc124fd97, pure, abi
     ret v10
 }
 
+; function memoryLayout() external view returns (bool) [selector 0x5caf991a]
 fn @memoryLayout() -> i1 [selector=0x5caf991a, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc 32
@@ -65,6 +70,7 @@ fn @memoryLayout() -> i1 [selector=0x5caf991a, view, abi_params=[], abi_returns=
     ret v12
 }
 
+; function cleanup(uint256 value) external view returns (uint256, uint256) [selector 0x0aa40018]
 fn @cleanup(arg0: i256) -> struct0 [selector=0x0aa40018, view, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = alloc 32
@@ -86,35 +92,34 @@ fn @cleanup(arg0: i256) -> struct0 [selector=0x0aa40018, view, abi_params=[uint2
     v12 = zext i160 v7 to i256
     v13 = staticcall v8, v12, 28, 36, 0, 32
     jumpi v13, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v14 = returndatasize
     v15 = lt v14, 32
     icall revert_if<tuple_data_too_short>, v15
-    v16 = add 0, 0
-    v17 = mload v16
-    v18 = address
-    v19 = gas
-    v20 = abi_encode [tuple<function>], scratch, selector 0xadfc46c000000000000000000000000000000000000000000000000000000000, args v0
-    v21 = extract_value slice<memory>, v20, 0
-    v22 = extract_value slice<memory>, v20, 1
-    v23 = zext i160 v18 to i256
-    v24 = staticcall v19, v23, v21, v22, 0, 32
-    jumpi v24, bb4, bb3
-  bb3:
+    v16 = mload 0 !metadata(memory=scratch)
+    v17 = address
+    v18 = gas
+    v19 = abi_encode [tuple<function>], scratch, selector 0xadfc46c000000000000000000000000000000000000000000000000000000000, args v0
+    v20 = extract_value slice<memory>, v19, 0
+    v21 = extract_value slice<memory>, v19, 1
+    v22 = zext i160 v17 to i256
+    v23 = staticcall v18, v22, v20, v21, 0, 32
+    jumpi v23, bb4, bb3
+  bb3:  ; preds = bb2
     revert_returndata
-  bb4:
-    v25 = returndatasize
-    v26 = lt v25, 32
-    icall revert_if<tuple_data_too_short>, v26
-    v27 = add 0, 0
-    v28 = mload v27
-    v29 = insert_value struct0, undef struct0, 0, v17
-    v30 = insert_value struct0, v29, 1, v28
-    ret v30
+  bb4:  ; preds = bb2
+    v24 = returndatasize
+    v25 = lt v24, 32
+    icall revert_if<tuple_data_too_short>, v25
+    v26 = mload 0 !metadata(memory=scratch)
+    v27 = insert_value struct0, undef struct0, 0, v16
+    v28 = insert_value struct0, v27, 1, v26
+    ret v28
 }
 
+; function dirtyReturn(uint256 value) external view returns (Holder memory holder) [selector 0x2aae0ed6]
 fn @dirtyReturn(arg0: i256) -> ptr<memory> [selector=0x2aae0ed6, view, abi_params=[uint256], abi_returns=[tuple<function>], abi_return_params=[tuple<function>]] {
   bb0:
     v0 = alloc 32
@@ -129,6 +134,7 @@ fn @dirtyReturn(arg0: i256) -> ptr<memory> [selector=0x2aae0ed6, view, abi_param
     ret v0
 }
 
+; function cleanupArray(uint256 value) external view returns (uint256) [selector 0x7e130ca5]
 fn @cleanupArray(arg0: i256) -> i256 [selector=0x7e130ca5, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 64
@@ -144,17 +150,17 @@ fn @cleanupArray(arg0: i256) -> i256 [selector=0x7e130ca5, view, abi_params=[uin
     v8 = zext i160 v3 to i256
     v9 = staticcall v4, v8, v6, v7, 0, 32
     jumpi v9, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v10 = returndatasize
     v11 = lt v10, 32
     icall revert_if<tuple_data_too_short>, v11
-    v12 = add 0, 0
-    v13 = mload v12
-    ret v13
+    v12 = mload 0 !metadata(memory=scratch)
+    ret v12
 }
 
+; function packedArray(uint256 value) external pure returns (bytes memory) [selector 0xc341d66f]
 fn @packedArray(arg0: i256) -> ptr<memory> [selector=0xc341d66f, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc zeroed checked 64
@@ -166,6 +172,7 @@ fn @packedArray(arg0: i256) -> ptr<memory> [selector=0xc341d66f, pure, abi_param
     ret v3
 }
 
+; function memoryStructToStorage(uint256 value) external returns (uint256) [selector 0xb4caea8f]
 fn @memoryStructToStorage(arg0: i256) -> i256 [selector=0xb4caea8f, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 32
@@ -180,33 +187,32 @@ fn @memoryStructToStorage(arg0: i256) -> i256 [selector=0xb4caea8f, abi_params=[
     v7 = mload v0
     v8 = shr v7, 64
     v9 = sload 0 !metadata(storage=slot(0))
-    v10 = not 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v11 = and v9, v10
-    v12 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v13 = or v11, v12
-    sstore 0, v13 !metadata(storage=slot(0))
-    v14 = address
-    v15 = gas
-    v16 = sload 0 !metadata(storage=slot(0))
-    v17 = trunc i256 v16 to i192
-    v18 = zext i192 v17 to i256
+    v10 = and v9, 0xffffffffffffffff000000000000000000000000000000000000000000000000
+    v11 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v12 = or v10, v11
+    sstore 0, v12 !metadata(storage=slot(0))
+    v13 = address
+    v14 = gas
+    v15 = sload 0 !metadata(storage=slot(0))
+    v16 = trunc i256 v15 to i192
+    v17 = zext i192 v16 to i256
     mstore 0, 0xbd2d517e !metadata(memory=scratch)
-    v19 = shl v18, 64
-    mstore 32, v19 !metadata(memory=scratch)
-    v20 = zext i160 v14 to i256
-    v21 = staticcall v15, v20, 28, 36, 0, 32
-    jumpi v21, bb2, bb1
-  bb1:
+    v18 = shl v17, 64
+    mstore 32, v18 !metadata(memory=scratch)
+    v19 = zext i160 v13 to i256
+    v20 = staticcall v14, v19, 28, 36, 0, 32
+    jumpi v20, bb2, bb1
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
-    v22 = returndatasize
-    v23 = lt v22, 32
-    icall revert_if<tuple_data_too_short>, v23
-    v24 = add 0, 0
-    v25 = mload v24
-    ret v25
+  bb2:  ; preds = bb0
+    v21 = returndatasize
+    v22 = lt v21, 32
+    icall revert_if<tuple_data_too_short>, v22
+    v23 = mload 0 !metadata(memory=scratch)
+    ret v23
 }
 
+; function storageStructToMemory() external returns (bool) [selector 0x9a40632d]
 fn @storageStructToMemory() -> i1 [selector=0x9a40632d, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc 32
@@ -219,27 +225,27 @@ fn @storageStructToMemory() -> i1 [selector=0x9a40632d, abi_params=[], abi_retur
     v6 = mload v0
     v7 = shr v6, 64
     v8 = sload 0 !metadata(storage=slot(0))
-    v9 = not 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v10 = and v8, v9
-    v11 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v12 = or v10, v11
-    sstore 0, v12 !metadata(storage=slot(0))
-    v13 = alloc checked 32
-    v14 = sload 0 !metadata(storage=slot(0))
-    v15 = trunc i256 v14 to i192
-    v16 = zext i192 v15 to i256
-    v17 = shl v16, 64
-    mstore v13, v17
-    v18 = ptrtoint ptr<memory> v13 to i256
-    v19 = mload v13
-    v20 = address
-    v21 = zext i160 v20 to i256
-    v22 = shl v21, 96
-    v23 = or v22, 0x32e43a110000000000000000
-    v24 = eq v19, v23
-    ret v24
+    v9 = and v8, 0xffffffffffffffff000000000000000000000000000000000000000000000000
+    v10 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v11 = or v9, v10
+    sstore 0, v11 !metadata(storage=slot(0))
+    v12 = alloc checked 32
+    v13 = sload 0 !metadata(storage=slot(0))
+    v14 = trunc i256 v13 to i192
+    v15 = zext i192 v14 to i256
+    v16 = shl v15, 64
+    mstore v12, v16
+    v17 = ptrtoint ptr<memory> v12 to i256
+    v18 = mload v12
+    v19 = address
+    v20 = zext i160 v19 to i256
+    v21 = shl v20, 96
+    v22 = or v21, 0x32e43a110000000000000000
+    v23 = eq v18, v22
+    ret v23
 }
 
+; function memoryArrayToStorage(uint256 value) external returns (uint256) [selector 0xe3183809]
 fn @memoryArrayToStorage(arg0: i256) -> i256 [selector=0xe3183809, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 64
@@ -251,76 +257,70 @@ fn @memoryArrayToStorage(arg0: i256) -> i256 [selector=0xe3183809, abi_params=[u
     v4 = sload 1 !metadata(storage=slot(1))
     v5 = gt v4, v3
     jumpi v5, bb1, bb2
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
-    v6 = phi [bb1: v3], [bb4: v21]
+  bb3:  ; preds = bb1, bb4
+    v6 = phi [bb1: v3], [bb4: v20]
     v7 = lt v6, v4
     jumpi v7, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb2
-  bb2:
+  bb2:  ; preds = bb0, bb5
     sstore 1, v3 !metadata(storage=slot(1))
     jump bb6
-  bb6:
-    v22 = phi [bb2: 0], [bb7: v42]
-    v23 = lt v22, v3
-    jumpi v23, bb7, bb8
-  bb8:
-    v43 = address
-    v44 = gas
-    v45 = sload 1 !metadata(storage=slot(1))
-    v46 = lt 0, v45
-    v47 = eq v46, false
-    icall panic_if<0x32>, v47
-    v48 = storage_array_data_slot 1
-    v49 = div 0, 1
-    v50 = add v48, v49
-    v51 = mod 0, 1
-    v52 = mul v51, 24
-    v53 = sload v50 !metadata(storage=symbolic(v50))
-    v54 = mul v52, 8
-    v55 = shr v53, v54
-    v56 = trunc i256 v55 to i192
-    v57 = zext i192 v56 to i256
+  bb6:  ; preds = bb2, bb7
+    v21 = phi [bb2: 0], [bb7: v41]
+    v22 = lt v21, v3
+    jumpi v22, bb7, bb8
+  bb8:  ; preds = bb6
+    v42 = address
+    v43 = gas
+    v44 = sload 1 !metadata(storage=slot(1))
+    v45 = lt 0, v44
+    v46 = eq v45, false
+    icall panic_if<0x32>, v46
+    v47 = storage_array_data_slot 1
+    v48 = sload v47 !metadata(storage=symbolic(v47))
+    v49 = shr v48, 0
+    v50 = trunc i256 v49 to i192
+    v51 = zext i192 v50 to i256
     mstore 0, 0xbd2d517e !metadata(memory=scratch)
-    v58 = shl v57, 64
-    mstore 32, v58 !metadata(memory=scratch)
-    v59 = zext i160 v43 to i256
-    v60 = staticcall v44, v59, 28, 36, 0, 32
-    jumpi v60, bb10, bb9
-  bb9:
+    v52 = shl v51, 64
+    mstore 32, v52 !metadata(memory=scratch)
+    v53 = zext i160 v42 to i256
+    v54 = staticcall v43, v53, 28, 36, 0, 32
+    jumpi v54, bb10, bb9
+  bb9:  ; preds = bb8
     revert_returndata
-  bb10:
-    v61 = returndatasize
-    v62 = lt v61, 32
-    icall revert_if<tuple_data_too_short>, v62
-    v63 = add 0, 0
-    v64 = mload v63
-    ret v64
-  bb7:
-    v24 = shl v22, 5
-    v25 = ptradd v0, v24
-    v26 = ptradd v25, 32
-    v27 = mload v26
-    v28 = shr v27, 64
-    v29 = storage_array_data_slot 1
-    v30 = div v22, 1
-    v31 = add v29, v30
-    v32 = mod v22, 1
-    v33 = mul v32, 24
-    v34 = mul v33, 8
-    v35 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffff, v34
-    v36 = sload v31 !metadata(storage=symbolic(v31))
-    v37 = not v35
-    v38 = and v36, v37
-    v39 = and v28, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v40 = shl v39, v34
-    v41 = or v38, v40
-    sstore v31, v41 !metadata(storage=symbolic(v31))
-    v42 = add v22, 1
+  bb10:  ; preds = bb8
+    v55 = returndatasize
+    v56 = lt v55, 32
+    icall revert_if<tuple_data_too_short>, v56
+    v57 = mload 0 !metadata(memory=scratch)
+    ret v57
+  bb7:  ; preds = bb6
+    v23 = shl v21, 5
+    v24 = ptradd v0, v23
+    v25 = ptradd v24, 32
+    v26 = mload v25
+    v27 = shr v26, 64
+    v28 = storage_array_data_slot 1
+    v29 = div v21, 1
+    v30 = add v28, v29
+    v31 = mod v21, 1
+    v32 = mul v31, 24
+    v33 = mul v32, 8
+    v34 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffff, v33
+    v35 = sload v30 !metadata(storage=symbolic(v30))
+    v36 = not v34
+    v37 = and v35, v36
+    v38 = and v27, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v39 = shl v38, v33
+    v40 = or v37, v39
+    sstore v30, v40 !metadata(storage=symbolic(v30))
+    v41 = add v21, 1
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v8 = storage_array_data_slot 1
     v9 = div v6, 1
     v10 = add v8, v9
@@ -331,14 +331,14 @@ fn @memoryArrayToStorage(arg0: i256) -> i256 [selector=0xe3183809, abi_params=[u
     v15 = sload v10 !metadata(storage=symbolic(v10))
     v16 = not v14
     v17 = and v15, v16
-    v18 = and 0, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v19 = shl v18, v13
-    v20 = or v17, v19
-    sstore v10, v20 !metadata(storage=symbolic(v10))
-    v21 = add v6, 1
+    v18 = shl 0, v13
+    v19 = or v17, v18
+    sstore v10, v19 !metadata(storage=symbolic(v10))
+    v20 = add v6, 1
     jump bb3
 }
 
+; function storageArrayToMemory() external returns (bool) [selector 0xc4550e60]
 fn @storageArrayToMemory() -> i1 [selector=0xc4550e60, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address
@@ -346,74 +346,72 @@ fn @storageArrayToMemory() -> i1 [selector=0xc4550e60, abi_params=[], abi_return
     v2 = shl v1, 32
     v3 = or v2, 0x32e43a11
     v4 = sload 1 !metadata(storage=slot(1))
-    v5 = shr v4, 64
-    v6 = ne v5, 0
-    icall panic_if<0x41>, v6
-    v7 = add v4, 1
-    v8 = storage_array_data_slot 1
-    v9 = div v4, 1
-    v10 = add v8, v9
-    v11 = mod v4, 1
-    v12 = mul v11, 24
-    v13 = mul v12, 8
-    v14 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffff, v13
-    v15 = sload v10 !metadata(storage=symbolic(v10))
-    v16 = not v14
-    v17 = and v15, v16
-    v18 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v19 = shl v18, v13
-    v20 = or v17, v19
-    sstore v10, v20 !metadata(storage=symbolic(v10))
-    sstore 1, v7 !metadata(storage=slot(1))
-    v21 = sload 1 !metadata(storage=slot(1))
-    v22 = mul v21, 1
-    v23 = eq 1, 0
-    v24 = div v22, 1
-    v25 = eq v24, v21
-    v26 = or v23, v25
-    v27 = zext i1 v26 to i256
-    v28 = eq v27, 0
-    icall panic_if<0x41>, v28
-    v29 = add v22, 1
-    v30 = lt v29, v22
-    icall panic_if<0x41>, v30
-    v31 = mul v29, 32
-    v32 = shr v29, 251
-    v33 = ne v32, 0
-    icall panic_if<0x41>, v33
-    v34 = alloc checked v31
-    mstore v34, v21
+    v5 = gt v4, 0xffffffffffffffff
+    icall panic_if<0x41>, v5
+    v6 = add v4, 1
+    v7 = storage_array_data_slot 1
+    v8 = div v4, 1
+    v9 = add v7, v8
+    v10 = mod v4, 1
+    v11 = mul v10, 24
+    v12 = mul v11, 8
+    v13 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffff, v12
+    v14 = sload v9 !metadata(storage=symbolic(v9))
+    v15 = not v13
+    v16 = and v14, v15
+    v17 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v18 = shl v17, v12
+    v19 = or v16, v18
+    sstore v9, v19 !metadata(storage=symbolic(v9))
+    sstore 1, v6 !metadata(storage=slot(1))
+    v20 = sload 1 !metadata(storage=slot(1))
+    v21 = mul v20, 1
+    v22 = eq 1, 0
+    v23 = div v21, 1
+    v24 = eq v23, v20
+    v25 = or v22, v24
+    v26 = zext i1 v25 to i256
+    v27 = eq v26, 0
+    icall panic_if<0x41>, v27
+    v28 = add v21, 1
+    v29 = lt v28, v21
+    icall panic_if<0x41>, v29
+    v30 = mul v28, 32
+    v31 = gt v28, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v31
+    v32 = alloc checked v30
+    mstore v32, v20
     jump bb1
-  bb1:
-    v35 = phi [bb0: 0], [bb2: v51]
-    v36 = lt v35, v21
-    jumpi v36, bb2, bb3
-  bb3:
-    v52 = ptrtoint ptr<memory> v34 to i256
-    v53 = add v52, 32
-    v54 = mload v53
-    v55 = address
-    v56 = zext i160 v55 to i256
-    v57 = shl v56, 96
-    v58 = or v57, 0x32e43a110000000000000000
-    v59 = eq v54, v58
-    ret v59
-  bb2:
-    v37 = storage_array_data_slot 1
-    v38 = div v35, 1
-    v39 = add v37, v38
-    v40 = mod v35, 1
-    v41 = mul v40, 24
-    v42 = sload v39 !metadata(storage=symbolic(v39))
-    v43 = mul v41, 8
-    v44 = shr v42, v43
-    v45 = trunc i256 v44 to i192
-    v46 = zext i192 v45 to i256
-    v47 = shl v46, 64
-    v48 = shl v35, 5
-    v49 = ptradd v34, v48
-    v50 = ptradd v49, 32
-    mstore v50, v47
-    v51 = add v35, 1
+  bb1:  ; preds = bb0, bb2
+    v33 = phi [bb0: 0], [bb2: v49]
+    v34 = lt v33, v20
+    jumpi v34, bb2, bb3
+  bb3:  ; preds = bb1
+    v50 = ptrtoint ptr<memory> v32 to i256
+    v51 = add v50, 32
+    v52 = mload v51
+    v53 = address
+    v54 = zext i160 v53 to i256
+    v55 = shl v54, 96
+    v56 = or v55, 0x32e43a110000000000000000
+    v57 = eq v52, v56
+    ret v57
+  bb2:  ; preds = bb1
+    v35 = storage_array_data_slot 1
+    v36 = div v33, 1
+    v37 = add v35, v36
+    v38 = mod v33, 1
+    v39 = mul v38, 24
+    v40 = sload v37 !metadata(storage=symbolic(v37))
+    v41 = mul v39, 8
+    v42 = shr v40, v41
+    v43 = trunc i256 v42 to i192
+    v44 = zext i192 v43 to i256
+    v45 = shl v44, 64
+    v46 = shl v33, 5
+    v47 = ptradd v32, v46
+    v48 = ptradd v47, 32
+    mstore v48, v45
+    v49 = add v33, 1
     jump bb1
 }

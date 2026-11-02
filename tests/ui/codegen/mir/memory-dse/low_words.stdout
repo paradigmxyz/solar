@@ -51,14 +51,14 @@
       ret v2
   }
   
-  fn @tail_revert(arg0: i256) {
-    bb0:
+  fn @tail_revert(arg0: i256) [cold] {
+    bb0 [cold]:
 -     mstore 0, arg0
       tail_call @panic
   }
   
-  fn @call_revert(arg0: i256) {
-    bb0:
+  fn @call_revert(arg0: i256) [cold] {
+    bb0 [cold]:
 -     mstore 0, arg0
       icall @panic
       invalid
@@ -70,8 +70,8 @@
       tail_call @returns
   }
   
-  fn @panic() {
-    bb0:
+  fn @panic() [cold] {
+    bb0 [cold]:
       mstore 0, 0x4e487b71
       mstore 32, 50
       revert 28, 36

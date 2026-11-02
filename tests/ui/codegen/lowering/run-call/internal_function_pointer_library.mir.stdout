@@ -4,16 +4,18 @@
 
 // === ROOT/tests/ui/codegen/lowering/run-call/internal_function_pointer_library.sol:InternalFunctionPointerLibrary ===
 @module InternalFunctionPointerLibrary
+; function f(uint256[] memory values) public returns (uint256) [selector 0x7bc5bbbf]
 fn @f(arg0: ptr<memory>) -> i256 [selector=0x7bc5bbbf, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = icall @reduce, arg0, 2, 0
+    v0 = icall @reduce, arg0, 1, 0
     ret v0
 }
 
+; function reduce( uint256[] memory array, function(uint256, uint256) internal returns (uint256) callback, uint256 init ) internal returns (uint256)
 fn @reduce(arg0: ptr<memory>, arg1: i256, arg2: i256) -> i256 {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: arg2], [bb3: v14]
@@ -22,11 +24,11 @@ fn @reduce(arg0: ptr<memory>, arg1: i256, arg2: i256) -> i256 {
     v5 = mload v0
     v6 = lt v4, v5
     jumpi v6, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v2
-  bb4:
+  bb4:  ; preds = bb1
     v7 = mload v0
     v8 = lt v4, v7
     v9 = eq v8, false
@@ -37,13 +39,14 @@ fn @reduce(arg0: ptr<memory>, arg1: i256, arg2: i256) -> i256 {
     v13 = mload v12
     v14 = icall @internal_dispatcher_p_uint256_uint256_r_uint256, v1, v13, v2
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v15 = checked_add uint256, v4, 1
     jump bb1
 }
 
+; function sum(uint256 a, uint256 b) internal pure returns (uint256)
 fn @sum(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = checked_add uint256, arg0, arg1
@@ -52,12 +55,12 @@ fn @sum(arg0: i256, arg1: i256) -> i256 [pure] {
 
 fn @internal_dispatcher_p_uint256_uint256_r_uint256(arg0: i256, arg1: i256, arg2: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
-    v0 = eq arg0, 2
+    v0 = eq arg0, 1
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:
+  bb1:  ; preds = bb0
     v1 = icall @sum, arg1, arg2
     ret v1
 }

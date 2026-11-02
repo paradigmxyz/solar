@@ -1,31 +1,32 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/mapping_key_cleanup.sol:C ===
 @module C
+; function signedUserKey() external returns (uint value) [selector 0x27072c8b]
 fn @signedUserKey() -> i256 [selector=0x27072c8b, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sext i16 0xffff to i256
     v1 = mapping_slot v0, 2
     sstore v1, 9 !metadata(storage=symbolic(v1))
-    v2 = not 0
-    mstore 0, v2 !metadata(memory=scratch)
+    mstore 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(memory=scratch)
     mstore 32, 2 !metadata(memory=scratch)
-    v3 = keccak256 0, 64 !metadata(memory=scratch)
-    v4 = sload v3 !metadata(storage=symbolic(v3))
-    ret v4
+    v2 = keccak256 0, 64 !metadata(memory=scratch)
+    v3 = sload v2 !metadata(storage=symbolic(v2))
+    ret v3
 }
 
+; function signedKey() external returns (uint value) [selector 0xa0b120fe]
 fn @signedKey() -> i256 [selector=0xa0b120fe, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sext i8 255 to i256
     v1 = mapping_slot v0, 1
     sstore v1, 7 !metadata(storage=symbolic(v1))
-    v2 = not 0
-    mstore 0, v2 !metadata(memory=scratch)
+    mstore 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(memory=scratch)
     mstore 32, 1 !metadata(memory=scratch)
-    v3 = keccak256 0, 64 !metadata(memory=scratch)
-    v4 = sload v3 !metadata(storage=symbolic(v3))
-    ret v4
+    v2 = keccak256 0, 64 !metadata(memory=scratch)
+    v3 = sload v2 !metadata(storage=symbolic(v2))
+    ret v3
 }
 
+; function test_cleanup() public returns (bool) [selector 0x2b63198c]
 fn @test_cleanup() -> i1 [selector=0x2b63198c, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = mapping_slot 1, 0
