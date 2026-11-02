@@ -1,0 +1,108 @@
+insert_value: -
+extract_value: -
+zext: word(operand0)
+trunc: low_bits(operand0, bits)
+sext: sign_extend(operand0, from_bits, to_bits)
+ptrtoint: low_bits(operand0, bits)
+inttoptr: word(operand0)
+ptradd: -
+checked_binary: checked(op, arithmetic, lhs, rhs)
+validate_storage_bytes: -
+load_storage_bytes: -
+load_storage_array: -
+store_storage_bytes: -
+store_storage_bytes_literal: -
+clear_storage_words: -
+validate_abi: -
+abi_encode_packed: -
+address_call: -
+add: opcode(add)
+sub: opcode(sub)
+mul: opcode(mul)
+div: opcode(div)
+sdiv: opcode(sdiv)
+mod: opcode(mod)
+smod: opcode(smod)
+exp: opcode(exp)
+addmod: opcode(addmod)
+mulmod: opcode(mulmod)
+and: opcode(and)
+or: opcode(or)
+xor: opcode(xor)
+not: opcode(not)
+clz: opcode(clz)
+shl: opcode(shl)
+shr: opcode(shr)
+sar: opcode(sar)
+byte: opcode(byte)
+lt: opcode(lt)
+gt: opcode(gt)
+slt: opcode(slt)
+sgt: opcode(sgt)
+eq: opcode(eq)
+ne: not_equal(a, b)
+mload: opcode(match location { Memory => mload, Calldata => calldataload, Storage => sload, Transient => tload })
+mstore: opcode(match location { Memory => mstore, Storage => sstore, Transient => tstore })
+mstore8: opcode(mstore8)
+memory_zero: -
+msize: opcode(msize)
+fmp: -
+set_fmp: -
+heap_floor: heap_floor()
+alloc: allocate(size, semantics)
+abi_encode: -
+abi_decode: -
+mcopy: opcode(match location { Memory => mcopy, Calldata => calldatacopy, Returndata => returndatacopy })
+calldatasize: opcode(calldatasize)
+make_memory_slice: -
+internal_frame_addr: -
+frame_load: -
+frame_store: -
+constructor_args_base: -
+constructor_args_end: -
+datacopy: data_copy(data, dest, size)
+datasize: -
+codesize: opcode(codesize)
+codecopy: opcode(codecopy)
+extcodesize: opcode(extcodesize)
+extcodecopy: opcode(extcodecopy)
+extcodehash: opcode(extcodehash)
+storeimmutable: -
+loadimmutable: -
+library_address: -
+returndatasize: opcode(returndatasize)
+caller: opcode(caller)
+callvalue: opcode(callvalue)
+origin: opcode(origin)
+gasprice: opcode(gasprice)
+blockhash: opcode(blockhash)
+coinbase: opcode(coinbase)
+timestamp: opcode(timestamp)
+number: opcode(number)
+prevrandao: opcode(prevrandao)
+gaslimit: opcode(gaslimit)
+slotnum: opcode(slotnum)
+chainid: opcode(chainid)
+address: opcode(address)
+balance: opcode(balance)
+selfbalance: opcode(selfbalance)
+gas: opcode(gas)
+basefee: opcode(basefee)
+blobbasefee: opcode(blobbasefee)
+blobhash: opcode(blobhash)
+keccak256: opcode(keccak256)
+mapping_slot: -
+mapping_slot_bytes: -
+storage_array_data_slot: -
+storage_array_element_slot: -
+call: opcode(call)
+callcode: opcode(callcode)
+staticcall: opcode(staticcall)
+delegatecall: opcode(delegatecall)
+icall: call(function, args)
+create: opcode(create)
+create2: opcode(create2)
+log: log(offset, size, topics)
+phi: phi(incoming)
+select: select(cond, true_val, false_val)
+signextend: opcode(signextend)

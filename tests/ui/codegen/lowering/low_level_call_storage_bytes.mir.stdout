@@ -28,15 +28,16 @@ fn @prepare(arg0: i160, arg1: slice<calldata>) [selector=0xaacd9878, abi_params=
     v4 = or v1, v3
     sstore 1, v4 !metadata(storage=slot(1))
     v5 = extract_value slice<calldata>, arg1, 1
-    v6 = add v5, 63
+    v6 = add v5, 31
     v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v8 = alloc v7
-    mstore v8, v5
-    v9 = ptradd v8, 32
-    v10 = extract_value slice<calldata>, arg1, 0
-    v11 = extract_value slice<calldata>, arg1, 1
-    calldatacopy v9, v10, v11
-    icall @store_storage_bytes, 0, v8
+    v8 = add v7, 32
+    v9 = alloc v8
+    mstore v9, v5
+    v10 = ptradd v9, 32
+    v11 = extract_value slice<calldata>, arg1, 0
+    v12 = extract_value slice<calldata>, arg1, 1
+    calldatacopy v10, v11, v12
+    icall @store_storage_bytes, 0, v9
     ret
 }
 

@@ -62,29 +62,30 @@ fn @mixedBytes(arg0: slice<calldata>) -> struct2 [selector=0x48f52f2f, pure, abi
     v11 = inttoptr i256 v5 to ptr<calldata>
     v12 = make_calldata_slice v11, v10
     v13 = extract_value slice<calldata>, v12, 1
-    v14 = add v13, 63
-    v15 = lt v14, v13
-    icall panic_if<0x41>, v15
-    v16 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v17 = alloc v16
-    mstore v17, v13
-    v18 = extract_value slice<calldata>, v12, 0
-    v19 = extract_value slice<calldata>, v12, 1
-    v20 = calldatasize
-    v21 = gt v19, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v21
-    v22 = sub v20, v19
-    v23 = ptrtoint ptr<calldata> v18 to i256
-    v24 = sgt v23, v22
-    icall revert_if<calldata_tail_too_short>, v24
-    v25 = ptradd v17, 32
-    v26 = extract_value slice<calldata>, v12, 0
-    v27 = extract_value slice<calldata>, v12, 1
-    calldatacopy v25, v26, v27
-    v28 = insert_value struct2, undef struct2, 0, v4
-    v29 = insert_value struct2, v28, 1, v7
-    v30 = insert_value struct2, v29, 2, v17
-    ret v30
+    v14 = add v13, 31
+    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v16 = add v15, 32
+    v17 = lt v16, v13
+    icall panic_if<0x41>, v17
+    v18 = alloc v16
+    mstore v18, v13
+    v19 = extract_value slice<calldata>, v12, 0
+    v20 = extract_value slice<calldata>, v12, 1
+    v21 = calldatasize
+    v22 = gt v20, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v22
+    v23 = sub v21, v20
+    v24 = ptrtoint ptr<calldata> v19 to i256
+    v25 = sgt v24, v23
+    icall revert_if<calldata_tail_too_short>, v25
+    v26 = ptradd v18, 32
+    v27 = extract_value slice<calldata>, v12, 0
+    v28 = extract_value slice<calldata>, v12, 1
+    calldatacopy v26, v27, v28
+    v29 = insert_value struct2, undef struct2, 0, v4
+    v30 = insert_value struct2, v29, 1, v7
+    v31 = insert_value struct2, v30, 2, v18
+    ret v31
 }
 
 ; function mixedString(string calldata s) external pure returns (uint256, string memory) [selector 0x9824992c]
@@ -103,28 +104,29 @@ fn @mixedString(arg0: slice<calldata>) -> struct4 [selector=0x9824992c, pure, ab
     v10 = inttoptr i256 v4 to ptr<calldata>
     v11 = make_calldata_slice v10, v9
     v12 = extract_value slice<calldata>, v11, 1
-    v13 = add v12, 63
-    v14 = lt v13, v12
-    icall panic_if<0x41>, v14
-    v15 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v16 = alloc v15
-    mstore v16, v12
-    v17 = extract_value slice<calldata>, v11, 0
-    v18 = extract_value slice<calldata>, v11, 1
-    v19 = calldatasize
-    v20 = gt v18, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v20
-    v21 = sub v19, v18
-    v22 = ptrtoint ptr<calldata> v17 to i256
-    v23 = sgt v22, v21
-    icall revert_if<calldata_tail_too_short>, v23
-    v24 = ptradd v16, 32
-    v25 = extract_value slice<calldata>, v11, 0
-    v26 = extract_value slice<calldata>, v11, 1
-    calldatacopy v24, v25, v26
-    v27 = insert_value struct4, undef struct4, 0, v5
-    v28 = insert_value struct4, v27, 1, v16
-    ret v28
+    v13 = add v12, 31
+    v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v15 = add v14, 32
+    v16 = lt v15, v12
+    icall panic_if<0x41>, v16
+    v17 = alloc v15
+    mstore v17, v12
+    v18 = extract_value slice<calldata>, v11, 0
+    v19 = extract_value slice<calldata>, v11, 1
+    v20 = calldatasize
+    v21 = gt v19, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v21
+    v22 = sub v20, v19
+    v23 = ptrtoint ptr<calldata> v18 to i256
+    v24 = sgt v23, v22
+    icall revert_if<calldata_tail_too_short>, v24
+    v25 = ptradd v17, 32
+    v26 = extract_value slice<calldata>, v11, 0
+    v27 = extract_value slice<calldata>, v11, 1
+    calldatacopy v25, v26, v27
+    v28 = insert_value struct4, undef struct4, 0, v5
+    v29 = insert_value struct4, v28, 1, v17
+    ret v29
 }
 
 ; function returned(uint256[] calldata a) external pure returns (uint256[] calldata r) [selector 0x39dbde69]

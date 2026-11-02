@@ -515,6 +515,36 @@ impl<'a> FunctionBuilder<'a> {
         result
     }
 
+    /// Returns the word-aligned allocation size for a bytes-like object, and reverts when it
+    /// overflows.
+    pub fn checked_padded_size(&mut self, length: ValueId) -> ValueId {
+        if self.func.value_u256(length).is_some() {
+            let padding = self.imm(63);
+            let rounded = self.checked_add(length, padding);
+            return self.mask_padded_size(rounded);
+        }
+        let size = self.padded_object_size(length);
+        // A size below `length` means `length + 63` wrapped.
+        let overflow = self.lt(size, length);
+        self.panic_if(overflow, PanicCode::MemoryAllocationOverflow);
+        size
+    }
+
+    /// Returns `pad31(length) + 32`, the allocation size of a bytes-like object, which shares
+    /// `pad31(length)` with the padding of its encoding.
+    fn padded_object_size(&mut self, length: ValueId) -> ValueId {
+        let padded = self.pad_to_word(length);
+        let word = self.imm(EvmMemoryLayout::WORD_SIZE);
+        self.add(padded, word)
+    }
+
+    /// Rounds `length` up to a multiple of 32.
+    pub fn pad_to_word(&mut self, length: ValueId) -> ValueId {
+        let padding = self.imm(31);
+        let rounded = self.add(length, padding);
+        self.mask_padded_size(rounded)
+    }
+
     /// Returns whether the 256-bit unsigned product of `lhs` and `rhs` wraps, when one factor is
     /// a constant power of two 2 ** s, s >= 1: the other factor then needs a bit at or above
     /// 256 - s. Other constants keep the quotient test.
@@ -528,13 +558,6 @@ impl<'a> FunctionBuilder<'a> {
         let shift = self.imm(U256::from(256 - c.trailing_zeros()));
         let high = self.shr(factor, shift);
         Some(self.ne_zero(high))
-    }
-
-    /// Returns the word-aligned allocation size for a bytes-like object.
-    pub fn checked_padded_size(&mut self, length: ValueId) -> ValueId {
-        let padding = self.imm(63);
-        let rounded = self.checked_add(length, padding);
-        self.mask_padded_size(rounded)
     }
 
     /// Rounds `rounded` down to a multiple of 32.
@@ -922,10 +945,8 @@ impl<'a> FunctionBuilder<'a> {
         length: ValueId,
         semantics: AllocationSemantics,
     ) -> ValueId {
-        // size = (length + 63) & ~31
-        let padding = self.imm(63);
-        let rounded = self.add(length, padding);
-        let size = self.mask_padded_size(rounded);
+        // size = ((length + 31) & ~31) + 32
+        let size = self.padded_object_size(length);
         let object = self.alloc(size, semantics);
         self.set_memory_len(object, length);
         object

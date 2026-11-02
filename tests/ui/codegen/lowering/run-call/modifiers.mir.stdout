@@ -57,19 +57,20 @@ fn @calldataBytes(arg0: slice<calldata>) -> ptr<memory> [selector=0x7965815f, pu
     v0 = lt 0, 10
     icall require<short_string>, v0, 5, 0x6775617264000000000000000000000000000000000000000000000000000000
     v1 = extract_value slice<calldata>, arg0, 1
-    v2 = add v1, 63
+    v2 = add v1, 31
     v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v4 = alloc v3
-    mstore v4, v1
-    v5 = ptradd v4, 32
-    v6 = extract_value slice<calldata>, arg0, 0
-    v7 = extract_value slice<calldata>, arg0, 1
-    calldatacopy v5, v6, v7
+    v4 = add v3, 32
+    v5 = alloc v4
+    mstore v5, v1
+    v6 = ptradd v5, 32
+    v7 = extract_value slice<calldata>, arg0, 0
+    v8 = extract_value slice<calldata>, arg0, 1
+    calldatacopy v6, v7, v8
     jump bb2
   bb2:  ; preds = bb0
     jump bb1
   bb1:  ; preds = bb2
-    ret v4
+    ret v5
 }
 
 ; function inner(uint256 v) internal mA(rec(1)) mB(rec(2))

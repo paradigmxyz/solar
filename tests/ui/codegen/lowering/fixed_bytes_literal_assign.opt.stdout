@@ -20,7 +20,7 @@ fn @entry() [entry] {
 }
 
 ; function patch(bool safe) external pure returns (bytes1) [selector 0x7f603a02]
-fn @patch() [selector=0x7f603a02, abi_wrapper, pure] {
+fn @patch() [selector=0x7f603a02, abi_wrapper, pure, implicit_args=[i1]] {
   bb0:
     v16 = calldataload 4
     v17 = shr v16, 1

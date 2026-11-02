@@ -138,14 +138,14 @@ bb74 [ret=0, inputs=2, outputs=1]:  ; decode_calldata_type (synthesized)
   push 63
   dup 3
   add
+  push 31
+  not
+  and
   dup 3
   dup 2
   lt
   push bb73
   jumpi
-  push 31
-  not
-  and
   push bb77
   jump bb81
 bb81 [ret=0, inputs=2, outputs=1]:  ; alloc (synthesized)
@@ -182,14 +182,14 @@ bb55 [ret=0, inputs=2, outputs=1]:  ; function encodeImpl(bytes memory input) in
   dup 1
   push 63
   add
+  push 31
+  not
+  and
   dup 2
   dup 2
   lt
   push bb73
   jumpi
-  push 31
-  not
-  and
   dup 1
   push bb58
   jump bb81
@@ -374,14 +374,14 @@ bb41 [loop]:  ; function checkedScan(uint256 length) public pure returns (bool) 
   push 63
   dup 2
   add
+  push 31
+  not
+  and
   dup 2
   dup 2
   lt
   push bb73
   jumpi
-  push 31
-  not
-  and
   push 128
   dup 2
   dup 2

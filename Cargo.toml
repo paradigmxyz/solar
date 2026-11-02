@@ -133,6 +133,7 @@ solar-lint = { version = "=0.2.0", path = "crates/lint", default-features = fals
 solar-lsp = { version = "=0.2.0", path = "crates/lsp", default-features = false }
 solar-macros = { version = "=0.2.0", path = "crates/macros", default-features = false }
 solar-mir = { version = "=0.2.0", path = "crates/mir", default-features = false }
+solar-mir-interpreter = { version = "=0.2.0", path = "crates/mir-interpreter", default-features = false }
 solar-parse = { version = "=0.2.0", path = "crates/parse", default-features = false }
 solar-sema = { version = "=0.2.0", path = "crates/sema", default-features = false }
 

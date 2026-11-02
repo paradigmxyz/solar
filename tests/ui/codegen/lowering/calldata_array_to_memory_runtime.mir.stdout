@@ -31,32 +31,33 @@ fn @viaStructLiteral(arg0: i256, arg1: slice<calldata>, arg2: slice<calldata>) -
     calldatacopy v17, v18, v19
     v20 = ptrtoint ptr<memory> v15 to i256
     v21 = extract_value slice<calldata>, arg2, 1
-    v22 = add v21, 63
+    v22 = add v21, 31
     v23 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v24 = alloc v23
-    mstore v24, v21
-    v25 = ptradd v24, 32
-    v26 = extract_value slice<calldata>, arg2, 0
-    v27 = extract_value slice<calldata>, arg2, 1
-    calldatacopy v25, v26, v27
-    v28 = ptrtoint ptr<memory> v24 to i256
+    v24 = add v23, 32
+    v25 = alloc v24
+    mstore v25, v21
+    v26 = ptradd v25, 32
+    v27 = extract_value slice<calldata>, arg2, 0
+    v28 = extract_value slice<calldata>, arg2, 1
+    calldatacopy v26, v27, v28
+    v29 = ptrtoint ptr<memory> v25 to i256
     mstore v0, arg0
-    v29 = ptradd v0, 32
-    mstore v29, v20
-    v30 = ptradd v0, 64
-    mstore v30, v28
-    v31 = mload v0
-    v32 = ptradd v0, 32
-    v33 = mload v32, ptr<memory>
-    v34 = mload v33
-    v35 = checked_mul uint256, v34, 10
-    v36 = checked_add uint256, v31, v35
-    v37 = ptradd v0, 64
-    v38 = mload v37, ptr<memory>
-    v39 = mload v38
-    v40 = checked_mul uint256, v39, 100
-    v41 = checked_add uint256, v36, v40
-    ret v41
+    v30 = ptradd v0, 32
+    mstore v30, v20
+    v31 = ptradd v0, 64
+    mstore v31, v29
+    v32 = mload v0
+    v33 = ptradd v0, 32
+    v34 = mload v33, ptr<memory>
+    v35 = mload v34
+    v36 = checked_mul uint256, v35, 10
+    v37 = checked_add uint256, v32, v36
+    v38 = ptradd v0, 64
+    v39 = mload v38, ptr<memory>
+    v40 = mload v39
+    v41 = checked_mul uint256, v40, 100
+    v42 = checked_add uint256, v37, v41
+    ret v42
 }
 
 ; function viaDeclaration(uint256[] calldata xs) external pure returns (uint256) [selector 0xcd64a752]

@@ -23,20 +23,21 @@ fn @f(arg0: slice<calldata>) -> i256 [selector=0xd45754f8, pure, abi_params=[byt
     v15 = sgt v14, v13
     icall revert_if<calldata_tail_too_short>, v15
     v16 = extract_value slice<calldata>, v8, 1
-    v17 = add v16, 63
-    v18 = lt v17, v16
-    icall panic_if<0x41>, v18
-    v19 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v20 = alloc v19
-    mstore v20, v16
-    v21 = ptradd v20, 32
-    v22 = extract_value slice<calldata>, v8, 0
-    v23 = extract_value slice<calldata>, v8, 1
-    calldatacopy v21, v22, v23
-    v24 = ptradd v20, 32
-    v25 = mload v20
-    v26 = keccak256 v24, v25
-    ret v26
+    v17 = add v16, 31
+    v18 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v19 = add v18, 32
+    v20 = lt v19, v16
+    icall panic_if<0x41>, v20
+    v21 = alloc v19
+    mstore v21, v16
+    v22 = ptradd v21, 32
+    v23 = extract_value slice<calldata>, v8, 0
+    v24 = extract_value slice<calldata>, v8, 1
+    calldatacopy v22, v23, v24
+    v25 = ptradd v21, 32
+    v26 = mload v21
+    v27 = keccak256 v25, v26
+    ret v27
 }
 
 ; function g(bytes calldata data) external pure returns (bytes32) [selector 0xc0b88415]
@@ -76,17 +77,18 @@ fn @h(arg0: slice<calldata>) -> ptr<memory> [selector=0xb2e4ec10, pure, abi_para
     v15 = sgt v14, v13
     icall revert_if<calldata_tail_too_short>, v15
     v16 = extract_value slice<calldata>, v8, 1
-    v17 = add v16, 63
-    v18 = lt v17, v16
-    icall panic_if<0x41>, v18
-    v19 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v20 = alloc v19
-    mstore v20, v16
-    v21 = ptradd v20, 32
-    v22 = extract_value slice<calldata>, v8, 0
-    v23 = extract_value slice<calldata>, v8, 1
-    calldatacopy v21, v22, v23
-    ret v20
+    v17 = add v16, 31
+    v18 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v19 = add v18, 32
+    v20 = lt v19, v16
+    icall panic_if<0x41>, v20
+    v21 = alloc v19
+    mstore v21, v16
+    v22 = ptradd v21, 32
+    v23 = extract_value slice<calldata>, v8, 0
+    v24 = extract_value slice<calldata>, v8, 1
+    calldatacopy v22, v23, v24
+    ret v21
 }
 
 ; function k(bytes calldata data) external pure returns (bytes memory) [selector 0x6258b270]

@@ -28,53 +28,51 @@ fn @prefix() [selector=0x01cd9057, abi_wrapper, pure] {
     v13 = add v12, 4
     v15 = sub v10, 36
     v16 = gt v12, v15
-    v62 = or v11, v16
-    jumpi v62, bb3, bb4
+    v63 = or v11, v16
+    jumpi v63, bb3, bb4
   bb4:  ; preds = bb0
     v17 = calldataload v13
     v18 = add v13, 32
-    v19 = add v17, 63
-    v20 = lt v19, v17
-    v21 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v55 = heap_floor !metadata(alloc_ptr)
-    v56 = add v55, v21 !metadata(alloc_ptr)
-    v57 = lt v56, v55
-    v58 = zext i1 v57 to i256
-    v59 = shr v56, 64
-    v60 = or v58, v59
-    v63 = zext i1 v20 to i256
-    v64 = or v63, v60
-    v65 = ne v64, 0
-    jumpi v65, bb5, bb7
+    v19 = add v17, 31
+    v20 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v21 = add v20, 32
+    v22 = lt v21, v17
+    v56 = heap_floor !metadata(alloc_ptr)
+    v57 = add v56, v21 !metadata(alloc_ptr)
+    v58 = lt v57, v56
+    v59 = zext i1 v58 to i256
+    v60 = shr v57, 64
+    v61 = or v59, v60
+    v64 = zext i1 v22 to i256
+    v65 = or v64, v61
+    v66 = ne v65, 0
+    jumpi v66, bb5, bb7
   bb7:  ; preds = bb4
-    mstore v55, v17
-    v23 = sub v10, v18
-    v24 = gt v17, v23
-    jumpi v24, bb3, bb6
+    mstore v56, v17
+    v24 = sub v10, v18
+    v25 = gt v17, v24
+    jumpi v25, bb3, bb6
   bb6:  ; preds = bb7
-    v51 = add v55, 32
-    calldatacopy v51, v18, v17
-    v0 = mload v55
-    v1 = gt v0, 0
-    v4 = gt v0, 1
-    v66 = and v1, v4
-    jumpi v66, bb2, bb1
+    v52 = add v56, 32
+    calldatacopy v52, v18, v17
+    v53 = add v52, v17
+    v1 = gt v17, 0
+    v4 = gt v17, 1
+    v67 = and v1, v4
+    jumpi v67, bb2, bb1
   bb1 [cold]:  ; preds = bb6
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb2:  ; preds = bb6
-    v47 = add v55, 33
-    mstore8 v47, 120
-    mstore8 v51, 48
-    v38 = add v0, 31
-    v39 = and v38, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v42 = add v51, v0
-    mstore v42, 0
-    v49 = sub v55, 32
-    mstore v49, 32
-    v44 = add v39, 64
-    returndata v49, v44
+    v48 = add v56, 33
+    mstore8 v48, 120
+    mstore8 v52, 48
+    mstore v53, 0
+    v50 = sub v56, 32
+    mstore v50, 32
+    v45 = add v20, 64
+    returndata v50, v45
   bb5 [cold]:  ; preds = bb4
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

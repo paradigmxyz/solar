@@ -492,7 +492,7 @@ fn @copyCalldata(arg0: slice<calldata>) -> ptr<memory> [selector=0x175ae975, pur
     mstore v14, v0
     jump bb1
   bb1:  ; preds = bb0, bb2
-    v15 = phi [bb0: 0], [bb2: v101]
+    v15 = phi [bb0: 0], [bb2: v102]
     v16 = lt v15, v0
     jumpi v16, bb2, bb3
   bb3:  ; preds = bb1
@@ -546,65 +546,66 @@ fn @copyCalldata(arg0: slice<calldata>) -> ptr<memory> [selector=0x175ae975, pur
     v54 = inttoptr i256 v51 to ptr<calldata>
     v55 = make_calldata_slice v54, v48
     v56 = extract_value slice<calldata>, v55, 1
-    v57 = add v56, 63
-    v58 = lt v57, v56
-    icall panic_if<0x41>, v58
-    v59 = and v57, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v60 = alloc v59
-    mstore v60, v56
-    v61 = ptradd v60, 32
-    v62 = extract_value slice<calldata>, v55, 0
-    v63 = extract_value slice<calldata>, v55, 1
-    calldatacopy v61, v62, v63
-    v64 = ptrtoint ptr<memory> v60 to i256
-    v65 = ptradd v32, 32
-    mstore v65, v64
-    v66 = add v25, 64
-    v67 = calldatasize
-    v68 = sub v67, v66
-    v69 = slt v68, 32
-    icall revert_if<calldata_tail_too_short>, v69
-    v70 = calldataload v66
-    v71 = add v25, v70
-    v72 = calldatasize
-    v73 = sub v72, v25
-    v74 = sub v73, 31
-    v75 = slt v70, v74
-    v76 = eq v75, false
-    icall revert_if<invalid_calldata_tail_offset>, v76
-    v77 = calldataload v71
-    v78 = calldatasize
-    v79 = gt v77, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v79
-    v80 = mul v77, 32
-    v81 = add v71, 32
-    v82 = sub v78, v80
-    v83 = sgt v81, v82
-    icall revert_if<calldata_tail_too_short>, v83
-    v84 = mul v77, 32
-    v85 = shr v77, 251
-    v86 = ne v85, 0
-    icall panic_if<0x41>, v86
-    v87 = add 32, v84
-    v88 = lt v87, 32
-    icall panic_if<0x41>, v88
-    v89 = alloc v87
-    mstore v89, v77
-    v90 = inttoptr i256 v81 to ptr<calldata>
-    v91 = make_calldata_slice v90, v84
-    v92 = ptradd v89, 32
-    v93 = extract_value slice<calldata>, v91, 0
-    v94 = extract_value slice<calldata>, v91, 1
-    calldatacopy v92, v93, v94
-    v95 = ptrtoint ptr<memory> v89 to i256
-    v96 = ptradd v32, 64
-    mstore v96, v95
-    v97 = ptrtoint ptr<memory> v32 to i256
-    v98 = shl v15, 5
-    v99 = ptradd v14, v98
-    v100 = ptradd v99, 32
-    mstore v100, v97
-    v101 = add v15, 1
+    v57 = add v56, 31
+    v58 = and v57, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v59 = add v58, 32
+    v60 = lt v59, v56
+    icall panic_if<0x41>, v60
+    v61 = alloc v59
+    mstore v61, v56
+    v62 = ptradd v61, 32
+    v63 = extract_value slice<calldata>, v55, 0
+    v64 = extract_value slice<calldata>, v55, 1
+    calldatacopy v62, v63, v64
+    v65 = ptrtoint ptr<memory> v61 to i256
+    v66 = ptradd v32, 32
+    mstore v66, v65
+    v67 = add v25, 64
+    v68 = calldatasize
+    v69 = sub v68, v67
+    v70 = slt v69, 32
+    icall revert_if<calldata_tail_too_short>, v70
+    v71 = calldataload v67
+    v72 = add v25, v71
+    v73 = calldatasize
+    v74 = sub v73, v25
+    v75 = sub v74, 31
+    v76 = slt v71, v75
+    v77 = eq v76, false
+    icall revert_if<invalid_calldata_tail_offset>, v77
+    v78 = calldataload v72
+    v79 = calldatasize
+    v80 = gt v78, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v80
+    v81 = mul v78, 32
+    v82 = add v72, 32
+    v83 = sub v79, v81
+    v84 = sgt v82, v83
+    icall revert_if<calldata_tail_too_short>, v84
+    v85 = mul v78, 32
+    v86 = shr v78, 251
+    v87 = ne v86, 0
+    icall panic_if<0x41>, v87
+    v88 = add 32, v85
+    v89 = lt v88, 32
+    icall panic_if<0x41>, v89
+    v90 = alloc v88
+    mstore v90, v78
+    v91 = inttoptr i256 v82 to ptr<calldata>
+    v92 = make_calldata_slice v91, v85
+    v93 = ptradd v90, 32
+    v94 = extract_value slice<calldata>, v92, 0
+    v95 = extract_value slice<calldata>, v92, 1
+    calldatacopy v93, v94, v95
+    v96 = ptrtoint ptr<memory> v90 to i256
+    v97 = ptradd v32, 64
+    mstore v97, v96
+    v98 = ptrtoint ptr<memory> v32 to i256
+    v99 = shl v15, 5
+    v100 = ptradd v14, v99
+    v101 = ptradd v100, 32
+    mstore v101, v98
+    v102 = add v15, 1
     jump bb1
 }
 

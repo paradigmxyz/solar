@@ -1,0 +1,6 @@
+@module ImplicitArgs
+@phase lowered
+fn @f(arg0: i256) [implicit_args=[i1]] { //~ ERROR: a function with parameters has no implicit arguments
+  bb0:
+    stop
+}

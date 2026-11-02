@@ -77,7 +77,7 @@ fn @masked() [selector=0x966953d1, abi_wrapper] {
 }
 
 ; function branch(uint256 i, bool c) external returns (uint256) [selector 0xc86d784b]
-fn @branch() [selector=0xc86d784b, abi_wrapper] {
+fn @branch() [selector=0xc86d784b, abi_wrapper, implicit_args=[i256, i1]] {
   bb0:
     v7 = calldataload 36
     v8 = shr v7, 1

@@ -79,49 +79,49 @@ fn @load() [selector=0x86d5c4be, abi_wrapper, view] {
   bb2:  ; preds = bb0
     v10 = add v7, 31
     v11 = shr v10, 5
-    v12 = add v7, 63
-    v14 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v50 = heap_floor !metadata(alloc_ptr)
-    v51 = add v50, v14 !metadata(alloc_ptr)
-    v52 = lt v51, v50
-    v53 = zext i1 v52 to i256
-    v54 = shr v51, 64
-    v55 = or v53, v54
-    v56 = ne v55, 0
-    jumpi v56, bb9, bb8
+    v13 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v14 = add v13, 32
+    v51 = heap_floor !metadata(alloc_ptr)
+    v52 = add v51, v14 !metadata(alloc_ptr)
+    v53 = lt v52, v51
+    v54 = zext i1 v53 to i256
+    v55 = shr v52, 64
+    v56 = or v54, v55
+    v57 = ne v56, 0
+    jumpi v57, bb9, bb8
   bb8:  ; preds = bb2
-    mstore v50, v7
+    mstore v51, v7
     jumpi v3, bb4, bb3
   bb3:  ; preds = bb8
-    v16 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v40 = add v50, 32
-    mstore v40, v16
+    v17 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v41 = add v51, 32
+    mstore v41, v17
     jump bb5
   bb4:  ; preds = bb8
-    v57 = add v50, 32
+    v58 = add v51, 32
     jump bb6
   bb6:  ; preds = bb4, bb7
-    v19 = phi [bb4: 0], [bb7: v26]
-    v58 = phi [bb4: v57], [bb7: v59]
-    v20 = lt v19, v11
-    jumpi v20, bb7, bb5
+    v20 = phi [bb4: 0], [bb7: v27]
+    v59 = phi [bb4: v58], [bb7: v60]
+    v21 = lt v20, v11
+    jumpi v21, bb7, bb5
   bb5:  ; preds = bb3, bb6
-    v30 = mload v50
-    v31 = add v30, 31
-    v32 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v42 = add v50, 32
-    v35 = add v42, v30
-    mstore v35, 0
-    v44 = sub v50, 32
-    mstore v44, 32
-    v37 = add v32, 64
-    returndata v44, v37
+    v31 = mload v51
+    v32 = add v31, 31
+    v33 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v43 = add v51, 32
+    v36 = add v43, v31
+    mstore v36, 0
+    v45 = sub v51, 32
+    mstore v45, 32
+    v38 = add v33, 64
+    returndata v45, v38
   bb7:  ; preds = bb6
-    v21 = add v19, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
-    v22 = sload v21 !metadata(storage=offset(v19, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563))
-    mstore v58, v22
-    v26 = add v19, 1
-    v59 = add v58, 32
+    v22 = add v20, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
+    v23 = sload v22 !metadata(storage=offset(v20, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563))
+    mstore v59, v23
+    v27 = add v20, 1
+    v60 = add v59, 32
     jump bb6
   bb9 [cold]:  ; preds = bb2
     mstore 32, 65 !metadata(memory=scratch)

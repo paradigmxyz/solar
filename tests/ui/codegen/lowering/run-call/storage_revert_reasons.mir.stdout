@@ -59,15 +59,16 @@ fn @structRequire() [selector=0x8bb9ced2, abi_params=[], abi_returns=[], abi_ret
 fn @calldataReason(arg0: slice<calldata>) [selector=0x3f2c0e1e, pure, abi_params=[bytes], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
-    v1 = add v0, 63
+    v1 = add v0, 31
     v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v3 = alloc v2
-    mstore v3, v0
-    v4 = ptradd v3, 32
-    v5 = extract_value slice<calldata>, arg0, 0
-    v6 = extract_value slice<calldata>, arg0, 1
-    calldatacopy v4, v5, v6
-    icall require<error_string>, false, v3
+    v3 = add v2, 32
+    v4 = alloc v3
+    mstore v4, v0
+    v5 = ptradd v4, 32
+    v6 = extract_value slice<calldata>, arg0, 0
+    v7 = extract_value slice<calldata>, arg0, 1
+    calldatacopy v5, v6, v7
+    icall require<error_string>, false, v4
     invalid
 }
 
