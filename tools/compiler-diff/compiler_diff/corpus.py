@@ -47,6 +47,8 @@ marked interrupted so it cannot be reused as a success or failure. Restart the
 run after rebuilding the compiler. Environment variables are inherited but are
 not dumped, to avoid saving credentials. Compiler processes and temporary files
 run inside the attempt directory. Timeouts terminate the whole process group.
+Attempts record wall time and peak RSS (see README); --max-rss-mb fails
+attempts above a limit.
 The script requires POSIX; DuckDB locks out concurrent writers to the same corpus.
 Each version has its own database, checkpoints, sources and run directories.
 Pass the same --version before sync, run and status. Sources are deduplicated
@@ -68,6 +70,7 @@ import json
 import os
 import platform
 import re
+import resource
 import shlex
 import shutil
 import signal
@@ -81,6 +84,7 @@ import urllib.parse
 import urllib.request
 import uuid
 import xml.etree.ElementTree as ET
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
@@ -154,6 +158,9 @@ def connect(root):
             id VARCHAR PRIMARY KEY, job VARCHAR, compilation_id VARCHAR,
             compiler VARCHAR, status VARCHAR, directory VARCHAR, started DOUBLE
         );
+        ALTER TABLE attempts ADD COLUMN IF NOT EXISTS seconds DOUBLE;
+        ALTER TABLE attempts ADD COLUMN IF NOT EXISTS max_rss_kb BIGINT;
+        ALTER TABLE attempts ADD COLUMN IF NOT EXISTS timed_out BOOLEAN;
         CREATE INDEX IF NOT EXISTS attempts_job ON attempts(job);
     """)
     return db
@@ -319,6 +326,7 @@ def execute(command, directory, timeout, input_path=None, *, env=None):
     result = {
         "command": command,
         "returncode": None,
+        "max_rss_kb": None,
         "error": None,
         "started": time.time(),
     }
@@ -327,21 +335,33 @@ def execute(command, directory, timeout, input_path=None, *, env=None):
     environment.update(
         {"TMPDIR": str(directory), "TMP": str(directory), "TEMP": str(directory)}
     )
+    report_read, report_write = os.pipe()
     with (
+        os.fdopen(report_read, "rb") as report,
         (directory / "stdout.txt").open("wb") as stdout,
         (directory / "stderr.txt").open("wb") as stderr,
         (input_path or Path(os.devnull)).open("rb") as stdin,
     ):
         try:
-            process = subprocess.Popen(
-                command,
-                stdin=stdin,
-                stdout=stdout,
-                stderr=stderr,
-                cwd=directory,
-                env=environment,
-                start_new_session=True,
-            )
+            try:
+                process = subprocess.Popen(
+                    [
+                        sys.executable,
+                        "-S",
+                        str(Path(__file__).with_name("measure.py")),
+                        str(report_write),
+                        *command,
+                    ],
+                    stdin=stdin,
+                    stdout=stdout,
+                    stderr=stderr,
+                    cwd=directory,
+                    env=environment,
+                    start_new_session=True,
+                    pass_fds=(report_write,),
+                )
+            finally:
+                os.close(report_write)
             try:
                 process.wait(timeout=timeout)
             except (subprocess.TimeoutExpired, KeyboardInterrupt) as error:
@@ -352,6 +372,9 @@ def execute(command, directory, timeout, input_path=None, *, env=None):
                     pass
                 process.wait()
             result["returncode"] = process.returncode
+            # A killed run writes no report, so its RSS stays unknown.
+            if data := report.read():
+                result.update(json.loads(data))
         except OSError as error:
             result["error"] = str(error)
     result["seconds"] = time.monotonic() - started
@@ -476,6 +499,7 @@ def run(db, root, args, *, compilation_id=None, compilers=None, attempts=None):
                         request,
                         identity,
                         args.timeout,
+                        args.max_rss_mb,
                         args.tag,
                     ]
                 )
@@ -521,7 +545,7 @@ def run(db, root, args, *, compilation_id=None, compilers=None, attempts=None):
                 )
                 (directory / "replay.sh").write_text(replay, encoding="utf-8")
                 db.execute(
-                    "INSERT INTO attempts VALUES (?, ?, ?, ?, 'running', ?, ?)",
+                    "INSERT INTO attempts (id, job, compilation_id, compiler, status, directory, started) VALUES (?, ?, ?, ?, 'running', ?, ?)",
                     [
                         attempt_id,
                         job,
@@ -544,10 +568,17 @@ def run(db, root, args, *, compilation_id=None, compilers=None, attempts=None):
                 ):
                     result["error"] = "CompilerChanged"
                 reason = output_error(directory, result, record["fully_qualified_name"])
+                if (
+                    not reason
+                    and args.max_rss_mb
+                    and result["max_rss_kb"] > args.max_rss_mb * 1024
+                ):
+                    reason = f"peak RSS {result['max_rss_kb'] // 1024} MB exceeds {args.max_rss_mb} MB"
                 result.update(
                     {
                         "failure": reason,
                         "timeout": args.timeout,
+                        "max_rss_mb": args.max_rss_mb,
                         "platform": platform.platform(),
                         "python": sys.version,
                         "job": job,
@@ -571,8 +602,15 @@ def run(db, root, args, *, compilation_id=None, compilers=None, attempts=None):
                     directory.rename(destination)
                     directory = destination
                 db.execute(
-                    "UPDATE attempts SET status = ?, directory = ? WHERE id = ?",
-                    [outcome, str(directory), attempt_id],
+                    "UPDATE attempts SET status = ?, directory = ?, seconds = ?, max_rss_kb = ?, timed_out = ? WHERE id = ?",
+                    [
+                        outcome,
+                        str(directory),
+                        result["seconds"],
+                        result["max_rss_kb"],
+                        result["error"] == "TimeoutExpired",
+                        attempt_id,
+                    ],
                 )
                 attempts[compiler["name"]] = directory
                 print(
@@ -605,11 +643,49 @@ def status(db):
         "SELECT compiler, status, count(*) FROM attempts GROUP BY ALL ORDER BY 1, 2"
     ).fetchall():
         print(f"{compiler}: {outcome}: {count} attempts")
+    show_resources(db)
+
+
+def show_resources(db, limit=10):
+    """Print timeouts and the worst compilations by time and peak RSS."""
+    # Latest attempt of each compiler on each input, grouped by input.
+    inputs = {}
+    timeouts = []
+    for compilation_id, compiler, directory, seconds, rss, timed_out in db.execute("""
+        SELECT DISTINCT ON (compilation_id, compiler)
+            compilation_id, compiler, directory, seconds, max_rss_kb, timed_out
+        FROM attempts WHERE status IN ('success', 'failure') AND seconds IS NOT NULL
+        ORDER BY compilation_id, compiler, started DESC
+    """).fetchall():
+        inputs.setdefault(compilation_id, {})[compiler] = (seconds, rss)
+        if timed_out:
+            timeouts.append(f"{compiler} {compilation_id}: {directory}")
+    print(f"timeouts: {len(timeouts)}")
+    for line in timeouts[:limit]:
+        print(f"  {line}")
+    for title, column in (("time", 0), ("peak RSS", 1)):
+        print(f"worst by {title}:")
+        for compilation_id, values in sorted(
+            inputs.items(),
+            key=lambda item: max(v[column] or 0 for v in item[1].values()),
+            reverse=True,
+        )[:limit]:
+            cells = ", ".join(
+                f"{compiler} {seconds:.1f} s"
+                + (f" {rss // 1024} MB" if rss is not None else "")
+                for compiler, (seconds, rss) in sorted(values.items())
+            )
+            print(f"  {compilation_id}: {cells}")
 
 
 def add_compiler_arguments(runner):
     runner.add_argument("--compiler", action="append", metavar="NAME=COMMAND")
     runner.add_argument("--timeout", type=float, default=120)
+    runner.add_argument(
+        "--max-rss-mb",
+        type=float,
+        help="Fail attempts whose peak RSS exceeds this many MB",
+    )
     runner.add_argument("--retry-failures", action="store_true")
     runner.add_argument(
         "--tag",
@@ -662,7 +738,9 @@ def main(argv=None):
         elif args.action == "status":
             status(db)
         else:
-            return run(db, root, args)
+            code = run(db, root, args)
+            show_resources(db)
+            return code
     finally:
         db.close()
     return 0
@@ -691,6 +769,7 @@ class Tests(unittest.TestCase):
         return argparse.Namespace(
             compiler=list(specs),
             timeout=2,
+            max_rss_mb=None,
             continue_on_failure=False,
             retry_failures=False,
             limit=None,
@@ -758,6 +837,45 @@ class Tests(unittest.TestCase):
         directory.mkdir()
         result = execute([str(self.root / "no-compiler")], directory, 1)
         self.assertIsNotNone(output_error(directory, result))
+
+    def test_resources(self):
+        self.seed()
+        output = (
+            'print(\'{"contracts":{"../C.sol":{"C":{"abi":[],"evm":'
+            '{"bytecode":{"object":""},"deployedBytecode":{"object":""}}}}}}\')'
+        )
+        hog = self.fake(
+            "hog", "x = bytearray(200 << 20); x[::4096] = bytes(51200)\n" + output
+        )
+        quiet = self.fake("quiet", output)
+        slow = self.fake("slow", "import time; time.sleep(10)")
+        args = self.arguments(hog, quiet, slow)
+        args.timeout = 1
+        args.max_rss_mb = 100
+        args.continue_on_failure = True
+        self.assertEqual(run(self.db, self.root, args), 1)
+        rows = {
+            compiler: (status, rss, timed_out)
+            for compiler, status, rss, timed_out in self.db.execute(
+                "SELECT compiler, status, max_rss_kb, timed_out FROM attempts"
+            ).fetchall()
+        }
+        self.assertEqual(rows["hog"][0], "failure")
+        self.assertGreater(rows["hog"][1], 200 << 10)
+        self.assertEqual(rows["quiet"][0], "success")
+        # The runner's own peak must not leak into a small compiler's.
+        self.assertLess(
+            rows["quiet"][1], resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        )
+        self.assertEqual(rows["slow"], ("failure", None, True))
+        self.assertEqual(rows["hog"][2:], (False,))
+        with redirect_stdout(io.StringIO()) as printed:
+            show_resources(self.db)
+        text = printed.getvalue()
+        self.assertIn("timeouts: 1\n  slow one:", text)
+        self.assertRegex(
+            text, r"one: hog [\d.]+ s 2\d\d MB, quiet [\d.]+ s \d+ MB, slow"
+        )
 
     def test_abi_output_required(self):
         contract = {
