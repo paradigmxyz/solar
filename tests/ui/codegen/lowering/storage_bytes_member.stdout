@@ -650,12 +650,14 @@ bb61:  ; function whole() external view returns (bytes memory) [selector 0x72bd9
   push bb72
   jumpi
   dup 1
-  dup 1
-  push 63
+  push 31
   add
+  dup 1
   push 31
   not
   and
+  push 32
+  add
   push 160
   add
   dup 1
@@ -667,10 +669,9 @@ bb61:  ; function whole() external view returns (bytes memory) [selector 0x72bd9
   or
   push bb69
   jumpi
+  swap 1
   push 160
   mstore
-  push 31
-  add
   push 5
   shr
   push 160

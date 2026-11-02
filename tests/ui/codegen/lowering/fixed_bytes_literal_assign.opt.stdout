@@ -26,22 +26,22 @@ fn @patch() {
     v17 = shr v16, 1
     v14 = calldatasize
     v15 = lt v14, 36
-    v27 = zext i1 v15 to i256
-    v28 = or v27, v17
-    v29 = ne v28, 0
-    jumpi v29, bb3, bb4
+    v26 = zext i1 v15 to i256
+    v27 = or v26, v17
+    v28 = ne v27, 0
+    jumpi v28, bb3, bb4
   bb4:  ; preds = bb0
-    v30 = calldataload 4
-    v26 = ne v30, 0
-    v23 = heap_floor !metadata(alloc_ptr)
-    v22 = add v23, 32
-    mstore v22, 0x4142000000000000000000000000000000000000000000000000000000000000
-    jumpi v26, bb1, bb2
+    v29 = calldataload 4
+    v25 = ne v29, 0
+    v22 = heap_floor !metadata(alloc_ptr)
+    v21 = add v22, 32
+    mstore v21, 0x4142000000000000000000000000000000000000000000000000000000000000
+    jumpi v25, bb1, bb2
   bb1:  ; preds = bb4
-    mstore8 v22, 45
+    mstore8 v21, 45
     jump bb2
   bb2:  ; preds = bb1, bb4
-    v11 = mload v22
+    v11 = mload v21
     v12 = byte 0, v11
     v13 = shl v12, 248
     mstore 0, v13 !metadata(memory=scratch)
@@ -54,10 +54,10 @@ fn @patch() {
 fn @store() {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v2 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v5 = or v2, 45
-    sstore 0, v5 !metadata(storage=slot(0))
-    v7 = shl v5, 248
-    mstore 0, v7 !metadata(memory=scratch)
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v2 = or v1, 45
+    sstore 0, v2 !metadata(storage=slot(0))
+    v4 = shl v2, 248
+    mstore 0, v4 !metadata(memory=scratch)
     returndata 0, 32
 }

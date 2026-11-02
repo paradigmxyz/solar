@@ -247,8 +247,8 @@ fn @a() {
   bb1 [cold]:  ; preds = bb0
     revert 0, 0
   bb2:  ; preds = bb0
-    v9 = calldataload 4
-    mstore 0, v9
+    v8 = calldataload 4
+    mstore 0, v8
     returndata 0, 32
 }
 

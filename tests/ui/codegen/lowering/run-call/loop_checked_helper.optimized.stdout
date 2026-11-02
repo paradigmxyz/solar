@@ -26,7 +26,7 @@ fn @entry() [entry] {
 ; function panicArithmetic() internal pure
 fn @panicArithmetic() [cold] {
   bb0 [cold]:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
@@ -38,13 +38,13 @@ fn @accumulate() {
     v0 = gt v18, 0x3e8
     jumpi v0, bb6, bb7
   bb7:  ; preds = bb0
-    v22 = calldataload 36
-    v21 = calldataload 4
+    v21 = calldataload 36
+    v20 = calldataload 4
     jump bb1
   bb1:  ; preds = bb5, bb7
-    v5 = phi [bb7: v22], [bb5: v10]
+    v5 = phi [bb7: v21], [bb5: v10]
     v6 = phi [bb7: 0], [bb5: v13]
-    v7 = lt v6, v21
+    v7 = lt v6, v20
     jumpi v7, bb3, bb2
   bb2:  ; preds = bb1
     mstore 0, v5 !metadata(memory=scratch)

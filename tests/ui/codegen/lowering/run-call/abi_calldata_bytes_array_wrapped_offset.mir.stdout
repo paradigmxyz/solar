@@ -44,12 +44,12 @@ fn @first(arg0: slice<calldata>) -> ptr<memory> [selector=0xcf452bd8, pure, abi_
     v32 = sgt v31, v30
     icall revert_if<calldata_tail_too_short>, v32
     v33 = extract_value slice<calldata>, v25, 1
-    v34 = add v33, 63
-    v35 = lt v34, v33
-    icall panic_if<0x41>, v35
-    v36 = not 31
-    v37 = and v34, v36
-    v38 = alloc v37
+    v34 = add v33, 31
+    v35 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v36 = add v35, 32
+    v37 = lt v36, v33
+    icall panic_if<0x41>, v37
+    v38 = alloc v36
     mstore v38, v33
     v39 = ptradd v38, 32
     v40 = extract_value slice<calldata>, v25, 0

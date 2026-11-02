@@ -32,24 +32,24 @@ fn @accumulate() {
   bb4 [cold]:  ; preds = bb0
     revert 0, 0
   bb5:  ; preds = bb0
-    v20 = calldataload 4
+    v19 = calldataload 4
     v2 = sload 0
     jump bb1
   bb1:  ; preds = bb5, bb7
-    v5 = phi [bb5: v2], [bb7: v14]
-    v6 = phi [bb5: 0], [bb7: v17]
-    v7 = lt v6, v20
+    v5 = phi [bb5: v2], [bb7: v13]
+    v6 = phi [bb5: 0], [bb7: v16]
+    v7 = lt v6, v19
     jumpi v7, bb3, bb2
   bb2:  ; preds = bb1
     sstore 0, v5
     mstore 0, v5
     returndata 0, 32
   bb3:  ; preds = bb1
-    v14 = add v5, v6
-    v15 = lt v14, v5
-    jumpi v15, bb6, bb7
+    v13 = add v5, v6
+    v14 = lt v13, v5
+    jumpi v14, bb6, bb7
   bb7:  ; preds = bb3
-    v17 = add v6, 1
+    v16 = add v6, 1
     jump bb1
   bb6 [cold]:  ; preds = bb3
     tail_call @panicArithmetic
@@ -60,12 +60,12 @@ fn @increment() {
   bb0:
     v5 = calldataload 4
     v0 = sload 0 !metadata(storage=slot(0))
-    v7 = add v0, v5
-    v8 = lt v7, v0
-    jumpi v8, bb1, bb2
+    v6 = add v0, v5
+    v7 = lt v6, v0
+    jumpi v7, bb1, bb2
   bb2:  ; preds = bb0
-    sstore 0, v7
-    mstore 0, v7
+    sstore 0, v6
+    mstore 0, v6
     returndata 0, 32
   bb1 [cold]:  ; preds = bb0
     tail_call @panicArithmetic
@@ -74,7 +74,7 @@ fn @increment() {
 ; function panicArithmetic() internal pure
 fn @panicArithmetic() [cold] {
   bb0 [cold]:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }

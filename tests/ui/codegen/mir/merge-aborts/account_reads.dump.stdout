@@ -35,14 +35,14 @@ fn @balance() {
   bb4 [cold]:  ; preds = bb0
     revert 0, 0
   bb5:  ; preds = bb0
-    v19 = calldataload 36
-    v18 = calldataload 4
-    v4 = add v18, v19
-    v5 = lt v4, v18
+    v18 = calldataload 36
+    v17 = calldataload 4
+    v4 = add v17, v18
+    v5 = lt v4, v17
     jumpi v5, bb1, bb2
   bb2:  ; preds = bb5
-    v20 = calldataload 68
-    v2 = balance v20
+    v19 = calldataload 68
+    v2 = balance v19
     v6 = add v4, v2
     v7 = lt v6, v4
     jumpi v7, bb1, bb3
@@ -65,14 +65,14 @@ fn @codeSize() {
   bb4 [cold]:  ; preds = bb0
     revert 0, 0
   bb5:  ; preds = bb0
-    v19 = calldataload 36
-    v18 = calldataload 4
-    v4 = add v18, v19
-    v5 = lt v4, v18
+    v18 = calldataload 36
+    v17 = calldataload 4
+    v4 = add v17, v18
+    v5 = lt v4, v17
     jumpi v5, bb1, bb2
   bb2:  ; preds = bb5
-    v20 = calldataload 68
-    v2 = extcodesize v20
+    v19 = calldataload 68
+    v2 = extcodesize v19
     v6 = add v4, v2
     v7 = lt v6, v4
     jumpi v7, bb1, bb3
@@ -95,14 +95,14 @@ fn @codeHash() {
   bb4 [cold]:  ; preds = bb0
     revert 0, 0
   bb5:  ; preds = bb0
-    v19 = calldataload 36
-    v18 = calldataload 4
-    v4 = add v18, v19
-    v5 = lt v4, v18
+    v18 = calldataload 36
+    v17 = calldataload 4
+    v4 = add v17, v18
+    v5 = lt v4, v17
     jumpi v5, bb1, bb2
   bb2:  ; preds = bb5
-    v20 = calldataload 68
-    v2 = extcodehash v20
+    v19 = calldataload 68
+    v2 = extcodehash v19
     v6 = add v4, v2
     v7 = lt v6, v4
     jumpi v7, bb1, bb3

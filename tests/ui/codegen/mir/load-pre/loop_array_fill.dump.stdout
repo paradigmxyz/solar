@@ -198,14 +198,12 @@ fn @lanes() {
     v94 = ne v93, 0
     jumpi v94, bb8, bb7
   bb7:  ; preds = bb4
-    v95 = calldatasize
-    calldatacopy v88, v95, v10
     mstore v88, v60
-    v99 = add v88, 32
+    v98 = add v88, 32
     jump bb2
   bb2:  ; preds = bb3, bb7
     v29 = phi [bb7: 0], [bb3: v39]
-    v100 = phi [bb7: v99], [bb3: v101]
+    v99 = phi [bb7: v98], [bb3: v100]
     v30 = lt v29, v60
     jumpi v30, bb3, bb1
   bb1:  ; preds = bb2
@@ -219,9 +217,9 @@ fn @lanes() {
     v31 = shl v29, 5
     v32 = shr v68, v31
     v33 = and v32, 0xffffffff
-    mstore v100, v33
+    mstore v99, v33
     v39 = add v29, 1
-    v101 = add v100, 32
+    v100 = add v99, 32
     jump bb2
   bb8 [cold]:  ; preds = bb4
     mstore 32, 65 !metadata(memory=scratch)

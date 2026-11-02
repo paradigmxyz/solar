@@ -322,13 +322,13 @@
 +   bb2:  ; preds = bb0
 +     v10 = add v7, 31
 +     v11 = div v10, 32
-+     v12 = add v7, 63
-+     v13 = lt v12, v7
-+     jumpi v13, bb3, bb4
++     v12 = add v7, 31
++     v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
++     v14 = add v13, 32
++     v15 = lt v14, v7
++     jumpi v15, bb3, bb4
 +   bb4:  ; preds = bb2
-+     v14 = not 31
-+     v15 = and v12, v14
-+     v16 = alloc checked v15
++     v16 = alloc checked v14
 +     mstore v16, v7
 +     jumpi v3, bb6, bb5
 +   bb5:  ; preds = bb4

@@ -23,12 +23,12 @@ fn @encodeImpl(arg0: ptr<memory>) -> ptr<memory> [pure] {
   bb0:
     v0 = mload arg0
     v1 = checked_mul uint256, v0, 2
-    v2 = add v1, 63
-    v3 = lt v2, v1
-    icall panic_if<0x41>, v3
-    v4 = not 31
-    v5 = and v2, v4
-    v6 = alloc zeroed checked v5
+    v2 = add v1, 31
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v4 = add v3, 32
+    v5 = lt v4, v1
+    icall panic_if<0x41>, v5
+    v6 = alloc zeroed checked v4
     mstore v6, v1
     jump bb1
   bb1:  ; preds = bb0, bb3
@@ -195,12 +195,12 @@ fn @firstHigh(arg0: ptr<memory>) -> i256 [selector=0xec31a730, pure, abi_params=
 ; function checkedScan(uint256 length) public pure returns (bool) [selector 0xf2609747]
 fn @checkedScan(arg0: i256) -> i1 [selector=0xf2609747, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = add arg0, 63
-    v1 = lt v0, arg0
-    icall panic_if<0x41>, v1
-    v2 = not 31
-    v3 = and v0, v2
-    v4 = alloc zeroed checked v3
+    v0 = add arg0, 31
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v2 = add v1, 32
+    v3 = lt v2, arg0
+    icall panic_if<0x41>, v3
+    v4 = alloc zeroed checked v2
     mstore v4, arg0
     jump bb1
   bb1:  ; preds = bb0, bb3

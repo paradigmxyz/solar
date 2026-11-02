@@ -87,6 +87,8 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
             }
         }
     }
+    let sources = import_closure_order(gcx, contract.source);
+    let section_start = function_ids.len();
     for function_id in reachable.iter() {
         let function = gcx.hir.function(function_id);
         let library_function = function
@@ -101,6 +103,8 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
             function_ids.push((function_id, false));
         }
     }
+    sort_by_source_position(gcx, &sources, &mut function_ids[section_start..]);
+    let section_start = function_ids.len();
     for library_id in gcx.hir.contract_ids() {
         let library = gcx.hir.contract(library_id);
         if library.kind != hir::ContractKind::Library {
@@ -126,6 +130,7 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
             }
         }
     }
+    sort_by_source_position(gcx, &sources, &mut function_ids[section_start..]);
     let mut seen_ids = FxHashSet::default();
     let function_ids =
         function_ids.into_iter().filter(|(id, _)| seen_ids.insert(*id)).collect::<Vec<_>>();
@@ -486,4 +491,46 @@ fn declaration_header(source: &str) -> String {
     }
     header.truncate(header.trim_end().len());
     header
+}
+
+/// Orders the sources in the import closure of `source` the way `Sources::topo_sort` orders all
+/// sources: a depth-first post-order over imports from the closure's sources in file name order.
+/// Unlike the compilation-wide order, it does not depend on sources outside the closure.
+fn import_closure_order(gcx: Gcx<'_>, source: hir::SourceId) -> FxIndexSet<hir::SourceId> {
+    fn visit(
+        gcx: Gcx<'_>,
+        id: hir::SourceId,
+        seen: &mut FxHashSet<hir::SourceId>,
+        order: &mut FxIndexSet<hir::SourceId>,
+    ) {
+        if seen.insert(id) {
+            for &(_, import) in gcx.hir.source(id).imports {
+                visit(gcx, import, seen, order);
+            }
+            order.insert(id);
+        }
+    }
+
+    let mut closure = FxIndexSet::default();
+    visit(gcx, source, &mut FxHashSet::default(), &mut closure);
+    let mut roots = closure.into_iter().collect::<Vec<_>>();
+    roots.sort_by_key(|&id| &gcx.hir.source(id).file.name);
+    let (mut seen, mut order) = (FxHashSet::default(), FxIndexSet::default());
+    for id in roots {
+        visit(gcx, id, &mut seen, &mut order);
+    }
+    order
+}
+
+/// Orders functions by source position within `sources` instead of by compilation-wide HIR id, so
+/// that unrelated sources in the same compilation do not change the order.
+fn sort_by_source_position(
+    gcx: Gcx<'_>,
+    sources: &FxIndexSet<hir::SourceId>,
+    function_ids: &mut [(hir::FunctionId, bool)],
+) {
+    function_ids.sort_by_key(|&(id, _)| {
+        let function = gcx.hir.function(id);
+        (sources.get_index_of(&function.source), function.span.lo())
+    });
 }

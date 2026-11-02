@@ -64,10 +64,10 @@ contents, line endings, and extensionless names; source URLs are not fetched. Pa
 relative, with no empty, `.` or `..` parts, drive prefixes, backslashes, or control characters;
 symlinks and file/directory collisions are capture errors. Each compiler saves disassembly,
 bytecode, and raw Standard JSON input and output. Ours adds MIR and creation and runtime EVM IR.
-Solc and solx add unoptimized `ir.yul` and optimized `optimized-ir.yul` when returned (solx 0.1.8
-omits `irOptimized`). Solx adds creation and runtime LLVM IR before and after optimization
-(`*.unoptimized.ll`, `*.optimized.ll`). If `--reference-results` names a result beside an
-`artifacts` directory, the run copies the matching reference files.
+Solc (not `solc-legacy`) and solx add unoptimized `ir.yul` and optimized `optimized-ir.yul` when
+returned (solx 0.1.8 omits `irOptimized`). Solx adds creation and runtime LLVM IR before and after
+optimization (`*.unoptimized.ll`, `*.optimized.ll`). If `--reference-results` names a result beside
+an `artifacts` directory, the run copies the matching reference files.
 
 ## Tempo Zones gas
 
@@ -104,19 +104,32 @@ failure checks but makes no differential claims: passing runtime comparisons sho
 a matching reference result exists.
 
 - `--solc PATH` records a two-compiler baseline.
+- `--solc-legacy` (needs `--solc`) also compiles with the `--solc` binary and `viaIR: false`, as
+  compiler `solc-legacy`, so one run covers solc's legacy and via-IR pipelines. Every other setting
+  matches `solc`. Cases that only compile with via-IR (stack too deep) fail as an ordinary reference
+  compiler failure: no report warning, but the run exits 1 unless `--allow-failures` is set.
+- `--solar-size` adds compiler `solar-size`: the same Solar binary with `optimizer.runs` forced to
+  1, so a run holds our `-Ogas` (`solar`, at the case's own runs, normally 200) and `-Osize`
+  results. It conflicts with `--optimizer-runs`, which would pin both to one objective. Its
+  failures and mismatches are ours: they raise warnings like `solar`'s.
 - `--solx PATH` adds [solx](https://github.com/NomicFoundation/solx) as a separate compiler with its
   own compilation, gas, runtime checks, and artifacts.
 - `--oksolc PATH` adds [oksolc](https://github.com/okcontract/oksolc) the same way, run as
   `standard-json --no-cache --parallel --jobs 8 -`: eight workers match our default, and no cache
   keeps repeated samples measuring compilation. `--oksolc-jobs N` sets the workers. Inputs keep
   their settings; unsupported inputs stay failures.
-- `--reference-results PATH` reuses solc, solx, and oksolc results from a prior run without running
-  them; it conflicts with `--solc` and `--solx`. It copies compile, gas, and runtime data only for
-  matching input fingerprints, then runs the usual cross-compiler checks. Live `--oksolc` results
-  override saved ones.
+- `--reference-results PATH` reuses solc, solc-legacy, solx, and oksolc results from a prior run
+  without running them; it conflicts with `--solc` and `--solx`. It copies compile, gas, and runtime
+  data only for matching input fingerprints, each compiler's own (`solc-legacy` has `viaIR: false`
+  in its input, so its fingerprint differs from `solc`'s), then runs the usual cross-compiler
+  checks. Live `--oksolc` results override saved ones.
 
 Reference compiler failures stay in the raw results but raise no report warnings or PR comments;
-failures of our compiler, and mismatches involving it, do.
+failures of our compiler (`solar`, `solar-size`), and mismatches involving it, raise warnings, and
+only `solar` decides whether a baseline comparison comments. Single-run reports show `solc-legacy`
+and `solar-size` as columns beside solc, with every delta measured against `solar`. The
+compile-time sums count only cases that every shown compiler compiled, so cases that `solc-legacy`
+fails drop out of all columns.
 
 In CI, PRs pass the exact-base result as `--reference-results`, so solc runs only on the base
 revision. Solx 0.1.8 is pinned and runs only on pushes to main, never in PR jobs, even ones that
@@ -130,6 +143,13 @@ version, OS, architecture, and build settings; a hit skips the shallow checkout 
 oksolc appear beside solc in the Markdown report. The website reads compiler columns and artifact
 choices from the uploaded results, so oksolc shows in the overview and the PR comment's artifact
 links even when the base run lacks it.
+
+CI also runs `--solc-legacy` with every live solc run (the exact-base run and main) and
+`--solar-size` on every run, so each PR compares Solar `-Ogas`, Solar `-Osize`, solc via-IR, and solc
+legacy. A baseline artifact without `solc-legacy` results counts as incomplete, so PRs rebuild it
+until main has one. The PR comment ends with one collapsible table per metric (runtime gas open, the
+rest a click away), listing every benchmark with each compiler's value and difference from `solar`,
+and a geometric-mean row.
 
 ## Comparing runs
 
@@ -151,8 +171,9 @@ uv run benches/runtime/benchmark-compare.py \
   unified artifact diffs.
 - `--tests NAME...` selects cases. `--artifact KIND...` limits artifact kinds to any of `mir`,
   `llvm-ir`, `evm-ir`, `disasm`, `bytecode`, and `json` (default: all).
-- `--compiler solc|solx|oksolc` compares that compiler instead of ours, needs a baseline, and omits
-  the compiler-primary CI tables. Use `--compiler solx --artifact llvm-ir` for solx LLVM IR.
+- `--compiler solar-size|solc|solc-legacy|solx|oksolc` compares that compiler instead of ours, needs
+  a baseline, and omits the compiler-primary CI tables. Use `--compiler solx --artifact llvm-ir` for
+  solx LLVM IR.
 - `--results PATH` alone makes a single-run CI report, the only kind with reference compiler tables.
   With a baseline, the detailed report shows only changed benchmarks, per-call gas changes, gas by
   opcode kind, and artifact details.

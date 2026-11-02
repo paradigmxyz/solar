@@ -32,12 +32,11 @@ fn @main() -> i1 [selector=0xdffeadd0, abi_params=[], abi_returns=[word<bool>], 
     v14 = returndatasize
     v15 = lt v14, 32
     icall revert_if<tuple_data_too_short>, v15
-    v16 = add 0, 0
-    v17 = mload v16
-    v18 = shr v17, 1
-    v19 = eq v18, 0
-    v20 = eq v19, false
-    icall revert_if<empty>, v20
-    v21 = ne v17, 0
-    ret v21
+    v16 = mload 0 !metadata(memory=scratch)
+    v17 = shr v16, 1
+    v18 = eq v17, 0
+    v19 = eq v18, false
+    icall revert_if<empty>, v19
+    v20 = ne v16, 0
+    ret v20
 }

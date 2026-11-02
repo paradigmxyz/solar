@@ -7,12 +7,12 @@ fn @copyHigh() -> ptr<memory> [selector=0xf4f1833d, pure, abi_params=[], abi_ret
     v1 = make_calldata_slice ptr<calldata> 0, v0
     v2 = extract_value slice<calldata>, v1, 1
     v3 = checked_add uint256, v2, 64
-    v4 = add v3, 63
-    v5 = lt v4, v3
-    icall panic_if<0x41>, v5
-    v6 = not 31
-    v7 = and v4, v6
-    v8 = alloc zeroed checked v7
+    v4 = add v3, 31
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v6 = add v5, 32
+    v7 = lt v6, v3
+    icall panic_if<0x41>, v7
+    v8 = alloc zeroed checked v6
     mstore v8, v3
     jump bb1
   bb1:  ; preds = bb0, bb3

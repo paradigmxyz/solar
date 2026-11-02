@@ -199,7 +199,7 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Finishes a counted loop and switches to its exit.
     pub fn finish_counted_loop(&mut self, loop_: CountedLoop) {
-        let next = self.add_u64_offset(loop_.index, 1);
+        let next = self.add_offset(loop_.index, 1);
         let backedge = self.current_block();
         self.jump(loop_.header);
         self.add_phi_incoming(loop_.index, backedge, next);
@@ -233,14 +233,15 @@ impl<'a> FunctionBuilder<'a> {
         self.alloc_value(Value::Immediate(Immediate::I1(value)))
     }
 
-    /// Adds a constant byte offset, folding zero offsets.
-    pub fn add_u64_offset(&mut self, base: ValueId, offset: u64) -> ValueId {
-        if offset == 0 {
-            base
-        } else {
-            let offset = self.imm(offset);
-            self.add(base, offset)
+    /// Adds a constant offset, skipping a zero offset.
+    pub fn add_offset(&mut self, base: ValueId, offset: impl ToUint) -> ValueId {
+        let offset = offset.to_uint();
+        if offset.is_zero() {
+            return base;
         }
+        // position = add base, offset
+        let offset = self.imm(offset);
+        self.add(base, offset)
     }
 
     /// Reverts with Solidity's `Panic(uint256)` payload.
@@ -359,7 +360,7 @@ impl<'a> FunctionBuilder<'a> {
             let stride = self.imm(stride);
             self.mul(length, stride)
         };
-        let data = self.add_u64_offset(start, data_offset);
+        let data = self.add_offset(start, data_offset);
         let limit = self.sub(calldata_end, size);
         let short = self.sgt(data, limit);
         self.revert_if(short, tail.stride_reason());
@@ -514,6 +515,36 @@ impl<'a> FunctionBuilder<'a> {
         result
     }
 
+    /// Returns the word-aligned allocation size for a bytes-like object, and reverts when it
+    /// overflows.
+    pub fn checked_padded_size(&mut self, length: ValueId) -> ValueId {
+        if self.func.value_u256(length).is_some() {
+            let padding = self.imm(63);
+            let rounded = self.checked_add(length, padding);
+            return self.mask_padded_size(rounded);
+        }
+        let size = self.padded_object_size(length);
+        // A size below `length` means `length + 63` wrapped.
+        let overflow = self.lt(size, length);
+        self.panic_if(overflow, PanicCode::MemoryAllocationOverflow);
+        size
+    }
+
+    /// Returns `pad31(length) + 32`, the allocation size of a bytes-like object, which shares
+    /// `pad31(length)` with the padding of its encoding.
+    fn padded_object_size(&mut self, length: ValueId) -> ValueId {
+        let padded = self.pad_to_word(length);
+        let word = self.imm(EvmMemoryLayout::WORD_SIZE);
+        self.add(padded, word)
+    }
+
+    /// Rounds `length` up to a multiple of 32.
+    pub fn pad_to_word(&mut self, length: ValueId) -> ValueId {
+        let padding = self.imm(31);
+        let rounded = self.add(length, padding);
+        self.mask_padded_size(rounded)
+    }
+
     /// Returns whether the 256-bit unsigned product of `lhs` and `rhs` wraps, when one factor is
     /// a constant power of two 2 ** s, s >= 1: the other factor then needs a bit at or above
     /// 256 - s. Other constants keep the quotient test.
@@ -529,17 +560,10 @@ impl<'a> FunctionBuilder<'a> {
         Some(self.ne_zero(high))
     }
 
-    /// Returns the word-aligned allocation size for a bytes-like object.
-    pub fn checked_padded_size(&mut self, length: ValueId) -> ValueId {
-        let padding = self.imm(63);
-        let rounded = self.checked_add(length, padding);
-        self.mask_padded_size(rounded)
-    }
-
     /// Rounds `rounded` down to a multiple of 32.
     pub fn mask_padded_size(&mut self, rounded: ValueId) -> ValueId {
-        let mask = self.imm(31);
-        let mask = self.not(mask);
+        // padded = and rounded, !31
+        let mask = self.imm(!U256::from(31));
         self.and(rounded, mask)
     }
 
@@ -641,7 +665,23 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Emits a typed value-producing instruction with the current source and effect metadata.
-    pub fn emit_inst(&mut self, mut kind: InstKind, result_ty: Option<MirType>) -> ValueId {
+    ///
+    /// A word operation whose operands are all immediates folds to an immediate.
+    pub fn emit_inst(&mut self, kind: InstKind, result_ty: Option<MirType>) -> ValueId {
+        self.emit_inst_with(kind, result_ty, true)
+    }
+
+    /// Like [`Self::emit_inst`], but always emits an instruction, for callers that rewrite it.
+    pub fn emit_inst_unfolded(&mut self, kind: InstKind, result_ty: Option<MirType>) -> ValueId {
+        self.emit_inst_with(kind, result_ty, false)
+    }
+
+    fn emit_inst_with(
+        &mut self,
+        mut kind: InstKind,
+        result_ty: Option<MirType>,
+        fold: bool,
+    ) -> ValueId {
         debug_assert!(result_ty.is_some(), "value-producing instructions must have a result type");
         let requested = result_ty.unwrap();
         let produced = if kind.op_def().result == super::ResultKind::Integer {
@@ -676,6 +716,14 @@ impl<'a> FunctionBuilder<'a> {
                 kind.inferred_result_type(self.func).unwrap_or(requested)
             }
         };
+        // result = imm op(operands)
+        if fold
+            && produced == MirType::I256
+            && let Some(word) = self.fold_word_op(&kind)
+        {
+            let word = self.imm(word);
+            return self.cast(word, requested);
+        }
         if let InstKind::Phi(incoming) = &mut kind {
             let current = self.current_block;
             for (predecessor, value) in incoming {
@@ -694,6 +742,23 @@ impl<'a> FunctionBuilder<'a> {
             .1
             .expect("value-producing instruction must have a result");
         if produced == requested { result } else { self.cast(result, requested) }
+    }
+
+    /// Evaluates a pure word operation whose operands are all immediates.
+    fn fold_word_op(&self, kind: &InstKind) -> Option<U256> {
+        let word = |value| self.func.value_u256(value);
+        Some(match *kind {
+            InstKind::Not(value) => !word(value)?,
+            InstKind::And(lhs, rhs) => word(lhs)? & word(rhs)?,
+            InstKind::Or(lhs, rhs) => word(lhs)? | word(rhs)?,
+            InstKind::Xor(lhs, rhs) => word(lhs)? ^ word(rhs)?,
+            InstKind::Add(lhs, rhs) => word(lhs)?.wrapping_add(word(rhs)?),
+            InstKind::Sub(lhs, rhs) => word(lhs)?.wrapping_sub(word(rhs)?),
+            InstKind::Mul(lhs, rhs) => word(lhs)?.wrapping_mul(word(rhs)?),
+            InstKind::Shl(shift, value) => word(value)? << word(shift)?,
+            InstKind::Shr(shift, value) => word(value)? >> word(shift)?,
+            _ => return None,
+        })
     }
 
     /// Emits an explicit conversion between scalar carriers and memory references.
@@ -880,10 +945,8 @@ impl<'a> FunctionBuilder<'a> {
         length: ValueId,
         semantics: AllocationSemantics,
     ) -> ValueId {
-        // size = (length + 63) & ~31
-        let padding = self.imm(63);
-        let rounded = self.add(length, padding);
-        let size = self.mask_padded_size(rounded);
+        // size = ((length + 31) & ~31) + 32
+        let size = self.padded_object_size(length);
         let object = self.alloc(size, semantics);
         self.set_memory_len(object, length);
         object
@@ -1119,7 +1182,7 @@ impl<'a> FunctionBuilder<'a> {
     pub fn address_value(&mut self, base: ValueId, offset: u64) -> ValueId {
         if offset == 0 || !self.func.value_ty(base).is_some_and(MirType::is_pointer) {
             // address = add base, offset
-            return self.add_u64_offset(base, offset);
+            return self.add_offset(base, offset);
         }
         // address = ptradd base, offset
         let offset = self.imm(offset);

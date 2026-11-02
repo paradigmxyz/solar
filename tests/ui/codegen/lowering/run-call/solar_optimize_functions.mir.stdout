@@ -8,12 +8,11 @@
 ; creation entry
 fn @constructor() [constructor] {
   bb0:
-    v1 = callvalue
-    v2 = ne v1, 0
-    jumpi v2, bb2, bb1
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb2, bb1
   bb1:  ; preds = bb0
-    v0 = and 0x1122334400000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    mstore 192, v0
+    mstore 192, 0x1122334400000000000000000000000000000000000000000000000000000000
     mstore 224, 0xfffb
     ret
   bb2 [cold]:  ; preds = bb0
@@ -69,8 +68,7 @@ fn @sum() {
     jumpi v4, bb3, bb4
   bb4:  ; preds = bb2
     mstore 0, v1 !metadata(memory=scratch)
-    v14 = sub 32, 0
-    returndata 0, v14
+    returndata 0, 32
   bb3:  ; preds = bb2
     v9 = add v1, v2
     v10 = lt v9, v1
@@ -179,8 +177,7 @@ fn @viaInline() {
   bb1:  ; preds = bb3
     v0 = icall @twice, v3
     mstore 0, v0 !metadata(memory=scratch)
-    v4 = sub 32, 0
-    returndata 0, v4
+    returndata 0, 32
   bb2 [cold]:  ; preds = bb0
     revert 0, 0
 }
@@ -218,8 +215,8 @@ fn @share() [optimize=size] {
 fn @tagged() [optimize=size] {
   bb0:
     v0 = loadimmutable tag
-    v8: i256 = loadimmutable delta
-    v5 = signextend 1, v8
+    v6: i256 = loadimmutable delta
+    v5 = signextend 1, v6
     mstore 0, v0 !metadata(memory=scratch)
     mstore 32, v5 !metadata(memory=scratch)
     returndata 0, 64

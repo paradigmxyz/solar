@@ -48,23 +48,23 @@ fn @pack() {
   bb1 [cold]:  ; preds = bb0
     revert 0, 0
   bb2:  ; preds = bb0
-    v41 = add v26, 32
-    v55 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v56 = add v55, 128
-    mstore 64, v56 !metadata(memory=scratch)
-    mstore v55, 96
-    v43 = add v55, 32
-    mcopy v43, v41, 64
-    v46 = add v55, 96
-    mstore v46, 64
-    v48 = add v55, 96
-    v49 = add v48, 32
-    mstore v49, 0
-    v36 = add v43, 96
-    mstore v36, 0
-    v51 = sub v55, 32
-    mstore v51, 32
-    returndata v51, 160
+    v40 = add v26, 32
+    v54 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v55 = add v54, 128
+    mstore 64, v55 !metadata(memory=scratch)
+    mstore v54, 96
+    v42 = add v54, 32
+    mcopy v42, v40, 64
+    v45 = add v54, 96
+    mstore v45, 64
+    v47 = add v54, 96
+    v48 = add v47, 32
+    mstore v48, 0
+    v35 = add v42, 96
+    mstore v35, 0
+    v50 = sub v54, 32
+    mstore v50, 32
+    returndata v50, 160
 }
 
 fn @decode_calldata_type() -> i256 [may_return_memory] {
@@ -78,19 +78,19 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
   bb2:  ; preds = bb0
     v6 = calldataload v2
     v7 = add v2, 32
-    v8 = add v6, 63
-    v9 = lt v8, v6
-    v11 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v36 = add v6, 63
+    v10 = and v36, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v11 = lt v10, v6
     v29 = heap_floor !metadata(alloc_ptr)
-    v30 = add v29, v11 !metadata(alloc_ptr)
+    v30 = add v29, v10 !metadata(alloc_ptr)
     v31 = lt v30, v29
     v32 = zext i1 v31 to i256
     v33 = shr v30, 64
     v34 = or v32, v33
-    v37 = zext i1 v9 to i256
-    v38 = or v37, v34
-    v39 = ne v38, 0
-    jumpi v39, bb3, bb5
+    v38 = zext i1 v11 to i256
+    v39 = or v38, v34
+    v40 = ne v39, 0
+    jumpi v40, bb3, bb5
   bb5:  ; preds = bb2
     mstore 64, v30 !metadata(memory=scratch)
     mstore v29, v6
@@ -100,11 +100,6 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
   bb4:  ; preds = bb5
     v25 = add v29, 32
     calldatacopy v25, v7, v6
-    v22 = sub 0, v6
-    v23 = and v22, 31
-    v36 = calldatasize
-    v26 = add v25, v6
-    calldatacopy v26, v36, v23
     ret v29
   bb3 [cold]:  ; preds = bb2
     mstore 32, 65 !metadata(memory=scratch)

@@ -5,12 +5,12 @@ fn @emptyLength() -> i256 [selector=0x11864a7a, pure, abi_params=[], abi_returns
   bb0:
     v0 = icall @empty
     v1 = extract_value slice<calldata>, v0, 1
-    v2 = add v1, 63
-    v3 = lt v2, v1
-    icall panic_if<0x41>, v3
-    v4 = not 31
-    v5 = and v2, v4
-    v6 = alloc v5
+    v2 = add v1, 31
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v4 = add v3, 32
+    v5 = lt v4, v1
+    icall panic_if<0x41>, v5
+    v6 = alloc v4
     mstore v6, v1
     v7 = extract_value slice<calldata>, v0, 0
     v8 = extract_value slice<calldata>, v0, 1
@@ -36,12 +36,12 @@ fn @prefix(arg0: slice<calldata>, arg1: i256) -> ptr<memory> [selector=0x15de319
     v1 = ptrtoint ptr<calldata> v0 to i256
     v2 = icall @construct, v1, arg1
     v3 = extract_value slice<calldata>, v2, 1
-    v4 = add v3, 63
-    v5 = lt v4, v3
-    icall panic_if<0x41>, v5
-    v6 = not 31
-    v7 = and v4, v6
-    v8 = alloc v7
+    v4 = add v3, 31
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v6 = add v5, 32
+    v7 = lt v6, v3
+    icall panic_if<0x41>, v7
+    v8 = alloc v6
     mstore v8, v3
     v9 = extract_value slice<calldata>, v2, 0
     v10 = extract_value slice<calldata>, v2, 1
@@ -64,12 +64,12 @@ fn @redirected(arg0: slice<calldata>, arg1: slice<calldata>) -> ptr<memory> [sel
   bb0:
     v0 = icall @redirect, arg0, arg1
     v1 = extract_value slice<calldata>, v0, 1
-    v2 = add v1, 63
-    v3 = lt v2, v1
-    icall panic_if<0x41>, v3
-    v4 = not 31
-    v5 = and v2, v4
-    v6 = alloc v5
+    v2 = add v1, 31
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v4 = add v3, 32
+    v5 = lt v4, v1
+    icall panic_if<0x41>, v5
+    v6 = alloc v4
     mstore v6, v1
     v7 = extract_value slice<calldata>, v0, 0
     v8 = extract_value slice<calldata>, v0, 1

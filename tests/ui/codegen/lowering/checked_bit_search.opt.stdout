@@ -51,8 +51,8 @@ fn @clz.1() {
     v1 = eq v10, 0
     jumpi v1, bb2, bb1
   bb1:  ; preds = bb0
-    v12 = calldataload 4
-    v2 = icall @fls.3, v12
+    v11 = calldataload 4
+    v2 = icall @fls.3, v11
     v6 = sub 255, v2
     v7 = gt v2, 255
     jumpi v7, bb3, bb2
@@ -73,10 +73,10 @@ fn @ffs.2() {
     v1 = eq v10, 0
     jumpi v1, bb2, bb1
   bb1:  ; preds = bb0
-    v12 = calldataload 4
-    v2 = not v12
+    v11 = calldataload 4
+    v2 = not v11
     v3 = add v2, 1
-    v4 = and v12, v3
+    v4 = and v11, v3
     v5 = icall @fls.3, v4
     jump bb2
   bb2:  ; preds = bb0, bb1

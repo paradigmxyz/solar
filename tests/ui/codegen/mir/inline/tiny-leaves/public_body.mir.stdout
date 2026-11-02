@@ -45,15 +45,15 @@ fn @entry() [entry] {
 ; function start() public view returns (uint256) [selector 0xbe9a6555]
 fn @start() {
   bb0:
-    v3 = loadimmutable _start
-    mstore 0, v3
+    v2 = loadimmutable _start
+    mstore 0, v2
     returndata 0, 32
 }
 
 ; function vested() public view returns (uint256) [selector 0xfea5657c]
 fn @vested() {
   bb0:
-    v2 = loadimmutable _start
-    mstore 0, v2
+    v1 = loadimmutable _start
+    mstore 0, v1
     returndata 0, 32
 }

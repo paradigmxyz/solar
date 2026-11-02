@@ -14,8 +14,7 @@
 +     jump bb1
 +   bb1:  ; preds = bb3
 +     mstore 0, v2 !metadata(memory=scratch)
-+     v3 = sub 32, 0
-+     returndata 0, v3
++     returndata 0, 32
 +   bb2 [cold]:  ; preds = bb0
 +     revert 0, 0
   }
@@ -87,8 +86,7 @@
       v5 = add v2, v4
 -     ret v5
 +     mstore 0, v5 !metadata(memory=scratch)
-+     v40 = sub 32, 0
-+     returndata 0, v40
++     returndata 0, 32
 +   bb8 [cold]:  ; preds = bb7
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -118,8 +116,7 @@
 +     jump bb1
 +   bb1:  ; preds = bb4
 +     mstore 0, v6 !metadata(memory=scratch)
-+     v7 = sub 32, 0
-+     returndata 0, v7
++     returndata 0, 32
 +   bb2 [cold]:  ; preds = bb0, bb3
 +     revert 0, 0
   }
@@ -137,8 +134,7 @@
 +     jump bb1
 +   bb1:  ; preds = bb3
 +     mstore 0, v2 !metadata(memory=scratch)
-+     v3 = sub 32, 0
-+     returndata 0, v3
++     returndata 0, 32
 +   bb2 [cold]:  ; preds = bb0
 +     revert 0, 0
   }
@@ -168,8 +164,7 @@
 +     v9 = ne v1, false
 +     v10 = zext i1 v9 to i256
 +     mstore 0, v10 !metadata(memory=scratch)
-+     v11 = sub 32, 0
-+     returndata 0, v11
++     returndata 0, 32
 +   bb2 [cold]:  ; preds = bb0, bb3
 +     revert 0, 0
   }
@@ -190,8 +185,7 @@
       v1 = zext i160 v0 to i256
 -     ret v1
 +     mstore 0, v1 !metadata(memory=scratch)
-+     v5 = sub 32, 0
-+     returndata 0, v5
++     returndata 0, 32
 +   bb2 [cold]:  ; preds = bb0
 +     revert 0, 0
   }
@@ -217,8 +211,7 @@
       v1 = icall @validated_leaf, v0
 -     ret v1
 +     mstore 0, v1 !metadata(memory=scratch)
-+     v8 = sub 32, 0
-+     returndata 0, v8
++     returndata 0, 32
 +   bb2 [cold]:  ; preds = bb0, bb3
 +     revert 0, 0
   }
@@ -252,8 +245,7 @@
       v1 = icall @mixed_leaf, v0
 -     ret v1
 +     mstore 0, v1 !metadata(memory=scratch)
-+     v8 = sub 32, 0
-+     returndata 0, v8
++     returndata 0, 32
 +   bb2 [cold]:  ; preds = bb0, bb3
 +     revert 0, 0
   }
@@ -273,8 +265,7 @@
 +   bb1:  ; preds = bb3
 +     v0 = icall @mixed_leaf, v3
 +     mstore 0, v0 !metadata(memory=scratch)
-+     v4 = sub 32, 0
-+     returndata 0, v4
++     returndata 0, 32
 +   bb2 [cold]:  ; preds = bb0
 +     revert 0, 0
   }

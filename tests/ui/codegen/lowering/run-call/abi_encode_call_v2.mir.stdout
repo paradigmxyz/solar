@@ -196,12 +196,12 @@ fn @callMeMaybe(arg0: slice<calldata>, arg1: i256, arg2: ptr<memory>) [selector=
     v161 = sgt v160, v159
     icall revert_if<calldata_tail_too_short>, v161
     v162 = extract_value slice<calldata>, v154, 1
-    v163 = add v162, 63
-    v164 = lt v163, v162
-    icall panic_if<0x41>, v164
-    v165 = not 31
-    v166 = and v163, v165
-    v167 = alloc v166
+    v163 = add v162, 31
+    v164 = and v163, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v165 = add v164, 32
+    v166 = lt v165, v162
+    icall panic_if<0x41>, v166
+    v167 = alloc v165
     mstore v167, v162
     v168 = ptradd v167, 32
     v169 = extract_value slice<calldata>, v154, 0
@@ -250,12 +250,12 @@ fn @callMeMaybe(arg0: slice<calldata>, arg1: i256, arg2: ptr<memory>) [selector=
     v205 = sgt v204, v203
     icall revert_if<calldata_tail_too_short>, v205
     v206 = extract_value slice<calldata>, v198, 1
-    v207 = add v206, 63
-    v208 = lt v207, v206
-    icall panic_if<0x41>, v208
-    v209 = not 31
-    v210 = and v207, v209
-    v211 = alloc v210
+    v207 = add v206, 31
+    v208 = and v207, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v209 = add v208, 32
+    v210 = lt v209, v206
+    icall panic_if<0x41>, v210
+    v211 = alloc v209
     mstore v211, v206
     v212 = ptradd v211, 32
     v213 = extract_value slice<calldata>, v198, 0

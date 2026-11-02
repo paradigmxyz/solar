@@ -38,17 +38,17 @@ fn @entry() [entry] {
 ; function recover() external pure returns (address) [selector 0xce746024]
 fn @recover() {
   bb0:
-    v15 = heap_floor !metadata(alloc_ptr)
-    mstore v15, 1
-    v4 = add v15, 32
+    v14 = heap_floor !metadata(alloc_ptr)
+    mstore v14, 1
+    v4 = add v14, 32
     mstore v4, 28
-    v5 = add v15, 64
+    v5 = add v14, 64
     mstore v5, 0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898
-    v6 = add v15, 96
+    v6 = add v14, 96
     mstore v6, 0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
     mstore 0, 0 !metadata(memory=scratch)
     v7 = gas
-    v8 = staticcall v7, 1, v15, 128, 0, 32
+    v8 = staticcall v7, 1, v14, 128, 0, 32
     jumpi v8, bb2, bb1
   bb1 [cold]:  ; preds = bb0
     v10 = returndatasize
@@ -57,25 +57,25 @@ fn @recover() {
     revert 0, v11
   bb2:  ; preds = bb0
     v9 = mload 0 !metadata(memory=scratch)
-    v16 = and v9, 0xffffffffffffffffffffffffffffffffffffffff
-    mstore 0, v16
+    v15 = and v9, 0xffffffffffffffffffffffffffffffffffffffff
+    mstore 0, v15
     returndata 0, 32
 }
 
 ; function recoverInvalid() external pure returns (address) [selector 0x008f4bed]
 fn @recoverInvalid() {
   bb0:
-    v15 = heap_floor !metadata(alloc_ptr)
-    mstore v15, 0
-    v4 = add v15, 32
+    v14 = heap_floor !metadata(alloc_ptr)
+    mstore v14, 0
+    v4 = add v14, 32
     mstore v4, 0
-    v5 = add v15, 64
+    v5 = add v14, 64
     mstore v5, 0
-    v6 = add v15, 96
+    v6 = add v14, 96
     mstore v6, 0
     mstore 0, 0 !metadata(memory=scratch)
     v7 = gas
-    v8 = staticcall v7, 1, v15, 128, 0, 32
+    v8 = staticcall v7, 1, v14, 128, 0, 32
     jumpi v8, bb2, bb1
   bb1 [cold]:  ; preds = bb0
     v10 = returndatasize
@@ -84,8 +84,8 @@ fn @recoverInvalid() {
     revert 0, v11
   bb2:  ; preds = bb0
     v9 = mload 0 !metadata(memory=scratch)
-    v16 = and v9, 0xffffffffffffffffffffffffffffffffffffffff
-    mstore 0, v16
+    v15 = and v9, 0xffffffffffffffffffffffffffffffffffffffff
+    mstore 0, v15
     returndata 0, 32
 }
 
@@ -139,13 +139,13 @@ fn @shaWord() {
     jumpi v12, bb3, bb4
   bb4:  ; preds = bb0
     v13 = calldataload 4
-    v17 = heap_floor !metadata(alloc_ptr)
-    v18 = add v17, 64 !metadata(alloc_ptr)
-    mstore 64, v18 !metadata(memory=scratch)
-    v16 = add v17, 32
-    mstore v16, v13
+    v16 = heap_floor !metadata(alloc_ptr)
+    v17 = add v16, 64 !metadata(alloc_ptr)
+    mstore 64, v17 !metadata(memory=scratch)
+    v15 = add v16, 32
+    mstore v15, v13
     v6 = gas
-    v7 = staticcall v6, 2, v16, 32, 0, 32
+    v7 = staticcall v6, 2, v15, 32, 0, 32
     jumpi v7, bb2, bb1
   bb1 [cold]:  ; preds = bb4
     v9 = returndatasize
@@ -168,13 +168,13 @@ fn @ripemdWord() {
     jumpi v13, bb3, bb4
   bb4:  ; preds = bb0
     v14 = calldataload 4
-    v18 = heap_floor !metadata(alloc_ptr)
-    v19 = add v18, 64 !metadata(alloc_ptr)
-    mstore 64, v19 !metadata(memory=scratch)
-    v17 = add v18, 32
-    mstore v17, v14
+    v17 = heap_floor !metadata(alloc_ptr)
+    v18 = add v17, 64 !metadata(alloc_ptr)
+    mstore 64, v18 !metadata(memory=scratch)
+    v16 = add v17, 32
+    mstore v16, v14
     v6 = gas
-    v7 = staticcall v6, 3, v17, 32, 0, 32
+    v7 = staticcall v6, 3, v16, 32, 0, 32
     jumpi v7, bb2, bb1
   bb1 [cold]:  ; preds = bb4
     v10 = returndatasize

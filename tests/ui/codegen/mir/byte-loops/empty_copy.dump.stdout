@@ -30,79 +30,75 @@ fn @entry() [entry] {
 ; function memoryCopy(uint256 sourceAt, uint256 destinationAt, uint256 count) external pure returns (bytes memory result) [selector 0x261f992c]
 fn @memoryCopy() {
   bb0:
-    v27 = calldataload 4
-    v28 = calldataload 36
-    v29 = calldataload 68
-    v53 = heap_floor !metadata(alloc_ptr)
-    v54 = add v53, 64 !metadata(alloc_ptr)
-    mstore 64, v54
-    mstore v53, 3
-    v44 = add v53, 32
-    mstore v44, 0x1122330000000000000000000000000000000000000000000000000000000000
-    v52 = icall @alloc, 64
-    v56 = calldatasize
-    calldatacopy v52, v56, 64
-    mstore v52, 3
-    v21 = sub v28, v52
-    v8 = ne v28, 0
-    v22 = zext i1 v8 to i256
-    v23 = mul v22, v21
-    v24 = add v52, v23
-    v17 = sub v27, v53
-    v5 = ne v27, 0
-    v18 = zext i1 v5 to i256
-    v19 = mul v18, v17
-    v20 = add v53, v19
-    icall @_memoryCopy, v20, v24, v29
-    v33 = mload v52
-    v34 = add v33, 31
-    v36 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v46 = add v52, 32
-    v39 = add v46, v33
-    mstore v39, 0
-    v48 = sub v52, 32
-    mstore v48, 32
-    v41 = add v36, 64
-    returndata v48, v41
+    v25 = calldataload 4
+    v26 = calldataload 36
+    v27 = calldataload 68
+    v50 = heap_floor !metadata(alloc_ptr)
+    v51 = add v50, 64 !metadata(alloc_ptr)
+    mstore 64, v51
+    mstore v50, 3
+    v41 = add v50, 32
+    mstore v41, 0x1122330000000000000000000000000000000000000000000000000000000000
+    v49 = icall @alloc, 64
+    mstore v49, 3
+    v19 = sub v26, v49
+    v6 = ne v26, 0
+    v20 = zext i1 v6 to i256
+    v21 = mul v20, v19
+    v22 = add v49, v21
+    v15 = sub v25, v50
+    v3 = ne v25, 0
+    v16 = zext i1 v3 to i256
+    v17 = mul v16, v15
+    v18 = add v50, v17
+    icall @_memoryCopy, v18, v22, v27
+    v31 = mload v49
+    v32 = add v31, 31
+    v33 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v43 = add v49, 32
+    v36 = add v43, v31
+    mstore v36, 0
+    v45 = sub v49, 32
+    mstore v45, 32
+    v38 = add v33, 64
+    returndata v45, v38
 }
 
 ; function calldataCopy(bytes calldata source, uint256 destinationAt, uint256 count) external pure returns (bytes memory result) [selector 0xa70bf1aa]
 fn @calldataCopy() {
   bb0:
-    v15 = calldatasize
-    v19 = calldataload 4
-    v20 = add v19, 4
-    v22 = sub v15, 36
-    v23 = gt v19, v22
-    v24 = calldataload v20
-    v25 = add v20, 32
-    v26 = sub v15, v25
-    v27 = gt v24, v26
-    v28 = or v23, v27
-    jumpi v28, bb1, bb2
+    v13 = calldatasize
+    v17 = calldataload 4
+    v18 = add v17, 4
+    v20 = sub v13, 36
+    v21 = gt v17, v20
+    v22 = calldataload v18
+    v23 = add v18, 32
+    v24 = sub v13, v23
+    v25 = gt v22, v24
+    v26 = or v21, v25
+    jumpi v26, bb1, bb2
   bb2:  ; preds = bb0
-    v58 = calldataload 68
-    v57 = calldataload 36
-    v54 = icall @alloc, 64
-    v56 = calldatasize
-    calldatacopy v54, v56, 64
-    mstore v54, 3
-    v11 = sub v57, v54
-    v3 = ne v57, 0
-    v12 = zext i1 v3 to i256
-    v13 = mul v12, v11
-    v14 = add v54, v13
-    icall @_calldataCopy, v25, v24, v14, v58
-    v35 = mload v54
-    v36 = add v35, 31
-    v38 = and v36, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v46 = add v54, 32
-    v41 = add v46, v35
-    mstore v41, 0
-    v48 = sub v54, 32
-    mstore v48, 32
-    v43 = add v38, 64
-    returndata v48, v43
+    v53 = calldataload 68
+    v52 = calldataload 36
+    v51 = icall @alloc, 64
+    mstore v51, 3
+    v9 = sub v52, v51
+    v1 = ne v52, 0
+    v10 = zext i1 v1 to i256
+    v11 = mul v10, v9
+    v12 = add v51, v11
+    icall @_calldataCopy, v23, v22, v12, v53
+    v33 = mload v51
+    v34 = add v33, 31
+    v35 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v43 = add v51, 32
+    v38 = add v43, v33
+    mstore v38, 0
+    v45 = sub v51, 32
+    mstore v45, 32
+    v40 = add v35, 64
+    returndata v45, v40
   bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
@@ -110,40 +106,38 @@ fn @calldataCopy() {
 ; function downCopy(uint256 sourceAt, uint256 destinationAt, uint256 count) external pure returns (bytes memory result) [selector 0xc7e6d660]
 fn @downCopy() {
   bb0:
-    v27 = calldataload 4
-    v28 = calldataload 36
-    v29 = calldataload 68
-    v53 = heap_floor !metadata(alloc_ptr)
-    v54 = add v53, 64 !metadata(alloc_ptr)
-    mstore 64, v54
-    mstore v53, 3
-    v44 = add v53, 32
-    mstore v44, 0x1122330000000000000000000000000000000000000000000000000000000000
-    v52 = icall @alloc, 64
-    v56 = calldatasize
-    calldatacopy v52, v56, 64
-    mstore v52, 3
-    v21 = sub v28, v52
-    v8 = ne v28, 0
-    v22 = zext i1 v8 to i256
-    v23 = mul v22, v21
-    v24 = add v52, v23
-    v17 = sub v27, v53
-    v5 = ne v27, 0
-    v18 = zext i1 v5 to i256
-    v19 = mul v18, v17
-    v20 = add v53, v19
-    icall @_downCopy, v20, v24, v29
-    v33 = mload v52
-    v34 = add v33, 31
-    v36 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v46 = add v52, 32
-    v39 = add v46, v33
-    mstore v39, 0
-    v48 = sub v52, 32
-    mstore v48, 32
-    v41 = add v36, 64
-    returndata v48, v41
+    v25 = calldataload 4
+    v26 = calldataload 36
+    v27 = calldataload 68
+    v50 = heap_floor !metadata(alloc_ptr)
+    v51 = add v50, 64 !metadata(alloc_ptr)
+    mstore 64, v51
+    mstore v50, 3
+    v41 = add v50, 32
+    mstore v41, 0x1122330000000000000000000000000000000000000000000000000000000000
+    v49 = icall @alloc, 64
+    mstore v49, 3
+    v19 = sub v26, v49
+    v6 = ne v26, 0
+    v20 = zext i1 v6 to i256
+    v21 = mul v20, v19
+    v22 = add v49, v21
+    v15 = sub v25, v50
+    v3 = ne v25, 0
+    v16 = zext i1 v3 to i256
+    v17 = mul v16, v15
+    v18 = add v50, v17
+    icall @_downCopy, v18, v22, v27
+    v31 = mload v49
+    v32 = add v31, 31
+    v33 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v43 = add v49, 32
+    v36 = add v43, v31
+    mstore v36, 0
+    v45 = sub v49, 32
+    mstore v45, 32
+    v38 = add v33, 64
+    returndata v45, v38
 }
 
 ; function freshCopy(bytes memory source, uint256 sourceAt, uint256 count) external pure returns (bytes memory result) [selector 0x602d1e17]
@@ -158,42 +152,42 @@ fn @freshCopy() {
   bb2:  ; preds = bb0
     v22 = calldataload v18
     v23 = add v18, 32
-    v24 = add v22, 63
-    v25 = lt v24, v22
-    jumpi v25, bb3, bb4
+    v63 = add v22, 63
+    v26 = and v63, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v27 = lt v26, v22
+    jumpi v27, bb3, bb4
   bb4:  ; preds = bb2
-    v27 = and v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v62 = icall @alloc, v27
-    mstore v62, v22
+    v61 = icall @alloc, v26
+    mstore v61, v22
     v29 = sub v13, v23
     v30 = gt v22, v29
     jumpi v30, bb1, bb5
   bb5:  ; preds = bb4
-    v65 = calldataload 68
-    v64 = calldataload 36
-    v54 = add v62, 32
-    calldatacopy v54, v23, v22
+    v66 = calldataload 68
+    v65 = calldataload 36
+    v53 = add v61, 32
+    calldatacopy v53, v23, v22
     v38 = sub 0, v22
     v39 = and v38, 31
-    v63 = calldatasize
-    v55 = add v54, v22
-    calldatacopy v55, v63, v39
-    v9 = sub v64, v62
-    v0 = ne v64, 0
+    v62 = calldatasize
+    v54 = add v53, v22
+    calldatacopy v54, v62, v39
+    v9 = sub v65, v61
+    v0 = ne v65, 0
     v10 = zext i1 v0 to i256
     v11 = mul v10, v9
-    v12 = add v62, v11
-    v4 = icall @_freshCopy, v12, v65
+    v12 = add v61, v11
+    v4 = icall @_freshCopy, v12, v66
     v43 = mload v4
     v44 = add v43, 31
-    v46 = and v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v57 = add v4, 32
-    v49 = add v57, v43
-    mstore v49, 0
-    v59 = sub v4, 32
-    mstore v59, 32
-    v51 = add v46, 64
-    returndata v59, v51
+    v45 = and v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v56 = add v4, 32
+    v48 = add v56, v43
+    mstore v48, 0
+    v58 = sub v4, 32
+    mstore v58, 32
+    v50 = add v45, 64
+    returndata v58, v50
   bb3 [cold]:  ; preds = bb2
     mstore 32, 65
     mstore 0, 0x4e487b71
@@ -355,12 +349,13 @@ fn @_downCopy(arg0: i256, arg1: i256, arg2: i256) [may_return_memory] {
 ; function _freshCopy(bytes memory source, uint256 count) private pure returns (bytes memory result)
 fn @_freshCopy(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
   bb0:
-    v0 = add arg1, 63
-    v1 = lt v0, arg1
-    jumpi v1, bb8, bb9
+    v0 = add arg1, 31
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v2 = add v1, 32
+    v3 = lt v2, arg1
+    jumpi v3, bb8, bb9
   bb9:  ; preds = bb0
-    v3 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v74 = icall @alloc, v3
+    v74 = icall @alloc, v2
     mstore v74, arg1
     v28 = eq arg1, 0
     jumpi v28, bb2, bb4
@@ -368,7 +363,7 @@ fn @_freshCopy(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     v58 = add arg0, 32
     v60 = add v74, 32
     v32 = add v58, arg1
-    v62 = add v74, v3
+    v62 = add v74, v2
     v37 = lt arg0, v62
     v38 = lt v74, v32
     v39 = and v37, v38
@@ -381,9 +376,8 @@ fn @_freshCopy(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     mcopy v60, v58, arg1
     jump bb2
   bb6:  ; preds = bb4
-    v43 = sub v3, 32
     v75 = calldatasize
-    calldatacopy v60, v75, v43
+    calldatacopy v60, v75, v1
     v50 = add v60, arg1
     v51 = lt v60, v32
     v52 = lt arg0, v50

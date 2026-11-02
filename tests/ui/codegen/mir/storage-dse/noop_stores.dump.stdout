@@ -70,8 +70,8 @@ fn @masked() {
     v10 = calldataload 4
     mstore 0, v10 !metadata(memory=scratch)
     mstore 32, 0 !metadata(memory=scratch)
-    v13 = keccak256 0, 64 !metadata(memory=scratch)
-    v1 = sload v13
+    v12 = keccak256 0, 64 !metadata(memory=scratch)
+    v1 = sload v12
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
   bb1 [cold]:  ; preds = bb0
@@ -85,16 +85,16 @@ fn @branch() {
     v9 = shr v8, 1
     v5 = calldatasize
     v6 = lt v5, 68
-    v14 = zext i1 v6 to i256
-    v15 = or v14, v9
-    v16 = ne v15, 0
-    jumpi v16, bb1, bb2
+    v13 = zext i1 v6 to i256
+    v14 = or v13, v9
+    v15 = ne v14, 0
+    jumpi v15, bb1, bb2
   bb2:  ; preds = bb0
-    v17 = calldataload 4
-    mstore 0, v17 !metadata(memory=scratch)
+    v16 = calldataload 4
+    mstore 0, v16 !metadata(memory=scratch)
     mstore 32, 0 !metadata(memory=scratch)
-    v13 = keccak256 0, 64 !metadata(memory=scratch)
-    v1 = sload v13
+    v12 = keccak256 0, 64 !metadata(memory=scratch)
+    v1 = sload v12
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
   bb1 [cold]:  ; preds = bb0
@@ -112,8 +112,8 @@ fn @checked() {
     v13 = calldataload 4
     mstore 0, v13 !metadata(memory=scratch)
     mstore 32, 0 !metadata(memory=scratch)
-    v16 = keccak256 0, 64 !metadata(memory=scratch)
-    v1 = sload v16
+    v15 = keccak256 0, 64 !metadata(memory=scratch)
+    v1 = sload v15
     v10 = eq v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jumpi v10, bb1, bb2
   bb2:  ; preds = bb4
@@ -138,8 +138,8 @@ fn @write() {
     v11 = calldataload 36
     mstore 0, v10 !metadata(memory=scratch)
     mstore 32, 0 !metadata(memory=scratch)
-    v13 = keccak256 0, 64 !metadata(memory=scratch)
-    sstore v13, v11
+    v12 = keccak256 0, 64 !metadata(memory=scratch)
+    sstore v12, v11
     mstore 0, v11 !metadata(memory=scratch)
     returndata 0, 32
   bb1 [cold]:  ; preds = bb0
@@ -170,14 +170,14 @@ fn @staticTouch() {
   bb0:
     v0: i256 = address
     v1 = gas
-    v20 = heap_floor !metadata(alloc_ptr)
-    v17 = add v20, 32
-    mstore v17, 0x7cb6ded300000000000000000000000000000000000000000000000000000000
-    v19 = add v20, 36
-    mstore v19, 1
-    v15 = add v19, 32
-    mstore v15, 9
-    v7 = staticcall v1, v0, v17, 68, 0, 0
+    v19 = heap_floor !metadata(alloc_ptr)
+    v16 = add v19, 32
+    mstore v16, 0x7cb6ded300000000000000000000000000000000000000000000000000000000
+    v18 = add v19, 36
+    mstore v18, 1
+    v14 = add v18, 32
+    mstore v14, 9
+    v7 = staticcall v1, v0, v16, 68, 0, 0
     v9 = zext i1 v7 to i256
     mstore 0, v9 !metadata(memory=scratch)
     returndata 0, 32

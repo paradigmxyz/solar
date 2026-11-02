@@ -1172,7 +1172,7 @@ impl<'a> Planner<'a> {
                 })
                 .expect("pending saved words");
             // swap saved; store
-            self.swap_up(sim, depth)?;
+            self.swap_up_over_junk(sim, depth)?;
             match pending.swap_remove(index) {
                 Victim::Value(value) => {
                     *sim.stack.last_mut().unwrap() = Slot::Value(value);
@@ -1187,9 +1187,28 @@ impl<'a> Planner<'a> {
     /// Stores a spilled value from wherever it sits, leaving the rest of the stack in order.
     fn spill_in_place(&self, sim: &mut Sim, value: ValueId) -> Result<(), Fail> {
         let Some(depth) = sim.depth_of(Slot::Value(value)) else { return Ok(()) };
-        self.swap_up(sim, depth)?;
+        self.swap_up_over_junk(sim, depth)?;
         self.spill_top(sim, value);
         Ok(())
+    }
+
+    /// Swaps the word at `depth` to the top. A word beyond reach that no value can be spilled to
+    /// bring closer first has the dead words above it dropped.
+    /// [..., word, ..., junk, ..., top] -> [..., word, ..., top]
+    fn swap_up_over_junk(&self, sim: &mut Sim, mut depth: usize) -> Result<(), Fail> {
+        if depth > self.reach
+            && matches!(self.deep(sim, sim.stack.len().checked_sub(depth + 1)), Fail::Deep(None, _))
+        {
+            while depth > self.reach
+                && let Some(junk) =
+                    sim.stack.iter().rev().take(self.reach + 1).position(|&s| s == Slot::Junk)
+            {
+                self.swap_up(sim, junk)?;
+                self.stack_op(sim, StackOp::Pop)?;
+                depth -= 1;
+            }
+        }
+        self.swap_up(sim, depth)
     }
 
     /// Swaps the word at `depth` to the top.
@@ -3167,11 +3186,11 @@ fn ordered_layout(
 }
 
 /// The multi-return protocol after one call.
-struct Projection {
+pub(super) struct Projection {
     /// Protocol instructions to elide.
-    elided: Vec<InstId>,
+    pub(super) elided: Vec<InstId>,
     /// The value reading each extra result, if any.
-    extras: SmallVec<[Option<ValueId>; 4]>,
+    pub(super) extras: SmallVec<[Option<ValueId>; 4]>,
     /// The pointer and address values, which must have no other consumers.
     tracked: FxHashSet<ValueId>,
 }
@@ -3182,7 +3201,7 @@ struct Projection {
 /// with only pure instructions between, and one offset load per used result follows it with
 /// only read-only instructions between. The buffer is reachable only through the pointer read,
 /// whose other uses reject the projection.
-fn call_projection(
+pub(super) fn call_projection(
     func: &Function,
     block: BlockId,
     call_idx: usize,

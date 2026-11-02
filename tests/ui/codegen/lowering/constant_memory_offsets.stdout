@@ -19,10 +19,6 @@ bb0:  ; runtime dispatch entry + function fixedArray() public pure returns (byte
   push bb4
   jumpi
   push 128
-  dup 1
-  calldatasize
-  dup 3
-  calldatacopy
   push 7
   push 64
   dup 3
@@ -53,10 +49,6 @@ bb6:  ; function dynamicArray() public pure returns (bytes32 result) [selector 0
   or
   push bb8
   jumpi
-  dup 1
-  calldatasize
-  dup 3
-  calldatacopy
   push 7
   push 96
   dup 3

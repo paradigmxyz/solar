@@ -93,12 +93,12 @@ fn @read(arg0: slice<calldata>) -> struct0 [selector=0x171e22c6, pure, abi_param
     v73 = sgt v72, v71
     icall revert_if<calldata_tail_too_short>, v73
     v74 = extract_value slice<calldata>, v66, 1
-    v75 = add v74, 63
-    v76 = lt v75, v74
-    icall panic_if<0x41>, v76
-    v77 = not 31
-    v78 = and v75, v77
-    v79 = alloc v78
+    v75 = add v74, 31
+    v76 = and v75, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v77 = add v76, 32
+    v78 = lt v77, v74
+    icall panic_if<0x41>, v78
+    v79 = alloc v77
     mstore v79, v74
     v80 = ptradd v79, 32
     v81 = extract_value slice<calldata>, v66, 0

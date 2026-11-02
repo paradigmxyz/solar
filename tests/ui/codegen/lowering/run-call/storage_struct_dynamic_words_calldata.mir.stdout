@@ -55,24 +55,22 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0x2f4f3794, abi_params=[array<
     v112 = eq v111, false
     icall panic_if<0x32>, v112
     v113 = storage_array_data_slot 0
-    v114 = add v113, 0
-    v115 = sload v114 !metadata(storage=symbolic(v113))
-    v116 = checked_add uint256, v109, v115
-    v117 = sload 0 !metadata(storage=slot(0))
-    v118 = lt 1, v117
-    v119 = eq v118, false
-    icall panic_if<0x32>, v119
-    v120 = storage_array_data_slot 0
-    v121 = add v120, 1
-    v122 = sload v121 !metadata(storage=offset(v120, 1))
-    v123 = lt 0, v122
-    v124 = eq v123, false
-    icall panic_if<0x32>, v124
-    v125 = storage_array_data_slot v121
-    v126 = add v125, 0
-    v127 = sload v126 !metadata(storage=symbolic(v125))
-    v128 = checked_add uint256, v116, v127
-    ret v128
+    v114 = sload v113 !metadata(storage=symbolic(v113))
+    v115 = checked_add uint256, v109, v114
+    v116 = sload 0 !metadata(storage=slot(0))
+    v117 = lt 1, v116
+    v118 = eq v117, false
+    icall panic_if<0x32>, v118
+    v119 = storage_array_data_slot 0
+    v120 = add v119, 1
+    v121 = sload v120 !metadata(storage=offset(v119, 1))
+    v122 = lt 0, v121
+    v123 = eq v122, false
+    icall panic_if<0x32>, v123
+    v124 = storage_array_data_slot v120
+    v125 = sload v124 !metadata(storage=symbolic(v124))
+    v126 = checked_add uint256, v115, v125
+    ret v126
   bb13:  ; preds = bb12
     v83 = shl v81, 5
     v84 = ptradd v14, v83

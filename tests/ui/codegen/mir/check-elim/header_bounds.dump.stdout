@@ -33,7 +33,7 @@ fn @search() {
     v49 = calldataload 36
     v50 = icall @decode_calldata_type
     v0 = mload v50
-    v63 = add v50, 32
+    v59 = add v50, 32
     jump bb1
   bb1:  ; preds = bb0, bb6
     v5 = phi [bb0: 1], [bb6: v27]
@@ -48,8 +48,8 @@ fn @search() {
     v10 = shr v35, 1
     v37 = sub v10, 1
     v15 = shl v37, 5
-    v61 = add v63, v15
-    v18 = mload v61
+    v57 = add v59, v15
+    v18 = mload v57
     v19 = eq v18, v49
     jumpi v19, bb9, bb4
   bb4:  ; preds = bb8
@@ -86,7 +86,7 @@ fn @lowerBound() {
     v25 = calldataload 36
     v26 = icall @decode_calldata_type
     v0 = mload v26
-    v32 = add v26, 32
+    v31 = add v26, 32
     jump bb1
   bb1:  ; preds = bb0, bb5
     v4 = phi [bb0: 0], [bb5: v19]
@@ -101,8 +101,8 @@ fn @lowerBound() {
     v8 = shr v7, 1
     v21 = add v4, v8
     v13 = shl v21, 5
-    v30 = add v32, v13
-    v16 = mload v30
+    v29 = add v31, v13
+    v16 = mload v29
     v17 = lt v16, v25
     jumpi v17, bb4, bb5
   bb4:  ; preds = bb3
@@ -127,30 +127,30 @@ fn @consume() {
     v56 = sub v47, v55
     v57 = shr v56, 5
     v58 = gt v54, v57
-    v81 = or v53, v58
+    v77 = or v53, v58
     v61 = calldataload 36
     v62 = add v61, 4
     v65 = gt v61, v52
-    v82 = or v81, v65
+    v78 = or v77, v65
     v66 = calldataload v62
     v67 = add v62, 32
     v68 = sub v47, v67
     v69 = shr v68, 5
     v70 = gt v66, v69
-    v83 = or v82, v70
-    jumpi v83, bb7, bb11
+    v79 = or v78, v70
+    jumpi v79, bb7, bb11
   bb11:  ; preds = bb0
-    v79 = shl v66, 5
-    v80 = add v67, v79
+    v75 = shl v66, 5
+    v76 = add v67, v75
     jump bb1
   bb1:  ; preds = bb3, bb11
     v2 = phi [bb11: 0], [bb3: v38]
     v3 = phi [bb11: 0], [bb3: v39]
-    v77 = phi [bb11: v67], [bb3: v78]
-    v6 = ne v77, v80
+    v73 = phi [bb11: v67], [bb3: v74]
+    v6 = ne v73, v76
     jumpi v6, bb4, bb2
   bb4:  ; preds = bb1
-    v16 = calldataload v77
+    v16 = calldataload v73
     v17 = shr v16, 1
     v18 = eq v17, 0
     jumpi v18, bb8, bb7
@@ -181,7 +181,7 @@ fn @consume() {
   bb3:  ; preds = bb8, bb10
     v38 = phi [bb10: v45], [bb8: v2]
     v39 = phi [bb10: v37], [bb8: v3]
-    v78 = add v77, 32
+    v74 = add v73, 32
     jump bb1
   bb7 [cold]:  ; preds = bb4, bb0
     revert 0, 0
@@ -193,14 +193,14 @@ fn @probe() {
     v28 = calldataload 36
     v29 = icall @decode_calldata_type
     v0 = mload v29
-    v35 = add v29, 32
-    v36 = sub 0, v28
+    v34 = add v29, 32
+    v35 = sub 0, v28
     jump bb1
   bb1:  ; preds = bb0, bb9
     v3 = phi [bb0: 0], [bb9: v22]
     v4 = phi [bb0: 0], [bb9: v5]
     v5 = phi [bb0: v0], [bb9: v24]
-    v6 = phi [bb0: v36], [bb9: v19]
+    v6 = phi [bb0: v35], [bb9: v19]
     v7 = ne v6, 0
     jumpi v7, bb3, bb2
   bb2:  ; preds = bb1
@@ -218,8 +218,8 @@ fn @probe() {
     tail_call @revert_stub
   bb5:  ; preds = bb7
     v13 = shl v9, 5
-    v33 = add v35, v13
-    v16 = mload v33
+    v32 = add v34, v13
+    v16 = mload v32
     v22 = add v3, v16
     v23 = lt v22, v3
     jumpi v23, bb6, bb8

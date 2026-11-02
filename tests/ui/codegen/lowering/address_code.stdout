@@ -21,12 +21,12 @@ fn @code(arg0: i160) -> ptr<memory> [selector=0x5b90b752, view, abi_params=[addr
   bb0:
     v0 = zext i160 arg0 to i256
     v1 = extcodesize v0
-    v2 = add v1, 63
-    v3 = lt v2, v1
-    icall panic_if<0x41>, v3
-    v4 = not 31
-    v5 = and v2, v4
-    v6 = alloc zeroed checked v5
+    v2 = add v1, 31
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v4 = add v3, 32
+    v5 = lt v4, v1
+    icall panic_if<0x41>, v5
+    v6 = alloc zeroed checked v4
     mstore v6, v1
     v7 = ptradd v6, 32
     v8 = zext i160 arg0 to i256

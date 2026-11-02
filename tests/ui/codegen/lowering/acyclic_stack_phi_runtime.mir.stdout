@@ -258,7 +258,7 @@ fn @findLoopExit(arg0: i256) -> struct0 [view] {
     v2 = phi [bb0: arg0], [bb5: v2]
     v3 = phi [bb0: 0], [bb5: v5]
     v4 = phi [bb0: 0], [bb5: v4]
-    v5 = phi [bb0: v1], [bb5: v19]
+    v5 = phi [bb0: v1], [bb5: v18]
     v6 = ne v5, 0
     jumpi v6, bb3, bb4
   bb4:  ; preds = bb1
@@ -273,29 +273,28 @@ fn @findLoopExit(arg0: i256) -> struct0 [view] {
   bb7:  ; preds = bb3
     jump bb8
   bb6:  ; preds = bb3
-    v12 = shl 1, 255
-    v13 = or v5, v12
-    v14 = sload v13 !metadata(storage=symbolic(v13))
+    v12 = or v5, 0x8000000000000000000000000000000000000000000000000000000000000000
+    v13 = sload v12 !metadata(storage=symbolic(v12))
     jump bb8
   bb8:  ; preds = bb6, bb7
-    v15 = phi [bb6: v14], [bb7: v8]
-    v16 = eq v15, v2
-    v17 = zext i1 v16 to i256
-    v18 = ne v17, 0
-    jumpi v18, bb9, bb10
+    v14 = phi [bb6: v13], [bb7: v8]
+    v15 = eq v14, v2
+    v16 = zext i1 v15 to i256
+    v17 = ne v16, 0
+    jumpi v17, bb9, bb10
   bb10:  ; preds = bb8
     jump bb11
   bb11:  ; preds = bb10
-    v19 = and v7, 0xffffffff
+    v18 = and v7, 0xffffffff
     jump bb5
   bb5:  ; preds = bb11
     jump bb1
   bb9:  ; preds = bb8
     jump bb2
   bb2:  ; preds = bb9, bb4
-    v20 = phi [bb9: v5], [bb4: v3]
-    v21 = phi [bb9: v5], [bb4: v4]
-    v22 = insert_value struct0, undef struct0, 0, v20
-    v23 = insert_value struct0, v22, 1, v21
-    ret v23
+    v19 = phi [bb9: v5], [bb4: v3]
+    v20 = phi [bb9: v5], [bb4: v4]
+    v21 = insert_value struct0, undef struct0, 0, v19
+    v22 = insert_value struct0, v21, 1, v20
+    ret v22
 }

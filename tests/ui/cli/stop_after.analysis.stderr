@@ -1,0 +1,20 @@
+error: unresolved symbol `undefined_name`
+   ╭▸ ROOT/tests/ui/cli/stop_after.sol:LL:CC
+   │
+LL │         undefined_name = 1;
+   ╰╴        ━━━━━━━━━━━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/cli/stop_after.sol:LL:CC
+   │
+LL │         bool b = 1;
+   ╰╴                 ━ expected `bool`, found `int_literal[1]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/cli/stop_after.sol:LL:CC
+   │
+LL │         return b;
+   ╰╴               ━ expected `uint256`, found `bool`
+
+error: aborting due to 3 previous errors
+

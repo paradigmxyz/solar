@@ -29,12 +29,12 @@ fn @bytesCopy() -> ptr<memory> [selector=0x6310efb6, pure, abi_params=[], abi_re
     v3 = extract_value slice<calldata>, v2, 0
     v4 = make_calldata_slice v3, 64
     v5 = extract_value slice<calldata>, v4, 1
-    v6 = add v5, 63
-    v7 = lt v6, v5
-    icall panic_if<0x41>, v7
-    v8 = not 31
-    v9 = and v6, v8
-    v10 = alloc v9
+    v6 = add v5, 31
+    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v8 = add v7, 32
+    v9 = lt v8, v5
+    icall panic_if<0x41>, v9
+    v10 = alloc v8
     mstore v10, v5
     v11 = extract_value slice<calldata>, v4, 0
     v12 = extract_value slice<calldata>, v4, 1
@@ -61,12 +61,12 @@ fn @bytesHash() -> i256 [selector=0x05da852c, pure, abi_params=[], abi_returns=[
     v3 = extract_value slice<calldata>, v2, 0
     v4 = make_calldata_slice v3, 64
     v5 = extract_value slice<calldata>, v4, 1
-    v6 = add v5, 63
-    v7 = lt v6, v5
-    icall panic_if<0x41>, v7
-    v8 = not 31
-    v9 = and v6, v8
-    v10 = alloc v9
+    v6 = add v5, 31
+    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v8 = add v7, 32
+    v9 = lt v8, v5
+    icall panic_if<0x41>, v9
+    v10 = alloc v8
     mstore v10, v5
     v11 = extract_value slice<calldata>, v4, 0
     v12 = extract_value slice<calldata>, v4, 1

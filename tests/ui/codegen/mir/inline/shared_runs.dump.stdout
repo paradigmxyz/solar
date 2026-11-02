@@ -50,10 +50,10 @@ fn @paintUint(arg0: i256) -> i256 [may_return_memory] {
     revert 0, v17
   bb2:  ; preds = bb0
     v5 = returndatasize
-    v6 = add v5, 63
-    v9 = and v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v24 = add v5, 63
+    v8 = and v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v22 = heap_floor !metadata(alloc_ptr)
-    v23 = add v22, v9 !metadata(alloc_ptr)
+    v23 = add v22, v8 !metadata(alloc_ptr)
     mstore 64, v23 !metadata(memory=scratch)
     mstore v22, v5
     v19 = add v22, 32
@@ -78,10 +78,10 @@ fn @paintBool() -> i256 [may_return_memory] {
     revert 0, v19
   bb2:  ; preds = bb0
     v7 = returndatasize
-    v8 = add v7, 63
-    v11 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v26 = add v7, 63
+    v10 = and v26, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v24 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v25 = add v24, v11 !metadata(alloc_ptr)
+    v25 = add v24, v10 !metadata(alloc_ptr)
     mstore 64, v25 !metadata(memory=scratch)
     mstore v24, v7
     v21 = add v24, 32
@@ -98,13 +98,13 @@ fn @wrap(arg0: i256) -> i256 [may_return_memory] {
     v2 = mload arg0
     v5 = add v2, 1
     v6 = add v2, 2
-    v7 = add v6, 63
-    v8 = lt v7, v6
-    jumpi v8, bb1, bb2
+    v39 = add v6, 63
+    v9 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v10 = lt v9, v6
+    jumpi v10, bb1, bb2
   bb2:  ; preds = bb0
-    v10 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v37 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v38 = add v37, v10 !metadata(alloc_ptr)
+    v38 = add v37, v9 !metadata(alloc_ptr)
     mstore 64, v38 !metadata(memory=scratch)
     mstore v37, v6
     v25 = add v37, 32
@@ -146,13 +146,13 @@ fn @decode_aggregate(arg0: i256) -> i256 [may_return_memory] {
     jumpi v13, bb1, bb3
   bb3:  ; preds = bb2
     v15 = mload v7
-    v17 = add v15, 63
-    v18 = lt v17, v15
-    jumpi v18, bb4, bb5
+    v49 = add v15, 63
+    v19 = and v49, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v20 = lt v19, v15
+    jumpi v20, bb4, bb5
   bb5:  ; preds = bb3
-    v20 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v41 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v42 = add v41, v20 !metadata(alloc_ptr)
+    v42 = add v41, v19 !metadata(alloc_ptr)
     v43 = lt v42, v41
     v44 = zext i1 v43 to i256
     v45 = shr v42, 64
@@ -184,19 +184,19 @@ fn @decode_aggregate(arg0: i256) -> i256 [may_return_memory] {
 
 fn @encode_abi_tuple(arg0: i256) -> slice<memory> [may_return_memory, return_abi=[i256, i256]] {
   bb0:
-    v24 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v2 = add v24, 32
-    mstore v24, 32
+    v23 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v2 = add v23, 32
+    mstore v23, 32
     v5 = mload arg0
-    v7 = add v5, 31
-    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v9 = add v2, 32
-    v10 = add v2, v8
-    mstore v10, 0
+    v6 = add v5, 31
+    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v8 = add v2, 32
+    v9 = add v2, v7
+    mstore v9, 0
     mstore v2, v5
-    v12 = add v9, v8
-    v18 = add arg0, 32
-    mcopy v9, v18, v5 !metadata(memory=heap, disjoint)
-    v14 = sub v12, v24
-    ret v24, v14
+    v11 = add v8, v7
+    v17 = add arg0, 32
+    mcopy v8, v17, v5 !metadata(memory=heap, disjoint)
+    v13 = sub v11, v23
+    ret v23, v13
 }

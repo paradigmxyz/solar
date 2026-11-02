@@ -61,15 +61,15 @@ fn @first() {
     v10 = shr v9, 160
     v7 = calldatasize
     v8 = lt v7, 68
-    v18 = zext i1 v8 to i256
-    v19 = or v18, v10
-    v20 = ne v19, 0
-    jumpi v20, bb1, bb2
+    v17 = zext i1 v8 to i256
+    v18 = or v17, v10
+    v19 = ne v18, 0
+    jumpi v19, bb1, bb2
   bb2:  ; preds = bb0
-    v21 = calldataload 4
+    v20 = calldataload 4
     v12 = calldataload 36
-    v0 = icall @digest, v21, v12
-    mstore 0, v21
+    v0 = icall @digest, v20, v12
+    mstore 0, v20
     mstore 32, v12
     v6 = keccak256 0, 64 !metadata(memory=scratch)
     v2 = eq v0, v6
@@ -87,19 +87,19 @@ fn @second() {
     v16 = shr v15, 160
     v13 = calldatasize
     v14 = lt v13, 68
-    v24 = zext i1 v14 to i256
-    v25 = or v24, v16
-    v26 = ne v25, 0
-    jumpi v26, bb3, bb4
+    v23 = zext i1 v14 to i256
+    v24 = or v23, v16
+    v25 = ne v24, 0
+    jumpi v25, bb3, bb4
   bb4:  ; preds = bb0
     v18 = calldataload 36
     v9 = add v18, 1
     v10 = eq v9, 0
     jumpi v10, bb1, bb2
   bb2:  ; preds = bb4
-    v27 = calldataload 4
-    v1 = icall @digest, v27, v9
-    mstore 0, v27
+    v26 = calldataload 4
+    v1 = icall @digest, v26, v9
+    mstore 0, v26
     mstore 32, v9
     v8 = keccak256 0, 64 !metadata(memory=scratch)
     v4 = eq v1, v8

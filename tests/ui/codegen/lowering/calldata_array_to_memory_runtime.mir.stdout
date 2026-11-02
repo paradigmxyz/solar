@@ -31,9 +31,9 @@ fn @viaStructLiteral(arg0: i256, arg1: slice<calldata>, arg2: slice<calldata>) -
     calldatacopy v17, v18, v19
     v20 = ptrtoint ptr<memory> v15 to i256
     v21 = extract_value slice<calldata>, arg2, 1
-    v22 = add v21, 63
-    v23 = not 31
-    v24 = and v22, v23
+    v22 = add v21, 31
+    v23 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v24 = add v23, 32
     v25 = alloc v24
     mstore v25, v21
     v26 = ptradd v25, 32

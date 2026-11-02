@@ -1,0 +1,11 @@
+// A backend stack return on a call to a missing function is an error, not a panic.
+//~? ERROR: backend stack return calls an unknown function
+@module BackendStackCallee
+@phase lowered
+// backend-memory-v1
+// backend-stack 0 0 - -
+fn @entry() [entry] {
+  bb0:
+    v0 = icall fn1
+    stop
+}

@@ -30,44 +30,44 @@ fn @asValue() {
     v5 = shr v4, 160
     v2 = calldatasize
     v3 = lt v2, 68
-    v62 = zext i1 v3 to i256
-    v63 = or v62, v5
-    v64 = ne v63, 0
-    jumpi v64, bb1, bb2
+    v60 = zext i1 v3 to i256
+    v61 = or v60, v5
+    v62 = ne v61, 0
+    jumpi v62, bb1, bb2
   bb2:  ; preds = bb0
-    v65 = calldataload 4
+    v63 = calldataload 4
     v7 = calldataload 36
-    v58 = heap_floor !metadata(alloc_ptr)
-    v59 = add v58, 128 !metadata(alloc_ptr)
-    mstore 64, v59 !metadata(memory=scratch)
-    mstore v58, 68
-    v51 = add v58, 32
-    mstore v51, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-    v53 = add v58, 36
-    mstore v53, v65
-    v16 = add v53, 32
+    v56 = heap_floor !metadata(alloc_ptr)
+    v57 = add v56, 128 !metadata(alloc_ptr)
+    mstore 64, v57 !metadata(memory=scratch)
+    mstore v56, 68
+    v49 = add v56, 32
+    mstore v49, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v51 = add v56, 36
+    mstore v51, v63
+    v16 = add v51, 32
     mstore v16, v7
-    v18 = lt v58, 32
+    v18 = lt v56, 32
     jumpi v18, bb3, bb4
   bb4:  ; preds = bb2
-    v44 = add v51, 68
-    mstore v44, 0
-    v55 = sub v58, 32
-    mstore v55, 32
+    v42 = add v49, 68
+    mstore v42, 0
+    v53 = sub v56, 32
+    mstore v53, 32
     jump bb5
   bb3:  ; preds = bb2
-    v60 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v21 = add v60, 32
-    mstore v60, 32
-    v28 = add v21, 32
-    v29 = add v21, 96
-    mstore v29, 0
+    v58 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v21 = add v58, 32
+    mstore v58, 32
+    v27 = add v21, 32
+    v28 = add v21, 96
+    mstore v28, 0
     mstore v21, 68
-    mcopy v28, v51, 68 !metadata(disjoint)
+    mcopy v27, v49, 68 !metadata(disjoint)
     jump bb5
   bb5:  ; preds = bb3, bb4
-    v47 = phi [bb3: v60], [bb4: v55]
-    returndata v47, 160
+    v45 = phi [bb3: v58], [bb4: v53]
+    returndata v45, 160
   bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
@@ -79,26 +79,26 @@ fn @viaCall() {
     v9 = lt v8, 100
     v10 = calldataload 4
     v11 = shr v10, 160
-    v34 = zext i1 v9 to i256
-    v35 = or v34, v11
+    v33 = zext i1 v9 to i256
+    v34 = or v33, v11
     v13 = calldataload 36
     v14 = shr v13, 160
-    v37 = or v35, v14
-    v38 = ne v37, 0
-    jumpi v38, bb1, bb2
+    v36 = or v34, v14
+    v37 = ne v36, 0
+    jumpi v37, bb1, bb2
   bb2:  ; preds = bb0
-    v40 = calldataload 36
-    v39 = calldataload 4
+    v39 = calldataload 36
+    v38 = calldataload 4
     v16 = calldataload 68
     v0 = gas
-    v31 = heap_floor !metadata(alloc_ptr)
-    v28 = add v31, 32
-    mstore v28, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-    v30 = add v31, 36
-    mstore v30, v40
-    v26 = add v30, 32
-    mstore v26, v16
-    v7 = call v0, v39, 0, v28, 68, 0, 0
+    v30 = heap_floor !metadata(alloc_ptr)
+    v27 = add v30, 32
+    mstore v27, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v29 = add v30, 36
+    mstore v29, v39
+    v25 = add v29, 32
+    mstore v25, v16
+    v7 = call v0, v38, 0, v27, 68, 0, 0
     v20 = zext i1 v7 to i256
     mstore 0, v20 !metadata(memory=scratch)
     returndata 0, 32

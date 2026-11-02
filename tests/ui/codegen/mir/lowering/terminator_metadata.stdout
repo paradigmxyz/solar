@@ -14,8 +14,7 @@
 +     jump bb1
 +   bb1:  ; preds = bb3
 +     mstore 0, v2 !metadata(memory=scratch, span=30..40)
-+     v3 = sub 32, 0 !metadata(span=30..40)
-+     returndata 0, v3 !metadata(span=30..40)
++     returndata 0, 32 !metadata(span=30..40)
 +   bb2 [cold]:  ; preds = bb0
 +     revert 0, 0
   }
@@ -43,8 +42,7 @@
       jump bb1
     bb1:  ; preds = bb3
       mstore 0, v2 !metadata(memory=scratch, span=30..40)
-      v3 = sub 32, 0 !metadata(span=30..40)
-      returndata 0, v3 !metadata(span=30..40)
+      returndata 0, 32 !metadata(span=30..40)
     bb2 [cold]:  ; preds = bb0
       revert 0, 0
   }

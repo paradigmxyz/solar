@@ -36,12 +36,12 @@ fn @calldataParam(arg0: slice<calldata>) -> i256 [selector=0x7d4a24fb, pure, abi
     v6 = sgt v5, v4
     icall revert_if<calldata_tail_too_short>, v6
     v7 = extract_value slice<calldata>, arg0, 1
-    v8 = add v7, 63
-    v9 = lt v8, v7
-    icall panic_if<0x41>, v9
-    v10 = not 31
-    v11 = and v8, v10
-    v12 = alloc v11
+    v8 = add v7, 31
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v10 = add v9, 32
+    v11 = lt v10, v7
+    icall panic_if<0x41>, v11
+    v12 = alloc v10
     mstore v12, v7
     v13 = ptradd v12, 32
     v14 = extract_value slice<calldata>, arg0, 0

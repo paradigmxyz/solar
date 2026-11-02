@@ -32,24 +32,24 @@ fn @pushStr() {
     v75 = add v74, 4
     v77 = sub v72, 36
     v78 = gt v74, v77
-    v113 = or v73, v78
-    jumpi v113, bb15, bb16
+    v114 = or v73, v78
+    jumpi v114, bb15, bb16
   bb16:  ; preds = bb0
     v79 = calldataload v75
     v80 = add v75, 32
-    v81 = add v79, 63
-    v82 = lt v81, v79
-    v84 = and v81, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v112 = add v79, 63
+    v83 = and v112, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v84 = lt v83, v79
     v105 = heap_floor !metadata(alloc_ptr)
-    v106 = add v105, v84 !metadata(alloc_ptr)
+    v106 = add v105, v83 !metadata(alloc_ptr)
     v107 = lt v106, v105
     v108 = zext i1 v107 to i256
     v109 = shr v106, 64
     v110 = or v108, v109
-    v114 = zext i1 v82 to i256
-    v115 = or v114, v110
-    v116 = ne v115, 0
-    jumpi v116, bb17, bb19
+    v115 = zext i1 v84 to i256
+    v116 = or v115, v110
+    v117 = ne v116, 0
+    jumpi v117, bb17, bb19
   bb19:  ; preds = bb16
     mstore 64, v106 !metadata(memory=scratch)
     mstore v105, v79
@@ -59,11 +59,6 @@ fn @pushStr() {
   bb18:  ; preds = bb19
     v99 = add v105, 32
     calldatacopy v99, v80, v79
-    v95 = sub 0, v79
-    v96 = and v95, 31
-    v112 = calldatasize
-    v100 = add v99, v79
-    calldatacopy v100, v112, v96
     v0 = sload 0 !metadata(storage=slot(0))
     v5 = shr v0, 64
     v1 = ne v5, 0
@@ -234,14 +229,14 @@ fn @blobAt() {
     v5 = icall @load_storage_bytes, v4
     v12 = mload v5
     v13 = add v12, 31
-    v15 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v23 = add v5, 32
-    v18 = add v23, v12
-    mstore v18, 0
-    v25 = sub v5, 32
-    mstore v25, 32
-    v20 = add v15, 64
-    returndata v25, v20
+    v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v22 = add v5, 32
+    v17 = add v22, v12
+    mstore v17, 0
+    v24 = sub v5, 32
+    mstore v24, 32
+    v19 = add v14, 64
+    returndata v24, v19
   bb3 [cold]:  ; preds = bb0
     revert 0, 0
 }
@@ -276,10 +271,10 @@ fn @load_storage_bytes(arg0: i256) -> i256 [may_return_memory] {
   bb2:  ; preds = bb0
     v10 = add v7, 31
     v11 = shr v10, 5
-    v12 = add v7, 63
-    v15 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v13 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v14 = add v13, 32
     v35 = heap_floor !metadata(alloc_ptr)
-    v36 = add v35, v15 !metadata(alloc_ptr)
+    v36 = add v35, v14 !metadata(alloc_ptr)
     v37 = lt v36, v35
     v38 = zext i1 v37 to i256
     v39 = shr v36, 64

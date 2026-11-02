@@ -31,23 +31,23 @@ fn @lastIndexOf() {
     v1 = eq v0, 0
     jumpi v1, bb1, bb2
   bb2:  ; preds = bb0
-    v42 = calldataload 68
-    v41 = calldataload 36
-    v2 = lt v42, v0
+    v40 = calldataload 68
+    v39 = calldataload 36
+    v2 = lt v40, v0
     v3 = sub v0, 1
-    v21 = sub v42, v3
+    v21 = sub v40, v3
     v22 = zext i1 v2 to i256
     v23 = mul v22, v21
     v24 = add v3, v23
-    v36 = shl v24, 5
-    v37 = add v29, v36
-    v38 = add v37, 32
+    v34 = shl v24, 5
+    v35 = add v29, v34
+    v36 = add v35, 32
     jump bb3
   bb3:  ; preds = bb2, bb6
     v10 = phi [bb2: v24], [bb6: v20]
-    v39 = phi [bb2: v38], [bb6: v40]
-    v17 = mload v39
-    v18 = ne v17, v41
+    v37 = phi [bb2: v36], [bb6: v38]
+    v17 = mload v37
+    v18 = ne v17, v39
     jumpi v18, bb5, bb4
   bb4:  ; preds = bb3
     mstore 0, v10 !metadata(memory=scratch)
@@ -57,7 +57,7 @@ fn @lastIndexOf() {
     jumpi v19, bb1, bb6
   bb6:  ; preds = bb5
     v20 = sub v10, 1
-    v40 = sub v39, 32
+    v38 = sub v37, 32
     jump bb3
   bb1:  ; preds = bb0, bb5
     mstore 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(memory=scratch)
@@ -72,20 +72,20 @@ fn @keepsCheck() {
     v1 = eq v0, 0
     jumpi v1, bb1, bb2
   bb2:  ; preds = bb0
-    v41 = calldataload 68
-    v40 = calldataload 36
-    v20 = sub v41, v0
-    v2 = lt v41, v0
+    v39 = calldataload 68
+    v38 = calldataload 36
+    v20 = sub v39, v0
+    v2 = lt v39, v0
     v21 = zext i1 v2 to i256
     v22 = mul v21, v20
     v23 = add v0, v22
-    v35 = shl v23, 5
-    v36 = add v28, v35
-    v37 = add v36, 32
+    v33 = shl v23, 5
+    v34 = add v28, v33
+    v35 = add v34, 32
     jump bb3
   bb3:  ; preds = bb2, bb6
     v9 = phi [bb2: v23], [bb6: v19]
-    v38 = phi [bb2: v37], [bb6: v39]
+    v36 = phi [bb2: v35], [bb6: v37]
     v11 = lt v9, v0
     jumpi v11, bb8, bb7
   bb7 [cold]:  ; preds = bb3
@@ -93,8 +93,8 @@ fn @keepsCheck() {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb8:  ; preds = bb3
-    v16 = mload v38
-    v17 = ne v16, v40
+    v16 = mload v36
+    v17 = ne v16, v38
     jumpi v17, bb5, bb4
   bb4:  ; preds = bb8
     mstore 0, v9 !metadata(memory=scratch)
@@ -104,7 +104,7 @@ fn @keepsCheck() {
     jumpi v18, bb1, bb6
   bb6:  ; preds = bb5
     v19 = sub v9, 1
-    v39 = sub v38, 32
+    v37 = sub v36, 32
     jump bb3
   bb1:  ; preds = bb0, bb5
     mstore 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(memory=scratch)

@@ -1229,7 +1229,7 @@ impl LowerAbiCx {
                         }
                         _ => {
                             let position =
-                                builder.add_u64_offset(base, index * EvmMemoryLayout::WORD_SIZE);
+                                builder.add_offset(base, index * EvmMemoryLayout::WORD_SIZE);
                             builder.load(position, PtrLocation::Memory)
                         }
                     };
@@ -1336,7 +1336,7 @@ impl LowerAbiCx {
                 layout.checked_head_size().expect("ABI head size exceeds u64 range")
             });
             let invalid = if constructor {
-                let required = builder.add_u64_offset(input_base, head_size);
+                let required = builder.add_offset(input_base, head_size);
                 builder.gt(required, input_end)
             } else {
                 let required = builder.imm(4 + head_size);
@@ -1362,7 +1362,7 @@ impl LowerAbiCx {
                 // Read the raw input word so an optimizer cannot fold the check away before it
                 // runs.
                 let offset = if constructor {
-                    builder.add_u64_offset(input_base, head_offset - 32)
+                    builder.add_offset(input_base, head_offset - 32)
                 } else {
                     builder.imm(4 + head_offset - 32)
                 };
@@ -1444,7 +1444,7 @@ impl LowerAbiCx {
                         {
                             let base = builder.icall(helper, vec![head], MirType::I256);
                             let len = builder.load(base, PtrLocation::Calldata);
-                            let data = builder.add_u64_offset(base, 32);
+                            let data = builder.add_offset(base, 32);
                             builder.make_slice(data, len, PtrLocation::Calldata)
                         } else {
                             Self::decode_aggregate_argument(
@@ -1578,7 +1578,7 @@ impl LowerAbiCx {
             }
             AbiParamType::Bytes => {
                 let len = Self::load_input_word(builder, base, constructor);
-                let data = builder.add_u64_offset(base, 32);
+                let data = builder.add_offset(base, 32);
                 Self::guard_bytes_data(builder, data, len, input_end, current, false);
             }
             AbiParamType::Scalar(_) | AbiParamType::Enum { .. } => {
@@ -1750,7 +1750,7 @@ impl LowerAbiCx {
             AbiParamType::DynamicArray(element) if Self::is_full_word_scalar(element) => {
                 let word = builder.imm(32);
                 let len = Self::load_input_word(builder, base, constructor);
-                let data = builder.add_u64_offset(base, 32);
+                let data = builder.add_offset(base, 32);
                 let (ptr, _) = builder
                     .alloc_dynamic_word_array(len, AllocationSemantics::SOLIDITY_UNINITIALIZED);
                 *current = builder.current_block();
@@ -1762,7 +1762,7 @@ impl LowerAbiCx {
             }
             AbiParamType::DynamicArray(element) if arg_type == MirType::MEMPTR => {
                 let len = Self::load_input_word(builder, base, constructor);
-                let data_base = builder.add_u64_offset(base, 32);
+                let data_base = builder.add_offset(base, 32);
                 let (ptr, _) = builder
                     .alloc_dynamic_word_array(len, AllocationSemantics::SOLIDITY_UNINITIALIZED);
                 *current = builder.current_block();
@@ -1793,7 +1793,7 @@ impl LowerAbiCx {
             }
             AbiParamType::Bytes if matches!(arg_type, MirType::Slice(_)) => {
                 let len = Self::load_input_word(builder, base, constructor);
-                let data = builder.add_u64_offset(base, 32);
+                let data = builder.add_offset(base, 32);
                 Self::guard_bytes_data(builder, data, len, input_end, current, false);
                 builder.make_slice(data, len, location)
             }
@@ -1848,7 +1848,7 @@ impl LowerAbiCx {
                     builder.alloc_word_struct(storage_fields as u64, AllocationSemantics::INTERNAL);
                 let mut offset = 0;
                 for (index, field) in fields.iter().enumerate() {
-                    let field_head = builder.add_u64_offset(base, offset);
+                    let field_head = builder.add_offset(base, offset);
                     let value = Self::decode_aggregate_argument(
                         builder,
                         field,
@@ -2027,7 +2027,7 @@ impl LowerAbiCx {
                 let mut offset = 0;
                 let mut current = builder.current_block();
                 for (index, field) in fields.iter().enumerate() {
-                    let field_head = builder.add_u64_offset(head, offset);
+                    let field_head = builder.add_offset(head, offset);
                     let value = decode(builder, field, field_head, &mut current);
                     builder.switch_to_block(current);
                     let value = Self::encode_memory_scalar(builder, field, value);
@@ -2211,7 +2211,7 @@ impl LowerAbiCx {
         element_head_size: u64,
     ) -> (ValueId, ValueId) {
         let len = Self::load_input_word(builder, base, constructor);
-        let data = builder.add_u64_offset(base, 32);
+        let data = builder.add_offset(base, 32);
         Self::guard_input_dynamic_array(builder, len, data, input_end, current, element_head_size);
         (len, data)
     }
@@ -2308,7 +2308,7 @@ impl LowerAbiCx {
             let checks_first_word =
                 is_array_like || (!to_calldata && matches!(ty, AbiParamType::FixedArray { .. }));
             let (invalid, reason) = if checks_first_word {
-                let target_end = builder.add_u64_offset(target, 32);
+                let target_end = builder.add_offset(target, 32);
                 (builder.gt(target_end, input_end), RevertReason::InvalidCalldataArrayOffset)
             } else {
                 let remaining = builder.sub(input_end, base);
@@ -2354,7 +2354,7 @@ impl LowerAbiCx {
         }
         // offset > u64::MAX || base + offset + 32 > input_end
         let target = builder.add(base, offset);
-        let target_end = builder.add_u64_offset(target, 32);
+        let target_end = builder.add_offset(target, 32);
         let max_offset = builder.imm(u64::MAX);
         let overflow = builder.gt(offset, max_offset);
         let out_of_range = builder.gt(target_end, input_end);
@@ -2633,7 +2633,7 @@ fn decode_tuple(
     let mut head_offset = 0_u64;
     for ty in &layout.types {
         builder.switch_to_block(current);
-        let head = builder.add_u64_offset(base, head_offset);
+        let head = builder.add_offset(base, head_offset);
         let value = if static_layout {
             let location = if calldata { PtrLocation::Calldata } else { PtrLocation::Memory };
             LowerAbiCx::decode_static_argument(builder, ty, head, &mut current, location)

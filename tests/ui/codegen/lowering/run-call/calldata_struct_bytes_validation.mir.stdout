@@ -31,12 +31,12 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0xd1ee4a1a, pure, abi_params=[
     v21 = inttoptr i256 v18 to ptr<calldata>
     v22 = make_calldata_slice v21, v15
     v23 = extract_value slice<calldata>, v22, 1
-    v24 = add v23, 63
-    v25 = lt v24, v23
-    icall panic_if<0x41>, v25
-    v26 = not 31
-    v27 = and v24, v26
-    v28 = alloc v27
+    v24 = add v23, 31
+    v25 = and v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v26 = add v25, 32
+    v27 = lt v26, v23
+    icall panic_if<0x41>, v27
+    v28 = alloc v26
     mstore v28, v23
     v29 = ptradd v28, 32
     v30 = extract_value slice<calldata>, v22, 0
@@ -191,12 +191,12 @@ fn @hashField(arg0: slice<calldata>) -> i256 [selector=0xdd0f255f, pure, abi_par
     v29 = sgt v28, v27
     icall revert_if<calldata_tail_too_short>, v29
     v30 = extract_value slice<calldata>, v22, 1
-    v31 = add v30, 63
-    v32 = lt v31, v30
-    icall panic_if<0x41>, v32
-    v33 = not 31
-    v34 = and v31, v33
-    v35 = alloc v34
+    v31 = add v30, 31
+    v32 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v33 = add v32, 32
+    v34 = lt v33, v30
+    icall panic_if<0x41>, v34
+    v35 = alloc v33
     mstore v35, v30
     v36 = ptradd v35, 32
     v37 = extract_value slice<calldata>, v22, 0
@@ -338,12 +338,12 @@ fn @copyField(arg0: slice<calldata>) -> i256 [selector=0xda205eee, pure, abi_par
     v29 = sgt v28, v27
     icall revert_if<calldata_tail_too_short>, v29
     v30 = extract_value slice<calldata>, v22, 1
-    v31 = add v30, 63
-    v32 = lt v31, v30
-    icall panic_if<0x41>, v32
-    v33 = not 31
-    v34 = and v31, v33
-    v35 = alloc v34
+    v31 = add v30, 31
+    v32 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v33 = add v32, 32
+    v34 = lt v33, v30
+    icall panic_if<0x41>, v34
+    v35 = alloc v33
     mstore v35, v30
     v36 = ptradd v35, 32
     v37 = extract_value slice<calldata>, v22, 0
@@ -396,12 +396,12 @@ fn @copyWords(arg0: slice<calldata>) -> i256 [selector=0x7ce58428, pure, abi_par
 fn @emitBytes(arg0: slice<calldata>) -> i256 [selector=0xc76f0635, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
-    v1 = add v0, 63
-    v2 = lt v1, v0
-    icall panic_if<0x41>, v2
-    v3 = not 31
-    v4 = and v1, v3
-    v5 = alloc v4
+    v1 = add v0, 31
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v3 = add v2, 32
+    v4 = lt v3, v0
+    icall panic_if<0x41>, v4
+    v5 = alloc v3
     mstore v5, v0
     v6 = ptradd v5, 32
     v7 = extract_value slice<calldata>, arg0, 0
@@ -481,12 +481,12 @@ fn @copyArray(arg0: slice<calldata>) -> i256 [selector=0x58bdfbf3, pure, abi_par
     v38 = inttoptr i256 v35 to ptr<calldata>
     v39 = make_calldata_slice v38, v32
     v40 = extract_value slice<calldata>, v39, 1
-    v41 = add v40, 63
-    v42 = lt v41, v40
-    icall panic_if<0x41>, v42
-    v43 = not 31
-    v44 = and v41, v43
-    v45 = alloc v44
+    v41 = add v40, 31
+    v42 = and v41, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v43 = add v42, 32
+    v44 = lt v43, v40
+    icall panic_if<0x41>, v44
+    v45 = alloc v43
     mstore v45, v40
     v46 = ptradd v45, 32
     v47 = extract_value slice<calldata>, v39, 0
