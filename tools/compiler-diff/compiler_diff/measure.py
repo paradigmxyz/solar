@@ -27,7 +27,8 @@ def main(fd, argv):
             setsigdef=[signal.SIGPIPE, signal.SIGXFSZ],
         )
     except OSError as error:
-        report = {"returncode": None, "error": str(error)}
+        # Keep the report below the pipe capacity, which the parent drains after the exit.
+        report = {"returncode": None, "error": str(error)[:1000]}
     else:
         _, status, usage = os.wait4(pid, 0)
         # Linux reports kilobytes, macOS bytes.
