@@ -7,11 +7,12 @@
 //! - A commutative pair orders its operands by [`OperandRank`], the more complex operand first and
 //!   equal ranks in their written order, so constants end up on the right. This follows LLVM's
 //!   `getComplexity`, with unary operations and casts ranked as one class.
-//! - A comparison with a constant on the left swaps its operands and flips its predicate, so `lt 5,
-//!   x` becomes `gt x, 5`.
+//! - A comparison with a constant on the left swaps its operands and flips its predicate: the
+//!   constant moves to the right of `gt`.
 //! - A comparison of two non-constants is always `lt` or `slt`: `gt a, b` becomes `lt b, a`. LLVM
 //!   keeps both directions; we keep one because every pass that tests an index against a bound
-//!   already matches `lt index, bound`, and the EVM IR peephole re-spells it for the stack.
+//!   already matches `lt index, bound`, and the EVM IR stack rescheduler may mirror it where the
+//!   stack favors that.
 //!
 //! A pass that rewrites an instruction in place passes the new kind through
 //! [`Function::canonical_kind`]. Replacing the uses of a value does not re-establish the order;
@@ -35,9 +36,8 @@ impl Function {
     /// Returns `op` with its operands in canonical order.
     #[must_use]
     pub fn canonical_op(&self, op: Op) -> Op {
-        let rank = |value| self.operand_rank(value);
         let is_constant = |value| matches!(self.value(value), Value::Immediate(_));
-        let op = op.canonicalize_commutative_by_key(|value| Reverse(rank(value)));
+        let op = op.canonicalize_commutative_by_key(|value| Reverse(self.operand_rank(value)));
         match op {
             // lt constant, value => gt value, constant
             Op::Lt { a, b } if is_constant(a) && !is_constant(b) => Op::Gt { a: b, b: a },
@@ -51,6 +51,7 @@ impl Function {
     /// Returns `kind` with its operands in canonical order.
     #[must_use]
     pub fn canonical_kind(&self, kind: InstKind) -> InstKind {
+        // Only these kinds convert: `op()` of other kinds would copy their payloads.
         let ordered = kind.op_def().traits.contains(OpTraits::COMMUTATIVE)
             || matches!(
                 kind,

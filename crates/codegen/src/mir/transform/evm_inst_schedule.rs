@@ -59,6 +59,7 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
 };
 use solar_sema::Gcx;
+use std::cmp::Reverse;
 
 /// Orders movable MIR instructions for the EVM stack scheduler.
 pub(crate) struct EvmInstSchedule;
@@ -502,23 +503,22 @@ impl EvmInstSchedule {
 
             scratch.work.push((inst_id, true));
             let kind = &func.inst(inst_id).kind;
-            let mut dependencies = SmallVec::<[InstId; 2]>::new();
+            let start = scratch.work.len();
             kind.visit_operands(|value| {
                 if let Value::Inst(dependency) = func.value(value)
                     && scratch.members.contains(*dependency)
                     && !scratch.visited.contains(*dependency)
                 {
-                    dependencies.push(*dependency);
+                    scratch.work.push((*dependency, false));
                 }
             });
             // The backend takes either operand order of a reorderable operation, so its producers
             // keep their stored order whichever operand order is canonical.
             if kind.reorderable_binary_operands().is_some() {
-                dependencies.sort_by_key(|&dependency| {
-                    std::cmp::Reverse(scratch.original_positions[dependency])
+                scratch.work[start..].sort_by_key(|&(dependency, _)| {
+                    Reverse(scratch.original_positions[dependency])
                 });
             }
-            scratch.work.extend(dependencies.into_iter().map(|dependency| (dependency, false)));
         }
     }
 }
