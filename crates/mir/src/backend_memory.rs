@@ -52,7 +52,8 @@ impl BackendMemory {
     pub(crate) fn display(&self, module: &Module) -> impl fmt::Display {
         fmt::from_fn(|f| {
             writeln!(f, "// backend-memory-v1")?;
-            for (id, func) in module.functions.iter_enumerated() {
+            // Records name functions by their place in the text, which the parser numbers them by.
+            for (printed, (id, func)) in module.functions_in_print_order().enumerate() {
                 let instructions = printed_instructions(func);
                 let allocations = instructions
                     .iter()
@@ -64,7 +65,7 @@ impl BackendMemory {
                             AllocationPlacement::Static(word) => ("static", word),
                             AllocationPlacement::Dynamic(word) => ("dynamic", word),
                         };
-                        writeln!(f, "// backend-alloc {} {ordinal} {kind} {word:#x}", id.index())?;
+                        writeln!(f, "// backend-alloc {printed} {ordinal} {kind} {word:#x}")?;
                     }
                 }
                 for (ordinal, &inst) in instructions.iter().enumerate() {
@@ -94,22 +95,22 @@ impl BackendMemory {
                         writeln!(
                             f,
                             "// backend-stack {} {ordinal} {} {extras}",
-                            id.index(),
+                            printed,
                             if elided.is_empty() { "-" } else { &elided }
                         )?;
                     }
                 }
                 if let Some(word) = self.returns.get(&id) {
-                    writeln!(f, "// backend-return {} {word:#x}", id.index())?;
+                    writeln!(f, "// backend-return {printed} {word:#x}")?;
                 }
                 if let Some(word) = self.entry_heaps.get(&id) {
-                    writeln!(f, "// backend-entry {} {word:#x}", id.index())?;
+                    writeln!(f, "// backend-entry {printed} {word:#x}")?;
                 }
                 if let Some(word) = self.heap_floors.get(&id) {
-                    writeln!(f, "// backend-floor {} {word:#x}", id.index())?;
+                    writeln!(f, "// backend-floor {printed} {word:#x}")?;
                 }
                 if let Some(word) = self.frame_ends.get(&id) {
-                    writeln!(f, "// backend-frames {} {word:#x}", id.index())?;
+                    writeln!(f, "// backend-frames {printed} {word:#x}")?;
                 }
             }
             Ok(())

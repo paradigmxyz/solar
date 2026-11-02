@@ -11,7 +11,7 @@ fn @f(arg0: i256) -> i256 [selector=0xb3de648b, pure, abi_params=[uint256], abi_
 @module DumpPhase
 @phase lowered
 // backend-memory-v1
-// backend-entry 0 0x80
+// backend-entry 1 0x80
 
 ; runtime dispatch entry
 fn @entry() [entry] {
