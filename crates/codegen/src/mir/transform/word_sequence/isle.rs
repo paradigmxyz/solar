@@ -81,6 +81,8 @@ pub(super) fn alternatives(
         );
         for (root, commuted) in spellings.rest(op) {
             context.commuted = commuted;
+            // Recipes of earlier spellings hold their own copy of the temporaries.
+            context.temporaries.clear();
             generated::constructor_sequence_rewrite(&mut context, &root, &mut result);
         }
     }
