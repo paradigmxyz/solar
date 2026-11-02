@@ -208,7 +208,7 @@ use crate::{
         FunctionId, ImmutableEncoding, ImmutableId, InstId, InstKind, MirType, Module, Terminator,
         TypeSize, Value, ValueId, ValueLayout,
         analysis::{
-            CfgInfo, aborts, cold_functions,
+            CfgInfo,
             integers::{integer_bits, integer_mask, integer_max},
         },
         immutable::immutable_push_type_size,
@@ -347,16 +347,16 @@ impl MirPass for LateCheckElim {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let cold = cold_functions(module);
         run_function_pass_with_cfg(module, analyses, |func, analyses| {
             let gas = analyses.runtime_target(gcx).optimization().is_gas();
             let selected = gas.then(|| analyses.cfg().cyclic_blocks());
             if selected.is_some_and(DenseBitSet::is_empty) {
                 return false;
             }
-            // Only folds of selected branches with a reverting arm are kept, and `lower-checks`
+            // Only folds of selected branches with a cold arm are kept, and `lower-checks`
             // has already expanded every check, so without such a branch the elimination
-            // cannot change anything.
+            // cannot change anything. This only selects profitable candidates; range analysis
+            // proves the discarded edge unreachable.
             if let Some(selected) = selected
                 && !selected.iter().any(|block| {
                     let Some(Terminator::Branch { then_block, else_block, .. }) =
@@ -364,17 +364,13 @@ impl MirPass for LateCheckElim {
                     else {
                         return false;
                     };
-                    leads_to_revert(func, then_block, &cold)
-                        || leads_to_revert(func, else_block, &cold)
+                    func.blocks[then_block].hotness.is_cold()
+                        || func.blocks[else_block].hotness.is_cold()
                 })
             {
                 return false;
             }
-            let changed = CheckEliminator::default().run(
-                func,
-                analyses.cfg(),
-                selected.map(|blocks| (blocks, &cold)),
-            ) != 0;
+            let changed = CheckEliminator::default().run(func, analyses.cfg(), selected) != 0;
             if changed {
                 // branch proven_condition, checked, panic => jump checked
                 // Remove unreachable panic blocks and merge the successful continuation.
@@ -383,21 +379,6 @@ impl MirPass for LateCheckElim {
             changed
         })
     }
-}
-
-/// Recognizes short unconditional failure paths: a chain of jumps to a block that aborts,
-/// including through outlined revert helpers and other functions that never return.
-/// This only selects profitable candidates; range analysis proves the edge unreachable.
-fn leads_to_revert(func: &Function, mut block: BlockId, cold: &DenseBitSet<FunctionId>) -> bool {
-    // Bound classification work and leave cycles or longer paths unclassified.
-    for _ in 0..8 {
-        if aborts(func, block, cold) {
-            return true;
-        }
-        let Some(Terminator::Jump(next)) = func.blocks[block].terminator else { return false };
-        block = next;
-    }
-    false
 }
 
 /// Applies runtime immutable bounds after getter inlining exposes their loads.
@@ -1024,7 +1005,7 @@ impl<'a> CheckEliminator<'a> {
         mut self,
         func: &mut Function,
         cfg: &CfgInfo,
-        selected: Option<(&DenseBitSet<BlockId>, &DenseBitSet<FunctionId>)>,
+        selected: Option<&DenseBitSet<BlockId>>,
     ) -> usize {
         if !func.blocks.iter().any(|block| {
             matches!(
@@ -1142,7 +1123,7 @@ impl<'a> CheckEliminator<'a> {
     /// passing checks to remove, and branch conditions to reduce to one of their operands.
     /// `candidates` whose update is proven wrap-free in its defining block's
     /// scope are appended to `proven`. With `selected`, only folds of selected branches whose
-    /// discarded arm reverts are evaluated and returned; evaluation records no facts.
+    /// discarded arm is cold are evaluated and returned; evaluation records no facts.
     #[allow(clippy::too_many_arguments)]
     fn collect_folds(
         &mut self,
@@ -1151,13 +1132,14 @@ impl<'a> CheckEliminator<'a> {
         facts: &IndexVec<BlockId, Facts>,
         candidates: &[MonotonePhi],
         proven: &mut Vec<MonotonePhi>,
-        selected: Option<(&DenseBitSet<BlockId>, &DenseBitSet<FunctionId>)>,
+        selected: Option<&DenseBitSet<BlockId>>,
     ) -> Folds {
         enum Walk {
             Enter(BlockId),
             Exit { range_mark: usize, relation_mark: usize, equality_mark: usize },
         }
 
+        let is_cold = |block: BlockId| func.blocks[block].hotness.is_cold();
         let mut folds = Vec::new();
         let mut checks = DenseBitSet::new_empty(func.num_insts());
         let mut reductions = Vec::new();
@@ -1297,18 +1279,15 @@ impl<'a> CheckEliminator<'a> {
                         && let Some(Terminator::Branch { condition, then_block, else_block }) =
                             func.blocks[block].terminator.as_ref()
                         && then_block != else_block
-                        && selected.is_none_or(|(selected, cold)| {
+                        && selected.is_none_or(|selected| {
                             selected.contains(block)
-                                && (leads_to_revert(func, *then_block, cold)
-                                    || leads_to_revert(func, *else_block, cold))
+                                && (is_cold(*then_block) || is_cold(*else_block))
                         })
                     {
                         match self.eval_truth(func, *condition, MAX_DEPTH) {
                             Some(truth)
-                                if selected.is_none_or(|(_, cold)| {
-                                    let discarded = if truth { *else_block } else { *then_block };
-                                    leads_to_revert(func, discarded, cold)
-                                }) =>
+                                if selected.is_none()
+                                    || is_cold(if truth { *else_block } else { *then_block }) =>
                             {
                                 folds.push((block, if truth { *then_block } else { *else_block }));
                             }
@@ -1402,7 +1381,7 @@ impl<'a> CheckEliminator<'a> {
         definitions: &IndexVec<InstId, Option<BlockId>>,
         mut bounds: Vec<HeaderBound>,
         facts: &mut IndexVec<BlockId, Facts>,
-        selected: Option<(&DenseBitSet<BlockId>, &DenseBitSet<FunctionId>)>,
+        selected: Option<&DenseBitSet<BlockId>>,
     ) {
         const MAX_ROUNDS: usize = 4;
         for _ in 0..MAX_ROUNDS {

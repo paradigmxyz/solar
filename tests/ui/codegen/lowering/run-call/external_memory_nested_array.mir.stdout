@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256}
 
+; function inspect(bytes[] memory values) external pure returns (uint256 len, bytes32 encodedHash) [selector 0x9d6ce1dc]
 fn @inspect(arg0: ptr<memory>) -> struct0 [selector=0x9d6ce1dc, pure, abi_params=[array<_, bytes>], abi_returns=[word, word], abi_return_params=[uint256, bytes32]] {
   bb0:
     v0 = mload arg0
@@ -15,6 +16,7 @@ fn @inspect(arg0: ptr<memory>) -> struct0 [selector=0x9d6ce1dc, pure, abi_params
     ret v6
 }
 
+; function inspectItems(Item[] calldata items) external pure returns (uint256) [selector 0x68057f1e]
 fn @inspectItems(arg0: slice<calldata>) -> i256 [selector=0x68057f1e, pure, abi_params=[array<_, tuple<uint256, uint256, uint256, uint256, uint256>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -47,16 +49,17 @@ fn @inspectItems(arg0: slice<calldata>) -> i256 [selector=0x68057f1e, pure, abi_
     ret v24
 }
 
+; function test() external view returns (bool) [selector 0xf8a8fd6d]
 fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc zeroed checked 96
     mstore v0, 2
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v6]
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v7 = alloc 64 !metadata(preserves_fmp)
     mstore v7, 1
     v8 = ptradd v7, 32
@@ -91,9 +94,9 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v30 = zext i160 v25 to i256
     v31 = staticcall v26, v30, v28, v29, v28, 64
     jumpi v31, bb5, bb4
-  bb4:
+  bb4:  ; preds = bb3
     revert_returndata
-  bb5:
+  bb5:  ; preds = bb3
     v32 = returndatasize
     v33 = lt v32, 64
     icall revert_if<tuple_data_too_short>, v33
@@ -110,11 +113,11 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v44 = alloc zeroed checked 64
     mstore v44, 1
     jump bb6
-  bb6:
+  bb6:  ; preds = bb5, bb7
     v45 = phi [bb5: 0], [bb7: v52]
     v46 = lt v45, 1
     jumpi v46, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     v53 = alloc 160
     mstore v53, 1
     v54 = ptradd v53, 32
@@ -134,17 +137,17 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     mstore v62, v61
     v63 = eq v42, 2
     jumpi v63, bb9, bb10
-  bb10:
+  bb10:  ; preds = bb8
     jump bb11
-  bb9:
+  bb9:  ; preds = bb8
     v64 = eq v43, v24
     jump bb11
-  bb11:
+  bb11:  ; preds = bb9, bb10
     v65 = phi [bb9: v64], [bb10: false]
     jumpi v65, bb12, bb13
-  bb13:
+  bb13:  ; preds = bb11
     jump bb14
-  bb12:
+  bb12:  ; preds = bb11
     v66 = address
     v67 = gas
     v68 = abi_encode [memory_array<tuple<word, word, word, word, word>>], selector 0x68057f1e00000000000000000000000000000000000000000000000000000000, args v44
@@ -153,9 +156,9 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v71 = zext i160 v66 to i256
     v72 = staticcall v67, v71, v69, v70, 0, 32
     jumpi v72, bb16, bb15
-  bb15:
+  bb15:  ; preds = bb12
     revert_returndata
-  bb16:
+  bb16:  ; preds = bb12
     v73 = returndatasize
     v74 = lt v73, 32
     icall revert_if<tuple_data_too_short>, v74
@@ -163,10 +166,10 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v76 = mload v75
     v77 = eq v76, 6
     jump bb14
-  bb14:
+  bb14:  ; preds = bb16, bb13
     v78 = phi [bb16: v77], [bb13: false]
     ret v78
-  bb7:
+  bb7:  ; preds = bb6
     v47 = alloc 160 !metadata(preserves_fmp)
     memory_zero v47, 160
     v48 = shl v45, 5
@@ -176,7 +179,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     mstore v50, v51
     v52 = add v45, 1
     jump bb6
-  bb2:
+  bb2:  ; preds = bb1
     v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32

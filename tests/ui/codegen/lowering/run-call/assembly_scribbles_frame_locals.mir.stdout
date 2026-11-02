@@ -1,9 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/assembly_scribbles_frame_locals.sol:AssemblyScribblesFrameLocals ===
 @module AssemblyScribblesFrameLocals
+; fallback() external [fallback]
 fn @fallback() [fallback] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb5
     v0 = phi [bb0: 0], [bb5: v8]
     v1 = phi [bb0: 0], [bb5: v9]
     v2 = calldatasize
@@ -11,18 +12,18 @@ fn @fallback() [fallback] {
     v4 = zext i1 v3 to i256
     v5 = ne v4, 0
     jumpi v5, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb4
     mstore 0, v0 !metadata(memory=scratch)
     returndata 0, 32
-  bb3:
+  bb3:  ; preds = bb1
     v6 = calldataload v1
     v7 = byte 0, v6
     mstore8 v0, v7
     v8 = add v0, 1
     v9 = add v1, 1
     jump bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb1
 }

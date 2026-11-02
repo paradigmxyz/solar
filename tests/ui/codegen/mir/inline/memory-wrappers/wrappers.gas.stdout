@@ -1,6 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/inline/memory-wrappers/wrappers.mir (before inline) ===
 + // === ROOT/tests/ui/codegen/mir/inline/memory-wrappers/wrappers.mir (after inline) ===
   @module MemoryWrappers
+  ; selector 0x00000001
   fn @entry(arg0: i256) -> i256 [selector=0x00000001] {
     bb0:
 -     v0 = icall @wrap, arg0
@@ -8,42 +9,42 @@
 -     v2 = icall @single, v1
 -     v3 = icall @effects, v2
 +     jump bb2
-+   bb2:
++   bb2:  ; preds = bb0
 +     jump bb6
-+   bb6:
++   bb6:  ; preds = bb2
 +     jump bb5
-+   bb5:
++   bb5:  ; preds = bb6
 +     v12 = phi [bb6: arg0]
 +     v5 = mload v12
 +     v6 = add v5, 2
 +     mstore v12, v6
 +     jump bb1
-+   bb1:
++   bb1:  ; preds = bb5
 +     v7 = phi [bb5: v12]
 +     jump bb4
-+   bb4:
++   bb4:  ; preds = bb1
 +     jump bb10
-+   bb10:
++   bb10:  ; preds = bb4
 +     jump bb9
-+   bb9:
++   bb9:  ; preds = bb10
 +     v16 = phi [bb10: v7]
 +     v9 = mload v16
 +     v10 = add v9, 2
 +     mstore v16, v10
 +     jump bb3
-+   bb3:
++   bb3:  ; preds = bb9
 +     v11 = phi [bb9: v16]
 +     jump bb8
-+   bb8:
++   bb8:  ; preds = bb3
 +     jump bb12
-+   bb12:
++   bb12:  ; preds = bb8
 +     jump bb11
-+   bb11:
++   bb11:  ; preds = bb12
 +     v17 = phi [bb12: v11]
 +     v14 = mload v17
 +     mstore v17, v14
 +     jump bb7
-+   bb7:
++   bb7:  ; preds = bb11
 +     v15 = phi [bb11: v17]
 +     v3 = icall @effects, v15
       ret v3
@@ -54,9 +55,9 @@
 -     v0 = icall @base, arg0
 -     v1 = mload v0
 +     jump bb2
-+   bb2:
++   bb2:  ; preds = bb0
 +     jump bb1
-+   bb1:
++   bb1:  ; preds = bb2
 +     v3 = phi [bb2: arg0]
 +     v1 = mload v3
       v2 = add v1, 2
@@ -79,9 +80,9 @@
 -     v0 = icall @base, arg0
 -     mstore v0, 5
 +     jump bb2
-+   bb2:
++   bb2:  ; preds = bb0
 +     jump bb1
-+   bb1:
++   bb1:  ; preds = bb2
 +     v1 = phi [bb2: arg0]
 +     mstore v1, 5
       sstore 0, 5
@@ -89,6 +90,7 @@
 +     ret v1
   }
   
+  ; selector 0x00000003
   fn @effects_again(arg0: i256) -> i256 [selector=0x00000003] {
     bb0:
       v0 = icall @effects, arg0
@@ -100,6 +102,7 @@
 -     ret arg0
   }
   
+  ; selector 0x00000002
   fn @pressure(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, arg6: i256, arg7: i256, arg8: i256, arg9: i256, arg10: i256, arg11: i256, arg12: i256) -> i256 [selector=0x00000002] {
     bb0:
       v0 = icall @wrap, arg0
@@ -121,28 +124,29 @@
 - // === ROOT/tests/ui/codegen/mir/inline/memory-wrappers/wrappers.mir (before cfg-simplify) ===
 + // === ROOT/tests/ui/codegen/mir/inline/memory-wrappers/wrappers.mir (after cfg-simplify) ===
   @module MemoryWrappers
+  ; selector 0x00000001
   fn @entry(arg0: i256) -> i256 [selector=0x00000001] {
     bb0:
 -     jump bb2
--   bb2:
+-   bb2:  ; preds = bb0
 -     jump bb6
--   bb6:
+-   bb6:  ; preds = bb2
 -     jump bb5
--   bb5:
+-   bb5:  ; preds = bb6
 -     v12 = phi [bb6: arg0]
 -     v5 = mload v12
 +     v5 = mload arg0
       v6 = add v5, 2
 -     mstore v12, v6
 -     jump bb1
--   bb1:
+-   bb1:  ; preds = bb5
 -     v7 = phi [bb5: v12]
 -     jump bb4
--   bb4:
+-   bb4:  ; preds = bb1
 -     jump bb10
--   bb10:
+-   bb10:  ; preds = bb4
 -     jump bb9
--   bb9:
+-   bb9:  ; preds = bb10
 -     v16 = phi [bb10: v7]
 -     v9 = mload v16
 +     mstore arg0, v6
@@ -150,19 +154,19 @@
       v10 = add v9, 2
 -     mstore v16, v10
 -     jump bb3
--   bb3:
+-   bb3:  ; preds = bb9
 -     v11 = phi [bb9: v16]
 -     jump bb8
--   bb8:
+-   bb8:  ; preds = bb3
 -     jump bb12
--   bb12:
+-   bb12:  ; preds = bb8
 -     jump bb11
--   bb11:
+-   bb11:  ; preds = bb12
 -     v17 = phi [bb12: v11]
 -     v14 = mload v17
 -     mstore v17, v14
 -     jump bb7
--   bb7:
+-   bb7:  ; preds = bb11
 -     v15 = phi [bb11: v17]
 -     v3 = icall @effects, v15
 +     mstore arg0, v10
@@ -175,9 +179,9 @@
   fn @wrap(arg0: i256) -> i256 {
     bb0:
 -     jump bb2
--   bb2:
+-   bb2:  ; preds = bb0
 -     jump bb1
--   bb1:
+-   bb1:  ; preds = bb2
 -     v3 = phi [bb2: arg0]
 -     v1 = mload v3
 +     v1 = mload arg0
@@ -191,9 +195,9 @@
   fn @effects(arg0: i256) -> i256 {
     bb0:
 -     jump bb2
--   bb2:
+-   bb2:  ; preds = bb0
 -     jump bb1
--   bb1:
+-   bb1:  ; preds = bb2
 -     v1 = phi [bb2: arg0]
 -     mstore v1, 5
 +     mstore arg0, 5
@@ -202,12 +206,14 @@
 +     ret arg0
   }
   
+  ; selector 0x00000003
   fn @effects_again(arg0: i256) -> i256 [selector=0x00000003] {
     bb0:
       v0 = icall @effects, arg0
       ret v0
   }
   
+  ; selector 0x00000002
   fn @pressure(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, arg6: i256, arg7: i256, arg8: i256, arg9: i256, arg10: i256, arg11: i256, arg12: i256) -> i256 [selector=0x00000002] {
     bb0:
       v0 = icall @wrap, arg0
@@ -229,6 +235,7 @@
 - // === ROOT/tests/ui/codegen/mir/inline/memory-wrappers/wrappers.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/inline/memory-wrappers/wrappers.mir (after dce) ===
   @module MemoryWrappers
+  ; selector 0x00000001
   fn @entry(arg0: i256) -> i256 [selector=0x00000001] {
     bb0:
       v5 = mload arg0
@@ -258,12 +265,14 @@
       ret arg0
   }
   
+  ; selector 0x00000003
   fn @effects_again(arg0: i256) -> i256 [selector=0x00000003] {
     bb0:
       v0 = icall @effects, arg0
       ret v0
   }
   
+  ; selector 0x00000002
   fn @pressure(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, arg6: i256, arg7: i256, arg8: i256, arg9: i256, arg10: i256, arg11: i256, arg12: i256) -> i256 [selector=0x00000002] {
     bb0:
       v0 = icall @wrap, arg0

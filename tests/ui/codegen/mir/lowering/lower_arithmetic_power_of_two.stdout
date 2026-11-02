@@ -9,9 +9,9 @@
 +     v2 = shr arg0, 251
 +     v3 = ne v2, 0
 +     jumpi v3, bb1, bb2
-+   bb2:
++   bb2:  ; preds = bb0
 +     ret v1
-+   bb1:
++   bb1 [cold]:  ; preds = bb0
 +     mstore 32, 17 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -25,9 +25,9 @@
 +     v2 = shr arg0, 255
 +     v3 = ne v2, 0
 +     jumpi v3, bb1, bb2
-+   bb2:
++   bb2:  ; preds = bb0
 +     ret v1
-+   bb1:
++   bb1 [cold]:  ; preds = bb0
 +     mstore 32, 17 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -45,9 +45,9 @@
 +     v6 = zext i1 v5 to i256
 +     v7 = eq v6, 0
 +     jumpi v7, bb1, bb2
-+   bb2:
++   bb2:  ; preds = bb0
 +     ret v1
-+   bb1:
++   bb1 [cold]:  ; preds = bb0
 +     mstore 32, 17 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -72,9 +72,9 @@
 +     v13 = or v12, v11
 +     v14 = ne v13, 0
 +     jumpi v14, bb1, bb2
-+   bb2:
++   bb2:  ; preds = bb0
 +     ret v1
-+   bb1:
++   bb1 [cold]:  ; preds = bb0
 +     mstore 32, 17 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36

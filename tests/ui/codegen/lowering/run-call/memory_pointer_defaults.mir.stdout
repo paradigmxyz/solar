@@ -5,6 +5,7 @@
   struct1: {ptr<memory>, ptr<memory>, ptr<memory>, i256}
   struct2: {ptr<memory>, ptr<memory>, ptr<memory>, ptr<memory>}
 
+; function dirtyScratch() internal pure
 fn @dirtyScratch() [pure] {
   bb0:
     mstore 0, 32 !metadata(memory=scratch)
@@ -12,6 +13,7 @@ fn @dirtyScratch() [pure] {
     ret
 }
 
+; function defaultReturn() external pure returns (Outer memory outer) [selector 0x099c80fd]
 fn @defaultReturn() -> ptr<memory> [selector=0x099c80fd, pure, abi_params=[], abi_returns=[tuple<tuple<word, memory_bytes, memory_array<word>>, memory_array<tuple<word, memory_bytes, memory_array<word>>>, array<2, memory_bytes>, memory_bytes>], abi_return_params=[tuple<tuple<uint256, bytes, array<_, uint256>>, array<_, tuple<uint256, bytes, array<_, uint256>>>, array<2, bytes>, bytes>]] {
   bb0:
     icall @dirtyScratch
@@ -29,18 +31,18 @@ fn @defaultReturn() -> ptr<memory> [selector=0x099c80fd, pure, abi_params=[], ab
     mstore v5, 96
     v6 = alloc 64 !metadata(preserves_fmp)
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v7 = phi [bb0: 0], [bb2: v11]
     v8 = lt v7, 2
     jumpi v8, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v12 = ptradd v0, 64
     v13 = ptrtoint ptr<memory> v6 to i256
     mstore v12, v13
     v14 = ptradd v0, 96
     mstore v14, 96
     ret v0
-  bb2:
+  bb2:  ; preds = bb1
     v9 = shl v7, 5
     v10 = ptradd v6, v9
     mstore v10, 96
@@ -48,6 +50,7 @@ fn @defaultReturn() -> ptr<memory> [selector=0x099c80fd, pure, abi_params=[], ab
     jump bb1
 }
 
+; function defaultLocals() external pure returns (Outer memory, Inner[2] memory, Grid[] memory) [selector 0x7a75aca0]
 fn @defaultLocals() -> struct0 [selector=0x7a75aca0, pure, abi_params=[], abi_returns=[tuple<tuple<word, memory_bytes, memory_array<word>>, memory_array<tuple<word, memory_bytes, memory_array<word>>>, array<2, memory_bytes>, memory_bytes>, array<2, tuple<word, memory_bytes, memory_array<word>>>, memory_array<tuple<array<2, array<2, word>>>>], abi_return_params=[tuple<tuple<uint256, bytes, array<_, uint256>>, array<_, tuple<uint256, bytes, array<_, uint256>>>, array<2, bytes>, bytes>, array<2, tuple<uint256, bytes, array<_, uint256>>>, array<_, tuple<array<2, array<2, uint256>>>>]] {
   bb0:
     icall @dirtyScratch
@@ -65,11 +68,11 @@ fn @defaultLocals() -> struct0 [selector=0x7a75aca0, pure, abi_params=[], abi_re
     mstore v5, 96
     v6 = alloc 64 !metadata(preserves_fmp)
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v7 = phi [bb0: 0], [bb2: v11]
     v8 = lt v7, 2
     jumpi v8, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v12 = ptradd v0, 64
     v13 = ptrtoint ptr<memory> v6 to i256
     mstore v12, v13
@@ -77,26 +80,26 @@ fn @defaultLocals() -> struct0 [selector=0x7a75aca0, pure, abi_params=[], abi_re
     mstore v14, 96
     v15 = alloc 64 !metadata(preserves_fmp)
     jump bb4
-  bb4:
+  bb4:  ; preds = bb3, bb5
     v16 = phi [bb3: 0], [bb5: v24]
     v17 = lt v16, 2
     jumpi v17, bb5, bb6
-  bb6:
+  bb6:  ; preds = bb4
     v25 = alloc zeroed checked 64
     mstore v25, 1
     jump bb7
-  bb7:
+  bb7:  ; preds = bb6, bb12
     v26 = phi [bb6: 0], [bb12: v42]
     v27 = lt v26, 1
     jumpi v27, bb8, bb9
-  bb9:
+  bb9:  ; preds = bb7
     v43 = alloc 64 !metadata(preserves_fmp)
     jump bb13
-  bb13:
+  bb13:  ; preds = bb9, bb14
     v44 = phi [bb9: 0], [bb14: v52]
     v45 = lt v44, 2
     jumpi v45, bb14, bb15
-  bb15:
+  bb15:  ; preds = bb13
     v53 = alloc 128 !metadata(preserves_fmp)
     memory_zero v53, 128
     v54 = alloc 96 !metadata(preserves_fmp)
@@ -111,11 +114,11 @@ fn @defaultLocals() -> struct0 [selector=0x7a75aca0, pure, abi_params=[], abi_re
     mstore v58, 96
     v59 = alloc 64 !metadata(preserves_fmp)
     jump bb16
-  bb16:
+  bb16:  ; preds = bb15, bb17
     v60 = phi [bb15: 0], [bb17: v64]
     v61 = lt v60, 2
     jumpi v61, bb17, bb18
-  bb18:
+  bb18:  ; preds = bb16
     v65 = ptradd v53, 64
     v66 = ptrtoint ptr<memory> v59 to i256
     mstore v65, v66
@@ -125,13 +128,13 @@ fn @defaultLocals() -> struct0 [selector=0x7a75aca0, pure, abi_params=[], abi_re
     v69 = insert_value struct0, v68, 1, v15
     v70 = insert_value struct0, v69, 2, v25
     ret v70
-  bb17:
+  bb17:  ; preds = bb16
     v62 = shl v60, 5
     v63 = ptradd v59, v62
     mstore v63, 96
     v64 = add v60, 1
     jump bb16
-  bb14:
+  bb14:  ; preds = bb13
     v46 = alloc 96 !metadata(preserves_fmp)
     mstore v46, 0
     v47 = ptradd v46, 32
@@ -144,15 +147,15 @@ fn @defaultLocals() -> struct0 [selector=0x7a75aca0, pure, abi_params=[], abi_re
     mstore v50, v51
     v52 = add v44, 1
     jump bb13
-  bb8:
+  bb8:  ; preds = bb7
     v28 = alloc 32 !metadata(preserves_fmp)
     v29 = alloc 64 !metadata(preserves_fmp)
     jump bb10
-  bb10:
+  bb10:  ; preds = bb8, bb11
     v30 = phi [bb8: 0], [bb11: v36]
     v31 = lt v30, 2
     jumpi v31, bb11, bb12
-  bb12:
+  bb12:  ; preds = bb10
     v37 = ptrtoint ptr<memory> v29 to i256
     mstore v28, v37
     v38 = shl v26, 5
@@ -162,7 +165,7 @@ fn @defaultLocals() -> struct0 [selector=0x7a75aca0, pure, abi_params=[], abi_re
     mstore v40, v41
     v42 = add v26, 1
     jump bb7
-  bb11:
+  bb11:  ; preds = bb10
     v32 = alloc 64 !metadata(preserves_fmp)
     memory_zero v32, 64
     v33 = shl v30, 5
@@ -171,7 +174,7 @@ fn @defaultLocals() -> struct0 [selector=0x7a75aca0, pure, abi_params=[], abi_re
     mstore v34, v35
     v36 = add v30, 1
     jump bb10
-  bb5:
+  bb5:  ; preds = bb4
     v18 = alloc 96 !metadata(preserves_fmp)
     mstore v18, 0
     v19 = ptradd v18, 32
@@ -184,7 +187,7 @@ fn @defaultLocals() -> struct0 [selector=0x7a75aca0, pure, abi_params=[], abi_re
     mstore v22, v23
     v24 = add v16, 1
     jump bb4
-  bb2:
+  bb2:  ; preds = bb1
     v9 = shl v7, 5
     v10 = ptradd v6, v9
     mstore v10, 96
@@ -192,33 +195,34 @@ fn @defaultLocals() -> struct0 [selector=0x7a75aca0, pure, abi_params=[], abi_re
     jump bb1
 }
 
+; function newArrays() external pure returns (uint256[][] memory nested, bytes[] memory blobs, Inner[] memory inners, uint256) [selector 0x2dc0cb85]
 fn @newArrays() -> struct1 [selector=0x2dc0cb85, pure, abi_params=[], abi_returns=[memory_array<memory_array<word>>, memory_array<memory_bytes>, memory_array<tuple<word, memory_bytes, memory_array<word>>>, word], abi_return_params=[array<_, array<_, uint256>>, array<_, bytes>, array<_, tuple<uint256, bytes, array<_, uint256>>>, uint256]] {
   bb0:
     icall @dirtyScratch
     v0 = alloc zeroed checked 96
     mstore v0, 2
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v6]
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v7 = alloc zeroed checked 96
     mstore v7, 2
     jump bb4
-  bb4:
+  bb4:  ; preds = bb3, bb5
     v8 = phi [bb3: 0], [bb5: v13]
     v9 = lt v8, 2
     jumpi v9, bb5, bb6
-  bb6:
+  bb6:  ; preds = bb4
     v14 = alloc zeroed checked 96
     mstore v14, 2
     jump bb7
-  bb7:
+  bb7:  ; preds = bb6, bb8
     v15 = phi [bb6: 0], [bb8: v24]
     v16 = lt v15, 2
     jumpi v16, bb8, bb9
-  bb9:
+  bb9:  ; preds = bb7
     v25 = alloc zeroed checked 64
     mstore v25, 1
     v26 = mload v0
@@ -291,7 +295,7 @@ fn @newArrays() -> struct1 [selector=0x2dc0cb85, pure, abi_params=[], abi_return
     v79 = insert_value struct1, v78, 2, v14
     v80 = insert_value struct1, v79, 3, v76
     ret v80
-  bb8:
+  bb8:  ; preds = bb7
     v17 = alloc 96 !metadata(preserves_fmp)
     mstore v17, 0
     v18 = ptradd v17, 32
@@ -305,14 +309,14 @@ fn @newArrays() -> struct1 [selector=0x2dc0cb85, pure, abi_params=[], abi_return
     mstore v22, v23
     v24 = add v15, 1
     jump bb7
-  bb5:
+  bb5:  ; preds = bb4
     v10 = shl v8, 5
     v11 = ptradd v7, v10
     v12 = ptradd v11, 32
     mstore v12, 96
     v13 = add v8, 1
     jump bb4
-  bb2:
+  bb2:  ; preds = bb1
     v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32
@@ -321,6 +325,7 @@ fn @newArrays() -> struct1 [selector=0x2dc0cb85, pure, abi_params=[], abi_return
     jump bb1
 }
 
+; function decodeDefaults() external pure returns (Outer memory) [selector 0x977b799b]
 fn @decodeDefaults() -> ptr<memory> [selector=0x977b799b, pure, abi_params=[], abi_returns=[tuple<tuple<word, memory_bytes, memory_array<word>>, memory_array<tuple<word, memory_bytes, memory_array<word>>>, array<2, memory_bytes>, memory_bytes>], abi_return_params=[tuple<tuple<uint256, bytes, array<_, uint256>>, array<_, tuple<uint256, bytes, array<_, uint256>>>, array<2, bytes>, bytes>]] {
   bb0:
     v0 = alloc 128 !metadata(preserves_fmp)
@@ -337,11 +342,11 @@ fn @decodeDefaults() -> ptr<memory> [selector=0x977b799b, pure, abi_params=[], a
     mstore v5, 96
     v6 = alloc 64 !metadata(preserves_fmp)
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v7 = phi [bb0: 0], [bb2: v11]
     v8 = lt v7, 2
     jumpi v8, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v12 = ptradd v0, 64
     v13 = ptrtoint ptr<memory> v6 to i256
     mstore v12, v13
@@ -363,11 +368,11 @@ fn @decodeDefaults() -> ptr<memory> [selector=0x977b799b, pure, abi_params=[], a
     mstore v21, 96
     v22 = alloc 64 !metadata(preserves_fmp)
     jump bb4
-  bb4:
+  bb4:  ; preds = bb3, bb5
     v23 = phi [bb3: 0], [bb5: v27]
     v24 = lt v23, 2
     jumpi v24, bb5, bb6
-  bb6:
+  bb6:  ; preds = bb4
     v28 = ptradd v16, 64
     v29 = ptrtoint ptr<memory> v22 to i256
     mstore v28, v29
@@ -375,13 +380,13 @@ fn @decodeDefaults() -> ptr<memory> [selector=0x977b799b, pure, abi_params=[], a
     mstore v30, 96
     v31 = abi_decode [tuple<tuple<uint256, bytes, array<_, uint256>>, array<_, tuple<uint256, bytes, array<_, uint256>>>, array<2, bytes>, bytes>], v15
     ret v31
-  bb5:
+  bb5:  ; preds = bb4
     v25 = shl v23, 5
     v26 = ptradd v22, v25
     mstore v26, 96
     v27 = add v23, 1
     jump bb4
-  bb2:
+  bb2:  ; preds = bb1
     v9 = shl v7, 5
     v10 = ptradd v6, v9
     mstore v10, 96
@@ -389,17 +394,18 @@ fn @decodeDefaults() -> ptr<memory> [selector=0x977b799b, pure, abi_params=[], a
     jump bb1
 }
 
+; function deleteElement() external pure returns (Inner[] memory inners) [selector 0xfd57e9f9]
 fn @deleteElement() -> ptr<memory> [selector=0xfd57e9f9, pure, abi_params=[], abi_returns=[memory_array<tuple<word, memory_bytes, memory_array<word>>>], abi_return_params=[array<_, tuple<uint256, bytes, array<_, uint256>>>]] {
   bb0:
     icall @dirtyScratch
     v0 = alloc zeroed checked 64
     mstore v0, 1
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v10]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v11 = alloc 64 !metadata(preserves_fmp)
     mstore v11, 1
     v12 = ptradd v11, 32
@@ -444,7 +450,7 @@ fn @deleteElement() -> ptr<memory> [selector=0xfd57e9f9, pure, abi_params=[], ab
     v39 = ptradd v0, 32
     mstore v39, v38
     ret v0
-  bb2:
+  bb2:  ; preds = bb1
     v3 = alloc 96 !metadata(preserves_fmp)
     mstore v3, 0
     v4 = ptradd v3, 32
@@ -460,6 +466,7 @@ fn @deleteElement() -> ptr<memory> [selector=0xfd57e9f9, pure, abi_params=[], ab
     jump bb1
 }
 
+; function copyCalldata(Inner[] calldata source) external pure returns (Inner[] memory copy) [selector 0x175ae975]
 fn @copyCalldata(arg0: slice<calldata>) -> ptr<memory> [selector=0x175ae975, pure, abi_params=[array<_, tuple<uint256, bytes, array<_, uint256>>>], abi_returns=[memory_array<tuple<word, memory_bytes, memory_array<word>>>], abi_return_params=[array<_, tuple<uint256, bytes, array<_, uint256>>>]] {
   bb0:
     icall @dirtyScratch
@@ -484,13 +491,13 @@ fn @copyCalldata(arg0: slice<calldata>) -> ptr<memory> [selector=0x175ae975, pur
     v14 = alloc v12
     mstore v14, v0
     jump bb1
-  bb1:
-    v15 = phi [bb0: 0], [bb2: v103]
+  bb1:  ; preds = bb0, bb2
+    v15 = phi [bb0: 0], [bb2: v102]
     v16 = lt v15, v0
     jumpi v16, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     ret v14
-  bb2:
+  bb2:  ; preds = bb1
     v17 = mul v15, 32
     v18 = ptrtoint ptr<calldata> v1 to i256
     v19 = add v18, v17
@@ -539,70 +546,70 @@ fn @copyCalldata(arg0: slice<calldata>) -> ptr<memory> [selector=0x175ae975, pur
     v54 = inttoptr i256 v51 to ptr<calldata>
     v55 = make_calldata_slice v54, v48
     v56 = extract_value slice<calldata>, v55, 1
-    v57 = add v56, 31
-    v58 = not 31
-    v59 = and v57, v58
-    v60 = add v59, 32
-    v61 = lt v60, v56
-    icall panic_if<0x41>, v61
-    v62 = alloc v60
-    mstore v62, v56
-    v63 = ptradd v62, 32
-    v64 = extract_value slice<calldata>, v55, 0
-    v65 = extract_value slice<calldata>, v55, 1
-    calldatacopy v63, v64, v65
-    v66 = ptrtoint ptr<memory> v62 to i256
-    v67 = ptradd v32, 32
-    mstore v67, v66
-    v68 = add v25, 64
-    v69 = calldatasize
-    v70 = sub v69, v68
-    v71 = slt v70, 32
-    icall revert_if<calldata_tail_too_short>, v71
-    v72 = calldataload v68
-    v73 = add v25, v72
-    v74 = calldatasize
-    v75 = sub v74, v25
-    v76 = sub v75, 31
-    v77 = slt v72, v76
-    v78 = eq v77, false
-    icall revert_if<invalid_calldata_tail_offset>, v78
-    v79 = calldataload v73
-    v80 = calldatasize
-    v81 = gt v79, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v81
-    v82 = mul v79, 32
-    v83 = add v73, 32
-    v84 = sub v80, v82
-    v85 = sgt v83, v84
-    icall revert_if<calldata_tail_too_short>, v85
-    v86 = mul v79, 32
-    v87 = shr v79, 251
-    v88 = ne v87, 0
-    icall panic_if<0x41>, v88
-    v89 = add 32, v86
-    v90 = lt v89, 32
-    icall panic_if<0x41>, v90
-    v91 = alloc v89
-    mstore v91, v79
-    v92 = inttoptr i256 v83 to ptr<calldata>
-    v93 = make_calldata_slice v92, v86
-    v94 = ptradd v91, 32
-    v95 = extract_value slice<calldata>, v93, 0
-    v96 = extract_value slice<calldata>, v93, 1
-    calldatacopy v94, v95, v96
-    v97 = ptrtoint ptr<memory> v91 to i256
-    v98 = ptradd v32, 64
-    mstore v98, v97
-    v99 = ptrtoint ptr<memory> v32 to i256
-    v100 = shl v15, 5
-    v101 = ptradd v14, v100
-    v102 = ptradd v101, 32
-    mstore v102, v99
-    v103 = add v15, 1
+    v57 = add v56, 63
+    v58 = lt v57, v56
+    icall panic_if<0x41>, v58
+    v59 = not 31
+    v60 = and v57, v59
+    v61 = alloc v60
+    mstore v61, v56
+    v62 = ptradd v61, 32
+    v63 = extract_value slice<calldata>, v55, 0
+    v64 = extract_value slice<calldata>, v55, 1
+    calldatacopy v62, v63, v64
+    v65 = ptrtoint ptr<memory> v61 to i256
+    v66 = ptradd v32, 32
+    mstore v66, v65
+    v67 = add v25, 64
+    v68 = calldatasize
+    v69 = sub v68, v67
+    v70 = slt v69, 32
+    icall revert_if<calldata_tail_too_short>, v70
+    v71 = calldataload v67
+    v72 = add v25, v71
+    v73 = calldatasize
+    v74 = sub v73, v25
+    v75 = sub v74, 31
+    v76 = slt v71, v75
+    v77 = eq v76, false
+    icall revert_if<invalid_calldata_tail_offset>, v77
+    v78 = calldataload v72
+    v79 = calldatasize
+    v80 = gt v78, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v80
+    v81 = mul v78, 32
+    v82 = add v72, 32
+    v83 = sub v79, v81
+    v84 = sgt v82, v83
+    icall revert_if<calldata_tail_too_short>, v84
+    v85 = mul v78, 32
+    v86 = shr v78, 251
+    v87 = ne v86, 0
+    icall panic_if<0x41>, v87
+    v88 = add 32, v85
+    v89 = lt v88, 32
+    icall panic_if<0x41>, v89
+    v90 = alloc v88
+    mstore v90, v78
+    v91 = inttoptr i256 v82 to ptr<calldata>
+    v92 = make_calldata_slice v91, v85
+    v93 = ptradd v90, 32
+    v94 = extract_value slice<calldata>, v92, 0
+    v95 = extract_value slice<calldata>, v92, 1
+    calldatacopy v93, v94, v95
+    v96 = ptrtoint ptr<memory> v90 to i256
+    v97 = ptradd v32, 64
+    mstore v97, v96
+    v98 = ptrtoint ptr<memory> v32 to i256
+    v99 = shl v15, 5
+    v100 = ptradd v14, v99
+    v101 = ptradd v100, 32
+    mstore v101, v98
+    v102 = add v15, 1
     jump bb1
 }
 
+; function copyFromStorage() external returns (Outer memory, Inner[] memory, uint256[][] memory, bytes[] memory) [selector 0x12bb2ac8]
 fn @copyFromStorage() -> struct2 [selector=0x12bb2ac8, abi_params=[], abi_returns=[tuple<tuple<word, memory_bytes, memory_array<word>>, memory_array<tuple<word, memory_bytes, memory_array<word>>>, array<2, memory_bytes>, memory_bytes>, memory_array<tuple<word, memory_bytes, memory_array<word>>>, memory_array<memory_array<word>>, memory_array<memory_bytes>], abi_return_params=[tuple<tuple<uint256, bytes, array<_, uint256>>, array<_, tuple<uint256, bytes, array<_, uint256>>>, array<2, bytes>, bytes>, array<_, tuple<uint256, bytes, array<_, uint256>>>, array<_, array<_, uint256>>, array<_, bytes>]] {
   bb0:
     v0 = add 0, 3
@@ -701,11 +708,11 @@ fn @copyFromStorage() -> struct2 [selector=0x12bb2ac8, abi_params=[], abi_return
     mstore v61, 96
     v62 = alloc 64 !metadata(preserves_fmp)
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v63 = phi [bb0: 0], [bb2: v67]
     v64 = lt v63, 2
     jumpi v64, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v68 = ptradd v56, 64
     v69 = ptrtoint ptr<memory> v62 to i256
     mstore v68, v69
@@ -735,11 +742,11 @@ fn @copyFromStorage() -> struct2 [selector=0x12bb2ac8, abi_params=[], abi_return
     v87 = add 0, 4
     v88 = alloc checked 64
     jump bb4
-  bb4:
+  bb4:  ; preds = bb3, bb5
     v89 = phi [bb3: 0], [bb5: v96]
     v90 = lt v89, 2
     jumpi v90, bb5, bb6
-  bb6:
+  bb6:  ; preds = bb4
     v97 = ptrtoint ptr<memory> v88 to i256
     v98 = ptradd v71, 64
     mstore v98, v97
@@ -768,18 +775,18 @@ fn @copyFromStorage() -> struct2 [selector=0x12bb2ac8, abi_params=[], abi_return
     v117 = alloc checked v114
     mstore v117, v104
     jump bb7
-  bb7:
+  bb7:  ; preds = bb6, bb8
     v118 = phi [bb6: 0], [bb8: v127]
     v119 = lt v118, v104
     jumpi v119, bb8, bb9
-  bb9:
+  bb9:  ; preds = bb7
     v128 = icall @load_storage_bytes_array, 9
     v129 = insert_value struct2, undef struct2, 0, v71
     v130 = insert_value struct2, v129, 1, v103
     v131 = insert_value struct2, v130, 2, v117
     v132 = insert_value struct2, v131, 3, v128
     ret v132
-  bb8:
+  bb8:  ; preds = bb7
     v120 = storage_array_data_slot 8
     v121 = add v120, v118
     v122 = icall @load_storage_word_array, v121
@@ -790,7 +797,7 @@ fn @copyFromStorage() -> struct2 [selector=0x12bb2ac8, abi_params=[], abi_return
     mstore v126, v123
     v127 = add v118, 1
     jump bb7
-  bb5:
+  bb5:  ; preds = bb4
     v91 = add v87, v89
     v92 = icall @load_storage_bytes, v91
     v93 = ptrtoint ptr<memory> v92 to i256
@@ -799,7 +806,7 @@ fn @copyFromStorage() -> struct2 [selector=0x12bb2ac8, abi_params=[], abi_return
     mstore v95, v93
     v96 = add v89, 1
     jump bb4
-  bb2:
+  bb2:  ; preds = bb1
     v65 = shl v63, 5
     v66 = ptradd v62, v65
     mstore v66, 96
@@ -807,65 +814,66 @@ fn @copyFromStorage() -> struct2 [selector=0x12bb2ac8, abi_params=[], abi_return
     jump bb1
 }
 
+; function copyToStorage() external returns (Inner[] memory, uint256[][] memory, bytes[] memory) [selector 0x988acb1d]
 fn @copyToStorage() -> struct0 [selector=0x988acb1d, abi_params=[], abi_returns=[memory_array<tuple<word, memory_bytes, memory_array<word>>>, memory_array<memory_array<word>>, memory_array<memory_bytes>], abi_return_params=[array<_, tuple<uint256, bytes, array<_, uint256>>>, array<_, array<_, uint256>>, array<_, bytes>]] {
   bb0:
     icall @dirtyScratch
     v0 = alloc zeroed checked 96
     mstore v0, 2
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v10]
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v11 = mload v0
     v12 = sload 7 !metadata(storage=slot(7))
     v13 = gt v12, v11
     jumpi v13, bb4, bb5
-  bb4:
+  bb4:  ; preds = bb3
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb13
     v14 = phi [bb4: v11], [bb13: v36]
     v15 = lt v14, v12
     jumpi v15, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     jump bb5
-  bb5:
+  bb5:  ; preds = bb3, bb8
     sstore 7, v11 !metadata(storage=slot(7))
     jump bb14
-  bb14:
+  bb14:  ; preds = bb5, bb24
     v37 = phi [bb5: 0], [bb24: v72]
     v38 = lt v37, v11
     jumpi v38, bb15, bb16
-  bb16:
+  bb16:  ; preds = bb14
     v73 = alloc zeroed checked 96
     mstore v73, 2
     jump bb25
-  bb25:
+  bb25:  ; preds = bb16, bb26
     v74 = phi [bb16: 0], [bb26: v79]
     v75 = lt v74, 2
     jumpi v75, bb26, bb27
-  bb27:
+  bb27:  ; preds = bb25
     v80 = mload v73
     v81 = sload 8 !metadata(storage=slot(8))
     v82 = gt v81, v80
     jumpi v82, bb28, bb29
-  bb28:
+  bb28:  ; preds = bb27
     jump bb30
-  bb30:
+  bb30:  ; preds = bb28, bb35
     v83 = phi [bb28: v80], [bb35: v93]
     v84 = lt v83, v81
     jumpi v84, bb31, bb32
-  bb32:
+  bb32:  ; preds = bb30
     jump bb29
-  bb29:
+  bb29:  ; preds = bb27, bb32
     sstore 8, v80 !metadata(storage=slot(8))
     jump bb36
-  bb36:
+  bb36:  ; preds = bb29, bb46
     v94 = phi [bb29: 0], [bb46: v119]
     v95 = lt v94, v80
     jumpi v95, bb37, bb38
-  bb38:
+  bb38:  ; preds = bb36
     v120 = sload 8 !metadata(storage=slot(8))
     v121 = lt 1, v120
     v122 = eq v121, false
@@ -883,31 +891,31 @@ fn @copyToStorage() -> struct0 [selector=0x988acb1d, abi_params=[], abi_returns=
     v130 = alloc zeroed checked 96
     mstore v130, 2
     jump bb47
-  bb47:
+  bb47:  ; preds = bb38, bb48
     v131 = phi [bb38: 0], [bb48: v136]
     v132 = lt v131, 2
     jumpi v132, bb48, bb49
-  bb49:
+  bb49:  ; preds = bb47
     v137 = mload v130
     v138 = sload 9 !metadata(storage=slot(9))
     v139 = gt v138, v137
     jumpi v139, bb50, bb51
-  bb50:
+  bb50:  ; preds = bb49
     jump bb52
-  bb52:
+  bb52:  ; preds = bb50, bb56
     v140 = phi [bb50: v137], [bb56: v153]
     v141 = lt v140, v138
     jumpi v141, bb53, bb54
-  bb54:
+  bb54:  ; preds = bb52
     jump bb51
-  bb51:
+  bb51:  ; preds = bb49, bb54
     sstore 9, v137 !metadata(storage=slot(9))
     jump bb57
-  bb57:
+  bb57:  ; preds = bb51, bb58
     v154 = phi [bb51: 0], [bb58: v162]
     v155 = lt v154, v137
     jumpi v155, bb58, bb59
-  bb59:
+  bb59:  ; preds = bb57
     icall @dirtyScratch
     v163 = icall @load_storage_struct_array_0, 7
     v164 = sload 8 !metadata(storage=slot(8))
@@ -929,17 +937,17 @@ fn @copyToStorage() -> struct0 [selector=0x988acb1d, abi_params=[], abi_returns=
     v177 = alloc checked v174
     mstore v177, v164
     jump bb60
-  bb60:
+  bb60:  ; preds = bb59, bb61
     v178 = phi [bb59: 0], [bb61: v187]
     v179 = lt v178, v164
     jumpi v179, bb61, bb62
-  bb62:
+  bb62:  ; preds = bb60
     v188 = icall @load_storage_bytes_array, 9
     v189 = insert_value struct0, undef struct0, 0, v163
     v190 = insert_value struct0, v189, 1, v177
     v191 = insert_value struct0, v190, 2, v188
     ret v191
-  bb61:
+  bb61:  ; preds = bb60
     v180 = storage_array_data_slot 8
     v181 = add v180, v178
     v182 = icall @load_storage_word_array, v181
@@ -950,7 +958,7 @@ fn @copyToStorage() -> struct0 [selector=0x988acb1d, abi_params=[], abi_returns=
     mstore v186, v183
     v187 = add v178, 1
     jump bb60
-  bb58:
+  bb58:  ; preds = bb57
     v156 = shl v154, 5
     v157 = ptradd v130, v156
     v158 = ptradd v157, 32
@@ -960,7 +968,7 @@ fn @copyToStorage() -> struct0 [selector=0x988acb1d, abi_params=[], abi_returns=
     icall @store_storage_bytes, v161, v159
     v162 = add v154, 1
     jump bb57
-  bb53:
+  bb53:  ; preds = bb52
     v142 = storage_array_data_slot 9
     v143 = add v142, v140
     v144 = sload v143 !metadata(storage=symbolic(v143))
@@ -974,21 +982,21 @@ fn @copyToStorage() -> struct0 [selector=0x988acb1d, abi_params=[], abi_returns=
     v151 = add v150, 31
     v152 = div v151, 32
     jumpi v146, bb55, bb56
-  bb55:
+  bb55:  ; preds = bb53
     clear_storage_words v143, 0, v152
     jump bb56
-  bb56:
+  bb56:  ; preds = bb53, bb55
     sstore v143, 0 !metadata(storage=symbolic(v143))
     v153 = add v140, 1
     jump bb52
-  bb48:
+  bb48:  ; preds = bb47
     v133 = shl v131, 5
     v134 = ptradd v130, v133
     v135 = ptradd v134, 32
     mstore v135, 96
     v136 = add v131, 1
     jump bb47
-  bb37:
+  bb37:  ; preds = bb36
     v96 = shl v94, 5
     v97 = ptradd v73, v96
     v98 = ptradd v97, 32
@@ -999,25 +1007,25 @@ fn @copyToStorage() -> struct0 [selector=0x988acb1d, abi_params=[], abi_returns=
     v103 = sload v101 !metadata(storage=symbolic(v101))
     v104 = gt v103, v102
     jumpi v104, bb39, bb40
-  bb39:
+  bb39:  ; preds = bb37
     jump bb41
-  bb41:
+  bb41:  ; preds = bb39, bb42
     v105 = phi [bb39: v102], [bb42: v109]
     v106 = lt v105, v103
     jumpi v106, bb42, bb43
-  bb43:
+  bb43:  ; preds = bb41
     jump bb40
-  bb40:
+  bb40:  ; preds = bb37, bb43
     sstore v101, v102 !metadata(storage=symbolic(v101))
     jump bb44
-  bb44:
+  bb44:  ; preds = bb40, bb45
     v110 = phi [bb40: 0], [bb45: v118]
     v111 = lt v110, v102
     jumpi v111, bb45, bb46
-  bb46:
+  bb46:  ; preds = bb44
     v119 = add v94, 1
     jump bb36
-  bb45:
+  bb45:  ; preds = bb44
     v112 = shl v110, 5
     v113 = ptradd v99, v112
     v114 = ptradd v113, 32
@@ -1027,39 +1035,39 @@ fn @copyToStorage() -> struct0 [selector=0x988acb1d, abi_params=[], abi_returns=
     sstore v117, v115 !metadata(storage=symbolic(v117))
     v118 = add v110, 1
     jump bb44
-  bb42:
+  bb42:  ; preds = bb41
     v107 = storage_array_data_slot v101
     v108 = add v107, v105
     sstore v108, 0 !metadata(storage=symbolic(v108))
     v109 = add v105, 1
     jump bb41
-  bb31:
+  bb31:  ; preds = bb30
     v85 = storage_array_data_slot 8
     v86 = add v85, v83
     v87 = sload v86 !metadata(storage=symbolic(v86))
     sstore v86, 0 !metadata(storage=symbolic(v86))
     jump bb33
-  bb33:
+  bb33:  ; preds = bb31, bb34
     v88 = phi [bb31: 0], [bb34: v92]
     v89 = lt v88, v87
     jumpi v89, bb34, bb35
-  bb35:
+  bb35:  ; preds = bb33
     v93 = add v83, 1
     jump bb30
-  bb34:
+  bb34:  ; preds = bb33
     v90 = storage_array_data_slot v86
     v91 = add v90, v88
     sstore v91, 0 !metadata(storage=symbolic(v91))
     v92 = add v88, 1
     jump bb33
-  bb26:
+  bb26:  ; preds = bb25
     v76 = shl v74, 5
     v77 = ptradd v73, v76
     v78 = ptradd v77, 32
     mstore v78, 96
     v79 = add v74, 1
     jump bb25
-  bb15:
+  bb15:  ; preds = bb14
     v39 = shl v37, 5
     v40 = ptradd v0, v39
     v41 = ptradd v40, 32
@@ -1081,25 +1089,25 @@ fn @copyToStorage() -> struct0 [selector=0x988acb1d, abi_params=[], abi_returns=
     v55 = sload v51 !metadata(storage=offset(v45, 2))
     v56 = gt v55, v54
     jumpi v56, bb17, bb18
-  bb17:
+  bb17:  ; preds = bb15
     jump bb19
-  bb19:
+  bb19:  ; preds = bb17, bb20
     v57 = phi [bb17: v54], [bb20: v61]
     v58 = lt v57, v55
     jumpi v58, bb20, bb21
-  bb21:
+  bb21:  ; preds = bb19
     jump bb18
-  bb18:
+  bb18:  ; preds = bb15, bb21
     sstore v51, v54 !metadata(storage=offset(v45, 2))
     jump bb22
-  bb22:
+  bb22:  ; preds = bb18, bb23
     v62 = phi [bb18: 0], [bb23: v71]
     v63 = lt v62, v54
     jumpi v63, bb23, bb24
-  bb24:
+  bb24:  ; preds = bb22
     v72 = add v37, 1
     jump bb14
-  bb23:
+  bb23:  ; preds = bb22
     v64 = shl v62, 5
     v65 = inttoptr i256 v53 to ptr<memory>
     v66 = ptradd v65, v64
@@ -1110,13 +1118,13 @@ fn @copyToStorage() -> struct0 [selector=0x988acb1d, abi_params=[], abi_returns=
     sstore v70, v68 !metadata(storage=symbolic(v70))
     v71 = add v62, 1
     jump bb22
-  bb20:
+  bb20:  ; preds = bb19
     v59 = storage_array_data_slot v51
     v60 = add v59, v57
     sstore v60, 0 !metadata(storage=symbolic(v60))
     v61 = add v57, 1
     jump bb19
-  bb7:
+  bb7:  ; preds = bb6
     v16 = storage_array_data_slot 7
     v17 = mul v14, 3
     v18 = add v16, v17
@@ -1133,29 +1141,29 @@ fn @copyToStorage() -> struct0 [selector=0x988acb1d, abi_params=[], abi_returns=
     v27 = add v26, 31
     v28 = div v27, 32
     jumpi v22, bb9, bb10
-  bb9:
+  bb9:  ; preds = bb7
     clear_storage_words v19, 0, v28
     jump bb10
-  bb10:
+  bb10:  ; preds = bb7, bb9
     sstore v19, 0 !metadata(storage=offset(v18, 1))
     v29 = add v18, 2
     v30 = sload v29 !metadata(storage=offset(v18, 2))
     sstore v29, 0 !metadata(storage=offset(v18, 2))
     jump bb11
-  bb11:
+  bb11:  ; preds = bb10, bb12
     v31 = phi [bb10: 0], [bb12: v35]
     v32 = lt v31, v30
     jumpi v32, bb12, bb13
-  bb13:
+  bb13:  ; preds = bb11
     v36 = add v14, 1
     jump bb6
-  bb12:
+  bb12:  ; preds = bb11
     v33 = storage_array_data_slot v29
     v34 = add v33, v31
     sstore v34, 0 !metadata(storage=symbolic(v34))
     v35 = add v31, 1
     jump bb11
-  bb2:
+  bb2:  ; preds = bb1
     v3 = alloc 96 !metadata(preserves_fmp)
     mstore v3, 0
     v4 = ptradd v3, 32
@@ -1200,14 +1208,14 @@ fn @load_storage_struct_array_0(arg0: i256) -> ptr<memory> {
     mstore v4, v0
     v5 = storage_array_data_slot arg0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v6 = phi [bb0: 0], [bb2: v23]
     v7 = phi [bb0: v5], [bb2: v24]
     v8 = lt v6, v0
     jumpi v8, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     ret v4
-  bb2:
+  bb2:  ; preds = bb1
     v9 = alloc checked 96
     v10 = sload v7 !metadata(storage=symbolic(v7))
     mstore v9, v10

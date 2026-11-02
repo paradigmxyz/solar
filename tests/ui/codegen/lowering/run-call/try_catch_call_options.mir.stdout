@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/try_catch_call_options.sol:TryCallOptionsTarget ===
 @module TryCallOptionsTarget
+; function ping() external [selector 0x5c36b186]
 fn @ping() [selector=0x5c36b186, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
@@ -10,6 +11,7 @@ fn @ping() [selector=0x5c36b186, abi_params=[], abi_returns=[], abi_return_param
 @data
   TryCallOptionsTarget_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/try_catch_call_options.sol:TryCallOptionsTarget"
 
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = datasize TryCallOptionsTarget_creation_code_0
@@ -18,9 +20,9 @@ fn @constructor() [constructor] {
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v4 = sload 0 !metadata(storage=slot(0))
     v5 = not 0xffffffffffffffffffffffffffffffffffffffff
     v6 = and v4, v5
@@ -31,6 +33,7 @@ fn @constructor() [constructor] {
     ret
 }
 
+; function highLevelGas() external returns (bool) [selector 0x480be654]
 fn @highLevelGas() -> i1 [selector=0x480be654, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -44,14 +47,14 @@ fn @highLevelGas() -> i1 [selector=0x480be654, abi_params=[], abi_returns=[word<
     v6 = zext i160 v1 to i256
     v7 = call 0, v6, 0, 28, 4, 0, 0
     jumpi v7, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:
+  bb4:  ; preds = bb2
     ret true
-  bb1:
+  bb1:  ; preds = bb0
     ret false
   bb3:
     ret false
@@ -59,12 +62,14 @@ fn @highLevelGas() -> i1 [selector=0x480be654, abi_params=[], abi_returns=[word<
 
 // === ROOT/tests/ui/codegen/lowering/run-call/try_catch_call_options.sol:BareCatchReturndata ===
 @module BareCatchReturndata
+; function fail() external pure [selector 0xa9cc4718]
 fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     mstore 0, 42 !metadata(memory=scratch)
     revert 0, 32
 }
 
+; function read() external view returns (uint256 result) [selector 0x57de26a4]
 fn @read() -> i256 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = address
@@ -77,18 +82,18 @@ fn @read() -> i256 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word]
     v5 = zext i160 v0 to i256
     v6 = staticcall v1, v5, 28, 4, 0, 0
     jumpi v6, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:
+  bb4:  ; preds = bb2
     returndatacopy 0, 0, 32 !metadata(memory=scratch)
     v7 = mload 0 !metadata(memory=scratch)
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb4
     v8 = phi [bb1: 0], [bb4: v7]
     ret v8
 }

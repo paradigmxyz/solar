@@ -33,12 +33,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         mut plans: IndexVec<FunctionId, Option<FunctionPlan>>,
     ) {
         let entry = info.entry;
-        self.register_stackified_functions(call_graph, info, &plans);
+        self.register_stackified_functions(module, call_graph, info, &plans);
 
         self.record_runtime_entry_reachability(call_graph, entry);
         self.emitting_entry = info.emitting_entry;
         let plan = plans[entry].take().expect("entry plan");
         self.enter_function(module, &module.functions[entry]);
+        self.comment_function_entry(&module.functions[entry], true);
         self.emit_stackified_body(entry, &module.functions[entry], plan);
         self.leave_function(module);
         self.emitting_entry = false;
@@ -52,6 +53,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.enter_function(module, func);
             self.asm.define_label(self.function_labels[&func_id]);
             self.mark_debug_function_invoke(func);
+            self.comment_function_entry(func, false);
             self.emit_entry_free_memory_start(module, call_graph, func_id);
             self.emit_stackified_body(func_id, func, plan);
             self.leave_function(module);
@@ -76,7 +78,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) {
         let constructor = info.entry;
         self.static_frame_functions.insert(constructor);
-        self.register_stackified_functions(call_graph, info, &plans);
+        self.register_stackified_functions(module, call_graph, info, &plans);
 
         // push constructor; jump; <helpers>; constructor:
         let constructor_label = self.asm.new_label();
@@ -91,6 +93,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.define_label(constructor_label);
         }
         self.mark_debug_function_invoke(func);
+        self.comment_function_entry(func, false);
         self.body = Body::Constructor(constructor);
         let plan = plans[constructor].take().expect("constructor plan");
         self.emit_stackified_body(constructor, func, plan);
@@ -111,6 +114,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// words they still need on the stack across calls that may reenter it.
     fn register_stackified_functions(
         &mut self,
+        module: &Module,
         call_graph: &CallGraphInfo,
         info: &ModuleInfo,
         plans: &IndexVec<FunctionId, Option<FunctionPlan>>,
@@ -123,7 +127,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         for (func_id, plan) in plans.iter_enumerated() {
             if plan.is_some() && func_id != info.entry {
-                let label = self.new_function_label(func_id);
+                let label = self.new_function_label(module, func_id);
                 self.function_labels.insert(func_id, label);
             }
         }
@@ -146,6 +150,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 None => self.asm.define_label(label),
             }
             self.mark_debug_function_invoke(func);
+            self.comment_function_entry(func, false);
             self.body = Body::Internal(func_id);
             self.emit_stackified_body(func_id, func, plan);
             self.leave_function(module);
@@ -180,13 +185,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.spill_slots.extend(plan.spilled.iter().zip(0..));
         self.ret_spill_slot = plan.ret_spilled.then_some(self.spill_slots.len() as u32);
         self.spill_addr_consts.clear();
-        self.cold_blocks = self.collect_cold_blocks(func);
         self.block_labels.clear();
         let cfg = CfgInfo::new(func);
         let loop_blocks = cfg.cyclic_blocks();
         for block in func.blocks.indices() {
             let label = self.asm.new_label();
-            if self.block_is_cold(block) {
+            if func.blocks[block].hotness.is_cold() {
                 self.asm.mark_label_cold(label);
             }
             if loop_blocks.contains(block) {
@@ -273,7 +277,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.repeating_code = repeating || in_loop(self, source);
             self.asm.define_label(label);
             self.set_terminator_origin(func, source);
-            let cold = self.block_code_is_cold(target);
+            let cold = self.block_code_is_cold(func, target);
             for step in &steps {
                 self.emit_stackified_step(func_id, func, step, cold);
             }
@@ -302,7 +306,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         trampolines: &mut Vec<(Label, Vec<Step>, BlockId, BlockId)>,
     ) {
         let (body, terminator) = plan.steps.split_at(plan.terminator_start);
-        let cold = self.block_code_is_cold(block);
+        let cold = self.block_code_is_cold(func, block);
         for step in body {
             self.emit_stackified_step(func_id, func, step, cold);
         }
@@ -313,7 +317,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut edge_label = |codegen: &mut Self, edge: &Edge| match &edge.trampoline {
             None => codegen.block_labels[&edge.target],
             Some(steps) => {
-                let label = codegen.new_trampoline_label(edge.target);
+                let label = codegen.new_trampoline_label(func, edge.target);
                 trampolines.push((label, steps.clone(), edge.target, block));
                 label
             }
@@ -329,8 +333,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                     && (falls(then_edge)
                         || else_edge.trampoline.is_none()
                             && (then_edge.trampoline.is_some()
-                                || self.block_is_cold(then_edge.target)
-                                    && !self.block_is_cold(else_edge.target)));
+                                || func.blocks[then_edge.target].hotness.is_cold()
+                                    && !func.blocks[else_edge.target].hotness.is_cold()));
                 let (taken, fall) =
                     if invert { (else_edge, then_edge) } else { (then_edge, else_edge) };
                 // [iszero]; jumpi taken; <fall trampoline>; jump fall
@@ -350,7 +354,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // with trampolines jump to them instead of the block.
                 let mut restore = Vec::new();
                 for (target, steps) in switch_trampolines {
-                    let label = self.new_trampoline_label(*target);
+                    let label = self.new_trampoline_label(func, *target);
                     trampolines.push((label, steps.clone(), *target, block));
                     restore.push((*target, self.block_labels.insert(*target, label).unwrap()));
                 }

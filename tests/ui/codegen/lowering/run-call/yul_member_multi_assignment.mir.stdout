@@ -8,6 +8,7 @@
   struct4: {i256, ptr<memory>}
   struct5: {i160, i256}
 
+; function array(uint256[] calldata a) external pure returns (uint256, uint256, uint256) [selector 0x1335b639]
 fn @array(arg0: slice<calldata>) -> struct0 [selector=0x1335b639, pure, abi_params=[array<_, uint256>], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -44,6 +45,7 @@ fn @array(arg0: slice<calldata>) -> struct0 [selector=0x1335b639, pure, abi_para
     ret v28
 }
 
+; function mixedBytes(bytes calldata b) external pure returns (uint256, uint256, bytes memory) [selector 0x48f52f2f]
 fn @mixedBytes(arg0: slice<calldata>) -> struct2 [selector=0x48f52f2f, pure, abi_params=[bytes], abi_returns=[word, word, memory_bytes], abi_return_params=[uint256, uint256, bytes]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -87,6 +89,7 @@ fn @mixedBytes(arg0: slice<calldata>) -> struct2 [selector=0x48f52f2f, pure, abi
     ret v32
 }
 
+; function mixedString(string calldata s) external pure returns (uint256, string memory) [selector 0x9824992c]
 fn @mixedString(arg0: slice<calldata>) -> struct4 [selector=0x9824992c, pure, abi_params=[bytes], abi_returns=[word, memory_bytes], abi_return_params=[uint256, bytes]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -128,6 +131,7 @@ fn @mixedString(arg0: slice<calldata>) -> struct4 [selector=0x9824992c, pure, ab
     ret v30
 }
 
+; function returned(uint256[] calldata a) external pure returns (uint256[] calldata r) [selector 0x39dbde69]
 fn @returned(arg0: slice<calldata>) -> slice<calldata> [selector=0x39dbde69, pure, abi_params=[array<_, uint256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -145,6 +149,7 @@ fn @returned(arg0: slice<calldata>) -> slice<calldata> [selector=0x39dbde69, pur
     ret v11
 }
 
+; function reversed(uint256[] calldata a) external pure returns (uint256, uint256) [selector 0xed6a1217]
 fn @reversed(arg0: slice<calldata>) -> struct1 [selector=0xed6a1217, pure, abi_params=[array<_, uint256>], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -172,6 +177,7 @@ fn @reversed(arg0: slice<calldata>) -> struct1 [selector=0xed6a1217, pure, abi_p
     ret v20
 }
 
+; function slot() external returns (uint256) [selector 0x1a88bc66]
 fn @slot() -> i256 [selector=0x1a88bc66, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -196,6 +202,7 @@ fn @slot() -> i256 [selector=0x1a88bc66, abi_params=[], abi_returns=[word], abi_
     ret v14
 }
 
+; function functionPointer() external view returns (address, bytes4) [selector 0xbd108928]
 fn @functionPointer() -> struct5 [selector=0xbd108928, view, abi_params=[], abi_returns=[word<uint160>, word<bytes4>], abi_return_params=[address, bytes4]] {
   bb0:
     v0 = address
@@ -223,6 +230,7 @@ fn @functionPointer() -> struct5 [selector=0xbd108928, view, abi_params=[], abi_
     ret v21
 }
 
+; function shift(o, l) -> x, y
 fn @shift.7(arg0: i256, arg1: i256) -> struct1 {
   bb0:
     v0 = add arg0, 32
@@ -232,6 +240,7 @@ fn @shift.7(arg0: i256, arg1: i256) -> struct1 {
     ret v3
 }
 
+; function shift(o, n) -> x, y, w, v
 fn @shift.8(arg0: i256, arg1: i256) -> struct3 {
   bb0:
     v0 = add arg0, 1
@@ -243,6 +252,7 @@ fn @shift.8(arg0: i256, arg1: i256) -> struct3 {
     ret v5
 }
 
+; function trim(o, l) -> x, y, z
 fn @trim(arg0: i256, arg1: i256) -> struct0 {
   bb0:
     v0 = add arg0, 1
@@ -253,6 +263,7 @@ fn @trim(arg0: i256, arg1: i256) -> struct0 {
     ret v4
 }
 
+; function shift(o, l) -> x, y
 fn @shift.10(arg0: i256, arg1: i256) -> struct1 {
   bb0:
     v0 = add arg0, 32
@@ -262,6 +273,7 @@ fn @shift.10(arg0: i256, arg1: i256) -> struct1 {
     ret v3
 }
 
+; function shift(o, l) -> y, x
 fn @shift.11(arg0: i256, arg1: i256) -> struct1 {
   bb0:
     v0 = add arg0, 32
@@ -271,6 +283,7 @@ fn @shift.11(arg0: i256, arg1: i256) -> struct1 {
     ret v3
 }
 
+; function get(s) -> x, y
 fn @get.12(arg0: i256) -> struct1 {
   bb0:
     v0 = insert_value struct1, undef struct1, 0, 9
@@ -278,6 +291,7 @@ fn @get.12(arg0: i256) -> struct1 {
     ret v1
 }
 
+; function get() -> a, s
 fn @get.13() -> struct1 {
   bb0:
     v0 = insert_value struct1, undef struct1, 0, 0x1234

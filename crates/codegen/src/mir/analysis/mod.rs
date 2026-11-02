@@ -22,11 +22,11 @@ mod memory_restoration;
 mod gas;
 pub(crate) use gas::GasObservations;
 
-mod fresh_fmp;
-pub(crate) use fresh_fmp::FreshFmpReads;
+mod fresh_heap;
+pub(crate) use fresh_heap::FreshHeap;
 
-mod cold;
-pub(crate) use cold::{aborts, cold_functions};
+mod hotness;
+pub(crate) use hotness::{HotnessAnalysis, aborts};
 
 mod liveness;
 pub(crate) use liveness::Liveness;

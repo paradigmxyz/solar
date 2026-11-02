@@ -1,28 +1,29 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_loop_return_binding.sol:ModifierLoopReturnBinding ===
 @module ModifierLoopReturnBinding
+; function f() external pure repeat(10) returns (uint256 r) [selector 0x26121ff0]
 fn @f() -> i256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb2
-  bb2:
+  bb2:  ; preds = bb0, bb4
     v0 = phi [bb0: 10], [bb4: v0]
     v1 = phi [bb0: 0], [bb4: v5]
     v2 = phi [bb0: 0], [bb4: v4]
     v3 = lt v1, v0
     jumpi v3, bb5, bb6
-  bb6:
+  bb6:  ; preds = bb2
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     jump bb1
-  bb1:
+  bb1:  ; preds = bb3
     ret v2
-  bb5:
+  bb5:  ; preds = bb2
     v4 = checked_add uint256, 0, 1
     jump bb8
-  bb8:
+  bb8:  ; preds = bb5
     jump bb7
-  bb7:
+  bb7:  ; preds = bb8
     jump bb4
-  bb4:
+  bb4:  ; preds = bb7
     v5 = checked_add uint256, v1, 1
     jump bb2
 }

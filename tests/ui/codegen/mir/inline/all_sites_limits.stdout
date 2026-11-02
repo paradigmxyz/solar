@@ -12,11 +12,11 @@
     bb0:
       v0 = lt arg0, arg1
       jumpi v0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
       v1 = phi [bb1: arg0], [bb2: arg1]
       ret v1
   }

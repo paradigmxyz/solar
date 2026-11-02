@@ -99,7 +99,7 @@ use crate::mir::{
     EffectKind, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, InstId, InstKind,
     MangledSymbol, MemoryObjectLayout, MirPhase, MirType, Module, PtrLocation, RevertReason,
     Terminator, Value, ValueId, ValueLayout,
-    analysis::{AliasAnalysis, LocationSize, MemoryBase},
+    analysis::{AliasAnalysis, HotnessAnalysis, LocationSize, MemoryBase},
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
     transform::{cfg_simplify::remove_unreachable_blocks, utils::expand_block},
@@ -402,6 +402,8 @@ impl LowerAbiCx {
                     .unwrap_or_else(|| super::call_cleanup::argument_bits(func, id, index, facts))
             };
         let facts = super::call_cleanup::infer_arguments_with(module, argument_bits);
+        // The wrappers above changed which functions are cold.
+        HotnessAnalysis::new().run_functions(module);
         let returns = super::call_cleanup::infer_returns(module);
         for (id, func) in module.functions.iter_mut_enumerated() {
             super::call_cleanup::cleanup(

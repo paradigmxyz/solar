@@ -14,6 +14,7 @@
       ret v3
   }
   
+  ; selector 0x01020304
   fn @entry() -> i256 [selector=0x01020304] {
     bb0:
 -     v0 = icall @framed, 5, 6, 7
@@ -30,6 +31,7 @@
       ret v2
   }
   
+  ; selector 0x05060708
   fn @explicit_slot_caller() -> i256 [selector=0x05060708] {
     bb0:
       v0 = icall @explicit_slot, 1, 2
@@ -44,6 +46,7 @@
       ret 9
   }
   
+  ; selector 0x090a0b0c
   fn @constant_frame_caller() -> i256 [selector=0x090a0b0c] {
     bb0:
       v0 = icall @constant_frame, 1

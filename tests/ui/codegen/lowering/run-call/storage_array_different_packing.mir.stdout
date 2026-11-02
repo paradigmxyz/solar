@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256, i256, i256, i256}
 
+; function test() public returns (bytes10 a, bytes10 b, bytes10 c, bytes10 d, bytes10 e) [selector 0xf8a8fd6d]
 fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes10>, word<bytes10>, word<bytes10>, word<bytes10>, word<bytes10>], abi_return_params=[bytes10, bytes10, bytes10, bytes10, bytes10]] {
   bb0:
     v0 = alloc zeroed checked 320
@@ -11,27 +12,27 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = gt v2, v1
     jumpi v3, bb1, bb2
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb4
     v4 = phi [bb1: v1], [bb4: v20]
     v5 = lt v4, v2
     jumpi v5, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb2
-  bb2:
+  bb2:  ; preds = bb0, bb5
     sstore 0, v1 !metadata(storage=slot(0))
     jump bb6
-  bb6:
+  bb6:  ; preds = bb2, bb7
     v21 = phi [bb2: 0], [bb7: v41]
     v22 = lt v21, v1
     jumpi v22, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     v42 = shr v1, 2
     v43 = and v1, 3
     v44 = eq v43, 0
     jumpi v44, bb10, bb9
-  bb9:
+  bb9:  ; preds = bb8
     v45 = mul v43, 64
     v46 = shl 1, v45
     v47 = sub v46, 1
@@ -41,9 +42,9 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     v51 = and v50, v47
     sstore v49, v51 !metadata(storage=symbolic(v49))
     jump bb10
-  bb10:
+  bb10:  ; preds = bb8, bb9
     jump bb11
-  bb11:
+  bb11:  ; preds = bb10, bb13
     v52 = phi [bb10: 0], [bb13: v52]
     v53 = phi [bb10: 0], [bb13: v53]
     v54 = phi [bb10: 0], [bb13: v54]
@@ -53,36 +54,36 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     v58 = sload 0 !metadata(storage=slot(0))
     v59 = lt v57, v58
     jumpi v59, bb14, bb15
-  bb15:
+  bb15:  ; preds = bb11
     jump bb12
-  bb12:
+  bb12:  ; preds = bb15
     v81 = icall @load_storage_packed_array_8_2, 0
     v82 = ptrtoint ptr<memory> v81 to i256
     v83 = mload v81
     v84 = sload 1 !metadata(storage=slot(1))
     v85 = gt v84, v83
     jumpi v85, bb17, bb18
-  bb17:
+  bb17:  ; preds = bb12
     jump bb19
-  bb19:
+  bb19:  ; preds = bb17, bb20
     v86 = phi [bb17: v83], [bb20: v102]
     v87 = lt v86, v84
     jumpi v87, bb20, bb21
-  bb21:
+  bb21:  ; preds = bb19
     jump bb18
-  bb18:
+  bb18:  ; preds = bb12, bb21
     sstore 1, v83 !metadata(storage=slot(1))
     jump bb22
-  bb22:
+  bb22:  ; preds = bb18, bb23
     v103 = phi [bb18: 0], [bb23: v123]
     v104 = lt v103, v83
     jumpi v104, bb23, bb24
-  bb24:
+  bb24:  ; preds = bb22
     v124 = div v83, 3
     v125 = mod v83, 3
     v126 = eq v125, 0
     jumpi v126, bb26, bb25
-  bb25:
+  bb25:  ; preds = bb24
     v127 = mul v125, 80
     v128 = shl 1, v127
     v129 = sub v128, 1
@@ -92,7 +93,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     v133 = and v132, v129
     sstore v131, v133 !metadata(storage=symbolic(v131))
     jump bb26
-  bb26:
+  bb26:  ; preds = bb24, bb25
     v134 = sload 1 !metadata(storage=slot(1))
     v135 = lt 1, v134
     v136 = eq v135, false
@@ -164,7 +165,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     v197 = insert_value struct0, v196, 3, v181
     v198 = insert_value struct0, v197, 4, v193
     ret v198
-  bb23:
+  bb23:  ; preds = bb22
     v105 = shl v103, 5
     v106 = ptradd v81, v105
     v107 = ptradd v106, 32
@@ -186,7 +187,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     sstore v111, v122 !metadata(storage=symbolic(v111))
     v123 = add v103, 1
     jump bb22
-  bb20:
+  bb20:  ; preds = bb19
     v88 = storage_array_data_slot 1
     v89 = div v86, 3
     v90 = add v88, v89
@@ -204,7 +205,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     sstore v90, v101 !metadata(storage=symbolic(v90))
     v102 = add v86, 1
     jump bb19
-  bb14:
+  bb14:  ; preds = bb11
     v60 = trunc i256 v57 to i64
     v61 = zext i64 v60 to i256
     v62 = shl v61, 192
@@ -228,12 +229,12 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     v79 = or v75, v78
     sstore v68, v79 !metadata(storage=symbolic(v68))
     jump bb16
-  bb16:
+  bb16:  ; preds = bb14
     jump bb13
-  bb13:
+  bb13:  ; preds = bb16
     v80 = checked_add uint256, v57, 1
     jump bb11
-  bb7:
+  bb7:  ; preds = bb6
     v23 = shl v21, 5
     v24 = ptradd v0, v23
     v25 = ptradd v24, 32
@@ -255,7 +256,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     sstore v29, v40 !metadata(storage=symbolic(v29))
     v41 = add v21, 1
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v6 = storage_array_data_slot 0
     v7 = div v4, 4
     v8 = add v6, v7

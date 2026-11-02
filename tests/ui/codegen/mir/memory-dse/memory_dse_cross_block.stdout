@@ -5,7 +5,7 @@
     bb0:
 -     mstore 128, 1
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0
       mstore 128, 2
 -     v0 = mload 128
 -     ret v0
@@ -16,7 +16,7 @@
     bb0:
       mstore 128, 1
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0
       v0 = mload 128
       mstore 128, 2
       ret v0
@@ -25,12 +25,12 @@
   fn @keep_store_into_multi_pred_successor(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       mstore 128, 1
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
       mstore 128, 2
 -     v0 = mload 128
 -     ret v0
@@ -41,10 +41,10 @@
     bb0:
 -     mstore 0, 1
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2 [cold]:  ; preds = bb0
       mstore 0, 2
       revert 0, 32
-    bb1:
+    bb1:  ; preds = bb0
       stop
   }
   
@@ -52,7 +52,7 @@
     bb0:
 -     mstore 128, 1
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0
       v0 = mload 0xffffffffffffffde
 -     mstore 128, 2
       sstore 0, v0

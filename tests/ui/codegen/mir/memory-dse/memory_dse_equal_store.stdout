@@ -23,13 +23,13 @@
     bb0:
       mstore 128, 0x1234
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0
       mstore 129, 0
       jump bb2
-    bb2:
+    bb2:  ; preds = bb1
       mstore 128, 0x1234
       jump bb3
-    bb3:
+    bb3:  ; preds = bb2
       v0 = mload 128
       ret v0
   }
@@ -38,13 +38,13 @@
     bb0:
       mstore 128, 0x1234
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0
       mstore 129, arg0
       jump bb2
-    bb2:
+    bb2:  ; preds = bb1
       mstore 128, 0x1234
       jump bb3
-    bb3:
+    bb3:  ; preds = bb2
       v0 = mload 128
       ret v0
   }

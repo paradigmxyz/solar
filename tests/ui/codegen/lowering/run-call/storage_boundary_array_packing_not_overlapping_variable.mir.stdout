@@ -3,17 +3,20 @@
 @types
   struct0: {i256, i256}
 
+; function getArray() internal pure returns (uint64[10][1] storage array)
 fn @getArray() -> i256 [pure] {
   bb0:
     v0 = sub 0, 1
     ret v0
 }
 
+; function getCanary() internal pure returns (Canary storage canary)
 fn @getCanary() -> i256 [pure] {
   bb0:
     ret 2
 }
 
+; function test() public returns (uint256 sum, uint256 sentinel) [selector 0xf8a8fd6d]
 fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall @getCanary
@@ -45,11 +48,11 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v14 = mul 0, 3
     v15 = add v1, v14
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb6
     v16 = phi [bb0: 0], [bb6: v42]
     v17 = lt v16, 10
     jumpi v17, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v43 = alloc 160
     mstore v43, 11
     v44 = ptradd v43, 32
@@ -66,13 +69,13 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v50 = mul 0, 3
     v51 = add v1, v50
     jump bb7
-  bb7:
+  bb7:  ; preds = bb3, bb12
     v52 = phi [bb3: 0], [bb12: v78]
     v53 = lt v52, 10
     jumpi v53, bb8, bb9
-  bb9:
+  bb9:  ; preds = bb7
     jump bb13
-  bb13:
+  bb13:  ; preds = bb9, bb15
     v79 = phi [bb9: 0], [bb15: v104]
     v80 = phi [bb9: 0], [bb15: v80]
     v81 = phi [bb9: 0], [bb15: v105]
@@ -85,14 +88,14 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v87 = add v83, v86
     v88 = lt v81, 10
     jumpi v88, bb16, bb17
-  bb17:
+  bb17:  ; preds = bb13
     jump bb14
-  bb14:
+  bb14:  ; preds = bb17
     v106 = sload v82 !metadata(storage=symbolic(v82))
     v107 = insert_value struct0, undef struct0, 0, v79
     v108 = insert_value struct0, v107, 1, v106
     ret v108
-  bb16:
+  bb16:  ; preds = bb13
     v89 = lt 0, 1
     v90 = eq v89, false
     icall panic_if<0x32>, v90
@@ -112,19 +115,19 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v103 = zext i64 v102 to i256
     v104 = checked_add uint256, v79, v103
     jump bb18
-  bb18:
+  bb18:  ; preds = bb16
     jump bb15
-  bb15:
+  bb15:  ; preds = bb18
     v105 = checked_add uint256, v81, 1
     jump bb13
-  bb8:
+  bb8:  ; preds = bb7
     v54 = div v52, 4
     v55 = add v51, v54
     v56 = mod v52, 4
     v57 = mul v56, 8
     v58 = lt v52, 5
     jumpi v58, bb10, bb11
-  bb11:
+  bb11:  ; preds = bb8
     v70 = mul v57, 8
     v71 = shl 0xffffffffffffffff, v70
     v72 = sload v55 !metadata(storage=symbolic(v55))
@@ -135,7 +138,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v77 = or v74, v76
     sstore v55, v77 !metadata(storage=symbolic(v55))
     jump bb12
-  bb10:
+  bb10:  ; preds = bb8
     v59 = shl v52, 5
     v60 = ptradd v43, v59
     v61 = mload v60
@@ -149,17 +152,17 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v69 = or v66, v68
     sstore v55, v69 !metadata(storage=symbolic(v55))
     jump bb12
-  bb12:
+  bb12:  ; preds = bb10, bb11
     v78 = add v52, 1
     jump bb7
-  bb2:
+  bb2:  ; preds = bb1
     v18 = div v16, 4
     v19 = add v15, v18
     v20 = mod v16, 4
     v21 = mul v20, 8
     v22 = lt v16, 10
     jumpi v22, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb2
     v34 = mul v21, 8
     v35 = shl 0xffffffffffffffff, v34
     v36 = sload v19 !metadata(storage=symbolic(v19))
@@ -170,7 +173,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v41 = or v38, v40
     sstore v19, v41 !metadata(storage=symbolic(v19))
     jump bb6
-  bb4:
+  bb4:  ; preds = bb2
     v23 = shl v16, 5
     v24 = ptradd v2, v23
     v25 = mload v24
@@ -184,7 +187,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v33 = or v30, v32
     sstore v19, v33 !metadata(storage=symbolic(v19))
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v42 = add v16, 1
     jump bb1
 }

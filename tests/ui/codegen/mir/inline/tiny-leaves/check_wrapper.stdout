@@ -11,17 +11,17 @@
 - fn @ensure(arg0: i1) [pure] {
 -   bb0:
 +     jump bb2
-+   bb2:
++   bb2:  ; preds = bb0
       v0 = eq arg0, false
       icall revert_if<empty>, v0
 +     jump bb1
-+   bb1:
++   bb1:  ; preds = bb2
 +     jump bb4
-+   bb4:
++   bb4:  ; preds = bb1
 +     v1 = eq arg1, false
 +     icall revert_if<empty>, v1
 +     jump bb3
-+   bb3:
++   bb3:  ; preds = bb4
       ret
   }
   

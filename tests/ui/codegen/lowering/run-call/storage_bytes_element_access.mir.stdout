@@ -6,49 +6,50 @@
   struct2: {i256, i256}
   struct3: {i8, i8, i256}
 
+; function _fill(uint256 n) internal
 fn @_fill(arg0: i256) {
   bb0:
-    v0 = add arg0, 31
-    v1 = not 31
-    v2 = and v0, v1
-    v3 = add v2, 32
-    v4 = lt v3, arg0
-    icall panic_if<0x41>, v4
-    v5 = alloc zeroed checked v3
-    mstore v5, arg0
+    v0 = add arg0, 63
+    v1 = lt v0, arg0
+    icall panic_if<0x41>, v1
+    v2 = not 31
+    v3 = and v0, v2
+    v4 = alloc zeroed checked v3
+    mstore v4, arg0
     jump bb1
-  bb1:
-    v6 = phi [bb0: arg0], [bb3: v6]
-    v7 = phi [bb0: v5], [bb3: v7]
-    v8 = phi [bb0: 0], [bb3: v20]
-    v9 = lt v8, v6
-    jumpi v9, bb4, bb5
-  bb5:
+  bb1:  ; preds = bb0, bb3
+    v5 = phi [bb0: arg0], [bb3: v5]
+    v6 = phi [bb0: v4], [bb3: v6]
+    v7 = phi [bb0: 0], [bb3: v19]
+    v8 = lt v7, v5
+    jumpi v8, bb4, bb5
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
-    icall @store_storage_bytes, 0, v7
+  bb2:  ; preds = bb5
+    icall @store_storage_bytes, 0, v6
     ret
-  bb4:
-    v10 = checked_add uint256, v8, 1
-    v11 = trunc i256 v10 to i8
-    v12 = zext i8 v11 to i256
-    v13 = shl v12, 248
-    v14 = mload v7
-    v15 = lt v8, v14
-    v16 = eq v15, false
-    icall panic_if<0x32>, v16
-    v17 = byte 0, v13
-    v18 = ptradd v7, v8
-    v19 = ptradd v18, 32
-    mstore8 v19, v17
+  bb4:  ; preds = bb1
+    v9 = checked_add uint256, v7, 1
+    v10 = trunc i256 v9 to i8
+    v11 = zext i8 v10 to i256
+    v12 = shl v11, 248
+    v13 = mload v6
+    v14 = lt v7, v13
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = byte 0, v12
+    v17 = ptradd v6, v7
+    v18 = ptradd v17, 32
+    mstore8 v18, v16
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
-    v20 = checked_add uint256, v8, 1
+  bb3:  ; preds = bb6
+    v19 = checked_add uint256, v7, 1
     jump bb1
 }
 
+; function at(uint256 i) external view returns (bytes1) [selector 0xe0886f90]
 fn @at(arg0: i256) -> i256 [selector=0xe0886f90, view, abi_params=[uint256], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -63,14 +64,14 @@ fn @at(arg0: i256) -> i256 [selector=0xe0886f90, view, abi_params=[uint256], abi
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v9 = storage_array_data_slot 0
     v10 = shr arg0, 5
     v11 = add v9, v10
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: 0]
     v13 = and arg0, 31
     v14 = sub 31, v13
@@ -81,6 +82,7 @@ fn @at(arg0: i256) -> i256 [selector=0xe0886f90, view, abi_params=[uint256], abi
     ret v18
 }
 
+; function readSingle() external returns (uint8 first, uint256 length) [selector 0xf6f3185a]
 fn @readSingle() -> struct0 [selector=0xf6f3185a, abi_params=[], abi_returns=[word<uint8>, word], abi_return_params=[uint8, uint256]] {
   bb0:
     icall @_fill, 1
@@ -96,14 +98,14 @@ fn @readSingle() -> struct0 [selector=0xf6f3185a, abi_params=[], abi_returns=[wo
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v9 = storage_array_data_slot 0
     v10 = shr 0, 5
     v11 = add v9, v10
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: 0]
     v13 = and 0, 31
     v14 = sub 31, v13
@@ -126,6 +128,7 @@ fn @readSingle() -> struct0 [selector=0xf6f3185a, abi_params=[], abi_returns=[wo
     ret v29
 }
 
+; function readEdges(uint256 n) external returns (uint8 first, uint8 second, uint8 secondLast, uint8 last, uint256 length) [selector 0x0ecdc808]
 fn @readEdges(arg0: i256) -> struct1 [selector=0x0ecdc808, abi_params=[uint256], abi_returns=[word<uint8>, word<uint8>, word<uint8>, word<uint8>, word], abi_return_params=[uint8, uint8, uint8, uint8, uint256]] {
   bb0:
     icall @_fill, arg0
@@ -141,14 +144,14 @@ fn @readEdges(arg0: i256) -> struct1 [selector=0x0ecdc808, abi_params=[uint256],
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v9 = storage_array_data_slot 0
     v10 = shr 0, 5
     v11 = add v9, v10
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: 0]
     v13 = and 0, 31
     v14 = sub 31, v13
@@ -170,14 +173,14 @@ fn @readEdges(arg0: i256) -> struct1 [selector=0x0ecdc808, abi_params=[uint256],
     v29 = eq v28, false
     icall panic_if<0x32>, v29
     jumpi v23, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v30 = storage_array_data_slot 0
     v31 = shr 1, 5
     v32 = add v30, v31
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v33 = phi [bb4: v32], [bb5: 0]
     v34 = and 1, 31
     v35 = sub 31, v34
@@ -200,14 +203,14 @@ fn @readEdges(arg0: i256) -> struct1 [selector=0x0ecdc808, abi_params=[uint256],
     v51 = eq v50, false
     icall panic_if<0x32>, v51
     jumpi v45, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     jump bb9
-  bb7:
+  bb7:  ; preds = bb6
     v52 = storage_array_data_slot 0
     v53 = shr v42, 5
     v54 = add v52, v53
     jump bb9
-  bb9:
+  bb9:  ; preds = bb7, bb8
     v55 = phi [bb7: v54], [bb8: 0]
     v56 = and v42, 31
     v57 = sub 31, v56
@@ -230,14 +233,14 @@ fn @readEdges(arg0: i256) -> struct1 [selector=0x0ecdc808, abi_params=[uint256],
     v73 = eq v72, false
     icall panic_if<0x32>, v73
     jumpi v67, bb10, bb11
-  bb11:
+  bb11:  ; preds = bb9
     jump bb12
-  bb10:
+  bb10:  ; preds = bb9
     v74 = storage_array_data_slot 0
     v75 = shr v64, 5
     v76 = add v74, v75
     jump bb12
-  bb12:
+  bb12:  ; preds = bb10, bb11
     v77 = phi [bb10: v76], [bb11: 0]
     v78 = and v64, 31
     v79 = sub 31, v78
@@ -263,6 +266,7 @@ fn @readEdges(arg0: i256) -> struct1 [selector=0x0ecdc808, abi_params=[uint256],
     ret v97
 }
 
+; function writeEdges(uint256 n) external returns (uint8 first, uint8 second, uint8 secondLast, uint8 last, uint256 length) [selector 0x633fe221]
 fn @writeEdges(arg0: i256) -> struct1 [selector=0x633fe221, abi_params=[uint256], abi_returns=[word<uint8>, word<uint8>, word<uint8>, word<uint8>, word], abi_return_params=[uint8, uint8, uint8, uint8, uint256]] {
   bb0:
     icall @_fill, arg0
@@ -278,14 +282,14 @@ fn @writeEdges(arg0: i256) -> struct1 [selector=0x633fe221, abi_params=[uint256]
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v9 = storage_array_data_slot 0
     v10 = shr 0, 5
     v11 = add v9, v10
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: 0]
     v13 = and 0, 31
     v14 = sub 31, v13
@@ -312,14 +316,14 @@ fn @writeEdges(arg0: i256) -> struct1 [selector=0x633fe221, abi_params=[uint256]
     v33 = eq v32, false
     icall panic_if<0x32>, v33
     jumpi v27, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v34 = storage_array_data_slot 0
     v35 = shr v24, 5
     v36 = add v34, v35
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v37 = phi [bb4: v36], [bb5: 0]
     v38 = and v24, 31
     v39 = sub 31, v38
@@ -345,14 +349,14 @@ fn @writeEdges(arg0: i256) -> struct1 [selector=0x633fe221, abi_params=[uint256]
     v57 = eq v56, false
     icall panic_if<0x32>, v57
     jumpi v51, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     jump bb9
-  bb7:
+  bb7:  ; preds = bb6
     v58 = storage_array_data_slot 0
     v59 = shr 0, 5
     v60 = add v58, v59
     jump bb9
-  bb9:
+  bb9:  ; preds = bb7, bb8
     v61 = phi [bb7: v60], [bb8: 0]
     v62 = and 0, 31
     v63 = sub 31, v62
@@ -374,14 +378,14 @@ fn @writeEdges(arg0: i256) -> struct1 [selector=0x633fe221, abi_params=[uint256]
     v78 = eq v77, false
     icall panic_if<0x32>, v78
     jumpi v72, bb10, bb11
-  bb11:
+  bb11:  ; preds = bb9
     jump bb12
-  bb10:
+  bb10:  ; preds = bb9
     v79 = storage_array_data_slot 0
     v80 = shr 1, 5
     v81 = add v79, v80
     jump bb12
-  bb12:
+  bb12:  ; preds = bb10, bb11
     v82 = phi [bb10: v81], [bb11: 0]
     v83 = and 1, 31
     v84 = sub 31, v83
@@ -404,14 +408,14 @@ fn @writeEdges(arg0: i256) -> struct1 [selector=0x633fe221, abi_params=[uint256]
     v100 = eq v99, false
     icall panic_if<0x32>, v100
     jumpi v94, bb13, bb14
-  bb14:
+  bb14:  ; preds = bb12
     jump bb15
-  bb13:
+  bb13:  ; preds = bb12
     v101 = storage_array_data_slot 0
     v102 = shr v91, 5
     v103 = add v101, v102
     jump bb15
-  bb15:
+  bb15:  ; preds = bb13, bb14
     v104 = phi [bb13: v103], [bb14: 0]
     v105 = and v91, 31
     v106 = sub 31, v105
@@ -434,14 +438,14 @@ fn @writeEdges(arg0: i256) -> struct1 [selector=0x633fe221, abi_params=[uint256]
     v122 = eq v121, false
     icall panic_if<0x32>, v122
     jumpi v116, bb16, bb17
-  bb17:
+  bb17:  ; preds = bb15
     jump bb18
-  bb16:
+  bb16:  ; preds = bb15
     v123 = storage_array_data_slot 0
     v124 = shr v113, 5
     v125 = add v123, v124
     jump bb18
-  bb18:
+  bb18:  ; preds = bb16, bb17
     v126 = phi [bb16: v125], [bb17: 0]
     v127 = and v113, 31
     v128 = sub 31, v127
@@ -467,11 +471,12 @@ fn @writeEdges(arg0: i256) -> struct1 [selector=0x633fe221, abi_params=[uint256]
     ret v146
 }
 
+; function bumpAll(uint256 n) external returns (uint256 sum, uint256 length) [selector 0x583a2887]
 fn @bumpAll(arg0: i256) -> struct2 [selector=0x583a2887, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     icall @_fill, arg0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v2]
@@ -486,11 +491,11 @@ fn @bumpAll(arg0: i256) -> struct2 [selector=0x583a2887, abi_params=[uint256], a
     v10 = and v9, v8
     v11 = lt v3, v10
     jumpi v11, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     jump bb13
-  bb13:
+  bb13:  ; preds = bb2, bb15
     v61 = phi [bb2: v0], [bb15: v61]
     v62 = phi [bb2: v1], [bb15: v96]
     v63 = phi [bb2: v2], [bb15: v63]
@@ -506,9 +511,9 @@ fn @bumpAll(arg0: i256) -> struct2 [selector=0x583a2887, abi_params=[uint256], a
     v72 = and v71, v70
     v73 = lt v65, v72
     jumpi v73, bb16, bb17
-  bb17:
+  bb17:  ; preds = bb13
     jump bb14
-  bb14:
+  bb14:  ; preds = bb17
     v98 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v98
     v99 = and v98, 1
@@ -520,7 +525,7 @@ fn @bumpAll(arg0: i256) -> struct2 [selector=0x583a2887, abi_params=[uint256], a
     v105 = insert_value struct2, undef struct2, 0, v62
     v106 = insert_value struct2, v105, 1, v104
     ret v106
-  bb16:
+  bb16:  ; preds = bb13
     v74 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v74
     v75 = and v74, 1
@@ -533,14 +538,14 @@ fn @bumpAll(arg0: i256) -> struct2 [selector=0x583a2887, abi_params=[uint256], a
     v82 = eq v81, false
     icall panic_if<0x32>, v82
     jumpi v76, bb19, bb20
-  bb20:
+  bb20:  ; preds = bb16
     jump bb21
-  bb19:
+  bb19:  ; preds = bb16
     v83 = storage_array_data_slot 0
     v84 = shr v65, 5
     v85 = add v83, v84
     jump bb21
-  bb21:
+  bb21:  ; preds = bb19, bb20
     v86 = phi [bb19: v85], [bb20: 0]
     v87 = and v65, 31
     v88 = sub 31, v87
@@ -553,12 +558,12 @@ fn @bumpAll(arg0: i256) -> struct2 [selector=0x583a2887, abi_params=[uint256], a
     v95 = zext i8 v94 to i256
     v96 = checked_add uint256, v62, v95
     jump bb18
-  bb18:
+  bb18:  ; preds = bb21
     jump bb15
-  bb15:
+  bb15:  ; preds = bb18
     v97 = checked_add uint256, v65, 1
     jump bb13
-  bb4:
+  bb4:  ; preds = bb1
     v12 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v12
     v13 = and v12, 1
@@ -571,14 +576,14 @@ fn @bumpAll(arg0: i256) -> struct2 [selector=0x583a2887, abi_params=[uint256], a
     v20 = eq v19, false
     icall panic_if<0x32>, v20
     jumpi v14, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb4
     jump bb9
-  bb7:
+  bb7:  ; preds = bb4
     v21 = storage_array_data_slot 0
     v22 = shr v3, 5
     v23 = add v21, v22
     jump bb9
-  bb9:
+  bb9:  ; preds = bb7, bb8
     v24 = phi [bb7: v23], [bb8: 0]
     v25 = and v3, 31
     v26 = sub 31, v25
@@ -603,14 +608,14 @@ fn @bumpAll(arg0: i256) -> struct2 [selector=0x583a2887, abi_params=[uint256], a
     v44 = eq v43, false
     icall panic_if<0x32>, v44
     jumpi v38, bb10, bb11
-  bb11:
+  bb11:  ; preds = bb9
     jump bb12
-  bb10:
+  bb10:  ; preds = bb9
     v45 = storage_array_data_slot 0
     v46 = shr v3, 5
     v47 = add v45, v46
     jump bb12
-  bb12:
+  bb12:  ; preds = bb10, bb11
     v48 = phi [bb10: v47], [bb11: 0]
     v49 = and v3, 31
     v50 = sub 31, v49
@@ -625,13 +630,14 @@ fn @bumpAll(arg0: i256) -> struct2 [selector=0x583a2887, abi_params=[uint256], a
     v59 = or v55, v58
     sstore v48, v59 !metadata(storage=symbolic(v48))
     jump bb6
-  bb6:
+  bb6:  ; preds = bb12
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v60 = checked_add uint256, v3, 1
     jump bb1
 }
 
+; function compoundEdges(uint256 n) external returns (uint8 first, uint8 last, uint256 length) [selector 0xd8df6f4c]
 fn @compoundEdges(arg0: i256) -> struct3 [selector=0xd8df6f4c, abi_params=[uint256], abi_returns=[word<uint8>, word<uint8>, word], abi_return_params=[uint8, uint8, uint256]] {
   bb0:
     icall @_fill, arg0
@@ -647,14 +653,14 @@ fn @compoundEdges(arg0: i256) -> struct3 [selector=0xd8df6f4c, abi_params=[uint2
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v9 = storage_array_data_slot 0
     v10 = shr 0, 5
     v11 = add v9, v10
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: 0]
     v13 = and 0, 31
     v14 = sub 31, v13
@@ -687,14 +693,14 @@ fn @compoundEdges(arg0: i256) -> struct3 [selector=0xd8df6f4c, abi_params=[uint2
     v39 = eq v38, false
     icall panic_if<0x32>, v39
     jumpi v33, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v40 = storage_array_data_slot 0
     v41 = shr v30, 5
     v42 = add v40, v41
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v43 = phi [bb4: v42], [bb5: 0]
     v44 = and v30, 31
     v45 = sub 31, v44
@@ -726,14 +732,14 @@ fn @compoundEdges(arg0: i256) -> struct3 [selector=0xd8df6f4c, abi_params=[uint2
     v69 = eq v68, false
     icall panic_if<0x32>, v69
     jumpi v63, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     jump bb9
-  bb7:
+  bb7:  ; preds = bb6
     v70 = storage_array_data_slot 0
     v71 = shr 0, 5
     v72 = add v70, v71
     jump bb9
-  bb9:
+  bb9:  ; preds = bb7, bb8
     v73 = phi [bb7: v72], [bb8: 0]
     v74 = and 0, 31
     v75 = sub 31, v74
@@ -756,14 +762,14 @@ fn @compoundEdges(arg0: i256) -> struct3 [selector=0xd8df6f4c, abi_params=[uint2
     v91 = eq v90, false
     icall panic_if<0x32>, v91
     jumpi v85, bb10, bb11
-  bb11:
+  bb11:  ; preds = bb9
     jump bb12
-  bb10:
+  bb10:  ; preds = bb9
     v92 = storage_array_data_slot 0
     v93 = shr v82, 5
     v94 = add v92, v93
     jump bb12
-  bb12:
+  bb12:  ; preds = bb10, bb11
     v95 = phi [bb10: v94], [bb11: 0]
     v96 = and v82, 31
     v97 = sub 31, v96
@@ -787,6 +793,7 @@ fn @compoundEdges(arg0: i256) -> struct3 [selector=0xd8df6f4c, abi_params=[uint2
     ret v113
 }
 
+; function deleteLast(uint256 n) external returns (uint8 zeroed, uint8 neighbour, uint256 length) [selector 0x32a309a7]
 fn @deleteLast(arg0: i256) -> struct3 [selector=0x32a309a7, abi_params=[uint256], abi_returns=[word<uint8>, word<uint8>, word], abi_return_params=[uint8, uint8, uint256]] {
   bb0:
     icall @_fill, arg0
@@ -803,14 +810,14 @@ fn @deleteLast(arg0: i256) -> struct3 [selector=0x32a309a7, abi_params=[uint256]
     v9 = eq v8, false
     icall panic_if<0x32>, v9
     jumpi v3, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v10 = storage_array_data_slot 0
     v11 = shr v0, 5
     v12 = add v10, v11
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v13 = phi [bb1: v12], [bb2: 0]
     v14 = and v0, 31
     v15 = sub 31, v14
@@ -837,14 +844,14 @@ fn @deleteLast(arg0: i256) -> struct3 [selector=0x32a309a7, abi_params=[uint256]
     v34 = eq v33, false
     icall panic_if<0x32>, v34
     jumpi v28, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v35 = storage_array_data_slot 0
     v36 = shr v25, 5
     v37 = add v35, v36
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v38 = phi [bb4: v37], [bb5: 0]
     v39 = and v25, 31
     v40 = sub 31, v39
@@ -867,14 +874,14 @@ fn @deleteLast(arg0: i256) -> struct3 [selector=0x32a309a7, abi_params=[uint256]
     v56 = eq v55, false
     icall panic_if<0x32>, v56
     jumpi v50, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     jump bb9
-  bb7:
+  bb7:  ; preds = bb6
     v57 = storage_array_data_slot 0
     v58 = shr v47, 5
     v59 = add v57, v58
     jump bb9
-  bb9:
+  bb9:  ; preds = bb7, bb8
     v60 = phi [bb7: v59], [bb8: 0]
     v61 = and v47, 31
     v62 = sub 31, v61
@@ -898,6 +905,7 @@ fn @deleteLast(arg0: i256) -> struct3 [selector=0x32a309a7, abi_params=[uint256]
     ret v78
 }
 
+; function rawByte(uint256 n) external returns (uint256 raw) [selector 0xa88f9005]
 fn @rawByte(arg0: i256) -> i256 [selector=0xa88f9005, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall @_fill, arg0
@@ -914,14 +922,14 @@ fn @rawByte(arg0: i256) -> i256 [selector=0xa88f9005, abi_params=[uint256], abi_
     v9 = eq v8, false
     icall panic_if<0x32>, v9
     jumpi v3, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v10 = storage_array_data_slot 0
     v11 = shr v0, 5
     v12 = add v10, v11
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v13 = phi [bb1: v12], [bb2: 0]
     v14 = and v0, 31
     v15 = sub 31, v14
@@ -932,6 +940,7 @@ fn @rawByte(arg0: i256) -> i256 [selector=0xa88f9005, abi_params=[uint256], abi_
     ret v19
 }
 
+; function shortString() external returns (uint8 first, uint8 last, uint256 length) [selector 0x2f9c7ab1]
 fn @shortString() -> struct3 [selector=0x2f9c7ab1, abi_params=[], abi_returns=[word<uint8>, word<uint8>, word], abi_return_params=[uint8, uint8, uint256]] {
   bb0:
     store_storage_bytes_literal 1, hex"68656c6c6f"
@@ -947,14 +956,14 @@ fn @shortString() -> struct3 [selector=0x2f9c7ab1, abi_params=[], abi_returns=[w
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v9 = storage_array_data_slot 1
     v10 = shr 0, 5
     v11 = add v9, v10
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: 1]
     v13 = and 0, 31
     v14 = sub 31, v13
@@ -976,14 +985,14 @@ fn @shortString() -> struct3 [selector=0x2f9c7ab1, abi_params=[], abi_returns=[w
     v29 = eq v28, false
     icall panic_if<0x32>, v29
     jumpi v23, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v30 = storage_array_data_slot 1
     v31 = shr 4, 5
     v32 = add v30, v31
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v33 = phi [bb4: v32], [bb5: 1]
     v34 = and 4, 31
     v35 = sub 31, v34
@@ -1007,6 +1016,7 @@ fn @shortString() -> struct3 [selector=0x2f9c7ab1, abi_params=[], abi_returns=[w
     ret v51
 }
 
+; function longString() external returns (uint8 first, uint8 last, uint256 length) [selector 0x68a55dc0]
 fn @longString() -> struct3 [selector=0x68a55dc0, abi_params=[], abi_returns=[word<uint8>, word<uint8>, word], abi_return_params=[uint8, uint8, uint256]] {
   bb0:
     store_storage_bytes_literal 1, hex"6162636465666768696a6b6c6d6e6f707172737475767778797a30313233343536"
@@ -1022,14 +1032,14 @@ fn @longString() -> struct3 [selector=0x68a55dc0, abi_params=[], abi_returns=[wo
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v9 = storage_array_data_slot 1
     v10 = shr 0, 5
     v11 = add v9, v10
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: 1]
     v13 = and 0, 31
     v14 = sub 31, v13
@@ -1051,14 +1061,14 @@ fn @longString() -> struct3 [selector=0x68a55dc0, abi_params=[], abi_returns=[wo
     v29 = eq v28, false
     icall panic_if<0x32>, v29
     jumpi v23, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v30 = storage_array_data_slot 1
     v31 = shr 32, 5
     v32 = add v30, v31
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v33 = phi [bb4: v32], [bb5: 1]
     v34 = and 32, 31
     v35 = sub 31, v34
@@ -1082,6 +1092,7 @@ fn @longString() -> struct3 [selector=0x68a55dc0, abi_params=[], abi_returns=[wo
     ret v51
 }
 
+; function writeShortString() external returns (uint8 first, uint8 last, uint256 length) [selector 0x9aa67864]
 fn @writeShortString() -> struct3 [selector=0x9aa67864, abi_params=[], abi_returns=[word<uint8>, word<uint8>, word], abi_return_params=[uint8, uint8, uint256]] {
   bb0:
     store_storage_bytes_literal 1, hex"68656c6c6f"
@@ -1097,14 +1108,14 @@ fn @writeShortString() -> struct3 [selector=0x9aa67864, abi_params=[], abi_retur
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v9 = storage_array_data_slot 1
     v10 = shr 0, 5
     v11 = add v9, v10
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: 1]
     v13 = and 0, 31
     v14 = sub 31, v13
@@ -1130,14 +1141,14 @@ fn @writeShortString() -> struct3 [selector=0x9aa67864, abi_params=[], abi_retur
     v32 = eq v31, false
     icall panic_if<0x32>, v32
     jumpi v26, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v33 = storage_array_data_slot 1
     v34 = shr 0, 5
     v35 = add v33, v34
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v36 = phi [bb4: v35], [bb5: 1]
     v37 = and 0, 31
     v38 = sub 31, v37
@@ -1159,14 +1170,14 @@ fn @writeShortString() -> struct3 [selector=0x9aa67864, abi_params=[], abi_retur
     v53 = eq v52, false
     icall panic_if<0x32>, v53
     jumpi v47, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     jump bb9
-  bb7:
+  bb7:  ; preds = bb6
     v54 = storage_array_data_slot 1
     v55 = shr 4, 5
     v56 = add v54, v55
     jump bb9
-  bb9:
+  bb9:  ; preds = bb7, bb8
     v57 = phi [bb7: v56], [bb8: 1]
     v58 = and 4, 31
     v59 = sub 31, v58
@@ -1190,6 +1201,7 @@ fn @writeShortString() -> struct3 [selector=0x9aa67864, abi_params=[], abi_retur
     ret v75
 }
 
+; function writeLongString() external returns (uint8 first, uint8 last, uint256 length) [selector 0x233b60b4]
 fn @writeLongString() -> struct3 [selector=0x233b60b4, abi_params=[], abi_returns=[word<uint8>, word<uint8>, word], abi_return_params=[uint8, uint8, uint256]] {
   bb0:
     store_storage_bytes_literal 1, hex"6162636465666768696a6b6c6d6e6f707172737475767778797a30313233343536"
@@ -1205,14 +1217,14 @@ fn @writeLongString() -> struct3 [selector=0x233b60b4, abi_params=[], abi_return
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v9 = storage_array_data_slot 1
     v10 = shr 0, 5
     v11 = add v9, v10
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: 1]
     v13 = and 0, 31
     v14 = sub 31, v13
@@ -1238,14 +1250,14 @@ fn @writeLongString() -> struct3 [selector=0x233b60b4, abi_params=[], abi_return
     v32 = eq v31, false
     icall panic_if<0x32>, v32
     jumpi v26, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v33 = storage_array_data_slot 1
     v34 = shr 0, 5
     v35 = add v33, v34
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v36 = phi [bb4: v35], [bb5: 1]
     v37 = and 0, 31
     v38 = sub 31, v37
@@ -1267,14 +1279,14 @@ fn @writeLongString() -> struct3 [selector=0x233b60b4, abi_params=[], abi_return
     v53 = eq v52, false
     icall panic_if<0x32>, v53
     jumpi v47, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     jump bb9
-  bb7:
+  bb7:  ; preds = bb6
     v54 = storage_array_data_slot 1
     v55 = shr 32, 5
     v56 = add v54, v55
     jump bb9
-  bb9:
+  bb9:  ; preds = bb7, bb8
     v57 = phi [bb7: v56], [bb8: 1]
     v58 = and 32, 31
     v59 = sub 31, v58
@@ -1298,6 +1310,7 @@ fn @writeLongString() -> struct3 [selector=0x233b60b4, abi_params=[], abi_return
     ret v75
 }
 
+; function readOob(uint256 n) external returns (uint8) [selector 0x4043349b]
 fn @readOob(arg0: i256) -> i8 [selector=0x4043349b, abi_params=[uint256], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     icall @_fill, arg0
@@ -1313,14 +1326,14 @@ fn @readOob(arg0: i256) -> i8 [selector=0x4043349b, abi_params=[uint256], abi_re
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v9 = storage_array_data_slot 0
     v10 = shr arg0, 5
     v11 = add v9, v10
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: 0]
     v13 = and arg0, 31
     v14 = sub 31, v13
@@ -1333,6 +1346,7 @@ fn @readOob(arg0: i256) -> i8 [selector=0x4043349b, abi_params=[uint256], abi_re
     ret v20
 }
 
+; function writeOob(uint256 n) external [selector 0x4621e8f8]
 fn @writeOob(arg0: i256) [selector=0x4621e8f8, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     icall @_fill, arg0
@@ -1348,14 +1362,14 @@ fn @writeOob(arg0: i256) [selector=0x4621e8f8, abi_params=[uint256], abi_returns
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v9 = storage_array_data_slot 0
     v10 = shr arg0, 5
     v11 = add v9, v10
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: 0]
     v13 = and arg0, 31
     v14 = sub 31, v13
@@ -1372,6 +1386,7 @@ fn @writeOob(arg0: i256) [selector=0x4621e8f8, abi_params=[uint256], abi_returns
     ret
 }
 
+; function deleteOob(uint256 n) external [selector 0xfb2fda33]
 fn @deleteOob(arg0: i256) [selector=0xfb2fda33, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     icall @_fill, arg0
@@ -1387,14 +1402,14 @@ fn @deleteOob(arg0: i256) [selector=0xfb2fda33, abi_params=[uint256], abi_return
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v9 = storage_array_data_slot 0
     v10 = shr arg0, 5
     v11 = add v9, v10
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: 0]
     v13 = and arg0, 31
     v14 = sub 31, v13

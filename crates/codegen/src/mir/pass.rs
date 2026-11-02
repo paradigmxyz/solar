@@ -30,7 +30,12 @@ use crate::{
 use either::Either;
 use smallvec::SmallVec;
 use solar_config::OptimizationMode;
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap, sync};
+use solar_data_structures::{
+    bit_set::{DenseBitSet, GrowableBitSet},
+    index::IndexVec,
+    map::FxHashMap,
+    sync,
+};
 use solar_interface::diagnostics::ErrorGuaranteed;
 use solar_sema::Gcx;
 use std::{any::TypeId, cell::Cell, convert::Infallible, rc::Rc, sync::Arc};
@@ -739,6 +744,9 @@ pub(crate) struct FunctionAnalyses {
     straight_line_creation: bool,
     /// The objective the function's code is optimized for.
     optimization: OptimizationMode,
+    /// Whether the function is cold: no call that succeeds runs it. The cost models below price a
+    /// cold function by [`Target::priced_for_cold`].
+    cold: bool,
 }
 
 impl FunctionAnalyses {
@@ -748,6 +756,7 @@ impl FunctionAnalyses {
         cfg: Option<Rc<CfgInfo>>,
         (creation_only, straight_line_creation): (bool, bool),
         optimization: OptimizationMode,
+        cold: bool,
     ) -> Self {
         Self {
             function,
@@ -757,6 +766,7 @@ impl FunctionAnalyses {
             creation_only,
             straight_line_creation,
             optimization,
+            cold,
         }
     }
 
@@ -785,14 +795,14 @@ impl FunctionAnalyses {
     /// The cost model of runtime code under the module's objective, for code that a loop may run
     /// many times, wherever it is.
     pub(crate) fn runtime_target(&self, gcx: Gcx<'_>) -> Target {
-        Target::new(gcx, self.optimization)
+        Target::new(gcx, self.optimization).priced_for_cold(self.cold)
     }
 
     /// The cost model for a transform that ranks code shapes without weighing blocks by how
     /// often they run: creation code is priced as such only when every instruction runs a
     /// bounded number of times, so without loops, recursion, or a looping caller.
     pub(crate) fn target(&self, gcx: Gcx<'_>) -> Target {
-        Target::new(gcx, self.optimization).priced_for(self.straight_line_creation)
+        self.runtime_target(gcx).priced_for(self.straight_line_creation)
     }
 
     /// Records an edit that the transform does not report as a change, such as removing dead
@@ -836,6 +846,10 @@ pub struct ModuleAnalyses {
     /// Function bodies on which a function-local pass most recently reported
     /// no change. Any intervening mutation of that body removes the entry.
     local_no_change: FxHashMap<TypeId, DenseBitSet<FunctionId>>,
+    /// The functions a function-local runner changed in the running pass, reported or not.
+    changed_functions: GrowableBitSet<FunctionId>,
+    /// The number of functions when the running pass began.
+    functions_at_start: usize,
     call_summaries: Option<Arc<MemoryCallSummaries>>,
     /// Local summaries of the functions no pass has changed since the last summary build.
     local_summaries: LocalSummaryCache,
@@ -870,8 +884,11 @@ impl ModuleAnalyses {
         prices_creation: bool,
         parallel: bool,
         objective_gate: [bool; 3],
+        functions: usize,
     ) {
         self.objective_gate = Some(objective_gate);
+        self.changed_functions.clear();
+        self.functions_at_start = functions;
         self.parallel = parallel;
         self.unreported_edit = false;
         self.preserved_by_pass = false;
@@ -887,6 +904,17 @@ impl ModuleAnalyses {
         self.objective_gate.is_none_or(|gate| {
             gate[usize::from(objective.is_gas()) + 2 * usize::from(objective.is_size())]
         })
+    }
+
+    /// Returns the functions the running pass changed when it ran only through the function-local
+    /// runners, which record every function they edit, and `None` when the pass edited the module
+    /// in other ways.
+    pub(crate) fn changed_functions(
+        &self,
+        functions: usize,
+    ) -> Option<&GrowableBitSet<FunctionId>> {
+        (self.preserved_by_pass && self.functions_at_start == functions)
+            .then_some(&self.changed_functions)
     }
 
     pub(crate) fn finish_pass(&mut self, changed: bool) {
@@ -940,7 +968,8 @@ impl ModuleAnalyses {
             self.alias_with_summaries(func_id, summaries)
         });
         let cfg = requirements.cfg().then(|| self.cfg(func_id, &module.functions[func_id]));
-        FunctionAnalyses::new(func_id, alias, cfg, pricing, module.objective(func_id))
+        let cold = module.functions[func_id].attributes.hotness.is_cold();
+        FunctionAnalyses::new(func_id, alias, cfg, pricing, module.objective(func_id), cold)
     }
 
     /// Returns whether a function is creation-only and whether, besides, it has no loop, when
@@ -1041,6 +1070,7 @@ impl ModuleAnalyses {
         changed: bool,
     ) {
         if changed {
+            self.note_changed_function(func_id);
             self.local_summaries.invalidate(func_id);
             for cached in self.local_no_change.values_mut() {
                 if func_id.index() < cached.domain_size() {
@@ -1050,6 +1080,10 @@ impl ModuleAnalyses {
         } else if let Some(key) = cache_key {
             self.no_change(key, functions).insert(func_id);
         }
+    }
+
+    fn note_changed_function(&mut self, func_id: FunctionId) {
+        self.changed_functions.insert(func_id);
     }
 
     fn invalidate_all(&mut self) {
@@ -1105,6 +1139,7 @@ fn run_function_pass_cached(
     let insts_before = func.num_insts();
     let changed = run(func, &bundle);
     if bundle.unreported_edit.get() {
+        analyses.note_changed_function(func_id);
         analyses.local_summaries.invalidate(func_id);
         analyses.unreported_edit = true;
     }
@@ -1214,12 +1249,14 @@ fn run_parallel_function_pass(
         .collect::<Vec<_>>();
     let results =
         sync::par_try_map(true, tasks, |(id, func, alias, cfg, pricing, optimization)| {
+            let cold = func.attributes.hotness.is_cold();
             let bundle = FunctionAnalyses::new(
                 id,
                 alias.map(Rc::new),
                 cfg.map(Rc::new),
                 pricing,
                 optimization,
+                cold,
             );
             let insts_before = func.num_insts();
             let changed = run(func, &bundle);
@@ -1248,6 +1285,7 @@ fn run_parallel_function_pass(
         .unwrap_or_else(|never| match never {});
     for (id, outcome) in results {
         if outcome.unreported_edit {
+            analyses.note_changed_function(id);
             analyses.local_summaries.invalidate(id);
             analyses.unreported_edit = true;
         }

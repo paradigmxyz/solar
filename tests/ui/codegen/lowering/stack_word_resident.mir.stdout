@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/stack_word_resident.sol:ResidentWords ===
 @module ResidentWords
+; function masked(uint256 x, uint256 y) external pure returns (uint256) [selector 0x966953d1]
 fn @masked(arg0: i256, arg1: i256) -> i256 [selector=0x966953d1, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = xor arg0, arg1

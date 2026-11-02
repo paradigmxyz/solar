@@ -1,21 +1,46 @@
 // === ROOT/tests/ui/codegen/mir/lower-builtins/packed_hash_over_length.sol:PackedHashOverLength ===
 @module PackedHashOverLength
 @phase lowered
-@types
-  struct0: {i256, ptr<memory>}
-  struct1: {i256, i256}
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb9, bb1
+  bb1:  ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb9, [0x24401e82 => bb2, 0x3db8dd3c => bb3, 0x3e18eba5 => bb4, 0xbbbb2e8a => bb5, 0xc57c8563 => bb6, 0xd1caa6e6 => bb7, 0xf2a75fe4 => bb8]
+  bb8:  ; preds = bb1
+    tail_call @empty
+  bb7:  ; preds = bb1
+    tail_call @forged
+  bb6:  ; preds = bb1
+    tail_call @kept
+  bb5:  ; preds = bb1
+    tail_call @whole
+  bb4:  ; preds = bb1
+    tail_call @narrow
+  bb3:  ; preds = bb1
+    tail_call @tooLong
+  bb2:  ; preds = bb1
+    tail_call @signed
+  bb9 [cold]:  ; preds = bb0, bb1
+    revert 0, 0
+}
 
+; function signed(bytes memory s) external pure returns (bytes32) [selector 0x24401e82]
 fn @signed() [selector=0x24401e82, abi_wrapper, pure] {
   bb0:
     v15 = calldatasize
     v16 = lt v15, 36
     jumpi v16, bb1, bb3
-  bb3:
+  bb3:  ; preds = bb0
     v17 = icall @decode_calldata_type
     v0 = mload v17
     v1 = lt v0, 10
     jumpi v1, bb2, bb1
-  bb2:
+  bb2:  ; preds = bb3
     v4 = add v0, 48
     v9 = or v4, 0x19457468657265756d205369676e6564204d6573736167653a0a00
     mstore v17, v9
@@ -27,16 +52,17 @@ fn @signed() [selector=0x24401e82, abi_wrapper, pure] {
     mstore v17, v0
     mstore 0, v14 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:  ; preds = bb0, bb3
     revert 0, 0
 }
 
+; function kept(bytes memory s) external pure returns (bytes32 h, bytes memory r) [selector 0xc57c8563]
 fn @kept() [selector=0xc57c8563, abi_wrapper, pure] {
   bb0:
     v10 = calldatasize
     v11 = lt v10, 36
     jumpi v11, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v12 = icall @decode_calldata_type
     v3 = mload v12
     mstore v12, 7
@@ -52,8 +78,8 @@ fn @kept() [selector=0xc57c8563, abi_wrapper, pure] {
     v20 = add v44, 32
     mstore v20, 64
     v23 = mload v12
-    v24 = add v23, 31
-    v26 = and v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v25 = add v23, 31
+    v26 = and v25, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v27 = add v18, 32
     v28 = add v18, v26
     mstore v28, 0
@@ -63,16 +89,17 @@ fn @kept() [selector=0xc57c8563, abi_wrapper, pure] {
     mcopy v27, v38, v23 !metadata(memory=heap, disjoint)
     v32 = sub v30, v44
     returndata v44, v32
-  bb1:
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
+; function narrow(bytes memory s) external pure returns (bytes32) [selector 0x3e18eba5]
 fn @narrow() [selector=0x3e18eba5, abi_wrapper, pure] {
   bb0:
     v14 = calldatasize
     v15 = lt v14, 36
     jumpi v15, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v16 = icall @decode_calldata_type
     v2 = mload v16
     mstore v16, 0xfffeabcd
@@ -84,10 +111,11 @@ fn @narrow() [selector=0x3e18eba5, abi_wrapper, pure] {
     mstore v16, v2
     mstore 0, v13 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
+; function empty() external pure returns (bytes32 h, uint256 length) [selector 0xf2a75fe4]
 fn @empty() [selector=0xf2a75fe4, abi_wrapper, pure] {
   bb0:
     v5 = mload 96 !metadata(memory=scratch)
@@ -101,28 +129,30 @@ fn @empty() [selector=0xf2a75fe4, abi_wrapper, pure] {
     returndata 0, 64
 }
 
+; function whole(bytes memory s) external pure returns (bytes32) [selector 0xbbbb2e8a]
 fn @whole() [selector=0xbbbb2e8a, abi_wrapper, pure] {
   bb0:
     v4 = calldatasize
     v5 = lt v4, 36
     jumpi v5, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v6 = icall @decode_calldata_type
     v1 = mload v6
     v9 = add v6, 32
     v3 = keccak256 v9, v1
     mstore 0, v3 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
+; function tooLong(bytes memory s) external pure returns (bytes32) [selector 0x3db8dd3c]
 fn @tooLong() [selector=0x3db8dd3c, abi_wrapper, pure] {
   bb0:
     v18 = calldatasize
     v19 = lt v18, 36
     jumpi v19, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v20 = icall @decode_calldata_type
     v23 = add v20, 32
     v2 = mload v20
@@ -137,10 +167,11 @@ fn @tooLong() [selector=0x3db8dd3c, abi_wrapper, pure] {
     v17 = keccak256 v28, v16
     mstore 0, v17 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
+; function forged() external pure returns (bytes32) [selector 0xd1caa6e6]
 fn @forged() [selector=0xd1caa6e6, abi_wrapper, pure] {
   bb0:
     v17 = heap_floor !metadata(alloc_ptr)
@@ -151,15 +182,13 @@ fn @forged() [selector=0xd1caa6e6, abi_wrapper, pure] {
     v22 = or v20, v21
     v23 = ne v22, 0
     jumpi v23, bb2, bb1
-  bb1:
-    v24 = calldatasize
-    calldatacopy v17, v24, 64
+  bb1:  ; preds = bb0
     mstore v17, 1
     v15 = add v17, 31
     v12 = keccak256 v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     mstore 0, v12 !metadata(memory=scratch)
     returndata 0, 32
-  bb2:
+  bb2 [cold]:  ; preds = bb0
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -173,68 +202,36 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v4 = sub v0, 36
     v5 = gt v1, v4
     jumpi v5, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v6 = calldataload v2
     v7 = add v2, 32
-    v38 = add v6, 63
-    v11 = and v38, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v12 = lt v11, v6
-    v30 = heap_floor !metadata(alloc_ptr)
-    v31 = add v30, v11 !metadata(alloc_ptr)
-    v32 = lt v31, v30
-    v33 = zext i1 v32 to i256
-    v34 = shr v31, 64
-    v35 = or v33, v34
-    v40 = zext i1 v12 to i256
-    v41 = or v40, v35
-    v42 = ne v41, 0
-    jumpi v42, bb3, bb5
-  bb5:
-    mstore 64, v31 !metadata(memory=scratch)
-    mstore v30, v6
-    v14 = sub v0, v7
-    v15 = gt v6, v14
-    jumpi v15, bb1, bb4
-  bb4:
-    v26 = add v30, 32
-    calldatacopy v26, v7, v6
-    v23 = sub 0, v6
-    v24 = and v23, 31
-    v37 = calldatasize
-    v27 = add v26, v6
-    calldatacopy v27, v37, v24
-    ret v30
-  bb3:
+    v8 = add v6, 63
+    v9 = lt v8, v6
+    v11 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v29 = heap_floor !metadata(alloc_ptr)
+    v30 = add v29, v11 !metadata(alloc_ptr)
+    v31 = lt v30, v29
+    v32 = zext i1 v31 to i256
+    v33 = shr v30, 64
+    v34 = or v32, v33
+    v36 = zext i1 v9 to i256
+    v37 = or v36, v34
+    v38 = ne v37, 0
+    jumpi v38, bb3, bb5
+  bb5:  ; preds = bb2
+    mstore 64, v30 !metadata(memory=scratch)
+    mstore v29, v6
+    v13 = sub v0, v7
+    v14 = gt v6, v13
+    jumpi v14, bb1, bb4
+  bb4:  ; preds = bb5
+    v25 = add v29, 32
+    calldatacopy v25, v7, v6
+    ret v29
+  bb3 [cold]:  ; preds = bb2
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb9, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb9, [0x24401e82 => bb2, 0x3db8dd3c => bb3, 0x3e18eba5 => bb4, 0xbbbb2e8a => bb5, 0xc57c8563 => bb6, 0xd1caa6e6 => bb7, 0xf2a75fe4 => bb8]
-  bb8:
-    tail_call @empty
-  bb7:
-    tail_call @forged
-  bb6:
-    tail_call @kept
-  bb5:
-    tail_call @whole
-  bb4:
-    tail_call @narrow
-  bb3:
-    tail_call @tooLong
-  bb2:
-    tail_call @signed
-  bb9:
+  bb1 [cold]:  ; preds = bb0, bb5
     revert 0, 0
 }

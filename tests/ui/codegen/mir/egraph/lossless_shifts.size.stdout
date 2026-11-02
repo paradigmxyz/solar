@@ -71,12 +71,12 @@
       v1 = shl v0, 248
       v2 = ne arg1, 0
       jumpi v2, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
 -     v5 = lt v1, 0x700000000000000000000000000000000000000000000000000000000000000
 +     v5 = lt v0, 7
       v6 = zext i1 v5 to i256
       ret v6
-    bb1:
+    bb1:  ; preds = bb0
 -     v3 = eq v1, 0x700000000000000000000000000000000000000000000000000000000000000
 +     v3 = eq v0, 7
       v4 = zext i1 v3 to i256
@@ -151,9 +151,9 @@
       v1 = shl v0, 248
       v2 = ne arg1, 0
       jumpi v2, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       ret 0
-    bb1:
+    bb1:  ; preds = bb0
       v3 = shr v1, 248
       ret v3
   }
@@ -319,11 +319,11 @@
 -     v1 = shl v0, 248
       v2 = ne arg1, 0
       jumpi v2, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       v5 = lt v0, 7
       v6 = zext i1 v5 to i256
       ret v6
-    bb1:
+    bb1:  ; preds = bb0
       v3 = eq v0, 7
       v4 = zext i1 v3 to i256
       ret v4
@@ -387,9 +387,9 @@
       v1 = shl v0, 248
       v2 = ne arg1, 0
       jumpi v2, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       ret 0
-    bb1:
+    bb1:  ; preds = bb0
       v3 = shr v1, 248
       ret v3
   }

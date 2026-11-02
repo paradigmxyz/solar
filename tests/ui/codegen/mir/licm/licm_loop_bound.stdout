@@ -4,45 +4,45 @@
   fn @keep_mload_non_exiting_bound() -> i256 {
     bb0:
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb4
       v0 = phi [bb0: 0], [bb4: v3]
       v1 = phi [bb0: 0], [bb4: v6]
       v2 = eq v1, 100
       jumpi v2, bb5, bb2
-    bb2:
+    bb2:  ; preds = bb1
       v3 = mload 64
       v4 = mul v1, 32
       mstore v4, 1
       v5 = lt v1, 2
       jumpi v5, bb3, bb4
-    bb3:
+    bb3:  ; preds = bb2
       jump bb4
-    bb4:
+    bb4:  ; preds = bb2, bb3
       v6 = add v1, 1
       jump bb1
-    bb5:
+    bb5:  ; preds = bb1
       ret v0
   }
   
   fn @keep_mload_inner_branch_bound() -> i256 {
     bb0:
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb4
       v0 = phi [bb0: 0], [bb4: v3]
       v1 = phi [bb0: 0], [bb4: v6]
       v2 = lt v1, 100
       jumpi v2, bb2, bb5
-    bb5:
+    bb5:  ; preds = bb1
       ret v0
-    bb2:
+    bb2:  ; preds = bb1
       v3 = mload 64
       v4 = mul v1, 32
       mstore v4, 1
       v5 = lt v1, 2
       jumpi v5, bb3, bb4
-    bb3:
+    bb3:  ; preds = bb2
       jump bb4
-    bb4:
+    bb4:  ; preds = bb2, bb3
       v6 = add v1, 1
       jump bb1
   }

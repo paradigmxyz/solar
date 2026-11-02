@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/literal_alias.sol:LiteralAlias ===
 @module LiteralAlias
+; function overwritten(bytes32 word) external pure returns (bytes memory) [selector 0x55dcfb46]
 fn @overwritten(arg0: i256) -> ptr<memory> [selector=0x55dcfb46, pure, abi_params=[bytes32], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @literal
@@ -9,6 +10,7 @@ fn @overwritten(arg0: i256) -> ptr<memory> [selector=0x55dcfb46, pure, abi_param
     ret v0
 }
 
+; function literal() private pure returns (bytes memory)
 fn @literal() -> ptr<memory> [pure] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)

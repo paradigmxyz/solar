@@ -3,6 +3,21 @@
 @types
   struct0: {i256, i256}
 
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    v0 = shl 0xffffffffffffffff, 8
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = not v0
+    v3 = and v1, v2
+    v4 = and 2, 0xffffffffffffffff
+    v5 = shl v4, 8
+    v6 = or v3, v5
+    sstore 0, v6 !metadata(storage=slot(0))
+    ret
+}
+
+; function callVoid() public returns (bool) [selector 0xd04622c6]
 fn @callVoid() -> i1 [selector=0xd04622c6, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     icall @internal_dispatcher_p_none_r_none, 2
@@ -12,6 +27,7 @@ fn @callVoid() -> i1 [selector=0xd04622c6, abi_params=[], abi_returns=[word<bool
     ret v2
 }
 
+; function setFlag() public [selector 0x62548c7b]
 fn @setFlag() [selector=0x62548c7b, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -23,6 +39,7 @@ fn @setFlag() [selector=0x62548c7b, abi_params=[], abi_returns=[], abi_return_pa
     ret
 }
 
+; function callState() public returns (bool) [selector 0xb67d6f95]
 fn @callState() -> i1 [selector=0xb67d6f95, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -36,6 +53,7 @@ fn @callState() -> i1 [selector=0xb67d6f95, abi_params=[], abi_returns=[word<boo
     ret v6
 }
 
+; function callPair(uint256 value) public returns (uint256, uint256) [selector 0x85ead1f5]
 fn @callPair(arg0: i256) -> struct0 [selector=0x85ead1f5, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall @internal_dispatcher_p_uint256_r_uint256_uint256, 5, arg0
@@ -46,6 +64,7 @@ fn @callPair(arg0: i256) -> struct0 [selector=0x85ead1f5, abi_params=[uint256], 
     ret v4
 }
 
+; function pair(uint256 value) internal pure returns (uint256, uint256)
 fn @pair(arg0: i256) -> struct0 [pure] {
   bb0:
     v0 = checked_add uint256, arg0, 1
@@ -54,18 +73,21 @@ fn @pair(arg0: i256) -> struct0 [pure] {
     ret v2
 }
 
+; function callZero() public [selector 0x46e2b562]
 fn @callZero() [selector=0x46e2b562, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     icall @internal_dispatcher_p_none_r_none, 0
     ret
 }
 
+; function sum(uint256 a, uint256 b) internal pure returns (uint256)
 fn @sum(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = checked_add uint256, arg0, arg1
     ret v0
 }
 
+; function callTwoArgs() public returns (uint256) [selector 0xc406c3a3]
 fn @callTwoArgs() -> i256 [selector=0xc406c3a3, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @internal_dispatcher_p_uint256_uint256_r_uint256, 7, 5, 1
@@ -76,10 +98,10 @@ fn @internal_dispatcher_p_none_r_none(arg0: i256) [function_pointer_dispatcher] 
   bb0:
     v0 = eq arg0, 2
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:
+  bb1:  ; preds = bb0
     icall @setFlag
     ret
 }
@@ -88,10 +110,10 @@ fn @internal_dispatcher_p_uint256_r_uint256_uint256(arg0: i256, arg1: i256) -> s
   bb0:
     v0 = eq arg0, 5
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:
+  bb1:  ; preds = bb0
     v1 = icall @pair, arg1
     ret v1
 }
@@ -100,23 +122,10 @@ fn @internal_dispatcher_p_uint256_uint256_r_uint256(arg0: i256, arg1: i256, arg2
   bb0:
     v0 = eq arg0, 7
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:
+  bb1:  ; preds = bb0
     v1 = icall @sum, arg1, arg2
     ret v1
-}
-
-fn @constructor() [constructor] {
-  bb0:
-    v0 = shl 0xffffffffffffffff, 8
-    v1 = sload 0 !metadata(storage=slot(0))
-    v2 = not v0
-    v3 = and v1, v2
-    v4 = and 2, 0xffffffffffffffff
-    v5 = shl v4, 8
-    v6 = or v3, v5
-    sstore 0, v6 !metadata(storage=slot(0))
-    ret
 }

@@ -8,12 +8,12 @@
     bb0:
 +     v1 = mload 0
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v0 = phi [bb0: 0], [bb2: v1]
       jumpi true, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       ret v0
-    bb2:
+    bb2:  ; preds = bb1
 -     v1 = mload 0
       mstore 64, 1
       jump bb1
@@ -22,12 +22,12 @@
   fn @keep_aliasing_mload() -> i256 {
     bb0:
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v0 = phi [bb0: 0], [bb2: v1]
       jumpi true, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       ret v0
-    bb2:
+    bb2:  ; preds = bb1
       v1 = mload 0
       mstore 16, 1
       jump bb1
@@ -37,12 +37,12 @@
     bb0:
 +     v1 = keccak256 0, 32
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v0 = phi [bb0: 0], [bb2: v1]
       jumpi true, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       ret v0
-    bb2:
+    bb2:  ; preds = bb1
 -     v1 = keccak256 0, 32
       mstore 64, 1
       jump bb1
@@ -51,12 +51,12 @@
   fn @keep_aliasing_keccak() -> i256 {
     bb0:
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v0 = phi [bb0: 0], [bb2: v1]
       jumpi true, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       ret v0
-    bb2:
+    bb2:  ; preds = bb1
       v1 = keccak256 0, 32
       mstore 16, 1
       jump bb1
@@ -67,12 +67,12 @@
 +     v1 = loadimmutable value
 +     v2 = mul v1, 2
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v0 = phi [bb0: 0], [bb2: v2]
       jumpi true, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       ret v0
-    bb2:
+    bb2:  ; preds = bb1
 -     v1 = loadimmutable value
 -     v2 = mul v1, 2
       jump bb1
@@ -81,12 +81,12 @@
   fn @keep_assigned_immutable() -> i256 {
     bb0:
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v0 = phi [bb0: 0], [bb2: v2]
       jumpi true, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       ret v0
-    bb2:
+    bb2:  ; preds = bb1
       v1 = loadimmutable value
       v2 = mul v1, 2
       storeimmutable value, 1

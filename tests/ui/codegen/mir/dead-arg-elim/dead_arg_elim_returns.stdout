@@ -12,10 +12,10 @@
   fn @recursive(arg0: i1, arg1: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       sstore 1, arg1
       ret arg1
-    bb1:
+    bb1:  ; preds = bb0
       v0 = icall @recursive, false, arg1
       ret v0
   }
@@ -27,6 +27,7 @@
 +     ret
   }
   
+  ; selector 0x01020304
   fn @entry() -> i256 [selector=0x01020304] {
     bb0:
 -     v0 = icall @discarded, 7
@@ -39,6 +40,7 @@
 +     ret 9
   }
   
+  ; selector 0x01020305
   fn @external_keeps_abi(arg0: i256) -> i256 [selector=0x01020305] {
     bb0:
       ret arg0

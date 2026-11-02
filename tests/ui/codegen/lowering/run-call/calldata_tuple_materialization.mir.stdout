@@ -7,6 +7,7 @@
   struct3: {i256, i256, i256}
   struct4: {slice<calldata>, i256}
 
+; function storageTuple(bytes calldata a, bytes calldata b) external returns (bytes memory, bytes memory) [selector 0xccc7dfb8]
 fn @storageTuple(arg0: slice<calldata>, arg1: slice<calldata>) -> struct0 [selector=0xccc7dfb8, abi_params=[bytes, bytes], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {
   bb0:
     v0 = extract_value slice<calldata>, arg1, 1
@@ -40,6 +41,7 @@ fn @storageTuple(arg0: slice<calldata>, arg1: slice<calldata>) -> struct0 [selec
     ret v21
 }
 
+; function memoryTuple(uint256[] calldata input) external pure returns (uint256, uint256) [selector 0x32e034d0]
 fn @memoryTuple(arg0: slice<calldata>) -> struct1 [selector=0x32e034d0, pure, abi_params=[array<_, uint256>], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = alloc 32 !metadata(preserves_fmp)
@@ -94,6 +96,7 @@ fn @memoryTuple(arg0: slice<calldata>) -> struct1 [selector=0x32e034d0, pure, ab
     ret v38
 }
 
+; function split(uint256[] calldata input) internal pure returns (uint256[] calldata, uint256[] calldata)
 fn @split(arg0: slice<calldata>) -> struct2 [pure] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 0, 0
@@ -113,6 +116,7 @@ fn @split(arg0: slice<calldata>) -> struct2 [pure] {
     ret v12
 }
 
+; function widenedTuple(uint256[2] calldata input) external returns (uint256, uint256, uint256) [selector 0x9eda07fe]
 fn @widenedTuple(arg0: slice<calldata>) -> struct3 [selector=0x9eda07fe, abi_params=[array<2, uint256>], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = lt 2, 3
@@ -135,11 +139,11 @@ fn @widenedTuple(arg0: slice<calldata>) -> struct3 [selector=0x9eda07fe, abi_par
     v14 = extract_value slice<calldata>, v12, 1
     calldatacopy v11, v13, v14
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb6
     v15 = phi [bb0: 0], [bb6: v22]
     v16 = lt v15, 3
     jumpi v16, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v23 = lt 0, 3
     v24 = eq v23, false
     icall panic_if<0x32>, v24
@@ -159,24 +163,25 @@ fn @widenedTuple(arg0: slice<calldata>) -> struct3 [selector=0x9eda07fe, abi_par
     v36 = insert_value struct3, v35, 1, v30
     v37 = insert_value struct3, v36, 2, v34
     ret v37
-  bb2:
+  bb2:  ; preds = bb1
     v17 = add 2, v15
     v18 = lt v15, 2
     jumpi v18, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb2
     sstore v17, 0 !metadata(storage=offset(v15, 2))
     jump bb6
-  bb4:
+  bb4:  ; preds = bb2
     v19 = shl v15, 5
     v20 = ptradd v11, v19
     v21 = mload v20
     sstore v17, v21 !metadata(storage=offset(v15, 2))
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v22 = add v15, 1
     jump bb1
 }
 
+; function pair(uint256[2] calldata input) internal pure returns (uint256[2] calldata, uint256)
 fn @pair(arg0: slice<calldata>) -> struct4 [pure] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 0, 0
@@ -185,6 +190,7 @@ fn @pair(arg0: slice<calldata>) -> struct4 [pure] {
     ret v2
 }
 
+; function sliceTuple(uint256[] calldata input) external returns (uint256, uint256, uint256) [selector 0x09979d7d]
 fn @sliceTuple(arg0: slice<calldata>) -> struct3 [selector=0x09979d7d, abi_params=[array<_, uint256>], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -226,22 +232,22 @@ fn @sliceTuple(arg0: slice<calldata>) -> struct3 [selector=0x09979d7d, abi_param
     v29 = sload 5 !metadata(storage=slot(5))
     v30 = gt v29, v28
     jumpi v30, bb1, bb2
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb4
     v31 = phi [bb1: v28], [bb4: v35]
     v32 = lt v31, v29
     jumpi v32, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb2
-  bb2:
+  bb2:  ; preds = bb0, bb5
     sstore 5, v28 !metadata(storage=slot(5))
     jump bb6
-  bb6:
+  bb6:  ; preds = bb2, bb7
     v36 = phi [bb2: 0], [bb7: v44]
     v37 = lt v36, v28
     jumpi v37, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     v45 = sload 5 !metadata(storage=slot(5))
     v46 = lt 0, v45
     v47 = eq v46, false
@@ -267,7 +273,7 @@ fn @sliceTuple(arg0: slice<calldata>) -> struct3 [selector=0x09979d7d, abi_param
     v64 = insert_value struct3, v63, 1, v56
     v65 = insert_value struct3, v64, 2, v62
     ret v65
-  bb7:
+  bb7:  ; preds = bb6
     v38 = shl v36, 5
     v39 = ptradd v23, v38
     v40 = ptradd v39, 32
@@ -277,7 +283,7 @@ fn @sliceTuple(arg0: slice<calldata>) -> struct3 [selector=0x09979d7d, abi_param
     sstore v43, v41 !metadata(storage=symbolic(v43))
     v44 = add v36, 1
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v33 = storage_array_data_slot 5
     v34 = add v33, v31
     sstore v34, 0 !metadata(storage=symbolic(v34))

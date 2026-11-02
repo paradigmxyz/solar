@@ -52,10 +52,10 @@
       v0 = mload arg0
       mstore8 arg0, 7
       jumpi arg1, bb1, bb2
-    bb1:
+    bb1:  ; preds = bb0
       mstore arg0, v0
       jump bb2
-    bb2:
+    bb2:  ; preds = bb0, bb1
       ret v0
   }
   

@@ -3,7 +3,7 @@
 @data
   SwitchSharedGrowthBudget_runtime_code_0: hex"346038575f3560e01c8063839a19d9036038576024361060385760043580600f166010016f4e4e3c5a4e4e4e6c7e4e4e904ea24eb4901a565b5f5ffd5b80633b88f6c203604e57506101326053565b506103e75b5f5260205ff35b8063920f5c7303604e575061012e6053565b8063905f7d6703604e57506101316053565b8063cbf99d3803604e575061012c6053565b806387d912cb03604e575061012d6053565b806341052a0d03604e575061012f6053565b80637238232f03604e5750610130605356"
 
-bb0:
+bb0:  ; constructor(uint256 key) [creation entry]
   push_data SwitchSharedGrowthBudget_runtime_code_0+198
   codesize
   sub
@@ -136,7 +136,7 @@ bb19 [cold]:
   revert
 // === ROOT/tests/ui/codegen/lowering/switch/shared_growth_budget.sol:SwitchSharedGrowthBudget (runtime) ===
 @module SwitchSharedGrowthBudget_runtime
-bb0:
+bb0:  ; runtime dispatch entry + function select(uint256 key) external pure returns (uint256 result) [selector 0x839a19d9]
   callvalue
   push bb3
   jumpi

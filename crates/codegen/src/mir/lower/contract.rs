@@ -6,7 +6,7 @@ use solar_data_structures::{
     Never,
     map::{FxHashMap, FxHashSet, FxIndexSet},
 };
-use solar_interface::{ByteSymbol, Ident, kw, sym};
+use solar_interface::{ByteSymbol, Ident, Span, Symbol, kw, sym};
 use solar_sema::{
     Gcx, InlineTag,
     eval::ConstValue,
@@ -363,6 +363,9 @@ pub(super) fn declaration(
     let mut mir = Function::new(name);
     mir.declaration_span = function.span;
     mir.debug_identifier = Some(name.name);
+    if gcx.sess.opts.unstable.dump.is_some() {
+        mir.debug_signature = debug_signature(gcx, function.span);
+    }
     mir.attributes = FunctionAttributes {
         visibility: function.visibility,
         state_mutability: function.state_mutability,
@@ -377,8 +380,7 @@ pub(super) fn declaration(
         inline_hint: tags.inline == Some(InlineTag::Hint),
         // A tag naming the contract's own objective changes nothing.
         optimization: tags.optimize.filter(|&objective| objective != contract_objective),
-        array_element_bits: Default::default(),
-        array_return_element_bits: None,
+        ..FunctionAttributes::default()
     };
 
     if function.kind == hir::FunctionKind::Function
@@ -414,4 +416,71 @@ fn storage_bytes_count<'gcx>(
         }
         _ => 0,
     }
+}
+
+/// Returns the source signature of the declaration at `span` for the text dumps: its header, or
+/// the declaration of a public state variable for its getter.
+fn debug_signature(gcx: Gcx<'_>, span: Span) -> Option<Symbol> {
+    let source = gcx.sess.source_map().span_to_snippet(span).ok()?;
+    let header = declaration_header(&source);
+    let word = header.split(|c: char| c.is_whitespace() || c == '(').next().unwrap_or_default();
+    let is_function = match word {
+        "constructor" | "fallback" | "receive" => true,
+        // `function (uint) external public f` declares a variable of a function type.
+        "function" => !header["function".len()..].trim_start().starts_with('('),
+        _ => false,
+    };
+    Some(Symbol::intern(&if is_function { header } else { format!("getter for `{header}`") }))
+}
+
+/// Returns the header of the declaration in `source` on one line: everything before its body,
+/// without comments, and with runs of whitespace outside string literals collapsed.
+fn declaration_header(source: &str) -> String {
+    let mut header = String::new();
+    let space = |header: &mut String| {
+        if !header.is_empty() && !header.ends_with(' ') {
+            header.push(' ');
+        }
+    };
+    let mut depth = 0u32;
+    let mut chars = source.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '/' if chars.peek() == Some(&'/') => {
+                chars.by_ref().find(|&c| matches!(c, '\n' | '\r'));
+                space(&mut header);
+            }
+            '/' if chars.peek() == Some(&'*') => {
+                chars.next();
+                let mut previous = ' ';
+                chars.by_ref().find(|&c| std::mem::replace(&mut previous, c) == '*' && c == '/');
+                space(&mut header);
+            }
+            '"' | '\'' => {
+                // A line continuation inside a literal must not break the one-line header.
+                let one_line = |c: char| if matches!(c, '\n' | '\r') { ' ' } else { c };
+                header.push(c);
+                while let Some(literal) = chars.next() {
+                    header.push(one_line(literal));
+                    match literal {
+                        '\\' => header.extend(chars.next().map(one_line)),
+                        _ if literal == c => break,
+                        _ => {}
+                    }
+                }
+            }
+            '{' | ';' | '=' if depth == 0 => break,
+            c if c.is_whitespace() => space(&mut header),
+            _ => {
+                match c {
+                    '(' => depth += 1,
+                    ')' => depth = depth.saturating_sub(1),
+                    _ => {}
+                }
+                header.push(c);
+            }
+        }
+    }
+    header.truncate(header.trim_end().len());
+    header
 }

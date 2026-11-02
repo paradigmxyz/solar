@@ -3,42 +3,46 @@
 @types
   struct0: {i256, i256}
 
+; function recurse(uint256 x) public returns (uint256) [selector 0xb2041d21]
 fn @recurse(arg0: i256) -> i256 [selector=0xb2041d21, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @a, arg0
     ret v0
 }
 
+; function a(uint256 x) internal returns (uint256)
 fn @a(arg0: i256) -> i256 {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v1 = checked_sub uint256, arg0, 1
     v2 = icall @b, v1
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v3 = phi [bb1: 0], [bb2: v2]
     ret v3
 }
 
+; function b(uint256 x) internal returns (uint256)
 fn @b(arg0: i256) -> i256 {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v1 = checked_sub uint256, arg0, 1
     v2 = icall @a, v1
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v3 = phi [bb1: 0], [bb2: v2]
     ret v3
 }
 
+; function multi(uint256 x) public pure returns (uint256, uint256) [selector 0x645444bd]
 fn @multi(arg0: i256) -> struct0 [selector=0x645444bd, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall @pair, arg0
@@ -49,6 +53,7 @@ fn @multi(arg0: i256) -> struct0 [selector=0x645444bd, pure, abi_params=[uint256
     ret v4
 }
 
+; function pair(uint256 x) internal pure returns (uint256, uint256)
 fn @pair(arg0: i256) -> struct0 [pure] {
   bb0:
     v0 = checked_add uint256, arg0, 1
@@ -57,52 +62,56 @@ fn @pair(arg0: i256) -> struct0 [pure] {
     ret v2
 }
 
+; function callVoid(uint256 x) public pure [selector 0xf42b07b1]
 fn @callVoid(arg0: i256) [selector=0xf42b07b1, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     icall @branchingVoid, arg0
     ret
 }
 
+; function branchingVoid(uint256 x) internal pure
 fn @branchingVoid(arg0: i256) [pure] {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v1 = checked_sub uint256, arg0, 1
     icall @branchingVoid, v1
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     ret
 }
 
+; function callEntry(uint256 x) public pure returns (uint256) [selector 0x7a7de4a9]
 fn @callEntry(arg0: i256) -> i256 [selector=0x7a7de4a9, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @entry, arg0
     ret v0
 }
 
+; function entry(uint256 x) internal pure returns (uint256 result)
 fn @entry(arg0: i256) -> i256 [pure] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v4]
     v2 = phi [bb0: 0], [bb3: v5]
     v3 = lt v2, v0
     jumpi v3, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     v6 = checked_add uint256, v1, 1
     ret v6
-  bb4:
+  bb4:  ; preds = bb1
     v4 = checked_add uint256, v1, 1
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v5 = checked_add uint256, v2, 1
     jump bb1
 }

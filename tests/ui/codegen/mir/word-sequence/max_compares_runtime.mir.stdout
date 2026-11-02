@@ -3,6 +3,7 @@
 @types
   struct0: {i1, i1, i1, i1}
 
+; function values(uint256 x) external pure returns (bool, bool, bool, bool) [selector 0x5e383d21]
 fn @values(arg0: i256) -> struct0 [selector=0x5e383d21, pure, abi_params=[uint256], abi_returns=[word<bool>, word<bool>, word<bool>, word<bool>], abi_return_params=[bool, bool, bool, bool]] {
   bb0:
     v0 = lt arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -16,6 +17,7 @@ fn @values(arg0: i256) -> struct0 [selector=0x5e383d21, pure, abi_params=[uint25
     ret v7
 }
 
+; function narrow(uint8 x) external pure returns (bool, bool, bool, bool) [selector 0x3fca863c]
 fn @narrow(arg0: i8) -> struct0 [selector=0x3fca863c, pure, abi_params=[uint8], abi_returns=[word<bool>, word<bool>, word<bool>, word<bool>], abi_return_params=[bool, bool, bool, bool]] {
   bb0:
     v0 = lt arg0, i8 255
@@ -29,98 +31,106 @@ fn @narrow(arg0: i8) -> struct0 [selector=0x3fca863c, pure, abi_params=[uint8], 
     ret v7
 }
 
+; function ltBranch(uint256 x) external pure returns (uint256) [selector 0xd977e962]
 fn @ltBranch(arg0: i256) -> i256 [selector=0xd977e962, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = lt arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     ret 2
-  bb1:
+  bb1:  ; preds = bb0
     ret 1
 }
 
+; function gtBranch(uint256 x) external pure returns (uint256) [selector 0xc67e2f56]
 fn @gtBranch(arg0: i256) -> i256 [selector=0xc67e2f56, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = gt arg0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     ret 2
-  bb1:
+  bb1:  ; preds = bb0
     ret 1
 }
 
+; function eqBranch(uint256 x) external pure returns (uint256) [selector 0x565daf37]
 fn @eqBranch(arg0: i256) -> i256 [selector=0x565daf37, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = eq arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     ret 2
-  bb1:
+  bb1:  ; preds = bb0
     ret 1
 }
 
+; function neBranch(uint256 x) external pure returns (uint256) [selector 0x63340b99]
 fn @neBranch(arg0: i256) -> i256 [selector=0x63340b99, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = ne arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     ret 2
-  bb1:
+  bb1:  ; preds = bb0
     ret 1
 }
 
+; function ltBranch8(uint8 x) external pure returns (uint256) [selector 0x1b522209]
 fn @ltBranch8(arg0: i8) -> i256 [selector=0x1b522209, pure, abi_params=[uint8], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = lt arg0, i8 255
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     ret 2
-  bb1:
+  bb1:  ; preds = bb0
     ret 1
 }
 
+; function gtBranch8(uint8 x) external pure returns (uint256) [selector 0x1ba4cd30]
 fn @gtBranch8(arg0: i8) -> i256 [selector=0x1ba4cd30, pure, abi_params=[uint8], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = gt arg0, i8 254
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     ret 2
-  bb1:
+  bb1:  ; preds = bb0
     ret 1
 }
 
+; function eqBranch8(uint8 x) external pure returns (uint256) [selector 0x30fa6006]
 fn @eqBranch8(arg0: i8) -> i256 [selector=0x30fa6006, pure, abi_params=[uint8], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = eq arg0, i8 255
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     ret 2
-  bb1:
+  bb1:  ; preds = bb0
     ret 1
 }
 
+; function neBranch8(uint8 x) external pure returns (uint256) [selector 0x66f61fc5]
 fn @neBranch8(arg0: i8) -> i256 [selector=0x66f61fc5, pure, abi_params=[uint8], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = ne arg0, i8 255
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     ret 2
-  bb1:
+  bb1:  ; preds = bb0
     ret 1
 }

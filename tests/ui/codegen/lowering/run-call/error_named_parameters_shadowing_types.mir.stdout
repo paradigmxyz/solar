@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/error_named_parameters_shadowing_types.sol:ErrorNamedParametersShadowingTypes ===
 @module ErrorNamedParametersShadowingTypes
+; function f() public pure [selector 0x26121ff0]
 fn @f() [selector=0x26121ff0, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = alloc 32
@@ -8,6 +9,7 @@ fn @f() [selector=0x26121ff0, pure, abi_params=[], abi_returns=[], abi_return_pa
     invalid
 }
 
+; function g() public pure [selector 0xe2179b8e]
 fn @g() [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = alloc 32

@@ -25,15 +25,16 @@
   fn @maybe(arg0: i256, arg1: i1) {
     bb0:
       jumpi arg1, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       icall @hash, arg0
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
       ret
   }
   
+  ; selector 0x11111111
   fn @dirty_twice(arg0: i256) [selector=0x11111111] {
     bb0:
       mstore arg0, 1
@@ -41,6 +42,7 @@
       ret
   }
   
+  ; selector 0x22222222
   fn @dirty_maybe(arg0: i256, arg1: i1) [selector=0x22222222] {
     bb0:
       mstore arg0, 1
@@ -60,6 +62,7 @@
       tail_call @hash, arg0
   }
   
+  ; selector 0x33333333
   fn @dirty_forward(arg0: i256) [selector=0x33333333] {
     bb0:
       mstore arg0, 1
@@ -73,15 +76,16 @@
     bb0:
       v0 = eq arg0, 0
       jumpi v0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       v1 = sub arg0, 1
       icall @countdown, v1
       ret
-    bb1:
+    bb1:  ; preds = bb0
       icall @hash, arg0
       ret
   }
   
+  ; selector 0x44444444
   fn @dirty_countdown(arg0: i256) [selector=0x44444444] {
     bb0:
       mstore arg0, 1

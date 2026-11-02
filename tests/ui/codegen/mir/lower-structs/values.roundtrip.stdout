@@ -33,12 +33,12 @@
   fn @loop(arg0: struct0, arg1: i1) -> struct0 {
     bb0:
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       v0 = phi struct0, [bb0: arg0], [bb2: v2]
       jumpi arg1, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       ret v0
-    bb2:
+    bb2:  ; preds = bb1
       v1 = extract_value struct0, v0, 0
       v2 = insert_value struct0, v0, 0, v1
       jump bb1
