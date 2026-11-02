@@ -6,7 +6,7 @@ bb0:  ; runtime dispatch entry
   revert
 // === ROOT/tests/ui/codegen/lowering/enum_conversion_qualified.sol:E (runtime) ===
 @module E_runtime
-bb0:  ; runtime dispatch entry
+bb0:  ; runtime dispatch entry + function isNone(uint256 x) external pure returns (bool) [selector 0xbc477c04]
   push 36
   calldatasize
   lt
@@ -25,15 +25,27 @@ bb0:  ; runtime dispatch entry
   jumpi
   dup 1
   push 0xbc477c04
-  eq
-  push bb5
+  sub
+  push bb4
   jumpi
-  jump bb4
+  push 4
+  calldataload
+  push 2
+  dup 2
+  gt
+  push bb7
+  jumpi
+  iszero
+  push 0
+  mstore
+  push 32
+  push 0
+  return
 bb4 [cold]:
   push 0
   push 0
   revert
-bb11 [cold]:  ; revert_stub (synthesized)
+bb7 [cold]:
   push 33
   push 32
   mstore
@@ -43,27 +55,13 @@ bb11 [cold]:  ; revert_stub (synthesized)
   push 36
   push 28
   revert
-bb5:  ; function isNone(uint256 x) external pure returns (bool) [selector 0xbc477c04]
-  push 4
-  calldataload
-  push 2
-  dup 2
-  gt
-  push bb11
-  jumpi
-  iszero
-  push 0
-  mstore
-  push 32
-  push 0
-  return
 bb8:  ; function isLocalNone(uint256 x) external pure returns (bool) [selector 0xb4702ebe]
   push 4
   calldataload
   push 1
   dup 2
   gt
-  push bb11
+  push bb7
   jumpi
   iszero
   push 0

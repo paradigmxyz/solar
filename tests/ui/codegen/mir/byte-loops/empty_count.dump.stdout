@@ -52,7 +52,9 @@ fn @loadSome() [selector=0x982de5a7, abi_wrapper, pure] {
     v34 = and v28, v33
     jump bb1
   bb3 [cold]:  ; preds = bb2
-    tail_call @revert_stub
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb1:  ; preds = bb4, bb6
     v3 = phi [bb6: 0], [bb4: v34]
     mstore 0, v3 !metadata(memory=scratch)
@@ -115,7 +117,9 @@ fn @storeSome() [selector=0x26843d1f, abi_wrapper, pure] {
     v13 = lt v46, v12
     jumpi v13, bb8, bb6
   bb6 [cold]:  ; preds = bb3, bb5, bb11
-    tail_call @revert_stub
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb8:  ; preds = bb11
     v73 = add v50, v46
     v74 = add v73, 32
@@ -189,7 +193,9 @@ fn @_loadSome(arg0: i256, arg1: i256) -> i256 [may_return_memory, pure] {
     v27 = and v21, v26
     jump bb1
   bb3 [cold]:  ; preds = bb2
-    tail_call @revert_stub
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb1:  ; preds = bb0, bb4
     v2 = phi [bb0: 0], [bb4: v27]
     ret v2
@@ -220,16 +226,11 @@ fn @_storeSome(arg0: i256, arg1: i256, arg2: i256) [may_return_memory, pure] {
     mstore v34, v32
     jump bb1
   bb3 [cold]:  ; preds = bb2
-    tail_call @revert_stub
-  bb1:  ; preds = bb0, bb4
-    ret
-}
-
-fn @revert_stub() [cold] {
-  bb0 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
+  bb1:  ; preds = bb0, bb4
+    ret
 }
 
 fn @decode_calldata_type() -> i256 [may_return_memory] {

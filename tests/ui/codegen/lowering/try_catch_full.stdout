@@ -95,7 +95,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
   bb4:  ; preds = bb3
     v29 = sub v58, 4
     v174 = add v200, 36
-    v69 = icall @decode_aggregate.4, v174, v29
+    v69 = icall @decode_aggregate.3, v174, v29
     v202 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v108 = add v202, 64
     mstore v202, 1
@@ -123,7 +123,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     mstore v197, v48
     v168 = add v197, 32
     returndatacopy v168, 0, v48
-    v162 = icall @decode_aggregate.5, v197
+    v162 = icall @decode_aggregate.4, v197
     v166 = mload 32 !metadata(memory=scratch)
     v164 = add v166, 32
     v165 = mload v164
@@ -181,7 +181,7 @@ fn @rethrows() [selector=0x0d7fadfb, abi_wrapper, view] {
   bb5:  ; preds = bb4
     v27 = sub v41, 4
     v68 = add v79, 36
-    v52 = icall @decode_aggregate.4, v68, v27
+    v52 = icall @decode_aggregate.3, v68, v27
     jump bb3
   bb1:  ; preds = bb0
     v31 = returndatasize
@@ -193,7 +193,7 @@ fn @rethrows() [selector=0x0d7fadfb, abi_wrapper, view] {
     mstore v77, v31
     v64 = add v77, 32
     returndatacopy v64, 0, v31
-    v59 = icall @decode_aggregate.5, v77
+    v59 = icall @decode_aggregate.4, v77
     jump bb3
   bb3:  ; preds = bb1, bb5
     v30 = phi [bb1: v59], [bb5: 1]
@@ -225,7 +225,7 @@ fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
     ret false
 }
 
-fn @decode_aggregate.4(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
+fn @decode_aggregate.3(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
   bb0:
     v3 = add arg0, arg1
     v4 = slt arg1, 32
@@ -267,7 +267,7 @@ fn @decode_aggregate.4(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     revert 0, 0
 }
 
-fn @decode_aggregate.5(arg0: i256) [may_return_memory, return_abi=[i256, i256]] {
+fn @decode_aggregate.4(arg0: i256) [may_return_memory, return_abi=[i256, i256]] {
   bb0:
     v39 = add arg0, 32
     v1 = mload arg0

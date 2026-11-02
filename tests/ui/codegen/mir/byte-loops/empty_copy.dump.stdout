@@ -227,7 +227,9 @@ fn @_memoryCopy(arg0: i256, arg1: i256, arg2: i256) [may_return_memory, pure] {
     v14 = lt v3, v13
     jumpi v14, bb8, bb6
   bb6 [cold]:  ; preds = bb3, bb5, bb7
-    tail_call @revert_stub
+    mstore 32, 50
+    mstore 0, 0x4e487b71
+    revert 28, 36
   bb8:  ; preds = bb7
     v48 = add arg1, v3
     v49 = add v48, 32
@@ -272,7 +274,9 @@ fn @_calldataCopy(arg0: i256, arg1: i256, arg2: i256, arg3: i256) [may_return_me
     v16 = lt v3, v15
     jumpi v16, bb8, bb6
   bb6 [cold]:  ; preds = bb3, bb5, bb7
-    tail_call @revert_stub
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71
+    revert 28, 36
   bb8:  ; preds = bb7
     v39 = add arg2, v3
     v40 = add v39, 32
@@ -326,7 +330,9 @@ fn @_downCopy(arg0: i256, arg1: i256, arg2: i256) [may_return_memory, pure] {
     v16 = lt v5, v15
     jumpi v16, bb8, bb6
   bb6 [cold]:  ; preds = bb3, bb5, bb7, bb9
-    tail_call @revert_stub
+    mstore 32, 50
+    mstore 0, 0x4e487b71
+    revert 28, 36
   bb8:  ; preds = bb7
     v48 = add arg1, v5
     v49 = add v48, 32
@@ -397,7 +403,9 @@ fn @_freshCopy(arg0: i256, arg1: i256) -> i256 [may_return_memory, pure] {
     v19 = lt v8, v18
     jumpi v19, bb12, bb10
   bb10 [cold]:  ; preds = bb3, bb5, bb7, bb11
-    tail_call @revert_stub
+    mstore 32, 50
+    mstore 0, 0x4e487b71
+    revert 28, 36
   bb12:  ; preds = bb11
     v67 = add v74, v8
     v68 = add v67, 32
@@ -412,13 +420,6 @@ fn @_freshCopy(arg0: i256, arg1: i256) -> i256 [may_return_memory, pure] {
   bb8 [cold]:  ; preds = bb0
     mstore 32, 65
     mstore 0, 0x4e487b71
-    revert 28, 36
-}
-
-fn @revert_stub() [cold] {
-  bb0 [cold]:
-    mstore 32, 50 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 

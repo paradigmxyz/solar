@@ -49,7 +49,6 @@ mod lower_storage_bytes;
 pub(crate) mod lower_structs;
 pub(crate) mod memory_dse;
 pub(crate) mod merge_aborts;
-pub(crate) mod outline_reverts;
 pub(crate) mod pre;
 pub(crate) mod pure_eval;
 pub(crate) mod readonly_eval;

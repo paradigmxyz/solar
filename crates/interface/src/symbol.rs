@@ -1220,7 +1220,6 @@ symbols! {
         revert_if,
         revert_if_zero,
         revert_returndata,
-        revert_stub,
         ripemd160,
         runtime,
         runtimeCode,

@@ -86,7 +86,9 @@ fn @message() [selector=0x91fdccfd, abi_wrapper, pure] {
     v75 = add v70, 64
     returndata v101, v75
   bb1 [cold]:  ; preds = bb4
-    tail_call @revert_stub.5
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb3 [cold]:  ; preds = bb0
     revert 0, 0
 }
@@ -122,7 +124,9 @@ fn @overlapping() [selector=0x206097d8, abi_wrapper, pure] {
     mstore 32, v7
     returndata 0, 64
   bb1 [cold]:  ; preds = bb4
-    tail_call @revert_stub.5
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb3 [cold]:  ; preds = bb0
     revert 0, 0
 }
@@ -151,7 +155,9 @@ fn @padding(arg0: i256) -> i256 [may_return_memory, pure] {
     v10 = lt v7, v9
     jumpi v10, bb7, bb6
   bb6 [cold]:  ; preds = bb3
-    tail_call @revert_stub.6
+    mstore 32, 50
+    mstore 0, 0x4e487b71
+    revert 28, 36
   bb7:  ; preds = bb3
     v17 = add v21, v7
     v18 = add v17, 32
@@ -159,7 +165,9 @@ fn @padding(arg0: i256) -> i256 [may_return_memory, pure] {
     v15 = add v7, 1
     jump bb1
   bb4 [cold]:  ; preds = bb0
-    tail_call @revert_stub.5
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71
+    revert 28, 36
 }
 
 ; function counting(uint256 n) internal pure returns (bytes memory result)
@@ -188,14 +196,18 @@ fn @counting(arg0: i256) -> i256 [may_return_memory, pure] {
     v14 = lt v7, v13
     jumpi v14, bb7, bb6
   bb6 [cold]:  ; preds = bb3
-    tail_call @revert_stub.6
+    mstore 32, 50
+    mstore 0, 0x4e487b71
+    revert 28, 36
   bb7:  ; preds = bb3
     v21 = add v25, v7
     v22 = add v21, 32
     mstore8 v22, v28
     jump bb1
   bb4 [cold]:  ; preds = bb0
-    tail_call @revert_stub.5
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71
+    revert 28, 36
 }
 
 ; function digits(uint256 value) internal pure returns (bytes memory result)
@@ -230,7 +242,9 @@ fn @digits(arg0: i256) -> i256 [may_return_memory, pure] {
     v26 = lt v24, v25
     jumpi v26, bb8, bb7
   bb7 [cold]:  ; preds = bb6
-    tail_call @revert_stub.6
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71
+    revert 28, 36
   bb8:  ; preds = bb6
     v38 = add v42, v24
     v39 = add v38, 32
@@ -241,20 +255,6 @@ fn @digits(arg0: i256) -> i256 [may_return_memory, pure] {
     v33 = add v2, 1
     v7 = div v3, 10
     jump bb1
-}
-
-fn @revert_stub.5() [cold] {
-  bb0 [cold]:
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
-}
-
-fn @revert_stub.6() [cold] {
-  bb0 [cold]:
-    mstore 32, 50 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }
 
 fn @mcopy_words(arg0: i256, arg1: i256, arg2: i256) {

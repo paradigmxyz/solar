@@ -35,8 +35,8 @@ bb6 [cold]:
   revert
 bb31 [cold]:
   push 17
-  jump bb35
-bb35 [cold]:
+  jump bb32
+bb32 [cold]:
   push 32
   mstore
   push 0x4e487b71
@@ -45,9 +45,6 @@ bb35 [cold]:
   push 36
   push 28
   revert
-bb34 [cold]:  ; revert_stub (synthesized)
-  push 65
-  jump bb35
 bb7:  ; getter for `uint256 public acc` [selector 0x7da1365e]
   push 0
   sload
@@ -103,7 +100,7 @@ bb8:  ; function viaDecl(uint256[] calldata xs) external returns (uint256) [sele
   push 32
   dup 2
   lt
-  push bb34
+  push bb16
   jumpi
   push 128
   dup 5
@@ -207,7 +204,7 @@ bb18:  ; function viaAssign(uint256[] calldata xs) external pure returns (uint25
   add
   push 32
   gt
-  push bb34
+  push bb16
   jumpi
   push 128
   dup 4
@@ -298,7 +295,7 @@ bb23:  ; function viaStructLiteral(uint256 base, uint256[] calldata xs, bytes ca
   dup 1
   push 32
   gt
-  push bb34
+  push bb16
   jumpi
   push 64
   mload
@@ -364,3 +361,6 @@ bb23:  ; function viaStructLiteral(uint256 base, uint256[] calldata xs, bytes ca
   push 32
   push 0
   return
+bb16 [cold]:
+  push 65
+  jump bb32

@@ -31,7 +31,9 @@ fn @constructor() [abi_wrapper, constructor] {
     sstore 0, 0x102030000000000000000000000000000000000000000000000000000000006 !metadata(storage=slot(0))
     ret
   bb3 [cold]:  ; preds = bb1
-    tail_call @revert_stub.6
+    mstore 32, 34
+    mstore 0, 0x4e487b71
+    revert 28, 36
   bb2 [cold]:  ; preds = bb0
     revert 0, 0
 }
@@ -94,7 +96,9 @@ fn @f() [selector=0x26121ff0, abi_wrapper] {
     v63 = add v60, 1
     jump bb5
   bb3 [cold]:  ; preds = bb0
-    tail_call @revert_stub.6
+    mstore 32, 34 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 ; function g() external view returns (uint256) [selector 0xe2179b8e]
@@ -114,7 +118,9 @@ fn @g() [selector=0xe2179b8e, abi_wrapper, view] {
     v7 = gt v22, 1
     jumpi v7, bb4, bb3
   bb3 [cold]:  ; preds = bb6
-    tail_call @revert_stub.5
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb4:  ; preds = bb6
     jumpi v18, bb1, bb2
   bb1:  ; preds = bb4
@@ -126,7 +132,9 @@ fn @g() [selector=0xe2179b8e, abi_wrapper, view] {
     mstore 0, v14
     returndata 0, 32
   bb5 [cold]:  ; preds = bb0
-    tail_call @revert_stub.6
+    mstore 32, 34 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @clear_storage_words(arg0: i256, arg1: i256, arg2: i256) {
@@ -147,18 +155,4 @@ fn @clear_storage_words(arg0: i256, arg1: i256, arg2: i256) {
     v5 = add v2, 1
     v6 = add v3, 1
     jump bb1
-}
-
-fn @revert_stub.5() [cold] {
-  bb0 [cold]:
-    mstore 32, 50 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
-}
-
-fn @revert_stub.6() [cold] {
-  bb0 [cold]:
-    mstore 32, 34 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }

@@ -12,21 +12,6 @@ bb0:  ; runtime dispatch entry
   push 15
   and
   indexed_jump bb2, bb14, bb14, bb14, bb14, bb3, bb4, bb5, bb14, bb14, bb6, bb14, bb14, bb7, bb14, bb14
-bb72 [cold]:  ; revert_stub.7 (synthesized)
-  push 34
-  jump bb74
-bb74 [cold]:
-  push 32
-  mstore
-  push 0x4e487b71
-  push 0
-  mstore
-  push 36
-  push 28
-  revert
-bb73 [cold]:  ; revert_stub.8 (synthesized)
-  push 50
-  jump bb74
 bb2:
   dup 1
   push 0xe0886f90
@@ -139,12 +124,12 @@ bb19 [loop]:
   dup 3
   lt
   eq
-  push bb72
+  push bb22
   jumpi
   dup 1
   push 64
   shr
-  push bb69
+  push bb23
   jumpi
   push 31
   dup 2
@@ -295,7 +280,7 @@ bb30:  ; function popOne() external [selector 0x53b8a6c6]
   swap 2
   dup 3
   eq
-  push bb72
+  push bb22
   jumpi
   dup 1
   iszero
@@ -422,7 +407,7 @@ bb40:  ; function len() external view returns (uint256) [selector 0x56d88e27]
   dup 3
   lt
   eq
-  push bb72
+  push bb22
   jumpi
   push 0
   mstore
@@ -470,7 +455,7 @@ bb43:  ; function at(uint256 i) external view returns (bytes1) [selector 0xe0886
   lt
   dup 3
   eq
-  push bb72
+  push bb22
   jumpi
   push 4
   calldataload
@@ -478,7 +463,7 @@ bb43:  ; function at(uint256 i) external view returns (bytes1) [selector 0xe0886
   dup 2
   lt
   iszero
-  push bb73
+  push bb47
   jumpi
   swap 1
   jumpi bb48, bb49
@@ -559,7 +544,7 @@ bb52:  ; function setAt(uint256 i, bytes1 b) external [selector 0xbee6975a]
   lt
   dup 3
   eq
-  push bb72
+  push bb22
   jumpi
   push 4
   calldataload
@@ -567,7 +552,7 @@ bb52:  ; function setAt(uint256 i, bytes1 b) external [selector 0xbee6975a]
   dup 2
   lt
   iszero
-  push bb73
+  push bb47
   jumpi
   swap 1
   jumpi bb57, bb58
@@ -647,7 +632,7 @@ bb61:  ; function whole() external view returns (bytes memory) [selector 0x72bd9
   lt
   dup 3
   eq
-  push bb72
+  push bb22
   jumpi
   dup 1
   push 31
@@ -667,7 +652,7 @@ bb61:  ; function whole() external view returns (bytes memory) [selector 0x72bd9
   push 64
   shr
   or
-  push bb69
+  push bb23
   jumpi
   swap 1
   push 160
@@ -758,9 +743,24 @@ bb68 [loop]:
   push bb68
   jumpi
   jump bb67
+bb22 [cold]:
+  push 34
+  jump bb69
+bb69 [cold]:
+  push 32
+  mstore
+  push 0x4e487b71
+  push 0
+  mstore
+  push 36
+  push 28
+  revert
+bb23 [cold]:
+  push 65
+  jump bb69
 bb38 [cold]:
   push 49
-  jump bb74
-bb69 [cold]:
-  push 65
-  jump bb74
+  jump bb69
+bb47 [cold]:
+  push 50
+  jump bb69

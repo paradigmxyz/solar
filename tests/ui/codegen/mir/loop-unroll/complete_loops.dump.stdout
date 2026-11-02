@@ -49,7 +49,9 @@ fn @u32(arg0: i256, arg1: i256) [pure, return_abi=[i256, i256]] {
     v81 = and v80, v73
     jumpi v81, bb2, bb1
   bb1 [cold]:  ; preds = bb0
-    tail_call @revert_stub
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb2:  ; preds = bb0
     v74 = add arg0, 3
     v75 = calldataload v74
@@ -73,7 +75,9 @@ fn @u16(arg0: i256, arg1: i256, arg2: i256) [pure, return_abi=[i256, i256]] {
     v61 = and v41, v54
     jumpi v61, bb2, bb1
   bb1 [cold]:  ; preds = bb0
-    tail_call @revert_stub
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb2:  ; preds = bb0
     v59 = add v46, 1
     v55 = add arg0, v46
@@ -142,11 +146,4 @@ fn @sum4() [selector=0x0540a714, abi_wrapper, pure] {
     revert 28, 36
   bb2 [cold]:  ; preds = bb0
     revert 0, 0
-}
-
-fn @revert_stub() [cold] {
-  bb0 [cold]:
-    mstore 32, 50 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }

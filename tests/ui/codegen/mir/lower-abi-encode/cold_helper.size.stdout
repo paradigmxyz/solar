@@ -68,7 +68,7 @@ fn @hotA() [selector=0xa739d36a, abi_wrapper] {
     v30 = add v45, 4
     v31 = add v30, 32
     mstore v30, 32
-    v34 = icall @encode_abi_calldata.16, v22, v21, v31
+    v34 = icall @encode_abi_calldata.15, v22, v21, v31
     v35 = add v31, v34
     v36 = sub v35, v30
     v37 = add v36, 4
@@ -124,7 +124,7 @@ fn @hotB() [selector=0x0fb93e2f, abi_wrapper] {
     v30 = add v46, 4
     v31 = add v30, 64
     mstore v30, 64
-    v34 = icall @encode_abi_calldata.16, v22, v21, v31
+    v34 = icall @encode_abi_calldata.15, v22, v21, v31
     v35 = add v31, v34
     v36 = add v30, 32
     mstore v36, 1
@@ -175,7 +175,7 @@ fn @coldA() [selector=0x49c045d6, abi_wrapper, cold, pure] {
     v19 = add v32, 4
     v20 = add v19, 32
     mstore v19, 32
-    v23 = icall @encode_abi_calldata.15, v11, v10, v20
+    v23 = icall @encode_abi_calldata.14, v11, v10, v20
     v24 = add v20, v23
     v25 = sub v24, v19
     v26 = add v25, 4
@@ -212,7 +212,7 @@ fn @coldB() [selector=0xa7f6a144, abi_wrapper, pure] {
     v20 = add v33, 4
     v21 = add v20, 32
     mstore v20, 32
-    v24 = icall @encode_abi_calldata.15, v12, v11, v21
+    v24 = icall @encode_abi_calldata.14, v12, v11, v21
     v25 = add v21, v24
     v26 = sub v25, v20
     v27 = add v26, 4
@@ -235,8 +235,8 @@ fn @hotC() [selector=0x8f02cfdc, abi_wrapper] {
   bb5:  ; preds = bb0
     v17 = icall @decode_calldata_type, 68
     v0 = gas
-    v18 = icall @encode_abi_tuple.17, arg1, v17
-    v19 = icall @encode_abi_tuple.18, v18, 0x5ab004dc00000000000000000000000000000000000000000000000000000000
+    v18 = icall @encode_abi_tuple.16, arg1, v17
+    v19 = icall @encode_abi_tuple.17, v18, 0x5ab004dc00000000000000000000000000000000000000000000000000000000
     v20 = mload 32 !metadata(memory=scratch)
     v21 = add v20, 32
     v22 = mload v21
@@ -275,8 +275,8 @@ fn @hotD() [selector=0xe17e9be7, abi_wrapper] {
     v12 = eq v11, 0
     jumpi v12, bb5, bb6
   bb6:  ; preds = bb7
-    v21 = icall @encode_abi_tuple.17, v11, v20
-    v22 = icall @encode_abi_tuple.18, v21, 0x5ab004dc00000000000000000000000000000000000000000000000000000000
+    v21 = icall @encode_abi_tuple.16, v11, v20
+    v22 = icall @encode_abi_tuple.17, v21, 0x5ab004dc00000000000000000000000000000000000000000000000000000000
     v23 = mload 32 !metadata(memory=scratch)
     v24 = add v23, 32
     v25 = mload v24
@@ -294,7 +294,9 @@ fn @hotD() [selector=0xe17e9be7, abi_wrapper] {
   bb2:  ; preds = bb4
     stop
   bb5 [cold]:  ; preds = bb7
-    tail_call @revert_stub
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb3 [cold]:  ; preds = bb6, bb0
     revert 0, 0
 }
@@ -307,7 +309,7 @@ fn @coldC() [selector=0x48699a62, abi_wrapper, cold, pure] {
     jumpi v5, bb1, bb2
   bb2 [cold]:  ; preds = bb0
     v6 = icall @decode_calldata_type, 36
-    v7 = icall @encode_abi_tuple.19, v6, arg0
+    v7 = icall @encode_abi_tuple.18, v6, arg0
     v27 = mload 64 !metadata(memory=scratch, alloc_ptr)
     mstore v27, 0x8c379a000000000000000000000000000000000000000000000000000000000
     v10 = add v27, 4
@@ -342,7 +344,7 @@ fn @coldD() [selector=0x90efdac2, abi_wrapper, cold, pure] {
     v6 = eq v5, 0
     jumpi v6, bb1, bb2
   bb2 [cold]:  ; preds = bb4
-    v10 = icall @encode_abi_tuple.19, v9, v5
+    v10 = icall @encode_abi_tuple.18, v9, v5
     v30 = mload 64 !metadata(memory=scratch, alloc_ptr)
     mstore v30, 0x8c379a000000000000000000000000000000000000000000000000000000000
     v13 = add v30, 4
@@ -362,7 +364,9 @@ fn @coldD() [selector=0x90efdac2, abi_wrapper, cold, pure] {
     v24 = add v23, 4
     revert v30, v24
   bb1 [cold]:  ; preds = bb4
-    tail_call @revert_stub
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb3 [cold]:  ; preds = bb0
     revert 0, 0
 }
@@ -399,7 +403,7 @@ fn @mixedHot() [selector=0x0c3501d9, abi_wrapper] {
     v41 = add v63, 4
     v42 = add v41, 32
     mstore v41, 32
-    v45 = icall @encode_abi_calldata.14, v32, v31, v42
+    v45 = icall @encode_abi_calldata.13, v32, v31, v42
     v46 = add v42, v45
     v47 = sub v46, v41
     v48 = add v47, 4
@@ -415,8 +419,8 @@ fn @mixedHot() [selector=0x0c3501d9, abi_wrapper] {
     jumpi v8, bb2, bb1
   bb2:  ; preds = bb5
     v9 = gas
-    v52 = icall @encode_abi_tuple.20, arg2, v38, arg2
-    v53 = icall @encode_abi_tuple.18, v52, 0x5ab004dc00000000000000000000000000000000000000000000000000000000
+    v52 = icall @encode_abi_tuple.19, arg2, v38, arg2
+    v53 = icall @encode_abi_tuple.17, v52, 0x5ab004dc00000000000000000000000000000000000000000000000000000000
     v58 = mload 32 !metadata(memory=scratch)
     v59 = add v58, 32
     v60 = mload v59
@@ -459,7 +463,7 @@ fn @mixedColdA() [selector=0x069e634f, abi_wrapper, cold, pure] {
     v0 = eq arg1, 0
     jumpi v0, bb2, bb1
   bb1 [cold]:  ; preds = bb4
-    v23 = icall @encode_abi_tuple.20, arg1, v22, arg1
+    v23 = icall @encode_abi_tuple.19, arg1, v22, arg1
     v58 = mload 64 !metadata(memory=scratch, alloc_ptr)
     mstore v58, 0x8c379a000000000000000000000000000000000000000000000000000000000
     v26 = add v58, 4
@@ -484,7 +488,7 @@ fn @mixedColdA() [selector=0x069e634f, abi_wrapper, cold, pure] {
     v41 = add v59, 4
     v42 = add v41, 32
     mstore v41, 32
-    v45 = icall @encode_abi_calldata.14, v16, v15, v42
+    v45 = icall @encode_abi_calldata.13, v16, v15, v42
     v46 = add v42, v45
     v47 = sub v46, v41
     v48 = add v47, 4
@@ -515,7 +519,7 @@ fn @mixedColdB() [selector=0x60ed04c1, abi_wrapper, cold, pure] {
     v0 = eq arg1, 1
     jumpi v0, bb2, bb1
   bb1 [cold]:  ; preds = bb4
-    v23 = icall @encode_abi_tuple.20, arg1, v22, arg1
+    v23 = icall @encode_abi_tuple.19, arg1, v22, arg1
     v58 = mload 64 !metadata(memory=scratch, alloc_ptr)
     mstore v58, 0x8c379a000000000000000000000000000000000000000000000000000000000
     v26 = add v58, 4
@@ -540,20 +544,13 @@ fn @mixedColdB() [selector=0x60ed04c1, abi_wrapper, cold, pure] {
     v41 = add v59, 4
     v42 = add v41, 32
     mstore v41, 32
-    v45 = icall @encode_abi_calldata.14, v16, v15, v42
+    v45 = icall @encode_abi_calldata.13, v16, v15, v42
     v46 = add v42, v45
     v47 = sub v46, v41
     v48 = add v47, 4
     revert v59, v48
   bb3 [cold]:  ; preds = bb0
     revert 0, 0
-}
-
-fn @revert_stub() [cold] {
-  bb0 [cold]:
-    mstore 32, 17 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }
 
 fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
@@ -598,7 +595,7 @@ fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
     revert 0, 0
 }
 
-fn @encode_abi_calldata.13(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory] {
+fn @encode_abi_calldata.12(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory] {
   bb0:
     mstore arg2, arg1
     v2 = add arg2, 32
@@ -632,7 +629,7 @@ fn @encode_abi_calldata.13(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retu
     jump bb1
 }
 
-fn @encode_abi_calldata.14(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory] {
+fn @encode_abi_calldata.13(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory] {
   bb0:
     mstore arg2, arg1
     v2 = add arg2, 32
@@ -681,7 +678,7 @@ fn @encode_abi_calldata.14(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retu
     jumpi v39, bb4, bb8
   bb8:  ; preds = bb7
     mstore v7, 64
-    v44 = icall @encode_abi_calldata.13, v37, v34, v24
+    v44 = icall @encode_abi_calldata.12, v37, v34, v24
     v45 = add v24, v44
     v48 = add v7, 32
     v47 = add v19, 32
@@ -699,7 +696,7 @@ fn @encode_abi_calldata.14(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retu
     revert 0, 0
 }
 
-fn @encode_abi_calldata.15(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory] {
+fn @encode_abi_calldata.14(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory] {
   bb0:
     mstore arg2, arg1
     v2 = add arg2, 32
@@ -748,7 +745,7 @@ fn @encode_abi_calldata.15(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retu
     jumpi v39, bb4, bb8
   bb8:  ; preds = bb7
     mstore v7, 64
-    v44 = icall @encode_abi_calldata.13, v37, v34, v24
+    v44 = icall @encode_abi_calldata.12, v37, v34, v24
     v45 = add v24, v44
     v47 = add v19, 32
     v49 = calldataload v47
@@ -762,7 +759,7 @@ fn @encode_abi_calldata.15(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retu
     revert 0, 0
 }
 
-fn @encode_abi_calldata.16(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory] {
+fn @encode_abi_calldata.15(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory] {
   bb0:
     mstore arg2, arg1
     v2 = add arg2, 32
@@ -819,7 +816,7 @@ fn @encode_abi_calldata.16(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retu
     jumpi v45, bb4, bb9
   bb9:  ; preds = bb8
     mstore v30, 96
-    v50 = icall @encode_abi_calldata.13, v43, v40, v24
+    v50 = icall @encode_abi_calldata.12, v43, v40, v24
     v51 = add v24, v50
     v54 = add v7, 64
     v53 = add v19, 64
@@ -857,7 +854,7 @@ fn @encode_abi_calldata.16(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retu
     revert 0, 0
 }
 
-fn @encode_abi_tuple.17(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
+fn @encode_abi_tuple.16(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
   bb0:
     v24 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v2 = add v24, 32
@@ -892,7 +889,7 @@ fn @encode_abi_tuple.17(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     revert 28, 36
 }
 
-fn @encode_abi_tuple.18(arg0: i256, arg1: i256) -> slice<memory> [may_return_memory, return_abi=[i256, i256]] {
+fn @encode_abi_tuple.17(arg0: i256, arg1: i256) -> slice<memory> [may_return_memory, return_abi=[i256, i256]] {
   bb0:
     v24 = mload 64 !metadata(memory=scratch, alloc_ptr)
     mstore v24, arg1
@@ -917,7 +914,7 @@ fn @encode_abi_tuple.18(arg0: i256, arg1: i256) -> slice<memory> [may_return_mem
     ret v24, v13
 }
 
-fn @encode_abi_tuple.19(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
+fn @encode_abi_tuple.18(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
   bb0:
     v24 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v2 = add v24, 32
@@ -952,7 +949,7 @@ fn @encode_abi_tuple.19(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     revert 28, 36
 }
 
-fn @encode_abi_tuple.20(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory] {
+fn @encode_abi_tuple.19(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory] {
   bb0:
     v25 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v2 = add v25, 32

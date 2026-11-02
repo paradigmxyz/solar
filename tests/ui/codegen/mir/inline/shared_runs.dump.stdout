@@ -119,11 +119,6 @@ fn @wrap(arg0: i256) -> i256 [may_return_memory, pure] {
     mstore v33, 0
     ret v37
   bb1 [cold]:  ; preds = bb0
-    tail_call @revert_stub
-}
-
-fn @revert_stub() [cold] {
-  bb0 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36

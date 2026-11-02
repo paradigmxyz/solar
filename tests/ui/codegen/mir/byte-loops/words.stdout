@@ -46,7 +46,9 @@ fn @load32() [selector=0xa3352e1e, abi_wrapper, pure] {
     mstore 0, v26 !metadata(memory=scratch)
     returndata 0, 32
   bb1 [cold]:  ; preds = bb4
-    tail_call @revert_stub
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb3 [cold]:  ; preds = bb0
     revert 0, 0
 }
@@ -73,7 +75,9 @@ fn @load4() [selector=0x199c2cd1, abi_wrapper, pure] {
     mstore 0, v29 !metadata(memory=scratch)
     returndata 0, 32
   bb1 [cold]:  ; preds = bb4
-    tail_call @revert_stub
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb3 [cold]:  ; preds = bb0
     revert 0, 0
 }
@@ -125,7 +129,9 @@ fn @store32() [selector=0xd264c25a, abi_wrapper, pure] {
     v12 = lt v30, v11
     jumpi v12, bb6, bb5
   bb5 [cold]:  ; preds = bb4, bb9
-    tail_call @revert_stub
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb6:  ; preds = bb9
     v50 = add v34, v30
     v51 = add v50, 32
@@ -196,7 +202,9 @@ fn @store2() [selector=0xe9ebf0b0, abi_wrapper, pure] {
     v12 = lt v34, v11
     jumpi v12, bb6, bb5
   bb5 [cold]:  ; preds = bb4, bb9
-    tail_call @revert_stub
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb6:  ; preds = bb9
     v60 = add v41, v34
     v61 = add v60, 32
@@ -283,7 +291,9 @@ fn @slice() [selector=0xe0041396, abi_wrapper, pure] {
     v21 = lt v9, v20
     jumpi v21, bb10, bb8
   bb8 [cold]:  ; preds = bb5, bb9, bb13
-    tail_call @revert_stub
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb10:  ; preds = bb9
     v92 = add v99, v9
     v93 = add v92, 32
@@ -311,13 +321,6 @@ fn @slice() [selector=0xe0041396, abi_wrapper, pure] {
     revert 28, 36
   bb14 [cold]:  ; preds = bb0
     revert 0, 0
-}
-
-fn @revert_stub() [cold] {
-  bb0 [cold]:
-    mstore 32, 50 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }
 
 fn @decode_calldata_type() -> i256 [may_return_memory] {

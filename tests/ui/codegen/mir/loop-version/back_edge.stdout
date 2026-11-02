@@ -112,7 +112,9 @@ fn @shift() [selector=0x5d9cf5ea, abi_wrapper, pure] {
     v42 = lt v30, v49
     jumpi v42, bb11, bb7
   bb7 [cold]:  ; preds = bb3, bb5, bb13, bb14
-    tail_call @revert_stub
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb11:  ; preds = bb14
     v108 = add v87, v33
     v109 = add v108, 32
@@ -218,7 +220,9 @@ fn @shiftFar() [selector=0x67979c1a, abi_wrapper, pure] {
     v43 = lt v31, v50
     jumpi v43, bb11, bb7
   bb7 [cold]:  ; preds = bb3, bb5, bb13, bb14
-    tail_call @revert_stub
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb11:  ; preds = bb14
     v107 = add v86, v34
     v108 = add v107, 32
@@ -231,13 +235,6 @@ fn @shiftFar() [selector=0x67979c1a, abi_wrapper, pure] {
     revert 28, 36
   bb15 [cold]:  ; preds = bb0
     revert 0, 0
-}
-
-fn @revert_stub() [cold] {
-  bb0 [cold]:
-    mstore 32, 50 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }
 
 fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {

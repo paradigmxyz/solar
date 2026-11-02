@@ -73,7 +73,9 @@ fn @lengthSet() [selector=0xa5e448c2, abi_wrapper, pure] {
     mstore 0, arg1
     returndata 0, 32
   bb1 [cold]:  ; preds = bb5
-    tail_call @revert_stub
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb3 [cold]:  ; preds = bb0, bb2
     revert 0, 0
 }
@@ -110,7 +112,9 @@ fn @offsetSet() [selector=0xba062698, abi_wrapper, pure] {
     mstore 0, v30
     returndata 0, 32
   bb1 [cold]:  ; preds = bb5
-    tail_call @revert_stub
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb3 [cold]:  ; preds = bb0, bb2
     revert 0, 0
 }
@@ -142,13 +146,6 @@ fn @forwarded() [selector=0xbf6f2c90, abi_wrapper, pure] {
     returndata 0, 32
   bb1 [cold]:  ; preds = bb0, bb3
     revert 0, 0
-}
-
-fn @revert_stub() [cold] {
-  bb0 [cold]:
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }
 
 fn @decode_calldata_slice() -> i256 {

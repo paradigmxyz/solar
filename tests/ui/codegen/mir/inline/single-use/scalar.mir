@@ -70,8 +70,8 @@ fn @guarded_caller(arg0: i256) -> i256 {
     ret v0
 }
 
-// `outline-reverts` leaves failure paths as tail calls to shared revert helpers. Such a jump
-// ends the message wherever it is cloned, so this body inlines.
+// A tail call to a shared revert helper ends the message wherever it is cloned, so this body
+// inlines.
 fn @guarded(arg0: i256) -> i256 {
   bb0:
     v0 = gt arg0, 10

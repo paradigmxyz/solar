@@ -66,7 +66,9 @@ fn @fill() [selector=0xb4f7766b, abi_wrapper, pure] {
     v9 = lt v33, v8
     jumpi v9, bb6, bb5
   bb5 [cold]:  ; preds = bb4, bb9
-    tail_call @revert_stub
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb6:  ; preds = bb9
     v47 = add v40, v33
     v48 = add v47, 32
@@ -151,7 +153,9 @@ fn @_scatter(arg0: i256, arg1: i256, arg2: i256, arg3: i256) [may_return_memory,
     v12 = lt v45, v11
     jumpi v12, bb8, bb6
   bb6 [cold]:  ; preds = bb3, bb5, bb11
-    tail_call @revert_stub
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb8:  ; preds = bb11
     v53 = add arg0, v45
     v54 = add v53, 32
@@ -164,13 +168,6 @@ fn @_scatter(arg0: i256, arg1: i256, arg2: i256, arg3: i256) [may_return_memory,
     revert 28, 36
   bb2:  ; preds = bb0, bb1, bb9
     ret
-}
-
-fn @revert_stub() [cold] {
-  bb0 [cold]:
-    mstore 32, 50 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }
 
 fn @decode_calldata_type() -> i256 [may_return_memory] {

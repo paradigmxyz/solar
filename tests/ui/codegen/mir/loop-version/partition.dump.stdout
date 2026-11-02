@@ -161,7 +161,9 @@ fn @partition() [selector=0xb99bdcfc, abi_wrapper, pure] {
     v46 = lt v148, v30
     jumpi v46, bb20, bb17
   bb17 [cold]:  ; preds = bb3, bb22, bb23
-    tail_call @revert_stub
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb20:  ; preds = bb23
     v48 = shl v148, 5
     v171 = add v154, v48
@@ -308,7 +310,9 @@ fn @forged() [selector=0x189960dc, abi_wrapper, pure] {
     v50 = lt v153, v33
     jumpi v50, bb20, bb17
   bb17 [cold]:  ; preds = bb3, bb22, bb23
-    tail_call @revert_stub
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb20:  ; preds = bb23
     v52 = shl v153, 5
     v176 = add v159, v52
@@ -554,7 +558,9 @@ fn @_sort(arg0: i256, arg1: i256, arg2: i256) [may_return_memory, pure] {
     v99 = lt v272, v79
     jumpi v99, bb41, bb36
   bb36 [cold]:  ; preds = bb3, bb12, bb22, bb24, bb25, bb26, bb37, bb38, bb50
-    tail_call @revert_stub
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb41:  ; preds = bb50
     v101 = shl v272, 5
     v299 = add arg0, v101
@@ -594,13 +600,6 @@ fn @_sort(arg0: i256, arg1: i256, arg2: i256) [may_return_memory, pure] {
     jump bb10
   bb46 [cold]:  ; preds = bb1, bb2, bb11, bb14
     mstore 32, 17 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
-}
-
-fn @revert_stub() [cold] {
-  bb0 [cold]:
-    mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }

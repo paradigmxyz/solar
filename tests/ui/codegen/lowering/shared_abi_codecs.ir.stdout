@@ -212,7 +212,9 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     mstore 0, v91
     returndata 0, 32
   bb16 [cold]:  ; preds = bb13, bb15
-    tail_call @revert_stub
+    mstore 32, 17
+    mstore 0, 0x4e487b71
+    revert 28, 36
   bb25:  ; preds = bb24
     v131 = mload v128
     v132 = add v112, v131
@@ -290,13 +292,6 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     revert 28, 36
   bb5 [cold]:  ; preds = bb3, bb2, bb8, bb9, bb19, bb20, bb22, bb25, bb28, bb0, bb30
     revert 0, 0
-}
-
-fn @revert_stub() [cold] {
-  bb0 [cold]:
-    mstore 32, 17 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }
 
 fn @decode_calldata_type() -> i256 [may_return_memory] {
