@@ -1,11 +1,13 @@
 // === ROOT/tests/ui/codegen/mir/word-sequence/shift_pair_masks_runtime.sol:ShiftPairMasks ===
 @module ShiftPairMasks
+; function low(uint256 x) external pure returns (uint256 r) [selector 0x10c888cd]
 fn @low(arg0: i256) -> i256 [selector=0x10c888cd, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
     ret v0
 }
 
+; function extract(uint256 x) external pure returns (uint256 r) [selector 0x85b39782]
 fn @extract(arg0: i256) -> i256 [selector=0x85b39782, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = shr arg0, 16
@@ -13,6 +15,7 @@ fn @extract(arg0: i256) -> i256 [selector=0x85b39782, pure, abi_params=[uint256]
     ret v1
 }
 
+; function field(uint256 x) external pure returns (uint256 r) [selector 0xb41c5dd4]
 fn @field(arg0: i256) -> i256 [selector=0xb41c5dd4, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = shr arg0, 200
@@ -20,6 +23,7 @@ fn @field(arg0: i256) -> i256 [selector=0xb41c5dd4, pure, abi_params=[uint256], 
     ret v1
 }
 
+; function insert(uint256 x) external pure returns (uint256 r) [selector 0x90b5561d]
 fn @insert(arg0: i256) -> i256 [selector=0x90b5561d, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -27,6 +31,7 @@ fn @insert(arg0: i256) -> i256 [selector=0x90b5561d, pure, abi_params=[uint256],
     ret v1
 }
 
+; function pair(uint256 x) external pure returns (uint256 r) [selector 0x645751af]
 fn @pair(arg0: i256) -> i256 [selector=0x645751af, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = shl arg0, 96
@@ -35,6 +40,7 @@ fn @pair(arg0: i256) -> i256 [selector=0x645751af, pure, abi_params=[uint256], a
     ret v2
 }
 
+; function narrow(uint256 x) external pure returns (uint256 r) [selector 0x0ebb6188]
 fn @narrow(arg0: i256) -> i256 [selector=0x0ebb6188, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = shr arg0, 8

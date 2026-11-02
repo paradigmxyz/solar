@@ -4,35 +4,35 @@
   struct0: {i256, i256}
   struct1: {i8, i8, i8, i8}
 
+; function setUp() external [selector 0x0a9254e4]
 fn @setUp() [selector=0x0a9254e4, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = alloc 32
     mstore v0, 7
     v1 = sload 0 !metadata(storage=slot(0))
-    v2 = shr v1, 64
-    v3 = ne v2, 0
-    icall panic_if<0x41>, v3
-    v4 = add v1, 1
-    v5 = storage_array_data_slot 0
-    v6 = add v5, v1
-    v7 = mload v0
-    sstore v6, v7 !metadata(storage=symbolic(v6))
-    sstore 0, v4 !metadata(storage=slot(0))
-    v8 = alloc 32
-    mstore v8, 8
-    v9 = sload 0 !metadata(storage=slot(0))
-    v10 = shr v9, 64
-    v11 = ne v10, 0
-    icall panic_if<0x41>, v11
-    v12 = add v9, 1
-    v13 = storage_array_data_slot 0
-    v14 = add v13, v9
-    v15 = mload v8
-    sstore v14, v15 !metadata(storage=symbolic(v14))
-    sstore 0, v12 !metadata(storage=slot(0))
+    v2 = gt v1, 0xffffffffffffffff
+    icall panic_if<0x41>, v2
+    v3 = add v1, 1
+    v4 = storage_array_data_slot 0
+    v5 = add v4, v1
+    v6 = mload v0
+    sstore v5, v6 !metadata(storage=symbolic(v5))
+    sstore 0, v3 !metadata(storage=slot(0))
+    v7 = alloc 32
+    mstore v7, 8
+    v8 = sload 0 !metadata(storage=slot(0))
+    v9 = gt v8, 0xffffffffffffffff
+    icall panic_if<0x41>, v9
+    v10 = add v8, 1
+    v11 = storage_array_data_slot 0
+    v12 = add v11, v8
+    v13 = mload v7
+    sstore v12, v13 !metadata(storage=symbolic(v12))
+    sstore 0, v10 !metadata(storage=slot(0))
     ret
 }
 
+; function f() internal view returns (uint, S storage)
 fn @f() -> struct0 [view] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -46,6 +46,7 @@ fn @f() -> struct0 [view] {
     ret v6
 }
 
+; function test_g() external returns (uint, uint) [selector 0xc51b800f]
 fn @test_g() -> struct0 [selector=0xc51b800f, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall @f
@@ -76,6 +77,7 @@ fn @test_g() -> struct0 [selector=0xc51b800f, abi_params=[], abi_returns=[word, 
     ret v19
 }
 
+; function test_h() external returns (uint) [selector 0xeafd81e0]
 fn @test_h() -> i256 [selector=0xeafd81e0, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @f
@@ -93,6 +95,7 @@ fn @test_h() -> i256 [selector=0xeafd81e0, abi_params=[], abi_returns=[word], ab
     ret v9
 }
 
+; function mapping_reference() external returns (uint8, uint8, uint8, uint8) [selector 0xc5744cb1]
 fn @mapping_reference() -> struct1 [selector=0xc5744cb1, abi_params=[], abi_returns=[word<uint8>, word<uint8>, word<uint8>, word<uint8>], abi_return_params=[uint8, uint8, uint8, uint8]] {
   bb0:
     v0 = mapping_slot 1, 2

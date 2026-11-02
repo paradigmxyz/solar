@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/event_indexed_aggregate.sol:EventIndexedAggregate ===
 @module EventIndexedAggregate
+; function emitArray(uint256[2] memory values) external [selector 0x86cb3475]
 fn @emitArray(arg0: ptr<memory>) [selector=0x86cb3475, abi_params=[array<2, uint256>], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = abi_encode [array<2, word>], args arg0
@@ -10,6 +11,7 @@ fn @emitArray(arg0: ptr<memory>) [selector=0x86cb3475, abi_params=[array<2, uint
     ret
 }
 
+; function emitDynamicArray(uint256[] memory values) external [selector 0xf38510d4]
 fn @emitDynamicArray(arg0: ptr<memory>) [selector=0xf38510d4, abi_params=[array<_, uint256>], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = abi_encode_packed (array<word> memoryarray<1> arg0)

@@ -3,18 +3,28 @@
 @types
   struct0: {i256, i256, i256}
 
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    sstore 0, 42 !metadata(storage=slot(0))
+    ret
+}
+
+; getter for `uint256 public y` [selector 0xa56dfe4a]
 fn @y() -> i256 [selector=0xa56dfe4a, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+; function getArray() internal pure returns (uint256[10][1] storage arr)
 fn @getArray() -> i256 [pure] {
   bb0:
     v0 = sub 0, 5
     ret v0
 }
 
+; function test() public returns (uint256 beforeFill, uint256 afterFill, uint256 afterClear) [selector 0xf8a8fd6d]
 fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     v0 = icall @getArray
@@ -29,7 +39,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v7 = add v4, 5
     v8 = sload v7 !metadata(storage=offset(v4, 5))
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v9 = phi [bb0: v8], [bb3: v9]
     v10 = phi [bb0: 0], [bb3: v10]
     v11 = phi [bb0: 0], [bb3: v11]
@@ -37,9 +47,9 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v13 = phi [bb0: v0], [bb3: v13]
     v14 = lt v12, 10
     jumpi v14, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     v23 = sload 0 !metadata(storage=slot(0))
     v24 = lt 0, 1
     v25 = eq v24, false
@@ -47,22 +57,22 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v26 = mul 0, 10
     v27 = add v13, v26
     jump bb7
-  bb7:
+  bb7:  ; preds = bb2, bb8
     v28 = phi [bb2: 0], [bb8: v31]
     v29 = lt v28, 10
     jumpi v29, bb8, bb9
-  bb9:
+  bb9:  ; preds = bb7
     v32 = sload 0 !metadata(storage=slot(0))
     v33 = insert_value struct0, undef struct0, 0, v9
     v34 = insert_value struct0, v33, 1, v23
     v35 = insert_value struct0, v34, 2, v32
     ret v35
-  bb8:
+  bb8:  ; preds = bb7
     v30 = add v27, v28
     sstore v30, 0 !metadata(storage=symbolic(v30))
     v31 = add v28, 1
     jump bb7
-  bb4:
+  bb4:  ; preds = bb1
     v15 = lt 0, 1
     v16 = eq v15, false
     icall panic_if<0x32>, v16
@@ -74,15 +84,9 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v21 = add v18, v12
     sstore v21, v12 !metadata(storage=symbolic(v21))
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v22 = checked_add uint256, v12, 1
     jump bb1
-}
-
-fn @constructor() [constructor] {
-  bb0:
-    sstore 0, 42 !metadata(storage=slot(0))
-    ret
 }

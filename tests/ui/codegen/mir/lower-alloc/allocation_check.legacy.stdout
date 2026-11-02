@@ -12,11 +12,11 @@
 +     v5 = or v3, v4
 +     v6 = zext i1 v5 to i256
 +     jumpi v5, bb2, bb1
-+   bb1:
++   bb1:  ; preds = bb0
 +     mstore 64, v2 !metadata(memory=scratch)
 +     memory_zero v0, arg0
       ret v0
-+   bb2:
++   bb2 [cold]:  ; preds = bb0
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36

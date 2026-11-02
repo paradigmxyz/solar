@@ -1,15 +1,16 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/array_struct_memory_storage.sol:ArrayStructMemoryStorage ===
 @module ArrayStructMemoryStorage
+; function copy() external returns (uint256) [selector 0x60726abb]
 fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc zeroed checked 128
     mstore v0, 3
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v12]
     v2 = lt v1, 3
     jumpi v2, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v13 = alloc 96
     v14 = alloc 96
     mstore v14, 1
@@ -79,22 +80,22 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v61 = sload 0 !metadata(storage=slot(0))
     v62 = gt v61, v60
     jumpi v62, bb4, bb5
-  bb4:
+  bb4:  ; preds = bb3
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb11
     v63 = phi [bb4: v60], [bb11: v80]
     v64 = lt v63, v61
     jumpi v64, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     jump bb5
-  bb5:
+  bb5:  ; preds = bb3, bb8
     sstore 0, v60 !metadata(storage=slot(0))
     jump bb12
-  bb12:
+  bb12:  ; preds = bb5, bb30
     v81 = phi [bb5: 0], [bb30: v180]
     v82 = lt v81, v60
     jumpi v82, bb13, bb14
-  bb14:
+  bb14:  ; preds = bb12
     v181 = sload 0 !metadata(storage=slot(0))
     v182 = lt 1, v181
     v183 = eq v182, false
@@ -158,7 +159,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v235 = zext i128 v234 to i256
     v236 = checked_add uint256, v215, v235
     ret v236
-  bb13:
+  bb13:  ; preds = bb12
     v83 = shl v81, 5
     v84 = ptradd v0, v83
     v85 = ptradd v84, 32
@@ -177,11 +178,11 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v97 = ptradd v86, 32
     v98 = mload v97
     jump bb15
-  bb15:
+  bb15:  ; preds = bb13, bb20
     v99 = phi [bb13: 0], [bb20: v126]
     v100 = lt v99, 3
     jumpi v100, bb16, bb17
-  bb17:
+  bb17:  ; preds = bb15
     v127 = add v89, 3
     v128 = ptradd v86, 64
     v129 = mload v128
@@ -189,27 +190,27 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v131 = sload v127 !metadata(storage=offset(v89, 3))
     v132 = gt v131, v130
     jumpi v132, bb21, bb22
-  bb21:
+  bb21:  ; preds = bb17
     jump bb23
-  bb23:
+  bb23:  ; preds = bb21, bb24
     v133 = phi [bb21: v130], [bb24: v148]
     v134 = lt v133, v131
     jumpi v134, bb24, bb25
-  bb25:
+  bb25:  ; preds = bb23
     jump bb22
-  bb22:
+  bb22:  ; preds = bb17, bb25
     sstore v127, v130 !metadata(storage=offset(v89, 3))
     jump bb26
-  bb26:
+  bb26:  ; preds = bb22, bb27
     v149 = phi [bb22: 0], [bb27: v169]
     v150 = lt v149, v130
     jumpi v150, bb27, bb28
-  bb28:
+  bb28:  ; preds = bb26
     v170 = shr v130, 1
     v171 = and v130, 1
     v172 = eq v171, 0
     jumpi v172, bb30, bb29
-  bb29:
+  bb29:  ; preds = bb28
     v173 = mul v171, 128
     v174 = shl 1, v173
     v175 = sub v174, 1
@@ -219,10 +220,10 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v179 = and v178, v175
     sstore v177, v179 !metadata(storage=symbolic(v177))
     jump bb30
-  bb30:
+  bb30:  ; preds = bb28, bb29
     v180 = add v81, 1
     jump bb12
-  bb27:
+  bb27:  ; preds = bb26
     v151 = shl v149, 5
     v152 = inttoptr i256 v129 to ptr<memory>
     v153 = ptradd v152, v151
@@ -244,7 +245,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     sstore v158, v168 !metadata(storage=symbolic(v158))
     v169 = add v149, 1
     jump bb26
-  bb24:
+  bb24:  ; preds = bb23
     v135 = storage_array_data_slot v127
     v136 = div v133, 2
     v137 = add v135, v136
@@ -261,14 +262,14 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     sstore v137, v147 !metadata(storage=symbolic(v137))
     v148 = add v133, 1
     jump bb23
-  bb16:
+  bb16:  ; preds = bb15
     v101 = div v99, 2
     v102 = add v96, v101
     v103 = mod v99, 2
     v104 = mul v103, 16
     v105 = lt v99, 3
     jumpi v105, bb18, bb19
-  bb19:
+  bb19:  ; preds = bb16
     v118 = mul v104, 8
     v119 = shl 0xffffffffffffffffffffffffffffffff, v118
     v120 = sload v102 !metadata(storage=symbolic(v102))
@@ -279,7 +280,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v125 = or v122, v124
     sstore v102, v125 !metadata(storage=symbolic(v102))
     jump bb20
-  bb18:
+  bb18:  ; preds = bb16
     v106 = shl v99, 5
     v107 = inttoptr i256 v98 to ptr<memory>
     v108 = ptradd v107, v106
@@ -294,21 +295,21 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v117 = or v114, v116
     sstore v102, v117 !metadata(storage=symbolic(v102))
     jump bb20
-  bb20:
+  bb20:  ; preds = bb18, bb19
     v126 = add v99, 1
     jump bb15
-  bb7:
+  bb7:  ; preds = bb6
     v65 = storage_array_data_slot 0
     v66 = mul v63, 4
     v67 = add v65, v66
     sstore v67, 0 !metadata(storage=symbolic(v67))
     v68 = add v67, 1
     jump bb9
-  bb9:
+  bb9:  ; preds = bb7, bb10
     v69 = phi [bb7: 0], [bb10: v72]
     v70 = lt v69, 2
     jumpi v70, bb10, bb11
-  bb11:
+  bb11:  ; preds = bb9
     v73 = add v67, 3
     v74 = sload v73 !metadata(storage=offset(v67, 3))
     sstore v73, 0 !metadata(storage=offset(v67, 3))
@@ -320,12 +321,12 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     clear_storage_words v73, 0, v79
     v80 = add v63, 1
     jump bb6
-  bb10:
+  bb10:  ; preds = bb9
     v71 = add v68, v69
     sstore v71, 0 !metadata(storage=symbolic(v71))
     v72 = add v69, 1
     jump bb9
-  bb2:
+  bb2:  ; preds = bb1
     v3 = alloc 96 !metadata(preserves_fmp)
     mstore v3, 0
     v4 = alloc 96 !metadata(preserves_fmp)

@@ -2,6 +2,16 @@
 //@ filecheck:
 @module CopyHelperEligibility
 
+// Constructor copies stay inline: their ABI output may occupy the memory where a call would
+// stage its arguments.
+// CHECK-LABEL: fn @constructor
+// CHECK-NOT: icall @mcopy_words
+fn @constructor(arg0: i256, arg1: i256, arg2: i256) [constructor] {
+  bb0:
+    mcopy arg0, arg1, arg2
+    ret
+}
+
 // Static frames lie between the scratch space and the initial free memory pointer. A copy between
 // Solidity memory objects cannot reach them, so its sites call the shared helper whatever their
 // pointers' provenance.
@@ -43,16 +53,6 @@ fn @allocation_or_constant(arg0: i256, arg1: i256, arg2: i256) {
   bb3:
     v3 = phi [bb1: v2], [bb2: 128]
     mcopy v3, arg1, arg2
-    ret
-}
-
-// Constructor copies stay inline: their ABI output may occupy the memory where a call would
-// stage its arguments.
-// CHECK-LABEL: fn @constructor
-// CHECK-NOT: icall @mcopy_words
-fn @constructor(arg0: i256, arg1: i256, arg2: i256) [constructor] {
-  bb0:
-    mcopy arg0, arg1, arg2
     ret
 }
 

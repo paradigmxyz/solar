@@ -24,25 +24,17 @@
       v1 = ne v0, 0
       icall panic_if<0x41>, v1
       jumpi v1, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       ret arg0
-    bb1:
+    bb1:  ; preds = bb0
       ret 0
   }
   
   fn @also_value(arg0: i256) -> i1 {
     bb0:
--     v0 = shr arg0, 8
+-     v0 = shr arg0, 251
 -     v1 = ne v0, 0
-+     v1 = gt arg0, 255
-      icall panic_if<0x41>, v1
-      ret v1
-  }
-  
-  fn @also_value_wide(arg0: i256) -> i1 {
-    bb0:
-      v0 = shr arg0, 251
-      v1 = ne v0, 0
++     v1 = gt arg0, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       icall panic_if<0x41>, v1
       ret v1
   }

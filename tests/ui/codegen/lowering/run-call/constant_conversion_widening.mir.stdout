@@ -3,6 +3,7 @@
 @types
   struct0: {i16, i256, i16}
 
+; function widened() external pure returns (int16, int256, uint16) [selector 0xd3eaa7aa]
 fn @widened() -> struct0 [selector=0xd3eaa7aa, pure, abi_params=[], abi_returns=[word<int16>, word, word<uint16>], abi_return_params=[int16, int256, uint16]] {
   bb0:
     v0 = insert_value struct0, undef struct0, 0, i16 0xffa6

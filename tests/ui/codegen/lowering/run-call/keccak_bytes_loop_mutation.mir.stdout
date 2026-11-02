@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/keccak_bytes_loop_mutation.sol:KeccakBytesLoopMutation ===
 @module KeccakBytesLoopMutation
+; function hashTracksWrites() external pure returns (bool) [selector 0xfa4d6080]
 fn @hashTracksWrites() -> i1 [selector=0xfa4d6080, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = not 31
@@ -7,19 +8,19 @@ fn @hashTracksWrites() -> i1 [selector=0xfa4d6080, pure, abi_params=[], abi_retu
     v2 = alloc zeroed checked v1
     mstore v2, 1
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v3 = phi [bb0: 0], [bb3: v3]
     v4 = phi [bb0: v2], [bb3: v4]
     v5 = phi [bb0: 0], [bb3: v18]
     v6 = phi [bb0: 0], [bb3: v19]
     v7 = lt v6, 2
     jumpi v7, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     v20 = eq v5, 0x5fe7f977e71dba2ea1a68e21057beebb9be2ac30c6410aa38d4f3fbe41dcffd2
     ret v20
-  bb4:
+  bb4:  ; preds = bb1
     v8 = trunc i256 v6 to i8
     v9 = zext i8 v8 to i256
     v10 = shl v9, 248
@@ -34,9 +35,9 @@ fn @hashTracksWrites() -> i1 [selector=0xfa4d6080, pure, abi_params=[], abi_retu
     v17 = mload v4
     v18 = keccak256 v16, v17
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v19 = checked_add uint256, v6, 1
     jump bb1
 }

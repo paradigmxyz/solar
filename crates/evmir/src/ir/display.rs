@@ -58,7 +58,11 @@ fn display_block<'a>(module: &'a Module, block: &'a Block) -> impl fmt::Display 
         if !attributes.is_empty() {
             write!(f, " [{}]", attributes.iter().format(", "))?;
         }
-        writeln!(f, ":")?;
+        write!(f, ":")?;
+        if let Some(comment) = module.comments.get(block.label) {
+            write!(f, "  ; {comment}")?;
+        }
+        writeln!(f)?;
         for inst in &block.instructions {
             writeln!(f, "  {}", display_instruction(module, inst))?;
         }

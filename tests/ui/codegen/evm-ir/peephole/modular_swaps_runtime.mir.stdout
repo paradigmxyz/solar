@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256}
 
+; function addMul(uint256 a, uint256 b, uint256 c, uint256 n) public pure returns (uint256 x, uint256 y) [selector 0xac96ed62]
 fn @addMul(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector=0xac96ed62, pure, abi_params=[uint256, uint256, uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall checked_mulmod<>, arg0, arg1, arg3
@@ -14,6 +15,7 @@ fn @addMul(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector=
     ret v5
 }
 
+; function mulAdd(uint256 a, uint256 b, uint256 c, uint256 n) public pure returns (uint256 x, uint256 y) [selector 0xeea6e1b2]
 fn @mulAdd(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector=0xeea6e1b2, pure, abi_params=[uint256, uint256, uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall checked_addmod<>, arg0, arg1, arg3
@@ -25,6 +27,7 @@ fn @mulAdd(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector=
     ret v5
 }
 
+; function mulMul(uint256 a, uint256 b, uint256 c, uint256 n) public pure returns (uint256 x, uint256 y) [selector 0xfa1e0951]
 fn @mulMul(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector=0xfa1e0951, pure, abi_params=[uint256, uint256, uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall checked_mulmod<>, arg0, arg1, arg3

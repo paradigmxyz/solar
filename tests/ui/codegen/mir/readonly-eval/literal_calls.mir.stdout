@@ -7,6 +7,7 @@
   answer: uint256
   shortWord: bytes32
 
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = not 31
@@ -28,6 +29,7 @@ fn @constructor() [constructor] {
     ret
 }
 
+; function words() external view returns (uint256, bytes32) [selector 0xf2c31bd9]
 fn @words() -> struct0 [selector=0xf2c31bd9, view, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, bytes32]] {
   bb0:
     v0 = loadimmutable answer
@@ -37,6 +39,7 @@ fn @words() -> struct0 [selector=0xf2c31bd9, view, abi_params=[], abi_returns=[w
     ret v3
 }
 
+; function dynamicWord(uint256 value) external pure returns (uint256) [selector 0x0c872375]
 fn @dynamicWord(arg0: i256) -> i256 [selector=0x0c872375, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = not 31
@@ -50,6 +53,7 @@ fn @dynamicWord(arg0: i256) -> i256 [selector=0x0c872375, pure, abi_params=[uint
     ret v5
 }
 
+; function sideEffects(bool yes) external returns (uint256 result, uint256 writes) [selector 0x4335d2b9]
 fn @sideEffects(arg0: i1) -> struct0 [selector=0x4335d2b9, abi_params=[bool], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = not 31
@@ -66,6 +70,7 @@ fn @sideEffects(arg0: i1) -> struct0 [selector=0x4335d2b9, abi_params=[bool], ab
     ret v8
 }
 
+; function modified(uint256 value) external pure returns (uint256) [selector 0xd492dffb]
 fn @modified(arg0: i256) -> i256 [selector=0xd492dffb, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = not 31
@@ -80,6 +85,7 @@ fn @modified(arg0: i256) -> i256 [selector=0xd492dffb, pure, abi_params=[uint256
     ret v5
 }
 
+; function fails() external pure returns (uint256) [selector 0xce869a64]
 fn @fails() -> i256 [selector=0xce869a64, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 32
@@ -88,6 +94,7 @@ fn @fails() -> i256 [selector=0xce869a64, pure, abi_params=[], abi_returns=[word
     ret v1
 }
 
+; function readWord(bytes memory data) internal pure returns (uint256 result)
 fn @readWord(arg0: ptr<memory>) -> i256 [pure] {
   bb0:
     v0 = mload arg0
@@ -100,6 +107,7 @@ fn @readWord(arg0: ptr<memory>) -> i256 [pure] {
     ret v5
 }
 
+; function toShort(bytes memory data) internal pure returns (bytes32 result)
 fn @toShort(arg0: ptr<memory>) -> i256 [pure] {
   bb0:
     v0 = mload arg0
@@ -122,21 +130,23 @@ fn @toShort(arg0: ptr<memory>) -> i256 [pure] {
     ret v15
 }
 
+; function choose(bytes memory data, bool yes) internal returns (uint256)
 fn @choose(arg0: ptr<memory>, arg1: i1) -> i256 {
   bb0:
     jumpi arg1, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = checked_add uint256, v1, 1
     sstore 0, v2 !metadata(storage=slot(0))
     ret 7
-  bb1:
+  bb1:  ; preds = bb0
     v0 = icall @readWord, arg0
     ret v0
 }
 
+; function overwrite(bytes memory data, uint256 value) internal pure
 fn @overwrite(arg0: ptr<memory>, arg1: i256) [pure] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256

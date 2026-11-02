@@ -3,16 +3,7 @@
 @types
   struct0: {i256, i256}
 
-fn @firstTarget() -> i256 [pure] {
-  bb0:
-    ret 1
-}
-
-fn @secondTarget() -> i256 [pure] {
-  bb0:
-    ret 2
-}
-
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = lt 0, 2
@@ -86,6 +77,19 @@ fn @constructor() [constructor] {
     ret
 }
 
+; function firstTarget() internal pure returns (uint256)
+fn @firstTarget() -> i256 [pure] {
+  bb0:
+    ret 1
+}
+
+; function secondTarget() internal pure returns (uint256)
+fn @secondTarget() -> i256 [pure] {
+  bb0:
+    ret 2
+}
+
+; function read() external returns (uint256, uint256) [selector 0x57de26a4]
 fn @read() -> struct0 [selector=0x57de26a4, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = lt 0, 2
@@ -115,16 +119,16 @@ fn @internal_dispatcher_p_none_r_uint256(arg0: i256) -> i256 [function_pointer_d
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v2 = eq arg0, 2
     jumpi v2, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb2
     icall panic_if<0x51>, true
     invalid
-  bb3:
+  bb3:  ; preds = bb2
     v3 = icall @secondTarget
     ret v3
-  bb1:
+  bb1:  ; preds = bb0
     v1 = icall @firstTarget
     ret v1
 }

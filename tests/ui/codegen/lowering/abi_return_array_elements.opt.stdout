@@ -1,6 +1,39 @@
 // === ROOT/tests/ui/codegen/lowering/abi_return_array_elements.sol:AbiReturnArrayElements ===
 @module AbiReturnArrayElements
 @phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:  ; preds = bb0
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0x29dcbdaa => bb3, 0x43a4968c => bb4, 0x4a6c046c => bb5, 0x74016a59 => bb6, 0x8c175a3d => bb7, 0x945bb2ba => bb8, 0xd621b19f => bb9]
+  bb9:  ; preds = bb2
+    tail_call @unalignedArray
+  bb8:  ; preds = bb2
+    tail_call @clean
+  bb7:  ; preds = bb2
+    tail_call @aliasedStruct
+  bb6:  ; preds = bb2
+    tail_call @dirty
+  bb5:  ; preds = bb2
+    tail_call @aliasedBytes
+  bb4:  ; preds = bb2
+    tail_call @viaHelper
+  bb3:  ; preds = bb2
+    tail_call @unalignedHelper
+  bb1 [cold]:  ; preds = bb0, bb2
+    revert 0, 0
+}
+
+; function clean(address[] memory a) external pure returns (address[] memory) [selector 0x945bb2ba]
 fn @clean() [selector=0x945bb2ba, abi_wrapper, pure] {
   bb0:
     v2 = icall @decode_calldata_type.8
@@ -12,6 +45,7 @@ fn @clean() [selector=0x945bb2ba, abi_wrapper, pure] {
     returndata v12, v9
 }
 
+; function dirty(address[] memory a) external pure returns (address[] memory) [selector 0x74016a59]
 fn @dirty() [selector=0x74016a59, abi_wrapper, pure] {
   bb0:
     v5 = icall @decode_calldata_type.8
@@ -26,6 +60,7 @@ fn @dirty() [selector=0x74016a59, abi_wrapper, pure] {
     returndata v22, v18
 }
 
+; function viaHelper(address[] memory a) external pure returns (address[] memory) [selector 0x43a4968c]
 fn @viaHelper() [selector=0x43a4968c, abi_wrapper, pure] {
   bb0:
     v4 = icall @decode_calldata_type.8
@@ -40,6 +75,7 @@ fn @viaHelper() [selector=0x43a4968c, abi_wrapper, pure] {
     returndata v21, v17
 }
 
+; function aliasedStruct(uint8[] memory a) external pure returns (uint256) [selector 0x8c175a3d]
 fn @aliasedStruct() [selector=0x8c175a3d, abi_wrapper, pure] {
   bb0:
     v12 = icall @decode_calldata_type.9
@@ -50,22 +86,23 @@ fn @aliasedStruct() [selector=0x8c175a3d, abi_wrapper, pure] {
     v3 = mload v12
     v4 = gt v3, 0
     jumpi v4, bb2, bb1
-  bb1:
+  bb1 [cold]:  ; preds = bb0
     tail_call @revert_stub
-  bb2:
+  bb2:  ; preds = bb0
     mstore 0, 1 !metadata(memory=scratch)
     returndata 0, 32
 }
 
+; function aliasedBytes(uint8[] memory a) external pure returns (uint256) [selector 0x4a6c046c]
 fn @aliasedBytes() [selector=0x4a6c046c, abi_wrapper, pure] {
   bb0:
     v15 = icall @decode_calldata_type.9
     v1 = mload v15
     v2 = gt v1, 0
     jumpi v2, bb2, bb1
-  bb1:
+  bb1 [cold]:  ; preds = bb0
     tail_call @revert_stub
-  bb2:
+  bb2:  ; preds = bb0
     v5 = add v15, 32
     mstore8 v5, 1
     v10 = mload v5
@@ -74,6 +111,7 @@ fn @aliasedBytes() [selector=0x4a6c046c, abi_wrapper, pure] {
     returndata 0, 32
 }
 
+; function unalignedArray(uint8[] memory a) external pure returns (uint256) [selector 0xd621b19f]
 fn @unalignedArray() [selector=0xd621b19f, abi_wrapper, pure] {
   bb0:
     v14 = icall @decode_calldata_type.9
@@ -86,9 +124,9 @@ fn @unalignedArray() [selector=0xd621b19f, abi_wrapper, pure] {
     v5 = mload v14
     v6 = gt v5, 1
     jumpi v6, bb2, bb1
-  bb1:
+  bb1 [cold]:  ; preds = bb0
     tail_call @revert_stub
-  bb2:
+  bb2:  ; preds = bb0
     v17 = add v14, 64
     v9 = mload v17
     v21 = and v9, 255
@@ -96,6 +134,7 @@ fn @unalignedArray() [selector=0xd621b19f, abi_wrapper, pure] {
     returndata 0, 32
 }
 
+; function unalignedHelper(uint8[] memory a) external pure returns (uint256) [selector 0x29dcbdaa]
 fn @unalignedHelper() [selector=0x29dcbdaa, abi_wrapper, pure] {
   bb0:
     v13 = icall @decode_calldata_type.9
@@ -108,9 +147,9 @@ fn @unalignedHelper() [selector=0x29dcbdaa, abi_wrapper, pure] {
     v4 = mload v13
     v5 = gt v4, 1
     jumpi v5, bb2, bb1
-  bb1:
+  bb1 [cold]:  ; preds = bb0
     tail_call @revert_stub
-  bb2:
+  bb2:  ; preds = bb0
     v16 = add v13, 64
     v8 = mload v16
     v20 = and v8, 255
@@ -118,8 +157,8 @@ fn @unalignedHelper() [selector=0x29dcbdaa, abi_wrapper, pure] {
     returndata 0, 32
 }
 
-fn @revert_stub() {
-  bb0:
+fn @revert_stub() [cold] {
+  bb0 [cold]:
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -133,56 +172,57 @@ fn @decode_calldata_type.8() -> i256 [may_return_memory] {
     v4 = sub v0, 36
     v5 = gt v1, v4
     jumpi v5, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v6 = calldataload v2
     v7 = add v2, 32
-    v8 = shr v6, 59
-    v10 = add v6, 1
-    v11 = shl v10, 5
-    v37 = heap_floor !metadata(alloc_ptr)
-    v38 = add v37, v11 !metadata(alloc_ptr)
-    v40 = shr v38, 64
-    v39 = lt v38, v37
-    v41 = zext i1 v39 to i256
-    v42 = or v41, v40
-    v44 = or v8, v42
+    v8 = gt v6, 0x7fffffffffffffe
+    v9 = add v6, 1
+    v10 = shl v9, 5
+    v36 = heap_floor !metadata(alloc_ptr)
+    v37 = add v36, v10 !metadata(alloc_ptr)
+    v38 = lt v37, v36
+    v39 = zext i1 v38 to i256
+    v40 = shr v37, 64
+    v41 = or v39, v40
+    v43 = zext i1 v8 to i256
+    v44 = or v43, v41
     v45 = ne v44, 0
     jumpi v45, bb3, bb9
-  bb9:
-    mstore 64, v38 !metadata(memory=scratch)
-    mstore v37, v6
-    v13 = shl v6, 5
-    v14 = sub v0, v7
-    v15 = shr v14, 5
-    v16 = gt v6, v15
-    jumpi v16, bb1, bb4
-  bb4:
-    v17 = ne v6, 0
-    jumpi v17, bb5, bb8
-  bb5:
-    v19 = add v7, v13
+  bb9:  ; preds = bb2
+    mstore 64, v37 !metadata(memory=scratch)
+    mstore v36, v6
+    v12 = shl v6, 5
+    v13 = sub v0, v7
+    v14 = shr v13, 5
+    v15 = gt v6, v14
+    jumpi v15, bb1, bb4
+  bb4:  ; preds = bb9
+    v16 = ne v6, 0
+    jumpi v16, bb5, bb8
+  bb5:  ; preds = bb4
+    v18 = add v7, v12
     jump bb6
-  bb6:
-    v20 = phi [bb5: v7], [bb6: v24]
-    v21 = phi [bb5: 0], [bb6: v23]
-    v22 = calldataload v20
-    v23 = or v21, v22
-    v24 = add v20, 32
-    v25 = lt v24, v19
-    jumpi v25, bb6, bb7
-  bb7:
-    v26 = shr v23, 160
-    v27 = ne v26, 0
-    jumpi v27, bb1, bb8
-  bb8:
-    v34 = add v37, 32
-    calldatacopy v34, v7, v13
-    ret v37
-  bb3:
+  bb6:  ; preds = bb5, bb6
+    v19 = phi [bb5: v7], [bb6: v23]
+    v20 = phi [bb5: 0], [bb6: v22]
+    v21 = calldataload v19
+    v22 = or v20, v21
+    v23 = add v19, 32
+    v24 = lt v23, v18
+    jumpi v24, bb6, bb7
+  bb7:  ; preds = bb6
+    v25 = shr v22, 160
+    v26 = eq v25, 0
+    jumpi v26, bb8, bb1
+  bb8:  ; preds = bb4, bb7
+    v33 = add v36, 32
+    calldatacopy v33, v7, v12
+    ret v36
+  bb3 [cold]:  ; preds = bb2
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:  ; preds = bb0, bb7, bb9
     revert 0, 0
 }
 
@@ -194,55 +234,57 @@ fn @decode_calldata_type.9() -> i256 [may_return_memory] {
     v4 = sub v0, 36
     v5 = gt v1, v4
     jumpi v5, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v6 = calldataload v2
     v7 = add v2, 32
-    v8 = shr v6, 59
-    v10 = add v6, 1
-    v11 = shl v10, 5
+    v8 = gt v6, 0x7fffffffffffffe
+    v9 = add v6, 1
+    v10 = shl v9, 5
     v36 = heap_floor !metadata(alloc_ptr)
-    v37 = add v36, v11 !metadata(alloc_ptr)
-    v39 = shr v37, 64
+    v37 = add v36, v10 !metadata(alloc_ptr)
     v38 = lt v37, v36
-    v40 = zext i1 v38 to i256
-    v41 = or v40, v39
-    v43 = or v8, v41
-    v44 = ne v43, 0
-    jumpi v44, bb3, bb9
-  bb9:
+    v39 = zext i1 v38 to i256
+    v40 = shr v37, 64
+    v41 = or v39, v40
+    v43 = zext i1 v8 to i256
+    v44 = or v43, v41
+    v45 = ne v44, 0
+    jumpi v45, bb3, bb9
+  bb9:  ; preds = bb2
     mstore 64, v37 !metadata(memory=scratch)
     mstore v36, v6
-    v13 = shl v6, 5
-    v14 = sub v0, v7
-    v15 = shr v14, 5
-    v16 = gt v6, v15
-    jumpi v16, bb1, bb4
-  bb4:
-    v17 = ne v6, 0
-    jumpi v17, bb5, bb8
-  bb5:
-    v19 = add v7, v13
+    v12 = shl v6, 5
+    v13 = sub v0, v7
+    v14 = shr v13, 5
+    v15 = gt v6, v14
+    jumpi v15, bb1, bb4
+  bb4:  ; preds = bb9
+    v16 = ne v6, 0
+    jumpi v16, bb5, bb8
+  bb5:  ; preds = bb4
+    v18 = add v7, v12
     jump bb6
-  bb6:
-    v20 = phi [bb5: v7], [bb6: v24]
-    v21 = phi [bb5: 0], [bb6: v23]
-    v22 = calldataload v20
-    v23 = or v21, v22
-    v24 = add v20, 32
-    v25 = lt v24, v19
-    jumpi v25, bb6, bb7
-  bb7:
-    v26 = gt v23, 255
-    jumpi v26, bb1, bb8
-  bb8:
+  bb6:  ; preds = bb5, bb6
+    v19 = phi [bb5: v7], [bb6: v23]
+    v20 = phi [bb5: 0], [bb6: v22]
+    v21 = calldataload v19
+    v22 = or v20, v21
+    v23 = add v19, 32
+    v24 = lt v23, v18
+    jumpi v24, bb6, bb7
+  bb7:  ; preds = bb6
+    v25 = shr v22, 8
+    v26 = eq v25, 0
+    jumpi v26, bb8, bb1
+  bb8:  ; preds = bb4, bb7
     v33 = add v36, 32
-    calldatacopy v33, v7, v13
+    calldatacopy v33, v7, v12
     ret v36
-  bb3:
+  bb3 [cold]:  ; preds = bb2
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
+  bb1 [cold]:  ; preds = bb0, bb7, bb9
     revert 0, 0
 }
 
@@ -255,7 +297,7 @@ fn @encode_abi_array(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     v7 = sub v20, v3
     v8 = ne v1, 0
     jumpi v8, bb1, bb2
-  bb1:
+  bb1:  ; preds = bb0, bb1
     v9 = phi [bb0: v1], [bb1: v14]
     v10 = phi [bb0: v3], [bb1: v15]
     v11 = add v10, v7
@@ -266,39 +308,8 @@ fn @encode_abi_array(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     v15 = add v10, 32
     v16 = ne v14, 0
     jumpi v16, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0, bb1
     v17 = phi [bb0: v3], [bb1: v15]
     v18 = sub v17, arg1
     ret v18
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = calldatasize
-    v2 = lt v1, 36
-    v3 = zext i1 v2 to i256
-    v4 = or v0, v3
-    v5 = ne v4, 0
-    jumpi v5, bb1, bb2
-  bb2:
-    v6 = calldataload 0
-    v7 = shr v6, 224
-    switch v7, default bb1, [0x29dcbdaa => bb3, 0x43a4968c => bb4, 0x4a6c046c => bb5, 0x74016a59 => bb6, 0x8c175a3d => bb7, 0x945bb2ba => bb8, 0xd621b19f => bb9]
-  bb9:
-    tail_call @unalignedArray
-  bb8:
-    tail_call @clean
-  bb7:
-    tail_call @aliasedStruct
-  bb6:
-    tail_call @dirty
-  bb5:
-    tail_call @aliasedBytes
-  bb4:
-    tail_call @viaHelper
-  bb3:
-    tail_call @unalignedHelper
-  bb1:
-    revert 0, 0
 }

@@ -896,7 +896,7 @@
                 {
                   "offset": 109,
                   "operation": {
-                    "mnemonic": "LT"
+                    "mnemonic": "SHR"
                   }
                 },
                 {

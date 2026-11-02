@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/array_slice_calldata_to_memory.sol:ArraySliceCalldataToMemory ===
 @module ArraySliceCalldataToMemory
+; function copy(uint256[] calldata values, uint256 start, uint256 end) external pure returns (uint256) [selector 0x65750e30]
 fn @copy(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0x65750e30, pure, abi_params=[array<_, uint256>, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -50,6 +51,7 @@ fn @copy(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0x6575
     ret v35
 }
 
+; function first(uint256[] memory values) internal pure returns (uint256)
 fn @first(arg0: ptr<memory>) -> i256 [pure] {
   bb0:
     v0 = mload arg0
@@ -61,6 +63,7 @@ fn @first(arg0: ptr<memory>) -> i256 [pure] {
     ret v4
 }
 
+; function forward(uint256[] calldata values, uint256 start, uint256 end) external pure returns (uint256) [selector 0x4b1f0a4b]
 fn @forward(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0x4b1f0a4b, pure, abi_params=[array<_, uint256>, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -106,6 +109,7 @@ fn @forward(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0x4
     ret v31
 }
 
+; function literal(uint256[] calldata values, uint256 start, uint256 end) external pure returns (uint256) [selector 0x75a8bc6f]
 fn @literal(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0x75a8bc6f, pure, abi_params=[array<_, uint256>, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 32

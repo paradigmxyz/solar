@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/abi_dynamic_return.sol:AbiDynamicReturn ===
 @module AbiDynamicReturn
+; function bytesLiteral() public pure returns (bytes memory) [selector 0x96115be7]
 fn @bytesLiteral() -> ptr<memory> [selector=0x96115be7, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -9,6 +10,7 @@ fn @bytesLiteral() -> ptr<memory> [selector=0x96115be7, pure, abi_params=[], abi
     ret v0
 }
 
+; function stringLiteral() public pure returns (string memory) [selector 0xb5d549e9]
 fn @stringLiteral() -> ptr<memory> [selector=0xb5d549e9, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)

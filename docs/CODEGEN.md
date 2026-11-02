@@ -178,23 +178,3 @@ The stack scheduler plans against a `Target` and orders plans by
 estimates, built from the opcode table. Never write gas or byte literals in
 passes, the stack scheduler, or the backend: add a tier or query to the model
 and pin it with a unit test there.
-
-## Width tests
-
-A test that a word fits in `k` bits has two spellings, `x >> k == 0` and `x < 2^k`, and its negation
-`x >> k != 0` and `x > 2^k - 1`. A branch or check reads the shifted word without a test, so
-`ne (shr k, x), 0` costs nothing in a branch, while a boolean pays `ISZERO`s and the comparison pays
-the push of its limit. Producers never write either spelling. `FunctionBuilder::fits_in_bits`,
-`exceeds_bits`, `lt_literal`, and `gt_literal` ask `Target::shifts_bits_test` (through the
-`BitTestPricing` that `FunctionBuilder::with_bit_tests` takes) which spelling the objective and the
-use, a `ConditionUse` of a branch or a value, in a loop or not, price lower, with the push the compact-push
-pass leaves for the limit (`Target::emitted_push`). A check aborts on the exceeding sense so that
-a branch reads it as a word. Passes that read a fact off a condition recognize both spellings with
-`BitWidthTest::of`, as `merge-aborts`, `indvar-simplify`, and `byte-loops` do; a pass that matches
-only one loses the fact when a producer picks the other. The word-sequence rules in
-`isle/mir/word_sequence/comparisons.isle` propose the other spelling of a width test, and the pass
-takes it only when `Target::shifts_bits_test` prices that spelling lower for the test's use (a
-branch-only test is a branch, any other a value, never in a loop, as a later pass may hoist it).
-It is a safety net for tests that a later pass combined into a use the producer did not know;
-recipe costs, which price a wide limit as a compact recipe that a gas build does not keep, do not
-choose between the spellings.

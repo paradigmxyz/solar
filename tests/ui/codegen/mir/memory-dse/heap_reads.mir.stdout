@@ -1,17 +1,20 @@
 // === ROOT/tests/ui/codegen/mir/memory-dse/heap_reads.sol:Test ===
 @module Test
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     store_storage_bytes_literal 0, hex"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021222324252627"
     ret
 }
 
+; function load() external view returns (bytes memory) [selector 0x86d5c4be]
 fn @load() -> ptr<memory> [selector=0x86d5c4be, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = load_storage_bytes 0
     ret v0
 }
 
+; function hashes(uint256 n) external pure returns (bytes32[] memory out) [selector 0x501895ae]
 fn @hashes(arg0: i256) -> ptr<memory> [selector=0x501895ae, pure, abi_params=[uint256], abi_returns=[memory_array<word>], abi_return_params=[array<_, bytes32>]] {
   bb0:
     v0 = mul arg0, 1
@@ -32,17 +35,17 @@ fn @hashes(arg0: i256) -> ptr<memory> [selector=0x501895ae, pure, abi_params=[ui
     v12 = alloc zeroed checked v9
     mstore v12, arg0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v13 = phi [bb0: arg0], [bb3: v13]
     v14 = phi [bb0: v12], [bb3: v14]
     v15 = phi [bb0: 0], [bb3: v24]
     v16 = lt v15, v13
     jumpi v16, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v14
-  bb4:
+  bb4:  ; preds = bb1
     v17 = keccak256_packed (uint256 v15)
     v18 = mload v14
     v19 = lt v15, v18
@@ -53,13 +56,14 @@ fn @hashes(arg0: i256) -> ptr<memory> [selector=0x501895ae, pure, abi_params=[ui
     v23 = ptradd v22, 32
     mstore v23, v17
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v24 = checked_add uint256, v15, 1
     jump bb1
 }
 
+; function wrapped() external pure returns (uint256 r) [selector 0x50e70d48]
 fn @wrapped() -> i256 [selector=0x50e70d48, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     mstore 0, 7 !metadata(memory=scratch)
@@ -83,6 +87,7 @@ fn @wrapped() -> i256 [selector=0x50e70d48, pure, abi_params=[], abi_returns=[wo
     ret v13
 }
 
+; function below(uint256 scale) external pure returns (uint256 r) [selector 0x8de62f33]
 fn @below(arg0: i256) -> i256 [selector=0x8de62f33, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     mstore 0, 7 !metadata(memory=scratch)

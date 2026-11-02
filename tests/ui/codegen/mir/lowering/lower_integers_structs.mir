@@ -1,0 +1,13 @@
+//@compile-flags: -Zmir-pipeline=lower-integers
+//~? ERROR: `lower-integers` requires scalar structs; run `lower-structs` first
+// Struct fields keep their declared widths, so `lower-integers` runs after
+// `lower-structs` has removed every struct.
+@module LowerIntegersStructs
+@types
+  struct0: {i8, i256}
+
+fn @pair(arg0: i8) -> struct0 {
+  bb0:
+    v0 = insert_value struct0, undef struct0, 0, arg0
+    ret v0
+}

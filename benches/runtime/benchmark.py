@@ -331,6 +331,9 @@ class CompilerSpec:
     path: Path
     kind: str
     args: tuple[str, ...] = ("--standard-json",)
+    # Settings that replace the case's own in this compiler's Standard JSON input.
+    via_ir: bool | None = None
+    optimizer_runs: int | None = None
 
 
 def standard_json_input(test_case: TestCase) -> str:
@@ -397,6 +400,14 @@ def with_optimizer_runs(input_text: str, optimizer_runs: int | None) -> str:
     return json.dumps(payload)
 
 
+def with_via_ir(input_text: str, via_ir: bool | None) -> str:
+    if via_ir is None:
+        return input_text
+    payload = json.loads(input_text)
+    payload.setdefault("settings", {})["viaIR"] = via_ir
+    return json.dumps(payload)
+
+
 def compiler_input(
     test_case: TestCase,
     evm_version: str | None,
@@ -422,6 +433,18 @@ def compiler_input(
         timeout = 120
     input_text = with_evm_version(input_text, evm_version)
     input_text = with_optimizer_runs(input_text, optimizer_runs)
+    return input_text, timeout, hashlib.sha256(input_text.encode()).hexdigest()
+
+
+def spec_compiler_input(
+    prepared_input: tuple[str, int, str], spec: CompilerSpec
+) -> tuple[str, int, str]:
+    """Applies the spec's settings to the shared input and fingerprints the result."""
+    if spec.via_ir is None and spec.optimizer_runs is None:
+        return prepared_input
+    input_text, timeout, _ = prepared_input
+    input_text = with_optimizer_runs(input_text, spec.optimizer_runs)
+    input_text = with_via_ir(input_text, spec.via_ir)
     return input_text, timeout, hashlib.sha256(input_text.encode()).hexdigest()
 
 
@@ -1940,10 +1963,30 @@ def workload_signature(data: dict[str, Any]) -> tuple[object, ...]:
     return tuple(signature)
 
 
+def prepare_input(
+    test_case: TestCase, evm_version: str | None, optimizer_runs: int | None
+) -> tuple[str, int, str] | None:
+    if test_case.project_file is not None and not test_case.project_path.exists():
+        return None
+    return compiler_input(test_case, evm_version, optimizer_runs)
+
+
+def order_compilers(compilers: dict[str, Any]) -> dict[str, Any]:
+    """Orders compiler results solar, solar-size, solc, solc-legacy, then the rest."""
+    order = ("solar", "solar-size", "solc", "solc-legacy")
+    return dict(
+        sorted(
+            compilers.items(),
+            key=lambda item: order.index(item[0]) if item[0] in order else len(order),
+        )
+    )
+
+
 def merge_reference_compiler(
     entry: dict[str, Any],
     references: dict[tuple[str, str], dict[str, Any]],
     compiler_id: str,
+    input_fingerprint: str | None,
 ) -> bool:
     reference = references.get(result_key(entry))
     if reference is None:
@@ -1957,12 +2000,7 @@ def merge_reference_compiler(
         return False
 
     reference_fingerprint = reference_data.get("input_fingerprint")
-    current_fingerprints = {
-        data.get("input_fingerprint")
-        for data in compilers.values()
-        if isinstance(data, dict) and data.get("input_fingerprint")
-    }
-    if not reference_fingerprint or reference_fingerprint not in current_fingerprints:
+    if not reference_fingerprint or reference_fingerprint != input_fingerprint:
         return False
     if entry.get("gas_profile") != reference.get("gas_profile"):
         return False
@@ -2084,12 +2122,11 @@ def run_test_case(
         entry["project"] = test_case.project.name
         entry["source"] = test_case.source
     reference_solc = next((spec.path for spec in specs if spec.kind == "solc"), None)
-    prepared_input = (
-        None
-        if test_case.project_file is not None and not test_case.project_path.exists()
-        else compiler_input(test_case, evm_version, optimizer_runs)
-    )
+    shared_input = prepare_input(test_case, evm_version, optimizer_runs)
     for spec in specs:
+        prepared_input = (
+            None if shared_input is None else spec_compiler_input(shared_input, spec)
+        )
         verbose_log(verbose, f"[{test_case.test_id}] compiling with {spec.compiler_id}")
         compiled = compile_case(
             spec,
@@ -2286,6 +2323,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Also benchmark solc using this binary (default: disabled)",
     )
     parser.add_argument(
+        "--solc-legacy",
+        action="store_true",
+        help="Also benchmark the --solc binary with viaIR disabled (default: disabled)",
+    )
+    parser.add_argument(
         "--solx",
         help="Also benchmark solx using this binary (default: disabled)",
     )
@@ -2298,6 +2340,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         type=int,
         default=8,
         help="Oksolc worker count (default: 8, matching Solar's default)",
+    )
+    parser.add_argument(
+        "--solar-size",
+        action="store_true",
+        help="Also benchmark solar with optimizer runs forced to 1, optimizing for size "
+        "(default: disabled; conflicts with --optimizer-runs)",
     )
     parser.add_argument(
         "--solar",
@@ -2425,6 +2473,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.compile_repeats = 1
     if args.reference_results and (args.solc or args.solx):
         parser.error("--reference-results cannot be combined with --solc or --solx")
+    if args.solc_legacy and not args.solc:
+        parser.error("--solc-legacy requires --solc")
+    if args.solar_size and args.optimizer_runs is not None:
+        parser.error("--solar-size cannot be combined with --optimizer-runs")
     try:
         reference_results = (
             load_reference_results(args.reference_results)
@@ -2505,6 +2557,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.solc:
         assert solc is not None
         specs.append(CompilerSpec("solc", f"solc {solc_version}", solc, "solc"))
+    if args.solc_legacy:
+        assert solc is not None
+        specs.append(
+            CompilerSpec(
+                "solc-legacy",
+                f"solc-legacy {solc_version}",
+                solc,
+                "solc-legacy",
+                via_ir=False,
+            )
+        )
     if args.solx:
         solx = find_binary(args.solx, ["solx"])
         if solx is None:
@@ -2537,10 +2600,25 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         )
     specs.append(CompilerSpec("solar", f"solar {solar_version}", solar, "solar"))
+    if args.solar_size:
+        specs.append(
+            CompilerSpec(
+                "solar-size",
+                f"solar-size {solar_version}",
+                solar,
+                "solar",
+                optimizer_runs=1,
+            )
+        )
     reference_specs = (
         [
-            CompilerSpec(name, name, Path(name), name)
-            for name in ("solc", "solx", "oksolc")
+            CompilerSpec(name, name, Path(name), name, via_ir=via_ir)
+            for name, via_ir in (
+                ("solc", None),
+                ("solc-legacy", False),
+                ("solx", None),
+                ("oksolc", None),
+            )
             if name not in {spec.compiler_id for spec in specs}
         ]
         if args.reference_results
@@ -2693,9 +2771,21 @@ def main(argv: Sequence[str] | None = None) -> int:
                 run_case(test) if parallel_results is None else next(parallel_results)
             )
             merged_specs = []
+            shared_input = (
+                prepare_input(test, args.evm_version, args.optimizer_runs)
+                if reference_specs and "benchmark_error" not in result
+                else None
+            )
             for reference_spec in reference_specs:
                 compiler_id = reference_spec.compiler_id
-                if merge_reference_compiler(result, reference_results, compiler_id):
+                if merge_reference_compiler(
+                    result,
+                    reference_results,
+                    compiler_id,
+                    spec_compiler_input(shared_input, reference_spec)[2]
+                    if shared_input
+                    else None,
+                ):
                     merged_specs.append(reference_spec)
                     if (
                         args.artifacts is not None
@@ -2723,6 +2813,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     )
             if args.gas and merged_specs:
                 compare_runtime_results(result, (*merged_specs, *specs))
+            result["compilers"] = order_compilers(result["compilers"])
             results.append(result)
         if current_suite is not None and suite_started is not None:
             timings[current_suite] = (

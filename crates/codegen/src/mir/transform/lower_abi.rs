@@ -93,21 +93,17 @@
 //! to these argument-free wrappers, this materializes the ABI boundary before
 //! EVM codegen. Both passes must complete before the backend runs.
 
-use crate::{
-    mir::{
-        AbiEncodeMode, AbiLayout, AbiParamLayout, AbiParamLayoutRef, AbiParamLocation,
-        AbiParamType, AbiType, AbiWordValidator, AllocationSemantics, ArgIdx, BlockId,
-        CalldataTail, Callee, ConditionUse, EffectKind, FrameMode, FrameSlotKind, Function,
-        FunctionBuilder, FunctionId, InstId, InstKind, MangledSymbol, MemoryObjectLayout,
-        MirModuleTarget, MirPhase, MirType, Module, PtrLocation, RevertReason, Terminator, Value,
-        ValueId, ValueLayout,
-        analysis::{AliasAnalysis, LocationSize, MemoryBase},
-        memory::EvmMemoryLayout,
-        pass::{MirPass, ModuleAnalyses},
-        transform::{cfg_simplify::remove_unreachable_blocks, utils::expand_block},
-        typing::memory_object,
-    },
-    target::Target,
+use crate::mir::{
+    AbiEncodeMode, AbiLayout, AbiParamLayout, AbiParamLayoutRef, AbiParamLocation, AbiParamType,
+    AbiType, AbiWordValidator, AllocationSemantics, ArgIdx, BlockId, CalldataTail, Callee,
+    EffectKind, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, InstId, InstKind,
+    MangledSymbol, MemoryObjectLayout, MirPhase, MirType, Module, PtrLocation, RevertReason,
+    Terminator, Value, ValueId, ValueLayout,
+    analysis::{AliasAnalysis, HotnessAnalysis, LocationSize, MemoryBase},
+    memory::EvmMemoryLayout,
+    pass::{MirPass, ModuleAnalyses},
+    transform::{cfg_simplify::remove_unreachable_blocks, utils::expand_block},
+    typing::memory_object,
 };
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode, RevertStrings};
@@ -148,7 +144,7 @@ impl MirPass for LowerAbi {
         analyses: &mut ModuleAnalyses,
     ) -> bool {
         let gas = module.runs_objective(OptimizationMode::is_gas);
-        LowerAbiCx::new(gcx.sess.opts.revert_strings, module.target(gcx))
+        LowerAbiCx { revert_strings: gcx.sess.opts.revert_strings, ..Default::default() }
             .run(module, gcx.sess.opts.evm_version, gas)
             .unwrap_or_else(|| {
                 analyses.fail(gcx.dcx().err("`lower-abi` cannot lower this ABI shape").emit());
@@ -176,7 +172,7 @@ fn mark_abi_wrappers(module: &mut Module) -> bool {
     changed
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct LowerAbiCx {
     aggregate_type_helpers: FxHashMap<AbiParamType, FunctionId>,
     calldata_slice_helper: Option<FunctionId>,
@@ -184,8 +180,6 @@ struct LowerAbiCx {
     validated_abi_arguments: super::call_cleanup::ArgumentBits,
     /// How compiler-generated decoding reverts are encoded.
     revert_strings: RevertStrings,
-    /// The cost model for the shape of decoding checks.
-    target: Target,
 }
 
 #[derive(Clone, Copy)]
@@ -250,17 +244,6 @@ impl DecodeOptions<'_> {
 }
 
 impl LowerAbiCx {
-    fn new(revert_strings: RevertStrings, target: Target) -> Self {
-        Self {
-            aggregate_type_helpers: FxHashMap::default(),
-            calldata_slice_helper: None,
-            function_params: IndexVec::default(),
-            validated_abi_arguments: super::call_cleanup::ArgumentBits::default(),
-            revert_strings,
-            target,
-        }
-    }
-
     /// Lowers the module's ABI boundary, returning whether it changed, or `None` when the module
     /// has an ABI shape this pass cannot lower.
     fn run(
@@ -419,6 +402,8 @@ impl LowerAbiCx {
                     .unwrap_or_else(|| super::call_cleanup::argument_bits(func, id, index, facts))
             };
         let facts = super::call_cleanup::infer_arguments_with(module, argument_bits);
+        // The wrappers above changed which functions are cold.
+        HotnessAnalysis::new().run_functions(module);
         let returns = super::call_cleanup::infer_returns(module);
         for (id, func) in module.functions.iter_mut_enumerated() {
             super::call_cleanup::cleanup(
@@ -637,9 +622,7 @@ impl LowerAbiCx {
 
     /// Creates a builder for `func` that encodes revert reasons per the session's settings.
     fn builder<'a>(&self, func: &'a mut Function) -> FunctionBuilder<'a> {
-        FunctionBuilder::new(func)
-            .with_revert_strings(self.revert_strings)
-            .with_bit_tests(self.target)
+        FunctionBuilder::new(func).with_revert_strings(self.revert_strings)
     }
 
     /// Lowers every `abi_decode` in `decode_functions`, whose layouts have valid head sizes.
@@ -675,7 +658,6 @@ impl LowerAbiCx {
         for ty in repeated_types(memory_type_counts) {
             let helper = synthesize_memory_decode_helper(
                 self.revert_strings,
-                self.target,
                 module,
                 &ty,
                 &memory_type_helpers,
@@ -1342,9 +1324,9 @@ impl LowerAbiCx {
                     logical_values[index] = Some(word);
                 }
                 let Some(validator) = validator else { continue };
-                let invalid = validator.violation(&mut builder, word, ConditionUse::BRANCH);
+                let valid = validator.condition_once(&mut builder, word);
                 let next = builder.create_block();
-                builder.branch(invalid, validator_revert, next);
+                builder.branch(valid, next, validator_revert);
                 current = next;
             }
 
@@ -2059,7 +2041,8 @@ impl LowerAbiCx {
             // Report solc's checks separately: an unencodable offset belongs to the enclosing
             // tuple, struct, or array, then the head range, length, and stride checks.
             let target_end = builder.add(base, word);
-            let offset_overflow = builder.exceeds_bits(offset, 64, ConditionUse::BRANCH);
+            let max_offset = builder.imm(u64::MAX);
+            let offset_overflow = builder.gt(offset, max_offset);
             let head_out_of_range = builder.gt(target_end, input_end);
             *current = builder.revert_if(offset_overflow, offset_reason);
             *current =
@@ -2108,7 +2091,7 @@ impl LowerAbiCx {
     ) -> ValueId {
         if let Some(validator) = ty.word_validator() {
             let value = builder.load(head, location);
-            let condition = validator.condition(builder, value, ConditionUse::VALUE);
+            let condition = validator.condition(builder, value);
             *valid = builder.and(*valid, condition);
             return Self::normalize_abi_word(builder, ty, value);
         }
@@ -2194,7 +2177,8 @@ impl LowerAbiCx {
         };
         if builder.encodes_revert_reasons() {
             // solc reports an unencodable length before the stride check.
-            let too_long = builder.exceeds_bits(len, 64, ConditionUse::BRANCH);
+            let max_offset = builder.imm(u64::MAX);
+            let too_long = builder.gt(len, max_offset);
             *current = builder.revert_if(too_long, RevertReason::InvalidCalldataArrayLength);
         }
         let invalid = builder.gt(len, max_len);
@@ -2255,7 +2239,8 @@ impl LowerAbiCx {
             // if offset > input_end - base { revert(Error("struct ... too short" | "stride")) }
             //   or, for arrays and bytes,
             // if target + 32 > input_end { revert(Error("invalid calldata array offset")) }
-            let overflow = builder.exceeds_bits(offset, 64, ConditionUse::BRANCH);
+            let max_offset = builder.imm(u64::MAX);
+            let overflow = builder.gt(offset, max_offset);
             *current = builder.revert_if(overflow, offset_reason);
             // solc decodes a fixed array with dynamic elements to memory through its array
             // decoder, which checks the first word before the element head sizes.
@@ -2309,8 +2294,10 @@ impl LowerAbiCx {
         // offset > u64::MAX || base + offset + 32 > input_end
         let target = builder.add(base, offset);
         let target_end = builder.add_u64_offset(target, 32);
+        let max_offset = builder.imm(u64::MAX);
+        let overflow = builder.gt(offset, max_offset);
         let out_of_range = builder.gt(target_end, input_end);
-        builder.exceeds_bits_or(out_of_range, offset, 64, ConditionUse::BRANCH)
+        builder.or(overflow, out_of_range)
     }
 
     /// The debug message for a static aggregate whose head does not fit the input. Like solc,
@@ -2344,7 +2331,8 @@ impl LowerAbiCx {
         }
         if builder.encodes_revert_reasons() {
             builder.switch_to_block(*current);
-            let too_long = builder.exceeds_bits(len, 64, ConditionUse::BRANCH);
+            let max_offset = builder.imm(u64::MAX);
+            let too_long = builder.gt(len, max_offset);
             *current = builder.revert_if(too_long, RevertReason::InvalidCalldataArrayLength);
         }
         let reason = RevertReason::InvalidCalldataArrayStride;
@@ -2533,8 +2521,8 @@ impl LowerAbiCx {
         value: ValueId,
         validator: AbiWordValidator,
     ) {
-        let invalid = validator.violation(builder, value, ConditionUse::BRANCH);
-        builder.revert_if(invalid, RevertReason::Empty);
+        let valid = validator.condition(builder, value);
+        builder.revert_if_zero(valid, RevertReason::Empty);
     }
 
     /// Prepends `if callvalue() != 0 { revert(0, 0) }` to an external entry.
@@ -2722,16 +2710,13 @@ fn abi_param_type_depth(ty: &AbiParamType) -> usize {
 /// Adds a helper for a repeated dynamic tuple in a memory ABI decode.
 fn synthesize_memory_decode_helper(
     revert_strings: RevertStrings,
-    target: Target,
     module: &mut Module,
     ty: &AbiParamType,
     helpers: &FxHashMap<AbiParamType, FunctionId>,
 ) -> FunctionId {
     let mut function = Function::new(Ident::with_dummy_span(sym::decode_memory_type));
     {
-        let mut builder = FunctionBuilder::new(&mut function)
-            .with_revert_strings(revert_strings)
-            .with_bit_tests(target);
+        let mut builder = FunctionBuilder::new(&mut function).with_revert_strings(revert_strings);
         let head = builder.add_param(MirType::I256);
         let tuple_base = builder.add_param(MirType::I256);
         let input_end = builder.add_param(MirType::I256);

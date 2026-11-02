@@ -9,7 +9,10 @@
 
 use solar_data_structures::newtype_index;
 
-pub use solar_ir::link::{Data, DataBytes, DataId, DataRef, DataSize, ImmutableId};
+pub use solar_ir::{
+    Hotness,
+    link::{Data, DataBytes, DataId, DataRef, DataSize, ImmutableId},
+};
 
 pub mod analysis;
 pub mod immutable;
@@ -28,9 +31,6 @@ pub use abi::{
     AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, AbiParamLocation, AbiParamType,
     AbiType, AbiWordValidator,
 };
-
-mod bit_width;
-pub use bit_width::{BitTestPricing, BitWidthTest, ConditionUse};
 
 mod packed;
 pub use packed::{PackedArraySource, PackedPart, packed_element_bytes};

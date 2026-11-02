@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/mapping_slot_value.sol:MappingSlotValue ===
 @module MappingSlotValue
+; function check() external returns (uint256) [selector 0x919840ad]
 fn @check() -> i256 [selector=0x919840ad, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mapping_slot 1, 0

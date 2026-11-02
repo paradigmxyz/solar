@@ -24,9 +24,6 @@
 //! Inequality recipes use the backend's EQ/ISZERO expansion and its target cost, except
 //! that a nonzero test whose every use is a branch or a check costs nothing: `JUMPI` reads
 //! the word.
-//! A width test, `x < 2^k` or `x > 2^k - 1` and the zero test of `x >> k`, takes the spelling that
-//! `Target::shifts_bits_test` prices lower for its use, as its producers do, and not the cheaper
-//! recipe: the recipe prices a wide limit as the compact recipe that a gas build does not keep.
 //! Pure, nontrapping operations without recipes stay in place without breaking
 //! the segment; they never earn deletion credit.
 //! Mask blends wait until storage forwarding and mask simplification have run,
@@ -39,8 +36,8 @@ use super::lower_checks::is_check;
 use crate::{
     backend::evm::{op, select},
     mir::{
-        BitTestPricing, BitWidthTest, ConditionUse, EffectKind, Function, Immediate, InstId,
-        InstKind, Instruction, MirType, Module, Op, Terminator, Value, ValueId,
+        EffectKind, Function, Immediate, InstId, InstKind, Instruction, MirType, Module, Op,
+        Terminator, Value, ValueId,
         pass::{MirPass, run_function_pass},
     },
     target::{Cost, Target},
@@ -55,6 +52,17 @@ mod isle;
 mod mask_uses;
 
 const MAX_CONE: usize = 16;
+
+/// How far the pipeline has come when a run happens.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Stage {
+    /// Before the late rules apply.
+    Early,
+    /// The late rules apply, and abstract allocations remain.
+    Late,
+    /// The late rules apply, and `lower-alloc` has run.
+    LateLowered,
+}
 
 pub(crate) enum WordSequence {
     Early,
@@ -339,7 +347,23 @@ fn widest_int_operand(func: &Function, kind: &InstKind) -> Option<MirType> {
         .max_by_key(|ty| ty.integer_bits())
 }
 
+/// Whether `lower-alloc` has run: no abstract free-memory-pointer operation remains, apart from
+/// the deferred allocations it leaves for the backend.
+fn allocations_lowered(func: &Function) -> bool {
+    func.instructions().all(|inst| match func.inst(inst).kind {
+        InstKind::Fmp | InstKind::SetFmp(_) => false,
+        InstKind::Alloc { .. } => func.inst(inst).metadata.deferred_alloc(),
+        _ => true,
+    })
+}
+
 fn run(func: &mut Function, target: &Target, late: bool) -> bool {
+    // The pass adds no allocation operation, so the answer holds for the whole run.
+    let stage = match (late, late && allocations_lowered(func)) {
+        (false, _) => Stage::Early,
+        (true, false) => Stage::Late,
+        (true, true) => Stage::LateLowered,
+    };
     let mut uses = super::egraph::use_counts(func);
     let branch_only = branch_only_conditions(func, &uses);
     let mut masks = None;
@@ -366,19 +390,9 @@ fn run(func: &mut Function, target: &Target, late: bool) -> bool {
             let op = func.inst(inst).kind.op();
             let is_branch_only =
                 func.inst_result_value(inst).is_some_and(|value| branch_only.contains(&value));
-            let width = BitWidthTest::of_kind(func, &func.inst(inst).kind);
-            let read = ConditionUse { branch: is_branch_only, in_loop: false };
             let mut best = None;
-            for recipe in isle::alternatives(func, &original, &seen, &mut masks, &op, target, late)
+            for recipe in isle::alternatives(func, &original, &seen, &mut masks, &op, target, stage)
             {
-                // A width test takes the spelling the producers price, whatever the recipe's own
-                // estimate of its operands: the shift is a zero test, the comparison a limit.
-                if let Some(test) = width
-                    && let Some(shifts) = spells_shift(&recipe.root)
-                    && shifts != target.shifts_bits_test(test.bits, test.fits, read)
-                {
-                    continue;
-                }
                 if let Some((after, leaves)) = recipe.cost_and_leaves(func, target, is_branch_only)
                 {
                     let mut dead = FxHashSet::default();
@@ -469,16 +483,6 @@ fn collect_dead(
         }
         value
     });
-}
-
-/// Whether a comparison root spells a width test as the shift of the word, `eq`/`ne` against
-/// zero, or as a comparison with its limit; `None` for any other root.
-fn spells_shift(root: &Op) -> Option<bool> {
-    match root {
-        Op::Eq { .. } | Op::Ne { .. } => Some(true),
-        Op::Lt { .. } | Op::Gt { .. } => Some(false),
-        _ => None,
-    }
 }
 
 /// Values whose every use is the condition of a branch or check in their defining block, the

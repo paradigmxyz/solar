@@ -11,21 +11,22 @@
       ret v2
   }
   
+  ; selector 0x01020304
 - fn @get() -> ptr<memory> [selector=0x01020304, abi_returns=[array<1, word<uint8>>], abi_return_params=[array<1, uint8>]] {
 + fn @get() [selector=0x01020304, abi_wrapper] {
     bb0:
       v0 = icall @shifted
 -     ret v0
 +     jump bb1
-+   bb1:
++   bb1:  ; preds = bb0, bb2
 +     v1 = phi [bb0: 0], [bb2: v9]
 +     v2 = lt v1, 1
 +     jumpi v2, bb2, bb3
-+   bb3:
++   bb3:  ; preds = bb1
 +     v10 = add 128, 32
 +     v11 = sub v10, 128
 +     returndata 128, v11
-+   bb2:
++   bb2:  ; preds = bb1
 +     v3 = shl v1, 5
 +     v4 = ptradd v0, v3
 +     v5 = mload v4

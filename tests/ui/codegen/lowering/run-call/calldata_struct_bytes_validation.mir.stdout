@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/calldata_struct_bytes_validation.sol:CalldataStructBytesValidation ===
 @module CalldataStructBytesValidation
+; function copy(Value calldata value) external pure returns (uint256) [selector 0xd1ee4a1a]
 fn @copy(arg0: slice<calldata>) -> i256 [selector=0xd1ee4a1a, pure, abi_params=[tuple<bytes, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -21,26 +22,26 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0xd1ee4a1a, pure, abi_params=[
     icall revert_if<invalid_calldata_tail_offset>, v14
     v15 = calldataload v8
     v16 = calldatasize
-    v17 = shr v15, 64
-    v18 = ne v17, 0
-    icall revert_if<invalid_calldata_tail_length>, v18
-    v19 = add v8, 32
-    v20 = sub v16, v15
-    v21 = sgt v19, v20
-    icall revert_if<calldata_tail_too_short>, v21
-    v22 = inttoptr i256 v19 to ptr<calldata>
-    v23 = make_calldata_slice v22, v15
-    v24 = extract_value slice<calldata>, v23, 1
-    v25 = add v24, 63
-    v26 = lt v25, v24
-    icall panic_if<0x41>, v26
-    v27 = not 31
-    v28 = and v25, v27
-    v29 = alloc v28
-    mstore v29, v24
+    v17 = gt v15, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v17
+    v18 = add v8, 32
+    v19 = sub v16, v15
+    v20 = sgt v18, v19
+    icall revert_if<calldata_tail_too_short>, v20
+    v21 = inttoptr i256 v18 to ptr<calldata>
+    v22 = make_calldata_slice v21, v15
+    v23 = extract_value slice<calldata>, v22, 1
+    v24 = add v23, 31
+    v25 = not 31
+    v26 = and v24, v25
+    v27 = add v26, 32
+    v28 = lt v27, v23
+    icall panic_if<0x41>, v28
+    v29 = alloc v27
+    mstore v29, v23
     v30 = ptradd v29, 32
-    v31 = extract_value slice<calldata>, v23, 0
-    v32 = extract_value slice<calldata>, v23, 1
+    v31 = extract_value slice<calldata>, v22, 0
+    v32 = extract_value slice<calldata>, v22, 1
     calldatacopy v30, v31, v32
     v33 = ptrtoint ptr<memory> v29 to i256
     mstore v1, v33
@@ -61,6 +62,7 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0xd1ee4a1a, pure, abi_params=[
     ret v45
 }
 
+; function encodeField(Value calldata value) external pure returns (uint256) [selector 0xbd1dd83b]
 fn @encodeField(arg0: slice<calldata>) -> i256 [selector=0xbd1dd83b, pure, abi_params=[tuple<bytes, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -82,30 +84,30 @@ fn @encodeField(arg0: slice<calldata>) -> i256 [selector=0xbd1dd83b, pure, abi_p
     icall revert_if<invalid_calldata_tail_offset>, v14
     v15 = calldataload v8
     v16 = calldatasize
-    v17 = shr v15, 64
-    v18 = ne v17, 0
-    icall revert_if<invalid_calldata_tail_length>, v18
-    v19 = add v8, 32
-    v20 = sub v16, v15
-    v21 = sgt v19, v20
-    icall revert_if<calldata_tail_too_short>, v21
-    v22 = inttoptr i256 v19 to ptr<calldata>
-    v23 = make_calldata_slice v22, v15
-    v24 = abi_encode [calldata_bytes], object, args v23
-    v25 = mload v24
-    v26 = lt 64, v25
-    v27 = eq v26, false
-    icall panic_if<0x32>, v27
-    v28 = ptradd v24, 96
-    v29 = mload v28
-    v30 = byte 0, v29
-    v31 = shl v30, 248
-    v32 = shr v31, 248
-    v33 = trunc i256 v32 to i8
-    v34 = zext i8 v33 to i256
-    ret v34
+    v17 = gt v15, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v17
+    v18 = add v8, 32
+    v19 = sub v16, v15
+    v20 = sgt v18, v19
+    icall revert_if<calldata_tail_too_short>, v20
+    v21 = inttoptr i256 v18 to ptr<calldata>
+    v22 = make_calldata_slice v21, v15
+    v23 = abi_encode [calldata_bytes], object, args v22
+    v24 = mload v23
+    v25 = lt 64, v24
+    v26 = eq v25, false
+    icall panic_if<0x32>, v26
+    v27 = ptradd v23, 96
+    v28 = mload v27
+    v29 = byte 0, v28
+    v30 = shl v29, 248
+    v31 = shr v30, 248
+    v32 = trunc i256 v31 to i8
+    v33 = zext i8 v32 to i256
+    ret v33
 }
 
+; function encodePackedField(Value calldata value) external pure returns (uint256) [selector 0xed098724]
 fn @encodePackedField(arg0: slice<calldata>) -> i256 [selector=0xed098724, pure, abi_params=[tuple<bytes, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -127,30 +129,30 @@ fn @encodePackedField(arg0: slice<calldata>) -> i256 [selector=0xed098724, pure,
     icall revert_if<invalid_calldata_tail_offset>, v14
     v15 = calldataload v8
     v16 = calldatasize
-    v17 = shr v15, 64
-    v18 = ne v17, 0
-    icall revert_if<invalid_calldata_tail_length>, v18
-    v19 = add v8, 32
-    v20 = sub v16, v15
-    v21 = sgt v19, v20
-    icall revert_if<calldata_tail_too_short>, v21
-    v22 = inttoptr i256 v19 to ptr<calldata>
-    v23 = make_calldata_slice v22, v15
-    v24 = abi_encode_packed (bytes v23)
-    v25 = mload v24
-    v26 = lt 0, v25
-    v27 = eq v26, false
-    icall panic_if<0x32>, v27
-    v28 = ptradd v24, 32
-    v29 = mload v28
-    v30 = byte 0, v29
-    v31 = shl v30, 248
-    v32 = shr v31, 248
-    v33 = trunc i256 v32 to i8
-    v34 = zext i8 v33 to i256
-    ret v34
+    v17 = gt v15, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v17
+    v18 = add v8, 32
+    v19 = sub v16, v15
+    v20 = sgt v18, v19
+    icall revert_if<calldata_tail_too_short>, v20
+    v21 = inttoptr i256 v18 to ptr<calldata>
+    v22 = make_calldata_slice v21, v15
+    v23 = abi_encode_packed (bytes v22)
+    v24 = mload v23
+    v25 = lt 0, v24
+    v26 = eq v25, false
+    icall panic_if<0x32>, v26
+    v27 = ptradd v23, 32
+    v28 = mload v27
+    v29 = byte 0, v28
+    v30 = shl v29, 248
+    v31 = shr v30, 248
+    v32 = trunc i256 v31 to i8
+    v33 = zext i8 v32 to i256
+    ret v33
 }
 
+; function hashField(Value calldata value) external pure returns (bytes32) [selector 0xdd0f255f]
 fn @hashField(arg0: slice<calldata>) -> i256 [selector=0xdd0f255f, pure, abi_params=[tuple<bytes, uint256>], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -172,43 +174,43 @@ fn @hashField(arg0: slice<calldata>) -> i256 [selector=0xdd0f255f, pure, abi_par
     icall revert_if<invalid_calldata_tail_offset>, v14
     v15 = calldataload v8
     v16 = calldatasize
-    v17 = shr v15, 64
-    v18 = ne v17, 0
-    icall revert_if<invalid_calldata_tail_length>, v18
-    v19 = add v8, 32
-    v20 = sub v16, v15
-    v21 = sgt v19, v20
-    icall revert_if<calldata_tail_too_short>, v21
-    v22 = inttoptr i256 v19 to ptr<calldata>
-    v23 = make_calldata_slice v22, v15
-    v24 = extract_value slice<calldata>, v23, 0
-    v25 = extract_value slice<calldata>, v23, 1
-    v26 = calldatasize
-    v27 = shr v25, 64
-    v28 = ne v27, 0
-    icall revert_if<invalid_calldata_tail_length>, v28
-    v29 = sub v26, v25
-    v30 = ptrtoint ptr<calldata> v24 to i256
-    v31 = sgt v30, v29
-    icall revert_if<calldata_tail_too_short>, v31
-    v32 = extract_value slice<calldata>, v23, 1
-    v33 = add v32, 63
-    v34 = lt v33, v32
-    icall panic_if<0x41>, v34
-    v35 = not 31
-    v36 = and v33, v35
-    v37 = alloc v36
-    mstore v37, v32
-    v38 = ptradd v37, 32
-    v39 = extract_value slice<calldata>, v23, 0
-    v40 = extract_value slice<calldata>, v23, 1
-    calldatacopy v38, v39, v40
-    v41 = ptradd v37, 32
-    v42 = mload v37
-    v43 = keccak256 v41, v42
-    ret v43
+    v17 = gt v15, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v17
+    v18 = add v8, 32
+    v19 = sub v16, v15
+    v20 = sgt v18, v19
+    icall revert_if<calldata_tail_too_short>, v20
+    v21 = inttoptr i256 v18 to ptr<calldata>
+    v22 = make_calldata_slice v21, v15
+    v23 = extract_value slice<calldata>, v22, 0
+    v24 = extract_value slice<calldata>, v22, 1
+    v25 = calldatasize
+    v26 = gt v24, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v26
+    v27 = sub v25, v24
+    v28 = ptrtoint ptr<calldata> v23 to i256
+    v29 = sgt v28, v27
+    icall revert_if<calldata_tail_too_short>, v29
+    v30 = extract_value slice<calldata>, v22, 1
+    v31 = add v30, 31
+    v32 = not 31
+    v33 = and v31, v32
+    v34 = add v33, 32
+    v35 = lt v34, v30
+    icall panic_if<0x41>, v35
+    v36 = alloc v34
+    mstore v36, v30
+    v37 = ptradd v36, 32
+    v38 = extract_value slice<calldata>, v22, 0
+    v39 = extract_value slice<calldata>, v22, 1
+    calldatacopy v37, v38, v39
+    v40 = ptradd v36, 32
+    v41 = mload v36
+    v42 = keccak256 v40, v41
+    ret v42
 }
 
+; function indexField(Value calldata value) external pure returns (uint256) [selector 0xec2824a8]
 fn @indexField(arg0: slice<calldata>) -> i256 [selector=0xec2824a8, pure, abi_params=[tuple<bytes, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -230,30 +232,30 @@ fn @indexField(arg0: slice<calldata>) -> i256 [selector=0xec2824a8, pure, abi_pa
     icall revert_if<invalid_calldata_tail_offset>, v14
     v15 = calldataload v8
     v16 = calldatasize
-    v17 = shr v15, 64
-    v18 = ne v17, 0
-    icall revert_if<invalid_calldata_tail_length>, v18
-    v19 = add v8, 32
-    v20 = sub v16, v15
-    v21 = sgt v19, v20
-    icall revert_if<calldata_tail_too_short>, v21
-    v22 = inttoptr i256 v19 to ptr<calldata>
-    v23 = make_calldata_slice v22, v15
-    v24 = extract_value slice<calldata>, v23, 1
-    v25 = lt 0, v24
-    v26 = eq v25, false
-    icall panic_if<0x32>, v26
-    v27 = extract_value slice<calldata>, v23, 0
-    v28 = extract_value slice<calldata>, v23, 0
-    v29 = calldataload v28
-    v30 = byte 0, v29
-    v31 = shl v30, 248
-    v32 = shr v31, 248
-    v33 = trunc i256 v32 to i8
-    v34 = zext i8 v33 to i256
-    ret v34
+    v17 = gt v15, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v17
+    v18 = add v8, 32
+    v19 = sub v16, v15
+    v20 = sgt v18, v19
+    icall revert_if<calldata_tail_too_short>, v20
+    v21 = inttoptr i256 v18 to ptr<calldata>
+    v22 = make_calldata_slice v21, v15
+    v23 = extract_value slice<calldata>, v22, 1
+    v24 = lt 0, v23
+    v25 = eq v24, false
+    icall panic_if<0x32>, v25
+    v26 = extract_value slice<calldata>, v22, 0
+    v27 = extract_value slice<calldata>, v22, 0
+    v28 = calldataload v27
+    v29 = byte 0, v28
+    v30 = shl v29, 248
+    v31 = shr v30, 248
+    v32 = trunc i256 v31 to i8
+    v33 = zext i8 v32 to i256
+    ret v33
 }
 
+; function fixedField(Value calldata value) external pure returns (uint256) [selector 0x4d20e66c]
 fn @fixedField(arg0: slice<calldata>) -> i256 [selector=0x4d20e66c, pure, abi_params=[tuple<bytes, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -275,30 +277,30 @@ fn @fixedField(arg0: slice<calldata>) -> i256 [selector=0x4d20e66c, pure, abi_pa
     icall revert_if<invalid_calldata_tail_offset>, v14
     v15 = calldataload v8
     v16 = calldatasize
-    v17 = shr v15, 64
-    v18 = ne v17, 0
-    icall revert_if<invalid_calldata_tail_length>, v18
-    v19 = add v8, 32
-    v20 = sub v16, v15
-    v21 = sgt v19, v20
-    icall revert_if<calldata_tail_too_short>, v21
-    v22 = inttoptr i256 v19 to ptr<calldata>
-    v23 = make_calldata_slice v22, v15
-    v24 = extract_value slice<calldata>, v23, 0
-    v25 = calldataload v24
-    v26 = extract_value slice<calldata>, v23, 1
-    v27 = lt v26, 1
-    v28 = sub 1, v26
-    v29 = mul 8, v28
-    v30 = shl 0xff00000000000000000000000000000000000000000000000000000000000000, v29
-    v31 = select v27, v30, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v32 = and v25, v31
-    v33 = shr v32, 248
-    v34 = trunc i256 v33 to i8
-    v35 = zext i8 v34 to i256
-    ret v35
+    v17 = gt v15, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v17
+    v18 = add v8, 32
+    v19 = sub v16, v15
+    v20 = sgt v18, v19
+    icall revert_if<calldata_tail_too_short>, v20
+    v21 = inttoptr i256 v18 to ptr<calldata>
+    v22 = make_calldata_slice v21, v15
+    v23 = extract_value slice<calldata>, v22, 0
+    v24 = calldataload v23
+    v25 = extract_value slice<calldata>, v22, 1
+    v26 = lt v25, 1
+    v27 = sub 1, v25
+    v28 = mul 8, v27
+    v29 = shl 0xff00000000000000000000000000000000000000000000000000000000000000, v28
+    v30 = select v26, v29, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v31 = and v24, v30
+    v32 = shr v31, 248
+    v33 = trunc i256 v32 to i8
+    v34 = zext i8 v33 to i256
+    ret v34
 }
 
+; function copyField(Value calldata value) external pure returns (uint256) [selector 0xda205eee]
 fn @copyField(arg0: slice<calldata>) -> i256 [selector=0xda205eee, pure, abi_params=[tuple<bytes, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
@@ -320,41 +322,41 @@ fn @copyField(arg0: slice<calldata>) -> i256 [selector=0xda205eee, pure, abi_par
     icall revert_if<invalid_calldata_tail_offset>, v14
     v15 = calldataload v8
     v16 = calldatasize
-    v17 = shr v15, 64
-    v18 = ne v17, 0
-    icall revert_if<invalid_calldata_tail_length>, v18
-    v19 = add v8, 32
-    v20 = sub v16, v15
-    v21 = sgt v19, v20
-    icall revert_if<calldata_tail_too_short>, v21
-    v22 = inttoptr i256 v19 to ptr<calldata>
-    v23 = make_calldata_slice v22, v15
-    v24 = extract_value slice<calldata>, v23, 0
-    v25 = extract_value slice<calldata>, v23, 1
-    v26 = calldatasize
-    v27 = shr v25, 64
-    v28 = ne v27, 0
-    icall revert_if<invalid_calldata_tail_length>, v28
-    v29 = sub v26, v25
-    v30 = ptrtoint ptr<calldata> v24 to i256
-    v31 = sgt v30, v29
-    icall revert_if<calldata_tail_too_short>, v31
-    v32 = extract_value slice<calldata>, v23, 1
-    v33 = add v32, 63
-    v34 = lt v33, v32
-    icall panic_if<0x41>, v34
-    v35 = not 31
-    v36 = and v33, v35
-    v37 = alloc v36
-    mstore v37, v32
-    v38 = ptradd v37, 32
-    v39 = extract_value slice<calldata>, v23, 0
-    v40 = extract_value slice<calldata>, v23, 1
-    calldatacopy v38, v39, v40
-    v41 = mload v37
-    ret v41
+    v17 = gt v15, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v17
+    v18 = add v8, 32
+    v19 = sub v16, v15
+    v20 = sgt v18, v19
+    icall revert_if<calldata_tail_too_short>, v20
+    v21 = inttoptr i256 v18 to ptr<calldata>
+    v22 = make_calldata_slice v21, v15
+    v23 = extract_value slice<calldata>, v22, 0
+    v24 = extract_value slice<calldata>, v22, 1
+    v25 = calldatasize
+    v26 = gt v24, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v26
+    v27 = sub v25, v24
+    v28 = ptrtoint ptr<calldata> v23 to i256
+    v29 = sgt v28, v27
+    icall revert_if<calldata_tail_too_short>, v29
+    v30 = extract_value slice<calldata>, v22, 1
+    v31 = add v30, 31
+    v32 = not 31
+    v33 = and v31, v32
+    v34 = add v33, 32
+    v35 = lt v34, v30
+    icall panic_if<0x41>, v35
+    v36 = alloc v34
+    mstore v36, v30
+    v37 = ptradd v36, 32
+    v38 = extract_value slice<calldata>, v22, 0
+    v39 = extract_value slice<calldata>, v22, 1
+    calldatacopy v37, v38, v39
+    v40 = mload v36
+    ret v40
 }
 
+; function copyWords(uint256[] calldata values) external pure returns (uint256) [selector 0x7ce58428]
 fn @copyWords(arg0: slice<calldata>) -> i256 [selector=0x7ce58428, pure, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -393,28 +395,31 @@ fn @copyWords(arg0: slice<calldata>) -> i256 [selector=0x7ce58428, pure, abi_par
     ret v25
 }
 
+; function emitBytes(bytes calldata value) external returns (uint256) [selector 0xc76f0635]
 fn @emitBytes(arg0: slice<calldata>) -> i256 [selector=0xc76f0635, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
-    v1 = add v0, 63
-    v2 = lt v1, v0
-    icall panic_if<0x41>, v2
-    v3 = not 31
-    v4 = and v1, v3
-    v5 = alloc v4
-    mstore v5, v0
-    v6 = ptradd v5, 32
-    v7 = extract_value slice<calldata>, arg0, 0
-    v8 = extract_value slice<calldata>, arg0, 1
-    calldatacopy v6, v7, v8
-    v9 = ptradd v5, 32
-    v10 = mload v5
-    v11 = keccak256 v9, v10
-    log 0, 0, 0xd041a90a782b3fec69d4503721a6038db2dcbe112604e4a2d9352b8d82fde3f3, v11
-    v12 = extract_value slice<calldata>, arg0, 1
-    ret v12
+    v1 = add v0, 31
+    v2 = not 31
+    v3 = and v1, v2
+    v4 = add v3, 32
+    v5 = lt v4, v0
+    icall panic_if<0x41>, v5
+    v6 = alloc v4
+    mstore v6, v0
+    v7 = ptradd v6, 32
+    v8 = extract_value slice<calldata>, arg0, 0
+    v9 = extract_value slice<calldata>, arg0, 1
+    calldatacopy v7, v8, v9
+    v10 = ptradd v6, 32
+    v11 = mload v6
+    v12 = keccak256 v10, v11
+    log 0, 0, 0xd041a90a782b3fec69d4503721a6038db2dcbe112604e4a2d9352b8d82fde3f3, v12
+    v13 = extract_value slice<calldata>, arg0, 1
+    ret v13
 }
 
+; function copyArray(bytes[] calldata values) external pure returns (uint256) [selector 0x58bdfbf3]
 fn @copyArray(arg0: slice<calldata>) -> i256 [selector=0x58bdfbf3, pure, abi_params=[array<_, bytes>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -438,11 +443,11 @@ fn @copyArray(arg0: slice<calldata>) -> i256 [selector=0x58bdfbf3, pure, abi_par
     v14 = alloc v12
     mstore v14, v0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v15 = phi [bb0: 0], [bb2: v54]
     v16 = lt v15, v0
     jumpi v16, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v55 = mload v14
     v56 = lt 0, v55
     v57 = eq v56, false
@@ -451,7 +456,7 @@ fn @copyArray(arg0: slice<calldata>) -> i256 [selector=0x58bdfbf3, pure, abi_par
     v59 = mload v58, ptr<memory>
     v60 = mload v59
     ret v60
-  bb2:
+  bb2:  ; preds = bb1
     v17 = mul v15, 32
     v18 = ptrtoint ptr<calldata> v1 to i256
     v19 = add v18, v17
@@ -471,26 +476,26 @@ fn @copyArray(arg0: slice<calldata>) -> i256 [selector=0x58bdfbf3, pure, abi_par
     icall revert_if<invalid_calldata_tail_offset>, v31
     v32 = calldataload v25
     v33 = calldatasize
-    v34 = shr v32, 64
-    v35 = ne v34, 0
-    icall revert_if<invalid_calldata_tail_length>, v35
-    v36 = add v25, 32
-    v37 = sub v33, v32
-    v38 = sgt v36, v37
-    icall revert_if<calldata_tail_too_short>, v38
-    v39 = inttoptr i256 v36 to ptr<calldata>
-    v40 = make_calldata_slice v39, v32
-    v41 = extract_value slice<calldata>, v40, 1
-    v42 = add v41, 63
-    v43 = lt v42, v41
-    icall panic_if<0x41>, v43
-    v44 = not 31
-    v45 = and v42, v44
-    v46 = alloc v45
-    mstore v46, v41
+    v34 = gt v32, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v34
+    v35 = add v25, 32
+    v36 = sub v33, v32
+    v37 = sgt v35, v36
+    icall revert_if<calldata_tail_too_short>, v37
+    v38 = inttoptr i256 v35 to ptr<calldata>
+    v39 = make_calldata_slice v38, v32
+    v40 = extract_value slice<calldata>, v39, 1
+    v41 = add v40, 31
+    v42 = not 31
+    v43 = and v41, v42
+    v44 = add v43, 32
+    v45 = lt v44, v40
+    icall panic_if<0x41>, v45
+    v46 = alloc v44
+    mstore v46, v40
     v47 = ptradd v46, 32
-    v48 = extract_value slice<calldata>, v40, 0
-    v49 = extract_value slice<calldata>, v40, 1
+    v48 = extract_value slice<calldata>, v39, 0
+    v49 = extract_value slice<calldata>, v39, 1
     calldatacopy v47, v48, v49
     v50 = ptrtoint ptr<memory> v46 to i256
     v51 = shl v15, 5

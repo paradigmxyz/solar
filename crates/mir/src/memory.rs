@@ -7,12 +7,6 @@
 /// The selected physical EVM memory layout.
 pub struct EvmMemoryLayout;
 
-const _: () = assert!(
-    EvmMemoryLayout::MAX_ALLOCATION_END
-        == u64::MAX >> EvmMemoryLayout::MAX_ALLOCATION_END.leading_zeros(),
-    "the allocation limit must be `2^k - 1`"
-);
-
 impl EvmMemoryLayout {
     /// EVM word size in bytes.
     pub const WORD_SIZE: u64 = 32;
@@ -34,9 +28,10 @@ impl EvmMemoryLayout {
     pub const INTERNAL_FRAME_HEADER_SIZE: u64 = 2 * Self::WORD_SIZE;
     /// Maximum memory pointer accepted by Solidity-compatible allocation.
     pub const MAX_ALLOCATION_END: u64 = u64::MAX;
-    /// The width of [`Self::MAX_ALLOCATION_END`], which is `2^k - 1`: an allocation end passes the
-    /// limit exactly when it has a bit at or above this width.
-    pub const MAX_ALLOCATION_END_BITS: u32 = Self::MAX_ALLOCATION_END.count_ones();
+    /// Largest zero fill of untouched memory that may be dropped. Expanding memory to four times
+    /// this size costs about 34 million gas, so a larger fill is what makes an allocation of that
+    /// size run out of gas, and it stays.
+    pub const MAX_DEAD_FILL: u64 = 1 << 20;
     /// Returns the word a word-aligned byte offset addresses.
     #[must_use]
     pub const fn word_slot(offset: u64) -> Option<u64> {

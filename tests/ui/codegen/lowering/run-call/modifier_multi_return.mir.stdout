@@ -1,21 +1,22 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_multi_return.sol:ModifierMultiReturn ===
 @module ModifierMultiReturn
+; function f(bool twice) external pure repeat(twice) returns (uint256 r) [selector 0x98c3a6c1]
 fn @f(arg0: i1) -> i256 [selector=0x98c3a6c1, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jumpi arg0, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb0
     jump bb4
-  bb2:
+  bb2:  ; preds = bb0
     v0 = checked_add uint256, 0, 1
     jump bb5
-  bb5:
+  bb5:  ; preds = bb2
     jump bb4
-  bb4:
+  bb4:  ; preds = bb5, bb3
     v1 = phi [bb5: v0], [bb3: 0]
     v2 = checked_add uint256, 0, 1
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb1
-  bb1:
+  bb1:  ; preds = bb6
     ret v2
 }

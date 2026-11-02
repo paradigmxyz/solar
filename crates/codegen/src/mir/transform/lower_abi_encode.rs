@@ -80,15 +80,17 @@
 //! `encode_abi_array` helper, built inner layouts first. Calldata arrays of composite elements,
 //! fixed arrays of dynamic elements, and structs with dynamic members share an
 //! `encode_abi_calldata` helper when the cost model ranks a call below the expansions, which
-//! covers a layout nested in several larger ones as well as one encoded at several sites. Functions
-//! reachable from a constructor always encode inline: a constructor call frame is
-//! allocated at the free-memory pointer, where an outlined encoder would still
-//! be writing its unreserved output.
+//! covers a layout nested in several larger ones as well as one encoded at several sites. A tuple
+//! shape that only cold blocks encode, and a calldata layout that no hot block and no hot layout
+//! encodes, are priced like a size build ([`Target::priced_for_cold`]): the helper's gas runs
+//! only on a failing call. Functions reachable from a constructor always encode inline: a
+//! constructor call frame is allocated at the free-memory pointer, where an outlined encoder
+//! would still be writing its unreserved output.
 
 use crate::{
     mir::{
-        AbiEncodeMode, AbiLayout, AbiType, AbiWordValidator, BlockId, CalldataTail, ConditionUse,
-        EffectKind, Function, FunctionBuilder, FunctionId, InstId, InstKind, MemoryObjectLayout,
+        AbiEncodeMode, AbiLayout, AbiType, AbiWordValidator, BlockId, CalldataTail, EffectKind,
+        Function, FunctionBuilder, FunctionId, InstId, InstKind, MemoryObjectLayout,
         MirModuleTarget, MirType, Module, PtrLocation, RevertReason, Terminator, Value, ValueId,
         memory::EvmMemoryLayout,
         pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
@@ -237,7 +239,8 @@ fn synthesize_tuple_helpers(
     revert_strings: RevertStrings,
     zero_copy_returns: &IndexVec<FunctionId, FxHashMap<InstId, ZeroCopyReturn>>,
 ) {
-    let mut counts = FxHashMap::<TupleHelperKey, (usize, usize)>::default();
+    // Per shape: its sites, the order of its first site, and whether any site is hot.
+    let mut counts = FxHashMap::<TupleHelperKey, (usize, usize, bool)>::default();
     for (func_id, func) in module.functions.iter_enumerated() {
         for block in func.blocks.iter() {
             for &inst in &block.instructions {
@@ -253,25 +256,27 @@ fn synthesize_tuple_helpers(
                 let next = counts.len();
                 let count = counts
                     .entry(TupleHelperKey::of(func, *mode, *selector, args, layout))
-                    .or_insert((0, next));
+                    .or_insert((0, next, false));
                 count.0 += 1;
+                count.2 |= !block.hotness.is_cold();
             }
         }
     }
     let mut keys = counts
         .into_iter()
-        .filter(|(_, (count, _))| *count >= 2)
-        .map(|(key, (count, first))| (first, count, key))
+        .filter(|(_, (count, _, _))| *count >= 2)
+        .map(|(key, (count, first, hot))| (first, count, key, hot))
         .collect::<Vec<_>>();
-    keys.sort_by_key(|(first, _, _)| *first);
+    keys.sort_by_key(|(first, _, _, _)| *first);
 
     let mut shared = Vec::new();
-    for (_, sites, key) in keys {
+    for (_, sites, key, hot) in keys {
+        // A shape that only cold sites encode is priced like a size build.
+        let target = target.priced_for_cold(!hot);
         let mut function = Function::new(Ident::with_dummy_span(sym::encode_abi_tuple));
         {
-            let mut builder = FunctionBuilder::new(&mut function)
-                .with_revert_strings(revert_strings)
-                .with_bit_tests(*target);
+            let mut builder =
+                FunctionBuilder::new(&mut function).with_revert_strings(revert_strings);
             let args = key.arg_types.iter().map(|ty| builder.add_param(*ty)).collect::<Vec<_>>();
             let selector = key.selector.then(|| builder.add_param(MirType::I256));
             let layout = AbiLayout::new(key.types.clone());
@@ -375,9 +380,8 @@ fn synthesize_array_helpers(
     for (_, key) in keys {
         let mut function = Function::new(Ident::with_dummy_span(sym::encode_abi_array));
         {
-            let mut builder = FunctionBuilder::new(&mut function)
-                .with_revert_strings(revert_strings)
-                .with_bit_tests(*target);
+            let mut builder =
+                FunctionBuilder::new(&mut function).with_revert_strings(revert_strings);
             let value = builder.add_param(key.value_ty);
             // Keep the destination's heap provenance inside the helper. Return its
             // length so the caller derives the tail from its own destination.
@@ -421,14 +425,22 @@ fn synthesize_calldata_helpers(
     // sites encoding each.
     let mut layouts = Vec::new();
     let mut sites = FxHashMap::<AbiType, usize>::default();
+    let mut hot = FxHashSet::<AbiType>::default();
     for func in module.functions.iter() {
-        for inst in func.instructions() {
-            let InstKind::AbiEncode { args, layout, .. } = &func.inst(inst).kind else { continue };
-            for (&arg, ty) in args.iter().zip(&layout.types) {
-                if is_calldata_slice(func, arg) && is_calldata_helper_layout(ty) {
-                    let ty = ty.clone().at_location(PtrLocation::Calldata);
-                    collect(&ty, &mut layouts);
-                    *sites.entry(ty).or_default() += 1;
+        for block in func.blocks.iter() {
+            for &inst in &block.instructions {
+                let InstKind::AbiEncode { args, layout, .. } = &func.inst(inst).kind else {
+                    continue;
+                };
+                for (&arg, ty) in args.iter().zip(&layout.types) {
+                    if is_calldata_slice(func, arg) && is_calldata_helper_layout(ty) {
+                        let ty = ty.clone().at_location(PtrLocation::Calldata);
+                        collect(&ty, &mut layouts);
+                        if !block.hotness.is_cold() {
+                            hot.insert(ty.clone());
+                        }
+                        *sites.entry(ty).or_default() += 1;
+                    }
                 }
             }
         }
@@ -439,6 +451,12 @@ fn synthesize_calldata_helpers(
     let mut shared = Vec::new();
     for layout in layouts {
         let expansions = sites.get(&layout).copied().unwrap_or(0);
+        // A layout that no hot site or hot layout encodes is priced like a size build.
+        let is_hot = hot.contains(&layout);
+        if is_hot {
+            hot.extend(calldata_children(&layout).cloned());
+        }
+        let target = target.priced_for_cold(!is_hot);
         if expansions >= 2 {
             let function = calldata_helper(&layout, revert_strings, helpers);
             let body_bytes = target.code_estimate(&function).bytes;
@@ -475,9 +493,7 @@ fn calldata_helper(
 ) -> Function {
     let mut function = Function::new(Ident::with_dummy_span(sym::encode_abi_calldata));
     {
-        let mut builder = FunctionBuilder::new(&mut function)
-            .with_revert_strings(revert_strings)
-            .with_bit_tests(helpers.target);
+        let mut builder = FunctionBuilder::new(&mut function).with_revert_strings(revert_strings);
         let value = builder.add_param(MirType::Slice(PtrLocation::Calldata));
         let dest = builder.add_param(MirType::MEMPTR);
         let dest = builder.cast(dest, MirType::I256);
@@ -597,9 +613,7 @@ fn lower_function(
             continue;
         }
         let terminal = ends_function(func.blocks[block].terminator.as_ref());
-        let mut builder = FunctionBuilder::new(func)
-            .with_revert_strings(revert_strings)
-            .with_bit_tests(helpers.target);
+        let mut builder = FunctionBuilder::new(func).with_revert_strings(revert_strings);
         expand_block(&mut builder, block, |builder, inst| {
             let InstKind::AbiEncode { mode, selector, args, layout } =
                 &builder.func().inst(inst).kind
@@ -1278,7 +1292,7 @@ fn encode_static_slice(
                 function.cleanup(builder, value)
             } else {
                 if validate {
-                    validate_calldata_word(builder, function, value, ConditionUse::BRANCH);
+                    validate_calldata_word(builder, function, value);
                 }
                 value
             };
@@ -1292,7 +1306,7 @@ fn encode_static_slice(
                 }
                 Some(cleanup) => {
                     if validate {
-                        validate_calldata_word(builder, *cleanup, value, ConditionUse::BRANCH);
+                        validate_calldata_word(builder, *cleanup, value);
                     }
                     value
                 }
@@ -1311,11 +1325,10 @@ fn validate_calldata_word(
     builder: &mut FunctionBuilder<'_>,
     validator: AbiWordValidator,
     word: ValueId,
-    read: ConditionUse,
 ) {
-    // if invalid(word) { revert(0, 0) }
-    let invalid = validator.violation(builder, word, read);
-    builder.revert_if(invalid, RevertReason::Empty);
+    // if !valid(word) { revert(0, 0) }
+    let valid = validator.condition(builder, word);
+    builder.revert_if_zero(valid, RevertReason::Empty);
 }
 
 /// Canonicalizes a word read from memory before it is encoded: narrow values are masked or
@@ -1597,7 +1610,7 @@ fn encode_calldata_element(
             let offset = builder.mul(index, word);
             let position = builder.add(words, offset);
             let value = builder.load(position, PtrLocation::Calldata);
-            validate_calldata_word(builder, *validator, value, ConditionUse::BRANCH.in_loop());
+            validate_calldata_word(builder, *validator, value);
         });
     }
     encode_value(builder, ty, value, dest, AbiValueSource::Scalar, helpers)
@@ -1854,10 +1867,7 @@ fn encode_bytes(
         _ => builder.slice_len(value),
     };
     let word = builder.imm(32);
-    let thirty_one = builder.imm(31);
-    let mask = builder.not(thirty_one);
-    let rounded = builder.add(len, thirty_one);
-    let padded = builder.and(rounded, mask);
+    let padded = builder.pad_to_word(len);
     let data_dest = builder.add(dest, word);
 
     // last = dest + padded

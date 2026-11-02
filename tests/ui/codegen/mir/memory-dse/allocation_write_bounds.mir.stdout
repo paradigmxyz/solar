@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/memory-dse/allocation_write_bounds.sol:AllocationWriteBounds ===
 @module AllocationWriteBounds
+; function overwrite(uint256 x) external pure returns (uint256) [selector 0x9dc8c3ab]
 fn @overwrite(arg0: i256) -> i256 [selector=0x9dc8c3ab, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 32 !metadata(preserves_fmp)

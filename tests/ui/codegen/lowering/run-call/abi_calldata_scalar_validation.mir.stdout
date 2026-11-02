@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_scalar_validation.sol:AbiCalldataScalarValidation ===
 @module AbiCalldataScalarValidation
+; function encode(uint8[] calldata values) external pure returns (uint256) [selector 0x1597ee44]
 fn @encode(arg0: slice<calldata>) -> i256 [selector=0x1597ee44, pure, abi_params=[array<_, uint8>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode [calldata_array<word<uint8>>], object, args arg0
@@ -7,6 +8,7 @@ fn @encode(arg0: slice<calldata>) -> i256 [selector=0x1597ee44, pure, abi_params
     ret v1
 }
 
+; function read(uint8[] calldata values) external pure returns (uint256) [selector 0xfbb1e83c]
 fn @read(arg0: slice<calldata>) -> i256 [selector=0xfbb1e83c, pure, abi_params=[array<_, uint8>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
@@ -17,8 +19,10 @@ fn @read(arg0: slice<calldata>) -> i256 [selector=0xfbb1e83c, pure, abi_params=[
     v4 = ptrtoint ptr<calldata> v3 to i256
     v5 = add v4, 0
     v6 = calldataload v5
-    v7 = gt v6, 255
-    icall revert_if<empty>, v7
-    v8 = trunc i256 v6 to i8
+    v7 = shr v6, 8
+    v8 = eq v7, 0
+    v9 = eq v8, false
+    icall revert_if<empty>, v9
+    v10 = trunc i256 v6 to i8
     ret 1
 }

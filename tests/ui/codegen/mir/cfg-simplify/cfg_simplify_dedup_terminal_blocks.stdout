@@ -9,37 +9,38 @@
     bb0:
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       v1 = ne arg1, 0
 -     jumpi v1, bb3, bb4
--   bb4:
--     stop
+-   bb4:  ; preds = bb2
 +     jumpi v1, bb1, bb3
-    bb3:
--     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
--     mstore 4, 17
--     revert 0, 36
-+     stop
-    bb1:
++   bb3:  ; preds = bb2
+      stop
+-   bb3 [cold]:  ; preds = bb2
++   bb1 [cold]:  ; preds = bb0, bb2
       mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
       mstore 4, 17
       revert 0, 36
+-   bb1 [cold]:  ; preds = bb0
+-     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+-     mstore 4, 17
+-     revert 0, 36
   }
   
   fn @keep_distinct_panic_codes(arg0: i256, arg1: i256) {
     bb0:
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       v1 = ne arg1, 0
       jumpi v1, bb3, bb4
-    bb4:
+    bb4:  ; preds = bb2
       stop
-    bb3:
+    bb3 [cold]:  ; preds = bb2
       mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
       mstore 4, 18
       revert 0, 36
-    bb1:
+    bb1 [cold]:  ; preds = bb0
       mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
       mstore 4, 17
       revert 0, 36
@@ -49,16 +50,16 @@
     bb0:
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       v1 = ne arg1, 0
       jumpi v1, bb3, bb4
-    bb4:
+    bb4:  ; preds = bb2
       stop
-    bb3:
+    bb3 [cold]:  ; preds = bb2
       mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
       mstore 4, 17
       revert 0, 32
-    bb1:
+    bb1 [cold]:  ; preds = bb0
       mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
       mstore 4, 17
       revert 0, 36
@@ -68,18 +69,19 @@
     bb0:
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       v2 = ne arg1, 0
 -     jumpi v2, bb3, bb4
--   bb4:
--     stop
+-   bb4:  ; preds = bb2
 +     jumpi v2, bb1, bb3
-    bb3:
++   bb3:  ; preds = bb2
+      stop
+-   bb3 [cold]:  ; preds = bb2
 -     v3 = add arg0, 1
 -     mstore 0, v3
 -     revert 0, 32
-+     stop
-    bb1:
+-   bb1 [cold]:  ; preds = bb0
++   bb1 [cold]:  ; preds = bb0, bb2
       v1 = add arg0, 1
       mstore 0, v1
       revert 0, 32
@@ -89,15 +91,15 @@
     bb0:
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       v1 = ne arg1, 0
       jumpi v1, bb3, bb4
-    bb4:
+    bb4:  ; preds = bb2
       stop
-    bb3:
+    bb3 [cold]:  ; preds = bb2
       mstore 0, arg1
       revert 0, 32
-    bb1:
+    bb1 [cold]:  ; preds = bb0
       mstore 0, arg0
       revert 0, 32
   }
@@ -106,17 +108,17 @@
     bb0:
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       v2 = ne arg1, 0
       jumpi v2, bb3, bb4
-    bb4:
+    bb4:  ; preds = bb2
       stop
-    bb3:
+    bb3 [cold]:  ; preds = bb2
       v3 = ptradd arg2, 32
       v4 = mload v3
       mstore 0, v4
       revert 0, 32
-    bb1:
+    bb1 [cold]:  ; preds = bb0
       v1 = mload arg2
       mstore 0, v1
       revert 0, 32
@@ -125,10 +127,10 @@
   fn @keep_distinct_packed_literals(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       v1 = keccak256_packed (data hex"62")
       ret v1
-    bb1:
+    bb1:  ; preds = bb0
       v0 = keccak256_packed (data hex"61")
       ret v0
   }
@@ -136,10 +138,10 @@
   fn @keep_distinct_enum_bounds(arg0: i1, arg1: i256) -> ptr<memory> {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       v1 = load_storage_array enum<3>, arg1
       ret v1
-    bb1:
+    bb1:  ; preds = bb0
       v0 = load_storage_array enum<2>, arg1
       ret v0
   }
@@ -147,10 +149,10 @@
   fn @merge_equal_packed_literals(arg0: i1) -> i256 {
     bb0:
 -     jumpi arg0, bb1, bb2
--   bb2:
+-   bb2:  ; preds = bb0
 -     v1 = keccak256_packed (data hex"61")
 -     ret v1
--   bb1:
+-   bb1:  ; preds = bb0
       v0 = keccak256_packed (data hex"61")
       ret v0
   }
@@ -158,10 +160,10 @@
   fn @keep_distinct_storage_literals(arg0: i1, arg1: i256) {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       store_storage_bytes_literal arg1, hex"62"
       ret
-    bb1:
+    bb1:  ; preds = bb0
       store_storage_bytes_literal arg1, hex"61"
       ret
   }
@@ -169,10 +171,10 @@
   fn @keep_distinct_libraries(arg0: i1) -> i160 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       v1 = library_address L_1
       ret v1
-    bb1:
+    bb1:  ; preds = bb0
       v0 = library_address L_0
       ret v0
   }
@@ -180,10 +182,10 @@
   fn @merge_equal_allocations(arg0: i1) -> ptr<memory> {
     bb0:
 -     jumpi arg0, bb1, bb2
--   bb2:
+-   bb2:  ; preds = bb0
 -     v1 = alloc zeroed checked 64
 -     ret v1
--   bb1:
+-   bb1:  ; preds = bb0
       v0 = alloc zeroed checked 64
       ret v0
   }

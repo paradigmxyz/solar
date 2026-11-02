@@ -3,7 +3,7 @@
 @data
   ConstructorSuccessPostlude_runtime_code_0: hex"5f5ffd"
 
-bb0:
+bb0:  ; constructor(bool fail) [creation entry]
   push_data ConstructorSuccessPostlude_runtime_code_0+3
   codesize
   sub
@@ -36,7 +36,7 @@ bb0:
   jumpi
   mload
   push 1
-  lt
+  shr
   push 192
   mload
   or

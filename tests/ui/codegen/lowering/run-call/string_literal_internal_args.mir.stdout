@@ -8,6 +8,7 @@
 
 // === ROOT/tests/ui/codegen/lowering/run-call/string_literal_internal_args.sol:StringLiteralInternalArgs ===
 @module StringLiteralInternalArgs
+; function libLiteral() external pure returns (uint256) [selector 0x71bacd94]
 fn @libLiteral() -> i256 [selector=0x71bacd94, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -18,6 +19,7 @@ fn @libLiteral() -> i256 [selector=0x71bacd94, pure, abi_params=[], abi_returns=
     ret v2
 }
 
+; function libConstant() external pure returns (uint256) [selector 0x4f548a6c]
 fn @libConstant() -> i256 [selector=0x4f548a6c, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -28,6 +30,7 @@ fn @libConstant() -> i256 [selector=0x4f548a6c, pure, abi_params=[], abi_returns
     ret v2
 }
 
+; function libHex() external pure returns (uint256) [selector 0xed6b01e9]
 fn @libHex() -> i256 [selector=0xed6b01e9, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -38,6 +41,7 @@ fn @libHex() -> i256 [selector=0xed6b01e9, pure, abi_params=[], abi_returns=[wor
     ret v2
 }
 
+; function libLong() external pure returns (uint256) [selector 0x7a8edc4e]
 fn @libLong() -> i256 [selector=0x7a8edc4e, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @literal_bytes_0
@@ -45,6 +49,7 @@ fn @libLong() -> i256 [selector=0x7a8edc4e, pure, abi_params=[], abi_returns=[wo
     ret v1
 }
 
+; function sharedLong() external pure returns (uint256) [selector 0xd83f9e13]
 fn @sharedLong() -> i256 [selector=0xd83f9e13, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @literal_bytes_0
@@ -61,6 +66,7 @@ fn @sharedLong() -> i256 [selector=0xd83f9e13, pure, abi_params=[], abi_returns=
     ret v10
 }
 
+; function literalContent() external pure returns (bytes32) [selector 0x4ab72711]
 fn @literalContent() -> i256 [selector=0x4ab72711, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -71,6 +77,7 @@ fn @literalContent() -> i256 [selector=0x4ab72711, pure, abi_params=[], abi_retu
     ret v2
 }
 
+; function encodeConstant() external pure returns (uint256) [selector 0xbffc53ff]
 fn @encodeConstant() -> i256 [selector=0xbffc53ff, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -82,6 +89,7 @@ fn @encodeConstant() -> i256 [selector=0xbffc53ff, pure, abi_params=[], abi_retu
     ret v3
 }
 
+; function encodeConstantCast() external pure returns (uint256) [selector 0x355fad3a]
 fn @encodeConstantCast() -> i256 [selector=0x355fad3a, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -93,6 +101,7 @@ fn @encodeConstantCast() -> i256 [selector=0x355fad3a, pure, abi_params=[], abi_
     ret v3
 }
 
+; function lenPlus(string memory s, uint256 x) internal pure returns (uint256)
 fn @lenPlus(arg0: ptr<memory>, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = mload arg0
@@ -100,12 +109,14 @@ fn @lenPlus(arg0: ptr<memory>, arg1: i256) -> i256 [pure] {
     ret v1
 }
 
+; function lenBytes(bytes memory b) internal pure returns (uint256)
 fn @lenBytes(arg0: ptr<memory>) -> i256 [pure] {
   bb0:
     v0 = mload arg0
     ret v0
 }
 
+; function firstWord(string memory s) internal pure returns (bytes32 w)
 fn @firstWord(arg0: ptr<memory>) -> i256 [pure] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256

@@ -4,6 +4,7 @@
 
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_string_slot.sol:StorageStringSlot ===
 @module StorageStringSlot
+; function lengthThroughRef() external returns (uint256) [selector 0xeaac3ffa]
 fn @lengthThroughRef() -> i256 [selector=0xeaac3ffa, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     store_storage_bytes_literal 32, hex"61616161616161616161616161616161616161616161616161616161616161616161616161616161"
@@ -11,6 +12,7 @@ fn @lengthThroughRef() -> i256 [selector=0xeaac3ffa, abi_params=[], abi_returns=
     ret v0
 }
 
+; function returnThroughRef() external returns (uint256) [selector 0x49589c2a]
 fn @returnThroughRef() -> i256 [selector=0x49589c2a, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     store_storage_bytes_literal 32, hex"61616161616161616161616161616161616161616161616161616161616161616161616161616161"
@@ -19,6 +21,7 @@ fn @returnThroughRef() -> i256 [selector=0x49589c2a, abi_params=[], abi_returns=
     ret v1
 }
 
+; function length(string storage value) internal view returns (uint256)
 fn @length(arg0: i256) -> i256 [view] {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
@@ -32,6 +35,7 @@ fn @length(arg0: i256) -> i256 [view] {
     ret v6
 }
 
+; function read(string storage value) internal pure returns (string memory)
 fn @read(arg0: i256) -> ptr<memory> [pure] {
   bb0:
     v0 = load_storage_bytes arg0

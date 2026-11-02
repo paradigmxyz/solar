@@ -1,6 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/defer-alloc/call_observes_fmp.mir (before defer-alloc) ===
 + // === ROOT/tests/ui/codegen/mir/defer-alloc/call_observes_fmp.mir (after defer-alloc) ===
   @module DeferAllocCallObservesFmp
+  ; selector 0x01020304
   fn @observing_caller() -> i1 [selector=0x01020304] {
     bb0:
       v0 = alloc 32
@@ -11,6 +12,7 @@
       ret v3
   }
   
+  ; selector 0x01020305
   fn @forwarding_caller() -> i1 [selector=0x01020305] {
     bb0:
       v0 = alloc 32
@@ -21,6 +23,7 @@
       ret v3
   }
   
+  ; selector 0x01020306
   fn @dereferencing_caller() -> i256 [selector=0x01020306] {
     bb0:
 -     v0 = alloc 32
@@ -31,6 +34,7 @@
       ret v2
   }
   
+  ; selector 0x01020307
   fn @msize_caller() -> i256 [selector=0x01020307] {
     bb0:
 -     v0 = alloc 32
@@ -71,6 +75,7 @@
       ret v2
   }
   
+  ; selector 0x01020309
   fn @iterating_caller() -> i256 [selector=0x01020309] {
     bb0:
 -     v0 = alloc 32

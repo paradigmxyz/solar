@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/program-data/hoisted_creation_size.sol:InitOnlyChild (runtime) ===
 @module InitOnlyChild_runtime
-bb0:
+bb0:  ; runtime dispatch entry + function f() external pure returns (uint256) [selector 0x26121ff0]
   callvalue
   push bb3
   jumpi
@@ -25,7 +25,7 @@ bb3 [cold]:
   revert
 // === ROOT/tests/ui/codegen/lowering/program-data/hoisted_creation_size.sol:RuntimeChild (runtime) ===
 @module RuntimeChild_runtime
-bb0:
+bb0:  ; runtime dispatch entry + function g() external pure returns (uint256) [selector 0xe2179b8e]
   callvalue
   push bb3
   jumpi
@@ -53,7 +53,7 @@ bb3 [cold]:
 @data
   RuntimeChild_creation_code_0: hex"34600d57601f8060115f395ff35b5f5ffd34601b575f3560e01c8063e2179b8e03601b5760025f5260205ff35b5f5ffd"
 
-bb0:
+bb0:  ; runtime dispatch entry + function make(uint256 count) external returns (address last) [selector 0x516517ab]
   callvalue
   push bb3
   jumpi

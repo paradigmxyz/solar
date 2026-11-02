@@ -1,30 +1,31 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_pop_long.sol:StorageBytesPopLong ===
 @module StorageBytesPopLong
+; function test() external returns (bool) [selector 0xf8a8fd6d]
 fn @test() -> i1 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: 0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v48]
     v2 = gt v1, 40
     v3 = eq v2, false
     jumpi v3, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     jump bb12
-  bb12:
+  bb12:  ; preds = bb2, bb14
     v49 = phi [bb2: v0], [bb14: v49]
     v50 = phi [bb2: v1], [bb14: v50]
     v51 = phi [bb2: 40], [bb14: v133]
     v52 = slt v51, 0
     v53 = eq v52, false
     jumpi v53, bb15, bb16
-  bb16:
+  bb16:  ; preds = bb12
     jump bb13
-  bb13:
+  bb13:  ; preds = bb16
     ret true
-  bb15:
+  bb15:  ; preds = bb12
     v54 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v54
     v55 = and v54, 1
@@ -37,14 +38,14 @@ fn @test() -> i1 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>], 
     v62 = eq v61, false
     icall panic_if<0x32>, v62
     jumpi v56, bb18, bb19
-  bb19:
+  bb19:  ; preds = bb15
     jump bb20
-  bb18:
+  bb18:  ; preds = bb15
     v63 = storage_array_data_slot 0
     v64 = shr v51, 5
     v65 = add v63, v64
     jump bb20
-  bb20:
+  bb20:  ; preds = bb18, bb19
     v66 = phi [bb18: v65], [bb19: 0]
     v67 = and v51, 31
     v68 = sub 31, v67
@@ -83,11 +84,11 @@ fn @test() -> i1 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>], 
     icall panic_if<0x31>, v96
     v97 = eq v95, 32
     jumpi v97, bb24, bb21
-  bb21:
+  bb21:  ; preds = bb20
     v108 = sub v95, 1
     v109 = lt v95, 32
     jumpi v109, bb22, bb23
-  bb23:
+  bb23:  ; preds = bb21
     v118 = storage_array_data_slot 0
     v119 = shr v108, 5
     v120 = add v118, v119
@@ -106,7 +107,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>], 
     v132 = sub v89, 2
     sstore 0, v132 !metadata(storage=slot(0))
     jump bb25
-  bb22:
+  bb22:  ; preds = bb21
     v110 = sub 32, v108
     v111 = mul v110, 8
     v112 = shl 1, v111
@@ -117,7 +118,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>], 
     v117 = or v115, v116
     sstore 0, v117 !metadata(storage=slot(0))
     jump bb25
-  bb24:
+  bb24:  ; preds = bb20
     v98 = storage_array_data_slot 0
     v99 = sload v98 !metadata(storage=symbolic(v98))
     v100 = sub 32, 31
@@ -131,14 +132,14 @@ fn @test() -> i1 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>], 
     sstore 0, v107 !metadata(storage=slot(0))
     sstore v98, 0 !metadata(storage=symbolic(v98))
     jump bb25
-  bb25:
+  bb25:  ; preds = bb24, bb22, bb23
     jump bb17
-  bb17:
+  bb17:  ; preds = bb25
     jump bb14
-  bb14:
+  bb14:  ; preds = bb17
     v133 = checked_sub int256, v51, 1
     jump bb12
-  bb4:
+  bb4:  ; preds = bb1
     v4 = checked_add uint256, v1, 1
     v5 = trunc i256 v4 to i8
     v6 = zext i8 v5 to i256
@@ -151,15 +152,15 @@ fn @test() -> i1 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>], 
     v12 = or 127, v11
     v13 = shr v8, 1
     v14 = and v13, v12
-    v15 = shr v14, 64
-    v16 = ne v15, 0
+    v15 = lt v14, 0x10000000000000000
+    v16 = eq v15, false
     icall panic_if<0x41>, v16
     v17 = gt v14, 31
     jumpi v17, bb8, bb7
-  bb7:
+  bb7:  ; preds = bb4
     v33 = eq v14, 31
     jumpi v33, bb9, bb10
-  bb10:
+  bb10:  ; preds = bb7
     v39 = add v8, 2
     v40 = sub 31, v14
     v41 = mul v40, 8
@@ -171,7 +172,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>], 
     v47 = or v44, v46
     sstore 0, v47 !metadata(storage=slot(0))
     jump bb11
-  bb9:
+  bb9:  ; preds = bb7
     v34 = storage_array_data_slot 0
     v35 = not 255
     v36 = and v8, v35
@@ -180,7 +181,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>], 
     sstore v34, v38 !metadata(storage=symbolic(v34))
     sstore 0, 65 !metadata(storage=slot(0))
     jump bb11
-  bb8:
+  bb8:  ; preds = bb4
     v18 = add v8, 2
     sstore 0, v18 !metadata(storage=slot(0))
     v19 = storage_array_data_slot 0
@@ -199,11 +200,11 @@ fn @test() -> i1 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>], 
     v32 = or v28, v31
     sstore v21, v32 !metadata(storage=symbolic(v21))
     jump bb11
-  bb11:
+  bb11:  ; preds = bb8, bb9, bb10
     jump bb6
-  bb6:
+  bb6:  ; preds = bb11
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v48 = checked_add uint256, v1, 1
     jump bb1
 }

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/join_edge_reload.sol:JoinEdgeReload (runtime) ===
 @module JoinEdgeReload_runtime
-bb0:
+bb0:  ; runtime dispatch entry + function find(uint256[] calldata values, uint256 x) external pure returns (uint256 found) [selector 0x867025b4]
   callvalue
   push bb3
   jumpi
