@@ -4333,7 +4333,7 @@ dependencies = [
 
 [[package]]
 name = "solar-ast"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "alloy-primitives",
  "bumpalo",
@@ -4348,7 +4348,7 @@ dependencies = [
 
 [[package]]
 name = "solar-bench"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "alloy-primitives",
  "codspeed-criterion-compat",
@@ -4364,14 +4364,14 @@ dependencies = [
 
 [[package]]
 name = "solar-capi"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "solar-cli",
 ]
 
 [[package]]
 name = "solar-cli"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "alloy-json-abi",
  "alloy-primitives",
@@ -4405,7 +4405,7 @@ dependencies = [
 
 [[package]]
 name = "solar-codegen"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "alloy-primitives",
  "arrayvec",
@@ -4428,7 +4428,7 @@ dependencies = [
 
 [[package]]
 name = "solar-compiler"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "alloy-primitives",
  "idna_adapter",
@@ -4451,7 +4451,7 @@ dependencies = [
 
 [[package]]
 name = "solar-config"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "alloy-primitives",
  "clap",
@@ -4465,7 +4465,7 @@ dependencies = [
 
 [[package]]
 name = "solar-data-structures"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "bumpalo",
  "diff",
@@ -4479,7 +4479,7 @@ dependencies = [
 
 [[package]]
 name = "solar-evmir"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "alloy-primitives",
  "smallvec",
@@ -4494,7 +4494,7 @@ dependencies = [
 
 [[package]]
 name = "solar-evmir-interpreter"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "alloy-primitives",
  "smallvec",
@@ -4506,14 +4506,14 @@ dependencies = [
 
 [[package]]
 name = "solar-examples"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "solar-compiler",
 ]
 
 [[package]]
 name = "solar-interface"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "annotate-snippets",
  "anstream",
@@ -4522,7 +4522,7 @@ dependencies = [
  "derive_more",
  "dunce",
  "inturn",
- "itertools 0.14.0",
+ "itertools 0.10.5",
  "once_map",
  "rayon",
  "scoped-tls",
@@ -4542,7 +4542,7 @@ dependencies = [
 
 [[package]]
 name = "solar-ir"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "alloy-primitives",
  "smallvec",
@@ -4554,7 +4554,7 @@ dependencies = [
 
 [[package]]
 name = "solar-lint"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "rayon",
  "solar-ast",
@@ -4564,7 +4564,7 @@ dependencies = [
 
 [[package]]
 name = "solar-lsp"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "arc-swap",
  "async-lsp",
@@ -4592,7 +4592,7 @@ dependencies = [
 
 [[package]]
 name = "solar-macros"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4601,7 +4601,7 @@ dependencies = [
 
 [[package]]
 name = "solar-mir"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "alloy-primitives",
  "arrayvec",
@@ -4617,7 +4617,7 @@ dependencies = [
 
 [[package]]
 name = "solar-mir-interpreter"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "alloy-primitives",
  "smallvec",
@@ -4630,12 +4630,12 @@ dependencies = [
 
 [[package]]
 name = "solar-parse"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "alloy-primitives",
  "bitflags 2.13.2",
  "bumpalo",
- "itertools 0.14.0",
+ "itertools 0.10.5",
  "memchr",
  "num-bigint 0.5.1",
  "num-rational",
@@ -4651,7 +4651,7 @@ dependencies = [
 
 [[package]]
 name = "solar-sema"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "alloy-json-abi",
  "alloy-primitives",
@@ -4684,7 +4684,7 @@ dependencies = [
 
 [[package]]
 name = "solar-tester"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "alloy-consensus",
  "alloy-dyn-abi",
@@ -5839,7 +5839,7 @@ checksum = "32ac00cd3f8ec9c1d33fb3e7958a82df6989c42d747bd326c822b1d625283547"
 
 [[package]]
 name = "xtask"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "xflags",

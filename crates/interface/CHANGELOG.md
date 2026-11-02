@@ -5,6 +5,81 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0](https://github.com/paradigmxyz/solar/releases/tag/v0.3.0)
+
+### Bug Fixes
+
+- Honor --stop-after for lowering and analysis ([#2243](https://github.com/paradigmxyz/solar/issues/2243))
+- Emit diagnostics in the same order at every thread count ([#2131](https://github.com/paradigmxyz/solar/issues/2131))
+- [interface] Strip file:// in callback reads ([#1860](https://github.com/paradigmxyz/solar/issues/1860))
+- [interface] Resolve imports like solc ([#1740](https://github.com/paradigmxyz/solar/issues/1740))
+- [parser] Raise the recursion limit to 256 ([#1704](https://github.com/paradigmxyz/solar/issues/1704))
+- [interface] Use `/` in resolved names ([#1736](https://github.com/paradigmxyz/solar/issues/1736))
+- [interface] Name callback imports by source unit ([#1731](https://github.com/paradigmxyz/solar/issues/1731))
+- [interface] Resolve relative base paths ([#1706](https://github.com/paradigmxyz/solar/issues/1706))
+- [interface] Keep Standard JSON source keys ([#1709](https://github.com/paradigmxyz/solar/issues/1709))
+- [interface] Resolve absolute remapping targets to base-relative source units ([#1628](https://github.com/paradigmxyz/solar/issues/1628))
+- [parser] Keep Yul builtin name checks ([#1584](https://github.com/paradigmxyz/solar/issues/1584))
+- Match import remappings as string prefixes ([#1576](https://github.com/paradigmxyz/solar/issues/1576))
+- Validate Yul builtin names in sema ([#1568](https://github.com/paradigmxyz/solar/issues/1568))
+- Resolve relative source-unit imports ([#1575](https://github.com/paradigmxyz/solar/issues/1575))
+- Preserve library address relocations ([#1427](https://github.com/paradigmxyz/solar/issues/1427))
+- [codegen] Match solc's external calls before byzantium ([#1367](https://github.com/paradigmxyz/solar/issues/1367))
+- [parser] Match solc syntax errors ([#1308](https://github.com/paradigmxyz/solar/issues/1308))
+- [yul] Parse versioned builtin names ([#1284](https://github.com/paradigmxyz/solar/issues/1284))
+- Align import resolution with solc ([#860](https://github.com/paradigmxyz/solar/issues/860))
+- [sema] Check variadic builtins ([#815](https://github.com/paradigmxyz/solar/issues/815))
+- [sema] Model function member kinds ([#786](https://github.com/paradigmxyz/solar/issues/786))
+- [interface] Honor no_warnings in DiagCtxtFlags::update_from_opts ([#744](https://github.com/paradigmxyz/solar/issues/744))
+- Replace unnecessary repetitions of structure name ([#581](https://github.com/paradigmxyz/solar/issues/581))
+- [interface] Strip prefix from import resolution context ([#577](https://github.com/paradigmxyz/solar/issues/577))
+
+### Features
+
+- Add the MIR interpreter and run-call check ([#1759](https://github.com/paradigmxyz/solar/issues/1759))
+- Add the solar NatSpec tags ([#2101](https://github.com/paradigmxyz/solar/issues/2101))
+- [mir] Enforce semantic lowering boundaries ([#1392](https://github.com/paradigmxyz/solar/issues/1392))
+- [codegen] Guard non-view library functions ([#1385](https://github.com/paradigmxyz/solar/issues/1385))
+- Audit and emit optimized debug info ([#1325](https://github.com/paradigmxyz/solar/issues/1325))
+- [codegen] Add shared program data ([#1304](https://github.com/paradigmxyz/solar/issues/1304))
+- [codegen] Implement Amsterdam EVM version ([#1288](https://github.com/paradigmxyz/solar/issues/1288))
+- [lsp] Add import resolution ([#1152](https://github.com/paradigmxyz/solar/issues/1152))
+- [lsp] Add diagnostic quick fixes ([#1130](https://github.com/paradigmxyz/solar/issues/1130))
+- Bulk memory zero ([#1096](https://github.com/paradigmxyz/solar/issues/1096))
+- [codegen] Support narrow immutables ([#1003](https://github.com/paradigmxyz/solar/issues/1003))
+- Enable more codegen benches ([#1092](https://github.com/paradigmxyz/solar/issues/1092))
+- [lsp] Handle workspace file operations ([#1076](https://github.com/paradigmxyz/solar/issues/1076))
+- [cli] Merge IR optimization commands ([#1080](https://github.com/paradigmxyz/solar/issues/1080))
+- Introduce new memory model ([#1004](https://github.com/paradigmxyz/solar/issues/1004))
+- [cli] Color standard JSON diagnostics ([#936](https://github.com/paradigmxyz/solar/issues/936))
+- [codegen] Phased MIR lowering and a leaner backend ([#921](https://github.com/paradigmxyz/solar/issues/921))
+- [lsp] Add flychecks ([#930](https://github.com/paradigmxyz/solar/issues/930))
+-   feat(lsp): load workspace config across lifecycle events ([#881](https://github.com/paradigmxyz/solar/issues/881))
+- [lsp] Add initial language server support ([#870](https://github.com/paradigmxyz/solar/issues/870))
+- Add erc7201 builtin ([#877](https://github.com/paradigmxyz/solar/issues/877))
+- Add solc-compatible wasm API ([#850](https://github.com/paradigmxyz/solar/issues/850))
+- Allow warnings by code ([#837](https://github.com/paradigmxyz/solar/issues/837))
+- [cli] Support standard json pipeline ([#829](https://github.com/paradigmxyz/solar/issues/829))
+- [sema] Lower inline yul to hir ([#769](https://github.com/paradigmxyz/solar/issues/769))
+- Switch default emitter kind to unicode ([#629](https://github.com/paradigmxyz/solar/issues/629))
+
+### Performance
+
+- [evm] Bound call continuations for compact-pushes ([#2120](https://github.com/paradigmxyz/solar/issues/2120))
+- [codegen] Encode calldata aggregates from calldata ([#2049](https://github.com/paradigmxyz/solar/issues/2049))
+- [codegen] Run MIR function passes on idle workers ([#2017](https://github.com/paradigmxyz/solar/issues/2017))
+- [codegen] Plan function stack layouts in parallel ([#2007](https://github.com/paradigmxyz/solar/issues/2007))
+- [abi] Encode returned aggregates without a cleaned copy ([#1966](https://github.com/paradigmxyz/solar/issues/1966))
+- [mir] Refresh the lowering passes ([#1944](https://github.com/paradigmxyz/solar/issues/1944))
+- [codegen] Drop null memory pointer guards ([#1917](https://github.com/paradigmxyz/solar/issues/1917))
+- [codegen] Shrink lowered MIR ([#1636](https://github.com/paradigmxyz/solar/issues/1636))
+- [codegen] Defer embedded contract bytecode ([#1615](https://github.com/paradigmxyz/solar/issues/1615))
+- [codegen] Speed up MIR and EVM IR passes ([#1556](https://github.com/paradigmxyz/solar/issues/1556))
+- [lsp] Optimize span location conversion ([#1353](https://github.com/paradigmxyz/solar/issues/1353))
+- [codegen] Compact interprocedural codegen ([#1156](https://github.com/paradigmxyz/solar/issues/1156))
+- [codegen] Materialize constant data ([#1153](https://github.com/paradigmxyz/solar/issues/1153))
+- [codegen] Improve switch lowering ([#1002](https://github.com/paradigmxyz/solar/issues/1002))
+
 ## [0.2.0](https://github.com/paradigmxyz/solar/releases/tag/v0.2.0)
 
 ### Bug Fixes
