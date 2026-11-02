@@ -239,16 +239,14 @@ jobs:
       - name: Create local artifact manifest
         shell: bash
         env:
-          PLAN: ${{ inputs.plan }}
+          # The full plan embeds the changelog and can exceed the kernel's per-variable limit.
+          TAG: ${{ inputs.plan != '' && fromJson(inputs.plan).announcement_tag || '' }}
         run: |
           set -euo pipefail
 
           tag_args=()
-          if [[ -n "$PLAN" ]]; then
-            tag="$(jq -r '.announcement_tag // empty' <<< "$PLAN")"
-            if [[ -n "$tag" ]]; then
-              tag_args=(--tag "$tag")
-            fi
+          if [[ -n "$TAG" ]]; then
+            tag_args=(--tag "$TAG")
           fi
           manifest="$RUNNER_TEMP/local-dist-manifest.json"
           dist manifest "${tag_args[@]}" \
