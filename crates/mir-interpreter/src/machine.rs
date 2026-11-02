@@ -1150,6 +1150,14 @@ impl<'a> Run<'_, 'a, '_> {
                         self.publish_multi_return(frame.return_owner, &values)?;
                     }
                 }
+                if let Some(probe) = &mut self.probe
+                    && self.frames.len() == 1
+                    && self.frames[0].function == probe.function
+                    && let Some(inst) = frame.caller_inst
+                    && let Some(value) = values.first()
+                {
+                    probe.outcomes[inst] |= if value.is_zero() { 1 } else { 2 };
+                }
                 let caller = self.frame();
                 if let Some(result) = frame.result {
                     let Some(&value) = values.first() else {
