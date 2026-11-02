@@ -300,6 +300,12 @@ impl<'a> PeepContext<'a> {
         let after = target.push(U256::ZERO) + target.opcode(NOT) + target.opcode(NOT);
         target.dominates(after, before)
     }
+
+    /// Returns whether materializing `value` needs at most `peak` stack words, as many as the code
+    /// it replaces, so the rewrite cannot pass the stack limit where that code did not.
+    fn fits_peak(&self, value: U256, peak: usize) -> bool {
+        ImmediateMaterialization::new(self.target.evm_version(), value).stack_peak() <= peak
+    }
 }
 
 impl generated::Context for PeepContext<'_> {
@@ -485,9 +491,8 @@ impl generated::Context for PeepContext<'_> {
         let input = target.push(lhs_value)
             + target.push(rhs_value)
             + target.opcode_with_immediates(opcode, &[Some(rhs_value), Some(lhs_value)]);
-        // The result must not need more stack than the two pushes it replaces.
-        (target.dominates(target.push(result), input)
-            && ImmediateMaterialization::new(target.evm_version(), result).stack_peak() <= 2)
+        // The two pushes it replaces already hold two words.
+        (target.dominates(target.push(result), input) && self.fits_peak(result, 2))
             .then_some(result)
     }
 
@@ -501,8 +506,7 @@ impl generated::Context for PeepContext<'_> {
         let target = self.target;
         // PUSH value; unary_opcode => materialize evaluated word
         let input = target.push(value) + target.opcode_with_immediates(opcode, &[Some(value)]);
-        (target.dominates(target.push(result), input)
-            && ImmediateMaterialization::new(target.evm_version(), result).stack_peak() <= 1)
+        (target.dominates(target.push(result), input) && self.fits_peak(result, 1))
             .then_some(result)
     }
 
@@ -526,9 +530,7 @@ impl generated::Context for PeepContext<'_> {
         let gas_saving =
             i64::from(target.runtime_gas(before)) - i64::from(target.runtime_gas(after));
         let byte_saving = i64::from(before.bytes) - i64::from(after.bytes);
-        (target.improves(gas_saving, byte_saving)
-            && ImmediateMaterialization::new(target.evm_version(), negated).stack_peak() <= 1)
-            .then_some(negated)
+        (target.improves(gas_saving, byte_saving) && self.fits_peak(negated, 1)).then_some(negated)
     }
 
     /// Removes a closed conditional jump whose literal condition is false.

@@ -1287,17 +1287,6 @@ fn bound_edges(
 /// on the stack it leaves for the word's block: a call's, or none for a dynamic jump.
 type Consumer = (BlockId, StackEffect);
 
-/// Returns the position `word` has after the words at the positions `a` and `b` swap.
-const fn swapped(word: usize, a: usize, b: usize) -> usize {
-    if word == a {
-        b
-    } else if word == b {
-        a
-    } else {
-        word
-    }
-}
-
 /// The words a trace follows, by distance from the top of the stack.
 #[derive(Clone, PartialEq, Eq)]
 struct Words {
@@ -1323,29 +1312,21 @@ impl Words {
     /// Applies a stack operation. Returns `None` when it copies the followed word, and
     /// `Some(false)` when it discards it.
     fn apply_stack_op(&mut self, stack_op: op::StackOp) -> Option<bool> {
-        match stack_op {
-            op::StackOp::Dup(n) => {
-                if self.word + 1 == usize::from(n) {
-                    return None;
-                }
-                self.word += 1;
-                for (distance, _) in &mut self.labels {
-                    *distance += 1;
-                }
+        match stack_op.track(self.word) {
+            op::TrackedWord::At(word) => self.word = word,
+            op::TrackedWord::Copied(_) => return None,
+            op::TrackedWord::Dropped => return Some(false),
+        }
+        // A copy of a label is not followed, so the label stays where the operation left it.
+        self.labels.retain(|(distance, _)| match stack_op.track(*distance) {
+            op::TrackedWord::At(moved) | op::TrackedWord::Copied(moved) => {
+                *distance = moved;
+                true
             }
-            op::StackOp::Swap(n) => self.swap(0, usize::from(n)),
-            op::StackOp::Exchange(n, m) => self.swap(usize::from(n), usize::from(m)),
-            op::StackOp::Pop => return Some(self.apply(StackEffect::new(1, 0)).is_some()),
-        }
-        Some(true)
-    }
-
-    fn swap(&mut self, a: usize, b: usize) {
-        self.word = swapped(self.word, a, b);
-        for (distance, _) in &mut self.labels {
-            *distance = swapped(*distance, a, b);
-        }
+            op::TrackedWord::Dropped => false,
+        });
         self.labels.sort_unstable();
+        Some(true)
     }
 
     /// Returns the label at `distance`, if the trace saw it pushed.
