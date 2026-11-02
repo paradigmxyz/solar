@@ -8,8 +8,9 @@ use super::{Recipe, Stage, Temporary, mask_uses::MaskUses, widest_int_operand};
 use crate::{
     backend::evm::op,
     mir::{
-        Function, InstId, InstKind, MirType, Op, Value as MirValue, ValueId,
+        Function, InstId, InstKind, MirType, Op, OpTraits, Value as MirValue, ValueId,
         analysis::integers::integer_mask,
+        transform::commute::{Commuted, Spellings, swappable},
     },
     target::Target,
 };
@@ -54,20 +55,35 @@ pub(super) fn alternatives(
     let mut result = Vec::new();
     let scalar_ty =
         op.into_kind().and_then(|kind| widest_int_operand(func, &kind)).unwrap_or(MirType::I256);
-    generated::constructor_sequence_rewrite(
-        &mut Context {
-            func,
-            block,
-            seen,
-            masks,
-            target,
-            scalar_ty,
-            stage,
-            temporaries: FxHashMap::default(),
-        },
-        op,
-        &mut result,
-    );
+    let mut context = Context {
+        func,
+        block,
+        seen,
+        masks,
+        target,
+        scalar_ty,
+        stage,
+        temporaries: FxHashMap::default(),
+        commuted: Commuted::new(),
+        read_commutative: false,
+    };
+    generated::constructor_sequence_rewrite(&mut context, op, &mut result);
+    // The spellings after the written one.
+    if context.read_commutative || swappable(op, &|_| true) {
+        let spellings = Spellings::new(
+            op,
+            |value| {
+                func.value_inst_kind(value)
+                    .filter(|kind| kind.op_def().traits.contains(OpTraits::COMMUTATIVE))
+                    .map(InstKind::op)
+            },
+            |_| true,
+        );
+        for (root, commuted) in spellings.rest(op) {
+            context.commuted = commuted;
+            generated::constructor_sequence_rewrite(&mut context, &root, &mut result);
+        }
+    }
     result
 }
 
@@ -82,6 +98,10 @@ struct Context<'a> {
     scalar_ty: MirType,
     stage: Stage,
     temporaries: FxHashMap<ValueId, Temporary>,
+    /// Operands whose definitions the current spelling of the root reads commuted.
+    commuted: Commuted,
+    /// Whether a definition read by the current match has operands to swap.
+    read_commutative: bool,
 }
 
 impl Context<'_> {
@@ -149,7 +169,7 @@ impl generated::Context for Context<'_> {
     fn inst_data(&mut self, value: Value) -> Option<Op> {
         let MirValue::Inst(inst) = self.func.value(value) else { return None };
         let kind = &self.func.inst(*inst).kind;
-        (self.seen.contains(inst)
+        let op = (self.seen.contains(inst)
             && (kind.op_def().result == crate::mir::ResultKind::I1
                 || matches!(kind, InstKind::Zext(_) | InstKind::Sext(..) | InstKind::Trunc(..))
                 || kind.operands().iter().all(|&operand| {
@@ -157,7 +177,9 @@ impl generated::Context for Context<'_> {
                         .value_ty(operand)
                         .is_none_or(|ty| ty == MirType::I1 || ty == self.scalar_ty)
                 })))
-        .then(|| kind.op())
+        .then(|| kind.op())?;
+        self.read_commutative = self.read_commutative || swappable(&op, &|_| true);
+        Some(if self.commuted.contains(&value) { op.commuted().unwrap_or(op) } else { op })
     }
 
     fn make(&mut self, op: &Op) -> Option<Value> {

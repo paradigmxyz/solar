@@ -6,6 +6,7 @@ pub(crate) mod call_cleanup;
 pub(crate) mod cfg_simplify;
 pub(crate) mod check_elim;
 pub(crate) mod coalesce_allocs;
+mod commute;
 pub(super) mod const_fold;
 pub(crate) mod cse;
 pub(crate) mod dce;
