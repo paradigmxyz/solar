@@ -228,12 +228,12 @@ impl<'gcx> ConstEval<'gcx> {
         };
         let Some(int) = int.as_u256() else {
             let err = if int.is_negative() {
-                dcx.err("array length cannot be negative").code(error_code!(3658))
+                dcx.err_at(size.span, error_code!(3658), "array length cannot be negative")
             } else {
-                let err = dcx.err("array length is too large").code(error_code!(1847));
-                err.note("the maximum is `2**256 - 1`")
+                dcx.err_at(size.span, error_code!(1847), "array length is too large")
+                    .note("the maximum is `2**256 - 1`")
             };
-            return Err(err.span(size.span).emit());
+            return Err(err.emit());
         };
         if int.is_zero() {
             let msg = "array length must be greater than zero";
