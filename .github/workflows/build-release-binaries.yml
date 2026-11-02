@@ -15,6 +15,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  # setup-python upgrades pip, which fails while the newest pip is too new for the package policy.
+  PIP_UPLOADED_PRIOR_TO: P7D
   CARGO_INCREMENTAL: 0
   CARGO_TERM_COLOR: always
 
