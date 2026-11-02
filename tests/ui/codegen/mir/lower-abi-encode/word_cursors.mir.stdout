@@ -81,7 +81,7 @@ fn @encode(arg0: i256, arg1: i256) -> ptr<memory> [selector=0xdc0aa2af, pure, ab
   bb4:  ; preds = bb1
     v27 = add v19, v23
     v28 = mul v23, 32
-    v29 = add v22, v28
+    v29 = add v28, v22
     mstore v29, v27
     jump bb6
   bb6:  ; preds = bb4

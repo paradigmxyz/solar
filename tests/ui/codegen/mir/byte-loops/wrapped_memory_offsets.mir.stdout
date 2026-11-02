@@ -43,19 +43,19 @@ fn @wordsForward(arg0: i256) -> ptr<memory> [selector=0xb2066b6b, pure, abi_para
     v0 = alloc zeroed checked 128
     mstore v0, 3
     v1 = mload v0
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = ptradd v0, 32
     mstore v4, 11
     v5 = mload v0
-    v6 = lt 1, v5
+    v6 = gt v5, 1
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = ptradd v0, 64
     mstore v8, 22
     v9 = mload v0
-    v10 = lt 2, v9
+    v10 = gt v9, 2
     v11 = eq v10, false
     icall panic_if<0x32>, v11
     v12 = ptradd v0, 96

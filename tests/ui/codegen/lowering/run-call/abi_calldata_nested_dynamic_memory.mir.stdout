@@ -18,7 +18,7 @@ fn @g(arg0: slice<calldata>) -> ptr<memory> [selector=0xc12c508e, pure, abi_para
     v10 = shr v0, 251
     v11 = ne v10, 0
     icall panic_if<0x41>, v11
-    v12 = add 32, v9
+    v12 = add v9, 32
     v13 = lt v12, 32
     icall panic_if<0x41>, v13
     v14 = alloc v12
@@ -55,13 +55,13 @@ fn @g(arg0: slice<calldata>) -> ptr<memory> [selector=0xc12c508e, pure, abi_para
     v35 = mul v32, 32
     v36 = add v25, 32
     v37 = sub v33, v35
-    v38 = sgt v36, v37
+    v38 = slt v37, v36
     icall revert_if<calldata_tail_too_short>, v38
     v39 = mul v32, 32
     v40 = shr v32, 251
     v41 = ne v40, 0
     icall panic_if<0x41>, v41
-    v42 = add 32, v39
+    v42 = add v39, 32
     v43 = lt v42, 32
     icall panic_if<0x41>, v43
     v44 = alloc v42
@@ -101,13 +101,13 @@ fn @g(arg0: slice<calldata>) -> ptr<memory> [selector=0xc12c508e, pure, abi_para
     v62 = mul v59, 32
     v63 = add v53, 32
     v64 = sub v60, v62
-    v65 = sgt v63, v64
+    v65 = slt v64, v63
     icall revert_if<calldata_tail_too_short>, v65
     v66 = mul v59, 32
     v67 = shr v59, 251
     v68 = ne v67, 0
     icall panic_if<0x41>, v68
-    v69 = add 32, v66
+    v69 = add v66, 32
     v70 = lt v69, 32
     icall panic_if<0x41>, v70
     v71 = alloc v69
@@ -145,7 +145,7 @@ fn @h(arg0: slice<calldata>) -> ptr<memory> [selector=0xba9ef85f, pure, abi_para
     v10 = shr v0, 251
     v11 = ne v10, 0
     icall panic_if<0x41>, v11
-    v12 = add 32, v9
+    v12 = add v9, 32
     v13 = lt v12, 32
     icall panic_if<0x41>, v13
     v14 = alloc v12
@@ -182,13 +182,13 @@ fn @h(arg0: slice<calldata>) -> ptr<memory> [selector=0xba9ef85f, pure, abi_para
     v35 = mul v32, 64
     v36 = add v25, 32
     v37 = sub v33, v35
-    v38 = sgt v36, v37
+    v38 = slt v37, v36
     icall revert_if<calldata_tail_too_short>, v38
     v39 = mul v32, 32
     v40 = shr v32, 251
     v41 = ne v40, 0
     icall panic_if<0x41>, v41
-    v42 = add 32, v39
+    v42 = add v39, 32
     v43 = lt v42, 32
     icall panic_if<0x41>, v43
     v44 = alloc v42

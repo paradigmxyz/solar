@@ -21,7 +21,7 @@
 +     v6 = ptradd v0, 32
 +     v7 = make_memory_slice v6, 33
 +     v8 = extract_value slice<memory>, v7, 1
-+     v9 = add 0, v8
++     v9 = add v8, 0
 +     v10 = ptradd v3, 32
 +     v11 = make_memory_slice v10, 2
 +     v12 = extract_value slice<memory>, v11, 1
@@ -38,7 +38,7 @@
 +     v20 = ptradd v19, 0
 +     v21 = extract_value slice<memory>, v7, 0
 +     mcopy v20, v21, v8 !metadata(memory=heap, disjoint)
-+     v22 = add 0, v8
++     v22 = add v8, 0
 +     v23 = ptradd v18, 32
 +     v24 = ptradd v23, v22
 +     v25 = extract_value slice<memory>, v11, 0
@@ -67,7 +67,7 @@
 +     v4 = mload v0
 +     v5 = make_memory_slice v3, v4
 +     v6 = extract_value slice<memory>, v5, 1
-+     v7 = add 0, v6
++     v7 = add v6, 0
 +     v8 = add v7, 1
 +     v9 = add v8, 31
 +     v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -81,7 +81,7 @@
 +     v15 = extract_value slice<memory>, v5, 0
 +     v16 = extract_value slice<memory>, v5, 1
 +     mcopy v14, v15, v16
-+     v17 = add 0, v6
++     v17 = add v6, 0
 +     v18 = ptradd v13, v17
 +     v19 = ptradd v18, 32
 +     mstore v19, 0x2200000000000000000000000000000000000000000000000000000000000000
@@ -107,7 +107,7 @@
 +     v3 = ptradd v0, 32
 +     v4 = make_memory_slice v3, 1
 +     v5 = extract_value slice<memory>, v4, 1
-+     v6 = add 0, v5
++     v6 = add v5, 0
 +     v7 = add v6, 1
 +     v8 = add v7, 31
 +     v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -121,7 +121,7 @@
 +     v14 = extract_value slice<memory>, v4, 0
 +     v15 = extract_value slice<memory>, v4, 1
 +     mcopy v13, v14, v15
-+     v16 = add 0, v5
++     v16 = add v5, 0
 +     v17 = ptradd v12, v16
 +     v18 = ptradd v17, 32
 +     mstore v18, 0x2200000000000000000000000000000000000000000000000000000000000000

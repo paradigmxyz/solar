@@ -68,9 +68,9 @@ fn @copyGroups(arg0: i256, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x03
     jump bb14
   bb15:  ; preds = bb13
     v32 = shl v31, 5
-    v33 = add v30, v32
-    v34 = xor v25, v33
-    v35 = add v28, v33
+    v33 = add v32, v30
+    v34 = xor v33, v25
+    v35 = add v33, v28
     mstore v35, v34
     v36 = add v31, 1
     v37 = lt v36, v24

@@ -9,7 +9,7 @@
 // CHECK: + [[BASE:v[0-9]+]] = constructor_args_base
 // CHECK: + [[END:v[0-9]+]] = constructor_args_end
 // CHECK: + [[REQUIRED:v[0-9]+]] = add [[BASE]], 160
-// CHECK: + {{v[0-9]+}} = gt [[REQUIRED]], [[END]]
+// CHECK: + {{v[0-9]+}} = lt [[END]], [[REQUIRED]]
 // CHECK: + [[OUTER:v[0-9]+]] = alloc 64
 // CHECK: + [[OUTER_INDEX:v[0-9]+]] = phi
 // CHECK: + {{v[0-9]+}} = lt [[OUTER_INDEX]], 2

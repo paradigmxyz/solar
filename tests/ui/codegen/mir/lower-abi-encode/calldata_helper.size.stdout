@@ -34,14 +34,14 @@ fn @fa() [selector=0xa2467f05, abi_wrapper] {
     v16 = calldataload 36
     v17 = add v16, 4
     v19 = sub v11, 36
-    v20 = gt v16, v19
+    v20 = lt v19, v16
     v48 = zext i1 v20 to i256
     v49 = or v14, v48
     v21 = calldataload v17
     v22 = add v17, 32
     v23 = sub v11, v22
     v24 = shr v23, 5
-    v25 = gt v21, v24
+    v25 = lt v24, v21
     v51 = zext i1 v25 to i256
     v52 = or v49, v51
     v53 = ne v52, 0
@@ -87,14 +87,14 @@ fn @fb() [selector=0x81fba7cd, abi_wrapper] {
     v16 = calldataload 36
     v17 = add v16, 4
     v19 = sub v11, 36
-    v20 = gt v16, v19
+    v20 = lt v19, v16
     v49 = zext i1 v20 to i256
     v50 = or v14, v49
     v21 = calldataload v17
     v22 = add v17, 32
     v23 = sub v11, v22
     v24 = shr v23, 5
-    v25 = gt v21, v24
+    v25 = lt v24, v21
     v52 = zext i1 v25 to i256
     v53 = or v50, v52
     v54 = ne v53, 0
@@ -142,14 +142,14 @@ fn @fc() [selector=0xeb19e25e, abi_wrapper] {
     v16 = calldataload 36
     v17 = add v16, 4
     v19 = sub v11, 36
-    v20 = gt v16, v19
+    v20 = lt v19, v16
     v102 = zext i1 v20 to i256
     v103 = or v14, v102
     v21 = calldataload v17
     v22 = add v17, 32
     v23 = sub v11, v22
     v24 = shr v23, 5
-    v25 = gt v21, v24
+    v25 = lt v24, v21
     v105 = zext i1 v25 to i256
     v106 = or v103, v105
     v107 = ne v106, 0
@@ -219,7 +219,7 @@ fn @fc() [selector=0xeb19e25e, abi_wrapper] {
     v68 = shl v66, 6
     v69 = add v65, 32
     v70 = sub v58, v68
-    v71 = sgt v69, v70
+    v71 = slt v70, v69
     jumpi v71, bb3, bb12
   bb12:  ; preds = bb11
     mstore v39, 64
@@ -253,7 +253,7 @@ fn @encode_abi_calldata.3(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retur
     ret v20
   bb2:  ; preds = bb1
     v8 = shl v6, 6
-    v10 = add arg0, v8
+    v10 = add v8, arg0
     v11 = add v2, v8
     v12 = calldataload v10
     v13 = shr v12, 160
@@ -296,7 +296,7 @@ fn @encode_abi_calldata.4(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retur
     v16 = slt v11, v15
     jumpi v16, bb5, bb4
   bb5:  ; preds = bb2
-    v19 = add arg0, v11
+    v19 = add v11, arg0
     v22 = sub v7, v2
     mstore v8, v22
     v24 = add v7, 128
@@ -324,7 +324,7 @@ fn @encode_abi_calldata.4(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retur
     v42 = shl v40, 6
     v43 = add v39, 32
     v44 = sub v32, v42
-    v45 = sgt v43, v44
+    v45 = slt v44, v43
     jumpi v45, bb4, bb9
   bb9:  ; preds = bb8
     mstore v30, 128
@@ -346,7 +346,7 @@ fn @encode_abi_calldata.4(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retur
     v66 = shl v64, 6
     v67 = add v63, 32
     v68 = sub v56, v66
-    v69 = sgt v67, v68
+    v69 = slt v68, v67
     jumpi v69, bb4, bb12
   bb12:  ; preds = bb11
     v72 = sub v51, v7
@@ -368,7 +368,7 @@ fn @encode_abi_calldata.4(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retur
   bb14:  ; preds = bb13
     v90 = add v87, 32
     v91 = sub v80, v88
-    v92 = sgt v90, v91
+    v92 = slt v91, v90
     jumpi v92, bb4, bb15
   bb15:  ; preds = bb14
     v95 = sub v75, v7

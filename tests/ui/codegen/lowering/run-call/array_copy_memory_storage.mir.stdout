@@ -6,26 +6,26 @@ fn @copyDynamic() -> i32 [selector=0x902a0a84, abi_params=[], abi_returns=[word<
     v0 = alloc zeroed checked 128
     mstore v0, 3
     v1 = mload v0
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = ptradd v0, 32
     mstore v4, 1
     v5 = mload v0
-    v6 = lt 1, v5
+    v6 = gt v5, 1
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = ptradd v0, 64
     mstore v8, 2
     v9 = mload v0
-    v10 = lt 2, v9
+    v10 = gt v9, 2
     v11 = eq v10, false
     icall panic_if<0x32>, v11
     v12 = ptradd v0, 96
     mstore v12, 3
     v13 = mload v0
     v14 = sload 0 !metadata(storage=slot(0))
-    v15 = gt v14, v13
+    v15 = lt v13, v14
     jumpi v15, bb1, bb2
   bb1:  ; preds = bb0
     jump bb3
@@ -59,7 +59,7 @@ fn @copyDynamic() -> i32 [selector=0x902a0a84, abi_params=[], abi_returns=[word<
     jump bb10
   bb10:  ; preds = bb8, bb9
     v61 = sload 0 !metadata(storage=slot(0))
-    v62 = lt 0, v61
+    v62 = gt v61, 0
     v63 = eq v62, false
     icall panic_if<0x32>, v63
     v64 = storage_array_data_slot 0
@@ -156,7 +156,7 @@ fn @copyFixed() -> i32 [selector=0x23235673, abi_params=[], abi_returns=[word<ui
     jumpi v50, bb10, bb11
   bb11:  ; preds = bb9
     v75 = sload 0 !metadata(storage=slot(0))
-    v76 = lt 0, v75
+    v76 = gt v75, 0
     v77 = eq v76, false
     icall panic_if<0x32>, v77
     v78 = storage_array_data_slot 0
@@ -171,7 +171,7 @@ fn @copyFixed() -> i32 [selector=0x23235673, abi_params=[], abi_returns=[word<ui
     v86 = trunc i256 v85 to i32
     v87 = checked_add uint32, v81, v86
     v88 = sload 0 !metadata(storage=slot(0))
-    v89 = lt 2, v88
+    v89 = gt v88, 2
     v90 = eq v89, false
     icall panic_if<0x32>, v90
     v91 = storage_array_data_slot 0
@@ -182,7 +182,7 @@ fn @copyFixed() -> i32 [selector=0x23235673, abi_params=[], abi_returns=[word<ui
     ret v95
   bb10:  ; preds = bb9
     v51 = div v49, 8
-    v52 = add 1, v51
+    v52 = add v51, 1
     v53 = mod v49, 8
     v54 = mul v53, 4
     v55 = lt v49, 3

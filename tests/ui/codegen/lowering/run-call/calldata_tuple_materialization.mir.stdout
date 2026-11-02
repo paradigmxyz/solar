@@ -62,7 +62,7 @@ fn @memoryTuple(arg0: slice<calldata>) -> struct1 [selector=0x32e034d0, pure, ab
     v14 = shr v4, 251
     v15 = ne v14, 0
     icall panic_if<0x41>, v15
-    v16 = add 32, v13
+    v16 = add v13, 32
     v17 = lt v16, 32
     icall panic_if<0x41>, v17
     v18 = alloc v16
@@ -75,7 +75,7 @@ fn @memoryTuple(arg0: slice<calldata>) -> struct1 [selector=0x32e034d0, pure, ab
     v23 = ptrtoint ptr<memory> v18 to i256
     mstore v0, v23
     v24 = extract_value slice<calldata>, v2, 1
-    v25 = lt 0, v24
+    v25 = gt v24, 0
     v26 = eq v25, false
     icall panic_if<0x32>, v26
     v27 = extract_value slice<calldata>, v2, 0
@@ -84,7 +84,7 @@ fn @memoryTuple(arg0: slice<calldata>) -> struct1 [selector=0x32e034d0, pure, ab
     v30 = calldataload v29
     v31 = mload v0, ptr<memory>
     v32 = mload v31
-    v33 = lt 0, v32
+    v33 = gt v32, 0
     v34 = eq v33, false
     icall panic_if<0x32>, v34
     v35 = ptradd v31, 32
@@ -101,7 +101,7 @@ fn @split(arg0: slice<calldata>) -> struct2 [pure] {
     v1 = make_calldata_slice ptr<calldata> 0, 0
     v2 = extract_value slice<calldata>, arg0, 0
     v3 = extract_value slice<calldata>, arg0, 1
-    v4 = gt v3, v3
+    v4 = lt v3, v3
     v5 = lt v3, 1
     v6 = or v4, v5
     v7 = zext i1 v6 to i256
@@ -158,7 +158,7 @@ fn @widenedTuple(arg0: slice<calldata>) -> struct3 [selector=0x9eda07fe, abi_par
     v33 = insert_value struct3, v32, 2, v30
     ret v33
   bb2:  ; preds = bb1
-    v16 = add 2, v14
+    v16 = add v14, 2
     v17 = lt v14, 2
     jumpi v17, bb4, bb5
   bb5:  ; preds = bb2
@@ -189,7 +189,7 @@ fn @sliceTuple(arg0: slice<calldata>) -> struct3 [selector=0x09979d7d, abi_param
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = extract_value slice<calldata>, arg0, 1
-    v2 = gt v1, v1
+    v2 = lt v1, v1
     v3 = lt v1, 1
     v4 = or v2, v3
     v5 = zext i1 v4 to i256
@@ -212,7 +212,7 @@ fn @sliceTuple(arg0: slice<calldata>) -> struct3 [selector=0x09979d7d, abi_param
     v19 = shr v9, 251
     v20 = ne v19, 0
     icall panic_if<0x41>, v20
-    v21 = add 32, v18
+    v21 = add v18, 32
     v22 = lt v21, 32
     icall panic_if<0x41>, v22
     v23 = alloc v21
@@ -224,7 +224,7 @@ fn @sliceTuple(arg0: slice<calldata>) -> struct3 [selector=0x09979d7d, abi_param
     calldatacopy v25, v26, v27
     v28 = mload v23
     v29 = sload 5 !metadata(storage=slot(5))
-    v30 = gt v29, v28
+    v30 = lt v28, v29
     jumpi v30, bb1, bb2
   bb1:  ; preds = bb0
     jump bb3
@@ -243,20 +243,20 @@ fn @sliceTuple(arg0: slice<calldata>) -> struct3 [selector=0x09979d7d, abi_param
     jumpi v37, bb7, bb8
   bb8:  ; preds = bb6
     v45 = sload 5 !metadata(storage=slot(5))
-    v46 = lt 0, v45
+    v46 = gt v45, 0
     v47 = eq v46, false
     icall panic_if<0x32>, v47
     v48 = storage_array_data_slot 5
     v49 = sload v48 !metadata(storage=symbolic(v48))
     v50 = sload 5 !metadata(storage=slot(5))
-    v51 = lt 1, v50
+    v51 = gt v50, 1
     v52 = eq v51, false
     icall panic_if<0x32>, v52
     v53 = storage_array_data_slot 5
     v54 = add v53, 1
     v55 = sload v54 !metadata(storage=offset(v53, 1))
     v56 = sload 5 !metadata(storage=slot(5))
-    v57 = lt 2, v56
+    v57 = gt v56, 2
     v58 = eq v57, false
     icall panic_if<0x32>, v58
     v59 = storage_array_data_slot 5

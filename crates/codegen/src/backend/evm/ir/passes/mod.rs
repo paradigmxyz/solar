@@ -137,6 +137,7 @@ static ALL_PASSES: &[&dyn EvmPass] = &[
     &jumpi_fallthrough::JumpiFallthrough,
     &tail_copy::CopyJoins,
     &returndata_zero::ReturndataZero,
+    &late_structural::LateStructural,
 ];
 
 /// The canonical EVM IR layout and code-size pipeline used by EVM codegen.

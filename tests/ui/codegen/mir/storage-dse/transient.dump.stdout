@@ -130,7 +130,7 @@ fn @afterReturn() [selector=0x888a9e3c, abi_wrapper, implicit_args=[i1]] {
     v16 = calldatasize
     v17 = lt v16, 36
     v21 = zext i1 v17 to i256
-    v22 = or v21, v19
+    v22 = or v19, v21
     v23 = ne v22, 0
     jumpi v23, bb5, bb7
   bb7:  ; preds = bb0

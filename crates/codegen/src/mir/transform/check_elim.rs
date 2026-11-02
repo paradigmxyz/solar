@@ -1096,7 +1096,8 @@ impl<'a> CheckEliminator<'a> {
         }
         // checked_op a, b that cannot fail -> op a, b
         for (id, kind) in &unfailing {
-            func.inst_mut(*id).replace_kind(kind.clone());
+            let kind = func.canonical_kind(kind.clone());
+            func.inst_mut(*id).replace_kind(kind);
         }
         let propagated = self.apply_equalities(func);
         // branch proven_condition, keep, discard => jump keep
@@ -2353,7 +2354,9 @@ impl<'a> CheckEliminator<'a> {
         if let Some(bound) = self.trip_bounds.get(&value) {
             range = range.intersect(*bound).unwrap_or(range);
         }
-        if range.lo.is_zero() && self.has_strict_lower_bound(func, value) {
+        // A value known zero that also lies above a strict edge sits on an unreachable
+        // path; keep the range nonempty.
+        if range.lo.is_zero() && !range.hi.is_zero() && self.has_strict_lower_bound(func, value) {
             range.lo = U256::ONE;
         }
         let Some(depth) = depth.checked_sub(1) else { return range };
@@ -3047,7 +3050,11 @@ fn universal_relations(func: &Function, relevant: &DenseBitSet<ValueId>) -> FxHa
 fn clamp_limit(func: &Function, x: ValueId, adjustment: ValueId) -> Option<ValueId> {
     let &InstKind::Mul(first, second) = inst_kind(func, adjustment)? else { return None };
     for (condition, difference) in [(first, second), (second, first)] {
-        let Some(&InstKind::Gt(tested, limit)) = inst_kind(func, condition) else { continue };
+        let Some(&(InstKind::Gt(tested, limit) | InstKind::Lt(limit, tested))) =
+            inst_kind(func, condition)
+        else {
+            continue;
+        };
         if tested != x {
             continue;
         }

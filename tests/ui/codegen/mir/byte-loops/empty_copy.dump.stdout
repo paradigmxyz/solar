@@ -41,12 +41,12 @@ fn @memoryCopy() [selector=0x261f992c, abi_wrapper, pure] {
     v19 = sub arg1, v46
     v6 = ne arg1, 0
     v20 = zext i1 v6 to i256
-    v21 = mul v20, v19
+    v21 = mul v19, v20
     v22 = add v46, v21
     v15 = sub arg0, v47
     v3 = ne arg0, 0
     v16 = zext i1 v3 to i256
-    v17 = mul v16, v15
+    v17 = mul v15, v16
     v18 = add v47, v17
     icall @_memoryCopy, v18, v22, arg2
     v28 = mload v46
@@ -68,11 +68,11 @@ fn @calldataCopy() [selector=0xa70bf1aa, abi_wrapper, pure] {
     v15 = calldataload 4
     v16 = add v15, 4
     v18 = sub v13, 36
-    v19 = gt v15, v18
+    v19 = lt v18, v15
     v20 = calldataload v16
     v21 = add v16, 32
     v22 = sub v13, v21
-    v23 = gt v20, v22
+    v23 = lt v22, v20
     v24 = or v19, v23
     jumpi v24, bb1, bb2
   bb2:  ; preds = bb0
@@ -81,7 +81,7 @@ fn @calldataCopy() [selector=0xa70bf1aa, abi_wrapper, pure] {
     v9 = sub arg1, v49
     v1 = ne arg1, 0
     v10 = zext i1 v1 to i256
-    v11 = mul v10, v9
+    v11 = mul v9, v10
     v12 = add v49, v11
     icall @_calldataCopy, v21, v20, v12, arg2
     v31 = mload v49
@@ -112,12 +112,12 @@ fn @downCopy() [selector=0xc7e6d660, abi_wrapper, pure] {
     v19 = sub arg1, v46
     v6 = ne arg1, 0
     v20 = zext i1 v6 to i256
-    v21 = mul v20, v19
+    v21 = mul v19, v20
     v22 = add v46, v21
     v15 = sub arg0, v47
     v3 = ne arg0, 0
     v16 = zext i1 v3 to i256
-    v17 = mul v16, v15
+    v17 = mul v15, v16
     v18 = add v47, v17
     icall @_downCopy, v18, v22, arg2
     v28 = mload v46
@@ -139,7 +139,7 @@ fn @freshCopy() [selector=0x602d1e17, abi_wrapper, pure] {
     v15 = calldataload 4
     v16 = add v15, 4
     v18 = sub v13, 36
-    v19 = gt v15, v18
+    v19 = lt v18, v15
     jumpi v19, bb1, bb2
   bb2:  ; preds = bb0
     v20 = calldataload v16
@@ -152,7 +152,7 @@ fn @freshCopy() [selector=0x602d1e17, abi_wrapper, pure] {
     v59 = icall @alloc, v24
     mstore v59, v20
     v27 = sub v13, v21
-    v28 = gt v20, v27
+    v28 = lt v27, v20
     jumpi v28, bb1, bb5
   bb5:  ; preds = bb4
     v51 = add v59, 32
@@ -165,7 +165,7 @@ fn @freshCopy() [selector=0x602d1e17, abi_wrapper, pure] {
     v9 = sub arg1, v59
     v0 = ne arg1, 0
     v10 = zext i1 v0 to i256
-    v11 = mul v10, v9
+    v11 = mul v9, v10
     v12 = add v59, v11
     v4 = icall @_freshCopy, v12, arg2
     v41 = mload v4
@@ -195,8 +195,8 @@ fn @_memoryCopy(arg0: i256, arg1: i256, arg2: i256) [may_return_memory, pure] {
     v41 = add arg0, 32
     v43 = add arg1, 32
     v26 = add v41, arg2
-    v27 = add v43, arg2
     v28 = lt v43, v26
+    v27 = add v43, arg2
     v29 = lt arg0, v27
     v30 = and v28, v29
     jumpi v30, bb1, bb5
@@ -292,18 +292,18 @@ fn @_downCopy(arg0: i256, arg1: i256, arg2: i256) [may_return_memory, pure] {
     v41 = add arg0, 32
     v43 = add arg1, 32
     v28 = add v41, arg2
-    v29 = add v43, arg2
     v30 = lt v43, v28
+    v29 = add v43, arg2
     v31 = lt arg0, v29
     v32 = and v30, v31
     jumpi v32, bb1, bb5
   bb5:  ; preds = bb4
     v34 = mload arg0
-    v35 = gt arg2, v34
+    v35 = lt v34, arg2
     jumpi v35, bb6, bb9
   bb9:  ; preds = bb5
     v36 = mload arg1
-    v37 = gt arg2, v36
+    v37 = lt v36, arg2
     jumpi v37, bb6, bb10
   bb10:  ; preds = bb9
     mcopy v43, v41, arg2
@@ -368,8 +368,8 @@ fn @_freshCopy(arg0: i256, arg1: i256) -> i256 [may_return_memory, pure] {
   bb6:  ; preds = bb4
     v75 = calldatasize
     calldatacopy v60, v75, v1
-    v50 = add v60, arg1
     v51 = lt v60, v32
+    v50 = add v60, arg1
     v52 = lt arg0, v50
     v53 = and v51, v52
     jumpi v53, bb1, bb7
@@ -429,7 +429,7 @@ fn @alloc(arg0: i256) -> i256 {
     v3 = lt v2, v0
     v4 = zext i1 v3 to i256
     v5 = shr v2, 64
-    v6 = or v4, v5
+    v6 = or v5, v4
     v7 = ne v6, 0
     jumpi v7, bb1, bb2
   bb2:  ; preds = bb0

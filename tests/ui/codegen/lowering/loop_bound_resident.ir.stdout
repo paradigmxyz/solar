@@ -147,9 +147,9 @@ bb11 [loop]:
   pop
   jump bb8
 bb8 [loop]:
-  dup 3
-  dup 2
-  gt
+  dup 1
+  dup 4
+  lt
   iszero
   push bb10
   jumpi

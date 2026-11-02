@@ -20,7 +20,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v11 = add v9, v10
     sstore 0, v8 !metadata(storage=slot(0))
     v12 = sload 0 !metadata(storage=slot(0))
-    v13 = lt 0, v12
+    v13 = gt v12, 0
     v14 = eq v13, false
     icall panic_if<0x32>, v14
     v15 = storage_array_data_slot 0
@@ -33,7 +33,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v21 = or v20, 11
     sstore v18, v21 !metadata(storage=offset(v15, 2))
     v22 = sload 0 !metadata(storage=slot(0))
-    v23 = lt 0, v22
+    v23 = gt v22, 0
     v24 = eq v23, false
     icall panic_if<0x32>, v24
     v25 = storage_array_data_slot 0
@@ -46,7 +46,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v31 = or v30, 0xc00
     sstore v28, v31 !metadata(storage=offset(v25, 2))
     v32 = sload 0 !metadata(storage=slot(0))
-    v33 = lt 0, v32
+    v33 = gt v32, 0
     v34 = eq v33, false
     icall panic_if<0x32>, v34
     v35 = storage_array_data_slot 0
@@ -64,7 +64,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     sstore v44, 1 !metadata(storage=symbolic(v44))
     sstore v39, v42 !metadata(storage=offset(v35, 3))
     v45 = sload 0 !metadata(storage=slot(0))
-    v46 = lt 0, v45
+    v46 = gt v45, 0
     v47 = eq v46, false
     icall panic_if<0x32>, v47
     v48 = storage_array_data_slot 0
@@ -82,7 +82,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     sstore v57, 2 !metadata(storage=symbolic(v57))
     sstore v52, v55 !metadata(storage=offset(v48, 3))
     v58 = sload 0 !metadata(storage=slot(0))
-    v59 = lt 0, v58
+    v59 = gt v58, 0
     v60 = eq v59, false
     icall panic_if<0x32>, v60
     v61 = storage_array_data_slot 0
@@ -100,7 +100,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     sstore v70, 3 !metadata(storage=symbolic(v70))
     sstore v65, v68 !metadata(storage=offset(v61, 3))
     v71 = sload 0 !metadata(storage=slot(0))
-    v72 = lt 1, v71
+    v72 = gt v71, 1
     v73 = eq v72, false
     icall panic_if<0x32>, v73
     v74 = storage_array_data_slot 0
@@ -114,7 +114,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v81 = or v80, 21
     sstore v78, v81 !metadata(storage=offset(v74, 10))
     v82 = sload 0 !metadata(storage=slot(0))
-    v83 = lt 1, v82
+    v83 = gt v82, 1
     v84 = eq v83, false
     icall panic_if<0x32>, v84
     v85 = storage_array_data_slot 0
@@ -128,7 +128,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v92 = or v91, 0x1600
     sstore v89, v92 !metadata(storage=offset(v85, 10))
     v93 = sload 0 !metadata(storage=slot(0))
-    v94 = lt 1, v93
+    v94 = gt v93, 1
     v95 = eq v94, false
     icall panic_if<0x32>, v95
     v96 = storage_array_data_slot 0
@@ -147,7 +147,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     sstore v106, 4 !metadata(storage=symbolic(v106))
     sstore v101, v104 !metadata(storage=offset(v96, 11))
     v107 = sload 0 !metadata(storage=slot(0))
-    v108 = lt 1, v107
+    v108 = gt v107, 1
     v109 = eq v108, false
     icall panic_if<0x32>, v109
     v110 = storage_array_data_slot 0
@@ -166,7 +166,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     sstore v120, 5 !metadata(storage=symbolic(v120))
     sstore v115, v118 !metadata(storage=offset(v110, 11))
     v121 = sload 0 !metadata(storage=slot(0))
-    v122 = lt 1, v121
+    v122 = gt v121, 1
     v123 = eq v122, false
     icall panic_if<0x32>, v123
     v124 = storage_array_data_slot 0
@@ -209,7 +209,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     jumpi v150, bb2, bb3
   bb3:  ; preds = bb1
     v181 = mload v148
-    v182 = lt 0, v181
+    v182 = gt v181, 0
     v183 = eq v182, false
     icall panic_if<0x32>, v183
     v184 = ptradd v148, 32
@@ -222,7 +222,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v190 = mload v189
     v191 = trunc i256 v190 to i8
     v192 = mload v148
-    v193 = lt 0, v192
+    v193 = gt v192, 0
     v194 = eq v193, false
     icall panic_if<0x32>, v194
     v195 = ptradd v148, 32
@@ -237,7 +237,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v203 = trunc i256 v202 to i8
     v204 = checked_add uint8, v191, v203
     v205 = mload v148
-    v206 = lt 0, v205
+    v206 = gt v205, 0
     v207 = eq v206, false
     icall panic_if<0x32>, v207
     v208 = ptradd v148, 32
@@ -250,7 +250,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v214 = ptradd v213, 64
     v215 = mload v214, ptr<memory>
     v216 = mload v215
-    v217 = lt 0, v216
+    v217 = gt v216, 0
     v218 = eq v217, false
     icall panic_if<0x32>, v218
     v219 = ptradd v215, 32
@@ -258,7 +258,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v221 = zext i8 v204 to i256
     v222 = checked_add uint256, v221, v220
     v223 = mload v148
-    v224 = lt 1, v223
+    v224 = gt v223, 1
     v225 = eq v224, false
     icall panic_if<0x32>, v225
     v226 = ptradd v148, 64
@@ -273,7 +273,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v234 = zext i8 v233 to i256
     v235 = checked_add uint256, v222, v234
     v236 = mload v148
-    v237 = lt 1, v236
+    v237 = gt v236, 1
     v238 = eq v237, false
     icall panic_if<0x32>, v238
     v239 = ptradd v148, 64
@@ -289,7 +289,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v248 = zext i8 v247 to i256
     v249 = checked_add uint256, v235, v248
     v250 = mload v148
-    v251 = lt 1, v250
+    v251 = gt v250, 1
     v252 = eq v251, false
     icall panic_if<0x32>, v252
     v253 = ptradd v148, 64
@@ -302,7 +302,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v259 = ptradd v258, 64
     v260 = mload v259, ptr<memory>
     v261 = mload v260
-    v262 = lt 0, v261
+    v262 = gt v261, 0
     v263 = eq v262, false
     icall panic_if<0x32>, v263
     v264 = ptradd v260, 32

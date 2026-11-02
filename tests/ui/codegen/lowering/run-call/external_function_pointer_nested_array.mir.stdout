@@ -4,7 +4,7 @@
 fn @f(arg0: ptr<memory>) -> ptr<memory> [selector=0x2ed7fe6a, abi_params=[array<_, function>], abi_returns=[array<3, function>], abi_return_params=[array<3, function>]] {
   bb0:
     v0 = mload arg0
-    v1 = lt 0, v0
+    v1 = gt v0, 0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = ptradd arg0, 32
@@ -31,7 +31,7 @@ fn @f(arg0: ptr<memory>) -> ptr<memory> [selector=0x2ed7fe6a, abi_params=[array<
     v17 = shl v13, 64
     mstore v14, v17
     v18 = mload arg0
-    v19 = lt 1, v18
+    v19 = gt v18, 1
     v20 = eq v19, false
     icall panic_if<0x32>, v20
     v21 = ptradd arg0, 64
@@ -57,7 +57,7 @@ fn @f(arg0: ptr<memory>) -> ptr<memory> [selector=0x2ed7fe6a, abi_params=[array<
     v35 = ptradd v14, 32
     mstore v35, v34
     v36 = mload arg0
-    v37 = lt 2, v36
+    v37 = gt v36, 2
     v38 = eq v37, false
     icall panic_if<0x32>, v38
     v39 = ptradd arg0, 96
@@ -116,7 +116,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v22 = shl v21, 32
     v23 = or v22, 0x573a6b2f
     v24 = mload v4
-    v25 = lt 0, v24
+    v25 = gt v24, 0
     v26 = eq v25, false
     icall panic_if<0x32>, v26
     v27 = shl v23, 64

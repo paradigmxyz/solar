@@ -29,7 +29,7 @@
 +     v4 = ptradd v0, v3
 +     v5 = mload v4
 +     v6 = mul v1, 32
-+     v7 = add 128, v6
++     v7 = add v6, 128
 +     v8 = and v5, 255
 +     mstore v7, v8
 +     v9 = add v1, 1

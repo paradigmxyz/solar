@@ -96,7 +96,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v84 = eq v83, false
     icall panic_if<0x32>, v84
     v85 = div v75, 4
-    v86 = add v77, v85
+    v86 = add v85, v77
     v87 = mod v75, 4
     v88 = mul v87, 8
     v89 = sload v86 !metadata(storage=symbolic(v86))

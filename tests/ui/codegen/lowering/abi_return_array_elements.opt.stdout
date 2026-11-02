@@ -170,7 +170,7 @@ fn @decode_calldata_type.8() -> i256 [may_return_memory] {
     v1 = calldataload 4
     v2 = add v1, 4
     v4 = sub v0, 36
-    v5 = gt v1, v4
+    v5 = lt v4, v1
     jumpi v5, bb1, bb2
   bb2:  ; preds = bb0
     v6 = calldataload v2
@@ -183,9 +183,9 @@ fn @decode_calldata_type.8() -> i256 [may_return_memory] {
     v38 = lt v37, v36
     v39 = zext i1 v38 to i256
     v40 = shr v37, 64
-    v41 = or v39, v40
+    v41 = or v40, v39
     v43 = zext i1 v8 to i256
-    v44 = or v43, v41
+    v44 = or v41, v43
     v45 = ne v44, 0
     jumpi v45, bb3, bb9
   bb9:  ; preds = bb2
@@ -194,7 +194,7 @@ fn @decode_calldata_type.8() -> i256 [may_return_memory] {
     v12 = shl v6, 5
     v13 = sub v0, v7
     v14 = shr v13, 5
-    v15 = gt v6, v14
+    v15 = lt v14, v6
     jumpi v15, bb1, bb4
   bb4:  ; preds = bb9
     v16 = ne v6, 0
@@ -206,7 +206,7 @@ fn @decode_calldata_type.8() -> i256 [may_return_memory] {
     v19 = phi [bb5: v7], [bb6: v23]
     v20 = phi [bb5: 0], [bb6: v22]
     v21 = calldataload v19
-    v22 = or v20, v21
+    v22 = or v21, v20
     v23 = add v19, 32
     v24 = lt v23, v18
     jumpi v24, bb6, bb7
@@ -232,7 +232,7 @@ fn @decode_calldata_type.9() -> i256 [may_return_memory] {
     v1 = calldataload 4
     v2 = add v1, 4
     v4 = sub v0, 36
-    v5 = gt v1, v4
+    v5 = lt v4, v1
     jumpi v5, bb1, bb2
   bb2:  ; preds = bb0
     v6 = calldataload v2
@@ -245,9 +245,9 @@ fn @decode_calldata_type.9() -> i256 [may_return_memory] {
     v38 = lt v37, v36
     v39 = zext i1 v38 to i256
     v40 = shr v37, 64
-    v41 = or v39, v40
+    v41 = or v40, v39
     v43 = zext i1 v8 to i256
-    v44 = or v43, v41
+    v44 = or v41, v43
     v45 = ne v44, 0
     jumpi v45, bb3, bb9
   bb9:  ; preds = bb2
@@ -256,7 +256,7 @@ fn @decode_calldata_type.9() -> i256 [may_return_memory] {
     v12 = shl v6, 5
     v13 = sub v0, v7
     v14 = shr v13, 5
-    v15 = gt v6, v14
+    v15 = lt v14, v6
     jumpi v15, bb1, bb4
   bb4:  ; preds = bb9
     v16 = ne v6, 0
@@ -268,7 +268,7 @@ fn @decode_calldata_type.9() -> i256 [may_return_memory] {
     v19 = phi [bb5: v7], [bb6: v23]
     v20 = phi [bb5: 0], [bb6: v22]
     v21 = calldataload v19
-    v22 = or v20, v21
+    v22 = or v21, v20
     v23 = add v19, 32
     v24 = lt v23, v18
     jumpi v24, bb6, bb7
@@ -300,7 +300,7 @@ fn @encode_abi_array(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
   bb1:  ; preds = bb0, bb1
     v9 = phi [bb0: v1], [bb1: v14]
     v10 = phi [bb0: v3], [bb1: v15]
-    v11 = add v10, v7
+    v11 = add v7, v10
     v12 = mload v11
     v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
     mstore v10, v13

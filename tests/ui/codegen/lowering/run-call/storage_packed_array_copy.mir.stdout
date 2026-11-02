@@ -37,7 +37,7 @@ fn @constructor() [constructor] {
     v6 = eq v5, false
     icall panic_if<0x32>, v6
     v7 = div v0, 4
-    v8 = add 0, v7
+    v8 = add v7, 0
     v9 = mod v0, 4
     v10 = mul v9, 8
     v11 = mul v10, 8
@@ -104,7 +104,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v72 = eq v71, false
     icall panic_if<0x32>, v72
     v73 = div v69, 1
-    v74 = add 3, v73
+    v74 = add v73, 3
     v75 = mod v69, 1
     v76 = mul v75, 17
     v77 = sload v74 !metadata(storage=offset(v73, 3))
@@ -127,7 +127,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v52 = eq v51, false
     icall panic_if<0x32>, v52
     v53 = div v49, 4
-    v54 = add 0, v53
+    v54 = add v53, 0
     v55 = mod v49, 4
     v56 = mul v55, 8
     v57 = sload v54 !metadata(storage=symbolic(v53))
@@ -146,7 +146,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     jump bb13
   bb8:  ; preds = bb7
     v22 = div v20, 1
-    v23 = add 3, v22
+    v23 = add v22, 3
     v24 = mod v20, 1
     v25 = mul v24, 17
     v26 = lt v20, 9
@@ -180,7 +180,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v46 = add v20, 1
     jump bb7
   bb2:  ; preds = bb1
-    v3 = add 0, v1
+    v3 = add v1, 0
     v4 = sload v3 !metadata(storage=symbolic(v1))
     v5 = mul v1, 4
     v6 = sub 9, v5

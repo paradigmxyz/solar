@@ -9,7 +9,7 @@
 //! runs once per commuted spelling of the root (see `commute`), so it states a
 //! commutative operation in one operand order.
 
-use super::{OperandViews, canonical, canonical_operands, same_value};
+use super::{OperandViews, canonical, same_value};
 use crate::{
     backend::evm::{op, select::InstKindOpcode},
     mir::{
@@ -111,7 +111,7 @@ impl<'a> RuleContext<'a> {
     }
 
     /// Appends every equivalent instruction the rules can build for `op`,
-    /// whose operands must be in [`canonical_operands`] order.
+    /// whose operands must be in [`Function::canonical_op`] order.
     pub(super) fn rewrite(&mut self, op: &Op, alternatives: &mut Vec<Op>) {
         self.integer_ty = self.operation_type(op).unwrap_or(MirType::I256);
         self.read_commutative = false;
@@ -140,7 +140,7 @@ impl<'a> RuleContext<'a> {
     }
 
     /// Returns the value `op` is equal to, when a rule applies. The operands
-    /// of `op` must be in [`canonical_operands`] order.
+    /// of `op` must be in [`Function::canonical_op`] order.
     pub(super) fn simplify(&mut self, op: &Op) -> Option<ValueId> {
         self.integer_ty = self.operation_type(op).unwrap_or(MirType::I256);
         self.read_commutative = false;
@@ -392,7 +392,8 @@ impl generated::Context for RuleContext<'_> {
     }
 
     fn inst_data(&mut self, value: Value) -> Option<Op> {
-        let op = self
+        let op = 
+        self
             .views
             .iter()
             .flatten()
@@ -423,7 +424,7 @@ impl generated::Context for RuleContext<'_> {
                     self.operation_type(op).unwrap_or(MirType::I256) == self.integer_ty
                 }
             })
-            .map(|op| canonical_operands(self.func, op))?;
+            .map(|op| self.func.canonical_op(op))?;
         self.read_commutative = self.read_commutative || self.swappable(&op);
         Some(if self.commuted.contains(&value) { op.commuted().unwrap_or(op) } else { op })
     }

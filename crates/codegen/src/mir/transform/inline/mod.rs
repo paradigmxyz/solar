@@ -515,6 +515,7 @@ impl MirInliner {
         Pricing { target, call_count, consume_all }: Pricing,
         preferred_large_call_site: Option<(MirFunctionId, InstId)>,
     ) -> bool {
+        let target = target.priced_for_callee(&module.function(site.callee).attributes);
         let single_call = call_count == 1;
         // Inlining every call site removes the callee, as it does for a sole-use helper.
         let sole = single_call || consume_all;
@@ -2081,7 +2082,7 @@ impl<'a> InlineCloner<'a> {
                 let mut instruction = Instruction::new(inst.kind.clone(), inst.result_ty);
                 instruction.metadata.copy_debug_context(&inst.metadata);
                 let new_inst = if let Some(callee_result) = self.callee.inst_result_value(inst_id) {
-                    let (new_inst, new_result) = self.caller.alloc_value_inst(instruction);
+                    let (new_inst, new_result) = self.caller.alloc_value_inst_verbatim(instruction);
                     self.value_map.insert(callee_result, new_result);
                     new_inst
                 } else {
@@ -2095,6 +2096,7 @@ impl<'a> InlineCloner<'a> {
             let caller_block = self.block_map[callee_block];
             for (index, &inst_id) in block.instructions.iter().enumerate() {
                 let kind = self.clone_inst_kind(self.callee.inst(inst_id).kind.clone())?;
+                let kind = self.caller.canonical_kind(kind);
                 let new_inst = self.caller.blocks[caller_block].instructions[index];
                 self.caller.inst_mut(new_inst).kind = kind;
             }

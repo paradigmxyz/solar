@@ -198,6 +198,7 @@ pub(super) fn cleanup(
             InstKind::Ne(..) => InstKind::Ne(value, zero),
             _ => unreachable!(),
         };
+        let kind = func.canonical_kind(kind);
         func.inst_mut(inst).replace_kind(kind);
         changed = true;
     }
@@ -218,6 +219,7 @@ pub(super) fn cleanup(
             InstKind::Ne(..) => InstKind::Ne(left, right),
             _ => unreachable!(),
         };
+        let kind = func.canonical_kind(kind);
         func.inst_mut(inst).replace_kind(kind);
         changed = true;
     }

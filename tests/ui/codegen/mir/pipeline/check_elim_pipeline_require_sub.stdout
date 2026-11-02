@@ -9,7 +9,7 @@ fn @entry() [entry, cold] {
 
 fn @guarded(arg0: i256, arg1: i256) {
   bb0:
-    v0 = gt arg1, arg0
+    v0 = lt arg0, arg1
     jumpi v0, bb1, bb2
   bb2:  ; preds = bb0
     v3 = sub arg0, arg1

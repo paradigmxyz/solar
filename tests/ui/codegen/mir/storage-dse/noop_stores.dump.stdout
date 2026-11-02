@@ -84,7 +84,7 @@ fn @branch() [selector=0xc86d784b, abi_wrapper, implicit_args=[i256, i1]] {
     v5 = calldatasize
     v6 = lt v5, 68
     v11 = zext i1 v6 to i256
-    v12 = or v11, v8
+    v12 = or v8, v11
     v13 = ne v12, 0
     jumpi v13, bb1, bb2
   bb2:  ; preds = bb0

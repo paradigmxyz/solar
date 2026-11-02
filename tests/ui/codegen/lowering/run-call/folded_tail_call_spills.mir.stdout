@@ -85,7 +85,7 @@ fn @_finish(arg0: i256, arg1: i256) [pure] {
     v35 = xor v34, v14
     v36 = xor v35, v15
     v37 = xor v36, v16
-    v38 = xor v21, v37
+    v38 = xor v37, v21
     mstore 0, v38 !metadata(memory=scratch)
     returndata 0, 32
 }

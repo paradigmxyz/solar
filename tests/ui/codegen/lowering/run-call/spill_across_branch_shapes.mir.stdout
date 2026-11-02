@@ -9,7 +9,7 @@ fn @step(arg0: i256, arg1: i256) -> struct0 [pure] {
     v0 = mul arg0, 3
     v1 = add v0, arg1
     v2 = shl arg1, 1
-    v3 = xor arg0, v2
+    v3 = xor v2, arg0
     v4 = insert_value struct0, undef struct0, 0, v1
     v5 = insert_value struct0, v4, 1, v3
     ret v5
@@ -433,12 +433,12 @@ fn @whileTrueThenLoop(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xd5
     v29 = extract_value struct0, v27, 1
     v30 = add v26, 1
     v31 = and v22, 3
-    v32 = gt v30, v31
+    v32 = lt v31, v30
     jumpi v32, bb9, bb10
   bb10:  ; preds = bb6
     jump bb11
   bb11:  ; preds = bb10
-    v33 = xor v23, v30
+    v33 = xor v30, v23
     jump bb8
   bb8:  ; preds = bb11
     jump bb4

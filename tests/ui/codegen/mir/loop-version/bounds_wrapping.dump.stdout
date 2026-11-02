@@ -62,7 +62,7 @@ fn @wrapped() [selector=0x08a7c76d, abi_wrapper, pure] {
     v8 = lt v7, v6
     v9 = zext i1 v8 to i256
     v10 = shr v7, 64
-    v11 = or v9, v10
+    v11 = or v10, v9
     v12 = ne v11, 0
     jumpi v12, bb4, bb3
   bb3:  ; preds = bb2

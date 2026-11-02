@@ -45,7 +45,7 @@ fn @sort(arg0: ptr<memory>) -> ptr<memory> [selector=0x9ec8b026, pure, abi_param
     v23 = ptradd v12, v22
     v24 = ptradd v23, 32
     v25 = mload v24
-    v26 = gt v25, v15
+    v26 = lt v15, v25
     jump bb11
   bb11:  ; preds = bb9, bb10
     v27 = phi [bb9: v26], [bb10: false]

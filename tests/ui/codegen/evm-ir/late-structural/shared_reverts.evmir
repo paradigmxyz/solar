@@ -1,0 +1,47 @@
+//@ revisions: dedup late
+//@[dedup] compile-flags: -Ogas -Zevm-ir-pipeline=terminal-dedup
+//@[late] compile-flags: -Ogas -Zevm-ir-pipeline=late-structural
+//@[dedup] filecheck: --check-prefix=DEDUP
+//@[late] filecheck: --check-prefix=LATE
+//@ run-call: pick(uint256)(uint256) 2 => 7
+//@ run-call-fail: pick(uint256)(uint256) 0 => 0x0000000000000000000000000000000000000000000000000000000000000000
+//@ run-call-fail: pick(uint256)(uint256) 1 => 0x0000000000000000000000000000000000000000000000000000000000000000
+// Two blocks end in the same revert. `terminal-dedup` turns the second into a jump to the first.
+// `late-structural` then runs cfg-simplify, which redirects the branch to the shared block and
+// removes the forwarder.
+// DEDUP: {{^[ +].*}}bb2 [cold]:
+// DEDUP: + jump bb1
+// LATE: - push bb2
+// LATE-NEXT: + push bb1
+// LATE: - bb2 [cold]:
+@module SharedReverts
+
+bb0:
+  push 4
+  calldataload
+  push bb3
+  jumpi
+  jump bb1
+bb1 [cold]:
+  push 64
+  push 32
+  push 0
+  revert
+bb3:
+  push 4
+  calldataload
+  push 1
+  eq
+  push bb2
+  jumpi
+  push 7
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb2 [cold]:
+  push 64
+  push 32
+  push 0
+  revert

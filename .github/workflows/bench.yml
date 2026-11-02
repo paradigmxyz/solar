@@ -24,6 +24,8 @@ on:
         type: string
 
 env:
+  # setup-python upgrades pip, which fails while the newest pip is too new for the package policy.
+  PIP_UPLOADED_PRIOR_TO: P7D
   CARGO_TERM_COLOR: always
   RUSTC_WRAPPER: "sccache"
   SOLC_VERSION: ${{ inputs.solc_version || '0.8.38' }}
