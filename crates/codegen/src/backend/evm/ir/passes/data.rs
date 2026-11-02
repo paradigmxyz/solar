@@ -14,10 +14,11 @@
 //! runtime gas and no more bytes, since static sites have no execution frequency to repay code
 //! growth. Creation code that runs once may trade gas for bytes at the calldata price of its model,
 //! but blocks that may run more than once keep the runtime model. Rejected groups can still ride
-//! along as substrings of an accepted entry. When no site of a group profits, the runs inside its
-//! stores are tried on their own, since a short word between long strings only grows the data. A
-//! copy of data that ends in zeros stops before them when a zero word store clears the last word
-//! first, if that is cheaper.
+//! along as substrings of an accepted entry. Whole runs are judged first, because equal runs at
+//! several sites share one entry and so can pay jointly when no site pays alone. Only the runs that
+//! no group accepts are split, since a short word between long strings only grows the data, and the
+//! runs inside them are judged the same way. A copy of data that ends in zeros stops before them
+//! when a zero word store clears the last word first, if that is cheaper.
 //!
 //! The pass leaves a module alone when a data address may reach anything but a `CODECOPY` that
 //! stays inside its entry. `CODESIZE` does not stop it: the module already holds data that MIR
@@ -82,10 +83,6 @@ impl EvmPass for PackData {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let optimization = module.optimization;
-        if !(optimization.is_gas() || optimization.is_size()) {
-            return pack_existing_data(module, false);
-        }
         let Some(referenced) = scan_data_references(module) else { return false };
         let groups = find_runs(gcx, module);
         let packed = pack_data(module, &referenced, true);
@@ -278,8 +275,8 @@ fn materialize_data(
                 prepared.extend(rewrites.into_iter().map(|rewrite| (rewrite, Some(data_ref))));
             }
         }
-        // A run that no site profits from may hold shorter runs that do: a short word between long
-        // strings only grows the data. Try them once the joint evaluation of whole runs is done.
+        // A run that no site profits from may hold shorter runs that do. They wait for the joint
+        // evaluation of whole runs, which can accept a run that only pays when sites share it.
         if std::mem::take(&mut splittable) {
             let mut inner = FxHashMap::<Bytes, Vec<Rewrite>>::default();
             for rewrite in rejected.drain(..).flat_map(|(_, rewrites)| rewrites) {
