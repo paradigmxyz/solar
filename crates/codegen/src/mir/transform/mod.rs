@@ -20,7 +20,6 @@ pub(crate) mod indvar_simplify;
 pub(crate) mod inline;
 pub(crate) mod jump_threading;
 pub(crate) mod loop_canonicalize;
-pub(crate) mod loop_exit_remat;
 pub(crate) mod loop_opt;
 pub(crate) mod loop_reduce;
 pub(crate) mod loop_split;
