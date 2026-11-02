@@ -91,9 +91,7 @@ fn copy_splat_to_memory(
     {
         return false;
     }
-    let mut word = [0; EvmMemoryLayout::WORD_SIZE as usize];
-    word.copy_from_slice(&data[..word_size]);
-    let word = U256::from_be_bytes(word);
+    let word = U256::from_be_slice(&data[..word_size]);
     if !target.evm_version().has_mcopy() && !target.legacy_splat_is_profitable(word, data.len()) {
         return false;
     }

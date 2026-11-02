@@ -21,12 +21,14 @@
 //! when a zero word store clears the last word first, if that is cheaper.
 //!
 //! The pass leaves a module alone when a data address may reach anything but a `CODECOPY` that
-//! stays inside its entry. `CODESIZE` does not stop it: the module already holds data that MIR
-//! copies placed, so code that reads its own bytes cannot rely on this layout. The scan tracks
-//! each block's stack and follows addresses through a few unconditional jumps, since shared tails
-//! can move a copy into another block. Pooling uses bounded substring search to avoid quadratic
-//! compile time on large data sets. Library relocations must match within a shared range; literal
-//! stores never share relocatable bytes.
+//! stays inside its entry. The last entry of creation code is the tail: the runtime code ends the
+//! deployment code and constructor arguments follow it, which they find by subtracting its address
+//! from `CODESIZE` or copying from it. The tail stays last and, when the arguments are found that
+//! way, in place; new entries go before it, so `CODESIZE` alone does not stop the pass. The scan
+//! tracks each block's stack and follows addresses through a few unconditional jumps, since shared
+//! tails can move a copy into another block. Pooling uses bounded substring search to avoid
+//! quadratic compile time on large data sets. Library relocations must match within a shared range;
+//! literal stores never share relocatable bytes.
 //!
 //! Runs end at the first other instruction, so a computed word between literal stores splits
 //! them, and runs do not cross block boundaries; `cfg-simplify` merges straight-line chains first.
@@ -83,12 +85,16 @@ impl EvmPass for PackData {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let Some(referenced) = scan_data_references(module) else { return false };
+        let Some(DataScan { referenced, mut tail, in_place }) = scan_data_references(module, None)
+        else {
+            return false;
+        };
         let groups = find_runs(gcx, module);
-        let packed = pack_data(module, &referenced, true);
+        let subslices = !module.optimization.is_none();
+        let packed = pack_data(module, &referenced, &mut tail, in_place, subslices);
         let materialized = materialize_data(gcx, module, groups);
-        if materialized && let Some(referenced) = scan_data_references(module) {
-            pack_data(module, &referenced, true);
+        if materialized && let Some(scan) = scan_data_references(module, tail) {
+            pack_data(module, &scan.referenced, &mut tail, scan.in_place, subslices);
         }
         packed || materialized
     }
@@ -122,12 +128,6 @@ impl Rewrite {
                 - i64::from(target.runtime_gas(self.new)),
             bytes: i64::from(self.old.bytes) - i64::from(self.new.bytes),
         }
-    }
-
-    /// Whether this saves at least as much as `other` under the objective, compared without
-    /// signed costs: `other.old + self.new <= self.old + other.new`.
-    fn saves_at_least(&self, other: &Self, target: &Target) -> bool {
-        target.cmp(other.old + self.new, self.old + other.new).is_le()
     }
 }
 
@@ -225,8 +225,7 @@ fn materialize_data(
     let mut rejected = Vec::<(NeedleFinder, Vec<Rewrite>)>::new();
     let mut absorbed = Vec::new();
     let mut scratch = RunScratch::default();
-    let mut splittable = true;
-    while !groups.is_empty() {
+    for splits in [true, false] {
         for (data, rewrites) in std::mem::take(&mut groups) {
             if data.iter().all(|&byte| byte == 0) {
                 // Zero fills need no data, so each site stands alone.
@@ -277,7 +276,7 @@ fn materialize_data(
         }
         // A run that no site profits from may hold shorter runs that do. They wait for the joint
         // evaluation of whole runs, which can accept a run that only pays when sites share it.
-        if std::mem::take(&mut splittable) {
+        if splits {
             let mut inner = FxHashMap::<Bytes, Vec<Rewrite>>::default();
             for rewrite in rejected.drain(..).flat_map(|(_, rewrites)| rewrites) {
                 let block = &module.blocks[rewrite.block];
@@ -372,7 +371,7 @@ fn find_run(
         if let Some(run) = scan_run(target, block, instructions, later, scratch)
             && run.rewrite.end == best.rewrite.end
             && run.data == best.data
-            && run.rewrite.saves_at_least(&best.rewrite, target)
+            && run.saves_at_least(&best, target)
         {
             best = run;
         }
@@ -390,6 +389,12 @@ fn split_run(
 ) -> Vec<(Bytes, Rewrite)> {
     let mut windows = Vec::<Run>::new();
     for start in run.start..run.end {
+        // A window that starts in the middle of a store's operands only repeats the work of the
+        // window that starts at the operands' first push.
+        if start != run.start && !matches!(instructions[start - 1].opcode, op::MSTORE | op::MSTORE8)
+        {
+            continue;
+        }
         scan_ends(target, instructions, start, scratch);
         let mut best = None::<Run>;
         for index in 0..scratch.ends.len() {
@@ -463,6 +468,7 @@ struct Run {
 
 /// A point where a run scan can stop: after a store that leaves the stores in one range and a stack
 /// a copy can rebuild. `extras` indexes the stack words above `kept` in `RunScratch::extras`.
+#[derive(Clone)]
 struct RunEnd {
     end: usize,
     old: Cost,
@@ -629,10 +635,8 @@ fn run_ending_at(
 ) -> Option<Run> {
     let RunScratch { stores, ends, extras, start, destination, first_store, .. } = scratch;
     let RunEnd { end, old, stores: store_count, range: (low, high), inputs, kept, extras: range } =
-        &ends[index];
-    let (end, old, store_count, low, high, inputs, kept) =
-        (*end, *old, *store_count, *low, *high, *inputs, *kept);
-    let extras = &extras[range.clone()];
+        ends[index].clone();
+    let extras = &extras[range];
     let mut data = vec![0; (high - low) as usize];
     for &(offset, value, word) in &stores[..store_count] {
         let at = (offset - low) as usize;
@@ -663,15 +667,15 @@ fn run_ending_at(
     // A copy of data with zeros at its end can stop before them if a zero word store clears the
     // last word first. The store costs code but the pool gets fewer bytes.
     let zeros = data.iter().rev().take_while(|&&byte| byte == 0).count().min(WORD_BYTES - 1);
-    let shortened = (!whole.zero && zeros > 0 && data.len() > WORD_BYTES)
-        .then(|| {
-            plan.price(destination, &data[..data.len() - zeros], Some(data.len() - WORD_BYTES))
-        })
-        .flatten();
-    match shortened {
-        Some(shortened) if !whole.saves_at_least(&shortened, target) => Some(shortened),
-        _ => Some(whole),
-    }
+    let shortened = if !whole.zero && zeros > 0 && data.len() > WORD_BYTES {
+        plan.price(destination, &data[..data.len() - zeros], Some(data.len() - WORD_BYTES))
+    } else {
+        None
+    };
+    Some(match shortened {
+        Some(shortened) if !whole.saves_at_least(&shortened, target) => shortened,
+        _ => whole,
+    })
 }
 
 /// What a copy that replaces the stores of a run depends on.
@@ -807,17 +811,22 @@ fn apply_stack_op<T: Copy>(stack: &mut Vec<T>, stack_op: op::StackOp) {
 
 /// Shares storage between data entries after deferred data is linked in.
 pub(in crate::backend) fn pack_linked_data(module: &mut Module) -> bool {
-    let optimization = module.optimization;
-    pack_existing_data(module, optimization.is_gas() || optimization.is_size())
-}
-
-fn pack_existing_data(module: &mut Module, allow_subslices: bool) -> bool {
+    let subslices = !module.optimization.is_none();
     !module.data.is_empty()
-        && scan_data_references(module)
-            .is_some_and(|referenced| pack_data(module, &referenced, allow_subslices))
+        && scan_data_references(module, None).is_some_and(
+            |DataScan { referenced, mut tail, in_place }| {
+                pack_data(module, &referenced, &mut tail, in_place, subslices)
+            },
+        )
 }
 
-fn pack_data(module: &mut Module, referenced: &DenseBitSet<DataId>, allow_subslices: bool) -> bool {
+fn pack_data(
+    module: &mut Module,
+    referenced: &DenseBitSet<DataId>,
+    tail: &mut Option<DataId>,
+    in_place: bool,
+    allow_subslices: bool,
+) -> bool {
     if module.data.is_empty() {
         return false;
     }
@@ -846,11 +855,14 @@ fn pack_data(module: &mut Module, referenced: &DenseBitSet<DataId>, allow_subsli
     let subslices = allow_subslices && module.data.len() < MAX_DATA_SUBSTRING_ENTRIES;
     for old_id in order {
         let data = &module.data[old_id];
-        // Deferred bytes are not known yet, so they are never shared.
-        let key = (data.bytes.known()).filter(|_| !data.emit_in_runtime).map(|bytes| {
-            let trailers = data.trailers.iter().map(|trailer| trailer.range.clone());
-            (bytes.clone(), data.library_relocations.clone(), trailers.collect())
-        });
+        // Deferred bytes are not known yet, so they are never shared, and the tail stays in place
+        // when its address is used to find the constructor arguments.
+        let key = (data.bytes.known())
+            .filter(|_| !data.emit_in_runtime && !(in_place && Some(old_id) == *tail))
+            .map(|bytes| {
+                let trailers = data.trailers.iter().map(|trailer| trailer.range.clone());
+                (bytes.clone(), data.library_relocations.clone(), trailers.collect())
+            });
         let shared = key.as_ref().and_then(|key| {
             let exact = exact.get(key).map(|&id| DataRef::new(id, 0));
             exact.or_else(|| subslices.then(|| find_data(&packed, data, old_id)).flatten())
@@ -870,13 +882,18 @@ fn pack_data(module: &mut Module, referenced: &DenseBitSet<DataId>, allow_subsli
         remap.insert(old_id, data_ref);
     }
 
-    packed.sort_unstable_keys();
+    // The entry that holds the tail stays last, which new entries would otherwise follow.
+    let host = tail.map(|tail| remap[&tail].id);
+    packed.sort_unstable_by(|id, _, other_id, _| {
+        (Some(*id) == host, id).cmp(&(Some(*other_id) == host, other_id))
+    });
     if packed.values().eq(&module.data) {
         return false;
     }
     for data_ref in remap.values_mut() {
         data_ref.id = DataId::new(packed.get_index_of(&data_ref.id).unwrap());
     }
+    *tail = tail.map(|tail| remap[&tail].id);
     for block in &mut module.blocks {
         for inst in &mut block.instructions {
             match &mut inst.value {
@@ -950,19 +967,36 @@ fn add_trailer_owners(shared: &mut Data, trailers: &[Trailer], offset: usize) {
 #[derive(Clone, Copy)]
 enum DataStackValue {
     Unknown,
+    CodeSize,
     Immediate(usize),
     Data(DataRef),
     Size(DataSize),
 }
 
 pub(crate) fn data_layout_is_observable(module: &Module) -> bool {
-    scan_data_references(module).is_none()
+    scan_data_references(module, None).is_none()
 }
 
-/// Returns the data that instructions reference, or `None` when a data address may reach anything
-/// but a `CODECOPY` that stays inside its entry.
-fn scan_data_references(module: &Module) -> Option<DenseBitSet<DataId>> {
+/// The data that instructions reference, and the entry that must stay last.
+struct DataScan {
+    referenced: DenseBitSet<DataId>,
+    /// The last entry of creation code, which the runtime code ends the deployment code with and
+    /// constructor arguments follow, so only bytes before it may change.
+    tail: Option<DataId>,
+    /// Whether the tail must keep its place and bytes, because code subtracts its address from
+    /// `CODESIZE` or copies from it without a known size.
+    in_place: bool,
+}
+
+/// Scans the data that instructions reference, or returns `None` when a data address may reach
+/// anything but a `CODECOPY` that stays inside its entry, or an address of the tail that is not
+/// subtracted from `CODESIZE` or copied from. `pinned` is the tail of an earlier scan, which new
+/// entries may follow.
+fn scan_data_references(module: &Module, pinned: Option<DataId>) -> Option<DataScan> {
+    let tail =
+        pinned.or_else(|| module.code_follows.then(|| module.data.indices().last()).flatten());
     let mut referenced = DenseBitSet::new_empty(module.data.len());
+    let mut in_place = false;
     let mut stack = Vec::new();
     for block in &module.blocks {
         // The stack starts empty, so without a data push no slot can hold a data address
@@ -975,7 +1009,7 @@ fn scan_data_references(module: &Module) -> Option<DenseBitSet<DataId>> {
             continue;
         }
         for inst in &block.instructions {
-            if escapes_data(module, inst, &mut stack, &mut referenced) {
+            if escapes_data(module, inst, &mut stack, &mut referenced, tail, &mut in_place) {
                 return None;
             }
         }
@@ -991,7 +1025,7 @@ fn scan_data_references(module: &Module) -> Option<DenseBitSet<DataId>> {
             }
             let target = &module.blocks[*target];
             for inst in &target.instructions {
-                if escapes_data(module, inst, &mut stack, &mut referenced) {
+                if escapes_data(module, inst, &mut stack, &mut referenced, tail, &mut in_place) {
                     return None;
                 }
             }
@@ -1002,7 +1036,7 @@ fn scan_data_references(module: &Module) -> Option<DenseBitSet<DataId>> {
         }
         stack.clear();
     }
-    Some(referenced)
+    Some(DataScan { referenced, tail, in_place })
 }
 
 fn holds_data(stack: &[DataStackValue]) -> bool {
@@ -1016,7 +1050,13 @@ fn escapes_data(
     inst: &Instruction,
     stack: &mut Vec<DataStackValue>,
     referenced: &mut DenseBitSet<DataId>,
+    tail: Option<DataId>,
+    in_place: &mut bool,
 ) -> bool {
+    if inst.opcode == op::CODESIZE {
+        stack.push(DataStackValue::CodeSize);
+        return false;
+    }
     if let Some(data) = inst.pushed_data() {
         referenced.insert(data.id);
         stack.push(DataStackValue::Data(data));
@@ -1055,14 +1095,28 @@ fn escapes_data(
     let first_input = stack.len() - inputs;
     for (index, value) in stack[first_input..].iter().rev().enumerate() {
         let DataStackValue::Data(data) = value else { continue };
-        let bounded = inst.opcode == op::CODECOPY
-            && index == 1
-            && match stack[first_input] {
-                DataStackValue::Immediate(size) => data_copy_is_bounded(module, *data, size),
-                DataStackValue::Size(size) => size.is_length_of(*data),
-                _ => false,
-            };
-        if !bounded {
+        // Bytes after the tail stay after it, since new entries go before it, so `codesize -
+        // address` and a copy to the end of the code read the same bytes.
+        let at_tail = Some(data.id) == tail;
+        let contained = match inst.opcode {
+            op::CODECOPY if index == 1 => {
+                let bounded = match stack[first_input] {
+                    DataStackValue::Immediate(size) => data_copy_is_bounded(module, *data, size),
+                    DataStackValue::Size(size) => size.is_length_of(*data),
+                    _ => false,
+                };
+                *in_place |= at_tail && !bounded;
+                bounded || at_tail
+            }
+            op::SUB if index == 1 => {
+                let from_code_end =
+                    at_tail && matches!(stack.last(), Some(DataStackValue::CodeSize));
+                *in_place |= from_code_end;
+                from_code_end
+            }
+            _ => false,
+        };
+        if !contained {
             return true;
         }
     }
