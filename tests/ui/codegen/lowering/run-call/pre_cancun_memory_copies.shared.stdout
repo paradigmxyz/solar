@@ -61,8 +61,6 @@ fn @words() [selector=0xf2c31bd9, abi_wrapper, pure] {
 fn @bytesTail() [selector=0x56818b01, abi_wrapper, pure] {
   bb0:
     v71 = icall @alloc, 96
-    v76 = calldatasize
-    calldatacopy v71, v76, 96
     mstore v71, 33
     jump bb1
   bb1:  ; preds = bb0, bb7
@@ -323,8 +321,8 @@ fn @pair() [selector=0x9f4b9fa0, abi_wrapper, pure] {
     v7 = add v6, 4
     v9 = sub v4, 36
     v10 = gt v6, v9
-    v70 = or v5, v10
-    jumpi v70, bb1, bb2
+    v69 = or v5, v10
+    jumpi v69, bb1, bb2
   bb2:  ; preds = bb0
     v11 = calldataload v7
     v12 = add v7, 32
@@ -341,11 +339,6 @@ fn @pair() [selector=0x9f4b9fa0, abi_wrapper, pure] {
   bb5:  ; preds = bb4
     v60 = add v67, 32
     calldatacopy v60, v12, v11
-    v27 = sub 0, v11
-    v28 = and v27, 31
-    v69 = calldatasize
-    v61 = add v60, v11
-    calldatacopy v61, v69, v28
     v68 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v32 = add v68, 64
     mstore v68, 64
