@@ -1,0 +1,36 @@
+- // === ROOT/tests/ui/codegen/mir/simplify-phis/loop_phis.mir (before simplify-phis) ===
++ // === ROOT/tests/ui/codegen/mir/simplify-phis/loop_phis.mir (after simplify-phis) ===
+  @module LoopPhis
+  @phase lowered
+  ; runtime dispatch entry
+  fn @entry() [entry] {
+    bb0:
+      v0 = calldataload 0
+      v1 = shr v0, 224
+      switch v1, default bb2, [0x3b3546c8 => bb1]
+    bb1:  ; preds = bb0
+      tail_call @count
+    bb2 [cold]:  ; preds = bb0
+      revert 0, 0
+  }
+  
+  ; selector 0x3b3546c8
+  fn @count() [selector=0x3b3546c8, abi_wrapper] {
+    bb0:
+      v0 = calldataload 4
+      jump bb1
+    bb1:  ; preds = bb0, bb2
+-     v1 = phi [bb0: 9], [bb2: v1]
+      v2 = phi [bb0: 0], [bb2: v4]
+      v3 = lt v2, v0
+      jumpi v3, bb2, bb3
+    bb3:  ; preds = bb1
+-     v5 = add v1, v2
++     v5 = add 9, v2
+      mstore 0, v5
+      returndata 0, 32
+    bb2:  ; preds = bb1
+      v4 = add v2, 1
+      jump bb1
+  }
+  

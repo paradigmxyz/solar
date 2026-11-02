@@ -1,0 +1,42 @@
+//@ compile-flags: -Zmir-pipeline=const-fold
+//@ filecheck:
+// A check that cannot fail and a copy of no bytes disappear. A check that fails stays, as does
+// a check or copy whose operands are not known.
+@module ChecksAndCopies
+
+// CHECK-LABEL: {{^[ +].*}}fn @passing{{[( ]}}
+// CHECK: - icall panic_if<0x11>, false
+// CHECK: - icall panic_if_zero<0x11>, true
+// CHECK: - icall require<empty_string>, true
+// CHECK: - calldatacopy 128, 4, 0
+// CHECK-NOT: {{^[ +]}}icall
+fn @passing() -> i256 {
+  bb0:
+    icall panic_if<0x11>, false
+    icall panic_if_zero<0x11>, true
+    icall require<empty_string>, true
+    calldatacopy 128, 4, 0
+    ret 1
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @failing{{[( ]}}
+// CHECK: {{^ +}}icall panic_if<0x11>, true
+// CHECK: {{^ +}}icall require<empty_string>, false
+// CHECK-NOT: {{^[-+]}}
+fn @failing() -> i256 {
+  bb0:
+    icall panic_if<0x11>, true
+    icall require<empty_string>, false
+    ret 1
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @unknown{{[( ]}}
+// CHECK: {{^ +}}icall panic_if<0x11>, arg0
+// CHECK: {{^ +}}calldatacopy 128, 4, arg1
+// CHECK-NOT: {{^[-+]}}
+fn @unknown(arg0: i1, arg1: i256) -> i256 {
+  bb0:
+    icall panic_if<0x11>, arg0
+    calldatacopy 128, 4, arg1
+    ret 1
+}

@@ -1,0 +1,4 @@
+error: EVM codegen requires MIR in the `lowered` phase, stopped at `semantic`
+
+error: aborting due to 1 previous error
+
