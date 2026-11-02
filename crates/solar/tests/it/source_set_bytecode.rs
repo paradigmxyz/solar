@@ -67,6 +67,26 @@ const ORDER: &[(&str, &str)] = &[
     ),
 ];
 
+const DEFAULT_BINDINGS: &[(&str, &str)] = &[
+    (
+        "R.sol",
+        "contract R {
+            struct S { uint256 a; bytes b; }
+            function f() external pure returns (S memory, uint256[2] memory, S[2] memory) {
+                S memory s; uint256[2] memory d; S[2] memory p;
+                return (s, d, p);
+            }
+        }",
+    ),
+    (
+        "0z.sol",
+        "contract Z {
+            uint256 internal v0; uint256 internal v1; uint256 internal v2;
+            uint256 internal v3; uint256 internal v4; uint256 internal v5;
+        }",
+    ),
+];
+
 fn compile(dir: &std::path::Path, mode: &str, files: &[&str]) -> Value {
     let output = Command::new(SOLAR)
         .current_dir(dir)
@@ -102,4 +122,9 @@ fn internal_function_pointers_ignore_unrelated_sources() {
 #[test]
 fn function_order_ignores_unrelated_sources() {
     assert_independent(ORDER, "C.sol:C", &["0b.sol", "C.sol"]);
+}
+
+#[test]
+fn default_bindings_ignore_unrelated_sources() {
+    assert_independent(DEFAULT_BINDINGS, "R.sol:R", &["0z.sol", "R.sol"]);
 }
