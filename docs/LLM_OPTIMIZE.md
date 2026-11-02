@@ -37,16 +37,16 @@ again:
 
 ```bash
 cargo install --locked --path crates/solar --features llm
-OPENAI_API_KEY=... solar -Zllm-optimize=live -Zllm-cache=llm-cache --emit=bin src/Token.sol
-solar -Zllm-optimize=replay -Zllm-cache=llm-cache --emit=bin src/Token.sol
+OPENAI_API_KEY=... solar -Ogas -Zllm-optimize=live -Zllm-cache=llm-cache --emit=bin src/Token.sol
+solar -Ogas -Zllm-optimize=replay -Zllm-cache=llm-cache --emit=bin src/Token.sol
 ```
 
 Other providers' models take the same flags:
 
 ```bash
-ANTHROPIC_API_KEY=... solar -Zllm-optimize=live -Zllm-model=anthropic/claude-opus-5-5 \
+ANTHROPIC_API_KEY=... solar -Ogas -Zllm-optimize=live -Zllm-model=anthropic/claude-opus-5-5 \
   -Zllm-effort=high -Zllm-cache=llm-cache --emit=bin src/Token.sol
-OPENCODE_ZEN_API_KEY=... solar -Zllm-optimize=live -Zllm-model=opencode/deepseek-v4.1-flash \
+OPENCODE_ZEN_API_KEY=... solar -Ogas -Zllm-optimize=live -Zllm-model=opencode/deepseek-v4.1-flash \
   -Zllm-cache=llm-cache --emit=bin src/Token.sol
 ```
 
