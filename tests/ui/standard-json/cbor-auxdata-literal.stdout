@@ -24,7 +24,7 @@
             "cborAuxdata": {
               "A.sol:A": [
                 {
-                  "offset": 133,
+                  "offset": 126,
                   "value": "0xa165736f6c617243000200000b"
                 }
               ]
@@ -34,7 +34,7 @@
             "cborAuxdata": {
               "A.sol:A": [
                 {
-                  "offset": 116,
+                  "offset": 109,
                   "value": "0xa165736f6c617243000200000b"
                 }
               ]

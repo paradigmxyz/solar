@@ -1,0 +1,13 @@
+//@ compile-flags: -Ogas -Zmir-pipeline=word-sequence
+//@ filecheck:
+@module ConstantRoot
+
+// A recipe for a root with constant operands is built from instructions, not folded to an
+// immediate, so the rewrite keeps the root's result.
+// CHECK-LABEL: fn @all_ones(
+// CHECK: = sub 1, {{v[0-9]+}}
+fn @all_ones() -> i256 {
+  bb0:
+    v0 = exp 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2
+    ret v0
+}

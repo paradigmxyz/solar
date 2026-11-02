@@ -729,26 +729,13 @@ bb65 [loop]:
   dup 5
   add
   swap 2
-  push 0x20000000000000000
   dup 2
-  gt
-  push 0x20000000000000000
-  dup 3
-  swap 1
-  sub
-  mul
-  add
-  push 5
-  shl
-  dup 5
-  add
-  push 32
   add
   swap 3
   pop
   swap 3
   dup 3
-  dup 3
+  dup 5
   sub
   push bb68
   jumpi
@@ -766,7 +753,7 @@ bb68 [loop]:
   swap 3
   mstore
   dup 3
-  dup 3
+  dup 5
   sub
   push bb68
   jumpi

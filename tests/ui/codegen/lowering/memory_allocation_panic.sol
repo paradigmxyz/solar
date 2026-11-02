@@ -7,8 +7,7 @@
 contract MemoryAllocationPanic {
     // CHECK-LABEL: fn @makeBytes{{[( ]}}
     // CHECK: [[ROUNDED:v[0-9]+]] = add arg0, 31
-    // CHECK: [[MASK:v[0-9]+]] = not 31
-    // CHECK: [[PADDED:v[0-9]+]] = and [[ROUNDED]], [[MASK]]
+    // CHECK: [[PADDED:v[0-9]+]] = and [[ROUNDED]], 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     // CHECK: [[BYTES:v[0-9]+]] = add [[PADDED]], 32
     // CHECK: [[BYTES_OVERFLOW:v[0-9]+]] = lt [[BYTES]], arg0
     // CHECK: icall panic_if<0x41>, [[BYTES_OVERFLOW]]

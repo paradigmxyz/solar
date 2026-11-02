@@ -55,30 +55,28 @@ fn @copyDynamic(arg0: slice<calldata>) -> i256 [selector=0x2662f0b3, abi_params=
     v98 = eq v97, false
     icall panic_if<0x32>, v98
     v99 = storage_array_data_slot 0
-    v100 = add v99, 0
-    v101 = sload v100 !metadata(storage=symbolic(v99))
-    v102 = lt 1, v101
-    v103 = eq v102, false
-    icall panic_if<0x32>, v103
-    v104 = storage_array_data_slot v100
-    v105 = add v104, 1
-    v106 = sload v105 !metadata(storage=offset(v104, 1))
-    v107 = checked_add uint256, v95, v106
-    v108 = sload 0 !metadata(storage=slot(0))
-    v109 = lt 1, v108
-    v110 = eq v109, false
-    icall panic_if<0x32>, v110
-    v111 = storage_array_data_slot 0
-    v112 = add v111, 1
-    v113 = sload v112 !metadata(storage=offset(v111, 1))
-    v114 = lt 0, v113
-    v115 = eq v114, false
-    icall panic_if<0x32>, v115
-    v116 = storage_array_data_slot v112
-    v117 = add v116, 0
-    v118 = sload v117 !metadata(storage=symbolic(v116))
-    v119 = checked_add uint256, v107, v118
-    ret v119
+    v100 = sload v99 !metadata(storage=symbolic(v99))
+    v101 = lt 1, v100
+    v102 = eq v101, false
+    icall panic_if<0x32>, v102
+    v103 = storage_array_data_slot v99
+    v104 = add v103, 1
+    v105 = sload v104 !metadata(storage=offset(v103, 1))
+    v106 = checked_add uint256, v95, v105
+    v107 = sload 0 !metadata(storage=slot(0))
+    v108 = lt 1, v107
+    v109 = eq v108, false
+    icall panic_if<0x32>, v109
+    v110 = storage_array_data_slot 0
+    v111 = add v110, 1
+    v112 = sload v111 !metadata(storage=offset(v110, 1))
+    v113 = lt 0, v112
+    v114 = eq v113, false
+    icall panic_if<0x32>, v114
+    v115 = storage_array_data_slot v111
+    v116 = sload v115 !metadata(storage=symbolic(v115))
+    v117 = checked_add uint256, v106, v116
+    ret v117
   bb13:  ; preds = bb12
     v71 = shl v69, 5
     v72 = ptradd v14, v71
@@ -219,33 +217,29 @@ fn @copyFixedDynamic(arg0: slice<calldata>) -> i256 [selector=0x8b16421b, abi_pa
     v89 = lt 0, 2
     v90 = eq v89, false
     icall panic_if<0x32>, v90
-    v91 = add 1, 0
-    v92 = sload v91 !metadata(storage=slot(1))
-    v93 = lt 0, 2
-    v94 = eq v93, false
-    icall panic_if<0x32>, v94
-    v95 = add 1, 0
-    v96 = sload v95 !metadata(storage=slot(1))
-    v97 = lt 1, v96
-    v98 = eq v97, false
-    icall panic_if<0x32>, v98
-    v99 = storage_array_data_slot v95
-    v100 = add v99, 1
-    v101 = sload v100 !metadata(storage=offset(v99, 1))
-    v102 = checked_add uint256, v92, v101
-    v103 = lt 1, 2
-    v104 = eq v103, false
-    icall panic_if<0x32>, v104
-    v105 = add 1, 1
-    v106 = sload v105 !metadata(storage=slot(2))
-    v107 = lt 0, v106
-    v108 = eq v107, false
-    icall panic_if<0x32>, v108
-    v109 = storage_array_data_slot v105
-    v110 = add v109, 0
-    v111 = sload v110 !metadata(storage=symbolic(v109))
-    v112 = checked_add uint256, v102, v111
-    ret v112
+    v91 = sload 1 !metadata(storage=slot(1))
+    v92 = lt 0, 2
+    v93 = eq v92, false
+    icall panic_if<0x32>, v93
+    v94 = sload 1 !metadata(storage=slot(1))
+    v95 = lt 1, v94
+    v96 = eq v95, false
+    icall panic_if<0x32>, v96
+    v97 = storage_array_data_slot 1
+    v98 = add v97, 1
+    v99 = sload v98 !metadata(storage=offset(v97, 1))
+    v100 = checked_add uint256, v91, v99
+    v101 = lt 1, 2
+    v102 = eq v101, false
+    icall panic_if<0x32>, v102
+    v103 = sload 2 !metadata(storage=slot(2))
+    v104 = lt 0, v103
+    v105 = eq v104, false
+    icall panic_if<0x32>, v105
+    v106 = storage_array_data_slot 2
+    v107 = sload v106 !metadata(storage=symbolic(v106))
+    v108 = checked_add uint256, v100, v107
+    ret v108
   bb5:  ; preds = bb4
     v47 = add 1, v45
     v48 = lt v45, 2
@@ -440,28 +434,24 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0xde674e0a, abi_pa
     v66 = eq v65, false
     icall panic_if<0x32>, v66
     v67 = storage_array_data_slot 3
-    v68 = mul 0, 2
-    v69 = add v67, v68
-    v70 = lt 1, 2
-    v71 = eq v70, false
-    icall panic_if<0x32>, v71
-    v72 = add v69, 1
-    v73 = sload v72 !metadata(storage=offset(v69, 1))
-    v74 = checked_add uint256, v63, v73
-    v75 = sload 3 !metadata(storage=slot(3))
-    v76 = lt 1, v75
-    v77 = eq v76, false
-    icall panic_if<0x32>, v77
-    v78 = storage_array_data_slot 3
-    v79 = mul 1, 2
-    v80 = add v78, v79
-    v81 = lt 0, 2
-    v82 = eq v81, false
-    icall panic_if<0x32>, v82
-    v83 = add v80, 0
-    v84 = sload v83 !metadata(storage=symbolic(v80))
-    v85 = checked_add uint256, v74, v84
-    ret v85
+    v68 = lt 1, 2
+    v69 = eq v68, false
+    icall panic_if<0x32>, v69
+    v70 = add v67, 1
+    v71 = sload v70 !metadata(storage=offset(v67, 1))
+    v72 = checked_add uint256, v63, v71
+    v73 = sload 3 !metadata(storage=slot(3))
+    v74 = lt 1, v73
+    v75 = eq v74, false
+    icall panic_if<0x32>, v75
+    v76 = storage_array_data_slot 3
+    v77 = add v76, 2
+    v78 = lt 0, 2
+    v79 = eq v78, false
+    icall panic_if<0x32>, v79
+    v80 = sload v77 !metadata(storage=offset(v76, 2))
+    v81 = checked_add uint256, v72, v80
+    ret v81
   bb13:  ; preds = bb12
     v47 = shl v45, 5
     v48 = ptradd v14, v47
@@ -588,54 +578,45 @@ fn @copyDynamicFixedWiden(arg0: slice<calldata>) -> i256 [selector=0x48878fa6, a
     v66 = eq v65, false
     icall panic_if<0x32>, v66
     v67 = storage_array_data_slot 4
-    v68 = mul 0, 4
-    v69 = add v67, v68
-    v70 = lt 0, 4
-    v71 = eq v70, false
-    icall panic_if<0x32>, v71
-    v72 = add v69, 0
-    v73 = sload v72 !metadata(storage=symbolic(v69))
-    v74 = checked_add uint256, v63, v73
-    v75 = sload 4 !metadata(storage=slot(4))
-    v76 = lt 0, v75
+    v68 = lt 0, 4
+    v69 = eq v68, false
+    icall panic_if<0x32>, v69
+    v70 = sload v67 !metadata(storage=symbolic(v67))
+    v71 = checked_add uint256, v63, v70
+    v72 = sload 4 !metadata(storage=slot(4))
+    v73 = lt 0, v72
+    v74 = eq v73, false
+    icall panic_if<0x32>, v74
+    v75 = storage_array_data_slot 4
+    v76 = lt 1, 4
     v77 = eq v76, false
     icall panic_if<0x32>, v77
-    v78 = storage_array_data_slot 4
-    v79 = mul 0, 4
-    v80 = add v78, v79
-    v81 = lt 1, 4
-    v82 = eq v81, false
-    icall panic_if<0x32>, v82
-    v83 = add v80, 1
-    v84 = sload v83 !metadata(storage=offset(v80, 1))
-    v85 = checked_add uint256, v74, v84
-    v86 = sload 4 !metadata(storage=slot(4))
-    v87 = lt 0, v86
-    v88 = eq v87, false
-    icall panic_if<0x32>, v88
-    v89 = storage_array_data_slot 4
-    v90 = mul 0, 4
-    v91 = add v89, v90
-    v92 = lt 2, 4
-    v93 = eq v92, false
-    icall panic_if<0x32>, v93
-    v94 = add v91, 2
-    v95 = sload v94 !metadata(storage=offset(v91, 2))
-    v96 = checked_add uint256, v85, v95
-    v97 = sload 4 !metadata(storage=slot(4))
-    v98 = lt 0, v97
-    v99 = eq v98, false
-    icall panic_if<0x32>, v99
-    v100 = storage_array_data_slot 4
-    v101 = mul 0, 4
-    v102 = add v100, v101
-    v103 = lt 3, 4
-    v104 = eq v103, false
-    icall panic_if<0x32>, v104
-    v105 = add v102, 3
-    v106 = sload v105 !metadata(storage=offset(v102, 3))
-    v107 = checked_add uint256, v96, v106
-    ret v107
+    v78 = add v75, 1
+    v79 = sload v78 !metadata(storage=offset(v75, 1))
+    v80 = checked_add uint256, v71, v79
+    v81 = sload 4 !metadata(storage=slot(4))
+    v82 = lt 0, v81
+    v83 = eq v82, false
+    icall panic_if<0x32>, v83
+    v84 = storage_array_data_slot 4
+    v85 = lt 2, 4
+    v86 = eq v85, false
+    icall panic_if<0x32>, v86
+    v87 = add v84, 2
+    v88 = sload v87 !metadata(storage=offset(v84, 2))
+    v89 = checked_add uint256, v80, v88
+    v90 = sload 4 !metadata(storage=slot(4))
+    v91 = lt 0, v90
+    v92 = eq v91, false
+    icall panic_if<0x32>, v92
+    v93 = storage_array_data_slot 4
+    v94 = lt 3, 4
+    v95 = eq v94, false
+    icall panic_if<0x32>, v95
+    v96 = add v93, 3
+    v97 = sload v96 !metadata(storage=offset(v93, 3))
+    v98 = checked_add uint256, v89, v97
+    ret v98
   bb13:  ; preds = bb12
     v47 = shl v45, 5
     v48 = ptradd v14, v47
@@ -732,25 +713,19 @@ fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x4ae52609, abi_params=[a
     v47 = lt 0, 2
     v48 = eq v47, false
     icall panic_if<0x32>, v48
-    v49 = mul 0, 2
-    v50 = add 5, v49
-    v51 = lt 0, 2
-    v52 = eq v51, false
-    icall panic_if<0x32>, v52
-    v53 = add v50, 0
-    v54 = sload v53 !metadata(storage=offset(v49, 5))
-    v55 = lt 1, 2
-    v56 = eq v55, false
-    icall panic_if<0x32>, v56
-    v57 = mul 1, 2
-    v58 = add 5, v57
-    v59 = lt 1, 2
-    v60 = eq v59, false
-    icall panic_if<0x32>, v60
-    v61 = add v58, 1
-    v62 = sload v61 !metadata(storage=offset(v57, 6))
-    v63 = checked_add uint256, v54, v62
-    ret v63
+    v49 = lt 0, 2
+    v50 = eq v49, false
+    icall panic_if<0x32>, v50
+    v51 = sload 5 !metadata(storage=slot(5))
+    v52 = lt 1, 2
+    v53 = eq v52, false
+    icall panic_if<0x32>, v53
+    v54 = lt 1, 2
+    v55 = eq v54, false
+    icall panic_if<0x32>, v55
+    v56 = sload 8 !metadata(storage=slot(8))
+    v57 = checked_add uint256, v51, v56
+    ret v57
   bb5:  ; preds = bb4
     v22 = mul v20, 2
     v23 = add 5, v22

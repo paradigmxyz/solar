@@ -43,15 +43,14 @@ fn @shortenThroughFmp(arg0: ptr<memory>) -> ptr<memory> [selector=0x0b273a84, ab
     v1 = extract_value slice<memory>, v0, 0
     v2 = extract_value slice<memory>, v0, 1
     log v1, v2, 0xc1c82a5983e686a82c3d6ad4035f16c949f4323be5183f0a8f7db1e83ef9d3e5
-    v3 = not 31
-    v4 = ptrtoint ptr<memory> arg0 to i256
-    v5 = mload arg0
-    v6 = add v5, 31
-    v7 = and v6, v3
-    v8 = add v7, 32
-    v9 = mload 64 !metadata(memory=scratch)
-    v10 = sub v9, v8
-    mstore v10, 5
+    v3 = ptrtoint ptr<memory> arg0 to i256
+    v4 = mload arg0
+    v5 = add v4, 31
+    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v7 = add v6, 32
+    v8 = mload 64 !metadata(memory=scratch)
+    v9 = sub v8, v7
+    mstore v9, 5
     ret arg0
 }
 
@@ -64,9 +63,7 @@ fn @rewind(arg0: ptr<memory>) -> ptr<memory> [selector=0x64d2e18a, abi_params=[b
     log v1, v2, 0xc1c82a5983e686a82c3d6ad4035f16c949f4323be5183f0a8f7db1e83ef9d3e5
     v3 = ptrtoint ptr<memory> arg0 to i256
     mstore 64, v3 !metadata(memory=scratch)
-    v4 = not 31
-    v5 = and 127, v4
-    v6 = alloc zeroed checked v5
-    mstore v6, 64
+    v4 = alloc zeroed checked 96
+    mstore v4, 64
     ret arg0
 }

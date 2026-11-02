@@ -42,7 +42,7 @@ fn @_dirty() [pure] {
     jump bb1
   bb1:  ; preds = bb0, bb3
     v1 = phi [bb0: v0], [bb3: v1]
-    v2 = phi [bb0: 0], [bb3: v8]
+    v2 = phi [bb0: 0], [bb3: v7]
     v3 = lt v2, 0x400
     v4 = zext i1 v3 to i256
     v5 = ne v4, 0
@@ -52,14 +52,13 @@ fn @_dirty() [pure] {
   bb2:  ; preds = bb5
     ret
   bb4:  ; preds = bb1
-    v6 = not 0
-    v7 = add v1, v2
-    mstore v7, v6
+    v6 = add v1, v2
+    mstore v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jump bb6
   bb6:  ; preds = bb4
     jump bb3
   bb3:  ; preds = bb6
-    v8 = add v2, 32
+    v7 = add v2, 32
     jump bb1
 }
 
@@ -68,14 +67,13 @@ fn @_tail(arg0: ptr<memory>) -> i256 [pure] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
     v1 = mload arg0
-    v2 = not 31
-    v3 = and v1, v2
-    v4 = ptrtoint ptr<memory> arg0 to i256
-    v5 = add v4, 32
-    v6 = add v5, v3
-    v7 = mload v6
-    v8 = and v1, 31
-    v9 = mul 8, v8
-    v10 = shl v7, v9
-    ret v10
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v3 = ptrtoint ptr<memory> arg0 to i256
+    v4 = add v3, 32
+    v5 = add v4, v2
+    v6 = mload v5
+    v7 = and v1, 31
+    v8 = mul 8, v7
+    v9 = shl v6, v8
+    ret v9
 }

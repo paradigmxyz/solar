@@ -9,40 +9,34 @@ fn @dirtyStruct() -> ptr<memory> [selector=0xe1193b83, pure, abi_params=[], abi_
     mstore v1, 0
     v2 = ptradd v0, 32
     mstore v2, 7
-    v3 = not 0xff00
-    v4 = ptrtoint ptr<memory> v0 to i256
-    mstore v0, v3
-    v5 = mload v0
-    v6 = trunc i256 v5 to i160
-    v7 = zext i160 v6 to i256
-    v8 = and v7, 255
-    v9 = trunc i256 v8 to i160
-    v10 = zext i160 v9 to i256
-    mstore v0, v10
-    v11 = shl 1, 200
-    v12 = ptrtoint ptr<memory> v0 to i256
-    v13 = mload v0
-    v14 = or v13, v11
-    v15 = ptrtoint ptr<memory> v0 to i256
-    mstore v0, v14
+    v3 = ptrtoint ptr<memory> v0 to i256
+    mstore v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
+    v4 = mload v0
+    v5 = trunc i256 v4 to i160
+    v6 = zext i160 v5 to i256
+    v7 = and v6, 255
+    v8 = trunc i256 v7 to i160
+    v9 = zext i160 v8 to i256
+    mstore v0, v9
+    v10 = ptrtoint ptr<memory> v0 to i256
+    v11 = mload v0
+    v12 = or v11, 0x100000000000000000000000000000000000000000000000000
+    v13 = ptrtoint ptr<memory> v0 to i256
+    mstore v0, v12
     ret v0
 }
 
 ; function dirtyFixedArray() external pure returns (address[2] memory a) [selector 0xcb2a9045]
 fn @dirtyFixedArray() -> ptr<memory> [selector=0xcb2a9045, pure, abi_params=[], abi_returns=[array<2, word<uint160>>], abi_return_params=[array<2, address>]] {
   bb0:
-    v0 = shl 1, 200
-    v1 = or 255, v0
-    v2 = alloc 64 !metadata(preserves_fmp)
-    memory_zero v2, 64
-    v3 = ptrtoint ptr<memory> v2 to i256
-    mstore v2, v1
-    v4 = shl 1, 255
-    v5 = or 1, v4
-    v6 = ptrtoint ptr<memory> v2 to i256
-    v7 = add v6, 32
-    mstore v7, v5
-    ret v2
+    v0 = alloc 64 !metadata(preserves_fmp)
+    memory_zero v0, 64
+    v1 = ptrtoint ptr<memory> v0 to i256
+    mstore v0, 0x1000000000000000000000000000000000000000000000000ff
+    v2 = ptrtoint ptr<memory> v0 to i256
+    v3 = add v2, 32
+    mstore v3, 0x8000000000000000000000000000000000000000000000000000000000000001
+    ret v0
 }
 
 ; function dirtyNested() external pure returns (Pair[] memory list) [selector 0x40e736da]
@@ -70,10 +64,8 @@ fn @dirtyNested() -> ptr<memory> [selector=0x40e736da, pure, abi_params=[], abi_
     icall panic_if<0x32>, v18
     v19 = ptradd v0, 32
     v20 = mload v19, ptr<memory>
-    v21 = shl 0xabc, 160
-    v22 = or 255, v21
-    v23 = ptrtoint ptr<memory> v20 to i256
-    mstore v20, v22
+    v21 = ptrtoint ptr<memory> v20 to i256
+    mstore v20, 0xabc00000000000000000000000000000000000000ff
     ret v0
   bb2:  ; preds = bb1
     v3 = alloc 64 !metadata(preserves_fmp)
@@ -116,16 +108,12 @@ fn @sharedDirtyChildren() -> ptr<memory> [selector=0x2671b4c3, pure, abi_params=
     v16 = ptrtoint ptr<memory> v0 to i256
     v17 = ptradd v1, 64
     mstore v17, v16
-    v18 = shl 0xabc, 160
-    v19 = or 255, v18
+    v18 = ptrtoint ptr<memory> v0 to i256
+    v19 = add v18, 32
+    mstore v19, 0xabc00000000000000000000000000000000000000ff
     v20 = ptrtoint ptr<memory> v0 to i256
-    v21 = add v20, 32
-    mstore v21, v19
-    v22 = shl 1, 255
-    v23 = or 1, v22
-    v24 = ptrtoint ptr<memory> v0 to i256
-    v25 = add v24, 64
-    mstore v25, v23
+    v21 = add v20, 64
+    mstore v21, 0x8000000000000000000000000000000000000000000000000000000000000001
     ret v1
   bb2:  ; preds = bb1
     v4 = shl v2, 5

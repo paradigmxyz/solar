@@ -12,7 +12,7 @@ contract NoneCheapCleanup {
     // CHECK-NEXT: push [[WRAPPER:bb[0-9]+]]
     // CHECK-NEXT: jumpi
     // CHECK: [[WRAPPER]]:
-    // CHECK-NEXT: push 128
+    // CHECK-NEXT: push 36
     // CHECK-NOT: jump bb
     // CHECK: return
     function f(uint256 x) public pure returns (uint256 r) {
