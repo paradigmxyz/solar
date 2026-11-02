@@ -1,0 +1,21 @@
+//@ filecheck:
+// The CBOR trailer ends the runtime code, so the data that `pack-data` adds goes before it.
+// CHECK: "deployedBytecode": {
+// CHECK-NEXT: "object": "{{[0-9a-f]+}}a165736f6c617243{{[0-9a-f]+}}000b"
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract A { function f(uint x) external pure { require(x > 1, \"oryooqsgfzqputzfdojecrzwubtmouxtuftaqcbbghtayokosgqhujpavcouinrcwikyhqjacsydmdjmcavaggbpmwmncsugyvik\"); require(x > 2, \"cjkanydehwdabozpfvrgoqgxyenumdmngaizsjagfmtusdbegoiaytkjmcccgsuhatlltoespsemfuejhthxgfxurgvmptcnbddb\"); require(x > 3, \"qihxwmintpjqfxcehpruttciggxacinohbbfjlqsecleokvxwqsesbaplwjbatucpcxjkeccorlxbxxwezklcvpcnzapsatvmmsa\"); } function g() external pure returns (bytes memory) { return \"tcccudinxkmxwsooorcqyqajtcpahwdpytvpialjevtgqfykvophkmvigunzzyggmhskgeeplbwcifdopignmuqpvkwtokcbitbvwisljuzsauemogayihyezbudoduruuzlcvggpifwayprwbfhiylrwqqtyfmzwhcnxmeooguamrsuqzkokugdxzuwdghmcjrzkiwalqcbokrnyipagzcnzbfrkvzepeqxqvwopswcyhoqrjxrufqqrijvmtgjerqispgnrdqatmarbqmrzsdpcwfcronzmihppeknpqkd\"; } }"
+    }
+  },
+  "settings": {
+    "metadata": { "bytecodeHash": "none" },
+    "optimizer": { "enabled": true, "runs": 200 },
+    "outputSelection": {
+      "*": {
+        "*": ["evm.deployedBytecode.object"]
+      }
+    }
+  }
+}

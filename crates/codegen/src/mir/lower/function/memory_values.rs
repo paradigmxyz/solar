@@ -3,7 +3,7 @@
 use super::*;
 use crate::{
     link::{CodeKind, ContractCode},
-    mir::lower::data::{DataDest, copy_data_to_memory},
+    mir::lower::data::{DataDest, write_data_to_memory},
 };
 use solar_interface::diagnostics::ErrorGuaranteed;
 
@@ -199,7 +199,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Self::alloc_const_bytes(builder, bytes.len(), semantics, preserves_fmp)?;
         // copy data to object + 32
         let data = DataDest { base: object, offset: EvmMemoryLayout::DYNAMIC_HEADER_SIZE };
-        copy_data_to_memory(gcx, module, builder, data, bytes, padded_size);
+        write_data_to_memory(gcx, module, builder, data, bytes, padded_size);
         Some(object)
     }
 

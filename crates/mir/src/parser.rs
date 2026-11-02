@@ -218,7 +218,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 sym::libraries => self.parser.parse_library_declarations()?,
                 sym::data => {
                     for data in self.parser.parse_data_declarations()? {
-                        module.add_data_entry(data);
+                        module.data.push(data);
                     }
                     self.data_sizes = module
                         .data

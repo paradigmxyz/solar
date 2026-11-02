@@ -700,11 +700,6 @@ impl Module {
         self.immutables.iter_enumerated()
     }
 
-    /// Adds a data entry.
-    pub(crate) fn add_data_entry(&mut self, data: Data) -> DataId {
-        self.data.push(data)
-    }
-
     /// Interns another contract's bytecode, which final assembly links in.
     pub fn intern_contract_code(&mut self, code: ContractCode, name: Symbol) -> DataId {
         let existing =
@@ -725,7 +720,7 @@ impl Module {
     ) -> DataId {
         let trailers =
             vec![Trailer { contracts: smallvec::smallvec![contract], range: 0..data.len() }];
-        self.add_data_entry(Data { emit_in_runtime: true, trailers, ..Data::new(data, name) })
+        self.data.push(Data { emit_in_runtime: true, trailers, ..Data::new(data, name) })
     }
 
     /// Returns an iterator over all functions.

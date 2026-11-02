@@ -85,16 +85,12 @@ impl EvmPass for PackData {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let Some(DataScan { referenced, mut tail, in_place }) = scan_data_references(module, None)
-        else {
-            return false;
-        };
+        let Some(mut scan) = scan_data_references(module, None) else { return false };
         let groups = find_runs(gcx, module);
-        let subslices = !module.optimization.is_none();
-        let packed = pack_data(module, &referenced, &mut tail, in_place, subslices);
+        let packed = pack_data(module, &mut scan);
         let materialized = materialize_data(gcx, module, groups);
-        if materialized && let Some(scan) = scan_data_references(module, tail) {
-            pack_data(module, &scan.referenced, &mut tail, scan.in_place, subslices);
+        if materialized && let Some(mut scan) = scan_data_references(module, scan.tail) {
+            pack_data(module, &mut scan);
         }
         packed || materialized
     }
@@ -468,7 +464,6 @@ struct Run {
 
 /// A point where a run scan can stop: after a store that leaves the stores in one range and a stack
 /// a copy can rebuild. `extras` indexes the stack words above `kept` in `RunScratch::extras`.
-#[derive(Clone)]
 struct RunEnd {
     end: usize,
     old: Cost,
@@ -634,9 +629,11 @@ fn run_ending_at(
     index: usize,
 ) -> Option<Run> {
     let RunScratch { stores, ends, extras, start, destination, first_store, .. } = scratch;
-    let RunEnd { end, old, stores: store_count, range: (low, high), inputs, kept, extras: range } =
-        ends[index].clone();
-    let extras = &extras[range];
+    let run_end = &ends[index];
+    let (end, old, store_count) = (run_end.end, run_end.old, run_end.stores);
+    let (low, high) = run_end.range;
+    let (inputs, kept) = (run_end.inputs, run_end.kept);
+    let extras = &extras[run_end.extras.clone()];
     let mut data = vec![0; (high - low) as usize];
     for &(offset, value, word) in &stores[..store_count] {
         let at = (offset - low) as usize;
@@ -811,22 +808,13 @@ fn apply_stack_op<T: Copy>(stack: &mut Vec<T>, stack_op: op::StackOp) {
 
 /// Shares storage between data entries after deferred data is linked in.
 pub(in crate::backend) fn pack_linked_data(module: &mut Module) -> bool {
-    let subslices = !module.optimization.is_none();
     !module.data.is_empty()
-        && scan_data_references(module, None).is_some_and(
-            |DataScan { referenced, mut tail, in_place }| {
-                pack_data(module, &referenced, &mut tail, in_place, subslices)
-            },
-        )
+        && scan_data_references(module, None).is_some_and(|mut scan| pack_data(module, &mut scan))
 }
 
-fn pack_data(
-    module: &mut Module,
-    referenced: &DenseBitSet<DataId>,
-    tail: &mut Option<DataId>,
-    in_place: bool,
-    allow_subslices: bool,
-) -> bool {
+fn pack_data(module: &mut Module, scan: &mut DataScan) -> bool {
+    let DataScan { referenced, tail, in_place } = scan;
+    let in_place = *in_place;
     if module.data.is_empty() {
         return false;
     }
@@ -852,7 +840,8 @@ fn pack_data(
     let mut exact =
         FxHashMap::<(Bytes, Vec<LibraryRelocation>, Vec<Range<usize>>), DataId>::default();
     let mut remap = FxHashMap::default();
-    let subslices = allow_subslices && module.data.len() < MAX_DATA_SUBSTRING_ENTRIES;
+    let subslices =
+        !module.optimization.is_none() && module.data.len() < MAX_DATA_SUBSTRING_ENTRIES;
     for old_id in order {
         let data = &module.data[old_id];
         // Deferred bytes are not known yet, so they are never shared, and the tail stays in place
@@ -882,11 +871,11 @@ fn pack_data(
         remap.insert(old_id, data_ref);
     }
 
-    // The entry that holds the tail stays last, which new entries would otherwise follow.
+    // The entry that holds the tail stays last, which new entries would otherwise follow, and the
+    // trailers of the runtime code stay at its end.
     let host = tail.map(|tail| remap[&tail].id);
-    packed.sort_unstable_by(|id, _, other_id, _| {
-        (Some(*id) == host, id).cmp(&(Some(*other_id) == host, other_id))
-    });
+    let last = |id: &DataId, data: &Data| (Some(*id) == host || data.emit_in_runtime, *id);
+    packed.sort_unstable_by(|id, data, other_id, other| last(id, data).cmp(&last(other_id, other)));
     if packed.values().eq(&module.data) {
         return false;
     }
@@ -994,8 +983,8 @@ struct DataScan {
 /// entries may follow.
 fn scan_data_references(module: &Module, pinned: Option<DataId>) -> Option<DataScan> {
     let tail = pinned.or_else(|| module.data.indices().next_back().filter(|_| module.code_follows));
-    let mut referenced = DenseBitSet::new_empty(module.data.len());
-    let mut in_place = false;
+    let mut scan =
+        DataScan { referenced: DenseBitSet::new_empty(module.data.len()), tail, in_place: false };
     let mut stack = Vec::new();
     for block in &module.blocks {
         // The stack starts empty, so without a data push no slot can hold a data address
@@ -1008,7 +997,7 @@ fn scan_data_references(module: &Module, pinned: Option<DataId>) -> Option<DataS
             continue;
         }
         for inst in &block.instructions {
-            if escapes_data(module, inst, &mut stack, &mut referenced, tail, &mut in_place) {
+            if escapes_data(module, inst, &mut stack, &mut scan) {
                 return None;
             }
         }
@@ -1024,7 +1013,7 @@ fn scan_data_references(module: &Module, pinned: Option<DataId>) -> Option<DataS
             }
             let target = &module.blocks[*target];
             for inst in &target.instructions {
-                if escapes_data(module, inst, &mut stack, &mut referenced, tail, &mut in_place) {
+                if escapes_data(module, inst, &mut stack, &mut scan) {
                     return None;
                 }
             }
@@ -1035,7 +1024,7 @@ fn scan_data_references(module: &Module, pinned: Option<DataId>) -> Option<DataS
         }
         stack.clear();
     }
-    Some(DataScan { referenced, tail, in_place })
+    Some(scan)
 }
 
 fn holds_data(stack: &[DataStackValue]) -> bool {
@@ -1048,21 +1037,19 @@ fn escapes_data(
     module: &Module,
     inst: &Instruction,
     stack: &mut Vec<DataStackValue>,
-    referenced: &mut DenseBitSet<DataId>,
-    tail: Option<DataId>,
-    in_place: &mut bool,
+    scan: &mut DataScan,
 ) -> bool {
     if inst.opcode == op::CODESIZE {
         stack.push(DataStackValue::CodeSize);
         return false;
     }
     if let Some(data) = inst.pushed_data() {
-        referenced.insert(data.id);
+        scan.referenced.insert(data.id);
         stack.push(DataStackValue::Data(data));
         return false;
     }
     if let Some(size) = inst.pushed_data_size() {
-        referenced.insert(size.data);
+        scan.referenced.insert(size.data);
         stack.push(DataStackValue::Size(size));
         return false;
     }
@@ -1096,7 +1083,7 @@ fn escapes_data(
         let DataStackValue::Data(data) = value else { continue };
         // Bytes after the tail stay after it, since new entries go before it, so `codesize -
         // address` and a copy to the end of the code read the same bytes.
-        let at_tail = Some(data.id) == tail;
+        let at_tail = Some(data.id) == scan.tail;
         let contained = match inst.opcode {
             op::CODECOPY if index == 1 => {
                 let bounded = match stack[first_input] {
@@ -1104,13 +1091,13 @@ fn escapes_data(
                     DataStackValue::Size(size) => size.is_length_of(*data),
                     _ => false,
                 };
-                *in_place |= at_tail && !bounded;
+                scan.in_place |= at_tail && !bounded;
                 bounded || at_tail
             }
             op::SUB if index == 1 => {
                 let from_code_end =
                     at_tail && matches!(stack.last(), Some(DataStackValue::CodeSize));
-                *in_place |= from_code_end;
+                scan.in_place |= from_code_end;
                 from_code_end
             }
             _ => false,

@@ -31,7 +31,7 @@ impl DataDest {
 
 /// Writes constant data and clears its padding through `padded_size`: with word stores, which
 /// `pack-data` prices against a copy, or with a splat when the data repeats one word.
-pub(crate) fn copy_data_to_memory(
+pub(crate) fn write_data_to_memory(
     gcx: Gcx<'_>,
     module: &Module,
     builder: &mut FunctionBuilder<'_>,
