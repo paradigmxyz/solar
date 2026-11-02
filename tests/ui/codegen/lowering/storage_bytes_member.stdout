@@ -12,6 +12,42 @@ bb0:  ; runtime dispatch entry
   push 15
   and
   indexed_jump bb2, bb14, bb14, bb14, bb14, bb3, bb4, bb5, bb14, bb14, bb6, bb14, bb14, bb7, bb14, bb14
+bb23 [cold]:
+  push 65
+  jump bb69
+bb47 [cold]:
+  push 50
+  jump bb69
+bb68 [loop]:
+  dup 2
+  dup 5
+  push 1
+  add
+  swap 5
+  sload
+  swap 1
+  push 32
+  add
+  swap 3
+  mstore
+  dup 3
+  dup 5
+  sub
+  push bb68
+  jumpi
+  jump bb67
+bb22 [cold]:
+  push 34
+  jump bb69
+bb69 [cold]:
+  push 32
+  mstore
+  push 0x4e487b71
+  push 0
+  mstore
+  push 36
+  push 28
+  revert
 bb2:
   dup 1
   push 0xe0886f90
@@ -725,42 +761,6 @@ bb65 [loop]:
   push bb68
   jumpi
   jump bb67
-bb68 [loop]:
-  dup 2
-  dup 5
-  push 1
-  add
-  swap 5
-  sload
-  swap 1
-  push 32
-  add
-  swap 3
-  mstore
-  dup 3
-  dup 5
-  sub
-  push bb68
-  jumpi
-  jump bb67
-bb22 [cold]:
-  push 34
-  jump bb69
-bb69 [cold]:
-  push 32
-  mstore
-  push 0x4e487b71
-  push 0
-  mstore
-  push 36
-  push 28
-  revert
-bb23 [cold]:
-  push 65
-  jump bb69
 bb38 [cold]:
   push 49
-  jump bb69
-bb47 [cold]:
-  push 50
   jump bb69

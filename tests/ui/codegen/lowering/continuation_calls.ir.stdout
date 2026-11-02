@@ -84,6 +84,32 @@ bb35 [loop]:
   swap 2
   pop
   jump
+bb21 [continuation]:
+  dup 2
+  add
+  dup 2
+  dup 2
+  lt
+  push bb25
+  jumpi
+  push 2
+  swap 1
+  swap 2
+  push bb23
+  jump bb32
+bb32 [loop, ret=0, inputs=3, outputs=1]:  ; function sum(uint256 x, uint256 step) internal pure returns (uint256 r)
+  swap 1
+  push 0
+  sub
+  push 0
+  swap 1
+  dup 1
+  push bb35
+  jumpi
+  pop
+  swap 2
+  pop
+  jump
 bb23:
   dup 2
   add
@@ -110,19 +136,6 @@ bb8:  ; function first(uint256 x) external pure returns (uint256) [selector 0x0b
   calldataload
   push bb9
   jump bb32
-bb32 [loop, ret=0, inputs=3, outputs=1]:  ; function sum(uint256 x, uint256 step) internal pure returns (uint256 r)
-  swap 1
-  push 0
-  sub
-  push 0
-  swap 1
-  dup 1
-  push bb35
-  jumpi
-  pop
-  swap 2
-  pop
-  jump
 bb12:  ; function second(uint256 x) external pure returns (uint256) [selector 0x7896dfe3]
   push 2
   push 4
@@ -141,19 +154,6 @@ bb20:  ; function combined(uint256 x) external pure returns (uint256) [selector 
   push 1
   dup 2
   push bb21
-  jump bb32
-bb21 [continuation]:
-  dup 2
-  add
-  dup 2
-  dup 2
-  lt
-  push bb25
-  jumpi
-  push 2
-  swap 1
-  swap 2
-  push bb23
   jump bb32
 bb26:  ; function bounded(uint256 x) external pure returns (uint256) [selector 0xeadcc0c3]
   push 3

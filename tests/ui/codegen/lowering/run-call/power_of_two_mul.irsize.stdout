@@ -43,6 +43,25 @@ bb8 [cold]:
   returndatasize
   returndatasize
   revert
+bb36:
+  push 36
+  calldatasize
+  lt
+  push bb8
+  jumpi
+  push 1
+  push 4
+  calldataload
+  jump bb35
+bb35:
+  shl
+  jump bb34
+bb34:
+  returndatasize
+  mstore
+  push 32
+  returndatasize
+  return
 bb33 [cold]:
   push 65
   jump bb37
@@ -71,15 +90,6 @@ bb15:  ; function checkedExp2(uint256 exponent) external pure returns (uint256) 
   push 1
   swap 1
   jump bb35
-bb35:
-  shl
-  jump bb34
-bb34:
-  returndatasize
-  mstore
-  push 32
-  returndatasize
-  return
 bb20:  ; function mul32(uint256 value) external pure returns (uint256 result) [selector 0xde1efc56]
   push 36
   calldatasize
@@ -194,13 +204,3 @@ bb18 [cold]:
 bb32 [cold]:
   push 50
   jump bb37
-bb36:
-  push 36
-  calldatasize
-  lt
-  push bb8
-  jumpi
-  push 1
-  push 4
-  calldataload
-  jump bb35

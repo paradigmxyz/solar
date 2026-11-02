@@ -36,6 +36,9 @@ bb6 [cold]:
   push 0
   push 0
   revert
+bb15 [cold]:
+  push 65
+  jump bb49
 bb14 [cold]:
   push 50
   jump bb49
@@ -48,47 +51,8 @@ bb49 [cold]:
   push 36
   push 28
   revert
-bb7:  ; function probe(uint256 seed) external pure returns (uint256, uint256, uint256) [selector 0xdb082440]
-  push 36
-  calldatasize
-  lt
-  push bb6
-  jumpi
-  push 160
-  push 64
-  dup 2
-  add
-  dup 2
-  dup 2
-  lt
-  dup 2
-  push 64
-  shr
-  or
-  push bb15
-  jumpi
-  push 64
-  mstore
-  push 3
-  dup 2
-  mstore
-  push 255
-  push 4
-  calldataload
-  and
-  push 32
-  dup 3
-  add
-  mstore8
-  push 2
-  push_data literal_0
-  push 33
-  dup 4
-  add
-  codecopy
-  push 34
-  swap 1
-  push bb10
+bb24 [continuation]:
+  push bb50
   jump bb39
 bb39 [ret=0, inputs=3, outputs=1]:  ; function copy(bytes memory input, uint256 marker) internal pure returns (bytes memory out)
   push 64
@@ -144,6 +108,48 @@ bb40 [loop]:
   push 1
   add
   jump bb40
+bb7:  ; function probe(uint256 seed) external pure returns (uint256, uint256, uint256) [selector 0xdb082440]
+  push 36
+  calldatasize
+  lt
+  push bb6
+  jumpi
+  push 160
+  push 64
+  dup 2
+  add
+  dup 2
+  dup 2
+  lt
+  dup 2
+  push 64
+  shr
+  or
+  push bb15
+  jumpi
+  push 64
+  mstore
+  push 3
+  dup 2
+  mstore
+  push 255
+  push 4
+  calldataload
+  and
+  push 32
+  dup 3
+  add
+  mstore8
+  push 2
+  push_data literal_0
+  push 33
+  dup 4
+  add
+  codecopy
+  push 34
+  swap 1
+  push bb10
+  jump bb39
 bb10 [continuation]:
   dup 1
   mload
@@ -308,9 +314,6 @@ bb46 [ret=0, inputs=1, outputs=1]:  ; decode_calldata_type (synthesized)
   calldatacopy
   swap 1
   jump
-bb24 [continuation]:
-  push bb50
-  jump bb39
 bb30:  ; function twice(bytes memory input, uint256 marker) public pure returns (bytes memory) [selector 0x5a2aaa96]
   push 68
   calldatasize
@@ -372,9 +375,6 @@ bb45:
   pop
   pop
   jump bb44
-bb15 [cold]:
-  push 65
-  jump bb49
 bb48 [continuation]:
   push 64
   mload

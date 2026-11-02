@@ -43,6 +43,12 @@ bb8 [cold]:
   push 0
   push 0
   revert
+bb51 [cold]:
+  push 65
+  jump bb79
+bb50 [cold]:
+  push 17
+  jump bb79
 bb68 [loop]:
   dup 1
   mload
@@ -576,9 +582,3 @@ bb74 [continuation]:
   pop
   swap 1
   jump
-bb50 [cold]:
-  push 17
-  jump bb79
-bb51 [cold]:
-  push 65
-  jump bb79

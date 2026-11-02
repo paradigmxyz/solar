@@ -8,9 +8,9 @@
 //! final lowering can then omit jumps whose target is the next emitted block
 //! without encoding physical layout assumptions in the IR. Independent hot
 //! traces are placed before cold terminal traces so unlikely exit paths do not
-//! interrupt hot code. Small, independently movable traces ending in a terminal are packed
-//! below the PUSH1 address limit by reference density. Moving the entire trace preserves its
-//! fallthrough edges, including a call followed by a shared failure block. Packing also
+//! interrupt hot code. Small, independently movable traces, ending in a terminal or a jump, are
+//! packed below the PUSH1 address limit by reference density. Moving the entire trace preserves
+//! its fallthrough edges, including a call followed by a shared failure block. Packing also
 //! reserves address space for one-byte indexed jump tables to avoid widening their lookups.
 //! Size estimates guide placement; assembly still resolves the exact offsets and widths.
 //! In size mode, shared indirect-return tails prefer the predecessor with strictly more incoming
@@ -205,8 +205,7 @@ fn pack_terminal_traces(est: SizeEstimator, module: &Module, order: &mut Vec<Blo
             references += placement.references[block];
             position += 1;
             if is_physical_terminal_boundary(&module.blocks[block], order.get(position).copied()) {
-                if is_terminal_block(&module.blocks[block])
-                    && size <= 32
+                if size <= 32
                     && references >= 2
                     && (position == start + 1
                         || (block_offset > 0xff && placement.references[block] >= 4))
