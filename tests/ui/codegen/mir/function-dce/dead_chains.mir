@@ -1,0 +1,69 @@
+//@ compile-flags: -Zmir-pipeline=function-dce
+//@ filecheck:
+//@ run-call: run(uint256)(uint256) 20 => 42
+// Functions are kept when an entry reaches them through a call or a tail call, however deep.
+// A dead chain, and a dead pair that call each other, go together.
+@module DeadChains
+@phase lowered
+
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = shr v0, 224
+    switch v1, default bb2, [0xa444f5e9 => bb1]
+  bb1:
+    tail_call @run
+  bb2:
+    revert 0, 0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @run{{[( ]}}
+// CHECK: icall @middle
+fn @run() [selector=0xa444f5e9, abi_wrapper] {
+  bb0:
+    v0 = calldataload 4
+    v1 = icall @middle, v0
+    mstore 0, v1
+    returndata 0, 32
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @middle{{[( ]}}
+// CHECK: tail_call @leaf
+fn @middle(arg0: i256) -> i256 {
+  bb0:
+    tail_call @leaf, arg0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @leaf{{[( ]}}
+fn @leaf(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 22
+    ret v0
+}
+
+// CHECK: - fn @dead_top
+fn @dead_top(arg0: i256) -> i256 {
+  bb0:
+    v0 = icall @dead_leaf, arg0
+    ret v0
+}
+
+// CHECK: - fn @dead_leaf
+fn @dead_leaf(arg0: i256) -> i256 {
+  bb0:
+    ret arg0
+}
+
+// CHECK: - fn @dead_ping
+fn @dead_ping(arg0: i256) -> i256 {
+  bb0:
+    v0 = icall @dead_pong, arg0
+    ret v0
+}
+
+// CHECK: - fn @dead_pong
+fn @dead_pong(arg0: i256) -> i256 {
+  bb0:
+    v0 = icall @dead_ping, arg0
+    ret v0
+}

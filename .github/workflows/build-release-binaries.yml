@@ -9,12 +9,25 @@ on:
         required: false
         type: string
   workflow_dispatch:
+  # Release builds otherwise run only on tag pushes, so catch breakage before a release.
+  schedule:
+    - cron: "0 3 * * 1"
+  pull_request:
+    paths:
+      - .github/workflows/build-release-binaries.yml
+      - .github/workflows/release.yml
+      - benches/runtime/benchmark.py
+      - benches/runtime/cases.py
+      - dist-workspace.toml
+      - scripts/pgo/**
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
+  # setup-python upgrades pip, which fails while the newest pip is too new for the package policy.
+  PIP_UPLOADED_PRIOR_TO: P7D
   CARGO_INCREMENTAL: 0
   CARGO_TERM_COLOR: always
 

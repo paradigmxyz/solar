@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/memory-dse/write_only_unread_allocations.mir (before memory-dse-unread) ===
-+ // === ROOT/tests/ui/codegen/mir/memory-dse/write_only_unread_allocations.mir (after memory-dse-unread) ===
+- // === ROOT/tests/ui/codegen/mir/memory-dse-unread/write_only_unread_allocations.mir (before memory-dse-unread) ===
++ // === ROOT/tests/ui/codegen/mir/memory-dse-unread/write_only_unread_allocations.mir (after memory-dse-unread) ===
   @module WriteOnlyUnreadAllocations
   fn @unread(arg0: i256) -> i256 {
     bb0:
@@ -169,8 +169,8 @@
       returndata 128, 32
   }
   
-- // === ROOT/tests/ui/codegen/mir/memory-dse/write_only_unread_allocations.mir (before dce) ===
-+ // === ROOT/tests/ui/codegen/mir/memory-dse/write_only_unread_allocations.mir (after dce) ===
+- // === ROOT/tests/ui/codegen/mir/memory-dse-unread/write_only_unread_allocations.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/memory-dse-unread/write_only_unread_allocations.mir (after dce) ===
   @module WriteOnlyUnreadAllocations
   fn @unread(arg0: i256) -> i256 {
     bb0:

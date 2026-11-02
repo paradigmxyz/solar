@@ -2353,7 +2353,9 @@ impl<'a> CheckEliminator<'a> {
         if let Some(bound) = self.trip_bounds.get(&value) {
             range = range.intersect(*bound).unwrap_or(range);
         }
-        if range.lo.is_zero() && self.has_strict_lower_bound(func, value) {
+        // A value known zero that also lies above a strict edge sits on an unreachable
+        // path; keep the range nonempty.
+        if range.lo.is_zero() && !range.hi.is_zero() && self.has_strict_lower_bound(func, value) {
             range.lo = U256::ONE;
         }
         let Some(depth) = depth.checked_sub(1) else { return range };

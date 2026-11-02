@@ -249,8 +249,10 @@ update the tracked solc version, follow
 - No full stops at the end of messages.
 - Quote code with backticks, not double quotes.
 - Keep the main message short.
-- Reuse solc's code for diagnostics solc also emits (so `--allow` matches for
-  warnings); never invent codes.
+- Reuse solc's code for every diagnostic solc also emits (so `--allow` matches
+  for warnings). Most solar-only diagnostics have no code; give one only when
+  users should address it by code, such as to `--allow` a warning, and pick a
+  number below 1000, since solc assigns codes from 1000 to 9999.
 - Return `Result<(), ErrorGuaranteed>` rather than `bool` from emitting code
   where practical, and pass the guarantee to `mk_ty_err`. Never use
   `ErrorGuaranteed::new_unchecked()` when a real guarantee exists.

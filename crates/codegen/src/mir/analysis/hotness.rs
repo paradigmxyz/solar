@@ -9,6 +9,13 @@
 //! module, so chains of panic helpers become cold together. A module built with `-O none` has no
 //! cold functions.
 //!
+//! A function the `@custom:solar-cold` tag marks (`FunctionAttributes::cold_hint`) is rarely run
+//! but may return, so the analysis never counts a call to it as an abort and leaves its `hotness`
+//! to the rule above. It only marks blocks: every block of the function is cold, and so is the
+//! code behind a call to it that only a cold edge enters. LLVM's rule: a cold call lowers the
+//! probability of the edge into the region it ends, never of a straight-line path, since the code
+//! after a call that returns still runs. A call on the only path leaves its caller hot.
+//!
 //! A block is cold by the rules of its function's objective, the module's unless the function
 //! has one of its own:
 //! - Every objective but `-O none` marks the blocks that abort, and then the blocks whose
@@ -33,6 +40,10 @@ pub(crate) struct HotnessAnalysis {
     cold_functions: DenseBitSet<FunctionId>,
     cold_blocks: DenseBitSet<BlockId>,
     hot_blocks: DenseBitSet<BlockId>,
+    region: DenseBitSet<BlockId>,
+    /// Whether any function of the module is `cold_hint`, so a call to it can seed a region.
+    /// Set with the cold functions, from attributes no pass changes after lowering.
+    has_cold_hint: bool,
     worklist: Vec<BlockId>,
     visited: GrowableBitSet<BlockId>,
     /// The functions whose walk met a call to each function while it was not cold.
@@ -50,6 +61,8 @@ impl HotnessAnalysis {
             cold_functions: DenseBitSet::new_empty(0),
             cold_blocks: DenseBitSet::new_empty(0),
             hot_blocks: DenseBitSet::new_empty(0),
+            region: DenseBitSet::new_empty(0),
+            has_cold_hint: false,
             worklist: Vec::new(),
             visited: GrowableBitSet::new_empty(),
             callers: IndexVec::new(),
@@ -64,7 +77,7 @@ impl HotnessAnalysis {
         self.always_hot.clear();
         self.run_functions(module);
         for function in module.functions.indices() {
-            self.run_function(gcx, module, function);
+            self.update_blocks(gcx, module, function);
         }
     }
 
@@ -82,11 +95,11 @@ impl HotnessAnalysis {
         }
         if self.run_functions(module) {
             for function in module.functions.indices() {
-                self.run_function(gcx, module, function);
+                self.update_blocks(gcx, module, function);
             }
         } else {
             for function in changed.iter() {
-                self.run_function(gcx, module, function);
+                self.update_blocks(gcx, module, function);
             }
         }
     }
@@ -96,7 +109,9 @@ impl HotnessAnalysis {
     pub(crate) fn run_functions(&mut self, module: &mut Module) -> bool {
         self.compute_functions(module);
         let mut changed = false;
+        self.has_cold_hint = false;
         for (id, func) in module.functions.iter_mut_enumerated() {
+            self.has_cold_hint |= func.attributes.cold_hint;
             let new = hotness(self.cold_functions.contains(id));
             changed |= func.attributes.hotness != new;
             func.attributes.hotness = new;
@@ -107,6 +122,12 @@ impl HotnessAnalysis {
     /// Recomputes the hotness of the blocks of `function`, after its callees' attributes are
     /// current.
     pub(crate) fn run_function(&mut self, gcx: Gcx<'_>, module: &mut Module, function: FunctionId) {
+        self.has_cold_hint = module.functions.iter().any(|func| func.attributes.cold_hint);
+        self.update_blocks(gcx, module, function);
+    }
+
+    /// Writes the block hotness of `function`, once `has_cold_hint` is current.
+    fn update_blocks(&mut self, gcx: Gcx<'_>, module: &mut Module, function: FunctionId) {
         self.compute_blocks(gcx, module, function);
         for (block, body) in module.functions[function].blocks.iter_mut_enumerated() {
             body.hotness = hotness(self.cold_blocks.contains(block));
@@ -117,6 +138,7 @@ impl HotnessAnalysis {
     pub(crate) fn is_current(&mut self, gcx: Gcx<'_>, module: &Module) -> bool {
         self.always_hot.clear();
         self.compute_functions(module);
+        self.has_cold_hint = module.functions.iter().any(|func| func.attributes.cold_hint);
         module
             .functions
             .iter_enumerated()
@@ -144,6 +166,93 @@ impl HotnessAnalysis {
         let objective = func.attributes.optimization.unwrap_or(module.optimization);
         let marks_failure_paths_cold = Target::new(gcx, objective).marks_failure_paths_cold();
         self.collect_cold_blocks(module, func, !objective.is_none(), marks_failure_paths_cold);
+        if func.attributes.cold_hint {
+            self.cold_blocks.insert_all();
+        } else if self.has_cold_hint && !objective.is_none() {
+            self.mark_cold_regions(module, func);
+        }
+    }
+
+    /// Marks the regions that only a cold edge enters, into `self.cold_blocks`: the code behind a
+    /// call to a `cold_hint` function that returns, as LLVM lowers the probability of the edge into
+    /// the region such a call ends, and never of a straight-line path. Blocks that abort already
+    /// seed it, so a branch to a revert is a cold edge too.
+    ///
+    /// A block is in `region` when it reaches a seed and no path from it reaches an exit without
+    /// meeting a seed or a cold block, or when it is cold. The walk from the entry skips the edges
+    /// from a block with an edge outside `region` into it, and the blocks it does not reach are
+    /// cold. A call on the only path leaves every block hot.
+    #[inline(never)]
+    fn mark_cold_regions(&mut self, module: &Module, func: &Function) {
+        self.hot_blocks.clear_to(func.blocks.len());
+        self.worklist.clear();
+        // A seed: a call to a function that is rarely run and returns.
+        let is_seed = |block| calls_cold_hint(module, func, block);
+        if !func.blocks.indices().any(is_seed) {
+            return;
+        }
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            let exits = block.terminator.as_ref().is_none_or(|term| !term.has_successors());
+            if exits && !is_seed(block_id) && !self.cold_blocks.contains(block_id) {
+                self.hot_blocks.insert(block_id);
+                self.worklist.push(block_id);
+            }
+        }
+
+        // Backward from the exits over blocks that are neither seeds nor cold.
+        while let Some(block_id) = self.worklist.pop() {
+            for &predecessor in &func.blocks[block_id].predecessors {
+                if !self.hot_blocks.contains(predecessor)
+                    && !self.cold_blocks.contains(predecessor)
+                    && !is_seed(predecessor)
+                {
+                    self.hot_blocks.insert(predecessor);
+                    self.worklist.push(predecessor);
+                }
+            }
+        }
+        self.region.clear_to(func.blocks.len());
+        self.region.union_not(&self.hot_blocks);
+
+        // A loop that no seed enters stays as it was, as a size build keeps a failure path in
+        // place.
+        self.hot_blocks.clear_to(func.blocks.len());
+        for block_id in func.blocks.indices() {
+            if is_seed(block_id) {
+                self.hot_blocks.insert(block_id);
+                self.worklist.push(block_id);
+            }
+        }
+        while let Some(block_id) = self.worklist.pop() {
+            for &predecessor in &func.blocks[block_id].predecessors {
+                if self.hot_blocks.insert(predecessor) {
+                    self.worklist.push(predecessor);
+                }
+            }
+        }
+        self.region.intersect(&self.hot_blocks);
+        self.region.union(&self.cold_blocks);
+
+        self.hot_blocks.clear_to(func.blocks.len());
+        self.hot_blocks.insert(BlockId::ENTRY);
+        self.worklist.push(BlockId::ENTRY);
+        while let Some(block_id) = self.worklist.pop() {
+            let Some(term) = func.blocks[block_id].terminator.as_ref() else { continue };
+            let successors = term.successors();
+            let has_hot_edge = successors.iter().any(|&successor| !self.region.contains(successor));
+            for &successor in &successors {
+                if !(has_hot_edge && self.region.contains(successor))
+                    && self.hot_blocks.insert(successor)
+                {
+                    self.worklist.push(successor);
+                }
+            }
+        }
+        for block_id in func.blocks.indices() {
+            if !self.hot_blocks.contains(block_id) {
+                self.cold_blocks.insert(block_id);
+            }
+        }
     }
 
     /// Finds the functions whose reachable exits all abort, into `self.cold_functions`.
@@ -333,6 +442,18 @@ fn block_aborts(func: &Function, block: BlockId, is_cold: impl Fn(FunctionId) ->
         )
     }) || body.terminator.as_ref().is_some_and(Terminator::reverts)
         || matches!(body.terminator, Some(Terminator::TailCall { function, .. }) if is_cold(function))
+}
+
+/// Whether a block calls or tail calls a `cold_hint` function.
+fn calls_cold_hint(module: &Module, func: &Function, block: BlockId) -> bool {
+    let body = &func.blocks[block];
+    let is_hint = |function: FunctionId| module.functions[function].attributes.cold_hint;
+    body.instructions.iter().any(|&inst| {
+        matches!(
+            func.inst(inst).kind,
+            InstKind::ICall { function: Callee::Function(function), .. } if is_hint(function)
+        )
+    }) || matches!(body.terminator, Some(Terminator::TailCall { function, .. }) if is_hint(function))
 }
 
 const fn hotness(cold: bool) -> Hotness {

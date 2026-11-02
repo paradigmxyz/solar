@@ -30,7 +30,6 @@ use crate::mir::{
     pass::{MirPass, ModuleAnalyses},
     transform::{cfg_simplify, check_elim, dce, egraph, sccp},
 };
-use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
@@ -154,7 +153,7 @@ fn specialize_round(
             let uses = body.arg_uses();
             constants.retain(|(index, immediate)| {
                 !uses[*index].is_empty()
-                    && immediate.as_u256().is_some_and(|value| value <= U256::from(u8::MAX))
+                    && immediate.as_u256().is_some_and(|value| target.is_cheap_immediate(value))
             });
             if constants.is_empty() {
                 continue;

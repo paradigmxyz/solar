@@ -1,0 +1,54 @@
+- // === ROOT/tests/ui/codegen/mir/const-fold/fold_arithmetic.mir (before const-fold) ===
++ // === ROOT/tests/ui/codegen/mir/const-fold/fold_arithmetic.mir (after const-fold) ===
+  @module FoldArithmetic
+  @phase lowered
+  ; runtime dispatch entry
+  fn @entry() [entry] {
+    bb0:
+      v0 = calldataload 0
+      v1 = shr v0, 224
+      switch v1, default bb4, [0x188b85b4 => bb1, 0x40e58ee5 => bb2, 0xbfc207cf => bb3]
+    bb3:  ; preds = bb0
+      tail_call @keep
+    bb2:  ; preds = bb0
+      tail_call @cancel
+    bb1:  ; preds = bb0
+      tail_call @sum
+    bb4 [cold]:  ; preds = bb0
+      revert 0, 0
+  }
+  
+  ; selector 0x188b85b4
+  fn @sum() [selector=0x188b85b4, abi_wrapper] {
+    bb0:
+      v0 = calldataload 4
+-     v1 = add 10, 20
+-     v2 = mul v1, 2
+      jump bb1
+    bb1:  ; preds = bb0
+-     v3 = sub v2, 4
+-     v4 = add v0, v3
++     v4 = add v0, 56
+      mstore 0, v4
+      returndata 0, 32
+  }
+  
+  ; selector 0x40e58ee5
+  fn @cancel() [selector=0x40e58ee5, abi_wrapper] {
+    bb0:
+      v0 = calldataload 4
+-     v1 = sub v0, v0
+-     mstore 0, v1
++     mstore 0, 0
+      returndata 0, 32
+  }
+  
+  ; selector 0xbfc207cf
+  fn @keep() [selector=0xbfc207cf, abi_wrapper] {
+    bb0:
+      v0 = calldataload 4
+      v1 = add v0, 0
+      mstore 0, v1
+      returndata 0, 32
+  }
+  

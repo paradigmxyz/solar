@@ -1,0 +1,41 @@
+//@ compile-flags: -Zmir-pipeline=simplify-phis
+//@ filecheck:
+//@ run-call: count(uint256)(uint256) 0 => 9
+//@ run-call: count(uint256)(uint256) 3 => 12
+// A loop phi that only feeds itself through the backedge is its initial value, while the
+// induction phi beside it changes every iteration and stays.
+@module LoopPhis
+@phase lowered
+
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = shr v0, 224
+    switch v1, default bb2, [0x3b3546c8 => bb1]
+  bb1:
+    tail_call @count
+  bb2:
+    revert 0, 0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @count{{[( ]}}
+// CHECK: - {{v[0-9]+}} = phi [bb0: 9], [bb2: {{v[0-9]+}}]
+// CHECK: {{^ +}}{{v[0-9]+}} = phi [bb0: 0], [bb2: {{v[0-9]+}}]
+// CHECK: + {{v[0-9]+}} = add 9,
+fn @count() [selector=0x3b3546c8, abi_wrapper] {
+  bb0:
+    v0 = calldataload 4
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 9], [bb2: v1]
+    v2 = phi [bb0: 0], [bb2: v4]
+    v3 = lt v2, v0
+    jumpi v3, bb2, bb3
+  bb2:
+    v4 = add v2, 1
+    jump bb1
+  bb3:
+    v5 = add v1, v2
+    mstore 0, v5
+    returndata 0, 32
+}

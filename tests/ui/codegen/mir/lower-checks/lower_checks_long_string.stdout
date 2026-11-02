@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lowering/lower_checks_long_string.mir (before lower-checks) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/lower_checks_long_string.mir (after lower-checks) ===
+- // === ROOT/tests/ui/codegen/mir/lower-checks/lower_checks_long_string.mir (before lower-checks) ===
++ // === ROOT/tests/ui/codegen/mir/lower-checks/lower_checks_long_string.mir (after lower-checks) ===
   @module LowerChecksLongString
   fn @require_long(arg0: i1) {
     bb0:
