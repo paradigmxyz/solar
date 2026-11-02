@@ -100,7 +100,11 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             }
             // The other elementary type names are fixed-point types.
             _ => {
-                return Err(self.dcx().err_at(id.span, None, "fixed-point types are not supported"));
+                return Err(self.dcx().err_at(
+                    id.span,
+                    None,
+                    "fixed-point types are not supported",
+                ));
             }
         };
 
