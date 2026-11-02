@@ -56,9 +56,14 @@ pub(super) fn alternatives(
     let mut result = Vec::new();
     let scalar_ty =
         op.into_kind().and_then(|kind| widest_int_operand(func, &kind)).unwrap_or(MirType::I256);
-    // A root of booleans, such as the `and` that joins tests, builds words from its operands'
-    // words, whose constants do not fit a bool.
-    let scalar_ty = if scalar_ty == MirType::I1 { MirType::I256 } else { scalar_ty };
+    // The `and` or `or` of booleans that joins tests builds words from its operands' words, whose
+    // constants do not fit a bool. Both are bitwise, so a word of zeros and ones gives the same
+    // answer at any width; arithmetic on booleans wraps at one bit, so it keeps its type.
+    let scalar_ty = if scalar_ty == MirType::I1 && matches!(op, Op::And { .. } | Op::Or { .. }) {
+        MirType::I256
+    } else {
+        scalar_ty
+    };
     generated::constructor_sequence_rewrite(
         &mut Context {
             func,
