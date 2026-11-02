@@ -1,0 +1,23 @@
+- // === ROOT/tests/ui/codegen/evm-ir/late-structural/distinct_terminals.evmir (before late-structural) ===
++ // === ROOT/tests/ui/codegen/evm-ir/late-structural/distinct_terminals.evmir (after late-structural) ===
+  @module DistinctTerminals
+  bb0:
+    push 4
+    calldataload
+    push bb2
+    jumpi
+    jump bb1
+  bb1 [cold]:
+    push 0
+    push 0
+    revert
+  bb2:
+    jump bb3
+  bb3:
+    push 1
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  
