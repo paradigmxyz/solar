@@ -170,50 +170,48 @@ fn @nullArrayElementsEncodeAsEmpty() -> i1 [selector=0x71417b4d, pure, abi_param
     jumpi v2, bb2, bb3
   bb3:  ; preds = bb1
     v7 = abi_encode [memory_array<memory_bytes>], object, args v0
-    v8 = not 0
-    mstore 0, v8 !metadata(memory=scratch)
-    v9 = abi_encode [memory_array<memory_bytes>], object, args v0
+    mstore 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(memory=scratch)
+    v8 = abi_encode [memory_array<memory_bytes>], object, args v0
     mstore 0, 0 !metadata(memory=scratch)
-    v10 = alloc zeroed checked 96
-    mstore v10, 2
+    v9 = alloc zeroed checked 96
+    mstore v9, 2
     jump bb4
   bb4:  ; preds = bb3, bb5
-    v11 = phi [bb3: 0], [bb5: v16]
-    v12 = lt v11, 2
-    jumpi v12, bb5, bb6
+    v10 = phi [bb3: 0], [bb5: v15]
+    v11 = lt v10, 2
+    jumpi v11, bb5, bb6
   bb6:  ; preds = bb4
-    v17 = abi_encode [memory_array<memory_array<word>>], object, args v10
-    v18 = not 0
-    mstore 0, v18 !metadata(memory=scratch)
-    v19 = abi_encode [memory_array<memory_array<word>>], object, args v10
-    v20 = ptradd v7, 32
-    v21 = mload v7
-    v22 = keccak256 v20, v21
-    v23 = ptradd v9, 32
-    v24 = mload v9
-    v25 = keccak256 v23, v24
-    v26 = eq v22, v25
-    jumpi v26, bb7, bb8
+    v16 = abi_encode [memory_array<memory_array<word>>], object, args v9
+    mstore 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(memory=scratch)
+    v17 = abi_encode [memory_array<memory_array<word>>], object, args v9
+    v18 = ptradd v7, 32
+    v19 = mload v7
+    v20 = keccak256 v18, v19
+    v21 = ptradd v8, 32
+    v22 = mload v8
+    v23 = keccak256 v21, v22
+    v24 = eq v20, v23
+    jumpi v24, bb7, bb8
   bb8:  ; preds = bb6
     jump bb9
   bb7:  ; preds = bb6
-    v27 = ptradd v17, 32
-    v28 = mload v17
-    v29 = keccak256 v27, v28
-    v30 = ptradd v19, 32
-    v31 = mload v19
-    v32 = keccak256 v30, v31
-    v33 = eq v29, v32
+    v25 = ptradd v16, 32
+    v26 = mload v16
+    v27 = keccak256 v25, v26
+    v28 = ptradd v17, 32
+    v29 = mload v17
+    v30 = keccak256 v28, v29
+    v31 = eq v27, v30
     jump bb9
   bb9:  ; preds = bb7, bb8
-    v34 = phi [bb7: v33], [bb8: false]
-    ret v34
+    v32 = phi [bb7: v31], [bb8: false]
+    ret v32
   bb5:  ; preds = bb4
-    v13 = shl v11, 5
-    v14 = ptradd v10, v13
-    v15 = ptradd v14, 32
-    mstore v15, 96
-    v16 = add v11, 1
+    v12 = shl v10, 5
+    v13 = ptradd v9, v12
+    v14 = ptradd v13, 32
+    mstore v14, 96
+    v15 = add v10, 1
     jump bb4
   bb2:  ; preds = bb1
     v3 = shl v1, 5

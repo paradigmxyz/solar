@@ -28,9 +28,6 @@ bb4 [cold]:
   push 0
   revert
 bb5:  ; function nonzero(uint256 value) external pure returns (uint256) [selector 0x161e4029]
-  push 128
-  push 64
-  mstore
   push 36
   calldatasize
   lt
@@ -43,15 +40,10 @@ bb5:  ; function nonzero(uint256 value) external pure returns (uint256) [selecto
   jumpi
   push 0
   mstore
-  push 0
   push 32
-  sub
   push 0
   return
 bb9:  ; function belowLimit(uint256 value) external pure returns (uint256) [selector 0x4b692dff]
-  push 128
-  push 64
-  mstore
   push 36
   calldatasize
   lt
@@ -65,9 +57,7 @@ bb9:  ; function belowLimit(uint256 value) external pure returns (uint256) [sele
   jumpi
   push 0
   mstore
-  push 0
   push 32
-  sub
   push 0
   return
 bb13:  ; function abort(uint256 value) internal pure

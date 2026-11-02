@@ -25,18 +25,17 @@ fn @copy() -> ptr<memory> [selector=0x60726abb, pure, abi_params=[], abi_returns
     icall revert_if<calldata_tail_too_short>, v8
     v9 = extract_value slice<calldata>, v1, 1
     v10 = add v9, 31
-    v11 = not 31
-    v12 = and v10, v11
-    v13 = add v12, 32
-    v14 = lt v13, v9
-    icall panic_if<0x41>, v14
-    v15 = alloc v13
-    mstore v15, v9
-    v16 = ptradd v15, 32
-    v17 = extract_value slice<calldata>, v1, 0
-    v18 = extract_value slice<calldata>, v1, 1
-    calldatacopy v16, v17, v18
-    ret v15
+    v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v12 = add v11, 32
+    v13 = lt v12, v9
+    icall panic_if<0x41>, v13
+    v14 = alloc v12
+    mstore v14, v9
+    v15 = ptradd v14, 32
+    v16 = extract_value slice<calldata>, v1, 0
+    v17 = extract_value slice<calldata>, v1, 1
+    calldatacopy v15, v16, v17
+    ret v14
 }
 
 ; function environment() external view returns (uint256 value) [selector 0x74e2b63c]
@@ -101,16 +100,15 @@ fn @tail(arg0: i256, arg1: i256) -> ptr<memory> [selector=0xb62868c3, pure, abi_
     icall revert_if<calldata_tail_too_short>, v17
     v18 = extract_value slice<calldata>, v10, 1
     v19 = add v18, 31
-    v20 = not 31
-    v21 = and v19, v20
-    v22 = add v21, 32
-    v23 = lt v22, v18
-    icall panic_if<0x41>, v23
-    v24 = alloc v22
-    mstore v24, v18
-    v25 = ptradd v24, 32
-    v26 = extract_value slice<calldata>, v10, 0
-    v27 = extract_value slice<calldata>, v10, 1
-    calldatacopy v25, v26, v27
-    ret v24
+    v20 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v21 = add v20, 32
+    v22 = lt v21, v18
+    icall panic_if<0x41>, v22
+    v23 = alloc v21
+    mstore v23, v18
+    v24 = ptradd v23, 32
+    v25 = extract_value slice<calldata>, v10, 0
+    v26 = extract_value slice<calldata>, v10, 1
+    calldatacopy v24, v25, v26
+    ret v23
 }

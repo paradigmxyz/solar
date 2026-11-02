@@ -41,9 +41,8 @@ fn @joinAddress(arg0: i1) -> i256 [selector=0xbfc95d7a, pure, abi_params=[bool],
 ; function dirtyAddress(address value) internal pure returns (address result)
 fn @dirtyAddress(arg0: i256) -> i256 [pure] {
   bb0:
-    v0 = shl 1, 160
-    v1 = or arg0, v0
-    ret v1
+    v0 = or arg0, 0x10000000000000000000000000000000000000000
+    ret v0
 }
 
 ; function dirtyBytes(bytes1 value) internal pure returns (bytes1 result)
@@ -56,9 +55,8 @@ fn @dirtyBytes(arg0: i256) -> i256 [pure] {
 ; function dirtyUint8(uint8 value) internal pure returns (uint8 result)
 fn @dirtyUint8(arg0: i256) -> i256 [pure] {
   bb0:
-    v0 = shl 1, 8
-    v1 = or arg0, v0
-    ret v1
+    v0 = or arg0, 256
+    ret v0
 }
 
 ; function dirtyBool(bool value) internal pure returns (bool result)

@@ -97,16 +97,16 @@ fn @decode() [selector=0xe5c5e9a3, abi_wrapper, pure] {
     v17 = sub v8, v16
     v18 = gt v15, v17
     v19 = or v14, v18
-    v42 = or v9, v19
-    jumpi v42, bb1, bb2
+    v40 = or v9, v19
+    jumpi v40, bb1, bb2
   bb2:  ; preds = bb0
-    v27 = icall @u32, v16, v15
-    v35 = mload 32 !metadata(memory=scratch)
-    v29 = add v35, 32
-    v30 = mload v29
-    v31 = icall @u16, v16, v15, v30
-    mstore 0, v27
-    mstore 32, v31
+    v25 = icall @u32, v16, v15
+    v33 = mload 32 !metadata(memory=scratch)
+    v27 = add v33, 32
+    v28 = mload v27
+    v29 = icall @u16, v16, v15, v28
+    mstore 0, v25
+    mstore 32, v29
     returndata 0, 64
   bb1 [cold]:  ; preds = bb0
     revert 0, 0
@@ -119,22 +119,22 @@ fn @sum4() [selector=0x0540a714, abi_wrapper, pure] {
     v34 = lt v33, 132
     jumpi v34, bb2, bb3
   bb3:  ; preds = bb0
-    v78 = calldataload 4
-    v79 = add 0, v78
-    v87 = calldataload 36
-    v88 = add v79, v87
-    v89 = lt v88, v79
-    v96 = calldataload 68
-    v97 = add v88, v96
-    v98 = lt v97, v88
-    v109 = or v89, v98
-    v105 = calldataload 100
-    v106 = add v97, v105
-    v107 = lt v106, v97
-    v110 = or v109, v107
-    jumpi v110, bb1, bb4
+    v77 = calldataload 4
+    v78 = add 0, v77
+    v86 = calldataload 36
+    v87 = add v78, v86
+    v88 = lt v87, v78
+    v95 = calldataload 68
+    v96 = add v87, v95
+    v97 = lt v96, v87
+    v108 = or v88, v97
+    v104 = calldataload 100
+    v105 = add v96, v104
+    v106 = lt v105, v96
+    v109 = or v108, v106
+    jumpi v109, bb1, bb4
   bb4:  ; preds = bb3
-    mstore 0, v106
+    mstore 0, v105
     returndata 0, 32
   bb1 [cold]:  ; preds = bb3
     mstore 32, 17 !metadata(memory=scratch)

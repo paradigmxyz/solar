@@ -71,7 +71,7 @@ fn lower_function(func: &mut Function) -> bool {
                             );
                             let ptr = builder.load(address, PtrLocation::Memory);
                             let len_address =
-                                builder.add_u64_offset(address, EvmMemoryLayout::WORD_SIZE);
+                                builder.add_offset(address, EvmMemoryLayout::WORD_SIZE);
                             let len = builder.load(len_address, PtrLocation::Memory);
                             builder.make_slice(ptr, len, location)
                         }
@@ -98,7 +98,7 @@ fn lower_function(func: &mut Function) -> bool {
                             let len = builder.slice_len(value);
                             builder.store(address, ptr);
                             let len_address =
-                                builder.add_u64_offset(address, EvmMemoryLayout::WORD_SIZE);
+                                builder.add_offset(address, EvmMemoryLayout::WORD_SIZE);
                             builder.store(len_address, len);
                         }
                     }

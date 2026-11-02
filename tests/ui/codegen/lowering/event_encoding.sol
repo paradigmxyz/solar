@@ -44,8 +44,7 @@ contract EventEncoding {
     }
 
     // CHECK-LABEL: fn @emitIndexedDirtyFixedBytes
-    // CHECK: [[CLEAN:v[0-9]+]] = and {{[^,]+}}, 0xff00000000000000000000000000000000000000000000000000000000000000
-    // CHECK: log 0, 0, {{[^,]+}}, [[CLEAN]]
+    // CHECK: log 0, 0, {{[^,]+}}, 0x3100000000000000000000000000000000000000000000000000000000000000
     function emitIndexedDirtyFixedBytes() external {
         bytes1 value;
         assembly {

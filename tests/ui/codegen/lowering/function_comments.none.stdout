@@ -1,14 +1,14 @@
 // === ROOT/tests/ui/codegen/lowering/function_comments.sol:C (creation) ===
 @module C_deployment
 @data
-  C_runtime_code_0: hex"36602957005b6011602052634e487b715f526024601cfd5b6011602052634e487b715f526024601cfd5b5f3560e01c80632ddbd13a14608a578063771602f714609f578063b20e73441460c9578063c47dcaa414610172578063cf6459ff1461013657346101df57608060405260046101b65b81156101d85760018203600183106017576101c66072565b6080604052346101e3575f545f525f6020035ff35b6080604052346101fd57604436106101f95760043560243581019081106101e7575f525f6020035ff35b6080604052346102055760243610610201576004358060f55f5491820191821061022b57905f555f5490565b9060fc6072565b81019081106005577f000000000000000000000000000000000000000000000000000000000000000081019081106005575f525f6020035ff35b60806040523461020d5760243610610209576040516040810160405260078152602001662f2f202028207b60c81b90526004355f525f6020035ff35b60806040523461021557602436106102115760405160408101604052600f81526020016e6f6e6520202020202020202074776f60881b90526004355f525f6020035ff35b5f54908101908110610219575f55005b80830281159181049093141715601757565b9050600190565b5f5ffd5b5f5ffd5b6011602052634e487b715f526024601cfd5b5f5ffd5b5f5ffd5b5f5ffd5b5f5ffd5b5f5ffd5b5f5ffd5b5f5ffd5b5f5ffd5b6011602052634e487b715f526024601cfd5b6011602052634e487b715f526024601cfd"
+  C_runtime_code_0: hex"36602957005b6011602052634e487b715f526024601cfd5b6011602052634e487b715f526024601cfd5b5f3560e01c80632ddbd13a14608a578063771602f7146098578063b20e73441460bb578063c47dcaa414610160578063cf6459ff1461012657346101cb57608060405260046101a25b81156101c45760018203600183106017576101b26072565b346101cf575f545f5260205ff35b346101e957604436106101e55760043560243581019081106101d3575f5260205ff35b6080604052346101f157602436106101ed576004358060e75f5491820191821061021757905f555f5490565b9060ee6072565b81019081106005577f000000000000000000000000000000000000000000000000000000000000000081019081106005575f5260205ff35b6080604052346101f957602436106101f5576040516040810160405260078152602001662f2f202028207b60c81b90526004355f5260205ff35b60806040523461020157602436106101fd5760405160408101604052600f81526020016e6f6e6520202020202020202074776f60881b90526004355f5260205ff35b5f54908101908110610205575f55005b80830281159181049093141715601757565b9050600190565b5f5ffd5b5f5ffd5b6011602052634e487b715f526024601cfd5b5f5ffd5b5f5ffd5b5f5ffd5b5f5ffd5b5f5ffd5b5f5ffd5b5f5ffd5b5f5ffd5b6011602052634e487b715f526024601cfd5b6011602052634e487b715f526024601cfd"
 
 bb0:  ; constructor(uint256 start) [creation entry]
-  push_data C_runtime_code_0+573
+  push_data C_runtime_code_0+553
   codesize
   sub
   dup 1
-  push_data C_runtime_code_0+573
+  push_data C_runtime_code_0+553
   push 224
   codecopy
   push 224
@@ -25,7 +25,7 @@ bb0:  ; constructor(uint256 start) [creation entry]
   jumpi
   push 224
   push 224
-  push_data C_runtime_code_0+573
+  push_data C_runtime_code_0+553
   codesize
   sub
   add
@@ -103,14 +103,14 @@ bb11 [continuation]:
   sstore
   push 192
   mstore
-  push 573
+  push 553
   dup 1
   push_data C_runtime_code_0
   push 224
   codecopy
   push 192
   mload
-  push 486
+  push 472
   mstore
   push 224
   return
@@ -214,9 +214,6 @@ bb49 [ret=0, inputs=2, outputs=1]:  ; function fact(uint256 n) internal pure ret
   push bb52
   jump bb49
 bb11:  ; getter for `uint256 public total` [selector 0x2ddbd13a]
-  push 128
-  push 64
-  mstore
   callvalue
   push bb13
   jumpi
@@ -224,15 +221,10 @@ bb11:  ; getter for `uint256 public total` [selector 0x2ddbd13a]
   sload
   push 0
   mstore
-  push 0
   push 32
-  sub
   push 0
   return
 bb14:  ; function add(uint256 a, uint256 b) external pure returns (uint256) [selector 0x771602f7]
-  push 128
-  push 64
-  mstore
   callvalue
   push bb20
   jumpi
@@ -254,9 +246,7 @@ bb14:  ; function add(uint256 a, uint256 b) external pure returns (uint256) [sel
   jumpi
   push 0
   mstore
-  push 0
   push 32
-  sub
   push 0
   return
 bb21:  ; function go(uint256 n) external returns (uint256) [selector 0xb20e7344] + function bump(uint256 x) internal returns (uint256)
@@ -314,9 +304,7 @@ bb25 [continuation]:
   jumpi
   push 0
   mstore
-  push 0
   push 32
-  sub
   push 0
   return
 bb31:  ; function tag(uint256 x) external pure tagged("//  ( {") returns (uint256) [selector 0xcf6459ff]
@@ -352,9 +340,7 @@ bb31:  ; function tag(uint256 x) external pure tagged("//  ( {") returns (uint25
   calldataload
   push 0
   mstore
-  push 0
   push 32
-  sub
   push 0
   return
 bb36:  ; function wrapped(uint256 x) external pure tagged("one \         two") returns (uint256) [selector 0xc47dcaa4]
@@ -390,9 +376,7 @@ bb36:  ; function wrapped(uint256 x) external pure tagged("one \         two") r
   calldataload
   push 0
   mstore
-  push 0
   push 32
-  sub
   push 0
   return
 bb43 [continuation]:
@@ -564,9 +548,6 @@ bb10 [cold]:
   push 0
   revert
 bb11:  ; getter for `uint256 public total` [selector 0x2ddbd13a]
-  push 128
-  push 64
-  mstore
   callvalue
   push bb13
   jumpi
@@ -576,9 +557,7 @@ bb12:
   sload
   push 0
   mstore
-  push 0
   push 32
-  sub
   push 0
   return
 bb13 [cold]:
@@ -586,9 +565,6 @@ bb13 [cold]:
   push 0
   revert
 bb14:  ; function add(uint256 a, uint256 b) external pure returns (uint256) [selector 0x771602f7]
-  push 128
-  push 64
-  mstore
   callvalue
   push bb20
   jumpi
@@ -616,9 +592,7 @@ bb16:
 bb17:
   push 0
   mstore
-  push 0
   push 32
-  sub
   push 0
   return
 bb18 [cold]:
@@ -686,9 +660,7 @@ bb26:
 bb27:
   push 0
   mstore
-  push 0
   push 32
-  sub
   push 0
   return
 bb28 [cold]:
@@ -744,9 +716,7 @@ bb33:
   calldataload
   push 0
   mstore
-  push 0
   push 32
-  sub
   push 0
   return
 bb34 [cold]:
@@ -792,9 +762,7 @@ bb38:
   calldataload
   push 0
   mstore
-  push 0
   push 32
-  sub
   push 0
   return
 bb39 [cold]:

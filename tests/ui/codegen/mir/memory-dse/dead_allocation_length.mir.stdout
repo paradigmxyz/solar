@@ -41,16 +41,15 @@ fn @echo(arg0: slice<calldata>) -> ptr<memory> [selector=0x624fbfdc, pure, abi_p
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = add v0, 31
-    v2 = not 31
-    v3 = and v1, v2
-    v4 = add v3, 32
-    v5 = alloc v4
-    mstore v5, v0
-    v6 = ptradd v5, 32
-    v7 = extract_value slice<calldata>, arg0, 0
-    v8 = extract_value slice<calldata>, arg0, 1
-    calldatacopy v6, v7, v8
-    ret v5
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v3 = add v2, 32
+    v4 = alloc v3
+    mstore v4, v0
+    v5 = ptradd v4, 32
+    v6 = extract_value slice<calldata>, arg0, 0
+    v7 = extract_value slice<calldata>, arg0, 1
+    calldatacopy v5, v6, v7
+    ret v4
 }
 
 ; function fail(uint256 code) external pure [selector 0x132e4f3c]

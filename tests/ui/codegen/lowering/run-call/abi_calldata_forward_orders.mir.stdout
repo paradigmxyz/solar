@@ -16,21 +16,20 @@ fn @sink(arg0: slice<calldata>) -> i256 [selector=0x887458ef, pure, abi_params=[
     icall revert_if<calldata_tail_too_short>, v8
     v9 = extract_value slice<calldata>, v1, 1
     v10 = add v9, 31
-    v11 = not 31
-    v12 = and v10, v11
-    v13 = add v12, 32
-    v14 = lt v13, v9
-    icall panic_if<0x41>, v14
-    v15 = alloc v13
-    mstore v15, v9
-    v16 = ptradd v15, 32
-    v17 = extract_value slice<calldata>, v1, 0
-    v18 = extract_value slice<calldata>, v1, 1
-    calldatacopy v16, v17, v18
-    v19 = ptradd v15, 32
-    v20 = mload v15
-    v21 = keccak256 v19, v20
-    ret v21
+    v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v12 = add v11, 32
+    v13 = lt v12, v9
+    icall panic_if<0x41>, v13
+    v14 = alloc v12
+    mstore v14, v9
+    v15 = ptradd v14, 32
+    v16 = extract_value slice<calldata>, v1, 0
+    v17 = extract_value slice<calldata>, v1, 1
+    calldatacopy v15, v16, v17
+    v18 = ptradd v14, 32
+    v19 = mload v14
+    v20 = keccak256 v18, v19
+    ret v20
 }
 
 ; function sinkWith(Order[] calldata, uint256) external pure returns (bytes32) [selector 0x13407785]
@@ -49,21 +48,20 @@ fn @sinkWith(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x13407785, pu
     icall revert_if<calldata_tail_too_short>, v8
     v9 = extract_value slice<calldata>, v1, 1
     v10 = add v9, 31
-    v11 = not 31
-    v12 = and v10, v11
-    v13 = add v12, 32
-    v14 = lt v13, v9
-    icall panic_if<0x41>, v14
-    v15 = alloc v13
-    mstore v15, v9
-    v16 = ptradd v15, 32
-    v17 = extract_value slice<calldata>, v1, 0
-    v18 = extract_value slice<calldata>, v1, 1
-    calldatacopy v16, v17, v18
-    v19 = ptradd v15, 32
-    v20 = mload v15
-    v21 = keccak256 v19, v20
-    ret v21
+    v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v12 = add v11, 32
+    v13 = lt v12, v9
+    icall panic_if<0x41>, v13
+    v14 = alloc v12
+    mstore v14, v9
+    v15 = ptradd v14, 32
+    v16 = extract_value slice<calldata>, v1, 0
+    v17 = extract_value slice<calldata>, v1, 1
+    calldatacopy v15, v16, v17
+    v18 = ptradd v14, 32
+    v19 = mload v14
+    v20 = keccak256 v18, v19
+    ret v20
 }
 
 ; function sinkOne(Order calldata) external pure returns (bytes32) [selector 0xdc7b1a27]
@@ -82,21 +80,20 @@ fn @sinkOne(arg0: slice<calldata>) -> i256 [selector=0xdc7b1a27, pure, abi_param
     icall revert_if<calldata_tail_too_short>, v8
     v9 = extract_value slice<calldata>, v1, 1
     v10 = add v9, 31
-    v11 = not 31
-    v12 = and v10, v11
-    v13 = add v12, 32
-    v14 = lt v13, v9
-    icall panic_if<0x41>, v14
-    v15 = alloc v13
-    mstore v15, v9
-    v16 = ptradd v15, 32
-    v17 = extract_value slice<calldata>, v1, 0
-    v18 = extract_value slice<calldata>, v1, 1
-    calldatacopy v16, v17, v18
-    v19 = ptradd v15, 32
-    v20 = mload v15
-    v21 = keccak256 v19, v20
-    ret v21
+    v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v12 = add v11, 32
+    v13 = lt v12, v9
+    icall panic_if<0x41>, v13
+    v14 = alloc v12
+    mstore v14, v9
+    v15 = ptradd v14, 32
+    v16 = extract_value slice<calldata>, v1, 0
+    v17 = extract_value slice<calldata>, v1, 1
+    calldatacopy v15, v16, v17
+    v18 = ptradd v14, 32
+    v19 = mload v14
+    v20 = keccak256 v18, v19
+    ret v20
 }
 
 ; function forward(Order[] calldata orders) external view returns (bytes32) [selector 0x6f975451]
@@ -116,9 +113,8 @@ fn @forward(arg0: slice<calldata>) -> i256 [selector=0x6f975451, view, abi_param
     v7 = returndatasize
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
-    v9 = add 0, 0
-    v10 = mload v9
-    ret v10
+    v9 = mload 0 !metadata(memory=scratch)
+    ret v9
 }
 
 ; function forwardWith(Order[] calldata orders) external view returns (bytes32) [selector 0xf2b2b8d0]
@@ -138,9 +134,8 @@ fn @forwardWith(arg0: slice<calldata>) -> i256 [selector=0xf2b2b8d0, view, abi_p
     v7 = returndatasize
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
-    v9 = add 0, 0
-    v10 = mload v9
-    ret v10
+    v9 = mload 0 !metadata(memory=scratch)
+    ret v9
 }
 
 ; function forwardOne(Order[] calldata orders, uint256 index) external view returns (bytes32) [selector 0x82731354]
@@ -187,9 +182,8 @@ fn @forwardOne(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x82731354, 
     v30 = returndatasize
     v31 = lt v30, 32
     icall revert_if<tuple_data_too_short>, v31
-    v32 = add 0, 0
-    v33 = mload v32
-    ret v33
+    v32 = mload 0 !metadata(memory=scratch)
+    ret v32
 }
 
 ; function encode(Order[] calldata orders) external pure returns (bytes32) [selector 0xcc54082e]

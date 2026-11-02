@@ -8,7 +8,7 @@
 // CHECK: "cborAuxdata": {
 // CHECK-NEXT: "A.sol:Child": [
 // CHECK-NEXT: {
-// CHECK-NEXT: "offset": 40,
+// CHECK-NEXT: "offset": 33,
 // CHECK-NEXT: "value": "[[CHILD:0xa2646970667358221220[0-9a-f]{64}65736f6c617243[0-9a-f]{6}0034]]"
 // CHECK-NEXT: }
 // CHECK-NEXT: ]
