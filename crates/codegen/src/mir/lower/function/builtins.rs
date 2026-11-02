@@ -2,7 +2,6 @@
 
 use super::*;
 use crate::link::CodeKind;
-use solar_interface::error_code;
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_builtin_call(
@@ -59,8 +58,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .gcx
                     .dcx()
                     .warn("`msize` is not exact when optimizing")
-                    // solc assigns codes from 1000 to 9999, so a code below 1000 cannot collide.
-                    .code(error_code!(67))
                     .span(callee.span)
                     .note("the optimizer does not preserve the exact value")
                     .emit();

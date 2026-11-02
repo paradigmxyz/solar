@@ -1,4 +1,4 @@
-warning[0067]: `msize` is not exact when optimizing
+warning: `msize` is not exact when optimizing
    ╭▸ ROOT/tests/ui/codegen/mir/memory-dse/overwritten_ranges.sol:LL:CC
    │
 LL │             size := msize()

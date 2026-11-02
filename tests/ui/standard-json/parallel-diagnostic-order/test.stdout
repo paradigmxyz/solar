@@ -531,9 +531,9 @@
       "type": "Warning",
       "component": "general",
       "severity": "warning",
-      "errorCode": "0067",
+      "errorCode": null,
       "message": "`msize` is not exact when optimizing",
-      "formattedMessage": "warning[0067]: `msize` is not exact when optimizing\n   ╭▸ C01.sol:LL:CC\n   │\nLL │             x := msize()\n   │                  ━━━━━\n   │\n   ╰ note: the optimizer does not preserve the exact value\n\n"
+      "formattedMessage": "warning: `msize` is not exact when optimizing\n   ╭▸ C01.sol:LL:CC\n   │\nLL │             x := msize()\n   │                  ━━━━━\n   │\n   ╰ note: the optimizer does not preserve the exact value\n\n"
     },
     {
       "sourceLocation": {
@@ -585,9 +585,9 @@
       "type": "Warning",
       "component": "general",
       "severity": "warning",
-      "errorCode": "0067",
+      "errorCode": null,
       "message": "`msize` is not exact when optimizing",
-      "formattedMessage": "warning[0067]: `msize` is not exact when optimizing\n   ╭▸ C02.sol:LL:CC\n   │\nLL │             x := msize()\n   │                  ━━━━━\n   │\n   ╰ note: the optimizer does not preserve the exact value\n\n"
+      "formattedMessage": "warning: `msize` is not exact when optimizing\n   ╭▸ C02.sol:LL:CC\n   │\nLL │             x := msize()\n   │                  ━━━━━\n   │\n   ╰ note: the optimizer does not preserve the exact value\n\n"
     },
     {
       "sourceLocation": {
@@ -639,9 +639,9 @@
       "type": "Warning",
       "component": "general",
       "severity": "warning",
-      "errorCode": "0067",
+      "errorCode": null,
       "message": "`msize` is not exact when optimizing",
-      "formattedMessage": "warning[0067]: `msize` is not exact when optimizing\n   ╭▸ C03.sol:LL:CC\n   │\nLL │             x := msize()\n   │                  ━━━━━\n   │\n   ╰ note: the optimizer does not preserve the exact value\n\n"
+      "formattedMessage": "warning: `msize` is not exact when optimizing\n   ╭▸ C03.sol:LL:CC\n   │\nLL │             x := msize()\n   │                  ━━━━━\n   │\n   ╰ note: the optimizer does not preserve the exact value\n\n"
     },
     {
       "sourceLocation": {
@@ -693,9 +693,9 @@
       "type": "Warning",
       "component": "general",
       "severity": "warning",
-      "errorCode": "0067",
+      "errorCode": null,
       "message": "`msize` is not exact when optimizing",
-      "formattedMessage": "warning[0067]: `msize` is not exact when optimizing\n   ╭▸ C04.sol:LL:CC\n   │\nLL │             x := msize()\n   │                  ━━━━━\n   │\n   ╰ note: the optimizer does not preserve the exact value\n\n"
+      "formattedMessage": "warning: `msize` is not exact when optimizing\n   ╭▸ C04.sol:LL:CC\n   │\nLL │             x := msize()\n   │                  ━━━━━\n   │\n   ╰ note: the optimizer does not preserve the exact value\n\n"
     },
     {
       "sourceLocation": {
@@ -747,9 +747,9 @@
       "type": "Warning",
       "component": "general",
       "severity": "warning",
-      "errorCode": "0067",
+      "errorCode": null,
       "message": "`msize` is not exact when optimizing",
-      "formattedMessage": "warning[0067]: `msize` is not exact when optimizing\n   ╭▸ C05.sol:LL:CC\n   │\nLL │             x := msize()\n   │                  ━━━━━\n   │\n   ╰ note: the optimizer does not preserve the exact value\n\n"
+      "formattedMessage": "warning: `msize` is not exact when optimizing\n   ╭▸ C05.sol:LL:CC\n   │\nLL │             x := msize()\n   │                  ━━━━━\n   │\n   ╰ note: the optimizer does not preserve the exact value\n\n"
     },
     {
       "sourceLocation": {
@@ -801,9 +801,9 @@
       "type": "Warning",
       "component": "general",
       "severity": "warning",
-      "errorCode": "0067",
+      "errorCode": null,
       "message": "`msize` is not exact when optimizing",
-      "formattedMessage": "warning[0067]: `msize` is not exact when optimizing\n   ╭▸ C06.sol:LL:CC\n   │\nLL │             x := msize()\n   │                  ━━━━━\n   │\n   ╰ note: the optimizer does not preserve the exact value\n\n"
+      "formattedMessage": "warning: `msize` is not exact when optimizing\n   ╭▸ C06.sol:LL:CC\n   │\nLL │             x := msize()\n   │                  ━━━━━\n   │\n   ╰ note: the optimizer does not preserve the exact value\n\n"
     },
     {
       "sourceLocation": {
@@ -855,9 +855,9 @@
       "type": "Warning",
       "component": "general",
       "severity": "warning",
-      "errorCode": "0067",
+      "errorCode": null,
       "message": "`msize` is not exact when optimizing",
-      "formattedMessage": "warning[0067]: `msize` is not exact when optimizing\n   ╭▸ C07.sol:LL:CC\n   │\nLL │             x := msize()\n   │                  ━━━━━\n   │\n   ╰ note: the optimizer does not preserve the exact value\n\n"
+      "formattedMessage": "warning: `msize` is not exact when optimizing\n   ╭▸ C07.sol:LL:CC\n   │\nLL │             x := msize()\n   │                  ━━━━━\n   │\n   ╰ note: the optimizer does not preserve the exact value\n\n"
     },
     {
       "sourceLocation": {
@@ -909,9 +909,9 @@
       "type": "Warning",
       "component": "general",
       "severity": "warning",
-      "errorCode": "0067",
+      "errorCode": null,
       "message": "`msize` is not exact when optimizing",
-      "formattedMessage": "warning[0067]: `msize` is not exact when optimizing\n   ╭▸ C08.sol:LL:CC\n   │\nLL │             x := msize()\n   │                  ━━━━━\n   │\n   ╰ note: the optimizer does not preserve the exact value\n\n"
+      "formattedMessage": "warning: `msize` is not exact when optimizing\n   ╭▸ C08.sol:LL:CC\n   │\nLL │             x := msize()\n   │                  ━━━━━\n   │\n   ╰ note: the optimizer does not preserve the exact value\n\n"
     },
     {
       "sourceLocation": {
