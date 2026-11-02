@@ -138,120 +138,98 @@
       (enabling_sequence (Op.Ne r1 zero)))
 
 ;; A mask that stays keeps the low `W - s` bits of a word, and `x & m` equals or differs from a
-;; word `y` that has at most that many bits exactly when the difference of `x` and `y`, shifted
-;; left by `s`, is zero or not. The shifted word is a zero test that a branch reads for free.
-;; The target prices the spelling for the root's use, and the root removes the mask.
+;; word `y` that the mask covers exactly when the difference of `x` and `y`, shifted left by `s`,
+;; is zero or not. The shifted word is a zero test that a branch reads for free. These are
+;; ordinary priced sequences: the run weighs them against the mask and compare they replace, with
+;; the mask counted only when nothing else reads it.
 
 ;; (x & m) == 0 => (x << s) == 0.
-;; Requires: m == MAX >> s, nothing else reads the mask, and the target prices the shift lower.
-(rule (sequence_rewrite (Op.Eq (and mask (band x (iconst m))) (zero)))
+;; Requires: m == MAX >> s.
+(rule (sequence_rewrite (Op.Eq (band x (iconst m)) (zero)))
       (if-let true (spelling_widths))
       (if-let s (low_mask_shift m))
-      (if-let true (sole_reader mask))
-      (if-let true (masked_shifts s true true))
       (if-let r0 (imm s))
       (if-let r1 (make (Op.Shl r0 x)))
       (if-let zero (imm (u256 0)))
-      (enabling_sequence (Op.Eq r1 zero)))
+      (sequence (Op.Eq r1 zero)))
 
 ;; (x & m) != 0 => (x << s) != 0.
-(rule (sequence_rewrite (Op.Ne (and mask (band x (iconst m))) (zero)))
+(rule (sequence_rewrite (Op.Ne (band x (iconst m)) (zero)))
       (if-let true (spelling_widths))
       (if-let s (low_mask_shift m))
-      (if-let true (sole_reader mask))
-      (if-let true (masked_shifts s false true))
       (if-let r0 (imm s))
       (if-let r1 (make (Op.Shl r0 x)))
       (if-let zero (imm (u256 0)))
-      (enabling_sequence (Op.Ne r1 zero)))
+      (sequence (Op.Ne r1 zero)))
 
 ;; (x & m) == y => ((x ^ y) << s) == 0.
-;; Requires: m == MAX >> s, y is not zero and has at most W - s bits, nothing else reads the mask,
-;; and the target prices the shift lower.
-(rule (sequence_rewrite (Op.Eq (and mask (band x (iconst m))) y))
+;; Requires: m == MAX >> s and m covers y.
+(rule (sequence_rewrite (Op.Eq (band x (iconst m)) y))
       (if-let true (spelling_widths))
       (if-let s (low_mask_shift m))
-      (if-let false (zero_operand y))
-      (if-let true (sole_reader mask))
-      (if-let true (fits_below_shift y s))
-      (if-let true (masked_shifts s true false))
+      (if-let true (mask_covers m y))
       (if-let r0 (imm s))
       (if-let r1 (make (Op.Xor x y)))
       (if-let r2 (make (Op.Shl r0 r1)))
       (if-let zero (imm (u256 0)))
-      (enabling_sequence (Op.Eq r2 zero)))
-
-;; y == (x & m) => ((x ^ y) << s) == 0.
-(rule (sequence_rewrite (Op.Eq y (and mask (band x (iconst m)))))
-      (if-let true (spelling_widths))
-      (if-let s (low_mask_shift m))
-      (if-let false (zero_operand y))
-      (if-let true (sole_reader mask))
-      (if-let true (fits_below_shift y s))
-      (if-let true (masked_shifts s true false))
-      (if-let r0 (imm s))
-      (if-let r1 (make (Op.Xor x y)))
-      (if-let r2 (make (Op.Shl r0 r1)))
-      (if-let zero (imm (u256 0)))
-      (enabling_sequence (Op.Eq r2 zero)))
+      (sequence (Op.Eq r2 zero)))
 
 ;; (x & m) != y => ((x ^ y) << s) != 0.
-(rule (sequence_rewrite (Op.Ne (and mask (band x (iconst m))) y))
+(rule (sequence_rewrite (Op.Ne (band x (iconst m)) y))
       (if-let true (spelling_widths))
       (if-let s (low_mask_shift m))
-      (if-let false (zero_operand y))
-      (if-let true (sole_reader mask))
-      (if-let true (fits_below_shift y s))
-      (if-let true (masked_shifts s false false))
+      (if-let true (mask_covers m y))
       (if-let r0 (imm s))
       (if-let r1 (make (Op.Xor x y)))
       (if-let r2 (make (Op.Shl r0 r1)))
       (if-let zero (imm (u256 0)))
-      (enabling_sequence (Op.Ne r2 zero)))
+      (sequence (Op.Ne r2 zero)))
+
+;; y == (x & m) => ((x ^ y) << s) == 0.
+;; The operands of a compare reach this run in either order, so the mask may be on either side.
+(rule (sequence_rewrite (Op.Eq y (band x (iconst m))))
+      (if-let true (spelling_widths))
+      (if-let s (low_mask_shift m))
+      (if-let true (mask_covers m y))
+      (if-let r0 (imm s))
+      (if-let r1 (make (Op.Xor x y)))
+      (if-let r2 (make (Op.Shl r0 r1)))
+      (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq r2 zero)))
 
 ;; y != (x & m) => ((x ^ y) << s) != 0.
-(rule (sequence_rewrite (Op.Ne y (and mask (band x (iconst m)))))
+(rule (sequence_rewrite (Op.Ne y (band x (iconst m))))
       (if-let true (spelling_widths))
       (if-let s (low_mask_shift m))
-      (if-let false (zero_operand y))
-      (if-let true (sole_reader mask))
-      (if-let true (fits_below_shift y s))
-      (if-let true (masked_shifts s false false))
+      (if-let true (mask_covers m y))
       (if-let r0 (imm s))
       (if-let r1 (make (Op.Xor x y)))
       (if-let r2 (make (Op.Shl r0 r1)))
       (if-let zero (imm (u256 0)))
-      (enabling_sequence (Op.Ne r2 zero)))
+      (sequence (Op.Ne r2 zero)))
 
 ;; (x & m) == (z & m) => ((x ^ z) << s) == 0.
-;; Requires: m == MAX >> s, nothing else reads either mask, and the target prices the shift lower.
-;; Both masks go, whatever bits `x` and `z` have above the mask.
-(rule (sequence_rewrite (Op.Eq (and mask (band x (iconst m))) (and other (band z (iconst n)))))
+;; Requires: m == MAX >> s. Both masks go, whatever bits `x` and `z` have above the mask.
+(rule (sequence_rewrite (Op.Eq (band x (iconst m)) (band z (iconst n))))
       (if-let true (spelling_widths))
       (if-let s (low_mask_shift m))
       (if-let true (u256_same m n))
-      (if-let true (sole_reader mask))
-      (if-let true (sole_reader other))
-      (if-let true (masked_shifts s true false))
       (if-let r0 (imm s))
       (if-let r1 (make (Op.Xor x z)))
       (if-let r2 (make (Op.Shl r0 r1)))
       (if-let zero (imm (u256 0)))
-      (enabling_sequence (Op.Eq r2 zero)))
+      (sequence (Op.Eq r2 zero)))
 
 ;; (x & m) != (z & m) => ((x ^ z) << s) != 0.
-(rule (sequence_rewrite (Op.Ne (and mask (band x (iconst m))) (and other (band z (iconst n)))))
+(rule (sequence_rewrite (Op.Ne (band x (iconst m)) (band z (iconst n))))
       (if-let true (spelling_widths))
       (if-let s (low_mask_shift m))
       (if-let true (u256_same m n))
-      (if-let true (sole_reader mask))
-      (if-let true (sole_reader other))
-      (if-let true (masked_shifts s false false))
       (if-let r0 (imm s))
       (if-let r1 (make (Op.Xor x z)))
       (if-let r2 (make (Op.Shl r0 r1)))
       (if-let zero (imm (u256 0)))
-      (enabling_sequence (Op.Ne r2 zero)))
+      (sequence (Op.Ne r2 zero)))
 
 ;; (x < 2 ** k) & (w == 0) => ((x >> k) | w) == 0.
 ;; Requires: k is constant, 1 <= k. The tests join into one word that a branch reads for free.

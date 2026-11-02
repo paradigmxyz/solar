@@ -170,6 +170,13 @@ fn max_bits(func: &Function, value: ValueId, depth: u32) -> u32 {
     max_bits_with_args(func, value, depth, &|_| 256)
 }
 
+/// Whether `mask`, of the form `2^n - 1`, keeps every bit the definition of `value` can set.
+pub(in crate::mir::transform) fn mask_covers(func: &Function, mask: U256, value: ValueId) -> bool {
+    // A mask of the form `2^n - 1` keeps `n` low bits.
+    let contiguous = mask.wrapping_add(U256::ONE) & mask == U256::ZERO;
+    contiguous && max_bits(func, value, MAX_BITS_DEPTH) <= mask.bit_len() as u32
+}
+
 /// Bounds a value using caller-proved argument widths instead of nominal types.
 pub(in crate::mir::transform) fn max_bits_with_args(
     func: &Function,
@@ -427,9 +434,7 @@ impl generated::Context for RuleContext<'_> {
     }
 
     fn mask_covers(&mut self, mask: U256, value: Value) -> bool {
-        // A mask of the form `2^n - 1` keeps `n` low bits.
-        let contiguous = mask.wrapping_add(U256::ONE) & mask == U256::ZERO;
-        contiguous && max_bits(self.func, value, MAX_BITS_DEPTH) <= mask.bit_len() as u32
+        mask_covers(self.func, mask, value)
     }
 
     fn has_bitwise_shifting(&mut self) -> bool {

@@ -548,9 +548,6 @@ class Context:
             "late_word_sequence",
             "spelling_widths",
             "width_shifts",
-            "masked_shifts",
-            "sole_reader",
-            "zero_operand",
             "allocations_lowered",
             "unshared_mask",
             "compared_mask",
@@ -584,16 +581,6 @@ class Context:
             "mask_covers": lambda: Cond("eq", (Expr("and", tuple(values)), values[1])),
             "masks_clean_address": lambda: Cond(
                 "eq", (Expr("and", tuple(values)), values[1])
-            ),
-            "fits_below_shift": lambda: Cond(
-                "eq",
-                (
-                    Expr(
-                        "shr",
-                        (Expr("sub", (Expr.const(256), values[1])), values[0]),
-                    ),
-                    Expr.const(0),
-                ),
             ),
             "shifted_out": lambda: Cond(
                 "eq", (Expr("shr", tuple(values)), Expr.const(0))

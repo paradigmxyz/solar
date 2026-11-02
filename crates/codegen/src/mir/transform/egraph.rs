@@ -89,7 +89,7 @@ use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMa
 use std::{mem, rc::Rc};
 
 mod isle;
-pub(super) use isle::{is_bool_value, max_bits_with_args};
+pub(super) use isle::{is_bool_value, mask_covers, max_bits_with_args};
 
 const TRACE_TARGET: &str = "solar::codegen::mir::egraph";
 

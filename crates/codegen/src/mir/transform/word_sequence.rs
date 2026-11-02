@@ -39,7 +39,14 @@
 //! with [`Target::shifts_bits_test`]: a branch or the `or` that joins tests for a branch reads a
 //! shifted word for free, so those tests become `(x >> k) != 0` and the join one word; an `and` of
 //! a fits test and a zero test becomes one word zero test; a test of the width of a shift the block
-//! already computes reads that shift. Only comparisons, `or` and `and` are roots there.
+//! already computes reads that shift.
+//!
+//! The same run spells the compare of a mask that stays. An `eq` or `ne` of `x & (2^k - 1)` with
+//! a word `y` the mask covers holds exactly when `(x ^ y) << (256 - k)` is zero, which needs no
+//! mask, and a branch reads that shifted word of an `ne` for free. The recipe is priced like any
+//! other: the run counts the mask and its push as removed only when nothing else reads the
+//! mask, so a shared mask keeps the compare as it is. Only comparisons, `or`, `and`, and an `eq`
+//! or `ne` that reads an `and` by a constant are roots there.
 
 use super::lower_checks::is_check;
 use crate::{
@@ -175,6 +182,7 @@ fn operation_cost(
     op: &Op,
     target: &Target,
     constants: &FxHashMap<ValueId, Temporary>,
+    in_loop: bool,
 ) -> Cost {
     let immediate = |value| recipe_immediate(func, constants, value);
     let mut cost = if let Op::Select { cond, .. } = op {
@@ -182,8 +190,9 @@ fn operation_cost(
     } else {
         target.op(op, immediate)
     };
-    let operand_cost =
-        |value| immediate(value).map_or_else(|| target.dup(), |value| target.push(value));
+    let operand_cost = |value| {
+        immediate(value).map_or_else(|| target.dup(), |value| target.emitted_push(value, in_loop))
+    };
     if let Some(value) = Target::zero_test_input(op, immediate) {
         cost += operand_cost(value);
     } else {
@@ -202,16 +211,16 @@ fn root_cost(
     op: &Op,
     target: &Target,
     constants: &FxHashMap<ValueId, Temporary>,
-    branch_only: bool,
+    read: ConditionRead,
 ) -> Cost {
     let immediate = |value| recipe_immediate(func, constants, value);
-    if branch_only
+    if read.branch
         && matches!(op, Op::Ne { .. })
         && Target::zero_test_input(op, immediate).is_some()
     {
         return Cost::ZERO;
     }
-    operation_cost(func, op, target, constants)
+    operation_cost(func, op, target, constants, read.in_loop)
 }
 
 impl Recipe {
@@ -242,7 +251,7 @@ impl Recipe {
         &self,
         func: &Function,
         target: &Target,
-        branch_only: bool,
+        read: ConditionRead,
     ) -> Option<(Cost, FxHashSet<ValueId>)> {
         let mut nodes = Vec::new();
         let mut leaves = FxHashSet::default();
@@ -251,11 +260,11 @@ impl Recipe {
             return None;
         }
         let root = nodes.pop().expect("a recipe has a root");
-        let root_cost = root_cost(func, &root, target, &self.temporaries, branch_only);
+        let root_cost = root_cost(func, &root, target, &self.temporaries, read);
         Some((
             nodes
                 .iter()
-                .map(|node| operation_cost(func, node, target, &self.temporaries))
+                .map(|node| operation_cost(func, node, target, &self.temporaries, read.in_loop))
                 .sum::<Cost>()
                 + root_cost,
             leaves,
@@ -431,19 +440,24 @@ fn run(func: &mut Function, target: &Target, pass: &WordSequence) -> bool {
                 in_loop: cyclic.as_ref().is_some_and(|cyclic| cyclic.contains(block)),
             };
             let mut best = None;
-            for recipe in isle::alternatives(
-                func, &original, &seen, &mut masks, &uses, &op, target, stage, read,
-            ) {
-                if let Some((after, leaves)) = recipe.cost_and_leaves(func, target, is_branch_only)
-                {
+            for recipe in
+                isle::alternatives(func, &original, &seen, &mut masks, &op, target, stage, read)
+            {
+                if let Some((after, leaves)) = recipe.cost_and_leaves(func, target, read) {
                     let mut dead = FxHashSet::default();
                     collect_dead(func, &op, &uses, &seen, &leaves, target, &mut dead);
                     let empty = FxHashMap::default();
-                    let before = root_cost(func, &op, target, &empty, is_branch_only)
+                    let before = root_cost(func, &op, target, &empty, read)
                         + dead
                             .iter()
                             .map(|&inst| {
-                                operation_cost(func, &func.inst(inst).kind.op(), target, &empty)
+                                operation_cost(
+                                    func,
+                                    &func.inst(inst).kind.op(),
+                                    target,
+                                    &empty,
+                                    read.in_loop,
+                                )
                             })
                             .sum::<Cost>();
                     if (recipe.enabling || target.cmp(after, before).is_lt())

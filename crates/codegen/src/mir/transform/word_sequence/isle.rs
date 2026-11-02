@@ -4,10 +4,7 @@
 //! to earlier temporaries. They are resolved when a winning recipe is committed;
 //! rejected recipes leave the function and its metadata untouched.
 
-use super::{
-    super::egraph::max_bits_with_args, ConditionRead, Recipe, Stage, Temporary,
-    mask_uses::MaskUses, widest_int_operand,
-};
+use super::{ConditionRead, Recipe, Stage, Temporary, mask_uses::MaskUses, widest_int_operand};
 use crate::{
     backend::evm::op,
     mir::{
@@ -17,15 +14,10 @@ use crate::{
     target::Target,
 };
 use alloy_primitives::U256;
-use solar_data_structures::{
-    index::IndexVec,
-    map::{FxHashMap, FxHashSet},
-};
+use solar_data_structures::map::{FxHashMap, FxHashSet};
 
 type Value = ValueId;
 const MAX_ISLE_RETURNS: usize = 16;
-/// How many definitions deep the known bits of a value are followed.
-const MAX_FACT_DEPTH: u32 = 8;
 const MAX_TEMPORARIES: usize = 64;
 
 #[allow(
@@ -56,7 +48,6 @@ pub(super) fn alternatives(
     block: &[InstId],
     seen: &FxHashSet<InstId>,
     masks: &mut Option<MaskUses>,
-    uses: &IndexVec<ValueId, u32>,
     op: &Op,
     target: &Target,
     stage: Stage,
@@ -77,7 +68,6 @@ pub(super) fn alternatives(
             block,
             seen,
             masks,
-            uses,
             target,
             scalar_ty,
             stage,
@@ -97,8 +87,6 @@ struct Context<'a> {
     seen: &'a FxHashSet<InstId>,
     /// Built by the first mask query of the function.
     masks: &'a mut Option<MaskUses>,
-    /// The readers of each value, which the run keeps current.
-    uses: &'a IndexVec<ValueId, u32>,
     target: &'a Target,
     scalar_ty: MirType,
     stage: Stage,
@@ -259,30 +247,8 @@ impl generated::Context for Context<'_> {
         })
     }
 
-    fn masked_shifts(&mut self, shift: U256, equal: bool, zero: bool) -> bool {
-        u32::try_from(shift).is_ok_and(|shift| {
-            self.target.shifts_masked_compare(
-                256 - shift,
-                equal,
-                zero,
-                self.read.branch,
-                self.read.in_loop,
-            )
-        })
-    }
-
-    fn fits_below_shift(&mut self, value: Value, shift: U256) -> bool {
-        u32::try_from(shift).is_ok_and(|shift| {
-            max_bits_with_args(self.func, value, MAX_FACT_DEPTH, &|_| 256) <= 256 - shift
-        })
-    }
-
-    fn sole_reader(&mut self, value: Value) -> bool {
-        self.uses.get(value) == Some(&1)
-    }
-
-    fn zero_operand(&mut self, value: Value) -> bool {
-        self.func.value_u256(value) == Some(U256::ZERO)
+    fn mask_covers(&mut self, mask: U256, value: Value) -> bool {
+        super::super::egraph::mask_covers(self.func, mask, value)
     }
 
     fn shared_shift(&mut self, bits: U256, value: Value) -> Option<Value> {

@@ -83,23 +83,9 @@
 (decl pure width_shifts (U256 bool) bool)
 (extern constructor width_shifts width_shifts)
 
-;; The target prices `(x ^ y) << s` against zero below `x & m` against `y`, for a mask `m` of the
-;; low `W - s` bits, in the root's use: `equal` for an `eq`, else an `ne`, and `zero` for a `y` of
-;; zero, which needs no difference.
-(decl pure masked_shifts (U256 bool bool) bool)
-(extern constructor masked_shifts masked_shifts)
-
-;; The value has at most `W - s` significant bits, by what its definition shows.
-(decl pure fits_below_shift (Value U256) bool)
-(extern constructor fits_below_shift fits_below_shift)
-
-;; No instruction but the root reads the value, so the root removes it.
-(decl pure sole_reader (Value) bool)
-(extern constructor sole_reader sole_reader)
-
-;; The value is the constant zero.
-(decl pure zero_operand (Value) bool)
-(extern constructor zero_operand zero_operand)
+;; `mask` keeps every bit the definition of `value` can set.
+(decl pure mask_covers (U256 Value) bool)
+(extern constructor mask_covers mask_covers)
 
 ;; The word `x >> k` an earlier instruction of the block already computes, which a width test of
 ;; `k` bits of `x` reads for the price of its zero test.
