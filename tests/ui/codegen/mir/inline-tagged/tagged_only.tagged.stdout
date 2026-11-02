@@ -6,10 +6,10 @@
 -     v0 = icall @always, arg0
 -     v1 = icall @leaf, v0
 +     jump bb2
-+   bb2:
++   bb2:  ; preds = bb0
 +     v2 = add arg0, 1
 +     jump bb1
-+   bb1:
++   bb1:  ; preds = bb2
 +     v3 = phi [bb2: v2]
 +     v1 = icall @leaf, v3
       ret v1

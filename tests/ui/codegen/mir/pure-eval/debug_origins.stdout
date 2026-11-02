@@ -4,26 +4,28 @@
   fn @same_origin() -> i256 {
     bb0:
 -     jumpi true, bb1, bb2
--   bb2:
+-   bb2:  ; preds = bb0
 -     ret 7 !metadata(span=10..20, modifier_depth=1, effect=pure)
-+     ret 7 !metadata(span=10..20, modifier_depth=1)
-    bb1:
+-   bb1:  ; preds = bb0
 -     ret 7 !metadata(span=10..20, modifier_depth=1, loop_depth=2)
++     ret 7 !metadata(span=10..20, modifier_depth=1)
++   bb1 [cold]:
 +     invalid
-+   bb2:
++   bb2 [cold]:
 +     invalid
   }
   
   fn @distinct_origins() -> i256 {
     bb0:
 -     jumpi true, bb1, bb2
--   bb2:
+-   bb2:  ; preds = bb0
 -     ret 7 !metadata(span=50..60)
-+     ret 7 !metadata(spans=[30..40, 50..60])
-    bb1:
+-   bb1:  ; preds = bb0
 -     ret 7 !metadata(span=30..40)
++     ret 7 !metadata(spans=[30..40, 50..60])
++   bb1 [cold]:
 +     invalid
-+   bb2:
++   bb2 [cold]:
 +     invalid
   }
   

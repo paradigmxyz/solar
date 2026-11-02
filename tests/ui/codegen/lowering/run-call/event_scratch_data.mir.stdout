@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/event_scratch_data.sol:EventScratchData ===
 @module EventScratchData
+; function keepsHeap(uint256 a, uint256 b) external returns (uint256 ok) [selector 0x58c66fb0]
 fn @keepsHeap(arg0: i256, arg1: i256) -> i256 [selector=0x58c66fb0, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64
@@ -13,21 +14,21 @@ fn @keepsHeap(arg0: i256, arg1: i256) -> i256 [selector=0x58c66fb0, abi_params=[
     v3 = mload 64 !metadata(memory=scratch)
     v4 = eq v3, v2
     jumpi v4, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v5 = lt 0, 2
     v6 = eq v5, false
     icall panic_if<0x32>, v6
     v7 = mload v0
     v8 = eq v7, 17
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v9 = phi [bb1: v8], [bb2: false]
     jumpi v9, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v10 = lt 1, 2
     v11 = eq v10, false
     icall panic_if<0x32>, v11
@@ -35,19 +36,20 @@ fn @keepsHeap(arg0: i256, arg1: i256) -> i256 [selector=0x58c66fb0, abi_params=[
     v13 = mload v12
     v14 = eq v13, 34
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v15 = phi [bb4: v14], [bb5: false]
     jumpi v15, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     jump bb9
-  bb7:
+  bb7:  ; preds = bb6
     jump bb9
-  bb9:
+  bb9:  ; preds = bb7, bb8
     v16 = phi [bb7: i8 1], [bb8: i8 0]
     v17 = zext i8 v16 to i256
     ret v17
 }
 
+; function aliased() external returns (uint256 second) [selector 0x1d15e393]
 fn @aliased() -> i256 [selector=0x1d15e393, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
@@ -67,6 +69,7 @@ fn @aliased() -> i256 [selector=0x1d15e393, abi_params=[], abi_returns=[word], a
     ret v6
 }
 
+; function threeWords(uint256 a) external returns (uint256) [selector 0x72877259]
 fn @threeWords(arg0: i256) -> i256 [selector=0x72877259, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = checked_add uint256, arg0, 1
@@ -78,6 +81,7 @@ fn @threeWords(arg0: i256) -> i256 [selector=0x72877259, abi_params=[uint256], a
     ret arg0
 }
 
+; function threeWordsKeepsHeap(uint256 a) external returns (uint256 ok) [selector 0x09952c7c]
 fn @threeWordsKeepsHeap(arg0: i256) -> i256 [selector=0x09952c7c, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 64
@@ -94,21 +98,21 @@ fn @threeWordsKeepsHeap(arg0: i256) -> i256 [selector=0x09952c7c, abi_params=[ui
     v8 = mload 64 !metadata(memory=scratch)
     v9 = eq v8, v2
     jumpi v9, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v10 = lt 0, 2
     v11 = eq v10, false
     icall panic_if<0x32>, v11
     v12 = mload v0
     v13 = eq v12, 17
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v14 = phi [bb1: v13], [bb2: false]
     jumpi v14, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v15 = lt 1, 2
     v16 = eq v15, false
     icall panic_if<0x32>, v16
@@ -116,19 +120,20 @@ fn @threeWordsKeepsHeap(arg0: i256) -> i256 [selector=0x09952c7c, abi_params=[ui
     v18 = mload v17
     v19 = eq v18, 34
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v20 = phi [bb4: v19], [bb5: false]
     jumpi v20, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     jump bb9
-  bb7:
+  bb7:  ; preds = bb6
     jump bb9
-  bb9:
+  bb9:  ; preds = bb7, bb8
     v21 = phi [bb7: i8 1], [bb8: i8 0]
     v22 = zext i8 v21 to i256
     ret v22
 }
 
+; function dynamicKeepsHeap(uint256 a) external returns (uint256 ok) [selector 0xb0d4547e]
 fn @dynamicKeepsHeap(arg0: i256) -> i256 [selector=0xb0d4547e, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = not 31
@@ -150,33 +155,34 @@ fn @dynamicKeepsHeap(arg0: i256) -> i256 [selector=0xb0d4547e, abi_params=[uint2
     v13 = mload v12
     v14 = eq v10, v5
     jumpi v14, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v15 = eq v13, 51
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v16 = phi [bb1: v15], [bb2: false]
     jumpi v16, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     v17 = mload v2
     v18 = eq v17, 40
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v19 = phi [bb4: v18], [bb5: false]
     jumpi v19, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb6
     jump bb9
-  bb7:
+  bb7:  ; preds = bb6
     jump bb9
-  bb9:
+  bb9:  ; preds = bb7, bb8
     v20 = phi [bb7: i8 1], [bb8: i8 0]
     v21 = zext i8 v20 to i256
     ret v21
 }
 
+; function literalReused() external returns (uint256) [selector 0x8af397d5]
 fn @literalReused() -> i256 [selector=0x8af397d5, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)

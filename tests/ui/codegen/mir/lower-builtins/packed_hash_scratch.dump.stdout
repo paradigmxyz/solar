@@ -1,6 +1,27 @@
 // === ROOT/tests/ui/codegen/mir/lower-builtins/packed_hash_scratch.sol:PackedHashScratch ===
 @module PackedHashScratch
 @phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb5, bb1
+  bb1:  ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb5, [0x658c946c => bb2, 0x6e13fa5d => bb3, 0x70126c55 => bb4]
+  bb4:  ; preds = bb1
+    tail_call @tooLong
+  bb3:  ; preds = bb1
+    tail_call @threeItems
+  bb2:  ; preds = bb1
+    tail_call @twoItems
+  bb5 [cold]:  ; preds = bb0, bb1
+    revert 0, 0
+}
+
+; function threeItems(uint256 role, address holder) external pure returns (bytes32) [selector 0x6e13fa5d]
 fn @threeItems() [selector=0x6e13fa5d, abi_wrapper, pure] {
   bb0:
     v9 = calldataload 36
@@ -11,7 +32,7 @@ fn @threeItems() [selector=0x6e13fa5d, abi_wrapper, pure] {
     v14 = or v13, v10
     v15 = ne v14, 0
     jumpi v15, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     mstore 0, arg0
     v4 = shl arg1, 64
     v5 = or v4, 0xee9853bb00000000000000000000000000000000000000000000000000000000
@@ -19,10 +40,11 @@ fn @threeItems() [selector=0x6e13fa5d, abi_wrapper, pure] {
     v6 = keccak256 0, 56 !metadata(memory=scratch)
     mstore 0, v6 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
+; function twoItems(uint256 role, address holder) external pure returns (bytes32) [selector 0x658c946c]
 fn @twoItems() [selector=0x658c946c, abi_wrapper, pure] {
   bb0:
     v9 = calldataload 36
@@ -33,7 +55,7 @@ fn @twoItems() [selector=0x658c946c, abi_wrapper, pure] {
     v14 = or v13, v10
     v15 = ne v14, 0
     jumpi v15, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     mstore 0, arg0
     v1 = or arg1, 0xee9853bb0000000000000000000000000000000000000000
     v5 = shl v1, 64
@@ -41,10 +63,11 @@ fn @twoItems() [selector=0x658c946c, abi_wrapper, pure] {
     v6 = keccak256 0, 56 !metadata(memory=scratch)
     mstore 0, v6 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
+; function tooLong(uint256 a, uint256 b, uint32 c) external pure returns (bytes32) [selector 0x70126c55]
 fn @tooLong() [selector=0x70126c55, abi_wrapper, pure] {
   bb0:
     v11 = calldataload 68
@@ -55,7 +78,7 @@ fn @tooLong() [selector=0x70126c55, abi_wrapper, pure] {
     v19 = or v18, v12
     v20 = ne v19, 0
     jumpi v20, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v17 = heap_floor !metadata(alloc_ptr)
     mstore v17, arg0
     v3 = add v17, 32
@@ -66,25 +89,6 @@ fn @tooLong() [selector=0x70126c55, abi_wrapper, pure] {
     v8 = keccak256 v17, 68
     mstore 0, v8 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb5, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr v2, 224
-    switch v3, default bb5, [0x658c946c => bb2, 0x6e13fa5d => bb3, 0x70126c55 => bb4]
-  bb4:
-    tail_call @tooLong
-  bb3:
-    tail_call @threeItems
-  bb2:
-    tail_call @twoItems
-  bb5:
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }

@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_packed_struct_dse.sol:PackedStructDse ===
 @module PackedStructDse
+; function preservesRawNeighbors() public returns (bool) [selector 0x56c38e53]
 fn @preservesRawNeighbors() -> i1 [selector=0x56c38e53, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = not 0
@@ -14,13 +15,13 @@ fn @preservesRawNeighbors() -> i1 [selector=0x56c38e53, abi_params=[], abi_retur
     v7 = trunc i256 v6 to i8
     v8 = eq v7, i8 1
     jumpi v8, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v9 = shr v6, 8
     v10 = eq v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v11 = phi [bb1: v10], [bb2: false]
     ret v11
 }

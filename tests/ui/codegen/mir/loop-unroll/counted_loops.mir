@@ -6,7 +6,7 @@
 // loop, which leaves the last iterations to the original loop with its state.
 // CHECK-LABEL: {{^[ +].*}}fn @counted{{[( ]}}
 // CHECK: - jump bb1
-// CHECK-NEXT: + jump [[MAIN:bb[0-9]+]]
+// CHECK: + jump [[MAIN:bb[0-9]+]]
 // CHECK-NEXT: + [[MAIN]]:
 // CHECK-NEXT: + [[I:v[0-9]+]] = phi [bb0: 0], {{\[}}[[LATCH:bb[0-9]+]]: [[NEXT:v[0-9]+]]]
 // CHECK-NEXT: + [[S:v[0-9]+]] = phi [bb0: 0], {{\[}}[[LATCH]]: [[SUM:v[0-9]+]]]
@@ -85,9 +85,9 @@ fn @checked(arg0: i256, arg1: i256) -> i256 {
 // A reverting block that receives a body value through a phi gains an input
 // from each copy.
 // CHECK-LABEL: {{^[ +].*}}fn @revert_payload{{[( ]}}
-// CHECK-COUNT-4: + jumpi {{v[0-9]+}}, bb4, {{bb[0-9]+}}
 // CHECK: - v6 = phi [bb2: v3]
-// CHECK-NEXT: + v6 = phi [bb2: v3], [{{bb[0-9]+}}: {{v[0-9]+}}], [{{bb[0-9]+}}: {{v[0-9]+}}], [{{bb[0-9]+}}: {{v[0-9]+}}], [{{bb[0-9]+}}: {{v[0-9]+}}]
+// CHECK-COUNT-4: + jumpi {{v[0-9]+}}, bb4, {{bb[0-9]+}}
+// CHECK: + v6 = phi [bb2: v3], [{{bb[0-9]+}}: {{v[0-9]+}}], [{{bb[0-9]+}}: {{v[0-9]+}}], [{{bb[0-9]+}}: {{v[0-9]+}}], [{{bb[0-9]+}}: {{v[0-9]+}}]
 fn @revert_payload(arg0: i256) -> i256 {
   bb0:
     jump bb1
@@ -308,7 +308,7 @@ fn @effectful_header(arg0: i256) -> i256 {
 // CHECK-LABEL: {{^[ +].*}}fn @nested{{[( ]}}
 // CHECK: {{^ +}}jump bb1
 // CHECK: - jump bb3
-// CHECK-NEXT: + jump [[MAIN:bb[0-9]+]]
+// CHECK: + jump [[MAIN:bb[0-9]+]]
 // CHECK-NEXT: + [[MAIN]]:
 // CHECK-NEXT: + {{v[0-9]+}} = phi [bb2: 0], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
 fn @nested(arg0: i256, arg1: i256) -> i256 {
@@ -661,7 +661,7 @@ fn @shrinking_below(arg0: i256) -> i256 {
 // CHECK-NEXT: + {{v[0-9]+}} = phi {{\[}}[[FIRST]]: {{v[0-9]+}}], [{{bb[0-9]+}}: {{v[0-9]+}}]
 // CHECK: + {{v[0-9]+}} = and {{v[0-9]+}}, 1
 // CHECK: - jumpi [[NONZERO]], bb3, bb4
-// CHECK-NEXT: - bb4:
+// CHECK-NEXT: - bb4 [cold]:
 // CHECK-NEXT: - revert 0, 0
 // CHECK-NEXT: + jump bb3
 fn @invariant_test(arg0: i256, arg1: i256) -> i256 {

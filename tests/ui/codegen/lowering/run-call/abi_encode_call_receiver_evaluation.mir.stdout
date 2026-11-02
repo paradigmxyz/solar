@@ -1,11 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_receiver_evaluation.sol:Vault ===
 @module Vault
+; getter for `uint256 public n` [selector 0x2e52d606]
 fn @n() -> i256 [selector=0x2e52d606, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+; function gate() internal returns (Vault)
 fn @gate() -> i160 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -15,6 +17,7 @@ fn @gate() -> i160 {
     ret v2
 }
 
+; function locked() internal view returns (Vault)
 fn @locked() -> i160 [view] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -25,11 +28,13 @@ fn @locked() -> i160 [view] {
     ret v3
 }
 
+; function payout(address to, uint256 amount) external [selector 0x117de2fd]
 fn @payout(arg0: i160, arg1: i256) [selector=0x117de2fd, abi_params=[address, uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
+; function relay() external returns (uint256) [selector 0xb59589d1]
 fn @relay() -> i256 [selector=0xb59589d1, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @gate
@@ -38,6 +43,7 @@ fn @relay() -> i256 [selector=0xb59589d1, abi_params=[], abi_returns=[word], abi
     ret v2
 }
 
+; function relayLocked() external view returns (bytes memory) [selector 0x54cea6b3]
 fn @relayLocked() -> ptr<memory> [selector=0x54cea6b3, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @locked
@@ -45,6 +51,7 @@ fn @relayLocked() -> ptr<memory> [selector=0x54cea6b3, view, abi_params=[], abi_
     ret v1
 }
 
+; function relayThis() external view returns (uint256) [selector 0xeb912f96]
 fn @relayThis() -> i256 [selector=0xeb912f96, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = abi_encode [word<uint160>, word], object, selector 0x117de2fd00000000000000000000000000000000000000000000000000000000, args 0, 1
@@ -52,6 +59,7 @@ fn @relayThis() -> i256 [selector=0xeb912f96, view, abi_params=[], abi_returns=[
     ret v1
 }
 
+; function relayPointer() external returns (uint256) [selector 0x8d65c29b]
 fn @relayPointer() -> i256 [selector=0x8d65c29b, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @gate

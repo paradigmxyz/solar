@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_static_dynamic_static.sol:AbiCalldataStaticDynamicStatic ===
 @module AbiCalldataStaticDynamicStatic
+; function f(uint8[1][][1] calldata s) external pure returns (bytes memory) [selector 0x15cfcc01]
 fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0x15cfcc01, pure, abi_params=[array<1, array<_, array<1, uint8>>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = calldatasize
@@ -14,20 +15,22 @@ fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0x15cfcc01, pure, abi_para
     v8 = sgt v7, v6
     icall revert_if<calldata_tail_too_short>, v8
     v9 = extract_value slice<calldata>, v1, 1
-    v10 = add v9, 63
-    v11 = lt v10, v9
-    icall panic_if<0x41>, v11
-    v12 = not 31
-    v13 = and v10, v12
-    v14 = alloc v13
-    mstore v14, v9
-    v15 = ptradd v14, 32
-    v16 = extract_value slice<calldata>, v1, 0
-    v17 = extract_value slice<calldata>, v1, 1
-    calldatacopy v15, v16, v17
-    ret v14
+    v10 = add v9, 31
+    v11 = not 31
+    v12 = and v10, v11
+    v13 = add v12, 32
+    v14 = lt v13, v9
+    icall panic_if<0x41>, v14
+    v15 = alloc v13
+    mstore v15, v9
+    v16 = ptradd v15, 32
+    v17 = extract_value slice<calldata>, v1, 0
+    v18 = extract_value slice<calldata>, v1, 1
+    calldatacopy v16, v17, v18
+    ret v15
 }
 
+; function f2(uint256[2][][2] calldata s) external pure returns (bytes memory) [selector 0xdc0ee233]
 fn @f2(arg0: slice<calldata>) -> ptr<memory> [selector=0xdc0ee233, pure, abi_params=[array<2, array<_, array<2, uint256>>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = calldatasize
@@ -42,31 +45,33 @@ fn @f2(arg0: slice<calldata>) -> ptr<memory> [selector=0xdc0ee233, pure, abi_par
     v8 = sgt v7, v6
     icall revert_if<calldata_tail_too_short>, v8
     v9 = extract_value slice<calldata>, v1, 1
-    v10 = add v9, 63
-    v11 = lt v10, v9
-    icall panic_if<0x41>, v11
-    v12 = not 31
-    v13 = and v10, v12
-    v14 = alloc v13
-    mstore v14, v9
-    v15 = ptradd v14, 32
-    v16 = extract_value slice<calldata>, v1, 0
-    v17 = extract_value slice<calldata>, v1, 1
-    calldatacopy v15, v16, v17
-    ret v14
+    v10 = add v9, 31
+    v11 = not 31
+    v12 = and v10, v11
+    v13 = add v12, 32
+    v14 = lt v13, v9
+    icall panic_if<0x41>, v14
+    v15 = alloc v13
+    mstore v15, v9
+    v16 = ptradd v15, 32
+    v17 = extract_value slice<calldata>, v1, 0
+    v18 = extract_value slice<calldata>, v1, 1
+    calldatacopy v16, v17, v18
+    ret v15
 }
 
+; function g() external view returns (bytes memory) [selector 0xe2179b8e]
 fn @g() -> ptr<memory> [selector=0xe2179b8e, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 32
     v1 = alloc zeroed checked 64
     mstore v1, 1
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v2 = phi [bb0: 0], [bb2: v9]
     v3 = lt v2, 1
     jumpi v3, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v10 = ptrtoint ptr<memory> v1 to i256
     mstore v0, v10
     v11 = lt 0, 1
@@ -91,13 +96,13 @@ fn @g() -> ptr<memory> [selector=0xe2179b8e, view, abi_params=[], abi_returns=[m
     v26 = zext i160 v21 to i256
     v27 = staticcall v22, v26, v24, v25, 0, 0
     jumpi v27, bb5, bb4
-  bb4:
+  bb4:  ; preds = bb3
     revert_returndata
-  bb5:
+  bb5:  ; preds = bb3
     v28 = icall returndata_bytes<>
     v29 = abi_decode [bytes], v28
     ret v29
-  bb2:
+  bb2:  ; preds = bb1
     v4 = alloc 32 !metadata(preserves_fmp)
     memory_zero v4, 32
     v5 = shl v2, 5
@@ -109,27 +114,28 @@ fn @g() -> ptr<memory> [selector=0xe2179b8e, view, abi_params=[], abi_returns=[m
     jump bb1
 }
 
+; function i() external view returns (bytes memory) [selector 0xe5aa3d58]
 fn @i() -> ptr<memory> [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 64
     v1 = alloc zeroed checked 64
     mstore v1, 1
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb2
     v2 = phi [bb0: 0], [bb2: v9]
     v3 = lt v2, 1
     jumpi v3, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v10 = ptrtoint ptr<memory> v1 to i256
     mstore v0, v10
     v11 = alloc zeroed checked 64
     mstore v11, 1
     jump bb4
-  bb4:
+  bb4:  ; preds = bb3, bb5
     v12 = phi [bb3: 0], [bb5: v19]
     v13 = lt v12, 1
     jumpi v13, bb5, bb6
-  bb6:
+  bb6:  ; preds = bb4
     v20 = ptrtoint ptr<memory> v11 to i256
     v21 = ptradd v0, 32
     mstore v21, v20
@@ -201,13 +207,13 @@ fn @i() -> ptr<memory> [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[m
     v71 = zext i160 v66 to i256
     v72 = staticcall v67, v71, v69, v70, 0, 0
     jumpi v72, bb8, bb7
-  bb7:
+  bb7:  ; preds = bb6
     revert_returndata
-  bb8:
+  bb8:  ; preds = bb6
     v73 = icall returndata_bytes<>
     v74 = abi_decode [bytes], v73
     ret v74
-  bb5:
+  bb5:  ; preds = bb4
     v14 = alloc 64 !metadata(preserves_fmp)
     memory_zero v14, 64
     v15 = shl v12, 5
@@ -217,7 +223,7 @@ fn @i() -> ptr<memory> [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[m
     mstore v17, v18
     v19 = add v12, 1
     jump bb4
-  bb2:
+  bb2:  ; preds = bb1
     v4 = alloc 64 !metadata(preserves_fmp)
     memory_zero v4, 64
     v5 = shl v2, 5

@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/storage_checked_arithmetic.sol:StorageCheckedArithmetic ===
 @module StorageCheckedArithmetic
+; function storage_sub(address owner, uint256 amount) public [selector 0x8af2db43]
 fn @storage_sub(arg0: i160, arg1: i256) [selector=0x8af2db43, abi_params=[address, uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = zext i160 arg0 to i256
@@ -8,15 +9,16 @@ fn @storage_sub(arg0: i160, arg1: i256) [selector=0x8af2db43, abi_params=[addres
     v4 = sub v2, arg1
     v5 = lt v2, arg1
     jumpi v5, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     sstore v1, v4
     ret
-  bb1:
+  bb1 [cold]:  ; preds = bb0
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
+; function storage_binary_sub(address owner, uint256 amount) public [selector 0x816bb6a5]
 fn @storage_binary_sub(arg0: i160, arg1: i256) [selector=0x816bb6a5, abi_params=[address, uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = zext i160 arg0 to i256
@@ -25,17 +27,18 @@ fn @storage_binary_sub(arg0: i160, arg1: i256) [selector=0x816bb6a5, abi_params=
     v6 = sub v2, arg1
     v7 = lt v2, arg1
     jumpi v7, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v4 = zext i160 arg0 to i256
     v5 = mapping_slot v4, 0
     sstore v5, v6
     ret
-  bb1:
+  bb1 [cold]:  ; preds = bb0
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
+; function storage_struct_add(address owner, uint128 amount) public [selector 0xb11dd1b8]
 fn @storage_struct_add(arg0: i160, arg1: i128) [selector=0xb11dd1b8, abi_params=[address, uint128], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = zext i160 arg0 to i256
@@ -47,7 +50,7 @@ fn @storage_struct_add(arg0: i160, arg1: i128) [selector=0xb11dd1b8, abi_params=
     v13 = add v11, v12
     v14 = gt v13, 0xffffffffffffffffffffffffffffffff
     jumpi v14, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v15 = trunc i256 v13 to i128
     v5 = sload v1 !metadata(storage=symbolic(v1))
     v6 = not 0xffffffffffffffffffffffffffffffff
@@ -57,12 +60,13 @@ fn @storage_struct_add(arg0: i160, arg1: i128) [selector=0xb11dd1b8, abi_params=
     v10 = or v7, v9
     sstore v1, v10 !metadata(storage=symbolic(v1))
     ret
-  bb1:
+  bb1 [cold]:  ; preds = bb0
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
+; function storage_struct_signed_sub(address owner, int8 amount) public [selector 0x14ebfa30]
 fn @storage_struct_signed_sub(arg0: i160, arg1: i8) [selector=0x14ebfa30, abi_params=[address, int8], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = zext i160 arg0 to i256
@@ -89,7 +93,7 @@ fn @storage_struct_signed_sub(arg0: i160, arg1: i8) [selector=0x14ebfa30, abi_pa
     v30 = or v25, v29
     v31 = ne v30, 0
     jumpi v31, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v32 = trunc i256 v17 to i8
     v7 = shl 255, 128
     v8 = sload v1 !metadata(storage=symbolic(v1))
@@ -101,7 +105,7 @@ fn @storage_struct_signed_sub(arg0: i160, arg1: i8) [selector=0x14ebfa30, abi_pa
     v14 = or v10, v13
     sstore v1, v14 !metadata(storage=symbolic(v1))
     ret
-  bb1:
+  bb1 [cold]:  ; preds = bb0
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36

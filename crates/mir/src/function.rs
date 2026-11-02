@@ -16,6 +16,7 @@ use solar_data_structures::{
     map::{FxHashMap, StdEntry},
 };
 use solar_interface::{Ident, Span, Symbol};
+use solar_ir::Hotness;
 use std::fmt;
 
 /// A function in the MIR.
@@ -29,6 +30,9 @@ pub struct Function {
     pub declaration_span: Span,
     /// Source-language identifier retained independently of the MIR symbol.
     pub debug_identifier: Option<Symbol>,
+    /// Source signature for the text dumps, set only when a dump is requested. It never affects
+    /// code generation.
+    pub debug_signature: Option<Symbol>,
     /// Function selector (4 bytes, for external functions).
     pub selector: Option<[u8; 4]>,
     /// Function attributes.
@@ -37,7 +41,8 @@ pub struct Function {
     pub params: IndexVec<ArgIdx, MirType>,
     /// The function's single logical result, or `void`.
     return_type: MirType,
-    /// Components selected by internal ABI lowering. The logical result stays intact.
+    /// Components selected by internal ABI lowering. A slice result stays logical; a function
+    /// returning several words has no logical result and only these components.
     return_abi: Option<Box<[MirType]>>,
     /// ABI layout of values returned by an external entry before `lower-abi`
     /// materializes returndata encoding.
@@ -88,6 +93,7 @@ impl Function {
             name_span: name.span,
             declaration_span: name.span,
             debug_identifier: None,
+            debug_signature: None,
             selector: None,
             attributes: FunctionAttributes::default(),
             params: IndexVec::new(),
@@ -142,6 +148,28 @@ impl Function {
             } else {
                 std::slice::from_ref(&self.return_type)
             }
+        })
+    }
+
+    /// Returns the note that the text dumps print before this function: its source signature
+    /// and role, such as `function add(uint256 a) external [selector 0x771602f7]`.
+    pub fn entry_note(&self, is_dispatch_entry: bool) -> Option<String> {
+        let role = if is_dispatch_entry {
+            "runtime dispatch entry".to_string()
+        } else if self.attributes.is_constructor {
+            "creation entry".to_string()
+        } else if let Some(selector) = self.selector {
+            format!("selector 0x{:08x}", u32::from_be_bytes(selector))
+        } else if self.attributes.is_fallback {
+            "fallback".to_string()
+        } else if self.attributes.is_receive {
+            "receive".to_string()
+        } else {
+            return self.debug_signature.map(|signature| signature.to_string());
+        };
+        Some(match self.debug_signature {
+            Some(signature) => format!("{signature} [{role}]"),
+            None => role,
         })
     }
 
@@ -882,6 +910,9 @@ pub struct FunctionAttributes {
     /// The widest word the single array this function returns can hold, when element
     /// cleanup proved one. Its caller can re-encode the array without cleaning it.
     pub array_return_element_bits: Option<u32>,
+    /// Whether every reachable exit aborts, so calls to this function are rare. Computed by the
+    /// hotness analysis, which the pass manager reruns after every pass that changes the module.
+    pub hotness: Hotness,
 }
 
 impl Default for FunctionAttributes {
@@ -901,6 +932,7 @@ impl Default for FunctionAttributes {
             optimization: None,
             array_element_bits: FxHashMap::default(),
             array_return_element_bits: None,
+            hotness: Hotness::Hot,
         }
     }
 }

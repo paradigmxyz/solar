@@ -168,10 +168,21 @@ pub(crate) fn unsigned_bounds_with_returns(
 /// Like [`unsigned_bounds`], bounding the result of an operation whose opcode is declared narrower
 /// than a word, as `calldatasize` is.
 pub(crate) fn unsigned_bounds_with_opcodes(func: &Function, value: ValueId) -> (U256, U256) {
+    unsigned_bounds_with_opcodes_and(func, value, |_| None)
+}
+
+/// Like [`unsigned_bounds_with_opcodes`], also bounding the values `known` ranges.
+pub(crate) fn unsigned_bounds_with_opcodes_and(
+    func: &Function,
+    value: ValueId,
+    known: impl Fn(ValueId) -> Option<(U256, U256)>,
+) -> (U256, U256) {
     let known = |value| {
-        let Value::Inst(inst) = func.value(value) else { return None };
-        let bits = op::definition(func.inst(*inst).kind.evm_opcode()?)?.result_bits;
-        (bits < 256).then(|| (U256::ZERO, integer_mask(u32::from(bits))))
+        known(value).or_else(|| {
+            let Value::Inst(inst) = func.value(value) else { return None };
+            let bits = op::definition(func.inst(*inst).kind.evm_opcode()?)?.result_bits;
+            (bits < 256).then(|| (U256::ZERO, integer_mask(u32::from(bits))))
+        })
     };
     bounds_with(func, value, 8, &mut 64, &known)
 }

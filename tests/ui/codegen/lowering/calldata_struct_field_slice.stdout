@@ -2,14 +2,40 @@
 @module ERC4337Utils
 @phase lowered
 @library
-fn @entry() [entry] {
-  bb0:
+; runtime dispatch entry
+fn @entry() [entry, cold] {
+  bb0 [cold]:
     revert 0, 0
 }
 
 // === ROOT/tests/ui/codegen/lowering/calldata_struct_field_slice.sol:CalldataStructFieldSlice ===
 @module CalldataStructFieldSlice
 @phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:  ; preds = bb0
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0x1af91295 => bb3, 0x9850c81b => bb4, 0xbb6106d2 => bb5]
+  bb5:  ; preds = bb2
+    tail_call @midWord.2
+  bb4:  ; preds = bb2
+    tail_call @tailHash.1
+  bb3:  ; preds = bb2
+    tail_call @factory.0
+  bb1 [cold]:  ; preds = bb0, bb2
+    revert 0, 0
+}
+
+; function factory(PackedUserOperation calldata op) external pure returns (address) [selector 0x1af91295]
 fn @factory.0() [selector=0x1af91295, abi_wrapper, pure] {
   bb0:
     v1 = calldatasize
@@ -26,7 +52,7 @@ fn @factory.0() [selector=0x1af91295, abi_wrapper, pure] {
     v21 = slt v20, 32
     v52 = or v51, v21
     jumpi v52, bb1, bb4
-  bb4:
+  bb4:  ; preds = bb0
     v35 = calldataload v18
     v36 = add v4, v35
     v37 = calldatasize
@@ -34,7 +60,7 @@ fn @factory.0() [selector=0x1af91295, abi_wrapper, pure] {
     v39 = sub v38, 31
     v40 = slt v35, v39
     jumpi v40, bb5, bb1
-  bb5:
+  bb5:  ; preds = bb4
     v41 = calldataload v36
     v42 = calldatasize
     v43 = shr v41, 64
@@ -45,22 +71,23 @@ fn @factory.0() [selector=0x1af91295, abi_wrapper, pure] {
     v54 = or v43, v53
     v55 = ne v54, 0
     jumpi v55, bb1, bb6
-  bb6:
+  bb6:  ; preds = bb5
     v49 = lt v41, 20
     jumpi v49, bb3, bb2
-  bb2:
+  bb2:  ; preds = bb6
     v26 = calldataload v45
     v32 = and v26, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
     v33 = shr v32, 96
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2, bb6
     v34 = phi [bb6: 0], [bb2: v33]
     mstore 0, v34
     returndata 0, 32
-  bb1:
+  bb1 [cold]:  ; preds = bb0, bb4, bb5
     revert 0, 0
 }
 
+; function tailHash(PackedUserOperation calldata op) external pure returns (bytes32) [selector 0x9850c81b]
 fn @tailHash.1() [selector=0x9850c81b, abi_wrapper, pure] {
   bb0:
     v1 = calldatasize
@@ -70,14 +97,14 @@ fn @tailHash.1() [selector=0x9850c81b, abi_wrapper, pure] {
     v6 = gt v3, v5
     v7 = sub v1, v4
     v8 = lt v7, 256
-    v56 = or v6, v8
+    v59 = or v6, v8
     v17 = add v4, 64
     v18 = calldatasize
     v19 = sub v18, v17
     v20 = slt v19, 32
-    v57 = or v56, v20
-    jumpi v57, bb1, bb4
-  bb4:
+    v60 = or v59, v20
+    jumpi v60, bb1, bb4
+  bb4:  ; preds = bb0
     v29 = calldataload v17
     v30 = add v4, v29
     v31 = calldatasize
@@ -85,42 +112,43 @@ fn @tailHash.1() [selector=0x9850c81b, abi_wrapper, pure] {
     v33 = sub v32, 31
     v34 = slt v29, v33
     jumpi v34, bb5, bb1
-  bb5:
+  bb5:  ; preds = bb4
     v35 = calldataload v30
     v36 = calldatasize
     v37 = shr v35, 64
     v39 = add v30, 32
     v40 = sub v36, v35
     v41 = sgt v39, v40
-    v58 = zext i1 v41 to i256
-    v59 = or v37, v58
-    v60 = ne v59, 0
-    jumpi v60, bb1, bb6
-  bb6:
+    v61 = zext i1 v41 to i256
+    v62 = or v37, v61
+    v63 = ne v62, 0
+    jumpi v63, bb1, bb6
+  bb6:  ; preds = bb5
     v43 = lt v35, 20
     jumpi v43, bb3, bb2
-  bb2:
+  bb2:  ; preds = bb6
     v21 = sub v35, 20
     v23 = add v39, 20
     v25 = calldatasize
     v44 = sub v25, v21
     v46 = sgt v23, v44
     jumpi v46, bb1, bb7
-  bb7:
-    v49 = heap_floor
-    mstore v49, v21
-    v53 = add v49, 32
-    calldatacopy v53, v23, v21
-    v54 = keccak256 v53, v21
+  bb7:  ; preds = bb2
+    v50 = heap_floor
+    mstore v50, v21
+    v54 = add v50, 32
+    calldatacopy v54, v23, v21
+    v55 = keccak256 v54, v21
     jump bb3
-  bb3:
-    v28 = phi [bb6: 0], [bb7: v54]
+  bb3:  ; preds = bb6, bb7
+    v28 = phi [bb6: 0], [bb7: v55]
     mstore 0, v28
     returndata 0, 32
-  bb1:
+  bb1 [cold]:  ; preds = bb0, bb2, bb4, bb5
     revert 0, 0
 }
 
+; function midWord(PackedUserOperation calldata op) external pure returns (bytes32) [selector 0xbb6106d2]
 fn @midWord.2() [selector=0xbb6106d2, abi_wrapper, pure] {
   bb0:
     v39 = calldatasize
@@ -137,7 +165,7 @@ fn @midWord.2() [selector=0xbb6106d2, abi_wrapper, pure] {
     v6 = slt v5, 32
     v54 = or v53, v6
     jumpi v54, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v7 = calldataload v3
     v8 = add v42, v7
     v9 = calldatasize
@@ -145,7 +173,7 @@ fn @midWord.2() [selector=0xbb6106d2, abi_wrapper, pure] {
     v11 = sub v10, 31
     v12 = slt v7, v11
     jumpi v12, bb3, bb1
-  bb3:
+  bb3:  ; preds = bb2
     v13 = calldataload v8
     v14 = calldatasize
     v15 = shr v13, 64
@@ -159,33 +187,10 @@ fn @midWord.2() [selector=0xbb6106d2, abi_wrapper, pure] {
     v59 = or v56, v58
     v60 = ne v59, 0
     jumpi v60, bb1, bb4
-  bb4:
+  bb4:  ; preds = bb3
     v28 = calldataload v17
     mstore 0, v28
     returndata 0, 32
-  bb1:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = calldatasize
-    v2 = lt v1, 36
-    v3 = zext i1 v2 to i256
-    v4 = or v0, v3
-    v5 = ne v4, 0
-    jumpi v5, bb1, bb2
-  bb2:
-    v6 = calldataload 0
-    v7 = shr v6, 224
-    switch v7, default bb1, [0x1af91295 => bb3, 0x9850c81b => bb4, 0xbb6106d2 => bb5]
-  bb5:
-    tail_call @midWord.2
-  bb4:
-    tail_call @tailHash.1
-  bb3:
-    tail_call @factory.0
-  bb1:
+  bb1 [cold]:  ; preds = bb2, bb3, bb0
     revert 0, 0
 }

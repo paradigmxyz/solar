@@ -1,29 +1,33 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/spill_store_branch_arm.sol:Mgr ===
 @module Mgr
+; getter for `uint256 public last` [selector 0x47799da8]
 fn @last() -> i256 [selector=0x47799da8, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
+; function bal(address) external pure returns (uint256) [selector 0x5580f72a]
 fn @bal(arg0: i160) -> i256 [selector=0x5580f72a, pure, abi_params=[address], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     ret 7
 }
 
+; function delta(address u) external pure returns (int256) [selector 0x0acaa1fa]
 fn @delta(arg0: i160) -> i256 [selector=0x0acaa1fa, pure, abi_params=[address], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     v0 = eq arg0, i160 1
     jumpi v0, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb1, bb2
     v1 = phi [bb1: 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff36], [bb2: 100]
     ret v1
 }
 
+; function phasedDelta(address u) external view returns (int256) [selector 0xf6e32b8b]
 fn @phasedDelta(arg0: i160) -> i256 [selector=0xf6e32b8b, view, abi_params=[address], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
@@ -31,33 +35,36 @@ fn @phasedDelta(arg0: i160) -> i256 [selector=0xf6e32b8b, view, abi_params=[addr
     v2 = ne v1, i8 0
     v3 = eq v2, false
     jumpi v3, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb3:
+  bb3:  ; preds = bb2
     v4 = eq arg0, i160 1
     jumpi v4, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb3
     jump bb6
-  bb4:
+  bb4:  ; preds = bb3
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     v5 = phi [bb4: 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff36], [bb5: 100]
     ret v5
-  bb1:
+  bb1:  ; preds = bb0
     ret 0
 }
 
+; function consume(uint256 x) external [selector 0x483f31ab]
 fn @consume(arg0: i256) [selector=0x483f31ab, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     ret
 }
 
+; function sync(address) external [selector 0xa5841194]
 fn @sync(arg0: i160) [selector=0xa5841194, abi_params=[address], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
+; function advance(Key calldata key, Params calldata params, bytes calldata data) external returns (int256) [selector 0x2360a5fc]
 fn @advance(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<calldata>) -> i256 [selector=0x2360a5fc, abi_params=[tuple<address, address, uint24, int24, address>, tuple<bool, int256, uint160>, bytes], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
@@ -104,6 +111,7 @@ fn @advance(arg0: slice<calldata>, arg1: slice<calldata>, arg2: slice<calldata>)
 @data
   Mgr_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/spill_store_branch_arm.sol:Mgr"
 
+; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     v0 = shl 255, 160
@@ -128,9 +136,9 @@ fn @constructor() [constructor] {
     v16 = create 0, v15, v14
     v17 = ne v16, i160 0
     jumpi v17, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v18 = sload 0 !metadata(storage=slot(0))
     v19 = not 0xffffffffffffffffffffffffffffffffffffffff
     v20 = and v18, v19
@@ -141,6 +149,7 @@ fn @constructor() [constructor] {
     ret
 }
 
+; function fetch(address u) internal view returns (uint256 a, uint256 b, int256 d)
 fn @fetch(arg0: i160) -> struct0 [view] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -152,9 +161,9 @@ fn @fetch(arg0: i160) -> struct0 [view] {
     v4 = zext i160 v1 to i256
     v5 = staticcall v2, v4, 28, 36, 0, 32
     jumpi v5, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v6 = returndatasize
     v7 = lt v6, 32
     icall revert_if<tuple_data_too_short>, v7
@@ -170,9 +179,9 @@ fn @fetch(arg0: i160) -> struct0 [view] {
     v15 = zext i160 v11 to i256
     v16 = staticcall v12, v15, 28, 36, 0, 32
     jumpi v16, bb4, bb3
-  bb3:
+  bb3:  ; preds = bb2
     revert_returndata
-  bb4:
+  bb4:  ; preds = bb2
     v17 = returndatasize
     v18 = lt v17, 32
     icall revert_if<tuple_data_too_short>, v18
@@ -187,9 +196,9 @@ fn @fetch(arg0: i160) -> struct0 [view] {
     v25 = zext i160 v22 to i256
     v26 = staticcall v23, v25, 28, 36, 0, 32
     jumpi v26, bb6, bb5
-  bb5:
+  bb5:  ; preds = bb4
     revert_returndata
-  bb6:
+  bb6:  ; preds = bb4
     v27 = returndatasize
     v28 = lt v27, 32
     icall revert_if<tuple_data_too_short>, v28
@@ -201,6 +210,7 @@ fn @fetch(arg0: i160) -> struct0 [view] {
     ret v33
 }
 
+; function fetchRich(address u) internal view returns (uint256 a, uint256 b, int256 d)
 fn @fetchRich(arg0: i160) -> struct0 [view] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -212,9 +222,9 @@ fn @fetchRich(arg0: i160) -> struct0 [view] {
     v4 = zext i160 v1 to i256
     v5 = staticcall v2, v4, 28, 36, 0, 32
     jumpi v5, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v6 = returndatasize
     v7 = lt v6, 32
     icall revert_if<tuple_data_too_short>, v7
@@ -230,9 +240,9 @@ fn @fetchRich(arg0: i160) -> struct0 [view] {
     v15 = zext i160 v11 to i256
     v16 = staticcall v12, v15, 28, 36, 0, 32
     jumpi v16, bb4, bb3
-  bb3:
+  bb3:  ; preds = bb2
     revert_returndata
-  bb4:
+  bb4:  ; preds = bb2
     v17 = returndatasize
     v18 = lt v17, 32
     icall revert_if<tuple_data_too_short>, v18
@@ -247,9 +257,9 @@ fn @fetchRich(arg0: i160) -> struct0 [view] {
     v25 = zext i160 v22 to i256
     v26 = staticcall v23, v25, 28, 36, 0, 32
     jumpi v26, bb6, bb5
-  bb5:
+  bb5:  ; preds = bb4
     revert_returndata
-  bb6:
+  bb6:  ; preds = bb4
     v27 = returndatasize
     v28 = lt v27, 32
     icall revert_if<tuple_data_too_short>, v28
@@ -261,6 +271,7 @@ fn @fetchRich(arg0: i160) -> struct0 [view] {
     ret v33
 }
 
+; function go() external returns (uint256) [selector 0x0f59f83a]
 fn @go() -> i256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @fetch, i160 1
@@ -278,56 +289,56 @@ fn @go() -> i256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word], abi_re
     v11 = trunc i256 v10 to i8
     v12 = ne v11, i8 0
     jumpi v12, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     jump bb3
-  bb1:
+  bb1:  ; preds = bb0
     v13 = sload 0 !metadata(storage=slot(0))
     v14 = shr v13, 168
     v15 = trunc i256 v14 to i8
     v16 = ne v15, i8 0
     jumpi v16, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     v19 = sgt v7, 100
     v20 = eq v19, false
     icall require<short_string>, v20, 4, 0x6f76657200000000000000000000000000000000000000000000000000000000
     jump bb6
-  bb4:
+  bb4:  ; preds = bb1
     v17 = slt v7, 0
     v18 = eq v17, false
     icall require<short_string>, v18, 1, 0x7800000000000000000000000000000000000000000000000000000000000000
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4, bb5
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6, bb2
     v21 = slt v3, 0
     jumpi v21, bb7, bb8
-  bb8:
+  bb8:  ; preds = bb3
     jump bb9
-  bb7:
+  bb7:  ; preds = bb3
     v22 = sload 0 !metadata(storage=slot(0))
     v23 = trunc i256 v22 to i160
     v24 = caller
     v25 = checked_sub int256, 0, v3
     icall @settle, v23, v24, v25
     jump bb9
-  bb9:
+  bb9:  ; preds = bb7, bb8
     v26 = slt v7, 0
     jumpi v26, bb10, bb11
-  bb11:
+  bb11:  ; preds = bb9
     jump bb12
-  bb10:
+  bb10:  ; preds = bb9
     v27 = sload 0 !metadata(storage=slot(0))
     v28 = trunc i256 v27 to i160
     v29 = caller
     v30 = checked_sub int256, 0, v7
     icall @settle, v28, v29, v30
     jump bb12
-  bb12:
+  bb12:  ; preds = bb10, bb11
     v31 = sgt v3, 0
     jumpi v31, bb13, bb14
-  bb14:
+  bb14:  ; preds = bb12
     jump bb15
-  bb13:
+  bb13:  ; preds = bb12
     v32 = sload 0 !metadata(storage=slot(0))
     v33 = trunc i256 v32 to i160
     v34 = gas
@@ -340,16 +351,16 @@ fn @go() -> i256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word], abi_re
     v38 = zext i160 v33 to i256
     v39 = call v34, v38, 0, 28, 36, 0, 0
     jumpi v39, bb17, bb16
-  bb16:
+  bb16:  ; preds = bb13
     revert_returndata
-  bb17:
+  bb17:  ; preds = bb13
     jump bb15
-  bb15:
+  bb15:  ; preds = bb17, bb14
     v40 = sgt v7, 0
     jumpi v40, bb18, bb19
-  bb19:
+  bb19:  ; preds = bb15
     jump bb20
-  bb18:
+  bb18:  ; preds = bb15
     v41 = sload 0 !metadata(storage=slot(0))
     v42 = trunc i256 v41 to i160
     v43 = gas
@@ -362,11 +373,11 @@ fn @go() -> i256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word], abi_re
     v47 = zext i160 v42 to i256
     v48 = call v43, v47, 0, 28, 36, 0, 0
     jumpi v48, bb22, bb21
-  bb21:
+  bb21:  ; preds = bb18
     revert_returndata
-  bb22:
+  bb22:  ; preds = bb18
     jump bb20
-  bb20:
+  bb20:  ; preds = bb22, bb19
     v49 = sload 0 !metadata(storage=slot(0))
     v50 = trunc i256 v49 to i160
     v51 = gas
@@ -374,9 +385,9 @@ fn @go() -> i256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word], abi_re
     v52 = zext i160 v50 to i256
     v53 = staticcall v51, v52, 28, 4, 0, 32
     jumpi v53, bb24, bb23
-  bb23:
+  bb23:  ; preds = bb20
     revert_returndata
-  bb24:
+  bb24:  ; preds = bb20
     v54 = returndatasize
     v55 = lt v54, 32
     icall revert_if<tuple_data_too_short>, v55
@@ -387,6 +398,7 @@ fn @go() -> i256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word], abi_re
     ret 1
 }
 
+; function goRich() external returns (uint256) [selector 0xfcf1ec3b]
 fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 160
@@ -436,9 +448,9 @@ fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], ab
     v32 = zext i160 v27 to i256
     v33 = call v28, v32, 0, v30, v31, 0, 32
     jumpi v33, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v34 = returndatasize
     v35 = lt v34, 32
     icall revert_if<tuple_data_too_short>, v35
@@ -460,12 +472,12 @@ fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], ab
     v51 = mload v6
     v52 = ne v51, 0
     jumpi v52, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb2
     v68 = ptradd v6, 32
     v69 = mload v68
     v70 = slt v69, 0
     jumpi v70, bb9, bb10
-  bb10:
+  bb10:  ; preds = bb4
     v77 = ptradd v6, 32
     v78 = mload v77
     v79 = sgt v50, v78
@@ -475,7 +487,7 @@ fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], ab
     v82 = eq v81, false
     icall require<short_string>, v82, 1, 0x6800000000000000000000000000000000000000000000000000000000000000
     jump bb11
-  bb9:
+  bb9:  ; preds = bb4
     v71 = ptradd v6, 32
     v72 = mload v71
     v73 = slt v50, v72
@@ -485,14 +497,14 @@ fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], ab
     v76 = eq v75, false
     icall require<short_string>, v76, 1, 0x6600000000000000000000000000000000000000000000000000000000000000
     jump bb11
-  bb11:
+  bb11:  ; preds = bb9, bb10
     jump bb5
-  bb3:
+  bb3:  ; preds = bb2
     v53 = ptradd v6, 32
     v54 = mload v53
     v55 = slt v54, 0
     jumpi v55, bb6, bb7
-  bb7:
+  bb7:  ; preds = bb3
     v62 = sgt v43, 0
     v63 = eq v62, false
     icall require<short_string>, v63, 1, 0x6300000000000000000000000000000000000000000000000000000000000000
@@ -502,7 +514,7 @@ fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], ab
     v67 = eq v66, false
     icall require<short_string>, v67, 1, 0x6400000000000000000000000000000000000000000000000000000000000000
     jump bb8
-  bb6:
+  bb6:  ; preds = bb3
     v56 = ptradd v6, 32
     v57 = mload v56
     v58 = slt v43, v57
@@ -512,38 +524,38 @@ fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], ab
     v61 = eq v60, false
     icall require<short_string>, v61, 1, 0x6200000000000000000000000000000000000000000000000000000000000000
     jump bb8
-  bb8:
+  bb8:  ; preds = bb6, bb7
     jump bb5
-  bb5:
+  bb5:  ; preds = bb8, bb11
     v83 = slt v43, 0
     jumpi v83, bb12, bb13
-  bb13:
+  bb13:  ; preds = bb5
     jump bb14
-  bb12:
+  bb12:  ; preds = bb5
     v84 = sload 0 !metadata(storage=slot(0))
     v85 = trunc i256 v84 to i160
     v86 = caller
     v87 = checked_sub int256, 0, v43
     icall @settle, v85, v86, v87
     jump bb14
-  bb14:
+  bb14:  ; preds = bb12, bb13
     v88 = slt v50, 0
     jumpi v88, bb15, bb16
-  bb16:
+  bb16:  ; preds = bb14
     jump bb17
-  bb15:
+  bb15:  ; preds = bb14
     v89 = sload 0 !metadata(storage=slot(0))
     v90 = trunc i256 v89 to i160
     v91 = caller
     v92 = checked_sub int256, 0, v50
     icall @settle, v90, v91, v92
     jump bb17
-  bb17:
+  bb17:  ; preds = bb15, bb16
     v93 = sgt v43, 0
     jumpi v93, bb18, bb19
-  bb19:
+  bb19:  ; preds = bb17
     jump bb20
-  bb18:
+  bb18:  ; preds = bb17
     v94 = sload 0 !metadata(storage=slot(0))
     v95 = trunc i256 v94 to i160
     v96 = gas
@@ -556,16 +568,16 @@ fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], ab
     v100 = zext i160 v95 to i256
     v101 = call v96, v100, 0, 28, 36, 0, 0
     jumpi v101, bb22, bb21
-  bb21:
+  bb21:  ; preds = bb18
     revert_returndata
-  bb22:
+  bb22:  ; preds = bb18
     jump bb20
-  bb20:
+  bb20:  ; preds = bb22, bb19
     v102 = sgt v50, 0
     jumpi v102, bb23, bb24
-  bb24:
+  bb24:  ; preds = bb20
     jump bb25
-  bb23:
+  bb23:  ; preds = bb20
     v103 = sload 0 !metadata(storage=slot(0))
     v104 = trunc i256 v103 to i160
     v105 = gas
@@ -578,11 +590,11 @@ fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], ab
     v109 = zext i160 v104 to i256
     v110 = call v105, v109, 0, 28, 36, 0, 0
     jumpi v110, bb27, bb26
-  bb26:
+  bb26:  ; preds = bb23
     revert_returndata
-  bb27:
+  bb27:  ; preds = bb23
     jump bb25
-  bb25:
+  bb25:  ; preds = bb27, bb24
     v111 = eq v37, 0xc1f
     icall require<short_string>, v111, 17, 0x77726f6e672063616c6c20726573756c74000000000000000000000000000000
     v112 = sload 0 !metadata(storage=slot(0))
@@ -592,9 +604,9 @@ fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], ab
     v115 = zext i160 v113 to i256
     v116 = staticcall v114, v115, 28, 4, 0, 32
     jumpi v116, bb29, bb28
-  bb28:
+  bb28:  ; preds = bb25
     revert_returndata
-  bb29:
+  bb29:  ; preds = bb25
     v117 = returndatasize
     v118 = lt v117, 32
     icall revert_if<tuple_data_too_short>, v118
@@ -605,6 +617,7 @@ fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], ab
     ret 2
 }
 
+; function settle(IMgr m, address, uint256 amount) internal
 fn @settle(arg0: i160, arg1: i160, arg2: i256) {
   bb0:
     v0 = gas
@@ -617,9 +630,9 @@ fn @settle(arg0: i160, arg1: i160, arg2: i256) {
     v4 = zext i160 arg0 to i256
     v5 = call v0, v4, 0, 28, 36, 0, 0
     jumpi v5, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     revert_returndata
-  bb2:
+  bb2:  ; preds = bb0
     v6 = gas
     mstore 0, 0x483f31ab !metadata(memory=scratch)
     mstore 32, arg2 !metadata(memory=scratch)
@@ -630,8 +643,8 @@ fn @settle(arg0: i160, arg1: i160, arg2: i256) {
     v10 = zext i160 arg0 to i256
     v11 = call v6, v10, 0, 28, 36, 0, 0
     jumpi v11, bb4, bb3
-  bb3:
+  bb3:  ; preds = bb2
     revert_returndata
-  bb4:
+  bb4:  ; preds = bb2
     ret
 }

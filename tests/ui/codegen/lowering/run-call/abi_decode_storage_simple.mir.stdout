@@ -4,6 +4,7 @@
   struct0: {i256, i256, i256}
   struct1: {i256, ptr<memory>}
 
+; function decode(bytes memory input) external returns (uint256 value, uint256 length, bytes1 first) [selector 0xe5c5e9a3]
 fn @decode(arg0: ptr<memory>) -> struct0 [selector=0xe5c5e9a3, abi_params=[bytes], abi_returns=[word, word, word<bytes1>], abi_return_params=[uint256, uint256, bytes1]] {
   bb0:
     icall @store_storage_bytes, 0, arg0

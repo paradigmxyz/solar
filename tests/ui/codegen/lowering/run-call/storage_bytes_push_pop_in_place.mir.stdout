@@ -6,19 +6,20 @@
   struct2: {i256, i256, i256, i256}
   struct3: {i256, i256}
 
+; function _push(uint256 n) internal
 fn @_push(arg0: i256) {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v47]
     v2 = lt v1, v0
     jumpi v2, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret
-  bb4:
+  bb4:  ; preds = bb1
     v3 = checked_add uint256, v1, 1
     v4 = trunc i256 v3 to i8
     v5 = zext i8 v4 to i256
@@ -36,10 +37,10 @@ fn @_push(arg0: i256) {
     icall panic_if<0x41>, v15
     v16 = gt v13, 31
     jumpi v16, bb8, bb7
-  bb7:
+  bb7:  ; preds = bb4
     v32 = eq v13, 31
     jumpi v32, bb9, bb10
-  bb10:
+  bb10:  ; preds = bb7
     v38 = add v7, 2
     v39 = sub 31, v13
     v40 = mul v39, 8
@@ -51,7 +52,7 @@ fn @_push(arg0: i256) {
     v46 = or v43, v45
     sstore 0, v46 !metadata(storage=slot(0))
     jump bb11
-  bb9:
+  bb9:  ; preds = bb7
     v33 = storage_array_data_slot 0
     v34 = not 255
     v35 = and v7, v34
@@ -60,7 +61,7 @@ fn @_push(arg0: i256) {
     sstore v33, v37 !metadata(storage=symbolic(v33))
     sstore 0, 65 !metadata(storage=slot(0))
     jump bb11
-  bb8:
+  bb8:  ; preds = bb4
     v17 = add v7, 2
     sstore 0, v17 !metadata(storage=slot(0))
     v18 = storage_array_data_slot 0
@@ -79,15 +80,16 @@ fn @_push(arg0: i256) {
     v31 = or v27, v30
     sstore v20, v31 !metadata(storage=symbolic(v20))
     jump bb11
-  bb11:
+  bb11:  ; preds = bb8, bb9, bb10
     jump bb6
-  bb6:
+  bb6:  ; preds = bb11
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v47 = checked_add uint256, v1, 1
     jump bb1
 }
 
+; function pushOne(bytes1 value) external [selector 0x5da02415]
 fn @pushOne(arg0: i256) [selector=0x5da02415, abi_params=[bytes1], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -103,10 +105,10 @@ fn @pushOne(arg0: i256) [selector=0x5da02415, abi_params=[bytes1], abi_returns=[
     icall panic_if<0x41>, v8
     v9 = gt v6, 31
     jumpi v9, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v26 = eq v6, 31
     jumpi v26, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb1
     v32 = add v0, 2
     v33 = sub 31, v6
     v34 = mul v33, 8
@@ -118,7 +120,7 @@ fn @pushOne(arg0: i256) [selector=0x5da02415, abi_params=[bytes1], abi_returns=[
     v40 = or v37, v39
     sstore 0, v40 !metadata(storage=slot(0))
     jump bb5
-  bb3:
+  bb3:  ; preds = bb1
     v27 = storage_array_data_slot 0
     v28 = not 255
     v29 = and v0, v28
@@ -127,7 +129,7 @@ fn @pushOne(arg0: i256) [selector=0x5da02415, abi_params=[bytes1], abi_returns=[
     sstore v27, v31 !metadata(storage=symbolic(v27))
     sstore 0, 65 !metadata(storage=slot(0))
     jump bb5
-  bb2:
+  bb2:  ; preds = bb0
     v10 = add v0, 2
     sstore 0, v10 !metadata(storage=slot(0))
     v11 = storage_array_data_slot 0
@@ -147,10 +149,11 @@ fn @pushOne(arg0: i256) [selector=0x5da02415, abi_params=[bytes1], abi_returns=[
     v25 = or v21, v24
     sstore v13, v25 !metadata(storage=symbolic(v13))
     jump bb5
-  bb5:
+  bb5:  ; preds = bb2, bb3, bb4
     ret
 }
 
+; function popOne() external [selector 0x53b8a6c6]
 fn @popOne() [selector=0x53b8a6c6, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     icall @_push, 1
@@ -166,11 +169,11 @@ fn @popOne() [selector=0x53b8a6c6, abi_params=[], abi_returns=[], abi_return_par
     icall panic_if<0x31>, v7
     v8 = eq v6, 32
     jumpi v8, bb4, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v19 = sub v6, 1
     v20 = lt v6, 32
     jumpi v20, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v29 = storage_array_data_slot 0
     v30 = shr v19, 5
     v31 = add v29, v30
@@ -189,7 +192,7 @@ fn @popOne() [selector=0x53b8a6c6, abi_params=[], abi_returns=[], abi_return_par
     v43 = sub v0, 2
     sstore 0, v43 !metadata(storage=slot(0))
     jump bb5
-  bb2:
+  bb2:  ; preds = bb1
     v21 = sub 32, v19
     v22 = mul v21, 8
     v23 = shl 1, v22
@@ -200,7 +203,7 @@ fn @popOne() [selector=0x53b8a6c6, abi_params=[], abi_returns=[], abi_return_par
     v28 = or v26, v27
     sstore 0, v28 !metadata(storage=slot(0))
     jump bb5
-  bb4:
+  bb4:  ; preds = bb0
     v9 = storage_array_data_slot 0
     v10 = sload v9 !metadata(storage=symbolic(v9))
     v11 = sub 32, 31
@@ -214,10 +217,11 @@ fn @popOne() [selector=0x53b8a6c6, abi_params=[], abi_returns=[], abi_return_par
     sstore 0, v18 !metadata(storage=slot(0))
     sstore v9, 0 !metadata(storage=symbolic(v9))
     jump bb5
-  bb5:
+  bb5:  ; preds = bb4, bb2, bb3
     ret
 }
 
+; function pushRange(uint256 n) external returns (bytes memory) [selector 0xcac9de04]
 fn @pushRange(arg0: i256) -> ptr<memory> [selector=0xcac9de04, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     icall @_push, arg0
@@ -225,19 +229,20 @@ fn @pushRange(arg0: i256) -> ptr<memory> [selector=0xcac9de04, abi_params=[uint2
     ret v0
 }
 
+; function pushZero(uint256 n) external returns (bytes memory, uint256) [selector 0xb0e28d5e]
 fn @pushZero(arg0: i256) -> struct0 [selector=0xb0e28d5e, abi_params=[uint256], abi_returns=[memory_bytes, word], abi_return_params=[bytes, uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: ptr<memory> 96], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v2]
     v3 = phi [bb0: 0], [bb3: v37]
     v4 = lt v3, v0
     jumpi v4, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     v38 = icall @load_storage_bytes, 0
     v39 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v39
@@ -250,7 +255,7 @@ fn @pushZero(arg0: i256) -> struct0 [selector=0xb0e28d5e, abi_params=[uint256], 
     v46 = insert_value struct0, undef struct0, 0, v38
     v47 = insert_value struct0, v46, 1, v45
     ret v47
-  bb4:
+  bb4:  ; preds = bb1
     v5 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v5
     v6 = and v5, 1
@@ -264,10 +269,10 @@ fn @pushZero(arg0: i256) -> struct0 [selector=0xb0e28d5e, abi_params=[uint256], 
     icall panic_if<0x41>, v13
     v14 = gt v11, 31
     jumpi v14, bb8, bb7
-  bb7:
+  bb7:  ; preds = bb4
     v20 = eq v11, 31
     jumpi v20, bb9, bb10
-  bb10:
+  bb10:  ; preds = bb7
     v26 = sub 32, v12
     v27 = mul v26, 8
     v28 = shl 1, v27
@@ -278,7 +283,7 @@ fn @pushZero(arg0: i256) -> struct0 [selector=0xb0e28d5e, abi_params=[uint256], 
     v33 = or v31, v32
     sstore 0, v33 !metadata(storage=slot(0))
     jump bb11
-  bb9:
+  bb9:  ; preds = bb7
     v21 = storage_array_data_slot 0
     v22 = not 255
     v23 = and v5, v22
@@ -287,7 +292,7 @@ fn @pushZero(arg0: i256) -> struct0 [selector=0xb0e28d5e, abi_params=[uint256], 
     v25 = or v24, 1
     sstore 0, v25 !metadata(storage=slot(0))
     jump bb11
-  bb8:
+  bb8:  ; preds = bb4
     v15 = shl v12, 1
     v16 = or v15, 1
     sstore 0, v16 !metadata(storage=slot(0))
@@ -295,33 +300,34 @@ fn @pushZero(arg0: i256) -> struct0 [selector=0xb0e28d5e, abi_params=[uint256], 
     v18 = shr v11, 5
     v19 = add v17, v18
     jump bb11
-  bb11:
+  bb11:  ; preds = bb8, bb9, bb10
     v34 = phi [bb8: v19], [bb9: v21], [bb10: 0]
     v35 = and v11, 31
     v36 = sub 31, v35
     jump bb6
-  bb6:
+  bb6:  ; preds = bb11
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v37 = checked_add uint256, v3, 1
     jump bb1
 }
 
+; function pushAssign(uint256 n) external returns (bytes memory) [selector 0xbcb447d8]
 fn @pushAssign(arg0: i256) -> ptr<memory> [selector=0xbcb447d8, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: ptr<memory> 96], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v49]
     v3 = lt v2, v0
     jumpi v3, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     v50 = icall @load_storage_bytes, 0
     ret v50
-  bb4:
+  bb4:  ; preds = bb1
     v4 = checked_add uint256, v2, 1
     v5 = trunc i256 v4 to i8
     v6 = zext i8 v5 to i256
@@ -339,10 +345,10 @@ fn @pushAssign(arg0: i256) -> ptr<memory> [selector=0xbcb447d8, abi_params=[uint
     icall panic_if<0x41>, v16
     v17 = gt v14, 31
     jumpi v17, bb8, bb7
-  bb7:
+  bb7:  ; preds = bb4
     v23 = eq v14, 31
     jumpi v23, bb9, bb10
-  bb10:
+  bb10:  ; preds = bb7
     v29 = sub 32, v15
     v30 = mul v29, 8
     v31 = shl 1, v30
@@ -353,7 +359,7 @@ fn @pushAssign(arg0: i256) -> ptr<memory> [selector=0xbcb447d8, abi_params=[uint
     v36 = or v34, v35
     sstore 0, v36 !metadata(storage=slot(0))
     jump bb11
-  bb9:
+  bb9:  ; preds = bb7
     v24 = storage_array_data_slot 0
     v25 = not 255
     v26 = and v8, v25
@@ -362,7 +368,7 @@ fn @pushAssign(arg0: i256) -> ptr<memory> [selector=0xbcb447d8, abi_params=[uint
     v28 = or v27, 1
     sstore 0, v28 !metadata(storage=slot(0))
     jump bb11
-  bb8:
+  bb8:  ; preds = bb4
     v18 = shl v15, 1
     v19 = or v18, 1
     sstore 0, v19 !metadata(storage=slot(0))
@@ -370,7 +376,7 @@ fn @pushAssign(arg0: i256) -> ptr<memory> [selector=0xbcb447d8, abi_params=[uint
     v21 = shr v14, 5
     v22 = add v20, v21
     jump bb11
-  bb11:
+  bb11:  ; preds = bb8, bb9, bb10
     v37 = phi [bb8: v22], [bb9: v24], [bb10: 0]
     v38 = and v14, 31
     v39 = sub 31, v38
@@ -385,18 +391,19 @@ fn @pushAssign(arg0: i256) -> ptr<memory> [selector=0xbcb447d8, abi_params=[uint
     v48 = or v44, v47
     sstore v37, v48 !metadata(storage=symbolic(v37))
     jump bb6
-  bb6:
+  bb6:  ; preds = bb11
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v49 = checked_add uint256, v2, 1
     jump bb1
 }
 
+; function popTo(uint256 n, uint256 k) external returns (bytes memory, uint256) [selector 0x6203376f]
 fn @popTo(arg0: i256, arg1: i256) -> struct0 [selector=0x6203376f, abi_params=[uint256, uint256], abi_returns=[memory_bytes, word], abi_return_params=[bytes, uint256]] {
   bb0:
     icall @_push, arg0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: ptr<memory> 96], [bb3: v2]
@@ -404,9 +411,9 @@ fn @popTo(arg0: i256, arg1: i256) -> struct0 [selector=0x6203376f, abi_params=[u
     v4 = phi [bb0: 0], [bb3: v50]
     v5 = lt v4, v1
     jumpi v5, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     v51 = icall @load_storage_bytes, 0
     v52 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v52
@@ -419,7 +426,7 @@ fn @popTo(arg0: i256, arg1: i256) -> struct0 [selector=0x6203376f, abi_params=[u
     v59 = insert_value struct0, undef struct0, 0, v51
     v60 = insert_value struct0, v59, 1, v58
     ret v60
-  bb4:
+  bb4:  ; preds = bb1
     v6 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v6
     v7 = and v6, 1
@@ -432,11 +439,11 @@ fn @popTo(arg0: i256, arg1: i256) -> struct0 [selector=0x6203376f, abi_params=[u
     icall panic_if<0x31>, v13
     v14 = eq v12, 32
     jumpi v14, bb10, bb7
-  bb7:
+  bb7:  ; preds = bb4
     v25 = sub v12, 1
     v26 = lt v12, 32
     jumpi v26, bb8, bb9
-  bb9:
+  bb9:  ; preds = bb7
     v35 = storage_array_data_slot 0
     v36 = shr v25, 5
     v37 = add v35, v36
@@ -455,7 +462,7 @@ fn @popTo(arg0: i256, arg1: i256) -> struct0 [selector=0x6203376f, abi_params=[u
     v49 = sub v6, 2
     sstore 0, v49 !metadata(storage=slot(0))
     jump bb11
-  bb8:
+  bb8:  ; preds = bb7
     v27 = sub 32, v25
     v28 = mul v27, 8
     v29 = shl 1, v28
@@ -466,7 +473,7 @@ fn @popTo(arg0: i256, arg1: i256) -> struct0 [selector=0x6203376f, abi_params=[u
     v34 = or v32, v33
     sstore 0, v34 !metadata(storage=slot(0))
     jump bb11
-  bb10:
+  bb10:  ; preds = bb4
     v15 = storage_array_data_slot 0
     v16 = sload v15 !metadata(storage=symbolic(v15))
     v17 = sub 32, 31
@@ -480,20 +487,21 @@ fn @popTo(arg0: i256, arg1: i256) -> struct0 [selector=0x6203376f, abi_params=[u
     sstore 0, v24 !metadata(storage=slot(0))
     sstore v15, 0 !metadata(storage=symbolic(v15))
     jump bb11
-  bb11:
+  bb11:  ; preds = bb10, bb8, bb9
     jump bb6
-  bb6:
+  bb6:  ; preds = bb11
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v50 = checked_add uint256, v4, 1
     jump bb1
 }
 
+; function slots(uint256 n, uint256 k) external returns (bytes32 header, bytes32 first, bytes32 second) [selector 0xec823b6d]
 fn @slots(arg0: i256, arg1: i256) -> struct1 [selector=0xec823b6d, abi_params=[uint256, uint256], abi_returns=[word, word, word], abi_return_params=[bytes32, bytes32, bytes32]] {
   bb0:
     icall @_push, arg0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v2]
@@ -502,9 +510,9 @@ fn @slots(arg0: i256, arg1: i256) -> struct1 [selector=0xec823b6d, abi_params=[u
     v5 = phi [bb0: 0], [bb3: v51]
     v6 = lt v5, v1
     jumpi v6, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     v52 = sload 0 !metadata(storage=slot(0))
     mstore 0, 0 !metadata(memory=scratch)
     v53 = keccak256 0, 32 !metadata(memory=scratch)
@@ -515,7 +523,7 @@ fn @slots(arg0: i256, arg1: i256) -> struct1 [selector=0xec823b6d, abi_params=[u
     v58 = insert_value struct1, v57, 1, v54
     v59 = insert_value struct1, v58, 2, v56
     ret v59
-  bb4:
+  bb4:  ; preds = bb1
     v7 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v7
     v8 = and v7, 1
@@ -528,11 +536,11 @@ fn @slots(arg0: i256, arg1: i256) -> struct1 [selector=0xec823b6d, abi_params=[u
     icall panic_if<0x31>, v14
     v15 = eq v13, 32
     jumpi v15, bb10, bb7
-  bb7:
+  bb7:  ; preds = bb4
     v26 = sub v13, 1
     v27 = lt v13, 32
     jumpi v27, bb8, bb9
-  bb9:
+  bb9:  ; preds = bb7
     v36 = storage_array_data_slot 0
     v37 = shr v26, 5
     v38 = add v36, v37
@@ -551,7 +559,7 @@ fn @slots(arg0: i256, arg1: i256) -> struct1 [selector=0xec823b6d, abi_params=[u
     v50 = sub v7, 2
     sstore 0, v50 !metadata(storage=slot(0))
     jump bb11
-  bb8:
+  bb8:  ; preds = bb7
     v28 = sub 32, v26
     v29 = mul v28, 8
     v30 = shl 1, v29
@@ -562,7 +570,7 @@ fn @slots(arg0: i256, arg1: i256) -> struct1 [selector=0xec823b6d, abi_params=[u
     v35 = or v33, v34
     sstore 0, v35 !metadata(storage=slot(0))
     jump bb11
-  bb10:
+  bb10:  ; preds = bb4
     v16 = storage_array_data_slot 0
     v17 = sload v16 !metadata(storage=symbolic(v16))
     v18 = sub 32, 31
@@ -576,19 +584,20 @@ fn @slots(arg0: i256, arg1: i256) -> struct1 [selector=0xec823b6d, abi_params=[u
     sstore 0, v25 !metadata(storage=slot(0))
     sstore v16, 0 !metadata(storage=symbolic(v16))
     jump bb11
-  bb11:
+  bb11:  ; preds = bb10, bb8, bb9
     jump bb6
-  bb6:
+  bb6:  ; preds = bb11
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v51 = checked_add uint256, v5, 1
     jump bb1
 }
 
+; function interleaved(uint256 n) external returns (uint256 length, uint256 first, uint256 middle, uint256 last) [selector 0x8a27da89]
 fn @interleaved(arg0: i256) -> struct2 [selector=0x8a27da89, abi_params=[uint256], abi_returns=[word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v2]
@@ -597,9 +606,9 @@ fn @interleaved(arg0: i256) -> struct2 [selector=0x8a27da89, abi_params=[uint256
     v5 = phi [bb0: 0], [bb3: v86]
     v6 = lt v5, v0
     jumpi v6, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     v87 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v87
     v88 = and v87, 1
@@ -620,14 +629,14 @@ fn @interleaved(arg0: i256) -> struct2 [selector=0x8a27da89, abi_params=[uint256
     v102 = eq v101, false
     icall panic_if<0x32>, v102
     jumpi v96, bb15, bb16
-  bb16:
+  bb16:  ; preds = bb2
     jump bb17
-  bb15:
+  bb15:  ; preds = bb2
     v103 = storage_array_data_slot 0
     v104 = shr 0, 5
     v105 = add v103, v104
     jump bb17
-  bb17:
+  bb17:  ; preds = bb15, bb16
     v106 = phi [bb15: v105], [bb16: 0]
     v107 = and 0, 31
     v108 = sub 31, v107
@@ -651,14 +660,14 @@ fn @interleaved(arg0: i256) -> struct2 [selector=0x8a27da89, abi_params=[uint256
     v125 = eq v124, false
     icall panic_if<0x32>, v125
     jumpi v119, bb18, bb19
-  bb19:
+  bb19:  ; preds = bb17
     jump bb20
-  bb18:
+  bb18:  ; preds = bb17
     v126 = storage_array_data_slot 0
     v127 = shr v116, 5
     v128 = add v126, v127
     jump bb20
-  bb20:
+  bb20:  ; preds = bb18, bb19
     v129 = phi [bb18: v128], [bb19: 0]
     v130 = and v116, 31
     v131 = sub 31, v130
@@ -682,14 +691,14 @@ fn @interleaved(arg0: i256) -> struct2 [selector=0x8a27da89, abi_params=[uint256
     v148 = eq v147, false
     icall panic_if<0x32>, v148
     jumpi v142, bb21, bb22
-  bb22:
+  bb22:  ; preds = bb20
     jump bb23
-  bb21:
+  bb21:  ; preds = bb20
     v149 = storage_array_data_slot 0
     v150 = shr v139, 5
     v151 = add v149, v150
     jump bb23
-  bb23:
+  bb23:  ; preds = bb21, bb22
     v152 = phi [bb21: v151], [bb22: 0]
     v153 = and v139, 31
     v154 = sub 31, v153
@@ -705,7 +714,7 @@ fn @interleaved(arg0: i256) -> struct2 [selector=0x8a27da89, abi_params=[uint256
     v164 = insert_value struct2, v163, 2, v138
     v165 = insert_value struct2, v164, 3, v161
     ret v165
-  bb4:
+  bb4:  ; preds = bb1
     v7 = checked_add uint256, v5, 1
     v8 = trunc i256 v7 to i8
     v9 = zext i8 v8 to i256
@@ -723,10 +732,10 @@ fn @interleaved(arg0: i256) -> struct2 [selector=0x8a27da89, abi_params=[uint256
     icall panic_if<0x41>, v19
     v20 = gt v17, 31
     jumpi v20, bb8, bb7
-  bb7:
+  bb7:  ; preds = bb4
     v36 = eq v17, 31
     jumpi v36, bb9, bb10
-  bb10:
+  bb10:  ; preds = bb7
     v42 = add v11, 2
     v43 = sub 31, v17
     v44 = mul v43, 8
@@ -738,7 +747,7 @@ fn @interleaved(arg0: i256) -> struct2 [selector=0x8a27da89, abi_params=[uint256
     v50 = or v47, v49
     sstore 0, v50 !metadata(storage=slot(0))
     jump bb11
-  bb9:
+  bb9:  ; preds = bb7
     v37 = storage_array_data_slot 0
     v38 = not 255
     v39 = and v11, v38
@@ -747,7 +756,7 @@ fn @interleaved(arg0: i256) -> struct2 [selector=0x8a27da89, abi_params=[uint256
     sstore v37, v41 !metadata(storage=symbolic(v37))
     sstore 0, 65 !metadata(storage=slot(0))
     jump bb11
-  bb8:
+  bb8:  ; preds = bb4
     v21 = add v11, 2
     sstore 0, v21 !metadata(storage=slot(0))
     v22 = storage_array_data_slot 0
@@ -766,7 +775,7 @@ fn @interleaved(arg0: i256) -> struct2 [selector=0x8a27da89, abi_params=[uint256
     v35 = or v31, v34
     sstore v24, v35 !metadata(storage=symbolic(v24))
     jump bb11
-  bb11:
+  bb11:  ; preds = bb8, bb9, bb10
     v51 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v51
     v52 = and v51, 1
@@ -791,14 +800,14 @@ fn @interleaved(arg0: i256) -> struct2 [selector=0x8a27da89, abi_params=[uint256
     v69 = eq v68, false
     icall panic_if<0x32>, v69
     jumpi v63, bb12, bb13
-  bb13:
+  bb13:  ; preds = bb11
     jump bb14
-  bb12:
+  bb12:  ; preds = bb11
     v70 = storage_array_data_slot 0
     v71 = shr v5, 5
     v72 = add v70, v71
     jump bb14
-  bb14:
+  bb14:  ; preds = bb12, bb13
     v73 = phi [bb12: v72], [bb13: 0]
     v74 = and v5, 31
     v75 = sub 31, v74
@@ -814,25 +823,26 @@ fn @interleaved(arg0: i256) -> struct2 [selector=0x8a27da89, abi_params=[uint256
     v85 = eq v84, false
     icall revert_if<empty>, v85
     jump bb6
-  bb6:
+  bb6:  ; preds = bb14
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v86 = checked_add uint256, v5, 1
     jump bb1
 }
 
+; function popEmptyAfter(uint256 n) external [selector 0x7b110cfa]
 fn @popEmptyAfter(arg0: i256) [selector=0x7b110cfa, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     icall @_push, arg0
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v47]
     v2 = lt v1, v0
     jumpi v2, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     v48 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v48
     v49 = and v48, 1
@@ -856,11 +866,11 @@ fn @popEmptyAfter(arg0: i256) [selector=0x7b110cfa, abi_params=[uint256], abi_re
     icall panic_if<0x31>, v64
     v65 = eq v63, 32
     jumpi v65, bb15, bb12
-  bb12:
+  bb12:  ; preds = bb2
     v76 = sub v63, 1
     v77 = lt v63, 32
     jumpi v77, bb13, bb14
-  bb14:
+  bb14:  ; preds = bb12
     v86 = storage_array_data_slot 0
     v87 = shr v76, 5
     v88 = add v86, v87
@@ -879,7 +889,7 @@ fn @popEmptyAfter(arg0: i256) [selector=0x7b110cfa, abi_params=[uint256], abi_re
     v100 = sub v57, 2
     sstore 0, v100 !metadata(storage=slot(0))
     jump bb16
-  bb13:
+  bb13:  ; preds = bb12
     v78 = sub 32, v76
     v79 = mul v78, 8
     v80 = shl 1, v79
@@ -890,7 +900,7 @@ fn @popEmptyAfter(arg0: i256) [selector=0x7b110cfa, abi_params=[uint256], abi_re
     v85 = or v83, v84
     sstore 0, v85 !metadata(storage=slot(0))
     jump bb16
-  bb15:
+  bb15:  ; preds = bb2
     v66 = storage_array_data_slot 0
     v67 = sload v66 !metadata(storage=symbolic(v66))
     v68 = sub 32, 31
@@ -904,9 +914,9 @@ fn @popEmptyAfter(arg0: i256) [selector=0x7b110cfa, abi_params=[uint256], abi_re
     sstore 0, v75 !metadata(storage=slot(0))
     sstore v66, 0 !metadata(storage=symbolic(v66))
     jump bb16
-  bb16:
+  bb16:  ; preds = bb15, bb13, bb14
     ret
-  bb4:
+  bb4:  ; preds = bb1
     v3 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v3
     v4 = and v3, 1
@@ -919,11 +929,11 @@ fn @popEmptyAfter(arg0: i256) [selector=0x7b110cfa, abi_params=[uint256], abi_re
     icall panic_if<0x31>, v10
     v11 = eq v9, 32
     jumpi v11, bb10, bb7
-  bb7:
+  bb7:  ; preds = bb4
     v22 = sub v9, 1
     v23 = lt v9, 32
     jumpi v23, bb8, bb9
-  bb9:
+  bb9:  ; preds = bb7
     v32 = storage_array_data_slot 0
     v33 = shr v22, 5
     v34 = add v32, v33
@@ -942,7 +952,7 @@ fn @popEmptyAfter(arg0: i256) [selector=0x7b110cfa, abi_params=[uint256], abi_re
     v46 = sub v3, 2
     sstore 0, v46 !metadata(storage=slot(0))
     jump bb11
-  bb8:
+  bb8:  ; preds = bb7
     v24 = sub 32, v22
     v25 = mul v24, 8
     v26 = shl 1, v25
@@ -953,7 +963,7 @@ fn @popEmptyAfter(arg0: i256) [selector=0x7b110cfa, abi_params=[uint256], abi_re
     v31 = or v29, v30
     sstore 0, v31 !metadata(storage=slot(0))
     jump bb11
-  bb10:
+  bb10:  ; preds = bb4
     v12 = storage_array_data_slot 0
     v13 = sload v12 !metadata(storage=symbolic(v12))
     v14 = sub 32, 31
@@ -967,15 +977,16 @@ fn @popEmptyAfter(arg0: i256) [selector=0x7b110cfa, abi_params=[uint256], abi_re
     sstore 0, v21 !metadata(storage=slot(0))
     sstore v12, 0 !metadata(storage=symbolic(v12))
     jump bb11
-  bb11:
+  bb11:  ; preds = bb10, bb8, bb9
     jump bb6
-  bb6:
+  bb6:  ; preds = bb11
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v47 = checked_add uint256, v1, 1
     jump bb1
 }
 
+; function popUntouched() external [selector 0xbf1e345b]
 fn @popUntouched() [selector=0xbf1e345b, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -990,11 +1001,11 @@ fn @popUntouched() [selector=0xbf1e345b, abi_params=[], abi_returns=[], abi_retu
     icall panic_if<0x31>, v7
     v8 = eq v6, 32
     jumpi v8, bb4, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v19 = sub v6, 1
     v20 = lt v6, 32
     jumpi v20, bb2, bb3
-  bb3:
+  bb3:  ; preds = bb1
     v29 = storage_array_data_slot 0
     v30 = shr v19, 5
     v31 = add v29, v30
@@ -1013,7 +1024,7 @@ fn @popUntouched() [selector=0xbf1e345b, abi_params=[], abi_returns=[], abi_retu
     v43 = sub v0, 2
     sstore 0, v43 !metadata(storage=slot(0))
     jump bb5
-  bb2:
+  bb2:  ; preds = bb1
     v21 = sub 32, v19
     v22 = mul v21, 8
     v23 = shl 1, v22
@@ -1024,7 +1035,7 @@ fn @popUntouched() [selector=0xbf1e345b, abi_params=[], abi_returns=[], abi_retu
     v28 = or v26, v27
     sstore 0, v28 !metadata(storage=slot(0))
     jump bb5
-  bb4:
+  bb4:  ; preds = bb0
     v9 = storage_array_data_slot 0
     v10 = sload v9 !metadata(storage=symbolic(v9))
     v11 = sub 32, 31
@@ -1038,24 +1049,25 @@ fn @popUntouched() [selector=0xbf1e345b, abi_params=[], abi_returns=[], abi_retu
     sstore 0, v18 !metadata(storage=slot(0))
     sstore v9, 0 !metadata(storage=symbolic(v9))
     jump bb5
-  bb5:
+  bb5:  ; preds = bb4, bb2, bb3
     ret
 }
 
+; function structPushPop(uint256 n) external returns (bytes memory, uint256) [selector 0x9c0e8d6f]
 fn @structPushPop(arg0: i256) -> struct0 [selector=0x9c0e8d6f, abi_params=[uint256], abi_returns=[memory_bytes, word], abi_return_params=[bytes, uint256]] {
   bb0:
     sstore 1, arg0 !metadata(storage=slot(1))
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: ptr<memory> 96], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v2]
     v3 = phi [bb0: 0], [bb3: v50]
     v4 = lt v3, v0
     jumpi v4, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     v51 = add 1, 1
     v52 = sload v51 !metadata(storage=slot(2))
     validate_storage_bytes v52
@@ -1069,11 +1081,11 @@ fn @structPushPop(arg0: i256) -> struct0 [selector=0x9c0e8d6f, abi_params=[uint2
     icall panic_if<0x31>, v59
     v60 = eq v58, 32
     jumpi v60, bb15, bb12
-  bb12:
+  bb12:  ; preds = bb2
     v71 = sub v58, 1
     v72 = lt v58, 32
     jumpi v72, bb13, bb14
-  bb14:
+  bb14:  ; preds = bb12
     v81 = storage_array_data_slot v51
     v82 = shr v71, 5
     v83 = add v81, v82
@@ -1092,7 +1104,7 @@ fn @structPushPop(arg0: i256) -> struct0 [selector=0x9c0e8d6f, abi_params=[uint2
     v95 = sub v52, 2
     sstore v51, v95 !metadata(storage=slot(2))
     jump bb16
-  bb13:
+  bb13:  ; preds = bb12
     v73 = sub 32, v71
     v74 = mul v73, 8
     v75 = shl 1, v74
@@ -1103,7 +1115,7 @@ fn @structPushPop(arg0: i256) -> struct0 [selector=0x9c0e8d6f, abi_params=[uint2
     v80 = or v78, v79
     sstore v51, v80 !metadata(storage=slot(2))
     jump bb16
-  bb15:
+  bb15:  ; preds = bb2
     v61 = storage_array_data_slot v51
     v62 = sload v61 !metadata(storage=symbolic(v61))
     v63 = sub 32, 31
@@ -1117,14 +1129,14 @@ fn @structPushPop(arg0: i256) -> struct0 [selector=0x9c0e8d6f, abi_params=[uint2
     sstore v51, v70 !metadata(storage=slot(2))
     sstore v61, 0 !metadata(storage=symbolic(v61))
     jump bb16
-  bb16:
+  bb16:  ; preds = bb15, bb13, bb14
     v96 = add 1, 1
     v97 = icall @load_storage_bytes, v96
     v98 = sload 1 !metadata(storage=slot(1))
     v99 = insert_value struct0, undef struct0, 0, v97
     v100 = insert_value struct0, v99, 1, v98
     ret v100
-  bb4:
+  bb4:  ; preds = bb1
     v5 = add 1, 1
     v6 = checked_add uint256, v3, 1
     v7 = trunc i256 v6 to i8
@@ -1143,10 +1155,10 @@ fn @structPushPop(arg0: i256) -> struct0 [selector=0x9c0e8d6f, abi_params=[uint2
     icall panic_if<0x41>, v18
     v19 = gt v16, 31
     jumpi v19, bb8, bb7
-  bb7:
+  bb7:  ; preds = bb4
     v35 = eq v16, 31
     jumpi v35, bb9, bb10
-  bb10:
+  bb10:  ; preds = bb7
     v41 = add v10, 2
     v42 = sub 31, v16
     v43 = mul v42, 8
@@ -1158,7 +1170,7 @@ fn @structPushPop(arg0: i256) -> struct0 [selector=0x9c0e8d6f, abi_params=[uint2
     v49 = or v46, v48
     sstore v5, v49 !metadata(storage=slot(2))
     jump bb11
-  bb9:
+  bb9:  ; preds = bb7
     v36 = storage_array_data_slot v5
     v37 = not 255
     v38 = and v10, v37
@@ -1167,7 +1179,7 @@ fn @structPushPop(arg0: i256) -> struct0 [selector=0x9c0e8d6f, abi_params=[uint2
     sstore v36, v40 !metadata(storage=symbolic(v36))
     sstore v5, 65 !metadata(storage=slot(2))
     jump bb11
-  bb8:
+  bb8:  ; preds = bb4
     v20 = add v10, 2
     sstore v5, v20 !metadata(storage=slot(2))
     v21 = storage_array_data_slot v5
@@ -1186,27 +1198,28 @@ fn @structPushPop(arg0: i256) -> struct0 [selector=0x9c0e8d6f, abi_params=[uint2
     v34 = or v30, v33
     sstore v23, v34 !metadata(storage=symbolic(v23))
     jump bb11
-  bb11:
+  bb11:  ; preds = bb8, bb9, bb10
     jump bb6
-  bb6:
+  bb6:  ; preds = bb11
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v50 = checked_add uint256, v3, 1
     jump bb1
 }
 
+; function mappingPushPop(uint256 n) external returns (bytes memory) [selector 0x9881887b]
 fn @mappingPushPop(arg0: i256) -> ptr<memory> [selector=0x9881887b, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: ptr<memory> 96], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v49]
     v3 = lt v2, v0
     jumpi v3, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     v50 = mapping_slot 7, 3
     v51 = sload v50 !metadata(storage=symbolic(v50))
     validate_storage_bytes v51
@@ -1220,11 +1233,11 @@ fn @mappingPushPop(arg0: i256) -> ptr<memory> [selector=0x9881887b, abi_params=[
     icall panic_if<0x31>, v58
     v59 = eq v57, 32
     jumpi v59, bb15, bb12
-  bb12:
+  bb12:  ; preds = bb2
     v70 = sub v57, 1
     v71 = lt v57, 32
     jumpi v71, bb13, bb14
-  bb14:
+  bb14:  ; preds = bb12
     v80 = storage_array_data_slot v50
     v81 = shr v70, 5
     v82 = add v80, v81
@@ -1243,7 +1256,7 @@ fn @mappingPushPop(arg0: i256) -> ptr<memory> [selector=0x9881887b, abi_params=[
     v94 = sub v51, 2
     sstore v50, v94 !metadata(storage=symbolic(v50))
     jump bb16
-  bb13:
+  bb13:  ; preds = bb12
     v72 = sub 32, v70
     v73 = mul v72, 8
     v74 = shl 1, v73
@@ -1254,7 +1267,7 @@ fn @mappingPushPop(arg0: i256) -> ptr<memory> [selector=0x9881887b, abi_params=[
     v79 = or v77, v78
     sstore v50, v79 !metadata(storage=symbolic(v50))
     jump bb16
-  bb15:
+  bb15:  ; preds = bb2
     v60 = storage_array_data_slot v50
     v61 = sload v60 !metadata(storage=symbolic(v60))
     v62 = sub 32, 31
@@ -1268,11 +1281,11 @@ fn @mappingPushPop(arg0: i256) -> ptr<memory> [selector=0x9881887b, abi_params=[
     sstore v50, v69 !metadata(storage=symbolic(v50))
     sstore v60, 0 !metadata(storage=symbolic(v60))
     jump bb16
-  bb16:
+  bb16:  ; preds = bb15, bb13, bb14
     v95 = mapping_slot 7, 3
     v96 = icall @load_storage_bytes, v95
     ret v96
-  bb4:
+  bb4:  ; preds = bb1
     v4 = mapping_slot 7, 3
     v5 = checked_add uint256, v2, 1
     v6 = trunc i256 v5 to i8
@@ -1291,10 +1304,10 @@ fn @mappingPushPop(arg0: i256) -> ptr<memory> [selector=0x9881887b, abi_params=[
     icall panic_if<0x41>, v17
     v18 = gt v15, 31
     jumpi v18, bb8, bb7
-  bb7:
+  bb7:  ; preds = bb4
     v34 = eq v15, 31
     jumpi v34, bb9, bb10
-  bb10:
+  bb10:  ; preds = bb7
     v40 = add v9, 2
     v41 = sub 31, v15
     v42 = mul v41, 8
@@ -1306,7 +1319,7 @@ fn @mappingPushPop(arg0: i256) -> ptr<memory> [selector=0x9881887b, abi_params=[
     v48 = or v45, v47
     sstore v4, v48 !metadata(storage=symbolic(v4))
     jump bb11
-  bb9:
+  bb9:  ; preds = bb7
     v35 = storage_array_data_slot v4
     v36 = not 255
     v37 = and v9, v36
@@ -1315,7 +1328,7 @@ fn @mappingPushPop(arg0: i256) -> ptr<memory> [selector=0x9881887b, abi_params=[
     sstore v35, v39 !metadata(storage=symbolic(v35))
     sstore v4, 65 !metadata(storage=symbolic(v4))
     jump bb11
-  bb8:
+  bb8:  ; preds = bb4
     v19 = add v9, 2
     sstore v4, v19 !metadata(storage=symbolic(v4))
     v20 = storage_array_data_slot v4
@@ -1334,34 +1347,36 @@ fn @mappingPushPop(arg0: i256) -> ptr<memory> [selector=0x9881887b, abi_params=[
     v33 = or v29, v32
     sstore v22, v33 !metadata(storage=symbolic(v22))
     jump bb11
-  bb11:
+  bb11:  ; preds = bb8, bb9, bb10
     jump bb6
-  bb6:
+  bb6:  ; preds = bb11
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v49 = checked_add uint256, v2, 1
     jump bb1
 }
 
+; function pointerPushPop(uint256 n) external returns (bytes memory) [selector 0x3a6f6ba7]
 fn @pointerPushPop(arg0: i256) -> ptr<memory> [selector=0x3a6f6ba7, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @_pushPop, 0, arg0
     ret v0
 }
 
+; function _pushPop(bytes storage target, uint256 n) internal returns (bytes memory)
 fn @_pushPop(arg0: i256, arg1: i256) -> ptr<memory> {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg1], [bb3: v0]
     v1 = phi [bb0: ptr<memory> 96], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v49]
     v3 = phi [bb0: arg0], [bb3: v3]
     v4 = lt v2, v0
     jumpi v4, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     v50 = sload v3 !metadata(storage=symbolic(v3))
     validate_storage_bytes v50
     v51 = and v50, 1
@@ -1374,11 +1389,11 @@ fn @_pushPop(arg0: i256, arg1: i256) -> ptr<memory> {
     icall panic_if<0x31>, v57
     v58 = eq v56, 32
     jumpi v58, bb15, bb12
-  bb12:
+  bb12:  ; preds = bb2
     v69 = sub v56, 1
     v70 = lt v56, 32
     jumpi v70, bb13, bb14
-  bb14:
+  bb14:  ; preds = bb12
     v79 = storage_array_data_slot v3
     v80 = shr v69, 5
     v81 = add v79, v80
@@ -1397,7 +1412,7 @@ fn @_pushPop(arg0: i256, arg1: i256) -> ptr<memory> {
     v93 = sub v50, 2
     sstore v3, v93 !metadata(storage=symbolic(v3))
     jump bb16
-  bb13:
+  bb13:  ; preds = bb12
     v71 = sub 32, v69
     v72 = mul v71, 8
     v73 = shl 1, v72
@@ -1408,7 +1423,7 @@ fn @_pushPop(arg0: i256, arg1: i256) -> ptr<memory> {
     v78 = or v76, v77
     sstore v3, v78 !metadata(storage=symbolic(v3))
     jump bb16
-  bb15:
+  bb15:  ; preds = bb2
     v59 = storage_array_data_slot v3
     v60 = sload v59 !metadata(storage=symbolic(v59))
     v61 = sub 32, 31
@@ -1422,10 +1437,10 @@ fn @_pushPop(arg0: i256, arg1: i256) -> ptr<memory> {
     sstore v3, v68 !metadata(storage=symbolic(v3))
     sstore v59, 0 !metadata(storage=symbolic(v59))
     jump bb16
-  bb16:
+  bb16:  ; preds = bb15, bb13, bb14
     v94 = icall @load_storage_bytes, v3
     ret v94
-  bb4:
+  bb4:  ; preds = bb1
     v5 = checked_add uint256, v2, 1
     v6 = trunc i256 v5 to i8
     v7 = zext i8 v6 to i256
@@ -1443,10 +1458,10 @@ fn @_pushPop(arg0: i256, arg1: i256) -> ptr<memory> {
     icall panic_if<0x41>, v17
     v18 = gt v15, 31
     jumpi v18, bb8, bb7
-  bb7:
+  bb7:  ; preds = bb4
     v34 = eq v15, 31
     jumpi v34, bb9, bb10
-  bb10:
+  bb10:  ; preds = bb7
     v40 = add v9, 2
     v41 = sub 31, v15
     v42 = mul v41, 8
@@ -1458,7 +1473,7 @@ fn @_pushPop(arg0: i256, arg1: i256) -> ptr<memory> {
     v48 = or v45, v47
     sstore v3, v48 !metadata(storage=symbolic(v3))
     jump bb11
-  bb9:
+  bb9:  ; preds = bb7
     v35 = storage_array_data_slot v3
     v36 = not 255
     v37 = and v9, v36
@@ -1467,7 +1482,7 @@ fn @_pushPop(arg0: i256, arg1: i256) -> ptr<memory> {
     sstore v35, v39 !metadata(storage=symbolic(v35))
     sstore v3, 65 !metadata(storage=symbolic(v3))
     jump bb11
-  bb8:
+  bb8:  ; preds = bb4
     v19 = add v9, 2
     sstore v3, v19 !metadata(storage=symbolic(v3))
     v20 = storage_array_data_slot v3
@@ -1486,15 +1501,16 @@ fn @_pushPop(arg0: i256, arg1: i256) -> ptr<memory> {
     v33 = or v29, v32
     sstore v22, v33 !metadata(storage=symbolic(v22))
     jump bb11
-  bb11:
+  bb11:  ; preds = bb8, bb9, bb10
     jump bb6
-  bb6:
+  bb6:  ; preds = bb11
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v49 = checked_add uint256, v2, 1
     jump bb1
 }
 
+; function pushZeroRead(uint256 len) external returns (bytes1 got, bytes32 header) [selector 0x421e4f69]
 fn @pushZeroRead(arg0: i256) -> struct3 [selector=0x421e4f69, abi_params=[uint256], abi_returns=[word<bytes1>, word], abi_return_params=[bytes1, bytes32]] {
   bb0:
     v0 = mod arg0, 32
@@ -1515,10 +1531,10 @@ fn @pushZeroRead(arg0: i256) -> struct3 [selector=0x421e4f69, abi_params=[uint25
     icall panic_if<0x41>, v12
     v13 = gt v10, 31
     jumpi v13, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v19 = eq v10, 31
     jumpi v19, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb1
     v25 = sub 32, v11
     v26 = mul v25, 8
     v27 = shl 1, v26
@@ -1529,7 +1545,7 @@ fn @pushZeroRead(arg0: i256) -> struct3 [selector=0x421e4f69, abi_params=[uint25
     v32 = or v30, v31
     sstore 0, v32 !metadata(storage=slot(0))
     jump bb5
-  bb3:
+  bb3:  ; preds = bb1
     v20 = storage_array_data_slot 0
     v21 = not 255
     v22 = and v4, v21
@@ -1538,7 +1554,7 @@ fn @pushZeroRead(arg0: i256) -> struct3 [selector=0x421e4f69, abi_params=[uint25
     v24 = or v23, 1
     sstore 0, v24 !metadata(storage=slot(0))
     jump bb5
-  bb2:
+  bb2:  ; preds = bb0
     v14 = shl v11, 1
     v15 = or v14, 1
     sstore 0, v15 !metadata(storage=slot(0))
@@ -1546,7 +1562,7 @@ fn @pushZeroRead(arg0: i256) -> struct3 [selector=0x421e4f69, abi_params=[uint25
     v17 = shr v10, 5
     v18 = add v16, v17
     jump bb5
-  bb5:
+  bb5:  ; preds = bb2, bb3, bb4
     v33 = phi [bb2: v18], [bb3: v20], [bb4: 0]
     v34 = and v10, 31
     v35 = sub 31, v34
@@ -1560,6 +1576,7 @@ fn @pushZeroRead(arg0: i256) -> struct3 [selector=0x421e4f69, abi_params=[uint25
     ret v42
 }
 
+; function pushZeroReadLong(uint256 n) external returns (bytes1 got, bytes32 header, bytes32 word) [selector 0x18e52e09]
 fn @pushZeroReadLong(arg0: i256) -> struct1 [selector=0x18e52e09, abi_params=[uint256], abi_returns=[word<bytes1>, word, word], abi_return_params=[bytes1, bytes32, bytes32]] {
   bb0:
     v0 = mod arg0, 32
@@ -1590,10 +1607,10 @@ fn @pushZeroReadLong(arg0: i256) -> struct1 [selector=0x18e52e09, abi_params=[ui
     icall panic_if<0x41>, v18
     v19 = gt v16, 31
     jumpi v19, bb2, bb1
-  bb1:
+  bb1:  ; preds = bb0
     v25 = eq v16, 31
     jumpi v25, bb3, bb4
-  bb4:
+  bb4:  ; preds = bb1
     v31 = sub 32, v17
     v32 = mul v31, 8
     v33 = shl 1, v32
@@ -1604,7 +1621,7 @@ fn @pushZeroReadLong(arg0: i256) -> struct1 [selector=0x18e52e09, abi_params=[ui
     v38 = or v36, v37
     sstore 0, v38 !metadata(storage=slot(0))
     jump bb5
-  bb3:
+  bb3:  ; preds = bb1
     v26 = storage_array_data_slot 0
     v27 = not 255
     v28 = and v10, v27
@@ -1613,7 +1630,7 @@ fn @pushZeroReadLong(arg0: i256) -> struct1 [selector=0x18e52e09, abi_params=[ui
     v30 = or v29, 1
     sstore 0, v30 !metadata(storage=slot(0))
     jump bb5
-  bb2:
+  bb2:  ; preds = bb0
     v20 = shl v17, 1
     v21 = or v20, 1
     sstore 0, v21 !metadata(storage=slot(0))
@@ -1621,7 +1638,7 @@ fn @pushZeroReadLong(arg0: i256) -> struct1 [selector=0x18e52e09, abi_params=[ui
     v23 = shr v16, 5
     v24 = add v22, v23
     jump bb5
-  bb5:
+  bb5:  ; preds = bb2, bb3, bb4
     v39 = phi [bb2: v24], [bb3: v26], [bb4: 0]
     v40 = and v16, 31
     v41 = sub 31, v40
@@ -1640,19 +1657,20 @@ fn @pushZeroReadLong(arg0: i256) -> struct1 [selector=0x18e52e09, abi_params=[ui
     ret v52
 }
 
+; function pushPopWords(uint256 n) external returns (uint256, uint256) [selector 0x068eaf65]
 fn @pushPopWords(arg0: i256) -> struct3 [selector=0x068eaf65, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v2]
     v3 = phi [bb0: 0], [bb3: v24]
     v4 = lt v3, v0
     jumpi v4, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     v25 = sload 4 !metadata(storage=slot(4))
     v26 = eq v25, 0
     icall panic_if<0x31>, v26
@@ -1692,7 +1710,7 @@ fn @pushPopWords(arg0: i256) -> struct3 [selector=0x068eaf65, abi_params=[uint25
     v57 = insert_value struct3, undef struct3, 0, v41
     v58 = insert_value struct3, v57, 1, v56
     ret v58
-  bb4:
+  bb4:  ; preds = bb1
     v5 = checked_add uint256, v3, 1
     v6 = trunc i256 v5 to i8
     v7 = sload 4 !metadata(storage=slot(4))
@@ -1716,9 +1734,9 @@ fn @pushPopWords(arg0: i256) -> struct3 [selector=0x068eaf65, abi_params=[uint25
     sstore v12, v23 !metadata(storage=symbolic(v12))
     sstore 4, v9 !metadata(storage=slot(4))
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v24 = checked_add uint256, v3, 1
     jump bb1
 }

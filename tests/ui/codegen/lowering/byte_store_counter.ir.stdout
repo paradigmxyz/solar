@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/byte_store_counter.sol:ByteStoreCounter (runtime) ===
 @module ByteStoreCounter_runtime
-bb0:
+bb0:  ; runtime dispatch entry
   callvalue
   push bb8
   jumpi
@@ -102,10 +102,10 @@ bb82 [cold]:
   push 36
   push 28
   revert
-bb73 [cold]:
+bb73 [cold]:  ; revert_stub (synthesized)
   push 65
   jump bb82
-bb9:
+bb9:  ; function encode(bytes memory input) public pure returns (bytes memory) [selector 0x12496a1b]
   push 160
   push 64
   mstore
@@ -117,7 +117,7 @@ bb9:
   push 4
   push bb11
   jump bb74
-bb74 [ret=0, inputs=2, outputs=1]:
+bb74 [ret=0, inputs=2, outputs=1]:  ; decode_calldata_type (synthesized)
   swap 1
   calldataload
   push 4
@@ -138,17 +138,17 @@ bb74 [ret=0, inputs=2, outputs=1]:
   push 63
   dup 3
   add
+  push 31
+  not
+  and
   dup 3
   dup 2
   lt
   push bb73
   jumpi
-  push 31
-  not
-  and
   push bb77
   jump bb81
-bb81 [ret=0, inputs=2, outputs=1]:
+bb81 [ret=0, inputs=2, outputs=1]:  ; alloc (synthesized)
   push 64
   mload
   swap 2
@@ -169,7 +169,7 @@ bb81 [ret=0, inputs=2, outputs=1]:
 bb11 [continuation]:
   push bb12
   jump bb55
-bb55 [ret=0, inputs=2, outputs=1]:
+bb55 [ret=0, inputs=2, outputs=1]:  ; function encodeImpl(bytes memory input) internal pure returns (bytes memory out)
   dup 2
   mload
   dup 1
@@ -182,14 +182,14 @@ bb55 [ret=0, inputs=2, outputs=1]:
   dup 1
   push 63
   add
+  push 31
+  not
+  and
   dup 2
   dup 2
   lt
   push bb73
   jumpi
-  push 31
-  not
-  and
   dup 1
   push bb58
   jump bb81
@@ -222,7 +222,7 @@ bb12 [continuation]:
   add
   swap 1
   return
-bb14:
+bb14:  ; function encodeTwice(bytes memory input) public pure returns (bytes memory) [selector 0xf58df096]
   push 160
   push 64
   mstore
@@ -237,7 +237,7 @@ bb14:
 bb16 [continuation]:
   push bb11
   jump bb55
-bb20:
+bb20:  ; function scan(bytes memory input) public pure returns (bool) [selector 0x43f8e26b]
   push 128
   push 64
   mstore
@@ -252,7 +252,7 @@ bb20:
 bb22 [continuation]:
   push bb23
   jump bb67
-bb67 [loop, ret=0, inputs=2, outputs=1]:
+bb67 [loop, ret=0, inputs=2, outputs=1]:  ; function scanImpl(bytes memory input) internal pure returns (bool)
   swap 1
   push 32
   dup 2
@@ -279,7 +279,7 @@ bb23 [continuation]:
   push 32
   push 0
   return
-bb25:
+bb25:  ; function twice(bytes memory first, bytes memory second) public pure returns (bool, bool) [selector 0xbca4d4a4]
   push 128
   push 64
   mstore
@@ -312,7 +312,7 @@ bb30 [continuation]:
   push 64
   push 0
   return
-bb32:
+bb32:  ; function firstHigh(bytes memory input) public pure returns (uint256) [selector 0xec31a730]
   push 128
   push 64
   mstore
@@ -363,7 +363,7 @@ bb39 [loop]:
   push 32
   push 0
   return
-bb41 [loop]:
+bb41 [loop]:  ; function checkedScan(uint256 length) public pure returns (bool) [selector 0xf2609747]
   push 36
   calldatasize
   lt
@@ -374,14 +374,14 @@ bb41 [loop]:
   push 63
   dup 2
   add
+  push 31
+  not
+  and
   dup 2
   dup 2
   lt
   push bb73
   jumpi
-  push 31
-  not
-  and
   push 128
   dup 2
   dup 2

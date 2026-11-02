@@ -4,6 +4,7 @@
   struct0: {i256, i256, i256}
   struct1: {i256, i256}
 
+; function storeLong() external returns (bytes32 first, bytes32 last, uint256 length) [selector 0xc4a6ec73]
 fn @storeLong() -> struct0 [selector=0xc4a6ec73, abi_params=[], abi_returns=[word, word, word], abi_return_params=[bytes32, bytes32, uint256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -36,6 +37,7 @@ fn @storeLong() -> struct0 [selector=0xc4a6ec73, abi_params=[], abi_returns=[wor
     ret v19
 }
 
+; function storeShort() external returns (bytes32 slot, uint256 length) [selector 0x5296e6c1]
 fn @storeShort() -> struct1 [selector=0x5296e6c1, abi_params=[], abi_returns=[word, word], abi_return_params=[bytes32, uint256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)

@@ -6,9 +6,9 @@
       v0 = shl arg0, 96
       v1 = eq v0, 0
       jumpi v1, bb1, bb2
-    bb2:
+    bb2 [cold]:  ; preds = bb0
       revert 0, 0
-    bb1:
+    bb1:  ; preds = bb0
 -     v2 = and arg0, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
 -     mstore 0, v2
 +     mstore 0, arg0
@@ -20,9 +20,9 @@
       v0 = shl arg0, 128
       v1 = eq v0, 0
       jumpi v1, bb1, bb2
-    bb2:
+    bb2 [cold]:  ; preds = bb0
       revert 0, 0
-    bb1:
+    bb1:  ; preds = bb0
 -     v2 = and arg0, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
 -     mstore 0, v2
 +     mstore 0, arg0
@@ -34,9 +34,9 @@
       v0 = shl arg0, 32
       v1 = eq v0, 0
       jumpi v1, bb1, bb2
-    bb2:
+    bb2 [cold]:  ; preds = bb0
       revert 0, 0
-    bb1:
+    bb1:  ; preds = bb0
 -     v2 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
 -     mstore 0, v2
 +     mstore 0, arg0
@@ -48,9 +48,9 @@
       v0 = shl arg0, 96
       v1 = eq v0, 0
       jumpi v1, bb1, bb2
-    bb2:
+    bb2 [cold]:  ; preds = bb0
       revert 0, 0
-    bb1:
+    bb1:  ; preds = bb0
 -     v2 = and arg0, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
 -     mstore 0, v2
 +     mstore 0, arg0
@@ -62,9 +62,9 @@
       v0 = shl arg0, 128
       v1 = eq v0, 0
       jumpi v1, bb1, bb2
-    bb2:
+    bb2 [cold]:  ; preds = bb0
       revert 0, 0
-    bb1:
+    bb1:  ; preds = bb0
       v2 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
       mstore 0, v2
       returndata 0, 32
@@ -75,11 +75,11 @@
       v0 = shl arg0, 96
       v1 = eq v0, 0
       jumpi v1, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       v2 = and arg0, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
       mstore 0, v2
       returndata 0, 32
-    bb1:
+    bb1 [cold]:  ; preds = bb0
       revert 0, 0
   }
   
@@ -88,9 +88,9 @@
       v0 = shl arg0, 96
       v1 = eq v0, 0
       jumpi v1, bb1, bb2
-    bb2:
+    bb2 [cold]:  ; preds = bb0
       revert 0, 0
-    bb1:
+    bb1:  ; preds = bb0
       v2 = and arg0, 0xffffffffffffffffffffffff00ff0000000000000000000000000000000000ff
       mstore 0, v2
       returndata 0, 32
@@ -101,9 +101,9 @@
       v0 = shl arg0, 97
       v1 = eq v0, 0
       jumpi v1, bb1, bb2
-    bb2:
+    bb2 [cold]:  ; preds = bb0
       revert 0, 0
-    bb1:
+    bb1:  ; preds = bb0
       v2 = and arg0, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
       mstore 0, v2
       returndata 0, 32
@@ -114,9 +114,9 @@
       v0 = shl arg0, 256
       v1 = eq v0, 0
       jumpi v1, bb1, bb2
-    bb2:
+    bb2 [cold]:  ; preds = bb0
       revert 0, 0
-    bb1:
+    bb1:  ; preds = bb0
       v2 = and arg0, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
       mstore 0, v2
       returndata 0, 32
@@ -128,9 +128,9 @@
       v1 = shl arg0, 64
       v2 = eq v1, 0
       jumpi v2, bb1, bb2
-    bb2:
+    bb2 [cold]:  ; preds = bb0
       revert 0, 0
-    bb1:
+    bb1:  ; preds = bb0
 -     v3 = and 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000, arg0
 -     mstore 0, v3
 +     mstore 0, arg0

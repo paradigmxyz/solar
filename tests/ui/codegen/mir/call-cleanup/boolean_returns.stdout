@@ -5,11 +5,11 @@
     bb0:
       v0 = lt arg0, 128
       jumpi v0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
       v1 = phi [bb1: 1], [bb2: 0]
       v2 = ne v1, 0
       ret v2
@@ -58,10 +58,10 @@
     bb0:
       v0 = lt arg0, 5
       jumpi v0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       v1 = ne 2, 0
       ret v1
-    bb1:
+    bb1:  ; preds = bb0
       ret true
   }
   
@@ -78,11 +78,11 @@
     bb0:
       v0 = eq arg0, 0
       jumpi v0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
       v1 = phi [bb1: 0], [bb2: 1]
       ret v1
   }
@@ -103,19 +103,19 @@
       tail_call @raw_clean, arg0
   }
   
-  fn @revert_stub() {
-    bb0:
+  fn @revert_stub() [cold] {
+    bb0 [cold]:
       revert 0, 0
   }
   
   fn @raw_guarded(arg0: i256, arg1: i1) -> i256 {
     bb0:
       jumpi arg1, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       v0 = lt arg0, 5
       v1 = zext i1 v0 to i256
       ret v1
-    bb1:
+    bb1 [cold]:  ; preds = bb0
       tail_call @revert_stub
   }
   
@@ -266,11 +266,11 @@
     bb0:
       v0 = lt arg0, 128
       jumpi v0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
       v1 = phi [bb1: 1], [bb2: 0]
       v2 = ne v1, 0
       ret v2
@@ -313,10 +313,10 @@
     bb0:
       v0 = lt arg0, 5
       jumpi v0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       v1 = ne 2, 0
       ret v1
-    bb1:
+    bb1:  ; preds = bb0
       ret true
   }
   
@@ -331,11 +331,11 @@
     bb0:
       v0 = eq arg0, 0
       jumpi v0, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
       v1 = phi [bb1: 0], [bb2: 1]
       ret v1
   }
@@ -356,19 +356,19 @@
       tail_call @raw_clean, arg0
   }
   
-  fn @revert_stub() {
-    bb0:
+  fn @revert_stub() [cold] {
+    bb0 [cold]:
       revert 0, 0
   }
   
   fn @raw_guarded(arg0: i256, arg1: i1) -> i256 {
     bb0:
       jumpi arg1, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       v0 = lt arg0, 5
       v1 = zext i1 v0 to i256
       ret v1
-    bb1:
+    bb1 [cold]:  ; preds = bb0
       tail_call @revert_stub
   }
   

@@ -1,29 +1,34 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_external_param_bounds.sol:Bounds ===
 @module Bounds
+; function bytesMemory(bytes memory value) external pure returns (uint256) [selector 0x0d39c72c]
 fn @bytesMemory(arg0: ptr<memory>) -> i256 [selector=0x0d39c72c, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mload arg0
     ret v0
 }
 
+; function wordsMemory(uint256[] memory value) external pure returns (uint256) [selector 0xb59b137f]
 fn @wordsMemory(arg0: ptr<memory>) -> i256 [selector=0xb59b137f, pure, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mload arg0
     ret v0
 }
 
+; function bytesCalldata(bytes calldata value) external pure returns (uint256) [selector 0x616c46ff]
 fn @bytesCalldata(arg0: slice<calldata>) -> i256 [selector=0x616c46ff, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     ret v0
 }
 
+; function wordsCalldata(uint256[] calldata value) external pure returns (uint256) [selector 0x6918e29e]
 fn @wordsCalldata(arg0: slice<calldata>) -> i256 [selector=0x6918e29e, pure, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     ret v0
 }
 
+; function dynamicStruct(Dynamic memory value) external pure returns (uint256) [selector 0xb47f1a21]
 fn @dynamicStruct(arg0: ptr<memory>) -> i256 [selector=0xb47f1a21, pure, abi_params=[tuple<bytes>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mload arg0, ptr<memory>
@@ -31,6 +36,7 @@ fn @dynamicStruct(arg0: ptr<memory>) -> i256 [selector=0xb47f1a21, pure, abi_par
     ret v1
 }
 
+; function wideDynamic(WideDynamic memory value) external pure returns (uint256) [selector 0xe16c8534]
 fn @wideDynamic(arg0: ptr<memory>) -> i256 [selector=0xe16c8534, pure, abi_params=[tuple<uint256, bytes>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = ptradd arg0, 32
@@ -39,6 +45,7 @@ fn @wideDynamic(arg0: ptr<memory>) -> i256 [selector=0xe16c8534, pure, abi_param
     ret v2
 }
 
+; function staticStructs(StaticPair[] memory values) external pure returns (uint256) [selector 0xb2bb789c]
 fn @staticStructs(arg0: ptr<memory>) -> i256 [selector=0xb2bb789c, pure, abi_params=[array<_, tuple<uint256, address>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = mload arg0

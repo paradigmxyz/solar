@@ -1,11 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_shared_expression.sol:HeapPrefixSharedExpression ===
 @module HeapPrefixSharedExpression
+; function run(uint256 value) external pure returns (uint256) [selector 0xa444f5e9]
 fn @run(arg0: i256) -> i256 [selector=0xa444f5e9, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @repeated, arg0
     ret v0
 }
 
+; function repeated(uint256 value) public pure returns (uint256) [selector 0x0abef8a2]
 fn @repeated(arg0: i256) -> i256 [selector=0x0abef8a2, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = add arg0, arg0

@@ -20,7 +20,7 @@
 use crate::{
     backend::evm::{ir::compact_pushes, op, select},
     mir::{
-        BlockId, Function, InstId, Op, Terminator, Value, ValueId, analysis::AddressSpace,
+        BlockId, Function, Hotness, InstId, Op, Terminator, Value, ValueId, analysis::AddressSpace,
         memory::EvmMemoryLayout,
     },
 };
@@ -273,10 +273,17 @@ impl Target {
     /// size build: bytes first. Size builds already rank bytes first, and `-O none` keeps its
     /// own model.
     pub(crate) const fn priced_for_cold(self, cold: bool) -> Self {
-        if !cold || !self.optimization.is_gas() {
+        if !self.ignores_cold_gas(cold) {
             return self;
         }
         Self { optimization: OptimizationMode::Size, ..self }
+    }
+
+    /// The gas a call to shared code adds to a site's execution, `gas` unless `cold` code is
+    /// priced differently by [`Self::priced_for_cold`]: a cold site is ranked by bytes alone,
+    /// so it pays nothing.
+    pub(crate) const fn site_gas(self, cold: bool, gas: u32) -> u32 {
+        if self.ignores_cold_gas(cold) { 0 } else { gas }
     }
 
     /// Whether a bare `@custom:solar-inline` admits a clone that adds `added_bytes` and removes
@@ -325,10 +332,23 @@ impl Target {
         self.expected_executions
     }
 
+    /// The weight of a block of `hotness` outside every loop. Gas in a cold block is not paid by a
+    /// call that succeeds, so the gas objective weighs it at zero, whatever loops enclose it, and
+    /// only its bytes count. Other objectives weigh every block alike.
+    pub(crate) const fn block_weight(&self, hotness: Hotness) -> u32 {
+        if self.ignores_cold_gas(hotness.is_cold()) { 0 } else { 1 }
+    }
+
     /// The weight of a block inside one more loop than a block of weight `weight`.
     pub(crate) const fn nested_block_weight(weight: u32) -> u32 {
         let weight = weight.saturating_mul(Self::LOOP_BLOCK_WEIGHT);
         if weight < Self::MAX_BLOCK_WEIGHT { weight } else { Self::MAX_BLOCK_WEIGHT }
+    }
+
+    /// Whether the gas of `cold` code is ignored: only the gas objective does, as it ranks cold
+    /// code by bytes.
+    const fn ignores_cold_gas(&self, cold: bool) -> bool {
+        cold && self.optimization.is_gas()
     }
 
     /// Whether the build expects enough executions to copy loop bodies for runtime gas.
@@ -1553,6 +1573,19 @@ mod tests {
     }
 
     #[test]
+    fn cold_blocks_weigh_nothing_for_gas_only() {
+        let target = |optimization| Target::with(EvmVersion::Osaka, optimization, 200);
+        let gas = target(OptimizationMode::Gas);
+        assert_eq!(gas.block_weight(Hotness::Hot), 1);
+        assert_eq!(gas.block_weight(Hotness::Cold), 0);
+        // A cold loop stays at zero.
+        assert_eq!(Target::nested_block_weight(gas.block_weight(Hotness::Cold)), 0);
+        for optimization in [OptimizationMode::Size, OptimizationMode::None] {
+            assert_eq!(target(optimization).block_weight(Hotness::Cold), 1);
+        }
+    }
+
+    #[test]
     fn nested_block_weights() {
         assert_eq!(Target::nested_block_weight(1), 8);
         assert_eq!(Target::nested_block_weight(64), 512);
@@ -1645,6 +1678,10 @@ mod tests {
         assert_eq!(gas.priced_for_cold(false), gas);
         assert_eq!(size.priced_for_cold(true), size);
         assert_eq!(none.priced_for_cold(true), none);
+        assert_eq!(gas.site_gas(false, 7), 7);
+        assert_eq!(gas.site_gas(true, 7), 0);
+        assert_eq!(size.site_gas(true, 7), 7);
+        assert_eq!(none.site_gas(true, 7), 7);
     }
 
     #[test]

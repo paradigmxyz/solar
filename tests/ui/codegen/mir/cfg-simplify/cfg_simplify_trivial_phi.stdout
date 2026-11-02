@@ -4,13 +4,13 @@
   fn @fold_same_value_phi(arg0: i256, arg1: i1) -> i256 {
     bb0:
       jumpi arg1, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       log 0, 0
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       log 0, 0
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
 -     v0 = phi [bb1: arg0], [bb2: arg0]
 -     ret v0
 +     ret arg0
@@ -19,13 +19,13 @@
   fn @fold_self_incoming_phi(arg0: i256, arg1: i1) -> i256 {
     bb0:
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
 -     v0 = phi [bb0: arg0], [bb2: v0]
       jumpi arg1, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
 -     ret v0
 +     ret arg0
-    bb2:
+    bb2:  ; preds = bb1
       log 0, 0
       jump bb1
   }
@@ -36,24 +36,24 @@
   fn @fold_same_value_phi(arg0: i256, arg1: i1) -> i256 {
     bb0:
       jumpi arg1, bb1, bb2
-    bb2:
+    bb2:  ; preds = bb0
       log 0, 0
       jump bb3
-    bb1:
+    bb1:  ; preds = bb0
       log 0, 0
       jump bb3
-    bb3:
+    bb3:  ; preds = bb1, bb2
       ret arg0
   }
   
   fn @fold_self_incoming_phi(arg0: i256, arg1: i1) -> i256 {
     bb0:
       jump bb1
-    bb1:
+    bb1:  ; preds = bb0, bb2
       jumpi arg1, bb2, bb3
-    bb3:
+    bb3:  ; preds = bb1
       ret arg0
-    bb2:
+    bb2:  ; preds = bb1
       log 0, 0
       jump bb1
   }

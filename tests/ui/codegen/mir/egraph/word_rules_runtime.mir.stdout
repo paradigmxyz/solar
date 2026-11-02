@@ -5,6 +5,7 @@
   struct1: {i256, i256, i256, i256, i256, i256, i256, i256, i256}
   struct2: {i256, i256, i256, i256, i256}
 
+; function inequalities(uint256 x, uint256 y, bool flag) external pure returns ( bool direct, bool difference, bool bits, bool inverted, bool boolean, bool bounded ) [selector 0xca51df96]
 fn @inequalities(arg0: i256, arg1: i256, arg2: i1) -> struct0 [selector=0xca51df96, pure, abi_params=[uint256, uint256, bool], abi_returns=[word<bool>, word<bool>, word<bool>, word<bool>, word<bool>, word<bool>], abi_return_params=[bool, bool, bool, bool, bool, bool]] {
   bb0:
     v0 = ne arg0, arg1
@@ -28,6 +29,7 @@ fn @inequalities(arg0: i256, arg1: i256, arg2: i1) -> struct0 [selector=0xca51df
     ret v17
 }
 
+; function mixed(uint256 x, uint256 y) external pure returns ( uint256 a, uint256 b, uint256 c, uint256 d, uint256 e, uint256 f, uint256 g, uint256 h, uint256 i ) [selector 0xce4cbe4b]
 fn @mixed(arg0: i256, arg1: i256) -> struct1 [selector=0xce4cbe4b, pure, abi_params=[uint256, uint256], abi_returns=[word, word, word, word, word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = xor arg0, arg1
@@ -69,6 +71,7 @@ fn @mixed(arg0: i256, arg1: i256) -> struct1 [selector=0xce4cbe4b, pure, abi_par
     ret v35
 }
 
+; function arithmetic(uint256 x, uint256 y) external pure returns ( uint256 a, uint256 b, uint256 c, uint256 d, uint256 e ) [selector 0x6cbb5ae3]
 fn @arithmetic(arg0: i256, arg1: i256) -> struct2 [selector=0x6cbb5ae3, pure, abi_params=[uint256, uint256], abi_returns=[word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = not 0
@@ -91,6 +94,7 @@ fn @arithmetic(arg0: i256, arg1: i256) -> struct2 [selector=0x6cbb5ae3, pure, ab
     ret v16
 }
 
+; function guards(uint256 x, uint256 y) external pure returns ( uint256 a, uint256 b, uint256 c, uint256 d, uint256 e ) [selector 0x98aa2c32]
 fn @guards(arg0: i256, arg1: i256) -> struct2 [selector=0x98aa2c32, pure, abi_params=[uint256, uint256], abi_returns=[word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = mul arg0, 2

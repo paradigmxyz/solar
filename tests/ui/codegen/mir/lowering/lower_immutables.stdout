@@ -5,6 +5,7 @@
     first: uint8
     second: bool
   
+  ; creation entry
   fn @constructor(arg0: i256, arg1: i1) -> i256 [constructor] {
     bb0:
       v0 = trunc i256 arg0 to i8
@@ -19,6 +20,15 @@
       ret v2
   }
   
+  ; runtime dispatch entry
+  fn @router() [entry] {
+    bb0:
+      v0 = trunc i256 3 to i8
+      storeimmutable first, v0
+      stop
+  }
+  
+  ; selector 0x00000001
   fn @runtime() [selector=0x00000001] {
     bb0:
       v0 = trunc i256 1 to i8
@@ -32,13 +42,6 @@
 -     storeimmutable first, v0
 +     v1 = zext i8 v0 to i256
 +     mstore 192, v1
-      stop
-  }
-  
-  fn @router() [entry] {
-    bb0:
-      v0 = trunc i256 3 to i8
-      storeimmutable first, v0
       stop
   }
   

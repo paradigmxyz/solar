@@ -6,7 +6,7 @@
 // site, so it is consumed.
 // CHECK-LABEL: fn @store_caller
 // CHECK-NOT: {{^[ +].*}}icall @store_max
-// CHECK: + mstore arg0, arg1
+// CHECK: {{^[ +].*}}mstore arg0, arg1
 fn @store_caller(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = icall @store_max, arg0, arg1

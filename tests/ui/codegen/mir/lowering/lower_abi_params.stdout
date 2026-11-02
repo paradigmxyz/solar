@@ -1,6 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_params.mir (before lower-abi) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_params.mir (after lower-abi) ===
   @module LowerAbiParams
+  ; selector 0x12345678
 - fn @read(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0x12345678, abi_params=[array<3, uint256>, uint256], abi_returns=[word]] {
 + fn @read() [selector=0x12345678, abi_wrapper] {
     bb0:
@@ -8,16 +9,17 @@
 +     v0 = calldatasize
 +     v1 = lt v0, 132
 +     jumpi v1, bb2, bb3
-+   bb3:
++   bb3:  ; preds = bb0
 +     jump bb1
-+   bb1:
++   bb1:  ; preds = bb3
 +     mstore 0, arg3 !metadata(memory=scratch)
 +     v2 = sub 32, 0
 +     returndata 0, v2
-+   bb2:
++   bb2 [cold]:  ; preds = bb0
 +     revert 0, 0
   }
   
+  ; selector 0x12345679
 - fn @read_words(arg0: ptr<memory>) -> i256 [selector=0x12345679, abi_params=[tuple<array<_, uint256>, uint256>], abi_returns=[word]] {
 + fn @read_words() [selector=0x12345679, abi_wrapper] {
     bb0:
@@ -25,17 +27,17 @@
 +     v6 = calldatasize
 +     v7 = lt v6, 36
 +     jumpi v7, bb2, bb3
-+   bb3:
++   bb3:  ; preds = bb0
 +     v8 = calldataload 4
 +     v9 = add 4, v8
 +     v10 = sub v6, 4
 +     v11 = gt v8, v10
 +     jumpi v11, bb4, bb5
-+   bb5:
++   bb5:  ; preds = bb3
 +     v12 = sub v6, v9
 +     v13 = gt 64, v12
 +     jumpi v13, bb4, bb6
-+   bb6:
++   bb6:  ; preds = bb5
 +     v14 = alloc 96
 +     v15 = calldataload v9
 +     v16 = add v9, v15
@@ -43,12 +45,12 @@
 +     v18 = sub v17, 32
 +     v19 = gt v15, v18
 +     jumpi v19, bb4, bb7
-+   bb7:
++   bb7:  ; preds = bb6
 +     v20 = calldataload v16
 +     v21 = add v16, 32
 +     v22 = gt v20, 0x7fffffffffffffe
 +     jumpi v22, bb8, bb9
-+   bb9:
++   bb9:  ; preds = bb7
 +     v23 = add v20, 1
 +     v24 = mul v23, 32
 +     v25 = alloc checked v24
@@ -58,7 +60,7 @@
 +     v28 = shr v27, 5
 +     v29 = gt v20, v28
 +     jumpi v29, bb4, bb10
-+   bb10:
++   bb10:  ; preds = bb9
 +     v30 = inttoptr i256 v21 to ptr<calldata>
 +     v31 = make_calldata_slice v30, v26
 +     v32 = ptradd v25, 32
@@ -74,7 +76,7 @@
 +     v39 = ptradd v14, 64
 +     mstore v39, v9
 +     jump bb1
-+   bb1:
++   bb1:  ; preds = bb10
 +     v0 = mload v14
       v1 = inttoptr i256 v0 to ptr<memory>
       v2 = mload v1
@@ -86,16 +88,17 @@
 +     mstore 0, v5 !metadata(memory=scratch)
 +     v40 = sub 32, 0
 +     returndata 0, v40
-+   bb8:
++   bb8 [cold]:  ; preds = bb7
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
-+   bb4:
++   bb4 [cold]:  ; preds = bb3, bb5, bb6, bb9
 +     revert 0, 0
-+   bb2:
++   bb2 [cold]:  ; preds = bb0
 +     revert 0, 0
   }
   
+  ; selector 0x12345680
 - fn @read_address(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0x12345680, abi_params=[array<3, uint256>, address], abi_returns=[word]] {
 + fn @read_address() [selector=0x12345680, abi_wrapper] {
     bb0:
@@ -105,22 +108,23 @@
 +     v2 = calldatasize
 +     v3 = lt v2, 132
 +     jumpi v3, bb2, bb3
-+   bb3:
++   bb3:  ; preds = bb0
 +     v4 = calldataload 100
 +     v5 = shr v4, 160
 +     v6 = eq v5, 0
 +     jumpi v6, bb4, bb2
-+   bb4:
++   bb4:  ; preds = bb3
 +     jump bb1
-+   bb1:
++   bb1:  ; preds = bb4
 +     v0 = trunc i256 arg3 to i160
 +     mstore 0, arg3
 +     v7 = sub 32, 0
 +     returndata 0, v7
-+   bb2:
++   bb2 [cold]:  ; preds = bb0, bb3
 +     revert 0, 0
   }
   
+  ; selector 0x12345686
 - fn @read_after_huge(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0x12345686, abi_params=[array<134217727, uint256>, uint256], abi_returns=[word]] {
 + fn @read_after_huge() [selector=0x12345686, abi_wrapper] {
     bb0:
@@ -128,31 +132,32 @@
 +     v0 = calldatasize
 +     v1 = lt v0, 0x100000004
 +     jumpi v1, bb2, bb3
-+   bb3:
++   bb3:  ; preds = bb0
 +     v2 = calldataload 0xffffffe4
 +     jump bb1
-+   bb1:
++   bb1:  ; preds = bb3
 +     mstore 0, v2 !metadata(memory=scratch)
 +     v3 = sub 32, 0
 +     returndata 0, v3
-+   bb2:
++   bb2 [cold]:  ; preds = bb0
 +     revert 0, 0
   }
   
+  ; selector 0x12345681
 - fn @address_is_zero(arg0: i256) -> i1 [selector=0x12345681, abi_params=[address], abi_returns=[word]] {
 + fn @address_is_zero() [selector=0x12345681, abi_wrapper] {
     bb0:
 +     v2 = calldatasize
 +     v3 = lt v2, 36
 +     jumpi v3, bb2, bb3
-+   bb3:
++   bb3:  ; preds = bb0
 +     v4 = calldataload 4
 +     v5 = shr v4, 160
 +     v6 = eq v5, 0
 +     jumpi v6, bb4, bb2
-+   bb4:
++   bb4:  ; preds = bb3
 +     jump bb1
-+   bb1:
++   bb1:  ; preds = bb4
       v0 = trunc i256 arg0 to i160
 -     v1 = eq v0, i160 0
 -     ret v1
@@ -162,49 +167,51 @@
 +     mstore 0, v8 !metadata(memory=scratch)
 +     v9 = sub 32, 0
 +     returndata 0, v9
-+   bb2:
++   bb2 [cold]:  ; preds = bb0, bb3
 +     revert 0, 0
   }
   
+  ; selector 0x12345682
 - fn @dirty_address(arg0: i256) -> i256 [selector=0x12345682, abi_params=[uint256], abi_returns=[word]] {
 + fn @dirty_address() [selector=0x12345682, abi_wrapper] {
     bb0:
 +     v2 = calldatasize
 +     v3 = lt v2, 36
 +     jumpi v3, bb2, bb3
-+   bb3:
++   bb3:  ; preds = bb0
 +     jump bb1
-+   bb1:
++   bb1:  ; preds = bb3
       v0 = trunc i256 arg0 to i160
       v1 = zext i160 v0 to i256
 -     ret v1
 +     mstore 0, v1 !metadata(memory=scratch)
 +     v4 = sub 32, 0
 +     returndata 0, v4
-+   bb2:
++   bb2 [cold]:  ; preds = bb0
 +     revert 0, 0
   }
   
+  ; selector 0x12345683
 - fn @validated_forward(arg0: i256) -> i256 [selector=0x12345683, abi_params=[address], abi_returns=[word]] {
 + fn @validated_forward() [selector=0x12345683, abi_wrapper] {
     bb0:
 +     v1 = calldatasize
 +     v2 = lt v1, 36
 +     jumpi v2, bb2, bb3
-+   bb3:
++   bb3:  ; preds = bb0
 +     v3 = calldataload 4
 +     v4 = shr v3, 160
 +     v5 = eq v4, 0
 +     jumpi v5, bb4, bb2
-+   bb4:
++   bb4:  ; preds = bb3
 +     jump bb1
-+   bb1:
++   bb1:  ; preds = bb4
       v0 = icall @validated_leaf, arg0
 -     ret v0
 +     mstore 0, v0 !metadata(memory=scratch)
 +     v6 = sub 32, 0
 +     returndata 0, v6
-+   bb2:
++   bb2 [cold]:  ; preds = bb0, bb3
 +     revert 0, 0
   }
   
@@ -216,44 +223,46 @@
 +     ret arg0
   }
   
+  ; selector 0x12345684
 - fn @validated_mixed(arg0: i256) -> i256 [selector=0x12345684, abi_params=[address], abi_returns=[word]] {
 + fn @validated_mixed() [selector=0x12345684, abi_wrapper] {
     bb0:
 +     v1 = calldatasize
 +     v2 = lt v1, 36
 +     jumpi v2, bb2, bb3
-+   bb3:
++   bb3:  ; preds = bb0
 +     v3 = calldataload 4
 +     v4 = shr v3, 160
 +     v5 = eq v4, 0
 +     jumpi v5, bb4, bb2
-+   bb4:
++   bb4:  ; preds = bb3
 +     jump bb1
-+   bb1:
++   bb1:  ; preds = bb4
       v0 = icall @mixed_leaf, arg0
 -     ret v0
 +     mstore 0, v0 !metadata(memory=scratch)
 +     v6 = sub 32, 0
 +     returndata 0, v6
-+   bb2:
++   bb2 [cold]:  ; preds = bb0, bb3
 +     revert 0, 0
   }
   
+  ; selector 0x12345685
 - fn @unvalidated_mixed(arg0: i256) -> i256 [selector=0x12345685, abi_params=[uint256], abi_returns=[word]] {
 + fn @unvalidated_mixed() [selector=0x12345685, abi_wrapper] {
     bb0:
 +     v1 = calldatasize
 +     v2 = lt v1, 36
 +     jumpi v2, bb2, bb3
-+   bb3:
++   bb3:  ; preds = bb0
 +     jump bb1
-+   bb1:
++   bb1:  ; preds = bb3
       v0 = icall @mixed_leaf, arg0
 -     ret v0
 +     mstore 0, v0 !metadata(memory=scratch)
 +     v3 = sub 32, 0
 +     returndata 0, v3
-+   bb2:
++   bb2 [cold]:  ; preds = bb0
 +     revert 0, 0
   }
   
@@ -275,9 +284,9 @@
 +     calldatacopy v1, v4, v5
 +     v6 = eq 1, 0
 +     jumpi v6, bb1, bb2
-+   bb2:
++   bb2:  ; preds = bb0
 +     ret v1
-+   bb1:
++   bb1 [cold]:  ; preds = bb0
 +     revert 0, 0
   }
   

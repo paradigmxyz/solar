@@ -8,6 +8,8 @@
 // `tmp` had no initializer, so the getter returned the wrong slot (slot 0).
 // Runtime-verified against solc.
 contract C {
+    // CHECK-LABEL: fn @constructor{{[( ]}}
+    // CHECK: sstore 0, 1
     uint256 internal counter = 1; // slot 0
 
     struct Item {
@@ -28,7 +30,4 @@ contract C {
     // CHECK: [[RET_2:v[0-9]+]] = insert_value [[RET_TY]], [[RET_1]], 2, {{v[0-9]+}}
     // CHECK: ret [[RET_2]]
     mapping(uint256 => Item) public items; // slot 1
-
-    // CHECK-LABEL: fn @constructor{{[( ]}}
-    // CHECK: sstore 0, 1
 }

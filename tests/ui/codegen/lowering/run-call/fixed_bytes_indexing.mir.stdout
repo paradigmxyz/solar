@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_indexing.sol:C ===
 @module C
+; function at1(bytes1 value, uint256 index) external pure returns (bytes1) [selector 0xc793e4d2]
 fn @at1(arg0: i256, arg1: i256) -> i256 [selector=0xc793e4d2, pure, abi_params=[bytes1, uint256], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     v0 = lt arg1, 1
@@ -10,6 +11,7 @@ fn @at1(arg0: i256, arg1: i256) -> i256 [selector=0xc793e4d2, pure, abi_params=[
     ret v3
 }
 
+; function at7(bytes7 value, uint256 index) external pure returns (bytes1) [selector 0x84f023b5]
 fn @at7(arg0: i256, arg1: i256) -> i256 [selector=0x84f023b5, pure, abi_params=[bytes7, uint256], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     v0 = lt arg1, 7
@@ -20,6 +22,7 @@ fn @at7(arg0: i256, arg1: i256) -> i256 [selector=0x84f023b5, pure, abi_params=[
     ret v3
 }
 
+; function at32(bytes32 value, uint256 index) external pure returns (bytes1) [selector 0xabb4fb46]
 fn @at32(arg0: i256, arg1: i256) -> i256 [selector=0xabb4fb46, pure, abi_params=[bytes32, uint256], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     v0 = lt arg1, 32

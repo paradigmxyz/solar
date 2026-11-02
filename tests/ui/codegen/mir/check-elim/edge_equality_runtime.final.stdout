@@ -1,46 +1,70 @@
 // === ROOT/tests/ui/codegen/mir/check-elim/edge_equality_runtime.sol:EdgeEquality ===
 @module EdgeEquality
 @phase lowered
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:  ; preds = bb0
+    v6 = calldataload 0
+    v7 = shr v6, 224
+    switch v7, default bb1, [0x62b0ae87 => bb3, 0xebf5a899 => bb4]
+  bb4:  ; preds = bb2
+    tail_call @sizes
+  bb3:  ; preds = bb2
+    tail_call @pack
+  bb1 [cold]:  ; preds = bb0, bb2
+    revert 0, 0
+}
+
+; function sizes(bytes memory data) external pure returns (uint256) [selector 0xebf5a899]
 fn @sizes() [selector=0xebf5a899, abi_wrapper, pure] {
   bb0:
     v10 = icall @decode_calldata_type
     v0 = mload v10
     v1 = ne v0, 32
     jumpi v1, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     mstore 0, 65 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:
+  bb1:  ; preds = bb0
     mstore 0, 0 !metadata(memory=scratch)
     returndata 0, 32
 }
 
+; function pack(bytes memory data) external pure returns (bytes memory) [selector 0x62b0ae87]
 fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
   bb0:
-    v26 = icall @decode_calldata_type
-    v0 = mload v26
+    v27 = icall @decode_calldata_type
+    v0 = mload v27
     v1 = eq v0, 64
     jumpi v1, bb2, bb1
-  bb1:
+  bb1 [cold]:  ; preds = bb0
     revert 0, 0
-  bb2:
-    v41 = add v26, 32
-    v55 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v56 = add v55, 128
-    mstore 64, v56 !metadata(memory=scratch)
-    mstore v55, 96
-    v43 = add v55, 32
-    mcopy v43, v41, 64
-    v46 = add v55, 96
-    mstore v46, 64
-    v48 = add v55, 96
-    v49 = add v48, 32
-    mstore v49, 0
-    v36 = add v43, 96
-    mstore v36, 0
-    v51 = sub v55, 32
-    mstore v51, 32
-    returndata v51, 160
+  bb2:  ; preds = bb0
+    v42 = add v27, 32
+    v56 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v57 = add v56, 128
+    mstore 64, v57 !metadata(memory=scratch)
+    mstore v56, 96
+    v44 = add v56, 32
+    mcopy v44, v42, 64
+    v47 = add v56, 96
+    mstore v47, 64
+    v49 = add v56, 96
+    v50 = add v49, 32
+    mstore v50, 0
+    v37 = add v44, 96
+    mstore v37, 0
+    v52 = sub v56, 32
+    mstore v52, 32
+    returndata v52, 160
 }
 
 fn @decode_calldata_type() -> i256 [may_return_memory] {
@@ -51,62 +75,36 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v4 = sub v0, 36
     v5 = gt v1, v4
     jumpi v5, bb1, bb2
-  bb2:
+  bb2:  ; preds = bb0
     v6 = calldataload v2
     v7 = add v2, 32
-    v8 = add v6, 63
-    v9 = lt v8, v6
-    v11 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v29 = heap_floor !metadata(alloc_ptr)
-    v30 = add v29, v11 !metadata(alloc_ptr)
-    v31 = lt v30, v29
-    v32 = zext i1 v31 to i256
-    v33 = shr v30, 64
-    v34 = or v32, v33
-    v37 = zext i1 v9 to i256
-    v38 = or v37, v34
-    v39 = ne v38, 0
-    jumpi v39, bb3, bb5
-  bb5:
-    mstore 64, v30 !metadata(memory=scratch)
-    mstore v29, v6
-    v13 = sub v0, v7
-    v14 = gt v6, v13
-    jumpi v14, bb1, bb4
-  bb4:
-    v25 = add v29, 32
-    calldatacopy v25, v7, v6
-    v22 = sub 0, v6
-    v23 = and v22, 31
-    v36 = calldatasize
-    v26 = add v25, v6
-    calldatacopy v26, v36, v23
-    ret v29
-  bb3:
+    v37 = add v6, 63
+    v11 = and v37, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v12 = lt v11, v6
+    v30 = heap_floor !metadata(alloc_ptr)
+    v31 = add v30, v11 !metadata(alloc_ptr)
+    v32 = lt v31, v30
+    v33 = zext i1 v32 to i256
+    v34 = shr v31, 64
+    v35 = or v33, v34
+    v39 = zext i1 v12 to i256
+    v40 = or v39, v35
+    v41 = ne v40, 0
+    jumpi v41, bb3, bb5
+  bb5:  ; preds = bb2
+    mstore 64, v31 !metadata(memory=scratch)
+    mstore v30, v6
+    v14 = sub v0, v7
+    v15 = gt v6, v14
+    jumpi v15, bb1, bb4
+  bb4:  ; preds = bb5
+    v26 = add v30, 32
+    calldatacopy v26, v7, v6
+    ret v30
+  bb3 [cold]:  ; preds = bb2
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1:
-    revert 0, 0
-}
-
-fn @entry() [entry] {
-  bb0:
-    v0 = callvalue
-    v1 = calldatasize
-    v2 = lt v1, 36
-    v3 = zext i1 v2 to i256
-    v4 = or v0, v3
-    v5 = ne v4, 0
-    jumpi v5, bb1, bb2
-  bb2:
-    v6 = calldataload 0
-    v7 = shr v6, 224
-    switch v7, default bb1, [0x62b0ae87 => bb3, 0xebf5a899 => bb4]
-  bb4:
-    tail_call @sizes
-  bb3:
-    tail_call @pack
-  bb1:
+  bb1 [cold]:  ; preds = bb0, bb5
     revert 0, 0
 }

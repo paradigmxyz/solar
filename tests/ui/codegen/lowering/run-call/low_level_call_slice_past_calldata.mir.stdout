@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/low_level_call_slice_past_calldata.sol:LowLevelCallSlicePastCalldata ===
 @module LowLevelCallSlicePastCalldata
+; function echoPast(uint256 extra) external view returns (bytes memory result) [selector 0x1b260bcb]
 fn @echoPast(arg0: i256) -> ptr<memory> [selector=0x1b260bcb, view, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = gas
@@ -21,6 +22,7 @@ fn @echoPast(arg0: i256) -> ptr<memory> [selector=0x1b260bcb, view, abi_params=[
     ret v12
 }
 
+; function echo(bytes calldata data) external view returns (bytes memory result) [selector 0x624fbfdc]
 fn @echo(arg0: slice<calldata>) -> ptr<memory> [selector=0x624fbfdc, view, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = gas
@@ -36,6 +38,7 @@ fn @echo(arg0: slice<calldata>) -> ptr<memory> [selector=0x624fbfdc, view, abi_p
     ret v6
 }
 
+; function _slice(uint256 offset, uint256 length) private pure returns (bytes calldata s)
 fn @_slice(arg0: i256, arg1: i256) -> slice<calldata> [pure] {
   bb0:
     v0 = make_calldata_slice ptr<calldata> 0, 0

@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/msg_sig_mask.sol:MsgSigMask ===
 @module MsgSigMask
+; function f(uint256 value) external pure returns (bytes32) [selector 0xb3de648b]
 fn @f(arg0: i256) -> i256 [selector=0xb3de648b, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = calldataload 0

@@ -15,9 +15,9 @@
 +     v8 = sub v6, v7
 +     mstore v4, v8
 +     v9 = mload v0
-+     v10 = not 31
-+     v11 = add v9, 31
-+     v12 = and v11, v10
++     v10 = add v9, 31
++     v11 = not 31
++     v12 = and v10, v11
 +     v13 = add v6, 32
 +     v14 = add v6, v12
 +     mstore v14, 0

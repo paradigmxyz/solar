@@ -1,38 +1,39 @@
 // === ROOT/tests/ui/codegen/mir/loop-unroll/constructor_loops.sol:Constructor ===
 @module Constructor
+; constructor(uint256 s) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v7]
     v2 = lt v1, 8
     jumpi v2, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     jump bb7
-  bb7:
+  bb7:  ; preds = bb2, bb9
     v8 = phi [bb2: v0], [bb9: v8]
     v9 = phi [bb2: v1], [bb9: v9]
     v10 = phi [bb2: 0], [bb9: v14]
     v11 = lt v10, 6
     jumpi v11, bb10, bb11
-  bb11:
+  bb11:  ; preds = bb7
     jump bb8
-  bb8:
+  bb8:  ; preds = bb11
     ret
-  bb10:
+  bb10:  ; preds = bb7
     v12 = checked_mul uint256, v8, v10
     v13 = mapping_slot v10, 8
     sstore v13, v12 !metadata(storage=symbolic(v13))
     jump bb12
-  bb12:
+  bb12:  ; preds = bb10
     jump bb9
-  bb9:
+  bb9:  ; preds = bb12
     v14 = checked_add uint256, v10, 1
     jump bb7
-  bb4:
+  bb4:  ; preds = bb1
     v3 = checked_add uint256, v0, v1
     v4 = lt v1, 8
     v5 = eq v4, false
@@ -40,13 +41,14 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
     v6 = add 0, v1
     sstore v6, v3 !metadata(storage=symbolic(v1))
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v7 = checked_add uint256, v1, 1
     jump bb1
 }
 
+; function get(uint256 i) external view returns (uint256) [selector 0x9507d39a]
 fn @get(arg0: i256) -> i256 [selector=0x9507d39a, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = lt arg0, 8
@@ -60,27 +62,28 @@ fn @get(arg0: i256) -> i256 [selector=0x9507d39a, view, abi_params=[uint256], ab
     ret v6
 }
 
+; function sum(uint256 n) external pure returns (uint256 s) [selector 0x188b85b4]
 fn @sum(arg0: i256) -> i256 [selector=0x188b85b4, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:
+  bb1:  ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v6]
     v2 = phi [bb0: 0], [bb3: v7]
     v3 = lt v2, v0
     jumpi v3, bb4, bb5
-  bb5:
+  bb5:  ; preds = bb1
     jump bb2
-  bb2:
+  bb2:  ; preds = bb5
     ret v1
-  bb4:
+  bb4:  ; preds = bb1
     v4 = checked_mul uint256, v2, 3
     v5 = checked_add uint256, v4, 1
     v6 = checked_add uint256, v1, v5
     jump bb6
-  bb6:
+  bb6:  ; preds = bb4
     jump bb3
-  bb3:
+  bb3:  ; preds = bb6
     v7 = checked_add uint256, v2, 1
     jump bb1
 }

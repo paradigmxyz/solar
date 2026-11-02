@@ -3,6 +3,7 @@
 @types
   struct0: {i256, i256}
 
+; function masks(uint256 n) external pure returns (uint256 low, uint256 high) [selector 0x94c49b69]
 fn @masks(arg0: i256) -> struct0 [selector=0x94c49b69, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = shl 1, arg0
@@ -15,6 +16,7 @@ fn @masks(arg0: i256) -> struct0 [selector=0x94c49b69, pure, abi_params=[uint256
     ret v6
 }
 
+; function negate(uint256 x) external pure returns (uint256 result) [selector 0x8d1bea6e]
 fn @negate(arg0: i256) -> i256 [selector=0x8d1bea6e, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sub arg0, 1
@@ -22,6 +24,7 @@ fn @negate(arg0: i256) -> i256 [selector=0x8d1bea6e, pure, abi_params=[uint256],
     ret v1
 }
 
+; function same(uint256 x, uint256 y, uint256 m) external pure returns (bool result) [selector 0xf708a77c]
 fn @same(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xf708a77c, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = and arg1, arg2
@@ -31,6 +34,7 @@ fn @same(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xf708a77c, pure,
     ret v3
 }
 
+; function different(uint256 x, uint256 y, uint256 m) external pure returns (bool) [selector 0x21945970]
 fn @different(arg0: i256, arg1: i256, arg2: i256) -> i1 [selector=0x21945970, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = and arg0, arg2
@@ -39,6 +43,7 @@ fn @different(arg0: i256, arg1: i256, arg2: i256) -> i1 [selector=0x21945970, pu
     ret v2
 }
 
+; function checkedLow(uint256 n) external pure returns (uint256) [selector 0x58da7173]
 fn @checkedLow(arg0: i256) -> i256 [selector=0x58da7173, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = shl 1, arg0

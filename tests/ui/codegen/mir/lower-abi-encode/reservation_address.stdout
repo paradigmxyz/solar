@@ -1,6 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (before lower-abi-encode) ===
 + // === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (after lower-abi-encode) ===
   @module ReservationAddress
+  ; selector 0x01020304
   fn @encode_empty() [selector=0x01020304, pure] {
     bb0:
       v0 = make_calldata_slice ptr<calldata> 0, 0
@@ -15,9 +16,9 @@
 +     v8 = sub v6, v7
 +     mstore v4, v8
 +     v9 = extract_value slice<calldata>, v0, 1
-+     v10 = not 31
-+     v11 = add 0, 31
-+     v12 = and v11, v10
++     v10 = add 0, 31
++     v11 = not 31
++     v12 = and v10, v11
 +     v13 = add v6, 32
 +     v14 = add v6, v12
 +     mstore v14, 0
@@ -39,6 +40,7 @@
 - // === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (after egraph) ===
   @module ReservationAddress
+  ; selector 0x01020304
   fn @encode_empty() [selector=0x01020304, pure] {
     bb0:
       v0 = make_calldata_slice ptr<calldata> 0, 0
@@ -50,9 +52,9 @@
 -     mstore v4, v8
 +     mstore v4, 32
       v9 = extract_value slice<calldata>, v0, 1
--     v10 = not 31
--     v11 = add 0, 31
--     v12 = and v11, v10
+-     v10 = add 0, 31
+-     v11 = not 31
+-     v12 = and v10, v11
       v13 = add v6, 32
 -     v14 = add v6, v12
 -     mstore v14, 0
@@ -78,6 +80,7 @@
 - // === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (after dce) ===
   @module ReservationAddress
+  ; selector 0x01020304
   fn @encode_empty() [selector=0x01020304, pure] {
     bb0:
 -     v0 = make_calldata_slice ptr<calldata> 0, 0
@@ -100,6 +103,7 @@
 - // === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (before defer-alloc) ===
 + // === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (after defer-alloc) ===
   @module ReservationAddress
+  ; selector 0x01020304
   fn @encode_empty() [selector=0x01020304, pure] {
     bb0:
       v4 = fmp
