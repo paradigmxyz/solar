@@ -1099,25 +1099,31 @@ impl LowerAbiCx {
         }
         for (block, call, function) in calls {
             let (body, words) = &bodies[&function];
-            for &index in words {
-                let InstKind::ICall { args, .. } = &func.inst(call).kind else { continue };
-                let arg = args[index.index()];
-                if func.value_ty(arg) != Some(MirType::I1) {
-                    continue;
-                }
-                // arg = zext b, before the call
-                let mut zext = Instruction::new(InstKind::Zext(arg), Some(MirType::I256));
-                zext.metadata.copy_debug_context(&func.inst(call).metadata);
-                let (zext, word) = func.alloc_value_inst(zext);
-                let instructions = &mut func.blocks[block].instructions;
-                let position = instructions.iter().position(|&inst| inst == call).unwrap();
-                instructions.insert(position, zext);
-                let InstKind::ICall { args, .. } = &mut func.inst_mut(call).kind else { continue };
-                args[index.index()] = word;
-            }
+            Self::widen_word_args(func, block, call, words);
             if let InstKind::ICall { function, .. } = &mut func.inst_mut(call).kind {
                 *function = Callee::Function(*body);
             }
+        }
+    }
+
+    /// Passes each `i1` argument of `call` at the positions `words` as `zext b`, the word the body
+    /// of a wrapper takes for a bool.
+    fn widen_word_args(func: &mut Function, block: BlockId, call: InstId, words: &[ArgIdx]) {
+        for &index in words {
+            let InstKind::ICall { args, .. } = &func.inst(call).kind else { return };
+            let arg = args[index.index()];
+            if func.value_ty(arg) != Some(MirType::I1) {
+                continue;
+            }
+            // arg = zext b, before the call
+            let mut zext = Instruction::new(InstKind::Zext(arg), Some(MirType::I256));
+            zext.metadata.copy_debug_context(&func.inst(call).metadata);
+            let (zext, word) = func.alloc_value_inst(zext);
+            let instructions = &mut func.blocks[block].instructions;
+            let position = instructions.iter().position(|&inst| inst == call).unwrap();
+            instructions.insert(position, zext);
+            let InstKind::ICall { args, .. } = &mut func.inst_mut(call).kind else { return };
+            args[index.index()] = word;
         }
     }
 
@@ -1192,7 +1198,7 @@ impl LowerAbiCx {
         body_id: FunctionId,
         original_entry_inst: InstId,
         return_types: &[MirType],
-        mut args: Vec<ValueId>,
+        args: Vec<ValueId>,
         word_params: &[ArgIdx],
     ) {
         let Some(block) = func
@@ -1208,17 +1214,12 @@ impl LowerAbiCx {
         func.blocks[block].terminator = None;
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block);
-        // arg = zext b, for each bool the body takes as a word
-        for &index in word_params {
-            let word = builder.cast(args[index.index()], MirType::I256);
-            if let Value::Inst(inst) = *builder.func().value(word) {
-                builder.func_mut().inst_mut(inst).metadata.mark_debug_info_dropped();
-            }
-            args[index.index()] = word;
-        }
         if let Some((&first, rest)) = return_types.split_first() {
             let mut values = Vec::with_capacity(return_types.len());
-            values.push(builder.icall(body_id, args, first));
+            let call = builder.icall(body_id, args, first);
+            let inst = *builder.func().blocks[block].instructions.last().expect("the call");
+            Self::widen_word_args(builder.func_mut(), block, inst, word_params);
+            values.push(call);
             if !rest.is_empty() {
                 let base = builder.frame_load(0, FrameMode::MultiReturn, FrameSlotKind::Word);
                 for (index, &ty) in (1_u64..).zip(rest) {
@@ -1238,6 +1239,8 @@ impl LowerAbiCx {
             builder.ret(values);
         } else {
             builder.icall_void(body_id, args);
+            let call = *builder.func().blocks[block].instructions.last().expect("the call");
+            Self::widen_word_args(builder.func_mut(), block, call, word_params);
             builder.ret([]);
         }
         // Drop the detached body blocks before lowering their now-orphaned slice projections.
