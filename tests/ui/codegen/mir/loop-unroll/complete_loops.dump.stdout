@@ -91,11 +91,11 @@ fn @decode() [selector=0xe5c5e9a3, abi_wrapper, pure] {
     v10 = calldataload 4
     v11 = add v10, 4
     v13 = sub v8, 36
-    v14 = gt v10, v13
+    v14 = lt v13, v10
     v15 = calldataload v11
     v16 = add v11, 32
     v17 = sub v8, v16
-    v18 = gt v15, v17
+    v18 = lt v17, v15
     v19 = or v14, v18
     v40 = or v9, v19
     jumpi v40, bb1, bb2
@@ -120,16 +120,16 @@ fn @sum4() [selector=0x0540a714, abi_wrapper, pure] {
     jumpi v34, bb2, bb3
   bb3:  ; preds = bb0
     v77 = calldataload 4
-    v78 = add 0, v77
+    v78 = add v77, 0
     v86 = calldataload 36
-    v87 = add v78, v86
+    v87 = add v86, v78
     v88 = lt v87, v78
     v95 = calldataload 68
-    v96 = add v87, v95
+    v96 = add v95, v87
     v97 = lt v96, v87
     v108 = or v88, v97
     v104 = calldataload 100
-    v105 = add v96, v104
+    v105 = add v104, v96
     v106 = lt v105, v96
     v109 = or v108, v106
     jumpi v109, bb1, bb4

@@ -17,8 +17,8 @@ contract JoinEdgeReload {
     // CHECK-LABEL: @module JoinEdgeReload_runtime
     // CHECK: [loop]:
     // CHECK: [loop]:
-    // CHECK-NEXT: dup 2
-    // CHECK-NEXT: dup 2
+    // CHECK-NEXT: dup 1
+    // CHECK-NEXT: dup 3
     // CHECK-NEXT: eq
     // CHECK-NEXT: push bb{{[0-9]+}}
     // CHECK-NEXT: jumpi

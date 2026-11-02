@@ -235,6 +235,7 @@ fn widen_comparisons(func: &mut Function, objects: &FxHashMap<ValueId, u32>, rea
                 InstKind::Lt(..) => InstKind::Lt(a, b),
                 _ => InstKind::Gt(a, b),
             };
+            let kind = func.canonical_kind(kind);
             func.inst_mut(inst).replace_kind(kind);
             changed = true;
             position += 1;

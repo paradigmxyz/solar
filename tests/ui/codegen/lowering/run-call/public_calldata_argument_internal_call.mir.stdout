@@ -5,7 +5,7 @@ fn @f(arg0: slice<calldata>) -> i256 [selector=0xd45754f8, pure, abi_params=[byt
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = extract_value slice<calldata>, arg0, 1
-    v2 = gt v1, v1
+    v2 = lt v1, v1
     v3 = lt v1, 1
     v4 = or v2, v3
     v5 = zext i1 v4 to i256
@@ -20,7 +20,7 @@ fn @f(arg0: slice<calldata>) -> i256 [selector=0xd45754f8, pure, abi_params=[byt
     icall revert_if<invalid_calldata_tail_length>, v12
     v13 = sub v11, v10
     v14 = ptrtoint ptr<calldata> v9 to i256
-    v15 = sgt v14, v13
+    v15 = slt v13, v14
     icall revert_if<calldata_tail_too_short>, v15
     v16 = extract_value slice<calldata>, v8, 1
     v17 = add v16, 31
@@ -59,7 +59,7 @@ fn @h(arg0: slice<calldata>) -> ptr<memory> [selector=0xb2e4ec10, pure, abi_para
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = extract_value slice<calldata>, arg0, 1
-    v2 = gt v1, v1
+    v2 = lt v1, v1
     v3 = lt v1, 1
     v4 = or v2, v3
     v5 = zext i1 v4 to i256
@@ -74,7 +74,7 @@ fn @h(arg0: slice<calldata>) -> ptr<memory> [selector=0xb2e4ec10, pure, abi_para
     icall revert_if<invalid_calldata_tail_length>, v12
     v13 = sub v11, v10
     v14 = ptrtoint ptr<calldata> v9 to i256
-    v15 = sgt v14, v13
+    v15 = slt v13, v14
     icall revert_if<calldata_tail_too_short>, v15
     v16 = extract_value slice<calldata>, v8, 1
     v17 = add v16, 31
@@ -110,7 +110,7 @@ fn @m(arg0: slice<calldata>) -> ptr<memory> [selector=0x8fddd5ba, pure, abi_para
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = extract_value slice<calldata>, arg0, 1
-    v2 = gt v1, v1
+    v2 = lt v1, v1
     v3 = lt v1, 1
     v4 = or v2, v3
     v5 = zext i1 v4 to i256
@@ -133,7 +133,7 @@ fn @m(arg0: slice<calldata>) -> ptr<memory> [selector=0x8fddd5ba, pure, abi_para
     v19 = shr v9, 251
     v20 = ne v19, 0
     icall panic_if<0x41>, v20
-    v21 = add 32, v18
+    v21 = add v18, 32
     v22 = lt v21, 32
     icall panic_if<0x41>, v22
     v23 = alloc v21

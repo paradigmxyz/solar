@@ -148,11 +148,11 @@ fn @decode_calldata_slice() -> i256 {
     v1 = calldataload 4
     v2 = add v1, 4
     v4 = sub v0, 36
-    v5 = gt v1, v4
+    v5 = lt v4, v1
     v6 = calldataload v2
     v7 = add v2, 32
     v8 = sub v0, v7
-    v9 = gt v6, v8
+    v9 = lt v8, v6
     v10 = or v5, v9
     jumpi v10, bb1, bb2
   bb2:  ; preds = bb0

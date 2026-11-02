@@ -52,9 +52,9 @@ bb3 [cold]:
   push 0
   revert
 bb9 [loop]:
-  dup 4
-  dup 3
-  gt
+  dup 2
+  dup 5
+  lt
   iszero
   push bb6
   jumpi

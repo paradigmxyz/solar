@@ -30,7 +30,7 @@ fn @crowded(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i2
     v12 = xor v2, v8
     v13 = checked_add uint256, v7, v12
     v14 = checked_add uint256, v3, v8
-    v15 = xor v4, v14
+    v15 = xor v14, v4
     v16 = checked_add uint256, v13, v15
     jump bb6
   bb6:  ; preds = bb4

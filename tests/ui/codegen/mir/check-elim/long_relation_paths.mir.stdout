@@ -4,7 +4,7 @@
 fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_params=[array<66, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
-    v1 = lt 0, v0
+    v1 = gt v0, 0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = extract_value slice<calldata>, arg0, 0
@@ -12,7 +12,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v5 = add v4, 0
     v6 = calldataload v5
     v7 = extract_value slice<calldata>, arg0, 1
-    v8 = lt 1, v7
+    v8 = gt v7, 1
     v9 = eq v8, false
     icall panic_if<0x32>, v9
     v10 = extract_value slice<calldata>, arg0, 0
@@ -23,7 +23,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v15 = eq v14, false
     icall revert_if<empty>, v15
     v16 = extract_value slice<calldata>, arg0, 1
-    v17 = lt 1, v16
+    v17 = gt v16, 1
     v18 = eq v17, false
     icall panic_if<0x32>, v18
     v19 = extract_value slice<calldata>, arg0, 0
@@ -31,7 +31,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v21 = add v20, 32
     v22 = calldataload v21
     v23 = extract_value slice<calldata>, arg0, 1
-    v24 = lt 2, v23
+    v24 = gt v23, 2
     v25 = eq v24, false
     icall panic_if<0x32>, v25
     v26 = extract_value slice<calldata>, arg0, 0
@@ -42,7 +42,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v31 = eq v30, false
     icall revert_if<empty>, v31
     v32 = extract_value slice<calldata>, arg0, 1
-    v33 = lt 2, v32
+    v33 = gt v32, 2
     v34 = eq v33, false
     icall panic_if<0x32>, v34
     v35 = extract_value slice<calldata>, arg0, 0
@@ -50,7 +50,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v37 = add v36, 64
     v38 = calldataload v37
     v39 = extract_value slice<calldata>, arg0, 1
-    v40 = lt 3, v39
+    v40 = gt v39, 3
     v41 = eq v40, false
     icall panic_if<0x32>, v41
     v42 = extract_value slice<calldata>, arg0, 0
@@ -61,7 +61,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v47 = eq v46, false
     icall revert_if<empty>, v47
     v48 = extract_value slice<calldata>, arg0, 1
-    v49 = lt 3, v48
+    v49 = gt v48, 3
     v50 = eq v49, false
     icall panic_if<0x32>, v50
     v51 = extract_value slice<calldata>, arg0, 0
@@ -69,7 +69,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v53 = add v52, 96
     v54 = calldataload v53
     v55 = extract_value slice<calldata>, arg0, 1
-    v56 = lt 4, v55
+    v56 = gt v55, 4
     v57 = eq v56, false
     icall panic_if<0x32>, v57
     v58 = extract_value slice<calldata>, arg0, 0
@@ -80,7 +80,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v63 = eq v62, false
     icall revert_if<empty>, v63
     v64 = extract_value slice<calldata>, arg0, 1
-    v65 = lt 4, v64
+    v65 = gt v64, 4
     v66 = eq v65, false
     icall panic_if<0x32>, v66
     v67 = extract_value slice<calldata>, arg0, 0
@@ -88,7 +88,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v69 = add v68, 128
     v70 = calldataload v69
     v71 = extract_value slice<calldata>, arg0, 1
-    v72 = lt 5, v71
+    v72 = gt v71, 5
     v73 = eq v72, false
     icall panic_if<0x32>, v73
     v74 = extract_value slice<calldata>, arg0, 0
@@ -99,7 +99,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v79 = eq v78, false
     icall revert_if<empty>, v79
     v80 = extract_value slice<calldata>, arg0, 1
-    v81 = lt 5, v80
+    v81 = gt v80, 5
     v82 = eq v81, false
     icall panic_if<0x32>, v82
     v83 = extract_value slice<calldata>, arg0, 0
@@ -107,7 +107,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v85 = add v84, 160
     v86 = calldataload v85
     v87 = extract_value slice<calldata>, arg0, 1
-    v88 = lt 6, v87
+    v88 = gt v87, 6
     v89 = eq v88, false
     icall panic_if<0x32>, v89
     v90 = extract_value slice<calldata>, arg0, 0
@@ -118,7 +118,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v95 = eq v94, false
     icall revert_if<empty>, v95
     v96 = extract_value slice<calldata>, arg0, 1
-    v97 = lt 6, v96
+    v97 = gt v96, 6
     v98 = eq v97, false
     icall panic_if<0x32>, v98
     v99 = extract_value slice<calldata>, arg0, 0
@@ -126,7 +126,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v101 = add v100, 192
     v102 = calldataload v101
     v103 = extract_value slice<calldata>, arg0, 1
-    v104 = lt 7, v103
+    v104 = gt v103, 7
     v105 = eq v104, false
     icall panic_if<0x32>, v105
     v106 = extract_value slice<calldata>, arg0, 0
@@ -137,7 +137,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v111 = eq v110, false
     icall revert_if<empty>, v111
     v112 = extract_value slice<calldata>, arg0, 1
-    v113 = lt 7, v112
+    v113 = gt v112, 7
     v114 = eq v113, false
     icall panic_if<0x32>, v114
     v115 = extract_value slice<calldata>, arg0, 0
@@ -145,7 +145,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v117 = add v116, 224
     v118 = calldataload v117
     v119 = extract_value slice<calldata>, arg0, 1
-    v120 = lt 8, v119
+    v120 = gt v119, 8
     v121 = eq v120, false
     icall panic_if<0x32>, v121
     v122 = extract_value slice<calldata>, arg0, 0
@@ -156,7 +156,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v127 = eq v126, false
     icall revert_if<empty>, v127
     v128 = extract_value slice<calldata>, arg0, 1
-    v129 = lt 8, v128
+    v129 = gt v128, 8
     v130 = eq v129, false
     icall panic_if<0x32>, v130
     v131 = extract_value slice<calldata>, arg0, 0
@@ -164,7 +164,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v133 = add v132, 256
     v134 = calldataload v133
     v135 = extract_value slice<calldata>, arg0, 1
-    v136 = lt 9, v135
+    v136 = gt v135, 9
     v137 = eq v136, false
     icall panic_if<0x32>, v137
     v138 = extract_value slice<calldata>, arg0, 0
@@ -175,7 +175,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v143 = eq v142, false
     icall revert_if<empty>, v143
     v144 = extract_value slice<calldata>, arg0, 1
-    v145 = lt 9, v144
+    v145 = gt v144, 9
     v146 = eq v145, false
     icall panic_if<0x32>, v146
     v147 = extract_value slice<calldata>, arg0, 0
@@ -183,7 +183,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v149 = add v148, 288
     v150 = calldataload v149
     v151 = extract_value slice<calldata>, arg0, 1
-    v152 = lt 10, v151
+    v152 = gt v151, 10
     v153 = eq v152, false
     icall panic_if<0x32>, v153
     v154 = extract_value slice<calldata>, arg0, 0
@@ -194,7 +194,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v159 = eq v158, false
     icall revert_if<empty>, v159
     v160 = extract_value slice<calldata>, arg0, 1
-    v161 = lt 10, v160
+    v161 = gt v160, 10
     v162 = eq v161, false
     icall panic_if<0x32>, v162
     v163 = extract_value slice<calldata>, arg0, 0
@@ -202,7 +202,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v165 = add v164, 320
     v166 = calldataload v165
     v167 = extract_value slice<calldata>, arg0, 1
-    v168 = lt 11, v167
+    v168 = gt v167, 11
     v169 = eq v168, false
     icall panic_if<0x32>, v169
     v170 = extract_value slice<calldata>, arg0, 0
@@ -213,7 +213,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v175 = eq v174, false
     icall revert_if<empty>, v175
     v176 = extract_value slice<calldata>, arg0, 1
-    v177 = lt 11, v176
+    v177 = gt v176, 11
     v178 = eq v177, false
     icall panic_if<0x32>, v178
     v179 = extract_value slice<calldata>, arg0, 0
@@ -221,7 +221,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v181 = add v180, 352
     v182 = calldataload v181
     v183 = extract_value slice<calldata>, arg0, 1
-    v184 = lt 12, v183
+    v184 = gt v183, 12
     v185 = eq v184, false
     icall panic_if<0x32>, v185
     v186 = extract_value slice<calldata>, arg0, 0
@@ -232,7 +232,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v191 = eq v190, false
     icall revert_if<empty>, v191
     v192 = extract_value slice<calldata>, arg0, 1
-    v193 = lt 12, v192
+    v193 = gt v192, 12
     v194 = eq v193, false
     icall panic_if<0x32>, v194
     v195 = extract_value slice<calldata>, arg0, 0
@@ -240,7 +240,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v197 = add v196, 384
     v198 = calldataload v197
     v199 = extract_value slice<calldata>, arg0, 1
-    v200 = lt 13, v199
+    v200 = gt v199, 13
     v201 = eq v200, false
     icall panic_if<0x32>, v201
     v202 = extract_value slice<calldata>, arg0, 0
@@ -251,7 +251,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v207 = eq v206, false
     icall revert_if<empty>, v207
     v208 = extract_value slice<calldata>, arg0, 1
-    v209 = lt 13, v208
+    v209 = gt v208, 13
     v210 = eq v209, false
     icall panic_if<0x32>, v210
     v211 = extract_value slice<calldata>, arg0, 0
@@ -259,7 +259,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v213 = add v212, 416
     v214 = calldataload v213
     v215 = extract_value slice<calldata>, arg0, 1
-    v216 = lt 14, v215
+    v216 = gt v215, 14
     v217 = eq v216, false
     icall panic_if<0x32>, v217
     v218 = extract_value slice<calldata>, arg0, 0
@@ -270,7 +270,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v223 = eq v222, false
     icall revert_if<empty>, v223
     v224 = extract_value slice<calldata>, arg0, 1
-    v225 = lt 14, v224
+    v225 = gt v224, 14
     v226 = eq v225, false
     icall panic_if<0x32>, v226
     v227 = extract_value slice<calldata>, arg0, 0
@@ -278,7 +278,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v229 = add v228, 448
     v230 = calldataload v229
     v231 = extract_value slice<calldata>, arg0, 1
-    v232 = lt 15, v231
+    v232 = gt v231, 15
     v233 = eq v232, false
     icall panic_if<0x32>, v233
     v234 = extract_value slice<calldata>, arg0, 0
@@ -289,7 +289,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v239 = eq v238, false
     icall revert_if<empty>, v239
     v240 = extract_value slice<calldata>, arg0, 1
-    v241 = lt 15, v240
+    v241 = gt v240, 15
     v242 = eq v241, false
     icall panic_if<0x32>, v242
     v243 = extract_value slice<calldata>, arg0, 0
@@ -297,7 +297,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v245 = add v244, 480
     v246 = calldataload v245
     v247 = extract_value slice<calldata>, arg0, 1
-    v248 = lt 16, v247
+    v248 = gt v247, 16
     v249 = eq v248, false
     icall panic_if<0x32>, v249
     v250 = extract_value slice<calldata>, arg0, 0
@@ -308,7 +308,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v255 = eq v254, false
     icall revert_if<empty>, v255
     v256 = extract_value slice<calldata>, arg0, 1
-    v257 = lt 16, v256
+    v257 = gt v256, 16
     v258 = eq v257, false
     icall panic_if<0x32>, v258
     v259 = extract_value slice<calldata>, arg0, 0
@@ -316,7 +316,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v261 = add v260, 512
     v262 = calldataload v261
     v263 = extract_value slice<calldata>, arg0, 1
-    v264 = lt 17, v263
+    v264 = gt v263, 17
     v265 = eq v264, false
     icall panic_if<0x32>, v265
     v266 = extract_value slice<calldata>, arg0, 0
@@ -327,7 +327,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v271 = eq v270, false
     icall revert_if<empty>, v271
     v272 = extract_value slice<calldata>, arg0, 1
-    v273 = lt 17, v272
+    v273 = gt v272, 17
     v274 = eq v273, false
     icall panic_if<0x32>, v274
     v275 = extract_value slice<calldata>, arg0, 0
@@ -335,7 +335,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v277 = add v276, 544
     v278 = calldataload v277
     v279 = extract_value slice<calldata>, arg0, 1
-    v280 = lt 18, v279
+    v280 = gt v279, 18
     v281 = eq v280, false
     icall panic_if<0x32>, v281
     v282 = extract_value slice<calldata>, arg0, 0
@@ -346,7 +346,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v287 = eq v286, false
     icall revert_if<empty>, v287
     v288 = extract_value slice<calldata>, arg0, 1
-    v289 = lt 18, v288
+    v289 = gt v288, 18
     v290 = eq v289, false
     icall panic_if<0x32>, v290
     v291 = extract_value slice<calldata>, arg0, 0
@@ -354,7 +354,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v293 = add v292, 576
     v294 = calldataload v293
     v295 = extract_value slice<calldata>, arg0, 1
-    v296 = lt 19, v295
+    v296 = gt v295, 19
     v297 = eq v296, false
     icall panic_if<0x32>, v297
     v298 = extract_value slice<calldata>, arg0, 0
@@ -365,7 +365,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v303 = eq v302, false
     icall revert_if<empty>, v303
     v304 = extract_value slice<calldata>, arg0, 1
-    v305 = lt 19, v304
+    v305 = gt v304, 19
     v306 = eq v305, false
     icall panic_if<0x32>, v306
     v307 = extract_value slice<calldata>, arg0, 0
@@ -373,7 +373,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v309 = add v308, 608
     v310 = calldataload v309
     v311 = extract_value slice<calldata>, arg0, 1
-    v312 = lt 20, v311
+    v312 = gt v311, 20
     v313 = eq v312, false
     icall panic_if<0x32>, v313
     v314 = extract_value slice<calldata>, arg0, 0
@@ -384,7 +384,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v319 = eq v318, false
     icall revert_if<empty>, v319
     v320 = extract_value slice<calldata>, arg0, 1
-    v321 = lt 20, v320
+    v321 = gt v320, 20
     v322 = eq v321, false
     icall panic_if<0x32>, v322
     v323 = extract_value slice<calldata>, arg0, 0
@@ -392,7 +392,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v325 = add v324, 640
     v326 = calldataload v325
     v327 = extract_value slice<calldata>, arg0, 1
-    v328 = lt 21, v327
+    v328 = gt v327, 21
     v329 = eq v328, false
     icall panic_if<0x32>, v329
     v330 = extract_value slice<calldata>, arg0, 0
@@ -403,7 +403,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v335 = eq v334, false
     icall revert_if<empty>, v335
     v336 = extract_value slice<calldata>, arg0, 1
-    v337 = lt 21, v336
+    v337 = gt v336, 21
     v338 = eq v337, false
     icall panic_if<0x32>, v338
     v339 = extract_value slice<calldata>, arg0, 0
@@ -411,7 +411,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v341 = add v340, 672
     v342 = calldataload v341
     v343 = extract_value slice<calldata>, arg0, 1
-    v344 = lt 22, v343
+    v344 = gt v343, 22
     v345 = eq v344, false
     icall panic_if<0x32>, v345
     v346 = extract_value slice<calldata>, arg0, 0
@@ -422,7 +422,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v351 = eq v350, false
     icall revert_if<empty>, v351
     v352 = extract_value slice<calldata>, arg0, 1
-    v353 = lt 22, v352
+    v353 = gt v352, 22
     v354 = eq v353, false
     icall panic_if<0x32>, v354
     v355 = extract_value slice<calldata>, arg0, 0
@@ -430,7 +430,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v357 = add v356, 704
     v358 = calldataload v357
     v359 = extract_value slice<calldata>, arg0, 1
-    v360 = lt 23, v359
+    v360 = gt v359, 23
     v361 = eq v360, false
     icall panic_if<0x32>, v361
     v362 = extract_value slice<calldata>, arg0, 0
@@ -441,7 +441,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v367 = eq v366, false
     icall revert_if<empty>, v367
     v368 = extract_value slice<calldata>, arg0, 1
-    v369 = lt 23, v368
+    v369 = gt v368, 23
     v370 = eq v369, false
     icall panic_if<0x32>, v370
     v371 = extract_value slice<calldata>, arg0, 0
@@ -449,7 +449,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v373 = add v372, 736
     v374 = calldataload v373
     v375 = extract_value slice<calldata>, arg0, 1
-    v376 = lt 24, v375
+    v376 = gt v375, 24
     v377 = eq v376, false
     icall panic_if<0x32>, v377
     v378 = extract_value slice<calldata>, arg0, 0
@@ -460,7 +460,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v383 = eq v382, false
     icall revert_if<empty>, v383
     v384 = extract_value slice<calldata>, arg0, 1
-    v385 = lt 24, v384
+    v385 = gt v384, 24
     v386 = eq v385, false
     icall panic_if<0x32>, v386
     v387 = extract_value slice<calldata>, arg0, 0
@@ -468,7 +468,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v389 = add v388, 768
     v390 = calldataload v389
     v391 = extract_value slice<calldata>, arg0, 1
-    v392 = lt 25, v391
+    v392 = gt v391, 25
     v393 = eq v392, false
     icall panic_if<0x32>, v393
     v394 = extract_value slice<calldata>, arg0, 0
@@ -479,7 +479,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v399 = eq v398, false
     icall revert_if<empty>, v399
     v400 = extract_value slice<calldata>, arg0, 1
-    v401 = lt 25, v400
+    v401 = gt v400, 25
     v402 = eq v401, false
     icall panic_if<0x32>, v402
     v403 = extract_value slice<calldata>, arg0, 0
@@ -487,7 +487,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v405 = add v404, 800
     v406 = calldataload v405
     v407 = extract_value slice<calldata>, arg0, 1
-    v408 = lt 26, v407
+    v408 = gt v407, 26
     v409 = eq v408, false
     icall panic_if<0x32>, v409
     v410 = extract_value slice<calldata>, arg0, 0
@@ -498,7 +498,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v415 = eq v414, false
     icall revert_if<empty>, v415
     v416 = extract_value slice<calldata>, arg0, 1
-    v417 = lt 26, v416
+    v417 = gt v416, 26
     v418 = eq v417, false
     icall panic_if<0x32>, v418
     v419 = extract_value slice<calldata>, arg0, 0
@@ -506,7 +506,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v421 = add v420, 832
     v422 = calldataload v421
     v423 = extract_value slice<calldata>, arg0, 1
-    v424 = lt 27, v423
+    v424 = gt v423, 27
     v425 = eq v424, false
     icall panic_if<0x32>, v425
     v426 = extract_value slice<calldata>, arg0, 0
@@ -517,7 +517,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v431 = eq v430, false
     icall revert_if<empty>, v431
     v432 = extract_value slice<calldata>, arg0, 1
-    v433 = lt 27, v432
+    v433 = gt v432, 27
     v434 = eq v433, false
     icall panic_if<0x32>, v434
     v435 = extract_value slice<calldata>, arg0, 0
@@ -525,7 +525,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v437 = add v436, 864
     v438 = calldataload v437
     v439 = extract_value slice<calldata>, arg0, 1
-    v440 = lt 28, v439
+    v440 = gt v439, 28
     v441 = eq v440, false
     icall panic_if<0x32>, v441
     v442 = extract_value slice<calldata>, arg0, 0
@@ -536,7 +536,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v447 = eq v446, false
     icall revert_if<empty>, v447
     v448 = extract_value slice<calldata>, arg0, 1
-    v449 = lt 28, v448
+    v449 = gt v448, 28
     v450 = eq v449, false
     icall panic_if<0x32>, v450
     v451 = extract_value slice<calldata>, arg0, 0
@@ -544,7 +544,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v453 = add v452, 896
     v454 = calldataload v453
     v455 = extract_value slice<calldata>, arg0, 1
-    v456 = lt 29, v455
+    v456 = gt v455, 29
     v457 = eq v456, false
     icall panic_if<0x32>, v457
     v458 = extract_value slice<calldata>, arg0, 0
@@ -555,7 +555,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v463 = eq v462, false
     icall revert_if<empty>, v463
     v464 = extract_value slice<calldata>, arg0, 1
-    v465 = lt 29, v464
+    v465 = gt v464, 29
     v466 = eq v465, false
     icall panic_if<0x32>, v466
     v467 = extract_value slice<calldata>, arg0, 0
@@ -563,7 +563,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v469 = add v468, 928
     v470 = calldataload v469
     v471 = extract_value slice<calldata>, arg0, 1
-    v472 = lt 30, v471
+    v472 = gt v471, 30
     v473 = eq v472, false
     icall panic_if<0x32>, v473
     v474 = extract_value slice<calldata>, arg0, 0
@@ -574,7 +574,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v479 = eq v478, false
     icall revert_if<empty>, v479
     v480 = extract_value slice<calldata>, arg0, 1
-    v481 = lt 30, v480
+    v481 = gt v480, 30
     v482 = eq v481, false
     icall panic_if<0x32>, v482
     v483 = extract_value slice<calldata>, arg0, 0
@@ -582,7 +582,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v485 = add v484, 960
     v486 = calldataload v485
     v487 = extract_value slice<calldata>, arg0, 1
-    v488 = lt 31, v487
+    v488 = gt v487, 31
     v489 = eq v488, false
     icall panic_if<0x32>, v489
     v490 = extract_value slice<calldata>, arg0, 0
@@ -593,7 +593,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v495 = eq v494, false
     icall revert_if<empty>, v495
     v496 = extract_value slice<calldata>, arg0, 1
-    v497 = lt 31, v496
+    v497 = gt v496, 31
     v498 = eq v497, false
     icall panic_if<0x32>, v498
     v499 = extract_value slice<calldata>, arg0, 0
@@ -601,7 +601,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v501 = add v500, 992
     v502 = calldataload v501
     v503 = extract_value slice<calldata>, arg0, 1
-    v504 = lt 32, v503
+    v504 = gt v503, 32
     v505 = eq v504, false
     icall panic_if<0x32>, v505
     v506 = extract_value slice<calldata>, arg0, 0
@@ -612,7 +612,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v511 = eq v510, false
     icall revert_if<empty>, v511
     v512 = extract_value slice<calldata>, arg0, 1
-    v513 = lt 32, v512
+    v513 = gt v512, 32
     v514 = eq v513, false
     icall panic_if<0x32>, v514
     v515 = extract_value slice<calldata>, arg0, 0
@@ -620,7 +620,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v517 = add v516, 0x400
     v518 = calldataload v517
     v519 = extract_value slice<calldata>, arg0, 1
-    v520 = lt 33, v519
+    v520 = gt v519, 33
     v521 = eq v520, false
     icall panic_if<0x32>, v521
     v522 = extract_value slice<calldata>, arg0, 0
@@ -631,7 +631,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v527 = eq v526, false
     icall revert_if<empty>, v527
     v528 = extract_value slice<calldata>, arg0, 1
-    v529 = lt 33, v528
+    v529 = gt v528, 33
     v530 = eq v529, false
     icall panic_if<0x32>, v530
     v531 = extract_value slice<calldata>, arg0, 0
@@ -639,7 +639,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v533 = add v532, 0x420
     v534 = calldataload v533
     v535 = extract_value slice<calldata>, arg0, 1
-    v536 = lt 34, v535
+    v536 = gt v535, 34
     v537 = eq v536, false
     icall panic_if<0x32>, v537
     v538 = extract_value slice<calldata>, arg0, 0
@@ -650,7 +650,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v543 = eq v542, false
     icall revert_if<empty>, v543
     v544 = extract_value slice<calldata>, arg0, 1
-    v545 = lt 34, v544
+    v545 = gt v544, 34
     v546 = eq v545, false
     icall panic_if<0x32>, v546
     v547 = extract_value slice<calldata>, arg0, 0
@@ -658,7 +658,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v549 = add v548, 0x440
     v550 = calldataload v549
     v551 = extract_value slice<calldata>, arg0, 1
-    v552 = lt 35, v551
+    v552 = gt v551, 35
     v553 = eq v552, false
     icall panic_if<0x32>, v553
     v554 = extract_value slice<calldata>, arg0, 0
@@ -669,7 +669,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v559 = eq v558, false
     icall revert_if<empty>, v559
     v560 = extract_value slice<calldata>, arg0, 1
-    v561 = lt 35, v560
+    v561 = gt v560, 35
     v562 = eq v561, false
     icall panic_if<0x32>, v562
     v563 = extract_value slice<calldata>, arg0, 0
@@ -677,7 +677,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v565 = add v564, 0x460
     v566 = calldataload v565
     v567 = extract_value slice<calldata>, arg0, 1
-    v568 = lt 36, v567
+    v568 = gt v567, 36
     v569 = eq v568, false
     icall panic_if<0x32>, v569
     v570 = extract_value slice<calldata>, arg0, 0
@@ -688,7 +688,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v575 = eq v574, false
     icall revert_if<empty>, v575
     v576 = extract_value slice<calldata>, arg0, 1
-    v577 = lt 36, v576
+    v577 = gt v576, 36
     v578 = eq v577, false
     icall panic_if<0x32>, v578
     v579 = extract_value slice<calldata>, arg0, 0
@@ -696,7 +696,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v581 = add v580, 0x480
     v582 = calldataload v581
     v583 = extract_value slice<calldata>, arg0, 1
-    v584 = lt 37, v583
+    v584 = gt v583, 37
     v585 = eq v584, false
     icall panic_if<0x32>, v585
     v586 = extract_value slice<calldata>, arg0, 0
@@ -707,7 +707,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v591 = eq v590, false
     icall revert_if<empty>, v591
     v592 = extract_value slice<calldata>, arg0, 1
-    v593 = lt 37, v592
+    v593 = gt v592, 37
     v594 = eq v593, false
     icall panic_if<0x32>, v594
     v595 = extract_value slice<calldata>, arg0, 0
@@ -715,7 +715,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v597 = add v596, 0x4a0
     v598 = calldataload v597
     v599 = extract_value slice<calldata>, arg0, 1
-    v600 = lt 38, v599
+    v600 = gt v599, 38
     v601 = eq v600, false
     icall panic_if<0x32>, v601
     v602 = extract_value slice<calldata>, arg0, 0
@@ -726,7 +726,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v607 = eq v606, false
     icall revert_if<empty>, v607
     v608 = extract_value slice<calldata>, arg0, 1
-    v609 = lt 38, v608
+    v609 = gt v608, 38
     v610 = eq v609, false
     icall panic_if<0x32>, v610
     v611 = extract_value slice<calldata>, arg0, 0
@@ -734,7 +734,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v613 = add v612, 0x4c0
     v614 = calldataload v613
     v615 = extract_value slice<calldata>, arg0, 1
-    v616 = lt 39, v615
+    v616 = gt v615, 39
     v617 = eq v616, false
     icall panic_if<0x32>, v617
     v618 = extract_value slice<calldata>, arg0, 0
@@ -745,7 +745,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v623 = eq v622, false
     icall revert_if<empty>, v623
     v624 = extract_value slice<calldata>, arg0, 1
-    v625 = lt 39, v624
+    v625 = gt v624, 39
     v626 = eq v625, false
     icall panic_if<0x32>, v626
     v627 = extract_value slice<calldata>, arg0, 0
@@ -753,7 +753,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v629 = add v628, 0x4e0
     v630 = calldataload v629
     v631 = extract_value slice<calldata>, arg0, 1
-    v632 = lt 40, v631
+    v632 = gt v631, 40
     v633 = eq v632, false
     icall panic_if<0x32>, v633
     v634 = extract_value slice<calldata>, arg0, 0
@@ -764,7 +764,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v639 = eq v638, false
     icall revert_if<empty>, v639
     v640 = extract_value slice<calldata>, arg0, 1
-    v641 = lt 40, v640
+    v641 = gt v640, 40
     v642 = eq v641, false
     icall panic_if<0x32>, v642
     v643 = extract_value slice<calldata>, arg0, 0
@@ -772,7 +772,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v645 = add v644, 0x500
     v646 = calldataload v645
     v647 = extract_value slice<calldata>, arg0, 1
-    v648 = lt 41, v647
+    v648 = gt v647, 41
     v649 = eq v648, false
     icall panic_if<0x32>, v649
     v650 = extract_value slice<calldata>, arg0, 0
@@ -783,7 +783,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v655 = eq v654, false
     icall revert_if<empty>, v655
     v656 = extract_value slice<calldata>, arg0, 1
-    v657 = lt 41, v656
+    v657 = gt v656, 41
     v658 = eq v657, false
     icall panic_if<0x32>, v658
     v659 = extract_value slice<calldata>, arg0, 0
@@ -791,7 +791,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v661 = add v660, 0x520
     v662 = calldataload v661
     v663 = extract_value slice<calldata>, arg0, 1
-    v664 = lt 42, v663
+    v664 = gt v663, 42
     v665 = eq v664, false
     icall panic_if<0x32>, v665
     v666 = extract_value slice<calldata>, arg0, 0
@@ -802,7 +802,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v671 = eq v670, false
     icall revert_if<empty>, v671
     v672 = extract_value slice<calldata>, arg0, 1
-    v673 = lt 42, v672
+    v673 = gt v672, 42
     v674 = eq v673, false
     icall panic_if<0x32>, v674
     v675 = extract_value slice<calldata>, arg0, 0
@@ -810,7 +810,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v677 = add v676, 0x540
     v678 = calldataload v677
     v679 = extract_value slice<calldata>, arg0, 1
-    v680 = lt 43, v679
+    v680 = gt v679, 43
     v681 = eq v680, false
     icall panic_if<0x32>, v681
     v682 = extract_value slice<calldata>, arg0, 0
@@ -821,7 +821,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v687 = eq v686, false
     icall revert_if<empty>, v687
     v688 = extract_value slice<calldata>, arg0, 1
-    v689 = lt 43, v688
+    v689 = gt v688, 43
     v690 = eq v689, false
     icall panic_if<0x32>, v690
     v691 = extract_value slice<calldata>, arg0, 0
@@ -829,7 +829,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v693 = add v692, 0x560
     v694 = calldataload v693
     v695 = extract_value slice<calldata>, arg0, 1
-    v696 = lt 44, v695
+    v696 = gt v695, 44
     v697 = eq v696, false
     icall panic_if<0x32>, v697
     v698 = extract_value slice<calldata>, arg0, 0
@@ -840,7 +840,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v703 = eq v702, false
     icall revert_if<empty>, v703
     v704 = extract_value slice<calldata>, arg0, 1
-    v705 = lt 44, v704
+    v705 = gt v704, 44
     v706 = eq v705, false
     icall panic_if<0x32>, v706
     v707 = extract_value slice<calldata>, arg0, 0
@@ -848,7 +848,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v709 = add v708, 0x580
     v710 = calldataload v709
     v711 = extract_value slice<calldata>, arg0, 1
-    v712 = lt 45, v711
+    v712 = gt v711, 45
     v713 = eq v712, false
     icall panic_if<0x32>, v713
     v714 = extract_value slice<calldata>, arg0, 0
@@ -859,7 +859,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v719 = eq v718, false
     icall revert_if<empty>, v719
     v720 = extract_value slice<calldata>, arg0, 1
-    v721 = lt 45, v720
+    v721 = gt v720, 45
     v722 = eq v721, false
     icall panic_if<0x32>, v722
     v723 = extract_value slice<calldata>, arg0, 0
@@ -867,7 +867,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v725 = add v724, 0x5a0
     v726 = calldataload v725
     v727 = extract_value slice<calldata>, arg0, 1
-    v728 = lt 46, v727
+    v728 = gt v727, 46
     v729 = eq v728, false
     icall panic_if<0x32>, v729
     v730 = extract_value slice<calldata>, arg0, 0
@@ -878,7 +878,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v735 = eq v734, false
     icall revert_if<empty>, v735
     v736 = extract_value slice<calldata>, arg0, 1
-    v737 = lt 46, v736
+    v737 = gt v736, 46
     v738 = eq v737, false
     icall panic_if<0x32>, v738
     v739 = extract_value slice<calldata>, arg0, 0
@@ -886,7 +886,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v741 = add v740, 0x5c0
     v742 = calldataload v741
     v743 = extract_value slice<calldata>, arg0, 1
-    v744 = lt 47, v743
+    v744 = gt v743, 47
     v745 = eq v744, false
     icall panic_if<0x32>, v745
     v746 = extract_value slice<calldata>, arg0, 0
@@ -897,7 +897,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v751 = eq v750, false
     icall revert_if<empty>, v751
     v752 = extract_value slice<calldata>, arg0, 1
-    v753 = lt 47, v752
+    v753 = gt v752, 47
     v754 = eq v753, false
     icall panic_if<0x32>, v754
     v755 = extract_value slice<calldata>, arg0, 0
@@ -905,7 +905,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v757 = add v756, 0x5e0
     v758 = calldataload v757
     v759 = extract_value slice<calldata>, arg0, 1
-    v760 = lt 48, v759
+    v760 = gt v759, 48
     v761 = eq v760, false
     icall panic_if<0x32>, v761
     v762 = extract_value slice<calldata>, arg0, 0
@@ -916,7 +916,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v767 = eq v766, false
     icall revert_if<empty>, v767
     v768 = extract_value slice<calldata>, arg0, 1
-    v769 = lt 48, v768
+    v769 = gt v768, 48
     v770 = eq v769, false
     icall panic_if<0x32>, v770
     v771 = extract_value slice<calldata>, arg0, 0
@@ -924,7 +924,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v773 = add v772, 0x600
     v774 = calldataload v773
     v775 = extract_value slice<calldata>, arg0, 1
-    v776 = lt 49, v775
+    v776 = gt v775, 49
     v777 = eq v776, false
     icall panic_if<0x32>, v777
     v778 = extract_value slice<calldata>, arg0, 0
@@ -935,7 +935,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v783 = eq v782, false
     icall revert_if<empty>, v783
     v784 = extract_value slice<calldata>, arg0, 1
-    v785 = lt 49, v784
+    v785 = gt v784, 49
     v786 = eq v785, false
     icall panic_if<0x32>, v786
     v787 = extract_value slice<calldata>, arg0, 0
@@ -943,7 +943,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v789 = add v788, 0x620
     v790 = calldataload v789
     v791 = extract_value slice<calldata>, arg0, 1
-    v792 = lt 50, v791
+    v792 = gt v791, 50
     v793 = eq v792, false
     icall panic_if<0x32>, v793
     v794 = extract_value slice<calldata>, arg0, 0
@@ -954,7 +954,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v799 = eq v798, false
     icall revert_if<empty>, v799
     v800 = extract_value slice<calldata>, arg0, 1
-    v801 = lt 50, v800
+    v801 = gt v800, 50
     v802 = eq v801, false
     icall panic_if<0x32>, v802
     v803 = extract_value slice<calldata>, arg0, 0
@@ -962,7 +962,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v805 = add v804, 0x640
     v806 = calldataload v805
     v807 = extract_value slice<calldata>, arg0, 1
-    v808 = lt 51, v807
+    v808 = gt v807, 51
     v809 = eq v808, false
     icall panic_if<0x32>, v809
     v810 = extract_value slice<calldata>, arg0, 0
@@ -973,7 +973,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v815 = eq v814, false
     icall revert_if<empty>, v815
     v816 = extract_value slice<calldata>, arg0, 1
-    v817 = lt 51, v816
+    v817 = gt v816, 51
     v818 = eq v817, false
     icall panic_if<0x32>, v818
     v819 = extract_value slice<calldata>, arg0, 0
@@ -981,7 +981,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v821 = add v820, 0x660
     v822 = calldataload v821
     v823 = extract_value slice<calldata>, arg0, 1
-    v824 = lt 52, v823
+    v824 = gt v823, 52
     v825 = eq v824, false
     icall panic_if<0x32>, v825
     v826 = extract_value slice<calldata>, arg0, 0
@@ -992,7 +992,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v831 = eq v830, false
     icall revert_if<empty>, v831
     v832 = extract_value slice<calldata>, arg0, 1
-    v833 = lt 52, v832
+    v833 = gt v832, 52
     v834 = eq v833, false
     icall panic_if<0x32>, v834
     v835 = extract_value slice<calldata>, arg0, 0
@@ -1000,7 +1000,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v837 = add v836, 0x680
     v838 = calldataload v837
     v839 = extract_value slice<calldata>, arg0, 1
-    v840 = lt 53, v839
+    v840 = gt v839, 53
     v841 = eq v840, false
     icall panic_if<0x32>, v841
     v842 = extract_value slice<calldata>, arg0, 0
@@ -1011,7 +1011,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v847 = eq v846, false
     icall revert_if<empty>, v847
     v848 = extract_value slice<calldata>, arg0, 1
-    v849 = lt 53, v848
+    v849 = gt v848, 53
     v850 = eq v849, false
     icall panic_if<0x32>, v850
     v851 = extract_value slice<calldata>, arg0, 0
@@ -1019,7 +1019,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v853 = add v852, 0x6a0
     v854 = calldataload v853
     v855 = extract_value slice<calldata>, arg0, 1
-    v856 = lt 54, v855
+    v856 = gt v855, 54
     v857 = eq v856, false
     icall panic_if<0x32>, v857
     v858 = extract_value slice<calldata>, arg0, 0
@@ -1030,7 +1030,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v863 = eq v862, false
     icall revert_if<empty>, v863
     v864 = extract_value slice<calldata>, arg0, 1
-    v865 = lt 54, v864
+    v865 = gt v864, 54
     v866 = eq v865, false
     icall panic_if<0x32>, v866
     v867 = extract_value slice<calldata>, arg0, 0
@@ -1038,7 +1038,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v869 = add v868, 0x6c0
     v870 = calldataload v869
     v871 = extract_value slice<calldata>, arg0, 1
-    v872 = lt 55, v871
+    v872 = gt v871, 55
     v873 = eq v872, false
     icall panic_if<0x32>, v873
     v874 = extract_value slice<calldata>, arg0, 0
@@ -1049,7 +1049,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v879 = eq v878, false
     icall revert_if<empty>, v879
     v880 = extract_value slice<calldata>, arg0, 1
-    v881 = lt 55, v880
+    v881 = gt v880, 55
     v882 = eq v881, false
     icall panic_if<0x32>, v882
     v883 = extract_value slice<calldata>, arg0, 0
@@ -1057,7 +1057,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v885 = add v884, 0x6e0
     v886 = calldataload v885
     v887 = extract_value slice<calldata>, arg0, 1
-    v888 = lt 56, v887
+    v888 = gt v887, 56
     v889 = eq v888, false
     icall panic_if<0x32>, v889
     v890 = extract_value slice<calldata>, arg0, 0
@@ -1068,7 +1068,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v895 = eq v894, false
     icall revert_if<empty>, v895
     v896 = extract_value slice<calldata>, arg0, 1
-    v897 = lt 56, v896
+    v897 = gt v896, 56
     v898 = eq v897, false
     icall panic_if<0x32>, v898
     v899 = extract_value slice<calldata>, arg0, 0
@@ -1076,7 +1076,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v901 = add v900, 0x700
     v902 = calldataload v901
     v903 = extract_value slice<calldata>, arg0, 1
-    v904 = lt 57, v903
+    v904 = gt v903, 57
     v905 = eq v904, false
     icall panic_if<0x32>, v905
     v906 = extract_value slice<calldata>, arg0, 0
@@ -1087,7 +1087,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v911 = eq v910, false
     icall revert_if<empty>, v911
     v912 = extract_value slice<calldata>, arg0, 1
-    v913 = lt 57, v912
+    v913 = gt v912, 57
     v914 = eq v913, false
     icall panic_if<0x32>, v914
     v915 = extract_value slice<calldata>, arg0, 0
@@ -1095,7 +1095,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v917 = add v916, 0x720
     v918 = calldataload v917
     v919 = extract_value slice<calldata>, arg0, 1
-    v920 = lt 58, v919
+    v920 = gt v919, 58
     v921 = eq v920, false
     icall panic_if<0x32>, v921
     v922 = extract_value slice<calldata>, arg0, 0
@@ -1106,7 +1106,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v927 = eq v926, false
     icall revert_if<empty>, v927
     v928 = extract_value slice<calldata>, arg0, 1
-    v929 = lt 58, v928
+    v929 = gt v928, 58
     v930 = eq v929, false
     icall panic_if<0x32>, v930
     v931 = extract_value slice<calldata>, arg0, 0
@@ -1114,7 +1114,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v933 = add v932, 0x740
     v934 = calldataload v933
     v935 = extract_value slice<calldata>, arg0, 1
-    v936 = lt 59, v935
+    v936 = gt v935, 59
     v937 = eq v936, false
     icall panic_if<0x32>, v937
     v938 = extract_value slice<calldata>, arg0, 0
@@ -1125,7 +1125,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v943 = eq v942, false
     icall revert_if<empty>, v943
     v944 = extract_value slice<calldata>, arg0, 1
-    v945 = lt 59, v944
+    v945 = gt v944, 59
     v946 = eq v945, false
     icall panic_if<0x32>, v946
     v947 = extract_value slice<calldata>, arg0, 0
@@ -1133,7 +1133,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v949 = add v948, 0x760
     v950 = calldataload v949
     v951 = extract_value slice<calldata>, arg0, 1
-    v952 = lt 60, v951
+    v952 = gt v951, 60
     v953 = eq v952, false
     icall panic_if<0x32>, v953
     v954 = extract_value slice<calldata>, arg0, 0
@@ -1144,7 +1144,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v959 = eq v958, false
     icall revert_if<empty>, v959
     v960 = extract_value slice<calldata>, arg0, 1
-    v961 = lt 60, v960
+    v961 = gt v960, 60
     v962 = eq v961, false
     icall panic_if<0x32>, v962
     v963 = extract_value slice<calldata>, arg0, 0
@@ -1152,7 +1152,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v965 = add v964, 0x780
     v966 = calldataload v965
     v967 = extract_value slice<calldata>, arg0, 1
-    v968 = lt 61, v967
+    v968 = gt v967, 61
     v969 = eq v968, false
     icall panic_if<0x32>, v969
     v970 = extract_value slice<calldata>, arg0, 0
@@ -1163,7 +1163,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v975 = eq v974, false
     icall revert_if<empty>, v975
     v976 = extract_value slice<calldata>, arg0, 1
-    v977 = lt 61, v976
+    v977 = gt v976, 61
     v978 = eq v977, false
     icall panic_if<0x32>, v978
     v979 = extract_value slice<calldata>, arg0, 0
@@ -1171,7 +1171,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v981 = add v980, 0x7a0
     v982 = calldataload v981
     v983 = extract_value slice<calldata>, arg0, 1
-    v984 = lt 62, v983
+    v984 = gt v983, 62
     v985 = eq v984, false
     icall panic_if<0x32>, v985
     v986 = extract_value slice<calldata>, arg0, 0
@@ -1182,7 +1182,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v991 = eq v990, false
     icall revert_if<empty>, v991
     v992 = extract_value slice<calldata>, arg0, 1
-    v993 = lt 62, v992
+    v993 = gt v992, 62
     v994 = eq v993, false
     icall panic_if<0x32>, v994
     v995 = extract_value slice<calldata>, arg0, 0
@@ -1190,7 +1190,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v997 = add v996, 0x7c0
     v998 = calldataload v997
     v999 = extract_value slice<calldata>, arg0, 1
-    v1000 = lt 63, v999
+    v1000 = gt v999, 63
     v1001 = eq v1000, false
     icall panic_if<0x32>, v1001
     v1002 = extract_value slice<calldata>, arg0, 0
@@ -1201,7 +1201,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v1007 = eq v1006, false
     icall revert_if<empty>, v1007
     v1008 = extract_value slice<calldata>, arg0, 1
-    v1009 = lt 63, v1008
+    v1009 = gt v1008, 63
     v1010 = eq v1009, false
     icall panic_if<0x32>, v1010
     v1011 = extract_value slice<calldata>, arg0, 0
@@ -1209,7 +1209,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v1013 = add v1012, 0x7e0
     v1014 = calldataload v1013
     v1015 = extract_value slice<calldata>, arg0, 1
-    v1016 = lt 64, v1015
+    v1016 = gt v1015, 64
     v1017 = eq v1016, false
     icall panic_if<0x32>, v1017
     v1018 = extract_value slice<calldata>, arg0, 0
@@ -1220,7 +1220,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v1023 = eq v1022, false
     icall revert_if<empty>, v1023
     v1024 = extract_value slice<calldata>, arg0, 1
-    v1025 = lt 64, v1024
+    v1025 = gt v1024, 64
     v1026 = eq v1025, false
     icall panic_if<0x32>, v1026
     v1027 = extract_value slice<calldata>, arg0, 0
@@ -1228,7 +1228,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v1029 = add v1028, 0x800
     v1030 = calldataload v1029
     v1031 = extract_value slice<calldata>, arg0, 1
-    v1032 = lt 65, v1031
+    v1032 = gt v1031, 65
     v1033 = eq v1032, false
     icall panic_if<0x32>, v1033
     v1034 = extract_value slice<calldata>, arg0, 0
@@ -1239,7 +1239,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v1039 = eq v1038, false
     icall revert_if<empty>, v1039
     v1040 = extract_value slice<calldata>, arg0, 1
-    v1041 = lt 0, v1040
+    v1041 = gt v1040, 0
     v1042 = eq v1041, false
     icall panic_if<0x32>, v1042
     v1043 = extract_value slice<calldata>, arg0, 0
@@ -1247,7 +1247,7 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
     v1045 = add v1044, 0
     v1046 = calldataload v1045
     v1047 = extract_value slice<calldata>, arg0, 1
-    v1048 = lt 65, v1047
+    v1048 = gt v1047, 65
     v1049 = eq v1048, false
     icall panic_if<0x32>, v1049
     v1050 = extract_value slice<calldata>, arg0, 0

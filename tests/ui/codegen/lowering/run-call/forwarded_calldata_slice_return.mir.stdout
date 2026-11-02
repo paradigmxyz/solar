@@ -54,7 +54,7 @@ fn @delegate(arg0: slice<calldata>) -> struct0 [selector=0x0ccfac9e, pure, abi_p
     icall revert_if<invalid_calldata_tail_length>, v12
     v13 = sub v11, v10
     v14 = ptrtoint ptr<calldata> v9 to i256
-    v15 = sgt v14, v13
+    v15 = slt v13, v14
     icall revert_if<calldata_tail_too_short>, v15
     v16 = ptradd v8, 32
     v17 = extract_value slice<calldata>, v2, 0
@@ -87,7 +87,7 @@ fn @single(arg0: slice<calldata>) -> struct2 [selector=0xd61d3fe8, pure, abi_par
     icall revert_if<invalid_calldata_tail_length>, v13
     v14 = sub v12, v11
     v15 = ptrtoint ptr<calldata> v10 to i256
-    v16 = sgt v15, v14
+    v16 = slt v14, v15
     icall revert_if<calldata_tail_too_short>, v16
     v17 = ptradd v9, 32
     v18 = extract_value slice<calldata>, v3, 0
@@ -121,7 +121,7 @@ fn @nested(arg0: slice<calldata>) -> struct2 [selector=0xb26b18a9, pure, abi_par
     icall revert_if<invalid_calldata_tail_length>, v13
     v14 = sub v12, v11
     v15 = ptrtoint ptr<calldata> v10 to i256
-    v16 = sgt v15, v14
+    v16 = slt v14, v15
     icall revert_if<calldata_tail_too_short>, v16
     v17 = ptradd v9, 32
     v18 = extract_value slice<calldata>, v3, 0
@@ -195,7 +195,7 @@ fn @_tryParseSlices(arg0: slice<calldata>) -> struct5 [pure] {
     v3 = extract_value struct6, v0, 2
     v4 = extract_value struct6, v0, 3
     v5 = mload v3
-    v6 = lt 0, v5
+    v6 = gt v5, 0
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = ptradd v3, 32
@@ -220,7 +220,7 @@ fn @_splitSlices(arg0: slice<calldata>) -> struct6 [pure] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = extract_value slice<calldata>, arg0, 1
-    v2 = gt 1, v1
+    v2 = lt v1, 1
     v3 = lt 1, 0
     v4 = or v2, v3
     v5 = zext i1 v4 to i256
@@ -234,7 +234,7 @@ fn @_splitSlices(arg0: slice<calldata>) -> struct6 [pure] {
     icall revert_if<invalid_calldata_tail_length>, v11
     v12 = sub v10, v9
     v13 = ptrtoint ptr<calldata> v8 to i256
-    v14 = sgt v13, v12
+    v14 = slt v12, v13
     icall revert_if<calldata_tail_too_short>, v14
     v15 = extract_value slice<calldata>, v7, 1
     v16 = add v15, 31
@@ -250,7 +250,7 @@ fn @_splitSlices(arg0: slice<calldata>) -> struct6 [pure] {
     calldatacopy v21, v22, v23
     v24 = extract_value slice<calldata>, arg0, 0
     v25 = extract_value slice<calldata>, arg0, 1
-    v26 = gt v25, v25
+    v26 = lt v25, v25
     v27 = lt v25, 1
     v28 = or v26, v27
     v29 = zext i1 v28 to i256
@@ -265,7 +265,7 @@ fn @_splitSlices(arg0: slice<calldata>) -> struct6 [pure] {
     icall revert_if<invalid_calldata_tail_length>, v36
     v37 = sub v35, v34
     v38 = ptrtoint ptr<calldata> v33 to i256
-    v39 = sgt v38, v37
+    v39 = slt v37, v38
     icall revert_if<calldata_tail_too_short>, v39
     v40 = extract_value slice<calldata>, v32, 1
     v41 = add v40, 31

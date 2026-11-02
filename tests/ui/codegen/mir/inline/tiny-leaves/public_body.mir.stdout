@@ -11,7 +11,7 @@ fn @constructor(arg0: i256) [abi_wrapper, constructor] {
     v0 = constructor_args_base
     v1 = constructor_args_end
     v2 = add v0, 32
-    v3 = gt v2, v1
+    v3 = lt v1, v2
     v6 = zext i1 v3 to i256
     v7 = or v4, v6
     v8 = ne v7, 0

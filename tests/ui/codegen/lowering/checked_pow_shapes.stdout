@@ -97,7 +97,7 @@ fn @spow(arg0: i256, arg1: i256) -> i256 [selector=0x8c0da14f, pure, abi_params=
     v36 = or v35, v34
     v37 = gt v23, 0
     v38 = zext i1 v37 to i256
-    v39 = and v38, v36
+    v39 = and v36, v38
     v40 = ne v39, 0
     jumpi v40, bb4, bb6
   bb6:  ; preds = bb5
@@ -310,7 +310,7 @@ fn @const_neg2(arg0: i256) -> i256 [selector=0xf3adabf1, pure, abi_params=[uint2
     v36 = or v35, v34
     v37 = gt v23, 0
     v38 = zext i1 v37 to i256
-    v39 = and v38, v36
+    v39 = and v36, v38
     v40 = ne v39, 0
     jumpi v40, bb4, bb6
   bb6:  ; preds = bb5

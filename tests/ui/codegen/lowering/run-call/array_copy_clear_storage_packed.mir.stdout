@@ -78,14 +78,14 @@ fn @f() -> i128 [selector=0x26121ff0, abi_params=[], abi_returns=[word<uint128>]
     v60 = alloc zeroed checked 64
     mstore v60, 1
     v61 = mload v60
-    v62 = lt 0, v61
+    v62 = gt v61, 0
     v63 = eq v62, false
     icall panic_if<0x32>, v63
     v64 = ptradd v60, 32
     mstore v64, 23
     v65 = mload v60
     v66 = sload 0 !metadata(storage=slot(0))
-    v67 = gt v66, v65
+    v67 = lt v65, v66
     jumpi v67, bb1, bb2
   bb1:  ; preds = bb0
     jump bb3
@@ -120,7 +120,7 @@ fn @f() -> i128 [selector=0x26121ff0, abi_params=[], abi_returns=[word<uint128>]
   bb10:  ; preds = bb8, bb9
     sstore 0, 4 !metadata(storage=slot(0))
     v113 = sload 0 !metadata(storage=slot(0))
-    v114 = lt 0, v113
+    v114 = gt v113, 0
     v115 = eq v114, false
     icall panic_if<0x32>, v115
     v116 = storage_array_data_slot 0
@@ -131,7 +131,7 @@ fn @f() -> i128 [selector=0x26121ff0, abi_params=[], abi_returns=[word<uint128>]
     v121 = eq v120, false
     icall panic_if<0x1>, v121
     v122 = sload 0 !metadata(storage=slot(0))
-    v123 = lt 2, v122
+    v123 = gt v122, 2
     v124 = eq v123, false
     icall panic_if<0x32>, v124
     v125 = storage_array_data_slot 0
@@ -143,7 +143,7 @@ fn @f() -> i128 [selector=0x26121ff0, abi_params=[], abi_returns=[word<uint128>]
     v131 = eq v130, false
     icall panic_if<0x1>, v131
     v132 = sload 0 !metadata(storage=slot(0))
-    v133 = lt 3, v132
+    v133 = gt v132, 3
     v134 = eq v133, false
     icall panic_if<0x32>, v134
     v135 = storage_array_data_slot 0
@@ -155,7 +155,7 @@ fn @f() -> i128 [selector=0x26121ff0, abi_params=[], abi_returns=[word<uint128>]
     v141 = eq v140, false
     icall panic_if<0x1>, v141
     v142 = sload 0 !metadata(storage=slot(0))
-    v143 = lt 1, v142
+    v143 = gt v142, 1
     v144 = eq v143, false
     icall panic_if<0x32>, v144
     v145 = storage_array_data_slot 0
@@ -280,14 +280,14 @@ fn @g() -> i64 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<uint64>], 
     v60 = alloc zeroed checked 64
     mstore v60, 1
     v61 = mload v60
-    v62 = lt 0, v61
+    v62 = gt v61, 0
     v63 = eq v62, false
     icall panic_if<0x32>, v63
     v64 = ptradd v60, 32
     mstore v64, 23
     v65 = mload v60
     v66 = sload 1 !metadata(storage=slot(1))
-    v67 = gt v66, v65
+    v67 = lt v65, v66
     jumpi v67, bb1, bb2
   bb1:  ; preds = bb0
     jump bb3
@@ -322,7 +322,7 @@ fn @g() -> i64 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<uint64>], 
   bb10:  ; preds = bb8, bb9
     sstore 1, 4 !metadata(storage=slot(1))
     v113 = sload 1 !metadata(storage=slot(1))
-    v114 = lt 0, v113
+    v114 = gt v113, 0
     v115 = eq v114, false
     icall panic_if<0x32>, v115
     v116 = storage_array_data_slot 1
@@ -333,7 +333,7 @@ fn @g() -> i64 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<uint64>], 
     v121 = eq v120, false
     icall panic_if<0x1>, v121
     v122 = sload 1 !metadata(storage=slot(1))
-    v123 = lt 2, v122
+    v123 = gt v122, 2
     v124 = eq v123, false
     icall panic_if<0x32>, v124
     v125 = storage_array_data_slot 1
@@ -344,7 +344,7 @@ fn @g() -> i64 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<uint64>], 
     v130 = eq v129, false
     icall panic_if<0x1>, v130
     v131 = sload 1 !metadata(storage=slot(1))
-    v132 = lt 3, v131
+    v132 = gt v131, 3
     v133 = eq v132, false
     icall panic_if<0x32>, v133
     v134 = storage_array_data_slot 1
@@ -355,7 +355,7 @@ fn @g() -> i64 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<uint64>], 
     v139 = eq v138, false
     icall panic_if<0x1>, v139
     v140 = sload 1 !metadata(storage=slot(1))
-    v141 = lt 1, v140
+    v141 = gt v140, 1
     v142 = eq v141, false
     icall panic_if<0x32>, v142
     v143 = storage_array_data_slot 1
@@ -480,14 +480,14 @@ fn @h() -> i120 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<uint120>]
     v60 = alloc zeroed checked 64
     mstore v60, 1
     v61 = mload v60
-    v62 = lt 0, v61
+    v62 = gt v61, 0
     v63 = eq v62, false
     icall panic_if<0x32>, v63
     v64 = ptradd v60, 32
     mstore v64, 23
     v65 = mload v60
     v66 = sload 2 !metadata(storage=slot(2))
-    v67 = gt v66, v65
+    v67 = lt v65, v66
     jumpi v67, bb1, bb2
   bb1:  ; preds = bb0
     jump bb3
@@ -522,7 +522,7 @@ fn @h() -> i120 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<uint120>]
   bb10:  ; preds = bb8, bb9
     sstore 2, 4 !metadata(storage=slot(2))
     v113 = sload 2 !metadata(storage=slot(2))
-    v114 = lt 0, v113
+    v114 = gt v113, 0
     v115 = eq v114, false
     icall panic_if<0x32>, v115
     v116 = storage_array_data_slot 2
@@ -533,7 +533,7 @@ fn @h() -> i120 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<uint120>]
     v121 = eq v120, false
     icall panic_if<0x1>, v121
     v122 = sload 2 !metadata(storage=slot(2))
-    v123 = lt 2, v122
+    v123 = gt v122, 2
     v124 = eq v123, false
     icall panic_if<0x32>, v124
     v125 = storage_array_data_slot 2
@@ -545,7 +545,7 @@ fn @h() -> i120 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<uint120>]
     v131 = eq v130, false
     icall panic_if<0x1>, v131
     v132 = sload 2 !metadata(storage=slot(2))
-    v133 = lt 3, v132
+    v133 = gt v132, 3
     v134 = eq v133, false
     icall panic_if<0x32>, v134
     v135 = storage_array_data_slot 2
@@ -557,7 +557,7 @@ fn @h() -> i120 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<uint120>]
     v141 = eq v140, false
     icall panic_if<0x1>, v141
     v142 = sload 2 !metadata(storage=slot(2))
-    v143 = lt 1, v142
+    v143 = gt v142, 1
     v144 = eq v143, false
     icall panic_if<0x32>, v144
     v145 = storage_array_data_slot 2

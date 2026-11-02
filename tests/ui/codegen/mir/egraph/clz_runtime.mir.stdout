@@ -13,7 +13,7 @@ fn @inequalities(arg0: i256) -> struct0 [selector=0x6774d5e5, pure, abi_params=[
     v3 = eq v2, 0
     v4 = zext i1 v3 to i256
     v5 = clz arg0
-    v6 = eq 256, v5
+    v6 = eq v5, 256
     v7 = zext i1 v6 to i256
     v8 = eq v7, 0
     v9 = zext i1 v8 to i256
@@ -23,7 +23,7 @@ fn @inequalities(arg0: i256) -> struct0 [selector=0x6774d5e5, pure, abi_params=[
     v13 = eq v12, 0
     v14 = zext i1 v13 to i256
     v15 = clz arg0
-    v16 = eq 257, v15
+    v16 = eq v15, 257
     v17 = zext i1 v16 to i256
     v18 = eq v17, 0
     v19 = zext i1 v18 to i256

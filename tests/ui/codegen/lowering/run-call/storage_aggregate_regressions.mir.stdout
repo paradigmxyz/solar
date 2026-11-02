@@ -75,7 +75,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v55 = add v53, v54
     sstore 4, v52 !metadata(storage=slot(4))
     v56 = sload 4 !metadata(storage=slot(4))
-    v57 = lt 0, v56
+    v57 = gt v56, 0
     v58 = eq v57, false
     icall panic_if<0x32>, v58
     v59 = storage_array_data_slot 4
@@ -83,7 +83,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v60 = add v59, 1
     sstore v60, 22 !metadata(storage=offset(v59, 1))
     v61 = sload 4 !metadata(storage=slot(4))
-    v62 = lt 0, v61
+    v62 = gt v61, 0
     v63 = eq v62, false
     icall panic_if<0x32>, v63
     v64 = storage_array_data_slot 4
@@ -94,7 +94,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     jump bb12
   bb10:  ; preds = bb9
     v67 = sload 4 !metadata(storage=slot(4))
-    v68 = lt 0, v67
+    v68 = gt v67, 0
     v69 = eq v68, false
     icall panic_if<0x32>, v69
     v70 = storage_array_data_slot 4
@@ -118,7 +118,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v82 = ptradd v81, 32
     mstore v82, 32
     v83 = sload 5 !metadata(storage=slot(5))
-    v84 = lt 0, v83
+    v84 = gt v83, 0
     v85 = eq v84, false
     icall panic_if<0x32>, v85
     v86 = storage_array_data_slot 5
@@ -129,7 +129,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     jumpi v88, bb14, bb15
   bb15:  ; preds = bb13
     v95 = sload 5 !metadata(storage=slot(5))
-    v96 = lt 0, v95
+    v96 = gt v95, 0
     v97 = eq v96, false
     icall panic_if<0x32>, v97
     v98 = storage_array_data_slot 5
@@ -143,7 +143,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     jump bb21
   bb19:  ; preds = bb15
     v103 = sload 5 !metadata(storage=slot(5))
-    v104 = lt 0, v103
+    v104 = gt v103, 0
     v105 = eq v104, false
     icall panic_if<0x32>, v105
     v106 = storage_array_data_slot 5
@@ -167,25 +167,25 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v118 = alloc zeroed checked 96
     mstore v118, 2
     v119 = mload v118
-    v120 = lt 0, v119
+    v120 = gt v119, 0
     v121 = eq v120, false
     icall panic_if<0x32>, v121
     v122 = ptradd v118, 32
     mstore v122, 41
     v123 = mload v118
-    v124 = lt 1, v123
+    v124 = gt v123, 1
     v125 = eq v124, false
     icall panic_if<0x32>, v125
     v126 = ptradd v118, 64
     mstore v126, 42
     v127 = sload 6 !metadata(storage=slot(6))
-    v128 = lt 0, v127
+    v128 = gt v127, 0
     v129 = eq v128, false
     icall panic_if<0x32>, v129
     v130 = storage_array_data_slot 6
     v131 = mload v118
     v132 = sload v130 !metadata(storage=symbolic(v130))
-    v133 = gt v132, v131
+    v133 = lt v131, v132
     jumpi v133, bb22, bb23
   bb22:  ; preds = bb21
     jump bb24
@@ -204,7 +204,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     jumpi v140, bb28, bb29
   bb29:  ; preds = bb27
     v148 = sload 6 !metadata(storage=slot(6))
-    v149 = lt 0, v148
+    v149 = gt v148, 0
     v150 = eq v149, false
     icall panic_if<0x32>, v150
     v151 = storage_array_data_slot 6
@@ -215,12 +215,12 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     jump bb32
   bb30:  ; preds = bb29
     v154 = sload 6 !metadata(storage=slot(6))
-    v155 = lt 0, v154
+    v155 = gt v154, 0
     v156 = eq v155, false
     icall panic_if<0x32>, v156
     v157 = storage_array_data_slot 6
     v158 = sload v157 !metadata(storage=symbolic(v157))
-    v159 = lt 1, v158
+    v159 = gt v158, 1
     v160 = eq v159, false
     icall panic_if<0x32>, v160
     v161 = storage_array_data_slot v157
@@ -239,13 +239,13 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v170 = add v169, v166
     sstore 7, v168 !metadata(storage=slot(7))
     v171 = sload 7 !metadata(storage=slot(7))
-    v172 = lt 0, v171
+    v172 = gt v171, 0
     v173 = eq v172, false
     icall panic_if<0x32>, v173
     v174 = storage_array_data_slot 7
     store_storage_bytes_literal v174, hex"aabbcc"
     v175 = sload 7 !metadata(storage=slot(7))
-    v176 = lt 0, v175
+    v176 = gt v175, 0
     v177 = eq v176, false
     icall panic_if<0x32>, v177
     v178 = storage_array_data_slot 7
@@ -254,7 +254,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v180 = and v179, 1
     v181 = eq v180, 1
     v182 = sub 0, v180
-    v183 = or 127, v182
+    v183 = or v182, 127
     v184 = shr v179, 1
     v185 = and v184, v183
     v186 = eq v185, 3
@@ -263,7 +263,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     jump bb35
   bb33:  ; preds = bb32
     v187 = sload 7 !metadata(storage=slot(7))
-    v188 = lt 0, v187
+    v188 = gt v187, 0
     v189 = eq v188, false
     icall panic_if<0x32>, v189
     v190 = storage_array_data_slot 7
@@ -272,10 +272,10 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v192 = and v191, 1
     v193 = eq v192, 1
     v194 = sub 0, v192
-    v195 = or 127, v194
+    v195 = or v194, 127
     v196 = shr v191, 1
     v197 = and v196, v195
-    v198 = lt 1, v197
+    v198 = gt v197, 1
     v199 = eq v198, false
     icall panic_if<0x32>, v199
     jumpi v193, bb36, bb37
@@ -354,7 +354,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v251 = add v250, v247
     sstore 10, v249 !metadata(storage=slot(10))
     v252 = sload 10 !metadata(storage=slot(10))
-    v253 = lt 0, v252
+    v253 = gt v252, 0
     v254 = eq v253, false
     icall panic_if<0x32>, v254
     v255 = storage_array_data_slot 10
@@ -421,7 +421,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     sstore 9, 2 !metadata(storage=slot(9))
     sstore 10, 1 !metadata(storage=slot(10))
     v319 = sload 4 !metadata(storage=slot(4))
-    v320 = lt 0, v319
+    v320 = gt v319, 0
     v321 = eq v320, false
     icall panic_if<0x32>, v321
     v322 = storage_array_data_slot 4
@@ -432,7 +432,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     jump bb64
   bb62:  ; preds = bb58
     v325 = sload 4 !metadata(storage=slot(4))
-    v326 = lt 0, v325
+    v326 = gt v325, 0
     v327 = eq v326, false
     icall panic_if<0x32>, v327
     v328 = storage_array_data_slot 4
@@ -444,7 +444,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v332 = phi [bb62: v331], [bb63: false]
     icall require<short_string>, v332, 13, 0x7374727563742064656c65746500000000000000000000000000000000000000
     v333 = sload 5 !metadata(storage=slot(5))
-    v334 = lt 0, v333
+    v334 = gt v333, 0
     v335 = eq v334, false
     icall panic_if<0x32>, v335
     v336 = storage_array_data_slot 5
@@ -458,7 +458,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     jump bb67
   bb65:  ; preds = bb64
     v341 = sload 5 !metadata(storage=slot(5))
-    v342 = lt 0, v341
+    v342 = gt v341, 0
     v343 = eq v342, false
     icall panic_if<0x32>, v343
     v344 = storage_array_data_slot 5
@@ -473,7 +473,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v350 = phi [bb65: v349], [bb66: false]
     icall require<short_string>, v350, 12, 0x66697865642064656c6574650000000000000000000000000000000000000000
     v351 = sload 7 !metadata(storage=slot(7))
-    v352 = lt 0, v351
+    v352 = gt v351, 0
     v353 = eq v352, false
     icall panic_if<0x32>, v353
     v354 = storage_array_data_slot 7
@@ -482,13 +482,13 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v356 = and v355, 1
     v357 = eq v356, 1
     v358 = sub 0, v356
-    v359 = or 127, v358
+    v359 = or v358, 127
     v360 = shr v355, 1
     v361 = and v360, v359
     v362 = eq v361, 0
     icall require<short_string>, v362, 12, 0x62797465732064656c6574650000000000000000000000000000000000000000
     v363 = sload 8 !metadata(storage=slot(8))
-    v364 = lt 0, v363
+    v364 = gt v363, 0
     v365 = eq v364, false
     icall panic_if<0x32>, v365
     v366 = storage_array_data_slot 8
@@ -501,7 +501,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     jump bb70
   bb68:  ; preds = bb67
     v371 = sload 8 !metadata(storage=slot(8))
-    v372 = lt 1, v371
+    v372 = gt v371, 1
     v373 = eq v372, false
     icall panic_if<0x32>, v373
     v374 = storage_array_data_slot 8
@@ -514,7 +514,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v379 = phi [bb68: v378], [bb69: false]
     icall require<short_string>, v379, 13, 0x7061636b65642064656c65746500000000000000000000000000000000000000
     v380 = sload 9 !metadata(storage=slot(9))
-    v381 = lt 0, v380
+    v381 = gt v380, 0
     v382 = eq v381, false
     icall panic_if<0x32>, v382
     v383 = storage_array_data_slot 9
@@ -525,7 +525,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     jump bb73
   bb71:  ; preds = bb70
     v386 = sload 9 !metadata(storage=slot(9))
-    v387 = lt 1, v386
+    v387 = gt v386, 1
     v388 = eq v387, false
     icall panic_if<0x32>, v388
     v389 = storage_array_data_slot 9
@@ -537,7 +537,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v393 = phi [bb71: v392], [bb72: false]
     icall require<short_string>, v393, 11, 0x776f72642064656c657465000000000000000000000000000000000000000000
     v394 = sload 10 !metadata(storage=slot(10))
-    v395 = lt 0, v394
+    v395 = gt v394, 0
     v396 = eq v395, false
     icall panic_if<0x32>, v396
     v397 = storage_array_data_slot 10
@@ -578,7 +578,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v286 = and v285, 1
     v287 = eq v286, 1
     v288 = sub 0, v286
-    v289 = or 127, v288
+    v289 = or v288, 127
     v290 = shr v285, 1
     v291 = and v290, v289
     v292 = add v291, 31
@@ -651,7 +651,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     jump bb13
   bb2:  ; preds = bb1
     v19 = mul v17, 2
-    v20 = add 0, v19
+    v20 = add v19, 0
     v21 = alloc checked 64
     jump bb4
   bb4:  ; preds = bb2, bb5

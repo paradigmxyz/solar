@@ -24,17 +24,17 @@ fn @entry() [entry] {
 ; function narrowBase(uint8 base, uint256 extra) public pure returns (uint256 sum) [selector 0xc5e77450]
 fn @narrowBase() [selector=0xc5e77450, abi_wrapper, pure] {
   bb0:
-    v22 = calldataload 4
-    v23 = shr v22, 8
     v20 = calldatasize
     v21 = lt v20, 68
+    v22 = calldataload 4
+    v23 = shr v22, 8
     v25 = zext i1 v21 to i256
-    v26 = or v25, v23
+    v26 = or v23, v25
     v27 = ne v26, 0
     jumpi v27, bb4, bb5
   bb5:  ; preds = bb0
     v14 = add arg1, arg1
-    v16 = add arg0, v14
+    v16 = add v14, arg0
     v17 = add v16, 7
     jump bb1
   bb1:  ; preds = bb3, bb5
@@ -48,9 +48,9 @@ fn @narrowBase() [selector=0xc5e77450, abi_wrapper, pure] {
     returndata 0, 32
   bb3:  ; preds = bb1
     v6 = shl v3, 5
-    v7 = add arg0, v6
+    v7 = add v6, arg0
     v9 = add v7, v14
-    v10 = add v2, v9
+    v10 = add v9, v2
     v12 = xor v10, v18
     v13 = add v3, 1
     v19 = add v18, 32
@@ -67,7 +67,7 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v156 = calldataload 4
     v157 = add v156, 4
     v159 = sub v154, 36
-    v160 = gt v156, v159
+    v160 = lt v159, v156
     v275 = or v155, v160
     jumpi v275, bb25, bb26
   bb26:  ; preds = bb0
@@ -81,16 +81,16 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v261 = lt v260, v259
     v262 = zext i1 v261 to i256
     v263 = shr v260, 64
-    v264 = or v262, v263
+    v264 = or v263, v262
     v276 = zext i1 v166 to i256
-    v277 = or v276, v264
+    v277 = or v264, v276
     v278 = ne v277, 0
     jumpi v278, bb10, bb29
   bb29:  ; preds = bb26
     mstore 64, v260 !metadata(memory=scratch)
     mstore v259, v161
     v168 = sub v154, v162
-    v169 = gt v161, v168
+    v169 = lt v168, v161
     jumpi v169, bb25, bb27
   bb27:  ; preds = bb29
     v238 = add v259, 32
@@ -112,7 +112,7 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v254 = lt v253, v252
     v255 = zext i1 v254 to i256
     v256 = shr v253, 64
-    v257 = or v255, v256
+    v257 = or v256, v255
     v258 = ne v257, 0
     jumpi v258, bb10, bb28
   bb28:  ; preds = bb11
@@ -285,7 +285,7 @@ fn @rawBase() [selector=0xcc1fc46b, abi_wrapper, pure] {
     jump bb1
   bb1:  ; preds = bb3, bb5
     v10 = phi [bb5: arg0], [bb3: v11]
-    v3 = ne v10, v12
+    v3 = ne v12, v10
     jumpi v3, bb3, bb2
   bb2:  ; preds = bb1
     v9 = mload 0 !metadata(memory=scratch)

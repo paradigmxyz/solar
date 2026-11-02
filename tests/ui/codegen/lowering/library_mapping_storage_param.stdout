@@ -19,13 +19,13 @@ bb0:  ; runtime dispatch entry + function total(address k) external view returns
   sub
   push bb3
   jumpi
+  push 36
+  calldatasize
+  lt
   push 4
   calldataload
   push 160
   shr
-  push 36
-  calldatasize
-  lt
   or
   push bb3
   jumpi

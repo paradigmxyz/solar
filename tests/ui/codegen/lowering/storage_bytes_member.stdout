@@ -514,13 +514,13 @@ bb49:
   push 0
   return
 bb52:  ; function setAt(uint256 i, bytes1 b) external [selector 0xbee6975a]
+  push 68
+  calldatasize
+  lt
   push 36
   calldataload
   push 8
   shl
-  push 68
-  calldatasize
-  lt
   or
   push bb14
   jumpi
@@ -734,8 +734,8 @@ bb65 [loop]:
   swap 3
   pop
   swap 3
-  dup 3
-  dup 5
+  dup 4
+  dup 4
   sub
   push bb68
   jumpi
@@ -752,8 +752,8 @@ bb68 [loop]:
   add
   swap 3
   mstore
-  dup 3
-  dup 5
+  dup 4
+  dup 4
   sub
   push bb68
   jumpi

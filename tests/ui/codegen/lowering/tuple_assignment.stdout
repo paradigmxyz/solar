@@ -29,13 +29,13 @@ bb5 [cold]:
   push 0
   revert
 bb6:  ; function viaNamed(address t, bytes calldata d) external returns (bool ok) [selector 0x5030da75]
+  push 68
+  calldatasize
+  lt
   push 4
   calldataload
   push 160
   shr
-  push 68
-  calldatasize
-  lt
   or
   push 36
   calldataload

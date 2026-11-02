@@ -34,7 +34,7 @@ fn @zero_left_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
 // RECIPE: {{ *}}[[COND:v[0-9]+]] = ne arg0, 0
 // RECIPE: + {{ *}}[[Z:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[COND]]
 // RECIPE-NEXT: + {{ *}}[[MASK:v[0-9]+]] = sub [[Z]], 1
-// RECIPE-NEXT: + {{ *}}[[R:v[0-9]+]] = or arg1, [[MASK]]
+// RECIPE-NEXT: + {{ *}}[[R:v[0-9]+]] = or [[MASK]], arg1
 fn @max_right_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v2 = ne arg0, 0
@@ -46,7 +46,7 @@ fn @max_right_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
 // GAS: + {{ *}}[[BOOL:v[0-9]+]] = eq {{v[0-9]+}}, {{(0|false)}}
 // GAS-NEXT: + {{ *}}[[Z:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[BOOL]]
 // GAS-NEXT: + {{ *}}[[MASK:v[0-9]+]] = sub [[Z]], 1
-// GAS-NEXT: + {{ *}}[[R:v[0-9]+]] = or arg1, [[MASK]]
+// GAS-NEXT: + {{ *}}[[R:v[0-9]+]] = or [[MASK]], arg1
 // SIZE-LABEL: fn @max_left_dirty(
 // SIZE: select {{v[0-9]+}}, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg1
 fn @max_left_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
@@ -178,7 +178,7 @@ fn @constant_left_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
 // GAS-LABEL: fn @ascending_canonical(
 // GAS: + {{ *}}[[WORD:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} v0
 // GAS-NEXT: + {{ *}}[[SCALED:v[0-9]+]] = mul [[WORD]], 35
-// GAS-NEXT: + {{ *}}[[R:v[0-9]+]] = add 7, [[SCALED]]
+// GAS-NEXT: + {{ *}}[[R:v[0-9]+]] = add [[SCALED]], 7
 // GAS-NEXT: {{ *}}ret [[R]]
 // SIZE-LABEL: fn @ascending_canonical(
 // SIZE: {{^ *}}[[R:v[0-9]+]] = select v0, 42, 7
@@ -276,7 +276,7 @@ fn @factor_and(arg0: i256, arg1: i256, arg2: i256) -> i256 {
 
 // RECIPE-LABEL: fn @factor_add_after_ne(
 // RECIPE: + {{ *}}[[PRODUCT:v[0-9]+]] = mul
-// RECIPE: + {{ *}}[[RESULT:v[0-9]+]] = add arg2, [[PRODUCT]]
+// RECIPE: + {{ *}}[[RESULT:v[0-9]+]] = add [[PRODUCT]], arg2
 // RECIPE: {{ *}}ret [[RESULT]]
 fn @factor_add_after_ne(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
@@ -288,7 +288,7 @@ fn @factor_add_after_ne(arg0: i256, arg1: i256, arg2: i256) -> i256 {
 
 // RECIPE-LABEL: fn @factor_add_after_cast(
 // RECIPE: + {{ *}}[[PRODUCT:v[0-9]+]] = mul
-// RECIPE: + {{ *}}[[RESULT:v[0-9]+]] = add arg2, [[PRODUCT]]
+// RECIPE: + {{ *}}[[RESULT:v[0-9]+]] = add [[PRODUCT]], arg2
 // RECIPE: {{ *}}ret [[RESULT]]
 fn @factor_add_after_cast(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:

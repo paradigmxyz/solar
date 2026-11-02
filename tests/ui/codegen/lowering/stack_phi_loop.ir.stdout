@@ -34,13 +34,13 @@ bb6 [cold]:
   push 0
   revert
 bb7 [loop]:  ; function loopCarried(uint256 n, bool flag) public pure returns (uint256) [selector 0x71b76bb2]
+  push 68
+  calldatasize
+  lt
   push 36
   calldataload
   push 1
   shr
-  push 68
-  calldatasize
-  lt
   or
   push bb6
   jumpi
@@ -108,8 +108,8 @@ bb15:  ; function sequential(uint256 a, uint256 b) public pure returns (uint256)
 bb23 [loop]:
   push 1
   add
-  dup 1
-  dup 3
+  dup 2
+  dup 2
   add
   swap 2
   dup 3

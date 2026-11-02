@@ -12,7 +12,7 @@ fn @patch(arg0: i1) -> i256 [selector=0x7f603a02, pure, abi_params=[bool], abi_r
     jump bb3
   bb1:  ; preds = bb0
     v2 = mload v0
-    v3 = lt 0, v2
+    v3 = gt v2, 0
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = byte 0, 0x2d00000000000000000000000000000000000000000000000000000000000000
@@ -21,7 +21,7 @@ fn @patch(arg0: i1) -> i256 [selector=0x7f603a02, pure, abi_params=[bool], abi_r
     jump bb3
   bb3:  ; preds = bb1, bb2
     v7 = mload v0
-    v8 = lt 0, v7
+    v8 = gt v7, 0
     v9 = eq v8, false
     icall panic_if<0x32>, v9
     v10 = ptradd v0, 32

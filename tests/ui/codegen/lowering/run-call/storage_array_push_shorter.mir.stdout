@@ -29,7 +29,7 @@ fn @pushShorterMemory() -> struct0 [selector=0x465dc3fc, abi_params=[], abi_retu
   bb3:  ; preds = bb1
     sstore 0, v6 !metadata(storage=slot(0))
     v18 = sload 0 !metadata(storage=slot(0))
-    v19 = lt 0, v18
+    v19 = gt v18, 0
     v20 = eq v19, false
     icall panic_if<0x32>, v20
     v21 = storage_array_data_slot 0
@@ -38,7 +38,7 @@ fn @pushShorterMemory() -> struct0 [selector=0x465dc3fc, abi_params=[], abi_retu
     icall panic_if<0x32>, v23
     v24 = sload v21 !metadata(storage=symbolic(v21))
     v25 = sload 0 !metadata(storage=slot(0))
-    v26 = lt 0, v25
+    v26 = gt v25, 0
     v27 = eq v26, false
     icall panic_if<0x32>, v27
     v28 = storage_array_data_slot 0
@@ -48,7 +48,7 @@ fn @pushShorterMemory() -> struct0 [selector=0x465dc3fc, abi_params=[], abi_retu
     v31 = add v28, 1
     v32 = sload v31 !metadata(storage=offset(v28, 1))
     v33 = sload 0 !metadata(storage=slot(0))
-    v34 = lt 0, v33
+    v34 = gt v33, 0
     v35 = eq v34, false
     icall panic_if<0x32>, v35
     v36 = storage_array_data_slot 0
@@ -101,7 +101,7 @@ fn @pushShorterLiteral() -> struct0 [selector=0x6f3a582e, abi_params=[], abi_ret
   bb3:  ; preds = bb1
     sstore 0, v4 !metadata(storage=slot(0))
     v16 = sload 0 !metadata(storage=slot(0))
-    v17 = lt 0, v16
+    v17 = gt v16, 0
     v18 = eq v17, false
     icall panic_if<0x32>, v18
     v19 = storage_array_data_slot 0
@@ -110,7 +110,7 @@ fn @pushShorterLiteral() -> struct0 [selector=0x6f3a582e, abi_params=[], abi_ret
     icall panic_if<0x32>, v21
     v22 = sload v19 !metadata(storage=symbolic(v19))
     v23 = sload 0 !metadata(storage=slot(0))
-    v24 = lt 0, v23
+    v24 = gt v23, 0
     v25 = eq v24, false
     icall panic_if<0x32>, v25
     v26 = storage_array_data_slot 0
@@ -120,7 +120,7 @@ fn @pushShorterLiteral() -> struct0 [selector=0x6f3a582e, abi_params=[], abi_ret
     v29 = add v26, 1
     v30 = sload v29 !metadata(storage=offset(v26, 1))
     v31 = sload 0 !metadata(storage=slot(0))
-    v32 = lt 0, v31
+    v32 = gt v31, 0
     v33 = eq v32, false
     icall panic_if<0x32>, v33
     v34 = storage_array_data_slot 0
@@ -173,7 +173,7 @@ fn @pushNarrowMemory() -> struct0 [selector=0xedb7ea7a, abi_params=[], abi_retur
   bb3:  ; preds = bb1
     sstore 0, v4 !metadata(storage=slot(0))
     v16 = sload 0 !metadata(storage=slot(0))
-    v17 = lt 0, v16
+    v17 = gt v16, 0
     v18 = eq v17, false
     icall panic_if<0x32>, v18
     v19 = storage_array_data_slot 0
@@ -182,7 +182,7 @@ fn @pushNarrowMemory() -> struct0 [selector=0xedb7ea7a, abi_params=[], abi_retur
     icall panic_if<0x32>, v21
     v22 = sload v19 !metadata(storage=symbolic(v19))
     v23 = sload 0 !metadata(storage=slot(0))
-    v24 = lt 0, v23
+    v24 = gt v23, 0
     v25 = eq v24, false
     icall panic_if<0x32>, v25
     v26 = storage_array_data_slot 0
@@ -192,7 +192,7 @@ fn @pushNarrowMemory() -> struct0 [selector=0xedb7ea7a, abi_params=[], abi_retur
     v29 = add v26, 1
     v30 = sload v29 !metadata(storage=offset(v26, 1))
     v31 = sload 0 !metadata(storage=slot(0))
-    v32 = lt 0, v31
+    v32 = gt v31, 0
     v33 = eq v32, false
     icall panic_if<0x32>, v33
     v34 = storage_array_data_slot 0

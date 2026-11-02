@@ -226,26 +226,26 @@ fn @newArrays() -> struct1 [selector=0x2dc0cb85, pure, abi_params=[], abi_return
     v25 = alloc zeroed checked 64
     mstore v25, 1
     v26 = mload v0
-    v27 = lt 1, v26
+    v27 = gt v26, 1
     v28 = eq v27, false
     icall panic_if<0x32>, v28
     v29 = ptrtoint ptr<memory> v25 to i256
     v30 = ptradd v0, 64
     mstore v30, v29
     v31 = mload v0
-    v32 = lt 1, v31
+    v32 = gt v31, 1
     v33 = eq v32, false
     icall panic_if<0x32>, v33
     v34 = ptradd v0, 64
     v35 = mload v34, ptr<memory>
     v36 = mload v35
-    v37 = lt 0, v36
+    v37 = gt v36, 0
     v38 = eq v37, false
     icall panic_if<0x32>, v38
     v39 = ptradd v35, 32
     mstore v39, 7
     v40 = mload v14
-    v41 = lt 0, v40
+    v41 = gt v40, 0
     v42 = eq v41, false
     icall panic_if<0x32>, v42
     v43 = ptradd v14, 32
@@ -256,7 +256,7 @@ fn @newArrays() -> struct1 [selector=0x2dc0cb85, pure, abi_params=[], abi_return
     v46 = ptradd v45, 32
     mstore v46, 0x7800000000000000000000000000000000000000000000000000000000000000
     v47 = mload v14
-    v48 = lt 1, v47
+    v48 = gt v47, 1
     v49 = eq v48, false
     icall panic_if<0x32>, v49
     v50 = ptradd v14, 64
@@ -265,14 +265,14 @@ fn @newArrays() -> struct1 [selector=0x2dc0cb85, pure, abi_params=[], abi_return
     v53 = ptradd v51, 32
     mstore v53, v52
     v54 = mload v0
-    v55 = lt 0, v54
+    v55 = gt v54, 0
     v56 = eq v55, false
     icall panic_if<0x32>, v56
     v57 = ptradd v0, 32
     v58 = mload v57, ptr<memory>
     v59 = mload v58
     v60 = mload v7
-    v61 = lt 1, v60
+    v61 = gt v60, 1
     v62 = eq v61, false
     icall panic_if<0x32>, v62
     v63 = ptradd v7, 64
@@ -280,7 +280,7 @@ fn @newArrays() -> struct1 [selector=0x2dc0cb85, pure, abi_params=[], abi_return
     v65 = mload v64
     v66 = checked_add uint256, v59, v65
     v67 = mload v14
-    v68 = lt 0, v67
+    v68 = gt v67, 0
     v69 = eq v68, false
     icall panic_if<0x32>, v69
     v70 = ptradd v14, 32
@@ -411,7 +411,7 @@ fn @deleteElement() -> ptr<memory> [selector=0xfd57e9f9, pure, abi_params=[], ab
     v12 = ptradd v11, 32
     mstore v12, 0x7a00000000000000000000000000000000000000000000000000000000000000
     v13 = mload v0
-    v14 = lt 0, v13
+    v14 = gt v13, 0
     v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = ptradd v0, 32
@@ -422,7 +422,7 @@ fn @deleteElement() -> ptr<memory> [selector=0xfd57e9f9, pure, abi_params=[], ab
     v20 = alloc zeroed checked 64
     mstore v20, 1
     v21 = mload v0
-    v22 = lt 0, v21
+    v22 = gt v21, 0
     v23 = eq v22, false
     icall panic_if<0x32>, v23
     v24 = ptradd v0, 32
@@ -431,7 +431,7 @@ fn @deleteElement() -> ptr<memory> [selector=0xfd57e9f9, pure, abi_params=[], ab
     v27 = ptradd v25, 64
     mstore v27, v26
     v28 = mload v0
-    v29 = lt 0, v28
+    v29 = gt v28, 0
     v30 = eq v29, false
     icall panic_if<0x32>, v30
     v31 = alloc 96
@@ -485,7 +485,7 @@ fn @copyCalldata(arg0: slice<calldata>) -> ptr<memory> [selector=0x175ae975, pur
     v10 = shr v0, 251
     v11 = ne v10, 0
     icall panic_if<0x41>, v11
-    v12 = add 32, v9
+    v12 = add v9, 32
     v13 = lt v12, 32
     icall panic_if<0x41>, v13
     v14 = alloc v12
@@ -541,7 +541,7 @@ fn @copyCalldata(arg0: slice<calldata>) -> ptr<memory> [selector=0x175ae975, pur
     icall revert_if<invalid_calldata_tail_length>, v50
     v51 = add v42, 32
     v52 = sub v49, v48
-    v53 = sgt v51, v52
+    v53 = slt v52, v51
     icall revert_if<calldata_tail_too_short>, v53
     v54 = inttoptr i256 v51 to ptr<calldata>
     v55 = make_calldata_slice v54, v48
@@ -580,13 +580,13 @@ fn @copyCalldata(arg0: slice<calldata>) -> ptr<memory> [selector=0x175ae975, pur
     v81 = mul v78, 32
     v82 = add v72, 32
     v83 = sub v79, v81
-    v84 = sgt v82, v83
+    v84 = slt v83, v82
     icall revert_if<calldata_tail_too_short>, v84
     v85 = mul v78, 32
     v86 = shr v78, 251
     v87 = ne v86, 0
     icall panic_if<0x41>, v87
-    v88 = add 32, v85
+    v88 = add v85, 32
     v89 = lt v88, 32
     icall panic_if<0x41>, v89
     v90 = alloc v88
@@ -790,7 +790,7 @@ fn @copyFromStorage() -> struct2 [selector=0x12bb2ac8, abi_params=[], abi_return
     v119 = add v110, 1
     jump bb7
   bb5:  ; preds = bb4
-    v84 = add 4, v82
+    v84 = add v82, 4
     v85 = icall @load_storage_bytes, v84
     v86 = ptrtoint ptr<memory> v85 to i256
     v87 = shl v82, 5
@@ -820,7 +820,7 @@ fn @copyToStorage() -> struct0 [selector=0x988acb1d, abi_params=[], abi_returns=
   bb3:  ; preds = bb1
     v11 = mload v0
     v12 = sload 7 !metadata(storage=slot(7))
-    v13 = gt v12, v11
+    v13 = lt v11, v12
     jumpi v13, bb4, bb5
   bb4:  ; preds = bb3
     jump bb6
@@ -848,7 +848,7 @@ fn @copyToStorage() -> struct0 [selector=0x988acb1d, abi_params=[], abi_returns=
   bb27:  ; preds = bb25
     v80 = mload v73
     v81 = sload 8 !metadata(storage=slot(8))
-    v82 = gt v81, v80
+    v82 = lt v80, v81
     jumpi v82, bb28, bb29
   bb28:  ; preds = bb27
     jump bb30
@@ -867,7 +867,7 @@ fn @copyToStorage() -> struct0 [selector=0x988acb1d, abi_params=[], abi_returns=
     jumpi v95, bb37, bb38
   bb38:  ; preds = bb36
     v120 = sload 8 !metadata(storage=slot(8))
-    v121 = lt 1, v120
+    v121 = gt v120, 1
     v122 = eq v121, false
     icall panic_if<0x32>, v122
     v123 = storage_array_data_slot 8
@@ -890,7 +890,7 @@ fn @copyToStorage() -> struct0 [selector=0x988acb1d, abi_params=[], abi_returns=
   bb49:  ; preds = bb47
     v137 = mload v130
     v138 = sload 9 !metadata(storage=slot(9))
-    v139 = gt v138, v137
+    v139 = lt v137, v138
     jumpi v139, bb50, bb51
   bb50:  ; preds = bb49
     jump bb52
@@ -968,7 +968,7 @@ fn @copyToStorage() -> struct0 [selector=0x988acb1d, abi_params=[], abi_returns=
     v145 = and v144, 1
     v146 = eq v145, 1
     v147 = sub 0, v145
-    v148 = or 127, v147
+    v148 = or v147, 127
     v149 = shr v144, 1
     v150 = and v149, v148
     v151 = add v150, 31
@@ -997,7 +997,7 @@ fn @copyToStorage() -> struct0 [selector=0x988acb1d, abi_params=[], abi_returns=
     v101 = add v100, v94
     v102 = mload v99
     v103 = sload v101 !metadata(storage=symbolic(v101))
-    v104 = gt v103, v102
+    v104 = lt v102, v103
     jumpi v104, bb39, bb40
   bb39:  ; preds = bb37
     jump bb41
@@ -1079,7 +1079,7 @@ fn @copyToStorage() -> struct0 [selector=0x988acb1d, abi_params=[], abi_returns=
     v53 = mload v52
     v54 = mload v53
     v55 = sload v51 !metadata(storage=offset(v45, 2))
-    v56 = gt v55, v54
+    v56 = lt v54, v55
     jumpi v56, bb17, bb18
   bb17:  ; preds = bb15
     jump bb19
@@ -1127,7 +1127,7 @@ fn @copyToStorage() -> struct0 [selector=0x988acb1d, abi_params=[], abi_returns=
     v21 = and v20, 1
     v22 = eq v21, 1
     v23 = sub 0, v21
-    v24 = or 127, v23
+    v24 = or v23, 127
     v25 = shr v20, 1
     v26 = and v25, v24
     v27 = add v26, 31

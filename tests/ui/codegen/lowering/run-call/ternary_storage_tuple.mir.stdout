@@ -232,7 +232,7 @@ fn @assignStorage(arg0: i1) -> struct0 [selector=0xd54ebd37, abi_params=[bool], 
     v2 = icall @load_storage_word_array, v1
     v3 = mload v2
     v4 = sload 1 !metadata(storage=slot(1))
-    v5 = gt v4, v3
+    v5 = lt v3, v4
     jumpi v5, bb4, bb5
   bb4:  ; preds = bb3
     jump bb6
@@ -253,7 +253,7 @@ fn @assignStorage(arg0: i1) -> struct0 [selector=0xd54ebd37, abi_params=[bool], 
     v20 = icall @load_storage_word_array, v0
     v21 = mload v20
     v22 = sload 0 !metadata(storage=slot(0))
-    v23 = gt v22, v21
+    v23 = lt v21, v22
     jumpi v23, bb12, bb13
   bb12:  ; preds = bb11
     jump bb14
@@ -403,7 +403,7 @@ fn @assignMixed(arg0: i1) -> struct0 [selector=0xe3f7893c, abi_params=[bool], ab
     v2 = icall @load_storage_word_array, v1
     v3 = mload v2
     v4 = sload 0 !metadata(storage=slot(0))
-    v5 = gt v4, v3
+    v5 = lt v3, v4
     jumpi v5, bb4, bb5
   bb4:  ; preds = bb3
     jump bb6

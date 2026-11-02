@@ -109,7 +109,7 @@ fn @partition() [selector=0xb99bdcfc, abi_wrapper, pure] {
   bb10:  ; preds = bb9
     v181 = sub v177, v179
     v182 = shr v181, 5
-    v183 = add arg1, v182
+    v183 = add v182, arg1
     jump bb11
   bb11:  ; preds = bb10, bb11
     v184 = phi [bb10: v188], [bb11: v185]
@@ -256,7 +256,7 @@ fn @forged() [selector=0x189960dc, abi_wrapper, pure] {
   bb10:  ; preds = bb9
     v186 = sub v182, v184
     v187 = shr v186, 5
-    v188 = add arg2, v187
+    v188 = add v187, arg2
     jump bb11
   bb11:  ; preds = bb10, bb11
     v189 = phi [bb10: v193], [bb11: v190]
@@ -384,7 +384,7 @@ fn @_sort(arg0: i256, arg1: i256, arg2: i256) [may_return_memory, pure] {
   bb23:  ; preds = bb42, bb45
     v173 = phi [bb42: v159], [bb45: v175]
     v327 = phi [bb42: v326], [bb45: v328]
-    v174 = gt v173, v1
+    v174 = lt v1, v173
     jumpi v174, bb25, bb24
   bb25:  ; preds = bb23
     v175 = sub v173, 1
@@ -393,7 +393,7 @@ fn @_sort(arg0: i256, arg1: i256, arg2: i256) [may_return_memory, pure] {
     jumpi v177, bb44, bb36
   bb44:  ; preds = bb25
     v182 = mload v327
-    v183 = gt v182, v167
+    v183 = lt v167, v182
     jumpi v183, bb26, bb24
   bb24:  ; preds = bb23, bb44
     v200 = mload arg0
@@ -419,7 +419,7 @@ fn @_sort(arg0: i256, arg1: i256, arg2: i256) [may_return_memory, pure] {
   bb3:  ; preds = bb47
     v5 = sub v2, 1
     v7 = shr v260, 1
-    v266 = add v1, v7
+    v266 = add v7, v1
     v9 = mload arg0
     v10 = lt v1, v9
     jumpi v10, bb37, bb36
@@ -611,7 +611,7 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v1 = calldataload 4
     v2 = add v1, 4
     v4 = sub v0, 36
-    v5 = gt v1, v4
+    v5 = lt v4, v1
     jumpi v5, bb1, bb2
   bb2:  ; preds = bb0
     v6 = calldataload v2
@@ -624,9 +624,9 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v27 = lt v26, v25
     v28 = zext i1 v27 to i256
     v29 = shr v26, 64
-    v30 = or v28, v29
+    v30 = or v29, v28
     v32 = zext i1 v8 to i256
-    v33 = or v32, v30
+    v33 = or v30, v32
     v34 = ne v33, 0
     jumpi v34, bb3, bb5
   bb5:  ; preds = bb2
@@ -635,7 +635,7 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v12 = shl v6, 5
     v13 = sub v0, v7
     v14 = shr v13, 5
-    v15 = gt v6, v14
+    v15 = lt v14, v6
     jumpi v15, bb1, bb4
   bb4:  ; preds = bb5
     v22 = add v25, 32

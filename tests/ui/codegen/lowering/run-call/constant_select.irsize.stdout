@@ -78,14 +78,14 @@ bb12:  ; function choose(uint256 raw, uint256 yes, uint256 no) external pure ret
   jumpi
   push 68
   calldataload
-  dup 1
-  push 36
-  calldataload
-  sub
   push 4
   calldataload
   iszero
   iszero
+  dup 2
+  push 36
+  calldataload
+  sub
   mul
   jump bb82
 bb82:
@@ -494,13 +494,13 @@ bb37 [continuation]:
   and
   jump bb81
 bb39:  ; function signature(bool condition) external pure returns (bytes memory) [selector 0x59834352]
+  push 36
+  calldatasize
+  lt
   push 4
   calldataload
   push 1
   shr
-  push 36
-  calldatasize
-  lt
   or
   push bb11
   jumpi
@@ -740,14 +740,14 @@ bb86:
   lt
   push bb11
   jumpi
-  push 7
-  push 36
-  calldataload
-  sub
   push 4
   calldataload
   iszero
   iszero
+  push 7
+  push 36
+  calldataload
+  sub
   mul
   push 7
   jump bb82

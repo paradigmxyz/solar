@@ -21,7 +21,7 @@
     bb0:
 -     v0 = checked_mul uint256, 2, arg0
 -     ret v0
-+     v1 = mul 2, arg0
++     v1 = mul arg0, 2
 +     v2 = shr arg0, 255
 +     v3 = ne v2, 0
 +     jumpi v3, bb1, bb2

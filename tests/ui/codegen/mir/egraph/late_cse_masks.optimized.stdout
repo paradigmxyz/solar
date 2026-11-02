@@ -57,12 +57,12 @@ fn @digest(arg0: i256, arg1: i256) -> i256 {
 ; function first(address owner, uint256 amount) external returns (bool) [selector 0x2845d4e6]
 fn @first() [selector=0x2845d4e6, abi_wrapper] {
   bb0:
-    v9 = calldataload 4
-    v10 = shr v9, 160
     v7 = calldatasize
     v8 = lt v7, 68
+    v9 = calldataload 4
+    v10 = shr v9, 160
     v14 = zext i1 v8 to i256
-    v15 = or v14, v10
+    v15 = or v10, v14
     v16 = ne v15, 0
     jumpi v16, bb1, bb2
   bb2:  ; preds = bb0
@@ -81,12 +81,12 @@ fn @first() [selector=0x2845d4e6, abi_wrapper] {
 ; function second(address owner, uint256 amount) external returns (bool) [selector 0x6cdb32ec]
 fn @second() [selector=0x6cdb32ec, abi_wrapper] {
   bb0:
-    v15 = calldataload 4
-    v16 = shr v15, 160
     v13 = calldatasize
     v14 = lt v13, 68
+    v15 = calldataload 4
+    v16 = shr v15, 160
     v20 = zext i1 v14 to i256
-    v21 = or v20, v16
+    v21 = or v16, v20
     v22 = ne v21, 0
     jumpi v22, bb3, bb4
   bb4:  ; preds = bb0
