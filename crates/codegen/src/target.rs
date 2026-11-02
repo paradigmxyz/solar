@@ -1239,6 +1239,37 @@ impl Target {
             self.opcode(op::push(value.byte_len().max(1) as u8))
         }
     }
+
+    /// Cost of a loop's conditional exit on a duplicated condition: the `DUP`, the pushed label,
+    /// and the `JUMPI`.
+    pub(crate) fn loop_exit_jump(&self) -> Cost {
+        self.dup() + self.label_push() + self.opcode(op::JUMPI)
+    }
+
+    /// Cost of a loop header's test: the `compare` opcode on the duplicated counter and bound,
+    /// then the conditional exit.
+    pub(crate) fn loop_header_test(&self, compare: u8) -> Cost {
+        self.opcode(compare) + self.dup() + self.loop_exit_jump()
+    }
+
+    /// Cost of the closed form that replaces a counted loop of `recurrences` recurrences, of
+    /// which `quadratic` step by another recurrence: for each a multiplication and an addition
+    /// with their operands duplicated, for each quadratic one a second such pair, and for any
+    /// quadratic one the triangular number `n * (n - 1) / 2`, with the jump past the loop.
+    pub(crate) fn loop_closed_form(&self, recurrences: u32, quadratic: u32) -> Cost {
+        let linear = self.opcode(op::MUL) + self.opcode(op::ADD) + self.dup().times(2);
+        let triangular = if quadratic == 0 {
+            Cost::ZERO
+        } else {
+            self.opcode(op::SHR)
+                + self.opcode(op::SUB)
+                + self.opcode(op::OR)
+                + self.opcode(op::MUL)
+                + self.push(U256::ONE).times(3)
+                + self.dup()
+        };
+        linear.times(recurrences) + linear.times(quadratic) + self.jump() + triangular
+    }
 }
 
 #[cfg(test)]
@@ -2028,5 +2059,35 @@ mod tests {
         assert!(target(OptimizationMode::Gas).marks_failure_paths_cold());
         assert!(!target(OptimizationMode::Size).marks_failure_paths_cold());
         assert!(!target(OptimizationMode::None).marks_failure_paths_cold());
+    }
+
+    #[test]
+    fn loop_header_tests_price_the_compare_and_the_exit() {
+        for version in [EvmVersion::Homestead, EvmVersion::Istanbul, EvmVersion::Amsterdam] {
+            let target = Target::with(version, OptimizationMode::Gas, 200);
+            let cost = |opcodes: &[u8]| opcodes.iter().map(|&opcode| target.opcode(opcode)).sum();
+            assert_eq!(
+                target.loop_header_test(op::LT),
+                cost(&[op::LT, op::DUP1, op::DUP1, op::PUSH2, op::JUMPI])
+            );
+            assert_eq!(
+                target.loop_header_test(op::SUB),
+                cost(&[op::SUB, op::DUP1, op::DUP1, op::PUSH2, op::JUMPI])
+            );
+            assert_eq!(target.loop_exit_jump(), cost(&[op::DUP1, op::PUSH2, op::JUMPI]));
+        }
+    }
+
+    #[test]
+    fn closed_forms_price_each_recurrence() {
+        for version in [EvmVersion::Homestead, EvmVersion::Shanghai, EvmVersion::Amsterdam] {
+            let target = Target::with(version, OptimizationMode::Gas, 200);
+            let cost = |opcodes: &[u8]| opcodes.iter().map(|&opcode| target.opcode(opcode)).sum();
+            let linear: Cost = cost(&[op::MUL, op::ADD, op::DUP1, op::DUP1]);
+            let triangular = cost(&[op::SHR, op::SUB, op::OR, op::MUL, op::DUP1])
+                + target.push(U256::ONE).times(3);
+            assert_eq!(target.loop_closed_form(2, 0), linear.times(2) + target.jump());
+            assert_eq!(target.loop_closed_form(2, 1), linear.times(3) + target.jump() + triangular);
+        }
     }
 }
