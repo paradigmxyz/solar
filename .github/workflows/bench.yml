@@ -31,7 +31,7 @@ env:
   PINNED_SCCACHE_VERSION: v0.19.0
   SOLC_VERSION: ${{ inputs.solc_version || '0.8.38' }}
   SOLX_VERSION: '0.1.8'
-  OKSOLC_REVISION: c465a262edc835afff32951ee2d64e827bc16c3d
+  OKSOLC_REVISION: 4c94a99257342477ef58cc6fd418cc964c70d3c5
 
 jobs:
   codegen-runtime:
