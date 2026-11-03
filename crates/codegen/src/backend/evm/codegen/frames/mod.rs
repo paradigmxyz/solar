@@ -844,42 +844,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         static_spans: &FxHashMap<FunctionId, u64>,
         prefix_guards: &FxHashMap<FunctionId, u64>,
     ) -> FxHashMap<FunctionId, u64> {
-        let mut function_ranges = index_vec![None; module.functions.len()];
-        let mut owns_low_memory = index_vec![None; module.functions.len()];
-        let mut low_memory_owners = FxHashSet::default();
-        let ranges = entries
-            .iter()
-            .map(|&entry| {
-                let mut ranges = Vec::new();
-                for func_id in self.runtime_entry_reachability[&entry].iter() {
-                    ranges.extend_from_slice(function_ranges[func_id].get_or_insert_with(|| {
-                        Self::constant_memory_ranges(&module.functions[func_id])
-                    }));
-                }
-                // An entry that runs code writing memory at an address calldata computes owns
-                // the low memory it names until control passes to another entry. The
-                // dispatcher's tail calls into the external functions never return, so the
-                // routes it dispatches to do not count.
-                let own_reach = Self::entry_own_reach(module, entry, entries);
-                if own_reach.iter().any(|func_id| {
-                    *owns_low_memory[func_id].get_or_insert_with(|| {
-                        Self::writes_calldata_addressed_memory(&module.functions[func_id])
-                    })
-                }) {
-                    low_memory_owners.insert(entry);
-                }
-                (entry, ranges)
-            })
-            .collect::<FxHashMap<_, _>>();
-        let mut bases = entries
-            .iter()
-            .map(|&entry| {
-                let func = &module.functions[entry];
-                let base = EvmMemoryLayout::HEAP_START
-                    + func.internal_frame_size.max(func.external_static_return_size);
-                (entry, base)
-            })
-            .collect::<FxHashMap<_, _>>();
         let allocations = entries
             .iter()
             .map(|&entry| {
@@ -894,6 +858,47 @@ impl<'gcx> EvmCodegen<'gcx> {
             .iter()
             .map(|&entry| {
                 (entry, self.function_spill_size(entry).saturating_add(allocations[&entry]))
+            })
+            .collect::<FxHashMap<_, _>>();
+        let mut function_ranges = index_vec![None; module.functions.len()];
+        let mut owns_low_memory = index_vec![None; module.functions.len()];
+        let ranges = entries
+            .iter()
+            .map(|&entry| {
+                let mut ranges = Vec::new();
+                for func_id in self.runtime_entry_reachability[&entry].iter() {
+                    ranges.extend_from_slice(function_ranges[func_id].get_or_insert_with(|| {
+                        Self::constant_memory_ranges(&module.functions[func_id])
+                    }));
+                }
+                // An entry that runs code writing memory at an address calldata computes owns
+                // the low memory it names until control passes to another entry. The
+                // dispatcher's tail calls into the external functions never return, so the
+                // routes it dispatches to do not count. Only what the compiler places for the
+                // entry has to stay clear of that memory: its spill area, static allocations and
+                // frames. An entry that places none of them keeps its base, so it neither raises
+                // the region that every other entry's frames start at nor moves its own heap
+                // above that memory.
+                let own_reach = Self::entry_own_reach(module, entry, entries);
+                if (sizes[&entry] != 0 || static_spans[&entry] != 0)
+                    && own_reach.iter().any(|func_id| {
+                        *owns_low_memory[func_id].get_or_insert_with(|| {
+                            Self::writes_calldata_addressed_memory(&module.functions[func_id])
+                        })
+                    })
+                {
+                    ranges.push((EvmMemoryLayout::HEAP_START, LOW_MEMORY_BOUND));
+                }
+                (entry, ranges)
+            })
+            .collect::<FxHashMap<_, _>>();
+        let mut bases = entries
+            .iter()
+            .map(|&entry| {
+                let func = &module.functions[entry];
+                let base = EvmMemoryLayout::HEAP_START
+                    + func.internal_frame_size.max(func.external_static_return_size);
+                (entry, base)
             })
             .collect::<FxHashMap<_, _>>();
         loop {
@@ -915,21 +920,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                     );
                 }
                 end = end.saturating_add(prefix_guards.get(&entry).copied().unwrap_or(0));
-                // The low memory that calldata-addressed writes own only has to stay clear of
-                // what the compiler places for this entry: its spill area, static allocations and
-                // frames. The heap prefix guard only keeps assembly that reads before a heap
-                // object off them, so an entry that places none of them keeps its base: it
-                // neither raises the region that every other entry's frames start at nor moves
-                // its own heap above that memory.
-                let low_memory = (low_memory_owners.contains(&entry)
-                    && (sizes[&entry] != 0 || frames != 0))
-                    .then_some((EvmMemoryLayout::HEAP_START, LOW_MEMORY_BOUND));
                 if let Some(raised) = ranges[&entry]
                     .iter()
-                    .copied()
-                    .chain(low_memory)
-                    .filter(|&(start, range_end)| start < end && range_end > base)
-                    .map(|(_, range_end)| range_end)
+                    .filter(|&&(start, range_end)| start < end && range_end > base)
+                    .map(|&(_, range_end)| range_end)
                     .max()
                 {
                     bases.insert(
