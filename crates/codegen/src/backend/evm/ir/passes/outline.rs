@@ -71,7 +71,10 @@ use solar_data_structures::{
     map::{FxHashMap, FxHashSet, FxHasher},
 };
 use solar_sema::Gcx;
-use std::hash::{Hash, Hasher};
+use std::{
+    cell::OnceCell,
+    hash::{Hash, Hasher},
+};
 
 pub(super) struct Outline;
 
@@ -206,9 +209,75 @@ fn is_cold(module: &Module, site: &Site) -> bool {
     module.blocks[site.block].metadata.hotness.is_cold()
 }
 
-/// The transfer gas `sites` pay together, which a cold site does not.
-fn sites_transfer_gas(module: &Module, target: &Target, sites: &[Site], gas: u32) -> u64 {
-    sites.iter().map(|site| u64::from(target.site_gas(is_cold(module, site), gas))).sum()
+/// The blocks each external entry may reach, computed on first use.
+#[derive(Default)]
+struct EntryReach(OnceCell<Vec<DenseBitSet<BlockId>>>);
+
+impl EntryReach {
+    /// Returns the blocks reached from each entry over jumps, branches, and pushed block
+    /// addresses, which include every call's return continuation.
+    fn get(&self, module: &Module) -> &[DenseBitSet<BlockId>] {
+        self.0.get_or_init(|| {
+            let mut targets = Vec::new();
+            let mut pending = Vec::new();
+            module
+                .blocks
+                .iter_enumerated()
+                .filter(|(_, block)| block.metadata.external_entry)
+                .map(|(entry, _)| {
+                    let mut reached = DenseBitSet::new_empty(module.blocks.len());
+                    pending.push(entry);
+                    while let Some(block_id) = pending.pop() {
+                        if !reached.insert(block_id) {
+                            continue;
+                        }
+                        let block = &module.blocks[block_id];
+                        targets.clear();
+                        targets.extend(
+                            block.instructions.iter().filter_map(Instruction::pushed_block),
+                        );
+                        if let Some(terminator) = &block.terminator {
+                            terminator.kind.visit_targets(|target| targets.push(target));
+                        }
+                        pending.extend(targets.iter().copied().filter(|&t| !reached.contains(t)));
+                    }
+                    reached
+                })
+                .collect()
+        })
+    }
+}
+
+/// The transfer gas that `sites` pay in one call, which a cold site does not.
+///
+/// A call runs one external function, so sites that different entries reach never run together:
+/// the call pays for the entry whose sites cost the most. Sites no entry reaches, such as the
+/// dispatch's own, run in every call.
+fn sites_transfer_gas(
+    module: &Module,
+    entries: &EntryReach,
+    target: &Target,
+    sites: &[Site],
+    gas: u32,
+) -> u64 {
+    let site_gas = |site: &Site| u64::from(target.site_gas(is_cold(module, site), gas));
+    let reach = entries.get(module);
+    if reach.len() < 2 {
+        return sites.iter().map(site_gas).sum();
+    }
+    let shared = sites
+        .iter()
+        .filter(|site| !reach.iter().any(|reached| reached.contains(site.block)))
+        .map(site_gas)
+        .sum::<u64>();
+    let busiest = reach
+        .iter()
+        .map(|reached| {
+            sites.iter().filter(|site| reached.contains(site.block)).map(site_gas).sum::<u64>()
+        })
+        .max()
+        .unwrap_or(0);
+    shared + busiest
 }
 
 /// The blocks of the sites that run on a successful call.
@@ -281,6 +350,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
 
     let is_gas = target.optimization().is_gas();
     let is_size = target.optimization().is_size();
+    let entries = EntryReach::default();
     let metrics = hashes.metrics(module, |block, inst| {
         if is_gas && in_hot_loop(block) {
             return None;
@@ -350,7 +420,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
                     * u32::from(first.outputs.saturating_add(first.inputs));
             if !target.deposit_repays_gas(
                 saved_bytes as u64,
-                sites_transfer_gas(module, &target, &free, transfer_gas),
+                sites_transfer_gas(module, &entries, &target, &free, transfer_gas),
             ) {
                 if let [value, address, store, ..] = run
                     && address.is_encoded_push()
@@ -477,6 +547,7 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     let target = module.target(gcx);
     let (site_bytes, body_bytes, transfer_gas) = push_share_costs(&target);
     let mut sites = FxHashMap::<U256, SmallVec<[Site; 2]>>::default();
+    let entries = EntryReach::default();
     let is_gas = target.optimization().is_gas();
     for (block_id, block) in module.blocks.iter_enumerated() {
         // Size mode prices every loop block, cold or not, by the iterations it may run.
@@ -527,7 +598,7 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
             && (!target.optimization().is_gas()
                 || target.deposit_repays_gas(
                     saved_bytes as u64,
-                    sites_transfer_gas(module, &target, occurrences, transfer_gas),
+                    sites_transfer_gas(module, &entries, &target, occurrences, transfer_gas),
                 ))
     });
     let mut sites = sites.into_iter().collect::<Vec<_>>();
@@ -708,6 +779,7 @@ fn split_outline_site(module: &mut Module, edit: &Edit, continuation_label: u32)
     continuation.metadata.is_continuation = true;
     // The call convention belongs to the function's entry block, not to the code after the stub.
     continuation.metadata.call_effect = None;
+    continuation.metadata.external_entry = false;
     continuation.instructions = module.blocks[block].instructions.split_off(start + len);
     module.blocks[block].instructions.truncate(start);
     continuation.terminator = module.blocks[block].terminator.take();

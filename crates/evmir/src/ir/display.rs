@@ -37,6 +37,9 @@ fn display_block<'a>(module: &'a Module, block: &'a Block) -> impl fmt::Display 
         if metadata.is_continuation {
             attributes.push("continuation".to_string());
         }
+        if metadata.external_entry {
+            attributes.push("entry".to_string());
+        }
         if let Some(function) = metadata.function_invoke {
             attributes.push(format!(
                 "invoke={}@{}..{}",
