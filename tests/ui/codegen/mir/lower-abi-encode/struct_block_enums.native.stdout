@@ -53,17 +53,19 @@ fn @lots() {
     v2 = lt v183, v185
     jumpi v2, bb2, bb3
   bb3:                                            ; preds = bb1
-    v189 = calldataload 100
-    v188 = calldataload 68
-    v187 = calldataload 36
-    v186 = calldataload 4
-    v30 = shl v189, 160
-    v37 = shl v189, 8
-    v43 = shr v189, 16
+    v192 = calldataload 100
+    v191 = calldataload 68
+    v190 = calldataload 36
+    v189 = calldataload 4
+    v30 = shl v192, 160
+    v37 = shl v192, 8
+    v43 = shr v192, 16
     v44 = or v43, 0x1122000000000000000000000000000000000000000000000000000000000000
+    v186 = add v168, 32
     jump bb4
   bb4:                                            ; preds = bb3, bb8
     v15 = phi [bb3: 0], [bb8: v51]
+    v187 = phi [bb3: v186], [bb8: v188]
     v16 = lt v15, 2
     jumpi v16, bb6, bb5
   bb5:                                            ; preds = bb4
@@ -171,33 +173,31 @@ fn @lots() {
   bb7 [cold]:                                     ; preds = bb6
     tail_call @revert_stub
   bb8:                                            ; preds = bb6
-    v20 = shl v15, 5
-    v152 = add v168, v20
-    v153 = add v152, 32
-    v162 = mload v153
-    v24 = eq v188, v15
+    v162 = mload v187
+    v24 = eq v191, v15
     v57 = zext i1 v24 to i256
-    v27 = add v189, v15
+    v27 = add v192, v15
     mstore v162, v27
     v29 = add v15, 160
     v31 = or v30, v29
     v33 = add v162, 32
     mstore v33, v31
-    v34 = mul v186, v57
+    v34 = mul v189, v57
     v36 = add v162, 64
     mstore v36, v34
     v39 = add v162, 96
     mstore v39, v37
-    v40 = mul v187, v57
+    v40 = mul v190, v57
     v42 = add v162, 128
     mstore v42, v40
     v46 = add v162, 160
     mstore v46, v44
-    v47 = xor v189, v15
+    v47 = xor v192, v15
     v48 = xor v47, 119
     v50 = add v162, 192
     mstore v50, v48
     v51 = add v15, 1
+    v188 = add v187, 32
     jump bb4
   bb2:                                            ; preds = bb1
     v175 = mload 64 !metadata(memory=scratch, alloc_ptr)
