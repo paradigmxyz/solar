@@ -56,7 +56,9 @@ an optimization correct or permit changing the result representation. A lowering
 that changes the representation and manages the metadata itself uses
 `Function::set_inst_kind`. Every one of these puts commutative operands and
 comparisons in canonical order, as do `Function::replace_uses` and the other
-operand rewriters, so passes need no order handling of their own.
+operand rewriters, so passes need no order handling of their own. A raw write
+through `Function::inst_mut` bypasses them and is caught only when IR validation
+runs: by default in debug builds, or with `-Zvalidate-ir`.
 
 ISLE sources are grouped by compiler layer:
 
