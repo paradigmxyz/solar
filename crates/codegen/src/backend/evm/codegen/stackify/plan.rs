@@ -2307,8 +2307,11 @@ impl<'a> Planner<'a> {
     }
 
     /// The successor's view of each word of the predecessor's stack, with phi inputs renamed to
-    /// their results where an otherwise dead word holds them. Returns `None` when a phi input
-    /// has no such word.
+    /// their results where an otherwise dead word holds them. A fresh input also gives its word
+    /// to the result of a successor that is not floating, which pushes it again at each use.
+    /// Floating successors keep that word: the first edge fixes their layout, and later edges
+    /// reach it with fewer shuffles when it stays. Returns `None` when a phi input has no such
+    /// word.
     fn view(&self, sim: &Sim, pred: BlockId, succ: BlockId) -> Option<Layout> {
         let live_in = self.liveness.live_in(succ);
         let floating = self.floating.contains(succ);
@@ -2325,9 +2328,11 @@ impl<'a> Planner<'a> {
             if self.spilled.contains(result) {
                 return None;
             }
-            let position = (0..view.len())
-                .rev()
-                .find(|&p| sim.stack[p] == Slot::Value(input) && view[p] == Slot::Junk)?;
+            let position = (0..view.len()).rev().find(|&p| {
+                sim.stack[p] == Slot::Value(input)
+                    && (view[p] == Slot::Junk
+                        || (view[p] == Slot::Value(input) && self.is_fresh(input) && !floating))
+            })?;
             view[position] = Slot::Value(result);
         }
         Some(view)
@@ -2738,8 +2743,7 @@ impl<'a> Planner<'a> {
             if self.spilled.contains(result) {
                 continue;
             }
-            let reusable = !self.is_fresh(input)
-                && !live_in.contains(input)
+            let reusable = self.is_fresh(input) == live_in.contains(input)
                 && (0..sim.stack.len()).rev().any(|p| {
                     sim.stack[p] == Slot::Value(input) && !claimed.contains(&p) && {
                         claimed.push(p);
@@ -2806,7 +2810,11 @@ impl<'a> Planner<'a> {
             }
             let position = (0..base)
                 .rev()
-                .find(|&p| sim.stack[p] == Slot::Value(input) && view[p] == Slot::Junk)
+                .find(|&p| {
+                    sim.stack[p] == Slot::Value(input)
+                        && (view[p] == Slot::Junk
+                            || (view[p] == Slot::Value(input) && self.is_fresh(input)))
+                })
                 .expect("reusable phi input word");
             view[position] = Slot::Value(result);
         }

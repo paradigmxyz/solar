@@ -1,0 +1,69 @@
+// === ROOT/tests/ui/codegen/disasm/size_fresh_join.sol:C ===
+@module C
+; function f() external pure returns (uint256) [selector 0x26121ff0]
+fn @f() -> i256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = make_calldata_slice ptr<calldata> 0, 0
+    v1 = extract_value slice<calldata>, v0, 1
+    v2 = make_calldata_slice ptr<calldata> 4, v1
+    v3 = calldatasize
+    v4 = sub v3, 4
+    v5 = extract_value slice<calldata>, v2, 0
+    v6 = make_calldata_slice v5, v4
+    v7 = extract_value slice<calldata>, v6, 1
+    v8 = gt v7, 0
+    jumpi v8, bb1, bb2
+  bb2:  ; preds = bb0
+    jump bb3
+  bb1:  ; preds = bb0
+    v9 = extract_value slice<calldata>, v6, 1
+    v10 = gt v9, 0
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    v12 = extract_value slice<calldata>, v6, 0
+    v13 = extract_value slice<calldata>, v6, 0
+    v14 = calldataload v13
+    v15 = byte 0, v14
+    v16 = shl v15, 248
+    v17 = shr v16, 248
+    v18 = trunc i256 v17 to i8
+    jump bb3
+  bb3:  ; preds = bb1, bb2
+    v19 = phi [bb1: v18], [bb2: i8 0]
+    v20 = zext i8 v19 to i256
+    ret v20
+}
+
+; function g(uint256) external pure returns (uint256) [selector 0xe420264a]
+fn @g(arg0: i256) -> i256 [selector=0xe420264a, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = make_calldata_slice ptr<calldata> 0, 0
+    v1 = extract_value slice<calldata>, v0, 1
+    v2 = make_calldata_slice ptr<calldata> 4, v1
+    v3 = calldatasize
+    v4 = sub v3, 4
+    v5 = extract_value slice<calldata>, v2, 0
+    v6 = make_calldata_slice v5, v4
+    v7 = extract_value slice<calldata>, v6, 1
+    v8 = gt v7, 0
+    jumpi v8, bb1, bb2
+  bb2:  ; preds = bb0
+    jump bb3
+  bb1:  ; preds = bb0
+    v9 = extract_value slice<calldata>, v6, 1
+    v10 = gt v9, 0
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    v12 = extract_value slice<calldata>, v6, 0
+    v13 = extract_value slice<calldata>, v6, 0
+    v14 = calldataload v13
+    v15 = byte 0, v14
+    v16 = shl v15, 248
+    v17 = shr v16, 248
+    v18 = trunc i256 v17 to i8
+    jump bb3
+  bb3:  ; preds = bb1, bb2
+    v19 = phi [bb1: v18], [bb2: i8 0]
+    v20 = zext i8 v19 to i256
+    ret v20
+}
