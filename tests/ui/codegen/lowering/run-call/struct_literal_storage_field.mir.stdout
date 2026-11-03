@@ -55,7 +55,7 @@ fn @dynField() -> i256 [selector=0x3938b4c8, abi_params=[], abi_returns=[word], 
     v40 = ptradd v30, 32
     v41 = mload v40, ptr<memory>
     v42 = mload v41
-    v43 = lt 0, v42
+    v43 = gt v42, 0
     v44 = eq v43, false
     icall panic_if<0x32>, v44
     v45 = ptradd v41, 32
@@ -66,7 +66,7 @@ fn @dynField() -> i256 [selector=0x3938b4c8, abi_params=[], abi_returns=[word], 
     v49 = ptradd v30, 32
     v50 = mload v49, ptr<memory>
     v51 = mload v50
-    v52 = lt 1, v51
+    v52 = gt v51, 1
     v53 = eq v52, false
     icall panic_if<0x32>, v53
     v54 = ptradd v50, 64
@@ -203,7 +203,7 @@ fn @fixedField() -> i256 [selector=0x0dfda72b, abi_params=[], abi_returns=[word]
     icall require<short_string>, v38, 4, 0x76616c7300000000000000000000000000000000000000000000000000000000
     ret 1
   bb2:  ; preds = bb1
-    v10 = add 1, v8
+    v10 = add v8, 1
     v11 = sload v10 !metadata(storage=offset(v8, 1))
     v12 = shl v8, 5
     v13 = ptradd v7, v12

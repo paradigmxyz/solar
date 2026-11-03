@@ -8,13 +8,13 @@ fn @copy(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xf5088730, pure,
     v1 = alloc zeroed checked 96
     mstore v1, 2
     v2 = mload v0
-    v3 = lt 0, v2
+    v3 = gt v2, 0
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = ptradd v0, 32
     mstore v5, 11
     v6 = mload v0
-    v7 = lt 1, v6
+    v7 = gt v6, 1
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     v9 = ptradd v0, 64
@@ -38,7 +38,7 @@ fn @copy(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xf5088730, pure,
     jump bb2
   bb2:  ; preds = bb5
     v36 = mload v17
-    v37 = lt 0, v36
+    v37 = gt v36, 0
     v38 = eq v37, false
     icall panic_if<0x32>, v38
     v39 = ptradd v17, 32

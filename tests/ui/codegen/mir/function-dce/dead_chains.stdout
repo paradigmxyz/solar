@@ -14,8 +14,7 @@
       revert 0, 0
   }
   
-  ; selector 0xa444f5e9
-  fn @run() [selector=0xa444f5e9, abi_wrapper] {
+  fn @run() {
     bb0:
       v0 = calldataload 4
       v1 = icall @middle, v0

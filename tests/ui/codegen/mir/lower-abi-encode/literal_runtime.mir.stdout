@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/lower-abi-encode/literal_runtime.sol:LiteralRuntime ===
 @module LiteralRuntime
 ; function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) [selector 0x150b7a02]
-fn @onERC721Received(arg0: i160, arg1: i160, arg2: i256, arg3: slice<calldata>) [selector=0x150b7a02, pure, abi_params=[address, address, uint256, bytes], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
+fn @onERC721Received(arg0: i160, arg1: i160, arg2: i256, arg3: slice<calldata>) -> i256 [selector=0x150b7a02, pure, abi_params=[address, address, uint256, bytes], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     icall require<short_string>, false, 4, 0x150b7a0200000000000000000000000000000000000000000000000000000000
     invalid

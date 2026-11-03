@@ -28,7 +28,7 @@ fn @layout(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x3f3109b7, pur
     v18 = calldataload 36
     v19 = calldataload 68
     v20 = shl v18, v19
-    v21 = add 160, v20
+    v21 = add v20, 160
     jump bb4
   bb4:  ; preds = bb1, bb6
     v22 = phi [bb1: arg0], [bb6: v22]
@@ -106,7 +106,7 @@ fn @layout(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x3f3109b7, pur
     v88 = xor v87, v72
     v89 = xor v88, v73
     v90 = xor v89, v74
-    v91 = xor v57, v90
+    v91 = xor v90, v57
     ret v91
   bb7:  ; preds = bb4
     mstore v46, v22

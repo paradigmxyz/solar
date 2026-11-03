@@ -110,7 +110,7 @@ fn @_decompress() {
   bb14:  ; preds = bb12, bb13
     v33 = and v24, 127
     v34 = add v33, 1
-    v35 = add v6, v34
+    v35 = add v34, v6
     jump bb4
   bb1:  ; preds = bb0
     v4 = calldatasize

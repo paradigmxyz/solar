@@ -22,7 +22,7 @@ fn @declareStorage() -> struct0 [selector=0xd76e0072, abi_params=[], abi_returns
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt v6, 0x10000000000000000
@@ -76,7 +76,7 @@ fn @declareStorage() -> struct0 [selector=0xd76e0072, abi_params=[], abi_returns
     v38 = and v37, 1
     v39 = eq v38, 1
     v40 = sub 0, v38
-    v41 = or 127, v40
+    v41 = or v40, 127
     v42 = shr v37, 1
     v43 = and v42, v41
     v44 = load_storage_bytes 0

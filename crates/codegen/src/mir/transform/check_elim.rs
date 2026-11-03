@@ -191,6 +191,10 @@
 //! with `256 - k >= low` has range `{0}`: that `bytesN` guard proves the low bits zero. Only
 //! functions with a high mask on a value they also shift enter the pass for this rule, since
 //! equality propagation makes the code of other functions worse.
+//! `(a != 0) & (b != 0)` and `(a != 0) ^ (b != 0)` become `(a & b) != 0` and `(a ^ b) != 0` when
+//! the range facts bound both words by one, as they are for checked booleans; the `or` form holds
+//! for any words and is an e-graph rule. One test at the boolean boundary then replaces one per
+//! operand, and a `zext` of it is the word.
 //! It also uses runtime immutable bounds, since legalization can introduce masks after the
 //! earlier immutable pass. Constructor-reachable functions retain their full-word semantics.
 //! Run late check elimination after the post-memory CSE. Only functions with removed checks receive
@@ -205,8 +209,8 @@ use crate::{
     backend::evm::{op, select::InstKindOpcode},
     mir::{
         ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, EffectKind, Function, FunctionBuilder,
-        FunctionId, ImmutableEncoding, ImmutableId, InstId, InstKind, MirType, Module, Terminator,
-        TypeSize, Value, ValueId, ValueLayout,
+        FunctionId, Immediate, ImmutableEncoding, ImmutableId, InstId, InstKind, Instruction,
+        MirType, Module, Terminator, TypeSize, Value, ValueId, ValueLayout,
         analysis::{
             CfgInfo,
             integers::{integer_bits, integer_mask, integer_max},
@@ -308,8 +312,9 @@ impl MirPass for IntegerCleanup {
             let facts = index_vec![Facts::default(); func.blocks.len()];
             let _ = eliminator.collect_folds(func, &cfg, &facts, &[], &mut Vec::new(), None);
             let propagated = eliminator.apply_equalities(func) != 0;
+            let fused = eliminator.fuse_tests(func);
             if eliminator.redundant_masks.is_empty() {
-                return removed != 0 || propagated;
+                return removed != 0 || propagated || fused;
             }
             let mut replacements = FxHashMap::default();
             let mut dead = DenseBitSet::new_empty(func.num_insts());
@@ -585,7 +590,7 @@ impl Range {
     /// Rotates unsigned order into signed order, or back, widening a split interval.
     fn flip_sign(self, bits: u32) -> Self {
         if self.sign(bits).is_some() {
-            let sign = U256::from(1) << (bits - 1);
+            let sign = U256::ONE << (bits - 1);
             Self::new(self.lo ^ sign, self.hi ^ sign)
         } else {
             Self::new(U256::ZERO, U256::MAX >> (256 - bits))
@@ -935,6 +940,8 @@ struct CheckEliminator<'a> {
     immutable_ranges: Option<&'a FxHashMap<ImmutableId, Range>>,
     collect_masks: bool,
     redundant_masks: Vec<(InstId, ValueId)>,
+    /// Bitwise operations on the nonzero tests of words that never exceed one, with those words.
+    fused_tests: Vec<(InstId, ValueId, ValueId)>,
     /// The constant left shifts of each value a high mask cleans, as `(shift, result)`.
     shifted_high_masks: FxHashMap<ValueId, SmallVec<[(usize, ValueId); 2]>>,
     /// Records constants that dominating branches prove equal to a value, when the target
@@ -1096,7 +1103,8 @@ impl<'a> CheckEliminator<'a> {
         }
         // checked_op a, b that cannot fail -> op a, b
         for (id, kind) in &unfailing {
-            func.inst_mut(*id).replace_kind(kind.clone());
+            let kind = func.canonical_kind(kind.clone());
+            func.inst_mut(*id).replace_kind(kind);
         }
         let propagated = self.apply_equalities(func);
         // branch proven_condition, keep, discard => jump keep
@@ -1231,6 +1239,11 @@ impl<'a> CheckEliminator<'a> {
                             && let Some(value) = self.redundant_mask(func, id)
                         {
                             self.redundant_masks.push((id, value));
+                        }
+                        if self.collect_masks
+                            && let Some((a, b)) = self.bounded_test_operands(func, id)
+                        {
+                            self.fused_tests.push((id, a, b));
                         }
                         // x % y < y wherever the definition's scope proves y > 0
                         if let InstKind::Mod(_, divisor) = func.inst(id).kind
@@ -1733,6 +1746,71 @@ impl<'a> CheckEliminator<'a> {
         .then_some(value)
     }
 
+    /// The words of `(a != 0) & (b != 0)` or `(a != 0) ^ (b != 0)` when neither exceeds one, where
+    /// the operation on the words is `a & b` or `a ^ b`.
+    fn bounded_test_operands(&mut self, func: &Function, id: InstId) -> Option<(ValueId, ValueId)> {
+        let inst = func.inst(id);
+        let (InstKind::And(a, b) | InstKind::Xor(a, b)) = inst.kind else { return None };
+        let a = inst_kind(func, a)?.nonzero_test_operand(func)?;
+        let b = inst_kind(func, b)?.nonzero_test_operand(func)?;
+        (inst.result_ty == Some(MirType::I1)
+            && func.value_ty(a) == Some(MirType::I256)
+            && func.value_ty(b) == Some(MirType::I256)
+            && inst.metadata.effect().is_none_or(|effect| effect == EffectKind::Pure)
+            && self.range_of(func, a, MAX_DEPTH).hi <= U256::ONE
+            && self.range_of(func, b, MAX_DEPTH).hi <= U256::ONE)
+            .then_some((a, b))
+    }
+
+    /// Rewrites each fused operation to `(a & b) != 0` or `(a ^ b) != 0`, which one nonzero test
+    /// at the boundary covers.
+    fn fuse_tests(&mut self, func: &mut Function) -> bool {
+        let tests = std::mem::take(&mut self.fused_tests);
+        let mut widened = FxHashMap::<ValueId, Vec<InstId>>::default();
+        for inst in func.instructions() {
+            if let InstKind::Zext(test) = func.inst(inst).kind
+                && func.inst(inst).result_ty == Some(MirType::I256)
+            {
+                widened.entry(test).or_default().push(inst);
+            }
+        }
+        let mut words = FxHashMap::<InstId, InstId>::default();
+        for &(id, a, b) in &tests {
+            // test = and (ne a, 0), (ne b, 0)
+            //   => word = and a, b
+            //      test = ne word, 0
+            let kind = match func.inst(id).kind {
+                InstKind::And(..) => InstKind::And(a, b),
+                _ => InstKind::Xor(a, b),
+            };
+            let mut word = Instruction::new(kind, Some(MirType::I256));
+            word.metadata.copy_debug_context(&func.inst(id).metadata);
+            let (word_inst, word_value) = func.alloc_value_inst(word);
+            let zero = func.alloc_value(Value::Immediate(Immediate::for_type(
+                Some(MirType::I256),
+                U256::ZERO,
+            )));
+            func.inst_mut(id).kind = InstKind::Ne(word_value, zero);
+            words.insert(id, word_inst);
+            // A word widened back from the test is the word itself, as it is for any other test
+            // of a word that never exceeds one.
+            if let Some(test) = func.inst_result_value(id) {
+                for &reader in widened.get(&test).into_iter().flatten() {
+                    self.redundant_masks.push((reader, word_value));
+                }
+            }
+        }
+        for block in &mut func.blocks {
+            let mut instructions = Vec::with_capacity(block.instructions.len());
+            for &inst in &block.instructions {
+                instructions.extend(words.get(&inst));
+                instructions.push(inst);
+            }
+            block.instructions = instructions;
+        }
+        !tests.is_empty()
+    }
+
     // === Fact recording ===
 
     /// Records the consequences of `value` being `truth` on the current
@@ -1740,7 +1818,7 @@ impl<'a> CheckEliminator<'a> {
     fn assume(&mut self, func: &Function, value: ValueId, truth: bool, depth: usize) {
         // The condition value itself is now known nonzero or zero.
         if truth {
-            self.narrow(value, Range::new(U256::from(1), U256::MAX));
+            self.narrow(value, Range::new(U256::ONE, U256::MAX));
         } else {
             self.narrow(value, Range::singleton(U256::ZERO));
         }
@@ -1773,11 +1851,11 @@ impl<'a> CheckEliminator<'a> {
                     && shift > U256::ZERO
                     && shift < U256::from(256) =>
             {
-                let bound = U256::from(1) << shift.to::<usize>();
+                let bound = U256::ONE << shift.to::<usize>();
                 if truth {
                     self.narrow(x, Range::new(bound, U256::MAX));
                 } else {
-                    self.narrow(x, Range::new(U256::ZERO, bound - U256::from(1)));
+                    self.narrow(x, Range::new(U256::ZERO, bound - U256::ONE));
                 }
                 self.narrow_summand(func, x, depth);
             }
@@ -1792,12 +1870,12 @@ impl<'a> CheckEliminator<'a> {
             // a < b <= hi(b)  =>  a <= hi(b) - 1
             let hi_b = self.range_of(func, b, depth).hi;
             if hi_b > U256::ZERO {
-                self.narrow(a, Range::new(U256::ZERO, hi_b - U256::from(1)));
+                self.narrow(a, Range::new(U256::ZERO, hi_b - U256::ONE));
             }
             // lo(a) <= a < b  =>  b >= lo(a) + 1
             let lo_a = self.range_of(func, a, depth).lo;
             if lo_a < U256::MAX {
-                self.narrow(b, Range::new(lo_a + U256::from(1), U256::MAX));
+                self.narrow(b, Range::new(lo_a + U256::ONE, U256::MAX));
             }
         } else {
             // !(a < b)  =>  b <= a
@@ -1824,8 +1902,8 @@ impl<'a> CheckEliminator<'a> {
         let rb = rb.flip_sign(bits);
         let (a_limit, b_limit) = if truth {
             (
-                Range::new(U256::ZERO, rb.hi.saturating_sub(U256::from(1))),
-                Range::new(ra.lo.saturating_add(U256::from(1)), integer_max(func, a)),
+                Range::new(U256::ZERO, rb.hi.saturating_sub(U256::ONE)),
+                Range::new(ra.lo.saturating_add(U256::ONE), integer_max(func, a)),
             )
         } else {
             (Range::new(rb.lo, integer_max(func, a)), Range::new(U256::ZERO, ra.hi))
@@ -1986,9 +2064,9 @@ impl<'a> CheckEliminator<'a> {
             return;
         }
         if ra.lo == rb.lo {
-            self.narrow(a, Range::new(ra.lo + U256::from(1), ra.hi));
+            self.narrow(a, Range::new(ra.lo + U256::ONE, ra.hi));
         } else if ra.hi == rb.hi {
-            self.narrow(a, Range::new(ra.lo, ra.hi - U256::from(1)));
+            self.narrow(a, Range::new(ra.lo, ra.hi - U256::ONE));
         }
     }
 
@@ -2463,7 +2541,7 @@ impl<'a> CheckEliminator<'a> {
                 // less than the divisor and never exceeds the dividend.
                 let ra = self.range_of(func, a, depth);
                 let rb = self.range_of(func, b, depth);
-                let bound = if rb.hi > U256::ZERO { rb.hi - U256::from(1) } else { U256::ZERO };
+                let bound = if rb.hi > U256::ZERO { rb.hi - U256::ONE } else { U256::ZERO };
                 Range::new(U256::ZERO, bound.min(ra.hi))
             }
             InstKind::And(a, b) => {
@@ -2512,9 +2590,9 @@ impl<'a> CheckEliminator<'a> {
             | InstKind::SGt(..)
             | InstKind::Eq(..)
             | InstKind::Ne(..) => match self.eval_truth(func, value, depth) {
-                Some(true) => Range::singleton(U256::from(1)),
+                Some(true) => Range::singleton(U256::ONE),
                 Some(false) => Range::singleton(U256::ZERO),
-                None => Range::new(U256::ZERO, U256::from(1)),
+                None => Range::new(U256::ZERO, U256::ONE),
             },
             InstKind::Select(condition, then_value, else_value) => {
                 match self.eval_truth(func, condition, depth) {
@@ -2568,7 +2646,7 @@ impl<'a> CheckEliminator<'a> {
                     return Some(false);
                 }
                 // Bitwise AND of two values both known to be exactly one.
-                let one = Range::singleton(U256::from(1));
+                let one = Range::singleton(U256::ONE);
                 if self.range_of(func, a, depth) == one && self.range_of(func, b, depth) == one {
                     return Some(true);
                 }
@@ -2792,7 +2870,7 @@ impl<'a> CheckEliminator<'a> {
         // Its doubling form `eq (shr (add x, x), 1), x` holds iff `x + x` did not wrap.
         for (shifted, expected) in [(a, b), (b, a)] {
             if let Some(&InstKind::Shr(count, sum)) = inst_kind(func, shifted)
-                && func.value_u256(count) == Some(U256::from(1))
+                && func.value_u256(count) == Some(U256::ONE)
                 && doubled(func, sum) == Some((expected, false))
                 && self.range_of(func, expected, depth).hi <= integer_max(func, expected) >> 1
             {
@@ -3049,7 +3127,11 @@ fn universal_relations(func: &Function, relevant: &DenseBitSet<ValueId>) -> FxHa
 fn clamp_limit(func: &Function, x: ValueId, adjustment: ValueId) -> Option<ValueId> {
     let &InstKind::Mul(first, second) = inst_kind(func, adjustment)? else { return None };
     for (condition, difference) in [(first, second), (second, first)] {
-        let Some(&InstKind::Gt(tested, limit)) = inst_kind(func, condition) else { continue };
+        let Some(&(InstKind::Gt(tested, limit) | InstKind::Lt(limit, tested))) =
+            inst_kind(func, condition)
+        else {
+            continue;
+        };
         if tested != x {
             continue;
         }
@@ -3416,9 +3498,9 @@ fn doubled(func: &Function, value: ValueId) -> Option<(ValueId, bool)> {
     match *inst_kind(func, value)? {
         InstKind::Add(a, b) if a == b => Some((a, false)),
         InstKind::Add(a, b) => {
-            let inner = if func.value_u256(b) == Some(U256::from(1)) {
+            let inner = if func.value_u256(b) == Some(U256::ONE) {
                 a
-            } else if func.value_u256(a) == Some(U256::from(1)) {
+            } else if func.value_u256(a) == Some(U256::ONE) {
                 b
             } else {
                 return None;
@@ -3505,7 +3587,7 @@ fn shifted_high_mask_inputs(
 
 fn low_mask_input(func: &Function, kind: &InstKind) -> Option<(ValueId, U256)> {
     let (value, mask) = masked_input(func, kind)?;
-    (mask.wrapping_add(U256::ONE) & mask == U256::ZERO).then_some((value, mask))
+    (mask.wrapping_add(U256::ONE) & mask).is_zero().then_some((value, mask))
 }
 
 /// An `eq` or `ne` of a value with an immediate that `target` prices as cheap to read, whose

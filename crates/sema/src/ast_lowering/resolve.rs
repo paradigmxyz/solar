@@ -182,11 +182,11 @@ impl super::LoweringContext<'_> {
                     continue;
                 }
                 if self.hir.contract(base_id).kind.is_library() {
-                    self.dcx()
-                        .err("libraries cannot be inherited from")
-                        .code(error_code!(2571))
-                        .span(name.span())
-                        .emit();
+                    self.dcx().emit_err_code(
+                        name.span(),
+                        error_code!(2571),
+                        "libraries cannot be inherited from",
+                    );
                     continue;
                 }
                 bases.push(base_id);
@@ -227,7 +227,7 @@ impl super::LoweringContext<'_> {
                         let msg = format!("{} function already declared", func.kind);
                         let note = "previous declaration here";
                         let prev_span = self.hir.function(prev).span;
-                        self.dcx().emit_err_span_note(func.span, msg, prev_span, note);
+                        self.dcx().err_at(func.span, msg).span_note(prev_span, note).emit();
                     } else {
                         *slot = Some(function_id);
                     }
@@ -646,16 +646,14 @@ impl<'gcx> ResolveContext<'gcx> {
                 if !prev.args.is_empty() {
                     self.sess
                         .dcx
-                        .err("base constructor arguments given twice")
-                        .span(base.span)
+                        .err_at(base.span, "base constructor arguments given twice")
                         .span_help(prev.span, "previous declaration")
                         .emit();
                 } else if !prev.args.is_dummy() && !base.args.is_empty() {
                     // Empty parens in inheritance list, but args in constructor
                     self.sess
                         .dcx
-                        .err("base constructor arguments given here")
-                        .span(base.span)
+                        .err_at(base.span, "base constructor arguments given here")
                         .span_help(
                             prev.span,
                             "remove parentheses if you do not want to provide arguments here",
@@ -853,7 +851,7 @@ impl<'gcx> ResolveContext<'gcx> {
                 [] => {
                     let msg = "getter must return at least one value";
                     let note = "the struct has all its members omitted, therefore the getter cannot return any values";
-                    self.dcx().emit_err_span_note(span, msg, ret_ty.span, note);
+                    self.dcx().err_at(span, msg).span_note(ret_ty.span, note).emit();
                     Some(&[])
                 }
                 // `return <expr>;`
@@ -1110,12 +1108,11 @@ impl<'gcx> ResolveContext<'gcx> {
                     has_flag = true;
                     memory_safe = true;
                 }
-                _ => self
-                    .dcx()
-                    .warn("unknown inline assembly flag")
-                    .code(error_code!(4430))
-                    .span(span)
-                    .emit(),
+                _ => self.dcx().emit_warn_code(
+                    span,
+                    error_code!(4430),
+                    "unknown inline assembly flag",
+                ),
             }
         }
 
@@ -1247,6 +1244,8 @@ impl<'gcx> ResolveContext<'gcx> {
         expr: Option<&ast::yul::Expr<'_>>,
         span: Span,
     ) -> hir::StmtKind<'gcx> {
+        // The new names are not visible in the initializer.
+        let expr = expr.map(|expr| self.lower_yul_expr(expr));
         let vars = idents
             .iter()
             .map(|&ident| self.lower_yul_variable(ident, hir::VarKind::Statement))
@@ -1258,7 +1257,7 @@ impl<'gcx> ResolveContext<'gcx> {
         match (vars.as_slice(), expr) {
             ([(var, _)], None) => hir::StmtKind::DeclSingle(*var),
             ([(var, _)], Some(expr)) => {
-                self.hir.variables[*var].initializer = Some(self.lower_yul_expr(expr));
+                self.hir.variables[*var].initializer = Some(expr);
                 hir::StmtKind::DeclSingle(*var)
             }
             (vars, None) => {
@@ -1270,7 +1269,7 @@ impl<'gcx> ResolveContext<'gcx> {
             }
             (vars, Some(expr)) => hir::StmtKind::DeclMulti(
                 self.arena.alloc_slice_fill_iter(vars.iter().map(|&(var, _)| Some(var))),
-                self.lower_yul_expr(expr),
+                expr,
             ),
         }
     }
@@ -1421,32 +1420,30 @@ impl<'gcx> ResolveContext<'gcx> {
             if builtin == Builtin::YulPrevrandao && !target.has_prev_randao() {
                 return Err(self
                     .dcx()
-                    .err("Yul builtin `prevrandao` requires Paris-compatible EVM")
-                    .span(name.span)
+                    .err_at(name.span, "Yul builtin `prevrandao` requires Paris-compatible EVM")
                     .help("compile with `--evm-version paris` or newer")
                     .emit());
             }
             if builtin == Builtin::YulDifficulty && target.has_prev_randao() {
                 return Err(self
                     .dcx()
-                    .err("Yul builtin `difficulty` is unavailable for Paris-compatible EVM")
-                    .span(name.span)
+                    .err_at(
+                        name.span,
+                        "Yul builtin `difficulty` is unavailable for Paris-compatible EVM",
+                    )
                     .help("use `prevrandao()` when compiling for `paris` or newer")
                     .emit());
             }
             if let Some(required) = builtin.required_evm_version(target) {
                 return Err(self
                     .dcx()
-                    .err(format!(
-                        "Yul builtin `{}` requires {required:?}-compatible EVM",
-                        name.name
-                    ))
-                    .code(
+                    .err_code_at(
+                        name.span,
                         builtin
                             .evm_version_error_code()
                             .expect("version-gated Yul builtin without a diagnostic code"),
+                        format!("Yul builtin `{}` requires {required:?}-compatible EVM", name.name),
                     )
-                    .span(name.span)
                     .help(format!("compile with `--evm-version {required}` or newer"))
                     .emit());
             }
@@ -1525,10 +1522,10 @@ impl<'gcx> ResolveContext<'gcx> {
                 if index < yul_root_scope {
                     return Err(self
                         .dcx()
-                        .err("cannot access local Solidity variables from inside an inline assembly function")
-                        .code(error_code!(6578))
-                        .span(name.span)
-                        .emit());
+                        .emit_err_code(
+                            name.span,
+                            error_code!(6578),
+                            "cannot access local Solidity variables from inside an inline assembly function"));
                 }
                 continue;
             }
@@ -1901,11 +1898,11 @@ impl<'gcx> ResolveContext<'gcx> {
                 let guar = if let ast::CallArgsKind::Named(args) = &args.kind
                     && args.len() == 1
                 {
-                    self.dcx()
-                        .err("type conversions cannot take named arguments")
-                        .code(error_code!(5153))
-                        .span(expr.span)
-                        .emit()
+                    self.dcx().emit_err_code(
+                        expr.span,
+                        error_code!(5153),
+                        "type conversions cannot take named arguments",
+                    )
                 } else {
                     let msg = "expected exactly one unnamed argument";
                     self.sess.dcx.emit_err(expr.span, msg)
@@ -1951,8 +1948,7 @@ impl<'gcx> ResolveContext<'gcx> {
         if has_nested_options {
             self.sess
                 .dcx
-                .err("function call options have already been set")
-                .span(expr.span)
+                .err_at(expr.span, "function call options have already been set")
                 .help("combine them into a single `{...}` option")
                 .emit();
         }
@@ -2085,12 +2081,14 @@ impl<'gcx> ResolveContext<'gcx> {
 
             if !self.hir.contract(c).linearized_bases[1..].contains(&id) {
                 self.dcx()
-                    .err(format!(
-                        "invalid contract `{}` specified in override list",
-                        self.hir.contract(id).name.as_str()
-                    ))
-                    .code(error_code!(2353))
-                    .span(ov.span)
+                    .err_code_at(
+                        ov.span,
+                        error_code!(2353),
+                        format!(
+                            "invalid contract `{}` specified in override list",
+                            self.hir.contract(id).name.as_str()
+                        ),
+                    )
                     .note("contract is not a direct or indirect base")
                     .emit();
                 continue;
@@ -2104,7 +2102,7 @@ impl<'gcx> ResolveContext<'gcx> {
 
     /// Reports a library name used as a type or in an override list.
     fn report_library_name(&self, span: Span) -> ErrorGuaranteed {
-        self.dcx().err("invalid use of a library name").code(error_code!(1130)).span(span).emit()
+        self.dcx().emit_err_code(span, error_code!(1130), "invalid use of a library name")
     }
 }
 
@@ -2428,9 +2426,11 @@ impl SymbolResolverScopes {
                 _ => ("variable", error_code!(1395)),
             };
             return Err(dcx
-                .err(format!("{kind} name `{name}` already taken in this scope"))
-                .code(code)
-                .span(name.span)
+                .err_code_at(
+                    name.span,
+                    code,
+                    format!("{kind} name `{name}` already taken in this scope"),
+                )
                 .span_note(previous.span, "previous declaration declared here")
                 .emit());
         }
@@ -2673,7 +2673,7 @@ pub(super) fn report_conflict(
     debug_assert_ne!(decl.span, previous.span);
 
     let mut err =
-        sess.dcx.err(format!("identifier `{name}` already declared")).code(code).span(decl.span);
+        sess.dcx.err_code_at(decl.span, code, format!("identifier `{name}` already declared"));
 
     // If `previous` is coming from an import, show both the import and the real span.
     if let Res::Item(item_id) = previous.res
@@ -2707,11 +2707,11 @@ fn check_reserved_name(sess: &Session, hir: &hir::Hir<'_>, name: Symbol, decl: D
         _ => false,
     };
     if !allowed {
-        sess.dcx
-            .err(format!("the name `{name}` is reserved"))
-            .code(error_code!(3726))
-            .span(decl.span)
-            .emit();
+        sess.dcx.emit_err_code(
+            decl.span,
+            error_code!(3726),
+            format!("the name `{name}` is reserved"),
+        );
     }
 }
 

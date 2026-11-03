@@ -11,7 +11,7 @@ fn @entry() [entry] {
     tail_call @sizes
 }
 
-fn @sizes() [selector=1, abi_wrapper] {
+fn @sizes() {
   bb0:
     v0 = msize
     mstore8 65, 1

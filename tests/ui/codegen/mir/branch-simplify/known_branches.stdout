@@ -22,8 +22,7 @@
       revert 0, 0
   }
   
-  ; selector 0xce4d3874
-  fn @constant() [selector=0xce4d3874, abi_wrapper] {
+  fn @constant() {
     bb0:
       v0 = calldataload 4
 -     jumpi true, bb1, bb2
@@ -37,8 +36,7 @@
       returndata 0, 32
   }
   
-  ; selector 0x8f5383a4
-  fn @same() [selector=0x8f5383a4, abi_wrapper] {
+  fn @same() {
     bb0:
       v0 = calldataload 4
       v1 = ne v0, 0
@@ -50,8 +48,7 @@
       returndata 0, 32
   }
   
-  ; selector 0x0abef8a2
-  fn @repeated() [selector=0x0abef8a2, abi_wrapper] {
+  fn @repeated() {
     bb0:
       v0 = calldataload 4
       v1 = ne v0, 0
@@ -75,8 +72,7 @@
       returndata 0, 32
   }
   
-  ; selector 0x10198fd2
-  fn @switched() [selector=0x10198fd2, abi_wrapper] {
+  fn @switched() {
     bb0:
       v0 = calldataload 4
 -     switch v0, default bb1, [1 => bb1, 2 => bb1]
@@ -93,8 +89,7 @@
       returndata 0, 32
   }
   
-  ; selector 0x71667367
-  fn @unknown() [selector=0x71667367, abi_wrapper] {
+  fn @unknown() {
     bb0:
       v0 = calldataload 4
       v1 = ne v0, 0

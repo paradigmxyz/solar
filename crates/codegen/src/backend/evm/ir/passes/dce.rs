@@ -18,7 +18,7 @@
 //! unconditional edge to a block that never reads its incoming stack. The computation may use pure
 //! operations and reads of the call's context, whose only effect is their static gas.
 
-use super::EvmPass;
+use super::{EvmPass, block_layout::terminator_kind};
 use crate::backend::evm::{
     ir::{Block, BlockId, Instruction, Module, Terminator, TerminatorKind},
     op::{self, StackOp},
@@ -56,7 +56,7 @@ fn cleanup_dead_stack_tails(module: &mut Module) -> bool {
     let ignored_entries =
         module.blocks.iter().map(block_ignores_entry_stack).collect::<IndexVec<BlockId, _>>();
     for block in &mut module.blocks {
-        if let Some(TerminatorKind::Jump(target)) = block.terminator.as_ref().map(|term| &term.kind)
+        if let Some(TerminatorKind::Jump(target)) = terminator_kind(block)
             && ignored_entries[*target]
             && let Some(start) = discardable_tail_start(&block.instructions)
         {

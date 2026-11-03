@@ -476,6 +476,17 @@ impl Target {
         self.opcode(op::DUP1)
     }
 
+    /// Whether reading the calldata word at `offset` once before a branch, for the `reads` readers
+    /// below it, is cheaper than reading it at each: a push and a `CALLDATALOAD` per read, against
+    /// one read, a `DUP` for each further reader, and the `DUP` and `SWAP` that a word kept on the
+    /// stack costs the words around it.
+    pub(crate) fn hoisted_read_pays(&self, offset: u64, reads: u32) -> bool {
+        let read = self.push(U256::from(offset)).plus(self.opcode(op::CALLDATALOAD));
+        let carry = self.dup().plus(self.opcode(op::SWAP1));
+        let shared = read.plus(self.dup().times(reads.saturating_sub(1))).plus(carry);
+        self.cmp_lifetime(shared, read.times(reads)).is_lt()
+    }
+
     /// Cost of one logical stack operation after target lowering, or `None` when the target
     /// cannot lower it. An `EXCHANGE` before Amsterdam costs its three swaps.
     pub(crate) fn stack_op(&self, stack_op: op::StackOp) -> Option<Cost> {
@@ -1527,7 +1538,7 @@ mod tests {
         let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
         let mut function = Function::new(Ident::DUMMY);
         let exit = function.alloc_block();
-        let one = function.alloc_value(Value::Immediate(Immediate::I256(U256::from(1))));
+        let one = function.alloc_value(Value::Immediate(Immediate::I256(U256::ONE)));
         let (add, sum) = function
             .alloc_value_inst(Instruction::new(InstKind::Add(one, one), Some(MirType::I256)));
         function.blocks[BlockId::ENTRY].instructions.push(add);
@@ -1648,7 +1659,7 @@ mod tests {
         }
         assert!(!target.is_cheap_immediate(U256::from(256)));
         assert!(!target.is_cheap_immediate(U256::MAX));
-        assert!(!target.is_cheap_immediate(U256::from(1) << 159));
+        assert!(!target.is_cheap_immediate(U256::ONE << 159));
     }
 
     #[test]
@@ -1849,11 +1860,11 @@ mod tests {
     #[test]
     fn legacy_splats_price_copy_loops_against_stores() {
         let target = Target::with(EvmVersion::Paris, OptimizationMode::Size, 1);
-        assert!(!target.legacy_splat_is_profitable(U256::from(1), 160, false));
-        assert!(!target.legacy_splat_is_profitable(U256::from(1), 256, false));
-        assert!(target.legacy_splat_is_profitable(U256::from(1), 1024, false));
-        assert!(target.legacy_splat_is_profitable(U256::from(1), 2048, false));
-        assert!(target.legacy_splat_is_profitable(U256::from(1), 5120, false));
+        assert!(!target.legacy_splat_is_profitable(U256::ONE, 160, false));
+        assert!(!target.legacy_splat_is_profitable(U256::ONE, 256, false));
+        assert!(target.legacy_splat_is_profitable(U256::ONE, 1024, false));
+        assert!(target.legacy_splat_is_profitable(U256::ONE, 2048, false));
+        assert!(target.legacy_splat_is_profitable(U256::ONE, 5120, false));
         let word = U256::from_be_bytes([0x11; 32]);
         assert!(target.legacy_splat_is_profitable(word, 96, true));
         assert!(target.legacy_splat_is_profitable(word, 5120, true));
@@ -2015,7 +2026,7 @@ mod tests {
             // A hash nothing reads is dead whatever the stores.
             assert!(target.folds_constant_keccak(hash, keccak, Cost::ZERO, 0, false));
             // A short hash costs fewer bytes than the instruction and wins on its own.
-            assert!(target.folds_constant_keccak(U256::from(1), keccak, Cost::ZERO, 1, false));
+            assert!(target.folds_constant_keccak(U256::ONE, keccak, Cost::ZERO, 1, false));
             // A loop repays the bytes with the gas of its iterations, when optimizing for gas.
             assert_eq!(
                 target.folds_constant_keccak(hash, keccak, Cost::ZERO, 1, true),
@@ -2079,6 +2090,18 @@ mod tests {
         assert!(target(OptimizationMode::Gas).marks_failure_paths_cold());
         assert!(!target(OptimizationMode::Size).marks_failure_paths_cold());
         assert!(!target(OptimizationMode::None).marks_failure_paths_cold());
+    }
+
+    #[test]
+    fn hoisted_read_needs_three_readers() {
+        for mode in [OptimizationMode::Gas, OptimizationMode::Size] {
+            let target =
+                Target::with(EvmVersion::Cancun, mode, Target::DEFAULT_EXPECTED_EXECUTIONS);
+            assert!(!target.hoisted_read_pays(4, 1), "{mode:?}");
+            assert!(!target.hoisted_read_pays(4, 2), "{mode:?}");
+            assert!(target.hoisted_read_pays(4, 3), "{mode:?}");
+            assert!(target.hoisted_read_pays(4, 8), "{mode:?}");
+        }
     }
 
     #[test]

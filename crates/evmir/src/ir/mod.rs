@@ -15,7 +15,7 @@
 use crate::{
     debug::{DebugFunction, DebugFunctionExit, DebugSpans, MAX_DEBUG_SPANS},
     link::{EmbeddedBytecodes, ImmutableId, LibraryId, LibraryTable},
-    op::{self, StackOp},
+    op::{self, StackOp, TrackedWord},
 };
 use alloy_primitives::U256;
 use solar_ast::TypeSize;
@@ -284,28 +284,18 @@ impl CallEffect {
         let mut ret = usize::from(self.ret);
         // The words the code pushes, less the words it consumes.
         let mut growth = 0isize;
-        let swapped = |slot: usize, a: usize, b: usize| match slot {
-            slot if slot == a => b,
-            slot if slot == b => a,
-            slot => slot,
-        };
         let apply = |effect: StackEffect, ret: &mut usize, growth: &mut isize| {
             *ret = ret.checked_sub(usize::from(effect.inputs))? + usize::from(effect.outputs);
             *growth += isize::from(effect.outputs) - isize::from(effect.inputs);
             Some(())
         };
         for inst in instructions {
-            match inst.as_stack_op() {
-                Some(StackOp::Dup(n)) => {
-                    if ret + 1 == usize::from(n) {
-                        return None;
-                    }
-                    ret += 1;
-                    growth += 1;
-                }
-                Some(StackOp::Swap(n)) => ret = swapped(ret, 0, usize::from(n)),
-                Some(StackOp::Exchange(n, m)) => ret = swapped(ret, usize::from(n), usize::from(m)),
-                _ => apply(inst.stack_effect(), &mut ret, &mut growth)?,
+            if let Some(stack_op) = inst.as_stack_op() {
+                let TrackedWord::At(moved) = stack_op.track(ret) else { return None };
+                ret = moved;
+                growth += stack_op.net_growth();
+            } else {
+                apply(inst.stack_effect(), &mut ret, &mut growth)?;
             }
         }
         apply(last, &mut ret, &mut growth)?;

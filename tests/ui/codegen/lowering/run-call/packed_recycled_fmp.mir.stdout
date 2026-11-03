@@ -49,7 +49,7 @@ fn @overlap() -> i256 [selector=0xea9e4070, pure, abi_params=[], abi_returns=[wo
     mstore 64, v4 !metadata(memory=scratch)
     v5 = abi_encode_packed (bytes v0, data hex"")
     v6 = mload v5
-    v7 = lt 32, v6
+    v7 = gt v6, 32
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     v9 = ptradd v5, 64

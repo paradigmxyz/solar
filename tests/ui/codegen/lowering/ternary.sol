@@ -3,7 +3,7 @@
 
 contract Ternary {
     // CHECK-LABEL: fn @max{{[( ]}}
-    // CHECK: [[GT:v[0-9]+]] = gt arg0, arg1
+    // CHECK: [[GT:v[0-9]+]] = lt arg1, arg0
     // CHECK: jumpi [[GT]],
     // CHECK: phi [
     function max(uint256 a, uint256 b) public pure returns (uint256) {
@@ -12,7 +12,7 @@ contract Ternary {
 
     // CHECK-LABEL: fn @clamp{{[( ]}}
     // CHECK: {{v[0-9]+}} = lt arg0, arg1
-    // CHECK: {{v[0-9]+}} = gt arg0, arg2
+    // CHECK: {{v[0-9]+}} = lt arg2, arg0
     // CHECK: phi [
     function clamp(uint256 x, uint256 lo, uint256 hi) public pure returns (uint256) {
         return x < lo ? lo : (x > hi ? hi : x);

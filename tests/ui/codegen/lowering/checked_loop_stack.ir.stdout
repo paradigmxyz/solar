@@ -65,9 +65,9 @@ bb10 [loop]:
   add
   jump bb8
 bb8 [loop]:
-  dup 3
-  dup 2
-  gt
+  dup 1
+  dup 4
+  lt
   iszero
   push bb10
   jumpi
@@ -125,9 +125,9 @@ bb10 [loop]:
   add
   jump bb8
 bb8 [loop]:
-  dup 3
-  dup 2
-  gt
+  dup 1
+  dup 4
+  lt
   iszero
   push bb10
   jumpi
@@ -153,9 +153,9 @@ bb25 [loop]:
   jumpi
   swap 2
   pop
-  dup 3
-  dup 3
-  gt
+  dup 2
+  dup 4
+  lt
   iszero
   push bb25
   jumpi
@@ -177,9 +177,9 @@ bb14:  ; function checkedLatch(uint256 start, uint256 end) external pure returns
   calldataload
   jump bb16
 bb16 [loop]:
-  dup 3
-  dup 2
-  gt
+  dup 1
+  dup 4
+  lt
   push bb17
   jumpi
   swap 1
@@ -218,9 +218,9 @@ bb21 [loop]:  ; function diagnostic(uint256 start, uint256 end) external pure re
   push 4
   calldataload
   push 0
-  dup 3
-  dup 3
-  gt
+  dup 2
+  dup 4
+  lt
   iszero
   push bb25
   jumpi

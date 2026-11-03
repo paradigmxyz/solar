@@ -62,7 +62,7 @@
 // add to the counter first pay more than two testing `i < n`.
 // CHECK: [[K:v[0-9]+]] = phi [{{bb[0-9]+}}: 1], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
 // CHECK-NEXT: [[K_AHEAD:v[0-9]+]] = add [[K]], 3
-// CHECK-NEXT: {{v[0-9]+}} = gt [[K_AHEAD]], {{v[0-9]+}}
+// CHECK-NEXT: {{v[0-9]+}} = lt {{v[0-9]+}}, [[K_AHEAD]]
 // CHECK: phi [{{bb[0-9]+}}: [[K]]]
 // CHECK: {{v[0-9]+}} = phi [{{bb[0-9]+}}: 0], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
 // CHECK-NEXT: [[L:v[0-9]+]] = phi

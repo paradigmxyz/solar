@@ -188,7 +188,7 @@ fn @indexOf.1(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256) -> i256 [pure] {
     v102 = inttoptr i256 v21 to ptr<memory>
     jump bb2
   bb6:  ; preds = bb3
-    v12 = gt v4, v6
+    v12 = lt v6, v4
     v13 = zext i1 v12 to i256
     v14 = eq v13, 0
     v15 = zext i1 v14 to i256

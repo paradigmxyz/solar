@@ -49,8 +49,8 @@ bb3 [cold]:
   push 0
   revert
 bb8 [loop]:
-  dup 4
-  dup 3
+  dup 2
+  dup 5
   mul
   swap 2
   dup 4

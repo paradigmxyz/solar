@@ -20,7 +20,7 @@ fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0x91e145ef, abi_params=[by
   bb2:  ; preds = bb5
     v10 = abi_encode [calldata_bytes], object, args v1
     v11 = ptrtoint ptr<memory> v10 to i256
-    v12 = eq v3, v11
+    v12 = eq v11, v3
     v13 = zext i1 v12 to i256
     v14 = eq v13, 0
     v15 = zext i1 v14 to i256

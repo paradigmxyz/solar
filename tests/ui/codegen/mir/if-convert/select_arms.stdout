@@ -23,7 +23,7 @@
 +     v10 = shr arg0, v9
 +     v11 = zext i1 v2 to i256
 +     v12 = mul v11, 128
-+     v13 = or arg1, v12
++     v13 = or v12, arg1
 +     v7 = add v10, v13
       ret v7
   }
@@ -44,7 +44,7 @@
 +     v2 = xor arg1, 7
 +     v4 = sub v1, v2
 +     v5 = zext i1 v0 to i256
-+     v6 = mul v5, v4
++     v6 = mul v4, v5
 +     v7 = add v2, v6
 +     ret v7
   }
@@ -136,7 +136,7 @@
 -     ret v2
 +     v3 = zext i1 v0 to i256
 +     v4 = mul v3, 5
-+     v5 = add arg1, v4
++     v5 = add v4, arg1
 +     ret v5
   }
   
@@ -152,7 +152,7 @@
 -     ret v0
 +     v1 = zext i1 arg0 to i256
 +     v2 = mul v1, 0x1200000000000000000000000000000000000000000000000000000000000000
-+     v3 = add 0x5f00000000000000000000000000000000000000000000000000000000000000, v2
++     v3 = add v2, 0x5f00000000000000000000000000000000000000000000000000000000000000
 +     ret v3
   }
   
@@ -166,8 +166,8 @@
 -     ret v0
 +     v1 = sub 7, arg1
 +     v2 = zext i1 arg0 to i256
-+     v3 = mul v2, v1
-+     v4 = add arg1, v3
++     v3 = mul v1, v2
++     v4 = add v3, arg1
 +     ret v4
   }
   
@@ -187,7 +187,7 @@
 -     v3 = phi [bb0: 0x3e3f3e003f3435363738393a3b3c3d000000000000], [bb3: v2]
 +     v6 = zext i1 v1 to i256
 +     v7 = mul v6, 0xffe5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e6000000003f
-+     v8 = add 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000, v7
++     v8 = add v7, 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000
 +     v9 = zext i1 v0 to i256
 +     v10 = mul v9, 0xfffffefdfcfbfaf9f8f7f7343431f33125252525252525252524e6ffffffffc1
 +     v11 = add v8, v10

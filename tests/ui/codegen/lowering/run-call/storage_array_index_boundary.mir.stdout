@@ -20,7 +20,7 @@ fn @read(arg0: i256, arg1: i256) -> i256 [selector=0x75080997, abi_params=[uint2
     v11 = phi [bb2: v1], [bb10: v11]
     v12 = phi [bb2: v2], [bb10: v12]
     v13 = sload 0 !metadata(storage=slot(0))
-    v14 = gt v13, v10
+    v14 = lt v10, v13
     jumpi v14, bb8, bb9
   bb9:  ; preds = bb6
     jump bb7

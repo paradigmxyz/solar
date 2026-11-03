@@ -82,9 +82,9 @@
 +     jumpi v19, bb1, bb10
 +   bb10:  ; preds = bb9
 +     v20 = sub v18, 32
-+     v21 = add arg1, v20
++     v21 = add v20, arg1
 +     v22 = mload v21
-+     v23 = add arg0, v20
++     v23 = add v20, arg0
 +     mstore v23, v22
 +     jump bb9
 +   bb1:  ; preds = bb0, bb7, bb8, bb9
@@ -148,9 +148,9 @@
 +     jumpi v27, bb1, bb10
 +   bb10:  ; preds = bb9
 +     v28 = sub v26, 32
-+     v29 = add arg1, v28
++     v29 = add v28, arg1
 +     v30 = mload v29
-+     v31 = add arg0, v28
++     v31 = add v28, arg0
 +     mstore v31, v30
 +     jump bb9
 +   bb1:  ; preds = bb0, bb7, bb8, bb9
