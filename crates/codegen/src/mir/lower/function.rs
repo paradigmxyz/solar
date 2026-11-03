@@ -724,6 +724,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         }
         match &expr.kind {
+            ExprKind::Lit(lit) if self.in_inline_assembly => self.lower_word_literal(lit),
             ExprKind::Lit(lit) => self.lower_literal(lit.kind, expr.span),
             ExprKind::Array(elements) => self.lower_array(expr, elements),
             ExprKind::Ident(_) => {
@@ -950,8 +951,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .flatten();
                 let rhs_value = if let Some(word) = fixed_bytes_literal {
                     word
-                } else if self.in_inline_assembly {
-                    self.lower_yul_word_expr(rhs)?
                 } else if self.types.memory_layout(memory_rhs_ty).is_some()
                     && rhs_ty.is_ref_at(DataLocation::Storage)
                 {
