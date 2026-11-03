@@ -79,7 +79,7 @@ fn @pairs() {
     v52 = phi [bb9: v42], [bb11: v61]
     v53 = phi [bb9: v43], [bb11: v62]
     v95 = phi [bb9: v94], [bb11: v96]
-    v55 = gt v52, 0
+    v55 = ne v52, 0
     jumpi v55, bb11, bb12
   bb12:                                           ; preds = bb10
     v29 = mload v80

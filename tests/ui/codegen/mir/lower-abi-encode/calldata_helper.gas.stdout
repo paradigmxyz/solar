@@ -63,7 +63,7 @@ fn @fa() {
     v39 = phi [bb5: v37], [bb21: v163]
     v40 = phi [bb5: v34], [bb21: v167]
     v41 = phi [bb5: v21], [bb21: v166]
-    v42 = gt v38, 0
+    v42 = ne v38, 0
     jumpi v42, bb7, bb8
   bb8:                                            ; preds = bb6
     v203 = calldataload 4
@@ -274,7 +274,7 @@ fn @fb() {
     v39 = phi [bb5: v37], [bb21: v163]
     v40 = phi [bb5: v34], [bb21: v167]
     v41 = phi [bb5: v21], [bb21: v166]
-    v42 = gt v38, 0
+    v42 = ne v38, 0
     jumpi v42, bb7, bb8
   bb8:                                            ; preds = bb6
     v204 = calldataload 4
@@ -487,7 +487,7 @@ fn @fc() {
     v39 = phi [bb5: v37], [bb13: v79]
     v40 = phi [bb5: v34], [bb13: v100]
     v41 = phi [bb5: v21], [bb13: v99]
-    v42 = gt v38, 0
+    v42 = ne v38, 0
     jumpi v42, bb7, bb8
   bb8:                                            ; preds = bb6
     v124 = calldataload 4

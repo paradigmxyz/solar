@@ -172,20 +172,20 @@ fn @roundTrip() {
     v122 = phi [bb21: v112], [bb27: v153]
     v123 = phi [bb21: v107], [bb27: v154]
     v124 = phi [bb21: 0], [bb27: v155]
-    v125 = gt v122, 0
+    v125 = ne v122, 0
     jumpi v125, bb23, bb24
   bb24:                                           ; preds = bb22
     v191 = add v216, 32
     mstore v191, v210
     v57 = mload v216
     v60 = mload v210
-    v61 = gt v60, 0
+    v61 = ne v60, 0
     jumpi v61, bb10, bb9
   bb10:                                           ; preds = bb24
     v183 = add v210, 32
     v202 = mload v183
     v65 = mload v202
-    v66 = gt v65, 0
+    v66 = ne v65, 0
     jumpi v66, bb11, bb9
   bb11:                                           ; preds = bb10
     v185 = add v202, 32
@@ -200,7 +200,7 @@ fn @roundTrip() {
     v187 = add v210, 64
     v203 = mload v187
     v78 = mload v203
-    v79 = gt v78, 0
+    v79 = ne v78, 0
     jumpi v79, bb13, bb9
   bb9 [cold]:                                     ; preds = bb10, bb12, bb15, bb24
     mstore 32, 50
@@ -336,7 +336,7 @@ fn @decode_calldata_type.5(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     v16 = phi [bb5: v6], [bb12: v25]
     v17 = phi [bb5: v7], [bb12: v26]
     v18 = phi [bb5: 0], [bb12: v27]
-    v19 = gt v16, 0
+    v19 = ne v16, 0
     jumpi v19, bb7, bb8
   bb8:                                            ; preds = bb6
     ret v32
@@ -436,7 +436,7 @@ fn @encode_abi_array(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     v7 = phi [bb0: v4], [bb2: v17]
     v8 = phi [bb0: v2], [bb2: v19]
     v9 = phi [bb0: v5], [bb2: v20]
-    v10 = gt v6, 0
+    v10 = ne v6, 0
     jumpi v10, bb2, bb3
   bb3:                                            ; preds = bb1
     v21 = sub v7, arg1

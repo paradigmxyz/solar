@@ -367,9 +367,14 @@ fn counted(func: &Function, l: &Loop) -> Option<Counted> {
         return None;
     }
     let [phis @ .., test_inst] = func.blocks[header].instructions.as_slice() else { return None };
-    let (counter, limit, descending) = match func.inst(*test_inst).kind {
+    let kind = &func.inst(*test_inst).kind;
+    let (counter, limit, descending) = match *kind {
         InstKind::Lt(counter, bound) => (counter, bound, false),
-        InstKind::Gt(counter, zero) if func.value_u64(zero) == Some(0) => (counter, zero, true),
+        // The other operand is the zero the counter reaches.
+        InstKind::Ne(a, b) => {
+            let counter = kind.nonzero_test_operand(func)?;
+            (counter, if counter == a { b } else { a }, true)
+        }
         _ => return None,
     };
     let test = func.inst_result_value(*test_inst)?;
@@ -420,11 +425,18 @@ fn counted(func: &Function, l: &Loop) -> Option<Counted> {
     let next = incoming.iter().find(|(b, _)| b == latch)?.1;
     let Value::Inst(step) = *func.value(next) else { return None };
     let bound = if descending {
-        // k = phi [bound, k - 1]; k > 0
+        // k = phi [bound, k - 1]; k != 0
+        // NOTE: A signed checked decrement panics at the minimum, which the bulk copy would
+        // replace with its range check, so only unsigned or unchecked decrements qualify.
         match func.inst(step).kind {
             InstKind::Sub(a, b)
-            | InstKind::CheckedBinary { op: CheckedOp::Sub, lhs: a, rhs: b, .. }
-                if a == counter && func.value_u64(b) == Some(1) => {}
+            | InstKind::CheckedBinary {
+                op: CheckedOp::Sub,
+                lhs: a,
+                rhs: b,
+                arithmetic: ArithmeticKind::Unsigned(_),
+                ..
+            } if a == counter && func.value_u64(b) == Some(1) => {}
             _ => return None,
         }
         init

@@ -15,12 +15,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// it before the branch. Rerouting such an edge through a fresh jump-only
     /// block gives those inputs a home after the predecessor's branch.
     pub(super) fn split_phi_critical_edges(func: &mut Function) -> bool {
-        let has_phis = func.blocks.iter().any(|block| {
-            block
-                .instructions
-                .iter()
-                .any(|&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
-        });
+        let has_phis = func.blocks.indices().any(|block| func.block_has_phi(block));
         if !has_phis {
             return false;
         }

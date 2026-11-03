@@ -75,7 +75,7 @@ fn @_lastIndicesIn(arg0: i256, arg1: i256, arg2: i256) -> i1 [may_return_memory]
   bb4:                                            ; preds = bb10
     v103 = mload arg0
     v17 = mload v103
-    v18 = gt v17, 0
+    v18 = ne v17, 0
     jumpi v18, bb11, bb9
   bb11:                                           ; preds = bb4
     v88 = add v103, 32
@@ -128,7 +128,7 @@ fn @_lastIndicesIn(arg0: i256, arg1: i256, arg2: i256) -> i1 [may_return_memory]
     jumpi v42, bb2, bb7
   bb7:                                            ; preds = bb13
     v44 = mload v107
-    v45 = gt v44, 0
+    v45 = ne v44, 0
     jumpi v45, bb14, bb9
   bb14:                                           ; preds = bb7
     v96 = add v107, 32

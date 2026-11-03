@@ -250,7 +250,7 @@ fn @pairs() {
     v53 = phi [bb15: v42], [bb35: v146]
     v54 = phi [bb15: v40], [bb35: v147]
     v55 = phi [bb15: 0], [bb35: v148]
-    v56 = gt v53, 0
+    v56 = ne v53, 0
     jumpi v56, bb17, bb18
   bb18:                                           ; preds = bb16
     v29 = mload v190

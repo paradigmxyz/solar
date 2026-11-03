@@ -408,7 +408,7 @@ fn @down() {
     jump bb2
   bb1:                                            ; preds = bb4, bb8
     v5 = phi [bb4: v69], [bb8: v25]
-    v6 = gt v5, 0
+    v6 = ne v5, 0
     jumpi v6, bb3, bb2
   bb3:                                            ; preds = bb1
     v61 = add v104, v5

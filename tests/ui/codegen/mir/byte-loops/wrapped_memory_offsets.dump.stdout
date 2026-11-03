@@ -450,7 +450,7 @@ fn @_copyBytesDown(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [
     jump bb2
   bb1:                                            ; preds = bb4, bb8
     v5 = phi [bb4: arg4], [bb8: v25]
-    v6 = gt v5, 0
+    v6 = ne v5, 0
     jumpi v6, bb3, bb2
   bb3:                                            ; preds = bb1
     v63 = add arg2, v5

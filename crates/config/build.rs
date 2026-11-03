@@ -1,5 +1,8 @@
 use std::{env, io::Read, path::Path};
 
+#[cfg(feature = "version")]
+use std::process::Command;
+
 const SOLC_VERSION_FALLBACK: &str = "0.8.38";
 #[cfg(feature = "version")]
 const VERSION_UNKNOWN: &str = "unknown";
@@ -46,9 +49,13 @@ fn emit_version(solc_version: &str) -> Result<(), Box<dyn std::error::Error>> {
     let version = env::var("CARGO_PKG_VERSION").unwrap();
 
     // `git describe --tags` prints the tag only on a tagged commit. Builds without Git metadata,
-    // such as from a published crate, report unknown and come from a release.
+    // such as from a published crate, report unknown and come from a release. Without reachable
+    // tags, `--always` prints the bare SHA, as in Cargo git checkouts.
     let describe = vergen_env("VERGEN_GIT_DESCRIBE");
-    let is_release_checkout = describe == VERSION_UNKNOWN || describe == format!("v{version}");
+    let tag = format!("v{version}");
+    let is_release_checkout = describe == VERSION_UNKNOWN
+        || describe == tag
+        || (sha.starts_with(&describe) && is_cargo_checkout_of(&tag, &sha));
     let is_dev = vergen_env("VERGEN_GIT_DIRTY") == "true" || !is_release_checkout;
     let version_suffix = if is_dev { "-dev" } else { "" };
 
@@ -111,6 +118,29 @@ fn vergen_env(key: &str) -> String {
         Ok(value) if value != VERGEN_IDEMPOTENT_OUTPUT => value,
         _ => VERSION_UNKNOWN.to_string(),
     }
+}
+
+/// Returns whether this is a Cargo git checkout of `tag` at commit `sha`.
+///
+/// Cargo checks out git dependencies without tags, but fetches a `tag = "..."` dependency into
+/// `refs/remotes/origin/tags/<tag>` of its local git database, which is the checkout's `origin`.
+/// Only the `file` protocol is allowed, so other remotes fail without network access.
+#[cfg(feature = "version")]
+fn is_cargo_checkout_of(tag: &str, sha: &str) -> bool {
+    let tag_ref = format!("refs/remotes/origin/tags/{tag}");
+    let Ok(output) = Command::new("git")
+        .args(["ls-remote", "origin", &format!("{tag_ref}*")])
+        .env("GIT_ALLOW_PROTOCOL", "file")
+        .output()
+    else {
+        return false;
+    };
+    // Annotated tags list the peeled commit as `<tag>^{}`.
+    let peeled = format!("{tag_ref}^{{}}");
+    String::from_utf8_lossy(&output.stdout).lines().any(|line| {
+        line.split_once('\t')
+            .is_some_and(|(id, name)| id == sha && (name == tag_ref || name == peeled))
+    })
 }
 
 fn solc_version() -> String {

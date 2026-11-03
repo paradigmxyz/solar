@@ -2118,7 +2118,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--tests", nargs="+", help="Select test IDs from either run")
     parser.add_argument(
         "--compiler",
-        choices=("solar", "solar-size", "solc", "solc-legacy", "solx", "oksolc"),
+        choices=("solar", "solar-size", "solc", "solc-legacy", "slang", "oksolc"),
         default="solar",
     )
     parser.add_argument(

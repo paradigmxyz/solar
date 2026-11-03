@@ -254,16 +254,11 @@ class Context:
             )
             return Expr("select", tuple(args))
         binding = self.bindings.get(name)
-        shape = {
-            0: "OpcodeLowering.Nullary",
-            1: "OpcodeLowering.Unary",
-            2: "OpcodeLowering.Binary",
-            3: "OpcodeLowering.Nary",
-        }
+        shape = "OpcodeLowering.Nullary" if not args else "OpcodeLowering.Valued"
         if binding is None or binding != (
             name[3:].lower(),
             len(args),
-            shape.get(len(args)),
+            shape,
             True,
         ):
             raise Unsupported(f"unmodeled or changed instruction selection: {name}")

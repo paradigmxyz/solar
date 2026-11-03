@@ -173,7 +173,7 @@ fn @fc() {
     v39 = phi [bb5: v37], [bb10: v77]
     v40 = phi [bb5: v34], [bb10: v85]
     v41 = phi [bb5: v21], [bb10: v84]
-    v42 = gt v38, 0
+    v42 = ne v38, 0
     jumpi v42, bb7, bb8
   bb8:                                            ; preds = bb6
     v106 = calldataload 4
@@ -287,7 +287,7 @@ fn @encode_abi_calldata.4(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retur
     v7 = phi [bb0: v5], [bb9: v101]
     v8 = phi [bb0: v2], [bb9: v105]
     v9 = phi [bb0: arg0], [bb9: v104]
-    v10 = gt v6, 0
+    v10 = ne v6, 0
     jumpi v10, bb2, bb3
   bb3:                                            ; preds = bb1
     v107 = sub v7, arg2

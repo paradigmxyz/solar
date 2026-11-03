@@ -81,10 +81,10 @@ fn expand_templates(
         .filter_map(workspace_root)
         .flat_map(|workspace_root| {
             templates.iter().map(move |template| {
-                let cwd = template.cwd.as_ref().map_or_else(
-                    || workspace_root.clone(),
-                    |cwd| resolve_workspace_path(&workspace_root, cwd),
-                );
+                let cwd = template
+                    .cwd
+                    .as_ref()
+                    .map_or_else(|| workspace_root.clone(), |cwd| workspace_root.join(cwd));
                 FlycheckConfig {
                     id: template.id.clone(),
                     command: template.command.clone(),
@@ -121,10 +121,6 @@ fn default_flychecks(
 
 fn workspace_root(workspace: &Workspace) -> Option<PathBuf> {
     workspace.compile_opts().base_path.clone()
-}
-
-fn resolve_workspace_path(workspace_root: &Path, path: &Path) -> PathBuf {
-    if path.is_absolute() { path.to_path_buf() } else { workspace_root.join(path) }
 }
 
 fn forge_lint_args(selected_profile: Option<&str>) -> Vec<String> {

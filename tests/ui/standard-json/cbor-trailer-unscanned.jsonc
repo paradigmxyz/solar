@@ -1,0 +1,27 @@
+//@ filecheck:
+// The CBOR trailer ends the runtime code even when `pack-data` gives up on the module and so does
+// not order its data: assembly emits the trailer last whatever order the literals were interned in.
+// CHECK: "deployedBytecode": {
+// CHECK-NEXT: "object": "{{[0-9a-f]+}}a165736f6c617243{{[0-9a-f]+}}000b"
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract C { function f1(uint x) external pure returns (bytes memory) { bytes memory s = x > 1 ? bytes(\"himxihkqfirhubakgckoceqfhaqrjouvrdphxirtvhtncsrtljqazvtlzogtuhhypunoatmqcdllavqfdmjvdxemuoqswewpxnvejfligxkbxuxyphgxvgshjmsrfnjnjalgaytbpjrszcesvwdsqo\") : bytes(\"rwlpgrobabfavvnmtkwfbgguiyptslyuekwgnrxbnyyysgzsocqxdoxabrrppgqgnwokalrslizbcumctsnwfmshycyaghgjhxmkavdcehenbyhwrqcpdvwedakmootiqgnpehnanphoyawonqxoue\"); return s; }function f2(uint x) external pure returns (string memory) { return string.concat(\"nqlxubwqogmakkapfmbgagvpuvunafrhj\", x > 3 ? \"ctecxfqoiljhrprighqvrqqakewhpgetvkxwutxbxpxvvolfvaxrvywdznsefrtvlybwxzaebquzklwdtsityookqvfaehwxgfkudkibvucdfkinrvcfxpprjvppgospbslwdjpeinftqgtsktexqo\" : \"nqlxubwqogmakkapfmbgagvpuvunafrhj\"); }function f3(uint x) external pure { if (x > 3) revert(\"ponbwazktwfaqvyaxlktqlhejukchtdzdtvyfqhlfjgssjphnzonrhcqpuljksgmzxwlagtrgoxdmtcmejkwyvagbdbchhbaglzr\"); require(x != 7, \"hrlnmkgrbzgvpthtwtwhsuwwwhfpjlgqr\"); } }"
+    }
+  },
+  "settings": {
+    "metadata": {
+      "bytecodeHash": "none"
+    },
+    "optimizer": {
+      "enabled": true,
+      "runs": 1
+    },
+    "outputSelection": {
+      "*": {
+        "*": ["evm.deployedBytecode.object"]
+      }
+    }
+  }
+}

@@ -471,11 +471,7 @@ fn alloc_flush(func: &mut Function, slot_value: ValueId, temp_addr: ValueId) -> 
 
 fn insert_final_store(func: &mut Function, exit: BlockId, slot_value: ValueId, temp_addr: ValueId) {
     let flush = alloc_flush(func, slot_value, temp_addr);
-    let insert_pos = func.blocks[exit]
-        .instructions
-        .iter()
-        .take_while(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
-        .count();
+    let insert_pos = func.block_phi_count(exit);
     func.blocks[exit].instructions.splice(insert_pos..insert_pos, flush);
 }
 
@@ -489,14 +485,11 @@ fn insert_conditional_final_store(
     let continuation = func.alloc_block();
     let store_block = func.alloc_block();
 
+    // Keep existing exit phis in place; only the non-phi tail moves behind the dirty check.
+    let split_pos = func.block_phi_count(exit);
     let old_instructions = std::mem::take(&mut func.blocks[exit].instructions);
     let (old_terminator, terminator_metadata) = func.blocks[exit].take_terminator();
 
-    // Keep existing exit phis in place; only the non-phi tail moves behind the dirty check.
-    let split_pos = old_instructions
-        .iter()
-        .take_while(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
-        .count();
     let mut exit_instructions = old_instructions[..split_pos].to_vec();
     let continuation_instructions = old_instructions[split_pos..].to_vec();
 

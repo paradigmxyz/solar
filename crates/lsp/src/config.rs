@@ -804,15 +804,14 @@ impl Config {
     }
 
     fn refresh_flychecks(&mut self) -> Vec<DiagnosticOwner> {
-        let mut removed_owners =
-            self.flychecks.iter().map(FlycheckConfig::owner).collect::<FxHashSet<_>>();
+        let mut removed_owners = self.flycheck_owners().collect::<FxHashSet<_>>();
         self.flychecks = self.flycheck_options.configs(
             &self.workspaces,
             &self.forge_path,
             self.selected_profile.as_deref(),
         );
 
-        for owner in self.flychecks.iter().map(FlycheckConfig::owner) {
+        for owner in self.flycheck_owners() {
             removed_owners.remove(&owner);
         }
 

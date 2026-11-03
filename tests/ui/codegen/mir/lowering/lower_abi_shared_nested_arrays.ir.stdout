@@ -492,7 +492,7 @@ fn @decode_calldata_type.7(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     v16 = phi [bb5: v6], [bb7: v25]
     v17 = phi [bb5: v7], [bb7: v26]
     v18 = phi [bb5: 0], [bb7: v27]
-    v19 = gt v16, 0
+    v19 = ne v16, 0
     jumpi v19, bb7, bb8
   bb8:                                            ; preds = bb6
     ret v32

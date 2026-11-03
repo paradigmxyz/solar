@@ -78,7 +78,7 @@ fn @hotA() {
     v39 = phi [bb5: v37], [bb16: v124]
     v40 = phi [bb5: v34], [bb16: v128]
     v41 = phi [bb5: v21], [bb16: v127]
-    v42 = gt v38, 0
+    v42 = ne v38, 0
     jumpi v42, bb7, bb8
   bb8:                                            ; preds = bb6
     v156 = calldataload 4
@@ -244,7 +244,7 @@ fn @hotB() {
     v39 = phi [bb5: v37], [bb16: v124]
     v40 = phi [bb5: v34], [bb16: v128]
     v41 = phi [bb5: v21], [bb16: v127]
-    v42 = gt v38, 0
+    v42 = ne v38, 0
     jumpi v42, bb7, bb8
   bb8:                                            ; preds = bb6
     v157 = calldataload 4
@@ -728,7 +728,7 @@ fn @mixedHot() {
     v51 = phi [bb7: v49], [bb17: v91]
     v52 = phi [bb7: v46], [bb17: v113]
     v53 = phi [bb7: v32], [bb17: v112]
-    v54 = gt v50, 0
+    v54 = ne v50, 0
     jumpi v54, bb9, bb10
   bb10:                                           ; preds = bb8
     v191 = calldataload 4
@@ -971,7 +971,7 @@ fn @mixedColdA() [cold] {
     v71 = phi [bb2: v69], [bb16: v111]
     v72 = phi [bb2: v66], [bb16: v133]
     v73 = phi [bb2: v17], [bb16: v132]
-    v74 = gt v70, 0
+    v74 = ne v70, 0
     jumpi v74, bb8, bb9
   bb9 [cold]:                                     ; preds = bb7
     v135 = sub v71, v62
@@ -1137,7 +1137,7 @@ fn @mixedColdB() [cold] {
     v71 = phi [bb2: v69], [bb16: v111]
     v72 = phi [bb2: v66], [bb16: v133]
     v73 = phi [bb2: v17], [bb16: v132]
-    v74 = gt v70, 0
+    v74 = ne v70, 0
     jumpi v74, bb8, bb9
   bb9 [cold]:                                     ; preds = bb7
     v135 = sub v71, v62
@@ -1270,7 +1270,7 @@ fn @encode_abi_calldata(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_
     v7 = phi [bb0: v5], [bb9: v47]
     v8 = phi [bb0: v2], [bb9: v68]
     v9 = phi [bb0: arg0], [bb9: v67]
-    v10 = gt v6, 0
+    v10 = ne v6, 0
     jumpi v10, bb2, bb3
   bb3:                                            ; preds = bb1
     v70 = sub v7, arg2

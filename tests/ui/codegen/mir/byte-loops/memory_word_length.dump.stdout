@@ -42,7 +42,7 @@ fn @copy() {
   bb20:                                           ; preds = bb18
     mstore 64, v135 !metadata(memory=scratch)
     v2 = mload v128
-    v3 = gt v2, 0
+    v3 = ne v2, 0
     jumpi v3, bb7, bb6
   bb7:                                            ; preds = bb20
     v110 = add v128, 32
@@ -133,7 +133,7 @@ fn @copy() {
     revert 28, 36
   bb2:                                            ; preds = bb1, bb8, bb12
     v36 = mload v129
-    v37 = gt v36, 0
+    v37 = ne v36, 0
     jumpi v37, bb9, bb6
   bb6 [cold]:                                     ; preds = bb2, bb5, bb7, bb14, bb15, bb20
     mstore 32, 50 !metadata(memory=scratch)

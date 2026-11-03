@@ -41,8 +41,8 @@ bb5:                                              ; function read() external vie
   push 1
   signextend
   swap 5
-  iszero
-  iszero
+  push 0
+  lt
   swap 6
   push 128
   mstore

@@ -251,7 +251,7 @@ fn @dDynArr() {
     v27 = phi [bb6: v17], [bb8: v36]
     v28 = phi [bb6: v12], [bb8: v37]
     v29 = phi [bb6: 0], [bb8: v38]
-    v30 = gt v27, 0
+    v30 = ne v27, 0
     jumpi v30, bb8, bb9
   bb9:                                            ; preds = bb7
     v1 = mload v50
