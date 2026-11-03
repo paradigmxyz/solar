@@ -138,12 +138,12 @@ fn emit_ir_input(gcx: Gcx<'_>) -> Result {
     let source = &gcx.sources.first().expect("IR source should be loaded").file;
     if gcx.sess.opts.language.is_mir() {
         let mut module = Module::parse(gcx.sess, source)?;
-        validate(&gcx.sess.dcx, &module);
+        validate(gcx.dcx(), &module);
         if gcx.dcx().has_errors().is_ok() {
             let name = source.name.display().to_string();
             let _changed = pass::run_pipeline(gcx, &mut module, Some(&name));
             gcx.dcx().has_errors()?;
-            validate(&gcx.sess.dcx, &module);
+            validate(gcx.dcx(), &module);
             gcx.dcx().has_errors()?;
 
             let value = gcx
@@ -666,7 +666,7 @@ fn matching_dump_contracts(gcx: Gcx<'_>, dump: &Dump) -> Result<ContractSelectio
             let kinds = dump.kinds.iter().map(ToString::to_string).collect::<Vec<_>>().join(",");
             let msg = format!("`-Zdump={kinds}={path}` did not match any contract");
             let note = format!("available contracts: {}", available_dump_contracts(gcx));
-            return Err(gcx.sess.dcx.err(msg).note(note).emit());
+            return Err(gcx.dcx().err(msg).note(note).emit());
         }
     }
     Ok(contracts)
@@ -676,19 +676,19 @@ fn write_mir_dump_contract(
     writer: &mut ConsoleWriter,
     gcx: Gcx<'_>,
     id: ContractId,
-    module: &solar_codegen::mir::Module,
+    module: &Module,
     kind: DumpKind,
     first: &mut bool,
 ) -> Result {
     if !std::mem::replace(first, false) {
         writeln!(writer)
-            .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+            .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
     }
     let name = gcx.contract_fully_qualified_name(id);
     // NOTE: Graphviz has no `;` comments, so the DOT output keeps a `//` header.
     let comment = if kind == DumpKind::MirCfg { "//" } else { ";" };
     writeln!(writer, "{comment} === {name} ===")
-        .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+        .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
     match kind {
         DumpKind::Mir | DumpKind::MirFinal => {
             write_highlighted(writer, module.to_string(), Syntax::Ir)
@@ -696,7 +696,7 @@ fn write_mir_dump_contract(
         DumpKind::MirCfg => writeln!(writer, "{}", module.to_dot()),
         _ => unreachable!("checked by caller"),
     }
-    .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+    .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
     Ok(())
 }
 
@@ -762,26 +762,26 @@ fn write_evm_ir(
 ) -> Result {
     if dump.kinds.contains(&DumpKind::EvmIr) {
         writeln!(writer, "; === {name} (creation) ===")
-            .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+            .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
         if let Some(deployment) = deployment {
             write_highlighted(writer, deployment.to_text().to_string(), Syntax::Ir)
-                .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+                .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
         }
     }
     if dump.kinds.contains(&DumpKind::EvmIrRuntime) {
         writeln!(writer, "; === {name} (runtime) ===")
-            .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+            .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
         if let Some(runtime) = runtime {
             write_highlighted(writer, runtime.to_text().to_string(), Syntax::Ir)
-                .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+                .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
         }
     }
     if dump.kinds.contains(&DumpKind::EvmIrRuntimeScheduled) {
         writeln!(writer, "; === {name} (scheduled runtime) ===")
-            .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+            .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
         if let Some(scheduled) = scheduled {
             write_highlighted(writer, scheduled.to_text().to_string(), Syntax::Ir)
-                .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+                .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
         }
     }
     Ok(())
@@ -836,7 +836,7 @@ fn write_disassembly(
 ) -> Result {
     if dump.kinds.contains(&DumpKind::DisasmDeploy) {
         writeln!(writer, "; === {name} (deployment) ===")
-            .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+            .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
         let deployment_prefix = deployment
             .strip_suffix(runtime)
             .expect("deployment bytecode should end with runtime bytecode");
@@ -845,17 +845,17 @@ fn write_disassembly(
             evm::disassemble(deployment_prefix, gcx.sess.opts.evm_version),
             Syntax::Disasm,
         )
-        .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+        .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
     }
     if dump.kinds.contains(&DumpKind::DisasmRuntime) {
         writeln!(writer, "; === {name} (runtime) ===")
-            .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+            .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
         write_highlighted(
             writer,
             evm::disassemble(runtime, gcx.sess.opts.evm_version),
             Syntax::Disasm,
         )
-        .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+        .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
     }
     Ok(())
 }

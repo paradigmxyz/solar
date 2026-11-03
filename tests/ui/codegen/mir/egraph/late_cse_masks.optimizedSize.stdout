@@ -49,7 +49,9 @@ fn @digest(arg0: i256, arg1: i256) -> i256 {
     sstore 0, v9 !metadata(storage=slot(0))
     ret v6
   bb1 [cold]:                                     ; preds = bb0
-    tail_call @revert_stub
+    mstore 32, 17
+    mstore 0, 0x4e487b71
+    revert 28, 36
 }
 
 ; function first(address owner, uint256 amount) external returns (bool) [selector 0x2845d4e6]
@@ -105,14 +107,9 @@ fn @second() {
     mstore 0, v17
     returndata 0, 32
   bb1 [cold]:                                     ; preds = bb4
-    tail_call @revert_stub
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71
+    revert 28, 36
   bb3 [cold]:                                     ; preds = bb0
     revert 0, 0
-}
-
-fn @revert_stub() [cold] {
-  bb0 [cold]:
-    mstore 32, 17 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }

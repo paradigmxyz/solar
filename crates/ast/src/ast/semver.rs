@@ -114,14 +114,14 @@ impl Eq for SemverVersion {}
 
 impl PartialOrd for SemverVersion {
     #[inline]
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
 impl Ord for SemverVersion {
     #[inline]
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> Ordering {
         #[inline]
         fn cmp_opt(a: &Option<SemverVersionNumber>, b: &Option<SemverVersionNumber>) -> Ordering {
             match (a, b) {

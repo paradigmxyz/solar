@@ -111,8 +111,10 @@ impl MirPass for Licm {
             analyses,
             &selected,
             |func, analyses| {
+                let target = analyses.runtime_target(gcx);
                 let mut optimizer = LoopOptimizer {
-                    hoist_cheap: analyses.runtime_target(gcx).optimization().is_gas(),
+                    hoist_cheap: target.optimization().is_gas(),
+                    target,
                     alias: Rc::clone(analyses.alias()),
                     hoisted: 0,
                     annotated_aliases: false,
@@ -191,11 +193,12 @@ const MAX_LICM_HOISTED_INSTS: usize = 8;
 /// Loop optimizer.
 pub(super) struct LoopOptimizer {
     /// Whether pure arithmetic executed on every iteration is hoisted even when its per-iteration
-    /// saving is below [`Target::MIN_LICM_PROFIT_GAS`]. The backend carries a preheader value on
+    /// saving does not satisfy [`Target::licm_pays`]. The backend carries a preheader value on
     /// the stack through a loop or rebuilds it at its use sites, whichever its pricing prefers, so
     /// hoisting only widens its choice; the cost is bytecode when the value is spilled, which
     /// gas mode accepts.
     hoist_cheap: bool,
+    target: Target,
     alias: Rc<AliasAnalysis>,
     /// Number of instructions hoisted or rewritten.
     hoisted: usize,
@@ -403,7 +406,7 @@ impl LoopOptimizer {
             return;
         }
         roots.sort_unstable_by_key(|&inst_id| {
-            (Reverse(self.licm_profit(func, inst_id)), inst_id.index())
+            (Reverse(self.target.licm_saving(func, inst_id)), inst_id.index())
         });
 
         let Scratch { selected, closure_set, visiting, closure, values } = scratch;
@@ -448,7 +451,7 @@ impl LoopOptimizer {
                     )
                 })
                 .collect::<Vec<_>>();
-            if self.licm_profit(func, root) < Target::MIN_LICM_PROFIT_GAS
+            if !self.target.licm_pays(func, root)
                 && nest.iter().any(|&(header, delta)| {
                     carried[&header].saturating_add_signed(delta) > Target::LOOP_CARRY_BUDGET
                 })
@@ -673,37 +676,13 @@ impl LoopOptimizer {
         })
     }
 
-    fn licm_profit(&self, func: &Function, inst_id: InstId) -> u32 {
-        match func.inst(inst_id).kind {
-            InstKind::Load(_, PtrLocation::Storage | PtrLocation::Transient) => {
-                Target::LICM_STATE_READ_GAS
-            }
-            InstKind::Keccak256(_, _) => Target::LICM_HASH_GAS,
-            InstKind::MappingSlot(_, _)
-            | InstKind::MappingSlotBytes(_, _)
-            | InstKind::StorageArrayDataSlot(_)
-            | InstKind::StorageArrayElementSlot { .. } => Target::LICM_HASH_GAS,
-            InstKind::Exp(_, _) => Target::LICM_EXP_GAS,
-            InstKind::Mul(_, _)
-            | InstKind::Div(_, _)
-            | InstKind::SDiv(_, _)
-            | InstKind::Mod(_, _)
-            | InstKind::SMod(_, _)
-            | InstKind::AddMod(_, _, _)
-            | InstKind::MulMod(_, _, _)
-            | InstKind::Clz(_) => Target::LICM_ARITHMETIC_GAS,
-            InstKind::Load(..) => Target::LICM_MEMORY_READ_GAS,
-            _ => 0,
-        }
-    }
-
     fn is_profitable_licm_root(
         &self,
         func: &Function,
         inst_id: InstId,
         ctx: LoopOptContext<'_>,
     ) -> bool {
-        self.licm_profit(func, inst_id) >= Target::MIN_LICM_PROFIT_GAS
+        self.target.licm_pays(func, inst_id)
             || (ctx.loop_data.trip_count.is_some_and(|trip_count| trip_count > 1)
                 && self.is_affine_address_base_used_in_loop(func, inst_id, ctx))
             || (ctx.dominates_backedges(inst_id)

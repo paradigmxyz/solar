@@ -223,7 +223,7 @@ fn dump_hir(gcx: Gcx<'_>, paths: Option<&[String]>) -> Result<()> {
                         .collect::<Vec<_>>()
                         .join(", ")
                 );
-                return Err(gcx.sess.dcx.err(msg).note(note).emit());
+                return Err(gcx.dcx().err(msg).note(note).emit());
             }
         }
         print!("{}", printer.finish());
