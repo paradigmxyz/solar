@@ -1344,8 +1344,12 @@ impl AliasAnalysis {
             }
             InstKind::AbiEncodePacked { .. } => {
                 let InstKind::AbiEncodePacked { parts, .. } = kind else { unreachable!() };
-                if parts.iter().any(|part| matches!(part, crate::mir::PackedPart::StorageBytes(_)))
-                {
+                if parts.iter().any(|part| {
+                    matches!(
+                        part,
+                        crate::mir::PackedPart::Bytes { location: PtrLocation::Storage, .. }
+                    )
+                }) {
                     effects.read_any(AddressSpace::Storage);
                 }
                 effects.read_write_any([AddressSpace::Memory]);

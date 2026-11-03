@@ -10,7 +10,7 @@ fn @message(arg0: i256, arg1: i256) -> ptr<memory> [selector=0x91fdccfd, pure, a
     v1 = icall @digits, arg0
     v2 = icall @digits, arg1
     v3 = icall @padding, arg1
-    v4 = abi_encode_packed (bytes v0, data hex"7c", bytes v1, data hex"7c", bytes v2, data hex"7c", bytes v3)
+    v4 = abi_encode_packed (memory_bytes v0, data hex"7c", memory_bytes v1, data hex"7c", memory_bytes v2, data hex"7c", memory_bytes v3)
     ret v4
 }
 
@@ -21,7 +21,7 @@ fn @overlapping(arg0: i256) -> struct0 [selector=0x206097d8, pure, abi_params=[u
     v1 = ptrtoint ptr<memory> v0 to i256
     v2 = add v1, 32
     mstore 64, v2 !metadata(memory=scratch)
-    v3 = abi_encode_packed (bytes v0, data hex"")
+    v3 = abi_encode_packed (memory_bytes v0, data hex"")
     v4 = mload v3
     v5 = ptrtoint ptr<memory> v3 to i256
     v6 = add v5, 64

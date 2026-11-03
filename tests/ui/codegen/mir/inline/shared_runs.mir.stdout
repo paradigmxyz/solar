@@ -55,6 +55,6 @@ fn @paintBool(arg0: i1) -> ptr<memory> [pure] {
 ; function wrap(string memory text) private pure returns (string memory)
 fn @wrap(arg0: ptr<memory>) -> ptr<memory> [pure] {
   bb0:
-    v0 = abi_encode_packed (data hex"3c", bytes arg0, data hex"3e")
+    v0 = abi_encode_packed (data hex"3c", memory_bytes arg0, data hex"3e")
     ret v0
 }

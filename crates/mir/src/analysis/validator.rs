@@ -1137,9 +1137,7 @@ impl<'a> Validator<'a> {
                     }
                     InstKind::AbiEncodePacked { parts, hash } => {
                         let valid_parts = parts.iter().all(|part| match part {
-                            crate::PackedPart::Literal(_)
-                            | crate::PackedPart::Bytes(_)
-                            | crate::PackedPart::StorageBytes(_) => true,
+                            crate::PackedPart::Literal(_) | crate::PackedPart::Bytes { .. } => true,
                             crate::PackedPart::Scalar { ty, .. } => {
                                 matches!(
                                     ty,

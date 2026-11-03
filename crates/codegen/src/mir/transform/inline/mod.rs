@@ -1053,8 +1053,7 @@ fn summarize_function(
                     if parts.iter().any(|part| {
                         matches!(
                             part,
-                            crate::mir::PackedPart::Bytes(_)
-                                | crate::mir::PackedPart::StorageBytes(_)
+                            crate::mir::PackedPart::Bytes { .. }
                                 | crate::mir::PackedPart::Array { .. }
                         )
                     }) =>

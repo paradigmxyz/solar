@@ -287,23 +287,25 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(value)
     }
 
-    /// Whether `expr` is a storage `bytes` or `string`, which ABI encoders read in place instead
-    /// of through a memory copy.
-    pub(super) fn is_storage_bytes_operand(&self, expr: &hir::Expr<'_>) -> bool {
-        self.cx
-            .gcx
-            .type_of_expr(self.peel_bytes_conversion(expr).id)
-            .is_some_and(|ty| ty.is_ref_at(DataLocation::Storage) && self.is_dynamic_bytes_type(ty))
-    }
-
-    /// Lowers a storage `bytes` or `string` operand of an ABI encoding to its slot. The encoder
-    /// reads the bytes when it runs, after the operands that follow, as solc does.
-    pub(super) fn lower_storage_bytes_operand(
+    /// Lowers the `bytes` or `string` operand `expr` of an ABI encoding to the value its encoder
+    /// reads in place, and where that value lies. A storage reference lowers to its slot, which
+    /// the encoder reads when it runs, after the operands that follow, as solc does; any other
+    /// operand to its memory object or its memory or calldata slice.
+    pub(super) fn lower_bytes_operand(
         &mut self,
         expr: &hir::Expr<'_>,
-    ) -> Option<(ValueId, AbiType)> {
-        let slot = self.require_storage_access(self.peel_bytes_conversion(expr))?.slot;
-        Some((slot, AbiType::Bytes(PtrLocation::Storage)))
+        ty: Ty<'gcx>,
+    ) -> Option<(ValueId, PtrLocation)> {
+        let source = self.peel_bytes_conversion(expr);
+        if self.cx.gcx.type_of_expr(source.id).is_some_and(|ty| ty.is_ref_at(DataLocation::Storage))
+        {
+            return Some((self.require_storage_access(source)?.slot, PtrLocation::Storage));
+        }
+        let value = self.lower_typed_expr(expr, ty)?;
+        Some((
+            value,
+            self.builder.func().value_slice_location(value).unwrap_or(PtrLocation::Memory),
+        ))
     }
 
     pub(super) fn lower_abi_call_argument(
@@ -311,8 +313,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         argument: &hir::Expr<'_>,
         parameter_ty: Ty<'gcx>,
     ) -> Option<(ValueId, AbiType)> {
-        if self.is_storage_bytes_operand(argument) {
-            return self.lower_storage_bytes_operand(argument);
+        if self.is_dynamic_bytes_type(parameter_ty) {
+            let (value, location) = self.lower_bytes_operand(argument, parameter_ty)?;
+            return self.prepare_abi_argument(
+                argument,
+                parameter_ty,
+                value,
+                AbiType::Bytes(location),
+            );
         }
         let value = self.lower_typed_expr(argument, parameter_ty)?;
         let abi_type = self.types.abi_type(parameter_ty)?;

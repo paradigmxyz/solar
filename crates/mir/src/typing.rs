@@ -41,7 +41,8 @@ impl AbiType {
         if matches!(
             self,
             Self::Bytes(_) | Self::DynamicArray { .. } | Self::FixedArray { .. } | Self::Tuple(_)
-        ) && let Some(ty @ MirType::Slice(PtrLocation::Memory | PtrLocation::Calldata)) = actual
+        ) && *self != Self::Bytes(PtrLocation::Storage)
+            && let Some(ty @ MirType::Slice(PtrLocation::Memory | PtrLocation::Calldata)) = actual
         {
             ty
         } else {
@@ -131,8 +132,9 @@ pub(super) fn packed_types(func: &Function, parts: &[PackedPart]) -> SmallVec<[M
         .filter_map(|part| match part {
             PackedPart::Literal(_) => None,
             PackedPart::Scalar { ty, .. } => Some(ty.mir_type()),
-            PackedPart::Bytes(value) => Some(read_object(func, *value)),
-            PackedPart::StorageBytes(_) => Some(MirType::I256),
+            PackedPart::Bytes { value, location } => {
+                Some(AbiType::Bytes(*location).input_type(func.value_ty(*value)))
+            }
             PackedPart::Array { source, .. } => Some(match source {
                 PackedArraySource::Memory { .. } => MirType::MEMPTR,
                 PackedArraySource::Slice(location) => MirType::Slice(*location),

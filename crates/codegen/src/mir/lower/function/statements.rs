@@ -555,22 +555,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         AllocationSemantics::INTERNAL,
                         false,
                     )?;
-                    return Some((argument, value));
+                    return Some((argument, value, None));
                 }
                 if !this.cx.gcx.hir.variable(parameter).indexed
-                    && this.is_storage_bytes_operand(argument)
+                    && this.is_dynamic_bytes_type(parameter_ty)
                 {
-                    let (slot, _) = this.lower_storage_bytes_operand(argument)?;
-                    return Some((argument, slot));
+                    let (value, location) = this.lower_bytes_operand(argument, parameter_ty)?;
+                    return Some((argument, value, Some(location)));
                 }
                 let value = this.lower_typed_expr(argument, parameter_ty)?;
-                Some((argument, value))
+                Some((argument, value, None))
             },
         )?;
         let mut data_values = Vec::new();
         let mut data_types = Vec::new();
         for (index, &parameter) in event.parameters.iter().enumerate() {
-            let (argument, mut value) = arguments[index];
+            let (argument, mut value, location) = arguments[index];
             let parameter_ty = self.cx.gcx.type_of_item(parameter.into());
             let variable = self.cx.gcx.hir.variable(parameter);
             if variable.indexed {
@@ -624,12 +624,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             } else {
                 // data_values += argument
-                if self.is_storage_bytes_operand(argument) {
-                    data_values.push(value);
-                    data_types.push(AbiType::Bytes(PtrLocation::Storage));
-                    continue;
-                }
-                let mut abi_type = self.types.abi_type(parameter_ty)?;
+                let mut abi_type = match location {
+                    Some(location) => AbiType::Bytes(location),
+                    None => self.types.abi_type(parameter_ty)?,
+                };
                 abi_type = self.abi_type_for_value(value, abi_type);
                 self.check_calldata_array_size(value, parameter_ty, &abi_type);
                 self.validate_calldata_static_argument(value, parameter_ty);

@@ -106,7 +106,7 @@ fn @packIt() -> ptr<memory> [selector=0x3ba102e0, pure, abi_params=[], abi_retur
     v4 = shr v2, 251
     v5 = ne v4, 0
     icall panic_if<0x41>, v5
-    v6 = abi_encode_packed (bytes v0, array<word> calldata v1)
+    v6 = abi_encode_packed (calldata_bytes v0, array<word> calldata v1)
     ret v6
 }
 
@@ -114,7 +114,7 @@ fn @packIt() -> ptr<memory> [selector=0x3ba102e0, pure, abi_params=[], abi_retur
 fn @concatIt() -> ptr<memory> [selector=0xe95a0beb, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @b
-    v1 = abi_encode_packed (bytes v0, data hex"01")
+    v1 = abi_encode_packed (calldata_bytes v0, data hex"01")
     ret v1
 }
 

@@ -359,7 +359,7 @@ fn @failWithStorageBytes(arg0: i256) [selector=0x49740e5b, abi_params=[uint256],
     jump bb1
   bb1:                                            ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v7]
+    v1 = phi [bb0: 0], [bb3: v6]
     v2 = lt v1, v0
     jumpi v2, bb4, bb5
   bb5:                                            ; preds = bb1
@@ -379,11 +379,10 @@ fn @failWithStorageBytes(arg0: i256) [selector=0x49740e5b, abi_params=[uint256],
   bb6:                                            ; preds = bb9
     jump bb3
   bb3:                                            ; preds = bb6
-    v7 = checked_add uint256, v1, 1
+    v6 = checked_add uint256, v1, 1
     jump bb1
   bb7:                                            ; preds = bb4
-    v6 = load_storage_bytes 0
-    icall require<custom_error [memory_bytes]>, false, 0xe53184de00000000000000000000000000000000000000000000000000000000, v6
+    icall require<custom_error [storage_bytes]>, false, 0xe53184de00000000000000000000000000000000000000000000000000000000, 0
     invalid
 }
 

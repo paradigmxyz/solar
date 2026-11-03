@@ -1893,9 +1893,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     let name = self.parser.parse_ident()?;
                     let part = match name {
                         sym::data => super::PackedPart::Literal(self.parser.parse_data_bytes()?),
-                        kw::Bytes => super::PackedPart::Bytes(self.parse_value(builder)?),
-                        sym::storage_bytes => {
-                            super::PackedPart::StorageBytes(self.parse_value(builder)?)
+                        sym::memory_bytes | sym::calldata_bytes | sym::storage_bytes => {
+                            let location = match name {
+                                sym::memory_bytes => PtrLocation::Memory,
+                                sym::calldata_bytes => PtrLocation::Calldata,
+                                _ => PtrLocation::Storage,
+                            };
+                            super::PackedPart::Bytes { value: self.parse_value(builder)?, location }
                         }
                         sym::array => {
                             self.parser.expect(TokenKind::Lt)?;

@@ -30,7 +30,7 @@ fn @packed(arg0: i1) -> ptr<memory> [selector=0x6ebaaff1, pure, abi_params=[bool
     jump bb3
   bb3:                                            ; preds = bb1, bb2
     v2 = phi [bb1: v0], [bb2: v1]
-    v3 = abi_encode_packed (data hex"ff", bytes v2)
+    v3 = abi_encode_packed (data hex"ff", memory_bytes v2)
     ret v3
 }
 
@@ -52,7 +52,7 @@ fn @pairHash(arg0: i1) -> i256 [selector=0x7e8b97e2, pure, abi_params=[bool], ab
     jump bb3
   bb3:                                            ; preds = bb1, bb2
     v4 = phi [bb1: v0], [bb2: v2]
-    v5 = keccak256_packed (data hex"ff", bytes v4)
+    v5 = keccak256_packed (data hex"ff", memory_bytes v4)
     ret v5
 }
 

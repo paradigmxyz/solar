@@ -6,12 +6,12 @@
 //! loops. Hash-only encodings use the existing scratch policy when the shape permits it. Literal
 //! bytes and adjacent narrow scalars, fixed bytes included, can share a word store without merging
 //! signed high bits or the low bytes of a fixed-bytes word.
-//! A storage `bytes` or `string` part holds its slot: the encoder validates the header for the
-//! length, then writes the data words from storage straight into the output or the hash buffer,
-//! as solc does, so the value has no memory copy and costs no free-memory growth. Storage is
-//! read here, after the arguments ran. Whole words are written, so a part may write up to 31
-//! bytes past its end: the next part overwrites them, and after the last part they lie in the
-//! cleared word or above the allocation.
+//! A byte-string part names its location. A storage `bytes` or `string` part holds its slot: the
+//! encoder validates the header for the length, then writes the data words from storage straight
+//! into the output or the hash buffer, as solc does, so the value has no memory copy and costs no
+//! free-memory growth. Storage is read here, after the arguments ran. Whole words are written, so a
+//! part may write up to 31 bytes past its end: the next part overwrites them, and after the last
+//! part they lie in the cleared word or above the allocation.
 //! Encodings made entirely of whole words need no allocation-size rounding. As in solc, part
 //! lengths and offsets add without overflow checks; the size rounding still checks. Array loops use
 //! plain element-offset arithmetic: their index is below the length whose total extent was checked.
@@ -92,7 +92,14 @@ impl PackedEncoder<'_, '_> {
                         self.builder.imm(piece.static_len().expect("packed literal or scalar"));
                     (piece, length)
                 }
-                PackedPart::Bytes(value) => {
+                PackedPart::Bytes { value, location: PtrLocation::Storage } => {
+                    // header = sload(slot)
+                    // is_long, length = validate_storage_bytes(header)
+                    let header = self.builder.sload(value);
+                    let (is_long, length) = lower_storage_bytes::validate(self.builder, header);
+                    (PackedPiece::Storage { slot: value, header, is_long, length }, length)
+                }
+                PackedPart::Bytes { value, .. } => {
                     let known_length =
                         known_byte_length(self.builder.func(), value, self.builder.current_block());
                     let bounded_heap = known_length.is_some()
@@ -108,13 +115,6 @@ impl PackedEncoder<'_, '_> {
                     };
                     let length = self.builder.slice_len(source);
                     (PackedPiece::Dynamic { source, length, bounded_heap }, length)
-                }
-                PackedPart::StorageBytes(slot) => {
-                    // header = sload(slot)
-                    // is_long, length = validate_storage_bytes(header)
-                    let header = self.builder.sload(slot);
-                    let (is_long, length) = lower_storage_bytes::validate(self.builder, header);
-                    (PackedPiece::Storage { slot, header, is_long, length }, length)
                 }
                 PackedPart::Array { value, element, source } => {
                     let length = match source {
@@ -546,7 +546,11 @@ impl PackedEncoder<'_, '_> {
     /// past `2^255` can wrap the hashed size, and the encoder's copy of that many bytes runs out of
     /// gas: so does the hash, of every byte, for such a length.
     fn hash_over_length(&mut self, parts: &[PackedPart]) -> Option<ValueId> {
-        let (&PackedPart::Bytes(object), prefix) = parts.split_last()? else { return None };
+        let (&PackedPart::Bytes { value: object, location: PtrLocation::Memory }, prefix) =
+            parts.split_last()?
+        else {
+            return None;
+        };
         if self.builder.func().value_ty(object) != Some(MirType::MEMPTR) {
             return None;
         }
@@ -721,7 +725,7 @@ fn static_piece(part: &PackedPart) -> Option<PackedPiece> {
             fixed_bytes: matches!(ty, ValueLayout::FixedBytes(_)),
             signed: matches!(ty, ValueLayout::Int(_)),
         }),
-        PackedPart::Bytes(_) | PackedPart::StorageBytes(_) | PackedPart::Array { .. } => None,
+        PackedPart::Bytes { .. } | PackedPart::Array { .. } => None,
     }
 }
 
