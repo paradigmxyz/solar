@@ -576,6 +576,9 @@ impl Target {
             return Cost::ZERO;
         }
         if matches!(op, Op::Eq { .. } | Op::Ne { .. }) {
+            if matches!(op, Op::Ne { .. }) && Self::zero_test_input(op, &immediate).is_some() {
+                return self.ne_zero().0;
+            }
             let comparison =
                 if Self::zero_test_input(op, &immediate).is_some() { op::ISZERO } else { op::EQ };
             return self.opcode(comparison)
@@ -624,6 +627,18 @@ impl Target {
             Some(a)
         } else {
             None
+        }
+    }
+
+    /// Cost of `ne x, 0` as a value, excluding its operand, and whether it is lowered as
+    /// `PUSH 0; LT` rather than `ISZERO; ISZERO`, whichever ranks cheaper under the objective.
+    pub(crate) fn ne_zero(&self) -> (Cost, bool) {
+        let double_negation = self.opcode(op::ISZERO) + self.opcode(op::ISZERO);
+        let less_than = self.push(U256::ZERO) + self.opcode(op::LT);
+        if self.cmp(less_than, double_negation).is_lt() {
+            (less_than, true)
+        } else {
+            (double_negation, false)
         }
     }
 
@@ -1422,6 +1437,14 @@ mod tests {
         let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
         assert_eq!(target.select(false), Cost::new(17, 5).with_steps(5));
         assert_eq!(target.select(true), Cost::new(20, 6).with_steps(6));
+    }
+
+    #[test]
+    fn ne_zero_picks_the_cheaper_lowering() {
+        let target = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 200);
+        assert_eq!(target.ne_zero(), (Cost::new(5, 2).with_steps(2), true));
+        let target = Target::with(EvmVersion::Istanbul, OptimizationMode::Gas, 200);
+        assert_eq!(target.ne_zero(), (Cost::new(6, 2).with_steps(2), false));
     }
 
     #[test]

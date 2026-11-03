@@ -183,7 +183,7 @@ fn @fromFresh() {
     jump bb5
   bb4:  ; preds = bb7, bb18
     v29 = phi [bb7: v96], [bb18: v33]
-    v32 = gt v29, 0
+    v32 = ne v29, 0
     jumpi v32, bb6, bb5
   bb6:  ; preds = bb4
     v33 = sub v29, 1

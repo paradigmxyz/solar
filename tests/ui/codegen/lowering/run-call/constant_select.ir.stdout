@@ -75,8 +75,8 @@ bb71:  ; function dirtyTernary(uint256 raw, uint256 x) external pure returns (ui
   sub
   push 4
   calldataload
-  iszero
-  iszero
+  push 0
+  lt
   mul
   push 7
   add
@@ -134,8 +134,8 @@ bb2:  ; function choose(uint256 raw, uint256 yes, uint256 no) external pure retu
   sub
   push 4
   calldataload
-  iszero
-  iszero
+  push 0
+  lt
   mul
   add
   push 0
@@ -646,8 +646,8 @@ bb88:
   shl
   push 4
   calldataload
-  iszero
-  iszero
+  push 0
+  lt
   push 0x26121ff0
   push 224
   shl
@@ -708,8 +708,8 @@ bb65:  ; function reverseSignature(uint256 raw) external pure returns (bytes mem
   jumpi
   push 4
   calldataload
-  iszero
-  iszero
+  push 0
+  lt
   push 0xbc057b9e
   push 224
   shl

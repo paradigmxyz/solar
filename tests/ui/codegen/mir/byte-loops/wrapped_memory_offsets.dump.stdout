@@ -452,7 +452,7 @@ fn @_copyBytesDown(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [
     jump bb2
   bb1:  ; preds = bb4, bb8
     v5 = phi [bb4: arg4], [bb8: v25]
-    v6 = gt v5, 0
+    v6 = ne v5, 0
     jumpi v6, bb3, bb2
   bb3:  ; preds = bb1
     v63 = add arg2, v5
@@ -500,26 +500,27 @@ fn @_copyWords(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [may_
   bb4:  ; preds = bb0
     v24 = shl arg4, 5
     v25 = shl arg2, 5
-    v81 = add arg0, v25
-    v82 = add v81, 32
+    v80 = add arg0, v25
+    v81 = add v80, 32
     v28 = shl arg3, 5
-    v84 = add arg1, v28
-    v85 = add v84, 32
-    v34 = add v82, v24
-    v36 = lt v85, v34
-    v35 = add v85, v24
+    v83 = add arg1, v28
+    v84 = add v83, 32
+    v34 = add v81, v24
+    v36 = lt v84, v34
+    v35 = add v84, v24
     v37 = lt arg0, v35
     v38 = and v36, v37
     v39 = zext i1 v38 to i256
-    v87 = add arg0, 32
-    v42 = lt v82, v87
+    v86 = add arg0, 32
+    v42 = lt v81, v86
     v43 = zext i1 v42 to i256
     v44 = or v39, v43
-    v89 = add arg1, 32
-    v47 = lt v85, v89
+    v88 = add arg1, 32
+    v47 = lt v84, v88
     v48 = zext i1 v47 to i256
     v49 = or v44, v48
-    v51 = gt arg4, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v50 = shr arg4, 251
+    v51 = ne v50, 0
     v52 = zext i1 v51 to i256
     v53 = or v49, v52
     v54 = ne v53, 0
@@ -538,7 +539,7 @@ fn @_copyWords(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [may_
     v68 = or v59, v65
     jumpi v68, bb6, bb9
   bb9:  ; preds = bb5
-    mcopy v85, v82, v24
+    mcopy v84, v81, v24
     jump bb2
   bb1:  ; preds = bb4, bb8
     v5 = phi [bb4: 0], [bb8: v22]
@@ -554,9 +555,9 @@ fn @_copyWords(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [may_
     jumpi v9, bb7, bb6
   bb7:  ; preds = bb11
     v11 = shl v75, 5
-    v91 = add arg0, v11
-    v92 = add v91, 32
-    v14 = mload v92
+    v90 = add arg0, v11
+    v91 = add v90, 32
+    v14 = mload v91
     v77 = add arg3, v5
     v78 = lt v77, arg3
     jumpi v78, bb10, bb12
@@ -568,9 +569,9 @@ fn @_copyWords(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [may_
     tail_call @revert_stub
   bb8:  ; preds = bb12
     v19 = shl v77, 5
-    v94 = add arg1, v19
-    v95 = add v94, 32
-    mstore v95, v14
+    v93 = add arg1, v19
+    v94 = add v93, 32
+    mstore v94, v14
     v22 = add v5, 1
     jump bb1
   bb10 [cold]:  ; preds = bb3, bb7

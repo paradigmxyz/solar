@@ -369,7 +369,11 @@ fn counted(func: &Function, l: &Loop) -> Option<Counted> {
     let [phis @ .., test_inst] = func.blocks[header].instructions.as_slice() else { return None };
     let (counter, limit, descending) = match func.inst(*test_inst).kind {
         InstKind::Lt(counter, bound) => (counter, bound, false),
-        InstKind::Gt(counter, zero) if func.value_u64(zero) == Some(0) => (counter, zero, true),
+        InstKind::Gt(counter, zero) | InstKind::Ne(counter, zero)
+            if func.value_u64(zero) == Some(0) =>
+        {
+            (counter, zero, true)
+        }
         _ => return None,
     };
     let test = func.inst_result_value(*test_inst)?;

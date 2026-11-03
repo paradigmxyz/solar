@@ -249,7 +249,7 @@ fn @pairs() {
     v53 = phi [bb15: v42], [bb35: v146]
     v54 = phi [bb15: v40], [bb35: v147]
     v55 = phi [bb15: 0], [bb35: v148]
-    v56 = gt v53, 0
+    v56 = ne v53, 0
     jumpi v56, bb17, bb18
   bb18:  ; preds = bb16
     v29 = mload v204
@@ -278,8 +278,8 @@ fn @pairs() {
     v32 = lt v31, v13
     v33 = add v31, v1
     v34 = lt v33, v1
-    v220 = or v32, v34
-    jumpi v220, bb4, bb5
+    v219 = or v32, v34
+    jumpi v219, bb4, bb5
   bb5:  ; preds = bb3
     v28 = add v2, 1
     jump bb1
@@ -297,8 +297,8 @@ fn @pairs() {
     v61 = lt v49, v57
     v62 = sub v35, v58
     v63 = lt v62, 64
-    v221 = or v61, v63
-    jumpi v221, bb20, bb21
+    v220 = or v61, v63
+    jumpi v220, bb20, bb21
   bb21:  ; preds = bb19
     v207 = mload 64 !metadata(alloc_ptr)
     v208 = add v207, 96
@@ -312,8 +312,8 @@ fn @pairs() {
     v69 = lt v62, v65
     v70 = sub v35, v66
     v71 = lt v70, 64
-    v222 = or v69, v71
-    jumpi v222, bb20, bb24
+    v221 = or v69, v71
+    jumpi v221, bb20, bb24
   bb24:  ; preds = bb23
     v209 = mload 64 !metadata(alloc_ptr)
     v210 = add v209, 96
@@ -332,8 +332,8 @@ fn @pairs() {
     jumpi v79, bb10, bb26
   bb26:  ; preds = bb25
     v80 = calldataload v76
-    v216 = add v80, 63
-    v84 = and v216, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v215 = add v80, 63
+    v84 = and v215, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v85 = lt v84, v80
     jumpi v85, bb12, bb27
   bb27:  ; preds = bb26
@@ -365,8 +365,8 @@ fn @pairs() {
     v107 = lt v62, v103
     v108 = sub v35, v104
     v109 = lt v108, 64
-    v223 = or v107, v109
-    jumpi v223, bb20, bb31
+    v222 = or v107, v109
+    jumpi v222, bb20, bb31
   bb31:  ; preds = bb30
     v211 = mload 64 !metadata(alloc_ptr)
     v212 = add v211, 96
@@ -385,8 +385,8 @@ fn @pairs() {
     jumpi v117, bb10, bb33
   bb33:  ; preds = bb32
     v118 = calldataload v114
-    v218 = add v118, 63
-    v122 = and v218, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v217 = add v118, 63
+    v122 = and v217, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v123 = lt v122, v118
     jumpi v123, bb12, bb34
   bb34:  ; preds = bb33

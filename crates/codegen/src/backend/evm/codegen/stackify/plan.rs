@@ -2022,19 +2022,28 @@ impl<'a> Planner<'a> {
                 }
             }
             InstKind::Eq(..) | InstKind::Ne(..) => {
-                let ne = matches!(kind, InstKind::Ne(..));
+                let mut negate = matches!(kind, InstKind::Ne(..));
                 if let Some(value) =
                     Target::zero_test_input(&kind.op(), |value| func.value_u256(value))
                 {
-                    // eq x, 0 -> iszero x; ne x, 0 -> iszero (iszero x)
-                    self.prepare(sim, &[value], &dying)?;
-                    self.op(sim, op::ISZERO, 1, 1);
+                    if negate && self.target.ne_zero().1 {
+                        // ne x, 0 -> lt 0, x; gt x, 0 when x is on top
+                        negate = false;
+                        let zero = if operands[0] == value { operands[1] } else { operands[0] };
+                        let flipped =
+                            self.prepare_any(sim, &[&[value, zero], &[zero, value]], &dying)? == 1;
+                        self.op(sim, if flipped { op::GT } else { op::LT }, 2, 1);
+                    } else {
+                        // eq x, 0 -> iszero x; ne x, 0 -> iszero (iszero x)
+                        self.prepare(sim, &[value], &dying)?;
+                        self.op(sim, op::ISZERO, 1, 1);
+                    }
                 } else {
                     // ne a, b -> iszero (eq a, b)
                     self.prepare_any(sim, &[&push_order, operands], &dying)?;
                     self.op(sim, op::EQ, 2, 1);
                 }
-                if ne {
+                if negate {
                     self.op(sim, op::ISZERO, 1, 1);
                 }
                 self.set_top_result(sim, result);

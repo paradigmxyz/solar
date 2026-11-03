@@ -89,7 +89,7 @@
     bb0:
 -     v0 = lt 0, arg0
 -     v1 = eq v0, false
-+     v0 = gt arg0, 0
++     v0 = ne arg0, 0
 +     v1 = eq arg0, 0
       jumpi v1, bb1, bb2
     bb2:  ; preds = bb0

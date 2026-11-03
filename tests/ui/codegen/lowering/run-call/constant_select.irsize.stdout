@@ -84,8 +84,8 @@ bb12:  ; function choose(uint256 raw, uint256 yes, uint256 no) external pure ret
   sub
   push 4
   calldataload
-  iszero
-  iszero
+  push 0
+  lt
   mul
   jump bb82
 bb82:
@@ -508,8 +508,8 @@ bb84:
   shl
   push 4
   calldataload
-  iszero
-  iszero
+  push 0
+  lt
   push 0x26121ff0
   jump bb83
 bb83:
@@ -573,8 +573,8 @@ bb45:  ; function reverseSignature(uint256 raw) external pure returns (bytes mem
   shl
   push 4
   calldataload
-  iszero
-  iszero
+  push 0
+  lt
   push 0xe2179b8e
   jump bb83
 bb58 [continuation]:
@@ -715,8 +715,8 @@ bb86:
   sub
   push 4
   calldataload
-  iszero
-  iszero
+  push 0
+  lt
   mul
   push 7
   jump bb82
