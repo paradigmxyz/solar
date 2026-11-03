@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/sccp/sccp_fold_narrow.mir (before sccp) ===
-+ // === ROOT/tests/ui/codegen/mir/sccp/sccp_fold_narrow.mir (after sccp) ===
+- ; === ROOT/tests/ui/codegen/mir/sccp/sccp_fold_narrow.mir (before sccp) ===
++ ; === ROOT/tests/ui/codegen/mir/sccp/sccp_fold_narrow.mir (after sccp) ===
   @module SccpFoldNarrow
   fn @add_wraps() -> i8 {
     bb0:

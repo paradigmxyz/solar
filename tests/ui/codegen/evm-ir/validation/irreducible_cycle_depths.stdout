@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/validation/irreducible_cycle_depths.evmir (before none) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/validation/irreducible_cycle_depths.evmir (after none) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/validation/irreducible_cycle_depths.evmir (before none) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/validation/irreducible_cycle_depths.evmir (after none) ===
   @module module
   bb0:
     push 1

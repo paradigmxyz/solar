@@ -1,4 +1,4 @@
-// === compact_pushes (runtime) ===
+; === compact_pushes (runtime) ===
 PUSH0
 NOT
 PUSH0

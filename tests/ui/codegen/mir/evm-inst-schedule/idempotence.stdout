@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/idempotence.mir (before evm-inst-schedule) ===
-+ // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/idempotence.mir (after evm-inst-schedule) ===
+- ; === ROOT/tests/ui/codegen/mir/evm-inst-schedule/idempotence.mir (before evm-inst-schedule) ===
++ ; === ROOT/tests/ui/codegen/mir/evm-inst-schedule/idempotence.mir (after evm-inst-schedule) ===
   @module EvmInstScheduleIdempotence
   fn @idempotent(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 {
     bb0:
@@ -10,8 +10,8 @@
       ret v2
   }
   
-- // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/idempotence.mir (before evm-inst-schedule) ===
-+ // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/idempotence.mir (after evm-inst-schedule) ===
+- ; === ROOT/tests/ui/codegen/mir/evm-inst-schedule/idempotence.mir (before evm-inst-schedule) ===
++ ; === ROOT/tests/ui/codegen/mir/evm-inst-schedule/idempotence.mir (after evm-inst-schedule) ===
   @module EvmInstScheduleIdempotence
   fn @idempotent(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 {
     bb0:

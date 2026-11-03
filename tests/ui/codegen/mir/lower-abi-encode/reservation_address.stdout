@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (before lower-abi-encode) ===
-+ // === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (after lower-abi-encode) ===
+- ; === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (before lower-abi-encode) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (after lower-abi-encode) ===
   @module ReservationAddress
   ; selector 0x01020304
   fn @encode_empty() [selector=0x01020304, pure] {
@@ -36,8 +36,8 @@
 +     returndata v20, v18
   }
   
-- // === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (before egraph) ===
-+ // === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (after egraph) ===
+- ; === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (before egraph) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (after egraph) ===
   @module ReservationAddress
   ; selector 0x01020304
   fn @encode_empty() [selector=0x01020304, pure] {
@@ -75,8 +75,8 @@
 +     returndata v20, 64
   }
   
-- // === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (before dce) ===
-+ // === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (after dce) ===
+- ; === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (before dce) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (after dce) ===
   @module ReservationAddress
   ; selector 0x01020304
   fn @encode_empty() [selector=0x01020304, pure] {
@@ -98,8 +98,8 @@
       returndata v20, 64
   }
   
-- // === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (before defer-alloc) ===
-+ // === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (after defer-alloc) ===
+- ; === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (before defer-alloc) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-abi-encode/reservation_address.mir (after defer-alloc) ===
   @module ReservationAddress
   ; selector 0x01020304
   fn @encode_empty() [selector=0x01020304, pure] {

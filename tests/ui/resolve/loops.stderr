@@ -1,76 +1,76 @@
-error: unresolved symbol `a`
+error[7576]: unresolved symbol `a`
    ╭▸ ROOT/tests/ui/resolve/loops.sol:LL:CC
    │
 LL │     while (a == 0) { uint a = 0; }
    ╰╴           ━
 
-error: unresolved symbol `a`
+error[7576]: unresolved symbol `a`
    ╭▸ ROOT/tests/ui/resolve/loops.sol:LL:CC
    │
 LL │     a;
    ╰╴    ━
 
-error: unresolved symbol `b`
+error[7576]: unresolved symbol `b`
    ╭▸ ROOT/tests/ui/resolve/loops.sol:LL:CC
    │
 LL │     while (b == 0) { uint b = 0; }
    ╰╴           ━
 
-error: unresolved symbol `b`
+error[7576]: unresolved symbol `b`
    ╭▸ ROOT/tests/ui/resolve/loops.sol:LL:CC
    │
 LL │     b;
    ╰╴    ━
 
-error: unresolved symbol `c`
+error[7576]: unresolved symbol `c`
    ╭▸ ROOT/tests/ui/resolve/loops.sol:LL:CC
    │
 LL │     do { uint c; } while (c == 0);
    ╰╴                          ━
 
-error: unresolved symbol `c`
+error[7576]: unresolved symbol `c`
    ╭▸ ROOT/tests/ui/resolve/loops.sol:LL:CC
    │
 LL │     c;
    ╰╴    ━
 
-error: unresolved symbol `d`
+error[7576]: unresolved symbol `d`
    ╭▸ ROOT/tests/ui/resolve/loops.sol:LL:CC
    │
 LL │     do { uint d; } while (d == 0);
    ╰╴                          ━
 
-error: unresolved symbol `d`
+error[7576]: unresolved symbol `d`
    ╭▸ ROOT/tests/ui/resolve/loops.sol:LL:CC
    │
 LL │     d;
    ╰╴    ━
 
-error: unresolved symbol `e`
+error[7576]: unresolved symbol `e`
    ╭▸ ROOT/tests/ui/resolve/loops.sol:LL:CC
    │
 LL │     for (; false; e++) { uint e; }
    ╰╴                  ━
 
-error: unresolved symbol `e`
+error[7576]: unresolved symbol `e`
    ╭▸ ROOT/tests/ui/resolve/loops.sol:LL:CC
    │
 LL │     e;
    ╰╴    ━
 
-error: unresolved symbol `f`
+error[7576]: unresolved symbol `f`
    ╭▸ ROOT/tests/ui/resolve/loops.sol:LL:CC
    │
 LL │     for (; false; f++) { uint f; }
    ╰╴                  ━
 
-error: unresolved symbol `f`
+error[7576]: unresolved symbol `f`
    ╭▸ ROOT/tests/ui/resolve/loops.sol:LL:CC
    │
 LL │     f;
    ╰╴    ━
 
-error: unresolved symbol `g`
+error[7576]: unresolved symbol `g`
    ╭▸ ROOT/tests/ui/resolve/loops.sol:LL:CC
    │
 LL │     g;

@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/inline/immutable-leaves/leaves.mir (before inline) ===
-+ // === ROOT/tests/ui/codegen/mir/inline/immutable-leaves/leaves.mir (after inline) ===
+- ; === ROOT/tests/ui/codegen/mir/inline/immutable-leaves/leaves.mir (before inline) ===
++ ; === ROOT/tests/ui/codegen/mir/inline/immutable-leaves/leaves.mir (after inline) ===
   @module ImmutableLeaves
   @immutables
     start: uint64
@@ -16,14 +16,14 @@
 -     v2 = icall @end
 -     storeimmutable initial, v2
 +     jump bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v3 = loadimmutable start
 +     v4 = zext i64 v3 to i256
 +     v5 = loadimmutable duration
 +     v6 = zext i64 v5 to i256
 +     v7 = add v4, v6
 +     jump bb1
-+   bb1:  ; preds = bb2
++   bb1:                                            ; preds = bb2
 +     v8 = phi [bb2: v7]
 +     storeimmutable initial, v8
       stop
@@ -39,37 +39,37 @@
 -     v4 = add v0, v1
 -     v5 = add v2, v3
 +     jump bb8
-+   bb8:  ; preds = bb0
++   bb8:                                            ; preds = bb0
 +     v18 = loadimmutable start
 +     v19 = zext i64 v18 to i256
 +     v20 = loadimmutable duration
 +     v21 = zext i64 v20 to i256
 +     v22 = add v19, v21
 +     jump bb7
-+   bb7:  ; preds = bb8
++   bb7:                                            ; preds = bb8
 +     v23 = phi [bb8: v22]
 +     jump bb2
-+   bb2:  ; preds = bb7
++   bb2:                                            ; preds = bb7
 +     v7 = mload 0
 +     v8 = loadimmutable start
 +     v9 = zext i64 v8 to i256
 +     v10 = add v7, v9
 +     jump bb1
-+   bb1:  ; preds = bb2
++   bb1:                                            ; preds = bb2
 +     v11 = phi [bb2: v10]
 +     jump bb4
-+   bb4:  ; preds = bb1
++   bb4:                                            ; preds = bb1
 +     v12 = add 2, 1
 +     jump bb3
-+   bb3:  ; preds = bb4
++   bb3:                                            ; preds = bb4
 +     v13 = phi [bb4: v12]
 +     jump bb6
-+   bb6:  ; preds = bb3
++   bb6:                                            ; preds = bb3
 +     v14 = loadimmutable start
 +     v15 = zext i64 v14 to i256
 +     v16 = add v23, v15
 +     jump bb5
-+   bb5:  ; preds = bb6
++   bb5:                                            ; preds = bb6
 +     v17 = phi [bb6: v16]
 +     v4 = add v23, v11
 +     v5 = add v13, v17
@@ -110,8 +110,8 @@
 -     ret v2
   }
   
-- // === ROOT/tests/ui/codegen/mir/inline/immutable-leaves/leaves.mir (before cfg-simplify) ===
-+ // === ROOT/tests/ui/codegen/mir/inline/immutable-leaves/leaves.mir (after cfg-simplify) ===
+- ; === ROOT/tests/ui/codegen/mir/inline/immutable-leaves/leaves.mir (before cfg-simplify) ===
++ ; === ROOT/tests/ui/codegen/mir/inline/immutable-leaves/leaves.mir (after cfg-simplify) ===
   @module ImmutableLeaves
   @immutables
     start: uint64
@@ -126,14 +126,14 @@
       v1 = trunc i256 arg1 to i64
       storeimmutable duration, v1
 -     jump bb2
--   bb2:  ; preds = bb0
+-   bb2:                                            ; preds = bb0
       v3 = loadimmutable start
       v4 = zext i64 v3 to i256
       v5 = loadimmutable duration
       v6 = zext i64 v5 to i256
       v7 = add v4, v6
 -     jump bb1
--   bb1:  ; preds = bb2
+-   bb1:                                            ; preds = bb2
 -     v8 = phi [bb2: v7]
 -     storeimmutable initial, v8
 +     storeimmutable initial, v7
@@ -144,37 +144,37 @@
   fn @entry() -> i256 [selector=0x00000001] {
     bb0:
 -     jump bb8
--   bb8:  ; preds = bb0
+-   bb8:                                            ; preds = bb0
       v18 = loadimmutable start
       v19 = zext i64 v18 to i256
       v20 = loadimmutable duration
       v21 = zext i64 v20 to i256
       v22 = add v19, v21
 -     jump bb7
--   bb7:  ; preds = bb8
+-   bb7:                                            ; preds = bb8
 -     v23 = phi [bb8: v22]
 -     jump bb2
--   bb2:  ; preds = bb7
+-   bb2:                                            ; preds = bb7
       v7 = mload 0
       v8 = loadimmutable start
       v9 = zext i64 v8 to i256
       v10 = add v7, v9
 -     jump bb1
--   bb1:  ; preds = bb2
+-   bb1:                                            ; preds = bb2
 -     v11 = phi [bb2: v10]
 -     jump bb4
--   bb4:  ; preds = bb1
+-   bb4:                                            ; preds = bb1
       v12 = add 2, 1
 -     jump bb3
--   bb3:  ; preds = bb4
+-   bb3:                                            ; preds = bb4
 -     v13 = phi [bb4: v12]
 -     jump bb6
--   bb6:  ; preds = bb3
+-   bb6:                                            ; preds = bb3
       v14 = loadimmutable start
       v15 = zext i64 v14 to i256
 -     v16 = add v23, v15
 -     jump bb5
--   bb5:  ; preds = bb6
+-   bb5:                                            ; preds = bb6
 -     v17 = phi [bb6: v16]
 -     v4 = add v23, v11
 -     v5 = add v13, v17
@@ -185,8 +185,8 @@
       ret v6
   }
   
-- // === ROOT/tests/ui/codegen/mir/inline/immutable-leaves/leaves.mir (before dce) ===
-+ // === ROOT/tests/ui/codegen/mir/inline/immutable-leaves/leaves.mir (after dce) ===
+- ; === ROOT/tests/ui/codegen/mir/inline/immutable-leaves/leaves.mir (before dce) ===
++ ; === ROOT/tests/ui/codegen/mir/inline/immutable-leaves/leaves.mir (after dce) ===
   @module ImmutableLeaves
   @immutables
     start: uint64

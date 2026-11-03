@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/cse/pure_calls.mir (before cse) ===
-+ // === ROOT/tests/ui/codegen/mir/cse/pure_calls.mir (after cse) ===
+- ; === ROOT/tests/ui/codegen/mir/cse/pure_calls.mir (before cse) ===
++ ; === ROOT/tests/ui/codegen/mir/cse/pure_calls.mir (after cse) ===
   @module PureCalls
   @immutables
     small: uint256
@@ -8,9 +8,9 @@
     bb0:
       v0 = gt arg0, 0xffffffff
       jumpi v0, bb2, bb1
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       ret arg0
-    bb2 [cold]:  ; preds = bb0
+    bb2 [cold]:                                     ; preds = bb0
       mstore 32, 32
       mstore 64, arg0
       mstore 0, 0x6dfcc650
@@ -58,9 +58,9 @@
     bb0:
       v0 = icall @to_u32, arg0
       jumpi arg1, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       ret v0
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
 -     v1 = icall @to_u32, arg0
 -     ret v1
 +     ret v0

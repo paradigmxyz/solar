@@ -1,0 +1,50 @@
+error[7576]: unresolved symbol `Missing`
+   ╭▸ ROOT/tests/ui/resolve/expr_path_unresolved.sol:LL:CC
+   │
+LL │         emit Missing();
+   ╰╴             ━━━━━━━
+
+error[7576]: unresolved symbol `Missing`
+   ╭▸ ROOT/tests/ui/resolve/expr_path_unresolved.sol:LL:CC
+   │
+LL │         revert Missing();
+   ╰╴               ━━━━━━━
+
+error[7576]: unresolved symbol `Missing`
+   ╭▸ ROOT/tests/ui/resolve/expr_path_unresolved.sol:LL:CC
+   │
+LL │         emit Missing.E();
+   ╰╴             ━━━━━━━
+
+error[7576]: unresolved symbol `Missing`
+   ╭▸ ROOT/tests/ui/resolve/expr_path_unresolved.sol:LL:CC
+   │
+LL │         revert Missing.Er();
+   ╰╴               ━━━━━━━
+
+error[7576]: unresolved symbol `Missing`
+   ╭▸ ROOT/tests/ui/resolve/expr_path_unresolved.sol:LL:CC
+   │
+LL │         type(Missing).max;
+   ╰╴             ━━━━━━━
+
+error[7576]: unresolved symbol `Missing`
+   ╭▸ ROOT/tests/ui/resolve/expr_path_unresolved.sol:LL:CC
+   │
+LL │         type(Missing.A).max;
+   ╰╴             ━━━━━━━
+
+error: unresolved symbol `Missing`
+   ╭▸ ROOT/tests/ui/resolve/expr_path_unresolved.sol:LL:CC
+   │
+LL │         type(C.Missing).max;
+   ╰╴               ━━━━━━━
+
+error: `S` is a struct, which cannot be indexed in type paths
+   ╭▸ ROOT/tests/ui/resolve/expr_path_unresolved.sol:LL:CC
+   │
+LL │         type(S.x).max;
+   ╰╴             ━
+
+error: aborting due to 8 previous errors
+

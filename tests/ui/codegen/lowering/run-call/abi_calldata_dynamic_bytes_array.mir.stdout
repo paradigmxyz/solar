@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_dynamic_bytes_array.sol:AbiCalldataDynamicBytesArray ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_dynamic_bytes_array.sol:AbiCalldataDynamicBytesArray ===
 @module AbiCalldataDynamicBytesArray
 @types
   struct0: {i256, i256, i256, i256, i256, i256, i256, i256}

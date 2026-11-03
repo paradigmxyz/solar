@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_inheritance_init_order.sol:ConstructorInitOrderBase ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_inheritance_init_order.sol:ConstructorInitOrderBase ===
 @module ConstructorInitOrderBase
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
@@ -14,14 +14,14 @@ fn @f() -> i256 [selector=0x26121ff0, view, abi_params=[], abi_returns=[word], a
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_inheritance_init_order.sol:ConstructorInitOrderDerived ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_inheritance_init_order.sol:ConstructorInitOrderDerived ===
 @module ConstructorInitOrderDerived
 ; creation entry
 fn @constructor() [constructor] {
   bb0:
     sstore 0, 42 !metadata(storage=slot(0))
     jump bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v0 = icall @f
     sstore 1, v0 !metadata(storage=slot(1))
     ret
@@ -41,7 +41,7 @@ fn @f() -> i256 [selector=0x26121ff0, view, abi_params=[], abi_returns=[word], a
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_inheritance_init_order.sol:NoCtorBase ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_inheritance_init_order.sol:NoCtorBase ===
 @module NoCtorBase
 ; creation entry
 fn @constructor() [constructor] {
@@ -57,7 +57,7 @@ fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], a
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_inheritance_init_order.sol:NoCtorDerived ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_inheritance_init_order.sol:NoCtorDerived ===
 @module NoCtorDerived
 ; creation entry
 fn @constructor() [constructor] {

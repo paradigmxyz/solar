@@ -7,6 +7,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(test, allow(unused_crate_dependencies))]
 
+pub mod comment;
 pub mod debug;
 pub mod ir_parse;
 pub mod link;

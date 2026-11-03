@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/memory-dse/overwritten_ranges.mir (before memory-dse) ===
-+ // === ROOT/tests/ui/codegen/mir/memory-dse/overwritten_ranges.mir (after memory-dse) ===
+- ; === ROOT/tests/ui/codegen/mir/memory-dse/overwritten_ranges.mir (before memory-dse) ===
++ ; === ROOT/tests/ui/codegen/mir/memory-dse/overwritten_ranges.mir (after memory-dse) ===
   @module OverwrittenRanges
   fn @remove_allocation_fill() -> ptr<memory> {
     bb0:

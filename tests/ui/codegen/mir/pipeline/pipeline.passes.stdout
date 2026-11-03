@@ -1,36 +1,36 @@
-- // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (before jump-threading) ===
-+ // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after jump-threading) ===
+- ; === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (before jump-threading) ===
++ ; === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after jump-threading) ===
   @module Pipeline
   fn @noisy(arg0: i256) -> i256 {
     bb0:
       v0 = add arg0, 1
       v1 = mul arg0, arg0
 -     jump bb1
--   bb1:  ; preds = bb0
+-   bb1:                                            ; preds = bb0
       jump bb2
--   bb2:  ; preds = bb1
-+   bb2:  ; preds = bb1, bb0
+-   bb2:                                            ; preds = bb1
++   bb2:                                            ; preds = bb1, bb0
       ret v0
 +   bb1:
 +     jump bb2
   }
   
-- // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (before cfg-simplify) ===
-+ // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after cfg-simplify) ===
+- ; === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (before cfg-simplify) ===
++ ; === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after cfg-simplify) ===
   @module Pipeline
   fn @noisy(arg0: i256) -> i256 {
     bb0:
       v0 = add arg0, 1
       v1 = mul arg0, arg0
 -     jump bb2
--   bb2:  ; preds = bb1, bb0
+-   bb2:                                            ; preds = bb1, bb0
       ret v0
 -   bb1:
 -     jump bb2
   }
   
-- // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (before dce) ===
-+ // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after dce) ===
+- ; === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (before dce) ===
++ ; === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after dce) ===
   @module Pipeline
   fn @noisy(arg0: i256) -> i256 {
     bb0:

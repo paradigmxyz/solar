@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/void_forwarder_runtime.sol:VoidForwarder ===
+; === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/void_forwarder_runtime.sol:VoidForwarder ===
 @module VoidForwarder
 ; function once(uint256 x, uint256 y) external returns (uint256) [selector 0x4c579d9d]
 fn @once(arg0: i256, arg1: i256) -> i256 [selector=0x4c579d9d, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -61,13 +61,13 @@ fn @uncheckedSink(arg0: i256, arg1: i256) {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v1 = add arg0, arg1
     sstore 0, v1 !metadata(storage=slot(0))
     ret
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     icall revert_if<empty>, true
     invalid
 }

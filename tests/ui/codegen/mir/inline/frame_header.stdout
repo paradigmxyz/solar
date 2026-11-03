@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/inline/frame_header.mir (before inline) ===
-+ // === ROOT/tests/ui/codegen/mir/inline/frame_header.mir (after inline) ===
+- ; === ROOT/tests/ui/codegen/mir/inline/frame_header.mir (before inline) ===
++ ; === ROOT/tests/ui/codegen/mir/inline/frame_header.mir (after inline) ===
   @module FrameHeader
   ; selector 0x01020304
   fn @caller() -> i256 [selector=0x01020304] {

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_dynamic_array_memory.sol:AbiCalldataDynamicArrayMemory ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_dynamic_array_memory.sol:AbiCalldataDynamicArrayMemory ===
 @module AbiCalldataDynamicArrayMemory
 ; function f(uint256[][] calldata values) external pure returns (uint256[][] memory) [selector 0xc26b6b9a]
 fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0xc26b6b9a, pure, abi_params=[array<_, array<_, uint256>>], abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, uint256>>]] {
@@ -24,13 +24,13 @@ fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0xc26b6b9a, pure, abi_para
     v14 = alloc v12
     mstore v14, v0
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v15 = phi [bb0: 0], [bb2: v54]
     v16 = lt v15, v0
     jumpi v16, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     ret v14
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v17 = mul v15, 32
     v18 = ptrtoint ptr<calldata> v1 to i256
     v19 = add v18, v17

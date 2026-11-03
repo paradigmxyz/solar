@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lower-integers/lower_integers_signextend.mir (before lower-integers) ===
-+ // === ROOT/tests/ui/codegen/mir/lower-integers/lower_integers_signextend.mir (after lower-integers) ===
+- ; === ROOT/tests/ui/codegen/mir/lower-integers/lower_integers_signextend.mir (before lower-integers) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-integers/lower_integers_signextend.mir (after lower-integers) ===
   @module IntegerSignExtend
   fn @trunc_sext(arg0: i256) -> i256 {
     bb0:
@@ -30,9 +30,9 @@
 +     v2 = mul arg0, arg1
 +     v3 = and v2, 255
       jumpi arg2, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       ret arg2
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
 -     v1 = slt v0, arg1
 -     ret v1
 +     v4 = signextend 0, v2

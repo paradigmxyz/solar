@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/disasm/dump.sol:C (runtime) ===
+; === ROOT/tests/ui/codegen/disasm/dump.sol:C (runtime) ===
 CALLVALUE
 PUSH1 0x13 ; bb0
 JUMPI

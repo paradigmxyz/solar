@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/constant_conversion_widening.sol:ConstantConversionWidening ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constant_conversion_widening.sol:ConstantConversionWidening ===
 @module ConstantConversionWidening
 @types
   struct0: {i16, i256, i16}
