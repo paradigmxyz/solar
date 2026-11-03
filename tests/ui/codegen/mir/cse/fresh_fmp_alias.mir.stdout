@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/cse/fresh_fmp_alias.sol:FreshFmpAlias ===
+; === ROOT/tests/ui/codegen/mir/cse/fresh_fmp_alias.sol:FreshFmpAlias ===
 @module FreshFmpAlias
 @types
   struct0: {i256, i256, i256}
@@ -79,10 +79,10 @@ fn @reset(arg0: i256, arg1: i256) -> struct1 [selector=0xa49530f1, pure, abi_par
 fn @branch(arg0: i1, arg1: i256, arg2: i256) -> struct1 [selector=0xd1a26a50, pure, abi_params=[bool, uint256, bytes32], abi_returns=[word, word], abi_return_params=[bytes32, uint256]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v15 = keccak256_packed (uint256 2, uint256 arg2)
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v0 = alloc 96
     v1 = trunc i256 arg1 to i160
     v2 = zext i160 v1 to i256
@@ -102,7 +102,7 @@ fn @branch(arg0: i1, arg1: i256, arg2: i256) -> struct1 [selector=0xd1a26a50, pu
     v13 = trunc i256 v12 to i128
     v14 = zext i128 v13 to i256
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v16 = phi [bb1: v10], [bb2: v15]
     v17 = phi [bb1: v14], [bb2: 0]
     v18 = keccak256_packed (uint256 v16, uint256 arg2)
@@ -115,7 +115,7 @@ fn @branch(arg0: i1, arg1: i256, arg2: i256) -> struct1 [selector=0xd1a26a50, pu
 fn @loop(arg0: i256, arg1: i256) -> struct1 [selector=0xef0cbedb, pure, abi_params=[uint256, bytes32], abi_returns=[word, word], abi_return_params=[bytes32, uint256]] {
   bb0:
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: arg1], [bb3: v18]
@@ -123,13 +123,13 @@ fn @loop(arg0: i256, arg1: i256) -> struct1 [selector=0xef0cbedb, pure, abi_para
     v4 = phi [bb0: 0], [bb3: v24]
     v5 = lt v4, v0
     jumpi v5, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     v25 = insert_value struct1, undef struct1, 0, v2
     v26 = insert_value struct1, v25, 1, v3
     ret v26
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v6 = alloc 96
     v7 = checked_add uint256, v4, 1
     v8 = trunc i256 v7 to i160
@@ -152,9 +152,9 @@ fn @loop(arg0: i256, arg1: i256) -> struct1 [selector=0xef0cbedb, pure, abi_para
     v22 = zext i128 v21 to i256
     v23 = checked_add uint256, v3, v22
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v24 = checked_add uint256, v4, 1
     jump bb1
 }

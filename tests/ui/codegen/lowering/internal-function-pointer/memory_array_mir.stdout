@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/internal-function-pointer/memory_array_mir.sol:FunctionPointerMemoryArray ===
+; === ROOT/tests/ui/codegen/lowering/internal-function-pointer/memory_array_mir.sol:FunctionPointerMemoryArray ===
 @module FunctionPointerMemoryArray
 ; function arrayA(uint256 x) public pure returns (uint256) [selector 0xad3149a4]
 fn @arrayA(arg0: i256) -> i256 [selector=0xad3149a4, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -86,34 +86,34 @@ fn @internal_dispatcher_p_uint256_r_uint256(arg0: i256, arg1: i256) -> i256 [fun
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v2 = eq arg0, 2
     jumpi v2, bb3, bb4
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v4 = eq arg0, 3
     jumpi v4, bb5, bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     v6 = eq arg0, 4
     jumpi v6, bb7, bb8
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     v8 = eq arg0, 5
     jumpi v8, bb9, bb10
-  bb10:  ; preds = bb8
+  bb10:                                           ; preds = bb8
     icall panic_if<0x51>, true
     invalid
-  bb9:  ; preds = bb8
+  bb9:                                            ; preds = bb8
     v9 = icall @arrayE, arg1
     ret v9
-  bb7:  ; preds = bb6
+  bb7:                                            ; preds = bb6
     v7 = icall @arrayD, arg1
     ret v7
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     v5 = icall @arrayC, arg1
     ret v5
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v3 = icall @arrayB, arg1
     ret v3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = icall @arrayA, arg1
     ret v1
 }

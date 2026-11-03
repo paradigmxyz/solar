@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/lower-abi-encode/calldata_helper.sol:CalldataHelper ===
+; === ROOT/tests/ui/codegen/mir/lower-abi-encode/calldata_helper.sol:CalldataHelper ===
 @module CalldataHelper
 @phase lowered
 ; runtime dispatch entry
@@ -11,17 +11,17 @@ fn @entry() [entry] {
     v4 = or v0, v3
     v5 = ne v4, 0
     jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v6 = calldataload 0
     v7 = shr v6, 224
     switch v7, default bb1, [0x81fba7cd => bb3, 0xa2467f05 => bb4, 0xeb19e25e => bb5]
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     tail_call @fc
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     tail_call @fa
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     tail_call @fb
-  bb1 [cold]:  ; preds = bb0, bb2
+  bb1 [cold]:                                     ; preds = bb0, bb2
     revert 0, 0
 }
 
@@ -46,7 +46,7 @@ fn @fa() {
     v54 = or v51, v53
     v55 = ne v54, 0
     jumpi v55, bb3, bb5
-  bb5:  ; preds = bb0
+  bb5:                                            ; preds = bb0
     v56 = calldataload 4
     v0 = gas
     v46 = heap_floor !metadata(alloc_ptr)
@@ -65,17 +65,17 @@ fn @fa() {
     v5 = extcodesize v56
     v6 = eq v5, 0
     jumpi v6, bb3, bb4
-  bb4:  ; preds = bb5
+  bb4:                                            ; preds = bb5
     v8 = call v0, v56, 0, v47, v38, 0, 0
     jumpi v8, bb2, bb1
-  bb1 [cold]:  ; preds = bb4
+  bb1 [cold]:                                     ; preds = bb4
     v9 = returndatasize
     returndatacopy 0, 0, v9 !metadata(memory=abi_return)
     v10 = returndatasize
     revert 0, v10
-  bb2:  ; preds = bb4
+  bb2:                                            ; preds = bb4
     stop
-  bb3 [cold]:  ; preds = bb0, bb5
+  bb3 [cold]:                                     ; preds = bb0, bb5
     revert 0, 0
 }
 
@@ -100,7 +100,7 @@ fn @fb() {
     v55 = or v52, v54
     v56 = ne v55, 0
     jumpi v56, bb3, bb5
-  bb5:  ; preds = bb0
+  bb5:                                            ; preds = bb0
     v57 = calldataload 4
     v0 = gas
     v47 = heap_floor !metadata(alloc_ptr)
@@ -121,17 +121,17 @@ fn @fb() {
     v5 = extcodesize v57
     v6 = eq v5, 0
     jumpi v6, bb3, bb4
-  bb4:  ; preds = bb5
+  bb4:                                            ; preds = bb5
     v8 = call v0, v57, 0, v48, v39, 0, 0
     jumpi v8, bb2, bb1
-  bb1 [cold]:  ; preds = bb4
+  bb1 [cold]:                                     ; preds = bb4
     v9 = returndatasize
     returndatacopy 0, 0, v9 !metadata(memory=abi_return)
     v10 = returndatasize
     revert 0, v10
-  bb2:  ; preds = bb4
+  bb2:                                            ; preds = bb4
     stop
-  bb3 [cold]:  ; preds = bb0, bb5
+  bb3 [cold]:                                     ; preds = bb0, bb5
     revert 0, 0
 }
 
@@ -156,7 +156,7 @@ fn @fc() {
     v108 = or v105, v107
     v109 = ne v108, 0
     jumpi v109, bb3, bb5
-  bb5:  ; preds = bb0
+  bb5:                                            ; preds = bb0
     v0 = gas
     v100 = heap_floor !metadata(alloc_ptr)
     mstore v100, 0xd6c30fce00000000000000000000000000000000000000000000000000000000
@@ -168,14 +168,14 @@ fn @fc() {
     v37 = shl v21, 5
     v38 = add v35, v37
     jump bb6
-  bb6:  ; preds = bb5, bb12
+  bb6:                                            ; preds = bb5, bb12
     v39 = phi [bb5: v21], [bb12: v83]
     v40 = phi [bb5: v38], [bb12: v78]
     v41 = phi [bb5: v35], [bb12: v86]
     v42 = phi [bb5: v22], [bb12: v85]
     v43 = ne v39, 0
     jumpi v43, bb7, bb8
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     v110 = calldataload 4
     v88 = sub v40, v31
     v89 = add v88, 4
@@ -186,22 +186,22 @@ fn @fc() {
     v5 = extcodesize v110
     v6 = eq v5, 0
     jumpi v6, bb3, bb4
-  bb4:  ; preds = bb8
+  bb4:                                            ; preds = bb8
     v8 = call v0, v110, 0, v101, v89, 0, 0
     jumpi v8, bb2, bb1
-  bb1 [cold]:  ; preds = bb4
+  bb1 [cold]:                                     ; preds = bb4
     v9 = returndatasize
     returndatacopy 0, 0, v9 !metadata(memory=abi_return)
     v10 = returndatasize
     revert 0, v10
-  bb2:  ; preds = bb4
+  bb2:                                            ; preds = bb4
     stop
-  bb7:  ; preds = bb6
+  bb7:                                            ; preds = bb6
     v44 = calldataload v42
     v48 = sub v23, 63
     v49 = slt v44, v48
     jumpi v49, bb9, bb3
-  bb9:  ; preds = bb7
+  bb9:                                            ; preds = bb7
     v52 = add v22, v44
     v55 = sub v40, v35
     mstore v41, v55
@@ -212,19 +212,19 @@ fn @fc() {
     v62 = sub v61, 31
     v63 = slt v58, v62
     jumpi v63, bb10, bb3
-  bb10:  ; preds = bb9
+  bb10:                                           ; preds = bb9
     v66 = add v52, v58
     v67 = calldataload v66
     v93 = shr v67, 64
     v68 = ne v93, 0
     jumpi v68, bb3, bb11
-  bb11:  ; preds = bb10
+  bb11:                                           ; preds = bb10
     v69 = shl v67, 6
     v70 = add v66, 32
     v71 = sub v59, v69
     v72 = slt v71, v70
     jumpi v72, bb3, bb12
-  bb12:  ; preds = bb11
+  bb12:                                           ; preds = bb11
     mstore v40, 64
     v77 = icall @encode_abi_calldata.3, v70, v67, v57
     v78 = add v57, v77
@@ -236,7 +236,7 @@ fn @fc() {
     v85 = add v42, 32
     v86 = add v41, 32
     jump bb6
-  bb3 [cold]:  ; preds = bb0, bb7, bb8, bb9, bb10, bb11
+  bb3 [cold]:                                     ; preds = bb0, bb7, bb8, bb9, bb10, bb11
     revert 0, 0
 }
 
@@ -247,14 +247,14 @@ fn @encode_abi_calldata.3(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retur
     v4 = shl arg1, 6
     v5 = add v2, v4
     jump bb1
-  bb1:  ; preds = bb0, bb5
+  bb1:                                            ; preds = bb0, bb5
     v6 = phi [bb0: 0], [bb5: v19]
     v7 = lt v6, arg1
     jumpi v7, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v20 = sub v5, arg2
     ret v20
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v8 = shl v6, 6
     v10 = add v8, arg0
     v11 = add v2, v8
@@ -262,9 +262,9 @@ fn @encode_abi_calldata.3(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retur
     v13 = shr v12, 160
     v14 = eq v13, 0
     jumpi v14, bb5, bb4
-  bb4 [cold]:  ; preds = bb2
+  bb4 [cold]:                                     ; preds = bb2
     revert 0, 0
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     mstore v11, v12
     v16 = add v10, 32
     v17 = calldataload v16
@@ -281,24 +281,24 @@ fn @encode_abi_calldata.4(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retur
     v4 = shl arg1, 5
     v5 = add v2, v4
     jump bb1
-  bb1:  ; preds = bb0, bb15
+  bb1:                                            ; preds = bb0, bb15
     v6 = phi [bb0: arg1], [bb15: v103]
     v7 = phi [bb0: v5], [bb15: v102]
     v8 = phi [bb0: v2], [bb15: v106]
     v9 = phi [bb0: arg0], [bb15: v105]
     v10 = ne v6, 0
     jumpi v10, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v108 = sub v7, arg2
     ret v108
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v11 = calldataload v9
     v12 = calldatasize
     v14 = sub v12, arg0
     v15 = sub v14, 127
     v16 = slt v11, v15
     jumpi v16, bb5, bb4
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     v19 = add v11, arg0
     v22 = sub v7, v2
     mstore v8, v22
@@ -307,7 +307,7 @@ fn @encode_abi_calldata.4(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retur
     v26 = shr v25, 160
     v27 = eq v26, 0
     jumpi v27, bb6, bb4
-  bb6:  ; preds = bb5
+  bb6:                                            ; preds = bb5
     mstore v7, v25
     v30 = add v7, 32
     v29 = add v19, 32
@@ -317,19 +317,19 @@ fn @encode_abi_calldata.4(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retur
     v35 = sub v34, 31
     v36 = slt v31, v35
     jumpi v36, bb7, bb4
-  bb7:  ; preds = bb6
+  bb7:                                            ; preds = bb6
     v39 = add v19, v31
     v40 = calldataload v39
     v109 = shr v40, 64
     v41 = ne v109, 0
     jumpi v41, bb4, bb8
-  bb8:  ; preds = bb7
+  bb8:                                            ; preds = bb7
     v42 = shl v40, 6
     v43 = add v39, 32
     v44 = sub v32, v42
     v45 = slt v44, v43
     jumpi v45, bb4, bb9
-  bb9:  ; preds = bb8
+  bb9:                                            ; preds = bb8
     mstore v30, 128
     v50 = icall @encode_abi_calldata.3, v43, v40, v24
     v51 = add v24, v50
@@ -339,19 +339,19 @@ fn @encode_abi_calldata.4(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retur
     v56 = calldatasize
     v60 = slt v55, v35
     jumpi v60, bb10, bb4
-  bb10:  ; preds = bb9
+  bb10:                                           ; preds = bb9
     v63 = add v19, v55
     v64 = calldataload v63
     v111 = shr v64, 64
     v65 = ne v111, 0
     jumpi v65, bb4, bb11
-  bb11:  ; preds = bb10
+  bb11:                                           ; preds = bb10
     v66 = shl v64, 6
     v67 = add v63, 32
     v68 = sub v56, v66
     v69 = slt v68, v67
     jumpi v69, bb4, bb12
-  bb12:  ; preds = bb11
+  bb12:                                           ; preds = bb11
     v72 = sub v51, v7
     mstore v54, v72
     v74 = icall @encode_abi_calldata.3, v67, v64, v51
@@ -362,18 +362,18 @@ fn @encode_abi_calldata.4(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retur
     v80 = calldatasize
     v84 = slt v79, v35
     jumpi v84, bb13, bb4
-  bb13:  ; preds = bb12
+  bb13:                                           ; preds = bb12
     v87 = add v19, v79
     v88 = calldataload v87
     v113 = shr v88, 64
     v89 = ne v113, 0
     jumpi v89, bb4, bb14
-  bb14:  ; preds = bb13
+  bb14:                                           ; preds = bb13
     v90 = add v87, 32
     v91 = sub v80, v88
     v92 = slt v91, v90
     jumpi v92, bb4, bb15
-  bb15:  ; preds = bb14
+  bb15:                                           ; preds = bb14
     v95 = sub v75, v7
     mstore v78, v95
     v97 = add v88, 31
@@ -388,6 +388,6 @@ fn @encode_abi_calldata.4(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retur
     v105 = add v9, 32
     v106 = add v8, 32
     jump bb1
-  bb4 [cold]:  ; preds = bb2, bb5, bb6, bb7, bb8, bb9, bb10, bb11, bb12, bb13, bb14
+  bb4 [cold]:                                     ; preds = bb2, bb5, bb6, bb7, bb8, bb9, bb10, bb11, bb12, bb13, bb14
     revert 0, 0
 }

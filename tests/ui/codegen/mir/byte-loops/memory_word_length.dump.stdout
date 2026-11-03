@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/byte-loops/memory_word_length.sol:Test ===
+; === ROOT/tests/ui/codegen/mir/byte-loops/memory_word_length.sol:Test ===
 @module Test
 @phase lowered
 ; runtime dispatch entry
@@ -7,13 +7,13 @@ fn @entry() [entry] {
     v0 = callvalue
     v1 = ne v0, 0
     jumpi v1, bb3, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v2 = calldataload 0
     v3 = shr v2, 224
     switch v3, default bb3, [0xf5088730 => bb2]
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     tail_call @copy
-  bb3 [cold]:  ; preds = bb0, bb1
+  bb3 [cold]:                                     ; preds = bb0, bb1
     revert 0, 0
 }
 
@@ -23,7 +23,7 @@ fn @copy() {
     v97 = calldatasize
     v98 = lt v97, 100
     jumpi v98, bb16, bb17
-  bb17:  ; preds = bb0
+  bb17:                                           ; preds = bb0
     v129 = heap_floor !metadata(alloc_ptr)
     v130 = add v129, 96 !metadata(alloc_ptr)
     v131 = lt v130, v129
@@ -32,7 +32,7 @@ fn @copy() {
     v134 = or v133, v132
     v135 = ne v134, 0
     jumpi v135, bb19, bb18
-  bb18:  ; preds = bb17
+  bb18:                                           ; preds = bb17
     mstore 64, v130 !metadata(memory=scratch)
     mstore v129, 2
     v137 = add v130, 96
@@ -42,17 +42,17 @@ fn @copy() {
     v141 = or v140, v139
     v142 = ne v141, 0
     jumpi v142, bb19, bb20
-  bb20:  ; preds = bb18
+  bb20:                                           ; preds = bb18
     mstore 64, v137 !metadata(memory=scratch)
     v2 = mload v129
     v3 = ne v2, 0
     jumpi v3, bb7, bb6
-  bb7:  ; preds = bb20
+  bb7:                                            ; preds = bb20
     v111 = add v129, 32
     mstore v111, 11
     v7 = gt v2, 1
     jumpi v7, bb8, bb6
-  bb8:  ; preds = bb7
+  bb8:                                            ; preds = bb7
     v145 = calldataload 68
     v113 = add v129, 64
     mstore v113, 22
@@ -60,7 +60,7 @@ fn @copy() {
     mstore v130, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v41 = eq v145, 0
     jumpi v41, bb2, bb4
-  bb4:  ; preds = bb8
+  bb4:                                            ; preds = bb8
     v144 = calldataload 36
     v143 = calldataload 4
     v42 = shl v145, 5
@@ -89,7 +89,7 @@ fn @copy() {
     v71 = or v67, v70
     v72 = ne v71, 0
     jumpi v72, bb1, bb5
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     v74 = gt v145, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v75 = not v145
     v76 = lt v75, v143
@@ -98,22 +98,22 @@ fn @copy() {
     v83 = or v74, v82
     v86 = or v77, v83
     jumpi v86, bb6, bb12
-  bb12:  ; preds = bb5
+  bb12:                                           ; preds = bb5
     mcopy v107, v104, v42
     jump bb2
-  bb1:  ; preds = bb4, bb11
+  bb1:                                            ; preds = bb4, bb11
     v18 = phi [bb4: 0], [bb11: v35]
     v19 = lt v18, v145
     jumpi v19, bb3, bb2
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v93 = add v143, v18
     v94 = lt v93, v143
     jumpi v94, bb13, bb14
-  bb14:  ; preds = bb3
+  bb14:                                           ; preds = bb3
     v21 = mload v129
     v22 = lt v93, v21
     jumpi v22, bb10, bb6
-  bb10:  ; preds = bb14
+  bb10:                                           ; preds = bb14
     v24 = shl v93, 5
     v117 = add v129, v24
     v118 = add v117, 32
@@ -121,38 +121,38 @@ fn @copy() {
     v95 = add v144, v18
     v96 = lt v95, v144
     jumpi v96, bb13, bb15
-  bb15:  ; preds = bb10
+  bb15:                                           ; preds = bb10
     v29 = mload v130
     v30 = lt v95, v29
     jumpi v30, bb11, bb6
-  bb11:  ; preds = bb15
+  bb11:                                           ; preds = bb15
     v32 = shl v95, 5
     v120 = add v130, v32
     v121 = add v120, 32
     mstore v121, v27
     v35 = add v18, 1
     jump bb1
-  bb13 [cold]:  ; preds = bb3, bb10
+  bb13 [cold]:                                    ; preds = bb3, bb10
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb2:  ; preds = bb1, bb8, bb12
+  bb2:                                            ; preds = bb1, bb8, bb12
     v36 = mload v130
     v37 = ne v36, 0
     jumpi v37, bb9, bb6
-  bb6 [cold]:  ; preds = bb2, bb5, bb7, bb14, bb15, bb20
+  bb6 [cold]:                                     ; preds = bb2, bb5, bb7, bb14, bb15, bb20
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb9:  ; preds = bb2
+  bb9:                                            ; preds = bb2
     v115 = add v130, 32
     v40 = mload v115
     mstore 0, v40 !metadata(memory=scratch)
     returndata 0, 32
-  bb19 [cold]:  ; preds = bb17, bb18
+  bb19 [cold]:                                    ; preds = bb17, bb18
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb16 [cold]:  ; preds = bb0
+  bb16 [cold]:                                    ; preds = bb0
     revert 0, 0
 }

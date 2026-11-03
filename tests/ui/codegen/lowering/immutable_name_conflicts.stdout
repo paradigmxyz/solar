@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/immutable_name_conflicts.sol:Base ===
+; === ROOT/tests/ui/codegen/lowering/immutable_name_conflicts.sol:Base ===
 @module Base
 @immutables
   value: uint256
@@ -17,7 +17,7 @@ fn @baseValue() -> i256 [selector=0x61bb9c52, pure, abi_params=[], abi_returns=[
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/immutable_name_conflicts.sol:Derived ===
+; === ROOT/tests/ui/codegen/lowering/immutable_name_conflicts.sol:Derived ===
 @module Derived
 @immutables
   value0_: uint256

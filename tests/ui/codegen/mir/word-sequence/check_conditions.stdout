@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/word-sequence/check_conditions.mir (before word-sequence) ===
-+ // === ROOT/tests/ui/codegen/mir/word-sequence/check_conditions.mir (after word-sequence) ===
+- ; === ROOT/tests/ui/codegen/mir/word-sequence/check_conditions.mir (before word-sequence) ===
++ ; === ROOT/tests/ui/codegen/mir/word-sequence/check_conditions.mir (after word-sequence) ===
   @module CheckConditions
   fn @check_only(arg0: i256) -> i256 {
     bb0:
@@ -24,9 +24,9 @@
       v1 = ne v0, 0
       icall panic_if<0x41>, v1
       jumpi v1, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       ret arg0
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       ret 0
   }
   

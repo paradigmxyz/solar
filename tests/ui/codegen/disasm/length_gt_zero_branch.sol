@@ -8,7 +8,7 @@
 
 // `length > 0` is a nonzero test, so the branch jumps on the length itself: a bare `ISZERO`
 // follows the argument checks, with no `LT` against a pushed zero.
-// RUNTIME-LABEL: // === {{.*}}:R2 (runtime) ===
+// RUNTIME-LABEL: ; === {{.*}}:R2 (runtime) ===
 // RUNTIME: SWAP3
 // RUNTIME-NEXT: OR
 // RUNTIME-NEXT: PUSH1 {{.*}}

@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/loop-layout/adjacent_latch.evmir (before loop-layout) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/loop-layout/adjacent_latch.evmir (after loop-layout) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/loop-layout/adjacent_latch.evmir (before loop-layout) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/loop-layout/adjacent_latch.evmir (after loop-layout) ===
   @module AdjacentLatch
   bb0:
     push 0

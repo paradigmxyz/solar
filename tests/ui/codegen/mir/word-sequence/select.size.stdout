@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (before word-sequence) ===
-+ // === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (after word-sequence) ===
+- ; === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (before word-sequence) ===
++ ; === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (after word-sequence) ===
   @module ConstantSelectRecipes
   fn @zero_right_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     bb0:

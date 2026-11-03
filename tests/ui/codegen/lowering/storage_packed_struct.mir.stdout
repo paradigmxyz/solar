@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/storage_packed_struct.sol:PackedStruct ===
+; === ROOT/tests/ui/codegen/lowering/storage_packed_struct.sol:PackedStruct ===
 @module PackedStruct
 @types
   struct0: {i8, i8, i256}
@@ -437,11 +437,11 @@ fn @replaceArray() -> struct3 [selector=0x47102f59, abi_params=[], abi_returns=[
     v11 = ptradd v0, 96
     mstore v11, 8
     jump bb1
-  bb1:  ; preds = bb0, bb6
+  bb1:                                            ; preds = bb0, bb6
     v12 = phi [bb0: 0], [bb6: v37]
     v13 = lt v12, 4
     jumpi v13, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v38 = lt 0, 4
     v39 = eq v38, false
     icall panic_if<0x32>, v39
@@ -471,14 +471,14 @@ fn @replaceArray() -> struct3 [selector=0x47102f59, abi_params=[], abi_returns=[
     v60 = insert_value struct3, v59, 2, v52
     v61 = insert_value struct3, v60, 3, v57
     ret v61
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v14 = div v12, 32
     v15 = add v14, 2
     v16 = mod v12, 32
     v17 = mul v16, 1
     v18 = lt v12, 4
     jumpi v18, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     v30 = mul v17, 8
     v31 = shl 255, v30
     v32 = sload v15 !metadata(storage=offset(v14, 2))
@@ -488,7 +488,7 @@ fn @replaceArray() -> struct3 [selector=0x47102f59, abi_params=[], abi_returns=[
     v36 = or v34, v35
     sstore v15, v36 !metadata(storage=offset(v14, 2))
     jump bb6
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v19 = shl v12, 5
     v20 = ptradd v0, v19
     v21 = mload v20
@@ -502,7 +502,7 @@ fn @replaceArray() -> struct3 [selector=0x47102f59, abi_params=[], abi_returns=[
     v29 = or v26, v28
     sstore v15, v29 !metadata(storage=offset(v14, 2))
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6:                                            ; preds = bb4, bb5
     v37 = add v12, 1
     jump bb1
 }

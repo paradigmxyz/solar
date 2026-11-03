@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/mapping_bytes_values.sol:MappingBytesValues ===
+; === ROOT/tests/ui/codegen/lowering/mapping_bytes_values.sol:MappingBytesValues ===
 @module MappingBytesValues
 ; function set(uint256 key, bytes memory value) external [selector 0x8b282947]
 fn @set(arg0: i256, arg1: ptr<memory>) [selector=0x8b282947, abi_params=[uint256, bytes], abi_returns=[], abi_return_params=[]] {

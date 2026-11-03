@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/calldata_nested_element_memory.sol:CalldataNestedElementMemory ===
+; === ROOT/tests/ui/codegen/lowering/run-call/calldata_nested_element_memory.sol:CalldataNestedElementMemory ===
 @module CalldataNestedElementMemory
 ; function test1(uint8[][][] calldata values) external pure returns (uint256) [selector 0x82dda4b9]
 fn @test1(arg0: slice<calldata>) -> i256 [selector=0x82dda4b9, pure, abi_params=[array<_, array<_, array<_, uint8>>>], abi_returns=[word], abi_return_params=[uint256]] {
@@ -56,11 +56,11 @@ fn @test1(arg0: slice<calldata>) -> i256 [selector=0x82dda4b9, pure, abi_params=
     v41 = alloc v39
     mstore v41, v27
     jump bb1
-  bb1:  ; preds = bb0, bb6
+  bb1:                                            ; preds = bb0, bb6
     v42 = phi [bb0: 0], [bb6: v88]
     v43 = lt v42, v27
     jumpi v43, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v89 = mload v41
     v90 = gt v89, 0
     v91 = eq v90, false
@@ -104,7 +104,7 @@ fn @test1(arg0: slice<calldata>) -> i256 [selector=0x82dda4b9, pure, abi_params=
     v123 = checked_add uint8, v111, v122
     v124 = zext i8 v123 to i256
     ret v124
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v44 = mul v42, 32
     v45 = ptrtoint ptr<calldata> v28 to i256
     v46 = add v45, v44
@@ -141,11 +141,11 @@ fn @test1(arg0: slice<calldata>) -> i256 [selector=0x82dda4b9, pure, abi_params=
     v71 = alloc v69
     mstore v71, v59
     jump bb4
-  bb4:  ; preds = bb2, bb5
+  bb4:                                            ; preds = bb2, bb5
     v72 = phi [bb2: 0], [bb5: v83]
     v73 = lt v72, v59
     jumpi v73, bb5, bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     v84 = ptrtoint ptr<memory> v71 to i256
     v85 = shl v42, 5
     v86 = ptradd v41, v85
@@ -153,7 +153,7 @@ fn @test1(arg0: slice<calldata>) -> i256 [selector=0x82dda4b9, pure, abi_params=
     mstore v87, v84
     v88 = add v42, 1
     jump bb1
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     v74 = mul v72, 32
     v75 = add v63, v74
     v76 = calldataload v75
@@ -203,11 +203,11 @@ fn @test2(arg0: slice<calldata>) -> i256 [selector=0x710442c6, pure, abi_params=
     icall revert_if<calldata_tail_too_short>, v24
     v25 = alloc 64
     jump bb1
-  bb1:  ; preds = bb0, bb6
+  bb1:                                            ; preds = bb0, bb6
     v26 = phi [bb0: 0], [bb6: v71]
     v27 = lt v26, 2
     jumpi v27, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v72 = lt 0, 2
     v73 = eq v72, false
     icall panic_if<0x32>, v73
@@ -246,7 +246,7 @@ fn @test2(arg0: slice<calldata>) -> i256 [selector=0x710442c6, pure, abi_params=
     v101 = checked_add uint8, v90, v100
     v102 = zext i8 v101 to i256
     ret v102
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v28 = mul v26, 32
     v29 = ptrtoint ptr<calldata> v20 to i256
     v30 = add v29, v28
@@ -283,18 +283,18 @@ fn @test2(arg0: slice<calldata>) -> i256 [selector=0x710442c6, pure, abi_params=
     v55 = alloc v53
     mstore v55, v43
     jump bb4
-  bb4:  ; preds = bb2, bb5
+  bb4:                                            ; preds = bb2, bb5
     v56 = phi [bb2: 0], [bb5: v67]
     v57 = lt v56, v43
     jumpi v57, bb5, bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     v68 = ptrtoint ptr<memory> v55 to i256
     v69 = shl v26, 5
     v70 = ptradd v25, v69
     mstore v70, v68
     v71 = add v26, 1
     jump bb1
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     v58 = mul v56, 32
     v59 = add v47, v58
     v60 = calldataload v59
@@ -366,11 +366,11 @@ fn @test3(arg0: slice<calldata>) -> i256 [selector=0x6e607577, pure, abi_params=
     v41 = alloc v39
     mstore v41, v27
     jump bb1
-  bb1:  ; preds = bb0, bb6
+  bb1:                                            ; preds = bb0, bb6
     v42 = phi [bb0: 0], [bb6: v67]
     v43 = lt v42, v27
     jumpi v43, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v68 = mload v41
     v69 = gt v68, 0
     v70 = eq v69, false
@@ -422,7 +422,7 @@ fn @test3(arg0: slice<calldata>) -> i256 [selector=0x6e607577, pure, abi_params=
     v108 = checked_add uint8, v97, v107
     v109 = zext i8 v108 to i256
     ret v109
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v44 = mul v42, 64
     v45 = shr v42, 250
     v46 = ne v45, 0
@@ -431,11 +431,11 @@ fn @test3(arg0: slice<calldata>) -> i256 [selector=0x6e607577, pure, abi_params=
     v48 = add v47, v44
     v49 = alloc 64
     jump bb4
-  bb4:  ; preds = bb2, bb5
+  bb4:                                            ; preds = bb2, bb5
     v50 = phi [bb2: 0], [bb5: v58]
     v51 = lt v50, 2
     jumpi v51, bb5, bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     v59 = inttoptr i256 v48 to ptr<calldata>
     v60 = make_calldata_slice v59, 64
     v61 = extract_value slice<calldata>, v60, 0
@@ -448,7 +448,7 @@ fn @test3(arg0: slice<calldata>) -> i256 [selector=0x6e607577, pure, abi_params=
     mstore v66, v63
     v67 = add v42, 1
     jump bb1
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     v52 = mul v50, 32
     v53 = add v48, v52
     v54 = calldataload v53

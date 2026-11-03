@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/abi_dynamic_return.sol:AbiDynamicReturn ===
+; === ROOT/tests/ui/codegen/lowering/abi_dynamic_return.sol:AbiDynamicReturn ===
 @module AbiDynamicReturn
 ; function bytesLiteral() public pure returns (bytes memory) [selector 0x96115be7]
 fn @bytesLiteral() -> ptr<memory> [selector=0x96115be7, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

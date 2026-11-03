@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_nested_static_middle.sol:AbiCalldataNestedStaticMiddle ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_nested_static_middle.sol:AbiCalldataNestedStaticMiddle ===
 @module AbiCalldataNestedStaticMiddle
 ; function f(uint256[][1][] calldata values) external pure returns (uint256) [selector 0x6ab0914c]
 fn @f(arg0: slice<calldata>) -> i256 [selector=0x6ab0914c, pure, abi_params=[array<_, array<1, array<_, uint256>>>], abi_returns=[word], abi_return_params=[uint256]] {
@@ -130,18 +130,18 @@ fn @materialize(arg0: slice<calldata>) -> i256 [selector=0xaff36081, pure, abi_p
     icall revert_if<calldata_tail_too_short>, v24
     v25 = alloc 32
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v26 = phi [bb0: 0], [bb2: v64]
     v27 = lt v26, 1
     jumpi v27, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v65 = lt 0, 1
     v66 = eq v65, false
     icall panic_if<0x32>, v66
     v67 = mload v25, ptr<memory>
     v68 = mload v67
     ret v68
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v28 = mul v26, 32
     v29 = ptrtoint ptr<calldata> v20 to i256
     v30 = add v29, v28
@@ -225,14 +225,14 @@ fn @forward(arg0: slice<calldata>) -> i256 [selector=0x51efa653, pure, abi_param
     icall revert_if<calldata_tail_too_short>, v24
     v25 = alloc 32
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v26 = phi [bb0: 0], [bb2: v64]
     v27 = lt v26, 1
     jumpi v27, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v65 = icall @readFixed, v25
     ret v65
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v28 = mul v26, 32
     v29 = ptrtoint ptr<calldata> v20 to i256
     v30 = add v29, v28

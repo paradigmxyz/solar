@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/evm-ir/dce/post_elimination_peephole.evmir (after pipeline-default) ===
+; === ROOT/tests/ui/codegen/evm-ir/dce/post_elimination_peephole.evmir (after pipeline-default) ===
 @module PostEliminationPeephole
 bb0:
   push 320

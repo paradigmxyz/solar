@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/loop-layout/inverted_latch.evmir (before loop-layout) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/loop-layout/inverted_latch.evmir (after loop-layout) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/loop-layout/inverted_latch.evmir (before loop-layout) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/loop-layout/inverted_latch.evmir (after loop-layout) ===
   @module InvertedLatch
   bb0:
     push 3

@@ -3,7 +3,7 @@
 
 @module simple
 
-// CHECK-LABEL: // === simple (runtime) ===
+// CHECK-LABEL: ; === simple (runtime) ===
 // CHECK-NEXT: PUSH1 0x2a
 // CHECK-NEXT: PUSH1 0x0a
 // CHECK-NEXT: ADD

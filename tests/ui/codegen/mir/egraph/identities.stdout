@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/egraph/identities.mir (before egraph) ===
-+ // === ROOT/tests/ui/codegen/mir/egraph/identities.mir (after egraph) ===
+- ; === ROOT/tests/ui/codegen/mir/egraph/identities.mir (before egraph) ===
++ ; === ROOT/tests/ui/codegen/mir/egraph/identities.mir (after egraph) ===
   @module Identities
   @types
     struct0: {i256, i256}
@@ -92,9 +92,9 @@
 +     v0 = ne arg0, 0
 +     v1 = eq arg0, 0
       jumpi v1, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       stop
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       stop
   }
   
