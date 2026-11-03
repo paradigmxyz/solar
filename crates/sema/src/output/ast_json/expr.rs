@@ -207,7 +207,10 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Stmt<'_>, &hir::Stmt<'gcx>)> {
             (ast::StmtKind::DeclSingle(ast), StmtKind::DeclSingle(id)) => {
                 let (mut m, _) = cx.stmt_node(s, "VariableDeclarationStatement", span, docs)?;
                 m.serialize_entry("assignments", &[cx.item_id(*id)])?;
-                m.serialize_entry("declarations", &[local(*cx, ast, *id)])?;
+                // solc parses the type of a single declaration as an expression first, unlike those
+                // of a tuple declaration.
+                let single = Cx { in_local: true, ..*cx };
+                m.serialize_entry("declarations", &[local(single, ast, *id)])?;
                 let initial_value =
                     ast.initializer.as_deref().zip(gcx.hir.variable(*id).initializer);
                 serialize_opt(&mut m, "initialValue", initial_value.map(|exprs| cx.w(exprs)))?;
@@ -318,8 +321,7 @@ fn local<'a, 'ast, 'gcx>(
     ast: &'a ast::VariableDefinition<'ast>,
     id: hir::VariableId,
 ) -> W<'a, 'gcx, Var<'a, 'ast>> {
-    let var = Var { ast, id, value: false, docs: None, scope: cx.block };
-    Cx { in_local: true, ..cx }.w(var)
+    cx.w(Var { ast, id, value: false, docs: None, scope: cx.block })
 }
 
 /// The loop expression of a `for` statement: an `ExpressionStatement`.
@@ -543,7 +545,7 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Expr<'_>, &hir::Expr<'gcx>)> {
                 m.serialize_entry("memberLocation", &cx.src(member.span))?;
                 m.serialize_entry("expression", &cx.w((&**base, *hir_base)))?;
                 let res = gcx.resolved_expr(hir);
-                let declaration = res.and_then(|res| cx.item_reference(res));
+                let declaration = res.and_then(|res| cx.reference(res, *member));
                 serialize_opt(&mut m, "referencedDeclaration", declaration)?;
                 cx.expr_attrs(&mut m, hir, parent, member_is_lvalue(gcx, hir_base, res))?;
                 m.end()
@@ -982,8 +984,10 @@ impl<'gcx> Serialize for W<'_, 'gcx, TypeExpr<'_, '_, 'gcx>> {
                 attrs(&mut m)?;
                 m.end()
             }
-            (ast::TypeKind::Custom(path), hir::TypeKind::Custom(_)) => {
-                let res = resolve_path(*cx, path.segments());
+            (ast::TypeKind::Custom(path), hir::TypeKind::Custom(item)) => {
+                // Lowering resolved the last segment in the scope of its contract.
+                let mut res = resolve_path(*cx, path.segments());
+                *res.last_mut().unwrap() = Some(Res::Item(*item));
                 let path =
                     PathExpr { segments: path.segments(), res: &res, last: None, parent: *parent };
                 cx.w(path).serialize(s)
@@ -1089,7 +1093,7 @@ impl<'gcx> Serialize for W<'_, 'gcx, PathExpr<'_, 'gcx>> {
             parent: Parent::default(),
         };
         m.serialize_entry("expression", &cx.w(base))?;
-        let declaration = res_last.and_then(|res| cx.item_reference(res));
+        let declaration = res_last.and_then(|res| cx.reference(res, ident));
         serialize_opt(&mut m, "referencedDeclaration", declaration)?;
         descriptions(&mut m)?;
         cx.argument_types(&mut m, *parent)?;

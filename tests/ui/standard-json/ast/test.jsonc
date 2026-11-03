@@ -84,6 +84,7 @@
 // CHECK: "nodeType": "RevertStatement"
 // CHECK: "nodeType": "InlineAssembly"
 // CHECK: "flags": [
+// CHECK: "typeString": "type(enum Statements.Mode)"
 // CHECK: "nodeType": "StorageLayoutSpecifier"
 // CHECK: "baseSlotExpression": {
 {

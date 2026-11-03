@@ -481,6 +481,9 @@ fn emit_combined_json(
         .then(|| make_ethdebug_compilation(gcx, None));
     let source_map_encoder =
         (emit_srcmap || emit_srcmap_runtime).then(|| SourceMapEncoder::new(gcx));
+    if emit_ast {
+        gcx.dcx().has_errors()?;
+    }
     let ast_json = emit_ast.then(|| gcx.ast_json());
     let mut output = CombinedJson {
         source_list: (emit_ast || source_map_encoder.is_some()).then(|| {

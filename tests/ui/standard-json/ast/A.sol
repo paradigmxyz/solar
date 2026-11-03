@@ -104,6 +104,11 @@ contract Statements layout at SLOT + 1 {
     uint256 public value = 1 ether;
     Price price;
 
+    enum Mode {
+        Open,
+        Closed
+    }
+
     event Done(uint256 result);
     error Failed(string reason);
 
@@ -114,6 +119,10 @@ contract Statements layout at SLOT + 1 {
 
     function pair() public pure returns (uint256, uint256) {
         return (1, 2);
+    }
+
+    function list() internal pure returns (uint256, address[] memory) {
+        return (1, new address[](0));
     }
 
     function flow(uint256 x, bytes calldata data) external payable guard(1) returns (uint256 r) {
@@ -160,10 +169,11 @@ contract Statements layout at SLOT + 1 {
         Point memory point = Point({x: 1, y: 2});
         uint256[2] memory literal = [uint256(1), 2];
         Price sum = price + price;
+        (uint256 d, address[] memory addrs) = list();
         assembly ("memory-safe") {
             r := add(r, 1)
         }
-        r += m.length + s.length + literal[1] + point.x + (success ? 1 : 0) + uint256(Price.unwrap(sum));
+        r += uint256(type(Mode).max) + d + addrs.length + m.length + s.length + literal[1] + point.x + (success ? 1 : 0) + uint256(Price.unwrap(sum));
         return r;
     }
 }
