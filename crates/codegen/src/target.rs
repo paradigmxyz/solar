@@ -1392,7 +1392,7 @@ impl Target {
             }
         }
         let code = match kind {
-            InstKind::Ne(..) => self.sequence(&[op::EQ, op::ISZERO]),
+            InstKind::Ne(..) => self.opcodes(&[op::EQ, op::ISZERO]),
             InstKind::Trunc(..) | InstKind::Sext(..) | InstKind::PtrToInt(..) => {
                 self.op(&kind.op(), |_| None)
             }
@@ -1405,11 +1405,11 @@ impl Target {
             InstKind::Fmp | InstKind::FrameLoad { .. } => self.opcode(op::MLOAD),
             InstKind::SetFmp(_) | InstKind::FrameStore { .. } => self.opcode(op::MSTORE),
             // Bump the free-memory pointer past the allocation.
-            InstKind::Alloc { .. } => self.sequence(&[op::MLOAD, op::ADD, op::MSTORE]),
+            InstKind::Alloc { .. } => self.opcodes(&[op::MLOAD, op::ADD, op::MSTORE]),
             // Reserve the buffer, store the selector, produce the slice, store every argument's
             // head, and expand every dynamic value.
             InstKind::AbiEncode { args, layout, .. } => self
-                .sequence(&[
+                .opcodes(&[
                     op::MLOAD,
                     op::ADD,
                     op::MSTORE,
@@ -1419,11 +1419,11 @@ impl Target {
                     op::SWAP1,
                     op::SWAP2,
                 ])
-                .plus(self.sequence(&[op::DUP1, op::ADD, op::MSTORE]).times(args.len() as u32))
+                .plus(self.opcodes(&[op::DUP1, op::ADD, op::MSTORE]).times(args.len() as u32))
                 .plus(self.dup().times(abi_layout_expansion(layout) as u32)),
             // Check the calldata bound, then load and validate every head word.
             InstKind::AbiDecode { layout, .. } => self
-                .sequence(&[
+                .opcodes(&[
                     op::CALLDATASIZE,
                     op::SUB,
                     op::LT,
@@ -1434,21 +1434,21 @@ impl Target {
                     op::SWAP1,
                 ])
                 .plus(
-                    self.sequence(&[op::CALLDATALOAD, op::DUP1, op::MSTORE])
+                    self.opcodes(&[op::CALLDATALOAD, op::DUP1, op::MSTORE])
                         .times(layout.types.len() as u32),
                 ),
             // A pushed offset into the immutables area and the store.
-            InstKind::StoreImmutable(..) => self.sequence(&[op::PUSH2, op::MSTORE]),
+            InstKind::StoreImmutable(..) => self.opcodes(&[op::PUSH2, op::MSTORE]),
             InstKind::DataCopy(..) => self.opcode(op::CODECOPY),
             InstKind::DataSize(..) => self.opcode(op::PUSH2),
             // Zero by copying from beyond the end of calldata.
-            InstKind::MemoryZero(..) => self.sequence(&[op::CALLDATASIZE, op::CALLDATACOPY]),
+            InstKind::MemoryZero(..) => self.opcodes(&[op::CALLDATASIZE, op::CALLDATACOPY]),
             InstKind::ConstructorArgsBase => self.opcode(op::PUSH2),
             InstKind::ConstructorArgsEnd => {
-                self.sequence(&[op::PUSH2, op::PUSH2, op::SUB, op::CODESIZE])
+                self.opcodes(&[op::PUSH2, op::PUSH2, op::SUB, op::CODESIZE])
             }
             InstKind::HeapFloor => self.opcode(op::PUSH2),
-            InstKind::InternalFrameAddr(_) => self.sequence(&[op::PUSH1, op::ADD]),
+            InstKind::InternalFrameAddr(_) => self.opcodes(&[op::PUSH1, op::ADD]),
             InstKind::LibraryAddress(_) => self.opcode(op::PUSH20),
             // Typed PUSH<N> placeholder patched at deploy time, cleaned for the narrower types.
             InstKind::LoadImmutable(id) => {
@@ -1461,15 +1461,15 @@ impl Target {
                 );
                 let push = op::PUSH1 + (type_size.bytes() - 1);
                 if type_size.bytes() == 32 {
-                    self.sequence(&[push])
+                    self.opcodes(&[push])
                 } else {
                     match encoding {
-                        ImmutableEncoding::Unsigned(_) => self.sequence(&[push]),
+                        ImmutableEncoding::Unsigned(_) => self.opcodes(&[push]),
                         ImmutableEncoding::Signed(_) => {
-                            self.sequence(&[push, op::PUSH1, op::SIGNEXTEND])
+                            self.opcodes(&[push, op::PUSH1, op::SIGNEXTEND])
                         }
                         ImmutableEncoding::LeftAligned(_) => {
-                            self.sequence(&[push, op::PUSH1, op::SHL])
+                            self.opcodes(&[push, op::PUSH1, op::SHL])
                         }
                     }
                 }
@@ -1510,9 +1510,9 @@ impl Target {
             InstKind::AbiEncodePacked { parts, .. } => {
                 Cost::new(60 + parts.len() as u32 * 20, 24 + parts.len() as u32 * 12)
             }
-            InstKind::MappingSlot(..) => self.sequence(&[op::MSTORE, op::MSTORE, op::KECCAK256]),
+            InstKind::MappingSlot(..) => self.opcodes(&[op::MSTORE, op::MSTORE, op::KECCAK256]),
             InstKind::MappingSlotBytes(key, _) if func.value_ty(*key) == Some(MirType::MEMPTR) => {
-                self.sequence(&[
+                self.opcodes(&[
                     op::MLOAD,
                     op::ADD,
                     op::MSTORE,
@@ -1523,7 +1523,7 @@ impl Target {
                     op::KECCAK256,
                 ])
             }
-            InstKind::MappingSlotBytes(..) => self.sequence(&[
+            InstKind::MappingSlotBytes(..) => self.opcodes(&[
                 op::CALLDATALOAD,
                 op::ADD,
                 op::MSTORE,
@@ -1535,10 +1535,10 @@ impl Target {
                 op::KECCAK256,
             ]),
             InstKind::StorageArrayDataSlot(..) => {
-                self.sequence(&[op::MSTORE, op::MSTORE, op::KECCAK256])
+                self.opcodes(&[op::MSTORE, op::MSTORE, op::KECCAK256])
             }
             InstKind::StorageArrayElementSlot { element_slots, .. } => self
-                .sequence(&[op::MSTORE, op::MSTORE, op::KECCAK256, op::ADD])
+                .opcodes(&[op::MSTORE, op::MSTORE, op::KECCAK256, op::ADD])
                 .plus(if *element_slots > 1 { self.opcode(op::MUL) } else { Cost::ZERO }),
             InstKind::AddressCall { .. } => Cost::new(720, 12),
             InstKind::ICall { function: Callee::Builtin(Builtin::ReturndataBytes), .. } => {
@@ -1587,31 +1587,26 @@ impl Target {
     /// Estimated code of a terminator, as the opcode sequence it emits priced by the target.
     pub(crate) fn terminator_estimate(&self, term: &Terminator) -> Cost {
         match term {
-            Terminator::Jump(_) => self.sequence(&[op::PUSH2, op::JUMP]),
-            Terminator::Branch { .. } => self.sequence(&[op::PUSH2, op::JUMPI]),
+            Terminator::Jump(_) => self.opcodes(&[op::PUSH2, op::JUMP]),
+            Terminator::Branch { .. } => self.opcodes(&[op::PUSH2, op::JUMPI]),
             // The dispatch on the value, then a compare and a jump per case.
             Terminator::Switch { cases, .. } => self
-                .sequence(&[op::PUSH2, op::JUMPI])
-                .plus(self.sequence(&[op::DUP1, op::PUSH1, op::EQ]).times(cases.len() as u32)),
+                .opcodes(&[op::PUSH2, op::JUMPI])
+                .plus(self.opcodes(&[op::DUP1, op::PUSH1, op::EQ]).times(cases.len() as u32)),
             // The values are staged by the instructions above; the return is the protocol's jump.
             Terminator::Return { .. } => self.internal_return(0, 0),
             Terminator::Revert { .. } | Terminator::RevertReturndata => {
-                self.sequence(&[op::PUSH1, op::DUP1, op::REVERT])
+                self.opcodes(&[op::PUSH1, op::DUP1, op::REVERT])
             }
-            Terminator::ReturnData { .. } => self.sequence(&[op::PUSH1, op::DUP1, op::RETURN]),
+            Terminator::ReturnData { .. } => self.opcodes(&[op::PUSH1, op::DUP1, op::RETURN]),
             Terminator::Stop => self.opcode(op::STOP),
             Terminator::SelfDestruct { .. } => self.opcode(op::SELFDESTRUCT),
             // A jump with every argument staged.
             Terminator::TailCall { args, .. } => {
-                self.sequence(&[op::PUSH2, op::JUMP]).plus(self.dup().times(args.len() as u32))
+                self.opcodes(&[op::PUSH2, op::JUMP]).plus(self.dup().times(args.len() as u32))
             }
             Terminator::Invalid => self.opcode(op::INVALID),
         }
-    }
-
-    /// The cost of emitting the opcodes `codes` in order.
-    fn sequence(&self, codes: &[u8]) -> Cost {
-        codes.iter().map(|&code| self.opcode(code)).sum()
     }
 
     /// Cost of the stack operations the Select emitter adds around its arithmetic: from
