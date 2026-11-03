@@ -60,6 +60,8 @@
 //! A shuffle's cycle through the top that leaves the top in place, `SWAPa SWAPb ... SWAPa`,
 //! becomes one `EXCHANGE a, b` per inner swap when that is cheaper. An operation tries both
 //! orders of its declared commutative pair, and a mirrored comparison tries both operand orders.
+//! When two orders tie on price but leave different words below the operands, the instructions
+//! that follow, up to the next call, are planned from each result, and the cheaper order wins.
 //! Two short trials refine these local choices: before a chain of single-use instructions that
 //! feeds a consumer, the consumer's deeper operands may be copied first, or a deeper operand that
 //! single-use instructions compute may be computed after the pushes below it, as WebAssembly's
