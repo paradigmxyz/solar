@@ -100,12 +100,10 @@ fn @liveTwo() -> i256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word], a
     revert_returndata
   bb2:                                            ; preds = bb0
     v4 = gas
-    v5 = abi_encode [], selector 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
-    v6 = extract_value slice<memory>, v5, 0
-    v7 = extract_value slice<memory>, v5, 1
-    v8 = zext i160 v2 to i256
-    v9 = call v4, v8, 0, v6, v7, v6, 64
-    jumpi v9, bb3, bb4
+    mstore 0, 0xa8aa1b31 !metadata(memory=scratch)
+    v5 = zext i160 v2 to i256
+    v6 = call v4, v5, 0, 28, 4, 0, 64
+    jumpi v6, bb3, bb4
   bb4:                                            ; preds = bb2
     jumpi true, bb6, bb7
   bb7:                                            ; preds = bb4
@@ -114,18 +112,16 @@ fn @liveTwo() -> i256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word], a
   bb6:                                            ; preds = bb4
     jump bb5
   bb3:                                            ; preds = bb2
-    v10 = returndatasize
-    v11 = lt v10, 64
-    icall revert_if<tuple_data_too_short>, v11
-    v12 = mload v6
-    v13 = ptrtoint ptr<memory> v6 to i256
-    v14 = add v13, 32
-    v15 = mload v14
-    v16 = checked_add uint256, v12, v15
+    v7 = returndatasize
+    v8 = lt v7, 64
+    icall revert_if<tuple_data_too_short>, v8
+    v9 = mload 0 !metadata(memory=scratch)
+    v10 = mload 32 !metadata(memory=scratch)
+    v11 = checked_add uint256, v9, v10
     jump bb5
   bb5:                                            ; preds = bb3, bb6
-    v17 = phi [bb3: v16], [bb6: 7]
-    ret v17
+    v12 = phi [bb3: v11], [bb6: 7]
+    ret v12
 }
 
 ; function liveAggregate() external returns (uint256 r) [selector 0xc64a4ee9]
@@ -141,13 +137,11 @@ fn @liveAggregate() -> i256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[wo
     revert_returndata
   bb2:                                            ; preds = bb0
     v4 = gas
-    v5 = abi_encode [], selector 0xf5e34bfa00000000000000000000000000000000000000000000000000000000
-    v6 = extract_value slice<memory>, v5, 0
-    v7 = extract_value slice<memory>, v5, 1
-    v8 = alloc 64
-    v9 = zext i160 v2 to i256
-    v10 = call v4, v9, 0, v6, v7, v8, 64
-    jumpi v10, bb3, bb4
+    v5 = alloc 64
+    mstore 0, 0xf5e34bfa !metadata(memory=scratch)
+    v6 = zext i160 v2 to i256
+    v7 = call v4, v6, 0, 28, 4, v5, 64
+    jumpi v7, bb3, bb4
   bb4:                                            ; preds = bb2
     jumpi true, bb6, bb7
   bb7:                                            ; preds = bb4
@@ -156,25 +150,25 @@ fn @liveAggregate() -> i256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[wo
   bb6:                                            ; preds = bb4
     jump bb5
   bb3:                                            ; preds = bb2
-    v11 = returndatasize
-    v12 = lt v11, 64
-    icall revert_if<tuple_data_too_short>, v12
-    v13 = make_memory_slice v8, 64
-    v14 = abi_decode [array<2, uint256>], v13
-    v15 = lt 0, 2
+    v8 = returndatasize
+    v9 = lt v8, 64
+    icall revert_if<tuple_data_too_short>, v9
+    v10 = make_memory_slice v5, 64
+    v11 = abi_decode [array<2, uint256>], v10
+    v12 = lt 0, 2
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = mload v11
+    v15 = lt 1, 2
     v16 = eq v15, false
     icall panic_if<0x32>, v16
-    v17 = mload v14
-    v18 = lt 1, 2
-    v19 = eq v18, false
-    icall panic_if<0x32>, v19
-    v20 = ptradd v14, 32
-    v21 = mload v20
-    v22 = checked_add uint256, v17, v21
+    v17 = ptradd v11, 32
+    v18 = mload v17
+    v19 = checked_add uint256, v14, v18
     jump bb5
   bb5:                                            ; preds = bb3, bb6
-    v23 = phi [bb3: v22], [bb6: 7]
-    ret v23
+    v20 = phi [bb3: v19], [bb6: 7]
+    ret v20
 }
 
 ; function liveNoReturn() external returns (uint256 r) [selector 0x0f81fb69]

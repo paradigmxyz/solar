@@ -23,7 +23,7 @@ fn @probe() -> i256 [selector=0xb74af5a9, view, abi_params=[], abi_returns=[word
     mstore v4, 3
     v5 = ptradd v4, 32
     mstore v5, 0x6162630000000000000000000000000000000000000000000000000000000000
-    v6 = abi_encode [memory_bytes, memory_bytes], selector 0x8f831ae700000000000000000000000000000000000000000000000000000000, args v2, v4
+    v6 = abi_encode [memory_bytes, memory_bytes], scratch, selector 0x8f831ae700000000000000000000000000000000000000000000000000000000, args v2, v4
     v7 = extract_value slice<memory>, v6, 0
     v8 = extract_value slice<memory>, v6, 1
     v9 = zext i160 v0 to i256
@@ -53,7 +53,7 @@ fn @observed() -> i256 [selector=0xba210709, view, abi_params=[], abi_returns=[w
     mstore v5, 3
     v6 = ptradd v5, 32
     mstore v6, 0x6162630000000000000000000000000000000000000000000000000000000000
-    v7 = abi_encode [memory_bytes, memory_bytes], selector 0x8f831ae700000000000000000000000000000000000000000000000000000000, args v3, v5
+    v7 = abi_encode [memory_bytes, memory_bytes], scratch, selector 0x8f831ae700000000000000000000000000000000000000000000000000000000, args v3, v5
     v8 = extract_value slice<memory>, v7, 0
     v9 = extract_value slice<memory>, v7, 1
     v10 = zext i160 v1 to i256
@@ -87,7 +87,7 @@ fn @observed() -> i256 [selector=0xba210709, view, abi_params=[], abi_returns=[w
     v32 = eq v31, 0x6162630000000000000000000000000000000000000000000000000000000000
     v33 = zext i1 v32 to i256
     v34 = and v29, v33
-    v35 = add v0, 352
+    v35 = add v0, 128
     v36 = mload 64 !metadata(memory=scratch)
     v37 = eq v36, v35
     v38 = zext i1 v37 to i256

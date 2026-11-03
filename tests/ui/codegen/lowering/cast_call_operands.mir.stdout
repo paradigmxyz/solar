@@ -325,43 +325,44 @@ fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {
     mstore v117, v87
     v118 = ptradd v109, 160
     mstore v118, v92
-    v119 = abi_encode [tuple<word<uint160>, word<uint160>, word<int24>, word<int24>, word, word>], selector 0x353abfa400000000000000000000000000000000000000000000000000000000, args v109
+    v119 = abi_encode [tuple<word<uint160>, word<uint160>, word<int24>, word<int24>, word, word>], scratch, selector 0x353abfa400000000000000000000000000000000000000000000000000000000, args v109
     v120 = extract_value slice<memory>, v119, 0
     v121 = extract_value slice<memory>, v119, 1
-    v122 = zext i160 v60 to i256
-    v123 = staticcall v108, v122, v120, v121, v120, 128
-    jumpi v123, bb26, bb25
+    v122 = fmp
+    v123 = zext i160 v60 to i256
+    v124 = staticcall v108, v123, v120, v121, v122, 128
+    jumpi v124, bb26, bb25
   bb25:                                           ; preds = bb24
     revert_returndata
   bb26:                                           ; preds = bb24
-    v124 = returndatasize
-    v125 = lt v124, 128
-    icall revert_if<tuple_data_too_short>, v125
-    v126 = mload v120
-    v127 = ptrtoint ptr<memory> v120 to i256
-    v128 = add v127, 32
-    v129 = mload v128
-    v130 = shr v129, 128
-    v131 = eq v130, 0
-    v132 = eq v131, false
-    icall revert_if<empty>, v132
-    v133 = ptrtoint ptr<memory> v120 to i256
-    v134 = add v133, 64
-    v135 = mload v134
-    v136 = ptrtoint ptr<memory> v120 to i256
-    v137 = add v136, 96
-    v138 = mload v137
-    v139 = trunc i256 v129 to i128
-    v140 = insert_value struct0, undef struct0, 0, v126
-    v141 = insert_value struct0, v140, 1, v139
-    v142 = insert_value struct0, v141, 2, v135
-    v143 = insert_value struct0, v142, 3, v138
-    v144 = extract_value struct0, v143, 0
-    v145 = extract_value struct0, v143, 1
-    v146 = extract_value struct0, v143, 2
-    v147 = extract_value struct0, v143, 3
-    v148 = zext i160 arg0 to i256
-    v149 = mapping_slot v148, 2
-    sstore v149, v144 !metadata(storage=symbolic(v149))
+    v125 = returndatasize
+    v126 = lt v125, 128
+    icall revert_if<tuple_data_too_short>, v126
+    v127 = mload v122
+    v128 = ptrtoint ptr<memory> v122 to i256
+    v129 = add v128, 32
+    v130 = mload v129
+    v131 = shr v130, 128
+    v132 = eq v131, 0
+    v133 = eq v132, false
+    icall revert_if<empty>, v133
+    v134 = ptrtoint ptr<memory> v122 to i256
+    v135 = add v134, 64
+    v136 = mload v135
+    v137 = ptrtoint ptr<memory> v122 to i256
+    v138 = add v137, 96
+    v139 = mload v138
+    v140 = trunc i256 v130 to i128
+    v141 = insert_value struct0, undef struct0, 0, v127
+    v142 = insert_value struct0, v141, 1, v140
+    v143 = insert_value struct0, v142, 2, v136
+    v144 = insert_value struct0, v143, 3, v139
+    v145 = extract_value struct0, v144, 0
+    v146 = extract_value struct0, v144, 1
+    v147 = extract_value struct0, v144, 2
+    v148 = extract_value struct0, v144, 3
+    v149 = zext i160 arg0 to i256
+    v150 = mapping_slot v149, 2
+    sstore v150, v145 !metadata(storage=symbolic(v150))
     ret
 }

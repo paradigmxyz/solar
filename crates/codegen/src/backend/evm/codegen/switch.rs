@@ -1453,7 +1453,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut entries = cases
             .iter()
             .map(|&(value_id, target)| {
-                let value = func.value(value_id).as_immediate()?.as_u256()?;
+                let value = func.value_u256(value_id)?;
                 Some(MirSwitchEntry { value, value_id, target })
             })
             .collect::<Option<Vec<_>>>()?;

@@ -1,0 +1,8 @@
+error: HIR expression ID exceeds the index limit
+   ╭▸ ROOT/tests/ui/codegen/mir/validation/parse_hir_id_overflow.mir:LL:CC
+   │
+LL │     v0 = sload 7 !metadata(hir=4294967295)
+   ╰╴                               ━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

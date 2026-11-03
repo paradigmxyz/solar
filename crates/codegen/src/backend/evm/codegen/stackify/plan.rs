@@ -2967,7 +2967,7 @@ impl<'a> Planner<'a> {
         } else {
             self.branch_edge(sim, block, else_block, false)?
         };
-        sim.cost += self.target.opcode(op::JUMPI).plus(self.target.opcode(op::PUSH2));
+        sim.cost += self.target.label_push().plus(self.target.opcode(op::JUMPI));
         Ok(Exit::Branch { then_edge, else_edge })
     }
 
