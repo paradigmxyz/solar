@@ -161,7 +161,7 @@ pub(super) fn is_check(kind: &InstKind) -> bool {
 
 fn emit_payload(
     gcx: Gcx<'_>,
-    module: &mut Module,
+    module: &Module,
     builder: &mut FunctionBuilder<'_>,
     payload: RevertPayload,
     helper: Option<FunctionId>,

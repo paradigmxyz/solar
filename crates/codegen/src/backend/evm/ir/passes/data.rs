@@ -1,7 +1,9 @@
 //! Materialize and pack program data.
 //!
 //! `pack-data` interns equal data objects, pools contained byte strings, and replaces runs of
-//! constant memory stores with one copy each. A run is found by symbolically executing pushes,
+//! constant memory stores with one copy each. MIR writes constant data as word stores in every
+//! mode, so this pass makes the one choice between stores and a copy, where the final opcodes are
+//! visible. A run is found by symbolically executing pushes,
 //! stack operations, constant expressions (folded with the MIR evaluator), and constant `MSTORE`
 //! and `MSTORE8`s to one base: a stack word plus constant offsets, or absolute addresses. Stores
 //! may come in any order and overlap, but must fill one contiguous range, since a copy would
@@ -76,7 +78,7 @@ const MAX_DATA_SUBSTRING_ENTRIES: usize = 1024;
 /// Bounds the instructions one literal-store run may span, keeping each scan start linear.
 const MAX_RUN_INSTRUCTIONS: usize = 256;
 
-/// Bounds the runs `share_cores` compares: the runs that share the most words, in module order.
+/// Bounds the runs `share_cores` compares: the first runs in module order that share two words.
 const MAX_CORE_PARENTS: usize = 64;
 
 /// Bounds the windows `share_cores` prices across all runs.
@@ -121,6 +123,8 @@ impl EvmPass for ShareCores {
     }
 }
 
+/// Packs the data pool and materializes runs; with `cores_only`, it materializes only the cores
+/// that `share_cores` picks and leaves every other run as stores.
 fn pack(gcx: Gcx<'_>, module: &mut Module, cores_only: bool) -> bool {
     let Some(mut scan) = scan_data_references(module, None) else { return false };
     let groups = find_runs(gcx, module);
@@ -232,11 +236,6 @@ impl DataPool {
         self.exact.insert(bytes, DataRef::new(id, 0));
         DataRef::new(id, 0)
     }
-
-    fn len_of(&self, id: DataId) -> u32 {
-        let bytes = self.entries.iter().find(|(entry, _)| *entry == id).map(|(_, bytes)| bytes);
-        bytes.map_or(0, |bytes| bytes.len() as u32)
-    }
 }
 
 fn materialize_data(
@@ -268,6 +267,9 @@ fn materialize_data(
     for splits in [true, false] {
         for (data, rewrites) in std::mem::take(&mut groups) {
             if data.iter().all(|&byte| byte == 0) {
+                if cores_only {
+                    continue;
+                }
                 // Zero fills need no data, so each site stands alone.
                 prepared.extend(
                     rewrites
@@ -317,10 +319,8 @@ fn materialize_data(
         // A run that no site profits from may hold shorter runs that do. They wait for the joint
         // evaluation of whole runs, which can accept a run that only pays when sites share it.
         if splits {
-            let cores =
-                share_cores(gcx, module, &mut pool, &mut prepared, &mut rejected, &mut scratch);
+            share_cores(gcx, module, &mut pool, &mut prepared, &mut rejected, &mut scratch);
             if cores_only {
-                prepared.drain(..prepared.len() - cores);
                 break;
             }
             let mut inner = FxHashMap::<Bytes, Vec<Rewrite>>::default();
@@ -520,7 +520,7 @@ fn share_cores(
     prepared: &mut Vec<(Rewrite, Option<DataRef>)>,
     rejected: &mut Vec<(NeedleFinder, Vec<Rewrite>)>,
     scratch: &mut RunScratch,
-) -> usize {
+) {
     let min = 2 * WORD_BYTES;
     let slots = prepared
         .iter()
@@ -615,17 +615,13 @@ fn share_cores(
         }
     }
     let mut cores = cores.into_iter().collect::<Vec<_>>();
-    cores.sort_unstable_by_key(|(data, windows)| {
+    cores.sort_by_cached_key(|(data, windows)| {
         let parents = windows.iter().map(|(index, _)| index).collect::<FxHashSet<_>>().len();
         (std::cmp::Reverse(parents), std::cmp::Reverse(data.len()), data.clone())
     });
 
     let creation = module.target(gcx);
     let runtime = module.runtime_target(gcx);
-    let mut sites_of = FxHashMap::<Bytes, u32>::default();
-    for &slot in &slots {
-        *sites_of.entry(rewrite_of(slot).data.clone()).or_default() += 1;
-    }
     // How many sites use each entry that the pass pooled, to tell when the runs a core replaces
     // were the only users of an entry, which then goes and cannot hold the core.
     let mut users = FxHashMap::<DataId, usize>::default();
@@ -690,7 +686,10 @@ fn share_cores(
                 && leaving(data_ref.id)
                 && freed.insert(data_ref.id)
             {
-                whole += Cost::new(0, pool.len_of(data_ref.id));
+                whole += Cost::new(
+                    0,
+                    module.data[data_ref.id].bytes.known().map_or(0, |bytes| bytes.len() as u32),
+                );
             }
         }
         // A core that replaces runs no group accepted must also beat their stores as a group would,
@@ -738,9 +737,7 @@ fn share_cores(
         });
     }
     rejected.retain(|(_, rewrites)| !rewrites.is_empty());
-    let cores = chosen.len();
     prepared.extend(chosen.into_iter().map(|(_, window, data_ref)| (window, Some(data_ref))));
-    cores
 }
 
 /// The window of `parent` that holds its stores `window`, with the stores before it left as they
@@ -827,9 +824,8 @@ struct RunScratch {
     ranges: Vec<(u64, u64)>,
     ends: Vec<RunEnd>,
     extras: Vec<RunWord>,
-    /// The start, input count, destination base slot, and first store of the last scan.
+    /// The start, destination base slot, and first store of the last scan.
     start: usize,
-    inputs: usize,
     destination: Option<usize>,
     first_store: usize,
 }
@@ -984,7 +980,9 @@ fn scan_ends(
                 .count();
             if let [range] = ranges[..]
                 && is_split_point(instructions, end)
-                && (kept == inputs || kept == stack.len())
+                && (kept == inputs
+                    || kept == stack.len()
+                    || stack[kept..].iter().all(|word| word.slot.is_none()))
             {
                 let first_extra = extras.len();
                 extras.extend_from_slice(&stack[kept..]);
@@ -1021,7 +1019,6 @@ fn scan_ends(
     }
 
     scratch.start = start;
-    scratch.inputs = inputs;
     scratch.destination = base.flatten();
     scratch.first_store = first_store.unwrap_or_default();
 }

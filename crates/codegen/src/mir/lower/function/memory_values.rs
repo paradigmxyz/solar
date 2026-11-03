@@ -189,7 +189,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn build_bytes_literal(
         gcx: Gcx<'_>,
-        module: &mut Module,
+        module: &Module,
         builder: &mut FunctionBuilder<'_>,
         bytes: &[u8],
         semantics: AllocationSemantics,

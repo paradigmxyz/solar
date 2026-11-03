@@ -534,8 +534,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             |this, index, argument| {
                 let parameter = event.parameters[index];
                 let parameter_ty = this.cx.gcx.type_of_item(parameter.into());
-                // A literal stored as words in the event's data needs no object of its own: the
-                // encoder writes its words.
+                // A literal in the event's data needs no object of its own: the encoder writes
+                // its words.
                 if !this.cx.gcx.hir.variable(parameter).indexed
                     && matches!(
                         parameter_ty.peel_refs().kind,
