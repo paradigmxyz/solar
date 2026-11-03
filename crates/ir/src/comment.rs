@@ -5,7 +5,7 @@ use std::fmt;
 /// The column at which the comment after a block label starts, counting from the start of the line.
 ///
 /// This is the column LLVM's `AsmWriter` pads `; preds = ...` to.
-pub const LABEL_COMMENT_COLUMN: usize = 50;
+const LABEL_COMMENT_COLUMN: usize = 50;
 
 /// Displays a block label line: `label`, then, if there is a `comment`, a `;` aligned like LLVM's
 /// `formatted_raw_ostream::PadToColumn(50)`.
@@ -18,9 +18,9 @@ pub fn display_label_comment(
     comment: Option<impl fmt::Display>,
 ) -> impl fmt::Display {
     fmt::from_fn(move |f| {
+        let Some(comment) = &comment else { return write!(f, "{label}") };
         let label = label.to_string();
         f.write_str(&label)?;
-        let Some(comment) = &comment else { return Ok(()) };
         let padding = LABEL_COMMENT_COLUMN.saturating_sub(label.chars().count()).max(1);
         write!(f, "{:padding$}; {comment}", "")
     })
@@ -33,8 +33,7 @@ mod tests {
     #[test]
     fn pads_to_the_comment_column() {
         let text = display_label_comment("  bb1:", Some("preds = bb0")).to_string();
-        assert_eq!(text.find(';'), Some(LABEL_COMMENT_COLUMN));
-        assert!(text.ends_with("; preds = bb0"));
+        assert_eq!(text, format!("  bb1:{:44}; preds = bb0", ""));
     }
 
     #[test]

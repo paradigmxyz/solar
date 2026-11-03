@@ -215,17 +215,19 @@ pub(crate) fn display_function_text<'a>(
                 write!(f, ":")
             });
             let preds = (!block.predecessors.is_empty()).then(|| {
-                format!(
-                    "preds = {}",
-                    block.predecessors.iter().format_with(", ", |f, pred| write!(
+                fmt::from_fn(|f| {
+                    write!(
                         f,
-                        "bb{}",
-                        pred.index()
-                    ))
-                )
+                        "preds = {}",
+                        block.predecessors.iter().format_with(", ", |f, pred| write!(
+                            f,
+                            "bb{}",
+                            pred.index()
+                        ))
+                    )
+                })
             });
-            write!(f, "{}", solar_ir::comment::display_label_comment(label, preds))?;
-            writeln!(f)?;
+            writeln!(f, "{}", solar_ir::comment::display_label_comment(label, preds))?;
 
             write!(
                 f,

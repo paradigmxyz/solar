@@ -124,10 +124,8 @@ pub fn parse_dump(text: &str) -> Vec<DumpedModule> {
 
 /// Returns the contract a dump's module header names.
 fn header(line: &str) -> Option<&str> {
-    line.strip_prefix(';')
-        .or_else(|| line.strip_prefix("//"))
-        .and_then(|rest| rest.strip_prefix(" === "))
-        .and_then(|rest| rest.strip_suffix(" ==="))
+    let rest = line.strip_prefix(';').or_else(|| line.strip_prefix("//"))?;
+    rest.strip_prefix(" === ")?.strip_suffix(" ===")
 }
 
 /// Parses `mir` as one lowered module and runs `f` on it within a session of its own.
