@@ -107,23 +107,28 @@ fn @signedTry(arg0: i1) -> i256 [selector=0x3ac87366, view, abi_params=[bool], a
   bb7:                                            ; preds = bb2
     jump bb3
   bb1:                                            ; preds = bb0
-    v4 = icall returndata_bytes<>
-    v5 = abi_decode [int8, bytes], v4
-    v6 = extract_value struct1, v5, 0
-    v7 = extract_value struct1, v5, 1
-    v8 = sext i8 v6 to i256
+    v4 = returndatasize
+    v5 = add v4, 31
+    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v7 = alloc v6
+    returndatacopy v7, 0, v4
+    v8 = make_memory_slice v7, v4
+    v9 = abi_decode [int8, bytes], v8
+    v10 = extract_value struct1, v9, 0
+    v11 = extract_value struct1, v9, 1
+    v12 = sext i8 v10 to i256
     jumpi arg0, bb4, bb5
   bb5:                                            ; preds = bb1
     jump bb6
   bb4:                                            ; preds = bb1
-    v9 = sext i8 254 to i256
+    v13 = sext i8 254 to i256
     jump bb6
   bb6:                                            ; preds = bb4, bb5
-    v10 = phi [bb4: v9], [bb5: v8]
+    v14 = phi [bb4: v13], [bb5: v12]
     jump bb3
   bb3:                                            ; preds = bb6, bb7
-    v11 = phi [bb6: v10], [bb7: 0]
-    ret v11
+    v15 = phi [bb6: v14], [bb7: 0]
+    ret v15
 }
 
 ; function signedCallTuple(bool choose) external view returns (int256 raw) [selector 0xf2329614]
@@ -138,24 +143,29 @@ fn @signedCallTuple(arg0: i1) -> i256 [selector=0xf2329614, view, abi_params=[bo
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    v4 = icall returndata_bytes<>
-    v5 = abi_decode [int8, bytes], v4
-    v6 = extract_value struct1, v5, 0
-    v7 = extract_value struct1, v5, 1
-    v8 = insert_value struct1, undef struct1, 0, v6
-    v9 = insert_value struct1, v8, 1, v7
+    v4 = returndatasize
+    v5 = add v4, 31
+    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v7 = alloc v6
+    returndatacopy v7, 0, v4
+    v8 = make_memory_slice v7, v4
+    v9 = abi_decode [int8, bytes], v8
     v10 = extract_value struct1, v9, 0
     v11 = extract_value struct1, v9, 1
-    v12 = sext i8 v10 to i256
+    v12 = insert_value struct1, undef struct1, 0, v10
+    v13 = insert_value struct1, v12, 1, v11
+    v14 = extract_value struct1, v13, 0
+    v15 = extract_value struct1, v13, 1
+    v16 = sext i8 v14 to i256
     jumpi arg0, bb3, bb4
   bb4:                                            ; preds = bb2
     jump bb5
   bb3:                                            ; preds = bb2
-    v13 = sext i8 254 to i256
+    v17 = sext i8 254 to i256
     jump bb5
   bb5:                                            ; preds = bb3, bb4
-    v14 = phi [bb3: v13], [bb4: v12]
-    ret v14
+    v18 = phi [bb3: v17], [bb4: v16]
+    ret v18
 }
 
 ; function signedAssemblyComparison() external pure returns (uint256 raw) [selector 0xc03e566f]

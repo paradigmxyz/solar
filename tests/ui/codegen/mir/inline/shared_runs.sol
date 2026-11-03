@@ -8,7 +8,7 @@ interface Vm {
 }
 
 // `paintUint` and `paintBool` each call one cheatcode and wrap the result through the same
-// helper, and their code differs only in a selector and an argument. The backend shares
+// helper twice, and their code differs only in a selector and an argument. The backend shares
 // everything after those while both stay functions, so consuming either into its single caller
 // would emit the shared run again.
 contract SharedRuns {
@@ -25,11 +25,11 @@ contract SharedRuns {
     }
 
     function paintUint(uint256 value) private pure returns (string memory) {
-        return wrap(vm.toStringUint(value));
+        return wrap(wrap(vm.toStringUint(value)));
     }
 
     function paintBool(bool value) private pure returns (string memory) {
-        return wrap(vm.toStringBool(value));
+        return wrap(wrap(vm.toStringBool(value)));
     }
 
     function wrap(string memory text) private pure returns (string memory) {
