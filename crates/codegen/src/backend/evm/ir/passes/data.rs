@@ -1,7 +1,10 @@
 //! Materialize and pack program data.
 //!
 //! `pack-data` interns equal data objects, pools contained byte strings, and replaces runs of
-//! constant memory stores with one copy each. A run is found by symbolically executing pushes,
+//! constant memory stores with one copy each. MIR keeps a constant byte-string object as a
+//! `datacopy` when the shared `Target` price says a copy wins, and writes short data as stores;
+//! this pass prices the runs of stores that remain against the same copy, where the final opcodes
+//! are visible. A run is found by symbolically executing pushes,
 //! stack operations, constant expressions (folded with the MIR evaluator), and constant `MSTORE`
 //! and `MSTORE8`s to one base: a stack word plus constant offsets, or absolute addresses. Stores
 //! may come in any order and overlap, but must fill one contiguous range, since a copy would
@@ -14,14 +17,21 @@
 //! runtime gas and no more bytes, since static sites have no execution frequency to repay code
 //! growth. Creation code that runs once may trade gas for bytes at the calldata price of its model,
 //! but blocks that may run more than once keep the runtime model. Rejected groups can still ride
-//! along as substrings of an accepted entry.
+//! along as substrings of an accepted entry. Whole runs are judged first, because equal runs at
+//! several sites share one entry and so can pay jointly when no site pays alone. Only the runs that
+//! no group accepts are split, since a short word between long strings only grows the data, and the
+//! runs inside them are judged the same way. A copy of data that ends in zeros stops before them
+//! when a zero word store clears the last word first, if that is cheaper.
 //!
-//! The pass leaves a module alone when `CODESIZE` can observe the changed data layout, or when
-//! a data address may reach anything but a `CODECOPY` that stays inside its entry. The scan tracks
-//! each block's stack and follows addresses through a few unconditional jumps, since shared tails
-//! can move a copy into another block. Pooling uses bounded substring search to avoid quadratic
-//! compile time on large data sets. Library relocations must match within a shared range; literal
-//! stores never share relocatable bytes.
+//! The pass leaves a module alone when a data address may reach anything but a `CODECOPY` that
+//! stays inside its entry. The last entry of creation code is the tail: the runtime code ends the
+//! deployment code and constructor arguments follow it, which they find by subtracting its address
+//! from `CODESIZE` or copying from it. The tail stays last and, when the arguments are found that
+//! way, in place; new entries go before it, so `CODESIZE` alone does not stop the pass. The scan
+//! tracks each block's stack and follows addresses through a few unconditional jumps, since shared
+//! tails can move a copy into another block. Pooling uses bounded substring search to avoid
+//! quadratic compile time on large data sets. Library relocations must match within a shared range;
+//! literal stores never share relocatable bytes.
 //!
 //! Runs end at the first other instruction, so a computed word between literal stores splits
 //! them, and runs do not cross block boundaries; `cfg-simplify` merges straight-line chains first.
@@ -78,16 +88,12 @@ impl EvmPass for PackData {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let optimization = module.optimization;
-        if !(optimization.is_gas() || optimization.is_size()) {
-            return pack_existing_data(module, false);
-        }
-        let Some(referenced) = scan_data_references(module) else { return false };
+        let Some(mut scan) = scan_data_references(module, None) else { return false };
         let groups = find_runs(gcx, module);
-        let packed = pack_data(module, &referenced, true);
+        let packed = pack_data(module, &mut scan);
         let materialized = materialize_data(gcx, module, groups);
-        if materialized && let Some(referenced) = scan_data_references(module) {
-            pack_data(module, &referenced, true);
+        if materialized && let Some(mut scan) = scan_data_references(module, scan.tail) {
+            pack_data(module, &mut scan);
         }
         packed || materialized
     }
@@ -104,6 +110,9 @@ struct Rewrite {
     old: Cost,
     /// Cost of the replacement, without the bytes it may add to the data pool.
     new: Cost,
+    /// The instructions before the size and source pushes: a zero word store that clears the bytes
+    /// the shortened copy leaves out.
+    head: Vec<Instruction>,
     /// The replacement after its size and source pushes: the destination, the copy, and the
     /// stack the replaced instructions left.
     tail: Vec<Instruction>,
@@ -118,12 +127,6 @@ impl Rewrite {
                 - i64::from(target.runtime_gas(self.new)),
             bytes: i64::from(self.old.bytes) - i64::from(self.new.bytes),
         }
-    }
-
-    /// Whether this saves at least as much as `other` under the objective, compared without
-    /// signed costs: `other.old + self.new <= self.old + other.new`.
-    fn saves_at_least(&self, other: &Self, target: &Target) -> bool {
-        target.cmp(other.old + self.new, self.old + other.new).is_le()
     }
 }
 
@@ -205,9 +208,12 @@ fn materialize_data(
         return false;
     }
     let mut groups = groups.into_iter().collect::<Vec<_>>();
-    groups.sort_unstable_by(|(a, _), (b, _)| {
-        a.len().cmp(&b.len()).then_with(|| a.as_ref().cmp(b.as_ref()))
-    });
+    let sort_groups = |groups: &mut Vec<(Bytes, Vec<Rewrite>)>| {
+        groups.sort_unstable_by(|(a, _), (b, _)| {
+            a.len().cmp(&b.len()).then_with(|| a.as_ref().cmp(b.as_ref()))
+        });
+    };
+    sort_groups(&mut groups);
 
     let creation = module.target(gcx);
     let runtime = module.runtime_target(gcx);
@@ -217,52 +223,72 @@ fn materialize_data(
     let mut prepared = Vec::<(Rewrite, Option<DataRef>)>::new();
     let mut rejected = Vec::<(NeedleFinder, Vec<Rewrite>)>::new();
     let mut absorbed = Vec::new();
-    for (data, rewrites) in groups {
-        if data.iter().all(|&byte| byte == 0) {
-            // Zero fills need no data, so each site stands alone.
-            prepared.extend(
-                rewrites
-                    .into_iter()
-                    .filter(|rewrite| {
-                        rewrite.saving(&runtime).is_profitable(target_of(rewrite.repeats))
-                    })
-                    .map(|rewrite| (rewrite, None)),
-            );
-            continue;
-        }
-        let existing = pool.find(&data);
-        let mut improvement = Improvement::of(&rewrites, &runtime);
-        if existing.is_none() {
-            improvement.bytes -= data.len() as i64;
-        }
-        let mut repeats = any_repeats(&rewrites);
-        absorbed.clear();
-        for (index, (contained, contained_rewrites)) in
-            rejected.iter_mut().take(MAX_DATA_SUBSTRING_ENTRIES).enumerate()
-        {
-            let Some(offset) = contained.find(&data) else { continue };
-            let saving = Improvement::of(contained_rewrites, &runtime);
-            let contained_repeats = any_repeats(contained_rewrites);
-            if saving.is_profitable(target_of(contained_repeats)) {
-                improvement.runtime_gas += saving.runtime_gas;
-                improvement.bytes += saving.bytes;
-                repeats |= contained_repeats;
-                absorbed.push((index, offset));
+    let mut scratch = RunScratch::default();
+    for splits in [true, false] {
+        for (data, rewrites) in std::mem::take(&mut groups) {
+            if data.iter().all(|&byte| byte == 0) {
+                // Zero fills need no data, so each site stands alone.
+                prepared.extend(
+                    rewrites
+                        .into_iter()
+                        .filter(|rewrite| {
+                            rewrite.saving(&runtime).is_profitable(target_of(rewrite.repeats))
+                        })
+                        .map(|rewrite| (rewrite, None)),
+                );
+                continue;
+            }
+            let existing = pool.find(&data);
+            let mut improvement = Improvement::of(&rewrites, &runtime);
+            if existing.is_none() {
+                improvement.bytes -= data.len() as i64;
+            }
+            let mut repeats = any_repeats(&rewrites);
+            absorbed.clear();
+            for (index, (contained, contained_rewrites)) in
+                rejected.iter_mut().take(MAX_DATA_SUBSTRING_ENTRIES).enumerate()
+            {
+                let Some(offset) = contained.find(&data) else { continue };
+                let saving = Improvement::of(contained_rewrites, &runtime);
+                let contained_repeats = any_repeats(contained_rewrites);
+                if saving.is_profitable(target_of(contained_repeats)) {
+                    improvement.runtime_gas += saving.runtime_gas;
+                    improvement.bytes += saving.bytes;
+                    repeats |= contained_repeats;
+                    absorbed.push((index, offset));
+                }
+            }
+            if !improvement.is_profitable(target_of(repeats)) {
+                rejected.push((NeedleFinder::new(data), rewrites));
+                continue;
+            }
+
+            let data_ref = existing.unwrap_or_else(|| pool.push(module, data));
+            prepared.extend(rewrites.into_iter().map(|rewrite| (rewrite, Some(data_ref))));
+            for (index, offset) in absorbed.drain(..).rev() {
+                let (_, rewrites) = rejected.swap_remove(index);
+                let offset =
+                    data_ref.offset.checked_add(data_offset(offset)).expect("data offset overflow");
+                let data_ref = DataRef::new(data_ref.id, offset);
+                prepared.extend(rewrites.into_iter().map(|rewrite| (rewrite, Some(data_ref))));
             }
         }
-        if !improvement.is_profitable(target_of(repeats)) {
-            rejected.push((NeedleFinder::new(data), rewrites));
-            continue;
-        }
-
-        let data_ref = existing.unwrap_or_else(|| pool.push(module, data));
-        prepared.extend(rewrites.into_iter().map(|rewrite| (rewrite, Some(data_ref))));
-        for (index, offset) in absorbed.drain(..).rev() {
-            let (_, rewrites) = rejected.swap_remove(index);
-            let offset =
-                data_ref.offset.checked_add(data_offset(offset)).expect("data offset overflow");
-            let data_ref = DataRef::new(data_ref.id, offset);
-            prepared.extend(rewrites.into_iter().map(|rewrite| (rewrite, Some(data_ref))));
+        // A run that no site profits from may hold shorter runs that do. They wait for the joint
+        // evaluation of whole runs, which can accept a run that only pays when sites share it.
+        if splits {
+            let mut inner = FxHashMap::<Bytes, Vec<Rewrite>>::default();
+            for rewrite in rejected.drain(..).flat_map(|(_, rewrites)| rewrites) {
+                let block = &module.blocks[rewrite.block];
+                let target = block.target(gcx, module.optimization, module.code_follows);
+                for (data, mut window) in
+                    split_run(&target, &block.instructions, &rewrite, &mut scratch)
+                {
+                    window.repeats = rewrite.repeats;
+                    inner.entry(data).or_default().push(window);
+                }
+            }
+            groups.extend(inner);
+            sort_groups(&mut groups);
         }
     }
     prepared.sort_unstable_by_key(|(rewrite, _)| (rewrite.block, rewrite.start));
@@ -275,17 +301,20 @@ fn materialize_data(
         for inst in &instructions[rewrite.start..rewrite.end] {
             metadata.absorb_debug_info(&inst.metadata);
         }
+        // <head>
         // push size
         // push data | calldatasize
         // <tail>
-        let mut replacement = [
-            Instruction::push_value(U256::from(rewrite.size)),
-            data.map_or_else(|| Instruction::opcode(op::CALLDATASIZE), Instruction::push_data),
-        ]
-        .into_iter()
-        .chain(rewrite.tail)
-        .map(|inst| inst.with_source_debug(&metadata))
-        .collect::<Vec<_>>();
+        let mut replacement = rewrite
+            .head
+            .into_iter()
+            .chain([
+                Instruction::push_value(U256::from(rewrite.size)),
+                data.map_or_else(|| Instruction::opcode(op::CALLDATASIZE), Instruction::push_data),
+            ])
+            .chain(rewrite.tail)
+            .map(|inst| inst.with_source_debug(&metadata))
+            .collect::<Vec<_>>();
         let copy = replacement
             .iter()
             .rposition(|inst| matches!(inst.opcode, op::CODECOPY | op::CALLDATACOPY))
@@ -341,12 +370,80 @@ fn find_run(
         if let Some(run) = scan_run(target, block, instructions, later, scratch)
             && run.rewrite.end == best.rewrite.end
             && run.data == best.data
-            && run.rewrite.saves_at_least(&best.rewrite, target)
+            && run.saves_at_least(&best, target)
         {
             best = run;
         }
     }
     Some((best.data, best.rewrite))
+}
+
+/// Calls `visit` with every run inside `parent`, `parent` itself included, that starts at a store's
+/// first operand and ends at a store. The pass prices them all, so a run of `n` stores has about
+/// `n^2 / 2` windows, each bounded by `MAX_RUN_INSTRUCTIONS`.
+fn for_each_window(
+    target: &Target,
+    instructions: &[Instruction],
+    parent: &Rewrite,
+    scratch: &mut RunScratch,
+    mut visit: impl FnMut(Run),
+) {
+    for start in parent.start..parent.end {
+        // A window that starts in the middle of a store's operands only repeats the work of the
+        // window that starts at the operands' first push.
+        if start != parent.start
+            && !matches!(instructions[start - 1].opcode, op::MSTORE | op::MSTORE8)
+        {
+            continue;
+        }
+        scan_ends(target, instructions, start, scratch);
+        for index in 0..scratch.ends.len() {
+            if scratch.ends[index].end <= parent.end
+                && let Some(window) = run_ending_at(target, parent.block, scratch, index)
+            {
+                visit(window);
+            }
+        }
+    }
+}
+
+/// Finds the non-overlapping runs inside `run`, other than `run` itself, that pay for their own
+/// data, taking the one that saves the most first.
+fn split_run(
+    target: &Target,
+    instructions: &[Instruction],
+    run: &Rewrite,
+    scratch: &mut RunScratch,
+) -> Vec<(Bytes, Rewrite)> {
+    let mut windows = Vec::<Run>::new();
+    let mut best = None::<Run>;
+    for_each_window(target, instructions, run, scratch, |window| {
+        if (window.rewrite.start, window.rewrite.end) == (run.start, run.end)
+            || !window.is_profitable(target)
+        {
+            return;
+        }
+        if best.as_ref().is_some_and(|best| best.rewrite.start != window.rewrite.start) {
+            windows.extend(best.take());
+        }
+        if best.as_ref().is_none_or(|best| window.saves_at_least(best, target)) {
+            best = Some(window);
+        }
+    });
+    windows.extend(best);
+    windows.sort_by(|a, b| {
+        target.cmp(a.rewrite.old + b.pooled_new(), b.rewrite.old + a.pooled_new()).reverse()
+    });
+    let mut taken = Vec::<Range<usize>>::new();
+    let mut found = Vec::new();
+    for window in windows {
+        let range = window.rewrite.start..window.rewrite.end;
+        if taken.iter().all(|taken| range.end <= taken.start || taken.end <= range.start) {
+            taken.push(range);
+            found.push((window.data, window.rewrite));
+        }
+    }
+    found
 }
 
 /// A word on the symbolic stack of a literal-store run: input slot `slot` of the run, counted
@@ -373,17 +470,24 @@ struct RunScratch {
     stack: Vec<RunWord>,
     stores: Vec<(u64, U256, bool)>,
     ranges: Vec<(u64, u64)>,
+    ends: Vec<RunEnd>,
     extras: Vec<RunWord>,
+    /// The start, destination base slot, and first store of the last scan.
+    start: usize,
+    destination: Option<usize>,
+    first_store: usize,
 }
 
 /// Stores of constants to one base address that a single copy can replace.
 struct Run {
     rewrite: Rewrite,
     data: Bytes,
+    zero: bool,
     first_store: usize,
 }
 
-/// The state of a run scan after a store; the stack words above `kept` are saved separately.
+/// A point where a run scan can stop: after a store that leaves the stores in one range and a stack
+/// a copy can rebuild. `extras` indexes the stack words above `kept` in `RunScratch::extras`.
 struct RunEnd {
     end: usize,
     old: Cost,
@@ -391,6 +495,32 @@ struct RunEnd {
     range: (u64, u64),
     inputs: usize,
     kept: usize,
+    extras: Range<usize>,
+}
+
+impl Run {
+    /// The cost of the copy with the bytes it adds to the data pool, when it needs data.
+    fn pooled_new(&self) -> Cost {
+        let data = if self.zero { 0 } else { self.data.len() as u32 };
+        self.rewrite.new + Cost::new(0, data)
+    }
+
+    /// Whether this run pays for its data alone, without sharing it with other sites.
+    fn is_profitable(&self, target: &Target) -> bool {
+        let saving = Improvement {
+            runtime_gas: i64::from(target.runtime_gas(self.rewrite.old))
+                - i64::from(target.runtime_gas(self.pooled_new())),
+            bytes: i64::from(self.rewrite.old.bytes) - i64::from(self.pooled_new().bytes),
+        };
+        saving.is_profitable(target)
+    }
+
+    /// Whether this saves at least as much as `other`, counting the data each adds.
+    fn saves_at_least(&self, other: &Self, target: &Target) -> bool {
+        target
+            .cmp(other.rewrite.old + self.pooled_new(), self.rewrite.old + other.pooled_new())
+            .is_le()
+    }
 }
 
 /// Symbolically runs the pushes, stack operations, constant expressions, and constant `MSTORE`
@@ -403,19 +533,30 @@ fn scan_run(
     start: usize,
     scratch: &mut RunScratch,
 ) -> Option<Run> {
+    scan_ends(target, instructions, start, scratch);
+    run_ending_at(target, block, scratch, scratch.ends.len().checked_sub(1)?)
+}
+
+/// Scans the stores from `start` and leaves every point where the run can stop in `scratch.ends`.
+fn scan_ends(
+    target: &Target,
+    instructions: &[Instruction],
+    start: usize,
+    scratch: &mut RunScratch,
+) {
+    scratch.ends.clear();
     if !is_split_point(instructions, start) {
-        return None;
+        return;
     }
-    let RunScratch { stack, stores, ranges, extras } = scratch;
+    let RunScratch { stack, stores, ranges, ends, extras, .. } = scratch;
     stack.clear();
     stores.clear();
     ranges.clear();
     extras.clear();
     let mut inputs = 0;
     let mut old = Cost::ZERO;
-    let mut base = None;
     let mut first_store = None;
-    let mut best = None;
+    let mut base = None;
     let ensure = |stack: &mut Vec<RunWord>, inputs: &mut usize, depth: usize| {
         while stack.len() < depth {
             stack.insert(0, RunWord::input(*inputs));
@@ -465,9 +606,17 @@ fn scan_run(
                 && is_split_point(instructions, end)
                 && (kept == inputs || kept == stack.len())
             {
-                extras.clear();
+                let first_extra = extras.len();
                 extras.extend_from_slice(&stack[kept..]);
-                best = Some(RunEnd { end, old, stores: stores.len(), range, inputs, kept });
+                ends.push(RunEnd {
+                    end,
+                    old,
+                    stores: stores.len(),
+                    range,
+                    inputs,
+                    kept,
+                    extras: first_extra..extras.len(),
+                });
             }
             continue;
         }
@@ -491,7 +640,24 @@ fn scan_run(
         stack.push(result);
     }
 
-    let RunEnd { end, old, stores: store_count, range: (low, high), inputs, kept } = best?;
+    scratch.start = start;
+    scratch.destination = base.flatten();
+    scratch.first_store = first_store.unwrap_or_default();
+}
+
+/// Builds and prices the copy that replaces the run that stops at `scratch.ends[index]`.
+fn run_ending_at(
+    target: &Target,
+    block: BlockId,
+    scratch: &RunScratch,
+    index: usize,
+) -> Option<Run> {
+    let RunScratch { stores, ends, extras, start, destination, first_store, .. } = scratch;
+    let run_end = &ends[index];
+    let (end, old, store_count) = (run_end.end, run_end.old, run_end.stores);
+    let (low, high) = run_end.range;
+    let (inputs, kept) = (run_end.inputs, run_end.kept);
+    let extras = &extras[run_end.extras.clone()];
     let mut data = vec![0; (high - low) as usize];
     for &(offset, value, word) in &stores[..store_count] {
         let at = (offset - low) as usize;
@@ -506,17 +672,71 @@ fn scan_run(
     if inputs + extras.len() + 4 > usize::from(u8::MAX) {
         return None;
     }
-    let zero = data.iter().all(|&byte| byte == 0);
-    let destination = RunWord { slot: base.flatten(), offset: U256::from(low) };
-    let tail = copy_tail(destination, zero, inputs, kept, extras);
-    // Reserve PUSH3 for an unresolved data address.
-    let source = if zero { target.opcode(op::CALLDATASIZE) } else { target.opcode(op::PUSH3) };
-    let mut new = target.push(U256::from(data.len())) + source + target.copied_words(data.len());
-    for inst in &tail {
-        new += instruction_cost(target, inst)?;
+    let destination = RunWord { slot: *destination, offset: U256::from(low) };
+    let plan = CopyPlan {
+        target,
+        block,
+        start: *start,
+        first_store: *first_store,
+        end,
+        old,
+        inputs,
+        kept,
+        extras,
+    };
+    let whole = plan.price(destination, &data, None)?;
+    // A copy of data with zeros at its end can stop before them if a zero word store clears the
+    // last word first. The store costs code but the pool gets fewer bytes.
+    let zeros = data.iter().rev().take_while(|&&byte| byte == 0).count().min(WORD_BYTES - 1);
+    let shortened = if !whole.zero && zeros > 0 && data.len() > WORD_BYTES {
+        plan.price(destination, &data[..data.len() - zeros], Some(data.len() - WORD_BYTES))
+    } else {
+        None
+    };
+    Some(match shortened {
+        Some(shortened) if !whole.saves_at_least(&shortened, target) => shortened,
+        _ => whole,
+    })
+}
+
+/// What a copy that replaces the stores of a run depends on.
+struct CopyPlan<'a> {
+    target: &'a Target,
+    block: BlockId,
+    start: usize,
+    first_store: usize,
+    end: usize,
+    old: Cost,
+    inputs: usize,
+    kept: usize,
+    extras: &'a [RunWord],
+}
+
+impl CopyPlan<'_> {
+    /// Prices the copy of `data` to `destination`, which first clears the word at `clear` bytes
+    /// from the start of the range, if any.
+    fn price(&self, destination: RunWord, data: &[u8], clear: Option<usize>) -> Option<Run> {
+        let Self { target, block, start, first_store, end, old, inputs, kept, extras } = *self;
+        let zero = data.iter().all(|&byte| byte == 0);
+        let tail = copy_tail(destination, zero, inputs, kept, extras);
+        // push 0; mstore destination + clear
+        let head = clear.map_or_else(Vec::new, |clear| {
+            let word = RunWord { offset: destination.offset + U256::from(clear), ..destination };
+            [Instruction::push_value(U256::ZERO)]
+                .into_iter()
+                .chain(push_address(word, 1))
+                .chain([Instruction::opcode(op::MSTORE)])
+                .collect()
+        });
+        let mut new = target.copy_operands(data.len(), zero);
+        for inst in head.iter().chain(&tail) {
+            new += instruction_cost(target, inst)?;
+        }
+        let data = Bytes::copy_from_slice(data);
+        let size = data.len();
+        let rewrite = Rewrite { block, start, end, size, old, new, head, tail, repeats: false };
+        Some(Run { rewrite, data, zero, first_store })
     }
-    let rewrite = Rewrite { block, start, end, size: data.len(), old, new, tail, repeats: false };
-    Some(Run { rewrite, data: data.into(), first_store: first_store? })
 }
 
 /// Adds `range` to the sorted disjoint `ranges`, merging touching ranges.
@@ -545,14 +765,7 @@ fn copy_tail(
     let dup = |depth: usize| Instruction::stack_op(op::StackOp::Dup(depth as u8));
     let mut tail = Vec::new();
     // dup base | push offset; dup base; add | push address
-    match destination {
-        RunWord { slot: Some(slot), offset } if offset.is_zero() => tail.push(dup(slot + 3)),
-        RunWord { slot: Some(slot), offset } => {
-            tail.extend([Instruction::push_value(offset), dup(slot + 4)]);
-            tail.push(Instruction::opcode(op::ADD));
-        }
-        RunWord { slot: None, offset } => tail.push(Instruction::push_value(offset)),
-    }
+    tail.extend(push_address(destination, 2));
     // codecopy | calldatacopy
     tail.push(Instruction::opcode(if zero { op::CALLDATACOPY } else { op::CODECOPY }));
     // pop
@@ -573,6 +786,20 @@ fn copy_tail(
         }
     }
     tail
+}
+
+/// The instructions that push `address` when `pushed` words sit above the inputs of the run.
+fn push_address(address: RunWord, pushed: usize) -> Vec<Instruction> {
+    let dup = |depth: usize| Instruction::stack_op(op::StackOp::Dup(depth as u8));
+    match address {
+        RunWord { slot: Some(slot), offset } if offset.is_zero() => vec![dup(slot + 1 + pushed)],
+        RunWord { slot: Some(slot), offset } => vec![
+            Instruction::push_value(offset),
+            dup(slot + 2 + pushed),
+            Instruction::opcode(op::ADD),
+        ],
+        RunWord { slot: None, offset } => vec![Instruction::push_value(offset)],
+    }
 }
 
 /// The cost of an instruction in a copy replacement, or `None` when the target lacks it.
@@ -603,17 +830,13 @@ fn apply_stack_op<T: Copy>(stack: &mut Vec<T>, stack_op: op::StackOp) {
 
 /// Shares storage between data entries after deferred data is linked in.
 pub(in crate::backend) fn pack_linked_data(module: &mut Module) -> bool {
-    let optimization = module.optimization;
-    pack_existing_data(module, optimization.is_gas() || optimization.is_size())
-}
-
-fn pack_existing_data(module: &mut Module, allow_subslices: bool) -> bool {
     !module.data.is_empty()
-        && scan_data_references(module)
-            .is_some_and(|referenced| pack_data(module, &referenced, allow_subslices))
+        && scan_data_references(module, None).is_some_and(|mut scan| pack_data(module, &mut scan))
 }
 
-fn pack_data(module: &mut Module, referenced: &DenseBitSet<DataId>, allow_subslices: bool) -> bool {
+fn pack_data(module: &mut Module, scan: &mut DataScan) -> bool {
+    let DataScan { referenced, tail, in_place } = scan;
+    let in_place = *in_place;
     if module.data.is_empty() {
         return false;
     }
@@ -624,6 +847,7 @@ fn pack_data(module: &mut Module, referenced: &DenseBitSet<DataId>, allow_subsli
         .collect::<Vec<_>>();
     if order.is_empty() {
         module.data.clear();
+        *tail = None;
         return true;
     }
     if module.data.len() == 1 {
@@ -639,17 +863,24 @@ fn pack_data(module: &mut Module, referenced: &DenseBitSet<DataId>, allow_subsli
     let mut exact =
         FxHashMap::<(Bytes, Vec<LibraryRelocation>, Vec<Range<usize>>), DataId>::default();
     let mut remap = FxHashMap::default();
-    let subslices = allow_subslices && module.data.len() < MAX_DATA_SUBSTRING_ENTRIES;
+    let subslices =
+        !module.optimization.is_none() && module.data.len() < MAX_DATA_SUBSTRING_ENTRIES;
     for old_id in order {
         let data = &module.data[old_id];
-        // Deferred bytes are not known yet, so they are never shared.
-        let key = (data.bytes.known()).filter(|_| !data.emit_in_runtime).map(|bytes| {
-            let trailers = data.trailers.iter().map(|trailer| trailer.range.clone());
-            (bytes.clone(), data.library_relocations.clone(), trailers.collect())
-        });
+        // Deferred bytes are not known yet, so they are never shared, and the tail stays in place
+        // when its address is used to find the constructor arguments.
+        let key = (data.bytes.known())
+            .filter(|_| !data.emit_in_runtime && !(in_place && Some(old_id) == *tail))
+            .map(|bytes| {
+                let trailers = data.trailers.iter().map(|trailer| trailer.range.clone());
+                (bytes.clone(), data.library_relocations.clone(), trailers.collect())
+            });
         let shared = key.as_ref().and_then(|key| {
             let exact = exact.get(key).map(|&id| DataRef::new(id, 0));
-            exact.or_else(|| subslices.then(|| find_data(&packed, data, old_id)).flatten())
+            exact.or_else(|| {
+                let at_end = Some(old_id) == *tail;
+                subslices.then(|| find_data(&packed, data, old_id, at_end)).flatten()
+            })
         });
         let data_ref = shared.unwrap_or_else(|| {
             packed.insert(old_id, data.clone());
@@ -666,13 +897,19 @@ fn pack_data(module: &mut Module, referenced: &DenseBitSet<DataId>, allow_subsli
         remap.insert(old_id, data_ref);
     }
 
-    packed.sort_unstable_keys();
+    // The entry that holds the tail stays last, which new entries would otherwise follow, and the
+    // trailers of the runtime code stay at its end.
+    // A tail that no instruction references is gone with the other unreferenced entries.
+    let host = tail.and_then(|tail| remap.get(&tail)).map(|data_ref| data_ref.id);
+    let last = |id: &DataId, data: &Data| (Some(*id) == host || data.emit_in_runtime, *id);
+    packed.sort_unstable_by(|id, data, other_id, other| last(id, data).cmp(&last(other_id, other)));
     if packed.values().eq(&module.data) {
         return false;
     }
     for data_ref in remap.values_mut() {
         data_ref.id = DataId::new(packed.get_index_of(&data_ref.id).unwrap());
     }
+    *tail = tail.and_then(|tail| remap.get(&tail)).map(|data_ref| data_ref.id);
     for block in &mut module.blocks {
         for inst in &mut block.instructions {
             match &mut inst.value {
@@ -692,11 +929,13 @@ fn pack_data(module: &mut Module, referenced: &DenseBitSet<DataId>, allow_subsli
     true
 }
 
-/// Finds `needle` inside an entry created from an older entry than `needle_id`.
+/// Finds `needle` inside an entry created from an older entry than `needle_id`, at its end when
+/// `at_end`.
 fn find_data(
     packed: &FxIndexMap<DataId, Data>,
     needle: &Data,
     needle_id: DataId,
+    at_end: bool,
 ) -> Option<DataRef> {
     let needle_bytes = needle.bytes.known()?;
     let mut finder = NeedleFinder::new(needle_bytes.clone());
@@ -704,7 +943,13 @@ fn find_data(
         if id >= needle_id {
             return None;
         }
-        let offset = finder.find(known.bytes.known()?)?;
+        let haystack = known.bytes.known()?;
+        let offset = if at_end {
+            // The tail must end its host, which goes last, so the deployment code ends with it.
+            haystack.ends_with(needle_bytes).then(|| haystack.len() - needle_bytes.len())?
+        } else {
+            finder.find(haystack)?
+        };
         let end = offset + needle_bytes.len();
         let compatible = known
             .library_relocations
@@ -746,20 +991,35 @@ fn add_trailer_owners(shared: &mut Data, trailers: &[Trailer], offset: usize) {
 #[derive(Clone, Copy)]
 enum DataStackValue {
     Unknown,
+    CodeSize,
     Immediate(usize),
     Data(DataRef),
     Size(DataSize),
 }
 
 pub(crate) fn data_layout_is_observable(module: &Module) -> bool {
-    scan_data_references(module).is_none()
+    scan_data_references(module, None).is_none()
 }
 
-/// Returns the data that instructions reference, or `None` when the data layout is observable:
-/// `CODESIZE` is used, or a data address may reach anything but a `CODECOPY` that stays inside
-/// its entry.
-fn scan_data_references(module: &Module) -> Option<DenseBitSet<DataId>> {
-    let mut referenced = DenseBitSet::new_empty(module.data.len());
+/// The data that instructions reference, and the entry that must stay last.
+struct DataScan {
+    referenced: DenseBitSet<DataId>,
+    /// The last entry of creation code, which the runtime code ends the deployment code with and
+    /// constructor arguments follow, so only bytes before it may change.
+    tail: Option<DataId>,
+    /// Whether the tail must keep its place and bytes, because code subtracts its address from
+    /// `CODESIZE` or copies from it without a known size.
+    in_place: bool,
+}
+
+/// Scans the data that instructions reference, or returns `None` when a data address may reach
+/// anything but a `CODECOPY` that stays inside its entry, or an address of the tail that is not
+/// subtracted from `CODESIZE` or copied from. `pinned` is the tail of an earlier scan, which new
+/// entries may follow.
+fn scan_data_references(module: &Module, pinned: Option<DataId>) -> Option<DataScan> {
+    let tail = pinned.or_else(|| module.data.indices().next_back().filter(|_| module.code_follows));
+    let mut scan =
+        DataScan { referenced: DenseBitSet::new_empty(module.data.len()), tail, in_place: false };
     let mut stack = Vec::new();
     for block in &module.blocks {
         // The stack starts empty, so without a data push no slot can hold a data address
@@ -769,13 +1029,10 @@ fn scan_data_references(module: &Module) -> Option<DenseBitSet<DataId>> {
             .iter()
             .any(|inst| inst.pushed_data().is_some() || inst.pushed_data_size().is_some());
         if !has_data {
-            if block.instructions.iter().any(|inst| inst.opcode == op::CODESIZE) {
-                return None;
-            }
             continue;
         }
         for inst in &block.instructions {
-            if escapes_data(module, inst, &mut stack, &mut referenced) {
+            if escapes_data(module, inst, &mut stack, &mut scan) {
                 return None;
             }
         }
@@ -791,7 +1048,7 @@ fn scan_data_references(module: &Module) -> Option<DenseBitSet<DataId>> {
             }
             let target = &module.blocks[*target];
             for inst in &target.instructions {
-                if escapes_data(module, inst, &mut stack, &mut referenced) {
+                if escapes_data(module, inst, &mut stack, &mut scan) {
                     return None;
                 }
             }
@@ -802,7 +1059,7 @@ fn scan_data_references(module: &Module) -> Option<DenseBitSet<DataId>> {
         }
         stack.clear();
     }
-    Some(referenced)
+    Some(scan)
 }
 
 fn holds_data(stack: &[DataStackValue]) -> bool {
@@ -815,18 +1072,19 @@ fn escapes_data(
     module: &Module,
     inst: &Instruction,
     stack: &mut Vec<DataStackValue>,
-    referenced: &mut DenseBitSet<DataId>,
+    scan: &mut DataScan,
 ) -> bool {
     if inst.opcode == op::CODESIZE {
-        return true;
+        stack.push(DataStackValue::CodeSize);
+        return false;
     }
     if let Some(data) = inst.pushed_data() {
-        referenced.insert(data.id);
+        scan.referenced.insert(data.id);
         stack.push(DataStackValue::Data(data));
         return false;
     }
     if let Some(size) = inst.pushed_data_size() {
-        referenced.insert(size.data);
+        scan.referenced.insert(size.data);
         stack.push(DataStackValue::Size(size));
         return false;
     }
@@ -858,14 +1116,28 @@ fn escapes_data(
     let first_input = stack.len() - inputs;
     for (index, value) in stack[first_input..].iter().rev().enumerate() {
         let DataStackValue::Data(data) = value else { continue };
-        let bounded = inst.opcode == op::CODECOPY
-            && index == 1
-            && match stack[first_input] {
-                DataStackValue::Immediate(size) => data_copy_is_bounded(module, *data, size),
-                DataStackValue::Size(size) => size.is_length_of(*data),
-                _ => false,
-            };
-        if !bounded {
+        // Bytes after the tail stay after it, since new entries go before it, so `codesize -
+        // address` and a copy to the end of the code read the same bytes.
+        let at_tail = Some(data.id) == scan.tail;
+        let contained = match inst.opcode {
+            op::CODECOPY if index == 1 => {
+                let bounded = match stack[first_input] {
+                    DataStackValue::Immediate(size) => data_copy_is_bounded(module, *data, size),
+                    DataStackValue::Size(size) => size.is_length_of(*data),
+                    _ => false,
+                };
+                scan.in_place |= at_tail && !bounded;
+                bounded || at_tail
+            }
+            op::SUB if index == 1 => {
+                let from_code_end =
+                    at_tail && matches!(stack.last(), Some(DataStackValue::CodeSize));
+                scan.in_place |= from_code_end;
+                from_code_end
+            }
+            _ => false,
+        };
+        if !contained {
             return true;
         }
     }

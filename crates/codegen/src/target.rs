@@ -642,6 +642,14 @@ impl Target {
         Cost::new(self.copy_word_gas().saturating_mul(words), 0)
     }
 
+    /// The size and source pushes of a copy of `size` bytes, with its word gas. The source of data
+    /// reserves a `PUSH3` for an address that final assembly resolves, so relocation cannot turn a
+    /// copy that pays into code growth; zeros copy from the end of calldata.
+    pub(crate) fn copy_operands(&self, size: usize, zero: bool) -> Cost {
+        let source = if zero { self.opcode(op::CALLDATASIZE) } else { self.opcode(op::PUSH3) };
+        self.push(U256::from(size)) + source + self.copied_words(size)
+    }
+
     /// Cost of one internal call site with its return landing: the pushed
     /// return label, the jump, the landing, and the frame protocol moving
     /// `args` arguments in and `returns` results out, whose gas grows with
@@ -1088,10 +1096,7 @@ impl Target {
                 + self.opcode(op::MSTORE).times(2)
                 + self.push(U256::from(word_size))
                 + self.opcode(op::ADD);
-            let copy = self.push(U256::from(size))
-                + self.opcode(op::PUSH3)
-                + self.dup()
-                + self.opcode(op::CODECOPY);
+            let copy = self.copy_operands(size, false) + self.dup() + self.opcode(op::CODECOPY);
             ((copies + seed).bytes as usize) < size.saturating_add(copy.bytes as usize)
         } else {
             let stores = (2..size / word_size)
@@ -1933,6 +1938,15 @@ mod tests {
         // Folding that drops the original object only moves the stores.
         assert!(folds(size(EvmVersion::Cancun), true, 64));
         assert!(!size(EvmVersion::Cancun).folds_preserved_literal(false, || None));
+    }
+
+    #[test]
+    fn data_copies_price_their_operands() {
+        let target = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 1);
+        // A zero fill copies from `CALLDATASIZE`, which needs no data operand push.
+        assert!(target.copy_operands(64, true).bytes < target.copy_operands(64, false).bytes);
+        // A longer copy pays more word gas.
+        assert!(target.copy_operands(1024, false).gas > target.copy_operands(64, false).gas);
     }
 
     #[test]
