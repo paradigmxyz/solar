@@ -624,6 +624,17 @@ fn get_threads() -> NonZeroUsize {
     *THREADS.get_or_init(|| std::thread::available_parallelism().unwrap_or(NonZeroUsize::MIN))
 }
 
+str_enum! {
+    /// Checks preservation of existing source origins around compiler passes.
+    #[strum(serialize_all = "kebab-case")]
+    pub enum Debugify {
+        /// Report lost source origins without rejecting the compilation.
+        Report,
+        /// Reject a pass that loses a source origin, for focused metadata tests.
+        Check,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

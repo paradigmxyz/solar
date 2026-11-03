@@ -9,10 +9,15 @@ const SOLAR: &str = env!("CARGO_BIN_EXE_solar");
 const FIXTURES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../tests/foundry/source-mappings");
 
 fn compile(mode: &str, outputs: &str) -> Value {
+    compile_with(mode, outputs, &[])
+}
+
+fn compile_with(mode: &str, outputs: &str, flags: &[&str]) -> Value {
     let output = Command::new(SOLAR)
         .current_dir(FIXTURES)
         .args(["src/Base.sol", "src/Decode.sol", "--allow=2264", "-O", mode])
         .arg(format!("--emit={outputs}"))
+        .args(flags)
         .output()
         .unwrap();
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
@@ -42,11 +47,16 @@ fn abi_origins_and_conditional_thunks() {
     for mode in ["none", "gas", "size"] {
         let plain = compile(mode, "bin,bin-runtime");
         let debug = compile(mode, "bin,bin-runtime,srcmap-runtime,ethdebug-runtime");
+        let audited = compile_with(mode, "bin,bin-runtime", &["-Zdebugify=report"]);
         for name in ["src/Base.sol:Harness", "src/Decode.sol:Decode"] {
             for code in ["bin", "bin-runtime"] {
                 assert_eq!(
                     plain["contracts"][name][code], debug["contracts"][name][code],
                     "{mode}"
+                );
+                assert_eq!(
+                    plain["contracts"][name][code], audited["contracts"][name][code],
+                    "{mode}: debugify changed bytecode"
                 );
             }
         }
@@ -105,6 +115,18 @@ fn abi_origins_and_conditional_thunks() {
             }),
             "{mode}: the require branch lost its conditional label's origin"
         );
+        if mode == "none" {
+            let start = source.find("_set(x)").unwrap();
+            let end = start + "_set(x)".len();
+            assert!(
+                instructions.iter().enumerate().any(|(index, inst)| {
+                    inst["operation"]["mnemonic"] == "JUMPDEST"
+                        && in_statement(entries[index], source_id("src/Base.sol"), start, end)
+                        && inst["context"]["code"]["range"]["offset"].as_u64() == Some(start as u64)
+                }),
+                "the removed tail jump must use its exclusive callee's existing label"
+            );
+        }
     }
 }
 
@@ -149,23 +171,19 @@ fn foundry_decode_and_require_coverage_matches_solc() {
             .split("end_of_record")
             .find(|record| record.lines().any(|line| line == "SF:src/Base.sol"))
             .expect("Base must appear in the coverage report");
-        let branches = base.lines().filter(|line| line.starts_with("BRDA:")).collect::<Vec<_>>();
         // LCOV combines statements on the same line. Also compare per-test source items so a
         // covered `if` line cannot hide a missing condition-expression statement.
         let mut attribution: Value = serde_json::from_str(&run("attribution")).unwrap();
         let tests = attribution["tests"].as_array_mut().unwrap();
         for test in tests.iter_mut() {
             let covered = test["covered"].as_array_mut().unwrap();
-            // NOTE: Base's zero-byte `_set(x)` tail-call checkpoint is not representable in
-            // legacy maps. Compare its two real branch paths, and every item in Decode.
             covered.retain(|item| {
-                item["source"] == "src/Decode.sol"
-                    || (item["source"] == "src/Base.sol" && item["kind"] == "branch")
+                item["source"] == "src/Decode.sol" || item["source"] == "src/Base.sol"
             });
             covered.sort_by_key(Value::to_string);
         }
         tests.sort_by_key(|test| test["test"].to_string());
-        reports.push((decode.trim().to_owned(), branches.join("\n"), attribution));
+        reports.push((decode.trim().to_owned(), base.trim().to_owned(), attribution));
     }
     assert_eq!(reports[0], reports[1]);
 }

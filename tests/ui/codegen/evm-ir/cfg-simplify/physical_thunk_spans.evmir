@@ -1,5 +1,6 @@
-//@ compile-flags: -Zevm-ir-pipeline=cfg-simplify
+//@ compile-flags: -Zevm-ir-pipeline=cfg-simplify -Zdebugify=report
 // Scheduled branches can carry their label push and JUMPI as physical instructions.
+// The other arm's jump-only checkpoints disappear into fallthrough; report those losses.
 @module PhysicalThunkSpans
 bb0:
   push 0

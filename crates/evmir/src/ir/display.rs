@@ -54,6 +54,16 @@ fn display_block<'a>(module: &'a Module, block: &'a Block) -> impl fmt::Display 
         if let Some(depth) = metadata.entry_depth {
             attributes.push(format!("stack={depth}"));
         }
+        if let Some(checkpoint) = metadata.entry_checkpoint {
+            attributes.push(format!(
+                "checkpoint={}..{}@{}..{}@{}",
+                checkpoint.source.lo().0,
+                checkpoint.source.hi().0,
+                checkpoint.transfer.lo().0,
+                checkpoint.transfer.hi().0,
+                checkpoint.modifier_depth,
+            ));
+        }
         let label = fmt::from_fn(|f| {
             write!(f, "bb{}", block.label)?;
             if !attributes.is_empty() {

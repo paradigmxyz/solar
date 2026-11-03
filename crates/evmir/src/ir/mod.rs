@@ -13,7 +13,7 @@
 //! is not defined by that serialization, and `verify` checks its invariants.
 
 use crate::{
-    debug::{DebugFunction, DebugFunctionExit, DebugSpans, MAX_DEBUG_SPANS},
+    debug::{DebugEntryCheckpoint, DebugFunction, DebugFunctionExit, DebugSpans, MAX_DEBUG_SPANS},
     link::{EmbeddedBytecodes, ImmutableId, LibraryId, LibraryTable},
     op::{self, StackOp, TrackedWord},
 };
@@ -21,6 +21,7 @@ use alloy_primitives::U256;
 use solar_ast::TypeSize;
 use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::{
+    bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
     newtype_index,
@@ -190,6 +191,73 @@ impl Module {
         let next = block.index() + 1;
         (next < self.blocks.len()).then(|| BlockId::from_usize(next))
     }
+
+    /// Returns checkpoints whose labels still have one direct incoming reference from the
+    /// recorded transfer. Opaque label uses, physical fallthrough and shared entries cannot prove
+    /// that execution reached the removed source operation.
+    pub fn valid_entry_checkpoints(&self) -> DenseBitSet<BlockId> {
+        let mut seen = DenseBitSet::new_empty(self.blocks.len());
+        if !self.blocks.iter().any(|block| block.metadata.entry_checkpoint.is_some()) {
+            return seen;
+        }
+        let mut invalid = DenseBitSet::new_empty(self.blocks.len());
+        let mut reference = |target: BlockId, metadata: Option<&Metadata>| {
+            let Some(checkpoint) = self.blocks[target].metadata.entry_checkpoint else { return };
+            if !seen.insert(target)
+                || !metadata
+                    .is_some_and(|metadata| metadata.source_spans() == [checkpoint.transfer])
+            {
+                invalid.insert(target);
+            }
+        };
+        if !self.blocks.is_empty() {
+            reference(BlockId::ENTRY, None);
+        }
+        for (id, block) in self.blocks.iter_enumerated() {
+            for (index, inst) in block.instructions.iter().enumerate() {
+                if let Some(target) = inst.pushed_block() {
+                    let direct = block
+                        .instructions
+                        .get(index + 1)
+                        .is_some_and(|next| matches!(next.opcode, op::JUMP | op::JUMPI))
+                        || (index + 1 == block.instructions.len()
+                            && block.terminator.as_ref().is_some_and(|term| {
+                                matches!(term.kind, TerminatorKind::Op(op::JUMP | op::JUMPI))
+                            }));
+                    reference(target, direct.then_some(&inst.metadata));
+                }
+            }
+            if let Some(term) = &block.terminator {
+                let direct =
+                    matches!(term.kind, TerminatorKind::Jump(_) | TerminatorKind::JumpI { .. });
+                term.kind
+                    .visit_targets(|target| reference(target, direct.then_some(&term.metadata)));
+            }
+            let falls_through = match block.terminator.as_ref().map(|term| &term.kind) {
+                Some(TerminatorKind::Op(opcode)) => !op::is_terminal(*opcode),
+                Some(_) => false,
+                None => block.instructions.last().is_none_or(|inst| !op::is_terminal(inst.opcode)),
+            };
+            if falls_through && let Some(next) = self.next_block(id) {
+                reference(next, None);
+            }
+        }
+        seen.subtract(&invalid);
+        seen
+    }
+
+    /// Drops checkpoints as soon as a transform invalidates their exclusive-entry proof.
+    pub fn drop_invalid_entry_checkpoints(&mut self) {
+        if !self.blocks.iter().any(|block| block.metadata.entry_checkpoint.is_some()) {
+            return;
+        }
+        let valid = self.valid_entry_checkpoints();
+        for (id, block) in self.blocks.iter_mut_enumerated() {
+            if !valid.contains(id) {
+                block.metadata.entry_checkpoint = None;
+            }
+        }
+    }
 }
 
 /// A basic block in EVM IR.
@@ -258,6 +326,8 @@ pub struct BlockMetadata {
     /// Direct jumps to the block are calls, and the return address is a block's address that the
     /// caller pushed before them. See [`CallEffect`].
     pub call_effect: Option<CallEffect>,
+    /// A removed transfer's checkpoint on this block's existing leading `JUMPDEST`.
+    pub entry_checkpoint: Option<DebugEntryCheckpoint>,
 }
 
 /// How code returns to its caller through a dynamic `jump`.

@@ -232,6 +232,7 @@ fn lower_evm_ir_once(
         }
     }
     let mut program = Program::with_debug_info(capture_debug_info);
+    let entry_checkpoints = module.valid_entry_checkpoints();
     let mut pending_block_invoke = None;
     for (block_id, block) in module.blocks.iter_enumerated() {
         program.set_source_span(None);
@@ -249,6 +250,12 @@ fn lower_evm_ir_once(
             pending_block_invoke = Some(function);
         }
         if let Some(label) = labels.get(original).copied().flatten() {
+            if entry_checkpoints.contains(block_id)
+                && let Some(checkpoint) = block.metadata.entry_checkpoint
+            {
+                program.set_source_span(Some(checkpoint.source));
+                program.set_modifier_depth(checkpoint.modifier_depth);
+            }
             program.define_label(label);
             program.mark_last_function_invoke(pending_block_invoke.take());
         }

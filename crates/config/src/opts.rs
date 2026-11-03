@@ -1,9 +1,9 @@
 //! Solar CLI arguments.
 
 use crate::{
-    ColorChoice, CompilerOutput, CompilerStage, Dump, ErrorFormat, EvmVersion, HumanEmitterKind,
-    ImportRemapping, Language, LibraryAddress, OptimizationMode, RevertStrings, SwitchLowering,
-    Threads, Tune,
+    ColorChoice, CompilerOutput, CompilerStage, Debugify, Dump, ErrorFormat, EvmVersion,
+    HumanEmitterKind, ImportRemapping, Language, LibraryAddress, OptimizationMode, RevertStrings,
+    SwitchLowering, Threads, Tune,
 };
 use std::{num::NonZeroUsize, path::PathBuf};
 
@@ -397,6 +397,15 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub pass_diff: bool,
 
+    /// Compare source origins before and after each MIR and EVM IR pass. `report` lists lost
+    /// origins; `check` also fails when any are lost. Loss can be legitimate after deleting code,
+    /// so use `check` with a focused pipeline. Does not change generated code.
+    #[cfg_attr(
+        feature = "clap",
+        arg(long, require_equals = true, value_name = "MODE", hide_possible_values = true)
+    )]
+    pub debugify: Option<Debugify>,
+
     /// Validate MIR and EVM IR after each pass. Enabled by default in debug builds.
     /// Accepts `true` or `false`.
     #[cfg_attr(
@@ -522,6 +531,7 @@ impl UnstableOpts {
             print_natspec: _,
             print_after_each: _,
             pass_diff: _,
+            debugify: _,
             validate_ir: _,
             time_passes: _,
             forget_gcx: _,

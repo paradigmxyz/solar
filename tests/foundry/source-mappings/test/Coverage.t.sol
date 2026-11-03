@@ -23,4 +23,11 @@ contract CoverageTest {
         (address who, uint256 got) = d.execute(7, abi.encode(Decode.Op.B, bytes("")));
         assert(who == address(0) && got == 0);
     }
+
+    function testInitRejectsZero() external {
+        Harness h = new Harness();
+        (bool ok, bytes memory reason) = address(h).call(abi.encodeCall(h.init, (address(0))));
+        assert(!ok && bytes4(reason) == Base.ZeroAddress.selector);
+        assert(h.a() == address(0));
+    }
 }

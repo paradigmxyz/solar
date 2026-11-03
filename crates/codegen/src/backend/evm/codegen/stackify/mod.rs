@@ -255,7 +255,11 @@ enum Exit {
     /// Returns to the caller; the stack holds the results and the return address.
     Return,
     /// Transfers control to a function whose entry tuple is prepared.
-    TailCall(FunctionId),
+    TailCall {
+        callee: FunctionId,
+        /// The call folded into a return, or `None` for an explicit MIR tail call.
+        origin: Option<InstId>,
+    },
     /// Ends the message call through the block's own terminator.
     Terminal,
 }
