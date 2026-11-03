@@ -478,7 +478,7 @@ pub fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, name: Option<
                     let text = module.to_text();
                     print_pass_diff(&name, "none", &text, &text);
                 } else if gcx.sess.opts.unstable.print_after_each {
-                    println!("// === {name} (after none) ===");
+                    println!("; === {name} (after none) ===");
                     print!("{}", module.to_text());
                 }
             }

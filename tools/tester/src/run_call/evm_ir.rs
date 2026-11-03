@@ -238,7 +238,7 @@ mod tests {
     #[test]
     fn dumps_follow_the_json() {
         let stdout = br#"{"contracts":{"a.sol:A":{"bin-runtime":"00"}},"version":"0.2.0"}
-// === a.sol:A (scheduled runtime) ===
+; === a.sol:A (scheduled runtime) ===
 @module A_runtime
 bb0:
   stop

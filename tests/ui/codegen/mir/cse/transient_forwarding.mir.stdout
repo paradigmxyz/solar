@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/cse/transient_forwarding.sol:TransientForwarding ===
+; === ROOT/tests/ui/codegen/mir/cse/transient_forwarding.sol:TransientForwarding ===
 @module TransientForwarding
 ; function stored(uint256 x) external returns (uint256) [selector 0x8c396222]
 fn @stored(arg0: i256) -> i256 [selector=0x8c396222, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -32,9 +32,9 @@ fn @afterCall(arg0: i256) -> i256 [selector=0x848c400d, abi_params=[uint256], ab
     v5 = zext i160 v0 to i256
     v6 = call v1, v5, 0, 28, 4, 0, 0
     jumpi v6, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v7 = tload 0
     ret v7
 }

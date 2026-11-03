@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/memory_allocation_panic.sol:MemoryAllocationPanic ===
+; === ROOT/tests/ui/codegen/lowering/memory_allocation_panic.sol:MemoryAllocationPanic ===
 @module MemoryAllocationPanic
 ; function makeBytes(uint256 n) external pure returns (uint256) [selector 0xd90fd4da]
 fn @makeBytes(arg0: i256) -> i256 [selector=0xd90fd4da, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {

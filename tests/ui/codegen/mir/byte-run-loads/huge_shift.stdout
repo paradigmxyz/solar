@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/byte-run-loads/huge_shift.mir (before byte-run-loads) ===
-+ // === ROOT/tests/ui/codegen/mir/byte-run-loads/huge_shift.mir (after byte-run-loads) ===
+- ; === ROOT/tests/ui/codegen/mir/byte-run-loads/huge_shift.mir (before byte-run-loads) ===
++ ; === ROOT/tests/ui/codegen/mir/byte-run-loads/huge_shift.mir (after byte-run-loads) ===
   @module HugeShift
   fn @wrapping_shift(arg0: i256) -> i256 {
     bb0:

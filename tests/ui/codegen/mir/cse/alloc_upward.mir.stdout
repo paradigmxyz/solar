@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/cse/alloc_upward.sol:AllocUpward ===
+; === ROOT/tests/ui/codegen/mir/cse/alloc_upward.sol:AllocUpward ===
 @module AllocUpward
 @types
   struct0: {i256, i256}

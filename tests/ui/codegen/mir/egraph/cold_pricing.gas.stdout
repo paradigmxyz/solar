@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/egraph/cold_pricing.mir (before egraph) ===
-+ // === ROOT/tests/ui/codegen/mir/egraph/cold_pricing.mir (after egraph) ===
+- ; === ROOT/tests/ui/codegen/mir/egraph/cold_pricing.mir (before egraph) ===
++ ; === ROOT/tests/ui/codegen/mir/egraph/cold_pricing.mir (after egraph) ===
   @module ColdPricing
   fn @hot(arg0: i256) -> i1 {
     bb0:
@@ -15,7 +15,7 @@
   fn @cold_block(arg0: i256, arg1: i1) -> i256 {
     bb0:
       jumpi arg1, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       v5 = mul arg0, 54
       v6 = div v5, arg0
       v7 = eq v6, 54
@@ -24,16 +24,16 @@
 +     v9 = lt arg0, 0x4bda12f684bda12f684bda12f684bda12f684bda12f684bda12f684bda12f69
       v10 = zext i1 v9 to i256
       ret v10
-    bb1 [cold]:  ; preds = bb0
+    bb1 [cold]:                                     ; preds = bb0
       v0 = mul arg0, 54
       v1 = div v0, arg0
       v2 = eq v1, 54
       v3 = eq arg0, 0
       v4 = or v3, v2
       jumpi v4, bb3, bb4
-    bb4 [cold]:  ; preds = bb1
+    bb4 [cold]:                                     ; preds = bb1
       revert 0, 0
-    bb3 [cold]:  ; preds = bb1
+    bb3 [cold]:                                     ; preds = bb1
       revert 0, 0
   }
   
@@ -45,9 +45,9 @@
       v3 = eq arg0, 0
       v4 = or v3, v2
       jumpi v4, bb1, bb2
-    bb2 [cold]:  ; preds = bb0
+    bb2 [cold]:                                     ; preds = bb0
       revert 0, 0
-    bb1 [cold]:  ; preds = bb0
+    bb1 [cold]:                                     ; preds = bb0
       revert 0, 0
   }
   

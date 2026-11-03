@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/merge-equivalent-functions/debug_origins.mir (before merge-equivalent-functions) ===
-+ // === ROOT/tests/ui/codegen/mir/merge-equivalent-functions/debug_origins.mir (after merge-equivalent-functions) ===
+- ; === ROOT/tests/ui/codegen/mir/merge-equivalent-functions/debug_origins.mir (before merge-equivalent-functions) ===
++ ; === ROOT/tests/ui/codegen/mir/merge-equivalent-functions/debug_origins.mir (after merge-equivalent-functions) ===
   @module SharedOrigins
   fn @first(arg0: i256) -> i256 {
     bb0:

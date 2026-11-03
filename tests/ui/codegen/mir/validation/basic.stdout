@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/validation/basic.mir (before none) ===
-+ // === ROOT/tests/ui/codegen/mir/validation/basic.mir (after none) ===
+- ; === ROOT/tests/ui/codegen/mir/validation/basic.mir (before none) ===
++ ; === ROOT/tests/ui/codegen/mir/validation/basic.mir (after none) ===
   @module BasicValidation
   fn @linear(arg0: i256) -> i256 {
     bb0:

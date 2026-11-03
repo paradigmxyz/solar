@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/none/program_data.evmir (before none) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/none/program_data.evmir (after none) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/none/program_data.evmir (before none) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/none/program_data.evmir (after none) ===
   @module data
   @data
     0: hex"11223344"

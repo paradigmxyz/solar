@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/signed_constant_ops.sol:SignedConstantOps ===
+; === ROOT/tests/ui/codegen/lowering/signed_constant_ops.sol:SignedConstantOps ===
 @module SignedConstantOps
 ; function lt() public pure returns (bool) [selector 0xa22ca2a6]
 fn @lt() -> i1 [selector=0xa22ca2a6, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {

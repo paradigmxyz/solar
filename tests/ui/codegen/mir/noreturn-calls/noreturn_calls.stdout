@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/noreturn-calls/noreturn_calls.mir (before noreturn-calls) ===
-+ // === ROOT/tests/ui/codegen/mir/noreturn-calls/noreturn_calls.mir (after noreturn-calls) ===
+- ; === ROOT/tests/ui/codegen/mir/noreturn-calls/noreturn_calls.mir (before noreturn-calls) ===
++ ; === ROOT/tests/ui/codegen/mir/noreturn-calls/noreturn_calls.mir (after noreturn-calls) ===
   @module NoreturnCalls
   fn @fail() [cold] {
     bb0 [cold]:
@@ -15,12 +15,12 @@
     bb0:
       v0 = lt arg0, arg1
       jumpi v0, bb2, bb1
-    bb1 [cold]:  ; preds = bb0
+    bb1 [cold]:                                     ; preds = bb0
       icall @fail
 -     jump bb2
--   bb2:  ; preds = bb0, bb1
+-   bb2:                                            ; preds = bb0, bb1
 +     invalid
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
       ret arg0
   }
   
@@ -36,7 +36,7 @@
     bb0 [cold]:
       icall @fail
 -     jump bb1
--   bb1:  ; preds = bb0
+-   bb1:                                            ; preds = bb0
 -     ret
 +     invalid
   }
@@ -52,9 +52,9 @@
     bb0:
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       ret
-    bb1 [cold]:  ; preds = bb0
+    bb1 [cold]:                                     ; preds = bb0
       revert 0, 0
   }
   

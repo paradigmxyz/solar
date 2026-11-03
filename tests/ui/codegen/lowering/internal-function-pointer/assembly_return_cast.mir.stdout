@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/internal-function-pointer/assembly_return_cast.sol:InternalFunctionPointerAssemblyReturnCast ===
+; === ROOT/tests/ui/codegen/lowering/internal-function-pointer/assembly_return_cast.sol:InternalFunctionPointerAssemblyReturnCast ===
 @module InternalFunctionPointerAssemblyReturnCast
 @types
   struct0: {i256, i256}
@@ -249,32 +249,32 @@ fn @internal_dispatcher_asm_p_uint256_r_memorystruct(arg0: i256, arg1: i256) -> 
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v3 = eq arg0, 2
     jumpi v3, bb3, bb4
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v6 = eq arg0, 3
     jumpi v6, bb5, bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     v9 = eq arg0, 6
     jumpi v9, bb7, bb8
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     icall panic_if<0x51>, true
     invalid
-  bb7:  ; preds = bb6
+  bb7:                                            ; preds = bb6
     v10 = inttoptr i256 arg1 to ptr<memory>
     v11 = icall @_productOf, v10
     v12 = inttoptr i256 v11 to ptr<memory>
     ret v12
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     v7 = icall @_sumWords, arg1
     v8 = inttoptr i256 v7 to ptr<memory>
     ret v8
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v4 = icall @_decodeBytes, arg1
     v5 = inttoptr i256 v4 to ptr<memory>
     ret v5
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = icall @_decodePair, arg1
     v2 = inttoptr i256 v1 to ptr<memory>
     ret v2
@@ -284,32 +284,32 @@ fn @internal_dispatcher_asm_p_uint256_r_memorybytes(arg0: i256, arg1: i256) -> p
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v3 = eq arg0, 2
     jumpi v3, bb3, bb4
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v6 = eq arg0, 3
     jumpi v6, bb5, bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     v9 = eq arg0, 6
     jumpi v9, bb7, bb8
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     icall panic_if<0x51>, true
     invalid
-  bb7:  ; preds = bb6
+  bb7:                                            ; preds = bb6
     v10 = inttoptr i256 arg1 to ptr<memory>
     v11 = icall @_productOf, v10
     v12 = inttoptr i256 v11 to ptr<memory>
     ret v12
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     v7 = icall @_sumWords, arg1
     v8 = inttoptr i256 v7 to ptr<memory>
     ret v8
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v4 = icall @_decodeBytes, arg1
     v5 = inttoptr i256 v4 to ptr<memory>
     ret v5
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = icall @_decodePair, arg1
     v2 = inttoptr i256 v1 to ptr<memory>
     ret v2
@@ -319,30 +319,30 @@ fn @internal_dispatcher_asm_p_memorystruct_r_uint256(arg0: i256, arg1: ptr<memor
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v3 = eq arg0, 2
     jumpi v3, bb3, bb4
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v6 = eq arg0, 3
     jumpi v6, bb5, bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     v9 = eq arg0, 6
     jumpi v9, bb7, bb8
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     icall panic_if<0x51>, true
     invalid
-  bb7:  ; preds = bb6
+  bb7:                                            ; preds = bb6
     v10 = icall @_productOf, arg1
     ret v10
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     v7 = ptrtoint ptr<memory> arg1 to i256
     v8 = icall @_sumWords, v7
     ret v8
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v4 = ptrtoint ptr<memory> arg1 to i256
     v5 = icall @_decodeBytes, v4
     ret v5
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = ptrtoint ptr<memory> arg1 to i256
     v2 = icall @_decodePair, v1
     ret v2
@@ -352,10 +352,10 @@ fn @internal_dispatcher_asm_p_memoryarray_memoryarray_r_uint256_memoryarray_memo
   bb0:
     v0 = eq arg0, 4
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = ptrtoint ptr<memory> arg1 to i256
     v2 = ptrtoint ptr<memory> arg2 to i256
     v3 = icall @_swapWords, v1, v2
@@ -374,10 +374,10 @@ fn @internal_dispatcher_asm_p_memorystruct_function_r_uint256(arg0: i256, arg1: 
   bb0:
     v0 = eq arg0, 5
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = ptrtoint ptr<memory> arg1 to i256
     v2 = icall @_applyWord, v1, arg2
     ret v2
@@ -387,10 +387,10 @@ fn @internal_dispatcher_p_uint256_r_bool(arg0: i256, arg1: i256) -> i1 [function
   bb0:
     v0 = eq arg0, 7
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = icall @_isOdd, arg1
     ret v1
 }
@@ -399,10 +399,10 @@ fn @internal_dispatcher_asm_p_uint256_r_uint256_uint256(arg0: i256, arg1: i256) 
   bb0:
     v0 = eq arg0, 8
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = icall @_rawAndTyped, arg1
     ret v1
 }
@@ -411,29 +411,29 @@ fn @internal_dispatcher_asm_p_uint256_r_uint256(arg0: i256, arg1: i256) -> i256 
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v2 = eq arg0, 2
     jumpi v2, bb3, bb4
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v4 = eq arg0, 3
     jumpi v4, bb5, bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     v6 = eq arg0, 6
     jumpi v6, bb7, bb8
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     icall panic_if<0x51>, true
     invalid
-  bb7:  ; preds = bb6
+  bb7:                                            ; preds = bb6
     v7 = inttoptr i256 arg1 to ptr<memory>
     v8 = icall @_productOf, v7
     ret v8
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     v5 = icall @_sumWords, arg1
     ret v5
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v3 = icall @_decodeBytes, arg1
     ret v3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = icall @_decodePair, arg1
     ret v1
 }

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/external_view_call_evm_version.sol:Caller ===
+; === ROOT/tests/ui/codegen/lowering/external_view_call_evm_version.sol:Caller ===
 @module Caller
 ; function read(Target target) external view returns (uint256) [selector 0xa087a87e]
 fn @read(arg0: i160) -> i256 [selector=0xa087a87e, view, abi_params=[address], abi_returns=[word], abi_return_params=[uint256]] {
@@ -19,9 +19,9 @@ fn @read(arg0: i160) -> i256 [selector=0xa087a87e, view, abi_params=[address], a
     v11 = zext i160 arg0 to i256
     v12 = call v10, v11, 0, v4, v5, v4, 32
     jumpi v12, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v13 = mload v4
     ret v13
 }
@@ -46,9 +46,9 @@ fn @readPointer(arg0: i256) -> i256 [selector=0x92528617, view, abi_params=[func
     v12 = sub v11, 50
     v13 = call v12, v2, 0, v7, v8, v7, 32
     jumpi v13, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v14 = mload v7
     ret v14
 }

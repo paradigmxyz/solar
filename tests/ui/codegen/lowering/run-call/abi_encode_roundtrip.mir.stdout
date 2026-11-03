@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_roundtrip.sol:AbiEncodeRoundtrip ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_roundtrip.sol:AbiEncodeRoundtrip ===
 @module AbiEncodeRoundtrip
 @types
   struct0: {i256, i256, i8}
@@ -111,11 +111,11 @@ fn @nestedMixedRoundtrip() -> struct2 [selector=0x337c7ce0, pure, abi_params=[],
     v0 = alloc zeroed checked 96
     mstore v0, 2
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v6]
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v7 = alloc zeroed checked 96
     mstore v7, 2
     v8 = mload v0
@@ -209,7 +209,7 @@ fn @nestedMixedRoundtrip() -> struct2 [selector=0x337c7ce0, pure, abi_params=[],
     v76 = insert_value struct2, v75, 2, v72
     v77 = insert_value struct2, v76, 3, v73
     ret v77
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32

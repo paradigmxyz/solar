@@ -1,6 +1,6 @@
-// === ROOT/tests/ui/codegen/lowering/function_call.sol:FunctionCall (runtime) ===
+; === ROOT/tests/ui/codegen/lowering/function_call.sol:FunctionCall (runtime) ===
 @module FunctionCall_runtime
-bb0:  ; runtime dispatch entry
+bb0:                                              ; runtime dispatch entry
   callvalue
   push bb4
   jumpi
@@ -39,7 +39,7 @@ bb14 [cold]:
   push 36
   push 28
   revert
-bb5:  ; function quadruple(uint256 x) public pure returns (uint256) [selector 0x7fdb7587]
+bb5:                                              ; function quadruple(uint256 x) public pure returns (uint256) [selector 0x7fdb7587]
   push 36
   calldatasize
   lt
@@ -49,7 +49,7 @@ bb5:  ; function quadruple(uint256 x) public pure returns (uint256) [selector 0x
   calldataload
   push bb7
   jump bb16
-bb16 [ret=0, inputs=2, outputs=1]:  ; function double(uint256 x) internal pure returns (uint256)
+bb16 [ret=0, inputs=2, outputs=1]:                ; function double(uint256 x) internal pure returns (uint256)
   dup 2
   dup 1
   add
@@ -62,7 +62,7 @@ bb16 [ret=0, inputs=2, outputs=1]:  ; function double(uint256 x) internal pure r
 bb7 [continuation]:
   push bb8
   jump bb16
-bb10:  ; function sum_then_double(uint256 a, uint256 b) public pure returns (uint256) [selector 0xd386d5a2]
+bb10:                                             ; function sum_then_double(uint256 a, uint256 b) public pure returns (uint256) [selector 0xd386d5a2]
   push 68
   calldatasize
   lt

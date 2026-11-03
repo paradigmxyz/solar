@@ -1,6 +1,6 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/constant_select.sol:ConstantSelect (runtime) ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constant_select.sol:ConstantSelect (runtime) ===
 @module ConstantSelect_runtime
-bb0:  ; runtime dispatch entry
+bb0:                                              ; runtime dispatch entry
   callvalue
   push bb12
   jumpi
@@ -66,7 +66,7 @@ bb79 [loop]:
   pop
   pop
   jump
-bb70:  ; function dirtyTernary(uint256 raw, uint256 x) external pure returns (uint256) [selector 0xcd9c288e]
+bb70:                                             ; function dirtyTernary(uint256 raw, uint256 x) external pure returns (uint256) [selector 0xcd9c288e]
   push 68
   calldatasize
   lt
@@ -100,7 +100,7 @@ bb81 [cold]:
   push 36
   push 28
   revert
-bb2:  ; function choose(uint256 raw, uint256 yes, uint256 no) external pure returns (uint256) [selector 0x739ca28b]
+bb2:                                              ; function choose(uint256 raw, uint256 yes, uint256 no) external pure returns (uint256) [selector 0x739ca28b]
   dup 1
   push 0x1cd9057
   eq
@@ -143,7 +143,7 @@ bb2:  ; function choose(uint256 raw, uint256 yes, uint256 no) external pure retu
   push 32
   push 0
   return
-bb16 [loop]:  ; function store(bytes memory value) external returns (bytes memory) [selector 0xb374012b] + clear_storage_words (synthesized)
+bb16 [loop]:                                      ; function store(bytes memory value) external returns (bytes memory) [selector 0xb374012b] + clear_storage_words (synthesized)
   push 4
   dup 1
   calldataload
@@ -523,7 +523,7 @@ bb43:
   pop
   pop
   jump bb31
-bb44:  ; function word(bytes calldata value) external pure returns (bytes32) [selector 0xc22ee0b0]
+bb44:                                             ; function word(bytes calldata value) external pure returns (bytes32) [selector 0xc22ee0b0]
   push 36
   calldatasize
   lt
@@ -531,7 +531,7 @@ bb44:  ; function word(bytes calldata value) external pure returns (bytes32) [se
   jumpi
   push bb46
   jump bb80
-bb80 [ret=0, inputs=1, outputs=1]:  ; decode_calldata_slice (synthesized)
+bb80 [ret=0, inputs=1, outputs=1]:                ; decode_calldata_slice (synthesized)
   push 4
   calldataload
   push 4
@@ -585,7 +585,7 @@ bb46 [continuation]:
   push 32
   push 0
   return
-bb48:  ; function prefix(bytes calldata value) external pure returns (bytes4) [selector 0x01cd9057]
+bb48:                                             ; function prefix(bytes calldata value) external pure returns (bytes4) [selector 0x01cd9057]
   push 36
   calldatasize
   lt
@@ -628,7 +628,7 @@ bb50 [continuation]:
   push 32
   push 0
   return
-bb52:  ; function signature(bool condition) external pure returns (bytes memory) [selector 0x59834352]
+bb52:                                             ; function signature(bool condition) external pure returns (bytes memory) [selector 0x59834352]
   push 4
   calldataload
   push 1
@@ -695,12 +695,12 @@ bb56:
   push 96
   swap 1
   return
-bb58:  ; function dirtySignature(uint256 raw) external pure returns (bytes memory) [selector 0xca22fbdf]
+bb58:                                             ; function dirtySignature(uint256 raw) external pure returns (bytes memory) [selector 0xca22fbdf]
   push 36
   calldatasize
   lt
   jump bb85
-bb64:  ; function reverseSignature(uint256 raw) external pure returns (bytes memory) [selector 0x97ffd282]
+bb64:                                             ; function reverseSignature(uint256 raw) external pure returns (bytes memory) [selector 0x97ffd282]
   push 36
   calldatasize
   lt

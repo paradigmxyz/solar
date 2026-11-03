@@ -1,20 +1,20 @@
-// === ROOT/tests/ui/codegen/lowering/try_catch_return.sol:TryCatchReturnTarget ===
+; === ROOT/tests/ui/codegen/lowering/try_catch_return.sol:TryCatchReturnTarget ===
 @module TryCatchReturnTarget
 ; function value(bool ok) external pure returns (uint256) [selector 0xc4d47ed1]
 fn @value(arg0: i1) -> i256 [selector=0xc4d47ed1, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = eq arg0, false
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     ret 13
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     icall revert_if<empty>, true
     invalid
 }
 
-// === ROOT/tests/ui/codegen/lowering/try_catch_return.sol:TryCatchReturn ===
+; === ROOT/tests/ui/codegen/lowering/try_catch_return.sol:TryCatchReturn ===
 @module TryCatchReturn
 @data
   TryCatchReturnTarget_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/try_catch_return.sol:TryCatchReturnTarget"
@@ -28,9 +28,9 @@ fn @constructor() [constructor] {
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = sload 0 !metadata(storage=slot(0))
     v5 = and v4, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
     v6 = zext i160 v2 to i256
@@ -53,20 +53,20 @@ fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v5 = zext i160 v1 to i256
     v6 = staticcall v2, v5, 28, 36, 0, 32
     jumpi v6, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v7 = returndatasize
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
     v9 = mload 0 !metadata(memory=scratch)
     jump bb3
-  bb3:  ; preds = bb1, bb4
+  bb3:                                            ; preds = bb1, bb4
     v10 = phi [bb1: v9], [bb4: 9]
     ret v10
 }
@@ -84,20 +84,20 @@ fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v5 = zext i160 v1 to i256
     v6 = staticcall v2, v5, 28, 36, 0, 32
     jumpi v6, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v7 = returndatasize
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
     v9 = mload 0 !metadata(memory=scratch)
     jump bb3
-  bb3:  ; preds = bb1, bb4
+  bb3:                                            ; preds = bb1, bb4
     v10 = phi [bb1: v9], [bb4: 9]
     ret v10
 }
@@ -115,14 +115,14 @@ fn @ignored() -> i256 [selector=0x0c77db80, view, abi_params=[], abi_returns=[wo
     v5 = zext i160 v1 to i256
     v6 = staticcall v2, v5, 28, 36, 0, 32
     jumpi v6, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     ret 9
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v7 = returndatasize
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
