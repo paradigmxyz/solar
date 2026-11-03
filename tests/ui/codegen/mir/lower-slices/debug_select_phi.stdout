@@ -1,0 +1,39 @@
+- // === ROOT/tests/ui/codegen/mir/lower-slices/debug_select_phi.mir (before lower-slices) ===
++ // === ROOT/tests/ui/codegen/mir/lower-slices/debug_select_phi.mir (after lower-slices) ===
+  @module DebugSliceSplitting
+- fn @select(arg0: slice<calldata>, arg1: slice<calldata>, arg2: i1) -> i256 {
++ fn @select(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i1) -> i256 {
+    bb0:
+-     v0 = select arg2, arg0, arg1 !metadata(span=10..20)
+-     v1 = extract_value slice<calldata>, v0, 1
+-     ret v1
++     v2 = inttoptr i256 arg0 to ptr<calldata> !metadata(span=10..20)
++     v3 = inttoptr i256 arg2 to ptr<calldata> !metadata(span=10..20)
++     v6 = select arg4, v2, v3 !metadata(span=10..20)
++     v7 = select arg4, arg1, arg3 !metadata(span=10..20)
++     ret v7
+  }
+  
+- fn @phi(arg0: slice<calldata>, arg1: slice<calldata>, arg2: i1) -> i256 {
++ fn @phi(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i1) -> i256 {
+    bb0:
+-     jumpi arg2, bb1, bb2
++     jumpi arg4, bb1, bb2
+    bb2:  ; preds = bb0
++     v4 = inttoptr i256 arg2 to ptr<calldata>
+      jump bb3
+    bb1:  ; preds = bb0
+-     jumpi arg2, bb3, bb4
++     v2 = inttoptr i256 arg0 to ptr<calldata>
++     jumpi arg4, bb3, bb4
+    bb4:  ; preds = bb1
+      ret 0
+    bb3:  ; preds = bb1, bb2
+-     v0 = phi [bb1: arg0], [bb2: arg1] !metadata(span=30..40)
+-     v1 = extract_value slice<calldata>, v0, 1
+-     ret v1
++     v6 = phi [bb1: v2], [bb2: v4] !metadata(span=30..40)
++     v7 = phi [bb1: arg1], [bb2: arg3] !metadata(span=30..40)
++     ret v7
+  }
+  

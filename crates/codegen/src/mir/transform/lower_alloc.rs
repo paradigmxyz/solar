@@ -219,6 +219,8 @@ fn lower_function(
         builder.switch_to_block(block);
         peek.clear();
         for inst in instructions {
+            let context = builder.func().inst(inst).metadata.debug_context();
+            builder.set_debug_context(&context);
             // Allocations and pointer updates move the pointer past any earlier read.
             let moves_fmp = matches!(
                 builder.func().inst(inst).kind,

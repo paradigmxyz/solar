@@ -1,0 +1,38 @@
+- // === ROOT/tests/ui/codegen/mir/lower-slices/debug_calls.mir (before lower-slices) ===
++ // === ROOT/tests/ui/codegen/mir/lower-slices/debug_calls.mir (after lower-slices) ===
+  @module DebugSliceCalls
+- fn @caller(arg0: slice<calldata>) -> i256 {
++ fn @caller(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+-     v0 = icall @identity, arg0 !metadata(span=10..20)
+-     v1 = icall @identity, v0 !metadata(span=30..40)
+-     v2 = extract_value slice<calldata>, v1, 1
+-     ret v2
++     v3 = inttoptr i256 arg0 to ptr<calldata> !metadata(span=10..20)
++     v4 = ptrtoint ptr<calldata> v3 to i256 !metadata(span=10..20)
++     v0 = icall @identity, v4, arg1 !metadata(span=10..20)
++     v9 = mload 32 !metadata(memory=scratch, span=10..20)
++     v10 = add v9, 32 !metadata(span=10..20)
++     v11 = mload v10 !metadata(span=10..20)
++     v12 = inttoptr i256 v0 to ptr<calldata> !metadata(span=10..20)
++     v7 = ptrtoint ptr<calldata> v12 to i256 !metadata(span=30..40)
++     v1 = icall @identity, v7, v11 !metadata(span=30..40)
++     v14 = mload 32 !metadata(memory=scratch, span=30..40)
++     v15 = add v14, 32 !metadata(span=30..40)
++     v16 = mload v15 !metadata(span=30..40)
++     v17 = inttoptr i256 v1 to ptr<calldata> !metadata(span=30..40)
++     ret v16
+  }
+  
+- fn @identity(arg0: slice<calldata>) -> slice<calldata> {
++ fn @identity(arg0: i256, arg1: i256) -> slice<calldata> [return_abi=[i256, i256]] {
+    bb0:
+-     v0 = extract_value slice<calldata>, arg0, 0
+-     v1 = extract_value slice<calldata>, arg0, 1
+-     v2 = make_calldata_slice v0, v1
+-     ret v2 !metadata(span=50..60)
++     v0 = inttoptr i256 arg0 to ptr<calldata>
++     v4 = ptrtoint ptr<calldata> v0 to i256 !metadata(span=50..60)
++     ret v4, arg1 !metadata(span=50..60)
+  }
+  

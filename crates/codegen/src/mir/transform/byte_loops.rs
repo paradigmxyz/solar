@@ -157,13 +157,14 @@
 //! Not handled yet: fills longer than a word, and loops that compare or gather into an integer
 //! with left shifts.
 //!
-//! NOTE: The replacement summarizes every iteration of the loop, so its instructions carry no
-//! source location rather than an arbitrary iteration's checkpoint.
+//! NOTE: Setup and formulas summarize the loop and have no iteration-specific checkpoint.
+//! A bulk store can keep the body's unique store origin only when a positive bound or a retained
+//! zero-count skip proves that body executed. Untested possibly-empty copies remain unmapped.
 
 use crate::mir::{
     AllocationInitialization, ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, Function,
-    FunctionBuilder, InstId, InstKind, MirType, Module, PanicCode, PtrLocation, RevertKind,
-    Terminator, Value, ValueId,
+    FunctionBuilder, InstId, InstKind, InstructionMetadata, MirType, Module, PanicCode,
+    PtrLocation, RevertKind, Terminator, Value, ValueId,
     analysis::{
         AddressSpace, AliasAnalysis, CfgInfo, Location, LocationSize, Loop, LoopAnalyzer,
         MemoryBase, MemoryLocation,
@@ -1461,6 +1462,10 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
     // The counter leaves the loop equal to its limit: the bound counting up, zero counting down.
     replacements.insert(lp.counter, lp.limit);
     let literal = lp.literal_bound(func);
+    let store_context = single_store(func, &lp, |kind| {
+        matches!(kind, InstKind::Store(_, _, PtrLocation::Memory) | InstKind::Store8(..))
+    })
+    .map(|inst| func.inst(inst).metadata.debug_context());
     // A gather that skips an empty count keeps its result phi, now joining the skip and the setup.
     let mut kept_phi = None;
     let mut builder = FunctionBuilder::new_semantic(func);
@@ -1595,7 +1600,13 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
                 }
                 None => value,
             };
+            if literal.is_none_or(|count| count > 0)
+                && let Some(context) = &store_context
+            {
+                builder.set_debug_context(context);
+            }
             builder.store(address, stored);
+            builder.set_debug_context(&InstructionMetadata::EMPTY);
             if guarded {
                 // fast: ...; jump exit
                 builder.jump(lp.exit);
@@ -1717,7 +1728,15 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
                     (from, PtrLocation::Calldata)
                 }
             };
+            // NOTE: Untested zero-length copies can execute when the old body never did. Only
+            // a nonempty constant or the retained empty-count branch proves this store ran.
+            if (tested || literal.is_some_and(|count| count > 0))
+                && let Some(context) = &store_context
+            {
+                builder.set_debug_context(context);
+            }
             builder.copy(to, from, size, location);
+            builder.set_debug_context(&InstructionMetadata::EMPTY);
             if fast.is_some() {
                 // fast: ...; jump exit
                 // The loop stays for a destination that leads into its source, or a calldata range

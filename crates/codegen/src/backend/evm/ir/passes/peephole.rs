@@ -43,6 +43,9 @@
 //! `materialize(-c); ADD` if the target's cheapest materialization of `-c` beats the push and the
 //! swap, as `PUSH0; NOT` does for the decrement `x - 1`. The low-mask window ends in the same
 //! tail, so this rewrite waits for it.
+//!
+//! Equivalent replacements keep the root operation's source context on their result-producing
+//! instruction. Removed operand locations are dropped, and function events are moved once.
 
 use super::{
     EvmPass, block_layout::terminator_kind, compact_pushes::materialize_immediate,
@@ -357,19 +360,24 @@ impl Edit {
         match self {
             Self::LowMaskWithSwap => {
                 // push 0; not; protected_count; shl; not
-                // NOTE: Changed constants and arithmetic have no exact source checkpoint.
+                let root = instructions.last().unwrap().metadata.clone();
+                let entry = instructions[start].metadata.clone();
                 instructions.truncate(instructions.len() - 3);
                 instructions[start] = Instruction::push_value(U256::ZERO).with_debug_info_dropped();
+                instructions[start].metadata.absorb_function_events(&entry);
                 instructions.insert(start + 1, not());
                 instructions.push(not());
+                instructions.last_mut().unwrap().metadata.copy_debug_info_from(&root);
             }
             Self::LowMask => {
                 // push 0; not; closed_count; shl; not
-                // NOTE: The changed constants and operations have different meanings;
-                // their original source checkpoints cannot describe the replacement.
+                let root = instructions.last().unwrap().metadata.clone();
+                let entry = instructions[start].metadata.clone();
                 instructions[start] = Instruction::push_value(U256::ZERO).with_debug_info_dropped();
+                instructions[start].metadata.absorb_function_events(&entry);
                 instructions[start + 1] = not();
                 *instructions.last_mut().expect("matched subtraction") = not();
+                instructions.last_mut().unwrap().metadata.copy_debug_info_from(&root);
             }
             Self::ShiftPairMask => {
                 // push s; shl; push s; shr
@@ -390,8 +398,24 @@ impl Edit {
                 instructions.remove(start);
             }
             Self::FoldConstants { value } => {
+                // NOTE: The final materialization computes the old root's value on the same
+                // path. Operand locations disappear; they must not become extra checkpoints.
+                let root = instructions.last().unwrap().metadata.clone();
+                let mut context = root.clone();
+                context.merge_equivalent_debug_info(
+                    instructions[start..].iter().map(|inst| &inst.metadata),
+                );
+                context.copy_source_debug_from(&root);
                 instructions.truncate(start);
                 materialize_immediate(instructions, target.evm_version(), value);
+                let last = instructions.last_mut().unwrap();
+                last.metadata.copy_source_debug_from(&context);
+                if let Some(exit) = context.function_exit() {
+                    last.metadata.set_function_exit(exit);
+                }
+                if let Some(function) = context.function_invoke() {
+                    instructions[start].metadata.set_function_invoke(function);
+                }
             }
             Self::AddNegated { value } => {
                 // push -c; add
