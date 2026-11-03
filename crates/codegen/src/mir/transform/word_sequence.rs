@@ -158,11 +158,7 @@ fn operation_cost(
     constants: &FxHashMap<ValueId, Temporary>,
 ) -> Cost {
     let immediate = |value| recipe_immediate(func, constants, value);
-    let mut cost = if let Op::Select { cond, .. } = op {
-        target.select(!super::egraph::is_bool_value(func, *cond))
-    } else {
-        target.op(op, immediate)
-    };
+    let mut cost = target.op(op, immediate);
     let operand_cost =
         |value| immediate(value).map_or_else(|| target.dup(), |value| target.push(value));
     if let Some(value) = Target::zero_test_input(op, immediate) {

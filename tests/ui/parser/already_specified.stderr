@@ -70,7 +70,7 @@ error: override already specified
 LL │     override
    ╰╴    ━━━━━━━━
 
-error: unresolved symbol `A`
+error[7920]: unresolved symbol `A`
    ╭▸ ROOT/tests/ui/parser/already_specified.sol:LL:CC
    │
 LL │     is A
