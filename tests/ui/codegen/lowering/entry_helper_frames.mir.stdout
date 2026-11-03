@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/entry_helper_frames.sol:EntryHelperFrames ===
+; === ROOT/tests/ui/codegen/lowering/entry_helper_frames.sol:EntryHelperFrames ===
 @module EntryHelperFrames
 ; function wide(uint256 x) external pure returns (uint256 r) [selector 0x598b5337]
 fn @wide(arg0: i256) -> i256 [selector=0x598b5337, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -82,7 +82,7 @@ fn @heavyA(arg0: i256) -> i256 [pure] {
     v18 = checked_add uint256, arg0, 19
     v19 = checked_add uint256, arg0, 20
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v20 = phi [bb0: arg0], [bb3: v20]
     v21 = phi [bb0: 0], [bb3: v21]
     v22 = phi [bb0: v0], [bb3: v44]
@@ -108,9 +108,9 @@ fn @heavyA(arg0: i256) -> i256 [pure] {
     v42 = phi [bb0: 0], [bb3: v64]
     v43 = lt v42, v20
     jumpi v43, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     v65 = xor v22, v23
     v66 = xor v65, v24
     v67 = xor v66, v25
@@ -131,7 +131,7 @@ fn @heavyA(arg0: i256) -> i256 [pure] {
     v82 = xor v81, v40
     v83 = xor v82, v41
     ret v83
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v44 = checked_add uint256, v22, v23
     v45 = checked_add uint256, v23, v24
     v46 = checked_add uint256, v24, v25
@@ -153,9 +153,9 @@ fn @heavyA(arg0: i256) -> i256 [pure] {
     v62 = checked_add uint256, v40, v41
     v63 = checked_add uint256, v41, v44
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v64 = checked_add uint256, v42, 1
     jump bb1
 }
@@ -184,7 +184,7 @@ fn @heavyB(arg0: i256) -> i256 [pure] {
     v18 = checked_add uint256, arg0, 25
     v19 = checked_add uint256, arg0, 26
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v20 = phi [bb0: arg0], [bb3: v20]
     v21 = phi [bb0: 0], [bb3: v21]
     v22 = phi [bb0: v0], [bb3: v44]
@@ -210,9 +210,9 @@ fn @heavyB(arg0: i256) -> i256 [pure] {
     v42 = phi [bb0: 0], [bb3: v64]
     v43 = lt v42, v20
     jumpi v43, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     v65 = xor v22, v23
     v66 = xor v65, v24
     v67 = xor v66, v25
@@ -233,7 +233,7 @@ fn @heavyB(arg0: i256) -> i256 [pure] {
     v82 = xor v81, v40
     v83 = xor v82, v41
     ret v83
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v44 = checked_add uint256, v22, v23
     v45 = checked_add uint256, v23, v24
     v46 = checked_add uint256, v24, v25
@@ -255,9 +255,9 @@ fn @heavyB(arg0: i256) -> i256 [pure] {
     v62 = checked_add uint256, v40, v41
     v63 = checked_add uint256, v41, v44
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v64 = checked_add uint256, v42, 1
     jump bb1
 }
@@ -286,7 +286,7 @@ fn @heavyC(arg0: i256) -> i256 [pure] {
     v18 = checked_add uint256, arg0, 31
     v19 = checked_add uint256, arg0, 32
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v20 = phi [bb0: arg0], [bb3: v20]
     v21 = phi [bb0: 0], [bb3: v21]
     v22 = phi [bb0: v0], [bb3: v44]
@@ -312,9 +312,9 @@ fn @heavyC(arg0: i256) -> i256 [pure] {
     v42 = phi [bb0: 0], [bb3: v64]
     v43 = lt v42, v20
     jumpi v43, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     v65 = xor v22, v23
     v66 = xor v65, v24
     v67 = xor v66, v25
@@ -335,7 +335,7 @@ fn @heavyC(arg0: i256) -> i256 [pure] {
     v82 = xor v81, v40
     v83 = xor v82, v41
     ret v83
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v44 = checked_add uint256, v22, v23
     v45 = checked_add uint256, v23, v24
     v46 = checked_add uint256, v24, v25
@@ -357,9 +357,9 @@ fn @heavyC(arg0: i256) -> i256 [pure] {
     v62 = checked_add uint256, v40, v41
     v63 = checked_add uint256, v41, v44
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v64 = checked_add uint256, v42, 1
     jump bb1
 }

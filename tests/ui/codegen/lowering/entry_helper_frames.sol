@@ -12,10 +12,10 @@
 // entry that calls it, not above the dispatcher's: `narrow`'s helper starts at the heap start
 // and `pinned`'s above its array. `addressed` writes memory at a calldata-computed address,
 // which raises its own base and the helper above it.
-// LAYOUT: // backend-frames 2 0x460
-// LAYOUT: // backend-alloc 3 0 static 0x80
-// LAYOUT: // backend-frames 3 0x4c0
-// LAYOUT: // backend-frames 4 0x2460
+// LAYOUT: ; backend-frames 2 0x460
+// LAYOUT: ; backend-alloc 3 0 static 0x80
+// LAYOUT: ; backend-frames 3 0x4c0
+// LAYOUT: ; backend-frames 4 0x2460
 contract EntryHelperFrames {
     function wide(uint256 x) external pure returns (uint256 r) {
         assembly {
