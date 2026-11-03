@@ -648,6 +648,14 @@ impl Target {
         Cost::new(self.copy_word_gas().saturating_mul(words), 0)
     }
 
+    /// The size and source pushes of a copy of `size` bytes, with its word gas. The source of data
+    /// reserves a `PUSH3` for an address that final assembly resolves, so relocation cannot turn a
+    /// copy that pays into code growth; zeros copy from the end of calldata.
+    pub(crate) fn copy_operands(&self, size: usize, zero: bool) -> Cost {
+        let source = if zero { self.opcode(op::CALLDATASIZE) } else { self.opcode(op::PUSH3) };
+        self.push(U256::from(size)) + source + self.copied_words(size)
+    }
+
     /// Cost of one internal call site with its return landing: the pushed
     /// return label, the jump, the landing, and the frame protocol moving
     /// `args` arguments in and `returns` results out, whose gas grows with
@@ -1058,10 +1066,7 @@ impl Target {
             + self.opcode(op::MSTORE).times(2)
             + self.push(U256::from(word_size))
             + self.opcode(op::ADD);
-        let copy = self.push(U256::from(size))
-            + self.opcode(op::PUSH3)
-            + self.dup()
-            + self.opcode(op::CODECOPY);
+        let copy = self.copy_operands(size, false) + self.dup() + self.opcode(op::CODECOPY);
         let stores = (2..size / word_size)
             .map(|index| {
                 self.push(word)
@@ -1194,6 +1199,18 @@ impl Target {
             return false;
         }
         (jump.times(sites) + copy + self.opcode(op::JUMPDEST)).bytes < copy.times(sites).bytes
+    }
+
+    /// Cost of `sites` equal copies of `copy`. When optimizing for size, the backend's
+    /// terminal-block sharing and outlining may keep one body behind a jump from each site, as
+    /// [`Self::shares_terminal_copy`] prices it, when that takes fewer bytes.
+    pub(crate) fn shared_copies(&self, copy: Cost, sites: u32) -> Cost {
+        let separate = copy.times(sites);
+        if !matches!(self.optimization, OptimizationMode::Size) || sites < 2 {
+            return separate;
+        }
+        let shared = self.jump().times(sites) + copy + self.opcode(op::JUMPDEST);
+        if shared.bytes < separate.bytes { shared } else { separate }
     }
 
     /// Whether code shared from a site inside a loop pays for itself when the bytes it saves at

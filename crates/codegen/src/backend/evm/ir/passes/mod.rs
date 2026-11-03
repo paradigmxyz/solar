@@ -125,6 +125,7 @@ static ALL_PASSES: &[&dyn EvmPass] = &[
     &compact_pushes::CompactPushes,
     &coalesce_copies::CoalesceCopies,
     &data::PackData,
+    &data::ShareCores,
     &legalize_revert::LegalizeRevert,
     &cfg_simplify::CfgSimplify::FINAL,
     &outline::Outline,
@@ -155,6 +156,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &tail_merge::TailMerge,
     &cfg_simplify::CfgSimplify::EARLY,
     &tail_merge::TailMerge,
+    &data::ShareCores,
     // Outline only after straight-line paths and terminal tails are canonical.
     &outline::Outline,
     &cfg_simplify::CfgSimplify::EARLY,
