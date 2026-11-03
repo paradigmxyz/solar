@@ -15,12 +15,17 @@ contract C {
         }
     }
 
-    function outer_visible() public pure returns (uint256 r) {
+    function for_init() public pure {
         assembly {
-            let x := 1
-            {
-                let x := add(x, 1)
-                r := x
+            for { let i := add(i, 1) } lt(i, 1) {} {} //~ ERROR: unresolved symbol
+        }
+    }
+
+    function switch_case() public pure {
+        assembly {
+            switch 1
+            case 1 {
+                let y := y //~ ERROR: unresolved symbol
             }
         }
     }

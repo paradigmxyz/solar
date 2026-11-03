@@ -2,12 +2,14 @@
 //@ run-call: shadowedLocal => 6
 //@ run-call: shadowedMulti => 20, 10
 //@ run-call: nestedBlock => 5
-//@ run-call: shadowedByFunction => 31
+//@ run-call: shadowedConstant => 8
 
 // The initializer of a Yul `let` does not see the names it declares, so it reads the shadowed outer
 // declaration. solc rejects the Yul declarations that shadow Solidity ones; see TYPECK-013 in
 // docs/SOLC_DIVERGENCE.md.
 contract AssemblyLetInitializerScope {
+    uint256 constant K = 7;
+
     function shadowedLocal() external pure returns (uint256 r) {
         uint256 x = 5;
         assembly {
@@ -41,14 +43,10 @@ contract AssemblyLetInitializerScope {
         }
     }
 
-    function shadowedByFunction() external pure returns (uint256 r) {
-        uint256 x = 30;
+    function shadowedConstant() external pure returns (uint256 r) {
         assembly {
-            function one() -> o {
-                o := 1
-            }
-            let x := add(x, one())
-            r := x
+            let K := add(K, 1)
+            r := K
         }
     }
 }
