@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/commutative_pair_order.sol:CommutativePairOrder ===
+; === ROOT/tests/ui/codegen/lowering/commutative_pair_order.sol:CommutativePairOrder ===
 @module CommutativePairOrder
 ; function mulmodPair(uint256, uint256, uint256) external pure returns (uint256 r) [selector 0x077c99b8]
 fn @mulmodPair(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x077c99b8, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {

@@ -1,6 +1,6 @@
-// === ROOT/tests/ui/codegen/lowering/commutative_pair_order.sol:CommutativePairOrder (runtime) ===
+; === ROOT/tests/ui/codegen/lowering/commutative_pair_order.sol:CommutativePairOrder (runtime) ===
 @module CommutativePairOrder_runtime
-bb0:  ; runtime dispatch entry
+bb0:                                              ; runtime dispatch entry
   push 100
   calldatasize
   lt
