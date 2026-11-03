@@ -1985,6 +1985,10 @@ impl AliasAnalysis {
                 // spaces, not memory, so they carry no memory provenance.
                 _ => None,
             },
+            // An encoding at an explicit base lies wherever its base does, and reserves nothing.
+            InstKind::AbiEncode { base: Some(base), .. } => {
+                self.memory_address_with_depth(func, *base, depth + 1)
+            }
             InstKind::AbiEncode { .. } | InstKind::AbiDecode { .. } => {
                 Some(if self.allocation_is_dynamic(func, *inst_id) {
                     MemoryAddress {
@@ -2076,6 +2080,9 @@ impl AliasAnalysis {
                     return MemoryRegion::Unknown;
                 };
                 match &func.inst(*slice_inst).kind {
+                    InstKind::AbiEncode { base: Some(base), .. } => {
+                        self.pointer_region(func, *base, depth + 1)
+                    }
                     InstKind::MakeSlice { location: PtrLocation::Memory, .. }
                     | InstKind::AbiEncode { .. } => MemoryRegion::Heap,
                     _ => MemoryRegion::Unknown,
@@ -2465,6 +2472,7 @@ impl AliasAnalysis {
             )
         };
         match &func.inst(*inst).kind {
+            InstKind::AbiEncode { base: Some(_), .. } => None,
             InstKind::Fmp
             | InstKind::HeapFloor
             | InstKind::Alloc { .. }
@@ -2551,6 +2559,7 @@ impl AliasAnalysis {
                 let Value::Inst(slice) = func.value(*slice) else { return None };
                 match &func.inst(*slice).kind {
                     InstKind::MakeSlice { ptr, location: PtrLocation::Memory, .. } => bound(*ptr),
+                    InstKind::AbiEncode { base: Some(base), .. } => bound(*base),
                     InstKind::AbiEncode { .. } | InstKind::AbiDecode { .. } => {
                         Some(EvmMemoryLayout::HEAP_START)
                     }
@@ -2607,6 +2616,7 @@ impl AliasAnalysis {
             InstKind::Fmp | InstKind::Alloc { .. } | InstKind::HeapFloor => {
                 Some(EvmMemoryLayout::HEAP_START)
             }
+            InstKind::AbiEncode { base: Some(_), .. } => None,
             // A decoded scalar is calldata the caller controls, not a pointer.
             InstKind::AbiEncode { .. } | InstKind::AbiDecode { .. } => func
                 .value_ty(value)
@@ -2686,6 +2696,9 @@ impl AliasAnalysis {
                 match &func.inst(*slice).kind {
                     InstKind::MakeSlice { ptr, location: PtrLocation::Memory, .. } => {
                         Self::lower_bound(func, *ptr, depth + 1, trusted)
+                    }
+                    InstKind::AbiEncode { base: Some(base), .. } => {
+                        Self::lower_bound(func, *base, depth + 1, trusted)
                     }
                     InstKind::AbiEncode { .. } | InstKind::AbiDecode { .. } => {
                         Some(EvmMemoryLayout::HEAP_START)
