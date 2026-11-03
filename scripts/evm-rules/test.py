@@ -861,7 +861,7 @@ class RuleTests(unittest.TestCase):
             selection.replace("$ADD)", "$SUB)"),
             selection.replace("Op.Add _ _", "Op.Add x x"),
             selection.replace(
-                "OpcodeLowering.Binary $ADD", "OpcodeLowering.Store $ADD"
+                "OpcodeLowering.Valued $ADD", "OpcodeLowering.Store $ADD"
             ),
         ):
             context = Context(changed)

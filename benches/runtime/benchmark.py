@@ -456,7 +456,8 @@ def artifact_compiler_input(input_text: str, test_case: TestCase, kind: str) -> 
         "evm.bytecode.object",
         "evm.deployedBytecode.object",
     ]
-    if kind in ("solc", "solx", "oksolc"):
+    # Slang-based solx rejects `ir` and `irOptimized`.
+    if kind in ("solc", "oksolc"):
         outputs.extend(("ir", "irOptimized"))
     if kind == "solx":
         outputs.extend(
@@ -654,9 +655,9 @@ def write_artifacts(
             (output_dir / "creation.disasm").write_text(disassemble_evm(deployment))
         if runtime:
             (output_dir / "runtime.disasm").write_text(disassemble_evm(runtime))
-    if spec.kind in ("solc", "solx", "oksolc") and (ir := contract.get("ir")):
+    if spec.kind in ("solc", "oksolc") and (ir := contract.get("ir")):
         (output_dir / "ir.yul").write_text(str(ir).rstrip() + "\n")
-    if spec.kind in ("solc", "solx", "oksolc") and (ir := contract.get("irOptimized")):
+    if spec.kind in ("solc", "oksolc") and (ir := contract.get("irOptimized")):
         (output_dir / "optimized-ir.yul").write_text(str(ir).rstrip() + "\n")
     return ""
 
