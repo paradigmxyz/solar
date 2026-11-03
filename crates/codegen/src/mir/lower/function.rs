@@ -189,8 +189,7 @@ pub(super) fn lower_synthetic_constructor(
     contract_id: hir::ContractId,
 ) -> Option<Function> {
     let span = context.gcx.hir.contract(contract_id).span;
-    let mut mir =
-        Function::new(solar_interface::Ident::with_dummy_span(solar_interface::kw::Constructor));
+    let mut mir = Function::new(Ident::with_dummy_span(kw::Constructor));
     let mut lowerer = FunctionLowerer::new(context.reborrow(), &mut mir);
     lowerer.lower_implicit_base_constructors(contract_id)?;
     lowerer.lower_state_initializers(contract_id)?;

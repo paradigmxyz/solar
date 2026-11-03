@@ -867,7 +867,7 @@ struct OverridePathCollector {
     paths: FxHashMap<Span, Vec<Span>>,
 }
 
-impl<'ast> ast::visit::Visit<'ast> for OverridePathCollector {
+impl<'ast> Visit<'ast> for OverridePathCollector {
     type BreakValue = Never;
 
     fn visit_item_function(
