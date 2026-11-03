@@ -48,7 +48,7 @@ bb50 [cold]:
   push 36
   push 28
   revert
-bb7:  ; function probe(uint256 seed) external pure returns (uint256, uint256, uint256) [selector 0xdb082440]
+bb7 [entry]:  ; function probe(uint256 seed) external pure returns (uint256, uint256, uint256) [selector 0xdb082440]
   push 36
   calldatasize
   lt
@@ -190,7 +190,7 @@ bb10 [continuation]:
   push 96
   push 0
   return
-bb17:  ; function doubleProbe() external pure returns (uint256) [selector 0xf770a1a3]
+bb17 [entry]:  ; function doubleProbe() external pure returns (uint256) [selector 0xf770a1a3]
   push 160
   push 64
   dup 2
@@ -233,7 +233,7 @@ bb19 [continuation]:
   push 32
   push 0
   return
-bb22:  ; function run(bytes memory input, uint256 marker) public pure returns (bytes memory) [selector 0x194e10ce]
+bb22 [entry]:  ; function run(bytes memory input, uint256 marker) public pure returns (bytes memory) [selector 0x194e10ce]
   push 68
   calldatasize
   lt
@@ -311,7 +311,7 @@ bb47 [ret=0, inputs=1, outputs=1]:  ; decode_calldata_type (synthesized)
 bb24 [continuation]:
   push bb51
   jump bb39
-bb30:  ; function twice(bytes memory input, uint256 marker) public pure returns (bytes memory) [selector 0x5a2aaa96]
+bb30 [entry]:  ; function twice(bytes memory input, uint256 marker) public pure returns (bytes memory) [selector 0x5a2aaa96]
   push 68
   calldatasize
   lt

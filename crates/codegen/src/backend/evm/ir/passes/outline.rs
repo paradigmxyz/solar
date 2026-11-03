@@ -216,47 +216,82 @@ fn is_cold(module: &Module, site: &Site) -> bool {
     module.blocks[site.block].metadata.hotness.is_cold()
 }
 
-/// The blocks each external entry may reach, computed on first use.
+/// What the external entries reach, computed on first use.
 #[derive(Default)]
-struct EntryReach(OnceCell<Vec<DenseBitSet<BlockId>>>);
+struct EntryReach(OnceCell<EntryGroups>);
+
+struct EntryGroups {
+    /// The blocks that some entry reaches and the code outside the entries does not.
+    exclusive: DenseBitSet<BlockId>,
+    /// The blocks each entry reaches.
+    reach: Vec<DenseBitSet<BlockId>>,
+}
 
 impl EntryReach {
-    /// Returns the blocks reached from each entry over jumps, branches, and pushed block
-    /// addresses, which include every call's return continuation.
-    fn get(&self, module: &Module) -> &[DenseBitSet<BlockId>] {
-        self.0.get_or_init(|| {
-            let mut pending = Vec::new();
-            module
-                .blocks
-                .iter_enumerated()
-                .filter(|(_, block)| block.metadata.external_entry)
-                .map(|(entry, _)| {
-                    let mut reached = DenseBitSet::new_empty(module.blocks.len());
-                    pending.push(entry);
-                    while let Some(block_id) = pending.pop() {
-                        if !reached.insert(block_id) {
-                            continue;
-                        }
-                        let block = &module.blocks[block_id];
-                        pending.extend(
-                            block.instructions.iter().filter_map(Instruction::pushed_block),
-                        );
-                        if let Some(terminator) = &block.terminator {
-                            terminator.kind.visit_targets(|target| pending.push(target));
-                        }
-                    }
-                    reached
-                })
-                .collect()
-        })
+    fn get(&self, module: &Module) -> &EntryGroups {
+        self.0.get_or_init(|| EntryGroups::new(module))
+    }
+}
+
+impl EntryGroups {
+    /// Walks the blocks from the module's entry and from each external entry over jumps, branches,
+    /// and pushed block addresses, which include every call's return continuation. The walk from
+    /// the module's entry stops at external entries, so a block reached from both sides is not
+    /// exclusive, and an entry that an earlier pass merged away leaves its code shared rather
+    /// than undercounted.
+    fn new(module: &Module) -> Self {
+        let entries = module
+            .blocks
+            .iter_enumerated()
+            .filter(|(_, block)| block.metadata.external_entry)
+            .map(|(entry, _)| entry)
+            .collect::<Vec<_>>();
+        if entries.len() < 2 {
+            return Self {
+                exclusive: DenseBitSet::new_empty(module.blocks.len()),
+                reach: Vec::new(),
+            };
+        }
+        let successors = module
+            .blocks
+            .iter()
+            .map(|block| {
+                let mut successors = SmallVec::<[BlockId; 4]>::new();
+                successors.extend(block.instructions.iter().filter_map(Instruction::pushed_block));
+                if let Some(terminator) = &block.terminator {
+                    terminator.kind.visit_targets(|target| successors.push(target));
+                }
+                successors
+            })
+            .collect::<IndexVec<BlockId, _>>();
+        let walk = |root: BlockId, stop_at_entries: bool| {
+            let mut reached = DenseBitSet::new_empty(module.blocks.len());
+            let mut pending = vec![root];
+            while let Some(block) = pending.pop() {
+                let stops = stop_at_entries
+                    && block != root
+                    && module.blocks[block].metadata.external_entry;
+                if !stops && reached.insert(block) {
+                    pending.extend(&successors[block]);
+                }
+            }
+            reached
+        };
+        let reach = entries.iter().map(|&entry| walk(entry, false)).collect::<Vec<_>>();
+        let mut exclusive = DenseBitSet::new_empty(module.blocks.len());
+        for reached in &reach {
+            exclusive.union(reached);
+        }
+        exclusive.subtract(&walk(BlockId::ENTRY, true));
+        Self { exclusive, reach }
     }
 }
 
 /// The transfer gas that `sites` pay in one call, which a cold site does not.
 ///
-/// A call runs one external function, so sites that different entries reach never run together:
-/// the call pays for the entry whose sites cost the most. Sites no entry reaches, such as the
-/// dispatch's own, run in every call.
+/// A call runs one external function, so sites that only different entries reach never run
+/// together: the call pays for the entry whose sites cost the most. Other sites, such as the
+/// dispatch's own, may run in every call.
 fn sites_transfer_gas(
     module: &Module,
     entries: &EntryReach,
@@ -265,16 +300,17 @@ fn sites_transfer_gas(
     gas: u32,
 ) -> u64 {
     let site_gas = |site: &Site| u64::from(target.site_gas(is_cold(module, site), gas));
-    let reach = entries.get(module);
-    let shared = sites
-        .iter()
-        .filter(|site| !reach.iter().any(|reached| reached.contains(site.block)))
-        .map(site_gas)
-        .sum::<u64>();
+    let EntryGroups { exclusive, reach } = entries.get(module);
+    let shared =
+        sites.iter().filter(|site| !exclusive.contains(site.block)).map(site_gas).sum::<u64>();
     let busiest = reach
         .iter()
         .map(|reached| {
-            sites.iter().filter(|site| reached.contains(site.block)).map(site_gas).sum::<u64>()
+            sites
+                .iter()
+                .filter(|site| exclusive.contains(site.block) && reached.contains(site.block))
+                .map(site_gas)
+                .sum::<u64>()
         })
         .max()
         .unwrap_or(0);

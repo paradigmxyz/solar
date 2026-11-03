@@ -70,7 +70,7 @@ bb85 [cold]:
   push 36
   push 28
   revert
-bb12:  ; function choose(uint256 raw, uint256 yes, uint256 no) external pure returns (uint256) [selector 0x739ca28b]
+bb12 [entry]:  ; function choose(uint256 raw, uint256 yes, uint256 no) external pure returns (uint256) [selector 0x739ca28b]
   push 100
   calldatasize
   lt
@@ -97,7 +97,7 @@ bb81:
   push 32
   push 0
   return
-bb15:  ; function store(bytes memory value) external returns (bytes memory) [selector 0xb374012b]
+bb15 [entry]:  ; function store(bytes memory value) external returns (bytes memory) [selector 0xb374012b]
   push 4
   dup 1
   push 160
@@ -393,7 +393,7 @@ bb27 [loop]:
   push 1
   add
   jump bb25
-bb31:  ; function word(bytes calldata value) external pure returns (bytes32) [selector 0xc22ee0b0]
+bb31 [entry]:  ; function word(bytes calldata value) external pure returns (bytes32) [selector 0xc22ee0b0]
   push 36
   calldatasize
   lt
@@ -451,7 +451,7 @@ bb33 [continuation]:
   or
   and
   jump bb81
-bb35:  ; function prefix(bytes calldata value) external pure returns (bytes4) [selector 0x01cd9057]
+bb35 [entry]:  ; function prefix(bytes calldata value) external pure returns (bytes4) [selector 0x01cd9057]
   push 36
   calldatasize
   lt
@@ -490,7 +490,7 @@ bb37 [continuation]:
   and
   and
   jump bb81
-bb39:  ; function signature(bool condition) external pure returns (bytes memory) [selector 0x59834352]
+bb39 [entry]:  ; function signature(bool condition) external pure returns (bytes memory) [selector 0x59834352]
   push 4
   calldataload
   push 1
@@ -557,12 +557,12 @@ bb83:
   push 96
   swap 1
   return
-bb42:  ; function dirtySignature(uint256 raw) external pure returns (bytes memory) [selector 0xca22fbdf]
+bb42 [entry]:  ; function dirtySignature(uint256 raw) external pure returns (bytes memory) [selector 0xca22fbdf]
   push 36
   calldatasize
   lt
   jump bb84
-bb45:  ; function reverseSignature(uint256 raw) external pure returns (bytes memory) [selector 0x97ffd282]
+bb45 [entry]:  ; function reverseSignature(uint256 raw) external pure returns (bytes memory) [selector 0x97ffd282]
   push 36
   calldatasize
   lt

@@ -18,7 +18,7 @@ bb3 [cold]:
   push 0
   push 0
   revert
-bb4:  ; function combine(uint256 modulus) public pure returns (uint256) [selector 0xd9171e32]
+bb4 [entry]:  ; function combine(uint256 modulus) public pure returns (uint256) [selector 0xd9171e32]
   push 36
   calldatasize
   lt

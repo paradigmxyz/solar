@@ -47,7 +47,7 @@ contract SpillCost {
     // CHECK: push 0x4ebcfdd1
     // CHECK-NEXT: eq
     // CHECK-NEXT: push [[BODY:bb[0-9]+]]
-    // CHECK: [[BODY]]:
+    // CHECK: [[BODY]]{{( \[[a-z, ]+\])?}}:
     // CHECK: push 32
     // CHECK-NEXT: push 0
     // CHECK-NEXT: keccak256

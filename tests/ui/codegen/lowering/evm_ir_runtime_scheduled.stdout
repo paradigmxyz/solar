@@ -69,7 +69,7 @@ bb3 [cold]:
   push 0
   push 0
   revert
-bb4:  ; function f(uint256 x) external pure returns (uint256) [selector 0xb3de648b]
+bb4 [entry]:  ; function f(uint256 x) external pure returns (uint256) [selector 0xb3de648b]
   push 36
   calldatasize
   lt

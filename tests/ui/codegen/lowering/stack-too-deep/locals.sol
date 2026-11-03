@@ -12,7 +12,7 @@ contract StackTooDeepLocals {
     // CHECK: push 0x188b85b4
     // CHECK: eq
     // CHECK-NEXT: push [[BODY:bb[0-9]+]]
-    // CHECK: [[BODY]]:
+    // CHECK: [[BODY]]{{( \[[a-z, ]+\])?}}:
     // CHECK: push 4
     // CHECK-NEXT: calldataload
     // CHECK-NEXT: push 1

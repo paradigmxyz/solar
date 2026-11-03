@@ -1,5 +1,8 @@
-//@ compile-flags: -Ogas -Zevm-ir-pipeline=outline --optimize-runs 600
-//@ filecheck:
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=outline --optimize-runs 600
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=outline
+//@[gas] filecheck: --check-prefixes=BOTH,GAS
+//@[size] filecheck: --check-prefixes=BOTH,SIZE
 //@ run-call: 0x0000000000000000000000000000000000000000000000000000000000000001 =>
 //@ run-call: 0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001 =>
 //@ run-call: 0x000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001 =>
@@ -7,8 +10,9 @@
 @module ExclusiveEntries
 
 // A call runs one external function, so the entries' repeats of a computation never run together,
-// and a share pays one site's call and return gas, not every entry's. The same run in a chain
-// that no entry owns runs in every call, and its sites pay together.
+// and a gas share pays one site's call and return gas, not every entry's. The same run in a chain
+// that no entry owns runs in every call, and its sites pay together, so gas mode keeps them
+// inline. Size mode shares both.
 bb0:
   push 0
   calldataload
@@ -24,9 +28,9 @@ bb0:
   jumpi
   jump bb4
 
-// CHECK-LABEL: bb1 [entry]:
-// CHECK: push [[RET1:bb[0-9]+]]
-// CHECK-NEXT: jump [[SHARED:bb[0-9]+]]
+// BOTH-LABEL: bb1 [entry]:
+// BOTH: push [[RET1:bb[0-9]+]]
+// BOTH-NEXT: jump [[SHARED:bb[0-9]+]]
 bb1 [entry]:
   push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
   push 0xfedcba9876543210fedcba9876543210fedcba9876543210fedcba987654321
@@ -36,9 +40,9 @@ bb1 [entry]:
   pop
   stop
 
-// CHECK-LABEL: bb2 [entry]:
-// CHECK: push [[RET2:bb[0-9]+]]
-// CHECK-NEXT: jump [[SHARED]]
+// BOTH-LABEL: bb2 [entry]:
+// BOTH: push [[RET2:bb[0-9]+]]
+// BOTH-NEXT: jump [[SHARED]]
 bb2 [entry]:
   push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
   push 0xfedcba9876543210fedcba9876543210fedcba9876543210fedcba987654321
@@ -48,9 +52,9 @@ bb2 [entry]:
   pop
   stop
 
-// CHECK-LABEL: bb3 [entry]:
-// CHECK: push [[RET3:bb[0-9]+]]
-// CHECK-NEXT: jump [[SHARED]]
+// BOTH-LABEL: bb3 [entry]:
+// BOTH: push [[RET3:bb[0-9]+]]
+// BOTH-NEXT: jump [[SHARED]]
 bb3 [entry]:
   push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
   push 0xfedcba9876543210fedcba9876543210fedcba9876543210fedcba987654321
@@ -60,9 +64,12 @@ bb3 [entry]:
   pop
   stop
 
-// CHECK-LABEL: bb4:
-// CHECK-COUNT-2: push 0x1111111111111111111111111111111111111111111111111111111111111111
-// CHECK-NOT: push bb
+// GAS-LABEL: bb4:
+// GAS-COUNT-2: push 0x1111111111111111111111111111111111111111111111111111111111111111
+// GAS-NOT: push bb
+// SIZE-LABEL: bb4:
+// SIZE: push [[RET4:bb[0-9]+]]
+// SIZE-NEXT: jump [[SHARED_CHAIN:bb[0-9]+]]
 bb4:
   push 0x1111111111111111111111111111111111111111111111111111111111111111
   push 0x2222222222222222222222222222222222222222222222222222222222222222

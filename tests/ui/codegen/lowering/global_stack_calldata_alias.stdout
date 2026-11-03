@@ -28,7 +28,7 @@ bb21 [cold]:
   push 36
   push 28
   revert
-bb4:  ; function select(address account, uint256 value) external pure returns (uint256) [selector 0xc21f7bbb]
+bb4 [entry]:  ; function select(address account, uint256 value) external pure returns (uint256) [selector 0xc21f7bbb]
   push 4
   calldataload
   push 160

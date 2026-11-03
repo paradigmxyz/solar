@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/switch/common.sol:ProxyResult (runtime) ===
 @module ProxyResult_runtime
-bb1:  ; fallback() external payable [fallback]
+bb1 [entry]:  ; fallback() external payable [fallback]
   push 0
   calldataload
   dup 1
