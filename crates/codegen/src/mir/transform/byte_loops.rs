@@ -166,7 +166,7 @@ use crate::mir::{
     Terminator, Value, ValueId,
     analysis::{
         AddressSpace, AliasAnalysis, CfgInfo, Location, LocationSize, Loop, LoopAnalyzer,
-        MemoryBase, MemoryLocation,
+        MemoryLocation,
     },
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses, run_function_pass},
