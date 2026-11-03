@@ -10,7 +10,8 @@ use crate::{
         codegen::{
             StackOp,
             select::{
-                InstKindOpcode, OpcodeLowering, opcode_lowering, rematerializable_nullary_value,
+                InstKindOpcode, OpcodeLowering, opcode_lowering, push_order,
+                rematerializable_nullary_value,
             },
             values::{gas_minus, late_gas_reads},
         },
@@ -1946,7 +1947,7 @@ impl<'a> Planner<'a> {
             Some(index) => dies[index],
             None => self.dies(block, uses, operands, value),
         };
-        let push_order: Operands = operands.iter().rev().copied().collect();
+        let push_order = push_order(kind);
         let pushes = |result: Option<ValueId>| result.map_or(0, |_| 1);
 
         // A write that may reach the spill area, or another activation of this function reusing
@@ -2039,9 +2040,9 @@ impl<'a> Planner<'a> {
                 }
                 self.set_top_result(sim, result);
             }
-            InstKind::Select(cond, true_value, false_value) => {
+            InstKind::Select(..) => {
                 // [f, c, t] -> [f, c, f, t] -> [f, c, t-f] -> [f, c*(t-f)] -> [f + c*(t-f)]
-                self.prepare(sim, &[*false_value, *cond, *true_value], &dying)?;
+                self.prepare(sim, &push_order, &dying)?;
                 sim.observe(1);
                 sim.steps.push(Step::Inst(inst));
                 sim.cost += self.target.opcode(op::DUP3).plus(self.target.opcode(op::SWAP1));
