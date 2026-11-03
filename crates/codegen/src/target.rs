@@ -21,9 +21,8 @@ use crate::{
     backend::evm::{ir::compact_pushes, op, select},
     mir::{
         AbiLayout, AbiType, BlockId, Builtin, Callee, CheckedOp, Function, FunctionAttributes,
-        Hotness, ImmutableEncoding, InstId, InstKind, MirType, Module, Op, Terminator, Value,
-        ValueId, analysis::AddressSpace, immutable::immutable_push_type_size,
-        memory::EvmMemoryLayout,
+        Hotness, ImmutableEncoding, InstId, InstKind, MirType, Module, Op, Terminator, ValueId,
+        analysis::AddressSpace, immutable::immutable_push_type_size, memory::EvmMemoryLayout,
     },
 };
 use alloy_primitives::U256;
@@ -478,6 +477,17 @@ impl Target {
         self.opcode(op::DUP1)
     }
 
+    /// Whether reading the calldata word at `offset` once before a branch, for the `reads` readers
+    /// below it, is cheaper than reading it at each: a push and a `CALLDATALOAD` per read, against
+    /// one read, a `DUP` for each further reader, and the `DUP` and `SWAP` that a word kept on the
+    /// stack costs the words around it.
+    pub(crate) fn hoisted_read_pays(&self, offset: u64, reads: u32) -> bool {
+        let read = self.push(U256::from(offset)).plus(self.opcode(op::CALLDATALOAD));
+        let carry = self.dup().plus(self.opcode(op::SWAP1));
+        let shared = read.plus(self.dup().times(reads.saturating_sub(1))).plus(carry);
+        self.cmp_lifetime(shared, read.times(reads)).is_lt()
+    }
+
     /// Cost of one logical stack operation after target lowering, or `None` when the target
     /// cannot lower it. An `EXCHANGE` before Amsterdam costs its three swaps.
     pub(crate) fn stack_op(&self, stack_op: op::StackOp) -> Option<Cost> {
@@ -566,6 +576,9 @@ impl Target {
         if matches!(op, Op::Zext { .. } | Op::IntToPtr { .. }) {
             return Cost::ZERO;
         }
+        if matches!(op, Op::Select { .. }) {
+            return self.select();
+        }
         if matches!(op, Op::Eq { .. } | Op::Ne { .. }) {
             let comparison =
                 if Self::zero_test_input(op, &immediate).is_some() { op::ISZERO } else { op::EQ };
@@ -581,12 +594,7 @@ impl Target {
         if dynamic_gas == 0 {
             return Cost::new(static_gas, 1).with_steps(1);
         }
-        let mut arguments = SmallVec::<[Option<U256>; 8]>::new();
-        // Only the visit matters; the mapped copy is discarded.
-        let _ = op.map_values(|value| {
-            arguments.push(immediate(value));
-            value
-        });
+        let arguments = op.operands().into_iter().map(immediate).collect::<SmallVec<[_; 8]>>();
         let dynamic = dynamic_gas.saturating_mul(tier.dynamic_units(&arguments));
         Cost::new(static_gas.saturating_add(dynamic), 1).with_steps(1)
     }
@@ -619,10 +627,9 @@ impl Target {
     }
 
     /// Cost of the generic Select emitter, excluding initial operand placement.
-    pub(crate) fn select(&self, normalize_condition: bool) -> Cost {
-        // dup3; swap1; sub; mul; add.
-        let sequence = self.sequence(&[op::DUP3, op::SWAP1, op::SUB, op::MUL, op::ADD]);
-        if normalize_condition { sequence + self.opcode(op::ISZERO) } else { sequence }
+    pub(crate) fn select(&self) -> Cost {
+        // sub; mul; add.
+        self.select_stack_ops() + self.opcode(op::SUB) + self.opcode(op::MUL) + self.opcode(op::ADD)
     }
 
     /// Gas of copying one more word with a copy opcode.
@@ -733,10 +740,7 @@ impl Target {
     /// Estimated code of one instruction: its operation and the pushes of its immediate operands.
     pub(crate) fn instruction_estimate(&self, func: &Function, inst: InstId) -> Cost {
         let kind = &func.inst(inst).kind;
-        let immediate = |value| match func.value(value) {
-            Value::Immediate(immediate) => immediate.as_u256(),
-            _ => None,
-        };
+        let immediate = |value| func.value_u256(value);
         let mut cost = self.op(&kind.op(), immediate);
         kind.visit_operands(|operand| {
             if let Some(value) = immediate(operand) {
@@ -1010,6 +1014,39 @@ impl Target {
         let guarded =
             Cost::new(guard.gas + in_place.gas, guard.bytes + in_place.bytes + copy.bytes);
         self.cmp_lifetime(guarded, copy).is_lt()
+    }
+
+    /// Whether ABI encoding of a memory struct of `words` word fields copies them as one
+    /// `MCOPY` block, then cleans its narrow fields in place, rather than loading and storing
+    /// each field. `full` lists the indices of the full-width fields, the only ones the copy
+    /// saves: a narrow field is loaded, cleaned, and stored in either shape. Each saved field
+    /// computes its source and destination addresses, which field 0 shares with the struct
+    /// and its output, and loads and stores the word; the copy pushes its size, copies both
+    /// addresses, and pays for every word, narrow ones included.
+    pub(crate) fn copies_struct_block(
+        &self,
+        words: usize,
+        full: impl Iterator<Item = usize>,
+    ) -> bool {
+        if !self.evm_version.has_mcopy() {
+            return false;
+        }
+        let word = op::WORD_BYTES;
+        let address = |index: usize| {
+            if index == 0 {
+                self.dup()
+            } else {
+                self.dup() + self.push(U256::from(index * word)) + self.opcode(op::ADD)
+            }
+        };
+        let fields = full
+            .map(|index| address(index).times(2) + self.opcode(op::MLOAD) + self.opcode(op::MSTORE))
+            .sum::<Cost>();
+        let copy = self.push(U256::from(words * word))
+            + self.dup().times(2)
+            + self.opcode(op::MCOPY)
+            + self.copied_words(words * word);
+        self.cmp(copy, fields).is_lt()
     }
 
     /// The factor `2**shift` that a constant shift lowered to `MUL` or `DIV` pushes, or `None`
@@ -1498,7 +1535,7 @@ impl Target {
             // A phi is a stack move at the join.
             InstKind::Phi(_) => self.dup(),
             // A select runs the generic emitter.
-            InstKind::Select(..) => self.select(false),
+            InstKind::Select(..) => self.select(),
             // Every other operation lowers to one opcode and was priced above.
             _ => {
                 debug_assert!(false, "operation without a single opcode is not priced: {kind}");
@@ -1553,6 +1590,12 @@ impl Target {
     fn sequence(&self, codes: &[u8]) -> Cost {
         codes.iter().map(|&code| self.opcode(code)).sum()
     }
+
+    /// Cost of the stack operations the Select emitter adds around its arithmetic: from
+    /// `[f, c, t]`, `dup3; swap1` leaves `[f, c, f, t]` for `sub; mul; add`.
+    pub(crate) fn select_stack_ops(&self) -> Cost {
+        self.opcode(op::DUP3) + self.opcode(op::SWAP1)
+    }
 }
 
 /// Estimates the instructions an `abi_encode` of `ty` expands into after `lower-abi-encode`.
@@ -1580,7 +1623,7 @@ fn abi_layout_expansion(layout: &AbiLayout) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{Immediate, Instruction, PtrLocation};
+    use crate::mir::{Immediate, Instruction, PtrLocation, Value};
     use solar_interface::Ident;
     use std::fmt::Write;
 
@@ -1707,8 +1750,13 @@ mod tests {
     #[test]
     fn select_prices_the_emitted_sequence() {
         let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
-        assert_eq!(target.select(false), Cost::new(17, 5).with_steps(5));
-        assert_eq!(target.select(true), Cost::new(20, 6).with_steps(6));
+        assert_eq!(target.select_stack_ops(), Cost::new(6, 2).with_steps(2));
+        assert_eq!(target.select(), Cost::new(17, 5).with_steps(5));
+
+        let mut function = Function::new(Ident::DUMMY);
+        let value = function.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
+        let select = InstKind::Select(value, value, value).op();
+        assert_eq!(target.op(&select, |_| None), target.select());
     }
 
     #[test]
@@ -1815,7 +1863,7 @@ mod tests {
         let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
         let mut function = Function::new(Ident::DUMMY);
         let exit = function.alloc_block();
-        let one = function.alloc_value(Value::Immediate(Immediate::I256(U256::from(1))));
+        let one = function.alloc_value(Value::Immediate(Immediate::I256(U256::ONE)));
         let (add, sum) = function
             .alloc_value_inst(Instruction::new(InstKind::Add(one, one), Some(MirType::I256)));
         function.blocks[BlockId::ENTRY].instructions.push(add);
@@ -1936,7 +1984,7 @@ mod tests {
         }
         assert!(!target.is_cheap_immediate(U256::from(256)));
         assert!(!target.is_cheap_immediate(U256::MAX));
-        assert!(!target.is_cheap_immediate(U256::from(1) << 159));
+        assert!(!target.is_cheap_immediate(U256::ONE << 159));
     }
 
     #[test]
@@ -2109,6 +2157,25 @@ mod tests {
     }
 
     #[test]
+    fn struct_block_copy_needs_mcopy_and_saved_words() {
+        for mode in [OptimizationMode::Gas, OptimizationMode::Size] {
+            let shanghai = Target::with(EvmVersion::Shanghai, mode, 200);
+            let cancun = Target::with(EvmVersion::Cancun, mode, 200);
+            // Seaport's `OfferItem` (enum, address, three words) and `ConsiderationItem`
+            // (the same and an address).
+            assert!(!shanghai.copies_struct_block(5, [2, 3, 4].into_iter()));
+            assert!(cancun.copies_struct_block(5, [2, 3, 4].into_iter()));
+            assert!(cancun.copies_struct_block(6, [2, 3, 4].into_iter()));
+            assert!(cancun.copies_struct_block(2, [0, 1].into_iter()));
+            assert!(cancun.copies_struct_block(2, [1].into_iter()));
+            // One full word at the struct's own address is cheaper to move by itself, and a
+            // struct of narrow fields saves nothing.
+            assert!(!cancun.copies_struct_block(1, [0].into_iter()));
+            assert!(!cancun.copies_struct_block(3, [].into_iter()));
+        }
+    }
+
+    #[test]
     fn control_flow_costs_distinguish_unconditional_edges() {
         for version in
             [EvmVersion::Homestead, EvmVersion::Paris, EvmVersion::Osaka, EvmVersion::Amsterdam]
@@ -2137,11 +2204,11 @@ mod tests {
     #[test]
     fn legacy_splats_price_copy_loops_against_stores() {
         let target = Target::with(EvmVersion::Paris, OptimizationMode::Size, 1);
-        assert!(!target.legacy_splat_is_profitable(U256::from(1), 160, false));
-        assert!(!target.legacy_splat_is_profitable(U256::from(1), 256, false));
-        assert!(target.legacy_splat_is_profitable(U256::from(1), 1024, false));
-        assert!(target.legacy_splat_is_profitable(U256::from(1), 2048, false));
-        assert!(target.legacy_splat_is_profitable(U256::from(1), 5120, false));
+        assert!(!target.legacy_splat_is_profitable(U256::ONE, 160, false));
+        assert!(!target.legacy_splat_is_profitable(U256::ONE, 256, false));
+        assert!(target.legacy_splat_is_profitable(U256::ONE, 1024, false));
+        assert!(target.legacy_splat_is_profitable(U256::ONE, 2048, false));
+        assert!(target.legacy_splat_is_profitable(U256::ONE, 5120, false));
         let word = U256::from_be_bytes([0x11; 32]);
         assert!(target.legacy_splat_is_profitable(word, 96, true));
         assert!(target.legacy_splat_is_profitable(word, 5120, true));
@@ -2303,7 +2370,7 @@ mod tests {
             // A hash nothing reads is dead whatever the stores.
             assert!(target.folds_constant_keccak(hash, keccak, Cost::ZERO, 0, false));
             // A short hash costs fewer bytes than the instruction and wins on its own.
-            assert!(target.folds_constant_keccak(U256::from(1), keccak, Cost::ZERO, 1, false));
+            assert!(target.folds_constant_keccak(U256::ONE, keccak, Cost::ZERO, 1, false));
             // A loop repays the bytes with the gas of its iterations, when optimizing for gas.
             assert_eq!(
                 target.folds_constant_keccak(hash, keccak, Cost::ZERO, 1, true),
@@ -2367,6 +2434,18 @@ mod tests {
         assert!(target(OptimizationMode::Gas).marks_failure_paths_cold());
         assert!(!target(OptimizationMode::Size).marks_failure_paths_cold());
         assert!(!target(OptimizationMode::None).marks_failure_paths_cold());
+    }
+
+    #[test]
+    fn hoisted_read_needs_three_readers() {
+        for mode in [OptimizationMode::Gas, OptimizationMode::Size] {
+            let target =
+                Target::with(EvmVersion::Cancun, mode, Target::DEFAULT_EXPECTED_EXECUTIONS);
+            assert!(!target.hoisted_read_pays(4, 1), "{mode:?}");
+            assert!(!target.hoisted_read_pays(4, 2), "{mode:?}");
+            assert!(target.hoisted_read_pays(4, 3), "{mode:?}");
+            assert!(target.hoisted_read_pays(4, 8), "{mode:?}");
+        }
     }
 
     #[test]
@@ -2451,7 +2530,7 @@ mod tests {
         assert_eq!(estimate(InstKind::StorageBytesStore(value, value)), (Cost::new(500, 180), 1));
         assert_eq!(estimate(InstKind::Zext(value)), (Cost::ZERO, 0));
         assert_eq!(estimate(InstKind::Phi(vec![])), (target.opcode(op::DUP1), 1));
-        assert_eq!(estimate(InstKind::Select(value, value, value)), (target.select(false), 1));
+        assert_eq!(estimate(InstKind::Select(value, value, value)), (target.select(), 1));
         let jump = target.label_push() + target.opcode(op::JUMP);
         assert_eq!(target.terminator_estimate(&Terminator::Jump(BlockId::ENTRY)), jump);
         assert_eq!(

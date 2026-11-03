@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/terminal-layout/observed_position.evmir (before terminal-layout) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/terminal-layout/observed_position.evmir (after terminal-layout) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/terminal-layout/observed_position.evmir (before terminal-layout) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/terminal-layout/observed_position.evmir (after terminal-layout) ===
   @module ObservedPosition
   bb0:
     pc

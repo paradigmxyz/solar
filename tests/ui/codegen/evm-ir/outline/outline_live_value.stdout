@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/outline/outline_live_value.evmir (before outline) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/outline/outline_live_value.evmir (after outline) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/outline/outline_live_value.evmir (before outline) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/outline/outline_live_value.evmir (after outline) ===
   @module OutlineLiveValue
   bb0:
     push 1

@@ -1,9 +1,9 @@
-// === ROOT/tests/ui/codegen/lowering/immutable_byte_patches.sol:ImmutableBytePatches (creation) ===
+; === ROOT/tests/ui/codegen/lowering/immutable_byte_patches.sol:ImmutableBytePatches (creation) ===
 @module ImmutableBytePatches_deployment
 @data
   ImmutableBytePatches_runtime_code_0: hex"34602e575f3560e01c806357de26a403602e576000600060f81b60005f0b5f0b915f529060205260405260605ff35b5f5ffd"
 
-bb0:  ; constructor(uint8 unsignedValue_, int8 signedValue_, bytes1 fixedBytesValue_) [creation entry]
+bb0:                                              ; constructor(uint8 unsignedValue_, int8 signedValue_, bytes1 fixedBytesValue_) [creation entry]
   push_data ImmutableBytePatches_runtime_code_0+50
   codesize
   sub
@@ -36,43 +36,39 @@ bb0:  ; constructor(uint8 unsignedValue_, int8 signedValue_, bytes1 fixedBytesVa
   jumpi
   dup 1
   mload
+  dup 1
   push 8
   shr
   push bb5
   jumpi
   push 32
-  dup 2
+  dup 3
   add
   mload
   dup 1
   push 0
   signextend
+  dup 2
   sub
   push bb5
   jumpi
+  swap 2
   push 64
   add
   mload
+  dup 1
   push 8
   shl
   push bb5
   jumpi
-  push 288
-  mload
+  swap 2
+  push 255
+  and
+  swap 1
   push 192
   mstore
-  push 255
-  push 320
-  mload
-  and
   push 224
   mstore
-  push 255
-  push 248
-  shl
-  push 352
-  mload
-  and
   push 256
   mstore
   push 50

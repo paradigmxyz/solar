@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/assembly_assign_cleanup.sol:C ===
+; === ROOT/tests/ui/codegen/lowering/run-call/assembly_assign_cleanup.sol:C ===
 @module C
 ; function parseSel(bytes memory b) internal pure returns (bytes4 s)
 fn @parseSel(arg0: ptr<memory>) -> i256 [pure] {

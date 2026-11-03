@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/storage_delete_packed_array.sol:StorageDeletePackedArray ===
+; === ROOT/tests/ui/codegen/lowering/run-call/storage_delete_packed_array.sol:StorageDeletePackedArray ===
 @module StorageDeletePackedArray
 @types
   struct0: {i8, i8, i8}
@@ -245,11 +245,11 @@ fn @clearFixed() -> struct0 [selector=0x94bd0f54, abi_params=[], abi_returns=[wo
     v14 = or v13, 0x30000
     sstore 1, v14 !metadata(storage=slot(1))
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v15 = phi [bb0: 0], [bb2: v18]
     v16 = lt v15, 1
     jumpi v16, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v19 = lt 0, 3
     v20 = eq v19, false
     icall panic_if<0x32>, v20
@@ -272,7 +272,7 @@ fn @clearFixed() -> struct0 [selector=0x94bd0f54, abi_params=[], abi_returns=[wo
     v35 = insert_value struct0, v34, 1, v28
     v36 = insert_value struct0, v35, 2, v33
     ret v36
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v17 = add v15, 1
     sstore v17, 0 !metadata(storage=offset(v15, 1))
     v18 = add v15, 1
@@ -332,14 +332,14 @@ fn @clearFixedDirtyWord() -> i256 [selector=0xb56337b4, abi_params=[], abi_retur
   bb0:
     sstore 1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(storage=slot(1))
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v0 = phi [bb0: 0], [bb2: v3]
     v1 = lt v0, 1
     jumpi v1, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v4 = sload 1 !metadata(storage=slot(1))
     ret v4
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v2 = add v0, 1
     sstore v2, 0 !metadata(storage=offset(v0, 1))
     v3 = add v0, 1
@@ -347,7 +347,7 @@ fn @clearFixedDirtyWord() -> i256 [selector=0xb56337b4, abi_params=[], abi_retur
 }
 
 ; function clearOddWidthDirtyWords() external returns (uint256, uint256, uint256, uint256, uint256, uint256) [selector 0xf2b0f658]
-fn @clearOddWidthDirtyWords() [selector=0xf2b0f658, abi_params=[], abi_returns=[word, word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256, uint256]] {
+fn @clearOddWidthDirtyWords() -> struct2 [selector=0xf2b0f658, abi_params=[], abi_returns=[word, word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256, uint256]] {
   bb0:
     sstore 2, 7 !metadata(storage=slot(2))
     mstore 0, 2 !metadata(memory=scratch)
@@ -369,11 +369,11 @@ fn @clearOddWidthDirtyWords() [selector=0xf2b0f658, abi_params=[], abi_returns=[
     v8 = add v4, v7
     clear_storage_words 2, 0, v8
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v9 = phi [bb0: 0], [bb2: v12]
     v10 = lt v9, 3
     jumpi v10, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v13 = sload v0 !metadata(storage=symbolic(v0))
     mstore 0, v13 !metadata(memory=scratch)
     v14 = add v0, 1
@@ -389,7 +389,7 @@ fn @clearOddWidthDirtyWords() [selector=0xf2b0f658, abi_params=[], abi_returns=[
     v20 = sload 5 !metadata(storage=slot(5))
     mstore 160, v20
     returndata 0, 192
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v11 = add v9, 3
     sstore v11, 0 !metadata(storage=offset(v9, 3))
     v12 = add v9, 1

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/fallback_bytes_modified.sol:ModifiedFallbackBytes ===
+; === ROOT/tests/ui/codegen/lowering/fallback_bytes_modified.sol:ModifiedFallbackBytes ===
 @module ModifiedFallbackBytes
 ; fallback(bytes calldata input) external returns (bytes memory) [fallback]
 fn @fallback(arg0: slice<calldata>) -> ptr<memory> [fallback] {
@@ -6,14 +6,14 @@ fn @fallback(arg0: slice<calldata>) -> ptr<memory> [fallback] {
     v0 = calldataload 0
     v1 = ne v0, 0
     jumpi v1, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v2 = extract_value slice<calldata>, arg0, 1
     v3 = inttoptr i256 v0 to ptr<calldata>
     v4 = make_calldata_slice v3, v2
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v5 = phi [bb1: v4], [bb2: arg0]
     v6 = calldataload 32
     v7 = extract_value slice<calldata>, v5, 0

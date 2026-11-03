@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/inline-tagged/tagged_budgets.sol:L ===
+; === ROOT/tests/ui/codegen/mir/inline-tagged/tagged_budgets.sol:L ===
 @module L
 @phase lowered
 @library
@@ -8,7 +8,7 @@ fn @entry() [entry, cold] {
     revert 0, 0
 }
 
-// === ROOT/tests/ui/codegen/mir/inline-tagged/tagged_budgets.sol:TaggedBudgets ===
+; === ROOT/tests/ui/codegen/mir/inline-tagged/tagged_budgets.sol:TaggedBudgets ===
 @module TaggedBudgets
 @phase lowered
 ; runtime dispatch entry
@@ -17,64 +17,68 @@ fn @entry() [entry] {
     v0 = callvalue
     v1 = ne v0, 0
     jumpi v1, bb3, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v2 = calldataload 0
     v3 = shr v2, 224
     switch v3, default bb3, [0x9cf82c3f => bb2]
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     tail_call @run
-  bb3 [cold]:  ; preds = bb0, bb1
+  bb3 [cold]:                                     ; preds = bb0, bb1
     revert 0, 0
 }
 
 ; function run(bytes memory x, bytes memory out, uint256 a, uint256 b, uint256 c, uint256 d) external pure returns (uint256) [selector 0x9cf82c3f]
-fn @run() [selector=0x9cf82c3f, abi_wrapper, pure] {
+fn @run() {
   bb0:
     v1 = calldatasize
     v2 = lt v1, 196
     jumpi v2, bb1, bb2
-  bb2:  ; preds = bb0
-    v3 = icall @decode_calldata_type, 4
-    v4 = icall @decode_calldata_type, 36
-    v0 = icall @f, v3, v4, arg2, arg3, arg4, arg5
+  bb2:                                            ; preds = bb0
+    v3 = calldataload 68
+    v4 = calldataload 100
+    v5 = calldataload 132
+    v6 = calldataload 164
+    v7 = icall @decode_calldata_type, 4
+    v8 = icall @decode_calldata_type, 36
+    v0 = icall @f, v7, v8, v3, v4, v5, v6
     mstore 0, v0 !metadata(memory=scratch)
     returndata 0, 32
-  bb1 [cold]:  ; preds = bb0
+  bb1 [cold]:                                     ; preds = bb0
     revert 0, 0
 }
 
 ; function f(bytes memory x, bytes memory out, uint256 a, uint256 b2, uint256 c, uint256 d) internal pure returns (uint256 o)
-fn @f(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256) -> i256 [may_return_memory, pure] {
+fn @f(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256) -> i256 [may_return_memory] {
   bb0:
     v26 = xor arg4, arg5
     v134 = add arg1, 32
     jump bb1
-  bb1:  ; preds = bb0, bb20
+  bb1:                                            ; preds = bb0, bb20
     v6 = phi [bb0: 0], [bb20: v119]
     v7 = phi [bb0: 0], [bb20: v30]
     v8 = lt v7, arg2
     jumpi v8, bb3, bb2
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     ret v6
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v9 = and v7, 7
     v109 = sub v6, v9
     v110 = lt v6, v9
     jumpi v110, bb16, bb17
-  bb17:  ; preds = bb3
+  bb17:                                           ; preds = bb3
     jump bb4
-  bb4:  ; preds = bb5, bb17
+  bb4:                                            ; preds = bb5, bb17
     v20 = phi [bb17: 0], [bb5: v111]
     v21 = lt v20, arg3
     jumpi v21, bb6, bb7
-  bb7:  ; preds = bb4
+  bb7:                                            ; preds = bb4
     v79 = mload arg0
     v80 = lt v79, 32
     v81 = sub v79, 32
     v82 = lt v81, v7
     v83 = or v80, v82
     jumpi v83, bb11, bb13
-  bb13:  ; preds = bb7
+  bb13:                                           ; preds = bb7
     v128 = add arg0, v7
     v129 = add v128, 32
     v87 = mload v129
@@ -82,24 +86,24 @@ fn @f(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256) ->
     v119 = add v28, v6
     v120 = lt v119, v6
     jumpi v120, bb16, bb20
-  bb20:  ; preds = bb13
+  bb20:                                           ; preds = bb13
     v30 = add v7, 1
     jump bb1
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     v113 = add v6, v20
     v114 = lt v113, v6
     v115 = add v109, v20
     v116 = lt v115, v109
     v138 = or v114, v116
     jumpi v138, bb16, bb18
-  bb18:  ; preds = bb6
+  bb18:                                           ; preds = bb6
     v88 = mload arg1
     v89 = lt v88, 32
     v90 = sub v88, 32
     v91 = lt v90, v115
     v92 = or v89, v91
     jumpi v92, bb11, bb12
-  bb12:  ; preds = bb18
+  bb12:                                           ; preds = bb18
     v122 = add arg1, v115
     v123 = add v122, 32
     v96 = mload v123
@@ -107,39 +111,39 @@ fn @f(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256) ->
     v126 = add v125, 32
     v102 = lt v126, v134
     jumpi v102, bb8, bb10
-  bb10:  ; preds = bb12
+  bb10:                                           ; preds = bb12
     v106 = lt v90, v113
     jumpi v106, bb11, bb15
-  bb15:  ; preds = bb10
+  bb15:                                           ; preds = bb10
     mstore v126, v96
     jump bb5
-  bb8:  ; preds = bb12, bb14
+  bb8:                                            ; preds = bb12, bb14
     v65 = phi [bb12: 0], [bb14: v67]
     v66 = lt v65, 32
     jumpi v66, bb9, bb5
-  bb5:  ; preds = bb8, bb15
+  bb5:                                            ; preds = bb8, bb15
     v111 = add v20, 32
     jump bb4
-  bb9:  ; preds = bb8
+  bb9:                                            ; preds = bb8
     v70 = byte v65, v96
     v117 = add v113, v65
     v118 = lt v117, v113
     jumpi v118, bb16, bb19
-  bb19:  ; preds = bb9
+  bb19:                                           ; preds = bb9
     v73 = mload arg1
     v74 = lt v117, v73
     jumpi v74, bb14, bb11
-  bb14:  ; preds = bb19
+  bb14:                                           ; preds = bb19
     v131 = add arg1, v117
     v132 = add v131, 32
     mstore8 v132, v70
     v67 = add v65, 1
     jump bb8
-  bb11 [cold]:  ; preds = bb7, bb10, bb18, bb19
+  bb11 [cold]:                                    ; preds = bb7, bb10, bb18, bb19
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb16 [cold]:  ; preds = bb3, bb9, bb13, bb6
+  bb16 [cold]:                                    ; preds = bb3, bb9, bb13, bb6
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -153,14 +157,14 @@ fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
     v4 = sub v0, 36
     v5 = lt v4, v1
     jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v6 = calldataload v2
     v7 = add v2, 32
     v37 = add v6, 63
     v10 = and v37, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v11 = lt v10, v6
     jumpi v11, bb3, bb4
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v29 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v30 = add v29, v10 !metadata(alloc_ptr)
     v31 = lt v30, v29
@@ -169,13 +173,13 @@ fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
     v34 = or v33, v32
     v35 = ne v34, 0
     jumpi v35, bb3, bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     mstore 64, v30 !metadata(memory=scratch)
     mstore v29, v6
     v13 = sub v0, v7
     v14 = lt v13, v6
     jumpi v14, bb1, bb5
-  bb5:  ; preds = bb6
+  bb5:                                            ; preds = bb6
     v25 = add v29, 32
     calldatacopy v25, v7, v6
     v22 = sub 0, v6
@@ -184,10 +188,10 @@ fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
     v26 = add v25, v6
     calldatacopy v26, v36, v23
     ret v29
-  bb3 [cold]:  ; preds = bb2, bb4
+  bb3 [cold]:                                     ; preds = bb2, bb4
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1 [cold]:  ; preds = bb0, bb6
+  bb1 [cold]:                                     ; preds = bb0, bb6
     revert 0, 0
 }

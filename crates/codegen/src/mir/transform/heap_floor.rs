@@ -431,10 +431,10 @@ fn is_slot(func: &Function, address: ValueId) -> bool {
 /// NOTE: This relies on `EvmCodegen::runtime_copy_base` and the static return buffer that
 /// `Function::external_static_return_size` sizes. If either comes to read the free memory
 /// pointer, these returns read the slot as the pointer too.
-fn returns_to_the_end(func: &Function) -> bool {
-    func.attributes.is_constructor
-        || func.is_external_entry()
-            && func
+fn returns_to_the_end(module: &Module, entries: &DenseBitSet<FunctionId>, id: FunctionId) -> bool {
+    module.constructor() == Some(id)
+        || entries.contains(id)
+            && module.functions[id]
                 .abi_returns
                 .as_ref()
                 .is_none_or(|returns| !returns.types.iter().any(AbiType::is_dynamic))
@@ -546,13 +546,14 @@ fn module_heap_addresses(
     // A module whose assembly all promises memory safety keeps the type of a memory reference as
     // proof that it points into the heap.
     let trust_types = !module.has_unsafe_assembly();
+    let entries = module.external_entries();
     let mut params = module
         .functions
         .iter_enumerated()
         .map(|(func_id, func)| {
             let mut params = DenseBitSet::new_empty(func.arg_indices().count());
             for index in func.arg_indices() {
-                let heap = if func.is_external_entry() {
+                let heap = if entries.contains(func_id) {
                     func.arg_ty(index) == MirType::MEMPTR
                 } else {
                     !call_sites[func_id].is_empty()
@@ -1053,8 +1054,8 @@ struct ReturnSites {
 
 impl ReturnSites {
     /// Whether a return reaches code outside the module that reads the slot as the pointer.
-    fn reaches_pointer_read(&self, module: &Module) -> bool {
-        self.outside.iter().any(|&func| !returns_to_the_end(&module.functions[func]))
+    fn reaches_pointer_read(&self, module: &Module, entries: &DenseBitSet<FunctionId>) -> bool {
+        self.outside.iter().any(|&func| !returns_to_the_end(module, entries, func))
     }
 }
 
@@ -1081,6 +1082,8 @@ enum Returns {
 /// returns until it is replaced or execution ends.
 struct PointerUses<'a> {
     module: &'a Module,
+    /// The functions called from outside the module: the runtime entries and the constructor.
+    external_entries: DenseBitSet<FunctionId>,
     /// The flow from the entry of each function, once known.
     entry_flows: FxHashMap<FunctionId, Flow>,
     /// The functions whose entry flow is being followed, by how deep the search entered them.
@@ -1116,6 +1119,7 @@ impl<'a> PointerUses<'a> {
     fn new(module: &'a Module) -> Self {
         Self {
             module,
+            external_entries: module.external_entries(),
             entry_flows: FxHashMap::default(),
             following: FxHashMap::default(),
             shallowest: usize::MAX,
@@ -1159,7 +1163,10 @@ impl<'a> PointerUses<'a> {
         returned: &mut FxHashSet<FunctionId>,
     ) -> Reads {
         let sites = self.return_sites(func_id, returned);
-        let mut reads = Reads { pointer: sites.reaches_pointer_read(self.module), data: false };
+        let mut reads = Reads {
+            pointer: sites.reaches_pointer_read(self.module, &self.external_entries),
+            data: false,
+        };
         for (caller, block, index) in sites.calls {
             let flow = self.flow_from(caller, block, index + 1);
             reads |= flow.reads;
@@ -1404,7 +1411,7 @@ impl<'a> PointerUses<'a> {
             return;
         }
         let sites = self.return_sites(func_id, &mut FxHashSet::default());
-        if sites.reaches_pointer_read(self.module) {
+        if sites.reaches_pointer_read(self.module, &self.external_entries) {
             // The code the function returns to reads the slot as the pointer.
             clamps.insert(Clamp::Slot(func_id, block, None));
         }
@@ -1679,7 +1686,7 @@ impl<'a> PointerUses<'a> {
             self.return_sites(func_id, &mut FxHashSet::default());
         let mut outside = Reads::default();
         for func in leaving {
-            if scalar && module.functions[func].is_external_entry() {
+            if scalar && self.external_entries.contains(func) {
                 outside.data = true;
             } else {
                 outside.pointer = true;
@@ -1701,7 +1708,6 @@ impl<'a> PointerUses<'a> {
         func_id: FunctionId,
         seen: &mut FxHashSet<FunctionId>,
     ) -> ReturnSites {
-        let module = self.module;
         let mut calls = Vec::new();
         let mut outside = SmallVec::new();
         let mut returning = vec![func_id];
@@ -1709,10 +1715,11 @@ impl<'a> PointerUses<'a> {
             if !seen.insert(callee) {
                 continue;
             }
+            let external = self.external_entries.contains(callee);
             let sites = self.call_sites(callee);
             // The dispatcher returns from an external function even when internal calls reach it
             // too, and the caller of any other function no call reaches is outside the module.
-            if module.functions[callee].is_external_entry() || sites.is_empty() {
+            if external || sites.is_empty() {
                 outside.push(callee);
             }
             for &site in sites {

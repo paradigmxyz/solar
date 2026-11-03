@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/loop-layout/join_cases.evmir (before loop-layout) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/loop-layout/join_cases.evmir (after loop-layout) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/loop-layout/join_cases.evmir (before loop-layout) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/loop-layout/join_cases.evmir (after loop-layout) ===
   @module JoinCases
   bb0:
     push 0

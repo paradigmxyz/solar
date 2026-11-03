@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/cse/cse_sload.mir (before cse) ===
-+ // === ROOT/tests/ui/codegen/mir/cse/cse_sload.mir (after cse) ===
+- ; === ROOT/tests/ui/codegen/mir/cse/cse_sload.mir (before cse) ===
++ ; === ROOT/tests/ui/codegen/mir/cse/cse_sload.mir (after cse) ===
   @module CseSload
   fn @sload_cse(arg0: i256) -> i256 {
     bb0:

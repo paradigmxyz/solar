@@ -1,9 +1,9 @@
-// === ROOT/tests/ui/codegen/lowering/constructor_success_postlude.sol:ConstructorSuccessPostlude (creation) ===
+; === ROOT/tests/ui/codegen/lowering/constructor_success_postlude.sol:ConstructorSuccessPostlude (creation) ===
 @module ConstructorSuccessPostlude_deployment
 @data
   ConstructorSuccessPostlude_runtime_code_0: hex"5f5ffd"
 
-bb0:  ; constructor(bool fail) [creation entry]
+bb0:                                              ; constructor(bool fail) [creation entry]
   push_data ConstructorSuccessPostlude_runtime_code_0+3
   codesize
   sub
@@ -35,10 +35,9 @@ bb0:  ; constructor(bool fail) [creation entry]
   push bb3
   jumpi
   mload
+  dup 1
   push 1
   shr
-  push 192
-  mload
   or
   push bb3
   jumpi

@@ -22,6 +22,18 @@ note: previous declaration declared here
 LL │     uint public y = 2;
    ╰╴                ━
 
+error[9097]: identifier `z` already declared
+   ╭▸ ROOT/tests/ui/resolve/inheritance_conflicts.sol:LL:CC
+   │
+LL │     uint public z = 5;
+   │                 ━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/resolve/inheritance_conflicts.sol:LL:CC
+   │
+LL │     uint public z = 4;
+   ╰╴                ━
+
 error[9456]: overriding public state variable is missing `override` specifier
    ╭▸ ROOT/tests/ui/resolve/inheritance_conflicts.sol:LL:CC
    │
@@ -84,5 +96,15 @@ LL │ contract CC is AA, BB {}
    ├ note: defined in: `AA`, `BB`
    ╰ help: since one of the bases defines a public state variable which cannot be overridden, change the inheritance layout or rename the functions
 
-error: aborting due to 7 previous errors
+error[6480]: derived contract must override function `z`
+   ╭▸ ROOT/tests/ui/resolve/inheritance_conflicts.sol:LL:CC
+   │
+LL │ contract CCC is BBB, AAA {}
+   │          ━━━
+   │
+   ├ note: two or more base classes define function with same name and parameter types
+   ├ note: defined in: `AAA`, `BBB`
+   ╰ help: since one of the bases defines a public state variable which cannot be overridden, change the inheritance layout or rename the functions
+
+error: aborting due to 9 previous errors
 

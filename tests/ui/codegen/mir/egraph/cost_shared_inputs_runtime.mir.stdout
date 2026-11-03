@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/egraph/cost_shared_inputs_runtime.sol:SharedInputCosts ===
+; === ROOT/tests/ui/codegen/mir/egraph/cost_shared_inputs_runtime.sol:SharedInputCosts ===
 @module SharedInputCosts
 @types
   struct0: {i256, i256}

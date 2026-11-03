@@ -16,8 +16,8 @@
 //! so a sequence whose intervening gas is observable is left alone.
 
 use super::{
-    EvmPass, compact_pushes::immediate_materialization_cost, peephole::invert_comparison,
-    utils::is_split_point,
+    EvmPass, block_layout::terminator_kind, compact_pushes::immediate_materialization_cost,
+    peephole::invert_comparison, utils::is_split_point,
 };
 use crate::{
     backend::evm::{
@@ -177,7 +177,7 @@ fn is_empty_revert(block: &Block) -> bool {
 }
 
 fn ends_in_revert(block: &Block) -> bool {
-    matches!(block.terminator.as_ref().map(|term| &term.kind), Some(TerminatorKind::Op(op::REVERT)))
+    matches!(terminator_kind(block), Some(TerminatorKind::Op(op::REVERT)))
 }
 
 fn is_zero_push(inst: &Instruction) -> bool {

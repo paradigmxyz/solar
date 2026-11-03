@@ -28,6 +28,7 @@ env:
   PIP_UPLOADED_PRIOR_TO: P7D
   CARGO_TERM_COLOR: always
   RUSTC_WRAPPER: "sccache"
+  PINNED_SCCACHE_VERSION: v0.19.0
   SOLC_VERSION: ${{ inputs.solc_version || '0.8.38' }}
   SOLX_VERSION: '0.1.8'
   OKSOLC_REVISION: c465a262edc835afff32951ee2d64e827bc16c3d
@@ -72,6 +73,8 @@ jobs:
           cache-targets: false
 
       - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+        with:
+          version: ${{ env.PINNED_SCCACHE_VERSION }}
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
@@ -414,6 +417,8 @@ jobs:
           cache-on-failure: true
           cache-targets: false
       - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+        with:
+          version: ${{ env.PINNED_SCCACHE_VERSION }}
       - name: Install cargo-codspeed
         uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
         with:

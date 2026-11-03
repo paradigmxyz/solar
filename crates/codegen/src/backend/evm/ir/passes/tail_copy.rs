@@ -110,6 +110,7 @@
 
 use super::{
     EvmPass,
+    block_layout::terminator_kind,
     utils::{count_block_references, instruction_size_lower_bound, is_split_point, retain_blocks},
 };
 use crate::{
@@ -205,8 +206,7 @@ impl EvmPass for CopyJoins {
             }
             let Some(callee) = jump_callee(module, caller) else { continue };
             let tail = &module.blocks[callee];
-            let Some(&TerminatorKind::Jump(successor)) = tail.terminator.as_ref().map(|t| &t.kind)
-            else {
+            let Some(&TerminatorKind::Jump(successor)) = terminator_kind(tail) else {
                 continue;
             };
             if module.blocks[caller].metadata.hotness.is_cold()
@@ -265,8 +265,7 @@ impl EvmPass for InlineReturns {
         for caller in module.blocks.indices() {
             let Some(callee) = jump_callee(module, caller) else { continue };
             let tail = &module.blocks[callee];
-            let Some(&TerminatorKind::Op(opcode)) = tail.terminator.as_ref().map(|t| &t.kind)
-            else {
+            let Some(&TerminatorKind::Op(opcode)) = terminator_kind(tail) else {
                 continue;
             };
             let ending = target.opcode(opcode).bytes;

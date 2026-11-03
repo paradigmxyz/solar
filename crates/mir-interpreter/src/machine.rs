@@ -74,9 +74,6 @@ use std::{convert::Infallible, ops::ControlFlow};
 /// more than any block holds.
 pub(crate) const MEMORY_LIMIT: u64 = 1 << 24;
 
-/// Bytes per memory word.
-const WORD_BYTES: u64 = 32;
-
 /// The opcodes a run executes on its memory, besides the pure opcodes it evaluates.
 const MEMORY_OPCODES: [u8; 6] =
     [op::MLOAD, op::MSTORE, op::MSTORE8, op::MCOPY, op::KECCAK256, op::MSIZE];
@@ -243,12 +240,14 @@ impl Memory {
     }
 
     fn byte(&self, address: u64) -> u8 {
-        let (word, index) = (address / WORD_BYTES, (address % WORD_BYTES) as usize);
+        let (word, index) =
+            (address / EvmMemoryLayout::WORD_SIZE, (address % EvmMemoryLayout::WORD_SIZE) as usize);
         self.words.get(&word).map_or(0, |bytes| bytes[index])
     }
 
     fn set_byte(&mut self, address: u64, value: u8) {
-        let (word, index) = (address / WORD_BYTES, (address % WORD_BYTES) as usize);
+        let (word, index) =
+            (address / EvmMemoryLayout::WORD_SIZE, (address % EvmMemoryLayout::WORD_SIZE) as usize);
         self.words.entry(word).or_insert([0; 32])[index] = value;
     }
 
@@ -263,17 +262,19 @@ impl Memory {
             return Err(Limit::Memory);
         }
         let (offset, len) = (offset.to::<u64>(), len.to::<u64>());
-        self.size = self.size.max((offset + len).div_ceil(WORD_BYTES));
+        self.size = self.size.max((offset + len).div_ceil(EvmMemoryLayout::WORD_SIZE));
         Ok(Some(offset))
     }
 
     fn load(&mut self, offset: U256) -> Result<U256, Limit> {
-        let offset = self.access(offset, U256::from(WORD_BYTES))?.unwrap_or_default();
+        let offset =
+            self.access(offset, U256::from(EvmMemoryLayout::WORD_SIZE))?.unwrap_or_default();
         Ok(self.word(offset))
     }
 
     fn store(&mut self, offset: U256, value: U256) -> Result<(), Limit> {
-        let offset = self.access(offset, U256::from(WORD_BYTES))?.unwrap_or_default();
+        let offset =
+            self.access(offset, U256::from(EvmMemoryLayout::WORD_SIZE))?.unwrap_or_default();
         for (index, byte) in value.to_be_bytes::<32>().into_iter().enumerate() {
             self.set_byte(offset + index as u64, byte);
         }
@@ -542,7 +543,7 @@ impl<'a> Run<'_, 'a, '_> {
         if len > U256::from(MEMORY_LIMIT) {
             return ControlFlow::Break(Outcome::Limit(Limit::Memory));
         }
-        self.burn(len.to::<u64>().div_ceil(WORD_BYTES))
+        self.burn(len.to::<u64>().div_ceil(EvmMemoryLayout::WORD_SIZE))
     }
 
     /// Pushes a frame running `body` on `args`, returning its first value into `result`.
@@ -555,20 +556,7 @@ impl<'a> Run<'_, 'a, '_> {
         if self.frames.len() >= self.limits.depth {
             return ControlFlow::Break(Outcome::Limit(Limit::Depth));
         }
-        let external = self.transaction.is_some() && body.is_external_entry();
-        let args = match &self.transaction {
-            // arg i = calldataload 4 + 32 * i
-            Some(transaction) if external && args.is_empty() => body
-                .arg_indices()
-                .map(|index| {
-                    let offset = 4 + index.index() as u64 * WORD_BYTES;
-                    calldata_word(transaction.calldata, U256::from(offset))
-                })
-                .collect(),
-            _ => args,
-        };
-        let params = if external { body.arg_indices().count() } else { body.params.len() };
-        if args.len() != params || body.arg_indices().count() != args.len() {
+        if args.len() != body.params.len() || body.arg_indices().count() != args.len() {
             return ControlFlow::Break(Outcome::Unsupported("call with mismatched arguments"));
         }
         if body.blocks.is_empty() {
@@ -708,7 +696,7 @@ impl<'a> Run<'_, 'a, '_> {
     ) -> ControlFlow<Outcome, Option<U256>> {
         ControlFlow::Continue(match (opcode, operands) {
             (op::MSIZE, &[]) => {
-                let size = U256::from(self.memory.size * WORD_BYTES);
+                let size = U256::from(self.memory.size * EvmMemoryLayout::WORD_SIZE);
                 // Spills and frame writes MIR does not show may have grown EVM memory up to the
                 // end of the backend's frames, which a transaction needs its layout to know.
                 if self.transaction.is_some() {
@@ -905,11 +893,11 @@ impl<'a> Run<'_, 'a, '_> {
         // mstore buffer + 32 * k, result k
         // mstore 0x20, buffer
         for (index, &value) in values.iter().enumerate().skip(1) {
-            let offset = buffer.wrapping_add(U256::from(index as u64 * WORD_BYTES));
+            let offset = buffer.wrapping_add(U256::from(index as u64 * EvmMemoryLayout::WORD_SIZE));
             limit(self.memory.store(offset, value))?;
         }
         let slot = U256::from(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
-        limit(self.memory.store(slot, U256::from(buffer)))
+        limit(self.memory.store(slot, buffer))
     }
 
     fn terminator(&mut self, body: &'a Function, block: BlockId) -> ControlFlow<Outcome> {
@@ -1072,6 +1060,7 @@ fn limit<T>(result: Result<T, Limit>) -> ControlFlow<Outcome, T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloy_primitives::{B256, KECCAK256_EMPTY};
     use solar_interface::{ColorChoice, Session, source_map::FileName};
     use solar_mir::ResultKind;
 
@@ -1242,7 +1231,7 @@ fn @storage(arg0: i256) -> i256 {
             let mut shifted = [0; 32];
             shifted[0] = 1;
             shifted[1..].copy_from_slice(&arg.to_be_bytes::<32>()[..31]);
-            let empty = U256::from_be_bytes(keccak256([]).0);
+            let empty = U256::from_be_bytes(KECCAK256_EMPTY.0);
             let expected = U256::from_be_bytes(shifted) ^ empty;
             assert_eq!(execution.outcome, Outcome::Return([expected].into_iter().collect()));
         });
@@ -1338,7 +1327,7 @@ fn @entry() [entry] {
     returndata 0, 128
 }
 ",
-            &U256::from(3).to_be_bytes::<32>(),
+            B256::with_last_byte(3).as_slice(),
         );
         let words = [104, 32, 3 << 8, 0].map(|word| U256::from(word).to_be_bytes::<32>());
         assert_eq!(context.outcome, Outcome::ReturnData(words.concat()));
@@ -1377,17 +1366,18 @@ fn @entry() [entry] {
 @data
   literal_0: hex\"0102\"
 
-fn @echo() [selector=0x00000001, abi_wrapper] {
+fn @echo() {
   bb0:
+    v900 = calldataload 4
     v0 = alloc 32 !metadata(deferred_alloc)
     datacopy literal_0, v0, 2
     v1 = mload v0
-    v2 = eq arg0, 0
+    v2 = eq v900, 0
     jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    mstore 0, arg0
+    mstore 0, v900
     mstore 32, v1
     returndata 0, 64
 }
@@ -1397,8 +1387,8 @@ fn @entry() [entry] {
     tail_call @echo
 }
 ";
-        // An external entry reads its argument from calldata after the selector.
-        let calldata = [&[0, 0, 0, 1][..], &U256::from(42).to_be_bytes::<32>()].concat();
+        // A runtime entry reads its argument from calldata after the selector.
+        let calldata = [&[0, 0, 0, 1][..], B256::with_last_byte(42).as_slice()].concat();
         let data = U256::from(0x0102) << 240;
         let words = [U256::from(42), data].map(|word| word.to_be_bytes::<32>());
         assert_eq!(transact(module, &calldata).outcome, Outcome::ReturnData(words.concat()));

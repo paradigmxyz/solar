@@ -29,14 +29,11 @@ pub fn immutable_push_type_size(
 
 /// Returns the first byte after every constructor-local slot.
 fn constructor_local_memory_end(module: &Module) -> u64 {
-    module.functions.iter().find(|func| func.attributes.is_constructor).map_or(
-        EvmMemoryLayout::HEAP_START,
-        |func| {
-            EvmMemoryLayout::HEAP_START
-                .checked_add(func.internal_frame_size)
-                .expect("constructor local-memory size overflow")
-        },
-    )
+    module.constructor().map_or(EvmMemoryLayout::HEAP_START, |constructor| {
+        EvmMemoryLayout::HEAP_START
+            .checked_add(module.function(constructor).internal_frame_size)
+            .expect("constructor local-memory size overflow")
+    })
 }
 
 /// Returns the first immutable staging word, above every constructor-owned

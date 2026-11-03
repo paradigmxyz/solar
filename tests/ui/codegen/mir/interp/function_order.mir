@@ -17,9 +17,11 @@ fn @quot_rem(arg0: i256, arg1: i256) [return_abi=[i256, i256]] {
     ret v0, v1
 }
 
-fn @divmod() [selector=0x8efe1b6c, abi_wrapper] {
+fn @divmod() {
   bb0:
-    v0 = icall @quot_rem, arg0, arg1
+    v900 = calldataload 4
+    v901 = calldataload 36
+    v0 = icall @quot_rem, v900, v901
     v1 = mload 32
     v2 = add v1, 32
     v3 = mload v2
@@ -28,7 +30,7 @@ fn @divmod() [selector=0x8efe1b6c, abi_wrapper] {
     returndata 0, 64
 }
 
-fn @allocation() [selector=0x88a17bde, abi_wrapper] {
+fn @allocation() {
   bb0:
     v0 = alloc 64 !metadata(deferred_alloc)
     v1 = ptrtoint ptr<memory> v0 to i256

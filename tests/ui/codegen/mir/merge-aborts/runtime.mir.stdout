@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/merge-aborts/runtime.sol:MergeAborts ===
+; === ROOT/tests/ui/codegen/mir/merge-aborts/runtime.sol:MergeAborts ===
 @module MergeAborts
 ; function sum3(uint256 a, uint256 b, uint256 c) external pure returns (uint256) [selector 0xd412532e]
 fn @sum3(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xd412532e, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -12,23 +12,23 @@ fn @sum3(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xd412532e, pure,
 fn @accumulate(arg0: i256, arg1: i256) -> i256 [selector=0x4256913b, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: arg0], [bb3: v5]
     v3 = phi [bb0: 0], [bb3: v6]
     v4 = lt v3, v1
     jumpi v4, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     ret v2
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v5 = checked_add uint256, v2, v3
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v6 = checked_add uint256, v3, 1
     jump bb1
 }
@@ -37,7 +37,7 @@ fn @accumulate(arg0: i256, arg1: i256) -> i256 [selector=0x4256913b, pure, abi_p
 fn @toWad(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x41cb7983, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v8]
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: arg2], [bb3: v2]
@@ -45,18 +45,18 @@ fn @toWad(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x41cb7983, pure
     v4 = phi [bb0: 0], [bb3: v9]
     v5 = lt v4, v2
     jumpi v5, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     ret v3
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v6 = checked_mul uint256, v0, 0xe8d4a51000
     v7 = checked_add uint256, v3, v6
     v8 = checked_add uint256, v0, v1
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v9 = checked_add uint256, v4, 1
     jump bb1
 }
@@ -65,7 +65,7 @@ fn @toWad(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x41cb7983, pure
 fn @scale(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xca939f26, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v8]
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: arg2], [bb3: v2]
@@ -73,18 +73,18 @@ fn @scale(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xca939f26, pure
     v4 = phi [bb0: 0], [bb3: v9]
     v5 = lt v4, v2
     jumpi v5, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     ret v3
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v6 = checked_mul uint256, v0, v1
     v7 = checked_add uint256, v3, v6
     v8 = checked_add uint256, v0, 1
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v9 = checked_add uint256, v4, 1
     jump bb1
 }

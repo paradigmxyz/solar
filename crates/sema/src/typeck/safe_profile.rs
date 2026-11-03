@@ -80,8 +80,10 @@ fn profile(gcx: Gcx<'_>, id: hir::ContractId) -> Option<Profile> {
                 "arithmetic" => tag_arithmetic = true,
                 _ => {
                     gcx.dcx()
-                        .err(format!("`@custom:solar-safe` has no property `{property}`"))
-                        .span(natspec.span)
+                        .err_at(
+                            natspec.span,
+                            format!("`@custom:solar-safe` has no property `{property}`"),
+                        )
                         .help(
                             "the properties are `memory` and `arithmetic`; naming none requires \
                              only `memory`",
@@ -147,8 +149,10 @@ fn check_contract(gcx: Gcx<'_>, id: hir::ContractId, profile: Profile) {
             continue;
         }
         gcx.dcx()
-            .err(format!("`{name}` is tagged `@custom:solar-safe` but runs {what}"))
-            .span(finding.span)
+            .err_at(
+                finding.span,
+                format!("`{name}` is tagged `@custom:solar-safe` but runs {what}"),
+            )
             .span_note(profile.tag, "the tag is here")
             .note(format!("it runs this through {}", findings.path(gcx, finding.function)))
             .help(help)

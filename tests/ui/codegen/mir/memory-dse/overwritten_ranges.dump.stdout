@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/memory-dse/overwritten_ranges.sol:OverwrittenRanges ===
+; === ROOT/tests/ui/codegen/mir/memory-dse/overwritten_ranges.sol:OverwrittenRanges ===
 @module OverwrittenRanges
 @phase lowered
 ; runtime dispatch entry
@@ -7,26 +7,26 @@ fn @entry() [entry] {
     v0 = callvalue
     v1 = ne v0, 0
     jumpi v1, bb7, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v2 = calldataload 0
     v3 = shr v2, 224
     switch v3, default bb7, [0x5e97f278 => bb2, 0x6649a3b9 => bb3, 0x7fce0203 => bb4, 0x9defb653 => bb5, 0xa6a0e5ea => bb6]
-  bb6:  ; preds = bb1
+  bb6:                                            ; preds = bb1
     tail_call @returndataBounds
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     tail_call @partialOverwrite
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     tail_call @expansion
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     tail_call @allocated
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     tail_call @overwritten
-  bb7 [cold]:  ; preds = bb0, bb1
+  bb7 [cold]:                                     ; preds = bb0, bb1
     revert 0, 0
 }
 
 ; function overwritten() external pure returns (uint256, uint256) [selector 0x5e97f278]
-fn @overwritten() [selector=0x5e97f278, abi_wrapper, pure] {
+fn @overwritten() {
   bb0:
     mstore 257, 7
     mstore 289, 9
@@ -34,7 +34,7 @@ fn @overwritten() [selector=0x5e97f278, abi_wrapper, pure] {
 }
 
 ; function partialOverwrite() external pure returns (uint256, uint256) [selector 0x9defb653]
-fn @partialOverwrite() [selector=0x9defb653, abi_wrapper, pure] {
+fn @partialOverwrite() {
   bb0:
     v0 = calldatasize
     calldatacopy 256, v0, 64
@@ -43,7 +43,7 @@ fn @partialOverwrite() [selector=0x9defb653, abi_wrapper, pure] {
 }
 
 ; function expansion() external pure returns (uint256 size) [selector 0x7fce0203]
-fn @expansion() [selector=0x7fce0203, abi_wrapper, pure] {
+fn @expansion() {
   bb0:
     v0 = calldatasize
     calldatacopy 256, v0, 64
@@ -54,7 +54,7 @@ fn @expansion() [selector=0x7fce0203, abi_wrapper, pure] {
 }
 
 ; function returndataBounds() external pure returns (uint256, uint256) [selector 0xa6a0e5ea]
-fn @returndataBounds() [selector=0xa6a0e5ea, abi_wrapper, pure] {
+fn @returndataBounds() {
   bb0:
     returndatacopy 256, 0, 64
     mstore 256, 7
@@ -63,33 +63,35 @@ fn @returndataBounds() [selector=0xa6a0e5ea, abi_wrapper, pure] {
 }
 
 ; function allocated(uint256 x, uint256 y) external pure returns (uint256[] memory values) [selector 0x6649a3b9]
-fn @allocated() [selector=0x6649a3b9, abi_wrapper, pure] {
+fn @allocated() {
   bb0:
     v9 = calldatasize
     v10 = lt v9, 68
     jumpi v10, bb1, bb2
-  bb2:  ; preds = bb0
-    v26 = heap_floor !metadata(alloc_ptr)
-    v27 = add v26, 96 !metadata(alloc_ptr)
-    v28 = lt v27, v26
-    v29 = zext i1 v28 to i256
-    v30 = shr v27, 64
-    v31 = or v30, v29
-    v32 = ne v31, 0
-    jumpi v32, bb4, bb3
-  bb3:  ; preds = bb2
-    mstore v26, 2
-    v20 = add v26, 32
-    mstore v20, arg0
-    v22 = add v26, 64
-    mstore v22, arg1
-    v24 = sub v26, 32
-    mstore v24, 32
-    returndata v24, 128
-  bb4 [cold]:  ; preds = bb2
+  bb2:                                            ; preds = bb0
+    v28 = heap_floor !metadata(alloc_ptr)
+    v29 = add v28, 96 !metadata(alloc_ptr)
+    v30 = lt v29, v28
+    v31 = zext i1 v30 to i256
+    v32 = shr v29, 64
+    v33 = or v32, v31
+    v34 = ne v33, 0
+    jumpi v34, bb4, bb3
+  bb3:                                            ; preds = bb2
+    v36 = calldataload 36
+    v35 = calldataload 4
+    mstore v28, 2
+    v22 = add v28, 32
+    mstore v22, v35
+    v24 = add v28, 64
+    mstore v24, v36
+    v26 = sub v28, 32
+    mstore v26, 32
+    returndata v26, 128
+  bb4 [cold]:                                     ; preds = bb2
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1 [cold]:  ; preds = bb0
+  bb1 [cold]:                                     ; preds = bb0
     revert 0, 0
 }

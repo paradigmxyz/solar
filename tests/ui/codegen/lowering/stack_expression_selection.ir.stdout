@@ -1,6 +1,6 @@
-// === ROOT/tests/ui/codegen/lowering/stack_expression_selection.sol:StackExpressionSelection (runtime) ===
+; === ROOT/tests/ui/codegen/lowering/stack_expression_selection.sol:StackExpressionSelection (runtime) ===
 @module StackExpressionSelection_runtime
-bb0:  ; runtime dispatch entry
+bb0:                                              ; runtime dispatch entry
   callvalue
   push bb10
   jumpi
@@ -70,7 +70,7 @@ bb2:
   push 0
   push 0
   revert
-bb11:  ; function sharedXor(uint256 a, uint256 b) public pure returns (uint256 d, uint256 next, bool equal) [selector 0x1a49b55c]
+bb11:                                             ; function sharedXor(uint256 a, uint256 b) public pure returns (uint256 d, uint256 next, bool equal) [selector 0x1a49b55c]
   push 68
   calldatasize
   lt
@@ -98,7 +98,7 @@ bb34:
   push 96
   push 0
   return
-bb14:  ; function sharedReverse(uint256 a, uint256 b) public pure returns (uint256 d, uint256 next, bool equal) [selector 0x8552b9c1]
+bb14:                                             ; function sharedReverse(uint256 a, uint256 b) public pure returns (uint256 d, uint256 next, bool equal) [selector 0x8552b9c1]
   push 68
   calldatasize
   lt
@@ -112,7 +112,7 @@ bb14:  ; function sharedReverse(uint256 a, uint256 b) public pure returns (uint2
   dup 2
   sub
   jump bb34
-bb17:  ; function sharedDifference(uint256 a, uint256 b) public pure returns (uint256 d, uint256 next, bool equal) [selector 0x10fe2b84]
+bb17:                                             ; function sharedDifference(uint256 a, uint256 b) public pure returns (uint256 d, uint256 next, bool equal) [selector 0x10fe2b84]
   push 68
   calldatasize
   lt
@@ -126,36 +126,15 @@ bb17:  ; function sharedDifference(uint256 a, uint256 b) public pure returns (ui
   dup 3
   sub
   jump bb34
-bb20:  ; function difference(uint256 a, uint256 b) public pure returns (uint256 d, bool equal) [selector 0xa95cb7f7]
-  push 68
+bb20:                                             ; function difference(uint256 a, uint256 b) public pure returns (uint256 d, bool equal) [selector 0xa95cb7f7]
   calldatasize
-  lt
+  push 68
+  gt
   push bb10
   jumpi
-  push 4
-  calldataload
   push 36
   calldataload
-  dup 1
-  dup 3
-  sub
-  push 0
-  mstore
-  eq
-  push 32
-  mstore
-  push 64
-  push 0
-  return
-bb23:  ; function reverseDifference(uint256 a, uint256 b) public pure returns (uint256 d, bool equal) [selector 0x132a45fc]
-  push 68
-  calldatasize
-  lt
-  push bb10
-  jumpi
   push 4
-  calldataload
-  push 36
   calldataload
   dup 2
   dup 2
@@ -168,18 +147,39 @@ bb23:  ; function reverseDifference(uint256 a, uint256 b) public pure returns (u
   push 64
   push 0
   return
-bb26:  ; function xorDifference(uint256 a, uint256 b) public pure returns (uint256 d, bool equal) [selector 0x30ca6808]
-  push 68
+bb23:                                             ; function reverseDifference(uint256 a, uint256 b) public pure returns (uint256 d, bool equal) [selector 0x132a45fc]
   calldatasize
-  lt
+  push 68
+  gt
   push bb10
   jumpi
-  push 4
-  calldataload
   push 36
+  calldataload
+  push 4
   calldataload
   dup 1
   dup 3
+  sub
+  push 0
+  mstore
+  eq
+  push 32
+  mstore
+  push 64
+  push 0
+  return
+bb26:                                             ; function xorDifference(uint256 a, uint256 b) public pure returns (uint256 d, bool equal) [selector 0x30ca6808]
+  calldatasize
+  push 68
+  gt
+  push bb10
+  jumpi
+  push 36
+  calldataload
+  push 4
+  calldataload
+  dup 2
+  dup 2
   xor
   push 0
   mstore
@@ -189,7 +189,7 @@ bb26:  ; function xorDifference(uint256 a, uint256 b) public pure returns (uint2
   push 64
   push 0
   return
-bb29 [loop]:  ; function loop(uint256 n) public pure returns (uint256 result) [selector 0x0b7d796e]
+bb29 [loop]:                                      ; function loop(uint256 n) public pure returns (uint256 result) [selector 0x0b7d796e]
   push 36
   calldatasize
   lt

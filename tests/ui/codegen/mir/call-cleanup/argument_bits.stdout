@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/call-cleanup/argument_bits.mir (before call-cleanup) ===
-+ // === ROOT/tests/ui/codegen/mir/call-cleanup/argument_bits.mir (after call-cleanup) ===
+- ; === ROOT/tests/ui/codegen/mir/call-cleanup/argument_bits.mir (before call-cleanup) ===
++ ; === ROOT/tests/ui/codegen/mir/call-cleanup/argument_bits.mir (after call-cleanup) ===
   @module ArgumentBits
   fn @root(arg0: i256) -> i256 {
     bb0:
@@ -53,10 +53,10 @@
     bb0:
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       v2 = and arg0, 255
       ret v2
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       v1 = icall @recursive, arg0
       ret v1
   }
@@ -74,10 +74,10 @@
 -     v1 = ne v0, 0
 +     v1 = ne arg0, 0
       jumpi v1, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
 -     ret v0
 +     ret arg0
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
 -     v2 = icall @sanitized_recursive, v0
 +     v2 = icall @sanitized_recursive, arg0
       ret v2

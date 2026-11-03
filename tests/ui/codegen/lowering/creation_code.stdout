@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/creation_code.sol:CreationCodeChild ===
+; === ROOT/tests/ui/codegen/lowering/creation_code.sol:CreationCodeChild ===
 @module CreationCodeChild
 ; constructor(uint256 value) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
@@ -6,7 +6,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/creation_code.sol:CreationCodeFactory ===
+; === ROOT/tests/ui/codegen/lowering/creation_code.sol:CreationCodeFactory ===
 @module CreationCodeFactory
 @data
   CreationCodeChild_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/creation_code.sol:CreationCodeChild"

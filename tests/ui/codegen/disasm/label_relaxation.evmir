@@ -3,7 +3,7 @@
 
 @module label_relaxation
 
-// CHECK-LABEL: // === label_relaxation (runtime) ===
+// CHECK-LABEL: ; === label_relaxation (runtime) ===
 // CHECK-NEXT: PUSH1 0x02
 // CHECK-NEXT: ; bb0
 // CHECK-NEXT: JUMPDEST

@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/simplify-phis/trivial_phis.mir (before simplify-phis) ===
-+ // === ROOT/tests/ui/codegen/mir/simplify-phis/trivial_phis.mir (after simplify-phis) ===
+- ; === ROOT/tests/ui/codegen/mir/simplify-phis/trivial_phis.mir (before simplify-phis) ===
++ ; === ROOT/tests/ui/codegen/mir/simplify-phis/trivial_phis.mir (after simplify-phis) ===
   @module TrivialPhis
   @phase lowered
   ; runtime dispatch entry
@@ -8,49 +8,47 @@
       v0 = calldataload 0
       v1 = shr v0, 224
       switch v1, default bb3, [0x8f5383a4 => bb1, 0xa5330720 => bb2]
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       tail_call @distinct
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       tail_call @same
-    bb3 [cold]:  ; preds = bb0
+    bb3 [cold]:                                     ; preds = bb0
       revert 0, 0
   }
   
-  ; selector 0x8f5383a4
-  fn @same() [selector=0x8f5383a4, abi_wrapper] {
+  fn @same() {
     bb0:
       v0 = calldataload 4
       v1 = ne v0, 0
       jumpi v1, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       jump bb3
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       jump bb3
-    bb3:  ; preds = bb1, bb2
+    bb3:                                            ; preds = bb1, bb2
 -     v2 = phi [bb1: v0], [bb2: v0]
       jumpi v1, bb4, bb5
-    bb5:  ; preds = bb3
+    bb5:                                            ; preds = bb3
       jump bb6
-    bb4:  ; preds = bb3
+    bb4:                                            ; preds = bb3
       jump bb6
-    bb6:  ; preds = bb4, bb5
+    bb6:                                            ; preds = bb4, bb5
 -     v3 = phi [bb4: v2], [bb5: v2]
 -     mstore 0, v3
 +     mstore 0, v0
       returndata 0, 32
   }
   
-  ; selector 0xa5330720
-  fn @distinct() [selector=0xa5330720, abi_wrapper] {
+  fn @distinct() {
     bb0:
       v0 = calldataload 4
       v1 = ne v0, 0
       jumpi v1, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       jump bb3
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       jump bb3
-    bb3:  ; preds = bb1, bb2
+    bb3:                                            ; preds = bb1, bb2
       v2 = phi [bb1: 1], [bb2: 2]
       mstore 0, v2
       returndata 0, 32

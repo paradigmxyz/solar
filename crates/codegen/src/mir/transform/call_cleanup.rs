@@ -7,9 +7,6 @@
 //! cleanliness. Value evaluation follows a bounded number of SSA definitions,
 //! sharing the same opcode semantics as local e-graph width inference.
 //!
-//! ABI lowering supplies transient bounds for the lazy arguments whose raw
-//! calldata words it validates. The same inference runs there before those
-//! proofs are discarded; wrapper metadata alone never establishes a bound.
 //! Booleans always carry the one-bit bound. Public functions,
 //! constructors, and dispatch entries cannot be specialized from direct callers.
 //!
@@ -117,7 +114,7 @@ pub(super) fn cleanup(
                 .value_u256(b)
                 .map(|mask| (a, mask))
                 .or_else(|| func.value_u256(a).map(|mask| (b, mask)))
-            && mask.wrapping_add(U256::ONE) & mask == U256::ZERO
+            && (mask.wrapping_add(U256::ONE) & mask).is_zero()
             && word_bits(func, value, &argument_bits, returns) <= mask.bit_len() as u32
             && let Some(result) = func.inst_result_value(inst)
         {
@@ -329,16 +326,10 @@ pub(super) fn infer_returns(module: &Module) -> ReturnBits {
 }
 
 pub(super) fn infer_arguments(module: &Module) -> ArgumentBits {
-    infer_arguments_with(module, argument_bits)
-}
-
-pub(super) fn infer_arguments_with(
-    module: &Module,
-    argument_bits: impl Fn(&Function, FunctionId, ArgIdx, &ArgumentBits) -> u32,
-) -> ArgumentBits {
     let mut eligible = DenseBitSet::new_empty(module.functions.len());
+    let roots = module.root_functions();
     for (id, func) in module.functions.iter_enumerated() {
-        if utils::is_internal_body(module, id, func)
+        if utils::is_internal_body(&roots, id, func)
             && !func.params.is_empty()
             && !func
                 .instructions()

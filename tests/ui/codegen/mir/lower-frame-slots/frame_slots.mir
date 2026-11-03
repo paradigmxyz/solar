@@ -28,7 +28,7 @@ fn @entry() [entry] {
 // CHECK: + mstore 128, {{v[0-9]+}}
 // CHECK: + mstore 160, 7
 // CHECK: + {{v[0-9]+}} = mload 128
-fn @scratch() [selector=0x37a6096a, abi_wrapper] {
+fn @scratch() {
   bb0:
     v0 = calldataload 4
     frame_store scratch, word, 0, v0
@@ -42,7 +42,7 @@ fn @scratch() [selector=0x37a6096a, abi_wrapper] {
 
 // CHECK-LABEL: {{^[ +].*}}fn @internal{{[( ]}}
 // CHECK: icall @spill, {{v[0-9]+}}
-fn @internal() [selector=0x645ee3c3, abi_wrapper] {
+fn @internal() {
   bb0:
     v0 = calldataload 4
     v1 = icall @spill, v0
@@ -81,7 +81,7 @@ fn @slice_slot(arg0: slice<calldata>) -> slice<calldata> {
 
 // CHECK-LABEL: {{^[ +].*}}fn @plain{{[( ]}}
 // CHECK-NOT: {{^[-+]}}
-fn @plain() [selector=0x11546183, abi_wrapper] {
+fn @plain() {
   bb0:
     v0 = calldataload 4
     v1 = add v0, 1

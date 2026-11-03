@@ -1,25 +1,26 @@
-// === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/public_body.sol:PublicBody ===
+; === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/public_body.sol:PublicBody ===
 @module PublicBody
 @phase lowered
 @immutables
   _start: uint256
 
 ; constructor(uint256 start_) [creation entry]
-fn @constructor(arg0: i256) [abi_wrapper, constructor] {
+fn @constructor() [constructor] {
   bb0:
-    v4 = callvalue
-    v1 = constructor_args_end
+    v5 = callvalue
     v0 = constructor_args_base
+    v1 = constructor_args_end
     v2 = add v0, 32
     v3 = lt v1, v2
-    v6 = zext i1 v3 to i256
-    v7 = or v4, v6
-    v8 = ne v7, 0
-    jumpi v8, bb1, bb2
-  bb2:  ; preds = bb0
-    mstore 192, arg0
+    v7 = zext i1 v3 to i256
+    v8 = or v5, v7
+    v9 = ne v8, 0
+    jumpi v9, bb1, bb2
+  bb2:                                            ; preds = bb0
+    v4 = mload v0
+    mstore 192, v4
     ret
-  bb1 [cold]:  ; preds = bb0
+  bb1 [cold]:                                     ; preds = bb0
     revert 0, 0
 }
 
@@ -29,20 +30,20 @@ fn @entry() [entry] {
     v0 = callvalue
     v1 = ne v0, 0
     jumpi v1, bb4, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v2 = calldataload 0
     v3 = shr v2, 224
     switch v3, default bb4, [0xbe9a6555 => bb2, 0xfea5657c => bb3]
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     tail_call @vested
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     tail_call @start
-  bb4 [cold]:  ; preds = bb0, bb1
+  bb4 [cold]:                                     ; preds = bb0, bb1
     revert 0, 0
 }
 
 ; function start() public view returns (uint256) [selector 0xbe9a6555]
-fn @start() [selector=0xbe9a6555, abi_wrapper, view] {
+fn @start() {
   bb0:
     v2 = loadimmutable _start
     mstore 0, v2
@@ -50,7 +51,7 @@ fn @start() [selector=0xbe9a6555, abi_wrapper, view] {
 }
 
 ; function vested() public view returns (uint256) [selector 0xfea5657c]
-fn @vested() [selector=0xfea5657c, abi_wrapper, view] {
+fn @vested() {
   bb0:
     v1 = loadimmutable _start
     mstore 0, v1

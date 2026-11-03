@@ -11,16 +11,19 @@
 contract NarrowOverwrittenStore {
     // The shifted byte is the top byte of the first store, and the second store overwrites the rest.
     // CHECK-LABEL: fn @hashU8
+    // CHECK: calldataload 4
+    // CHECK: [[A:v[0-9]+]] = calldataload 4
     // CHECK-NOT: shl
-    // CHECK: mstore8 0, arg0
+    // CHECK: mstore8 0, [[A]]
     function hashU8(uint8 a, bytes32 x) external pure returns (bytes32) {
         return keccak256(abi.encodePacked(a, x));
     }
 
     // The shifted operand needs no range fact: `mstore8` keeps its low byte, as the shift does.
     // CHECK-LABEL: fn @hashWide
+    // CHECK: [[A:v[0-9]+]] = calldataload 4
     // CHECK-NOT: shl
-    // CHECK: mstore8 128, arg0
+    // CHECK: mstore8 128, [[A]]
     function hashWide(uint256 a, bytes32 x) external pure returns (bytes32 h) {
         assembly {
             mstore(0x80, shl(248, a))

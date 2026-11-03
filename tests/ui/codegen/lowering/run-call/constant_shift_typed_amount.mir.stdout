@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/constant_shift_typed_amount.sol:C ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constant_shift_typed_amount.sol:C ===
 @module C
 ; function shl255() public pure returns (uint256) [selector 0xcc0960fa]
 fn @shl255() -> i256 [selector=0xcc0960fa, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
