@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/sroa/msize_caller.mir (before sroa) ===
-+ // === ROOT/tests/ui/codegen/mir/sroa/msize_caller.mir (after sroa) ===
+- ; === ROOT/tests/ui/codegen/mir/sroa/msize_caller.mir (before sroa) ===
++ ; === ROOT/tests/ui/codegen/mir/sroa/msize_caller.mir (after sroa) ===
   @module SroaMsizeCaller
   fn @touch_then_measure(arg0: i256) -> i256 {
     bb0:

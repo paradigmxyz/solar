@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/spill_hazard_low_memory_arg.sol:C ===
+; === ROOT/tests/ui/codegen/lowering/run-call/spill_hazard_low_memory_arg.sol:C ===
 @module C
 ; function k(bytes memory d, uint n, uint s) internal pure returns (bytes32)
 fn @k(arg0: ptr<memory>, arg1: i256, arg2: i256) -> i256 [pure] {

@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/cse/computed_address_cancellation.mir (before cse) ===
-+ // === ROOT/tests/ui/codegen/mir/cse/computed_address_cancellation.mir (after cse) ===
+- ; === ROOT/tests/ui/codegen/mir/cse/computed_address_cancellation.mir (before cse) ===
++ ; === ROOT/tests/ui/codegen/mir/cse/computed_address_cancellation.mir (after cse) ===
   @module ComputedAddressCancellation
   fn @cancel(arg0: i256) -> i256 {
     bb0:

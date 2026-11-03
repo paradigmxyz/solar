@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/outline/outline_overlapping_run.evmir (before outline) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/outline/outline_overlapping_run.evmir (after outline) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/outline/outline_overlapping_run.evmir (before outline) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/outline/outline_overlapping_run.evmir (after outline) ===
   @module OutlineOverlappingRun
   bb0:
     push 1

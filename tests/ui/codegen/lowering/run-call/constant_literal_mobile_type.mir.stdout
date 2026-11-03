@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/constant_literal_mobile_type.sol:C ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constant_literal_mobile_type.sol:C ===
 @module C
 ; function wideShr() public pure returns (uint256) [selector 0x1fc24411]
 fn @wideShr() -> i256 [selector=0x1fc24411, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {

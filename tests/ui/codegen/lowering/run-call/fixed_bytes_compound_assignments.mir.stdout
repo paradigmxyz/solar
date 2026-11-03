@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_compound_assignments.sol:FixedBytesCompoundAssignments ===
+; === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_compound_assignments.sol:FixedBytesCompoundAssignments ===
 @module FixedBytesCompoundAssignments
 @types
   struct0: {i256, i256, i256}
@@ -63,12 +63,12 @@ fn @storageBoundary() -> i256 [selector=0x90f7c243, abi_params=[], abi_returns=[
     v9 = eq v8, false
     icall panic_if<0x32>, v9
     jumpi v3, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v10 = storage_array_data_slot 0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v11 = phi [bb1: v10], [bb2: 0]
     v12 = sload v11 !metadata(storage=symbolic(v11))
     v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
@@ -86,12 +86,12 @@ fn @storageBoundary() -> i256 [selector=0x90f7c243, abi_params=[], abi_returns=[
     v23 = eq v22, false
     icall panic_if<0x32>, v23
     jumpi v17, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb6
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v24 = storage_array_data_slot 0
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6:                                            ; preds = bb4, bb5
     v25 = phi [bb4: v24], [bb5: 0]
     v26 = sload v25 !metadata(storage=symbolic(v25))
     v27 = shr v26, 0
@@ -117,12 +117,12 @@ fn @storageBoundary() -> i256 [selector=0x90f7c243, abi_params=[], abi_returns=[
     v45 = eq v44, false
     icall panic_if<0x32>, v45
     jumpi v39, bb7, bb8
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     jump bb9
-  bb7:  ; preds = bb6
+  bb7:                                            ; preds = bb6
     v46 = storage_array_data_slot 0
     jump bb9
-  bb9:  ; preds = bb7, bb8
+  bb9:                                            ; preds = bb7, bb8
     v47 = phi [bb7: v46], [bb8: 0]
     v48 = sload v47 !metadata(storage=symbolic(v47))
     v49 = shr v48, 0

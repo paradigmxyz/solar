@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/disasm/indexed_jump_relative_growth.evmir (before none) ===
-+ // === ROOT/tests/ui/codegen/disasm/indexed_jump_relative_growth.evmir (after none) ===
+- ; === ROOT/tests/ui/codegen/disasm/indexed_jump_relative_growth.evmir (before none) ===
++ ; === ROOT/tests/ui/codegen/disasm/indexed_jump_relative_growth.evmir (after none) ===
   @module relative_growth
   bb0:
     push 1
@@ -39,7 +39,7 @@
   bb12:
     stop
   
-// === relative_growth (runtime) ===
+; === relative_growth (runtime) ===
 PUSH1 0x01
 PUSH1 0x16
 ADD

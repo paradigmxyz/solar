@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/run-call/calldata_string_slicing.sol:CalldataStringSlicing ===
+; === ROOT/tests/ui/codegen/run-call/calldata_string_slicing.sol:CalldataStringSlicing ===
 @module CalldataStringSlicing
 ; function slice(string calldata value, uint256 split) external pure returns (string memory) [selector 0x8b150516]
 fn @slice(arg0: slice<calldata>, arg1: i256) -> ptr<memory> [selector=0x8b150516, pure, abi_params=[bytes, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

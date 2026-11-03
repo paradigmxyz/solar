@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/share-reverts/special_zero.evmir (before share-reverts) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/share-reverts/special_zero.evmir (after share-reverts) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/share-reverts/special_zero.evmir (before share-reverts) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/share-reverts/special_zero.evmir (after share-reverts) ===
   @module module
   @libraries
     L_0: "a.sol:L"

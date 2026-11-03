@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/storage_array_push_storage_source.sol:C ===
+; === ROOT/tests/ui/codegen/lowering/run-call/storage_array_push_storage_source.sol:C ===
 @module C
 @types
   struct0: {i256, i256, i256, i256}
@@ -23,11 +23,11 @@ fn @pushWide() -> struct0 [selector=0xafa784c4, abi_params=[], abi_returns=[word
     sstore 3, 22 !metadata(storage=slot(3))
     v4 = alloc checked 64
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v5 = phi [bb0: 0], [bb2: v11]
     v6 = lt v5, 2
     jumpi v6, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v12 = sload 0 !metadata(storage=slot(0))
     v13 = gt v12, 0xffffffffffffffff
     icall panic_if<0x41>, v13
@@ -36,11 +36,11 @@ fn @pushWide() -> struct0 [selector=0xafa784c4, abi_params=[], abi_returns=[word
     v16 = mul v12, 3
     v17 = add v15, v16
     jump bb4
-  bb4:  ; preds = bb3, bb9
+  bb4:                                            ; preds = bb3, bb9
     v18 = phi [bb3: 0], [bb9: v25]
     v19 = lt v18, 3
     jumpi v19, bb5, bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     sstore 0, v14 !metadata(storage=slot(0))
     v26 = sload 0 !metadata(storage=slot(0))
     v27 = gt v26, 0
@@ -77,23 +77,23 @@ fn @pushWide() -> struct0 [selector=0xafa784c4, abi_params=[], abi_returns=[word
     v52 = insert_value struct0, v51, 2, v48
     v53 = insert_value struct0, v52, 3, v49
     ret v53
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     v20 = add v17, v18
     v21 = lt v18, 2
     jumpi v21, bb7, bb8
-  bb8:  ; preds = bb5
+  bb8:                                            ; preds = bb5
     sstore v20, 0 !metadata(storage=symbolic(v20))
     jump bb9
-  bb7:  ; preds = bb5
+  bb7:                                            ; preds = bb5
     v22 = shl v18, 5
     v23 = ptradd v4, v22
     v24 = mload v23
     sstore v20, v24 !metadata(storage=symbolic(v20))
     jump bb9
-  bb9:  ; preds = bb7, bb8
+  bb9:                                            ; preds = bb7, bb8
     v25 = add v18, 1
     jump bb4
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v7 = add v5, 2
     v8 = sload v7 !metadata(storage=offset(v5, 2))
     v9 = shl v5, 5
@@ -122,11 +122,11 @@ fn @pushPacked() -> struct0 [selector=0x686690bf, abi_params=[], abi_returns=[wo
     sstore 4, v9 !metadata(storage=slot(4))
     v10 = alloc checked 64
     jump bb1
-  bb1:  ; preds = bb0, bb6
+  bb1:                                            ; preds = bb0, bb6
     v11 = phi [bb0: 0], [bb6: v29]
     v12 = lt v11, 1
     jumpi v12, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v30 = sload 1 !metadata(storage=slot(1))
     v31 = gt v30, 0xffffffffffffffff
     icall panic_if<0x41>, v31
@@ -135,11 +135,11 @@ fn @pushPacked() -> struct0 [selector=0x686690bf, abi_params=[], abi_returns=[wo
     v34 = mul v30, 3
     v35 = add v33, v34
     jump bb7
-  bb7:  ; preds = bb3, bb12
+  bb7:                                            ; preds = bb3, bb12
     v36 = phi [bb3: 0], [bb12: v43]
     v37 = lt v36, 3
     jumpi v37, bb8, bb9
-  bb9:  ; preds = bb7
+  bb9:                                            ; preds = bb7
     sstore 1, v32 !metadata(storage=slot(1))
     v44 = sload 1 !metadata(storage=slot(1))
     v45 = gt v44, 0
@@ -176,23 +176,23 @@ fn @pushPacked() -> struct0 [selector=0x686690bf, abi_params=[], abi_returns=[wo
     v70 = insert_value struct0, v69, 2, v66
     v71 = insert_value struct0, v70, 3, v67
     ret v71
-  bb8:  ; preds = bb7
+  bb8:                                            ; preds = bb7
     v38 = add v35, v36
     v39 = lt v36, 2
     jumpi v39, bb10, bb11
-  bb11:  ; preds = bb8
+  bb11:                                           ; preds = bb8
     sstore v38, 0 !metadata(storage=symbolic(v38))
     jump bb12
-  bb10:  ; preds = bb8
+  bb10:                                           ; preds = bb8
     v40 = shl v36, 5
     v41 = ptradd v10, v40
     v42 = mload v41
     sstore v38, v42 !metadata(storage=symbolic(v38))
     jump bb12
-  bb12:  ; preds = bb10, bb11
+  bb12:                                           ; preds = bb10, bb11
     v43 = add v36, 1
     jump bb7
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v13 = add v11, 4
     v14 = sload v13 !metadata(storage=offset(v11, 4))
     v15 = mul v11, 32
@@ -200,14 +200,14 @@ fn @pushPacked() -> struct0 [selector=0x686690bf, abi_params=[], abi_returns=[wo
     v17 = lt v16, 32
     v18 = select v17, v16, 32
     jump bb4
-  bb4:  ; preds = bb2, bb5
+  bb4:                                            ; preds = bb2, bb5
     v19 = phi [bb2: 0], [bb5: v28]
     v20 = lt v19, v18
     jumpi v20, bb5, bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     v29 = add v11, 1
     jump bb1
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     v21 = mul v19, 8
     v22 = shr v14, v21
     v23 = trunc i256 v22 to i8

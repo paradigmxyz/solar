@@ -1,8 +1,8 @@
-// === ROOT/tests/ui/codegen/lowering/modifier_library_inheritance.sol:L ===
+; === ROOT/tests/ui/codegen/lowering/modifier_library_inheritance.sol:L ===
 @module L
 @library
 
-// === ROOT/tests/ui/codegen/lowering/modifier_library_inheritance.sol:Test ===
+; === ROOT/tests/ui/codegen/lowering/modifier_library_inheritance.sol:Test ===
 @module Test
 ; function f() public returns (uint256) [selector 0x26121ff0]
 fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -23,8 +23,8 @@ fn @libFun(arg0: i256) {
     v3 = checked_add uint256, v2, 256
     sstore arg0, v3 !metadata(storage=symbolic(arg0))
     jump bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb1
-  bb1:  ; preds = bb2
+  bb1:                                            ; preds = bb2
     ret
 }

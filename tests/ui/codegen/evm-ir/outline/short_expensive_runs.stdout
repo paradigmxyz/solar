@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/outline/short_expensive_runs.evmir (before outline) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/outline/short_expensive_runs.evmir (after outline) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/outline/short_expensive_runs.evmir (before outline) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/outline/short_expensive_runs.evmir (after outline) ===
   @module ShortExpensiveRuns
   bb0:
     push 0

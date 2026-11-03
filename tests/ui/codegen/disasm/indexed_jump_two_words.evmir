@@ -9,7 +9,7 @@
 // `-Ztune=jit` keeps the stride table.
 @module two_words
 
-// WIDE-LABEL: // === two_words (runtime) ===
+// WIDE-LABEL: ; === two_words (runtime) ===
 // WIDE-NEXT: PUSH1 0x01
 // WIDE-NEXT: DUP1
 // WIDE-NEXT: PUSH1 0x05
@@ -22,7 +22,7 @@
 // WIDE-NEXT: PUSH32
 // WIDE-NEXT: MUL
 // WIDE-NEXT: ADD
-// JIT-LABEL: // === two_words (runtime) ===
+// JIT-LABEL: ; === two_words (runtime) ===
 // JIT-NEXT: PUSH1 0x01
 // JIT-NEXT: PUSH1 0x04
 // JIT-NEXT: MUL

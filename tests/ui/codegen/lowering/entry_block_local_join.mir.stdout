@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/entry_block_local_join.sol:EntryBlockLocalJoin ===
+; === ROOT/tests/ui/codegen/lowering/entry_block_local_join.sol:EntryBlockLocalJoin ===
 @module EntryBlockLocalJoin
 ; function a(uint256) external pure [selector 0xf0fdf834]
 fn @a(arg0: i256) [selector=0xf0fdf834, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
@@ -23,13 +23,13 @@ fn @d() -> i256 [selector=0x8a054ac2, pure, abi_params=[], abi_returns=[word], a
   bb0:
     v0 = calldatasize
     switch v0, default bb4, [4 => bb2, 5 => bb3]
-  bb3:  ; preds = bb0
+  bb3:                                            ; preds = bb0
     jump bb1
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb1
-  bb4:  ; preds = bb0
+  bb4:                                            ; preds = bb0
     jump bb1
-  bb1:  ; preds = bb2, bb3, bb4
+  bb1:                                            ; preds = bb2, bb3, bb4
     v1 = phi [bb2: 1], [bb3: 2], [bb4: 3]
     ret v1
 }

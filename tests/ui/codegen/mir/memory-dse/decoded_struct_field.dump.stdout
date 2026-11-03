@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/memory-dse/decoded_struct_field.sol:DecodedStructField ===
+; === ROOT/tests/ui/codegen/mir/memory-dse/decoded_struct_field.sol:DecodedStructField ===
 @module DecodedStructField
 @phase lowered
 ; runtime dispatch entry
@@ -7,13 +7,13 @@ fn @entry() [entry] {
     v0 = callvalue
     v1 = ne v0, 0
     jumpi v1, bb3, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v2 = calldataload 0
     v3 = shr v2, 224
     switch v3, default bb3, [0x8f25c453 => bb2]
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     tail_call @tokenId
-  bb3 [cold]:  ; preds = bb0, bb1
+  bb3 [cold]:                                     ; preds = bb0, bb1
     revert 0, 0
 }
 
@@ -35,11 +35,11 @@ fn @tokenId() {
     v6 = slt v30, 128
     v40 = or v39, v6
     jumpi v40, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v7 = alloc 128 !metadata(deferred_alloc)
     v8 = calldataload v31
     mstore 0, v8
     returndata 0, 32
-  bb1 [cold]:  ; preds = bb0
+  bb1 [cold]:                                     ; preds = bb0
     revert 0, 0
 }

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/linked_library_multi_return.sol:Lib ===
+; === ROOT/tests/ui/codegen/lowering/linked_library_multi_return.sol:Lib ===
 @module Lib
 @library
 @types
@@ -12,7 +12,7 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[wo
     ret v1
 }
 
-// === ROOT/tests/ui/codegen/lowering/linked_library_multi_return.sol:C ===
+; === ROOT/tests/ui/codegen/lowering/linked_library_multi_return.sol:C ===
 @module C
 @types
   struct0: {i256, i256}
@@ -26,9 +26,9 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[wo
     v3 = gas
     v4 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 64
     jumpi v4, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v5 = returndatasize
     v6 = lt v5, 64
     icall revert_if<tuple_data_too_short>, v6

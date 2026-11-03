@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_packed_external_function.sol:AbiEncodePackedExternalFunction ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_packed_external_function.sol:AbiEncodePackedExternalFunction ===
 @module AbiEncodePackedExternalFunction
 ; function target() external [selector 0xd4b83992]
 fn @target() [selector=0xd4b83992, abi_params=[], abi_returns=[], abi_return_params=[]] {

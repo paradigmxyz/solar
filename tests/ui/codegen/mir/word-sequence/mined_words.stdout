@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/word-sequence/mined_words.mir (before egraph) ===
-+ // === ROOT/tests/ui/codegen/mir/word-sequence/mined_words.mir (after egraph) ===
+- ; === ROOT/tests/ui/codegen/mir/word-sequence/mined_words.mir (before egraph) ===
++ ; === ROOT/tests/ui/codegen/mir/word-sequence/mined_words.mir (after egraph) ===
   @module MinedWords
   @types
     struct0: {i256, i256}
@@ -28,8 +28,8 @@
       ret v0, v1
   }
   
-- // === ROOT/tests/ui/codegen/mir/word-sequence/mined_words.mir (before word-sequence) ===
-+ // === ROOT/tests/ui/codegen/mir/word-sequence/mined_words.mir (after word-sequence) ===
+- ; === ROOT/tests/ui/codegen/mir/word-sequence/mined_words.mir (before word-sequence) ===
++ ; === ROOT/tests/ui/codegen/mir/word-sequence/mined_words.mir (after word-sequence) ===
   @module MinedWords
   @types
     struct0: {i256, i256}
@@ -57,8 +57,8 @@
       ret v0, v1
   }
   
-- // === ROOT/tests/ui/codegen/mir/word-sequence/mined_words.mir (before dce) ===
-+ // === ROOT/tests/ui/codegen/mir/word-sequence/mined_words.mir (after dce) ===
+- ; === ROOT/tests/ui/codegen/mir/word-sequence/mined_words.mir (before dce) ===
++ ; === ROOT/tests/ui/codegen/mir/word-sequence/mined_words.mir (after dce) ===
   @module MinedWords
   @types
     struct0: {i256, i256}

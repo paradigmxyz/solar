@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/mapping_dynamic_literal.sol:MappingDynamicLiteral ===
+; === ROOT/tests/ui/codegen/lowering/run-call/mapping_dynamic_literal.sol:MappingDynamicLiteral ===
 @module MappingDynamicLiteral
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
@@ -40,14 +40,14 @@ fn @readMemoryFmp(arg0: ptr<memory>) -> i1 [selector=0x8028da35, view, abi_param
     v0 = mload 64 !metadata(memory=scratch)
     v1 = gt v0, 128
     jumpi v1, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v2 = mapping_slot_bytes arg0, 1
     v3 = sload v2 !metadata(storage=symbolic(v2))
     v4 = eq v3, 7
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v5 = phi [bb1: v4], [bb2: false]
     ret v5
 }

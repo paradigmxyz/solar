@@ -7,11 +7,11 @@
 @module push_zero
 
 // A call replaces the empty return data buffer, so a later zero is not `RETURNDATASIZE`.
-// SHANGHAI-LABEL: // === push_zero (runtime) ===
+// SHANGHAI-LABEL: ; === push_zero (runtime) ===
 // SHANGHAI: CALL
 // SHANGHAI-NEXT: POP
 // SHANGHAI-NEXT: PUSH0
-// BERLIN-LABEL: // === push_zero (runtime) ===
+// BERLIN-LABEL: ; === push_zero (runtime) ===
 // BERLIN: CALL
 // BERLIN-NEXT: POP
 // BERLIN-NEXT: PUSH1 0x00

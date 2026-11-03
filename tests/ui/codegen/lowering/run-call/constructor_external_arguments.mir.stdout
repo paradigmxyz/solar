@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_external_arguments.sol:ConstructorExternalArguments ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_external_arguments.sol:ConstructorExternalArguments ===
 @module ConstructorExternalArguments
 ; constructor(bytes3 name_, bool flag_) [creation entry]
 fn @constructor(arg0: i256, arg1: i1) [constructor, abi_params=[bytes3, bool]] {

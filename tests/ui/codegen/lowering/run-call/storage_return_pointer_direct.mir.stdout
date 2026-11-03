@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/storage_return_pointer_direct.sol:StorageReturnPointerDirect ===
+; === ROOT/tests/ui/codegen/lowering/run-call/storage_return_pointer_direct.sol:StorageReturnPointerDirect ===
 @module StorageReturnPointerDirect
 @types
   struct0: {i256, i256}
@@ -7,11 +7,11 @@
 fn @pick(arg0: i1) -> i256 [view] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     ret 0
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     ret 1
 }
 

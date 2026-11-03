@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/egraph/clz.mir (before egraph) ===
-+ // === ROOT/tests/ui/codegen/mir/egraph/clz.mir (after egraph) ===
+- ; === ROOT/tests/ui/codegen/mir/egraph/clz.mir (before egraph) ===
++ ; === ROOT/tests/ui/codegen/mir/egraph/clz.mir (after egraph) ===
   @module Clz
   @types
     struct0: {i256, i256, i256}

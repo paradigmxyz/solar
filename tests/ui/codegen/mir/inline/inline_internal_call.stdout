@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/inline/inline_internal_call.mir (before inline) ===
-+ // === ROOT/tests/ui/codegen/mir/inline/inline_internal_call.mir (after inline) ===
+- ; === ROOT/tests/ui/codegen/mir/inline/inline_internal_call.mir (before inline) ===
++ ; === ROOT/tests/ui/codegen/mir/inline/inline_internal_call.mir (after inline) ===
   @module InlineICall
   fn @caller(arg0: i256) -> i256 {
     bb0:
@@ -12,10 +12,10 @@
 -     v0 = add arg0, 1
 -     ret v0
 +     jump bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v1 = add arg0, 1
 +     jump bb1
-+   bb1:  ; preds = bb2
++   bb1:                                            ; preds = bb2
 +     v2 = phi [bb2: v1]
 +     ret v2
   }

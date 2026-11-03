@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_v1_validation.sol:AbiCalldataV1Validation ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_v1_validation.sol:AbiCalldataV1Validation ===
 @module AbiCalldataV1Validation
 ; function f(uint256[] calldata values) external pure [selector 0x7bc5bbbf]
 fn @f(arg0: slice<calldata>) [selector=0x7bc5bbbf, pure, abi_params=[array<_, uint256>], abi_returns=[], abi_return_params=[]] {

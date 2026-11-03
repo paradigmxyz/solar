@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lowering/lower_packed.mir (before none) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/lower_packed.mir (after none) ===
+- ; === ROOT/tests/ui/codegen/mir/lowering/lower_packed.mir (before none) ===
++ ; === ROOT/tests/ui/codegen/mir/lowering/lower_packed.mir (after none) ===
   @module PackedEncoding
   fn @mixed(arg0: i16, arg1: ptr<memory>) -> ptr<memory> {
     bb0:
@@ -34,12 +34,12 @@
   fn @edge(arg0: i1, arg1: ptr<memory>, arg2: ptr<memory>) -> ptr<memory> {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       jump bb3
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       v0 = abi_encode_packed (array<word> memoryarray<1> arg1)
       jump bb3
-    bb3:  ; preds = bb1, bb2
+    bb3:                                            ; preds = bb1, bb2
       v1 = phi [bb1: v0], [bb2: arg2]
       ret v1
   }

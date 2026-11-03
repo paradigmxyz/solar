@@ -1,4 +1,4 @@
-// === label_relaxation (runtime) ===
+; === label_relaxation (runtime) ===
 PUSH1 0x02
 ; bb0
 JUMPDEST

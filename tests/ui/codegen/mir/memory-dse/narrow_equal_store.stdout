@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/memory-dse/narrow_equal_store.mir (before memory-dse) ===
-+ // === ROOT/tests/ui/codegen/mir/memory-dse/narrow_equal_store.mir (after memory-dse) ===
+- ; === ROOT/tests/ui/codegen/mir/memory-dse/narrow_equal_store.mir (before memory-dse) ===
++ ; === ROOT/tests/ui/codegen/mir/memory-dse/narrow_equal_store.mir (after memory-dse) ===
   @module NarrowEqualStore
   fn @unrelated_word(arg0: i256, arg1: i256) -> i256 {
     bb0:
@@ -13,7 +13,7 @@
       v2 = keccak256 128, 33
       sstore 1, v2
       jump bb1
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       v3 = add 2, 3
       mstore 32, v3
       v4 = keccak256 0, 64
@@ -76,8 +76,8 @@
       ret v4
   }
   
-- // === ROOT/tests/ui/codegen/mir/memory-dse/narrow_equal_store.mir (before sccp) ===
-+ // === ROOT/tests/ui/codegen/mir/memory-dse/narrow_equal_store.mir (after sccp) ===
+- ; === ROOT/tests/ui/codegen/mir/memory-dse/narrow_equal_store.mir (before sccp) ===
++ ; === ROOT/tests/ui/codegen/mir/memory-dse/narrow_equal_store.mir (after sccp) ===
   @module NarrowEqualStore
   fn @unrelated_word(arg0: i256, arg1: i256) -> i256 {
     bb0:
@@ -90,7 +90,7 @@
       v2 = keccak256 128, 33
       sstore 1, v2
       jump bb1
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
 -     v3 = add 2, 3
 -     mstore 32, v3
 +     mstore 32, 5
@@ -153,8 +153,8 @@
       ret v4
   }
   
-- // === ROOT/tests/ui/codegen/mir/memory-dse/narrow_equal_store.mir (before memory-dse) ===
-+ // === ROOT/tests/ui/codegen/mir/memory-dse/narrow_equal_store.mir (after memory-dse) ===
+- ; === ROOT/tests/ui/codegen/mir/memory-dse/narrow_equal_store.mir (before memory-dse) ===
++ ; === ROOT/tests/ui/codegen/mir/memory-dse/narrow_equal_store.mir (after memory-dse) ===
   @module NarrowEqualStore
   fn @unrelated_word(arg0: i256, arg1: i256) -> i256 {
     bb0:
@@ -167,7 +167,7 @@
       v2 = keccak256 128, 33
       sstore 1, v2
       jump bb1
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
 -     mstore 32, 5
       v4 = keccak256 0, 64
       ret v4

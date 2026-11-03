@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/mir_alloc_ops.sol:MirAllocOps ===
+; === ROOT/tests/ui/codegen/lowering/mir_alloc_ops.sol:MirAllocOps ===
 @module MirAllocOps
 @types
   struct0: {i256, i256, i256, i256}

@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/egraph/bounded_add_compare.mir (before egraph) ===
-+ // === ROOT/tests/ui/codegen/mir/egraph/bounded_add_compare.mir (after egraph) ===
+- ; === ROOT/tests/ui/codegen/mir/egraph/bounded_add_compare.mir (before egraph) ===
++ ; === ROOT/tests/ui/codegen/mir/egraph/bounded_add_compare.mir (after egraph) ===
   @module BoundedAddCompare
   @data
     child_0: creation_code "child.sol:Child"

@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/jumpi-fallthrough/equal.evmir (before jumpi-fallthrough) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/jumpi-fallthrough/equal.evmir (after jumpi-fallthrough) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/jumpi-fallthrough/equal.evmir (before jumpi-fallthrough) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/jumpi-fallthrough/equal.evmir (after jumpi-fallthrough) ===
   @module Equal
   bb0:
     push 4

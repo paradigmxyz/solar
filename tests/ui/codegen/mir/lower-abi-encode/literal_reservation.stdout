@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lower-abi-encode/literal_reservation.mir (before lower-abi-encode) ===
-+ // === ROOT/tests/ui/codegen/mir/lower-abi-encode/literal_reservation.mir (after lower-abi-encode) ===
+- ; === ROOT/tests/ui/codegen/mir/lower-abi-encode/literal_reservation.mir (before lower-abi-encode) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-abi-encode/literal_reservation.mir (after lower-abi-encode) ===
   @module LiteralReservation
   fn @encode(arg0: i256) -> slice<memory> {
     bb0:
@@ -42,8 +42,8 @@
 +     ret v22
   }
   
-- // === ROOT/tests/ui/codegen/mir/lower-abi-encode/literal_reservation.mir (before egraph) ===
-+ // === ROOT/tests/ui/codegen/mir/lower-abi-encode/literal_reservation.mir (after egraph) ===
+- ; === ROOT/tests/ui/codegen/mir/lower-abi-encode/literal_reservation.mir (before egraph) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-abi-encode/literal_reservation.mir (after egraph) ===
   @module LiteralReservation
   fn @encode(arg0: i256) -> slice<memory> {
     bb0:
@@ -77,8 +77,8 @@
       ret v22
   }
   
-- // === ROOT/tests/ui/codegen/mir/lower-abi-encode/literal_reservation.mir (before dce) ===
-+ // === ROOT/tests/ui/codegen/mir/lower-abi-encode/literal_reservation.mir (after dce) ===
+- ; === ROOT/tests/ui/codegen/mir/lower-abi-encode/literal_reservation.mir (before dce) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-abi-encode/literal_reservation.mir (after dce) ===
   @module LiteralReservation
   fn @encode(arg0: i256) -> slice<memory> {
     bb0:

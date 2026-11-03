@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/program-data/contract_creation_data_dedup.sol:Child ===
+; === ROOT/tests/ui/codegen/lowering/program-data/contract_creation_data_dedup.sol:Child ===
 @module Child
 @data
   literal_0: hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
@@ -19,7 +19,7 @@ fn @payload() -> ptr<memory> [selector=0xa878f858, pure, abi_params=[], abi_retu
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/program-data/contract_creation_data_dedup.sol:Factory ===
+; === ROOT/tests/ui/codegen/lowering/program-data/contract_creation_data_dedup.sol:Factory ===
 @module Factory
 @data
   Child_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/program-data/contract_creation_data_dedup.sol:Child"
@@ -33,17 +33,17 @@ fn @first() -> i256 [selector=0x3df4ddf4, abi_params=[], abi_returns=[word], abi
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = gas
     mstore 0, 0x3fa4f245 !metadata(memory=scratch)
     v5 = zext i160 v2 to i256
     v6 = staticcall v4, v5, 28, 4, 0, 32
     jumpi v6, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v7 = returndatasize
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
@@ -60,17 +60,17 @@ fn @second() -> i256 [selector=0x5a8ac02d, abi_params=[], abi_returns=[word], ab
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = gas
     mstore 0, 0x3fa4f245 !metadata(memory=scratch)
     v5 = zext i160 v2 to i256
     v6 = staticcall v4, v5, 28, 4, 0, 32
     jumpi v6, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v7 = returndatasize
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
@@ -87,26 +87,26 @@ fn @pair() -> i256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word], abi_
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = datasize Child_creation_code_0
     v5 = fmp
     datacopy Child_creation_code_0, v5, v4
     v6 = create 0, v5, v4
     v7 = ne v6, i160 0
     jumpi v7, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v8 = gas
     mstore 0, 0x3fa4f245 !metadata(memory=scratch)
     v9 = zext i160 v2 to i256
     v10 = staticcall v8, v9, 28, 4, 0, 32
     jumpi v10, bb6, bb5
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     revert_returndata
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     v11 = returndatasize
     v12 = lt v11, 32
     icall revert_if<tuple_data_too_short>, v12
@@ -116,9 +116,9 @@ fn @pair() -> i256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word], abi_
     v15 = zext i160 v6 to i256
     v16 = staticcall v14, v15, 28, 4, 0, 32
     jumpi v16, bb8, bb7
-  bb7:  ; preds = bb6
+  bb7:                                            ; preds = bb6
     revert_returndata
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     v17 = returndatasize
     v18 = lt v17, 32
     icall revert_if<tuple_data_too_short>, v18
