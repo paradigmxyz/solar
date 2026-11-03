@@ -20,10 +20,9 @@
 use crate::{
     backend::evm::{ir::compact_pushes, op, select},
     mir::{
-        AbiLayout, AbiType, BlockId, Builtin, Callee, CheckedOp, EffectKind, Function,
-        FunctionAttributes, Hotness, ImmutableEncoding, InstId, InstKind, MirType, Module, Op,
-        Terminator, ValueId, analysis::AddressSpace, immutable::immutable_push_type_size,
-        memory::EvmMemoryLayout,
+        AbiLayout, AbiType, BlockId, Builtin, Callee, CheckedOp, Function, FunctionAttributes,
+        Hotness, ImmutableEncoding, InstId, InstKind, MirType, Module, Op, Terminator, ValueId,
+        analysis::AddressSpace, immutable::immutable_push_type_size, memory::EvmMemoryLayout,
     },
 };
 use alloy_primitives::U256;
@@ -1628,17 +1627,20 @@ impl Target {
 
     /// Whether hoisting `inst` out of a loop saves enough per iteration to be a root of its own,
     /// which the carry budget does not bound. A carried value costs a `DUP` at each use, so a
-    /// read, which runs only where its execution is guaranteed, must save at least one, as a
-    /// memory read does. A pure operation must save more: it may run speculatively, and the
-    /// backend rebuilds it at its uses for the price of a `DUP` when it is a `VeryLow` one such as
-    /// `ADD`, so that one hoists only when it runs every iteration, within the carry budget.
+    /// load, which runs only where its execution is guaranteed, must save at least one, as a
+    /// memory read does. Any other operation must save more: it may run speculatively, and the
+    /// backend rebuilds a constant or a `VeryLow` one such as `ADD` at its uses for the price of
+    /// a `DUP`, so that one hoists only when it runs every iteration, within the carry budget.
+    /// A boolean never pays: it feeds a branch, which tests nonzero without the `ne` that prices
+    /// it, so hoisting it saves nothing and carries one more word.
     pub(crate) fn licm_pays(&self, func: &Function, inst: InstId) -> bool {
+        let inst_data = func.inst(inst);
         let saving = self.licm_saving(func, inst);
         let carry = self.runtime_gas(self.dup());
-        if func.inst(inst).kind.effect_kind() == EffectKind::Pure {
-            saving > carry
-        } else {
-            saving >= carry
+        match inst_data.kind {
+            _ if inst_data.result_ty == Some(MirType::I1) => false,
+            InstKind::Load(..) => saving >= carry,
+            _ => saving > carry,
         }
     }
 }
@@ -2545,12 +2547,12 @@ mod tests {
         let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
         let mut function = Function::new(Ident::DUMMY);
         let value = function.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
-        let saving = |kind| {
+        let saving_as = |kind, ty| {
             let mut function = function.clone();
-            let (inst, _) =
-                function.alloc_value_inst_verbatim(Instruction::new(kind, Some(MirType::I256)));
+            let (inst, _) = function.alloc_value_inst_verbatim(Instruction::new(kind, Some(ty)));
             (target.licm_saving(&function, inst), target.licm_pays(&function, inst))
         };
+        let saving = |kind| saving_as(kind, MirType::I256);
         let (add_mod, add_mod_pays) = saving(InstKind::AddMod(value, value, value));
         assert_eq!(add_mod, target.opcode_gas(op::ADDMOD));
         assert!(add_mod > saving(InstKind::Mul(value, value)).0 && add_mod_pays);
@@ -2560,6 +2562,7 @@ mod tests {
         );
         assert!(saving(InstKind::Load(value, PtrLocation::Memory)).1);
         assert!(!saving(InstKind::Add(value, value)).1);
+        assert!(!saving_as(InstKind::Ne(value, value), MirType::I1).1);
     }
 
     #[test]
