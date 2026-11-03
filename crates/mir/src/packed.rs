@@ -7,18 +7,10 @@ use alloy_primitives::Bytes;
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum PackedPart {
     Literal(Bytes),
-    Scalar {
-        value: ValueId,
-        ty: ValueLayout,
-    },
+    Scalar { value: ValueId, ty: ValueLayout },
     Bytes(ValueId),
-    /// A storage `bytes` or `string`, given by its slot, which the encoder reads in place.
     StorageBytes(ValueId),
-    Array {
-        value: ValueId,
-        element: AbiType,
-        source: PackedArraySource,
-    },
+    Array { value: ValueId, element: AbiType, source: PackedArraySource },
 }
 
 impl PackedPart {

@@ -9,8 +9,9 @@
 //! A storage `bytes` or `string` part holds its slot: the encoder validates the header for the
 //! length, then writes the data words from storage straight into the output or the hash buffer,
 //! as solc does, so the value has no memory copy and costs no free-memory growth. Storage is
-//! read here, after the arguments ran. Whole words are written, so a part that is not last may
-//! write up to 31 bytes past its end, where the next part writes next.
+//! read here, after the arguments ran. Whole words are written, so a part may write up to 31
+//! bytes past its end: the next part overwrites them, and after the last part they lie in the
+//! cleared word or above the allocation.
 //! Encodings made entirely of whole words need no allocation-size rounding. As in solc, part
 //! lengths and offsets add without overflow checks; the size rounding still checks. Array loops use
 //! plain element-offset arithmetic: their index is below the length whose total extent was checked.

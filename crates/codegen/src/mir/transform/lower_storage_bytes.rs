@@ -15,7 +15,8 @@
 //! Reading the header at the call site preserves forwarding from preceding storage writes.
 //! Loads derive each word's address from the index in every mode: carrying the address through the
 //! loop as a second phi measured 2,457 runtime bytes larger over the benchmark corpus. The loop
-//! counts words independently of address wraparound.
+//! counts words independently of address wraparound. The ABI and packed encoders reuse the word
+//! loop to copy storage bytes straight into their output.
 
 use crate::mir::{
     AllocationSemantics, Function, FunctionBuilder, FunctionId, InstKind, MirType, Module,

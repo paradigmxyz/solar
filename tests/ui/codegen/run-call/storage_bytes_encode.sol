@@ -95,6 +95,12 @@ contract Test {
             if (keccak256(packed) != keccak256(expected) || packed.length != expected.length) {
                 return false;
             }
+            bytes31 prefix = 0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f;
+            if (keccak256(abi.encodePacked(prefix, strs[i])) != keccak256(abi.encodePacked(prefix, m))) {
+                return false;
+            }
+            bytes memory unaligned = abi.encodePacked(prefix, strs[i]);
+            if (keccak256(unaligned) != keccak256(abi.encodePacked(prefix, m))) return false;
             string memory joined = string.concat(strs[i], "-", strs[i]);
             if (keccak256(bytes(joined)) != keccak256(bytes(string.concat(m, "-", m)))) {
                 return false;
