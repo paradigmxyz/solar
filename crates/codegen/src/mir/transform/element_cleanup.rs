@@ -321,7 +321,7 @@ fn masked_element(func: &Function, inst: InstId) -> Option<(ValueId, u32)> {
         (Some(mask), None) => (b, mask),
         _ => return None,
     };
-    (mask.wrapping_add(U256::ONE) & mask == U256::ZERO).then(|| (element, mask.bit_len() as u32))
+    (mask.wrapping_add(U256::ONE) & mask).is_zero().then(|| (element, mask.bit_len() as u32))
 }
 
 /// The widest word the function's own instructions may store into an array.

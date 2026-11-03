@@ -496,17 +496,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }))
             }
             TyKind::Elementary(ElementaryType::UInt(size)) => {
-                let max = (U256::from(1) << size.bits()) - U256::from(1);
+                let max = (U256::ONE << size.bits()) - U256::ONE;
                 Some(match maximum {
                     true => max,
                     false => U256::ZERO,
                 })
             }
             TyKind::Elementary(ElementaryType::Int(size)) => {
-                let magnitude = U256::from(1) << (size.bits() - 1);
+                let magnitude = U256::ONE << (size.bits() - 1);
                 Some(match maximum {
-                    true => magnitude - U256::from(1),
-                    false => U256::MAX - magnitude + U256::from(1),
+                    true => magnitude - U256::ONE,
+                    false => U256::MAX - magnitude + U256::ONE,
                 })
             }
             _ => self.cx.report_unsupported(span, "type limit"),

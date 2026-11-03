@@ -42,11 +42,14 @@
 //! than the branch, the arm jump, their labels, and the arm that runs on an
 //! average path. The selects read the condition as a zero-or-one word, one
 //! copy each, while the branch reads a word tested against zero directly, so
-//! such a test pays for its comparison only after conversion. Runs after the
-//! late CFG cleanup, so folded conditions never reach it, and before hot-leaf
-//! inlining, so cloned lookup helpers arrive already branch-free. Converts a
-//! sweep of sites with updated predecessor lists before running CFG cleanup,
-//! avoiding a whole-function cleanup for each diamond.
+//! such a test pays for its comparison only after conversion. A general select
+//! whose two values are not literals pays `Target::select`, which includes
+//! the swap that orders the computed then value above the else value for the
+//! subtraction. Runs after the late CFG cleanup, so folded conditions never
+//! reach it, and before hot-leaf inlining, so cloned lookup helpers arrive
+//! already branch-free. Converts a sweep of sites with updated predecessor
+//! lists before running CFG cleanup, avoiding a whole-function cleanup for each
+//! diamond.
 
 use super::{cfg_simplify::simplify_function, egraph::is_bool_value};
 use crate::{
@@ -445,6 +448,13 @@ fn select_cost(func: &Function, target: &Target, select: &Select, shared: bool) 
             let cost = target.opcode(op::OR);
             if negated { cost.plus(target.opcode(op::ISZERO)) } else { cost }
         }
+        // f + c * (t - f), with neither value a literal, so the difference needs a swap
+        SelectForm::General(None)
+            if func.value_u256(select.then_value).is_none()
+                && func.value_u256(select.else_value).is_none() =>
+        {
+            target.select(false)
+        }
         // f + c * (t - f), with f used twice
         SelectForm::General(None) => {
             let reused = if func.value_u256(select.else_value).is_some() {
@@ -599,7 +609,7 @@ fn agreeing_value(
         && let (Some((a, then_amount)), Some((b, else_amount))) =
             (added_literal(func, then_value), added_literal(func, else_value))
         && a == b
-        && then_amount.wrapping_sub(else_amount) & integer_mask(bits.get()) == U256::ZERO
+        && (then_amount.wrapping_sub(else_amount) & integer_mask(bits.get())).is_zero()
     {
         return Some(else_value);
     }

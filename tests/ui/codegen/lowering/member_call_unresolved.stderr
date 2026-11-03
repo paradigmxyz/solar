@@ -4,13 +4,13 @@ error: file ./does-not-exist.sol not found
 LL │ import {Missing} from "./does-not-exist.sol";
    ╰╴                      ━━━━━━━━━━━━━━━━━━━━━━
 
-error: unresolved symbol `Missing`
+error[7920]: unresolved symbol `Missing`
    ╭▸ ROOT/tests/ui/codegen/lowering/member_call_unresolved.sol:LL:CC
    │
 LL │     function f(Missing m) external {
    ╰╴               ━━━━━━━
 
-error: unresolved symbol `missing`
+error[7576]: unresolved symbol `missing`
    ╭▸ ROOT/tests/ui/codegen/lowering/member_call_unresolved.sol:LL:CC
    │
 LL │         keccak256(missing);

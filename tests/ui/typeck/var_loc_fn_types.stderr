@@ -1,4 +1,4 @@
-error: invalid data location `storage`
+error[6651]: invalid data location `storage`
    ╭▸ ROOT/tests/ui/typeck/var_loc_fn_types.sol:LL:CC
    │
 LL │     function(S storage) external externalVar;
@@ -6,7 +6,7 @@ LL │     function(S storage) external externalVar;
    │
    ╰ note: data location must be `memory` or `calldata` for function parameter, but got `storage`
 
-error: invalid data location `storage`
+error[6651]: invalid data location `storage`
    ╭▸ ROOT/tests/ui/typeck/var_loc_fn_types.sol:LL:CC
    │
 LL │         function(S storage) external a;
@@ -14,7 +14,7 @@ LL │         function(S storage) external a;
    │
    ╰ note: data location must be `memory` or `calldata` for function parameter, but got `storage`
 
-error: invalid data location `storage`
+error[6651]: invalid data location `storage`
    ╭▸ ROOT/tests/ui/typeck/var_loc_fn_types.sol:LL:CC
    │
 LL │         function() external returns (S storage) b;
