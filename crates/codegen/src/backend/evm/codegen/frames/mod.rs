@@ -844,41 +844,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         static_spans: &FxHashMap<FunctionId, u64>,
         prefix_guards: &FxHashMap<FunctionId, u64>,
     ) -> FxHashMap<FunctionId, u64> {
-        let mut function_ranges = index_vec![None; module.functions.len()];
-        let mut owns_low_memory = index_vec![None; module.functions.len()];
-        let ranges = entries
-            .iter()
-            .map(|&entry| {
-                let mut ranges = Vec::new();
-                for func_id in self.runtime_entry_reachability[&entry].iter() {
-                    ranges.extend_from_slice(function_ranges[func_id].get_or_insert_with(|| {
-                        Self::constant_memory_ranges(&module.functions[func_id])
-                    }));
-                }
-                // An entry that runs code writing memory at an address calldata computes owns
-                // the low memory it names until control passes to another entry. The
-                // dispatcher's tail calls into the external functions never return, so the
-                // routes it dispatches to do not count.
-                let own_reach = Self::entry_own_reach(module, entry, entries);
-                if own_reach.iter().any(|func_id| {
-                    *owns_low_memory[func_id].get_or_insert_with(|| {
-                        Self::writes_calldata_addressed_memory(&module.functions[func_id])
-                    })
-                }) {
-                    ranges.push((EvmMemoryLayout::HEAP_START, LOW_MEMORY_BOUND));
-                }
-                (entry, ranges)
-            })
-            .collect::<FxHashMap<_, _>>();
-        let mut bases = entries
-            .iter()
-            .map(|&entry| {
-                let func = &module.functions[entry];
-                let base = EvmMemoryLayout::HEAP_START
-                    + func.internal_frame_size.max(func.external_static_return_size);
-                (entry, base)
-            })
-            .collect::<FxHashMap<_, _>>();
         let allocations = entries
             .iter()
             .map(|&entry| {
@@ -893,6 +858,47 @@ impl<'gcx> EvmCodegen<'gcx> {
             .iter()
             .map(|&entry| {
                 (entry, self.function_spill_size(entry).saturating_add(allocations[&entry]))
+            })
+            .collect::<FxHashMap<_, _>>();
+        let mut function_ranges = index_vec![None; module.functions.len()];
+        let mut owns_low_memory = index_vec![None; module.functions.len()];
+        let ranges = entries
+            .iter()
+            .map(|&entry| {
+                let mut ranges = Vec::new();
+                for func_id in self.runtime_entry_reachability[&entry].iter() {
+                    ranges.extend_from_slice(function_ranges[func_id].get_or_insert_with(|| {
+                        Self::constant_memory_ranges(&module.functions[func_id])
+                    }));
+                }
+                // An entry that runs code writing memory at an address calldata computes owns
+                // the low memory it names until control passes to another entry. The
+                // dispatcher's tail calls into the external functions never return, so the
+                // routes it dispatches to do not count. Only what the compiler places for the
+                // entry has to stay clear of that memory: its spill area, static allocations and
+                // frames. An entry that places none of them keeps its base, so it neither raises
+                // the region that every other entry's frames start at nor moves its own heap
+                // above that memory.
+                let own_reach = Self::entry_own_reach(module, entry, entries);
+                if (sizes[&entry] != 0 || static_spans[&entry] != 0)
+                    && own_reach.iter().any(|func_id| {
+                        *owns_low_memory[func_id].get_or_insert_with(|| {
+                            Self::writes_calldata_addressed_memory(&module.functions[func_id])
+                        })
+                    })
+                {
+                    ranges.push((EvmMemoryLayout::HEAP_START, LOW_MEMORY_BOUND));
+                }
+                (entry, ranges)
+            })
+            .collect::<FxHashMap<_, _>>();
+        let mut bases = entries
+            .iter()
+            .map(|&entry| {
+                let func = &module.functions[entry];
+                let base = EvmMemoryLayout::HEAP_START
+                    + func.internal_frame_size.max(func.external_static_return_size);
+                (entry, base)
             })
             .collect::<FxHashMap<_, _>>();
         loop {
