@@ -98,7 +98,7 @@ fn @dNested() {
     mstore v103, v35
     mstore v26, v126
     v39 = add v20, 96
-    v40 = icall @decode_memory_type, v39, v20, v16
+    v40 = icall @decode_memory_type.6, v39, v20, v16
     v105 = add v26, 32
     mstore v105, v40
     v43 = add v20, 128
@@ -201,7 +201,7 @@ fn @dFixed() {
     mstore 0, v7 !metadata(memory=scratch)
     returndata 0, 32
   bb5:  ; preds = bb4
-    v26 = icall @decode_memory_type, v47, v15, v11
+    v26 = icall @decode_memory_type.6, v47, v15, v11
     mstore v49, v26
     v48 = add v47, 32
     v50 = add v49, 32
@@ -253,7 +253,7 @@ fn @dDynArr() {
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
   bb8:  ; preds = bb7
-    v31 = icall @decode_memory_type, v28, v12, v5
+    v31 = icall @decode_memory_type.6, v28, v12, v5
     v32 = shl v29, 5
     v45 = add v50, v32
     v46 = add v45, 32
@@ -312,7 +312,7 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     revert 0, 0
 }
 
-fn @decode_memory_type(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory] {
+fn @decode_memory_type.6(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory] {
   bb0:
     v0 = mload arg0
     v1 = add v0, arg1
@@ -320,14 +320,14 @@ fn @decode_memory_type(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_m
     v3 = lt v2, v0
     v4 = sub arg2, v1
     v5 = lt v4, 96
-    v84 = or v3, v5
-    jumpi v84, bb1, bb2
+    v77 = or v3, v5
+    jumpi v77, bb1, bb2
   bb2:  ; preds = bb0
-    v79 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v80 = add v79, 96
-    mstore 64, v80 !metadata(memory=scratch)
+    v52 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v53 = add v52, 96
+    mstore 64, v53 !metadata(memory=scratch)
     v7 = mload v1
-    mstore v79, v7
+    mstore v52, v7
     v8 = add v1, 32
     v9 = mload v8
     v10 = add v1, v9
@@ -338,59 +338,63 @@ fn @decode_memory_type(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_m
     jumpi v15, bb1, bb3
   bb3:  ; preds = bb2
     v17 = mload v10
-    v82 = add v17, 63
-    v21 = and v82, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v75 = add v17, 63
+    v21 = and v75, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v22 = lt v21, v17
     jumpi v22, bb4, bb5
   bb5:  ; preds = bb3
-    v77 = icall @alloc, v21
-    mstore v77, v17
+    v51 = icall @alloc, v21
+    mstore v51, v17
     v24 = sub arg2, v12
     v25 = lt v24, v17
     jumpi v25, bb1, bb6
   bb6:  ; preds = bb5
-    v64 = add v77, 32
-    mcopy v64, v12, v17
+    v42 = add v51, 32
+    mcopy v42, v12, v17
     v33 = sub 0, v17
     v34 = and v33, 31
-    v81 = calldatasize
-    v65 = add v64, v17
-    calldatacopy v65, v81, v34
-    v67 = add v79, 32
-    mstore v67, v77
+    v54 = calldatasize
+    v43 = add v42, v17
+    calldatacopy v43, v54, v34
+    v45 = add v52, 32
+    mstore v45, v51
     v37 = add v1, 64
-    v38 = mload v37
-    v39 = add v1, v38
-    v41 = add v39, 32
-    v42 = gt v38, 0xffffffffffffffff
-    v43 = lt arg2, v41
-    v44 = or v42, v43
-    jumpi v44, bb1, bb7
+    v55 = mload v37
+    v56 = add v55, v1
+    v57 = add v56, 32
+    v58 = gt v55, 0xffffffffffffffff
+    v59 = lt arg2, v57
+    v60 = or v58, v59
+    jumpi v60, bb1, bb7
   bb7:  ; preds = bb6
-    v46 = mload v39
-    v48 = gt v46, 0x7fffffffffffffe
-    jumpi v48, bb4, bb8
-  bb8:  ; preds = bb7
-    v49 = add v46, 1
-    v50 = shl v49, 5
-    v78 = icall @alloc, v50
-    mstore v78, v46
-    v52 = shl v46, 5
-    v53 = sub arg2, v41
-    v54 = shr v53, 5
-    v55 = lt v54, v46
-    jumpi v55, bb1, bb9
-  bb9:  ; preds = bb8
-    v69 = add v78, 32
-    mcopy v69, v41, v52
-    v71 = add v79, 64
-    mstore v71, v78
-    ret v79
-  bb4 [cold]:  ; preds = bb3, bb7
+    v61 = mload v56
+    v62 = gt v61, 0x7fffffffffffffe
+    jumpi v62, bb8, bb9
+  bb9:  ; preds = bb7
+    v63 = add v61, 1
+    v64 = shl v63, 5
+    v65 = icall @alloc, v64
+    mstore v65, v61
+    v67 = shl v61, 5
+    v68 = sub arg2, v57
+    v69 = shr v68, 5
+    v70 = lt v69, v61
+    jumpi v70, bb1, bb10
+  bb10:  ; preds = bb9
+    v72 = add v65, 32
+    mcopy v72, v57, v67
+    v47 = add v52, 64
+    mstore v47, v65
+    ret v52
+  bb8 [cold]:  ; preds = bb7
+    mstore 32, 65
+    mstore 0, 0x4e487b71
+    revert 28, 36
+  bb4 [cold]:  ; preds = bb3
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1 [cold]:  ; preds = bb0, bb2, bb5, bb6, bb8
+  bb1 [cold]:  ; preds = bb0, bb2, bb5, bb6, bb9
     revert 0, 0
 }
 
