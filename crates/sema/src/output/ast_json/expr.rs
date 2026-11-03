@@ -122,10 +122,11 @@ impl<'a, 'gcx> Cx<'a, 'gcx> {
     /// of `return;` and `do while`, and ends a compound statement where its last body ends.
     fn stmt_span(self, stmt: &ast::Stmt<'_>) -> Span {
         match &stmt.kind {
-            ast::StmtKind::Expr(_)
-            | ast::StmtKind::DeclSingle(_)
+            ast::StmtKind::Expr(expr) | ast::StmtKind::Return(Some(expr)) => {
+                stmt.span.with_hi(expr.span.hi())
+            }
+            ast::StmtKind::DeclSingle(_)
             | ast::StmtKind::DeclMulti(..)
-            | ast::StmtKind::Return(Some(_))
             | ast::StmtKind::Emit(..)
             | ast::StmtKind::Revert(..)
             | ast::StmtKind::Placeholder

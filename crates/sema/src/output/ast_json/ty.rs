@@ -8,8 +8,8 @@ use crate::{
     ty::{Component, Gcx, Ty, TyFn, TyKind, TySolcPrinter},
 };
 use serde::ser::{Serialize, SerializeMap, Serializer};
-use solar_ast::{self as ast, ElementaryType};
-use solar_interface::{Ident, Span, kw};
+use solar_ast::{self as ast, DataLocation, ElementaryType};
+use solar_interface::{Ident, Span, kw, sym};
 
 /// The `typeDescriptions` of a declaration or a type name.
 pub(super) struct TypeDescriptions<'gcx> {
@@ -164,8 +164,8 @@ impl Serialize for ExprType<'_, '_> {
             _ => Vec::new(),
         };
         let call_options = match expr.kind {
-            hir::ExprKind::CallOptions(_, options) => ["gas", "value", "salt"]
-                .map(|name| options.args.iter().any(|arg| arg.name.as_str() == name)),
+            hir::ExprKind::CallOptions(_, options) => [kw::Gas, sym::value, sym::salt]
+                .map(|name| options.args.iter().any(|arg| arg.name.name == name)),
             _ => [false; 3],
         };
         let function_kind = match expr.kind {
@@ -214,7 +214,8 @@ fn message_ty<'gcx>(gcx: Gcx<'gcx>, message: &hir::Expr<'gcx>) -> Option<Ty<'gcx
     {
         return Some(ty);
     }
-    expr_ty(gcx, message)?.mobile(gcx)
+    // The parameter of `require` and `revert` is `string memory`.
+    Some(expr_ty(gcx, message)?.mobile(gcx)?.with_loc_if_ref(gcx, DataLocation::Memory))
 }
 
 /// Returns whether solc types the expression as a pointer, which it does for the reference types
