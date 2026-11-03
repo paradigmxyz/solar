@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/memory_fixed_array_alloc.sol:MemoryFixedArrayAlloc ===
+; === ROOT/tests/ui/codegen/lowering/memory_fixed_array_alloc.sol:MemoryFixedArrayAlloc ===
 @module MemoryFixedArrayAlloc
 @types
   struct0: {i256, i256}
@@ -40,11 +40,11 @@ fn @nested(arg0: i256, arg1: i256) -> i256 [selector=0x50d1f082, pure, abi_param
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v7]
     v2 = lt v1, 3
     jumpi v2, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v8 = lt 0, 3
     v9 = eq v8, false
     icall panic_if<0x32>, v9
@@ -66,7 +66,7 @@ fn @nested(arg0: i256, arg1: i256) -> i256 [selector=0x50d1f082, pure, abi_param
     v21 = ptradd v17, v20
     v22 = mload v21
     ret v22
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v3 = alloc 64 !metadata(preserves_fmp)
     memory_zero v3, 64
     v4 = shl v1, 5
@@ -90,7 +90,7 @@ fn @fmpIntegrity() -> struct0 [selector=0xe547cb4d, pure, abi_params=[], abi_ret
     v4 = alloc zeroed checked 64
     mstore v4, 1
     v5 = mload v4
-    v6 = lt 0, v5
+    v6 = gt v5, 0
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = ptradd v4, 32
@@ -101,7 +101,7 @@ fn @fmpIntegrity() -> struct0 [selector=0xe547cb4d, pure, abi_params=[], abi_ret
     v11 = ptradd v0, 64
     v12 = mload v11
     v13 = mload v4
-    v14 = lt 0, v13
+    v14 = gt v13, 0
     v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = ptradd v4, 32
@@ -142,7 +142,7 @@ fn @bulkDefault(arg0: i256) -> i256 [selector=0xbe4421b6, pure, abi_params=[uint
     ret v5
 }
 
-// === ROOT/tests/ui/codegen/lowering/memory_fixed_array_alloc.sol:NamedReturnAndDelete ===
+; === ROOT/tests/ui/codegen/lowering/memory_fixed_array_alloc.sol:NamedReturnAndDelete ===
 @module NamedReturnAndDelete
 @types
   struct0: {ptr<memory>, i256}
@@ -166,14 +166,14 @@ fn @namedReturn() -> struct0 [selector=0xf76de570, pure, abi_params=[], abi_retu
     v6 = alloc zeroed checked 64
     mstore v6, 32
     v7 = mload v6
-    v8 = lt 0, v7
+    v8 = gt v7, 0
     v9 = eq v8, false
     icall panic_if<0x32>, v9
     v10 = byte 0, 0xee00000000000000000000000000000000000000000000000000000000000000
     v11 = ptradd v6, 32
     mstore8 v11, v10
     v12 = mload v6
-    v13 = lt 0, v12
+    v13 = gt v12, 0
     v14 = eq v13, false
     icall panic_if<0x32>, v14
     v15 = ptradd v6, 32

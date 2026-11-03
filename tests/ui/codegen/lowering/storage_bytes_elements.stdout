@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageBytesElements ===
+; === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageBytesElements ===
 @module StorageBytesElements
 ; getter for `bytes public b` [selector 0x4df7e3d0]
 fn @b() -> ptr<memory> [selector=0x4df7e3d0, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -22,19 +22,19 @@ fn @poke() [selector=0x18178358, abi_params=[], abi_returns=[], abi_return_param
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
-    v7 = lt 5, v6
+    v7 = gt v6, 5
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v9 = storage_array_data_slot 0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v10 = phi [bb1: v9], [bb2: 0]
     v11 = sload v10 !metadata(storage=symbolic(v10))
     v12 = and v11, 0xffffffffff00ffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -59,7 +59,7 @@ fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageStringConstructor ===
+; === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageStringConstructor ===
 @module StorageStringConstructor
 ; constructor(string memory name_, string memory symbol_) [creation entry]
 fn @constructor(arg0: ptr<memory>, arg1: ptr<memory>) [constructor, abi_params=[bytes, bytes]] {
@@ -95,7 +95,7 @@ fn @load_storage_bytes(arg0: i256) -> ptr<memory> {
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageStringBase ===
+; === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageStringBase ===
 @module StorageStringBase
 ; constructor(string memory name_, string memory symbol_) [creation entry]
 fn @constructor(arg0: ptr<memory>, arg1: ptr<memory>) [constructor, abi_params=[bytes, bytes]] {
@@ -131,7 +131,7 @@ fn @load_storage_bytes(arg0: i256) -> ptr<memory> {
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageStringDerived ===
+; === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageStringDerived ===
 @module StorageStringDerived
 ; constructor() StorageStringBase("ERC20Mock", "E20M") [creation entry]
 fn @constructor() [constructor] {
@@ -147,9 +147,9 @@ fn @constructor() [constructor] {
     icall @store_storage_bytes, 0, v0
     icall @store_storage_bytes, 1, v2
     jump bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb2
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     ret
 }
 
@@ -179,7 +179,7 @@ fn @load_storage_bytes(arg0: i256) -> ptr<memory> {
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageStringImplicitDerived ===
+; === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageStringImplicitDerived ===
 @module StorageStringImplicitDerived
 ; creation entry
 fn @constructor() [constructor] {
@@ -195,7 +195,7 @@ fn @constructor() [constructor] {
     icall @store_storage_bytes, 0, v0
     icall @store_storage_bytes, 1, v2
     jump bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     ret
 }
 

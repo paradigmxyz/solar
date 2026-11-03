@@ -24,7 +24,7 @@
   "settings": {
     "optimizer": {"enabled": true},
     "solar": {
-      "unstable": ["mir-pipeline=cfg-simplify,lower-abi,lower-abi-encode,lower-dispatch,lower-frame-slots,lower-memory-objects,lower-slices,lower-alloc,lower-evm-shaped"]
+      "unstable": ["mir-pipeline=cfg-simplify,lower-abi,lower-abi-encode,lower-dispatch,lower-frame-slots,lower-memory-objects,lower-slices,lower-alloc,lower-integers,lower-evm-shaped"]
     },
     "outputSelection": {
       "*": {"*": ["evm.deployedBytecode.ethdebug", "evm.deployedBytecode.sourceMap"]}

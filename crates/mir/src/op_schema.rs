@@ -124,7 +124,7 @@ impl OpTraits {
     /// operands can themselves be rebuilt from stable leaves.
     pub const REMATERIALIZABLE: Self = Self(1 << 1);
     /// The declared operand pair may be exchanged without changing the result.
-    pub(crate) const COMMUTATIVE: Self = Self(1 << 3);
+    pub const COMMUTATIVE: Self = Self(1 << 3);
     /// The operation is a root of at least one local e-graph rewrite rule.
     pub const EGRAPH_REWRITE: Self = Self(1 << 4);
 
@@ -1065,6 +1065,43 @@ macro_rules! define_mir_ops {
                 self.canonicalize_commutative_by_key(|value| value.index())
             }
 
+            /// Returns the declared commutative pair of operands, if the operation has one.
+            #[allow(unused_variables)]
+            pub fn commutative_pair(self) -> Option<(ValueId, ValueId)> {
+                match self {
+                    $(
+                        Self::$variant $( { $( $operand ),+ } )? $( { $( $field ),+ } )? => {
+                            let pair: Option<(ValueId, ValueId)> = None;
+                            $( let pair = Some(($lhs, $rhs)); )?
+                            pair
+                        }
+                    )+
+                }
+            }
+
+            /// Returns the operation with its declared commutative pair exchanged,
+            /// when it has one and the two operands differ.
+            #[allow(unused_variables)]
+            pub fn commuted(self) -> Option<Self> {
+                match self {
+                    $(
+                        Self::$variant $( { $( $operand ),+ } )? $( { $( $field ),+ } )? => {
+                            let differs = false;
+                            $(
+                                // op(lhs, rhs, rest) -> op(rhs, lhs, rest)
+                                let differs = $lhs != $rhs;
+                                let ($lhs, $rhs) = ($rhs, $lhs);
+                            )?
+                            differs.then_some(
+                                Self::$variant
+                                    $( { $( $operand ),+ } )?
+                                    $( { $( $field ),+ } )?,
+                            )
+                        }
+                    )+
+                }
+            }
+
             /// Orders only the declared commutative pair by the caller's key.
             pub fn canonicalize_commutative_by_key<K: Ord>(
                 self,
@@ -1192,6 +1229,18 @@ impl Op {
             out.push_str(")))\n");
         }
         out
+    }
+
+    /// Returns the value operands in visit order.
+    #[must_use]
+    pub fn operands(self) -> SmallVec<[ValueId; 8]> {
+        let mut operands = SmallVec::new();
+        // Only the visit matters; the mapped copy is discarded.
+        let _ = self.map_values(|value| {
+            operands.push(value);
+            value
+        });
+        operands
     }
 }
 

@@ -1654,12 +1654,8 @@ impl<'a> Eliminator<'a> {
     fn available_value_in_block(func: &Function, block: BlockId, key: &ExprKey) -> Option<ValueId> {
         func.blocks[block].instructions.iter().rev().find_map(|&inst| {
             let instruction = func.inst(inst);
-            let same_op = match (&instruction.kind, &key.kind) {
-                (InstKind::Gt(..), InstKind::Lt(..)) | (InstKind::SGt(..), InstKind::SLt(..)) => {
-                    true
-                }
-                (kind, key_kind) => mem::discriminant(kind) == mem::discriminant(key_kind),
-            };
+            let same_op = mem::discriminant(&*instruction.kind.less_than_form())
+                == mem::discriminant(&key.kind);
             if !same_op
                 || instruction.result_ty != Some(key.ty)
                 || !Self::is_pure_expression(instruction)
@@ -1696,11 +1692,8 @@ impl<'a> Eliminator<'a> {
             Value::Immediate(imm) => OperandKey::Immediate(imm.clone()),
             _ => OperandKey::Value(value),
         };
-        let mut kind = match *kind {
-            InstKind::Gt(a, b) => InstKind::Lt(b, a),
-            InstKind::SGt(a, b) => InstKind::SLt(b, a),
-            _ => kind.op().canonicalize_commutative_by_key(operand).into_kind()?,
-        };
+        let mut kind =
+            kind.op().canonicalize_commutative_by_key(operand).less_than_form().into_kind()?;
         let mut immediates = SmallVec::new();
         kind.visit_operands_mut(|value| {
             if let Value::Immediate(imm) = func.value(*value) {

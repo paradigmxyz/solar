@@ -1,11 +1,11 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/calldata_array_subslice.sol:CalldataArraySubsliceRuntime ===
+; === ROOT/tests/ui/codegen/lowering/run-call/calldata_array_subslice.sol:CalldataArraySubsliceRuntime ===
 @module CalldataArraySubsliceRuntime
 ; function word(uint256[] calldata a) external pure returns (uint256[] memory) [selector 0x37948b05]
 fn @word(arg0: slice<calldata>) -> ptr<memory> [selector=0x37948b05, pure, abi_params=[array<_, uint256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = extract_value slice<calldata>, arg0, 1
-    v2 = gt v1, v1
+    v2 = lt v1, v1
     v3 = lt v1, 1
     v4 = or v2, v3
     v5 = zext i1 v4 to i256
@@ -28,7 +28,7 @@ fn @word(arg0: slice<calldata>) -> ptr<memory> [selector=0x37948b05, pure, abi_p
     v19 = shr v9, 251
     v20 = ne v19, 0
     icall panic_if<0x41>, v20
-    v21 = add 32, v18
+    v21 = add v18, 32
     v22 = lt v21, 32
     icall panic_if<0x41>, v22
     v23 = alloc v21

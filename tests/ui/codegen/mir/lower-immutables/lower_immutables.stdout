@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lower-immutables/lower_immutables.mir (before lower-immutables) ===
-+ // === ROOT/tests/ui/codegen/mir/lower-immutables/lower_immutables.mir (after lower-immutables) ===
+- ; === ROOT/tests/ui/codegen/mir/lower-immutables/lower_immutables.mir (before lower-immutables) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-immutables/lower_immutables.mir (after lower-immutables) ===
   @module LowerImmutables
   @immutables
     first: uint8
@@ -28,11 +28,12 @@
       stop
   }
   
-  ; selector 0x00000001
-  fn @runtime() [selector=0x00000001] {
+  fn @runtime() {
     bb0:
       v0 = trunc i256 1 to i8
-      storeimmutable first, v0
+-     storeimmutable first, v0
++     v1 = zext i8 v0 to i256
++     mstore 192, v1
       stop
   }
   

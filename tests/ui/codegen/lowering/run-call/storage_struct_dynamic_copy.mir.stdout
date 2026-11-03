@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/storage_struct_dynamic_copy.sol:StorageStructDynamicCopy ===
+; === ROOT/tests/ui/codegen/lowering/run-call/storage_struct_dynamic_copy.sol:StorageStructDynamicCopy ===
 @module StorageStructDynamicCopy
 ; function copy() external returns (uint256) [selector 0x60726abb]
 fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -32,19 +32,19 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v15 = and v14, 1
     v16 = eq v15, 1
     v17 = sub 0, v15
-    v18 = or 127, v17
+    v18 = or v17, 127
     v19 = shr v14, 1
     v20 = and v19, v18
-    v21 = lt 0, v20
+    v21 = gt v20, 0
     v22 = eq v21, false
     icall panic_if<0x32>, v22
     jumpi v16, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v23 = storage_array_data_slot 1
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v24 = phi [bb1: v23], [bb2: 1]
     v25 = sload v24 !metadata(storage=symbolic(v24))
     v26 = and v25, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -56,19 +56,19 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v29 = and v28, 1
     v30 = eq v29, 1
     v31 = sub 0, v29
-    v32 = or 127, v31
+    v32 = or v31, 127
     v33 = shr v28, 1
     v34 = and v33, v32
-    v35 = lt 0, v34
+    v35 = gt v34, 0
     v36 = eq v35, false
     icall panic_if<0x32>, v36
     jumpi v30, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb6
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v37 = storage_array_data_slot 1
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6:                                            ; preds = bb4, bb5
     v38 = phi [bb4: v37], [bb5: 1]
     v39 = sload v38 !metadata(storage=symbolic(v38))
     v40 = shr v39, 248
@@ -82,19 +82,19 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v47 = and v46, 1
     v48 = eq v47, 1
     v49 = sub 0, v47
-    v50 = or 127, v49
+    v50 = or v49, 127
     v51 = shr v46, 1
     v52 = and v51, v50
-    v53 = lt 0, v52
+    v53 = gt v52, 0
     v54 = eq v53, false
     icall panic_if<0x32>, v54
     jumpi v48, bb7, bb8
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     jump bb9
-  bb7:  ; preds = bb6
+  bb7:                                            ; preds = bb6
     v55 = storage_array_data_slot 4
     jump bb9
-  bb9:  ; preds = bb7, bb8
+  bb9:                                            ; preds = bb7, bb8
     v56 = phi [bb7: v55], [bb8: 4]
     v57 = sload v56 !metadata(storage=symbolic(v56))
     v58 = shr v57, 248
@@ -109,7 +109,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v66 = and v65, 1
     v67 = eq v66, 1
     v68 = sub 0, v66
-    v69 = or 127, v68
+    v69 = or v68, 127
     v70 = shr v65, 1
     v71 = and v70, v69
     v72 = checked_add uint256, v64, v71
@@ -136,14 +136,14 @@ fn @arrayCopy() -> i256 [selector=0xb192499e, abi_params=[], abi_returns=[word],
     v11 = add v9, v10
     sstore 6, v8 !metadata(storage=slot(6))
     v12 = sload 6 !metadata(storage=slot(6))
-    v13 = lt 0, v12
+    v13 = gt v12, 0
     v14 = eq v13, false
     icall panic_if<0x32>, v14
     v15 = storage_array_data_slot 6
     sstore v15, 7 !metadata(storage=symbolic(v15))
     v16 = checked_add uint256, 0, 1
     v17 = sload 6 !metadata(storage=slot(6))
-    v18 = lt 0, v17
+    v18 = gt v17, 0
     v19 = eq v18, false
     icall panic_if<0x32>, v19
     v20 = storage_array_data_slot 6
@@ -153,19 +153,19 @@ fn @arrayCopy() -> i256 [selector=0xb192499e, abi_params=[], abi_returns=[word],
     v23 = eq v22, false
     icall panic_if<0x1>, v23
     v24 = sload 6 !metadata(storage=slot(6))
-    v25 = lt 0, v24
+    v25 = gt v24, 0
     v26 = eq v25, false
     icall panic_if<0x32>, v26
     v27 = storage_array_data_slot 6
     v28 = add v27, 2
     sstore v28, 13 !metadata(storage=offset(v27, 2))
     v29 = sload 6 !metadata(storage=slot(6))
-    v30 = lt 0, v29
+    v30 = gt v29, 0
     v31 = eq v30, false
     icall panic_if<0x32>, v31
     v32 = storage_array_data_slot 6
     v33 = sload 6 !metadata(storage=slot(6))
-    v34 = lt 1, v33
+    v34 = gt v33, 1
     v35 = eq v34, false
     icall panic_if<0x32>, v35
     v36 = storage_array_data_slot 6
@@ -195,7 +195,7 @@ fn @arrayCopy() -> i256 [selector=0xb192499e, abi_params=[], abi_returns=[word],
     v55 = mload v54
     sstore v53, v55 !metadata(storage=offset(v36, 5))
     v56 = sload 6 !metadata(storage=slot(6))
-    v57 = lt 0, v56
+    v57 = gt v56, 0
     v58 = eq v57, false
     icall panic_if<0x32>, v58
     v59 = storage_array_data_slot 6
@@ -205,26 +205,26 @@ fn @arrayCopy() -> i256 [selector=0xb192499e, abi_params=[], abi_returns=[word],
     v62 = and v61, 1
     v63 = eq v62, 1
     v64 = sub 0, v62
-    v65 = or 127, v64
+    v65 = or v64, 127
     v66 = shr v61, 1
     v67 = and v66, v65
-    v68 = lt 0, v67
+    v68 = gt v67, 0
     v69 = eq v68, false
     icall panic_if<0x32>, v69
     jumpi v63, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v70 = storage_array_data_slot v60
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v71 = phi [bb1: v70], [bb2: v60]
     v72 = sload v71 !metadata(storage=symbolic(v71))
     v73 = and v72, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v74 = or v73, 0xff00000000000000000000000000000000000000000000000000000000000000
     sstore v71, v74 !metadata(storage=symbolic(v71))
     v75 = sload 6 !metadata(storage=slot(6))
-    v76 = lt 1, v75
+    v76 = gt v75, 1
     v77 = eq v76, false
     icall panic_if<0x32>, v77
     v78 = storage_array_data_slot 6
@@ -235,19 +235,19 @@ fn @arrayCopy() -> i256 [selector=0xb192499e, abi_params=[], abi_returns=[word],
     v82 = and v81, 1
     v83 = eq v82, 1
     v84 = sub 0, v82
-    v85 = or 127, v84
+    v85 = or v84, 127
     v86 = shr v81, 1
     v87 = and v86, v85
-    v88 = lt 0, v87
+    v88 = gt v87, 0
     v89 = eq v88, false
     icall panic_if<0x32>, v89
     jumpi v83, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb6
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v90 = storage_array_data_slot v80
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6:                                            ; preds = bb4, bb5
     v91 = phi [bb4: v90], [bb5: v80]
     v92 = sload v91 !metadata(storage=symbolic(v91))
     v93 = shr v92, 248
@@ -257,7 +257,7 @@ fn @arrayCopy() -> i256 [selector=0xb192499e, abi_params=[], abi_returns=[word],
     v97 = zext i8 v96 to i256
     v98 = checked_mul uint256, v97, 100
     v99 = sload 6 !metadata(storage=slot(6))
-    v100 = lt 1, v99
+    v100 = gt v99, 1
     v101 = eq v100, false
     icall panic_if<0x32>, v101
     v102 = storage_array_data_slot 6
@@ -268,7 +268,7 @@ fn @arrayCopy() -> i256 [selector=0xb192499e, abi_params=[], abi_returns=[word],
     v106 = and v105, 1
     v107 = eq v106, 1
     v108 = sub 0, v106
-    v109 = or 127, v108
+    v109 = or v108, 127
     v110 = shr v105, 1
     v111 = and v110, v109
     v112 = checked_add uint256, v98, v111

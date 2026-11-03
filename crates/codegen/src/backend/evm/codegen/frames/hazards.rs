@@ -246,7 +246,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .iter_enumerated()
             .map(|(func_id, func)| {
                 let mut args = DenseBitSet::new_empty(func.arg_indices().count());
-                if called.contains(func_id) && !func.is_external_entry() {
+                if called.contains(func_id) {
                     for arg in func.arg_indices() {
                         args.insert(arg);
                     }

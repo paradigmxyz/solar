@@ -264,8 +264,8 @@ impl LoopOptimizer {
     }
 
     /// The words the backend carries through a loop: the header's phis and the values defined
-    /// outside the loop that its non-phi instructions read. Immediates, arguments, and nullary
-    /// rematerializable reads are rebuilt where used and cost no word.
+    /// outside the loop that its non-phi instructions read. Immediates, calldata words at constant
+    /// offsets, and nullary rematerializable reads are rebuilt where used and cost no word.
     fn carried_words(
         func: &Function,
         loop_data: &Loop,
@@ -302,7 +302,8 @@ impl LoopOptimizer {
     }
 
     /// Whether a value read inside `loop_data` occupies a carried word: an instruction result
-    /// outside the loop that is not a nullary rematerializable read.
+    /// outside the loop that is not a nullary rematerializable read or a calldata word at a
+    /// constant offset.
     fn is_carried_operand(
         func: &Function,
         loop_data: &Loop,
@@ -318,6 +319,7 @@ impl LoopOptimizer {
             .is_none_or(|block| !loop_data.blocks.contains(block))
             && !(kind.operands().is_empty()
                 && kind.op_def().traits.contains(OpTraits::REMATERIALIZABLE))
+            && !func.is_constant_calldata_load(value)
     }
 
     /// The change in carried words of loop `inner` (the hoisting loop or one nested in it) when
@@ -927,12 +929,7 @@ impl LoopOptimizer {
     }
 
     fn const_affine_expr(&self, func: &Function, value: ValueId) -> Option<AffineExpr> {
-        Some(AffineExpr {
-            base: None,
-            invariants: Default::default(),
-            constant: self.const_i128(func, value)?,
-            terms: Default::default(),
-        })
+        Some(AffineExpr::constant(self.const_i128(func, value)?))
     }
 
     fn const_i128(&self, func: &Function, value: ValueId) -> Option<i128> {
@@ -1182,7 +1179,7 @@ fn reduce_product_checks(
         if flip_check(func, block, inst, &uses) {
             // overflows = gt x, limit
             // jumpi overflows, abort, next
-            func.inst_mut(inst).kind = InstKind::Gt(x, limit);
+            func.inst_mut(inst).kind = func.canonical_kind(InstKind::Gt(x, limit));
             continue;
         }
         // overflows = gt x, limit
@@ -1194,7 +1191,7 @@ fn reduce_product_checks(
         func.blocks[block].instructions.insert(position, overflows_inst);
         // valid = eq overflows, 0
         let zero = func.alloc_value(Value::Immediate(Immediate::I1(false)));
-        func.inst_mut(inst).kind = InstKind::Eq(overflows, zero);
+        func.inst_mut(inst).kind = func.canonical_kind(InstKind::Eq(overflows, zero));
     }
     checks.len()
 }
@@ -1230,10 +1227,7 @@ fn product_check(
     zero_test: ValueId,
     exact: ValueId,
 ) -> Option<(ValueId, ValueId, ValueId)> {
-    let def = |value: ValueId| match *func.value(value) {
-        Value::Inst(inst) => Some(&func.inst(inst).kind),
-        _ => None,
-    };
+    let def = |value| func.value_inst_kind(value);
     let InstKind::Eq(l, r) = *def(zero_test)? else { return None };
     let divisor = match (func.value_u256(l), func.value_u256(r)) {
         (None, Some(zero)) if zero.is_zero() => l,
@@ -1384,7 +1378,7 @@ fn reassociate_invariant_offsets(
         func.blocks[preheader].instructions.push(sum_inst);
         for (outer, inner, y) in sites {
             // outer = add t, y
-            func.inst_mut(outer).kind = InstKind::Add(t, y);
+            func.inst_mut(outer).kind = func.canonical_kind(InstKind::Add(t, y));
             let block = inst_blocks[inner].expect("the inner sum is in a block");
             func.blocks[block].instructions.retain(|&inst| inst != inner);
             rewritten += 1;

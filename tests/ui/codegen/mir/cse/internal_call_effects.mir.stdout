@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/cse/internal_call_effects.sol:InternalCallEffects ===
+; === ROOT/tests/ui/codegen/mir/cse/internal_call_effects.sol:InternalCallEffects ===
 @module InternalCallEffects
 ; function disjoint() external returns (uint256) [selector 0xbf1f2d2a]
 fn @disjoint() -> i256 [selector=0xbf1f2d2a, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -174,14 +174,14 @@ fn @writeMemoryRecursive(arg0: i256, arg1: i256) [pure] {
     icall @writeMemory, arg0
     v0 = ne arg1, 0
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = checked_add uint256, arg0, 32
     v2 = checked_sub uint256, arg1, 1
     icall @writeMemoryRecursive, v1, v2
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     ret
 }
 
@@ -205,13 +205,13 @@ fn @recurse(arg0: i256) {
     icall @writeOne
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = checked_sub uint256, arg0, 1
     icall @recurse, v1
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     ret
 }
 

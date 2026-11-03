@@ -6,12 +6,6 @@
 ;; (y ^ x) == x => y == 0.
 (rule (rewrite (Op.Eq (bxor y x) x)) (Op.Eq y (imm (u256 0))))
 
-;; x == (x ^ y) => y == 0.
-(rule (rewrite (Op.Eq x (bxor x y))) (Op.Eq y (imm (u256 0))))
-
-;; x == (y ^ x) => y == 0.
-(rule (rewrite (Op.Eq x (bxor y x))) (Op.Eq y (imm (u256 0))))
-
 ;; x < (x - y) => x < y.
 (rule (rewrite (Op.Lt x (sub x y))) (Op.Lt x y))
 
@@ -46,13 +40,6 @@
 ;; Requires: c is constant, c >= 2. A checked product by c wraps exactly when x > MAX / c,
 ;; so the division that tests it becomes one comparison.
 (rule (rewrite (Op.Eq (div (mul x (iconst c)) (iconst d)) x))
-      (if-let true (u256_same c d))
-      (if-let true (u256_ge c 2))
-      (Op.Lt x (imm (u256_add (u256_div (u256_max) c) (u256 1)))))
-
-;; x == (x * c) / c => x < MAX / c + 1.
-;; Requires: c is constant, c >= 2.
-(rule (rewrite (Op.Eq x (div (mul x (iconst c)) (iconst d))))
       (if-let true (u256_same c d))
       (if-let true (u256_ge c 2))
       (Op.Lt x (imm (u256_add (u256_div (u256_max) c) (u256 1)))))
@@ -94,9 +81,6 @@
 ;; Rounding x down to a multiple of y never exceeds x, so the product cannot wrap and the
 ;; checked product's division test always holds; a zero y gives zero throughout.
 (rule 8 (simplify (Op.Eq (div (mul (and q (div _ y)) y) y) q)) (imm_bool true))
-
-;; x / y == ((x / y) * y) / y => true.
-(rule 6 (simplify (Op.Eq q (div (mul (and q (div _ y)) y) y))) (imm_bool true))
 
 ;; x / c < d => true.
 ;; Requires: c, d are constants, c != 0, c * d > MAX, so x / c <= MAX / c < d.
@@ -186,9 +170,6 @@
 ;; clz(_) > b => 0, when constant b >= W
 (rule 8 (simplify (Op.Gt (clz _) (iconst b))) (if-let true (u256_ge b (integer_width))) (imm_bool false))
 
-;; a > a => false.
-(rule 6 (simplify (Op.Gt a a)) (imm_bool false))
-
 ;; a > 0 => a.
 ;; Requires: a is boolean.
 (rule 4 (simplify (Op.Gt (and a (bool_value)) (zero))) a)
@@ -197,23 +178,11 @@
 ;; Requires: c is constant, b is boolean, c >= 1.
 (rule 2 (simplify (Op.Gt (bool_value) (iconst c))) (if-let true (u256_ge c 1)) (imm_bool false))
 
-;; (x / c) * c > x => false.
-;; Requires: c is constant.
-(rule 9 (simplify (Op.Gt (mul (div x (iconst c)) (iconst d)) x))
-      (if-let true (u256_same c d))
-      (imm_bool false))
-
 ;; (x / y) * y > x => false.
 (rule 3 (simplify (Op.Gt (mul (div x y) y) x)) (imm_bool false))
 
 ;; x / y > x => false.
 (rule 11 (simplify (Op.Gt (div x _) x)) (imm_bool false))
-
-;; (x * c) / d > x => false.
-;; Requires: c, d are constants, c <= d.
-(rule 12 (simplify (Op.Gt (div (mul x (iconst c)) (iconst d)) x))
-      (if-let true (u256_le c d))
-      (imm_bool false))
 
 ;; x % c > d => false.
 ;; Requires: c, d are constants, c != 0, c - 1 <= d.
@@ -224,9 +193,6 @@
 
 ;; signed(a) < signed(a) => false.
 (rule (simplify (Op.SLt a a)) (imm_bool false))
-
-;; signed(a) > signed(a) => false.
-(rule (simplify (Op.SGt a a)) (imm_bool false))
 
 ;; Canonical zero tests preserve the operand's scalar type.
 ;; x > 0 => x != 0.
@@ -282,20 +248,11 @@
 ;; clz(_) != c => true, when c > W.
 (rule 5 (simplify (Op.Ne (clz _) (iconst c))) (if-let true (u256_gt c (integer_width))) (imm_bool true))
 
-;; x == ~x => false.
-(rule 1001 (simplify (Op.Eq x (bnot x)))  (imm_bool false))
-
 ;; ~x == x => false.
 (rule 1002 (simplify (Op.Eq (bnot x) x))  (imm_bool false))
 
-;; x != ~x => true.
-(rule 1003 (simplify (Op.Ne x (bnot x)))  (imm_bool true))
-
 ;; ~x != x => true.
 (rule 1004 (simplify (Op.Ne (bnot x) x))  (imm_bool true))
-
-;; (x & y) > x => false.
-(rule 1016 (simplify (Op.Gt (band x y) x))  (imm_bool false))
 
 ;; x < (x & y) => false.
 (rule 1017 (simplify (Op.Lt x (band x y)))  (imm_bool false))
@@ -303,20 +260,11 @@
 ;; (y & x) > x => false.
 (rule 1018 (simplify (Op.Gt (band y x) x))  (imm_bool false))
 
-;; x < (y & x) => false.
-(rule 1019 (simplify (Op.Lt x (band y x)))  (imm_bool false))
-
 ;; (x | y) < x => false.
 (rule 1020 (simplify (Op.Lt (bor x y) x))  (imm_bool false))
 
-;; x > (x | y) => false.
-(rule 1021 (simplify (Op.Gt x (bor x y)))  (imm_bool false))
-
 ;; (y | x) < x => false.
 (rule 1022 (simplify (Op.Lt (bor y x) x))  (imm_bool false))
-
-;; x > (y | x) => false.
-(rule 1023 (simplify (Op.Gt x (bor y x)))  (imm_bool false))
 
 ;; (x >> s) > x => false.
 (rule 1024 (simplify (Op.Gt (shr s x) x))  (imm_bool false))
@@ -340,17 +288,9 @@
 ;; Requires: c, m are constants, (c & ~m) != 0.
 (rule 1101 (simplify (Op.Eq (bor x (iconst c)) (band y (iconst m)))) (if-let false (u256_is_zero (u256_and c (u256_not m)))) (imm_bool false))
 
-;; (y & m) == (x | c) => false.
-;; Requires: m, c are constants, (c & ~m) != 0.
-(rule 1102 (simplify (Op.Eq (band y (iconst m)) (bor x (iconst c)))) (if-let false (u256_is_zero (u256_and c (u256_not m)))) (imm_bool false))
-
 ;; (x | c) != (y & m) => true.
 ;; Requires: c, m are constants, (c & ~m) != 0.
 (rule 1103 (simplify (Op.Ne (bor x (iconst c)) (band y (iconst m)))) (if-let false (u256_is_zero (u256_and c (u256_not m)))) (imm_bool true))
-
-;; (y & m) != (x | c) => true.
-;; Requires: m, c are constants, (c & ~m) != 0.
-(rule 1104 (simplify (Op.Ne (band y (iconst m)) (bor x (iconst c)))) (if-let false (u256_is_zero (u256_and c (u256_not m)))) (imm_bool true))
 
 ;; signed(x) < signed(c) => false.
 ;; Requires: c is constant, c == (1 << (W - 1)).

@@ -29,20 +29,31 @@ merges an instruction with an existing value. Higher `simplify` priorities run
 first, with zero as the default. Priorities set match order, not cost. The
 `multi` rewrite terms collect all matching alternatives.
 
-Matching resolves value identities and puts constants on the right of declared
-commutative pairs and comparisons, including nested definitions. Nonconstant
-operand permutations still need separate rules. Word alternatives stay at the
-original instruction and pay target costs plus stack traffic. An `Add(value, 0)`
-replacement represents a leaf through the instruction-valued interface; ordinary
-simplification removes the add. Recipes create temporary instructions only after
-cost selection.
+Matching resolves value identities and presents every instruction in the canonical
+operand order of `Function::canonical_op`: constants on the right of declared
+commutative pairs and comparisons, the larger of two constants first, and a comparison
+of two values always `lt` or `slt`. A rule writes an operation with a declared
+commutative pair (`add`, `mul`, `and`, `or`, `xor`, `eq`, `ne`, `addmod`, `mulmod`) in
+one operand order and matches the others too, as LLVM's `m_c_*` matchers do: the matcher
+also runs with the operands of a commutative root swapped, and with the operands of the
+definitions of the root's operands swapped. A guard that names an operand follows the
+swap. A pair that holds a constant is not swapped, since the constant stays on the
+right. A rule therefore writes an operand that can bind a constant after the others,
+never writes a constant on the left, writes `gt` only against a constant because a comparison of two values arrives as `lt`, and keeps a rule for each
+order when it names one of two variables or underscores, or when one variable that may
+bind a constant sits in two commutative nodes. Commutative operations nested deeper also
+need rules of their own. Word alternatives stay at the original instruction and pay
+target costs plus stack traffic. An `Add(value, 0)` replacement represents a leaf
+through the instruction-valued interface; ordinary simplification removes the add.
+Recipes create temporary instructions only after cost selection.
 
 ## Comment notation
 
 Each rule has a `before => after` description followed by any required guards.
 Use infix arithmetic and bitwise operators; use lowercase function calls for
 operations without an infix spelling. Describe complete replacement expressions,
-not the names of temporary recipe nodes. Keep operand-order variants accurate.
+not the names of temporary recipe nodes. A comment shows the operand order the rule
+is written in.
 
 Integer arithmetic wraps at the operand width `W` (1 or a multiple of 8 through 256). `/`, `%`, and comparisons are unsigned;
 `sdiv`, `smod`, and `signed(x)` select signed semantics. EVM division and modulo

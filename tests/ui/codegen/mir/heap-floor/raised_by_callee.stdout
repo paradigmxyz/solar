@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/heap-floor/raised_by_callee.mir (before heap-floor) ===
-+ // === ROOT/tests/ui/codegen/mir/heap-floor/raised_by_callee.mir (after heap-floor) ===
+- ; === ROOT/tests/ui/codegen/mir/heap-floor/raised_by_callee.mir (before heap-floor) ===
++ ; === ROOT/tests/ui/codegen/mir/heap-floor/raised_by_callee.mir (after heap-floor) ===
   @module HeapFloorRaisedByCallee
   fn @hash(arg0: i256) {
     bb0:
@@ -25,12 +25,12 @@
   fn @maybe(arg0: i256, arg1: i1) {
     bb0:
       jumpi arg1, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       jump bb3
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       icall @hash, arg0
       jump bb3
-    bb3:  ; preds = bb1, bb2
+    bb3:                                            ; preds = bb1, bb2
       ret
   }
   
@@ -76,11 +76,11 @@
     bb0:
       v0 = eq arg0, 0
       jumpi v0, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       v1 = sub arg0, 1
       icall @countdown, v1
       ret
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       icall @hash, arg0
       ret
   }

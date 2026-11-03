@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/lower-mcopy/byte_tail.sol:ByteTail ===
+; === ROOT/tests/ui/codegen/mir/lower-mcopy/byte_tail.sol:ByteTail ===
 @module ByteTail
 ; function single(bytes memory prefix, uint8 value) external pure returns (bytes memory) [selector 0x1f48d2ce]
 fn @single(arg0: ptr<memory>, arg1: i8) -> ptr<memory> [selector=0x1f48d2ce, pure, abi_params=[bytes, uint8], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -8,7 +8,7 @@ fn @single(arg0: ptr<memory>, arg1: i8) -> ptr<memory> [selector=0x1f48d2ce, pur
     v1 = zext i8 arg1 to i256
     v2 = shl v1, 248
     v3 = mload v0
-    v4 = lt 0, v3
+    v4 = gt v3, 0
     v5 = eq v4, false
     icall panic_if<0x32>, v5
     v6 = byte 0, v2

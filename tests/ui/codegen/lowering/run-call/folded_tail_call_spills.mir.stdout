@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/folded_tail_call_spills.sol:FoldedTailCallSpills ===
+; === ROOT/tests/ui/codegen/lowering/run-call/folded_tail_call_spills.sol:FoldedTailCallSpills ===
 @module FoldedTailCallSpills
 ; function tailed(uint256 a, uint256 flag) external pure returns (bytes32) [selector 0x1b6bcc20]
 fn @tailed(arg0: i256, arg1: i256) -> i256 [selector=0x1b6bcc20, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -28,12 +28,12 @@ fn @_middle(arg0: i256, arg1: i256) [pure] {
   bb0:
     v0 = gt arg1, 1
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     icall @_finish, arg0, arg1
     ret
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     icall revert_if<empty>, true
     invalid
 }
@@ -60,14 +60,14 @@ fn @_finish(arg0: i256, arg1: i256) [pure] {
     v16 = keccak256_packed (uint256 arg0, uint256 16)
     v17 = ne arg1, 0
     jumpi v17, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v18 = icall @_copy, 0x400
     v19 = mload v18
     v20 = shl v19, 0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v21 = phi [bb1: v20], [bb2: 0]
     v22 = xor v0, v1
     v23 = xor v22, v2
@@ -85,7 +85,7 @@ fn @_finish(arg0: i256, arg1: i256) [pure] {
     v35 = xor v34, v14
     v36 = xor v35, v15
     v37 = xor v36, v16
-    v38 = xor v21, v37
+    v38 = xor v37, v21
     mstore 0, v38 !metadata(memory=scratch)
     returndata 0, 32
 }

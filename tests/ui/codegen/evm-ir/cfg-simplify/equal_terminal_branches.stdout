@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/equal_terminal_branches.evmir (before cfg-simplify) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/equal_terminal_branches.evmir (after cfg-simplify) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/equal_terminal_branches.evmir (before cfg-simplify) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/equal_terminal_branches.evmir (after cfg-simplify) ===
   @module module
   bb0:
     push 0

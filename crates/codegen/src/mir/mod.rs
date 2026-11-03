@@ -198,7 +198,7 @@ mod round_trip {
             let gcx = c.gcx();
             for id in gcx.hir.contract_ids() {
                 let contract = gcx.hir.contract(id);
-                if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
+                if !contract.can_be_deployed() {
                     continue;
                 }
                 let errors_before = gcx.dcx().err_count();
@@ -276,7 +276,7 @@ mod round_trip {
             let gcx = c.gcx();
             for id in gcx.hir.contract_ids() {
                 let contract = gcx.hir.contract(id);
-                if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
+                if !contract.can_be_deployed() {
                     continue;
                 }
                 let module = lower::lower_contract(gcx, id);
@@ -356,9 +356,8 @@ mod round_trip {
         for ((_, before), (_, after)) in
             original.functions_in_print_order().zip(parsed.functions_in_print_order())
         {
-            if before.selector.is_none()
-                && (before.return_type() != after.return_type()
-                    || before.return_abi() != after.return_abi())
+            if before.return_type() != after.return_type()
+                || before.return_abi() != after.return_abi()
             {
                 return Err(format!("return types of `{}` changed during round-trip", before.name));
             }

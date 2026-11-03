@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/storage_fixed_array_layout.sol:StorageFixedArrayLayout ===
+; === ROOT/tests/ui/codegen/lowering/run-call/storage_fixed_array_layout.sol:StorageFixedArrayLayout ===
 @module StorageFixedArrayLayout
 @types
   struct0: {i256, i256, i256, i256, i256, i256}
@@ -78,7 +78,7 @@ fn @preserveNeighbors() -> struct1 [selector=0xf110cb82, abi_params=[], abi_retu
 fn @copyDoesNotOverlapSource() -> struct2 [selector=0x8b005e62, abi_params=[], abi_returns=[word<uint72>, word<uint72>, word<uint72>, word], abi_return_params=[uint72, uint72, uint72, bytes32]] {
   bb0:
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v0 = phi [bb0: 0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v2]
@@ -86,9 +86,9 @@ fn @copyDoesNotOverlapSource() -> struct2 [selector=0x8b005e62, abi_params=[], a
     v4 = phi [bb0: 0], [bb3: v24]
     v5 = lt v4, 7
     jumpi v5, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     v25 = lt 9, 10
     v26 = eq v25, false
     icall panic_if<0x32>, v26
@@ -99,18 +99,18 @@ fn @copyDoesNotOverlapSource() -> struct2 [selector=0x8b005e62, abi_params=[], a
     sstore 19, 0x2000000000000000000000000000000000000000000000000 !metadata(storage=slot(19))
     v29 = alloc checked 224
     jump bb7
-  bb7:  ; preds = bb2, bb12
+  bb7:                                            ; preds = bb2, bb12
     v30 = phi [bb2: 0], [bb12: v47]
     v31 = lt v30, 3
     jumpi v31, bb8, bb9
-  bb9:  ; preds = bb7
+  bb9:                                            ; preds = bb7
     v48 = ptrtoint ptr<memory> v29 to i256
     jump bb13
-  bb13:  ; preds = bb9, bb18
+  bb13:                                           ; preds = bb9, bb18
     v49 = phi [bb9: 0], [bb18: v56]
     v50 = lt v49, 10
     jumpi v50, bb14, bb15
-  bb15:  ; preds = bb13
+  bb15:                                           ; preds = bb13
     v57 = lt 6, 7
     v58 = eq v57, false
     icall panic_if<0x32>, v58
@@ -142,38 +142,38 @@ fn @copyDoesNotOverlapSource() -> struct2 [selector=0x8b005e62, abi_params=[], a
     v81 = insert_value struct2, v80, 2, v75
     v82 = insert_value struct2, v81, 3, v78
     ret v82
-  bb14:  ; preds = bb13
-    v51 = add 11, v49
+  bb14:                                           ; preds = bb13
+    v51 = add v49, 11
     v52 = lt v49, 7
     jumpi v52, bb16, bb17
-  bb17:  ; preds = bb14
+  bb17:                                           ; preds = bb14
     sstore v51, 0 !metadata(storage=offset(v49, 11))
     jump bb18
-  bb16:  ; preds = bb14
+  bb16:                                           ; preds = bb14
     v53 = shl v49, 5
     v54 = ptradd v29, v53
     v55 = mload v54
     sstore v51, v55 !metadata(storage=offset(v49, 11))
     jump bb18
-  bb18:  ; preds = bb16, bb17
+  bb18:                                           ; preds = bb16, bb17
     v56 = add v49, 1
     jump bb13
-  bb8:  ; preds = bb7
-    v32 = add 0, v30
+  bb8:                                            ; preds = bb7
+    v32 = add v30, 0
     v33 = sload v32 !metadata(storage=symbolic(v30))
     v34 = mul v30, 3
     v35 = sub 7, v34
     v36 = lt v35, 3
     v37 = select v36, v35, 3
     jump bb10
-  bb10:  ; preds = bb8, bb11
+  bb10:                                           ; preds = bb8, bb11
     v38 = phi [bb8: 0], [bb11: v46]
     v39 = lt v38, v37
     jumpi v39, bb11, bb12
-  bb12:  ; preds = bb10
+  bb12:                                           ; preds = bb10
     v47 = add v30, 1
     jump bb7
-  bb11:  ; preds = bb10
+  bb11:                                           ; preds = bb10
     v40 = mul v38, 72
     v41 = shr v33, v40
     v42 = shl v41, 184
@@ -183,7 +183,7 @@ fn @copyDoesNotOverlapSource() -> struct2 [selector=0x8b005e62, abi_params=[], a
     mstore v45, v42
     v46 = add v38, 1
     jump bb10
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v6 = trunc i256 v4 to i72
     v7 = zext i72 v6 to i256
     v8 = shl v7, 184
@@ -191,7 +191,7 @@ fn @copyDoesNotOverlapSource() -> struct2 [selector=0x8b005e62, abi_params=[], a
     v10 = eq v9, false
     icall panic_if<0x32>, v10
     v11 = div v4, 3
-    v12 = add 0, v11
+    v12 = add v11, 0
     v13 = mod v4, 3
     v14 = mul v13, 9
     v15 = mul v14, 8
@@ -205,9 +205,9 @@ fn @copyDoesNotOverlapSource() -> struct2 [selector=0x8b005e62, abi_params=[], a
     v23 = or v19, v22
     sstore v12, v23 !metadata(storage=symbolic(v11))
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v24 = checked_add uint256, v4, 1
     jump bb1
 }

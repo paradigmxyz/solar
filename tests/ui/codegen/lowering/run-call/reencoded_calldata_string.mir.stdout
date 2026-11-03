@@ -1,11 +1,11 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/reencoded_calldata_string.sol:C ===
+; === ROOT/tests/ui/codegen/lowering/run-call/reencoded_calldata_string.sol:C ===
 @module C
 ; function f(string calldata x) external returns (bytes memory r) [selector 0x91e145ef]
 fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0x91e145ef, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v1 = phi [bb0: arg0], [bb3: v1]
     v2 = phi [bb0: ptr<memory> 96], [bb3: v2]
     v3 = phi [bb0: v0], [bb3: v3]
@@ -15,29 +15,29 @@ fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0x91e145ef, abi_params=[by
     v7 = zext i1 v6 to i256
     v8 = ne v7, 0
     jumpi v8, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     v10 = abi_encode [calldata_bytes], object, args v1
     v11 = ptrtoint ptr<memory> v10 to i256
-    v12 = eq v3, v11
+    v12 = eq v11, v3
     v13 = zext i1 v12 to i256
     v14 = eq v13, 0
     v15 = zext i1 v14 to i256
     v16 = ne v15, 0
     jumpi v16, bb7, bb8
-  bb8:  ; preds = bb2
+  bb8:                                            ; preds = bb2
     jump bb9
-  bb9:  ; preds = bb8
+  bb9:                                            ; preds = bb8
     ret v10
-  bb7:  ; preds = bb2
+  bb7:                                            ; preds = bb2
     revert 0, 0
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     mstore v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v9 = add v4, 32
     jump bb1
 }
@@ -57,9 +57,9 @@ fn @test() -> ptr<memory> [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
     v7 = zext i160 v0 to i256
     v8 = call v1, v7, 0, v5, v6, 0, 0
     jumpi v8, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v9 = icall returndata_bytes<>
     v10 = abi_decode [bytes], v9
     ret v10
@@ -77,11 +77,11 @@ fn @encodeDynamic(arg0: slice<calldata>) -> ptr<memory> [selector=0x44a76707, pu
     v6 = zext i1 v5 to i256
     v7 = ne v6, 0
     jumpi v7, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     ret v1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert 0, 0
 }
 
@@ -97,10 +97,10 @@ fn @encodeStatic(arg0: i256) -> ptr<memory> [selector=0x815736ce, pure, abi_para
     v6 = zext i1 v5 to i256
     v7 = ne v6, 0
     jumpi v7, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     ret v1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert 0, 0
 }

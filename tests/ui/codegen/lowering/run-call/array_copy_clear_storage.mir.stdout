@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/array_copy_clear_storage.sol:ArrayCopyClearStorage ===
+; === ROOT/tests/ui/codegen/lowering/run-call/array_copy_clear_storage.sol:ArrayCopyClearStorage ===
 @module ArrayCopyClearStorage
 ; function f() public returns (uint256) [selector 0x26121ff0]
 fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -38,34 +38,34 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v20 = alloc zeroed checked 64
     mstore v20, 1
     v21 = mload v20
-    v22 = lt 0, v21
+    v22 = gt v21, 0
     v23 = eq v22, false
     icall panic_if<0x32>, v23
     v24 = ptradd v20, 32
     mstore v24, 23
     v25 = mload v20
     v26 = sload 0 !metadata(storage=slot(0))
-    v27 = gt v26, v25
+    v27 = lt v25, v26
     jumpi v27, bb1, bb2
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb4
+  bb3:                                            ; preds = bb1, bb4
     v28 = phi [bb1: v25], [bb4: v32]
     v29 = lt v28, v26
     jumpi v29, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb2
-  bb2:  ; preds = bb0, bb5
+  bb2:                                            ; preds = bb0, bb5
     sstore 0, v25 !metadata(storage=slot(0))
     jump bb6
-  bb6:  ; preds = bb2, bb7
+  bb6:                                            ; preds = bb2, bb7
     v33 = phi [bb2: 0], [bb7: v41]
     v34 = lt v33, v25
     jumpi v34, bb7, bb8
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     sstore 0, 4 !metadata(storage=slot(0))
     v42 = sload 0 !metadata(storage=slot(0))
-    v43 = lt 1, v42
+    v43 = gt v42, 1
     v44 = eq v43, false
     icall panic_if<0x32>, v44
     v45 = storage_array_data_slot 0
@@ -75,7 +75,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v49 = eq v48, false
     icall panic_if<0x1>, v49
     v50 = sload 0 !metadata(storage=slot(0))
-    v51 = lt 2, v50
+    v51 = gt v50, 2
     v52 = eq v51, false
     icall panic_if<0x32>, v52
     v53 = storage_array_data_slot 0
@@ -85,14 +85,14 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v57 = eq v56, false
     icall panic_if<0x1>, v57
     v58 = sload 0 !metadata(storage=slot(0))
-    v59 = lt 3, v58
+    v59 = gt v58, 3
     v60 = eq v59, false
     icall panic_if<0x32>, v60
     v61 = storage_array_data_slot 0
     v62 = add v61, 3
     v63 = sload v62 !metadata(storage=offset(v61, 3))
     ret v63
-  bb7:  ; preds = bb6
+  bb7:                                            ; preds = bb6
     v35 = shl v33, 5
     v36 = ptradd v20, v35
     v37 = ptradd v36, 32
@@ -102,7 +102,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     sstore v40, v38 !metadata(storage=symbolic(v40))
     v41 = add v33, 1
     jump bb6
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v30 = storage_array_data_slot 0
     v31 = add v30, v28
     sstore v31, 0 !metadata(storage=symbolic(v31))

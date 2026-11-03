@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_external_param_bounds.sol:Bounds ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_external_param_bounds.sol:Bounds ===
 @module Bounds
 ; function bytesMemory(bytes memory value) external pure returns (uint256) [selector 0x0d39c72c]
 fn @bytesMemory(arg0: ptr<memory>) -> i256 [selector=0x0d39c72c, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
@@ -50,7 +50,7 @@ fn @staticStructs(arg0: ptr<memory>) -> i256 [selector=0xb2bb789c, pure, abi_par
   bb0:
     v0 = mload arg0
     v1 = mload arg0
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = ptradd arg0, 32
@@ -58,7 +58,7 @@ fn @staticStructs(arg0: ptr<memory>) -> i256 [selector=0xb2bb789c, pure, abi_par
     v6 = mload v5
     v7 = checked_add uint256, v0, v6
     v8 = mload arg0
-    v9 = lt 1, v8
+    v9 = gt v8, 1
     v10 = eq v9, false
     icall panic_if<0x32>, v10
     v11 = ptradd arg0, 64

@@ -1,10 +1,10 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/calldata_static_array_validation.sol:CalldataStaticArrayValidation ===
+; === ROOT/tests/ui/codegen/lowering/run-call/calldata_static_array_validation.sol:CalldataStaticArrayValidation ===
 @module CalldataStaticArrayValidation
 ; function readSecond(uint8[2] calldata a) external pure returns (uint8) [selector 0xe9d33e2a]
 fn @readSecond(arg0: slice<calldata>) -> i8 [selector=0xe9d33e2a, pure, abi_params=[array<2, uint8>], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
-    v1 = lt 1, v0
+    v1 = gt v0, 1
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = extract_value slice<calldata>, arg0, 0
@@ -23,7 +23,7 @@ fn @readSecond(arg0: slice<calldata>) -> i8 [selector=0xe9d33e2a, pure, abi_para
 fn @readFirst(arg0: slice<calldata>) -> i8 [selector=0x77c98de5, pure, abi_params=[array<2, uint8>], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
-    v1 = lt 0, v0
+    v1 = gt v0, 0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = extract_value slice<calldata>, arg0, 0
@@ -48,7 +48,7 @@ fn @unused(arg0: slice<calldata>) -> i256 [selector=0x492c7c0b, pure, abi_params
 fn @nested(arg0: slice<calldata>) -> i8 [selector=0xf4e4bddf, pure, abi_params=[array<2, array<2, uint8>>], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
-    v1 = lt 1, v0
+    v1 = gt v0, 1
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = extract_value slice<calldata>, arg0, 0
@@ -57,7 +57,7 @@ fn @nested(arg0: slice<calldata>) -> i8 [selector=0xf4e4bddf, pure, abi_params=[
     v6 = inttoptr i256 v5 to ptr<calldata>
     v7 = make_calldata_slice v6, 2
     v8 = extract_value slice<calldata>, v7, 1
-    v9 = lt 1, v8
+    v9 = gt v8, 1
     v10 = eq v9, false
     icall panic_if<0x32>, v10
     v11 = extract_value slice<calldata>, v7, 0
@@ -83,7 +83,7 @@ fn @passToInternal(arg0: slice<calldata>) -> i8 [selector=0xbdb87238, pure, abi_
 fn @second(arg0: slice<calldata>) -> i8 [pure] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
-    v1 = lt 1, v0
+    v1 = gt v0, 1
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = extract_value slice<calldata>, arg0, 0
@@ -109,11 +109,11 @@ fn @copyToMemory(arg0: slice<calldata>) -> i8 [selector=0x13aac4cb, pure, abi_pa
     icall revert_if<calldata_tail_too_short>, v4
     v5 = alloc 64
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v6 = phi [bb0: 0], [bb2: v15]
     v7 = lt v6, 2
     jumpi v7, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v16 = make_calldata_slice v0, 64
     v17 = extract_value slice<calldata>, v16, 0
     v18 = extract_value slice<calldata>, v16, 1
@@ -125,7 +125,7 @@ fn @copyToMemory(arg0: slice<calldata>) -> i8 [selector=0x13aac4cb, pure, abi_pa
     v22 = mload v21
     v23 = trunc i256 v22 to i8
     ret v23
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v8 = mul v6, 32
     v9 = ptrtoint ptr<calldata> v0 to i256
     v10 = add v9, v8

@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/function-dce/dead_chains.mir (before function-dce) ===
-+ // === ROOT/tests/ui/codegen/mir/function-dce/dead_chains.mir (after function-dce) ===
+- ; === ROOT/tests/ui/codegen/mir/function-dce/dead_chains.mir (before function-dce) ===
++ ; === ROOT/tests/ui/codegen/mir/function-dce/dead_chains.mir (after function-dce) ===
   @module DeadChains
   @phase lowered
   ; runtime dispatch entry
@@ -8,14 +8,13 @@
       v0 = calldataload 0
       v1 = shr v0, 224
       switch v1, default bb2, [0xa444f5e9 => bb1]
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       tail_call @run
-    bb2 [cold]:  ; preds = bb0
+    bb2 [cold]:                                     ; preds = bb0
       revert 0, 0
   }
   
-  ; selector 0xa444f5e9
-  fn @run() [selector=0xa444f5e9, abi_wrapper] {
+  fn @run() {
     bb0:
       v0 = calldataload 4
       v1 = icall @middle, v0

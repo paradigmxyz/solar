@@ -1,12 +1,11 @@
 //@compile-flags: -Zmir-pipeline=none
 //@filecheck:
 
-// The constructor, the runtime entry, `receive` and `fallback` print first, in that order. The
-// other functions keep their order.
+// The constructor, `receive` and `fallback` print first, in that order. The other functions keep
+// their order.
 @module PrintOrder
 
 // CHECK-LABEL: fn @constructor
-// CHECK-LABEL: fn @entry
 // CHECK-LABEL: fn @receive
 // CHECK-LABEL: fn @fallback
 // CHECK-LABEL: fn @helper_a
@@ -28,11 +27,6 @@ fn @helper_b() {
 }
 
 fn @receive() [receive] {
-  bb0:
-    stop
-}
-
-fn @entry() [entry] {
   bb0:
     stop
 }

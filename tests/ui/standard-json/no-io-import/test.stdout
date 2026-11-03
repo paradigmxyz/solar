@@ -24,9 +24,9 @@
       "type": "Exception",
       "component": "general",
       "severity": "error",
-      "errorCode": null,
+      "errorCode": "7920",
       "message": "unresolved symbol `OnDisk`",
-      "formattedMessage": "error: unresolved symbol `OnDisk`\n   ╭▸ A.sol:LL:CC\n   │\nLL │ contract A is OnDisk {}\n   ╰╴              ━━━━━━\n\n"
+      "formattedMessage": "error[7920]: unresolved symbol `OnDisk`\n   ╭▸ A.sol:LL:CC\n   │\nLL │ contract A is OnDisk {}\n   ╰╴              ━━━━━━\n\n"
     }
   ],
   "sources": {}

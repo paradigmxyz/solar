@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_nested_dynamic_memory.sol:AbiCalldataNestedDynamicMemory ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_nested_dynamic_memory.sol:AbiCalldataNestedDynamicMemory ===
 @module AbiCalldataNestedDynamicMemory
 ; function g(uint256[][][] calldata values) external pure returns (uint256[][][] memory) [selector 0xc12c508e]
 fn @g(arg0: slice<calldata>) -> ptr<memory> [selector=0xc12c508e, pure, abi_params=[array<_, array<_, array<_, uint256>>>], abi_returns=[memory_array<memory_array<memory_array<word>>>], abi_return_params=[array<_, array<_, array<_, uint256>>>]] {
@@ -18,19 +18,19 @@ fn @g(arg0: slice<calldata>) -> ptr<memory> [selector=0xc12c508e, pure, abi_para
     v10 = shr v0, 251
     v11 = ne v10, 0
     icall panic_if<0x41>, v11
-    v12 = add 32, v9
+    v12 = add v9, 32
     v13 = lt v12, 32
     icall panic_if<0x41>, v13
     v14 = alloc v12
     mstore v14, v0
     jump bb1
-  bb1:  ; preds = bb0, bb6
+  bb1:                                            ; preds = bb0, bb6
     v15 = phi [bb0: 0], [bb6: v86]
     v16 = lt v15, v0
     jumpi v16, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     ret v14
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v17 = mul v15, 32
     v18 = ptrtoint ptr<calldata> v1 to i256
     v19 = add v18, v17
@@ -55,23 +55,23 @@ fn @g(arg0: slice<calldata>) -> ptr<memory> [selector=0xc12c508e, pure, abi_para
     v35 = mul v32, 32
     v36 = add v25, 32
     v37 = sub v33, v35
-    v38 = sgt v36, v37
+    v38 = slt v37, v36
     icall revert_if<calldata_tail_too_short>, v38
     v39 = mul v32, 32
     v40 = shr v32, 251
     v41 = ne v40, 0
     icall panic_if<0x41>, v41
-    v42 = add 32, v39
+    v42 = add v39, 32
     v43 = lt v42, 32
     icall panic_if<0x41>, v43
     v44 = alloc v42
     mstore v44, v32
     jump bb4
-  bb4:  ; preds = bb2, bb5
+  bb4:                                            ; preds = bb2, bb5
     v45 = phi [bb2: 0], [bb5: v81]
     v46 = lt v45, v32
     jumpi v46, bb5, bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     v82 = ptrtoint ptr<memory> v44 to i256
     v83 = shl v15, 5
     v84 = ptradd v14, v83
@@ -79,7 +79,7 @@ fn @g(arg0: slice<calldata>) -> ptr<memory> [selector=0xc12c508e, pure, abi_para
     mstore v85, v82
     v86 = add v15, 1
     jump bb1
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     v47 = mul v45, 32
     v48 = add v36, v47
     v49 = calldatasize
@@ -101,13 +101,13 @@ fn @g(arg0: slice<calldata>) -> ptr<memory> [selector=0xc12c508e, pure, abi_para
     v62 = mul v59, 32
     v63 = add v53, 32
     v64 = sub v60, v62
-    v65 = sgt v63, v64
+    v65 = slt v64, v63
     icall revert_if<calldata_tail_too_short>, v65
     v66 = mul v59, 32
     v67 = shr v59, 251
     v68 = ne v67, 0
     icall panic_if<0x41>, v68
-    v69 = add 32, v66
+    v69 = add v66, 32
     v70 = lt v69, 32
     icall panic_if<0x41>, v70
     v71 = alloc v69
@@ -145,19 +145,19 @@ fn @h(arg0: slice<calldata>) -> ptr<memory> [selector=0xba9ef85f, pure, abi_para
     v10 = shr v0, 251
     v11 = ne v10, 0
     icall panic_if<0x41>, v11
-    v12 = add 32, v9
+    v12 = add v9, 32
     v13 = lt v12, 32
     icall panic_if<0x41>, v13
     v14 = alloc v12
     mstore v14, v0
     jump bb1
-  bb1:  ; preds = bb0, bb6
+  bb1:                                            ; preds = bb0, bb6
     v15 = phi [bb0: 0], [bb6: v65]
     v16 = lt v15, v0
     jumpi v16, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     ret v14
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v17 = mul v15, 32
     v18 = ptrtoint ptr<calldata> v1 to i256
     v19 = add v18, v17
@@ -182,23 +182,23 @@ fn @h(arg0: slice<calldata>) -> ptr<memory> [selector=0xba9ef85f, pure, abi_para
     v35 = mul v32, 64
     v36 = add v25, 32
     v37 = sub v33, v35
-    v38 = sgt v36, v37
+    v38 = slt v37, v36
     icall revert_if<calldata_tail_too_short>, v38
     v39 = mul v32, 32
     v40 = shr v32, 251
     v41 = ne v40, 0
     icall panic_if<0x41>, v41
-    v42 = add 32, v39
+    v42 = add v39, 32
     v43 = lt v42, 32
     icall panic_if<0x41>, v43
     v44 = alloc v42
     mstore v44, v32
     jump bb4
-  bb4:  ; preds = bb2, bb5
+  bb4:                                            ; preds = bb2, bb5
     v45 = phi [bb2: 0], [bb5: v60]
     v46 = lt v45, v32
     jumpi v46, bb5, bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     v61 = ptrtoint ptr<memory> v44 to i256
     v62 = shl v15, 5
     v63 = ptradd v14, v62
@@ -206,7 +206,7 @@ fn @h(arg0: slice<calldata>) -> ptr<memory> [selector=0xba9ef85f, pure, abi_para
     mstore v64, v61
     v65 = add v15, 1
     jump bb1
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     v47 = mul v45, 64
     v48 = shr v45, 250
     v49 = ne v48, 0

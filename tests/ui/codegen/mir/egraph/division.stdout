@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/egraph/division.mir (before egraph) ===
-+ // === ROOT/tests/ui/codegen/mir/egraph/division.mir (after egraph) ===
+- ; === ROOT/tests/ui/codegen/mir/egraph/division.mir (before egraph) ===
++ ; === ROOT/tests/ui/codegen/mir/egraph/division.mir (after egraph) ===
   @module Division
   @types
     struct0: {i1, i1}
@@ -267,12 +267,13 @@
       v0 = ne arg0, 0
       v1 = zext i1 v0 to i256
       v2 = div arg0, arg1
-      v3 = mul v1, v2
+-     v3 = mul v1, v2
++     v3 = mul v2, v1
       ret v3
   }
   
-- // === ROOT/tests/ui/codegen/mir/egraph/division.mir (before dce) ===
-+ // === ROOT/tests/ui/codegen/mir/egraph/division.mir (after dce) ===
+- ; === ROOT/tests/ui/codegen/mir/egraph/division.mir (before dce) ===
++ ; === ROOT/tests/ui/codegen/mir/egraph/division.mir (after dce) ===
   @module Division
   @types
     struct0: {i1, i1}
@@ -495,7 +496,7 @@
       v0 = ne arg0, 0
       v1 = zext i1 v0 to i256
       v2 = div arg0, arg1
-      v3 = mul v1, v2
+      v3 = mul v2, v1
       ret v3
   }
   

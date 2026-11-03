@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/event_overloads.sol:EventOverloads ===
+; === ROOT/tests/ui/codegen/lowering/event_overloads.sol:EventOverloads ===
 @module EventOverloads
 ; function emitBoth(address to, uint256 amount) external [selector 0xf80bb516]
 fn @emitBoth(arg0: i160, arg1: i256) [selector=0xf80bb516, abi_params=[address, uint256], abi_returns=[], abi_return_params=[]] {

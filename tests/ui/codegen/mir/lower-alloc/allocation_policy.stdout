@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lower-alloc/allocation_policy.mir (before lower-alloc) ===
-+ // === ROOT/tests/ui/codegen/mir/lower-alloc/allocation_policy.mir (after lower-alloc) ===
+- ; === ROOT/tests/ui/codegen/mir/lower-alloc/allocation_policy.mir (before lower-alloc) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-alloc/allocation_policy.mir (after lower-alloc) ===
   @module AllocationPolicy
   fn @checked(arg0: i256) -> ptr<memory> {
     bb0:
@@ -38,13 +38,13 @@
 +     v3 = lt v2, v0
 +     v4 = zext i1 v3 to i256
 +     v5 = shr v2, 64
-+     v6 = or v4, v5
++     v6 = or v5, v4
 +     v7 = ne v6, 0
 +     jumpi v7, bb1, bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     mstore 64, v2 !metadata(memory=scratch)
 +     ret v1
-+   bb1 [cold]:  ; preds = bb0
++   bb1 [cold]:                                     ; preds = bb0
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36

@@ -1,8 +1,8 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/internal_function_pointer_library.sol:InternalFunctionPointerLibraryUtils ===
+; === ROOT/tests/ui/codegen/lowering/run-call/internal_function_pointer_library.sol:InternalFunctionPointerLibraryUtils ===
 @module InternalFunctionPointerLibraryUtils
 @library
 
-// === ROOT/tests/ui/codegen/lowering/run-call/internal_function_pointer_library.sol:InternalFunctionPointerLibrary ===
+; === ROOT/tests/ui/codegen/lowering/run-call/internal_function_pointer_library.sol:InternalFunctionPointerLibrary ===
 @module InternalFunctionPointerLibrary
 ; function f(uint256[] memory values) public returns (uint256) [selector 0x7bc5bbbf]
 fn @f(arg0: ptr<memory>) -> i256 [selector=0x7bc5bbbf, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
@@ -15,7 +15,7 @@ fn @f(arg0: ptr<memory>) -> i256 [selector=0x7bc5bbbf, abi_params=[array<_, uint
 fn @reduce(arg0: ptr<memory>, arg1: i256, arg2: i256) -> i256 {
   bb0:
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: arg2], [bb3: v14]
@@ -24,11 +24,11 @@ fn @reduce(arg0: ptr<memory>, arg1: i256, arg2: i256) -> i256 {
     v5 = mload v0
     v6 = lt v4, v5
     jumpi v6, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     ret v2
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v7 = mload v0
     v8 = lt v4, v7
     v9 = eq v8, false
@@ -39,9 +39,9 @@ fn @reduce(arg0: ptr<memory>, arg1: i256, arg2: i256) -> i256 {
     v13 = mload v12
     v14 = icall @internal_dispatcher_p_uint256_uint256_r_uint256, v1, v13, v2
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v15 = checked_add uint256, v4, 1
     jump bb1
 }
@@ -57,10 +57,10 @@ fn @internal_dispatcher_p_uint256_uint256_r_uint256(arg0: i256, arg1: i256, arg2
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = icall @sum, arg1, arg2
     ret v1
 }

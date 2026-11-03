@@ -1,8 +1,8 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/checkpoint_constructor.sol:PackedCheckpoints ===
+; === ROOT/tests/ui/codegen/lowering/run-call/checkpoint_constructor.sol:PackedCheckpoints ===
 @module PackedCheckpoints
 @library
 
-// === ROOT/tests/ui/codegen/lowering/run-call/checkpoint_constructor.sol:CheckpointTarget ===
+; === ROOT/tests/ui/codegen/lowering/run-call/checkpoint_constructor.sol:CheckpointTarget ===
 @module CheckpointTarget
 @types
   struct0: {i1, i96, i160}
@@ -15,7 +15,7 @@ fn @constructor(arg0: ptr<memory>, arg1: i160, arg2: i96) [constructor, abi_para
   bb0:
     storeimmutable offset, arg2
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: arg2], [bb3: v2]
@@ -23,11 +23,11 @@ fn @constructor(arg0: ptr<memory>, arg1: i160, arg2: i96) [constructor, abi_para
     v4 = mload v0
     v5 = lt v3, v4
     jumpi v5, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     ret
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v6 = mload v0
     v7 = lt v3, v6
     v8 = eq v7, false
@@ -39,9 +39,9 @@ fn @constructor(arg0: ptr<memory>, arg1: i160, arg2: i96) [constructor, abi_para
     v13 = trunc i256 v12 to i96
     v14 = icall @mint, v1, v13
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v15 = checked_add uint256, v3, 1
     jump bb1
 }
@@ -69,19 +69,19 @@ fn @push(arg0: i256, arg1: i96, arg2: i160) {
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = ne v0, 0
     jumpi v1, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v2 = checked_sub uint256, v0, 1
     v3 = icall @unsafeAccess, arg0, v2
     v4 = sload v3 !metadata(storage=symbolic(v3))
     v5 = trunc i256 v4 to i96
-    v6 = gt v5, arg1
+    v6 = lt arg1, v5
     v7 = eq v6, false
     v8 = eq v7, false
     icall revert_if<empty>, v8
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v9 = alloc 64
     v10 = zext i96 arg1 to i256
     v11 = zext i160 arg2 to i256
@@ -118,14 +118,14 @@ fn @latest(arg0: i256) -> struct0 [view] {
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = ne v0, 0
     jumpi v1, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v12 = insert_value struct0, undef struct0, 0, false
     v13 = insert_value struct0, v12, 1, i96 0
     v14 = insert_value struct0, v13, 2, i160 0
     ret v14
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v2 = checked_sub uint256, v0, 1
     v3 = icall @unsafeAccess, arg0, v2
     v4 = sload v3 !metadata(storage=symbolic(v3))
@@ -171,18 +171,18 @@ fn @nextId() -> i96 [view] {
     v2 = extract_value struct0, v0, 1
     v3 = extract_value struct0, v0, 2
     jumpi v1, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v5 = loadimmutable offset
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v4 = checked_add uint96, v2, i96 1
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v6 = phi [bb1: v4], [bb2: v5]
     ret v6
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/checkpoint_constructor.sol:CheckpointConstructor ===
+; === ROOT/tests/ui/codegen/lowering/run-call/checkpoint_constructor.sol:CheckpointConstructor ===
 @module CheckpointConstructor
 @data
   CheckpointTarget_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/checkpoint_constructor.sol:CheckpointTarget"
@@ -194,13 +194,13 @@ fn @deploy() -> i96 [selector=0x775c300c, abi_params=[], abi_returns=[word<uint9
     v0 = alloc zeroed checked 96
     mstore v0, 2
     v1 = mload v0
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = ptradd v0, 32
     mstore v4, 0xf52
     v5 = mload v0
-    v6 = lt 1, v5
+    v6 = gt v5, 1
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = ptradd v0, 64
@@ -220,17 +220,17 @@ fn @deploy() -> i96 [selector=0x775c300c, abi_params=[], abi_returns=[word<uint9
     v18 = create 0, v14, v12
     v19 = ne v18, i160 0
     jumpi v19, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v20 = gas
     mstore 0, 0x8ee82b53 !metadata(memory=scratch)
     v21 = zext i160 v18 to i256
     v22 = staticcall v20, v21, 28, 4, 0, 32
     jumpi v22, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v23 = returndatasize
     v24 = lt v23, 32
     icall revert_if<tuple_data_too_short>, v24
@@ -252,17 +252,17 @@ fn @multiReturn() -> i8 [selector=0xfeb8bba3, abi_params=[], abi_returns=[word<u
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = gas
     mstore 0, 0x3fa4f245 !metadata(memory=scratch)
     v5 = zext i160 v2 to i256
     v6 = staticcall v4, v5, 28, 4, 0, 32
     jumpi v6, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v7 = returndatasize
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
@@ -275,7 +275,7 @@ fn @multiReturn() -> i8 [selector=0xfeb8bba3, abi_params=[], abi_returns=[word<u
     ret v13
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/checkpoint_constructor.sol:ConstructorMultiReturn ===
+; === ROOT/tests/ui/codegen/lowering/run-call/checkpoint_constructor.sol:ConstructorMultiReturn ===
 @module ConstructorMultiReturn
 @types
   struct0: {i1, i8}

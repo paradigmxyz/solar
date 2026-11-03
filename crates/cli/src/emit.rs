@@ -253,7 +253,7 @@ fn emit_mir_input_artifacts(gcx: Gcx<'_>, file: &str, mut module: Module) -> Res
     {
         let mut writer = console_writer(sess.opts.color);
         if dump.kinds.contains(&DumpKind::MirFinal) {
-            writeln!(writer, "// === {name} ===")
+            writeln!(writer, "; === {name} ===")
                 .and_then(|()| write_highlighted(&mut writer, module.to_string(), Syntax::Ir))
                 .map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
         }
@@ -348,7 +348,7 @@ fn dump_evm_ir_input_disassembly(gcx: Gcx<'_>, module: ir::Module) -> Result {
     let bytecode = ir::into_bytecode(gcx, module)?;
     let mut writer = console_writer(gcx.sess.opts.color);
     if dump.kinds.contains(&DumpKind::DisasmDeploy) {
-        writeln!(writer, "// === {name} (deployment) ===")
+        writeln!(writer, "; === {name} (deployment) ===")
             .and_then(|()| {
                 write_highlighted(
                     &mut writer,
@@ -359,7 +359,7 @@ fn dump_evm_ir_input_disassembly(gcx: Gcx<'_>, module: ir::Module) -> Result {
             .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
     }
     if dump.kinds.contains(&DumpKind::DisasmRuntime) {
-        writeln!(writer, "// === {name} (runtime) ===")
+        writeln!(writer, "; === {name} (runtime) ===")
             .and_then(|()| {
                 write_highlighted(
                     &mut writer,
@@ -397,7 +397,7 @@ fn emit_mir_pipeline_output(
             .expect("requested MIR should be captured");
         writeln!(
             writer,
-            "// === {} (after {}) ===",
+            "; === {} (after {}) ===",
             gcx.contract_fully_qualified_name(id),
             pass::pipeline_label(value)
         )
@@ -423,7 +423,7 @@ fn write_pipeline_output(
     text: impl std::fmt::Display,
 ) -> Result {
     let mut writer = console_writer(gcx.sess.opts.color);
-    writeln!(writer, "// === {name} (after {label}) ===")
+    writeln!(writer, "; === {name} (after {label}) ===")
         .and_then(|()| write_highlighted(&mut writer, text.to_string(), Syntax::Ir))
         .and_then(|()| writer.flush())
         .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())
@@ -685,7 +685,9 @@ fn write_mir_dump_contract(
             .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
     }
     let name = gcx.contract_fully_qualified_name(id);
-    writeln!(writer, "// === {name} ===")
+    // NOTE: Graphviz has no `;` comments, so the DOT output keeps a `//` header.
+    let comment = if kind == DumpKind::MirCfg { "//" } else { ";" };
+    writeln!(writer, "{comment} === {name} ===")
         .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
     match kind {
         DumpKind::Mir | DumpKind::MirFinal => {
@@ -759,7 +761,7 @@ fn write_evm_ir(
     [deployment, runtime, scheduled]: [Option<&ir::Module>; 3],
 ) -> Result {
     if dump.kinds.contains(&DumpKind::EvmIr) {
-        writeln!(writer, "// === {name} (creation) ===")
+        writeln!(writer, "; === {name} (creation) ===")
             .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
         if let Some(deployment) = deployment {
             write_highlighted(writer, deployment.to_text().to_string(), Syntax::Ir)
@@ -767,7 +769,7 @@ fn write_evm_ir(
         }
     }
     if dump.kinds.contains(&DumpKind::EvmIrRuntime) {
-        writeln!(writer, "// === {name} (runtime) ===")
+        writeln!(writer, "; === {name} (runtime) ===")
             .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
         if let Some(runtime) = runtime {
             write_highlighted(writer, runtime.to_text().to_string(), Syntax::Ir)
@@ -775,7 +777,7 @@ fn write_evm_ir(
         }
     }
     if dump.kinds.contains(&DumpKind::EvmIrRuntimeScheduled) {
-        writeln!(writer, "// === {name} (scheduled runtime) ===")
+        writeln!(writer, "; === {name} (scheduled runtime) ===")
             .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
         if let Some(scheduled) = scheduled {
             write_highlighted(writer, scheduled.to_text().to_string(), Syntax::Ir)
@@ -833,7 +835,7 @@ fn write_disassembly(
     runtime: &[u8],
 ) -> Result {
     if dump.kinds.contains(&DumpKind::DisasmDeploy) {
-        writeln!(writer, "// === {name} (deployment) ===")
+        writeln!(writer, "; === {name} (deployment) ===")
             .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
         let deployment_prefix = deployment
             .strip_suffix(runtime)
@@ -846,7 +848,7 @@ fn write_disassembly(
         .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
     }
     if dump.kinds.contains(&DumpKind::DisasmRuntime) {
-        writeln!(writer, "// === {name} (runtime) ===")
+        writeln!(writer, "; === {name} (runtime) ===")
             .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
         write_highlighted(
             writer,
@@ -881,8 +883,7 @@ fn write_highlighted(writer: &mut ConsoleWriter, text: String, syntax: Syntax) -
         anstream::ColorChoice::Always | anstream::ColorChoice::AlwaysAnsi
     ) {
         for line in text.split_inclusive('\n') {
-            let comment_start =
-                if matches!(syntax, Syntax::Disasm) { line.find(';') } else { line.find("//") };
+            let comment_start = line.find(';');
             let (code, comment) = comment_start.map_or((line, ""), |i| line.split_at(i));
             let (code, metadata) = code.find(" !").map_or((code, ""), |i| code.split_at(i + 1));
             let start = code.len() - code.trim_start().len();

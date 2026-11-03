@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/array_copy_clear_storage_packed.sol:ArrayCopyClearStoragePacked ===
+; === ROOT/tests/ui/codegen/lowering/run-call/array_copy_clear_storage_packed.sol:ArrayCopyClearStoragePacked ===
 @module ArrayCopyClearStoragePacked
 ; function f() public returns (uint128) [selector 0x26121ff0]
 fn @f() -> i128 [selector=0x26121ff0, abi_params=[], abi_returns=[word<uint128>], abi_return_params=[uint128]] {
@@ -78,36 +78,36 @@ fn @f() -> i128 [selector=0x26121ff0, abi_params=[], abi_returns=[word<uint128>]
     v60 = alloc zeroed checked 64
     mstore v60, 1
     v61 = mload v60
-    v62 = lt 0, v61
+    v62 = gt v61, 0
     v63 = eq v62, false
     icall panic_if<0x32>, v63
     v64 = ptradd v60, 32
     mstore v64, 23
     v65 = mload v60
     v66 = sload 0 !metadata(storage=slot(0))
-    v67 = gt v66, v65
+    v67 = lt v65, v66
     jumpi v67, bb1, bb2
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb4
+  bb3:                                            ; preds = bb1, bb4
     v68 = phi [bb1: v65], [bb4: v82]
     v69 = lt v68, v66
     jumpi v69, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb2
-  bb2:  ; preds = bb0, bb5
+  bb2:                                            ; preds = bb0, bb5
     sstore 0, v65 !metadata(storage=slot(0))
     jump bb6
-  bb6:  ; preds = bb2, bb7
+  bb6:                                            ; preds = bb2, bb7
     v83 = phi [bb2: 0], [bb7: v102]
     v84 = lt v83, v65
     jumpi v84, bb7, bb8
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     v103 = shr v65, 1
     v104 = and v65, 1
     v105 = eq v104, 0
     jumpi v105, bb10, bb9
-  bb9:  ; preds = bb8
+  bb9:                                            ; preds = bb8
     v106 = mul v104, 128
     v107 = shl 1, v106
     v108 = sub v107, 1
@@ -117,10 +117,10 @@ fn @f() -> i128 [selector=0x26121ff0, abi_params=[], abi_returns=[word<uint128>]
     v112 = and v111, v108
     sstore v110, v112 !metadata(storage=symbolic(v110))
     jump bb10
-  bb10:  ; preds = bb8, bb9
+  bb10:                                           ; preds = bb8, bb9
     sstore 0, 4 !metadata(storage=slot(0))
     v113 = sload 0 !metadata(storage=slot(0))
-    v114 = lt 0, v113
+    v114 = gt v113, 0
     v115 = eq v114, false
     icall panic_if<0x32>, v115
     v116 = storage_array_data_slot 0
@@ -131,7 +131,7 @@ fn @f() -> i128 [selector=0x26121ff0, abi_params=[], abi_returns=[word<uint128>]
     v121 = eq v120, false
     icall panic_if<0x1>, v121
     v122 = sload 0 !metadata(storage=slot(0))
-    v123 = lt 2, v122
+    v123 = gt v122, 2
     v124 = eq v123, false
     icall panic_if<0x32>, v124
     v125 = storage_array_data_slot 0
@@ -143,7 +143,7 @@ fn @f() -> i128 [selector=0x26121ff0, abi_params=[], abi_returns=[word<uint128>]
     v131 = eq v130, false
     icall panic_if<0x1>, v131
     v132 = sload 0 !metadata(storage=slot(0))
-    v133 = lt 3, v132
+    v133 = gt v132, 3
     v134 = eq v133, false
     icall panic_if<0x32>, v134
     v135 = storage_array_data_slot 0
@@ -155,7 +155,7 @@ fn @f() -> i128 [selector=0x26121ff0, abi_params=[], abi_returns=[word<uint128>]
     v141 = eq v140, false
     icall panic_if<0x1>, v141
     v142 = sload 0 !metadata(storage=slot(0))
-    v143 = lt 1, v142
+    v143 = gt v142, 1
     v144 = eq v143, false
     icall panic_if<0x32>, v144
     v145 = storage_array_data_slot 0
@@ -163,7 +163,7 @@ fn @f() -> i128 [selector=0x26121ff0, abi_params=[], abi_returns=[word<uint128>]
     v147 = shr v146, 128
     v148 = trunc i256 v147 to i128
     ret v148
-  bb7:  ; preds = bb6
+  bb7:                                            ; preds = bb6
     v85 = shl v83, 5
     v86 = ptradd v60, v85
     v87 = ptradd v86, 32
@@ -184,7 +184,7 @@ fn @f() -> i128 [selector=0x26121ff0, abi_params=[], abi_returns=[word<uint128>]
     sstore v91, v101 !metadata(storage=symbolic(v91))
     v102 = add v83, 1
     jump bb6
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v70 = storage_array_data_slot 0
     v71 = div v68, 2
     v72 = add v70, v71
@@ -280,36 +280,36 @@ fn @g() -> i64 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<uint64>], 
     v60 = alloc zeroed checked 64
     mstore v60, 1
     v61 = mload v60
-    v62 = lt 0, v61
+    v62 = gt v61, 0
     v63 = eq v62, false
     icall panic_if<0x32>, v63
     v64 = ptradd v60, 32
     mstore v64, 23
     v65 = mload v60
     v66 = sload 1 !metadata(storage=slot(1))
-    v67 = gt v66, v65
+    v67 = lt v65, v66
     jumpi v67, bb1, bb2
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb4
+  bb3:                                            ; preds = bb1, bb4
     v68 = phi [bb1: v65], [bb4: v82]
     v69 = lt v68, v66
     jumpi v69, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb2
-  bb2:  ; preds = bb0, bb5
+  bb2:                                            ; preds = bb0, bb5
     sstore 1, v65 !metadata(storage=slot(1))
     jump bb6
-  bb6:  ; preds = bb2, bb7
+  bb6:                                            ; preds = bb2, bb7
     v83 = phi [bb2: 0], [bb7: v102]
     v84 = lt v83, v65
     jumpi v84, bb7, bb8
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     v103 = shr v65, 2
     v104 = and v65, 3
     v105 = eq v104, 0
     jumpi v105, bb10, bb9
-  bb9:  ; preds = bb8
+  bb9:                                            ; preds = bb8
     v106 = mul v104, 64
     v107 = shl 1, v106
     v108 = sub v107, 1
@@ -319,10 +319,10 @@ fn @g() -> i64 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<uint64>], 
     v112 = and v111, v108
     sstore v110, v112 !metadata(storage=symbolic(v110))
     jump bb10
-  bb10:  ; preds = bb8, bb9
+  bb10:                                           ; preds = bb8, bb9
     sstore 1, 4 !metadata(storage=slot(1))
     v113 = sload 1 !metadata(storage=slot(1))
-    v114 = lt 0, v113
+    v114 = gt v113, 0
     v115 = eq v114, false
     icall panic_if<0x32>, v115
     v116 = storage_array_data_slot 1
@@ -333,7 +333,7 @@ fn @g() -> i64 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<uint64>], 
     v121 = eq v120, false
     icall panic_if<0x1>, v121
     v122 = sload 1 !metadata(storage=slot(1))
-    v123 = lt 2, v122
+    v123 = gt v122, 2
     v124 = eq v123, false
     icall panic_if<0x32>, v124
     v125 = storage_array_data_slot 1
@@ -344,7 +344,7 @@ fn @g() -> i64 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<uint64>], 
     v130 = eq v129, false
     icall panic_if<0x1>, v130
     v131 = sload 1 !metadata(storage=slot(1))
-    v132 = lt 3, v131
+    v132 = gt v131, 3
     v133 = eq v132, false
     icall panic_if<0x32>, v133
     v134 = storage_array_data_slot 1
@@ -355,7 +355,7 @@ fn @g() -> i64 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<uint64>], 
     v139 = eq v138, false
     icall panic_if<0x1>, v139
     v140 = sload 1 !metadata(storage=slot(1))
-    v141 = lt 1, v140
+    v141 = gt v140, 1
     v142 = eq v141, false
     icall panic_if<0x32>, v142
     v143 = storage_array_data_slot 1
@@ -363,7 +363,7 @@ fn @g() -> i64 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<uint64>], 
     v145 = shr v144, 64
     v146 = trunc i256 v145 to i64
     ret v146
-  bb7:  ; preds = bb6
+  bb7:                                            ; preds = bb6
     v85 = shl v83, 5
     v86 = ptradd v60, v85
     v87 = ptradd v86, 32
@@ -384,7 +384,7 @@ fn @g() -> i64 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<uint64>], 
     sstore v91, v101 !metadata(storage=symbolic(v91))
     v102 = add v83, 1
     jump bb6
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v70 = storage_array_data_slot 1
     v71 = div v68, 4
     v72 = add v70, v71
@@ -480,36 +480,36 @@ fn @h() -> i120 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<uint120>]
     v60 = alloc zeroed checked 64
     mstore v60, 1
     v61 = mload v60
-    v62 = lt 0, v61
+    v62 = gt v61, 0
     v63 = eq v62, false
     icall panic_if<0x32>, v63
     v64 = ptradd v60, 32
     mstore v64, 23
     v65 = mload v60
     v66 = sload 2 !metadata(storage=slot(2))
-    v67 = gt v66, v65
+    v67 = lt v65, v66
     jumpi v67, bb1, bb2
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb4
+  bb3:                                            ; preds = bb1, bb4
     v68 = phi [bb1: v65], [bb4: v82]
     v69 = lt v68, v66
     jumpi v69, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb2
-  bb2:  ; preds = bb0, bb5
+  bb2:                                            ; preds = bb0, bb5
     sstore 2, v65 !metadata(storage=slot(2))
     jump bb6
-  bb6:  ; preds = bb2, bb7
+  bb6:                                            ; preds = bb2, bb7
     v83 = phi [bb2: 0], [bb7: v102]
     v84 = lt v83, v65
     jumpi v84, bb7, bb8
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     v103 = shr v65, 1
     v104 = and v65, 1
     v105 = eq v104, 0
     jumpi v105, bb10, bb9
-  bb9:  ; preds = bb8
+  bb9:                                            ; preds = bb8
     v106 = mul v104, 120
     v107 = shl 1, v106
     v108 = sub v107, 1
@@ -519,10 +519,10 @@ fn @h() -> i120 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<uint120>]
     v112 = and v111, v108
     sstore v110, v112 !metadata(storage=symbolic(v110))
     jump bb10
-  bb10:  ; preds = bb8, bb9
+  bb10:                                           ; preds = bb8, bb9
     sstore 2, 4 !metadata(storage=slot(2))
     v113 = sload 2 !metadata(storage=slot(2))
-    v114 = lt 0, v113
+    v114 = gt v113, 0
     v115 = eq v114, false
     icall panic_if<0x32>, v115
     v116 = storage_array_data_slot 2
@@ -533,7 +533,7 @@ fn @h() -> i120 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<uint120>]
     v121 = eq v120, false
     icall panic_if<0x1>, v121
     v122 = sload 2 !metadata(storage=slot(2))
-    v123 = lt 2, v122
+    v123 = gt v122, 2
     v124 = eq v123, false
     icall panic_if<0x32>, v124
     v125 = storage_array_data_slot 2
@@ -545,7 +545,7 @@ fn @h() -> i120 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<uint120>]
     v131 = eq v130, false
     icall panic_if<0x1>, v131
     v132 = sload 2 !metadata(storage=slot(2))
-    v133 = lt 3, v132
+    v133 = gt v132, 3
     v134 = eq v133, false
     icall panic_if<0x32>, v134
     v135 = storage_array_data_slot 2
@@ -557,7 +557,7 @@ fn @h() -> i120 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<uint120>]
     v141 = eq v140, false
     icall panic_if<0x1>, v141
     v142 = sload 2 !metadata(storage=slot(2))
-    v143 = lt 1, v142
+    v143 = gt v142, 1
     v144 = eq v143, false
     icall panic_if<0x32>, v144
     v145 = storage_array_data_slot 2
@@ -565,7 +565,7 @@ fn @h() -> i120 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<uint120>]
     v147 = shr v146, 120
     v148 = trunc i256 v147 to i120
     ret v148
-  bb7:  ; preds = bb6
+  bb7:                                            ; preds = bb6
     v85 = shl v83, 5
     v86 = ptradd v60, v85
     v87 = ptradd v86, 32
@@ -586,7 +586,7 @@ fn @h() -> i120 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<uint120>]
     sstore v91, v101 !metadata(storage=symbolic(v91))
     v102 = add v83, 1
     jump bb6
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v70 = storage_array_data_slot 2
     v71 = div v68, 2
     v72 = add v70, v71

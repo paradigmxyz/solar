@@ -20,7 +20,7 @@ fn @entry() [entry] {
     revert 0, 0
 }
 
-fn @scratch() [selector=0x37a6096a, abi_wrapper] {
+fn @scratch() {
   bb0:
     v0 = calldataload 4
     frame_store scratch, word, 0, v0
@@ -32,7 +32,7 @@ fn @scratch() [selector=0x37a6096a, abi_wrapper] {
     returndata 0, 32
 }
 
-fn @plain() [selector=0x11546183, abi_wrapper] {
+fn @plain() {
   bb0:
     v0 = calldataload 4
     v1 = add v0, 1

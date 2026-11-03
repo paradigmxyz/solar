@@ -1,4 +1,12 @@
 error: module is in the `lowered` phase but has no `entry` routing function
 
-error: aborting due to 1 previous error
+error: [fn0] `selector` survives entry lowering
+
+error: [fn0] `abi_wrapper` survives entry lowering
+
+error: [fn1] `selector` survives entry lowering
+
+error: [fn1] `abi_wrapper` survives entry lowering
+
+error: aborting due to 5 previous errors
 

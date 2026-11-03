@@ -1,11 +1,11 @@
-- // === ROOT/tests/ui/codegen/lowering/element_cleanup.sol:ElementCleanup (before element-cleanup) ===
-+ // === ROOT/tests/ui/codegen/lowering/element_cleanup.sol:ElementCleanup (after element-cleanup) ===
+- ; === ROOT/tests/ui/codegen/lowering/element_cleanup.sol:ElementCleanup (before element-cleanup) ===
++ ; === ROOT/tests/ui/codegen/lowering/element_cleanup.sol:ElementCleanup (after element-cleanup) ===
   @module ElementCleanup
   ; selector 0x61c4cbc4
   fn @first(arg0: ptr<memory>) -> i160 [selector=0x61c4cbc4, pure, abi_params=[array<_, address>], abi_returns=[word<uint160>], abi_return_params=[address]] {
     bb0:
       v0 = mload arg0
-      v1 = lt 0, v0
+      v1 = gt v0, 0
       v2 = eq v1, false
       icall panic_if<0x32>, v2
       v3 = ptradd arg0, 32
@@ -35,14 +35,14 @@
       v12 = alloc zeroed checked v9
       mstore v12, arg0
       v13 = mload v12
-      v14 = lt 1, v13
+      v14 = gt v13, 1
       v15 = eq v14, false
       icall panic_if<0x32>, v15
       v16 = ptradd v12, 64
       v17 = mload v16
 -     v18 = trunc i256 v17 to i160
       v19 = mload v12
-      v20 = lt 0, v19
+      v20 = gt v19, 0
       v21 = eq v20, false
       icall panic_if<0x32>, v21
 -     v22 = zext i160 v18 to i256
@@ -50,7 +50,7 @@
 -     mstore v23, v22
 +     mstore v23, v17
       v24 = mload v12
-      v25 = lt 2, v24
+      v25 = gt v24, 2
       v26 = eq v25, false
       icall panic_if<0x32>, v26
       v27 = ptradd v12, 96
@@ -65,13 +65,13 @@
       v1 = mload arg0
       v2 = eq v0, v1
       jumpi v2, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       jump bb3
-    bb3:  ; preds = bb2
+    bb3:                                            ; preds = bb2
       v11 = checked_add uint256, arg1, 1
       v12 = icall @last, arg0, v11
       ret v12
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       v3 = mload arg0
       v4 = lt arg1, v3
       v5 = eq v4, false
@@ -98,7 +98,7 @@
       v1 = add v0, 32
       mstore v1, 0x123456789abcdef0123456789abcdef0123456789abcdef
       v2 = mload arg0
-      v3 = lt 0, v2
+      v3 = gt v2, 0
       v4 = eq v3, false
       icall panic_if<0x32>, v4
       v5 = ptradd arg0, 32
@@ -110,7 +110,7 @@
   fn @fill(arg0: ptr<memory>, arg1: i160) [pure] {
     bb0:
       v0 = mload arg0
-      v1 = lt 0, v0
+      v1 = gt v0, 0
       v2 = eq v1, false
       icall panic_if<0x32>, v2
       v3 = zext i160 arg1 to i256
@@ -124,7 +124,7 @@
     bb0:
       icall @fill, arg0, arg1
       v0 = mload arg0
-      v1 = lt 0, v0
+      v1 = gt v0, 0
       v2 = eq v1, false
       icall panic_if<0x32>, v2
       v3 = ptradd arg0, 32
@@ -137,13 +137,13 @@
   fn @narrowed(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0xb5215a28, pure, abi_params=[array<_, uint256>, uint256], abi_returns=[word], abi_return_params=[uint256]] {
     bb0:
       v0 = mload arg0
-      v1 = lt 0, v0
+      v1 = gt v0, 0
       v2 = eq v1, false
       icall panic_if<0x32>, v2
       v3 = ptradd arg0, 32
       mstore v3, arg1
       v4 = mload arg0
-      v5 = lt 1, v4
+      v5 = gt v4, 1
       v6 = eq v5, false
       icall panic_if<0x32>, v6
       v7 = ptradd arg0, 64
@@ -173,14 +173,14 @@
       v12 = alloc zeroed checked v9
       mstore v12, arg0
       v13 = mload v12
-      v14 = lt 1, v13
+      v14 = gt v13, 1
       v15 = eq v14, false
       icall panic_if<0x32>, v15
       v16 = ptradd v12, 64
       v17 = mload v16
 -     v18 = trunc i256 v17 to i8
       v19 = mload v12
-      v20 = lt 0, v19
+      v20 = gt v19, 0
       v21 = eq v20, false
       icall panic_if<0x32>, v21
 -     v22 = zext i8 v18 to i256
@@ -188,7 +188,7 @@
 -     mstore v23, v22
 +     mstore v23, v17
       v24 = mload v12
-      v25 = lt 2, v24
+      v25 = gt v24, 2
       v26 = eq v25, false
       icall panic_if<0x32>, v26
       v27 = ptradd v12, 96
@@ -218,14 +218,14 @@
       v12 = alloc zeroed checked v9
       mstore v12, arg0
       v13 = mload v12
-      v14 = lt 1, v13
+      v14 = gt v13, 1
       v15 = eq v14, false
       icall panic_if<0x32>, v15
       v16 = ptradd v12, 64
       v17 = mload v16
 -     v18 = trunc i256 v17 to i128
       v19 = mload v12
-      v20 = lt 0, v19
+      v20 = gt v19, 0
       v21 = eq v20, false
       icall panic_if<0x32>, v21
 -     v22 = zext i128 v18 to i256
@@ -233,7 +233,7 @@
 -     mstore v23, v22
 +     mstore v23, v17
       v24 = mload v12
-      v25 = lt 2, v24
+      v25 = gt v24, 2
       v26 = eq v25, false
       icall panic_if<0x32>, v26
       v27 = ptradd v12, 96
@@ -263,14 +263,14 @@
       v12 = alloc zeroed checked v9
       mstore v12, arg0
       v13 = mload v12
-      v14 = lt 1, v13
+      v14 = gt v13, 1
       v15 = eq v14, false
       icall panic_if<0x32>, v15
       v16 = ptradd v12, 64
       v17 = mload v16
 -     v18 = trunc i256 v17 to i248
       v19 = mload v12
-      v20 = lt 0, v19
+      v20 = gt v19, 0
       v21 = eq v20, false
       icall panic_if<0x32>, v21
 -     v22 = zext i248 v18 to i256
@@ -278,7 +278,7 @@
 -     mstore v23, v22
 +     mstore v23, v17
       v24 = mload v12
-      v25 = lt 2, v24
+      v25 = gt v24, 2
       v26 = eq v25, false
       icall panic_if<0x32>, v26
       v27 = ptradd v12, 96

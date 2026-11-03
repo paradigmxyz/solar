@@ -43,7 +43,10 @@
 //! swap, as `PUSH0; NOT` does for the decrement `x - 1`. The low-mask window ends in the same
 //! tail, so this rewrite waits for it.
 
-use super::{EvmPass, compact_pushes::materialize_immediate, utils::MachineInstKey};
+use super::{
+    EvmPass, block_layout::terminator_kind, compact_pushes::materialize_immediate,
+    utils::MachineInstKey,
+};
 use crate::{
     backend::evm::{
         ir::{Instruction, Module, ModuleTarget, TerminatorKind},
@@ -81,7 +84,7 @@ impl Peephole {
 
 impl EvmPass for Peephole {
     fn name(&self) -> &'static str {
-        "peephole"
+        if self.0 == Rules::Early { "peephole-early" } else { "peephole" }
     }
 
     fn cache_config(&self) -> u64 {
@@ -192,10 +195,7 @@ fn optimize_module(gcx: Gcx<'_>, module: &mut Module, rules: Rules) -> bool {
         // mstore(offset, value); return(offset, 32)
         // -> mstore(0, value); return(0, 32)
         if final_cleanup
-            && matches!(
-                block.terminator.as_ref().map(|term| &term.kind),
-                Some(TerminatorKind::Op(op::RETURN))
-            )
+            && matches!(terminator_kind(block), Some(TerminatorKind::Op(op::RETURN)))
             && let [prefix @ .., offset, store, size, returned] = block.instructions.as_mut_slice()
             && store.as_evm_opcode() == Some(op::MSTORE)
             && size.concrete_immediate() == Some(U256::from(32))

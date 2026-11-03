@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_dynamic_bytes_array.sol:AbiCalldataDynamicBytesArray ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_dynamic_bytes_array.sol:AbiCalldataDynamicBytesArray ===
 @module AbiCalldataDynamicBytesArray
 @types
   struct0: {i256, i256, i256, i256, i256, i256, i256, i256}
@@ -18,7 +18,7 @@ fn @inspect(arg0: slice<calldata>) -> struct0 [selector=0x9d6ce1dc, pure, abi_pa
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = extract_value slice<calldata>, arg0, 1
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = extract_value slice<calldata>, arg0, 0
@@ -44,13 +44,13 @@ fn @inspect(arg0: slice<calldata>) -> struct0 [selector=0x9d6ce1dc, pure, abi_pa
     icall revert_if<invalid_calldata_tail_length>, v21
     v22 = add v12, 32
     v23 = sub v20, v19
-    v24 = sgt v22, v23
+    v24 = slt v23, v22
     icall revert_if<calldata_tail_too_short>, v24
     v25 = inttoptr i256 v22 to ptr<calldata>
     v26 = make_calldata_slice v25, v19
     v27 = extract_value slice<calldata>, v26, 1
     v28 = extract_value slice<calldata>, arg0, 1
-    v29 = lt 0, v28
+    v29 = gt v28, 0
     v30 = eq v29, false
     icall panic_if<0x32>, v30
     v31 = extract_value slice<calldata>, arg0, 0
@@ -76,12 +76,12 @@ fn @inspect(arg0: slice<calldata>) -> struct0 [selector=0x9d6ce1dc, pure, abi_pa
     icall revert_if<invalid_calldata_tail_length>, v48
     v49 = add v39, 32
     v50 = sub v47, v46
-    v51 = sgt v49, v50
+    v51 = slt v50, v49
     icall revert_if<calldata_tail_too_short>, v51
     v52 = inttoptr i256 v49 to ptr<calldata>
     v53 = make_calldata_slice v52, v46
     v54 = extract_value slice<calldata>, v53, 1
-    v55 = lt 0, v54
+    v55 = gt v54, 0
     v56 = eq v55, false
     icall panic_if<0x32>, v56
     v57 = extract_value slice<calldata>, v53, 0
@@ -93,7 +93,7 @@ fn @inspect(arg0: slice<calldata>) -> struct0 [selector=0x9d6ce1dc, pure, abi_pa
     v63 = trunc i256 v62 to i8
     v64 = zext i8 v63 to i256
     v65 = extract_value slice<calldata>, arg0, 1
-    v66 = lt 0, v65
+    v66 = gt v65, 0
     v67 = eq v66, false
     icall panic_if<0x32>, v67
     v68 = extract_value slice<calldata>, arg0, 0
@@ -119,12 +119,12 @@ fn @inspect(arg0: slice<calldata>) -> struct0 [selector=0x9d6ce1dc, pure, abi_pa
     icall revert_if<invalid_calldata_tail_length>, v85
     v86 = add v76, 32
     v87 = sub v84, v83
-    v88 = sgt v86, v87
+    v88 = slt v87, v86
     icall revert_if<calldata_tail_too_short>, v88
     v89 = inttoptr i256 v86 to ptr<calldata>
     v90 = make_calldata_slice v89, v83
     v91 = extract_value slice<calldata>, v90, 1
-    v92 = lt 1, v91
+    v92 = gt v91, 1
     v93 = eq v92, false
     icall panic_if<0x32>, v93
     v94 = extract_value slice<calldata>, v90, 0
@@ -137,7 +137,7 @@ fn @inspect(arg0: slice<calldata>) -> struct0 [selector=0x9d6ce1dc, pure, abi_pa
     v101 = trunc i256 v100 to i8
     v102 = zext i8 v101 to i256
     v103 = extract_value slice<calldata>, arg0, 1
-    v104 = lt 1, v103
+    v104 = gt v103, 1
     v105 = eq v104, false
     icall panic_if<0x32>, v105
     v106 = extract_value slice<calldata>, arg0, 0
@@ -163,13 +163,13 @@ fn @inspect(arg0: slice<calldata>) -> struct0 [selector=0x9d6ce1dc, pure, abi_pa
     icall revert_if<invalid_calldata_tail_length>, v123
     v124 = add v114, 32
     v125 = sub v122, v121
-    v126 = sgt v124, v125
+    v126 = slt v125, v124
     icall revert_if<calldata_tail_too_short>, v126
     v127 = inttoptr i256 v124 to ptr<calldata>
     v128 = make_calldata_slice v127, v121
     v129 = extract_value slice<calldata>, v128, 1
     v130 = extract_value slice<calldata>, arg0, 1
-    v131 = lt 1, v130
+    v131 = gt v130, 1
     v132 = eq v131, false
     icall panic_if<0x32>, v132
     v133 = extract_value slice<calldata>, arg0, 0
@@ -195,12 +195,12 @@ fn @inspect(arg0: slice<calldata>) -> struct0 [selector=0x9d6ce1dc, pure, abi_pa
     icall revert_if<invalid_calldata_tail_length>, v150
     v151 = add v141, 32
     v152 = sub v149, v148
-    v153 = sgt v151, v152
+    v153 = slt v152, v151
     icall revert_if<calldata_tail_too_short>, v153
     v154 = inttoptr i256 v151 to ptr<calldata>
     v155 = make_calldata_slice v154, v148
     v156 = extract_value slice<calldata>, v155, 1
-    v157 = lt 0, v156
+    v157 = gt v156, 0
     v158 = eq v157, false
     icall panic_if<0x32>, v158
     v159 = extract_value slice<calldata>, v155, 0
@@ -212,7 +212,7 @@ fn @inspect(arg0: slice<calldata>) -> struct0 [selector=0x9d6ce1dc, pure, abi_pa
     v165 = trunc i256 v164 to i8
     v166 = zext i8 v165 to i256
     v167 = extract_value slice<calldata>, arg0, 1
-    v168 = lt 1, v167
+    v168 = gt v167, 1
     v169 = eq v168, false
     icall panic_if<0x32>, v169
     v170 = extract_value slice<calldata>, arg0, 0
@@ -238,12 +238,12 @@ fn @inspect(arg0: slice<calldata>) -> struct0 [selector=0x9d6ce1dc, pure, abi_pa
     icall revert_if<invalid_calldata_tail_length>, v187
     v188 = add v178, 32
     v189 = sub v186, v185
-    v190 = sgt v188, v189
+    v190 = slt v189, v188
     icall revert_if<calldata_tail_too_short>, v190
     v191 = inttoptr i256 v188 to ptr<calldata>
     v192 = make_calldata_slice v191, v185
     v193 = extract_value slice<calldata>, v192, 1
-    v194 = lt 1, v193
+    v194 = gt v193, 1
     v195 = eq v194, false
     icall panic_if<0x32>, v195
     v196 = extract_value slice<calldata>, v192, 0
@@ -256,7 +256,7 @@ fn @inspect(arg0: slice<calldata>) -> struct0 [selector=0x9d6ce1dc, pure, abi_pa
     v203 = trunc i256 v202 to i8
     v204 = zext i8 v203 to i256
     v205 = extract_value slice<calldata>, arg0, 1
-    v206 = lt 1, v205
+    v206 = gt v205, 1
     v207 = eq v206, false
     icall panic_if<0x32>, v207
     v208 = extract_value slice<calldata>, arg0, 0
@@ -282,12 +282,12 @@ fn @inspect(arg0: slice<calldata>) -> struct0 [selector=0x9d6ce1dc, pure, abi_pa
     icall revert_if<invalid_calldata_tail_length>, v225
     v226 = add v216, 32
     v227 = sub v224, v223
-    v228 = sgt v226, v227
+    v228 = slt v227, v226
     icall revert_if<calldata_tail_too_short>, v228
     v229 = inttoptr i256 v226 to ptr<calldata>
     v230 = make_calldata_slice v229, v223
     v231 = extract_value slice<calldata>, v230, 1
-    v232 = lt 2, v231
+    v232 = gt v231, 2
     v233 = eq v232, false
     icall panic_if<0x32>, v233
     v234 = extract_value slice<calldata>, v230, 0

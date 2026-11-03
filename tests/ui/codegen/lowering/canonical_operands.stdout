@@ -1,0 +1,37 @@
+; === ROOT/tests/ui/codegen/lowering/canonical_operands.sol:CanonicalOperands ===
+@module CanonicalOperands
+; function constantRight(uint256 x) public pure returns (uint256) [selector 0xdd3741e4]
+fn @constantRight(arg0: i256) -> i256 [selector=0xdd3741e4, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = add arg0, 5
+    ret v0
+}
+
+; function constantCompare(uint256 x) public pure returns (bool) [selector 0x9891dd29]
+fn @constantCompare(arg0: i256) -> i1 [selector=0x9891dd29, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = gt arg0, 5
+    ret v0
+}
+
+; function valueCompare(uint256 a, uint256 b) public pure returns (bool) [selector 0xc2807ee9]
+fn @valueCompare(arg0: i256, arg1: i256) -> i1 [selector=0xc2807ee9, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = lt arg1, arg0
+    ret v0
+}
+
+; function signedValueCompare(int256 a, int256 b) public pure returns (bool) [selector 0x32bb2a11]
+fn @signedValueCompare(arg0: i256, arg1: i256) -> i1 [selector=0x32bb2a11, pure, abi_params=[int256, int256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = slt arg1, arg0
+    ret v0
+}
+
+; function complexLeft(uint256 a, uint256 b, uint256 c) public pure returns (uint256) [selector 0x16ac872f]
+fn @complexLeft(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x16ac872f, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = mul arg0, arg1
+    v1 = xor v0, arg2
+    ret v1
+}

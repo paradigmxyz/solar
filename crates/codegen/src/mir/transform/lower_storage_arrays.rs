@@ -131,7 +131,7 @@ fn unpack(
     bytes: u32,
 ) -> ValueId {
     // value = shifted & mask
-    let mask = builder.imm((U256::from(1) << (bytes * 8)) - U256::from(1));
+    let mask = builder.imm((U256::ONE << (bytes * 8)) - U256::ONE);
     let value = builder.and(shifted, mask);
     match element {
         ValueLayout::Int(_) => {

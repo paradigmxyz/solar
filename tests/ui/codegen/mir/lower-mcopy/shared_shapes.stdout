@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lower-mcopy/shared_shapes.mir (before lower-mcopy) ===
-+ // === ROOT/tests/ui/codegen/mir/lower-mcopy/shared_shapes.mir (after lower-mcopy) ===
+- ; === ROOT/tests/ui/codegen/mir/lower-mcopy/shared_shapes.mir (before lower-mcopy) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-mcopy/shared_shapes.mir (after lower-mcopy) ===
   @module CopySharedShapes
   fn @partial_a() {
     bb0:
@@ -38,23 +38,23 @@
 +   bb0:
 +     v0 = eq arg2, 0
 +     jumpi v0, bb1, bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v1 = and arg2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
 +     jump bb3
-+   bb3:  ; preds = bb2, bb4
++   bb3:                                            ; preds = bb2, bb4
 +     v2 = phi [bb2: 0], [bb4: v7]
 +     v3 = lt v2, v1
 +     jumpi v3, bb4, bb5
-+   bb5:  ; preds = bb3
++   bb5:                                            ; preds = bb3
 +     v8 = lt v1, arg2
 +     jumpi v8, bb6, bb1
-+   bb6:  ; preds = bb5
++   bb6:                                            ; preds = bb5
 +     v9 = and arg2, 31
 +     v10 = sub 32, v9
 +     v11 = shl v10, 3
-+     v12 = add arg1, v1
++     v12 = add v1, arg1
 +     v13 = mload v12
-+     v14 = add arg0, v1
++     v14 = add v1, arg0
 +     v15 = mload v14
 +     v16 = xor v13, v15
 +     v17 = shr v16, v11
@@ -62,14 +62,14 @@
 +     v19 = xor v15, v18
 +     mstore v14, v19
 +     jump bb1
-+   bb4:  ; preds = bb3
++   bb4:                                            ; preds = bb3
 +     v4 = add arg1, v2
 +     v5 = mload v4
 +     v6 = add arg0, v2
 +     mstore v6, v5
 +     v7 = add v2, 32
 +     jump bb3
-+   bb1:  ; preds = bb0, bb5, bb6
++   bb1:                                            ; preds = bb0, bb5, bb6
       ret
   }
   

@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/jumpi-fallthrough/cold_next.evmir (before jumpi-fallthrough) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/jumpi-fallthrough/cold_next.evmir (after jumpi-fallthrough) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/jumpi-fallthrough/cold_next.evmir (before jumpi-fallthrough) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/jumpi-fallthrough/cold_next.evmir (after jumpi-fallthrough) ===
   @module ColdNext
   bb0:
     push 4

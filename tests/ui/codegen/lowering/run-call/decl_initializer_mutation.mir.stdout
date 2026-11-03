@@ -1,23 +1,23 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/decl_initializer_mutation.sol:DeclInitializerMutation ===
+; === ROOT/tests/ui/codegen/lowering/run-call/decl_initializer_mutation.sol:DeclInitializerMutation ===
 @module DeclInitializerMutation
 ; function countLoop() external pure returns (uint256 n) [selector 0xcf886ab8]
 fn @countLoop() -> i256 [selector=0xcf886ab8, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:  ; preds = bb0, bb5
+  bb1:                                            ; preds = bb0, bb5
     v0 = phi [bb0: 0], [bb5: v4]
     v1 = phi [bb0: 0], [bb5: v3]
     v2 = lt v1, 5
     jumpi v2, bb3, bb4
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb4
+  bb2:                                            ; preds = bb4
     ret v0
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v3 = checked_add uint256, v1, 1
     v4 = checked_add uint256, v0, v1
     jump bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb1
 }
 
@@ -31,17 +31,17 @@ fn @sumIndexed() -> i256 [selector=0x4130978a, pure, abi_params=[], abi_returns=
     v2 = ptradd v0, 64
     mstore v2, 13
     jump bb1
-  bb1:  ; preds = bb0, bb5
+  bb1:                                            ; preds = bb0, bb5
     v3 = phi [bb0: 0], [bb5: v13]
     v4 = phi [bb0: v0], [bb5: v4]
     v5 = phi [bb0: 0], [bb5: v7]
     v6 = lt v5, 3
     jumpi v6, bb3, bb4
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb4
+  bb2:                                            ; preds = bb4
     ret v3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v7 = checked_add uint256, v5, 1
     v8 = lt v5, 3
     v9 = eq v8, false
@@ -51,7 +51,7 @@ fn @sumIndexed() -> i256 [selector=0x4130978a, pure, abi_params=[], abi_returns=
     v12 = mload v11
     v13 = checked_add uint256, v3, v12
     jump bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb1
 }
 
@@ -67,21 +67,21 @@ fn @multiDecl() -> i256 [selector=0x71fe0bed, pure, abi_params=[], abi_returns=[
 fn @asmUse() -> i256 [selector=0x36f77e40, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:  ; preds = bb0, bb5
+  bb1:                                            ; preds = bb0, bb5
     v0 = phi [bb0: 0], [bb5: v5]
     v1 = phi [bb0: 0], [bb5: v3]
     v2 = lt v1, 4
     jumpi v2, bb3, bb4
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb4
+  bb2:                                            ; preds = bb4
     ret v0
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v3 = checked_add uint256, v1, 1
     v4 = mul v1, 2
-    v5 = add v0, v4
+    v5 = add v4, v0
     jump bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb1
 }
 
@@ -91,47 +91,47 @@ fn @lhsIndexMutation() -> i256 [selector=0x8d320a6e, pure, abi_params=[], abi_re
     v0 = alloc zeroed checked 160
     mstore v0, 4
     jump bb1
-  bb1:  ; preds = bb0, bb5
+  bb1:                                            ; preds = bb0, bb5
     v1 = phi [bb0: 0], [bb5: v1]
     v2 = phi [bb0: v0], [bb5: v2]
     v3 = phi [bb0: 0], [bb5: v7]
     v4 = mload v2
     v5 = lt v3, v4
     jumpi v5, bb3, bb4
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb4
+  bb2:                                            ; preds = bb4
     v14 = checked_mul uint256, v3, 100
     v15 = mload v2
-    v16 = lt 0, v15
+    v16 = gt v15, 0
     v17 = eq v16, false
     icall panic_if<0x32>, v17
     v18 = ptradd v2, 32
     v19 = mload v18
     v20 = checked_add uint256, v14, v19
     v21 = mload v2
-    v22 = lt 1, v21
+    v22 = gt v21, 1
     v23 = eq v22, false
     icall panic_if<0x32>, v23
     v24 = ptradd v2, 64
     v25 = mload v24
     v26 = checked_add uint256, v20, v25
     v27 = mload v2
-    v28 = lt 2, v27
+    v28 = gt v27, 2
     v29 = eq v28, false
     icall panic_if<0x32>, v29
     v30 = ptradd v2, 96
     v31 = mload v30
     v32 = checked_add uint256, v26, v31
     v33 = mload v2
-    v34 = lt 3, v33
+    v34 = gt v33, 3
     v35 = eq v34, false
     icall panic_if<0x32>, v35
     v36 = ptradd v2, 128
     v37 = mload v36
     v38 = checked_add uint256, v32, v37
     ret v38
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v6 = checked_add uint256, v3, 1
     v7 = checked_add uint256, v3, 1
     v8 = mload v2
@@ -143,7 +143,7 @@ fn @lhsIndexMutation() -> i256 [selector=0x8d320a6e, pure, abi_params=[], abi_re
     v13 = ptradd v12, 32
     mstore v13, v6
     jump bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb1
 }
 
@@ -151,30 +151,30 @@ fn @lhsIndexMutation() -> i256 [selector=0x8d320a6e, pure, abi_params=[], abi_re
 fn @branchScopeLoop(arg0: i1, arg1: i256) -> i256 [selector=0x4a889218, pure, abi_params=[bool, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v0 = phi [bb1: 1], [bb2: 2]
     jump bb4
-  bb4:  ; preds = bb3, bb6
+  bb4:                                            ; preds = bb3, bb6
     v1 = phi [bb3: arg0], [bb6: v1]
     v2 = phi [bb3: arg1], [bb6: v2]
     v3 = phi [bb3: v0], [bb6: v6]
     v4 = phi [bb3: 0], [bb6: v7]
     v5 = lt v4, v2
     jumpi v5, bb7, bb8
-  bb8:  ; preds = bb4
+  bb8:                                            ; preds = bb4
     jump bb5
-  bb5:  ; preds = bb8
+  bb5:                                            ; preds = bb8
     ret v3
-  bb7:  ; preds = bb4
+  bb7:                                            ; preds = bb4
     v6 = checked_add uint256, v3, v4
     jump bb9
-  bb9:  ; preds = bb7
+  bb9:                                            ; preds = bb7
     jump bb6
-  bb6:  ; preds = bb9
+  bb6:                                            ; preds = bb9
     v7 = checked_add uint256, v4, 1
     jump bb4
 }

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_storage_struct.sol:AbiDecodeStorageStruct ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_storage_struct.sol:AbiDecodeStorageStruct ===
 @module AbiDecodeStorageStruct
 @types
   struct0: {i256, i256, i256, i256}
@@ -19,7 +19,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     v5 = ptradd v0, 32
     v6 = mload v5, ptr<memory>
     v7 = mload v6
-    v8 = lt 0, v7
+    v8 = gt v7, 0
     v9 = eq v8, false
     icall panic_if<0x32>, v9
     v10 = ptradd v6, 32
@@ -27,7 +27,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     v11 = ptradd v0, 32
     v12 = mload v11, ptr<memory>
     v13 = mload v12
-    v14 = lt 1, v13
+    v14 = gt v13, 1
     v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = ptradd v12, 64
@@ -35,7 +35,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     v17 = ptradd v0, 32
     v18 = mload v17, ptr<memory>
     v19 = mload v18
-    v20 = lt 2, v19
+    v20 = gt v19, 2
     v21 = eq v20, false
     icall panic_if<0x32>, v21
     v22 = ptradd v18, 96
@@ -51,7 +51,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     v30 = ptradd v25, 32
     v31 = mload v30, ptr<memory>
     v32 = mload v31
-    v33 = lt 0, v32
+    v33 = gt v32, 0
     v34 = eq v33, false
     icall panic_if<0x32>, v34
     v35 = ptradd v31, 32
@@ -59,7 +59,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     v37 = ptradd v25, 32
     v38 = mload v37, ptr<memory>
     v39 = mload v38
-    v40 = lt 2, v39
+    v40 = gt v39, 2
     v41 = eq v40, false
     icall panic_if<0x32>, v41
     v42 = ptradd v38, 96

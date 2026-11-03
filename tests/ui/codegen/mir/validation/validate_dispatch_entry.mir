@@ -1,5 +1,9 @@
 //@compile-flags: -Zmir-pipeline=none
 //~? ERROR: module is in the `lowered` phase but has no `entry` routing function
+//~? ERROR: [fn0] `selector` survives entry lowering
+//~? ERROR: [fn0] `abi_wrapper` survives entry lowering
+//~? ERROR: [fn1] `selector` survives entry lowering
+//~? ERROR: [fn1] `abi_wrapper` survives entry lowering
 // Lowered MIR routes selectors explicitly, so a module with selector functions
 // needs an `entry` function, even without receive or fallback functions.
 @module ValidateDispatchEntry

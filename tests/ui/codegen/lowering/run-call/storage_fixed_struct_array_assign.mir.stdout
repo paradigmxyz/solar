@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/storage_fixed_struct_array_assign.sol:StorageFixedStructArrayAssign ===
+; === ROOT/tests/ui/codegen/lowering/run-call/storage_fixed_struct_array_assign.sol:StorageFixedStructArrayAssign ===
 @module StorageFixedStructArrayAssign
 @types
   struct0: {i256, i256, i256}
@@ -18,7 +18,7 @@ fn @setUp() [selector=0x0a9254e4, abi_params=[], abi_returns=[], abi_return_para
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = mul v0, 3
-    v4 = add 0, v3
+    v4 = add v3, 0
     sstore v4, 1 !metadata(storage=symbolic(v3))
     v5 = add v4, 1
     sstore v5, 2 !metadata(storage=offset(v3, 1))
@@ -94,7 +94,7 @@ fn @testFromMemory() -> struct0 [selector=0xfebd1e0e, abi_params=[], abi_returns
     v6 = eq v5, false
     icall panic_if<0x32>, v6
     v7 = mul v4, 3
-    v8 = add 0, v7
+    v8 = add v7, 0
     v9 = mload v0
     sstore v8, v9 !metadata(storage=symbolic(v7))
     v10 = add v8, 1
@@ -127,7 +127,7 @@ fn @testNested() -> struct0 [selector=0xfbd4b8cc, abi_params=[], abi_returns=[wo
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = mul v0, 6
-    v4 = add 12, v3
+    v4 = add v3, 12
     v5 = sload 24 !metadata(storage=slot(24))
     v6 = lt v5, 2
     v7 = eq v6, false

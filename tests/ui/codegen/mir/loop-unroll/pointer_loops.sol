@@ -82,9 +82,11 @@ contract PointerLoops {
     }
 
     // CHECK-LABEL: fn @stepThree()
-    // CHECK: [[LEFT:v[0-9]+]] = sub arg1, arg0
+    // CHECK: [[START:v[0-9]+]] = calldataload 4
+    // CHECK-NEXT: [[END:v[0-9]+]] = calldataload 36
+    // CHECK: [[LEFT:v[0-9]+]] = sub [[END]], [[START]]
     // CHECK-NEXT: and [[LEFT]], 1
-    // CHECK: [[ENTERED:v[0-9]+]] = phi [{{bb[0-9]+}}: arg0], [{{bb[0-9]+}}: {{v[0-9]+}}]
+    // CHECK: [[ENTERED:v[0-9]+]] = phi [{{bb[0-9]+}}: [[START]]], [{{bb[0-9]+}}: {{v[0-9]+}}]
     // CHECK: [[I:v[0-9]+]] = phi {{\[}}{{bb[0-9]+}}: [[ENTERED]]], [{{bb[0-9]+}}: [[NEXT:v[0-9]+]]]{{$}}
     // CHECK: [[SECOND:v[0-9]+]] = add [[I]], 3
     // CHECK: [[NEXT]] = add [[SECOND]], 3

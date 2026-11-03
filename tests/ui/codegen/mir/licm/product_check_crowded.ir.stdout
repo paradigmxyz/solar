@@ -1,6 +1,6 @@
-// === ROOT/tests/ui/codegen/mir/licm/product_check_crowded.sol:ProductCheckCrowded (runtime) ===
+; === ROOT/tests/ui/codegen/mir/licm/product_check_crowded.sol:ProductCheckCrowded (runtime) ===
 @module ProductCheckCrowded_runtime
-bb0:  ; runtime dispatch entry
+bb0:                                              ; runtime dispatch entry
   callvalue
   push bb3
   jumpi
@@ -18,7 +18,7 @@ bb3 [cold]:
   push 0
   push 0
   revert
-bb15 [cold]:  ; revert_stub (synthesized)
+bb15 [cold]:                                      ; revert_stub (synthesized)
   push 17
   push 32
   mstore
@@ -28,7 +28,7 @@ bb15 [cold]:  ; revert_stub (synthesized)
   push 36
   push 28
   revert
-bb4:  ; function crowded(uint256 x, uint256 y, uint256 a, uint256 b, uint256 c, uint256 n) external pure returns (uint256) [selector 0xf6f9e3a3]
+bb4:                                              ; function crowded(uint256 x, uint256 y, uint256 a, uint256 b, uint256 c, uint256 n) external pure returns (uint256) [selector 0xf6f9e3a3]
   push 196
   calldatasize
   lt
@@ -89,8 +89,8 @@ bb6 [loop]:
   push 0
   return
 bb9 [loop]:
-  dup 7
-  dup 7
+  dup 6
+  dup 8
   mul
   dup 8
   iszero

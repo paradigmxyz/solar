@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/stack-resident/multi_return.sol:MultiReturn ===
+; === ROOT/tests/ui/codegen/lowering/stack-resident/multi_return.sol:MultiReturn ===
 @module MultiReturn
 @types
   struct0: {i256, i256}
@@ -48,7 +48,7 @@ fn @split(arg0: i256, arg1: i256) -> struct0 {
     v2 = mul arg0, arg0
     v3 = add v2, arg1
     v4 = mul arg1, 2
-    v5 = add arg0, v4
+    v5 = add v4, arg0
     v6 = sload 0 !metadata(storage=slot(0))
     v7 = xor v6, v3
     sstore 0, v7 !metadata(storage=slot(0))

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_address.sol:ExternalFunctionPointerAddress ===
+; === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_address.sol:ExternalFunctionPointerAddress ===
 @module ExternalFunctionPointerAddress
 ; function g() external [selector 0xe2179b8e]
 fn @g() [selector=0xe2179b8e, abi_params=[], abi_returns=[], abi_return_params=[]] {
@@ -17,6 +17,6 @@ fn @f() -> i1 [selector=0x26121ff0, view, abi_params=[], abi_returns=[word<bool>
     v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
     v6 = trunc i256 v5 to i160
     v7 = address
-    v8 = eq v6, v7
+    v8 = eq v7, v6
     ret v8
 }

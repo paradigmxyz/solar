@@ -5,14 +5,18 @@
 //! `build.rs` compiles both into Rust. This module implements the extractors
 //! and constructors the rules call. Root operations and nested definitions expose
 //! constants on the right of declared commutative pairs and comparisons, using
-//! the same canonicalization as e-graph insertion and materialization.
+//! the same canonicalization as e-graph insertion and materialization. Each rule
+//! runs once per commuted spelling of the root (see `commute`), so it states a
+//! commutative operation in one operand order.
 
-use super::{OperandViews, canonical_operands, same_value};
+use super::{OperandViews, canonical, same_value};
 use crate::{
     backend::evm::{op, select::InstKindOpcode},
     mir::{
         ArgIdx, BlockId, Function, Immediate, InstKind, MirType, Op, ResultKind, Value as MirValue,
-        ValueId, utils::eval::eval_opcode,
+        ValueId,
+        transform::commute::{Reading, Spellings, commutative_definition, swappable},
+        utils::eval::eval_opcode,
     },
     target::Target,
 };
@@ -59,6 +63,8 @@ pub(super) struct RuleContext<'a> {
     uses: Option<&'a IndexVec<ValueId, u32>>,
     /// Up to two retained equivalent definitions exposed during bounded matching.
     views: OperandViews,
+    /// The commuted spelling of the root being matched.
+    reading: Reading,
     integer_ty: MirType,
 }
 
@@ -72,6 +78,7 @@ impl<'a> RuleContext<'a> {
             block: None,
             uses: None,
             views: [None; 2],
+            reading: Reading::default(),
             integer_ty: MirType::I256,
         }
     }
@@ -101,17 +108,53 @@ impl<'a> RuleContext<'a> {
     }
 
     /// Appends every equivalent instruction the rules can build for `op`,
-    /// whose operands must be in [`canonical_operands`] order.
+    /// whose operands must be in [`Function::canonical_op`] order.
     pub(super) fn rewrite(&mut self, op: &Op, alternatives: &mut Vec<Op>) {
         self.integer_ty = self.operation_type(op).unwrap_or(MirType::I256);
+        self.reading.read_commutative = false;
         generated::constructor_rewrite(self, op, alternatives);
+        if !self.reading.read_commutative && !swappable(self.func, op) {
+            return;
+        }
+        // The spellings after the written one.
+        for (root, commuted) in self.spellings(op).rest(op) {
+            self.reading.commuted = commuted;
+            let written = alternatives.len();
+            generated::constructor_rewrite(self, &root, alternatives);
+            // A symmetric rule builds the same instruction from every spelling.
+            let mut kept = written;
+            for next in written..alternatives.len() {
+                let alternative = canonical(alternatives[next]);
+                if !alternatives[..written].iter().any(|&earlier| canonical(earlier) == alternative)
+                {
+                    alternatives[kept] = alternatives[next];
+                    kept += 1;
+                }
+            }
+            alternatives.truncate(kept);
+        }
+        self.reading.commuted.clear();
     }
 
     /// Returns the value `op` is equal to, when a rule applies. The operands
-    /// of `op` must be in [`canonical_operands`] order.
+    /// of `op` must be in [`Function::canonical_op`] order.
     pub(super) fn simplify(&mut self, op: &Op) -> Option<ValueId> {
         self.integer_ty = self.operation_type(op).unwrap_or(MirType::I256);
-        generated::constructor_simplify(self, op)
+        self.reading.read_commutative = false;
+        let simplified = generated::constructor_simplify(self, op);
+        if simplified.is_some() || !self.reading.read_commutative && !swappable(self.func, op) {
+            return simplified;
+        }
+        let mut simplified = None;
+        for (root, commuted) in self.spellings(op).rest(op) {
+            self.reading.commuted = commuted;
+            simplified = generated::constructor_simplify(self, &root);
+            if simplified.is_some() {
+                break;
+            }
+        }
+        self.reading.commuted.clear();
+        simplified
     }
 
     fn integer_mask(&self) -> U256 {
@@ -149,6 +192,16 @@ impl<'a> RuleContext<'a> {
             _ => return None,
         };
         self.func.value_ty(value).filter(|ty| ty.integer_bits().is_some())
+    }
+
+    /// Every order in which the rules see `op`.
+    fn spellings(&self, op: &Op) -> Spellings {
+        Spellings::new(self.func, op, |value| {
+            match self.views.iter().flatten().find(|&&(operand, _)| operand == value) {
+                Some(&(_, view)) => Some(view),
+                None => commutative_definition(self.func, value),
+            }
+        })
     }
 
     fn has_const(&self, value: ValueId, expected: U256) -> bool {
@@ -325,7 +378,8 @@ impl generated::Context for RuleContext<'_> {
     }
 
     fn inst_data(&mut self, value: Value) -> Option<Op> {
-        self.views
+        let op = self
+            .views
             .iter()
             .flatten()
             .find(|&&(operand, _)| operand == value)
@@ -354,8 +408,8 @@ impl generated::Context for RuleContext<'_> {
                 } else {
                     self.operation_type(op).unwrap_or(MirType::I256) == self.integer_ty
                 }
-            })
-            .map(|op| canonical_operands(self.func, op))
+            })?;
+        Some(self.reading.view(self.func, value, op))
     }
 
     fn iconst(&mut self, value: Value) -> Option<U256> {
@@ -371,7 +425,7 @@ impl generated::Context for RuleContext<'_> {
     }
 
     fn one(&mut self, value: Value) -> Option<()> {
-        self.has_const(value, U256::from(1)).then_some(())
+        self.has_const(value, U256::ONE).then_some(())
     }
 
     fn all_ones(&mut self, value: Value) -> Option<()> {
@@ -405,7 +459,7 @@ impl generated::Context for RuleContext<'_> {
     }
 
     fn is_zero_or_one(&mut self, value: Value) -> bool {
-        self.has_const(value, U256::ZERO) || self.has_const(value, U256::from(1))
+        self.has_const(value, U256::ZERO) || self.has_const(value, U256::ONE)
     }
 
     fn below_const(&mut self, value: Value, bound: U256) -> bool {
@@ -428,7 +482,7 @@ impl generated::Context for RuleContext<'_> {
 
     fn mask_covers(&mut self, mask: U256, value: Value) -> bool {
         // A mask of the form `2^n - 1` keeps `n` low bits.
-        let contiguous = mask.wrapping_add(U256::ONE) & mask == U256::ZERO;
+        let contiguous = (mask.wrapping_add(U256::ONE) & mask).is_zero();
         contiguous && max_bits(self.func, value, MAX_BITS_DEPTH) <= mask.bit_len() as u32
     }
 
@@ -485,7 +539,7 @@ impl generated::Context for RuleContext<'_> {
     }
 
     fn u256_is_one(&mut self, value: U256) -> bool {
-        value == U256::from(1)
+        value == U256::ONE
     }
 
     fn u256_is_all_ones(&mut self, value: U256) -> bool {
@@ -585,7 +639,7 @@ impl generated::Context for RuleContext<'_> {
     }
 
     fn power_of_two_shift(&mut self, value: U256) -> Option<U256> {
-        if value.is_zero() || (value & (value - U256::from(1))) != U256::ZERO {
+        if value.is_zero() || !(value & (value - U256::ONE)).is_zero() {
             return None;
         }
         let shift = U256::from(value.trailing_zeros());

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/program-data/contract_code_data.sol:CodeTarget ===
+; === ROOT/tests/ui/codegen/lowering/program-data/contract_code_data.sol:CodeTarget ===
 @module CodeTarget
 @data
   literal_0: hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
@@ -19,7 +19,7 @@ fn @payload() -> ptr<memory> [selector=0xa878f858, pure, abi_params=[], abi_retu
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/program-data/contract_code_data.sol:CodeFactory ===
+; === ROOT/tests/ui/codegen/lowering/program-data/contract_code_data.sol:CodeFactory ===
 @module CodeFactory
 @data
   CodeTarget_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/program-data/contract_code_data.sol:CodeTarget"
@@ -49,9 +49,9 @@ fn @deployCreationCode() -> i256 [selector=0x5986dddb, abi_params=[], abi_return
     v14 = zext i160 v11 to i256
     v15 = staticcall v13, v14, 28, 4, 0, 32
     jumpi v15, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v16 = returndatasize
     v17 = lt v16, 32
     icall revert_if<tuple_data_too_short>, v17
@@ -68,9 +68,9 @@ fn @runtimeCodeMatches() -> i1 [selector=0x337e11d0, abi_params=[], abi_returns=
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = datasize CodeTarget_runtime_code_1
     v5 = datasize CodeTarget_runtime_code_1, 63, aligned
     v6 = alloc v5 !metadata(preserves_fmp)

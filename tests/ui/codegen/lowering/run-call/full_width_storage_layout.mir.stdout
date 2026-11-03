@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/full_width_storage_layout.sol:LargeStorageArrays ===
+; === ROOT/tests/ui/codegen/lowering/run-call/full_width_storage_layout.sol:LargeStorageArrays ===
 @module LargeStorageArrays
 ; function check() external returns (bool) [selector 0x919840ad]
 fn @check() -> i1 [selector=0x919840ad, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -25,27 +25,27 @@ fn @check() -> i1 [selector=0x919840ad, abi_params=[], abi_returns=[word<bool>],
     v11 = sload 0x10000000000000000000000000000000000000000fffffffffffffffe !metadata(storage=slot(0x10000000000000000000000000000000000000000fffffffffffffffe))
     v12 = eq 0x100000000000000000000000000000000000000010000000000000000, 0x100000000000000000000000000000000000000010000000000000000
     jumpi v12, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v13 = checked_add uint256, 0x100000000000000000000000000000000000000010000000000000000, 0x800000000000000
     v14 = checked_add uint256, v13, 1
-    v15 = eq 0x100000000000000000000000000000000000000010800000000000001, v14
+    v15 = eq v14, 0x100000000000000000000000000000000000000010800000000000001
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v16 = phi [bb1: v15], [bb2: false]
     jumpi v16, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb6
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v17 = eq v11, 7
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6:                                            ; preds = bb4, bb5
     v18 = phi [bb4: v17], [bb5: false]
     jumpi v18, bb7, bb8
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     jump bb9
-  bb7:  ; preds = bb6
+  bb7:                                            ; preds = bb6
     v19 = lt 0xffffffffffffffff, 0x10000000000000000
     v20 = eq v19, false
     icall panic_if<0x32>, v20
@@ -55,24 +55,24 @@ fn @check() -> i1 [selector=0x919840ad, abi_params=[], abi_returns=[word<bool>],
     v23 = sload 0x10000000000000000000000000000000000000000fffffffffffffffe !metadata(storage=slot(0x10000000000000000000000000000000000000000fffffffffffffffe))
     v24 = eq v23, 7
     jump bb9
-  bb9:  ; preds = bb7, bb8
+  bb9:                                            ; preds = bb7, bb8
     v25 = phi [bb7: v24], [bb8: false]
     jumpi v25, bb10, bb11
-  bb11:  ; preds = bb9
+  bb11:                                           ; preds = bb9
     jump bb12
-  bb10:  ; preds = bb9
+  bb10:                                           ; preds = bb9
     v26 = lt 0xffffffffffffffff, 0x10000000000000000
     v27 = eq v26, false
     icall panic_if<0x32>, v27
     v28 = sload 0x10000000000000000000000000000000000000000ffffffffffffffff !metadata(storage=slot(0x10000000000000000000000000000000000000000ffffffffffffffff))
     v29 = eq v28, 11
     jump bb12
-  bb12:  ; preds = bb10, bb11
+  bb12:                                           ; preds = bb10, bb11
     v30 = phi [bb10: v29], [bb11: false]
     jumpi v30, bb13, bb14
-  bb14:  ; preds = bb12
+  bb14:                                           ; preds = bb12
     jump bb15
-  bb13:  ; preds = bb12
+  bb13:                                           ; preds = bb12
     v31 = lt 0x10000000000000000, 0x10000000000000001
     v32 = eq v31, false
     icall panic_if<0x32>, v32
@@ -81,16 +81,16 @@ fn @check() -> i1 [selector=0x919840ad, abi_params=[], abi_returns=[word<bool>],
     v35 = trunc i256 v34 to i8
     v36 = eq v35, i8 13
     jump bb15
-  bb15:  ; preds = bb13, bb14
+  bb15:                                           ; preds = bb13, bb14
     v37 = phi [bb13: v36], [bb14: false]
     jumpi v37, bb16, bb17
-  bb17:  ; preds = bb15
+  bb17:                                           ; preds = bb15
     jump bb18
-  bb16:  ; preds = bb15
+  bb16:                                           ; preds = bb15
     v38 = sload 0x100000000000000000000000000000000000000010800000000000001 !metadata(storage=slot(0x100000000000000000000000000000000000000010800000000000001))
     v39 = eq v38, 17
     jump bb18
-  bb18:  ; preds = bb16, bb17
+  bb18:                                           ; preds = bb16, bb17
     v40 = phi [bb16: v39], [bb17: false]
     ret v40
 }
@@ -102,7 +102,7 @@ fn @read(arg0: i256) -> i256 [selector=0xed2e5a97, view, abi_params=[uint256], a
     v1 = eq v0, false
     icall panic_if<0x32>, v1
     v2 = mul arg0, 0x10000000000000000000000000000000000000001
-    v3 = add 0, v2
+    v3 = add v2, 0
     v4 = add v3, 0x10000000000000000000000000000000000000000
     v5 = sload v4 !metadata(storage=offset(v2, 0x10000000000000000000000000000000000000000))
     ret v5

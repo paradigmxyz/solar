@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/byte-run-loads/pack.sol:Test ===
+; === ROOT/tests/ui/codegen/mir/byte-run-loads/pack.sol:Test ===
 @module Test
 @phase lowered
 ; runtime dispatch entry
@@ -11,68 +11,68 @@ fn @entry() [entry] {
     v4 = or v0, v3
     v5 = ne v4, 0
     jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v6 = calldataload 0
     v7 = shr v6, 224
     switch v7, default bb1, [0x1158e167 => bb3, 0x63cfbce4 => bb4, 0x65313149 => bb5, 0xab0edd4e => bb6, 0xd033fb43 => bb7]
-  bb7:  ; preds = bb2
+  bb7:                                            ; preds = bb2
     tail_call @lowByte
-  bb6:  ; preds = bb2
+  bb6:                                            ; preds = bb2
     tail_call @stored
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     tail_call @two
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     tail_call @gapped
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     tail_call @three
-  bb1 [cold]:  ; preds = bb0, bb2
+  bb1 [cold]:                                     ; preds = bb0, bb2
     revert 0, 0
 }
 
 ; function three(bytes memory s) public pure returns (uint256) [selector 0x1158e167]
-fn @three() [selector=0x1158e167, abi_wrapper, pure] {
+fn @three() {
   bb0:
     v38 = icall @decode_calldata_type
     v0 = mload v38
     v1 = lt v0, 3
     jumpi v1, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v40 = add v38, 32
     v6 = mload v40
     v35 = shr v6, 232
     mstore 0, v35 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     mstore 0, 0 !metadata(memory=scratch)
     returndata 0, 32
 }
 
 ; function two(bytes memory s) public pure returns (uint256) [selector 0x65313149]
-fn @two() [selector=0x65313149, abi_wrapper, pure] {
+fn @two() {
   bb0:
     v26 = icall @decode_calldata_type
     v0 = mload v26
     v1 = lt v0, 2
     jumpi v1, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v28 = add v26, 32
     v6 = mload v28
     v23 = shr v6, 240
     mstore 0, v23 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     mstore 0, 0 !metadata(memory=scratch)
     returndata 0, 32
 }
 
 ; function gapped(bytes memory s) public pure returns (uint256) [selector 0x63cfbce4]
-fn @gapped() [selector=0x63cfbce4, abi_wrapper, pure] {
+fn @gapped() {
   bb0:
     v26 = icall @decode_calldata_type
     v0 = mload v26
     v1 = lt v0, 3
     jumpi v1, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v28 = add v26, 32
     v6 = mload v28
     v7 = byte 0, v6
@@ -81,19 +81,19 @@ fn @gapped() [selector=0x63cfbce4, abi_wrapper, pure] {
     v23 = or v12, v18
     mstore 0, v23 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     mstore 0, 0 !metadata(memory=scratch)
     returndata 0, 32
 }
 
 ; function stored(bytes memory s) public pure returns (uint256) [selector 0xab0edd4e]
-fn @stored() [selector=0xab0edd4e, abi_wrapper, pure] {
+fn @stored() {
   bb0:
     v43 = icall @decode_calldata_type
     v0 = mload v43
     v1 = lt v0, 3
     jumpi v1, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v45 = add v43, 32
     v6 = mload v45
     v7 = byte 0, v6
@@ -108,13 +108,13 @@ fn @stored() [selector=0xab0edd4e, abi_wrapper, pure] {
     v40 = or v29, v35
     mstore 0, v40 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     mstore 0, 0 !metadata(memory=scratch)
     returndata 0, 32
 }
 
 ; function lowByte(bytes memory s) public pure returns (uint256 r) [selector 0xd033fb43]
-fn @lowByte() [selector=0xd033fb43, abi_wrapper, pure] {
+fn @lowByte() {
   bb0:
     v12 = icall @decode_calldata_type
     v1 = add v12, 2
@@ -135,9 +135,9 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v1 = calldataload 4
     v2 = add v1, 4
     v4 = sub v0, 36
-    v5 = gt v1, v4
+    v5 = lt v4, v1
     jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v6 = calldataload v2
     v7 = add v2, 32
     v36 = add v6, 63
@@ -148,25 +148,25 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v31 = lt v30, v29
     v32 = zext i1 v31 to i256
     v33 = shr v30, 64
-    v34 = or v32, v33
+    v34 = or v33, v32
     v38 = zext i1 v11 to i256
-    v39 = or v38, v34
+    v39 = or v34, v38
     v40 = ne v39, 0
     jumpi v40, bb3, bb5
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     mstore 64, v30 !metadata(memory=scratch)
     mstore v29, v6
     v13 = sub v0, v7
-    v14 = gt v6, v13
+    v14 = lt v13, v6
     jumpi v14, bb1, bb4
-  bb4:  ; preds = bb5
+  bb4:                                            ; preds = bb5
     v25 = add v29, 32
     calldatacopy v25, v7, v6
     ret v29
-  bb3 [cold]:  ; preds = bb2
+  bb3 [cold]:                                     ; preds = bb2
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1 [cold]:  ; preds = bb0, bb5
+  bb1 [cold]:                                     ; preds = bb0, bb5
     revert 0, 0
 }

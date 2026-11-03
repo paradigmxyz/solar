@@ -1,13 +1,13 @@
-// === ROOT/tests/ui/codegen/lowering/stack-resident/recursive_call_spilled_result.sol:C ===
+; === ROOT/tests/ui/codegen/lowering/stack-resident/recursive_call_spilled_result.sol:C ===
 @module C
 ; function f(uint256 n) internal returns (uint256)
 fn @f(arg0: i256) -> i256 {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v1 = checked_sub uint256, arg0, 1
     v2 = icall @f, v1
     v3 = checked_mul uint256, v2, 3
@@ -79,7 +79,7 @@ fn @f(arg0: i256) -> i256 {
     v69 = xor v52, v68
     v70 = checked_rem uint256, v69, 0xf4243
     ret v70
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     ret 1
 }
 

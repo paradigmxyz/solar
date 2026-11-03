@@ -126,7 +126,7 @@ impl ContractSelection {
             Self::Specific(contracts) => Either::Left(contracts.iter()),
             Self::All => Either::Right(gcx.hir.contract_ids().filter(move |&contract_id| {
                 let contract = gcx.hir.contract(contract_id);
-                !contract.kind.is_interface() && !contract.kind.is_abstract_contract()
+                contract.can_be_deployed()
             })),
         }
     }
@@ -335,20 +335,17 @@ impl ContractGraph {
         }
 
         let contract = gcx.hir.contract(contract_id);
-        if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
-            return Err(gcx
-                .dcx()
-                .err("cannot generate creation bytecode for non-deployable contract")
-                .span(contract.span)
-                .emit());
+        if !contract.can_be_deployed() {
+            return Err(gcx.dcx().emit_err(
+                contract.span,
+                "cannot generate creation bytecode for non-deployable contract",
+            ));
         }
 
         if !visiting.insert(contract_id) {
             return Err(gcx
                 .dcx()
-                .err("recursive contract creation bytecode dependency")
-                .span(contract.span)
-                .emit());
+                .emit_err(contract.span, "recursive contract creation bytecode dependency"));
         }
 
         let dependencies = gcx.contract_bytecode_dependencies(contract_id);
@@ -359,8 +356,10 @@ impl ContractGraph {
             if let Some(other) = names.insert(name, dependency) {
                 return Err(gcx
                     .dcx()
-                    .err(format!("cannot embed two contracts named `{}`", name.as_str()))
-                    .span(gcx.hir.contract(dependency).span)
+                    .err_at(
+                        gcx.hir.contract(dependency).span,
+                        format!("cannot embed two contracts named `{}`", name.as_str()),
+                    )
                     .span_note(gcx.hir.contract(other).span, "the other contract is here")
                     .emit());
             }

@@ -6,7 +6,7 @@
 // update replaces the address, the exit rebuilds the index it returns from how far the pointer
 // moved, and the counter dies.
 // CHECK-LABEL: {{^[ +].*}}fn @scan{{[( ]}}
-// CHECK: + [[START:v[0-9]+]] = add arg0, {{v[0-9]+}}
+// CHECK: + [[START:v[0-9]+]] = add {{v[0-9]+}}, arg0
 // CHECK: - {{v[0-9]+}} = phi [bb0: arg1], [bb1: {{v[0-9]+}}]
 // CHECK: + [[PTR:v[0-9]+]] = phi [bb0: [[START]]], [bb1: [[NEXT:v[0-9]+]]]
 // CHECK-NEXT: + [[NEXT]] = add [[PTR]], 32
@@ -14,7 +14,7 @@
 // CHECK: bb2:
 // CHECK: + [[MOVED:v[0-9]+]] = sub [[NEXT]], [[START]]
 // CHECK-NEXT: + [[STEPS:v[0-9]+]] = shr [[MOVED]], 5
-// CHECK-NEXT: + [[INDEX:v[0-9]+]] = add arg1, [[STEPS]]
+// CHECK-NEXT: + [[INDEX:v[0-9]+]] = add [[STEPS]], arg1
 // CHECK-NEXT: + ret [[INDEX]]
 fn @scan(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
@@ -40,7 +40,7 @@ fn @scan(arg0: i256, arg1: i256, arg2: i256) -> i256 {
 // CHECK: bb2:
 // CHECK: + [[MOVED:v[0-9]+]] = sub [[START]], [[NEXT]]
 // CHECK-NEXT: + [[STEPS:v[0-9]+]] = shr [[MOVED]], 5
-// CHECK-NEXT: + [[INDEX:v[0-9]+]] = add arg1, [[STEPS]]
+// CHECK-NEXT: + [[INDEX:v[0-9]+]] = add [[STEPS]], arg1
 // CHECK-NEXT: + ret [[INDEX]]
 fn @reverse_scan(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
@@ -64,8 +64,8 @@ fn @reverse_scan(arg0: i256, arg1: i256, arg2: i256) -> i256 {
 // entered, on the edge to the join that reads it.
 // CHECK-LABEL: {{^[ +].*}}fn @partition{{[( ]}}
 // CHECK: bb1:
-// CHECK: + [[LOW:v[0-9]+]] = add arg0, {{v[0-9]+}}
-// CHECK: + [[HIGH:v[0-9]+]] = add arg0, {{v[0-9]+}}
+// CHECK: + [[LOW:v[0-9]+]] = add {{v[0-9]+}}, arg0
+// CHECK: + [[HIGH:v[0-9]+]] = add {{v[0-9]+}}, arg0
 // CHECK: bb2:
 // CHECK-NEXT: - {{v[0-9]+}} = phi [bb1: arg1]
 // CHECK-NEXT: - {{v[0-9]+}} = phi [bb1: arg2]

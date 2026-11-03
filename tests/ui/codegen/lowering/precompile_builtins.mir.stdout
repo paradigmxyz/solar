@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/precompile_builtins.sol:PrecompileBuiltins ===
+; === ROOT/tests/ui/codegen/lowering/precompile_builtins.sol:PrecompileBuiltins ===
 @module PrecompileBuiltins
 @phase lowered
 ; runtime dispatch entry
@@ -7,36 +7,36 @@ fn @entry() [entry] {
     v0 = callvalue
     v1 = ne v0, 0
     jumpi v1, bb12, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v2 = calldataload 0
     v3 = shr v2, 224
     switch v3, default bb12, [0x8f4bed => bb2, 0x62c5650 => bb3, 0xc4b170a => bb4, 0x1a7d61f8 => bb5, 0x4aa7a4c7 => bb6, 0x5c2b7c72 => bb7, 0x65707d6f => bb8, 0xa1e754ea => bb9, 0xce746024 => bb10, 0xf1609893 => bb11]
-  bb11:  ; preds = bb1
+  bb11:                                           ; preds = bb1
     tail_call @shaEmpty
-  bb10:  ; preds = bb1
+  bb10:                                           ; preds = bb1
     tail_call @recover
-  bb9:  ; preds = bb1
+  bb9:                                            ; preds = bb1
     tail_call @ripemd
-  bb8:  ; preds = bb1
+  bb8:                                            ; preds = bb1
     tail_call @sha
-  bb7:  ; preds = bb1
+  bb7:                                            ; preds = bb1
     tail_call @ripemdWord
-  bb6:  ; preds = bb1
+  bb6:                                            ; preds = bb1
     tail_call @shaLiteral
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     tail_call @shaWord
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     tail_call @ripemdEmpty
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     tail_call @ripemdLiteral
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     tail_call @recoverInvalid
-  bb12 [cold]:  ; preds = bb0, bb1
+  bb12 [cold]:                                    ; preds = bb0, bb1
     revert 0, 0
 }
 
 ; function recover() external pure returns (address) [selector 0xce746024]
-fn @recover() [selector=0xce746024, abi_wrapper, pure] {
+fn @recover() {
   bb0:
     v14 = heap_floor !metadata(alloc_ptr)
     mstore v14, 1
@@ -50,12 +50,12 @@ fn @recover() [selector=0xce746024, abi_wrapper, pure] {
     v7 = gas
     v8 = staticcall v7, 1, v14, 128, 0, 32
     jumpi v8, bb2, bb1
-  bb1 [cold]:  ; preds = bb0
+  bb1 [cold]:                                     ; preds = bb0
     v10 = returndatasize
     returndatacopy 0, 0, v10 !metadata(memory=abi_return)
     v11 = returndatasize
     revert 0, v11
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v9 = mload 0 !metadata(memory=scratch)
     v15 = and v9, 0xffffffffffffffffffffffffffffffffffffffff
     mstore 0, v15
@@ -63,7 +63,7 @@ fn @recover() [selector=0xce746024, abi_wrapper, pure] {
 }
 
 ; function recoverInvalid() external pure returns (address) [selector 0x008f4bed]
-fn @recoverInvalid() [selector=0x008f4bed, abi_wrapper, pure] {
+fn @recoverInvalid() {
   bb0:
     v14 = heap_floor !metadata(alloc_ptr)
     mstore v14, 0
@@ -77,12 +77,12 @@ fn @recoverInvalid() [selector=0x008f4bed, abi_wrapper, pure] {
     v7 = gas
     v8 = staticcall v7, 1, v14, 128, 0, 32
     jumpi v8, bb2, bb1
-  bb1 [cold]:  ; preds = bb0
+  bb1 [cold]:                                     ; preds = bb0
     v10 = returndatasize
     returndatacopy 0, 0, v10 !metadata(memory=abi_return)
     v11 = returndatasize
     revert 0, v11
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v9 = mload 0 !metadata(memory=scratch)
     v15 = and v9, 0xffffffffffffffffffffffffffffffffffffffff
     mstore 0, v15
@@ -90,100 +90,102 @@ fn @recoverInvalid() [selector=0x008f4bed, abi_wrapper, pure] {
 }
 
 ; function sha() external pure returns (bytes32) [selector 0x65707d6f]
-fn @sha() [selector=0x65707d6f, abi_wrapper, pure] {
+fn @sha() {
   bb0:
     mstore 0, 0xba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad !metadata(memory=scratch)
     returndata 0, 32
 }
 
 ; function ripemd() external pure returns (bytes20) [selector 0xa1e754ea]
-fn @ripemd() [selector=0xa1e754ea, abi_wrapper, pure] {
+fn @ripemd() {
   bb0:
     mstore 0, 0x8eb208f7e05d987a9b044a8e98c6b087f15a0bfc000000000000000000000000 !metadata(memory=scratch)
     returndata 0, 32
 }
 
 ; function shaLiteral() external pure returns (bytes32) [selector 0x4aa7a4c7]
-fn @shaLiteral() [selector=0x4aa7a4c7, abi_wrapper, pure] {
+fn @shaLiteral() {
   bb0:
     mstore 0, 0xba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad !metadata(memory=scratch)
     returndata 0, 32
 }
 
 ; function ripemdLiteral() external pure returns (bytes20) [selector 0x062c5650]
-fn @ripemdLiteral() [selector=0x062c5650, abi_wrapper, pure] {
+fn @ripemdLiteral() {
   bb0:
     mstore 0, 0x8eb208f7e05d987a9b044a8e98c6b087f15a0bfc000000000000000000000000 !metadata(memory=scratch)
     returndata 0, 32
 }
 
 ; function shaEmpty() external pure returns (bytes32) [selector 0xf1609893]
-fn @shaEmpty() [selector=0xf1609893, abi_wrapper, pure] {
+fn @shaEmpty() {
   bb0:
     mstore 0, 0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 !metadata(memory=scratch)
     returndata 0, 32
 }
 
 ; function ripemdEmpty() external pure returns (bytes20) [selector 0x0c4b170a]
-fn @ripemdEmpty() [selector=0x0c4b170a, abi_wrapper, pure] {
+fn @ripemdEmpty() {
   bb0:
     mstore 0, 0x9c1185a5c5e9fc54612808977ee8f548b2258d31000000000000000000000000 !metadata(memory=scratch)
     returndata 0, 32
 }
 
 ; function shaWord(uint256 x) external pure returns (bytes32) [selector 0x1a7d61f8]
-fn @shaWord() [selector=0x1a7d61f8, abi_wrapper, pure] {
+fn @shaWord() {
   bb0:
     v11 = calldatasize
     v12 = lt v11, 36
     jumpi v12, bb3, bb4
-  bb4:  ; preds = bb0
-    v15 = heap_floor !metadata(alloc_ptr)
-    v16 = add v15, 64 !metadata(alloc_ptr)
-    mstore 64, v16 !metadata(memory=scratch)
-    v14 = add v15, 32
-    mstore v14, arg0
-    v6 = gas
-    v7 = staticcall v6, 2, v14, 32, 0, 32
-    jumpi v7, bb2, bb1
-  bb1 [cold]:  ; preds = bb4
-    v9 = returndatasize
-    returndatacopy 0, 0, v9 !metadata(memory=abi_return)
-    v10 = returndatasize
-    revert 0, v10
-  bb2:  ; preds = bb4
-    v8 = mload 0 !metadata(memory=scratch)
-    mstore 0, v8 !metadata(memory=scratch)
-    returndata 0, 32
-  bb3 [cold]:  ; preds = bb0
-    revert 0, 0
-}
-
-; function ripemdWord(uint256 x) external pure returns (bytes20) [selector 0x5c2b7c72]
-fn @ripemdWord() [selector=0x5c2b7c72, abi_wrapper, pure] {
-  bb0:
-    v12 = calldatasize
-    v13 = lt v12, 36
-    jumpi v13, bb3, bb4
-  bb4:  ; preds = bb0
+  bb4:                                            ; preds = bb0
+    v13 = calldataload 4
     v16 = heap_floor !metadata(alloc_ptr)
     v17 = add v16, 64 !metadata(alloc_ptr)
     mstore 64, v17 !metadata(memory=scratch)
     v15 = add v16, 32
-    mstore v15, arg0
+    mstore v15, v13
     v6 = gas
-    v7 = staticcall v6, 3, v15, 32, 0, 32
+    v7 = staticcall v6, 2, v15, 32, 0, 32
     jumpi v7, bb2, bb1
-  bb1 [cold]:  ; preds = bb4
+  bb1 [cold]:                                     ; preds = bb4
+    v9 = returndatasize
+    returndatacopy 0, 0, v9 !metadata(memory=abi_return)
+    v10 = returndatasize
+    revert 0, v10
+  bb2:                                            ; preds = bb4
+    v8 = mload 0 !metadata(memory=scratch)
+    mstore 0, v8 !metadata(memory=scratch)
+    returndata 0, 32
+  bb3 [cold]:                                     ; preds = bb0
+    revert 0, 0
+}
+
+; function ripemdWord(uint256 x) external pure returns (bytes20) [selector 0x5c2b7c72]
+fn @ripemdWord() {
+  bb0:
+    v12 = calldatasize
+    v13 = lt v12, 36
+    jumpi v13, bb3, bb4
+  bb4:                                            ; preds = bb0
+    v14 = calldataload 4
+    v17 = heap_floor !metadata(alloc_ptr)
+    v18 = add v17, 64 !metadata(alloc_ptr)
+    mstore 64, v18 !metadata(memory=scratch)
+    v16 = add v17, 32
+    mstore v16, v14
+    v6 = gas
+    v7 = staticcall v6, 3, v16, 32, 0, 32
+    jumpi v7, bb2, bb1
+  bb1 [cold]:                                     ; preds = bb4
     v10 = returndatasize
     returndatacopy 0, 0, v10 !metadata(memory=abi_return)
     v11 = returndatasize
     revert 0, v11
-  bb2:  ; preds = bb4
+  bb2:                                            ; preds = bb4
     v8 = mload 0 !metadata(memory=scratch)
     v9 = shl v8, 96
     mstore 0, v9 !metadata(memory=scratch)
     returndata 0, 32
-  bb3 [cold]:  ; preds = bb0
+  bb3 [cold]:                                     ; preds = bb0
     revert 0, 0
 }

@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/live_pc.evmir (before terminal-dedup) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/live_pc.evmir (after terminal-dedup) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/live_pc.evmir (before terminal-dedup) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/live_pc.evmir (after terminal-dedup) ===
   @module LivePc
   bb0:
     push 0
@@ -44,7 +44,7 @@
     push 0
     return
   
-// === LivePc (runtime) ===
+; === LivePc (runtime) ===
 PUSH0
 CALLDATALOAD
 ISZERO

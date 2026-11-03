@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/storage-cse/storage_cse.mir (before storage-cse) ===
-+ // === ROOT/tests/ui/codegen/mir/storage-cse/storage_cse.mir (after storage-cse) ===
+- ; === ROOT/tests/ui/codegen/mir/storage-cse/storage_cse.mir (before storage-cse) ===
++ ; === ROOT/tests/ui/codegen/mir/storage-cse/storage_cse.mir (after storage-cse) ===
   @module StorageCse
   fn @reuse_across_disjoint_constant_store() -> i256 {
     bb0:
@@ -58,7 +58,7 @@
 -     v2 = add v0, v1
 +     v2 = add v0, v0
       jump bb1
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
 -     v3 = phi [bb0: v1]
 +     v3 = phi [bb0: v0]
       v4 = add v2, v3
