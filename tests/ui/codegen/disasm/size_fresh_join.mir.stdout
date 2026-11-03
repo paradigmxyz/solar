@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/disasm/size_fresh_join.sol:C ===
+; === ROOT/tests/ui/codegen/disasm/size_fresh_join.sol:C ===
 @module C
 ; function f() external pure returns (uint256) [selector 0x26121ff0]
 fn @f() -> i256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -13,9 +13,9 @@ fn @f() -> i256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word], a
     v7 = extract_value slice<calldata>, v6, 1
     v8 = gt v7, 0
     jumpi v8, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v9 = extract_value slice<calldata>, v6, 1
     v10 = gt v9, 0
     v11 = eq v10, false
@@ -28,7 +28,7 @@ fn @f() -> i256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word], a
     v17 = shr v16, 248
     v18 = trunc i256 v17 to i8
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v19 = phi [bb1: v18], [bb2: i8 0]
     v20 = zext i8 v19 to i256
     ret v20
@@ -47,9 +47,9 @@ fn @g(arg0: i256) -> i256 [selector=0xe420264a, pure, abi_params=[uint256], abi_
     v7 = extract_value slice<calldata>, v6, 1
     v8 = gt v7, 0
     jumpi v8, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v9 = extract_value slice<calldata>, v6, 1
     v10 = gt v9, 0
     v11 = eq v10, false
@@ -62,7 +62,7 @@ fn @g(arg0: i256) -> i256 [selector=0xe420264a, pure, abi_params=[uint256], abi_
     v17 = shr v16, 248
     v18 = trunc i256 v17 to i8
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v19 = phi [bb1: v18], [bb2: i8 0]
     v20 = zext i8 v19 to i256
     ret v20

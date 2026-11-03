@@ -9,7 +9,7 @@
 // planner pushes it again at each use, so the phi result takes over the word pushed before the
 // branch instead of keeping it beside a second copy. The branch pushes the `0` once, the side
 // edge reaches the join directly, and no `PUSH0 PUSH1 join JUMP` edge block follows.
-// RUNTIME-LABEL: // === {{.*}}:C (runtime) ===
+// RUNTIME-LABEL: ; === {{.*}}:C (runtime) ===
 // RUNTIME: JUMPDEST
 // RUNTIME-NEXT: PUSH0
 // RUNTIME-NEXT: PUSH1 0x04

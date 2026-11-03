@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/disasm/size_fresh_join.sol:C (runtime) ===
+; === ROOT/tests/ui/codegen/disasm/size_fresh_join.sol:C (runtime) ===
 CALLVALUE
 PUSH1 0x29 ; bb2
 JUMPI
