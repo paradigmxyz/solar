@@ -592,11 +592,7 @@ impl CommonSubexprEliminator {
                     .with_debug_info_dropped(),
             );
 
-            let phi_count = func.blocks[candidate.block_id]
-                .instructions
-                .iter()
-                .take_while(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
-                .count();
+            let phi_count = func.block_phi_count(candidate.block_id);
             let inserted = inserted_by_block.entry(candidate.block_id).or_default();
             func.blocks[candidate.block_id].instructions.insert(phi_count + *inserted, new_inst);
             *inserted += 1;
@@ -1346,9 +1342,7 @@ impl CommonSubexprEliminator {
             }
             InstKind::Fmp => Some(ExprKey::MLoad(AliasAnalysis::fmp_location())),
             InstKind::Keccak256(offset, size) => {
-                let size = value(*size);
-                let size =
-                    func.value_u64(size).map_or(LocationSize::Dynamic(size), LocationSize::Const);
+                let size = self.alias().location_size(func, value(*size));
                 let key = self.alias().memory_location(func, inst_id, value(*offset), size)?;
                 Some(ExprKey::Keccak256(key))
             }

@@ -72,11 +72,11 @@
 use crate::{
     backend::evm::op,
     mir::{
-        BlockId, Callee, EffectKind, Function, FunctionId, Immediate, InstKind, Instruction,
-        MirType, Module, Terminator, Value, ValueId,
+        BlockId, Callee, EffectKind, Function, FunctionId, Immediate, InstKind, MirType, Module,
+        Terminator, Value, ValueId,
         analysis::{CfgInfo, aborts},
         pass::{MirPass, run_function_pass},
-        utils::{rebuild_predecessors, replace_terminator},
+        utils::{append_value_inst, rebuild_predecessors, replace_terminator},
     },
     target::{Cost, Target},
 };
@@ -420,15 +420,7 @@ fn complement(func: &Function, condition: ValueId) -> Option<Compare> {
 
 /// Appends a compiler-generated instruction to a block and returns its result.
 fn append(func: &mut Function, block: BlockId, kind: InstKind) -> ValueId {
-    append_typed(func, block, kind, MirType::I1)
-}
-
-/// Appends a compiler-generated instruction with a result of type `ty` to a block.
-fn append_typed(func: &mut Function, block: BlockId, kind: InstKind, ty: MirType) -> ValueId {
-    let (inst, value) =
-        func.alloc_value_inst(Instruction::new(kind, Some(ty)).with_debug_info_dropped());
-    func.blocks[block].instructions.push(inst);
-    value
+    append_value_inst(func, block, kind, MirType::I1)
 }
 
 fn merge(
@@ -467,11 +459,13 @@ fn merge(
         // jumpi c, abort, b3
         let mut as_word = |test: &Test| match test.word {
             Some(Word::Itself) => test.condition,
-            Some(Word::Xor(a, b)) => append_typed(func, block, InstKind::Xor(a, b), MirType::I256),
-            None => append_typed(func, block, InstKind::Zext(test.condition), MirType::I256),
+            Some(Word::Xor(a, b)) => {
+                append_value_inst(func, block, InstKind::Xor(a, b), MirType::I256)
+            }
+            None => append_value_inst(func, block, InstKind::Zext(test.condition), MirType::I256),
         };
         let (a, b) = (as_word(&first), as_word(&second));
-        let word = append_typed(func, block, InstKind::Or(a, b), MirType::I256);
+        let word = append_value_inst(func, block, InstKind::Or(a, b), MirType::I256);
         let zero = func.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
         append(func, block, InstKind::Ne(word, zero))
     } else if second.aborts_when_true
