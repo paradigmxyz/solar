@@ -20,7 +20,8 @@
 //! substitute the selected inputs. This exposes nested short-circuit checks within the same
 //! fixpoint, without waiting for another CFG cleanup pass. Targets with phis and cyclic phi
 //! inputs stay unchanged. Constant incoming edges also bypass a phi followed by
-//! an equality or inequality with zero, provided no result escapes the block.
+//! an equality or inequality with zero, provided no result escapes the block, including through
+//! the block's own phis, as a loop header's loop-carried values do.
 
 use super::{cfg_simplify::empty_forwarder_target, utils::redirect_edge};
 use crate::mir::{
@@ -129,7 +130,11 @@ fn threaded_target(
     final_targets[target].filter(|&final_target| !func.block_has_phi(final_target))
 }
 
-/// Whether another block uses a result of `block_id`. `results` is scratch space.
+/// Whether a result of `block_id` is used outside it. `results` is scratch space.
+///
+/// A phi input is used at the end of its incoming edge, not in the phi's block. A result that
+/// feeds one of the block's own phis, as a loop-carried value does, is therefore used by a block
+/// that can be entered without passing through `block_id`.
 fn block_results_have_external_uses(
     func: &Function,
     block_id: BlockId,
@@ -147,12 +152,11 @@ fn block_results_have_external_uses(
 
     let external = |operand| results.contains(operand);
     func.blocks.iter_enumerated().any(|(other_block, block)| {
-        other_block != block_id
-            && (block
-                .instructions
-                .iter()
-                .any(|&inst_id| func.inst(inst_id).kind.any_operand(external))
-                || block.terminator.as_ref().is_some_and(|term| term.any_operand(external)))
+        let own = other_block == block_id;
+        block.instructions.iter().any(|&inst_id| {
+            let kind = &func.inst(inst_id).kind;
+            (!own || matches!(kind, InstKind::Phi(_))) && kind.any_operand(external)
+        }) || (!own && block.terminator.as_ref().is_some_and(|term| term.any_operand(external)))
     })
 }
 
