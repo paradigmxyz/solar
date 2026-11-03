@@ -576,13 +576,11 @@ impl Target {
             return Cost::ZERO;
         }
         if matches!(op, Op::Eq { .. } | Op::Ne { .. }) {
-            if matches!(op, Op::Ne { .. }) && Self::zero_test_input(op, &immediate).is_some() {
-                return self.ne_zero().0;
+            let ne = matches!(op, Op::Ne { .. });
+            if Self::zero_test_input(op, &immediate).is_some() {
+                return if ne { self.ne_zero().0 } else { self.opcode(op::ISZERO) };
             }
-            let comparison =
-                if Self::zero_test_input(op, &immediate).is_some() { op::ISZERO } else { op::EQ };
-            return self.opcode(comparison)
-                + if matches!(op, Op::Ne { .. }) { self.opcode(op::ISZERO) } else { Cost::ZERO };
+            return self.opcode(op::EQ) + if ne { self.opcode(op::ISZERO) } else { Cost::ZERO };
         }
         let Some(lowering) = select::opcode_lowering(op) else {
             return Cost::new(GasTier::VeryLow.gas(self.evm_version), 1).with_steps(1);
