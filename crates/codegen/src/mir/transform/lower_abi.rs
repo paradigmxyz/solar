@@ -695,6 +695,8 @@ impl LowerAbiCx {
                     let layout = layout.clone();
                     let data = crate::mir::utils::resolve_replacement(*data, &replacements);
                     let result = builder.func().inst_result_value(inst);
+                    let debug = builder.func().inst(inst).metadata.debug_context();
+                    builder.set_debug_context(&debug);
                     let calldata =
                         builder.func().value_slice_location(data) == Some(PtrLocation::Calldata);
                     let values = if calldata {
@@ -1010,6 +1012,7 @@ impl LowerAbiCx {
                 let aggregate = *aggregate;
                 let mut builder = FunctionBuilder::new(wrapper);
                 builder.switch_to_block(block);
+                builder.inherit_terminator_debug_context(block);
                 // field0 = extract_value result, 0
                 // ...
                 // ret field0, ...

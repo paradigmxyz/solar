@@ -487,7 +487,13 @@ fn redirect_jump_thunks(
             {
                 let direct = is_direct_jump_label(block, at);
                 if direct && let Some(thunk) = thunks.get(&target) {
-                    block.instructions[at].metadata.absorb_debug_info(&thunk.metadata);
+                    let conditional =
+                        block.instructions.get(at + 1).is_some_and(|inst| inst.opcode == op::JUMPI);
+                    absorb_thunk_debug_info(
+                        &mut block.instructions[at].metadata,
+                        &thunk.metadata,
+                        conditional,
+                    );
                 }
                 // NOTE: A return-address push executes before the callee, while the bypassed
                 // continuation runs after it. Its debug events cannot move onto that push;
@@ -504,9 +510,10 @@ fn redirect_jump_thunks(
             }
         }
         if let Some(term) = &mut block.terminator {
+            let conditional = !matches!(term.kind, TerminatorKind::Jump(_));
             term.kind.visit_targets_mut(|target| {
                 if let Some(thunk) = thunks.get(target) {
-                    term.metadata.absorb_debug_info(&thunk.metadata);
+                    absorb_thunk_debug_info(&mut term.metadata, &thunk.metadata, conditional);
                 }
                 let resolved = resolve(*target);
                 changed |= resolved != *target;
@@ -731,4 +738,17 @@ fn simplify_known_jumps(module: &mut Module) -> bool {
         }
     }
     changed
+}
+
+/// Moves a bypassed thunk's debug information to the transfer that now skips it.
+/// An unconditional transfer executes on the thunk's path; a conditional one also executes on
+/// other paths, so only the former can inherit its source origins.
+// NOTE: Conditional edges can lose a zero-byte checkpoint. Do not retain a jump or assign the
+// thunk's location to an instruction executed on other paths to manufacture a source stop.
+fn absorb_thunk_debug_info(metadata: &mut Metadata, thunk: &Metadata, conditional: bool) {
+    if conditional {
+        metadata.absorb_function_events(thunk);
+    } else {
+        metadata.absorb_debug_info(thunk);
+    }
 }

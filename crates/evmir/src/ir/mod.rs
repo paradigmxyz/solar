@@ -892,6 +892,11 @@ impl Metadata {
     /// events are taken when this operation has none of its own.
     pub fn absorb_debug_info(&mut self, other: &Self) {
         self.merge_source_spans(other);
+        self.absorb_function_events(other);
+    }
+
+    /// Takes function events when this operation has none, without adding source origins.
+    pub fn absorb_function_events(&mut self, other: &Self) {
         if self.function_invoke.is_none()
             && let Some(function) = other.function_invoke()
         {

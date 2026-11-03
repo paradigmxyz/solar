@@ -25,3 +25,6 @@ mod mir_final;
 
 #[cfg(feature = "cli")]
 mod source_set_bytecode;
+
+#[cfg(feature = "cli")]
+mod source_maps;
