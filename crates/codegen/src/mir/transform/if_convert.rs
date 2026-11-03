@@ -453,7 +453,7 @@ fn select_cost(func: &Function, target: &Target, select: &Select, shared: bool) 
             if func.value_u256(select.then_value).is_none()
                 && func.value_u256(select.else_value).is_none() =>
         {
-            target.select(false)
+            target.select()
         }
         // f + c * (t - f), with f used twice
         SelectForm::General(None) => {
