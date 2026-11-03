@@ -2045,7 +2045,7 @@ impl<'a> Planner<'a> {
                 self.prepare(sim, &push_order, &dying)?;
                 sim.observe(1);
                 sim.steps.push(Step::Inst(inst));
-                sim.cost += self.target.opcode(op::DUP3).plus(self.target.opcode(op::SWAP1));
+                sim.cost += self.target.select_stack_ops();
                 sim.stack.truncate(sim.stack.len() - 3);
                 sim.stack.push(result.map_or(Slot::Junk, Slot::Value));
             }

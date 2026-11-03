@@ -1,4 +1,4 @@
-error: unresolved symbol `missing`
+error[7576]: unresolved symbol `missing`
    ╭▸ ROOT/tests/ui/typeck/recovery/member_access.sol:LL:CC
    │
 LL │         uint256 x = missing.member;

@@ -28,20 +28,20 @@
       ret v7
   }
   
-  fn @cheap_diamond(arg0: i256, arg1: i256) -> i256 {
+  fn @cheap_diamond(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     bb0:
       v0 = lt arg0, 10
 -     jumpi v0, bb1, bb2
 -   bb2:  ; preds = bb0
--     v2 = xor arg1, 7
+-     v2 = xor arg1, arg2
 -     jump bb3
 -   bb1:  ; preds = bb0
-      v1 = mul arg1, 3
+      v1 = and arg1, arg2
 -     jump bb3
 -   bb3:  ; preds = bb1, bb2
 -     v3 = phi [bb1: v1], [bb2: v2]
 -     ret v3
-+     v2 = xor arg1, 7
++     v2 = xor arg1, arg2
 +     v4 = sub v1, v2
 +     v5 = zext i1 v0 to i256
 +     v6 = mul v4, v5
@@ -49,15 +49,29 @@
 +     ret v7
   }
   
-  fn @nonzero_diamond(arg0: i256, arg1: i256) -> i256 {
+  fn @exp2_step(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = and arg0, 0x8000000000000000
+      v1 = gt v0, 0
+      jumpi v1, bb1, bb2
+    bb1:  ; preds = bb0
+      v2 = mul arg1, 0x16a09e667f3bcc909
+      v3 = shr v2, 64
+      jump bb2
+    bb2:  ; preds = bb0, bb1
+      v4 = phi [bb0: arg1], [bb1: v3]
+      ret v4
+  }
+  
+  fn @nonzero_diamond(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     bb0:
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
     bb2:  ; preds = bb0
-      v2 = xor arg1, 7
+      v2 = xor arg1, arg2
       jump bb3
     bb1:  ; preds = bb0
-      v1 = mul arg1, 3
+      v1 = and arg1, arg2
       jump bb3
     bb3:  ; preds = bb1, bb2
       v3 = phi [bb1: v1], [bb2: v2]
