@@ -55,7 +55,7 @@ fn rem(a: Word, b: Word) -> Word {
 /// `SIGNEXTEND` does.
 pub fn signextend(ext: Word, value: Word) -> Word {
     if ext < Word::from(31) {
-        let bit_index = (8 * ext.as_limbs()[0] + 7) as usize;
+        let bit_index = (8 * ext.wrapping_to::<u64>() + 7) as usize;
         let mask = (Word::ONE << bit_index) - Word::ONE;
         if value.bit(bit_index) { value | !mask } else { value & mask }
     } else {
@@ -91,7 +91,7 @@ fn sar(shift: Word, value: Word) -> Word {
 
 #[inline]
 fn word_to_usize_saturated(value: Word) -> usize {
-    value.try_into().unwrap_or(usize::MAX)
+    value.saturating_to::<usize>()
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -168,7 +168,7 @@ pub fn i256_div(mut first: Word, mut second: Word) -> Word {
     }
 
     let first_sign = i256_sign_compl(&mut first);
-    if first == MIN_NEGATIVE_VALUE && second == Word::from(1) {
+    if first == MIN_NEGATIVE_VALUE && second == Word::ONE {
         return two_compl(MIN_NEGATIVE_VALUE);
     }
 

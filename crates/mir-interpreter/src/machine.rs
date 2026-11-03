@@ -896,7 +896,7 @@ impl<'a> Run<'_, 'a, '_> {
             limit(self.memory.store(offset, value))?;
         }
         let slot = U256::from(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
-        limit(self.memory.store(slot, U256::from(buffer)))
+        limit(self.memory.store(slot, buffer))
     }
 
     fn terminator(&mut self, body: &'a Function, block: BlockId) -> ControlFlow<Outcome> {
@@ -1059,6 +1059,7 @@ fn limit<T>(result: Result<T, Limit>) -> ControlFlow<Outcome, T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloy_primitives::{B256, KECCAK256_EMPTY};
     use solar_interface::{ColorChoice, Session, source_map::FileName};
     use solar_mir::ResultKind;
 
@@ -1229,7 +1230,7 @@ fn @storage(arg0: i256) -> i256 {
             let mut shifted = [0; 32];
             shifted[0] = 1;
             shifted[1..].copy_from_slice(&arg.to_be_bytes::<32>()[..31]);
-            let empty = U256::from_be_bytes(keccak256([]).0);
+            let empty = U256::from_be_bytes(KECCAK256_EMPTY.0);
             let expected = U256::from_be_bytes(shifted) ^ empty;
             assert_eq!(execution.outcome, Outcome::Return([expected].into_iter().collect()));
         });
@@ -1325,7 +1326,7 @@ fn @entry() [entry] {
     returndata 0, 128
 }
 ",
-            &U256::from(3).to_be_bytes::<32>(),
+            B256::with_last_byte(3).as_slice(),
         );
         let words = [104, 32, 3 << 8, 0].map(|word| U256::from(word).to_be_bytes::<32>());
         assert_eq!(context.outcome, Outcome::ReturnData(words.concat()));
@@ -1386,7 +1387,7 @@ fn @entry() [entry] {
 }
 ";
         // A runtime entry reads its argument from calldata after the selector.
-        let calldata = [&[0, 0, 0, 1][..], &U256::from(42).to_be_bytes::<32>()].concat();
+        let calldata = [&[0, 0, 0, 1][..], B256::with_last_byte(42).as_slice()].concat();
         let data = U256::from(0x0102) << 240;
         let words = [U256::from(42), data].map(|word| word.to_be_bytes::<32>());
         assert_eq!(transact(module, &calldata).outcome, Outcome::ReturnData(words.concat()));

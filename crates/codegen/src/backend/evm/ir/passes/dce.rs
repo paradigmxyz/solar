@@ -20,7 +20,10 @@
 
 use super::EvmPass;
 use crate::backend::evm::{
-    ir::{Block, BlockId, Instruction, Module, Terminator, TerminatorKind},
+    ir::{
+        Block, BlockId, Instruction, Module, Terminator, TerminatorKind,
+        passes::block_layout::terminator_kind,
+    },
     op::{self, StackOp},
 };
 use smallvec::{SmallVec, smallvec};
@@ -56,7 +59,7 @@ fn cleanup_dead_stack_tails(module: &mut Module) -> bool {
     let ignored_entries =
         module.blocks.iter().map(block_ignores_entry_stack).collect::<IndexVec<BlockId, _>>();
     for block in &mut module.blocks {
-        if let Some(TerminatorKind::Jump(target)) = block.terminator.as_ref().map(|term| &term.kind)
+        if let Some(TerminatorKind::Jump(target)) = terminator_kind(block)
             && ignored_entries[*target]
             && let Some(start) = discardable_tail_start(&block.instructions)
         {

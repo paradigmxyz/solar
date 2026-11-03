@@ -61,6 +61,7 @@ use crate::backend::evm::{
     ir::{
         Block, BlockId, CallEffect, Instruction, Metadata, Module, ModuleTarget, PushValue,
         StackEffect, Terminator, TerminatorKind, default_terminator_stack_effect,
+        passes::block_layout::terminator_kind,
     },
     op,
 };
@@ -221,8 +222,7 @@ fn inline_shared_return_thunks(
     incoming.resize(module.blocks.len(), 0);
     for block in &module.blocks {
         if block.instructions.is_empty()
-            && let Some(TerminatorKind::Jump(target)) =
-                block.terminator.as_ref().map(|term| &term.kind)
+            && let Some(TerminatorKind::Jump(target)) = terminator_kind(block)
         {
             incoming[*target] += 1;
         }
@@ -250,10 +250,7 @@ fn inline_shared_return_thunks(
                 > 7
             || offset.concrete_immediate().is_none()
             || returned.concrete_immediate() != offset.concrete_immediate()
-            || !matches!(
-                body.terminator.as_ref().map(|term| &term.kind),
-                Some(TerminatorKind::Op(op::RETURN))
-            )
+            || !matches!(terminator_kind(body), Some(TerminatorKind::Op(op::RETURN)))
         {
             continue;
         }
@@ -369,8 +366,7 @@ fn simplify_degenerate_branches(module: &mut Module) -> bool {
         {
             terminator.kind = TerminatorKind::JumpI { then_block: else_block, else_block };
         }
-        if let Some(TerminatorKind::Jump(target)) =
-            module.blocks[block_id].terminator.as_ref().map(|term| &term.kind)
+        if let Some(TerminatorKind::Jump(target)) = terminator_kind(&module.blocks[block_id])
             && let [.., pushed, jumpi] = module.blocks[block_id].instructions.as_slice()
             && let Some(PushValue::Block(pushed_block)) = pushed.value
             && pushed.is_encoded_push()
@@ -401,7 +397,7 @@ fn simplify_degenerate_branches(module: &mut Module) -> bool {
             continue;
         }
 
-        if let Some(TerminatorKind::Jump(target)) = block.terminator.as_ref().map(|term| &term.kind)
+        if let Some(TerminatorKind::Jump(target)) = terminator_kind(block)
             && let [.., pushed, jumpi] = block.instructions.as_slice()
             && pushed.is_encoded_push()
             && pushed.value == Some(PushValue::Block(*target))
@@ -631,8 +627,7 @@ fn coalesce_blocks(module: &mut Module, state: &mut RunState) -> bool {
         if !retained.contains(predecessor) {
             continue;
         }
-        while let Some(TerminatorKind::Jump(target)) =
-            module.blocks[predecessor].terminator.as_ref().map(|terminator| &terminator.kind)
+        while let Some(TerminatorKind::Jump(target)) = terminator_kind(&module.blocks[predecessor])
         {
             let target = *target;
             if target == predecessor || references[target] != 1 || !retained.contains(target) {

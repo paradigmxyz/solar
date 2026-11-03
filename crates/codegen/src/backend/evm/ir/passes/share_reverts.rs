@@ -21,7 +21,10 @@ use super::{
 };
 use crate::{
     backend::evm::{
-        ir::{Block, BlockId, Instruction, Module, ModuleTarget, Terminator, TerminatorKind},
+        ir::{
+            Block, BlockId, Instruction, Module, ModuleTarget, Terminator, TerminatorKind,
+            passes::block_layout::terminator_kind,
+        },
         op,
     },
     target::Target,
@@ -177,7 +180,7 @@ fn is_empty_revert(block: &Block) -> bool {
 }
 
 fn ends_in_revert(block: &Block) -> bool {
-    matches!(block.terminator.as_ref().map(|term| &term.kind), Some(TerminatorKind::Op(op::REVERT)))
+    matches!(terminator_kind(block), Some(TerminatorKind::Op(op::REVERT)))
 }
 
 fn is_zero_push(inst: &Instruction) -> bool {

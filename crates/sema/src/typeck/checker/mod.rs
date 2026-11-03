@@ -754,7 +754,7 @@ impl<'gcx> TypeChecker<'gcx> {
                             .and_then(|()| self.gcx.early_const_eval().eval_array_len(index));
                         match len {
                             Ok(len) => TyKind::Array(elem_ty, len),
-                            Err(guar) => TyKind::Array(self.gcx.mk_ty_err(guar), U256::from(1)),
+                            Err(guar) => TyKind::Array(self.gcx.mk_ty_err(guar), U256::ONE),
                         }
                     } else {
                         TyKind::DynArray(elem_ty)

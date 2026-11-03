@@ -47,7 +47,10 @@
 use super::{EvmPass, compact_pushes::materialize_immediate, utils::MachineInstKey};
 use crate::{
     backend::evm::{
-        ir::{Instruction, Module, ModuleTarget, TerminatorKind},
+        ir::{
+            Instruction, Module, ModuleTarget, TerminatorKind,
+            passes::block_layout::terminator_kind,
+        },
         op,
     },
     target::Target,
@@ -193,10 +196,7 @@ fn optimize_module(gcx: Gcx<'_>, module: &mut Module, rules: Rules) -> bool {
         // mstore(offset, value); return(offset, 32)
         // -> mstore(0, value); return(0, 32)
         if final_cleanup
-            && matches!(
-                block.terminator.as_ref().map(|term| &term.kind),
-                Some(TerminatorKind::Op(op::RETURN))
-            )
+            && matches!(terminator_kind(block), Some(TerminatorKind::Op(op::RETURN)))
             && let [prefix @ .., offset, store, size, returned] = block.instructions.as_mut_slice()
             && store.as_evm_opcode() == Some(op::MSTORE)
             && size.concrete_immediate() == Some(U256::from(32))

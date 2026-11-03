@@ -100,7 +100,10 @@ use super::{EvmPass, utils::is_split_point};
 use crate::{
     backend::evm::{
         CodegenState,
-        ir::{BlockId, BlockTarget, Instruction, Module, TerminatorKind},
+        ir::{
+            BlockId, BlockTarget, Instruction, Module, TerminatorKind,
+            passes::block_layout::terminator_kind,
+        },
         op::{self, StackOp},
     },
     target::{Cost, Target},
@@ -1391,7 +1394,7 @@ fn aborts_without_stack(module: &Module, mut id: BlockId) -> bool {
             let Some(rest) = depth.checked_sub(usize::from(effect.inputs)) else { return false };
             depth = rest + usize::from(effect.outputs);
         }
-        match block.terminator.as_ref().map(|terminator| &terminator.kind) {
+        match terminator_kind(block) {
             Some(kind @ TerminatorKind::Op(op::REVERT | op::INVALID)) => {
                 return kind.stack_io().is_some_and(|(inputs, _)| usize::from(inputs) <= depth);
             }

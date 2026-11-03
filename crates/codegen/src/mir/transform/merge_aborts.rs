@@ -566,7 +566,7 @@ fn upper_bound(func: &Function, value: ValueId, depth: usize) -> Option<U256> {
         | InstKind::SLt(..)
         | InstKind::SGt(..)
         | InstKind::Eq(..)
-        | InstKind::Ne(..) => Some(U256::from(1)),
+        | InstKind::Ne(..) => Some(U256::ONE),
         InstKind::Zext(source, ..) => upper_bound(func, source, depth),
         InstKind::And(a, b) => match (upper_bound(func, a, depth), upper_bound(func, b, depth)) {
             (Some(a), Some(b)) => Some(a.min(b)),

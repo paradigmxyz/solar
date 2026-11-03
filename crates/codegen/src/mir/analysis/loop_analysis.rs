@@ -10,6 +10,7 @@ use crate::mir::{
     ArithmeticKind, BlockId, CheckedOp, Function, InstId, InstKind, Terminator, Value, ValueId,
     analysis::CfgInfo,
 };
+use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
@@ -451,7 +452,7 @@ impl LoopAnalyzer {
             let trip = if diff.is_zero() {
                 alloy_primitives::U256::ZERO
             } else {
-                ((diff - alloy_primitives::U256::from(1)) / step) + alloy_primitives::U256::from(1)
+                ((diff - U256::ONE) / step) + U256::ONE
             };
             let bits =
                 func.value_ty(iv.value).and_then(crate::mir::MirType::integer_bits).unwrap_or(256);
