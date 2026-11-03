@@ -80,121 +80,122 @@ fn @encodeSecond() {
 ; function roundTrip(uint256 tag, uint256[][] calldata values) external pure returns (uint256) [selector 0x00746047]
 fn @roundTrip() {
   bb0:
-    v163 = calldatasize
-    v164 = lt v163, 68
-    v166 = calldataload 36
-    v167 = add v166, 4
-    v169 = sub v163, 36
-    v170 = lt v169, v166
-    v225 = or v164, v170
-    v171 = calldataload v167
-    v172 = add v167, 32
-    v173 = sub v163, v172
-    v174 = shr v173, 5
-    v175 = lt v174, v171
-    v226 = or v225, v175
-    jumpi v226, bb5, bb30
+    v167 = calldatasize
+    v168 = lt v167, 68
+    v170 = calldataload 36
+    v171 = add v170, 4
+    v173 = sub v167, 36
+    v174 = lt v173, v170
+    v229 = or v168, v174
+    v175 = calldataload v171
+    v176 = add v171, 32
+    v177 = sub v167, v176
+    v178 = shr v177, 5
+    v179 = lt v178, v175
+    v230 = or v229, v179
+    jumpi v230, bb5, bb30
   bb30:                                           ; preds = bb0
-    v223 = heap_floor !metadata(alloc_ptr)
-    v224 = add v223, 64
-    mstore 64, v224
-    v3 = shl v171, 5
-    v9 = slt v173, v3
+    v227 = heap_floor !metadata(alloc_ptr)
+    v228 = add v227, 64
+    mstore 64, v228
+    v3 = shl v175, 5
+    v9 = slt v177, v3
     jumpi v9, bb5, bb6
   bb6:                                            ; preds = bb30
     v13 = add v3, 32
     v14 = lt v13, 32
     jumpi v14, bb4, bb7
   bb7:                                            ; preds = bb6
-    v217 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v218 = add v217, v13 !metadata(alloc_ptr)
-    mstore 64, v218
-    mstore v217, v171
+    v221 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v222 = add v221, v13 !metadata(alloc_ptr)
+    mstore 64, v222
+    mstore v221, v175
     jump bb1
   bb1:                                            ; preds = bb7, bb10
     v16 = phi [bb7: 0], [bb10: v55]
-    v17 = lt v16, v171
+    v91 = phi [bb7: v177], [bb10: v92]
+    v17 = lt v16, v175
     jumpi v17, bb2, bb3
   bb3:                                            ; preds = bb1
-    v230 = calldataload 4
-    mstore v223, v230
-    v179 = add v223, 32
-    mstore v179, v217
-    v58 = icall @encodeFirst.body, v223
-    v181 = add v58, 32
-    v94 = mload v58
-    v96 = add v181, v94
-    v97 = slt v94, 32
-    jumpi v97, bb5, bb19
+    v234 = calldataload 4
+    mstore v227, v234
+    v183 = add v227, 32
+    mstore v183, v221
+    v58 = icall @encodeFirst.body, v227
+    v185 = add v58, 32
+    v98 = mload v58
+    v100 = add v185, v98
+    v101 = slt v98, 32
+    jumpi v101, bb5, bb19
   bb19:                                           ; preds = bb3
-    v98 = mload v181
-    v100 = add v181, v98
-    v103 = lt v94, v98
-    v104 = sub v96, v100
-    v105 = lt v104, 64
-    v229 = or v103, v105
-    jumpi v229, bb5, bb20
+    v102 = mload v185
+    v104 = add v185, v102
+    v107 = lt v98, v102
+    v108 = sub v100, v104
+    v109 = lt v108, 64
+    v233 = or v107, v109
+    jumpi v233, bb5, bb20
   bb20:                                           ; preds = bb19
-    v221 = mload 64 !metadata(alloc_ptr)
-    v222 = add v221, 64
-    mstore 64, v222
-    v107 = mload v100
-    mstore v221, v107
-    v108 = add v100, 32
-    v109 = mload v108
-    v110 = add v100, v109
-    v112 = add v110, 32
-    v113 = gt v109, 0xffffffffffffffff
-    v114 = lt v96, v112
-    v115 = or v113, v114
-    jumpi v115, bb5, bb21
+    v225 = mload 64 !metadata(alloc_ptr)
+    v226 = add v225, 64
+    mstore 64, v226
+    v111 = mload v104
+    mstore v225, v111
+    v112 = add v104, 32
+    v113 = mload v112
+    v114 = add v104, v113
+    v116 = add v114, 32
+    v117 = gt v113, 0xffffffffffffffff
+    v118 = lt v100, v116
+    v119 = or v117, v118
+    jumpi v119, bb5, bb21
   bb21:                                           ; preds = bb20
-    v117 = mload v110
-    v119 = gt v117, 0x7fffffffffffffe
-    jumpi v119, bb4, bb22
+    v121 = mload v114
+    v123 = gt v121, 0x7fffffffffffffe
+    jumpi v123, bb4, bb22
   bb22:                                           ; preds = bb21
-    v120 = add v117, 1
-    v121 = shl v120, 5
-    v215 = icall @alloc, v121
-    mstore v215, v117
-    v124 = sub v96, v112
-    v125 = shr v124, 5
-    v126 = lt v125, v117
-    jumpi v126, bb5, bb23
+    v124 = add v121, 1
+    v125 = shl v124, 5
+    v219 = icall @alloc, v125
+    mstore v219, v121
+    v128 = sub v100, v116
+    v129 = shr v128, 5
+    v130 = lt v129, v121
+    jumpi v130, bb5, bb23
   bb23:                                           ; preds = bb22
     jump bb24
   bb24:                                           ; preds = bb23, bb29
-    v127 = phi [bb23: v117], [bb29: v158]
-    v128 = phi [bb23: v112], [bb29: v159]
-    v129 = phi [bb23: 0], [bb29: v160]
-    v130 = ne v127, 0
-    jumpi v130, bb25, bb26
+    v131 = phi [bb23: v121], [bb29: v162]
+    v132 = phi [bb23: v116], [bb29: v163]
+    v133 = phi [bb23: 0], [bb29: v164]
+    v134 = ne v131, 0
+    jumpi v134, bb25, bb26
   bb26:                                           ; preds = bb24
-    v196 = add v221, 32
-    mstore v196, v215
-    v60 = mload v221
-    v63 = mload v215
+    v200 = add v225, 32
+    mstore v200, v219
+    v60 = mload v225
+    v63 = mload v219
     v64 = ne v63, 0
     jumpi v64, bb12, bb11
   bb12:                                           ; preds = bb26
-    v188 = add v215, 32
-    v207 = mload v188
-    v68 = mload v207
+    v192 = add v219, 32
+    v211 = mload v192
+    v68 = mload v211
     v69 = ne v68, 0
     jumpi v69, bb13, bb11
   bb13:                                           ; preds = bb12
-    v190 = add v207, 32
-    v72 = mload v190
-    v89 = add v60, v72
-    v90 = lt v89, v60
-    jumpi v90, bb16, bb17
+    v194 = add v211, 32
+    v72 = mload v194
+    v93 = add v60, v72
+    v94 = lt v93, v60
+    jumpi v94, bb16, bb17
   bb17:                                           ; preds = bb13
     v77 = gt v63, 1
     jumpi v77, bb14, bb11
   bb14:                                           ; preds = bb17
-    v192 = add v215, 64
-    v208 = mload v192
-    v81 = mload v208
+    v196 = add v219, 64
+    v212 = mload v196
+    v81 = mload v212
     v82 = ne v81, 0
     jumpi v82, bb15, bb11
   bb11 [cold]:                                    ; preds = bb12, bb14, bb17, bb26
@@ -202,61 +203,60 @@ fn @roundTrip() {
     mstore 0, 0x4e487b71
     revert 28, 36
   bb15:                                           ; preds = bb14
-    v194 = add v208, 32
-    v85 = mload v194
-    v91 = add v89, v85
-    v92 = lt v91, v89
-    jumpi v92, bb16, bb18
+    v198 = add v212, 32
+    v85 = mload v198
+    v95 = add v93, v85
+    v96 = lt v95, v93
+    jumpi v96, bb16, bb18
   bb18:                                           ; preds = bb15
-    mstore 0, v91
+    mstore 0, v95
     returndata 0, 32
   bb16 [cold]:                                    ; preds = bb13, bb15
     tail_call @revert_stub
   bb25:                                           ; preds = bb24
-    v131 = mload v128
-    v132 = add v112, v131
-    v134 = add v132, 32
-    v135 = gt v131, 0xffffffffffffffff
-    v136 = lt v96, v134
-    v137 = or v135, v136
-    jumpi v137, bb5, bb27
+    v135 = mload v132
+    v136 = add v116, v135
+    v138 = add v136, 32
+    v139 = gt v135, 0xffffffffffffffff
+    v140 = lt v100, v138
+    v141 = or v139, v140
+    jumpi v141, bb5, bb27
   bb27:                                           ; preds = bb25
-    v139 = mload v132
-    v141 = gt v139, 0x7fffffffffffffe
-    jumpi v141, bb4, bb28
+    v143 = mload v136
+    v145 = gt v143, 0x7fffffffffffffe
+    jumpi v145, bb4, bb28
   bb28:                                           ; preds = bb27
-    v142 = add v139, 1
-    v143 = shl v142, 5
-    v216 = icall @alloc, v143
-    mstore v216, v139
-    v145 = shl v139, 5
-    v146 = sub v96, v134
-    v147 = shr v146, 5
-    v148 = lt v147, v139
-    jumpi v148, bb5, bb29
+    v146 = add v143, 1
+    v147 = shl v146, 5
+    v220 = icall @alloc, v147
+    mstore v220, v143
+    v149 = shl v143, 5
+    v150 = sub v100, v138
+    v151 = shr v150, 5
+    v152 = lt v151, v143
+    jumpi v152, bb5, bb29
   bb29:                                           ; preds = bb28
-    v198 = add v216, 32
-    mcopy v198, v134, v145
-    v154 = shl v129, 5
-    v200 = add v215, v154
-    v201 = add v200, 32
-    mstore v201, v216
-    v158 = sub v127, 1
-    v159 = add v128, 32
-    v160 = add v129, 1
+    v202 = add v220, 32
+    mcopy v202, v138, v149
+    v158 = shl v133, 5
+    v204 = add v219, v158
+    v205 = add v204, 32
+    mstore v205, v220
+    v162 = sub v131, 1
+    v163 = add v132, 32
+    v164 = add v133, 1
     jump bb24
   bb2:                                            ; preds = bb1
     v18 = shl v16, 5
-    v20 = add v172, v18
-    v22 = sub v163, v20
-    v23 = slt v22, 32
+    v23 = slt v91, 32
+    v20 = add v176, v18
     v24 = calldataload v20
-    v26 = add v172, v24
-    v30 = sub v173, 31
+    v26 = add v176, v24
+    v30 = sub v177, 31
     v31 = slt v24, v30
-    v227 = eq v31, false
-    v228 = or v23, v227
-    jumpi v228, bb5, bb8
+    v231 = eq v31, false
+    v232 = or v23, v231
+    jumpi v232, bb5, bb8
   bb8:                                            ; preds = bb2
     v33 = calldataload v26
     v87 = shr v33, 64
@@ -265,21 +265,22 @@ fn @roundTrip() {
   bb9:                                            ; preds = bb8
     v36 = shl v33, 5
     v37 = add v26, 32
-    v38 = sub v163, v36
+    v38 = sub v167, v36
     v39 = slt v38, v37
     jumpi v39, bb5, bb10
   bb10:                                           ; preds = bb9
     v43 = add v36, 32
-    v219 = mload 64 !metadata(alloc_ptr)
-    v220 = add v219, v43 !metadata(alloc_ptr)
-    mstore 64, v220
-    mstore v219, v33
-    v183 = add v219, 32
-    calldatacopy v183, v37, v36
-    v185 = add v217, v18
-    v186 = add v185, 32
-    mstore v186, v219
+    v223 = mload 64 !metadata(alloc_ptr)
+    v224 = add v223, v43 !metadata(alloc_ptr)
+    mstore 64, v224
+    mstore v223, v33
+    v187 = add v223, 32
+    calldatacopy v187, v37, v36
+    v189 = add v221, v18
+    v190 = add v189, 32
+    mstore v190, v223
     v55 = add v16, 1
+    v92 = sub v91, 32
     jump bb1
   bb4 [cold]:                                     ; preds = bb6, bb21, bb27
     mstore 32, 65
