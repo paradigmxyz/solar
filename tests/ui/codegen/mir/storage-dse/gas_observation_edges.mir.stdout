@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/storage-dse/gas_observation_edges.sol:GasObservationEdges ===
+; === ROOT/tests/ui/codegen/mir/storage-dse/gas_observation_edges.sol:GasObservationEdges ===
 @module GasObservationEdges
 ; function helperReturn(uint256 h) external returns (uint256) [selector 0x9c6d4c69]
 fn @helperReturn(arg0: i256) -> i256 [selector=0x9c6d4c69, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -180,11 +180,11 @@ fn @readThenReturn() [view] {
     v2 = zext i1 v1 to i256
     v3 = ne v2, 0
     jumpi v3, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     ret
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert 0, 0
 }
 
@@ -192,11 +192,11 @@ fn @readThenReturn() [view] {
 fn @readThenRevert(arg0: i1) [view] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     ret
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v0 = gas
     mstore 0, v0 !metadata(memory=scratch)
     revert 0, 32
@@ -214,13 +214,13 @@ fn @recurse(arg0: i256) [view] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v1 = checked_sub uint256, arg0, 1
     icall @recurse, v1
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     icall @readThenReturn
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     ret
 }

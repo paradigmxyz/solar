@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/storage-dse/packed_writes.sol:PackedWrites ===
+; === ROOT/tests/ui/codegen/mir/storage-dse/packed_writes.sol:PackedWrites ===
 @module PackedWrites
 @phase lowered
 ; runtime dispatch entry
@@ -7,25 +7,25 @@ fn @entry() [entry] {
     v0 = callvalue
     v1 = ne v0, 0
     jumpi v1, bb9, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v2 = calldataload 0
     v3 = shr v2, 224
     switch v3, default bb9, [0x207ea53d => bb2, 0x302e678f => bb3, 0x3fda5389 => bb4, 0x6eff5374 => bb5, 0x74749eae => bb6, 0x7861d269 => bb7, 0x9fe538de => bb8]
-  bb8:  ; preds = bb1
+  bb8:                                            ; preds = bb1
     tail_call @callBetween
-  bb7:  ; preds = bb1
+  bb7:                                            ; preds = bb1
     tail_call @peek
-  bb6:  ; preds = bb1
+  bb6:                                            ; preds = bb1
     tail_call @guarded
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     tail_call @twoSlots
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     tail_call @fill
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     tail_call @raw
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     tail_call @measured
-  bb9 [cold]:  ; preds = bb0, bb1
+  bb9 [cold]:                                     ; preds = bb0, bb1
     revert 0, 0
 }
 
@@ -35,7 +35,7 @@ fn @fill() {
     v22 = calldatasize
     v23 = lt v22, 36
     jumpi v23, bb3, bb5
-  bb5:  ; preds = bb0
+  bb5:                                            ; preds = bb0
     v24 = calldataload 4
     mstore 0, v24 !metadata(memory=scratch)
     mstore 32, 0 !metadata(memory=scratch)
@@ -47,20 +47,20 @@ fn @fill() {
     mstore 32, v24
     v16 = staticcall v14, v13, 28, 36, 0, 32
     jumpi v16, bb2, bb1
-  bb1 [cold]:  ; preds = bb5
+  bb1 [cold]:                                     ; preds = bb5
     v20 = returndatasize
     returndatacopy 0, 0, v20 !metadata(memory=abi_return)
     v21 = returndatasize
     revert 0, v21
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     v17 = returndatasize
     v18 = lt v17, 32
     jumpi v18, bb3, bb4
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v19 = mload 0 !metadata(memory=scratch)
     mstore 0, v19 !metadata(memory=scratch)
     returndata 0, 32
-  bb3 [cold]:  ; preds = bb0, bb2
+  bb3 [cold]:                                     ; preds = bb0, bb2
     revert 0, 0
 }
 
@@ -70,7 +70,7 @@ fn @callBetween() {
     v30 = calldatasize
     v31 = lt v30, 36
     jumpi v31, bb4, bb7
-  bb7:  ; preds = bb0
+  bb7:                                            ; preds = bb0
     v32 = calldataload 4
     mstore 0, v32 !metadata(memory=scratch)
     mstore 32, 0 !metadata(memory=scratch)
@@ -85,11 +85,11 @@ fn @callBetween() {
     mstore 32, v32
     v7 = staticcall v5, v4, 28, 36, 0, 32
     jumpi v7, bb2, bb1
-  bb2:  ; preds = bb7
+  bb2:                                            ; preds = bb7
     v8 = returndatasize
     v9 = lt v8, 32
     jumpi v9, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     v13 = and v3, 0xffffffffffffffffffffffffffffff000000000000000000000000000000ffff
     v10 = mload 0 !metadata(memory=scratch)
     v35 = shl v10, 136
@@ -103,20 +103,20 @@ fn @callBetween() {
     mstore 32, v32
     v24 = staticcall v22, v4, 28, 36, 0, 32
     jumpi v24, bb3, bb1
-  bb1 [cold]:  ; preds = bb5, bb7
+  bb1 [cold]:                                     ; preds = bb5, bb7
     v28 = returndatasize
     returndatacopy 0, 0, v28 !metadata(memory=abi_return)
     v29 = returndatasize
     revert 0, v29
-  bb3:  ; preds = bb5
+  bb3:                                            ; preds = bb5
     v25 = returndatasize
     v26 = lt v25, 32
     jumpi v26, bb4, bb6
-  bb6:  ; preds = bb3
+  bb6:                                            ; preds = bb3
     v27 = mload 0 !metadata(memory=scratch)
     mstore 0, v27 !metadata(memory=scratch)
     returndata 0, 32
-  bb4 [cold]:  ; preds = bb0, bb2, bb3
+  bb4 [cold]:                                     ; preds = bb0, bb2, bb3
     revert 0, 0
 }
 
@@ -126,7 +126,7 @@ fn @twoSlots() {
     v29 = calldatasize
     v30 = lt v29, 68
     jumpi v30, bb4, bb7
-  bb7:  ; preds = bb0
+  bb7:                                            ; preds = bb0
     v31 = calldataload 4
     v32 = calldataload 36
     mstore 0, v31 !metadata(memory=scratch)
@@ -152,32 +152,32 @@ fn @twoSlots() {
     mstore 32, v31
     v14 = staticcall v12, v11, 28, 36, 0, 32
     jumpi v14, bb2, bb1
-  bb2:  ; preds = bb7
+  bb2:                                            ; preds = bb7
     v15 = returndatasize
     v16 = lt v15, 32
     jumpi v16, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     v17 = mload 0 !metadata(memory=scratch)
     v19 = gas
     mstore 0, 0x302e678f !metadata(memory=scratch)
     mstore 32, v32
     v21 = staticcall v19, v11, 28, 36, 0, 32
     jumpi v21, bb3, bb1
-  bb1 [cold]:  ; preds = bb5, bb7
+  bb1 [cold]:                                     ; preds = bb5, bb7
     v27 = returndatasize
     returndatacopy 0, 0, v27 !metadata(memory=abi_return)
     v28 = returndatasize
     revert 0, v28
-  bb3:  ; preds = bb5
+  bb3:                                            ; preds = bb5
     v22 = returndatasize
     v23 = lt v22, 32
     jumpi v23, bb4, bb6
-  bb6:  ; preds = bb3
+  bb6:                                            ; preds = bb3
     v24 = mload 0 !metadata(memory=scratch)
     mstore 0, v17 !metadata(memory=scratch)
     mstore 32, v24 !metadata(memory=scratch)
     returndata 0, 64
-  bb4 [cold]:  ; preds = bb0, bb2, bb3
+  bb4 [cold]:                                     ; preds = bb0, bb2, bb3
     revert 0, 0
 }
 
@@ -192,7 +192,7 @@ fn @guarded() {
     v40 = or v30, v39
     v41 = ne v40, 0
     jumpi v41, bb5, bb7
-  bb7:  ; preds = bb0
+  bb7:                                            ; preds = bb0
     v42 = calldataload 4
     mstore 0, v42 !metadata(memory=scratch)
     mstore 32, 0 !metadata(memory=scratch)
@@ -201,12 +201,12 @@ fn @guarded() {
     v38 = and v1, 255
     v4 = eq v38, 0
     jumpi v4, bb1, bb2
-  bb1:  ; preds = bb7
+  bb1:                                            ; preds = bb7
     v43 = calldataload 36
     v37 = ne v43, 0
     icall @bubble, v37
     jump bb2
-  bb2:  ; preds = bb1, bb7
+  bb2:                                            ; preds = bb1, bb7
     sstore v35, 0x10000000000000000000000000000010001
     v17: i256 = address
     v18 = gas
@@ -214,20 +214,20 @@ fn @guarded() {
     mstore 32, v42
     v20 = staticcall v18, v17, 28, 36, 0, 32
     jumpi v20, bb4, bb3
-  bb3 [cold]:  ; preds = bb2
+  bb3 [cold]:                                     ; preds = bb2
     v24 = returndatasize
     returndatacopy 0, 0, v24 !metadata(memory=abi_return)
     v25 = returndatasize
     revert 0, v25
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v21 = returndatasize
     v22 = lt v21, 32
     jumpi v22, bb5, bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     v23 = mload 0 !metadata(memory=scratch)
     mstore 0, v23 !metadata(memory=scratch)
     returndata 0, 32
-  bb5 [cold]:  ; preds = bb4, bb0
+  bb5 [cold]:                                     ; preds = bb4, bb0
     revert 0, 0
 }
 
@@ -237,7 +237,7 @@ fn @measured() {
     v18 = calldatasize
     v19 = lt v18, 36
     jumpi v19, bb3, bb4
-  bb4:  ; preds = bb0
+  bb4:                                            ; preds = bb0
     v20 = calldataload 4
     mstore 0, v20 !metadata(memory=scratch)
     mstore 32, 0 !metadata(memory=scratch)
@@ -262,14 +262,14 @@ fn @measured() {
     v16 = sub v1, v14
     v17 = lt v1, v14
     jumpi v17, bb1, bb2
-  bb2:  ; preds = bb4
+  bb2:                                            ; preds = bb4
     mstore 0, v16 !metadata(memory=scratch)
     returndata 0, 32
-  bb1 [cold]:  ; preds = bb4
+  bb1 [cold]:                                     ; preds = bb4
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3 [cold]:  ; preds = bb0
+  bb3 [cold]:                                     ; preds = bb0
     revert 0, 0
 }
 
@@ -279,7 +279,7 @@ fn @peek() {
     v10 = calldatasize
     v11 = lt v10, 36
     jumpi v11, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v12 = calldataload 4
     mstore 0, v12 !metadata(memory=scratch)
     mstore 32, 0 !metadata(memory=scratch)
@@ -292,7 +292,7 @@ fn @peek() {
     v8 = add v7, 3
     mstore 0, v8
     returndata 0, 32
-  bb1 [cold]:  ; preds = bb0
+  bb1 [cold]:                                     ; preds = bb0
     revert 0, 0
 }
 
@@ -302,7 +302,7 @@ fn @raw() {
     v2 = calldatasize
     v3 = lt v2, 36
     jumpi v3, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = calldataload 4
     mstore 0, v4 !metadata(memory=scratch)
     mstore 32, 0 !metadata(memory=scratch)
@@ -310,7 +310,7 @@ fn @raw() {
     v1 = sload v5
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
-  bb1 [cold]:  ; preds = bb0
+  bb1 [cold]:                                     ; preds = bb0
     revert 0, 0
 }
 
@@ -318,9 +318,9 @@ fn @raw() {
 fn @bubble(arg0: i1) {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     ret
-  bb1 [cold]:  ; preds = bb0
+  bb1 [cold]:                                     ; preds = bb0
     icall @gasCheck
     revert 0, 0
 }
@@ -331,8 +331,8 @@ fn @gasCheck() {
     v0 = gas
     v1 = lt v0, 10
     jumpi v1, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     ret
-  bb1 [cold]:  ; preds = bb0
+  bb1 [cold]:                                     ; preds = bb0
     revert 0, 0
 }
