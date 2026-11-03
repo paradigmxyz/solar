@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/evm-ir/dce/final_cleanup.evmir (after pipeline-default) ===
+; === ROOT/tests/ui/codegen/evm-ir/dce/final_cleanup.evmir (after pipeline-default) ===
 @module FinalDceCleanup
 bb0:
   push 320

@@ -51,6 +51,7 @@
 
 use super::{
     EvmPass,
+    block_layout::terminator_kind,
     cfg_simplify::is_direct_jump_label,
     utils::{
         FreshLabels, MachineInstKey, instruction_size_lower_bound, is_split_point,
@@ -469,7 +470,7 @@ fn has_short_word_backedge(module: &Module, header: BlockId) -> bool {
         pair[1].as_evm_opcode() == Some(op::JUMPI)
             && pair[0].pushed_block().is_some_and(|target| {
                 let latch = &module.blocks[target];
-                matches!(latch.terminator.as_ref().map(|term| &term.kind),
+                matches!(terminator_kind(latch),
                     Some(TerminatorKind::Jump(back)) if *back == header)
                     && latch.instructions.len() <= 24
                     && word_loop_input_width(&latch.instructions)

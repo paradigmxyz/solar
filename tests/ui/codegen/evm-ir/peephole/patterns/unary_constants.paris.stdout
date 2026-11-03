@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/unary_constants.evmir (before peephole) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/unary_constants.evmir (after peephole) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/unary_constants.evmir (before peephole) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/unary_constants.evmir (after peephole) ===
   @module UnaryConstants
   bb0:
 +   push 1

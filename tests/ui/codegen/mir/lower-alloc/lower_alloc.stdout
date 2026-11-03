@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lower-alloc/lower_alloc.mir (before lower-alloc) ===
-+ // === ROOT/tests/ui/codegen/mir/lower-alloc/lower_alloc.mir (after lower-alloc) ===
+- ; === ROOT/tests/ui/codegen/mir/lower-alloc/lower_alloc.mir (before lower-alloc) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-alloc/lower_alloc.mir (after lower-alloc) ===
   @module LowerAlloc
   fn @operations(arg0: i256) -> i256 {
     bb0:

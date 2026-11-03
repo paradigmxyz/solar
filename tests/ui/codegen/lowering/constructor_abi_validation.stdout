@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/constructor_abi_validation.sol:ConstructorAbiValidation ===
+; === ROOT/tests/ui/codegen/lowering/constructor_abi_validation.sol:ConstructorAbiValidation ===
 @module ConstructorAbiValidation
 ; constructor(bool flag_, bool[2] memory flags) [creation entry]
 fn @constructor(arg0: i1, arg1: ptr<memory>) [constructor, abi_params=[bool, array<2, bool>]] {

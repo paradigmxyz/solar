@@ -590,7 +590,7 @@ impl Range {
     /// Rotates unsigned order into signed order, or back, widening a split interval.
     fn flip_sign(self, bits: u32) -> Self {
         if self.sign(bits).is_some() {
-            let sign = U256::from(1) << (bits - 1);
+            let sign = U256::ONE << (bits - 1);
             Self::new(self.lo ^ sign, self.hi ^ sign)
         } else {
             Self::new(U256::ZERO, U256::MAX >> (256 - bits))
@@ -1818,7 +1818,7 @@ impl<'a> CheckEliminator<'a> {
     fn assume(&mut self, func: &Function, value: ValueId, truth: bool, depth: usize) {
         // The condition value itself is now known nonzero or zero.
         if truth {
-            self.narrow(value, Range::new(U256::from(1), U256::MAX));
+            self.narrow(value, Range::new(U256::ONE, U256::MAX));
         } else {
             self.narrow(value, Range::singleton(U256::ZERO));
         }
@@ -1851,11 +1851,11 @@ impl<'a> CheckEliminator<'a> {
                     && shift > U256::ZERO
                     && shift < U256::from(256) =>
             {
-                let bound = U256::from(1) << shift.to::<usize>();
+                let bound = U256::ONE << shift.to::<usize>();
                 if truth {
                     self.narrow(x, Range::new(bound, U256::MAX));
                 } else {
-                    self.narrow(x, Range::new(U256::ZERO, bound - U256::from(1)));
+                    self.narrow(x, Range::new(U256::ZERO, bound - U256::ONE));
                 }
                 self.narrow_summand(func, x, depth);
             }
@@ -1870,12 +1870,12 @@ impl<'a> CheckEliminator<'a> {
             // a < b <= hi(b)  =>  a <= hi(b) - 1
             let hi_b = self.range_of(func, b, depth).hi;
             if hi_b > U256::ZERO {
-                self.narrow(a, Range::new(U256::ZERO, hi_b - U256::from(1)));
+                self.narrow(a, Range::new(U256::ZERO, hi_b - U256::ONE));
             }
             // lo(a) <= a < b  =>  b >= lo(a) + 1
             let lo_a = self.range_of(func, a, depth).lo;
             if lo_a < U256::MAX {
-                self.narrow(b, Range::new(lo_a + U256::from(1), U256::MAX));
+                self.narrow(b, Range::new(lo_a + U256::ONE, U256::MAX));
             }
         } else {
             // !(a < b)  =>  b <= a
@@ -1902,8 +1902,8 @@ impl<'a> CheckEliminator<'a> {
         let rb = rb.flip_sign(bits);
         let (a_limit, b_limit) = if truth {
             (
-                Range::new(U256::ZERO, rb.hi.saturating_sub(U256::from(1))),
-                Range::new(ra.lo.saturating_add(U256::from(1)), integer_max(func, a)),
+                Range::new(U256::ZERO, rb.hi.saturating_sub(U256::ONE)),
+                Range::new(ra.lo.saturating_add(U256::ONE), integer_max(func, a)),
             )
         } else {
             (Range::new(rb.lo, integer_max(func, a)), Range::new(U256::ZERO, ra.hi))
@@ -2064,9 +2064,9 @@ impl<'a> CheckEliminator<'a> {
             return;
         }
         if ra.lo == rb.lo {
-            self.narrow(a, Range::new(ra.lo + U256::from(1), ra.hi));
+            self.narrow(a, Range::new(ra.lo + U256::ONE, ra.hi));
         } else if ra.hi == rb.hi {
-            self.narrow(a, Range::new(ra.lo, ra.hi - U256::from(1)));
+            self.narrow(a, Range::new(ra.lo, ra.hi - U256::ONE));
         }
     }
 
@@ -2541,7 +2541,7 @@ impl<'a> CheckEliminator<'a> {
                 // less than the divisor and never exceeds the dividend.
                 let ra = self.range_of(func, a, depth);
                 let rb = self.range_of(func, b, depth);
-                let bound = if rb.hi > U256::ZERO { rb.hi - U256::from(1) } else { U256::ZERO };
+                let bound = if rb.hi > U256::ZERO { rb.hi - U256::ONE } else { U256::ZERO };
                 Range::new(U256::ZERO, bound.min(ra.hi))
             }
             InstKind::And(a, b) => {
@@ -2590,9 +2590,9 @@ impl<'a> CheckEliminator<'a> {
             | InstKind::SGt(..)
             | InstKind::Eq(..)
             | InstKind::Ne(..) => match self.eval_truth(func, value, depth) {
-                Some(true) => Range::singleton(U256::from(1)),
+                Some(true) => Range::singleton(U256::ONE),
                 Some(false) => Range::singleton(U256::ZERO),
-                None => Range::new(U256::ZERO, U256::from(1)),
+                None => Range::new(U256::ZERO, U256::ONE),
             },
             InstKind::Select(condition, then_value, else_value) => {
                 match self.eval_truth(func, condition, depth) {
@@ -2646,7 +2646,7 @@ impl<'a> CheckEliminator<'a> {
                     return Some(false);
                 }
                 // Bitwise AND of two values both known to be exactly one.
-                let one = Range::singleton(U256::from(1));
+                let one = Range::singleton(U256::ONE);
                 if self.range_of(func, a, depth) == one && self.range_of(func, b, depth) == one {
                     return Some(true);
                 }
@@ -2870,7 +2870,7 @@ impl<'a> CheckEliminator<'a> {
         // Its doubling form `eq (shr (add x, x), 1), x` holds iff `x + x` did not wrap.
         for (shifted, expected) in [(a, b), (b, a)] {
             if let Some(&InstKind::Shr(count, sum)) = inst_kind(func, shifted)
-                && func.value_u256(count) == Some(U256::from(1))
+                && func.value_u256(count) == Some(U256::ONE)
                 && doubled(func, sum) == Some((expected, false))
                 && self.range_of(func, expected, depth).hi <= integer_max(func, expected) >> 1
             {
@@ -3498,9 +3498,9 @@ fn doubled(func: &Function, value: ValueId) -> Option<(ValueId, bool)> {
     match *inst_kind(func, value)? {
         InstKind::Add(a, b) if a == b => Some((a, false)),
         InstKind::Add(a, b) => {
-            let inner = if func.value_u256(b) == Some(U256::from(1)) {
+            let inner = if func.value_u256(b) == Some(U256::ONE) {
                 a
-            } else if func.value_u256(a) == Some(U256::from(1)) {
+            } else if func.value_u256(a) == Some(U256::ONE) {
                 b
             } else {
                 return None;
@@ -3587,7 +3587,7 @@ fn shifted_high_mask_inputs(
 
 fn low_mask_input(func: &Function, kind: &InstKind) -> Option<(ValueId, U256)> {
     let (value, mask) = masked_input(func, kind)?;
-    (mask.wrapping_add(U256::ONE) & mask == U256::ZERO).then_some((value, mask))
+    (mask.wrapping_add(U256::ONE) & mask).is_zero().then_some((value, mask))
 }
 
 /// An `eq` or `ne` of a value with an immediate that `target` prices as cheap to read, whose

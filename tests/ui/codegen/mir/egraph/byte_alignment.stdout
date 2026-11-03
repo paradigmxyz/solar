@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/egraph/byte_alignment.mir (before egraph) ===
-+ // === ROOT/tests/ui/codegen/mir/egraph/byte_alignment.mir (after egraph) ===
+- ; === ROOT/tests/ui/codegen/mir/egraph/byte_alignment.mir (before egraph) ===
++ ; === ROOT/tests/ui/codegen/mir/egraph/byte_alignment.mir (after egraph) ===
   @module ByteAlignment
   fn @aligned_byte(arg0: i256) -> i256 {
     bb0:

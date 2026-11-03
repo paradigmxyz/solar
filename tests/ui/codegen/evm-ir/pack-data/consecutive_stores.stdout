@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/pack-data/consecutive_stores.evmir (before pack-data) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/pack-data/consecutive_stores.evmir (after pack-data) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/pack-data/consecutive_stores.evmir (before pack-data) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/pack-data/consecutive_stores.evmir (after pack-data) ===
   @module module
   @libraries
     L_0: "A.sol:L"

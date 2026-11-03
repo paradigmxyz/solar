@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_static_struct_alias.sol:AbiDecodeStaticStructAlias ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_static_struct_alias.sol:AbiDecodeStaticStructAlias ===
 @module AbiDecodeStaticStructAlias
 ; function mutateFirst(bytes memory encoded) external pure returns (uint256) [selector 0x781f0687]
 fn @mutateFirst(arg0: ptr<memory>) -> i256 [selector=0x781f0687, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
@@ -44,9 +44,9 @@ fn @mutateAliasInner(arg0: ptr<memory>, arg1: ptr<memory>) -> i256 [pure] {
     v1 = mload arg1
     v2 = eq v1, 0
     jumpi v2, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v3 = mload arg1
     v4 = gt v3, 31
     v5 = eq v4, false
@@ -56,6 +56,6 @@ fn @mutateAliasInner(arg0: ptr<memory>, arg1: ptr<memory>) -> i256 [pure] {
     mstore8 v7, v6
     v8 = mload v0
     ret v8
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     ret 0
 }

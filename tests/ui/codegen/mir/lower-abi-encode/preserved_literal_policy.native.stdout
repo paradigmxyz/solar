@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lower-abi-encode/preserved_literal_policy.mir (before lower-abi-encode) ===
-+ // === ROOT/tests/ui/codegen/mir/lower-abi-encode/preserved_literal_policy.mir (after lower-abi-encode) ===
+- ; === ROOT/tests/ui/codegen/mir/lower-abi-encode/preserved_literal_policy.mir (before lower-abi-encode) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-abi-encode/preserved_literal_policy.mir (after lower-abi-encode) ===
   @module PreservedLiteralPolicy
   fn @reserved() -> slice<memory> {
     bb0:

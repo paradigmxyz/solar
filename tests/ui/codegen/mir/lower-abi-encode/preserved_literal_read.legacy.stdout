@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lower-abi-encode/preserved_literal_read.mir (before lower-abi-encode) ===
-+ // === ROOT/tests/ui/codegen/mir/lower-abi-encode/preserved_literal_read.mir (after lower-abi-encode) ===
+- ; === ROOT/tests/ui/codegen/mir/lower-abi-encode/preserved_literal_read.mir (before lower-abi-encode) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-abi-encode/preserved_literal_read.mir (after lower-abi-encode) ===
   @module PreservedLiteralRead
   fn @read_after_encode() -> i256 {
     bb0:

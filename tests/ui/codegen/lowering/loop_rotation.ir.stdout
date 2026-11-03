@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/loop_rotation.sol:LoopRotation (runtime) ===
+; === ROOT/tests/ui/codegen/lowering/loop_rotation.sol:LoopRotation (runtime) ===
 CALLVALUE
 PUSH1 0x65 ; bb2
 JUMPI

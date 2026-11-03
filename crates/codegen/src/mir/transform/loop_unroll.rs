@@ -798,7 +798,7 @@ fn counter(func: &Function, l: &Loop, shape: &Shape) -> Option<Counter> {
         return None;
     }
     let test = match test {
-        Test::AtMost if step == U256::from(1) => Test::UpTo,
+        Test::AtMost if step == U256::ONE => Test::UpTo,
         test => test,
     };
     let trips = match (test, func.value_u256(start), func.value_u256(bound)) {
@@ -808,7 +808,7 @@ fn counter(func: &Function, l: &Loop, shape: &Shape) -> Option<Counter> {
             } else {
                 limit
                     .checked_sub(start)
-                    .map_or(Some(U256::ZERO), |left| (left / step).checked_add(U256::from(1)))
+                    .map_or(Some(U256::ZERO), |left| (left / step).checked_add(U256::ONE))
             };
             // The final update must reach the failing test without wrapping below the bound.
             trips.filter(|&trips| {
@@ -826,7 +826,7 @@ fn counter(func: &Function, l: &Loop, shape: &Shape) -> Option<Counter> {
         }
         _ => None,
     };
-    let trips = trips.map(|trips| u64::try_from(trips).unwrap_or(u64::MAX));
+    let trips = trips.map(|trips| trips.saturating_to::<u64>());
     Some(Counter { test, word, bound, start, step, trips })
 }
 
@@ -846,10 +846,10 @@ fn max_trips(
         Test::Below => limit.saturating_sub(start).div_ceil(step),
         Test::AtMost | Test::UpTo => limit
             .checked_sub(start)
-            .map_or(U256::ZERO, |left| (left / step).saturating_add(U256::from(1))),
+            .map_or(U256::ZERO, |left| (left / step).saturating_add(U256::ONE)),
         Test::Reaches => return None,
     };
-    Some(u64::try_from(trips).unwrap_or(u64::MAX))
+    Some(trips.saturating_to::<u64>())
 }
 
 /// How much lifetime gas the tests and jumps the main loop skips save over the deposit of its
@@ -886,7 +886,7 @@ fn lifetime_saving(
         // Every pair skips a test and a back edge, and entering the loop tests the parity of
         // the remaining count once.
         MainTest::Parity => {
-            let mut parity = tested + target.opcode(op::AND) + target.push(U256::from(1));
+            let mut parity = tested + target.opcode(op::AND) + target.push(U256::ONE);
             let zeros = step.trailing_zeros();
             if zeros != 0 {
                 parity += target.opcode(op::SHR) + target.push(U256::from(zeros));
@@ -952,7 +952,7 @@ fn plan_reverse(
     }
     match *func.value_inst_kind(next)? {
         InstKind::Add(a, b) | InstKind::Add(b, a)
-            if a == counter && func.value_u256(b) == Some(U256::from(1)) => {}
+            if a == counter && func.value_u256(b) == Some(U256::ONE) => {}
         _ => return None,
     }
     // The counter, its increment and its test have no other readers.
@@ -1287,7 +1287,7 @@ fn apply(func: &mut Function, unroll: &Unroll) -> BlockId {
             };
         }
         // Integer conversions are already lowered here, so mask the low bit.
-        let one = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(1))));
+        let one = func.alloc_value(Value::Immediate(Immediate::I256(U256::ONE)));
         let bit = append(func, check, InstKind::And(left, one), MirType::I256);
         let zero = func.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
         let odd = append(func, check, InstKind::Ne(bit, zero), MirType::I1);

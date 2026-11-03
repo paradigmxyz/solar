@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lower-alloc/reserved_encoding.mir (before lower-alloc) ===
-+ // === ROOT/tests/ui/codegen/mir/lower-alloc/reserved_encoding.mir (after lower-alloc) ===
+- ; === ROOT/tests/ui/codegen/mir/lower-alloc/reserved_encoding.mir (before lower-alloc) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-alloc/reserved_encoding.mir (after lower-alloc) ===
   @module ReservedEncoding
   fn @reserve(arg0: i256, arg1: i256) -> i256 {
     bb0:

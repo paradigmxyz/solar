@@ -47,7 +47,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             LitKind::Number(value) => Some(self.builder.imm(value)),
             LitKind::Bool(value) => Some(self.builder.imm_bool(value)),
             LitKind::Address(value) => Some(self.builder.alloc_value(Value::Immediate(
-                Immediate::for_type(Some(MirType::I160), U256::from_be_slice(value.as_slice())),
+                Immediate::for_type(Some(MirType::I160), value.into_word().into()),
             ))),
             _ => self.cx.report_unsupported(span, "literal"),
         }

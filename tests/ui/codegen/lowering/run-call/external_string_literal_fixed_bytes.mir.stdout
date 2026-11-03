@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/external_string_literal_fixed_bytes.sol:ExternalStringLiteralFixedBytes ===
+; === ROOT/tests/ui/codegen/lowering/run-call/external_string_literal_fixed_bytes.sol:ExternalStringLiteralFixedBytes ===
 @module ExternalStringLiteralFixedBytes
 ; function take(bytes32 value) external pure returns (bytes32) [selector 0xcc9ae693]
 fn @take(arg0: i256) -> i256 [selector=0xcc9ae693, pure, abi_params=[bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -16,9 +16,9 @@ fn @callLiteral() -> i256 [selector=0x74903211, view, abi_params=[], abi_returns
     v2 = zext i160 v0 to i256
     v3 = staticcall v1, v2, 28, 36, 0, 32
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = returndatasize
     v5 = lt v4, 32
     icall revert_if<tuple_data_too_short>, v5

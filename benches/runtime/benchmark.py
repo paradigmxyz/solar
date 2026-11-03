@@ -475,7 +475,7 @@ def artifact_compiler_input(input_text: str, test_case: TestCase, kind: str) -> 
 
 
 SOLAR_DUMP_HEADING = re.compile(
-    r"^// === (?P<name>.+?)(?: \((?P<kind>creation|runtime|deployment)\))? ===$",
+    r"^(?:;|//) === (?P<name>.+?)(?: \((?P<kind>creation|runtime|deployment)\))? ===$",
     re.MULTILINE,
 )
 # An inlined library or an abstract contract has no code but a reverting entry.

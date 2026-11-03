@@ -323,13 +323,13 @@ impl Module {
     ) -> solar_interface::Result<LoweredModule<'_>> {
         let dcx = &sess.dcx;
         if self.phase != MirPhase::Lowered {
-            return Err(dcx
-                .err(format!(
+            return Err(dcx.emit_err(
+                self.name.span,
+                format!(
                     "EVM codegen requires MIR in the `lowered` phase, stopped at `{}`",
                     self.phase.name(),
-                ))
-                .span(self.name.span)
-                .emit());
+                ),
+            ));
         }
         if recheck || !self.lowered_checked {
             crate::analysis::validate_phase(
@@ -897,7 +897,7 @@ impl Module {
                 writeln!(f)?;
             }
             if let Some(layout) = &self.backend_memory {
-                writeln!(f, "{}", layout.display(self))?;
+                writeln!(f, "{}", layout.display(self, ";"))?;
             }
             let (receive, fallback) = (self.receive(), self.fallback());
             write!(
@@ -923,7 +923,7 @@ impl Module {
     pub fn to_dot(&self) -> impl fmt::Display + '_ {
         fmt::from_fn(move |f| {
             if let Some(layout) = &self.backend_memory {
-                writeln!(f, "{}", layout.display(self))?;
+                writeln!(f, "{}", layout.display(self, "//"))?;
             }
             write!(
                 f,

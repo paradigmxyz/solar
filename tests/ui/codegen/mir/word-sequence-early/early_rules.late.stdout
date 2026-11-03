@@ -1,0 +1,14 @@
+- // === ROOT/tests/ui/codegen/mir/word-sequence-early/early_rules.mir (before word-sequence) ===
++ // === ROOT/tests/ui/codegen/mir/word-sequence-early/early_rules.mir (after word-sequence) ===
+  @module WordSequenceEarlyRules
+  fn @selectors(arg0: i256) -> i1 {
+    bb0:
+-     v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
++     v4 = shr arg0, 224
++     v0 = shl v4, 224
+      v1 = eq v0, 0x1ffc9a700000000000000000000000000000000000000000000000000000000
+      v2 = eq v0, 0x80ac58cd00000000000000000000000000000000000000000000000000000000
+      v3 = or v1, v2
+      ret v3
+  }
+  

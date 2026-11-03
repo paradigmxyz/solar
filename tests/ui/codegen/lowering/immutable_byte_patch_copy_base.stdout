@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/immutable_byte_patch_copy_base.sol:ImmutableBytePatchCopyBase (deployment) ===
+; === ROOT/tests/ui/codegen/lowering/immutable_byte_patch_copy_base.sol:ImmutableBytePatchCopyBase (deployment) ===
 PUSH1 0xfd
 CODESIZE
 SUB

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/abi_encode_call.sol:AbiEncodeCall ===
+; === ROOT/tests/ui/codegen/lowering/abi_encode_call.sol:AbiEncodeCall ===
 @module AbiEncodeCall
 @phase lowered
 ; runtime dispatch entry
@@ -11,15 +11,15 @@ fn @entry() [entry] {
     v7 = or v0, v6
     v8 = ne v7, 0
     jumpi v8, bb4, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v4 = calldataload 0
     v5 = shr v4, 224
     switch v5, default bb4, [0x23d014a1 => bb2, 0x440a9300 => bb3]
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     tail_call @asValue
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     tail_call @viaCall
-  bb4 [cold]:  ; preds = bb0, bb1
+  bb4 [cold]:                                     ; preds = bb0, bb1
     revert 0, 0
 }
 
@@ -34,7 +34,7 @@ fn @asValue() {
     v61 = or v5, v60
     v62 = ne v61, 0
     jumpi v62, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v63 = calldataload 4
     v7 = calldataload 36
     v56 = heap_floor !metadata(alloc_ptr)
@@ -49,13 +49,13 @@ fn @asValue() {
     mstore v16, v7
     v18 = lt v56, 32
     jumpi v18, bb3, bb4
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v42 = add v49, 68
     mstore v42, 0
     v53 = sub v56, 32
     mstore v53, 32
     jump bb5
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v58 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v21 = add v58, 32
     mstore v58, 32
@@ -65,10 +65,10 @@ fn @asValue() {
     mstore v21, 68
     mcopy v27, v49, 68 !metadata(disjoint)
     jump bb5
-  bb5:  ; preds = bb3, bb4
+  bb5:                                            ; preds = bb3, bb4
     v45 = phi [bb3: v58], [bb4: v53]
     returndata v45, 160
-  bb1 [cold]:  ; preds = bb0
+  bb1 [cold]:                                     ; preds = bb0
     revert 0, 0
 }
 
@@ -86,7 +86,7 @@ fn @viaCall() {
     v36 = or v34, v14
     v37 = ne v36, 0
     jumpi v37, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v39 = calldataload 36
     v38 = calldataload 4
     v16 = calldataload 68
@@ -102,6 +102,6 @@ fn @viaCall() {
     v20 = zext i1 v7 to i256
     mstore 0, v20 !metadata(memory=scratch)
     returndata 0, 32
-  bb1 [cold]:  ; preds = bb0
+  bb1 [cold]:                                     ; preds = bb0
     revert 0, 0
 }

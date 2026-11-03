@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/assembly_dirty_modifier_argument.sol:AssemblyDirtyModifierArgument ===
+; === ROOT/tests/ui/codegen/lowering/run-call/assembly_dirty_modifier_argument.sol:AssemblyDirtyModifierArgument ===
 @module AssemblyDirtyModifierArgument
 ; function raw() external record(dirty()) returns (bytes32) [selector 0xc096a632]
 fn @raw() -> i256 [selector=0xc096a632, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -7,9 +7,9 @@ fn @raw() -> i256 [selector=0xc096a632, abi_params=[], abi_returns=[word], abi_r
     sstore 0, v0 !metadata(storage=slot(0))
     v1 = sload 0 !metadata(storage=slot(0))
     jump bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb1
-  bb1:  ; preds = bb2
+  bb1:                                            ; preds = bb2
     ret v1
 }
 

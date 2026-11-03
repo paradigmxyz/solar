@@ -415,7 +415,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         };
 
         self.last_unexpected_token_span = Some(self.token.span);
-        let mut err = self.dcx().err(msg_exp).span(self.token.span);
+        let mut err = self.dcx().err_at(self.token.span, msg_exp);
 
         if self.prev_token.span.is_dummy()
             || !self
@@ -990,7 +990,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
 
     #[cold]
     fn recursion_limit_reached(&mut self, context: &str) -> PErr<'sess> {
-        let mut err = self.dcx().err("recursion limit reached").span(self.token.span);
+        let mut err = self.dcx().err_at(self.token.span, "recursion limit reached");
         if !self.prev_token.span.is_dummy() {
             err = err.span_label(self.prev_token.span, format!("while parsing {context}"));
         }
@@ -1109,13 +1109,13 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     fn parse_ident_common(&mut self, recover: bool) -> PResult<'sess, Ident> {
         let ident = self.ident_or_err(recover)?;
         if self.in_yul && ident.is_future_yul_reserved_identifier(self.sess.opts.evm_version) {
-            self.dcx()
-                .warn(format!(
+            self.dcx().emit_warn_code(
+                ident.span,
+                error_code!(5470),
+                format!(
                     "`{ident}` will be promoted to Yul reserved identifier in the future and will not be allowed anymore as an identifier"
-                ))
-                .span(ident.span)
-                .code(error_code!(5470))
-                .emit();
+                ),
+            );
         } else if if self.in_yul {
             self.is_reserved_yul_ident(ident)
         } else {
@@ -1161,7 +1161,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     fn expected_ident_found_other(&mut self, token: Token, recover: bool) -> PResult<'sess, Ident> {
         let msg = format!("expected identifier, found {}", token.full_description());
         let span = token.span;
-        let mut err = self.dcx().err(msg).span(span);
+        let mut err = self.dcx().err_at(span, msg);
 
         let mut recovered_ident = None;
 
@@ -1259,12 +1259,11 @@ fn parse_natspec(
     #[cold]
     #[inline(never)]
     fn invalid_tag(dcx: &DiagCtxt, tag: &str, span: Span) {
-        dcx.warn(format!(
-            "invalid natspec tag '@{tag}', custom tags must use format '@custom:name'"
-        ))
-        .code(error_code!(6546))
-        .span(span)
-        .emit();
+        dcx.emit_warn_code(
+            span,
+            error_code!(6546),
+            format!("invalid natspec tag '@{tag}', custom tags must use format '@custom:name'"),
+        );
     }
 
     // Check if '@' is located at the logical start of the line.

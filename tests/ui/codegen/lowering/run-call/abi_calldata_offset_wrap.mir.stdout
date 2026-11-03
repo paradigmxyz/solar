@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_offset_wrap.sol:AbiCalldataOffsetWrap ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_offset_wrap.sol:AbiCalldataOffsetWrap ===
 @module AbiCalldataOffsetWrap
 @types
   struct0: {i256, i256, i256}
@@ -9,9 +9,9 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0xc26b6b9a, pure, abi_params=[
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = gt v0, 0
     jumpi v1, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v2 = extract_value slice<calldata>, arg0, 1
     v3 = gt v2, 0
     v4 = eq v3, false
@@ -46,13 +46,13 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0xc26b6b9a, pure, abi_params=[
     v28 = make_calldata_slice v27, v20
     v29 = extract_value slice<calldata>, v28, 1
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v30 = phi [bb1: v29], [bb2: 0]
     v31 = gt v0, 1
     jumpi v31, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb6
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v32 = extract_value slice<calldata>, arg0, 1
     v33 = gt v32, 1
     v34 = eq v33, false
@@ -87,7 +87,7 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0xc26b6b9a, pure, abi_params=[
     v58 = make_calldata_slice v57, v50
     v59 = extract_value slice<calldata>, v58, 1
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6:                                            ; preds = bb4, bb5
     v60 = phi [bb4: v59], [bb5: 0]
     v61 = insert_value struct0, undef struct0, 0, v0
     v62 = insert_value struct0, v61, 1, v30

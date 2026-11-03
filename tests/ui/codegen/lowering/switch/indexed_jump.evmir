@@ -3,7 +3,7 @@
 
 @module indexed_jump
 
-// CHECK-LABEL: // === indexed_jump (runtime) ===
+// CHECK-LABEL: ; === indexed_jump (runtime) ===
 // CHECK-NEXT: PUSH1 0x01
 // CHECK-NEXT: PUSH1 0x1e
 // CHECK-NEXT: ADD

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/backend_control_flow.sol:BackendControlFlow ===
+; === ROOT/tests/ui/codegen/lowering/backend_control_flow.sol:BackendControlFlow ===
 @module BackendControlFlow
 ; getter for `uint256 public value` [selector 0x3fa4f245]
 fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -34,13 +34,13 @@ fn @localVarInConditional() [selector=0xf2ca9be5, abi_params=[], abi_returns=[],
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = ne v0, 0
     jumpi v1, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v2 = checked_sub uint256, v0, 1
     sstore 0, v2 !metadata(storage=slot(0))
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     ret
 }
 
@@ -50,14 +50,14 @@ fn @directStorageInConditional() [selector=0xf5a03547, abi_params=[], abi_return
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = ne v0, 0
     jumpi v1, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = checked_sub uint256, v2, 1
     sstore 0, v3 !metadata(storage=slot(0))
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     ret
 }
 
@@ -67,11 +67,11 @@ fn @phiAfterBranch() -> i256 [selector=0x3c96aa28, abi_params=[], abi_returns=[w
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = eq v0, 0
     jumpi v1, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v2 = phi [bb1: 1], [bb2: 2]
     v3 = sload 1 !metadata(storage=slot(1))
     v4 = checked_add uint256, v3, v2
@@ -85,11 +85,11 @@ fn @phiUsedMultipleTimes() -> i256 [selector=0x4e3a23dd, abi_params=[], abi_retu
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = eq v0, 0
     jumpi v1, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v2 = phi [bb1: 1], [bb2: 2]
     v3 = sload 1 !metadata(storage=slot(1))
     v4 = checked_add uint256, v3, v2
@@ -105,7 +105,7 @@ fn @phiWithTernary() -> i256 [selector=0x2318217a, abi_params=[], abi_returns=[w
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = eq v0, 0
     jumpi v1, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v3 = sload 1 !metadata(storage=slot(1))
     v4 = checked_mul uint256, 100, v3
     v5 = sload 2 !metadata(storage=slot(2))
@@ -116,17 +116,17 @@ fn @phiWithTernary() -> i256 [selector=0x2318217a, abi_params=[], abi_returns=[w
     v10 = checked_div uint256, v8, v9
     v11 = lt v6, v10
     jumpi v11, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     jump bb6
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6:                                            ; preds = bb4, bb5
     v12 = phi [bb4: v6], [bb5: v10]
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v2 = checked_mul uint256, 100, 200
     jump bb3
-  bb3:  ; preds = bb1, bb6
+  bb3:                                            ; preds = bb1, bb6
     v13 = phi [bb1: v2], [bb6: v12]
     v14 = sload 1 !metadata(storage=slot(1))
     v15 = checked_add uint256, v14, v13

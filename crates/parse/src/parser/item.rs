@@ -38,7 +38,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             if self.in_contract && !item.is_allowed_in_contract() {
                 let msg = format!("{}s are not allowed in contracts", item.description());
                 let (_, note) = get_msg_note(self);
-                self.dcx().emit_err_note(item.span, msg, note);
+                self.dcx().err_at(item.span, msg).note(note).emit();
             } else {
                 if let Some(callback) = &mut self.import_callback
                     && let ItemKind::Import(import) = &item.kind
@@ -50,7 +50,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         }
         if !self.eat(end) {
             let (msg, note) = get_msg_note(self);
-            self.dcx().err(msg).span(self.token.span).note(note).emit();
+            self.dcx().err_at(self.token.span, msg).note(note).emit();
         }
         Ok(self.alloc_vec(items))
     }
@@ -222,7 +222,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             let kw_span = self.prev_token.span;
             let ident = self.parse_ident_any()?;
             let msg = format!("function named `{ident}`");
-            let mut warn = self.dcx().warn(msg).span(ident.span).code(error_code!(3445));
+            let mut warn = self.dcx().warn_code_at(ident.span, error_code!(3445), msg);
             if self.in_contract {
                 let help = format!(
                     "remove the `function` keyword if you intend this to be a contract's {ident} function"
@@ -258,7 +258,10 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 let span = self.prev_token.span;
                 if let Some(prev) = header.visibility {
                     let msg = "visibility already specified";
-                    self.dcx().emit_err_label(span, msg, prev.span, "previous definition");
+                    self.dcx()
+                        .err_at(span, msg)
+                        .span_label(prev.span, "previous definition")
+                        .emit();
                 } else {
                     let mut v = Some(visibility);
                     if !flags.contains(FunctionFlags::from_visibility(visibility)) {
@@ -273,7 +276,10 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 let span = self.prev_token.span;
                 if let Some(prev) = header.state_mutability {
                     let msg = "state mutability already specified";
-                    self.dcx().emit_err_label(span, msg, prev.span, "previous definition");
+                    self.dcx()
+                        .err_at(span, msg)
+                        .span_label(prev.span, "previous definition")
+                        .emit();
                 } else {
                     let mut sm = Some(state_mutability);
                     if !flags.contains(FunctionFlags::from_state_mutability(state_mutability)) {
@@ -292,7 +298,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                     self.dcx().emit_err(span, msg);
                 } else if let Some(prev) = header.virtual_ {
                     let msg = "virtual already specified";
-                    self.dcx().emit_err_label(span, msg, prev, "previous definition");
+                    self.dcx().err_at(span, msg).span_label(prev, "previous definition").emit();
                 } else {
                     header.virtual_ = Some(span);
                 }
@@ -304,7 +310,10 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                     self.dcx().emit_err(span, msg);
                 } else if let Some(prev) = &header.override_ {
                     let msg = "override already specified";
-                    self.dcx().emit_err_label(span, msg, prev.span, "previous definition");
+                    self.dcx()
+                        .err_at(span, msg)
+                        .span_label(prev.span, "previous definition")
+                        .emit();
                 } else {
                     header.override_ = Some(o);
                 }
@@ -384,12 +393,10 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                     let span = |bases: &[Modifier<'_>]| {
                         Span::join_first_last(bases.iter().map(|m| m.span()))
                     };
-                    self.dcx().emit_err_label(
-                        span(new_bases),
-                        msg,
-                        span(prev),
-                        "previous definition",
-                    );
+                    self.dcx()
+                        .err_at(span(new_bases), msg)
+                        .span_label(span(prev), "previous definition")
+                        .emit();
                 } else if !new_bases.is_empty() {
                     bases = Some(new_bases);
                 }
@@ -397,12 +404,10 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 let new_layout = self.parse_storage_layout_specifier()?;
                 if let Some(prev) = &layout {
                     let msg = "storage layout already specified";
-                    self.dcx().emit_err_label(
-                        new_layout.span,
-                        msg,
-                        prev.span,
-                        "previous definition",
-                    );
+                    self.dcx()
+                        .err_at(new_layout.span, msg)
+                        .span_label(prev.span, "previous definition")
+                        .emit();
                 } else {
                     layout = Some(new_layout);
                 }
@@ -507,7 +512,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         if self.check_noexpect(TokenKind::Semi) || self.check_noexpect(TokenKind::Eof) {
             let msg = "empty version requirement";
             let span = self.prev_token.span.to(self.token.span);
-            return Err(self.dcx().err(msg).span(span));
+            return Err(self.dcx().err_at(span, msg));
         }
         self.parse_semver_req_components_dis().map(|dis| SemverReq { dis })
     }
@@ -540,7 +545,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 dis.last()
             );
             let msg = "ranges can only be combined using the || operator";
-            return Err(self.dcx().err(msg).span(self.token.span));
+            return Err(self.dcx().err_at(self.token.span, msg));
         }
         Ok(self.alloc_vec(dis))
     }
@@ -764,7 +769,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         {
             let msg = "expected a state variable declaration";
             let note = "this style of fallback function has been removed; use the `fallback` or `receive` keywords instead";
-            self.dcx().emit_err_note(self.token.span, msg, note);
+            self.dcx().err_at(self.token.span, msg).note(note).emit();
             let _ = self.parse_block()?;
             return Ok(VariableDefinition {
                 span: lo.to(self.prev_token.span),
@@ -855,7 +860,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         {
             debug_assert!(!flags.contains(VarFlags::NAME));
             let msg = "named function type parameters are deprecated";
-            self.dcx().warn(msg).code(error_code!(6162)).span(name.span).emit();
+            self.dcx().emit_warn_code(name.span, error_code!(6162), msg);
         }
 
         let initializer = if flags.contains(VarFlags::INITIALIZER) && self.eat(TokenKind::Eq) {
@@ -1057,7 +1062,7 @@ impl<'p, 'sess, 'ast, 'cb> SemverVersionParser<'p, 'sess, 'ast, 'cb> {
     }
 
     fn err(&self, msg: impl Into<DiagMsg>) -> PErr<'sess> {
-        self.p.dcx().err(msg).span(self.current_span())
+        self.p.dcx().err_at(self.current_span(), msg)
     }
 
     fn parse(mut self) -> PResult<'sess, SemverVersion> {

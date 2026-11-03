@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/dce/dce_chain.mir (before dce) ===
-+ // === ROOT/tests/ui/codegen/mir/dce/dce_chain.mir (after dce) ===
+- ; === ROOT/tests/ui/codegen/mir/dce/dce_chain.mir (before dce) ===
++ ; === ROOT/tests/ui/codegen/mir/dce/dce_chain.mir (after dce) ===
   @module DceChain
   fn @chain(arg0: i256) -> i256 {
     bb0:

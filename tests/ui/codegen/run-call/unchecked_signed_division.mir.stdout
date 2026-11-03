@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/run-call/unchecked_signed_division.sol:UncheckedSignedDivision ===
+; === ROOT/tests/ui/codegen/run-call/unchecked_signed_division.sol:UncheckedSignedDivision ===
 @module UncheckedSignedDivision
 ; function uncheckedI8(int8 lhs, int8 rhs) external pure returns (int8) [selector 0xa7f45646]
 fn @uncheckedI8(arg0: i8, arg1: i8) -> i8 [selector=0xa7f45646, pure, abi_params=[int8, int8], abi_returns=[word<int8>], abi_return_params=[int8]] {

@@ -1,4 +1,4 @@
-// === program_data (runtime) ===
+; === program_data (runtime) ===
 PUSH1 0x04
 PUSH1 0x0a
 PUSH0

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/egraph/seeded_runtime.sol:SeededWords ===
+; === ROOT/tests/ui/codegen/mir/egraph/seeded_runtime.sol:SeededWords ===
 @module SeededWords
 ; function rule0(uint256 x, uint256 y) external pure returns (uint256 result) [selector 0x225a5e11]
 fn @rule0(arg0: i256, arg1: i256) -> i256 [selector=0x225a5e11, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
