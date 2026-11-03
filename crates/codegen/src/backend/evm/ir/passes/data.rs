@@ -20,14 +20,8 @@
 //! along as substrings of an accepted entry. Whole runs are judged first, because equal runs at
 //! several sites share one entry and so can pay jointly when no site pays alone. Only the runs that
 //! no group accepts are split, since a short word between long strings only grows the data, and the
-//! runs inside them are judged the same way. Runs that write the same string between different
-//! neighbouring words (an offset, a length, a selector) share no whole run, so `share_cores` also
-//! offers the longest stretch of stores two runs have in common as an entry of its own, copied at
-//! every site that has it. It prices the cores against the whole runs jointly and keeps the
-//! cheaper. Its work is bounded: only runs of 64 bytes or more that share two words are compared,
-//! at most `MAX_CORE_PARENTS` of them, and at most `MAX_CORE_WINDOWS` windows are scanned and
-//! priced. A copy of data that ends in zeros stops before them when a zero word store clears the
-//! last word first, if that is cheaper.
+//! runs inside them are judged the same way. A copy of data that ends in zeros stops before them
+//! when a zero word store clears the last word first, if that is cheaper.
 //!
 //! The pass leaves a module alone when a data address may reach anything but a `CODECOPY` that
 //! stays inside its entry. The last entry of creation code is the tail: the runtime code ends the
@@ -67,7 +61,7 @@ use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::IndexVec,
-    map::{FxHashMap, FxHashSet, FxIndexMap},
+    map::{FxHashMap, FxIndexMap},
 };
 use solar_interface::sym;
 use solar_sema::Gcx;
@@ -78,12 +72,6 @@ const MAX_DATA_SUBSTRING_ENTRIES: usize = 1024;
 
 /// Bounds the instructions one literal-store run may span, keeping each scan start linear.
 const MAX_RUN_INSTRUCTIONS: usize = 256;
-
-/// Bounds the runs `share_cores` compares: the first runs in module order that share two words.
-const MAX_CORE_PARENTS: usize = 64;
-
-/// Bounds the windows `share_cores` prices across all runs.
-const MAX_CORE_WINDOWS: usize = 1024;
 
 /// Bounds the unconditional jumps followed from a block to find where its data addresses are used.
 const MAX_DATA_JUMP_HOPS: usize = 4;
@@ -118,8 +106,6 @@ struct Rewrite {
     end: usize,
     /// Byte length of the copy.
     size: usize,
-    /// The bytes the copy writes.
-    data: Bytes,
     /// Cost of the replaced instructions.
     old: Cost,
     /// Cost of the replacement, without the bytes it may add to the data pool.
@@ -290,7 +276,6 @@ fn materialize_data(
         // A run that no site profits from may hold shorter runs that do. They wait for the joint
         // evaluation of whole runs, which can accept a run that only pays when sites share it.
         if splits {
-            share_cores(gcx, module, &mut pool, &mut prepared, &mut rejected, &mut scratch);
             let mut inner = FxHashMap::<Bytes, Vec<Rewrite>>::default();
             for rewrite in rejected.drain(..).flat_map(|(_, rewrites)| rewrites) {
                 let block = &module.blocks[rewrite.block];
@@ -411,7 +396,7 @@ fn for_each_window(
         {
             continue;
         }
-        scan_ends(target, instructions, start, scratch, ScanContext::FRESH);
+        scan_ends(target, instructions, start, scratch);
         for index in 0..scratch.ends.len() {
             if scratch.ends[index].end <= parent.end
                 && let Some(window) = run_ending_at(target, parent.block, scratch, index)
@@ -459,312 +444,6 @@ fn split_run(
         }
     }
     found
-}
-
-/// A run that `share_cores` may replace by a window of itself: its place in `prepared` or in
-/// `rejected`, as a group and a site.
-#[derive(Clone, Copy)]
-enum Slot {
-    Prepared(usize),
-    Rejected(usize, usize),
-}
-
-/// Offers the bytes that runs at different sites have in common as entries of their own. Sites
-/// that write the same string between different neighbouring words, such as an offset, a length
-/// or a selector, have different runs, so each run would pool the string again. A window that
-/// is equal at two runs is a core: every site copies it and keeps its other stores. Both ways are
-/// priced over the sites together, the whole runs as they were accepted or rejected and the cores
-/// with one shared entry, and the cheaper one under the objective wins. Copies from one entry share
-/// their common bytes already, so such pairs offer no core. When a core replaces runs that no group
-/// accepted, it must also beat their stores as a group would, and in size builds those stores
-/// count as shared once where the backend may merge them.
-///
-/// Only the runs that share at least two words with another run are compared, the first
-/// `MAX_CORE_PARENTS` of them, and at most `MAX_CORE_WINDOWS` windows are priced.
-fn share_cores(
-    gcx: Gcx<'_>,
-    module: &mut Module,
-    pool: &mut DataPool,
-    prepared: &mut Vec<(Rewrite, Option<DataRef>)>,
-    rejected: &mut Vec<(NeedleFinder, Vec<Rewrite>)>,
-    scratch: &mut RunScratch,
-) {
-    let min = 2 * WORD_BYTES;
-    let slots = prepared
-        .iter()
-        .enumerate()
-        .filter(|(_, (rewrite, data))| data.is_some() && rewrite.data.len() >= min)
-        .map(|(index, _)| Slot::Prepared(index))
-        .chain(rejected.iter().enumerate().flat_map(|(group, (_, rewrites))| {
-            let sites = rewrites.iter().enumerate();
-            sites
-                .filter(|(_, rewrite)| rewrite.data.len() >= min)
-                .map(move |(site, _)| Slot::Rejected(group, site))
-        }))
-        .collect::<Vec<_>>();
-    let rewrite_of = |slot| match slot {
-        Slot::Prepared(index) => &prepared[index].0,
-        Slot::Rejected(group, site) => &rejected[group].1[site],
-    };
-
-    // The stores of each run, in order: where each ends and what it writes.
-    let mut stores = Vec::<Vec<(usize, U256, bool)>>::with_capacity(slots.len());
-    let mut owners = FxHashMap::<U256, SmallVec<[usize; 4]>>::default();
-    for (index, &slot) in slots.iter().enumerate() {
-        let rewrite = rewrite_of(slot);
-        let block = &module.blocks[rewrite.block];
-        let target = block.target(gcx, module.optimization, module.code_follows);
-        scan_ends(&target, &block.instructions, rewrite.start, scratch, ScanContext::FRESH);
-        let ends = (rewrite.start..rewrite.end)
-            .filter(|&at| matches!(block.instructions[at].opcode, op::MSTORE | op::MSTORE8))
-            .map(|at| at + 1);
-        let run = ends.zip(&scratch.stores).map(|(end, &(_, value, word))| (end, value, word));
-        stores.push(run.collect());
-        for &(_, value, word) in &stores[index] {
-            if word && !value.is_zero() {
-                let owners = owners.entry(value).or_default();
-                if owners.last() != Some(&index) {
-                    owners.push(index);
-                }
-            }
-        }
-    }
-    // The runs that share at least two words with another run.
-    let mut shared = FxHashMap::<usize, usize>::default();
-    for owners in owners.values().filter(|owners| owners.len() >= 2) {
-        for &index in owners {
-            *shared.entry(index).or_default() += 1;
-        }
-    }
-    let parents = (0..slots.len())
-        .filter(|index| shared.get(index).is_some_and(|&words| words >= 2))
-        .take(MAX_CORE_PARENTS)
-        .collect::<Vec<_>>();
-
-    // The longest run of stores that each two runs have in common, as windows of both, by the bytes
-    // they write.
-    let mut cores = FxHashMap::<Bytes, Vec<(usize, Rewrite)>>::default();
-    let mut budget = MAX_CORE_WINDOWS;
-    for (position, &first) in parents.iter().enumerate() {
-        for &second in &parents[position + 1..] {
-            // Copies from one entry already share what they have in common.
-            if let (Slot::Prepared(a), Slot::Prepared(b)) = (slots[first], slots[second])
-                && let (Some(a), Some(b)) = (prepared[a].1, prepared[b].1)
-                && a.id == b.id
-            {
-                continue;
-            }
-            let Some((from_first, from_second, len)) =
-                common_stores(&stores[first], &stores[second])
-            else {
-                continue;
-            };
-            for (index, from) in [(first, from_first), (second, from_second)] {
-                let parent = rewrite_of(slots[index]);
-                let block = &module.blocks[parent.block];
-                let target = block.target(gcx, module.optimization, module.code_follows);
-                if budget > 0
-                    && let Some(window) = core_window(
-                        &target,
-                        &block.instructions,
-                        parent,
-                        &stores[index],
-                        from..from + len,
-                        scratch,
-                    )
-                    && !window.zero
-                {
-                    budget -= 1;
-                    let mut rewrite = window.rewrite;
-                    rewrite.repeats = parent.repeats;
-                    cores.entry(window.data).or_default().push((index, rewrite));
-                }
-            }
-        }
-    }
-    let mut cores = cores.into_iter().collect::<Vec<_>>();
-    cores.sort_by_cached_key(|(data, windows)| {
-        let parents = windows.iter().map(|(index, _)| index).collect::<FxHashSet<_>>().len();
-        (std::cmp::Reverse(parents), std::cmp::Reverse(data.len()), data.clone())
-    });
-
-    let creation = module.target(gcx);
-    let runtime = module.runtime_target(gcx);
-    // How many sites use each entry that the pass pooled, to tell when the runs a core replaces
-    // were the only users of an entry, which then goes and cannot hold the core.
-    let mut users = FxHashMap::<DataId, usize>::default();
-    for (_, data_ref) in prepared.iter() {
-        if let Some(data_ref) = data_ref {
-            *users.entry(data_ref.id).or_default() += 1;
-        }
-    }
-    let mut consumed = FxHashSet::<usize>::default();
-    let mut chosen = Vec::<(usize, Rewrite, DataRef)>::new();
-    for (data, windows) in cores {
-        let mut seen = FxHashSet::<usize>::default();
-        let sites = windows
-            .into_iter()
-            .filter(|(index, _)| !consumed.contains(index) && seen.insert(*index))
-            .collect::<Vec<_>>();
-        let leaving = |id: DataId| {
-            let replaced = sites.iter().filter(|(index, _)| {
-                matches!(slots[*index], Slot::Prepared(at) if prepared[at].1.is_some_and(|data_ref| data_ref.id == id))
-            });
-            users.get(&id).is_some_and(|&count| count <= replaced.count())
-        };
-        let existing = pool.find(&data).filter(|data_ref| !leaving(data_ref.id));
-        // A core that an earlier one holds costs no data, even at one site.
-        if sites.len() < 2 && (sites.is_empty() || existing.is_none()) {
-            continue;
-        }
-        let mut core =
-            if existing.is_some() { Cost::ZERO } else { Cost::new(0, data.len() as u32) };
-        let target =
-            if sites.iter().any(|(_, window)| window.repeats) { &runtime } else { &creation };
-        // The core copy and the stores around it, or the whole run copied, or left as stores. The
-        // window's stores at several sites are equal, so the backend may share them.
-        let mut whole = Cost::ZERO;
-        let mut stores = Cost::ZERO;
-        let mut widest = Cost::ZERO;
-        let mut left = 0;
-        for (index, window) in &sites {
-            let slot = slots[*index];
-            let parent = rewrite_of(slot);
-            let outside = parent.old.saturating_sub(window.old);
-            core += window.new + outside;
-            stores += outside;
-            if window.old.bytes > widest.bytes {
-                widest = window.old;
-            }
-            whole += match slot {
-                Slot::Prepared(_) => parent.new,
-                Slot::Rejected(..) => {
-                    left += 1;
-                    outside
-                }
-            };
-        }
-        stores += target.shared_copies(widest, sites.len() as u32);
-        whole += target.shared_copies(widest, left);
-        // The whole runs' entries go only when this core replaces their last users.
-        let mut freed = FxHashSet::<DataId>::default();
-        for (index, _) in &sites {
-            if let Slot::Prepared(at) = slots[*index]
-                && let Some(data_ref) = prepared[at].1
-                && leaving(data_ref.id)
-                && freed.insert(data_ref.id)
-            {
-                whole += Cost::new(
-                    0,
-                    module.data[data_ref.id].bytes.known().map_or(0, |bytes| bytes.len() as u32),
-                );
-            }
-        }
-        // A core must improve on what it replaces as a group must, so that growing the code to
-        // save gas, or giving up gas to save bytes, is no more allowed here than for a whole run.
-        // A core that replaces runs no group accepted must also beat their stores.
-        let improves = |old: Cost| Improvement {
-            runtime_gas: i64::from(target.runtime_gas(old)) - i64::from(target.runtime_gas(core)),
-            bytes: i64::from(old.bytes) - i64::from(core.bytes),
-        };
-        if !improves(whole).is_profitable(target)
-            || left > 0 && !improves(stores).is_profitable(target)
-        {
-            continue;
-        }
-        let data_ref = existing.unwrap_or_else(|| pool.push(module, data));
-        for (index, window) in sites {
-            if let Slot::Prepared(at) = slots[index]
-                && let Some(parent_ref) = prepared[at].1
-            {
-                *users.entry(parent_ref.id).or_default() -= 1;
-            }
-            *users.entry(data_ref.id).or_default() += 1;
-            consumed.insert(index);
-            chosen.push((index, window, data_ref));
-        }
-    }
-
-    let mut removed_prepared = FxHashSet::<usize>::default();
-    let mut removed_rejected = FxHashSet::<(usize, usize)>::default();
-    for &(index, ..) in &chosen {
-        match slots[index] {
-            Slot::Prepared(index) => removed_prepared.insert(index),
-            Slot::Rejected(group, site) => removed_rejected.insert((group, site)),
-        };
-    }
-    let mut index = 0;
-    prepared.retain(|_| {
-        index += 1;
-        !removed_prepared.contains(&(index - 1))
-    });
-    for (group, (_, rewrites)) in rejected.iter_mut().enumerate() {
-        let mut site = 0;
-        rewrites.retain(|_| {
-            site += 1;
-            !removed_rejected.contains(&(group, site - 1))
-        });
-    }
-    rejected.retain(|(_, rewrites)| !rewrites.is_empty());
-    prepared.extend(chosen.into_iter().map(|(_, window, data_ref)| (window, Some(data_ref))));
-}
-
-/// The window of `parent` that holds its stores `window`, with the stores before it left as they
-/// are: it starts where the store before it ends, with the stack that store left.
-fn core_window(
-    target: &Target,
-    instructions: &[Instruction],
-    parent: &Rewrite,
-    stores: &[(usize, U256, bool)],
-    window: Range<usize>,
-    scratch: &mut RunScratch,
-) -> Option<Run> {
-    let end = stores[window.end - 1].0;
-    let mut start = parent.start;
-    let mut initial = Vec::new();
-    if let Some(before) = window.start.checked_sub(1) {
-        start = stores[before].0;
-        // The words the run has left on the stack, counted from the window's top.
-        let context = ScanContext { limit: start, ..ScanContext::FRESH };
-        scan_ends(target, instructions, parent.start, scratch, context);
-        let stack = &scratch.stack;
-        for &word in stack {
-            initial.push(match word.slot {
-                None => word,
-                Some(slot) => {
-                    let at = stack.iter().position(|&other| other == RunWord::input(slot))?;
-                    RunWord { slot: Some(stack.len() - 1 - at), ..word }
-                }
-            });
-        }
-    }
-    let context = ScanContext { initial: &initial, limit: usize::MAX };
-    scan_ends(target, instructions, start, scratch, context);
-    let at = (0..scratch.ends.len()).find(|&at| scratch.ends[at].end == end)?;
-    run_ending_at(target, parent.block, scratch, at)
-}
-
-/// Finds the longest run of two or more stores that `first` and `second` have in common, as where
-/// it starts in each and how many stores it has.
-fn common_stores(
-    first: &[(usize, U256, bool)],
-    second: &[(usize, U256, bool)],
-) -> Option<(usize, usize, usize)> {
-    let mut best = (0, 0, 1);
-    // `lengths[j]` is the length of the common run that ends at `second[j]` in the previous row.
-    let mut lengths = vec![0; second.len() + 1];
-    for (i, &(_, value, word)) in first.iter().enumerate() {
-        let mut diagonal = 0;
-        for (j, &(_, other, other_word)) in second.iter().enumerate() {
-            let above = lengths[j + 1];
-            lengths[j + 1] = if (value, word) == (other, other_word) { diagonal + 1 } else { 0 };
-            diagonal = above;
-            if lengths[j + 1] > best.2 {
-                best = (i + 1 - lengths[j + 1], j + 1 - lengths[j + 1], lengths[j + 1]);
-            }
-        }
-    }
-    (best.2 >= 2).then_some(best)
 }
 
 /// A word on the symbolic stack of a literal-store run: input slot `slot` of the run, counted
@@ -844,24 +523,6 @@ impl Run {
     }
 }
 
-/// Where a scan starts: the symbolic stack, bottom first, that the instructions before it left,
-/// and the instruction it stops before.
-#[derive(Clone, Copy)]
-struct ScanContext<'a> {
-    initial: &'a [RunWord],
-    limit: usize,
-}
-
-impl ScanContext<'static> {
-    /// A scan of a run that starts with nothing known about the stack.
-    const FRESH: Self = Self { initial: &[], limit: usize::MAX };
-}
-
-/// The word that input `slot`, counted from the top of the stack a scan starts with, holds there.
-fn input_word(initial: &[RunWord], slot: usize) -> RunWord {
-    initial.len().checked_sub(slot + 1).map_or(RunWord::input(slot), |index| initial[index])
-}
-
 /// Symbolically runs the pushes, stack operations, constant expressions, and constant `MSTORE`
 /// and `MSTORE8`s from `start`, and returns the longest prefix whose stores fill one contiguous
 /// range and whose final stack a copy can rebuild.
@@ -872,7 +533,7 @@ fn scan_run(
     start: usize,
     scratch: &mut RunScratch,
 ) -> Option<Run> {
-    scan_ends(target, instructions, start, scratch, ScanContext::FRESH);
+    scan_ends(target, instructions, start, scratch);
     run_ending_at(target, block, scratch, scratch.ends.len().checked_sub(1)?)
 }
 
@@ -882,20 +543,17 @@ fn scan_ends(
     instructions: &[Instruction],
     start: usize,
     scratch: &mut RunScratch,
-    context: ScanContext<'_>,
 ) {
     scratch.ends.clear();
     if !is_split_point(instructions, start) {
         return;
     }
-    let ScanContext { initial, limit } = context;
     let RunScratch { stack, stores, ranges, ends, extras, .. } = scratch;
     stack.clear();
-    stack.extend_from_slice(initial);
     stores.clear();
     ranges.clear();
     extras.clear();
-    let mut inputs = initial.len();
+    let mut inputs = 0;
     let mut old = Cost::ZERO;
     let mut first_store = None;
     let mut base = None;
@@ -906,9 +564,6 @@ fn scan_ends(
         }
     };
     for (index, inst) in instructions.iter().enumerate().skip(start).take(MAX_RUN_INSTRUCTIONS) {
-        if index >= limit {
-            break;
-        }
         if let Some(value) = inst.concrete_immediate() {
             stack.push(RunWord::constant(value));
             old += target.push(value);
@@ -945,13 +600,11 @@ fn scan_ends(
             let kept = stack
                 .iter()
                 .zip((0..inputs).rev())
-                .take_while(|&(&word, slot)| word == input_word(initial, slot))
+                .take_while(|&(&word, slot)| word == RunWord::input(slot))
                 .count();
             if let [range] = ranges[..]
                 && is_split_point(instructions, end)
-                && (kept == inputs
-                    || kept == stack.len()
-                    || stack[kept..].iter().all(|word| word.slot.is_none()))
+                && (kept == inputs || kept == stack.len())
             {
                 let first_extra = extras.len();
                 extras.extend_from_slice(&stack[kept..]);
@@ -1081,18 +734,7 @@ impl CopyPlan<'_> {
         }
         let data = Bytes::copy_from_slice(data);
         let size = data.len();
-        let rewrite = Rewrite {
-            block,
-            start,
-            end,
-            size,
-            data: data.clone(),
-            old,
-            new,
-            head,
-            tail,
-            repeats: false,
-        };
+        let rewrite = Rewrite { block, start, end, size, old, new, head, tail, repeats: false };
         Some(Run { rewrite, data, zero, first_store })
     }
 }
@@ -1205,6 +847,7 @@ fn pack_data(module: &mut Module, scan: &mut DataScan) -> bool {
         .collect::<Vec<_>>();
     if order.is_empty() {
         module.data.clear();
+        *tail = None;
         return true;
     }
     if module.data.len() == 1 {

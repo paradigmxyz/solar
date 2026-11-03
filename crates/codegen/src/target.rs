@@ -1209,17 +1209,6 @@ impl Target {
         (jump.times(sites) + copy + self.opcode(op::JUMPDEST)).bytes < copy.times(sites).bytes
     }
 
-    /// Cost of `sites` equal copies of `copy`. When optimizing for size, the backend's
-    /// terminal-block sharing and outlining may keep one body behind a jump from each site, when
-    /// [`Self::shares_terminal_copy`] says that takes fewer bytes.
-    pub(crate) fn shared_copies(&self, copy: Cost, sites: u32) -> Cost {
-        if self.optimization.is_size() && self.shares_terminal_copy(copy, sites) {
-            self.jump().times(sites) + copy + self.opcode(op::JUMPDEST)
-        } else {
-            copy.times(sites)
-        }
-    }
-
     /// Whether code shared from a site inside a loop pays for itself when the bytes it saves at
     /// that site, `saved_bytes`, cost `transfer_gas` more on every iteration: the deposit of the
     /// bytes against the transfers over the expected executions,
@@ -1895,19 +1884,6 @@ mod tests {
         // Folding that drops the original object only moves the stores.
         assert!(folds(size(EvmVersion::Cancun), true, 64));
         assert!(!size(EvmVersion::Cancun).folds_preserved_literal(false, || None));
-    }
-
-    #[test]
-    fn equal_copies_share_one_body_only_in_size_builds() {
-        let gas = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
-        let size = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 1);
-        let copy = Cost::new(30, 100);
-        assert_eq!(gas.shared_copies(copy, 3), copy.times(3));
-        assert_eq!(size.shared_copies(copy, 1), copy);
-        assert!(size.shared_copies(copy, 3).bytes < copy.times(3).bytes);
-        // A copy no larger than two jumps stays with the backend.
-        let small = Cost::new(3, 6);
-        assert_eq!(size.shared_copies(small, 3), small.times(3));
     }
 
     #[test]
