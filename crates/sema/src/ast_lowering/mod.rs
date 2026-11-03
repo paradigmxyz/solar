@@ -85,7 +85,7 @@ impl<'gcx> LoweringContext<'gcx> {
             hir_to_ast: FxHashMap::default(),
             yul_functions: FxHashMap::default(),
             contract_base_indices: FxHashMap::default(),
-            resolver: SymbolResolver::new(&gcx.sess.dcx),
+            resolver: SymbolResolver::new(gcx.dcx()),
             next_id: IdCounter::new(),
         }
     }

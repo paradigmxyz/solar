@@ -1952,7 +1952,7 @@ pub(crate) fn natspec_contract_in_source(
 ) -> Option<hir::ContractId> {
     let (name, source_id) = key;
     gcx.symbol_resolver.source_scopes[source_id]
-        .resolve(solar_interface::Ident { name, span: Span::DUMMY })
+        .resolve(Ident { name, span: Span::DUMMY })
         .and_then(|decls| {
             decls.iter().find_map(|decl| match decl.res {
                 hir::Res::Item(hir::ItemId::Contract(id)) => Some(id),

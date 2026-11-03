@@ -38,9 +38,14 @@ fn @g(arg0: slice<calldata>, arg1: i256) -> ptr<memory> [selector=0x1fd55338, vi
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    v22 = icall returndata_bytes<>
-    v23 = abi_decode [bytes], v22
-    ret v23
+    v22 = returndatasize
+    v23 = add v22, 31
+    v24 = and v23, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v25 = alloc v24
+    returndatacopy v25, 0, v22
+    v26 = make_memory_slice v25, v22
+    v27 = abi_decode [bytes], v26
+    ret v27
 }
 
 ; function h(uint8[3] calldata values) external pure returns (bytes memory) [selector 0x94e17704]
@@ -116,9 +121,14 @@ fn @i(arg0: slice<calldata>, arg1: i256) -> ptr<memory> [selector=0x18e849a4, vi
   bb4:                                            ; preds = bb3
     revert_returndata
   bb5:                                            ; preds = bb3
-    v33 = icall returndata_bytes<>
-    v34 = abi_decode [bytes], v33
-    ret v34
+    v33 = returndatasize
+    v34 = add v33, 31
+    v35 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v36 = alloc v35
+    returndatacopy v36, 0, v33
+    v37 = make_memory_slice v36, v33
+    v38 = abi_decode [bytes], v37
+    ret v38
   bb2:                                            ; preds = bb1
     v20 = mul v18, 32
     v21 = ptrtoint ptr<calldata> v17 to i256

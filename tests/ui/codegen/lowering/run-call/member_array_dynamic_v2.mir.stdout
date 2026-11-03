@@ -21,7 +21,12 @@ fn @g(arg0: slice<calldata>) -> ptr<memory> [selector=0x397cf2ca, abi_params=[tu
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    v7 = icall returndata_bytes<>
-    v8 = abi_decode [bytes], v7
-    ret v8
+    v7 = returndatasize
+    v8 = add v7, 31
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v10 = alloc v9
+    returndatacopy v10, 0, v7
+    v11 = make_memory_slice v10, v7
+    v12 = abi_decode [bytes], v11
+    ret v12
 }

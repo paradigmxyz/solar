@@ -546,7 +546,7 @@ fn source_outputs_from_compiler(
 
 fn make_contract_output<'gcx>(
     gcx: Gcx<'gcx>,
-    contract_id: solar_sema::hir::ContractId,
+    contract_id: ContractId,
     output_selection: OutputSelectionFlags,
     bytecodes: Option<&FxHashMap<ContractId, ContractArtifact>>,
     metadata: Option<&Metadata<'_, '_, 'gcx>>,
@@ -786,7 +786,7 @@ fn make_bytecode_output(
 }
 
 fn requested_bytecode_contracts(
-    gcx: solar_sema::Gcx<'_>,
+    gcx: Gcx<'_>,
     output_selection: &OutputSelection<'_>,
 ) -> ContractSelection {
     let bytecode_outputs = OutputSelectionFlags::BYTECODE
@@ -815,7 +815,7 @@ fn requested_bytecode_contracts(
 /// Returns the contracts whose metadata is requested directly or hashed into their bytecode,
 /// or `None` if no contracts need metadata.
 fn requested_metadata_contracts(
-    gcx: solar_sema::Gcx<'_>,
+    gcx: Gcx<'_>,
     output_selection: &OutputSelection<'_>,
     bytecode_contracts: &ContractSelection,
     metadata: MetadataSettings,
@@ -847,7 +847,7 @@ fn requested_metadata_contracts(
 }
 
 fn requested_debug_info_contracts(
-    gcx: solar_sema::Gcx<'_>,
+    gcx: Gcx<'_>,
     output_selection: &OutputSelection<'_>,
 ) -> ContractSelection {
     let debug_outputs = OutputSelectionFlags::BYTECODE_ETHDEBUG
@@ -874,7 +874,7 @@ fn requested_debug_info_contracts(
 }
 
 fn contract_output_requested(
-    gcx: solar_sema::Gcx<'_>,
+    gcx: Gcx<'_>,
     output_selection: &OutputSelection<'_>,
     outputs: OutputSelectionFlags,
 ) -> bool {

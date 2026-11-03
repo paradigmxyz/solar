@@ -1468,7 +1468,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if !self.cx.gcx.sess.opts.evm_version.supports_returndata() {
                 return report_error(self.cx.gcx, span, unsupported_returndata);
             }
-            Some(self.materialize_returndata_bytes())
+            Some(self.materialize_returndata_decode_source())
         } else {
             None
         };
