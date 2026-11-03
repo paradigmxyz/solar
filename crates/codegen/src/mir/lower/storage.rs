@@ -139,7 +139,7 @@ impl<'gcx> StorageLayout<'gcx> {
 
     pub(super) fn field_location(
         &self,
-        struct_id: solar_sema::hir::StructId,
+        struct_id: StructId,
         field: usize,
     ) -> Option<StorageLocation> {
         self.builder.locate_field(struct_id, field)

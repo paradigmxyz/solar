@@ -97,9 +97,14 @@ fn @g() -> ptr<memory> [selector=0xe2179b8e, view, abi_params=[], abi_returns=[m
   bb4:                                            ; preds = bb3
     revert_returndata
   bb5:                                            ; preds = bb3
-    v28 = icall returndata_bytes<>
-    v29 = abi_decode [bytes], v28
-    ret v29
+    v28 = returndatasize
+    v29 = add v28, 31
+    v30 = and v29, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v31 = alloc v30
+    returndatacopy v31, 0, v28
+    v32 = make_memory_slice v31, v28
+    v33 = abi_decode [bytes], v32
+    ret v33
   bb2:                                            ; preds = bb1
     v4 = alloc 32 !metadata(preserves_fmp)
     memory_zero v4, 32
@@ -208,9 +213,14 @@ fn @i() -> ptr<memory> [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[m
   bb7:                                            ; preds = bb6
     revert_returndata
   bb8:                                            ; preds = bb6
-    v73 = icall returndata_bytes<>
-    v74 = abi_decode [bytes], v73
-    ret v74
+    v73 = returndatasize
+    v74 = add v73, 31
+    v75 = and v74, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v76 = alloc v75
+    returndatacopy v76, 0, v73
+    v77 = make_memory_slice v76, v73
+    v78 = abi_decode [bytes], v77
+    ret v78
   bb5:                                            ; preds = bb4
     v14 = alloc 64 !metadata(preserves_fmp)
     memory_zero v14, 64

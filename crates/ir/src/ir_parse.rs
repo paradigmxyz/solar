@@ -16,6 +16,7 @@ use solar_interface::{
     Session, Span, Symbol, config::OptimizationMode, kw, source_map::SourceFile, sym,
 };
 use solar_parse::{Lexer, PErr};
+use std::{fmt, str::FromStr};
 
 /// Shared parser primitives for the textual IR parsers.
 pub struct Parser<'sess, 'ast> {
@@ -129,15 +130,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             return self.parse_uint().map(|id| (id, None));
         }
 
-        let span = self.token().span;
-        let name = self.parse_ident()?;
-        let Some((base, index)) = name.as_str().rsplit_once('_') else {
-            return Err(self.error_at(span, format!("invalid data identifier `{name}`")));
-        };
-        let id = index.parse().map_err(|err| {
-            self.error_at(span, format!("invalid data identifier `{name}`: {err}"))
-        })?;
-        Ok((id, Some(Symbol::intern(base))))
+        self.parse_indexed_name::<U256>("data").map(|(id, name)| (id, Some(name)))
     }
 
     pub fn parse_data_ref(&mut self) -> Result<(U256, u32, Span), PErr<'sess>> {
@@ -167,7 +160,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     pub fn parse_library_declarations(&mut self) -> Result<(), PErr<'sess>> {
         while self.check_declaration() {
             let span = self.token().span;
-            let (id, _) = self.parse_indexed_name("library")?;
+            let (id, _) = self.parse_indexed_name::<usize>("library")?;
             if id != self.libraries.len() {
                 return Err(self.error_at(
                     span,
@@ -237,7 +230,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a reference to a declared library: `Name_index`.
     pub fn parse_library_ref(&mut self) -> Result<LibraryId, PErr<'sess>> {
         let span = self.token().span;
-        let (id, name) = self.parse_indexed_name("library")?;
+        let (id, name) = self.parse_indexed_name::<usize>("library")?;
         if id >= self.libraries.len() {
             return Err(self.error_at(span, format!("unknown library `{name}_{id}`")));
         }
@@ -245,7 +238,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Parses an `name_index` identifier.
-    fn parse_indexed_name(&mut self, what: &str) -> Result<(usize, Symbol), PErr<'sess>> {
+    fn parse_indexed_name<T: FromStr>(&mut self, what: &str) -> Result<(T, Symbol), PErr<'sess>>
+    where
+        T::Err: fmt::Display,
+    {
         let span = self.token().span;
         let name = self.parse_ident()?;
         let Some((base, index)) = name.as_str().rsplit_once('_') else {

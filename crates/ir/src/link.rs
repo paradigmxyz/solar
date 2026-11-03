@@ -372,3 +372,16 @@ pub fn display_data_size(name: Option<Symbol>, size: DataSize) -> impl fmt::Disp
         Ok(())
     })
 }
+
+/// Displays an integer constant: decimal below 1000, else hex.
+pub fn display_u256(value: U256) -> impl fmt::Display {
+    fmt::from_fn(move |f| {
+        if let Ok(value) = u64::try_from(value)
+            && value < 1000
+        {
+            write!(f, "{value}")
+        } else {
+            write!(f, "{value:#x}")
+        }
+    })
+}
