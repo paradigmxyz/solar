@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/emit/library.evmir (before none) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/emit/library.evmir (after none) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/emit/library.evmir (before none) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/emit/library.evmir (after none) ===
   @module program
   @libraries
     L_0: "a.sol:L"

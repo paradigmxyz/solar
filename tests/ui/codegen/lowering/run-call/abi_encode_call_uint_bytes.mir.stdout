@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_uint_bytes.sol:AbiEncodeCallUintBytes ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_uint_bytes.sol:AbiEncodeCallUintBytes ===
 @module AbiEncodeCallUintBytes
 ; function g(bytes2, bytes2, bytes2) public pure [selector 0x6dddb956]
 fn @g(arg0: i256, arg1: i256, arg2: i256) [selector=0x6dddb956, pure, abi_params=[bytes2, bytes2, bytes2], abi_returns=[], abi_return_params=[]] {

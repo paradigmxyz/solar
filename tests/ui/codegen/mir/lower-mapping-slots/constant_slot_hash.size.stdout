@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lower-mapping-slots/constant_slot_hash.mir (before lower-mapping-slots) ===
-+ // === ROOT/tests/ui/codegen/mir/lower-mapping-slots/constant_slot_hash.mir (after lower-mapping-slots) ===
+- ; === ROOT/tests/ui/codegen/mir/lower-mapping-slots/constant_slot_hash.mir (before lower-mapping-slots) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-mapping-slots/constant_slot_hash.mir (after lower-mapping-slots) ===
   @module ConstantSlotHash
   fn @element(arg0: i256) -> i256 {
     bb0:

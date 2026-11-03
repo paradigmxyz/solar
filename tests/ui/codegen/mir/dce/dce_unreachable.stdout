@@ -1,10 +1,10 @@
-- // === ROOT/tests/ui/codegen/mir/dce/dce_unreachable.mir (before dce) ===
-+ // === ROOT/tests/ui/codegen/mir/dce/dce_unreachable.mir (after dce) ===
+- ; === ROOT/tests/ui/codegen/mir/dce/dce_unreachable.mir (before dce) ===
++ ; === ROOT/tests/ui/codegen/mir/dce/dce_unreachable.mir (after dce) ===
   @module DceUnreachable
   fn @skip(arg0: i256) -> i256 {
     bb0:
       jump bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       ret arg0
 -   bb1:
 -     v0 = add arg0, 1

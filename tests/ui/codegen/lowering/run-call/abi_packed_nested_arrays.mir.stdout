@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_packed_nested_arrays.sol:AbiPackedNestedArrays ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_packed_nested_arrays.sol:AbiPackedNestedArrays ===
 @module AbiPackedNestedArrays
 ; function encodeFixed(uint256[2][2] memory values) external pure returns (bytes32) [selector 0x6681ddb6]
 fn @encodeFixed(arg0: ptr<memory>) -> i256 [selector=0x6681ddb6, pure, abi_params=[array<2, array<2, uint256>>], abi_returns=[word], abi_return_params=[bytes32]] {

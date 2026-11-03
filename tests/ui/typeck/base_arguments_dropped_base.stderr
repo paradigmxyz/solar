@@ -1,4 +1,4 @@
-error: unresolved symbol `Undef`
+error[7920]: unresolved symbol `Undef`
    ╭▸ ROOT/tests/ui/typeck/base_arguments_dropped_base.sol:LL:CC
    │
 LL │ contract Unresolved is Undef, A(1) {}

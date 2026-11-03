@@ -1,8 +1,8 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/calldata_struct_return.sol:CalldataStructDecoder ===
+; === ROOT/tests/ui/codegen/lowering/run-call/calldata_struct_return.sol:CalldataStructDecoder ===
 @module CalldataStructDecoder
 @library
 
-// === ROOT/tests/ui/codegen/lowering/run-call/calldata_struct_return.sol:CalldataStructReturn ===
+; === ROOT/tests/ui/codegen/lowering/run-call/calldata_struct_return.sol:CalldataStructReturn ===
 @module CalldataStructReturn
 @types
   struct0: {i1, i256}
@@ -58,9 +58,9 @@ fn @roundTrip() -> struct2 [selector=0x6643a628, view, abi_params=[], abi_return
     v12 = zext i160 v0 to i256
     v13 = staticcall v1, v12, v10, v11, 0, 0
     jumpi v13, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v14 = returndatasize
     v15 = add v14, 31
     v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0

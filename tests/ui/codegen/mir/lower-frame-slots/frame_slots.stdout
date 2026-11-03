@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lower-frame-slots/frame_slots.mir (before lower-frame-slots) ===
-+ // === ROOT/tests/ui/codegen/mir/lower-frame-slots/frame_slots.mir (after lower-frame-slots) ===
+- ; === ROOT/tests/ui/codegen/mir/lower-frame-slots/frame_slots.mir (before lower-frame-slots) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-frame-slots/frame_slots.mir (after lower-frame-slots) ===
   @module FrameSlotLowering
   ; runtime dispatch entry
   fn @entry() [entry] {
@@ -7,13 +7,13 @@
       v0 = calldataload 0
       v1 = shr v0, 224
       switch v1, default bb4, [0x37a6096a => bb1, 0x645ee3c3 => bb2, 0x11546183 => bb3]
-    bb3:  ; preds = bb0
+    bb3:                                            ; preds = bb0
       tail_call @plain
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       tail_call @internal
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       tail_call @scratch
-    bb4 [cold]:  ; preds = bb0
+    bb4 [cold]:                                     ; preds = bb0
       revert 0, 0
   }
   

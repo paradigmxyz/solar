@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/program-data/empty_runtime_code.sol:EmptyRuntime ===
+; === ROOT/tests/ui/codegen/lowering/program-data/empty_runtime_code.sol:EmptyRuntime ===
 @module EmptyRuntime
 ; fallback() external payable [fallback]
 fn @fallback() [fallback, payable] {
@@ -6,7 +6,7 @@ fn @fallback() [fallback, payable] {
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/program-data/empty_runtime_code.sol:EmptyFactory ===
+; === ROOT/tests/ui/codegen/lowering/program-data/empty_runtime_code.sol:EmptyFactory ===
 @module EmptyFactory
 @data
   EmptyRuntime_runtime_code_0: runtime_code "ROOT/tests/ui/codegen/lowering/program-data/empty_runtime_code.sol:EmptyRuntime"
@@ -54,9 +54,9 @@ fn @deploy() -> i1 [selector=0x775c300c, abi_params=[], abi_returns=[word<bool>]
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = zext i160 v2 to i256
     v5 = extcodesize v4
     v6 = eq v5, 0

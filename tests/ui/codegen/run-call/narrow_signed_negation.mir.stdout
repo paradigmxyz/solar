@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/run-call/narrow_signed_negation.sol:NarrowSignedNegation ===
+; === ROOT/tests/ui/codegen/run-call/narrow_signed_negation.sol:NarrowSignedNegation ===
 @module NarrowSignedNegation
 ; function uncheckedI8(int8 value) external pure returns (int8) [selector 0x044c8cd4]
 fn @uncheckedI8(arg0: i8) -> i8 [selector=0x044c8cd4, pure, abi_params=[int8], abi_returns=[word<int8>], abi_return_params=[int8]] {

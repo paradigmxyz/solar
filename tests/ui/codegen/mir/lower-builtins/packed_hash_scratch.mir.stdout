@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/lower-builtins/packed_hash_scratch.sol:PackedHashScratch ===
+; === ROOT/tests/ui/codegen/mir/lower-builtins/packed_hash_scratch.sol:PackedHashScratch ===
 @module PackedHashScratch
 ; function threeItems(uint256 role, address holder) external pure returns (bytes32) [selector 0x6e13fa5d]
 fn @threeItems(arg0: i256, arg1: i160) -> i256 [selector=0x6e13fa5d, pure, abi_params=[uint256, address], abi_returns=[word], abi_return_params=[bytes32]] {

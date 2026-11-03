@@ -1,29 +1,29 @@
-// === ROOT/tests/ui/codegen/mir/hotness/cold_hint_returns.sol:C ===
+; === ROOT/tests/ui/codegen/mir/hotness/cold_hint_returns.sol:C ===
 @module C
 ; function bump(uint256 x) internal returns (uint256)
 fn @bump(arg0: i256) -> i256 [cold_hint] {
   bb0:
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v6]
     v3 = lt v2, v0
     jumpi v3, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     v7 = sload 0 !metadata(storage=slot(0))
     v8 = checked_mul uint256, v7, 2
     ret v8
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v4 = sload 0 !metadata(storage=slot(0))
     v5 = checked_add uint256, v4, 1
     sstore 0, v5 !metadata(storage=slot(0))
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v6 = checked_add uint256, v2, 1
     jump bb1
 }
@@ -41,19 +41,19 @@ fn @choose(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = gt arg0, 5
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v2 = gt arg1, 5
     jumpi v2, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb6
-  bb6:  ; preds = bb5
+  bb6:                                            ; preds = bb5
     ret 3
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v3 = icall @bump, arg0
     ret 2
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = icall @bump, arg0
     ret 1
 }

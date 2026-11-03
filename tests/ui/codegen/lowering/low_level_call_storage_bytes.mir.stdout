@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/low_level_call_storage_bytes.sol:LowLevelCallStorageBytes ===
+; === ROOT/tests/ui/codegen/lowering/low_level_call_storage_bytes.sol:LowLevelCallStorageBytes ===
 @module LowLevelCallStorageBytes
 @types
   struct0: {i1, ptr<memory>}

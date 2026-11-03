@@ -101,16 +101,16 @@
       (if-let gated (make (Op.Mul c x)))
       (sequence (Op.Add y gated)))
 
-;; select(c, y, (y + x)) => y + ((c == 0) * x).
-(rule (sequence_rewrite (Op.Select c y (add y x)))
-      (if-let z (make (Op.Eq c (imm (u256 0)))))
-      (if-let gated (make (Op.Mul z x)))
-      (sequence (Op.Add y gated)))
-
 ;; select(c, (x + y), y) => y + (c * x).
 ;; Requires: c is boolean.
 (rule (sequence_rewrite (Op.Select (and c (bool_value)) (add x y) y))
       (if-let gated (make (Op.Mul c x)))
+      (sequence (Op.Add y gated)))
+
+;; select(c, y, (y + x)) => y + ((c == 0) * x).
+(rule (sequence_rewrite (Op.Select c y (add y x)))
+      (if-let z (make (Op.Eq c (imm (u256 0)))))
+      (if-let gated (make (Op.Mul z x)))
       (sequence (Op.Add y gated)))
 
 ;; select(c, y, (x + y)) => y + ((c == 0) * x).
@@ -137,16 +137,16 @@
       (if-let gated (make (Op.Mul c x)))
       (sequence (Op.Or y gated)))
 
-;; select(c, y, (y | x)) => y | ((c == 0) * x).
-(rule (sequence_rewrite (Op.Select c y (bor y x)))
-      (if-let z (make (Op.Eq c (imm (u256 0)))))
-      (if-let gated (make (Op.Mul z x)))
-      (sequence (Op.Or y gated)))
-
 ;; select(c, (x | y), y) => y | (c * x).
 ;; Requires: c is boolean.
 (rule (sequence_rewrite (Op.Select (and c (bool_value)) (bor x y) y))
       (if-let gated (make (Op.Mul c x)))
+      (sequence (Op.Or y gated)))
+
+;; select(c, y, (y | x)) => y | ((c == 0) * x).
+(rule (sequence_rewrite (Op.Select c y (bor y x)))
+      (if-let z (make (Op.Eq c (imm (u256 0)))))
+      (if-let gated (make (Op.Mul z x)))
       (sequence (Op.Or y gated)))
 
 ;; select(c, y, (x | y)) => y | ((c == 0) * x).
@@ -161,16 +161,16 @@
       (if-let gated (make (Op.Mul c x)))
       (sequence (Op.Xor y gated)))
 
-;; select(c, y, (y ^ x)) => y ^ ((c == 0) * x).
-(rule (sequence_rewrite (Op.Select c y (bxor y x)))
-      (if-let z (make (Op.Eq c (imm (u256 0)))))
-      (if-let gated (make (Op.Mul z x)))
-      (sequence (Op.Xor y gated)))
-
 ;; select(c, (x ^ y), y) => y ^ (c * x).
 ;; Requires: c is boolean.
 (rule (sequence_rewrite (Op.Select (and c (bool_value)) (bxor x y) y))
       (if-let gated (make (Op.Mul c x)))
+      (sequence (Op.Xor y gated)))
+
+;; select(c, y, (y ^ x)) => y ^ ((c == 0) * x).
+(rule (sequence_rewrite (Op.Select c y (bxor y x)))
+      (if-let z (make (Op.Eq c (imm (u256 0)))))
+      (if-let gated (make (Op.Mul z x)))
       (sequence (Op.Xor y gated)))
 
 ;; select(c, y, (x ^ y)) => y ^ ((c == 0) * x).
@@ -187,19 +187,19 @@
       (if-let mask (make (Op.Not gated)))
       (sequence (Op.And y mask)))
 
-;; select(c, y, (y & x)) => y & ~((c == 0) * ~x).
-(rule (sequence_rewrite (Op.Select c y (band y x)))
-      (if-let z (make (Op.Eq c (imm (u256 0)))))
-      (if-let complement (make (Op.Not x)))
-      (if-let gated (make (Op.Mul z complement)))
-      (if-let mask (make (Op.Not gated)))
-      (sequence (Op.And y mask)))
-
 ;; select(c, (x & y), y) => y & ~(c * ~x).
 ;; Requires: c is boolean.
 (rule (sequence_rewrite (Op.Select (and c (bool_value)) (band x y) y))
       (if-let complement (make (Op.Not x)))
       (if-let gated (make (Op.Mul c complement)))
+      (if-let mask (make (Op.Not gated)))
+      (sequence (Op.And y mask)))
+
+;; select(c, y, (y & x)) => y & ~((c == 0) * ~x).
+(rule (sequence_rewrite (Op.Select c y (band y x)))
+      (if-let z (make (Op.Eq c (imm (u256 0)))))
+      (if-let complement (make (Op.Not x)))
+      (if-let gated (make (Op.Mul z complement)))
       (if-let mask (make (Op.Not gated)))
       (sequence (Op.And y mask)))
 

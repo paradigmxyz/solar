@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/memory_allocation_panic.sol:MemoryAllocationPanicRuntime ===
+; === ROOT/tests/ui/codegen/lowering/run-call/memory_allocation_panic.sol:MemoryAllocationPanicRuntime ===
 @module MemoryAllocationPanicRuntime
 ; function makeBytes(uint256 n) external pure returns (uint256) [selector 0xd90fd4da]
 fn @makeBytes(arg0: i256) -> i256 [selector=0xd90fd4da, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -65,11 +65,11 @@ fn @makeNestedArray(arg0: i256) -> i256 [selector=0x95572958, pure, abi_params=[
     v0 = alloc zeroed checked 64
     mstore v0, 1
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v6]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v7 = mul arg0, 1
     v8 = eq 1, 0
     v9 = div v7, 1
@@ -102,7 +102,7 @@ fn @makeNestedArray(arg0: i256) -> i256 [selector=0x95572958, pure, abi_params=[
     v29 = mload v28, ptr<memory>
     v30 = mload v29
     ret v30
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32
@@ -132,14 +132,14 @@ fn @makeStructArray(arg0: i256) -> i256 [selector=0x4273d03f, pure, abi_params=[
     v12 = alloc zeroed checked v9
     mstore v12, arg0
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v13 = phi [bb0: 0], [bb2: v21]
     v14 = lt v13, arg0
     jumpi v14, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v22 = mload v12
     ret v22
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v15 = alloc 64 !metadata(preserves_fmp)
     mstore v15, 0
     v16 = ptradd v15, 32

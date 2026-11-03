@@ -1,9 +1,9 @@
-- // === ROOT/tests/ui/codegen/mir/dce/dce_backend_memory.mir (before dce) ===
-+ // === ROOT/tests/ui/codegen/mir/dce/dce_backend_memory.mir (after dce) ===
+- ; === ROOT/tests/ui/codegen/mir/dce/dce_backend_memory.mir (before dce) ===
++ ; === ROOT/tests/ui/codegen/mir/dce/dce_backend_memory.mir (after dce) ===
   @module Stale
   @phase lowered
-- // backend-memory-v1
-- // backend-stack 0 0 1,2,3 3
+- ; backend-memory-v1
+- ; backend-stack 0 0 1,2,3 3
 - 
   ; runtime dispatch entry
   fn @entry() [entry] {

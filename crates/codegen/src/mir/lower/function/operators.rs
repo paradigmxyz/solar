@@ -18,7 +18,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if bits >= 256 {
             return value;
         }
-        let mask = self.builder.imm((U256::from(1) << bits) - U256::ONE);
+        let mask = self.builder.imm((U256::ONE << bits) - U256::ONE);
         self.builder.and(value, mask)
     }
 

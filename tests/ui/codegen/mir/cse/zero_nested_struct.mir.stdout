@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/cse/zero_nested_struct.sol:ZeroNested ===
+; === ROOT/tests/ui/codegen/mir/cse/zero_nested_struct.sol:ZeroNested ===
 @module ZeroNested
 ; function get(address asset) external pure returns (S memory data) [selector 0xc2bc2efc]
 fn @get(arg0: i160) -> ptr<memory> [selector=0xc2bc2efc, pure, abi_params=[address], abi_returns=[tuple<tuple<word>, word<uint128>, word<uint128>, word<uint128>, word<uint40>, word<uint16>, word<uint160>, word<uint8>>], abi_return_params=[tuple<tuple<uint256>, uint128, uint128, uint128, uint40, uint16, address, uint8>]] {

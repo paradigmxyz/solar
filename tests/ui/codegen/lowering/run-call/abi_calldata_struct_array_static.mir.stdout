@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_struct_array_static.sol:AbiCalldataStructArrayStatic ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_struct_array_static.sol:AbiCalldataStructArrayStatic ===
 @module AbiCalldataStructArrayStatic
 @types
   struct0: {i256, i256, i256, i256, i256}

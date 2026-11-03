@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/tail-merge/debug_info.evmir (before tail-merge) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/tail-merge/debug_info.evmir (after tail-merge) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/tail-merge/debug_info.evmir (before tail-merge) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/tail-merge/debug_info.evmir (after tail-merge) ===
   @module DebugInfo
   bb0 [invoke=first@1..30]:
     push 11 !metadata(span=1..5)

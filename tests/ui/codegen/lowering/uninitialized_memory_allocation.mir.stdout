@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/uninitialized_memory_allocation.sol:UninitializedMemoryAllocation ===
+; === ROOT/tests/ui/codegen/lowering/uninitialized_memory_allocation.sol:UninitializedMemoryAllocation ===
 @module UninitializedMemoryAllocation
 @types
   struct0: {i256, i256, i256, i256}
@@ -107,11 +107,11 @@ fn @fixedArrayDynamicDefaults() -> struct2 [selector=0x94633452, pure, abi_param
     v0 = icall @freeMemoryPointer
     v1 = alloc 64 !metadata(preserves_fmp)
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v2 = phi [bb0: 0], [bb2: v6]
     v3 = lt v2, 2
     jumpi v3, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v7 = icall @freeMemoryPointer
     v8 = checked_sub uint256, v7, v0
     v9 = ptrtoint ptr<memory> v1 to i256
@@ -123,7 +123,7 @@ fn @fixedArrayDynamicDefaults() -> struct2 [selector=0x94633452, pure, abi_param
     v15 = insert_value struct2, v14, 1, v10
     v16 = insert_value struct2, v15, 2, v13
     ret v16
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v4 = shl v2, 5
     v5 = ptradd v1, v4
     mstore v5, 96

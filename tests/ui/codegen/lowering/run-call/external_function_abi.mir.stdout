@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/external_function_abi.sol:ExternalFunctionAbi ===
+; === ROOT/tests/ui/codegen/lowering/run-call/external_function_abi.sol:ExternalFunctionAbi ===
 @module ExternalFunctionAbi
 ; function target(uint256 value) external pure returns (uint256) [selector 0x9811c7c1]
 fn @target(arg0: i256) -> i256 [selector=0x9811c7c1, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -44,9 +44,9 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v7 = zext i160 v4 to i256
     v8 = staticcall v5, v7, 28, 36, 0, 0
     jumpi v8, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v9 = returndatasize
     v10 = add v9, 31
     v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -94,9 +94,9 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v45 = zext i160 v39 to i256
     v46 = staticcall v40, v45, v42, v43, v44, 64
     jumpi v46, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v47 = returndatasize
     v48 = lt v47, 64
     icall revert_if<tuple_data_too_short>, v48
@@ -137,9 +137,9 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v77 = zext i160 v72 to i256
     v78 = staticcall v73, v77, v75, v76, 0, 0
     jumpi v78, bb6, bb5
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     revert_returndata
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     v79 = returndatasize
     v80 = add v79, 31
     v81 = and v80, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0

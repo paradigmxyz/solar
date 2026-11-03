@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/modifier_expansion.sol:ModifierExpansion ===
+; === ROOT/tests/ui/codegen/lowering/modifier_expansion.sol:ModifierExpansion ===
 @module ModifierExpansion
 ; function value() external around returns (uint256) [selector 0x3fa4f245]
 fn @value() -> i256 [selector=0x3fa4f245, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -8,12 +8,12 @@ fn @value() -> i256 [selector=0x3fa4f245, abi_params=[], abi_returns=[word], abi
     sstore 0, v1 !metadata(storage=slot(0))
     v2 = sload 0 !metadata(storage=slot(0))
     jump bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v3 = sload 0 !metadata(storage=slot(0))
     v4 = checked_add uint256, v3, 2
     sstore 0, v4 !metadata(storage=slot(0))
     jump bb1
-  bb1:  ; preds = bb2
+  bb1:                                            ; preds = bb2
     ret v2
 }
 
@@ -25,12 +25,12 @@ fn @valueWithArg() -> i256 [selector=0x121de20b, abi_params=[], abi_returns=[wor
     sstore 0, v1 !metadata(storage=slot(0))
     v2 = sload 0 !metadata(storage=slot(0))
     jump bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v3 = sload 0 !metadata(storage=slot(0))
     v4 = checked_add uint256, v3, 2
     sstore 0, v4 !metadata(storage=slot(0))
     jump bb1
-  bb1:  ; preds = bb2
+  bb1:                                            ; preds = bb2
     ret v2
 }
 
@@ -45,17 +45,17 @@ fn @valueWithTwo() -> i256 [selector=0xcd1b4309, abi_params=[], abi_returns=[wor
     sstore 0, v3 !metadata(storage=slot(0))
     v4 = sload 0 !metadata(storage=slot(0))
     jump bb3
-  bb3:  ; preds = bb0
+  bb3:                                            ; preds = bb0
     v5 = sload 0 !metadata(storage=slot(0))
     v6 = checked_add uint256, v5, 2
     sstore 0, v6 !metadata(storage=slot(0))
     jump bb2
-  bb2:  ; preds = bb3
+  bb2:                                            ; preds = bb3
     v7 = sload 0 !metadata(storage=slot(0))
     v8 = checked_add uint256, v7, 2
     sstore 0, v8 !metadata(storage=slot(0))
     jump bb1
-  bb1:  ; preds = bb2
+  bb1:                                            ; preds = bb2
     ret v4
 }
 
@@ -67,15 +67,15 @@ fn @valueWithTwoPlaceholders() -> i256 [selector=0xb6093d3f, abi_params=[], abi_
     sstore 0, v1 !metadata(storage=slot(0))
     v2 = sload 0 !metadata(storage=slot(0))
     jump bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v3 = sload 0 !metadata(storage=slot(0))
     v4 = checked_add uint256, v3, 1
     sstore 0, v4 !metadata(storage=slot(0))
     v5 = sload 0 !metadata(storage=slot(0))
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     jump bb1
-  bb1:  ; preds = bb3
+  bb1:                                            ; preds = bb3
     ret v5
 }
 
@@ -83,26 +83,26 @@ fn @valueWithTwoPlaceholders() -> i256 [selector=0xb6093d3f, abi_params=[], abi_
 fn @repeatFalse() -> i256 [selector=0x39a40f90, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jumpi false, bb2, bb3
-  bb3:  ; preds = bb0
+  bb3:                                            ; preds = bb0
     jump bb4
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add uint256, v0, 1
     v2 = checked_add uint256, 0, v1
     sstore 0, v2 !metadata(storage=slot(0))
     jump bb5
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     jump bb4
-  bb4:  ; preds = bb5, bb3
+  bb4:                                            ; preds = bb5, bb3
     v3 = phi [bb5: v2], [bb3: 0]
     v4 = sload 0 !metadata(storage=slot(0))
     v5 = checked_add uint256, v4, 1
     v6 = checked_add uint256, 0, v5
     sstore 0, v6 !metadata(storage=slot(0))
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb1
-  bb1:  ; preds = bb6
+  bb1:                                            ; preds = bb6
     ret v6
 }
 
@@ -110,26 +110,26 @@ fn @repeatFalse() -> i256 [selector=0x39a40f90, abi_params=[], abi_returns=[word
 fn @repeatTrue() -> i256 [selector=0x7cf22419, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jumpi true, bb2, bb3
-  bb3:  ; preds = bb0
+  bb3:                                            ; preds = bb0
     jump bb4
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add uint256, v0, 1
     v2 = checked_add uint256, 0, v1
     sstore 0, v2 !metadata(storage=slot(0))
     jump bb5
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     jump bb4
-  bb4:  ; preds = bb5, bb3
+  bb4:                                            ; preds = bb5, bb3
     v3 = phi [bb5: v2], [bb3: 0]
     v4 = sload 0 !metadata(storage=slot(0))
     v5 = checked_add uint256, v4, 1
     v6 = checked_add uint256, 0, v5
     sstore 0, v6 !metadata(storage=slot(0))
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb1
-  bb1:  ; preds = bb6
+  bb1:                                            ; preds = bb6
     ret v6
 }
 
@@ -137,8 +137,8 @@ fn @repeatTrue() -> i256 [selector=0x7cf22419, abi_params=[], abi_returns=[word]
 fn @modifierMutates(arg0: i256) -> i256 [selector=0x0c3d6b6e, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb1
-  bb1:  ; preds = bb2
+  bb1:                                            ; preds = bb2
     ret arg0
 }

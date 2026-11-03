@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/fixed_bytes_literal_assign.sol:FixedBytesLiteralAssign ===
+; === ROOT/tests/ui/codegen/lowering/fixed_bytes_literal_assign.sol:FixedBytesLiteralAssign ===
 @module FixedBytesLiteralAssign
 @phase lowered
 ; runtime dispatch entry
@@ -7,15 +7,15 @@ fn @entry() [entry] {
     v0 = callvalue
     v1 = ne v0, 0
     jumpi v1, bb4, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v2 = calldataload 0
     v3 = shr v2, 224
     switch v3, default bb4, [0x7f603a02 => bb2, 0x975057e7 => bb3]
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     tail_call @store
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     tail_call @patch
-  bb4 [cold]:  ; preds = bb0, bb1
+  bb4 [cold]:                                     ; preds = bb0, bb1
     revert 0, 0
 }
 
@@ -30,23 +30,23 @@ fn @patch() {
     v27 = or v17, v26
     v28 = ne v27, 0
     jumpi v28, bb3, bb4
-  bb4:  ; preds = bb0
+  bb4:                                            ; preds = bb0
     v29 = calldataload 4
     v25 = ne v29, 0
     v22 = heap_floor !metadata(alloc_ptr)
     v21 = add v22, 32
     mstore v21, 0x4142000000000000000000000000000000000000000000000000000000000000
     jumpi v25, bb1, bb2
-  bb1:  ; preds = bb4
+  bb1:                                            ; preds = bb4
     mstore8 v21, 45
     jump bb2
-  bb2:  ; preds = bb1, bb4
+  bb2:                                            ; preds = bb1, bb4
     v11 = mload v21
     v12 = byte 0, v11
     v13 = shl v12, 248
     mstore 0, v13 !metadata(memory=scratch)
     returndata 0, 32
-  bb3 [cold]:  ; preds = bb0
+  bb3 [cold]:                                     ; preds = bb0
     revert 0, 0
 }
 

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/memory-dse/dead_allocation_return.sol:DeadAllocationReturn ===
+; === ROOT/tests/ui/codegen/mir/memory-dse/dead_allocation_return.sol:DeadAllocationReturn ===
 @module DeadAllocationReturn
 @types
   struct0: {i256, i256}
@@ -11,13 +11,13 @@ fn @callIdentity(arg0: i256) -> i256 [view] {
     v2 = address_staticcall i160 4, v1, gas v0
     v3 = icall returndata_bytes<>
     jumpi v2, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v4 = mload v3
     v5 = eq v4, 32
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v6 = phi [bb1: v5], [bb2: false]
     v7 = eq v6, false
     icall revert_if<empty>, v7
@@ -45,13 +45,13 @@ fn @modexp(arg0: i256, arg1: i256) -> i256 [view] {
     v2 = address_staticcall i160 5, v1, gas v0
     v3 = icall returndata_bytes<>
     jumpi v2, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v4 = mload v3
     v5 = eq v4, 32
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v6 = phi [bb1: v5], [bb2: false]
     v7 = eq v6, false
     icall revert_if<empty>, v7
@@ -111,11 +111,11 @@ fn @stored(arg0: i256) -> ptr<memory> [selector=0x8c396222, pure, abi_params=[ui
     v0 = alloc zeroed checked 64
     mstore v0, 1
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v6]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v7 = abi_encode [word], object, args arg0
     v8 = mload v0
     v9 = gt v8, 0
@@ -131,7 +131,7 @@ fn @stored(arg0: i256) -> ptr<memory> [selector=0x8c396222, pure, abi_params=[ui
     v16 = ptradd v0, 32
     v17 = mload v16, ptr<memory>
     ret v17
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32

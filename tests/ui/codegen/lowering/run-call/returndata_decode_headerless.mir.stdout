@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/returndata_decode_headerless.sol:Impl ===
+; === ROOT/tests/ui/codegen/lowering/run-call/returndata_decode_headerless.sol:Impl ===
 @module Impl
 @types
   struct0: {i256, ptr<memory>}
@@ -15,9 +15,9 @@ fn @bytesOf(arg0: i256) -> ptr<memory> [selector=0x0ee98e81, pure, abi_params=[u
     mstore v4, arg0
     v5 = ne arg0, 0
     jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v6 = mload v4
     v7 = gt v6, 0
     v8 = eq v7, false
@@ -26,7 +26,7 @@ fn @bytesOf(arg0: i256) -> ptr<memory> [selector=0x0ee98e81, pure, abi_params=[u
     v10 = ptradd v4, 32
     mstore8 v10, v9
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     ret v4
 }
 
@@ -40,7 +40,7 @@ fn @mixed() -> struct0 [selector=0x354df1f9, pure, abi_params=[], abi_returns=[w
     ret v2
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/returndata_decode_headerless.sol:Truncated ===
+; === ROOT/tests/ui/codegen/lowering/run-call/returndata_decode_headerless.sol:Truncated ===
 @module Truncated
 ; fallback() external [fallback]
 fn @fallback() [fallback] {
@@ -50,7 +50,7 @@ fn @fallback() [fallback] {
     returndata 0, 64
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/returndata_decode_headerless.sol:Unaligned ===
+; === ROOT/tests/ui/codegen/lowering/run-call/returndata_decode_headerless.sol:Unaligned ===
 @module Unaligned
 ; fallback() external [fallback]
 fn @fallback() [fallback] {
@@ -61,7 +61,7 @@ fn @fallback() [fallback] {
     returndata 0, 65
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/returndata_decode_headerless.sol:ReturndataDecodeHeaderless ===
+; === ROOT/tests/ui/codegen/lowering/run-call/returndata_decode_headerless.sol:ReturndataDecodeHeaderless ===
 @module ReturndataDecodeHeaderless
 @types
   struct0: {i256, i256, i8}
@@ -83,9 +83,9 @@ fn @directBytes() -> struct0 [selector=0x107e820f, abi_params=[], abi_returns=[w
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = mload 64 !metadata(memory=scratch)
     v5 = gas
     mstore 0, 0xee98e81 !metadata(memory=scratch)
@@ -93,9 +93,9 @@ fn @directBytes() -> struct0 [selector=0x107e820f, abi_params=[], abi_returns=[w
     v6 = zext i160 v2 to i256
     v7 = staticcall v5, v6, 28, 36, 0, 0
     jumpi v7, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v8 = returndatasize
     v9 = add v8, 31
     v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -131,9 +131,9 @@ fn @pointerBytes() -> struct0 [selector=0x8b818339, abi_params=[], abi_returns=[
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = zext i160 v2 to i256
     v5 = shl v4, 32
     v6 = or v5, 0xee98e81
@@ -147,9 +147,9 @@ fn @pointerBytes() -> struct0 [selector=0x8b818339, abi_params=[], abi_returns=[
     mstore 32, 33 !metadata(memory=scratch)
     v13 = staticcall v11, v10, 28, 36, 0, 0
     jumpi v13, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v14 = returndatasize
     v15 = add v14, 31
     v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -185,9 +185,9 @@ fn @tryBytes() -> struct0 [selector=0x73203734, abi_params=[], abi_returns=[word
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = mload 64 !metadata(memory=scratch)
     v5 = gas
     mstore 0, 0xee98e81 !metadata(memory=scratch)
@@ -195,15 +195,15 @@ fn @tryBytes() -> struct0 [selector=0x73203734, abi_params=[], abi_returns=[word
     v6 = zext i160 v2 to i256
     v7 = staticcall v5, v6, 28, 36, 0, 0
     jumpi v7, bb3, bb4
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     jumpi true, bb6, bb7
-  bb7:  ; preds = bb4
+  bb7:                                            ; preds = bb4
     icall revert_if<empty>, true
     invalid
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     icall revert_if<empty>, true
     invalid
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v8 = returndatasize
     v9 = add v8, 31
     v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -225,7 +225,7 @@ fn @tryBytes() -> struct0 [selector=0x73203734, abi_params=[], abi_returns=[word
     v24 = shr v23, 248
     v25 = trunc i256 v24 to i8
     jump bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     v26 = insert_value struct0, undef struct0, 0, v15
     v27 = insert_value struct0, v26, 1, v16
     v28 = insert_value struct0, v27, 2, v25
@@ -241,9 +241,9 @@ fn @directEmpty() -> struct1 [selector=0x69aae4eb, abi_params=[], abi_returns=[w
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = mload 64 !metadata(memory=scratch)
     v5 = gas
     mstore 0, 0xee98e81 !metadata(memory=scratch)
@@ -251,9 +251,9 @@ fn @directEmpty() -> struct1 [selector=0x69aae4eb, abi_params=[], abi_returns=[w
     v6 = zext i160 v2 to i256
     v7 = staticcall v5, v6, 28, 36, 0, 0
     jumpi v7, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v8 = returndatasize
     v9 = add v8, 31
     v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -278,9 +278,9 @@ fn @directMixed() -> struct1 [selector=0xf96b16c5, abi_params=[], abi_returns=[w
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = gas
     v5 = abi_encode [], selector 0x354df1f900000000000000000000000000000000000000000000000000000000
     v6 = extract_value slice<memory>, v5, 0
@@ -288,9 +288,9 @@ fn @directMixed() -> struct1 [selector=0xf96b16c5, abi_params=[], abi_returns=[w
     v8 = zext i160 v2 to i256
     v9 = staticcall v4, v8, v6, v7, 0, 0
     jumpi v9, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v10 = returndatasize
     v11 = add v10, 31
     v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -319,18 +319,18 @@ fn @directUnaligned() -> struct3 [selector=0x3e1991d6, abi_params=[], abi_return
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = gas
     mstore 0, 0xee98e81 !metadata(memory=scratch)
     mstore 32, 1 !metadata(memory=scratch)
     v5 = zext i160 v2 to i256
     v6 = staticcall v4, v5, 28, 36, 0, 0
     jumpi v6, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v7 = returndatasize
     v8 = add v7, 31
     v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -363,18 +363,18 @@ fn @directTruncated() -> ptr<memory> [selector=0xb9234a39, abi_params=[], abi_re
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = gas
     mstore 0, 0xee98e81 !metadata(memory=scratch)
     mstore 32, 1 !metadata(memory=scratch)
     v5 = zext i160 v2 to i256
     v6 = staticcall v4, v5, 28, 36, 0, 0
     jumpi v6, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v7 = returndatasize
     v8 = add v7, 31
     v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
