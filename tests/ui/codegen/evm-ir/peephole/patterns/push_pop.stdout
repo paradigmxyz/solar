@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/push_pop.evmir (before peephole) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/push_pop.evmir (after peephole) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/push_pop.evmir (before peephole) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/push_pop.evmir (after peephole) ===
   @module module
   bb0:
 -   push 1
@@ -35,8 +35,8 @@
     push 0
     revert
   
-- // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/push_pop.evmir (before dce) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/push_pop.evmir (after dce) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/push_pop.evmir (before dce) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/push_pop.evmir (after dce) ===
   @module module
   bb0:
     stop

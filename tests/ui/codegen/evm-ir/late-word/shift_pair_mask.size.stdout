@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/late-word/shift_pair_mask.evmir (before late-word) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/late-word/shift_pair_mask.evmir (after late-word) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/late-word/shift_pair_mask.evmir (before late-word) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/late-word/shift_pair_mask.evmir (after late-word) ===
   @module ShiftPairMask
   bb0:
     push 36

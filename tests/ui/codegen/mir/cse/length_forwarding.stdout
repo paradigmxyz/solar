@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/cse/length_forwarding.sol:Test ===
+; === ROOT/tests/ui/codegen/mir/cse/length_forwarding.sol:Test ===
 @module Test
 @phase lowered
 ; runtime dispatch entry
@@ -11,15 +11,15 @@ fn @entry() [entry] {
     v4 = or v0, v3
     v5 = ne v4, 0
     jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v6 = calldataload 0
     v7 = shr v6, 224
     switch v7, default bb1, [0x191ac2d2 => bb3, 0x76421988 => bb4]
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     tail_call @relay
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     tail_call @alloc
-  bb1 [cold]:  ; preds = bb0, bb2
+  bb1 [cold]:                                     ; preds = bb0, bb2
     revert 0, 0
 }
 
@@ -32,7 +32,7 @@ fn @relay() {
     v8 = sub v3, 36
     v9 = lt v8, v5
     jumpi v9, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v10 = calldataload v6
     v11 = add v6, 32
     v12 = add v10, 31
@@ -49,13 +49,13 @@ fn @relay() {
     v75 = or v71, v74
     v76 = ne v75, 0
     jumpi v76, bb3, bb5
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     mstore 64, v67 !metadata(memory=scratch)
     mstore v66, v10
     v17 = sub v3, v11
     v18 = lt v17, v10
     jumpi v18, bb1, bb4
-  bb4:  ; preds = bb5
+  bb4:                                            ; preds = bb5
     v57 = add v66, 32
     calldatacopy v57, v11, v10
     v58 = add v57, v10
@@ -75,11 +75,11 @@ fn @relay() {
     mstore v60, 32
     v54 = add v13, 64
     returndata v60, v54
-  bb3 [cold]:  ; preds = bb2
+  bb3 [cold]:                                     ; preds = bb2
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1 [cold]:  ; preds = bb0, bb5
+  bb1 [cold]:                                     ; preds = bb0, bb5
     revert 0, 0
 }
 
@@ -100,14 +100,14 @@ fn @alloc() {
     v21 = or v15, v20
     v22 = ne v21, 0
     jumpi v22, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v23 = calldataload 4
     v17 = calldatasize
     calldatacopy v10, v17, v2
     mstore v10, v23
     mstore 0, v23 !metadata(memory=scratch)
     returndata 0, 32
-  bb1 [cold]:  ; preds = bb0
+  bb1 [cold]:                                     ; preds = bb0
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36

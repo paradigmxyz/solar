@@ -74,9 +74,6 @@ use std::{convert::Infallible, ops::ControlFlow};
 /// more than any block holds.
 pub(crate) const MEMORY_LIMIT: u64 = 1 << 24;
 
-/// Bytes per memory word.
-const WORD_BYTES: u64 = 32;
-
 /// The opcodes a run executes on its memory, besides the pure opcodes it evaluates.
 const MEMORY_OPCODES: [u8; 6] =
     [op::MLOAD, op::MSTORE, op::MSTORE8, op::MCOPY, op::KECCAK256, op::MSIZE];
@@ -243,12 +240,14 @@ impl Memory {
     }
 
     fn byte(&self, address: u64) -> u8 {
-        let (word, index) = (address / WORD_BYTES, (address % WORD_BYTES) as usize);
+        let (word, index) =
+            (address / EvmMemoryLayout::WORD_SIZE, (address % EvmMemoryLayout::WORD_SIZE) as usize);
         self.words.get(&word).map_or(0, |bytes| bytes[index])
     }
 
     fn set_byte(&mut self, address: u64, value: u8) {
-        let (word, index) = (address / WORD_BYTES, (address % WORD_BYTES) as usize);
+        let (word, index) =
+            (address / EvmMemoryLayout::WORD_SIZE, (address % EvmMemoryLayout::WORD_SIZE) as usize);
         self.words.entry(word).or_insert([0; 32])[index] = value;
     }
 
@@ -263,17 +262,19 @@ impl Memory {
             return Err(Limit::Memory);
         }
         let (offset, len) = (offset.to::<u64>(), len.to::<u64>());
-        self.size = self.size.max((offset + len).div_ceil(WORD_BYTES));
+        self.size = self.size.max((offset + len).div_ceil(EvmMemoryLayout::WORD_SIZE));
         Ok(Some(offset))
     }
 
     fn load(&mut self, offset: U256) -> Result<U256, Limit> {
-        let offset = self.access(offset, U256::from(WORD_BYTES))?.unwrap_or_default();
+        let offset =
+            self.access(offset, U256::from(EvmMemoryLayout::WORD_SIZE))?.unwrap_or_default();
         Ok(self.word(offset))
     }
 
     fn store(&mut self, offset: U256, value: U256) -> Result<(), Limit> {
-        let offset = self.access(offset, U256::from(WORD_BYTES))?.unwrap_or_default();
+        let offset =
+            self.access(offset, U256::from(EvmMemoryLayout::WORD_SIZE))?.unwrap_or_default();
         for (index, byte) in value.to_be_bytes::<32>().into_iter().enumerate() {
             self.set_byte(offset + index as u64, byte);
         }
@@ -542,7 +543,7 @@ impl<'a> Run<'_, 'a, '_> {
         if len > U256::from(MEMORY_LIMIT) {
             return ControlFlow::Break(Outcome::Limit(Limit::Memory));
         }
-        self.burn(len.to::<u64>().div_ceil(WORD_BYTES))
+        self.burn(len.to::<u64>().div_ceil(EvmMemoryLayout::WORD_SIZE))
     }
 
     /// Pushes a frame running `body` on `args`, returning its first value into `result`.
@@ -695,7 +696,7 @@ impl<'a> Run<'_, 'a, '_> {
     ) -> ControlFlow<Outcome, Option<U256>> {
         ControlFlow::Continue(match (opcode, operands) {
             (op::MSIZE, &[]) => {
-                let size = U256::from(self.memory.size * WORD_BYTES);
+                let size = U256::from(self.memory.size * EvmMemoryLayout::WORD_SIZE);
                 // Spills and frame writes MIR does not show may have grown EVM memory up to the
                 // end of the backend's frames, which a transaction needs its layout to know.
                 if self.transaction.is_some() {
@@ -892,7 +893,7 @@ impl<'a> Run<'_, 'a, '_> {
         // mstore buffer + 32 * k, result k
         // mstore 0x20, buffer
         for (index, &value) in values.iter().enumerate().skip(1) {
-            let offset = buffer.wrapping_add(U256::from(index as u64 * WORD_BYTES));
+            let offset = buffer.wrapping_add(U256::from(index as u64 * EvmMemoryLayout::WORD_SIZE));
             limit(self.memory.store(offset, value))?;
         }
         let slot = U256::from(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/checked_narrow_mul.sol:CheckedNarrowMul ===
+; === ROOT/tests/ui/codegen/lowering/run-call/checked_narrow_mul.sol:CheckedNarrowMul ===
 @module CheckedNarrowMul
 ; function u8(uint8 a, uint8 b) external pure returns (uint8) [selector 0x535cc622]
 fn @u8(arg0: i8, arg1: i8) -> i8 [selector=0x535cc622, pure, abi_params=[uint8, uint8], abi_returns=[word<uint8>], abi_return_params=[uint8]] {

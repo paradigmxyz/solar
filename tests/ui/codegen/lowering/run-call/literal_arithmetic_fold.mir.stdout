@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/literal_arithmetic_fold.sol:LiteralArithmeticFold ===
+; === ROOT/tests/ui/codegen/lowering/run-call/literal_arithmetic_fold.sol:LiteralArithmeticFold ===
 @module LiteralArithmeticFold
 ; function negPlusHigh() external pure returns (uint256) [selector 0x6af7d583]
 fn @negPlusHigh() -> i256 [selector=0x6af7d583, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {

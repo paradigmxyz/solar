@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/late-structural/distinct_terminals.evmir (before cfg-simplify) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/late-structural/distinct_terminals.evmir (after cfg-simplify) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/late-structural/distinct_terminals.evmir (before cfg-simplify) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/late-structural/distinct_terminals.evmir (after cfg-simplify) ===
   @module DistinctTerminals
   bb0:
     push 4

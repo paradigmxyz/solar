@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/word-sequence/divisibility.mir (before word-sequence) ===
-+ // === ROOT/tests/ui/codegen/mir/word-sequence/divisibility.mir (after word-sequence) ===
+- ; === ROOT/tests/ui/codegen/mir/word-sequence/divisibility.mir (before word-sequence) ===
++ ; === ROOT/tests/ui/codegen/mir/word-sequence/divisibility.mir (after word-sequence) ===
   @module Divisibility
   fn @multiple(arg0: i256) -> i1 {
     bb0:
@@ -29,8 +29,8 @@
       ret v2
   }
   
-- // === ROOT/tests/ui/codegen/mir/word-sequence/divisibility.mir (before dce) ===
-+ // === ROOT/tests/ui/codegen/mir/word-sequence/divisibility.mir (after dce) ===
+- ; === ROOT/tests/ui/codegen/mir/word-sequence/divisibility.mir (before dce) ===
++ ; === ROOT/tests/ui/codegen/mir/word-sequence/divisibility.mir (after dce) ===
   @module Divisibility
   fn @multiple(arg0: i256) -> i1 {
     bb0:

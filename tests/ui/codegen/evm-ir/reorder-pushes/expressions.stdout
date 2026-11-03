@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/expressions.evmir (before reorder-pushes) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/expressions.evmir (after reorder-pushes) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/expressions.evmir (before reorder-pushes) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/expressions.evmir (after reorder-pushes) ===
   @module ReorderExpressions
   bb0:
 +   push 10

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_function_pointer_validation.sol:AbiFunctionPointerValidation ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_function_pointer_validation.sol:AbiFunctionPointerValidation ===
 @module AbiFunctionPointerValidation
 ; function f(S memory) external pure returns (uint r) [selector 0x9f4a608d]
 fn @f(arg0: ptr<memory>) -> i256 [selector=0x9f4a608d, pure, abi_params=[tuple<function>], abi_returns=[word], abi_return_params=[uint256]] {

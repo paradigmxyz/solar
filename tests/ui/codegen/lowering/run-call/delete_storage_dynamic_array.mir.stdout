@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/delete_storage_dynamic_array.sol:DeleteStorageDynamicArray ===
+; === ROOT/tests/ui/codegen/lowering/run-call/delete_storage_dynamic_array.sol:DeleteStorageDynamicArray ===
 @module DeleteStorageDynamicArray
 @types
   struct0: {i256, i24}

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/storage-dse/noop_stores.sol:NoopStores ===
+; === ROOT/tests/ui/codegen/mir/storage-dse/noop_stores.sol:NoopStores ===
 @module NoopStores
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
@@ -42,13 +42,13 @@ fn @branch(arg0: i256, arg1: i1) -> i256 [selector=0xc86d784b, abi_params=[uint2
     v0 = mapping_slot arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
     jumpi arg1, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v2 = mapping_slot arg0, 0
     sstore v2, v1 !metadata(storage=symbolic(v2))
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v3 = mapping_slot arg0, 0
     v4 = sload v3 !metadata(storage=symbolic(v3))
     ret v4

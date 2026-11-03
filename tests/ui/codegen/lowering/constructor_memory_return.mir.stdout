@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/constructor_memory_return.sol:ConstructorMemoryReturn ===
+; === ROOT/tests/ui/codegen/lowering/constructor_memory_return.sol:ConstructorMemoryReturn ===
 @module ConstructorMemoryReturn
 ; constructor() [creation entry]
 fn @constructor() [constructor] {

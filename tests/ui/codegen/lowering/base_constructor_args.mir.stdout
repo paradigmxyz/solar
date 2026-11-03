@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:Root ===
+; === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:Root ===
 @module Root
 ; constructor(uint256 value_, string memory label_) [creation entry]
 fn @constructor(arg0: i256, arg1: ptr<memory>) [constructor, abi_params=[uint256, bytes]] {
@@ -21,7 +21,7 @@ fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:Middle ===
+; === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:Middle ===
 @module Middle
 ; constructor(uint256 value_, string memory label_) Root(value_ + 1, label_) [creation entry]
 fn @constructor(arg0: i256, arg1: ptr<memory>) [constructor, abi_params=[uint256, bytes]] {
@@ -30,9 +30,9 @@ fn @constructor(arg0: i256, arg1: ptr<memory>) [constructor, abi_params=[uint256
     sstore 0, v0 !metadata(storage=slot(0))
     icall @store_storage_bytes, 1, arg1
     jump bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb2
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     ret
 }
 
@@ -49,7 +49,7 @@ fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:BaseConstructorArgs ===
+; === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:BaseConstructorArgs ===
 @module BaseConstructorArgs
 ; constructor(uint256 value_) Middle(value_ * 2, "ok") [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
@@ -63,13 +63,13 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
     sstore 0, v3 !metadata(storage=slot(0))
     icall @store_storage_bytes, 1, v1
     jump bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb3
+  bb2:                                            ; preds = bb3
     jump bb4
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     ret
 }
 
@@ -96,7 +96,7 @@ fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:OrderA ===
+; === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:OrderA ===
 @module OrderA
 ; constructor(uint256) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
@@ -104,7 +104,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:OrderB ===
+; === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:OrderB ===
 @module OrderB
 ; constructor(uint256) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
@@ -112,7 +112,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:OrderC ===
+; === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:OrderC ===
 @module OrderC
 ; constructor(uint256) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
@@ -120,7 +120,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:OrderD ===
+; === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:OrderD ===
 @module OrderD
 ; constructor(uint256) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
@@ -128,7 +128,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:ConstructorArgumentOrder ===
+; === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:ConstructorArgumentOrder ===
 @module ConstructorArgumentOrder
 @types
   struct0: {i256, i256, i256, i256}
@@ -141,15 +141,15 @@ fn @constructor() [constructor] {
     v2 = icall @record, 2
     v3 = icall @record, 4
     jump bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb2
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     jump bb4
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     jump bb5
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     ret
 }
 
@@ -204,7 +204,7 @@ fn @order() -> struct0 [selector=0xbf15071d, view, abi_params=[], abi_returns=[w
     ret v26
 }
 
-// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:InitializationBase ===
+; === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:InitializationBase ===
 @module InitializationBase
 ; constructor(uint256) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
@@ -220,7 +220,7 @@ fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], a
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:ConstructorInitializationOrder ===
+; === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:ConstructorInitializationOrder ===
 @module ConstructorInitializationOrder
 ; constructor() InitializationBase(touch()) [creation entry]
 fn @constructor() [constructor] {
@@ -228,9 +228,9 @@ fn @constructor() [constructor] {
     v0 = icall @touch
     sstore 0, 2 !metadata(storage=slot(0))
     jump bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb2
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     ret
 }
 
@@ -249,7 +249,7 @@ fn @touch() -> i256 {
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:NamedBase ===
+; === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:NamedBase ===
 @module NamedBase
 ; constructor(uint256 a, uint256 b) [creation entry]
 fn @constructor(arg0: i256, arg1: i256) [constructor, abi_params=[uint256, uint256]] {
@@ -267,7 +267,7 @@ fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:NamedDerived ===
+; === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:NamedDerived ===
 @module NamedDerived
 ; creation entry
 fn @constructor() [constructor] {
@@ -276,7 +276,7 @@ fn @constructor() [constructor] {
     v1 = checked_add uint256, v0, 2
     sstore 0, v1 !metadata(storage=slot(0))
     jump bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     ret
 }
 
@@ -287,7 +287,7 @@ fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:ReturningBase ===
+; === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:ReturningBase ===
 @module ReturningBase
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
@@ -303,14 +303,14 @@ fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:BaseConstructorReturn ===
+; === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:BaseConstructorReturn ===
 @module BaseConstructorReturn
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
     jump bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     sstore 0, 2 !metadata(storage=slot(0))
     ret
 }
@@ -322,7 +322,7 @@ fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:FunctionUsageBaseBase ===
+; === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:FunctionUsageBaseBase ===
 @module FunctionUsageBaseBase
 ; constructor(uint256 value_) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
@@ -337,7 +337,7 @@ fn @g() -> i256 [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word], a
     ret 2
 }
 
-// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:FunctionUsageBase ===
+; === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:FunctionUsageBase ===
 @module FunctionUsageBase
 ; creation entry
 fn @constructor() [constructor] {
@@ -345,7 +345,7 @@ fn @constructor() [constructor] {
     v0 = icall @g
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     ret
 }
 
@@ -355,7 +355,7 @@ fn @g() -> i256 [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word], a
     ret 2
 }
 
-// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:FunctionUsageDerived ===
+; === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:FunctionUsageDerived ===
 @module FunctionUsageDerived
 ; creation entry
 fn @constructor() [constructor] {
@@ -363,7 +363,7 @@ fn @constructor() [constructor] {
     v0 = icall @g
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     ret
 }
 
@@ -380,7 +380,7 @@ fn @g() -> i256 [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word], a
     ret 2
 }
 
-// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:VirtualFunctionUsageBaseBase ===
+; === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:VirtualFunctionUsageBaseBase ===
 @module VirtualFunctionUsageBaseBase
 ; constructor(uint256 value_) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
@@ -402,7 +402,7 @@ fn @g() -> i256 [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word], a
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:VirtualFunctionUsageBase ===
+; === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:VirtualFunctionUsageBase ===
 @module VirtualFunctionUsageBase
 ; creation entry
 fn @constructor() [constructor] {
@@ -410,7 +410,7 @@ fn @constructor() [constructor] {
     v0 = icall @g
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     ret
 }
 
@@ -427,7 +427,7 @@ fn @g() -> i256 [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word], a
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:VirtualFunctionUsageDerived ===
+; === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:VirtualFunctionUsageDerived ===
 @module VirtualFunctionUsageDerived
 ; creation entry
 fn @constructor() [constructor] {
@@ -435,7 +435,7 @@ fn @constructor() [constructor] {
     v0 = icall @g
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     ret
 }
 
@@ -459,7 +459,7 @@ fn @g() -> i256 [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word], a
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:DomainBase ===
+; === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:DomainBase ===
 @module DomainBase
 @types
   struct0: {ptr<memory>, ptr<memory>}
@@ -494,7 +494,7 @@ fn @load_storage_bytes(arg0: i256) -> ptr<memory> {
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:PermitBase ===
+; === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:PermitBase ===
 @module PermitBase
 @types
   struct0: {ptr<memory>, ptr<memory>}
@@ -509,9 +509,9 @@ fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[bytes]] {
     icall @store_storage_bytes, 0, arg0
     icall @store_storage_bytes, 1, v0
     jump bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb2
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     ret
 }
 
@@ -537,7 +537,7 @@ fn @load_storage_bytes(arg0: i256) -> ptr<memory> {
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:TokenBase ===
+; === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:TokenBase ===
 @module TokenBase
 ; constructor(string memory, string memory) [creation entry]
 fn @constructor(arg0: ptr<memory>, arg1: ptr<memory>) [constructor, abi_params=[bytes, bytes]] {
@@ -545,7 +545,7 @@ fn @constructor(arg0: ptr<memory>, arg1: ptr<memory>) [constructor, abi_params=[
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:EmptyBaseArgumentMask ===
+; === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:EmptyBaseArgumentMask ===
 @module EmptyBaseArgumentMask
 @types
   struct0: {ptr<memory>, ptr<memory>}
@@ -570,17 +570,17 @@ fn @constructor() [constructor] {
     v7 = ptradd v6, 32
     mstore v7, 0x3100000000000000000000000000000000000000000000000000000000000000
     jump bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     icall @store_storage_bytes, 0, v0
     icall @store_storage_bytes, 1, v6
     jump bb2
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     jump bb4
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     jump bb3
-  bb3:  ; preds = bb4
+  bb3:                                            ; preds = bb4
     jump bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     ret
 }
 
@@ -606,7 +606,7 @@ fn @load_storage_bytes(arg0: i256) -> ptr<memory> {
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:WriterBaseA ===
+; === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:WriterBaseA ===
 @module WriterBaseA
 ; constructor(uint256) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
@@ -614,7 +614,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:WriterBaseB ===
+; === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:WriterBaseB ===
 @module WriterBaseB
 ; constructor(uint256) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
@@ -622,7 +622,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:WriterDerived ===
+; === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:WriterDerived ===
 @module WriterDerived
 ; constructor() WriterBaseA(trace(1)) [creation entry]
 fn @constructor() [constructor] {
@@ -630,15 +630,15 @@ fn @constructor() [constructor] {
     v0 = icall @trace, 1
     v1 = icall @trace, 2
     jump bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb2
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     jump bb4
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     jump bb3
-  bb3:  ; preds = bb4
+  bb3:                                            ; preds = bb4
     jump bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     ret
 }
 
@@ -659,7 +659,7 @@ fn @trace(arg0: i256) -> i256 {
     ret arg0
 }
 
-// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:RawCarrierBase ===
+; === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:RawCarrierBase ===
 @module RawCarrierBase
 ; constructor() rawModifier() [creation entry]
 fn @constructor() [constructor] {
@@ -669,9 +669,9 @@ fn @constructor() [constructor] {
     v1 = icall @internal_dispatcher_p_uint8_r_uint8, 1, v0
     sstore 0, v1 !metadata(storage=slot(0))
     jump bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb1
-  bb1:  ; preds = bb2
+  bb1:                                            ; preds = bb2
     ret
 }
 
@@ -699,15 +699,15 @@ fn @internal_dispatcher_p_uint8_r_uint8(arg0: i256, arg1: i256) -> i256 [functio
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = icall @forward, arg1
     ret v1
 }
 
-// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:RawCarrierMiddle ===
+; === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:RawCarrierMiddle ===
 @module RawCarrierMiddle
 ; creation entry
 fn @constructor() [constructor] {
@@ -717,11 +717,11 @@ fn @constructor() [constructor] {
     v1 = icall @internal_dispatcher_p_uint8_r_uint8, 1, v0
     sstore 0, v1 !metadata(storage=slot(0))
     jump bb3
-  bb3:  ; preds = bb0
+  bb3:                                            ; preds = bb0
     jump bb2
-  bb2:  ; preds = bb3
+  bb2:                                            ; preds = bb3
     jump bb1
-  bb1:  ; preds = bb2
+  bb1:                                            ; preds = bb2
     ret
 }
 
@@ -749,15 +749,15 @@ fn @internal_dispatcher_p_uint8_r_uint8(arg0: i256, arg1: i256) -> i256 [functio
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = icall @forward, arg1
     ret v1
 }
 
-// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:RawCarrierDerived ===
+; === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:RawCarrierDerived ===
 @module RawCarrierDerived
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
@@ -767,11 +767,11 @@ fn @constructor() [constructor] {
     v1 = icall @internal_dispatcher_p_uint8_r_uint8, 1, v0
     sstore 0, v1 !metadata(storage=slot(0))
     jump bb3
-  bb3:  ; preds = bb0
+  bb3:                                            ; preds = bb0
     jump bb2
-  bb2:  ; preds = bb3
+  bb2:                                            ; preds = bb3
     jump bb1
-  bb1:  ; preds = bb2
+  bb1:                                            ; preds = bb2
     ret
 }
 
@@ -799,10 +799,10 @@ fn @internal_dispatcher_p_uint8_r_uint8(arg0: i256, arg1: i256) -> i256 [functio
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = icall @forward, arg1
     ret v1
 }

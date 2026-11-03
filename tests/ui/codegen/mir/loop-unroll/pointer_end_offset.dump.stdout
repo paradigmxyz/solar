@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/loop-unroll/pointer_end_offset.sol:PointerEndOffset ===
+; === ROOT/tests/ui/codegen/mir/loop-unroll/pointer_end_offset.sol:PointerEndOffset ===
 @module PointerEndOffset
 @phase lowered
 ; runtime dispatch entry
@@ -11,15 +11,15 @@ fn @entry() [entry] {
     v4 = or v0, v3
     v5 = ne v4, 0
     jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v6 = calldataload 0
     v7 = shr v6, 224
     switch v7, default bb1, [0x5a761098 => bb3, 0x7d3da1e5 => bb4]
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     tail_call @sumPastEnd
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     tail_call @sumWords
-  bb1 [cold]:  ; preds = bb0, bb2
+  bb1 [cold]:                                     ; preds = bb0, bb2
     revert 0, 0
 }
 
@@ -35,24 +35,24 @@ fn @sumWords() {
     v36 = and v3, 1
     v37 = ne v36, 0
     jumpi v37, bb4, bb5
-  bb4:  ; preds = bb0
+  bb4:                                            ; preds = bb0
     v27 = mload v1
     v28 = add v27, 0
     v29 = add v1, 32
     jump bb5
-  bb5:  ; preds = bb0, bb4
+  bb5:                                            ; preds = bb0, bb4
     v38 = phi [bb0: 0], [bb4: v28]
     v39 = phi [bb0: v1], [bb4: v29]
     jump bb1
-  bb1:  ; preds = bb3, bb5
+  bb1:                                            ; preds = bb3, bb5
     v9 = phi [bb5: v38], [bb3: v34]
     v10 = phi [bb5: v39], [bb3: v35]
     v14 = ne v7, v10
     jumpi v14, bb3, bb2
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     mstore 0, v9 !metadata(memory=scratch)
     returndata 0, 32
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v17 = mload v10
     v18 = add v17, v9
     v19 = add v10, 32
@@ -76,24 +76,24 @@ fn @sumPastEnd() {
     v38 = and v37, 1
     v39 = ne v38, 0
     jumpi v39, bb4, bb5
-  bb4:  ; preds = bb0
+  bb4:                                            ; preds = bb0
     v27 = mload v1
     v28 = add v27, 0
     v29 = add v1, 32
     jump bb5
-  bb5:  ; preds = bb0, bb4
+  bb5:                                            ; preds = bb0, bb4
     v40 = phi [bb0: 0], [bb4: v28]
     v41 = phi [bb0: v1], [bb4: v29]
     jump bb1
-  bb1:  ; preds = bb3, bb5
+  bb1:                                            ; preds = bb3, bb5
     v9 = phi [bb5: v40], [bb3: v34]
     v10 = phi [bb5: v41], [bb3: v35]
     v14 = ne v7, v10
     jumpi v14, bb3, bb2
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     mstore 0, v9 !metadata(memory=scratch)
     returndata 0, 32
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v17 = mload v10
     v18 = add v17, v9
     v19 = add v10, 32
@@ -111,7 +111,7 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v4 = sub v0, 36
     v5 = lt v4, v1
     jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v6 = calldataload v2
     v7 = add v2, 32
     v8 = gt v6, 0x7fffffffffffffe
@@ -127,7 +127,7 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v33 = or v30, v32
     v34 = ne v33, 0
     jumpi v34, bb3, bb5
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     mstore 64, v26 !metadata(memory=scratch)
     mstore v25, v6
     v12 = shl v6, 5
@@ -135,14 +135,14 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v14 = shr v13, 5
     v15 = lt v14, v6
     jumpi v15, bb1, bb4
-  bb4:  ; preds = bb5
+  bb4:                                            ; preds = bb5
     v22 = add v25, 32
     calldatacopy v22, v7, v12
     ret v25
-  bb3 [cold]:  ; preds = bb2
+  bb3 [cold]:                                     ; preds = bb2
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1 [cold]:  ; preds = bb0, bb5
+  bb1 [cold]:                                     ; preds = bb0, bb5
     revert 0, 0
 }
