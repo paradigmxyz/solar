@@ -1077,7 +1077,7 @@ fn is_import_only_path_in_root<'a>(
     path.starts_with(import_root) && !source_roots.any(|source_root| path.starts_with(source_root))
 }
 
-fn is_solidity_file(path: &Path) -> bool {
+pub(crate) fn is_solidity_file(path: &Path) -> bool {
     path.extension().is_some_and(|extension| extension == "sol")
 }
 

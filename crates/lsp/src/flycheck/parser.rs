@@ -372,9 +372,7 @@ fn source(format: FlycheckOutput) -> &'static str {
 }
 
 fn resolve_path(file_loader: &dyn FileLoader, cwd: &Path, path: &str) -> PathBuf {
-    let path = Path::new(path);
-    let path = if path.is_absolute() { path.to_path_buf() } else { cwd.join(path) };
-    normalize_source_path(file_loader, path)
+    normalize_source_path(file_loader, cwd.join(path))
 }
 
 pub(super) fn normalize_source_path(file_loader: &dyn FileLoader, path: PathBuf) -> PathBuf {

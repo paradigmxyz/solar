@@ -1,13 +1,13 @@
 //@ compile-flags: -Ogas -Zevm-ir-pipeline=pack-data
 //@ filecheck:
-@module ObservableLayout
+@module CodeSize
 
+// CHECK: literal_0: hex"111111
 // CHECK-LABEL: bb0:
 // CHECK: codesize
-// CHECK-NOT: push_data
-// CHECK: mstore
-// CHECK: mstore
-// CHECK: mstore
+// CHECK: {{^[ +].*}}push_data literal_0
+// CHECK: {{^[ +].*}}codecopy
+// CHECK-NOT: {{^[ +].*}}mstore
 bb0:
   codesize
   pop

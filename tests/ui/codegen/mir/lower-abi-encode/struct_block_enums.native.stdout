@@ -86,7 +86,7 @@ fn @lots() {
     v79 = phi [bb5: v74], [bb16: v103]
     v81 = phi [bb5: v75], [bb16: v104]
     v82 = phi [bb5: v150], [bb16: v106]
-    v83 = gt v79, 0
+    v83 = ne v79, 0
     jumpi v83, bb12, bb13
   bb13:                                           ; preds = bb11
     v108 = sub v77, v71
