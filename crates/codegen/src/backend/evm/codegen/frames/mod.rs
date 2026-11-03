@@ -152,18 +152,11 @@ impl<'gcx> EvmCodegen<'gcx> {
     pub(in crate::backend::evm::codegen) fn static_frame_offsets_are_local(
         func: &Function,
     ) -> bool {
-        let Some(signature_slots) = func.params.len().checked_add(func.return_components().len())
-        else {
-            return false;
-        };
-        let Some(signature_size) = u64::try_from(signature_slots)
-            .ok()
-            .and_then(|slots| slots.checked_mul(EvmMemoryLayout::WORD_SIZE))
-        else {
-            return false;
-        };
-        let Some(local_start) =
-            EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE.checked_add(signature_size)
+        let Some(local_start) = func
+            .params
+            .len()
+            .checked_add(func.return_components().len())
+            .and_then(EvmMemoryLayout::internal_frame_prefix)
         else {
             return false;
         };
@@ -1210,11 +1203,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Shifts are the power-of-two forms of these unsigned operations.
     fn heap_prefix_alignment(func: &Function, value: ValueId) -> Option<(ValueId, u64)> {
         let constant = |value| u256_to_u64(Self::heap_prefix_constant(func, value, 0)?);
-        let instruction = |value| match func.value(value) {
-            Value::Inst(inst_id) => Some(&func.inst(*inst_id).kind),
-            _ => None,
-        };
-        let (quotient, factor) = match instruction(value)? {
+        let (quotient, factor) = match func.value_inst_kind(value)? {
             InstKind::Shl(shift, value) => {
                 (*value, 1_u64.checked_shl(constant(*shift)?.try_into().ok()?)?)
             }
@@ -1227,7 +1216,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             _ => return None,
         };
-        let (base, divisor) = match instruction(quotient)? {
+        let (base, divisor) = match func.value_inst_kind(quotient)? {
             InstKind::Shr(shift, value) => {
                 (*value, 1_u64.checked_shl(constant(*shift)?.try_into().ok()?)?)
             }
@@ -1611,9 +1600,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// The offset of an internal function's spill area in its frame, after its parameters,
     /// results, and frame objects.
     fn internal_spill_area_offset(func: &Function) -> u64 {
-        EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
-            + (func.params.len() as u64) * EvmMemoryLayout::WORD_SIZE
-            + (func.return_components().len() as u64) * EvmMemoryLayout::WORD_SIZE
+        EvmMemoryLayout::internal_frame_prefix(func.params.len() + func.return_components().len())
+            .expect("MIR frame prefix overflow")
             + func.internal_frame_size
     }
 
