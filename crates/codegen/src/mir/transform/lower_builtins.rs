@@ -15,7 +15,7 @@
 
 use crate::mir::{
     AddressCallKind, AllocationSemantics, Builtin, Callee, FunctionBuilder, InstKind,
-    MemoryObjectKind, Module, PanicCode, PhaseCategory, PtrLocation, ValueId,
+    MemoryObjectKind, MirModuleTarget, Module, PanicCode, PhaseCategory, PtrLocation, ValueId,
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass},
     transform::utils::expand_block,
@@ -85,6 +85,7 @@ impl MirPass for LowerBuiltins {
             })
             .collect::<FxHashMap<_, _>>();
         let evm = gcx.sess.opts.evm_version;
+        let target = module.target(gcx);
         run_function_pass(module, analyses, |func, _| {
             if !func.instructions().any(|id| is_builtin(&func.inst(id).kind)) {
                 return false;
@@ -152,7 +153,7 @@ impl MirPass for LowerBuiltins {
                     // builtin(args) -> buffer setup; copies or precompile call; result
                     let result = match inst.kind {
                         InstKind::AbiEncodePacked { parts, hash } => {
-                            super::lower_packed::lower_packed(builder, parts, hash)
+                            super::lower_packed::lower_packed(builder, parts, hash, &target)
                         }
                         InstKind::ICall {
                             function:

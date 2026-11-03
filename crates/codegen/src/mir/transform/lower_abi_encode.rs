@@ -896,9 +896,7 @@ fn write_head_before_object(
         let five = builder.imm(5);
         builder.shl(length, five)
     } else {
-        let thirty_one = builder.imm(31);
-        let rounded = builder.add(length, thirty_one);
-        let padded = builder.mask_padded_size(rounded);
+        let padded = builder.pad_to_word(length);
         // object: [length, bytes..., stale padding]
         // => [length, bytes..., zero padding]
         let source = builder.memory_data(object);
@@ -963,9 +961,7 @@ fn lower_encode(
             // object = alloc aligned_size + 32 !preserves_fmp
             let allocation_size = builder.imm(aligned_size.saturating_add(32));
             let object = builder.alloc(allocation_size, crate::mir::AllocationSemantics::INTERNAL);
-            if let Value::Inst(alloc) = *builder.func().value(object) {
-                builder.func_mut().inst_mut(alloc).metadata.set_preserves_fmp(true);
-            }
+            builder.mark_preserves_fmp(object);
             let total = builder.imm(total_size);
             builder.set_memory_len(object, total);
             if let Some(selector) = selector {
@@ -1047,7 +1043,7 @@ fn lower_encode(
         // mstore object, total
         let allocation_size = builder.checked_padded_size(total);
         let object = builder.alloc(allocation_size, crate::mir::AllocationSemantics::INTERNAL);
-        preserve_encoding_address(builder, object);
+        builder.mark_preserves_fmp(object);
         builder.set_memory_len(object, total);
         return object;
     }
@@ -1060,7 +1056,7 @@ fn lower_encode(
     // allocated = alloc aligned !metadata(preserves_fmp)
     // make_slice allocated, total
     let allocated = builder.alloc(aligned, crate::mir::AllocationSemantics::INTERNAL);
-    preserve_encoding_address(builder, allocated);
+    builder.mark_preserves_fmp(allocated);
     builder.make_slice(allocated, total, PtrLocation::Memory)
 }
 
@@ -1091,15 +1087,6 @@ fn literal_tuple_size(
     }
     size.checked_next_multiple_of(32)?;
     has_payload.then_some(size)
-}
-
-/// The reservation commits bytes already written through a separate FMP read.
-fn preserve_encoding_address(builder: &mut FunctionBuilder<'_>, allocation: ValueId) {
-    let Value::Inst(inst) = *builder.func().value(allocation) else {
-        unreachable!("allocation result must reference its instruction")
-    };
-    // allocation !metadata(preserves_fmp)
-    builder.func_mut().inst_mut(inst).metadata.set_preserves_fmp(true);
 }
 
 /// Encodes a statically shaped tuple into an existing physical return buffer.
@@ -1763,26 +1750,19 @@ fn encode_calldata_elements(
                 );
             });
         };
-        if needs_calldata_validation(element)
-            || !helpers.target.guards_block_copy(element.head_size() / 32)
-        {
+        if needs_calldata_validation(element) {
             encode_each(builder);
-            return initial_tail;
+        } else {
+            copy_calldata_words(
+                builder,
+                &helpers.target,
+                area,
+                base,
+                head_bytes,
+                element.head_size() / 32,
+                encode_each,
+            );
         }
-        // if base + head_bytes < base { encode_each } else { calldatacopy area, base, head_bytes }
-        let end = builder.add(base, head_bytes);
-        let wraps = builder.lt(end, base);
-        let each = builder.create_block();
-        let copy = builder.create_block();
-        let done = builder.create_block();
-        builder.branch(wraps, each, copy);
-        builder.switch_to_block(each);
-        encode_each(builder);
-        builder.jump(done);
-        builder.switch_to_block(copy);
-        copy_source_data(builder, PtrLocation::Calldata, area, base, head_bytes);
-        builder.jump(done);
-        builder.switch_to_block(done);
         return initial_tail;
     }
 
@@ -1824,6 +1804,39 @@ fn encode_calldata_elements(
 
     builder.switch_to_block(done);
     current_tail
+}
+
+/// Copies `bytes` bytes of calldata words that need no validation, in elements of
+/// `element_words` words, from `source` to `dest`. A range that wraps past 2^256 runs `each`,
+/// which loads each word at its own wrapping address. When the target prices the guarded copy
+/// above `each` alone, only `each` runs.
+pub(super) fn copy_calldata_words(
+    builder: &mut FunctionBuilder<'_>,
+    target: &Target,
+    dest: ValueId,
+    source: ValueId,
+    bytes: ValueId,
+    element_words: u64,
+    each: impl FnOnce(&mut FunctionBuilder<'_>),
+) {
+    if !target.guards_block_copy(element_words) {
+        each(builder);
+        return;
+    }
+    // if source + bytes < source { each } else { calldatacopy dest, source, bytes }
+    let end = builder.add(source, bytes);
+    let wraps = builder.lt(end, source);
+    let wrapped = builder.create_block();
+    let copy = builder.create_block();
+    let done = builder.create_block();
+    builder.branch(wraps, wrapped, copy);
+    builder.switch_to_block(wrapped);
+    each(builder);
+    builder.jump(done);
+    builder.switch_to_block(copy);
+    copy_source_data(builder, PtrLocation::Calldata, dest, source, bytes);
+    builder.jump(done);
+    builder.switch_to_block(done);
 }
 
 /// Whether a static calldata value holds a word that ABI decoding would validate.
@@ -1968,7 +1981,7 @@ fn encode_bytes(
 ///
 /// Source objects live below the free-memory pointer, and the output is either untouched memory
 /// above it or a fresh allocation, so memory copies run forward.
-fn copy_source_data(
+pub(super) fn copy_source_data(
     builder: &mut FunctionBuilder<'_>,
     location: PtrLocation,
     dest: ValueId,

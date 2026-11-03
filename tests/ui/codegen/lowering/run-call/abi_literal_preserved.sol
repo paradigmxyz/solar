@@ -25,7 +25,7 @@ contract C {
             result := and(eq(mload(before), 2), eq(mload(add(before, 64)), 3))
             result := and(result, eq(mload(add(before, 32)), shl(240, 0x0123)))
             result := and(result, eq(mload(add(before, 96)), shl(232, 0x616263)))
-            result := and(result, eq(mload(0x40), add(before, 352)))
+            result := and(result, eq(mload(0x40), add(before, 128)))
         }
     }
 }

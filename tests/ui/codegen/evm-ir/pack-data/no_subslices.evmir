@@ -2,21 +2,21 @@
 //@ filecheck:
 @module no_subslices
 @data
-  small_0: hex"2233"
-  container_1: hex"11223344"
+  container_0: hex"11223344"
+  small_1: hex"2233"
 
 // Required data cleanup at `-O none` removes no live bytes but must not alter
 // a data reference's entry or offset.
-// CHECK: small_0: hex"2233"
-// CHECK: container_1: hex"11223344"
-// CHECK: push_data small_0
+// CHECK: container_0: hex"11223344"
+// CHECK: small_1: hex"2233"
+// CHECK: push_data small_1
 bb0:
   push 2
-  push_data small_0
+  push_data small_1
   push 0
   codecopy
   push 4
-  push_data container_1
+  push_data container_0
   push 32
   codecopy
   stop

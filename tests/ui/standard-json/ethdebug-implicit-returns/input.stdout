@@ -798,13 +798,13 @@
                 {
                   "offset": 98,
                   "operation": {
-                    "mnemonic": "ISZERO"
+                    "mnemonic": "PUSH0"
                   }
                 },
                 {
                   "offset": 99,
                   "operation": {
-                    "mnemonic": "ISZERO"
+                    "mnemonic": "LT"
                   }
                 },
                 {

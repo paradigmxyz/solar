@@ -1,0 +1,29 @@
+//@compile-flags: -Zevm-ir-pipeline=peephole
+//@filecheck:
+@module module
+
+// `DUP2 OP SWAP1 POP -> OP` only holds for two-operand operations. The three-operand modular
+// operations consume the duplicate and one more word, so the sequence must stay.
+// CHECK-LABEL: {{^[ +].*}}bb0 [stack=3]:
+// CHECK: {{^[ +].*}}dup 2
+// CHECK: {{^[ +].*}}addmod
+// CHECK: {{^[ +].*}}swap 1
+// CHECK: {{^[ +].*}}pop
+bb0 [stack=3]:
+  dup 2
+  addmod
+  swap 1
+  pop
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb1 [stack=3]:
+// CHECK: {{^[ +].*}}dup 2
+// CHECK: {{^[ +].*}}mulmod
+// CHECK: {{^[ +].*}}swap 1
+// CHECK: {{^[ +].*}}pop
+bb1 [stack=3]:
+  dup 2
+  mulmod
+  swap 1
+  pop
+  stop

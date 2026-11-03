@@ -156,7 +156,7 @@ fn @fixedRange() -> i256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word]
     v12 = gas
     v13 = alloc zeroed checked 192
     mstore v13, 160
-    v14 = abi_encode [word, word, word, memory_bytes], selector 0x5269df1a00000000000000000000000000000000000000000000000000000000, args 1, 2, 3, v13
+    v14 = abi_encode [word, word, word, memory_bytes], scratch, selector 0x5269df1a00000000000000000000000000000000000000000000000000000000, args 1, 2, 3, v13
     v15 = extract_value slice<memory>, v14, 0
     v16 = extract_value slice<memory>, v14, 1
     v17 = zext i160 v10 to i256
@@ -214,7 +214,7 @@ fn @crossBlock() -> i256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]
     v12 = gas
     v13 = alloc zeroed checked 192
     mstore v13, 160
-    v14 = abi_encode [word, word, word, memory_bytes], selector 0x5269df1a00000000000000000000000000000000000000000000000000000000, args 4, 5, 6, v13
+    v14 = abi_encode [word, word, word, memory_bytes], scratch, selector 0x5269df1a00000000000000000000000000000000000000000000000000000000, args 4, 5, 6, v13
     v15 = extract_value slice<memory>, v14, 0
     v16 = extract_value slice<memory>, v14, 1
     v17 = zext i160 v10 to i256

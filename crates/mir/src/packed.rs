@@ -7,9 +7,19 @@ use alloy_primitives::Bytes;
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum PackedPart {
     Literal(Bytes),
-    Scalar { value: ValueId, ty: ValueLayout },
+    Scalar {
+        value: ValueId,
+        ty: ValueLayout,
+    },
     Bytes(ValueId),
-    Array { value: ValueId, element: AbiType, source: PackedArraySource },
+    /// An array of `element`s. `wordwise` marks calldata words that solc loads one at a time,
+    /// as for `int256`, where it copies `uint256` and `bytes32` as one block.
+    Array {
+        value: ValueId,
+        element: AbiType,
+        source: PackedArraySource,
+        wordwise: bool,
+    },
 }
 
 impl PackedPart {

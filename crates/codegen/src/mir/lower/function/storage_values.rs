@@ -2,16 +2,6 @@
 
 use super::*;
 
-/// Builds the helper for decoding one storage `bytes`/`string` slot.
-fn build_storage_bytes_helper(function: &mut Function) {
-    // load_storage_bytes(slot) -> bytes_object
-    let mut builder = FunctionBuilder::new_semantic(function);
-    let slot = builder.add_param(MirType::I256);
-    builder.set_return_type(MirType::MEMPTR);
-    let object = builder.emit_inst(InstKind::StorageBytesLoad(slot), Some(MirType::MEMPTR));
-    builder.ret([object]);
-}
-
 fn build_storage_array_helper(
     function: &mut Function,
     element: crate::mir::ValueLayout,
@@ -1338,7 +1328,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn ensure_storage_bytes_helper(&mut self) -> FunctionId {
         self.lazy_helper(sym::load_storage_bytes, |_, function| {
-            build_storage_bytes_helper(function);
+            FunctionBuilder::build_load_storage_bytes_helper(function);
             Some(())
         })
         .expect("storage bytes helper construction cannot fail")

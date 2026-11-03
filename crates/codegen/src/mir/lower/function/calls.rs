@@ -1167,21 +1167,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .collect()
     }
 
-    /// Allocates the buffer a pre-Byzantium call decodes its static aggregate returns from, which
-    /// has to be in place before the arguments the output area overlays are encoded.
+    /// Allocates the buffer a call decodes its static aggregate returns from, with its size, which
+    /// has to be in place before the input is encoded.
     ///
-    /// Every allocation the encoding and the decoding make lands above the arguments, so it can
-    /// land inside the output area as well. A buffer taken before them sits below the arguments
-    /// instead, which keeps it disjoint from the area it is copied out of.
-    pub(super) fn alloc_overlay_return_buffer(
+    /// The buffer is the one allocation a call makes that outlives it, since the decoded
+    /// aggregates live in it. Taken first, it sits below the input and is disjoint from it, which
+    /// lets the input be staged at the free-memory pointer without a bump: every allocation the
+    /// encoding and the decoding make lands above the arguments, so one taken after them could
+    /// land inside the area it is copied out of. Before Byzantium the output area overlays the
+    /// arguments, so the buffer has to be separate for that reason as well.
+    pub(super) fn alloc_return_buffer(
         &mut self,
         return_tys: &[Ty<'gcx>],
-    ) -> Option<ValueId> {
-        if self.cx.gcx.sess.opts.evm_version.supports_returndata() {
-            return None;
-        }
+    ) -> Option<(ValueId, ValueId)> {
         let layout = self.static_aggregate_return_layout(return_tys.iter().copied())?;
-        self.alloc_static_return_buffer(&layout).map(|(data, _)| data)
+        self.alloc_static_return_buffer(&layout)
     }
 
     pub(super) fn plan_return_buffer(
@@ -1189,10 +1189,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         input: ValueId,
         zero: ValueId,
         return_tys: &[Ty<'gcx>],
-        overlay_buffer: Option<ValueId>,
+        return_buffer: Option<(ValueId, ValueId)>,
     ) -> ExternalReturnPlan {
         let returns = return_tys.len();
-        let static_return = self.static_aggregate_return_layout(return_tys.iter().copied());
         let decode_returndata = return_tys.iter().any(|&ty| {
             self.types.abi_return_type(ty).is_some_and(|ty| !matches!(ty, AbiType::Word(_)))
         });
@@ -1205,36 +1204,36 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // whatever untouched memory a buffer of its own would hold.
             // offset = input
             // size = head_size(static) | returns * 32
-            let size_bytes = self.pre_byzantium_output_size(return_tys, overlay_buffer.is_some());
+            let size_bytes = self.pre_byzantium_output_size(return_tys, return_buffer.is_some());
             let (offset, size, size_bytes) = match size_bytes {
                 Some(size_bytes) => (input, self.builder.imm(size_bytes), size_bytes),
                 None => (zero, zero, 0),
             };
             return ExternalReturnPlan {
-                static_buffer: overlay_buffer.filter(|_| size_bytes != 0),
+                static_buffer: return_buffer.map(|(data, _)| data).filter(|_| size_bytes != 0),
                 offset,
                 size,
                 overlays_input: true,
                 decode_returndata,
             };
         }
-        // static = static_aggregate_layout(returns)
-        // buffer = static ? raw(head_size(static)) : none
-        // decode = any_return_is_nonword
-        // offset = buffer ? buffer : (!decode && returns > 1 ? input : zero)
-        // size = buffer ? head_size(static) : (decode ? 0 : returns * 32)
-        let static_return_buffer =
-            static_return.as_ref().and_then(|layout| self.alloc_static_return_buffer(layout));
-        let (ret_offset, ret_size) = if let Some(buffer) = static_return_buffer {
-            buffer
+        // buffer ? (buffer, head_size(static))
+        // decode ? (0, 0)
+        // returns * 32 <= 64 ? (0, returns * 32) : (fmp, returns * 32)
+        let (ret_offset, ret_size) = if let Some((data, size)) = return_buffer {
+            (data, size)
         } else if decode_returndata {
             (zero, zero)
+        } else if words <= 2 * EvmMemoryLayout::WORD_SIZE {
+            // The scratch words.
+            (zero, self.builder.imm(words))
         } else {
-            let offset = if returns > 1 { input } else { zero };
-            (offset, self.builder.imm(words))
+            // The words are loaded right after the call and nothing allocates in between, so
+            // the area is free memory the call's input may share.
+            (self.builder.fmp(), self.builder.imm(words))
         };
         ExternalReturnPlan {
-            static_buffer: static_return_buffer.map(|(data, _)| data),
+            static_buffer: return_buffer.map(|(data, _)| data),
             offset: ret_offset,
             size: ret_size,
             overlays_input: false,
@@ -1252,11 +1251,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn pre_byzantium_output_size(
         &mut self,
         return_tys: &[Ty<'gcx>],
-        has_overlay_buffer: bool,
+        has_return_buffer: bool,
     ) -> Option<u64> {
         let static_return = self.static_aggregate_return_layout(return_tys.iter().copied());
         match &static_return {
-            Some(layout) => has_overlay_buffer.then(|| layout.checked_head_size()).flatten(),
+            Some(layout) => has_return_buffer.then(|| layout.checked_head_size()).flatten(),
             None => {
                 let decode_returndata = return_tys.iter().any(|&ty| {
                     self.types.abi_return_type(ty).is_some_and(|ty| !matches!(ty, AbiType::Word(_)))
@@ -1288,13 +1287,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         gas: Option<ValueId>,
         return_tys: &[Ty<'gcx>],
-        has_overlay_buffer: bool,
+        has_return_buffer: bool,
     ) {
         if gas.is_some() || self.cx.gcx.sess.opts.evm_version.can_overcharge_gas_for_call() {
             return;
         }
-        let Some(size_bytes) = self.pre_byzantium_output_size(return_tys, has_overlay_buffer)
-        else {
+        let Some(size_bytes) = self.pre_byzantium_output_size(return_tys, has_return_buffer) else {
             return;
         };
         if size_bytes == 0 {
@@ -1323,12 +1321,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         return_tys: &[Ty<'gcx>],
         options: Option<LoweredCallOptions>,
     ) -> (ValueId, ExternalReturnPlan) {
-        // buffer = alloc_overlay_return_buffer(returns)
-        let overlay_buffer = self.alloc_overlay_return_buffer(return_tys);
+        // buffer = alloc head_size(static returns)
+        let return_buffer = self.alloc_return_buffer(return_tys);
         // mstore(add(fmp(), ret_size), 0)
         let gas = options.and_then(|options| options.gas);
-        self.touch_call_output_area(gas, return_tys, overlay_buffer.is_some());
-        let (input, input_size) = match self.call_input_staging(&types, return_tys) {
+        self.touch_call_output_area(gas, return_tys, return_buffer.is_some());
+        let (input, input_size) = match self.call_input_staging(&types) {
             CallInputStaging::Scratch => {
                 self.encode_call_input_in_scratch(selector, &values, &types)
             }
@@ -1348,7 +1346,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // gas = gas() if can_overcharge_gas_for_call
         let options = options.unwrap_or_else(|| self.default_call_options());
         // ret_offset, ret_size, decode = plan_return_buffer(returns)
-        let plan = self.plan_return_buffer(input, options.zero, return_tys, overlay_buffer);
+        let plan = self.plan_return_buffer(input, options.zero, return_tys, return_buffer);
         if self.needs_code_check(return_tys.len()) {
             self.revert_if_no_code(address);
         }
@@ -1416,28 +1414,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Where a call's input is encoded.
     ///
-    /// Nothing keeps the input after the call, so the reservation is only needed while the return
-    /// plan overlays it: before Byzantium the output area always does, a multi-word return that
-    /// is not decoded reads from the input's address, and a static aggregate return buffer is
-    /// allocated at the unbumped pointer. A dynamic layout keeps the reservation because encoding
-    /// it in place costs more code than the bump saves.
+    /// Nothing keeps the input after the call, so from Byzantium on it needs no reservation: the
+    /// callee runs in its own memory and nothing in Solidity can name the buffer. The return
+    /// plan never overlays it either, since a static aggregate buffer is taken before it and the
+    /// other outputs go to scratch or to unreserved memory. Before Byzantium the output area
+    /// overlays the input, which stays reserved as in solc.
     ///
     /// An input of a selector and at most one stack scalar goes to the scratch words instead. The
     /// call reads its input before it writes its output, so a word returned to scratch can
     /// overlay it.
-    fn call_input_staging(
-        &mut self,
-        types: &[AbiType],
-        return_tys: &[Ty<'gcx>],
-    ) -> CallInputStaging {
-        if !self.cx.gcx.sess.opts.evm_version.supports_returndata()
-            || return_tys.len() > 1
-            || types.iter().any(AbiType::is_dynamic)
-            || self.static_aggregate_return_layout(return_tys.iter().copied()).is_some()
-        {
-            return CallInputStaging::Reserved;
-        }
-        if matches!(types, [] | [AbiType::Word(_) | AbiType::Function]) {
+    fn call_input_staging(&self, types: &[AbiType]) -> CallInputStaging {
+        if !self.cx.gcx.sess.opts.evm_version.supports_returndata() {
+            CallInputStaging::Reserved
+        } else if matches!(types, [] | [AbiType::Word(_) | AbiType::Function]) {
             CallInputStaging::Scratch
         } else {
             CallInputStaging::Unreserved

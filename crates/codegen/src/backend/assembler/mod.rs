@@ -682,11 +682,7 @@ impl<'gcx> BytecodeAssembler<'gcx> {
 
     /// Returns the minimum immediate width needed to push a value for this EVM version.
     fn push_width(&self, value: U256) -> u8 {
-        if value.is_zero() && !self.gcx.sess.opts.evm_version.has_push0() {
-            1
-        } else {
-            value.byte_len() as u8
-        }
+        op::push_width(self.gcx.sess.opts.evm_version, value)
     }
 
     fn finish(self) -> AssembledCode {

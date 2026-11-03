@@ -84,7 +84,8 @@
 //! section is about reads.
 //!
 //! A join load is never removed or moved after a gas observation on any incoming
-//! CFG path, including loop backedges and observations in transitive callees.
+//! CFG path, including loop backedges and observations in transitive callees that may return
+//! after reading gas (see `GasObservations`).
 //! A join load is a candidate only if no kill of its key precedes it in the join block.
 //! For that scan, gas observations and calls block all spaces: a partial-redundancy
 //! insertion moves the read to the end of a predecessor, so everything in the join block
@@ -324,11 +325,7 @@ impl PreCostModel<'_> {
         let saved = read * input.loads.len() as i64 * input.predecessors.len() as i64;
         let splits =
             input.insertions.iter().filter(|&&pred| splits_edge(input.func, pred)).count() as i64;
-        let transfer = self
-            .target
-            .opcode(op::PUSH2)
-            .plus(self.target.opcode(op::JUMP))
-            .plus(self.target.opcode(op::JUMPDEST));
+        let transfer = self.target.jump();
         let inserted = read * input.insertions.len() as i64 + splits * i64::from(transfer.gas);
         let phi = if !input.needs_phi || input.loop_carried {
             0
@@ -1334,11 +1331,7 @@ impl<'a> Eliminator<'a> {
                     Instruction::new(InstKind::Phi(incoming), Some(result_ty))
                         .with_debug_info_dropped(),
                 );
-                let phi_count = func.blocks[target]
-                    .instructions
-                    .iter()
-                    .take_while(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
-                    .count();
+                let phi_count = func.block_phi_count(target);
                 func.blocks[target].instructions.insert(phi_count, phi_inst);
                 phi_value
             }

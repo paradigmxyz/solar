@@ -101,6 +101,16 @@ pub(crate) enum MemoryBase {
     FreeMemory(InstId),
 }
 
+impl MemoryBase {
+    /// The allocation site of a fixed or dynamic allocation base.
+    pub(crate) fn allocation(self) -> Option<InstId> {
+        match self {
+            Self::Allocation(inst) | Self::DynamicAllocation(inst) => Some(inst),
+            _ => None,
+        }
+    }
+}
+
 /// A canonical memory address represented as a base plus byte offset.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct MemoryAddress {
@@ -314,6 +324,8 @@ pub(crate) struct ModRef {
     reads: SmallVec<[Access; 4]>,
     writes: SmallVec<[Access; 4]>,
     observes_gas: bool,
+    /// Whether the operation may observe remaining gas and then continue after it.
+    continues_after_gas: bool,
 }
 
 impl ModRef {
@@ -333,6 +345,13 @@ impl ModRef {
     #[must_use]
     pub(crate) const fn observes_gas(&self) -> bool {
         self.observes_gas
+    }
+
+    /// Returns whether the operation may observe remaining gas on a path that continues after it.
+    /// A call whose every gas read precedes a revert observes gas but never continues after it.
+    #[must_use]
+    pub(crate) const fn continues_after_gas(&self) -> bool {
+        self.continues_after_gas
     }
 
     /// Returns whether any access reads `space`.
@@ -913,11 +932,9 @@ impl AliasAnalysis {
         } else {
             return Some((self.memory_address(func, address)?, false));
         };
-        let base = match base.base {
-            MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst) => {
-                Self::unbounded_allocation(func, base, inst)?
-            }
-            _ => base,
+        let base = match base.base.allocation() {
+            Some(inst) => Self::unbounded_allocation(func, base, inst)?,
+            None => base,
         };
         Some((base, true))
     }
@@ -939,7 +956,7 @@ impl AliasAnalysis {
         mut address: MemoryAddress,
         size: LocationSize,
     ) -> Option<MemoryLocation> {
-        if let MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst) = address.base {
+        if let Some(inst) = address.base.allocation() {
             let bound = if matches!(address.base, MemoryBase::Allocation(_)) {
                 Self::allocation_min_size(func, inst)
             } else {
@@ -1179,11 +1196,7 @@ impl AliasAnalysis {
     /// An allocation-site base as `(site, is_loop_instance)`, or `None` for a
     /// non-allocation base.
     fn allocation_base(base: MemoryBase) -> Option<(InstId, bool)> {
-        match base {
-            MemoryBase::Allocation(id) => Some((id, false)),
-            MemoryBase::DynamicAllocation(id) => Some((id, true)),
-            _ => None,
-        }
+        base.allocation().map(|id| (id, matches!(base, MemoryBase::DynamicAllocation(_))))
     }
 
     pub(crate) fn alias_locations(first: Location, second: Location) -> AliasResult {
@@ -1504,11 +1517,13 @@ impl AliasAnalysis {
                     self.call_summaries.as_deref().and_then(|summaries| summaries.get(function))
                 {
                     effects.observes_gas = summary.may_observe_gas();
+                    effects.continues_after_gas = summary.may_return_after_gas();
                     let args =
                         kind.operands().into_iter().map(resolve).collect::<SmallVec<[_; 8]>>();
                     effects.merge_call_summary(summary, func, self, &args);
                 } else {
                     effects.observes_gas = true;
+                    effects.continues_after_gas = true;
                     effects.read_write_any(AddressSpace::ALL);
                 }
 
@@ -1530,6 +1545,7 @@ impl AliasAnalysis {
             _ => {}
         }
         effects.observes_gas |= kind.observes_gas();
+        effects.continues_after_gas |= kind.observes_gas();
         effects
     }
 
@@ -1598,14 +1614,10 @@ impl AliasAnalysis {
                 offset: EvmMemoryLayout::HEAP_START.checked_add(offset)?,
             },
             FrameMode::Internal => {
-                let args = (func.params.len() as u64).checked_mul(EvmMemoryLayout::WORD_SIZE)?;
-                let returns = (func.return_components().len() as u64)
-                    .checked_mul(EvmMemoryLayout::WORD_SIZE)?;
-                let offset = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
-                    .checked_add(args)?
-                    .checked_add(returns)?
-                    .checked_add(offset)?;
-                MemoryAddress::internal_frame(offset)
+                let prefix = EvmMemoryLayout::internal_frame_prefix(
+                    func.params.len().checked_add(func.return_components().len())?,
+                )?;
+                MemoryAddress::internal_frame(prefix.checked_add(offset)?)
             }
             FrameMode::MultiReturn => MemoryAddress {
                 region: MemoryRegion::Scratch,

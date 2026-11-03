@@ -102,10 +102,7 @@ pub(super) fn address_call_types(
     gas: bool,
     value: bool,
 ) -> SmallVec<[MirType; 8]> {
-    let input = match func.value_ty(input) {
-        Some(ty @ MirType::Slice(PtrLocation::Memory)) => ty,
-        _ => MirType::MEMPTR,
-    };
+    let input = memory_object(func, input);
     let mut types = smallvec![MirType::I160, input];
     types.extend(std::iter::repeat_n(MirType::I256, usize::from(gas) + usize::from(value)));
     types

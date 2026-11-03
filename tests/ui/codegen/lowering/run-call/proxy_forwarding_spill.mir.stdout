@@ -112,7 +112,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     mstore v13, 16
     v14 = ptradd v13, 32
     mstore v14, 0xdeadbeefdeadbeefdeadbeefdeadbeef00000000000000000000000000000000
-    v15 = abi_encode [word, word, word, memory_bytes], selector 0xe6a9b50500000000000000000000000000000000000000000000000000000000, args 10, 20, 30, v13
+    v15 = abi_encode [word, word, word, memory_bytes], scratch, selector 0xe6a9b50500000000000000000000000000000000000000000000000000000000, args 10, 20, 30, v13
     v16 = extract_value slice<memory>, v15, 0
     v17 = extract_value slice<memory>, v15, 1
     v18 = zext i160 v10 to i256

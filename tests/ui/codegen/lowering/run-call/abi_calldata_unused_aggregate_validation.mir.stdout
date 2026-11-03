@@ -26,7 +26,7 @@ fn @memoryGrowth() -> i256 [selector=0x1de751fc, view, abi_params=[], abi_return
     v1 = gas
     v2 = alloc zeroed checked 96
     mstore v2, 64
-    v3 = abi_encode [memory_bytes], selector 0xc3b2ecc100000000000000000000000000000000000000000000000000000000, args v2
+    v3 = abi_encode [memory_bytes], scratch, selector 0xc3b2ecc100000000000000000000000000000000000000000000000000000000, args v2
     v4 = extract_value slice<memory>, v3, 0
     v5 = extract_value slice<memory>, v3, 1
     v6 = zext i160 v0 to i256
@@ -43,7 +43,7 @@ fn @memoryGrowth() -> i256 [selector=0x1de751fc, view, abi_params=[], abi_return
     v12 = gas
     v13 = alloc zeroed checked 32
     mstore v13, 0
-    v14 = abi_encode [memory_bytes], selector 0xc3b2ecc100000000000000000000000000000000000000000000000000000000, args v13
+    v14 = abi_encode [memory_bytes], scratch, selector 0xc3b2ecc100000000000000000000000000000000000000000000000000000000, args v13
     v15 = extract_value slice<memory>, v14, 0
     v16 = extract_value slice<memory>, v14, 1
     v17 = zext i160 v11 to i256
