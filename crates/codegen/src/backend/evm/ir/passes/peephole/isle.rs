@@ -621,6 +621,10 @@ impl generated::Context for PeepContext<'_> {
         flipped_comparison(opcode)
     }
 
+    fn is_commutative_binop(&mut self, opcode: u8) -> bool {
+        op::stack_io(opcode) == Some((2, 1)) && op::is_commutative(opcode)
+    }
+
     fn is_noncommutative_binop(&mut self, opcode: u8) -> bool {
         op::stack_io(opcode) == Some((2, 1)) && !op::is_commutative(opcode)
     }

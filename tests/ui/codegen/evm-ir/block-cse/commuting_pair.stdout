@@ -1,0 +1,50 @@
+- ; === ROOT/tests/ui/codegen/evm-ir/block-cse/commuting_pair.evmir (before block-cse) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/block-cse/commuting_pair.evmir (after block-cse) ===
+  @module module
+  bb0:
+    push 5
+    push 2
+    push 3
+    addmod
+-   push 5
+-   push 3
+-   push 2
+-   addmod
++   dup 1
+    add
+    stop
+  bb1:
+    push 5
+    push 2
+    push 3
+    mulmod
+-   push 5
+-   push 3
+-   push 2
+-   mulmod
++   dup 1
+    add
+    stop
+  bb2:
+    push 5
+    push 2
+    push 3
+    addmod
+    push 3
+    push 2
+    push 5
+    addmod
+    add
+    stop
+  bb3:
+    push 5
+    push 2
+    push 3
+    mulmod
+    push 3
+    push 2
+    push 5
+    mulmod
+    add
+    stop
+  
