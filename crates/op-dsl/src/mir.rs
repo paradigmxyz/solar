@@ -9,8 +9,9 @@
 
 use crate::{
     common::{
-        EnumDecl, FieldTypes, Pattern, Pred, insert_enum, lower_pred, normalize, parse_enum,
-        parse_pred, parse_variants,
+        Decl, EnumDecl, FieldTypes, Pattern, Pred, add_trait, emit_traits, enum_variant,
+        insert_enum, lower_pred, normalize, parse_decl, parse_dialect, parse_enum, parse_pred,
+        parse_variants, trait_const,
     },
     syntax::{Cursor, Error, Node, Result, Span, Tok, Token, camel, doc_attrs},
 };
@@ -37,13 +38,6 @@ struct FieldType {
     isle: Option<String>,
     /// The fields of a struct attribute that predicates may read, with their enum types.
     fields: Vec<(String, String)>,
-}
-
-/// A documented name in the vocabulary.
-#[derive(Clone, Debug)]
-struct Decl {
-    name: String,
-    docs: Vec<String>,
 }
 
 /// A phase category: its variant and diagnostic text.
@@ -140,7 +134,7 @@ struct Props {
     until: Option<(String, Span)>,
     effect: Option<(String, Span)>,
     traits: Vec<TraitUse>,
-    side_effects: Option<bool>,
+    side_effects: bool,
     category: Option<(String, Span)>,
     commutative: Option<(String, String, Span)>,
     builder: Option<(Option<String>, bool, Span)>,
@@ -180,6 +174,16 @@ struct OpDecl {
     namespace: Option<String>,
 }
 
+impl OpDecl {
+    /// Prefixes the name of a declaration in `namespace` with the namespace in CamelCase.
+    fn qualify(&mut self, namespace: Option<&str>) {
+        if let Some(namespace) = namespace {
+            self.name = format!("{}{}", camel(namespace), self.name);
+            self.namespace = Some(namespace.to_string());
+        }
+    }
+}
+
 /// A MIR schema.
 #[derive(Default)]
 pub struct Schema {
@@ -194,55 +198,56 @@ pub struct Schema {
 }
 
 impl Schema {
-    /// Adds the declarations of one file.
-    pub fn add_file(&mut self, nodes: &[Node]) -> Result<()> {
+    /// Adds the declarations of one file; an `extension` file must declare a namespace.
+    pub fn add_file(&mut self, nodes: &[Node], extension: bool) -> Result<()> {
         let mut nodes = nodes.iter();
-        let namespace = match nodes.next() {
-            Some(node) => {
-                let mut cur = node.cursor();
-                cur.expect_word("dialect")?;
-                let (name, span) = cur.ident()?;
-                if name != "mir" {
-                    return Err(Error::new(
-                        span,
-                        format!("expected the `mir` dialect, found `{name}`"),
-                    ));
-                }
-                let namespace = if cur.eat(".") {
-                    let (namespace, span) = cur.ident()?;
-                    if namespace.is_empty()
-                        || !namespace.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
-                    {
-                        return Err(Error::new(
-                            span,
-                            "an extension namespace is lowercase letters and digits",
-                        ));
-                    }
-                    Some(namespace.to_string())
-                } else {
-                    None
-                };
-                cur.finish()?;
-                namespace
-            }
-            None => return Ok(()),
-        };
+        let Some(header) = nodes.next() else { return Ok(()) };
+        let namespace = parse_dialect(header, "mir")?;
+        if let Some((namespace, span)) = namespace
+            && (!is_lower_ident(namespace) || namespace.contains('_'))
+        {
+            return Err(Error::new(
+                span,
+                "a namespace is a lowercase letter followed by lowercase letters and digits",
+            ));
+        }
+        if extension && namespace.is_none() {
+            return Err(Error::new(
+                header.span,
+                "an extension file names its namespace, as in `dialect mir.acme;`",
+            ));
+        }
+        let namespace = namespace.map(|(namespace, _)| namespace);
         for node in nodes {
             let cur = node.cursor();
+            if let Some(namespace) = namespace {
+                match cur.peek_word() {
+                    Some("op" | "class") => {}
+                    Some("trait") => {
+                        let decl = parse_decl(node, "trait")?;
+                        if !decl.name.starts_with(&format!("{namespace}_")) {
+                            return Err(Error::new(
+                                node.span,
+                                format!(
+                                    "a trait in namespace `{namespace}` is named `{namespace}_...`"
+                                ),
+                            ));
+                        }
+                    }
+                    _ => {
+                        return Err(Error::new(
+                            node.span,
+                            "a namespaced file declares only `op`, `class`, and `trait`",
+                        ));
+                    }
+                }
+            }
             match cur.peek_word() {
                 Some("operand") => self.parse_operand(node)?,
                 Some("attribute") => self.parse_attribute(node)?,
                 Some("enum") => parse_enum(node, &mut self.enums)?,
-                Some("trait") => {
-                    let decl = parse_decl(node, "trait")?;
-                    if self.traits.iter().any(|t| t.name == decl.name) {
-                        return Err(Error::new(
-                            node.span,
-                            format!("trait `{}` is declared twice", decl.name),
-                        ));
-                    }
-                    self.traits.push(decl);
-                }
+                // `OpTraits` holds a `u32`.
+                Some("trait") => add_trait(&mut self.traits, node, 32)?,
                 Some("metadata") => {
                     let decl = parse_decl(node, "metadata")?;
                     self.metadata.insert(decl.name.clone(), decl);
@@ -251,14 +256,14 @@ impl Schema {
                 Some("semantics") => self.parse_semantics_decl(node)?,
                 Some("class") => {
                     let mut decl = parse_op(node, "class")?;
-                    decl.namespace.clone_from(&namespace);
+                    decl.qualify(namespace);
                     if self.classes.insert(decl.name.clone(), decl).is_some() {
                         return Err(Error::new(node.span, "class is declared twice"));
                     }
                 }
                 Some("op") => {
                     let mut decl = parse_op(node, "op")?;
-                    decl.namespace.clone_from(&namespace);
+                    decl.qualify(namespace);
                     self.ops.push(decl);
                 }
                 _ => return Err(cur.unexpected("a declaration")),
@@ -403,9 +408,12 @@ impl Schema {
             if !seen.insert(base.clone()) {
                 return Err(Error::new(*span, format!("class `{base}` inherits from itself")));
             }
-            let class = self
-                .classes
-                .get(base)
+            // A namespaced declaration sees its namespace's classes first.
+            let namespaced =
+                chain.last().unwrap().namespace.as_ref().map(|ns| format!("{}{base}", camel(ns)));
+            let class = namespaced
+                .and_then(|name| self.classes.get(&name))
+                .or_else(|| self.classes.get(base))
                 .ok_or_else(|| Error::new(*span, format!("unknown class `{base}`")))?;
             chain.push(class);
         }
@@ -447,31 +455,36 @@ impl Schema {
             Some((name, span)) => self.enum_variant("ResultKind", &name, span)?,
             None => "ResultKind::None".to_string(),
         };
-        let mnemonic = match &decl.namespace {
+        // An operation `Avg` in namespace `acme` is the variant `AcmeAvg`, the mnemonic
+        // `acme.avg`, and the ISLE term and builder `acme_avg`.
+        let local =
+            decl.name[decl.namespace.as_deref().map_or(0, |ns| ns.len())..].to_ascii_lowercase();
+        let (mnemonic, isle) = match &decl.namespace {
             Some(namespace) => {
-                let prefix = camel(namespace);
-                let Some(rest) = decl
-                    .name
-                    .strip_prefix(&prefix)
-                    .filter(|rest| rest.starts_with(|c: char| c.is_ascii_uppercase()))
-                else {
-                    return Err(Error::new(
-                        decl.span,
-                        format!("an operation in namespace `{namespace}` is named `{prefix}...`"),
-                    ));
-                };
-                let dotted = format!("{namespace}.");
                 for mnemonic in props
                     .mnemonic
                     .iter()
                     .chain(whens.iter().filter_map(|when| when.props.mnemonic.as_ref()))
                 {
-                    if !mnemonic.starts_with(&dotted) {
+                    if !mnemonic
+                        .strip_prefix(namespace.as_str())
+                        .and_then(|rest| rest.strip_prefix('.'))
+                        .is_some_and(is_lower_ident)
+                    {
                         return Err(Error::new(
                             decl.span,
-                            format!("mnemonic `{mnemonic}` must start with `{dotted}`"),
+                            format!(
+                                "mnemonic `{mnemonic}` is not `{namespace}.` and a lowercase name"
+                            ),
                         ));
                     }
+                }
+                // The generic text form spells value operands only.
+                if resolved_fields.iter().any(|f| f.ty.arity != Some(Arity::One)) {
+                    return Err(Error::new(
+                        decl.span,
+                        "an extension operation takes only `value` operands",
+                    ));
                 }
                 // An unknown operation has every effect a core analysis could ask about; an
                 // extension states the ones it has.
@@ -481,14 +494,12 @@ impl Schema {
                         "an extension operation must declare its `effect`",
                     ));
                 }
-                props
-                    .mnemonic
-                    .clone()
-                    .unwrap_or_else(|| format!("{dotted}{}", rest.to_ascii_lowercase()))
+                (format!("{namespace}.{local}"), format!("{namespace}_{local}"))
             }
-            None => props.mnemonic.clone().unwrap_or_else(|| decl.name.to_ascii_lowercase()),
+            None => (local.clone(), local),
         };
-        let isle = props.isle.clone().unwrap_or_else(|| decl.name.to_ascii_lowercase());
+        let mnemonic = props.mnemonic.clone().unwrap_or(mnemonic);
+        let isle = props.isle.clone().unwrap_or(isle);
         if matches!(
             isle.as_str(),
             "and" | "or" | "not" | "if" | "let" | "rule" | "type" | "decl" | "extern"
@@ -515,24 +526,17 @@ impl Schema {
     }
 
     fn enum_variant(&self, ty: &str, name: &str, span: Span) -> Result<String> {
-        self.enums
-            .get(ty)
-            .ok_or_else(|| Error::new(span, format!("the schema must declare `enum {ty}`")))?
-            .resolve(name, span)
+        enum_variant(&self.enums, ty, name, span)
     }
 
     /// Checks every name an operation uses.
     fn check(&self, op: &mut Op) -> Result<()> {
-        self.check_props(op, &op.props, false)?;
+        self.check_props(op, &op.props)?;
         for when in &op.whens {
             lower_pred(&when.pred, &OpFields { schema: self, op }, &self.enums)?;
             let props = &when.props;
             if when.pred.uses_metadata() {
-                if props.mnemonic.is_some()
-                    || props.effect.is_some()
-                    || props.semantics.is_some()
-                    || props.memory.is_some()
-                {
+                if props.mnemonic.is_some() || props.effect.is_some() || props.semantics.is_some() {
                     return Err(Error::new(
                         when.span,
                         "a clause on instruction metadata may only set `until` and `category`",
@@ -545,7 +549,7 @@ impl Schema {
                 ));
             }
             if !props.traits.is_empty()
-                || props.side_effects.is_some()
+                || props.side_effects
                 || props.commutative.is_some()
                 || props.builder.is_some()
                 || props.types.is_some()
@@ -557,10 +561,11 @@ impl Schema {
                     "a `when` clause may only set `mnemonic`, `effect`, `until`, `category`, and `semantics`",
                 ));
             }
-            self.check_props(op, props, true)?;
+            self.check_props(op, props)?;
         }
         if let Some((name, _, span)) = &op.props.builder {
-            let name = name.as_deref().unwrap_or(&op.mnemonic);
+            let default = op.mnemonic.replace('.', "_");
+            let name = name.as_deref().unwrap_or(&default);
             if !op.tuple || op.fields.iter().any(|f| f.ty.arity != Some(Arity::One)) {
                 return Err(Error::new(
                     *span,
@@ -608,7 +613,7 @@ impl Schema {
         Ok(())
     }
 
-    fn check_props(&self, op: &Op, props: &Props, in_when: bool) -> Result<()> {
+    fn check_props(&self, op: &Op, props: &Props) -> Result<()> {
         if let Some((name, span)) = &props.until {
             self.enum_variant("MirPhase", name, *span)?;
         }
@@ -624,6 +629,12 @@ impl Schema {
                     *span,
                     "declare `commutative lhs, rhs` instead of the trait",
                 ));
+            }
+            if name == "reversible"
+                && (op.fields.len() != 2
+                    || op.fields.iter().any(|f| f.ty.arity != Some(Arity::One)))
+            {
+                return Err(Error::new(*span, "a `reversible` operation takes two values"));
             }
             self.trait_const(name, *span)?;
             if let Some(guard) = guard {
@@ -665,7 +676,6 @@ impl Schema {
         if let Some(semantics) = &props.semantics {
             self.check_semantics(op, semantics)?;
         }
-        let _ = in_when;
         Ok(())
     }
 
@@ -776,11 +786,7 @@ impl Schema {
     }
 
     fn trait_const(&self, name: &str, span: Span) -> Result<String> {
-        self.traits
-            .iter()
-            .find(|t| t.name == name)
-            .map(|t| format!("OpTraits::{}", t.name.to_ascii_uppercase()))
-            .ok_or_else(|| Error::new(span, format!("unknown trait `{name}`")))
+        trait_const(&self.traits, "OpTraits", name, span)
     }
 
     fn emit_vocabulary(&self, out: &mut String) {
@@ -799,30 +805,13 @@ impl Schema {
         for category in &self.categories {
             writeln!(out, "            Self::{} => {:?},", category.name, category.text).unwrap();
         }
-        out.push_str("        })\n    }\n}\n\nimpl OpTraits {\n");
-        for (bit, decl) in self.traits.iter().enumerate() {
-            out.push_str(&doc_attrs(&decl.docs, "    "));
-            writeln!(
-                out,
-                "    pub const {}: Self = Self(1 << {bit});",
-                decl.name.to_ascii_uppercase()
-            )
-            .unwrap();
-        }
-        out.push_str("}\n\n");
-        for ty in self.types.values().filter(|ty| ty.arity.is_none()) {
-            let (view, isle, view_expr, from_view) = match &ty.isle {
-                Some(isle) => ("Self", isle.as_str(), "*self", "Some(view)"),
-                None => ("()", "Unit", "", "None"),
-            };
-            let map_view = if ty.isle.is_some() { "view" } else { "" };
-            let view_arg = if ty.isle.is_some() { "view" } else { "_view" };
-            writeln!(
-                out,
-                "impl Operands for {rust} {{\n    type View = {view};\n    const ISLE_TYPE: &'static str = {isle:?};\n\n    #[inline]\n    fn collect<A: Array<Item = ValueId>>(&self, _out: &mut SmallVec<A>) {{}}\n\n    #[inline]\n    fn visit(&self, _f: &mut impl FnMut(ValueId)) {{}}\n\n    #[inline]\n    fn visit_mut(&mut self, _f: &mut impl FnMut(&mut ValueId)) {{}}\n\n    #[inline]\n    #[allow(clippy::unused_unit)]\n    fn view(&self) -> {view} {{\n        {view_expr}\n    }}\n\n    #[inline]\n    #[allow(clippy::unused_unit)]\n    fn map_view({view_arg}: {view}, _f: &mut impl FnMut(ValueId) -> ValueId) -> {view} {{\n        {map_view}\n    }}\n\n    #[inline]\n    fn from_view({view_arg}: {view}) -> Option<Self> {{\n        {from_view}\n    }}\n\n    const IS_OPERAND: bool = false;\n\n    fn from_operand(_: ValueId) -> Self {{\n        unreachable!(\"an attribute is not built from a value operand\")\n    }}\n}}\n",
-                rust = ty.rust,
-            )
-            .unwrap();
+        out.push_str("        })\n    }\n}\n\n");
+        emit_traits(out, "OpTraits", &self.traits);
+        for (opaque, name) in [(false, "attributes"), (true, "opaque_attributes")] {
+            let tys =
+                self.types.values().filter(|ty| ty.arity.is_none() && ty.isle.is_none() == opaque);
+            let tys = tys.map(|ty| ty.rust.as_str()).collect::<Vec<_>>();
+            writeln!(out, "{name}! {{ {} }}", tys.join(", ")).unwrap();
         }
     }
 
@@ -907,31 +896,27 @@ impl Schema {
 
         // Traits, with the conditional ones.
         out.push_str(
-            "    /// Returns the traits of this operation: its definition's, and every conditional trait\n    /// whose condition holds.\n    #[inline]\n    #[must_use]\n    pub const fn traits(&self) -> OpTraits {\n        let traits = self.op_def().traits;\n        match self {\n",
+            "    /// Returns the traits of this operation: its definition's, and every conditional trait\n    /// whose condition holds.\n    #[inline]\n    #[must_use]\n    #[allow(unused_variables)]\n    pub const fn traits(&self) -> OpTraits {\n        match self {\n",
         );
         for op in ops {
-            let guarded = op.props.traits.iter().filter(|t| t.guard.is_some()).collect::<Vec<_>>();
-            if guarded.is_empty() {
-                continue;
-            }
-            let mut expr = String::from("traits");
-            for TraitUse { name, span, guard } in guarded {
-                let pred = lower_pred(
-                    guard.as_ref().unwrap(),
-                    &OpFields { schema: self, op },
-                    &self.enums,
-                )?;
+            let mut expr = self.static_traits(&op.props)?;
+            // Traits under the same guard share one test.
+            let mut guards = Vec::<(String, String)>::new();
+            for TraitUse { name, span, guard } in &op.props.traits {
+                let Some(guard) = guard else { continue };
+                let pred = lower_pred(guard, &OpFields { schema: self, op }, &self.enums)?;
                 let bit = self.trait_const(name, *span)?;
-                write!(expr, ".union(if {pred} {{ {bit} }} else {{ OpTraits::NONE }})").unwrap();
+                match guards.iter_mut().find(|(p, _)| *p == pred) {
+                    Some((_, bits)) => write!(bits, ".union({bit})").unwrap(),
+                    None => guards.push((pred, bit)),
+                }
             }
-            writeln!(
-                out,
-                "            #[allow(unused_variables)]\n            {} => {expr},",
-                op.binder("Self")
-            )
-            .unwrap();
+            for (pred, bits) in guards {
+                write!(expr, ".union(if {pred} {{ {bits} }} else {{ OpTraits::NONE }})").unwrap();
+            }
+            writeln!(out, "            {} => {expr},", op.binder("Self")).unwrap();
         }
-        out.push_str("            _ => traits,\n        }\n    }\n\n");
+        out.push_str("        }\n    }\n\n");
 
         // Declared semantics.
         out.push_str(
@@ -940,7 +925,11 @@ impl Schema {
         for op in ops {
             let base = op.props.semantics.as_ref().map_or("None".to_string(), lower_semantics);
             let mut chain = String::new();
-            for when in op.whens.iter().filter(|when| !when.pred.uses_metadata()) {
+            let whens =
+                op.whens.iter().filter(|when| !when.pred.uses_metadata()).collect::<Vec<_>>();
+            // Clauses after the last one that sets semantics would all return the base.
+            let last = whens.iter().rposition(|when| when.props.semantics.is_some());
+            for when in &whens[..last.map_or(0, |last| last + 1)] {
                 let pred = lower_pred(&when.pred, &OpFields { schema: self, op }, &self.enums)?;
                 let semantics =
                     when.props.semantics.as_ref().map_or_else(|| base.clone(), lower_semantics);
@@ -1145,15 +1134,8 @@ impl Schema {
             fields.push(format!("effect: {effect}"));
         }
         if base.is_none() {
-            let mut traits = String::from("OpTraits::NONE");
-            for TraitUse { name, span, .. } in props.traits.iter().filter(|t| t.guard.is_none()) {
-                write!(traits, ".union({})", self.trait_const(name, *span)?).unwrap();
-            }
-            if props.commutative.is_some() {
-                traits.push_str(".union(OpTraits::COMMUTATIVE)");
-            }
-            fields.push(format!("traits: {traits}"));
-            fields.push(format!("has_side_effects: {}", props.side_effects.unwrap_or(false)));
+            fields.push(format!("traits: {}", self.static_traits(props)?));
+            fields.push(format!("has_side_effects: {}", props.side_effects));
         }
         if base.is_none() || props.category.is_some() {
             let category = match &props.category {
@@ -1166,6 +1148,18 @@ impl Schema {
             fields.push(format!("..{base}"));
         }
         Ok(format!("OpDef {{ {} }}", fields.join(", ")))
+    }
+
+    /// The traits an operation always has; `when` clauses never change them.
+    fn static_traits(&self, props: &Props) -> Result<String> {
+        let mut traits = String::from("OpTraits::NONE");
+        for TraitUse { name, span, .. } in props.traits.iter().filter(|t| t.guard.is_none()) {
+            write!(traits, ".union({})", self.trait_const(name, *span)?).unwrap();
+        }
+        if props.commutative.is_some() {
+            traits.push_str(".union(OpTraits::COMMUTATIVE)");
+        }
+        Ok(traits)
     }
 
     /// Lowers a signature type; `value` is the expression of the operand it describes.
@@ -1417,12 +1411,13 @@ fn emit_builders(out: &mut String, ops: &[Op]) {
     out.push_str("impl crate::FunctionBuilder<'_> {\n");
     for op in ops {
         let Some((name, void, _)) = &op.props.builder else { continue };
-        let name = name.as_deref().unwrap_or(&op.mnemonic);
+        let default = op.mnemonic.replace('.', "_");
+        let name = name.as_deref().unwrap_or(&default);
         let params =
             op.fields.iter().map(|f| format!(", {}: ValueId", f.decl.name)).collect::<String>();
         let args = op.fields.iter().map(|f| f.decl.name.clone()).collect::<Vec<_>>();
         let kind = op.construct("InstKind", &args);
-        writeln!(out, "    #[doc = \" Emits `{name}`.\"]").unwrap();
+        writeln!(out, "    #[doc = \" Emits `{}`.\"]", op.mnemonic).unwrap();
         if *void {
             writeln!(out, "    pub fn {name}(&mut self{params}) {{\n        // op(operands)\n        self.emit_void_inst({kind});\n    }}\n").unwrap();
         } else {
@@ -1547,19 +1542,8 @@ fn merge(props: &mut Props, child: &Props) {
             $( if child.$field.is_some() { props.$field.clone_from(&child.$field); } )*
         };
     }
-    take!(
-        mnemonic,
-        isle,
-        until,
-        effect,
-        side_effects,
-        category,
-        commutative,
-        builder,
-        memory,
-        types,
-        semantics
-    );
+    take!(mnemonic, isle, until, effect, category, commutative, builder, memory, types, semantics);
+    props.side_effects |= child.side_effects;
     for item in &child.traits {
         if item.guard.is_some()
             || !props.traits.iter().any(|t| t.guard.is_none() && t.name == item.name)
@@ -1567,14 +1551,6 @@ fn merge(props: &mut Props, child: &Props) {
             props.traits.push(item.clone());
         }
     }
-}
-
-fn parse_decl(node: &Node, keyword: &str) -> Result<Decl> {
-    let mut cur = node.cursor();
-    cur.expect_word(keyword)?;
-    let (name, _) = cur.ident()?;
-    cur.finish()?;
-    Ok(Decl { name: name.to_string(), docs: node.docs.clone() })
 }
 
 /// Parses a type name: an identifier with an optional `?` or `[]` suffix.
@@ -1681,10 +1657,7 @@ fn parse_prop(node: &Node, props: &mut Props) -> Result<()> {
                 guard: guard.clone(),
             }));
         }
-        "side_effects" => {
-            props.side_effects =
-                Some(if cur.eat_word("false") { false } else { cur.eat_word("true") || true });
-        }
+        "side_effects" => props.side_effects = true,
         "commutative" => {
             let (lhs, _) = cur.ident()?;
             cur.expect(",")?;
@@ -1828,4 +1801,10 @@ fn parse_location(cur: &mut Cursor<'_>) -> Result<Location> {
     }
     let (name, span) = cur.ident()?;
     Ok(Location::Named(name.to_string(), span))
+}
+
+/// Whether `name` is a lowercase letter followed by lowercase letters, digits, and underscores.
+fn is_lower_ident(name: &str) -> bool {
+    name.starts_with(|c: char| c.is_ascii_lowercase())
+        && name.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')
 }

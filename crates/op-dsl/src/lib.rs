@@ -20,7 +20,10 @@ pub mod syntax;
 #[cfg(test)]
 use snapbox as _;
 
-use std::{env, fs, path::PathBuf};
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+};
 
 /// The dialect a set of files declares.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -31,12 +34,18 @@ pub enum Dialect {
     Evm,
 }
 
+/// The environment variable that lists MIR extension schema directories, like `PATH`.
+pub const MIR_EXTENSIONS_VAR: &str = "SOLAR_MIR_OPS_PATH";
+
 /// Compiles named sources of one dialect into named Rust files, or returns rendered diagnostics.
+/// `extensions` are MIR extension files, which must declare a namespace.
 pub fn compile(
     dialect: Dialect,
-    files: &[(String, String)],
+    core: &[(String, String)],
+    extensions: &[(String, String)],
 ) -> Result<Vec<(&'static str, String)>, String> {
-    let render = |error: syntax::Error| syntax::render(&error, files);
+    let files = [core, extensions].concat();
+    let render = |error: syntax::Error| syntax::render(&error, &files);
     let mut parsed = Vec::new();
     for (index, (_, src)) in files.iter().enumerate() {
         parsed.push(syntax::parse(index, src).map_err(render)?);
@@ -44,12 +53,13 @@ pub fn compile(
     match dialect {
         Dialect::Mir => {
             let mut schema = mir::Schema::default();
-            for nodes in &parsed {
-                schema.add_file(nodes).map_err(render)?;
+            for (index, nodes) in parsed.iter().enumerate() {
+                schema.add_file(nodes, index >= core.len()).map_err(render)?;
             }
             Ok(vec![("mir_ops.rs", allow_style_lints(&schema.generate().map_err(render)?))])
         }
         Dialect::Evm => {
+            assert!(extensions.is_empty(), "EVM schemas take no extensions");
             let mut schema = evm::Schema::default();
             for nodes in &parsed {
                 schema.add_file(nodes).map_err(render)?;
@@ -81,53 +91,58 @@ fn allow_style_lints(code: &str) -> String {
     out
 }
 
-impl Dialect {
-    /// The environment variable that lists extension schema directories, like `PATH`.
-    pub const fn extension_var(self) -> &'static str {
-        match self {
-            Self::Mir => "SOLAR_MIR_OPS_PATH",
-            Self::Evm => "SOLAR_EVM_OPS_PATH",
-        }
-    }
-}
-
-/// Compiles every `.ops` file in `dir`, relative to the crate, and then in each directory that
-/// [`Dialect::extension_var`] lists, into `$OUT_DIR`, for build scripts: `mir_ops.rs` for MIR,
-/// and `evm_ops.rs` and `evm_gas.rs` for EVM. Declarations may refer to each other across files;
-/// operations keep the order of the directories, of the files in each by name, and of the rows
-/// within them, so extension operations follow the core ones.
+/// Compiles every `.ops` file in `dir`, relative to the crate, into `$OUT_DIR`, for build
+/// scripts: `mir_ops.rs` for MIR, and `evm_ops.rs` and `evm_gas.rs` for EVM. For MIR, the
+/// absolute directories that [`MIR_EXTENSIONS_VAR`] lists add extension files. Declarations may
+/// refer to each other across files; operations keep the order of the directories, of the files
+/// in each by name, and of the rows within them, so extension operations follow the core ones.
 ///
 /// # Panics
 ///
-/// Panics with the rendered diagnostics when the schema does not compile.
+/// Panics with the rendered diagnostics when the schema does not compile, or when an extension
+/// directory is relative or cannot be read.
 pub fn build(dialect: Dialect, dir: &str) {
     let manifest = PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"));
-    let var = dialect.extension_var();
-    println!("cargo:rerun-if-env-changed={var}");
-    let extensions = env::var_os(var)
-        .map(|paths| env::split_paths(&paths).collect::<Vec<_>>())
-        .unwrap_or_default();
-    let mut files = Vec::new();
-    for dir in std::iter::once(manifest.join(dir)).chain(extensions) {
-        println!("cargo:rerun-if-changed={}", dir.display());
-        let mut paths = fs::read_dir(&dir)
-            .unwrap_or_else(|err| panic!("failed to read {}: {err}", dir.display()))
-            .map(|entry| entry.unwrap().path())
-            .filter(|path| path.extension().is_some_and(|ext| ext == "ops"))
-            .collect::<Vec<_>>();
-        paths.sort();
-        for path in paths {
-            println!("cargo:rerun-if-changed={}", path.display());
-            let name = path.strip_prefix(&manifest).unwrap_or(&path).display().to_string();
-            files.push((name, fs::read_to_string(&path).unwrap()));
+    let core = read_dir(&manifest, &manifest.join(dir));
+    let mut extensions = Vec::new();
+    if dialect == Dialect::Mir {
+        println!("cargo:rerun-if-env-changed={MIR_EXTENSIONS_VAR}");
+        let paths = env::var_os(MIR_EXTENSIONS_VAR).unwrap_or_default();
+        for dir in env::split_paths(&paths).filter(|dir| !dir.as_os_str().is_empty()) {
+            // Build scripts run in the crate's directory, not where cargo was invoked.
+            assert!(
+                dir.is_absolute(),
+                "{MIR_EXTENSIONS_VAR} entry `{}` is not absolute",
+                dir.display()
+            );
+            extensions.extend(read_dir(&manifest, &dir));
         }
     }
-    let outputs = compile(dialect, &files)
+    let outputs = compile(dialect, &core, &extensions)
         .unwrap_or_else(|errors| panic!("invalid operation schema:\n{errors}"));
     let out_dir = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR"));
     for (name, code) in outputs {
         fs::write(out_dir.join(name), code).unwrap();
     }
+}
+
+/// Reads the `.ops` files of `dir` in name order, named relative to `manifest` when inside it.
+fn read_dir(manifest: &Path, dir: &Path) -> Vec<(String, String)> {
+    println!("cargo:rerun-if-changed={}", dir.display());
+    let mut paths = fs::read_dir(dir)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", dir.display()))
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.extension().is_some_and(|ext| ext == "ops"))
+        .collect::<Vec<_>>();
+    paths.sort();
+    paths
+        .into_iter()
+        .map(|path| {
+            println!("cargo:rerun-if-changed={}", path.display());
+            let name = path.strip_prefix(manifest).unwrap_or(&path).display().to_string();
+            (name, fs::read_to_string(&path).unwrap())
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -142,63 +157,78 @@ mod tests {
             let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../mir/ops").join(name);
             files.push((name.to_string(), fs::read_to_string(path).unwrap()));
         }
-        files.push(("acme.ops".to_string(), extension.to_string()));
-        compile(Dialect::Mir, &files).map(drop)
+        compile(Dialect::Mir, &files, &[("acme.ops".to_string(), extension.to_string())]).map(drop)
     }
 
     #[test]
     fn extensions() {
         with_core(
             "dialect mir.acme;
-             op AcmeAvg(a: value, b: value) -> I256 {
-                 effect Pure;
-                 commutative a, b;
+             trait acme_hot;
+             class Binary(a: value, b: value) -> I256 {
+                 traits acme_hot;
                  types a: i256, b: i256;
              }
-             op AcmeCall(gas: value?) {
-                 effect ExternalCall;
-                 traits observes_gas if gas is absent;
-                 types gas: i256;
+             op Avg: Binary {
+                 effect Pure;
+                 commutative a, b;
+                 builder;
+             }
+             op SetReg(value: value) {
+                 mnemonic \"acme.setreg\";
+                 effect MemoryWrite;
+                 side_effects;
+                 types value: i256;
              }",
         )
         .unwrap();
 
         let errors = [
-            "dialect mir.acme;
+            "dialect mir;
              op Avg(a: value) -> I256 { effect Pure; types a: i256; }",
+            "dialect mir.Acme;",
             "dialect mir.acme;
-             op AcmeAvg(a: value) -> I256 { mnemonic \"avg\"; effect Pure; types a: i256; }",
+             enum Mode: A | B;",
             "dialect mir.acme;
-             op AcmeAvg(a: value) -> I256 { types a: i256; }",
+             trait hot;",
             "dialect mir.acme;
-             op AcmeAlloc(size: value, semantics: AllocationSemantics) {
-                 effect MemoryWrite;
-                 traits may_revert if semantics.initialization is Zeroed;
-                 types size: i256;
-             }",
+             op Avg(a: value) -> I256 { mnemonic \"avg\"; effect Pure; types a: i256; }",
             "dialect mir.acme;
-             op AcmeCall(gas: value?) { effect Pure; traits observes_gas if gas; types gas: i256; }",
+             op Avg(a: value) -> I256 { types a: i256; }",
+            "dialect mir.acme;
+             op Call(gas: value?) { effect ExternalCall; types gas: i256; }",
+            "dialect mir.acme;
+             op Lt(a: value) -> I1 { effect Pure; traits reversible; types a: i256; }",
         ]
         .map(|extension| with_core(extension).unwrap_err())
         .join("\n");
         assert_data_eq!(
             errors,
             str![[r#"
-acme.ops:2:14: an operation in namespace `acme` is named `Acme...`
-               op Avg(a: value) -> I256 { effect Pure; types a: i256; }
+acme.ops:1:1: an extension file names its namespace, as in `dialect mir.acme;`
+  dialect mir;
+  ^
+acme.ops:1:13: a namespace is a lowercase letter followed by lowercase letters and digits
+  dialect mir.Acme;
+              ^
+acme.ops:2:14: a namespaced file declares only `op`, `class`, and `trait`
+               enum Mode: A | B;
                ^
-acme.ops:2:14: mnemonic `avg` must start with `acme.`
-               op AcmeAvg(a: value) -> I256 { mnemonic "avg"; effect Pure; types a: i256; }
+acme.ops:2:14: a trait in namespace `acme` is named `acme_...`
+               trait hot;
+               ^
+acme.ops:2:14: mnemonic `avg` is not `acme.` and a lowercase name
+               op Avg(a: value) -> I256 { mnemonic "avg"; effect Pure; types a: i256; }
                ^
 acme.ops:2:14: an extension operation must declare its `effect`
-               op AcmeAvg(a: value) -> I256 { types a: i256; }
+               op Avg(a: value) -> I256 { types a: i256; }
                ^
-acme.ops:4:39: attribute `AllocationSemantics` declares no field `initialization`
-                   traits may_revert if semantics.initialization is Zeroed;
-                                        ^
-acme.ops:2:77: `gas` is a value operand, not an attribute
-               op AcmeCall(gas: value?) { effect Pure; traits observes_gas if gas; types gas: i256; }
-                                                                              ^
+acme.ops:2:14: an extension operation takes only `value` operands
+               op Call(gas: value?) { effect ExternalCall; types gas: i256; }
+               ^
+acme.ops:2:58: a `reversible` operation takes two values
+               op Lt(a: value) -> I1 { effect Pure; traits reversible; types a: i256; }
+                                                           ^
 "#]]
         );
     }

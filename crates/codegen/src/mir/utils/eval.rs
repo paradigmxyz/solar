@@ -22,8 +22,15 @@ pub(crate) fn eval_typed_inst<E>(
     kind: &InstKind,
     mut get: impl FnMut(ValueId) -> Result<U256, E>,
 ) -> Result<Option<U256>, E> {
+    // Signedness comes from the declared semantics, so extension operations fold alike.
+    let (opcode, checked) = match kind.semantics() {
+        Some(Semantics::Opcode(opcode, _)) => (opcode, None),
+        Some(Semantics::Checked(op, arithmetic, ..)) => ("", Some((op, arithmetic))),
+        _ => ("", None),
+    };
     if kind.op_def().result != ResultKind::Integer
-        && !matches!(kind, InstKind::SLt(..) | InstKind::SGt(..) | InstKind::CheckedBinary { .. })
+        && !matches!(opcode, "slt" | "sgt")
+        && checked.is_none()
     {
         return eval_inst(kind, get);
     }
@@ -39,29 +46,21 @@ pub(crate) fn eval_typed_inst<E>(
     if bits > 256 {
         return Ok(None);
     }
-    let signed = matches!(
-        kind,
-        InstKind::SDiv(..)
-            | InstKind::SMod(..)
-            | InstKind::SLt(..)
-            | InstKind::SGt(..)
-            | InstKind::Sar(..)
-            | InstKind::CheckedBinary { arithmetic: ArithmeticKind::Signed(_), .. }
-    );
+    let signed = matches!(opcode, "sdiv" | "smod" | "slt" | "sgt" | "sar")
+        || matches!(checked, Some((_, ArithmeticKind::Signed(_))));
     let mut index = 0;
     let value = eval_inst(kind, |value| {
         let word = get(value)?;
+        // The shift amount of `sar` and the exponent of a checked power stay unsigned.
         let extend = signed
-            && !(matches!(kind, InstKind::Sar(..)) && index == 0)
-            && !(matches!(kind, InstKind::CheckedBinary { op: CheckedOp::Pow, .. }) && index == 1);
+            && !(opcode == "sar" && index == 0)
+            && !(matches!(checked, Some((CheckedOp::Pow, _))) && index == 1);
         index += 1;
         Ok(if extend { sign_extend(word, bits) } else { word })
     })?;
     Ok(value.map(|mut value| {
-        if kind.op_def().result == ResultKind::Integer
-            || matches!(kind, InstKind::CheckedBinary { .. })
-        {
-            if matches!(kind, InstKind::Clz(..)) {
+        if kind.op_def().result == ResultKind::Integer || checked.is_some() {
+            if opcode == "clz" {
                 value -= U256::from(256 - bits);
             }
             value &= U256::MAX >> (256 - bits);

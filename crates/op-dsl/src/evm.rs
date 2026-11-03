@@ -8,7 +8,10 @@
 //! per unit of sized work.
 
 use crate::{
-    common::{EnumDecl, normalize, parse_enum},
+    common::{
+        Decl, EnumDecl, add_trait, emit_traits, enum_variant, normalize, parse_dialect, parse_enum,
+        trait_const,
+    },
     syntax::{Cursor, Error, Node, Result, Span, Tok, Token, doc_attrs},
 };
 use std::{
@@ -21,7 +24,8 @@ use std::{
 enum Expr {
     Int(u64),
     Name(String, Span),
-    Binary(Box<Self>, char, Box<Self>),
+    /// Operands, operator, and the operator's position.
+    Binary(Box<Self>, char, Box<Self>, Span),
 }
 
 impl Expr {
@@ -33,13 +37,11 @@ impl Expr {
                 ("n", Some(n)) => n,
                 _ => return Err(Error::new(*span, format!("`{name}` has no value here"))),
             },
-            Self::Binary(a, op, b) => {
+            Self::Binary(a, op, b, span) => {
                 let (a, b) = (a.eval(n)?, b.eval(n)?);
                 match op {
                     '+' => a + b,
-                    '-' => a.checked_sub(b).ok_or_else(|| {
-                        Error::new(Span { file: 0, line: 0, col: 0 }, "negative value")
-                    })?,
+                    '-' => a.checked_sub(b).ok_or_else(|| Error::new(*span, "negative value"))?,
                     _ => a * b,
                 }
             }
@@ -61,7 +63,7 @@ impl Expr {
                     return Err(Error::new(*span, format!("unknown name `{name}`")));
                 }
             }
-            Self::Binary(a, op, b) => {
+            Self::Binary(a, op, b, _) => {
                 format!("{} {op} {}", a.lower(schema, params)?, b.lower(schema, params)?)
             }
         })
@@ -71,6 +73,7 @@ impl Expr {
 fn parse_expr(cur: &mut Cursor<'_>) -> Result<Expr> {
     let mut lhs = parse_term(cur)?;
     loop {
+        let span = cur.span();
         let op = if cur.eat("+") {
             '+'
         } else if cur.eat("-") {
@@ -78,16 +81,19 @@ fn parse_expr(cur: &mut Cursor<'_>) -> Result<Expr> {
         } else {
             return Ok(lhs);
         };
-        lhs = Expr::Binary(Box::new(lhs), op, Box::new(parse_term(cur)?));
+        lhs = Expr::Binary(Box::new(lhs), op, Box::new(parse_term(cur)?), span);
     }
 }
 
 fn parse_term(cur: &mut Cursor<'_>) -> Result<Expr> {
     let mut lhs = parse_atom(cur)?;
-    while cur.eat("*") {
-        lhs = Expr::Binary(Box::new(lhs), '*', Box::new(parse_atom(cur)?));
+    loop {
+        let span = cur.span();
+        if !cur.eat("*") {
+            return Ok(lhs);
+        }
+        lhs = Expr::Binary(Box::new(lhs), '*', Box::new(parse_atom(cur)?), span);
     }
-    Ok(lhs)
 }
 
 fn parse_atom(cur: &mut Cursor<'_>) -> Result<Expr> {
@@ -107,7 +113,7 @@ fn parse_atom(cur: &mut Cursor<'_>) -> Result<Expr> {
 /// A word-semantics expression over operand names.
 #[derive(Clone, Debug)]
 enum Eval {
-    Operand(String),
+    Operand(String, Span),
     Call(String, Vec<Self>, Span),
 }
 
@@ -117,14 +123,8 @@ fn parse_eval(cur: &mut Cursor<'_>) -> Result<Eval> {
         let args = cur.comma_list(Some(")"), parse_eval)?;
         Ok(Eval::Call(name.to_string(), args, span))
     } else {
-        Ok(Eval::Operand(name.to_string()))
+        Ok(Eval::Operand(name.to_string(), span))
     }
-}
-
-#[derive(Clone, Debug)]
-struct Decl {
-    name: String,
-    docs: Vec<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -132,12 +132,6 @@ struct Const {
     name: String,
     docs: Vec<String>,
     value: u64,
-}
-
-#[derive(Clone, Debug)]
-struct WordFn {
-    params: usize,
-    rust: String,
 }
 
 /// A value per fork: the first entry applies before every listed fork.
@@ -193,7 +187,6 @@ struct Opcode {
     byte: u64,
     span: Span,
     stack: Option<Stack>,
-    mnemonic: Option<String>,
     traits: Vec<(String, Span)>,
     gas: Option<(String, Option<Expr>, Span)>,
     available: Option<(String, Option<String>, Span)>,
@@ -209,14 +202,14 @@ pub struct Schema {
     traits: Vec<Decl>,
     consts: Vec<Const>,
     tiers: Vec<Tier>,
-    word_fns: BTreeMap<String, WordFn>,
+    /// Word functions of `op/word.rs` with their parameter counts.
+    word_fns: BTreeMap<String, usize>,
     stack_ops: Vec<StackOpDecl>,
     opcodes: Vec<Opcode>,
 }
 
 /// One concrete opcode after expanding families.
 struct Row {
-    docs: Vec<String>,
     constant: String,
     byte: u8,
     n: Option<u64>,
@@ -227,31 +220,16 @@ impl Schema {
     /// Adds the declarations of one file.
     pub fn add_file(&mut self, nodes: &[Node]) -> Result<()> {
         let mut nodes = nodes.iter();
-        match nodes.next() {
-            Some(node) => {
-                let mut cur = node.cursor();
-                cur.expect_word("dialect")?;
-                let (name, span) = cur.ident()?;
-                if name != "evm" {
-                    return Err(Error::new(
-                        span,
-                        format!("expected the `evm` dialect, found `{name}`"),
-                    ));
-                }
-                cur.finish()?;
-            }
-            None => return Ok(()),
+        let Some(header) = nodes.next() else { return Ok(()) };
+        if let Some((_, span)) = parse_dialect(header, "evm")? {
+            return Err(Error::new(span, "EVM schemas have no namespaces"));
         }
         for node in nodes {
             let mut cur = node.cursor();
             match cur.peek_word() {
                 Some("enum") => parse_enum(node, &mut self.enums)?,
-                Some("trait") => {
-                    cur.bump()?;
-                    let (name, _) = cur.ident()?;
-                    cur.finish()?;
-                    self.traits.push(Decl { name: name.to_string(), docs: node.docs.clone() });
-                }
+                // `OpcodeTraits` holds a `u16`.
+                Some("trait") => add_trait(&mut self.traits, node, 16)?,
                 Some("const") => {
                     cur.bump()?;
                     let (name, _) = cur.ident()?;
@@ -269,13 +247,8 @@ impl Schema {
                     let (name, _) = cur.ident()?;
                     cur.expect("(")?;
                     let params = cur.comma_list(Some(")"), |cur| cur.ident().map(drop))?.len();
-                    let rust = if cur.eat("=") {
-                        cur.string()?.to_string()
-                    } else {
-                        format!("word::{name}")
-                    };
                     cur.finish()?;
-                    self.word_fns.insert(name.to_string(), WordFn { params, rust });
+                    self.word_fns.insert(name.to_string(), params);
                 }
                 Some("gas_tier") => self.tiers.push(parse_tier(node)?),
                 Some("stack_op") => self.stack_ops.push(parse_stack_op(node)?),
@@ -287,18 +260,11 @@ impl Schema {
     }
 
     fn enum_variant(&self, ty: &str, name: &str, span: Span) -> Result<String> {
-        self.enums
-            .get(ty)
-            .ok_or_else(|| Error::new(span, format!("the schema must declare `enum {ty}`")))?
-            .resolve(name, span)
+        enum_variant(&self.enums, ty, name, span)
     }
 
     fn trait_const(&self, name: &str, span: Span) -> Result<String> {
-        self.traits
-            .iter()
-            .find(|t| t.name == name)
-            .map(|t| format!("OpcodeTraits::{}", t.name.to_ascii_uppercase()))
-            .ok_or_else(|| Error::new(span, format!("unknown trait `{name}`")))
+        trait_const(&self.traits, "OpcodeTraits", name, span)
     }
 
     fn tier(&self, name: &str, arg: Option<&Expr>, n: Option<u64>, span: Span) -> Result<String> {
@@ -326,19 +292,18 @@ impl Schema {
         for decl in self.enums.values() {
             out.push_str(&decl.exhaustiveness_check());
         }
-        out.push_str("impl OpcodeTraits {\n");
-        for (bit, decl) in self.traits.iter().enumerate() {
-            out.push_str(&doc_attrs(&decl.docs, "    "));
+        emit_traits(&mut out, "OpcodeTraits", &self.traits);
+        for row in &rows {
+            match row.op.docs.as_slice() {
+                [] => writeln!(out, "/// Opcode byte for `{}`.", row.constant).unwrap(),
+                docs => out.push_str(&doc_attrs(docs, "")),
+            }
             writeln!(
                 out,
-                "    pub const {}: Self = Self(1 << {bit});",
-                decl.name.to_ascii_uppercase()
+                "#[allow(dead_code)]\npub const {}: u8 = {:#04x};",
+                row.constant, row.byte
             )
             .unwrap();
-        }
-        out.push_str("}\n\n");
-        for row in &rows {
-            writeln!(out, "#[doc = \" Opcode byte for `{0}`.\"]\n#[allow(dead_code)]\npub const {0}: u8 = {1:#04x};", row.constant, row.byte).unwrap();
         }
         let constants = rows.iter().map(|row| row.constant.as_str()).collect::<BTreeSet<_>>();
 
@@ -412,7 +377,7 @@ impl Schema {
                 None => "None".to_string(),
             };
             let immediate = op.immediate.as_ref().map_or(Ok(0), |expr| expr.eval(row.n))?;
-            let mnemonic = op.mnemonic.clone().unwrap_or_else(|| row.constant.to_ascii_lowercase());
+            let mnemonic = row.constant.to_ascii_lowercase();
             writeln!(
                 out,
                 "    map[{byte} as usize] = Some(OpDef {{ opcode: {byte}, mnemonic: {mnemonic:?}, stack_io: {stack_io}, traits: {traits}, result_bits: {result_bits}, input_bits: &{input_bits:?}, gas: {gas}, availability: {availability}, swapped: {swapped}, immediate: {immediate} }});",
@@ -424,9 +389,13 @@ impl Schema {
 
         out.push_str("/// Returns the opcode for a canonical mnemonic.\n#[must_use]\npub fn from_mnemonic(mnemonic: &str) -> Option<u8> {\n    match mnemonic {\n");
         for row in &rows {
-            let mnemonic =
-                row.op.mnemonic.clone().unwrap_or_else(|| row.constant.to_ascii_lowercase());
-            writeln!(out, "        {mnemonic:?} => Some({}),", row.constant).unwrap();
+            writeln!(
+                out,
+                "        {:?} => Some({}),",
+                row.constant.to_ascii_lowercase(),
+                row.constant
+            )
+            .unwrap();
         }
         out.push_str("        _ => None,\n    }\n}\n\n");
 
@@ -461,29 +430,23 @@ impl Schema {
 
     fn lower_eval(&self, eval: &Eval, names: &[String]) -> Result<String> {
         Ok(match eval {
-            Eval::Operand(name) if names.contains(name) => name.clone(),
-            Eval::Operand(name) => {
-                return Err(Error::new(
-                    Span { file: 0, line: 0, col: 0 },
-                    format!("unknown operand `{name}`"),
-                ));
+            Eval::Operand(name, _) if names.contains(name) => name.clone(),
+            Eval::Operand(name, span) => {
+                return Err(Error::new(*span, format!("unknown operand `{name}`")));
             }
             Eval::Call(name, args, span) => {
-                let word_fn = self
+                let params = self
                     .word_fns
                     .get(name)
                     .ok_or_else(|| Error::new(*span, format!("unknown word function `{name}`")))?;
-                if word_fn.params != args.len() {
-                    return Err(Error::new(
-                        *span,
-                        format!("`{name}` takes {} operands", word_fn.params),
-                    ));
+                if *params != args.len() {
+                    return Err(Error::new(*span, format!("`{name}` takes {params} operands")));
                 }
                 let args = args
                     .iter()
                     .map(|arg| self.lower_eval(arg, names))
                     .collect::<Result<Vec<_>>>()?;
-                format!("{}({})", word_fn.rust, args.join(", "))
+                format!("word::{name}({})", args.join(", "))
             }
         })
     }
@@ -494,7 +457,6 @@ impl Schema {
         for op in &self.opcodes {
             match op.range {
                 None => rows.push(Row {
-                    docs: op.docs.clone(),
                     constant: op.name.clone(),
                     byte: byte(op.byte, op.span)?,
                     n: None,
@@ -503,7 +465,6 @@ impl Schema {
                 Some((first, last)) => {
                     for n in first..=last {
                         rows.push(Row {
-                            docs: op.docs.clone(),
                             constant: format!("{}{n}", op.name),
                             byte: byte(op.byte + n - first, op.span)?,
                             n: Some(n),
@@ -522,23 +483,19 @@ impl Schema {
                 ));
             }
             prev = Some(row.byte);
-            let _ = &row.docs;
         }
         Ok(rows)
     }
 
     fn emit_stack_ops(&self, out: &mut String, constants: &BTreeSet<&str>) -> Result<()> {
-        let decl = self.enums.get("StackOp").ok_or_else(|| {
-            Error::new(Span { file: 0, line: 1, col: 1 }, "the schema must declare `enum StackOp`")
-        })?;
         out.push_str("impl StackOp {\n    /// Returns the generated definition for this logical operation.\n    #[must_use]\n    pub const fn definition(self) -> StackOpDef {\n        match self {\n");
         for op in &self.stack_ops {
+            let decl = self
+                .enums
+                .get("StackOp")
+                .ok_or_else(|| Error::new(op.opcode.1, "the schema must declare `enum StackOp`"))?;
             let path = decl.resolve(&op.pattern, op.opcode.1)?;
-            let suffix = match &decl.variant(&op.pattern).unwrap().shape {
-                crate::common::Shape::Unit => "",
-                crate::common::Shape::Tuple(_) => "(..)",
-                crate::common::Shape::Struct => " { .. }",
-            };
+            let suffix = decl.variant(&op.pattern).unwrap().shape.wildcard();
             if !constants.contains(op.opcode.0.as_str()) {
                 return Err(Error::new(op.opcode.1, format!("unknown opcode `{}`", op.opcode.0)));
             }
@@ -852,7 +809,6 @@ fn parse_opcode(node: &Node) -> Result<Opcode> {
         byte,
         span,
         stack,
-        mnemonic: None,
         traits: Vec::new(),
         gas: None,
         available: None,
@@ -869,7 +825,6 @@ fn parse_opcode(node: &Node) -> Result<Opcode> {
                 cur.expect("->")?;
                 op.stack = Some(Stack::Counts(inputs, parse_expr(&mut cur)?));
             }
-            "mnemonic" => op.mnemonic = Some(cur.string()?.to_string()),
             "traits" => {
                 op.traits =
                     cur.comma_list(None, |cur| cur.ident().map(|(n, s)| (n.to_string(), s)))?

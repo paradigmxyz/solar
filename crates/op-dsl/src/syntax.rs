@@ -76,8 +76,8 @@ pub struct Token {
 
 /// Punctuation, longest first so the lexer matches greedily.
 const PUNCTS: &[&str] = &[
-    "{..}", "..=", "->", "=>", "==", "!=", "<=", ">=", "&&", "||", "..", "(", ")", "[", "]", "{",
-    "}", "<", ">", ",", ";", ":", "=", "|", "!", "?", "+", "-", "*", ".", "&", "^", "~", "#",
+    "{..}", "..=", "->", "==", "!=", "<=", ">=", "&&", "||", "..", "(", ")", "[", "]", "{", "}",
+    "<", ">", ",", ";", ":", "=", "|", "!", "?", "+", "-", "*", ".", "#",
 ];
 
 /// Splits a source file into tokens.
@@ -130,9 +130,9 @@ pub fn lex(file: usize, src: &str) -> Result<Vec<Token>> {
                 rest.find(|c: char| !c.is_ascii_alphanumeric() && c != '_').unwrap_or(rest.len());
             tokens.push(Token { tok: Tok::Ident(rest[..end].to_string()), span });
             end
-        } else if let Some(punct) = PUNCTS.iter().find(|punct| struct_wildcard(rest, punct)) {
+        } else if let Some(punct) = PUNCTS.iter().find(|punct| rest.starts_with(*punct)) {
             tokens.push(Token { tok: Tok::Punct(punct), span });
-            if *punct == "{..}" { rest.find('}').unwrap() + 1 } else { punct.len() }
+            punct.len()
         } else {
             return Err(Error::new(span, format!("unexpected character `{}`", c as char)));
         };
@@ -141,17 +141,6 @@ pub fn lex(file: usize, src: &str) -> Result<Vec<Token>> {
         i += len;
     }
     Ok(tokens)
-}
-
-/// Matches `punct` at the start of `rest`, reading `{ .. }` with inner spaces as `{..}`.
-fn struct_wildcard(rest: &str, punct: &str) -> bool {
-    if punct == "{..}" {
-        let Some(inner) = rest.strip_prefix('{') else { return false };
-        let inner = inner.trim_start_matches(' ');
-        inner.strip_prefix("..").is_some_and(|tail| tail.trim_start_matches(' ').starts_with('}'))
-    } else {
-        rest.starts_with(punct)
-    }
 }
 
 /// A statement: its documentation, head tokens, and optional body.
@@ -248,19 +237,9 @@ pub struct Cursor<'a> {
 }
 
 impl<'a> Cursor<'a> {
-    /// Creates a cursor over `tokens`, reporting a missing token at `end`.
-    pub fn new(tokens: &'a [Token], end: Span) -> Self {
-        Self { tokens, pos: 0, end }
-    }
-
     /// Returns the next token without consuming it.
     pub fn peek(&self) -> Option<&'a Token> {
         self.tokens.get(self.pos)
-    }
-
-    /// Returns the token after the next one without consuming anything.
-    pub fn peek2(&self) -> Option<&'a Token> {
-        self.tokens.get(self.pos + 1)
     }
 
     /// Returns the span of the next token, or of the end of the head.

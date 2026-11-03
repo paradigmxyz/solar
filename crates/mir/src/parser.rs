@@ -1241,7 +1241,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         };
 
         let mnemonic_span = self.parser.token().span;
-        let mnemonic = self.parser.parse_ident()?;
+        let mut mnemonic = self.parser.parse_ident()?;
+        // Namespaced extension operations, such as `acme.avg`.
+        if self.parser.eat(TokenKind::Dot) {
+            mnemonic = Symbol::intern(&format!("{mnemonic}.{}", self.parser.parse_ident()?));
+        }
 
         // Terminators (no result).
         match mnemonic {
@@ -2214,12 +2218,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
 
             // Operations built from value operands alone come from the schema, including
-            // namespaced extension operations such as `acme.avg`.
-            _ => match InstKind::operand_only(&if self.parser.eat(TokenKind::Dot) {
-                format!("{mnemonic}.{}", self.parser.parse_ident()?)
-            } else {
-                mnemonic.to_string()
-            }) {
+            // namespaced extension operations.
+            _ => match InstKind::operand_only(mnemonic.as_str()) {
                 Some((arity, build)) => {
                     let mut operands = SmallVec::<[ValueId; 8]>::new();
                     for index in 0..arity {

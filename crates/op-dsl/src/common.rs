@@ -1,6 +1,6 @@
 //! Schema pieces every dialect shares: host enum declarations, patterns, and predicates.
 
-use crate::syntax::{Cursor, Error, Node, Result, Span, Tok, Token};
+use crate::syntax::{Cursor, Error, Node, Result, Span, Tok, Token, doc_attrs};
 use std::{collections::BTreeMap, fmt::Write as _};
 
 /// The shape of an enum variant, as patterns must spell it.
@@ -12,6 +12,17 @@ pub enum Shape {
     Tuple(Vec<Option<String>>),
     /// `Name { .. }`.
     Struct,
+}
+
+impl Shape {
+    /// The pattern suffix that matches any payload: ``, `(..)`, or ` { .. }`.
+    pub const fn wildcard(&self) -> &'static str {
+        match self {
+            Self::Unit => "",
+            Self::Tuple(_) => "(..)",
+            Self::Struct => " { .. }",
+        }
+    }
 }
 
 /// A declared variant of a host enum.
@@ -63,14 +74,7 @@ impl EnumDecl {
         let arms = self
             .variants
             .iter()
-            .map(|variant| {
-                let suffix = match variant.shape {
-                    Shape::Unit => "",
-                    Shape::Tuple(_) => "(..)",
-                    Shape::Struct => " { .. }",
-                };
-                format!("{}::{}{suffix}", self.rust, variant.name)
-            })
+            .map(|variant| format!("{}::{}{}", self.rust, variant.name, variant.shape.wildcard()))
             .collect::<Vec<_>>()
             .join(" | ");
         format!(
@@ -184,9 +188,7 @@ pub fn lower_alternatives(
         let path = decl.resolve(name, *span)?;
         let variant = decl.variant(name).unwrap();
         out.push(match (&variant.shape, args) {
-            (Shape::Unit, None) => path,
-            (Shape::Struct, None) => format!("{path} {{ .. }}"),
-            (Shape::Tuple(_), None) => format!("{path}(..)"),
+            (shape, None) => format!("{path}{}", shape.wildcard()),
             (Shape::Tuple(payloads), Some(args)) if payloads.len() == args.len() => {
                 let mut parts = Vec::new();
                 for (payload, arg) in payloads.iter().zip(args) {
@@ -401,8 +403,77 @@ fn place(field: &str) -> String {
     if field.contains('.') { field.to_string() } else { format!("*{field}") }
 }
 
-/// Writes `/// docs` as doc attributes followed by `line`.
-pub fn documented(out: &mut String, docs: &[String], indent: &str, line: &str) {
-    out.push_str(&crate::syntax::doc_attrs(docs, indent));
-    writeln!(out, "{indent}{line}").unwrap();
+/// A documented name in a vocabulary.
+#[derive(Clone, Debug)]
+pub struct Decl {
+    pub name: String,
+    pub docs: Vec<String>,
+}
+
+/// Parses `keyword name;`.
+pub fn parse_decl(node: &Node, keyword: &str) -> Result<Decl> {
+    let mut cur = node.cursor();
+    cur.expect_word(keyword)?;
+    let (name, _) = cur.ident()?;
+    cur.finish()?;
+    Ok(Decl { name: name.to_string(), docs: node.docs.clone() })
+}
+
+/// Parses the `dialect name;` or `dialect name.namespace;` header and returns the namespace.
+pub fn parse_dialect<'a>(node: &'a Node, dialect: &str) -> Result<Option<(&'a str, Span)>> {
+    let mut cur = node.cursor();
+    cur.expect_word("dialect")?;
+    let (name, span) = cur.ident()?;
+    if name != dialect {
+        return Err(Error::new(span, format!("expected the `{dialect}` dialect, found `{name}`")));
+    }
+    let namespace = if cur.eat(".") { Some(cur.ident()?) } else { None };
+    cur.finish()?;
+    Ok(namespace)
+}
+
+/// Adds a `trait` declaration to a trait set that holds at most `bits` traits.
+pub fn add_trait(traits: &mut Vec<Decl>, node: &Node, bits: usize) -> Result<()> {
+    let decl = parse_decl(node, "trait")?;
+    if traits.iter().any(|t| t.name == decl.name) {
+        return Err(Error::new(node.span, format!("trait `{}` is declared twice", decl.name)));
+    }
+    if traits.len() == bits {
+        return Err(Error::new(node.span, format!("a trait set holds at most {bits} traits")));
+    }
+    traits.push(decl);
+    Ok(())
+}
+
+/// Names the constant of trait `name` in the trait set `ty`.
+pub fn trait_const(traits: &[Decl], ty: &str, name: &str, span: Span) -> Result<String> {
+    traits
+        .iter()
+        .find(|t| t.name == name)
+        .map(|t| format!("{ty}::{}", t.name.to_ascii_uppercase()))
+        .ok_or_else(|| Error::new(span, format!("unknown trait `{name}`")))
+}
+
+/// Emits one bit constant per trait in the trait set `ty`.
+pub fn emit_traits(out: &mut String, ty: &str, traits: &[Decl]) {
+    writeln!(out, "impl {ty} {{").unwrap();
+    for (bit, decl) in traits.iter().enumerate() {
+        out.push_str(&doc_attrs(&decl.docs, "    "));
+        writeln!(out, "    pub const {}: Self = Self(1 << {bit});", decl.name.to_ascii_uppercase())
+            .unwrap();
+    }
+    out.push_str("}\n\n");
+}
+
+/// Resolves variant `name` of the declared enum `ty` to its Rust path.
+pub fn enum_variant(
+    enums: &BTreeMap<String, EnumDecl>,
+    ty: &str,
+    name: &str,
+    span: Span,
+) -> Result<String> {
+    enums
+        .get(ty)
+        .ok_or_else(|| Error::new(span, format!("the schema must declare `enum {ty}`")))?
+        .resolve(name, span)
 }

@@ -69,8 +69,8 @@ semantics low_bits(value, u32);
   path, as in `semantics.failure`.
 - `enum NAME: variants` declares a host enum that properties name. A variant list without a
   trailing `..` must list every Rust variant, and generated code checks that it does.
-- `trait`, `category`, and `metadata` add a flag to `OpTraits`, a variant to `PhaseCategory`,
-  and a metadata flag that phase-legality clauses may test.
+- `trait`, `category`, and `metadata` add a flag to `OpTraits` (at most 32), a variant to
+  `PhaseCategory`, and a metadata flag that phase-legality clauses may test.
 - `semantics NAME(types)` declares a form of `Semantics` with the field types of its
   arguments.
 
@@ -190,8 +190,9 @@ opcode PUSH1..=PUSH32 = 0x60 { stack 0 -> 1; gas VeryLow; immediate n; }
 An opcode row names its stack inputs in pop order, each with the low bits it reads, and its
 result with the bits that can be nonzero. Its body sets `traits`, a `gas` tier, `available
 since Fork` or a named gate, the `swapped` mirror of a comparison, the `immediate` width, the
-`eval` word function of a pure opcode, and an optional `mnemonic`. A family row such as
-`DUP1..=DUP16` writes these as expressions in its suffix `n`.
+`eval` word function of a pure opcode; the mnemonic is the name in lowercase. A family row such
+as `DUP1..=DUP16` writes these as expressions in its suffix `n`. `OpcodeTraits` holds at most
+16 traits.
 
 - `gas_tier Name[(param: u8)]` gives the static price with the forks that change it, the
   price of a warm access since Berlin, and the dynamic charge per byte, word, or byte length
@@ -219,7 +220,22 @@ string of Rust code inside the schema:
 
 The `EffectKind` meanings in `effects.rs`, the single-opcode selection rules in
 `isle/mir-to-evm/select.isle`, and the lowering passes stay in Rust. They do not classify
-operations: each states what a vocabulary item means, or lowers specific operations.
+operations: each states what a vocabulary item means, or lowers specific operations. So does
+the canonical direction of a `reversible` comparison: `canonical.rs` turns `gt` into `lt` with
+its operands exchanged.
+
+Some passes still name core operations in a `match` to decide a property the schema could
+state. They predate this language, treat operations they do not name conservatively, and are
+the next candidates for traits:
+
+- `lower_integers.rs` chooses how to extend narrow operands by variant (`sdiv` and the signed
+  comparisons sign-extend); constant folding in `utils/eval.rs` reads it from the declared
+  `semantics opcode(..)` instead;
+- the e-graph's `is_node` lists the reads that are stable within a function (calldata,
+  `blockhash`, `blobhash`);
+- `cse.rs` (`is_path_sensitive_kind`, `is_frame_function_of_arguments`), `alias.rs`,
+  `heap_floor.rs`, and `call_cleanup.rs` name operations with special memory or frame meaning;
+- EVM IR passes such as `block_cse.rs` group opcodes into invalidation epochs.
 
 ## Extensions
 
@@ -229,7 +245,7 @@ An extension is a directory of `.ops` files whose header names a namespace:
 dialect mir.acme;
 
 /// The average of two words, rounded down, without overflow.
-op AcmeAvg(a: value, b: value) -> I256 {
+op Avg(a: value, b: value) -> I256 {
     effect Pure;
     traits rematerializable;
     commutative a, b;
@@ -237,22 +253,32 @@ op AcmeAvg(a: value, b: value) -> I256 {
 }
 ```
 
-`SOLAR_MIR_OPS_PATH` and `SOLAR_EVM_OPS_PATH` list extension directories, as `PATH` does;
-the build script compiles them after the core files. An extension may add vocabulary such as
-new traits, and may use all of the core vocabulary. The generator enforces these rules on
-extension operations:
+`SOLAR_MIR_OPS_PATH` lists extension directories by absolute path, as `PATH` does; the build
+script compiles them after the core files. EVM IR takes no extensions yet. The generator derives
+every name of an extension operation from the namespace and the local name, so none can collide
+with a later core operation or another namespace:
 
-- the Rust name starts with the namespace in CamelCase (`Acme...`), so it cannot collide with
-  a later core operation;
-- every mnemonic starts with `acme.`, and the default mnemonic is `acme.` and the rest of the
-  name in lowercase;
+| Name | `op Avg` in `mir.acme` |
+| --- | --- |
+| `InstKind` variant | `AcmeAvg` |
+| mnemonic | `acme.avg` |
+| ISLE term | `acme_avg` |
+| builder | `acme_avg` |
+
+It enforces these rules on extension files:
+
+- the header must name a namespace: a lowercase letter, then lowercase letters and digits;
+- a file may declare `op`, `class`, and `trait`, and nothing else; a trait is named
+  `acme_...`, and a class or base name resolves in the namespace first;
+- an explicit `mnemonic` is `acme.` and one lowercase identifier;
+- operations take `value` operands only, so the generic text form `acme.avg v0, v1` holds the
+  whole instruction and prints and parses back unchanged;
 - `effect` is required, so no extension operation becomes `Pure` by omission.
 
-An extension operation is a full `InstKind` variant, and no hand-written Rust classifies
-operations in a closed `match`: adding one requires no Rust change for the workspace to build.
-The text parser, printer, operand traversal, type verifier, phase verifier, effects, dead-code
-elimination, and e-graph value numbering all use the declared properties. With the
-`AcmeAvg` above, MIR text such as
+An extension operation is a full `InstKind` variant: adding one requires no Rust change for the
+workspace to build. The text parser, printer, operand traversal, type verifier, phase verifier,
+effects, dead-code elimination, constant folding, and e-graph value numbering all use the
+declared properties. With `Avg` above, MIR text such as
 
 ```text
 v0 = acme.avg arg0, arg1

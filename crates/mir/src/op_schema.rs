@@ -49,7 +49,7 @@ impl PhaseSet {
 
 /// Declarative operation properties used by analyses and rewrites.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct OpTraits(u16);
+pub struct OpTraits(u32);
 
 impl OpTraits {
     /// No additional operation traits.
@@ -158,8 +158,6 @@ impl RawMemorySize {
 pub trait Operands {
     /// Copyable projection of the field seen by rewrite rules.
     type View: Copy;
-    /// ISLE type name of the projection.
-    const ISLE_TYPE: &'static str;
 
     /// Appends every value operand held by this field in canonical order.
     fn collect<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>);
@@ -175,17 +173,10 @@ pub trait Operands {
     fn from_view(view: Self::View) -> Option<Self>
     where
         Self: Sized;
-    /// Whether the field is exactly one value operand.
-    const IS_OPERAND: bool;
-    /// Builds the field from one value operand; only value operands support this.
-    fn from_operand(value: ValueId) -> Self
-    where
-        Self: Sized;
 }
 
 impl Operands for ValueId {
     type View = Self;
-    const ISLE_TYPE: &'static str = "Value";
 
     #[inline]
     fn collect<A: Array<Item = Self>>(&self, out: &mut SmallVec<A>) {
@@ -216,18 +207,10 @@ impl Operands for ValueId {
     fn from_view(view: Self) -> Option<Self> {
         Some(view)
     }
-
-    const IS_OPERAND: bool = true;
-
-    #[inline]
-    fn from_operand(value: ValueId) -> Self {
-        value
-    }
 }
 
 impl Operands for Option<ValueId> {
     type View = Self;
-    const ISLE_TYPE: &'static str = "OptionValue";
 
     #[inline]
     fn collect<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>) {
@@ -262,17 +245,10 @@ impl Operands for Option<ValueId> {
     fn from_view(view: Self) -> Option<Self> {
         Some(view)
     }
-
-    const IS_OPERAND: bool = false;
-
-    fn from_operand(_: ValueId) -> Self {
-        unreachable!("an optional operand is not built from one value")
-    }
 }
 
 impl Operands for Box<[ValueId]> {
     type View = ();
-    const ISLE_TYPE: &'static str = "Unit";
 
     #[inline]
     fn collect<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>) {
@@ -299,17 +275,10 @@ impl Operands for Box<[ValueId]> {
     fn from_view((): ()) -> Option<Self> {
         None
     }
-
-    const IS_OPERAND: bool = false;
-
-    fn from_operand(_: ValueId) -> Self {
-        unreachable!("an operand list is not built from one value")
-    }
 }
 
 impl Operands for Vec<(BlockId, ValueId)> {
     type View = ();
-    const ISLE_TYPE: &'static str = "Unit";
 
     #[inline]
     fn collect<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>) {
@@ -336,17 +305,11 @@ impl Operands for Vec<(BlockId, ValueId)> {
     fn from_view((): ()) -> Option<Self> {
         None
     }
-
-    const IS_OPERAND: bool = false;
-
-    fn from_operand(_: ValueId) -> Self {
-        unreachable!("phi incoming values are not built from one value")
-    }
 }
 
 impl Operands for Box<[PackedPart]> {
     type View = ();
-    const ISLE_TYPE: &'static str = "Unit";
+
     fn collect<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>) {
         out.extend(self.iter().filter_map(PackedPart::value));
     }
@@ -360,10 +323,6 @@ impl Operands for Box<[PackedPart]> {
     fn map_view((): (), _: &mut impl FnMut(ValueId) -> ValueId) {}
     fn from_view((): ()) -> Option<Self> {
         None
-    }
-    const IS_OPERAND: bool = false;
-    fn from_operand(_: ValueId) -> Self {
-        unreachable!("packed parts need their types")
     }
 }
 
@@ -399,7 +358,6 @@ impl LogTopics {
 
 impl Operands for LogTopics {
     type View = Self;
-    const ISLE_TYPE: &'static str = "LogTopics";
 
     #[inline]
     fn collect<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>) {
@@ -432,12 +390,6 @@ impl Operands for LogTopics {
     fn from_view(view: Self) -> Option<Self> {
         Some(view)
     }
-
-    const IS_OPERAND: bool = false;
-
-    fn from_operand(_: ValueId) -> Self {
-        unreachable!("log topics are not built from one value")
-    }
 }
 
 /// Generated metadata for one MIR operation.
@@ -451,8 +403,8 @@ pub struct OpDef {
     pub(crate) phases: PhaseSet,
     /// Conservative effect classification.
     pub effect: EffectKind,
-    /// Declarative operation properties.
-    pub traits: OpTraits,
+    /// Unconditional operation properties; [`InstKind::traits`] adds the conditional ones.
+    pub(crate) traits: OpTraits,
     /// Whether the operation must remain observable to DCE.
     pub has_side_effects: bool,
     /// Diagnostic category used when a phase boundary is violated.
@@ -620,6 +572,72 @@ impl Op {
         });
         operands
     }
+}
+
+/// Implements `Operands` for attribute types that rewrite rules see by value.
+macro_rules! attributes {
+    ($($ty:ty),+ $(,)?) => {
+        $(
+            impl Operands for $ty {
+                type View = Self;
+
+                #[inline]
+                fn collect<A: Array<Item = ValueId>>(&self, _out: &mut SmallVec<A>) {}
+
+                #[inline]
+                fn visit(&self, _f: &mut impl FnMut(ValueId)) {}
+
+                #[inline]
+                fn visit_mut(&mut self, _f: &mut impl FnMut(&mut ValueId)) {}
+
+                #[inline]
+                fn view(&self) -> Self {
+                    *self
+                }
+
+                #[inline]
+                fn map_view(view: Self, _f: &mut impl FnMut(ValueId) -> ValueId) -> Self {
+                    view
+                }
+
+                #[inline]
+                fn from_view(view: Self) -> Option<Self> {
+                    Some(view)
+                }
+            }
+        )+
+    };
+}
+
+/// Implements `Operands` for attribute types that rewrite rules cannot inspect.
+macro_rules! opaque_attributes {
+    ($($ty:ty),+ $(,)?) => {
+        $(
+            impl Operands for $ty {
+                type View = ();
+
+                #[inline]
+                fn collect<A: Array<Item = ValueId>>(&self, _out: &mut SmallVec<A>) {}
+
+                #[inline]
+                fn visit(&self, _f: &mut impl FnMut(ValueId)) {}
+
+                #[inline]
+                fn visit_mut(&mut self, _f: &mut impl FnMut(&mut ValueId)) {}
+
+                #[inline]
+                fn view(&self) {}
+
+                #[inline]
+                fn map_view((): (), _f: &mut impl FnMut(ValueId) -> ValueId) {}
+
+                #[inline]
+                fn from_view((): ()) -> Option<Self> {
+                    None
+                }
+            }
+        )+
+    };
 }
 
 include!(concat!(env!("OUT_DIR"), "/mir_ops.rs"));
