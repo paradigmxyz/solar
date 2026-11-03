@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/memory_enum_validation.sol:MemoryEnumValidation ===
+; === ROOT/tests/ui/codegen/lowering/run-call/memory_enum_validation.sol:MemoryEnumValidation ===
 @module MemoryEnumValidation
 ; function structField() external pure returns (Mode) [selector 0x3442156e]
 fn @structField() -> i8 [selector=0x3442156e, pure, abi_params=[], abi_returns=[word<enum 2>], abi_return_params=[enum<2, uint8>]] {

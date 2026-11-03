@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/type_conversion.sol:TypeConversion ===
+; === ROOT/tests/ui/codegen/lowering/type_conversion.sol:TypeConversion ===
 @module TypeConversion
 ; function narrowAddress(address asset) public pure returns (uint16) [selector 0xaf290423]
 fn @narrowAddress(arg0: i160) -> i16 [selector=0xaf290423, pure, abi_params=[address], abi_returns=[word<uint16>], abi_return_params=[uint16]] {

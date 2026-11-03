@@ -93,8 +93,8 @@ pub fn transact(
 }
 
 /// Splits the output of `solar -Zdump=mir-final` into its modules, each after a
-/// `// === NAME ===` header. Text without headers is one module, named by its `@module` line. The
-/// compiler's JSON output, which follows the dumps, ends the last module.
+/// `; === NAME ===` (or `// === NAME ===`) header. Text without headers is one module, named by its
+/// `@module` line. The compiler's JSON output, which follows the dumps, ends the last module.
 pub fn parse_dump(text: &str) -> Vec<DumpedModule> {
     let headed = text.lines().any(|line| header(line).is_some());
     let mut modules = Vec::new();
@@ -124,7 +124,10 @@ pub fn parse_dump(text: &str) -> Vec<DumpedModule> {
 
 /// Returns the contract a dump's module header names.
 fn header(line: &str) -> Option<&str> {
-    line.strip_prefix("// === ").and_then(|rest| rest.strip_suffix(" ==="))
+    line.strip_prefix(';')
+        .or_else(|| line.strip_prefix("//"))
+        .and_then(|rest| rest.strip_prefix(" === "))
+        .and_then(|rest| rest.strip_suffix(" ==="))
 }
 
 /// Parses `mir` as one lowered module and runs `f` on it within a session of its own.
@@ -265,7 +268,7 @@ fn @twice(arg0: i256) -> i256 {
 
     #[test]
     fn dumps() {
-        let dump = "// === a.sol:A ===
+        let dump = "; === a.sol:A ===
 @module A
 @phase lowered
 // === a.sol:B ===
@@ -299,7 +302,7 @@ fn @twice(arg0: i256) -> i256 {
         let unsupported = |reason: &str| Outcome::Unsupported(format!("reaches `{reason}`"));
         assert_eq!(run("", ""), unsupported("msize without backend layout"));
         // Spills below the frame end may have grown EVM memory past what MIR shows.
-        let frames = "// backend-memory-v1\n// backend-frames 0 0x100\n";
+        let frames = "; backend-memory-v1\n; backend-frames 0 0x100\n";
         assert_eq!(run(frames, ""), unsupported("msize below backend frames"));
         assert_eq!(
             run(frames, "    mstore 0xe0, 1\n"),

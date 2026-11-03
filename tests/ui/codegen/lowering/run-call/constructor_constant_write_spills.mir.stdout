@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_constant_write_spills.sol:ConstructorConstantWriteSpills ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_constant_write_spills.sol:ConstructorConstantWriteSpills ===
 @module ConstructorConstantWriteSpills
 ; constructor() payable [creation entry]
 fn @constructor() [constructor, payable] {

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/storage_packed_uint.sol:PackedUint ===
+; === ROOT/tests/ui/codegen/lowering/storage_packed_uint.sol:PackedUint ===
 @module PackedUint
 ; creation entry
 fn @constructor() [constructor] {

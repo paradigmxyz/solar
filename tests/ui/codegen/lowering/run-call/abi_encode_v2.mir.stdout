@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_v2.sol:AbiEncodeV2 ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_v2.sol:AbiEncodeV2 ===
 @module AbiEncodeV2
 ; function f0() public pure returns (bytes memory) [selector 0xa5850475]
 fn @f0() -> ptr<memory> [selector=0xa5850475, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -138,13 +138,13 @@ fn @literalRemainsLive() -> i1 [selector=0x8eddb2e8, pure, abi_params=[], abi_re
     v4 = keccak256 v2, v3
     v5 = eq v4, 0x4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45
     jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v6 = mload v1
     v7 = ne v6, 0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v8 = phi [bb1: v7], [bb2: false]
     ret v8
 }

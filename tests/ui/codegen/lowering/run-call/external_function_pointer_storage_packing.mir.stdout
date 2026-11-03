@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_storage_packing.sol:ExternalFunctionPointerStoragePacking ===
+; === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_storage_packing.sol:ExternalFunctionPointerStoragePacking ===
 @module ExternalFunctionPointerStoragePacking
 ; constructor() [creation entry]
 fn @constructor() [constructor] {

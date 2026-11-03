@@ -10,7 +10,7 @@
 
 // Both masks are used in several blocks. The stack keeps each of them after its first use
 // instead of pushing the 64-bit mask again, or rebuilding the 128-bit one, in every branch.
-// RUNTIME-LABEL: // === {{.*}}:C (runtime) ===
+// RUNTIME-LABEL: ; === {{.*}}:C (runtime) ===
 // RUNTIME: PUSH8 0xffffffffffffffff
 // RUNTIME-NOT: PUSH8
 // RUNTIME: NOT

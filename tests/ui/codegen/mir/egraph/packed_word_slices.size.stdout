@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/egraph/packed_word_slices.mir (before egraph) ===
-+ // === ROOT/tests/ui/codegen/mir/egraph/packed_word_slices.mir (after egraph) ===
+- ; === ROOT/tests/ui/codegen/mir/egraph/packed_word_slices.mir (before egraph) ===
++ ; === ROOT/tests/ui/codegen/mir/egraph/packed_word_slices.mir (after egraph) ===
   @module BitSlices
   @types
     struct0: {i256, i256}
@@ -212,16 +212,16 @@
       v0 = shl arg0, 248
       v1 = ne arg1, 0
       jumpi v1, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       ret 0
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
 -     v2 = byte 0, v0
 +     v2 = and arg0, 255
       ret v2
   }
   
-- // === ROOT/tests/ui/codegen/mir/egraph/packed_word_slices.mir (before dce) ===
-+ // === ROOT/tests/ui/codegen/mir/egraph/packed_word_slices.mir (after dce) ===
+- ; === ROOT/tests/ui/codegen/mir/egraph/packed_word_slices.mir (before dce) ===
++ ; === ROOT/tests/ui/codegen/mir/egraph/packed_word_slices.mir (after dce) ===
   @module BitSlices
   @types
     struct0: {i256, i256}
@@ -398,9 +398,9 @@
 -     v0 = shl arg0, 248
       v1 = ne arg1, 0
       jumpi v1, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       ret 0
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       v2 = and arg0, 255
       ret v2
   }

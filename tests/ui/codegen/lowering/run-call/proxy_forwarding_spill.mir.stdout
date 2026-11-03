@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_spill.sol:Impl ===
+; === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_spill.sol:Impl ===
 @module Impl
 ; getter for `uint256 public v` [selector 0x7c2efcba]
 fn @v() -> i256 [selector=0x7c2efcba, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -18,7 +18,7 @@ fn @setBig(arg0: i256, arg1: i256, arg2: i256, arg3: slice<calldata>) [selector=
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_spill.sol:Proxy ===
+; === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_spill.sol:Proxy ===
 @module Proxy
 @immutables
   _defaultImplementation: bytes32
@@ -40,12 +40,12 @@ fn @fallback() [fallback, payable] {
     v1 = sload 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc !metadata(storage=slot(0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc))
     v2 = eq v1, 0
     jumpi v2, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v3 = loadimmutable _defaultImplementation
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v4 = phi [bb1: v3], [bb2: v1]
     v5 = calldatasize
     v6 = returndatasize
@@ -62,21 +62,21 @@ fn @fallback() [fallback, payable] {
     v16 = zext i1 v15 to i256
     v17 = ne v16, 0
     jumpi v17, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb6
-  bb6:  ; preds = bb5
+  bb6:                                            ; preds = bb5
     v20 = returndatasize
     returndatacopy 0, 0, v20 !metadata(memory=scratch)
     v21 = returndatasize
     returndata 0, v21
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v18 = returndatasize
     returndatacopy 0, 0, v18 !metadata(memory=scratch)
     v19 = returndatasize
     revert 0, v19
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_spill.sol:Harness ===
+; === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_spill.sol:Harness ===
 @module Harness
 @data
   Impl_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_spill.sol:Impl"
@@ -91,9 +91,9 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = zext i160 v2 to i256
     v5 = abi_encode [word<uint160>], args v4
     v6 = datasize Proxy_creation_code_1
@@ -107,9 +107,9 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v12 = create 0, v8, v7
     v13 = ne v12, i160 0
     jumpi v13, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v14 = gas
     v15 = alloc 64 !metadata(preserves_fmp)
     mstore v15, 16
@@ -125,17 +125,17 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v23 = zext i160 v12 to i256
     v24 = call v14, v23, 0, v18, v19, 0, 0
     jumpi v24, bb6, bb5
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     revert_returndata
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     v25 = gas
     mstore 0, 0x7c2efcba !metadata(memory=scratch)
     v26 = zext i160 v12 to i256
     v27 = staticcall v25, v26, 28, 4, 0, 32
     jumpi v27, bb8, bb7
-  bb7:  ; preds = bb6
+  bb7:                                            ; preds = bb6
     revert_returndata
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     v28 = returndatasize
     v29 = lt v28, 32
     icall revert_if<tuple_data_too_short>, v29

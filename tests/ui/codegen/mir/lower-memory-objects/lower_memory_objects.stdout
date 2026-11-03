@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lower-memory-objects/lower_memory_objects.mir (before lower-memory-objects) ===
-+ // === ROOT/tests/ui/codegen/mir/lower-memory-objects/lower_memory_objects.mir (after lower-memory-objects) ===
+- ; === ROOT/tests/ui/codegen/mir/lower-memory-objects/lower_memory_objects.mir (before lower-memory-objects) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-memory-objects/lower_memory_objects.mir (after lower-memory-objects) ===
   @module LowerMemoryObjects
 - fn @objects(arg0: ptr<memory>, arg1: ptr<memory>, arg2: ptr<memory>, arg3: ptr<memory>) {
 + fn @objects(arg0: ptr<memory>, arg1: ptr<memory>, arg2: ptr<memory>, arg3: ptr<memory>) [may_return_memory] {
@@ -124,9 +124,9 @@
       v0 = inttoptr i1 arg0 to ptr<memory>
       v1 = ptrtoint ptr<memory> v0 to i256
       jumpi arg0, bb1, bb2
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       jump bb2
-    bb2:  ; preds = bb0, bb1
+    bb2:                                            ; preds = bb0, bb1
       v2 = phi [bb0: v1], [bb1: arg1]
       ret v2
   }

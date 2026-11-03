@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_shapes.sol:HeapPrefixShapes ===
+; === ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_shapes.sol:HeapPrefixShapes ===
 @module HeapPrefixShapes
 @types
   struct0: {i256, i256}

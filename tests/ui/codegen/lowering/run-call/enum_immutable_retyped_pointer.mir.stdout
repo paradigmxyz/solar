@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/enum_immutable_retyped_pointer.sol:EnumImmutable ===
+; === ROOT/tests/ui/codegen/lowering/run-call/enum_immutable_retyped_pointer.sol:EnumImmutable ===
 @module EnumImmutable
 @immutables
   choice: uint8
@@ -33,15 +33,15 @@ fn @internal_dispatcher_asm_p_uint256_r_uint8(arg0: i256, arg1: i256) -> i256 [f
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = icall @five, arg1
     ret v1
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/enum_immutable_retyped_pointer.sol:RawEnumImmutable ===
+; === ROOT/tests/ui/codegen/lowering/run-call/enum_immutable_retyped_pointer.sol:RawEnumImmutable ===
 @module RawEnumImmutable
 @immutables
   choice: uint8
@@ -79,15 +79,15 @@ fn @internal_dispatcher_asm_p_uint256_r_uint8(arg0: i256, arg1: i256) -> i256 [f
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = icall @five, arg1
     ret v1
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/enum_immutable_retyped_pointer.sol:WideEnumImmutable ===
+; === ROOT/tests/ui/codegen/lowering/run-call/enum_immutable_retyped_pointer.sol:WideEnumImmutable ===
 @module WideEnumImmutable
 @immutables
   choice: uint8
@@ -122,15 +122,15 @@ fn @internal_dispatcher_asm_p_uint256_r_uint8(arg0: i256, arg1: i256) -> i256 [f
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = icall @wide, arg1
     ret v1
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/enum_immutable_retyped_pointer.sol:RawEnumBase ===
+; === ROOT/tests/ui/codegen/lowering/run-call/enum_immutable_retyped_pointer.sol:RawEnumBase ===
 @module RawEnumBase
 @immutables
   choice: uint8
@@ -157,7 +157,7 @@ fn @raw() -> i256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word],
     ret v3
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/enum_immutable_retyped_pointer.sol:RawEnumDerived ===
+; === ROOT/tests/ui/codegen/lowering/run-call/enum_immutable_retyped_pointer.sol:RawEnumDerived ===
 @module RawEnumDerived
 @immutables
   choice: uint8
@@ -173,7 +173,7 @@ fn @constructor() [constructor] {
     icall panic_if<0x21>, v4
     storeimmutable choice, v0
     jump bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     ret
 }
 
@@ -206,15 +206,15 @@ fn @internal_dispatcher_asm_p_uint256_r_uint8(arg0: i256, arg1: i256) -> i256 [f
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = icall @five, arg1
     ret v1
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/enum_immutable_retyped_pointer.sol:Deployer ===
+; === ROOT/tests/ui/codegen/lowering/run-call/enum_immutable_retyped_pointer.sol:Deployer ===
 @module Deployer
 @data
   RawEnumDerived_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/enum_immutable_retyped_pointer.sol:RawEnumDerived"
@@ -231,9 +231,9 @@ fn @createBase() [selector=0x0c50f290, abi_params=[], abi_returns=[], abi_return
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     ret
 }
 
@@ -246,9 +246,9 @@ fn @createWide() [selector=0x8dc48cc1, abi_params=[], abi_returns=[], abi_return
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     ret
 }
 
@@ -261,9 +261,9 @@ fn @createRaw() [selector=0x2bdc99da, abi_params=[], abi_returns=[], abi_return_
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     ret
 }
 
@@ -276,8 +276,8 @@ fn @create() [selector=0xefc81a8c, abi_params=[], abi_returns=[], abi_return_par
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     ret
 }

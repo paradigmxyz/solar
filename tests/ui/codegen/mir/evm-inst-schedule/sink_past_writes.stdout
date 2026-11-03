@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/sink_past_writes.mir (before evm-inst-schedule) ===
-+ // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/sink_past_writes.mir (after evm-inst-schedule) ===
+- ; === ROOT/tests/ui/codegen/mir/evm-inst-schedule/sink_past_writes.mir (before evm-inst-schedule) ===
++ ; === ROOT/tests/ui/codegen/mir/evm-inst-schedule/sink_past_writes.mir (after evm-inst-schedule) ===
   @module SinkPastWrites
   fn @past_write(arg0: i256, arg1: i256) -> i256 {
     bb0:
@@ -37,9 +37,9 @@
       mstore 32, arg0
 +     v0 = gt arg0, 0xffffffff
       jumpi v0, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       ret arg1
-    bb1 [cold]:  ; preds = bb0
+    bb1 [cold]:                                     ; preds = bb0
       revert 0, 0
   }
   

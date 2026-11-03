@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_storage_simple.sol:AbiDecodeStorageSimple ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_storage_simple.sol:AbiDecodeStorageSimple ===
 @module AbiDecodeStorageSimple
 @types
   struct0: {i256, i256, i256}

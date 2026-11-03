@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/fmp_reload_across_blocks.sol:ExcessReturnDataRecipient ===
+; === ROOT/tests/ui/codegen/lowering/fmp_reload_across_blocks.sol:ExcessReturnDataRecipient ===
 @module ExcessReturnDataRecipient
 ; function setRevertDataSize(uint256 size) external [selector 0xe998da54]
 fn @setRevertDataSize(arg0: i256) [selector=0xe998da54, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
@@ -67,13 +67,13 @@ fn @sqrt(arg0: i256) -> i256 [pure] {
     v0 = gt arg0, 3
     v1 = zext i1 v0 to i256
     switch v1, default bb1, [1 => bb2, 0 => bb3]
-  bb3:  ; preds = bb0
+  bb3:                                            ; preds = bb0
     jump bb1
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v2 = add arg0, 1
     v3 = div v2, 2
     jump bb4
-  bb4:  ; preds = bb2, bb8
+  bb4:                                            ; preds = bb2, bb8
     v4 = phi [bb2: arg0], [bb8: v4]
     v5 = phi [bb2: arg0], [bb8: v6]
     v6 = phi [bb2: v3], [bb8: v12]
@@ -81,18 +81,18 @@ fn @sqrt(arg0: i256) -> i256 [pure] {
     v8 = zext i1 v7 to i256
     v9 = ne v8, 0
     jumpi v9, bb6, bb7
-  bb7:  ; preds = bb4
+  bb7:                                            ; preds = bb4
     jump bb5
-  bb5:  ; preds = bb7
+  bb5:                                            ; preds = bb7
     jump bb1
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     v10 = div v4, v6
     v11 = add v10, v6
     v12 = div v11, 2
     jump bb8
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     jump bb4
-  bb1:  ; preds = bb0, bb5, bb3
+  bb1:                                            ; preds = bb0, bb5, bb3
     v13 = phi [bb0: arg0], [bb5: v4], [bb3: arg0]
     v14 = phi [bb0: 0], [bb5: v5], [bb3: 1]
     ret v14
@@ -104,11 +104,11 @@ fn @onERC1155Received(arg0: i160, arg1: i160, arg2: i256, arg3: i256, arg4: slic
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0
     jumpi v1, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     ret 0xf23a6e6100000000000000000000000000000000000000000000000000000000
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v2 = gas
     v3 = icall @ln, v2
     v4 = checked_mul uint256, 54, v3

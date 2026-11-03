@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/new_reference_array_defaults.sol:NewReferenceArrayDefaults ===
+; === ROOT/tests/ui/codegen/lowering/run-call/new_reference_array_defaults.sol:NewReferenceArrayDefaults ===
 @module NewReferenceArrayDefaults
 ; function writeStructs() external pure returns (uint256) [selector 0xa4c02825]
 fn @writeStructs() -> i256 [selector=0xa4c02825, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -6,11 +6,11 @@ fn @writeStructs() -> i256 [selector=0xa4c02825, pure, abi_params=[], abi_return
     v0 = alloc zeroed checked 96
     mstore v0, 2
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v8]
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v9 = mload v0
     v10 = gt v9, 0
     v11 = eq v10, false
@@ -42,7 +42,7 @@ fn @writeStructs() -> i256 [selector=0xa4c02825, pure, abi_params=[], abi_return
     v31 = mload v30
     v32 = checked_add uint256, v25, v31
     ret v32
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v3 = alloc 32 !metadata(preserves_fmp)
     mstore v3, 0
     v4 = shl v1, 5
@@ -60,11 +60,11 @@ fn @sharedBytesDefault() -> i256 [selector=0x8e773052, pure, abi_params=[], abi_
     v0 = alloc zeroed checked 96
     mstore v0, 2
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v6]
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v7 = ptrtoint ptr<memory> v0 to i256
     v8 = add v7, 64
     v9 = mload v8
@@ -74,7 +74,7 @@ fn @sharedBytesDefault() -> i256 [selector=0x8e773052, pure, abi_params=[], abi_
     v13 = eq v12, v9
     v14 = zext i1 v13 to i256
     ret v14
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32

@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/terminal-layout/caller_fallthrough.evmir (before terminal-layout) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/terminal-layout/caller_fallthrough.evmir (after terminal-layout) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/terminal-layout/caller_fallthrough.evmir (before terminal-layout) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/terminal-layout/caller_fallthrough.evmir (after terminal-layout) ===
   @module CallerFallthrough
   bb0:
     push 1

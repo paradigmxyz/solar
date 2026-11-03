@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/fixed_bytes_shift_cleanup.sol:FixedBytesShiftCleanup ===
+; === ROOT/tests/ui/codegen/lowering/fixed_bytes_shift_cleanup.sol:FixedBytesShiftCleanup ===
 @module FixedBytesShiftCleanup
 @types
   struct0: {i256, i256, i256}

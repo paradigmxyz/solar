@@ -51,7 +51,7 @@ pub struct StackReturn {
 impl BackendMemory {
     pub(crate) fn display(&self, module: &Module) -> impl fmt::Display {
         fmt::from_fn(|f| {
-            writeln!(f, "// backend-memory-v1")?;
+            writeln!(f, "; backend-memory-v1")?;
             // Records name functions by their place in the text, which the parser numbers them by.
             for (printed, (id, func)) in module.functions_in_print_order().enumerate() {
                 let instructions = printed_instructions(func);
@@ -65,7 +65,7 @@ impl BackendMemory {
                             AllocationPlacement::Static(word) => ("static", word),
                             AllocationPlacement::Dynamic(word) => ("dynamic", word),
                         };
-                        writeln!(f, "// backend-alloc {printed} {ordinal} {kind} {word:#x}")?;
+                        writeln!(f, "; backend-alloc {printed} {ordinal} {kind} {word:#x}")?;
                     }
                 }
                 for (ordinal, &inst) in instructions.iter().enumerate() {
@@ -94,23 +94,23 @@ impl BackendMemory {
                             .join(",");
                         writeln!(
                             f,
-                            "// backend-stack {} {ordinal} {} {extras}",
+                            "; backend-stack {} {ordinal} {} {extras}",
                             printed,
                             if elided.is_empty() { "-" } else { &elided }
                         )?;
                     }
                 }
                 if let Some(word) = self.returns.get(&id) {
-                    writeln!(f, "// backend-return {printed} {word:#x}")?;
+                    writeln!(f, "; backend-return {printed} {word:#x}")?;
                 }
                 if let Some(word) = self.entry_heaps.get(&id) {
-                    writeln!(f, "// backend-entry {printed} {word:#x}")?;
+                    writeln!(f, "; backend-entry {printed} {word:#x}")?;
                 }
                 if let Some(word) = self.heap_floors.get(&id) {
-                    writeln!(f, "// backend-floor {printed} {word:#x}")?;
+                    writeln!(f, "; backend-floor {printed} {word:#x}")?;
                 }
                 if let Some(word) = self.frame_ends.get(&id) {
-                    writeln!(f, "// backend-frames {printed} {word:#x}")?;
+                    writeln!(f, "; backend-frames {printed} {word:#x}")?;
                 }
             }
             Ok(())
@@ -120,13 +120,18 @@ impl BackendMemory {
     pub(crate) fn parse(module: &Module, text: &str) -> Result<Option<Self>, String> {
         let mut layout = None;
         for line in text.lines().map(str::trim) {
-            if line == "// backend-memory-v1" {
+            // The printer writes `;` comments; `//` is the other comment style of the MIR text.
+            let Some(line) = line.strip_prefix(';').or_else(|| line.strip_prefix("//")) else {
+                continue;
+            };
+            let line = line.trim_start();
+            if line == "backend-memory-v1" {
                 if layout.replace(Self::default()).is_some() {
                     return Err("duplicate backend memory header".into());
                 }
                 continue;
             }
-            let Some(rest) = line.strip_prefix("// backend-") else { continue };
+            let Some(rest) = line.strip_prefix("backend-") else { continue };
             let Some(layout) = &mut layout else {
                 return Err("backend memory record without a header".into());
             };

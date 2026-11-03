@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/storage_reference_reassignment.sol:StorageReferenceReassignment ===
+; === ROOT/tests/ui/codegen/lowering/storage_reference_reassignment.sol:StorageReferenceReassignment ===
 @module StorageReferenceReassignment
 @types
   struct0: {i256, i256}
@@ -26,12 +26,12 @@ fn @rebind(arg0: i1, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector=0x
   bb0:
     v0 = mapping_slot arg1, 0
     jumpi arg0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = mapping_slot arg2, 0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v2 = phi [bb1: v1], [bb2: v0]
     sstore v2, arg3 !metadata(storage=symbolic(v2))
     v3 = mapping_slot arg1, 0
@@ -78,12 +78,12 @@ fn @packedRebind(arg0: i1, arg1: i256, arg2: i256, arg3: i8) -> struct1 [selecto
   bb0:
     v0 = mapping_slot arg1, 1
     jumpi arg0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = mapping_slot arg2, 1
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v2 = phi [bb1: v1], [bb2: v0]
     v3 = add v2, 1
     v4 = sload v3 !metadata(storage=offset(v2, 1))
@@ -112,11 +112,11 @@ fn @packedRebind(arg0: i1, arg1: i256, arg2: i256, arg3: i8) -> struct1 [selecto
 fn @packedYulRebind(arg0: i1, arg1: i256, arg2: i256, arg3: i256) -> struct2 [selector=0x3c827d72, abi_params=[bool, uint256, uint256, uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v0 = phi [bb1: 2], [bb2: 1]
     v1 = mapping_slot arg1, v0
     sstore v1, arg3 !metadata(storage=symbolic(v1))

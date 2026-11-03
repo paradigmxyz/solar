@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/none/bytecode.mir (before none) ===
-+ // === ROOT/tests/ui/codegen/mir/none/bytecode.mir (after none) ===
+- ; === ROOT/tests/ui/codegen/mir/none/bytecode.mir (before none) ===
++ ; === ROOT/tests/ui/codegen/mir/none/bytecode.mir (after none) ===
   @module Bytecode
   @phase lowered
   ; runtime dispatch entry
@@ -11,9 +11,9 @@
       returndata 0, 32
   }
   
-// === ROOT/tests/ui/codegen/mir/none/bytecode.mir:Bytecode (runtime) ===
+; === ROOT/tests/ui/codegen/mir/none/bytecode.mir:Bytecode (runtime) ===
 @module Bytecode_runtime
-bb0:  ; runtime dispatch entry
+bb0:                                              ; runtime dispatch entry
   push 1
   push 0
   calldataload
@@ -23,7 +23,7 @@ bb0:  ; runtime dispatch entry
   push 32
   push 0
   return
-// === ROOT/tests/ui/codegen/mir/none/bytecode.mir:Bytecode (runtime) ===
+; === ROOT/tests/ui/codegen/mir/none/bytecode.mir:Bytecode (runtime) ===
 PUSH1 0x01
 PUSH0
 CALLDATALOAD

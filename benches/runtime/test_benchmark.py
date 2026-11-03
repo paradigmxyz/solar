@@ -1311,11 +1311,11 @@ class ArtifactTests(unittest.TestCase):
     def test_solar_dump_covers_every_contract_with_the_target_first(self) -> None:
         def dump(contract: str, tag: str, mir: str | None = None) -> list[str]:
             return [
-                f"// === {contract} ===\n{mir or f'mir {tag}'}",
-                f"// === {contract} (creation) ===\ncreation ir {tag}",
-                f"// === {contract} (runtime) ===\nruntime ir {tag}",
-                f"// === {contract} (deployment) ===\ncreation asm {tag}",
-                f"// === {contract} (runtime) ===\nruntime asm {tag}",
+                f"; === {contract} ===\n{mir or f'mir {tag}'}",
+                f"; === {contract} (creation) ===\ncreation ir {tag}",
+                f"; === {contract} (runtime) ===\nruntime ir {tag}",
+                f"; === {contract} (deployment) ===\ncreation asm {tag}",
+                f"; === {contract} (runtime) ===\nruntime asm {tag}",
             ]
 
         # Solar prints each kind for all contracts in turn.
@@ -1359,7 +1359,7 @@ class ArtifactTests(unittest.TestCase):
             self.assertEqual(
                 artifacts[name],
                 "\n".join(
-                    f"// === {heading.format(contract)} ===\n{tag} {suffix}\n"
+                    f"; === {heading.format(contract)} ===\n{tag} {suffix}\n"
                     for contract, suffix in (
                         ("B.sol:Target", "target"),
                         ("A.sol:Child", "child"),
@@ -1376,7 +1376,7 @@ class ArtifactTests(unittest.TestCase):
         )
         stdout = (
             "\n".join(
-                f"// === {c}{k} ===\n{stub}"
+                f"; === {c}{k} ===\n{stub}"
                 for k in (
                     "",
                     " (creation)",
@@ -1413,7 +1413,7 @@ class ArtifactTests(unittest.TestCase):
         )
 
     def test_solar_dump_without_the_target_is_rejected(self) -> None:
-        stdout = '// === A.sol:A ===\nmir\n{"contracts":{}}'
+        stdout = '; === A.sol:A ===\nmir\n{"contracts":{}}'
 
         with self.assertRaisesRegex(ValueError, "expected 5 .* B.sol:B, found 0"):
             benchmark.split_solar_artifact_output(stdout, "B.sol:B")

@@ -1,19 +1,19 @@
-// === ROOT/tests/ui/codegen/lowering/stack-resident/callee_low_memory_write.sol:C ===
+; === ROOT/tests/ui/codegen/lowering/stack-resident/callee_low_memory_write.sol:C ===
 @module C
 ; function g(uint256 n) internal view returns (uint256 r)
 fn @g(arg0: i256) -> i256 [view] {
   bb0:
     v0 = eq arg0, 0x3039
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v3 = mload 64 !metadata(memory=scratch)
     codecopy 0, 0, arg0 !metadata(memory=scratch)
     mstore 64, v3 !metadata(memory=scratch)
     mstore 96, 0 !metadata(memory=scratch)
     ret arg0
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = checked_add uint256, arg0, 1
     v2 = icall @g, v1
     ret v2
