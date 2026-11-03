@@ -146,9 +146,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let mut offset_span = id_span;
         let offset = if self.eat(TokenKind::BinOp(BinOpToken::Plus)) {
             offset_span = self.token().span;
-            let value = self.parse_uint()?;
-            u32::try_from(value)
-                .map_err(|_| self.error_at(offset_span, "data offset exceeds `u32`"))?
+            self.parse_uint_as()?
         } else {
             0
         };

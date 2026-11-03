@@ -162,13 +162,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     entry_depth = Some(self.parser.parse_uint_as()?);
                 } else if self.parser.eat_keyword(sym::ret) {
                     self.parser.expect(TokenKind::Eq)?;
-                    ret = Some(self.parse_call_words()?);
+                    ret = Some(self.parser.parse_uint_as()?);
                 } else if self.parser.eat_keyword(sym::inputs) {
                     self.parser.expect(TokenKind::Eq)?;
-                    inputs = Some(self.parse_call_words()?);
+                    inputs = Some(self.parser.parse_uint_as()?);
                 } else if self.parser.eat_keyword(sym::outputs) {
                     self.parser.expect(TokenKind::Eq)?;
-                    outputs = Some(self.parse_call_words()?);
+                    outputs = Some(self.parser.parse_uint_as()?);
                 } else {
                     return Err(self.parser.error(
                         "expected `cold`, `loop`, `continuation`, `invoke`, `stack`, `ret`, `inputs`, \
@@ -205,10 +205,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             entry_depth,
             call_effect,
         }))
-    }
-
-    fn parse_call_words(&mut self) -> PResult<'sess, u8> {
-        self.parser.parse_uint_as()
     }
 
     fn current_block_label(&self) -> PResult<'sess, Option<Symbol>> {

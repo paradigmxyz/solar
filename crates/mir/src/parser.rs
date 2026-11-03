@@ -1469,8 +1469,15 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
                 sym::hir => {
                     self.parser.expect(TokenKind::Eq)?;
-                    let id = self.parser.parse_uint_as::<u32>()?;
-                    metadata.set_hir_expr(Some(HirExprId::from_usize(id as usize)));
+                    let (id, span) = self.parser.parse_uint_spanned()?;
+                    let Some(id) =
+                        usize::try_from(id).ok().filter(|&id| id <= HirExprId::MAX_INDEX)
+                    else {
+                        return Err(self
+                            .parser
+                            .error_at(span, "HIR expression ID exceeds the index limit"));
+                    };
+                    metadata.set_hir_expr(Some(HirExprId::from_usize(id)));
                 }
                 sym::span => {
                     self.parser.expect(TokenKind::Eq)?;
