@@ -49,8 +49,8 @@
 //! and stores each narrow field in place and checks each enum, so dirty memory encodes as on
 //! the per-field path. The cost model takes the copy only when the full-width fields it saves
 //! repay it (`Target::copies_struct_block`). A struct allocated in the same function keeps
-//! per-field loads, which later forwarding can replace by the stored values, and the fixed
-//! low-memory output of a static external return keeps per-field order.
+//! per-field loads and stores, and so does the fixed low-memory output of a static external
+//! return.
 //!
 //! Calldata aggregates. A struct or array in calldata, with dynamic members at any depth,
 //! encodes straight from where it lies instead of through a memory copy. Offsets in calldata
@@ -1371,7 +1371,7 @@ fn clean_word(
 /// Whether the memory struct `value` with layout `fields` encodes as one block copy (see
 /// [`encode_struct_block`]). Its fields must all be words, so the struct is one run of words
 /// in ABI order; a nested aggregate is a pointer in memory. A struct allocated in this
-/// function keeps per-field loads, which later forwarding can replace by the stored values.
+/// function keeps per-field loads and stores.
 fn copies_struct_block(
     func: &Function,
     target: &Target,

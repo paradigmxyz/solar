@@ -34,8 +34,7 @@
 // NATIVE: and {{v[0-9]+}}, 0xffffffff00000000000000000000000000000000000000000000000000000000
 // NATIVE: signextend 0,
 // NATIVE: ne {{v[0-9]+}}, 0
-// A struct allocated in the function keeps per-field stores, which later forwarding replaces by
-// the stored values.
+// A struct allocated in the function keeps per-field stores.
 // NATIVE-LABEL: fn @literal(
 // NATIVE-NOT: mcopy {{v[0-9]+}}, {{v[0-9]+}}, 224
 contract StructBlockCopy {

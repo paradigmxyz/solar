@@ -1865,10 +1865,10 @@ mod tests {
             assert!(cancun.copies_struct_block(5, [2, 3, 4].into_iter()));
             assert!(cancun.copies_struct_block(6, [2, 3, 4].into_iter()));
             assert!(cancun.copies_struct_block(2, [0, 1].into_iter()));
+            assert!(cancun.copies_struct_block(2, [1].into_iter()));
             // One full word at the struct's own address is cheaper to move by itself, and a
             // struct of narrow fields saves nothing.
             assert!(!cancun.copies_struct_block(1, [0].into_iter()));
-            assert!(cancun.copies_struct_block(2, [1].into_iter()));
             assert!(!cancun.copies_struct_block(3, [].into_iter()));
         }
     }
