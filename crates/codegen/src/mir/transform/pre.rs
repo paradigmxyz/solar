@@ -85,7 +85,7 @@
 //!
 //! A join load is never removed or moved after a gas observation on any incoming
 //! CFG path, including loop backedges and observations in transitive callees that may return
-//! after reading gas.
+//! after reading gas (see `GasObservations`).
 //! A join load is a candidate only if no kill of its key precedes it in the join block.
 //! For that scan, gas observations and calls block all spaces: a partial-redundancy
 //! insertion moves the read to the end of a predecessor, so everything in the join block

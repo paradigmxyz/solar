@@ -41,7 +41,13 @@ impl GasObservations {
         for block in cfg.reachable().iter() {
             let mut observes = false;
             for &inst in &func.blocks[block].instructions {
-                if Self::instruction_starts_interval(func, alias, &forwarded, inst) {
+                let starts_interval = match func.inst(inst).kind {
+                    InstKind::ICall { .. } => {
+                        alias.instruction_mod_ref(func, inst).continues_after_gas()
+                    }
+                    _ => Self::instruction_observes(func, alias, &forwarded, inst),
+                };
+                if starts_interval {
                     instructions.insert(inst);
                     observes = true;
                 }
@@ -148,19 +154,6 @@ impl GasObservations {
             InstKind::Gas => !forwarded.contains(inst),
             InstKind::ICall { .. } => alias.instruction_mod_ref(func, inst).observes_gas(),
             _ => func.inst(inst).kind.observes_gas(),
-        }
-    }
-
-    /// Whether the instruction may observe gas on a path that continues after it.
-    fn instruction_starts_interval(
-        func: &Function,
-        alias: &AliasAnalysis,
-        forwarded: &DenseBitSet<InstId>,
-        inst: InstId,
-    ) -> bool {
-        match func.inst(inst).kind {
-            InstKind::ICall { .. } => alias.instruction_mod_ref(func, inst).continues_after_gas(),
-            _ => Self::instruction_observes(func, alias, forwarded, inst),
         }
     }
 }
