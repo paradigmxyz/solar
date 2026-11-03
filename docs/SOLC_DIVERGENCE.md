@@ -572,9 +572,10 @@ cases:
 
 - the type of an array literal such as `[1, 2, 3]` is `uint256[3] memory`, where
   `solc` gives `uint8[3] memory`;
-- the function kind of a builtin that is the component of a tuple, such as
-  `abi.encode` in `(abi.encode, 2)`, is `internal`, and a parenthesized `require`
-  message that is an error call, such as `require(c, (E()))`, has the type
+- a builtin function that is the component of a tuple, such as `abi.encode` in
+  `(abi.encode, 2)`, has the kind `internal` and no call options, and
+  `abi.decode` there keeps its parameters, where `solc` gives the kind of the
+  builtin and `function () pure`, and a parenthesized `require` message that is an error call, such as `require(c, (E()))`, has the type
   `tuple()` where `solc` has `error`;
 - the type of an isolated `arr.pop` is a `storage ref`, and that of an attached
   external library function whose receiver is in calldata keeps `calldata`, where

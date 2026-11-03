@@ -174,6 +174,7 @@ impl Serialize for ExprType<'_, '_> {
 fn tuple_components<'gcx>(gcx: Gcx<'gcx>, expr: &hir::Expr<'gcx>) -> Vec<Component<'gcx>> {
     let literal_ty =
         |ty: Ty<'_>| ty.is_number_literal() || matches!(ty.kind, TyKind::StringLiteral(..));
+    let expr = expr.peel_parens();
     let hir::ExprKind::Tuple(components) = expr.kind else { return Vec::new() };
     if !expr_ty(gcx, expr).is_some_and(|ty| matches!(ty.kind, TyKind::Tuple(_))) {
         return Vec::new();

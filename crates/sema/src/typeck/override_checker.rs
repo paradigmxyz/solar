@@ -456,7 +456,7 @@ impl<'gcx> OverrideChecker<'gcx> {
                 error_code!(4520),
                 format!(
                     "duplicate contract found in override list of `{}`",
-                    overriding.name(self.gcx).unwrap()
+                    overriding.name_or_kind(self.gcx)
                 ),
             );
         }
