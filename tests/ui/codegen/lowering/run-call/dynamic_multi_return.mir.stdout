@@ -102,18 +102,23 @@ fn @strAndNum() -> struct0 [selector=0x713d228b, abi_params=[], abi_returns=[wor
   bb3:  ; preds = bb2
     revert_returndata
   bb4:  ; preds = bb2
-    v10 = icall returndata_bytes<>
-    v11 = abi_decode [bytes, uint256], v10
-    v12 = extract_value struct1, v11, 0
-    v13 = extract_value struct1, v11, 1
-    v14 = insert_value struct1, undef struct1, 0, v12
-    v15 = insert_value struct1, v14, 1, v13
+    v10 = returndatasize
+    v11 = add v10, 31
+    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v13 = alloc v12
+    returndatacopy v13, 0, v10
+    v14 = make_memory_slice v13, v10
+    v15 = abi_decode [bytes, uint256], v14
     v16 = extract_value struct1, v15, 0
     v17 = extract_value struct1, v15, 1
-    v18 = mload v16
-    v19 = insert_value struct0, undef struct0, 0, v18
-    v20 = insert_value struct0, v19, 1, v17
-    ret v20
+    v18 = insert_value struct1, undef struct1, 0, v16
+    v19 = insert_value struct1, v18, 1, v17
+    v20 = extract_value struct1, v19, 0
+    v21 = extract_value struct1, v19, 1
+    v22 = mload v20
+    v23 = insert_value struct0, undef struct0, 0, v22
+    v24 = insert_value struct0, v23, 1, v21
+    ret v24
 }
 
 ; function numAndStr() public returns (uint256, uint256) [selector 0xed19722c]
@@ -138,18 +143,23 @@ fn @numAndStr() -> struct0 [selector=0xed19722c, abi_params=[], abi_returns=[wor
   bb3:  ; preds = bb2
     revert_returndata
   bb4:  ; preds = bb2
-    v10 = icall returndata_bytes<>
-    v11 = abi_decode [uint256, bytes], v10
-    v12 = extract_value struct2, v11, 0
-    v13 = extract_value struct2, v11, 1
-    v14 = insert_value struct2, undef struct2, 0, v12
-    v15 = insert_value struct2, v14, 1, v13
+    v10 = returndatasize
+    v11 = add v10, 31
+    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v13 = alloc v12
+    returndatacopy v13, 0, v10
+    v14 = make_memory_slice v13, v10
+    v15 = abi_decode [uint256, bytes], v14
     v16 = extract_value struct2, v15, 0
     v17 = extract_value struct2, v15, 1
-    v18 = mload v17
-    v19 = insert_value struct0, undef struct0, 0, v16
-    v20 = insert_value struct0, v19, 1, v18
-    ret v20
+    v18 = insert_value struct2, undef struct2, 0, v16
+    v19 = insert_value struct2, v18, 1, v17
+    v20 = extract_value struct2, v19, 0
+    v21 = extract_value struct2, v19, 1
+    v22 = mload v21
+    v23 = insert_value struct0, undef struct0, 0, v20
+    v24 = insert_value struct0, v23, 1, v22
+    ret v24
 }
 
 ; function twoStrings() public returns (uint256, uint256) [selector 0x477be19f]
@@ -174,19 +184,24 @@ fn @twoStrings() -> struct0 [selector=0x477be19f, abi_params=[], abi_returns=[wo
   bb3:  ; preds = bb2
     revert_returndata
   bb4:  ; preds = bb2
-    v10 = icall returndata_bytes<>
-    v11 = abi_decode [bytes, bytes], v10
-    v12 = extract_value struct3, v11, 0
-    v13 = extract_value struct3, v11, 1
-    v14 = insert_value struct3, undef struct3, 0, v12
-    v15 = insert_value struct3, v14, 1, v13
+    v10 = returndatasize
+    v11 = add v10, 31
+    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v13 = alloc v12
+    returndatacopy v13, 0, v10
+    v14 = make_memory_slice v13, v10
+    v15 = abi_decode [bytes, bytes], v14
     v16 = extract_value struct3, v15, 0
     v17 = extract_value struct3, v15, 1
-    v18 = mload v16
-    v19 = mload v17
-    v20 = insert_value struct0, undef struct0, 0, v18
-    v21 = insert_value struct0, v20, 1, v19
-    ret v21
+    v18 = insert_value struct3, undef struct3, 0, v16
+    v19 = insert_value struct3, v18, 1, v17
+    v20 = extract_value struct3, v19, 0
+    v21 = extract_value struct3, v19, 1
+    v22 = mload v20
+    v23 = mload v21
+    v24 = insert_value struct0, undef struct0, 0, v22
+    v25 = insert_value struct0, v24, 1, v23
+    ret v25
 }
 
 ; function mixed() public returns (uint256, uint256, uint256) [selector 0x354df1f9]
@@ -211,29 +226,34 @@ fn @mixed() -> struct4 [selector=0x354df1f9, abi_params=[], abi_returns=[word, w
   bb3:  ; preds = bb2
     revert_returndata
   bb4:  ; preds = bb2
-    v10 = icall returndata_bytes<>
-    v11 = abi_decode [array<_, uint256>, uint256, bytes], v10
-    v12 = extract_value struct5, v11, 0
-    v13 = extract_value struct5, v11, 1
-    v14 = extract_value struct5, v11, 2
-    v15 = insert_value struct5, undef struct5, 0, v12
-    v16 = insert_value struct5, v15, 1, v13
-    v17 = insert_value struct5, v16, 2, v14
-    v18 = extract_value struct5, v17, 0
-    v19 = extract_value struct5, v17, 1
-    v20 = extract_value struct5, v17, 2
-    v21 = mload v18
-    v22 = mload v18
-    v23 = gt v22, 0
-    v24 = eq v23, false
-    icall panic_if<0x32>, v24
-    v25 = ptradd v18, 32
-    v26 = mload v25
-    v27 = checked_sub uint256, v19, 7
-    v28 = checked_add uint256, v26, v27
-    v29 = mload v20
-    v30 = insert_value struct4, undef struct4, 0, v21
-    v31 = insert_value struct4, v30, 1, v28
-    v32 = insert_value struct4, v31, 2, v29
-    ret v32
+    v10 = returndatasize
+    v11 = add v10, 31
+    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v13 = alloc v12
+    returndatacopy v13, 0, v10
+    v14 = make_memory_slice v13, v10
+    v15 = abi_decode [array<_, uint256>, uint256, bytes], v14
+    v16 = extract_value struct5, v15, 0
+    v17 = extract_value struct5, v15, 1
+    v18 = extract_value struct5, v15, 2
+    v19 = insert_value struct5, undef struct5, 0, v16
+    v20 = insert_value struct5, v19, 1, v17
+    v21 = insert_value struct5, v20, 2, v18
+    v22 = extract_value struct5, v21, 0
+    v23 = extract_value struct5, v21, 1
+    v24 = extract_value struct5, v21, 2
+    v25 = mload v22
+    v26 = mload v22
+    v27 = gt v26, 0
+    v28 = eq v27, false
+    icall panic_if<0x32>, v28
+    v29 = ptradd v22, 32
+    v30 = mload v29
+    v31 = checked_sub uint256, v23, 7
+    v32 = checked_add uint256, v30, v31
+    v33 = mload v24
+    v34 = insert_value struct4, undef struct4, 0, v25
+    v35 = insert_value struct4, v34, 1, v32
+    v36 = insert_value struct4, v35, 2, v33
+    ret v36
 }

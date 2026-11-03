@@ -74,13 +74,18 @@ fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
   bb4:  ; preds = bb2
     ret 0
   bb1:  ; preds = bb0
-    v10 = icall returndata_bytes<>
-    v11 = abi_decode [uint256, bytes], v10
-    v12 = extract_value struct0, v11, 0
-    v13 = extract_value struct0, v11, 1
-    v14 = mload v13
-    v15 = checked_add uint256, v12, v14
-    ret v15
+    v10 = returndatasize
+    v11 = add v10, 31
+    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v13 = alloc v12
+    returndatacopy v13, 0, v10
+    v14 = make_memory_slice v13, v10
+    v15 = abi_decode [uint256, bytes], v14
+    v16 = extract_value struct0, v15, 0
+    v17 = extract_value struct0, v15, 1
+    v18 = mload v17
+    v19 = checked_add uint256, v16, v18
+    ret v19
   bb3:
     ret 0
 }
@@ -107,10 +112,15 @@ fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
   bb4:  ; preds = bb2
     ret 9
   bb1:  ; preds = bb0
-    v10 = icall returndata_bytes<>
-    v11 = abi_decode [uint256, bytes], v10
-    v12 = extract_value struct0, v11, 0
-    v13 = extract_value struct0, v11, 1
+    v10 = returndatasize
+    v11 = add v10, 31
+    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v13 = alloc v12
+    returndatacopy v13, 0, v10
+    v14 = make_memory_slice v13, v10
+    v15 = abi_decode [uint256, bytes], v14
+    v16 = extract_value struct0, v15, 0
+    v17 = extract_value struct0, v15, 1
     ret 0
   bb3:
     ret 0

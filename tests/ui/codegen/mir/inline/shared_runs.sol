@@ -25,11 +25,11 @@ contract SharedRuns {
     }
 
     function paintUint(uint256 value) private pure returns (string memory) {
-        return wrap(vm.toStringUint(value));
+        return wrap(wrap(vm.toStringUint(value)));
     }
 
     function paintBool(bool value) private pure returns (string memory) {
-        return wrap(vm.toStringBool(value));
+        return wrap(wrap(vm.toStringBool(value)));
     }
 
     function wrap(string memory text) private pure returns (string memory) {

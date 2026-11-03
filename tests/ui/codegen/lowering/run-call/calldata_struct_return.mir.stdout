@@ -61,35 +61,40 @@ fn @roundTrip() -> struct2 [selector=0x6643a628, view, abi_params=[], abi_return
   bb1:  ; preds = bb0
     revert_returndata
   bb2:  ; preds = bb0
-    v14 = icall returndata_bytes<>
-    v15 = abi_decode [bool, tuple<bytes32, bytes32, uint256, uint256, bytes, bytes>], v14
-    v16 = extract_value struct3, v15, 0
-    v17 = extract_value struct3, v15, 1
-    v18 = insert_value struct3, undef struct3, 0, v16
-    v19 = insert_value struct3, v18, 1, v17
+    v14 = returndatasize
+    v15 = add v14, 31
+    v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v17 = alloc v16
+    returndatacopy v17, 0, v14
+    v18 = make_memory_slice v17, v14
+    v19 = abi_decode [bool, tuple<bytes32, bytes32, uint256, uint256, bytes, bytes>], v18
     v20 = extract_value struct3, v19, 0
     v21 = extract_value struct3, v19, 1
-    v22 = mload v21
-    v23 = ptradd v21, 32
-    v24 = mload v23
-    v25 = ptradd v21, 64
+    v22 = insert_value struct3, undef struct3, 0, v20
+    v23 = insert_value struct3, v22, 1, v21
+    v24 = extract_value struct3, v23, 0
+    v25 = extract_value struct3, v23, 1
     v26 = mload v25
-    v27 = ptradd v21, 96
+    v27 = ptradd v25, 32
     v28 = mload v27
-    v29 = ptradd v21, 128
-    v30 = mload v29, ptr<memory>
-    v31 = mload v30
-    v32 = ptradd v21, 160
-    v33 = mload v32, ptr<memory>
-    v34 = mload v33
-    v35 = insert_value struct2, undef struct2, 0, v20
-    v36 = insert_value struct2, v35, 1, v22
-    v37 = insert_value struct2, v36, 2, v24
-    v38 = insert_value struct2, v37, 3, v26
-    v39 = insert_value struct2, v38, 4, v28
-    v40 = insert_value struct2, v39, 5, v31
-    v41 = insert_value struct2, v40, 6, v34
-    ret v41
+    v29 = ptradd v25, 64
+    v30 = mload v29
+    v31 = ptradd v25, 96
+    v32 = mload v31
+    v33 = ptradd v25, 128
+    v34 = mload v33, ptr<memory>
+    v35 = mload v34
+    v36 = ptradd v25, 160
+    v37 = mload v36, ptr<memory>
+    v38 = mload v37
+    v39 = insert_value struct2, undef struct2, 0, v24
+    v40 = insert_value struct2, v39, 1, v26
+    v41 = insert_value struct2, v40, 2, v28
+    v42 = insert_value struct2, v41, 3, v30
+    v43 = insert_value struct2, v42, 4, v32
+    v44 = insert_value struct2, v43, 5, v35
+    v45 = insert_value struct2, v44, 6, v38
+    ret v45
 }
 
 ; function decode(bytes calldata input) internal pure returns (bool success, Auth calldata auth)

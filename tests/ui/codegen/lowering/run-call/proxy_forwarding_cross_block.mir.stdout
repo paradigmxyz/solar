@@ -328,9 +328,14 @@ fn @bubble() -> ptr<memory> [selector=0x4ce637d6, view, abi_params=[], abi_retur
   bb1:  ; preds = bb0
     revert_returndata
   bb2:  ; preds = bb0
-    v4 = icall returndata_bytes<>
-    v5 = abi_decode [bytes], v4
-    ret v5
+    v4 = returndatasize
+    v5 = add v4, 31
+    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v7 = alloc v6
+    returndatacopy v7, 0, v4
+    v8 = make_memory_slice v7, v4
+    v9 = abi_decode [bytes], v8
+    ret v9
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:SharedPublicFrame ===

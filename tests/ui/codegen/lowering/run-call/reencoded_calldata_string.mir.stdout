@@ -60,9 +60,14 @@ fn @test() -> ptr<memory> [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
   bb1:  ; preds = bb0
     revert_returndata
   bb2:  ; preds = bb0
-    v9 = icall returndata_bytes<>
-    v10 = abi_decode [bytes], v9
-    ret v10
+    v9 = returndatasize
+    v10 = add v9, 31
+    v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v12 = alloc v11
+    returndatacopy v12, 0, v9
+    v13 = make_memory_slice v12, v9
+    v14 = abi_decode [bytes], v13
+    ret v14
 }
 
 ; function encodeDynamic(string calldata value) external pure returns (bytes memory result) [selector 0x44a76707]
