@@ -1596,14 +1596,10 @@ impl AliasAnalysis {
                 offset: EvmMemoryLayout::HEAP_START.checked_add(offset)?,
             },
             FrameMode::Internal => {
-                let args = (func.params.len() as u64).checked_mul(EvmMemoryLayout::WORD_SIZE)?;
-                let returns = (func.return_components().len() as u64)
-                    .checked_mul(EvmMemoryLayout::WORD_SIZE)?;
-                let offset = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
-                    .checked_add(args)?
-                    .checked_add(returns)?
-                    .checked_add(offset)?;
-                MemoryAddress::internal_frame(offset)
+                let prefix = EvmMemoryLayout::internal_frame_prefix(
+                    func.params.len().checked_add(func.return_components().len())?,
+                )?;
+                MemoryAddress::internal_frame(prefix.checked_add(offset)?)
             }
             FrameMode::MultiReturn => MemoryAddress {
                 region: MemoryRegion::Scratch,
