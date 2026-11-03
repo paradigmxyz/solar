@@ -343,16 +343,14 @@ fn rebase_nested_remapping(
     mut remapping: ImportRemapping,
 ) -> Option<ImportRemapping> {
     let target_has_separator = remapping.path.ends_with(['/', '\\']);
-    let target = Path::new(&remapping.path);
-    let target = if target.is_absolute() { target.to_path_buf() } else { dependency.join(target) };
+    let target = dependency.join(&remapping.path);
     remapping.path = remapping_path(root, &target, target_has_separator);
 
     let context_has_separator = remapping.context.ends_with(['/', '\\']);
     let context = if remapping.context.is_empty() {
         PathBuf::from(dependency_context)
     } else {
-        let context = Path::new(&remapping.context);
-        if context.is_absolute() { context.to_path_buf() } else { dependency.join(context) }
+        dependency.join(&remapping.context)
     };
     remapping.context =
         remapping_path(root, &context, context_has_separator || remapping.context.is_empty());
