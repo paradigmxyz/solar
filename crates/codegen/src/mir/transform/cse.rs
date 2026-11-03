@@ -25,13 +25,12 @@
 //! The pass performs dominator-tree CSE with path-local invalidation for
 //! alias-sensitive memory/storage reads, then runs a local cleanup pass. Environment reads
 //! such as `calldatasize` and `caller` that are fixed for the call frame merge like any other
-//! expression: the backend rereads a cheap one at each use instead of copying a long-lived
-//! stack value, so MIR needs no price for it. Slot hashes
-//! also write scratch memory; a repeated fixed-width hash can disappear only while
-//! its input and written ranges remain unchanged. Variable-width hashes can overwrite
-//! their source or the FMP itself, so they remain effectful until physical lowering. Check
-//! availability before applying the retained instruction's clobbers so an identical write does not
-//! invalidate itself.
+//! expression; the backend rereads a cheap one at each use instead of copying a long-lived
+//! stack value. Slot hashes also write scratch memory; a repeated fixed-width hash can
+//! disappear only while its input and written ranges remain unchanged. Variable-width hashes can
+//! overwrite their source or the FMP itself, so they remain effectful until physical lowering.
+//! Check availability before applying the retained instruction's clobbers so an identical write
+//! does not invalidate itself.
 //!
 //! Loads at the base of a constant-size allocation stay local unless the cached value already
 //! crosses the block edge.
@@ -647,8 +646,8 @@ impl CommonSubexprEliminator {
                 return None;
             }
             expected_key = Some(key);
-            // Equal keys may still name different operands, such as two reads of one frame
-            // constant, so clone an incoming expression whose operands exist after the phis.
+            // Equal keys may still name different operands, such as `x + 4 + 32` and `x + 36`,
+            // so clone an incoming expression whose operands exist after the phis.
             if candidate_kind.is_none()
                 && Self::operands_available_after_phis(
                     func,
