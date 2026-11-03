@@ -588,7 +588,7 @@ impl From<usize> for Threads {
 
 impl Default for Threads {
     fn default() -> Self {
-        Self::resolve(if SINGLE_THREADED_TARGET { 1 } else { 8.min(get_threads().get()) })
+        Self::resolve(usize::from(SINGLE_THREADED_TARGET))
     }
 }
 

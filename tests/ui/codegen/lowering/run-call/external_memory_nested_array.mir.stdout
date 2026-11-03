@@ -88,11 +88,11 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v24 = keccak256 v22, v23
     v25 = address
     v26 = gas
-    v27 = abi_encode [memory_array<memory_bytes>], selector 0x9d6ce1dc00000000000000000000000000000000000000000000000000000000, args v0
+    v27 = abi_encode [memory_array<memory_bytes>], scratch, selector 0x9d6ce1dc00000000000000000000000000000000000000000000000000000000, args v0
     v28 = extract_value slice<memory>, v27, 0
     v29 = extract_value slice<memory>, v27, 1
     v30 = zext i160 v25 to i256
-    v31 = staticcall v26, v30, v28, v29, v28, 64
+    v31 = staticcall v26, v30, v28, v29, 0, 64
     jumpi v31, bb5, bb4
   bb4:                                            ; preds = bb3
     revert_returndata
@@ -100,81 +100,79 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v32 = returndatasize
     v33 = lt v32, 64
     icall revert_if<tuple_data_too_short>, v33
-    v34 = mload v28
-    v35 = ptrtoint ptr<memory> v28 to i256
-    v36 = add v35, 32
-    v37 = mload v36
-    v38 = insert_value struct0, undef struct0, 0, v34
-    v39 = insert_value struct0, v38, 1, v37
-    v40 = extract_value struct0, v39, 0
-    v41 = extract_value struct0, v39, 1
-    v42 = alloc zeroed checked 64
-    mstore v42, 1
+    v34 = mload 0 !metadata(memory=scratch)
+    v35 = mload 32 !metadata(memory=scratch)
+    v36 = insert_value struct0, undef struct0, 0, v34
+    v37 = insert_value struct0, v36, 1, v35
+    v38 = extract_value struct0, v37, 0
+    v39 = extract_value struct0, v37, 1
+    v40 = alloc zeroed checked 64
+    mstore v40, 1
     jump bb6
   bb6:                                            ; preds = bb5, bb7
-    v43 = phi [bb5: 0], [bb7: v50]
-    v44 = lt v43, 1
-    jumpi v44, bb7, bb8
+    v41 = phi [bb5: 0], [bb7: v48]
+    v42 = lt v41, 1
+    jumpi v42, bb7, bb8
   bb8:                                            ; preds = bb6
-    v51 = alloc 160
-    mstore v51, 1
-    v52 = ptradd v51, 32
-    mstore v52, 2
-    v53 = ptradd v51, 64
-    mstore v53, 3
-    v54 = ptradd v51, 96
-    mstore v54, 4
-    v55 = ptradd v51, 128
-    mstore v55, 5
-    v56 = mload v42
-    v57 = gt v56, 0
-    v58 = eq v57, false
-    icall panic_if<0x32>, v58
-    v59 = ptrtoint ptr<memory> v51 to i256
-    v60 = ptradd v42, 32
-    mstore v60, v59
-    v61 = eq v40, 2
-    jumpi v61, bb9, bb10
+    v49 = alloc 160
+    mstore v49, 1
+    v50 = ptradd v49, 32
+    mstore v50, 2
+    v51 = ptradd v49, 64
+    mstore v51, 3
+    v52 = ptradd v49, 96
+    mstore v52, 4
+    v53 = ptradd v49, 128
+    mstore v53, 5
+    v54 = mload v40
+    v55 = gt v54, 0
+    v56 = eq v55, false
+    icall panic_if<0x32>, v56
+    v57 = ptrtoint ptr<memory> v49 to i256
+    v58 = ptradd v40, 32
+    mstore v58, v57
+    v59 = eq v38, 2
+    jumpi v59, bb9, bb10
   bb10:                                           ; preds = bb8
     jump bb11
   bb9:                                            ; preds = bb8
-    v62 = eq v41, v24
+    v60 = eq v39, v24
     jump bb11
   bb11:                                           ; preds = bb9, bb10
-    v63 = phi [bb9: v62], [bb10: false]
-    jumpi v63, bb12, bb13
+    v61 = phi [bb9: v60], [bb10: false]
+    jumpi v61, bb12, bb13
   bb13:                                           ; preds = bb11
     jump bb14
   bb12:                                           ; preds = bb11
-    v64 = address
-    v65 = gas
-    v66 = abi_encode [memory_array<tuple<word, word, word, word, word>>], selector 0x68057f1e00000000000000000000000000000000000000000000000000000000, args v42
-    v67 = extract_value slice<memory>, v66, 0
-    v68 = extract_value slice<memory>, v66, 1
-    v69 = zext i160 v64 to i256
-    v70 = staticcall v65, v69, v67, v68, 0, 32
-    jumpi v70, bb16, bb15
+    v62 = address
+    v63 = gas
+    v64 = abi_encode [memory_array<tuple<word, word, word, word, word>>], scratch, selector 0x68057f1e00000000000000000000000000000000000000000000000000000000, args v40
+    v65 = extract_value slice<memory>, v64, 0
+    v66 = extract_value slice<memory>, v64, 1
+    v67 = zext i160 v62 to i256
+    v68 = staticcall v63, v67, v65, v66, 0, 32
+    jumpi v68, bb16, bb15
   bb15:                                           ; preds = bb12
     revert_returndata
   bb16:                                           ; preds = bb12
-    v71 = returndatasize
-    v72 = lt v71, 32
-    icall revert_if<tuple_data_too_short>, v72
-    v73 = mload 0 !metadata(memory=scratch)
-    v74 = eq v73, 6
+    v69 = returndatasize
+    v70 = lt v69, 32
+    icall revert_if<tuple_data_too_short>, v70
+    v71 = mload 0 !metadata(memory=scratch)
+    v72 = eq v71, 6
     jump bb14
   bb14:                                           ; preds = bb16, bb13
-    v75 = phi [bb16: v74], [bb13: false]
-    ret v75
+    v73 = phi [bb16: v72], [bb13: false]
+    ret v73
   bb7:                                            ; preds = bb6
-    v45 = alloc 160 !metadata(preserves_fmp)
-    memory_zero v45, 160
-    v46 = shl v43, 5
-    v47 = ptradd v42, v46
-    v48 = ptradd v47, 32
-    v49 = ptrtoint ptr<memory> v45 to i256
-    mstore v48, v49
-    v50 = add v43, 1
+    v43 = alloc 160 !metadata(preserves_fmp)
+    memory_zero v43, 160
+    v44 = shl v41, 5
+    v45 = ptradd v40, v44
+    v46 = ptradd v45, 32
+    v47 = ptrtoint ptr<memory> v43 to i256
+    mstore v46, v47
+    v48 = add v41, 1
     jump bb6
   bb2:                                            ; preds = bb1
     v3 = shl v1, 5

@@ -68,9 +68,9 @@ creation and runtime disassembly (`mir.mir`, `*.evmir`, `*.disasm`) for every co
 compiles that has code of its own, including libraries with external functions and contracts built
 with `new`: each file has a headed section per contract, the case's own contract first and the rest
 by name. Libraries the compiler inlines into their callers and abstract contracts leave no section.
-Solc (not `solc-legacy`) and solx add unoptimized `ir.yul` and optimized `optimized-ir.yul` when
-returned (solx 0.1.8 omits `irOptimized`). Solx adds creation and runtime LLVM IR before and after
-optimization (`*.unoptimized.ll`, `*.optimized.ll`). If `--reference-results` names a result beside
+Solc (not `solc-legacy`) and oksolc add unoptimized `ir.yul` and optimized `optimized-ir.yul`
+when returned; Slang has no Yul output. Slang adds creation and runtime LLVM IR before
+and after optimization (`*.unoptimized.ll`, `*.optimized.ll`). If `--reference-results` names a result beside
 an `artifacts` directory, the run copies the matching reference files.
 
 ## Tempo Zones gas
@@ -116,14 +116,14 @@ a matching reference result exists.
   1, so a run holds our `-Ogas` (`solar`, at the case's own runs, normally 200) and `-Osize`
   results. It conflicts with `--optimizer-runs`, which would pin both to one objective. Its
   failures and mismatches are ours: they raise warnings like `solar`'s.
-- `--solx PATH` adds [solx](https://github.com/NomicFoundation/solx) as a separate compiler with its
+- `--slang PATH` adds [slang](https://github.com/NomicFoundation/solx) as a separate compiler with its
   own compilation, gas, runtime checks, and artifacts.
 - `--oksolc PATH` adds [oksolc](https://github.com/okcontract/oksolc) the same way, run as
   `standard-json --no-cache --parallel --jobs 8 -`: eight workers match our default, and no cache
   keeps repeated samples measuring compilation. `--oksolc-jobs N` sets the workers. Inputs keep
   their settings; unsupported inputs stay failures.
-- `--reference-results PATH` reuses solc, solc-legacy, solx, and oksolc results from a prior run
-  without running them; it conflicts with `--solc` and `--solx`. It copies compile, gas, and runtime
+- `--reference-results PATH` reuses solc, solc-legacy, slang, and oksolc results from a prior run
+  without running them; it conflicts with `--solc` and `--slang`. It copies compile, gas, and runtime
   data only for matching input fingerprints, each compiler's own (`solc-legacy` has `viaIR: false`
   in its input, so its fingerprint differs from `solc`'s), then runs the usual cross-compiler
   checks. Live `--oksolc` results override saved ones.
@@ -136,17 +136,17 @@ compile-time sums count only cases that every shown compiler compiled, so cases 
 fails drop out of all columns.
 
 In CI, PRs pass the exact-base result as `--reference-results`, so solc runs only on the base
-revision. Solx 0.1.8 is pinned and runs only on pushes to main, never in PR jobs, even ones that
-rebuild a missing baseline; its columns appear when the downloaded main artifact has matching
-results. Oksolc runs on main, PRs, and manual runs; PRs add `--oksolc` to `--reference-results` so
-they include oksolc before a main baseline has it. CI builds oksolc v0.2.2, revision
-`c465a262edc835afff32951ee2d64e827bc16c3d`, with Zig 0.17.0, ReleaseFast, for the baseline CPU so the
-cached binary runs on any runner of that architecture. The upstream build disables the browser UI by
-default, so it needs no source patch, TypeScript, or Bun. The cache key covers revision, Zig
-version, OS, architecture, and build settings; a hit skips the shallow checkout and build. Solx and
-oksolc appear beside solc in the Markdown report. The website reads compiler columns and artifact
-choices from the uploaded results, so oksolc shows in the overview and the PR comment's artifact
-links even when the base run lacks it.
+revision. Slang is pinned to prerelease d95c1150 (2026-10-29) and runs only on pushes to main, never
+in PR jobs, even ones that rebuild a missing baseline; its columns appear when the downloaded main
+artifact has matching results. Oksolc runs on main, PRs, and manual runs; PRs add `--oksolc` to
+`--reference-results` so they include oksolc before a main baseline has it. CI builds oksolc v0.2.4,
+revision `4c94a99257342477ef58cc6fd418cc964c70d3c5`, with Zig 0.17.0, ReleaseFast, for the baseline
+CPU so the cached binary runs on any runner of that architecture. The upstream build disables the
+browser UI by default, so it needs no source patch, TypeScript, or Bun. The cache key covers
+revision, Zig version, OS, architecture, and build settings; a hit skips the shallow checkout and
+build. Slang and oksolc appear beside solc in the Markdown report. The website reads compiler
+columns and artifact choices from the uploaded results, so oksolc shows in the overview and the PR
+comment's artifact links even when the base run lacks it.
 
 CI also runs `--solc-legacy` with every live solc run (the exact-base run and main) and
 `--solar-size` on every run, so each PR compares Solar `-Ogas`, Solar `-Osize`, solc via-IR, and solc
@@ -175,9 +175,9 @@ uv run benches/runtime/benchmark-compare.py \
   unified artifact diffs.
 - `--tests NAME...` selects cases. `--artifact KIND...` limits artifact kinds to any of `mir`,
   `llvm-ir`, `evm-ir`, `disasm`, `bytecode`, and `json` (default: all).
-- `--compiler solar-size|solc|solc-legacy|solx|oksolc` compares that compiler instead of ours, needs
-  a baseline, and omits the compiler-primary CI tables. Use `--compiler solx --artifact llvm-ir` for
-  solx LLVM IR.
+- `--compiler solar-size|solc|solc-legacy|slang|oksolc` compares that compiler instead of ours, needs
+  a baseline, and omits the compiler-primary CI tables. Use `--compiler slang --artifact llvm-ir` for
+  slang LLVM IR.
 - `--results PATH` alone makes a single-run CI report, the only kind with reference compiler tables.
   With a baseline, the detailed report shows only changed benchmarks, per-call gas changes, gas by
   opcode kind, and artifact details.
@@ -216,7 +216,7 @@ baselines use the candidate's exclusions; two old reports without this metadata 
 
 ## Comparing local builds
 
-Compare our base and candidate builds locally; do not install or run solc/solx unless asked. Record
+Compare our base and candidate builds locally; do not install or run solc/slang unless asked. Record
 the baseline before editing and reuse it while the commit, toolchain, flags, and corpus match: keep
 its `results.json` and artifacts frozen, pass its directory to `benchmark-compare.py`, and run only
 the candidate. While iterating, run affected cases with one compile sample; replace
@@ -290,7 +290,7 @@ runtime observations.
 
 | Case | Upstream source | Revision | Files |
 | --- | --- | --- | ---: |
-| `uniswap-v2-pair` | `Uniswap/v2-core` | `ee547b17853e71ed4e0101ccfd52e70d5acded58` | 10 |
+| `uniswap-v2-pair` (solc-only) | `Uniswap/v2-core` | `ee547b17853e71ed4e0101ccfd52e70d5acded58` | 10 |
 | `openzeppelin-erc20-mock` | `OpenZeppelin/openzeppelin-contracts` | `openzeppelin-5.6.1` archive | 6 |
 | `openzeppelin-vesting-wallet` | `OpenZeppelin/openzeppelin-contracts` | `openzeppelin-5.6.1` archive | 12 |
 | `nitro-one-step-proof` | `OffchainLabs/nitro-contracts` | `0b8c04e8f5f66fe6678a4f53aa15f23da417260e` | 22 |
@@ -313,6 +313,12 @@ and Solady cases and the PRBMath case, like the normal benchmark suite, read the
 there. `counter` reuses the normal suite's `../../testdata/Counter.sol`. `fixtures/runtime/RuntimeFixtures.sol` holds local
 Apache-2.0 helpers with the interfaces the cold-path workloads use. Embedded sources keep their SPDX
 identifiers.
+
+`uniswap-v2-pair` is solc-only: its 0.5 sources use `chainid` without parentheses, which we do
+not support, so our compilers skip it. The case stays in the catalog (`solc_only=True`) and is
+skipped without a live `--solc`, including with `--reference-results`. With one, only reference
+compilers run it. They do not compile it yet: the `runtime` profile sets `viaIR`, which solc 0.5.16
+rejects.
 
 `counter-loop` runs shared checked-arithmetic helpers in a storage-backed accumulator loop, timing
 10, 100, and 1,000 iterations as separate calls after the increment/subtract setup of the

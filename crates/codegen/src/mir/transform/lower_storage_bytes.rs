@@ -18,8 +18,7 @@
 //! counts words independently of address wraparound.
 
 use crate::mir::{
-    AllocationSemantics, Function, FunctionBuilder, FunctionId, InstKind, MirType, Module,
-    PanicCode, ValueId,
+    AllocationSemantics, Function, FunctionBuilder, FunctionId, MirType, Module, PanicCode, ValueId,
 };
 use alloy_primitives::U256;
 use solar_interface::{Ident, sym};
@@ -115,12 +114,7 @@ pub(super) fn clear_words(
 pub(super) fn add_load_helper(module: &mut Module) -> FunctionId {
     // fn load_storage_bytes(slot) { object = load_storage_bytes slot; ret object }
     let mut function = Function::new(Ident::with_dummy_span(sym::load_storage_bytes));
-    let mut builder = FunctionBuilder::new_semantic(&mut function);
-    let slot = builder.add_param(MirType::I256);
-    let ty = MirType::MEMPTR;
-    builder.set_return_type(ty);
-    let object = builder.emit_inst(InstKind::StorageBytesLoad(slot), Some(ty));
-    builder.ret([object]);
+    FunctionBuilder::build_load_storage_bytes_helper(&mut function);
     module.add_function(function)
 }
 

@@ -213,7 +213,7 @@ fn @calldataSliceCast() -> i256 [selector=0x93f40587, view, abi_params=[], abi_r
     mstore v2, 9
     v3 = ptradd v2, 32
     mstore v3, 0x1122334455667788990000000000000000000000000000000000000000000000
-    v4 = abi_encode [memory_bytes], selector 0x4f4c8d8b00000000000000000000000000000000000000000000000000000000, args v2
+    v4 = abi_encode [memory_bytes], scratch, selector 0x4f4c8d8b00000000000000000000000000000000000000000000000000000000, args v2
     v5 = extract_value slice<memory>, v4, 0
     v6 = extract_value slice<memory>, v4, 1
     v7 = zext i160 v0 to i256

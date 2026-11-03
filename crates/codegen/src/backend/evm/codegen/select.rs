@@ -18,14 +18,10 @@ use smallvec::{SmallVec, smallvec};
 pub(crate) enum OpcodeLowering {
     /// No operands; the opcode pushes the result.
     Nullary { opcode: u8 },
-    /// One operand; the opcode pushes the result.
-    Unary { opcode: u8 },
-    /// Two operands in operand order; the opcode pushes the result.
-    Binary { opcode: u8 },
+    /// Every operand pushed last to first; the opcode pushes the result.
+    Valued { opcode: u8 },
     /// An address and a value; the opcode pushes nothing.
     Store { opcode: u8 },
-    /// Every operand pushed last to first; the opcode pushes the result.
-    Nary { opcode: u8 },
     /// Every operand pushed last to first; the opcode copies into memory.
     MemoryCopy { opcode: u8 },
     /// Every operand pushed last to first; the opcode emits a log.
@@ -37,10 +33,8 @@ impl OpcodeLowering {
     pub(crate) fn opcode(self) -> u8 {
         match self {
             Self::Nullary { opcode }
-            | Self::Unary { opcode }
-            | Self::Binary { opcode }
+            | Self::Valued { opcode }
             | Self::Store { opcode }
-            | Self::Nary { opcode }
             | Self::MemoryCopy { opcode }
             | Self::Log { opcode } => opcode,
         }

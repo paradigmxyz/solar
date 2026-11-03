@@ -337,11 +337,8 @@ impl DiagCtxt {
     }
 
     /// Adds diagnostic codes that should be allowed.
-    pub fn with_allowed_diagnostic_codes(
-        mut self,
-        codes: impl IntoIterator<Item = String>,
-    ) -> Self {
-        self.set_allowed_diagnostic_codes_mut(codes);
+    pub fn with_allowed_diagnostic_codes(self, codes: impl IntoIterator<Item = String>) -> Self {
+        self.set_allowed_diagnostic_codes(codes);
         self
     }
 
@@ -375,8 +372,8 @@ impl DiagCtxt {
     }
 
     /// Sets flags.
-    pub fn with_flags(mut self, f: impl FnOnce(&mut DiagCtxtFlags)) -> Self {
-        self.set_flags_mut(f);
+    pub fn with_flags(self, f: impl FnOnce(&mut DiagCtxtFlags)) -> Self {
+        self.set_flags(f);
         self
     }
 
@@ -387,7 +384,7 @@ impl DiagCtxt {
 
     /// Sets flags.
     pub fn set_flags_mut(&mut self, f: impl FnOnce(&mut DiagCtxtFlags)) {
-        f(&mut self.inner.lock().flags);
+        self.set_flags(f);
     }
 
     /// Adds diagnostic codes that should be allowed.
@@ -397,7 +394,7 @@ impl DiagCtxt {
 
     /// Adds diagnostic codes that should be allowed.
     pub fn set_allowed_diagnostic_codes_mut(&mut self, codes: impl IntoIterator<Item = String>) {
-        self.inner.lock().allowed_diagnostic_codes.extend(codes);
+        self.set_allowed_diagnostic_codes(codes);
     }
 
     /// Disables emitting warnings.

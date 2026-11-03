@@ -163,6 +163,11 @@ pub(super) fn instruction_size_lower_bound(target: Target, inst: &Instruction) -
     1
 }
 
+/// Returns a conservative lower bound for the assembled byte length of `instructions`.
+pub(super) fn lower_bound(target: Target, instructions: &[Instruction]) -> usize {
+    instructions.iter().map(|inst| instruction_size_lower_bound(target, inst)).sum()
+}
+
 /// Returns whether a terminator ends the current physical fallthrough trace.
 pub(super) fn is_terminal_boundary(kind: &TerminatorKind) -> bool {
     matches!(kind, TerminatorKind::IndexedJump(_))

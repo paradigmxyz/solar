@@ -20,11 +20,20 @@
 ;; (x & y) | (x & z) => (y | z) & x.
 (rule (sequence_rewrite (Op.Or (band v0 v1) (band v0 v2))) (if-let r0 (make (Op.Or v1 v2))) (sequence (Op.And r0 v0)))
 
+;; (y & x) | (z & x) => (y | z) & x.
+(rule (sequence_rewrite (Op.Or (band v1 v0) (band v2 v0))) (if-let r0 (make (Op.Or v1 v2))) (sequence (Op.And r0 v0)))
+
 ;; (x & y) ^ (x & z) => (y ^ z) & x.
 (rule (sequence_rewrite (Op.Xor (band v0 v1) (band v0 v2))) (if-let r0 (make (Op.Xor v1 v2))) (sequence (Op.And r0 v0)))
 
+;; (y & x) ^ (z & x) => (y ^ z) & x.
+(rule (sequence_rewrite (Op.Xor (band v1 v0) (band v2 v0))) (if-let r0 (make (Op.Xor v1 v2))) (sequence (Op.And r0 v0)))
+
 ;; (x | y) & (x | z) => (y & z) | x.
 (rule (sequence_rewrite (Op.And (bor v0 v1) (bor v0 v2))) (if-let r0 (make (Op.And v1 v2))) (sequence (Op.Or r0 v0)))
+
+;; (y | x) & (z | x) => (y & z) | x.
+(rule (sequence_rewrite (Op.And (bor v1 v0) (bor v2 v0))) (if-let r0 (make (Op.And v1 v2))) (sequence (Op.Or r0 v0)))
 
 ;; (y << x) & (z << x) => (y & z) << x.
 (rule (sequence_rewrite (Op.And (shl v0 v1) (shl v0 v2))) (if-let r0 (make (Op.And v1 v2))) (sequence (Op.Shl v0 r0)))
@@ -75,8 +84,18 @@
       (if-let both (make (Op.Or a b))) (if-let complement (make (Op.Not both)))
       (sequence (Op.And x complement)))
 
+;; (~a & x) & ~b => x & ~(a | b).
+(rule (sequence_rewrite (Op.And (band (bnot a) x) (bnot b)))
+      (if-let both (make (Op.Or a b))) (if-let complement (make (Op.Not both)))
+      (sequence (Op.And x complement)))
+
 ;; (x | ~a) | ~b => x | ~(a & b).
 (rule (sequence_rewrite (Op.Or (bor x (bnot a)) (bnot b)))
+      (if-let both (make (Op.And a b))) (if-let complement (make (Op.Not both)))
+      (sequence (Op.Or x complement)))
+
+;; (~a | x) | ~b => x | ~(a & b).
+(rule (sequence_rewrite (Op.Or (bor (bnot a) x) (bnot b)))
       (if-let both (make (Op.And a b))) (if-let complement (make (Op.Not both)))
       (sequence (Op.Or x complement)))
 
@@ -85,20 +104,10 @@
 
       (sequence (Op.Ne x y)))
 
-;; (x > y) | (x < y) => x != y.
-(rule (sequence_rewrite (Op.Or (gt x y) (lt x y)))
-
-      (sequence (Op.Ne x y)))
-
 ;; (x < y) | (x == y) => (x > y) == 0.
 (rule (sequence_rewrite (Op.Or (lt x y) (eq x y)))
       (if-let compared (make (Op.Gt x y))) (if-let zero (imm (u256 0)))
       (sequence (Op.Eq compared zero)))
-
-;; (x < y) ^ (x > y) => x != y.
-(rule (sequence_rewrite (Op.Xor (lt x y) (gt x y)))
-
-      (sequence (Op.Ne x y)))
 
 ;; (x > y) ^ (x < y) => x != y.
 (rule (sequence_rewrite (Op.Xor (gt x y) (lt x y)))
@@ -115,20 +124,10 @@
 
       (sequence (Op.Ne x y)))
 
-;; (signed(x) > signed(y)) | (signed(x) < signed(y)) => x != y.
-(rule (sequence_rewrite (Op.Or (sgt x y) (slt x y)))
-
-      (sequence (Op.Ne x y)))
-
 ;; (signed(x) < signed(y)) | (x == y) => (signed(x) > signed(y)) == 0.
 (rule (sequence_rewrite (Op.Or (slt x y) (eq x y)))
       (if-let compared (make (Op.SGt x y))) (if-let zero (imm (u256 0)))
       (sequence (Op.Eq compared zero)))
-
-;; (signed(x) < signed(y)) ^ (signed(x) > signed(y)) => x != y.
-(rule (sequence_rewrite (Op.Xor (slt x y) (sgt x y)))
-
-      (sequence (Op.Ne x y)))
 
 ;; (signed(x) > signed(y)) ^ (signed(x) < signed(y)) => x != y.
 (rule (sequence_rewrite (Op.Xor (sgt x y) (slt x y)))
@@ -151,6 +150,16 @@
 (rule (sequence_rewrite (Op.Or (bor x (iconst a)) (bor y (iconst b))))
       (if-let combined (make (Op.Or x y))) (if-let constant (imm (u256_or a b)))
       (sequence (Op.Or combined constant)))
+
+;; ((x & a) | b) & c => (x & (a & c)) | (b & c).
+;; Requires: a, b, c are constants, (a & c) != 0, (b & c) != 0.
+;; Packed storage writes chain these blends; folding the masks shows which bits of the
+;; loaded word survive, and the e-graph drops the load when none does.
+(rule (sequence_rewrite (Op.And (bor (band x (iconst a)) (iconst b)) (iconst c)))
+      (if-let false (u256_same (u256_and a c) (u256 0)))
+      (if-let false (u256_same (u256_and b c) (u256 0)))
+      (if-let kept (imm (u256_and a c))) (if-let masked (make (Op.And x kept)))
+      (if-let constant (imm (u256_and b c))) (sequence (Op.Or masked constant)))
 
 ;; (x ^ a) ^ (y ^ b) => (x ^ y) ^ (a ^ b).
 ;; Requires: a, b are constants.
@@ -197,6 +206,13 @@
 ;; (x & m) | (y & ~m) => y ^ ((x ^ y) & m).
 ;; Mask blends run after storage forwarding and mask simplification.
 (rule (sequence_rewrite (Op.Or (band x m) (band y (bnot m))))
+      (if-let true (late_word_sequence))
+      (if-let changed (make (Op.Xor x y))) (if-let masked (make (Op.And changed m)))
+      (sequence (Op.Xor y masked)))
+
+;; (m & x) | (~m & y) => y ^ ((x ^ y) & m).
+;; Mask blends run after storage forwarding and mask simplification.
+(rule (sequence_rewrite (Op.Or (band m x) (band (bnot m) y)))
       (if-let true (late_word_sequence))
       (if-let changed (make (Op.Xor x y))) (if-let masked (make (Op.And changed m)))
       (sequence (Op.Xor y masked)))

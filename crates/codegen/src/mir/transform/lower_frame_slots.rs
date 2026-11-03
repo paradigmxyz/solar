@@ -122,11 +122,12 @@ fn frame_address(
         FrameMode::External => builder.imm(EvmMemoryLayout::HEAP_START + offset),
         FrameMode::MultiReturn => builder.imm(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT),
         FrameMode::Internal => {
-            let header = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE;
-            let args = (builder.func().params.len() as u64) * EvmMemoryLayout::WORD_SIZE;
-            let returns =
-                (builder.func().return_components().len() as u64) * EvmMemoryLayout::WORD_SIZE;
-            builder.internal_frame_addr(header + args + returns + offset)
+            let func = builder.func();
+            let prefix = EvmMemoryLayout::internal_frame_prefix(
+                func.params.len() + func.return_components().len(),
+            )
+            .expect("MIR frame prefix overflow");
+            builder.internal_frame_addr(prefix + offset)
         }
     }
 }

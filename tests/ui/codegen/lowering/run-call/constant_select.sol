@@ -88,8 +88,8 @@ contract ConstantSelect {
     // SIZE-NEXT: shl
     // SIZE-NEXT: push 4
     // SIZE-NEXT: calldataload
-    // SIZE-NEXT: iszero
-    // SIZE-NEXT: iszero
+    // SIZE-NEXT: push 0
+    // SIZE-NEXT: lt
     // SIZE-NEXT: push 0x26121ff0
     // SIZE-NEXT: jump [[SELECT:bb[0-9]+]]
     // SIZE-NEXT: [[SELECT]]:

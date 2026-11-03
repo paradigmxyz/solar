@@ -614,8 +614,8 @@ fn @xorIntersection(arg0: i256, arg1: i256) -> i256 [selector=0xe5393040, pure, 
 ; function neutralLeft(uint m) external pure returns (uint r) [selector 0x43cf1c74]
 fn @neutralLeft(arg0: i256) -> i256 [selector=0x43cf1c74, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = mulmod 1, 5, arg0
-    v1 = addmod 0, 5, arg0
+    v0 = mulmod 5, 1, arg0
+    v1 = addmod 5, 0, arg0
     v2 = add v1, v0
     ret v2
 }
