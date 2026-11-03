@@ -1,0 +1,28 @@
+//@ filecheck:
+// An error after analysis leaves out the AST, like the contracts.
+// CHECK: "message": "EVM codegen requires MIR in the `lowered` phase, stopped at `semantic`"
+// CHECK: "sources": {
+// CHECK-NEXT: "A.sol": {
+// CHECK-NEXT: "id": 0
+// CHECK-NOT: "ast"
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract Selected { function create() external {} }"
+    }
+  },
+  "settings": {
+    "solar": {
+      "unstable": ["mir-pipeline=none"]
+    },
+    "outputSelection": {
+      "A.sol": {
+        "": ["ast"],
+        "Selected": [
+          "evm.bytecode.object"
+        ]
+      }
+    }
+  }
+}

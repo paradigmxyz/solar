@@ -37,8 +37,8 @@ impl<'gcx> Serialize for W<'_, 'gcx, ExternalReferences<'_, 'gcx>> {
         let mut refs = Collector { gcx: cx.gcx, assembly: *span, refs: Vec::new() };
         refs.visit_block(block);
         if let Some(function) = cx.function {
-            let hoisted = (function.index() + 1..)
-                .map_while(|index| hir.functions.get(hir::FunctionId::from_usize(index)))
+            let hoisted = hir.functions.raw[function.index() + 1..]
+                .iter()
                 .take_while(|function| function.is_yul);
             for function in hoisted.filter(|function| span.contains(function.span)) {
                 if let Some(body) = &function.body {

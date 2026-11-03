@@ -104,7 +104,7 @@ impl Serialize for ExprType<'_, '_> {
             m.serialize_entry("typeString", "error")?;
             return m.end();
         }
-        let builtin = gcx.resolved_expr(expr).and_then(|res| res.as_builtin());
+        let builtin = gcx.resolved_expr(expr.peel_parens()).and_then(|res| res.as_builtin());
         if let TyKind::Fn(f) = ty.kind {
             // solc gives an attached function the receiver as its first parameter, and `require`
             // the type of its message.
@@ -145,30 +145,13 @@ impl Serialize for ExprType<'_, '_> {
         let literal_ty =
             |ty: Ty<'_>| ty.is_number_literal() || matches!(ty.kind, TyKind::StringLiteral(..));
         let literal = literal_ty(ty).then(|| gcx.const_eval().eval_expr(expr).ok()).flatten();
-        let components = match expr.kind {
-            hir::ExprKind::Tuple(components) => components
-                .iter()
-                .map(|component| {
-                    let Some(component) = component else {
-                        return Component { literal: None, pointer: true, empty: true };
-                    };
-                    Component {
-                        literal: expr_ty(gcx, component)
-                            .filter(|ty| literal_ty(*ty))
-                            .and_then(|_| gcx.const_eval().eval_expr(component).ok()),
-                        pointer: is_pointer(gcx, component),
-                        empty: false,
-                    }
-                })
-                .collect(),
-            _ => Vec::new(),
-        };
-        let call_options = match expr.kind {
+        let components = tuple_components(gcx, expr);
+        let call_options = match expr.peel_parens().kind {
             hir::ExprKind::CallOptions(_, options) => [kw::Gas, sym::value, sym::salt]
                 .map(|name| options.args.iter().any(|arg| arg.name.name == name)),
             _ => [false; 3],
         };
-        let function_kind = match expr.kind {
+        let function_kind = match expr.peel_parens().kind {
             // The only builtin function without a builtin is `new` on an array.
             hir::ExprKind::New(_) => Some("objectcreation"),
             _ => builtin.map(Builtin::solc_kind),
@@ -185,6 +168,32 @@ impl Serialize for ExprType<'_, '_> {
         };
         descriptions.serialize(s)
     }
+}
+
+/// Returns what solc knows of the components of a tuple expression.
+fn tuple_components<'gcx>(gcx: Gcx<'gcx>, expr: &hir::Expr<'gcx>) -> Vec<Component<'gcx>> {
+    let literal_ty =
+        |ty: Ty<'_>| ty.is_number_literal() || matches!(ty.kind, TyKind::StringLiteral(..));
+    let hir::ExprKind::Tuple(components) = expr.kind else { return Vec::new() };
+    if !expr_ty(gcx, expr).is_some_and(|ty| matches!(ty.kind, TyKind::Tuple(_))) {
+        return Vec::new();
+    }
+    components
+        .iter()
+        .map(|component| {
+            let Some(component) = component else {
+                return Component { literal: None, pointer: true, empty: true, components: vec![] };
+            };
+            Component {
+                literal: expr_ty(gcx, component)
+                    .filter(|ty| literal_ty(*ty))
+                    .and_then(|_| gcx.const_eval().eval_expr(component).ok()),
+                pointer: is_pointer(gcx, component),
+                empty: false,
+                components: tuple_components(gcx, component),
+            }
+        })
+        .collect()
 }
 
 /// Returns the type of the expression, which type checking leaves out for a type in an
@@ -208,7 +217,7 @@ pub(super) fn expr_ty<'gcx>(gcx: Gcx<'gcx>, expr: &hir::Expr<'gcx>) -> Option<Ty
 /// Returns the type of the message of `require`: `error` for a call of an error, else the type
 /// that a string converts to.
 fn message_ty<'gcx>(gcx: Gcx<'gcx>, message: &hir::Expr<'gcx>) -> Option<Ty<'gcx>> {
-    if let hir::ExprKind::Call(callee, _) = message.kind
+    if let hir::ExprKind::Call(callee, _) = message.peel_parens().kind
         && let Some(ty) = gcx.type_of_expr(callee.id)
         && matches!(ty.kind, TyKind::Error(..))
     {

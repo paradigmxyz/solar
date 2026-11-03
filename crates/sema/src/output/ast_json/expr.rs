@@ -17,7 +17,7 @@
 //! checker results: the type, the resolution of a name, purity, and the user defined operator.
 
 use super::{
-    Cx, Empty, Params, Seq, Sym, Var, W, last_docs, serialize_opt,
+    Cx, Empty, Params, Seq, Sym, Var, W, last_docs, name, serialize_opt,
     ty::{ExprType, TypeDescriptions, elementary_name},
     yul,
 };
@@ -30,7 +30,7 @@ use crate::{
 use alloy_primitives::hex;
 use serde::ser::{Serialize, SerializeMap, Serializer};
 use solar_ast::{self as ast, DocComments, ElementaryType, LitKind, StrKind};
-use solar_interface::{Ident, Span, SpannedOption, Symbol, kw};
+use solar_interface::{Ident, Span, SpannedOption, kw};
 use std::ops::ControlFlow;
 
 /// What an expression learns from its parent. [`Cx`] holds it for the next expression.
@@ -346,7 +346,7 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::TryCatchClause<'_>, &hir::TryCatchCl
         let Self(cx, (ast, hir)) = self;
         let (mut m, id) = cx.node(s, "TryCatchClause", ast.span)?;
         let cx = Cx { block: id, ..*cx };
-        m.serialize_entry("errorName", &Sym(ast.name.map_or(Symbol::DUMMY, |name| name.name)))?;
+        m.serialize_entry("errorName", &name(ast.name))?;
         if !ast.args.span.is_dummy() {
             let params = Params {
                 id: None,

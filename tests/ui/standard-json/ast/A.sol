@@ -35,6 +35,10 @@ interface IToken {
     function balanceOf(address owner) external view returns (uint256);
 }
 
+interface IFallback {
+    fallback() external;
+}
+
 abstract contract Base {
     modifier onlyOwner() virtual {
         _;

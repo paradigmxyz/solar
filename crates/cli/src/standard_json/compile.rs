@@ -469,6 +469,13 @@ fn compile(
                 Ok(())
             })();
 
+            // Like the contracts, the ASTs are left out when an error comes after analysis.
+            if result.is_err() {
+                for source in output.sources.iter_mut().flatten().map(|(_, source)| source) {
+                    source.ast = None;
+                }
+            }
+
             let diagnostics = diagnostics.read();
             output_result = Some(finish_standard_json_output(
                 output,

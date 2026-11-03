@@ -25,7 +25,7 @@ use solar_data_structures::{
     map::{FxHashMap, FxHashSet, FxIndexMap},
 };
 use solar_interface::{
-    Ident, Span,
+    Ident, Span, Symbol,
     diagnostics::{Applicability, DiagCtxt},
     error_code,
 };
@@ -70,6 +70,14 @@ impl OverrideProxy {
 
     fn name(self, gcx: Gcx<'_>) -> Option<Ident> {
         gcx.item_name_opt(self.into_item_id())
+    }
+
+    /// Returns the name, or the kind of a function without one, such as `fallback`.
+    fn name_or_kind(self, gcx: Gcx<'_>) -> Symbol {
+        match self {
+            Self::Function(id) => gcx.hir.function(id).name_or_kind(),
+            Self::Variable(id) => gcx.hir.variable(id).name.unwrap().name,
+        }
     }
 
     fn into_item_id(self) -> hir::ItemId {
@@ -931,10 +939,7 @@ impl<'gcx> OverrideChecker<'gcx> {
         for &f_id in &override_index(self.gcx).unimplemented_functions {
             let f = self.gcx.hir.function(f_id);
             let Some(base_id) = f.contract else { continue };
-            if f.kind.is_constructor()
-                || f.is_yul
-                || f.name.is_none()
-                || !contract.linearized_bases.contains(&base_id)
+            if f.kind.is_constructor() || f.is_yul || !contract.linearized_bases.contains(&base_id)
             {
                 continue;
             }
@@ -944,7 +949,7 @@ impl<'gcx> OverrideChecker<'gcx> {
                 let impl_base = self.gcx.hir.contract(impl_base_id);
                 impl_base.functions().any(|impl_f_id| {
                     let impl_f = self.gcx.hir.function(impl_f_id);
-                    if impl_f.body.is_none() || impl_f.name.is_none() {
+                    if impl_f.body.is_none() {
                         return false;
                     }
                     let impl_sig = self.signature(OverrideProxy::Function(impl_f_id));
@@ -985,7 +990,7 @@ impl<'gcx> OverrideChecker<'gcx> {
                 format!(
                     "unimplemented {} `{}` defined in `{}`",
                     proxy.ast_node_name(self.gcx),
-                    proxy.name(self.gcx).unwrap(),
+                    proxy.name_or_kind(self.gcx),
                     base_name
                 ),
             );

@@ -208,7 +208,7 @@ pub(crate) struct TySolcPrinter<'gcx, W> {
 }
 
 /// A component of a tuple expression.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub(crate) struct Component<'gcx> {
     /// The value of the component, if it is a literal.
     pub(crate) literal: Option<&'gcx ConstValue>,
@@ -216,6 +216,8 @@ pub(crate) struct Component<'gcx> {
     pub(crate) pointer: bool,
     /// Whether the component is left out: solc has no type for it.
     pub(crate) empty: bool,
+    /// The components of the component, if it is a tuple.
+    pub(crate) components: Vec<Self>,
 }
 
 /// The data location of a reference type, and whether solc treats the type as a pointer.
@@ -521,14 +523,17 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
 
     /// Prints the type of a component of a tuple.
     fn print_component(&mut self, index: usize, ty: Ty<'gcx>) -> fmt::Result {
-        let Some(&Component { literal, pointer, empty }) = self.components.get(index) else {
+        let Some(component) = self.components.get(index).cloned() else {
             return self.print(ty);
         };
-        if empty {
+        if component.empty {
             return Ok(());
         }
-        let literal = std::mem::replace(&mut self.literal, literal);
-        let result = self.in_location(DataLocation::Storage, pointer, |this| this.print(ty));
+        let literal = std::mem::replace(&mut self.literal, component.literal);
+        let components = std::mem::replace(&mut self.components, component.components);
+        let result =
+            self.in_location(DataLocation::Storage, component.pointer, |this| this.print(ty));
+        self.components = components;
         self.literal = literal;
         result
     }
@@ -749,13 +754,17 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
             if i > 0 {
                 self.buf.write_str("_$_")?;
             }
-            let component = self.components.get(i).copied();
-            if component.is_some_and(|c| c.empty) {
+            let Some(component) = self.components.get(i).cloned() else {
+                self.identifier(ty, loc, pointer || (i == 0 && receiver))?;
+                continue;
+            };
+            if component.empty {
                 continue;
             }
-            let literal = std::mem::replace(&mut self.literal, component.and_then(|c| c.literal));
-            let pointer = component.map_or(pointer, |c| c.pointer);
-            self.identifier(ty, loc, pointer || (i == 0 && receiver))?;
+            let literal = std::mem::replace(&mut self.literal, component.literal);
+            let components = std::mem::replace(&mut self.components, component.components);
+            self.identifier(ty, loc, component.pointer || (i == 0 && receiver))?;
+            self.components = components;
             self.literal = literal;
         }
         self.buf.write_str("_$")
