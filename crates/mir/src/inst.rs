@@ -983,8 +983,9 @@ impl InstKind {
 
     /// Returns binary operands whose evaluation order may be exchanged during EVM lowering.
     ///
-    /// This includes the declared commutative pair, comparisons whose opcode can be reversed with
-    /// their operands, and the destination and size of a data copy.
+    /// This includes the declared commutative pair of a binary operation, comparisons whose opcode
+    /// can be reversed with their operands, and the destination and size of a data copy. The
+    /// backend pushes `addmod` and `mulmod` in one order only, so their pair is not included.
     pub fn reorderable_binary_operands(&self) -> Option<(ValueId, ValueId)> {
         match self {
             Self::DataCopy(_, a, b)
@@ -994,7 +995,7 @@ impl InstKind {
             | Self::SGt(a, b) => Some((*a, *b)),
             // Other operations carry payloads that `op` would copy.
             _ if self.op_def().traits.contains(super::OpTraits::COMMUTATIVE) => {
-                self.op().commutative_pair()
+                self.op().commutative_pair().filter(|_| self.operands().len() == 2)
             }
             _ => None,
         }
