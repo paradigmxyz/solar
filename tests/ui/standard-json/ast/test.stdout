@@ -6763,7 +6763,69 @@
                       "id": 553,
                       "src": "4040:63:2",
                       "nodeType": "InlineAssembly",
-                      "externalReferences": [],
+                      "AST": {
+                        "nodeType": "YulBlock",
+                        "src": "4065:38:2",
+                        "nativeSrc": "4065:38:2",
+                        "statements": [
+                          {
+                            "nodeType": "YulAssignment",
+                            "src": "4079:14:2",
+                            "nativeSrc": "4079:14:2",
+                            "variableNames": [
+                              {
+                                "nodeType": "YulIdentifier",
+                                "src": "4079:1:2",
+                                "nativeSrc": "4079:1:2",
+                                "name": "r"
+                              }
+                            ],
+                            "value": {
+                              "nodeType": "YulFunctionCall",
+                              "src": "4084:9:2",
+                              "nativeSrc": "4084:9:2",
+                              "functionName": {
+                                "nodeType": "YulIdentifier",
+                                "src": "4084:3:2",
+                                "nativeSrc": "4084:3:2",
+                                "name": "add"
+                              },
+                              "arguments": [
+                                {
+                                  "nodeType": "YulIdentifier",
+                                  "src": "4088:1:2",
+                                  "nativeSrc": "4088:1:2",
+                                  "name": "r"
+                                },
+                                {
+                                  "nodeType": "YulLiteral",
+                                  "src": "4091:1:2",
+                                  "nativeSrc": "4091:1:2",
+                                  "kind": "number",
+                                  "value": "1",
+                                  "type": ""
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      },
+                      "externalReferences": [
+                        {
+                          "src": "4079:1:2",
+                          "declaration": 79,
+                          "isSlot": false,
+                          "isOffset": false,
+                          "valueSize": 1
+                        },
+                        {
+                          "src": "4088:1:2",
+                          "declaration": 79,
+                          "isSlot": false,
+                          "isOffset": false,
+                          "valueSize": 1
+                        }
+                      ],
                       "evmVersion": "osaka",
                       "flags": [
                         "memory-safe"

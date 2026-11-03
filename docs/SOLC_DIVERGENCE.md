@@ -544,26 +544,25 @@ Coverage: `tests/ui/typeck/constant_cycles/cross_source_dependency_order.sol`.
 
 ### TYPECK-023: AST JSON
 
-Status: parity debt for inline assembly and the types of a few expressions;
-intentional for the rest.
+Status: parity debt for the types of a few expressions; intentional for the
+rest.
 
 Difference: `solar` writes the compact AST JSON of `solc` (the `ast` output of
-Standard JSON and `--emit=ast`). Inline assembly has no `AST` and an empty list
-of `externalReferences`. `solar` leaves out `internalFunctionIDs`, which `solc`
-fills from its call graph's set of internal dispatch targets, numbered by its
-own node order, whenever a contract uses internal function pointers. Only
-`solc`'s via-IR code generation reads it. Node IDs do not follow the numbering of
-`solc`: items take the IDs that `immutableReferences`, the storage layout and
-ETHDebug report, source units and imports follow them, and every other node
-takes the next free ID. `solar` leaves out the `EnumValue` documentation, which
-its AST does not keep, and reads `contractDependencies`, `usedEvents` and
-`usedErrors` from the call graph used for code generation. It reads the
-`license` only from the comments before the first token, and includes a comment
-between a variable and its `;` in the location of the variable. For a module
-alias that reaches a source through another source's imports, `exportedSymbols`,
-imported symbols and identifiers name the first directive that declares an
-alias to that source, which differs from `solc` when several sources declare
-the same alias.
+Standard JSON and `--emit=ast`). `solar` leaves out `internalFunctionIDs`,
+which `solc` fills from its call graph's set of internal dispatch targets,
+numbered by its own node order, whenever a contract uses internal function
+pointers. Only `solc`'s via-IR code generation reads it. Node IDs do not follow
+the numbering of `solc`: items take the IDs that `immutableReferences`, the
+storage layout and ETHDebug report, source units and imports follow them, and
+every other node takes the next free ID. `solar` leaves out the `EnumValue`
+documentation, which its AST does not keep, and reads `contractDependencies`,
+`usedEvents` and `usedErrors` from the call graph used for code generation. It
+reads the `license` only from the comments before the first token, and includes
+a comment between a variable and its `;` in the location of the variable. For a
+module alias that reaches a source through another source's imports,
+`exportedSymbols`, imported symbols and identifiers name the first directive
+that declares an alias to that source, which differs from `solc` when several
+sources declare the same alias.
 
 The attributes of expressions come from the type checker, and differ in these
 cases:

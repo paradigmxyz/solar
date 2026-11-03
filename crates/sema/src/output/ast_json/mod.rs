@@ -15,7 +15,7 @@
 //! - every other node takes the next ID when its writer reaches it, so a node writes the fields
 //!   that need its ID, such as the scope of its children, after allocating it.
 //!
-//! Statements and expressions are in [`expr`].
+//! Statements and expressions are in [`expr`], and inline assembly in [`yul`].
 //!
 //! [`Hir::global_item_id`]: crate::hir::Hir::global_item_id
 
@@ -34,6 +34,7 @@ use std::{borrow::Cow, cell::Cell, fmt};
 
 mod expr;
 mod ty;
+mod yul;
 
 impl<'gcx> Gcx<'gcx> {
     /// Returns the AST JSON of the compilation, which must have passed analysis.
@@ -109,6 +110,7 @@ impl Serialize for SourceAstJson<'_, '_> {
             in_local: false,
             block: json.source_unit_id(id),
             returns: None,
+            function: None,
             parent: expr::Parent::default(),
             for_init: false,
         };
@@ -179,6 +181,8 @@ struct Cx<'a, 'gcx> {
     block: usize,
     /// The ID of the list of the return parameters of the function that holds the node.
     returns: Option<usize>,
+    /// The function or modifier that holds the node.
+    function: Option<hir::FunctionId>,
     /// What the parent of an expression tells it.
     parent: expr::Parent<'gcx>,
     /// Whether the node is the initialization of a `for` statement.
@@ -211,15 +215,18 @@ struct Src {
 
 impl Serialize for Src {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.collect_str(self)
+    }
+}
+
+impl fmt::Display for Src {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.span.is_dummy() {
-            return s.serialize_str("-1:-1:-1");
+            return f.write_str("-1:-1:-1");
         }
         let lo = self.span.lo().to_u32() - self.start.to_u32();
-        s.collect_str(&format_args!(
-            "{lo}:{}:{}",
-            self.span.hi().to_u32() - self.span.lo().to_u32(),
-            self.source.index()
-        ))
+        let len = self.span.hi().to_u32() - self.span.lo().to_u32();
+        write!(f, "{lo}:{len}:{}", self.source.index())
     }
 }
 
@@ -894,7 +901,10 @@ impl Serialize for W<'_, '_, (&ast::Item<'_>, &ast::ItemFunction<'_>, hir::Funct
                 hir: hir_body,
                 unchecked: false,
             };
-            m.serialize_entry("body", &Cx { returns: returns_id, ..*cx }.w(body))?;
+            m.serialize_entry(
+                "body",
+                &Cx { returns: returns_id, function: Some(*id), ..*cx }.w(body),
+            )?;
         }
         if f.is_part_of_external_interface() {
             m.serialize_entry("functionSelector", &hex::encode(gcx.function_selector(*id)))?;

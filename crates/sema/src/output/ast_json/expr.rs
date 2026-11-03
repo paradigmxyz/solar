@@ -19,6 +19,7 @@
 use super::{
     Cx, Empty, Params, Seq, Sym, Var, W, last_docs, serialize_opt,
     ty::{ExprType, TypeDescriptions, elementary_name},
+    yul,
 };
 use crate::{
     builtins::Builtin,
@@ -195,9 +196,11 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Stmt<'_>, &hir::Stmt<'gcx>)> {
             (ast::StmtKind::UncheckedBlock(ast), StmtKind::UncheckedBlock(hir)) => {
                 cx.w(Block { docs, span, ast, hir, unchecked: true }).serialize(s)
             }
-            (ast::StmtKind::Assembly(assembly), StmtKind::AssemblyBlock(..)) => {
+            (ast::StmtKind::Assembly(assembly), StmtKind::AssemblyBlock(block, _)) => {
                 let (mut m, _) = cx.stmt_node(s, "InlineAssembly", span, docs)?;
-                m.serialize_entry("externalReferences", &[(); 0])?;
+                m.serialize_entry("AST", &cx.w(&assembly.block))?;
+                let references = yul::ExternalReferences { span, block };
+                m.serialize_entry("externalReferences", &cx.w(references))?;
                 m.serialize_entry("evmVersion", &format_args!("{}", gcx.sess.opts.evm_version))?;
                 if !assembly.flags.is_empty() {
                     let flags = Seq(|| assembly.flags.iter().map(|flag| Sym(flag.value)));
