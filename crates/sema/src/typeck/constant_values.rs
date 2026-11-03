@@ -79,7 +79,7 @@ fn check_base_slot_value(
 ) {
     let code = |code| ConstContext::BaseSlot.value_code(solc, code);
     let Some(base_slot) = value.as_u256() else {
-        gcx.dcx().emit_err(
+        gcx.dcx().emit_err_code(
             slot.span,
             code(error_code!(6753)),
             "base slot of storage layout evaluates to a value outside the range of type `uint256`",
@@ -89,7 +89,7 @@ fn check_base_slot_value(
     if let Ok(Some(size)) = super::storage_size_upper_bound(gcx, contract, DataLocation::Storage)
         && base_slot.checked_add(size).is_none()
     {
-        gcx.dcx().emit_err(
+        gcx.dcx().emit_err_code(
             slot.span,
             code(error_code!(5015)),
             "contract extends past the end of storage when this base slot value is specified",
@@ -135,7 +135,7 @@ impl<'gcx> Visit<'gcx> for AssemblyConstants<'gcx> {
         {
             self.gcx
                 .dcx()
-                .err_at(
+                .err_code_at(
                     expr.span,
                     error_code!(7615),
                     "inline assembly can only read constants with a compile-time value",

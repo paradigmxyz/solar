@@ -204,7 +204,7 @@ impl<'gcx> TypeChecker<'gcx> {
         required: EvmVersion,
     ) -> DiagBuilder<'gcx, ErrorGuaranteed> {
         self.dcx()
-            .err_at(span, None, format!("{feature} requires {required:?}-compatible EVM"))
+            .err_at(span, format!("{feature} requires {required:?}-compatible EVM"))
             .help(format!("compile with `--evm-version {required}` or newer"))
     }
 
@@ -219,21 +219,21 @@ impl<'gcx> TypeChecker<'gcx> {
                 );
             } else if builtin == Builtin::BlockPrevrandao && !target.has_prev_randao() {
                 self.dcx()
-                    .emit_warn(
+                    .emit_warn_code(
                         span,
                         error_code!(9432),
                         "`block.prevrandao` is not supported by this EVM version and will be treated as `block.difficulty`",
                     );
             } else if builtin == Builtin::BlockDifficulty && target.has_prev_randao() {
                 self.dcx()
-                    .emit_warn(
+                    .emit_warn_code(
                         span,
                         error_code!(8417),
                         "since Paris, `block.difficulty` was replaced by `block.prevrandao`, which returns a random number from the beacon chain",
                     );
             } else if builtin == Builtin::MsgGas {
                 self.dcx()
-                    .warn_at(span, error_code!(1400), "`msg.gas` is deprecated")
+                    .warn_code_at(span, error_code!(1400), "`msg.gas` is deprecated")
                     .help("use `gasleft()` instead")
                     .emit();
             }
@@ -250,7 +250,7 @@ impl<'gcx> TypeChecker<'gcx> {
             return;
         }
         if !self.is_pure(slot) {
-            self.dcx().emit_err(
+            self.dcx().emit_err_code(
                 slot.span,
                 error_code!(1139),
                 "base slot of storage layout must be a compile-time constant expression",
@@ -259,7 +259,7 @@ impl<'gcx> TypeChecker<'gcx> {
         }
         if !ty.is_integer() {
             self.dcx()
-                .err_at(
+                .err_code_at(
                     slot.span,
                     error_code!(1763),
                     "base slot of storage layout must evaluate to an integer",
@@ -418,7 +418,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         continue;
                     }
                     if expr_ty.is_unit() {
-                        let g = self.dcx().emit_err(
+                        let g = self.dcx().emit_err_code(
                             expr.span,
                             error_code!(5604),
                             "array component cannot be empty",
@@ -429,7 +429,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     if (i == 0 || common.is_some())
                         && let None = expr_ty.mobile(self.gcx)
                     {
-                        let g = self.dcx().emit_err(
+                        let g = self.dcx().emit_err_code(
                             expr.span,
                             error_code!(9563),
                             "invalid mobile type",
@@ -459,11 +459,15 @@ impl<'gcx> TypeChecker<'gcx> {
                             "type `{}` is only valid in storage because it contains a (nested) mapping",
                             common.display(self.gcx),
                         );
-                        self.gcx.mk_ty_err(self.dcx().emit_err(expr.span, error_code!(1545), msg))
+                        self.gcx.mk_ty_err(self.dcx().emit_err_code(
+                            expr.span,
+                            error_code!(1545),
+                            msg,
+                        ))
                     } else if !common.nameable() {
                         self.gcx.mk_ty_err(
                             self.dcx()
-                                .err_at(
+                                .err_code_at(
                                     expr.span,
                                     error_code!(9656),
                                     "cannot infer nameable array element type",
@@ -479,7 +483,7 @@ impl<'gcx> TypeChecker<'gcx> {
                             .with_loc(self.gcx, DataLocation::Memory)
                     }
                 } else {
-                    self.gcx.mk_ty_err(self.dcx().emit_err(
+                    self.gcx.mk_ty_err(self.dcx().emit_err_code(
                         expr.span,
                         error_code!(6378),
                         "cannot infer array element type",
@@ -491,11 +495,9 @@ impl<'gcx> TypeChecker<'gcx> {
                 self.check_assign(ty, lhs);
                 if ty.is_tuple() {
                     if op.is_some() {
-                        let err = self.dcx().err_at(
-                            expr.span,
-                            None,
-                            "compound assignment is not allowed for tuples",
-                        );
+                        let err = self
+                            .dcx()
+                            .err_at(expr.span, "compound assignment is not allowed for tuples");
                         return self.gcx.mk_ty_err(err.emit());
                     }
                     self.check_tuple_assign_rhs(lhs, ty, rhs);
@@ -620,7 +622,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         {
                             let msg =
                                 "storage arrays with nested mappings do not support `push(<arg>)`";
-                            self.dcx().emit_err(callee.span, error_code!(8871), msg);
+                            self.dcx().emit_err_code(callee.span, error_code!(8871), msg);
                         }
                         // Keep the declared return type: the value is unusable, but an error
                         // type here would only hide the checks its uses still go through.
@@ -660,7 +662,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     _ => {
                         let msg =
                             format!("expected function, found `{}`", callee_ty.display(self.gcx));
-                        let mut err = self.dcx().err_at(callee.span, None, msg);
+                        let mut err = self.dcx().err_at(callee.span, msg);
                         err = err.span_note(expr.span, "call expression requires function");
                         self.gcx.mk_ty_err(err.emit())
                     }
@@ -688,7 +690,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     self.gcx.types.unit
                 } else {
                     let msg = format!("cannot delete `{}`", ty.display(self.gcx));
-                    let mut err = self.dcx().err_at(expr.span, error_code!(9767), msg);
+                    let mut err = self.dcx().err_code_at(expr.span, error_code!(9767), msg);
                     if storage_pointer {
                         err = err.note("storage pointers cannot be deleted");
                     }
@@ -742,7 +744,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         && self.gcx.hir.contract(id).kind.is_library()
                     {
                         let msg = "index access for library types is not possible";
-                        let guar = self.dcx().emit_err(expr.span, error_code!(2876), msg);
+                        let guar = self.dcx().emit_err_code(expr.span, error_code!(2876), msg);
                         elem_ty = self.gcx.mk_ty_err(guar);
                     }
                     let arr = if let Some(index) = index {
@@ -821,7 +823,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         {
                             return self.gcx.mk_ty_err(
                                 self.dcx()
-                                    .emit_err(
+                                    .emit_err_code(
                                         expr.span,
                                         error_code!(9274),
                                         "`runtimeCode` is not available for contracts containing immutable variables",
@@ -835,7 +837,7 @@ impl<'gcx> TypeChecker<'gcx> {
                                 .is_some_and(|f| self.gcx.hir.function(f).kind.is_receive())
                         {
                             self.dcx()
-                                .err_at(
+                                .err_code_at(
                                     expr.span,
                                     error_code!(7139),
                                     "`msg.data` cannot be used inside of a `receive` function",
@@ -852,7 +854,7 @@ impl<'gcx> TypeChecker<'gcx> {
                             receiver_ty.display(self.gcx)
                         );
                         // TODO: Did you mean ...?
-                        let err = self.dcx().err_at(ident.span, None, msg);
+                        let err = self.dcx().err_at(ident.span, msg);
                         self.gcx.mk_ty_err(err.emit())
                     }
                     Err(MemberAccessError::Ambiguous) => {
@@ -915,11 +917,8 @@ impl<'gcx> TypeChecker<'gcx> {
                         }
                     }
                     TyKind::Array(..) => {
-                        let mut err = self.dcx().err_at(
-                            hir_ty.span,
-                            None,
-                            "cannot instantiate static arrays",
-                        );
+                        let mut err =
+                            self.dcx().err_at(hir_ty.span, "cannot instantiate static arrays");
                         if let hir::TypeKind::Array(hir::TypeArray {
                             element: _,
                             size: Some(size_expr),
@@ -963,7 +962,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     Ok(target_ty) => target_ty,
                     Err(err) => {
                         let mut diag =
-                            self.dcx().err_at(expr.span, None, "invalid explicit type conversion");
+                            self.dcx().err_at(expr.span, "invalid explicit type conversion");
                         diag = diag.span_label(expr.span, err.message(ty, target_ty, self.gcx));
                         self.gcx.mk_ty_err(diag.emit())
                     }
@@ -978,11 +977,9 @@ impl<'gcx> TypeChecker<'gcx> {
                     (Some(true_ty), Some(false_ty)) => {
                         true_ty.common_type(false_ty, self.gcx).unwrap_or_else(|| {
                             // .span(vec![true_.span, false_.span])
-                            self.gcx.mk_ty_err(self.dcx().emit_err(
-                                expr.span,
-                                None,
-                                "incompatible conditional types",
-                            ))
+                            self.gcx.mk_ty_err(
+                                self.dcx().emit_err(expr.span, "incompatible conditional types"),
+                            )
                         })
                     }
                     (true_ty, false_ty) => {
@@ -1088,7 +1085,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         "cannot apply unary operator `{op}` to `{}`",
                         ty.display(self.gcx),
                     );
-                    let err = self.dcx().err_at(expr.span, None, msg);
+                    let err = self.dcx().err_at(expr.span, msg);
                     self.gcx.mk_ty_err(err.emit())
                 }
             }
@@ -1273,7 +1270,7 @@ impl<'gcx> TypeChecker<'gcx> {
         } else {
             return Ok(());
         };
-        Err(self.dcx().emit_err(expr.span, code, msg))
+        Err(self.dcx().emit_err_code(expr.span, code, msg))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1434,7 +1431,7 @@ impl<'gcx> TypeChecker<'gcx> {
             && value >= len
         {
             self.dcx()
-                .err_at(span, code, "out of bounds array access")
+                .err_code_at(span, code, "out of bounds array access")
                 .span_label(index.span, format!("the length is {len} but the index is {value}"))
                 .emit();
         }
@@ -1448,11 +1445,9 @@ impl<'gcx> TypeChecker<'gcx> {
         args: &'gcx hir::CallArgs<'gcx>,
     ) -> Ty<'gcx> {
         if matches!(to.kind, TyKind::Super(_)) {
-            return self.gcx.mk_ty_err(self.dcx().emit_err(
-                span,
-                None,
-                "cannot convert to the super type",
-            ));
+            return self
+                .gcx
+                .mk_ty_err(self.dcx().emit_err(span, "cannot convert to the super type"));
         }
         let WantOne::One(from_expr) = args.exprs().collect::<WantOne<_>>() else {
             return self.gcx.mk_ty_err(
@@ -1461,7 +1456,7 @@ impl<'gcx> TypeChecker<'gcx> {
         };
         let from = self.check_expr(from_expr);
         if matches!(args.kind, hir::CallArgsKind::Named(_)) {
-            return self.gcx.mk_ty_err(self.dcx().emit_err(
+            return self.gcx.mk_ty_err(self.dcx().emit_err_code(
                 span,
                 error_code!(5153),
                 "type conversions cannot take named arguments",
@@ -1474,7 +1469,7 @@ impl<'gcx> TypeChecker<'gcx> {
             && matches!(from.kind, TyKind::IntLiteral(..))
             && invalid_enum_literal(self.gcx, from_expr, self.gcx.hir.enumm(enum_id).variants.len())
         {
-            let mut diag = self.dcx().err_at(span, None, "invalid explicit type conversion");
+            let mut diag = self.dcx().err_at(span, "invalid explicit type conversion");
             diag = diag
                 .span_label(span, TyConvertError::InvalidConversion.message(from, to, self.gcx));
             return self.gcx.mk_ty_err(diag.emit());
@@ -1482,7 +1477,7 @@ impl<'gcx> TypeChecker<'gcx> {
         match from.try_convert_explicit_to(to, self.gcx) {
             Ok(result_ty) => result_ty,
             Err(err) => {
-                let mut diag = self.dcx().err_at(span, None, "invalid explicit type conversion");
+                let mut diag = self.dcx().err_at(span, "invalid explicit type conversion");
                 diag = diag.span_label(span, err.message(from, to, self.gcx));
                 self.gcx.mk_ty_err(diag.emit())
             }
@@ -1499,7 +1494,7 @@ impl<'gcx> TypeChecker<'gcx> {
         match self.expr_matches_expected(expr, actual, expected) {
             Ok(()) => self.check_array_copy_conversion(actual, expected, expr.span),
             Err(err) => {
-                let mut diag = self.dcx().err_at(expr.span, None, "mismatched types");
+                let mut diag = self.dcx().err_at(expr.span, "mismatched types");
                 diag = diag.span_label(expr.span, err.message(actual, expected, self.gcx));
                 Err(diag.emit())
             }
@@ -1513,7 +1508,7 @@ impl<'gcx> TypeChecker<'gcx> {
         expected: Ty<'gcx>,
     ) -> Result<(), ErrorGuaranteed> {
         if invalid_storage_pointer_return(actual, expected) {
-            let mut diag = self.dcx().err_at(expr.span, None, "mismatched types");
+            let mut diag = self.dcx().err_at(expr.span, "mismatched types");
             diag = diag.span_label(
                 expr.span,
                 TyConvertError::Incompatible.message(actual, expected, self.gcx),
@@ -1620,7 +1615,7 @@ impl<'gcx> TypeChecker<'gcx> {
             };
             return Err(self
                 .dcx()
-                .err_at(
+                .err_code_at(
                     expr.span,
                     code,
                     "cannot use the dynamically encoded return value of an external call",
@@ -1686,7 +1681,7 @@ impl<'gcx> TypeChecker<'gcx> {
         // target that is no call at all.
         let is_call = callee_ty.is_some_and(|ty| !matches!(ty.kind, TyKind::Type(_)));
         let code = if is_call { error_code!(2536) } else { error_code!(5347) };
-        self.dcx().emit_err(
+        self.dcx().emit_err_code(
             try_.expr.span,
             code,
             "`try` can only be used with external function calls and contract creation calls",
@@ -1707,7 +1702,7 @@ impl<'gcx> TypeChecker<'gcx> {
         }
 
         if f.returns.len() != clause.args.len() {
-            self.dcx().emit_err(
+            self.dcx().emit_err_code(
                 clause.span,
                 error_code!(2800),
                 format!(
@@ -1749,7 +1744,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 continue;
             }
             self.dcx()
-                .err_at(var.span, error_code!(6509), "mismatched types")
+                .err_code_at(var.span, error_code!(6509), "mismatched types")
                 .span_label(
                     var.span,
                     TyConvertError::Incompatible.message(actual, expected, self.gcx),
@@ -1783,7 +1778,7 @@ impl<'gcx> TypeChecker<'gcx> {
             // `Error` and `Panic` are the only clause names there are, at every EVM version.
             if !matches!(name, None | Some(sym::Error | sym::Panic)) {
                 self.dcx()
-                    .err_at(clause.span, error_code!(3542), "invalid catch clause name")
+                    .err_code_at(clause.span, error_code!(3542), "invalid catch clause name")
                     .help("expected `catch (...)`, `catch Error(...)`, or `catch Panic(...)`")
                     .emit();
                 continue;
@@ -1801,7 +1796,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     _ => (error_code!(6732), "a `Panic`"),
                 };
                 self.dcx()
-                    .err_at(
+                    .err_code_at(
                         clause.span,
                         code,
                         format!("this `try` statement already has {kind} catch clause"),
@@ -1818,7 +1813,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 None => {
                     if !takes(clause, self.gcx.types.bytes_ref.memory) {
                         self.dcx()
-                            .err_at(
+                            .err_code_at(
                                 clause.span,
                                 error_code!(6231),
                                 "invalid low-level catch clause parameters",
@@ -1861,7 +1856,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     };
                     if !takes(clause, ty) {
                         self.dcx()
-                            .err_at(
+                            .err_code_at(
                                 clause.span,
                                 code,
                                 format!("invalid `{name}` catch clause parameters"),
@@ -1998,7 +1993,7 @@ impl<'gcx> TypeChecker<'gcx> {
         let parameters = self.gcx.hir.variable(first).span.to(self.gcx.hir.variable(last).span);
         let base = self.gcx.hir.contract(base_id).name;
         self.dcx()
-            .err_at(
+            .err_code_at(
                 contract.name.span,
                 error_code!(3415),
                 format!("no arguments passed to the base constructor of `{base}`"),
@@ -2024,7 +2019,7 @@ impl<'gcx> TypeChecker<'gcx> {
         // so it only type checks for a modifier without parameters.
         if modifier.args.len() != param_tys.len() {
             self.dcx()
-                .emit_err(
+                .emit_err_code(
                     modifier.span,
                     error_code!(2973),
                     format!(
@@ -2229,7 +2224,7 @@ impl<'gcx> TypeChecker<'gcx> {
         for expr in exprs {
             let ty = self.check_expr_once(expr);
             if ty.kind == TyKind::RationalLiteral {
-                result = result.and(Err(self.dcx().emit_err(
+                result = result.and(Err(self.dcx().emit_err_code(
                     expr.span,
                     error_code!(6090),
                     "fractional numbers cannot be ABI-encoded",
@@ -2243,7 +2238,7 @@ impl<'gcx> TypeChecker<'gcx> {
             if is_packed && matches!(ty.kind, TyKind::IntLiteral(..)) {
                 result = result.and(Err(self
                     .dcx()
-                    .err_at(
+                    .err_code_at(
                         expr.span,
                         error_code!(7279),
                         "cannot perform packed encoding for a literal",
@@ -2268,7 +2263,7 @@ impl<'gcx> TypeChecker<'gcx> {
             if !valid_abi_encodable_arg(ty, self.gcx) {
                 result = result.and(Err(self
                     .dcx()
-                    .err_at(
+                    .err_code_at(
                         expr.span,
                         error_code!(2056),
                         format!("`{}` argument cannot be ABI-encoded", builtin.name()),
@@ -2571,7 +2566,7 @@ impl<'gcx> TypeChecker<'gcx> {
             if !valid_abi_decodable_type(ty, self.gcx) {
                 let guar = self
                     .dcx()
-                    .err_at(type_expr.span, error_code!(9611), "decoding type not supported")
+                    .err_code_at(type_expr.span, error_code!(9611), "decoding type not supported")
                     .span_label(type_expr.span, format!("found `{}`", ty.display(self.gcx)))
                     .emit();
                 tys.push(self.gcx.mk_ty_err(guar));
@@ -2712,14 +2707,14 @@ impl<'gcx> TypeChecker<'gcx> {
             OverloadError::NotFound => ("no matching declarations found", error_code!(9322)),
             OverloadError::Ambiguous => ("no unique declarations found", error_code!(4487)),
         };
-        hir::Res::Err(self.dcx().emit_err(span, code, msg))
+        hir::Res::Err(self.dcx().emit_err_code(span, code, msg))
     }
 
     /// Reports a member access or call that several members match.
     fn report_ambiguous_member(&self, ident: Ident, receiver_ty: Ty<'gcx>) -> Ty<'gcx> {
         let msg =
             format!("member `{ident}` not unique on type `{}`", receiver_ty.display(self.gcx));
-        self.gcx.mk_ty_err(self.dcx().emit_err(ident.span, error_code!(6675), msg))
+        self.gcx.mk_ty_err(self.dcx().emit_err_code(ident.span, error_code!(6675), msg))
     }
 
     fn check_library_self_call(&self, member: &members::Member<'gcx>, span: Span) {
@@ -3192,7 +3187,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     self.expect_ty(init, ty)
                 };
                 if var.is_constant() && !ty.references_error() && !self.is_pure(init) {
-                    self.dcx().emit_err(
+                    self.dcx().emit_err_code(
                         init.span,
                         error_code!(8349),
                         "initial value for constant variable has to be compile-time constant",
@@ -3240,7 +3235,7 @@ impl<'gcx> TypeChecker<'gcx> {
             && matches!(ty.peel_refs().kind, TyKind::Mapping(..))
         {
             self.dcx()
-                .err_at(var.span, None, "uninitialized mapping")
+                .err_at(var.span, "uninitialized mapping")
                 .note("mappings cannot be created dynamically, you have to assign them from a state variable")
                 .emit();
         }
@@ -3273,7 +3268,7 @@ impl<'gcx> TypeChecker<'gcx> {
         if let Some(loc @ (DataLocation::Memory | DataLocation::Calldata)) = ty.loc()
             && !self.ty_fits_location(ty, loc, &mut GrowableBitSet::new_empty())
         {
-            return Err(self.dcx().emit_err(span, code, format!("type too large for {loc}")));
+            return Err(self.dcx().emit_err_code(span, code, format!("type too large for {loc}")));
         }
         Ok(())
     }
@@ -3357,7 +3352,7 @@ impl<'gcx> TypeChecker<'gcx> {
     ) -> ErrorGuaranteed {
         let mut err = self
             .dcx()
-            .err_at(span, None, msg)
+            .err_at(span, msg)
             .note("each head of an ABI encoding must be smaller than 2^32 - 1 bytes");
         if let Some(code) = code {
             err = err.code(code);
@@ -3452,7 +3447,7 @@ impl<'gcx> TypeChecker<'gcx> {
         if self.has_oversized_array(ty, &mut GrowableBitSet::new_empty()) {
             Err(self
                 .dcx()
-                .err_at(span, None, "array is too large to copy or encode")
+                .err_at(span, "array is too large to copy or encode")
                 .note(
                     "copying or encoding arrays with more than 2^64 - 1 elements is not supported",
                 )
@@ -3606,7 +3601,7 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             Err(NotLvalueReason::Generic) | Ok(()) => ("expression has to be an lvalue", None),
         };
-        let mut diag = self.dcx().err_at(expr.span, None, msg);
+        let mut diag = self.dcx().err_at(expr.span, msg);
         if let Some(help) = help {
             diag = diag.help(help);
         }
@@ -3684,7 +3679,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     }
                     OverloadError::Ambiguous => ("no unique declarations found", error_code!(7589)),
                 };
-                hir::Res::Err(self.dcx().emit_err(expr.span, code, msg))
+                hir::Res::Err(self.dcx().emit_err_code(expr.span, code, msg))
             }
         };
         if resolutions.len() > 1 {
@@ -3700,7 +3695,7 @@ impl<'gcx> TypeChecker<'gcx> {
             && self.gcx.hir.function(id).kind.is_modifier()
         {
             let msg = "modifier can only be referenced in function headers";
-            return hir::Res::Err(self.dcx().emit_err(span, error_code!(3112), msg));
+            return hir::Res::Err(self.dcx().emit_err_code(span, error_code!(3112), msg));
         }
         res
     }
@@ -3860,7 +3855,7 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
             && self.gcx.hir.function(id).body.is_none()
         {
             self.dcx()
-                .err_at(modifier.span, error_code!(1835), "cannot call unimplemented modifier")
+                .err_code_at(modifier.span, error_code!(1835), "cannot call unimplemented modifier")
                 .note("the modifier has no implementation in the referenced contract")
                 .help("refer to it by its unqualified name to call the implementation in the most derived contract")
                 .emit();

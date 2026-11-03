@@ -82,7 +82,6 @@ fn profile(gcx: Gcx<'_>, id: hir::ContractId) -> Option<Profile> {
                     gcx.dcx()
                         .err_at(
                             natspec.span,
-                            None,
                             format!("`@custom:solar-safe` has no property `{property}`"),
                         )
                         .help(
@@ -152,7 +151,6 @@ fn check_contract(gcx: Gcx<'_>, id: hir::ContractId, profile: Profile) {
         gcx.dcx()
             .err_at(
                 finding.span,
-                None,
                 format!("`{name}` is tagged `@custom:solar-safe` but runs {what}"),
             )
             .span_note(profile.tag, "the tag is here")

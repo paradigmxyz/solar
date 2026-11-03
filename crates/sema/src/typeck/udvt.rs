@@ -46,7 +46,7 @@ pub(super) fn check_using_operator<'gcx>(
     };
     if let Some(expected) = wrong_params {
         gcx.dcx()
-            .err_at(function.span, None, "wrong parameters in operator definition")
+            .err_at(function.span, "wrong parameters in operator definition")
             .span_note(entry.span, "function was used to implement an operator here")
             .help(format!(
                 "function `{}` needs to have {expected} to be used for operator `{}`",
@@ -68,7 +68,7 @@ pub(super) fn check_using_operator<'gcx>(
     let returns = function_ty.returns;
     if returns.len() != 1 || returns[0] != return_ty {
         gcx.dcx()
-            .err_at(function.span, None, "wrong return parameters in operator definition")
+            .err_at(function.span, "wrong return parameters in operator definition")
             .span_note(entry.span, "function was used to implement an operator here")
             .help(format!(
                 "function `{}` needs to return `{}` to be used for operator `{}`",

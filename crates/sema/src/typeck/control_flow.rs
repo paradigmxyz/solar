@@ -494,7 +494,7 @@ impl Reported {
                     continue;
                 }
                 let action = if returned { "returned" } else { "accessed" };
-                let mut diag = gcx.dcx().err_at(
+                let mut diag = gcx.dcx().err_code_at(
                     span,
                     error_code!(3464),
                     format!(
@@ -519,7 +519,7 @@ impl Reported {
                     None => "unnamed return variable can remain unassigned".to_string(),
                 };
                 gcx.dcx()
-                    .warn_at(span, error_code!(6321), msg)
+                    .warn_code_at(span, error_code!(6321), msg)
                     .help(
                         "add an explicit return with value to all non-reverting code paths or \
                          name the variable",
@@ -529,7 +529,7 @@ impl Reported {
         }
         for &span in &analysis.unreachable {
             if self.unreachable.insert(span) {
-                gcx.dcx().emit_warn(span, error_code!(5740), "unreachable code");
+                gcx.dcx().emit_warn_code(span, error_code!(5740), "unreachable code");
             }
         }
     }

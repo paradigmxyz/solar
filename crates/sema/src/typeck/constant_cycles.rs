@@ -79,10 +79,10 @@ pub(super) fn check(gcx: Gcx<'_>) {
                     gcx.item_name(id),
                     gcx.item_name(via),
                 );
-                gcx.dcx().emit_err(gcx.hir.variable(id).span, error_code!(6161), msg);
+                gcx.dcx().emit_err_code(gcx.hir.variable(id).span, error_code!(6161), msg);
             }
             Found::Exhausted(exhausted) => {
-                gcx.dcx().emit_err(
+                gcx.dcx().emit_err_code(
                     gcx.hir.variable(exhausted).span,
                     error_code!(7380),
                     "variable definition exhausting cyclic dependency validator",
