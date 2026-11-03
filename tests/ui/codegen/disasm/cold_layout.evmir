@@ -3,7 +3,7 @@
 
 @module cold_layout
 
-// CHECK-LABEL: // === cold_layout (runtime) ===
+// CHECK-LABEL: ; === cold_layout (runtime) ===
 // CHECK-NEXT: PUSH1 0x01
 // CHECK-NEXT: PUSH1 0x06 ; bb0
 // CHECK-NEXT: JUMPI

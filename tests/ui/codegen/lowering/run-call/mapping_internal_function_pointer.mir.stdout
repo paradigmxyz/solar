@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/mapping_internal_function_pointer.sol:MappingInternalFunctionPointer ===
+; === ROOT/tests/ui/codegen/lowering/run-call/mapping_internal_function_pointer.sol:MappingInternalFunctionPointer ===
 @module MappingInternalFunctionPointer
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
@@ -71,22 +71,22 @@ fn @internal_dispatcher_p_none_r_none(arg0: i256) [function_pointer_dispatcher] 
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v1 = eq arg0, 2
     jumpi v1, bb3, bb4
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v2 = eq arg0, 3
     jumpi v2, bb5, bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     icall panic_if<0x51>, true
     invalid
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     icall @stage2
     ret
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     icall @stage1
     ret
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     icall @stage0
     ret
 }

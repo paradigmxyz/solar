@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir (after pipeline-default) ===
+; === ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir (after pipeline-default) ===
 @module PingPong
 @phase lowered
 ; runtime dispatch entry
@@ -10,6 +10,6 @@ fn @entry() [entry, cold] {
 fn @pingpong(arg0: i256, arg1: i256) {
   bb0 [cold]:
     jump bb1
-  bb1 [cold]:  ; preds = bb0, bb1
+  bb1 [cold]:                                     ; preds = bb0, bb1
     jump bb1
 }

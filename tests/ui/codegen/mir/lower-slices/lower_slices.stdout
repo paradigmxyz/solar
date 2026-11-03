@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lower-slices/lower_slices.mir (before lower-slices) ===
-+ // === ROOT/tests/ui/codegen/mir/lower-slices/lower_slices.mir (after lower-slices) ===
+- ; === ROOT/tests/ui/codegen/mir/lower-slices/lower_slices.mir (before lower-slices) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-slices/lower_slices.mir (after lower-slices) ===
   @module LowerSlices
 - fn @tail(arg0: slice<calldata>, arg1: i256) -> i256 {
 + fn @tail(arg0: i256, arg1: i256, arg2: i256) -> i256 {

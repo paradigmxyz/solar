@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_numeric_literals.sol:FixedBytesNumericLiterals ===
+; === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_numeric_literals.sol:FixedBytesNumericLiterals ===
 @module FixedBytesNumericLiterals
 ; function wrapBytes1() external pure returns (bytes1) [selector 0xfe67d303]
 fn @wrapBytes1() -> i256 [selector=0xfe67d303, pure, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {

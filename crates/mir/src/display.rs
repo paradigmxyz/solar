@@ -207,23 +207,27 @@ pub(crate) fn display_function_text<'a>(
         block: &'a BasicBlock,
     ) -> impl fmt::Display + 'a {
         fmt::from_fn(move |f| {
-            write!(f, "  bb{}", block_id.index())?;
-            if block.hotness.is_cold() {
-                write!(f, " [cold]")?;
-            }
-            write!(f, ":")?;
-            if !block.predecessors.is_empty() {
-                write!(
-                    f,
-                    "  ; preds = {}",
-                    block.predecessors.iter().format_with(", ", |f, pred| write!(
+            let label = fmt::from_fn(|f| {
+                write!(f, "  bb{}", block_id.index())?;
+                if block.hotness.is_cold() {
+                    write!(f, " [cold]")?;
+                }
+                write!(f, ":")
+            });
+            let preds = (!block.predecessors.is_empty()).then(|| {
+                fmt::from_fn(|f| {
+                    write!(
                         f,
-                        "bb{}",
-                        pred.index()
-                    ))
-                )?;
-            }
-            writeln!(f)?;
+                        "preds = {}",
+                        block.predecessors.iter().format_with(", ", |f, pred| write!(
+                            f,
+                            "bb{}",
+                            pred.index()
+                        ))
+                    )
+                })
+            });
+            writeln!(f, "{}", solar_ir::comment::display_label_comment(label, preds))?;
 
             write!(
                 f,

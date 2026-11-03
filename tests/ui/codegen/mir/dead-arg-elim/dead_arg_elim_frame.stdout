@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/dead-arg-elim/dead_arg_elim_frame.mir (before dead-arg-elim) ===
-+ // === ROOT/tests/ui/codegen/mir/dead-arg-elim/dead_arg_elim_frame.mir (after dead-arg-elim) ===
+- ; === ROOT/tests/ui/codegen/mir/dead-arg-elim/dead_arg_elim_frame.mir (before dead-arg-elim) ===
++ ; === ROOT/tests/ui/codegen/mir/dead-arg-elim/dead_arg_elim_frame.mir (after dead-arg-elim) ===
   @module DeadArgElimFrame
 - fn @framed(arg0: i256, arg1: i256, arg2: i256) -> i256 {
 + fn @framed(arg0: i256, arg1: i256) -> i256 {

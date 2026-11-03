@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/block-layout/shared_call_and_stub.evmir (before block-layout) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/block-layout/shared_call_and_stub.evmir (after block-layout) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/block-layout/shared_call_and_stub.evmir (before block-layout) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/block-layout/shared_call_and_stub.evmir (after block-layout) ===
   @module shared_call_and_stub
   bb0:
     calldatasize

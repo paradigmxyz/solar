@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/nested_storage_reference_tuple.sol:NestedStorageReferenceTuple ===
+; === ROOT/tests/ui/codegen/lowering/run-call/nested_storage_reference_tuple.sol:NestedStorageReferenceTuple ===
 @module NestedStorageReferenceTuple
 @types
   struct0: {i256, i256, i256, i256}
@@ -87,11 +87,11 @@ fn @fromFunctionPointer() -> struct0 [selector=0xceab4ac0, abi_params=[], abi_re
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     jumpi true, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v4 = phi [bb1: 1], [bb2: 1]
     v5 = icall @internal_dispatcher_p_none_r_storageptr_storageptr, v4
     v6 = extract_value struct1, v5, 0
@@ -171,10 +171,10 @@ fn @internal_dispatcher_p_none_r_storageptr_storageptr(arg0: i256) -> struct1 [f
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = icall @pair
     ret v1
 }

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/storage_large_fixed_array_index.sol:StorageLargeFixedArrayIndex ===
+; === ROOT/tests/ui/codegen/lowering/run-call/storage_large_fixed_array_index.sol:StorageLargeFixedArrayIndex ===
 @module StorageLargeFixedArrayIndex
 @types
   struct0: {i256, i256}

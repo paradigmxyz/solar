@@ -1,15 +1,15 @@
-- // === ROOT/tests/ui/codegen/mir/licm/builder_cases.mir (before licm) ===
-+ // === ROOT/tests/ui/codegen/mir/licm/builder_cases.mir (after licm) ===
+- ; === ROOT/tests/ui/codegen/mir/licm/builder_cases.mir (before licm) ===
++ ; === ROOT/tests/ui/codegen/mir/licm/builder_cases.mir (after licm) ===
   @module LicmBuilderCases
   fn @hoist_mul(arg0: i256) {
     bb0:
 +     v0 = mul arg0, 7
       jump bb1
-    bb1:  ; preds = bb0, bb2
+    bb1:                                            ; preds = bb0, bb2
       jumpi true, bb2, bb3
-    bb3:  ; preds = bb1
+    bb3:                                            ; preds = bb1
       stop
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
 -     v0 = mul arg0, 7
       jump bb1
   }
@@ -18,11 +18,11 @@
     bb0:
 +     v0 = clz arg0
       jump bb1
-    bb1:  ; preds = bb0, bb2
+    bb1:                                            ; preds = bb0, bb2
       jumpi true, bb2, bb3
-    bb3:  ; preds = bb1
+    bb3:                                            ; preds = bb1
       stop
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
 -     v0 = clz arg0
       jump bb1
   }
@@ -31,12 +31,12 @@
     bb0:
 +     v1 = sload 0 !metadata(storage=slot(0))
       jump bb1
-    bb1:  ; preds = bb0, bb2
+    bb1:                                            ; preds = bb0, bb2
       v0 = phi [bb0: 0], [bb2: v1]
       jumpi true, bb2, bb3
-    bb3:  ; preds = bb1
+    bb3:                                            ; preds = bb1
       ret v0
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
 -     v1 = sload 0
 -     sstore 1, 1
 +     sstore 1, 1 !metadata(storage=slot(1))
@@ -46,12 +46,12 @@
   fn @keep_aliasing_sload() -> i256 {
     bb0:
       jump bb1
-    bb1:  ; preds = bb0, bb2
+    bb1:                                            ; preds = bb0, bb2
       v0 = phi [bb0: 0], [bb2: v1]
       jumpi true, bb2, bb3
-    bb3:  ; preds = bb1
+    bb3:                                            ; preds = bb1
       ret v0
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
 -     v1 = sload 0
 -     sstore 0, 1
 +     v1 = sload 0 !metadata(storage=slot(0))
@@ -62,12 +62,12 @@
   fn @keep_work_after_gas(arg0: i256) -> i256 {
     bb0:
       jump bb1
-    bb1:  ; preds = bb0, bb2
+    bb1:                                            ; preds = bb0, bb2
       v0 = phi [bb0: 0], [bb2: v2]
       jumpi true, bb2, bb3
-    bb3:  ; preds = bb1
+    bb3:                                            ; preds = bb1
       ret v0
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       v1 = gas
       v2 = mul arg0, 7
       jump bb1

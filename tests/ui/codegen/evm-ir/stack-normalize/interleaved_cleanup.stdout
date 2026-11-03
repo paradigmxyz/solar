@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/stack-normalize/interleaved_cleanup.evmir (before stack-normalize) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/stack-normalize/interleaved_cleanup.evmir (after stack-normalize) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/stack-normalize/interleaved_cleanup.evmir (before stack-normalize) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/stack-normalize/interleaved_cleanup.evmir (after stack-normalize) ===
   @module InterleavedCleanup
   bb0:
     push 0

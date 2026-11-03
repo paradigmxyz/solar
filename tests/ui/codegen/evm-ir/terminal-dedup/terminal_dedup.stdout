@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/terminal-dedup/terminal_dedup.evmir (before terminal-dedup) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/terminal-dedup/terminal_dedup.evmir (after terminal-dedup) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/terminal-dedup/terminal_dedup.evmir (before terminal-dedup) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/terminal-dedup/terminal_dedup.evmir (after terminal-dedup) ===
   @module module
   bb0:
     push 1

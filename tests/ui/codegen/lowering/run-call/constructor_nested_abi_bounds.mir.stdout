@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_nested_abi_bounds.sol:NestedConstructor ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_nested_abi_bounds.sol:NestedConstructor ===
 @module NestedConstructor
 ; constructor(bytes[] memory values) [creation entry]
 fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[array<_, bytes>]] {
@@ -64,7 +64,7 @@ fn @lengths() -> i256 [selector=0xdab1fa12, view, abi_params=[], abi_returns=[wo
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_nested_abi_bounds.sol:ConstructorNestedAbiBounds ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_nested_abi_bounds.sol:ConstructorNestedAbiBounds ===
 @module ConstructorNestedAbiBounds
 @data
   NestedConstructor_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/constructor_nested_abi_bounds.sol:NestedConstructor"
@@ -75,11 +75,11 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v0 = alloc zeroed checked 96
     mstore v0, 2
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v6]
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v7 = alloc 96 !metadata(preserves_fmp)
     mstore v7, 62
     v8 = ptradd v7, 32
@@ -116,17 +116,17 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v29 = create 0, v23, v27
     v30 = ne v29, i160 0
     jumpi v30, bb5, bb4
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     revert_returndata
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     v31 = gas
     mstore 0, 0xa1c6d2f6 !metadata(memory=scratch)
     v32 = zext i160 v29 to i256
     v33 = staticcall v31, v32, 28, 4, 0, 32
     jumpi v33, bb7, bb6
-  bb6:  ; preds = bb5
+  bb6:                                            ; preds = bb5
     revert_returndata
-  bb7:  ; preds = bb5
+  bb7:                                            ; preds = bb5
     v34 = returndatasize
     v35 = lt v34, 32
     icall revert_if<tuple_data_too_short>, v35
@@ -142,17 +142,17 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v44 = keccak256 v42, v43
     v45 = eq v36, v44
     jumpi v45, bb8, bb9
-  bb9:  ; preds = bb7
+  bb9:                                            ; preds = bb7
     jump bb10
-  bb8:  ; preds = bb7
+  bb8:                                            ; preds = bb7
     v46 = gas
     mstore 0, 0xf7996542 !metadata(memory=scratch)
     v47 = zext i160 v29 to i256
     v48 = staticcall v46, v47, 28, 4, 0, 32
     jumpi v48, bb12, bb11
-  bb11:  ; preds = bb8
+  bb11:                                           ; preds = bb8
     revert_returndata
-  bb12:  ; preds = bb8
+  bb12:                                           ; preds = bb8
     v49 = returndatasize
     v50 = lt v49, 32
     icall revert_if<tuple_data_too_short>, v50
@@ -168,16 +168,16 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v59 = keccak256 v57, v58
     v60 = eq v51, v59
     jump bb10
-  bb10:  ; preds = bb12, bb9
+  bb10:                                           ; preds = bb12, bb9
     v61 = phi [bb12: v60], [bb9: false]
     v62 = gas
     mstore 0, 0xdab1fa12 !metadata(memory=scratch)
     v63 = zext i160 v29 to i256
     v64 = staticcall v62, v63, 28, 4, 0, 32
     jumpi v64, bb14, bb13
-  bb13:  ; preds = bb10
+  bb13:                                           ; preds = bb10
     revert_returndata
-  bb14:  ; preds = bb10
+  bb14:                                           ; preds = bb10
     v65 = returndatasize
     v66 = lt v65, 32
     icall revert_if<tuple_data_too_short>, v66
@@ -200,22 +200,22 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v81 = or v74, v80
     v82 = eq v67, v81
     jumpi v61, bb15, bb16
-  bb16:  ; preds = bb14
+  bb16:                                           ; preds = bb14
     jump bb17
-  bb15:  ; preds = bb14
+  bb15:                                           ; preds = bb14
     jump bb17
-  bb17:  ; preds = bb15, bb16
+  bb17:                                           ; preds = bb15, bb16
     v83 = phi [bb15: v82], [bb16: false]
     jumpi v83, bb18, bb19
-  bb19:  ; preds = bb17
+  bb19:                                           ; preds = bb17
     jump bb20
-  bb18:  ; preds = bb17
+  bb18:                                           ; preds = bb17
     jump bb20
-  bb20:  ; preds = bb18, bb19
+  bb20:                                           ; preds = bb18, bb19
     v84 = phi [bb18: i8 1], [bb19: i8 0]
     v85 = zext i8 v84 to i256
     ret v85
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32

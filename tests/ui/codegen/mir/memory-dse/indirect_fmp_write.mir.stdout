@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/memory-dse/indirect_fmp_write.sol:Test ===
+; === ROOT/tests/ui/codegen/mir/memory-dse/indirect_fmp_write.sol:Test ===
 @module Test
 ; function unknownWrite(uint256 offset) external pure returns (uint256 result) [selector 0x7cc8e333]
 fn @unknownWrite(arg0: i256) -> i256 [selector=0x7cc8e333, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {

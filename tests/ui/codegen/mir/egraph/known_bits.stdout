@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/egraph/known_bits.mir (before egraph) ===
-+ // === ROOT/tests/ui/codegen/mir/egraph/known_bits.mir (after egraph) ===
+- ; === ROOT/tests/ui/codegen/mir/egraph/known_bits.mir (before egraph) ===
++ ; === ROOT/tests/ui/codegen/mir/egraph/known_bits.mir (after egraph) ===
   @module KnownBits
   @types
     struct0: {i256, i256, i256, i256}
@@ -60,11 +60,11 @@
     bb0:
       v0 = byte 31, arg0
       jumpi arg1, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       jump bb3
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       jump bb3
-    bb3:  ; preds = bb1, bb2
+    bb3:                                            ; preds = bb1, bb2
       v1 = phi [bb1: v0], [bb2: 7]
 -     v2 = and v1, 255
 -     ret v2

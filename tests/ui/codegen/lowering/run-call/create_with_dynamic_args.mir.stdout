@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/create_with_dynamic_args.sol:Token ===
+; === ROOT/tests/ui/codegen/lowering/run-call/create_with_dynamic_args.sol:Token ===
 @module Token
 ; constructor(string memory n, uint8 d) [creation entry]
 fn @constructor(arg0: ptr<memory>, arg1: i8) [constructor, abi_params=[bytes, uint8]] {
@@ -34,7 +34,7 @@ fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/create_with_dynamic_args.sol:Factory ===
+; === ROOT/tests/ui/codegen/lowering/run-call/create_with_dynamic_args.sol:Factory ===
 @module Factory
 @types
   struct0: {i256, i8}
@@ -61,17 +61,17 @@ fn @makeAndRead() -> struct0 [selector=0x42c589ac, abi_params=[], abi_returns=[w
     v9 = create 0, v3, v7
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v11 = gas
     mstore 0, 0x6fdde03 !metadata(memory=scratch)
     v12 = zext i160 v9 to i256
     v13 = staticcall v11, v12, 28, 4, 0, 0
     jumpi v13, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v14 = icall returndata_bytes<>
     v15 = abi_decode [bytes], v14
     v16 = mload v15
@@ -80,9 +80,9 @@ fn @makeAndRead() -> struct0 [selector=0x42c589ac, abi_params=[], abi_returns=[w
     v18 = zext i160 v9 to i256
     v19 = staticcall v17, v18, 28, 4, 0, 32
     jumpi v19, bb6, bb5
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     revert_returndata
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     v20 = returndatasize
     v21 = lt v20, 32
     icall revert_if<tuple_data_too_short>, v21

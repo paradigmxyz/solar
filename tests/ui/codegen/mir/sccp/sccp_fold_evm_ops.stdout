@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/sccp/sccp_fold_evm_ops.mir (before sccp) ===
-+ // === ROOT/tests/ui/codegen/mir/sccp/sccp_fold_evm_ops.mir (after sccp) ===
+- ; === ROOT/tests/ui/codegen/mir/sccp/sccp_fold_evm_ops.mir (before sccp) ===
++ ; === ROOT/tests/ui/codegen/mir/sccp/sccp_fold_evm_ops.mir (after sccp) ===
   @module SccpFoldEvmOps
   fn @sdiv_min_by_neg_one() -> i1 {
     bb0:

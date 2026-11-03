@@ -1,8 +1,8 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/attached_this_call.sol:ThisMethods ===
+; === ROOT/tests/ui/codegen/lowering/run-call/attached_this_call.sol:ThisMethods ===
 @module ThisMethods
 @library
 
-// === ROOT/tests/ui/codegen/lowering/run-call/attached_this_call.sol:AttachedThisCall ===
+; === ROOT/tests/ui/codegen/lowering/run-call/attached_this_call.sol:AttachedThisCall ===
 @module AttachedThisCall
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
@@ -27,15 +27,15 @@ fn @attachedThis() -> i1 [selector=0x9c4e0a78, view, abi_params=[], abi_returns=
     v1 = trunc i256 v0 to i8
     v2 = ne v1, i8 0
     jumpi v2, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v3 = address
     v4 = icall @selfAddress, v3
     v5 = address
     v6 = eq v4, v5
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v7 = phi [bb1: v6], [bb2: false]
     ret v7
 }
@@ -68,9 +68,9 @@ fn @addValue(arg0: i160, arg1: i256) -> i256 [pure] {
     v1 = zext i160 arg0 to i256
     v2 = staticcall v0, v1, 28, 4, 0, 32
     jumpi v2, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v3 = returndatasize
     v4 = lt v3, 32
     icall revert_if<tuple_data_too_short>, v4

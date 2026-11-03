@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/memory-dse/abi_encode_base_scratch.mir (before memory-dse) ===
-+ // === ROOT/tests/ui/codegen/mir/memory-dse/abi_encode_base_scratch.mir (after memory-dse) ===
+- ; === ROOT/tests/ui/codegen/mir/memory-dse/abi_encode_base_scratch.mir (before memory-dse) ===
++ ; === ROOT/tests/ui/codegen/mir/memory-dse/abi_encode_base_scratch.mir (after memory-dse) ===
   @module AbiEncodeBaseScratch
   fn @scratch_base() {
     bb0:

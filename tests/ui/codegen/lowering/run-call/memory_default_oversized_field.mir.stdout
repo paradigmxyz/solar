@@ -1,15 +1,15 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/memory_default_oversized_field.sol:C ===
+; === ROOT/tests/ui/codegen/lowering/run-call/memory_default_oversized_field.sol:C ===
 @module C
 ; function fixedElement() public pure returns (uint256) [selector 0x6c852d57]
 fn @fixedElement() -> i256 [selector=0x6c852d57, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = alloc 32 !metadata(preserves_fmp)
     jump bb1
-  bb1:  ; preds = bb0, bb4
+  bb1:                                            ; preds = bb0, bb4
     v1 = phi [bb0: 0], [bb4: v7]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v8 = lt 0, 1
     v9 = eq v8, false
     icall panic_if<0x32>, v9
@@ -21,7 +21,7 @@ fn @fixedElement() -> i256 [selector=0x6c852d57, pure, abi_params=[], abi_return
     v14 = ptradd v11, 64
     v15 = mload v14
     ret v15
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v3 = alloc 32 !metadata(preserves_fmp)
     icall panic_if<0x41>, true
     invalid
@@ -41,11 +41,11 @@ fn @dynamicElement() -> i256 [selector=0x11dbd815, pure, abi_params=[], abi_retu
     v0 = alloc zeroed checked 64
     mstore v0, 1
     jump bb1
-  bb1:  ; preds = bb0, bb4
+  bb1:                                            ; preds = bb0, bb4
     v1 = phi [bb0: 0], [bb4: v8]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v9 = mload v0
     v10 = gt v9, 0
     v11 = eq v10, false
@@ -59,7 +59,7 @@ fn @dynamicElement() -> i256 [selector=0x11dbd815, pure, abi_params=[], abi_retu
     v17 = ptradd v14, 64
     v18 = mload v17
     ret v18
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v3 = alloc 32 !metadata(preserves_fmp)
     icall panic_if<0x41>, true
     invalid

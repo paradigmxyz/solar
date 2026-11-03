@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/egraph/sext_mask_runtime.sol:SextMask ===
+; === ROOT/tests/ui/codegen/mir/egraph/sext_mask_runtime.sol:SextMask ===
 @module SextMask
 ; function widen8(uint256 w) external pure returns (int256) [selector 0xcfc9acca]
 fn @widen8(arg0: i256) -> i256 [selector=0xcfc9acca, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[int256]] {

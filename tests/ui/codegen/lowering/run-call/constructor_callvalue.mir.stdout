@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:ExplicitNonpayable ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:ExplicitNonpayable ===
 @module ExplicitNonpayable
 ; constructor(uint256) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
@@ -6,10 +6,10 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:ImplicitNonpayable ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:ImplicitNonpayable ===
 @module ImplicitNonpayable
 
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:SyntheticNonpayable ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:SyntheticNonpayable ===
 @module SyntheticNonpayable
 ; creation entry
 fn @constructor() [constructor] {
@@ -18,7 +18,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:PayableBase ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:PayableBase ===
 @module PayableBase
 ; constructor() payable [creation entry]
 fn @constructor() [constructor, payable] {
@@ -26,17 +26,17 @@ fn @constructor() [constructor, payable] {
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:InheritedNonpayable ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:InheritedNonpayable ===
 @module InheritedNonpayable
 ; creation entry
 fn @constructor() [constructor] {
   bb0:
     jump bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:ExplicitPayable ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:ExplicitPayable ===
 @module ExplicitPayable
 ; constructor() payable [creation entry]
 fn @constructor() [constructor, payable] {
@@ -44,7 +44,7 @@ fn @constructor() [constructor, payable] {
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:ConstructorCallvalue ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:ConstructorCallvalue ===
 @module ConstructorCallvalue
 @data
   ExplicitNonpayable_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:ExplicitNonpayable"
@@ -148,14 +148,14 @@ fn @acceptsPayable() -> i1 [selector=0xd6e5da6b, payable, abi_params=[], abi_ret
     v8 = trunc i256 v7 to i160
     v9 = ne v8, i160 0
     jumpi v9, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v10 = balance v7
     v11 = callvalue
     v12 = eq v10, v11
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v13 = phi [bb1: v12], [bb2: false]
     ret v13
 }

@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/block-cse/known_stores.evmir (before block-cse) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/block-cse/known_stores.evmir (after block-cse) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/block-cse/known_stores.evmir (before block-cse) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/block-cse/known_stores.evmir (after block-cse) ===
   @module module
   bb0:
     push 7

@@ -1,6 +1,6 @@
-// === ROOT/tests/ui/codegen/lowering/switch/lowerings.sol:SwitchLowerings (runtime) ===
+; === ROOT/tests/ui/codegen/lowering/switch/lowerings.sol:SwitchLowerings (runtime) ===
 @module SwitchLowerings_runtime
-bb0:  ; runtime dispatch entry + fallback() external [fallback]
+bb0:                                              ; runtime dispatch entry + fallback() external [fallback]
   callvalue
   push bb12
   jumpi
@@ -104,7 +104,7 @@ bb11:
   push 32
   push 0
   return
-// === ROOT/tests/ui/codegen/lowering/switch/lowerings.sol:SwitchLowerings (runtime) ===
+; === ROOT/tests/ui/codegen/lowering/switch/lowerings.sol:SwitchLowerings (runtime) ===
 CALLVALUE
 PUSH1 0x1c ; bb0
 JUMPI

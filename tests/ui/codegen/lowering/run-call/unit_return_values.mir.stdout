@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/unit_return_values.sol:UnitReturnValues ===
+; === ROOT/tests/ui/codegen/lowering/run-call/unit_return_values.sol:UnitReturnValues ===
 @module UnitReturnValues
 ; function deleteReturn() external returns (uint256) [selector 0x2ff7c86b]
 fn @deleteReturn() -> i256 [selector=0x2ff7c86b, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -44,12 +44,12 @@ fn @conditionalReturn(arg0: i1) -> i256 [selector=0xb8c11060, abi_params=[bool],
 fn @selectAndReturn(arg0: i1) {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     icall @assignAndReturn
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     icall @deleteAndReturn
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     ret
 }

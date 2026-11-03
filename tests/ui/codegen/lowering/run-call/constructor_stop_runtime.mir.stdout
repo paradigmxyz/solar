@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_stop_runtime.sol:ConstructorStopRuntime ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_stop_runtime.sol:ConstructorStopRuntime ===
 @module ConstructorStopRuntime
 @data
   ConstructorStopAlways_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/constructor_stop_runtime.sol:ConstructorStopAlways"
@@ -13,9 +13,9 @@ fn @unconditional() -> i256 [selector=0x7d06b8f6, abi_params=[], abi_returns=[wo
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = zext i160 v2 to i256
     v5 = extcodesize v4
     ret v5
@@ -34,9 +34,9 @@ fn @conditional(arg0: i1) -> i256 [selector=0x9077f189, abi_params=[bool], abi_r
     v6 = create 0, v1, v5
     v7 = ne v6, i160 0
     jumpi v7, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v8 = zext i160 v6 to i256
     v9 = extcodesize v8
     ret v9
@@ -56,16 +56,16 @@ fn @conditionalContinues() -> i1 [selector=0x828f9845, abi_params=[], abi_return
     v7 = create 0, v2, v6
     v8 = ne v7, i160 0
     jumpi v8, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v9 = zext i160 v7 to i256
     v10 = extcodesize v9
     v11 = ne v10, 0
     ret v11
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_stop_runtime.sol:ConstructorStopAlways ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_stop_runtime.sol:ConstructorStopAlways ===
 @module ConstructorStopAlways
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
@@ -81,18 +81,18 @@ fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_stop_runtime.sol:ConstructorStopConditional ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_stop_runtime.sol:ConstructorStopConditional ===
 @module ConstructorStopConditional
 ; constructor(bool halt) [creation entry]
 fn @constructor(arg0: i1) [constructor, abi_params=[bool]] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
     jumpi arg0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     ret
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     stop
 }
 

@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/dead-arg-elim/dead_arg_elim_args.mir (before dead-arg-elim) ===
-+ // === ROOT/tests/ui/codegen/mir/dead-arg-elim/dead_arg_elim_args.mir (after dead-arg-elim) ===
+- ; === ROOT/tests/ui/codegen/mir/dead-arg-elim/dead_arg_elim_args.mir (before dead-arg-elim) ===
++ ; === ROOT/tests/ui/codegen/mir/dead-arg-elim/dead_arg_elim_args.mir (after dead-arg-elim) ===
   @module DeadArgElimArgs
 - fn @leaf(arg0: i256, arg1: i256, arg2: i256) -> i256 {
 + fn @leaf(arg0: i256, arg1: i256) -> i256 {
@@ -21,9 +21,9 @@
 + fn @recursive(arg0: i1, arg1: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       ret arg1
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
 -     v0 = icall @recursive, false, arg1, arg2
 +     v0 = icall @recursive, false, arg1
       ret v0
@@ -71,11 +71,11 @@
 + fn @same_argument(arg0: i1, arg1: i256) {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       sstore 1, arg1
 -     ret arg1
 +     ret
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       sstore 0, arg1
 -     ret arg1
 +     ret
@@ -84,18 +84,18 @@
   fn @different_arguments(arg0: i1, arg1: i256, arg2: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       ret arg2
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       ret arg1
   }
   
   fn @tail_result(arg0: i1, arg1: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       tail_call @different_arguments, arg0, arg1, 11
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       ret arg1
   }
   
@@ -121,14 +121,14 @@
   fn @constant(arg0: i1, arg1: i1, arg2: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       jumpi arg1, bb3, bb4
-    bb4 [cold]:  ; preds = bb2
+    bb4 [cold]:                                     ; preds = bb2
       revert 0, 0
-    bb3:  ; preds = bb2
+    bb3:                                            ; preds = bb2
       sstore 1, arg2
       ret 9
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       sstore 0, arg2
       ret 9
   }
@@ -136,9 +136,9 @@
   fn @different_constants(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       ret 10
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       ret 9
   }
   

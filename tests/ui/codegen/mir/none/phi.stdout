@@ -1,14 +1,14 @@
-- // === ROOT/tests/ui/codegen/mir/none/phi.mir (before none) ===
-+ // === ROOT/tests/ui/codegen/mir/none/phi.mir (after none) ===
+- ; === ROOT/tests/ui/codegen/mir/none/phi.mir (before none) ===
++ ; === ROOT/tests/ui/codegen/mir/none/phi.mir (after none) ===
   @module PhiTest
   fn @diamond(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       jump bb3
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       jump bb3
-    bb3:  ; preds = bb1, bb2
+    bb3:                                            ; preds = bb1, bb2
       v0 = phi [bb1: 10], [bb2: 20]
       ret v0
   }

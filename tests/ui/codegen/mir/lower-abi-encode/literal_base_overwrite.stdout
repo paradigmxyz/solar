@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lower-abi-encode/literal_base_overwrite.mir (before lower-abi-encode) ===
-+ // === ROOT/tests/ui/codegen/mir/lower-abi-encode/literal_base_overwrite.mir (after lower-abi-encode) ===
+- ; === ROOT/tests/ui/codegen/mir/lower-abi-encode/literal_base_overwrite.mir (before lower-abi-encode) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-abi-encode/literal_base_overwrite.mir (after lower-abi-encode) ===
   @module LiteralBaseOverwrite
   fn @unrelated_base(arg0: ptr<memory>) -> slice<memory> {
     bb0:

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/run-call/shifted_masks.sol:ShiftedMasks ===
+; === ROOT/tests/ui/codegen/run-call/shifted_masks.sol:ShiftedMasks ===
 @module ShiftedMasks
 ; function signedMax(int256 x) external pure returns (int256) [selector 0x0c9f2282]
 fn @signedMax(arg0: i256) -> i256 [selector=0x0c9f2282, pure, abi_params=[int256], abi_returns=[word], abi_return_params=[int256]] {

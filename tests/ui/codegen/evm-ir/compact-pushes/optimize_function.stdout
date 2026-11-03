@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/evm-ir/compact-pushes/optimize_function.sol:Encoding (runtime) ===
+; === ROOT/tests/ui/codegen/evm-ir/compact-pushes/optimize_function.sol:Encoding (runtime) ===
 PUSH1 0x24
 CALLDATASIZE
 LT

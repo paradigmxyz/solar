@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/forwarded_calldata_slice_return.sol:ForwardedCalldataSliceReturn ===
+; === ROOT/tests/ui/codegen/lowering/run-call/forwarded_calldata_slice_return.sol:ForwardedCalldataSliceReturn ===
 @module ForwardedCalldataSliceReturn
 @types
   struct0: {i256, ptr<memory>}
@@ -337,10 +337,10 @@ fn @internal_dispatcher_p_slice_calldata_r_slice_calldata(arg0: i256, arg1: slic
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = icall @_identity, arg1
     ret v1
 }

@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/outline/shared_return_tail.evmir (before outline) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/outline/shared_return_tail.evmir (after outline) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/outline/shared_return_tail.evmir (before outline) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/outline/shared_return_tail.evmir (after outline) ===
   @module shared_return_tail
   bb0:
 -   push 64
@@ -177,8 +177,8 @@
 + bb27 [continuation]:
     stop
   
-- // === ROOT/tests/ui/codegen/evm-ir/outline/shared_return_tail.evmir (before tail-merge) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/outline/shared_return_tail.evmir (after tail-merge) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/outline/shared_return_tail.evmir (before tail-merge) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/outline/shared_return_tail.evmir (after tail-merge) ===
   @module shared_return_tail
   bb0:
     push bb15

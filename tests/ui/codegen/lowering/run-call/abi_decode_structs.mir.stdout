@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_structs.sol:AbiDecodeStructsRunCall ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_structs.sol:AbiDecodeStructsRunCall ===
 @module AbiDecodeStructsRunCall
 @types
   struct0: {i160, ptr<memory>}
@@ -294,11 +294,11 @@ fn @dynamicArrayRoundtrip() -> struct4 [selector=0x533c608a, pure, abi_params=[]
     v0 = alloc zeroed checked 96
     mstore v0, 2
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v10]
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v11 = alloc 96 !metadata(preserves_fmp)
     mstore v11, 0
     v12 = ptradd v11, 32
@@ -386,7 +386,7 @@ fn @dynamicArrayRoundtrip() -> struct4 [selector=0x533c608a, pure, abi_params=[]
     v67 = insert_value struct4, v66, 2, v63
     v68 = insert_value struct4, v67, 3, v64
     ret v68
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v3 = alloc 96 !metadata(preserves_fmp)
     mstore v3, 0
     v4 = ptradd v3, 32
@@ -407,11 +407,11 @@ fn @fixedDynamicRoundtrip() -> struct5 [selector=0x273ceef0, pure, abi_params=[]
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v5]
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v6 = alloc 64 !metadata(preserves_fmp)
     mstore v6, 1
     v7 = ptradd v6, 32
@@ -447,7 +447,7 @@ fn @fixedDynamicRoundtrip() -> struct5 [selector=0x273ceef0, pure, abi_params=[]
     v28 = insert_value struct5, undef struct5, 0, v22
     v29 = insert_value struct5, v28, 1, v27
     ret v29
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v3 = shl v1, 5
     v4 = ptradd v0, v3
     mstore v4, 96

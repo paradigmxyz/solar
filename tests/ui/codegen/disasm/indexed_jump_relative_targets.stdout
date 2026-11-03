@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/disasm/indexed_jump_relative_targets.evmir (before none) ===
-+ // === ROOT/tests/ui/codegen/disasm/indexed_jump_relative_targets.evmir (after none) ===
+- ; === ROOT/tests/ui/codegen/disasm/indexed_jump_relative_targets.evmir (before none) ===
++ ; === ROOT/tests/ui/codegen/disasm/indexed_jump_relative_targets.evmir (after none) ===
   @module relative_targets
   bb0:
     push 1
@@ -35,7 +35,7 @@
   bb11:
     stop
   
-// === relative_targets (runtime) ===
+; === relative_targets (runtime) ===
 PUSH1 0x01
 PUSH1 0x16
 ADD

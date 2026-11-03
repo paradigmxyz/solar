@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_nested_aggregate_forwarding.sol:ConstructorAggregateBase ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_nested_aggregate_forwarding.sol:ConstructorAggregateBase ===
 @module ConstructorAggregateBase
 ; constructor(Entry[] memory input) [creation entry]
 fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[array<_, tuple<uint256, bytes>>]] {
@@ -7,24 +7,24 @@ fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[array<_, tuple<uint
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = lt v0, v1
     jumpi v2, bb1, bb2
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb7
+  bb3:                                            ; preds = bb1, bb7
     v3 = phi [bb1: v0], [bb7: v18]
     v4 = lt v3, v1
     jumpi v4, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb2
-  bb2:  ; preds = bb0, bb5
+  bb2:                                            ; preds = bb0, bb5
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb8
-  bb8:  ; preds = bb2, bb9
+  bb8:                                            ; preds = bb2, bb9
     v19 = phi [bb2: 0], [bb9: v33]
     v20 = lt v19, v0
     jumpi v20, bb9, bb10
-  bb10:  ; preds = bb8
+  bb10:                                           ; preds = bb8
     ret
-  bb9:  ; preds = bb8
+  bb9:                                            ; preds = bb8
     v21 = shl v19, 5
     v22 = ptradd arg0, v21
     v23 = ptradd v22, 32
@@ -41,7 +41,7 @@ fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[array<_, tuple<uint
     icall @store_storage_bytes, v29, v32
     v33 = add v19, 1
     jump bb8
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v5 = storage_array_data_slot 0
     v6 = mul v3, 2
     v7 = add v5, v6
@@ -58,10 +58,10 @@ fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[array<_, tuple<uint
     v16 = add v15, 31
     v17 = div v16, 32
     jumpi v11, bb6, bb7
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     clear_storage_words v8, 0, v17
     jump bb7
-  bb7:  ; preds = bb4, bb6
+  bb7:                                            ; preds = bb4, bb6
     sstore v8, 0 !metadata(storage=offset(v7, 1))
     v18 = add v3, 1
     jump bb3
@@ -73,7 +73,7 @@ fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_nested_aggregate_forwarding.sol:ConstructorAggregateMain ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_nested_aggregate_forwarding.sol:ConstructorAggregateMain ===
 @module ConstructorAggregateMain
 ; constructor(Entry[] memory input) ConstructorAggregateBase(input) [creation entry]
 fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[array<_, tuple<uint256, bytes>>]] {
@@ -82,28 +82,28 @@ fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[array<_, tuple<uint
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = lt v0, v1
     jumpi v2, bb2, bb3
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb4
-  bb4:  ; preds = bb2, bb8
+  bb4:                                            ; preds = bb2, bb8
     v3 = phi [bb2: v0], [bb8: v18]
     v4 = lt v3, v1
     jumpi v4, bb5, bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb0, bb6
+  bb3:                                            ; preds = bb0, bb6
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb9
-  bb9:  ; preds = bb3, bb10
+  bb9:                                            ; preds = bb3, bb10
     v19 = phi [bb3: 0], [bb10: v33]
     v20 = lt v19, v0
     jumpi v20, bb10, bb11
-  bb11:  ; preds = bb9
+  bb11:                                           ; preds = bb9
     jump bb1
-  bb1:  ; preds = bb11
+  bb1:                                            ; preds = bb11
     jump bb12
-  bb12:  ; preds = bb1
+  bb12:                                           ; preds = bb1
     ret
-  bb10:  ; preds = bb9
+  bb10:                                           ; preds = bb9
     v21 = shl v19, 5
     v22 = ptradd arg0, v21
     v23 = ptradd v22, 32
@@ -120,7 +120,7 @@ fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[array<_, tuple<uint
     icall @store_storage_bytes, v29, v32
     v33 = add v19, 1
     jump bb9
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     v5 = storage_array_data_slot 0
     v6 = mul v3, 2
     v7 = add v5, v6
@@ -137,10 +137,10 @@ fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[array<_, tuple<uint
     v16 = add v15, 31
     v17 = div v16, 32
     jumpi v11, bb7, bb8
-  bb7:  ; preds = bb5
+  bb7:                                            ; preds = bb5
     clear_storage_words v8, 0, v17
     jump bb8
-  bb8:  ; preds = bb5, bb7
+  bb8:                                            ; preds = bb5, bb7
     sstore v8, 0 !metadata(storage=offset(v7, 1))
     v18 = add v3, 1
     jump bb4
@@ -203,7 +203,7 @@ fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_nested_aggregate_forwarding.sol:Creator ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_nested_aggregate_forwarding.sol:Creator ===
 @module Creator
 @data
   ConstructorAggregateMain_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/constructor_nested_aggregate_forwarding.sol:ConstructorAggregateMain"
@@ -214,11 +214,11 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v0 = alloc zeroed checked 96
     mstore v0, 2
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v9]
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v10 = mload v0
     v11 = gt v10, 0
     v12 = eq v11, false
@@ -271,23 +271,23 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v45 = create 0, v39, v43
     v46 = ne v45, i160 0
     jumpi v46, bb5, bb4
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     revert_returndata
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     v47 = gas
     mstore 0, 0x57de26a4 !metadata(memory=scratch)
     v48 = zext i160 v45 to i256
     v49 = staticcall v47, v48, 28, 4, 0, 32
     jumpi v49, bb7, bb6
-  bb6:  ; preds = bb5
+  bb6:                                            ; preds = bb5
     revert_returndata
-  bb7:  ; preds = bb5
+  bb7:                                            ; preds = bb5
     v50 = returndatasize
     v51 = lt v50, 32
     icall revert_if<tuple_data_too_short>, v51
     v52 = mload 0 !metadata(memory=scratch)
     ret v52
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v3 = alloc 64 !metadata(preserves_fmp)
     mstore v3, 0
     v4 = ptradd v3, 32

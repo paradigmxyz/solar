@@ -7,15 +7,15 @@
 // CHECK: - jumpi
 // CHECK: + {{v[0-9]+}} = sub
 // CHECK-NOT: {{^[ +].*}}phi
-fn @diamond(arg0: i256, arg1: i256) -> i256 {
+fn @diamond(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = lt arg0, 10
     jumpi v0, bb1, bb2
   bb1:
-    v1 = mul arg1, 3
+    v1 = and arg1, arg2
     jump bb3
   bb2:
-    v2 = xor arg1, 7
+    v2 = xor arg1, arg2
     jump bb3
   bb3:
     v3 = phi [bb1: v1], [bb2: v2]
