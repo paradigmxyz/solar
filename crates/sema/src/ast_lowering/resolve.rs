@@ -986,8 +986,7 @@ impl<'gcx> ResolveContext<'gcx> {
     /// solc checks the qualified callee as a member access, and a contract name exposes only the
     /// contract's own declarations, so `emit I.E()` ignores any `E` that `I` inherits.
     ///
-    /// An unresolved first segment is an undeclared identifier. Later segments are member lookups,
-    /// which solc reports with other codes.
+    /// An unresolved first segment is an undeclared identifier, as in any expression path.
     ///
     /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libsolidity/ast/Types.cpp#L3966-L4010>
     fn resolve_callee_path(&self, path: &ast::PathSlice) -> Result<&'gcx [Res], ErrorGuaranteed> {
@@ -998,11 +997,7 @@ impl<'gcx> ResolveContext<'gcx> {
                 qualifier = last;
                 last = if let [decl] = decls { Some(decl.res) } else { None };
             })
-            .map_err(|e| {
-                let undeclared = matches!(e.kind, ResolverErrorKind::Unresolved)
-                    && e.span() == path.first().span;
-                self.resolver.emit_resolver_error(undeclared.then(|| error_code!(7576)))(e)
-            })?;
+            .map_err(|e| self.resolver.emit_resolver_error(e.expr_path_code(path))(e))?;
         let res = decls.iter().map(|decl| decl.res);
         let Some(Res::Item(hir::ItemId::Contract(contract))) = qualifier else {
             return Ok(self.arena.alloc_slice_fill_iter(res));
@@ -1936,7 +1931,12 @@ impl<'gcx> ResolveContext<'gcx> {
             ast::ExprKind::TypeCall(ty) => hir::ExprKind::TypeCall(match &ty.kind {
                 // `type(L)` is the one type position that accepts a library name.
                 ast::TypeKind::Custom(path) => {
-                    hir::Type { kind: self.lower_type_path(path), span: ty.span }
+                    let kind = match self.resolver.resolve_expr_path_as(path, &self.scopes, "item")
+                    {
+                        Ok(id) => hir::TypeKind::Custom(id),
+                        Err(guar) => hir::TypeKind::Err(guar),
+                    };
+                    hir::Type { kind, span: ty.span }
                 }
                 _ => self.lower_type(ty),
             }),
@@ -2081,9 +2081,7 @@ impl<'gcx> ResolveContext<'gcx> {
 
         let mut overrides = SmallVec::<[hir::ContractId; 8]>::new();
         for path in ov.paths.iter() {
-            let Ok(id) =
-                self.resolver.resolve_path_as(path, &self.scopes, error_code!(7920), "contract")
-            else {
+            let Ok(id) = self.resolve_path_as(path, error_code!(7920), "contract") else {
                 continue;
             };
             if self.hir.contract(id).kind.is_library() {
@@ -2168,6 +2166,17 @@ impl ResolverError {
         self.name.span
     }
 
+    /// Returns the code of this error on a path that solc parses as an expression, which is the
+    /// callee of `emit` and `revert` and the argument of `type`.
+    ///
+    /// solc reports an unresolved first segment as an undeclared identifier. Later segments are
+    /// member lookups with other codes.
+    fn expr_path_code(&self, path: &ast::PathSlice) -> Option<DiagId> {
+        let undeclared =
+            matches!(self.kind, ResolverErrorKind::Unresolved) && self.span() == path.first().span;
+        undeclared.then_some(error_code!(7576))
+    }
+
     fn format(&self) -> String {
         let name = self.name;
         match self.kind {
@@ -2243,6 +2252,28 @@ impl<'gcx> SymbolResolver<'gcx> {
         description: &str,
     ) -> Result<T, ErrorGuaranteed> {
         let decl = self.resolve_path(path, scopes).map_err(self.emit_resolver_error(Some(code)))?;
+        self.expect_decl(decl, path, description)
+    }
+
+    /// Like [`Self::resolve_path_as`], for a path that solc parses as an expression.
+    fn resolve_expr_path_as<T: TryFrom<Res>>(
+        &self,
+        path: &ast::PathSlice,
+        scopes: &SymbolResolverScopes,
+        description: &str,
+    ) -> Result<T, ErrorGuaranteed> {
+        let decl = self
+            .resolve_path(path, scopes)
+            .map_err(|e| self.emit_resolver_error(e.expr_path_code(path))(e))?;
+        self.expect_decl(decl, path, description)
+    }
+
+    fn expect_decl<T: TryFrom<Res>>(
+        &self,
+        decl: Declaration,
+        path: &ast::PathSlice,
+        description: &str,
+    ) -> Result<T, ErrorGuaranteed> {
         if let Res::Err(guar) = decl.res {
             return Err(guar);
         }
