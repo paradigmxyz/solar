@@ -114,7 +114,7 @@ pub(super) fn cleanup(
                 .value_u256(b)
                 .map(|mask| (a, mask))
                 .or_else(|| func.value_u256(a).map(|mask| (b, mask)))
-            && mask.wrapping_add(U256::ONE) & mask == U256::ZERO
+            && (mask.wrapping_add(U256::ONE) & mask).is_zero()
             && word_bits(func, value, &argument_bits, returns) <= mask.bit_len() as u32
             && let Some(result) = func.inst_result_value(inst)
         {

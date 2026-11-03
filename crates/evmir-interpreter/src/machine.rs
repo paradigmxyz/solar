@@ -385,7 +385,7 @@ impl CodeImage {
         if out.is_empty() {
             return Ok(());
         }
-        let offset = u64::try_from(offset).unwrap_or(u64::MAX);
+        let offset = offset.saturating_to::<u64>();
         if (DEFERRED_DATA..self.deferred_end).contains(&offset) {
             return Err(unsupported("copies the code of another contract"));
         }
@@ -680,7 +680,7 @@ impl<'m> Run<'_, 'm> {
         Ok(match (opcode, operands) {
             (op::KECCAK256, &[offset, len]) => {
                 let range = self.memory_range(offset, len)?;
-                Effect::Push(U256::from_be_bytes(keccak256(&self.memory.0[range]).0))
+                Effect::Push(keccak256(&self.memory.0[range]).into())
             }
             (op::CALLDATALOAD, &[offset]) => {
                 let mut word = [0; WORD_BYTES];
@@ -855,7 +855,7 @@ mod tests {
     #[test]
     fn copies_pad_with_zeros() {
         let mut out = [0xff; 4];
-        copy_padded(&[1, 2, 3], U256::from(1), &mut out);
+        copy_padded(&[1, 2, 3], U256::ONE, &mut out);
         assert_eq!(out, [2, 3, 0, 0]);
         copy_padded(&[1, 2, 3], U256::MAX, &mut out);
         assert_eq!(out, [0; 4]);
