@@ -235,6 +235,7 @@ fn widen_comparisons(func: &mut Function, objects: &FxHashMap<ValueId, u32>, rea
                 InstKind::Lt(..) => InstKind::Lt(a, b),
                 _ => InstKind::Gt(a, b),
             };
+            let kind = func.canonical_kind(kind);
             func.inst_mut(inst).replace_kind(kind);
             changed = true;
             position += 1;
@@ -531,6 +532,7 @@ fn param_bounds(
     transitive: &IndexVec<FunctionId, u32>,
 ) -> FxHashMap<(FunctionId, ArgIdx), u32> {
     let mut bounds = FxHashMap::default();
+    let entries = module.external_entries();
     for (id, func) in module.functions.iter_enumerated() {
         for (index, &ty) in func.params.iter_enumerated() {
             if ty != MirType::MEMPTR {
@@ -538,7 +540,7 @@ fn param_bounds(
             }
             let entry = if func.selector.is_some() {
                 validated_width(func, index)
-            } else if func.is_external_entry() || func.is_public() {
+            } else if entries.contains(id) || func.is_public() {
                 UNKNOWN_ORIGIN
             } else {
                 0

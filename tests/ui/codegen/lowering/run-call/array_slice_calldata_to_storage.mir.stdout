@@ -5,7 +5,7 @@ fn @copy(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0xaabf
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = extract_value slice<calldata>, arg0, 1
-    v2 = gt arg2, v1
+    v2 = lt v1, arg2
     v3 = lt arg2, arg1
     v4 = or v2, v3
     v5 = zext i1 v4 to i256
@@ -32,7 +32,7 @@ fn @copy(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0xaabf
     v22 = shr v12, 251
     v23 = ne v22, 0
     icall panic_if<0x41>, v23
-    v24 = add 32, v21
+    v24 = add v21, 32
     v25 = lt v24, 32
     icall panic_if<0x41>, v25
     v26 = alloc v24
@@ -44,7 +44,7 @@ fn @copy(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0xaabf
     calldatacopy v28, v29, v30
     v31 = mload v26
     v32 = sload 0 !metadata(storage=slot(0))
-    v33 = gt v32, v31
+    v33 = lt v31, v32
     jumpi v33, bb1, bb2
   bb1:  ; preds = bb0
     jump bb3
@@ -63,7 +63,7 @@ fn @copy(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0xaabf
     jumpi v40, bb7, bb8
   bb8:  ; preds = bb6
     v48 = sload 0 !metadata(storage=slot(0))
-    v49 = lt 0, v48
+    v49 = gt v48, 0
     v50 = eq v49, false
     icall panic_if<0x32>, v50
     v51 = storage_array_data_slot 0

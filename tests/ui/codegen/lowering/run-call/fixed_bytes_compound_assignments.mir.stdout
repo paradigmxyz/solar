@@ -56,10 +56,10 @@ fn @storageBoundary() -> i256 [selector=0x90f7c243, abi_params=[], abi_returns=[
     v2 = and v1, 1
     v3 = eq v2, 1
     v4 = sub 0, v2
-    v5 = or 127, v4
+    v5 = or v4, 127
     v6 = shr v1, 1
     v7 = and v6, v5
-    v8 = lt 31, v7
+    v8 = gt v7, 31
     v9 = eq v8, false
     icall panic_if<0x32>, v9
     jumpi v3, bb1, bb2
@@ -79,10 +79,10 @@ fn @storageBoundary() -> i256 [selector=0x90f7c243, abi_params=[], abi_returns=[
     v16 = and v15, 1
     v17 = eq v16, 1
     v18 = sub 0, v16
-    v19 = or 127, v18
+    v19 = or v18, 127
     v20 = shr v15, 1
     v21 = and v20, v19
-    v22 = lt 31, v21
+    v22 = gt v21, 31
     v23 = eq v22, false
     icall panic_if<0x32>, v23
     jumpi v17, bb4, bb5
@@ -110,10 +110,10 @@ fn @storageBoundary() -> i256 [selector=0x90f7c243, abi_params=[], abi_returns=[
     v38 = and v37, 1
     v39 = eq v38, 1
     v40 = sub 0, v38
-    v41 = or 127, v40
+    v41 = or v40, 127
     v42 = shr v37, 1
     v43 = and v42, v41
-    v44 = lt 31, v43
+    v44 = gt v43, 31
     v45 = eq v44, false
     icall panic_if<0x32>, v45
     jumpi v39, bb7, bb8

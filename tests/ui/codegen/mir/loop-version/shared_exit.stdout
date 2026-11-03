@@ -18,7 +18,7 @@ fn @entry() [entry] {
 }
 
 ; function lastIndices(uint256[] memory a, uint256[] memory last) external pure returns (bool, uint256[] memory) [selector 0xcca63247]
-fn @lastIndices() [selector=0xcca63247, abi_wrapper, pure] {
+fn @lastIndices() {
   bb0:
     v3 = calldatasize
     v4 = lt v3, 68
@@ -47,7 +47,7 @@ fn @lastIndices() [selector=0xcca63247, abi_wrapper, pure] {
 }
 
 ; function _lastIndices(uint256[] memory a, uint256[] memory last) private pure returns (bool)
-fn @_lastIndices(arg0: i256, arg1: i256) -> i1 [may_return_memory, pure] {
+fn @_lastIndices(arg0: i256, arg1: i256) -> i1 [may_return_memory] {
   bb0:
     v0 = mload arg0
     v1 = lt v0, 2
@@ -85,10 +85,10 @@ fn @_lastIndices(arg0: i256, arg1: i256) -> i1 [may_return_memory, pure] {
     v40 = mload arg0
     v41 = mload arg1
     v44 = or arg1, v41
+    v57 = shr v44, 64
     v45 = shl v41, 5
     v47 = add v45, 31
     v50 = lt v49, v47
-    v57 = shr v44, 64
     v59 = zext i1 v50 to i256
     v60 = or v57, v59
     v55 = eq v60, 0
@@ -136,7 +136,7 @@ fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
     v1 = calldataload arg0
     v2 = add v1, 4
     v4 = sub v0, 36
-    v5 = gt v1, v4
+    v5 = lt v4, v1
     jumpi v5, bb1, bb2
   bb2:  ; preds = bb0
     v6 = calldataload v2
@@ -151,7 +151,7 @@ fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
     v27 = lt v26, v25
     v28 = zext i1 v27 to i256
     v29 = shr v26, 64
-    v30 = or v28, v29
+    v30 = or v29, v28
     v31 = ne v30, 0
     jumpi v31, bb3, bb6
   bb6:  ; preds = bb4
@@ -160,7 +160,7 @@ fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
     v12 = shl v6, 5
     v13 = sub v0, v7
     v14 = shr v13, 5
-    v15 = gt v6, v14
+    v15 = lt v14, v6
     jumpi v15, bb1, bb5
   bb5:  ; preds = bb6
     v22 = add v25, 32

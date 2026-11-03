@@ -48,7 +48,7 @@ fn @readCopy() -> struct0 [selector=0x3af23521, view, abi_params=[], abi_returns
     v9 = ptradd v0, 32
     v10 = mload v9, ptr<memory>
     v11 = mload v10
-    v12 = lt 0, v11
+    v12 = gt v11, 0
     v13 = eq v12, false
     icall panic_if<0x32>, v13
     v14 = ptradd v10, 32
@@ -76,7 +76,7 @@ fn @readDirect() -> struct0 [selector=0x28da8d5d, view, abi_params=[], abi_retur
     v9 = ptradd v0, 32
     v10 = mload v9, ptr<memory>
     v11 = mload v10
-    v12 = lt 0, v11
+    v12 = gt v11, 0
     v13 = eq v12, false
     icall panic_if<0x32>, v13
     v14 = ptradd v10, 32

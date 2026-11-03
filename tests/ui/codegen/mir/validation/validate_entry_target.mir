@@ -1,0 +1,10 @@
+//@compile-flags: -Zmir-pipeline=none
+// The verifier reports an `entry` tail call to a missing function instead of deriving a runtime
+// entry from it.
+//~? ERROR: [fn0] tail_call targets nonexistent function fn99
+@module ValidateEntryTarget
+
+fn @entry() [entry] {
+  bb0:
+    tail_call fn99
+}

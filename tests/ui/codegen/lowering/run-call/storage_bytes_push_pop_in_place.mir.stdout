@@ -29,7 +29,7 @@ fn @_push(arg0: i256) {
     v8 = and v7, 1
     v9 = eq v8, 1
     v10 = sub 0, v8
-    v11 = or 127, v10
+    v11 = or v10, 127
     v12 = shr v7, 1
     v13 = and v12, v11
     v14 = lt v13, 0x10000000000000000
@@ -96,7 +96,7 @@ fn @pushOne(arg0: i256) [selector=0x5da02415, abi_params=[bytes1], abi_returns=[
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt v6, 0x10000000000000000
@@ -160,7 +160,7 @@ fn @popOne() [selector=0x53b8a6c6, abi_params=[], abi_returns=[], abi_return_par
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
     v7 = eq v6, 0
@@ -239,7 +239,7 @@ fn @pushZero(arg0: i256) -> struct0 [selector=0xb0e28d5e, abi_params=[uint256], 
     v39 = and v38, 1
     v40 = eq v39, 1
     v41 = sub 0, v39
-    v42 = or 127, v41
+    v42 = or v41, 127
     v43 = shr v38, 1
     v44 = and v43, v42
     v45 = insert_value struct0, undef struct0, 0, v37
@@ -251,7 +251,7 @@ fn @pushZero(arg0: i256) -> struct0 [selector=0xb0e28d5e, abi_params=[uint256], 
     v6 = and v5, 1
     v7 = eq v6, 1
     v8 = sub 0, v6
-    v9 = or 127, v8
+    v9 = or v8, 127
     v10 = shr v5, 1
     v11 = and v10, v9
     v12 = add v11, 1
@@ -326,7 +326,7 @@ fn @pushAssign(arg0: i256) -> ptr<memory> [selector=0xbcb447d8, abi_params=[uint
     v9 = and v8, 1
     v10 = eq v9, 1
     v11 = sub 0, v9
-    v12 = or 127, v11
+    v12 = or v11, 127
     v13 = shr v8, 1
     v14 = and v13, v12
     v15 = add v14, 1
@@ -408,7 +408,7 @@ fn @popTo(arg0: i256, arg1: i256) -> struct0 [selector=0x6203376f, abi_params=[u
     v45 = and v44, 1
     v46 = eq v45, 1
     v47 = sub 0, v45
-    v48 = or 127, v47
+    v48 = or v47, 127
     v49 = shr v44, 1
     v50 = and v49, v48
     v51 = insert_value struct0, undef struct0, 0, v43
@@ -420,7 +420,7 @@ fn @popTo(arg0: i256, arg1: i256) -> struct0 [selector=0x6203376f, abi_params=[u
     v7 = and v6, 1
     v8 = eq v7, 1
     v9 = sub 0, v7
-    v10 = or 127, v9
+    v10 = or v9, 127
     v11 = shr v6, 1
     v12 = and v11, v10
     v13 = eq v12, 0
@@ -509,7 +509,7 @@ fn @slots(arg0: i256, arg1: i256) -> struct1 [selector=0xec823b6d, abi_params=[u
     v8 = and v7, 1
     v9 = eq v8, 1
     v10 = sub 0, v8
-    v11 = or 127, v10
+    v11 = or v10, 127
     v12 = shr v7, 1
     v13 = and v12, v11
     v14 = eq v13, 0
@@ -586,7 +586,7 @@ fn @interleaved(arg0: i256) -> struct2 [selector=0x8a27da89, abi_params=[uint256
     v87 = and v86, 1
     v88 = eq v87, 1
     v89 = sub 0, v87
-    v90 = or 127, v89
+    v90 = or v89, 127
     v91 = shr v86, 1
     v92 = and v91, v90
     v93 = sload 0 !metadata(storage=slot(0))
@@ -594,10 +594,10 @@ fn @interleaved(arg0: i256) -> struct2 [selector=0x8a27da89, abi_params=[uint256
     v94 = and v93, 1
     v95 = eq v94, 1
     v96 = sub 0, v94
-    v97 = or 127, v96
+    v97 = or v96, 127
     v98 = shr v93, 1
     v99 = and v98, v97
-    v100 = lt 0, v99
+    v100 = gt v99, 0
     v101 = eq v100, false
     icall panic_if<0x32>, v101
     jumpi v95, bb15, bb16
@@ -620,7 +620,7 @@ fn @interleaved(arg0: i256) -> struct2 [selector=0x8a27da89, abi_params=[uint256
     v112 = and v111, 1
     v113 = eq v112, 1
     v114 = sub 0, v112
-    v115 = or 127, v114
+    v115 = or v114, 127
     v116 = shr v111, 1
     v117 = and v116, v115
     v118 = lt v110, v117
@@ -651,7 +651,7 @@ fn @interleaved(arg0: i256) -> struct2 [selector=0x8a27da89, abi_params=[uint256
     v135 = and v134, 1
     v136 = eq v135, 1
     v137 = sub 0, v135
-    v138 = or 127, v137
+    v138 = or v137, 127
     v139 = shr v134, 1
     v140 = and v139, v138
     v141 = lt v133, v140
@@ -691,7 +691,7 @@ fn @interleaved(arg0: i256) -> struct2 [selector=0x8a27da89, abi_params=[uint256
     v12 = and v11, 1
     v13 = eq v12, 1
     v14 = sub 0, v12
-    v15 = or 127, v14
+    v15 = or v14, 127
     v16 = shr v11, 1
     v17 = and v16, v15
     v18 = lt v17, 0x10000000000000000
@@ -747,7 +747,7 @@ fn @interleaved(arg0: i256) -> struct2 [selector=0x8a27da89, abi_params=[uint256
     v51 = and v50, 1
     v52 = eq v51, 1
     v53 = sub 0, v51
-    v54 = or 127, v53
+    v54 = or v53, 127
     v55 = shr v50, 1
     v56 = and v55, v54
     v57 = checked_add uint256, v5, 1
@@ -759,7 +759,7 @@ fn @interleaved(arg0: i256) -> struct2 [selector=0x8a27da89, abi_params=[uint256
     v61 = and v60, 1
     v62 = eq v61, 1
     v63 = sub 0, v61
-    v64 = or 127, v63
+    v64 = or v63, 127
     v65 = shr v60, 1
     v66 = and v65, v64
     v67 = lt v5, v66
@@ -785,7 +785,7 @@ fn @interleaved(arg0: i256) -> struct2 [selector=0x8a27da89, abi_params=[uint256
     v80 = trunc i256 v79 to i8
     v81 = checked_add uint256, v5, 1
     v82 = zext i8 v80 to i256
-    v83 = eq v82, v81
+    v83 = eq v81, v82
     v84 = eq v83, false
     icall revert_if<empty>, v84
     jump bb6
@@ -814,7 +814,7 @@ fn @popEmptyAfter(arg0: i256) [selector=0x7b110cfa, abi_params=[uint256], abi_re
     v41 = and v40, 1
     v42 = eq v41, 1
     v43 = sub 0, v41
-    v44 = or 127, v43
+    v44 = or v43, 127
     v45 = shr v40, 1
     v46 = and v45, v44
     v47 = eq v46, 0
@@ -825,7 +825,7 @@ fn @popEmptyAfter(arg0: i256) [selector=0x7b110cfa, abi_params=[uint256], abi_re
     v50 = and v49, 1
     v51 = eq v50, 1
     v52 = sub 0, v50
-    v53 = or 127, v52
+    v53 = or v52, 127
     v54 = shr v49, 1
     v55 = and v54, v53
     v56 = eq v55, 0
@@ -880,7 +880,7 @@ fn @popEmptyAfter(arg0: i256) [selector=0x7b110cfa, abi_params=[uint256], abi_re
     v4 = and v3, 1
     v5 = eq v4, 1
     v6 = sub 0, v4
-    v7 = or 127, v6
+    v7 = or v6, 127
     v8 = shr v3, 1
     v9 = and v8, v7
     v10 = eq v9, 0
@@ -944,7 +944,7 @@ fn @popUntouched() [selector=0xbf1e345b, abi_params=[], abi_returns=[], abi_retu
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
     v7 = eq v6, 0
@@ -1015,7 +1015,7 @@ fn @structPushPop(arg0: i256) -> struct0 [selector=0x9c0e8d6f, abi_params=[uint2
     v50 = and v49, 1
     v51 = eq v50, 1
     v52 = sub 0, v50
-    v53 = or 127, v52
+    v53 = or v52, 127
     v54 = shr v49, 1
     v55 = and v54, v53
     v56 = eq v55, 0
@@ -1078,7 +1078,7 @@ fn @structPushPop(arg0: i256) -> struct0 [selector=0x9c0e8d6f, abi_params=[uint2
     v10 = and v9, 1
     v11 = eq v10, 1
     v12 = sub 0, v10
-    v13 = or 127, v12
+    v13 = or v12, 127
     v14 = shr v9, 1
     v15 = and v14, v13
     v16 = lt v15, 0x10000000000000000
@@ -1156,7 +1156,7 @@ fn @mappingPushPop(arg0: i256) -> ptr<memory> [selector=0x9881887b, abi_params=[
     v51 = and v50, 1
     v52 = eq v51, 1
     v53 = sub 0, v51
-    v54 = or 127, v53
+    v54 = or v53, 127
     v55 = shr v50, 1
     v56 = and v55, v54
     v57 = eq v56, 0
@@ -1218,7 +1218,7 @@ fn @mappingPushPop(arg0: i256) -> ptr<memory> [selector=0x9881887b, abi_params=[
     v10 = and v9, 1
     v11 = eq v10, 1
     v12 = sub 0, v10
-    v13 = or 127, v12
+    v13 = or v12, 127
     v14 = shr v9, 1
     v15 = and v14, v13
     v16 = lt v15, 0x10000000000000000
@@ -1303,7 +1303,7 @@ fn @_pushPop(arg0: i256, arg1: i256) -> ptr<memory> {
     v50 = and v49, 1
     v51 = eq v50, 1
     v52 = sub 0, v50
-    v53 = or 127, v52
+    v53 = or v52, 127
     v54 = shr v49, 1
     v55 = and v54, v53
     v56 = eq v55, 0
@@ -1363,7 +1363,7 @@ fn @_pushPop(arg0: i256, arg1: i256) -> ptr<memory> {
     v10 = and v9, 1
     v11 = eq v10, 1
     v12 = sub 0, v10
-    v13 = or 127, v12
+    v13 = or v12, 127
     v14 = shr v9, 1
     v15 = and v14, v13
     v16 = lt v15, 0x10000000000000000
@@ -1427,14 +1427,14 @@ fn @pushZeroRead(arg0: i256) -> struct3 [selector=0x421e4f69, abi_params=[uint25
   bb0:
     v0 = mod arg0, 32
     v1 = mul v0, 2
-    v2 = or 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00, v1
+    v2 = or v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     sstore 0, v2 !metadata(storage=slot(0))
     v3 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v3
     v4 = and v3, 1
     v5 = eq v4, 1
     v6 = sub 0, v4
-    v7 = or 127, v6
+    v7 = or v6, 127
     v8 = shr v3, 1
     v9 = and v8, v7
     v10 = add v9, 1
@@ -1506,7 +1506,7 @@ fn @pushZeroReadLong(arg0: i256) -> struct1 [selector=0x18e52e09, abi_params=[ui
     v8 = and v7, 1
     v9 = eq v8, 1
     v10 = sub 0, v8
-    v11 = or 127, v10
+    v11 = or v10, 127
     v12 = shr v7, 1
     v13 = and v12, v11
     v14 = add v13, 1

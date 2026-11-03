@@ -29,7 +29,7 @@ pragma solidity ^0.8.0;
 contract Search {
     // CHECK: [[ENTERED:v[0-9]+]] = phi [{{bb[0-9]+}}: [[START:v[0-9]+]]], [{{bb[0-9]+}}: {{v[0-9]+}}]
     // CHECK: [[POINTER:v[0-9]+]] = phi [{{bb[0-9]+}}: [[ENTERED]]], [{{bb[0-9]+}}: {{v[0-9]+}}]{{$}}
-    // CHECK-NEXT: {{v[0-9]+}} = ne [[POINTER]],
+    // CHECK-NEXT: {{v[0-9]+}} = ne {{v[0-9]+}}, [[POINTER]]
     // CHECK: [[MATCHED:v[0-9]+]] = phi [{{bb[0-9]+}}: [[POINTER]]], [{{bb[0-9]+}}: [[START]]], [{{bb[0-9]+}}: {{v[0-9]+}}]
     // CHECK-NEXT: [[DELTA:v[0-9]+]] = sub [[MATCHED]], [[START]]
     // CHECK-NEXT: {{v[0-9]+}} = shr [[DELTA]], 5

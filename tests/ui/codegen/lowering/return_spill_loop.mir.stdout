@@ -12,21 +12,21 @@ fn @probe(arg0: i256) -> struct0 [selector=0xdb082440, pure, abi_params=[uint256
     v2 = zext i8 v1 to i256
     v3 = shl v2, 248
     v4 = mload v0
-    v5 = lt 0, v4
+    v5 = gt v4, 0
     v6 = eq v5, false
     icall panic_if<0x32>, v6
     v7 = byte 0, v3
     v8 = ptradd v0, 32
     mstore8 v8, v7
     v9 = mload v0
-    v10 = lt 1, v9
+    v10 = gt v9, 1
     v11 = eq v10, false
     icall panic_if<0x32>, v11
     v12 = byte 0, 0x2200000000000000000000000000000000000000000000000000000000000000
     v13 = ptradd v0, 33
     mstore8 v13, v12
     v14 = mload v0
-    v15 = lt 2, v14
+    v15 = gt v14, 2
     v16 = eq v15, false
     icall panic_if<0x32>, v16
     v17 = byte 0, 0x3300000000000000000000000000000000000000000000000000000000000000
@@ -34,7 +34,7 @@ fn @probe(arg0: i256) -> struct0 [selector=0xdb082440, pure, abi_params=[uint256
     mstore8 v18, v17
     v19 = icall @copy, v0, 34
     v20 = mload v19
-    v21 = lt 0, v20
+    v21 = gt v20, 0
     v22 = eq v21, false
     icall panic_if<0x32>, v22
     v23 = ptradd v19, 32
@@ -45,7 +45,7 @@ fn @probe(arg0: i256) -> struct0 [selector=0xdb082440, pure, abi_params=[uint256
     v28 = trunc i256 v27 to i8
     v29 = zext i8 v28 to i256
     v30 = mload v19
-    v31 = lt 1, v30
+    v31 = gt v30, 1
     v32 = eq v31, false
     icall panic_if<0x32>, v32
     v33 = ptradd v19, 33
@@ -56,7 +56,7 @@ fn @probe(arg0: i256) -> struct0 [selector=0xdb082440, pure, abi_params=[uint256
     v38 = trunc i256 v37 to i8
     v39 = zext i8 v38 to i256
     v40 = mload v19
-    v41 = lt 2, v40
+    v41 = gt v40, 2
     v42 = eq v41, false
     icall panic_if<0x32>, v42
     v43 = ptradd v19, 34
@@ -82,7 +82,7 @@ fn @doubleProbe() -> i256 [selector=0xf770a1a3, pure, abi_params=[], abi_returns
     v2 = icall @copy, v0, 34
     v3 = icall @copy, v2, 221
     v4 = mload v3
-    v5 = lt 1, v4
+    v5 = gt v4, 1
     v6 = eq v5, false
     icall panic_if<0x32>, v6
     v7 = ptradd v3, 33

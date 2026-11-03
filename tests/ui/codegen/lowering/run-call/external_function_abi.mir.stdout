@@ -53,7 +53,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffff
     v13 = trunc i256 v12 to i160
     v14 = address
-    v15 = eq v13, v14
+    v15 = eq v14, v13
     icall require<short_string>, v15, 7, 0x6164647265737300000000000000000000000000000000000000000000000000
     v16 = and v10, 0xffffffff
     v17 = shl v16, 224
@@ -103,7 +103,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v50 = and v49, 0xffffffffffffffffffffffffffffffffffffffff
     v51 = trunc i256 v50 to i160
     v52 = address
-    v53 = eq v51, v52
+    v53 = eq v52, v51
     icall require<short_string>, v53, 14, 0x686f6c6465722061646472657373000000000000000000000000000000000000
     v54 = mload v46
     v55 = shr v54, 64
@@ -118,7 +118,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v62 = alloc zeroed checked 64
     mstore v62, 1
     v63 = mload v62
-    v64 = lt 0, v63
+    v64 = gt v63, 0
     v65 = eq v64, false
     icall panic_if<0x32>, v65
     v66 = shl v3, 64
@@ -138,7 +138,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v75 = icall returndata_bytes<>
     v76 = abi_decode [array<_, function>], v75
     v77 = mload v76
-    v78 = lt 0, v77
+    v78 = gt v77, 0
     v79 = eq v78, false
     icall panic_if<0x32>, v79
     v80 = ptradd v76, 32
@@ -148,10 +148,10 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v84 = and v83, 0xffffffffffffffffffffffffffffffffffffffff
     v85 = trunc i256 v84 to i160
     v86 = address
-    v87 = eq v85, v86
+    v87 = eq v86, v85
     icall require<short_string>, v87, 13, 0x6172726179206164647265737300000000000000000000000000000000000000
     v88 = mload v76
-    v89 = lt 0, v88
+    v89 = gt v88, 0
     v90 = eq v89, false
     icall panic_if<0x32>, v90
     v91 = ptradd v76, 32

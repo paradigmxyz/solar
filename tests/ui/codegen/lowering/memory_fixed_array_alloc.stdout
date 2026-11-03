@@ -90,7 +90,7 @@ fn @fmpIntegrity() -> struct0 [selector=0xe547cb4d, pure, abi_params=[], abi_ret
     v4 = alloc zeroed checked 64
     mstore v4, 1
     v5 = mload v4
-    v6 = lt 0, v5
+    v6 = gt v5, 0
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = ptradd v4, 32
@@ -101,7 +101,7 @@ fn @fmpIntegrity() -> struct0 [selector=0xe547cb4d, pure, abi_params=[], abi_ret
     v11 = ptradd v0, 64
     v12 = mload v11
     v13 = mload v4
-    v14 = lt 0, v13
+    v14 = gt v13, 0
     v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = ptradd v4, 32
@@ -166,14 +166,14 @@ fn @namedReturn() -> struct0 [selector=0xf76de570, pure, abi_params=[], abi_retu
     v6 = alloc zeroed checked 64
     mstore v6, 32
     v7 = mload v6
-    v8 = lt 0, v7
+    v8 = gt v7, 0
     v9 = eq v8, false
     icall panic_if<0x32>, v9
     v10 = byte 0, 0xee00000000000000000000000000000000000000000000000000000000000000
     v11 = ptradd v6, 32
     mstore8 v11, v10
     v12 = mload v6
-    v13 = lt 0, v12
+    v13 = gt v12, 0
     v14 = eq v13, false
     icall panic_if<0x32>, v14
     v15 = ptradd v6, 32

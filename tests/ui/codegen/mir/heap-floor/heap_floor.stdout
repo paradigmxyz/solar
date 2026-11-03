@@ -8,7 +8,7 @@
     bb0:
 -     mstore 64, 128
 +     v1 = heap_floor
-+     v2 = lt 128, v1
++     v2 = gt v1, 128
 +     v3 = select v2, v1, 128
 +     mstore 64, v3
       v0 = mload 64
@@ -63,7 +63,7 @@
     bb0:
 -     mstore 64, 128
 +     v1 = heap_floor
-+     v2 = lt 128, v1
++     v2 = gt v1, 128
 +     v3 = select v2, v1, 128
 +     mstore 64, v3
       v0 = icall @allocate
@@ -384,7 +384,7 @@
     bb0:
 -     mstore 64, 128
 +     v0 = heap_floor
-+     v1 = lt 128, v0
++     v1 = gt v0, 128
 +     v2 = select v1, v0, 128
 +     mstore 64, v2
       ret arg0

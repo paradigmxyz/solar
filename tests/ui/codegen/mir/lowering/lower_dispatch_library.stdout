@@ -4,10 +4,12 @@
   @library
   @immutables
     library_deploy_address: address
-+ 
+  
+- ; selector 0x00000001
+- fn @view() [selector=0x00000001, abi_wrapper, view] {
 + ; runtime dispatch entry
 + fn @entry() [entry] {
-+   bb0:
+    bb0:
 +     jump bb1
 +   bb1:  ; preds = bb0
 +     v0 = calldataload 0
@@ -27,15 +29,15 @@
 +   bb4 [cold]:  ; preds = bb1
 +     revert 0, 0
 + }
-  
-  ; selector 0x00000001
-  fn @view() [selector=0x00000001, abi_wrapper, view] {
-    bb0:
++ 
++ fn @view() {
++   bb0:
       stop
   }
   
-  ; selector 0x00000002
-  fn @write() [selector=0x00000002, abi_wrapper] {
+- ; selector 0x00000002
+- fn @write() [selector=0x00000002, abi_wrapper] {
++ fn @write() {
     bb0:
       stop
   }

@@ -20,11 +20,9 @@ impl<'gcx> TypeChecker<'gcx> {
                 if len <= 32 {
                     return self.gcx.types.uint(256);
                 }
-                return self.gcx.mk_ty_err(self.dcx().emit_err(
-                    lit.span,
-                    None,
-                    format!("string literal too long ({len} > 32)"),
-                ));
+                return self.gcx.mk_ty_err(
+                    self.dcx().emit_err(lit.span, format!("string literal too long ({len} > 32)")),
+                );
             }
             LitKind::Address(_) | LitKind::Bool(_) => return self.gcx.types.uint(256),
             LitKind::BigNumber(_) => {

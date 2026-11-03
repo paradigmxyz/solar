@@ -23,7 +23,7 @@ contract SignedConstantOps {
 
     // Operations with one constant operand lower to signed operations.
     // CHECK-LABEL: fn @ltParam{{[( ]}}
-    // CHECK: slt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg0
+    // CHECK: sgt arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     function ltParam(int256 x) public pure returns (bool) {
         return int256(-1) < x;
     }

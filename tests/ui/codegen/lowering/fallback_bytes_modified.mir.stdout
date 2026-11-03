@@ -33,7 +33,7 @@ fn @fallback(arg0: slice<calldata>) -> ptr<memory> [fallback] {
     icall revert_if<invalid_calldata_tail_length>, v18
     v19 = sub v17, v16
     v20 = ptrtoint ptr<calldata> v15 to i256
-    v21 = sgt v20, v19
+    v21 = slt v19, v20
     icall revert_if<calldata_tail_too_short>, v21
     v22 = ptradd v14, 32
     v23 = extract_value slice<calldata>, v8, 0

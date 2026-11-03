@@ -14,8 +14,7 @@
       revert 0, 0
   }
   
-  ; selector 0x3b3546c8
-  fn @count() [selector=0x3b3546c8, abi_wrapper] {
+  fn @count() {
     bb0:
       v0 = calldataload 4
       jump bb1

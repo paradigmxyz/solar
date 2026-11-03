@@ -57,13 +57,13 @@ fn @memoryChoice(arg0: i1, arg1: i256) -> struct1 [selector=0xe6b97384, pure, ab
     v16 = ptradd v15, 32
     mstore v16, v13
     v17 = mload v0
-    v18 = lt 0, v17
+    v18 = gt v17, 0
     v19 = eq v18, false
     icall panic_if<0x32>, v19
     v20 = ptradd v0, 32
     v21 = mload v20
     v22 = mload v1
-    v23 = lt 0, v22
+    v23 = gt v22, 0
     v24 = eq v23, false
     icall panic_if<0x32>, v24
     v25 = ptradd v1, 32

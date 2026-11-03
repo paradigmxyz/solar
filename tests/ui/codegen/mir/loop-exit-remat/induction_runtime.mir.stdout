@@ -87,7 +87,7 @@ fn @descending() -> struct0 [selector=0x94c06a58, pure, abi_params=[], abi_retur
     v12 = phi [bb0: v0], [bb3: v25]
     v13 = phi [bb0: v5], [bb3: v26]
     v14 = phi [bb0: v7], [bb3: v41]
-    v15 = gt v14, v13
+    v15 = lt v13, v14
     v16 = zext i1 v15 to i256
     v17 = eq v16, 0
     v18 = zext i1 v17 to i256
@@ -134,7 +134,7 @@ fn @descending() -> struct0 [selector=0x94c06a58, pure, abi_params=[], abi_retur
     v28 = phi [bb4: v20], [bb11: v28]
     v29 = phi [bb4: v14], [bb11: v34]
     v30 = ptrtoint ptr<memory> v25 to i256
-    v31 = gt v29, v30
+    v31 = lt v30, v29
     v32 = zext i1 v31 to i256
     v33 = ne v32, 0
     jumpi v33, bb9, bb10
@@ -143,7 +143,7 @@ fn @descending() -> struct0 [selector=0x94c06a58, pure, abi_params=[], abi_retur
   bb9:  ; preds = bb7
     v34 = sub v29, 32
     v35 = mload v34
-    v36 = gt v35, v28
+    v36 = lt v28, v35
     v37 = zext i1 v36 to i256
     v38 = eq v37, 0
     v39 = zext i1 v38 to i256

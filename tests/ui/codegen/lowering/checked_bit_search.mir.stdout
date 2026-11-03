@@ -117,7 +117,7 @@ fn @fls.3(arg0: i256) -> i256 [pure] {
     v40 = phi [bb22: v38], [bb23: v34]
     v41 = phi [bb22: v39], [bb23: v35]
     v42 = shr v40, 1
-    v43 = or v41, v42
+    v43 = or v42, v41
     ret v43
   bb1:  ; preds = bb0
     ret 256
@@ -147,7 +147,7 @@ fn @ffs.5(arg0: i256) -> i256 [pure] {
   bb2:  ; preds = bb0
     v1 = not arg0
     v2 = checked_add uint256, v1, 1
-    v3 = and arg0, v2
+    v3 = and v2, arg0
     v4 = icall @fls.3, v3
     jump bb3
   bb1:  ; preds = bb0

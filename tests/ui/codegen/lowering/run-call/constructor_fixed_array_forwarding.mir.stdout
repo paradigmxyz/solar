@@ -12,7 +12,7 @@ fn @constructor(arg0: i256, arg1: ptr<memory>) [constructor, abi_params=[uint256
   bb3:  ; preds = bb1
     ret
   bb2:  ; preds = bb1
-    v2 = add 1, v0
+    v2 = add v0, 1
     v3 = lt v0, 3
     jumpi v3, bb4, bb5
   bb5:  ; preds = bb2
@@ -41,7 +41,7 @@ fn @b(arg0: i256) -> i256 [selector=0xcd580ff3, view, abi_params=[uint256], abi_
   bb0:
     v0 = lt arg0, 3
     icall revert_if_zero<empty>, v0
-    v1 = add 1, arg0
+    v1 = add arg0, 1
     v2 = sload v1 !metadata(storage=offset(arg0, 1))
     ret v2
 }

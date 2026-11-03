@@ -27,7 +27,7 @@ fn @entry() [entry] {
 }
 
 ; function data() internal pure returns (bytes memory)
-fn @data() -> i256 [may_return_memory, pure] {
+fn @data() -> i256 [may_return_memory] {
   bb0:
     v8 = heap_floor !metadata(alloc_ptr)
     v9 = add v8, 224 !metadata(alloc_ptr)
@@ -39,7 +39,7 @@ fn @data() -> i256 [may_return_memory, pure] {
 }
 
 ; function hash() external pure returns (bytes32) [selector 0x09bd5a60]
-fn @hash() [selector=0x09bd5a60, abi_wrapper, pure] {
+fn @hash() {
   bb0:
     v0 = icall @data
     v2 = mload v0
@@ -50,7 +50,7 @@ fn @hash() [selector=0x09bd5a60, abi_wrapper, pure] {
 }
 
 ; function paddingIsZero() external pure returns (bool result) [selector 0x06793283]
-fn @paddingIsZero() [selector=0x06793283, abi_wrapper, pure] {
+fn @paddingIsZero() {
   bb0:
     v0 = icall @data
     v2 = mload v0
@@ -65,7 +65,7 @@ fn @paddingIsZero() [selector=0x06793283, abi_wrapper, pure] {
 }
 
 ; function shortHash() external pure returns (bytes32) [selector 0x0c6b2786]
-fn @shortHash() [selector=0x0c6b2786, abi_wrapper, pure] {
+fn @shortHash() {
   bb0:
     v10 = heap_floor !metadata(alloc_ptr)
     v7 = add v10, 32
@@ -78,7 +78,7 @@ fn @shortHash() [selector=0x0c6b2786, abi_wrapper, pure] {
 }
 
 ; function fullWordsHash() external pure returns (bytes32) [selector 0x58653188]
-fn @fullWordsHash() [selector=0x58653188, abi_wrapper, pure] {
+fn @fullWordsHash() {
   bb0:
     v21 = heap_floor !metadata(alloc_ptr)
     v22 = add v21, 128 !metadata(alloc_ptr)

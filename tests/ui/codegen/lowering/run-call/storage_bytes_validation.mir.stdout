@@ -9,7 +9,7 @@ fn @unusedInvalidLength() [selector=0x200cc212, abi_params=[], abi_returns=[], a
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
     ret
@@ -48,7 +48,7 @@ fn @invalidShortDelete() [selector=0x1cba07c2, abi_params=[], abi_returns=[], ab
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
     v7 = add v6, 31
@@ -71,7 +71,7 @@ fn @invalidLongDelete() [selector=0x7dd42e48, abi_params=[], abi_returns=[], abi
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
     v7 = add v6, 31
@@ -94,7 +94,7 @@ fn @invalidShortLength() -> i256 [selector=0xe7a318a7, abi_params=[], abi_return
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
     ret v6
@@ -109,7 +109,7 @@ fn @invalidLongLength() -> i256 [selector=0xc14ec391, abi_params=[], abi_returns
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
     ret v6
@@ -124,10 +124,10 @@ fn @invalidShortIndex() -> i256 [selector=0x94523747, abi_params=[], abi_returns
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
-    v7 = lt 0, v6
+    v7 = gt v6, 0
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
@@ -153,10 +153,10 @@ fn @invalidLongIndex() -> i256 [selector=0xb45f5bca, abi_params=[], abi_returns=
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
-    v7 = lt 0, v6
+    v7 = gt v6, 0
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
@@ -182,10 +182,10 @@ fn @invalidShortIndexWrite() [selector=0x9cb6505e, abi_params=[], abi_returns=[]
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
-    v7 = lt 0, v6
+    v7 = gt v6, 0
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
@@ -212,10 +212,10 @@ fn @invalidLongIndexWrite() [selector=0x31e8b582, abi_params=[], abi_returns=[],
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
-    v7 = lt 0, v6
+    v7 = gt v6, 0
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
@@ -242,10 +242,10 @@ fn @invalidShortIndexDelete() [selector=0x5a79d84c, abi_params=[], abi_returns=[
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
-    v7 = lt 0, v6
+    v7 = gt v6, 0
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
@@ -272,10 +272,10 @@ fn @invalidLongIndexDelete() [selector=0x3cb34688, abi_params=[], abi_returns=[]
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
-    v7 = lt 0, v6
+    v7 = gt v6, 0
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
@@ -302,10 +302,10 @@ fn @encodingCheckedBeforeBounds() -> i256 [selector=0x4f384528, abi_params=[], a
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
-    v7 = lt 100, v6
+    v7 = gt v6, 100
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
@@ -332,10 +332,10 @@ fn @encodingCheckedBeforeBoundsWrite() [selector=0xc6da2038, abi_params=[], abi_
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
-    v7 = lt 100, v6
+    v7 = gt v6, 100
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
@@ -363,7 +363,7 @@ fn @invalidShortPush() [selector=0x6753fa56, abi_params=[], abi_returns=[], abi_
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt v6, 0x10000000000000000
@@ -424,7 +424,7 @@ fn @invalidLongPush() [selector=0xefd41847, abi_params=[], abi_returns=[], abi_r
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt v6, 0x10000000000000000
@@ -485,7 +485,7 @@ fn @invalidShortPushZero() [selector=0xcba0ded0, abi_params=[], abi_returns=[], 
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
     v7 = add v6, 1
@@ -539,7 +539,7 @@ fn @invalidLongPushZero() [selector=0xe8ec99d3, abi_params=[], abi_returns=[], a
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
     v7 = add v6, 1
@@ -593,7 +593,7 @@ fn @invalidShortPushAssign() [selector=0xa1663e71, abi_params=[], abi_returns=[]
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
     v7 = add v6, 1
@@ -655,7 +655,7 @@ fn @invalidLongPushAssign() [selector=0x666fac34, abi_params=[], abi_returns=[],
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
     v7 = add v6, 1
@@ -717,7 +717,7 @@ fn @invalidShortPop() [selector=0xeaec3c61, abi_params=[], abi_returns=[], abi_r
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
     v7 = eq v6, 0
@@ -777,7 +777,7 @@ fn @invalidLongPop() [selector=0x66075ed1, abi_params=[], abi_returns=[], abi_re
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
     v7 = eq v6, 0
@@ -837,7 +837,7 @@ fn @pushAtMaxLength() -> i256 [selector=0x35078c3f, abi_params=[], abi_returns=[
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt v6, 0x10000000000000000
@@ -899,7 +899,7 @@ fn @pushPastMaxLength() [selector=0xd9fa2828, abi_params=[], abi_returns=[], abi
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt v6, 0x10000000000000000
@@ -960,7 +960,7 @@ fn @pushZeroPastMaxLength() [selector=0x65c6159f, abi_params=[], abi_returns=[],
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
     v7 = add v6, 1

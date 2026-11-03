@@ -17,8 +17,9 @@
 contract Test {
     // Both the word store and the original byte loop must survive the wrap guard.
     // CHECK-LABEL: fn @fill(
+    // CHECK: [[OFFSET:v[0-9]+]] = calldataload 36
     // CHECK: [[OBJECT:v[0-9]+]] = icall @decode_calldata_type
-    // CHECK: [[BASE:v[0-9]+]] = add [[OBJECT]], arg1
+    // CHECK: [[BASE:v[0-9]+]] = add [[OBJECT]], [[OFFSET]]
     // CHECK-NEXT: [[ADDRESS:v[0-9]+]] = add [[BASE]], 32
     // CHECK-NEXT: [[DATA:v[0-9]+]] = add [[OBJECT]], 32
     // CHECK-NEXT: [[WRAPS:v[0-9]+]] = lt [[ADDRESS]], [[DATA]]

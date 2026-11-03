@@ -25,7 +25,7 @@
 -     jumpi v7, bb3, bb4
 -   bb4 [cold]:  ; preds = bb2
 -     revert 0, 0
-+     v7 = gt v1, v12
++     v7 = lt v12, v1
 +     jumpi v7, bb4, bb3
     bb3:  ; preds = bb2
       v8 = add v0, 1
@@ -57,7 +57,7 @@
 -     jumpi v7, bb3, bb4
 -   bb4 [cold]:  ; preds = bb2
 -     revert 0, 0
-+     v7 = gt v1, v12
++     v7 = lt v12, v1
 +     jumpi v7, bb4, bb3
     bb3:  ; preds = bb2
       v8 = add v0, 1
