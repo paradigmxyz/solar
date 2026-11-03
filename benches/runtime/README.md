@@ -68,9 +68,9 @@ creation and runtime disassembly (`mir.mir`, `*.evmir`, `*.disasm`) for every co
 compiles that has code of its own, including libraries with external functions and contracts built
 with `new`: each file has a headed section per contract, the case's own contract first and the rest
 by name. Libraries the compiler inlines into their callers and abstract contracts leave no section.
-Solc (not `solc-legacy`) and solx add unoptimized `ir.yul` and optimized `optimized-ir.yul` when
-returned (solx 0.1.8 omits `irOptimized`). Solx adds creation and runtime LLVM IR before and after
-optimization (`*.unoptimized.ll`, `*.optimized.ll`). If `--reference-results` names a result beside
+Solc (not `solc-legacy`) and oksolc add unoptimized `ir.yul` and optimized `optimized-ir.yul`
+when returned; Slang-based solx has no Yul output. Solx adds creation and runtime LLVM IR before
+and after optimization (`*.unoptimized.ll`, `*.optimized.ll`). If `--reference-results` names a result beside
 an `artifacts` directory, the run copies the matching reference files.
 
 ## Tempo Zones gas
@@ -136,11 +136,11 @@ compile-time sums count only cases that every shown compiler compiled, so cases 
 fails drop out of all columns.
 
 In CI, PRs pass the exact-base result as `--reference-results`, so solc runs only on the base
-revision. Solx 0.1.8 is pinned and runs only on pushes to main, never in PR jobs, even ones that
-rebuild a missing baseline; its columns appear when the downloaded main artifact has matching
-results. Oksolc runs on main, PRs, and manual runs; PRs add `--oksolc` to `--reference-results` so
-they include oksolc before a main baseline has it. CI builds oksolc v0.2.2, revision
-`c465a262edc835afff32951ee2d64e827bc16c3d`, with Zig 0.17.0, ReleaseFast, for the baseline CPU so the
+revision. Solx is pinned to the Slang-based prerelease d95c1150 (2026-10-29) and runs only on
+pushes to main, never in PR jobs, even ones that rebuild a missing baseline; its columns appear when
+the downloaded main artifact has matching results. Oksolc runs on main, PRs, and manual runs; PRs add `--oksolc` to `--reference-results` so
+they include oksolc before a main baseline has it. CI builds oksolc v0.2.4, revision
+`4c94a99257342477ef58cc6fd418cc964c70d3c5`, with Zig 0.17.0, ReleaseFast, for the baseline CPU so the
 cached binary runs on any runner of that architecture. The upstream build disables the browser UI by
 default, so it needs no source patch, TypeScript, or Bun. The cache key covers revision, Zig
 version, OS, architecture, and build settings; a hit skips the shallow checkout and build. Solx and
