@@ -8,7 +8,7 @@ interface Sink {
 
 contract AbiEncodeSemantic {
     // CHECK-LABEL: fn @forward{{[( ]}}
-    // CHECK: abi_encode [word, calldata_bytes], selector {{.*}}, args {{.*}}
+    // CHECK: abi_encode [word, calldata_bytes], scratch, selector {{.*}}, args {{.*}}
     // CHECK: extract_value slice<memory>, {{[^,]+}}, 0
     // CHECK: extract_value slice<memory>, {{[^,]+}}, 1
     function forward(Sink sink, uint256 value, bytes calldata data) external {
@@ -17,7 +17,7 @@ contract AbiEncodeSemantic {
 
     // A validated narrow calldata array stays in calldata through ABI encoding.
     // CHECK-LABEL: fn @forwardNarrow{{[( ]}}
-    // CHECK: abi_encode [calldata_array<word<uint8>>], selector {{.*}}, args {{.*}}
+    // CHECK: abi_encode [calldata_array<word<uint8>>], scratch, selector {{.*}}, args {{.*}}
     function forwardNarrow(Sink sink, uint8[] calldata data) external {
         sink.consumeNarrow(data);
     }

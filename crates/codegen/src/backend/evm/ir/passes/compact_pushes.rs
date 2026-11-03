@@ -38,7 +38,7 @@ use crate::{
     backend::evm::{
         codegen::MAX_STACK_DEPTH,
         ir::{Instruction, Metadata, Module, verify::Verifier},
-        op::{self, WORD_BYTES},
+        op::{self, WORD_BYTES, push_width},
     },
     target::{Cost, Target},
 };
@@ -199,7 +199,7 @@ impl ImmediateMaterialization {
     /// Whether the selected recipe is better code than the literal push, by the target's pricing
     /// of the bytes it saves against the runtime gas it adds, inside a loop or not.
     fn repays(&self, target: &Target, in_loop: bool) -> bool {
-        let literal = literal_cost(push_width(self.evm_version, self.value));
+        let literal = literal_push(self.evm_version, self.value);
         let recipe = self.selected.cost;
         target.compacts_immediate(
             u64::from(literal.bytes.saturating_sub(recipe.bytes)),
@@ -404,10 +404,6 @@ fn literal_cost(width: u8) -> Cost {
     Cost { bytes: 1 + u32::from(width), ..if width == 0 { PUSH0 } else { PUSH1 } }
 }
 
-fn push_width(evm_version: EvmVersion, value: U256) -> u8 {
-    if value.is_zero() && !evm_version.has_push0() { 1 } else { value.byte_len() as u8 }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -432,9 +428,7 @@ mod tests {
                 let mut emitted = Cost::ZERO;
                 ImmediateMaterialization::new(evm_version, value).for_each(|op| {
                     emitted += match op {
-                        ImmediateMaterializationOp::Push(value) => {
-                            literal_cost(push_width(evm_version, value))
-                        }
+                        ImmediateMaterializationOp::Push(value) => literal_push(evm_version, value),
                         ImmediateMaterializationOp::Opcode(opcode) => Cost::fixed_opcode(opcode),
                     };
                 });

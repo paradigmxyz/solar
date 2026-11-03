@@ -50,7 +50,7 @@ fn @execute(arg0: i160, arg1: i160, arg2: i256, arg3: slice<calldata>) [selector
     icall revert_if<empty>, v20
     v21 = gas
     v22 = zext i160 arg1 to i256
-    v23 = abi_encode [word<uint160>, word, calldata_bytes], selector 0x794dca5300000000000000000000000000000000000000000000000000000000, args v22, arg2, arg3
+    v23 = abi_encode [word<uint160>, word, calldata_bytes], scratch, selector 0x794dca5300000000000000000000000000000000000000000000000000000000, args v22, arg2, arg3
     v24 = extract_value slice<memory>, v23, 0
     v25 = extract_value slice<memory>, v23, 1
     v26 = zext i160 arg0 to i256

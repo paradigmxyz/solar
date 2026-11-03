@@ -314,7 +314,7 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[], abi_r
   bb10:                                           ; preds = bb7
     v26 = address
     v27 = gas
-    v28 = abi_encode [memory_bytes, word, word], selector 0xe3b899da00000000000000000000000000000000000000000000000000000000, args v20, v21, v22
+    v28 = abi_encode [memory_bytes, word, word], scratch, selector 0xe3b899da00000000000000000000000000000000000000000000000000000000, args v20, v21, v22
     v29 = extract_value slice<memory>, v28, 0
     v30 = extract_value slice<memory>, v28, 1
     v31 = zext i160 v26 to i256
@@ -327,7 +327,7 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[], abi_r
     v34 = abi_decode [bytes], v33
     v35 = address
     v36 = gas
-    v37 = abi_encode [memory_bytes, word, word], selector 0x31b229fc00000000000000000000000000000000000000000000000000000000, args v20, v21, v22
+    v37 = abi_encode [memory_bytes, word, word], scratch, selector 0x31b229fc00000000000000000000000000000000000000000000000000000000, args v20, v21, v22
     v38 = extract_value slice<memory>, v37, 0
     v39 = extract_value slice<memory>, v37, 1
     v40 = zext i160 v35 to i256
@@ -341,7 +341,7 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[], abi_r
     icall @compare, v34, v43
     v44 = address
     v45 = gas
-    v46 = abi_encode [memory_bytes, word, word], selector 0x676eb8e500000000000000000000000000000000000000000000000000000000, args v20, v21, v22
+    v46 = abi_encode [memory_bytes, word, word], scratch, selector 0x676eb8e500000000000000000000000000000000000000000000000000000000, args v20, v21, v22
     v47 = extract_value slice<memory>, v46, 0
     v48 = extract_value slice<memory>, v46, 1
     v49 = zext i160 v44 to i256
@@ -354,7 +354,7 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[], abi_r
     v52 = abi_decode [bytes], v51
     v53 = address
     v54 = gas
-    v55 = abi_encode [memory_bytes, word, word], selector 0x94ba4b1300000000000000000000000000000000000000000000000000000000, args v20, v21, v22
+    v55 = abi_encode [memory_bytes, word, word], scratch, selector 0x94ba4b1300000000000000000000000000000000000000000000000000000000, args v20, v21, v22
     v56 = extract_value slice<memory>, v55, 0
     v57 = extract_value slice<memory>, v55, 1
     v58 = zext i160 v53 to i256
@@ -430,7 +430,7 @@ fn @testUint256() [selector=0xd2aeef3b, view, abi_params=[], abi_returns=[], abi
   bb10:                                           ; preds = bb7
     v23 = address
     v24 = gas
-    v25 = abi_encode [memory_array<word>, word, word], selector 0xd7d5d6100000000000000000000000000000000000000000000000000000000, args v17, v18, v19
+    v25 = abi_encode [memory_array<word>, word, word], scratch, selector 0xd7d5d6100000000000000000000000000000000000000000000000000000000, args v17, v18, v19
     v26 = extract_value slice<memory>, v25, 0
     v27 = extract_value slice<memory>, v25, 1
     v28 = zext i160 v23 to i256
@@ -443,7 +443,7 @@ fn @testUint256() [selector=0xd2aeef3b, view, abi_params=[], abi_returns=[], abi
     v31 = abi_decode [bytes], v30
     v32 = address
     v33 = gas
-    v34 = abi_encode [memory_array<word>, word, word], selector 0xf98ab31400000000000000000000000000000000000000000000000000000000, args v17, v18, v19
+    v34 = abi_encode [memory_array<word>, word, word], scratch, selector 0xf98ab31400000000000000000000000000000000000000000000000000000000, args v17, v18, v19
     v35 = extract_value slice<memory>, v34, 0
     v36 = extract_value slice<memory>, v34, 1
     v37 = zext i160 v32 to i256
@@ -457,7 +457,7 @@ fn @testUint256() [selector=0xd2aeef3b, view, abi_params=[], abi_returns=[], abi
     icall @compare, v31, v40
     v41 = address
     v42 = gas
-    v43 = abi_encode [memory_array<word>, word, word], selector 0x5f29ad1d00000000000000000000000000000000000000000000000000000000, args v17, v18, v19
+    v43 = abi_encode [memory_array<word>, word, word], scratch, selector 0x5f29ad1d00000000000000000000000000000000000000000000000000000000, args v17, v18, v19
     v44 = extract_value slice<memory>, v43, 0
     v45 = extract_value slice<memory>, v43, 1
     v46 = zext i160 v41 to i256
@@ -470,7 +470,7 @@ fn @testUint256() [selector=0xd2aeef3b, view, abi_params=[], abi_returns=[], abi
     v49 = abi_decode [bytes], v48
     v50 = address
     v51 = gas
-    v52 = abi_encode [memory_array<word>, word, word], selector 0xea73d5ef00000000000000000000000000000000000000000000000000000000, args v17, v18, v19
+    v52 = abi_encode [memory_array<word>, word, word], scratch, selector 0xea73d5ef00000000000000000000000000000000000000000000000000000000, args v17, v18, v19
     v53 = extract_value slice<memory>, v52, 0
     v54 = extract_value slice<memory>, v52, 1
     v55 = zext i160 v50 to i256

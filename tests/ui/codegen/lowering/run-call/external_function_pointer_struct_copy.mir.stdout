@@ -119,7 +119,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v28 = sload 0 !metadata(storage=slot(0))
     v29 = trunc i256 v28 to i160
     v30 = gas
-    v31 = abi_encode [memory_array<function>], selector 0xbf8d45f00000000000000000000000000000000000000000000000000000000, args v0
+    v31 = abi_encode [memory_array<function>], scratch, selector 0xbf8d45f00000000000000000000000000000000000000000000000000000000, args v0
     v32 = extract_value slice<memory>, v31, 0
     v33 = extract_value slice<memory>, v31, 1
     v34 = zext i160 v29 to i256

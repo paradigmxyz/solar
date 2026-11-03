@@ -193,55 +193,53 @@ fn @afterCallStaging(arg0: i256) -> i256 [selector=0xeb8c79d7, view, abi_params=
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [], selector 0x887b13a300000000000000000000000000000000000000000000000000000000
-    v3 = extract_value slice<memory>, v2, 0
-    v4 = extract_value slice<memory>, v2, 1
-    v5 = alloc 256
-    v6 = zext i160 v0 to i256
-    v7 = staticcall v1, v6, v3, v4, v5, 256
-    jumpi v7, bb2, bb1
+    v2 = alloc 256
+    mstore 0, 0x887b13a3 !metadata(memory=scratch)
+    v3 = zext i160 v0 to i256
+    v4 = staticcall v1, v3, 28, 4, v2, 256
+    jumpi v4, bb2, bb1
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    v8 = returndatasize
-    v9 = lt v8, 256
-    icall revert_if<tuple_data_too_short>, v9
-    v10 = make_memory_slice v5, 256
-    v11 = abi_decode [array<8, uint256>], v10
-    v12 = lt 0, 8
-    v13 = eq v12, false
-    icall panic_if<0x32>, v13
-    v14 = mload v11
-    v15 = and v14, 0
-    v16 = mul arg0, 1
-    v17 = eq 1, 0
-    v18 = div v16, 1
-    v19 = eq v18, arg0
-    v20 = or v17, v19
-    v21 = zext i1 v20 to i256
-    v22 = eq v21, 0
-    icall panic_if<0x41>, v22
-    v23 = add v16, 1
-    v24 = lt v23, v16
-    icall panic_if<0x41>, v24
-    v25 = mul v23, 32
-    v26 = gt v23, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    icall panic_if<0x41>, v26
-    v27 = alloc zeroed checked v25
-    mstore v27, arg0
-    v28 = icall @or, v27
-    v29 = or v15, v28
-    v30 = checked_mul uint256, arg0, 32
-    v31 = add v30, 31
-    v32 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v33 = add v32, 32
-    v34 = lt v33, v30
-    icall panic_if<0x41>, v34
-    v35 = alloc zeroed checked v33
-    mstore v35, v30
-    v36 = icall @orBytes, v35
-    v37 = or v29, v36
-    ret v37
+    v5 = returndatasize
+    v6 = lt v5, 256
+    icall revert_if<tuple_data_too_short>, v6
+    v7 = make_memory_slice v2, 256
+    v8 = abi_decode [array<8, uint256>], v7
+    v9 = lt 0, 8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = mload v8
+    v12 = and v11, 0
+    v13 = mul arg0, 1
+    v14 = eq 1, 0
+    v15 = div v13, 1
+    v16 = eq v15, arg0
+    v17 = or v14, v16
+    v18 = zext i1 v17 to i256
+    v19 = eq v18, 0
+    icall panic_if<0x41>, v19
+    v20 = add v13, 1
+    v21 = lt v20, v13
+    icall panic_if<0x41>, v21
+    v22 = mul v20, 32
+    v23 = gt v20, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v23
+    v24 = alloc zeroed checked v22
+    mstore v24, arg0
+    v25 = icall @or, v24
+    v26 = or v12, v25
+    v27 = checked_mul uint256, arg0, 32
+    v28 = add v27, 31
+    v29 = and v28, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v30 = add v29, 32
+    v31 = lt v30, v27
+    icall panic_if<0x41>, v31
+    v32 = alloc zeroed checked v30
+    mstore v32, v27
+    v33 = icall @orBytes, v32
+    v34 = or v26, v33
+    ret v34
 }
 
 ; function afterAssemblyWrite(uint256 n) external pure returns (uint256) [selector 0x53590236]

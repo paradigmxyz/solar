@@ -101,7 +101,7 @@ fn @forward(arg0: slice<calldata>) -> i256 [selector=0x6f975451, view, abi_param
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [calldata_array<tuple<word<uint160>, calldata_array<tuple<word<uint160>, word>>, calldata_array<tuple<word<uint160>, word>>, calldata_bytes>>], selector 0x887458ef00000000000000000000000000000000000000000000000000000000, args arg0
+    v2 = abi_encode [calldata_array<tuple<word<uint160>, calldata_array<tuple<word<uint160>, word>>, calldata_array<tuple<word<uint160>, word>>, calldata_bytes>>], scratch, selector 0x887458ef00000000000000000000000000000000000000000000000000000000, args arg0
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
@@ -122,7 +122,7 @@ fn @forwardWith(arg0: slice<calldata>) -> i256 [selector=0xf2b2b8d0, view, abi_p
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [calldata_array<tuple<word<uint160>, calldata_array<tuple<word<uint160>, word>>, calldata_array<tuple<word<uint160>, word>>, calldata_bytes>>, word], selector 0x1340778500000000000000000000000000000000000000000000000000000000, args arg0, 7
+    v2 = abi_encode [calldata_array<tuple<word<uint160>, calldata_array<tuple<word<uint160>, word>>, calldata_array<tuple<word<uint160>, word>>, calldata_bytes>>, word], scratch, selector 0x1340778500000000000000000000000000000000000000000000000000000000, args arg0, 7
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
@@ -169,7 +169,7 @@ fn @forwardOne(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x82731354, 
     icall revert_if<invalid_calldata_tail_offset>, v21
     v22 = inttoptr i256 v15 to ptr<calldata>
     v23 = make_calldata_slice v22, 32
-    v24 = abi_encode [tuple<word<uint160>, calldata_array<tuple<word<uint160>, word>>, calldata_array<tuple<word<uint160>, word>>, calldata_bytes>], selector 0xdc7b1a2700000000000000000000000000000000000000000000000000000000, args v23
+    v24 = abi_encode [tuple<word<uint160>, calldata_array<tuple<word<uint160>, word>>, calldata_array<tuple<word<uint160>, word>>, calldata_bytes>], scratch, selector 0xdc7b1a2700000000000000000000000000000000000000000000000000000000, args v23
     v25 = extract_value slice<memory>, v24, 0
     v26 = extract_value slice<memory>, v24, 1
     v27 = zext i160 v0 to i256

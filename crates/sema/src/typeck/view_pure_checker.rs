@@ -1,11 +1,11 @@
 use crate::{
     builtins::{Builtin, Builtin::*},
     hir::{self, ExprKind, ItemId, StmtKind, Visit},
-    ty::{Gcx, TyKind},
+    ty::{FxOnceMap, Gcx, TyKind},
 };
 use rayon::prelude::*;
 use solar_ast::{DataLocation, StateMutability, Visibility};
-use solar_data_structures::{Never, bit_set::DenseBitSet, map::FxBuildHasher};
+use solar_data_structures::{Never, bit_set::DenseBitSet};
 use solar_interface::{
     Span,
     diagnostics::{Diag, Level},
@@ -42,7 +42,7 @@ struct FunctionEffects {
     yul_calls: Vec<hir::FunctionId>,
 }
 
-type FunctionCache = once_map::OnceMap<hir::FunctionId, Arc<FunctionEffects>, FxBuildHasher>;
+type FunctionCache = FxOnceMap<hir::FunctionId, Arc<FunctionEffects>>;
 
 struct ViewPureChecker<'gcx, 'a> {
     gcx: Gcx<'gcx>,

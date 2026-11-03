@@ -634,7 +634,7 @@ fn dump_mir_contract(
 
 fn is_dumpable_contract(gcx: Gcx<'_>, id: ContractId) -> bool {
     let contract = gcx.hir.contract(id);
-    !contract.kind.is_interface() && !contract.kind.is_abstract_contract()
+    contract.can_be_deployed()
 }
 
 fn contract_dump_path_matches(gcx: Gcx<'_>, id: ContractId, path: &str) -> bool {
@@ -903,7 +903,7 @@ fn write_highlighted(writer: &mut ConsoleWriter, text: String, syntax: Syntax) -
             let token = &code[token_start..token_end];
             let style = if token.ends_with(':') { LABEL_STYLE } else { OPCODE_STYLE };
             write_operands(writer, &code[..token_start])?;
-            if token.starts_with(|c: char| c.is_ascii_alphanumeric() || matches!(c, '@' | '_')) {
+            if token.starts_with(is_operand_char) {
                 write!(writer, "{style}{token}{style:#}")?;
             } else {
                 writer.write_all(token.as_bytes())?;

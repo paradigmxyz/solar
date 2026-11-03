@@ -1,7 +1,8 @@
 use solar_codegen::ContractSelection;
 use solar_config::CompileOpts;
 use solar_interface::{
-    Result, Session, data_structures::map::FxHashMap, error_code, source_map::SourceFile,
+    Result, Session, data_structures::map::FxHashMap, diagnostics::DiagCtxt, error_code,
+    source_map::SourceFile,
 };
 use solar_sema::{CompilerRef, ParsingContext};
 use std::{ops::ControlFlow, path::Path, process::ExitCode, sync::Arc};
@@ -15,9 +16,9 @@ pub(super) fn run(opts: CompileOpts) -> ExitCode {
 
 pub fn run_compiler_args(opts: CompileOpts) -> Result {
     if opts.standard_json {
-        crate::standard_json::run(opts)
-            .map_err(|_e| solar_interface::diagnostics::ErrorGuaranteed::new_unchecked())?;
-        return Ok(());
+        return crate::standard_json::run(opts).map_err(|e| {
+            DiagCtxt::new_early().err(format!("failed to write standard JSON output: {e}")).emit()
+        });
     }
 
     run_compiler_with(opts, run_default)

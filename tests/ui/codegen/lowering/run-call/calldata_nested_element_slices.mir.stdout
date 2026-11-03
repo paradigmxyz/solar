@@ -39,7 +39,7 @@ fn @nestedBytes() -> i256 [selector=0x126aa804, view, abi_params=[], abi_returns
     mstore v20, v19
     v21 = address
     v22 = gas
-    v23 = abi_encode [memory_array<memory_bytes>], selector 0xe3db0bf300000000000000000000000000000000000000000000000000000000, args v0
+    v23 = abi_encode [memory_array<memory_bytes>], scratch, selector 0xe3db0bf300000000000000000000000000000000000000000000000000000000, args v0
     v24 = extract_value slice<memory>, v23, 0
     v25 = extract_value slice<memory>, v23, 1
     v26 = zext i160 v21 to i256
@@ -153,11 +153,11 @@ fn @structMember() -> struct0 [selector=0x9f2d7231, view, abi_params=[], abi_ret
     mstore v21, v20
     v22 = address
     v23 = gas
-    v24 = abi_encode [memory_array<tuple<word<uint160>, word, memory_bytes>>], selector 0x903f85b300000000000000000000000000000000000000000000000000000000, args v0
+    v24 = abi_encode [memory_array<tuple<word<uint160>, word, memory_bytes>>], scratch, selector 0x903f85b300000000000000000000000000000000000000000000000000000000, args v0
     v25 = extract_value slice<memory>, v24, 0
     v26 = extract_value slice<memory>, v24, 1
     v27 = zext i160 v22 to i256
-    v28 = staticcall v23, v27, v25, v26, v25, 64
+    v28 = staticcall v23, v27, v25, v26, 0, 64
     jumpi v28, bb5, bb4
   bb4:                                            ; preds = bb3
     revert_returndata
@@ -165,20 +165,18 @@ fn @structMember() -> struct0 [selector=0x9f2d7231, view, abi_params=[], abi_ret
     v29 = returndatasize
     v30 = lt v29, 64
     icall revert_if<tuple_data_too_short>, v30
-    v31 = mload v25
-    v32 = ptrtoint ptr<memory> v25 to i256
-    v33 = add v32, 32
-    v34 = mload v33
-    v35 = gt v34, 1
-    icall revert_if<empty>, v35
-    v36 = ne v34, 0
-    v37 = insert_value struct0, undef struct0, 0, v31
-    v38 = insert_value struct0, v37, 1, v36
-    v39 = extract_value struct0, v38, 0
-    v40 = extract_value struct0, v38, 1
-    v41 = insert_value struct0, undef struct0, 0, v39
-    v42 = insert_value struct0, v41, 1, v40
-    ret v42
+    v31 = mload 0 !metadata(memory=scratch)
+    v32 = mload 32 !metadata(memory=scratch)
+    v33 = gt v32, 1
+    icall revert_if<empty>, v33
+    v34 = ne v32, 0
+    v35 = insert_value struct0, undef struct0, 0, v31
+    v36 = insert_value struct0, v35, 1, v34
+    v37 = extract_value struct0, v36, 0
+    v38 = extract_value struct0, v36, 1
+    v39 = insert_value struct0, undef struct0, 0, v37
+    v40 = insert_value struct0, v39, 1, v38
+    ret v40
   bb2:                                            ; preds = bb1
     v3 = alloc 96 !metadata(preserves_fmp)
     mstore v3, 0
@@ -274,7 +272,7 @@ fn @tupleTernary() -> i256 [selector=0x75466b3a, view, abi_params=[], abi_return
     mstore v3, 0x1122334400000000000000000000000000000000000000000000000000000000
     v4 = ne false, false
     v5 = zext i1 v4 to i256
-    v6 = abi_encode [memory_bytes, word<bool>], selector 0xf8c7256500000000000000000000000000000000000000000000000000000000, args v2, v5
+    v6 = abi_encode [memory_bytes, word<bool>], scratch, selector 0xf8c7256500000000000000000000000000000000000000000000000000000000, args v2, v5
     v7 = extract_value slice<memory>, v6, 0
     v8 = extract_value slice<memory>, v6, 1
     v9 = zext i160 v0 to i256

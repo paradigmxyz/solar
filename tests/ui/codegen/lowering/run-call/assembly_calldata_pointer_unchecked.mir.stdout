@@ -170,7 +170,7 @@ fn @callIt() -> i256 [selector=0x83d6f579, view, abi_params=[], abi_returns=[wor
     icall revert_if<empty>, v7
     v9 = ptradd v3, 1
     v10 = make_calldata_slice v9, 3
-    v11 = abi_encode [calldata_bytes], selector 0xa49cb33b00000000000000000000000000000000000000000000000000000000, args v10
+    v11 = abi_encode [calldata_bytes], scratch, selector 0xa49cb33b00000000000000000000000000000000000000000000000000000000, args v10
     v12 = extract_value slice<memory>, v11, 0
     v13 = extract_value slice<memory>, v11, 1
     v14 = zext i160 v0 to i256

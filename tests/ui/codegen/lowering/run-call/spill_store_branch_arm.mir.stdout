@@ -420,7 +420,7 @@ fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], ab
     v26 = sload 0 !metadata(storage=slot(0))
     v27 = trunc i256 v26 to i160
     v28 = gas
-    v29 = abi_encode [tuple<word<uint160>, word<uint160>, word<uint24>, word<int24>, word<uint160>>, tuple<word<bool>, word, word<uint160>>, memory_bytes], selector 0x2360a5fc00000000000000000000000000000000000000000000000000000000, args v0, v6, v9
+    v29 = abi_encode [tuple<word<uint160>, word<uint160>, word<uint24>, word<int24>, word<uint160>>, tuple<word<bool>, word, word<uint160>>, memory_bytes], scratch, selector 0x2360a5fc00000000000000000000000000000000000000000000000000000000, args v0, v6, v9
     v30 = extract_value slice<memory>, v29, 0
     v31 = extract_value slice<memory>, v29, 1
     v32 = zext i160 v27 to i256

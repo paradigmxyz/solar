@@ -110,8 +110,8 @@
 
 use super::{
     EvmPass,
-    block_layout::terminator_kind,
-    utils::{count_block_references, instruction_size_lower_bound, is_split_point, retain_blocks},
+    block_layout::{ends_at_split_point, terminator_kind},
+    utils::{count_block_references, lower_bound, retain_blocks},
 };
 use crate::{
     backend::evm::{
@@ -199,9 +199,7 @@ impl EvmPass for CopyJoins {
         let mut changed = false;
         for caller in module.blocks.indices() {
             if prefix_bytes <= usize::from(u8::MAX) {
-                prefix_bytes += (module.blocks[caller].instructions.iter())
-                    .map(|inst| instruction_size_lower_bound(target, inst))
-                    .sum::<usize>();
+                prefix_bytes += lower_bound(target, &module.blocks[caller].instructions);
                 continue;
             }
             let Some(callee) = jump_callee(module, caller) else { continue };
@@ -290,7 +288,7 @@ fn jump_callee(module: &Module, caller: BlockId) -> Option<BlockId> {
     (callee != BlockId::ENTRY
         && callee != caller
         && Some(callee) != module.next_block(caller)
-        && is_split_point(&block.instructions, block.instructions.len()))
+        && ends_at_split_point(block))
     .then_some(callee)
 }
 
@@ -392,7 +390,7 @@ fn loop_candidate(
 ) -> Option<(BlockId, Cost)> {
     let callee = jump_callee(module, caller)?;
     let tail = &module.blocks[callee];
-    if !in_hot_loop(&module.blocks[caller]) || !in_hot_loop(tail) {
+    if !module.blocks[caller].in_hot_loop() || !tail.in_hot_loop() {
         return None;
     }
     // The copy's own transfer must not cost more on each iteration than the tail's does.
@@ -418,17 +416,12 @@ fn loop_candidate(
     target.duplicates_loop_block(copy, paths[callee]).then_some((callee, copy))
 }
 
-/// Whether `block` holds hot code of a loop.
-fn in_hot_loop(block: &Block) -> bool {
-    block.metadata.in_loop && !block.metadata.hotness.is_cold()
-}
-
 /// Whether `block` jumps conditionally to hot code of its loop, as a header does that returns on
 /// the loop's exit.
 fn continues_loop(module: &Module, block: &Block) -> bool {
     block.instructions.windows(2).any(|pair| {
         pair[1].as_evm_opcode() == Some(op::JUMPI)
-            && pair[0].pushed_block().is_some_and(|to| in_hot_loop(&module.blocks[to]))
+            && pair[0].pushed_block().is_some_and(|to| module.blocks[to].in_hot_loop())
     })
 }
 
