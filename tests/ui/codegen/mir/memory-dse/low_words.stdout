@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/memory-dse/low_words.mir (before memory-dse) ===
-+ // === ROOT/tests/ui/codegen/mir/memory-dse/low_words.mir (after memory-dse) ===
+- ; === ROOT/tests/ui/codegen/mir/memory-dse/low_words.mir (before memory-dse) ===
++ ; === ROOT/tests/ui/codegen/mir/memory-dse/low_words.mir (after memory-dse) ===
   @module MemoryDseLowWords
   fn @heap_reads(arg0: i256) {
     bb0:

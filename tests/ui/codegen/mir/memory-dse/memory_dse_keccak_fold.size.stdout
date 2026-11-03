@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/memory-dse/memory_dse_keccak_fold.mir (before memory-dse) ===
-+ // === ROOT/tests/ui/codegen/mir/memory-dse/memory_dse_keccak_fold.mir (after memory-dse) ===
+- ; === ROOT/tests/ui/codegen/mir/memory-dse/memory_dse_keccak_fold.mir (before memory-dse) ===
++ ; === ROOT/tests/ui/codegen/mir/memory-dse/memory_dse_keccak_fold.mir (after memory-dse) ===
   @module MemoryDseKeccakFold
   fn @fold_dead_words() {
     bb0:
@@ -41,7 +41,7 @@
   fn @loop_hash(arg0: i256) -> i256 {
     bb0:
       jump bb1
-    bb1:  ; preds = bb0, bb1
+    bb1:                                            ; preds = bb0, bb1
       v0 = phi [bb0: 0], [bb1: v4]
       v1 = phi [bb0: 0], [bb1: v3]
       mstore 0, 7
@@ -51,7 +51,7 @@
       v4 = add v0, 1
       v5 = lt v4, arg0
       jumpi v5, bb1, bb2
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       ret v3
   }
   

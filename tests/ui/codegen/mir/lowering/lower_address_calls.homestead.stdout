@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lowering/lower_address_calls.mir (before lower-builtins) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/lower_address_calls.mir (after lower-builtins) ===
+- ; === ROOT/tests/ui/codegen/mir/lowering/lower_address_calls.mir (before lower-builtins) ===
++ ; === ROOT/tests/ui/codegen/mir/lowering/lower_address_calls.mir (after lower-builtins) ===
   @module AddressCalls
   fn @default_call(arg0: i160, arg1: ptr<memory>) -> i256 {
     bb0:

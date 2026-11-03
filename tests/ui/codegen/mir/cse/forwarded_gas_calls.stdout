@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/cse/forwarded_gas_calls.mir (before storage-cse) ===
-+ // === ROOT/tests/ui/codegen/mir/cse/forwarded_gas_calls.mir (after storage-cse) ===
+- ; === ROOT/tests/ui/codegen/mir/cse/forwarded_gas_calls.mir (before storage-cse) ===
++ ; === ROOT/tests/ui/codegen/mir/cse/forwarded_gas_calls.mir (after storage-cse) ===
   @module ForwardedGasCalls
   fn @after_forwarding_helper(arg0: i256) -> i256 {
     bb0:

@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/pack-data/debug_spans.evmir (before pack-data) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/pack-data/debug_spans.evmir (after pack-data) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/pack-data/debug_spans.evmir (before pack-data) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/pack-data/debug_spans.evmir (after pack-data) ===
   @module ConstantDataDebugSpans
 + @data
 +   literal_0: hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"

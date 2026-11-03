@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_memory_oversized_length.sol:AbiDecodeMemoryOversizedLength ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_memory_oversized_length.sol:AbiDecodeMemoryOversizedLength ===
 @module AbiDecodeMemoryOversizedLength
 ; function decodeWordArray(uint256[] memory value) external pure returns (uint256) [selector 0x5592ecdf]
 fn @decodeWordArray(arg0: ptr<memory>) -> i256 [selector=0x5592ecdf, pure, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
@@ -67,15 +67,15 @@ fn @oversized(arg0: i256) -> i1 {
     v5 = icall returndata_bytes<>
     v6 = eq v4, false
     jumpi v6, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v7 = ptradd v5, 32
     v8 = mload v5
     v9 = keccak256 v7, v8
     v10 = eq v9, 0x8e6896d848ce77893db8ffe49ed1a378c34c94cda53b83ae7938e28a946cb069
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v11 = phi [bb1: v10], [bb2: false]
     ret v11
 }

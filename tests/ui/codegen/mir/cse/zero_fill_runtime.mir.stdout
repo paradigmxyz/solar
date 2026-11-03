@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/cse/zero_fill_runtime.sol:ZeroFill ===
+; === ROOT/tests/ui/codegen/mir/cse/zero_fill_runtime.sol:ZeroFill ===
 @module ZeroFill
 ; function get(address asset, uint128 b) external pure returns (S memory data) [selector 0x68e4440b]
 fn @get(arg0: i160, arg1: i128) -> ptr<memory> [selector=0x68e4440b, pure, abi_params=[address, uint128], abi_returns=[tuple<word<uint128>, word<uint128>, word<uint128>, word<uint40>, word<uint16>, word<uint160>, word<uint8>>], abi_return_params=[tuple<uint128, uint128, uint128, uint40, uint16, address, uint8>]] {

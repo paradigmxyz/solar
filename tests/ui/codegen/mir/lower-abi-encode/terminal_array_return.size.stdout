@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lower-abi-encode/terminal_array_return.mir (before lower-abi-encode) ===
-+ // === ROOT/tests/ui/codegen/mir/lower-abi-encode/terminal_array_return.mir (after lower-abi-encode) ===
+- ; === ROOT/tests/ui/codegen/mir/lower-abi-encode/terminal_array_return.mir (before lower-abi-encode) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-abi-encode/terminal_array_return.mir (after lower-abi-encode) ===
   @module TerminalReturns
   fn @fresh_array() -> ptr<memory> {
     bb0:

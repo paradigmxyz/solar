@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/check-elim/long_relation_paths.sol:RelationPaths ===
+; === ROOT/tests/ui/codegen/mir/check-elim/long_relation_paths.sol:RelationPaths ===
 @module RelationPaths
 ; function ordered(uint256[66] calldata a) external pure returns (uint256) [selector 0xd16c130b]
 fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_params=[array<66, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
@@ -1264,26 +1264,26 @@ fn @ordered(arg0: slice<calldata>) -> i256 [selector=0xd16c130b, pure, abi_param
 fn @sibling(arg0: i1, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector=0x9446c675, pure, abi_params=[bool, uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v6 = lt arg1, arg3
     v7 = eq v6, false
     jumpi v7, bb5, bb4
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v8 = lt arg2, arg3
     v9 = eq v8, false
     jump bb6
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     jump bb6
-  bb6:  ; preds = bb5, bb4
+  bb6:                                            ; preds = bb5, bb4
     v10 = phi [bb4: v9], [bb5: true]
     jumpi v10, bb7, bb8
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     jump bb9
-  bb9:  ; preds = bb8
+  bb9:                                            ; preds = bb8
     jump bb3
-  bb7:  ; preds = bb6
+  bb7:                                            ; preds = bb6
     ret 0
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v0 = lt arg1, arg2
     v1 = eq v0, false
     icall revert_if<empty>, v1
@@ -1294,14 +1294,14 @@ fn @sibling(arg0: i1, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector=0x94
     v5 = eq v4, false
     icall revert_if<empty>, v5
     jump bb3
-  bb3:  ; preds = bb1, bb9
+  bb3:                                            ; preds = bb1, bb9
     v11 = lt arg1, arg2
     jumpi v11, bb10, bb11
-  bb11:  ; preds = bb3
+  bb11:                                           ; preds = bb3
     jump bb12
-  bb10:  ; preds = bb3
+  bb10:                                           ; preds = bb3
     jump bb12
-  bb12:  ; preds = bb10, bb11
+  bb12:                                           ; preds = bb10, bb11
     v12 = phi [bb10: i8 1], [bb11: i8 0]
     v13 = zext i8 v12 to i256
     ret v13

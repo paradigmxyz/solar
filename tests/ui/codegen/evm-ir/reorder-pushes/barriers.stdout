@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/barriers.evmir (before reorder-pushes) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/barriers.evmir (after reorder-pushes) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/barriers.evmir (before reorder-pushes) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/barriers.evmir (after reorder-pushes) ===
   @module ReorderBarriers
   bb0:
     gas

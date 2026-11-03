@@ -18,3 +18,13 @@ contract BB {
 }
 
 contract CC is AA, BB {} //~ ERROR: derived contract must override function `y`
+
+contract AAA {
+    uint public z = 4;
+}
+
+contract BBB {
+    uint public z = 5; //~ ERROR: identifier `z` already declared
+}
+
+contract CCC is BBB, AAA {} //~ ERROR: derived contract must override function `z`

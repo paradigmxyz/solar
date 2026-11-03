@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/external_function_pointer_storage.sol:Flow ===
+; === ROOT/tests/ui/codegen/lowering/external_function_pointer_storage.sol:Flow ===
 @module Flow
 @types
   struct0: {i256, i256}
@@ -93,9 +93,9 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     mstore 0, v10 !metadata(memory=scratch)
     v11 = call v9, v8, 0, 28, 4, 0, 32
     jumpi v11, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v12 = returndatasize
     v13 = lt v12, 32
     icall revert_if<tuple_data_too_short>, v13
@@ -115,9 +115,9 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     mstore 0, v25 !metadata(memory=scratch)
     v26 = call v24, v23, 0, 28, 4, 0, 32
     jumpi v26, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v27 = returndatasize
     v28 = lt v27, 32
     icall revert_if<tuple_data_too_short>, v28

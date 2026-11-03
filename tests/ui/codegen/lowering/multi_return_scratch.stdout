@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/multi_return_scratch.sol:MultiReturnScratch ===
+; === ROOT/tests/ui/codegen/lowering/multi_return_scratch.sol:MultiReturnScratch ===
 @module MultiReturnScratch
 @types
   struct0: {i256, i256, i256}
@@ -18,16 +18,16 @@ fn @triple(arg0: i256) -> struct0 [pure] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v4 = checked_add uint256, arg0, 1
     v5 = checked_add uint256, arg0, 2
     v6 = insert_value struct0, undef struct0, 0, arg0
     v7 = insert_value struct0, v6, 1, v4
     v8 = insert_value struct0, v7, 2, v5
     ret v8
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = insert_value struct0, undef struct0, 0, 1
     v2 = insert_value struct0, v1, 1, 2
     v3 = insert_value struct0, v2, 2, 3
@@ -56,14 +56,14 @@ fn @assign(arg0: i256, arg1: i256) -> struct1 [selector=0xf09915d4, abi_params=[
 fn @ternary(arg0: i1, arg1: i256) -> struct2 [selector=0x09a143f6, pure, abi_params=[bool, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v1 = checked_add uint256, arg1, 2
     v2 = checked_add uint256, arg1, 3
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v0 = checked_add uint256, arg1, 1
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v3 = phi [bb1: arg1], [bb2: v1]
     v4 = phi [bb1: v0], [bb2: v2]
     v5 = insert_value struct2, undef struct2, 0, v3

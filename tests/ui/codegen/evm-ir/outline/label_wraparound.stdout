@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/outline/label_wraparound.evmir (before outline) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/outline/label_wraparound.evmir (after outline) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/outline/label_wraparound.evmir (before outline) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/outline/label_wraparound.evmir (after outline) ===
   @module LabelWraparound
   bb4294967295:
 +   push bb2

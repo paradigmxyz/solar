@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/terminal-layout/shared_terminal.evmir (before terminal-layout) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/terminal-layout/shared_terminal.evmir (after terminal-layout) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/terminal-layout/shared_terminal.evmir (before terminal-layout) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/terminal-layout/shared_terminal.evmir (after terminal-layout) ===
   @module SharedTerminal
   bb0:
     push 1

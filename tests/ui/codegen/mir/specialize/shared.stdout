@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/specialize/shared.mir (before specialize) ===
-+ // === ROOT/tests/ui/codegen/mir/specialize/shared.mir (after specialize) ===
+- ; === ROOT/tests/ui/codegen/mir/specialize/shared.mir (before specialize) ===
++ ; === ROOT/tests/ui/codegen/mir/specialize/shared.mir (after specialize) ===
   @module SharedSpecialization
   ; selector 0x00000001
   fn @first(arg0: i256) -> i256 [selector=0x00000001] {
@@ -19,10 +19,10 @@
     bb0:
 -     v0 = ne arg0, 0
 -     jumpi v0, bb1, bb2
--   bb2:  ; preds = bb0
+-   bb2:                                            ; preds = bb0
       v3 = add arg1, 7
       ret v3
--   bb1:  ; preds = bb0
+-   bb1:                                            ; preds = bb0
 -     v1 = mul arg1, arg1
 -     v2 = mul v1, v1
 -     ret v2
@@ -50,17 +50,17 @@
     bb0:
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       v3 = add arg1, 7
       ret v3
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       v1 = mul arg1, arg1
       v2 = mul v1, v1
       ret v2
   }
   
-- // === ROOT/tests/ui/codegen/mir/specialize/shared.mir (before dead-arg-elim) ===
-+ // === ROOT/tests/ui/codegen/mir/specialize/shared.mir (after dead-arg-elim) ===
+- ; === ROOT/tests/ui/codegen/mir/specialize/shared.mir (before dead-arg-elim) ===
++ ; === ROOT/tests/ui/codegen/mir/specialize/shared.mir (after dead-arg-elim) ===
   @module SharedSpecialization
   ; selector 0x00000001
   fn @first(arg0: i256) -> i256 [selector=0x00000001] {
@@ -108,10 +108,10 @@
     bb0:
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       v3 = add arg1, 7
       ret v3
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       v1 = mul arg1, arg1
       v2 = mul v1, v1
       ret v2

@@ -1,4 +1,4 @@
-error: unresolved symbol `Missing`
+error[7920]: unresolved symbol `Missing`
    ╭▸ ROOT/tests/ui/typeck/fallback_signature.sol:LL:CC
    │
 LL │     fallback(Missing) external {}

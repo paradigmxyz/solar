@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/internal_void_call.sol:InternalVoidCall ===
+; === ROOT/tests/ui/codegen/lowering/internal_void_call.sol:InternalVoidCall ===
 @module InternalVoidCall
 ; getter for `uint256 public value` [selector 0x3fa4f245]
 fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -19,12 +19,12 @@ fn @writeIfNonZero(arg0: i256) {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     sstore 0, arg0 !metadata(storage=slot(0))
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     ret
 }
 
@@ -33,12 +33,12 @@ fn @setUnlessZero(arg0: i256) [selector=0x305f34c8, abi_params=[uint256], abi_re
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     sstore 0, arg0 !metadata(storage=slot(0))
     ret
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     ret
 }
 
@@ -60,13 +60,13 @@ fn @returnRevert() [selector=0xdcdb78bc, pure, abi_params=[], abi_returns=[], ab
 fn @unitTernary(arg0: i1, arg1: i256) [selector=0xeb6f9827, abi_params=[bool, uint256], abi_returns=[], abi_return_params=[]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     icall @clear
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     icall @writeIfNonZero, arg1
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     ret
 }
 

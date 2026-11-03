@@ -724,6 +724,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         }
         match &expr.kind {
+            ExprKind::Lit(lit) if self.in_inline_assembly => {
+                Some(self.builder.imm(lit.kind.yul_word()?))
+            }
             ExprKind::Lit(lit) => self.lower_literal(lit.kind, expr.span),
             ExprKind::Array(elements) => self.lower_array(expr, elements),
             ExprKind::Ident(_) => {
@@ -762,14 +765,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 let lhs_ty = self.cx.gcx.type_of_expr(lhs.id);
                 let rhs_ty = self.cx.gcx.type_of_expr(rhs.id);
-                let fixed_bytes = |ty: Option<Ty<'gcx>>| {
-                    ty.is_some_and(|ty| {
-                        matches!(
-                            ty.peel_refs().kind,
-                            TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(_))
-                        )
-                    })
-                };
+                let fixed_bytes =
+                    |ty: Option<Ty<'gcx>>| ty.is_some_and(|ty| ty.peel_refs().is_fixed_bytes());
                 let rhs_literal =
                     rhs_ty.is_some_and(|ty| {
                         matches!(
@@ -950,8 +947,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .flatten();
                 let rhs_value = if let Some(word) = fixed_bytes_literal {
                     word
-                } else if self.in_inline_assembly {
-                    self.lower_yul_word_expr(rhs)?
                 } else if self.types.memory_layout(memory_rhs_ty).is_some()
                     && rhs_ty.is_ref_at(DataLocation::Storage)
                 {

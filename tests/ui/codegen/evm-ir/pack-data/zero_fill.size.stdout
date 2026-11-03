@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/pack-data/zero_fill.evmir (before pack-data) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/pack-data/zero_fill.evmir (after pack-data) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/pack-data/zero_fill.evmir (before pack-data) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/pack-data/zero_fill.evmir (after pack-data) ===
   @module zero_fill
   bb0:
     push 128

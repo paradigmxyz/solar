@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/storage_array_pop.sol:StorageArrayPop ===
+; === ROOT/tests/ui/codegen/lowering/run-call/storage_array_pop.sol:StorageArrayPop ===
 @module StorageArrayPop
 @types
   struct0: {i256, i256}
