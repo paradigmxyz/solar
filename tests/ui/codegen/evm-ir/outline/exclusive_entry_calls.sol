@@ -7,11 +7,13 @@
 //@ run-call: d 0x0000000000000000000000000000000000000005 => 9
 //@ run-call: e 0x0000000000000000000000000000000000000005 => 10
 
-// Each external function makes the same call to `getReserveData`. A call runs one of them, so
-// the call sequence costs one jump pair per call, not five, and gas mode shares it between the
-// entries.
-// CHECK: {{\[ret=0, inputs=1, outputs=[0-9]+\]}}:
-// CHECK: staticcall
+// Each external function builds the same `getReserveData` call arguments. A call runs one of them,
+// so sharing the argument setup costs one jump pair per call, not five, and gas mode shares it
+// between the entries.
+// CHECK: function a(address x)
+// CHECK: jump [[ARGS:bb[0-9]+]]
+// CHECK: [[ARGS]] {{\[ret=0, inputs=1, outputs=[0-9]+\]}}:
+// CHECK-COUNT-4: jump [[ARGS]]
 contract ExclusiveEntryCalls {
     function getReserveData(address asset) external pure returns (uint256, uint256, uint256, uint256) {
         return (uint160(asset), 2, 3, 4);

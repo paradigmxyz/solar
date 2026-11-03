@@ -26,7 +26,7 @@
 //!
 //! A call runs one external function, so the sites that different external entries reach never
 //! run together. A gas-mode share charges the transfer gas of the entry whose sites pay the most,
-//! as [`EntryReach`] finds them, plus the sites no entry reaches, rather than the sum over every
+//! as [`EntryGroups`] finds them, plus the sites no entry reaches, rather than the sum over every
 //! site, which would count each call's jumps once per sibling entry point. A site that several
 //! entries reach, such as one in an internal function, counts for each of them. Code without
 //! entry blocks, such as creation code, pays for every site.
@@ -216,21 +216,12 @@ fn is_cold(module: &Module, site: &Site) -> bool {
     module.blocks[site.block].metadata.hotness.is_cold()
 }
 
-/// What the external entries reach, computed on first use.
-#[derive(Default)]
-struct EntryReach(OnceCell<EntryGroups>);
-
+/// What the external entries reach.
 struct EntryGroups {
     /// The blocks that some entry reaches and the code outside the entries does not.
     exclusive: DenseBitSet<BlockId>,
     /// The blocks each entry reaches.
     reach: Vec<DenseBitSet<BlockId>>,
-}
-
-impl EntryReach {
-    fn get(&self, module: &Module) -> &EntryGroups {
-        self.0.get_or_init(|| EntryGroups::new(module))
-    }
 }
 
 impl EntryGroups {
@@ -294,26 +285,27 @@ impl EntryGroups {
 /// dispatch's own, may run in every call.
 fn sites_transfer_gas(
     module: &Module,
-    entries: &EntryReach,
+    entries: &OnceCell<EntryGroups>,
     target: &Target,
     sites: &[Site],
     gas: u32,
 ) -> u64 {
     let site_gas = |site: &Site| u64::from(target.site_gas(is_cold(module, site), gas));
-    let EntryGroups { exclusive, reach } = entries.get(module);
-    let shared =
-        sites.iter().filter(|site| !exclusive.contains(site.block)).map(site_gas).sum::<u64>();
+    let EntryGroups { exclusive, reach } = entries.get_or_init(|| EntryGroups::new(module));
+    let (exclusive, shared) =
+        sites.iter().partition::<Vec<&Site>, _>(|site| exclusive.contains(site.block));
     let busiest = reach
         .iter()
         .map(|reached| {
-            sites
+            exclusive
                 .iter()
-                .filter(|site| exclusive.contains(site.block) && reached.contains(site.block))
-                .map(site_gas)
+                .filter(|site| reached.contains(site.block))
+                .map(|s| site_gas(s))
                 .sum::<u64>()
         })
         .max()
         .unwrap_or(0);
+    let shared = shared.into_iter().map(site_gas).sum::<u64>();
     shared + busiest
 }
 
@@ -387,7 +379,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
 
     let is_gas = target.optimization().is_gas();
     let is_size = target.optimization().is_size();
-    let entries = EntryReach::default();
+    let entries = OnceCell::new();
     let metrics = hashes.metrics(module, |block, inst| {
         if is_gas && in_hot_loop(block) {
             return None;
@@ -584,7 +576,7 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     let target = module.target(gcx);
     let (site_bytes, body_bytes, transfer_gas) = push_share_costs(&target);
     let mut sites = FxHashMap::<U256, SmallVec<[Site; 2]>>::default();
-    let entries = EntryReach::default();
+    let entries = OnceCell::new();
     let is_gas = target.optimization().is_gas();
     for (block_id, block) in module.blocks.iter_enumerated() {
         // Size mode prices every loop block, cold or not, by the iterations it may run.
