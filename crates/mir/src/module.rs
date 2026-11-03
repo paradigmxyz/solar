@@ -314,13 +314,14 @@ impl Module {
     ) -> solar_interface::Result<LoweredModule<'_>> {
         let dcx = &sess.dcx;
         if self.phase != MirPhase::Lowered {
-            return Err(dcx
-                .err(format!(
+            return Err(dcx.emit_err(
+                self.name.span,
+                None,
+                format!(
                     "EVM codegen requires MIR in the `lowered` phase, stopped at `{}`",
                     self.phase.name(),
-                ))
-                .span(self.name.span)
-                .emit());
+                ),
+            ));
         }
         if recheck || !self.lowered_checked {
             crate::analysis::validate_phase(

@@ -350,7 +350,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     pub fn error_at(&self, span: Span, message: impl Into<String>) -> PErr<'sess> {
-        self.parser.dcx().err(message.into()).span(span)
+        self.parser.dcx().err_at(span, None, message.into())
     }
 
     /// Returns the objective of the session's build, which a module without `@optimize` uses.

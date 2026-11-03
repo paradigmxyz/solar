@@ -366,11 +366,11 @@ impl<'gcx> StorageBuilder<'gcx> {
         let slots = self.storage_slots(ty, span);
         let cursor = if transient { &mut self.transient_cursor } else { &mut self.storage_cursor };
         cursor.take(encoding, slots).or_else(|| {
-            self.gcx
-                .dcx()
-                .err("contract storage layout exceeds the addressable storage space")
-                .span(span)
-                .emit();
+            self.gcx.dcx().emit_err(
+                span,
+                None,
+                "contract storage layout exceeds the addressable storage space",
+            );
             None
         })
     }
@@ -474,6 +474,6 @@ impl<'gcx> StorageBuilder<'gcx> {
     }
 
     fn unsupported_size(&self, span: Span, kind: &str) {
-        self.gcx.dcx().err(format!("{kind} is too large for codegen")).span(span).emit();
+        self.gcx.dcx().emit_err(span, None, format!("{kind} is too large for codegen"));
     }
 }

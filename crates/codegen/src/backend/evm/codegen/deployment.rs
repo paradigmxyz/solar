@@ -510,11 +510,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             // The helpers' fixed frames follow the constructor's spill area.
             let fixed_memory_end = self.place_constructor_static_frames(module, spill_end);
             if fixed_memory_end.checked_add(heap_guard).is_none() {
-                self.gcx
-                    .dcx()
-                    .err("constructor heap prefix exceeds the addressable memory range")
-                    .span(ctor.name_span)
-                    .emit();
+                self.gcx.dcx().emit_err(
+                    ctor.name_span,
+                    None,
+                    "constructor heap prefix exceeds the addressable memory range",
+                );
             }
             self.asm.set_deferred_const(constructor_fixed_memory_end, U256::from(fixed_memory_end));
 
