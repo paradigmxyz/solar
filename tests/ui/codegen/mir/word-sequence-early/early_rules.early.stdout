@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/word-sequence-early/early_rules.mir (before word-sequence-early) ===
-+ // === ROOT/tests/ui/codegen/mir/word-sequence-early/early_rules.mir (after word-sequence-early) ===
+- ; === ROOT/tests/ui/codegen/mir/word-sequence-early/early_rules.mir (before word-sequence-early) ===
++ ; === ROOT/tests/ui/codegen/mir/word-sequence-early/early_rules.mir (after word-sequence-early) ===
   @module WordSequenceEarlyRules
   fn @selectors(arg0: i256) -> i1 {
     bb0:
