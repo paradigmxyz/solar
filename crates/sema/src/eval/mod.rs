@@ -221,23 +221,23 @@ impl<'gcx> ConstEval<'gcx> {
             Ok(ConstValue::Int(int)) => int,
             Ok(ConstValue::Rational(_)) => {
                 let msg = "array length cannot be fractional";
-                return Err(dcx.err(msg).code(error_code!(3208)).span(size.span).emit());
+                return Err(dcx.emit_err_code(size.span, error_code!(3208), msg));
             }
             Ok(_) => return Err(self.emit_error(size, EE::NotAnInteger.spanned(size.span), cx)),
             Err(err) => return Err(self.emit_error(size, err, cx)),
         };
         let Some(int) = int.as_u256() else {
             let err = if int.is_negative() {
-                dcx.err("array length cannot be negative").code(error_code!(3658))
+                dcx.err_code_at(size.span, error_code!(3658), "array length cannot be negative")
             } else {
-                let err = dcx.err("array length is too large").code(error_code!(1847));
-                err.note("the maximum is `2**256 - 1`")
+                dcx.err_code_at(size.span, error_code!(1847), "array length is too large")
+                    .note("the maximum is `2**256 - 1`")
             };
-            return Err(err.span(size.span).emit());
+            return Err(err.emit());
         };
         if int.is_zero() {
             let msg = "array length must be greater than zero";
-            Err(dcx.err(msg).code(error_code!(1406)).span(size.span).emit())
+            Err(dcx.emit_err_code(size.span, error_code!(1406), msg))
         } else {
             Ok(int)
         }
@@ -497,9 +497,7 @@ impl<'gcx> ConstEval<'gcx> {
         let mut diag = self
             .gcx
             .dcx()
-            .err(msg)
-            .code(code)
-            .span(expr.span)
+            .err_code_at(expr.span, code, msg)
             .span_label(err.span, "evaluation of constant value failed here");
         // Tell the user what solc's evaluator accepts in an array length.
         if cx == ConstContext::ArrayLength
