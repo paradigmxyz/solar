@@ -3,6 +3,7 @@
 //@ run-call: encodings => true
 //@ run-call: referencesAndConversions => true
 //@ run-call: externalCall => true
+//@ run-call: slotNinetySix => true
 //@ run-call: packedGrowth => 0
 //@ run-call: encodeGrowth => 0
 //@ run-call: concatGrowth => 0
@@ -32,6 +33,9 @@ contract Test {
     }
 
     Holder internal holder;
+    uint256[90] internal gap;
+    // Slot 96 is also the address of the zero slot in memory.
+    string internal atSlot96 = "hello storage string that is longer than thirty-one bytes";
 
     constructor() {
         strs.push("");
@@ -139,6 +143,26 @@ contract Test {
 
     // CHECK-LABEL: fn @packedGrowth
     // CHECK: keccak256_packed (storage_bytes {{v[0-9]+|[0-9]+}}, uint256 1)
+    function slotNinetySix() external returns (bool) {
+        string memory m = atSlot96;
+        if (keccak256(abi.encode(atSlot96, uint8(1))) != keccak256(abi.encode(m, uint8(1)))) {
+            return false;
+        }
+        if (keccak256(abi.encodeCall(this.hashArgs, (atSlot96, 5))) != keccak256(abi.encodeCall(this.hashArgs, (m, 5)))) {
+            return false;
+        }
+        if (keccak256(abi.encodePacked(atSlot96, uint8(1))) != keccak256(abi.encodePacked(m, uint8(1)))) {
+            return false;
+        }
+        if (this.hashArgs(atSlot96, 9) != keccak256(abi.encode(m, 9))) return false;
+        (bool ok, bytes memory data) = address(this).call(abi.encodeCall(this.failSlot96, ()));
+        return !ok && keccak256(data) == keccak256(abi.encodeWithSelector(Err.selector, m));
+    }
+
+    function failSlot96() external view {
+        revert Err(atSlot96);
+    }
+
     function packedGrowth() external view returns (uint256) {
         uint256 start = fp();
         bytes32 hash = keccak256(abi.encodePacked(big, uint256(1)));

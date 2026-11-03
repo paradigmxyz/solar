@@ -80,4 +80,15 @@ contract StorageBytesEncodeTest {
                 )
         );
     }
+
+    function testStringAtSlot96() public {
+        StorageBytesEncodeSlot96 slot96 = new StorageBytesEncodeSlot96();
+        bytes memory expected = abi.encode("hello storage string that is longer than thirty-one bytes");
+        require(keccak256(slot96.encoded()) == keccak256(expected));
+        vm.recordLogs();
+        slot96.emitData();
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        require(logs.length == 1);
+        require(keccak256(logs[0].data) == keccak256(expected));
+    }
 }

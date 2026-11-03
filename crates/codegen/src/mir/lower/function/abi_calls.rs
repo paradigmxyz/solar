@@ -400,6 +400,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn abi_type_for_value(&self, value: ValueId, ty: AbiType) -> AbiType {
+        // A storage operand is a slot word, which can equal a memory address or the zero slot.
+        if ty == AbiType::Bytes(PtrLocation::Storage) {
+            return ty;
+        }
         if let Some(location) = self.builder.func().value_slice_location(value) {
             match ty {
                 AbiType::Bytes(_) | AbiType::DynamicArray { .. } => ty.at_location(location),

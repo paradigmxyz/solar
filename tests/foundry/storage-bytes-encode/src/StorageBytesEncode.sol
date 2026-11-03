@@ -35,3 +35,19 @@ contract StorageBytesEncode {
         return 1;
     }
 }
+
+// The string lives at slot 96, the address of the zero slot in memory.
+contract StorageBytesEncodeSlot96 {
+    event Data(string data);
+
+    uint256[96] internal gap;
+    string internal value = "hello storage string that is longer than thirty-one bytes";
+
+    function emitData() external {
+        emit Data(value);
+    }
+
+    function encoded() external view returns (bytes memory) {
+        return abi.encode(value);
+    }
+}
