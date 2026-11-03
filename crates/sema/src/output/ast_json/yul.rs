@@ -59,9 +59,11 @@ struct Reference {
     span: Span,
     /// The suffix of the identifier: `slot`, `offset`, `length`, `address` or `selector`.
     suffix: Option<Symbol>,
+    /// The declaration the identifier names.
     declaration: hir::ItemId,
 }
 
+/// An entry of `externalReferences`.
 struct ExternalReference<'a, 'gcx> {
     cx: Cx<'a, 'gcx>,
     reference: &'a Reference,
@@ -138,22 +140,6 @@ impl<'gcx> Serialize for W<'_, 'gcx, &yul::Block<'_>> {
         let mut m = cx.yul_node(s, "YulBlock", block.span)?;
         m.serialize_entry("statements", &Seq(|| block.stmts.iter().map(|stmt| cx.w(stmt))))?;
         m.end()
-    }
-}
-
-impl<'a, 'gcx> Cx<'a, 'gcx> {
-    /// Starts the node of a Yul node.
-    fn yul_node<S: Serializer>(
-        self,
-        s: S,
-        node_type: &str,
-        span: Span,
-    ) -> Result<S::SerializeMap, S::Error> {
-        let mut m = s.serialize_map(None)?;
-        m.serialize_entry("nodeType", node_type)?;
-        m.serialize_entry("src", &self.src(span))?;
-        m.serialize_entry("nativeSrc", &self.src(span))?;
-        Ok(m)
     }
 }
 
@@ -324,5 +310,21 @@ impl Serialize for W<'_, '_, Literal<'_>> {
         }
         m.serialize_entry("type", "")?;
         m.end()
+    }
+}
+
+impl<'a, 'gcx> Cx<'a, 'gcx> {
+    /// Starts a Yul node, which has no ID and the same `src` and `nativeSrc`.
+    fn yul_node<S: Serializer>(
+        self,
+        s: S,
+        node_type: &str,
+        span: Span,
+    ) -> Result<S::SerializeMap, S::Error> {
+        let mut m = s.serialize_map(None)?;
+        m.serialize_entry("nodeType", node_type)?;
+        m.serialize_entry("src", &self.src(span))?;
+        m.serialize_entry("nativeSrc", &self.src(span))?;
+        Ok(m)
     }
 }
