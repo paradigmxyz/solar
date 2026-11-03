@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/thunk_spans.evmir (before cfg-simplify) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/thunk_spans.evmir (after cfg-simplify) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/thunk_spans.evmir (before cfg-simplify) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/thunk_spans.evmir (after cfg-simplify) ===
   @module ThunkSpans
   bb0:
     push 0

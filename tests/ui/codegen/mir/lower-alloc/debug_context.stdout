@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lower-alloc/debug_context.mir (before lower-alloc) ===
-+ // === ROOT/tests/ui/codegen/mir/lower-alloc/debug_context.mir (after lower-alloc) ===
+- ; === ROOT/tests/ui/codegen/mir/lower-alloc/debug_context.mir (before lower-alloc) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-alloc/debug_context.mir (after lower-alloc) ===
   @module DebugAllocationContext
   fn @allocate() -> i256 {
     bb0:
@@ -12,8 +12,8 @@
       ret v1 !metadata(span=30..40)
   }
   
-- // === ROOT/tests/ui/codegen/mir/lower-alloc/debug_context.mir (before lower-evm-shaped) ===
-+ // === ROOT/tests/ui/codegen/mir/lower-alloc/debug_context.mir (after lower-evm-shaped) ===
+- ; === ROOT/tests/ui/codegen/mir/lower-alloc/debug_context.mir (before lower-evm-shaped) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-alloc/debug_context.mir (after lower-evm-shaped) ===
   @module DebugAllocationContext
 + @phase lowered
   fn @allocate() -> i256 {

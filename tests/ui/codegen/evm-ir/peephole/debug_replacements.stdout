@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/peephole/debug_replacements.evmir (before peephole) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/peephole/debug_replacements.evmir (after peephole) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/peephole/debug_replacements.evmir (before peephole) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/peephole/debug_replacements.evmir (after peephole) ===
   @module DebugReplacements
   bb0:
     push 0

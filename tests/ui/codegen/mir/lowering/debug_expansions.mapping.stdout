@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lowering/debug_expansions.mir (before lower-mapping-slots) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/debug_expansions.mir (after lower-mapping-slots) ===
+- ; === ROOT/tests/ui/codegen/mir/lowering/debug_expansions.mir (before lower-mapping-slots) ===
++ ; === ROOT/tests/ui/codegen/mir/lowering/debug_expansions.mir (after lower-mapping-slots) ===
   @module DebugExpansions
   fn @slot(arg0: i256) -> i256 {
     bb0:

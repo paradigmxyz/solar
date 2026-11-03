@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lowering/debug_static_bytes.mir (before lower-abi) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/debug_static_bytes.mir (after lower-abi) ===
+- ; === ROOT/tests/ui/codegen/mir/lowering/debug_static_bytes.mir (before lower-abi) ===
++ ; === ROOT/tests/ui/codegen/mir/lowering/debug_static_bytes.mir (after lower-abi) ===
   @module DebugStaticBytes
   ; selector 0x01020304
 - fn @encoded() -> ptr<memory> [selector=0x01020304, abi_params=[], abi_returns=[memory_bytes]] {

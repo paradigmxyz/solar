@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/peephole/debug_branch_checkpoint.evmir (before peephole) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/peephole/debug_branch_checkpoint.evmir (after peephole) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/peephole/debug_branch_checkpoint.evmir (before peephole) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/peephole/debug_branch_checkpoint.evmir (after peephole) ===
   @module DebugBranchCheckpoint
   bb0:
     calldatasize

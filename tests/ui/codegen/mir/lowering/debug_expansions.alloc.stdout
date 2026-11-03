@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lowering/debug_expansions.mir (before lower-alloc) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/debug_expansions.mir (after lower-alloc) ===
+- ; === ROOT/tests/ui/codegen/mir/lowering/debug_expansions.mir (before lower-alloc) ===
++ ; === ROOT/tests/ui/codegen/mir/lowering/debug_expansions.mir (after lower-alloc) ===
   @module DebugExpansions
   fn @slot(arg0: i256) -> i256 {
     bb0:
@@ -28,11 +28,11 @@
 +     v6 = or v5, v4 !metadata(span=50..60)
 +     v7 = ne v6, 0 !metadata(span=50..60)
 +     jumpi v7, bb2, bb1 !metadata(span=50..60)
-+   bb1:  ; preds = bb0
++   bb1:                                            ; preds = bb0
 +     mstore 64, v2 !metadata(memory=scratch, span=50..60)
 +     memory_zero v0, arg0 !metadata(span=50..60)
       ret v0 !metadata(span=70..80)
-+   bb2 [cold]:  ; preds = bb0
++   bb2 [cold]:                                     ; preds = bb0
 +     mstore 32, 65 !metadata(memory=scratch, span=50..60)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=50..60)
 +     revert 28, 36 !metadata(span=50..60)

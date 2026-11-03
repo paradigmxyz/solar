@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/late-word/debug_mask.evmir (before late-word) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/late-word/debug_mask.evmir (after late-word) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/late-word/debug_mask.evmir (before late-word) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/late-word/debug_mask.evmir (after late-word) ===
   @module DebugMask
   bb0:
     push 0

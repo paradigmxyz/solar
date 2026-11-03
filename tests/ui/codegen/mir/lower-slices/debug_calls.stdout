@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lower-slices/debug_calls.mir (before lower-slices) ===
-+ // === ROOT/tests/ui/codegen/mir/lower-slices/debug_calls.mir (after lower-slices) ===
+- ; === ROOT/tests/ui/codegen/mir/lower-slices/debug_calls.mir (before lower-slices) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-slices/debug_calls.mir (after lower-slices) ===
   @module DebugSliceCalls
 - fn @caller(arg0: slice<calldata>) -> i256 {
 + fn @caller(arg0: i256, arg1: i256) -> i256 {

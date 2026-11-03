@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/dce/debugify.mir (before dce) ===
-+ // === ROOT/tests/ui/codegen/mir/dce/debugify.mir (after dce) ===
+- ; === ROOT/tests/ui/codegen/mir/dce/debugify.mir (before dce) ===
++ ; === ROOT/tests/ui/codegen/mir/dce/debugify.mir (after dce) ===
   @module Debugify
   fn @test(arg0: i256) -> i256 {
     bb0:

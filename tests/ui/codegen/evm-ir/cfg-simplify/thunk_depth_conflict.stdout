@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/thunk_depth_conflict.evmir (before cfg-simplify) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/thunk_depth_conflict.evmir (after cfg-simplify) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/thunk_depth_conflict.evmir (before cfg-simplify) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/thunk_depth_conflict.evmir (after cfg-simplify) ===
   @module ThunkDepthConflict
   bb0:
     push 0
