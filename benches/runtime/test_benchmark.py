@@ -1339,7 +1339,7 @@ class ArtifactTests(unittest.TestCase):
         self.assertIn("irOptimized", solc_outputs)
         self.assertEqual(
             solx_outputs,
-            solc_outputs
+            solar_outputs
             + [
                 "evm.bytecode.llvmIrUnoptimized",
                 "evm.bytecode.llvmIr",
