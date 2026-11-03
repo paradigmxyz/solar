@@ -159,20 +159,16 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     });
                 } else if self.parser.eat_keyword(sym::stack) {
                     self.parser.expect(TokenKind::Eq)?;
-                    let depth = self.parser.parse_uint()?;
-                    entry_depth =
-                        Some(u16::try_from(depth).map_err(|_| {
-                            self.parser.error("block entry depth does not fit in u16")
-                        })?);
+                    entry_depth = Some(self.parser.parse_uint_as()?);
                 } else if self.parser.eat_keyword(sym::ret) {
                     self.parser.expect(TokenKind::Eq)?;
-                    ret = Some(self.parse_call_words()?);
+                    ret = Some(self.parser.parse_uint_as()?);
                 } else if self.parser.eat_keyword(sym::inputs) {
                     self.parser.expect(TokenKind::Eq)?;
-                    inputs = Some(self.parse_call_words()?);
+                    inputs = Some(self.parser.parse_uint_as()?);
                 } else if self.parser.eat_keyword(sym::outputs) {
                     self.parser.expect(TokenKind::Eq)?;
-                    outputs = Some(self.parse_call_words()?);
+                    outputs = Some(self.parser.parse_uint_as()?);
                 } else {
                     return Err(self.parser.error(
                         "expected `cold`, `loop`, `continuation`, `invoke`, `stack`, `ret`, `inputs`, \
@@ -209,11 +205,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             entry_depth,
             call_effect,
         }))
-    }
-
-    fn parse_call_words(&mut self) -> PResult<'sess, u8> {
-        let words = self.parser.parse_uint()?;
-        u8::try_from(words).map_err(|_| self.parser.error("call word count does not fit in u8"))
     }
 
     fn current_block_label(&self) -> PResult<'sess, Option<Symbol>> {
@@ -328,14 +319,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::push_immutable => {
                 let id = self.parse_immutable_id()?;
                 self.parser.expect(TokenKind::Comma)?;
-                let width = self.parse_u8()?;
+                let width = self.parser.parse_uint_as()?;
                 let type_size = TypeSize::try_new_fb_bytes(width).ok_or_else(|| {
                     self.parser.error("immutable width must be between 1 and 32 bytes")
                 })?;
                 Instruction::push_immutable(id, type_size)
             }
             sym::dup | sym::swap => {
-                let depth = self.parse_u8()?;
+                let depth = self.parser.parse_uint_as()?;
                 let stack_op = if mnemonic == sym::dup {
                     op::StackOp::Dup(depth)
                 } else {
@@ -347,9 +338,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 Instruction::stack_op(stack_op)
             }
             sym::exchange => {
-                let n = self.parse_u8()?;
+                let n = self.parser.parse_uint_as()?;
                 self.parser.expect(TokenKind::Comma)?;
-                let m = self.parse_u8()?;
+                let m = self.parser.parse_uint_as()?;
                 let stack_op = op::StackOp::Exchange(n, m);
                 if !stack_op.is_valid() {
                     return Err(self
@@ -403,9 +394,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             kw::Selfdestruct => TerminatorKind::Op(op::SELFDESTRUCT),
             sym::terminal => {
                 let opcode = if matches!(self.parser.token().kind, TokenKind::Literal(..)) {
-                    let opcode = self.parser.parse_uint()?;
+                    let (opcode, span) = self.parser.parse_uint_spanned()?;
                     let Ok(opcode) = u8::try_from(opcode) else {
-                        return Err(self.parser.error("raw terminal opcode must fit in one byte"));
+                        return Err(self
+                            .parser
+                            .error_at(span, "raw terminal opcode must fit in one byte"));
                     };
                     opcode
                 } else {
@@ -420,9 +413,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 TerminatorKind::Op(opcode)
             }
             sym::raw => {
-                let opcode = self.parser.parse_uint()?;
+                let (opcode, span) = self.parser.parse_uint_spanned()?;
                 let Ok(opcode) = u8::try_from(opcode) else {
-                    return Err(self.parser.error("raw opcode must fit in one byte"));
+                    return Err(self.parser.error_at(span, "raw opcode must fit in one byte"));
                 };
                 TerminatorKind::Op(opcode)
             }
@@ -539,10 +532,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 metadata.set_function_exit(exit);
             } else if key == sym::modifier_depth {
                 self.parser.expect(TokenKind::Eq)?;
-                let depth = self.parser.parse_uint()?;
-                let depth = u32::try_from(depth)
-                    .map_err(|_| self.parser.error("modifier depth does not fit in u32"))?;
-                metadata.set_modifier_depth(depth);
+                metadata.set_modifier_depth(self.parser.parse_uint_as()?);
             } else if key == sym::keep_with_next {
                 metadata.keep_with_next = true;
             } else if self.parser.eat(TokenKind::Eq) {
@@ -574,13 +564,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             return Err(self.parser.error("expected metadata value"));
         }
         Ok(())
-    }
-
-    fn parse_u8(&mut self) -> PResult<'sess, u8> {
-        let value = self.parser.parse_uint()?;
-        value
-            .try_into()
-            .map_err(|_| self.parser.error(format!("integer `{value}` does not fit in u8")))
     }
 
     fn block_ref_starts_here(&self) -> PResult<'sess, bool> {

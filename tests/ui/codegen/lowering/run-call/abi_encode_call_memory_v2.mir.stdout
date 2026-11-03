@@ -58,9 +58,9 @@ fn @memoryLoop() -> i256 [selector=0x0f61b86c, abi_params=[], abi_returns=[word]
     jump bb1
   bb1:                                            ; preds = bb0, bb3
     v9 = phi [bb0: 0], [bb3: v9]
-    v10 = phi [bb0: ptr<memory> 96], [bb3: v32]
-    v11 = phi [bb0: v0], [bb3: v33]
-    v12 = phi [bb0: 0], [bb3: v38]
+    v10 = phi [bb0: ptr<memory> 96], [bb3: v36]
+    v11 = phi [bb0: v0], [bb3: v37]
+    v12 = phi [bb0: 0], [bb3: v42]
     v13 = lt v12, 2
     jumpi v13, bb4, bb5
   bb5:                                            ; preds = bb1
@@ -92,21 +92,26 @@ fn @memoryLoop() -> i256 [selector=0x0f61b86c, abi_params=[], abi_returns=[word]
   bb7:                                            ; preds = bb4
     revert_returndata
   bb8:                                            ; preds = bb4
-    v31 = icall returndata_bytes<>
-    v32 = abi_decode [bytes], v31
-    v33 = alloc zeroed checked 128
-    mstore v33, 3
-    v34 = mload v33
-    v35 = gt v34, 2
-    v36 = eq v35, false
-    icall panic_if<0x32>, v36
-    v37 = ptradd v33, 96
-    mstore v37, 123
+    v31 = returndatasize
+    v32 = add v31, 31
+    v33 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v34 = alloc v33
+    returndatacopy v34, 0, v31
+    v35 = make_memory_slice v34, v31
+    v36 = abi_decode [bytes], v35
+    v37 = alloc zeroed checked 128
+    mstore v37, 3
+    v38 = mload v37
+    v39 = gt v38, 2
+    v40 = eq v39, false
+    icall panic_if<0x32>, v40
+    v41 = ptradd v37, 96
+    mstore v41, 123
     jump bb6
   bb6:                                            ; preds = bb8
     jump bb3
   bb3:                                            ; preds = bb6
-    v38 = checked_add uint256, v12, 1
+    v42 = checked_add uint256, v12, 1
     jump bb1
 }
 

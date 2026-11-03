@@ -61,7 +61,8 @@
 //! After a `gas` read, state-dependent expressions remain explicit so a later
 //! `gas` read observes their dynamically priced execution. A forward CFG may-observe
 //! analysis includes observations in non-dominating branches and loop backedges.
-//! Internal calls carry the callee's transitive gas-observation summary.
+//! Internal calls carry the callee's transitive gas-observation summary, and start an observation
+//! only when the callee may return after reading gas (see `GasObservations`).
 //!
 //! A word store or a semantic length store also seeds the cache with the stored
 //! value under the written location, so a later load of that exact word forwards

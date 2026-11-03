@@ -763,7 +763,7 @@ fn lsp_position_with_standalone_cr(
 }
 
 #[inline]
-fn severity(level: Level) -> lsp_types::DiagnosticSeverity {
+fn severity(level: Level) -> DiagnosticSeverity {
     match level {
         Level::Fatal | Level::Bug | Level::Error => DiagnosticSeverity::ERROR,
         Level::Warning => DiagnosticSeverity::WARNING,

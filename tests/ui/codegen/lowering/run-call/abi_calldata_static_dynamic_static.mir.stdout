@@ -88,7 +88,7 @@ fn @g() -> ptr<memory> [selector=0xe2179b8e, view, abi_params=[], abi_returns=[m
     mstore v18, 42
     v21 = address
     v22 = gas
-    v23 = abi_encode [array<1, memory_array<array<1, word<uint8>>>>], selector 0x15cfcc0100000000000000000000000000000000000000000000000000000000, args v0
+    v23 = abi_encode [array<1, memory_array<array<1, word<uint8>>>>], scratch, selector 0x15cfcc0100000000000000000000000000000000000000000000000000000000, args v0
     v24 = extract_value slice<memory>, v23, 0
     v25 = extract_value slice<memory>, v23, 1
     v26 = zext i160 v21 to i256
@@ -97,9 +97,14 @@ fn @g() -> ptr<memory> [selector=0xe2179b8e, view, abi_params=[], abi_returns=[m
   bb4:                                            ; preds = bb3
     revert_returndata
   bb5:                                            ; preds = bb3
-    v28 = icall returndata_bytes<>
-    v29 = abi_decode [bytes], v28
-    ret v29
+    v28 = returndatasize
+    v29 = add v28, 31
+    v30 = and v29, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v31 = alloc v30
+    returndatacopy v31, 0, v28
+    v32 = make_memory_slice v31, v28
+    v33 = abi_decode [bytes], v32
+    ret v33
   bb2:                                            ; preds = bb1
     v4 = alloc 32 !metadata(preserves_fmp)
     memory_zero v4, 32
@@ -199,7 +204,7 @@ fn @i() -> ptr<memory> [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[m
     mstore v65, 0x10142
     v66 = address
     v67 = gas
-    v68 = abi_encode [array<2, memory_array<array<2, word>>>], selector 0xdc0ee23300000000000000000000000000000000000000000000000000000000, args v0
+    v68 = abi_encode [array<2, memory_array<array<2, word>>>], scratch, selector 0xdc0ee23300000000000000000000000000000000000000000000000000000000, args v0
     v69 = extract_value slice<memory>, v68, 0
     v70 = extract_value slice<memory>, v68, 1
     v71 = zext i160 v66 to i256
@@ -208,9 +213,14 @@ fn @i() -> ptr<memory> [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[m
   bb7:                                            ; preds = bb6
     revert_returndata
   bb8:                                            ; preds = bb6
-    v73 = icall returndata_bytes<>
-    v74 = abi_decode [bytes], v73
-    ret v74
+    v73 = returndatasize
+    v74 = add v73, 31
+    v75 = and v74, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v76 = alloc v75
+    returndatacopy v76, 0, v73
+    v77 = make_memory_slice v76, v73
+    v78 = abi_decode [bytes], v77
+    ret v78
   bb5:                                            ; preds = bb4
     v14 = alloc 64 !metadata(preserves_fmp)
     memory_zero v14, 64

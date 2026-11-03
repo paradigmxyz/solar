@@ -214,7 +214,7 @@ impl<'a> ImportResolutionContext<'a> {
     pub(crate) fn for_workspaces_with_index(
         workspaces: &'a [Workspace],
         importing_file: &Path,
-        entries: std::sync::Arc<Vec<crate::workspace::WorkspaceImportPathIndexEntry>>,
+        entries: Arc<Vec<crate::workspace::WorkspaceImportPathIndexEntry>>,
     ) -> Option<Self> {
         let importing_file = importing_file.normalize();
         let index = WorkspacePathIndex::with_import_entries(workspaces, entries);

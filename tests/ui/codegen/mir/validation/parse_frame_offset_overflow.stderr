@@ -1,0 +1,8 @@
+error: integer `18446744073709551616` does not fit in u64
+   ╭▸ ROOT/tests/ui/codegen/mir/validation/parse_frame_offset_overflow.mir:LL:CC
+   │
+LL │     v0 = internal_frame_addr 18446744073709551616
+   ╰╴                             ━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+
