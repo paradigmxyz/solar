@@ -2300,6 +2300,9 @@ impl AliasAnalysis {
             InstKind::ExtCodeCopy(_, dest, _, size) => {
                 Self::range_may_overlap_fmp(func, dest, func.value_u64(size))
             }
+            InstKind::AbiEncode { base: Some(base), .. } => {
+                Self::range_may_overlap_fmp(func, base, None)
+            }
             InstKind::Call { ret_offset, ret_size, .. }
             | InstKind::CallCode { ret_offset, ret_size, .. }
             | InstKind::StaticCall { ret_offset, ret_size, .. }
