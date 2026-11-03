@@ -58,15 +58,15 @@
 //! permutation cycles through the top and pushing each copy where it displaces a word that has to
 //! move up; the cheapest strategy wins.
 //! A shuffle's cycle through the top that leaves the top in place, `SWAPa SWAPb ... SWAPa`,
-//! becomes one `EXCHANGE a, b` per inner swap when that is cheaper. Commutative and mirrored
-//! comparisons try both operand orders. Two short trials refine these local choices: before a chain
-//! of single-use instructions that feeds a consumer, the consumer's deeper operands may be copied
-//! first, or a deeper operand that single-use instructions compute may be computed after the pushes
-//! below it, as WebAssembly's register stackifier moves a single-use definition next to its use and
-//! solc's stack layout pass generates literals where an operation needs them; the plan that copies
-//! the operand wins ties. After an instruction, its result may be swapped into the slot of a word
-//! that dies within the next few instructions. Each is kept only when planning the affected
-//! instructions gets cheaper.
+//! becomes one `EXCHANGE a, b` per inner swap when that is cheaper. An operation tries both
+//! orders of its declared commutative pair, and a mirrored comparison tries both operand orders.
+//! Two short trials refine these local choices: before a chain of single-use instructions that
+//! feeds a consumer, the consumer's deeper operands may be copied first, or a deeper operand that
+//! single-use instructions compute may be computed after the pushes below it, as WebAssembly's
+//! register stackifier moves a single-use definition next to its use and solc's stack layout pass
+//! generates literals where an operation needs them; the plan that copies the operand wins ties.
+//! After an instruction, its result may be swapped into the slot of a word that dies within the
+//! next few instructions. Each is kept only when planning the affected instructions gets cheaper.
 //!
 //! Loop headers are first laid out by their preheader. Later planning rounds lay each header
 //! out by the order of last use in the loop, and then in the order the best plan's latches
