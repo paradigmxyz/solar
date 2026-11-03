@@ -613,9 +613,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_yul_word_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
-        if let ExprKind::Lit(lit) = expr.peel_parens().kind {
-            return self.lower_word_literal(lit);
-        }
         let value = self.lower_expr(expr)?;
         let ty = self
             .cx

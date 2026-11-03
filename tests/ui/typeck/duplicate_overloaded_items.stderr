@@ -1,10 +1,10 @@
-error: unresolved symbol `Missing`
+error[7920]: unresolved symbol `Missing`
    ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
    │
 LL │     function f(Missing) internal {}
    ╰╴               ━━━━━━━
 
-error: unresolved symbol `Missing`
+error[7920]: unresolved symbol `Missing`
    ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
    │
 LL │     function f(Missing) internal {}
