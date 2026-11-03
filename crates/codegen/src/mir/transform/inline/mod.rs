@@ -78,7 +78,7 @@ use crate::{
         },
         memory::EvmMemoryLayout,
         pass::{MirPass, ModuleAnalyses},
-        transform::utils::{frame_prefix, redirect_successor_predecessors},
+        transform::utils::redirect_successor_predecessors,
         utils::rebuild_predecessors,
     },
     target::Target,
@@ -1692,11 +1692,14 @@ fn inline_call_impl(
     let caller_frame_prefix = if caller_is_external {
         0
     } else {
-        frame_prefix(caller.params.len().checked_add(caller.return_components().len())?)?
+        EvmMemoryLayout::internal_frame_prefix(
+            caller.params.len().checked_add(caller.return_components().len())?,
+        )?
     };
     let frame_base = caller_frame_prefix.checked_add(caller.internal_frame_size)?;
-    let callee_frame_prefix =
-        frame_prefix(callee.params.len().checked_add(callee.return_components().len())?)?;
+    let callee_frame_prefix = EvmMemoryLayout::internal_frame_prefix(
+        callee.params.len().checked_add(callee.return_components().len())?,
+    )?;
     caller.internal_frame_size =
         caller.internal_frame_size.checked_add(callee.internal_frame_size)?;
 
