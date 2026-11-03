@@ -505,7 +505,7 @@ fn is_whole_words(func: &Function, len: ValueId, depth: usize) -> bool {
     const MAX_DEPTH: usize = 4;
     const WORD_BITS: u64 = EvmMemoryLayout::WORD_SIZE.trailing_zeros() as u64;
     if let Some(len) = func.value_u256(len) {
-        return len.as_limbs()[0] % EvmMemoryLayout::WORD_SIZE == 0;
+        return len.wrapping_to::<u64>() % EvmMemoryLayout::WORD_SIZE == 0;
     }
     let Value::Inst(inst) = func.value(len) else { return false };
     if depth >= MAX_DEPTH {
@@ -649,7 +649,7 @@ fn emit_partial_copy(
     if builder
         .func()
         .value_u256(len)
-        .is_some_and(|len| len.as_limbs()[0] % EvmMemoryLayout::WORD_SIZE == 1)
+        .is_some_and(|len| len.wrapping_to::<u64>() % EvmMemoryLayout::WORD_SIZE == 1)
     {
         // word = mload(src + partial_offset)
         // mstore8(dest + partial_offset, byte(0, word))

@@ -208,7 +208,7 @@ impl GasTier {
             Self::Log(_) => size,
             _ => U256::ZERO,
         };
-        u32::try_from(units).unwrap_or(u32::MAX)
+        units.saturating_to::<u32>()
     }
 
     /// Gas of a tier priced the same on every EVM version, usable in constants.

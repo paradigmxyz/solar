@@ -61,7 +61,7 @@ impl StorageLocation {
         if self.size >= Self::WORD {
             U256::MAX
         } else {
-            (U256::from(1) << self.size.bits()) - U256::from(1)
+            (U256::ONE << self.size.bits()) - U256::ONE
         }
     }
 
@@ -319,7 +319,7 @@ impl StorageCursor {
 
     fn finish_word(&mut self) -> Option<()> {
         if self.offset != 0 {
-            self.slot = self.slot.checked_add(U256::from(1))?;
+            self.slot = self.slot.checked_add(U256::ONE)?;
             self.offset = 0;
         }
         Some(())

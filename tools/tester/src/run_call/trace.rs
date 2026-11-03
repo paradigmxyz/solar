@@ -166,7 +166,7 @@ impl Trace {
 fn describe_logs(logs: &[(Vec<U256>, Vec<u8>)]) -> String {
     let logs = logs.iter().map(|(topics, data)| {
         let topics = topics.iter().map(|topic| format!("{topic:#x}")).collect::<Vec<_>>();
-        format!("topics [{}] data 0x{}", topics.join(", "), hex::encode(data))
+        format!("topics [{}] data {}", topics.join(", "), hex::encode_prefixed(data))
     });
     format!("[{}]", logs.collect::<Vec<_>>().join("; "))
 }
@@ -188,7 +188,7 @@ impl<'a> Context<'a> {
     /// Returns what `opcode` reads for these operands during the call, or `None` when it does not
     /// read the context.
     pub(super) fn read(&self, opcode: u8, operands: &[U256]) -> Option<U256> {
-        let address = || operands.first().map(|word| Address::from_word(word.to_be_bytes().into()));
+        let address = || operands.first().map(|word| Address::from_word((*word).into()));
         let account = |address: Address| self.chain.accounts.get(&address);
         Some(match opcode {
             op::ADDRESS => self.chain.contract.into_word().into(),

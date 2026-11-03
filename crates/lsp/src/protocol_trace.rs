@@ -91,11 +91,11 @@ struct TraceBarrier(oneshot::Sender<()>);
 impl ActiveRequest {
     async fn complete(self, succeeded: bool) {
         let Some(level) = self.trace.enabled_level() else { return };
-        let elapsed = self.started.elapsed().as_millis();
+        let elapsed_ms = self.started.elapsed().as_millis();
         let outcome = if succeeded { "successfully" } else { "with an error" };
         let message = format!("Server completed request `{}` {outcome}", self.method);
-        let verbose =
-            (level == TraceValue::Verbose).then(|| format!("Server processing took {elapsed} ms"));
+        let verbose = (level == TraceValue::Verbose)
+            .then(|| format!("Server processing took {elapsed_ms} ms"));
         self.trace.emit(message, verbose);
 
         // The loopback event follows the completion trace in the queue and gates the response.
