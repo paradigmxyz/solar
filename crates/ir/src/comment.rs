@@ -10,7 +10,7 @@ const LABEL_COMMENT_COLUMN: usize = 50;
 /// Displays a block label line: `label`, then, if there is a `comment`, a `;` aligned like LLVM's
 /// `formatted_raw_ostream::PadToColumn(50)`.
 ///
-/// The `;` goes to [`LABEL_COMMENT_COLUMN`], or one space after the label when the label reaches
+/// The `;` goes to `LABEL_COMMENT_COLUMN`, or one space after the label when the label reaches
 /// that column. `label` is the whole text before the comment, so that its width counts the
 /// indentation.
 pub fn display_label_comment(
