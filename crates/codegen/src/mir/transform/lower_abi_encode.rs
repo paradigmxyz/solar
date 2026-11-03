@@ -1745,9 +1745,9 @@ fn encode_calldata_elements(
 }
 
 /// Copies `bytes` bytes of calldata words that need no validation, in elements of
-/// `element_words` words, from `source` to `dest`. The block copy stays behind a guard for a
-/// range that wraps past 2^256, which `each` copies a word at a time at the wrapping addresses,
-/// unless the target prices the guarded copy above `each` alone.
+/// `element_words` words, from `source` to `dest`. A range that wraps past 2^256 runs `each`,
+/// which loads each word at its own wrapping address. When the target prices the guarded copy
+/// above `each` alone, only `each` runs.
 pub(super) fn copy_calldata_words(
     builder: &mut FunctionBuilder<'_>,
     target: &Target,

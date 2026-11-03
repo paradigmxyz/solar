@@ -243,11 +243,9 @@
 +     jumpi v14, bb4, bb8
 +   bb8:                                            ; preds = bb7
 +     v15 = ptradd arg1, 32
-+     v16 = make_memory_slice v15, v10
-+     v17 = ptradd v9, 32
-+     v18 = extract_value slice<memory>, v16, 0
-+     v19 = extract_value slice<memory>, v16, 1
-+     mcopy v17, v18, v19
++     v16 = ptradd v9, 32
++     v17 = ptradd v16, 0
++     mcopy v17, v15, v10 !metadata(memory=heap, disjoint)
       jump bb3
 -   bb3:                                            ; preds = bb1, bb2
 -     v1 = phi [bb1: v0], [bb2: arg2]

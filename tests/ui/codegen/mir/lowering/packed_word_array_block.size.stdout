@@ -191,11 +191,9 @@
 +     jumpi v13, bb1, bb5
 +   bb5:                                            ; preds = bb4
 +     v14 = ptradd arg0, 32
-+     v15 = make_memory_slice v14, v9
-+     v16 = ptradd v8, 32
-+     v17 = extract_value slice<memory>, v15, 0
-+     v18 = extract_value slice<memory>, v15, 1
-+     mcopy v16, v17, v18
++     v15 = ptradd v8, 32
++     v16 = ptradd v15, 0
++     mcopy v16, v14, v9 !metadata(memory=heap, disjoint)
 +     ret v8
 +   bb1 [cold]:                                     ; preds = bb0, bb2, bb3, bb4
 +     mstore 32, 65 !metadata(memory=scratch)
@@ -211,7 +209,7 @@
 +     mstore v1, 128
 +     jump bb1
 +   bb1:                                            ; preds = bb0, bb5
-+     v2 = phi [bb0: 0], [bb5: v17]
++     v2 = phi [bb0: 0], [bb5: v13]
 +     v3 = lt v2, 2
 +     jumpi v3, bb2, bb3
 +   bb3:                                            ; preds = bb1
@@ -226,14 +224,10 @@
 +     v10 = lt v9, v5
 +     jumpi v10, bb4, bb5
 +   bb5:                                            ; preds = bb2
-+     v11 = inttoptr i256 v8 to ptr<memory>
-+     v12 = make_memory_slice v11, 64
-+     v13 = ptradd v1, v5
-+     v14 = ptradd v13, 32
-+     v15 = extract_value slice<memory>, v12, 0
-+     v16 = extract_value slice<memory>, v12, 1
-+     mcopy v14, v15, v16
-+     v17 = add v2, 1
++     v11 = ptradd v1, 32
++     v12 = ptradd v11, v5
++     mcopy v12, v8, 64 !metadata(memory=heap, disjoint)
++     v13 = add v2, 1
 +     jump bb1
 +   bb4 [cold]:                                     ; preds = bb2
 +     mstore 32, 65 !metadata(memory=scratch)
