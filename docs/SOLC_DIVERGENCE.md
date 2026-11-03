@@ -300,7 +300,7 @@ Coverage: `tests/ui/parser/fixed_point_type.sol`,
 `tests/ui/typeck/rational_literal_mobile_type.sol`; the upstream fixtures that use
 fixed-point types are excluded from solc parity testing.
 
-### PARSE-005: Yul number literals
+### PARSE-005: Yul literal forms
 
 Status: intentional.
 
@@ -309,10 +309,18 @@ and inline assembly, and rejects `1_000`, `0x1_0` and `1e5` with error 4828.
 `solar` accepts any number literal whose value is an integer, as in Solidity,
 and rejects fractions such as `0.5` with error 4828.
 
+`solc` also accepts only a plain string literal or a single `hex` string
+literal in Yul and inline assembly. It rejects `unicode"é"` with error 1856
+and adjacent literals such as `"a" "b"` and `hex"ab" hex"cd"` with error 6913.
+`solar` accepts all three as in Solidity: `unicode` literals are UTF-8,
+adjacent literals of the same kind are concatenated, and the result is the
+left-aligned word, such as `0x6162…` for `"a" "b"`.
+
 Rationale: these literals have one obvious value, so rejecting them only makes
 the language harder to use.
 
-Coverage: `tests/ui/codegen/lowering/run-call/assembly_number_literals.sol` and
+Coverage: `tests/ui/codegen/lowering/run-call/assembly_number_literals.sol`,
+`tests/ui/codegen/lowering/run-call/assembly_string_literals.sol` and
 `tests/ui/parser/yul_fractional_literal.sol`.
 
 ### PARSE-006: Number literals are limited to 4096 bits
