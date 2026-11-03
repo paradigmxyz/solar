@@ -1,0 +1,42 @@
+- ; === ROOT/tests/ui/codegen/mir/jump-threading/jump_threading_loop_carried_phi.mir (before jump-threading) ===
++ ; === ROOT/tests/ui/codegen/mir/jump-threading/jump_threading_loop_carried_phi.mir (after jump-threading) ===
+  @module JumpThreadingLoopCarriedPhi
+  fn @dead_carried_header_result(arg0: i256) -> i256 {
+    bb0:
++     jump bb3
++   bb3:                                            ; preds = bb2, bb1, bb0
++     v3 = add 0, 1
+      jump bb1
+-   bb1:                                            ; preds = bb0, bb3
+-     v0 = phi [bb0: arg0], [bb3: v0]
+-     v1 = phi [bb0: 0], [bb3: v3]
++   bb1:                                            ; preds = bb3
++     v1 = phi [bb3: v3]
+      v2 = eq v1, 0
+-     jumpi v2, bb2, bb4
++     jumpi v2, bb3, bb4
+    bb4:                                            ; preds = bb1
+      ret 0
+-   bb2:                                            ; preds = bb1
++   bb2:
+      jump bb3
+-   bb3:                                            ; preds = bb2
+-     v3 = add 0, 1
+-     jump bb1
+  }
+  
+  fn @live_carried_header_result(arg0: i256) -> i256 {
+    bb0:
+      jump bb1
+    bb1:                                            ; preds = bb0, bb3
+      v0 = phi [bb0: false], [bb3: v1]
+      v1 = eq v0, false
+      jumpi v1, bb2, bb4
+    bb4:                                            ; preds = bb1
+      ret 0
+    bb2:                                            ; preds = bb1
+      jump bb3
+    bb3:                                            ; preds = bb2
+      jump bb1
+  }
+  

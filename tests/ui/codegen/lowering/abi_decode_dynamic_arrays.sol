@@ -10,8 +10,8 @@
 
 contract AbiDecodeDynamicArrays {
     // ADDA-LABEL: fn @words
-    // Bulk copy, no per-element validation for full-word elements.
-    // ADDA: {{(^|[^a-z_])}}mcopy
+    // The `uint256[]` decoder, shared with `mixed`, bulk-copies; see below.
+    // ADDA: icall @decode_memory_type
     function words(bytes memory b) public pure returns (uint256[] memory) {
         return abi.decode(b, (uint256[]));
     }
@@ -44,4 +44,8 @@ contract AbiDecodeDynamicArrays {
     function mixed(bytes memory b) public pure returns (uint256, uint256[] memory, string memory) {
         return abi.decode(b, (uint256, uint256[], string));
     }
+
+    // ADDA-LABEL: fn @decode_memory_type
+    // Bulk copy, no per-element validation for full-word elements.
+    // ADDA: {{(^|[^a-z_])}}mcopy
 }
