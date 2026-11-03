@@ -178,11 +178,11 @@ class CorpusTests(unittest.TestCase):
             )
 
     def test_vendored_cases_and_projects_exist(self) -> None:
-        self.assertEqual(len(benchmark.TEST_CASES), 38)
+        self.assertEqual(len(benchmark.TEST_CASES), 39)
         repository_cases = [
             case for case in benchmark.TEST_CASES if case.suite == "repository"
         ]
-        self.assertEqual(len(repository_cases), 12)
+        self.assertEqual(len(repository_cases), 13)
         heavy_cases = [case for case in benchmark.TEST_CASES if case.suite == "heavy"]
         self.assertEqual(len(heavy_cases), 10)
         for case in heavy_cases:
@@ -202,6 +202,7 @@ class CorpusTests(unittest.TestCase):
             "solady-encoding": 3,
             "solady-algorithms": 5,
             "tempo-zones-portal": 23,
+            "seaport-1.6-runtime": 42,
         }
         for case in repository_cases:
             self.assertTrue(case.project_path.is_file(), case.test_id)
@@ -222,7 +223,7 @@ class CorpusTests(unittest.TestCase):
             self.assertEqual(
                 payload["settings"]["metadata"],
                 benchmark.load_project(case.project_path)["settings"]["metadata"]
-                if case.test_id == "tempo-zones-portal"
+                if case.test_id in ("tempo-zones-portal", "seaport-1.6-runtime")
                 else {"appendCBOR": False, "bytecodeHash": "none"},
             )
 
@@ -271,6 +272,45 @@ class CorpusTests(unittest.TestCase):
         )
         for bytecode in fixtures["creation_bytecode"].values():
             self.assertTrue(bytes.fromhex(bytecode))
+
+    def test_seaport_mock_bytecode_matches_its_source_revision(self) -> None:
+        fixtures_dir = benchmark.RUNTIME_FIXTURES.parent
+        fixtures = json.loads((fixtures_dir / "Seaport.json").read_text())
+        self.assertEqual(
+            fixtures["source_sha256"],
+            hashlib.sha256(
+                (fixtures_dir / "SeaportFixtures.sol").read_bytes()
+            ).hexdigest(),
+        )
+        self.assertEqual(
+            set(fixtures["creation_bytecode"]),
+            {
+                "RuntimeSeaportConduitController",
+                "RuntimeSeaportNFT",
+                "RuntimeSeaportToken",
+            },
+        )
+        for bytecode in fixtures["creation_bytecode"].values():
+            self.assertTrue(bytes.fromhex(bytecode))
+
+    def test_seaport_fixture_rejects_remote_rpc_before_mutation(self) -> None:
+        with mock.patch.object(benchmark, "rpc_request") as rpc:
+            error = benchmark.prepare_seaport_controller(
+                "https://example.com", benchmark.DEFAULT_PRIVATE_KEY
+            )
+        self.assertEqual(error, "Seaport fixtures require a local Anvil RPC")
+        rpc.assert_not_called()
+
+    def test_seaport_settings_match_its_deployed_build(self) -> None:
+        case = next(
+            case
+            for case in benchmark.TEST_CASES
+            if case.test_id == "seaport-1.6-runtime"
+        )
+        settings = json.loads(benchmark.compiler_input(case, None)[0])["settings"]
+        self.assertTrue(settings["viaIR"])
+        self.assertEqual(settings["evmVersion"], "cancun")
+        self.assertEqual(settings["optimizer"], {"enabled": True, "runs": 4294967295})
 
     def test_benchmark_wrapper_preserves_pinned_sources(self) -> None:
         for test_id, count in (("solady-encoding", 153), ("solady-algorithms", 85)):

@@ -6,6 +6,10 @@
 //! This includes diamond arms and loop backedges that dominance alone misses.
 //! Each marked block is visited once. Values used only to forward gas to legacy
 //! external calls do not start an interval; all other uses remain conservative.
+//! A call starts one only when its callee may return after reading gas: a read on
+//! a path that only reverts, such as the gas check before bubbling up revert data,
+//! never precedes anything the caller runs after the call. [`Self::any`] still
+//! counts every read.
 //!
 //! These facts do not attempt to preserve exact gas for arbitrary pure rewrites.
 //! They protect state accesses whose removal changes dynamic charges or warmness.
@@ -32,7 +36,7 @@ impl GasObservations {
         for block in cfg.reachable().iter() {
             let mut observes = false;
             for &inst in &func.blocks[block].instructions {
-                if Self::instruction_observes(func, alias, &forwarded, inst) {
+                if Self::instruction_starts_interval(func, alias, &forwarded, inst) {
                     instructions.insert(inst);
                     observes = true;
                 }
@@ -55,8 +59,8 @@ impl GasObservations {
         Self { instructions, entries }
     }
 
-    /// Whether this instruction may observe gas. A snapshot remains conservative
-    /// when a transform adds only pure instructions, which are absent from this set.
+    /// Whether this instruction may observe gas and continue after it. A snapshot remains
+    /// conservative when a transform adds only pure instructions, which are absent from this set.
     pub(crate) fn observes(&self, inst: InstId) -> bool {
         self.instructions.contains(inst)
     }
@@ -139,6 +143,19 @@ impl GasObservations {
             InstKind::Gas => !forwarded.contains(inst),
             InstKind::ICall { .. } => alias.instruction_mod_ref(func, inst).observes_gas(),
             _ => func.inst(inst).kind.observes_gas(),
+        }
+    }
+
+    /// Whether the instruction may observe gas on a path that continues after it.
+    fn instruction_starts_interval(
+        func: &Function,
+        alias: &AliasAnalysis,
+        forwarded: &DenseBitSet<InstId>,
+        inst: InstId,
+    ) -> bool {
+        match func.inst(inst).kind {
+            InstKind::ICall { .. } => alias.instruction_mod_ref(func, inst).continues_after_gas(),
+            _ => Self::instruction_observes(func, alias, forwarded, inst),
         }
     }
 }

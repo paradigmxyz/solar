@@ -32,6 +32,13 @@ from cases import (
     DEFAULT_SPENDER,
     DEFAULT_THIRD,
     MAX_UINT256,
+    SEAPORT_CONTROLLER,
+    SEAPORT_FEE_RECIPIENTS,
+    SEAPORT_FEES,
+    SEAPORT_NFT,
+    SEAPORT_OFFERER,
+    SEAPORT_TOKEN,
+    SEAPORT_TOKEN_IDS,
     TEST_CASES,
     ZERO_ADDRESS,
     ZONES_KEY_X,
@@ -689,6 +696,9 @@ def project_standard_json_input(
             "remappings": project_settings.get("remappings", []),
             "viaIR": True,
         }
+    elif settings_profile == "seaport":
+        # Seaport's deployed build: its own optimizer runs with via-IR on Cancun.
+        settings = {**project["settings"], "viaIR": True, "evmVersion": "cancun"}
     else:
         settings = dict(project["settings"])
     settings["outputSelection"] = {
@@ -1740,6 +1750,22 @@ def run_cold_path_checks(
         )
     if test_case.test_id == "nitro-one-step-proof":
         return run_nitro_cold_paths(address, rpc_url)
+    if test_case.test_id == "seaport-1.6-runtime":
+        # fulfillOrder and both basic orders each pay every fee recipient once.
+        observations = []
+        for index, (recipient, fee) in enumerate(
+            zip(SEAPORT_FEE_RECIPIENTS, SEAPORT_FEES)
+        ):
+            value, error = read_uint(
+                SEAPORT_TOKEN, "balanceOf(address)(uint256)", (recipient,), rpc_url
+            )
+            label = f"seaport-fee-recipient-{index + 1}"
+            observations.append(
+                runtime_error(label, error)
+                if value is None
+                else checked_value(label, value, 3 * fee)
+            )
+        return observations
     if test_case.test_id == "tempo-zones-portal":
         sender, error = private_key_address(private_key)
         if sender is None:
@@ -1770,6 +1796,68 @@ def run_cold_path_checks(
             )
         return observations
     return []
+
+
+def install_seaport_fixture(
+    name: str, target: str, rpc_url: str, private_key: str
+) -> str:
+    fixtures = json.loads((RUNTIME_FIXTURES.parent / "Seaport.json").read_text())
+    fixture, _, error = deploy_creation_code(
+        fixtures["creation_bytecode"][name], (), None, rpc_url, private_key
+    )
+    if fixture is None:
+        return error
+    code, error = rpc_request("eth_getCode", (fixture, "latest"), rpc_url)
+    if error or not isinstance(code, str) or code == "0x":
+        return error or f"empty {name} runtime"
+    _, error = rpc_request("anvil_setCode", (target, code), rpc_url)
+    return error
+
+
+def prepare_seaport_controller(rpc_url: str, private_key: str) -> str:
+    """Installs the conduit controller that Seaport's constructor reads."""
+    if re.fullmatch(r"http://(?:127\.0\.0\.1|localhost):\d+", rpc_url) is None:
+        return "Seaport fixtures require a local Anvil RPC"
+    return install_seaport_fixture(
+        "RuntimeSeaportConduitController", SEAPORT_CONTROLLER, rpc_url, private_key
+    )
+
+
+def prepare_seaport(seaport: str, rpc_url: str, private_key: str) -> str:
+    """Resets the token and NFT state every compiler's Seaport calls start from."""
+    for name, target in (
+        ("RuntimeSeaportToken", SEAPORT_TOKEN),
+        ("RuntimeSeaportNFT", SEAPORT_NFT),
+    ):
+        error = install_seaport_fixture(name, target, rpc_url, private_key)
+        if error:
+            return error
+    calls = [
+        (SEAPORT_TOKEN, "setBalance(address,uint256)", (SEAPORT_OFFERER, str(10**24))),
+        (
+            SEAPORT_TOKEN,
+            "setAllowance(address,address,uint256)",
+            (SEAPORT_OFFERER, seaport, MAX_UINT256),
+        ),
+        (
+            SEAPORT_NFT,
+            "setApproval(address,address,bool)",
+            (SEAPORT_OFFERER, seaport, "true"),
+        ),
+    ]
+    calls += [
+        (SEAPORT_TOKEN, "setBalance(address,uint256)", (recipient, "0"))
+        for recipient in SEAPORT_FEE_RECIPIENTS
+    ]
+    calls += [
+        (SEAPORT_NFT, "setOwner(uint256,address)", (str(token_id), SEAPORT_OFFERER))
+        for token_id in SEAPORT_TOKEN_IDS
+    ]
+    for target, signature, args in calls:
+        _, error = call_contract(target, signature, args, rpc_url, private_key)
+        if error:
+            return error
+    return ""
 
 
 def prepare_zones_portal(
@@ -2204,6 +2292,7 @@ def run_test_case(
             "nitro-one-step-proof",
             "lilweb3-fractional",
             "tempo-zones-portal",
+            "seaport-1.6-runtime",
         }
         if compiled["status"] != "ok" or not include_gas:
             continue
@@ -2213,6 +2302,13 @@ def run_test_case(
             continue
 
         verbose_log(verbose, f"[{test_case.test_id}] {spec.compiler_id} deploy")
+        if test_case.test_id == "seaport-1.6-runtime":
+            error = prepare_seaport_controller(rpc_url, private_key)
+            if error:
+                compiler_entry["deploy_status"] = "failed"
+                compiler_entry["runtime_status"] = "failed"
+                compiler_entry["deploy_error"] = error
+                continue
         address, deploy_gas, deploy_error = deploy_contract(
             str(compiled["bytecode"]),
             test_case,
@@ -2235,6 +2331,12 @@ def run_test_case(
             compiler_entry["proxy_deploy_gas"] = proxy_gas
             if address is None:
                 compiler_entry["deploy_status"] = "failed"
+                compiler_entry["runtime_status"] = "failed"
+                compiler_entry["deploy_error"] = error
+                continue
+        if test_case.test_id == "seaport-1.6-runtime":
+            error = prepare_seaport(address, rpc_url, private_key)
+            if error:
                 compiler_entry["runtime_status"] = "failed"
                 compiler_entry["deploy_error"] = error
                 continue

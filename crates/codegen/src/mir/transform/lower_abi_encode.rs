@@ -44,6 +44,14 @@
 //! zero their last padded word before writing the length header, which needs
 //! no branch even for an empty tail.
 //!
+//! Struct blocks. With native `MCOPY`, a memory struct whose fields are all words, such as each
+//! element of a struct array, copies its words to the output as one block, then reloads, cleans,
+//! and stores each narrow field in place and checks each enum, so dirty memory encodes as on
+//! the per-field path. The cost model takes the copy only when the full-width fields it saves
+//! repay it (`Target::copies_struct_block`). A struct allocated in the same function keeps
+//! per-field loads, which later forwarding can replace by the stored values, and the fixed
+//! low-memory output of a static external return keeps per-field order.
+//!
 //! Calldata aggregates. A struct or array in calldata, with dynamic members at any depth,
 //! encodes straight from where it lies instead of through a memory copy. Offsets in calldata
 //! need not be canonical, so each dynamic member is followed through its offset, encoded at the
@@ -1101,7 +1109,9 @@ pub(crate) fn encode_static_tuple(
     for (&value, ty) in values.iter().zip(types) {
         // head = add dest, size
         let head = builder.add_offset(dest, size);
-        encode_static_impl(builder, ty, value, head, false, AbiValueSource::Scalar);
+        // The destination is a fixed low address that a source struct may overlap, so fields
+        // keep their word-by-word order.
+        encode_static_impl(builder, ty, value, head, false, AbiValueSource::Scalar, None);
         size += ty.head_size();
     }
     // size = head bytes written
@@ -1115,6 +1125,7 @@ fn encode_static_impl(
     head_addr: ValueId,
     allow_slice_fast_path: bool,
     source: AbiValueSource,
+    block_copy: Option<&Target>,
 ) {
     if allow_slice_fast_path
         && let Some(location @ (PtrLocation::Calldata | PtrLocation::Memory)) =
@@ -1126,6 +1137,12 @@ fn encode_static_impl(
     }
     match ty {
         AbiType::Tuple(fields) => {
+            if let Some(target) = block_copy
+                && copies_struct_block(builder.func(), target, fields, value)
+            {
+                encode_struct_block(builder, fields, value, head_addr);
+                return;
+            }
             let mut field_head = head_addr;
             for (index, field) in fields.iter().enumerate() {
                 let field_value = builder.memory_load_field(value, index as u64);
@@ -1136,12 +1153,21 @@ fn encode_static_impl(
                     field_head,
                     allow_slice_fast_path,
                     AbiValueSource::Memory,
+                    block_copy,
                 );
                 field_head = builder.add_offset(field_head, field.head_size());
             }
         }
         AbiType::FixedArray { element, len, .. } => {
-            encode_static_array(builder, element, *len, value, head_addr, allow_slice_fast_path);
+            encode_static_array(
+                builder,
+                element,
+                *len,
+                value,
+                head_addr,
+                allow_slice_fast_path,
+                block_copy,
+            );
         }
         AbiType::Function => {
             let value = if source == AbiValueSource::Scalar {
@@ -1174,6 +1200,7 @@ fn encode_static_array(
     value: ValueId,
     head_addr: ValueId,
     allow_slice_fast_path: bool,
+    block_copy: Option<&Target>,
 ) {
     let length = builder.imm(len);
     let stride = builder.imm(element.head_size());
@@ -1189,6 +1216,7 @@ fn encode_static_array(
             element_head,
             allow_slice_fast_path,
             AbiValueSource::Memory,
+            block_copy,
         );
     });
 }
@@ -1206,7 +1234,7 @@ fn encode_tuple(
         let mut head_offset = 0;
         for (&value, ty) in values.iter().zip(types) {
             let head = builder.add_offset(dest, head_offset);
-            encode_static_impl(builder, ty, value, head, true, source);
+            encode_static_impl(builder, ty, value, head, true, source, Some(&helpers.target));
             head_offset += ty.head_size();
         }
         return builder.imm(head_size);
@@ -1243,7 +1271,7 @@ fn encode_value(
         builder.store(dest.head_addr, relative);
         encode_dynamic_body(builder, ty, value, dest.tail, helpers)
     } else {
-        encode_static_impl(builder, ty, value, dest.head_addr, true, source);
+        encode_static_impl(builder, ty, value, dest.head_addr, true, source, Some(&helpers.target));
         dest.tail
     }
 }
@@ -1347,6 +1375,56 @@ fn clean_word(
             value
         }
         _ => cleanup.cleanup(builder, value),
+    }
+}
+
+/// Whether the memory struct `value` with layout `fields` encodes as one block copy (see
+/// [`encode_struct_block`]). Its fields must all be words, so the struct is one run of words
+/// in ABI order; a nested aggregate is a pointer in memory. A struct allocated in this
+/// function keeps per-field loads, which later forwarding can replace by the stored values.
+fn copies_struct_block(
+    func: &Function,
+    target: &Target,
+    fields: &[AbiType],
+    value: ValueId,
+) -> bool {
+    if func.value_slice_location(value).is_some()
+        || !fields.iter().all(|field| matches!(field, AbiType::Word(_)))
+    {
+        return false;
+    }
+    if let Value::Inst(inst) = func.value(value)
+        && matches!(func.inst(*inst).kind, InstKind::Alloc { .. })
+    {
+        return false;
+    }
+    let full = fields.iter().enumerate().filter(|(_, field)| matches!(field, AbiType::Word(None)));
+    target.copies_struct_block(fields.len(), full.map(|(index, _)| index))
+}
+
+/// Encodes a memory struct of word fields by copying its words to `head_addr` with one
+/// `MCOPY`, then cleaning each narrow field in place exactly as [`clean_word`] cleans it on
+/// the per-field path, so the output is the same for any memory contents. A failing enum
+/// check still reverts, and the revert discards the partial output.
+fn encode_struct_block(
+    builder: &mut FunctionBuilder<'_>,
+    fields: &[AbiType],
+    value: ValueId,
+    head_addr: ValueId,
+) {
+    // mcopy head_addr, value, 32 * fields [!metadata(disjoint)]
+    let size = builder.imm(fields.len() as u64 * EvmMemoryLayout::WORD_SIZE);
+    copy_source_data(builder, PtrLocation::Memory, head_addr, value, size);
+    for (index, field) in fields.iter().enumerate() {
+        let AbiType::Word(Some(cleanup)) = *field else { continue };
+        // word = mload head_addr + 32 * index
+        // mstore head_addr + 32 * index, clean(word), or only check an enum's range
+        let address = builder.add_offset(head_addr, index as u64 * EvmMemoryLayout::WORD_SIZE);
+        let word = builder.load(address, PtrLocation::Memory);
+        let cleaned = clean_word(builder, cleanup, word);
+        if !matches!(cleanup, AbiWordValidator::EnumRange(_)) {
+            builder.store(address, cleaned);
+        }
     }
 }
 

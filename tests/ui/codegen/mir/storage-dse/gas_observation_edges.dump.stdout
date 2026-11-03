@@ -1,0 +1,206 @@
+// === ROOT/tests/ui/codegen/mir/storage-dse/gas_observation_edges.sol:GasObservationEdges ===
+@module GasObservationEdges
+@phase lowered
+// backend-memory-v1
+
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb6, bb1
+  bb1:  ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb6, [0x15ba1bc => bb2, 0x89ddc276 => bb3, 0x9ae22eae => bb4, 0x9c6d4c69 => bb5]
+  bb5:  ; preds = bb1
+    tail_call @helperReturn
+  bb4:  ; preds = bb1
+    tail_call @split
+  bb3:  ; preds = bb1
+    tail_call @directThenRevertHelper
+  bb2:  ; preds = bb1
+    tail_call @revertHelper
+  bb6 [cold]:  ; preds = bb0, bb1
+    revert 0, 0
+}
+
+; function helperReturn(uint256 h) external returns (uint256) [selector 0x9c6d4c69]
+fn @helperReturn() {
+  bb0:
+    v18 = calldatasize
+    v19 = lt v18, 36
+    jumpi v19, bb1, bb2
+  bb2:  ; preds = bb0
+    v20 = calldataload 4
+    icall @readThenReturn
+    mstore 0, v20 !metadata(memory=scratch)
+    mstore 32, 0 !metadata(memory=scratch)
+    v21 = keccak256 0, 64 !metadata(memory=scratch)
+    v1 = sload v21
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v3 = or v2, 1
+    sstore v21, v3
+    v4 = sload v21
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
+    sstore v21, v5
+    v7 = sload v21
+    v8 = and v7, 0xffffffffffffffffffffffffffffff000000000000000000000000000000ffff
+    v9 = or v8, 0x10000
+    sstore v21, v9
+    v10 = sload v21
+    v11 = and v10, 0xffffffffffffffffffffffffffffffffff
+    v12 = or v11, 0x10000000000000000000000000000000000
+    sstore v21, v12
+    v13 = gas
+    sstore 1, v13 !metadata(storage=slot(1))
+    v22 = keccak256 0, 64 !metadata(memory=scratch)
+    v16 = sload v22
+    mstore 0, v16 !metadata(memory=scratch)
+    returndata 0, 32
+  bb1 [cold]:  ; preds = bb0
+    revert 0, 0
+}
+
+; function directThenRevertHelper(uint256 h, bool f) external returns (uint256) [selector 0x89ddc276]
+fn @directThenRevertHelper() {
+  bb0:
+    v25 = calldataload 36
+    v26 = shr v25, 1
+    v22 = calldatasize
+    v23 = lt v22, 68
+    v33 = zext i1 v23 to i256
+    v34 = or v26, v33
+    v35 = ne v34, 0
+    jumpi v35, bb3, bb4
+  bb4:  ; preds = bb0
+    v37 = calldataload 36
+    v36 = calldataload 4
+    v32 = ne v37, 0
+    v0 = gas
+    icall @readThenRevert, v32
+    mstore 0, v36 !metadata(memory=scratch)
+    mstore 32, 0 !metadata(memory=scratch)
+    v30 = keccak256 0, 64 !metadata(memory=scratch)
+    v2 = sload v30
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v4 = or v3, 1
+    sstore v30, v4
+    v5 = sload v30
+    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
+    sstore v30, v6
+    v8 = sload v30
+    v9 = and v8, 0xffffffffffffffffffffffffffffff000000000000000000000000000000ffff
+    v10 = or v9, 0x10000
+    sstore v30, v10
+    v11 = sload v30
+    v12 = and v11, 0xffffffffffffffffffffffffffffffffff
+    v13 = or v12, 0x10000000000000000000000000000000000
+    sstore v30, v13
+    v14 = gas
+    v20 = sub v0, v14
+    v21 = lt v0, v14
+    jumpi v21, bb1, bb2
+  bb2:  ; preds = bb4
+    sstore 1, v20 !metadata(storage=slot(1))
+    mstore 0, v36 !metadata(memory=scratch)
+    mstore 32, 0 !metadata(memory=scratch)
+    v29 = keccak256 0, 64 !metadata(memory=scratch)
+    v18 = sload v29
+    mstore 0, v18 !metadata(memory=scratch)
+    returndata 0, 32
+  bb1 [cold]:  ; preds = bb4
+    mstore 32, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb3 [cold]:  ; preds = bb0
+    revert 0, 0
+}
+
+; function revertHelper(uint256 h, bool f) external returns (uint256) [selector 0x015ba1bc]
+fn @revertHelper() {
+  bb0:
+    v21 = calldataload 36
+    v22 = shr v21, 1
+    v18 = calldatasize
+    v19 = lt v18, 68
+    v31 = zext i1 v19 to i256
+    v32 = or v22, v31
+    v33 = ne v32, 0
+    jumpi v33, bb1, bb2
+  bb2:  ; preds = bb0
+    v34 = calldataload 4
+    v35 = calldataload 36
+    v30 = ne v35, 0
+    icall @readThenRevert, v30
+    mstore 0, v34 !metadata(memory=scratch)
+    mstore 32, 0 !metadata(memory=scratch)
+    v27 = keccak256 0, 64 !metadata(memory=scratch)
+    sstore v27, 0x10000000000000000000000000000010001
+    v13 = gas
+    sstore 1, v13 !metadata(storage=slot(1))
+    v28 = keccak256 0, 64 !metadata(memory=scratch)
+    v16 = sload v28
+    mstore 0, v16 !metadata(memory=scratch)
+    returndata 0, 32
+  bb1 [cold]:  ; preds = bb0
+    revert 0, 0
+}
+
+; function split(uint256 h, bool f) external returns (uint256) [selector 0x9ae22eae]
+fn @split() {
+  bb0:
+    v21 = calldataload 36
+    v22 = shr v21, 1
+    v18 = calldatasize
+    v19 = lt v18, 68
+    v33 = zext i1 v19 to i256
+    v34 = or v22, v33
+    v35 = ne v34, 0
+    jumpi v35, bb1, bb2
+  bb2:  ; preds = bb0
+    v37 = calldataload 36
+    v32 = ne v37, 0
+    v36 = calldataload 4
+    mstore 0, v36 !metadata(memory=scratch)
+    mstore 32, 0 !metadata(memory=scratch)
+    v29 = keccak256 0, 64 !metadata(memory=scratch)
+    v1 = sload v29
+    v25 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000
+    v5 = or v25, 1
+    sstore v29, v5
+    icall @readThenRevert, v32
+    sstore v29, 0x10000000000000000000000000000010001
+    v13 = gas
+    sstore 1, v13 !metadata(storage=slot(1))
+    v30 = keccak256 0, 64 !metadata(memory=scratch)
+    v16 = sload v30
+    mstore 0, v16 !metadata(memory=scratch)
+    returndata 0, 32
+  bb1 [cold]:  ; preds = bb0
+    revert 0, 0
+}
+
+; function readThenReturn() internal view
+fn @readThenReturn() {
+  bb0:
+    v0 = gas
+    v1 = lt v0, 10
+    jumpi v1, bb1, bb2
+  bb2:  ; preds = bb0
+    ret
+  bb1 [cold]:  ; preds = bb0
+    revert 0, 0
+}
+
+; function readThenRevert(bool f) internal view
+fn @readThenRevert(arg0: i1) {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:  ; preds = bb0
+    ret
+  bb1 [cold]:  ; preds = bb0
+    v0 = gas
+    mstore 0, v0 !metadata(memory=scratch)
+    revert 0, 32
+}

@@ -10,6 +10,11 @@
         (if-let false (u256_is_all_ones mask))
         (Op.And base (imm (u256_and mask existing))))
 
+;; (x | a) | b => x | (a | b).
+;; Requires: a, b are constants.
+(rule (rewrite (Op.Or (bor x (iconst a)) (iconst b)))
+      (Op.Or x (imm (u256_or a b))))
+
 ;; a ^ MAX => ~a, except i1 whose complement stays a legal branch condition.
 (rule (rewrite (Op.Xor a (all_ones)))
       (if-let false (u256_eq (u256 (integer_width)) 1))
@@ -45,6 +50,13 @@
 (rule 39 (simplify (Op.And (bor (shl (iconst shift) value) (iconst constant)) (iconst mask)))
       (if-let true (u256_is_zero (u256_shr shift (u256_and mask (u256_not constant)))))
       (imm (u256_and constant mask)))
+
+;; Every bit that survives the outer mask comes from the constant.
+;; ((x & a) | b) & c => b & c.
+;; Requires: a, b, c are constants, (a & c) == 0.
+(rule 41 (simplify (Op.And (bor (band _ (iconst a)) (iconst b)) (iconst c)))
+      (if-let true (u256_is_zero (u256_and a c)))
+      (imm (u256_and b c)))
 
 ;; a & (a | _) => a.
 (rule 18 (simplify (Op.And a (bor a _))) a)

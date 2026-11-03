@@ -312,8 +312,9 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Placement is an overlay: `base(f) = region_start + depth(f)`, where
     /// `depth(f)` is the longest chain of static frames that can be live below
     /// an activation of `f`. Depth propagates along every call edge — a static
-    /// caller contributes its frame size, while an external entry whose locals
-    /// live below the region only forwards its depth. Recursive components
+    /// caller contributes its frame size if emitted code addresses that frame,
+    /// while an external entry whose locals live below the region only forwards
+    /// its depth. Recursive components
     /// occupy a disjoint suffix with one frame per function; their call edges
     /// are weight-zero because a nested activation reuses the same function
     /// frame after its caller saves the words it still needs on the EVM stack.
@@ -350,6 +351,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         for &func_id in &runtime_entries {
             emitted_callers.insert(func_id);
         }
+        // (caller, callee, whether a runtime entry passes control to another entry)
         let mut edges = Vec::new();
         for func_id in emitted_callers.iter() {
             let func = &module.functions[func_id];
@@ -357,28 +359,43 @@ impl<'gcx> EvmCodegen<'gcx> {
                 if let InstKind::ICall { function: Callee::Function(function), .. } =
                     func.inst(inst_id).kind
                 {
-                    edges.push((func_id, function));
+                    edges.push((func_id, function, false));
                 }
             }
             for block in func.blocks.iter() {
                 if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
-                    edges.push((func_id, *function));
+                    let enters_entry =
+                        runtime_entries.contains(&func_id) && runtime_entries.contains(function);
+                    edges.push((func_id, *function, enters_entry));
                 }
             }
         }
+        let placed: FxHashSet<FunctionId> =
+            self.static_frame_addr_consts.keys().map(|&(func_id, _)| func_id).collect();
+        // The memory each caller's frame keeps below its callees. Emitted code reaches a frame
+        // only through its referenced address constants, so a function with none occupies no
+        // memory and its callees may start where its own frame would have.
+        let stacked_frame_sizes: FxHashMap<FunctionId, u64> = placed
+            .iter()
+            .copied()
+            .filter(|&func_id| {
+                self.static_frame_functions.contains(func_id)
+                    && !self.recursive_frame_functions.contains(func_id)
+            })
+            .map(|func_id| (func_id, self.emitted_frame_size(module, func_id)))
+            .collect();
+        let stacked_frame_size = |func_id| stacked_frame_sizes.get(&func_id).copied().unwrap_or(0);
         let mut depth: FxHashMap<FunctionId, u64> = FxHashMap::default();
         let mut depth_converged = false;
         for _ in 0..=module.functions.len() {
             let mut changed = false;
-            for &(caller, callee) in &edges {
-                let mut contribution = depth.get(&caller).copied().unwrap_or(0);
-                if self.static_frame_functions.contains(caller)
-                    && !self.recursive_frame_functions.contains(caller)
-                {
-                    contribution = contribution
-                        .checked_add(self.emitted_frame_size(module, caller))
-                        .expect("static frame depth overflow");
-                }
+            for &(caller, callee, _) in &edges {
+                let contribution = depth
+                    .get(&caller)
+                    .copied()
+                    .unwrap_or(0)
+                    .checked_add(stacked_frame_size(caller))
+                    .expect("static frame depth overflow");
                 if contribution > depth.get(&callee).copied().unwrap_or(0) {
                     depth.insert(callee, contribution);
                     changed = true;
@@ -391,8 +408,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         assert!(depth_converged, "static frame depth did not reach a fixed point");
 
-        let placed: FxHashSet<FunctionId> =
-            self.static_frame_addr_consts.keys().map(|&(func_id, _)| func_id).collect();
         let mut recursive_placed: Vec<_> = placed
             .iter()
             .copied()
@@ -620,7 +635,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             let mut converged = false;
             for _ in 0..=module.functions.len() {
                 let mut changed = false;
-                for &(caller, callee) in &edges {
+                for &(caller, callee, enters_entry) in &edges {
+                    // An entry's helpers start above its own spill area, not its dispatcher's:
+                    // the dispatcher's tail call never returns, and entries already overlay its
+                    // memory.
+                    if enters_entry {
+                        continue;
+                    }
                     // A missing propagated caller bound retains its conservative
                     // global placement. This can only occur for an unusual
                     // emitted-but-unreachable shape; skipping the edge could
@@ -630,13 +651,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                             .checked_add(depth.get(&caller).copied().unwrap_or(0))
                             .expect("static frame caller bound overflow")
                     });
-                    let frame_size = if self.static_frame_functions.contains(caller)
-                        && !self.recursive_frame_functions.contains(caller)
-                    {
-                        self.emitted_frame_size(module, caller)
-                    } else {
-                        0
-                    };
+                    let frame_size = stacked_frame_size(caller);
                     let end = base
                         .max(low_memory_end)
                         .checked_add(frame_size)
@@ -665,7 +680,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
             // caller frame -> callee frame
             // [caller_base, caller_base + caller_size) <= callee_base
-            for &(caller, callee) in &edges {
+            for &(caller, callee, _) in &edges {
                 let Some(&callee_base) = frame_bases.get(&callee) else { continue };
                 let caller_base = entry_ends
                     .get(&caller)
@@ -677,13 +692,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                             .checked_add(depth.get(&caller).copied().unwrap_or(0))
                             .expect("static frame caller base overflow")
                     });
-                let caller_size = if self.static_frame_functions.contains(caller)
-                    && !self.recursive_frame_functions.contains(caller)
-                {
-                    self.emitted_frame_size(module, caller)
-                } else {
-                    0
-                };
+                let caller_size = stacked_frame_size(caller);
                 let required = caller_base
                     .max(low_memory_end)
                     .checked_add(caller_size)
@@ -913,9 +922,21 @@ impl<'gcx> EvmCodegen<'gcx> {
                         region_start.saturating_add(frames).saturating_add(allocations[&entry]),
                     );
                 }
-                end = end.saturating_add(prefix_guards.get(&entry).copied().unwrap_or(0));
+                let guard = prefix_guards.get(&entry).copied().unwrap_or(0);
+                end = end.saturating_add(guard);
+                // The low memory that calldata-addressed writes own only has to stay clear of
+                // what the compiler places for this entry: its spill area, static allocations and
+                // frames. The heap prefix guard only keeps assembly that reads before a heap
+                // object off spill slots, so an entry that places none of them keeps its base:
+                // it neither raises the region that every other entry's frames start at nor
+                // moves its own heap above where 'solc' starts it.
+                let places_nothing = sizes[&entry] == 0 && frames == 0;
                 if let Some(raised) = ranges[&entry]
                     .iter()
+                    .filter(|&&range| {
+                        !(places_nothing
+                            && range == (EvmMemoryLayout::HEAP_START, LOW_MEMORY_BOUND))
+                    })
                     .filter(|&&(start, range_end)| start < end && range_end > base)
                     .map(|&(_, range_end)| range_end)
                     .max()

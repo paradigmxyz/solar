@@ -1,0 +1,149 @@
+// === ROOT/tests/ui/codegen/mir/storage-dse/gas_observation_edges.sol:GasObservationEdges ===
+@module GasObservationEdges
+; function helperReturn(uint256 h) external returns (uint256) [selector 0x9c6d4c69]
+fn @helperReturn(arg0: i256) -> i256 [selector=0x9c6d4c69, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    icall @readThenReturn
+    v0 = mapping_slot arg0, 0
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v3 = or v2, 1
+    sstore v0, v3 !metadata(storage=symbolic(v0))
+    v4 = sload v0 !metadata(storage=symbolic(v0))
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
+    v6 = or v5, 0
+    sstore v0, v6 !metadata(storage=symbolic(v0))
+    v7 = sload v0 !metadata(storage=symbolic(v0))
+    v8 = and v7, 0xffffffffffffffffffffffffffffff000000000000000000000000000000ffff
+    v9 = or v8, 0x10000
+    sstore v0, v9 !metadata(storage=symbolic(v0))
+    v10 = sload v0 !metadata(storage=symbolic(v0))
+    v11 = and v10, 0xffffffffffffffffffffffffffffffffff
+    v12 = or v11, 0x10000000000000000000000000000000000
+    sstore v0, v12 !metadata(storage=symbolic(v0))
+    v13 = gas
+    sstore 1, v13 !metadata(storage=slot(1))
+    v14 = icall @raw, arg0
+    ret v14
+}
+
+; function directThenRevertHelper(uint256 h, bool f) external returns (uint256) [selector 0x89ddc276]
+fn @directThenRevertHelper(arg0: i256, arg1: i1) -> i256 [selector=0x89ddc276, abi_params=[uint256, bool], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = gas
+    icall @readThenRevert, arg1
+    v1 = mapping_slot arg0, 0
+    v2 = sload v1 !metadata(storage=symbolic(v1))
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v4 = or v3, 1
+    sstore v1, v4 !metadata(storage=symbolic(v1))
+    v5 = sload v1 !metadata(storage=symbolic(v1))
+    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
+    v7 = or v6, 0
+    sstore v1, v7 !metadata(storage=symbolic(v1))
+    v8 = sload v1 !metadata(storage=symbolic(v1))
+    v9 = and v8, 0xffffffffffffffffffffffffffffff000000000000000000000000000000ffff
+    v10 = or v9, 0x10000
+    sstore v1, v10 !metadata(storage=symbolic(v1))
+    v11 = sload v1 !metadata(storage=symbolic(v1))
+    v12 = and v11, 0xffffffffffffffffffffffffffffffffff
+    v13 = or v12, 0x10000000000000000000000000000000000
+    sstore v1, v13 !metadata(storage=symbolic(v1))
+    v14 = gas
+    v15 = checked_sub uint256, v0, v14
+    sstore 1, v15 !metadata(storage=slot(1))
+    v16 = icall @raw, arg0
+    ret v16
+}
+
+; function revertHelper(uint256 h, bool f) external returns (uint256) [selector 0x015ba1bc]
+fn @revertHelper(arg0: i256, arg1: i1) -> i256 [selector=0x015ba1bc, abi_params=[uint256, bool], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    icall @readThenRevert, arg1
+    v0 = mapping_slot arg0, 0
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v3 = or v2, 1
+    sstore v0, v3 !metadata(storage=symbolic(v0))
+    v4 = sload v0 !metadata(storage=symbolic(v0))
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
+    v6 = or v5, 0
+    sstore v0, v6 !metadata(storage=symbolic(v0))
+    v7 = sload v0 !metadata(storage=symbolic(v0))
+    v8 = and v7, 0xffffffffffffffffffffffffffffff000000000000000000000000000000ffff
+    v9 = or v8, 0x10000
+    sstore v0, v9 !metadata(storage=symbolic(v0))
+    v10 = sload v0 !metadata(storage=symbolic(v0))
+    v11 = and v10, 0xffffffffffffffffffffffffffffffffff
+    v12 = or v11, 0x10000000000000000000000000000000000
+    sstore v0, v12 !metadata(storage=symbolic(v0))
+    v13 = gas
+    sstore 1, v13 !metadata(storage=slot(1))
+    v14 = icall @raw, arg0
+    ret v14
+}
+
+; function split(uint256 h, bool f) external returns (uint256) [selector 0x9ae22eae]
+fn @split(arg0: i256, arg1: i1) -> i256 [selector=0x9ae22eae, abi_params=[uint256, bool], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = mapping_slot arg0, 0
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v3 = or v2, 1
+    sstore v0, v3 !metadata(storage=symbolic(v0))
+    v4 = sload v0 !metadata(storage=symbolic(v0))
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
+    v6 = or v5, 0
+    sstore v0, v6 !metadata(storage=symbolic(v0))
+    icall @readThenRevert, arg1
+    v7 = sload v0 !metadata(storage=symbolic(v0))
+    v8 = and v7, 0xffffffffffffffffffffffffffffff000000000000000000000000000000ffff
+    v9 = or v8, 0x10000
+    sstore v0, v9 !metadata(storage=symbolic(v0))
+    v10 = sload v0 !metadata(storage=symbolic(v0))
+    v11 = and v10, 0xffffffffffffffffffffffffffffffffff
+    v12 = or v11, 0x10000000000000000000000000000000000
+    sstore v0, v12 !metadata(storage=symbolic(v0))
+    v13 = gas
+    sstore 1, v13 !metadata(storage=slot(1))
+    v14 = icall @raw, arg0
+    ret v14
+}
+
+; function raw(uint256 h) internal view returns (uint256 word)
+fn @raw(arg0: i256) -> i256 [view] {
+  bb0:
+    v0 = mapping_slot arg0, 0
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    ret v1
+}
+
+; function readThenReturn() internal view
+fn @readThenReturn() [view] {
+  bb0:
+    v0 = gas
+    v1 = lt v0, 10
+    v2 = zext i1 v1 to i256
+    v3 = ne v2, 0
+    jumpi v3, bb1, bb2
+  bb2:  ; preds = bb0
+    jump bb3
+  bb3:  ; preds = bb2
+    ret
+  bb1:  ; preds = bb0
+    revert 0, 0
+}
+
+; function readThenRevert(bool f) internal view
+fn @readThenRevert(arg0: i1) [view] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:  ; preds = bb0
+    jump bb3
+  bb3:  ; preds = bb2
+    ret
+  bb1:  ; preds = bb0
+    v0 = gas
+    mstore 0, v0 !metadata(memory=scratch)
+    revert 0, 32
+}

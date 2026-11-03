@@ -348,6 +348,133 @@ class TestCase:
         return self.project.path
 
 
+# Seaport runtime fixtures at fixed addresses. The controller sits at Seaport's canonical
+# ConduitController address; the token and NFT are local mocks.
+SEAPORT_CONTROLLER = "0x00000000F9490004C11Cef243f5400493c00Ad63"
+SEAPORT_TOKEN = "0x5ea0000000000000000000000000000000000001"
+SEAPORT_NFT = "0x5ea0000000000000000000000000000000000002"
+SEAPORT_FEE_RECIPIENTS = (DEFAULT_SPENDER, DEFAULT_THIRD)
+SEAPORT_PRICE = 1000
+SEAPORT_FEES = (25, 50)
+SEAPORT_END_TIME = str((1 << 40) - 1)
+# The sender fills its own orders, which Seaport accepts without a signature.
+SEAPORT_OFFERER = DEFAULT_SENDER
+
+
+def seaport_offer_721(token_id: int) -> str:
+    return f"[(2,{SEAPORT_NFT},{token_id},1,1)]"
+
+
+def seaport_consideration_erc20(recipients: int) -> str:
+    items = [(SEAPORT_PRICE, SEAPORT_OFFERER)]
+    items += list(zip(SEAPORT_FEES, SEAPORT_FEE_RECIPIENTS))[:recipients]
+    return "[" + ",".join(f"(1,{SEAPORT_TOKEN},0,{a},{a},{r})" for a, r in items) + "]"
+
+
+def seaport_parameters(offer: str, consideration: str, salt: int) -> str:
+    total = consideration.count("(")
+    return (
+        f"({SEAPORT_OFFERER},{ZERO_ADDRESS},{offer},{consideration},0,0,"
+        f"{SEAPORT_END_TIME},0x{'00' * 32},{salt},0x{'00' * 32},{total})"
+    )
+
+
+def seaport_order(offer: str, consideration: str, salt: int) -> str:
+    return f"({seaport_parameters(offer, consideration, salt)},0x)"
+
+
+def seaport_listing(token_id: int, salt: int, recipients: int = 2) -> str:
+    return seaport_order(
+        seaport_offer_721(token_id), seaport_consideration_erc20(recipients), salt
+    )
+
+
+def seaport_components(token_id: int, salt: int) -> str:
+    """Order components of a listing at counter 0, as cancel takes them."""
+    return (
+        f"({SEAPORT_OFFERER},{ZERO_ADDRESS},{seaport_offer_721(token_id)},"
+        f"{seaport_consideration_erc20(2)},0,0,{SEAPORT_END_TIME},0x{'00' * 32},{salt},"
+        f"0x{'00' * 32},0)"
+    )
+
+
+def seaport_basic_order(token_id: int, salt: int) -> str:
+    recipients = ",".join(
+        f"({a},{r})" for a, r in zip(SEAPORT_FEES, SEAPORT_FEE_RECIPIENTS)
+    )
+    # ERC20_TO_ERC721_FULL_OPEN
+    return (
+        f"({SEAPORT_TOKEN},0,{SEAPORT_PRICE},{SEAPORT_OFFERER},{ZERO_ADDRESS},"
+        f"{SEAPORT_NFT},{token_id},1,8,0,{SEAPORT_END_TIME},0x{'00' * 32},{salt},"
+        f"0x{'00' * 32},0x{'00' * 32},{len(SEAPORT_FEES)},[{recipients}],0x)"
+    )
+
+
+SEAPORT_ORDER = (
+    "(address,address,(uint8,address,uint256,uint256,uint256)[],"
+    "(uint8,address,uint256,uint256,uint256,address)[],uint8,uint256,uint256,bytes32,"
+    "uint256,bytes32,uint256)"
+)
+SEAPORT_BASIC = (
+    "(address,uint256,uint256,address,address,address,uint256,uint256,uint8,uint256,"
+    "uint256,bytes32,uint256,bytes32,bytes32,uint256,(uint256,address)[],bytes)"
+)
+SEAPORT_MATCH_OFFER = f"[(1,{SEAPORT_TOKEN},0,{SEAPORT_PRICE},{SEAPORT_PRICE})]"
+SEAPORT_GAS_CALLS = (
+    GasCall(
+        "validate-1-order",
+        f"validate(({SEAPORT_ORDER},bytes)[])",
+        (f"[{seaport_listing(1, 1)}]",),
+    ),
+    GasCall(
+        "validate-3-orders",
+        f"validate(({SEAPORT_ORDER},bytes)[])",
+        ("[" + ",".join(seaport_listing(i, i) for i in (2, 3, 4)) + "]",),
+    ),
+    GasCall(
+        "fulfillOrder",
+        f"fulfillOrder(({SEAPORT_ORDER},bytes),bytes32)",
+        (seaport_listing(5, 5), "0x" + "00" * 32),
+    ),
+    GasCall(
+        "fulfillBasicOrder",
+        f"fulfillBasicOrder({SEAPORT_BASIC})",
+        (seaport_basic_order(6, 6),),
+    ),
+    GasCall(
+        "fulfillBasicOrder_efficient",
+        f"fulfillBasicOrder_efficient_6GL6yc({SEAPORT_BASIC})",
+        (seaport_basic_order(7, 7),),
+    ),
+    GasCall(
+        "matchOrders",
+        f"matchOrders(({SEAPORT_ORDER},bytes)[],((uint256,uint256)[],(uint256,uint256)[])[])",
+        (
+            "["
+            + seaport_order(seaport_offer_721(8), seaport_consideration_erc20(0), 8)
+            + ","
+            + seaport_order(
+                SEAPORT_MATCH_OFFER,
+                f"[(2,{SEAPORT_NFT},8,1,1,{SEAPORT_OFFERER})]",
+                9,
+            )
+            + "]",
+            "[([(0,0)],[(1,0)]),([(1,0)],[(0,0)])]",
+        ),
+    ),
+    GasCall(
+        "cancel",
+        "cancel((address,address,(uint8,address,uint256,uint256,uint256)[],"
+        "(uint8,address,uint256,uint256,uint256,address)[],uint8,uint256,uint256,"
+        "bytes32,uint256,bytes32,uint256)[])",
+        (f"[{seaport_components(10, 10)}]",),
+    ),
+    # Last: it changes the counter that every order above hashes.
+    GasCall("incrementCounter", "incrementCounter()"),
+)
+SEAPORT_TOKEN_IDS = tuple(range(1, 11))
+
+
 def source(name: str) -> str:
     return (TESTDATA_ROOT / name).read_text()
 
@@ -1682,6 +1809,20 @@ TEST_CASES: Sequence[TestCase] = (
             RuntimeCheck("deposit-queue", "currentDepositQueueHash()(bytes32)"),
             RuntimeCheck("encryption-key-count", "encryptionKeyCount()(uint256)"),
         ),
+        suite="repository",
+    ),
+    TestCase(
+        test_id="seaport-1.6-runtime",
+        description="Seaport 1.6 order validation, fulfillment, matching and cancellation",
+        project=PROJECTS["seaport-1.6"],
+        source="contracts/Seaport.sol",
+        contract_name="Seaport",
+        settings_profile="seaport",
+        constructor_sig="constructor(address)",
+        constructor_args=(SEAPORT_CONTROLLER,),
+        # Fee balances are checked as cold paths; incrementCounter adds a quasi-random amount,
+        # so the counter is not compared across compilers.
+        gas_calls=SEAPORT_GAS_CALLS,
         suite="repository",
     ),
     TestCase(
