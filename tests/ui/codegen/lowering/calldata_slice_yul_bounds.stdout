@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/calldata_slice_yul_bounds.sol:CalldataSliceYulBounds ===
+; === ROOT/tests/ui/codegen/lowering/calldata_slice_yul_bounds.sol:CalldataSliceYulBounds ===
 @module CalldataSliceYulBounds
 ; function _empty() internal pure returns (bytes calldata data)
 fn @_empty() -> slice<calldata> [pure] {
@@ -47,13 +47,13 @@ fn @conditional(arg0: slice<calldata>) -> i256 [selector=0x1a013c9e, pure, abi_p
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = gt v0, 32
     jumpi v1, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v2 = extract_value slice<calldata>, arg0, 0
     v3 = make_calldata_slice v2, 32
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v4 = phi [bb1: v3], [bb2: arg0]
     v5 = extract_value slice<calldata>, v4, 1
     ret v5

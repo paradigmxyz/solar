@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/egraph/self_balance_evm_version.mir (before egraph) ===
-+ // === ROOT/tests/ui/codegen/mir/egraph/self_balance_evm_version.mir (after egraph) ===
+- ; === ROOT/tests/ui/codegen/mir/egraph/self_balance_evm_version.mir (before egraph) ===
++ ; === ROOT/tests/ui/codegen/mir/egraph/self_balance_evm_version.mir (after egraph) ===
   @module SelfBalanceEvmVersion
   fn @own_balance() -> i256 {
     bb0:

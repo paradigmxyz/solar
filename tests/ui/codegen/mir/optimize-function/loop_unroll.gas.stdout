@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/optimize-function/loop_unroll.sol:Mixed ===
+; === ROOT/tests/ui/codegen/mir/optimize-function/loop_unroll.sol:Mixed ===
 @module Mixed
 @phase lowered
 ; runtime dispatch entry
@@ -7,13 +7,13 @@ fn @entry() [entry] {
     v0 = callvalue
     v1 = ne v0, 0
     jumpi v1, bb3, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v2 = calldataload 0
     v3 = shr v2, 224
     switch v3, default bb3, [0x3a276523 => bb2]
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     tail_call @run
-  bb3 [cold]:  ; preds = bb0, bb1
+  bb3 [cold]:                                     ; preds = bb0, bb1
     revert 0, 0
 }
 
@@ -22,7 +22,7 @@ fn @plain(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v37 = lt arg1, 4
     jumpi v37, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v101 = add arg0, 0
     v102 = calldataload v101
     v103 = byte 0, v102
@@ -46,17 +46,19 @@ fn @plain(arg0: i256, arg1: i256) -> i256 {
     v133 = byte 0, v132
     v134 = or v130, v133
     ret v134
-  bb2 [cold]:  ; preds = bb0
+  bb2 [cold]:                                     ; preds = bb0
     v57 = lt 0, arg1
     v68 = lt 1, arg1
     v136 = and v57, v68
     v79 = lt 2, arg1
     v137 = and v136, v79
     jumpi v137, bb4, bb3
-  bb4 [cold]:  ; preds = bb2
+  bb4 [cold]:                                     ; preds = bb2
     jump bb3
-  bb3 [cold]:  ; preds = bb2, bb4
-    tail_call @revert_stub
+  bb3 [cold]:                                     ; preds = bb2, bb4
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 ; function fast(bytes calldata data) internal pure returns (uint32 value)
@@ -64,7 +66,7 @@ fn @fast(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v37 = lt arg1, 4
     jumpi v37, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v101 = add arg0, 0
     v102 = calldataload v101
     v103 = byte 0, v102
@@ -88,38 +90,42 @@ fn @fast(arg0: i256, arg1: i256) -> i256 {
     v133 = byte 0, v132
     v134 = or v130, v133
     ret v134
-  bb2 [cold]:  ; preds = bb0
+  bb2 [cold]:                                     ; preds = bb0
     v57 = lt 0, arg1
     v68 = lt 1, arg1
     v136 = and v57, v68
     v79 = lt 2, arg1
     v137 = and v136, v79
     jumpi v137, bb4, bb3
-  bb4 [cold]:  ; preds = bb2
+  bb4 [cold]:                                     ; preds = bb2
     jump bb3
-  bb3 [cold]:  ; preds = bb2, bb4
-    tail_call @revert_stub
+  bb3 [cold]:                                     ; preds = bb2, bb4
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 ; function small(bytes calldata data) internal pure returns (uint32 value)
 fn @small(arg0: i256, arg1: i256) -> i256 [optimize=size] {
   bb0:
     jump bb1
-  bb1:  ; preds = bb0, bb5
+  bb1:                                            ; preds = bb0, bb5
     v1 = phi [bb0: 0], [bb5: v28]
     v2 = phi [bb0: 0], [bb5: v20]
     v3 = lt v2, 4
     jumpi v3, bb3, bb2
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     ret v1
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v25 = shl v1, 6
     v26 = and v25, 0xffffffff
     v7 = lt v2, arg1
     jumpi v7, bb5, bb4
-  bb4 [cold]:  ; preds = bb3
-    tail_call @revert_stub
-  bb5:  ; preds = bb3
+  bb4 [cold]:                                     ; preds = bb3
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb5:                                            ; preds = bb3
     v12 = add arg0, v2
     v13 = calldataload v12
     v14 = byte 0, v13
@@ -144,7 +150,7 @@ fn @run() {
     v17 = or v12, v16
     v33 = or v7, v17
     jumpi v33, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v0 = icall @plain, v14, v13
     v1 = icall @fast, v14, v13
     v2 = icall @small, v14, v13
@@ -152,13 +158,6 @@ fn @run() {
     mstore 32, v1
     mstore 64, v2
     returndata 0, 96
-  bb1 [cold]:  ; preds = bb0
+  bb1 [cold]:                                     ; preds = bb0
     revert 0, 0
-}
-
-fn @revert_stub() [cold] {
-  bb0 [cold]:
-    mstore 32, 50 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }

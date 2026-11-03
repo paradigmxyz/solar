@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_fixed_scalar_reencode.sol:AbiCalldataFixedScalarReencode ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_fixed_scalar_reencode.sol:AbiCalldataFixedScalarReencode ===
 @module AbiCalldataFixedScalarReencode
 ; function f(uint256[3] calldata values) external pure returns (bytes memory) [selector 0x5dc12891]
 fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0x5dc12891, pure, abi_params=[array<3, uint256>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -35,12 +35,17 @@ fn @g(arg0: slice<calldata>, arg1: i256) -> ptr<memory> [selector=0x1fd55338, vi
     v20 = zext i160 v0 to i256
     v21 = staticcall v1, v20, v18, v19, 0, 0
     jumpi v21, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
-    v22 = icall returndata_bytes<>
-    v23 = abi_decode [bytes], v22
-    ret v23
+  bb2:                                            ; preds = bb0
+    v22 = returndatasize
+    v23 = add v22, 31
+    v24 = and v23, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v25 = alloc v24
+    returndatacopy v25, 0, v22
+    v26 = make_memory_slice v25, v22
+    v27 = abi_decode [bytes], v26
+    ret v27
 }
 
 ; function h(uint8[3] calldata values) external pure returns (bytes memory) [selector 0x94e17704]
@@ -54,18 +59,18 @@ fn @h(arg0: slice<calldata>) -> ptr<memory> [selector=0x94e17704, pure, abi_para
     icall revert_if<calldata_tail_too_short>, v4
     v5 = alloc 96
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v6 = phi [bb0: 0], [bb2: v15]
     v7 = lt v6, 3
     jumpi v7, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v16 = make_calldata_slice v0, 96
     v17 = extract_value slice<calldata>, v16, 0
     v18 = extract_value slice<calldata>, v16, 1
     calldatacopy v5, v17, v18
     v19 = abi_encode [array<3, word<uint8>>], object, args v5
     ret v19
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v8 = mul v6, 32
     v9 = ptrtoint ptr<calldata> v0 to i256
     v10 = add v9, v8
@@ -102,24 +107,29 @@ fn @i(arg0: slice<calldata>, arg1: i256) -> ptr<memory> [selector=0x18e849a4, vi
     v16 = make_calldata_slice v15, 3
     v17 = extract_value slice<calldata>, v16, 0
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v18 = phi [bb0: 0], [bb2: v27]
     v19 = lt v18, 3
     jumpi v19, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v28 = abi_encode [array<3, word<uint8>>], scratch, selector 0x94e1770400000000000000000000000000000000000000000000000000000000, args v16
     v29 = extract_value slice<memory>, v28, 0
     v30 = extract_value slice<memory>, v28, 1
     v31 = zext i160 v0 to i256
     v32 = staticcall v1, v31, v29, v30, 0, 0
     jumpi v32, bb5, bb4
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     revert_returndata
-  bb5:  ; preds = bb3
-    v33 = icall returndata_bytes<>
-    v34 = abi_decode [bytes], v33
-    ret v34
-  bb2:  ; preds = bb1
+  bb5:                                            ; preds = bb3
+    v33 = returndatasize
+    v34 = add v33, 31
+    v35 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v36 = alloc v35
+    returndatacopy v36, 0, v33
+    v37 = make_memory_slice v36, v33
+    v38 = abi_decode [bytes], v37
+    ret v38
+  bb2:                                            ; preds = bb1
     v20 = mul v18, 32
     v21 = ptrtoint ptr<calldata> v17 to i256
     v22 = add v21, v20

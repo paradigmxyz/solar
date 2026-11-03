@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/user_defined_operators.sol:UserDefinedOperators ===
+; === ROOT/tests/ui/codegen/lowering/user_defined_operators.sol:UserDefinedOperators ===
 @module UserDefinedOperators
 ; function doAdd(int256 x, int256 y) public pure returns (int256) [selector 0xe9148a2a]
 fn @doAdd(arg0: i256, arg1: i256) -> i256 [selector=0xe9148a2a, pure, abi_params=[int256, int256], abi_returns=[word], abi_return_params=[int256]] {

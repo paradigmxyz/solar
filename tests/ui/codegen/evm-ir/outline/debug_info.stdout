@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/outline/debug_info.evmir (before outline) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/outline/debug_info.evmir (after outline) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/outline/debug_info.evmir (before outline) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/outline/debug_info.evmir (after outline) ===
   @module DebugInfo
   bb0:
 -   push 1 !metadata(span=1..5, invoke=first@1..15)

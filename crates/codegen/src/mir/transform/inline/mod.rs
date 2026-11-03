@@ -53,8 +53,8 @@
 //! from an argument, and constant arguments reach the loop bounds.
 //!
 //! Recursive calls, explicit no-inline functions, large helpers, and aggregate
-//! allocation semantics keep the call. A tail call to a helper that never returns,
-//! as `outline-reverts` leaves on failure paths, counts as a revert; any other tail
+//! allocation semantics keep the call. A tail call to a helper that never returns
+//! counts as a revert; any other tail
 //! call keeps its callee shared. A phi-free helper with one return may call such a
 //! failure helper, since caller values never survive the call; more complex helpers
 //! with calls stay shared rather than duplicating their diamonds under the scalar
@@ -67,23 +67,21 @@
 //! whether they can go.
 
 use crate::{
-    backend::evm::{op, select},
     mir::{
         AbiLayout, AbiType, AllocationSemantics, BlockId, Builtin, Callee, EffectKind, FrameMode,
-        FrameSlotKind, Function, FunctionBuilder, FunctionId as MirFunctionId, Immediate,
-        ImmutableEncoding, InstId, InstKind, Instruction, MirModuleTarget, MirPhase, MirType,
-        Module, PtrLocation, StorageAlias, Terminator, Value, ValueId,
+        FrameSlotKind, Function, FunctionBuilder, FunctionId as MirFunctionId, Immediate, InstId,
+        InstKind, Instruction, MirModuleTarget, MirPhase, MirType, Module, PtrLocation,
+        StorageAlias, Terminator, Value, ValueId,
         analysis::{
             AddressSpace, CallGraphInfo, Liveness, LoopAnalyzer, MemoryCallSummaries,
             direct_callees,
         },
-        immutable::immutable_push_type_size,
         memory::EvmMemoryLayout,
         pass::{MirPass, ModuleAnalyses},
-        transform::utils::{frame_prefix, redirect_successor_predecessors},
+        transform::utils::redirect_successor_predecessors,
         utils::rebuild_predecessors,
     },
-    target::{Cost, Target},
+    target::Target,
 };
 use smallvec::SmallVec;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
@@ -107,7 +105,8 @@ pub(crate) enum Inline {
 impl MirPass for Inline {
     fn name(&self) -> &'static str {
         match self {
-            Self::Semantic | Self::Physical => "inline",
+            Self::Semantic => "inline",
+            Self::Physical => "inline-physical",
             Self::Tagged => "inline-tagged",
         }
     }
@@ -209,13 +208,6 @@ impl MirInliner {
     /// A hot leaf shared by more call sites than this stays a call: every
     /// clone deposits the whole body again.
     const MAX_HOT_LEAF_CALL_SITES: usize = 8;
-    /// Live words a caller may hold across an inlined body plus the body's own
-    /// peak, leaving stack-addressing headroom for operand staging. A hot-leaf
-    /// clone inside a loop body also keeps the loop's carried words resident
-    /// through every join it adds; at ten words, two of the Base64 decoder's four
-    /// lookups stayed calls that drained every carried word, and twelve took 15%
-    /// off decoding.
-    const STACK_BUDGET: usize = 12;
     /// Instructions `@custom:solar-inline` clones may add to a module over every run of the
     /// inliner. Tagged helpers that each call the previous one twice would otherwise clone
     /// `2^depth` bodies, and compile time would grow with them. The largest safe-Solady module
@@ -399,7 +391,7 @@ impl MirInliner {
                         caller_liveness.get_or_insert_with(|| Liveness::compute_live_sets(caller));
                     if surviving_call_words(caller, liveness, site.block, site.inst_index)
                         .saturating_add(peak)
-                        > Self::STACK_BUDGET
+                        > Target::INLINE_STACK_BUDGET
                     {
                         continue;
                     }
@@ -1013,7 +1005,7 @@ fn summarize_function(
     for block in func.blocks.iter() {
         for &inst_id in &block.instructions {
             let kind = &func.inst(inst_id).kind;
-            let (inst_cost, instructions) = estimate_inst_cost(target, module, func, kind);
+            let (inst_cost, instructions) = target.expansion_estimate(module, func, kind);
             summary.instruction_count += instructions;
             summary.estimated_code_size += inst_cost.bytes as usize;
             match kind {
@@ -1091,9 +1083,9 @@ fn summarize_function(
                 summary.has_control_flow = true;
             }
             Terminator::Revert { .. } | Terminator::RevertReturndata => {}
-            // `outline-reverts` turns failure paths into tail calls to shared revert helpers.
-            // Such a jump ends the message wherever it is cloned, but a tail call to a function
-            // that returns would return from the caller instead.
+            // A tail call to a function that never returns, such as a revert helper, ends the
+            // message wherever it is cloned, but a tail call to a function that returns would
+            // return from the caller instead.
             Terminator::TailCall { function, .. } if never_returns(module.function(*function)) => {}
             Terminator::Invalid => continue,
             Terminator::ReturnData { .. }
@@ -1104,7 +1096,7 @@ fn summarize_function(
                 continue;
             }
         }
-        summary.estimated_code_size += estimate_terminator_cost(target, term).bytes as usize;
+        summary.estimated_code_size += target.terminator_estimate(term).bytes as usize;
     }
 
     summary.is_scalar = all_scalar_ops
@@ -1368,250 +1360,9 @@ fn is_transparent_function_pointer_cast(func: &Function) -> bool {
         && is_identity_function(func)
 }
 
-/// Estimates the instructions an `abi_encode` of `ty` expands into after `lower-abi-encode`.
-///
-/// The placeholder is one MIR instruction, but words are loaded, cleaned, and stored one by
-/// one, dynamic values become copy loops, and aggregates encode field by field, so inlining
-/// decisions must see the expanded shape rather than the placeholder.
-fn abi_type_expansion(ty: &AbiType) -> usize {
-    match ty {
-        AbiType::Word(None) => 2,
-        AbiType::Word(Some(_)) | AbiType::Function => 3,
-        AbiType::Bytes(_) => 14,
-        AbiType::DynamicArray { element, .. } => 12 + 2 * abi_type_expansion(element),
-        AbiType::FixedArray { element, len, .. } => {
-            1 + abi_type_expansion(element) * usize::try_from(*len).unwrap_or(usize::MAX).min(8)
-        }
-        AbiType::Tuple(fields) => 1 + fields.iter().map(abi_type_expansion).sum::<usize>(),
-    }
-}
-
-fn abi_layout_expansion(layout: &AbiLayout) -> usize {
-    layout.types.iter().map(abi_type_expansion).sum()
-}
-
 /// Whether encoding the layout emits loops or branches: every dynamic value does.
 fn abi_layout_has_loops(layout: &AbiLayout) -> bool {
     layout.types.iter().any(AbiType::is_dynamic)
-}
-
-/// The cost of emitting the opcodes `codes` in order.
-fn seq(target: &Target, codes: &[u8]) -> Cost {
-    codes.iter().map(|&code| target.opcode(code)).sum()
-}
-
-/// Estimated code of an operation the later lowerings expand, as the opcode sequence they
-/// emit priced by the target, with the number of MIR instructions the expansion produces.
-/// An operation that lowers to one opcode is priced by the target directly; immediates are
-/// left out throughout, as they are for those.
-fn estimate_inst_cost(
-    target: &Target,
-    module: &Module,
-    func: &Function,
-    kind: &InstKind,
-) -> (Cost, usize) {
-    if !matches!(kind, InstKind::ICall { .. } | InstKind::LoadImmutable(_)) {
-        let op = kind.op();
-        if select::opcode_lowering(&op).is_some() {
-            return (target.op(&op, |_| None), 1);
-        }
-    }
-    let code = match kind {
-        InstKind::Ne(..) => seq(target, &[op::EQ, op::ISZERO]),
-        InstKind::Trunc(..) | InstKind::Sext(..) | InstKind::PtrToInt(..) => {
-            target.op(&kind.op(), |_| None)
-        }
-        InstKind::InsertValue { .. }
-        | InstKind::ExtractValue { .. }
-        | InstKind::MakeSlice { .. }
-        | InstKind::IntToPtr(..)
-        | InstKind::Zext(_) => Cost::ZERO,
-        InstKind::PtrAdd(..) => seq(target, &[op::ADD]),
-        InstKind::Fmp | InstKind::FrameLoad { .. } => seq(target, &[op::MLOAD]),
-        InstKind::SetFmp(_) | InstKind::FrameStore { .. } => seq(target, &[op::MSTORE]),
-        // Bump the free-memory pointer past the allocation.
-        InstKind::Alloc { .. } => seq(target, &[op::MLOAD, op::ADD, op::MSTORE]),
-        // Reserve the buffer, store the selector, produce the slice, store every argument's
-        // head, and expand every dynamic value.
-        InstKind::AbiEncode { args, layout, .. } => seq(
-            target,
-            &[op::MLOAD, op::ADD, op::MSTORE, op::MSTORE, op::DUP1, op::DUP2, op::SWAP1, op::SWAP2],
-        )
-        .plus(seq(target, &[op::DUP1, op::ADD, op::MSTORE]).times(args.len() as u32))
-        .plus(seq(target, &[op::DUP1]).times(abi_layout_expansion(layout) as u32)),
-        // Check the calldata bound, then load and validate every head word.
-        InstKind::AbiDecode { layout, .. } => seq(
-            target,
-            &[
-                op::CALLDATASIZE,
-                op::SUB,
-                op::LT,
-                op::JUMPI,
-                op::CALLDATALOAD,
-                op::ADD,
-                op::MSTORE,
-                op::SWAP1,
-            ],
-        )
-        .plus(
-            seq(target, &[op::CALLDATALOAD, op::DUP1, op::MSTORE]).times(layout.types.len() as u32),
-        ),
-        // A pushed offset into the immutables area and the store.
-        InstKind::StoreImmutable(..) => seq(target, &[op::PUSH2, op::MSTORE]),
-        InstKind::DataCopy(..) => seq(target, &[op::CODECOPY]),
-        InstKind::DataSize(..) => seq(target, &[op::PUSH2]),
-        // Zero by copying from beyond the end of calldata.
-        InstKind::MemoryZero(..) => seq(target, &[op::CALLDATASIZE, op::CALLDATACOPY]),
-        InstKind::ConstructorArgsBase => seq(target, &[op::PUSH2]),
-        InstKind::ConstructorArgsEnd => seq(target, &[op::PUSH2, op::PUSH2, op::SUB, op::CODESIZE]),
-        InstKind::HeapFloor => seq(target, &[op::PUSH2]),
-        InstKind::InternalFrameAddr(_) => seq(target, &[op::PUSH1, op::ADD]),
-        InstKind::LibraryAddress(_) => seq(target, &[op::PUSH20]),
-        // Typed PUSH<N> placeholder patched at deploy time, cleaned for the narrower types.
-        InstKind::LoadImmutable(id) => {
-            let ty = module.immutable_type(*id);
-            let encoding = ty.immutable_encoding().expect("validated immutable declaration");
-            let type_size = immutable_push_type_size(
-                encoding,
-                target.optimization(),
-                target.evm_version().has_bitwise_shifting(),
-            );
-            let push = op::PUSH1 + (type_size.bytes() - 1);
-            if type_size.bytes() == 32 {
-                seq(target, &[push])
-            } else {
-                match encoding {
-                    ImmutableEncoding::Unsigned(_) => seq(target, &[push]),
-                    ImmutableEncoding::Signed(_) => seq(target, &[push, op::PUSH1, op::SIGNEXTEND]),
-                    ImmutableEncoding::LeftAligned(_) => seq(target, &[push, op::PUSH1, op::SHL]),
-                }
-            }
-        }
-        // Expands to length load + data pointer + physical keccak.
-        // Includes allocation, argument packing, the precompile call, and result extraction.
-        InstKind::ValidateStorageBytes(_) => Cost::new(80, 40),
-        InstKind::StorageBytesLoad(_) => Cost::new(400, 150),
-        InstKind::StorageArrayLoad { .. } => Cost::new(400, 150),
-        InstKind::StorageBytesStore(..) => Cost::new(500, 180),
-        InstKind::StorageBytesStoreLiteral { bytes, .. } => {
-            Cost::new(500, 180 + bytes.len() as u32)
-        }
-        InstKind::StorageClearWords(..) => Cost::new(120, 32),
-        InstKind::ICall { function: Callee::Builtin(Builtin::Erc7201), .. } => Cost::new(90, 30),
-        InstKind::ICall {
-            function: Callee::Builtin(Builtin::CheckedAddMod | Builtin::CheckedMulMod),
-            ..
-        } => Cost::new(32, 9),
-        InstKind::ICall {
-            function: Callee::Builtin(Builtin::Sha256 | Builtin::Ripemd160), ..
-        } => Cost::new(800, 64),
-        InstKind::ICall { function: Callee::Builtin(Builtin::EcRecover), .. } => {
-            Cost::new(900, 100)
-        }
-        InstKind::ICall { function: Callee::Builtin(Builtin::Check { .. }), .. } => {
-            Cost::new(24, 8)
-        }
-        InstKind::ICall { function: Callee::Builtin(Builtin::Require(_)), .. } => Cost::new(40, 24),
-        InstKind::ValidateAbi(_) => Cost::new(0, 0),
-        InstKind::CheckedBinary { op: crate::mir::CheckedOp::Pow, .. } => Cost::new(300, 128),
-        InstKind::CheckedBinary { .. } => Cost::new(30, 20),
-        InstKind::AbiEncodePacked { parts, .. } => {
-            Cost::new(60 + parts.len() as u32 * 20, 24 + parts.len() as u32 * 12)
-        }
-        InstKind::MappingSlot(..) => seq(target, &[op::MSTORE, op::MSTORE, op::KECCAK256]),
-        InstKind::MappingSlotBytes(key, _) if func.value_ty(*key) == Some(MirType::MEMPTR) => seq(
-            target,
-            &[
-                op::MLOAD,
-                op::ADD,
-                op::MSTORE,
-                op::MLOAD,
-                op::ADD,
-                op::MSTORE,
-                op::ADD,
-                op::KECCAK256,
-            ],
-        ),
-        InstKind::MappingSlotBytes(..) => seq(
-            target,
-            &[
-                op::CALLDATALOAD,
-                op::ADD,
-                op::MSTORE,
-                op::CALLDATALOAD,
-                op::ADD,
-                op::MSTORE,
-                op::ADD,
-                op::ADD,
-                op::KECCAK256,
-            ],
-        ),
-        InstKind::StorageArrayDataSlot(..) => seq(target, &[op::MSTORE, op::MSTORE, op::KECCAK256]),
-        InstKind::StorageArrayElementSlot { element_slots, .. } => {
-            seq(target, &[op::MSTORE, op::MSTORE, op::KECCAK256, op::ADD])
-                .plus(if *element_slots > 1 { seq(target, &[op::MUL]) } else { Cost::ZERO })
-        }
-        InstKind::AddressCall { .. } => Cost::new(720, 12),
-        InstKind::ICall { function: Callee::Builtin(Builtin::ReturndataBytes), .. } => {
-            Cost::new(60, 24)
-        }
-        InstKind::ICall { function: Callee::Builtin(Builtin::Send), .. } => Cost::new(720, 12),
-        InstKind::ICall { function: Callee::Builtin(Builtin::Transfer), .. } => Cost::new(740, 20),
-        InstKind::Call { .. }
-        | InstKind::CallCode { .. }
-        | InstKind::StaticCall { .. }
-        | InstKind::DelegateCall { .. } => seq(target, &[op::CALL]),
-        InstKind::ICall { function: Callee::Function(function), args } => {
-            target.icall(args.len(), module.function(*function).return_components().len(), 0)
-        }
-        // A phi or a select is a stack move at the join.
-        InstKind::Phi(_) | InstKind::Select(..) => seq(target, &[op::DUP1]),
-        // Every other operation lowers to one opcode and was priced above.
-        _ => {
-            debug_assert!(false, "operation without a single opcode is not priced: {kind}");
-            seq(target, &[op::ADD])
-        }
-    };
-    let instructions = match kind {
-        // Casts, slice construction, and aggregate insertions and projections emit no code of their
-        // own: `lower-structs` turns struct fields into separate words.
-        InstKind::Zext(_)
-        | InstKind::IntToPtr(..)
-        | InstKind::PtrToInt(_, 256)
-        | InstKind::MakeSlice { .. }
-        | InstKind::InsertValue { .. }
-        | InstKind::ExtractValue { .. } => 0,
-        InstKind::MappingSlot(..) | InstKind::StorageArrayDataSlot(..) => 3,
-        InstKind::MappingSlotBytes(key, _) if func.value_ty(*key) == Some(MirType::MEMPTR) => 8,
-        InstKind::MappingSlotBytes(..) => 9,
-        InstKind::StorageArrayElementSlot { .. } => 4,
-        InstKind::AbiEncode { layout, .. } => abi_layout_expansion(layout),
-        _ => 1,
-    };
-    (code, instructions)
-}
-
-/// Estimated code of a terminator, as the opcode sequence it emits priced by the target.
-fn estimate_terminator_cost(target: &Target, term: &Terminator) -> Cost {
-    match term {
-        Terminator::Jump(_) => seq(target, &[op::PUSH2, op::JUMP]),
-        Terminator::Branch { .. } => seq(target, &[op::PUSH2, op::JUMPI]),
-        // The dispatch on the value, then a compare and a jump per case.
-        Terminator::Switch { cases, .. } => seq(target, &[op::PUSH2, op::JUMPI])
-            .plus(seq(target, &[op::DUP1, op::PUSH1, op::EQ]).times(cases.len() as u32)),
-        // The values are staged by the instructions above; the return is the protocol's jump.
-        Terminator::Return { .. } => target.internal_return(0, 0),
-        Terminator::Revert { .. } | Terminator::RevertReturndata => {
-            seq(target, &[op::PUSH1, op::DUP1, op::REVERT])
-        }
-        Terminator::ReturnData { .. } => seq(target, &[op::PUSH1, op::DUP1, op::RETURN]),
-        Terminator::Stop => seq(target, &[op::STOP]),
-        Terminator::SelfDestruct { .. } => seq(target, &[op::SELFDESTRUCT]),
-        // A jump with every argument staged.
-        Terminator::TailCall { args, .. } => seq(target, &[op::PUSH2, op::JUMP])
-            .plus(seq(target, &[op::DUP1]).times(args.len() as u32)),
-        Terminator::Invalid => seq(target, &[op::INVALID]),
-    }
 }
 
 fn estimated_icall_savings(target: &Target, site: CallSite, summary: MirInlineSummary) -> u64 {
@@ -1941,11 +1692,14 @@ fn inline_call_impl(
     let caller_frame_prefix = if caller_is_external {
         0
     } else {
-        frame_prefix(caller.params.len().checked_add(caller.return_components().len())?)?
+        EvmMemoryLayout::internal_frame_prefix(
+            caller.params.len().checked_add(caller.return_components().len())?,
+        )?
     };
     let frame_base = caller_frame_prefix.checked_add(caller.internal_frame_size)?;
-    let callee_frame_prefix =
-        frame_prefix(callee.params.len().checked_add(callee.return_components().len())?)?;
+    let callee_frame_prefix = EvmMemoryLayout::internal_frame_prefix(
+        callee.params.len().checked_add(callee.return_components().len())?,
+    )?;
     caller.internal_frame_size =
         caller.internal_frame_size.checked_add(callee.internal_frame_size)?;
 
@@ -2273,11 +2027,7 @@ fn insert_return_buffer_stores(
         return Some(());
     }
 
-    let phi_count = caller.blocks[continuation]
-        .instructions
-        .iter()
-        .take_while(|&&inst_id| matches!(caller.inst(inst_id).kind, InstKind::Phi(_)))
-        .count();
+    let phi_count = caller.block_phi_count(continuation);
     let existing_len = caller.blocks[continuation].instructions.len();
     let instructions = {
         let mut builder = FunctionBuilder::new(caller);

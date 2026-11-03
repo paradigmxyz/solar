@@ -706,7 +706,7 @@ impl<'gcx> Resolver<'gcx> {
     #[inline]
     fn validate_inheritdoc_contract(
         &self,
-        contract_ident: &solar_interface::Ident,
+        contract_ident: &Ident,
         tag_span: Span,
         item_id: hir::ItemId,
         source_id: hir::SourceId,

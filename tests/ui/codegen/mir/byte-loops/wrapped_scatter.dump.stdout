@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/byte-loops/wrapped_scatter.sol:Test ===
+; === ROOT/tests/ui/codegen/mir/byte-loops/wrapped_scatter.sol:Test ===
 @module Test
 @phase lowered
 ; runtime dispatch entry
@@ -7,15 +7,15 @@ fn @entry() [entry] {
     v0 = callvalue
     v1 = ne v0, 0
     jumpi v1, bb4, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v2 = calldataload 0
     v3 = shr v2, 224
     switch v3, default bb4, [0xa3efd67d => bb2, 0xb4f7766b => bb3]
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     tail_call @fill
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     tail_call @scatter
-  bb4 [cold]:  ; preds = bb0, bb1
+  bb4 [cold]:                                     ; preds = bb0, bb1
     revert 0, 0
 }
 
@@ -30,7 +30,7 @@ fn @fill() {
     v58 = or v39, v57
     v59 = ne v58, 0
     jumpi v59, bb10, bb11
-  bb11:  ; preds = bb0
+  bb11:                                           ; preds = bb0
     v61 = calldataload 68
     v60 = calldataload 36
     v41 = icall @decode_calldata_type
@@ -42,44 +42,46 @@ fn @fill() {
     v54 = add v41, 32
     v22 = lt v52, v54
     jumpi v22, bb1, bb4
-  bb4:  ; preds = bb11
+  bb4:                                            ; preds = bb11
     v26 = gt v60, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd
     jumpi v26, bb5, bb7
-  bb7:  ; preds = bb4
+  bb7:                                            ; preds = bb4
     v29 = mload v52
     v44 = xor v29, v16
     v45 = and v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v32 = xor v16, v45
     mstore v52, v32
     jump bb2
-  bb1:  ; preds = bb6, bb11
+  bb1:                                            ; preds = bb6, bb11
     v5 = phi [bb11: 0], [bb6: v14]
     v6 = lt v5, 2
     jumpi v6, bb3, bb2
-  bb2:  ; preds = bb1, bb7
+  bb2:                                            ; preds = bb1, bb7
     mstore 0, 1
     returndata 0, 32
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v33 = add v60, v5
     v34 = lt v33, v60
     jumpi v34, bb8, bb9
-  bb9:  ; preds = bb3
+  bb9:                                            ; preds = bb3
     v8 = mload v41
     v9 = lt v33, v8
     jumpi v9, bb6, bb5
-  bb5 [cold]:  ; preds = bb4, bb9
-    tail_call @revert_stub
-  bb6:  ; preds = bb9
+  bb5 [cold]:                                     ; preds = bb4, bb9
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb6:                                            ; preds = bb9
     v48 = add v41, v33
     v49 = add v48, 32
     mstore8 v49, v15
     v14 = add v5, 1
     jump bb1
-  bb8 [cold]:  ; preds = bb3
+  bb8 [cold]:                                     ; preds = bb3
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb10 [cold]:  ; preds = bb0
+  bb10 [cold]:                                    ; preds = bb0
     revert 0, 0
 }
 
@@ -89,7 +91,7 @@ fn @scatter() {
     v9 = calldatasize
     v10 = lt v9, 164
     jumpi v10, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v11 = calldataload 36
     v12 = calldataload 68
     v13 = calldataload 100
@@ -104,7 +106,7 @@ fn @scatter() {
     icall @_scatter, v8, v11, v12, v13
     mstore 0, 1
     returndata 0, 32
-  bb1 [cold]:  ; preds = bb0
+  bb1 [cold]:                                     ; preds = bb0
     revert 0, 0
 }
 
@@ -113,13 +115,13 @@ fn @_scatter(arg0: i256, arg1: i256, arg2: i256, arg3: i256) [may_return_memory]
   bb0:
     v18 = eq arg3, 0
     jumpi v18, bb2, bb4
-  bb4:  ; preds = bb0
+  bb4:                                            ; preds = bb0
     v48 = add arg0, arg1
     v49 = add v48, 32
     v51 = add arg0, 32
     v24 = lt v49, v51
     jumpi v24, bb1, bb5
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     v25 = mload arg0
     v26 = lt v25, arg3
     v27 = sub v25, arg3
@@ -128,7 +130,7 @@ fn @_scatter(arg0: i256, arg1: i256, arg2: i256, arg3: i256) [may_return_memory]
     v31 = gt arg3, 32
     v34 = or v29, v31
     jumpi v34, bb6, bb9
-  bb9:  ; preds = bb5
+  bb9:                                            ; preds = bb5
     v35 = lt arg3, 32
     v36 = select v35, arg3, 32
     v37 = shl v36, 3
@@ -140,43 +142,38 @@ fn @_scatter(arg0: i256, arg1: i256, arg2: i256, arg3: i256) [may_return_memory]
     v44 = or v42, v43
     mstore v49, v44
     jump bb2
-  bb1:  ; preds = bb4, bb8
+  bb1:                                            ; preds = bb4, bb8
     v4 = phi [bb4: 0], [bb8: v17]
     v5 = lt v4, arg3
     jumpi v5, bb3, bb2
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v6 = lt v4, 32
     jumpi v6, bb7, bb6
-  bb7:  ; preds = bb3
+  bb7:                                            ; preds = bb3
     v8 = byte v4, arg2
     v45 = add arg1, v4
     v46 = lt v45, arg1
     jumpi v46, bb10, bb11
-  bb11:  ; preds = bb7
+  bb11:                                           ; preds = bb7
     v11 = mload arg0
     v12 = lt v45, v11
     jumpi v12, bb8, bb6
-  bb6 [cold]:  ; preds = bb3, bb5, bb11
-    tail_call @revert_stub
-  bb8:  ; preds = bb11
+  bb6 [cold]:                                     ; preds = bb3, bb5, bb11
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb8:                                            ; preds = bb11
     v53 = add arg0, v45
     v54 = add v53, 32
     mstore8 v54, v8
     v17 = add v4, 1
     jump bb1
-  bb10 [cold]:  ; preds = bb7
+  bb10 [cold]:                                    ; preds = bb7
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb2:  ; preds = bb0, bb1, bb9
+  bb2:                                            ; preds = bb0, bb1, bb9
     ret
-}
-
-fn @revert_stub() [cold] {
-  bb0 [cold]:
-    mstore 32, 50 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }
 
 fn @decode_calldata_type() -> i256 [may_return_memory] {
@@ -187,7 +184,7 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v4 = sub v0, 36
     v5 = lt v4, v1
     jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v6 = calldataload v2
     v7 = add v2, 32
     v36 = add v6, 63
@@ -203,20 +200,20 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v39 = or v34, v38
     v40 = ne v39, 0
     jumpi v40, bb3, bb5
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     mstore 64, v30 !metadata(memory=scratch)
     mstore v29, v6
     v13 = sub v0, v7
     v14 = lt v13, v6
     jumpi v14, bb1, bb4
-  bb4:  ; preds = bb5
+  bb4:                                            ; preds = bb5
     v25 = add v29, 32
     calldatacopy v25, v7, v6
     ret v29
-  bb3 [cold]:  ; preds = bb2
+  bb3 [cold]:                                     ; preds = bb2
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1 [cold]:  ; preds = bb0, bb5
+  bb1 [cold]:                                     ; preds = bb0, bb5
     revert 0, 0
 }

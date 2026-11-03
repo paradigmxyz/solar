@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/no_code_call_returns_evm_version.sol:NoCodeCallee ===
+; === ROOT/tests/ui/codegen/lowering/run-call/no_code_call_returns_evm_version.sol:NoCodeCallee ===
 @module NoCodeCallee
 ; function value() external pure returns (uint256) [selector 0x3fa4f245]
 fn @value() -> i256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -23,7 +23,7 @@ fn @pair() -> ptr<memory> [selector=0xa8aa1b31, pure, abi_params=[], abi_returns
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/no_code_call_returns_evm_version.sol:NoCodeReturnCalls ===
+; === ROOT/tests/ui/codegen/lowering/run-call/no_code_call_returns_evm_version.sol:NoCodeReturnCalls ===
 @module NoCodeReturnCalls
 @types
   struct0: {i256, i256}
@@ -38,9 +38,9 @@ fn @direct() -> i256 [selector=0x222b1407, abi_params=[], abi_returns=[word], ab
     mstore 0, 0x3fa4f245 !metadata(memory=scratch)
     v1 = call v0, 0, 0, 28, 4, 0, 32
     jumpi v1, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v2 = returndatasize
     v3 = lt v2, 32
     icall revert_if<tuple_data_too_short>, v3
@@ -55,9 +55,9 @@ fn @viewCall() -> i256 [selector=0x33fd44fa, view, abi_params=[], abi_returns=[w
     mstore 0, 0x3fa4f245 !metadata(memory=scratch)
     v1 = staticcall v0, 0, 28, 4, 0, 32
     jumpi v1, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v2 = returndatasize
     v3 = lt v2, 32
     icall revert_if<tuple_data_too_short>, v3
@@ -72,9 +72,9 @@ fn @pointer() -> i256 [selector=0x2f5f3b3c, abi_params=[], abi_returns=[word], a
     mstore 0, 0 !metadata(memory=scratch)
     v1 = call v0, 0, 0, 28, 4, 0, 32
     jumpi v1, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v2 = returndatasize
     v3 = lt v2, 32
     icall revert_if<tuple_data_too_short>, v3
@@ -86,25 +86,23 @@ fn @pointer() -> i256 [selector=0x2f5f3b3c, abi_params=[], abi_returns=[word], a
 fn @aggregate() -> i256 [selector=0xaf36778b, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = gas
-    v1 = abi_encode [], selector 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
-    v2 = extract_value slice<memory>, v1, 0
-    v3 = extract_value slice<memory>, v1, 1
-    v4 = alloc 64
-    v5 = call v0, 0, 0, v2, v3, v4, 64
-    jumpi v5, bb2, bb1
-  bb1:  ; preds = bb0
+    v1 = alloc 64
+    mstore 0, 0xa8aa1b31 !metadata(memory=scratch)
+    v2 = call v0, 0, 0, 28, 4, v1, 64
+    jumpi v2, bb2, bb1
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
-    v6 = returndatasize
-    v7 = lt v6, 64
-    icall revert_if<tuple_data_too_short>, v7
-    v8 = make_memory_slice v4, 64
-    v9 = abi_decode [array<2, uint256>], v8
-    v10 = lt 0, 2
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    v12 = mload v9
-    ret v12
+  bb2:                                            ; preds = bb0
+    v3 = returndatasize
+    v4 = lt v3, 64
+    icall revert_if<tuple_data_too_short>, v4
+    v5 = make_memory_slice v1, 64
+    v6 = abi_decode [array<2, uint256>], v5
+    v7 = lt 0, 2
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = mload v6
+    ret v9
 }
 
 ; function directNoReturn() external [selector 0xda4f8e3a]
@@ -117,9 +115,9 @@ fn @directNoReturn() [selector=0xda4f8e3a, abi_params=[], abi_returns=[], abi_re
     icall revert_if<target_contract_has_no_code>, v2
     v3 = call v0, 0, 0, 28, 4, 0, 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     ret
 }
 
@@ -133,9 +131,9 @@ fn @pointerNoReturn() [selector=0xcf820bfc, abi_params=[], abi_returns=[], abi_r
     icall revert_if<target_contract_has_no_code>, v2
     v3 = call v0, 0, 0, 28, 4, 0, 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     ret
 }
 
@@ -148,17 +146,17 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = gas
     mstore 0, 0x3fa4f245 !metadata(memory=scratch)
     v5 = zext i160 v2 to i256
     v6 = call v4, v5, 0, 28, 4, 0, 32
     jumpi v6, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v7 = returndatasize
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
@@ -175,35 +173,33 @@ fn @liveAggregate() -> struct0 [selector=0xc64a4ee9, abi_params=[], abi_returns=
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = gas
-    v5 = abi_encode [], selector 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
-    v6 = extract_value slice<memory>, v5, 0
-    v7 = extract_value slice<memory>, v5, 1
-    v8 = alloc 64
-    v9 = zext i160 v2 to i256
-    v10 = call v4, v9, 0, v6, v7, v8, 64
-    jumpi v10, bb4, bb3
-  bb3:  ; preds = bb2
+    v5 = alloc 64
+    mstore 0, 0xa8aa1b31 !metadata(memory=scratch)
+    v6 = zext i160 v2 to i256
+    v7 = call v4, v6, 0, 28, 4, v5, 64
+    jumpi v7, bb4, bb3
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
-    v11 = returndatasize
-    v12 = lt v11, 64
-    icall revert_if<tuple_data_too_short>, v12
-    v13 = make_memory_slice v8, 64
-    v14 = abi_decode [array<2, uint256>], v13
-    v15 = lt 0, 2
+  bb4:                                            ; preds = bb2
+    v8 = returndatasize
+    v9 = lt v8, 64
+    icall revert_if<tuple_data_too_short>, v9
+    v10 = make_memory_slice v5, 64
+    v11 = abi_decode [array<2, uint256>], v10
+    v12 = lt 0, 2
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = mload v11
+    v15 = lt 1, 2
     v16 = eq v15, false
     icall panic_if<0x32>, v16
-    v17 = mload v14
-    v18 = lt 1, 2
-    v19 = eq v18, false
-    icall panic_if<0x32>, v19
-    v20 = ptradd v14, 32
-    v21 = mload v20
-    v22 = insert_value struct0, undef struct0, 0, v17
-    v23 = insert_value struct0, v22, 1, v21
-    ret v23
+    v17 = ptradd v11, 32
+    v18 = mload v17
+    v19 = insert_value struct0, undef struct0, 0, v14
+    v20 = insert_value struct0, v19, 1, v18
+    ret v20
 }

@@ -627,7 +627,14 @@ pub(crate) struct WorkspacePathIndex<'a> {
     root_index: Arc<FxHashMap<PathBuf, SmallVec<[WorkspacePathMatch; 4]>>>,
 }
 
-type WorkspacePathMatch = (usize, usize, u8, usize);
+/// A workspace root that contains a path, with the keys that decide ownership ties.
+#[derive(Clone, Copy, Debug)]
+struct WorkspacePathMatch {
+    idx: usize,
+    root_depth: usize,
+    root_kind: u8,
+    base_depth: usize,
+}
 
 /// Immutable workspace path data shared by short-lived query indexes.
 ///
@@ -701,12 +708,14 @@ impl<'a> WorkspacePathIndex<'a> {
         let mut root_index = FxHashMap::default();
         for entry in import_entries {
             for root in &entry.roots {
-                root_index.entry(root.path.clone()).or_insert_with(SmallVec::new).push((
-                    entry.idx,
-                    root.depth,
-                    root.kind,
-                    entry.base_depth,
-                ));
+                root_index.entry(root.path.clone()).or_insert_with(SmallVec::new).push(
+                    WorkspacePathMatch {
+                        idx: entry.idx,
+                        root_depth: root.depth,
+                        root_kind: root.kind,
+                        base_depth: entry.base_depth,
+                    },
+                );
             }
         }
         root_index
@@ -735,9 +744,11 @@ impl<'a> WorkspacePathIndex<'a> {
         let mut matches = SmallVec::<[WorkspacePathMatch; 16]>::new();
         for ancestor in path.ancestors() {
             let Some(roots) = self.root_index.get(ancestor) else { continue };
-            for &candidate @ (idx, root_depth, root_kind, _) in roots {
-                if let Some(best) = matches.iter_mut().find(|best| best.0 == idx) {
-                    if (root_depth, root_kind) > (best.1, best.2) {
+            for &candidate in roots {
+                if let Some(best) = matches.iter_mut().find(|best| best.idx == candidate.idx) {
+                    if (candidate.root_depth, candidate.root_kind)
+                        > (best.root_depth, best.root_kind)
+                    {
                         *best = candidate;
                     }
                 } else {
@@ -745,7 +756,7 @@ impl<'a> WorkspacePathIndex<'a> {
                 }
             }
         }
-        matches.sort_unstable_by_key(|&(idx, _, _, _)| idx);
+        matches.sort_unstable_by_key(|candidate| candidate.idx);
         matches
     }
 
@@ -840,10 +851,10 @@ impl WorkspacePathQuery {
         self.matches
             .iter()
             .copied()
-            .max_by_key(|&(idx, root_depth, root_kind, base_depth)| {
-                (root_depth, root_kind, base_depth, idx)
+            .max_by_key(|candidate| {
+                (candidate.root_depth, candidate.root_kind, candidate.base_depth, candidate.idx)
             })
-            .map_or(0, |(idx, _, _, _)| idx)
+            .map_or(0, |candidate| candidate.idx)
     }
 
     /// Returns the workspace whose import configuration owns `path`.
@@ -853,8 +864,8 @@ impl WorkspacePathQuery {
     /// workspaces at both levels has no unique owner.
     pub(crate) fn workspace_idx_for_import_path(&self) -> Option<usize> {
         let mut best = None;
-        for (idx, root_depth, root_kind, _) in self.matches.iter().copied() {
-            let score = (root_depth, root_kind);
+        for candidate in self.matches.iter().copied() {
+            let (idx, score) = (candidate.idx, (candidate.root_depth, candidate.root_kind));
             match best.as_mut() {
                 Some((best_score, _, _)) if score < *best_score => {}
                 Some((best_score, _, ambiguous)) if score == *best_score => *ambiguous = true,
@@ -868,7 +879,7 @@ impl WorkspacePathQuery {
     pub(crate) fn workspace_idxs_for_import_path(
         &self,
     ) -> impl DoubleEndedIterator<Item = usize> + '_ {
-        self.matches.iter().map(|(idx, _, _, _)| *idx)
+        self.matches.iter().map(|candidate| candidate.idx)
     }
 }
 
@@ -1077,7 +1088,7 @@ fn is_import_only_path_in_root<'a>(
     path.starts_with(import_root) && !source_roots.any(|source_root| path.starts_with(source_root))
 }
 
-fn is_solidity_file(path: &Path) -> bool {
+pub(crate) fn is_solidity_file(path: &Path) -> bool {
     path.extension().is_some_and(|extension| extension == "sol")
 }
 

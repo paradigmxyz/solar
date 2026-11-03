@@ -195,7 +195,7 @@ use crate::{
             integers::{return_bounds, unsigned_bounds_with_returns},
         },
         pass::{MirPass, run_function_pass},
-        utils::{rebuild_predecessors, replace_terminator_uses},
+        utils::{append_value_inst, rebuild_predecessors, replace_terminator_uses},
     },
     target::{Cost, Target},
 };
@@ -1103,14 +1103,6 @@ fn header_phis(func: &Function, header: BlockId, latch: BlockId) -> Vec<(ValueId
         .collect()
 }
 
-/// Appends a compiler-generated instruction to a block and returns its result.
-fn append(func: &mut Function, block: BlockId, kind: InstKind, ty: MirType) -> ValueId {
-    let (inst, value) =
-        func.alloc_value_inst(Instruction::new(kind, Some(ty)).with_debug_info_dropped());
-    func.blocks[block].instructions.push(inst);
-    value
-}
-
 /// Edits the incoming list of the phi defining `phi`.
 fn edit_phi(func: &mut Function, phi: ValueId, edit: impl FnOnce(&mut Vec<(BlockId, ValueId)>)) {
     let Value::Inst(inst) = *func.value(phi) else { return };
@@ -1272,7 +1264,7 @@ fn apply(func: &mut Function, unroll: &Unroll) -> BlockId {
         {
             distance
         } else {
-            append(func, check, InstKind::Sub(unroll.bound, word), MirType::I256)
+            append_value_inst(func, check, InstKind::Sub(unroll.bound, word), MirType::I256)
         };
         let zeros = unroll.step.trailing_zeros();
         if zeros != 0 {
@@ -1282,15 +1274,15 @@ fn apply(func: &mut Function, unroll: &Unroll) -> BlockId {
                 None => {
                     let shift =
                         func.alloc_value(Value::Immediate(Immediate::I256(U256::from(zeros))));
-                    append(func, check, InstKind::Shr(shift, left), MirType::I256)
+                    append_value_inst(func, check, InstKind::Shr(shift, left), MirType::I256)
                 }
             };
         }
         // Integer conversions are already lowered here, so mask the low bit.
         let one = func.alloc_value(Value::Immediate(Immediate::I256(U256::ONE)));
-        let bit = append(func, check, InstKind::And(left, one), MirType::I256);
+        let bit = append_value_inst(func, check, InstKind::And(left, one), MirType::I256);
         let zero = func.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
-        let odd = append(func, check, InstKind::Ne(bit, zero), MirType::I1);
+        let odd = append_value_inst(func, check, InstKind::Ne(bit, zero), MirType::I1);
         // Both ways into the loop meet in a block of their own, so the loop keeps a single
         // preheader, which the stack planner needs to keep its words on the stack.
         let enter = func.alloc_block();
@@ -1341,13 +1333,15 @@ fn apply(func: &mut Function, unroll: &Unroll) -> BlockId {
         let mut word = first.value(unroll.word);
         if let Some(offset) = offset {
             let offset = func.alloc_value(Value::Immediate(Immediate::I256(offset)));
-            word = append(func, main_header, InstKind::Add(word, offset), MirType::I256);
+            word = append_value_inst(func, main_header, InstKind::Add(word, offset), MirType::I256);
         }
         if enters_below {
-            let below = append(func, main_header, InstKind::Lt(word, unroll.bound), MirType::I1);
+            let below =
+                append_value_inst(func, main_header, InstKind::Lt(word, unroll.bound), MirType::I1);
             branch(func, main_header, below, first_body, unroll.header);
         } else {
-            let beyond = append(func, main_header, InstKind::Gt(word, unroll.bound), MirType::I1);
+            let beyond =
+                append_value_inst(func, main_header, InstKind::Gt(word, unroll.bound), MirType::I1);
             branch(func, main_header, beyond, unroll.header, first_body);
         }
 
@@ -1560,11 +1554,12 @@ fn reverse(func: &mut Function, reversal: &Reverse) {
     // header: r = phi [preheader: r0], [latch: r + 1]
     //         jumpi (ne r, 0), body, exit
     let zero = func.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
-    let (inst, start) = func.alloc_value_inst(
-        Instruction::new(InstKind::Sub(zero, reversal.bound), Some(MirType::I256))
-            .with_debug_info_dropped(),
+    let start = append_value_inst(
+        func,
+        reversal.preheader,
+        InstKind::Sub(zero, reversal.bound),
+        MirType::I256,
     );
-    func.blocks[reversal.preheader].instructions.push(inst);
     edit_phi(func, reversal.counter, |incoming| {
         for (from, value) in incoming.iter_mut() {
             if *from == reversal.preheader {

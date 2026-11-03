@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/word-sequence/mask_blend_packed_struct.sol:MaskBlendPackedStruct ===
+; === ROOT/tests/ui/codegen/mir/word-sequence/mask_blend_packed_struct.sol:MaskBlendPackedStruct ===
 @module MaskBlendPackedStruct
 @types
   struct0: {i160, i96}

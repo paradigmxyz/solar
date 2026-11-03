@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/program-data/splat_cheap_words.sol:C ===
+; === ROOT/tests/ui/codegen/lowering/program-data/splat_cheap_words.sol:C ===
 @module C
 @phase lowered
 ; runtime dispatch entry
@@ -7,13 +7,13 @@ fn @entry() [entry] {
     v0 = callvalue
     v1 = ne v0, 0
     jumpi v1, bb3, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v2 = calldataload 0
     v3 = shr v2, 224
     switch v3, default bb3, [0x26121ff0 => bb2]
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     tail_call @f
-  bb3 [cold]:  ; preds = bb0, bb1
+  bb3 [cold]:                                     ; preds = bb0, bb1
     revert 0, 0
 }
 

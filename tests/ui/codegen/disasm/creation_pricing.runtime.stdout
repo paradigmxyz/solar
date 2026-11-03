@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/disasm/creation_pricing.sol:Constants (runtime) ===
+; === ROOT/tests/ui/codegen/disasm/creation_pricing.sol:Constants (runtime) ===
 CALLVALUE
 PUSH1 0x31 ; bb0
 JUMPI
@@ -79,7 +79,7 @@ MSTORE
 PUSH1 0x20
 PUSH0
 RETURN
-// === ROOT/tests/ui/codegen/disasm/creation_pricing.sol:Shared (runtime) ===
+; === ROOT/tests/ui/codegen/disasm/creation_pricing.sol:Shared (runtime) ===
 CALLVALUE
 PUSH1 0x1d ; bb0
 JUMPI
@@ -170,7 +170,7 @@ MSTORE
 PUSH1 0x20
 PUSH0
 RETURN
-// === ROOT/tests/ui/codegen/disasm/creation_pricing.sol:Looped (runtime) ===
+; === ROOT/tests/ui/codegen/disasm/creation_pricing.sol:Looped (runtime) ===
 CALLVALUE
 PUSH1 0x2b ; bb0
 JUMPI
@@ -206,7 +206,7 @@ JUMPDEST
 PUSH0
 PUSH0
 REVERT
-// === ROOT/tests/ui/codegen/disasm/creation_pricing.sol:LoopCalled (runtime) ===
+; === ROOT/tests/ui/codegen/disasm/creation_pricing.sol:LoopCalled (runtime) ===
 CALLVALUE
 PUSH1 0x27 ; bb0
 JUMPI
@@ -305,7 +305,7 @@ MSTORE
 PUSH1 0x20
 PUSH0
 RETURN
-// === ROOT/tests/ui/codegen/disasm/creation_pricing.sol:LoopAfterCall (runtime) ===
+; === ROOT/tests/ui/codegen/disasm/creation_pricing.sol:LoopAfterCall (runtime) ===
 CALLVALUE
 PUSH1 0x27 ; bb0
 JUMPI

@@ -991,7 +991,7 @@ impl<'gcx> BreakContinueChecker<'gcx> {
     fn check_break_continue(&self, span: Span, kind: &str) {
         if self.loop_depth == 0 {
             let msg = format!("`{kind}` outside of a loop");
-            self.gcx.sess.dcx.emit_err(span, msg);
+            self.gcx.dcx().emit_err(span, msg);
         }
     }
 }

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/disasm/none_adjacent_labels.sol:NoneAdjacentLabels (runtime) ===
+; === ROOT/tests/ui/codegen/disasm/none_adjacent_labels.sol:NoneAdjacentLabels (runtime) ===
 PUSH1 0x24
 CALLDATASIZE
 LT
@@ -54,8 +54,8 @@ REVERT
 JUMPDEST
 PUSH1 0x01
 AND
-ISZERO
-ISZERO
+PUSH0
+LT
 PUSH1 0x74 ; bb4
 JUMPI
 PUSH1 0x02
@@ -167,8 +167,8 @@ REVERT
 JUMPDEST
 PUSH1 0x01
 AND
-ISZERO
-ISZERO
+PUSH0
+LT
 PUSH1 0xe9 ; bb8
 JUMPI
 PUSH1 0x02
@@ -318,8 +318,8 @@ REVERT
 JUMPDEST
 PUSH1 0x01
 AND
-ISZERO
-ISZERO
+PUSH0
+LT
 DUP1
 PUSH2 0x01bc ; bb15
 JUMPI

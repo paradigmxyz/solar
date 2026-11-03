@@ -42,8 +42,6 @@ contract CheckedInsertionShift {
     // The index arrives from the caller, so its bound is unknown and the
     // first access keeps its check; the panic block stays reachable.
     // OPT-LABEL: fn @shiftAt
-    // OPT: tail_call @revert_stub
-    // OPT-LABEL: fn @revert_stub
     // OPT: mstore 32, 50
     function shiftAt(uint256[] memory a, uint256 j) external pure returns (uint256[] memory) {
         if (j != 0) {

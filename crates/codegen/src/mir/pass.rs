@@ -42,15 +42,17 @@ use std::{any::TypeId, cell::Cell, convert::Infallible, rc::Rc, sync::Arc};
 
 pub use crate::mir::pass_manager::{MirPass, pipeline_label, run_passes};
 
-/// All known MIR passes exposed by `-Zmir-pipeline`.
+/// All known MIR passes exposed by `-Zmir-pipeline`, one per name: a name resolves to its first
+/// pass, so every pass the canonical pipeline runs needs an entry under a name of its own for
+/// `-Zmir-pipeline` to replay it.
 static ALL_PASSES: &[&dyn MirPass] = &[
     &inline::Inline::Semantic,
+    &inline::Inline::Physical,
     &inline::Inline::Tagged,
     &if_convert::IfConvert,
     &inline::SpecializeFunctionPointers,
     &specialize::Specialize,
     &call_cleanup::CallCleanup,
-    &outline_reverts::OutlineReverts,
     &cfg_simplify::FunctionDce,
     &cfg_simplify::NoreturnCalls,
     &cfg_simplify::SimplifyTrivialPhis,
@@ -62,6 +64,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &pre::Pre::Pure,
     &element_cleanup::ElementCleanup,
     &egraph::Egraph,
+    &word_sequence::WordSequence::Early,
     &word_sequence::WordSequence::Late,
     &byte_loops::ByteLoops,
     &byte_run::ByteRunLoads,
@@ -69,7 +72,6 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &storage_dse::StorageDse,
     &pre::Pre::Reads,
     &loop_canonicalize::LoopCanonicalize,
-    &loop_exit_remat::LoopExitRemat,
     &place_reads::PlaceReads,
     &loop_reduce::LoopReduce,
     &loop_split::LoopSplit,
@@ -122,45 +124,6 @@ pub fn lookup_pass(name: &str) -> Option<&'static dyn MirPass> {
     ALL_PASSES.iter().copied().find(|pass| pass.name() == name)
 }
 
-struct SizeOnly<P>(P);
-
-impl<P> SizeOnly<P> {
-    const fn new(pass: P) -> Self {
-        Self(pass)
-    }
-}
-
-impl<P: MirPass> MirPass for SizeOnly<P> {
-    fn name(&self) -> &'static str {
-        self.0.name()
-    }
-
-    fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
-        self.covers(module) && self.0.is_enabled(gcx, module)
-    }
-
-    fn is_contract_wide(&self) -> bool {
-        self.0.is_contract_wide()
-    }
-
-    fn runs_on(&self, objective: OptimizationMode) -> bool {
-        objective.is_size() && self.0.runs_on(objective)
-    }
-
-    fn is_required(&self) -> bool {
-        self.0.is_required()
-    }
-
-    fn run_pass(
-        &self,
-        gcx: solar_sema::Gcx<'_>,
-        module: &mut Module,
-        analyses: &mut ModuleAnalyses,
-    ) -> bool {
-        self.0.run_pass(gcx, module, analyses)
-    }
-}
-
 struct GasOnly<P>(P);
 
 impl<P> GasOnly<P> {
@@ -174,7 +137,7 @@ impl<P: MirPass> MirPass for GasOnly<P> {
         self.0.name()
     }
 
-    fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
+    fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
         self.covers(module) && self.0.is_enabled(gcx, module)
     }
 
@@ -190,12 +153,7 @@ impl<P: MirPass> MirPass for GasOnly<P> {
         self.0.is_required()
     }
 
-    fn run_pass(
-        &self,
-        gcx: solar_sema::Gcx<'_>,
-        module: &mut Module,
-        analyses: &mut ModuleAnalyses,
-    ) -> bool {
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
         self.0.run_pass(gcx, module, analyses)
     }
 }
@@ -215,7 +173,7 @@ impl<P: MirPass> MirPass for RunsAtNone<P> {
         self.0.name()
     }
 
-    fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
+    fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
         self.covers(module) || self.0.is_enabled(gcx, module)
     }
 
@@ -235,12 +193,7 @@ impl<P: MirPass> MirPass for RunsAtNone<P> {
         self.0.cache_key()
     }
 
-    fn run_pass(
-        &self,
-        gcx: solar_sema::Gcx<'_>,
-        module: &mut Module,
-        analyses: &mut ModuleAnalyses,
-    ) -> bool {
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
         self.0.run_pass(gcx, module, analyses)
     }
 }
@@ -322,11 +275,7 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
 static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &lower_checks::LowerChecks,
     &lower_builtins::LowerBuiltins,
-    // Gas mode keeps arithmetic failure edges local for stack scheduling.
-    &GasOnly::new(outline_reverts::OutlineReverts),
     &lower_arithmetic::LowerArithmetic,
-    // Size mode shares arithmetic payloads too, before selecting stack layouts.
-    &SizeOnly::new(outline_reverts::OutlineReverts),
     // Expansion exposes scalar checks and object copies to this bounded cleanup group.
     // Peel the last groups of lookahead loops so the main loop's bound folds
     // the body guards in the check elimination below.
@@ -479,8 +428,6 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
 static LOWERED_PIPELINE: &[&dyn MirPass] = &[
     &const_fold::ConstFold,
     &cfg_simplify::BranchSimplify,
-    // Reconstruct old induction values on exits before selecting physical stack order.
-    &loop_exit_remat::LoopExitRemat,
     // Give each calldata read the block that dominates its uses, after the last CSE could merge
     // the copies again.
     &place_reads::PlaceReads,
@@ -499,7 +446,7 @@ static LOWERED_PIPELINE: &[&dyn MirPass] = &[
 /// passes preserve the phase except the checked completion of `lower-evm-shaped`.
 #[tracing::instrument(name = "mir_pipeline", level = "debug", skip_all)]
 #[must_use]
-pub fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, name: Option<&str>) -> bool {
+pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bool {
     if let Some(value) = gcx.sess.opts.unstable.mir_pipeline.as_deref() {
         let pipeline = match parse_pass_pipeline(gcx, value, "MIR", lookup_pass) {
             Ok(pipeline) => pipeline,
@@ -522,7 +469,7 @@ pub fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, name: Option<
                     let text = module.to_text();
                     print_pass_diff(&name, "none", &text, &text);
                 } else if gcx.sess.opts.unstable.print_after_each {
-                    println!("// === {name} (after none) ===");
+                    println!("; === {name} (after none) ===");
                     print!("{}", module.to_text());
                 }
             }
@@ -1307,4 +1254,21 @@ fn run_parallel_function_pass(
     }
     analyses.preserved_by_pass = true;
     Some(changed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use solar_data_structures::map::FxHashSet;
+
+    #[test]
+    fn canonical_pipeline_passes_have_unique_names() {
+        let mut names = FxHashSet::default();
+        for pass in ALL_PASSES {
+            assert!(names.insert(pass.name()), "duplicate MIR pass name `{}`", pass.name());
+        }
+        for pass in SEMANTIC_PIPELINE.iter().chain(LOWERING_PIPELINE).chain(LOWERED_PIPELINE) {
+            assert!(names.contains(pass.name()), "`{}` is not exposed by name", pass.name());
+        }
+    }
 }

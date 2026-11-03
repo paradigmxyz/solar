@@ -66,12 +66,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             self.lower_expr(expr)?
         };
-        let fixed_bytes = self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| {
-            matches!(
-                ty.peel_refs().kind,
-                TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(_))
-            )
-        });
+        let fixed_bytes =
+            self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.peel_refs().is_fixed_bytes());
         if !fixed_bytes
             && matches!(expr.peel_parens().kind, ExprKind::Lit(lit) if lit.kind.is_number())
         {
@@ -299,6 +295,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.returndata_bytes()
     }
 
+    /// Copies the call's returndata into a headerless memory buffer and returns its slice, which
+    /// `abi_decode` reads in place. The buffer has no length word because nothing observes it
+    /// after the decoding.
+    pub(super) fn materialize_returndata_decode_source(&mut self) -> ValueId {
+        // NOTE: The padding of `returndatasize`, which is far below `2^64`, cannot wrap.
+        // size = returndatasize
+        // buffer = alloc pad32(size)
+        // returndatacopy(buffer, 0, size)
+        // source = make_slice(buffer, size)
+        let size = self.builder.returndatasize();
+        let padded = self.builder.pad_to_word(size);
+        let buffer = self.builder.alloc(padded, AllocationSemantics::INTERNAL);
+        let zero = self.builder.imm(U256::ZERO);
+        self.builder.copy(buffer, zero, size, PtrLocation::Returndata);
+        self.builder.make_slice(buffer, size, PtrLocation::Memory)
+    }
+
     /// Returns the current call's returndata size, or zero before Byzantium.
     pub(super) fn current_returndata_size(&mut self) -> ValueId {
         if self.cx.gcx.sess.opts.evm_version.supports_returndata() {
@@ -511,8 +524,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             if self.is_dynamic_bytes_type(ty) {
                 parts.push(PackedPart::Bytes(value));
-            } else if let Some((element, source)) = self.packed_array_shape(ty, value) {
-                parts.push(PackedPart::Array { value, element, source });
+            } else if let Some((element, source, wordwise)) = self.packed_array_shape(ty, value) {
+                parts.push(PackedPart::Array { value, element, source, wordwise });
             } else {
                 let Some((length, fixed_bytes)) = self.packed_static_shape(ty) else {
                     return self.cx.report_unsupported(expr.span, "abi.encodePacked argument");
@@ -536,7 +549,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         ty: Ty<'gcx>,
         value: ValueId,
-    ) -> Option<(AbiType, PackedArraySource)> {
+    ) -> Option<(AbiType, PackedArraySource, bool)> {
         let array_abi = self.types.abi_type(ty)?;
         let element_abi = match array_abi {
             AbiType::DynamicArray { element, .. } | AbiType::FixedArray { element, .. } => *element,
@@ -560,7 +573,26 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             _ => return None,
         };
-        Some((element_abi, source))
+        // Full words that solc loads one at a time, as for `int256`, where it copies `uint256`
+        // and `bytes32` as one block.
+        let mut leaf = ty.peel_refs();
+        while let TyKind::DynArray(element) | TyKind::Array(element, _) | TyKind::Slice(element) =
+            leaf.kind
+        {
+            leaf = element.peel_refs();
+        }
+        let wordwise =
+            !super::types::TypeLowerer::copies_as_block(leaf) && Self::is_plain_word(&element_abi);
+        Some((element_abi, source, wordwise))
+    }
+
+    /// Whether `ty` is a full word, or an array of them, that needs no cleanup.
+    fn is_plain_word(ty: &AbiType) -> bool {
+        match ty {
+            AbiType::Word(None) => true,
+            AbiType::FixedArray { element, .. } => Self::is_plain_word(element),
+            _ => false,
+        }
     }
 
     pub(super) fn lower_packed_word_array(
@@ -568,11 +600,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ty: Ty<'gcx>,
         value: ValueId,
     ) -> Option<ValueId> {
-        let (element, source) = self.packed_array_shape(ty, value)?;
+        let (element, source, wordwise) = self.packed_array_shape(ty, value)?;
         // output = abi_encode_packed(array(value))
         Some(self.builder.emit_inst(
             InstKind::AbiEncodePacked {
-                parts: Box::new([PackedPart::Array { value, element, source }]),
+                parts: Box::new([PackedPart::Array { value, element, source, wordwise }]),
                 hash: false,
             },
             Some(MirType::MEMPTR),

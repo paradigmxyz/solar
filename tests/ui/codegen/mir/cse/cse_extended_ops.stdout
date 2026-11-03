@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/cse/cse_extended_ops.mir (before cse) ===
-+ // === ROOT/tests/ui/codegen/mir/cse/cse_extended_ops.mir (after cse) ===
+- ; === ROOT/tests/ui/codegen/mir/cse/cse_extended_ops.mir (before cse) ===
++ ; === ROOT/tests/ui/codegen/mir/cse/cse_extended_ops.mir (after cse) ===
   @module CseExtendedOps
   @types
     struct0: {i256, i256, i256, i256, i256, i1}

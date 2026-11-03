@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_forward_orders.sol:AbiCalldataForwardOrders ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_forward_orders.sol:AbiCalldataForwardOrders ===
 @module AbiCalldataForwardOrders
 ; function sink(Order[] calldata) external pure returns (bytes32) [selector 0x887458ef]
 fn @sink(arg0: slice<calldata>) -> i256 [selector=0x887458ef, pure, abi_params=[array<_, tuple<address, array<_, tuple<address, uint256>>, array<_, tuple<address, uint256>>, bytes>>], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -101,15 +101,15 @@ fn @forward(arg0: slice<calldata>) -> i256 [selector=0x6f975451, view, abi_param
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [calldata_array<tuple<word<uint160>, calldata_array<tuple<word<uint160>, word>>, calldata_array<tuple<word<uint160>, word>>, calldata_bytes>>], selector 0x887458ef00000000000000000000000000000000000000000000000000000000, args arg0
+    v2 = abi_encode [calldata_array<tuple<word<uint160>, calldata_array<tuple<word<uint160>, word>>, calldata_array<tuple<word<uint160>, word>>, calldata_bytes>>], scratch, selector 0x887458ef00000000000000000000000000000000000000000000000000000000, args arg0
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
     v6 = staticcall v1, v5, v3, v4, 0, 32
     jumpi v6, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v7 = returndatasize
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
@@ -122,15 +122,15 @@ fn @forwardWith(arg0: slice<calldata>) -> i256 [selector=0xf2b2b8d0, view, abi_p
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [calldata_array<tuple<word<uint160>, calldata_array<tuple<word<uint160>, word>>, calldata_array<tuple<word<uint160>, word>>, calldata_bytes>>, word], selector 0x1340778500000000000000000000000000000000000000000000000000000000, args arg0, 7
+    v2 = abi_encode [calldata_array<tuple<word<uint160>, calldata_array<tuple<word<uint160>, word>>, calldata_array<tuple<word<uint160>, word>>, calldata_bytes>>, word], scratch, selector 0x1340778500000000000000000000000000000000000000000000000000000000, args arg0, 7
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
     v6 = staticcall v1, v5, v3, v4, 0, 32
     jumpi v6, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v7 = returndatasize
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
@@ -170,15 +170,15 @@ fn @forwardOne(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x82731354, 
     icall revert_if<invalid_calldata_tail_offset>, v22
     v23 = inttoptr i256 v16 to ptr<calldata>
     v24 = make_calldata_slice v23, 32
-    v25 = abi_encode [tuple<word<uint160>, calldata_array<tuple<word<uint160>, word>>, calldata_array<tuple<word<uint160>, word>>, calldata_bytes>], selector 0xdc7b1a2700000000000000000000000000000000000000000000000000000000, args v24
+    v25 = abi_encode [tuple<word<uint160>, calldata_array<tuple<word<uint160>, word>>, calldata_array<tuple<word<uint160>, word>>, calldata_bytes>], scratch, selector 0xdc7b1a2700000000000000000000000000000000000000000000000000000000, args v24
     v26 = extract_value slice<memory>, v25, 0
     v27 = extract_value slice<memory>, v25, 1
     v28 = zext i160 v0 to i256
     v29 = staticcall v1, v28, v26, v27, 0, 32
     jumpi v29, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v30 = returndatasize
     v31 = lt v30, 32
     icall revert_if<tuple_data_too_short>, v31

@@ -159,7 +159,8 @@ contract Test {
     // CHECK: [[INDEX:v[0-9]+]] = calldataload 68
     // CHECK: [[INDEX_END:v[0-9]+]] = add [[INDEX]], {{v[0-9]+}}
     // CHECK-NEXT: [[INDEX_WRAPS:v[0-9]+]] = lt [[INDEX_END]], [[INDEX]]
-    // CHECK-NEXT: [[SCALE_WRAPS:v[0-9]+]] = gt [[INDEX_END]], 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    // CHECK-NEXT: [[SCALE_HIGH:v[0-9]+]] = shr [[INDEX_END]], 251
+    // CHECK-NEXT: [[SCALE_WRAPS:v[0-9]+]] = ne [[SCALE_HIGH]], 0
     // CHECK-NEXT: [[INDEX_FAILS:v[0-9]+]] = or [[INDEX_WRAPS]], [[SCALE_WRAPS]]
     // CHECK-NEXT: [[FALLBACK:v[0-9]+]] = or {{v[0-9]+}}, [[INDEX_FAILS]]
     // CHECK-NEXT: jumpi [[FALLBACK]]

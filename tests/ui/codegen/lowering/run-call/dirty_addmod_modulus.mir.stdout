@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/dirty_addmod_modulus.sol:DirtyAddmodModulus ===
+; === ROOT/tests/ui/codegen/lowering/run-call/dirty_addmod_modulus.sol:DirtyAddmodModulus ===
 @module DirtyAddmodModulus
 ; function addmodDirtyModulus(uint256 a, uint256 b) external pure returns (uint256) [selector 0x6725e18c]
 fn @addmodDirtyModulus(arg0: i256, arg1: i256) -> i256 [selector=0x6725e18c, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {

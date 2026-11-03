@@ -176,7 +176,7 @@ impl Module {
 
     /// Parses textual MIR.
     pub fn parse(
-        sess: &solar_interface::Session,
+        sess: &Session,
         source: &solar_interface::source_map::SourceFile,
     ) -> solar_interface::Result<Self> {
         super::parser::parse(sess, source)
@@ -897,7 +897,7 @@ impl Module {
                 writeln!(f)?;
             }
             if let Some(layout) = &self.backend_memory {
-                writeln!(f, "{}", layout.display(self))?;
+                writeln!(f, "{}", layout.display(self, ";"))?;
             }
             let (receive, fallback) = (self.receive(), self.fallback());
             write!(
@@ -923,7 +923,7 @@ impl Module {
     pub fn to_dot(&self) -> impl fmt::Display + '_ {
         fmt::from_fn(move |f| {
             if let Some(layout) = &self.backend_memory {
-                writeln!(f, "{}", layout.display(self))?;
+                writeln!(f, "{}", layout.display(self, "//"))?;
             }
             write!(
                 f,

@@ -464,16 +464,16 @@ impl StorageAlias {
             Value::Immediate(imm) => imm.as_u256().map_or(Self::Symbolic(value), Self::Slot),
             Value::Inst(inst_id) => match func.inst(*inst_id).kind {
                 InstKind::Add(lhs, rhs) => {
-                    if let Some(offset) = Self::immediate_u256(func, rhs) {
+                    if let Some(offset) = func.value_u256(rhs) {
                         Self::add_offset(func, lhs, offset)
-                    } else if let Some(offset) = Self::immediate_u256(func, lhs) {
+                    } else if let Some(offset) = func.value_u256(lhs) {
                         Self::add_offset(func, rhs, offset)
                     } else {
                         Self::Symbolic(value)
                     }
                 }
                 InstKind::Sub(lhs, rhs) => {
-                    if let Some(offset) = Self::immediate_u256(func, rhs) {
+                    if let Some(offset) = func.value_u256(rhs) {
                         Self::add_offset(func, lhs, U256::ZERO.wrapping_sub(offset))
                     } else {
                         Self::Symbolic(value)
@@ -546,13 +546,6 @@ impl StorageAlias {
 
     fn add_offset(func: &Function, value: ValueId, offset: U256) -> Self {
         Self::for_value(func, value).offset_by(offset)
-    }
-
-    fn immediate_u256(func: &Function, value: ValueId) -> Option<U256> {
-        match func.value(value) {
-            Value::Immediate(imm) => imm.as_u256(),
-            _ => None,
-        }
     }
 }
 
@@ -983,25 +976,16 @@ impl InstKind {
 
     /// Returns binary operands whose evaluation order may be exchanged during EVM lowering.
     ///
-    /// This includes commutative instructions and comparisons whose opcode can be reversed with
-    /// their operands.
-    pub const fn reorderable_binary_operands(&self) -> Option<(ValueId, ValueId)> {
-        if !self.op_def().traits.contains(super::OpTraits::REORDERABLE) {
-            return None;
-        }
+    /// This includes the declared commutative pair of a binary operation and comparisons whose
+    /// opcode can be reversed with their operands. The backend pushes `addmod`, `mulmod` and the
+    /// destination and size of a data copy in one order only, so those are not included.
+    pub fn reorderable_binary_operands(&self) -> Option<(ValueId, ValueId)> {
         match self {
-            Self::InsertValue { aggregate: a, value: b, .. }
-            | Self::DataCopy(_, a, b)
-            | Self::Add(a, b)
-            | Self::Mul(a, b)
-            | Self::And(a, b)
-            | Self::Or(a, b)
-            | Self::Xor(a, b)
-            | Self::Eq(a, b)
-            | Self::Lt(a, b)
-            | Self::Gt(a, b)
-            | Self::SLt(a, b)
-            | Self::SGt(a, b) => Some((*a, *b)),
+            Self::Lt(a, b) | Self::Gt(a, b) | Self::SLt(a, b) | Self::SGt(a, b) => Some((*a, *b)),
+            // Other operations carry payloads that `op` would copy.
+            _ if self.op_def().traits.contains(super::OpTraits::COMMUTATIVE) => {
+                self.op().commutative_pair().filter(|_| self.operands().len() == 2)
+            }
             _ => None,
         }
     }

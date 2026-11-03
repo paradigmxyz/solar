@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/check_wrapper.sol:CheckWrapper ===
+; === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/check_wrapper.sol:CheckWrapper ===
 @module CheckWrapper
 ; function guarded(uint256 value) external returns (uint256) [selector 0x5e284975]
 fn @guarded(arg0: i256) -> i256 [selector=0x5e284975, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {

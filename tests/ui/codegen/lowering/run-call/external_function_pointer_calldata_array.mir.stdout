@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_calldata_array.sol:ExternalFunctionPointerCalldataArray ===
+; === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_calldata_array.sol:ExternalFunctionPointerCalldataArray ===
 @module ExternalFunctionPointerCalldataArray
 @types
   struct0: {i256, i256, i256}
@@ -31,9 +31,9 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<
     mstore 0, v18 !metadata(memory=scratch)
     v19 = call v17, v16, 0, 28, 4, 0, 32
     jumpi v19, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v20 = returndatasize
     v21 = lt v20, 32
     icall revert_if<tuple_data_too_short>, v21
@@ -59,9 +59,9 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<
     mstore 0, v38 !metadata(memory=scratch)
     v39 = call v37, v36, 0, 28, 4, 0, 32
     jumpi v39, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v40 = returndatasize
     v41 = lt v40, 32
     icall revert_if<tuple_data_too_short>, v41
@@ -87,9 +87,9 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<
     mstore 0, v58 !metadata(memory=scratch)
     v59 = call v57, v56, 0, 28, 4, 0, 32
     jumpi v59, bb6, bb5
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     revert_returndata
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     v60 = returndatasize
     v61 = lt v60, 32
     icall revert_if<tuple_data_too_short>, v61
@@ -105,35 +105,36 @@ fn @fReenc(arg0: slice<calldata>) -> struct0 [selector=0xfbeba237, abi_params=[a
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [calldata_array<function>], selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args arg0
+    v2 = abi_encode [calldata_array<function>], scratch, selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args arg0
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
-    v5 = zext i160 v0 to i256
-    v6 = call v1, v5, 0, v3, v4, v3, 96
-    jumpi v6, bb2, bb1
-  bb1:  ; preds = bb0
+    v5 = fmp
+    v6 = zext i160 v0 to i256
+    v7 = call v1, v6, 0, v3, v4, v5, 96
+    jumpi v7, bb2, bb1
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
-    v7 = returndatasize
-    v8 = lt v7, 96
-    icall revert_if<tuple_data_too_short>, v8
-    v9 = mload v3
-    v10 = ptrtoint ptr<memory> v3 to i256
-    v11 = add v10, 32
-    v12 = mload v11
-    v13 = ptrtoint ptr<memory> v3 to i256
-    v14 = add v13, 64
-    v15 = mload v14
-    v16 = insert_value struct0, undef struct0, 0, v9
-    v17 = insert_value struct0, v16, 1, v12
-    v18 = insert_value struct0, v17, 2, v15
-    v19 = extract_value struct0, v18, 0
-    v20 = extract_value struct0, v18, 1
-    v21 = extract_value struct0, v18, 2
-    v22 = insert_value struct0, undef struct0, 0, v19
-    v23 = insert_value struct0, v22, 1, v20
-    v24 = insert_value struct0, v23, 2, v21
-    ret v24
+  bb2:                                            ; preds = bb0
+    v8 = returndatasize
+    v9 = lt v8, 96
+    icall revert_if<tuple_data_too_short>, v9
+    v10 = mload v5
+    v11 = ptrtoint ptr<memory> v5 to i256
+    v12 = add v11, 32
+    v13 = mload v12
+    v14 = ptrtoint ptr<memory> v5 to i256
+    v15 = add v14, 64
+    v16 = mload v15
+    v17 = insert_value struct0, undef struct0, 0, v10
+    v18 = insert_value struct0, v17, 1, v13
+    v19 = insert_value struct0, v18, 2, v16
+    v20 = extract_value struct0, v19, 0
+    v21 = extract_value struct0, v19, 1
+    v22 = extract_value struct0, v19, 2
+    v23 = insert_value struct0, undef struct0, 0, v20
+    v24 = insert_value struct0, v23, 1, v21
+    v25 = insert_value struct0, v24, 2, v22
+    ret v25
 }
 
 ; function getter1() external pure returns (uint256) [selector 0x0ec1632e]
@@ -193,70 +194,72 @@ fn @g(arg0: i1) -> struct0 [selector=0xd48092f7, abi_params=[bool], abi_returns=
     v27 = ptradd v0, 96
     mstore v27, v26
     jumpi arg0, bb1, bb2
-  bb2:  ; preds = bb0
-    v50 = address
-    v51 = gas
-    v52 = abi_encode [memory_array<function>], selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args v0
-    v53 = extract_value slice<memory>, v52, 0
-    v54 = extract_value slice<memory>, v52, 1
-    v55 = zext i160 v50 to i256
-    v56 = call v51, v55, 0, v53, v54, v53, 96
-    jumpi v56, bb7, bb6
-  bb6:  ; preds = bb2
+  bb2:                                            ; preds = bb0
+    v51 = address
+    v52 = gas
+    v53 = abi_encode [memory_array<function>], scratch, selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args v0
+    v54 = extract_value slice<memory>, v53, 0
+    v55 = extract_value slice<memory>, v53, 1
+    v56 = fmp
+    v57 = zext i160 v51 to i256
+    v58 = call v52, v57, 0, v54, v55, v56, 96
+    jumpi v58, bb7, bb6
+  bb6:                                            ; preds = bb2
     revert_returndata
-  bb7:  ; preds = bb2
-    v57 = returndatasize
-    v58 = lt v57, 96
-    icall revert_if<tuple_data_too_short>, v58
-    v59 = mload v53
-    v60 = ptrtoint ptr<memory> v53 to i256
-    v61 = add v60, 32
-    v62 = mload v61
-    v63 = ptrtoint ptr<memory> v53 to i256
-    v64 = add v63, 64
-    v65 = mload v64
-    v66 = insert_value struct0, undef struct0, 0, v59
-    v67 = insert_value struct0, v66, 1, v62
-    v68 = insert_value struct0, v67, 2, v65
-    v69 = extract_value struct0, v68, 0
-    v70 = extract_value struct0, v68, 1
-    v71 = extract_value struct0, v68, 2
+  bb7:                                            ; preds = bb2
+    v59 = returndatasize
+    v60 = lt v59, 96
+    icall revert_if<tuple_data_too_short>, v60
+    v61 = mload v56
+    v62 = ptrtoint ptr<memory> v56 to i256
+    v63 = add v62, 32
+    v64 = mload v63
+    v65 = ptrtoint ptr<memory> v56 to i256
+    v66 = add v65, 64
+    v67 = mload v66
+    v68 = insert_value struct0, undef struct0, 0, v61
+    v69 = insert_value struct0, v68, 1, v64
+    v70 = insert_value struct0, v69, 2, v67
+    v71 = extract_value struct0, v70, 0
+    v72 = extract_value struct0, v70, 1
+    v73 = extract_value struct0, v70, 2
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v28 = address
     v29 = gas
-    v30 = abi_encode [memory_array<function>], selector 0xfbeba23700000000000000000000000000000000000000000000000000000000, args v0
+    v30 = abi_encode [memory_array<function>], scratch, selector 0xfbeba23700000000000000000000000000000000000000000000000000000000, args v0
     v31 = extract_value slice<memory>, v30, 0
     v32 = extract_value slice<memory>, v30, 1
-    v33 = zext i160 v28 to i256
-    v34 = call v29, v33, 0, v31, v32, v31, 96
-    jumpi v34, bb5, bb4
-  bb4:  ; preds = bb1
+    v33 = fmp
+    v34 = zext i160 v28 to i256
+    v35 = call v29, v34, 0, v31, v32, v33, 96
+    jumpi v35, bb5, bb4
+  bb4:                                            ; preds = bb1
     revert_returndata
-  bb5:  ; preds = bb1
-    v35 = returndatasize
-    v36 = lt v35, 96
-    icall revert_if<tuple_data_too_short>, v36
-    v37 = mload v31
-    v38 = ptrtoint ptr<memory> v31 to i256
-    v39 = add v38, 32
-    v40 = mload v39
-    v41 = ptrtoint ptr<memory> v31 to i256
-    v42 = add v41, 64
-    v43 = mload v42
-    v44 = insert_value struct0, undef struct0, 0, v37
-    v45 = insert_value struct0, v44, 1, v40
-    v46 = insert_value struct0, v45, 2, v43
-    v47 = extract_value struct0, v46, 0
-    v48 = extract_value struct0, v46, 1
-    v49 = extract_value struct0, v46, 2
+  bb5:                                            ; preds = bb1
+    v36 = returndatasize
+    v37 = lt v36, 96
+    icall revert_if<tuple_data_too_short>, v37
+    v38 = mload v33
+    v39 = ptrtoint ptr<memory> v33 to i256
+    v40 = add v39, 32
+    v41 = mload v40
+    v42 = ptrtoint ptr<memory> v33 to i256
+    v43 = add v42, 64
+    v44 = mload v43
+    v45 = insert_value struct0, undef struct0, 0, v38
+    v46 = insert_value struct0, v45, 1, v41
+    v47 = insert_value struct0, v46, 2, v44
+    v48 = extract_value struct0, v47, 0
+    v49 = extract_value struct0, v47, 1
+    v50 = extract_value struct0, v47, 2
     jump bb3
-  bb3:  ; preds = bb5, bb7
-    v72 = phi [bb5: v47], [bb7: v69]
-    v73 = phi [bb5: v48], [bb7: v70]
-    v74 = phi [bb5: v49], [bb7: v71]
-    v75 = insert_value struct0, undef struct0, 0, v72
-    v76 = insert_value struct0, v75, 1, v73
-    v77 = insert_value struct0, v76, 2, v74
-    ret v77
+  bb3:                                            ; preds = bb5, bb7
+    v74 = phi [bb5: v48], [bb7: v71]
+    v75 = phi [bb5: v49], [bb7: v72]
+    v76 = phi [bb5: v50], [bb7: v73]
+    v77 = insert_value struct0, undef struct0, 0, v74
+    v78 = insert_value struct0, v77, 1, v75
+    v79 = insert_value struct0, v78, 2, v76
+    ret v79
 }

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/array_slice_calldata_to_storage.sol:ArraySliceCalldataToStorage ===
+; === ROOT/tests/ui/codegen/lowering/run-call/array_slice_calldata_to_storage.sol:ArraySliceCalldataToStorage ===
 @module ArraySliceCalldataToStorage
 ; function copy(int256[] calldata values, uint256 start, uint256 end) external returns (int256) [selector 0xaabf50eb]
 fn @copy(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0xaabf50eb, abi_params=[array<_, int256>, uint256, uint256], abi_returns=[word], abi_return_params=[int256]] {
@@ -46,22 +46,22 @@ fn @copy(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0xaabf
     v32 = sload 0 !metadata(storage=slot(0))
     v33 = lt v31, v32
     jumpi v33, bb1, bb2
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb4
+  bb3:                                            ; preds = bb1, bb4
     v34 = phi [bb1: v31], [bb4: v38]
     v35 = lt v34, v32
     jumpi v35, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb2
-  bb2:  ; preds = bb0, bb5
+  bb2:                                            ; preds = bb0, bb5
     sstore 0, v31 !metadata(storage=slot(0))
     jump bb6
-  bb6:  ; preds = bb2, bb7
+  bb6:                                            ; preds = bb2, bb7
     v39 = phi [bb2: 0], [bb7: v47]
     v40 = lt v39, v31
     jumpi v40, bb7, bb8
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     v48 = sload 0 !metadata(storage=slot(0))
     v49 = gt v48, 0
     v50 = eq v49, false
@@ -69,7 +69,7 @@ fn @copy(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0xaabf
     v51 = storage_array_data_slot 0
     v52 = sload v51 !metadata(storage=symbolic(v51))
     ret v52
-  bb7:  ; preds = bb6
+  bb7:                                            ; preds = bb6
     v41 = shl v39, 5
     v42 = ptradd v26, v41
     v43 = ptradd v42, 32
@@ -79,7 +79,7 @@ fn @copy(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0xaabf
     sstore v46, v44 !metadata(storage=symbolic(v46))
     v47 = add v39, 1
     jump bb6
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v36 = storage_array_data_slot 0
     v37 = add v36, v34
     sstore v37, 0 !metadata(storage=symbolic(v37))

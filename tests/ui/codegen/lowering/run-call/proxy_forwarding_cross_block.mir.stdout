@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:ForwardingImplementation ===
+; === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:ForwardingImplementation ===
 @module ForwardingImplementation
 ; getter for `uint256 public value` [selector 0x3fa4f245]
 fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -18,7 +18,7 @@ fn @set(arg0: i256, arg1: i256, arg2: i256, arg3: slice<calldata>) [selector=0x5
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:FixedRangeProxy ===
+; === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:FixedRangeProxy ===
 @module FixedRangeProxy
 ; constructor(address target) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[address]] {
@@ -48,21 +48,21 @@ fn @fallback() [fallback] {
     v8 = zext i1 v7 to i256
     v9 = ne v8, 0
     jumpi v9, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v12 = returndatasize
     returndatacopy 0, 0, v12 !metadata(memory=scratch)
     v13 = returndatasize
     returndata 0, v13
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v10 = returndatasize
     returndatacopy 0, 0, v10 !metadata(memory=scratch)
     v11 = returndatasize
     revert 0, v11
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:CrossBlockProxy ===
+; === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:CrossBlockProxy ===
 @module CrossBlockProxy
 ; constructor(address target) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[address]] {
@@ -88,15 +88,15 @@ fn @fallback() [fallback] {
     v5 = extract_value slice<calldata>, v4, 1
     v6 = gt v5, 128
     jumpi v6, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v8 = calldatasize
     calldatacopy 0, 0, v8 !metadata(memory=scratch)
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v7 = calldatasize
     calldatacopy 0, 0, v7 !metadata(memory=scratch)
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v9 = calldatasize
     v10 = gas
     v11 = delegatecall v10, v2, 0, v9, 0, 0
@@ -105,21 +105,21 @@ fn @fallback() [fallback] {
     v14 = zext i1 v13 to i256
     v15 = ne v14, 0
     jumpi v15, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb6
-  bb6:  ; preds = bb5
+  bb6:                                            ; preds = bb5
     v18 = returndatasize
     returndatacopy 0, 0, v18 !metadata(memory=scratch)
     v19 = returndatasize
     returndata 0, v19
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v16 = returndatasize
     returndatacopy 0, 0, v16 !metadata(memory=scratch)
     v17 = returndatasize
     revert 0, v17
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:ForwardingHarness ===
+; === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:ForwardingHarness ===
 @module ForwardingHarness
 @data
   ForwardingImplementation_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:ForwardingImplementation"
@@ -137,9 +137,9 @@ fn @fixedRange() -> i256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word]
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = zext i160 v2 to i256
     v5 = abi_encode [word<uint160>], args v4
     v6 = datasize FixedRangeProxy_creation_code_1
@@ -153,13 +153,13 @@ fn @fixedRange() -> i256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word]
     v12 = create 0, v8, v7
     v13 = ne v12, i160 0
     jumpi v13, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v14 = gas
     v15 = alloc zeroed checked 192
     mstore v15, 160
-    v16 = abi_encode [word, word, word, memory_bytes], selector 0x5269df1a00000000000000000000000000000000000000000000000000000000, args 1, 2, 3, v15
+    v16 = abi_encode [word, word, word, memory_bytes], scratch, selector 0x5269df1a00000000000000000000000000000000000000000000000000000000, args 1, 2, 3, v15
     v17 = extract_value slice<memory>, v16, 0
     v18 = extract_value slice<memory>, v16, 1
     v19 = zext i160 v12 to i256
@@ -169,17 +169,17 @@ fn @fixedRange() -> i256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word]
     v22 = zext i160 v12 to i256
     v23 = call v14, v22, 0, v17, v18, 0, 0
     jumpi v23, bb6, bb5
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     revert_returndata
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     v24 = gas
     mstore 0, 0x3fa4f245 !metadata(memory=scratch)
     v25 = zext i160 v12 to i256
     v26 = staticcall v24, v25, 28, 4, 0, 32
     jumpi v26, bb8, bb7
-  bb7:  ; preds = bb6
+  bb7:                                            ; preds = bb6
     revert_returndata
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     v27 = returndatasize
     v28 = lt v27, 32
     icall revert_if<tuple_data_too_short>, v28
@@ -198,9 +198,9 @@ fn @crossBlock() -> i256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = zext i160 v2 to i256
     v5 = abi_encode [word<uint160>], args v4
     v6 = datasize CrossBlockProxy_creation_code_2
@@ -214,13 +214,13 @@ fn @crossBlock() -> i256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]
     v12 = create 0, v8, v7
     v13 = ne v12, i160 0
     jumpi v13, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v14 = gas
     v15 = alloc zeroed checked 192
     mstore v15, 160
-    v16 = abi_encode [word, word, word, memory_bytes], selector 0x5269df1a00000000000000000000000000000000000000000000000000000000, args 4, 5, 6, v15
+    v16 = abi_encode [word, word, word, memory_bytes], scratch, selector 0x5269df1a00000000000000000000000000000000000000000000000000000000, args 4, 5, 6, v15
     v17 = extract_value slice<memory>, v16, 0
     v18 = extract_value slice<memory>, v16, 1
     v19 = zext i160 v12 to i256
@@ -230,17 +230,17 @@ fn @crossBlock() -> i256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]
     v22 = zext i160 v12 to i256
     v23 = call v14, v22, 0, v17, v18, 0, 0
     jumpi v23, bb6, bb5
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     revert_returndata
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     v24 = gas
     mstore 0, 0x3fa4f245 !metadata(memory=scratch)
     v25 = zext i160 v12 to i256
     v26 = staticcall v24, v25, 28, 4, 0, 32
     jumpi v26, bb8, bb7
-  bb7:  ; preds = bb6
+  bb7:                                            ; preds = bb6
     revert_returndata
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     v27 = returndatasize
     v28 = lt v27, 32
     icall revert_if<tuple_data_too_short>, v28
@@ -259,9 +259,9 @@ fn @dynamicRevert() -> i256 [selector=0x5dbb0715, abi_params=[], abi_returns=[wo
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = zext i160 v2 to i256
     v5 = abi_encode [word<uint160>], args v4
     v6 = datasize DynamicReturnWrapper_creation_code_4
@@ -275,9 +275,9 @@ fn @dynamicRevert() -> i256 [selector=0x5dbb0715, abi_params=[], abi_returns=[wo
     v12 = create 0, v8, v7
     v13 = ne v12, i160 0
     jumpi v13, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v14 = gas
     v15 = abi_encode [], object, selector 0x4ce637d600000000000000000000000000000000000000000000000000000000
     v16 = address_call v12, v15, gas v14
@@ -295,7 +295,7 @@ fn @dynamicRevert() -> i256 [selector=0x5dbb0715, abi_params=[], abi_returns=[wo
     ret 1
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:RevertingProducer ===
+; === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:RevertingProducer ===
 @module RevertingProducer
 ; function fail() external pure returns (bytes memory) [selector 0xa9cc4718]
 fn @fail() -> ptr<memory> [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -304,7 +304,7 @@ fn @fail() -> ptr<memory> [selector=0xa9cc4718, pure, abi_params=[], abi_returns
     revert 0, 228
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:DynamicReturnWrapper ===
+; === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:DynamicReturnWrapper ===
 @module DynamicReturnWrapper
 @immutables
   producer: address
@@ -325,15 +325,20 @@ fn @bubble() -> ptr<memory> [selector=0x4ce637d6, view, abi_params=[], abi_retur
     v2 = zext i160 v0 to i256
     v3 = staticcall v1, v2, 28, 4, 0, 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
-    v4 = icall returndata_bytes<>
-    v5 = abi_decode [bytes], v4
-    ret v5
+  bb2:                                            ; preds = bb0
+    v4 = returndatasize
+    v5 = add v4, 31
+    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v7 = alloc v6
+    returndatacopy v7, 0, v4
+    v8 = make_memory_slice v7, v4
+    v9 = abi_decode [bytes], v8
+    ret v9
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:SharedPublicFrame ===
+; === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:SharedPublicFrame ===
 @module SharedPublicFrame
 ; function helper(uint256 value) public pure returns (uint256) [selector 0xdabf7ec4]
 fn @helper(arg0: i256) -> i256 [selector=0xdabf7ec4, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -349,7 +354,7 @@ fn @entry() -> i256 [selector=0x67f239dd, pure, abi_params=[], abi_returns=[word
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:HelperReturnedHeapBuffer ===
+; === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:HelperReturnedHeapBuffer ===
 @module HelperReturnedHeapBuffer
 ; function buffer() internal pure returns (uint256 result)
 fn @buffer() -> i256 [pure] {

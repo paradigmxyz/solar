@@ -189,8 +189,7 @@ pub(super) fn lower_synthetic_constructor(
     contract_id: hir::ContractId,
 ) -> Option<Function> {
     let span = context.gcx.hir.contract(contract_id).span;
-    let mut mir =
-        Function::new(solar_interface::Ident::with_dummy_span(solar_interface::kw::Constructor));
+    let mut mir = Function::new(Ident::with_dummy_span(kw::Constructor));
     let mut lowerer = FunctionLowerer::new(context.reborrow(), &mut mir);
     lowerer.lower_implicit_base_constructors(contract_id)?;
     lowerer.lower_state_initializers(contract_id)?;
@@ -724,7 +723,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         }
         match &expr.kind {
-            ExprKind::Lit(lit) if self.in_inline_assembly => self.lower_word_literal(lit),
+            ExprKind::Lit(lit) if self.in_inline_assembly => {
+                Some(self.builder.imm(lit.kind.yul_word()?))
+            }
             ExprKind::Lit(lit) => self.lower_literal(lit.kind, expr.span),
             ExprKind::Array(elements) => self.lower_array(expr, elements),
             ExprKind::Ident(_) => {
@@ -763,14 +764,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 let lhs_ty = self.cx.gcx.type_of_expr(lhs.id);
                 let rhs_ty = self.cx.gcx.type_of_expr(rhs.id);
-                let fixed_bytes = |ty: Option<Ty<'gcx>>| {
-                    ty.is_some_and(|ty| {
-                        matches!(
-                            ty.peel_refs().kind,
-                            TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(_))
-                        )
-                    })
-                };
+                let fixed_bytes =
+                    |ty: Option<Ty<'gcx>>| ty.is_some_and(|ty| ty.peel_refs().is_fixed_bytes());
                 let rhs_literal =
                     rhs_ty.is_some_and(|ty| {
                         matches!(

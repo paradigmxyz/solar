@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_nested_array.sol:ExternalFunctionPointerNestedArrayTarget ===
+; === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_nested_array.sol:ExternalFunctionPointerNestedArrayTarget ===
 @module ExternalFunctionPointerNestedArrayTarget
 ; function f( function() external returns (function() external returns (uint256))[] memory x ) public returns (function() external returns (uint256)[3] memory r) [selector 0x2ed7fe6a]
 fn @f(arg0: ptr<memory>) -> ptr<memory> [selector=0x2ed7fe6a, abi_params=[array<_, function>], abi_returns=[array<3, function>], abi_return_params=[array<3, function>]] {
@@ -18,74 +18,89 @@ fn @f(arg0: ptr<memory>) -> ptr<memory> [selector=0x2ed7fe6a, abi_params=[array<
     mstore 0, v10 !metadata(memory=scratch)
     v11 = call v9, v8, 0, 28, 4, 0, 0
     jumpi v11, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
-    v12 = icall returndata_bytes<>
-    v13 = abi_decode [function], v12
-    v14 = alloc 96 !metadata(preserves_fmp)
-    memory_zero v14, 96
-    v15 = lt 0, 3
-    v16 = eq v15, false
-    icall panic_if<0x32>, v16
-    v17 = shl v13, 64
-    mstore v14, v17
-    v18 = mload arg0
-    v19 = gt v18, 1
+  bb2:                                            ; preds = bb0
+    v12 = returndatasize
+    v13 = add v12, 31
+    v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v15 = alloc v14
+    returndatacopy v15, 0, v12
+    v16 = make_memory_slice v15, v12
+    v17 = abi_decode [function], v16
+    v18 = alloc 96 !metadata(preserves_fmp)
+    memory_zero v18, 96
+    v19 = lt 0, 3
     v20 = eq v19, false
     icall panic_if<0x32>, v20
-    v21 = ptradd arg0, 64
-    v22 = mload v21
-    v23 = shr v22, 64
-    v24 = and v23, 0xffffffff
-    v25 = shl v24, 224
-    v26 = shr v23, 32
-    v27 = gas
-    v28 = shr v25, 224
-    mstore 0, v28 !metadata(memory=scratch)
-    v29 = call v27, v26, 0, 28, 4, 0, 0
-    jumpi v29, bb4, bb3
-  bb3:  ; preds = bb2
+    v21 = shl v17, 64
+    mstore v18, v21
+    v22 = mload arg0
+    v23 = gt v22, 1
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    v25 = ptradd arg0, 64
+    v26 = mload v25
+    v27 = shr v26, 64
+    v28 = and v27, 0xffffffff
+    v29 = shl v28, 224
+    v30 = shr v27, 32
+    v31 = gas
+    v32 = shr v29, 224
+    mstore 0, v32 !metadata(memory=scratch)
+    v33 = call v31, v30, 0, 28, 4, 0, 0
+    jumpi v33, bb4, bb3
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
-    v30 = icall returndata_bytes<>
-    v31 = abi_decode [function], v30
-    v32 = lt 1, 3
-    v33 = eq v32, false
-    icall panic_if<0x32>, v33
-    v34 = shl v31, 64
-    v35 = ptradd v14, 32
-    mstore v35, v34
-    v36 = mload arg0
-    v37 = gt v36, 2
-    v38 = eq v37, false
-    icall panic_if<0x32>, v38
-    v39 = ptradd arg0, 96
-    v40 = mload v39
-    v41 = shr v40, 64
-    v42 = and v41, 0xffffffff
-    v43 = shl v42, 224
-    v44 = shr v41, 32
-    v45 = gas
-    v46 = shr v43, 224
-    mstore 0, v46 !metadata(memory=scratch)
-    v47 = call v45, v44, 0, 28, 4, 0, 0
-    jumpi v47, bb6, bb5
-  bb5:  ; preds = bb4
+  bb4:                                            ; preds = bb2
+    v34 = returndatasize
+    v35 = add v34, 31
+    v36 = and v35, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v37 = alloc v36
+    returndatacopy v37, 0, v34
+    v38 = make_memory_slice v37, v34
+    v39 = abi_decode [function], v38
+    v40 = lt 1, 3
+    v41 = eq v40, false
+    icall panic_if<0x32>, v41
+    v42 = shl v39, 64
+    v43 = ptradd v18, 32
+    mstore v43, v42
+    v44 = mload arg0
+    v45 = gt v44, 2
+    v46 = eq v45, false
+    icall panic_if<0x32>, v46
+    v47 = ptradd arg0, 96
+    v48 = mload v47
+    v49 = shr v48, 64
+    v50 = and v49, 0xffffffff
+    v51 = shl v50, 224
+    v52 = shr v49, 32
+    v53 = gas
+    v54 = shr v51, 224
+    mstore 0, v54 !metadata(memory=scratch)
+    v55 = call v53, v52, 0, 28, 4, 0, 0
+    jumpi v55, bb6, bb5
+  bb5:                                            ; preds = bb4
     revert_returndata
-  bb6:  ; preds = bb4
-    v48 = icall returndata_bytes<>
-    v49 = abi_decode [function], v48
-    v50 = lt 2, 3
-    v51 = eq v50, false
-    icall panic_if<0x32>, v51
-    v52 = shl v49, 64
-    v53 = ptradd v14, 64
-    mstore v53, v52
-    ret v14
+  bb6:                                            ; preds = bb4
+    v56 = returndatasize
+    v57 = add v56, 31
+    v58 = and v57, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v59 = alloc v58
+    returndatacopy v59, 0, v56
+    v60 = make_memory_slice v59, v56
+    v61 = abi_decode [function], v60
+    v62 = lt 2, 3
+    v63 = eq v62, false
+    icall panic_if<0x32>, v63
+    v64 = shl v61, 64
+    v65 = ptradd v18, 64
+    mstore v65, v64
+    ret v18
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_nested_array.sol:ExternalFunctionPointerNestedArray ===
+; === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_nested_array.sol:ExternalFunctionPointerNestedArray ===
 @module ExternalFunctionPointerNestedArray
 @types
   struct0: {i256, i256, i256}
@@ -99,7 +114,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v0 = alloc zeroed checked 128
     mstore v0, 3
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v1 = phi [bb0: 0], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v2]
     v3 = phi [bb0: 0], [bb3: v3]
@@ -108,9 +123,9 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v6 = mload v4
     v7 = lt v5, v6
     jumpi v7, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     v20 = address
     v21 = zext i160 v20 to i256
     v22 = shl v21, 32
@@ -128,24 +143,24 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v31 = create 0, v30, v29
     v32 = ne v31, i160 0
     jumpi v32, bb8, bb7
-  bb7:  ; preds = bb2
+  bb7:                                            ; preds = bb2
     revert_returndata
-  bb8:  ; preds = bb2
+  bb8:                                            ; preds = bb2
     v33 = gas
-    v34 = abi_encode [memory_array<function>], selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args v4
-    v35 = extract_value slice<memory>, v34, 0
-    v36 = extract_value slice<memory>, v34, 1
-    v37 = alloc 96
+    v34 = alloc 96
+    v35 = abi_encode [memory_array<function>], scratch, selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args v4
+    v36 = extract_value slice<memory>, v35, 0
+    v37 = extract_value slice<memory>, v35, 1
     v38 = zext i160 v31 to i256
-    v39 = call v33, v38, 0, v35, v36, v37, 96
+    v39 = call v33, v38, 0, v36, v37, v34, 96
     jumpi v39, bb10, bb9
-  bb9:  ; preds = bb8
+  bb9:                                            ; preds = bb8
     revert_returndata
-  bb10:  ; preds = bb8
+  bb10:                                           ; preds = bb8
     v40 = returndatasize
     v41 = lt v40, 96
     icall revert_if<tuple_data_too_short>, v41
-    v42 = make_memory_slice v37, 96
+    v42 = make_memory_slice v34, 96
     v43 = abi_decode [array<3, function>], v42
     v44 = lt 0, 3
     v45 = eq v44, false
@@ -160,9 +175,9 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     mstore 0, v52 !metadata(memory=scratch)
     v53 = call v51, v50, 0, 28, 4, 0, 32
     jumpi v53, bb12, bb11
-  bb11:  ; preds = bb10
+  bb11:                                           ; preds = bb10
     revert_returndata
-  bb12:  ; preds = bb10
+  bb12:                                           ; preds = bb10
     v54 = returndatasize
     v55 = lt v54, 32
     icall revert_if<tuple_data_too_short>, v55
@@ -181,9 +196,9 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     mstore 0, v66 !metadata(memory=scratch)
     v67 = call v65, v64, 0, 28, 4, 0, 32
     jumpi v67, bb14, bb13
-  bb13:  ; preds = bb12
+  bb13:                                           ; preds = bb12
     revert_returndata
-  bb14:  ; preds = bb12
+  bb14:                                           ; preds = bb12
     v68 = returndatasize
     v69 = lt v68, 32
     icall revert_if<tuple_data_too_short>, v69
@@ -202,9 +217,9 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     mstore 0, v80 !metadata(memory=scratch)
     v81 = call v79, v78, 0, 28, 4, 0, 32
     jumpi v81, bb16, bb15
-  bb15:  ; preds = bb14
+  bb15:                                           ; preds = bb14
     revert_returndata
-  bb16:  ; preds = bb14
+  bb16:                                           ; preds = bb14
     v82 = returndatasize
     v83 = lt v82, 32
     icall revert_if<tuple_data_too_short>, v83
@@ -213,7 +228,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v86 = insert_value struct0, v85, 1, v70
     v87 = insert_value struct0, v86, 2, v84
     ret v87
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v8 = address
     v9 = zext i160 v8 to i256
     v10 = shl v9, 32
@@ -228,9 +243,9 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v18 = ptradd v17, 32
     mstore v18, v15
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v19 = checked_add uint256, v5, 1
     jump bb1
 }
@@ -261,19 +276,19 @@ fn @h() -> i256 [selector=0xb8c9d365, abi_params=[], abi_returns=[function], abi
     sstore 0, v1 !metadata(storage=slot(0))
     v2 = eq v0, 0
     jumpi v2, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v7 = address
     v8 = zext i160 v7 to i256
     v9 = shl v8, 32
     v10 = or v9, 0xe2179b8e
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v3 = address
     v4 = zext i160 v3 to i256
     v5 = shl v4, 32
     v6 = or v5, 0x26121ff0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v11 = phi [bb1: v6], [bb2: v10]
     ret v11
 }

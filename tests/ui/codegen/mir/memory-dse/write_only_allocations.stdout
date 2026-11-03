@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/memory-dse/write_only_allocations.mir (before memory-dse) ===
-+ // === ROOT/tests/ui/codegen/mir/memory-dse/write_only_allocations.mir (after memory-dse) ===
+- ; === ROOT/tests/ui/codegen/mir/memory-dse/write_only_allocations.mir (before memory-dse) ===
++ ; === ROOT/tests/ui/codegen/mir/memory-dse/write_only_allocations.mir (after memory-dse) ===
   @module WriteOnlyAllocations
   fn @write_only(arg0: i256, arg1: i256) {
     bb0:
@@ -16,9 +16,9 @@
       v0 = alloc 32 !metadata(deferred_alloc)
       mstore v0, arg0
       jumpi arg1, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       stop
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       v1 = mload v0
       mstore 128, v1
       returndata 128, 32

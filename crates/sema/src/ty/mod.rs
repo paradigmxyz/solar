@@ -1957,7 +1957,7 @@ pub(crate) fn natspec_contract_in_source(
 ) -> Option<hir::ContractId> {
     let (name, source_id) = key;
     gcx.symbol_resolver.source_scopes[source_id]
-        .resolve(solar_interface::Ident { name, span: Span::DUMMY })
+        .resolve(Ident { name, span: Span::DUMMY })
         .and_then(|decls| {
             decls.iter().find_map(|decl| match decl.res {
                 hir::Res::Item(hir::ItemId::Contract(id)) => Some(id),
@@ -2035,7 +2035,7 @@ pub fn type_of_item(gcx: _, id: hir::ItemId) -> Ty<'gcx> {
 
 /// Returns the types of the fields of the given struct.
 pub fn struct_field_types(gcx: _, id: hir::StructId) -> &'gcx [Ty<'gcx>] {
-    gcx.mk_ty_iter(gcx.hir.strukt(id).fields.iter().map(|&f| gcx.type_of_item(f.into())))
+    gcx.mk_item_tys(gcx.hir.strukt(id).fields)
 }
 
 /// Returns the recursiveness of the given struct.

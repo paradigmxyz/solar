@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_state_variable_order.sol:ConstructorStateOrderBase ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_state_variable_order.sol:ConstructorStateOrderBase ===
 @module ConstructorStateOrderBase
 ; constructor(uint256 x) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
@@ -39,7 +39,7 @@ fn @f(arg0: i256) -> i256 [selector=0xb3de648b, abi_params=[uint256], abi_return
     ret 23
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_state_variable_order.sol:ConstructorStateOrderDerived ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_state_variable_order.sol:ConstructorStateOrderDerived ===
 @module ConstructorStateOrderDerived
 ; constructor() ConstructorStateOrderBase(17) [creation entry]
 fn @constructor() [constructor] {
@@ -49,7 +49,7 @@ fn @constructor() [constructor] {
     sstore 1, v0 !metadata(storage=slot(1))
     sstore 0, 17 !metadata(storage=slot(0))
     jump bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = icall @f, v1
     sstore 3, v2 !metadata(storage=slot(3))
@@ -62,7 +62,7 @@ fn @constructor() [constructor] {
     v6 = sload 2 !metadata(storage=slot(2))
     sstore 7, v6 !metadata(storage=slot(7))
     jump bb2
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     ret
 }
 

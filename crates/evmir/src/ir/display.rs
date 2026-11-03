@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::{
-    link::{display_data_ref, display_data_size, display_declarations},
+    link::{display_data_ref, display_data_size, display_declarations, display_u256},
     op,
 };
 use solar_data_structures::fmt::FmtIteratorExt;
@@ -54,15 +54,15 @@ fn display_block<'a>(module: &'a Module, block: &'a Block) -> impl fmt::Display 
         if let Some(depth) = metadata.entry_depth {
             attributes.push(format!("stack={depth}"));
         }
-        write!(f, "bb{}", block.label)?;
-        if !attributes.is_empty() {
-            write!(f, " [{}]", attributes.iter().format(", "))?;
-        }
-        write!(f, ":")?;
-        if let Some(comment) = module.comments.get(block.label) {
-            write!(f, "  ; {comment}")?;
-        }
-        writeln!(f)?;
+        let label = fmt::from_fn(|f| {
+            write!(f, "bb{}", block.label)?;
+            if !attributes.is_empty() {
+                write!(f, " [{}]", attributes.iter().format(", "))?;
+            }
+            write!(f, ":")
+        });
+        let comment = module.comments.get(block.label);
+        writeln!(f, "{}", solar_ir::comment::display_label_comment(label, comment))?;
         for inst in &block.instructions {
             writeln!(f, "  {}", display_instruction(module, inst))?;
         }
@@ -208,16 +208,4 @@ fn display_push_value<'a>(module: &'a Module, value: &'a PushValue) -> impl fmt:
 
 fn display_block_id(module: &Module, block: BlockId) -> impl fmt::Display + '_ {
     fmt::from_fn(move |f| write!(f, "bb{}", module.blocks[block].label))
-}
-
-fn display_u256(value: U256) -> impl fmt::Display {
-    fmt::from_fn(move |f| {
-        if let Ok(value) = u64::try_from(value)
-            && value < 1000
-        {
-            write!(f, "{value}")
-        } else {
-            write!(f, "{value:#x}")
-        }
-    })
 }

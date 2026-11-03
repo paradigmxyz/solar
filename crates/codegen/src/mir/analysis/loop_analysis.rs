@@ -8,7 +8,7 @@
 
 use crate::mir::{
     ArithmeticKind, BlockId, CheckedOp, Function, InstId, InstKind, Terminator, Value, ValueId,
-    analysis::CfgInfo,
+    analysis::{CfgInfo, integers::integer_max},
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -423,17 +423,9 @@ impl LoopAnalyzer {
 
         let iv = &loop_info.induction_vars[0];
 
-        let init = match func.value(iv.init) {
-            Value::Immediate(imm) => imm.as_u256(),
-            _ => return,
+        let (Some(init), Some(step)) = (func.value_u256(iv.init), func.value_u256(iv.step)) else {
+            return;
         };
-
-        let step = match func.value(iv.step) {
-            Value::Immediate(imm) => imm.as_u256(),
-            _ => return,
-        };
-
-        let (Some(init), Some(step)) = (init, step) else { return };
 
         if step.is_zero() {
             return;
@@ -451,9 +443,7 @@ impl LoopAnalyzer {
             let diff = bound - init;
             let trip =
                 if diff.is_zero() { U256::ZERO } else { ((diff - U256::ONE) / step) + U256::ONE };
-            let bits =
-                func.value_ty(iv.value).and_then(crate::mir::MirType::integer_bits).unwrap_or(256);
-            let max = U256::MAX >> (256 - bits);
+            let max = integer_max(func, iv.value);
             if trip
                 .checked_mul(step)
                 .and_then(|travel| init.checked_add(travel))

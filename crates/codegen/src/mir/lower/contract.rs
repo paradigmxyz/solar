@@ -263,9 +263,8 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
         }
 
         if contract.ctor.is_none() && (has_state_initializers || has_implicit_base_constructors) {
-            let mir_id = context.module.add_function(Function::new(
-                solar_interface::Ident::with_dummy_span(solar_interface::kw::Constructor),
-            ));
+            let mir_id =
+                context.module.add_function(Function::new(Ident::with_dummy_span(kw::Constructor)));
             context.module.set_constructor(mir_id);
             let errors_before = gcx.dcx().err_count();
             let Some(mut mir) =

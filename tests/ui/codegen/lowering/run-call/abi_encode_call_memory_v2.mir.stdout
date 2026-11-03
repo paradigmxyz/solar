@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_memory_v2.sol:AbiEncodeCallMemoryTarget ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_memory_v2.sol:AbiEncodeCallMemoryTarget ===
 @module AbiEncodeCallMemoryTarget
 ; function something() external pure [selector 0xa7a0d537]
 fn @something() [selector=0xa7a0d537, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
@@ -6,7 +6,7 @@ fn @something() [selector=0xa7a0d537, pure, abi_params=[], abi_returns=[], abi_r
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_memory_v2.sol:AbiEncodeCallMemory ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_memory_v2.sol:AbiEncodeCallMemory ===
 @module AbiEncodeCallMemory
 @data
   AbiEncodeCallMemoryTarget_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_memory_v2.sol:AbiEncodeCallMemoryTarget"
@@ -56,18 +56,18 @@ fn @memoryLoop() -> i256 [selector=0x0f61b86c, abi_params=[], abi_returns=[word]
     v8 = ptradd v0, 64
     mstore v8, 99
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v9 = phi [bb0: 0], [bb3: v9]
-    v10 = phi [bb0: ptr<memory> 96], [bb3: v32]
-    v11 = phi [bb0: v0], [bb3: v33]
-    v12 = phi [bb0: 0], [bb3: v38]
+    v10 = phi [bb0: ptr<memory> 96], [bb3: v36]
+    v11 = phi [bb0: v0], [bb3: v37]
+    v12 = phi [bb0: 0], [bb3: v42]
     v13 = lt v12, 2
     jumpi v13, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     ret 1
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v14 = abi_encode [memory_bytes, memory_array<word>], object, selector 0x1403c78f00000000000000000000000000000000000000000000000000000000, args v10, v11
     v15 = address
     v16 = gas
@@ -89,24 +89,29 @@ fn @memoryLoop() -> i256 [selector=0x0f61b86c, abi_params=[], abi_returns=[word]
     v29 = zext i160 v27 to i256
     v30 = staticcall v28, v29, 28, 4, 0, 0
     jumpi v30, bb8, bb7
-  bb7:  ; preds = bb4
+  bb7:                                            ; preds = bb4
     revert_returndata
-  bb8:  ; preds = bb4
-    v31 = icall returndata_bytes<>
-    v32 = abi_decode [bytes], v31
-    v33 = alloc zeroed checked 128
-    mstore v33, 3
-    v34 = mload v33
-    v35 = gt v34, 2
-    v36 = eq v35, false
-    icall panic_if<0x32>, v36
-    v37 = ptradd v33, 96
-    mstore v37, 123
+  bb8:                                            ; preds = bb4
+    v31 = returndatasize
+    v32 = add v31, 31
+    v33 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v34 = alloc v33
+    returndatacopy v34, 0, v31
+    v35 = make_memory_slice v34, v31
+    v36 = abi_decode [bytes], v35
+    v37 = alloc zeroed checked 128
+    mstore v37, 3
+    v38 = mload v37
+    v39 = gt v38, 2
+    v40 = eq v39, false
+    icall panic_if<0x32>, v40
+    v41 = ptradd v37, 96
+    mstore v41, 123
     jump bb6
-  bb6:  ; preds = bb8
+  bb6:                                            ; preds = bb8
     jump bb3
-  bb3:  ; preds = bb6
-    v38 = checked_add uint256, v12, 1
+  bb3:                                            ; preds = bb6
+    v42 = checked_add uint256, v12, 1
     jump bb1
 }
 
@@ -130,9 +135,9 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes4
     v10 = create 0, v9, v8
     v11 = ne v10, i160 0
     jumpi v11, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v12 = zext i160 v10 to i256
     v13 = shl v12, 32
     v14 = or v13, 0xa7a0d537
@@ -171,22 +176,22 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes4
     v42 = mload v30
     v43 = eq v42, 4
     jumpi v43, bb3, bb4
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     jump bb5
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v44 = mload v38
     v45 = eq v44, 4
     jump bb5
-  bb5:  ; preds = bb3, bb4
+  bb5:                                            ; preds = bb3, bb4
     v46 = phi [bb3: v45], [bb4: false]
     jumpi v46, bb6, bb7
-  bb7:  ; preds = bb5
+  bb7:                                            ; preds = bb5
     jump bb8
-  bb6:  ; preds = bb5
+  bb6:                                            ; preds = bb5
     v47 = mload v41
     v48 = eq v47, 4
     jump bb8
-  bb8:  ; preds = bb6, bb7
+  bb8:                                            ; preds = bb6, bb7
     v49 = phi [bb6: v48], [bb7: false]
     v50 = eq v49, false
     icall panic_if<0x1>, v50

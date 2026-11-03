@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/egraph/rewrite_metadata.mir (before egraph) ===
-+ // === ROOT/tests/ui/codegen/mir/egraph/rewrite_metadata.mir (after egraph) ===
+- ; === ROOT/tests/ui/codegen/mir/egraph/rewrite_metadata.mir (before egraph) ===
++ ; === ROOT/tests/ui/codegen/mir/egraph/rewrite_metadata.mir (after egraph) ===
   @module RewriteMetadata
   @types
     struct0: {i256, i256}

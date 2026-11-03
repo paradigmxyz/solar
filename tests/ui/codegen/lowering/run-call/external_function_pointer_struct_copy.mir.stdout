@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_struct_copy.sol:ExternalFunctionPointerStructCopyTarget ===
+; === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_struct_copy.sol:ExternalFunctionPointerStructCopyTarget ===
 @module ExternalFunctionPointerStructCopyTarget
 ; function copy(function() external[] calldata functions) external pure returns (Holder memory) [selector 0x0bf8d45f]
 fn @copy(arg0: slice<calldata>) -> ptr<memory> [selector=0x0bf8d45f, pure, abi_params=[array<_, function>], abi_returns=[tuple<memory_array<function>>], abi_return_params=[tuple<array<_, function>>]] {
@@ -26,17 +26,17 @@ fn @copy(arg0: slice<calldata>) -> ptr<memory> [selector=0x0bf8d45f, pure, abi_p
     v15 = alloc v13
     mstore v15, v1
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v16 = phi [bb0: 0], [bb2: v30]
     v17 = lt v16, v1
     jumpi v17, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v31 = ptrtoint ptr<memory> v15 to i256
     mstore v0, v31
     v32 = alloc 32 !metadata(preserves_fmp)
     mstore v32, 96
     ret v0
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v18 = mul v16, 32
     v19 = ptrtoint ptr<calldata> v2 to i256
     v20 = add v19, v18
@@ -55,7 +55,7 @@ fn @copy(arg0: slice<calldata>) -> ptr<memory> [selector=0x0bf8d45f, pure, abi_p
     jump bb1
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_struct_copy.sol:ExternalFunctionPointerStructCopy ===
+; === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_struct_copy.sol:ExternalFunctionPointerStructCopy ===
 @module ExternalFunctionPointerStructCopy
 @data
   ExternalFunctionPointerStructCopyTarget_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_struct_copy.sol:ExternalFunctionPointerStructCopyTarget"
@@ -69,9 +69,9 @@ fn @constructor() [constructor] {
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = sload 0 !metadata(storage=slot(0))
     v5 = and v4, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
     v6 = zext i160 v2 to i256
@@ -122,67 +122,72 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v28 = sload 0 !metadata(storage=slot(0))
     v29 = trunc i256 v28 to i160
     v30 = gas
-    v31 = abi_encode [memory_array<function>], selector 0xbf8d45f00000000000000000000000000000000000000000000000000000000, args v0
+    v31 = abi_encode [memory_array<function>], scratch, selector 0xbf8d45f00000000000000000000000000000000000000000000000000000000, args v0
     v32 = extract_value slice<memory>, v31, 0
     v33 = extract_value slice<memory>, v31, 1
     v34 = zext i160 v29 to i256
     v35 = staticcall v30, v34, v32, v33, 0, 0
     jumpi v35, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
-    v36 = icall returndata_bytes<>
-    v37 = abi_decode [tuple<array<_, function>>], v36
-    v38 = mload v37, ptr<memory>
-    v39 = mload v38
-    v40 = eq v39, 3
-    v41 = eq v40, false
-    icall revert_if<empty>, v41
-    v42 = mload v37, ptr<memory>
+  bb2:                                            ; preds = bb0
+    v36 = returndatasize
+    v37 = add v36, 31
+    v38 = and v37, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v39 = alloc v38
+    returndatacopy v39, 0, v36
+    v40 = make_memory_slice v39, v36
+    v41 = abi_decode [tuple<array<_, function>>], v40
+    v42 = mload v41, ptr<memory>
     v43 = mload v42
-    v44 = gt v43, 0
+    v44 = eq v43, 3
     v45 = eq v44, false
-    icall panic_if<0x32>, v45
-    v46 = ptradd v42, 32
+    icall revert_if<empty>, v45
+    v46 = mload v41, ptr<memory>
     v47 = mload v46
-    v48 = shr v47, 64
-    v49 = address
-    v50 = zext i160 v49 to i256
-    v51 = shl v50, 32
-    v52 = or v51, 0xd24c5a36
-    v53 = eq v48, v52
-    v54 = eq v53, false
-    icall revert_if<empty>, v54
-    v55 = mload v37, ptr<memory>
-    v56 = mload v55
-    v57 = gt v56, 1
+    v48 = gt v47, 0
+    v49 = eq v48, false
+    icall panic_if<0x32>, v49
+    v50 = ptradd v46, 32
+    v51 = mload v50
+    v52 = shr v51, 64
+    v53 = address
+    v54 = zext i160 v53 to i256
+    v55 = shl v54, 32
+    v56 = or v55, 0xd24c5a36
+    v57 = eq v52, v56
     v58 = eq v57, false
-    icall panic_if<0x32>, v58
-    v59 = ptradd v55, 64
+    icall revert_if<empty>, v58
+    v59 = mload v41, ptr<memory>
     v60 = mload v59
-    v61 = shr v60, 64
-    v62 = address
-    v63 = zext i160 v62 to i256
-    v64 = shl v63, 32
-    v65 = or v64, 0xc5337ed4
-    v66 = eq v61, v65
-    v67 = eq v66, false
-    icall revert_if<empty>, v67
-    v68 = mload v37, ptr<memory>
-    v69 = mload v68
-    v70 = gt v69, 2
+    v61 = gt v60, 1
+    v62 = eq v61, false
+    icall panic_if<0x32>, v62
+    v63 = ptradd v59, 64
+    v64 = mload v63
+    v65 = shr v64, 64
+    v66 = address
+    v67 = zext i160 v66 to i256
+    v68 = shl v67, 32
+    v69 = or v68, 0xc5337ed4
+    v70 = eq v65, v69
     v71 = eq v70, false
-    icall panic_if<0x32>, v71
-    v72 = ptradd v68, 96
+    icall revert_if<empty>, v71
+    v72 = mload v41, ptr<memory>
     v73 = mload v72
-    v74 = shr v73, 64
-    v75 = address
-    v76 = zext i160 v75 to i256
-    v77 = shl v76, 32
-    v78 = or v77, 0xafb0db5f
-    v79 = eq v74, v78
-    v80 = eq v79, false
-    icall revert_if<empty>, v80
+    v74 = gt v73, 2
+    v75 = eq v74, false
+    icall panic_if<0x32>, v75
+    v76 = ptradd v72, 96
+    v77 = mload v76
+    v78 = shr v77, 64
+    v79 = address
+    v80 = zext i160 v79 to i256
+    v81 = shl v80, 32
+    v82 = or v81, 0xafb0db5f
+    v83 = eq v78, v82
+    v84 = eq v83, false
+    icall revert_if<empty>, v84
     ret true
 }
 

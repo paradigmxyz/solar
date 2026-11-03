@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/loop-unroll/complete_loops.sol:CompleteLoops ===
+; === ROOT/tests/ui/codegen/mir/loop-unroll/complete_loops.sol:CompleteLoops ===
 @module CompleteLoops
 @phase lowered
 ; runtime dispatch entry
@@ -7,15 +7,15 @@ fn @entry() [entry] {
     v0 = callvalue
     v1 = ne v0, 0
     jumpi v1, bb4, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v2 = calldataload 0
     v3 = shr v2, 224
     switch v3, default bb4, [0x540a714 => bb2, 0xe5c5e9a3 => bb3]
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     tail_call @decode
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     tail_call @sum4
-  bb4 [cold]:  ; preds = bb0, bb1
+  bb4 [cold]:                                     ; preds = bb0, bb1
     revert 0, 0
 }
 
@@ -48,9 +48,11 @@ fn @u32(arg0: i256, arg1: i256) [return_abi=[i256, i256]] {
     v73 = lt 3, arg1
     v81 = and v80, v73
     jumpi v81, bb2, bb1
-  bb1 [cold]:  ; preds = bb0
-    tail_call @revert_stub
-  bb2:  ; preds = bb0
+  bb1 [cold]:                                     ; preds = bb0
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb2:                                            ; preds = bb0
     v74 = add arg0, 3
     v75 = calldataload v74
     v76 = byte 0, v75
@@ -72,9 +74,11 @@ fn @u16(arg0: i256, arg1: i256, arg2: i256) [return_abi=[i256, i256]] {
     v54 = lt v46, arg1
     v61 = and v41, v54
     jumpi v61, bb2, bb1
-  bb1 [cold]:  ; preds = bb0
-    tail_call @revert_stub
-  bb2:  ; preds = bb0
+  bb1 [cold]:                                     ; preds = bb0
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb2:                                            ; preds = bb0
     v59 = add v46, 1
     v55 = add arg0, v46
     v56 = calldataload v55
@@ -99,7 +103,7 @@ fn @decode() {
     v19 = or v14, v18
     v40 = or v9, v19
     jumpi v40, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v25 = icall @u32, v16, v15
     v33 = mload 32 !metadata(memory=scratch)
     v27 = add v33, 32
@@ -108,7 +112,7 @@ fn @decode() {
     mstore 0, v25
     mstore 32, v29
     returndata 0, 64
-  bb1 [cold]:  ; preds = bb0
+  bb1 [cold]:                                     ; preds = bb0
     revert 0, 0
 }
 
@@ -118,7 +122,7 @@ fn @sum4() {
     v33 = calldatasize
     v34 = lt v33, 132
     jumpi v34, bb2, bb3
-  bb3:  ; preds = bb0
+  bb3:                                            ; preds = bb0
     v77 = calldataload 4
     v78 = add v77, 0
     v86 = calldataload 36
@@ -133,20 +137,13 @@ fn @sum4() {
     v106 = lt v105, v96
     v109 = or v108, v106
     jumpi v109, bb1, bb4
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     mstore 0, v105
     returndata 0, 32
-  bb1 [cold]:  ; preds = bb3
+  bb1 [cold]:                                     ; preds = bb3
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb2 [cold]:  ; preds = bb0
+  bb2 [cold]:                                     ; preds = bb0
     revert 0, 0
-}
-
-fn @revert_stub() [cold] {
-  bb0 [cold]:
-    mstore 32, 50 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }

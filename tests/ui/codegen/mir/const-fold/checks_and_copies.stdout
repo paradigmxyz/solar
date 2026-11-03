@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/const-fold/checks_and_copies.mir (before const-fold) ===
-+ // === ROOT/tests/ui/codegen/mir/const-fold/checks_and_copies.mir (after const-fold) ===
+- ; === ROOT/tests/ui/codegen/mir/const-fold/checks_and_copies.mir (before const-fold) ===
++ ; === ROOT/tests/ui/codegen/mir/const-fold/checks_and_copies.mir (after const-fold) ===
   @module ChecksAndCopies
   fn @passing() -> i256 {
     bb0:

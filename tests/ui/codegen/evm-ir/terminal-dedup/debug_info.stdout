@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/terminal-dedup/debug_info.evmir (before terminal-dedup) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/terminal-dedup/debug_info.evmir (after terminal-dedup) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/terminal-dedup/debug_info.evmir (before terminal-dedup) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/terminal-dedup/debug_info.evmir (after terminal-dedup) ===
   @module DebugInfo
   bb0:
     push 1 !metadata(span=1..5)

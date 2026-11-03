@@ -1,4 +1,5 @@
 use solar_config::LspArgs;
+use solar_interface::diagnostics::DiagCtxt;
 use std::process::ExitCode;
 
 pub(super) fn run(args: LspArgs) -> ExitCode {
@@ -10,6 +11,9 @@ pub(super) fn run(args: LspArgs) -> ExitCode {
         .block_on(solar_lsp::launch(args.into()))
     {
         Ok(()) => ExitCode::SUCCESS,
-        Err(_) => ExitCode::FAILURE,
+        Err(e) => {
+            DiagCtxt::new_early().err(format!("language server failed: {e}")).emit();
+            ExitCode::FAILURE
+        }
     }
 }

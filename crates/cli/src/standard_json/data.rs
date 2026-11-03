@@ -5,7 +5,6 @@ use crate::{
     ethdebug::{EthdebugCompilation, EthdebugProgram, EthdebugResources},
 };
 use alloy_primitives::Address;
-use indexmap::IndexMap;
 use rayon::prelude::*;
 use serde::{
     Deserialize, Serialize,
@@ -13,7 +12,7 @@ use serde::{
 };
 use serde_json::{Map, Value, value::RawValue};
 use solar_config::RevertStrings;
-use solar_data_structures::map::FxBuildHasher;
+use solar_data_structures::map::FxIndexMap;
 use solar_interface::diagnostics::SolcDiagnostic;
 use solar_sema::output::{Documentation, SourceAstJson, StorageLayoutOutput};
 use std::{
@@ -21,8 +20,6 @@ use std::{
     fmt,
     ops::Deref,
 };
-
-pub(super) type FxIndexMap<K, V> = IndexMap<K, V, FxBuildHasher>;
 
 /// Result returned by a Standard JSON read callback.
 #[derive(Clone, Debug, PartialEq, Eq)]

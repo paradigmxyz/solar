@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/exponent_operand_cleanup.sol:ExponentOperandCleanup ===
+; === ROOT/tests/ui/codegen/lowering/run-call/exponent_operand_cleanup.sol:ExponentOperandCleanup ===
 @module ExponentOperandCleanup
 @types
   struct0: {i256, i256}
@@ -35,11 +35,11 @@ fn @copiedDirtyOperand() -> i256 [selector=0x2f5133b3, pure, abi_params=[], abi_
 fn @branchedDirtyOperand(arg0: i1) -> i256 [selector=0x3d6d96b7, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v0 = phi [bb1: 259], [bb2: 2]
     v1 = trunc i256 v0 to i8
     v2 = zext i8 v1 to i256

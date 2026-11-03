@@ -1,7 +1,7 @@
 use crate::{
     document_links::import_path_from_bytes,
     utils::{parse_recovering, span_range},
-    workspace::{Workspace, WorkspacePathIndex},
+    workspace::{Workspace, WorkspacePathIndex, is_solidity_file},
 };
 use normalize_path::NormalizePath;
 use solar_config::CompileOpts;
@@ -214,7 +214,7 @@ impl<'a> ImportResolutionContext<'a> {
     pub(crate) fn for_workspaces_with_index(
         workspaces: &'a [Workspace],
         importing_file: &Path,
-        entries: std::sync::Arc<Vec<crate::workspace::WorkspaceImportPathIndexEntry>>,
+        entries: Arc<Vec<crate::workspace::WorkspaceImportPathIndexEntry>>,
     ) -> Option<Self> {
         let importing_file = importing_file.normalize();
         let index = WorkspacePathIndex::with_import_entries(workspaces, entries);
@@ -411,10 +411,7 @@ fn collect_remapping_candidates(
                     .any(|path| path != *target && path.starts_with(target))
         });
         let kind = if target_is_file
-            || (!target_is_directory
-                && Path::new(&remapping.path)
-                    .extension()
-                    .is_some_and(|extension| extension == "sol"))
+            || (!target_is_directory && is_solidity_file(Path::new(&remapping.path)))
         {
             ImportCandidateKind::File
         } else {

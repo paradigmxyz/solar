@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/dce/dce_side_effects.mir (before dce) ===
-+ // === ROOT/tests/ui/codegen/mir/dce/dce_side_effects.mir (after dce) ===
+- ; === ROOT/tests/ui/codegen/mir/dce/dce_side_effects.mir (before dce) ===
++ ; === ROOT/tests/ui/codegen/mir/dce/dce_side_effects.mir (after dce) ===
   @module DceSideEffects
   fn @effects(arg0: i256, arg1: i256) {
     bb0:
@@ -51,7 +51,7 @@
   fn @looping() {
     bb0 [cold]:
       jump bb1
-    bb1 [cold]:  ; preds = bb0, bb1
+    bb1 [cold]:                                     ; preds = bb0, bb1
       jump bb1
   }
   

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/negative_fractional_mod.sol:NegativeFractionalMod ===
+; === ROOT/tests/ui/codegen/lowering/run-call/negative_fractional_mod.sol:NegativeFractionalMod ===
 @module NegativeFractionalMod
 @types
   struct0: {i256, i256}

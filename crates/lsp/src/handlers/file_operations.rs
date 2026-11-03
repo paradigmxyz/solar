@@ -7,6 +7,7 @@ use crate::{
     global_state::{GlobalState, SourceFileEventDisposition},
     proto,
     symbols::SymbolTables,
+    workspace::is_solidity_file,
 };
 use async_lsp::{ErrorCode, ResponseError};
 use lsp_types::{
@@ -98,7 +99,7 @@ fn watched_paths_under(state: &GlobalState, roots: &[PathBuf]) -> Vec<PathBuf> {
 }
 
 fn is_watched_path(path: &Path) -> bool {
-    path.extension().is_some_and(|extension| extension == "sol")
+    is_solidity_file(path)
         || path
             .file_name()
             .is_some_and(|name| matches!(name.to_str(), Some("foundry.toml" | "remappings.txt")))
@@ -117,7 +118,7 @@ fn completed_file_operation_path_is_relevant(
     if known {
         return true;
     }
-    if path.extension().is_none_or(|extension| extension != "sol") {
+    if !is_solidity_file(path) {
         return false;
     }
     matches!(

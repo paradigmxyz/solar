@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/defer-alloc/call_captures.mir (before defer-alloc) ===
-+ // === ROOT/tests/ui/codegen/mir/defer-alloc/call_captures.mir (after defer-alloc) ===
+- ; === ROOT/tests/ui/codegen/mir/defer-alloc/call_captures.mir (before defer-alloc) ===
++ ; === ROOT/tests/ui/codegen/mir/defer-alloc/call_captures.mir (after defer-alloc) ===
   @module DeferAllocCallCaptures
   ; selector 0x01020304
   fn @returning_caller() -> i256 [selector=0x01020304] {
