@@ -14,7 +14,7 @@
     mstore
     stop
 - bb3:
-+ bb3 [invoke=callee@30..50, checkpoint=30..40@10..20@0]:
++ bb3 [checkpoint=30..40@10..20@0@callee@30..50]:
     push 2
     push 0
     mstore

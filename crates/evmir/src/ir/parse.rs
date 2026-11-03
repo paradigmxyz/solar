@@ -172,10 +172,22 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     let depth = self.parser.parse_uint()?;
                     let modifier_depth = u32::try_from(depth)
                         .map_err(|_| self.parser.error("modifier depth does not fit in u32"))?;
+                    let checkpoint_invoke = if self.parser.eat(TokenKind::At) {
+                        let identifier = self.parser.parse_ident()?;
+                        self.parser.expect(TokenKind::At)?;
+                        let (lo, hi) = self.parser.parse_span_bounds()?;
+                        Some(DebugFunction {
+                            identifier,
+                            declaration: Span::new(BytePos(lo), BytePos(hi)),
+                        })
+                    } else {
+                        None
+                    };
                     entry_checkpoint = Some(DebugEntryCheckpoint {
                         source: Span::new(BytePos(lo), BytePos(hi)),
                         transfer: Span::new(BytePos(from_lo), BytePos(from_hi)),
                         modifier_depth,
+                        function_invoke: checkpoint_invoke,
                     });
                 } else if self.parser.eat_keyword(sym::stack) {
                     self.parser.expect(TokenKind::Eq)?;

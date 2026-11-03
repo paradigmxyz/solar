@@ -461,10 +461,15 @@ fn evm_ir_debug_contexts_preserve_bytecode() {
     let temp = tempfile::tempdir().unwrap();
     let path = temp.path().join("debug.evmir");
     let path = path.to_str().unwrap();
-    for (pipeline, fixture) in [
-        ("peephole", "peephole/debug_replacements.evmir"),
-        ("cfg-simplify", "cfg-simplify/branch_entry_inversion.evmir"),
-        ("cfg-simplify", "cfg-simplify/thunk_chain_spans.evmir"),
+    for (pipeline, fixture, audit) in [
+        ("peephole", "peephole/debug_replacements.evmir", "check"),
+        ("cfg-simplify", "cfg-simplify/branch_entry_inversion.evmir", "check"),
+        ("cfg-simplify", "cfg-simplify/thunk_chain_spans.evmir", "check"),
+        (
+            "cfg-simplify,terminal-dedup,cfg-simplify",
+            "cfg-simplify/checkpoint_shared_entry.evmir",
+            "report",
+        ),
     ] {
         let source = RealFileLoader
             .load_file(&Path::new(FIXTURES).join("../../codegen/evm-ir").join(fixture))
@@ -485,7 +490,8 @@ fn evm_ir_debug_contexts_preserve_bytecode() {
             let baseline = compile_json(&args);
             fs::write(path, &source).unwrap();
             let annotated = compile_json(&args);
-            let audited = compile_json(&[args.as_slice(), &["-Zdebugify=check"]].concat());
+            let audit = format!("-Zdebugify={audit}");
+            let audited = compile_json(&[args.as_slice(), &[&audit]].concat());
             assert_eq!(
                 baseline["contracts"], annotated["contracts"],
                 "{fixture}, {mode}: source contexts"

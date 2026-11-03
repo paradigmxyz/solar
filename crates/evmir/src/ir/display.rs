@@ -6,6 +6,7 @@ use crate::{
     op,
 };
 use solar_data_structures::fmt::FmtIteratorExt;
+use std::fmt::Write;
 
 impl Module {
     /// Returns the EVM IR text-format representation. Audit-only debug fields can be hidden
@@ -60,14 +61,24 @@ fn display_block<'a>(module: &'a Module, block: &'a Block) -> impl fmt::Display 
         if !module.hide_debug_info
             && let Some(checkpoint) = metadata.entry_checkpoint
         {
-            attributes.push(format!(
+            let mut attribute = format!(
                 "checkpoint={}..{}@{}..{}@{}",
                 checkpoint.source.lo().0,
                 checkpoint.source.hi().0,
                 checkpoint.transfer.lo().0,
                 checkpoint.transfer.hi().0,
                 checkpoint.modifier_depth,
-            ));
+            );
+            if let Some(function) = checkpoint.function_invoke {
+                write!(
+                    attribute,
+                    "@{}@{}..{}",
+                    function.identifier,
+                    function.declaration.lo().0,
+                    function.declaration.hi().0
+                )?;
+            }
+            attributes.push(attribute);
         }
         let label = fmt::from_fn(|f| {
             write!(f, "bb{}", block.label)?;

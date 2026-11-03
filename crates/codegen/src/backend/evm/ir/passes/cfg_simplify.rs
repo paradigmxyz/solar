@@ -566,15 +566,13 @@ fn redirect_jump_thunks(
             });
         }
     }
-    for (target, checkpoint, invocation) in checkpoints {
+    for (target, mut checkpoint, invocation) in checkpoints {
         let metadata = &mut module.blocks[target].metadata;
+        if metadata.function_invoke.is_none() {
+            checkpoint.function_invoke = invocation;
+        }
         if metadata.entry_checkpoint.is_none() || metadata.entry_checkpoint == Some(checkpoint) {
             metadata.entry_checkpoint = Some(checkpoint);
-            // The exclusive entry executes only on this edge, even if assembly inverts the
-            // branch. A shared conditional transfer must never inherit its function event.
-            if metadata.function_invoke.is_none() {
-                metadata.function_invoke = invocation;
-            }
         }
     }
     // target: <unobservable control continuation>
@@ -826,6 +824,7 @@ fn thunk_checkpoint(
         source: *source,
         transfer: origin,
         modifier_depth: chain.modifier_depth(),
+        function_invoke: None,
     };
     let mut target = start;
     for _ in 0..thunks.len() {

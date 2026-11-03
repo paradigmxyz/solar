@@ -36,6 +36,7 @@ pub enum DebugFunctionExit {
 /// source origin, or as an explicit checkpoint identity when it has no source origin. An existing
 /// function invocation's declaration also identifies an unlocated transfer. This proof is
 /// rechecked after transformations; it never keeps a label alive or invents a function event.
+/// Any borrowed function entry is owned by this checkpoint and disappears with its proof.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DebugEntryCheckpoint {
     /// Source operation executed on entry to the label.
@@ -44,4 +45,7 @@ pub struct DebugEntryCheckpoint {
     pub transfer: Span,
     /// Modifier depth of the source operation.
     pub modifier_depth: u32,
+    /// Function entry that is valid only while this checkpoint's exclusive-entry proof holds.
+    /// Native block entries are independent and must not be stored here.
+    pub function_invoke: Option<DebugFunction>,
 }

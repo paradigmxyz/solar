@@ -242,7 +242,17 @@ fn lower_evm_ir_once(
         );
         program.set_modifier_depth(block_modifier_depth);
         let original = block.label as usize;
-        if let Some(function) = block.metadata.function_invoke {
+        // A thunk's function entry depends on the same exclusive-edge proof as its source
+        // checkpoint. Sharing may revoke it without affecting a native block entry.
+        let checkpoint = entry_checkpoints
+            .contains(block_id)
+            .then_some(block.metadata.entry_checkpoint)
+            .flatten();
+        if let Some(function) = block
+            .metadata
+            .function_invoke
+            .or_else(|| checkpoint.and_then(|checkpoint| checkpoint.function_invoke))
+        {
             debug_assert!(
                 pending_block_invoke.is_none() || pending_block_invoke == Some(function),
                 "an instruction-free block cannot enter two functions"
@@ -250,9 +260,7 @@ fn lower_evm_ir_once(
             pending_block_invoke = Some(function);
         }
         if let Some(label) = labels.get(original).copied().flatten() {
-            if entry_checkpoints.contains(block_id)
-                && let Some(checkpoint) = block.metadata.entry_checkpoint
-            {
+            if let Some(checkpoint) = checkpoint {
                 program.set_source_span(Some(checkpoint.source));
                 program.set_modifier_depth(checkpoint.modifier_depth);
             }
