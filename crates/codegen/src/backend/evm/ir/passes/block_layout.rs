@@ -8,10 +8,12 @@
 //! final lowering can then omit jumps whose target is the next emitted block
 //! without encoding physical layout assumptions in the IR. Independent hot
 //! traces are placed before cold terminal traces so unlikely exit paths do not
-//! interrupt hot code. Small, independently movable traces ending in a terminal are packed
-//! below the PUSH1 address limit by reference density. Moving the entire trace preserves its
-//! fallthrough edges, including a call followed by a shared failure block. Packing also
-//! reserves address space for one-byte indexed jump tables to avoid widening their lookups.
+//! interrupt hot code. Small, independently movable traces ending in a terminal or cold and
+//! ending in a jump, such as a revert stub, are packed below the PUSH1 address limit by reference
+//! density. Hot traces that end in a jump stay put: moving one changes which caller falls
+//! through into a shared tail, and the other caller pays an extra jump. Moving the entire trace
+//! preserves its fallthrough edges, including a call followed by a shared failure block. Packing
+//! also reserves address space for one-byte indexed jump tables to avoid widening their lookups.
 //! Size estimates guide placement; assembly still resolves the exact offsets and widths.
 //! In size mode, shared indirect-return tails prefer the predecessor with strictly more incoming
 //! references. This keeps the more frequently shared outlined entry adjacent to its return tail,
@@ -205,7 +207,10 @@ fn pack_terminal_traces(est: SizeEstimator, module: &Module, order: &mut Vec<Blo
             references += placement.references[block];
             position += 1;
             if is_physical_terminal_boundary(&module.blocks[block], order.get(position).copied()) {
-                if is_terminal_block(&module.blocks[block])
+                // A trace ends in a terminal or a jump. Cold jump-ending traces qualify too, such
+                // as a stub that pushes a revert payload and jumps to the shared revert tail.
+                if (is_terminal_block(&module.blocks[block])
+                    || module.blocks[block].metadata.hotness.is_cold())
                     && size <= 32
                     && references >= 2
                     && (position == start + 1
