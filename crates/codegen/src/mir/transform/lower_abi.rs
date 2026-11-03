@@ -105,7 +105,7 @@ use crate::mir::{
     EffectKind, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, Immediate, InstId,
     InstKind, Instruction, MangledSymbol, MemoryObjectLayout, MirPhase, MirType, Module,
     PtrLocation, RevertReason, Terminator, Value, ValueId, ValueLayout,
-    analysis::{AliasAnalysis, HotnessAnalysis, LocationSize, MemoryBase},
+    analysis::{AliasAnalysis, HotnessAnalysis, LocationSize, MemoryBase, integers::integer_mask},
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
     transform::{cfg_simplify::remove_unreachable_blocks, utils::expand_block},
@@ -3309,7 +3309,7 @@ fn is_canonical_return_scalar(
         return matches!(ty, ValueLayout::Int(size) if size.bits() >= 256);
     };
     let bits = super::egraph::max_bits_with_args(func, value, 8, &|_| 256);
-    if ((U256::MAX >> (256 - bits)) & !expected).is_zero() {
+    if (integer_mask(bits) & !expected).is_zero() {
         return true;
     }
     if ty == ValueLayout::Function

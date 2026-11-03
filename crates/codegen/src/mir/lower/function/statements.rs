@@ -741,7 +741,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let shift = self.builder.imm(64);
             return self.builder.shl(value, shift);
         }
-        if !matches!(ty.peel_refs().kind, TyKind::Elementary(ElementaryType::FixedBytes(_))) {
+        if !ty.peel_refs().is_fixed_bytes() {
             let layout = types::TypeLowerer::value_layout(ty);
             return if matches!(layout, crate::mir::ValueLayout::Int(_)) {
                 raw_scalars::cast_carrier(&mut self.builder, value, layout, MirType::I256)

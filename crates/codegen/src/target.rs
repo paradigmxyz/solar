@@ -20,7 +20,7 @@
 use crate::{
     backend::evm::{ir::compact_pushes, op, select},
     mir::{
-        BlockId, Function, FunctionAttributes, Hotness, InstId, Op, Terminator, Value, ValueId,
+        BlockId, Function, FunctionAttributes, Hotness, InstId, Op, Terminator, ValueId,
         analysis::AddressSpace, memory::EvmMemoryLayout,
     },
 };
@@ -590,12 +590,7 @@ impl Target {
         if dynamic_gas == 0 {
             return Cost::new(static_gas, 1).with_steps(1);
         }
-        let mut arguments = SmallVec::<[Option<U256>; 8]>::new();
-        // Only the visit matters; the mapped copy is discarded.
-        let _ = op.map_values(|value| {
-            arguments.push(immediate(value));
-            value
-        });
+        let arguments = op.operands().into_iter().map(immediate).collect::<SmallVec<[_; 8]>>();
         let dynamic = dynamic_gas.saturating_mul(tier.dynamic_units(&arguments));
         Cost::new(static_gas.saturating_add(dynamic), 1).with_steps(1)
     }
@@ -745,10 +740,7 @@ impl Target {
     /// Estimated code of one instruction: its operation and the pushes of its immediate operands.
     pub(crate) fn instruction_estimate(&self, func: &Function, inst: InstId) -> Cost {
         let kind = &func.inst(inst).kind;
-        let immediate = |value| match func.value(value) {
-            Value::Immediate(immediate) => immediate.as_u256(),
-            _ => None,
-        };
+        let immediate = |value| func.value_u256(value);
         let mut cost = self.op(&kind.op(), immediate);
         kind.visit_operands(|operand| {
             if let Some(value) = immediate(operand) {
