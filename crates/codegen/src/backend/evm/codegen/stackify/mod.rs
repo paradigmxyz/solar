@@ -88,8 +88,9 @@
 //! the uses under each branch alone, so the paths that never use it do not carry it. A complete
 //! replan prices the resulting copies, shuffles, and edges. It keeps the original spill set and
 //! falls back if the constant makes a word unreachable. The trial must improve the target's
-//! runs-weighted objective without increasing estimated gas or bytes. Gas outside loops must not
-//! increase either, so estimated loop trips cannot fund more setup. Size mode reserves a jump's
+//! runs-weighted objective without increasing estimated gas or bytes. Gas outside loops may
+//! increase only when the bytes saved repay it under [`Target::deposit_repays_gas`], so estimated
+//! loop trips alone cannot fund more setup. Size mode reserves a jump's
 //! bytes as a margin: small local savings can disrupt later outlining. Within the defining block,
 //! materialization waits until the first use, or the terminator if only successors need it.
 //! Call-chain overflow retries omit this word.
