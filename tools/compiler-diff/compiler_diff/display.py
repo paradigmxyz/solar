@@ -102,6 +102,11 @@ def show_ast_summary(summary, worst=10):
         f"AST: {total['equal']}/{total['compared']} field comparisons equal"
         f" ({total['equal'] / max(total['compared'], 1):.1%}), {total['ignored']} ignored"
     )
+    nodes = summary["node_types"].values()
+    print(
+        f"AST nodes: {sum(c['paired'] for c in nodes)}/{sum(c['left'] for c in nodes)}"
+        " of the reference's are paired with a candidate node"
+    )
     missing = summary["never_emitted"]
     print(
         f"AST node types: {len(reference) - len(missing)}/{len(reference)} of the reference's are emitted"
@@ -191,8 +196,8 @@ class Tests(unittest.TestCase):
         summary = {
             "fields": [row, {**row, "field": "kind", "equal": 4, "different": 0}],
             "node_types": {
-                "Call": {"left": 2, "right": 2},
-                "Throw": {"left": 1, "right": 0},
+                "Call": {"left": 2, "right": 2, "paired": 2},
+                "Throw": {"left": 1, "right": 0, "paired": 0},
             },
             "never_emitted": ["Throw"],
             "unused_rules": [1],
@@ -202,6 +207,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(
             output.getvalue(),
             """AST: 7/8 field comparisons equal (87.5%), 4 ignored
+AST nodes: 2/3 of the reference's are paired with a candidate node
 AST node types: 1/2 of the reference's are emitted; never emitted: Throw
   Call.isPure: 3/4 equal, 1 different, 0 missing left, 0 missing right
 unused AST rules: [1]

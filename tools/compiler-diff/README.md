@@ -157,7 +157,7 @@ every ID-valued field follows: `id`, `referencedDeclaration`,
 `usedErrors`, `functionReturnParameters`, `assignments`, `function`,
 `exportedSymbols`, `externalReferences[].declaration`, the keys of
 `internalFunctionIDs`, and the IDs in `typeIdentifier` and `typeString` of
-`t_struct`, `t_contract`, `t_enum`, `t_userDefinedValueType` and `t_super` types. Solc's
+`t_struct`, `t_contract`, `t_enum`, `t_userDefinedValueType` and `t_super` types and in `t_module_N`. Solc's
 negative builtin IDs stay. A reference agrees only if both sides point at the
 node in the same place, so a wrong declaration, a wrong builtin, or an ID with
 no node (shown as `?N@left` or `?N@right`) differs. A duplicate ID on one side is an error. The sets solc
@@ -182,7 +182,8 @@ The report holds, for each `(nodeType, field)`, the nodes compared, `equal`,
 `different`, `missing_left`, `missing_right` and `ignored`, and for each node
 type the node count of both sides. Node types that the reference has and the
 candidate never emits are `never_emitted`. `report.json` has them per pair and
-summed under `ast`; the CLI prints the agreement, the never-emitted types and
+summed under `ast`; the CLI prints the agreement, how many reference nodes were paired
+(nodes under a missing field or list item are not), the never-emitted types and
 the ten least-equal fields. `differences` keeps 20 samples per field with
 normalized values and pointers; the rest are counted as `omitted`, which
 expectations cannot excuse.

@@ -40,9 +40,9 @@ AST_UNORDERED_FIELDS = {
     "usedErrors",
     "usedEvents",
 }
-# The ID in `t_struct$_S_$12_storage_ptr` and `t_type$_t_super$_B_$7_$`; array lengths also follow `_$`.
+# The ID in `t_struct$_S_$12_storage_ptr` `t_type$_t_super$_B_$7_$` and `t_module_7`; array lengths also follow `_$`.
 AST_TYPE_ID = re.compile(
-    r"(t_(?:struct|contract|enum|userDefinedValueType|super)\$_.*?_\$)(\d+)"
+    r"(t_(?:struct|contract|enum|userDefinedValueType|super)\$_.*?_\$|t_module_)(\d+)"
 )
 
 
@@ -324,10 +324,13 @@ def compare_ast(left, right, rules):
     # Each source's `ast` is a field of a pseudo node, so missing sources count too.
     stack = [
         (path, "(sources)", roots[0].get(path, {}), roots[1].get(path, {}))
-        for path in sorted(roots[0].keys() | roots[1].keys())
+        for path in sorted(roots[0].keys() | roots[1].keys(), reverse=True)
     ]
+    paired = Counter()
     while stack:
         path, node_type, l, r = stack.pop()
+        paired[node_type] += 1
+        children = []
         for key in [*l, *(k for k in r if k not in l)]:
             # Paired nodes share a type, and each ID is its node's own pointer.
             if key in ("id", "nodeType") and key in l and key in r:
@@ -373,13 +376,15 @@ def compare_ast(left, right, rules):
                 if isinstance(l[key], (dict, list)):
                     for p, x, y in ast_pairs(l[key], r[key], pointer(path, key)):
                         if x["nodeType"] == y["nodeType"]:
-                            stack.append((p, x["nodeType"], x, y))
+                            children.append((p, x["nodeType"], x, y))
             for difference in new:
                 if samples[node_type, key] < AST_SAMPLES:
                     samples[node_type, key] += 1
                     found.append(difference)
                 else:
                     omitted += 1
+        # Pop in document order, so the samples are the first differences.
+        stack.extend(reversed(children))
     counters = ("equal", "different", "missing_left", "missing_right")
     types = [types for _, types in indexes]
     return {
@@ -402,7 +407,11 @@ def compare_ast(left, right, rules):
             for (node_type, field), row in sorted(rows.items())
         ],
         "node_types": {
-            node_type: {"left": types[0][node_type], "right": types[1][node_type]}
+            node_type: {
+                "left": types[0][node_type],
+                "right": types[1][node_type],
+                "paired": paired[node_type],
+            }
             for node_type in sorted(types[0].keys() | types[1].keys())
         },
         "rules": [{**rule, "applied": applied[n]} for n, rule in enumerate(rules)],
@@ -703,6 +712,7 @@ class Tests(unittest.TestCase):
             "referencedDeclaration": -15,
             "typeDescriptions": {
                 "typeIdentifier": f"t_type$_t_super$_C_${ids['C']}_$",
+                "typeString": f"t_module_{ids['unit']}",
             },
         }
         ident = {
@@ -866,8 +876,14 @@ class Tests(unittest.TestCase):
         self.assertEqual(counts(("StructDefinition", "extra")), [1, 0, 0, 1, 0])
         self.assertEqual(counts(("ContractDefinition", "name")), [2, 1, 1, 0, 0])
         self.assertNotIn(("MemberAccess", "memberName"), rows)
-        self.assertEqual(result["node_types"]["MemberAccess"], {"left": 1, "right": 0})
-        self.assertEqual(result["node_types"]["Block"], {"left": 1, "right": 1})
+        self.assertEqual(
+            result["node_types"]["MemberAccess"],
+            {"left": 1, "right": 0, "paired": 0},
+        )
+        self.assertEqual(
+            result["node_types"]["ExpressionStatement"],
+            {"left": 2, "right": 1, "paired": 1},
+        )
         self.assertEqual(
             sorted(d["path"] for d in result["differences"]),
             [
@@ -881,7 +897,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(summary["never_emitted"], ["MemberAccess"])
         self.assertEqual(
             summary["node_types"]["MemberAccess"],
-            {"left": 2, "right": 0},
+            {"left": 2, "right": 0, "paired": 0},
         )
 
     def test_ast_rules_are_counted(self):
@@ -940,6 +956,10 @@ class Tests(unittest.TestCase):
                 item["name"] = "Y"
         result = compare_outputs(left, right, "ast")
         self.assertEqual(len(result["differences"]), AST_SAMPLES)
+        self.assertEqual(
+            [d["path"] for d in result["differences"] if "/ast/nodes/0/" in d["path"]],
+            [f"/sources/A.sol/ast/nodes/0/nodes/{n}/name" for n in range(AST_SAMPLES)],
+        )
         self.assertEqual(result["omitted"], 2 * count - AST_SAMPLES)
         rule = {key: result[key] for key in ("comparator", "version", "policy")}
         rules = [
