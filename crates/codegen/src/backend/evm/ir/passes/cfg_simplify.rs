@@ -50,7 +50,7 @@
 
 use super::{
     EvmPass,
-    block_layout::triangle_arm,
+    block_layout::{terminator_kind, triangle_arm},
     terminal_dedup::absorb_equal_terminal,
     utils::{
         FreshLabels, count_block_references, instruction_size_lower_bound, is_split_point,
@@ -61,7 +61,6 @@ use crate::backend::evm::{
     ir::{
         Block, BlockId, CallEffect, Instruction, Metadata, Module, ModuleTarget, PushValue,
         StackEffect, Terminator, TerminatorKind, default_terminator_stack_effect,
-        passes::block_layout::terminator_kind,
     },
     op,
 };

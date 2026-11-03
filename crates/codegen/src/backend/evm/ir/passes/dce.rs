@@ -18,12 +18,9 @@
 //! unconditional edge to a block that never reads its incoming stack. The computation may use pure
 //! operations and reads of the call's context, whose only effect is their static gas.
 
-use super::EvmPass;
+use super::{EvmPass, block_layout::terminator_kind};
 use crate::backend::evm::{
-    ir::{
-        Block, BlockId, Instruction, Module, Terminator, TerminatorKind,
-        passes::block_layout::terminator_kind,
-    },
+    ir::{Block, BlockId, Instruction, Module, Terminator, TerminatorKind},
     op::{self, StackOp},
 };
 use smallvec::{SmallVec, smallvec};

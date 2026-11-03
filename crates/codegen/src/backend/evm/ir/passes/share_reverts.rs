@@ -16,15 +16,12 @@
 //! so a sequence whose intervening gas is observable is left alone.
 
 use super::{
-    EvmPass, compact_pushes::immediate_materialization_cost, peephole::invert_comparison,
-    utils::is_split_point,
+    EvmPass, block_layout::terminator_kind, compact_pushes::immediate_materialization_cost,
+    peephole::invert_comparison, utils::is_split_point,
 };
 use crate::{
     backend::evm::{
-        ir::{
-            Block, BlockId, Instruction, Module, ModuleTarget, Terminator, TerminatorKind,
-            passes::block_layout::terminator_kind,
-        },
+        ir::{Block, BlockId, Instruction, Module, ModuleTarget, Terminator, TerminatorKind},
         op,
     },
     target::Target,

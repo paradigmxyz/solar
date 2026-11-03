@@ -44,13 +44,13 @@
 //! swap, as `PUSH0; NOT` does for the decrement `x - 1`. The low-mask window ends in the same
 //! tail, so this rewrite waits for it.
 
-use super::{EvmPass, compact_pushes::materialize_immediate, utils::MachineInstKey};
+use super::{
+    EvmPass, block_layout::terminator_kind, compact_pushes::materialize_immediate,
+    utils::MachineInstKey,
+};
 use crate::{
     backend::evm::{
-        ir::{
-            Instruction, Module, ModuleTarget, TerminatorKind,
-            passes::block_layout::terminator_kind,
-        },
+        ir::{Instruction, Module, ModuleTarget, TerminatorKind},
         op,
     },
     target::Target,

@@ -64,22 +64,22 @@ pub fn signextend(ext: Word, value: Word) -> Word {
 }
 
 fn byte(index: Word, value: Word) -> Word {
-    let index = word_to_usize_saturated(index);
+    let index = index.saturating_to::<usize>();
     if index < 32 { Word::from(value.byte(31 - index)) } else { Word::ZERO }
 }
 
 fn shl(shift: Word, value: Word) -> Word {
-    let shift = word_to_usize_saturated(shift);
+    let shift = shift.saturating_to::<usize>();
     if shift < 256 { value << shift } else { Word::ZERO }
 }
 
 fn shr(shift: Word, value: Word) -> Word {
-    let shift = word_to_usize_saturated(shift);
+    let shift = shift.saturating_to::<usize>();
     if shift < 256 { value >> shift } else { Word::ZERO }
 }
 
 fn sar(shift: Word, value: Word) -> Word {
-    let shift = word_to_usize_saturated(shift);
+    let shift = shift.saturating_to::<usize>();
     if shift < 256 {
         value.arithmetic_shr(shift)
     } else if value.bit(255) {
@@ -87,11 +87,6 @@ fn sar(shift: Word, value: Word) -> Word {
     } else {
         Word::ZERO
     }
-}
-
-#[inline]
-fn word_to_usize_saturated(value: Word) -> usize {
-    value.saturating_to::<usize>()
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]

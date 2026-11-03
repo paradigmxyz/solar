@@ -27,14 +27,12 @@
 
 use super::{
     EvmPass,
+    block_layout::terminator_kind,
     cfg_simplify::mark_addressed_blocks,
     utils::{MachineInstKey, is_terminal_boundary},
 };
 use crate::backend::evm::{
-    ir::{
-        Block, BlockId, Hotness, Module, Terminator, TerminatorKind,
-        passes::block_layout::terminator_kind,
-    },
+    ir::{Block, BlockId, Hotness, Module, Terminator, TerminatorKind},
     op,
 };
 use smallvec::SmallVec;

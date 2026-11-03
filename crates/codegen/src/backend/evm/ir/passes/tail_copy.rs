@@ -110,14 +110,12 @@
 
 use super::{
     EvmPass,
+    block_layout::terminator_kind,
     utils::{count_block_references, instruction_size_lower_bound, is_split_point, retain_blocks},
 };
 use crate::{
     backend::evm::{
-        ir::{
-            Block, BlockId, Instruction, Module, ModuleTarget, Terminator, TerminatorKind,
-            passes::block_layout::terminator_kind,
-        },
+        ir::{Block, BlockId, Instruction, Module, ModuleTarget, Terminator, TerminatorKind},
         op,
     },
     target::{Cost, Target},

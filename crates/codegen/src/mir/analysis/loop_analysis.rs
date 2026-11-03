@@ -449,14 +449,11 @@ impl LoopAnalyzer {
             && bound >= init
         {
             let diff = bound - init;
-            let trip = if diff.is_zero() {
-                alloy_primitives::U256::ZERO
-            } else {
-                ((diff - U256::ONE) / step) + U256::ONE
-            };
+            let trip =
+                if diff.is_zero() { U256::ZERO } else { ((diff - U256::ONE) / step) + U256::ONE };
             let bits =
                 func.value_ty(iv.value).and_then(crate::mir::MirType::integer_bits).unwrap_or(256);
-            let max = alloy_primitives::U256::MAX >> (256 - bits);
+            let max = U256::MAX >> (256 - bits);
             if trip
                 .checked_mul(step)
                 .and_then(|travel| init.checked_add(travel))
@@ -483,8 +480,8 @@ impl LoopAnalyzer {
         func: &Function,
         loop_info: &Loop,
         iv_value: ValueId,
-    ) -> Option<(alloy_primitives::U256, BlockId)> {
-        let mut bound: Option<(alloy_primitives::U256, BlockId)> = None;
+    ) -> Option<(U256, BlockId)> {
+        let mut bound: Option<(U256, BlockId)> = None;
         for block_id in &loop_info.blocks {
             let Some(Terminator::Branch { condition, then_block, else_block }) =
                 &func.blocks[block_id].terminator

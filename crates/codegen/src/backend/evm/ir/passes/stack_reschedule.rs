@@ -96,14 +96,11 @@
 //! The pass runs after the late push compaction, so it sees the final pushes, and before the
 //! last stack cleanup and loop layout.
 
-use super::{EvmPass, utils::is_split_point};
+use super::{EvmPass, block_layout::terminator_kind, utils::is_split_point};
 use crate::{
     backend::evm::{
         CodegenState,
-        ir::{
-            BlockId, BlockTarget, Instruction, Module, TerminatorKind,
-            passes::block_layout::terminator_kind,
-        },
+        ir::{BlockId, BlockTarget, Instruction, Module, TerminatorKind},
         op::{self, StackOp},
     },
     target::{Cost, Target},

@@ -51,6 +51,7 @@
 
 use super::{
     EvmPass,
+    block_layout::terminator_kind,
     cfg_simplify::is_direct_jump_label,
     utils::{
         FreshLabels, MachineInstKey, instruction_size_lower_bound, is_split_point,
@@ -60,7 +61,7 @@ use super::{
 use crate::backend::evm::{
     ir::{
         Block, BlockId, BlockTarget, Hotness, Instruction, Metadata, Module, ModuleTarget,
-        Terminator, TerminatorKind, passes::block_layout::terminator_kind,
+        Terminator, TerminatorKind,
     },
     op::{self, StackOp, push_len},
 };
