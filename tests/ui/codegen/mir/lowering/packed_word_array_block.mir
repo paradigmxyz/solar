@@ -32,6 +32,16 @@ fn @calldata_nested(arg0: slice<calldata>) -> ptr<memory> {
     ret v0
 }
 
+// Words that solc loads one at a time, as for `int256`, keep the element loop.
+// CHECK-LABEL: fn @calldata_wordwise(
+// CHECK-NOT: calldatacopy
+// CHECK: calldataload
+fn @calldata_wordwise(arg0: slice<calldata>) -> ptr<memory> {
+  bb0:
+    v0 = abi_encode_packed (array<word, wordwise> calldata arg0)
+    ret v0
+}
+
 // Words that need cleanup keep the element loop.
 // CHECK-LABEL: fn @calldata_narrow(
 // CHECK-NOT: calldatacopy
