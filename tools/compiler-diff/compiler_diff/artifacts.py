@@ -19,8 +19,9 @@ def contract_outputs(output):
         if len(failures) > 3:
             detail += f"\n... {len(failures) - 3} more errors in stdout.txt"
         raise ValueError("compiler error diagnostics:\n" + detail)
-    contracts = output.get("contracts")
-    if not isinstance(contracts, dict) or not contracts:
+    contracts = output.get("contracts", {})
+    # Sources without contracts, such as only free enums, still have an AST.
+    if not isinstance(contracts, dict) or not (contracts or output.get("sources")):
         raise ValueError("missing contract outputs")
     return contracts
 
