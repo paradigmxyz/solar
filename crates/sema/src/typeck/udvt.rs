@@ -16,12 +16,10 @@ pub(super) fn check_using_operator<'gcx>(
     let function = gcx.hir.function(function_id);
 
     if function_ty.state_mutability != StateMutability::Pure || !function.is_free() {
-        gcx.dcx().emit_err_span_note(
-            entry.span,
-            "only pure free functions can be used to define operators",
-            function.span,
-            "function defined here",
-        );
+        gcx.dcx()
+            .err_at(entry.span, "only pure free functions can be used to define operators")
+            .span_note(function.span, "function defined here")
+            .emit();
     }
 
     let Some(using_ty) = using_ty else { return };

@@ -288,23 +288,24 @@ fn check_using_function<'gcx>(
 
     let TyKind::Fn(function_ty) = gcx.type_of_item(function_id.into()).kind else { unreachable!() };
     if function_ty.parameters.is_empty() {
-        gcx.dcx().emit_err_span_note(
-            entry.span,
-            format!(
-                "function `{}` does not have any parameters and therefore cannot be attached",
-                gcx.item_name(function_id).as_str()
-            ),
-            function.span,
-            "function defined here",
-        );
+        gcx.dcx()
+            .err_at(
+                entry.span,
+                format!(
+                    "function `{}` does not have any parameters and therefore cannot be attached",
+                    gcx.item_name(function_id).as_str()
+                ),
+            )
+            .span_note(function.span, "function defined here")
+            .emit();
         return;
     }
 
     if function.visibility == Visibility::Private && function.contract != using.contract {
-        gcx.dcx().emit_err_span_note(entry.span, format!(
+        gcx.dcx().err_at(entry.span, format!(
             "function `{}` is private and therefore cannot be attached to a type outside of the library where it is defined",
             gcx.item_name(function_id).as_str()
-        ), function.span, "function defined here");
+        )).span_note(function.span, "function defined here").emit();
     }
 
     if let Some(using_ty) = using_ty {

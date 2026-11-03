@@ -227,7 +227,7 @@ impl super::LoweringContext<'_> {
                         let msg = format!("{} function already declared", func.kind);
                         let note = "previous declaration here";
                         let prev_span = self.hir.function(prev).span;
-                        self.dcx().emit_err_span_note(func.span, msg, prev_span, note);
+                        self.dcx().err_at(func.span, msg).span_note(prev_span, note).emit();
                     } else {
                         *slot = Some(function_id);
                     }
@@ -853,7 +853,7 @@ impl<'gcx> ResolveContext<'gcx> {
                 [] => {
                     let msg = "getter must return at least one value";
                     let note = "the struct has all its members omitted, therefore the getter cannot return any values";
-                    self.dcx().emit_err_span_note(span, msg, ret_ty.span, note);
+                    self.dcx().err_at(span, msg).span_note(ret_ty.span, note).emit();
                     Some(&[])
                 }
                 // `return <expr>;`

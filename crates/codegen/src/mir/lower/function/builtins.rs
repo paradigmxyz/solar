@@ -58,10 +58,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.cx
                     .gcx
                     .dcx()
-                    .warn("`msize` is not exact when optimizing")
                     // solc assigns codes from 1000 to 9999, so a code below 1000 cannot collide.
-                    .code(error_code!(67))
-                    .span(callee.span)
+                    .warn_code_at(
+                        callee.span,
+                        error_code!(67),
+                        "`msize` is not exact when optimizing",
+                    )
                     .note("the optimizer does not preserve the exact value")
                     .emit();
             }
@@ -919,15 +921,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) {
         let kind = if builtin.is_yul() { "Yul builtin" } else { "builtin" };
         let expected = expected.description();
-        self.cx
-            .gcx
-            .dcx()
-            .err(format!(
+        self.cx.gcx.dcx().emit_err(
+            span,
+            format!(
                 "wrong number of arguments for {kind} `{}`: expected {expected}, found {actual}",
                 builtin.name()
-            ))
-            .span(span)
-            .emit();
+            ),
+        );
     }
 
     pub(super) fn builtin_arg_exprs<'hir>(
@@ -939,15 +939,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             hir::CallArgsKind::Unnamed(exprs) => Some(exprs),
             hir::CallArgsKind::Named(_) => {
                 let kind = if builtin.is_yul() { "Yul builtin" } else { "builtin" };
-                self.cx
-                    .gcx
-                    .dcx()
-                    .err(format!(
+                self.cx.gcx.dcx().emit_err(
+                    args.span,
+                    format!(
                         "named arguments are not supported for {kind} `{}` in codegen",
                         builtin.name()
-                    ))
-                    .span(args.span)
-                    .emit();
+                    ),
+                );
                 None
             }
         }
@@ -1068,12 +1066,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn unsupported_builtin<T>(&self, builtin: Builtin, span: Span) -> Option<T> {
-        self.cx
-            .gcx
-            .dcx()
-            .err(format!("unsupported builtin call `{}`", builtin.name()))
-            .span(span)
-            .emit();
+        self.cx.gcx.dcx().emit_err(span, format!("unsupported builtin call `{}`", builtin.name()));
         None
     }
 }
