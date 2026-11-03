@@ -3,7 +3,7 @@
 
 contract Branch {
     // CHECK-LABEL: fn @max{{[( ]}}
-    // CHECK: [[GT:v[0-9]+]] = gt arg0, arg1
+    // CHECK: [[GT:v[0-9]+]] = lt arg1, arg0
     // CHECK: jumpi [[GT]],
     // CHECK: ret arg1
     // CHECK: ret arg0

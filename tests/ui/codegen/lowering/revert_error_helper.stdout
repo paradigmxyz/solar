@@ -90,13 +90,14 @@ bb0:  ; runtime dispatch entry + function viaLibConst(uint256 x) external pure r
   sub
   push bb7
   jumpi
+  push 6
   push 4
   calldataload
-  push 6
-  dup 2
   lt
   push bb10
   jumpi
+  push 4
+  calldataload
   push 0
   mstore
   push 32
@@ -127,13 +128,14 @@ bb23 [cold]:  ; revert_error (synthesized)
   push 28
   revert
 bb11:  ; function viaLiteral(uint256 x) external pure returns (uint256) [selector 0x9af992c0]
+  push 6
   push 4
   calldataload
-  push 6
-  dup 2
   lt
   push bb13
   jumpi
+  push 4
+  calldataload
   push 0
   mstore
   push 32
@@ -148,13 +150,14 @@ bb24 [cold]:
   push 11
   jump bb23
 bb14:  ; function viaLocalConst(uint256 x) external pure returns (uint256) [selector 0x9927bee4]
+  push 6
   push 4
   calldataload
-  push 6
-  dup 2
   lt
   push bb16
   jumpi
+  push 4
+  calldataload
   push 0
   mstore
   push 32
@@ -167,26 +170,28 @@ bb16 [cold]:
   push 15
   jump bb23
 bb17:  ; function viaLong(uint256 x) external pure returns (uint256) [selector 0x0c4186a6]
+  push 6
   push 4
   calldataload
-  push 6
-  dup 2
   lt
   push bb19
   jumpi
+  push 4
+  calldataload
   push 0
   mstore
   push 32
   push 0
   return
 bb20:  ; function viaRevertMsg(uint256 x) external pure returns (uint256) [selector 0x17a0525e]
+  push 6
   push 4
   calldataload
-  push 6
-  dup 2
   lt
   push bb22
   jumpi
+  push 4
+  calldataload
   push 0
   mstore
   push 32

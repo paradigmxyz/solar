@@ -46,7 +46,7 @@
 +     v3 = lt v2, v0
 +     v4 = zext i1 v3 to i256
 +     v5 = shr v2, 64
-+     v6 = or v4, v5
++     v6 = or v5, v4
 +     v7 = ne v6, 0
 +     jumpi v7, bb1, bb2
 +   bb2:  ; preds = bb0

@@ -30,7 +30,7 @@
 +   bb10:  ; preds = bb8, bb9
 +     v11 = phi [bb8: 7], [bb9: 9]
 +     v12 = and v0, 31
-+     v13 = add v11, v12
++     v13 = add v12, v11
 +     jump bb4
 +   bb6:  ; preds = bb5
 +     jump bb4
@@ -53,7 +53,7 @@
 +   bb17:  ; preds = bb15, bb16
 +     v17 = phi [bb15: 7], [bb16: 9]
 +     v18 = and v4, 31
-+     v19 = add v17, v18
++     v19 = add v18, v17
 +     jump bb11
 +   bb13:  ; preds = bb12
 +     jump bb11

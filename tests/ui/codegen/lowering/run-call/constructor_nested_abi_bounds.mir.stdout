@@ -4,7 +4,7 @@
 fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[array<_, bytes>]] {
   bb0:
     v0 = mload arg0
-    v1 = lt 0, v0
+    v1 = gt v0, 0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = ptradd arg0, 32
@@ -14,7 +14,7 @@ fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[array<_, bytes>]] {
     v7 = keccak256 v5, v6
     sstore 0, v7 !metadata(storage=slot(0))
     v8 = mload arg0
-    v9 = lt 1, v8
+    v9 = gt v8, 1
     v10 = eq v9, false
     icall panic_if<0x32>, v10
     v11 = ptradd arg0, 64
@@ -24,7 +24,7 @@ fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[array<_, bytes>]] {
     v15 = keccak256 v13, v14
     sstore 1, v15 !metadata(storage=slot(1))
     v16 = mload arg0
-    v17 = lt 0, v16
+    v17 = gt v16, 0
     v18 = eq v17, false
     icall panic_if<0x32>, v18
     v19 = ptradd arg0, 32
@@ -32,7 +32,7 @@ fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[array<_, bytes>]] {
     v21 = mload v20
     v22 = shl v21, 128
     v23 = mload arg0
-    v24 = lt 1, v23
+    v24 = gt v23, 1
     v25 = eq v24, false
     icall panic_if<0x32>, v25
     v26 = ptradd arg0, 64
@@ -87,7 +87,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v9 = ptradd v7, 64
     mstore v9, 0x8a09ff40000
     v10 = mload v0
-    v11 = lt 0, v10
+    v11 = gt v10, 0
     v12 = eq v11, false
     icall panic_if<0x32>, v12
     v13 = ptrtoint ptr<memory> v7 to i256
@@ -98,7 +98,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v16 = ptradd v15, 32
     mstore v16, 0x102030405000000000000000000000000000000000000000000000000000000
     v17 = mload v0
-    v18 = lt 1, v17
+    v18 = gt v17, 1
     v19 = eq v18, false
     icall panic_if<0x32>, v19
     v20 = ptrtoint ptr<memory> v15 to i256
@@ -135,7 +135,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     icall revert_if<tuple_data_too_short>, v37
     v38 = mload 0 !metadata(memory=scratch)
     v39 = mload v0
-    v40 = lt 0, v39
+    v40 = gt v39, 0
     v41 = eq v40, false
     icall panic_if<0x32>, v41
     v42 = ptradd v0, 32
@@ -161,7 +161,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     icall revert_if<tuple_data_too_short>, v52
     v53 = mload 0 !metadata(memory=scratch)
     v54 = mload v0
-    v55 = lt 1, v54
+    v55 = gt v54, 1
     v56 = eq v55, false
     icall panic_if<0x32>, v56
     v57 = ptradd v0, 64
@@ -186,7 +186,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     icall revert_if<tuple_data_too_short>, v68
     v69 = mload 0 !metadata(memory=scratch)
     v70 = mload v0
-    v71 = lt 0, v70
+    v71 = gt v70, 0
     v72 = eq v71, false
     icall panic_if<0x32>, v72
     v73 = ptradd v0, 32
@@ -194,7 +194,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v75 = mload v74
     v76 = shl v75, 128
     v77 = mload v0
-    v78 = lt 1, v77
+    v78 = gt v77, 1
     v79 = eq v78, false
     icall panic_if<0x32>, v79
     v80 = ptradd v0, 64

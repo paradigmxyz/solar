@@ -12,21 +12,21 @@ fn @writeStructs() -> i256 [selector=0xa4c02825, pure, abi_params=[], abi_return
     jumpi v2, bb2, bb3
   bb3:  ; preds = bb1
     v9 = mload v0
-    v10 = lt 0, v9
+    v10 = gt v9, 0
     v11 = eq v10, false
     icall panic_if<0x32>, v11
     v12 = ptradd v0, 32
     v13 = mload v12, ptr<memory>
     mstore v13, 7
     v14 = mload v0
-    v15 = lt 1, v14
+    v15 = gt v14, 1
     v16 = eq v15, false
     icall panic_if<0x32>, v16
     v17 = ptradd v0, 64
     v18 = mload v17, ptr<memory>
     mstore v18, 11
     v19 = mload v0
-    v20 = lt 0, v19
+    v20 = gt v19, 0
     v21 = eq v20, false
     icall panic_if<0x32>, v21
     v22 = ptradd v0, 32
@@ -34,7 +34,7 @@ fn @writeStructs() -> i256 [selector=0xa4c02825, pure, abi_params=[], abi_return
     v24 = mload v23
     v25 = checked_mul uint256, v24, 100
     v26 = mload v0
-    v27 = lt 1, v26
+    v27 = gt v26, 1
     v28 = eq v27, false
     icall panic_if<0x32>, v28
     v29 = ptradd v0, 64

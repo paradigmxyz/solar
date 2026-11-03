@@ -12,7 +12,7 @@ fn @fresh() -> i256 [selector=0xb466b76f, pure, abi_params=[], abi_returns=[word
     jumpi v2, bb2, bb3
   bb3:  ; preds = bb1
     v10 = mload v0
-    v11 = lt 0, v10
+    v11 = gt v10, 0
     v12 = eq v11, false
     icall panic_if<0x32>, v12
     v13 = ptradd v0, 32
@@ -20,7 +20,7 @@ fn @fresh() -> i256 [selector=0xb466b76f, pure, abi_params=[], abi_returns=[word
     mstore v14, 7
     v15 = mload v0
     v16 = mload v0
-    v17 = lt 0, v16
+    v17 = gt v16, 0
     v18 = eq v17, false
     icall panic_if<0x32>, v18
     v19 = ptradd v0, 32
@@ -56,14 +56,14 @@ fn @aliased() -> i256 [selector=0x1d15e393, pure, abi_params=[], abi_returns=[wo
     jumpi v2, bb2, bb3
   bb3:  ; preds = bb1
     v10 = mload v0
-    v11 = lt 0, v10
+    v11 = gt v10, 0
     v12 = eq v11, false
     icall panic_if<0x32>, v12
     v13 = ptradd v0, 32
     v14 = mload v13, ptr<memory>
     mstore v14, 5
     v15 = mload v0
-    v16 = lt 0, v15
+    v16 = gt v15, 0
     v17 = eq v16, false
     icall panic_if<0x32>, v17
     v18 = ptradd v0, 32

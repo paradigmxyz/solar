@@ -11,7 +11,7 @@ fn @threeItems(arg0: i256, arg1: i160) -> i256 [selector=0x6e13fa5d, pure, abi_p
 fn @twoItems(arg0: i256, arg1: i160) -> i256 [selector=0x658c946c, pure, abi_params=[uint256, address], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = zext i160 arg1 to i256
-    v1 = or 0xee9853bb0000000000000000000000000000000000000000, v0
+    v1 = or v0, 0xee9853bb0000000000000000000000000000000000000000
     v2 = trunc i256 v1 to i192
     v3 = keccak256_packed (uint256 arg0, uint192 v2)
     ret v3

@@ -34,7 +34,7 @@ fn @f(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xbf06dbf1, pure, ab
   bb1:  ; preds = bb2, bb3, bb4
     v21 = phi [bb2: v10], [bb3: v18], [bb4: v20]
     v22 = and arg1, 0xffffffffffffffff
-    v23 = mul v21, v22
+    v23 = mul v22, v21
     v24 = and arg0, 0xffffffffffffffffffffffffffffffff
     v25 = add v23, v24
     ret v25

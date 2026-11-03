@@ -10,9 +10,10 @@
 +     v1 = lt v0, 36
 +     jumpi v1, bb2, bb3
 +   bb3:  ; preds = bb0
++     v2 = calldataload 4
 +     jump bb1
 +   bb1:  ; preds = bb3
-+     mstore 0, arg0 !metadata(memory=scratch, span=30..40)
++     mstore 0, v2 !metadata(memory=scratch, span=30..40)
 +     returndata 0, 32 !metadata(span=30..40)
 +   bb2 [cold]:  ; preds = bb0
 +     revert 0, 0
@@ -37,9 +38,10 @@
       v1 = lt v0, 36
       jumpi v1, bb2, bb3
     bb3:  ; preds = bb0
+      v2 = calldataload 4
       jump bb1
     bb1:  ; preds = bb3
-      mstore 0, arg0 !metadata(memory=scratch, span=30..40)
+      mstore 0, v2 !metadata(memory=scratch, span=30..40)
       returndata 0, 32 !metadata(span=30..40)
     bb2 [cold]:  ; preds = bb0
       revert 0, 0

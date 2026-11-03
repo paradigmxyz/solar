@@ -6,19 +6,19 @@ fn @words() -> i1 [selector=0xf2c31bd9, pure, abi_params=[], abi_returns=[word<b
     v0 = alloc zeroed checked 128
     mstore v0, 3
     v1 = mload v0
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = ptradd v0, 32
     mstore v4, 1
     v5 = mload v0
-    v6 = lt 1, v5
+    v6 = gt v5, 1
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = ptradd v0, 64
     mstore v8, 2
     v9 = mload v0
-    v10 = lt 2, v9
+    v10 = gt v9, 2
     v11 = eq v10, false
     icall panic_if<0x32>, v11
     v12 = ptradd v0, 96
@@ -57,7 +57,7 @@ fn @bytesTail() -> i1 [selector=0x56818b01, pure, abi_params=[], abi_returns=[wo
     jump bb9
   bb7:  ; preds = bb2
     v22 = mload v16
-    v23 = lt 64, v22
+    v23 = gt v22, 64
     v24 = eq v23, false
     icall panic_if<0x32>, v24
     v25 = ptradd v16, 96
@@ -180,19 +180,19 @@ fn @fresh() -> ptr<memory> [selector=0xb466b76f, pure, abi_params=[], abi_return
     v0 = alloc zeroed checked 128
     mstore v0, 3
     v1 = mload v0
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = ptradd v0, 32
     mstore v4, 1
     v5 = mload v0
-    v6 = lt 1, v5
+    v6 = gt v5, 1
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = ptradd v0, 64
     mstore v8, 2
     v9 = mload v0
-    v10 = lt 2, v9
+    v10 = gt v9, 2
     v11 = eq v10, false
     icall panic_if<0x32>, v11
     v12 = ptradd v0, 96

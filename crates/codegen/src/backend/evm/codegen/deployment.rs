@@ -10,7 +10,8 @@ use crate::{
     backend::assembler::DeferredAllocResolution,
     link::{CodeKind, LibraryTable},
     mir::{
-        AllocationPlacement, BackendMemory, MirPhase, analysis::HotnessAnalysis, should_validate_ir,
+        AllocationPlacement, BackendMemory, Function, InstKind, MirPhase,
+        analysis::HotnessAnalysis, should_validate_ir,
     },
 };
 use alloy_primitives::Bytes;
@@ -206,9 +207,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.capture_debug_info,
         );
         let has_constructor_args = module
-            .functions
-            .iter()
-            .any(|func| func.attributes.is_constructor && !func.params.is_empty());
+            .constructor()
+            .is_some_and(|constructor| reads_constructor_args(module.function(constructor)));
         assert!(
             !has_constructor_args
                 || deploy_code.bytecode.is_empty()
@@ -434,8 +434,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let runtime = self.asm.append_runtime_code(runtime_data, libraries);
 
         // Find constructor function if it exists
-        let constructor =
-            module.functions.iter_enumerated().find(|(_, f)| f.attributes.is_constructor);
+        let constructor = module.constructor().map(|id| (id, module.function(id)));
 
         let implicit_constructor_revert = constructor.is_none().then(|| self.asm.new_label());
         if let Some(revert) = implicit_constructor_revert {
@@ -462,7 +461,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             // The arguments start where the runtime code, the last data entry, ends.
             // Their size reads `CODESIZE`, which makes the data layout observable, so
             // data packing keeps every entry in place.
-            let constructor_arg_offset = (!ctor.params.is_empty()).then(|| {
+            let constructor_arg_offset = reads_constructor_args(ctor).then(|| {
                 let runtime_end = u32::try_from(runtime_len).expect("runtime code exceeds `u32`");
                 ir::DataRef::new(runtime, runtime_end)
             });
@@ -561,4 +560,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.emit_op(op::ADD);
         }
     }
+}
+
+/// Whether the constructor reads its ABI argument blob.
+fn reads_constructor_args(func: &Function) -> bool {
+    func.instructions().any(|inst| {
+        matches!(func.inst(inst).kind, InstKind::ConstructorArgsBase | InstKind::ConstructorArgsEnd)
+    })
 }

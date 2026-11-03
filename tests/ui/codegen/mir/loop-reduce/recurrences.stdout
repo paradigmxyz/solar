@@ -10,11 +10,11 @@
 +     v11 = mul v8, v10
 +     v12 = mul v11, 7
 +     v13 = add v7, v12
-+     v14 = add arg0, v13
++     v14 = add v13, arg0
 +     v15 = mul arg2, 7
-+     v16 = add arg1, v15
++     v16 = add v15, arg1
 +     v17 = mul arg2, 1
-+     v18 = add 0, v17
++     v18 = add v17, 0
       jump bb1
 -   bb1:  ; preds = bb0, bb2
 -     v0 = phi [bb0: arg0], [bb2: v4]

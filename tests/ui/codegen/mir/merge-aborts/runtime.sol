@@ -52,7 +52,7 @@
 // CHECK: [[LIMIT:v[0-9]+]] = sub {{v[0-9]+}}, {{v[0-9]+}}
 // CHECK: jump [[HEADER:bb[0-9]+]]
 // CHECK-NEXT: [[HEADER]]:
-// CHECK: [[ABOVE:v[0-9]+]] = gt {{v[0-9]+}}, [[LIMIT]]
+// CHECK: [[ABOVE:v[0-9]+]] = lt [[LIMIT]], {{v[0-9]+}}
 // CHECK: [[SUM_WRAPPED:v[0-9]+]] = lt {{v[0-9]+}}, {{v[0-9]+}}
 // CHECK-NEXT: [[OVERFLOW:v[0-9]+]] = or [[ABOVE]], [[SUM_WRAPPED]]
 // CHECK-NEXT: jumpi [[OVERFLOW]], [[PANIC]], {{bb[0-9]+}}

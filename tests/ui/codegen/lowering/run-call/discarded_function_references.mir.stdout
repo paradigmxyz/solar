@@ -47,7 +47,7 @@ fn @checkedReceiver() [selector=0x2496b1c7, pure, abi_params=[], abi_returns=[],
     v0 = alloc zeroed checked 64
     mstore v0, 1
     v1 = mload v0
-    v2 = lt 1, v1
+    v2 = gt v1, 1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = ptradd v0, 64
@@ -122,7 +122,7 @@ fn @freeCheckedReceiver() [selector=0x13dcdc32, pure, abi_params=[], abi_returns
     v0 = alloc zeroed checked 64
     mstore v0, 1
     v1 = mload v0
-    v2 = lt 1, v1
+    v2 = gt v1, 1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = ptradd v0, 64

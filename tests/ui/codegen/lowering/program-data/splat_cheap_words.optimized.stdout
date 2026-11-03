@@ -18,7 +18,7 @@ fn @entry() [entry] {
 }
 
 ; function f() external pure returns (bytes32) [selector 0x26121ff0]
-fn @f() [selector=0x26121ff0, abi_wrapper, pure] {
+fn @f() {
   bb0:
     v19 = heap_floor !metadata(alloc_ptr)
     v10 = add v19, 32

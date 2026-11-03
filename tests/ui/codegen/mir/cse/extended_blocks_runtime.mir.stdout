@@ -10,7 +10,7 @@ fn @aliasedElement(arg0: i256) -> i256 [selector=0x7d7000ed, abi_params=[uint256
     v2 = lt arg0, 2
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    v4 = add 0, arg0
+    v4 = add arg0, 0
     sstore v4, 5 !metadata(storage=symbolic(arg0))
     v5 = lt 0, 2
     v6 = eq v5, false

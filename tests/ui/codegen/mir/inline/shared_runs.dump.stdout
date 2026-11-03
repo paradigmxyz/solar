@@ -18,7 +18,7 @@ fn @entry() [entry] {
 }
 
 ; function paint() external [selector 0xff30d0af]
-fn @paint() [selector=0xff30d0af, abi_wrapper] {
+fn @paint() {
   bb0:
     v0 = icall @paintUint, 0x8ac7230489e80000
     v8 = icall @encode_abi_tuple, v0
@@ -36,7 +36,7 @@ fn @paint() [selector=0xff30d0af, abi_wrapper] {
 }
 
 ; function paintUint(uint256 value) private pure returns (string memory)
-fn @paintUint(arg0: i256) -> i256 [may_return_memory, pure] {
+fn @paintUint(arg0: i256) -> i256 [may_return_memory] {
   bb0:
     v0 = gas
     mstore 0, 0xb6eb6316 !metadata(memory=scratch)
@@ -64,7 +64,7 @@ fn @paintUint(arg0: i256) -> i256 [may_return_memory, pure] {
 }
 
 ; function paintBool(bool value) private pure returns (string memory)
-fn @paintBool() -> i256 [may_return_memory, pure] {
+fn @paintBool() -> i256 [may_return_memory] {
   bb0:
     v0 = gas
     mstore 0, 0x57177c8e !metadata(memory=scratch)
@@ -92,7 +92,7 @@ fn @paintBool() -> i256 [may_return_memory, pure] {
 }
 
 ; function wrap(string memory text) private pure returns (string memory)
-fn @wrap(arg0: i256) -> i256 [may_return_memory, pure] {
+fn @wrap(arg0: i256) -> i256 [may_return_memory] {
   bb0:
     v23 = add arg0, 32
     v2 = mload arg0
@@ -141,7 +141,7 @@ fn @decode_aggregate(arg0: i256) -> i256 [may_return_memory] {
     v7 = add v34, v5
     v10 = add v7, 32
     v11 = gt v5, 0xffffffffffffffff
-    v12 = gt v10, v3
+    v12 = lt v3, v10
     v13 = or v11, v12
     jumpi v13, bb1, bb3
   bb3:  ; preds = bb2
@@ -156,14 +156,14 @@ fn @decode_aggregate(arg0: i256) -> i256 [may_return_memory] {
     v43 = lt v42, v41
     v44 = zext i1 v43 to i256
     v45 = shr v42, 64
-    v46 = or v44, v45
+    v46 = or v45, v44
     v47 = ne v46, 0
     jumpi v47, bb4, bb7
   bb7:  ; preds = bb5
     mstore 64, v42 !metadata(memory=scratch)
     mstore v41, v15
     v22 = sub v3, v10
-    v23 = gt v15, v22
+    v23 = lt v22, v15
     jumpi v23, bb1, bb6
   bb6:  ; preds = bb7
     v36 = add v41, 32

@@ -21,10 +21,10 @@ contract PackedHashOverLength {
     // CHECK: [[HEADER:v[0-9]+]] = or {{v[0-9]+}}, 0x19457468657265756d205369676e6564204d6573736167653a0a00
     // CHECK-NEXT: mstore [[BYTES:v[0-9]+]], [[HEADER]]
     // CHECK-NOT: mcopy
-    // CHECK: [[START:v[0-9]+]] = add [[BYTES]], 5
-    // CHECK-NEXT: [[SUM:v[0-9]+]] = add {{v[0-9]+}}, 27
+    // CHECK: [[SUM:v[0-9]+]] = add {{v[0-9]+}}, 27
     // CHECK-NEXT: [[HUGE:v[0-9]+]] = sar {{v[0-9]+}}, 255
     // CHECK-NEXT: [[TOTAL:v[0-9]+]] = or [[SUM]], [[HUGE]]
+    // CHECK-NEXT: [[START:v[0-9]+]] = add [[BYTES]], 5
     // CHECK-NEXT: keccak256 [[START]], [[TOTAL]]
     // CHECK-NEXT: mstore [[BYTES]],
     function signed(bytes memory s) external pure returns (bytes32) {

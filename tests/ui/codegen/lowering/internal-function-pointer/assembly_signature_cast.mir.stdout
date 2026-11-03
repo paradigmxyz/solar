@@ -27,14 +27,14 @@ fn @compareInt256(arg0: i256, arg1: i256) -> i1 [selector=0x28717b2d, pure, abi_
 ; function _bytes32Greater(bytes32 a, bytes32 b) private pure returns (bool)
 fn @_bytes32Greater(arg0: i256, arg1: i256) -> i1 [pure] {
   bb0:
-    v0 = gt arg0, arg1
+    v0 = lt arg1, arg0
     ret v0
 }
 
 ; function _addressGreater(address a, address b) private pure returns (bool)
 fn @_addressGreater(arg0: i160, arg1: i160) -> i1 [pure] {
   bb0:
-    v0 = gt arg0, arg1
+    v0 = lt arg1, arg0
     ret v0
 }
 

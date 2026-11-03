@@ -361,7 +361,7 @@ fn @_sort(arg0: ptr<memory>, arg1: i256, arg2: i256) [pure] {
     v171 = phi [bb41: v159], [bb51: v171]
     v172 = phi [bb41: v167], [bb51: v172]
     v173 = phi [bb41: v159], [bb51: v199]
-    v174 = gt v173, v169
+    v174 = lt v169, v173
     jumpi v174, bb46, bb47
   bb47:  ; preds = bb44
     jump bb48
@@ -375,7 +375,7 @@ fn @_sort(arg0: ptr<memory>, arg1: i256, arg2: i256) [pure] {
     v180 = ptradd v168, v179
     v181 = ptradd v180, 32
     v182 = mload v181
-    v183 = gt v182, v172
+    v183 = lt v172, v182
     jump bb48
   bb48:  ; preds = bb46, bb47
     v184 = phi [bb46: v183], [bb47: false]

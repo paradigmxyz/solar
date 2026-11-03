@@ -174,13 +174,12 @@ bb26:  ; function at(uint256[] memory values, uint256 index) external pure retur
   gt
   push bb8
   jumpi
-  dup 2
-  push 32
-  add
   push 36
   calldataload
-  swap 4
-  swap 1
+  swap 3
+  push 32
+  dup 4
+  add
   calldatacopy
   swap 2
   dup 2
