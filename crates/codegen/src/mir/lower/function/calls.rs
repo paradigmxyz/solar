@@ -1232,7 +1232,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             (data, size)
         } else if decode_returndata {
             (zero, zero)
-        } else if words <= EvmMemoryLayout::FMP_SLOT {
+        } else if words <= 2 * EvmMemoryLayout::WORD_SIZE {
+            // The scratch words.
             (zero, self.builder.imm(words))
         } else {
             // The words are loaded right after the call and nothing allocates in between, so
@@ -1258,11 +1259,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn pre_byzantium_output_size(
         &mut self,
         return_tys: &[Ty<'gcx>],
-        has_overlay_buffer: bool,
+        has_return_buffer: bool,
     ) -> Option<u64> {
         let static_return = self.static_aggregate_return_layout(return_tys.iter().copied());
         match &static_return {
-            Some(layout) => has_overlay_buffer.then(|| layout.checked_head_size()).flatten(),
+            Some(layout) => has_return_buffer.then(|| layout.checked_head_size()).flatten(),
             None => {
                 let decode_returndata = return_tys.iter().any(|&ty| {
                     self.types.abi_return_type(ty).is_some_and(|ty| !matches!(ty, AbiType::Word(_)))
@@ -1294,13 +1295,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         gas: Option<ValueId>,
         return_tys: &[Ty<'gcx>],
-        has_overlay_buffer: bool,
+        has_return_buffer: bool,
     ) {
         if gas.is_some() || self.cx.gcx.sess.opts.evm_version.can_overcharge_gas_for_call() {
             return;
         }
-        let Some(size_bytes) = self.pre_byzantium_output_size(return_tys, has_overlay_buffer)
-        else {
+        let Some(size_bytes) = self.pre_byzantium_output_size(return_tys, has_return_buffer) else {
             return;
         };
         if size_bytes == 0 {
@@ -1431,7 +1431,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// An input of a selector and at most one stack scalar goes to the scratch words instead. The
     /// call reads its input before it writes its output, so a word returned to scratch can
     /// overlay it.
-    fn call_input_staging(&mut self, types: &[AbiType]) -> CallInputStaging {
+    fn call_input_staging(&self, types: &[AbiType]) -> CallInputStaging {
         if !self.cx.gcx.sess.opts.evm_version.supports_returndata() {
             CallInputStaging::Reserved
         } else if matches!(types, [] | [AbiType::Word(_) | AbiType::Function]) {

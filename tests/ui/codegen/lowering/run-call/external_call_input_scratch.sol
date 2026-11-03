@@ -19,18 +19,18 @@
 //@ run-call: dynamicArgumentCatch => 0, 1, 1, 2, 3
 //@ run-call: tripleFromStaleMemory => 0, 100001002, 1, 2, 3
 
-// A call whose input nothing keeps stages it without reserving it, so the free memory pointer does
-// not move across the call: a selector with at most one scalar goes to the scratch words, and
-// larger or dynamic inputs go to the free memory pointer. Memory below the pointer stays intact.
-// Returns of up to two words land in the scratch words, longer ones in unreserved free memory, and
-// a static aggregate return, the one buffer a call keeps, is allocated before the input, so the
-// pointer moves by that buffer and the decoded struct (192 bytes) and by nothing for the input.
 struct Triple {
     uint256 a;
     uint256 b;
     uint256 c;
 }
 
+// A call whose input nothing keeps stages it without reserving it, so the free memory pointer does
+// not move across the call: a selector with at most one scalar goes to the scratch words, and
+// larger or dynamic inputs go to the free memory pointer. Memory below the pointer stays intact.
+// Returns of up to two words land in the scratch words, longer ones in unreserved free memory, and
+// a static aggregate return, the one buffer a call keeps, is allocated before the input, so the
+// pointer moves by that buffer and the decoded struct (192 bytes) and by nothing for the input.
 interface ITarget {
     function balanceOf(uint256 account) external view returns (uint256);
     function ping(uint256 value) external;

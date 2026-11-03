@@ -30,15 +30,27 @@ contract DynamicCaller {
     }
 
     function recordFirst(DynamicSink sink) internal {
-        sink.record(address(1), "xxxxxxxxxxxxxxx1", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1");
+        sink.record(
+            address(1),
+            "xxxxxxxxxxxxxxx1",
+            "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1"
+        );
     }
 
     function recordSecond(DynamicSink sink) internal {
-        sink.record(address(2), "xxxxxxxxxxxxxxx2", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx2");
+        sink.record(
+            address(2),
+            "xxxxxxxxxxxxxxx2",
+            "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx2"
+        );
     }
 
     function recordThird(DynamicSink sink) internal {
-        sink.record(address(3), "xxxxxxxxxxxxxxx3", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx3");
+        sink.record(
+            address(3),
+            "xxxxxxxxxxxxxxx3",
+            "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx3"
+        );
     }
 }
 
