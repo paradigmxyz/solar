@@ -367,12 +367,13 @@ fn counted(func: &Function, l: &Loop) -> Option<Counted> {
         return None;
     }
     let [phis @ .., test_inst] = func.blocks[header].instructions.as_slice() else { return None };
-    let (counter, limit, descending) = match func.inst(*test_inst).kind {
+    let kind = &func.inst(*test_inst).kind;
+    let (counter, limit, descending) = match *kind {
         InstKind::Lt(counter, bound) => (counter, bound, false),
-        InstKind::Gt(counter, zero) | InstKind::Ne(counter, zero)
-            if func.value_u64(zero) == Some(0) =>
-        {
-            (counter, zero, true)
+        // The other operand is the zero the counter reaches.
+        InstKind::Ne(a, b) => {
+            let counter = kind.nonzero_test_operand(func)?;
+            (counter, if counter == a { b } else { a }, true)
         }
         _ => return None,
     };
