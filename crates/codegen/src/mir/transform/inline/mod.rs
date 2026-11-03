@@ -2027,11 +2027,7 @@ fn insert_return_buffer_stores(
         return Some(());
     }
 
-    let phi_count = caller.blocks[continuation]
-        .instructions
-        .iter()
-        .take_while(|&&inst_id| matches!(caller.inst(inst_id).kind, InstKind::Phi(_)))
-        .count();
+    let phi_count = caller.block_phi_count(continuation);
     let existing_len = caller.blocks[continuation].instructions.len();
     let instructions = {
         let mut builder = FunctionBuilder::new(caller);

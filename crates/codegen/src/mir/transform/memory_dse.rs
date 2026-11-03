@@ -781,18 +781,9 @@ impl<T> SlotMap<T> {
         self.unindexed.clear();
     }
 
-    /// The allocation site of `base`, if it has one. Mirrors the private
-    /// `AliasAnalysis::allocation_base`.
-    fn alloc_site(base: MemoryBase) -> Option<InstId> {
-        match base {
-            MemoryBase::Allocation(id) | MemoryBase::DynamicAllocation(id) => Some(id),
-            _ => None,
-        }
-    }
-
     fn bucket_mut(&mut self, key: MemoryAddress) -> &mut SlotBucket<T> {
         let (region, base) = (key.region, key.base);
-        let buckets = match Self::alloc_site(base) {
+        let buckets = match base.allocation() {
             Some(site) => self.by_alloc.entry(site).or_default(),
             None => &mut self.unindexed,
         };
@@ -806,7 +797,7 @@ impl<T> SlotMap<T> {
 
     fn get(&self, key: MemoryAddress) -> Option<&T> {
         let (region, base) = (key.region, key.base);
-        let buckets = match Self::alloc_site(base) {
+        let buckets = match base.allocation() {
             Some(site) => self.by_alloc.get(&site)?.as_slice(),
             None => self.unindexed.as_slice(),
         };
@@ -822,7 +813,7 @@ impl<T> SlotMap<T> {
     /// Stored entries are 32 bytes wide, matching the `mstore` slots this map
     /// tracks.
     fn invalidate(&mut self, write: MemoryAddress, size: u64) {
-        let write_site = Self::alloc_site(write.base);
+        let write_site = write.base.allocation();
         if let Some(site) = write_site {
             // A write into one allocation site cannot reach another, so only
             // this site's groups and the non-allocation groups can be affected.
@@ -847,8 +838,8 @@ impl<T> SlotMap<T> {
     /// [`AliasAnalysis::memory_alias_locations`] settle the whole group at once;
     /// only a write onto that same base reaches the offset comparison.
     fn invalidate_bucket(bucket: &mut SlotBucket<T>, write: MemoryAddress, size: u64) -> bool {
-        let bucket_site = Self::alloc_site(bucket.base);
-        let write_site = Self::alloc_site(write.base);
+        let bucket_site = bucket.base.allocation();
+        let write_site = write.base.allocation();
         if let (Some(bucket_site), Some(write_site)) = (bucket_site, write_site) {
             // Distinct allocation sites are disjoint; the same site is only
             // separable by offset when neither access is a loop instance.
@@ -2606,13 +2597,10 @@ impl MemoryStoreEliminator {
     fn allocation_site(&self, func: &Function, pointer: ValueId) -> Option<InstId> {
         let Value::Inst(inst) = func.value(pointer) else { return None };
         (matches!(func.inst(*inst).kind, InstKind::Alloc { .. })
-            && self.alias.memory_address(func, pointer).is_some_and(|address| {
-                matches!(
-                    address.base,
-                    MemoryBase::Allocation(site) | MemoryBase::DynamicAllocation(site)
-                        if site == *inst
-                )
-            }))
+            && self
+                .alias
+                .memory_address(func, pointer)
+                .is_some_and(|address| address.base.allocation() == Some(*inst)))
         .then_some(*inst)
     }
 
