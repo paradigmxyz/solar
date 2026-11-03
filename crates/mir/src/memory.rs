@@ -44,6 +44,14 @@ impl EvmMemoryLayout {
         address < Self::ZERO_SLOT + Self::WORD_SIZE
     }
 
+    /// Returns the offset of the locals region of an internal frame whose signature has `slots`
+    /// parameter and result words: the frame header plus one word per slot.
+    #[must_use]
+    pub const fn internal_frame_prefix(slots: usize) -> Option<u64> {
+        let Some(size) = (slots as u64).checked_mul(Self::WORD_SIZE) else { return None };
+        size.checked_add(Self::INTERNAL_FRAME_HEADER_SIZE)
+    }
+
     /// Aligns a constant size to the next EVM word, if it fits.
     #[must_use]
     pub const fn align_word(size: u64) -> Option<u64> {
