@@ -555,6 +555,9 @@ impl Session {
             // thread counts. Spawn the first worker here, so that failing to spawn threads at all
             // is reported, and let a helper thread spawn the others while the first one already
             // runs.
+            //
+            // NOTE: a later worker that fails to spawn leaves the pool smaller, so rayon's
+            // `broadcast`, which waits for every registered worker, must not be used on this pool.
             let mut spawner = None;
             self.thread_pool_builder()
                 .spawn_handler(|thread| {
@@ -568,7 +571,7 @@ impl Session {
                             move || {
                                 for thread in rx {
                                     if let Err(e) = spawn_worker(&globals, thread) {
-                                        trace!(%e, "failed to spawn a worker thread");
+                                        debug!(%e, "failed to spawn a worker thread");
                                     }
                                 }
                             },
