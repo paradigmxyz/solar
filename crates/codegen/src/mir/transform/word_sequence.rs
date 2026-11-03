@@ -574,7 +574,9 @@ fn zero_tested_leaf(
     in_loop: bool,
 ) -> (ValueId, Option<(InstId, InstId)>) {
     let Some(&InstKind::Zext(test)) = func.value_inst_kind(leaf) else { return (leaf, None) };
-    if uses[leaf] != 1 {
+    // The word replaces the leaf in an `or` whose other operand has the leaf's type. The lowered
+    // phase has only bools and words, so this holds for every leaf there.
+    if uses[leaf] != 1 || func.value_ty(leaf) != Some(MirType::I256) {
         return (leaf, None);
     }
     match func.value_inst_kind(test).cloned() {
