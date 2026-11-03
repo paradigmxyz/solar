@@ -983,25 +983,19 @@ impl InstKind {
 
     /// Returns binary operands whose evaluation order may be exchanged during EVM lowering.
     ///
-    /// This includes commutative instructions and comparisons whose opcode can be reversed with
-    /// their operands.
-    pub const fn reorderable_binary_operands(&self) -> Option<(ValueId, ValueId)> {
-        if !self.op_def().traits.contains(super::OpTraits::REORDERABLE) {
-            return None;
-        }
+    /// This includes the declared commutative pair, comparisons whose opcode can be reversed with
+    /// their operands, and the destination and size of a data copy.
+    pub fn reorderable_binary_operands(&self) -> Option<(ValueId, ValueId)> {
         match self {
-            Self::InsertValue { aggregate: a, value: b, .. }
-            | Self::DataCopy(_, a, b)
-            | Self::Add(a, b)
-            | Self::Mul(a, b)
-            | Self::And(a, b)
-            | Self::Or(a, b)
-            | Self::Xor(a, b)
-            | Self::Eq(a, b)
+            Self::DataCopy(_, a, b)
             | Self::Lt(a, b)
             | Self::Gt(a, b)
             | Self::SLt(a, b)
             | Self::SGt(a, b) => Some((*a, *b)),
+            // Other operations carry payloads that `op` would copy.
+            _ if self.op_def().traits.contains(super::OpTraits::COMMUTATIVE) => {
+                self.op().commutative_pair()
+            }
             _ => None,
         }
     }
