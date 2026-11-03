@@ -108,9 +108,22 @@ impl<'sess, 'ast> AstValidator<'sess, 'ast> {
         let checksummed = addr.to_checksum_buffer(None);
         let digits = lit.symbol.as_str().bytes().filter(|&b| b != b'_');
         if !digits.eq(checksummed.as_str().bytes()) {
+            // Keep the literal's underscores in the suggestion.
+            let mut correct = checksummed.as_str().chars();
+            let suggestion = lit
+                .symbol
+                .as_str()
+                .chars()
+                .map(|c| if c == '_' { c } else { correct.next().unwrap_or(c) })
+                .collect::<String>();
             self.dcx()
-                .err_at(lit.span, "invalid checksummed address")
-                .help(format!("correct checksummed address: \"{checksummed}\""))
+                .err_code_at(lit.span, error_code!(9429), "invalid checksummed address")
+                .span_suggestion(
+                    lit.span,
+                    "use the correctly checksummed address",
+                    suggestion,
+                    solar_interface::diagnostics::Applicability::MachineApplicable,
+                )
                 .note("if this is not used as an address, please prepend \"00\"")
                 .emit();
         }
