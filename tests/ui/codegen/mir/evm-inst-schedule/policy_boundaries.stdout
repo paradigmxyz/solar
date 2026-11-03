@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/policy_boundaries.mir (before evm-inst-schedule) ===
-+ // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/policy_boundaries.mir (after evm-inst-schedule) ===
+- ; === ROOT/tests/ui/codegen/mir/evm-inst-schedule/policy_boundaries.mir (before evm-inst-schedule) ===
++ ; === ROOT/tests/ui/codegen/mir/evm-inst-schedule/policy_boundaries.mir (after evm-inst-schedule) ===
   @module EvmInstSchedulePolicy
   @types
     struct0: {i1, i1, i256}
@@ -132,11 +132,11 @@
   fn @phi_is_a_barrier(arg0: i256, arg1: i256, arg2: i256, arg3: i1) -> i256 {
     bb0:
       jumpi arg3, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       jump bb3
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       jump bb3
-    bb3:  ; preds = bb1, bb2
+    bb3:                                            ; preds = bb1, bb2
       v0 = phi [bb1: arg0], [bb2: arg1]
       v1 = add arg0, arg1
       v2 = mul v0, arg2
@@ -172,13 +172,13 @@
       v2 = sub v0, v1
       v3 = eq v2, 0
       jumpi v3, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
 -     v7 = add arg0, arg3
       v8 = mul arg1, arg2
 +     v7 = add arg0, arg3
       v9 = mod v7, v8
       ret v9
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
 -     v4 = add arg0, arg2
       v5 = mul arg1, arg3
 +     v4 = add arg0, arg2

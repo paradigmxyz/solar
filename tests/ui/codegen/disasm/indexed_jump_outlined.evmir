@@ -6,7 +6,7 @@
 // stays outlined with one-byte entry stubs.
 @module outlined
 
-// CHECK-LABEL: // === outlined (runtime) ===
+// CHECK-LABEL: ; === outlined (runtime) ===
 // CHECK-NEXT: PUSH1 0x01
 // CHECK-NEXT: PUSH1 0x04
 // CHECK-NEXT: MUL

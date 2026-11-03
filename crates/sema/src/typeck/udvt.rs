@@ -46,8 +46,7 @@ pub(super) fn check_using_operator<'gcx>(
     };
     if let Some(expected) = wrong_params {
         gcx.dcx()
-            .err("wrong parameters in operator definition")
-            .span(function.span)
+            .err_at(function.span, "wrong parameters in operator definition")
             .span_note(entry.span, "function was used to implement an operator here")
             .help(format!(
                 "function `{}` needs to have {expected} to be used for operator `{}`",
@@ -69,8 +68,7 @@ pub(super) fn check_using_operator<'gcx>(
     let returns = function_ty.returns;
     if returns.len() != 1 || returns[0] != return_ty {
         gcx.dcx()
-            .err("wrong return parameters in operator definition")
-            .span(function.span)
+            .err_at(function.span, "wrong return parameters in operator definition")
             .span_note(entry.span, "function was used to implement an operator here")
             .help(format!(
                 "function `{}` needs to return `{}` to be used for operator `{}`",
@@ -92,11 +90,14 @@ pub(super) fn check_using_operator<'gcx>(
             &mut |_| matches += 1,
         );
         if matches >= 2 {
-            gcx.dcx().emit_err(entry.span, format!(
-                "user-defined {} operator `{}` has more than one definition matching the operand type visible in the current scope",
-                if params.len() == 1 { "unary" } else { "binary" },
-                op.to_str()
-            ));
+            gcx.dcx().emit_err(
+                entry.span,
+                format!(
+                    "user-defined {} operator `{}` has more than one definition matching the operand type visible in the current scope",
+                    if params.len() == 1 { "unary" } else { "binary" },
+                    op.to_str()
+                ),
+            );
         }
     }
 }

@@ -5,7 +5,7 @@
 // it, so one-byte entries still fit. All 17 entries pack into one `PUSH17`.
 @module early_targets
 
-// CHECK-LABEL: // === early_targets (runtime) ===
+// CHECK-LABEL: ; === early_targets (runtime) ===
 // CHECK: PUSH17
 // CHECK-NEXT: SWAP1
 // CHECK-NEXT: BYTE

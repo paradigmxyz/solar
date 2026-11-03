@@ -1,4 +1,4 @@
-error: invalid data location `calldata`
+error[6651]: invalid data location `calldata`
    ╭▸ ROOT/tests/ui/typeck/try_catch_clause_checks.sol:LL:CC
    │
 LL │         } catch Error(string calldata) {}
@@ -6,7 +6,7 @@ LL │         } catch Error(string calldata) {}
    │
    ╰ note: data location must be `memory` for try/catch clause, but got `calldata`
 
-error: invalid data location `storage`
+error[6651]: invalid data location `storage`
    ╭▸ ROOT/tests/ui/typeck/try_catch_clause_checks.sol:LL:CC
    │
 LL │         } catch (bytes storage) {}

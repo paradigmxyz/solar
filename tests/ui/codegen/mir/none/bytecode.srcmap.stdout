@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/none/bytecode.mir (before none) ===
-+ // === ROOT/tests/ui/codegen/mir/none/bytecode.mir (after none) ===
+- ; === ROOT/tests/ui/codegen/mir/none/bytecode.mir (before none) ===
++ ; === ROOT/tests/ui/codegen/mir/none/bytecode.mir (after none) ===
   @module Bytecode
   @phase lowered
   ; runtime dispatch entry

@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/none/legacy_stack_ops.evmir (before none) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/none/legacy_stack_ops.evmir (after none) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/none/legacy_stack_ops.evmir (before none) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/none/legacy_stack_ops.evmir (after none) ===
   @module legacy
   bb0 [stack=16]:
     push 0

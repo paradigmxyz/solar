@@ -1,14 +1,14 @@
-- // === ROOT/tests/ui/codegen/mir/inline/solar_inline.mir (before inline) ===
-+ // === ROOT/tests/ui/codegen/mir/inline/solar_inline.mir (after inline) ===
+- ; === ROOT/tests/ui/codegen/mir/inline/solar_inline.mir (before inline) ===
++ ; === ROOT/tests/ui/codegen/mir/inline/solar_inline.mir (after inline) ===
   @module SolarInline
   fn @tagged(arg0: i256, arg1: i1, arg2: i1) -> i256 {
     bb0:
       jumpi arg1, bb1, bb2
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
 -     v0 = icall @always, arg0
 -     mstore 128, v0
 +     jump bb6
-+   bb6:  ; preds = bb1
++   bb6:                                            ; preds = bb1
 +     v3 = add arg0, 1
 +     v4 = xor v3, 2
 +     v5 = add v4, 3
@@ -50,18 +50,18 @@
 +     v41 = add v40, 39
 +     v42 = xor v41, 40
 +     jump bb5
-+   bb5:  ; preds = bb6
++   bb5:                                            ; preds = bb6
 +     v43 = phi [bb6: v42]
 +     mstore 128, v43
       jump bb2
--   bb2:  ; preds = bb0, bb1
-+   bb2:  ; preds = bb0, bb5
+-   bb2:                                            ; preds = bb0, bb1
++   bb2:                                            ; preds = bb0, bb5
       jumpi arg2, bb3, bb4
-    bb3:  ; preds = bb2
+    bb3:                                            ; preds = bb2
 -     v1 = icall @always, arg0
 -     mstore 160, v1
 +     jump bb8
-+   bb8:  ; preds = bb3
++   bb8:                                            ; preds = bb3
 +     v44 = add arg0, 1
 +     v45 = xor v44, 2
 +     v46 = add v45, 3
@@ -103,12 +103,12 @@
 +     v82 = add v81, 39
 +     v83 = xor v82, 40
 +     jump bb7
-+   bb7:  ; preds = bb8
++   bb7:                                            ; preds = bb8
 +     v84 = phi [bb8: v83]
 +     mstore 160, v84
       jump bb4
--   bb4:  ; preds = bb2, bb3
-+   bb4:  ; preds = bb2, bb7
+-   bb4:                                            ; preds = bb2, bb3
++   bb4:                                            ; preds = bb2, bb7
       v2 = mload 128
       ret v2
   }
@@ -116,17 +116,17 @@
   fn @untagged(arg0: i256, arg1: i1, arg2: i1) -> i256 {
     bb0:
       jumpi arg1, bb1, bb2
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       v0 = icall @shared, arg0
       mstore 128, v0
       jump bb2
-    bb2:  ; preds = bb0, bb1
+    bb2:                                            ; preds = bb0, bb1
       jumpi arg2, bb3, bb4
-    bb3:  ; preds = bb2
+    bb3:                                            ; preds = bb2
       v1 = icall @shared, arg0
       mstore 160, v1
       jump bb4
-    bb4:  ; preds = bb2, bb3
+    bb4:                                            ; preds = bb2, bb3
       v2 = mload 128
       ret v2
 - }

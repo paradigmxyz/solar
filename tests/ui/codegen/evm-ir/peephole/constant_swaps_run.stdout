@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/peephole/constant_swaps_run.evmir (before peephole) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/peephole/constant_swaps_run.evmir (after peephole) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/peephole/constant_swaps_run.evmir (before peephole) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/peephole/constant_swaps_run.evmir (after peephole) ===
   @module constant_swaps_run
   bb0:
     push 100

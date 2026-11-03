@@ -349,18 +349,18 @@ impl<'gcx> OverrideChecker<'gcx> {
             if let Some(name) = proxy.name(self.gcx) {
                 if f.kind.is_modifier() {
                     if self.has_inherited_name_kind(name, false) {
-                        self.dcx()
-                            .err("override changes function or public state variable to modifier")
-                            .code(error_code!(5631))
-                            .span(f.span)
-                            .emit();
+                        self.dcx().emit_err_code(
+                            f.span,
+                            error_code!(5631),
+                            "override changes function or public state variable to modifier",
+                        );
                     }
                 } else if self.has_inherited_name_kind(name, true) {
-                    self.dcx()
-                        .err("override changes modifier to function")
-                        .code(error_code!(1469))
-                        .span(f.span)
-                        .emit();
+                    self.dcx().emit_err_code(
+                        f.span,
+                        error_code!(1469),
+                        "override changes modifier to function",
+                    );
                 }
             }
 
@@ -369,14 +369,14 @@ impl<'gcx> OverrideChecker<'gcx> {
             if !bases.is_empty() {
                 self.check_override_list(proxy, &bases);
             } else if f.override_ {
-                self.dcx()
-                    .err(format!(
+                self.dcx().emit_err_code(
+                    f.span,
+                    error_code!(7792),
+                    format!(
                         "{} has override specified but does not override anything",
                         capitalize(proxy.ast_node_name(self.gcx))
-                    ))
-                    .code(error_code!(7792))
-                    .span(f.span)
-                    .emit();
+                    ),
+                );
             }
         }
 
@@ -385,11 +385,11 @@ impl<'gcx> OverrideChecker<'gcx> {
 
             if !v.is_public() {
                 if v.override_ {
-                    self.dcx()
-                        .err("override can only be used with public state variables")
-                        .code(error_code!(8022))
-                        .span(v.span)
-                        .emit();
+                    self.dcx().emit_err_code(
+                        v.span,
+                        error_code!(8022),
+                        "override can only be used with public state variables",
+                    );
                 }
                 continue;
             }
@@ -398,11 +398,11 @@ impl<'gcx> OverrideChecker<'gcx> {
             let name = proxy.name(self.gcx).unwrap();
 
             if self.has_inherited_name_kind(name, true) {
-                self.dcx()
-                    .err("override changes modifier to public state variable")
-                    .code(error_code!(1456))
-                    .span(v.span)
-                    .emit();
+                self.dcx().emit_err_code(
+                    v.span,
+                    error_code!(1456),
+                    "override changes modifier to public state variable",
+                );
             }
 
             let sig = self.signature(proxy);
@@ -410,11 +410,11 @@ impl<'gcx> OverrideChecker<'gcx> {
             if !bases.is_empty() {
                 self.check_override_list(proxy, &bases);
             } else if v.override_ {
-                self.dcx()
-                    .err("public state variable has override specified but does not override anything")
-                    .code(error_code!(7792))
-                    .span(v.span)
-                    .emit();
+                self.dcx().emit_err_code(
+                    v.span,
+                    error_code!(7792),
+                    "public state variable has override specified but does not override anything",
+                );
             }
         }
     }
@@ -438,14 +438,14 @@ impl<'gcx> OverrideChecker<'gcx> {
         }
 
         if overriding.overrides(self.gcx).len() != specified_contracts.count() {
-            self.dcx()
-                .err(format!(
+            self.dcx().emit_err_code(
+                overriding.span(self.gcx),
+                error_code!(4520),
+                format!(
                     "duplicate contract found in override list of `{}`",
                     overriding.name(self.gcx).unwrap()
-                ))
-                .code(error_code!(4520))
-                .span(overriding.span(self.gcx))
-                .emit();
+                ),
+            );
         }
 
         let mut expected_contracts: BTreeSet<ContractId> = BTreeSet::new();
@@ -469,15 +469,15 @@ impl<'gcx> OverrideChecker<'gcx> {
                     .iter()
                     .map(|&c| format!("`{}`", self.gcx.hir.contract(c).name.as_str()))
                     .collect();
-                self.dcx()
-                    .err(format!(
+                self.dcx().emit_err_code(
+                    overriding.span(self.gcx),
+                    error_code!(4327),
+                    format!(
                         "{} needs to specify overridden contracts {}",
                         capitalize(overriding.ast_node_name(self.gcx)),
                         missing_names.join(" and ")
-                    ))
-                    .code(error_code!(4327))
-                    .span(overriding.span(self.gcx))
-                    .emit();
+                    ),
+                );
             }
         }
 
@@ -489,15 +489,15 @@ impl<'gcx> OverrideChecker<'gcx> {
                 .iter()
                 .map(|&c| format!("`{}`", self.gcx.hir.contract(c).name.as_str()))
                 .collect();
-            self.dcx()
-                .err(format!(
+            self.dcx().emit_err_code(
+                overriding.span(self.gcx),
+                error_code!(2353),
+                format!(
                     "invalid contract{} specified in override list: {}",
                     if surplus.len() > 1 { "s" } else { "" },
                     surplus_names.join(", ")
-                ))
-                .code(error_code!(2353))
-                .span(overriding.span(self.gcx))
-                .emit();
+                ),
+            );
         }
     }
 
@@ -508,12 +508,14 @@ impl<'gcx> OverrideChecker<'gcx> {
 
         if !overriding.has_override(gcx) && !base_in_interface {
             self.dcx()
-                .err(format!(
-                    "overriding {} is missing `override` specifier",
-                    overriding.ast_node_name(gcx)
-                ))
-                .code(error_code!(9456))
-                .span(overriding.span(gcx))
+                .err_code_at(
+                    overriding.span(gcx),
+                    error_code!(9456),
+                    format!(
+                        "overriding {} is missing `override` specifier",
+                        overriding.ast_node_name(gcx)
+                    ),
+                )
                 .span_note(
                     base.span(gcx),
                     format!("overridden {} is here", base.ast_node_name(gcx)),
@@ -524,9 +526,11 @@ impl<'gcx> OverrideChecker<'gcx> {
 
         if base.is_variable() {
             self.dcx()
-                .err("cannot override public state variable")
-                .code(error_code!(1452))
-                .span(base.span(gcx))
+                .err_code_at(
+                    base.span(gcx),
+                    error_code!(1452),
+                    "cannot override public state variable",
+                )
                 .span_note(
                     overriding.span(gcx),
                     format!("overriding {} is here", overriding.ast_node_name(gcx)),
@@ -538,9 +542,11 @@ impl<'gcx> OverrideChecker<'gcx> {
 
         if !base.is_virtual(gcx) {
             self.dcx()
-                .err(format!("cannot override non-virtual {}", base.ast_node_name(gcx)))
-                .code(error_code!(4334))
-                .span(base.span(gcx))
+                .err_code_at(
+                    base.span(gcx),
+                    error_code!(4334),
+                    format!("cannot override non-virtual {}", base.ast_node_name(gcx)),
+                )
                 .span_note(
                     overriding.span(gcx),
                     format!("overriding {} is here", overriding.ast_node_name(gcx)),
@@ -570,13 +576,15 @@ impl<'gcx> OverrideChecker<'gcx> {
 
         if !overriding.is_implemented(gcx) && base.is_implemented(gcx) {
             self.dcx()
-                .err(format!(
-                    "cannot override implemented {} with unimplemented {}",
-                    base.ast_node_name(gcx),
-                    overriding.ast_node_name(gcx)
-                ))
-                .code(error_code!(4593))
-                .span(overriding.span(gcx))
+                .err_code_at(
+                    overriding.span(gcx),
+                    error_code!(4593),
+                    format!(
+                        "cannot override implemented {} with unimplemented {}",
+                        base.ast_node_name(gcx),
+                        overriding.ast_node_name(gcx)
+                    ),
+                )
                 .span_note(
                     base.span(gcx),
                     format!("overridden {} is here", base.ast_node_name(gcx)),
@@ -594,9 +602,11 @@ impl<'gcx> OverrideChecker<'gcx> {
         if overriding.is_variable() {
             if base_vis != Visibility::External {
                 self.dcx()
-                    .err("public state variable can only override external function")
-                    .code(error_code!(5225))
-                    .span(overriding.span(gcx))
+                    .err_code_at(
+                        overriding.span(gcx),
+                        error_code!(5225),
+                        "public state variable can only override external function",
+                    )
                     .span_note(base.span(gcx), "overridden function is here")
                     .note(format!("base function has `{}` visibility", base_vis.to_str()))
                     .emit();
@@ -608,14 +618,16 @@ impl<'gcx> OverrideChecker<'gcx> {
             let allowed = base_vis == Visibility::External && overriding_vis == Visibility::Public;
             if !allowed {
                 self.dcx()
-                    .err(format!(
-                        "overriding {} changes visibility from `{}` to `{}`",
-                        overriding.ast_node_name(gcx),
-                        base_vis.to_str(),
-                        overriding_vis.to_str()
-                    ))
-                    .code(error_code!(9098))
-                    .span(overriding.span(gcx))
+                    .err_code_at(
+                        overriding.span(gcx),
+                        error_code!(9098),
+                        format!(
+                            "overriding {} changes visibility from `{}` to `{}`",
+                            overriding.ast_node_name(gcx),
+                            base_vis.to_str(),
+                            overriding_vis.to_str()
+                        ),
+                    )
                     .span_note(
                         base.span(gcx),
                         format!("overridden {} is here", base.ast_node_name(gcx)),
@@ -650,16 +662,16 @@ impl<'gcx> OverrideChecker<'gcx> {
         if (base_mut == StateMutability::Payable && overriding_mut != StateMutability::Payable)
             || is_less_strict(overriding_mut, base_mut)
         {
-            self.dcx()
-                .err(format!(
+            self.dcx().emit_err_code(
+                overriding.span(gcx),
+                error_code!(6959),
+                format!(
                     "overriding {} changes state mutability from `{}` to `{}`",
                     overriding.ast_node_name(gcx),
                     base_mut.to_str(),
                     overriding_mut.to_str()
-                ))
-                .code(error_code!(6959))
-                .span(overriding.span(gcx))
-                .emit();
+                ),
+            );
         }
     }
 
@@ -683,12 +695,14 @@ impl<'gcx> OverrideChecker<'gcx> {
 
         if overriding_fn.returns != base_fn.returns {
             self.dcx()
-                .err(format!(
-                    "overriding {} has different return types",
-                    overriding.ast_node_name(gcx)
-                ))
-                .code(error_code!(4822))
-                .span(overriding.span(gcx))
+                .err_code_at(
+                    overriding.span(gcx),
+                    error_code!(4822),
+                    format!(
+                        "overriding {} has different return types",
+                        overriding.ast_node_name(gcx)
+                    ),
+                )
                 .span_note(
                     base.span(gcx),
                     format!("overridden {} is here", base.ast_node_name(gcx)),
@@ -721,9 +735,11 @@ impl<'gcx> OverrideChecker<'gcx> {
 
             if over_ty.peel_refs() == base_ty.peel_refs() && over_ty.loc() != base_ty.loc() {
                 self.dcx()
-                    .err("parameter data locations differ when overriding non-external function")
-                    .code(error_code!(7723))
-                    .span(overriding.span(gcx))
+                    .err_code_at(
+                        overriding.span(gcx),
+                        error_code!(7723),
+                        "parameter data locations differ when overriding non-external function",
+                    )
                     .span_note(
                         base.span(gcx),
                         format!("overridden {} is here", base.ast_node_name(gcx)),
@@ -740,9 +756,11 @@ impl<'gcx> OverrideChecker<'gcx> {
 
             if over_ty.peel_refs() == base_ty.peel_refs() && over_ty.loc() != base_ty.loc() {
                 self.dcx()
-                    .err("return variable data locations differ when overriding non-external function")
-                    .code(error_code!(1443))
-                    .span(overriding.span(gcx))
+                    .err_code_at(
+                        overriding.span(gcx),
+                        error_code!(1443),
+                        "return variable data locations differ when overriding non-external function",
+                    )
                     .span_note(base.span(gcx), format!("overridden {} is here", base.ast_node_name(gcx)))
                     .note("data locations must match when overriding non-external functions")
                     .emit();
@@ -765,11 +783,11 @@ impl<'gcx> OverrideChecker<'gcx> {
         let base_f = gcx.hir.function(base_id);
 
         if overriding_f.parameters.len() != base_f.parameters.len() {
-            self.dcx()
-                .err("override changes modifier signature")
-                .code(error_code!(1078))
-                .span(overriding.span(gcx))
-                .emit();
+            self.dcx().emit_err_code(
+                overriding.span(gcx),
+                error_code!(1078),
+                "override changes modifier signature",
+            );
             return;
         }
 
@@ -780,11 +798,11 @@ impl<'gcx> OverrideChecker<'gcx> {
             let base_ty = gcx.type_of_item(base_param.into());
 
             if over_ty != base_ty {
-                self.dcx()
-                    .err("override changes modifier signature")
-                    .code(error_code!(1078))
-                    .span(overriding.span(gcx))
-                    .emit();
+                self.dcx().emit_err_code(
+                    overriding.span(gcx),
+                    error_code!(1078),
+                    "override changes modifier signature",
+                );
                 return;
             }
         }
@@ -883,7 +901,7 @@ impl<'gcx> OverrideChecker<'gcx> {
         let name_display = sig.name.map(|n| n.to_string()).unwrap_or_else(|| sig.kind.to_string());
         let msg = format!("derived contract must override {kind} `{name_display}`");
 
-        let mut diag = self.dcx().err(msg).code(error_code!(6480)).span(self.contract().name.span);
+        let mut diag = self.dcx().err_code_at(self.contract().name.span, error_code!(6480), msg);
 
         diag = diag.note(format!(
             "two or more base classes define {} with same {}",
@@ -943,11 +961,11 @@ impl<'gcx> OverrideChecker<'gcx> {
             }
 
             let base_name = self.gcx.hir.contract(base_id).name.as_str();
-            let mut diag = self
-                .dcx()
-                .err(format!("contract `{}` has unimplemented functions", contract.name.as_str()))
-                .code(error_code!(3656))
-                .span(contract.name.span);
+            let mut diag = self.dcx().err_code_at(
+                contract.name.span,
+                error_code!(3656),
+                format!("contract `{}` has unimplemented functions", contract.name.as_str()),
+            );
             diag = diag.span_note(
                 proxy.span(self.gcx),
                 format!(

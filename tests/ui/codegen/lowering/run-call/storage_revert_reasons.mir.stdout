@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/storage_revert_reasons.sol:StorageRevertReasons ===
+; === ROOT/tests/ui/codegen/lowering/run-call/storage_revert_reasons.sol:StorageRevertReasons ===
 @module StorageRevertReasons
 ; function mappingShort() external [selector 0x9b5bf7ac]
 fn @mappingShort() [selector=0x9b5bf7ac, abi_params=[], abi_returns=[], abi_return_params=[]] {

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_memory_scalar_array_validation.sol:AbiMemoryScalarArrayValidation ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_memory_scalar_array_validation.sol:AbiMemoryScalarArrayValidation ===
 @module AbiMemoryScalarArrayValidation
 ; function enumArray(E[] memory) external pure returns (uint256) [selector 0x3aa5639d]
 fn @enumArray(arg0: ptr<memory>) -> i256 [selector=0x3aa5639d, pure, abi_params=[array<_, enum<2, uint8>>], abi_returns=[word], abi_return_params=[uint256]] {

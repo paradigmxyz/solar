@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/none/identity.mir (before none) ===
-+ // === ROOT/tests/ui/codegen/mir/none/identity.mir (after none) ===
+- ; === ROOT/tests/ui/codegen/mir/none/identity.mir (before none) ===
++ ; === ROOT/tests/ui/codegen/mir/none/identity.mir (after none) ===
   @module Identity
   fn @add(arg0: i256, arg1: i256) -> i256 {
     bb0:

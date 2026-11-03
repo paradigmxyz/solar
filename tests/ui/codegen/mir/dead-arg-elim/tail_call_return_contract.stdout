@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/dead-arg-elim/tail_call_return_contract.mir (before dead-arg-elim) ===
-+ // === ROOT/tests/ui/codegen/mir/dead-arg-elim/tail_call_return_contract.mir (after dead-arg-elim) ===
+- ; === ROOT/tests/ui/codegen/mir/dead-arg-elim/tail_call_return_contract.mir (before dead-arg-elim) ===
++ ; === ROOT/tests/ui/codegen/mir/dead-arg-elim/tail_call_return_contract.mir (after dead-arg-elim) ===
   @module TailCallReturnContract
   fn @keep() -> i256 {
     bb0:

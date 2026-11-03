@@ -595,6 +595,7 @@ async fn pull_diagnostic_client_refreshes_and_clears_without_push() {
 async fn pull_diagnostic_data_support_is_used_on_the_wire() {
     let diagnostic = native_diagnostic_on_the_wire(DIAGNOSTIC_SOURCE, true, true).await;
     assert_data_eq!(diagnostic, str![[r#"
+code: "7576"
 data: {"sourceFingerprint":"24fee19b51b73a844d065fdb0f41b803","suggestions":[],"uri":"[URI]","version":1}
 message: "unresolved symbol `missingValue`"
 range: {"end":{"character":27,"line":2},"start":{"character":15,"line":2}}

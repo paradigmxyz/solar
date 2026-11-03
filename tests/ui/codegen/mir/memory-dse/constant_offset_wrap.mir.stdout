@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/memory-dse/constant_offset_wrap.sol:ConstantOffsetWrap ===
+; === ROOT/tests/ui/codegen/mir/memory-dse/constant_offset_wrap.sol:ConstantOffsetWrap ===
 @module ConstantOffsetWrap
 ; function wrappedRead() external pure returns (uint256 result) [selector 0x2d22c470]
 fn @wrappedRead() -> i256 [selector=0x2d22c470, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {

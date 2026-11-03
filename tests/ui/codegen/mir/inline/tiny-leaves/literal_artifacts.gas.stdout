@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/literal_artifacts.mir (before inline) ===
-+ // === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/literal_artifacts.mir (after inline) ===
+- ; === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/literal_artifacts.mir (before inline) ===
++ ; === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/literal_artifacts.mir (after inline) ===
   @module LiteralArtifacts
   ; creation entry
   fn @constructor() [constructor] {
@@ -153,8 +153,8 @@
       ret v0
   }
   
-- // === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/literal_artifacts.mir (before cfg-simplify) ===
-+ // === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/literal_artifacts.mir (after cfg-simplify) ===
+- ; === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/literal_artifacts.mir (before cfg-simplify) ===
++ ; === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/literal_artifacts.mir (after cfg-simplify) ===
   @module LiteralArtifacts
   ; creation entry
   fn @constructor() [constructor] {
@@ -293,8 +293,8 @@
       ret v0
   }
   
-- // === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/literal_artifacts.mir (before dce) ===
-+ // === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/literal_artifacts.mir (after dce) ===
+- ; === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/literal_artifacts.mir (before dce) ===
++ ; === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/literal_artifacts.mir (after dce) ===
   @module LiteralArtifacts
   ; creation entry
   fn @constructor() [constructor] {

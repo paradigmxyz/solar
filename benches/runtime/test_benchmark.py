@@ -178,11 +178,11 @@ class CorpusTests(unittest.TestCase):
             )
 
     def test_vendored_cases_and_projects_exist(self) -> None:
-        self.assertEqual(len(benchmark.TEST_CASES), 38)
+        self.assertEqual(len(benchmark.TEST_CASES), 39)
         repository_cases = [
             case for case in benchmark.TEST_CASES if case.suite == "repository"
         ]
-        self.assertEqual(len(repository_cases), 12)
+        self.assertEqual(len(repository_cases), 13)
         heavy_cases = [case for case in benchmark.TEST_CASES if case.suite == "heavy"]
         self.assertEqual(len(heavy_cases), 10)
         for case in heavy_cases:
@@ -201,6 +201,7 @@ class CorpusTests(unittest.TestCase):
             "maple-erc20": 2,
             "solady-encoding": 3,
             "solady-algorithms": 5,
+            "prb-math": 34,
             "tempo-zones-portal": 23,
         }
         for case in repository_cases:
@@ -273,7 +274,12 @@ class CorpusTests(unittest.TestCase):
             self.assertTrue(bytes.fromhex(bytecode))
 
     def test_benchmark_wrapper_preserves_pinned_sources(self) -> None:
-        for test_id, count in (("solady-encoding", 153), ("solady-algorithms", 85)):
+        solady = ("src/utils/LibString.sol", "test/LibString.t.sol")
+        for test_id, count, closure, excluded in (
+            ("solady-encoding", 153, *solady),
+            ("solady-algorithms", 85, *solady),
+            ("prb-math", 120, "src/ud60x18/Math.sol", "test/Base.t.sol"),
+        ):
             with self.subTest(test_id=test_id):
                 case = next(
                     case for case in benchmark.TEST_CASES if case.test_id == test_id
@@ -284,8 +290,8 @@ class CorpusTests(unittest.TestCase):
                 self.assertEqual(
                     payload["sources"][case.source]["content"], case.source_code
                 )
-                self.assertIn("src/utils/LibString.sol", payload["sources"])
-                self.assertNotIn("test/LibString.t.sol", payload["sources"])
+                self.assertIn(closure, payload["sources"])
+                self.assertNotIn(excluded, payload["sources"])
                 for source, contents in payload["sources"].items():
                     if source != case.source:
                         self.assertEqual(contents, project["sources"][source])
@@ -477,6 +483,19 @@ class CorpusTests(unittest.TestCase):
             payload, _, _ = benchmark.compiler_input(case, None)
             selected = json.loads(payload)["sources"]
             self.assertEqual(len(selected), expected_source_counts[case.test_id])
+
+    def test_project_slice_follows_aliased_imports(self) -> None:
+        project = {
+            "sources": {
+                "src/A.sol": {"content": 'import "./B.sol" as B;'},
+                "src/B.sol": {"content": ""},
+            },
+        }
+
+        self.assertEqual(
+            list(benchmark.project_slice(project, "src/A.sol")),
+            ["src/A.sol", "src/B.sol"],
+        )
 
     def test_project_slice_resolves_relative_and_remapped_imports(self) -> None:
         project = {
@@ -1311,11 +1330,11 @@ class ArtifactTests(unittest.TestCase):
     def test_solar_dump_covers_every_contract_with_the_target_first(self) -> None:
         def dump(contract: str, tag: str, mir: str | None = None) -> list[str]:
             return [
-                f"// === {contract} ===\n{mir or f'mir {tag}'}",
-                f"// === {contract} (creation) ===\ncreation ir {tag}",
-                f"// === {contract} (runtime) ===\nruntime ir {tag}",
-                f"// === {contract} (deployment) ===\ncreation asm {tag}",
-                f"// === {contract} (runtime) ===\nruntime asm {tag}",
+                f"; === {contract} ===\n{mir or f'mir {tag}'}",
+                f"; === {contract} (creation) ===\ncreation ir {tag}",
+                f"; === {contract} (runtime) ===\nruntime ir {tag}",
+                f"; === {contract} (deployment) ===\ncreation asm {tag}",
+                f"; === {contract} (runtime) ===\nruntime asm {tag}",
             ]
 
         # Solar prints each kind for all contracts in turn.
@@ -1359,7 +1378,7 @@ class ArtifactTests(unittest.TestCase):
             self.assertEqual(
                 artifacts[name],
                 "\n".join(
-                    f"// === {heading.format(contract)} ===\n{tag} {suffix}\n"
+                    f"; === {heading.format(contract)} ===\n{tag} {suffix}\n"
                     for contract, suffix in (
                         ("B.sol:Target", "target"),
                         ("A.sol:Child", "child"),
@@ -1376,7 +1395,7 @@ class ArtifactTests(unittest.TestCase):
         )
         stdout = (
             "\n".join(
-                f"// === {c}{k} ===\n{stub}"
+                f"; === {c}{k} ===\n{stub}"
                 for k in (
                     "",
                     " (creation)",
@@ -1413,7 +1432,7 @@ class ArtifactTests(unittest.TestCase):
         )
 
     def test_solar_dump_without_the_target_is_rejected(self) -> None:
-        stdout = '// === A.sol:A ===\nmir\n{"contracts":{}}'
+        stdout = '; === A.sol:A ===\nmir\n{"contracts":{}}'
 
         with self.assertRaisesRegex(ValueError, "expected 5 .* B.sol:B, found 0"):
             benchmark.split_solar_artifact_output(stdout, "B.sol:B")

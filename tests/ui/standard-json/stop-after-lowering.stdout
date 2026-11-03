@@ -10,9 +10,9 @@
       "type": "Exception",
       "component": "general",
       "severity": "error",
-      "errorCode": null,
+      "errorCode": "7576",
       "message": "unresolved symbol `undefined_name`",
-      "formattedMessage": "error: unresolved symbol `undefined_name`\n   ╭▸ A.sol:LL:CC\n   │\nLL │ contract C { function f() public pure returns (uint256) { bool b = 1; return b; } function g() public { undefined_name = 1; } }\n   ╰╴                                                                                                        ━━━━━━━━━━━━━━\n\n"
+      "formattedMessage": "error[7576]: unresolved symbol `undefined_name`\n   ╭▸ A.sol:LL:CC\n   │\nLL │ contract C { function f() public pure returns (uint256) { bool b = 1; return b; } function g() public { undefined_name = 1; } }\n   ╰╴                                                                                                        ━━━━━━━━━━━━━━\n\n"
     }
   ],
   "sources": {}

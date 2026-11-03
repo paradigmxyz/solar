@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/returndata-zero/returndata_zero.evmir (before returndata-zero) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/returndata-zero/returndata_zero.evmir (after returndata-zero) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/returndata-zero/returndata_zero.evmir (before returndata-zero) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/returndata-zero/returndata_zero.evmir (after returndata-zero) ===
   @module module
   bb0:
     push 0

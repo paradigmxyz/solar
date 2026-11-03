@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/inline/dispatch/scalar.mir (before inline) ===
-+ // === ROOT/tests/ui/codegen/mir/inline/dispatch/scalar.mir (after inline) ===
+- ; === ROOT/tests/ui/codegen/mir/inline/dispatch/scalar.mir (before inline) ===
++ ; === ROOT/tests/ui/codegen/mir/inline/dispatch/scalar.mir (after inline) ===
   @module ScalarDispatcher
   @phase lowered
   ; runtime dispatch entry
@@ -8,25 +8,25 @@
       v0 = calldataload 0
       v1 = shr v0, 224
       switch v1, default bb3, [1 => bb1, 2 => bb2]
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
 -     tail_call @sub
 +     jump bb5
-+   bb5:  ; preds = bb2
++   bb5:                                            ; preds = bb2
 +     v5 = calldataload 4
 +     v6 = calldataload 36
 +     v7 = sub v5, v6
 +     mstore 128, v7
 +     returndata 128, 32
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
 -     tail_call @add
 +     jump bb4
-+   bb4:  ; preds = bb1
++   bb4:                                            ; preds = bb1
 +     v2 = calldataload 4
 +     v3 = calldataload 36
 +     v4 = add v2, v3
 +     mstore 128, v4
 +     returndata 128, 32
-    bb3 [cold]:  ; preds = bb0
+    bb3 [cold]:                                     ; preds = bb0
       revert 0, 0
 - }
 - 
@@ -48,8 +48,8 @@
 -     returndata 128, 32
   }
   
-- // === ROOT/tests/ui/codegen/mir/inline/dispatch/scalar.mir (before cfg-simplify) ===
-+ // === ROOT/tests/ui/codegen/mir/inline/dispatch/scalar.mir (after cfg-simplify) ===
+- ; === ROOT/tests/ui/codegen/mir/inline/dispatch/scalar.mir (before cfg-simplify) ===
++ ; === ROOT/tests/ui/codegen/mir/inline/dispatch/scalar.mir (after cfg-simplify) ===
   @module ScalarDispatcher
   @phase lowered
   ; runtime dispatch entry
@@ -58,28 +58,28 @@
       v0 = calldataload 0
       v1 = shr v0, 224
       switch v1, default bb3, [1 => bb1, 2 => bb2]
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
 -     jump bb5
--   bb5:  ; preds = bb2
+-   bb5:                                            ; preds = bb2
       v5 = calldataload 4
       v6 = calldataload 36
       v7 = sub v5, v6
       mstore 128, v7
       returndata 128, 32
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
 -     jump bb4
--   bb4:  ; preds = bb1
+-   bb4:                                            ; preds = bb1
       v2 = calldataload 4
       v3 = calldataload 36
       v4 = add v2, v3
       mstore 128, v4
       returndata 128, 32
-    bb3 [cold]:  ; preds = bb0
+    bb3 [cold]:                                     ; preds = bb0
       revert 0, 0
   }
   
-- // === ROOT/tests/ui/codegen/mir/inline/dispatch/scalar.mir (before dce) ===
-+ // === ROOT/tests/ui/codegen/mir/inline/dispatch/scalar.mir (after dce) ===
+- ; === ROOT/tests/ui/codegen/mir/inline/dispatch/scalar.mir (before dce) ===
++ ; === ROOT/tests/ui/codegen/mir/inline/dispatch/scalar.mir (after dce) ===
   @module ScalarDispatcher
   @phase lowered
   ; runtime dispatch entry
@@ -88,19 +88,19 @@
       v0 = calldataload 0
       v1 = shr v0, 224
       switch v1, default bb3, [1 => bb1, 2 => bb2]
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       v5 = calldataload 4
       v6 = calldataload 36
       v7 = sub v5, v6
       mstore 128, v7
       returndata 128, 32
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       v2 = calldataload 4
       v3 = calldataload 36
       v4 = add v2, v3
       mstore 128, v4
       returndata 128, 32
-    bb3 [cold]:  ; preds = bb0
+    bb3 [cold]:                                     ; preds = bb0
       revert 0, 0
   }
   

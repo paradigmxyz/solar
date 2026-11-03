@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/internal_function_pointer_calldata_returns.sol:InternalFunctionPointerCalldataReturns ===
+; === ROOT/tests/ui/codegen/lowering/run-call/internal_function_pointer_calldata_returns.sol:InternalFunctionPointerCalldataReturns ===
 @module InternalFunctionPointerCalldataReturns
 @types
   struct0: {i256, i256, i256}
@@ -62,10 +62,10 @@ fn @internal_dispatcher_p_slice_calldata_r_slice_calldata_uint256_slice_calldata
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = icall @identity, arg1
     ret v1
 }
