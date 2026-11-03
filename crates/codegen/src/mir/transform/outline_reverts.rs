@@ -21,7 +21,7 @@ use crate::{
     backend::evm::op,
     mir::{
         BlockId, Function, FunctionBuilder, FunctionId, InstKind, MirModuleTarget, Module,
-        PtrLocation, Terminator, Value, pass::MirPass,
+        PtrLocation, Terminator, pass::MirPass,
     },
     target::{Cost, Target},
 };
@@ -113,10 +113,7 @@ fn constant_revert_shape(func: &Function, block: BlockId) -> Option<RevertShape>
     let Some(Terminator::Revert { offset, size }) = block.terminator else {
         return None;
     };
-    let imm = |v| match func.value(v) {
-        Value::Immediate(imm) => imm.as_u256(),
-        _ => None,
-    };
+    let imm = |v| func.value_u256(v);
     let mut stores = SmallVec::with_capacity(block.instructions.len());
     for &inst_id in &block.instructions {
         let InstKind::Store(store_offset, value, PtrLocation::Memory) = func.inst(inst_id).kind

@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/tail-merge/loop_header_branch.evmir (before tail-merge) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/tail-merge/loop_header_branch.evmir (after tail-merge) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/tail-merge/loop_header_branch.evmir (before tail-merge) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/tail-merge/loop_header_branch.evmir (after tail-merge) ===
   @module LoopHeaderBranch
   bb0:
     push 9

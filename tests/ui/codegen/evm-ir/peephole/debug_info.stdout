@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/peephole/debug_info.evmir (before peephole) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/peephole/debug_info.evmir (after peephole) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/peephole/debug_info.evmir (before peephole) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/peephole/debug_info.evmir (after peephole) ===
   @module test
   bb0:
     push 0 !metadata(span=0..1)

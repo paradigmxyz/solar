@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/packed_recycled_fmp.sol:PackedRecycledFmp ===
+; === ROOT/tests/ui/codegen/lowering/run-call/packed_recycled_fmp.sol:PackedRecycledFmp ===
 @module PackedRecycledFmp
 ; function payload() external pure returns (bytes memory) [selector 0xa878f858]
 fn @payload() -> ptr<memory> [selector=0xa878f858, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

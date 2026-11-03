@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/lvalue_evaluation_order.sol:LValueEvaluationOrder ===
+; === ROOT/tests/ui/codegen/lowering/run-call/lvalue_evaluation_order.sol:LValueEvaluationOrder ===
 @module LValueEvaluationOrder
 @types
   struct0: {i256, i256, i256}
@@ -118,9 +118,9 @@ fn @pushSideEffect() -> struct0 [selector=0x0753e3a7, abi_params=[], abi_returns
     v2 = zext i160 v0 to i256
     v3 = call v1, v2, 0, 28, 4, 0, 32
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = returndatasize
     v5 = lt v4, 32
     icall revert_if<tuple_data_too_short>, v5

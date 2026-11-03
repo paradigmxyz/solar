@@ -1,6 +1,6 @@
-// === ROOT/tests/ui/codegen/disasm/cold_revert_strings.sol:ColdRevertStrings (runtime) ===
+; === ROOT/tests/ui/codegen/disasm/cold_revert_strings.sol:ColdRevertStrings (runtime) ===
 @module ColdRevertStrings_runtime
-bb0:  ; runtime dispatch entry + function permit(uint256 deadline, bool valid) external view returns (uint256) [selector 0xa5f0e023]
+bb0:                                              ; runtime dispatch entry + function permit(uint256 deadline, bool valid) external view returns (uint256) [selector 0xa5f0e023]
   callvalue
   push bb3
   jumpi
@@ -50,7 +50,7 @@ bb8 [cold]:
   shl
   push 25
   jump bb11
-bb11 [cold]:  ; revert_error (synthesized)
+bb11 [cold]:                                      ; revert_error (synthesized)
   push 32
   dup 1
   mstore

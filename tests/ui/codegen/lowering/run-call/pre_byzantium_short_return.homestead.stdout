@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/pre_byzantium_short_return.sol:ShortReturns ===
+; === ROOT/tests/ui/codegen/lowering/run-call/pre_byzantium_short_return.sol:ShortReturns ===
 @module ShortReturns
 @types
   struct0: {i256, i256}
@@ -59,9 +59,9 @@ fn @emptySingle() -> i256 [selector=0x52635aa1, abi_params=[], abi_returns=[word
     v12 = zext i160 v0 to i256
     v13 = call v11, v12, 0, v5, v6, v5, 32
     jumpi v13, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v14 = mload v5
     ret v14
 }
@@ -86,9 +86,9 @@ fn @emptySingleArg() -> i256 [selector=0x44cc61d5, abi_params=[], abi_returns=[w
     v12 = zext i160 v0 to i256
     v13 = call v11, v12, 0, v5, v6, v5, 32
     jumpi v13, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v14 = mload v5
     ret v14
 }
@@ -115,9 +115,9 @@ fn @emptyPair() -> struct0 [selector=0xa086baae, abi_params=[], abi_returns=[wor
     v12 = zext i160 v0 to i256
     v13 = call v11, v12, 0, v5, v6, v5, 64
     jumpi v13, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v14 = mload v5
     v15 = ptrtoint ptr<memory> v5 to i256
     v16 = add v15, 32
@@ -151,9 +151,9 @@ fn @emptyFour() -> struct1 [selector=0x7bcee116, abi_params=[], abi_returns=[wor
     v12 = zext i160 v0 to i256
     v13 = call v11, v12, 0, v5, v6, v5, 128
     jumpi v13, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v14 = mload v5
     v15 = ptrtoint ptr<memory> v5 to i256
     v16 = add v15, 32
@@ -202,9 +202,9 @@ fn @emptyAgg() -> ptr<memory> [selector=0x06df237b, abi_params=[], abi_returns=[
     v14 = zext i160 v1 to i256
     v15 = call v13, v14, 0, v7, v8, v7, 64
     jumpi v15, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     mcopy v2, v7, 64
     v16 = make_memory_slice v2, 64
     v17 = abi_decode [array<2, uint256>], v16
@@ -234,9 +234,9 @@ fn @emptyAggArg() -> ptr<memory> [selector=0x3dd9064d, abi_params=[], abi_return
     v14 = zext i160 v1 to i256
     v15 = call v13, v14, 0, v7, v8, v7, 64
     jumpi v15, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     mcopy v2, v7, 64
     v16 = make_memory_slice v2, 64
     v17 = abi_decode [array<2, uint256>], v16
@@ -263,9 +263,9 @@ fn @partialSingle() -> i256 [selector=0xe1e2fed5, abi_params=[], abi_returns=[wo
     v12 = zext i160 v0 to i256
     v13 = call v11, v12, 0, v5, v6, v5, 32
     jumpi v13, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v14 = mload v5
     ret v14
 }
@@ -290,9 +290,9 @@ fn @partialPair() -> struct0 [selector=0x94ae8541, abi_params=[], abi_returns=[w
     v12 = zext i160 v0 to i256
     v13 = call v11, v12, 0, v5, v6, v5, 64
     jumpi v13, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v14 = mload v5
     v15 = ptrtoint ptr<memory> v5 to i256
     v16 = add v15, 32
@@ -329,9 +329,9 @@ fn @partialAgg() -> ptr<memory> [selector=0xbf0809fa, abi_params=[], abi_returns
     v14 = zext i160 v1 to i256
     v15 = call v13, v14, 0, v7, v8, v7, 64
     jumpi v15, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     mcopy v2, v7, 64
     v16 = make_memory_slice v2, 64
     v17 = abi_decode [array<2, uint256>], v16
@@ -365,9 +365,9 @@ fn @dirtyFour() -> struct1 [selector=0x42fc804f, abi_params=[], abi_returns=[wor
     v16 = zext i160 v4 to i256
     v17 = call v15, v16, 0, v9, v10, v9, 128
     jumpi v17, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v18 = mload v9
     v19 = ptrtoint ptr<memory> v9 to i256
     v20 = add v19, 32

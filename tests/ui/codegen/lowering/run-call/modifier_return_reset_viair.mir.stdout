@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/modifier_return_reset_viair.sol:ModifierReturnResetViaIr ===
+; === ROOT/tests/ui/codegen/lowering/run-call/modifier_return_reset_viair.sol:ModifierReturnResetViaIr ===
 @module ModifierReturnResetViaIr
 ; creation entry
 fn @constructor() [constructor] {
@@ -17,14 +17,14 @@ fn @foo() -> i256 [selector=0xc2985578, abi_params=[], abi_returns=[word], abi_r
     v1 = trunc i256 v0 to i8
     v2 = ne v1, i8 0
     jumpi v2, bb3, bb4
-  bb4:  ; preds = bb0
+  bb4:                                            ; preds = bb0
     jump bb5
-  bb3:  ; preds = bb0
+  bb3:                                            ; preds = bb0
     jump bb5
-  bb5:  ; preds = bb3, bb4
+  bb5:                                            ; preds = bb3, bb4
     v3 = phi [bb3: 1], [bb4: 0]
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     v4 = sload 0 !metadata(storage=slot(0))
     v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     v6 = or v5, 0
@@ -33,15 +33,15 @@ fn @foo() -> i256 [selector=0xc2985578, abi_params=[], abi_returns=[word], abi_r
     v8 = trunc i256 v7 to i8
     v9 = ne v8, i8 0
     jumpi v9, bb7, bb8
-  bb8:  ; preds = bb2
+  bb8:                                            ; preds = bb2
     jump bb9
-  bb7:  ; preds = bb2
+  bb7:                                            ; preds = bb2
     jump bb9
-  bb9:  ; preds = bb7, bb8
+  bb9:                                            ; preds = bb7, bb8
     v10 = phi [bb7: 1], [bb8: 0]
     jump bb6
-  bb6:  ; preds = bb9
+  bb6:                                            ; preds = bb9
     jump bb1
-  bb1:  ; preds = bb6
+  bb1:                                            ; preds = bb6
     ret v10
 }

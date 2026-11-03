@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/evm-ir/pack-data/dead_blocks.evmir (after pipeline-default) ===
+; === ROOT/tests/ui/codegen/evm-ir/pack-data/dead_blocks.evmir (after pipeline-default) ===
 @module dead_blocks
 @data
   literal_0: hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"

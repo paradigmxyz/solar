@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/literal_return_fmp.sol:LiteralReturnFmp ===
+; === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/literal_return_fmp.sol:LiteralReturnFmp ===
 @module LiteralReturnFmp
 @types
   struct0: {ptr<memory>, ptr<memory>}

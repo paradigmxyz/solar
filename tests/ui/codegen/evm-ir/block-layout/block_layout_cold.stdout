@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/block-layout/block_layout_cold.evmir (before block-layout) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/block-layout/block_layout_cold.evmir (after block-layout) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/block-layout/block_layout_cold.evmir (before block-layout) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/block-layout/block_layout_cold.evmir (after block-layout) ===
   @module module
   bb0:
     jump bb2

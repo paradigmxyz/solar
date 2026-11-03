@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/none/compact.evmir (before none) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/none/compact.evmir (after none) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/none/compact.evmir (before none) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/none/compact.evmir (after none) ===
   @module compact
   bb0:
     push 1

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/check-elim/long_function.sol:LongFunction ===
+; === ROOT/tests/ui/codegen/mir/check-elim/long_function.sol:LongFunction ===
 @module LongFunction
 @phase lowered
 ; runtime dispatch entry
@@ -11,15 +11,15 @@ fn @entry() [entry] {
     v4 = or v0, v3
     v5 = ne v4, 0
     jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v6 = calldataload 0
     v7 = shr v6, 224
     switch v7, default bb1, [0xaeb2e72f => bb3, 0xd2fe3d6a => bb4]
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     tail_call @chained
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     tail_call @unchained
-  bb1 [cold]:  ; preds = bb0, bb2
+  bb1 [cold]:                                     ; preds = bb0, bb2
     revert 0, 0
 }
 
@@ -33,13 +33,13 @@ fn @chained() {
     v2 = lt v62, v63
     v64 = and v0, v2
     jumpi v64, bb4, bb3
-  bb3 [cold]:  ; preds = bb0
+  bb3 [cold]:                                     ; preds = bb0
     revert 0, 0
-  bb4:  ; preds = bb0
+  bb4:                                            ; preds = bb0
     v114 = calldataload 68
     v5 = eq v114, 2
     jumpi v5, bb5, bb1
-  bb1:  ; preds = bb4
+  bb1:                                            ; preds = bb4
     v6 = eq v114, 3
     v7 = eq v114, 4
     v65 = or v6, v7
@@ -136,7 +136,7 @@ fn @chained() {
     v53 = eq v114, 50
     v111 = or v110, v53
     jumpi v111, bb5, bb2
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v112 = calldataload 4
     v113 = calldataload 36
     v54 = sub v114, v113
@@ -144,14 +144,14 @@ fn @chained() {
     v57 = add v54, v55
     v58 = lt v57, v54
     jumpi v58, bb6, bb7
-  bb7:  ; preds = bb2
+  bb7:                                            ; preds = bb2
     mstore 0, v57 !metadata(memory=scratch)
     returndata 0, 32
-  bb6 [cold]:  ; preds = bb2
+  bb6 [cold]:                                     ; preds = bb2
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb5 [cold]:  ; preds = bb1, bb4
+  bb5 [cold]:                                     ; preds = bb1, bb4
     tail_call @revert_stub
 }
 
@@ -162,13 +162,13 @@ fn @unchained() {
     v64 = calldataload 36
     v0 = lt v63, v64
     jumpi v0, bb4, bb3
-  bb3 [cold]:  ; preds = bb0
+  bb3 [cold]:                                     ; preds = bb0
     revert 0, 0
-  bb4:  ; preds = bb0
+  bb4:                                            ; preds = bb0
     v117 = calldataload 68
     v2 = eq v117, 1
     jumpi v2, bb5, bb1
-  bb1:  ; preds = bb4
+  bb1:                                            ; preds = bb4
     v3 = eq v117, 2
     v4 = eq v117, 3
     v66 = or v3, v4
@@ -267,7 +267,7 @@ fn @unchained() {
     v51 = eq v117, 50
     v113 = or v112, v51
     jumpi v113, bb5, bb2
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v116 = calldataload 36
     v115 = calldataload 4
     v55 = sub v117, v116
@@ -277,14 +277,14 @@ fn @unchained() {
     v60 = lt v59, v55
     v114 = or v56, v60
     jumpi v114, bb6, bb7
-  bb7:  ; preds = bb2
+  bb7:                                            ; preds = bb2
     mstore 0, v59 !metadata(memory=scratch)
     returndata 0, 32
-  bb6 [cold]:  ; preds = bb2
+  bb6 [cold]:                                     ; preds = bb2
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb5 [cold]:  ; preds = bb1, bb4
+  bb5 [cold]:                                     ; preds = bb1, bb4
     tail_call @revert_stub
 }
 

@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/cse/cse_storage_alias.mir (before cse) ===
-+ // === ROOT/tests/ui/codegen/mir/cse/cse_storage_alias.mir (after cse) ===
+- ; === ROOT/tests/ui/codegen/mir/cse/cse_storage_alias.mir (before cse) ===
++ ; === ROOT/tests/ui/codegen/mir/cse/cse_storage_alias.mir (after cse) ===
   @module CseStorageAlias
   fn @reuse_sload_after_disjoint_store(arg0: i256, arg1: i256) -> i256 {
     bb0:

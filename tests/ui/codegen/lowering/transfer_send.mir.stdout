@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/transfer_send.sol:GasReceiver ===
+; === ROOT/tests/ui/codegen/lowering/transfer_send.sol:GasReceiver ===
 @module GasReceiver
 ; receive() external payable [receive]
 fn @receive() [receive, payable] {
@@ -13,7 +13,7 @@ fn @receive() [receive, payable] {
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/transfer_send.sol:RevertReceiver ===
+; === ROOT/tests/ui/codegen/lowering/transfer_send.sol:RevertReceiver ===
 @module RevertReceiver
 ; receive() external payable [receive]
 fn @receive() [receive, payable] {
@@ -22,7 +22,7 @@ fn @receive() [receive, payable] {
     revert 0, 4
 }
 
-// === ROOT/tests/ui/codegen/lowering/transfer_send.sol:TransferSend ===
+; === ROOT/tests/ui/codegen/lowering/transfer_send.sol:TransferSend ===
 @module TransferSend
 @types
   struct0: {i256, i256, i256}
@@ -40,9 +40,9 @@ fn @constructor() [constructor] {
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = sload 0 !metadata(storage=slot(0))
     v5 = and v4, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
     v6 = zext i160 v2 to i256
@@ -55,9 +55,9 @@ fn @constructor() [constructor] {
     v11 = create 0, v10, v9
     v12 = ne v11, i160 0
     jumpi v12, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v13 = sload 1 !metadata(storage=slot(1))
     v14 = and v13, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
     v15 = zext i160 v11 to i256

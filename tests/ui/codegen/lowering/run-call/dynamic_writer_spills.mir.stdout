@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/dynamic_writer_spills.sol:DynamicWriterSpills ===
+; === ROOT/tests/ui/codegen/lowering/run-call/dynamic_writer_spills.sol:DynamicWriterSpills ===
 @module DynamicWriterSpills
 ; function payload() external pure [selector 0xa878f858]
 fn @payload() [selector=0xa878f858, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
@@ -39,9 +39,9 @@ fn @run() -> i256 [selector=0xc0406226, view, abi_params=[], abi_returns=[word],
     v26 = zext i1 v25 to i256
     v27 = ne v26, 0
     jumpi v27, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v28 = returndatasize
     returndatacopy 0, 0, v28 !metadata(memory=scratch)
     v29 = and v18, v19
@@ -68,6 +68,6 @@ fn @run() -> i256 [selector=0xc0406226, view, abi_params=[], abi_returns=[word],
     v50 = eq v49, 0
     v51 = zext i1 v50 to i256
     ret v51
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert 0, 0
 }

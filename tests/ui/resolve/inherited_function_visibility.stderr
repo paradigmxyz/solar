@@ -1,22 +1,22 @@
-error: unresolved symbol `privateFunction`
+error[7576]: unresolved symbol `privateFunction`
    ╭▸ ROOT/tests/ui/resolve/inherited_function_visibility.sol:LL:CC
    │
 LL │         return privateFunction();
    ╰╴               ━━━━━━━━━━━━━━━
 
-error: unresolved symbol `externalFunction`
+error[7576]: unresolved symbol `externalFunction`
    ╭▸ ROOT/tests/ui/resolve/inherited_function_visibility.sol:LL:CC
    │
 LL │         return externalFunction();
    ╰╴               ━━━━━━━━━━━━━━━━
 
-error: unresolved symbol `privateFunction`
+error[7576]: unresolved symbol `privateFunction`
    ╭▸ ROOT/tests/ui/resolve/inherited_function_visibility.sol:LL:CC
    │
 LL │         return privateFunction();
    ╰╴               ━━━━━━━━━━━━━━━
 
-error: unresolved symbol `externalFunction`
+error[7576]: unresolved symbol `externalFunction`
    ╭▸ ROOT/tests/ui/resolve/inherited_function_visibility.sol:LL:CC
    │
 LL │         return externalFunction();

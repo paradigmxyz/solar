@@ -4,11 +4,11 @@
 //@[amsterdam] compile-flags: --evm-version amsterdam -Zdump=disasm-deploy
 //@[amsterdam] filecheck: --check-prefix=AMSTERDAM
 
-// OSAKA: // === exchange_lowering (deployment) ===
+// OSAKA: ; === exchange_lowering (deployment) ===
 // OSAKA: SWAP1
 // OSAKA-NEXT: SWAP2
 // OSAKA-NEXT: SWAP1
-// AMSTERDAM: // === exchange_lowering (deployment) ===
+// AMSTERDAM: ; === exchange_lowering (deployment) ===
 // AMSTERDAM: EXCHANGE 1, 2
 
 @module exchange_lowering

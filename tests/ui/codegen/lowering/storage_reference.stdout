@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/storage_reference.sol:C ===
+; === ROOT/tests/ui/codegen/lowering/storage_reference.sol:C ===
 @module C
 ; function setDirect(uint256 k, uint256 a) public [selector 0xa8972d9c]
 fn @setDirect(arg0: i256, arg1: i256) [selector=0xa8972d9c, abi_params=[uint256, uint256], abi_returns=[], abi_return_params=[]] {

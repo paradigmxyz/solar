@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/function_selector_side_effect.sol:FunctionSelectorSideEffect ===
+; === ROOT/tests/ui/codegen/lowering/run-call/function_selector_side_effect.sol:FunctionSelectorSideEffect ===
 @module FunctionSelectorSideEffect
 ; function f() external view [selector 0x26121ff0]
 fn @f() [selector=0x26121ff0, view, abi_params=[], abi_returns=[], abi_return_params=[]] {

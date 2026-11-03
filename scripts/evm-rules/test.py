@@ -702,11 +702,11 @@ class RuleTests(unittest.TestCase):
     def test_narrow_integer_rules(self):
         entries = list(obligations(ISLE / "mir/word"))
         native = [entry for entry in entries if "integer_bits" in entry]
-        self.assertEqual(len(native), 67 * 33)
+        self.assertEqual(len(native), 39 * 33)
         for bits in (1, *range(8, 257, 8)):
             selected = [entry for entry in native if entry["integer_bits"] == bits]
             with self.subTest(bits=bits):
-                self.assertEqual(len(selected), 67)
+                self.assertEqual(len(selected), 39)
                 self.assertTrue(all(entry.get("theorems") for entry in selected))
                 self.assertEqual([e["error"] for e in selected if "error" in e], [])
         self.assertEqual(len({entry["name"] for entry in entries}), len(entries))
@@ -861,7 +861,7 @@ class RuleTests(unittest.TestCase):
             selection.replace("$ADD)", "$SUB)"),
             selection.replace("Op.Add _ _", "Op.Add x x"),
             selection.replace(
-                "OpcodeLowering.Binary $ADD", "OpcodeLowering.Store $ADD"
+                "OpcodeLowering.Valued $ADD", "OpcodeLowering.Store $ADD"
             ),
         ):
             context = Context(changed)

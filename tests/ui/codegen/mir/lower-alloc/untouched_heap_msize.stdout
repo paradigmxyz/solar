@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lower-alloc/untouched_heap_msize.mir (before lower-alloc) ===
-+ // === ROOT/tests/ui/codegen/mir/lower-alloc/untouched_heap_msize.mir (after lower-alloc) ===
+- ; === ROOT/tests/ui/codegen/mir/lower-alloc/untouched_heap_msize.mir (before lower-alloc) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-alloc/untouched_heap_msize.mir (after lower-alloc) ===
   @module UntouchedHeapMsize
   ; selector 0x30000020
   fn @allocates() -> i256 [selector=0x30000020] {

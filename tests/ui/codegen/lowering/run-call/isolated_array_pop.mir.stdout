@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/isolated_array_pop.sol:IsolatedArrayPop ===
+; === ROOT/tests/ui/codegen/lowering/run-call/isolated_array_pop.sol:IsolatedArrayPop ===
 @module IsolatedArrayPop
 @types
   struct0: {i256, i256, i256}
