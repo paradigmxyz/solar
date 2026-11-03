@@ -40,9 +40,9 @@ AST_UNORDERED_FIELDS = {
     "usedErrors",
     "usedEvents",
 }
-# The ID in `t_struct$_S_$12_storage_ptr` and the like; array lengths also follow `_$`.
+# The ID in `t_struct$_S_$12_storage_ptr` and `t_type$_t_super$_B_$7_$`; array lengths also follow `_$`.
 AST_TYPE_ID = re.compile(
-    r"(t_(?:struct|contract|enum|userDefinedValueType)\$_.*?_\$)(\d+)"
+    r"(t_(?:struct|contract|enum|userDefinedValueType|super)\$_.*?_\$)(\d+)"
 )
 
 
@@ -178,8 +178,6 @@ def abi_entries(abi, policy):
 
 def artifact(output, comparator, policy):
     contracts = contract_outputs(output)
-    if not contracts:
-        raise ValueError("missing contract outputs")
     result = {}
     missing = set()
     for path, group in contracts.items():
@@ -236,7 +234,7 @@ def ast_pairs(left, right, path):
         if "nodeType" in left and "nodeType" in right:
             yield path, left, right
         elif "nodeType" not in left and "nodeType" not in right:
-            for key in left.keys() & right.keys():
+            for key in sorted(left.keys() & right.keys()):
                 yield from ast_pairs(left[key], right[key], pointer(path, key))
     elif isinstance(left, list) and isinstance(right, list):
         for index, pair in enumerate(zip(left, right)):
@@ -245,7 +243,7 @@ def ast_pairs(left, right, path):
 
 def ast_roots(output):
     """Map each source with an AST to a pseudo node holding it, by JSON pointer."""
-    contract_outputs(output)
+    contract_outputs(output, require_contracts=False)
     sources = output.get("sources", {})
     if not isinstance(sources, dict) or not all(
         isinstance(s, dict) for s in sources.values()
@@ -286,8 +284,9 @@ def ast_translate(key, value, ref):
             return {"nodeType": value["nodeType"]}
         if key == "internalFunctionIDs":
             return {str(ref(int(k))): v for k, v in value.items()}
-        inner = "id" if key == "exportedSymbols" else None
-        return {k: ast_translate(inner or k, v, ref) for k, v in value.items()}
+        if key == "exportedSymbols":
+            return {k: [ref(i) for i in v] for k, v in value.items()}
+        return {k: ast_translate(k, v, ref) for k, v in value.items()}
     if isinstance(value, list):
         items = [ast_translate(key, v, ref) for v in value]
         return sorted(items, key=str) if key in AST_UNORDERED_FIELDS else items
@@ -296,6 +295,11 @@ def ast_translate(key, value, ref):
     if isinstance(value, str) and key in ("typeIdentifier", "typeString"):
         return AST_TYPE_ID.sub(lambda m: m[1] + str(ref(int(m[2]))), value)
     return value
+
+
+def ast_ref(ids, side):
+    """Rename an ID to its node; one with no node never agrees with the other side."""
+    return lambda n: n if n < 0 else ids.get(n, f"?{n}@{side}")
 
 
 def compare_ast(left, right, rules):
@@ -308,9 +312,7 @@ def compare_ast(left, right, rules):
     """
     roots = [ast_roots(left), ast_roots(right)]
     indexes = [ast_index(side) for side in roots]
-    refs = [
-        lambda n, ids=ids: n if n < 0 else ids.get(n, f"?{n}") for ids, _ in indexes
-    ]
+    refs = [ast_ref(ids, side) for (ids, _), side in zip(indexes, ("left", "right"))]
     by_field = {}
     for number, rule in enumerate(rules):
         by_field.setdefault((rule["nodeType"], rule["field"]), number)
@@ -327,6 +329,9 @@ def compare_ast(left, right, rules):
     while stack:
         path, node_type, l, r = stack.pop()
         for key in [*l, *(k for k in r if k not in l)]:
+            # Paired nodes share a type, and each ID is its node's own pointer.
+            if key in ("id", "nodeType") and key in l and key in r:
+                continue
             row = rows[node_type, key]
             number = by_field.get((node_type, key), by_field.get(("*", key)))
             action = rules[number]["action"] if number is not None else None
@@ -406,17 +411,16 @@ def compare_ast(left, right, rules):
 
 def ast_summary(results):
     """Add up the fields, node counts and rule use of several ast results."""
-    fields = {}
-    types = {}
+    fields = defaultdict(Counter)
+    types = defaultdict(Counter)
     applied = Counter()
     for result in results:
         for row in result["fields"]:
-            key = (row["nodeType"], row["field"])
-            fields.setdefault(key, Counter()).update(
+            fields[row["nodeType"], row["field"]].update(
                 {k: v for k, v in row.items() if type(v) is int}
             )
         for node_type, counts in result["node_types"].items():
-            types.setdefault(node_type, Counter()).update(counts)
+            types[node_type].update(counts)
         for number, rule in enumerate(result["rules"]):
             applied[number] += rule["applied"]
     return {
@@ -697,7 +701,9 @@ class Tests(unittest.TestCase):
             "name": "msg",
             "overloadedDeclarations": [],
             "referencedDeclaration": -15,
-            "typeDescriptions": {},
+            "typeDescriptions": {
+                "typeIdentifier": f"t_type$_t_super$_C_${ids['C']}_$",
+            },
         }
         ident = {
             "id": ids["ident"],
@@ -771,6 +777,14 @@ class Tests(unittest.TestCase):
         self.assertEqual(result["status"], "equal")
         self.assertEqual(result["differences"], [])
         self.assertTrue(all(r["equal"] == r["compared"] for r in result["fields"]))
+        self.assertEqual(
+            {r["field"] for r in result["fields"]} & {"id", "nodeType"}, set()
+        )
+        dangling = self.ast_output()
+        dangling["sources"]["A.sol"]["ast"]["nodes"][0]["scope"] = 7
+        other = self.ast_output(renumber=True)
+        other["sources"]["A.sol"]["ast"]["nodes"][0]["scope"] = 7
+        self.assertEqual(compare_outputs(dangling, other, "ast")["status"], "different")
         right["sources"]["A.sol"]["ast"]["nodes"][0]["contractDependencies"].reverse()
         self.assertEqual(compare_outputs(left, right, "ast")["status"], "equal")
 

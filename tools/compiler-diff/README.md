@@ -157,20 +157,26 @@ every ID-valued field follows: `id`, `referencedDeclaration`,
 `usedErrors`, `functionReturnParameters`, `assignments`, `function`,
 `exportedSymbols`, `externalReferences[].declaration`, the keys of
 `internalFunctionIDs`, and the IDs in `typeIdentifier` and `typeString` of
-`t_struct`, `t_contract`, `t_enum` and `t_userDefinedValueType` types. Solc's
+`t_struct`, `t_contract`, `t_enum`, `t_userDefinedValueType` and `t_super` types. Solc's
 negative builtin IDs stay. A reference agrees only if both sides point at the
 node in the same place, so a wrong declaration, a wrong builtin, or an ID with
-no node (shown as `?N`) differs. A duplicate ID on one side is an error. The sets solc
+no node (shown as `?N@left` or `?N@right`) differs. A duplicate ID on one side is an error. The sets solc
 sorts by ID (`contractDependencies`, `baseFunctions`, `baseModifiers`,
 `usedEvents`, `usedErrors`) compare sorted; `linearizedBaseContracts`,
 `overloadedDeclarations` and every other list keep their order.
 
+Paired nodes always share a type and have matching IDs, so their `nodeType` and
+`id` fields are not counted unless one side lacks the ID.
+
 Both ASTs are walked in step. A field that holds child nodes compares only the
 child's `nodeType`; the children are compared in turn. Children are paired by
 position, so a missing statement shows as a length difference of its list and
-the statements after it are compared against their neighbors. A node whose type
-differs, or that is missing, is not entered. Fields and nodes absent on one side
-are `missing_left` (the reference lacks it) or `missing_right`.
+the statements after it are compared against their neighbors. Because IDs follow
+position, one missing node also makes every later reference to a node of that
+list differ; look for the first difference in the sampled paths. A node whose
+type differs, or that is missing, is not entered. A field absent on one side, or
+a source without `ast`, is `missing_left` (the reference lacks it) or
+`missing_right`; a missing list item shows as `different` on its list.
 
 The report holds, for each `(nodeType, field)`, the nodes compared, `equal`,
 `different`, `missing_left`, `missing_right` and `ignored`, and for each node

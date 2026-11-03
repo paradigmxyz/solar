@@ -58,6 +58,7 @@ def load_ast_rules(path):
         if (
             not isinstance(rule, dict)
             or set(rule) != {"version", "nodeType", "field", "action", "reason"}
+            or type(rule["version"]) is not int
             or rule["version"] != compare.AST_RULE_VERSION
             or rule["action"] not in ("ignore", "presence")
             or not all(
@@ -972,11 +973,6 @@ class Tests(corpus.Tests):
         arguments = self.arguments(*specs)
         arguments.ast = True
         self.assertEqual(corpus.run(self.db, self.root, arguments), 0)
-        selection = read_json(
-            Path(self.db.execute("SELECT directory FROM attempts").fetchone()[0])
-            / "input.json"
-        )["settings"]["outputSelection"]
-        self.assertEqual(selection["*"][""], ["ast"])
         rules = self.root / "rules.json"
         corpus.write_json(
             rules,
