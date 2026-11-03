@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/multi_return.sol:MultiReturn ===
+; === ROOT/tests/ui/codegen/lowering/multi_return.sol:MultiReturn ===
 @module MultiReturn
 @types
   struct0: {i256, i256}
@@ -19,13 +19,13 @@ fn @min_max(arg0: i256, arg1: i256) -> struct0 [selector=0xaef50db3, pure, abi_p
   bb0:
     v0 = lt arg0, arg1
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v3 = insert_value struct0, undef struct0, 0, arg1
     v4 = insert_value struct0, v3, 1, arg0
     ret v4
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = insert_value struct0, undef struct0, 0, arg0
     v2 = insert_value struct0, v1, 1, arg1
     ret v2

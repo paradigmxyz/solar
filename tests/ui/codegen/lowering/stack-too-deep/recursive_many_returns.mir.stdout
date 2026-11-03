@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/stack-too-deep/recursive_many_returns.sol:RecursiveManyReturns ===
+; === ROOT/tests/ui/codegen/lowering/stack-too-deep/recursive_many_returns.sol:RecursiveManyReturns ===
 @module RecursiveManyReturns
 @types
   struct0: {i256, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256}
@@ -8,9 +8,9 @@ fn @g(arg0: i256) -> struct0 [pure] {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = checked_sub uint256, arg0, 1
     v2 = icall @g, v1
     v3 = extract_value struct0, v2, 0
@@ -33,7 +33,7 @@ fn @g(arg0: i256) -> struct0 [pure] {
     v20 = extract_value struct0, v2, 17
     v21 = checked_add uint256, v4, arg0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v22 = phi [bb1: v21], [bb2: 0]
     v23 = insert_value struct0, undef struct0, 0, v22
     v24 = insert_value struct0, v23, 1, arg0

@@ -1,7 +1,7 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/qualified_storage_access.sol:BaseQualifiedStorage ===
+; === ROOT/tests/ui/codegen/lowering/run-call/qualified_storage_access.sol:BaseQualifiedStorage ===
 @module BaseQualifiedStorage
 
-// === ROOT/tests/ui/codegen/lowering/run-call/qualified_storage_access.sol:QualifiedStorage ===
+; === ROOT/tests/ui/codegen/lowering/run-call/qualified_storage_access.sol:QualifiedStorage ===
 @module QualifiedStorage
 ; creation entry
 fn @constructor() [constructor] {

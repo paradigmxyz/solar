@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/terminal-layout/loop_predecessor.evmir (before terminal-layout) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/terminal-layout/loop_predecessor.evmir (after terminal-layout) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/terminal-layout/loop_predecessor.evmir (before terminal-layout) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/terminal-layout/loop_predecessor.evmir (after terminal-layout) ===
   @module LoopPredecessor
   bb0:
     push 1

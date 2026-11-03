@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lower-mapping-slots/mapping_slot_storage_alias.mir (before lower-mapping-slots) ===
-+ // === ROOT/tests/ui/codegen/mir/lower-mapping-slots/mapping_slot_storage_alias.mir (after lower-mapping-slots) ===
+- ; === ROOT/tests/ui/codegen/mir/lower-mapping-slots/mapping_slot_storage_alias.mir (before lower-mapping-slots) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-mapping-slots/mapping_slot_storage_alias.mir (after lower-mapping-slots) ===
   @module MappingSlotStorageAlias
   fn @store(arg0: i256, arg1: i256) {
     bb0:

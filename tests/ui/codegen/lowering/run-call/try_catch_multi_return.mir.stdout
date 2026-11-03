@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/try_catch_multi_return.sol:TryMultiReturnTarget ===
+; === ROOT/tests/ui/codegen/lowering/run-call/try_catch_multi_return.sol:TryMultiReturnTarget ===
 @module TryMultiReturnTarget
 @types
   struct0: {i256, ptr<memory>}
@@ -8,9 +8,9 @@ fn @value(arg0: i1) -> struct0 [selector=0xc4d47ed1, pure, abi_params=[bool], ab
   bb0:
     v0 = eq arg0, false
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v1 = alloc 64 !metadata(preserves_fmp)
     mstore v1, 2
     v2 = ptradd v1, 32
@@ -18,12 +18,12 @@ fn @value(arg0: i1) -> struct0 [selector=0xc4d47ed1, pure, abi_params=[bool], ab
     v3 = insert_value struct0, undef struct0, 0, 13
     v4 = insert_value struct0, v3, 1, v1
     ret v4
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     icall require<short_string>, false, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
     invalid
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/try_catch_multi_return.sol:TryMultiReturn ===
+; === ROOT/tests/ui/codegen/lowering/run-call/try_catch_multi_return.sol:TryMultiReturn ===
 @module TryMultiReturn
 @types
   struct0: {i256, ptr<memory>}
@@ -40,9 +40,9 @@ fn @constructor() [constructor] {
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = sload 0 !metadata(storage=slot(0))
     v5 = and v4, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
     v6 = zext i160 v2 to i256
@@ -59,27 +59,28 @@ fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v1 = trunc i256 v0 to i160
     v2 = gas
     v3 = ne true, false
-    mstore 0, 0xc4d47ed1 !metadata(memory=scratch)
     v4 = zext i1 v3 to i256
-    mstore 32, v4 !metadata(memory=scratch)
-    v5 = zext i160 v1 to i256
-    v6 = staticcall v2, v5, 28, 36, 0, 0
-    jumpi v6, bb1, bb2
-  bb2:  ; preds = bb0
+    v5 = abi_encode [word<bool>], selector 0xc4d47ed100000000000000000000000000000000000000000000000000000000, args v4
+    v6 = extract_value slice<memory>, v5, 0
+    v7 = extract_value slice<memory>, v5, 1
+    v8 = zext i160 v1 to i256
+    v9 = staticcall v2, v8, v6, v7, 0, 0
+    jumpi v9, bb1, bb2
+  bb2:                                            ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     ret 0
-  bb1:  ; preds = bb0
-    v7 = icall returndata_bytes<>
-    v8 = abi_decode [uint256, bytes], v7
-    v9 = extract_value struct0, v8, 0
-    v10 = extract_value struct0, v8, 1
-    v11 = mload v10
-    v12 = checked_add uint256, v9, v11
-    ret v12
+  bb1:                                            ; preds = bb0
+    v10 = icall returndata_bytes<>
+    v11 = abi_decode [uint256, bytes], v10
+    v12 = extract_value struct0, v11, 0
+    v13 = extract_value struct0, v11, 1
+    v14 = mload v13
+    v15 = checked_add uint256, v12, v14
+    ret v15
   bb3:
     ret 0
 }
@@ -91,24 +92,25 @@ fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v1 = trunc i256 v0 to i160
     v2 = gas
     v3 = ne false, false
-    mstore 0, 0xc4d47ed1 !metadata(memory=scratch)
     v4 = zext i1 v3 to i256
-    mstore 32, v4 !metadata(memory=scratch)
-    v5 = zext i160 v1 to i256
-    v6 = staticcall v2, v5, 28, 36, 0, 0
-    jumpi v6, bb1, bb2
-  bb2:  ; preds = bb0
+    v5 = abi_encode [word<bool>], selector 0xc4d47ed100000000000000000000000000000000000000000000000000000000, args v4
+    v6 = extract_value slice<memory>, v5, 0
+    v7 = extract_value slice<memory>, v5, 1
+    v8 = zext i160 v1 to i256
+    v9 = staticcall v2, v8, v6, v7, 0, 0
+    jumpi v9, bb1, bb2
+  bb2:                                            ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     ret 9
-  bb1:  ; preds = bb0
-    v7 = icall returndata_bytes<>
-    v8 = abi_decode [uint256, bytes], v7
-    v9 = extract_value struct0, v8, 0
-    v10 = extract_value struct0, v8, 1
+  bb1:                                            ; preds = bb0
+    v10 = icall returndata_bytes<>
+    v11 = abi_decode [uint256, bytes], v10
+    v12 = extract_value struct0, v11, 0
+    v13 = extract_value struct0, v11, 1
     ret 0
   bb3:
     ret 0

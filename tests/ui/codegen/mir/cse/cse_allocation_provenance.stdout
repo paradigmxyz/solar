@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/cse/cse_allocation_provenance.mir (before cse) ===
-+ // === ROOT/tests/ui/codegen/mir/cse/cse_allocation_provenance.mir (after cse) ===
+- ; === ROOT/tests/ui/codegen/mir/cse/cse_allocation_provenance.mir (before cse) ===
++ ; === ROOT/tests/ui/codegen/mir/cse/cse_allocation_provenance.mir (after cse) ===
   @module CseAllocationProvenance
   fn @fresh(arg0: i256, arg1: i256) -> i256 {
     bb0:
@@ -59,7 +59,7 @@
   fn @loop_allocation_after_fmp_reset(arg0: i1) -> i256 {
     bb0:
       jump bb1
-    bb1:  ; preds = bb0, bb1
+    bb1:                                            ; preds = bb0, bb1
       v0 = inttoptr i256 0 to ptr<memory>
       set_fmp v0
       v1 = alloc 32
@@ -69,7 +69,7 @@
       v4 = mload 96
       v5 = add v3, v4
       jumpi arg0, bb1, bb2
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       ret v5
   }
   

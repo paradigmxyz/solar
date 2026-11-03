@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (before lower-memory-objects) ===
-+ // === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (after lower-memory-objects) ===
+- ; === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (before lower-memory-objects) ===
++ ; === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (after lower-memory-objects) ===
   @module ConstantSelectRecipes
   fn @zero_right_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     bb0:
@@ -276,8 +276,8 @@
       ret v2
   }
   
-- // === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (before lower-integers) ===
-+ // === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (after lower-integers) ===
+- ; === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (before lower-integers) ===
++ ; === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (after lower-integers) ===
   @module ConstantSelectRecipes
   fn @zero_right_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     bb0:
@@ -570,8 +570,8 @@
       ret v2
   }
   
-- // === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (before lower-evm-shaped) ===
-+ // === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (after lower-evm-shaped) ===
+- ; === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (before lower-evm-shaped) ===
++ ; === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (after lower-evm-shaped) ===
   @module ConstantSelectRecipes
 + @phase lowered
   fn @zero_right_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {

@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/inline-returns/inline_returns_size.evmir (before inline-returns) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/inline-returns/inline_returns_size.evmir (after inline-returns) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/inline-returns/inline_returns_size.evmir (before inline-returns) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/inline-returns/inline_returns_size.evmir (after inline-returns) ===
   @module InlineReturnsSize
   bb0:
     push 1

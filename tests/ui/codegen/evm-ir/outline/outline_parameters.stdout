@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/outline/outline_parameters.evmir (before outline) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/outline/outline_parameters.evmir (after outline) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/outline/outline_parameters.evmir (before outline) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/outline/outline_parameters.evmir (after outline) ===
   @module OutlineParameters
   bb0:
 -   push 1

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/storage_assignment_value.sol:StorageAssignmentValue ===
+; === ROOT/tests/ui/codegen/lowering/run-call/storage_assignment_value.sol:StorageAssignmentValue ===
 @module StorageAssignmentValue
 @types
   struct0: {ptr<memory>, i256}

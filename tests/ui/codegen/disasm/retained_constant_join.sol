@@ -8,7 +8,7 @@
 // The first mask reaches the join as a phi input from a block outside the region that a retained
 // constant lives in, and the join then reads it twice. The edge pushes the mask where it runs, in
 // the predecessor, and the join keeps the pushed word, so the second read is a copy.
-// RUNTIME-LABEL: // === {{.*}}:C (runtime) ===
+// RUNTIME-LABEL: ; === {{.*}}:C (runtime) ===
 // RUNTIME-COUNT-2: PUSH8 0xffffffffffffffff
 // RUNTIME-NOT: PUSH8 0xffffffffffffffff
 contract C {

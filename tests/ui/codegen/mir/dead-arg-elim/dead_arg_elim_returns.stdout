@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/dead-arg-elim/dead_arg_elim_returns.mir (before dead-arg-elim) ===
-+ // === ROOT/tests/ui/codegen/mir/dead-arg-elim/dead_arg_elim_returns.mir (after dead-arg-elim) ===
+- ; === ROOT/tests/ui/codegen/mir/dead-arg-elim/dead_arg_elim_returns.mir (before dead-arg-elim) ===
++ ; === ROOT/tests/ui/codegen/mir/dead-arg-elim/dead_arg_elim_returns.mir (after dead-arg-elim) ===
   @module DeadArgElimReturns
 - fn @discarded(arg0: i256) -> i256 {
 + fn @discarded(arg0: i256) {
@@ -12,10 +12,10 @@
   fn @recursive(arg0: i1, arg1: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       sstore 1, arg1
       ret arg1
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       v0 = icall @recursive, false, arg1
       ret v0
   }

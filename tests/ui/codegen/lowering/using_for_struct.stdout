@@ -1,8 +1,8 @@
-// === ROOT/tests/ui/codegen/lowering/using_for_struct.sol:L ===
+; === ROOT/tests/ui/codegen/lowering/using_for_struct.sol:L ===
 @module L
 @library
 
-// === ROOT/tests/ui/codegen/lowering/using_for_struct.sol:C ===
+; === ROOT/tests/ui/codegen/lowering/using_for_struct.sol:C ===
 @module C
 ; function viaMethod(bytes32 a, bytes32 b) public pure returns (bytes32) [selector 0x36245213]
 fn @viaMethod(arg0: i256, arg1: i256) -> i256 [selector=0x36245213, pure, abi_params=[bytes32, bytes32], abi_returns=[word], abi_return_params=[bytes32]] {

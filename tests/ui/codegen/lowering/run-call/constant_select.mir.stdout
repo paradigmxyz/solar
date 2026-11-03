@@ -1,15 +1,15 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/constant_select.sol:ConstantSelect ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constant_select.sol:ConstantSelect ===
 @module ConstantSelect
 ; function choose(uint256 raw, uint256 yes, uint256 no) external pure returns (uint256) [selector 0x739ca28b]
 fn @choose(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x739ca28b, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v1 = phi [bb1: arg1], [bb2: arg2]
     ret v1
 }
@@ -83,11 +83,11 @@ fn @dirtyTernary(arg0: i256, arg1: i256) -> i256 [selector=0xcd9c288e, pure, abi
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v1 = phi [bb1: arg1], [bb2: 7]
     ret v1
 }
@@ -97,11 +97,11 @@ fn @yulBranch(arg0: i256, arg1: i256) -> i256 [selector=0x3701b99b, pure, abi_pa
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v1 = phi [bb1: arg1], [bb2: 7]
     ret v1
 }

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/egraph/rule_opportunities.sol:RuleOpportunities ===
+; === ROOT/tests/ui/codegen/mir/egraph/rule_opportunities.sol:RuleOpportunities ===
 @module RuleOpportunities
 ; function scale(uint x) external pure returns (uint r) [selector 0x2bec1547]
 fn @scale(arg0: i256) -> i256 [selector=0x2bec1547, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {

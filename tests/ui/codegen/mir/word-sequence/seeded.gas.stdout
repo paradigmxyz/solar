@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/word-sequence/seeded.mir (before word-sequence) ===
-+ // === ROOT/tests/ui/codegen/mir/word-sequence/seeded.mir (after word-sequence) ===
+- ; === ROOT/tests/ui/codegen/mir/word-sequence/seeded.mir (before word-sequence) ===
++ ; === ROOT/tests/ui/codegen/mir/word-sequence/seeded.mir (after word-sequence) ===
   @module SeededWords
   fn @rule_11(arg0: i256, arg1: i256) -> i256 {
     bb0:

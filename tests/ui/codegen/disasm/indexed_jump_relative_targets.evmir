@@ -6,7 +6,7 @@
 // adds the first target's address.
 @module relative_targets
 
-// CHECK-LABEL: // === relative_targets (runtime) ===
+// CHECK-LABEL: ; === relative_targets (runtime) ===
 // CHECK: PUSH10
 // CHECK-NEXT: SWAP1
 // CHECK-NEXT: BYTE

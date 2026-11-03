@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_forward_function_pointer_array.sol:AbiForwardFunctionPointerArray ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_forward_function_pointer_array.sol:AbiForwardFunctionPointerArray ===
 @module AbiForwardFunctionPointerArray
 ; function forward(function() external[] calldata pointers) external view returns (bool) [selector 0xf848716a]
 fn @forward(arg0: slice<calldata>) -> i1 [selector=0xf848716a, view, abi_params=[array<_, function>], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -11,9 +11,9 @@ fn @forward(arg0: slice<calldata>) -> i1 [selector=0xf848716a, view, abi_params=
     v5 = zext i160 v0 to i256
     v6 = staticcall v1, v5, v3, v4, 0, 32
     jumpi v6, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v7 = returndatasize
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8

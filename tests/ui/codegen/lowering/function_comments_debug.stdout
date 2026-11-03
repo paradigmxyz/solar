@@ -1,7 +1,7 @@
 {"contracts":{"ROOT/tests/ui/codegen/lowering/function_comments_debug.sol:C":{"srcmap-runtime":":::-:0;;;;;;;;;;;;;;;;;;;331:5:0;;;;;;;;;324:13;;;;;-1:-1:-1;;;;;331:5:0;;;;;;;;"}},"sourceList":["ROOT/tests/ui/codegen/lowering/function_comments_debug.sol"],"version":"SOLC_VERSION+commit.00000000.solar.VERSION"}
-// === ROOT/tests/ui/codegen/lowering/function_comments_debug.sol:C (runtime) ===
+; === ROOT/tests/ui/codegen/lowering/function_comments_debug.sol:C (runtime) ===
 @module C_runtime
-bb0:  ; runtime dispatch entry + function add(uint256 a, uint256 b) external pure returns (uint256) [selector 0x771602f7]
+bb0:                                              ; runtime dispatch entry + function add(uint256 a, uint256 b) external pure returns (uint256) [selector 0x771602f7]
   callvalue
   push bb3
   jumpi

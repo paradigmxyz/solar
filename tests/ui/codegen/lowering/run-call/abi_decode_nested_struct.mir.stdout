@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_nested_struct.sol:Probe ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_nested_struct.sol:Probe ===
 @module Probe
 ; function roundTrip() external pure returns (uint256) [selector 0x6643a628]
 fn @roundTrip() -> i256 [selector=0x6643a628, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -136,15 +136,15 @@ fn @roundTrip() -> i256 [selector=0x6643a628, pure, abi_params=[], abi_returns=[
     v104 = ne v103, 0
     v105 = eq v104, false
     jumpi v105, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v106 = ptradd v23, 160
     v107 = mload v106
     v108 = ne v107, 0
     v109 = eq v108, false
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v110 = phi [bb1: v109], [bb2: false]
     icall require<short_string>, v110, 5, 0x666c616773000000000000000000000000000000000000000000000000000000
     v111 = ptradd v0, 32
@@ -160,7 +160,7 @@ fn @roundTrip() -> i256 [selector=0x6643a628, pure, abi_params=[], abi_returns=[
     ret 1
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_nested_struct.sol:Probe2 ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_nested_struct.sol:Probe2 ===
 @module Probe2
 ; function outer() external view returns (uint256) [selector 0x87c3dbb6]
 fn @outer() -> i256 [selector=0x87c3dbb6, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -201,9 +201,9 @@ fn @outer() -> i256 [selector=0x87c3dbb6, view, abi_params=[], abi_returns=[word
     v23 = zext i160 v18 to i256
     v24 = staticcall v19, v23, v21, v22, 0, 32
     jumpi v24, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v25 = returndatasize
     v26 = lt v25, 32
     icall revert_if<tuple_data_too_short>, v26
@@ -224,7 +224,7 @@ fn @inner(arg0: slice<calldata>) -> i256 [selector=0x3c12b05c, pure, abi_params=
     ret v4
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_nested_struct.sol:Probe3 ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_nested_struct.sol:Probe3 ===
 @module Probe3
 ; function idOfKeyOnly(Key memory k, uint160 x) external pure returns (bytes32 id) [selector 0x128e91fc]
 fn @idOfKeyOnly(arg0: ptr<memory>, arg1: i160) -> i256 [selector=0x128e91fc, pure, abi_params=[tuple<address, address, uint24, int24, address>, uint160], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -276,9 +276,9 @@ fn @run() -> i256 [selector=0xc0406226, view, abi_params=[], abi_returns=[word],
     v19 = zext i160 v14 to i256
     v20 = staticcall v15, v19, v17, v18, 0, 32
     jumpi v20, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v21 = returndatasize
     v22 = lt v21, 32
     icall revert_if<tuple_data_too_short>, v22
@@ -293,9 +293,9 @@ fn @run() -> i256 [selector=0xc0406226, view, abi_params=[], abi_returns=[word],
     v30 = zext i160 v24 to i256
     v31 = staticcall v25, v30, v28, v29, 0, 32
     jumpi v31, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v32 = returndatasize
     v33 = lt v32, 32
     icall revert_if<tuple_data_too_short>, v33

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/error_named_parameters_shadowing_types.sol:ErrorNamedParametersShadowingTypes ===
+; === ROOT/tests/ui/codegen/lowering/run-call/error_named_parameters_shadowing_types.sol:ErrorNamedParametersShadowingTypes ===
 @module ErrorNamedParametersShadowingTypes
 ; function f() public pure [selector 0x26121ff0]
 fn @f() [selector=0x26121ff0, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/storage_packed_array_copy.sol:StoragePackedArrayCopy ===
+; === ROOT/tests/ui/codegen/lowering/run-call/storage_packed_array_copy.sol:StoragePackedArrayCopy ===
 @module StoragePackedArrayCopy
 @types
   struct0: {i256, i256}
@@ -7,13 +7,13 @@
 fn @constructor() [constructor] {
   bb0:
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v0 = phi [bb0: 0], [bb3: v20]
     v1 = lt v0, 9
     jumpi v1, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     v21 = lt 8, 10
     v22 = eq v21, false
     icall panic_if<0x32>, v22
@@ -29,7 +29,7 @@ fn @constructor() [constructor] {
     v30 = or v29, 0x2000000000000000000
     sstore 12, v30 !metadata(storage=slot(12))
     ret
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v2 = trunc i256 v0 to i64
     v3 = zext i64 v2 to i256
     v4 = shl v3, 192
@@ -51,9 +51,9 @@ fn @constructor() [constructor] {
     v19 = or v15, v18
     sstore v8, v19 !metadata(storage=symbolic(v7))
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v20 = checked_add uint256, v0, 1
     jump bb1
 }
@@ -63,43 +63,43 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb0:
     v0 = alloc checked 288
     jump bb1
-  bb1:  ; preds = bb0, bb6
+  bb1:                                            ; preds = bb0, bb6
     v1 = phi [bb0: 0], [bb6: v18]
     v2 = lt v1, 3
     jumpi v2, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v19 = ptrtoint ptr<memory> v0 to i256
     jump bb7
-  bb7:  ; preds = bb3, bb12
+  bb7:                                            ; preds = bb3, bb12
     v20 = phi [bb3: 0], [bb12: v46]
     v21 = lt v20, 10
     jumpi v21, bb8, bb9
-  bb9:  ; preds = bb7
+  bb9:                                            ; preds = bb7
     jump bb13
-  bb13:  ; preds = bb9, bb15
+  bb13:                                           ; preds = bb9, bb15
     v47 = phi [bb9: 0], [bb15: v64]
     v48 = phi [bb9: 0], [bb15: v48]
     v49 = phi [bb9: 0], [bb15: v65]
     v50 = lt v49, 9
     jumpi v50, bb16, bb17
-  bb17:  ; preds = bb13
+  bb17:                                           ; preds = bb13
     jump bb14
-  bb14:  ; preds = bb17
+  bb14:                                           ; preds = bb17
     jump bb19
-  bb19:  ; preds = bb14, bb21
+  bb19:                                           ; preds = bb14, bb21
     v66 = phi [bb14: v47], [bb21: v66]
     v67 = phi [bb14: v48], [bb21: v85]
     v68 = phi [bb14: v49], [bb21: v68]
     v69 = phi [bb14: 0], [bb21: v86]
     v70 = lt v69, 10
     jumpi v70, bb22, bb23
-  bb23:  ; preds = bb19
+  bb23:                                           ; preds = bb19
     jump bb20
-  bb20:  ; preds = bb23
+  bb20:                                           ; preds = bb23
     v87 = insert_value struct0, undef struct0, 0, v66
     v88 = insert_value struct0, v87, 1, v67
     ret v88
-  bb22:  ; preds = bb19
+  bb22:                                           ; preds = bb19
     v71 = lt v69, 10
     v72 = eq v71, false
     icall panic_if<0x32>, v72
@@ -117,12 +117,12 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v84 = zext i64 v83 to i256
     v85 = checked_add uint256, v67, v84
     jump bb24
-  bb24:  ; preds = bb22
+  bb24:                                           ; preds = bb22
     jump bb21
-  bb21:  ; preds = bb24
+  bb21:                                           ; preds = bb24
     v86 = checked_add uint256, v69, 1
     jump bb19
-  bb16:  ; preds = bb13
+  bb16:                                           ; preds = bb13
     v51 = lt v49, 9
     v52 = eq v51, false
     icall panic_if<0x32>, v52
@@ -139,19 +139,19 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v63 = zext i64 v62 to i256
     v64 = checked_add uint256, v47, v63
     jump bb18
-  bb18:  ; preds = bb16
+  bb18:                                           ; preds = bb16
     jump bb15
-  bb15:  ; preds = bb18
+  bb15:                                           ; preds = bb18
     v65 = checked_add uint256, v49, 1
     jump bb13
-  bb8:  ; preds = bb7
+  bb8:                                            ; preds = bb7
     v22 = div v20, 1
     v23 = add v22, 3
     v24 = mod v20, 1
     v25 = mul v24, 17
     v26 = lt v20, 9
     jumpi v26, bb10, bb11
-  bb11:  ; preds = bb8
+  bb11:                                           ; preds = bb8
     v39 = mul v25, 8
     v40 = shl 0xffffffffffffffffffffffffffffffffff, v39
     v41 = sload v23 !metadata(storage=offset(v22, 3))
@@ -161,7 +161,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v45 = or v43, v44
     sstore v23, v45 !metadata(storage=offset(v22, 3))
     jump bb12
-  bb10:  ; preds = bb8
+  bb10:                                           ; preds = bb8
     v27 = shl v20, 5
     v28 = ptradd v0, v27
     v29 = mload v28
@@ -176,10 +176,10 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v38 = or v34, v37
     sstore v23, v38 !metadata(storage=offset(v22, 3))
     jump bb12
-  bb12:  ; preds = bb10, bb11
+  bb12:                                           ; preds = bb10, bb11
     v46 = add v20, 1
     jump bb7
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v3 = add v1, 0
     v4 = sload v3 !metadata(storage=symbolic(v1))
     v5 = mul v1, 4
@@ -187,14 +187,14 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v7 = lt v6, 4
     v8 = select v7, v6, 4
     jump bb4
-  bb4:  ; preds = bb2, bb5
+  bb4:                                            ; preds = bb2, bb5
     v9 = phi [bb2: 0], [bb5: v17]
     v10 = lt v9, v8
     jumpi v10, bb5, bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     v18 = add v1, 1
     jump bb1
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     v11 = mul v9, 64
     v12 = shr v4, v11
     v13 = shl v12, 192

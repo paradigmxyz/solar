@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/word-sequence/compared_mask.mir (before word-sequence) ===
-+ // === ROOT/tests/ui/codegen/mir/word-sequence/compared_mask.mir (after word-sequence) ===
+- ; === ROOT/tests/ui/codegen/mir/word-sequence/compared_mask.mir (before word-sequence) ===
++ ; === ROOT/tests/ui/codegen/mir/word-sequence/compared_mask.mir (after word-sequence) ===
   @module ComparedMask
   fn @selectors(arg0: i256) -> i1 {
     bb0:

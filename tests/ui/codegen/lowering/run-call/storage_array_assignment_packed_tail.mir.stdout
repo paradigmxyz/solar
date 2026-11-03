@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/storage_array_assignment_packed_tail.sol:StorageArrayAssignmentPackedTail ===
+; === ROOT/tests/ui/codegen/lowering/run-call/storage_array_assignment_packed_tail.sol:StorageArrayAssignmentPackedTail ===
 @module StorageArrayAssignmentPackedTail
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
@@ -39,22 +39,22 @@ fn @fixedLength() -> i256 [selector=0x47f1a57f, abi_params=[], abi_returns=[word
     v5 = sload 0 !metadata(storage=slot(0))
     v6 = gt v5, 1
     jumpi v6, bb1, bb2
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb4
+  bb3:                                            ; preds = bb1, bb4
     v7 = phi [bb1: 1], [bb4: v21]
     v8 = lt v7, v5
     jumpi v8, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb2
-  bb2:  ; preds = bb0, bb5
+  bb2:                                            ; preds = bb0, bb5
     sstore 0, 1 !metadata(storage=slot(0))
     jump bb6
-  bb6:  ; preds = bb2, bb7
+  bb6:                                            ; preds = bb2, bb7
     v22 = phi [bb2: 0], [bb7: v40]
     v23 = lt v22, 1
     jumpi v23, bb7, bb8
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     v41 = storage_array_data_slot 0
     v42 = add v41, 0
     v43 = sload v42 !metadata(storage=symbolic(v41))
@@ -69,22 +69,22 @@ fn @fixedLength() -> i256 [selector=0x47f1a57f, abi_params=[], abi_returns=[word
     v49 = sload 0 !metadata(storage=slot(0))
     v50 = gt v49, 1
     jumpi v50, bb9, bb10
-  bb9:  ; preds = bb8
+  bb9:                                            ; preds = bb8
     jump bb11
-  bb11:  ; preds = bb9, bb12
+  bb11:                                           ; preds = bb9, bb12
     v51 = phi [bb9: 1], [bb12: v65]
     v52 = lt v51, v49
     jumpi v52, bb12, bb13
-  bb13:  ; preds = bb11
+  bb13:                                           ; preds = bb11
     jump bb10
-  bb10:  ; preds = bb8, bb13
+  bb10:                                           ; preds = bb8, bb13
     sstore 0, 1 !metadata(storage=slot(0))
     jump bb14
-  bb14:  ; preds = bb10, bb15
+  bb14:                                           ; preds = bb10, bb15
     v66 = phi [bb10: 0], [bb15: v84]
     v67 = lt v66, 1
     jumpi v67, bb15, bb16
-  bb16:  ; preds = bb14
+  bb16:                                           ; preds = bb14
     v85 = storage_array_data_slot 0
     v86 = add v85, 0
     v87 = sload v86 !metadata(storage=symbolic(v85))
@@ -110,7 +110,7 @@ fn @fixedLength() -> i256 [selector=0x47f1a57f, abi_params=[], abi_returns=[word
     v103 = trunc i256 v102 to i32
     v104 = zext i32 v103 to i256
     ret v104
-  bb15:  ; preds = bb14
+  bb15:                                           ; preds = bb14
     v68 = shl v66, 5
     v69 = ptradd v48, v68
     v70 = mload v69
@@ -130,7 +130,7 @@ fn @fixedLength() -> i256 [selector=0x47f1a57f, abi_params=[], abi_returns=[word
     sstore v73, v83 !metadata(storage=symbolic(v73))
     v84 = add v66, 1
     jump bb14
-  bb12:  ; preds = bb11
+  bb12:                                           ; preds = bb11
     v53 = storage_array_data_slot 0
     v54 = div v51, 8
     v55 = add v53, v54
@@ -146,7 +146,7 @@ fn @fixedLength() -> i256 [selector=0x47f1a57f, abi_params=[], abi_returns=[word
     sstore v55, v64 !metadata(storage=symbolic(v55))
     v65 = add v51, 1
     jump bb11
-  bb7:  ; preds = bb6
+  bb7:                                            ; preds = bb6
     v24 = shl v22, 5
     v25 = ptradd v0, v24
     v26 = mload v25
@@ -166,7 +166,7 @@ fn @fixedLength() -> i256 [selector=0x47f1a57f, abi_params=[], abi_returns=[word
     sstore v29, v39 !metadata(storage=symbolic(v29))
     v40 = add v22, 1
     jump bb6
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v9 = storage_array_data_slot 0
     v10 = div v7, 8
     v11 = add v9, v10
@@ -189,16 +189,16 @@ fn @dynamicLength(arg0: i256) -> i256 [selector=0x3e3319e9, abi_params=[uint256]
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v1 = phi [bb0: arg0], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v2]
     v3 = phi [bb0: v0], [bb3: v14]
     v4 = lt v1, v3
     v5 = eq v4, false
     jumpi v5, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     v15 = mul v1, 1
     v16 = eq 1, 0
     v17 = div v15, 1
@@ -229,27 +229,27 @@ fn @dynamicLength(arg0: i256) -> i256 [selector=0x3e3319e9, abi_params=[uint256]
     v37 = sload 0 !metadata(storage=slot(0))
     v38 = lt v36, v37
     jumpi v38, bb7, bb8
-  bb7:  ; preds = bb2
+  bb7:                                            ; preds = bb2
     jump bb9
-  bb9:  ; preds = bb7, bb10
+  bb9:                                            ; preds = bb7, bb10
     v39 = phi [bb7: v36], [bb10: v53]
     v40 = lt v39, v37
     jumpi v40, bb10, bb11
-  bb11:  ; preds = bb9
+  bb11:                                           ; preds = bb9
     jump bb8
-  bb8:  ; preds = bb2, bb11
+  bb8:                                            ; preds = bb2, bb11
     sstore 0, v36 !metadata(storage=slot(0))
     jump bb12
-  bb12:  ; preds = bb8, bb13
+  bb12:                                           ; preds = bb8, bb13
     v54 = phi [bb8: 0], [bb13: v73]
     v55 = lt v54, v36
     jumpi v55, bb13, bb14
-  bb14:  ; preds = bb12
+  bb14:                                           ; preds = bb12
     v74 = shr v36, 3
     v75 = and v36, 7
     v76 = eq v75, 0
     jumpi v76, bb16, bb15
-  bb15:  ; preds = bb14
+  bb15:                                           ; preds = bb14
     v77 = mul v75, 32
     v78 = shl 1, v77
     v79 = sub v78, 1
@@ -259,7 +259,7 @@ fn @dynamicLength(arg0: i256) -> i256 [selector=0x3e3319e9, abi_params=[uint256]
     v83 = and v82, v79
     sstore v81, v83 !metadata(storage=symbolic(v81))
     jump bb16
-  bb16:  ; preds = bb14, bb15
+  bb16:                                           ; preds = bb14, bb15
     v84 = mul v35, 8
     v85 = shl 0xffffffff, v84
     v86 = sload v33 !metadata(storage=symbolic(v33))
@@ -272,27 +272,27 @@ fn @dynamicLength(arg0: i256) -> i256 [selector=0x3e3319e9, abi_params=[uint256]
     v92 = sload 0 !metadata(storage=slot(0))
     v93 = lt v91, v92
     jumpi v93, bb17, bb18
-  bb17:  ; preds = bb16
+  bb17:                                           ; preds = bb16
     jump bb19
-  bb19:  ; preds = bb17, bb20
+  bb19:                                           ; preds = bb17, bb20
     v94 = phi [bb17: v91], [bb20: v108]
     v95 = lt v94, v92
     jumpi v95, bb20, bb21
-  bb21:  ; preds = bb19
+  bb21:                                           ; preds = bb19
     jump bb18
-  bb18:  ; preds = bb16, bb21
+  bb18:                                           ; preds = bb16, bb21
     sstore 0, v91 !metadata(storage=slot(0))
     jump bb22
-  bb22:  ; preds = bb18, bb23
+  bb22:                                           ; preds = bb18, bb23
     v109 = phi [bb18: 0], [bb23: v128]
     v110 = lt v109, v91
     jumpi v110, bb23, bb24
-  bb24:  ; preds = bb22
+  bb24:                                           ; preds = bb22
     v129 = shr v91, 3
     v130 = and v91, 7
     v131 = eq v130, 0
     jumpi v131, bb26, bb25
-  bb25:  ; preds = bb24
+  bb25:                                           ; preds = bb24
     v132 = mul v130, 32
     v133 = shl 1, v132
     v134 = sub v133, 1
@@ -302,7 +302,7 @@ fn @dynamicLength(arg0: i256) -> i256 [selector=0x3e3319e9, abi_params=[uint256]
     v138 = and v137, v134
     sstore v136, v138 !metadata(storage=symbolic(v136))
     jump bb26
-  bb26:  ; preds = bb24, bb25
+  bb26:                                           ; preds = bb24, bb25
     v139 = sload 0 !metadata(storage=slot(0))
     v140 = gt v139, 0xffffffffffffffff
     icall panic_if<0x41>, v140
@@ -328,7 +328,7 @@ fn @dynamicLength(arg0: i256) -> i256 [selector=0x3e3319e9, abi_params=[uint256]
     v158 = trunc i256 v157 to i32
     v159 = zext i32 v158 to i256
     ret v159
-  bb23:  ; preds = bb22
+  bb23:                                           ; preds = bb22
     v111 = shl v109, 5
     v112 = ptradd v27, v111
     v113 = ptradd v112, 32
@@ -349,7 +349,7 @@ fn @dynamicLength(arg0: i256) -> i256 [selector=0x3e3319e9, abi_params=[uint256]
     sstore v117, v127 !metadata(storage=symbolic(v117))
     v128 = add v109, 1
     jump bb22
-  bb20:  ; preds = bb19
+  bb20:                                           ; preds = bb19
     v96 = storage_array_data_slot 0
     v97 = div v94, 8
     v98 = add v96, v97
@@ -365,7 +365,7 @@ fn @dynamicLength(arg0: i256) -> i256 [selector=0x3e3319e9, abi_params=[uint256]
     sstore v98, v107 !metadata(storage=symbolic(v98))
     v108 = add v94, 1
     jump bb19
-  bb13:  ; preds = bb12
+  bb13:                                           ; preds = bb12
     v56 = shl v54, 5
     v57 = ptradd v27, v56
     v58 = ptradd v57, 32
@@ -386,7 +386,7 @@ fn @dynamicLength(arg0: i256) -> i256 [selector=0x3e3319e9, abi_params=[uint256]
     sstore v62, v72 !metadata(storage=symbolic(v62))
     v73 = add v54, 1
     jump bb12
-  bb10:  ; preds = bb9
+  bb10:                                           ; preds = bb9
     v41 = storage_array_data_slot 0
     v42 = div v39, 8
     v43 = add v41, v42
@@ -402,7 +402,7 @@ fn @dynamicLength(arg0: i256) -> i256 [selector=0x3e3319e9, abi_params=[uint256]
     sstore v43, v52 !metadata(storage=symbolic(v43))
     v53 = add v39, 1
     jump bb9
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v6 = sload 0 !metadata(storage=slot(0))
     v7 = gt v6, 0xffffffffffffffff
     icall panic_if<0x41>, v7
@@ -414,9 +414,9 @@ fn @dynamicLength(arg0: i256) -> i256 [selector=0x3e3319e9, abi_params=[uint256]
     v13 = mul v12, 4
     sstore 0, v8 !metadata(storage=slot(0))
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v14 = checked_add uint256, v3, 1
     jump bb1
 }
@@ -426,14 +426,14 @@ fn @exactSlotBoundary() -> i256 [selector=0xe55d27b8, abi_params=[], abi_returns
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v1 = phi [bb0: 0], [bb3: v1]
     v2 = phi [bb0: v0], [bb3: v12]
     v3 = lt v2, 9
     jumpi v3, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     v13 = alloc 256 !metadata(preserves_fmp)
     memory_zero v13, 256
     v14 = sload 0 !metadata(storage=slot(0))
@@ -445,22 +445,22 @@ fn @exactSlotBoundary() -> i256 [selector=0xe55d27b8, abi_params=[], abi_returns
     v19 = sload 0 !metadata(storage=slot(0))
     v20 = gt v19, 8
     jumpi v20, bb7, bb8
-  bb7:  ; preds = bb2
+  bb7:                                            ; preds = bb2
     jump bb9
-  bb9:  ; preds = bb7, bb10
+  bb9:                                            ; preds = bb7, bb10
     v21 = phi [bb7: 8], [bb10: v35]
     v22 = lt v21, v19
     jumpi v22, bb10, bb11
-  bb11:  ; preds = bb9
+  bb11:                                           ; preds = bb9
     jump bb8
-  bb8:  ; preds = bb2, bb11
+  bb8:                                            ; preds = bb2, bb11
     sstore 0, 8 !metadata(storage=slot(0))
     jump bb12
-  bb12:  ; preds = bb8, bb13
+  bb12:                                           ; preds = bb8, bb13
     v36 = phi [bb8: 0], [bb13: v54]
     v37 = lt v36, 8
     jumpi v37, bb13, bb14
-  bb14:  ; preds = bb12
+  bb14:                                           ; preds = bb12
     v55 = sload v18 !metadata(storage=offset(v17, 1))
     v56 = and v55, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000
     v57 = or v56, 4
@@ -468,22 +468,22 @@ fn @exactSlotBoundary() -> i256 [selector=0xe55d27b8, abi_params=[], abi_returns
     v58 = sload 0 !metadata(storage=slot(0))
     v59 = gt v58, 8
     jumpi v59, bb15, bb16
-  bb15:  ; preds = bb14
+  bb15:                                           ; preds = bb14
     jump bb17
-  bb17:  ; preds = bb15, bb18
+  bb17:                                           ; preds = bb15, bb18
     v60 = phi [bb15: 8], [bb18: v74]
     v61 = lt v60, v58
     jumpi v61, bb18, bb19
-  bb19:  ; preds = bb17
+  bb19:                                           ; preds = bb17
     jump bb16
-  bb16:  ; preds = bb14, bb19
+  bb16:                                           ; preds = bb14, bb19
     sstore 0, 8 !metadata(storage=slot(0))
     jump bb20
-  bb20:  ; preds = bb16, bb21
+  bb20:                                           ; preds = bb16, bb21
     v75 = phi [bb16: 0], [bb21: v93]
     v76 = lt v75, 8
     jumpi v76, bb21, bb22
-  bb22:  ; preds = bb20
+  bb22:                                           ; preds = bb20
     v94 = sload 0 !metadata(storage=slot(0))
     v95 = gt v94, 0xffffffffffffffff
     icall panic_if<0x41>, v95
@@ -505,7 +505,7 @@ fn @exactSlotBoundary() -> i256 [selector=0xe55d27b8, abi_params=[], abi_returns
     v109 = trunc i256 v108 to i32
     v110 = zext i32 v109 to i256
     ret v110
-  bb21:  ; preds = bb20
+  bb21:                                           ; preds = bb20
     v77 = shl v75, 5
     v78 = ptradd v13, v77
     v79 = mload v78
@@ -525,7 +525,7 @@ fn @exactSlotBoundary() -> i256 [selector=0xe55d27b8, abi_params=[], abi_returns
     sstore v82, v92 !metadata(storage=symbolic(v82))
     v93 = add v75, 1
     jump bb20
-  bb18:  ; preds = bb17
+  bb18:                                           ; preds = bb17
     v62 = storage_array_data_slot 0
     v63 = div v60, 8
     v64 = add v62, v63
@@ -541,7 +541,7 @@ fn @exactSlotBoundary() -> i256 [selector=0xe55d27b8, abi_params=[], abi_returns
     sstore v64, v73 !metadata(storage=symbolic(v64))
     v74 = add v60, 1
     jump bb17
-  bb13:  ; preds = bb12
+  bb13:                                           ; preds = bb12
     v38 = shl v36, 5
     v39 = ptradd v13, v38
     v40 = mload v39
@@ -561,7 +561,7 @@ fn @exactSlotBoundary() -> i256 [selector=0xe55d27b8, abi_params=[], abi_returns
     sstore v43, v53 !metadata(storage=symbolic(v43))
     v54 = add v36, 1
     jump bb12
-  bb10:  ; preds = bb9
+  bb10:                                           ; preds = bb9
     v23 = storage_array_data_slot 0
     v24 = div v21, 8
     v25 = add v23, v24
@@ -577,7 +577,7 @@ fn @exactSlotBoundary() -> i256 [selector=0xe55d27b8, abi_params=[], abi_returns
     sstore v25, v34 !metadata(storage=symbolic(v25))
     v35 = add v21, 1
     jump bb9
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v4 = sload 0 !metadata(storage=slot(0))
     v5 = gt v4, 0xffffffffffffffff
     icall panic_if<0x41>, v5
@@ -589,9 +589,9 @@ fn @exactSlotBoundary() -> i256 [selector=0xe55d27b8, abi_params=[], abi_returns
     v11 = mul v10, 4
     sstore 0, v6 !metadata(storage=slot(0))
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v12 = checked_add uint256, v2, 1
     jump bb1
 }

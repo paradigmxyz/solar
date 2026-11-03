@@ -1,8 +1,8 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_literal_contexts.sol:FixedBytesLiteralLibrary ===
+; === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_literal_contexts.sol:FixedBytesLiteralLibrary ===
 @module FixedBytesLiteralLibrary
 @library
 
-// === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_literal_contexts.sol:FixedBytesLiteralBase ===
+; === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_literal_contexts.sol:FixedBytesLiteralBase ===
 @module FixedBytesLiteralBase
 ; constructor(bytes2 value) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[bytes2]] {
@@ -17,7 +17,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[bytes2]] {
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_literal_contexts.sol:FixedBytesLiteralContexts ===
+; === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_literal_contexts.sol:FixedBytesLiteralContexts ===
 @module FixedBytesLiteralContexts
 @types
   struct0: {i256, i256, i256, i256, i256, i256, i256, i256, i256}
@@ -30,7 +30,7 @@ fn @constructor() [constructor] {
     v2 = or v1, 0x1234
     sstore 0, v2 !metadata(storage=slot(0))
     jump bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v3 = sload 0 !metadata(storage=slot(0))
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ffff
     v5 = or v4, 0x50000
@@ -58,10 +58,10 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     icall panic_if<0x41>, v10
     v11 = gt v8, 31
     jumpi v11, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v25 = eq v8, 31
     jumpi v25, bb3, bb4
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v30 = add v2, 2
     v31 = sub 31, v8
     v32 = mul v31, 8
@@ -73,7 +73,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v38 = or v35, v37
     sstore 1, v38 !metadata(storage=slot(1))
     jump bb5
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v26 = storage_array_data_slot 1
     v27 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     v28 = byte 0, 0x500000000000000000000000000000000000000000000000000000000000000
@@ -81,7 +81,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     sstore v26, v29 !metadata(storage=symbolic(v26))
     sstore 1, 65 !metadata(storage=slot(1))
     jump bb5
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v12 = add v2, 2
     sstore 1, v12 !metadata(storage=slot(1))
     v13 = storage_array_data_slot 1
@@ -98,7 +98,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v24 = or v22, v23
     sstore v15, v24 !metadata(storage=symbolic(v15))
     jump bb5
-  bb5:  ; preds = bb2, bb3, bb4
+  bb5:                                            ; preds = bb2, bb3, bb4
     v39 = sload 2 !metadata(storage=slot(2))
     v40 = gt v39, 0xffffffffffffffff
     icall panic_if<0x41>, v40
@@ -136,9 +136,9 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v68 = zext i160 v66 to i256
     v69 = staticcall v67, v68, 28, 36, 0, 32
     jumpi v69, bb7, bb6
-  bb6:  ; preds = bb5
+  bb6:                                            ; preds = bb5
     revert_returndata
-  bb7:  ; preds = bb5
+  bb7:                                            ; preds = bb5
     v70 = returndatasize
     v71 = lt v70, 32
     icall revert_if<tuple_data_too_short>, v71
@@ -159,12 +159,12 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v84 = eq v83, false
     icall panic_if<0x32>, v84
     jumpi v78, bb8, bb9
-  bb9:  ; preds = bb7
+  bb9:                                            ; preds = bb7
     jump bb10
-  bb8:  ; preds = bb7
+  bb8:                                            ; preds = bb7
     v85 = storage_array_data_slot 1
     jump bb10
-  bb10:  ; preds = bb8, bb9
+  bb10:                                           ; preds = bb8, bb9
     v86 = phi [bb8: v85], [bb9: 1]
     v87 = sload v86 !metadata(storage=symbolic(v86))
     v88 = shr v87, 248
@@ -200,9 +200,9 @@ fn @throughModifier() -> i256 [selector=0x6b6c6d94, abi_params=[], abi_returns=[
     v4 = shr v3, 24
     v5 = shl v4, 248
     jump bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb1
-  bb1:  ; preds = bb2
+  bb1:                                            ; preds = bb2
     ret v5
 }
 

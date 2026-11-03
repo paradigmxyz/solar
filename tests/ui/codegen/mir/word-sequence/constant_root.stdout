@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/word-sequence/constant_root.mir (before word-sequence) ===
-+ // === ROOT/tests/ui/codegen/mir/word-sequence/constant_root.mir (after word-sequence) ===
+- ; === ROOT/tests/ui/codegen/mir/word-sequence/constant_root.mir (before word-sequence) ===
++ ; === ROOT/tests/ui/codegen/mir/word-sequence/constant_root.mir (after word-sequence) ===
   @module ConstantRoot
   fn @all_ones() -> i256 {
     bb0:
