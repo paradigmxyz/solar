@@ -10,9 +10,9 @@
 //! helper above its actual callers instead. Shared helpers take the maximum caller end, and an
 //! entry's heap starts above all reachable frames. A tail call from one entry into another sets
 //! no bound: the caller's memory is dead there, so an entry's helpers start above its own spill
-//! area, not its dispatcher's. This refinement must converge, never increase
-//! a frame address, and preserves the separate recursive-frame prefix and heap-prefix guards.
-//! All decisions use executable references and are independent of debug metadata.
+//! area, not its dispatcher's. This refinement must converge, never increase a frame address,
+//! and preserves the separate recursive-frame prefix and heap-prefix guards. All decisions use
+//! executable references and are independent of debug metadata.
 
 use super::{
     ArgIdx, Body, CallGraphInfo, DebugFunction, DebugFunctionExit, DeferredConst, DenseBitSet,
@@ -352,7 +352,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         for &func_id in &runtime_entries {
             emitted_callers.insert(func_id);
         }
-        // (caller, callee, whether the edge is an entry's tail call into another entry)
         let mut edges = Vec::new();
         for func_id in emitted_callers.iter() {
             let func = &module.functions[func_id];
@@ -360,16 +359,17 @@ impl<'gcx> EvmCodegen<'gcx> {
                 if let InstKind::ICall { function: Callee::Function(function), .. } =
                     func.inst(inst_id).kind
                 {
-                    edges.push((func_id, function, false));
+                    edges.push((func_id, function));
                 }
             }
             for block in func.blocks.iter() {
-                if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
-                    // Entries take no arguments in the lowered phase, so nothing the dispatcher
-                    // placed is passed to the entry it jumps to.
-                    let enters_entry =
-                        runtime_entries.contains(&func_id) && runtime_entries.contains(function);
-                    edges.push((func_id, *function, enters_entry));
+                // An entry's tail call into another entry never returns and entries take no
+                // arguments in the lowered phase, so nothing the caller placed reaches the
+                // callee: its helpers start above its own spill area.
+                if let Some(Terminator::TailCall { function, .. }) = &block.terminator
+                    && !(runtime_entries.contains(&func_id) && runtime_entries.contains(function))
+                {
+                    edges.push((func_id, *function));
                 }
             }
         }
@@ -377,7 +377,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut depth_converged = false;
         for _ in 0..=module.functions.len() {
             let mut changed = false;
-            for &(caller, callee, _) in &edges {
+            for &(caller, callee) in &edges {
                 let mut contribution = depth.get(&caller).copied().unwrap_or(0);
                 if self.static_frame_functions.contains(caller)
                     && !self.recursive_frame_functions.contains(caller)
@@ -627,13 +627,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             let mut converged = false;
             for _ in 0..=module.functions.len() {
                 let mut changed = false;
-                for &(caller, callee, enters_entry) in &edges {
-                    // An entry's helpers start above its own spill area, not its dispatcher's:
-                    // the dispatcher's tail call never returns, and entries already overlay its
-                    // memory.
-                    if enters_entry {
-                        continue;
-                    }
+                for &(caller, callee) in &edges {
                     // A missing propagated caller bound retains its conservative
                     // global placement. This can only occur for an unusual
                     // emitted-but-unreachable shape; skipping the edge could
@@ -678,7 +672,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
             // caller frame -> callee frame
             // [caller_base, caller_base + caller_size) <= callee_base
-            for &(caller, callee, _) in &edges {
+            for &(caller, callee) in &edges {
                 let Some(&callee_base) = frame_bases.get(&callee) else { continue };
                 let caller_base = entry_ends
                     .get(&caller)
