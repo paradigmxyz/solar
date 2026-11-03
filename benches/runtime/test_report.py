@@ -360,17 +360,24 @@ class ReportFormattingTests(unittest.TestCase):
     def test_reference_columns_follow_solar_size_solc_solc_legacy(self):
         compilers = {
             name: {"status": "ok"}
-            for name in ("oksolc", "solc-legacy", "solc", "solar", "solar-size", "solx")
+            for name in (
+                "oksolc",
+                "solc-legacy",
+                "solc",
+                "solar",
+                "solar-size",
+                "slang",
+            )
         }
         results = [{"test_id": "a", "suite": "repository", "compilers": compilers}]
 
         self.assertEqual(
             benchmark.reference_compiler_ids(results),
-            ["solar-size", "solc", "solc-legacy", "oksolc", "solx"],
+            ["solar-size", "solc", "solc-legacy", "oksolc", "slang"],
         )
         self.assertEqual(
             benchmark.matrix_compilers(results),
-            ["solar-size", "solc", "solc-legacy", "oksolc", "solx"],
+            ["solar-size", "solc", "solc-legacy", "oksolc", "slang"],
         )
 
     def test_pr_comment_collapses_the_compiler_matrix_after_the_base_comparison(self):
@@ -984,7 +991,7 @@ class RunComparisonTests(unittest.TestCase):
             )
 
     def test_reference_report_uses_selected_compiler(self):
-        for compiler in ("solc", "solc-legacy", "solx", "oksolc"):
+        for compiler in ("solc", "solc-legacy", "slang", "oksolc"):
             before = self.fixture()
             before["compilers"][compiler] = copy.deepcopy(before["compilers"]["solar"])
             after = copy.deepcopy(before)
@@ -1113,7 +1120,7 @@ class RunComparisonTests(unittest.TestCase):
         self.assertIn("candidate gas run failed", row["issues"])
 
     def test_reference_failures_do_not_trigger_comments_or_warnings(self):
-        for compiler in ("solc", "solc-legacy", "solx", "oksolc"):
+        for compiler in ("solc", "solc-legacy", "slang", "oksolc"):
             for stage in ("status", "runtime_status", "gas_status"):
                 with self.subTest(compiler=compiler, stage=stage):
                     before = self.fixture()
@@ -1199,7 +1206,7 @@ class RunComparisonTests(unittest.TestCase):
         after = self.fixture()
         after["runtime_status"] = "mismatch"
         after["runtime_mismatches"] = [
-            {"label": "value", "values": {"solc": "1", "solx": "2", "solar": None}}
+            {"label": "value", "values": {"solc": "1", "slang": "2", "solar": None}}
         ]
         self.assertFalse(
             benchmark.comparison_has_changes(
@@ -1215,7 +1222,7 @@ class RunComparisonTests(unittest.TestCase):
         )
         self.assertEqual(
             benchmark.runtime_issue_details([after]),
-            ["repository/test value: solc=1, solx=2, solar=1"],
+            ["repository/test value: solc=1, slang=2, solar=1"],
         )
 
     def test_totals_exclude_failed_missing_and_changed_inputs(self):
@@ -1309,7 +1316,7 @@ class RunComparisonTests(unittest.TestCase):
         ]
         for row in after:
             row["compilers"]["solc"] = {"status": "ok", "runtime_size": 200}
-            row["compilers"]["solx"] = {"status": "ok", "runtime_size": 300}
+            row["compilers"]["slang"] = {"status": "ok", "runtime_size": 300}
         comparison = benchmark.compare_runs(after, before)
         comparison["baseline"] = "main.json"
         with patch.dict(os.environ, {}, clear=True):

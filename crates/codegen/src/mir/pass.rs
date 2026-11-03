@@ -73,7 +73,6 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &storage_dse::StorageDse,
     &pre::Pre::Reads,
     &loop_canonicalize::LoopCanonicalize,
-    &loop_exit_remat::LoopExitRemat,
     &place_reads::PlaceReads,
     &loop_reduce::LoopReduce,
     &loop_split::LoopSplit,
@@ -483,8 +482,6 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
 static LOWERED_PIPELINE: &[&dyn MirPass] = &[
     &const_fold::ConstFold,
     &cfg_simplify::BranchSimplify,
-    // Reconstruct old induction values on exits before selecting physical stack order.
-    &loop_exit_remat::LoopExitRemat,
     // Give each calldata read the block that dominates its uses, after the last CSE could merge
     // the copies again.
     &place_reads::PlaceReads,
