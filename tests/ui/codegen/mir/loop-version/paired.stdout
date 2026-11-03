@@ -127,7 +127,7 @@ fn @_sortPairs(arg0: i256, arg1: i256) [may_return_memory] {
     v24 = phi [bb16: v2], [bb22: v26]
     v245 = phi [bb16: v244], [bb22: v246]
     v249 = phi [bb16: v248], [bb22: v250]
-    v25 = gt v24, 0
+    v25 = ne v24, 0
     jumpi v25, bb6, bb5
   bb6:                                            ; preds = bb4
     v26 = sub v24, 1
@@ -204,7 +204,7 @@ fn @_sortPairs(arg0: i256, arg1: i256) [may_return_memory] {
     v90 = phi [bb23: v78], [bb13: v102]
     v253 = phi [bb23: v252], [bb13: v254]
     v257 = phi [bb23: v256], [bb13: v258]
-    v91 = gt v90, 0
+    v91 = ne v90, 0
     jumpi v91, bb12, bb11
   bb12:                                           ; preds = bb10
     v102 = sub v90, 1

@@ -328,32 +328,6 @@
                   "offset": 43,
                   "operation": {
                     "mnemonic": "PUSH0"
-                  },
-                  "context": {
-                    "pick": [
-                      {
-                        "code": {
-                          "source": {
-                            "id": 0
-                          },
-                          "range": {
-                            "offset": 109,
-                            "length": 13
-                          }
-                        }
-                      },
-                      {
-                        "code": {
-                          "source": {
-                            "id": 0
-                          },
-                          "range": {
-                            "offset": 132,
-                            "length": 13
-                          }
-                        }
-                      }
-                    ]
                   }
                 },
                 {

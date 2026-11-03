@@ -579,10 +579,11 @@ impl Target {
             return self.select();
         }
         if matches!(op, Op::Eq { .. } | Op::Ne { .. }) {
-            let comparison =
-                if Self::zero_test_input(op, &immediate).is_some() { op::ISZERO } else { op::EQ };
-            return self.opcode(comparison)
-                + if matches!(op, Op::Ne { .. }) { self.opcode(op::ISZERO) } else { Cost::ZERO };
+            let ne = matches!(op, Op::Ne { .. });
+            if Self::zero_test_input(op, &immediate).is_some() {
+                return if ne { self.ne_zero().0 } else { self.opcode(op::ISZERO) };
+            }
+            return self.opcode(op::EQ) + if ne { self.opcode(op::ISZERO) } else { Cost::ZERO };
         }
         let Some(lowering) = select::opcode_lowering(op) else {
             return Cost::new(GasTier::VeryLow.gas(self.evm_version), 1).with_steps(1);
@@ -622,6 +623,18 @@ impl Target {
             Some(a)
         } else {
             None
+        }
+    }
+
+    /// Cost of `ne x, 0` as a value, excluding its operand, and whether it is lowered as
+    /// `PUSH 0; LT` rather than `ISZERO; ISZERO`, whichever ranks cheaper under the objective.
+    pub(crate) fn ne_zero(&self) -> (Cost, bool) {
+        let double_negation = self.opcode(op::ISZERO) + self.opcode(op::ISZERO);
+        let less_than = self.push(U256::ZERO) + self.opcode(op::LT);
+        if self.cmp(less_than, double_negation).is_lt() {
+            (less_than, true)
+        } else {
+            (double_negation, false)
         }
     }
 
@@ -1462,6 +1475,14 @@ mod tests {
         let value = function.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
         let select = InstKind::Select(value, value, value).op();
         assert_eq!(target.op(&select, |_| None), target.select());
+    }
+
+    #[test]
+    fn ne_zero_picks_the_cheaper_lowering() {
+        let target = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 200);
+        assert_eq!(target.ne_zero(), (Cost::new(5, 2).with_steps(2), true));
+        let target = Target::with(EvmVersion::Istanbul, OptimizationMode::Gas, 200);
+        assert_eq!(target.ne_zero(), (Cost::new(6, 2).with_steps(2), false));
     }
 
     #[test]

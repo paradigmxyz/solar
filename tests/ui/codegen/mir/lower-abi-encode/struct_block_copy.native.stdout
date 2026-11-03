@@ -87,7 +87,7 @@ fn @encodeItems() {
     v73 = phi [bb8: v68], [bb16: v95]
     v75 = phi [bb8: v69], [bb16: v96]
     v76 = phi [bb8: v161], [bb16: v98]
-    v77 = gt v73, 0
+    v77 = ne v73, 0
     jumpi v77, bb13, bb14
   bb14:                                           ; preds = bb12
     v100 = add v65, 32
