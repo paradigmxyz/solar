@@ -2428,7 +2428,7 @@ impl<'gcx> TypeChecker<'gcx> {
 
         let param_names =
             self.gcx.callable_param_names(CallableParamSource::Builtin(Builtin::AbiDecode));
-        let mut seen_names: SmallVec<[solar_interface::Symbol; 2]> = SmallVec::new();
+        let mut seen_names: SmallVec<[Symbol; 2]> = SmallVec::new();
         for arg in named_args {
             let arg_name = arg.name.name;
             if seen_names.contains(&arg_name) {
@@ -3096,7 +3096,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 )).emit()));
         }
 
-        let mut seen_names: SmallVec<[solar_interface::Symbol; 8]> = SmallVec::new();
+        let mut seen_names: SmallVec<[Symbol; 8]> = SmallVec::new();
 
         for arg in named_args {
             let arg_name = arg.name.name;

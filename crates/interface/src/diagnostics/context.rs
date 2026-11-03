@@ -306,7 +306,7 @@ impl DiagCtxt {
     /// The default is human emitter to stderr.
     ///
     /// See also [`DiagCtxtFlags::update_from_opts`].
-    pub fn from_opts(opts: &solar_config::CompileOpts) -> Self {
+    pub fn from_opts(opts: &CompileOpts) -> Self {
         let source_map = Arc::new(SourceMap::empty());
         let emitter: Box<DynEmitter> = match opts.error_format {
             ErrorFormat::Human => {

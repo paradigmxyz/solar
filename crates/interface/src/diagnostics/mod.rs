@@ -730,7 +730,7 @@ impl Diag {
     }
 
     /// Fields used for `PartialEq` and `Hash` implementations.
-    fn keys(&self) -> impl PartialEq + std::hash::Hash {
+    fn keys(&self) -> impl PartialEq + Hash {
         (
             &self.level,
             &self.messages,
@@ -1371,7 +1371,7 @@ note: mutable variables should use mixedCase
             Applicability::MachineApplicable,
         );
 
-        let sm = std::sync::Arc::new(source_map::SourceMap::empty());
+        let sm = Arc::new(source_map::SourceMap::empty());
         sm.new_source_file(source_map::FileName::custom("test.sol"), CONTRACT.to_string()).unwrap();
         let mut emitter = HumanBufferEmitter::new(ColorChoice::Never).source_map(Some(sm));
         emitter.emit_diagnostic_ref(&diag);
@@ -1630,7 +1630,7 @@ warning: confusable spelling
 
     #[test]
     fn test_session_keeps_the_source_map_of_a_context_that_deferred() {
-        let source_map = std::sync::Arc::new(source_map::SourceMap::empty());
+        let source_map = Arc::new(source_map::SourceMap::empty());
         let dcx = DiagCtxt::with_buffer_emitter(Some(source_map.clone()), ColorChoice::Never);
         let (_, deferred) = dcx.defer(|| dcx.warn("withheld").emit());
         dcx.emit_deferred(deferred);
@@ -2083,7 +2083,7 @@ contract Test {
         let sm = source_map::SourceMap::empty();
         sm.new_source_file(source_map::FileName::custom("test.sol"), CONTRACT.to_string()).unwrap();
 
-        let dcx = DiagCtxt::with_buffer_emitter(Some(std::sync::Arc::new(sm)), ColorChoice::Never);
+        let dcx = DiagCtxt::with_buffer_emitter(Some(Arc::new(sm)), ColorChoice::Never);
         let _ = dcx.emit_diagnostic(diag);
 
         dcx.emitted_diagnostics().unwrap().0

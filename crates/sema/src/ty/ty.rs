@@ -1268,7 +1268,7 @@ impl PartialEq for TyData<'_> {
 
 impl Eq for TyData<'_> {}
 
-impl std::hash::Hash for TyData<'_> {
+impl Hash for TyData<'_> {
     #[inline]
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.kind.hash(state);

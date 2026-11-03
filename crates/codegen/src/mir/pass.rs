@@ -135,7 +135,7 @@ impl<P: MirPass> MirPass for SizeOnly<P> {
         self.0.name()
     }
 
-    fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
+    fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
         self.covers(module) && self.0.is_enabled(gcx, module)
     }
 
@@ -151,12 +151,7 @@ impl<P: MirPass> MirPass for SizeOnly<P> {
         self.0.is_required()
     }
 
-    fn run_pass(
-        &self,
-        gcx: solar_sema::Gcx<'_>,
-        module: &mut Module,
-        analyses: &mut ModuleAnalyses,
-    ) -> bool {
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
         self.0.run_pass(gcx, module, analyses)
     }
 }
@@ -174,7 +169,7 @@ impl<P: MirPass> MirPass for GasOnly<P> {
         self.0.name()
     }
 
-    fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
+    fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
         self.covers(module) && self.0.is_enabled(gcx, module)
     }
 
@@ -190,12 +185,7 @@ impl<P: MirPass> MirPass for GasOnly<P> {
         self.0.is_required()
     }
 
-    fn run_pass(
-        &self,
-        gcx: solar_sema::Gcx<'_>,
-        module: &mut Module,
-        analyses: &mut ModuleAnalyses,
-    ) -> bool {
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
         self.0.run_pass(gcx, module, analyses)
     }
 }
@@ -215,7 +205,7 @@ impl<P: MirPass> MirPass for RunsAtNone<P> {
         self.0.name()
     }
 
-    fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
+    fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
         self.covers(module) || self.0.is_enabled(gcx, module)
     }
 
@@ -235,12 +225,7 @@ impl<P: MirPass> MirPass for RunsAtNone<P> {
         self.0.cache_key()
     }
 
-    fn run_pass(
-        &self,
-        gcx: solar_sema::Gcx<'_>,
-        module: &mut Module,
-        analyses: &mut ModuleAnalyses,
-    ) -> bool {
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
         self.0.run_pass(gcx, module, analyses)
     }
 }
@@ -499,7 +484,7 @@ static LOWERED_PIPELINE: &[&dyn MirPass] = &[
 /// passes preserve the phase except the checked completion of `lower-evm-shaped`.
 #[tracing::instrument(name = "mir_pipeline", level = "debug", skip_all)]
 #[must_use]
-pub fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, name: Option<&str>) -> bool {
+pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bool {
     if let Some(value) = gcx.sess.opts.unstable.mir_pipeline.as_deref() {
         let pipeline = match parse_pass_pipeline(gcx, value, "MIR", lookup_pass) {
             Ok(pipeline) => pipeline,
