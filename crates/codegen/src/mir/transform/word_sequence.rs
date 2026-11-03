@@ -71,7 +71,10 @@ pub(crate) enum WordSequence {
 
 impl MirPass for WordSequence {
     fn name(&self) -> &'static str {
-        "word-sequence"
+        match self {
+            Self::Early => "word-sequence-early",
+            Self::Late => "word-sequence",
+        }
     }
 
     fn run_pass(
@@ -110,13 +113,9 @@ fn legal(op: &Op, target: &Target) -> bool {
         });
     }
     select::opcode_lowering(op).is_some_and(|lowering| {
-        matches!(
-            lowering,
-            select::OpcodeLowering::Unary { .. }
-                | select::OpcodeLowering::Binary { .. }
-                | select::OpcodeLowering::Nary { .. }
-        ) && op::definition(lowering.opcode())
-            .is_some_and(|def| def.is_available(target.evm_version()))
+        matches!(lowering, select::OpcodeLowering::Valued { .. })
+            && op::definition(lowering.opcode())
+                .is_some_and(|def| def.is_available(target.evm_version()))
     }) && op.into_kind().is_some_and(|kind| kind.effect_kind() == EffectKind::Pure)
 }
 

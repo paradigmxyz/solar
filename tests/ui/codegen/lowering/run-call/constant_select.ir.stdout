@@ -78,8 +78,8 @@ bb70:                                             ; function dirtyTernary(uint25
   sub
   push 4
   calldataload
-  iszero
-  iszero
+  push 0
+  lt
   mul
   push 7
   add
@@ -134,8 +134,8 @@ bb2:                                              ; function choose(uint256 raw,
   sub
   push 4
   calldataload
-  iszero
-  iszero
+  push 0
+  lt
   mul
   add
   push 0
@@ -646,8 +646,8 @@ bb85:
   shl
   push 4
   calldataload
-  iszero
-  iszero
+  push 0
+  lt
   push 0x26121ff0
   push 224
   shl
@@ -708,8 +708,8 @@ bb64:                                             ; function reverseSignature(ui
   jumpi
   push 4
   calldataload
-  iszero
-  iszero
+  push 0
+  lt
   push 0xbc057b9e
   push 224
   shl

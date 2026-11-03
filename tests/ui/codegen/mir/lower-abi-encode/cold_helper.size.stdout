@@ -654,7 +654,7 @@ fn @encode_abi_calldata.13(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retu
     v7 = phi [bb0: v5], [bb9: v45]
     v8 = phi [bb0: v2], [bb9: v55]
     v9 = phi [bb0: arg0], [bb9: v54]
-    v10 = gt v6, 0
+    v10 = ne v6, 0
     jumpi v10, bb2, bb3
   bb3:                                            ; preds = bb1
     v57 = sub v7, arg2
@@ -721,7 +721,7 @@ fn @encode_abi_calldata.14(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retu
     v7 = phi [bb0: v5], [bb8: v45]
     v8 = phi [bb0: v2], [bb8: v53]
     v9 = phi [bb0: arg0], [bb8: v52]
-    v10 = gt v6, 0
+    v10 = ne v6, 0
     jumpi v10, bb2, bb3
   bb3:                                            ; preds = bb1
     v55 = sub v7, arg2
@@ -784,7 +784,7 @@ fn @encode_abi_calldata.15(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retu
     v7 = phi [bb0: v5], [bb12: v78]
     v8 = phi [bb0: v2], [bb12: v82]
     v9 = phi [bb0: arg0], [bb12: v81]
-    v10 = gt v6, 0
+    v10 = ne v6, 0
     jumpi v10, bb2, bb3
   bb3:                                            ; preds = bb1
     v84 = sub v7, arg2

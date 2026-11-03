@@ -663,11 +663,7 @@ impl<'a> SlotSsaBuilder<'a> {
             let mut incoming = pending.incoming.clone();
             incoming.sort_by_key(|(block, _)| block.index());
             func.inst_mut(pending.inst).kind = InstKind::Phi(incoming);
-            let insert_pos = func.blocks[pending.block]
-                .instructions
-                .iter()
-                .take_while(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
-                .count();
+            let insert_pos = func.block_phi_count(pending.block);
             func.blocks[pending.block].instructions.insert(insert_pos, pending.inst);
         }
     }

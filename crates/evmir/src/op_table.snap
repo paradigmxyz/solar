@@ -6,8 +6,8 @@
 0x05 sdiv             io=2/1 since=homestead gas=5 pure
 0x06 mod              io=2/1 since=homestead gas=5 pure
 0x07 smod             io=2/1 since=homestead gas=5 pure
-0x08 addmod           io=3/1 since=homestead gas=8 pure
-0x09 mulmod           io=3/1 since=homestead gas=8 pure
+0x08 addmod           io=3/1 since=homestead gas=8 pure commutative
+0x09 mulmod           io=3/1 since=homestead gas=8 pure commutative
 0x0a exp              io=2/1 since=homestead gas=10 +50 pure
 0x0b signextend       io=2/1 since=homestead gas=5 pure
 0x10 lt               io=2/1 bits=[]/1 since=homestead gas=3 pure

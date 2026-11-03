@@ -82,7 +82,7 @@ fn @siftValues() {
     jumpi v123, bb21, bb2
   bb2:                                            ; preds = bb1, bb20
     v27 = mload v199
-    v28 = gt v27, 0
+    v28 = ne v27, 0
     jumpi v28, bb27, bb26
   bb27:                                           ; preds = bb2
     v216 = calldataload 36
@@ -320,13 +320,13 @@ fn @siftUp() {
     jumpi v199, bb20, bb2
   bb2:                                            ; preds = bb1, bb19
     v47 = mload v352
-    v48 = gt v47, 0
+    v48 = ne v47, 0
     jumpi v48, bb26, bb25
   bb26:                                           ; preds = bb2
     v293 = add v352, 32
     mstore v293, 100
     v51 = mload v353
-    v52 = gt v51, 0
+    v52 = ne v51, 0
     jumpi v52, bb27, bb25
   bb27:                                           ; preds = bb26
     v385 = calldataload 36

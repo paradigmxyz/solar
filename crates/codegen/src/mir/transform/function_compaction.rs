@@ -23,7 +23,7 @@
 //! function or one of the two bodies being compared. Matching all other instructions, operands
 //! and CFG edges closes that pairwise equivalence proof, including mutual recursion.
 
-use super::utils::{frame_prefix, is_internal_body};
+use super::utils::is_internal_body;
 use crate::mir::{
     ArgIdx, Callee, EffectKind, Function, FunctionId, Immediate, InstId, InstKind, MirType, Module,
     StorageAlias, Terminator, Value, ValueId,
@@ -240,8 +240,11 @@ fn has_rewritable_signature(
 /// those accesses do not identify which signature component they refer to, so changing that
 /// function's signature would be ambiguous.
 fn frame_offsets_are_local(func: &Function) -> bool {
-    let Some(local_start) =
-        func.params.len().checked_add(func.return_components().len()).and_then(frame_prefix)
+    let Some(local_start) = func
+        .params
+        .len()
+        .checked_add(func.return_components().len())
+        .and_then(EvmMemoryLayout::internal_frame_prefix)
     else {
         return false;
     };
@@ -277,8 +280,9 @@ fn rebase_frame_offsets(func: &mut Function, removed_slots: u64) {
         return;
     }
     let shift = removed_slots * EvmMemoryLayout::WORD_SIZE;
-    let local_start = frame_prefix(func.params.len() + func.return_components().len())
-        .expect("MIR frame prefix overflow");
+    let local_start =
+        EvmMemoryLayout::internal_frame_prefix(func.params.len() + func.return_components().len())
+            .expect("MIR frame prefix overflow");
     let old_local_start = local_start.checked_add(shift).expect("MIR frame prefix overflow");
     let local_end = (func.internal_frame_size != 0).then(|| {
         local_start.checked_add(func.internal_frame_size).expect("MIR local frame region overflow")
