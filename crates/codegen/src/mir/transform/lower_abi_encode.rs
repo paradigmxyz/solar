@@ -2016,6 +2016,8 @@ fn literal_opaque_instruction(
     available: &FxHashSet<ValueId>,
 ) -> bool {
     match kind {
+        // An encoding at an explicit base can write over a literal object.
+        InstKind::AbiEncode { base: Some(_), .. } => true,
         InstKind::Alloc { .. } | InstKind::AbiEncode { .. } => false,
         InstKind::Store(address, _, PtrLocation::Memory) => {
             !literal_word_in_bounds(func, *address, available)
@@ -2075,6 +2077,12 @@ fn literal_bytes(func: &Function, object: ValueId, block: BlockId) -> Option<Vec
     let mut words = FxHashMap::default();
     for inst in literal_object_uses(func, object) {
         if !func.blocks[block].instructions.contains(&inst) {
+            return None;
+        }
+        // An encoding at a base derived from the object can overwrite its words.
+        if let InstKind::AbiEncode { base: Some(base), .. } = func.inst(inst).kind
+            && func.object_address(base).is_some_and(|(base, _)| base == object)
+        {
             return None;
         }
         if func.is_object_derivation(inst)

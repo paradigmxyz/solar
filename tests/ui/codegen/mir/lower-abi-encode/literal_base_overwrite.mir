@@ -1,0 +1,34 @@
+//@ compile-flags: -Ogas --evm-version paris -Zmir-pipeline=lower-abi-encode
+//@ filecheck:
+@module LiteralBaseOverwrite
+
+// An encoding at a base inside the object overwrites its words, so the later encoding reads
+// them from memory instead of folding the original literal.
+// CHECK-LABEL: (after lower-abi-encode)
+// CHECK: fn @overwritten_by_base
+// CHECK: + mcopy
+// CHECK: ret v
+fn @overwritten_by_base() -> slice<memory> {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 1
+    v1 = ptradd v0, 32
+    mstore v1, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v2 = abi_encode [word], scratch, base v1, args 7
+    v3 = abi_encode [memory_bytes], scratch, args v0
+    ret v3
+}
+
+// Without the overwrite the literal folds into stores.
+// CHECK: fn @untouched
+// CHECK-NOT: mcopy
+// CHECK: ret v
+fn @untouched() -> slice<memory> {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 1
+    v1 = ptradd v0, 32
+    mstore v1, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v3 = abi_encode [memory_bytes], scratch, args v0
+    ret v3
+}
