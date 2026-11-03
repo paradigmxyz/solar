@@ -1,0 +1,27 @@
+//@ revisions: capped full
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=compact-pushes
+//@[capped] compile-flags: --optimize-runs 9999
+//@[full] compile-flags: --optimize-runs 10000
+//@[capped] filecheck: --check-prefix=CAPPED
+//@[full] filecheck: --check-prefix=FULL
+@module module
+
+// A gas build prices a push over at most 200 executions below 10,000 runs, and over every
+// execution from there on. `0xc00000000000000000000000` saves eight bytes of deposit for six
+// gas, and a left-aligned mask 27 bytes for eight: they pay on 200 executions, not on 10,000.
+// CAPPED-LABEL: {{^[ +].*}}bb0:
+// CAPPED: + push 192
+// CAPPED-NEXT: + push 88
+// CAPPED-NEXT: + shl
+// CAPPED: + push 0
+// CAPPED-NEXT: + not
+// CAPPED-NEXT: + push 160
+// CAPPED-NEXT: + shl
+// FULL-LABEL: {{^[ +].*}}bb0:
+// FULL-NEXT: {{^  push 0xc00000000000000000000000$}}
+// FULL-NEXT: {{^  push 0xffffffffffffffffffffffff0000000000000000000000000000000000000000$}}
+// FULL-NEXT: {{^  stop$}}
+bb0:
+  push 0xc00000000000000000000000
+  push 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+  stop
