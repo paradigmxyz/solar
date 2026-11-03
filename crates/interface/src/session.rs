@@ -7,11 +7,12 @@ use solar_config::{
     CompileOpts, CompilerOutput, CompilerStage, Language, SINGLE_THREADED_TARGET, UnstableOpts,
 };
 use std::{
-    fmt,
+    fmt, io,
     path::{Path, PathBuf},
     sync::{
         Arc, OnceLock,
         atomic::{AtomicUsize, Ordering},
+        mpsc,
     },
 };
 
@@ -550,18 +551,35 @@ impl Session {
     fn thread_pool(&self) -> &rayon::ThreadPool {
         self.thread_pool.get_or_init(|| {
             trace!(threads = self.threads(), "building rayon thread pool");
+            // Spawning every worker takes about 40 us each, which dominates small inputs at high
+            // thread counts. Spawn the first worker here, so that failing to spawn threads at all
+            // is reported, and let a helper thread spawn the others while the first one already
+            // runs.
+            let mut spawner = None;
             self.thread_pool_builder()
                 .spawn_handler(|thread| {
-                    let mut builder = std::thread::Builder::new();
-                    if let Some(name) = thread.name() {
-                        builder = builder.name(name.to_string());
+                    if thread.index() == 0 {
+                        return spawn_worker(&self.globals, thread);
                     }
-                    if let Some(size) = thread.stack_size() {
-                        builder = builder.stack_size(size);
+                    if spawner.is_none() {
+                        let (tx, rx) = mpsc::channel::<rayon::ThreadBuilder>();
+                        let globals = self.globals.clone();
+                        std::thread::Builder::new().name("solar-spawn".into()).spawn(
+                            move || {
+                                for thread in rx {
+                                    if let Err(e) = spawn_worker(&globals, thread) {
+                                        trace!(%e, "failed to spawn a worker thread");
+                                    }
+                                }
+                            },
+                        )?;
+                        spawner = Some(tx);
                     }
-                    let globals = self.globals.clone();
-                    builder.spawn(move || globals.set(|| thread.run()))?;
-                    Ok(())
+                    spawner
+                        .as_ref()
+                        .unwrap()
+                        .send(thread)
+                        .map_err(|_| io::Error::other("worker spawner exited"))
                 })
                 .build()
                 .unwrap_or_else(|e| self.handle_thread_pool_build_error(e))
@@ -605,6 +623,20 @@ pub fn thread_stack_size() -> usize {
         .ok()
         .and_then(|s| s.trim().parse().ok())
         .unwrap_or(16 * 1024 * 1024)
+}
+
+/// Spawns a rayon worker thread that runs with the session globals set.
+fn spawn_worker(globals: &Arc<SessionGlobals>, thread: rayon::ThreadBuilder) -> io::Result<()> {
+    let mut builder = std::thread::Builder::new();
+    if let Some(name) = thread.name() {
+        builder = builder.name(name.to_string());
+    }
+    if let Some(size) = thread.stack_size() {
+        builder = builder.stack_size(size);
+    }
+    let globals = globals.clone();
+    builder.spawn(move || globals.set(|| thread.run()))?;
+    Ok(())
 }
 
 fn reentrant_log() {
