@@ -85,7 +85,7 @@ impl Peephole {
 
 impl EvmPass for Peephole {
     fn name(&self) -> &'static str {
-        "peephole"
+        if self.0 == Rules::Early { "peephole-early" } else { "peephole" }
     }
 
     fn cache_config(&self) -> u64 {
