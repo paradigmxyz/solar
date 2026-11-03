@@ -16,20 +16,8 @@
 ;; (x & y) + (x | y) => x + y.
 (rule (rewrite (Op.Add (band v0 v1) (bor v0 v1))) (Op.Add v0 v1))
 
-;; (x & y) + (y | x) => x + y.
-(rule (rewrite (Op.Add (band v0 v1) (bor v1 v0))) (Op.Add v0 v1))
-
-;; (x | y) + (y & x) => x + y.
-(rule (rewrite (Op.Add (bor v0 v1) (band v1 v0))) (Op.Add v0 v1))
-
 ;; (x & y) + (x ^ y) => x | y.
 (rule (rewrite (Op.Add (band v0 v1) (bxor v0 v1))) (Op.Or v0 v1))
-
-;; (x & y) + (y ^ x) => x | y.
-(rule (rewrite (Op.Add (band v0 v1) (bxor v1 v0))) (Op.Or v0 v1))
-
-;; (x ^ y) + (y & x) => x | y.
-(rule (rewrite (Op.Add (bxor v0 v1) (band v1 v0))) (Op.Or v0 v1))
 
 ;; ~(x + y) + x => ~y.
 (rule (rewrite (Op.Add (bnot (add v0 v1)) v0)) (Op.Not v1))
@@ -52,26 +40,14 @@
 ;; (x + y) - (x & y) => x | y.
 (rule (rewrite (Op.Sub (add v0 v1) (band v0 v1))) (Op.Or v0 v1))
 
-;; (x + y) - (y & x) => x | y.
-(rule (rewrite (Op.Sub (add v0 v1) (band v1 v0))) (Op.Or v0 v1))
-
 ;; (x + y) - (x | y) => x & y.
 (rule (rewrite (Op.Sub (add v0 v1) (bor v0 v1))) (Op.And v0 v1))
-
-;; (x + y) - (y | x) => x & y.
-(rule (rewrite (Op.Sub (add v0 v1) (bor v1 v0))) (Op.And v0 v1))
 
 ;; (x | y) - (x & y) => x ^ y.
 (rule (rewrite (Op.Sub (bor v0 v1) (band v0 v1))) (Op.Xor v0 v1))
 
-;; (x | y) - (y & x) => x ^ y.
-(rule (rewrite (Op.Sub (bor v0 v1) (band v1 v0))) (Op.Xor v0 v1))
-
 ;; (x | y) - (x ^ y) => x & y.
 (rule (rewrite (Op.Sub (bor v0 v1) (bxor v0 v1))) (Op.And v0 v1))
-
-;; (x | y) - (y ^ x) => x & y.
-(rule (rewrite (Op.Sub (bor v0 v1) (bxor v1 v0))) (Op.And v0 v1))
 
 ;; (x * a) * b => x * (a * b).
 ;; Requires: a, b are constants.
@@ -138,11 +114,3 @@
 ;; (x * c) / c => x.
 ;; Requires: c is a nonzero constant, x is known to be <= (MAX / c).
 (rule (rewrite (Op.Div (mul x (nonzero_const c)) (iconst c))) (if-let true (at_most_const x (u256_div (u256_max) c))) (Op.Add x (imm (u256 0))))
-
-;; addmod(0, x, m) => x % m.
-;; Requires: x is constant.
-(rule (rewrite (Op.AddMod (zero) (iconst x) m)) (Op.Mod (imm x) m))
-
-;; mulmod(1, x, m) => x % m.
-;; Requires: x is constant.
-(rule (rewrite (Op.MulMod (one) (iconst x) m)) (Op.Mod (imm x) m))
