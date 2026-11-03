@@ -22,8 +22,8 @@ contract C {
     function emptyStringAndZero() public pure {
         assembly {
             switch 0
-            case "" {} //~ NOTE: first defined here
-            case 0 {} //~ ERROR: duplicate case `0` defined
+            case 0 {} //~ NOTE: first defined here
+            case "" {} //~ ERROR: duplicate case `""` defined
         }
     }
 
@@ -51,6 +51,15 @@ contract C {
             case 1 {} //~ ERROR: duplicate case `1` defined
             case 2 {} //~ ERROR: duplicate case `2` defined
             default {}
+        }
+    }
+
+    function repeatedValue() public pure {
+        assembly {
+            switch 0
+            case 7 {} //~ NOTE: first defined here
+            case 7 {} //~ ERROR: duplicate case `7` defined
+            case 7 {} //~ ERROR: duplicate case `7` defined
         }
     }
 

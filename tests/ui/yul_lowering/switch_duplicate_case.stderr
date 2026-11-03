@@ -22,17 +22,17 @@ note: first defined here
 LL │             case 0 {}
    ╰╴                 ━
 
-error[6792]: duplicate case `0` defined
+error[6792]: duplicate case `""` defined
    ╭▸ ROOT/tests/ui/yul_lowering/switch_duplicate_case.sol:LL:CC
    │
-LL │             case 0 {}
-   │                  ━
+LL │             case "" {}
+   │                  ━━
    ╰╴
 note: first defined here
    ╭▸ ROOT/tests/ui/yul_lowering/switch_duplicate_case.sol:LL:CC
    │
-LL │             case "" {}
-   ╰╴                 ━━
+LL │             case 0 {}
+   ╰╴                 ━
 
 error[6792]: duplicate case `1` defined
    ╭▸ ROOT/tests/ui/yul_lowering/switch_duplicate_case.sol:LL:CC
@@ -82,5 +82,29 @@ note: first defined here
 LL │             case 2 {}
    ╰╴                 ━
 
-error: aborting due to 7 previous errors
+error[6792]: duplicate case `7` defined
+   ╭▸ ROOT/tests/ui/yul_lowering/switch_duplicate_case.sol:LL:CC
+   │
+LL │             case 7 {}
+   │                  ━
+   ╰╴
+note: first defined here
+   ╭▸ ROOT/tests/ui/yul_lowering/switch_duplicate_case.sol:LL:CC
+   │
+LL │             case 7 {}
+   ╰╴                 ━
+
+error[6792]: duplicate case `7` defined
+   ╭▸ ROOT/tests/ui/yul_lowering/switch_duplicate_case.sol:LL:CC
+   │
+LL │             case 7 {}
+   │                  ━
+   ╰╴
+note: first defined here
+   ╭▸ ROOT/tests/ui/yul_lowering/switch_duplicate_case.sol:LL:CC
+   │
+LL │             case 7 {}
+   ╰╴                 ━
+
+error: aborting due to 9 previous errors
 
