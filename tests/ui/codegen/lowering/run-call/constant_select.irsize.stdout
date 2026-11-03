@@ -466,7 +466,10 @@ bb37 [continuation]:
   push 32
   add
   calldataload
-  dup 2
+  push 4
+  dup 3
+  lt
+  swap 2
   push 4
   sub
   push 3
@@ -478,12 +481,11 @@ bb37 [continuation]:
   dup 1
   swap 2
   shl
-  swap 3
-  push 4
-  gt
   dup 2
-  dup 1
-  swap 5
+  swap 4
+  swap 1
+  dup 3
+  swap 1
   sub
   mul
   add
