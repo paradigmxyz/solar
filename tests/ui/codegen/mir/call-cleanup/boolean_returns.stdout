@@ -166,7 +166,7 @@
       v0 = icall @raw_clean, arg0
       v1 = icall @raw_clean, arg0
       v2 = ne v0, 0
-      v3 = ne 0, v1
+      v3 = ne v1, 0
 -     v4 = eq v2, v3
 +     v4 = eq v0, v1
       ret v4
@@ -415,7 +415,7 @@
       v0 = icall @raw_clean, arg0
       v1 = icall @raw_clean, arg0
 -     v2 = ne v0, 0
--     v3 = ne 0, v1
+-     v3 = ne v1, 0
       v4 = eq v0, v1
       ret v4
   }

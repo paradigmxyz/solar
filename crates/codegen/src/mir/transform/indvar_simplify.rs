@@ -623,7 +623,7 @@ impl IndVarSimplifier {
                     // bound clamped to [start, 2^65]
                     (PointerExit::Reaches(_), _) => InstKind::Ne(*pointer, end),
                 };
-                func.inst_mut(test.condition).kind = func.canonical_kind(kind);
+                func.set_inst_kind(test.condition, kind);
                 test_rewritten = true;
             }
         }
@@ -846,8 +846,7 @@ impl IndVarSimplifier {
             let Some(magnitude) = self.offset_value(func, magnitude) else { continue };
             for &value in values {
                 let Value::Inst(inst) = *func.value(value) else { continue };
-                func.inst_mut(inst).kind =
-                    func.canonical_kind(offset_kind(stepped, magnitude, offset >= 0));
+                func.set_inst_kind(inst, offset_kind(stepped, magnitude, offset >= 0));
             }
         }
         func.replace_uses(&replacements);
@@ -1751,7 +1750,7 @@ impl IndVarSimplifier {
         for block in blocks {
             for index in 0..func.blocks[block].instructions.len() {
                 let inst_id = func.blocks[block].instructions[index];
-                mir_utils::replace_inst_uses(func.inst_mut(inst_id), replacements);
+                func.replace_inst_uses(inst_id, replacements);
             }
             if let Some(term) = &mut func.blocks[block].terminator {
                 mir_utils::replace_terminator_uses(term, replacements);
@@ -1764,8 +1763,7 @@ impl IndVarSimplifier {
         let Value::Inst(inst_id) = *func.value(value) else { return };
         let Some(magnitude) = offset.checked_abs() else { return };
         let Some(magnitude) = self.offset_value(func, magnitude) else { return };
-        func.inst_mut(inst_id).kind =
-            func.canonical_kind(offset_kind(pointer, magnitude, offset >= 0));
+        func.set_inst_kind(inst_id, offset_kind(pointer, magnitude, offset >= 0));
     }
 
     /// Appends `delta / magnitude` to `block`: a shift for a power of two, a division otherwise.

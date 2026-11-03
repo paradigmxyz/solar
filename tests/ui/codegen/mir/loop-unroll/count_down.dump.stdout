@@ -35,7 +35,7 @@ fn @countDown() {
     v20 = ne v19, 0
     jumpi v20, bb6, bb7
   bb6:                                            ; preds = bb5
-    v12 = add 0, v8
+    v12 = add v8, 0
     v13 = sub v8, 1
     jump bb7
   bb7:                                            ; preds = bb5, bb6
@@ -134,7 +134,7 @@ fn @stepDown() {
     v23 = ne v22, 0
     jumpi v23, bb6, bb7
   bb6:                                            ; preds = bb5
-    v14 = add 0, v10
+    v14 = add v10, 0
     v15 = sub v10, 2
     jump bb7
   bb7:                                            ; preds = bb5, bb6
@@ -173,7 +173,7 @@ fn @downTo() {
     v27 = ne v26, 0
     jumpi v27, bb6, bb7
   bb6:                                            ; preds = bb5
-    v18 = add 0, v13
+    v18 = add v13, 0
     v19 = sub v13, 1
     jump bb7
   bb7:                                            ; preds = bb5, bb6

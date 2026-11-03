@@ -5,7 +5,7 @@
   fn @low_pressure(arg0: i1, arg1: i256) -> i256 [selector=0x01020304] {
     bb0:
 -     v0 = icall @choose, arg0, arg1
--     v1 = add arg1, v0
+-     v1 = add v0, arg1
 +     jump bb2
 +   bb2:                                            ; preds = bb0
 +     jumpi arg0, bb3, bb4
@@ -20,7 +20,7 @@
 +     jump bb1
 +   bb1:                                            ; preds = bb5
 +     v5 = phi [bb5: v4]
-+     v1 = add arg1, v5
++     v1 = add v5, arg1
       ret v1
   }
   

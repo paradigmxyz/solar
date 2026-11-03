@@ -378,7 +378,7 @@ fn @_copyBytes(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [may_
     v9 = lt v67, v8
     jumpi v9, bb7, bb6
   bb7:                                            ; preds = bb11
-    v82 = add arg0, v67
+    v82 = add v67, arg0
     v83 = add v82, 32
     v13 = mload v83
     v14 = byte 0, v13
@@ -392,7 +392,7 @@ fn @_copyBytes(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [may_
   bb6 [cold]:                                     ; preds = bb5, bb11, bb12
     tail_call @revert_stub
   bb8:                                            ; preds = bb12
-    v85 = add arg1, v69
+    v85 = add v69, arg1
     v86 = add v85, 32
     mstore8 v86, v14
     v23 = add v5, 1
@@ -464,7 +464,7 @@ fn @_copyBytesDown(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [
     v10 = lt v8, v9
     jumpi v10, bb7, bb6
   bb7:                                            ; preds = bb14
-    v78 = add arg0, v8
+    v78 = add v8, arg0
     v79 = add v78, 32
     v14 = mload v79
     v15 = byte 0, v14
@@ -479,7 +479,7 @@ fn @_copyBytesDown(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [
   bb6 [cold]:                                     ; preds = bb10, bb12, bb14, bb15
     tail_call @revert_stub
   bb8:                                            ; preds = bb15
-    v81 = add arg1, v18
+    v81 = add v18, arg1
     v82 = add v81, 32
     mstore8 v82, v15
     v25 = sub v5, 1
@@ -500,10 +500,10 @@ fn @_copyWords(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [may_
   bb4:                                            ; preds = bb0
     v24 = shl arg4, 5
     v25 = shl arg2, 5
-    v80 = add arg0, v25
+    v80 = add v25, arg0
     v81 = add v80, 32
     v28 = shl arg3, 5
-    v83 = add arg1, v28
+    v83 = add v28, arg1
     v84 = add v83, 32
     v34 = add v81, v24
     v36 = lt v84, v34
@@ -555,7 +555,7 @@ fn @_copyWords(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [may_
     jumpi v9, bb7, bb6
   bb7:                                            ; preds = bb11
     v11 = shl v75, 5
-    v90 = add arg0, v11
+    v90 = add v11, arg0
     v91 = add v90, 32
     v14 = mload v91
     v77 = add arg3, v5
@@ -569,7 +569,7 @@ fn @_copyWords(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [may_
     tail_call @revert_stub
   bb8:                                            ; preds = bb12
     v19 = shl v77, 5
-    v93 = add arg1, v19
+    v93 = add v19, arg1
     v94 = add v93, 32
     mstore v94, v14
     v22 = add v5, 1
@@ -650,7 +650,7 @@ fn @_freshBytes(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory] 
     v13 = lt v81, v12
     jumpi v13, bb11, bb10
   bb11:                                           ; preds = bb16
-    v93 = add arg0, v81
+    v93 = add v81, arg0
     v94 = add v93, 32
     v17 = mload v94
     v18 = byte 0, v17
@@ -726,7 +726,7 @@ fn @_copyBytesSelf(arg0: i256, arg1: i256) [may_return_memory] {
   bb6 [cold]:                                     ; preds = bb3, bb5, bb11
     tail_call @revert_stub
   bb8:                                            ; preds = bb11
-    v62 = add arg0, v51
+    v62 = add v51, arg0
     v63 = add v62, 32
     mstore8 v63, v10
     v19 = add v2, 1

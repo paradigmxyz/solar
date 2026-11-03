@@ -1867,9 +1867,8 @@ impl<'a> InlineCloner<'a> {
             let caller_block = self.block_map[callee_block];
             for (index, &inst_id) in block.instructions.iter().enumerate() {
                 let kind = self.clone_inst_kind(self.callee.inst(inst_id).kind.clone())?;
-                let kind = self.caller.canonical_kind(kind);
                 let new_inst = self.caller.blocks[caller_block].instructions[index];
-                self.caller.inst_mut(new_inst).kind = kind;
+                self.caller.set_inst_kind(new_inst, kind);
             }
         }
 

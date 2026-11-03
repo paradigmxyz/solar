@@ -195,8 +195,7 @@ pub(super) fn cleanup(
             InstKind::Ne(..) => InstKind::Ne(value, zero),
             _ => unreachable!(),
         };
-        let kind = func.canonical_kind(kind);
-        func.inst_mut(inst).replace_kind(kind);
+        func.replace_inst_kind(inst, kind);
         changed = true;
     }
     let mut insertions = FxHashMap::default();
@@ -216,8 +215,7 @@ pub(super) fn cleanup(
             InstKind::Ne(..) => InstKind::Ne(left, right),
             _ => unreachable!(),
         };
-        let kind = func.canonical_kind(kind);
-        func.inst_mut(inst).replace_kind(kind);
+        func.replace_inst_kind(inst, kind);
         changed = true;
     }
     if !insertions.is_empty() {

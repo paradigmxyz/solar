@@ -328,7 +328,7 @@ fn @_downCopy(arg0: i256, arg1: i256, arg2: i256) [may_return_memory] {
     v7 = lt v5, v6
     jumpi v7, bb7, bb6
   bb7:                                            ; preds = bb3
-    v45 = add arg0, v5
+    v45 = add v5, arg0
     v46 = add v45, 32
     v11 = mload v46
     v12 = byte 0, v11
@@ -338,7 +338,7 @@ fn @_downCopy(arg0: i256, arg1: i256, arg2: i256) [may_return_memory] {
   bb6 [cold]:                                     ; preds = bb3, bb5, bb7, bb9
     tail_call @revert_stub
   bb8:                                            ; preds = bb7
-    v48 = add arg1, v5
+    v48 = add v5, arg1
     v49 = add v48, 32
     mstore8 v49, v12
     jump bb1

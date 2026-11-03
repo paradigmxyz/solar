@@ -238,12 +238,12 @@ fn specialize_round(
         // icall generic, constants, args => icall shared_specialization, constants, args
         for index in selected {
             let site = &calls[index];
-            let instruction = module.functions[site.caller].inst_mut(site.inst);
-            let mut kind = instruction.kind.clone();
+            let caller = &mut module.functions[site.caller];
+            let mut kind = caller.inst(site.inst).kind.clone();
             if let InstKind::ICall { function: Callee::Function(function), .. } = &mut kind {
                 *function = specialized;
             }
-            instruction.replace_kind(kind);
+            caller.replace_inst_kind(site.inst, kind);
         }
         changed = true;
     }

@@ -167,7 +167,7 @@ fn @encode.4(arg0: i256, arg1: i1, arg2: i1) -> i256 [may_return_memory] {
     v43 = lt v39, v27
     jumpi v43, bb50, bb48
   bb50:                                           ; preds = bb6
-    v202 = add arg0, v39
+    v202 = add v39, arg0
     v203 = add v202, 32
     v47 = mload v203
     v48 = byte 0, v47
@@ -183,7 +183,7 @@ fn @encode.4(arg0: i256, arg1: i1, arg2: i1) -> i256 [may_return_memory] {
     v60 = lt v175, v27
     jumpi v60, bb51, bb48
   bb51:                                           ; preds = bb8
-    v205 = add arg0, v175
+    v205 = add v175, arg0
     v206 = add v205, 32
     v64 = mload v206
     v65 = byte 0, v64
@@ -383,7 +383,7 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory] {
     jumpi v6, bb3, bb4
   bb4:                                            ; preds = bb2
     v9 = sub v0, 1
-    v248 = add arg0, v9
+    v248 = add v9, arg0
     v249 = add v248, 32
     v15 = mload v249
     v16 = byte 0, v15
@@ -399,7 +399,7 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory] {
     v208 = lt v0, 2
     jumpi v208, bb45, bb46
   bb46:                                           ; preds = bb7
-    v272 = add arg0, v207
+    v272 = add v207, arg0
     v273 = add v272, 32
     v27 = mload v273
     v28 = byte 0, v27

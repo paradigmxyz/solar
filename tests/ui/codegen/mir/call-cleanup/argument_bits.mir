@@ -264,7 +264,7 @@ fn @clean_zero_tests(arg0: i256) -> i1 {
 // CHECK-LABEL: fn @dirty_zero_tests
 // CHECK: [[NARROW:v[0-9]+]] = trunc i256 arg0 to i160
 // CHECK: = eq [[NARROW]], i160 0
-// CHECK: = ne i160 0, [[NARROW]]
+// CHECK: = ne [[NARROW]], i160 0
 fn @dirty_zero_tests(arg0: i256) -> i1 {
   bb0:
     v0 = trunc i256 arg0 to i160

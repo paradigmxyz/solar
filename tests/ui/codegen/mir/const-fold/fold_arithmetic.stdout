@@ -21,7 +21,7 @@
   fn @sum() {
     bb0:
       v0 = calldataload 4
--     v1 = add 10, 20
+-     v1 = add 20, 10
 -     v2 = mul v1, 2
       jump bb1
     bb1:                                            ; preds = bb0

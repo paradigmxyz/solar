@@ -104,10 +104,10 @@ fn @f(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256) ->
     v92 = or v89, v91
     jumpi v92, bb11, bb12
   bb12:                                           ; preds = bb18
-    v122 = add arg1, v115
+    v122 = add v115, arg1
     v123 = add v122, 32
     v96 = mload v123
-    v125 = add arg1, v113
+    v125 = add v113, arg1
     v126 = add v125, 32
     v102 = lt v126, v134
     jumpi v102, bb8, bb10
@@ -134,7 +134,7 @@ fn @f(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256) ->
     v74 = lt v117, v73
     jumpi v74, bb14, bb11
   bb14:                                           ; preds = bb19
-    v131 = add arg1, v117
+    v131 = add v117, arg1
     v132 = add v131, 32
     mstore8 v132, v70
     v67 = add v65, 1

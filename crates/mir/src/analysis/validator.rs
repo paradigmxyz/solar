@@ -32,6 +32,9 @@
 //!     signatures cannot contain void values.
 //! 15. **Representation boundaries**: SSA aggregates and semantic memory operations cannot survive
 //!     their lowering boundaries.
+//! 16. **Canonical operand order**: constants sit on the right of commutative operations and
+//!     comparisons, and a comparison of two values is `lt` or `slt`, see
+//!     [`Function::has_canonical_operands`].
 //!
 //! # Usage
 //!
@@ -376,6 +379,18 @@ impl<'a> Validator<'a> {
                     self.emit_at_inst(
                         format_args!(
                             "`{}` has incompatible scalar types; use an explicit cast",
+                            inst.kind.mnemonic()
+                        ),
+                        block_id,
+                        inst_id,
+                    );
+                }
+
+                if !func.has_canonical_operands(&inst.kind) {
+                    self.emit_at_inst(
+                        format_args!(
+                            "`{}` operands are not in canonical order; a pass must rebuild \
+                             it with `set_inst_kind` or `rewrite_inst_operands`",
                             inst.kind.mnemonic()
                         ),
                         block_id,

@@ -44,7 +44,7 @@ fn @check() {
     v0 = add v40, v39
     v38 = calldataload 36
     v37 = calldataload 4
-    v1 = add v37, v38
+    v1 = add v38, v37
     v2 = add v1, v0
     mstore 0, v2 !metadata(memory=scratch)
     returndata 0, 32

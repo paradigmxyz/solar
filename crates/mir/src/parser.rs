@@ -573,6 +573,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
             self.reject_unresolved_block_labels()?;
             self.reject_unresolved_value_labels(builder.func())?;
+            builder.func_mut().canonicalize_operands();
             crate::utils::remap_block_order(builder.func_mut(), &self.block_order)
         };
         for reference in &mut self.function_refs {

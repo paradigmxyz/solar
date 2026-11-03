@@ -34,7 +34,7 @@
   fn @third(arg0: i256) {
     bb0:
       v0 = sub arg0, 1
-      v1 = gt v0, arg0
+      v1 = lt arg0, v0
       jumpi v1, bb1, bb2
     bb2:                                            ; preds = bb0
       mstore 128, v0

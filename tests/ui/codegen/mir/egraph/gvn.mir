@@ -20,7 +20,7 @@ fn @transitive_congruence(arg0: i256, arg1: i256) -> i256 {
 // The two `16` literals are distinct value-table entries; equal immediates
 // share a class, and commutative operands sort by class.
 // CHECK-LABEL: {{^[ +].*}}fn @equal_immediates_unify{{[( ]}}
-// CHECK: - {{v[0-9]+}} = add 16, arg0
+// CHECK: - {{v[0-9]+}} = add arg0, 16
 // CHECK: + {{v[0-9]+}} = add [[IMMEDIATE:v[0-9]+]], [[IMMEDIATE]]
 fn @equal_immediates_unify(arg0: i256) -> i256 {
   bb0:
@@ -33,7 +33,7 @@ fn @equal_immediates_unify(arg0: i256) -> i256 {
 // `gt arg1, arg0` keys as `lt arg0, arg1`, so the selects over the two
 // comparisons become congruent as well.
 // CHECK-LABEL: {{^[ +].*}}fn @swapped_comparison_feeds_arithmetic{{[( ]}}
-// CHECK: - {{v[0-9]+}} = gt arg1, arg0
+// CHECK: - {{v[0-9]+}} = lt arg0, arg1
 // CHECK: + {{v[0-9]+}} = add [[SELECT:v[0-9]+]], [[SELECT]]
 fn @swapped_comparison_feeds_arithmetic(arg0: i256, arg1: i256) -> i256 {
   bb0:

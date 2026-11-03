@@ -5,7 +5,7 @@
     bb0:
       switch arg1, default bb3, [1 => bb1, 2 => bb2]
     bb2:                                            ; preds = bb0
-      v1 = add 7, arg0 !metadata(span=20..30)
+      v1 = add arg0, 7 !metadata(span=20..30)
       jump bb4
     bb1:                                            ; preds = bb0
       v0 = add arg0, 7 !metadata(span=10..20)

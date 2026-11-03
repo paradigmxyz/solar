@@ -85,7 +85,7 @@ fn @wrapped() {
 fn @_write(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory] {
   bb0:
     v0 = mload arg0
-    v25 = or arg0, v0
+    v25 = or v0, arg0
     v34 = shr v25, 64
     v29 = eq v34, 0
     jumpi v29, bb8, bb7
@@ -94,7 +94,7 @@ fn @_write(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory] {
     jumpi v33, bb7, bb6
   bb6:                                            ; preds = bb8
     v49 = shl arg1, 5
-    v50 = add arg0, v49
+    v50 = add v49, arg0
     v51 = add v50, 32
     jump bb4
   bb4:                                            ; preds = bb5, bb6
@@ -109,7 +109,7 @@ fn @_write(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory] {
     jump bb4
   bb7:                                            ; preds = bb0, bb8
     v44 = shl arg1, 5
-    v45 = add arg0, v44
+    v45 = add v44, arg0
     v46 = add v45, 32
     jump bb1
   bb1:                                            ; preds = bb7, bb10

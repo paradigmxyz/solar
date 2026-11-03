@@ -333,7 +333,7 @@ impl LowerSlices {
         }
         func.replace_uses_canonicalized(&replacements);
         for (cast, word) in constructors {
-            func.inst_mut(cast).kind = InstKind::IntToPtr(word);
+            func.set_inst_kind(cast, InstKind::IntToPtr(word));
         }
         changed
     }
@@ -371,7 +371,7 @@ impl LowerSlices {
                 Some(Terminator::Return { values: expanded.into() });
         }
         for (inst_id, offset) in shifted {
-            func.inst_mut(inst_id).kind = InstKind::InternalFrameAddr(offset);
+            func.set_inst_kind(inst_id, InstKind::InternalFrameAddr(offset));
         }
         let mut returns = Vec::with_capacity(func.return_components().len() + added_slots);
         for (&ty, repr) in func.return_components().iter().zip(signature) {
@@ -437,7 +437,7 @@ impl LowerSlices {
         // which recomputes the frame layout from the widened signature —
         // would read the old addresses as parameter or return slots.
         for (inst_id, offset) in shifted_frame_offsets {
-            func.inst_mut(inst_id).kind = InstKind::InternalFrameAddr(offset);
+            func.set_inst_kind(inst_id, InstKind::InternalFrameAddr(offset));
         }
         let mut components = FxHashMap::default();
         let mut builder = FunctionBuilder::new(func);
@@ -462,7 +462,7 @@ impl LowerSlices {
             let Some(&(ptr, len)) = components.get(&slice) else { continue };
             if index == MirType::SLICE_PTR_FIELD {
                 // extract_value slice, 0 -> inttoptr pointer_word to ptr<location>
-                builder.func_mut().inst_mut(inst_id).kind = InstKind::IntToPtr(ptr);
+                builder.func_mut().set_inst_kind(inst_id, InstKind::IntToPtr(ptr));
                 continue;
             }
             if let Some(result) = builder.func().inst_result_value(inst_id) {
