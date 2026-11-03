@@ -34,8 +34,10 @@
 //! two writes leave memory as it was, whatever the word held, even when the bytes are the zero
 //! slot or lie inside another object.
 
-use super::lower_storage_bytes;
-use super::lower_abi_encode::{copy_calldata_words, copy_source_data};
+use super::{
+    lower_abi_encode::{copy_calldata_words, copy_source_data},
+    lower_storage_bytes,
+};
 use crate::{
     mir::{
         AbiType, AbiWordValidator, AllocationSemantics, BlockId, EffectKind, Function,
@@ -59,7 +61,12 @@ enum PackedPiece {
         length: ValueId,
         bounded_heap: bool,
     },
-    Storage { slot: ValueId, header: ValueId, is_long: ValueId, length: ValueId },
+    Storage {
+        slot: ValueId,
+        header: ValueId,
+        is_long: ValueId,
+        length: ValueId,
+    },
     Array {
         value: ValueId,
         length: ValueId,

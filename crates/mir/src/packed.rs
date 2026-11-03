@@ -13,7 +13,10 @@ pub enum PackedPart {
         value: ValueId,
         ty: ValueLayout,
     },
-    Bytes { value: ValueId, location: PtrLocation },
+    Bytes {
+        value: ValueId,
+        location: PtrLocation,
+    },
     /// An array of `element`s. `wordwise` marks calldata words that solc loads one at a time,
     /// as for `int256`, where it copies `uint256` and `bytes32` as one block.
     Array {

@@ -504,7 +504,7 @@ fn @externalCall() -> i1 [selector=0xa6310257, view, abi_params=[], abi_returns=
   bb2:                                            ; preds = bb5
     v55 = address
     v56 = gas
-    v57 = abi_encode [storage_bytes], selector 0x71e910c600000000000000000000000000000000000000000000000000000000, args 2
+    v57 = abi_encode [storage_bytes], scratch, selector 0x71e910c600000000000000000000000000000000000000000000000000000000, args 2
     v58 = extract_value slice<memory>, v57, 0
     v59 = extract_value slice<memory>, v57, 1
     v60 = zext i160 v55 to i256
@@ -532,7 +532,7 @@ fn @externalCall() -> i1 [selector=0xa6310257, view, abi_params=[], abi_returns=
     icall panic_if<0x32>, v8
     v9 = storage_array_data_slot 0
     v10 = add v9, v1
-    v11 = abi_encode [storage_bytes], selector 0x71e910c600000000000000000000000000000000000000000000000000000000, args v10
+    v11 = abi_encode [storage_bytes], scratch, selector 0x71e910c600000000000000000000000000000000000000000000000000000000, args v10
     v12 = extract_value slice<memory>, v11, 0
     v13 = extract_value slice<memory>, v11, 1
     v14 = zext i160 v4 to i256
@@ -568,7 +568,7 @@ fn @externalCall() -> i1 [selector=0xa6310257, view, abi_params=[], abi_returns=
     icall panic_if<0x32>, v33
     v34 = storage_array_data_slot 0
     v35 = add v34, v1
-    v36 = abi_encode [storage_bytes, word], selector 0xa45d888a00000000000000000000000000000000000000000000000000000000, args v35, 9
+    v36 = abi_encode [storage_bytes, word], scratch, selector 0xa45d888a00000000000000000000000000000000000000000000000000000000, args v35, 9
     v37 = extract_value slice<memory>, v36, 0
     v38 = extract_value slice<memory>, v36, 1
     v39 = zext i160 v29 to i256
@@ -647,7 +647,7 @@ fn @slotNinetySix() -> i1 [selector=0x2b5197ce, abi_params=[], abi_returns=[word
   bb9:                                            ; preds = bb8
     v22 = address
     v23 = gas
-    v24 = abi_encode [storage_bytes, word], selector 0xa45d888a00000000000000000000000000000000000000000000000000000000, args 96, 9
+    v24 = abi_encode [storage_bytes, word], scratch, selector 0xa45d888a00000000000000000000000000000000000000000000000000000000, args 96, 9
     v25 = extract_value slice<memory>, v24, 0
     v26 = extract_value slice<memory>, v24, 1
     v27 = zext i160 v22 to i256
@@ -816,7 +816,7 @@ fn @callAfterMutation() -> i1 [selector=0x23654daa, abi_params=[], abi_returns=[
     v0 = address
     v1 = gas
     v2 = icall @mutate
-    v3 = abi_encode [storage_bytes, word], selector 0xa45d888a00000000000000000000000000000000000000000000000000000000, args 1, v2
+    v3 = abi_encode [storage_bytes, word], scratch, selector 0xa45d888a00000000000000000000000000000000000000000000000000000000, args 1, v2
     v4 = extract_value slice<memory>, v3, 0
     v5 = extract_value slice<memory>, v3, 1
     v6 = zext i160 v0 to i256
