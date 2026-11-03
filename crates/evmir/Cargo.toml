@@ -34,6 +34,9 @@ solar-parse.workspace = true
 alloy-primitives.workspace = true
 smallvec.workspace = true
 
+[build-dependencies]
+solar-op-dsl.workspace = true
+
 [dev-dependencies]
 snapbox.workspace = true
 

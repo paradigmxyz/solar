@@ -1,0 +1,98 @@
+// Every EVM opcode, in ascending byte order. A row names its stack inputs in pop order, with the
+// low bits each one is read for, and its result with the bits it can be nonzero in; a family
+// row such as `PUSH1..=PUSH32` writes its properties as expressions in the suffix `n`.
+dialect evm;
+
+opcode STOP = 0x00 () -> () { traits terminal; gas Zero; }
+opcode ADD = 0x01 (a, b) -> (r) { traits pure, commutative; gas VeryLow; eval wrapping_add(a, b); }
+opcode MUL = 0x02 (a, b) -> (r) { traits pure, commutative; gas Low; eval wrapping_mul(a, b); }
+opcode SUB = 0x03 (a, b) -> (r) { traits pure; gas VeryLow; eval wrapping_sub(a, b); }
+opcode DIV = 0x04 (a, b) -> (r) { traits pure; gas Low; eval div(a, b); }
+opcode SDIV = 0x05 (a, b) -> (r) { traits pure; gas Low; eval sdiv(a, b); }
+opcode MOD = 0x06 (a, b) -> (r) { traits pure; gas Low; eval rem(a, b); }
+opcode SMOD = 0x07 (a, b) -> (r) { traits pure; gas Low; eval smod(a, b); }
+opcode ADDMOD = 0x08 (a, b, n) -> (r) { traits pure, commutative; gas Mid; eval addmod(a, b, n); }
+opcode MULMOD = 0x09 (a, b, n) -> (r) { traits pure, commutative; gas Mid; eval mulmod(a, b, n); }
+opcode EXP = 0x0a (base, exponent) -> (r) { traits pure; gas Exp; eval wrapping_pow(base, exponent); }
+opcode SIGNEXTEND = 0x0b (size, value) -> (r) { traits pure; gas Low; eval signextend(size, value); }
+opcode LT = 0x10 (a, b) -> (r: 1) { traits pure; gas VeryLow; swapped GT; eval lt(a, b); }
+opcode GT = 0x11 (a, b) -> (r: 1) { traits pure; gas VeryLow; swapped LT; eval gt(a, b); }
+opcode SLT = 0x12 (a, b) -> (r: 1) { traits pure; gas VeryLow; swapped SGT; eval slt(a, b); }
+opcode SGT = 0x13 (a, b) -> (r: 1) { traits pure; gas VeryLow; swapped SLT; eval sgt(a, b); }
+opcode EQ = 0x14 (a, b) -> (r: 1) { traits pure, commutative; gas VeryLow; eval eq(a, b); }
+opcode ISZERO = 0x15 (a) -> (r: 1) { traits pure; gas VeryLow; eval iszero(a); }
+opcode AND = 0x16 (a, b) -> (r) { traits pure, commutative; gas VeryLow; eval and(a, b); }
+opcode OR = 0x17 (a, b) -> (r) { traits pure, commutative; gas VeryLow; eval or(a, b); }
+opcode XOR = 0x18 (a, b) -> (r) { traits pure, commutative; gas VeryLow; eval xor(a, b); }
+opcode NOT = 0x19 (a) -> (r) { traits pure; gas VeryLow; eval not(a); }
+opcode BYTE = 0x1a (index, value) -> (r: 8) { traits pure; gas VeryLow; eval byte(index, value); }
+opcode SHL = 0x1b (shift, value) -> (r) { traits pure; gas VeryLow; available since Constantinople; eval shl(shift, value); }
+opcode SHR = 0x1c (shift, value) -> (r) { traits pure; gas VeryLow; available since Constantinople; eval shr(shift, value); }
+opcode SAR = 0x1d (shift, value) -> (r) { traits pure; gas VeryLow; available since Constantinople; eval sar(shift, value); }
+opcode CLZ = 0x1e (a) -> (r: 9) { traits pure; gas Low; available since Osaka; eval clz(a); }
+opcode KECCAK256 = 0x20 (offset, size) -> (r) { traits plain_access; gas Keccak; }
+opcode ADDRESS = 0x30 () -> (r: 160) { traits context_read; gas Base; }
+opcode BALANCE = 0x31 (addr: 160) -> (r) { gas Balance; }
+opcode ORIGIN = 0x32 () -> (r: 160) { traits context_read; gas Base; }
+opcode CALLER = 0x33 () -> (r: 160) { traits context_read; gas Base; }
+opcode CALLVALUE = 0x34 () -> (r) { traits context_read; gas Base; }
+opcode CALLDATALOAD = 0x35 (offset) -> (r) { traits context_read, calldata_read; gas VeryLow; }
+opcode CALLDATASIZE = 0x36 () -> (r: 64) { traits context_read, calldata_read; gas Base; }
+opcode CALLDATACOPY = 0x37 (dest, offset, size) -> () { traits writes_memory; gas Copy; }
+opcode CODESIZE = 0x38 () -> (r: 64) { traits context_read; gas Base; }
+opcode CODECOPY = 0x39 (dest, offset, size) -> () { traits writes_memory; gas Copy; }
+opcode GASPRICE = 0x3a () -> (r) { traits context_read; gas Base; }
+opcode EXTCODESIZE = 0x3b (addr: 160) -> (r: 64) { gas ExtCode; }
+opcode EXTCODECOPY = 0x3c (addr: 160, dest, offset, size) -> () { traits writes_memory; gas ExtCode; }
+opcode RETURNDATASIZE = 0x3d () -> (r: 64) { traits context_read; gas Base; available since Byzantium; }
+opcode RETURNDATACOPY = 0x3e (dest, offset, size) -> () { traits writes_memory; gas Copy; available since Byzantium; }
+opcode EXTCODEHASH = 0x3f (addr: 160) -> (r) { gas ExtCodeHash; available since Constantinople; }
+opcode BLOCKHASH = 0x40 (number) -> (r) { gas BlockHash; }
+opcode COINBASE = 0x41 () -> (r: 160) { traits context_read; gas Base; }
+opcode TIMESTAMP = 0x42 () -> (r) { traits context_read; gas Base; }
+opcode NUMBER = 0x43 () -> (r) { traits context_read; gas Base; }
+opcode PREVRANDAO = 0x44 () -> (r) { traits context_read; gas Base; }
+opcode GASLIMIT = 0x45 () -> (r) { traits context_read; gas Base; }
+opcode CHAINID = 0x46 () -> (r) { traits context_read; gas Base; available since Istanbul; }
+opcode SELFBALANCE = 0x47 () -> (r) { traits context_read; gas Low; available since Istanbul; }
+opcode BASEFEE = 0x48 () -> (r) { traits context_read; gas Base; available since London; }
+opcode BLOBHASH = 0x49 (index) -> (r) { traits context_read; gas VeryLow; available since Cancun; }
+opcode BLOBBASEFEE = 0x4a () -> (r) { traits context_read; gas Base; available since Cancun; }
+opcode SLOTNUM = 0x4b () -> (r) { gas Base; available SlotNum; }
+opcode POP = 0x50 (value: 0) -> () { gas Base; }
+opcode MLOAD = 0x51 (offset) -> (r) { traits plain_access; gas VeryLow; }
+opcode MSTORE = 0x52 (offset, value) -> () { traits writes_memory, plain_access; gas VeryLow; }
+opcode MSTORE8 = 0x53 (offset, value: 8) -> () { traits writes_memory, plain_access; gas VeryLow; }
+opcode SLOAD = 0x54 (key) -> (r) { traits plain_access; gas SLoad; }
+opcode SSTORE = 0x55 (key, value) -> () { traits writes_storage, observes_gas, plain_access; gas SStore; }
+opcode JUMP = 0x56 (target) -> () { traits terminal; gas Mid; }
+opcode JUMPI = 0x57 (target, condition) -> () { traits position_dependent; gas High; }
+opcode PC = 0x58 () -> (r) { traits context_read, position_dependent; gas Base; }
+opcode MSIZE = 0x59 () -> (r) { traits context_read; gas Base; }
+opcode GAS = 0x5a () -> (r) { traits context_read, observes_gas; gas Base; }
+opcode JUMPDEST = 0x5b () -> () { traits position_dependent; gas Jumpdest; }
+opcode TLOAD = 0x5c (key) -> (r) { traits plain_access; gas Transient; available since Cancun; }
+opcode TSTORE = 0x5d (key, value) -> () { traits writes_storage, plain_access; gas Transient; available since Cancun; }
+opcode MCOPY = 0x5e (dest, src, size) -> () { traits writes_memory; gas Copy; available since Cancun; }
+opcode PUSH0 = 0x5f () -> (r) { gas Base; available since Shanghai; }
+/// `PUSHn` pushes its `n`-byte immediate.
+opcode PUSH1..=PUSH32 = 0x60 { stack 0 -> 1; gas VeryLow; immediate n; }
+/// `DUPn` copies the `n`th word to the top.
+opcode DUP1..=DUP16 = 0x80 { stack n -> n + 1; gas VeryLow; }
+/// `SWAPn` exchanges the top word with the one `n` below it.
+opcode SWAP1..=SWAP16 = 0x90 { stack n + 1 -> n + 1; gas VeryLow; }
+/// `LOGn` logs memory with `n` topics.
+opcode LOG0..=LOG4 = 0xa0 { stack n + 2 -> 0; gas Log(n); }
+opcode DUPN = 0xe6 (..) -> (..) { gas VeryLow; available ExtendedStackOps; immediate 1; }
+opcode SWAPN = 0xe7 (..) -> (..) { gas VeryLow; available ExtendedStackOps; immediate 1; }
+opcode EXCHANGE = 0xe8 (..) -> (..) { gas VeryLow; available ExtendedStackOps; immediate 1; }
+opcode CREATE = 0xf0 (value, offset, size) -> (r: 160) { traits writes_storage, observes_gas, sets_returndata; gas Create; }
+opcode CALL = 0xf1 (gas, addr: 160, value, args_offset, args_size, ret_offset, ret_size) -> (r: 1) { traits writes_memory, writes_storage, observes_gas, sets_returndata; gas Call; }
+opcode CALLCODE = 0xf2 (gas, addr: 160, value, args_offset, args_size, ret_offset, ret_size) -> (r: 1) { traits writes_memory, writes_storage, observes_gas, sets_returndata; gas Call; }
+opcode RETURN = 0xf3 (offset, size) -> () { traits terminal; gas Zero; }
+opcode DELEGATECALL = 0xf4 (gas, addr: 160, args_offset, args_size, ret_offset, ret_size) -> (r: 1) { traits writes_memory, writes_storage, observes_gas, sets_returndata; gas Call; }
+opcode CREATE2 = 0xf5 (value, offset, size, salt) -> (r: 160) { traits writes_storage, observes_gas, sets_returndata; gas Create; available since Constantinople; }
+opcode STATICCALL = 0xfa (gas, addr: 160, args_offset, args_size, ret_offset, ret_size) -> (r: 1) { traits writes_memory, writes_storage, observes_gas, sets_returndata; gas Call; available since Byzantium; }
+opcode REVERT = 0xfd (offset, size) -> () { traits terminal; gas Zero; available since Byzantium; }
+opcode INVALID = 0xfe () -> () { traits terminal; gas Zero; }
+opcode SELFDESTRUCT = 0xff (beneficiary: 160) -> () { traits terminal; gas SelfDestruct; }

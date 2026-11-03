@@ -312,8 +312,7 @@ impl LoopOptimizer {
         let Value::Inst(inst_id) = func.value(value) else { return false };
         let kind = &func.inst(*inst_id).kind;
         !in_loop(*inst_id)
-            && !(kind.operands().is_empty()
-                && kind.op_def().traits.contains(OpTraits::REMATERIALIZABLE))
+            && !(kind.operands().is_empty() && kind.traits().contains(OpTraits::REMATERIALIZABLE))
             && !func.is_constant_calldata_load(value)
     }
 

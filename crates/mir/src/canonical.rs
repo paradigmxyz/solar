@@ -58,7 +58,7 @@ impl Function {
     #[must_use]
     pub fn canonical_kind(&self, kind: InstKind) -> InstKind {
         // Only these kinds convert: `op()` of other kinds would copy their payloads.
-        let ordered = kind.op_def().traits.contains(OpTraits::COMMUTATIVE)
+        let ordered = kind.traits().contains(OpTraits::COMMUTATIVE)
             || matches!(
                 kind,
                 InstKind::Lt(..) | InstKind::Gt(..) | InstKind::SLt(..) | InstKind::SGt(..)

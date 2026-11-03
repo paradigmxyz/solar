@@ -1,0 +1,154 @@
+// The vocabulary of the MIR operation schema: the names every operation in `core.ops`, and every
+// operation another crate adds, may use. `crates/op-dsl` checks each operation against it and
+// generates the Rust that `op_schema.rs` includes. See `docs/OP_DSL.md`.
+dialect mir;
+
+// Operand types hold value operands. Their Rust types implement `Operands` by hand in
+// `op_schema.rs`; `isle` names the type of the rewrite view, and a type without one is elided
+// from the view.
+
+/// One value operand.
+operand value one = "ValueId" isle Value;
+/// A value operand that may be absent.
+operand value? optional = "Option<ValueId>" isle OptionValue;
+/// Any number of value operands.
+operand value[] many = "Box<[ValueId]>";
+/// The incoming value of each predecessor of a phi.
+operand incoming many = "Vec<(BlockId, ValueId)>";
+/// The parts of a packed ABI encoding, some of which are value operands.
+operand packed_parts many = "Box<[PackedPart]>";
+/// The indexed topics of a log, at most four.
+operand log_topics many = "LogTopics" isle LogTopics;
+
+// Attribute types hold no value operands. The generated `Operands` impl carries them into the
+// rewrite view by value, or elides them when they are `opaque`. Variants after `:` are the ones
+// patterns may name; a list without `..` must name every variant, which generated code checks.
+
+attribute bool;
+attribute u32;
+attribute u64;
+attribute u64? = "Option<u64>" isle OptionU64;
+attribute AbiEncodeMode;
+attribute AbiLayoutRef opaque;
+attribute AbiParamLayoutRef opaque;
+attribute AddressCallKind: Call | Static | Delegate;
+attribute AllocationSemantics {
+    failure: AllocationFailure;
+}
+attribute ArithmeticKind;
+attribute Bytes opaque;
+attribute Callee opaque: Function(_) | Builtin(Builtin);
+attribute CheckedOp: Add | Sub | Mul | Div | WrappingDiv | Rem | Pow;
+attribute DataRef;
+attribute DataSize;
+attribute FrameMode;
+attribute FrameSlotKind;
+attribute ImmutableId;
+attribute LibraryId;
+attribute MirType: Int(_) | Ptr(PtrLocation) | Slice(PtrLocation) | Struct(_) | Void;
+attribute PtrLocation: Memory | Calldata | Returndata | Storage | Transient;
+attribute ValueLayout;
+
+enum Builtin:
+    Require(_) | Check {..} | Sha256 | Ripemd160 | EcRecover | Erc7201 | CheckedAddMod
+    | CheckedMulMod | Send | Transfer | ReturndataBytes;
+enum AllocationFailure: Infallible | Checked;
+
+// Host enums whose variants operation properties name.
+
+enum MirPhase: Semantic | Lowered;
+enum ResultKind: None | I256 | Integer | Word | MemPtr | Pointer | I160 | I1 | Custom;
+enum EffectKind:
+    Pure | MemoryRead | MemoryWrite | StorageRead | StorageWrite | TransientRead | TransientWrite
+    | EnvironmentRead | ExternalCall | ICall | Create | Log | ImmutableRead | ImmutableWrite;
+
+// Traits are flags that analyses and rewrites read through `OpTraits`.
+
+/// The operation is cheap and stable enough to rematerialize when its
+/// operands can themselves be rebuilt from stable leaves.
+trait rematerializable;
+/// The declared operand pair may be exchanged without changing the result.
+trait commutative;
+/// The operation is a root of at least one local e-graph rewrite rule.
+trait egraph_rewrite;
+/// The operands may be exchanged if the comparison is replaced by its mirror, as `a < b` by
+/// `b > a`.
+trait reversible;
+/// The operation shifts its second operand by its first. It stores its operands in EVM stack
+/// order, and the textual form reads them as `value, shift`.
+trait shift;
+
+// Control and state traits: behavior that must survive when the result is unused, or that
+// memory purity alone cannot capture. Elimination, value numbering, and code motion read them
+// through `InstKind::effects`. An operation without them returns normally and observes only
+// its operands and the resources its effect names.
+
+/// The operation may revert.
+trait may_revert;
+/// The operation may never return, such as an internal call that loops.
+trait may_diverge;
+/// The operation may end the call successfully, such as an internal call that returns.
+trait may_terminate;
+/// The operation reads the gas left, directly or through a call that forwards all of it.
+trait observes_gas;
+/// The result depends on the state of execution beyond the operands, such as the memory size.
+/// Operations that observe gas observe execution too.
+trait observes_execution;
+/// The operation reads a balance or deployed code, which `changes_account_state` operations can
+/// change.
+trait reads_account_state;
+/// The operation can move value or deploy or destroy code. Static calls cannot: the static
+/// context forbids value transfers, `CREATE`, and `SELFDESTRUCT`.
+trait changes_account_state;
+/// The operation may expand memory although its effect names no memory access, such as a storage
+/// operation that hashes in scratch memory.
+trait expands_memory;
+/// The operation writes memory, but repeating it with equal operands writes the same words to
+/// scratch space, so two evaluations may share a result.
+trait idempotent_write;
+/// Every evaluation returns a new object, so equal operands do not make two results equal.
+trait fresh_object;
+
+// Phase categories name the semantic operation family that a phase does not admit. Each family
+// has one required pass that removes it.
+
+category AbiDecoding = "ABI decoding";
+category AbiEncoding = "ABI encoding";
+category AbiValidation = "ABI validation";
+category AbstractAllocation = "abstract allocation";
+/// Expanded by `lower-builtins`.
+category Builtin = "builtin";
+category CheckedArithmetic = "checked arithmetic";
+/// Expanded by `lower-checks`.
+category ConditionalCheck = "conditional check";
+category FrameSlot = "frame slot";
+category ImmutableAssignment = "immutable assignment";
+category IntegerConversion = "integer conversion";
+category MemoryZero = "memory zero";
+category NarrowIntegerArithmetic = "narrow integer arithmetic";
+category PointerArithmetic = "pointer arithmetic";
+category Slice = "slice";
+category StorageSlot = "storage slot";
+category StructValue = "struct value";
+
+// Metadata flags that phase legality clauses may test.
+
+/// The backend places this allocation in its frame layout.
+metadata deferred_alloc;
+
+// Semantics forms and the field types they take, as `semantics.rs` defines them. `opcode` names
+// an EVM opcode applied to the operands in canonical order.
+
+semantics opcode(opcode);
+semantics word(value);
+semantics low_bits(value, u32);
+semantics sign_extend(value, u32, u32);
+semantics not_equal(value, value);
+semantics select(value, value, value);
+semantics phi(incoming);
+semantics call(Callee, value[]);
+semantics checked(CheckedOp, ArithmeticKind, value, value);
+semantics allocate(value, AllocationSemantics);
+semantics data_copy(DataRef, value, value);
+semantics heap_floor();
+semantics log(value, value, log_topics);

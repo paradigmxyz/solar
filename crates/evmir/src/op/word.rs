@@ -1,53 +1,118 @@
-//! The word semantics of pure EVM opcodes.
+//! The word functions that pure EVM opcodes compute.
 //!
-//! [`eval_opcode`] computes what a pure opcode pushes for concrete operands, with the EVM's
-//! wrapping arithmetic, zero divisors, and saturating shifts. Constant folding and the interpreters
-//! share it, so every consumer has one definition of each opcode.
+//! Each opcode row in `ops/opcodes.ops` names, with `eval`, the function of this module it
+//! computes, with the EVM's wrapping arithmetic, zero divisors, and saturating shifts.
+//! [`eval_opcode`](super::eval_opcode), generated from those rows, applies it to concrete
+//! operands. Constant folding and the interpreters share it, so every consumer has one
+//! definition of each opcode.
 
-use crate::op;
 use alloy_primitives::U256;
 use std::cmp::Ordering;
 
 type Word = U256;
 
-/// Evaluates a pure EVM opcode with concrete operands in pop order.
-pub fn eval_opcode(opcode: u8, operands: &[U256]) -> Option<U256> {
-    Some(match (opcode, operands) {
-        (op::ADD, &[a, b]) => a.wrapping_add(b),
-        (op::SUB, &[a, b]) => a.wrapping_sub(b),
-        (op::MUL, &[a, b]) => a.wrapping_mul(b),
-        (op::DIV, &[a, b]) => div(a, b),
-        (op::SDIV, &[a, b]) => i256_div(a, b),
-        (op::MOD, &[a, b]) => rem(a, b),
-        (op::SMOD, &[a, b]) => i256_mod(a, b),
-        (op::EXP, &[a, b]) => a.wrapping_pow(b),
-        (op::ADDMOD, &[a, b, n]) => a.add_mod(b, n),
-        (op::MULMOD, &[a, b, n]) => a.mul_mod(b, n),
-        (op::AND, &[a, b]) => a & b,
-        (op::OR, &[a, b]) => a | b,
-        (op::XOR, &[a, b]) => a ^ b,
-        (op::NOT, &[a]) => !a,
-        (op::CLZ, &[a]) => U256::from(a.leading_zeros()),
-        (op::SHL, &[shift, value]) => shl(shift, value),
-        (op::SHR, &[shift, value]) => shr(shift, value),
-        (op::SAR, &[shift, value]) => sar(shift, value),
-        (op::BYTE, &[index, value]) => byte(index, value),
-        (op::SIGNEXTEND, &[size, value]) => signextend(size, value),
-        (op::LT, &[a, b]) => U256::from(a < b),
-        (op::GT, &[a, b]) => U256::from(a > b),
-        (op::SLT, &[a, b]) => U256::from(i256_cmp(&a, &b) == Ordering::Less),
-        (op::SGT, &[a, b]) => U256::from(i256_cmp(&a, &b) == Ordering::Greater),
-        (op::EQ, &[a, b]) => U256::from(a == b),
-        (op::ISZERO, &[a]) => U256::from(a.is_zero()),
-        _ => return None,
-    })
+/// `a + b`, wrapping.
+pub fn wrapping_add(a: Word, b: Word) -> Word {
+    a.wrapping_add(b)
 }
 
-fn div(a: Word, b: Word) -> Word {
+/// `a - b`, wrapping.
+pub fn wrapping_sub(a: Word, b: Word) -> Word {
+    a.wrapping_sub(b)
+}
+
+/// `a * b`, wrapping.
+pub fn wrapping_mul(a: Word, b: Word) -> Word {
+    a.wrapping_mul(b)
+}
+
+/// `base ** exponent`, wrapping.
+pub fn wrapping_pow(base: Word, exponent: Word) -> Word {
+    base.wrapping_pow(exponent)
+}
+
+/// `(a + b) % n`, zero when `n` is zero.
+pub fn addmod(a: Word, b: Word, n: Word) -> Word {
+    a.add_mod(b, n)
+}
+
+/// `(a * b) % n`, zero when `n` is zero.
+pub fn mulmod(a: Word, b: Word, n: Word) -> Word {
+    a.mul_mod(b, n)
+}
+
+/// Bitwise AND.
+pub fn and(a: Word, b: Word) -> Word {
+    a & b
+}
+
+/// Bitwise OR.
+pub fn or(a: Word, b: Word) -> Word {
+    a | b
+}
+
+/// Bitwise XOR.
+pub fn xor(a: Word, b: Word) -> Word {
+    a ^ b
+}
+
+/// Bitwise NOT.
+pub fn not(a: Word) -> Word {
+    !a
+}
+
+/// The number of leading zero bits.
+pub fn clz(a: Word) -> Word {
+    Word::from(a.leading_zeros())
+}
+
+/// Unsigned `a < b`.
+pub fn lt(a: Word, b: Word) -> Word {
+    Word::from(a < b)
+}
+
+/// Unsigned `a > b`.
+pub fn gt(a: Word, b: Word) -> Word {
+    Word::from(a > b)
+}
+
+/// Signed `a < b`.
+pub fn slt(a: Word, b: Word) -> Word {
+    Word::from(i256_cmp(&a, &b) == Ordering::Less)
+}
+
+/// Signed `a > b`.
+pub fn sgt(a: Word, b: Word) -> Word {
+    Word::from(i256_cmp(&a, &b) == Ordering::Greater)
+}
+
+/// `a == b`.
+pub fn eq(a: Word, b: Word) -> Word {
+    Word::from(a == b)
+}
+
+/// `a == 0`.
+pub fn iszero(a: Word) -> Word {
+    Word::from(a.is_zero())
+}
+
+/// Signed `a % b`, as `SMOD` computes it.
+pub fn smod(a: Word, b: Word) -> Word {
+    i256_mod(a, b)
+}
+
+/// Signed `a / b`, as `SDIV` computes it.
+pub fn sdiv(a: Word, b: Word) -> Word {
+    i256_div(a, b)
+}
+
+/// Unsigned `a / b`, zero when `b` is zero.
+pub fn div(a: Word, b: Word) -> Word {
     if b.is_zero() { Word::ZERO } else { a.wrapping_div(b) }
 }
 
-fn rem(a: Word, b: Word) -> Word {
+/// Unsigned `a % b`, zero when `b` is zero.
+pub fn rem(a: Word, b: Word) -> Word {
     if b.is_zero() { Word::ZERO } else { a.wrapping_rem(b) }
 }
 
@@ -63,22 +128,22 @@ pub fn signextend(ext: Word, value: Word) -> Word {
     }
 }
 
-fn byte(index: Word, value: Word) -> Word {
+pub fn byte(index: Word, value: Word) -> Word {
     let index = index.saturating_to::<usize>();
     if index < 32 { Word::from(value.byte(31 - index)) } else { Word::ZERO }
 }
 
-fn shl(shift: Word, value: Word) -> Word {
+pub fn shl(shift: Word, value: Word) -> Word {
     let shift = shift.saturating_to::<usize>();
     if shift < 256 { value << shift } else { Word::ZERO }
 }
 
-fn shr(shift: Word, value: Word) -> Word {
+pub fn shr(shift: Word, value: Word) -> Word {
     let shift = shift.saturating_to::<usize>();
     if shift < 256 { value >> shift } else { Word::ZERO }
 }
 
-fn sar(shift: Word, value: Word) -> Word {
+pub fn sar(shift: Word, value: Word) -> Word {
     let shift = shift.saturating_to::<usize>();
     if shift < 256 {
         value.arithmetic_shr(shift)

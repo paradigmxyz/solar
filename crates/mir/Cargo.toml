@@ -35,6 +35,9 @@ alloy-primitives.workspace = true
 arrayvec.workspace = true
 smallvec.workspace = true
 
+[build-dependencies]
+solar-op-dsl.workspace = true
+
 [dev-dependencies]
 snapbox.workspace = true
 

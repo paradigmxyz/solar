@@ -1,0 +1,1167 @@
+// Every MIR operation, in the vocabulary of `vocabulary.ops`. The order of the operations is the
+// order of the `InstKind` variants.
+dialect mir;
+
+op InsertValue -> Custom {
+    field ty: MirType;
+    field aggregate: value;
+    field index: u32;
+    field value: value;
+    mnemonic "insert_value";
+    until Semantic;
+    category StructValue;
+    types delegated;
+}
+
+op ExtractValue -> Custom {
+    field ty: MirType;
+    field aggregate: value;
+    field index: u32;
+    mnemonic "extract_value";
+    until Semantic;
+    category StructValue;
+    types delegated;
+    when ty is Slice(_) {
+        category Slice;
+    }
+}
+
+op Zext(operand0: value) -> Custom {
+    traits egraph_rewrite;
+    types delegated;
+    semantics word(operand0);
+}
+
+op Trunc(operand0: value, bits: u32) -> Custom {
+    until Semantic;
+    traits egraph_rewrite;
+    category IntegerConversion;
+    types delegated;
+    semantics low_bits(operand0, bits);
+}
+
+op Sext(operand0: value, from_bits: u32, to_bits: u32) -> Custom {
+    until Semantic;
+    traits egraph_rewrite;
+    category IntegerConversion;
+    types delegated;
+    semantics sign_extend(operand0, from_bits, to_bits);
+}
+
+op PtrToInt(operand0: value, bits: u32) -> Custom {
+    traits egraph_rewrite;
+    types delegated;
+    semantics low_bits(operand0, bits);
+    when bits <= 255 {
+        until Semantic;
+        category IntegerConversion;
+    }
+}
+
+op IntToPtr(operand0: value) -> Custom {
+    traits egraph_rewrite;
+    types delegated;
+    semantics word(operand0);
+}
+
+/// Offset a pointer by an unsigned byte count, keeping its location type. The sum wraps at
+/// 256 bits: a forged object pointer or length can admit an index outside the allocation.
+/// The operation alone proves neither bounds nor disjointness from other objects.
+op PtrAdd(ptr: value, offset: value) -> Pointer {
+    until Semantic;
+    category PointerArithmetic;
+    types ptr: ptr else ptr<memory>, offset: i256;
+}
+
+op CheckedBinary -> Custom {
+    field op: CheckedOp;
+    field arithmetic: ArithmeticKind;
+    field lhs: value;
+    field rhs: value;
+    mnemonic "checked_binary";
+    until Semantic;
+    side_effects;
+    category CheckedArithmetic;
+    traits may_revert;
+    types lhs: type(arithmetic), rhs: if op is Pow then i256 else type(arithmetic);
+    semantics checked(op, arithmetic, lhs, rhs);
+    when op is Add { mnemonic "checked_add"; }
+    when op is Sub { mnemonic "checked_sub"; }
+    when op is Mul { mnemonic "checked_mul"; }
+    when op is Div { mnemonic "checked_div"; }
+    when op is WrappingDiv { mnemonic "wrapping_div"; }
+    when op is Rem { mnemonic "checked_rem"; }
+    when op is Pow { mnemonic "checked_pow"; }
+}
+
+op ValidateStorageBytes(operand0: value) {
+    mnemonic "validate_storage_bytes";
+    until Semantic;
+    side_effects;
+    category Builtin;
+    traits may_revert;
+    types operand0: i256;
+}
+
+op StorageBytesLoad(operand0: value) -> Custom {
+    mnemonic "load_storage_bytes";
+    until Semantic;
+    effect MemoryWrite;
+    side_effects;
+    category Builtin;
+    traits may_revert, fresh_object;
+    types operand0: i256;
+}
+
+op StorageArrayLoad -> Custom {
+    field slot: value;
+    field element: ValueLayout;
+    field enum_variants: u64?;
+    mnemonic "load_storage_array";
+    until Semantic;
+    effect MemoryWrite;
+    side_effects;
+    category Builtin;
+    traits may_revert, fresh_object;
+    types slot: i256;
+}
+
+op StorageBytesStore(operand0: value, operand1: value) {
+    mnemonic "store_storage_bytes";
+    until Semantic;
+    effect StorageWrite;
+    side_effects;
+    category Builtin;
+    traits may_revert, expands_memory;
+    types operand0: i256, operand1: ptr<memory>;
+}
+
+op StorageBytesStoreLiteral {
+    field slot: value;
+    field bytes: Bytes;
+    mnemonic "store_storage_bytes_literal";
+    until Semantic;
+    effect StorageWrite;
+    side_effects;
+    category Builtin;
+    traits may_revert, expands_memory;
+    types slot: i256;
+}
+
+op StorageClearWords(operand0: value, operand1: value, operand2: value) {
+    mnemonic "clear_storage_words";
+    until Semantic;
+    effect StorageWrite;
+    side_effects;
+    category Builtin;
+    traits expands_memory;
+    types operand0: i256, operand1: i256, operand2: i256;
+}
+
+op ValidateAbi(operand0: value) {
+    mnemonic "validate_abi";
+    until Semantic;
+    side_effects;
+    category AbiValidation;
+    traits may_revert;
+    types operand0: i256;
+}
+
+op AbiEncodePacked -> Custom {
+    field parts: packed_parts;
+    field hash: bool;
+    mnemonic "abi_encode_packed";
+    until Semantic;
+    effect MemoryWrite;
+    side_effects;
+    category Builtin;
+    traits may_revert, fresh_object;
+    types parts: from(parts);
+    when hash {
+        mnemonic "keccak256_packed";
+    }
+}
+
+op AddressCall -> I1 {
+    field kind: AddressCallKind;
+    field address: value;
+    field input: value;
+    field gas: value?;
+    field value: value?;
+    mnemonic "address_call";
+    until Semantic;
+    effect ExternalCall;
+    side_effects;
+    category Builtin;
+    traits changes_account_state if !(kind is Static);
+    traits observes_gas if gas is absent;
+    types address: i160, input: slice<memory> else ptr<memory>, gas: i256, value: i256;
+    when kind is Static {
+        mnemonic "address_staticcall";
+    }
+    when kind is Delegate {
+        mnemonic "address_delegatecall";
+    }
+}
+
+// Arithmetic operations
+
+/// A wrapping integer operation on two operands of one width.
+class IntBinary(a: value, b: value) -> Integer {
+    traits egraph_rewrite;
+    types a: int else i256, b: type(a);
+}
+
+/// Addition: `a + b`
+op Add: IntBinary {
+    traits rematerializable;
+    commutative a, b;
+    builder;
+    semantics opcode(add);
+}
+
+/// Subtraction: `a - b`
+op Sub: IntBinary {
+    traits rematerializable;
+    builder;
+    semantics opcode(sub);
+}
+
+/// Multiplication: `a * b`
+op Mul: IntBinary {
+    traits rematerializable;
+    commutative a, b;
+    builder;
+    semantics opcode(mul);
+}
+
+/// Unsigned division: `a / b`
+op Div: IntBinary {
+    builder;
+    semantics opcode(div);
+}
+
+/// Signed division: `a / b`
+op SDiv: IntBinary {
+    builder;
+    semantics opcode(sdiv);
+}
+
+/// Unsigned modulo: `a % b`
+op Mod: IntBinary {
+    builder mod_;
+    semantics opcode(mod);
+}
+
+/// Signed modulo: `a % b`
+op SMod: IntBinary {
+    builder;
+    semantics opcode(smod);
+}
+
+/// Exponentiation: `a ** b`
+op Exp: IntBinary {
+    builder;
+    semantics opcode(exp);
+}
+
+/// Add modulo: `(a + b) % n`
+op AddMod(a: value, b: value, n: value) -> I256 {
+    traits egraph_rewrite;
+    commutative a, b;
+    builder;
+    types a: i256, b: i256, n: i256;
+    semantics opcode(addmod);
+}
+
+/// Multiply modulo: `(a * b) % n`
+op MulMod(a: value, b: value, n: value) -> I256 {
+    traits egraph_rewrite;
+    commutative a, b;
+    builder;
+    types a: i256, b: i256, n: i256;
+    semantics opcode(mulmod);
+}
+
+// Bitwise operations
+
+/// A wrapping integer operation on one operand.
+class IntUnary(a: value) -> Integer {
+    traits egraph_rewrite;
+    types a: int else i256;
+}
+
+/// A shift, with its operands in EVM stack order: `shift` first.
+class Shift(shift: value, value: value) -> Integer {
+    traits rematerializable, egraph_rewrite, shift;
+    types shift: int else i256, value: type(shift);
+}
+
+/// Bitwise AND: `a & b`
+op And: IntBinary {
+    // Named as in Cranelift: `and` is an ISLE keyword.
+    isle band;
+    traits rematerializable;
+    commutative a, b;
+    builder;
+    semantics opcode(and);
+}
+
+/// Bitwise OR: `a | b`
+op Or: IntBinary {
+    // Named as in Cranelift: `and` is an ISLE keyword.
+    isle bor;
+    traits rematerializable;
+    commutative a, b;
+    builder;
+    semantics opcode(or);
+}
+
+/// Bitwise XOR: `a ^ b`
+op Xor: IntBinary {
+    // Named as in Cranelift: `and` is an ISLE keyword.
+    isle bxor;
+    traits rematerializable;
+    commutative a, b;
+    builder;
+    semantics opcode(xor);
+}
+
+/// Bitwise NOT: `~a`
+op Not: IntUnary {
+    // Named as in Cranelift: `and` is an ISLE keyword.
+    isle bnot;
+    builder;
+    semantics opcode(not);
+}
+
+/// Count leading zero bits.
+op Clz: IntUnary {
+    builder;
+    semantics opcode(clz);
+}
+
+/// Left shift: `value << shift`.
+///
+/// Shift operands are stored in EVM stack order, `shift` first, so selection and rewrite rules
+/// match the opcodes directly. The builder, printer, and parser use `value, shift`.
+op Shl: Shift {
+    semantics opcode(shl);
+}
+
+/// Logical right shift: `value >> shift`, with shift operands stored like [`Self::Shl`].
+op Shr: Shift {
+    semantics opcode(shr);
+}
+
+/// Arithmetic right shift: `value >> shift` (signed), with shift operands stored like
+/// [`Self::Shl`].
+op Sar: Shift {
+    semantics opcode(sar);
+}
+
+/// Extract a byte: `byte(i, x)`
+op Byte(index: value, value: value) -> I256 {
+    traits egraph_rewrite;
+    builder;
+    types index: i256, value: i256;
+    semantics opcode(byte);
+}
+
+// Comparison operations
+
+/// A comparison of two integers of one width.
+class Comparison(a: value, b: value) -> I1 {
+    traits egraph_rewrite;
+    types a: int else i256, b: type(a);
+}
+
+/// Less than (unsigned): `a < b`
+op Lt: Comparison {
+    traits reversible;
+    builder;
+    semantics opcode(lt);
+}
+
+/// Greater than (unsigned): `a > b`
+op Gt: Comparison {
+    traits reversible;
+    builder;
+    semantics opcode(gt);
+}
+
+/// Less than (signed): `a < b`
+op SLt: Comparison {
+    traits reversible;
+    builder;
+    semantics opcode(slt);
+}
+
+/// Greater than (signed): `a > b`
+op SGt: Comparison {
+    traits reversible;
+    builder;
+    semantics opcode(sgt);
+}
+
+/// Equality: `a == b`
+op Eq: Comparison {
+    commutative a, b;
+    builder;
+    semantics opcode(eq);
+}
+
+/// Inequality: `a != b`.
+op Ne: Comparison {
+    commutative a, b;
+    builder;
+    semantics not_equal(a, b);
+}
+
+// Memory operations
+/// Load the word at `ptr` from memory, calldata, or returndata, or the word in storage or
+/// transient storage slot `ptr`. Like an LLVM load from `ptr`, the address may be a pointer
+/// into the same location; lowering casts it at the opcode boundary.
+op Load(ptr: value, location: PtrLocation) -> Word {
+    mnemonic "mload";
+    effect MemoryRead;
+    memory read(ptr, 32) if location is Memory;
+    types ptr: ptr<#location> else i256;
+    when location is Memory {
+        semantics opcode(mload);
+    }
+    when location is Calldata {
+        mnemonic "calldataload";
+        effect EnvironmentRead;
+        semantics opcode(calldataload);
+    }
+    when location is Returndata {
+        mnemonic "returndataload";
+        effect EnvironmentRead;
+    }
+    when location is Storage {
+        mnemonic "sload";
+        effect StorageRead;
+        semantics opcode(sload);
+    }
+    when location is Transient {
+        mnemonic "tload";
+        effect TransientRead;
+        semantics opcode(tload);
+    }
+}
+
+/// Store a word to memory at `ptr`, which may be a `ptr<memory>`, as for `mload`, or to
+/// storage or transient storage slot `ptr`.
+op Store(ptr: value, value: value, location: PtrLocation) {
+    mnemonic "mstore";
+    effect MemoryWrite;
+    side_effects;
+    memory write(ptr, 32) if location is Memory;
+    types ptr: ptr<#location> else i256, value: i256;
+    when location is Memory {
+        semantics opcode(mstore);
+    }
+    when location is Storage {
+        mnemonic "sstore";
+        effect StorageWrite;
+        semantics opcode(sstore);
+    }
+    when location is Transient {
+        mnemonic "tstore";
+        effect TransientWrite;
+        semantics opcode(tstore);
+    }
+}
+
+/// Store the low byte of `value` to memory at `ptr`, as for `mstore`.
+op Store8(ptr: value, value: value) {
+    mnemonic "mstore8";
+    effect MemoryWrite;
+    side_effects;
+    memory write(ptr, 1);
+    types ptr: ptr<memory> else i256, value: i256;
+    semantics opcode(mstore8);
+}
+
+/// Set a contiguous memory range to zero: `memory_zero(offset, size)`
+op MemoryZero(offset: value, size: value) {
+    mnemonic "memory_zero";
+    until Semantic;
+    effect MemoryWrite;
+    side_effects;
+    category MemoryZero;
+    builder void;
+    memory write(offset, size);
+    types offset: ptr<memory> else i256, size: i256;
+}
+
+/// Get memory size: `msize()`
+op MSize -> I256 {
+    effect MemoryRead;
+    traits observes_execution;
+    builder;
+    semantics opcode(msize);
+}
+
+/// Read the free-memory pointer.
+op Fmp -> MemPtr {
+    until Semantic;
+    effect MemoryRead;
+    category AbstractAllocation;
+    builder;
+}
+
+/// Set the free-memory pointer.
+op SetFmp(value: value) {
+    mnemonic "set_fmp";
+    until Semantic;
+    effect MemoryWrite;
+    side_effects;
+    category AbstractAllocation;
+    types value: ptr<memory>;
+}
+
+/// The lowest word the free-memory pointer may hold: the initial pointer of every entry that
+/// can run this function, which codegen fixes once it has placed the frames and spill slots
+/// below it.
+op HeapFloor -> I256 {
+    mnemonic "heap_floor";
+    effect EnvironmentRead;
+    builder;
+    semantics heap_floor();
+}
+
+/// Reserve memory and return the previous free-memory pointer.
+op Alloc -> MemPtr {
+    /// Requested byte count.
+    field size: value;
+    /// Initialization and failure behavior.
+    field semantics: AllocationSemantics;
+    effect MemoryWrite;
+    side_effects;
+    category AbstractAllocation;
+    traits fresh_object;
+    traits may_revert if semantics.failure is Checked;
+    types size: i256;
+    semantics allocate(size, semantics);
+    // Only internal allocations the backend places in its layout survive lowering.
+    when !(metadata.deferred_alloc && semantics == INTERNAL) {
+        until Semantic;
+    }
+}
+
+/// ABI-encode values into memory.
+op AbiEncode -> Custom {
+    /// Storage policy for the encoded result.
+    field mode: AbiEncodeMode;
+    /// Optional left-aligned four-byte selector prefix.
+    field selector: value?;
+    /// Values corresponding to the tuple layout.
+    field args: value[];
+    /// Interned semantic ABI layout.
+    field layout: AbiLayoutRef;
+    mnemonic "abi_encode";
+    until Semantic;
+    effect MemoryWrite;
+    side_effects;
+    category AbiEncoding;
+    traits may_revert, fresh_object;
+    types selector: i256, args: from(layout);
+}
+
+/// Decode a memory-backed ABI tuple into semantic MIR values.
+///
+/// The instruction result is the first tuple value. Additional values are
+/// published through the multi-return buffer, matching ordinary MIR calls.
+/// An empty tuple has no result and only checks the data length.
+op AbiDecode -> Custom {
+    /// ABI-encoded bytes object, or a memory or calldata slice of the encoding.
+    field data: value;
+    /// Interned ABI input layout, including scalar validation types.
+    field layout: AbiParamLayoutRef;
+    mnemonic "abi_decode";
+    until Semantic;
+    effect MemoryWrite;
+    side_effects;
+    category AbiDecoding;
+    traits may_revert;
+    types data: slice<memory | calldata> else ptr<memory>;
+}
+
+/// Copy `len` bytes from `src` in memory, calldata, or returndata to `dest` in memory.
+op Copy(dest: value, src: value, len: value, location: PtrLocation) {
+    mnemonic "mcopy";
+    effect MemoryWrite;
+    side_effects;
+    memory read(src, len) if location is Memory, write(dest, len);
+    traits may_revert if location is Returndata;
+    types dest: ptr<memory> else i256, src: ptr<#location> else i256, len: i256;
+    when location is Memory {
+        semantics opcode(mcopy);
+    }
+    when location is Calldata {
+        mnemonic "calldatacopy";
+        semantics opcode(calldatacopy);
+    }
+    when location is Returndata {
+        mnemonic "returndatacopy";
+        semantics opcode(returndatacopy);
+    }
+}
+
+// Calldata operations
+/// Get calldata size: `calldatasize()`
+op CalldataSize -> I256 {
+    effect EnvironmentRead;
+    traits rematerializable;
+    builder;
+    semantics opcode(calldatasize);
+}
+
+/// Construct a logical `(pointer, length, location)` slice.
+op MakeSlice -> Custom {
+    /// Pointer to the first element or byte.
+    field ptr: value;
+    /// Logical element or byte length.
+    field len: value;
+    /// Address space containing the slice data.
+    field location: PtrLocation;
+    mnemonic "make_memory_slice";
+    until Semantic;
+    category Slice;
+    types ptr: ptr<#location>, len: i256;
+    when location is Calldata {
+        mnemonic "make_calldata_slice";
+    }
+    when location is Returndata {
+        mnemonic "make_returndata_slice";
+    }
+}
+
+/// Address inside the current internal-call frame.
+op InternalFrameAddr(offset: u64) -> MemPtr {
+    mnemonic "internal_frame_addr";
+}
+
+/// Load a mutable local through its logical frame slot.
+///
+/// A plain memory read: deletable when its result is dead. Ordering
+/// against frame stores, calls, and other frame traffic is carried by
+/// effect kinds and the alias model's `frame_location`.
+op FrameLoad -> Custom {
+    /// Byte offset within the function's local region.
+    field offset: u64;
+    /// Calling convention that owns the local region.
+    field mode: FrameMode;
+    /// Logical value representation stored in the slot.
+    field kind: FrameSlotKind;
+    mnemonic "frame_load";
+    until Semantic;
+    effect MemoryRead;
+    category FrameSlot;
+}
+
+/// Store a mutable local through its logical frame slot.
+op FrameStore {
+    /// Byte offset within the function's local region.
+    field offset: u64;
+    /// Calling convention that owns the local region.
+    field mode: FrameMode;
+    /// Logical value representation stored in the slot.
+    field kind: FrameSlotKind;
+    /// Value to store.
+    field value: value;
+    mnemonic "frame_store";
+    until Semantic;
+    effect MemoryWrite;
+    side_effects;
+    category FrameSlot;
+    types value: type(kind);
+}
+
+/// Base address of the constructor's copied ABI argument blob.
+op ConstructorArgsBase -> I256 {
+    mnemonic "constructor_args_base";
+    effect EnvironmentRead;
+    traits rematerializable;
+    builder;
+}
+
+/// End address of the constructor's copied ABI argument blob.
+op ConstructorArgsEnd -> I256 {
+    mnemonic "constructor_args_end";
+    effect EnvironmentRead;
+    builder;
+}
+
+// Code operations
+/// Copy constant module data to memory.
+op DataCopy(data: DataRef, dest: value, size: value) {
+    effect MemoryWrite;
+    side_effects;
+    memory write(dest, size);
+    types dest: ptr<memory> else i256, size: i256;
+    semantics data_copy(data, dest, size);
+}
+
+/// Byte length of deferred module data, such as another contract's
+/// bytecode, plus an addend, rounded down to a multiple of 32 when aligned.
+///
+/// The length is only known once the data is linked during final assembly. Folding
+/// the addend and rounding into the operation keeps sizes derived from
+/// the length constant after resolution.
+op DataSize(size: DataSize) -> I256 {
+}
+
+/// Get code size: `codesize()`
+op CodeSize -> I256 {
+    effect EnvironmentRead;
+    traits rematerializable;
+    builder;
+    semantics opcode(codesize);
+}
+
+/// Copy code to memory: `codecopy(destOffset, offset, size)`
+op CodeCopy(dest: value, offset: value, size: value) {
+    effect MemoryWrite;
+    side_effects;
+    builder void;
+    memory write(dest, size);
+    types dest: ptr<memory> else i256, offset: i256, size: i256;
+    semantics opcode(codecopy);
+}
+
+/// Get external code size: `extcodesize(addr)`
+op ExtCodeSize(addr: value) -> I256 {
+    effect EnvironmentRead;
+    traits reads_account_state;
+    builder;
+    types addr: i256;
+    semantics opcode(extcodesize);
+}
+
+/// Copy external code to memory: `extcodecopy(addr, destOffset, offset, size)`
+op ExtCodeCopy(addr: value, dest: value, offset: value, size: value) {
+    effect MemoryWrite;
+    side_effects;
+    memory write(dest, size);
+    types addr: i256, dest: ptr<memory> else i256, offset: i256, size: i256;
+    semantics opcode(extcodecopy);
+}
+
+/// Get external code hash: `extcodehash(addr)`
+op ExtCodeHash(addr: value) -> I256 {
+    effect EnvironmentRead;
+    traits reads_account_state;
+    builder;
+    types addr: i256;
+    semantics opcode(extcodehash);
+}
+
+/// Assign an immutable during construction: `storeimmutable <name>, value`.
+/// Lowered to constructor staging memory after MIR optimization.
+op StoreImmutable(id: ImmutableId, value: value) {
+    until Semantic;
+    effect ImmutableWrite;
+    side_effects;
+    category ImmutableAssignment;
+    types delegated;
+}
+
+/// Read an immutable declared by the module: `loadimmutable <name>`.
+///
+/// In runtime code this assembles to a typed `PUSH<N>` placeholder that the
+/// constructor patches with the staged value before returning the runtime
+/// code. In constructor code it reads the staging word instead.
+op LoadImmutable(id: ImmutableId) -> Custom {
+    effect ImmutableRead;
+    types delegated;
+}
+
+/// A library address whose value is supplied by the linker.
+op LibraryAddress(library: LibraryId) -> I160 {
+    mnemonic "library_address";
+}
+
+// Return data operations
+/// Get the current call's return data size: `returndatasize()`.
+///
+/// Raw volatile query used by Yul and high-level call lowering.
+op ReturnDataSize -> I256 {
+    effect EnvironmentRead;
+    builder;
+    semantics opcode(returndatasize);
+}
+
+// Environment operations
+
+/// A read of the executing call's or block's context that every read in one transaction
+/// frame agrees on, so it can be recomputed instead of kept live.
+class ContextRead -> I256 {
+    effect EnvironmentRead;
+    traits rematerializable;
+}
+
+/// Get caller address: `caller()`
+op Caller: ContextRead -> I160 {
+    builder;
+    semantics opcode(caller);
+}
+
+/// Get call value: `callvalue()`
+op CallValue: ContextRead {
+    builder;
+    semantics opcode(callvalue);
+}
+
+/// Get origin address: `origin()`
+op Origin: ContextRead -> I160 {
+    builder;
+    semantics opcode(origin);
+}
+
+/// Get gas price: `gasprice()`
+op GasPrice: ContextRead {
+    builder;
+    semantics opcode(gasprice);
+}
+
+/// Get block hash: `blockhash(blockNum)`
+op BlockHash(number: value) -> I256 {
+    effect EnvironmentRead;
+    builder;
+    types number: i256;
+    semantics opcode(blockhash);
+}
+
+/// Get coinbase address: `coinbase()`
+op Coinbase: ContextRead -> I160 {
+    builder;
+    semantics opcode(coinbase);
+}
+
+/// Get block timestamp: `timestamp()`
+op Timestamp: ContextRead {
+    builder;
+    semantics opcode(timestamp);
+}
+
+/// Get block number: `number()`
+op BlockNumber: ContextRead {
+    mnemonic "number";
+    builder;
+    semantics opcode(number);
+}
+
+/// Get previous randao: `prevrandao()`
+op PrevRandao: ContextRead {
+    builder;
+    semantics opcode(prevrandao);
+}
+
+/// Get gas limit: `gaslimit()`
+op GasLimit: ContextRead {
+    builder;
+    semantics opcode(gaslimit);
+}
+
+/// Get beacon chain slot number: `slotnum()`
+op SlotNum: ContextRead {
+    semantics opcode(slotnum);
+}
+
+/// Get chain ID: `chainid()`
+op ChainId: ContextRead {
+    builder;
+    semantics opcode(chainid);
+}
+
+/// Get this contract's address: `address()`
+op Address: ContextRead -> I160 {
+    builder;
+    semantics opcode(address);
+}
+
+/// Get balance: `balance(addr)`
+op Balance(addr: value) -> I256 {
+    effect EnvironmentRead;
+    traits egraph_rewrite, reads_account_state;
+    builder;
+    types addr: i256;
+    semantics opcode(balance);
+}
+
+/// Get self balance: `selfbalance()`
+op SelfBalance -> I256 {
+    effect EnvironmentRead;
+    traits reads_account_state;
+    builder;
+    semantics opcode(selfbalance);
+}
+
+/// Get remaining gas: `gas()`
+op Gas -> I256 {
+    effect EnvironmentRead;
+    traits observes_gas;
+    builder;
+    semantics opcode(gas);
+}
+
+/// Get base fee: `basefee()`
+op BaseFee: ContextRead {
+    builder;
+    semantics opcode(basefee);
+}
+
+/// Get blob base fee: `blobbasefee()`
+op BlobBaseFee: ContextRead {
+    builder;
+    semantics opcode(blobbasefee);
+}
+
+/// Get blob hash: `blobhash(index)`
+op BlobHash(index: value) -> I256 {
+    effect EnvironmentRead;
+    builder;
+    types index: i256;
+    semantics opcode(blobhash);
+}
+
+// Hashing
+/// Keccak256 hash: `keccak256(offset, size)`
+op Keccak256(offset: value, size: value) -> I256 {
+    effect MemoryRead;
+    builder;
+    memory read(offset, size);
+    types offset: ptr<memory> else i256, size: i256;
+    semantics opcode(keccak256);
+}
+
+/// Hash a fixed-width mapping key and its parent slot.
+///
+/// Late lowering writes scratch memory; effect analysis tracks that footprint.
+op MappingSlot(key: value, slot: value) -> I256 {
+    mnemonic "mapping_slot";
+    until Semantic;
+    effect MemoryWrite;
+    category StorageSlot;
+    traits idempotent_write;
+    builder;
+    types key: i256, slot: i256;
+}
+
+/// Hash a `bytes` or `string` mapping key, a memory object or a calldata slice, and its
+/// parent mapping slot.
+///
+/// Late lowering copies the key and the slot to free memory; effect analysis tracks that
+/// footprint.
+op MappingSlotBytes(key: value, slot: value) -> I256 {
+    mnemonic "mapping_slot_bytes";
+    until Semantic;
+    effect MemoryWrite;
+    category StorageSlot;
+    builder;
+    types key: slice<calldata> else ptr<memory>, slot: i256;
+}
+
+/// Hash the slot of a dynamically-sized storage array to find its data.
+///
+/// Late lowering writes scratch memory; effect analysis tracks that footprint.
+op StorageArrayDataSlot(slot: value) -> I256 {
+    mnemonic "storage_array_data_slot";
+    until Semantic;
+    effect MemoryWrite;
+    category StorageSlot;
+    traits idempotent_write;
+    builder;
+    types slot: i256;
+}
+
+/// Resolve one element slot in a dynamic storage array.
+///
+/// The array's base slot, element index, and logical slot stride stay
+/// semantic until the mapping-slot lowering pass expands the hash and
+/// offset calculation.
+op StorageArrayElementSlot -> I256 {
+    field slot: value;
+    field index: value;
+    field element_slots: u64;
+    mnemonic "storage_array_element_slot";
+    until Semantic;
+    effect MemoryWrite;
+    category StorageSlot;
+    traits idempotent_write;
+    types slot: i256, index: i256;
+}
+
+// Call operations
+
+// TODO(codegen): Consider unifying external calls as one instruction with a call-kind enum
+// and shared operands once the MIR shape stabilizes.
+
+/// A message call: it reads its input from memory and writes up to `ret_size` bytes of output.
+class MessageCall -> I1 {
+    effect ExternalCall;
+    traits egraph_rewrite;
+    side_effects;
+    memory read(args_offset, args_size), partial_write(ret_offset, ret_size);
+}
+
+/// External call: `call(gas, addr, value, argsOffset, argsSize, retOffset, retSize)`
+op Call: MessageCall {
+    traits changes_account_state;
+    field gas: value;
+    field addr: value;
+    field value: value;
+    field args_offset: value;
+    field args_size: value;
+    field ret_offset: value;
+    field ret_size: value;
+    types gas: i256, addr: i256, value: i256, args_offset: ptr<memory> else i256, args_size: i256, ret_offset: ptr<memory> else i256, ret_size: i256;
+    semantics opcode(call);
+}
+
+/// Call code: `callcode(gas, addr, value, argsOffset, argsSize, retOffset, retSize)`
+op CallCode: MessageCall {
+    traits changes_account_state;
+    field gas: value;
+    field addr: value;
+    field value: value;
+    field args_offset: value;
+    field args_size: value;
+    field ret_offset: value;
+    field ret_size: value;
+    types gas: i256, addr: i256, value: i256, args_offset: ptr<memory> else i256, args_size: i256, ret_offset: ptr<memory> else i256, ret_size: i256;
+    semantics opcode(callcode);
+}
+
+/// Static call: `staticcall(gas, addr, argsOffset, argsSize, retOffset, retSize)`
+op StaticCall: MessageCall {
+    field gas: value;
+    field addr: value;
+    field args_offset: value;
+    field args_size: value;
+    field ret_offset: value;
+    field ret_size: value;
+    types gas: i256, addr: i256, args_offset: ptr<memory> else i256, args_size: i256, ret_offset: ptr<memory> else i256, ret_size: i256;
+    semantics opcode(staticcall);
+}
+
+/// Delegate call: `delegatecall(gas, addr, argsOffset, argsSize, retOffset, retSize)`
+op DelegateCall: MessageCall {
+    traits changes_account_state;
+    field gas: value;
+    field addr: value;
+    field args_offset: value;
+    field args_size: value;
+    field ret_offset: value;
+    field ret_size: value;
+    types gas: i256, addr: i256, args_offset: ptr<memory> else i256, args_size: i256, ret_offset: ptr<memory> else i256, ret_size: i256;
+    semantics opcode(delegatecall);
+}
+
+/// Internal function call lowered to a direct jump.
+op ICall -> Custom {
+    field function: Callee;
+    field args: value[];
+    effect ICall;
+    side_effects;
+    traits may_revert, may_diverge, may_terminate, changes_account_state if function is Function(_);
+    traits may_revert if function is Builtin(
+        Check {..} | Require(_) | CheckedAddMod | CheckedMulMod | Erc7201 | ReturndataBytes
+        | Sha256 | Ripemd160 | EcRecover | Transfer
+    );
+    traits observes_gas if function is Builtin(Sha256 | Ripemd160 | EcRecover);
+    traits changes_account_state if function is Builtin(Send | Transfer);
+    traits fresh_object if function is Builtin(ReturndataBytes);
+    types args: from(function);
+    semantics call(function, args);
+    when function is Builtin(Check {..}) {
+        until Semantic;
+        effect Pure;
+        category ConditionalCheck;
+    }
+    when function is Builtin(Require(_)) {
+        until Semantic;
+        effect MemoryRead;
+        category ConditionalCheck;
+    }
+    when function is Builtin(CheckedAddMod | CheckedMulMod) {
+        until Semantic;
+        effect Pure;
+        category Builtin;
+    }
+    when function is Builtin(Erc7201 | ReturndataBytes) {
+        until Semantic;
+        effect MemoryWrite;
+        category Builtin;
+    }
+    when function is Builtin(_) {
+        until Semantic;
+        effect ExternalCall;
+        category Builtin;
+    }
+}
+
+// Contract creation
+/// Create contract: `create(value, offset, size)`
+op Create(value: value, offset: value, size: value) -> I160 {
+    effect Create;
+    traits changes_account_state;
+    side_effects;
+    builder;
+    memory read(offset, size);
+    types value: i256, offset: ptr<memory> else i256, size: i256;
+    semantics opcode(create);
+}
+
+/// Create2 contract: `create2(value, offset, size, salt)`
+op Create2(value: value, offset: value, size: value, salt: value) -> I160 {
+    effect Create;
+    traits changes_account_state;
+    side_effects;
+    memory read(offset, size);
+    types value: i256, offset: ptr<memory> else i256, size: i256, salt: i256;
+    semantics opcode(create2);
+}
+
+// Log operations
+/// Log with up to four topics: `log(offset, size, topics...)`
+op Log {
+    /// Start of the logged data.
+    field offset: value;
+    /// Byte length of the logged data.
+    field size: value;
+    /// Indexed topics, at most four.
+    field topics: log_topics;
+    effect Log;
+    traits egraph_rewrite;
+    side_effects;
+    memory read(offset, size);
+    types offset: ptr<memory> else i256, size: i256, topics: i256;
+    semantics log(offset, size, topics);
+}
+
+// SSA operations
+/// Phi node: merge values from different predecessors.
+op Phi(incoming: incoming) -> Custom {
+    types delegated;
+    semantics phi(incoming);
+}
+
+/// Select: `select(cond, true_val, false_val)`
+op Select(cond: value, true_val: value, false_val: value) -> Custom {
+    traits egraph_rewrite;
+    types delegated;
+    semantics select(cond, true_val, false_val);
+}
+
+// Sign extension
+/// Sign extend: `signextend(b, x)` - extends the sign bit from byte position b
+op SignExtend(byte: value, value: value) -> I256 {
+    traits egraph_rewrite;
+    builder;
+    types byte: i256, value: i256;
+    semantics opcode(signextend);
+}

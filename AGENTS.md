@@ -39,8 +39,9 @@ Pipeline: lex -> parse -> sema (AST -> HIR, typeck) -> MIR -> EVM IR -> bytecode
   visitors.
 - `crates/sema`: `ast_lowering/` (name resolution, AST -> HIR), `hir/`, `ty/`,
   `typeck/`, `output/` (ABI, NatSpec, storage layout).
-- `crates/mir`: the MIR data model, operation schema (`op_schema.rs`) and the
-  semantics it declares (`semantics.rs`), text format (`parser.rs`,
+- `crates/mir`: the MIR data model, operation schema (`ops/*.ops`, included
+  by `op_schema.rs`) and the semantics it declares (`semantics.rs`), text
+  format (`parser.rs`,
   `display.rs`, with the backend memory records of `backend_memory.rs`), and
   verifier (`analysis/validator.rs`). `crates/mir-interpreter`: runs lowered
   MIR.
@@ -50,8 +51,9 @@ Pipeline: lex -> parse -> sema (AST -> HIR, typeck) -> MIR -> EVM IR -> bytecode
   `backend/evm/ir/passes/` (EVM IR passes), `backend/assembler/`, `target.rs`
   (cost model).
 - `crates/evmir`: the EVM IR data model, text format, and verifier (`ir/`),
-  the opcode table and word semantics (`op.rs`, `op/word.rs`), the gas
-  schedule (`gas.rs`). `crates/evmir-interpreter`: runs EVM IR.
+  the opcode table and gas schedule (`ops/*.ops`, included by `op.rs` and
+  `gas.rs`), the word semantics (`op/word.rs`). `crates/evmir-interpreter`:
+  runs EVM IR. `crates/op-dsl`: compiles `.ops` files into Rust.
 - `crates/ir`: what MIR and EVM IR share: program data and library tables
   (`link.rs`), debug-span bounds (`debug.rs`), and the IR text parser
   (`ir_parse.rs`).
@@ -105,9 +107,12 @@ and type/module rules to the phase verifier, and test them under
 
 ### Operation Schema and ISLE Rules
 
-Declare MIR operations only in `crates/mir/src/op_schema.rs` and EVM
-opcodes only in `crates/evmir/src/op.rs`; never add a parallel `match` that
-classifies operations elsewhere. Write rewrite rules in ISLE under
+Declare MIR operations and every property they have only in
+`crates/mir/ops/*.ops`, and EVM opcodes and gas tiers only in
+`crates/evmir/ops/*.ops`, in the language of
+[docs/OP_DSL.md](docs/OP_DSL.md); never add a parallel `match` that
+classifies operations elsewhere. A new kind of property becomes vocabulary
+in the schema, such as a trait, not a Rust list. Write rewrite rules in ISLE under
 `crates/codegen/isle/`, and never hand-edit the generated `prelude.isle` or
 `extractors.isle`; regenerate them with
 `SNAPSHOTS=overwrite cargo nextest run -p solar-codegen isle_prelude`. Rules

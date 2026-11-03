@@ -18,31 +18,26 @@ HIR (from solar-sema) -> Lowering -> MIR -> Code Generation -> EVM Bytecode
 
 ### Operation Schema and Rewrite Rules
 
-`crates/mir/src/op_schema.rs` declares every MIR operation once: its typed payload, named
-operands, mnemonic, result kind, phase legality, effects, and traits.
-Metadata sits directly above the operation inside `define_mir_ops!`:
+`crates/mir/ops/core.ops` declares every MIR operation once: its typed payload, named
+operands, mnemonic, result kind, phase legality, effects, and traits, in the language of
+[`docs/OP_DSL.md`](../../docs/OP_DSL.md):
 
-```rust,ignore
-#[mir_op(
-    mnemonic = "add",
-    result = I256,
-    phases = PhaseSet::ALL,
-    effect = Pure,
-    traits = OpTraits::REMATERIALIZABLE,
-    side_effects = false,
-    category = None
-)]
-#[commutative(a, b)]
-#[builder(add)]
-Add(a: ValueId, b: ValueId),
+```text
+/// Addition: `a + b`
+op Add: IntBinary {
+    traits rematerializable;
+    commutative a, b;
+    builder;
+    semantics opcode(add);
+}
 ```
 
 The declaration generates operand traversal, parser constructors for operations
 with only value operands, default result types, typed builder methods, and the
 `Op` view used by rewrite rules. The generic printer uses the same mnemonic and
 operand order; operations with attributes retain custom syntax. Attribute-dependent
-spellings and effects use `#[when(pattern => { field: value })]` alongside the declaration.
-`#[commutative(a, b)]` generates both the commutativity trait and canonical operand
+spellings and effects use `when pred { ... }` clauses, and conditional traits use
+`traits name if pred`. `commutative a, b` generates both the commutativity trait and canonical operand
 ordering, including modular arithmetic where the modulus must stay in place.
 Structural result checks and operation phase legality consume the schema,
 including the gate that advances MIR from `semantic` to `lowered`. The scheduler consumes the
@@ -64,7 +59,7 @@ ISLE sources are grouped by compiler layer:
 
 `isle/mir/prelude.isle` declares the generated operation view, and
 `isle/mir/extractors.isle` adds value-definition extractors for MIR simplification.
-The opcode table in `solar-evmir` (`crates/evmir/src/op.rs`) generates the constants in
+The opcode table in `solar-evmir` (`crates/evmir/ops/opcodes.ops`) generates the constants in
 `isle/evm-ir/prelude.isle`. `isle/mir-to-evm/select.isle` uses the two vocabularies to select
 single EVM opcodes and scheduling shapes, without access to value definitions.
 The emitter and target cost model call that same selector.

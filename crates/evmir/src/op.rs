@@ -8,7 +8,6 @@ use solar_interface::Symbol;
 use std::fmt::Write as _;
 
 pub mod word;
-pub use word::eval_opcode;
 
 /// Number of bytes in an EVM word.
 pub const WORD_BYTES: usize = 32;
@@ -20,36 +19,11 @@ const UNKNOWN_PREFIX: &str = "op_";
 
 /// Declarative properties of an EVM operation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct OpcodeTraits(u8);
+pub struct OpcodeTraits(u16);
 
 impl OpcodeTraits {
     /// No additional properties.
     pub const NONE: Self = Self(0);
-    /// The result is a deterministic function of the stack operands alone: no memory, storage,
-    /// or environment dependency, so two occurrences with equal operands produce the same value.
-    pub const PURE: Self = Self(1 << 0);
-    /// The top two stack operands may be swapped without changing the result; deeper operands keep
-    /// their place.
-    pub const COMMUTATIVE: Self = Self(1 << 1);
-    /// The operation may write to memory, invalidating cached memory reads.
-    pub const WRITES_MEMORY: Self = Self(1 << 2);
-    /// The operation may write to storage or transient storage, invalidating cached storage
-    /// reads.
-    pub const WRITES_STORAGE: Self = Self(1 << 3);
-    /// The operation halts or unconditionally transfers control.
-    pub const TERMINAL: Self = Self(1 << 4);
-    /// The operation depends on the gas left: `GAS` reads it, calls and creates forward all but
-    /// a 64th of it, and `SSTORE` fails unless more than the 2,300-gas call stipend remains. Work
-    /// that moves before it changes what it sees.
-    pub const OBSERVES_GAS: Self = Self(1 << 5);
-    /// The operation only reads the executing call's context: the result touches no memory,
-    /// storage, or other account, and the operation has no effect besides its static gas, so an
-    /// unused result can be dropped. Account, storage and memory reads are not context reads:
-    /// they warm what they touch or expand memory.
-    pub const CONTEXT_READ: Self = Self(1 << 6);
-    /// The operation runs another frame, so the executing call's return data buffer afterwards
-    /// holds that frame's output: every call and create.
-    pub const SETS_RETURNDATA: Self = Self(1 << 7);
 
     /// Returns the union of two property sets.
     pub const fn union(self, other: Self) -> Self {
@@ -75,415 +49,82 @@ pub enum Availability {
     ExtendedStackOps,
 }
 
-macro_rules! opcode_mnemonic {
-    (r#return) => {
-        "return"
-    };
-    ($mnemonic:ident) => {
-        stringify!($mnemonic)
-    };
+/// Declarative metadata for one EVM operation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct OpDef {
+    /// Opcode byte.
+    pub opcode: u8,
+    /// Canonical textual mnemonic.
+    pub mnemonic: &'static str,
+    /// Number of stack items consumed and produced, unless an immediate operand decides it.
+    pub stack_io: Option<(u8, u8)>,
+    /// Declarative operation properties.
+    pub traits: OpcodeTraits,
+    /// Maximum significant result bits; unknown results use the full word.
+    pub result_bits: u16,
+    /// Observed low bits per operand, in pop order; omitted operands use the full word.
+    pub input_bits: &'static [u16],
+    /// Gas class in the fork schedule.
+    pub gas: GasTier,
+    /// Availability across EVM versions.
+    pub availability: Availability,
+    /// The opcode that computes the same result with the top two stack operands swapped.
+    pub swapped: Option<u8>,
+    /// Number of immediate bytes that follow the opcode.
+    pub immediate: u8,
 }
 
-macro_rules! opcode_stack_io {
-    (_,_) => {
-        None
-    };
-    ($inputs:literal, $outputs:literal) => {
-        Some(($inputs, $outputs))
-    };
+include!(concat!(env!("OUT_DIR"), "/evm_ops.rs"));
+
+/// Returns the generated schema definition for an opcode.
+#[must_use]
+pub const fn definition(opcode: u8) -> Option<&'static OpDef> {
+    match &OPCODE_DEFS[opcode as usize] {
+        Some(definition) => Some(definition),
+        None => None,
+    }
 }
 
-macro_rules! opcode_traits {
-    () => {
-        OpcodeTraits::NONE
-    };
-    ($($trait:ident)|+) => {
-        OpcodeTraits::NONE $(.union(OpcodeTraits::$trait))+
-    };
+/// Returns the canonical mnemonic for an opcode.
+#[must_use]
+pub const fn mnemonic(opcode: u8) -> Option<&'static str> {
+    match definition(opcode) {
+        Some(definition) => Some(definition.mnemonic),
+        None => None,
+    }
 }
 
-macro_rules! opcode_availability {
-    (legacy) => {
-        Availability::Legacy
-    };
-    (since $version:ident) => {
-        Availability::Since(EvmVersion::$version)
-    };
-    (slot_num) => {
-        Availability::SlotNum
-    };
-    (extended_stack_ops) => {
-        Availability::ExtendedStackOps
-    };
+/// Formats an opcode using its canonical mnemonic or `op_<hex>`.
+pub(crate) fn fmt(opcode: u8, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    if let Some(mnemonic) = mnemonic(opcode) {
+        f.write_str(mnemonic)
+    } else {
+        write!(f, "{UNKNOWN_PREFIX}{opcode:02x}")
+    }
 }
 
-/// Maps a row's gas class name to its [`GasTier`].
-macro_rules! opcode_gas {
-    (zero) => {
-        GasTier::Zero
-    };
-    (jumpdest) => {
-        GasTier::Jumpdest
-    };
-    (base) => {
-        GasTier::Base
-    };
-    (verylow) => {
-        GasTier::VeryLow
-    };
-    (low) => {
-        GasTier::Low
-    };
-    (mid) => {
-        GasTier::Mid
-    };
-    (high) => {
-        GasTier::High
-    };
-    (exp) => {
-        GasTier::Exp
-    };
-    (keccak) => {
-        GasTier::Keccak
-    };
-    (copy) => {
-        GasTier::Copy
-    };
-    (blockhash) => {
-        GasTier::BlockHash
-    };
-    (balance) => {
-        GasTier::Balance
-    };
-    (extcode) => {
-        GasTier::ExtCode
-    };
-    (extcodehash) => {
-        GasTier::ExtCodeHash
-    };
-    (sload) => {
-        GasTier::SLoad
-    };
-    (sstore) => {
-        GasTier::SStore
-    };
-    (transient) => {
-        GasTier::Transient
-    };
-    (log0) => {
-        GasTier::Log(0)
-    };
-    (log1) => {
-        GasTier::Log(1)
-    };
-    (log2) => {
-        GasTier::Log(2)
-    };
-    (log3) => {
-        GasTier::Log(3)
-    };
-    (log4) => {
-        GasTier::Log(4)
-    };
-    (create) => {
-        GasTier::Create
-    };
-    (call) => {
-        GasTier::Call
-    };
-    (selfdestruct) => {
-        GasTier::SelfDestruct
-    };
+/// Parses a canonical mnemonic or `op_<hex>` into an opcode.
+#[must_use]
+pub(crate) fn from_ir_mnemonic(mnemonic: &str) -> Option<u8> {
+    from_mnemonic(mnemonic).or_else(|| {
+        let value = mnemonic.strip_prefix(UNKNOWN_PREFIX)?;
+        u8::from_str_radix(value, 16).ok()
+    })
 }
 
-macro_rules! opcode_result_bits {
-    () => {
-        256
-    };
-    ($bits:literal) => {
-        $bits
-    };
+/// Parses an interned canonical mnemonic or `op_<hex>` into an opcode.
+#[must_use]
+pub(crate) fn from_ir_symbol(mnemonic: Symbol) -> Option<u8> {
+    from_ir_mnemonic(mnemonic.as_str())
 }
 
-macro_rules! opcodes {
-    ($(
-        $opcode:literal => $constant:ident => $mnemonic:ident
-            => stack_io($inputs:tt, $outputs:tt)
-            => traits($($trait:ident)|*)
-            => gas($gas:tt)
-            => available($($availability:tt)+)
-            $(=> result_bits($result_bits:literal))?
-            $(=> input_bits($($input_bits:literal),*))?;
-    )*) => {
-        $(
-            #[doc = concat!("Opcode byte for `", stringify!($constant), "`.")]
-            #[allow(dead_code)]
-            pub const $constant: u8 = $opcode;
-        )*
-
-        /// Declarative metadata for one EVM operation.
-        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-        pub struct OpDef {
-            /// Opcode byte.
-            pub opcode: u8,
-            /// Canonical textual mnemonic.
-            pub mnemonic: &'static str,
-            /// Number of stack items consumed and produced, unless an immediate operand decides it.
-            pub stack_io: Option<(u8, u8)>,
-            /// Declarative operation properties.
-            pub traits: OpcodeTraits,
-            /// Maximum significant result bits; unknown results use the full word.
-            pub result_bits: u16,
-            /// Observed low bits per operand, in pop order; omitted operands use the full word.
-            pub input_bits: &'static [u16],
-            /// Gas class in the fork schedule.
-            pub gas: GasTier,
-            /// Availability across EVM versions.
-            pub availability: Availability,
-        }
-
-        /// Maps each opcode byte to its generated schema definition.
-        static OPCODE_DEFS: [Option<OpDef>; 256] = {
-            let mut map = [None; 256];
-            let mut prev = 0;
-            $(
-                let opcode: u8 = $opcode;
-                assert!(opcode == 0 || opcode > prev, "opcodes must be sorted in ascending order");
-                prev = opcode;
-                map[opcode as usize] = Some(OpDef {
-                    opcode,
-                    mnemonic: opcode_mnemonic!($mnemonic),
-                    stack_io: opcode_stack_io!($inputs, $outputs),
-                    traits: opcode_traits!($($trait)|*),
-                    result_bits: opcode_result_bits!($($result_bits)?),
-                    input_bits: &[$($($input_bits),*)?],
-                    gas: opcode_gas!($gas),
-                    availability: opcode_availability!($($availability)+),
-                });
-            )*
-            let _ = prev;
-            map
-        };
-
-        /// Returns the generated schema definition for an opcode.
-        #[must_use]
-        pub const fn definition(opcode: u8) -> Option<&'static OpDef> {
-            match &OPCODE_DEFS[opcode as usize] {
-                Some(definition) => Some(definition),
-                None => None,
-            }
-        }
-
-        /// Returns the canonical mnemonic for an opcode.
-        #[must_use]
-        pub const fn mnemonic(opcode: u8) -> Option<&'static str> {
-            match definition(opcode) {
-                Some(definition) => Some(definition.mnemonic),
-                None => None,
-            }
-        }
-
-        /// Returns the opcode for a canonical mnemonic.
-        #[must_use]
-        pub fn from_mnemonic(mnemonic: &str) -> Option<u8> {
-            match mnemonic {
-                $(opcode_mnemonic!($mnemonic) => Some($opcode),)*
-                _ => None,
-            }
-        }
-
-        /// Formats an opcode using its canonical mnemonic or `op_<hex>`.
-        pub fn fmt(opcode: u8, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            if let Some(mnemonic) = mnemonic(opcode) {
-                f.write_str(mnemonic)
-            } else {
-                write!(f, "{UNKNOWN_PREFIX}{opcode:02x}")
-            }
-        }
-
-        /// Parses a canonical mnemonic or `op_<hex>` into an opcode.
-        #[must_use]
-        pub fn from_ir_mnemonic(mnemonic: &str) -> Option<u8> {
-            from_mnemonic(mnemonic).or_else(|| {
-                let value = mnemonic.strip_prefix(UNKNOWN_PREFIX)?;
-                u8::from_str_radix(value, 16).ok()
-            })
-        }
-
-        /// Parses an interned canonical mnemonic or `op_<hex>` into an opcode.
-        #[must_use]
-        pub fn from_ir_symbol(mnemonic: Symbol) -> Option<u8> {
-            from_ir_mnemonic(mnemonic.as_str())
-        }
-
-        /// Returns the number of stack items consumed and produced by an opcode.
-        #[must_use]
-        pub const fn stack_io(opcode: u8) -> Option<(u8, u8)> {
-            match definition(opcode) {
-                Some(definition) => definition.stack_io,
-                None => None,
-            }
-        }
-    };
-}
-
-opcodes! {
-    0x00 => STOP => stop => stack_io(0, 0) => traits(TERMINAL) => gas(zero) => available(legacy);
-    0x01 => ADD => add => stack_io(2, 1) => traits(PURE | COMMUTATIVE) => gas(verylow) => available(legacy);
-    0x02 => MUL => mul => stack_io(2, 1) => traits(PURE | COMMUTATIVE) => gas(low) => available(legacy);
-    0x03 => SUB => sub => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(legacy);
-    0x04 => DIV => div => stack_io(2, 1) => traits(PURE) => gas(low) => available(legacy);
-    0x05 => SDIV => sdiv => stack_io(2, 1) => traits(PURE) => gas(low) => available(legacy);
-    0x06 => MOD => mod => stack_io(2, 1) => traits(PURE) => gas(low) => available(legacy);
-    0x07 => SMOD => smod => stack_io(2, 1) => traits(PURE) => gas(low) => available(legacy);
-    0x08 => ADDMOD => addmod => stack_io(3, 1) => traits(PURE | COMMUTATIVE) => gas(mid) => available(legacy);
-    0x09 => MULMOD => mulmod => stack_io(3, 1) => traits(PURE | COMMUTATIVE) => gas(mid) => available(legacy);
-    0x0a => EXP => exp => stack_io(2, 1) => traits(PURE) => gas(exp) => available(legacy);
-    0x0b => SIGNEXTEND => signextend => stack_io(2, 1) => traits(PURE) => gas(low) => available(legacy);
-    0x10 => LT => lt => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(legacy) => result_bits(1);
-    0x11 => GT => gt => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(legacy) => result_bits(1);
-    0x12 => SLT => slt => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(legacy) => result_bits(1);
-    0x13 => SGT => sgt => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(legacy) => result_bits(1);
-    0x14 => EQ => eq => stack_io(2, 1) => traits(PURE | COMMUTATIVE) => gas(verylow) => available(legacy) => result_bits(1);
-    0x15 => ISZERO => iszero => stack_io(1, 1) => traits(PURE) => gas(verylow) => available(legacy) => result_bits(1);
-    0x16 => AND => and => stack_io(2, 1) => traits(PURE | COMMUTATIVE) => gas(verylow) => available(legacy);
-    0x17 => OR => or => stack_io(2, 1) => traits(PURE | COMMUTATIVE) => gas(verylow) => available(legacy);
-    0x18 => XOR => xor => stack_io(2, 1) => traits(PURE | COMMUTATIVE) => gas(verylow) => available(legacy);
-    0x19 => NOT => not => stack_io(1, 1) => traits(PURE) => gas(verylow) => available(legacy);
-    0x1a => BYTE => byte => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(legacy) => result_bits(8);
-    0x1b => SHL => shl => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(since Constantinople);
-    0x1c => SHR => shr => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(since Constantinople);
-    0x1d => SAR => sar => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(since Constantinople);
-    0x1e => CLZ => clz => stack_io(1, 1) => traits(PURE) => gas(low) => available(since Osaka) => result_bits(9);
-    0x20 => KECCAK256 => keccak256 => stack_io(2, 1) => traits() => gas(keccak) => available(legacy);
-    0x30 => ADDRESS => address => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy) => result_bits(160);
-    0x31 => BALANCE => balance => stack_io(1, 1) => traits() => gas(balance) => available(legacy) => input_bits(160);
-    0x32 => ORIGIN => origin => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy) => result_bits(160);
-    0x33 => CALLER => caller => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy) => result_bits(160);
-    0x34 => CALLVALUE => callvalue => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy);
-    0x35 => CALLDATALOAD => calldataload => stack_io(1, 1) => traits(CONTEXT_READ) => gas(verylow) => available(legacy);
-    // Calldata and code lengths are gas-bounded, even before code-size caps, and fit in 64 bits.
-    0x36 => CALLDATASIZE => calldatasize => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy) => result_bits(64);
-    0x37 => CALLDATACOPY => calldatacopy => stack_io(3, 0) => traits(WRITES_MEMORY) => gas(copy) => available(legacy);
-    0x38 => CODESIZE => codesize => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy) => result_bits(64);
-    0x39 => CODECOPY => codecopy => stack_io(3, 0) => traits(WRITES_MEMORY) => gas(copy) => available(legacy);
-    0x3a => GASPRICE => gasprice => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy);
-    0x3b => EXTCODESIZE => extcodesize => stack_io(1, 1) => traits() => gas(extcode) => available(legacy) => result_bits(64) => input_bits(160);
-    0x3c => EXTCODECOPY => extcodecopy => stack_io(4, 0) => traits(WRITES_MEMORY) => gas(extcode) => available(legacy) => input_bits(160);
-    // Return data comes from gas-bounded EVM memory or precompile output, so its length fits in 64 bits.
-    0x3d => RETURNDATASIZE => returndatasize => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(since Byzantium) => result_bits(64);
-    0x3e => RETURNDATACOPY => returndatacopy => stack_io(3, 0) => traits(WRITES_MEMORY) => gas(copy) => available(since Byzantium);
-    0x3f => EXTCODEHASH => extcodehash => stack_io(1, 1) => traits() => gas(extcodehash) => available(since Constantinople) => input_bits(160);
-    0x40 => BLOCKHASH => blockhash => stack_io(1, 1) => traits() => gas(blockhash) => available(legacy);
-    0x41 => COINBASE => coinbase => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy) => result_bits(160);
-    0x42 => TIMESTAMP => timestamp => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy);
-    0x43 => NUMBER => number => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy);
-    0x44 => PREVRANDAO => prevrandao => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy);
-    0x45 => GASLIMIT => gaslimit => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy);
-    0x46 => CHAINID => chainid => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(since Istanbul);
-    0x47 => SELFBALANCE => selfbalance => stack_io(0, 1) => traits(CONTEXT_READ) => gas(low) => available(since Istanbul);
-    0x48 => BASEFEE => basefee => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(since London);
-    0x49 => BLOBHASH => blobhash => stack_io(1, 1) => traits(CONTEXT_READ) => gas(verylow) => available(since Cancun);
-    0x4a => BLOBBASEFEE => blobbasefee => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(since Cancun);
-    0x4b => SLOTNUM => slotnum => stack_io(0, 1) => traits() => gas(base) => available(slot_num);
-    0x50 => POP => pop => stack_io(1, 0) => traits() => gas(base) => available(legacy) => input_bits(0);
-    0x51 => MLOAD => mload => stack_io(1, 1) => traits() => gas(verylow) => available(legacy);
-    0x52 => MSTORE => mstore => stack_io(2, 0) => traits(WRITES_MEMORY) => gas(verylow) => available(legacy);
-    0x53 => MSTORE8 => mstore8 => stack_io(2, 0) => traits(WRITES_MEMORY) => gas(verylow) => available(legacy) => input_bits(256, 8);
-    0x54 => SLOAD => sload => stack_io(1, 1) => traits() => gas(sload) => available(legacy);
-    0x55 => SSTORE => sstore => stack_io(2, 0) => traits(WRITES_STORAGE | OBSERVES_GAS) => gas(sstore) => available(legacy);
-    0x56 => JUMP => jump => stack_io(1, 0) => traits(TERMINAL) => gas(mid) => available(legacy);
-    0x57 => JUMPI => jumpi => stack_io(2, 0) => traits() => gas(high) => available(legacy);
-    0x58 => PC => pc => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy);
-    0x59 => MSIZE => msize => stack_io(0, 1) => traits(CONTEXT_READ) => gas(base) => available(legacy);
-    0x5a => GAS => gas => stack_io(0, 1) => traits(CONTEXT_READ | OBSERVES_GAS) => gas(base) => available(legacy);
-    0x5b => JUMPDEST => jumpdest => stack_io(0, 0) => traits() => gas(jumpdest) => available(legacy);
-    0x5c => TLOAD => tload => stack_io(1, 1) => traits() => gas(transient) => available(since Cancun);
-    0x5d => TSTORE => tstore => stack_io(2, 0) => traits(WRITES_STORAGE) => gas(transient) => available(since Cancun);
-    0x5e => MCOPY => mcopy => stack_io(3, 0) => traits(WRITES_MEMORY) => gas(copy) => available(since Cancun);
-    0x5f => PUSH0 => push0 => stack_io(0, 1) => traits() => gas(base) => available(since Shanghai);
-    0x60 => PUSH1 => push1 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
-    0x61 => PUSH2 => push2 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
-    0x62 => PUSH3 => push3 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
-    0x63 => PUSH4 => push4 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
-    0x64 => PUSH5 => push5 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
-    0x65 => PUSH6 => push6 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
-    0x66 => PUSH7 => push7 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
-    0x67 => PUSH8 => push8 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
-    0x68 => PUSH9 => push9 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
-    0x69 => PUSH10 => push10 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
-    0x6a => PUSH11 => push11 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
-    0x6b => PUSH12 => push12 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
-    0x6c => PUSH13 => push13 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
-    0x6d => PUSH14 => push14 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
-    0x6e => PUSH15 => push15 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
-    0x6f => PUSH16 => push16 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
-    0x70 => PUSH17 => push17 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
-    0x71 => PUSH18 => push18 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
-    0x72 => PUSH19 => push19 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
-    0x73 => PUSH20 => push20 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
-    0x74 => PUSH21 => push21 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
-    0x75 => PUSH22 => push22 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
-    0x76 => PUSH23 => push23 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
-    0x77 => PUSH24 => push24 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
-    0x78 => PUSH25 => push25 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
-    0x79 => PUSH26 => push26 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
-    0x7a => PUSH27 => push27 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
-    0x7b => PUSH28 => push28 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
-    0x7c => PUSH29 => push29 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
-    0x7d => PUSH30 => push30 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
-    0x7e => PUSH31 => push31 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
-    0x7f => PUSH32 => push32 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
-    0x80 => DUP1 => dup1 => stack_io(1, 2) => traits() => gas(verylow) => available(legacy);
-    0x81 => DUP2 => dup2 => stack_io(2, 3) => traits() => gas(verylow) => available(legacy);
-    0x82 => DUP3 => dup3 => stack_io(3, 4) => traits() => gas(verylow) => available(legacy);
-    0x83 => DUP4 => dup4 => stack_io(4, 5) => traits() => gas(verylow) => available(legacy);
-    0x84 => DUP5 => dup5 => stack_io(5, 6) => traits() => gas(verylow) => available(legacy);
-    0x85 => DUP6 => dup6 => stack_io(6, 7) => traits() => gas(verylow) => available(legacy);
-    0x86 => DUP7 => dup7 => stack_io(7, 8) => traits() => gas(verylow) => available(legacy);
-    0x87 => DUP8 => dup8 => stack_io(8, 9) => traits() => gas(verylow) => available(legacy);
-    0x88 => DUP9 => dup9 => stack_io(9, 10) => traits() => gas(verylow) => available(legacy);
-    0x89 => DUP10 => dup10 => stack_io(10, 11) => traits() => gas(verylow) => available(legacy);
-    0x8a => DUP11 => dup11 => stack_io(11, 12) => traits() => gas(verylow) => available(legacy);
-    0x8b => DUP12 => dup12 => stack_io(12, 13) => traits() => gas(verylow) => available(legacy);
-    0x8c => DUP13 => dup13 => stack_io(13, 14) => traits() => gas(verylow) => available(legacy);
-    0x8d => DUP14 => dup14 => stack_io(14, 15) => traits() => gas(verylow) => available(legacy);
-    0x8e => DUP15 => dup15 => stack_io(15, 16) => traits() => gas(verylow) => available(legacy);
-    0x8f => DUP16 => dup16 => stack_io(16, 17) => traits() => gas(verylow) => available(legacy);
-    0x90 => SWAP1 => swap1 => stack_io(2, 2) => traits() => gas(verylow) => available(legacy);
-    0x91 => SWAP2 => swap2 => stack_io(3, 3) => traits() => gas(verylow) => available(legacy);
-    0x92 => SWAP3 => swap3 => stack_io(4, 4) => traits() => gas(verylow) => available(legacy);
-    0x93 => SWAP4 => swap4 => stack_io(5, 5) => traits() => gas(verylow) => available(legacy);
-    0x94 => SWAP5 => swap5 => stack_io(6, 6) => traits() => gas(verylow) => available(legacy);
-    0x95 => SWAP6 => swap6 => stack_io(7, 7) => traits() => gas(verylow) => available(legacy);
-    0x96 => SWAP7 => swap7 => stack_io(8, 8) => traits() => gas(verylow) => available(legacy);
-    0x97 => SWAP8 => swap8 => stack_io(9, 9) => traits() => gas(verylow) => available(legacy);
-    0x98 => SWAP9 => swap9 => stack_io(10, 10) => traits() => gas(verylow) => available(legacy);
-    0x99 => SWAP10 => swap10 => stack_io(11, 11) => traits() => gas(verylow) => available(legacy);
-    0x9a => SWAP11 => swap11 => stack_io(12, 12) => traits() => gas(verylow) => available(legacy);
-    0x9b => SWAP12 => swap12 => stack_io(13, 13) => traits() => gas(verylow) => available(legacy);
-    0x9c => SWAP13 => swap13 => stack_io(14, 14) => traits() => gas(verylow) => available(legacy);
-    0x9d => SWAP14 => swap14 => stack_io(15, 15) => traits() => gas(verylow) => available(legacy);
-    0x9e => SWAP15 => swap15 => stack_io(16, 16) => traits() => gas(verylow) => available(legacy);
-    0x9f => SWAP16 => swap16 => stack_io(17, 17) => traits() => gas(verylow) => available(legacy);
-    0xa0 => LOG0 => log0 => stack_io(2, 0) => traits() => gas(log0) => available(legacy);
-    0xa1 => LOG1 => log1 => stack_io(3, 0) => traits() => gas(log1) => available(legacy);
-    0xa2 => LOG2 => log2 => stack_io(4, 0) => traits() => gas(log2) => available(legacy);
-    0xa3 => LOG3 => log3 => stack_io(5, 0) => traits() => gas(log3) => available(legacy);
-    0xa4 => LOG4 => log4 => stack_io(6, 0) => traits() => gas(log4) => available(legacy);
-    0xe6 => DUPN => dupn => stack_io(_, _) => traits() => gas(verylow) => available(extended_stack_ops);
-    0xe7 => SWAPN => swapn => stack_io(_, _) => traits() => gas(verylow) => available(extended_stack_ops);
-    0xe8 => EXCHANGE => exchange => stack_io(_, _) => traits() => gas(verylow) => available(extended_stack_ops);
-    0xf0 => CREATE => create => stack_io(3, 1) => traits(WRITES_STORAGE | OBSERVES_GAS | SETS_RETURNDATA) => gas(create) => available(legacy) => result_bits(160);
-    0xf1 => CALL => call => stack_io(7, 1) => traits(WRITES_MEMORY | WRITES_STORAGE | OBSERVES_GAS | SETS_RETURNDATA) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
-    0xf2 => CALLCODE => callcode => stack_io(7, 1) => traits(WRITES_MEMORY | WRITES_STORAGE | OBSERVES_GAS | SETS_RETURNDATA) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
-    0xf3 => RETURN => r#return => stack_io(2, 0) => traits(TERMINAL) => gas(zero) => available(legacy);
-    0xf4 => DELEGATECALL => delegatecall => stack_io(6, 1) => traits(WRITES_MEMORY | WRITES_STORAGE | OBSERVES_GAS | SETS_RETURNDATA) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
-    0xf5 => CREATE2 => create2 => stack_io(4, 1) => traits(WRITES_STORAGE | OBSERVES_GAS | SETS_RETURNDATA) => gas(create) => available(since Constantinople) => result_bits(160);
-    0xfa => STATICCALL => staticcall => stack_io(6, 1) => traits(WRITES_MEMORY | WRITES_STORAGE | OBSERVES_GAS | SETS_RETURNDATA) => gas(call) => available(since Byzantium) => result_bits(1) => input_bits(256, 160);
-    0xfd => REVERT => revert => stack_io(2, 0) => traits(TERMINAL) => gas(zero) => available(since Byzantium);
-    0xfe => INVALID => invalid => stack_io(0, 0) => traits(TERMINAL) => gas(zero) => available(legacy);
-    0xff => SELFDESTRUCT => selfdestruct => stack_io(1, 0) => traits(TERMINAL) => gas(selfdestruct) => available(legacy) => input_bits(160);
+/// Returns the number of stack items consumed and produced by an opcode.
+#[must_use]
+pub const fn stack_io(opcode: u8) -> Option<(u8, u8)> {
+    match definition(opcode) {
+        Some(definition) => definition.stack_io,
+        None => None,
+    }
 }
 
 /// Returns the encoded length of a minimally sized PUSH for an EVM version.
@@ -573,7 +214,7 @@ impl OpDef {
         self.stack_io.is_some()
             && !self.is_terminal()
             && !self.observes_gas()
-            && !matches!(self.opcode, JUMPI | JUMPDEST | PC)
+            && !self.traits.contains(OpcodeTraits::POSITION_DEPENDENT)
     }
 }
 
@@ -634,49 +275,15 @@ pub enum TrackedWord {
     Dropped,
 }
 
-macro_rules! define_stack_op_schema {
-    (
-        $(
-            $pattern:pat
-            => $mnemonic:literal
-            => $opcode:ident
-            => $gas:ident;
-        )+
-    ) => {
-        /// Declarative metadata for a logical EVM stack operation.
-        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-        pub struct StackOpDef {
-            /// Canonical textual mnemonic.
-            pub mnemonic: &'static str,
-            /// Placeholder opcode used in EVM IR.
-            pub ir_opcode: u8,
-            /// Gas class of one lowered instruction.
-            pub gas: GasTier,
-        }
-
-        impl StackOp {
-            /// Returns the generated definition for this logical operation.
-            #[must_use]
-            pub const fn definition(self) -> StackOpDef {
-                match self {
-                    $(
-                        $pattern => StackOpDef {
-                            mnemonic: $mnemonic,
-                            ir_opcode: $opcode,
-                            gas: opcode_gas!($gas),
-                        },
-                    )+
-                }
-            }
-        }
-    };
-}
-
-define_stack_op_schema! {
-    Self::Dup(_) => "dup" => DUPN => verylow;
-    Self::Swap(_) => "swap" => SWAPN => verylow;
-    Self::Exchange(_, _) => "exchange" => EXCHANGE => verylow;
-    Self::Pop => "pop" => POP => base;
+/// Declarative metadata for a logical EVM stack operation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StackOpDef {
+    /// Canonical textual mnemonic.
+    pub mnemonic: &'static str,
+    /// Placeholder opcode used in EVM IR.
+    pub ir_opcode: u8,
+    /// Gas class of one lowered instruction.
+    pub gas: GasTier,
 }
 
 /// Target-specific lowering of one logical stack operation.
@@ -933,16 +540,10 @@ pub const fn is_commutative(op: u8) -> bool {
 /// Returns the equivalent opcode after swapping its top two stack operands.
 #[must_use]
 pub const fn swapped_binary_opcode(opcode: u8) -> Option<u8> {
-    if is_commutative(opcode) {
-        return Some(opcode);
+    match definition(opcode) {
+        Some(definition) => definition.swapped,
+        None => None,
     }
-    Some(match opcode {
-        LT => GT,
-        GT => LT,
-        SLT => SGT,
-        SGT => SLT,
-        _ => return None,
-    })
 }
 
 /// Returns whether an opcode is pure: it has no side effects and its result is a deterministic
@@ -989,7 +590,7 @@ pub const fn is_unaffected_by_preceding_push(op: u8) -> bool {
                 && matches!(definition.stack_io, Some((_, 1)))
                 && !definition.writes_memory()
                 && !definition.writes_storage()
-                && !matches!(op, PUSH1..=PUSH32)
+                && definition.immediate == 0
         }
         None => false,
     }
@@ -1018,14 +619,22 @@ pub const fn writes_storage(op: u8) -> bool {
 /// result wherever it runs within a transaction's frame.
 #[must_use]
 pub const fn reads_only_operands_or_calldata(op: u8) -> bool {
-    is_pure(op) || matches!(op, CALLDATALOAD | CALLDATASIZE)
+    match definition(op) {
+        Some(definition) => {
+            definition.is_pure() || definition.traits.contains(OpcodeTraits::CALLDATA_READ)
+        }
+        None => false,
+    }
 }
 
 /// Returns whether an opcode is a memory or storage load or store, or `KECCAK256`: an access
 /// whose only effect is on the words it names.
 #[must_use]
 pub const fn is_plain_access(op: u8) -> bool {
-    matches!(op, MLOAD | MSTORE | MSTORE8 | SLOAD | SSTORE | TLOAD | TSTORE | KECCAK256)
+    match definition(op) {
+        Some(definition) => definition.traits.contains(OpcodeTraits::PLAIN_ACCESS),
+        None => false,
+    }
 }
 
 #[cfg(test)]

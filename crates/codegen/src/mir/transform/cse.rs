@@ -1738,7 +1738,7 @@ fn is_frame_function_of_arguments(kind: &InstKind) -> bool {
 fn frame_constant_key(kind: &InstKind) -> Option<&'static str> {
     let definition = kind.op_def();
     (definition.effect == EffectKind::EnvironmentRead
-        && definition.traits.contains(OpTraits::REMATERIALIZABLE)
+        && kind.traits().contains(OpTraits::REMATERIALIZABLE)
         && !kind.any_operand(|_| true))
     .then_some(definition.mnemonic)
 }

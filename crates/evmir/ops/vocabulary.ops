@@ -1,0 +1,201 @@
+// The vocabulary of the EVM opcode schema: host enums, opcode traits, gas tiers, word functions,
+// and logical stack operations. `crates/op-dsl` checks `opcodes.ops`, and opcodes another crate
+// adds, against it and generates the Rust that `op.rs` and `gas.rs` include. See
+// `docs/OP_DSL.md`.
+dialect evm;
+
+enum EvmVersion:
+    Homestead | TangerineWhistle | SpuriousDragon | Byzantium | Constantinople | Petersburg
+    | Istanbul | Berlin | London | Paris | Shanghai | Cancun | Prague | Osaka | Amsterdam | ..;
+enum Availability: Legacy | Since(EvmVersion) | SlotNum | ExtendedStackOps;
+enum StackOp: Dup(_) | Swap(_) | Exchange(_, _) | Pop;
+
+// Traits are the flags passes read through `OpcodeTraits`.
+
+/// The result is a deterministic function of the stack operands alone: no memory, storage,
+/// or environment dependency, so two occurrences with equal operands produce the same value.
+trait pure;
+/// The top two stack operands may be swapped without changing the result; deeper operands keep
+/// their place.
+trait commutative;
+/// The operation may write to memory, invalidating cached memory reads.
+trait writes_memory;
+/// The operation may write to storage or transient storage, invalidating cached storage
+/// reads.
+trait writes_storage;
+/// The operation halts or unconditionally transfers control.
+trait terminal;
+/// The operation depends on the gas left: `GAS` reads it, calls and creates forward all but
+/// a 64th of it, and `SSTORE` fails unless more than the 2,300-gas call stipend remains. Work
+/// that moves before it changes what it sees.
+trait observes_gas;
+/// The operation only reads the executing call's context: the result touches no memory,
+/// storage, or other account, and the operation has no effect besides its static gas, so an
+/// unused result can be dropped. Account, storage and memory reads are not context reads:
+/// they warm what they touch or expand memory.
+trait context_read;
+/// The operation runs another frame, so the executing call's return data buffer afterwards
+/// holds that frame's output: every call and create.
+trait sets_returndata;
+/// The operation reads nothing but its operands and calldata, so it gives the same result
+/// wherever it runs within a transaction's frame.
+trait calldata_read;
+/// The operation is a memory or storage load or store, or `KECCAK256`: an access whose only
+/// effect is on the words it names.
+trait plain_access;
+/// The operation observes or defines its code position, or transfers control conditionally:
+/// `PC`, `JUMPDEST`, and `JUMPI`. Code may not move it to another position.
+trait position_dependent;
+
+// Gas constants that tiers and the cost model share.
+
+/// Gas charged by one copy opcode per copied word.
+const COPY_WORD_GAS = 3;
+/// Gas of a warm account or storage access under EIP-2929.
+const WARM_ACCESS_GAS = 100;
+/// Gas of expanding memory by one word, before the quadratic term that small memories do not
+/// reach.
+const MEMORY_WORD_GAS = 3;
+/// The surcharge EIP-2929 adds to a storage write of a cold slot.
+const COLD_SLOAD_GAS = 2100;
+
+// Gas tiers: the static price, with the fork that changes it; the price of a warm access since
+// Berlin, where `static` is the cold price; and the dynamic charge per unit of the work sized by
+// a stack argument, in pop order.
+
+/// Halting instructions.
+gas_tier Zero { static 0; }
+/// `JUMPDEST`.
+gas_tier Jumpdest { static 1; }
+/// Environment reads, `POP`, `PUSH0`.
+gas_tier Base { static 2; }
+/// Arithmetic, comparisons, memory words, pushes, `DUP`, `SWAP`.
+gas_tier VeryLow { static 3; }
+/// Multiplication, division, `SIGNEXTEND`, `SELFBALANCE`, `CLZ`.
+gas_tier Low { static 5; }
+/// `ADDMOD`, `MULMOD`, `JUMP`.
+gas_tier Mid { static 8; }
+/// `JUMPI`.
+gas_tier High { static 10; }
+/// `EXP`, plus a per-byte exponent charge.
+gas_tier Exp {
+    static 10;
+    dynamic 10, SpuriousDragon: 50 per byte_len of 1;
+}
+/// `KECCAK256`, plus a per-word charge.
+gas_tier Keccak {
+    static 30;
+    dynamic 6 per word of 1;
+}
+/// Memory copies, plus a per-word charge.
+gas_tier Copy {
+    static 3;
+    dynamic COPY_WORD_GAS per word of last;
+}
+/// `BLOCKHASH`.
+gas_tier BlockHash { static 20; }
+/// `BALANCE`, repriced by EIP-150, EIP-1884, and EIP-2929.
+gas_tier Balance {
+    static 20, TangerineWhistle: 400, Istanbul: 700, Berlin: 2600;
+    warm WARM_ACCESS_GAS;
+}
+/// `EXTCODESIZE` and `EXTCODECOPY`, repriced by EIP-150 and EIP-2929.
+gas_tier ExtCode {
+    static 20, TangerineWhistle: 700, Berlin: 2600;
+    warm WARM_ACCESS_GAS;
+}
+/// `EXTCODEHASH`, repriced by EIP-1884 and EIP-2929.
+gas_tier ExtCodeHash {
+    static 400, Istanbul: 700, Berlin: 2600;
+    warm WARM_ACCESS_GAS;
+}
+/// `SLOAD`, repriced by EIP-150, EIP-1884, and EIP-2929.
+gas_tier SLoad {
+    static 50, TangerineWhistle: 200, Istanbul: 800, Berlin: 2100;
+    warm WARM_ACCESS_GAS;
+}
+/// `SSTORE` of a cold slot that changes its value.
+gas_tier SStore {
+    static 5000;
+    warm static - COLD_SLOAD_GAS;
+}
+/// `TLOAD` and `TSTORE`.
+gas_tier Transient { static 100; }
+/// `LOGn`, plus a per-byte data charge.
+gas_tier Log(topics: u8) {
+    static 375 + 375 * topics;
+    dynamic 8 per byte of 1;
+}
+/// Contract creation.
+gas_tier Create { static 32000; }
+/// Message calls to a cold account.
+gas_tier Call {
+    static 40, TangerineWhistle: 700, Berlin: 2600;
+    warm WARM_ACCESS_GAS;
+}
+/// `SELFDESTRUCT`, priced by EIP-150.
+gas_tier SelfDestruct { static 0, TangerineWhistle: 5000; }
+
+// Word functions: the primitives of `op/word.rs` that pure opcodes compute, on 256-bit words
+// with the EVM's wrapping arithmetic, zero divisors, and saturating shifts.
+
+/// `a + b`, wrapping.
+word_fn wrapping_add(a, b);
+/// `a - b`, wrapping.
+word_fn wrapping_sub(a, b);
+/// `a * b`, wrapping.
+word_fn wrapping_mul(a, b);
+/// Unsigned `a / b`, zero when `b` is zero.
+word_fn div(a, b);
+/// Signed `a / b`, rounding towards zero, zero when `b` is zero.
+word_fn sdiv(a, b);
+/// Unsigned `a % b`, zero when `b` is zero.
+word_fn rem(a, b);
+/// Signed `a % b` with the sign of `a`, zero when `b` is zero.
+word_fn smod(a, b);
+/// `base ** exponent`, wrapping.
+word_fn wrapping_pow(base, exponent);
+/// `(a + b) % n` without intermediate overflow, zero when `n` is zero.
+word_fn addmod(a, b, n);
+/// `(a * b) % n` without intermediate overflow, zero when `n` is zero.
+word_fn mulmod(a, b, n);
+/// Bitwise AND.
+word_fn and(a, b);
+/// Bitwise OR.
+word_fn or(a, b);
+/// Bitwise XOR.
+word_fn xor(a, b);
+/// Bitwise NOT.
+word_fn not(a);
+/// The number of leading zero bits.
+word_fn clz(a);
+/// `value << shift`, zero for shifts of 256 or more.
+word_fn shl(shift, value);
+/// `value >> shift`, zero for shifts of 256 or more.
+word_fn shr(shift, value);
+/// Arithmetic `value >> shift`, filling with the sign bit.
+word_fn sar(shift, value);
+/// Byte `index` of `value`, counted from the most significant byte.
+word_fn byte(index, value);
+/// `value` sign-extended from its byte `size`, counted from the least significant byte.
+word_fn signextend(size, value);
+/// Unsigned `a < b`.
+word_fn lt(a, b);
+/// Unsigned `a > b`.
+word_fn gt(a, b);
+/// Signed `a < b`.
+word_fn slt(a, b);
+/// Signed `a > b`.
+word_fn sgt(a, b);
+/// `a == b`.
+word_fn eq(a, b);
+/// `a == 0`.
+word_fn iszero(a);
+
+// Logical stack operations: their mnemonic, the placeholder opcode EVM IR uses for them, and
+// the gas of one lowered instruction.
+
+stack_op Dup { mnemonic "dup"; opcode DUPN; gas VeryLow; }
+stack_op Swap { mnemonic "swap"; opcode SWAPN; gas VeryLow; }
+stack_op Exchange { mnemonic "exchange"; opcode EXCHANGE; gas VeryLow; }
+stack_op Pop { mnemonic "pop"; opcode POP; gas Base; }

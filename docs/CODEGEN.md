@@ -2,23 +2,25 @@
 
 ## Operation Schema and ISLE Rules
 
-Declare each MIR operation once, as a row in `crates/mir/src/op_schema.rs`:
-typed payload with named tuple operands, mnemonic, result kind, operand type
-contract, phase set, effect, traits, side-effect flag, and, when the operation
-has one, its meaning in `#[semantics(...)]`: an EVM opcode, named by its
-mnemonic in the opcode table, on the operands in pop order, a cast, a
-comparison, `select`, a phi, a call, or checked arithmetic (see
-`crates/mir/src/semantics.rs`). The MIR interpreter runs operations through
-`InstKind::semantics`, and a codegen test checks that instruction selection
-never picks an opcode other than the declared one. The macro generates operand
-traversal, the `Op` rewrite view, the ISLE prelude, a constructor per operation
-(the text parser uses it for every operation built from value operands alone),
-and a `FunctionBuilder` method per variant marked `#[builder(name)]` or
-`#[builder(name, void)]`. Write custom text syntax or a custom builder only for
-an attribute the generic forms cannot express.
-Declare EVM opcodes the same way in `crates/evmir/src/op.rs`, with traits and
-availability per row; `op_table.snap` snapshots the table. Add operations to
-these tables only; never add a parallel `match` that classifies them.
+Declare each MIR operation once, in `crates/mir/ops/core.ops`, in the
+language [OP_DSL.md](OP_DSL.md) describes: typed fields, mnemonic, result
+kind, operand type contract, last phase, effect, traits (including control
+and state traits such as `may_revert` and `observes_gas`), side-effect flag,
+raw memory footprint, and, when the operation has one, its meaning in
+`semantics form(args)`: an EVM opcode, named by its mnemonic in the opcode
+table, on the operands in pop order, a cast, a comparison, `select`, a phi, a
+call, or checked arithmetic (see `crates/mir/src/semantics.rs`). The MIR
+interpreter runs operations through `InstKind::semantics`, and a codegen test
+checks that instruction selection never picks an opcode other than the
+declared one. The generator writes operand traversal, the `Op` rewrite view,
+the ISLE prelude, a constructor per operation (the text parser uses it for
+every operation built from value operands alone), and a `FunctionBuilder`
+method per operation with a `builder` property. Write custom text syntax or a
+custom builder only for an attribute the generic forms cannot express.
+Declare EVM opcodes the same way in `crates/evmir/ops/opcodes.ops`, with
+traits, gas tier, and availability per row; `op_table.snap` snapshots the
+table. Add operations to these files only; never add a parallel `match` that
+classifies them.
 
 Write rewrite rules in ISLE
 ([tutorial](https://github.com/bytecodealliance/wasmtime/tree/main/cranelift/isle#tutorial),
@@ -140,8 +142,8 @@ schedule; the pass never prices or matches instructions itself.
 ## Target Cost Model
 
 The target cost model in `crates/codegen/src/target.rs` prices every choice
-between equivalent code shapes. Each opcode row in `crates/evmir/src/op.rs` has
-a `gas(tier)` column, and `crates/evmir/src/gas.rs` holds the schedule:
+between equivalent code shapes. Each opcode row in `crates/evmir/ops/opcodes.ops`
+names a `gas` tier, and `crates/evmir/ops/vocabulary.ops` declares the schedule:
 `GasTier::gas` resolves a tier to the selected EVM version's static gas across
 the fork schedule (EIP-150, EIP-1884, EIP-2929, and later repricings),
 `dynamic_gas` gives the per-word or per-byte part, and `op_table.snap`

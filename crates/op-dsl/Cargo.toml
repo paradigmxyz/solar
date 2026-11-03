@@ -1,0 +1,19 @@
+[package]
+name = "solar-op-dsl"
+description = "The operation definition language of Solar's MIR and EVM IR"
+homepage = "https://github.com/paradigmxyz/solar/tree/main/crates/op-dsl"
+
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+snapbox.workspace = true

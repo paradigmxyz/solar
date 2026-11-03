@@ -137,7 +137,7 @@ pub(crate) fn rematerializable_nullary_value(func: &Function, value: ValueId) ->
     // The rematerializable nullary reads are environment reads; pure rematerializable
     // operations are arithmetic, which never lowers to a nullary opcode.
     let def = kind.op_def();
-    if def.traits.contains(OpTraits::REMATERIALIZABLE)
+    if kind.traits().contains(OpTraits::REMATERIALIZABLE)
         && def.effect != EffectKind::Pure
         && let Some(OpcodeLowering::Nullary { opcode }) = opcode_lowering(&kind.op())
     {

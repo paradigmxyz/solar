@@ -3328,7 +3328,7 @@ pub(super) fn recomputable(
                 InstKind::Load(_, PtrLocation::Calldata) => (target.opcode(op::CALLDATALOAD), 1),
                 _ => {
                     let def = kind.op_def();
-                    if !def.traits.contains(OpTraits::REMATERIALIZABLE)
+                    if !kind.traits().contains(OpTraits::REMATERIALIZABLE)
                         || def.effect != EffectKind::Pure
                     {
                         continue;

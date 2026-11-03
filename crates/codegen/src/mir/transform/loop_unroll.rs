@@ -435,7 +435,7 @@ fn rebuilt_at_use(func: &Function, value: ValueId) -> bool {
         InstKind::Load(offset, PtrLocation::Calldata) => func.value_u256(*offset).is_some(),
         _ => {
             let def = kind.op_def();
-            def.traits.contains(OpTraits::REMATERIALIZABLE) && def.effect != EffectKind::Pure
+            kind.traits().contains(OpTraits::REMATERIALIZABLE) && def.effect != EffectKind::Pure
         }
     }
 }

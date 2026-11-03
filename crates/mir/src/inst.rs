@@ -3,7 +3,6 @@
 use super::{
     Function, HirExprId, InstKind, MirPhase, MirType, PhaseCategory, PtrLocation, Value, ValueId,
 };
-use crate::{Builtin, Callee};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_interface::Span;
@@ -980,13 +979,15 @@ impl InstKind {
     /// opcode can be reversed with their operands. The backend pushes `addmod`, `mulmod` and the
     /// destination and size of a data copy in one order only, so those are not included.
     pub fn reorderable_binary_operands(&self) -> Option<(ValueId, ValueId)> {
-        match self {
-            Self::Lt(a, b) | Self::Gt(a, b) | Self::SLt(a, b) | Self::SGt(a, b) => Some((*a, *b)),
+        let traits = self.traits();
+        if traits.contains(super::OpTraits::REVERSIBLE) {
+            let operands = self.operands();
+            (operands.len() == 2).then(|| (operands[0], operands[1]))
+        } else if traits.contains(super::OpTraits::COMMUTATIVE) {
             // Other operations carry payloads that `op` would copy.
-            _ if self.op_def().traits.contains(super::OpTraits::COMMUTATIVE) => {
-                self.op().commutative_pair().filter(|_| self.operands().len() == 2)
-            }
-            _ => None,
+            self.op().commutative_pair().filter(|_| self.operands().len() == 2)
+        } else {
+            None
         }
     }
 
@@ -1016,21 +1017,7 @@ impl InstKind {
     /// Returns the mnemonic for this instruction.
     #[must_use]
     pub const fn mnemonic(&self) -> &'static str {
-        match self {
-            Self::CheckedBinary { op, .. } => op.name(),
-            Self::ValidateAbi(_) => "validate_abi",
-            Self::AbiEncodePacked { hash, .. } => {
-                if *hash {
-                    "keccak256_packed"
-                } else {
-                    "abi_encode_packed"
-                }
-            }
-            Self::AddressCall { kind: AddressCallKind::Call, .. } => "address_call",
-            Self::AddressCall { kind: AddressCallKind::Static, .. } => "address_staticcall",
-            Self::AddressCall { kind: AddressCallKind::Delegate, .. } => "address_delegatecall",
-            _ => self.op_def().mnemonic,
-        }
+        self.op_def().mnemonic
     }
 
     /// Returns whether the instruction has required effects, including control effects.
@@ -1042,21 +1029,7 @@ impl InstKind {
     /// Returns a conservative effect classification for this instruction.
     #[must_use]
     pub const fn effect_kind(&self) -> EffectKind {
-        match self {
-            Self::ICall { function: Callee::Builtin(builtin), .. } => match builtin {
-                Builtin::CheckedAddMod | Builtin::CheckedMulMod | Builtin::Check { .. } => {
-                    EffectKind::Pure
-                }
-                Builtin::Erc7201 | Builtin::ReturndataBytes => EffectKind::MemoryWrite,
-                Builtin::Require(_) => EffectKind::MemoryRead,
-                Builtin::Sha256
-                | Builtin::Ripemd160
-                | Builtin::EcRecover
-                | Builtin::Send
-                | Builtin::Transfer => EffectKind::ExternalCall,
-            },
-            _ => self.op_def().effect,
-        }
+        self.op_def().effect
     }
 
     /// Projects field `index` of `slice`, with the field's type in the slice's location.
@@ -1082,7 +1055,7 @@ impl InstKind {
     /// Returns whether this is a `shl`, `shr`, or `sar`.
     #[must_use]
     pub const fn is_shift(&self) -> bool {
-        matches!(self, Self::Shl(..) | Self::Shr(..) | Self::Sar(..))
+        self.traits().contains(super::OpTraits::SHIFT)
     }
 
     /// Returns whether the textual form lists the stored operands in reverse: shifts are stored

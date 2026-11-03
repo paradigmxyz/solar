@@ -571,7 +571,7 @@ fn rebuildable(func: &Function, value: ValueId) -> bool {
         | InstKind::Load(_, PtrLocation::Calldata) => true,
         _ => {
             let def = kind.op_def();
-            def.traits.contains(OpTraits::REMATERIALIZABLE)
+            kind.traits().contains(OpTraits::REMATERIALIZABLE)
                 && def.effect == EffectKind::Pure
                 && kind.evm_opcode().is_some()
                 && !kind.operands().is_empty()

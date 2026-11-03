@@ -556,7 +556,7 @@ impl<'a> Builder<'a> {
                 alternatives.clear();
                 let kind = current.into_kind().expect("nodes are complete instructions");
                 let folded = self.fold_node(&current, &kind, ty);
-                if kind.op_def().traits.contains(OpTraits::EGRAPH_REWRITE) {
+                if kind.traits().contains(OpTraits::EGRAPH_REWRITE) {
                     let (operands, truncated) = self.operand_views(&current, view_limit);
                     views_truncated |= truncated;
                     for view in matching_views(&current, &operands) {
@@ -621,7 +621,7 @@ impl<'a> Builder<'a> {
                 Simplified::Pending => {
                     let kind = node.into_kind().expect("nodes are complete instructions");
                     let folded = self.fold_node(node, &kind, ty);
-                    if kind.op_def().traits.contains(OpTraits::EGRAPH_REWRITE) {
+                    if kind.traits().contains(OpTraits::EGRAPH_REWRITE) {
                         let (operands, _) = self.operand_views(node, view_limit);
                         folded.or_else(|| self.simplify_views(node, &operands))
                     } else {
@@ -745,7 +745,7 @@ impl<'a> Builder<'a> {
     /// Applies the rewrite rules to an instruction outside the e-graph.
     fn rewrite_in_place(&mut self, inst_id: InstId, block: BlockId) {
         let kind = &self.func.inst(inst_id).kind;
-        if !kind.op_def().traits.contains(OpTraits::EGRAPH_REWRITE) {
+        if !kind.traits().contains(OpTraits::EGRAPH_REWRITE) {
             return;
         }
         let op = kind.op();
@@ -1261,7 +1261,7 @@ fn is_node(kind: &InstKind) -> bool {
     // Stable context reads are rematerialized by the backend. Keep calldata size separate:
     // merging it extends ABI-decoding live ranges and can introduce spills.
     let frame_invariant = definition.effect == EffectKind::EnvironmentRead
-        && definition.traits.contains(OpTraits::REMATERIALIZABLE)
+        && kind.traits().contains(OpTraits::REMATERIALIZABLE)
         && !matches!(kind, InstKind::CalldataSize);
     pure || frame_invariant
         || matches!(
@@ -1337,7 +1337,7 @@ pub(super) fn fold_constant(
         return Some(first);
     }
     let value = const_fold(func, kind, ty).or_else(|| {
-        if is_node(kind) && kind.op_def().traits.contains(OpTraits::EGRAPH_REWRITE) {
+        if is_node(kind) && kind.traits().contains(OpTraits::EGRAPH_REWRITE) {
             let op = func.canonical_op(kind.op());
             isle::RuleContext::new(func, evm).simplify(&op)
         } else {

@@ -50,7 +50,7 @@ impl Reading {
 /// Returns the commutative definition of `value`, if it has one.
 pub(super) fn commutative_definition(func: &Function, value: ValueId) -> Option<Op> {
     let kind = func.value_inst_kind(value)?;
-    kind.op_def().traits.contains(OpTraits::COMMUTATIVE).then(|| kind.op())
+    kind.traits().contains(OpTraits::COMMUTATIVE).then(|| kind.op())
 }
 
 /// Returns whether `op` is commutative over two operands that may change sides: constants stay on

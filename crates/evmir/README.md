@@ -13,6 +13,10 @@ exist. This crate holds:
   across EVM versions, and the word semantics of the pure opcodes;
 - `gas`: the gas schedule of each opcode tier across EVM versions.
 
+`ops/opcodes.ops` declares the opcodes and `ops/vocabulary.ops` their traits, gas tiers, and
+word functions; the build script compiles them into the tables `op` and `gas` include. See
+[`docs/OP_DSL.md`](../../docs/OP_DSL.md).
+
 `link`, `debug`, and `ir_parse`, which MIR shares, come from `solar-ir` and are re-exported here.
 
 The compiler's EVM IR passes and the assembler live in `solar-codegen`, which compiles EVM IR to

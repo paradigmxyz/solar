@@ -73,13 +73,6 @@ pub(super) fn address(func: &Function, value: ValueId, location: PtrLocation) ->
     }
 }
 
-pub(super) fn bytes_key(func: &Function, value: ValueId) -> MirType {
-    match func.value_ty(value) {
-        Some(ty @ MirType::Slice(PtrLocation::Calldata)) => ty,
-        _ => MirType::MEMPTR,
-    }
-}
-
 pub(super) fn read_object(func: &Function, value: ValueId) -> MirType {
     match func.value_ty(value) {
         Some(ty @ MirType::Slice(PtrLocation::Memory | PtrLocation::Calldata)) => ty,
@@ -92,20 +85,6 @@ pub fn memory_object(func: &Function, value: ValueId) -> MirType {
         Some(ty @ MirType::Slice(PtrLocation::Memory)) => ty,
         _ => MirType::MEMPTR,
     }
-}
-
-/// The operands of `address_call`: its input is a bytes object, or a memory slice the call reads
-/// where it lies.
-pub(super) fn address_call_types(
-    func: &Function,
-    input: ValueId,
-    gas: bool,
-    value: bool,
-) -> SmallVec<[MirType; 8]> {
-    let input = memory_object(func, input);
-    let mut types = smallvec![MirType::I160, input];
-    types.extend(std::iter::repeat_n(MirType::I256, usize::from(gas) + usize::from(value)));
-    types
 }
 
 pub(super) fn abi_encode_types(

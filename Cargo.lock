@@ -4478,6 +4478,7 @@ dependencies = [
  "solar-data-structures",
  "solar-interface",
  "solar-ir",
+ "solar-op-dsl",
  "solar-parse",
 ]
 
@@ -4601,6 +4602,7 @@ dependencies = [
  "solar-data-structures",
  "solar-interface",
  "solar-ir",
+ "solar-op-dsl",
  "solar-parse",
 ]
 
@@ -4615,6 +4617,13 @@ dependencies = [
  "solar-evmir",
  "solar-interface",
  "solar-mir",
+]
+
+[[package]]
+name = "solar-op-dsl"
+version = "0.3.0"
+dependencies = [
+ "snapbox",
 ]
 
 [[package]]

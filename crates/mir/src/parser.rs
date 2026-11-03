@@ -2213,8 +2213,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 (InstKind::Phi(incoming), Some(declared.unwrap_or(ty)))
             }
 
-            // Operations built from value operands alone come from the schema.
-            _ => match InstKind::operand_only(mnemonic.as_str()) {
+            // Operations built from value operands alone come from the schema, including
+            // namespaced extension operations such as `acme.avg`.
+            _ => match InstKind::operand_only(&if self.parser.eat(TokenKind::Dot) {
+                format!("{mnemonic}.{}", self.parser.parse_ident()?)
+            } else {
+                mnemonic.to_string()
+            }) {
                 Some((arity, build)) => {
                     let mut operands = SmallVec::<[ValueId; 8]>::new();
                     for index in 0..arity {
