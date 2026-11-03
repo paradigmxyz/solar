@@ -84,7 +84,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         let data = self.parse_yul_lit()?;
         if !matches!(data.kind, LitKind::Str(StrKind::Str | StrKind::Hex, ..)) {
             let msg = "only string and hex string literals are allowed in `data` segments";
-            return Err(self.dcx().err_at(data.span, None, msg));
+            return Err(self.dcx().err_at(data.span, msg));
         }
         let span = lo.to(self.prev_token.span);
         Ok(Data { span, name, data })
@@ -95,7 +95,8 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         assert!(subdenomination.is_none());
         // Yul numbers are integers; see PARSE-005.
         if let LitKind::Rational(..) = lit.kind {
-            let guar = self.dcx().emit_err(lit.span, error_code!(4828), "invalid number literal");
+            let guar =
+                self.dcx().emit_err_code(lit.span, error_code!(4828), "invalid number literal");
             lit.kind = LitKind::Err(guar);
         }
         Ok(lit)
@@ -189,7 +190,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             let expr = self.parse_yul_expr()?;
             let ExprKind::Call(_expr) = &expr.kind else {
                 let msg = "only function calls are allowed in multi-assignment";
-                return Err(self.dcx().err_at(expr.span, None, msg));
+                return Err(self.dcx().err_at(expr.span, msg));
             };
             Ok(StmtKind::AssignMulti(paths, expr))
         } else {
@@ -269,7 +270,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             if !has_default {
                 self.dcx().emit_err(span, "`switch` statement has no cases");
             } else {
-                self.dcx().emit_warn(
+                self.dcx().emit_warn_code(
                     span,
                     error_code!(9592),
                     "`switch` statement has only a default case",

@@ -274,7 +274,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         }
         if list.iter().any(SpannedOption::is_none) {
             let msg = "array expression components cannot be empty";
-            return Err(self.dcx().err_at(lo.to(self.prev_token.span), None, msg));
+            return Err(self.dcx().err_at(lo.to(self.prev_token.span), msg));
         }
         Ok(ExprKind::Array(self.alloc_from_iter(list.drain(..).map(|item| item.unspan().unwrap()))))
     }

@@ -48,7 +48,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             Ok(StmtKind::Return(expr))
         } else if self.eat_keyword(kw::Throw) {
             let msg = "`throw` statements have been removed; use `revert`, `require`, or `assert` instead";
-            Err(self.dcx().err_at(self.prev_token.span, None, msg))
+            Err(self.dcx().err_at(self.prev_token.span, msg))
         } else if self.eat_keyword(kw::Try) {
             semi = false;
             self.parse_stmt_try().map(|stmt| StmtKind::Try(self.alloc(stmt)))
@@ -188,7 +188,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             && self.validate_str_lit(dialect)
             && dialect.value != sym::evmasm
         {
-            self.dcx().emit_err(
+            self.dcx().emit_err_code(
                 dialect.span,
                 error_code!(4531),
                 "`evmasm` is the only supported assembly dialect",

@@ -73,7 +73,7 @@ pub(crate) fn emit_unescape_error(
         let span = err_span.with_lo(err_span.hi() - BytePos(c.len_utf8() as u32));
         (c, span)
     };
-    let mut diag = dcx.err_at(err_span, None, error.msg());
+    let mut diag = dcx.err_at(err_span, error.msg());
     if matches!(
         error,
         EscapeError::InvalidEscape
