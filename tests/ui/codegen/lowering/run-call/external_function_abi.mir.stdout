@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/external_function_abi.sol:ExternalFunctionAbi ===
+; === ROOT/tests/ui/codegen/lowering/run-call/external_function_abi.sol:ExternalFunctionAbi ===
 @module ExternalFunctionAbi
 ; function target(uint256 value) external pure returns (uint256) [selector 0x9811c7c1]
 fn @target(arg0: i256) -> i256 [selector=0x9811c7c1, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -44,9 +44,9 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v7 = zext i160 v4 to i256
     v8 = staticcall v5, v7, 28, 36, 0, 0
     jumpi v8, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v9 = icall returndata_bytes<>
     v10 = abi_decode [function], v9
     v11 = shr v10, 32
@@ -82,20 +82,20 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     mstore v34, 7
     v35 = address
     v36 = gas
-    v37 = abi_encode [tuple<function, word>], selector 0x30fb1b200000000000000000000000000000000000000000000000000000000, args v32
-    v38 = extract_value slice<memory>, v37, 0
-    v39 = extract_value slice<memory>, v37, 1
-    v40 = alloc 64
+    v37 = alloc 64
+    v38 = abi_encode [tuple<function, word>], scratch, selector 0x30fb1b200000000000000000000000000000000000000000000000000000000, args v32
+    v39 = extract_value slice<memory>, v38, 0
+    v40 = extract_value slice<memory>, v38, 1
     v41 = zext i160 v35 to i256
-    v42 = staticcall v36, v41, v38, v39, v40, 64
+    v42 = staticcall v36, v41, v39, v40, v37, 64
     jumpi v42, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v43 = returndatasize
     v44 = lt v43, 64
     icall revert_if<tuple_data_too_short>, v44
-    v45 = make_memory_slice v40, 64
+    v45 = make_memory_slice v37, 64
     v46 = abi_decode [tuple<function, uint256>], v45
     v47 = mload v46
     v48 = shr v47, 64
@@ -126,15 +126,15 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     mstore v67, v66
     v68 = address
     v69 = gas
-    v70 = abi_encode [memory_array<function>], selector 0xb4b1645600000000000000000000000000000000000000000000000000000000, args v62
+    v70 = abi_encode [memory_array<function>], scratch, selector 0xb4b1645600000000000000000000000000000000000000000000000000000000, args v62
     v71 = extract_value slice<memory>, v70, 0
     v72 = extract_value slice<memory>, v70, 1
     v73 = zext i160 v68 to i256
     v74 = staticcall v69, v73, v71, v72, 0, 0
     jumpi v74, bb6, bb5
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     revert_returndata
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     v75 = icall returndata_bytes<>
     v76 = abi_decode [array<_, function>], v75
     v77 = mload v76

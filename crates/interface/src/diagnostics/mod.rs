@@ -1500,17 +1500,10 @@ warning: confusable spelling
         let _ = dcx.err("direct").emit();
 
         assert_eq!(dcx.err_count(), 5);
-        let messages = || {
-            diagnostics
-                .read()
-                .iter()
-                .map(|diag| diag.messages[0].0.as_str().to_string())
-                .collect::<Vec<_>>()
-        };
-        assert_eq!(messages(), ["direct"]);
+        assert_eq!(messages(&diagnostics), ["direct"]);
 
         dcx.emit_deferred(outer);
-        assert_eq!(messages(), ["direct", "first", "second", "inner"]);
+        assert_eq!(messages(&diagnostics), ["direct", "first", "second", "inner"]);
     }
 
     #[test]
@@ -1676,12 +1669,7 @@ warning: confusable spelling
 
         let expected =
             (0..256).flat_map(|i| [format!("{i}"), format!("{i} again")]).collect::<Vec<_>>();
-        let actual = diagnostics
-            .read()
-            .iter()
-            .map(|diag| diag.messages[0].0.as_str().to_string())
-            .collect::<Vec<_>>();
-        assert_eq!(actual, expected);
+        assert_eq!(messages(&diagnostics), expected);
     }
 
     #[test]

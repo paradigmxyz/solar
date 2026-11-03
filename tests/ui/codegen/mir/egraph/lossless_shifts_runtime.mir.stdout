@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/egraph/lossless_shifts_runtime.sol:LosslessShifts ===
+; === ROOT/tests/ui/codegen/mir/egraph/lossless_shifts_runtime.sol:LosslessShifts ===
 @module LosslessShifts
 @types
   struct0: {i256, i256, i256, i256}

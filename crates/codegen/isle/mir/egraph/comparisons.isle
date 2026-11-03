@@ -170,9 +170,6 @@
 ;; clz(_) > b => 0, when constant b >= W
 (rule 8 (simplify (Op.Gt (clz _) (iconst b))) (if-let true (u256_ge b (integer_width))) (imm_bool false))
 
-;; a > a => false.
-(rule 6 (simplify (Op.Gt a a)) (imm_bool false))
-
 ;; a > 0 => a.
 ;; Requires: a is boolean.
 (rule 4 (simplify (Op.Gt (and a (bool_value)) (zero))) a)
@@ -181,23 +178,11 @@
 ;; Requires: c is constant, b is boolean, c >= 1.
 (rule 2 (simplify (Op.Gt (bool_value) (iconst c))) (if-let true (u256_ge c 1)) (imm_bool false))
 
-;; (x / c) * c > x => false.
-;; Requires: c is constant.
-(rule 9 (simplify (Op.Gt (mul (div x (iconst c)) (iconst d)) x))
-      (if-let true (u256_same c d))
-      (imm_bool false))
-
 ;; (x / y) * y > x => false.
 (rule 3 (simplify (Op.Gt (mul (div x y) y) x)) (imm_bool false))
 
 ;; x / y > x => false.
 (rule 11 (simplify (Op.Gt (div x _) x)) (imm_bool false))
-
-;; (x * c) / d > x => false.
-;; Requires: c, d are constants, c <= d.
-(rule 12 (simplify (Op.Gt (div (mul x (iconst c)) (iconst d)) x))
-      (if-let true (u256_le c d))
-      (imm_bool false))
 
 ;; x % c > d => false.
 ;; Requires: c, d are constants, c != 0, c - 1 <= d.
@@ -209,11 +194,10 @@
 ;; signed(a) < signed(a) => false.
 (rule (simplify (Op.SLt a a)) (imm_bool false))
 
-;; signed(a) > signed(a) => false.
-(rule (simplify (Op.SGt a a)) (imm_bool false))
-
 ;; Canonical zero tests preserve the operand's scalar type.
 ;; x > 0 => x != 0.
+;; As a value `x != 0` costs what `x > 0` does (`Target::ne_zero`), and the latest node wins ties,
+;; so extraction keeps `!=`, which a branch peels to a bare `JUMPI`.
 (rule (rewrite (Op.Gt x (zero))) (Op.Ne x (imm (u256 0))))
 
 ;; (a == b) == 0 => a != b.
@@ -272,29 +256,17 @@
 ;; ~x != x => true.
 (rule 1004 (simplify (Op.Ne (bnot x) x))  (imm_bool true))
 
-;; (x & y) > x => false.
-(rule 1016 (simplify (Op.Gt (band x y) x))  (imm_bool false))
-
 ;; x < (x & y) => false.
 (rule 1017 (simplify (Op.Lt x (band x y)))  (imm_bool false))
 
 ;; (y & x) > x => false.
 (rule 1018 (simplify (Op.Gt (band y x) x))  (imm_bool false))
 
-;; x < (y & x) => false.
-(rule 1019 (simplify (Op.Lt x (band y x)))  (imm_bool false))
-
 ;; (x | y) < x => false.
 (rule 1020 (simplify (Op.Lt (bor x y) x))  (imm_bool false))
 
-;; x > (x | y) => false.
-(rule 1021 (simplify (Op.Gt x (bor x y)))  (imm_bool false))
-
 ;; (y | x) < x => false.
 (rule 1022 (simplify (Op.Lt (bor y x) x))  (imm_bool false))
-
-;; x > (y | x) => false.
-(rule 1023 (simplify (Op.Gt x (bor y x)))  (imm_bool false))
 
 ;; (x >> s) > x => false.
 (rule 1024 (simplify (Op.Gt (shr s x) x))  (imm_bool false))

@@ -20,11 +20,13 @@
 //! substitute the selected inputs. This exposes nested short-circuit checks within the same
 //! fixpoint, without waiting for another CFG cleanup pass. Targets with phis and cyclic phi
 //! inputs stay unchanged. Constant incoming edges also bypass a phi followed by
-//! an equality or inequality with zero, provided no result escapes the block.
+//! an equality or inequality with zero, provided no result escapes the block, including through
+//! the block's own phis, as a loop header's loop-carried values do. Phis that only feed other
+//! dead phis of the block do not count and go with the threaded edge.
 
 use super::{cfg_simplify::empty_forwarder_target, utils::redirect_edge};
 use crate::mir::{
-    BlockId, Function, InstKind, Module, Terminator, Value, ValueId,
+    BlockId, Function, InstId, InstKind, Module, Terminator, Value, ValueId,
     pass::{MirPass, run_function_pass},
     utils::replace_terminator,
 };
@@ -129,10 +131,66 @@ fn threaded_target(
     final_targets[target].filter(|&final_target| !func.block_has_phi(final_target))
 }
 
-/// Whether another block uses a result of `block_id`. `results` is scratch space.
+/// The phis of `block_id` that nothing reads except other dead phis of `block_id`.
+///
+/// A loop header's phis can feed each other around the back edge without any other reader, such
+/// as a swapped pair that the loop never uses afterwards.
+fn dead_phis(func: &Function, block_id: BlockId) -> Vec<InstId> {
+    let mut phis = func.blocks[block_id]
+        .instructions
+        .iter()
+        .copied()
+        .filter(|&inst| matches!(func.inst(inst).kind, InstKind::Phi(_)))
+        .collect::<Vec<_>>();
+    let mut phi_results = DenseBitSet::new_empty(func.num_values());
+    for &phi in &phis {
+        if let Some(result) = func.inst_result_value(phi) {
+            phi_results.insert(result);
+        }
+    }
+
+    // live phi results: read outside the block's own phis
+    let mut live = DenseBitSet::new_empty(func.num_values());
+    let mut mark = |operand| {
+        if phi_results.contains(operand) {
+            live.insert(operand);
+        }
+    };
+    for (other_block, block) in func.blocks.iter_enumerated() {
+        for &inst in &block.instructions {
+            if other_block != block_id || !phis.contains(&inst) {
+                func.inst(inst).kind.visit_operands(&mut mark);
+            }
+        }
+        if let Some(term) = &block.terminator {
+            term.visit_operands(&mut mark);
+        }
+    }
+    // a live phi keeps the phis it reads live
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for &phi in &phis {
+            if func.inst_result_value(phi).is_some_and(|result| live.contains(result)) {
+                func.inst(phi).kind.visit_operands(|operand| {
+                    changed |= phi_results.contains(operand) && live.insert(operand);
+                });
+            }
+        }
+    }
+    phis.retain(|&phi| func.inst_result_value(phi).is_some_and(|result| !live.contains(result)));
+    phis
+}
+
+/// Whether a result of `block_id` is used outside it. `results` is scratch space.
+///
+/// A phi input is used at the end of its incoming edge, not in the phi's block. A result that
+/// feeds one of the block's own phis, as a loop-carried value does, is therefore used by a block
+/// that can be entered without passing through `block_id`, unless that phi is one of `dead_phis`.
 fn block_results_have_external_uses(
     func: &Function,
     block_id: BlockId,
+    dead_phis: &[InstId],
     results: &mut DenseBitSet<ValueId>,
 ) -> bool {
     results.clear();
@@ -147,17 +205,18 @@ fn block_results_have_external_uses(
 
     let external = |operand| results.contains(operand);
     func.blocks.iter_enumerated().any(|(other_block, block)| {
-        other_block != block_id
-            && (block
-                .instructions
-                .iter()
-                .any(|&inst_id| func.inst(inst_id).kind.any_operand(external))
-                || block.terminator.as_ref().is_some_and(|term| term.any_operand(external)))
+        let own = other_block == block_id;
+        block.instructions.iter().any(|&inst_id| {
+            let kind = &func.inst(inst_id).kind;
+            (!own || matches!(kind, InstKind::Phi(_)) && !dead_phis.contains(&inst_id))
+                && kind.any_operand(external)
+        }) || (!own && block.terminator.as_ref().is_some_and(|term| term.any_operand(external)))
     })
 }
 
 fn thread_phi_constant_edges(func: &mut Function) -> bool {
     let mut rewrites = Vec::new();
+    let mut dead_phis_by_block = Vec::new();
     let mut results = DenseBitSet::new_empty(func.num_values());
     let block_ids = func.blocks.indices();
 
@@ -197,10 +256,15 @@ fn thread_phi_constant_edges(func: &mut Function) -> bool {
             }
             rewrites.push((pred, block_id, target));
         }
-        // Only a block with a threadable edge needs the whole-function use scan.
-        if rewrites.len() != start && block_results_have_external_uses(func, block_id, &mut results)
-        {
+        // Only a block with a threadable edge needs the whole-function use scans.
+        if rewrites.len() == start {
+            continue;
+        }
+        let dead = dead_phis(func, block_id);
+        if block_results_have_external_uses(func, block_id, &dead, &mut results) {
             rewrites.truncate(start);
+        } else if !dead.is_empty() {
+            dead_phis_by_block.push((block_id, dead));
         }
     }
 
@@ -208,6 +272,11 @@ fn thread_phi_constant_edges(func: &mut Function) -> bool {
     for (pred, old_target, new_target) in rewrites {
         // pred -> old_target -> new_target => pred -> new_target
         threaded |= redirect_edge(func, pred, old_target, new_target);
+    }
+    for (block_id, dead) in dead_phis_by_block {
+        // dead loop-carried phi -> removed, so the latch no longer reads a value the threaded edge
+        // skips
+        func.blocks[block_id].instructions.retain(|inst| !dead.contains(inst));
     }
     threaded
 }
@@ -246,7 +315,7 @@ fn fold_single_predecessor_phi_branches(func: &mut Function) -> bool {
         }
         if replacements.len() != func.blocks[block].instructions.len()
             || replacements.values().any(|value| replacements.contains_key(value))
-            || block_results_have_external_uses(func, block, &mut results)
+            || block_results_have_external_uses(func, block, &[], &mut results)
         {
             continue;
         }

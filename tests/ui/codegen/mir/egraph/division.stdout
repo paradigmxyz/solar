@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/egraph/division.mir (before egraph) ===
-+ // === ROOT/tests/ui/codegen/mir/egraph/division.mir (after egraph) ===
+- ; === ROOT/tests/ui/codegen/mir/egraph/division.mir (before egraph) ===
++ ; === ROOT/tests/ui/codegen/mir/egraph/division.mir (after egraph) ===
   @module Division
   @types
     struct0: {i1, i1}
@@ -272,8 +272,8 @@
       ret v3
   }
   
-- // === ROOT/tests/ui/codegen/mir/egraph/division.mir (before dce) ===
-+ // === ROOT/tests/ui/codegen/mir/egraph/division.mir (after dce) ===
+- ; === ROOT/tests/ui/codegen/mir/egraph/division.mir (before dce) ===
++ ; === ROOT/tests/ui/codegen/mir/egraph/division.mir (after dce) ===
   @module Division
   @types
     struct0: {i1, i1}

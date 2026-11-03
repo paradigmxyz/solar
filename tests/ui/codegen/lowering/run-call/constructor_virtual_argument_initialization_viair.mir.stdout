@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_virtual_argument_initialization_viair.sol:ConstructorVirtualArgumentBase ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_virtual_argument_initialization_viair.sol:ConstructorVirtualArgumentBase ===
 @module ConstructorVirtualArgumentBase
 ; constructor(uint256) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
@@ -21,7 +21,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     ret 0
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_virtual_argument_initialization_viair.sol:ConstructorVirtualArgumentInitialization ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_virtual_argument_initialization_viair.sol:ConstructorVirtualArgumentInitialization ===
 @module ConstructorVirtualArgumentInitialization
 ; constructor() ConstructorVirtualArgumentBase(f()) [creation entry]
 fn @constructor() [constructor] {
@@ -29,9 +29,9 @@ fn @constructor() [constructor] {
     v0 = icall @f
     sstore 0, 2 !metadata(storage=slot(0))
     jump bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb2
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     ret
 }
 

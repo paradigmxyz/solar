@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/reorder-expressions/calldata.evmir (before reorder-expressions) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/reorder-expressions/calldata.evmir (after reorder-expressions) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/reorder-expressions/calldata.evmir (before reorder-expressions) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/reorder-expressions/calldata.evmir (after reorder-expressions) ===
   @module ClosedCalldata
   bb0:
 +   push 100

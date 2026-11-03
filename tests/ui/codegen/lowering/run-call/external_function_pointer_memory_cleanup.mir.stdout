@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_memory_cleanup.sol:ExternalFunctionPointerMemoryCleanup ===
+; === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_memory_cleanup.sol:ExternalFunctionPointerMemoryCleanup ===
 @module ExternalFunctionPointerMemoryCleanup
 @types
   struct0: {i256, i256}
@@ -94,9 +94,9 @@ fn @cleanup(arg0: i256) -> struct0 [selector=0x0aa40018, view, abi_params=[uint2
     v12 = zext i160 v7 to i256
     v13 = staticcall v8, v12, 28, 36, 0, 32
     jumpi v13, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v14 = returndatasize
     v15 = lt v14, 32
     icall revert_if<tuple_data_too_short>, v15
@@ -109,9 +109,9 @@ fn @cleanup(arg0: i256) -> struct0 [selector=0x0aa40018, view, abi_params=[uint2
     v22 = zext i160 v17 to i256
     v23 = staticcall v18, v22, v20, v21, 0, 32
     jumpi v23, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v24 = returndatasize
     v25 = lt v24, 32
     icall revert_if<tuple_data_too_short>, v25
@@ -146,15 +146,15 @@ fn @cleanupArray(arg0: i256) -> i256 [selector=0x7e130ca5, view, abi_params=[uin
     mstore v2, arg0
     v3 = address
     v4 = gas
-    v5 = abi_encode [memory_array<function>], selector 0xc124fd9700000000000000000000000000000000000000000000000000000000, args v0
+    v5 = abi_encode [memory_array<function>], scratch, selector 0xc124fd9700000000000000000000000000000000000000000000000000000000, args v0
     v6 = extract_value slice<memory>, v5, 0
     v7 = extract_value slice<memory>, v5, 1
     v8 = zext i160 v3 to i256
     v9 = staticcall v4, v8, v6, v7, 0, 32
     jumpi v9, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v10 = returndatasize
     v11 = lt v10, 32
     icall revert_if<tuple_data_too_short>, v11
@@ -204,9 +204,9 @@ fn @memoryStructToStorage(arg0: i256) -> i256 [selector=0xb4caea8f, abi_params=[
     v19 = zext i160 v13 to i256
     v20 = staticcall v14, v19, 28, 36, 0, 32
     jumpi v20, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v21 = returndatasize
     v22 = lt v21, 32
     icall revert_if<tuple_data_too_short>, v22
@@ -259,22 +259,22 @@ fn @memoryArrayToStorage(arg0: i256) -> i256 [selector=0xe3183809, abi_params=[u
     v4 = sload 1 !metadata(storage=slot(1))
     v5 = lt v3, v4
     jumpi v5, bb1, bb2
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb4
+  bb3:                                            ; preds = bb1, bb4
     v6 = phi [bb1: v3], [bb4: v20]
     v7 = lt v6, v4
     jumpi v7, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb2
-  bb2:  ; preds = bb0, bb5
+  bb2:                                            ; preds = bb0, bb5
     sstore 1, v3 !metadata(storage=slot(1))
     jump bb6
-  bb6:  ; preds = bb2, bb7
+  bb6:                                            ; preds = bb2, bb7
     v21 = phi [bb2: 0], [bb7: v41]
     v22 = lt v21, v3
     jumpi v22, bb7, bb8
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     v42 = address
     v43 = gas
     v44 = sload 1 !metadata(storage=slot(1))
@@ -292,15 +292,15 @@ fn @memoryArrayToStorage(arg0: i256) -> i256 [selector=0xe3183809, abi_params=[u
     v53 = zext i160 v42 to i256
     v54 = staticcall v43, v53, 28, 36, 0, 32
     jumpi v54, bb10, bb9
-  bb9:  ; preds = bb8
+  bb9:                                            ; preds = bb8
     revert_returndata
-  bb10:  ; preds = bb8
+  bb10:                                           ; preds = bb8
     v55 = returndatasize
     v56 = lt v55, 32
     icall revert_if<tuple_data_too_short>, v56
     v57 = mload 0 !metadata(memory=scratch)
     ret v57
-  bb7:  ; preds = bb6
+  bb7:                                            ; preds = bb6
     v23 = shl v21, 5
     v24 = ptradd v0, v23
     v25 = ptradd v24, 32
@@ -322,7 +322,7 @@ fn @memoryArrayToStorage(arg0: i256) -> i256 [selector=0xe3183809, abi_params=[u
     sstore v30, v40 !metadata(storage=symbolic(v30))
     v41 = add v21, 1
     jump bb6
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v8 = storage_array_data_slot 1
     v9 = div v6, 1
     v10 = add v8, v9
@@ -385,11 +385,11 @@ fn @storageArrayToMemory() -> i1 [selector=0xc4550e60, abi_params=[], abi_return
     v33 = alloc checked v30
     mstore v33, v20
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v34 = phi [bb0: 0], [bb2: v50]
     v35 = lt v34, v20
     jumpi v35, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v51 = ptrtoint ptr<memory> v33 to i256
     v52 = add v51, 32
     v53 = mload v52
@@ -399,7 +399,7 @@ fn @storageArrayToMemory() -> i1 [selector=0xc4550e60, abi_params=[], abi_return
     v57 = or v56, 0x32e43a110000000000000000
     v58 = eq v53, v57
     ret v58
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v36 = storage_array_data_slot 1
     v37 = div v34, 1
     v38 = add v36, v37

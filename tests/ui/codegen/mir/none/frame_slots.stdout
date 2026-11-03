@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/none/frame_slots.mir (before none) ===
-+ // === ROOT/tests/ui/codegen/mir/none/frame_slots.mir (after none) ===
+- ; === ROOT/tests/ui/codegen/mir/none/frame_slots.mir (before none) ===
++ ; === ROOT/tests/ui/codegen/mir/none/frame_slots.mir (after none) ===
   @module FrameSlots
   fn @external() -> i256 {
     bb0:

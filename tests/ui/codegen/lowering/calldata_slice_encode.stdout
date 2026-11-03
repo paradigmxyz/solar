@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/calldata_slice_encode.sol:CalldataSliceEncode ===
+; === ROOT/tests/ui/codegen/lowering/calldata_slice_encode.sol:CalldataSliceEncode ===
 @module CalldataSliceEncode
 ; function encode(bytes calldata data, uint256 start) external pure returns (bytes memory) [selector 0xa8c06a13]
 fn @encode(arg0: slice<calldata>, arg1: i256) -> ptr<memory> [selector=0xa8c06a13, pure, abi_params=[bytes, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -31,7 +31,7 @@ fn @forward(arg0: slice<calldata>, arg1: i256, arg2: i160) [selector=0xb8467e08,
     v7 = ptradd v0, arg1
     v8 = make_calldata_slice v7, v6
     v9 = gas
-    v10 = abi_encode [calldata_bytes], selector 0xd18d0bac00000000000000000000000000000000000000000000000000000000, args v8
+    v10 = abi_encode [calldata_bytes], scratch, selector 0xd18d0bac00000000000000000000000000000000000000000000000000000000, args v8
     v11 = extract_value slice<memory>, v10, 0
     v12 = extract_value slice<memory>, v10, 1
     v13 = zext i160 arg2 to i256
@@ -41,8 +41,8 @@ fn @forward(arg0: slice<calldata>, arg1: i256, arg2: i160) [selector=0xb8467e08,
     v16 = zext i160 arg2 to i256
     v17 = call v9, v16, 0, v11, v12, 0, 0
     jumpi v17, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     ret
 }

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/static_array_push_length.sol:StaticArrayPushLength ===
+; === ROOT/tests/ui/codegen/lowering/run-call/static_array_push_length.sol:StaticArrayPushLength ===
 @module StaticArrayPushLength
 @types
   struct0: {i256, i256}

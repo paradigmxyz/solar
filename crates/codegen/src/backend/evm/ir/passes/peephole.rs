@@ -22,8 +22,7 @@
 //! addresses or immutable placeholders as literal constants.
 //!
 //! A pure binary operation with a constant operand moves through a `SWAPn SWAP1 SWAPn`
-//! permutation, which removes two swaps. `ADDMOD` and `MULMOD` drop a preceding `SWAP1`,
-//! since only their first two operands swap.
+//! permutation, which removes two swaps.
 //!
 //! The separate `late-word` entry point runs only after structural cleanup. It
 //! replaces a low-mask construction with a shorter complement/shift form. A closed
@@ -85,7 +84,7 @@ impl Peephole {
 
 impl EvmPass for Peephole {
     fn name(&self) -> &'static str {
-        "peephole"
+        if self.0 == Rules::Early { "peephole-early" } else { "peephole" }
     }
 
     fn cache_config(&self) -> u64 {

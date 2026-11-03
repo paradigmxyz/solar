@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/cse/cse_staticcall_environment.mir (before cse) ===
-+ // === ROOT/tests/ui/codegen/mir/cse/cse_staticcall_environment.mir (after cse) ===
+- ; === ROOT/tests/ui/codegen/mir/cse/cse_staticcall_environment.mir (before cse) ===
++ ; === ROOT/tests/ui/codegen/mir/cse/cse_staticcall_environment.mir (after cse) ===
   @module CseStaticcallEnvironment
   fn @reuse_account_reads_across_staticcall(arg0: i256) -> i256 {
     bb0:

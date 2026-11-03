@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/msg_data.sol:MsgData ===
+; === ROOT/tests/ui/codegen/lowering/msg_data.sol:MsgData ===
 @module MsgData
 ; function len() external pure returns (uint256) [selector 0x56d88e27]
 fn @len() -> i256 [selector=0x56d88e27, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {

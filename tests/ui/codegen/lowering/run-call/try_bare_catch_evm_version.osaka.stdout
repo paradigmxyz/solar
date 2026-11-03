@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/try_bare_catch_evm_version.sol:TryCallee ===
+; === ROOT/tests/ui/codegen/lowering/run-call/try_bare_catch_evm_version.sol:TryCallee ===
 @module TryCallee
 @types
   struct0: {i256, i256}
@@ -47,7 +47,7 @@ fn @fail() -> i256 [selector=0xa9cc4718, payable, abi_params=[], abi_returns=[wo
     invalid
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/try_bare_catch_evm_version.sol:TryBareCatch ===
+; === ROOT/tests/ui/codegen/lowering/run-call/try_bare_catch_evm_version.sol:TryBareCatch ===
 @module TryBareCatch
 @data
   TryCallee_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/try_bare_catch_evm_version.sol:TryCallee"
@@ -61,28 +61,28 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = gas
     mstore 0, 0x3fa4f245 !metadata(memory=scratch)
     v5 = zext i160 v2 to i256
     v6 = call v4, v5, 0, 28, 4, 0, 32
     jumpi v6, bb3, bb4
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     jumpi true, bb6, bb7
-  bb7:  ; preds = bb4
+  bb7:                                            ; preds = bb4
     icall revert_if<empty>, true
     invalid
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb5
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v7 = returndatasize
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
     v9 = mload 0 !metadata(memory=scratch)
     jump bb5
-  bb5:  ; preds = bb3, bb6
+  bb5:                                            ; preds = bb3, bb6
     v10 = phi [bb3: v9], [bb6: 7]
     ret v10
 }
@@ -96,36 +96,32 @@ fn @liveTwo() -> i256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word], a
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = gas
-    v5 = abi_encode [], selector 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
-    v6 = extract_value slice<memory>, v5, 0
-    v7 = extract_value slice<memory>, v5, 1
-    v8 = zext i160 v2 to i256
-    v9 = call v4, v8, 0, v6, v7, v6, 64
-    jumpi v9, bb3, bb4
-  bb4:  ; preds = bb2
+    mstore 0, 0xa8aa1b31 !metadata(memory=scratch)
+    v5 = zext i160 v2 to i256
+    v6 = call v4, v5, 0, 28, 4, 0, 64
+    jumpi v6, bb3, bb4
+  bb4:                                            ; preds = bb2
     jumpi true, bb6, bb7
-  bb7:  ; preds = bb4
+  bb7:                                            ; preds = bb4
     icall revert_if<empty>, true
     invalid
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb5
-  bb3:  ; preds = bb2
-    v10 = returndatasize
-    v11 = lt v10, 64
-    icall revert_if<tuple_data_too_short>, v11
-    v12 = mload v6
-    v13 = ptrtoint ptr<memory> v6 to i256
-    v14 = add v13, 32
-    v15 = mload v14
-    v16 = checked_add uint256, v12, v15
+  bb3:                                            ; preds = bb2
+    v7 = returndatasize
+    v8 = lt v7, 64
+    icall revert_if<tuple_data_too_short>, v8
+    v9 = mload 0 !metadata(memory=scratch)
+    v10 = mload 32 !metadata(memory=scratch)
+    v11 = checked_add uint256, v9, v10
     jump bb5
-  bb5:  ; preds = bb3, bb6
-    v17 = phi [bb3: v16], [bb6: 7]
-    ret v17
+  bb5:                                            ; preds = bb3, bb6
+    v12 = phi [bb3: v11], [bb6: 7]
+    ret v12
 }
 
 ; function liveAggregate() external returns (uint256 r) [selector 0xc64a4ee9]
@@ -137,44 +133,42 @@ fn @liveAggregate() -> i256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[wo
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = gas
-    v5 = abi_encode [], selector 0xf5e34bfa00000000000000000000000000000000000000000000000000000000
-    v6 = extract_value slice<memory>, v5, 0
-    v7 = extract_value slice<memory>, v5, 1
-    v8 = alloc 64
-    v9 = zext i160 v2 to i256
-    v10 = call v4, v9, 0, v6, v7, v8, 64
-    jumpi v10, bb3, bb4
-  bb4:  ; preds = bb2
+    v5 = alloc 64
+    mstore 0, 0xf5e34bfa !metadata(memory=scratch)
+    v6 = zext i160 v2 to i256
+    v7 = call v4, v6, 0, 28, 4, v5, 64
+    jumpi v7, bb3, bb4
+  bb4:                                            ; preds = bb2
     jumpi true, bb6, bb7
-  bb7:  ; preds = bb4
+  bb7:                                            ; preds = bb4
     icall revert_if<empty>, true
     invalid
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb5
-  bb3:  ; preds = bb2
-    v11 = returndatasize
-    v12 = lt v11, 64
-    icall revert_if<tuple_data_too_short>, v12
-    v13 = make_memory_slice v8, 64
-    v14 = abi_decode [array<2, uint256>], v13
-    v15 = lt 0, 2
+  bb3:                                            ; preds = bb2
+    v8 = returndatasize
+    v9 = lt v8, 64
+    icall revert_if<tuple_data_too_short>, v9
+    v10 = make_memory_slice v5, 64
+    v11 = abi_decode [array<2, uint256>], v10
+    v12 = lt 0, 2
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = mload v11
+    v15 = lt 1, 2
     v16 = eq v15, false
     icall panic_if<0x32>, v16
-    v17 = mload v14
-    v18 = lt 1, 2
-    v19 = eq v18, false
-    icall panic_if<0x32>, v19
-    v20 = ptradd v14, 32
-    v21 = mload v20
-    v22 = checked_add uint256, v17, v21
+    v17 = ptradd v11, 32
+    v18 = mload v17
+    v19 = checked_add uint256, v14, v18
     jump bb5
-  bb5:  ; preds = bb3, bb6
-    v23 = phi [bb3: v22], [bb6: 7]
-    ret v23
+  bb5:                                            ; preds = bb3, bb6
+    v20 = phi [bb3: v19], [bb6: 7]
+    ret v20
 }
 
 ; function liveNoReturn() external returns (uint256 r) [selector 0x0f81fb69]
@@ -186,9 +180,9 @@ fn @liveNoReturn() -> i256 [selector=0x0f81fb69, abi_params=[], abi_returns=[wor
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = gas
     mstore 0, 0x5dfc2e4a !metadata(memory=scratch)
     v5 = zext i160 v2 to i256
@@ -198,16 +192,16 @@ fn @liveNoReturn() -> i256 [selector=0x0f81fb69, abi_params=[], abi_returns=[wor
     v8 = zext i160 v2 to i256
     v9 = call v4, v8, 0, 28, 4, 0, 0
     jumpi v9, bb3, bb4
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     jumpi true, bb6, bb7
-  bb7:  ; preds = bb4
+  bb7:                                            ; preds = bb4
     icall revert_if<empty>, true
     invalid
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb5
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     jump bb5
-  bb5:  ; preds = bb3, bb6
+  bb5:                                            ; preds = bb3, bb6
     v10 = phi [bb3: 1], [bb6: 7]
     ret v10
 }
@@ -221,28 +215,28 @@ fn @liveCatch() -> i256 [selector=0x852bf1e6, abi_params=[], abi_returns=[word],
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = gas
     mstore 0, 0xa9cc4718 !metadata(memory=scratch)
     v5 = zext i160 v2 to i256
     v6 = call v4, v5, 1, 28, 4, 0, 32
     jumpi v6, bb3, bb4
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     jumpi true, bb6, bb7
-  bb7:  ; preds = bb4
+  bb7:                                            ; preds = bb4
     icall revert_if<empty>, true
     invalid
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb5
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v7 = returndatasize
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
     v9 = mload 0 !metadata(memory=scratch)
     jump bb5
-  bb5:  ; preds = bb3, bb6
+  bb5:                                            ; preds = bb3, bb6
     v10 = phi [bb3: v9], [bb6: 7]
     ret v10
 }
@@ -256,9 +250,9 @@ fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = zext i160 v2 to i256
     v5 = shl v4, 32
     v6 = or v5, 0x3fa4f245
@@ -270,20 +264,20 @@ fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
     mstore 0, v11 !metadata(memory=scratch)
     v12 = call v10, v9, 0, 28, 4, 0, 32
     jumpi v12, bb3, bb4
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     jumpi true, bb6, bb7
-  bb7:  ; preds = bb4
+  bb7:                                            ; preds = bb4
     icall revert_if<empty>, true
     invalid
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb5
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v13 = returndatasize
     v14 = lt v13, 32
     icall revert_if<tuple_data_too_short>, v14
     v15 = mload 0 !metadata(memory=scratch)
     jump bb5
-  bb5:  ; preds = bb3, bb6
+  bb5:                                            ; preds = bb3, bb6
     v16 = phi [bb3: v15], [bb6: 7]
     ret v16
 }
@@ -297,16 +291,16 @@ fn @liveCreation() -> i256 [selector=0xb217934d, abi_params=[], abi_returns=[wor
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb4
+  bb3:                                            ; preds = bb1, bb4
     v4 = phi [bb1: 1], [bb4: 7]
     ret v4
 }
@@ -318,20 +312,20 @@ fn @noCode() -> i256 [selector=0x96c56dce, abi_params=[], abi_returns=[word], ab
     mstore 0, 0x3fa4f245 !metadata(memory=scratch)
     v1 = call v0, 0, 0, 28, 4, 0, 32
     jumpi v1, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v2 = returndatasize
     v3 = lt v2, 32
     icall revert_if<tuple_data_too_short>, v3
     v4 = mload 0 !metadata(memory=scratch)
     jump bb3
-  bb3:  ; preds = bb1, bb4
+  bb3:                                            ; preds = bb1, bb4
     v5 = phi [bb1: v4], [bb4: 7]
     ret v5
 }
@@ -346,16 +340,16 @@ fn @noCodeNoReturn() -> i256 [selector=0xac1b26c4, abi_params=[], abi_returns=[w
     icall revert_if<target_contract_has_no_code>, v2
     v3 = call v0, 0, 0, 28, 4, 0, 0
     jumpi v3, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb4
+  bb3:                                            ; preds = bb1, bb4
     v4 = phi [bb1: 1], [bb4: 7]
     ret v4
 }

@@ -1,8 +1,8 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/calldata_struct_return.sol:CalldataStructDecoder ===
+; === ROOT/tests/ui/codegen/lowering/run-call/calldata_struct_return.sol:CalldataStructDecoder ===
 @module CalldataStructDecoder
 @library
 
-// === ROOT/tests/ui/codegen/lowering/run-call/calldata_struct_return.sol:CalldataStructReturn ===
+; === ROOT/tests/ui/codegen/lowering/run-call/calldata_struct_return.sol:CalldataStructReturn ===
 @module CalldataStructReturn
 @types
   struct0: {i1, i256}
@@ -52,15 +52,15 @@ fn @roundTrip() -> struct2 [selector=0x6643a628, view, abi_params=[], abi_return
     mstore v6, 0x6a736f6e00000000000000000000000000000000000000000000000000000000
     v7 = ptrtoint ptr<memory> v5 to i256
     v8 = abi_encode [word, word, word, word, memory_bytes, memory_bytes], object, args 1, 2, 3, 4, v2, v5
-    v9 = abi_encode [memory_bytes], selector 0xe5c5e9a300000000000000000000000000000000000000000000000000000000, args v8
+    v9 = abi_encode [memory_bytes], scratch, selector 0xe5c5e9a300000000000000000000000000000000000000000000000000000000, args v8
     v10 = extract_value slice<memory>, v9, 0
     v11 = extract_value slice<memory>, v9, 1
     v12 = zext i160 v0 to i256
     v13 = staticcall v1, v12, v10, v11, 0, 0
     jumpi v13, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v14 = icall returndata_bytes<>
     v15 = abi_decode [bool, tuple<bytes32, bytes32, uint256, uint256, bytes, bytes>], v14
     v16 = extract_value struct3, v15, 0

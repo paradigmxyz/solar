@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/late-word/sub_constant.evmir (before late-word) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/late-word/sub_constant.evmir (after late-word) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/late-word/sub_constant.evmir (before late-word) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/late-word/sub_constant.evmir (after late-word) ===
   @module sub_constant
   bb0:
     push 4

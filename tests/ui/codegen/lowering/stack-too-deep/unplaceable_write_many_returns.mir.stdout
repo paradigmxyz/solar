@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/stack-too-deep/unplaceable_write_many_returns.sol:UnplaceableWriteManyReturns ===
+; === ROOT/tests/ui/codegen/lowering/stack-too-deep/unplaceable_write_many_returns.sol:UnplaceableWriteManyReturns ===
 @module UnplaceableWriteManyReturns
 @types
   struct0: {i256, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256}
@@ -88,9 +88,9 @@ fn @h(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, ar
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v1 = icall @u, arg1
     v2 = extract_value struct0, v1, 0
     v3 = extract_value struct0, v1, 1
@@ -114,7 +114,7 @@ fn @h(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, ar
     v21 = icall @h, v20, 1, 1, 1, arg11, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
     v22 = checked_add uint256, v19, v21
     ret v22
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     ret arg11
 }
 

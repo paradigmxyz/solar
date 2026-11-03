@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/legacy_shift_layout.sol:LegacyShiftLayout ===
+; === ROOT/tests/ui/codegen/lowering/run-call/legacy_shift_layout.sol:LegacyShiftLayout ===
 @module LegacyShiftLayout
 ; function layout(uint256 a, uint256 words, uint256 shift) external pure returns (bytes32 result) [selector 0x3f3109b7]
 fn @layout(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x3f3109b7, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -22,15 +22,15 @@ fn @layout(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x3f3109b7, pur
     v16 = keccak256_packed (uint256 arg0, uint256 16)
     v17 = ne arg1, 0
     jumpi v17, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v18 = calldataload 36
     v19 = calldataload 68
     v20 = shl v18, v19
     v21 = add v20, 160
     jump bb4
-  bb4:  ; preds = bb1, bb6
+  bb4:                                            ; preds = bb1, bb6
     v22 = phi [bb1: arg0], [bb6: v22]
     v23 = phi [bb1: arg1], [bb6: v23]
     v24 = phi [bb1: arg2], [bb6: v24]
@@ -60,15 +60,15 @@ fn @layout(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x3f3109b7, pur
     v48 = zext i1 v47 to i256
     v49 = ne v48, 0
     jumpi v49, bb7, bb8
-  bb8:  ; preds = bb4
+  bb8:                                            ; preds = bb4
     jump bb5
-  bb5:  ; preds = bb8
+  bb5:                                            ; preds = bb8
     mstore v45, v22
     v51 = sub v45, 160
     v52 = add v51, 32
     v53 = keccak256 160, v52
     jump bb3
-  bb3:  ; preds = bb5, bb2
+  bb3:                                            ; preds = bb5, bb2
     v54 = phi [bb5: v22], [bb2: arg0]
     v55 = phi [bb5: v23], [bb2: arg1]
     v56 = phi [bb5: v24], [bb2: arg2]
@@ -108,12 +108,12 @@ fn @layout(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x3f3109b7, pur
     v90 = xor v89, v74
     v91 = xor v90, v57
     ret v91
-  bb7:  ; preds = bb4
+  bb7:                                            ; preds = bb4
     mstore v46, v22
     jump bb9
-  bb9:  ; preds = bb7
+  bb9:                                            ; preds = bb7
     jump bb6
-  bb6:  ; preds = bb9
+  bb6:                                            ; preds = bb9
     v50 = add v46, 32
     jump bb4
 }

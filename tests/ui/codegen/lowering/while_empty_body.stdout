@@ -1,6 +1,6 @@
-// === ROOT/tests/ui/codegen/lowering/while_empty_body.sol:WhileEmptyBody (runtime) ===
+; === ROOT/tests/ui/codegen/lowering/while_empty_body.sol:WhileEmptyBody (runtime) ===
 @module WhileEmptyBody_runtime
-bb0:  ; runtime dispatch entry + function f(uint256 x) public pure [selector 0xb3de648b]
+bb0:                                              ; runtime dispatch entry + function f(uint256 x) public pure [selector 0xb3de648b]
   callvalue
   push bb3
   jumpi
@@ -18,10 +18,10 @@ bb0:  ; runtime dispatch entry + function f(uint256 x) public pure [selector 0xb
   lt
   push bb3
   jumpi
-  push 0
   push 4
   calldataload
-  gt
+  push 0
+  lt
   jump bb6
 bb6 [loop]:
   dup 1

@@ -1,9 +1,9 @@
-// === ROOT/tests/ui/codegen/lowering/program-data/cross_artifact_data.sol:C (runtime) ===
+; === ROOT/tests/ui/codegen/lowering/program-data/cross_artifact_data.sol:C (runtime) ===
 @module C_runtime
 @data
   literal_0: hex"11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
 
-bb0:  ; runtime dispatch entry + function runtimeData() external pure returns (bytes memory) [selector 0x69ad4ffa]
+bb0:                                              ; runtime dispatch entry + function runtimeData() external pure returns (bytes memory) [selector 0x69ad4ffa]
   callvalue
   push bb3
   jumpi

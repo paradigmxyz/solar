@@ -85,15 +85,9 @@
 ;; (x ^ y) + ((x & y) << 1) => x + y.
 (rule (rewrite (Op.Add (bxor x y) (shl (one) (band x y)))) (Op.Add x y))
 
-;; (x ^ y) + ((y & x) << 1) => x + y.
-(rule (rewrite (Op.Add (bxor x y) (shl (one) (band y x)))) (Op.Add x y))
-
 ;; The carry may already use the equivalent doubling form.
 ;; (x ^ y) + ((x & y) + (x & y)) => x + y.
 (rule (rewrite (Op.Add (bxor x y) (add (and carry (band x y)) carry))) (Op.Add x y))
-
-;; (x ^ y) + ((y & x) + (y & x)) => x + y.
-(rule (rewrite (Op.Add (bxor x y) (add (and carry (band y x)) carry))) (Op.Add x y))
 
 ;; (1 << y) * x => x << y.
 ;; Requires: the target supports shifts.
@@ -282,9 +276,6 @@
 
 ;; mulmod(_, _, 1) => 0.
 (rule 3 (simplify (Op.MulMod _ _ (one))) (imm (u256 0)))
-
-;; mulmod(0, _, _) => 0.
-(rule 2 (simplify (Op.MulMod (zero) _ _)) (imm (u256 0)))
 
 ;; mulmod(_, 0, _) => 0.
 (rule 1 (simplify (Op.MulMod _ (zero) _)) (imm (u256 0)))

@@ -42,9 +42,12 @@ use std::{any::TypeId, cell::Cell, convert::Infallible, rc::Rc, sync::Arc};
 
 pub use crate::mir::pass_manager::{MirPass, pipeline_label, run_passes};
 
-/// All known MIR passes exposed by `-Zmir-pipeline`.
+/// All known MIR passes exposed by `-Zmir-pipeline`, one per name: a name resolves to its first
+/// pass, so every pass the canonical pipeline runs needs an entry under a name of its own for
+/// `-Zmir-pipeline` to replay it.
 static ALL_PASSES: &[&dyn MirPass] = &[
     &inline::Inline::Semantic,
+    &inline::Inline::Physical,
     &inline::Inline::Tagged,
     &if_convert::IfConvert,
     &inline::SpecializeFunctionPointers,
@@ -62,6 +65,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &pre::Pre::Pure,
     &element_cleanup::ElementCleanup,
     &egraph::Egraph,
+    &word_sequence::WordSequence::Early,
     &word_sequence::WordSequence::Late,
     &byte_loops::ByteLoops,
     &byte_run::ByteRunLoads,
@@ -69,7 +73,6 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &storage_dse::StorageDse,
     &pre::Pre::Reads,
     &loop_canonicalize::LoopCanonicalize,
-    &loop_exit_remat::LoopExitRemat,
     &place_reads::PlaceReads,
     &loop_reduce::LoopReduce,
     &loop_split::LoopSplit,
@@ -464,8 +467,6 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
 static LOWERED_PIPELINE: &[&dyn MirPass] = &[
     &const_fold::ConstFold,
     &cfg_simplify::BranchSimplify,
-    // Reconstruct old induction values on exits before selecting physical stack order.
-    &loop_exit_remat::LoopExitRemat,
     // Give each calldata read the block that dominates its uses, after the last CSE could merge
     // the copies again.
     &place_reads::PlaceReads,
@@ -507,7 +508,7 @@ pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bo
                     let text = module.to_text();
                     print_pass_diff(&name, "none", &text, &text);
                 } else if gcx.sess.opts.unstable.print_after_each {
-                    println!("// === {name} (after none) ===");
+                    println!("; === {name} (after none) ===");
                     print!("{}", module.to_text());
                 }
             }
@@ -1292,4 +1293,21 @@ fn run_parallel_function_pass(
     }
     analyses.preserved_by_pass = true;
     Some(changed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use solar_data_structures::map::FxHashSet;
+
+    #[test]
+    fn canonical_pipeline_passes_have_unique_names() {
+        let mut names = FxHashSet::default();
+        for pass in ALL_PASSES {
+            assert!(names.insert(pass.name()), "duplicate MIR pass name `{}`", pass.name());
+        }
+        for pass in SEMANTIC_PIPELINE.iter().chain(LOWERING_PIPELINE).chain(LOWERED_PIPELINE) {
+            assert!(names.contains(pass.name()), "`{}` is not exposed by name", pass.name());
+        }
+    }
 }

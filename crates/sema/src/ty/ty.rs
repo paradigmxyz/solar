@@ -1011,7 +1011,7 @@ impl<'gcx> Ty<'gcx> {
             };
         }
 
-        if self.try_convert_implicit_to(other, gcx).is_ok() {
+        if self.convert_implicit_to(other, gcx) {
             return Ok(());
         }
         match (self.kind, other.kind) {

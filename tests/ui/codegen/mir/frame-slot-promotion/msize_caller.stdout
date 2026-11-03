@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/msize_caller.mir (before frame-slot-promotion) ===
-+ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/msize_caller.mir (after frame-slot-promotion) ===
+- ; === ROOT/tests/ui/codegen/mir/frame-slot-promotion/msize_caller.mir (before frame-slot-promotion) ===
++ ; === ROOT/tests/ui/codegen/mir/frame-slot-promotion/msize_caller.mir (after frame-slot-promotion) ===
   @module FramePromotionMsizeCaller
   fn @msize_observed() -> i256 {
     bb0:

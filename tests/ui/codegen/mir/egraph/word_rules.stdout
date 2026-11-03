@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/egraph/word_rules.mir (before egraph) ===
-+ // === ROOT/tests/ui/codegen/mir/egraph/word_rules.mir (after egraph) ===
+- ; === ROOT/tests/ui/codegen/mir/egraph/word_rules.mir (before egraph) ===
++ ; === ROOT/tests/ui/codegen/mir/egraph/word_rules.mir (after egraph) ===
   @module WordRules
   fn @rule_0(arg0: i256, arg1: i256) -> i256 {
     bb0:
@@ -383,16 +383,16 @@
   fn @sibling_alternatives(arg0: i1, arg1: i256, arg2: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       v3 = sub arg1, arg2
       jump bb3
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       v0 = and arg1, arg2
       v1 = xor arg1, arg2
 -     v2 = or v0, v1
 +     v2 = or arg1, arg2
       jump bb3
-    bb3:  ; preds = bb1, bb2
+    bb3:                                            ; preds = bb1, bb2
       v4 = phi [bb1: v2], [bb2: v3]
       ret v4
   }

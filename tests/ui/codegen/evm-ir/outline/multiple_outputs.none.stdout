@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/outline/multiple_outputs.evmir (before none) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/outline/multiple_outputs.evmir (after none) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/outline/multiple_outputs.evmir (before none) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/outline/multiple_outputs.evmir (after none) ===
   @module MultipleOutputs
   bb0:
     push 0

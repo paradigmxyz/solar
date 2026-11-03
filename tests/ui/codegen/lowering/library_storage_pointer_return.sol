@@ -118,11 +118,12 @@ contract C {
         return Lib.plainRef(plain).a;
     }
 
-    // Two return words share one output area, and the second one is the slot.
+    // Two return words share one output area, which overlays the input before Byzantium and is
+    // the scratch words after it. The second one is the slot.
     // PREBYZ-LABEL: fn @pair
     // PREBYZ: delegatecall {{.*}}, [[IN:v[0-9]+]], {{v[0-9]+}}, [[IN]], 64
     // POSTBYZ-LABEL: fn @pair
-    // POSTBYZ: delegatecall {{.*}}, [[IN:v[0-9]+]], {{v[0-9]+}}, [[IN]], 64
+    // POSTBYZ: delegatecall {{.*}}, 28, 36, 0, 64
     function pair() external view returns (uint256, uint256) {
         (uint256 n, uint256[] storage r) = Lib.pairRef(nums);
         return (n, r.length);

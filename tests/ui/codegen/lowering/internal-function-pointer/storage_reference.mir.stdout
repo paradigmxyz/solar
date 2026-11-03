@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/internal-function-pointer/storage_reference.sol:FunctionPointerStorageReference ===
+; === ROOT/tests/ui/codegen/lowering/internal-function-pointer/storage_reference.sol:FunctionPointerStorageReference ===
 @module FunctionPointerStorageReference
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
@@ -15,11 +15,11 @@ fn @constructor() [constructor] {
 fn @quote(arg0: i1, arg1: i256) -> i256 [selector=0x4df60b01, view, abi_params=[bool, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v0 = phi [bb1: 2], [bb2: 1]
     v1 = icall @internal_dispatcher_p_storageptr_uint256_r_uint256, v0, 0, arg1
     ret v1
@@ -88,16 +88,16 @@ fn @internal_dispatcher_p_storageptr_uint256_r_uint256(arg0: i256, arg1: i256, a
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v2 = eq arg0, 2
     jumpi v2, bb3, bb4
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     icall panic_if<0x51>, true
     invalid
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v3 = icall @addTwice, arg1, arg2
     ret v3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = icall @add, arg1, arg2
     ret v1
 }
@@ -106,10 +106,10 @@ fn @internal_dispatcher_p_storageptr_uint256_r_none(arg0: i256, arg1: i256, arg2
   bb0:
     v0 = eq arg0, 3
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     icall @bump, arg1, arg2
     ret
 }
@@ -118,10 +118,10 @@ fn @internal_dispatcher_p_storageptr_r_storageptr(arg0: i256, arg1: i256) -> i25
   bb0:
     v0 = eq arg0, 4
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = icall @identity, arg1
     ret v1
 }

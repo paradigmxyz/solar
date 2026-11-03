@@ -7,7 +7,7 @@
 // two-byte absolute ones.
 @module relative_growth
 
-// CHECK-LABEL: // === relative_growth (runtime) ===
+// CHECK-LABEL: ; === relative_growth (runtime) ===
 // CHECK: PUSH10
 // CHECK-NEXT: SWAP1
 // CHECK-NEXT: BYTE

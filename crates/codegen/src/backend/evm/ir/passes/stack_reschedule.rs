@@ -15,11 +15,11 @@
 //! best-first search over the stack's words and the set of performed operations then looks for a
 //! cheaper sequence of `DUP`, `SWAP`, `POP` and pushes around the same operations that leaves the
 //! same stack. Operations run in any order their operands allow, except that memory and storage
-//! accesses keep their original relative order; a commutative operation takes its operands in
-//! either order, and a comparison may become its mirror, `gt` for `lt` with swapped operands.
-//! Moves are priced by the target cost model under the objective, so when optimizing for gas a
-//! schedule is taken when it saves gas, or the same gas in fewer bytes, and when optimizing for
-//! size when it saves bytes, or the same bytes in less gas.
+//! accesses keep their original relative order; a two-operand commutative operation takes its
+//! operands in either order, and a comparison may become its mirror, `gt` for `lt` with swapped
+//! operands. Moves are priced by the target cost model under the objective, so when optimizing for
+//! gas a schedule is taken when it saves gas, or the same gas in fewer bytes, and when optimizing
+//! for size when it saves bytes, or the same bytes in less gas.
 //!
 //! A run continues through a branch to a block that aborts without reading the stack, the
 //! `PUSH target; JUMPI` of an overflow check or a guard: the pair takes only its condition, so it
@@ -203,8 +203,7 @@ impl EvmPass for StackReschedule {
         let mut changed = false;
         for block in &mut module.blocks {
             let target = &block.target(gcx, optimization, code_follows);
-            let hot_loop = block.metadata.in_loop && !block.metadata.hotness.is_cold();
-            let budget = if hot_loop {
+            let budget = if block.in_hot_loop() {
                 LOOP_BUDGET
             } else if target.optimization().is_size() {
                 SIZE_BLOCK_BUDGET

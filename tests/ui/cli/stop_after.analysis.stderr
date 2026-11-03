@@ -1,4 +1,4 @@
-error: unresolved symbol `undefined_name`
+error[7576]: unresolved symbol `undefined_name`
    ╭▸ ROOT/tests/ui/cli/stop_after.sol:LL:CC
    │
 LL │         undefined_name = 1;

@@ -724,8 +724,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 if ty.loc() == Some(DataLocation::Calldata) {
                     self.try_set_not_lvalue(NotLvalueReason::CalldataArray);
                 }
-                if matches!(ty.peel_refs().kind, TyKind::Elementary(ElementaryType::FixedBytes(_)))
-                {
+                if ty.peel_refs().is_fixed_bytes() {
                     self.try_set_not_lvalue(NotLvalueReason::FixedBytesIndex);
                 }
                 if let Some((index_ty, result_ty)) = self.index_types(ty) {
@@ -2869,7 +2868,7 @@ impl<'gcx> TypeChecker<'gcx> {
 
     fn arg_matches(&mut self, expr: &'gcx hir::Expr<'gcx>, param_ty: Ty<'gcx>) -> bool {
         let ty = self.check_expr_once(expr);
-        ty.try_convert_implicit_to(param_ty, self.gcx).is_ok()
+        ty.convert_implicit_to(param_ty, self.gcx)
     }
 
     fn check_call_options(
@@ -4030,14 +4029,11 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                 let returns =
                     self.function.map(|id| self.gcx.hir.function(id).returns).unwrap_or_default();
                 if let Some(expr) = expr {
-                    let expected =
-                        match returns {
-                            [] => self.gcx.types.unit,
-                            [id] => self.gcx.type_of_item((*id).into()),
-                            ids => self.gcx.mk_ty_tuple(self.gcx.mk_ty_iter(
-                                ids.iter().map(|&id| self.gcx.type_of_item(id.into())),
-                            )),
-                        };
+                    let expected = match returns {
+                        [] => self.gcx.types.unit,
+                        [id] => self.gcx.type_of_item((*id).into()),
+                        ids => self.gcx.mk_ty_tuple(self.gcx.mk_item_tys(ids)),
+                    };
                     // A return value's conversion error is solc's 6359.
                     let prev = std::mem::replace(&mut self.value_position, ValuePosition::Return);
                     let actual = self.check_expr_with_noexpect(expr, Some(expected));

@@ -1,0 +1,5 @@
+@module StackDepthOverflow
+
+bb0:
+  dup 256 //~ ERROR: integer `256` does not fit in u8
+  stop

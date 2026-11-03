@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/canonical_operands.sol:CanonicalOperands ===
+; === ROOT/tests/ui/codegen/lowering/canonical_operands.sol:CanonicalOperands ===
 @module CanonicalOperands
 ; function constantRight(uint256 x) public pure returns (uint256) [selector 0xdd3741e4]
 fn @constantRight(arg0: i256) -> i256 [selector=0xdd3741e4, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {

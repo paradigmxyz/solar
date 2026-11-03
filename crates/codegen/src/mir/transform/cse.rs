@@ -62,7 +62,8 @@
 //! After a `gas` read, state-dependent expressions remain explicit so a later
 //! `gas` read observes their dynamically priced execution. A forward CFG may-observe
 //! analysis includes observations in non-dominating branches and loop backedges.
-//! Internal calls carry the callee's transitive gas-observation summary.
+//! Internal calls carry the callee's transitive gas-observation summary, and start an observation
+//! only when the callee may return after reading gas (see `GasObservations`).
 //!
 //! A word store or a semantic length store also seeds the cache with the stored
 //! value under the written location, so a later load of that exact word forwards
@@ -88,17 +89,20 @@
 //! Unchanged functions without internal calls can skip later runs until their
 //! body changes; callers must still observe any improved callee summaries.
 
-use crate::mir::{
-    BlockId, Builtin, Callee, EffectKind, Function, FunctionId, Immediate, ImmutableId, InstId,
-    InstKind, Instruction, MirType, Module, OpTraits, PtrLocation, Value, ValueId,
-    analysis::{
-        Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
-        Location, LocationSize, LoopAnalyzer, LoopInfo, MemoryAddress, MemoryCallSummaries,
-        MemoryLocation, returning_blocks,
+use crate::{
+    mir::{
+        BlockId, Builtin, Callee, EffectKind, Function, FunctionId, Immediate, ImmutableId, InstId,
+        InstKind, Instruction, MirType, Module, OpTraits, PtrLocation, Value, ValueId,
+        analysis::{
+            Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
+            Location, LocationSize, LoopAnalyzer, LoopInfo, MemoryAddress, MemoryCallSummaries,
+            MemoryLocation, returning_blocks,
+        },
+        memory::EvmMemoryLayout,
+        pass::{MirPass, run_selected_function_pass, run_selected_function_pass_cached},
+        utils as mir_utils,
     },
-    memory::EvmMemoryLayout,
-    pass::{MirPass, run_selected_function_pass, run_selected_function_pass_cached},
-    utils as mir_utils,
+    target::Target,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -299,11 +303,6 @@ enum OperandKey {
     /// `caller`, keyed by its kind so that expressions over different reads match.
     FrameConstant(&'static str),
 }
-
-/// Live-in words below which a loop-varying read is reused across one edge
-/// instead of reloaded: the `DUP` reach less room for the block's own
-/// temporaries.
-const DIRECT_REUSE_LIVE_BUDGET: usize = 12;
 
 /// Words of one `memory_zero` that seed the cache with zero, bounding the entries a large fill
 /// adds.
@@ -592,11 +591,7 @@ impl CommonSubexprEliminator {
                     .with_debug_info_dropped(),
             );
 
-            let phi_count = func.blocks[candidate.block_id]
-                .instructions
-                .iter()
-                .take_while(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
-                .count();
+            let phi_count = func.block_phi_count(candidate.block_id);
             let inserted = inserted_by_block.entry(candidate.block_id).or_default();
             func.blocks[candidate.block_id].instructions.insert(phi_count + *inserted, new_inst);
             *inserted += 1;
@@ -823,7 +818,7 @@ impl CommonSubexprEliminator {
         // other words are live here.
         if let Some(home) = home(*cached_inst)
             && func.blocks[block].predecessors.contains(&home)
-            && liveness.live_in(block).count() < DIRECT_REUSE_LIVE_BUDGET
+            && liveness.live_in(block).count() < Target::DIRECT_REUSE_LIVE_BUDGET
         {
             return true;
         }
@@ -1346,9 +1341,7 @@ impl CommonSubexprEliminator {
             }
             InstKind::Fmp => Some(ExprKey::MLoad(AliasAnalysis::fmp_location())),
             InstKind::Keccak256(offset, size) => {
-                let size = value(*size);
-                let size =
-                    func.value_u64(size).map_or(LocationSize::Dynamic(size), LocationSize::Const);
+                let size = self.alias().location_size(func, value(*size));
                 let key = self.alias().memory_location(func, inst_id, value(*offset), size)?;
                 Some(ExprKey::Keccak256(key))
             }

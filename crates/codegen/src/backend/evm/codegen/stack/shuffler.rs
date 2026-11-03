@@ -194,11 +194,8 @@ fn synthesize_unique_layout(
         target_values.push(value);
     }
 
-    let mut removed = source
-        .iter()
-        .copied()
-        .filter(|value| !target_values.contains(value))
-        .collect::<SmallVec<[ValueId; 16]>>();
+    let mut removed =
+        source.iter().copied().filter(|value| !target_values.contains(value)).collect::<Layout>();
     if removed.len() > MAX_ENUMERATED_PHYSICAL_REMOVALS {
         return None;
     }
@@ -228,7 +225,7 @@ struct RemovalSearch<'a> {
     target: &'a [ValueId],
     /// Values to remove; the ones the current prefix has not removed yet are still in `current`.
     removed: &'a [ValueId],
-    current: SmallVec<[ValueId; 16]>,
+    current: Layout,
     ops: Vec<StackOp>,
     best: Option<(Vec<StackOp>, (usize, usize, usize))>,
 }
@@ -313,10 +310,7 @@ impl RemovalSearch<'_> {
     }
 }
 
-fn synthesize_unique_permutation(
-    current: &mut SmallVec<[ValueId; 16]>,
-    target: &[ValueId],
-) -> Vec<StackOp> {
+fn synthesize_unique_permutation(current: &mut Layout, target: &[ValueId]) -> Vec<StackOp> {
     let mut ops = Vec::new();
     loop {
         let top_target = target.iter().position(|&target| target == current[0]).unwrap();
@@ -347,8 +341,8 @@ fn synthesize_unique_placement(source: &[ValueId], target: &[ValueId]) -> Option
         return None;
     }
     // Positions count from the bottom, which the pops leave in place.
-    let mut stack = source.iter().rev().copied().collect::<SmallVec<[ValueId; 16]>>();
-    let target = target.iter().rev().copied().collect::<SmallVec<[ValueId; 16]>>();
+    let mut stack = source.iter().rev().copied().collect::<Layout>();
+    let target = target.iter().rev().copied().collect::<Layout>();
     // Copies need `DUP`s, which this never emits.
     if target
         .iter()

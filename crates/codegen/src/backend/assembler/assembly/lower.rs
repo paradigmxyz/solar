@@ -297,11 +297,13 @@ fn lower_evm_ir_once(
         }
     }
     // An observable layout keeps every data entry in place; otherwise only referenced data goes.
-    let emitted_data = if data_layout_is_observable {
+    let mut emitted_data = if data_layout_is_observable {
         module.data.indices().collect::<Vec<_>>()
     } else {
         referenced_data.iter().collect()
     };
+    // The trailers of the runtime code end the program, whatever order the data was interned in.
+    emitted_data.sort_by_key(|&id| module.data[id].emit_in_runtime);
     // Keep opaque data unreachable from physical fallthrough, including malformed internal IR.
     let ends_with_terminal = program.instructions.last().is_some_and(
         |inst| matches!(inst.kind(), AsmInstKind::Op(opcode) if op::is_terminal(opcode)),

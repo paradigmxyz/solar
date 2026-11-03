@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/tuple_bytes_literals.sol:TupleBytesLiterals ===
+; === ROOT/tests/ui/codegen/lowering/tuple_bytes_literals.sol:TupleBytesLiterals ===
 @module TupleBytesLiterals
 @phase lowered
 ; runtime dispatch entry
@@ -7,15 +7,15 @@ fn @entry() [entry] {
     v0 = callvalue
     v1 = ne v0, 0
     jumpi v1, bb4, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v2 = calldataload 0
     v3 = shr v2, 224
     switch v3, default bb4, [0x1cd9057 => bb2, 0xf2c31bd9 => bb3]
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     tail_call @words
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     tail_call @prefix
-  bb4 [cold]:  ; preds = bb0, bb1
+  bb4 [cold]:                                     ; preds = bb0, bb1
     revert 0, 0
 }
 
@@ -29,8 +29,8 @@ fn @prefix() {
     v15 = sub v10, 36
     v16 = lt v15, v12
     v63 = or v11, v16
-    jumpi v63, bb3, bb4
-  bb4:  ; preds = bb0
+    jumpi v63, bb4, bb5
+  bb5:                                            ; preds = bb0
     v17 = calldataload v13
     v18 = add v13, 32
     v19 = add v17, 31
@@ -46,25 +46,26 @@ fn @prefix() {
     v64 = zext i1 v22 to i256
     v65 = or v61, v64
     v66 = ne v65, 0
-    jumpi v66, bb5, bb7
-  bb7:  ; preds = bb4
+    jumpi v66, bb6, bb8
+  bb8:                                            ; preds = bb5
     mstore v56, v17
     v24 = sub v10, v18
     v25 = lt v24, v17
-    jumpi v25, bb3, bb6
-  bb6:  ; preds = bb7
+    jumpi v25, bb4, bb7
+  bb7:                                            ; preds = bb8
     v52 = add v56, 32
     calldatacopy v52, v18, v17
     v53 = add v52, v17
-    v1 = gt v17, 0
+    v1 = ne v17, 0
+    jumpi v1, bb2, bb1
+  bb2:                                            ; preds = bb7
     v4 = gt v17, 1
-    v67 = and v1, v4
-    jumpi v67, bb2, bb1
-  bb1 [cold]:  ; preds = bb6
+    jumpi v4, bb3, bb1
+  bb1 [cold]:                                     ; preds = bb2, bb7
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb2:  ; preds = bb6
+  bb3:                                            ; preds = bb2
     v48 = add v56, 33
     mstore8 v48, 120
     mstore8 v52, 48
@@ -73,11 +74,11 @@ fn @prefix() {
     mstore v50, 32
     v45 = add v20, 64
     returndata v50, v45
-  bb5 [cold]:  ; preds = bb4
+  bb6 [cold]:                                     ; preds = bb5
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3 [cold]:  ; preds = bb0, bb7
+  bb4 [cold]:                                     ; preds = bb0, bb8
     revert 0, 0
 }
 
