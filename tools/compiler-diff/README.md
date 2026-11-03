@@ -158,7 +158,9 @@ every ID-valued field follows: `id`, `referencedDeclaration`,
 `exportedSymbols`, `externalReferences[].declaration`, the keys of
 `internalFunctionIDs`, and the IDs in `typeIdentifier` and `typeString` of
 `t_struct`, `t_contract`, `t_enum`, `t_userDefinedValueType` and `t_super` types and in `t_module_N`. Solc's
-negative builtin IDs stay. A reference agrees only if both sides point at the
+negative builtin IDs stay. The source index at the end of every span (`src`,
+`nameLocation`, ...) becomes the name of the source, since compilers number
+sources in their own order; source IDs themselves are not compared. A reference agrees only if both sides point at the
 node in the same place, so a wrong declaration, a wrong builtin, or an ID with
 no node (shown as `?N@left` or `?N@right`) differs. A duplicate ID on one side is an error. The sets solc
 sorts by ID (`contractDependencies`, `baseFunctions`, `baseModifiers`,

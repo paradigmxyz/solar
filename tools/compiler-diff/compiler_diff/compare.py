@@ -41,6 +41,17 @@ AST_UNORDERED_FIELDS = {
     "usedEvents",
 }
 # The ID in `t_struct$_S_$12_storage_ptr` `t_type$_t_super$_B_$7_$` and `t_module_7`; array lengths also follow `_$`.
+# Spans are `start:length:source index`; the index follows the compilation order.
+AST_SPAN_FIELDS = {
+    "keyNameLocation",
+    "memberLocation",
+    "nameLocation",
+    "nameLocations",
+    "nativeSrc",
+    "src",
+    "valueNameLocation",
+}
+AST_SPAN = re.compile(r"(\d+:\d+:)(\d+)")
 AST_TYPE_ID = re.compile(
     r"(t_(?:struct|contract|enum|userDefinedValueType|super)\$_.*?_\$|t_module_)(\d+)"
 )
@@ -277,8 +288,8 @@ def ast_index(roots):
     return ids, types
 
 
-def ast_translate(key, value, ref):
-    """Rename node IDs in a field value, and cut child nodes down to their type."""
+def ast_translate(key, value, ref, source):
+    """Rename node IDs and span sources in a field value, and cut child nodes to their type."""
     if isinstance(value, dict):
         if "nodeType" in value:
             return {"nodeType": value["nodeType"]}
@@ -286,15 +297,25 @@ def ast_translate(key, value, ref):
             return {str(ref(int(k))): v for k, v in value.items()}
         if key == "exportedSymbols":
             return {k: [ref(i) for i in v] for k, v in value.items()}
-        return {k: ast_translate(k, v, ref) for k, v in value.items()}
+        return {k: ast_translate(k, v, ref, source) for k, v in value.items()}
     if isinstance(value, list):
-        items = [ast_translate(key, v, ref) for v in value]
+        items = [ast_translate(key, v, ref, source) for v in value]
         return sorted(items, key=str) if key in AST_UNORDERED_FIELDS else items
     if type(value) is int and key in AST_ID_FIELDS:
         return ref(value)
+    if isinstance(value, str) and key in AST_SPAN_FIELDS:
+        return AST_SPAN.sub(lambda m: m[1] + source(int(m[2])), value)
     if isinstance(value, str) and key in ("typeIdentifier", "typeString"):
         return AST_TYPE_ID.sub(lambda m: m[1] + str(ref(int(m[2]))), value)
     return value
+
+
+def ast_source(output):
+    """Rename a source index to the name of its source."""
+    names = {
+        s["id"]: name for name, s in output.get("sources", {}).items() if "id" in s
+    }
+    return lambda n: names.get(n, str(n))
 
 
 def ast_ref(ids, side):
@@ -307,11 +328,13 @@ def compare_ast(left, right, rules):
 
     Each node ID becomes the JSON pointer of its node, so a reference agrees only
     when both sides point at the node in the same place. Negative builtin IDs stay.
+    The source index of every span becomes the source's name.
     Fields that hold child nodes compare only the child's type; the children are
     compared in turn. Ignored and presence-only fields skip the nodes below them.
     """
     roots = [ast_roots(left), ast_roots(right)]
     indexes = [ast_index(side) for side in roots]
+    sources = [ast_source(left), ast_source(right)]
     refs = [ast_ref(ids, side) for (ids, _), side in zip(indexes, ("left", "right"))]
     by_field = {}
     for number, rule in enumerate(rules):
@@ -349,10 +372,10 @@ def compare_ast(left, right, rules):
                     {
                         "path": pointer(path, key),
                         "kind": "missing-" + side,
-                        "left": ast_translate(key, l[key], refs[0])
+                        "left": ast_translate(key, l[key], refs[0], sources[0])
                         if key in l
                         else None,
-                        "right": ast_translate(key, r[key], refs[1])
+                        "right": ast_translate(key, r[key], refs[1], sources[1])
                         if key in r
                         else None,
                     }
@@ -361,8 +384,8 @@ def compare_ast(left, right, rules):
                 applied[number] += 1
                 row["equal"] += 1
             else:
-                lv = ast_translate(key, l[key], refs[0])
-                rv = ast_translate(key, r[key], refs[1])
+                lv = ast_translate(key, l[key], refs[0], sources[0])
+                rv = ast_translate(key, r[key], refs[1], sources[1])
                 if (
                     type(lv) is type(rv)
                     and lv == rv
@@ -700,6 +723,7 @@ class Tests(unittest.TestCase):
             "unit",
         ]
         ids = {k: 1000 - n if renumber else n for n, k in enumerate(names, 1)}
+        index = 7 if renumber else 0
         types = {
             "typeIdentifier": f"t_struct$_S_${ids['S']}_storage_ptr",
             "typeString": "struct C.S storage pointer",
@@ -739,7 +763,13 @@ class Tests(unittest.TestCase):
             },
         ]
         nodes = [
-            {"id": ids["S"], "nodeType": "StructDefinition", "name": "S"},
+            {
+                "id": ids["S"],
+                "nodeType": "StructDefinition",
+                "name": "S",
+                "src": f"5:3:{index}",
+                "nameLocation": f"12:1:{index}",
+            },
             {
                 "id": ids["v"],
                 "nodeType": "VariableDeclaration",
@@ -775,7 +805,7 @@ class Tests(unittest.TestCase):
             "exportedSymbols": {"C": [ids["C"]], "D": [ids["D"]]},
             "nodes": [contract("C", "CD", nodes), contract("D", "D", [])],
         }
-        return {"sources": {"A.sol": {"id": 0, "ast": unit}}}
+        return {"sources": {"A.sol": {"id": index, "ast": unit}}}
 
     def ast_rows(self, result):
         return {(r["nodeType"], r["field"]): r for r in result["fields"]}
@@ -833,6 +863,13 @@ class Tests(unittest.TestCase):
                     typeIdentifier="t_struct$_S_$7_storage_ptr"
                 ),
                 ("Identifier", "typeDescriptions"),
+            ),
+            (
+                "span",
+                lambda unit, ident, member: unit["nodes"][0]["nodes"][0].update(
+                    src="6:3:7"
+                ),
+                ("StructDefinition", "src"),
             ),
             (
                 "order",
