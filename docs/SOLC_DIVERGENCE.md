@@ -961,6 +961,8 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 - Coverage: `tests/ui/codegen/lowering/run-call/assembly_low_memory_layouts.sol`,
   `tests/ui/codegen/lowering/run-call/assembly_low_memory_routes.sol`,
   `tests/ui/codegen/lowering/run-call/assembly_low_memory_recursive_routes.sol`,
+  `tests/ui/codegen/lowering/run-call/assembly_low_memory_places_nothing.sol`,
+  `tests/ui/codegen/lowering/run-call/assembly_low_memory_places_something.sol`,
   `tests/ui/codegen/lowering/run-call/constructor_constant_write_spills.sol`,
   `tests/ui/codegen/lowering/run-call/folded_guard_spills.sol`,
   `tests/ui/codegen/lowering/run-call/folded_hazard_spills.sol`,

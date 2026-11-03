@@ -846,6 +846,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) -> FxHashMap<FunctionId, u64> {
         let mut function_ranges = index_vec![None; module.functions.len()];
         let mut owns_low_memory = index_vec![None; module.functions.len()];
+        let mut low_memory_owners = FxHashSet::default();
         let ranges = entries
             .iter()
             .map(|&entry| {
@@ -865,7 +866,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                         Self::writes_calldata_addressed_memory(&module.functions[func_id])
                     })
                 }) {
-                    ranges.push((EvmMemoryLayout::HEAP_START, LOW_MEMORY_BOUND));
+                    low_memory_owners.insert(entry);
                 }
                 (entry, ranges)
             })
@@ -914,10 +915,21 @@ impl<'gcx> EvmCodegen<'gcx> {
                     );
                 }
                 end = end.saturating_add(prefix_guards.get(&entry).copied().unwrap_or(0));
+                // The low memory that calldata-addressed writes own only has to stay clear of
+                // what the compiler places for this entry: its spill area, static allocations and
+                // frames. The heap prefix guard only keeps assembly that reads before a heap
+                // object off them, so an entry that places none of them keeps its base: it
+                // neither raises the region that every other entry's frames start at nor moves
+                // its own heap above that memory.
+                let low_memory = (low_memory_owners.contains(&entry)
+                    && (sizes[&entry] != 0 || frames != 0))
+                    .then_some((EvmMemoryLayout::HEAP_START, LOW_MEMORY_BOUND));
                 if let Some(raised) = ranges[&entry]
                     .iter()
-                    .filter(|&&(start, range_end)| start < end && range_end > base)
-                    .map(|&(_, range_end)| range_end)
+                    .copied()
+                    .chain(low_memory)
+                    .filter(|&(start, range_end)| start < end && range_end > base)
+                    .map(|(_, range_end)| range_end)
                     .max()
                 {
                     bases.insert(
