@@ -133,7 +133,7 @@ fn @forwardFlags(arg0: slice<calldata>) -> i256 [selector=0xe1a0d55e, view, abi_
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [calldata_array<tuple<word<bool>, word<int8>, word<enum 3>, word<bytes4>>>], selector 0xb9bf39e000000000000000000000000000000000000000000000000000000000, args arg0
+    v2 = abi_encode [calldata_array<tuple<word<bool>, word<int8>, word<enum 3>, word<bytes4>>>], scratch, selector 0xb9bf39e000000000000000000000000000000000000000000000000000000000, args arg0
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
@@ -154,7 +154,7 @@ fn @forwardPairs(arg0: slice<calldata>) -> i256 [selector=0x405d54ae, view, abi_
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [calldata_array<tuple<word, word>>], selector 0xc7c34c1b00000000000000000000000000000000000000000000000000000000, args arg0
+    v2 = abi_encode [calldata_array<tuple<word, word>>], scratch, selector 0xc7c34c1b00000000000000000000000000000000000000000000000000000000, args arg0
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
@@ -175,7 +175,7 @@ fn @forwardGrid(arg0: slice<calldata>) -> i256 [selector=0x29a283a9, view, abi_p
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [array<2, calldata_array<word>>], selector 0xdbf408bc00000000000000000000000000000000000000000000000000000000, args arg0
+    v2 = abi_encode [array<2, calldata_array<word>>], scratch, selector 0xdbf408bc00000000000000000000000000000000000000000000000000000000, args arg0
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
@@ -196,7 +196,7 @@ fn @forwardMixed(arg0: slice<calldata>) -> i256 [selector=0xfcee3596, view, abi_
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [tuple<calldata_array<tuple<word<bool>, word<int8>, word<enum 3>, word<bytes4>>>, calldata_array<tuple<word, word>>, array<2, calldata_array<word>>, calldata_array<calldata_bytes>>], selector 0x4cafa20700000000000000000000000000000000000000000000000000000000, args arg0
+    v2 = abi_encode [tuple<calldata_array<tuple<word<bool>, word<int8>, word<enum 3>, word<bytes4>>>, calldata_array<tuple<word, word>>, array<2, calldata_array<word>>, calldata_array<calldata_bytes>>], scratch, selector 0x4cafa20700000000000000000000000000000000000000000000000000000000, args arg0
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
@@ -281,7 +281,7 @@ fn @forwardNested(arg0: slice<calldata>) -> i256 [selector=0x781c097b, view, abi
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [calldata_array<calldata_array<word<uint8>>>], selector 0x889a8b2800000000000000000000000000000000000000000000000000000000, args arg0
+    v2 = abi_encode [calldata_array<calldata_array<word<uint8>>>], scratch, selector 0x889a8b2800000000000000000000000000000000000000000000000000000000, args arg0
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
@@ -302,7 +302,7 @@ fn @forwardHolder(arg0: slice<calldata>) -> i256 [selector=0xbbedecff, view, abi
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [tuple<calldata_array<word<uint160>>, word>], selector 0xcd5133300000000000000000000000000000000000000000000000000000000, args arg0
+    v2 = abi_encode [tuple<calldata_array<word<uint160>>, word>], scratch, selector 0xcd5133300000000000000000000000000000000000000000000000000000000, args arg0
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
@@ -402,7 +402,7 @@ fn @forwardWrap(arg0: slice<calldata>) -> i256 [selector=0xb46a75c0, view, abi_p
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [calldata_array<tuple<calldata_bytes, array<2, word>>>], selector 0xf23fcded00000000000000000000000000000000000000000000000000000000, args arg0
+    v2 = abi_encode [calldata_array<tuple<calldata_bytes, array<2, word>>>], scratch, selector 0xf23fcded00000000000000000000000000000000000000000000000000000000, args arg0
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256

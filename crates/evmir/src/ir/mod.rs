@@ -223,6 +223,12 @@ impl Block {
     pub fn runs_once(&self) -> bool {
         !self.metadata.in_loop && !self.metadata.repeats
     }
+
+    /// Whether the block holds hot code of a loop.
+    #[must_use]
+    pub fn in_hot_loop(&self) -> bool {
+        self.metadata.in_loop && !self.metadata.hotness.is_cold()
+    }
 }
 
 /// Block-level metadata.

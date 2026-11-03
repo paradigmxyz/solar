@@ -15,7 +15,6 @@
 //! updated as callees are consumed, so a consumed twin still counts as a partner for the rest
 //! of the round, which errs toward keeping calls.
 
-use super::estimate_inst_cost;
 use crate::{
     mir::{BlockId, Function, FunctionId, InstId, Module, Value},
     target::Target,
@@ -63,7 +62,7 @@ impl SharedRuns {
                     shared_until = index + Target::SHARED_RUN_INSTRUCTIONS;
                 }
                 if index < shared_until {
-                    bytes += estimate_inst_cost(target, module, func, &func.inst(inst).kind).0.bytes
+                    bytes += target.expansion_estimate(module, func, &func.inst(inst).kind).0.bytes
                         as usize;
                 }
             }

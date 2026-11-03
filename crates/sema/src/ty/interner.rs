@@ -2,14 +2,14 @@
 //!
 //! Creates and stores unique instances of types, type lists, and function values.
 
-use super::{Ty, TyData, TyFlags, TyFn, TyKind};
-use solar_data_structures::{Interned, map::FxBuildHasher};
+use super::{FxOnceMap, Ty, TyData, TyFlags, TyFn, TyKind};
+use solar_data_structures::Interned;
 use std::{
     borrow::Borrow,
     hash::{BuildHasher, Hash},
 };
 
-type InternSet<T> = once_map::OnceMap<T, (), FxBuildHasher>;
+type InternSet<T> = FxOnceMap<T, ()>;
 
 #[derive(Default)]
 pub(super) struct Interner<'gcx> {

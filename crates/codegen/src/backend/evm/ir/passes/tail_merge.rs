@@ -538,7 +538,7 @@ fn is_profitable(
     // A share also runs the representative's code more than once when it may.
     let creation = module.code_follows && representative.runs_once();
     let target = block.target(gcx, module.optimization, creation);
-    let transfer = target.opcode(op::PUSH2) + target.opcode(op::JUMP) + target.opcode(op::JUMPDEST);
+    let transfer = target.jump();
     let transfer_bytes = transfer.bytes as usize;
     let suffix_size = suffix_size(gcx, module, block_id, block, common);
     suffix_size > transfer_bytes

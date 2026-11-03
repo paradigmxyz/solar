@@ -91,11 +91,13 @@ fn @fls.3(arg0: i256) -> i256 {
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
   bb2:                                            ; preds = bb0
-    v2 = gt arg0, 0xffffffffffffffffffffffffffffffff
+    v1 = shr arg0, 128
+    v2 = ne v1, 0
     v44 = zext i1 v2 to i256
     v45 = shl v44, 7
     v46 = shr arg0, v45
-    v7 = gt v46, 0xffffffffffffffff
+    v6 = shr v46, 64
+    v7 = ne v6, 0
     v49 = zext i1 v7 to i256
     v50 = shl v49, 6
     v51 = shr v46, v50

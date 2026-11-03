@@ -646,6 +646,16 @@ impl Function {
             .any(|&inst_id| matches!(self.instructions[inst_id].kind, InstKind::Phi(_)))
     }
 
+    /// Returns the number of leading phi instructions in the block.
+    #[must_use]
+    pub fn block_phi_count(&self, block: BlockId) -> usize {
+        self.blocks[block]
+            .instructions
+            .iter()
+            .take_while(|&&inst_id| matches!(self.instructions[inst_id].kind, InstKind::Phi(_)))
+            .count()
+    }
+
     /// Returns true if every instruction in the block is a phi instruction.
     #[must_use]
     pub fn block_has_only_phis(&self, block: BlockId) -> bool {

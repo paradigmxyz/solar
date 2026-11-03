@@ -655,7 +655,7 @@ impl<'gcx> Assembler<'gcx> {
         }
 
         // MIR shares data between creation and runtime. Select this artifact's data before
-        // its layout becomes observable; later packing must preserve CODESIZE-sensitive data.
+        // packing, which keeps the last entry of creation code last.
         let mut used = DenseBitSet::new_empty(module.data.len());
         for (id, data) in module.data.iter_enumerated() {
             if data.emit_in_runtime {

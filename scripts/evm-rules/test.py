@@ -26,6 +26,7 @@ from evm_rules.discovery import (
     emit_rule,
     enumerate_rules,
     read_seeds,
+    variants,
 )
 from evm_rules.expr import MASK, MODULUS, SIGN, Cond, Expr, Unsupported, concrete, holds
 from evm_rules.isle import ISLE, Context, Rule, forms, rule_sources
@@ -861,7 +862,7 @@ class RuleTests(unittest.TestCase):
             selection.replace("$ADD)", "$SUB)"),
             selection.replace("Op.Add _ _", "Op.Add x x"),
             selection.replace(
-                "OpcodeLowering.Binary $ADD", "OpcodeLowering.Store $ADD"
+                "OpcodeLowering.Valued $ADD", "OpcodeLowering.Store $ADD"
             ),
         ):
             context = Context(changed)
@@ -1376,6 +1377,16 @@ class CliTests(unittest.TestCase):
 
 
 class DiscoveryTests(unittest.TestCase):
+    def test_commutative_variants_swap_only_the_top_two_operands(self):
+        x, y, n = Expr.var("x"), Expr.var("y"), Expr.var("n")
+        self.assertEqual(
+            variants(expression("addmod", x, y, n), Prices("osaka")),
+            sorted(
+                [expression("addmod", x, y, n), expression("addmod", y, x, n)],
+                key=Expr.text,
+            ),
+        )
+
     def test_deep_seeds_search_a_small_replacement_frontier(self):
         x, y = Expr.var("x"), Expr.var("y")
         seed = expression("sub", expression("or", x, y), expression("and", x, y))

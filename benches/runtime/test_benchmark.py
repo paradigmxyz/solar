@@ -533,9 +533,9 @@ class FailureHandlingTests(unittest.TestCase):
         for flags, compilers in (
             ([], {"solar"}),
             (["--solc", "solc"], {"solar", "solc"}),
-            (["--solx", "solx"], {"solar", "solx"}),
+            (["--slang", "slang"], {"solar", "slang"}),
             (["--oksolc", "oksolc"], {"solar", "oksolc"}),
-            (["--solc", "solc", "--solx", "solx"], {"solar", "solc", "solx"}),
+            (["--solc", "solc", "--slang", "slang"], {"solar", "solc", "slang"}),
             (
                 ["--solc", "solc", "--solc-legacy"],
                 {"solar", "solc", "solc-legacy"},
@@ -566,7 +566,7 @@ class FailureHandlingTests(unittest.TestCase):
                 for name, fingerprint in (
                     ("solc", shared[2]),
                     ("solc-legacy", benchmark.spec_compiler_input(shared, legacy)[2]),
-                    ("solx", shared[2]),
+                    ("slang", shared[2]),
                     ("oksolc", shared[2]),
                 )
             },
@@ -609,7 +609,7 @@ class FailureHandlingTests(unittest.TestCase):
         )
         self.assertEqual(
             set(document["results"][0]["compilers"]),
-            {"solar", "solc", "solc-legacy", "solx", "oksolc"},
+            {"solar", "solc", "solc-legacy", "slang", "oksolc"},
         )
 
     def test_failed_case_does_not_rebuild_input_for_saved_references(self) -> None:
@@ -867,7 +867,7 @@ class FailureHandlingTests(unittest.TestCase):
                 self.assertEqual(set(result["compilers"]), expected)
 
     def test_saved_results_reject_live_reference_options(self) -> None:
-        for flag in ("--solc", "--solx"):
+        for flag in ("--solc", "--slang"):
             with (
                 self.subTest(flag=flag),
                 mock.patch("sys.stderr", new_callable=io.StringIO) as stderr,
@@ -880,7 +880,7 @@ class FailureHandlingTests(unittest.TestCase):
             self.assertEqual(error.exception.code, 2)
             self.assertTrue(
                 stderr.getvalue().endswith(
-                    "error: --reference-results cannot be combined with --solc or --solx\n"
+                    "error: --reference-results cannot be combined with --solc or --slang\n"
                 )
             )
             find_binary.assert_not_called()
@@ -904,7 +904,7 @@ class FailureHandlingTests(unittest.TestCase):
 
     def test_variants_are_labelled_by_name_and_ordered_after_solar(self) -> None:
         case = benchmark.TEST_CASES[0]
-        names = ("solx", "solc-legacy", "solc", "solar-size", "solar")
+        names = ("slang", "solc-legacy", "solc", "solar-size", "solar")
         entry = {
             "test_id": case.test_id,
             "suite": case.suite,
@@ -942,7 +942,7 @@ class FailureHandlingTests(unittest.TestCase):
         self.assertEqual(labels["solar-size"], "solar-size 1.0")
         self.assertEqual(
             list(document["results"][0]["compilers"]),
-            ["solar", "solar-size", "solc", "solc-legacy", "solx"],
+            ["solar", "solar-size", "solc", "solc-legacy", "slang"],
         )
 
     def check_unexpected_test_error(self, flags, compilers) -> None:
@@ -1150,18 +1150,18 @@ class RuntimeComparisonTests(unittest.TestCase):
         self.assertEqual(entry["runtime_status"], "ok")
         self.assertEqual(list(entry["compilers"]), ["solc", "solar"])
 
-        references[("runtime", "test")]["compilers"]["solx"] = references[
+        references[("runtime", "test")]["compilers"]["slang"] = references[
             ("runtime", "test")
         ]["compilers"]["solc"]
         self.assertTrue(
-            benchmark.merge_reference_compiler(entry, references, "solx", "input")
+            benchmark.merge_reference_compiler(entry, references, "slang", "input")
         )
         benchmark.compare_runtime_results(
             entry,
-            (*specs, benchmark.CompilerSpec("solx", "solx", Path("solx"), "solx")),
+            (*specs, benchmark.CompilerSpec("slang", "slang", Path("slang"), "slang")),
         )
         self.assertEqual(entry["runtime_status"], "ok")
-        self.assertEqual(set(entry["compilers"]), {"solar", "solc", "solx"})
+        self.assertEqual(set(entry["compilers"]), {"solar", "solc", "slang"})
 
     def test_reuses_compile_failure_without_runtime_observations(self) -> None:
         entry = {
@@ -1183,23 +1183,23 @@ class RuntimeComparisonTests(unittest.TestCase):
         references = {
             ("runtime", "test"): {
                 "gas_profile": "hot",
-                "compilers": {"solx": failure},
+                "compilers": {"slang": failure},
             },
         }
         self.assertTrue(
-            benchmark.merge_reference_compiler(entry, references, "solx", "input")
+            benchmark.merge_reference_compiler(entry, references, "slang", "input")
         )
-        self.assertEqual(entry["compilers"]["solx"], failure)
-        self.assertIsNot(entry["compilers"]["solx"], failure)
+        self.assertEqual(entry["compilers"]["slang"], failure)
+        self.assertIsNot(entry["compilers"]["slang"], failure)
 
-        entry["compilers"].pop("solx")
+        entry["compilers"].pop("slang")
         for fingerprint, profile in (("other", "hot"), ("input", "smoke")):
             with self.subTest(fingerprint=fingerprint, profile=profile):
                 failure["input_fingerprint"] = fingerprint
                 entry["gas_profile"] = profile
                 self.assertFalse(
                     benchmark.merge_reference_compiler(
-                        entry, references, "solx", "input"
+                        entry, references, "slang", "input"
                     )
                 )
 
@@ -1313,14 +1313,14 @@ class ArtifactTests(unittest.TestCase):
         solc = json.loads(
             benchmark.artifact_compiler_input(input_text, test_case, "solc")
         )
-        solx = json.loads(
-            benchmark.artifact_compiler_input(input_text, test_case, "solx")
+        slang = json.loads(
+            benchmark.artifact_compiler_input(input_text, test_case, "slang")
         )
         solar_outputs = solar["settings"]["outputSelection"]["*"]["*"]
         solc_outputs = next(iter(solc["settings"]["outputSelection"].values()))[
             test_case.contract_name
         ]
-        solx_outputs = next(iter(solx["settings"]["outputSelection"].values()))[
+        slang_outputs = next(iter(slang["settings"]["outputSelection"].values()))[
             test_case.contract_name
         ]
 
@@ -1338,8 +1338,8 @@ class ArtifactTests(unittest.TestCase):
         self.assertIn("ir", solc_outputs)
         self.assertIn("irOptimized", solc_outputs)
         self.assertEqual(
-            solx_outputs,
-            solc_outputs
+            slang_outputs,
+            solar_outputs
             + [
                 "evm.bytecode.llvmIrUnoptimized",
                 "evm.bytecode.llvmIr",
@@ -1348,7 +1348,7 @@ class ArtifactTests(unittest.TestCase):
             ],
         )
 
-    def test_solx_llvm_artifacts(self) -> None:
+    def test_slang_llvm_artifacts(self) -> None:
         test_case = benchmark.TEST_CASES[0]
         output = {
             "contracts": {
@@ -1379,7 +1379,7 @@ class ArtifactTests(unittest.TestCase):
             root = Path(directory)
             error = benchmark.write_artifacts(
                 root,
-                benchmark.CompilerSpec("solx", "solx", Path("solx"), "solx"),
+                benchmark.CompilerSpec("slang", "slang", Path("slang"), "slang"),
                 test_case,
                 benchmark.compiler_input(test_case, None),
             )
@@ -1387,7 +1387,7 @@ class ArtifactTests(unittest.TestCase):
             self.assertEqual(
                 {
                     path.name: path.read_text()
-                    for path in (root / test_case.test_id / "solx").glob("*.ll")
+                    for path in (root / test_case.test_id / "slang").glob("*.ll")
                 },
                 {
                     "creation.unoptimized.ll": "; creation before\n",
@@ -1649,13 +1649,16 @@ class ArtifactTests(unittest.TestCase):
             entry["runtime_mismatches"],
             [{"label": "value", "values": {"solc": "1", "solar": "2"}}],
         )
-        specs = (*specs, benchmark.CompilerSpec("solx", "solx", Path("solx"), "solx"))
-        entry["compilers"]["solx"] = {"status": "failed"}
+        specs = (
+            *specs,
+            benchmark.CompilerSpec("slang", "slang", Path("slang"), "slang"),
+        )
+        entry["compilers"]["slang"] = {"status": "failed"}
         benchmark.compare_runtime_results(entry, specs)
         self.assertEqual(entry["runtime_status"], "mismatch")
         self.assertEqual(
             entry["runtime_mismatches"],
-            [{"label": "value", "values": {"solc": "1", "solar": "2", "solx": None}}],
+            [{"label": "value", "values": {"solc": "1", "solar": "2", "slang": None}}],
         )
         entry["compilers"]["solar"]["runtime_results"][0]["value"] = "1"
         benchmark.compare_runtime_results(entry, specs)

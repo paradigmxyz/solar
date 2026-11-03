@@ -108,39 +108,31 @@ bb7 [entry]:                                      ; function get(uint256 x) exte
 bb11 [entry]:                                     ; function first(uint256 x) external view returns (uint256) [selector 0x0b3f62f5]
   push bb36
   jump bb35
-bb35 [ret=0, inputs=1, outputs=6]:
+bb35 [ret=0, inputs=1, outputs=7]:
   push_immutable 0, 20
   push 128
-  push 192
+  dup 1
   dup 2
   add
   push 64
   mstore
   push 0x9507d39a
-  push 224
-  shl
-  dup 2
+  push 0
   mstore
   push 4
   calldataload
-  push 4
-  dup 3
-  add
+  push 32
   mstore
-  push 64
+  dup 1
   dup 2
-  add
-  swap 2
   push 36
-  dup 3
-  dup 5
-  swap 3
+  push 28
+  dup 6
   swap 1
   swap 2
   swap 3
-  swap 4
-  swap 5
   swap 6
+  swap 7
   jump
 bb14 [continuation]:
   mload
