@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/egraph/audit_rules.mir (before egraph) ===
-+ // === ROOT/tests/ui/codegen/mir/egraph/audit_rules.mir (after egraph) ===
+- ; === ROOT/tests/ui/codegen/mir/egraph/audit_rules.mir (before egraph) ===
++ ; === ROOT/tests/ui/codegen/mir/egraph/audit_rules.mir (after egraph) ===
   @module AuditRules
   fn @boolean_select(arg0: i1, arg1: i1) -> i1 {
     bb0:
@@ -516,8 +516,8 @@
 +     ret true
   }
   
-- // === ROOT/tests/ui/codegen/mir/egraph/audit_rules.mir (before word-sequence) ===
-+ // === ROOT/tests/ui/codegen/mir/egraph/audit_rules.mir (after word-sequence) ===
+- ; === ROOT/tests/ui/codegen/mir/egraph/audit_rules.mir (before word-sequence) ===
++ ; === ROOT/tests/ui/codegen/mir/egraph/audit_rules.mir (after word-sequence) ===
   @module AuditRules
   fn @boolean_select(arg0: i1, arg1: i1) -> i1 {
     bb0:
@@ -1008,8 +1008,8 @@
       ret true
   }
   
-- // === ROOT/tests/ui/codegen/mir/egraph/audit_rules.mir (before egraph) ===
-+ // === ROOT/tests/ui/codegen/mir/egraph/audit_rules.mir (after egraph) ===
+- ; === ROOT/tests/ui/codegen/mir/egraph/audit_rules.mir (before egraph) ===
++ ; === ROOT/tests/ui/codegen/mir/egraph/audit_rules.mir (after egraph) ===
   @module AuditRules
   fn @boolean_select(arg0: i1, arg1: i1) -> i1 {
     bb0:

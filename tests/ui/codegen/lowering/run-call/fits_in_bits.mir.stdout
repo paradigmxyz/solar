@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/fits_in_bits.sol:FitsInBits ===
+; === ROOT/tests/ui/codegen/lowering/run-call/fits_in_bits.sol:FitsInBits ===
 @module FitsInBits
 ; function u8(uint8 x) external pure returns (uint8) [selector 0x52adca66]
 fn @u8(arg0: i8) -> i8 [selector=0x52adca66, pure, abi_params=[uint8], abi_returns=[word<uint8>], abi_return_params=[uint8]] {

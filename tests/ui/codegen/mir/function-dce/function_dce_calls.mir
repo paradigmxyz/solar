@@ -25,7 +25,7 @@ fn @entry() -> i256 [selector=0x00000001] {
 
 // CHECK-LABEL: {{^ +}}fn @tail_entry
 // CHECK: {{^ +}}tail_call @live_helper
-fn @tail_entry() [selector=0x00000002] {
+fn @tail_entry() -> i256 [selector=0x00000002] {
   bb0:
     tail_call fn1
 }

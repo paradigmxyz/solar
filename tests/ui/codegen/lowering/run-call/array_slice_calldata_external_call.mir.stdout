@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/array_slice_calldata_external_call.sol:ArraySliceCalldataExternalCall ===
+; === ROOT/tests/ui/codegen/lowering/run-call/array_slice_calldata_external_call.sol:ArraySliceCalldataExternalCall ===
 @module ArraySliceCalldataExternalCall
 ; function sink(uint256[] calldata values) external pure returns (uint256) [selector 0xe55582b7]
 fn @sink(arg0: slice<calldata>) -> i256 [selector=0xe55582b7, pure, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
@@ -35,9 +35,9 @@ fn @forward(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0x4
     v19 = zext i160 v0 to i256
     v20 = staticcall v1, v19, v17, v18, 0, 32
     jumpi v20, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v21 = returndatasize
     v22 = lt v21, 32
     icall revert_if<tuple_data_too_short>, v22

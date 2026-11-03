@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/call-cleanup/returned_masks.mir (before call-cleanup) ===
-+ // === ROOT/tests/ui/codegen/mir/call-cleanup/returned_masks.mir (after call-cleanup) ===
+- ; === ROOT/tests/ui/codegen/mir/call-cleanup/returned_masks.mir (before call-cleanup) ===
++ ; === ROOT/tests/ui/codegen/mir/call-cleanup/returned_masks.mir (after call-cleanup) ===
   @module ReturnedMasks
   fn @clean_result(arg0: i256) -> i256 {
     bb0:
@@ -26,9 +26,9 @@
     bb0:
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       ret arg0
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       v1 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
       ret v1
   }
@@ -57,9 +57,9 @@
     bb0:
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       ret 5
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       v1 = sub arg0, 1
       v2 = icall @recursive, v1
 -     v3 = and v2, 255
@@ -78,9 +78,9 @@
     bb0:
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       ret arg0
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       v1 = sub arg0, 1
       v2 = icall @wide_recursive, v1
       v3 = and v2, 255

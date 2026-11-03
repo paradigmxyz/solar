@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/run-call/abi_encode_packed_signed.sol:AbiEncodePackedSigned ===
+; === ROOT/tests/ui/codegen/run-call/abi_encode_packed_signed.sol:AbiEncodePackedSigned ===
 @module AbiEncodePackedSigned
 ; function failSigned() external pure [selector 0x1cd12672]
 fn @failSigned() [selector=0x1cd12672, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
@@ -18,15 +18,15 @@ fn @signedError() -> i1 [selector=0x09d01655, abi_params=[], abi_returns=[word<b
     v4 = icall returndata_bytes<>
     v5 = eq v3, false
     jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v6 = ptradd v4, 32
     v7 = mload v4
     v8 = keccak256 v6, v7
     v9 = eq v8, 0x95bff50e2a2fa6333bc7685be2aa7d41f1e942ee0b7561121a4d170f5e14161d
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v10 = phi [bb1: v9], [bb2: false]
     ret v10
 }
@@ -48,9 +48,9 @@ fn @signedCall(arg0: i8) -> i8 [selector=0x036e241f, view, abi_params=[int8], ab
     v3 = zext i160 v0 to i256
     v4 = staticcall v1, v3, 28, 36, 0, 32
     jumpi v4, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v5 = returndatasize
     v6 = lt v5, 32
     icall revert_if<tuple_data_too_short>, v6
@@ -138,18 +138,18 @@ fn @signedWords() -> i1 [selector=0xdab1aab6, pure, abi_params=[], abi_returns=[
     v30 = sext i248 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff to i256
     v31 = abi_encode [word<int8>, word<int16>, word<int24>, word<int32>, word<int40>, word<int48>, word<int56>, word<int64>, word<int72>, word<int80>, word<int88>, word<int96>, word<int104>, word<int112>, word<int120>, word<int128>, word<int136>, word<int144>, word<int152>, word<int160>, word<int168>, word<int176>, word<int184>, word<int192>, word<int200>, word<int208>, word<int216>, word<int224>, word<int232>, word<int240>, word<int248>, word], object, args v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23, v24, v25, v26, v27, v28, v29, v30, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v32 = phi [bb0: 0], [bb3: v32]
     v33 = phi [bb0: v31], [bb3: v33]
     v34 = phi [bb0: 0], [bb3: v46]
     v35 = mload v33
     v36 = lt v34, v35
     jumpi v36, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     ret true
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v37 = mload v33
     v38 = lt v34, v37
     v39 = eq v38, false
@@ -161,16 +161,16 @@ fn @signedWords() -> i1 [selector=0xdab1aab6, pure, abi_params=[], abi_returns=[
     v44 = shl v43, 248
     v45 = ne v44, 0xff00000000000000000000000000000000000000000000000000000000000000
     jumpi v45, bb7, bb8
-  bb8:  ; preds = bb4
+  bb8:                                            ; preds = bb4
     jump bb9
-  bb9:  ; preds = bb8
+  bb9:                                            ; preds = bb8
     jump bb6
-  bb6:  ; preds = bb9
+  bb6:                                            ; preds = bb9
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v46 = checked_add uint256, v34, 1
     jump bb1
-  bb7:  ; preds = bb4
+  bb7:                                            ; preds = bb4
     ret false
 }
 
@@ -265,13 +265,13 @@ fn @packedDynamicHashModified(arg0: i256, arg1: slice<calldata>) -> i256 [select
     v2 = mload v0
     v3 = keccak256 v1, v2
     jump bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = mload 64 !metadata(memory=scratch)
     v5 = gt v4, 128
     v6 = eq v5, false
     icall revert_if<empty>, v6
     jump bb1
-  bb1:  ; preds = bb2
+  bb1:                                            ; preds = bb2
     ret v3
 }
 

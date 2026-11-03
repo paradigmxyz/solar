@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/assembly_calldata_aggregate_validation.sol:AssemblyCalldataAggregateValidation ===
+; === ROOT/tests/ui/codegen/lowering/run-call/assembly_calldata_aggregate_validation.sol:AssemblyCalldataAggregateValidation ===
 @module AssemblyCalldataAggregateValidation
 ; function encodeArray(address[] calldata x) internal pure returns (bytes32)
 fn @encodeArray(arg0: slice<calldata>) -> i256 [pure] {
@@ -10,17 +10,17 @@ fn @encodeArray(arg0: slice<calldata>) -> i256 [pure] {
     v3 = extract_value slice<calldata>, arg0, 1
     v4 = extract_value slice<calldata>, arg0, 0
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v5 = phi [bb0: 0], [bb2: v12]
     v6 = lt v5, v3
     jumpi v6, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v13 = abi_encode [calldata_array<word<uint160>>], scratch, args arg0
     v14 = extract_value slice<memory>, v13, 0
     v15 = extract_value slice<memory>, v13, 1
     v16 = keccak256 v14, v15
     ret v16
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v7 = mul v5, 32
     v8 = ptrtoint ptr<calldata> v4 to i256
     v9 = add v8, v7
@@ -60,17 +60,17 @@ fn @logArray(arg0: slice<calldata>) {
     v3 = extract_value slice<calldata>, arg0, 1
     v4 = extract_value slice<calldata>, arg0, 0
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v5 = phi [bb0: 0], [bb2: v12]
     v6 = lt v5, v3
     jumpi v6, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v13 = abi_encode [calldata_array<word<uint160>>], scratch, args arg0
     v14 = extract_value slice<memory>, v13, 0
     v15 = extract_value slice<memory>, v13, 1
     log v14, v15, 0x2aa35d9b9d09e8315cc54a1b8fa10720a071241f46216976f18b6c83d90783a3
     ret
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v7 = mul v5, 32
     v8 = ptrtoint ptr<calldata> v4 to i256
     v9 = add v8, v7
@@ -96,17 +96,17 @@ fn @arrayDirect(arg0: i256) -> i256 [selector=0x1bc4b3c7, pure, abi_params=[uint
     v8 = extract_value slice<calldata>, v4, 1
     v9 = extract_value slice<calldata>, v4, 0
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v10 = phi [bb0: 0], [bb2: v17]
     v11 = lt v10, v8
     jumpi v11, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v18 = abi_encode [calldata_array<word<uint160>>], scratch, args v4
     v19 = extract_value slice<memory>, v18, 0
     v20 = extract_value slice<memory>, v18, 1
     v21 = keccak256 v19, v20
     ret v21
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v12 = mul v10, 32
     v13 = ptrtoint ptr<calldata> v9 to i256
     v14 = add v13, v12
@@ -189,17 +189,17 @@ fn @enumArray(arg0: i256) -> i256 [selector=0xd6447683, pure, abi_params=[uint25
     v8 = extract_value slice<calldata>, v4, 1
     v9 = extract_value slice<calldata>, v4, 0
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v10 = phi [bb0: 0], [bb2: v17]
     v11 = lt v10, v8
     jumpi v11, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v18 = abi_encode [calldata_array<word<enum 2>>], scratch, args v4
     v19 = extract_value slice<memory>, v18, 0
     v20 = extract_value slice<memory>, v18, 1
     v21 = keccak256 v19, v20
     ret v21
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v12 = mul v10, 32
     v13 = ptrtoint ptr<calldata> v9 to i256
     v14 = add v13, v12
@@ -225,17 +225,17 @@ fn @packed(arg0: i256) -> i256 [selector=0x977eca9c, pure, abi_params=[uint256],
     v8 = extract_value slice<calldata>, v4, 1
     v9 = extract_value slice<calldata>, v4, 0
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v10 = phi [bb0: 0], [bb2: v17]
     v11 = lt v10, v8
     jumpi v11, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v18 = abi_encode_packed (array<word<uint160>> calldata v4)
     v19 = ptradd v18, 32
     v20 = mload v18
     v21 = keccak256 v19, v20
     ret v21
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v12 = mul v10, 32
     v13 = ptrtoint ptr<calldata> v9 to i256
     v14 = add v13, v12
@@ -261,17 +261,17 @@ fn @logged(arg0: i256) -> i256 [selector=0xf3f1126a, abi_params=[uint256], abi_r
     v8 = extract_value slice<calldata>, v4, 1
     v9 = extract_value slice<calldata>, v4, 0
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v10 = phi [bb0: 0], [bb2: v17]
     v11 = lt v10, v8
     jumpi v11, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v18 = abi_encode [calldata_array<word<uint160>>], scratch, args v4
     v19 = extract_value slice<memory>, v18, 0
     v20 = extract_value slice<memory>, v18, 1
     log v19, v20, 0x2aa35d9b9d09e8315cc54a1b8fa10720a071241f46216976f18b6c83d90783a3
     ret 1
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v12 = mul v10, 32
     v13 = ptrtoint ptr<calldata> v9 to i256
     v14 = add v13, v12
@@ -321,18 +321,18 @@ fn @loggedIndexed(arg0: i256) -> i256 [selector=0x1d045b60, abi_params=[uint256]
     v17 = alloc v15
     mstore v17, v5
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v18 = phi [bb0: 0], [bb2: v28]
     v19 = lt v18, v5
     jumpi v19, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v29 = abi_encode_packed (array<word<uint160>> memoryarray<1> v17)
     v30 = ptradd v29, 32
     v31 = mload v29
     v32 = keccak256 v30, v31
     log 0, 0, 0xecd6fa5826ee9847bd5c2a2e99cbf8c38cf52eaec15f0dde51e42cab0e5c4dce, v32
     ret 3
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v20 = mul v18, 32
     v21 = ptrtoint ptr<calldata> v6 to i256
     v22 = add v21, v20

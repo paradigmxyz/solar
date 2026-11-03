@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/word-sequence/spelled_width_tests.mir (before spell-width-tests) ===
-+ // === ROOT/tests/ui/codegen/mir/word-sequence/spelled_width_tests.mir (after spell-width-tests) ===
+- ; === ROOT/tests/ui/codegen/mir/word-sequence/spelled_width_tests.mir (before spell-width-tests) ===
++ ; === ROOT/tests/ui/codegen/mir/word-sequence/spelled_width_tests.mir (after spell-width-tests) ===
   @module SpelledWidthTests
   @phase lowered
   fn @branch_only(arg0: i256) -> i256 {
@@ -8,9 +8,9 @@
 +     v1 = shr arg0, 64
 +     v0 = ne v1, 0
       jumpi v0, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       ret arg0
-    bb1 [cold]:  ; preds = bb0
+    bb1 [cold]:                                     ; preds = bb0
       revert 0, 0
   }
   
@@ -18,9 +18,9 @@
     bb0:
       v0 = gt arg0, 0xffffffff
       jumpi v0, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       ret v0
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       ret v0
   }
   
@@ -28,11 +28,11 @@
     bb0:
       v0 = gt arg0, 0xffffffffffffffff
       jump bb1
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       jumpi v0, bb2, bb3
-    bb3:  ; preds = bb1
+    bb3:                                            ; preds = bb1
       ret arg0
-    bb2 [cold]:  ; preds = bb1
+    bb2 [cold]:                                     ; preds = bb1
       revert 0, 0
   }
   
@@ -55,9 +55,9 @@
 +     v19 = or v15, v17
 +     v7 = ne v19, 0
       jumpi v7, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       ret arg0
-    bb1 [cold]:  ; preds = bb0
+    bb1 [cold]:                                     ; preds = bb0
       revert 0, 0
   }
   
@@ -70,9 +70,9 @@
 +     v5 = or v3, arg1
 +     v2 = eq v5, 0
       jumpi v2, bb1, bb2
-    bb2 [cold]:  ; preds = bb0
+    bb2 [cold]:                                     ; preds = bb0
       revert 0, 0
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       ret arg0
   }
   
@@ -82,9 +82,9 @@
 -     v1 = lt arg0, 256
 +     v1 = eq v0, 0
       jumpi v1, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       ret arg0
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       ret v0
   }
   
@@ -109,9 +109,9 @@
 +     v3 = or v5, arg1
       v4 = ne v3, 0
       jumpi v4, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       ret v2
-    bb1 [cold]:  ; preds = bb0
+    bb1 [cold]:                                     ; preds = bb0
       revert 0, 0
   }
   
@@ -129,9 +129,9 @@
 +     v4 = or v3, v7
       v5 = ne v4, 0
       jumpi v5, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       ret arg0
-    bb1 [cold]:  ; preds = bb0
+    bb1 [cold]:                                     ; preds = bb0
       revert 0, 0
   }
   

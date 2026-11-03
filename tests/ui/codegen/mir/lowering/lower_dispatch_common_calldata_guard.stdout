@@ -1,9 +1,11 @@
-- // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_common_calldata_guard.mir (before lower-dispatch) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_common_calldata_guard.mir (after lower-dispatch) ===
+- ; === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_common_calldata_guard.mir (before lower-dispatch) ===
++ ; === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_common_calldata_guard.mir (after lower-dispatch) ===
   @module DispatchCommonCalldataGuard
+- ; selector 0x00000001
+- fn @a() [selector=0x00000001, abi_wrapper] {
 + ; runtime dispatch entry
 + fn @entry() [entry] {
-+   bb0:
+    bb0:
 +     v0 = callvalue
 +     v1 = calldatasize
 +     v2 = lt v1, 36
@@ -11,48 +13,48 @@
 +     v4 = or v0, v3
 +     v5 = ne v4, 0
 +     jumpi v5, bb1, bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v6 = calldataload 0
 +     v7 = shr v6, 224
 +     switch v7, default bb1, [1 => bb3, 2 => bb4]
-+   bb4:  ; preds = bb2
++   bb4:                                            ; preds = bb2
 +     tail_call @b
-+   bb3:  ; preds = bb2
++   bb3:                                            ; preds = bb2
 +     tail_call @a
-+   bb1 [cold]:  ; preds = bb0, bb2
++   bb1 [cold]:                                     ; preds = bb0, bb2
 +     revert 0, 0
 + }
 + 
-  ; selector 0x00000001
-  fn @a() [selector=0x00000001, abi_wrapper] {
++ fn @a() {
++   bb0:
+      v0 = calldatasize
+      v1 = lt v0, 36
+-     jumpi v1, bb1, bb2
++     jump bb2
+    bb2:                                            ; preds = bb0
+      stop
+-   bb1 [cold]:                                     ; preds = bb0
++   bb1 [cold]:
+      revert 0, 0
+  }
+  
+- ; selector 0x00000002
+- fn @b() [selector=0x00000002, abi_wrapper] {
++ fn @b() {
     bb0:
       v0 = calldatasize
       v1 = lt v0, 36
 -     jumpi v1, bb1, bb2
 +     jump bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       stop
--   bb1 [cold]:  ; preds = bb0
+-   bb1 [cold]:                                     ; preds = bb0
 +   bb1 [cold]:
       revert 0, 0
   }
   
-  ; selector 0x00000002
-  fn @b() [selector=0x00000002, abi_wrapper] {
-    bb0:
-      v0 = calldatasize
-      v1 = lt v0, 36
--     jumpi v1, bb1, bb2
-+     jump bb2
-    bb2:  ; preds = bb0
-      stop
--   bb1 [cold]:  ; preds = bb0
-+   bb1 [cold]:
-      revert 0, 0
-  }
-  
-- // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_common_calldata_guard.mir (before dce) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_common_calldata_guard.mir (after dce) ===
+- ; === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_common_calldata_guard.mir (before dce) ===
++ ; === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_common_calldata_guard.mir (after dce) ===
   @module DispatchCommonCalldataGuard
   ; runtime dispatch entry
   fn @entry() [entry] {
@@ -64,38 +66,36 @@
       v4 = or v0, v3
       v5 = ne v4, 0
       jumpi v5, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       v6 = calldataload 0
       v7 = shr v6, 224
       switch v7, default bb1, [1 => bb3, 2 => bb4]
-    bb4:  ; preds = bb2
+    bb4:                                            ; preds = bb2
       tail_call @b
-    bb3:  ; preds = bb2
+    bb3:                                            ; preds = bb2
       tail_call @a
-    bb1 [cold]:  ; preds = bb0, bb2
+    bb1 [cold]:                                     ; preds = bb0, bb2
       revert 0, 0
   }
   
-  ; selector 0x00000001
-  fn @a() [selector=0x00000001, abi_wrapper] {
+  fn @a() {
     bb0:
 -     v0 = calldatasize
 -     v1 = lt v0, 36
       jump bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       stop
     bb1 [cold]:
 -     revert 0, 0
 +     invalid
   }
   
-  ; selector 0x00000002
-  fn @b() [selector=0x00000002, abi_wrapper] {
+  fn @b() {
     bb0:
 -     v0 = calldatasize
 -     v1 = lt v0, 36
       jump bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       stop
     bb1 [cold]:
 -     revert 0, 0

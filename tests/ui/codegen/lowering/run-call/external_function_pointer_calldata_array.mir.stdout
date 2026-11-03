@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_calldata_array.sol:ExternalFunctionPointerCalldataArray ===
+; === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_calldata_array.sol:ExternalFunctionPointerCalldataArray ===
 @module ExternalFunctionPointerCalldataArray
 @types
   struct0: {i256, i256, i256}
@@ -30,9 +30,9 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<
     mstore 0, v17 !metadata(memory=scratch)
     v18 = call v16, v15, 0, 28, 4, 0, 32
     jumpi v18, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v19 = returndatasize
     v20 = lt v19, 32
     icall revert_if<tuple_data_too_short>, v20
@@ -57,9 +57,9 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<
     mstore 0, v36 !metadata(memory=scratch)
     v37 = call v35, v34, 0, 28, 4, 0, 32
     jumpi v37, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v38 = returndatasize
     v39 = lt v38, 32
     icall revert_if<tuple_data_too_short>, v39
@@ -84,9 +84,9 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<
     mstore 0, v55 !metadata(memory=scratch)
     v56 = call v54, v53, 0, 28, 4, 0, 32
     jumpi v56, bb6, bb5
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     revert_returndata
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     v57 = returndatasize
     v58 = lt v57, 32
     icall revert_if<tuple_data_too_short>, v58
@@ -108,9 +108,9 @@ fn @fReenc(arg0: slice<calldata>) -> struct0 [selector=0xfbeba237, abi_params=[a
     v5 = zext i160 v0 to i256
     v6 = call v1, v5, 0, v3, v4, v3, 96
     jumpi v6, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v7 = returndatasize
     v8 = lt v7, 96
     icall revert_if<tuple_data_too_short>, v8
@@ -190,7 +190,7 @@ fn @g(arg0: i1) -> struct0 [selector=0xd48092f7, abi_params=[bool], abi_returns=
     v27 = ptradd v0, 96
     mstore v27, v26
     jumpi arg0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v50 = address
     v51 = gas
     v52 = abi_encode [memory_array<function>], selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args v0
@@ -199,9 +199,9 @@ fn @g(arg0: i1) -> struct0 [selector=0xd48092f7, abi_params=[bool], abi_returns=
     v55 = zext i160 v50 to i256
     v56 = call v51, v55, 0, v53, v54, v53, 96
     jumpi v56, bb7, bb6
-  bb6:  ; preds = bb2
+  bb6:                                            ; preds = bb2
     revert_returndata
-  bb7:  ; preds = bb2
+  bb7:                                            ; preds = bb2
     v57 = returndatasize
     v58 = lt v57, 96
     icall revert_if<tuple_data_too_short>, v58
@@ -219,7 +219,7 @@ fn @g(arg0: i1) -> struct0 [selector=0xd48092f7, abi_params=[bool], abi_returns=
     v70 = extract_value struct0, v68, 1
     v71 = extract_value struct0, v68, 2
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v28 = address
     v29 = gas
     v30 = abi_encode [memory_array<function>], selector 0xfbeba23700000000000000000000000000000000000000000000000000000000, args v0
@@ -228,9 +228,9 @@ fn @g(arg0: i1) -> struct0 [selector=0xd48092f7, abi_params=[bool], abi_returns=
     v33 = zext i160 v28 to i256
     v34 = call v29, v33, 0, v31, v32, v31, 96
     jumpi v34, bb5, bb4
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     revert_returndata
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     v35 = returndatasize
     v36 = lt v35, 96
     icall revert_if<tuple_data_too_short>, v36
@@ -248,7 +248,7 @@ fn @g(arg0: i1) -> struct0 [selector=0xd48092f7, abi_params=[bool], abi_returns=
     v48 = extract_value struct0, v46, 1
     v49 = extract_value struct0, v46, 2
     jump bb3
-  bb3:  ; preds = bb5, bb7
+  bb3:                                            ; preds = bb5, bb7
     v72 = phi [bb5: v47], [bb7: v69]
     v73 = phi [bb5: v48], [bb7: v70]
     v74 = phi [bb5: v49], [bb7: v71]

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_calldata_subslice.sol:AbiDecodeCalldataSubslice ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_calldata_subslice.sol:AbiDecodeCalldataSubslice ===
 @module AbiDecodeCalldataSubslice
 ; function sub(bytes calldata data, uint256 n) external pure returns (uint256) [selector 0xce8b1a41]
 fn @sub(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0xce8b1a41, pure, abi_params=[bytes, uint256], abi_returns=[word], abi_return_params=[uint256]] {

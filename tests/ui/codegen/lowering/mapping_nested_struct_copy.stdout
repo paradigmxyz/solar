@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/mapping_nested_struct_copy.sol:MappingNestedStructCopy ===
+; === ROOT/tests/ui/codegen/lowering/mapping_nested_struct_copy.sol:MappingNestedStructCopy ===
 @module MappingNestedStructCopy
 @types
   struct0: {i256, i256, i256, i256}

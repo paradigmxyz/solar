@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/bytes_array_element_index_optimized.sol:BytesArrayElementIndexOptimized ===
+; === ROOT/tests/ui/codegen/lowering/run-call/bytes_array_element_index_optimized.sol:BytesArrayElementIndexOptimized ===
 @module BytesArrayElementIndexOptimized
 ; function build() internal pure returns (bytes[2] memory m)
 fn @build() -> ptr<memory> [pure] {
@@ -9,11 +9,11 @@ fn @build() -> ptr<memory> [pure] {
     mstore v1, 0x6162000000000000000000000000000000000000000000000000000000000000
     v2 = alloc 64 !metadata(preserves_fmp)
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v3 = phi [bb0: 0], [bb2: v7]
     v4 = lt v3, 2
     jumpi v4, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v8 = lt 0, 2
     v9 = eq v8, false
     icall panic_if<0x32>, v9
@@ -30,7 +30,7 @@ fn @build() -> ptr<memory> [pure] {
     v16 = ptradd v2, 32
     mstore v16, v15
     ret v2
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v5 = shl v3, 5
     v6 = ptradd v2, v5
     mstore v6, 96

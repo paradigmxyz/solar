@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/memory_zeroed_allocation.sol:MemoryZeroedAllocation ===
+; === ROOT/tests/ui/codegen/lowering/run-call/memory_zeroed_allocation.sol:MemoryZeroedAllocation ===
 @module MemoryZeroedAllocation
 ; function readDynamic(uint256 length, uint256 index) external pure returns (uint256) [selector 0x8be2a62b]
 fn @readDynamic(arg0: i256, arg1: i256) -> i256 [selector=0x8be2a62b, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -50,13 +50,13 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
     v11 = alloc zeroed checked v9
     mstore v11, arg0
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v12 = phi [bb0: 0], [bb2: v17]
     v13 = lt v12, arg0
     jumpi v13, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     jump bb4
-  bb4:  ; preds = bb3, bb6
+  bb4:                                            ; preds = bb3, bb6
     v18 = phi [bb3: arg0], [bb6: v18]
     v19 = phi [bb3: arg1], [bb6: v19]
     v20 = phi [bb3: arg2], [bb6: v20]
@@ -66,9 +66,9 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
     v24 = phi [bb3: 0], [bb6: v45]
     v25 = lt v24, v18
     jumpi v25, bb7, bb8
-  bb8:  ; preds = bb4
+  bb8:                                            ; preds = bb4
     jump bb5
-  bb5:  ; preds = bb8
+  bb5:                                            ; preds = bb8
     v46 = mload v23
     v47 = lt v20, v46
     v48 = eq v47, false
@@ -86,7 +86,7 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
     v58 = ptradd v57, 32
     v59 = mload v58
     ret v59
-  bb7:  ; preds = bb4
+  bb7:                                            ; preds = bb4
     v26 = mul v19, 1
     v27 = eq 1, 0
     v28 = div v26, 1
@@ -113,12 +113,12 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
     v44 = ptradd v43, 32
     mstore v44, v41
     jump bb9
-  bb9:  ; preds = bb7
+  bb9:                                            ; preds = bb7
     jump bb6
-  bb6:  ; preds = bb9
+  bb6:                                            ; preds = bb9
     v45 = checked_add uint256, v24, 1
     jump bb4
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v14 = shl v12, 5
     v15 = ptradd v11, v14
     v16 = ptradd v15, 32
@@ -161,11 +161,11 @@ fn @readStatic(arg0: i256, arg1: i256) -> i256 [selector=0xf90f6c35, pure, abi_p
     v11 = alloc zeroed checked v9
     mstore v11, arg0
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v12 = phi [bb0: 0], [bb2: v19]
     v13 = lt v12, arg0
     jumpi v13, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v20 = mload v11
     v21 = lt arg1, v20
     v22 = eq v21, false
@@ -179,7 +179,7 @@ fn @readStatic(arg0: i256, arg1: i256) -> i256 [selector=0xf90f6c35, pure, abi_p
     icall panic_if<0x32>, v28
     v29 = mload v26
     ret v29
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v14 = alloc 128 !metadata(preserves_fmp)
     memory_zero v14, 128
     v15 = shl v12, 5

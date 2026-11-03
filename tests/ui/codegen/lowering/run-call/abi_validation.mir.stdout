@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_validation.sol:AbiValidation ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_validation.sol:AbiValidation ===
 @module AbiValidation
 ; function vBool(bool value) external pure returns (bool) [selector 0x18a11c47]
 fn @vBool(arg0: i1) -> i1 [selector=0x18a11c47, pure, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -23,9 +23,9 @@ fn @vAddress(arg0: i160) -> i160 [selector=0x23347413, view, abi_params=[address
     v3 = zext i160 v0 to i256
     v4 = staticcall v1, v3, 28, 36, 0, 32
     jumpi v4, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v5 = returndatasize
     v6 = lt v5, 32
     icall revert_if<tuple_data_too_short>, v6
@@ -53,9 +53,9 @@ fn @dirtyBytes1(arg0: i256) -> i256 [selector=0x92fef914, view, abi_params=[byte
     v3 = zext i160 v0 to i256
     v4 = staticcall v1, v3, 28, 36, 0, 32
     jumpi v4, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v5 = returndatasize
     v6 = lt v5, 32
     icall revert_if<tuple_data_too_short>, v6
@@ -83,9 +83,9 @@ fn @dirtyEnumArg(arg0: i256) -> i256 [selector=0xc3e104d2, view, abi_params=[uin
     v4 = zext i160 v0 to i256
     v5 = staticcall v1, v4, 28, 36, 0, 32
     jumpi v5, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v6 = returndatasize
     v7 = lt v6, 32
     icall revert_if<tuple_data_too_short>, v7

@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (before element-cleanup) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (after element-cleanup) ===
+- ; === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (before element-cleanup) ===
++ ; === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (after element-cleanup) ===
   @module LowerAbiDynamicReturn
   ; selector 0x0dead001
   fn @givesBytes(arg0: ptr<memory>) -> ptr<memory> [selector=0x0dead001, abi_returns=[memory_bytes]] {
@@ -14,13 +14,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jump bb1
-    bb1:  ; preds = bb0, bb2
+    bb1:                                            ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v9]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:  ; preds = bb1
+    bb3:                                            ; preds = bb1
       ret v0
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       v5 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
       v6 = shl v3, 5
       v7 = ptradd v0, 32
@@ -51,13 +51,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jump bb1
-    bb1:  ; preds = bb0, bb2
+    bb1:                                            ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v12]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:  ; preds = bb1
+    bb3:                                            ; preds = bb1
       ret v0
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       v5 = icall @canonicalAddresses
       v6 = ptrtoint ptr<memory> v5 to i256
       v7 = inttoptr i256 v6 to ptr<memory>
@@ -91,13 +91,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jump bb1
-    bb1:  ; preds = bb0, bb2
+    bb1:                                            ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v11]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:  ; preds = bb1
+    bb3:                                            ; preds = bb1
       ret v0
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       v5 = icall @canonicalAddresses
       v6 = ptradd v5, 32
       mstore v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -140,13 +140,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jump bb1
-    bb1:  ; preds = bb0, bb2
+    bb1:                                            ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v12]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:  ; preds = bb1
+    bb3:                                            ; preds = bb1
       ret v0
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       v5 = icall @canonicalAddresses
       v6 = ptrtoint ptr<memory> v5 to i256
       v7 = inttoptr i256 v6 to ptr<memory>
@@ -167,13 +167,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jump bb1
-    bb1:  ; preds = bb0, bb2
+    bb1:                                            ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v16]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:  ; preds = bb1
+    bb3:                                            ; preds = bb1
       ret v0
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       v5 = icall @canonicalAddresses
       v6 = ptrtoint ptr<memory> v5 to i256
       v7 = shl v3, 5
@@ -198,13 +198,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jump bb1
-    bb1:  ; preds = bb0, bb2
+    bb1:                                            ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v10]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:  ; preds = bb1
+    bb3:                                            ; preds = bb1
       ret v0
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       v5 = icall @canonicalAddresses
       v6 = ptrtoint ptr<memory> v5 to i256
       v7 = shl v3, 5
@@ -271,11 +271,11 @@
     bb0:
       v0 = alloc checked 32
       jumpi arg0, bb1, bb2
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       v1 = ptrtoint ptr<memory> v0 to i256
       memory_zero v1, 32
       jump bb2
-    bb2:  ; preds = bb0, bb1
+    bb2:                                            ; preds = bb0, bb1
       ret v0
   }
   
@@ -284,10 +284,10 @@
     bb0:
       v0 = alloc checked 32
       jumpi arg0, bb1, bb2
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       mstore v0, 1
       jump bb2
-    bb2:  ; preds = bb0, bb1
+    bb2:                                            ; preds = bb0, bb1
       ret v0
   }
   
@@ -323,10 +323,10 @@
     bb0:
       v0 = alloc checked 32
       jumpi arg0, bb1, bb2
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       mstore v0, 1
       jump bb2
-    bb2:  ; preds = bb0, bb1
+    bb2:                                            ; preds = bb0, bb1
       ret v0
   }
   
@@ -344,13 +344,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jumpi arg0, bb1, bb3
-    bb1:  ; preds = bb0, bb2
+    bb1:                                            ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v9]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:  ; preds = bb0, bb1
+    bb3:                                            ; preds = bb0, bb1
       ret v0
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       v5 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
       v6 = shl v3, 5
       v7 = ptradd v0, 32
@@ -365,13 +365,13 @@
       v0 = alloc checked 96
       v1 = add 2, 0
       jump bb1
-    bb1:  ; preds = bb0, bb2
+    bb1:                                            ; preds = bb0, bb2
       v2 = phi [bb0: 0], [bb2: v9]
       v3 = lt v2, v1
       jumpi v3, bb2, bb3
-    bb3:  ; preds = bb1
+    bb3:                                            ; preds = bb1
       ret v0
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       v4 = ptrtoint ptr<memory> v0 to i256
       mstore v4, v1
       v5 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
@@ -446,8 +446,8 @@
       ret v0
   }
   
-- // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (before lower-builtins) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (after lower-builtins) ===
+- ; === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (before lower-builtins) ===
++ ; === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (after lower-builtins) ===
   @module LowerAbiDynamicReturn
   ; selector 0x0dead001
   fn @givesBytes(arg0: ptr<memory>) -> ptr<memory> [selector=0x0dead001, abi_returns=[memory_bytes]] {
@@ -462,13 +462,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jump bb1
-    bb1:  ; preds = bb0, bb2
+    bb1:                                            ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v9]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:  ; preds = bb1
+    bb3:                                            ; preds = bb1
       ret v0
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       v5 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
       v6 = shl v3, 5
       v7 = ptradd v0, 32
@@ -499,13 +499,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jump bb1
-    bb1:  ; preds = bb0, bb2
+    bb1:                                            ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v12]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:  ; preds = bb1
+    bb3:                                            ; preds = bb1
       ret v0
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       v5 = icall @canonicalAddresses
       v6 = ptrtoint ptr<memory> v5 to i256
       v7 = inttoptr i256 v6 to ptr<memory>
@@ -539,13 +539,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jump bb1
-    bb1:  ; preds = bb0, bb2
+    bb1:                                            ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v11]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:  ; preds = bb1
+    bb3:                                            ; preds = bb1
       ret v0
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       v5 = icall @canonicalAddresses
       v6 = ptradd v5, 32
       mstore v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -588,13 +588,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jump bb1
-    bb1:  ; preds = bb0, bb2
+    bb1:                                            ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v12]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:  ; preds = bb1
+    bb3:                                            ; preds = bb1
       ret v0
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       v5 = icall @canonicalAddresses
       v6 = ptrtoint ptr<memory> v5 to i256
       v7 = inttoptr i256 v6 to ptr<memory>
@@ -615,13 +615,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jump bb1
-    bb1:  ; preds = bb0, bb2
+    bb1:                                            ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v16]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:  ; preds = bb1
+    bb3:                                            ; preds = bb1
       ret v0
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       v5 = icall @canonicalAddresses
       v6 = ptrtoint ptr<memory> v5 to i256
       v7 = shl v3, 5
@@ -646,13 +646,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jump bb1
-    bb1:  ; preds = bb0, bb2
+    bb1:                                            ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v10]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:  ; preds = bb1
+    bb3:                                            ; preds = bb1
       ret v0
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       v5 = icall @canonicalAddresses
       v6 = ptrtoint ptr<memory> v5 to i256
       v7 = shl v3, 5
@@ -719,11 +719,11 @@
     bb0:
       v0 = alloc checked 32
       jumpi arg0, bb1, bb2
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       v1 = ptrtoint ptr<memory> v0 to i256
       memory_zero v1, 32
       jump bb2
-    bb2:  ; preds = bb0, bb1
+    bb2:                                            ; preds = bb0, bb1
       ret v0
   }
   
@@ -732,10 +732,10 @@
     bb0:
       v0 = alloc checked 32
       jumpi arg0, bb1, bb2
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       mstore v0, 1
       jump bb2
-    bb2:  ; preds = bb0, bb1
+    bb2:                                            ; preds = bb0, bb1
       ret v0
   }
   
@@ -771,10 +771,10 @@
     bb0:
       v0 = alloc checked 32
       jumpi arg0, bb1, bb2
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       mstore v0, 1
       jump bb2
-    bb2:  ; preds = bb0, bb1
+    bb2:                                            ; preds = bb0, bb1
       ret v0
   }
   
@@ -792,13 +792,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jumpi arg0, bb1, bb3
-    bb1:  ; preds = bb0, bb2
+    bb1:                                            ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v9]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:  ; preds = bb0, bb1
+    bb3:                                            ; preds = bb0, bb1
       ret v0
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       v5 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
       v6 = shl v3, 5
       v7 = ptradd v0, 32
@@ -813,13 +813,13 @@
       v0 = alloc checked 96
       v1 = add 2, 0
       jump bb1
-    bb1:  ; preds = bb0, bb2
+    bb1:                                            ; preds = bb0, bb2
       v2 = phi [bb0: 0], [bb2: v9]
       v3 = lt v2, v1
       jumpi v3, bb2, bb3
-    bb3:  ; preds = bb1
+    bb3:                                            ; preds = bb1
       ret v0
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       v4 = ptrtoint ptr<memory> v0 to i256
       mstore v4, v1
       v5 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
@@ -863,20 +863,20 @@
 +     v1 = sload arg0 !metadata(storage=symbolic(arg0))
 +     v2 = gt v1, 0x7ffffffffffffff
 +     jumpi v2, bb1, bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v3 = add v1, 1
 +     v4 = mul v3, 32
 +     v5 = alloc checked v4
 +     mstore v5, v1
 +     v6 = storage_array_data_slot arg0
 +     jump bb3
-+   bb3:  ; preds = bb2, bb4
++   bb3:                                            ; preds = bb2, bb4
 +     v7 = phi [bb2: 0], [bb4: v19]
 +     v8 = lt v7, v1
 +     jumpi v8, bb4, bb5
-+   bb5:  ; preds = bb3
++   bb5:                                            ; preds = bb3
 +     ret v5
-+   bb4:  ; preds = bb3
++   bb4:                                            ; preds = bb3
 +     v9 = div v7, 1
 +     v10 = add v6, v9
 +     v11 = sload v10 !metadata(storage=symbolic(v10))
@@ -890,7 +890,7 @@
 +     mstore v18, v15
 +     v19 = add v7, 1
 +     jump bb3
-+   bb1 [cold]:  ; preds = bb0
++   bb1 [cold]:                                     ; preds = bb0
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -910,24 +910,24 @@
 +     v3 = sload arg0 !metadata(storage=symbolic(arg0))
 +     v4 = gt v3, 0x7ffffffffffffff
 +     jumpi v4, bb1, bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v5 = add v3, 1
 +     v6 = mul v5, 32
 +     v7 = alloc checked v6
 +     mstore v7, v3
 +     v8 = storage_array_data_slot arg0
 +     jump bb3
-+   bb3:  ; preds = bb2, bb4
++   bb3:                                            ; preds = bb2, bb4
 +     v9 = phi [bb2: 0], [bb4: v21]
 +     v10 = lt v9, v3
 +     jumpi v10, bb4, bb5
-+   bb5:  ; preds = bb3
++   bb5:                                            ; preds = bb3
 +     v1 = ptradd v7, 32
       v2 = ptrtoint ptr<memory> v1 to i256
       mstore v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 -     ret v0
 +     ret v7
-+   bb4:  ; preds = bb3
++   bb4:                                            ; preds = bb3
 +     v11 = div v9, 1
 +     v12 = add v8, v11
 +     v13 = sload v12 !metadata(storage=symbolic(v12))
@@ -941,7 +941,7 @@
 +     mstore v20, v17
 +     v21 = add v9, 1
 +     jump bb3
-+   bb1 [cold]:  ; preds = bb0
++   bb1 [cold]:                                     ; preds = bb0
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -963,25 +963,27 @@
       ret v0
   }
   
-- // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (before lower-abi) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (after lower-abi) ===
+- ; === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (before lower-abi) ===
++ ; === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (after lower-abi) ===
   @module LowerAbiDynamicReturn
   ; selector 0x0dead001
 - fn @givesBytes(arg0: ptr<memory>) -> ptr<memory> [selector=0x0dead001, abi_returns=[memory_bytes]] {
-+ fn @givesBytes() [selector=0x0dead001, abi_wrapper, implicit_args=[ptr<memory>]] {
++ fn @givesBytes() [selector=0x0dead001, abi_wrapper] {
     bb0:
 -     ret arg0
 +     v0 = calldatasize
 +     v1 = lt v0, 36
 +     jumpi v1, bb2, bb3
-+   bb3:  ; preds = bb0
++   bb3:                                            ; preds = bb0
++     v2 = calldataload 4
 +     jump bb1
-+   bb1:  ; preds = bb3
-+     v2 = abi_encode [memory_bytes], scratch, args arg0
-+     v3 = extract_value slice<memory>, v2, 0
-+     v4 = extract_value slice<memory>, v2, 1
-+     returndata v3, v4
-+   bb2 [cold]:  ; preds = bb0
++   bb1:                                            ; preds = bb3
++     v3 = inttoptr i256 v2 to ptr<memory>
++     v4 = abi_encode [memory_bytes], scratch, args v3
++     v5 = extract_value slice<memory>, v4, 0
++     v6 = extract_value slice<memory>, v4, 1
++     returndata v5, v6
++   bb2 [cold]:                                     ; preds = bb0
 +     revert 0, 0
   }
   
@@ -992,13 +994,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jump bb1
-    bb1:  ; preds = bb0, bb2
+    bb1:                                            ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v9]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:  ; preds = bb1
+    bb3:                                            ; preds = bb1
       ret v0
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       v5 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
       v6 = shl v3, 5
       v7 = ptradd v0, 32
@@ -1018,24 +1020,24 @@
 +     v2 = add v1, 1
 +     v3 = lt v2, v1
 +     jumpi v3, bb1, bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v4 = mul v2, 32
 +     v5 = gt v2, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 +     jumpi v5, bb1, bb3
-+   bb3:  ; preds = bb2
++   bb3:                                            ; preds = bb2
 +     v6 = alloc v4
 +     mstore v6, v1
 +     jump bb4
-+   bb4:  ; preds = bb3, bb5
++   bb4:                                            ; preds = bb3, bb5
 +     v7 = phi [bb3: 0], [bb5: v17]
 +     v8 = lt v7, v1
 +     jumpi v8, bb5, bb6
-+   bb6:  ; preds = bb4
++   bb6:                                            ; preds = bb4
 +     v18 = abi_encode [memory_array<word>], scratch, args v6
 +     v19 = extract_value slice<memory>, v18, 0
 +     v20 = extract_value slice<memory>, v18, 1
 +     returndata v19, v20
-+   bb5:  ; preds = bb4
++   bb5:                                            ; preds = bb4
 +     v9 = shl v7, 5
 +     v10 = ptradd v0, v9
 +     v11 = ptradd v10, 32
@@ -1047,7 +1049,7 @@
 +     mstore v16, v13
 +     v17 = add v7, 1
 +     jump bb4
-+   bb1 [cold]:  ; preds = bb0, bb2
++   bb1 [cold]:                                     ; preds = bb0, bb2
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1063,24 +1065,24 @@
 +     v2 = add v1, 1
 +     v3 = lt v2, v1
 +     jumpi v3, bb1, bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v4 = mul v2, 32
 +     v5 = gt v2, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 +     jumpi v5, bb1, bb3
-+   bb3:  ; preds = bb2
++   bb3:                                            ; preds = bb2
 +     v6 = alloc v4
 +     mstore v6, v1
 +     jump bb4
-+   bb4:  ; preds = bb3, bb5
++   bb4:                                            ; preds = bb3, bb5
 +     v7 = phi [bb3: 0], [bb5: v17]
 +     v8 = lt v7, v1
 +     jumpi v8, bb5, bb6
-+   bb6:  ; preds = bb4
++   bb6:                                            ; preds = bb4
 +     v18 = abi_encode [memory_array<word>], scratch, args v6
 +     v19 = extract_value slice<memory>, v18, 0
 +     v20 = extract_value slice<memory>, v18, 1
 +     returndata v19, v20
-+   bb5:  ; preds = bb4
++   bb5:                                            ; preds = bb4
 +     v9 = shl v7, 5
 +     v10 = ptradd v0, v9
 +     v11 = ptradd v10, 32
@@ -1092,7 +1094,7 @@
 +     mstore v16, v13
 +     v17 = add v7, 1
 +     jump bb4
-+   bb1 [cold]:  ; preds = bb0, bb2
++   bb1 [cold]:                                     ; preds = bb0, bb2
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1105,13 +1107,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jump bb1
-    bb1:  ; preds = bb0, bb2
+    bb1:                                            ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v12]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:  ; preds = bb1
+    bb3:                                            ; preds = bb1
       ret v0
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       v5 = icall @canonicalAddresses
       v6 = ptrtoint ptr<memory> v5 to i256
       v7 = inttoptr i256 v6 to ptr<memory>
@@ -1134,24 +1136,24 @@
 +     v2 = add v1, 1
 +     v3 = lt v2, v1
 +     jumpi v3, bb1, bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v4 = mul v2, 32
 +     v5 = gt v2, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 +     jumpi v5, bb1, bb3
-+   bb3:  ; preds = bb2
++   bb3:                                            ; preds = bb2
 +     v6 = alloc v4
 +     mstore v6, v1
 +     jump bb4
-+   bb4:  ; preds = bb3, bb11
++   bb4:                                            ; preds = bb3, bb11
 +     v7 = phi [bb3: 0], [bb11: v35]
 +     v8 = lt v7, v1
 +     jumpi v8, bb5, bb6
-+   bb6:  ; preds = bb4
++   bb6:                                            ; preds = bb4
 +     v36 = abi_encode [memory_array<memory_array<word>>], scratch, args v6
 +     v37 = extract_value slice<memory>, v36, 0
 +     v38 = extract_value slice<memory>, v36, 1
 +     returndata v37, v38
-+   bb5:  ; preds = bb4
++   bb5:                                            ; preds = bb4
 +     v9 = shl v7, 5
 +     v10 = ptradd v0, v9
 +     v11 = ptradd v10, 32
@@ -1160,19 +1162,19 @@
 +     v14 = add v13, 1
 +     v15 = lt v14, v13
 +     jumpi v15, bb1, bb7
-+   bb7:  ; preds = bb5
++   bb7:                                            ; preds = bb5
 +     v16 = mul v14, 32
 +     v17 = gt v14, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 +     jumpi v17, bb1, bb8
-+   bb8:  ; preds = bb7
++   bb8:                                            ; preds = bb7
 +     v18 = alloc v16
 +     mstore v18, v13
 +     jump bb9
-+   bb9:  ; preds = bb8, bb10
++   bb9:                                            ; preds = bb8, bb10
 +     v19 = phi [bb8: 0], [bb10: v30]
 +     v20 = lt v19, v13
 +     jumpi v20, bb10, bb11
-+   bb11:  ; preds = bb9
++   bb11:                                           ; preds = bb9
 +     v31 = shl v7, 5
 +     v32 = ptradd v6, v31
 +     v33 = ptradd v32, 32
@@ -1180,7 +1182,7 @@
 +     mstore v33, v34
 +     v35 = add v7, 1
 +     jump bb4
-+   bb10:  ; preds = bb9
++   bb10:                                           ; preds = bb9
 +     v21 = shl v19, 5
 +     v22 = inttoptr i256 v12 to ptr<memory>
 +     v23 = ptradd v22, v21
@@ -1193,7 +1195,7 @@
 +     mstore v29, v26
 +     v30 = add v19, 1
 +     jump bb9
-+   bb1 [cold]:  ; preds = bb0, bb2, bb5, bb7
++   bb1 [cold]:                                     ; preds = bb0, bb2, bb5, bb7
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1209,24 +1211,24 @@
 +     v2 = add v1, 1
 +     v3 = lt v2, v1
 +     jumpi v3, bb1, bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v4 = mul v2, 32
 +     v5 = gt v2, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 +     jumpi v5, bb1, bb3
-+   bb3:  ; preds = bb2
++   bb3:                                            ; preds = bb2
 +     v6 = alloc v4
 +     mstore v6, v1
 +     jump bb4
-+   bb4:  ; preds = bb3, bb11
++   bb4:                                            ; preds = bb3, bb11
 +     v7 = phi [bb3: 0], [bb11: v35]
 +     v8 = lt v7, v1
 +     jumpi v8, bb5, bb6
-+   bb6:  ; preds = bb4
++   bb6:                                            ; preds = bb4
 +     v36 = abi_encode [memory_array<memory_array<word>>], scratch, args v6
 +     v37 = extract_value slice<memory>, v36, 0
 +     v38 = extract_value slice<memory>, v36, 1
 +     returndata v37, v38
-+   bb5:  ; preds = bb4
++   bb5:                                            ; preds = bb4
 +     v9 = shl v7, 5
 +     v10 = ptradd v0, v9
 +     v11 = ptradd v10, 32
@@ -1235,19 +1237,19 @@
 +     v14 = add v13, 1
 +     v15 = lt v14, v13
 +     jumpi v15, bb1, bb7
-+   bb7:  ; preds = bb5
++   bb7:                                            ; preds = bb5
 +     v16 = mul v14, 32
 +     v17 = gt v14, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 +     jumpi v17, bb1, bb8
-+   bb8:  ; preds = bb7
++   bb8:                                            ; preds = bb7
 +     v18 = alloc v16
 +     mstore v18, v13
 +     jump bb9
-+   bb9:  ; preds = bb8, bb10
++   bb9:                                            ; preds = bb8, bb10
 +     v19 = phi [bb8: 0], [bb10: v30]
 +     v20 = lt v19, v13
 +     jumpi v20, bb10, bb11
-+   bb11:  ; preds = bb9
++   bb11:                                           ; preds = bb9
 +     v31 = shl v7, 5
 +     v32 = ptradd v6, v31
 +     v33 = ptradd v32, 32
@@ -1255,7 +1257,7 @@
 +     mstore v33, v34
 +     v35 = add v7, 1
 +     jump bb4
-+   bb10:  ; preds = bb9
++   bb10:                                           ; preds = bb9
 +     v21 = shl v19, 5
 +     v22 = inttoptr i256 v12 to ptr<memory>
 +     v23 = ptradd v22, v21
@@ -1268,7 +1270,7 @@
 +     mstore v29, v26
 +     v30 = add v19, 1
 +     jump bb9
-+   bb1 [cold]:  ; preds = bb0, bb2, bb5, bb7
++   bb1 [cold]:                                     ; preds = bb0, bb2, bb5, bb7
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1281,13 +1283,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jump bb1
-    bb1:  ; preds = bb0, bb2
+    bb1:                                            ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v11]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:  ; preds = bb1
+    bb3:                                            ; preds = bb1
       ret v0
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       v5 = icall @canonicalAddresses
       v6 = ptradd v5, 32
       mstore v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -1310,24 +1312,24 @@
 +     v2 = add v1, 1
 +     v3 = lt v2, v1
 +     jumpi v3, bb1, bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v4 = mul v2, 32
 +     v5 = gt v2, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 +     jumpi v5, bb1, bb3
-+   bb3:  ; preds = bb2
++   bb3:                                            ; preds = bb2
 +     v6 = alloc v4
 +     mstore v6, v1
 +     jump bb4
-+   bb4:  ; preds = bb3, bb11
++   bb4:                                            ; preds = bb3, bb11
 +     v7 = phi [bb3: 0], [bb11: v35]
 +     v8 = lt v7, v1
 +     jumpi v8, bb5, bb6
-+   bb6:  ; preds = bb4
++   bb6:                                            ; preds = bb4
 +     v36 = abi_encode [memory_array<memory_array<word>>], scratch, args v6
 +     v37 = extract_value slice<memory>, v36, 0
 +     v38 = extract_value slice<memory>, v36, 1
 +     returndata v37, v38
-+   bb5:  ; preds = bb4
++   bb5:                                            ; preds = bb4
 +     v9 = shl v7, 5
 +     v10 = ptradd v0, v9
 +     v11 = ptradd v10, 32
@@ -1336,19 +1338,19 @@
 +     v14 = add v13, 1
 +     v15 = lt v14, v13
 +     jumpi v15, bb1, bb7
-+   bb7:  ; preds = bb5
++   bb7:                                            ; preds = bb5
 +     v16 = mul v14, 32
 +     v17 = gt v14, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 +     jumpi v17, bb1, bb8
-+   bb8:  ; preds = bb7
++   bb8:                                            ; preds = bb7
 +     v18 = alloc v16
 +     mstore v18, v13
 +     jump bb9
-+   bb9:  ; preds = bb8, bb10
++   bb9:                                            ; preds = bb8, bb10
 +     v19 = phi [bb8: 0], [bb10: v30]
 +     v20 = lt v19, v13
 +     jumpi v20, bb10, bb11
-+   bb11:  ; preds = bb9
++   bb11:                                           ; preds = bb9
 +     v31 = shl v7, 5
 +     v32 = ptradd v6, v31
 +     v33 = ptradd v32, 32
@@ -1356,7 +1358,7 @@
 +     mstore v33, v34
 +     v35 = add v7, 1
 +     jump bb4
-+   bb10:  ; preds = bb9
++   bb10:                                           ; preds = bb9
 +     v21 = shl v19, 5
 +     v22 = inttoptr i256 v12 to ptr<memory>
 +     v23 = ptradd v22, v21
@@ -1369,7 +1371,7 @@
 +     mstore v29, v26
 +     v30 = add v19, 1
 +     jump bb9
-+   bb1 [cold]:  ; preds = bb0, bb2, bb5, bb7
++   bb1 [cold]:                                     ; preds = bb0, bb2, bb5, bb7
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1385,24 +1387,24 @@
 +     v2 = add v1, 1
 +     v3 = lt v2, v1
 +     jumpi v3, bb1, bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v4 = mul v2, 32
 +     v5 = gt v2, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 +     jumpi v5, bb1, bb3
-+   bb3:  ; preds = bb2
++   bb3:                                            ; preds = bb2
 +     v6 = alloc v4
 +     mstore v6, v1
 +     jump bb4
-+   bb4:  ; preds = bb3, bb11
++   bb4:                                            ; preds = bb3, bb11
 +     v7 = phi [bb3: 0], [bb11: v35]
 +     v8 = lt v7, v1
 +     jumpi v8, bb5, bb6
-+   bb6:  ; preds = bb4
++   bb6:                                            ; preds = bb4
 +     v36 = abi_encode [memory_array<memory_array<word>>], scratch, args v6
 +     v37 = extract_value slice<memory>, v36, 0
 +     v38 = extract_value slice<memory>, v36, 1
 +     returndata v37, v38
-+   bb5:  ; preds = bb4
++   bb5:                                            ; preds = bb4
 +     v9 = shl v7, 5
 +     v10 = ptradd v0, v9
 +     v11 = ptradd v10, 32
@@ -1411,19 +1413,19 @@
 +     v14 = add v13, 1
 +     v15 = lt v14, v13
 +     jumpi v15, bb1, bb7
-+   bb7:  ; preds = bb5
++   bb7:                                            ; preds = bb5
 +     v16 = mul v14, 32
 +     v17 = gt v14, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 +     jumpi v17, bb1, bb8
-+   bb8:  ; preds = bb7
++   bb8:                                            ; preds = bb7
 +     v18 = alloc v16
 +     mstore v18, v13
 +     jump bb9
-+   bb9:  ; preds = bb8, bb10
++   bb9:                                            ; preds = bb8, bb10
 +     v19 = phi [bb8: 0], [bb10: v30]
 +     v20 = lt v19, v13
 +     jumpi v20, bb10, bb11
-+   bb11:  ; preds = bb9
++   bb11:                                           ; preds = bb9
 +     v31 = shl v7, 5
 +     v32 = ptradd v6, v31
 +     v33 = ptradd v32, 32
@@ -1431,7 +1433,7 @@
 +     mstore v33, v34
 +     v35 = add v7, 1
 +     jump bb4
-+   bb10:  ; preds = bb9
++   bb10:                                           ; preds = bb9
 +     v21 = shl v19, 5
 +     v22 = inttoptr i256 v12 to ptr<memory>
 +     v23 = ptradd v22, v21
@@ -1444,7 +1446,7 @@
 +     mstore v29, v26
 +     v30 = add v19, 1
 +     jump bb9
-+   bb1 [cold]:  ; preds = bb0, bb2, bb5, bb7
++   bb1 [cold]:                                     ; preds = bb0, bb2, bb5, bb7
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1473,13 +1475,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jump bb1
-    bb1:  ; preds = bb0, bb2
+    bb1:                                            ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v12]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:  ; preds = bb1
+    bb3:                                            ; preds = bb1
       ret v0
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       v5 = icall @canonicalAddresses
       v6 = ptrtoint ptr<memory> v5 to i256
       v7 = inttoptr i256 v6 to ptr<memory>
@@ -1500,13 +1502,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jump bb1
-    bb1:  ; preds = bb0, bb2
+    bb1:                                            ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v16]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:  ; preds = bb1
+    bb3:                                            ; preds = bb1
       ret v0
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       v5 = icall @canonicalAddresses
       v6 = ptrtoint ptr<memory> v5 to i256
       v7 = shl v3, 5
@@ -1531,13 +1533,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jump bb1
-    bb1:  ; preds = bb0, bb2
+    bb1:                                            ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v10]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:  ; preds = bb1
+    bb3:                                            ; preds = bb1
       ret v0
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       v5 = icall @canonicalAddresses
       v6 = ptrtoint ptr<memory> v5 to i256
       v7 = shl v3, 5
@@ -1569,24 +1571,24 @@
 +     v2 = add v1, 1
 +     v3 = lt v2, v1
 +     jumpi v3, bb1, bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v4 = mul v2, 32
 +     v5 = gt v2, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 +     jumpi v5, bb1, bb3
-+   bb3:  ; preds = bb2
++   bb3:                                            ; preds = bb2
 +     v6 = alloc v4
 +     mstore v6, v1
 +     jump bb4
-+   bb4:  ; preds = bb3, bb11
++   bb4:                                            ; preds = bb3, bb11
 +     v7 = phi [bb3: 0], [bb11: v35]
 +     v8 = lt v7, v1
 +     jumpi v8, bb5, bb6
-+   bb6:  ; preds = bb4
++   bb6:                                            ; preds = bb4
 +     v36 = abi_encode [memory_array<memory_array<word>>], scratch, args v6
 +     v37 = extract_value slice<memory>, v36, 0
 +     v38 = extract_value slice<memory>, v36, 1
 +     returndata v37, v38
-+   bb5:  ; preds = bb4
++   bb5:                                            ; preds = bb4
 +     v9 = shl v7, 5
 +     v10 = ptradd v0, v9
 +     v11 = ptradd v10, 32
@@ -1595,19 +1597,19 @@
 +     v14 = add v13, 1
 +     v15 = lt v14, v13
 +     jumpi v15, bb1, bb7
-+   bb7:  ; preds = bb5
++   bb7:                                            ; preds = bb5
 +     v16 = mul v14, 32
 +     v17 = gt v14, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 +     jumpi v17, bb1, bb8
-+   bb8:  ; preds = bb7
++   bb8:                                            ; preds = bb7
 +     v18 = alloc v16
 +     mstore v18, v13
 +     jump bb9
-+   bb9:  ; preds = bb8, bb10
++   bb9:                                            ; preds = bb8, bb10
 +     v19 = phi [bb8: 0], [bb10: v30]
 +     v20 = lt v19, v13
 +     jumpi v20, bb10, bb11
-+   bb11:  ; preds = bb9
++   bb11:                                           ; preds = bb9
 +     v31 = shl v7, 5
 +     v32 = ptradd v6, v31
 +     v33 = ptradd v32, 32
@@ -1615,7 +1617,7 @@
 +     mstore v33, v34
 +     v35 = add v7, 1
 +     jump bb4
-+   bb10:  ; preds = bb9
++   bb10:                                           ; preds = bb9
 +     v21 = shl v19, 5
 +     v22 = inttoptr i256 v12 to ptr<memory>
 +     v23 = ptradd v22, v21
@@ -1628,7 +1630,7 @@
 +     mstore v29, v26
 +     v30 = add v19, 1
 +     jump bb9
-+   bb1 [cold]:  ; preds = bb0, bb2, bb5, bb7
++   bb1 [cold]:                                     ; preds = bb0, bb2, bb5, bb7
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1644,24 +1646,24 @@
 +     v2 = add v1, 1
 +     v3 = lt v2, v1
 +     jumpi v3, bb1, bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v4 = mul v2, 32
 +     v5 = gt v2, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 +     jumpi v5, bb1, bb3
-+   bb3:  ; preds = bb2
++   bb3:                                            ; preds = bb2
 +     v6 = alloc v4
 +     mstore v6, v1
 +     jump bb4
-+   bb4:  ; preds = bb3, bb11
++   bb4:                                            ; preds = bb3, bb11
 +     v7 = phi [bb3: 0], [bb11: v35]
 +     v8 = lt v7, v1
 +     jumpi v8, bb5, bb6
-+   bb6:  ; preds = bb4
++   bb6:                                            ; preds = bb4
 +     v36 = abi_encode [memory_array<memory_array<word>>], scratch, args v6
 +     v37 = extract_value slice<memory>, v36, 0
 +     v38 = extract_value slice<memory>, v36, 1
 +     returndata v37, v38
-+   bb5:  ; preds = bb4
++   bb5:                                            ; preds = bb4
 +     v9 = shl v7, 5
 +     v10 = ptradd v0, v9
 +     v11 = ptradd v10, 32
@@ -1670,19 +1672,19 @@
 +     v14 = add v13, 1
 +     v15 = lt v14, v13
 +     jumpi v15, bb1, bb7
-+   bb7:  ; preds = bb5
++   bb7:                                            ; preds = bb5
 +     v16 = mul v14, 32
 +     v17 = gt v14, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 +     jumpi v17, bb1, bb8
-+   bb8:  ; preds = bb7
++   bb8:                                            ; preds = bb7
 +     v18 = alloc v16
 +     mstore v18, v13
 +     jump bb9
-+   bb9:  ; preds = bb8, bb10
++   bb9:                                            ; preds = bb8, bb10
 +     v19 = phi [bb8: 0], [bb10: v30]
 +     v20 = lt v19, v13
 +     jumpi v20, bb10, bb11
-+   bb11:  ; preds = bb9
++   bb11:                                           ; preds = bb9
 +     v31 = shl v7, 5
 +     v32 = ptradd v6, v31
 +     v33 = ptradd v32, 32
@@ -1690,7 +1692,7 @@
 +     mstore v33, v34
 +     v35 = add v7, 1
 +     jump bb4
-+   bb10:  ; preds = bb9
++   bb10:                                           ; preds = bb9
 +     v21 = shl v19, 5
 +     v22 = inttoptr i256 v12 to ptr<memory>
 +     v23 = ptradd v22, v21
@@ -1703,7 +1705,7 @@
 +     mstore v29, v26
 +     v30 = add v19, 1
 +     jump bb9
-+   bb1 [cold]:  ; preds = bb0, bb2, bb5, bb7
++   bb1 [cold]:                                     ; preds = bb0, bb2, bb5, bb7
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1719,24 +1721,24 @@
 +     v2 = add v1, 1
 +     v3 = lt v2, v1
 +     jumpi v3, bb1, bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v4 = mul v2, 32
 +     v5 = gt v2, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 +     jumpi v5, bb1, bb3
-+   bb3:  ; preds = bb2
++   bb3:                                            ; preds = bb2
 +     v6 = alloc v4
 +     mstore v6, v1
 +     jump bb4
-+   bb4:  ; preds = bb3, bb11
++   bb4:                                            ; preds = bb3, bb11
 +     v7 = phi [bb3: 0], [bb11: v35]
 +     v8 = lt v7, v1
 +     jumpi v8, bb5, bb6
-+   bb6:  ; preds = bb4
++   bb6:                                            ; preds = bb4
 +     v36 = abi_encode [memory_array<memory_array<word>>], scratch, args v6
 +     v37 = extract_value slice<memory>, v36, 0
 +     v38 = extract_value slice<memory>, v36, 1
 +     returndata v37, v38
-+   bb5:  ; preds = bb4
++   bb5:                                            ; preds = bb4
 +     v9 = shl v7, 5
 +     v10 = ptradd v0, v9
 +     v11 = ptradd v10, 32
@@ -1745,19 +1747,19 @@
 +     v14 = add v13, 1
 +     v15 = lt v14, v13
 +     jumpi v15, bb1, bb7
-+   bb7:  ; preds = bb5
++   bb7:                                            ; preds = bb5
 +     v16 = mul v14, 32
 +     v17 = gt v14, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 +     jumpi v17, bb1, bb8
-+   bb8:  ; preds = bb7
++   bb8:                                            ; preds = bb7
 +     v18 = alloc v16
 +     mstore v18, v13
 +     jump bb9
-+   bb9:  ; preds = bb8, bb10
++   bb9:                                            ; preds = bb8, bb10
 +     v19 = phi [bb8: 0], [bb10: v30]
 +     v20 = lt v19, v13
 +     jumpi v20, bb10, bb11
-+   bb11:  ; preds = bb9
++   bb11:                                           ; preds = bb9
 +     v31 = shl v7, 5
 +     v32 = ptradd v6, v31
 +     v33 = ptradd v32, 32
@@ -1765,7 +1767,7 @@
 +     mstore v33, v34
 +     v35 = add v7, 1
 +     jump bb4
-+   bb10:  ; preds = bb9
++   bb10:                                           ; preds = bb9
 +     v21 = shl v19, 5
 +     v22 = inttoptr i256 v12 to ptr<memory>
 +     v23 = ptradd v22, v21
@@ -1778,7 +1780,7 @@
 +     mstore v29, v26
 +     v30 = add v19, 1
 +     jump bb9
-+   bb1 [cold]:  ; preds = bb0, bb2, bb5, bb7
++   bb1 [cold]:                                     ; preds = bb0, bb2, bb5, bb7
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1829,30 +1831,68 @@
   
   ; selector 0x0dead00e
 - fn @givesConditionallyZeroedTuple(arg0: i1) -> ptr<memory> [selector=0x0dead00e, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<uint8>]] {
-+ fn @givesConditionallyZeroedTuple() [selector=0x0dead00e, abi_wrapper, implicit_args=[i1]] {
++ fn @givesConditionallyZeroedTuple() [selector=0x0dead00e, abi_wrapper] {
     bb0:
 +     v2 = calldatasize
 +     v3 = lt v2, 36
 +     jumpi v3, bb4, bb5
-+   bb5:  ; preds = bb0
++   bb5:                                            ; preds = bb0
 +     v4 = calldataload 4
 +     v5 = gt v4, 1
 +     jumpi v5, bb4, bb6
-+   bb6:  ; preds = bb5
++   bb6:                                            ; preds = bb5
++     v6 = trunc i256 v4 to i1
 +     jump bb1
-+   bb1:  ; preds = bb6
++   bb1:                                            ; preds = bb6
       v0 = alloc checked 32
 -     jumpi arg0, bb1, bb2
--   bb1:  ; preds = bb0
-+     jumpi arg0, bb2, bb3
-+   bb2:  ; preds = bb1
+-   bb1:                                            ; preds = bb0
++     jumpi v6, bb2, bb3
++   bb2:                                            ; preds = bb1
       v1 = ptrtoint ptr<memory> v0 to i256
       memory_zero v1, 32
 -     jump bb2
--   bb2:  ; preds = bb0, bb1
+-   bb2:                                            ; preds = bb0, bb1
 -     ret v0
 +     jump bb3
-+   bb3:  ; preds = bb1, bb2
++   bb3:                                            ; preds = bb1, bb2
++     v7 = alloc 32
++     v8 = mload v0
++     v9 = and v8, 255
++     mstore v7, v9
++     v10 = mload v7
++     mstore 128, v10
++     returndata 128, 32
++   bb4 [cold]:                                     ; preds = bb0, bb5
++     revert 0, 0
+  }
+  
+  ; selector 0x0dead00f
+- fn @givesConditionallyStoredTuple(arg0: i1) -> ptr<memory> [selector=0x0dead00f, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<uint8>]] {
++ fn @givesConditionallyStoredTuple() [selector=0x0dead00f, abi_wrapper] {
+    bb0:
++     v1 = calldatasize
++     v2 = lt v1, 36
++     jumpi v2, bb4, bb5
++   bb5:                                            ; preds = bb0
++     v3 = calldataload 4
++     v4 = gt v3, 1
++     jumpi v4, bb4, bb6
++   bb6:                                            ; preds = bb5
++     v5 = trunc i256 v3 to i1
++     jump bb1
++   bb1:                                            ; preds = bb6
+      v0 = alloc checked 32
+-     jumpi arg0, bb1, bb2
+-   bb1:                                            ; preds = bb0
++     jumpi v5, bb2, bb3
++   bb2:                                            ; preds = bb1
+      mstore v0, 1
+-     jump bb2
+-   bb2:                                            ; preds = bb0, bb1
+-     ret v0
++     jump bb3
++   bb3:                                            ; preds = bb1, bb2
 +     v6 = alloc 32
 +     v7 = mload v0
 +     v8 = and v7, 255
@@ -1860,43 +1900,7 @@
 +     v9 = mload v6
 +     mstore 128, v9
 +     returndata 128, 32
-+   bb4 [cold]:  ; preds = bb0, bb5
-+     revert 0, 0
-  }
-  
-  ; selector 0x0dead00f
-- fn @givesConditionallyStoredTuple(arg0: i1) -> ptr<memory> [selector=0x0dead00f, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<uint8>]] {
-+ fn @givesConditionallyStoredTuple() [selector=0x0dead00f, abi_wrapper, implicit_args=[i1]] {
-    bb0:
-+     v1 = calldatasize
-+     v2 = lt v1, 36
-+     jumpi v2, bb4, bb5
-+   bb5:  ; preds = bb0
-+     v3 = calldataload 4
-+     v4 = gt v3, 1
-+     jumpi v4, bb4, bb6
-+   bb6:  ; preds = bb5
-+     jump bb1
-+   bb1:  ; preds = bb6
-      v0 = alloc checked 32
--     jumpi arg0, bb1, bb2
--   bb1:  ; preds = bb0
-+     jumpi arg0, bb2, bb3
-+   bb2:  ; preds = bb1
-      mstore v0, 1
--     jump bb2
--   bb2:  ; preds = bb0, bb1
--     ret v0
-+     jump bb3
-+   bb3:  ; preds = bb1, bb2
-+     v5 = alloc 32
-+     v6 = mload v0
-+     v7 = and v6, 255
-+     mstore v5, v7
-+     v8 = mload v5
-+     mstore 128, v8
-+     returndata 128, 32
-+   bb4 [cold]:  ; preds = bb0, bb5
++   bb4 [cold]:                                     ; preds = bb0, bb5
 +     revert 0, 0
   }
   
@@ -1923,24 +1927,24 @@
 +     v3 = add v2, 1
 +     v4 = lt v3, v2
 +     jumpi v4, bb1, bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v5 = mul v3, 32
 +     v6 = gt v3, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 +     jumpi v6, bb1, bb3
-+   bb3:  ; preds = bb2
++   bb3:                                            ; preds = bb2
 +     v7 = alloc v5
 +     mstore v7, v2
 +     jump bb4
-+   bb4:  ; preds = bb3, bb5
++   bb4:                                            ; preds = bb3, bb5
 +     v8 = phi [bb3: 0], [bb5: v18]
 +     v9 = lt v8, v2
 +     jumpi v9, bb5, bb6
-+   bb6:  ; preds = bb4
++   bb6:                                            ; preds = bb4
 +     v19 = abi_encode [memory_array<word>], scratch, args v7
 +     v20 = extract_value slice<memory>, v19, 0
 +     v21 = extract_value slice<memory>, v19, 1
 +     returndata v20, v21
-+   bb5:  ; preds = bb4
++   bb5:                                            ; preds = bb4
 +     v10 = shl v8, 5
 +     v11 = ptradd v1, v10
 +     v12 = ptradd v11, 32
@@ -1952,7 +1956,7 @@
 +     mstore v17, v14
 +     v18 = add v8, 1
 +     jump bb4
-+   bb1 [cold]:  ; preds = bb0, bb2
++   bb1 [cold]:                                     ; preds = bb0, bb2
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -1969,24 +1973,24 @@
 +     v2 = add v1, 1
 +     v3 = lt v2, v1
 +     jumpi v3, bb1, bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v4 = mul v2, 32
 +     v5 = gt v2, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 +     jumpi v5, bb1, bb3
-+   bb3:  ; preds = bb2
++   bb3:                                            ; preds = bb2
 +     v6 = alloc v4
 +     mstore v6, v1
 +     jump bb4
-+   bb4:  ; preds = bb3, bb5
++   bb4:                                            ; preds = bb3, bb5
 +     v7 = phi [bb3: 0], [bb5: v17]
 +     v8 = lt v7, v1
 +     jumpi v8, bb5, bb6
-+   bb6:  ; preds = bb4
++   bb6:                                            ; preds = bb4
 +     v18 = abi_encode [memory_array<word>], scratch, args v6
 +     v19 = extract_value slice<memory>, v18, 0
 +     v20 = extract_value slice<memory>, v18, 1
 +     returndata v19, v20
-+   bb5:  ; preds = bb4
++   bb5:                                            ; preds = bb4
 +     v9 = shl v7, 5
 +     v10 = ptradd v0, v9
 +     v11 = ptradd v10, 32
@@ -1998,7 +2002,7 @@
 +     mstore v16, v13
 +     v17 = add v7, 1
 +     jump bb4
-+   bb1 [cold]:  ; preds = bb0, bb2
++   bb1 [cold]:                                     ; preds = bb0, bb2
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -2008,63 +2012,65 @@
     bb0:
       v0 = alloc checked 32
       jumpi arg0, bb1, bb2
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       mstore v0, 1
       jump bb2
-    bb2:  ; preds = bb0, bb1
+    bb2:                                            ; preds = bb0, bb1
       ret v0
   }
   
   ; selector 0x0dead012
 - fn @givesConditionalFixedArray(arg0: i1) -> ptr<memory> [selector=0x0dead012, abi_params=[bool], abi_returns=[array<1, word>], abi_return_params=[array<1, uint8>]] {
-+ fn @givesConditionalFixedArray() [selector=0x0dead012, abi_wrapper, implicit_args=[i1]] {
++ fn @givesConditionalFixedArray() [selector=0x0dead012, abi_wrapper] {
     bb0:
+-     v0 = icall @conditionalFixedArray, arg0
+-     ret v0
 +     v1 = calldatasize
 +     v2 = lt v1, 36
 +     jumpi v2, bb2, bb3
-+   bb3:  ; preds = bb0
++   bb3:                                            ; preds = bb0
 +     v3 = calldataload 4
 +     v4 = gt v3, 1
 +     jumpi v4, bb2, bb4
-+   bb4:  ; preds = bb3
++   bb4:                                            ; preds = bb3
++     v5 = trunc i256 v3 to i1
 +     jump bb1
-+   bb1:  ; preds = bb4
-      v0 = icall @conditionalFixedArray, arg0
--     ret v0
-+     v5 = alloc 32
++   bb1:                                            ; preds = bb4
++     v0 = icall @conditionalFixedArray, v5
++     v6 = alloc 32
 +     jump bb5
-+   bb5:  ; preds = bb1, bb6
-+     v6 = phi [bb1: 0], [bb6: v14]
-+     v7 = lt v6, 1
-+     jumpi v7, bb6, bb7
-+   bb7:  ; preds = bb5
++   bb5:                                            ; preds = bb1, bb6
++     v7 = phi [bb1: 0], [bb6: v15]
++     v8 = lt v7, 1
++     jumpi v8, bb6, bb7
++   bb7:                                            ; preds = bb5
 +     jump bb8
-+   bb8:  ; preds = bb7, bb9
-+     v15 = phi [bb7: 0], [bb9: v22]
-+     v16 = lt v15, 1
-+     jumpi v16, bb9, bb10
-+   bb10:  ; preds = bb8
++   bb8:                                            ; preds = bb7, bb9
++     v16 = phi [bb7: 0], [bb9: v23]
++     v17 = lt v16, 1
++     jumpi v17, bb9, bb10
++   bb10:                                           ; preds = bb8
 +     returndata 128, 32
-+   bb9:  ; preds = bb8
-+     v17 = shl v15, 5
-+     v18 = ptradd v5, v17
-+     v19 = mload v18
-+     v20 = mul v15, 32
-+     v21 = add v20, 128
-+     mstore v21, v19
-+     v22 = add v15, 1
++   bb9:                                            ; preds = bb8
++     v18 = shl v16, 5
++     v19 = ptradd v6, v18
++     v20 = mload v19
++     v21 = mul v16, 32
++     v22 = add v21, 128
++     mstore v22, v20
++     v23 = add v16, 1
 +     jump bb8
-+   bb6:  ; preds = bb5
-+     v8 = shl v6, 5
-+     v9 = ptradd v0, v8
-+     v10 = mload v9
-+     v11 = and v10, 255
-+     v12 = shl v6, 5
-+     v13 = ptradd v5, v12
-+     mstore v13, v11
-+     v14 = add v6, 1
++   bb6:                                            ; preds = bb5
++     v9 = shl v7, 5
++     v10 = ptradd v0, v9
++     v11 = mload v10
++     v12 = and v11, 255
++     v13 = shl v7, 5
++     v14 = ptradd v6, v13
++     mstore v14, v12
++     v15 = add v7, 1
 +     jump bb5
-+   bb2 [cold]:  ; preds = bb0, bb3
++   bb2 [cold]:                                     ; preds = bb0, bb3
 +     revert 0, 0
   }
   
@@ -2075,13 +2081,13 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       mstore v2, v1
       jumpi arg0, bb1, bb3
-    bb1:  ; preds = bb0, bb2
+    bb1:                                            ; preds = bb0, bb2
       v3 = phi [bb0: 0], [bb2: v9]
       v4 = lt v3, v1
       jumpi v4, bb2, bb3
-    bb3:  ; preds = bb0, bb1
+    bb3:                                            ; preds = bb0, bb1
       ret v0
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       v5 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
       v6 = shl v3, 5
       v7 = ptradd v0, 32
@@ -2096,13 +2102,13 @@
       v0 = alloc checked 96
       v1 = add 2, 0
       jump bb1
-    bb1:  ; preds = bb0, bb2
+    bb1:                                            ; preds = bb0, bb2
       v2 = phi [bb0: 0], [bb2: v9]
       v3 = lt v2, v1
       jumpi v3, bb2, bb3
-    bb3:  ; preds = bb1
+    bb3:                                            ; preds = bb1
       ret v0
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       v4 = ptrtoint ptr<memory> v0 to i256
       mstore v4, v1
       v5 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
@@ -2116,58 +2122,60 @@
   
   ; selector 0x0dead013
 - fn @givesBypassedArrayLoop(arg0: i1) -> ptr<memory> [selector=0x0dead013, abi_params=[bool], abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
-+ fn @givesBypassedArrayLoop() [selector=0x0dead013, abi_wrapper, implicit_args=[i1]] {
++ fn @givesBypassedArrayLoop() [selector=0x0dead013, abi_wrapper] {
     bb0:
+-     v0 = icall @bypassedArrayLoop, arg0
+-     ret v0
 +     v1 = calldatasize
 +     v2 = lt v1, 36
 +     jumpi v2, bb2, bb3
-+   bb3:  ; preds = bb0
++   bb3:                                            ; preds = bb0
 +     v3 = calldataload 4
 +     v4 = gt v3, 1
 +     jumpi v4, bb2, bb4
-+   bb4:  ; preds = bb3
++   bb4:                                            ; preds = bb3
++     v5 = trunc i256 v3 to i1
 +     jump bb1
-+   bb1:  ; preds = bb4
-      v0 = icall @bypassedArrayLoop, arg0
--     ret v0
-+     v5 = mload v0
-+     v6 = add v5, 1
-+     v7 = lt v6, v5
-+     jumpi v7, bb5, bb6
-+   bb6:  ; preds = bb1
-+     v8 = mul v6, 32
-+     v9 = gt v6, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-+     jumpi v9, bb5, bb7
-+   bb7:  ; preds = bb6
-+     v10 = alloc v8
-+     mstore v10, v5
++   bb1:                                            ; preds = bb4
++     v0 = icall @bypassedArrayLoop, v5
++     v6 = mload v0
++     v7 = add v6, 1
++     v8 = lt v7, v6
++     jumpi v8, bb5, bb6
++   bb6:                                            ; preds = bb1
++     v9 = mul v7, 32
++     v10 = gt v7, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     jumpi v10, bb5, bb7
++   bb7:                                            ; preds = bb6
++     v11 = alloc v9
++     mstore v11, v6
 +     jump bb8
-+   bb8:  ; preds = bb7, bb9
-+     v11 = phi [bb7: 0], [bb9: v21]
-+     v12 = lt v11, v5
-+     jumpi v12, bb9, bb10
-+   bb10:  ; preds = bb8
-+     v22 = abi_encode [memory_array<word>], scratch, args v10
-+     v23 = extract_value slice<memory>, v22, 0
-+     v24 = extract_value slice<memory>, v22, 1
-+     returndata v23, v24
-+   bb9:  ; preds = bb8
-+     v13 = shl v11, 5
-+     v14 = ptradd v0, v13
-+     v15 = ptradd v14, 32
-+     v16 = mload v15
-+     v17 = and v16, 0xffffffffffffffffffffffffffffffffffffffff
-+     v18 = shl v11, 5
-+     v19 = ptradd v10, v18
-+     v20 = ptradd v19, 32
-+     mstore v20, v17
-+     v21 = add v11, 1
++   bb8:                                            ; preds = bb7, bb9
++     v12 = phi [bb7: 0], [bb9: v22]
++     v13 = lt v12, v6
++     jumpi v13, bb9, bb10
++   bb10:                                           ; preds = bb8
++     v23 = abi_encode [memory_array<word>], scratch, args v11
++     v24 = extract_value slice<memory>, v23, 0
++     v25 = extract_value slice<memory>, v23, 1
++     returndata v24, v25
++   bb9:                                            ; preds = bb8
++     v14 = shl v12, 5
++     v15 = ptradd v0, v14
++     v16 = ptradd v15, 32
++     v17 = mload v16
++     v18 = and v17, 0xffffffffffffffffffffffffffffffffffffffff
++     v19 = shl v12, 5
++     v20 = ptradd v11, v19
++     v21 = ptradd v20, 32
++     mstore v21, v18
++     v22 = add v12, 1
 +     jump bb8
-+   bb5 [cold]:  ; preds = bb1, bb6
++   bb5 [cold]:                                     ; preds = bb1, bb6
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
-+   bb2 [cold]:  ; preds = bb0, bb3
++   bb2 [cold]:                                     ; preds = bb0, bb3
 +     revert 0, 0
   }
   
@@ -2181,24 +2189,24 @@
 +     v2 = add v1, 1
 +     v3 = lt v2, v1
 +     jumpi v3, bb1, bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v4 = mul v2, 32
 +     v5 = gt v2, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 +     jumpi v5, bb1, bb3
-+   bb3:  ; preds = bb2
++   bb3:                                            ; preds = bb2
 +     v6 = alloc v4
 +     mstore v6, v1
 +     jump bb4
-+   bb4:  ; preds = bb3, bb5
++   bb4:                                            ; preds = bb3, bb5
 +     v7 = phi [bb3: 0], [bb5: v17]
 +     v8 = lt v7, v1
 +     jumpi v8, bb5, bb6
-+   bb6:  ; preds = bb4
++   bb6:                                            ; preds = bb4
 +     v18 = abi_encode [memory_array<word>], scratch, args v6
 +     v19 = extract_value slice<memory>, v18, 0
 +     v20 = extract_value slice<memory>, v18, 1
 +     returndata v19, v20
-+   bb5:  ; preds = bb4
++   bb5:                                            ; preds = bb4
 +     v9 = shl v7, 5
 +     v10 = ptradd v0, v9
 +     v11 = ptradd v10, 32
@@ -2210,7 +2218,7 @@
 +     mstore v16, v13
 +     v17 = add v7, 1
 +     jump bb4
-+   bb1 [cold]:  ; preds = bb0, bb2
++   bb1 [cold]:                                     ; preds = bb0, bb2
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -2240,20 +2248,20 @@
       v1 = sload arg0 !metadata(storage=symbolic(arg0))
       v2 = gt v1, 0x7ffffffffffffff
       jumpi v2, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       v3 = add v1, 1
       v4 = mul v3, 32
       v5 = alloc checked v4
       mstore v5, v1
       v6 = storage_array_data_slot arg0
       jump bb3
-    bb3:  ; preds = bb2, bb4
+    bb3:                                            ; preds = bb2, bb4
       v7 = phi [bb2: 0], [bb4: v19]
       v8 = lt v7, v1
       jumpi v8, bb4, bb5
-    bb5:  ; preds = bb3
+    bb5:                                            ; preds = bb3
       ret v5
-    bb4:  ; preds = bb3
+    bb4:                                            ; preds = bb3
       v9 = div v7, 1
       v10 = add v6, v9
       v11 = sload v10 !metadata(storage=symbolic(v10))
@@ -2267,7 +2275,7 @@
       mstore v18, v15
       v19 = add v7, 1
       jump bb3
-    bb1 [cold]:  ; preds = bb0
+    bb1 [cold]:                                     ; preds = bb0
       mstore 32, 65 !metadata(memory=scratch)
       mstore 0, 0x4e487b71 !metadata(memory=scratch)
       revert 28, 36
@@ -2290,23 +2298,23 @@
       v3 = sload arg0 !metadata(storage=symbolic(arg0))
       v4 = gt v3, 0x7ffffffffffffff
       jumpi v4, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       v5 = add v3, 1
       v6 = mul v5, 32
       v7 = alloc checked v6
       mstore v7, v3
       v8 = storage_array_data_slot arg0
       jump bb3
-    bb3:  ; preds = bb2, bb4
+    bb3:                                            ; preds = bb2, bb4
       v9 = phi [bb2: 0], [bb4: v21]
       v10 = lt v9, v3
       jumpi v10, bb4, bb5
-    bb5:  ; preds = bb3
+    bb5:                                            ; preds = bb3
       v1 = ptradd v7, 32
       v2 = ptrtoint ptr<memory> v1 to i256
       mstore v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       ret v7
-    bb4:  ; preds = bb3
+    bb4:                                            ; preds = bb3
       v11 = div v9, 1
       v12 = add v8, v11
       v13 = sload v12 !metadata(storage=symbolic(v12))
@@ -2320,7 +2328,7 @@
       mstore v20, v17
       v21 = add v9, 1
       jump bb3
-    bb1 [cold]:  ; preds = bb0
+    bb1 [cold]:                                     ; preds = bb0
       mstore 32, 65 !metadata(memory=scratch)
       mstore 0, 0x4e487b71 !metadata(memory=scratch)
       revert 28, 36
@@ -2336,24 +2344,24 @@
 +     v2 = add v1, 1
 +     v3 = lt v2, v1
 +     jumpi v3, bb1, bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v4 = mul v2, 32
 +     v5 = gt v2, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 +     jumpi v5, bb1, bb3
-+   bb3:  ; preds = bb2
++   bb3:                                            ; preds = bb2
 +     v6 = alloc v4
 +     mstore v6, v1
 +     jump bb4
-+   bb4:  ; preds = bb3, bb5
++   bb4:                                            ; preds = bb3, bb5
 +     v7 = phi [bb3: 0], [bb5: v17]
 +     v8 = lt v7, v1
 +     jumpi v8, bb5, bb6
-+   bb6:  ; preds = bb4
++   bb6:                                            ; preds = bb4
 +     v18 = abi_encode [memory_array<word>], scratch, args v6
 +     v19 = extract_value slice<memory>, v18, 0
 +     v20 = extract_value slice<memory>, v18, 1
 +     returndata v19, v20
-+   bb5:  ; preds = bb4
++   bb5:                                            ; preds = bb4
 +     v9 = shl v7, 5
 +     v10 = ptradd v0, v9
 +     v11 = ptradd v10, 32
@@ -2365,7 +2373,7 @@
 +     mstore v16, v13
 +     v17 = add v7, 1
 +     jump bb4
-+   bb1 [cold]:  ; preds = bb0, bb2
++   bb1 [cold]:                                     ; preds = bb0, bb2
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -2373,26 +2381,28 @@
   
   ; selector 0x0dead020
 - fn @nativeCleanTuple(arg0: i128) -> ptr<memory> [selector=0x0dead020, abi_params=[uint128], abi_returns=[tuple<word>], abi_return_params=[tuple<uint128>]] {
-+ fn @nativeCleanTuple() [selector=0x0dead020, abi_wrapper, implicit_args=[i128]] {
++ fn @nativeCleanTuple() [selector=0x0dead020, abi_wrapper] {
     bb0:
 +     v2 = calldatasize
 +     v3 = lt v2, 36
 +     jumpi v3, bb2, bb3
-+   bb3:  ; preds = bb0
++   bb3:                                            ; preds = bb0
 +     v4 = calldataload 4
 +     v5 = gt v4, 0xffffffffffffffffffffffffffffffff
 +     jumpi v5, bb2, bb4
-+   bb4:  ; preds = bb3
++   bb4:                                            ; preds = bb3
++     v6 = trunc i256 v4 to i128
 +     jump bb1
-+   bb1:  ; preds = bb4
++   bb1:                                            ; preds = bb4
       v0 = alloc checked 32
-      v1 = zext i128 arg0 to i256
+-     v1 = zext i128 arg0 to i256
++     v1 = zext i128 v6 to i256
       mstore v0, v1
 -     ret v0
-+     v6 = mload v0
-+     mstore 128, v6
++     v7 = mload v0
++     mstore 128, v7
 +     returndata 128, 32
-+   bb2 [cold]:  ; preds = bb0, bb3
++   bb2 [cold]:                                     ; preds = bb0, bb3
 +     revert 0, 0
   }
   

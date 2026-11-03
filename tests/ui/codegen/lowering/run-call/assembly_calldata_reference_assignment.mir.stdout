@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/assembly_calldata_reference_assignment.sol:AssemblyCalldataReferenceAssignment ===
+; === ROOT/tests/ui/codegen/lowering/run-call/assembly_calldata_reference_assignment.sol:AssemblyCalldataReferenceAssignment ===
 @module AssemblyCalldataReferenceAssignment
 @types
   struct0: {i256, i256}
@@ -177,13 +177,13 @@ fn @dynamicFixed(arg0: slice<calldata>) -> ptr<memory> [selector=0x71cafd78, pur
     v16 = alloc v14
     mstore v16, v4
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v17 = phi [bb0: 0], [bb2: v32]
     v18 = lt v17, v4
     jumpi v18, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     ret v16
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v19 = mul v17, 64
     v20 = gt v17, 0x3ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     icall panic_if<0x41>, v20
@@ -230,13 +230,13 @@ fn @dynamicNarrow(arg0: slice<calldata>) -> ptr<memory> [selector=0x320b552a, pu
     v16 = alloc v14
     mstore v16, v4
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v17 = phi [bb0: 0], [bb2: v27]
     v18 = lt v17, v4
     jumpi v18, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     ret v16
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v19 = mul v17, 32
     v20 = ptrtoint ptr<calldata> v5 to i256
     v21 = add v20, v19
@@ -277,13 +277,13 @@ fn @dynamicNested(arg0: slice<calldata>) -> ptr<memory> [selector=0x24abb2f5, pu
     v16 = alloc v14
     mstore v16, v4
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v17 = phi [bb0: 0], [bb2: v55]
     v18 = lt v17, v4
     jumpi v18, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     ret v16
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v19 = mul v17, 32
     v20 = ptrtoint ptr<calldata> v5 to i256
     v21 = add v20, v19

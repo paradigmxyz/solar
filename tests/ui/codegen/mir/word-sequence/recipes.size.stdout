@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/word-sequence/recipes.mir (before word-sequence) ===
-+ // === ROOT/tests/ui/codegen/mir/word-sequence/recipes.mir (after word-sequence) ===
+- ; === ROOT/tests/ui/codegen/mir/word-sequence/recipes.mir (before word-sequence) ===
++ ; === ROOT/tests/ui/codegen/mir/word-sequence/recipes.mir (after word-sequence) ===
   @module WordCandidates
   fn @rule_0(arg0: i256, arg1: i256) -> i256 {
     bb0:

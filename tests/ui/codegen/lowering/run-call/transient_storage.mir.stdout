@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/transient_storage.sol:TransientStorage ===
+; === ROOT/tests/ui/codegen/lowering/run-call/transient_storage.sol:TransientStorage ===
 @module TransientStorage
 @types
   struct0: {i256, i256, i256, i256, i256, i256}
@@ -91,9 +91,9 @@ fn @getter() -> i256 [selector=0x993a04b7, abi_params=[], abi_returns=[word], ab
     v2 = zext i160 v0 to i256
     v3 = staticcall v1, v2, 28, 4, 0, 32
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = returndatasize
     v5 = lt v4, 32
     icall revert_if<tuple_data_too_short>, v5
@@ -101,7 +101,7 @@ fn @getter() -> i256 [selector=0x993a04b7, abi_params=[], abi_returns=[word], ab
     ret v6
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/transient_storage.sol:TransientModifier ===
+; === ROOT/tests/ui/codegen/lowering/run-call/transient_storage.sol:TransientModifier ===
 @module TransientModifier
 ; function run() external bump(value) returns (uint16) [selector 0xc0406226]
 fn @run() -> i16 [selector=0xc0406226, abi_params=[], abi_returns=[word<uint16>], abi_return_params=[uint16]] {
@@ -129,8 +129,8 @@ fn @run() -> i16 [selector=0xc0406226, abi_params=[], abi_returns=[word<uint16>]
     v18 = tload 0
     v19 = trunc i256 v18 to i16
     jump bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb1
-  bb1:  ; preds = bb2
+  bb1:                                            ; preds = bb2
     ret v19
 }

@@ -246,7 +246,10 @@ fn check_using_directive<'gcx>(gcx: Gcx<'gcx>, using: &'gcx hir::UsingDirective<
                 gcx.dcx().emit_err(using.span, "can only use `global` with user-defined types");
             }
             Err(SameSourceFileLevelUserTypeError::NotSameSourceFileLevel) => {
-                gcx.dcx().emit_err(using.span, "can only use `global` with types defined in the same source unit at file level");
+                gcx.dcx().emit_err(
+                    using.span,
+                    "can only use `global` with types defined in the same source unit at file level",
+                );
             }
         }
     }
@@ -256,8 +259,7 @@ fn check_using_directive<'gcx>(gcx: Gcx<'gcx>, using: &'gcx hir::UsingDirective<
             hir::UsingEntryKind::Library(id) => {
                 if !gcx.hir.contract(id).kind.is_library() {
                     gcx.dcx()
-                        .err("library name expected")
-                        .span(entry.span)
+                        .err_at(entry.span, "library name expected")
                         .help("if you want to attach a function, use `{...}`")
                         .emit();
                 }
@@ -283,28 +285,38 @@ fn check_using_function<'gcx>(
     let is_library_function =
         function.contract.is_some_and(|id| gcx.hir.contract(id).kind.is_library());
     if !function.is_free() && !is_library_function {
-        gcx.dcx().emit_err(entry.span, "only file-level functions and library functions can be attached to a type in a `using` statement");
+        gcx.dcx().emit_err(
+            entry.span,
+            "only file-level functions and library functions can be attached to a type in a `using` statement",
+        );
     }
 
     let TyKind::Fn(function_ty) = gcx.type_of_item(function_id.into()).kind else { unreachable!() };
     if function_ty.parameters.is_empty() {
-        gcx.dcx().emit_err_span_note(
-            entry.span,
-            format!(
-                "function `{}` does not have any parameters and therefore cannot be attached",
-                gcx.item_name(function_id).as_str()
-            ),
-            function.span,
-            "function defined here",
-        );
+        gcx.dcx()
+            .err_at(
+                entry.span,
+                format!(
+                    "function `{}` does not have any parameters and therefore cannot be attached",
+                    gcx.item_name(function_id).as_str()
+                ),
+            )
+            .span_note(function.span, "function defined here")
+            .emit();
         return;
     }
 
     if function.visibility == Visibility::Private && function.contract != using.contract {
-        gcx.dcx().emit_err_span_note(entry.span, format!(
-            "function `{}` is private and therefore cannot be attached to a type outside of the library where it is defined",
-            gcx.item_name(function_id).as_str()
-        ), function.span, "function defined here");
+        gcx.dcx()
+            .err_at(
+                entry.span,
+                format!(
+                    "function `{}` is private and therefore cannot be attached to a type outside of the library where it is defined",
+                    gcx.item_name(function_id).as_str()
+                ),
+            )
+            .span_note(function.span, "function defined here")
+            .emit();
     }
 
     if let Some(using_ty) = using_ty {
@@ -312,12 +324,14 @@ fn check_using_function<'gcx>(
         let self_ty = function_ty.parameters[0].with_loc_if_ref(gcx, DataLocation::Storage);
         if !normalized_using_ty.convert_implicit_to(self_ty, gcx) && entry.operator.is_none() {
             gcx.dcx()
-                .err(format!(
-                    "function `{}` cannot be attached to type `{}`",
-                    gcx.item_name(function_id).as_str(),
-                    using_ty.display(gcx)
-                ))
-                .span(entry.span)
+                .err_at(
+                    entry.span,
+                    format!(
+                        "function `{}` cannot be attached to type `{}`",
+                        gcx.item_name(function_id).as_str(),
+                        using_ty.display(gcx)
+                    ),
+                )
                 .span_note(function.span, "function defined here")
                 .help(format!(
                     "the type cannot be implicitly converted to the first function argument `{}`",
@@ -350,11 +364,11 @@ fn check_external_type_clashes(gcx: Gcx<'_>, contract_id: hir::ContractId) {
                 !same_external_params(gcx, gcx.type_of_item(item), gcx.type_of_item(other))
             }) {
                 gcx.dcx()
-                    .err(
+                    .err_code_at(
+                        gcx.item_span(item),
+                        error_code!(9914),
                         "function overload clash during conversion to external types for arguments",
                     )
-                    .code(error_code!(9914))
-                    .span(gcx.item_span(item))
                     .span_help(gcx.item_span(dup), "other declaration is here")
                     .emit();
             }
@@ -372,9 +386,11 @@ fn check_payable_fallback_without_receive(gcx: Gcx<'_>, contract_id: hir::Contra
             && !gcx.interface_functions(contract_id).is_empty()
         {
             gcx.dcx()
-                .warn("contract has a payable fallback function, but no receive ether function")
-                .span(contract.name.span)
-                .code(error_code!(3628))
+                .warn_code_at(
+                    contract.name.span,
+                    error_code!(3628),
+                    "contract has a payable fallback function, but no receive ether function",
+                )
                 .span_suggestion(
                     fallback.keyword_span(),
                     "consider changing to",
@@ -394,9 +410,11 @@ fn check_storage_layout_inheritance(gcx: Gcx<'_>, contract_id: hir::ContractId) 
     for (base, &base_id) in contract.bases_args.iter().zip(contract.bases) {
         if let Some(layout) = gcx.hir.contract(base_id).layout {
             gcx.dcx()
-                .err("cannot inherit from a contract with a custom storage layout")
-                .code(error_code!(8894))
-                .span(base.span)
+                .err_code_at(
+                    base.span,
+                    error_code!(8894),
+                    "cannot inherit from a contract with a custom storage layout",
+                )
                 .span_note(layout.span, "custom storage layout defined here")
                 .emit();
         }
@@ -464,7 +482,7 @@ fn check_duplicate_definitions(gcx: Gcx<'_>, scope: &Declarations) {
                     "{} with same name and parameter types declared twice",
                     decl.description()
                 );
-                let mut err = gcx.dcx().err(msg).span(decl.span);
+                let mut err = gcx.dcx().err_at(decl.span, msg);
                 for duplicate in duplicates {
                     err = err.span_note(duplicate, "other declaration");
                 }
@@ -495,11 +513,11 @@ fn check_unimplemented_functions(gcx: Gcx<'_>, contract_id: hir::ContractId) {
         // function ones below, and they are never implicitly `virtual` in an interface.
         if f.kind.is_modifier() {
             if f.body.is_none() && !f.marked_virtual {
-                gcx.dcx()
-                    .err("modifiers without implementation must be marked `virtual`")
-                    .code(error_code!(8063))
-                    .span(f.span)
-                    .emit();
+                gcx.dcx().emit_err_code(
+                    f.span,
+                    error_code!(8063),
+                    "modifiers without implementation must be marked `virtual`",
+                );
             }
             continue;
         }
@@ -508,11 +526,11 @@ fn check_unimplemented_functions(gcx: Gcx<'_>, contract_id: hir::ContractId) {
         // reported by `check_interface_members`.
         let virtual_private = f.marked_virtual && f.visibility == Visibility::Private;
         if virtual_private && !contract.kind.is_interface() {
-            gcx.dcx()
-                .err("`virtual` and `private` cannot be used together")
-                .code(error_code!(3942))
-                .span(f.span)
-                .emit();
+            gcx.dcx().emit_err_code(
+                f.span,
+                error_code!(3942),
+                "`virtual` and `private` cannot be used together",
+            );
         }
 
         if f.body.is_some() {
@@ -520,23 +538,23 @@ fn check_unimplemented_functions(gcx: Gcx<'_>, contract_id: hir::ContractId) {
         }
 
         if f.kind.is_constructor() {
-            gcx.dcx()
-                .err("constructor must be implemented if declared")
-                .code(error_code!(5700))
-                .span(f.span)
-                .emit();
+            gcx.dcx().emit_err_code(
+                f.span,
+                error_code!(5700),
+                "constructor must be implemented if declared",
+            );
         } else if contract.kind.is_library() {
-            gcx.dcx()
-                .err("library functions must be implemented if declared")
-                .code(error_code!(9231))
-                .span(f.span)
-                .emit();
+            gcx.dcx().emit_err_code(
+                f.span,
+                error_code!(9231),
+                "library functions must be implemented if declared",
+            );
         } else if !f.virtual_ {
-            gcx.dcx()
-                .err("functions without implementation must be marked virtual")
-                .code(error_code!(5424))
-                .span(f.span)
-                .emit();
+            gcx.dcx().emit_err_code(
+                f.span,
+                error_code!(5424),
+                "functions without implementation must be marked virtual",
+            );
         }
     }
 }
@@ -547,11 +565,11 @@ fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
     // Libraries cannot have receive functions
     if contract.kind.is_library() {
         if let Some(receive) = contract.receive {
-            gcx.dcx()
-                .err("libraries cannot have receive ether functions")
-                .code(error_code!(4549))
-                .span(gcx.item_span(receive))
-                .emit();
+            gcx.dcx().emit_err_code(
+                gcx.item_span(receive),
+                error_code!(4549),
+                "libraries cannot have receive ether functions",
+            );
         }
         return;
     }
@@ -568,8 +586,7 @@ fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
         // Check state mutability
         if f.state_mutability != StateMutability::Payable {
             gcx.dcx()
-                .err("receive ether function must be payable")
-                .span(gcx.item_span(receive))
+                .err_at(gcx.item_span(receive), "receive ether function must be payable")
                 .help("add `payable` state mutability")
                 .emit();
         }
@@ -608,37 +625,37 @@ fn check_library_functions(gcx: Gcx<'_>, contract_id: hir::ContractId) {
         // function ones below.
         if f.kind.is_modifier() {
             if f.marked_virtual {
-                gcx.dcx()
-                    .err("modifiers in a library cannot be `virtual`")
-                    .code(error_code!(3275))
-                    .span(f.span)
-                    .emit();
+                gcx.dcx().emit_err_code(
+                    f.span,
+                    error_code!(3275),
+                    "modifiers in a library cannot be `virtual`",
+                );
             }
             continue;
         }
 
         // A `private virtual` function is reported by `check_unimplemented_functions` instead.
         if f.marked_virtual && f.visibility != Visibility::Private {
-            gcx.dcx()
-                .err("library functions cannot be `virtual`")
-                .code(error_code!(7801))
-                .span(f.span)
-                .emit();
+            gcx.dcx().emit_err_code(
+                f.span,
+                error_code!(7801),
+                "library functions cannot be `virtual`",
+            );
         }
 
         // A library `receive` gets its own error in `check_receive_function`.
         if f.is_constructor() {
-            gcx.dcx()
-                .err("constructor cannot be defined in libraries")
-                .code(error_code!(7634))
-                .span(f.span)
-                .emit();
+            gcx.dcx().emit_err_code(
+                f.span,
+                error_code!(7634),
+                "constructor cannot be defined in libraries",
+            );
         } else if f.kind.is_fallback() {
-            gcx.dcx()
-                .err("libraries cannot have fallback functions")
-                .code(error_code!(5982))
-                .span(f.span)
-                .emit();
+            gcx.dcx().emit_err_code(
+                f.span,
+                error_code!(5982),
+                "libraries cannot have fallback functions",
+            );
         }
     }
 }
@@ -657,11 +674,11 @@ fn check_interface_members(gcx: Gcx<'_>, contract_id: hir::ContractId) {
 
     for (base, &base_id) in contract.bases_args.iter().zip(contract.bases) {
         if !gcx.hir.contract(base_id).kind.is_interface() {
-            gcx.dcx()
-                .err("interfaces can only inherit from other interfaces")
-                .code(error_code!(6536))
-                .span(base.span)
-                .emit();
+            gcx.dcx().emit_err_code(
+                base.span,
+                error_code!(6536),
+                "interfaces can only inherit from other interfaces",
+            );
         }
     }
 
@@ -672,11 +689,11 @@ fn check_interface_members(gcx: Gcx<'_>, contract_id: hir::ContractId) {
         // Modifiers are not functions in solc, so they get their own error instead of the
         // function ones below.
         if f.kind.is_modifier() {
-            gcx.dcx()
-                .err("modifiers cannot be defined or declared in interfaces")
-                .code(error_code!(6408))
-                .span(f.span)
-                .emit();
+            gcx.dcx().emit_err_code(
+                f.span,
+                error_code!(6408),
+                "modifiers cannot be defined or declared in interfaces",
+            );
             continue;
         }
 
@@ -691,33 +708,33 @@ fn check_interface_members(gcx: Gcx<'_>, contract_id: hir::ContractId) {
         // `virtual` is implied here, and ends solc's `virtual` chain: see
         // `check_library_functions` and `check_unimplemented_functions`.
         if f.marked_virtual {
-            gcx.dcx()
-                .warn("interface functions are implicitly `virtual`")
-                .code(error_code!(5815))
-                .span(f.span)
-                .emit();
+            gcx.dcx().emit_warn_code(
+                f.span,
+                error_code!(5815),
+                "interface functions are implicitly `virtual`",
+            );
         }
 
         if f.body.is_some() {
-            gcx.dcx()
-                .err("functions in interfaces cannot have an implementation")
-                .code(error_code!(4726))
-                .span(f.span)
-                .emit();
+            gcx.dcx().emit_err_code(
+                f.span,
+                error_code!(4726),
+                "functions in interfaces cannot have an implementation",
+            );
         }
 
         if f.is_constructor() {
-            gcx.dcx()
-                .err("constructor cannot be defined in interfaces")
-                .code(error_code!(6482))
-                .span(f.span)
-                .emit();
+            gcx.dcx().emit_err_code(
+                f.span,
+                error_code!(6482),
+                "constructor cannot be defined in interfaces",
+            );
         } else if f.visibility != Visibility::External {
-            gcx.dcx()
-                .err("functions in interfaces must be declared `external`")
-                .code(error_code!(1560))
-                .span(f.span)
-                .emit();
+            gcx.dcx().emit_err_code(
+                f.span,
+                error_code!(1560),
+                "functions in interfaces must be declared `external`",
+            );
         }
     }
 }
@@ -732,11 +749,11 @@ fn check_interface_variables(gcx: Gcx<'_>) {
         // Parameters and struct fields are not items, so every variable item declared in an
         // interface is rejected, `constant` ones included.
         for v_id in contract.variables() {
-            gcx.dcx()
-                .err("variables cannot be declared in interfaces")
-                .code(error_code!(8274))
-                .span(gcx.hir.variable(v_id).span)
-                .emit();
+            gcx.dcx().emit_err_code(
+                gcx.hir.variable(v_id).span,
+                error_code!(8274),
+                "variables cannot be declared in interfaces",
+            );
         }
     }
 }
@@ -748,15 +765,11 @@ fn check_interface_variables(gcx: Gcx<'_>) {
 /// - `override`: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L319-L320>
 fn check_free_function(gcx: Gcx<'_>, f: &hir::Function<'_>) {
     if f.marked_virtual {
-        gcx.dcx()
-            .err("free functions cannot be `virtual`")
-            .code(error_code!(4493))
-            .span(f.span)
-            .emit();
+        gcx.dcx().emit_err_code(f.span, error_code!(4493), "free functions cannot be `virtual`");
     }
 
     if f.override_ {
-        gcx.dcx().err("free functions cannot override").code(error_code!(1750)).span(f.span).emit();
+        gcx.dcx().emit_err_code(f.span, error_code!(1750), "free functions cannot override");
     }
 }
 
@@ -778,7 +791,7 @@ fn check_payable_function(gcx: Gcx<'_>, f: &hir::Function<'_>) {
         } else {
             return;
         };
-    gcx.dcx().err(msg).code(code).span(f.span).emit();
+    gcx.dcx().emit_err_code(f.span, code, msg);
 }
 
 /// Checks that a fallback function has one of the two signatures the dispatcher can route.
@@ -802,9 +815,11 @@ fn check_fallback_signature(gcx: Gcx<'_>, f: &hir::Function<'_>) {
     // Point at the returns, or at the parameters when there are none.
     let vars = if f.returns.is_empty() { f.parameters } else { f.returns };
     gcx.dcx()
-        .err("invalid fallback function signature")
-        .code(error_code!(5570))
-        .span(Span::join_first_last(vars.iter().map(|&var| gcx.hir.variable(var).span)))
+        .err_code_at(
+            Span::join_first_last(vars.iter().map(|&var| gcx.hir.variable(var).span)),
+            error_code!(5570),
+            "invalid fallback function signature",
+        )
         .help("use `fallback()` or `fallback(bytes calldata) returns (bytes memory)`")
         .emit();
 }
@@ -920,7 +935,7 @@ fn ty_storage_size_upper_bound(ty: Ty<'_>, gcx: Gcx<'_>) -> Result<Option<U256>,
         | TyKind::Udvt(..)
         | TyKind::Enum(..)
         | TyKind::Fn(..)
-        | TyKind::DynArray(..) => Ok(Some(U256::from(1))),
+        | TyKind::DynArray(..) => Ok(Some(U256::ONE)),
         TyKind::Ref(ty, _) => ty_storage_size_upper_bound(ty, gcx),
         TyKind::Array(ty, uint) => {
             // https://github.com/argotorg/solidity/blob/03e2739809769ae0c8d236a883aadc900da60536/libsolidity/ast/Types.cpp#L1800C1-L1806C2
@@ -929,7 +944,7 @@ fn ty_storage_size_upper_bound(ty: Ty<'_>, gcx: Gcx<'_>) -> Result<Option<U256>,
         }
         TyKind::Struct(struct_id) => {
             // https://github.com/argotorg/solidity/blob/03e2739809769ae0c8d236a883aadc900da60536/libsolidity/ast/Types.cpp#L2303C1-L2309C2
-            let mut total_size = U256::from(1);
+            let mut total_size = U256::ONE;
             for t in gcx.struct_field_types(struct_id) {
                 let Some(size_contribution) = ty_storage_size_upper_bound(*t, gcx)? else {
                     return Ok(None);
@@ -1036,7 +1051,7 @@ fn check_event(gcx: Gcx<'_>, id: hir::EventId) {
         (3, "more than 3 indexed arguments for event", error_code!(7249))
     };
     if indexed > max {
-        gcx.dcx().err(msg).code(code).span(event.span).emit();
+        gcx.dcx().emit_err_code(event.span, code, msg);
     }
 }
 
@@ -1050,18 +1065,20 @@ fn check_error(gcx: Gcx<'_>, id: hir::ErrorId) {
     let error = gcx.hir.error(id);
     let params = check_event_or_error_parameters(gcx, "error", error.parameters);
     if matches!(error.name.name, sym::Error | sym::Panic) {
-        gcx.dcx()
-            .err("the built-in errors `Error` and `Panic` cannot be re-defined")
-            .code(error_code!(1855))
-            .span(error.name.span)
-            .emit();
+        gcx.dcx().emit_err_code(
+            error.name.span,
+            error_code!(1855),
+            "the built-in errors `Error` and `Panic` cannot be re-defined",
+        );
     } else if params.is_ok() {
         let selector = gcx.function_selector(id);
-        if selector == Selector::ZERO || selector == Selector::repeat_byte(0xff) {
+        if selector.is_zero() || selector == Selector::repeat_byte(0xff) {
             gcx.dcx()
-                .err(format!("the selector `{selector}` is reserved"))
-                .code(error_code!(2855))
-                .span(error.span)
+                .err_code_at(
+                    error.span,
+                    error_code!(2855),
+                    format!("the selector `{selector}` is reserved"),
+                )
                 .help("rename the error to avoid the collision")
                 .emit();
         }
@@ -1096,7 +1113,7 @@ fn check_event_or_error_parameters(
             ("types containing internal function pointers", error_code!(3417))
         };
         let msg = format!("{what} cannot be {kind} parameter types");
-        result = Err(gcx.dcx().err(msg).code(code).span(gcx.hir.variable(param).span).emit());
+        result = Err(gcx.dcx().emit_err_code(gcx.hir.variable(param).span, code, msg));
     }
     result
 }
@@ -1132,9 +1149,11 @@ fn check_error_selector_collisions(gcx: Gcx<'_>) {
                 let prev_signature = gcx.item_signature(prev.into());
                 let selector = gcx.function_selector(id);
                 gcx.dcx()
-                    .err("error signature hash collision")
-                    .code(error_code!(4883))
-                    .span(gcx.hir.error(id).name.span)
+                    .err_code_at(
+                        gcx.hir.error(id).name.span,
+                        error_code!(4883),
+                        "error signature hash collision",
+                    )
                     .span_note(gcx.hir.error(prev).span, "other error is here")
                     .note(format!(
                         "the error signatures `{signature}` and `{prev_signature}` produce the same 4-byte selector `{selector}`"

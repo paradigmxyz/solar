@@ -18,16 +18,9 @@ impl CallGraphInfo {
     pub fn new(module: &Module) -> Self {
         let function_count = module.functions.len();
         let mut callees = FxHashMap::default();
-        let mut entry_functions = DenseBitSet::new_empty(function_count);
-        if let Some(entry) = module.dispatch_entry() {
-            entry_functions.insert(entry);
-        }
+        let entry_functions = module.root_functions();
 
         for (func_id, func) in module.functions.iter_enumerated() {
-            if func.is_external_entry() {
-                entry_functions.insert(func_id);
-            }
-
             let direct_callees = Self::collect_internal_callees(func, function_count);
             if !direct_callees.is_empty() {
                 callees.insert(func_id, direct_callees);
@@ -148,9 +141,13 @@ pub fn direct_callees(func: &Function) -> impl Iterator<Item = FunctionId> + '_ 
         InstKind::ICall { function: Callee::Function(function), .. } => Some(function),
         _ => None,
     });
-    let tail_calls = func.blocks.iter().filter_map(|block| match block.terminator {
+    calls.chain(tail_callees(func))
+}
+
+/// Returns the functions `func` tail-calls, with repeats.
+pub fn tail_callees(func: &Function) -> impl Iterator<Item = FunctionId> + '_ {
+    func.blocks.iter().filter_map(|block| match block.terminator {
         Some(Terminator::TailCall { function, .. }) => Some(function),
         _ => None,
-    });
-    calls.chain(tail_calls)
+    })
 }

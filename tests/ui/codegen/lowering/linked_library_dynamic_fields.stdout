@@ -1,6 +1,6 @@
-// === ROOT/tests/ui/codegen/lowering/linked_library_dynamic_fields.sol:L (runtime) ===
+; === ROOT/tests/ui/codegen/lowering/linked_library_dynamic_fields.sol:L (runtime) ===
 @module L_runtime
-bb0:  ; runtime dispatch entry
+bb0:                                              ; runtime dispatch entry
   push 0
   calldataload
   push 224
@@ -27,7 +27,7 @@ bb26 [cold]:
   push 36
   push 28
   revert
-bb1:  ; function apply_(mapping(address => uint256) storage m, P memory p) public returns (uint256) [selector 0xfa06cb96]
+bb1:                                              ; function apply_(mapping(address => uint256) storage m, P memory p) public returns (uint256) [selector 0xfa06cb96]
   push_immutable 0, 20
   address
   eq
@@ -98,7 +98,7 @@ bb1:  ; function apply_(mapping(address => uint256) storage m, P memory p) publi
   shl
   push bb8
   jump bb25
-bb25 [ret=0, inputs=2, outputs=1]:  ; alloc (synthesized)
+bb25 [ret=0, inputs=2, outputs=1]:                ; alloc (synthesized)
   push 64
   mload
   swap 2
@@ -335,9 +335,9 @@ bb22 [cold]:
 bb21 [cold]:
   push 50
   jump bb26
-// === ROOT/tests/ui/codegen/lowering/linked_library_dynamic_fields.sol:C (runtime) ===
+; === ROOT/tests/ui/codegen/lowering/linked_library_dynamic_fields.sol:C (runtime) ===
 @module C_runtime
-bb0:  ; runtime dispatch entry
+bb0:                                              ; runtime dispatch entry
   callvalue
   push bb4
   jumpi
@@ -360,7 +360,7 @@ bb4 [cold]:
   push 0
   push 0
   revert
-bb5:  ; getter for `mapping(address => uint256) public score` [selector 0x776f3843]
+bb5:                                              ; getter for `mapping(address => uint256) public score` [selector 0x776f3843]
   push 4
   calldataload
   push 160
@@ -387,7 +387,7 @@ bb5:  ; getter for `mapping(address => uint256) public score` [selector 0x776f38
   push 32
   push 0
   return
-bb8:  ; function go(uint256 base, uint256[] calldata xs, bytes calldata tag, address who) external returns (uint256) [selector 0x2220ae27]
+bb8:                                              ; function go(uint256 base, uint256[] calldata xs, bytes calldata tag, address who) external returns (uint256) [selector 0x2220ae27]
   push 100
   calldataload
   push 160
@@ -463,9 +463,9 @@ bb8:  ; function go(uint256 base, uint256[] calldata xs, bytes calldata tag, add
   lt
   push bb14
   jumpi
-  push 4
-  calldataload
   push 100
+  calldataload
+  push 4
   calldataload
   push 128
   swap 3
@@ -511,7 +511,7 @@ bb8:  ; function go(uint256 base, uint256[] calldata xs, bytes calldata tag, add
   dup 1
   push 64
   mstore
-  dup 3
+  dup 2
   dup 9
   mstore
   dup 4
@@ -527,7 +527,7 @@ bb8:  ; function go(uint256 base, uint256[] calldata xs, bytes calldata tag, add
   swap 7
   push 96
   add
-  dup 2
+  dup 3
   swap 1
   mstore
   push 0xfa06cb96
@@ -552,7 +552,7 @@ bb8:  ; function go(uint256 base, uint256[] calldata xs, bytes calldata tag, add
   dup 5
   dup 2
   add
-  swap 4
+  swap 3
   dup 2
   mstore
   dup 5
@@ -563,23 +563,23 @@ bb8:  ; function go(uint256 base, uint256[] calldata xs, bytes calldata tag, add
   swap 4
   mload
   dup 1
-  dup 5
+  dup 4
   mstore
   push 5
   shl
-  swap 3
+  swap 2
   push 32
   add
-  dup 4
+  dup 3
   dup 2
   add
-  swap 4
+  swap 3
   swap 2
   swap 8
   swap 1
   mcopy
   dup 3
-  dup 3
+  dup 2
   sub
   push 64
   dup 5
@@ -594,28 +594,27 @@ bb8:  ; function go(uint256 base, uint256[] calldata xs, bytes calldata tag, add
   not
   and
   push 32
-  dup 4
+  dup 10
   add
   push 0
   dup 3
-  dup 6
+  dup 12
   add
   mstore
   dup 3
   swap 1
-  swap 4
+  swap 10
   mstore
-  dup 3
+  dup 9
   add
-  swap 4
   swap 1
   swap 2
+  swap 4
+  swap 1
+  swap 8
   mcopy
   push 96
   add
-  swap 5
-  swap 1
-  swap 5
   mstore
   pop
   swap 1

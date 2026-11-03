@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/storage_struct_array.sol:StorageStructArray ===
+; === ROOT/tests/ui/codegen/lowering/storage_struct_array.sol:StorageStructArray ===
 @module StorageStructArray
 @types
   struct0: {i256, i256}

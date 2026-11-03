@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/calldata_struct_dynamic_memory.sol:CalldataStructDynamicMemory ===
+; === ROOT/tests/ui/codegen/lowering/run-call/calldata_struct_dynamic_memory.sol:CalldataStructDynamicMemory ===
 @module CalldataStructDynamicMemory
 ; function copy(Entry[] calldata input) external pure returns (uint256) [selector 0x2f4f3794]
 fn @copy(arg0: slice<calldata>) -> i256 [selector=0x2f4f3794, pure, abi_params=[array<_, tuple<array<_, uint256>>>], abi_returns=[word], abi_return_params=[uint256]] {
@@ -22,11 +22,11 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0x2f4f3794, pure, abi_params=[
     v12 = alloc v10
     mstore v12, v0
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v13 = phi [bb0: 0], [bb2: v63]
     v14 = lt v13, v0
     jumpi v14, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v64 = mload v12
     v65 = mload v12
     v66 = gt v65, 0
@@ -52,7 +52,7 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0x2f4f3794, pure, abi_params=[
     v83 = mload v82
     v84 = checked_add uint256, v72, v83
     ret v84
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v15 = mul v13, 32
     v16 = ptrtoint ptr<calldata> v1 to i256
     v17 = add v16, v15

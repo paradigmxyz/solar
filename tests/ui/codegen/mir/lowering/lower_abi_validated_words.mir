@@ -1,0 +1,15 @@
+//@compile-flags: -Zmir-pipeline=lower-abi,lower-integers,integer-cleanup
+//@filecheck:
+
+// The guard that validates an address word proves its width, so a comparison reads the loaded
+// word as it is.
+// CHECK-LABEL: {{^[ +].*}}after integer-cleanup
+// CHECK: + {{v[0-9]+}} = eq [[WORD:v[0-9]+]], 0
+@module LowerAbiValidatedWords
+
+fn @address_is_zero(arg0: i256) -> i1 [selector=0x12345681, abi_params=[address], abi_returns=[word]] {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = eq v0, i160 0
+    ret v1
+}

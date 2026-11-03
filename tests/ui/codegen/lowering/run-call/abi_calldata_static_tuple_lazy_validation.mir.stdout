@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_static_tuple_lazy_validation.sol:AbiCalldataStaticTupleLazyValidation ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_static_tuple_lazy_validation.sol:AbiCalldataStaticTupleLazyValidation ===
 @module AbiCalldataStaticTupleLazyValidation
 ; function use(Values calldata values) external pure returns (uint256) [selector 0x4637216b]
 fn @use(arg0: slice<calldata>) -> i256 [selector=0x4637216b, pure, abi_params=[tuple<uint8, uint8>], abi_returns=[word], abi_return_params=[uint256]] {

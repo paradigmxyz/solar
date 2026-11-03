@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/element-cleanup/grown_length.sol:GrownLength ===
+; === ROOT/tests/ui/codegen/mir/element-cleanup/grown_length.sol:GrownLength ===
 @module GrownLength
 ; function dirty() internal pure
 fn @dirty() [pure] {
@@ -58,12 +58,12 @@ fn @other(arg0: i256) -> i1 [selector=0x369984d6, pure, abi_params=[uint256], ab
   bb0:
     v0 = icall @find, arg0, 0, i160 0
     jumpi v0, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = icall @find, arg0, 1, i160 1
     jump bb3
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2, bb1
+  bb3:                                            ; preds = bb2, bb1
     v2 = phi [bb1: v1], [bb2: true]
     ret v2
 }

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/forwarding_buffer_branch_stack.sol:F ===
+; === ROOT/tests/ui/codegen/lowering/forwarding_buffer_branch_stack.sol:F ===
 @module F
 ; function g(uint24, uint256, int144) external returns (bool) [selector 0xafabfe29]
 fn @g(arg0: i24, arg1: i256, arg2: i144) -> i1 [selector=0xafabfe29, abi_params=[uint24, uint256, int144], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -6,7 +6,7 @@ fn @g(arg0: i24, arg1: i256, arg2: i144) -> i1 [selector=0xafabfe29, abi_params=
     ret false
 }
 
-// === ROOT/tests/ui/codegen/lowering/forwarding_buffer_branch_stack.sol:C ===
+; === ROOT/tests/ui/codegen/lowering/forwarding_buffer_branch_stack.sol:C ===
 @module C
 @data
   F_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/forwarding_buffer_branch_stack.sol:F"
@@ -28,9 +28,9 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v7 = create 0, v6, v5
     v8 = ne v7, i160 0
     jumpi v8, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v9 = gas
     v10 = loadimmutable sI
     v11 = sext i144 0 to i256
@@ -41,9 +41,9 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v16 = zext i160 v7 to i256
     v17 = call v9, v16, 0, v14, v15, 0, 32
     jumpi v17, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v18 = returndatasize
     v19 = lt v18, 32
     icall revert_if<tuple_data_too_short>, v19
@@ -96,7 +96,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v61 = lt v60, v48
     v62 = eq v61, false
     jumpi v62, bb6, bb5
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     v63 = sload 2 !metadata(storage=slot(2))
     v64 = lt v2, v63
     v65 = eq v64, false
@@ -112,26 +112,26 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v74 = trunc i256 v73 to i8
     v75 = ne v74, i8 0
     jump bb7
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb7
-  bb7:  ; preds = bb6, bb5
+  bb7:                                            ; preds = bb6, bb5
     v76 = phi [bb5: v75], [bb6: true]
     v77 = sload 5 !metadata(storage=slot(5))
     v78 = trunc i256 v77 to i8
     v79 = ne v78, i8 0
     jumpi v79, bb8, bb9
-  bb9:  ; preds = bb7
+  bb9:                                            ; preds = bb7
     jump bb10
-  bb8:  ; preds = bb7
+  bb8:                                            ; preds = bb7
     v80 = datasize F_creation_code_0
     v81 = fmp
     datacopy F_creation_code_0, v81, v80
     v82 = create 0, v81, v80
     v83 = ne v82, i160 0
     jumpi v83, bb12, bb11
-  bb11:  ; preds = bb8
+  bb11:                                           ; preds = bb8
     revert_returndata
-  bb12:  ; preds = bb8
+  bb12:                                           ; preds = bb8
     v84 = gas
     v85 = alloc 64
     v86 = loadimmutable sI
@@ -171,9 +171,9 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v116 = zext i160 v82 to i256
     v117 = call v84, v116, 0, v114, v115, 0, 32
     jumpi v117, bb14, bb13
-  bb13:  ; preds = bb12
+  bb13:                                           ; preds = bb12
     revert_returndata
-  bb14:  ; preds = bb12
+  bb14:                                           ; preds = bb12
     v118 = returndatasize
     v119 = lt v118, 32
     icall revert_if<tuple_data_too_short>, v119
@@ -182,7 +182,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     icall revert_if<empty>, v121
     v122 = ne v120, 0
     jumpi v122, bb16, bb15
-  bb15:  ; preds = bb14
+  bb15:                                           ; preds = bb14
     v123 = sload 3 !metadata(storage=slot(3))
     v124 = lt v3, v123
     v125 = eq v124, false
@@ -227,12 +227,12 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v161 = lt v134, v160
     v162 = eq v161, false
     jump bb17
-  bb16:  ; preds = bb14
+  bb16:                                           ; preds = bb14
     jump bb17
-  bb17:  ; preds = bb16, bb15
+  bb17:                                           ; preds = bb16, bb15
     v163 = phi [bb15: v162], [bb16: true]
     jumpi v163, bb19, bb18
-  bb18:  ; preds = bb17
+  bb18:                                           ; preds = bb17
     v164 = sload 2 !metadata(storage=slot(2))
     v165 = lt v2, v164
     v166 = eq v165, false
@@ -248,13 +248,13 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v175 = trunc i256 v174 to i8
     v176 = ne v175, i8 0
     jump bb20
-  bb19:  ; preds = bb17
+  bb19:                                           ; preds = bb17
     jump bb20
-  bb20:  ; preds = bb19, bb18
+  bb20:                                           ; preds = bb19, bb18
     v177 = phi [bb18: v176], [bb19: true]
     v178 = eq v177, false
     jump bb10
-  bb10:  ; preds = bb20, bb9
+  bb10:                                           ; preds = bb20, bb9
     v179 = phi [bb20: v178], [bb9: false]
     ret v179
 }

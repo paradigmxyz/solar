@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/load-pre/loop_array_fill.sol:LoopArrayFill ===
+; === ROOT/tests/ui/codegen/mir/load-pre/loop_array_fill.sol:LoopArrayFill ===
 @module LoopArrayFill
 @phase lowered
 ; runtime dispatch entry
@@ -11,214 +11,217 @@ fn @entry() [entry] {
     v4 = or v0, v3
     v5 = ne v4, 0
     jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v6 = calldataload 0
     v7 = shr v6, 224
     switch v7, default bb1, [0x3fda5389 => bb3, 0x713c311a => bb4]
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     tail_call @lanes
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     tail_call @fill
-  bb1 [cold]:  ; preds = bb0, bb2
+  bb1 [cold]:                                     ; preds = bb0, bb2
     revert 0, 0
 }
 
 ; function fill(uint256 n) external pure returns (uint256[] memory ids) [selector 0x3fda5389]
-fn @fill() [selector=0x3fda5389, abi_wrapper, pure] {
+fn @fill() {
   bb0:
-    v7 = add arg0, 1
+    v61 = calldataload 4
+    v7 = add v61, 1
     v8 = eq v7, 0
     jumpi v8, bb8, bb9
-  bb9:  ; preds = bb0
+  bb9:                                            ; preds = bb0
     v9 = shl v7, 5
-    v135 = shr v7, 251
-    v10 = ne v135, 0
+    v137 = shr v7, 251
+    v10 = ne v137, 0
     jumpi v10, bb8, bb10
-  bb10:  ; preds = bb9
-    v80 = heap_floor !metadata(alloc_ptr)
-    v81 = add v80, v9 !metadata(alloc_ptr)
-    v137 = shr v81, 64
-    v82 = lt v81, v80
-    v139 = zext i1 v82 to i256
-    v140 = or v137, v139
-    v84 = ne v140, 0
-    jumpi v84, bb17, bb16
-  bb16:  ; preds = bb10
-    v86 = calldatasize
-    calldatacopy v80, v86, v9
-    mstore v80, arg0
-    v36 = or v80, arg0
-    v142 = shr v36, 64
-    v40 = eq v142, 0
+  bb10:                                           ; preds = bb9
+    v81 = heap_floor !metadata(alloc_ptr)
+    v82 = add v81, v9 !metadata(alloc_ptr)
+    v139 = shr v82, 64
+    v83 = lt v82, v81
+    v141 = zext i1 v83 to i256
+    v142 = or v139, v141
+    v85 = ne v142, 0
+    jumpi v85, bb17, bb16
+  bb16:                                           ; preds = bb10
+    v136 = calldataload 4
+    v87 = calldatasize
+    calldatacopy v81, v87, v9
+    mstore v81, v136
+    v36 = or v81, v136
+    v144 = shr v36, 64
+    v40 = eq v144, 0
     jumpi v40, bb7, bb6
-  bb6:  ; preds = bb16
-    v87 = add v80, 32
+  bb6:                                            ; preds = bb16
+    v88 = add v81, 32
     jump bb1
-  bb1:  ; preds = bb6, bb12
+  bb1:                                            ; preds = bb6, bb12
     v14 = phi [bb6: 0], [bb12: v23]
-    v88 = phi [bb6: v87], [bb12: v89]
-    v15 = lt v14, arg0
+    v89 = phi [bb6: v88], [bb12: v90]
+    v15 = lt v14, v136
     jumpi v15, bb3, bb2
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v45 = mul v14, v14
     v46 = eq v14, 0
     v47 = div v45, v14
     v48 = eq v47, v14
     v49 = or v46, v48
     jumpi v49, bb14, bb13
-  bb14:  ; preds = bb3
-    v17 = mload v80
+  bb14:                                           ; preds = bb3
+    v17 = mload v81
     v18 = lt v14, v17
     jumpi v18, bb12, bb11
-  bb11 [cold]:  ; preds = bb14
+  bb11 [cold]:                                    ; preds = bb14
     tail_call @revert_stub.3
-  bb12:  ; preds = bb14
-    mstore v88, v45
+  bb12:                                           ; preds = bb14
+    mstore v89, v45
     v23 = add v14, 1
-    v89 = add v88, 32
+    v90 = add v89, 32
     jump bb1
-  bb7:  ; preds = bb16
-    v90 = add v80, 32
+  bb7:                                            ; preds = bb16
+    v91 = add v81, 32
     jump bb18
-  bb18:  ; preds = bb7, bb23
-    v93 = phi [bb7: 0], [bb23: v131]
-    v94 = phi [bb7: v90], [bb23: v132]
-    v133 = add v93, 3
-    v134 = lt v133, arg0
-    jumpi v134, bb19, bb4
-  bb4:  ; preds = bb15, bb18
-    v24 = phi [bb18: v93], [bb15: v32]
-    v91 = phi [bb18: v94], [bb15: v92]
-    v25 = lt v24, arg0
+  bb18:                                           ; preds = bb7, bb23
+    v94 = phi [bb7: 0], [bb23: v132]
+    v95 = phi [bb7: v91], [bb23: v133]
+    v134 = add v94, 3
+    v135 = lt v134, v136
+    jumpi v135, bb19, bb4
+  bb4:                                            ; preds = bb15, bb18
+    v24 = phi [bb18: v94], [bb15: v32]
+    v92 = phi [bb18: v95], [bb15: v93]
+    v25 = lt v24, v136
     jumpi v25, bb5, bb2
-  bb2:  ; preds = bb1, bb4
-    v64 = mload v80
-    v65 = shl v64, 5
-    v70 = sub v80, 32
-    mstore v70, 32
-    v67 = add v65, 64
-    returndata v70, v67
-  bb5:  ; preds = bb4
+  bb2:                                            ; preds = bb1, bb4
+    v65 = mload v81
+    v66 = shl v65, 5
+    v71 = sub v81, 32
+    mstore v71, 32
+    v68 = add v66, 64
+    returndata v71, v68
+  bb5:                                            ; preds = bb4
     v52 = mul v24, v24
     v53 = eq v24, 0
     v54 = div v52, v24
     v55 = eq v54, v24
     v56 = or v53, v55
     jumpi v56, bb15, bb13
-  bb15:  ; preds = bb5
-    mstore v91, v52
+  bb15:                                           ; preds = bb5
+    mstore v92, v52
     v32 = add v24, 1
-    v92 = add v91, 32
+    v93 = add v92, 32
     jump bb4
-  bb19:  ; preds = bb18
-    v96 = mul v93, v93
-    v97 = eq v93, 0
-    v98 = div v96, v93
-    v99 = eq v98, v93
-    v100 = or v97, v99
-    jumpi v100, bb20, bb13
-  bb20:  ; preds = bb19
-    mstore v94, v96
-    v101 = add v93, 1
-    v102 = add v94, 32
-    v106 = mul v101, v101
-    v107 = eq v101, 0
-    v108 = div v106, v101
-    v109 = eq v108, v101
-    v110 = or v107, v109
-    jumpi v110, bb21, bb13
-  bb21:  ; preds = bb20
-    mstore v102, v106
-    v111 = add v101, 1
-    v112 = add v94, 64
-    v116 = mul v111, v111
-    v117 = eq v111, 0
-    v118 = div v116, v111
-    v119 = eq v118, v111
-    v120 = or v117, v119
-    jumpi v120, bb22, bb13
-  bb22:  ; preds = bb21
-    mstore v112, v116
-    v121 = add v111, 1
-    v122 = add v94, 96
-    v126 = mul v121, v121
-    v127 = eq v121, 0
-    v128 = div v126, v121
-    v129 = eq v128, v121
-    v130 = or v127, v129
-    jumpi v130, bb23, bb13
-  bb13 [cold]:  ; preds = bb3, bb5, bb19, bb20, bb21, bb22
+  bb19:                                           ; preds = bb18
+    v97 = mul v94, v94
+    v98 = eq v94, 0
+    v99 = div v97, v94
+    v100 = eq v99, v94
+    v101 = or v98, v100
+    jumpi v101, bb20, bb13
+  bb20:                                           ; preds = bb19
+    mstore v95, v97
+    v102 = add v94, 1
+    v103 = add v95, 32
+    v107 = mul v102, v102
+    v108 = eq v102, 0
+    v109 = div v107, v102
+    v110 = eq v109, v102
+    v111 = or v108, v110
+    jumpi v111, bb21, bb13
+  bb21:                                           ; preds = bb20
+    mstore v103, v107
+    v112 = add v102, 1
+    v113 = add v95, 64
+    v117 = mul v112, v112
+    v118 = eq v112, 0
+    v119 = div v117, v112
+    v120 = eq v119, v112
+    v121 = or v118, v120
+    jumpi v121, bb22, bb13
+  bb22:                                           ; preds = bb21
+    mstore v113, v117
+    v122 = add v112, 1
+    v123 = add v95, 96
+    v127 = mul v122, v122
+    v128 = eq v122, 0
+    v129 = div v127, v122
+    v130 = eq v129, v122
+    v131 = or v128, v130
+    jumpi v131, bb23, bb13
+  bb13 [cold]:                                    ; preds = bb3, bb5, bb19, bb20, bb21, bb22
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb23:  ; preds = bb22
-    mstore v122, v126
-    v131 = add v121, 1
-    v132 = add v94, 128
+  bb23:                                           ; preds = bb22
+    mstore v123, v127
+    v132 = add v122, 1
+    v133 = add v95, 128
     jump bb18
-  bb17 [cold]:  ; preds = bb10
+  bb17 [cold]:                                    ; preds = bb10
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb8 [cold]:  ; preds = bb0, bb9
+  bb8 [cold]:                                     ; preds = bb0, bb9
     tail_call @revert_stub.2
 }
 
 ; function lanes(uint256 packed) external pure returns (uint256[] memory ids) [selector 0x713c311a]
-fn @lanes() [selector=0x713c311a, abi_wrapper, pure] {
+fn @lanes() {
   bb0:
-    v51 = and arg0, 0xffffffff
+    v65 = calldataload 4
+    v51 = and v65, 0xffffffff
     v52 = eq v51, 0
     jumpi v52, bb4, bb5
-  bb5:  ; preds = bb0
-    v53 = shr arg0, 32
+  bb5:                                            ; preds = bb0
+    v53 = shr v65, 32
     v54 = and v53, 0xffffffff
     v55 = eq v54, 0
     jumpi v55, bb4, bb6
-  bb6:  ; preds = bb5
-    v56 = shr arg0, 64
+  bb6:                                            ; preds = bb5
+    v56 = shr v65, 64
     v57 = and v56, 0xffffffff
     v58 = eq v57, 0
     v60 = zext i1 v58 to i256
     v62 = sub 3, v60
     jump bb4
-  bb4:  ; preds = bb0, bb5, bb6
+  bb4:                                            ; preds = bb0, bb5, bb6
     v59 = phi [bb0: 0], [bb5: 1], [bb6: v62]
     v8 = add v59, 1
     v10 = shl v8, 5
-    v84 = heap_floor !metadata(alloc_ptr)
-    v85 = add v84, v10 !metadata(alloc_ptr)
-    v96 = shr v85, 64
-    v86 = lt v85, v84
-    v98 = zext i1 v86 to i256
-    v99 = or v96, v98
-    v88 = ne v99, 0
-    jumpi v88, bb8, bb7
-  bb7:  ; preds = bb4
-    mstore v84, v59
-    v93 = add v84, 32
+    v85 = heap_floor !metadata(alloc_ptr)
+    v86 = add v85, v10 !metadata(alloc_ptr)
+    v97 = shr v86, 64
+    v87 = lt v86, v85
+    v99 = zext i1 v87 to i256
+    v100 = or v97, v99
+    v89 = ne v100, 0
+    jumpi v89, bb8, bb7
+  bb7:                                            ; preds = bb4
+    mstore v85, v59
+    v94 = add v85, 32
     jump bb2
-  bb2:  ; preds = bb3, bb7
+  bb2:                                            ; preds = bb3, bb7
     v28 = phi [bb7: 0], [bb3: v38]
-    v94 = phi [bb7: v93], [bb3: v95]
+    v95 = phi [bb7: v94], [bb3: v96]
     v29 = lt v28, v59
     jumpi v29, bb3, bb1
-  bb1:  ; preds = bb2
-    v68 = mload v84
-    v69 = shl v68, 5
-    v74 = sub v84, 32
-    mstore v74, 32
-    v71 = add v69, 64
-    returndata v74, v71
-  bb3:  ; preds = bb2
+  bb1:                                            ; preds = bb2
+    v69 = mload v85
+    v70 = shl v69, 5
+    v75 = sub v85, 32
+    mstore v75, 32
+    v72 = add v70, 64
+    returndata v75, v72
+  bb3:                                            ; preds = bb2
     v30 = shl v28, 5
-    v31 = shr arg0, v30
+    v31 = shr v65, v30
     v32 = and v31, 0xffffffff
-    mstore v94, v32
+    mstore v95, v32
     v38 = add v28, 1
-    v95 = add v94, 32
+    v96 = add v95, 32
     jump bb2
-  bb8 [cold]:  ; preds = bb4
+  bb8 [cold]:                                     ; preds = bb4
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36

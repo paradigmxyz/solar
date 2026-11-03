@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/block-layout/shared_return.evmir (before block-layout) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/block-layout/shared_return.evmir (after block-layout) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/block-layout/shared_return.evmir (before block-layout) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/block-layout/shared_return.evmir (after block-layout) ===
   @module shared_return
   bb0:
     push bb7

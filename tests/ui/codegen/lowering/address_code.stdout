@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/address_code.sol:AddressCode ===
+; === ROOT/tests/ui/codegen/lowering/address_code.sol:AddressCode ===
 @module AddressCode
 ; function codeLength(address account) external view returns (uint256) [selector 0xbd3736e3]
 fn @codeLength(arg0: i160) -> i256 [selector=0xbd3736e3, view, abi_params=[address], abi_returns=[word], abi_return_params=[uint256]] {

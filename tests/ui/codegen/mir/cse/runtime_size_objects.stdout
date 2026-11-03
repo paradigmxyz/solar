@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/cse/runtime_size_objects.mir (before cse) ===
-+ // === ROOT/tests/ui/codegen/mir/cse/runtime_size_objects.mir (after cse) ===
+- ; === ROOT/tests/ui/codegen/mir/cse/runtime_size_objects.mir (before cse) ===
++ ; === ROOT/tests/ui/codegen/mir/cse/runtime_size_objects.mir (after cse) ===
   @module RuntimeSizeObjects
   fn @header_past_indexed_store(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     bb0:

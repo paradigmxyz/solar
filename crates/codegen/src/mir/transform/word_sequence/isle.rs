@@ -10,6 +10,7 @@ use crate::{
     mir::{
         Function, InstId, InstKind, MirType, Op, Value as MirValue, ValueId,
         analysis::integers::integer_mask,
+        transform::commute::{Reading, Spellings, commutative_definition, swappable},
     },
     target::Target,
 };
@@ -53,6 +54,7 @@ pub(super) fn alternatives(
     stage: Stage,
     read: ConditionRead,
 ) -> Vec<Recipe> {
+    let op = &func.canonical_op(*op);
     let mut result = Vec::new();
     let scalar_ty =
         op.into_kind().and_then(|kind| widest_int_operand(func, &kind)).unwrap_or(MirType::I256);
@@ -64,21 +66,29 @@ pub(super) fn alternatives(
     } else {
         scalar_ty
     };
-    generated::constructor_sequence_rewrite(
-        &mut Context {
-            func,
-            block,
-            seen,
-            masks,
-            target,
-            scalar_ty,
-            stage,
-            read,
-            temporaries: FxHashMap::default(),
-        },
-        op,
-        &mut result,
-    );
+    let mut context = Context {
+        func,
+        block,
+        seen,
+        masks,
+        target,
+        scalar_ty,
+        stage,
+        read,
+        temporaries: FxHashMap::default(),
+        reading: Reading::default(),
+    };
+    generated::constructor_sequence_rewrite(&mut context, op, &mut result);
+    // The spellings after the written one.
+    if context.reading.read_commutative || swappable(func, op) {
+        let spellings = Spellings::new(func, op, |value| commutative_definition(func, value));
+        for (root, commuted) in spellings.rest(op) {
+            context.reading.commuted = commuted;
+            // Recipes of earlier spellings hold their own copy of the temporaries.
+            context.temporaries.clear();
+            generated::constructor_sequence_rewrite(&mut context, &root, &mut result);
+        }
+    }
     result
 }
 
@@ -95,6 +105,8 @@ struct Context<'a> {
     /// How the root's result is read.
     read: ConditionRead,
     temporaries: FxHashMap<ValueId, Temporary>,
+    /// The commuted spelling of the root being matched.
+    reading: Reading,
 }
 
 impl Context<'_> {
@@ -162,7 +174,7 @@ impl generated::Context for Context<'_> {
     fn inst_data(&mut self, value: Value) -> Option<Op> {
         let MirValue::Inst(inst) = self.func.value(value) else { return None };
         let kind = &self.func.inst(*inst).kind;
-        (self.seen.contains(inst)
+        let op = (self.seen.contains(inst)
             && (kind.op_def().result == crate::mir::ResultKind::I1
                 || matches!(kind, InstKind::Zext(_) | InstKind::Sext(..) | InstKind::Trunc(..))
                 || kind.operands().iter().all(|&operand| {
@@ -170,7 +182,8 @@ impl generated::Context for Context<'_> {
                         .value_ty(operand)
                         .is_none_or(|ty| ty == MirType::I1 || ty == self.scalar_ty)
                 })))
-        .then(|| kind.op())
+        .then(|| kind.op())?;
+        Some(self.reading.view(self.func, value, op))
     }
 
     fn make(&mut self, op: &Op) -> Option<Value> {

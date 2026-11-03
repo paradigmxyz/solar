@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/abi_packed_calldata_struct_field.sol:AbiPackedCalldataStructField ===
+; === ROOT/tests/ui/codegen/lowering/abi_packed_calldata_struct_field.sol:AbiPackedCalldataStructField ===
 @module AbiPackedCalldataStructField
 ; function pack(ForwardRequestData calldata request) external pure returns (bytes memory) [selector 0xc917a597]
 fn @pack(arg0: slice<calldata>) -> ptr<memory> [selector=0xc917a597, pure, abi_params=[tuple<address, address, uint256, uint256, uint48, bytes, bytes>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

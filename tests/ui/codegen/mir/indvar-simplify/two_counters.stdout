@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/indvar-simplify/two_counters.sol:Test ===
+; === ROOT/tests/ui/codegen/mir/indvar-simplify/two_counters.sol:Test ===
 @module Test
 @phase lowered
 ; runtime dispatch entry
@@ -7,58 +7,60 @@ fn @entry() [entry] {
     v0 = callvalue
     v1 = ne v0, 0
     jumpi v1, bb5, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v2 = calldataload 0
     v3 = shr v2, 224
     switch v3, default bb5, [0x62b0ae87 => bb2, 0xc5e77450 => bb3, 0xcc1fc46b => bb4]
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     tail_call @rawBase
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     tail_call @narrowBase
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     tail_call @pack
-  bb5 [cold]:  ; preds = bb0, bb1
+  bb5 [cold]:                                     ; preds = bb0, bb1
     revert 0, 0
 }
 
 ; function narrowBase(uint8 base, uint256 extra) public pure returns (uint256 sum) [selector 0xc5e77450]
-fn @narrowBase() [selector=0xc5e77450, abi_wrapper, pure] {
+fn @narrowBase() {
   bb0:
     v20 = calldatasize
     v21 = lt v20, 68
     v22 = calldataload 4
     v23 = gt v22, 255
-    v24 = or v21, v23
-    jumpi v24, bb4, bb5
-  bb5:  ; preds = bb0
-    v14 = add arg1, arg1
-    v16 = add v14, arg0
+    v27 = or v21, v23
+    jumpi v27, bb4, bb5
+  bb5:                                            ; preds = bb0
+    v28 = calldataload 4
+    v24 = calldataload 36
+    v14 = add v24, v24
+    v16 = add v14, v28
     v17 = add v16, 7
     jump bb1
-  bb1:  ; preds = bb3, bb5
+  bb1:                                            ; preds = bb3, bb5
     v2 = phi [bb5: 0], [bb3: v12]
     v3 = phi [bb5: 0], [bb3: v13]
     v18 = phi [bb5: v17], [bb3: v19]
     v4 = lt v3, 4
     jumpi v4, bb3, bb2
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     mstore 0, v2 !metadata(memory=scratch)
     returndata 0, 32
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v6 = shl v3, 5
-    v7 = add v6, arg0
+    v7 = add v6, v28
     v9 = add v7, v14
     v10 = add v9, v2
     v12 = xor v10, v18
     v13 = add v3, 1
     v19 = add v18, 32
     jump bb1
-  bb4 [cold]:  ; preds = bb0
+  bb4 [cold]:                                     ; preds = bb0
     revert 0, 0
 }
 
 ; function pack(bytes memory s) public pure returns (bytes memory out) [selector 0x62b0ae87]
-fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
+fn @pack() {
   bb0:
     v148 = calldatasize
     v149 = lt v148, 36
@@ -68,7 +70,7 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v154 = lt v153, v150
     v267 = or v149, v154
     jumpi v267, bb25, bb26
-  bb26:  ; preds = bb0
+  bb26:                                           ; preds = bb0
     v155 = calldataload v151
     v156 = add v151, 32
     v259 = add v155, 63
@@ -84,26 +86,26 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v280 = or v277, v279
     v268 = ne v280, 0
     jumpi v268, bb10, bb29
-  bb29:  ; preds = bb26
+  bb29:                                           ; preds = bb26
     mstore 64, v253 !metadata(memory=scratch)
     mstore v252, v155
     v162 = sub v148, v156
     v163 = lt v162, v155
     jumpi v163, bb25, bb27
-  bb27:  ; preds = bb29
+  bb27:                                           ; preds = bb29
     v232 = add v252, 32
     calldatacopy v232, v156, v155
     v1 = div v155, 3
     v138 = shl v1, 2
     v139 = gt v155, 0xbfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jumpi v139, bb23, bb24
-  bb24:  ; preds = bb27
+  bb24:                                           ; preds = bb27
     v3 = add v138, 31
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v5 = add v4, 32
     v6 = lt v5, v138
     jumpi v6, bb10, bb11
-  bb11:  ; preds = bb24
+  bb11:                                           ; preds = bb24
     v246 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v247 = add v246, v5 !metadata(alloc_ptr)
     v269 = shr v247, 64
@@ -112,7 +114,7 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v272 = or v269, v271
     v250 = ne v272, 0
     jumpi v250, bb10, bb28
-  bb28:  ; preds = bb11
+  bb28:                                           ; preds = bb11
     mstore 64, v247 !metadata(memory=scratch)
     v258 = calldatasize
     calldatacopy v246, v258, v5
@@ -127,25 +129,25 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v285 = or v282, v284
     v136 = eq v285, 0
     jumpi v136, bb8, bb9
-  bb9:  ; preds = bb28
+  bb9:                                            ; preds = bb28
     v261 = add v246, 32
     jump bb1
-  bb1:  ; preds = bb9, bb19
+  bb1:                                            ; preds = bb9, bb19
     v12 = phi [bb9: 0], [bb19: v72]
     v13 = phi [bb9: 0], [bb19: v73]
     v262 = phi [bb9: v261], [bb19: v263]
     v140 = add v12, 2
     v15 = lt v140, v155
     jumpi v15, bb3, bb2
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v142 = add v13, 3
     v17 = lt v142, v138
     jumpi v17, bb4, bb2
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v19 = mload v252
     v20 = lt v12, v19
     jumpi v20, bb13, bb12
-  bb13:  ; preds = bb4
+  bb13:                                           ; preds = bb4
     v190 = add v252, v12
     v191 = add v190, 32
     v24 = mload v191
@@ -153,13 +155,13 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v27 = mload v246
     v28 = lt v13, v27
     jumpi v28, bb14, bb12
-  bb14:  ; preds = bb13
+  bb14:                                           ; preds = bb13
     mstore8 v262, v25
     v33 = add v12, 1
     v34 = mload v252
     v35 = lt v33, v34
     jumpi v35, bb15, bb12
-  bb15:  ; preds = bb14
+  bb15:                                           ; preds = bb14
     v196 = add v252, v33
     v197 = add v196, 32
     v39 = mload v197
@@ -168,13 +170,13 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v43 = mload v246
     v44 = lt v42, v43
     jumpi v44, bb16, bb12
-  bb16:  ; preds = bb15
+  bb16:                                           ; preds = bb15
     v200 = add v262, 1
     mstore8 v200, v40
     v50 = mload v252
     v51 = lt v140, v50
     jumpi v51, bb17, bb12
-  bb17:  ; preds = bb16
+  bb17:                                           ; preds = bb16
     v202 = add v252, v140
     v203 = add v202, 32
     v55 = mload v203
@@ -183,34 +185,34 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v59 = mload v246
     v60 = lt v58, v59
     jumpi v60, bb18, bb12
-  bb18:  ; preds = bb17
+  bb18:                                           ; preds = bb17
     v206 = add v262, 2
     mstore8 v206, v56
     v66 = mload v246
     v67 = lt v142, v66
     jumpi v67, bb19, bb12
-  bb19:  ; preds = bb18
+  bb19:                                           ; preds = bb18
     v209 = add v262, 3
     mstore8 v209, 0
     v72 = add v12, 3
     v73 = add v13, 4
     v263 = add v262, 4
     jump bb1
-  bb8:  ; preds = bb28
+  bb8:                                            ; preds = bb28
     v264 = add v246, 32
     jump bb5
-  bb5:  ; preds = bb8, bb22
+  bb5:                                            ; preds = bb8, bb22
     v74 = phi [bb8: 0], [bb22: v119]
     v75 = phi [bb8: 0], [bb22: v120]
     v265 = phi [bb8: v264], [bb22: v266]
     v144 = add v74, 2
     v77 = lt v144, v155
     jumpi v77, bb6, bb2
-  bb6:  ; preds = bb5
+  bb6:                                            ; preds = bb5
     v146 = add v75, 3
     v79 = lt v146, v138
     jumpi v79, bb7, bb2
-  bb2:  ; preds = bb1, bb3, bb5, bb6
+  bb2:                                            ; preds = bb1, bb3, bb5, bb6
     v176 = mload v246
     v177 = add v176, 31
     v178 = and v177, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -221,10 +223,10 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     mstore v188, 32
     v183 = add v178, 64
     returndata v188, v183
-  bb7:  ; preds = bb6
+  bb7:                                            ; preds = bb6
     v81 = lt v74, v121
     jumpi v81, bb20, bb12
-  bb20:  ; preds = bb7
+  bb20:                                           ; preds = bb7
     v211 = add v252, v74
     v212 = add v211, 32
     v84 = mload v212
@@ -233,7 +235,7 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v90 = add v74, 1
     v92 = lt v90, v121
     jumpi v92, bb21, bb12
-  bb21:  ; preds = bb20
+  bb21:                                           ; preds = bb20
     v217 = add v252, v90
     v218 = add v217, 32
     v95 = mload v218
@@ -242,11 +244,11 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     mstore8 v221, v96
     v104 = lt v144, v121
     jumpi v104, bb22, bb12
-  bb12 [cold]:  ; preds = bb4, bb7, bb13, bb14, bb15, bb16, bb17, bb18, bb20, bb21
+  bb12 [cold]:                                    ; preds = bb4, bb7, bb13, bb14, bb15, bb16, bb17, bb18, bb20, bb21
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb22:  ; preds = bb21
+  bb22:                                           ; preds = bb21
     v223 = add v252, v144
     v224 = add v223, 32
     v107 = mload v224
@@ -259,39 +261,40 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v120 = add v75, 4
     v266 = add v265, 4
     jump bb5
-  bb23 [cold]:  ; preds = bb27
+  bb23 [cold]:                                    ; preds = bb27
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb10 [cold]:  ; preds = bb11, bb24, bb26
+  bb10 [cold]:                                    ; preds = bb11, bb24, bb26
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb25 [cold]:  ; preds = bb0, bb29
+  bb25 [cold]:                                    ; preds = bb0, bb29
     revert 0, 0
 }
 
 ; function rawBase(uint256 base) external pure returns (uint256 result) [selector 0xcc1fc46b]
-fn @rawBase() [selector=0xcc1fc46b, abi_wrapper, pure] {
+fn @rawBase() {
   bb0:
     v13 = calldatasize
     v14 = lt v13, 36
     jumpi v14, bb4, bb5
-  bb5:  ; preds = bb0
-    v12 = add arg0, 64
+  bb5:                                            ; preds = bb0
+    v15 = calldataload 4
+    v12 = add v15, 64
     jump bb1
-  bb1:  ; preds = bb3, bb5
-    v10 = phi [bb5: arg0], [bb3: v11]
+  bb1:                                            ; preds = bb3, bb5
+    v10 = phi [bb5: v15], [bb3: v11]
     v3 = ne v12, v10
     jumpi v3, bb3, bb2
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v9 = mload 0 !metadata(memory=scratch)
     mstore 0, v9 !metadata(memory=scratch)
     returndata 0, 32
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     mstore v10, 7
     v11 = add v10, 32
     jump bb1
-  bb4 [cold]:  ; preds = bb0
+  bb4 [cold]:                                     ; preds = bb0
     revert 0, 0
 }

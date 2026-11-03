@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_packed_calldata_fixed_padding.sol:AbiPackedCalldataFixedPadding ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_packed_calldata_fixed_padding.sol:AbiPackedCalldataFixedPadding ===
 @module AbiPackedCalldataFixedPadding
 ; function packed(uint256) external pure returns (bytes memory) [selector 0x977eca9c]
 fn @packed(arg0: i256) -> ptr<memory> [selector=0x977eca9c, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -6,14 +6,14 @@ fn @packed(arg0: i256) -> ptr<memory> [selector=0x977eca9c, pure, abi_params=[ui
     v0 = make_calldata_slice ptr<calldata> 4, 2
     v1 = extract_value slice<calldata>, v0, 0
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v2 = phi [bb0: 0], [bb2: v9]
     v3 = lt v2, 2
     jumpi v3, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v10 = abi_encode_packed (array<word<uint8>> calldata v0)
     ret v10
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v4 = mul v2, 32
     v5 = ptrtoint ptr<calldata> v1 to i256
     v6 = add v5, v4
@@ -30,17 +30,17 @@ fn @hashed(arg0: i256) -> i256 [selector=0xec727bea, pure, abi_params=[uint256],
     v0 = make_calldata_slice ptr<calldata> 4, 2
     v1 = extract_value slice<calldata>, v0, 0
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v2 = phi [bb0: 0], [bb2: v9]
     v3 = lt v2, 2
     jumpi v3, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v10 = abi_encode_packed (array<word<uint8>> calldata v0)
     v11 = ptradd v10, 32
     v12 = mload v10
     v13 = keccak256 v11, v12
     ret v13
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v4 = mul v2, 32
     v5 = ptrtoint ptr<calldata> v1 to i256
     v6 = add v5, v4
@@ -57,14 +57,14 @@ fn @signed(arg0: i256) -> ptr<memory> [selector=0xbfe355dd, pure, abi_params=[in
     v0 = make_calldata_slice ptr<calldata> 4, 2
     v1 = extract_value slice<calldata>, v0, 0
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v2 = phi [bb0: 0], [bb2: v10]
     v3 = lt v2, 2
     jumpi v3, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v11 = abi_encode_packed (array<word<int8>> calldata v0)
     ret v11
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v4 = mul v2, 32
     v5 = ptrtoint ptr<calldata> v1 to i256
     v6 = add v5, v4
@@ -82,14 +82,14 @@ fn @flags(arg0: i256) -> ptr<memory> [selector=0x81274d3a, pure, abi_params=[uin
     v0 = make_calldata_slice ptr<calldata> 4, 2
     v1 = extract_value slice<calldata>, v0, 0
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v2 = phi [bb0: 0], [bb2: v9]
     v3 = lt v2, 2
     jumpi v3, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v10 = abi_encode_packed (array<word<bool>> calldata v0)
     ret v10
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v4 = mul v2, 32
     v5 = ptrtoint ptr<calldata> v1 to i256
     v6 = add v5, v4
@@ -106,14 +106,14 @@ fn @fixedBytes(arg0: i256) -> ptr<memory> [selector=0xfe805efe, pure, abi_params
     v0 = make_calldata_slice ptr<calldata> 4, 2
     v1 = extract_value slice<calldata>, v0, 0
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v2 = phi [bb0: 0], [bb2: v10]
     v3 = lt v2, 2
     jumpi v3, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v11 = abi_encode_packed (array<word<bytes1>> calldata v0)
     ret v11
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v4 = mul v2, 32
     v5 = ptrtoint ptr<calldata> v1 to i256
     v6 = add v5, v4
@@ -139,17 +139,17 @@ fn @checkedCopy(arg0: i256) -> ptr<memory> [selector=0xc77131b7, pure, abi_param
     icall revert_if<calldata_tail_too_short>, v6
     v7 = alloc 64
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v8 = phi [bb0: 0], [bb2: v15]
     v9 = lt v8, 2
     jumpi v9, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v16 = make_calldata_slice v2, 64
     v17 = extract_value slice<calldata>, v16, 0
     v18 = extract_value slice<calldata>, v16, 1
     calldatacopy v7, v17, v18
     ret v7
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v10 = mul v8, 32
     v11 = ptrtoint ptr<calldata> v2 to i256
     v12 = add v11, v10

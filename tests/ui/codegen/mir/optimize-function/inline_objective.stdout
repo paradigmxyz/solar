@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/optimize-function/inline_objective.sol:Inlined ===
+; === ROOT/tests/ui/codegen/mir/optimize-function/inline_objective.sol:Inlined ===
 @module Inlined
 @phase lowered
 ; runtime dispatch entry
@@ -11,27 +11,27 @@ fn @entry() [entry] {
     v4 = or v0, v3
     v5 = ne v4, 0
     jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v6 = calldataload 0
     v7 = shr v6, 224
     switch v7, default bb1, [0x3dd81fa2 => bb3, 0x955e9bc9 => bb4]
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     tail_call @sizeCaller
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     tail_call @gasCaller
-  bb1 [cold]:  ; preds = bb0, bb2
+  bb1 [cold]:                                     ; preds = bb0, bb2
     revert 0, 0
 }
 
 ; function gasCaller(bytes calldata data) external pure returns (uint32) [selector 0x3dd81fa2]
-fn @gasCaller() [selector=0x3dd81fa2, abi_wrapper, pure] {
+fn @gasCaller() {
   bb0:
     v42 = icall @decode_calldata_slice
     v43 = calldataload v42
     v44 = add v42, 32
     v38 = lt v43, 4
     jumpi v38, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v109 = add v44, 0
     v110 = calldataload v109
     v111 = byte 0, v110
@@ -56,42 +56,42 @@ fn @gasCaller() [selector=0x3dd81fa2, abi_wrapper, pure] {
     v142 = or v138, v141
     mstore 0, v142
     returndata 0, 32
-  bb2 [cold]:  ; preds = bb0
+  bb2 [cold]:                                     ; preds = bb0
     v65 = lt 0, v43
     v76 = lt 1, v43
     v144 = and v65, v76
     v87 = lt 2, v43
     v145 = and v144, v87
     jumpi v145, bb4, bb3
-  bb4 [cold]:  ; preds = bb2
+  bb4 [cold]:                                     ; preds = bb2
     jump bb3
-  bb3 [cold]:  ; preds = bb2, bb4
+  bb3 [cold]:                                     ; preds = bb2, bb4
     tail_call @revert_stub
 }
 
 ; function sizeCaller(bytes calldata data) external pure returns (uint32) [selector 0x955e9bc9]
-fn @sizeCaller() [selector=0x955e9bc9, abi_wrapper, optimize=size, pure] {
+fn @sizeCaller() [optimize=size] {
   bb0:
     v26 = icall @decode_calldata_slice
     v27 = calldataload v26
     v28 = add v26, 32
     jump bb1
-  bb1:  ; preds = bb0, bb5
+  bb1:                                            ; preds = bb0, bb5
     v1 = phi [bb0: 0], [bb5: v36]
     v2 = phi [bb0: 0], [bb5: v5]
     v3 = lt v2, 4
     jumpi v3, bb3, bb2
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     mstore 0, v1
     returndata 0, 32
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v33 = shl v1, 7
     v34 = and v33, 0xffffffff
     v10 = lt v2, v27
     jumpi v10, bb5, bb4
-  bb4 [cold]:  ; preds = bb3
+  bb4 [cold]:                                     ; preds = bb3
     tail_call @revert_stub
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     v15 = add v28, v2
     v16 = calldataload v15
     v17 = byte 0, v16
@@ -120,8 +120,8 @@ fn @decode_calldata_slice() -> i256 {
     v9 = lt v8, v6
     v10 = or v5, v9
     jumpi v10, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     ret v2
-  bb1 [cold]:  ; preds = bb0
+  bb1 [cold]:                                     ; preds = bb0
     revert 0, 0
 }

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/loop-unroll/invariant_tests.sol:InvariantTests ===
+; === ROOT/tests/ui/codegen/mir/loop-unroll/invariant_tests.sol:InvariantTests ===
 @module InvariantTests
 @phase lowered
 ; runtime dispatch entry
@@ -11,177 +11,185 @@ fn @entry() [entry] {
     v4 = or v0, v3
     v5 = ne v4, 0
     jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v6 = calldataload 0
     v7 = shr v6, 224
     switch v7, default bb1, [0x2e930b8e => bb3, 0xdaef3dc2 => bb4]
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     tail_call @keep
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     tail_call @periodStarts
-  bb1 [cold]:  ; preds = bb0, bb2
+  bb1 [cold]:                                     ; preds = bb0, bb2
     revert 0, 0
 }
 
 ; function periodStarts(uint256 time, uint256 period, uint256 count) external pure returns (uint256 total) [selector 0x2e930b8e]
-fn @periodStarts() [selector=0x2e930b8e, abi_wrapper, pure] {
+fn @periodStarts() {
   bb0:
-    v11 = ne arg1, 0
-    v26 = sub 0, arg2
-    v30 = ne v26, 0
-    jumpi v30, bb6, bb9
-  bb6:  ; preds = bb0
+    v26 = calldataload 4
+    v27 = calldataload 36
+    v28 = calldataload 68
+    v29 = sub 0, v28
+    v33 = ne v29, 0
+    jumpi v33, bb6, bb9
+  bb6:                                            ; preds = bb0
+    v11 = ne v27, 0
     jumpi v11, bb7, bb4
-  bb4 [cold]:  ; preds = bb6
+  bb4 [cold]:                                     ; preds = bb6
     mstore 32, 18 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb7:  ; preds = bb6
-    v31 = div arg0, arg1
-    v32 = mul v31, arg1
-    v33 = add v32, 0
-    v35 = add arg0, 0xe10
-    v36 = lt v35, arg0
-    jumpi v36, bb5, bb8
-  bb8:  ; preds = bb7
-    v37 = add v26, 1
+  bb7:                                            ; preds = bb6
+    v75 = calldataload 4
+    v34 = div v75, v27
+    v35 = mul v34, v27
+    v36 = add v35, 0
+    v38 = add v75, 0xe10
+    v39 = lt v38, v75
+    jumpi v39, bb5, bb8
+  bb8:                                            ; preds = bb7
+    v40 = add v29, 1
     jump bb9
-  bb9:  ; preds = bb0, bb8
-    v38 = phi [bb0: arg0], [bb8: v35]
-    v39 = phi [bb0: 0], [bb8: v33]
-    v40 = phi [bb0: v26], [bb8: v37]
-    v63 = and v40, 1
-    v64 = ne v63, 0
-    jumpi v64, bb10, bb13
-  bb10:  ; preds = bb9
-    v45 = div v38, arg1
-    v46 = mul v45, arg1
-    v47 = add v46, v39
-    v48 = lt v47, v39
-    v49 = add v38, 0xe10
-    v50 = lt v49, v38
-    v71 = or v48, v50
-    jumpi v71, bb5, bb11
-  bb11:  ; preds = bb10
-    v51 = add v40, 1
+  bb9:                                            ; preds = bb0, bb8
+    v41 = phi [bb0: v26], [bb8: v38]
+    v42 = phi [bb0: 0], [bb8: v36]
+    v43 = phi [bb0: v29], [bb8: v40]
+    v66 = and v43, 1
+    v67 = ne v66, 0
+    jumpi v67, bb10, bb13
+  bb10:                                           ; preds = bb9
+    v48 = div v41, v27
+    v49 = mul v48, v27
+    v50 = add v49, v42
+    v51 = lt v50, v42
+    v52 = add v41, 0xe10
+    v53 = lt v52, v41
+    v74 = or v51, v53
+    jumpi v74, bb5, bb11
+  bb11:                                           ; preds = bb10
+    v54 = add v43, 1
     jump bb13
-  bb13:  ; preds = bb9, bb11
-    v65 = phi [bb9: v38], [bb11: v49]
-    v66 = phi [bb9: v39], [bb11: v47]
-    v67 = phi [bb9: v40], [bb11: v51]
+  bb13:                                           ; preds = bb9, bb11
+    v68 = phi [bb9: v41], [bb11: v52]
+    v69 = phi [bb9: v42], [bb11: v50]
+    v70 = phi [bb9: v43], [bb11: v54]
     jump bb1
-  bb1:  ; preds = bb12, bb13
-    v0 = phi [bb13: v65], [bb12: v60]
-    v3 = phi [bb13: v66], [bb12: v58]
-    v4 = phi [bb13: v67], [bb12: v62]
+  bb1:                                            ; preds = bb12, bb13
+    v0 = phi [bb13: v68], [bb12: v63]
+    v3 = phi [bb13: v69], [bb12: v61]
+    v4 = phi [bb13: v70], [bb12: v65]
     v5 = ne v4, 0
     jumpi v5, bb3, bb2
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     mstore 0, v3 !metadata(memory=scratch)
     returndata 0, 32
-  bb3:  ; preds = bb1
-    v12 = div v0, arg1
-    v13 = mul v12, arg1
+  bb3:                                            ; preds = bb1
+    v12 = div v0, v27
+    v13 = mul v12, v27
     v20 = add v13, v3
     v21 = lt v20, v3
     v22 = add v0, 0xe10
     v23 = lt v22, v0
-    v68 = or v21, v23
-    v56 = div v22, arg1
-    v57 = mul v56, arg1
-    v58 = add v57, v20
-    v59 = lt v58, v20
-    v69 = or v68, v59
-    v60 = add v22, 0xe10
-    v61 = lt v60, v22
-    v70 = or v69, v61
-    jumpi v70, bb5, bb12
-  bb12:  ; preds = bb3
-    v62 = add v4, 2
+    v71 = or v21, v23
+    v59 = div v22, v27
+    v60 = mul v59, v27
+    v61 = add v60, v20
+    v62 = lt v61, v20
+    v72 = or v71, v62
+    v63 = add v22, 0xe10
+    v64 = lt v63, v22
+    v73 = or v72, v64
+    jumpi v73, bb5, bb12
+  bb12:                                           ; preds = bb3
+    v65 = add v4, 2
     jump bb1
-  bb5 [cold]:  ; preds = bb7, bb10, bb3
+  bb5 [cold]:                                     ; preds = bb7, bb10, bb3
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
 ; function keep(uint256 amount, uint256 shares, uint256 count) external pure returns (uint256 total) [selector 0xdaef3dc2]
-fn @keep() [selector=0xdaef3dc2, abi_wrapper, pure] {
+fn @keep() {
   bb0:
-    v11 = ne arg1, 0
-    v21 = sub 0, arg2
-    v25 = ne v21, 0
-    jumpi v25, bb6, bb9
-  bb6:  ; preds = bb0
+    v21 = calldataload 4
+    v22 = calldataload 36
+    v23 = calldataload 68
+    v24 = sub 0, v23
+    v28 = ne v24, 0
+    jumpi v28, bb6, bb9
+  bb6:                                            ; preds = bb0
+    v11 = ne v22, 0
     jumpi v11, bb7, bb4
-  bb4 [cold]:  ; preds = bb6
+  bb4 [cold]:                                     ; preds = bb6
     mstore 32, 18 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb7:  ; preds = bb6
-    v26 = div arg0, arg1
-    v27 = sub arg0, v26
-    v28 = add v27, 0
-    v30 = add arg0, 0xde0b6b3a7640000
-    v31 = lt v30, arg0
-    jumpi v31, bb5, bb8
-  bb8:  ; preds = bb7
-    v32 = add v21, 1
+  bb7:                                            ; preds = bb6
+    v70 = calldataload 4
+    v29 = div v70, v22
+    v30 = sub v70, v29
+    v31 = add v30, 0
+    v33 = add v70, 0xde0b6b3a7640000
+    v34 = lt v33, v70
+    jumpi v34, bb5, bb8
+  bb8:                                            ; preds = bb7
+    v35 = add v24, 1
     jump bb9
-  bb9:  ; preds = bb0, bb8
-    v33 = phi [bb0: arg0], [bb8: v30]
-    v34 = phi [bb0: 0], [bb8: v28]
-    v35 = phi [bb0: v21], [bb8: v32]
-    v58 = and v35, 1
-    v59 = ne v58, 0
-    jumpi v59, bb10, bb13
-  bb10:  ; preds = bb9
-    v40 = div v33, arg1
-    v41 = sub v33, v40
-    v42 = add v41, v34
-    v43 = lt v42, v34
-    v44 = add v33, 0xde0b6b3a7640000
-    v45 = lt v44, v33
-    v66 = or v43, v45
-    jumpi v66, bb5, bb11
-  bb11:  ; preds = bb10
-    v46 = add v35, 1
+  bb9:                                            ; preds = bb0, bb8
+    v36 = phi [bb0: v21], [bb8: v33]
+    v37 = phi [bb0: 0], [bb8: v31]
+    v38 = phi [bb0: v24], [bb8: v35]
+    v61 = and v38, 1
+    v62 = ne v61, 0
+    jumpi v62, bb10, bb13
+  bb10:                                           ; preds = bb9
+    v43 = div v36, v22
+    v44 = sub v36, v43
+    v45 = add v44, v37
+    v46 = lt v45, v37
+    v47 = add v36, 0xde0b6b3a7640000
+    v48 = lt v47, v36
+    v69 = or v46, v48
+    jumpi v69, bb5, bb11
+  bb11:                                           ; preds = bb10
+    v49 = add v38, 1
     jump bb13
-  bb13:  ; preds = bb9, bb11
-    v60 = phi [bb9: v33], [bb11: v44]
-    v61 = phi [bb9: v34], [bb11: v42]
-    v62 = phi [bb9: v35], [bb11: v46]
+  bb13:                                           ; preds = bb9, bb11
+    v63 = phi [bb9: v36], [bb11: v47]
+    v64 = phi [bb9: v37], [bb11: v45]
+    v65 = phi [bb9: v38], [bb11: v49]
     jump bb1
-  bb1:  ; preds = bb12, bb13
-    v0 = phi [bb13: v60], [bb12: v55]
-    v3 = phi [bb13: v61], [bb12: v53]
-    v4 = phi [bb13: v62], [bb12: v57]
+  bb1:                                            ; preds = bb12, bb13
+    v0 = phi [bb13: v63], [bb12: v58]
+    v3 = phi [bb13: v64], [bb12: v56]
+    v4 = phi [bb13: v65], [bb12: v60]
     v5 = ne v4, 0
     jumpi v5, bb3, bb2
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     mstore 0, v3 !metadata(memory=scratch)
     returndata 0, 32
-  bb3:  ; preds = bb1
-    v12 = div v0, arg1
+  bb3:                                            ; preds = bb1
+    v12 = div v0, v22
     v13 = sub v0, v12
     v15 = add v13, v3
     v16 = lt v15, v3
     v17 = add v0, 0xde0b6b3a7640000
     v18 = lt v17, v0
-    v63 = or v16, v18
-    v51 = div v17, arg1
-    v52 = sub v17, v51
-    v53 = add v52, v15
-    v54 = lt v53, v15
-    v64 = or v63, v54
-    v55 = add v17, 0xde0b6b3a7640000
-    v56 = lt v55, v17
-    v65 = or v64, v56
-    jumpi v65, bb5, bb12
-  bb12:  ; preds = bb3
-    v57 = add v4, 2
+    v66 = or v16, v18
+    v54 = div v17, v22
+    v55 = sub v17, v54
+    v56 = add v55, v15
+    v57 = lt v56, v15
+    v67 = or v66, v57
+    v58 = add v17, 0xde0b6b3a7640000
+    v59 = lt v58, v17
+    v68 = or v67, v59
+    jumpi v68, bb5, bb12
+  bb12:                                           ; preds = bb3
+    v60 = add v4, 2
     jump bb1
-  bb5 [cold]:  ; preds = bb7, bb10, bb3
+  bb5 [cold]:                                     ; preds = bb7, bb10, bb3
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/run-call/narrow_left_shift.sol:NarrowLeftShift ===
+; === ROOT/tests/ui/codegen/run-call/narrow_left_shift.sol:NarrowLeftShift ===
 @module NarrowLeftShift
 ; function leftU8(uint8 value, uint8 bits) external pure returns (uint8) [selector 0xb0f599fc]
 fn @leftU8(arg0: i8, arg1: i8) -> i8 [selector=0xb0f599fc, pure, abi_params=[uint8, uint8], abi_returns=[word<uint8>], abi_return_params=[uint8]] {

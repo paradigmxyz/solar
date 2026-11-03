@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/dead-arg-elim/cold_tail_call.mir (before dead-arg-elim) ===
-+ // === ROOT/tests/ui/codegen/mir/dead-arg-elim/cold_tail_call.mir (after dead-arg-elim) ===
+- ; === ROOT/tests/ui/codegen/mir/dead-arg-elim/cold_tail_call.mir (before dead-arg-elim) ===
++ ; === ROOT/tests/ui/codegen/mir/dead-arg-elim/cold_tail_call.mir (after dead-arg-elim) ===
   @module ColdTailCall
   fn @revert_stub() [cold] {
     bb0 [cold]:
@@ -9,9 +9,9 @@
   fn @checked(arg0: i256, arg1: i1) -> i256 {
     bb0:
       jumpi arg1, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       ret arg0
-    bb1 [cold]:  ; preds = bb0
+    bb1 [cold]:                                     ; preds = bb0
       tail_call @revert_stub
   }
   
@@ -19,11 +19,11 @@
 + fn @discarded(arg0: i1) {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       mstore 0, 1
 -     ret 7
 +     ret
-    bb1 [cold]:  ; preds = bb0
+    bb1 [cold]:                                     ; preds = bb0
       tail_call @revert_stub
   }
   

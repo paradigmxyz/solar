@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/calldata_tuple_materialization.sol:CalldataTupleMaterialization ===
+; === ROOT/tests/ui/codegen/lowering/run-call/calldata_tuple_materialization.sol:CalldataTupleMaterialization ===
 @module CalldataTupleMaterialization
 @types
   struct0: {ptr<memory>, ptr<memory>}
@@ -134,11 +134,11 @@ fn @widenedTuple(arg0: slice<calldata>) -> struct3 [selector=0x9eda07fe, abi_par
     v13 = extract_value slice<calldata>, v11, 1
     calldatacopy v10, v12, v13
     jump bb1
-  bb1:  ; preds = bb0, bb6
+  bb1:                                            ; preds = bb0, bb6
     v14 = phi [bb0: 0], [bb6: v21]
     v15 = lt v14, 3
     jumpi v15, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v22 = lt 0, 3
     v23 = eq v22, false
     icall panic_if<0x32>, v23
@@ -155,20 +155,20 @@ fn @widenedTuple(arg0: slice<calldata>) -> struct3 [selector=0x9eda07fe, abi_par
     v32 = insert_value struct3, v31, 1, v27
     v33 = insert_value struct3, v32, 2, v30
     ret v33
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v16 = add v14, 2
     v17 = lt v14, 2
     jumpi v17, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     sstore v16, 0 !metadata(storage=offset(v14, 2))
     jump bb6
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v18 = shl v14, 5
     v19 = ptradd v10, v18
     v20 = mload v19
     sstore v16, v20 !metadata(storage=offset(v14, 2))
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6:                                            ; preds = bb4, bb5
     v21 = add v14, 1
     jump bb1
 }
@@ -222,22 +222,22 @@ fn @sliceTuple(arg0: slice<calldata>) -> struct3 [selector=0x09979d7d, abi_param
     v27 = sload 5 !metadata(storage=slot(5))
     v28 = lt v26, v27
     jumpi v28, bb1, bb2
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb4
+  bb3:                                            ; preds = bb1, bb4
     v29 = phi [bb1: v26], [bb4: v33]
     v30 = lt v29, v27
     jumpi v30, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb2
-  bb2:  ; preds = bb0, bb5
+  bb2:                                            ; preds = bb0, bb5
     sstore 5, v26 !metadata(storage=slot(5))
     jump bb6
-  bb6:  ; preds = bb2, bb7
+  bb6:                                            ; preds = bb2, bb7
     v34 = phi [bb2: 0], [bb7: v42]
     v35 = lt v34, v26
     jumpi v35, bb7, bb8
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     v43 = sload 5 !metadata(storage=slot(5))
     v44 = gt v43, 0
     v45 = eq v44, false
@@ -262,7 +262,7 @@ fn @sliceTuple(arg0: slice<calldata>) -> struct3 [selector=0x09979d7d, abi_param
     v61 = insert_value struct3, v60, 1, v53
     v62 = insert_value struct3, v61, 2, v59
     ret v62
-  bb7:  ; preds = bb6
+  bb7:                                            ; preds = bb6
     v36 = shl v34, 5
     v37 = ptradd v21, v36
     v38 = ptradd v37, 32
@@ -272,7 +272,7 @@ fn @sliceTuple(arg0: slice<calldata>) -> struct3 [selector=0x09979d7d, abi_param
     sstore v41, v39 !metadata(storage=symbolic(v41))
     v42 = add v34, 1
     jump bb6
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v31 = storage_array_data_slot 5
     v32 = add v31, v29
     sstore v32, 0 !metadata(storage=symbolic(v32))

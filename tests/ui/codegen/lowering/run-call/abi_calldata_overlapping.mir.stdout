@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_overlapping.sol:AbiCalldataOverlapping ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_overlapping.sol:AbiCalldataOverlapping ===
 @module AbiCalldataOverlapping
 ; function memoryRead(uint256[][] calldata values) external pure returns (uint256) [selector 0xba65adf9]
 fn @memoryRead(arg0: slice<calldata>) -> i256 [selector=0xba65adf9, pure, abi_params=[array<_, array<_, uint256>>], abi_returns=[word], abi_return_params=[uint256]] {
@@ -22,11 +22,11 @@ fn @memoryRead(arg0: slice<calldata>) -> i256 [selector=0xba65adf9, pure, abi_pa
     v12 = alloc v10
     mstore v12, v0
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v13 = phi [bb0: 0], [bb2: v51]
     v14 = lt v13, v0
     jumpi v14, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v52 = mload v12
     v53 = gt v52, 0
     v54 = eq v53, false
@@ -53,7 +53,7 @@ fn @memoryRead(arg0: slice<calldata>) -> i256 [selector=0xba65adf9, pure, abi_pa
     v71 = mload v70
     v72 = checked_add uint256, v61, v71
     ret v72
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v15 = mul v13, 32
     v16 = ptrtoint ptr<calldata> v1 to i256
     v17 = add v16, v15

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/storage_array_push_shorter_calldata.sol:StorageArrayPushShorterCalldata ===
+; === ROOT/tests/ui/codegen/lowering/run-call/storage_array_push_shorter_calldata.sol:StorageArrayPushShorterCalldata ===
 @module StorageArrayPushShorterCalldata
 @types
   struct0: {i256, i256, i256}
@@ -27,11 +27,11 @@ fn @pushShorterCalldata(arg0: slice<calldata>) -> struct0 [selector=0x4e10bf3a, 
     v13 = mul v9, 3
     v14 = add v12, v13
     jump bb1
-  bb1:  ; preds = bb0, bb6
+  bb1:                                            ; preds = bb0, bb6
     v15 = phi [bb0: 0], [bb6: v22]
     v16 = lt v15, 3
     jumpi v16, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     sstore 0, v11 !metadata(storage=slot(0))
     v23 = sload 0 !metadata(storage=slot(0))
     v24 = gt v23, 0
@@ -66,20 +66,20 @@ fn @pushShorterCalldata(arg0: slice<calldata>) -> struct0 [selector=0x4e10bf3a, 
     v47 = insert_value struct0, v46, 1, v37
     v48 = insert_value struct0, v47, 2, v45
     ret v48
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v17 = add v14, v15
     v18 = lt v15, 2
     jumpi v18, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     sstore v17, 0 !metadata(storage=symbolic(v17))
     jump bb6
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v19 = shl v15, 5
     v20 = ptradd v5, v19
     v21 = mload v20
     sstore v17, v21 !metadata(storage=symbolic(v17))
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6:                                            ; preds = bb4, bb5
     v22 = add v15, 1
     jump bb1
 }
@@ -95,11 +95,11 @@ fn @pushNarrowCalldata(arg0: slice<calldata>) -> struct0 [selector=0x3c12c61b, a
     icall revert_if<calldata_tail_too_short>, v4
     v5 = alloc 64
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v6 = phi [bb0: 0], [bb2: v13]
     v7 = lt v6, 2
     jumpi v7, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v14 = make_calldata_slice v0, 64
     v15 = extract_value slice<calldata>, v14, 0
     v16 = extract_value slice<calldata>, v14, 1
@@ -112,11 +112,11 @@ fn @pushNarrowCalldata(arg0: slice<calldata>) -> struct0 [selector=0x3c12c61b, a
     v21 = mul v17, 3
     v22 = add v20, v21
     jump bb4
-  bb4:  ; preds = bb3, bb9
+  bb4:                                            ; preds = bb3, bb9
     v23 = phi [bb3: 0], [bb9: v30]
     v24 = lt v23, 3
     jumpi v24, bb5, bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     sstore 0, v19 !metadata(storage=slot(0))
     v31 = sload 0 !metadata(storage=slot(0))
     v32 = gt v31, 0
@@ -151,23 +151,23 @@ fn @pushNarrowCalldata(arg0: slice<calldata>) -> struct0 [selector=0x3c12c61b, a
     v55 = insert_value struct0, v54, 1, v45
     v56 = insert_value struct0, v55, 2, v53
     ret v56
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     v25 = add v22, v23
     v26 = lt v23, 2
     jumpi v26, bb7, bb8
-  bb8:  ; preds = bb5
+  bb8:                                            ; preds = bb5
     sstore v25, 0 !metadata(storage=symbolic(v25))
     jump bb9
-  bb7:  ; preds = bb5
+  bb7:                                            ; preds = bb5
     v27 = shl v23, 5
     v28 = ptradd v5, v27
     v29 = mload v28
     sstore v25, v29 !metadata(storage=symbolic(v25))
     jump bb9
-  bb9:  ; preds = bb7, bb8
+  bb9:                                            ; preds = bb7, bb8
     v30 = add v23, 1
     jump bb4
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v8 = mul v6, 32
     v9 = ptrtoint ptr<calldata> v0 to i256
     v10 = add v9, v8
@@ -189,11 +189,11 @@ fn @pushNestedShorterCalldata(arg0: slice<calldata>) -> struct1 [selector=0xae05
     icall revert_if<calldata_tail_too_short>, v4
     v5 = alloc 64
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v6 = phi [bb0: 0], [bb2: v19]
     v7 = lt v6, 2
     jumpi v7, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v20 = sload 2 !metadata(storage=slot(2))
     v21 = gt v20, 0xffffffffffffffff
     icall panic_if<0x41>, v21
@@ -202,11 +202,11 @@ fn @pushNestedShorterCalldata(arg0: slice<calldata>) -> struct1 [selector=0xae05
     v24 = mul v20, 6
     v25 = add v23, v24
     jump bb4
-  bb4:  ; preds = bb3, bb9
+  bb4:                                            ; preds = bb3, bb9
     v26 = phi [bb3: 0], [bb9: v52]
     v27 = lt v26, 2
     jumpi v27, bb5, bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     sstore 2, v22 !metadata(storage=slot(2))
     v53 = sload 2 !metadata(storage=slot(2))
     v54 = gt v53, 0
@@ -294,69 +294,69 @@ fn @pushNestedShorterCalldata(arg0: slice<calldata>) -> struct1 [selector=0xae05
     v118 = insert_value struct1, v117, 4, v102
     v119 = insert_value struct1, v118, 5, v113
     ret v119
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     v28 = mul v26, 3
     v29 = add v25, v28
     v30 = lt v26, 2
     jumpi v30, bb7, bb8
-  bb8:  ; preds = bb5
+  bb8:                                            ; preds = bb5
     v43 = alloc 96
     memory_zero v43, 96
     jump bb16
-  bb16:  ; preds = bb8, bb21
+  bb16:                                           ; preds = bb8, bb21
     v44 = phi [bb8: 0], [bb21: v51]
     v45 = lt v44, 3
     jumpi v45, bb17, bb18
-  bb18:  ; preds = bb16
+  bb18:                                           ; preds = bb16
     jump bb9
-  bb17:  ; preds = bb16
+  bb17:                                           ; preds = bb16
     v46 = add v29, v44
     v47 = lt v44, 3
     jumpi v47, bb19, bb20
-  bb20:  ; preds = bb17
+  bb20:                                           ; preds = bb17
     sstore v46, 0 !metadata(storage=symbolic(v46))
     jump bb21
-  bb19:  ; preds = bb17
+  bb19:                                           ; preds = bb17
     v48 = shl v44, 5
     v49 = ptradd v43, v48
     v50 = mload v49
     sstore v46, v50 !metadata(storage=symbolic(v46))
     jump bb21
-  bb21:  ; preds = bb19, bb20
+  bb21:                                           ; preds = bb19, bb20
     v51 = add v44, 1
     jump bb16
-  bb7:  ; preds = bb5
+  bb7:                                            ; preds = bb5
     v31 = shl v26, 5
     v32 = ptradd v5, v31
     v33 = mload v32
     jump bb10
-  bb10:  ; preds = bb7, bb15
+  bb10:                                           ; preds = bb7, bb15
     v34 = phi [bb7: 0], [bb15: v42]
     v35 = lt v34, 3
     jumpi v35, bb11, bb12
-  bb12:  ; preds = bb10
+  bb12:                                           ; preds = bb10
     jump bb9
-  bb9:  ; preds = bb12, bb18
+  bb9:                                            ; preds = bb12, bb18
     v52 = add v26, 1
     jump bb4
-  bb11:  ; preds = bb10
+  bb11:                                           ; preds = bb10
     v36 = add v29, v34
     v37 = lt v34, 2
     jumpi v37, bb13, bb14
-  bb14:  ; preds = bb11
+  bb14:                                           ; preds = bb11
     sstore v36, 0 !metadata(storage=symbolic(v36))
     jump bb15
-  bb13:  ; preds = bb11
+  bb13:                                           ; preds = bb11
     v38 = shl v34, 5
     v39 = inttoptr i256 v33 to ptr<memory>
     v40 = ptradd v39, v38
     v41 = mload v40
     sstore v36, v41 !metadata(storage=symbolic(v36))
     jump bb15
-  bb15:  ; preds = bb13, bb14
+  bb15:                                           ; preds = bb13, bb14
     v42 = add v34, 1
     jump bb10
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v8 = mul v6, 64
     v9 = ptrtoint ptr<calldata> v0 to i256
     v10 = add v9, v8
@@ -396,11 +396,11 @@ fn @pushExactCalldata(arg0: slice<calldata>) -> struct2 [selector=0x9b4dcbee, ab
     v13 = mul v9, 2
     v14 = add v12, v13
     jump bb1
-  bb1:  ; preds = bb0, bb6
+  bb1:                                            ; preds = bb0, bb6
     v15 = phi [bb0: 0], [bb6: v22]
     v16 = lt v15, 2
     jumpi v16, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     sstore 1, v11 !metadata(storage=slot(1))
     v23 = sload 1 !metadata(storage=slot(1))
     v24 = gt v23, 0
@@ -424,20 +424,20 @@ fn @pushExactCalldata(arg0: slice<calldata>) -> struct2 [selector=0x9b4dcbee, ab
     v38 = insert_value struct2, undef struct2, 0, v29
     v39 = insert_value struct2, v38, 1, v37
     ret v39
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v17 = add v14, v15
     v18 = lt v15, 2
     jumpi v18, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     sstore v17, 0 !metadata(storage=symbolic(v17))
     jump bb6
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v19 = shl v15, 5
     v20 = ptradd v5, v19
     v21 = mload v20
     sstore v17, v21 !metadata(storage=symbolic(v17))
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6:                                            ; preds = bb4, bb5
     v22 = add v15, 1
     jump bb1
 }

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/spill_sibling_arm_store.sol:Recorder ===
+; === ROOT/tests/ui/codegen/lowering/run-call/spill_sibling_arm_store.sol:Recorder ===
 @module Recorder
 ; getter for `uint256 public last` [selector 0x47799da8]
 fn @last() -> i256 [selector=0x47799da8, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -33,11 +33,11 @@ fn @settle() [selector=0x11da60b4, payable, abi_params=[], abi_returns=[], abi_r
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/spill_sibling_arm_store.sol:Settler ===
+; === ROOT/tests/ui/codegen/lowering/run-call/spill_sibling_arm_store.sol:Settler ===
 @module Settler
 @library
 
-// === ROOT/tests/ui/codegen/lowering/run-call/spill_sibling_arm_store.sol:IntNegate ===
+; === ROOT/tests/ui/codegen/lowering/run-call/spill_sibling_arm_store.sol:IntNegate ===
 @module IntNegate
 @data
   Recorder_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/spill_sibling_arm_store.sol:Recorder"
@@ -51,9 +51,9 @@ fn @constructor() [constructor] {
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = sload 2 !metadata(storage=slot(2))
     v5 = and v4, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
     v6 = zext i160 v2 to i256
@@ -79,31 +79,31 @@ fn @run(arg0: i128) -> i256 [selector=0x96c07422, abi_params=[int128], abi_retur
     v9 = trunc i256 v8 to i128
     v10 = ne v9, i128 0
     jumpi v10, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v11 = sload 0 !metadata(storage=slot(0))
     v12 = signextend 15, v11
     v13 = trunc i256 v12 to i128
     icall @_settleOrTake, v6, v13
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v14 = sload 0 !metadata(storage=slot(0))
     v15 = shr v14, 128
     v16 = signextend 15, v15
     v17 = trunc i256 v16 to i128
     v18 = ne v17, i128 0
     jumpi v18, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb6
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v19 = sload 0 !metadata(storage=slot(0))
     v20 = shr v19, 128
     v21 = signextend 15, v20
     v22 = trunc i256 v21 to i128
     icall @_settleOrTake, v6, v22
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6:                                            ; preds = bb4, bb5
     v23 = sload 2 !metadata(storage=slot(2))
     v24 = trunc i256 v23 to i160
     v25 = gas
@@ -111,9 +111,9 @@ fn @run(arg0: i128) -> i256 [selector=0x96c07422, abi_params=[int128], abi_retur
     v26 = zext i160 v24 to i256
     v27 = staticcall v25, v26, 28, 4, 0, 32
     jumpi v27, bb8, bb7
-  bb7:  ; preds = bb6
+  bb7:                                            ; preds = bb6
     revert_returndata
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     v28 = returndatasize
     v29 = lt v28, 32
     icall revert_if<tuple_data_too_short>, v29
@@ -126,18 +126,18 @@ fn @_settleOrTake(arg0: i160, arg1: i128) {
   bb0:
     v0 = sgt arg1, i128 0
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v5 = sext i128 arg1 to i256
     v6 = checked_sub int256, 0, v5
     v7 = eq arg0, i160 0
     jumpi v7, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     v16 = sload 2 !metadata(storage=slot(2))
     v17 = trunc i256 v16 to i160
     v18 = address
     icall @settle, arg0, v17, v18, v6, false
     jump bb6
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v8 = sload 2 !metadata(storage=slot(2))
     v9 = trunc i256 v8 to i160
     v10 = gas
@@ -149,20 +149,20 @@ fn @_settleOrTake(arg0: i160, arg1: i128) {
     v14 = zext i160 v9 to i256
     v15 = call v10, v14, v6, 28, 4, 0, 0
     jumpi v15, bb8, bb7
-  bb7:  ; preds = bb4
+  bb7:                                            ; preds = bb4
     revert_returndata
-  bb8:  ; preds = bb4
+  bb8:                                            ; preds = bb4
     jump bb6
-  bb6:  ; preds = bb8, bb5
+  bb6:                                            ; preds = bb8, bb5
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = sload 2 !metadata(storage=slot(2))
     v2 = trunc i256 v1 to i160
     v3 = address
     v4 = zext i128 arg1 to i256
     icall @take, arg0, v2, v3, v4, false
     jump bb3
-  bb3:  ; preds = bb1, bb6
+  bb3:                                            ; preds = bb1, bb6
     ret
 }
 
@@ -170,9 +170,9 @@ fn @_settleOrTake(arg0: i160, arg1: i128) {
 fn @settle(arg0: i160, arg1: i160, arg2: i160, arg3: i256, arg4: i1) {
   bb0:
     jumpi arg4, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v0 = gas
     mstore 0, 0xa5841194 !metadata(memory=scratch)
     v1 = zext i160 arg0 to i256
@@ -184,15 +184,15 @@ fn @settle(arg0: i160, arg1: i160, arg2: i160, arg3: i256, arg4: i1) {
     v5 = zext i160 arg1 to i256
     v6 = call v0, v5, 0, 28, 36, 0, 0
     jumpi v6, bb5, bb4
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     revert_returndata
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     v7 = address
     v8 = ne v7, arg2
     jumpi v8, bb6, bb7
-  bb7:  ; preds = bb5
+  bb7:                                            ; preds = bb5
     jump bb8
-  bb8:  ; preds = bb7
+  bb8:                                            ; preds = bb7
     v9 = gas
     v10 = zext i160 arg1 to i256
     v11 = abi_encode [word<uint160>, word], scratch, selector 0xa9059cbb00000000000000000000000000000000000000000000000000000000, args v10, arg3
@@ -201,9 +201,9 @@ fn @settle(arg0: i160, arg1: i160, arg2: i160, arg3: i256, arg4: i1) {
     v14 = zext i160 arg0 to i256
     v15 = call v9, v14, 0, v12, v13, 0, 32
     jumpi v15, bb10, bb9
-  bb9:  ; preds = bb8
+  bb9:                                            ; preds = bb8
     revert_returndata
-  bb10:  ; preds = bb8
+  bb10:                                           ; preds = bb8
     v16 = returndatasize
     v17 = lt v16, 32
     icall revert_if<tuple_data_too_short>, v17
@@ -219,13 +219,13 @@ fn @settle(arg0: i160, arg1: i160, arg2: i160, arg3: i256, arg4: i1) {
     v24 = zext i160 arg1 to i256
     v25 = call v20, v24, 0, 28, 4, 0, 0
     jumpi v25, bb12, bb11
-  bb11:  ; preds = bb10
+  bb11:                                           ; preds = bb10
     revert_returndata
-  bb12:  ; preds = bb10
+  bb12:                                           ; preds = bb10
     ret
-  bb6:  ; preds = bb5
+  bb6:                                            ; preds = bb5
     ret
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     ret
 }
 
@@ -233,9 +233,9 @@ fn @settle(arg0: i160, arg1: i160, arg2: i160, arg3: i256, arg4: i1) {
 fn @take(arg0: i160, arg1: i160, arg2: i160, arg3: i256, arg4: i1) {
   bb0:
     jumpi arg4, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v0 = gas
     v1 = zext i160 arg0 to i256
     v2 = zext i160 arg2 to i256
@@ -249,10 +249,10 @@ fn @take(arg0: i160, arg1: i160, arg2: i160, arg3: i256, arg4: i1) {
     v9 = zext i160 arg1 to i256
     v10 = call v0, v9, 0, v4, v5, 0, 0
     jumpi v10, bb5, bb4
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     revert_returndata
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     ret
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     ret
 }

@@ -1,6 +1,6 @@
-// === ROOT/tests/ui/codegen/lowering/assembler_block_dedup.sol:AssemblerBlockDedup (runtime) ===
+; === ROOT/tests/ui/codegen/lowering/assembler_block_dedup.sol:AssemblerBlockDedup (runtime) ===
 @module AssemblerBlockDedup_runtime
-bb0:  ; runtime dispatch entry
+bb0:                                              ; runtime dispatch entry
   callvalue
   push bb6
   jumpi
@@ -33,24 +33,23 @@ bb6 [cold]:
   push 0
   push 0
   revert
-bb7:  ; function a() public pure returns (uint256) [selector 0x0dbe671f]
+bb7:                                              ; function a() public pure returns (uint256) [selector 0x0dbe671f]
   push 1
   push 0
   mstore
   push 32
   push 0
   return
-bb9:  ; function c(bool fail) public pure returns (uint256) [selector 0xfeb97429]
-  push 36
-  calldatasize
-  lt
+bb9:                                              ; function c(bool fail) public pure returns (uint256) [selector 0xfeb97429]
   push 4
   calldataload
+  dup 1
   push 1
   lt
+  calldatasize
+  push 36
+  gt
   or
-  push 4
-  calldataload
   or
   push bb6
   jumpi

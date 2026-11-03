@@ -1,6 +1,6 @@
-// === ROOT/tests/ui/codegen/lowering/live_branch_condition.sol:LiveBranchCondition (runtime) ===
+; === ROOT/tests/ui/codegen/lowering/live_branch_condition.sol:LiveBranchCondition (runtime) ===
 @module LiveBranchCondition_runtime
-bb0:  ; runtime dispatch entry
+bb0:                                              ; runtime dispatch entry
   push 36
   calldatasize
   lt
@@ -8,8 +8,6 @@ bb0:  ; runtime dispatch entry
   or
   push bb12
   jumpi
-  push 4
-  calldataload
   push 0
   calldataload
   push 224
@@ -20,6 +18,8 @@ bb0:  ; runtime dispatch entry
   push bb2
   jumpi
   pop
+  push 4
+  calldataload
   dup 1
   dup 1
   push bb8
@@ -43,6 +43,8 @@ bb2:
   sub
   push bb12
   jumpi
+  push 4
+  calldataload
   push 1
   add
   dup 1
@@ -69,9 +71,9 @@ bb6 [cold]:
   push 36
   push 28
   revert
-// === ROOT/tests/ui/codegen/lowering/live_branch_condition.sol:ReturndataBranch (runtime) ===
+; === ROOT/tests/ui/codegen/lowering/live_branch_condition.sol:ReturndataBranch (runtime) ===
 @module ReturndataBranch_runtime
-bb0:  ; runtime dispatch entry + function test(uint256 size) external view returns (uint256) [selector 0x29e99f07]
+bb0:                                              ; runtime dispatch entry + function test(uint256 size) external view returns (uint256) [selector 0x29e99f07]
   callvalue
   push bb3
   jumpi
@@ -123,9 +125,9 @@ bb8:
   push 32
   push 0
   return
-// === ROOT/tests/ui/codegen/lowering/live_branch_condition.sol:ReloadableBranch (runtime) ===
+; === ROOT/tests/ui/codegen/lowering/live_branch_condition.sol:ReloadableBranch (runtime) ===
 @module ReloadableBranch_runtime
-bb0:  ; runtime dispatch entry + function aggregate(bool choice, uint256 n) external pure returns (uint256, bool) [selector 0xb22b6a9f]
+bb0:                                              ; runtime dispatch entry + function aggregate(bool choice, uint256 n) external pure returns (uint256, bool) [selector 0xb22b6a9f]
   callvalue
   push bb3
   jumpi
@@ -141,20 +143,20 @@ bb0:  ; runtime dispatch entry + function aggregate(bool choice, uint256 n) exte
   push 68
   calldatasize
   lt
+  push 1
   push 4
   calldataload
-  push 1
-  lt
+  gt
   or
   push bb3
   jumpi
-  push 36
-  calldataload
   push 4
+  calldataload
+  push 36
   calldataload
   push 3
   not
-  dup 2
+  dup 3
   mul
   push 11
   add
@@ -181,7 +183,7 @@ bb8 [loop]:
   add
   jump bb6
 bb6 [loop]:
-  dup 5
+  dup 4
   dup 2
   lt
   push bb8
@@ -189,6 +191,7 @@ bb6 [loop]:
   pop
   push 0
   mstore
+  pop
   pop
   push 32
   mstore

@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_decode_empty.mir (before lower-abi) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_decode_empty.mir (after lower-abi) ===
+- ; === ROOT/tests/ui/codegen/mir/lowering/lower_abi_decode_empty.mir (before lower-abi) ===
++ ; === ROOT/tests/ui/codegen/mir/lowering/lower_abi_decode_empty.mir (after lower-abi) ===
   @module LowerAbiDecodeEmpty
   fn @empty(arg0: ptr<memory>) {
     bb0:
@@ -10,9 +10,9 @@
 +     v3 = add v2, v1
 +     v4 = slt v1, 0
 +     jumpi v4, bb1, bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
       stop
-+   bb1 [cold]:  ; preds = bb0
++   bb1 [cold]:                                     ; preds = bb0
 +     revert 0, 0
   }
   
@@ -26,12 +26,12 @@
 +     v4 = add v3, v2
 +     v5 = slt v2, 32
 +     jumpi v5, bb1, bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v6 = mload v1
 +     jumpi false, bb1, bb3
-+   bb3:  ; preds = bb2
++   bb3:                                            ; preds = bb2
 +     ret v6
-+   bb1 [cold]:  ; preds = bb0, bb2
++   bb1 [cold]:                                     ; preds = bb0, bb2
 +     revert 0, 0
   }
   

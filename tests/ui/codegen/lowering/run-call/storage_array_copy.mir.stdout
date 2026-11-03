@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/storage_array_copy.sol:C ===
+; === ROOT/tests/ui/codegen/lowering/run-call/storage_array_copy.sol:C ===
 @module C
 @types
   struct0: {i256, i256}
@@ -81,7 +81,7 @@ fn @load_storage_word_array(arg0: i256) -> ptr<memory> {
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/storage_array_copy.sol:AggregateStorageCopy ===
+; === ROOT/tests/ui/codegen/lowering/run-call/storage_array_copy.sol:AggregateStorageCopy ===
 @module AggregateStorageCopy
 @types
   struct0: {i256, i256, i256}
@@ -144,14 +144,14 @@ fn @load_storage_struct_array_0(arg0: i256) -> ptr<memory> {
     mstore v4, v0
     v5 = storage_array_data_slot arg0
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v6 = phi [bb0: 0], [bb2: v18]
     v7 = phi [bb0: v5], [bb2: v19]
     v8 = lt v6, v0
     jumpi v8, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     ret v4
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v9 = alloc checked 64
     v10 = sload v7 !metadata(storage=symbolic(v7))
     mstore v9, v10
@@ -169,7 +169,7 @@ fn @load_storage_struct_array_0(arg0: i256) -> ptr<memory> {
     jump bb1
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/storage_array_copy.sol:EnumStorageCopy ===
+; === ROOT/tests/ui/codegen/lowering/run-call/storage_array_copy.sol:EnumStorageCopy ===
 @module EnumStorageCopy
 ; function smallInvalid() public returns (uint256) [selector 0x7ab5e63b]
 fn @smallInvalid() -> i256 [selector=0x7ab5e63b, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {

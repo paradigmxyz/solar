@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lower-alloc/fresh_fmp_size.mir (before lower-alloc) ===
-+ // === ROOT/tests/ui/codegen/mir/lower-alloc/fresh_fmp_size.mir (after lower-alloc) ===
+- ; === ROOT/tests/ui/codegen/mir/lower-alloc/fresh_fmp_size.mir (before lower-alloc) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-alloc/fresh_fmp_size.mir (after lower-alloc) ===
   @module FreshFmpSize
   ; selector 0x10000001
   fn @first(arg0: i256) -> i256 [selector=0x10000001] {
@@ -48,10 +48,10 @@
 +     v5 = or v3, v4
 +     v6 = zext i1 v5 to i256
 +     jumpi v5, bb1, bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     mstore 64, v2 !metadata(memory=scratch)
 +     ret v1
-+   bb1 [cold]:  ; preds = bb0
++   bb1 [cold]:                                     ; preds = bb0
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36

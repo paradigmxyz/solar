@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/disasm/cold_revert_strings.sol:ColdRevertStrings (runtime) ===
+; === ROOT/tests/ui/codegen/disasm/cold_revert_strings.sol:ColdRevertStrings (runtime) ===
 CALLVALUE
 PUSH1 0x37 ; bb0
 JUMPI
@@ -14,10 +14,10 @@ JUMPI
 PUSH1 0x44
 CALLDATASIZE
 LT
+PUSH1 0x01
 PUSH1 0x24
 CALLDATALOAD
-PUSH1 0x01
-LT
+GT
 OR
 PUSH1 0x37 ; bb0
 JUMPI

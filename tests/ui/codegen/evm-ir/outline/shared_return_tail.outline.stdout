@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/outline/shared_return_tail.evmir (before outline) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/outline/shared_return_tail.evmir (after outline) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/outline/shared_return_tail.evmir (before outline) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/outline/shared_return_tail.evmir (after outline) ===
   @module shared_return_tail
   bb0:
 -   push 64

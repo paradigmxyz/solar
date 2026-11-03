@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/storage_memory_nested_struct.sol:StorageMemoryNestedStruct ===
+; === ROOT/tests/ui/codegen/lowering/run-call/storage_memory_nested_struct.sol:StorageMemoryNestedStruct ===
 @module StorageMemoryNestedStruct
 ; function copy() external returns (uint256) [selector 0x60726abb]
 fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -202,11 +202,11 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v147 = alloc checked v145
     mstore v147, v135
     jump bb1
-  bb1:  ; preds = bb0, bb6
+  bb1:                                            ; preds = bb0, bb6
     v148 = phi [bb0: 0], [bb6: v179]
     v149 = lt v148, v135
     jumpi v149, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v180 = mload v147
     v181 = gt v180, 0
     v182 = eq v181, false
@@ -308,17 +308,17 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v264 = mload v263
     v265 = checked_add uint256, v248, v264
     ret v265
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v150 = storage_array_data_slot 0
     v151 = mul v148, 6
     v152 = add v150, v151
     v153 = alloc checked 96
     jump bb4
-  bb4:  ; preds = bb2, bb5
+  bb4:                                            ; preds = bb2, bb5
     v154 = phi [bb2: 0], [bb5: v174]
     v155 = lt v154, 3
     jumpi v155, bb5, bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     v175 = ptrtoint ptr<memory> v153 to i256
     v176 = shl v148, 5
     v177 = ptradd v147, v176
@@ -326,7 +326,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     mstore v178, v175
     v179 = add v148, 1
     jump bb1
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     v156 = mul v154, 2
     v157 = add v152, v156
     v158 = alloc checked 96

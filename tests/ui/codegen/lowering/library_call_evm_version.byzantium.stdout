@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/library_call_evm_version.sol:Lib ===
+; === ROOT/tests/ui/codegen/lowering/library_call_evm_version.sol:Lib ===
 @module Lib
 @library
 @types
@@ -82,7 +82,7 @@ fn @six(arg0: ptr<memory>) -> struct1 [selector=0xb84d18fb, pure, abi_params=[by
     ret v6
 }
 
-// === ROOT/tests/ui/codegen/lowering/library_call_evm_version.sol:C ===
+; === ROOT/tests/ui/codegen/lowering/library_call_evm_version.sol:C ===
 @module C
 @types
   struct0: {i256, i256}
@@ -96,9 +96,9 @@ fn @one(arg0: i256) -> i256 [selector=0xef56f928, pure, abi_params=[uint256], ab
     v0 = gas
     v1 = delegatecall v0, 0x1111111111111111111111111111111111111111, 28, 36, 0, 32
     jumpi v1, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v2 = returndatasize
     v3 = lt v2, 32
     icall revert_if<tuple_data_too_short>, v3
@@ -115,9 +115,9 @@ fn @two(arg0: i256) -> struct0 [selector=0xcf2a8612, pure, abi_params=[uint256],
     v3 = gas
     v4 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 64
     jumpi v4, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v5 = returndatasize
     v6 = lt v5, 64
     icall revert_if<tuple_data_too_short>, v6
@@ -146,9 +146,9 @@ fn @aggregate(arg0: i256) -> ptr<memory> [selector=0x407b7269, pure, abi_params=
     v5 = alloc 64
     v6 = delegatecall v4, 0x1111111111111111111111111111111111111111, v2, v3, v5, 64
     jumpi v6, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v7 = returndatasize
     v8 = lt v7, 64
     icall revert_if<tuple_data_too_short>, v8
@@ -165,9 +165,9 @@ fn @boolean(arg0: i256) -> i1 [selector=0xbc586ed6, pure, abi_params=[uint256], 
     v0 = gas
     v1 = delegatecall v0, 0x1111111111111111111111111111111111111111, 28, 36, 0, 32
     jumpi v1, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v2 = returndatasize
     v3 = lt v2, 32
     icall revert_if<tuple_data_too_short>, v3
@@ -192,9 +192,9 @@ fn @structBool(arg0: i256) -> ptr<memory> [selector=0x199436a8, pure, abi_params
     v6 = alloc 64
     v7 = delegatecall v5, 0x1111111111111111111111111111111111111111, v3, v4, v6, 64
     jumpi v7, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v8 = returndatasize
     v9 = lt v8, 64
     icall revert_if<tuple_data_too_short>, v9
@@ -211,9 +211,9 @@ fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[w
     v0 = gas
     v1 = delegatecall v0, 0x1111111111111111111111111111111111111111, 28, 36, 0, 32
     jumpi v1, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v2 = returndatasize
     v3 = lt v2, 32
     icall revert_if<tuple_data_too_short>, v3
@@ -230,9 +230,9 @@ fn @dynamicArgument(arg0: ptr<memory>) -> struct0 [selector=0x11b8efbf, pure, ab
     v3 = gas
     v4 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 192
     jumpi v4, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v5 = returndatasize
     v6 = lt v5, 192
     icall revert_if<tuple_data_too_short>, v6
@@ -280,8 +280,8 @@ fn @none(arg0: i256) [selector=0x2758da14, pure, abi_params=[uint256], abi_retur
     icall revert_if<target_contract_has_no_code>, v2
     v3 = delegatecall v0, 0x1111111111111111111111111111111111111111, 28, 36, 0, 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     ret
 }

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_forward_shapes.sol:AbiCalldataForwardShapes ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_forward_shapes.sol:AbiCalldataForwardShapes ===
 @module AbiCalldataForwardShapes
 ; function sinkFlags(Flags[] calldata) external pure returns (bytes32) [selector 0xb9bf39e0]
 fn @sinkFlags(arg0: slice<calldata>) -> i256 [selector=0xb9bf39e0, pure, abi_params=[array<_, tuple<bool, int8, enum<3, uint8>, bytes4>>], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -139,9 +139,9 @@ fn @forwardFlags(arg0: slice<calldata>) -> i256 [selector=0xe1a0d55e, view, abi_
     v5 = zext i160 v0 to i256
     v6 = staticcall v1, v5, v3, v4, 0, 32
     jumpi v6, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v7 = returndatasize
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
@@ -160,9 +160,9 @@ fn @forwardPairs(arg0: slice<calldata>) -> i256 [selector=0x405d54ae, view, abi_
     v5 = zext i160 v0 to i256
     v6 = staticcall v1, v5, v3, v4, 0, 32
     jumpi v6, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v7 = returndatasize
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
@@ -181,9 +181,9 @@ fn @forwardGrid(arg0: slice<calldata>) -> i256 [selector=0x29a283a9, view, abi_p
     v5 = zext i160 v0 to i256
     v6 = staticcall v1, v5, v3, v4, 0, 32
     jumpi v6, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v7 = returndatasize
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
@@ -202,9 +202,9 @@ fn @forwardMixed(arg0: slice<calldata>) -> i256 [selector=0xfcee3596, view, abi_
     v5 = zext i160 v0 to i256
     v6 = staticcall v1, v5, v3, v4, 0, 32
     jumpi v6, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v7 = returndatasize
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
@@ -287,9 +287,9 @@ fn @forwardNested(arg0: slice<calldata>) -> i256 [selector=0x781c097b, view, abi
     v5 = zext i160 v0 to i256
     v6 = staticcall v1, v5, v3, v4, 0, 32
     jumpi v6, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v7 = returndatasize
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
@@ -308,9 +308,9 @@ fn @forwardHolder(arg0: slice<calldata>) -> i256 [selector=0xbbedecff, view, abi
     v5 = zext i160 v0 to i256
     v6 = staticcall v1, v5, v3, v4, 0, 32
     jumpi v6, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v7 = returndatasize
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
@@ -407,9 +407,9 @@ fn @forwardWrap(arg0: slice<calldata>) -> i256 [selector=0xb46a75c0, view, abi_p
     v5 = zext i160 v0 to i256
     v6 = staticcall v1, v5, v3, v4, 0, 32
     jumpi v6, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v7 = returndatasize
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8

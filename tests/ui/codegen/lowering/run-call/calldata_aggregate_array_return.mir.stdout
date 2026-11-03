@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/calldata_aggregate_array_return.sol:CalldataAggregateArrayReturn ===
+; === ROOT/tests/ui/codegen/lowering/run-call/calldata_aggregate_array_return.sol:CalldataAggregateArrayReturn ===
 @module CalldataAggregateArrayReturn
 @types
   struct0: {i256, slice<calldata>}

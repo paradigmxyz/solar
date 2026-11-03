@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/udvt_dirty_arguments.sol:UdvtDirtyArguments ===
+; === ROOT/tests/ui/codegen/lowering/run-call/udvt_dirty_arguments.sol:UdvtDirtyArguments ===
 @module UdvtDirtyArguments
 ; function inject(uint256 raw) internal pure returns (Small x)
 fn @inject(arg0: i256) -> i256 [pure] {

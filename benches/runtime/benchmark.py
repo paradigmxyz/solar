@@ -475,7 +475,7 @@ def artifact_compiler_input(input_text: str, test_case: TestCase, kind: str) -> 
 
 
 SOLAR_DUMP_HEADING = re.compile(
-    r"^// === (?P<name>.+?)(?: \((?P<kind>creation|runtime|deployment)\))? ===$",
+    r"^(?:;|//) === (?P<name>.+?)(?: \((?P<kind>creation|runtime|deployment)\))? ===$",
     re.MULTILINE,
 )
 # An inlined library or an abstract contract has no code but a reverting entry.
@@ -2166,6 +2166,8 @@ def run_test_case(
         entry["source"] = test_case.source
     reference_solc = next((spec.path for spec in specs if spec.kind == "solc"), None)
     shared_input = prepare_input(test_case, evm_version, optimizer_runs)
+    if test_case.solc_only:
+        specs = [spec for spec in specs if spec.kind != "solar"]
     for spec in specs:
         prepared_input = (
             None if shared_input is None else spec_compiler_input(shared_input, spec)
@@ -2678,6 +2680,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         tests = [test_map[test_id] for test_id in args.tests]
     else:
         tests = list(suite_tests)
+
+    if not args.solc and (
+        solc_only := [test.test_id for test in tests if test.solc_only]
+    ):
+        tests = [test for test in tests if not test.solc_only]
+        print(
+            _color(
+                f"Skipping {len(solc_only)} solc-only tests without --solc: {', '.join(solc_only)}",
+                YELLOW,
+            )
+        )
 
     skipped = []
     if (args.solc or args.reference_results) and not args.include_incompatible:

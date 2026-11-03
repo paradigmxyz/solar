@@ -1,21 +1,21 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/storage_packed_array_to_memory.sol:PackedArrayCopy ===
+; === ROOT/tests/ui/codegen/lowering/run-call/storage_packed_array_to_memory.sol:PackedArrayCopy ===
 @module PackedArrayCopy
 ; function bytesOf(uint256 n) external returns (uint8[] memory) [selector 0x0ee98e81]
 fn @bytesOf(arg0: i256) -> ptr<memory> [selector=0x0ee98e81, abi_params=[uint256], abi_returns=[memory_array<word<uint8>>], abi_return_params=[array<_, uint8>]] {
   bb0:
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: ptr<memory> 96], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v24]
     v3 = lt v2, v0
     jumpi v3, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     v25 = icall @load_storage_packed_array_1_0, 0
     ret v25
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v4 = checked_mul uint256, v2, 7
     v5 = checked_add uint256, v4, 1
     v6 = trunc i256 v5 to i8
@@ -40,9 +40,9 @@ fn @bytesOf(arg0: i256) -> ptr<memory> [selector=0x0ee98e81, abi_params=[uint256
     sstore v12, v23 !metadata(storage=symbolic(v12))
     sstore 0, v9 !metadata(storage=slot(0))
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v24 = checked_add uint256, v2, 1
     jump bb1
 }
@@ -51,18 +51,18 @@ fn @bytesOf(arg0: i256) -> ptr<memory> [selector=0x0ee98e81, abi_params=[uint256
 fn @signedOf(arg0: i256) -> ptr<memory> [selector=0x5a67a0a1, abi_params=[uint256], abi_returns=[memory_array<word<int16>>], abi_return_params=[array<_, int16>]] {
   bb0:
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: ptr<memory> 96], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v24]
     v3 = lt v2, v0
     jumpi v3, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     v25 = icall @load_storage_packed_array_2_1, 1
     ret v25
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v4 = checked_mul int256, v2, 3
     v5 = checked_sub int256, v4, 3
     v6 = trunc i256 v5 to i16
@@ -87,9 +87,9 @@ fn @signedOf(arg0: i256) -> ptr<memory> [selector=0x5a67a0a1, abi_params=[uint25
     sstore v12, v23 !metadata(storage=symbolic(v12))
     sstore 1, v9 !metadata(storage=slot(1))
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v24 = checked_add uint256, v2, 1
     jump bb1
 }
@@ -114,16 +114,16 @@ fn @checkBytes(arg0: i256) -> i1 [selector=0xfda6aeaf, abi_params=[uint256], abi
     v11 = alloc zeroed checked v9
     mstore v11, arg0
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v12 = phi [bb0: arg0], [bb3: v12]
     v13 = phi [bb0: 0], [bb3: v13]
     v14 = phi [bb0: v11], [bb3: v14]
     v15 = phi [bb0: 0], [bb3: v52]
     v16 = lt v15, v12
     jumpi v16, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     v53 = icall @load_storage_packed_array_1_0, 0
     v54 = abi_encode [memory_array<word<uint8>>], scratch, args v53
     v55 = extract_value slice<memory>, v54, 0
@@ -135,7 +135,7 @@ fn @checkBytes(arg0: i256) -> i1 [selector=0xfda6aeaf, abi_params=[uint256], abi
     v61 = keccak256 v59, v60
     v62 = eq v57, v61
     ret v62
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v17 = checked_mul uint256, v15, 7
     v18 = checked_add uint256, v17, 1
     v19 = trunc i256 v18 to i8
@@ -178,9 +178,9 @@ fn @checkBytes(arg0: i256) -> i1 [selector=0xfda6aeaf, abi_params=[uint256], abi
     sstore v40, v51 !metadata(storage=symbolic(v40))
     sstore 0, v37 !metadata(storage=slot(0))
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v52 = checked_add uint256, v15, 1
     jump bb1
 }
@@ -205,16 +205,16 @@ fn @checkSigned(arg0: i256) -> i1 [selector=0xf4d0276e, abi_params=[uint256], ab
     v11 = alloc zeroed checked v9
     mstore v11, arg0
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v12 = phi [bb0: arg0], [bb3: v12]
     v13 = phi [bb0: 0], [bb3: v13]
     v14 = phi [bb0: v11], [bb3: v14]
     v15 = phi [bb0: 0], [bb3: v51]
     v16 = lt v15, v12
     jumpi v16, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     v52 = icall @load_storage_packed_array_2_1, 1
     v53 = abi_encode [memory_array<word<int16>>], scratch, args v52
     v54 = extract_value slice<memory>, v53, 0
@@ -226,7 +226,7 @@ fn @checkSigned(arg0: i256) -> i1 [selector=0xf4d0276e, abi_params=[uint256], ab
     v60 = keccak256 v58, v59
     v61 = eq v56, v60
     ret v61
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v17 = checked_mul int256, v15, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff825
     v18 = trunc i256 v17 to i16
     v19 = mload v14
@@ -268,9 +268,9 @@ fn @checkSigned(arg0: i256) -> i1 [selector=0xf4d0276e, abi_params=[uint256], ab
     sstore v39, v50 !metadata(storage=symbolic(v39))
     sstore 1, v36 !metadata(storage=slot(1))
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v51 = checked_add uint256, v15, 1
     jump bb1
 }
@@ -295,16 +295,16 @@ fn @checkWide(arg0: i256) -> i1 [selector=0x761fa76d, abi_params=[uint256], abi_
     v11 = alloc zeroed checked v9
     mstore v11, arg0
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v12 = phi [bb0: arg0], [bb3: v12]
     v13 = phi [bb0: 0], [bb3: v13]
     v14 = phi [bb0: v11], [bb3: v14]
     v15 = phi [bb0: 0], [bb3: v51]
     v16 = lt v15, v12
     jumpi v16, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     v52 = icall @load_storage_packed_array_16_0, 2
     v53 = abi_encode [memory_array<word<uint128>>], scratch, args v52
     v54 = extract_value slice<memory>, v53, 0
@@ -316,7 +316,7 @@ fn @checkWide(arg0: i256) -> i1 [selector=0x761fa76d, abi_params=[uint256], abi_
     v60 = keccak256 v58, v59
     v61 = eq v56, v60
     ret v61
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v17 = trunc i256 v15 to i128
     v18 = checked_sub uint128, i128 0xffffffffffffffffffffffffffffffff, v17
     v19 = mload v14
@@ -358,9 +358,9 @@ fn @checkWide(arg0: i256) -> i1 [selector=0x761fa76d, abi_params=[uint256], abi_
     sstore v39, v50 !metadata(storage=symbolic(v39))
     sstore 2, v36 !metadata(storage=slot(2))
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v51 = checked_add uint256, v15, 1
     jump bb1
 }
@@ -385,16 +385,16 @@ fn @checkTriples(arg0: i256) -> i1 [selector=0xc40e231a, abi_params=[uint256], a
     v11 = alloc zeroed checked v9
     mstore v11, arg0
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v12 = phi [bb0: arg0], [bb3: v12]
     v13 = phi [bb0: 0], [bb3: v13]
     v14 = phi [bb0: v11], [bb3: v14]
     v15 = phi [bb0: 0], [bb3: v52]
     v16 = lt v15, v12
     jumpi v16, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     v53 = icall @load_storage_packed_array_3_2, 3
     v54 = abi_encode [memory_array<word<bytes3>>], scratch, args v53
     v55 = extract_value slice<memory>, v54, 0
@@ -406,7 +406,7 @@ fn @checkTriples(arg0: i256) -> i1 [selector=0xc40e231a, abi_params=[uint256], a
     v61 = keccak256 v59, v60
     v62 = eq v57, v61
     ret v62
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v17 = checked_add uint256, 0xa0b0c0, v15
     v18 = trunc i256 v17 to i24
     v19 = zext i24 v18 to i256
@@ -449,9 +449,9 @@ fn @checkTriples(arg0: i256) -> i1 [selector=0xc40e231a, abi_params=[uint256], a
     sstore v40, v51 !metadata(storage=symbolic(v40))
     sstore 3, v37 !metadata(storage=slot(3))
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v52 = checked_add uint256, v15, 1
     jump bb1
 }
@@ -476,16 +476,16 @@ fn @checkFlags(arg0: i256) -> i1 [selector=0x6e251ac0, abi_params=[uint256], abi
     v11 = alloc zeroed checked v9
     mstore v11, arg0
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v12 = phi [bb0: arg0], [bb3: v12]
     v13 = phi [bb0: 0], [bb3: v13]
     v14 = phi [bb0: v11], [bb3: v14]
     v15 = phi [bb0: 0], [bb3: v51]
     v16 = lt v15, v12
     jumpi v16, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     v52 = icall @load_storage_packed_array_1_0, 4
     v53 = abi_encode [memory_array<word<bool>>], scratch, args v52
     v54 = extract_value slice<memory>, v53, 0
@@ -497,7 +497,7 @@ fn @checkFlags(arg0: i256) -> i1 [selector=0x6e251ac0, abi_params=[uint256], abi
     v60 = keccak256 v58, v59
     v61 = eq v56, v60
     ret v61
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v17 = checked_rem uint256, v15, 3
     v18 = eq v17, 1
     v19 = mload v14
@@ -539,9 +539,9 @@ fn @checkFlags(arg0: i256) -> i1 [selector=0x6e251ac0, abi_params=[uint256], abi
     sstore v39, v50 !metadata(storage=symbolic(v39))
     sstore 4, v36 !metadata(storage=slot(4))
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v51 = checked_add uint256, v15, 1
     jump bb1
 }
@@ -566,16 +566,16 @@ fn @checkSides(arg0: i256) -> i1 [selector=0x028a684d, abi_params=[uint256], abi
     v11 = alloc zeroed checked v9
     mstore v11, arg0
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v12 = phi [bb0: arg0], [bb3: v12]
     v13 = phi [bb0: 0], [bb3: v13]
     v14 = phi [bb0: v11], [bb3: v14]
     v15 = phi [bb0: 0], [bb3: v61]
     v16 = lt v15, v12
     jumpi v16, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     v62 = icall @load_storage_packed_array_1_0_enum_3, 5
     v63 = abi_encode [memory_array<word<enum 3>>], scratch, args v62
     v64 = extract_value slice<memory>, v63, 0
@@ -587,7 +587,7 @@ fn @checkSides(arg0: i256) -> i1 [selector=0x028a684d, abi_params=[uint256], abi
     v70 = keccak256 v68, v69
     v71 = eq v66, v70
     ret v71
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v17 = checked_rem uint256, v15, 3
     v18 = lt v17, 3
     v19 = eq v18, false
@@ -644,9 +644,9 @@ fn @checkSides(arg0: i256) -> i1 [selector=0x028a684d, abi_params=[uint256], abi
     sstore v47, v60 !metadata(storage=symbolic(v47))
     sstore 5, v44 !metadata(storage=slot(5))
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v61 = checked_add uint256, v15, 1
     jump bb1
 }
@@ -671,16 +671,16 @@ fn @checkAddresses(arg0: i256) -> i1 [selector=0x6714a02d, abi_params=[uint256],
     v11 = alloc zeroed checked v9
     mstore v11, arg0
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v12 = phi [bb0: arg0], [bb3: v12]
     v13 = phi [bb0: 0], [bb3: v13]
     v14 = phi [bb0: v11], [bb3: v14]
     v15 = phi [bb0: 0], [bb3: v51]
     v16 = lt v15, v12
     jumpi v16, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     v52 = icall @load_storage_packed_array_20_0, 6
     v53 = abi_encode [memory_array<word<uint160>>], scratch, args v52
     v54 = extract_value slice<memory>, v53, 0
@@ -692,7 +692,7 @@ fn @checkAddresses(arg0: i256) -> i1 [selector=0x6714a02d, abi_params=[uint256],
     v60 = keccak256 v58, v59
     v61 = eq v56, v60
     ret v61
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v17 = checked_add uint256, 0xbeef, v15
     v18 = trunc i256 v17 to i160
     v19 = mload v14
@@ -734,9 +734,9 @@ fn @checkAddresses(arg0: i256) -> i1 [selector=0x6714a02d, abi_params=[uint256],
     sstore v39, v50 !metadata(storage=symbolic(v39))
     sstore 6, v36 !metadata(storage=slot(6))
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v51 = checked_add uint256, v15, 1
     jump bb1
 }
@@ -745,15 +745,15 @@ fn @checkAddresses(arg0: i256) -> i1 [selector=0x6714a02d, abi_params=[uint256],
 fn @checkAfterPop(arg0: i256) -> i1 [selector=0x492e3661, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v23]
     v3 = lt v2, v0
     jumpi v3, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     v24 = sload 0 !metadata(storage=slot(0))
     v25 = eq v24, 0
     icall panic_if<0x31>, v25
@@ -808,7 +808,7 @@ fn @checkAfterPop(arg0: i256) -> i1 [selector=0x492e3661, abi_params=[uint256], 
     v66 = alloc zeroed checked v64
     mstore v66, v54
     jump bb7
-  bb7:  ; preds = bb2, bb9
+  bb7:                                            ; preds = bb2, bb9
     v67 = phi [bb2: v0], [bb9: v67]
     v68 = phi [bb2: v1], [bb9: v68]
     v69 = phi [bb2: v2], [bb9: v69]
@@ -817,9 +817,9 @@ fn @checkAfterPop(arg0: i256) -> i1 [selector=0x492e3661, abi_params=[uint256], 
     v72 = checked_sub uint256, v67, 2
     v73 = lt v71, v72
     jumpi v73, bb10, bb11
-  bb11:  ; preds = bb7
+  bb11:                                           ; preds = bb7
     jump bb8
-  bb8:  ; preds = bb11
+  bb8:                                            ; preds = bb11
     v84 = icall @load_storage_packed_array_1_0, 0
     v85 = abi_encode [memory_array<word<uint8>>], scratch, args v84
     v86 = extract_value slice<memory>, v85, 0
@@ -831,7 +831,7 @@ fn @checkAfterPop(arg0: i256) -> i1 [selector=0x492e3661, abi_params=[uint256], 
     v92 = keccak256 v90, v91
     v93 = eq v88, v92
     ret v93
-  bb10:  ; preds = bb7
+  bb10:                                           ; preds = bb7
     v74 = checked_add uint256, v71, 1
     v75 = trunc i256 v74 to i8
     v76 = mload v70
@@ -844,12 +844,12 @@ fn @checkAfterPop(arg0: i256) -> i1 [selector=0x492e3661, abi_params=[uint256], 
     v82 = ptradd v81, 32
     mstore v82, v79
     jump bb12
-  bb12:  ; preds = bb10
+  bb12:                                           ; preds = bb10
     jump bb9
-  bb9:  ; preds = bb12
+  bb9:                                            ; preds = bb12
     v83 = checked_add uint256, v71, 1
     jump bb7
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v4 = checked_add uint256, v2, 1
     v5 = trunc i256 v4 to i8
     v6 = sload 0 !metadata(storage=slot(0))
@@ -873,9 +873,9 @@ fn @checkAfterPop(arg0: i256) -> i1 [selector=0x492e3661, abi_params=[uint256], 
     sstore v11, v22 !metadata(storage=symbolic(v11))
     sstore 0, v8 !metadata(storage=slot(0))
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v23 = checked_add uint256, v2, 1
     jump bb1
 }
@@ -890,7 +890,7 @@ fn @checkFixed() -> i1 [selector=0x11c1e644, abi_params=[], abi_returns=[word<bo
     v2 = alloc 288 !metadata(preserves_fmp)
     memory_zero v2, 288
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v3 = phi [bb0: 0], [bb3: v3]
     v4 = phi [bb0: v0], [bb3: v4]
     v5 = phi [bb0: v1], [bb3: v5]
@@ -898,11 +898,11 @@ fn @checkFixed() -> i1 [selector=0x11c1e644, abi_params=[], abi_returns=[word<bo
     v7 = phi [bb0: 0], [bb3: v37]
     v8 = lt v7, 40
     jumpi v8, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     jump bb7
-  bb7:  ; preds = bb2, bb9
+  bb7:                                            ; preds = bb2, bb9
     v38 = phi [bb2: v3], [bb9: v38]
     v39 = phi [bb2: v4], [bb9: v39]
     v40 = phi [bb2: v5], [bb9: v40]
@@ -911,11 +911,11 @@ fn @checkFixed() -> i1 [selector=0x11c1e644, abi_params=[], abi_returns=[word<bo
     v43 = phi [bb2: 0], [bb9: v73]
     v44 = lt v43, 7
     jumpi v44, bb10, bb11
-  bb11:  ; preds = bb7
+  bb11:                                           ; preds = bb7
     jump bb8
-  bb8:  ; preds = bb11
+  bb8:                                            ; preds = bb11
     jump bb13
-  bb13:  ; preds = bb8, bb15
+  bb13:                                           ; preds = bb8, bb15
     v74 = phi [bb8: v38], [bb15: v74]
     v75 = phi [bb8: v39], [bb15: v75]
     v76 = phi [bb8: v40], [bb15: v76]
@@ -925,30 +925,30 @@ fn @checkFixed() -> i1 [selector=0x11c1e644, abi_params=[], abi_returns=[word<bo
     v80 = phi [bb8: 0], [bb15: v111]
     v81 = lt v80, 9
     jumpi v81, bb16, bb17
-  bb17:  ; preds = bb13
+  bb17:                                           ; preds = bb13
     jump bb14
-  bb14:  ; preds = bb17
+  bb14:                                           ; preds = bb17
     v112 = alloc checked 0x500
     jump bb19
-  bb19:  ; preds = bb14, bb24
+  bb19:                                           ; preds = bb14, bb24
     v113 = phi [bb14: 0], [bb24: v131]
     v114 = lt v113, 2
     jumpi v114, bb20, bb21
-  bb21:  ; preds = bb19
+  bb21:                                           ; preds = bb19
     v132 = alloc checked 224
     jump bb25
-  bb25:  ; preds = bb21, bb30
+  bb25:                                           ; preds = bb21, bb30
     v133 = phi [bb21: 0], [bb30: v150]
     v134 = lt v133, 1
     jumpi v134, bb26, bb27
-  bb27:  ; preds = bb25
+  bb27:                                           ; preds = bb25
     v151 = alloc checked 288
     jump bb31
-  bb31:  ; preds = bb27, bb36
+  bb31:                                           ; preds = bb27, bb36
     v152 = phi [bb27: 0], [bb36: v169]
     v153 = lt v152, 2
     jumpi v153, bb32, bb33
-  bb33:  ; preds = bb31
+  bb33:                                           ; preds = bb31
     v170 = abi_encode [array<40, word<uint8>>], scratch, args v112
     v171 = extract_value slice<memory>, v170, 0
     v172 = extract_value slice<memory>, v170, 1
@@ -959,9 +959,9 @@ fn @checkFixed() -> i1 [selector=0x11c1e644, abi_params=[], abi_returns=[word<bo
     v177 = keccak256 v175, v176
     v178 = eq v173, v177
     jumpi v178, bb37, bb38
-  bb38:  ; preds = bb33
+  bb38:                                           ; preds = bb33
     jump bb39
-  bb37:  ; preds = bb33
+  bb37:                                           ; preds = bb33
     v179 = abi_encode [array<7, word<int24>>], scratch, args v132
     v180 = extract_value slice<memory>, v179, 0
     v181 = extract_value slice<memory>, v179, 1
@@ -972,12 +972,12 @@ fn @checkFixed() -> i1 [selector=0x11c1e644, abi_params=[], abi_returns=[word<bo
     v186 = keccak256 v184, v185
     v187 = eq v182, v186
     jump bb39
-  bb39:  ; preds = bb37, bb38
+  bb39:                                           ; preds = bb37, bb38
     v188 = phi [bb37: v187], [bb38: false]
     jumpi v188, bb40, bb41
-  bb41:  ; preds = bb39
+  bb41:                                           ; preds = bb39
     jump bb42
-  bb40:  ; preds = bb39
+  bb40:                                           ; preds = bb39
     v189 = abi_encode [array<9, word<bytes4>>], scratch, args v151
     v190 = extract_value slice<memory>, v189, 0
     v191 = extract_value slice<memory>, v189, 1
@@ -988,10 +988,10 @@ fn @checkFixed() -> i1 [selector=0x11c1e644, abi_params=[], abi_returns=[word<bo
     v196 = keccak256 v194, v195
     v197 = eq v192, v196
     jump bb42
-  bb42:  ; preds = bb40, bb41
+  bb42:                                           ; preds = bb40, bb41
     v198 = phi [bb40: v197], [bb41: false]
     ret v198
-  bb32:  ; preds = bb31
+  bb32:                                           ; preds = bb31
     v154 = add v152, 10
     v155 = sload v154 !metadata(storage=offset(v152, 10))
     v156 = mul v152, 8
@@ -999,14 +999,14 @@ fn @checkFixed() -> i1 [selector=0x11c1e644, abi_params=[], abi_returns=[word<bo
     v158 = lt v157, 8
     v159 = select v158, v157, 8
     jump bb34
-  bb34:  ; preds = bb32, bb35
+  bb34:                                           ; preds = bb32, bb35
     v160 = phi [bb32: 0], [bb35: v168]
     v161 = lt v160, v159
     jumpi v161, bb35, bb36
-  bb36:  ; preds = bb34
+  bb36:                                           ; preds = bb34
     v169 = add v152, 1
     jump bb31
-  bb35:  ; preds = bb34
+  bb35:                                           ; preds = bb34
     v162 = mul v160, 32
     v163 = shr v155, v162
     v164 = shl v163, 224
@@ -1016,7 +1016,7 @@ fn @checkFixed() -> i1 [selector=0x11c1e644, abi_params=[], abi_returns=[word<bo
     mstore v167, v164
     v168 = add v160, 1
     jump bb34
-  bb26:  ; preds = bb25
+  bb26:                                           ; preds = bb25
     v135 = add v133, 9
     v136 = sload v135 !metadata(storage=offset(v133, 9))
     v137 = mul v133, 10
@@ -1024,14 +1024,14 @@ fn @checkFixed() -> i1 [selector=0x11c1e644, abi_params=[], abi_returns=[word<bo
     v139 = lt v138, 10
     v140 = select v139, v138, 10
     jump bb28
-  bb28:  ; preds = bb26, bb29
+  bb28:                                           ; preds = bb26, bb29
     v141 = phi [bb26: 0], [bb29: v149]
     v142 = lt v141, v140
     jumpi v142, bb29, bb30
-  bb30:  ; preds = bb28
+  bb30:                                           ; preds = bb28
     v150 = add v133, 1
     jump bb25
-  bb29:  ; preds = bb28
+  bb29:                                           ; preds = bb28
     v143 = mul v141, 24
     v144 = shr v136, v143
     v145 = signextend 2, v144
@@ -1041,7 +1041,7 @@ fn @checkFixed() -> i1 [selector=0x11c1e644, abi_params=[], abi_returns=[word<bo
     mstore v148, v145
     v149 = add v141, 1
     jump bb28
-  bb20:  ; preds = bb19
+  bb20:                                           ; preds = bb19
     v115 = add v113, 7
     v116 = sload v115 !metadata(storage=offset(v113, 7))
     v117 = mul v113, 32
@@ -1049,14 +1049,14 @@ fn @checkFixed() -> i1 [selector=0x11c1e644, abi_params=[], abi_returns=[word<bo
     v119 = lt v118, 32
     v120 = select v119, v118, 32
     jump bb22
-  bb22:  ; preds = bb20, bb23
+  bb22:                                           ; preds = bb20, bb23
     v121 = phi [bb20: 0], [bb23: v130]
     v122 = lt v121, v120
     jumpi v122, bb23, bb24
-  bb24:  ; preds = bb22
+  bb24:                                           ; preds = bb22
     v131 = add v113, 1
     jump bb19
-  bb23:  ; preds = bb22
+  bb23:                                           ; preds = bb22
     v123 = mul v121, 8
     v124 = shr v116, v123
     v125 = trunc i256 v124 to i8
@@ -1067,7 +1067,7 @@ fn @checkFixed() -> i1 [selector=0x11c1e644, abi_params=[], abi_returns=[word<bo
     mstore v129, v126
     v130 = add v121, 1
     jump bb22
-  bb16:  ; preds = bb13
+  bb16:                                           ; preds = bb13
     v82 = checked_add uint256, 0xdead0000, v80
     v83 = trunc i256 v82 to i32
     v84 = zext i32 v83 to i256
@@ -1103,12 +1103,12 @@ fn @checkFixed() -> i1 [selector=0x11c1e644, abi_params=[], abi_returns=[word<bo
     v110 = or v106, v109
     sstore v99, v110 !metadata(storage=offset(v98, 10))
     jump bb18
-  bb18:  ; preds = bb16
+  bb18:                                           ; preds = bb16
     jump bb15
-  bb15:  ; preds = bb18
+  bb15:                                           ; preds = bb18
     v111 = checked_add uint256, v80, 1
     jump bb13
-  bb10:  ; preds = bb7
+  bb10:                                           ; preds = bb7
     v45 = checked_mul int256, v43, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0bdbd
     v46 = trunc i256 v45 to i24
     v47 = lt v43, 7
@@ -1143,12 +1143,12 @@ fn @checkFixed() -> i1 [selector=0x11c1e644, abi_params=[], abi_returns=[word<bo
     v72 = or v68, v71
     sstore v61, v72 !metadata(storage=offset(v60, 9))
     jump bb12
-  bb12:  ; preds = bb10
+  bb12:                                           ; preds = bb10
     jump bb9
-  bb9:  ; preds = bb12
+  bb9:                                            ; preds = bb12
     v73 = checked_add uint256, v43, 1
     jump bb7
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v9 = checked_sub uint256, 255, v7
     v10 = trunc i256 v9 to i8
     v11 = lt v7, 40
@@ -1183,9 +1183,9 @@ fn @checkFixed() -> i1 [selector=0x11c1e644, abi_params=[], abi_returns=[word<bo
     v36 = or v32, v35
     sstore v25, v36 !metadata(storage=offset(v24, 7))
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v37 = checked_add uint256, v7, 1
     jump bb1
 }

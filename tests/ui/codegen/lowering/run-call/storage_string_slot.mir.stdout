@@ -1,8 +1,8 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/storage_string_slot.sol:StorageStringRef ===
+; === ROOT/tests/ui/codegen/lowering/run-call/storage_string_slot.sol:StorageStringRef ===
 @module StorageStringRef
 @library
 
-// === ROOT/tests/ui/codegen/lowering/run-call/storage_string_slot.sol:StorageStringSlot ===
+; === ROOT/tests/ui/codegen/lowering/run-call/storage_string_slot.sol:StorageStringSlot ===
 @module StorageStringSlot
 ; function lengthThroughRef() external returns (uint256) [selector 0xeaac3ffa]
 fn @lengthThroughRef() -> i256 [selector=0xeaac3ffa, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {

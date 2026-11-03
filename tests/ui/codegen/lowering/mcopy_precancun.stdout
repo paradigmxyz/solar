@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/mcopy_precancun.sol:McopyPreCancun (runtime) ===
+; === ROOT/tests/ui/codegen/lowering/mcopy_precancun.sol:McopyPreCancun (runtime) ===
 CALLVALUE
 PUSH1 0x13 ; bb0
 JUMPI

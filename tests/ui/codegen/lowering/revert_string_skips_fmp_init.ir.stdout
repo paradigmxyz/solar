@@ -1,6 +1,6 @@
-// === ROOT/tests/ui/codegen/lowering/revert_string_skips_fmp_init.sol:RevertStringSkipsFmpInit (runtime) ===
+; === ROOT/tests/ui/codegen/lowering/revert_string_skips_fmp_init.sol:RevertStringSkipsFmpInit (runtime) ===
 @module RevertStringSkipsFmpInit_runtime
-bb0:  ; runtime dispatch entry
+bb0:                                              ; runtime dispatch entry
   push 36
   calldatasize
   lt
@@ -27,19 +27,20 @@ bb4 [cold]:
   push 0
   push 0
   revert
-bb8:  ; function pass(uint256 x) external pure returns (uint256) [selector 0xd67c9961]
+bb8:                                              ; function pass(uint256 x) external pure returns (uint256) [selector 0xd67c9961]
   push 4
   calldataload
-  dup 1
   iszero
   push bb7
   jumpi
+  push 4
+  calldataload
   push 0
   mstore
   push 32
   push 0
   return
-bb7 [cold]:  ; revert_error (synthesized)
+bb7 [cold]:                                       ; revert_error (synthesized)
   push 0x73746f70
   push 224
   shl
@@ -57,7 +58,7 @@ bb7 [cold]:  ; revert_error (synthesized)
   push 100
   push 28
   revert
-bb5:  ; function guard(uint256 x) external pure [selector 0x4d020cad]
+bb5:                                              ; function guard(uint256 x) external pure [selector 0x4d020cad]
   push 4
   calldataload
   iszero

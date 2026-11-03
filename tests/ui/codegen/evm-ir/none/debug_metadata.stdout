@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/none/debug_metadata.evmir (before none) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/none/debug_metadata.evmir (after none) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/none/debug_metadata.evmir (before none) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/none/debug_metadata.evmir (after none) ===
   @module DebugMetadata
   bb0 [invoke=entry@1..40]:
     push 1 !metadata(span=1..5)

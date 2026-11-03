@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/cse/wrapped_offsets.mir (before cse) ===
-+ // === ROOT/tests/ui/codegen/mir/cse/wrapped_offsets.mir (after cse) ===
+- ; === ROOT/tests/ui/codegen/mir/cse/wrapped_offsets.mir (before cse) ===
++ ; === ROOT/tests/ui/codegen/mir/cse/wrapped_offsets.mir (after cse) ===
   @module WrappedOffsets
   fn @header(arg0: ptr<memory>, arg1: i256) -> i256 {
     bb0:

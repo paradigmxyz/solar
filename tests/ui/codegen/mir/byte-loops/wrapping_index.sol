@@ -30,8 +30,9 @@ contract Test {
     // Unchecked index arithmetic fails with `Panic(0x32)` when it wraps.
     // CHECK-LABEL: fn @uncheckedDown(
     // CHECK-NOT: mstore8
-    // CHECK: [[END:v[0-9]+]] = add arg1, arg2
-    // CHECK-NEXT: [[WRAPS:v[0-9]+]] = lt [[END]], arg1
+    // CHECK: [[FROM:v[0-9]+]] = calldataload 36
+    // CHECK: [[END:v[0-9]+]] = add [[FROM]], {{v[0-9]+}}
+    // CHECK-NEXT: [[WRAPS:v[0-9]+]] = lt [[END]], [[FROM]]
     // CHECK-NEXT: [[PAST:v[0-9]+]] = lt {{v[0-9]+}}, [[END]]
     // CHECK-NEXT: [[FAILS:v[0-9]+]] = or [[WRAPS]], [[PAST]]
     // CHECK-NEXT: jumpi [[FAILS]]
@@ -53,8 +54,9 @@ contract Test {
     // Checked arithmetic fails with `Panic(0x11)`.
     // CHECK-LABEL: fn @checkedDown(
     // CHECK-NOT: mstore8
-    // CHECK: [[END:v[0-9]+]] = add arg1, arg2
-    // CHECK-NEXT: [[WRAPS:v[0-9]+]] = lt [[END]], arg1
+    // CHECK: [[FROM:v[0-9]+]] = calldataload 36
+    // CHECK: [[END:v[0-9]+]] = add [[FROM]], {{v[0-9]+}}
+    // CHECK-NEXT: [[WRAPS:v[0-9]+]] = lt [[END]], [[FROM]]
     // CHECK-NEXT: jumpi [[WRAPS]]
     // CHECK: calldatacopy
     // CHECK: mstore 32, 17
@@ -154,9 +156,10 @@ contract Test {
     // a slice length large enough to admit that index. Crossing the index limit can also lose
     // bits when the resulting byte address itself does not wrap.
     // CHECK-LABEL: fn @wrappedArray(
-    // CHECK: [[INDEX_END:v[0-9]+]] = add arg2, arg3
+    // CHECK: [[INDEX:v[0-9]+]] = calldataload 68
+    // CHECK: [[INDEX_END:v[0-9]+]] = add [[INDEX]], {{v[0-9]+}}
     // CHECK-NEXT: [[SCALE_WRAPS:v[0-9]+]] = shr [[INDEX_END]], 251
-    // CHECK-NEXT: [[INDEX_WRAPS:v[0-9]+]] = lt [[INDEX_END]], arg2
+    // CHECK-NEXT: [[INDEX_WRAPS:v[0-9]+]] = lt [[INDEX_END]], [[INDEX]]
     // CHECK-NEXT: [[WRAPS_WORD:v[0-9]+]] = zext i1 [[INDEX_WRAPS]] to i256
     // CHECK-NEXT: [[INDEX_FAILS:v[0-9]+]] = or [[SCALE_WRAPS]], [[WRAPS_WORD]]
     // CHECK-NEXT: [[FAILS_WORD:v[0-9]+]] = zext i1 {{v[0-9]+}} to i256

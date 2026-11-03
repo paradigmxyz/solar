@@ -17,7 +17,8 @@ contract Test {
     // original loop cannot finish these copies, so they must not take the MCOPY path. Memory
     // indexing itself is modular: a large offset can still name an ordinary element.
     // CHECK-LABEL: fn @copy(
-    // CHECK: [[OVERFLOW:v[0-9]+]] = shr arg2, 251
+    // CHECK: [[COUNT:v[0-9]+]] = calldataload 68
+    // CHECK: [[OVERFLOW:v[0-9]+]] = shr [[COUNT]], 251
     // CHECK-NEXT: [[REASONS:v[0-9]+]] = or {{v[0-9]+}}, [[OVERFLOW]]
     // CHECK-NEXT: [[FALLBACK:v[0-9]+]] = ne [[REASONS]], 0
     // CHECK-NEXT: jumpi [[FALLBACK]]

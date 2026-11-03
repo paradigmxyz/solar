@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/internal_function_pointer_calldata.sol:InternalFunctionPointerCalldata ===
+; === ROOT/tests/ui/codegen/lowering/run-call/internal_function_pointer_calldata.sol:InternalFunctionPointerCalldata ===
 @module InternalFunctionPointerCalldata
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
@@ -56,9 +56,9 @@ fn @run() -> i8 [selector=0xc0406226, abi_params=[], abi_returns=[word<uint8>], 
     v11 = zext i160 v6 to i256
     v12 = call v7, v11, 0, v9, v10, 0, 32
     jumpi v12, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v13 = returndatasize
     v14 = lt v13, 32
     icall revert_if<tuple_data_too_short>, v14
@@ -75,10 +75,10 @@ fn @internal_dispatcher_p_slice_calldata_r_bytes1(arg0: i256, arg1: slice<callda
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = icall @read, arg1
     ret v1
 }

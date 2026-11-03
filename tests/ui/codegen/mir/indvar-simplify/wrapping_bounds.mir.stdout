@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/indvar-simplify/wrapping_bounds.sol:WrappingBounds ===
+; === ROOT/tests/ui/codegen/mir/indvar-simplify/wrapping_bounds.sol:WrappingBounds ===
 @module WrappingBounds
 ; function fill(uint256 m, uint256 n) public pure returns (bytes memory b) [selector 0x3c29fc43]
 fn @fill(arg0: i256, arg1: i256) -> ptr<memory> [selector=0x3c29fc43, pure, abi_params=[uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -12,7 +12,7 @@ fn @fill(arg0: i256, arg1: i256) -> ptr<memory> [selector=0x3c29fc43, pure, abi_
     mstore v4, arg0
     v5 = mload v4
     jump bb1
-  bb1:  ; preds = bb0, bb8
+  bb1:                                            ; preds = bb0, bb8
     v6 = phi [bb0: arg0], [bb8: v6]
     v7 = phi [bb0: arg1], [bb8: v7]
     v8 = phi [bb0: v4], [bb8: v8]
@@ -20,19 +20,19 @@ fn @fill(arg0: i256, arg1: i256) -> ptr<memory> [selector=0x3c29fc43, pure, abi_
     v10 = phi [bb0: 0], [bb8: v20]
     v11 = lt v10, v7
     jumpi v11, bb3, bb4
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     jump bb5
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v12 = lt v10, v9
     jump bb5
-  bb5:  ; preds = bb3, bb4
+  bb5:                                            ; preds = bb3, bb4
     v13 = phi [bb3: v12], [bb4: false]
     jumpi v13, bb6, bb7
-  bb7:  ; preds = bb5
+  bb7:                                            ; preds = bb5
     jump bb2
-  bb2:  ; preds = bb7
+  bb2:                                            ; preds = bb7
     ret v8
-  bb6:  ; preds = bb5
+  bb6:                                            ; preds = bb5
     v14 = mload v8
     v15 = lt v10, v14
     v16 = eq v15, false
@@ -43,7 +43,7 @@ fn @fill(arg0: i256, arg1: i256) -> ptr<memory> [selector=0x3c29fc43, pure, abi_
     mstore8 v19, v17
     v20 = checked_add uint256, v10, 1
     jump bb8
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     jump bb1
 }
 
@@ -68,7 +68,7 @@ fn @fillWords(arg0: i256, arg1: i256) -> ptr<memory> [selector=0xa534f1f0, pure,
     mstore v11, arg0
     v12 = mload v11
     jump bb1
-  bb1:  ; preds = bb0, bb8
+  bb1:                                            ; preds = bb0, bb8
     v13 = phi [bb0: arg0], [bb8: v13]
     v14 = phi [bb0: arg1], [bb8: v14]
     v15 = phi [bb0: v11], [bb8: v15]
@@ -76,19 +76,19 @@ fn @fillWords(arg0: i256, arg1: i256) -> ptr<memory> [selector=0xa534f1f0, pure,
     v17 = phi [bb0: 0], [bb8: v27]
     v18 = lt v17, v14
     jumpi v18, bb3, bb4
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     jump bb5
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v19 = lt v17, v16
     jump bb5
-  bb5:  ; preds = bb3, bb4
+  bb5:                                            ; preds = bb3, bb4
     v20 = phi [bb3: v19], [bb4: false]
     jumpi v20, bb6, bb7
-  bb7:  ; preds = bb5
+  bb7:                                            ; preds = bb5
     jump bb2
-  bb2:  ; preds = bb7
+  bb2:                                            ; preds = bb7
     ret v15
-  bb6:  ; preds = bb5
+  bb6:                                            ; preds = bb5
     v21 = mload v15
     v22 = lt v17, v21
     v23 = eq v22, false
@@ -99,7 +99,7 @@ fn @fillWords(arg0: i256, arg1: i256) -> ptr<memory> [selector=0xa534f1f0, pure,
     mstore v26, 7
     v27 = checked_add uint256, v17, 1
     jump bb8
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     jump bb1
 }
 
@@ -115,7 +115,7 @@ fn @fillFrom(arg0: i256, arg1: i256, arg2: i256) -> ptr<memory> [selector=0xeccb
     mstore v4, arg0
     v5 = mload v4
     jump bb1
-  bb1:  ; preds = bb0, bb8
+  bb1:                                            ; preds = bb0, bb8
     v6 = phi [bb0: arg0], [bb8: v6]
     v7 = phi [bb0: arg1], [bb8: v7]
     v8 = phi [bb0: arg2], [bb8: v8]
@@ -124,19 +124,19 @@ fn @fillFrom(arg0: i256, arg1: i256, arg2: i256) -> ptr<memory> [selector=0xeccb
     v11 = phi [bb0: arg1], [bb8: v21]
     v12 = lt v11, v8
     jumpi v12, bb3, bb4
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     jump bb5
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v13 = lt v11, v10
     jump bb5
-  bb5:  ; preds = bb3, bb4
+  bb5:                                            ; preds = bb3, bb4
     v14 = phi [bb3: v13], [bb4: false]
     jumpi v14, bb6, bb7
-  bb7:  ; preds = bb5
+  bb7:                                            ; preds = bb5
     jump bb2
-  bb2:  ; preds = bb7
+  bb2:                                            ; preds = bb7
     ret v9
-  bb6:  ; preds = bb5
+  bb6:                                            ; preds = bb5
     v15 = mload v9
     v16 = lt v11, v15
     v17 = eq v16, false
@@ -147,6 +147,6 @@ fn @fillFrom(arg0: i256, arg1: i256, arg2: i256) -> ptr<memory> [selector=0xeccb
     mstore8 v20, v18
     v21 = checked_add uint256, v11, 1
     jump bb8
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     jump bb1
 }

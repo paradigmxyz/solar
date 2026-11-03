@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_packed_function_pointer_array.sol:AbiPackedFunctionPointerArray ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_packed_function_pointer_array.sol:AbiPackedFunctionPointerArray ===
 @module AbiPackedFunctionPointerArray
 ; function target() external pure [selector 0xd4b83992]
 fn @target() [selector=0xd4b83992, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
@@ -43,14 +43,14 @@ fn @encode(arg0: slice<calldata>) -> ptr<memory> [selector=0xea460cbb, pure, abi
     v12 = alloc v10
     mstore v12, v0
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v13 = phi [bb0: 0], [bb2: v26]
     v14 = lt v13, v0
     jumpi v14, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v27 = abi_encode_packed (array<function> memoryarray<1> v12)
     ret v27
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v15 = mul v13, 32
     v16 = ptrtoint ptr<calldata> v1 to i256
     v17 = add v16, v15

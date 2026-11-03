@@ -1,7 +1,7 @@
 //@ revisions: mir run
 //@[mir] compile-flags: -Zmir-pipeline=specialize-function-pointers -Zdump=mir
 //@[mir] filecheck:
-//@[run] compile-flags: -Zmir-pipeline=specialize-function-pointers,lower-checks,lower-builtins,lower-arithmetic,lower-abi,lower-abi-encode,lower-dispatch,lower-frame-slots,lower-mapping-slots,lower-memory-objects,lower-slices,lower-alloc,lower-memory-zero,lower-evm-shaped
+//@[run] compile-flags: -Zmir-pipeline=specialize-function-pointers,lower-checks,lower-builtins,lower-arithmetic,lower-abi,lower-abi-encode,lower-dispatch,lower-frame-slots,lower-mapping-slots,lower-memory-objects,lower-slices,lower-alloc,lower-memory-zero,lower-integers,lower-evm-shaped
 //@[run] normalize-stdout-test: "[0-9a-f]{40,}" -> "BYTECODE"
 //@[run] run-call: callConstant 41 => 42
 //@[run] run-call: choose true, 41 => 42

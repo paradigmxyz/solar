@@ -280,7 +280,7 @@ impl ConstValue {
                 Self::Address(Address::from_slice(value.as_slice()))
             }
             (Self::Address(address), ValueTy::Int(ty)) => {
-                Self::Int(IntScalar::new(U256::from_be_slice(address.as_slice())).explicit_to(ty)?)
+                Self::Int(IntScalar::new(address.into_word().into()).explicit_to(ty)?)
             }
             (Self::Address(address), ValueTy::FixedBytes(20)) => {
                 Self::FixedBytes(FixedBytes::new(20, address.as_slice()))
@@ -1066,7 +1066,7 @@ impl IntScalar {
         {
             // Type checking rejects signed and negative shift amounts.
             let amount = r.as_u256().ok_or(EE::UnsupportedBinaryOp)?;
-            let amount = u16::try_from(amount).unwrap_or(u16::MAX).min(ty.bits());
+            let amount = amount.saturating_to::<u16>().min(ty.bits());
             return Self { data: self.data << amount, ty: Some(ty) }.explicit_to(ty);
         }
         self.binop_value(r, op)?.retype(ty)
@@ -1157,12 +1157,11 @@ mod tests {
         assert_eq!(zero.as_bool(), None);
         assert!(zero.is_zero());
 
-        let one = ConstValue::Int(IntScalar::new(U256::from(1)));
-        assert_eq!(one.as_u256(), Some(U256::from(1)));
+        let one = ConstValue::Int(IntScalar::new(U256::ONE));
+        assert_eq!(one.as_u256(), Some(U256::ONE));
         assert!(!one.is_zero());
 
-        let negative =
-            ConstValue::Int(IntScalar::new(U256::from(1)).unop(hir::UnOpKind::Neg).unwrap());
+        let negative = ConstValue::Int(IntScalar::new(U256::ONE).unop(hir::UnOpKind::Neg).unwrap());
         assert_eq!(negative.as_u256(), None);
         assert_eq!(negative.as_word(), Some(U256::MAX));
         assert!(!negative.is_zero());

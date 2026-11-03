@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/internal_function_pointer_void.sol:InternalFunctionPointerVoid ===
+; === ROOT/tests/ui/codegen/lowering/run-call/internal_function_pointer_void.sol:InternalFunctionPointerVoid ===
 @module InternalFunctionPointerVoid
 ; function setFlag() internal
 fn @setFlag() {
@@ -24,10 +24,10 @@ fn @internal_dispatcher_p_none_r_none(arg0: i256) [function_pointer_dispatcher] 
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     icall @setFlag
     ret
 }
