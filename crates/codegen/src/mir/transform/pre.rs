@@ -324,8 +324,8 @@ impl PreCostModel<'_> {
         let saved = read * input.loads.len() as i64 * input.predecessors.len() as i64;
         let splits =
             input.insertions.iter().filter(|&&pred| splits_edge(input.func, pred)).count() as i64;
-        let inserted =
-            read * input.insertions.len() as i64 + splits * i64::from(self.target.jump().gas);
+        let transfer = self.target.jump();
+        let inserted = read * input.insertions.len() as i64 + splits * i64::from(transfer.gas);
         let phi = if !input.needs_phi || input.loop_carried {
             0
         } else {
@@ -1330,11 +1330,7 @@ impl<'a> Eliminator<'a> {
                     Instruction::new(InstKind::Phi(incoming), Some(result_ty))
                         .with_debug_info_dropped(),
                 );
-                let phi_count = func.blocks[target]
-                    .instructions
-                    .iter()
-                    .take_while(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
-                    .count();
+                let phi_count = func.block_phi_count(target);
                 func.blocks[target].instructions.insert(phi_count, phi_inst);
                 phi_value
             }

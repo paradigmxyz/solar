@@ -95,13 +95,9 @@ fn data_copy_is_profitable_for(target: Target, data: &[u8], separate_tail: bool)
     }
 
     // push size; push data; dup base; codecopy
-    // Reserve PUSH3 for the unresolved data address so final relocation
-    // cannot turn a selected rewrite into code growth.
-    let mut new = target.push(U256::from(data.len()))
-        + target.opcode(op::PUSH3)
+    let mut new = target.copy_operands(data.len(), false)
         + target.dup()
         + target.opcode(op::CODECOPY)
-        + target.copied_words(data.len())
         + Cost::new(0, u32::try_from(data.len()).unwrap_or(u32::MAX));
     if separate_tail {
         let tail_offset = data.len() / word_size * word_size;

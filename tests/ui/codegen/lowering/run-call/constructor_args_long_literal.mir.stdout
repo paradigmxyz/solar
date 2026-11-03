@@ -1,0 +1,26 @@
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_args_long_literal.sol:ConstructorArgsLongLiteral ===
+@module ConstructorArgsLongLiteral
+; constructor(uint256 a, uint256 b) [creation entry]
+fn @constructor(arg0: i256, arg1: i256) [constructor, abi_params=[uint256, uint256]] {
+  bb0:
+    v0 = lt arg0, 100
+    icall require<long_string hex"7468697320636f6e7374727563746f7220617267756d656e7420636865636b206861732061206d6573736167652074686174206973206c6f6e676572207468616e207468697274792074776f20627974657320736f206974732064617461206973206e6f74206f6e6520776f7264">, v0
+    v1 = checked_add uint256, arg0, arg1
+    sstore 0, v1 !metadata(storage=slot(0))
+    sstore 1, 0x5ae94f111b94bd3242b5d5b03dc030cec8f519ada24b477ab2854ad3b6059211 !metadata(storage=slot(1))
+    ret
+}
+
+; getter for `uint256 public x` [selector 0x0c55699c]
+fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+; getter for `bytes32 public h` [selector 0xb8c9d365]
+fn @h() -> i256 [selector=0xb8c9d365, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    ret v0
+}
