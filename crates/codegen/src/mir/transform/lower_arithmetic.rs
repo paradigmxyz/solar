@@ -355,7 +355,7 @@ impl ArithmeticLowerer<'_, '_> {
 }
 
 fn signed_bounds(bits: u16, builder: &mut FunctionBuilder<'_>) -> (ValueId, ValueId) {
-    let magnitude = U256::from(1) << (bits - 1);
+    let magnitude = U256::ONE << (bits - 1);
     let min = builder.imm(U256::MAX - magnitude + U256::ONE);
     let max = builder.imm(magnitude - U256::ONE);
     (min, max)

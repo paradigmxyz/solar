@@ -1313,7 +1313,7 @@ impl IndVarSimplifier {
         start: U256,
         scale: i128,
     ) -> ValueId {
-        let limit = U256::from(1) << (Target::MAX_TRIP_COUNT_BITS + 1);
+        let limit = U256::ONE << (Target::MAX_TRIP_COUNT_BITS + 1);
         if let Some(value) = func.value_u256(bound) {
             let clamped = value.max(start).min(limit);
             return func.alloc_value(Value::Immediate(Immediate::I256(clamped)));
