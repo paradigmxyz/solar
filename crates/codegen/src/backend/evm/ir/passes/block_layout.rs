@@ -12,8 +12,12 @@
 //! ending in a jump, such as a revert stub, are packed below the PUSH1 address limit by reference
 //! density. Hot traces that end in a jump stay put: moving one changes which caller falls
 //! through into a shared tail, and the other caller pays an extra jump. Moving the entire trace
-//! preserves its fallthrough edges, including a call followed by a shared failure block. Packing
-//! also reserves address space for one-byte indexed jump tables to avoid widening their lookups.
+//! preserves its fallthrough edges, including a call followed by a shared failure block. A
+//! multi-block trace whose last block has four references competes when that block starts beyond
+//! the first 256 bytes, or anywhere when all its blocks are cold: left out, a shared revert tail
+//! already below the limit would sit behind the packed stubs and lose its place to traces with
+//! fewer references. Packing also reserves address space for one-byte indexed jump tables to
+//! avoid widening their lookups.
 //! Size estimates guide placement; assembly still resolves the exact offsets and widths.
 //! In size mode, shared indirect-return tails prefer the predecessor with strictly more incoming
 //! references. This keeps the more frequently shared outlined entry adjacent to its return tail,
@@ -214,7 +218,11 @@ fn pack_terminal_traces(est: SizeEstimator, module: &Module, order: &mut Vec<Blo
                     && size <= 32
                     && references >= 2
                     && (position == start + 1
-                        || (block_offset > 0xff && placement.references[block] >= 4))
+                        || (placement.references[block] >= 4
+                            && (block_offset > 0xff
+                                || order[start..position]
+                                    .iter()
+                                    .all(|&b| module.blocks[b].metadata.hotness.is_cold()))))
                 {
                     candidates.push(Candidate { range: start..position, size, references });
                 }

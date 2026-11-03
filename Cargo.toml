@@ -228,7 +228,7 @@ glob = "0.3"
 oxc_index = { version = "5.0", features = ["nonmax"] }
 indexmap = "2.2"
 itertools = ">=0.10, <=0.14"
-inturn = "0.2.0"
+inturn = "0.2.1"
 libc = "0.2"
 memchr = "2.7"
 normalize-path = "0.2.1"
