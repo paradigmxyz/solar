@@ -302,14 +302,15 @@ runtime observations.
 | `tempo-zones-portal` | `tempoxyz/zones` plus `tempoxyz/tempo-std` | `700069eb8a40fce7e1f7a4bf0fc5703bcc692c43`, `96f882963ce3b0e0abc7ec2b41d03d42457877bb` | 23 |
 | `solady-encoding` | `Vectorized/solady` plus `Encoding.sol` | `solady-0.1.26` archive | 3 |
 | `solady-algorithms` | `Vectorized/solady` plus `Algorithms.sol` | `solady-0.1.26` archive | 5 |
+| `prb-math` | `PaulRBerg/prb-math` plus `PRBMath.sol` | `b51e8631ed28d3cc917c491dd47cd6c3ff652edc` (4.1.1 archive) | 34 |
 | `tempo-zones-project` (compile-time only) | `tempoxyz/zones` | `700069eb8a40fce7e1f7a4bf0fc5703bcc692c43` | 67 |
 
 File counts are each case's sliced closure. Archives below are in `../../testdata/projects/`. The
 OpenZeppelin cases share `openzeppelin-5.6.1.json.gz`, which replaces the earlier extracted
 OpenZeppelin runtime archive; `lilweb3-flashloan` and `lilweb3-fractional` share
-`lilweb3-runtime.json.gz`; `aave-l2-encoder.json.gz` embeds the Aave harness. The large OpenZeppelin
-and Solady cases, like the normal benchmark suite, read the pinned archives there. `counter` reuses
-the normal suite's `../../testdata/Counter.sol`. `fixtures/runtime/RuntimeFixtures.sol` holds local
+`lilweb3-runtime.json.gz`; `aave-l2-encoder.json.gz` embeds the Aave harness. The large OpenZeppelin,
+Solady, and PRBMath cases, like the normal benchmark suite, read the pinned archives there.
+`counter` reuses the normal suite's `../../testdata/Counter.sol`. `fixtures/runtime/RuntimeFixtures.sol` holds local
 Apache-2.0 helpers with the interfaces the cold-path workloads use. Embedded sources keep their SPDX
 identifiers.
 
@@ -356,6 +357,16 @@ pinned LibString, LibSort, and Base64. Its 85 calls cover unsigned decimal digit
 limits, insertion and quicksort lengths around their cutoff, sorted/reversed/equal/nonuniform
 arrays, and padded Base64 tails. It checks return values apart from gas; the wrappers have no
 assertions or gas-dependent memory stress.
+
+`prb-math` uses [`PRBMath.sol`](../../testdata/runtime/PRBMath.sol) with unchanged pinned PRBMath
+sources: plain external functions over raw words for Common's `exp2` (192.64 fixed point),
+`mulDiv`, `mulDiv18`, and `sqrt`, and for `exp`, `exp2`, `log2`, `ln`, `sqrt`, `pow`, `mul`, and
+`div` on UD60x18 and SD59x18. Its 120 calls give each function several inputs that take different
+branches: the `exp2` input of issue #2284, negative SD59x18 exponents and logarithms, values near the
+documented bounds, exact results such as `log2(1e18)`, and `mulDiv` products whose high word is zero
+and not. Every call succeeds under solc and checks its return value across compilers. The 4.1.1
+archive's math code in `Common.sol` and the UD60x18 and SD59x18 `Math.sol` files matches v4.0.1,
+which the issue measured, apart from comments and formatting.
 
 `solady-encoding` uses [`Encoding.sol`](../../testdata/runtime/Encoding.sol) with the same Solady
 and plain ABI calls. It measures both hex prefix modes and ASCII classification over nonuniform

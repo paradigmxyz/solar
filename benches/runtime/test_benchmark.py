@@ -178,11 +178,11 @@ class CorpusTests(unittest.TestCase):
             )
 
     def test_vendored_cases_and_projects_exist(self) -> None:
-        self.assertEqual(len(benchmark.TEST_CASES), 38)
+        self.assertEqual(len(benchmark.TEST_CASES), 39)
         repository_cases = [
             case for case in benchmark.TEST_CASES if case.suite == "repository"
         ]
-        self.assertEqual(len(repository_cases), 12)
+        self.assertEqual(len(repository_cases), 13)
         heavy_cases = [case for case in benchmark.TEST_CASES if case.suite == "heavy"]
         self.assertEqual(len(heavy_cases), 10)
         for case in heavy_cases:
@@ -201,6 +201,7 @@ class CorpusTests(unittest.TestCase):
             "maple-erc20": 2,
             "solady-encoding": 3,
             "solady-algorithms": 5,
+            "prb-math": 34,
             "tempo-zones-portal": 23,
         }
         for case in repository_cases:
@@ -477,6 +478,32 @@ class CorpusTests(unittest.TestCase):
             payload, _, _ = benchmark.compiler_input(case, None)
             selected = json.loads(payload)["sources"]
             self.assertEqual(len(selected), expected_source_counts[case.test_id])
+
+    def test_prb_math_wrapper_runs_every_library_call(self) -> None:
+        case = next(case for case in benchmark.TEST_CASES if case.test_id == "prb-math")
+        project = benchmark.load_project(case.project_path)
+        self.assertNotIn(case.source, project["sources"])
+        payload = json.loads(benchmark.compiler_input(case, None)[0])
+        self.assertEqual(payload["sources"][case.source]["content"], case.source_code)
+        self.assertIn("src/ud60x18/Math.sol", payload["sources"])
+        self.assertNotIn("test/Base.t.sol", payload["sources"])
+        labels = [call.label for call in case.gas_calls]
+        self.assertEqual(len(labels), 120)
+        self.assertEqual(len(set(labels)), 120)
+        self.assertEqual(labels, [check.label for check in case.runtime_checks])
+
+    def test_project_slice_follows_aliased_imports(self) -> None:
+        project = {
+            "sources": {
+                "src/A.sol": {"content": 'import "./B.sol" as B;'},
+                "src/B.sol": {"content": ""},
+            },
+        }
+
+        self.assertEqual(
+            list(benchmark.project_slice(project, "src/A.sol")),
+            ["src/A.sol", "src/B.sol"],
+        )
 
     def test_project_slice_resolves_relative_and_remapped_imports(self) -> None:
         project = {

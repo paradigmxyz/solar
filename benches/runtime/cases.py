@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from decimal import Decimal
 from pathlib import Path
 
 from common import PROJECTS_ROOT, TESTDATA_ROOT
@@ -139,6 +140,269 @@ ALGORITHM_INPUTS = (
             ("base64-long", "YWJj" * 32),
         )
     )
+)
+
+
+def fixed(value: str) -> str:
+    """Return a decimal string as an 18-decimal fixed-point integer."""
+    return str(int(Decimal(value).scaleb(18)))
+
+
+# Inputs a DeFi caller passes to PRBMath, each in 18-decimal fixed point unless
+# noted: pool balances and prices, rates, and compounding exponents, with values
+# near the documented bounds and exact results (1e18 and powers of two). Raw
+# `exp2` takes 192.64 fixed point; its first input is the one from issue #2284.
+# `mulDiv` covers products with a zero and a nonzero high word. Every input
+# succeeds under solc.
+PRB_WORD_MAX = str((1 << 256) - 1)
+PRB_MUL_DIV_INPUTS = (
+    ("small", (fixed("123456789.123456789"), fixed("987654321.987654321"), fixed("1"))),
+    ("price", (fixed("3"), fixed("1"), "7")),
+    ("wide", (str((1 << 200) + 12345), str((1 << 100) + 777), str((1 << 100) + 3))),
+    ("max", (PRB_WORD_MAX, PRB_WORD_MAX, PRB_WORD_MAX)),
+)
+PRB_MUL_DIV18_INPUTS = (
+    ("price", (fixed("7"), fixed("3"))),
+    ("balance", (fixed("123456789.123456789"), fixed("0.003"))),
+    ("wide", (str((1 << 200) + 1), str((1 << 100) + 1))),
+    ("max", (PRB_WORD_MAX, fixed("1"))),
+)
+PRB_INPUTS = (
+    (
+        "commonExp2",
+        "uint256",
+        "uint256",
+        (
+            ("issue-2284", ("0x0123456789ABCDEF",)),
+            ("zero", ("0",)),
+            ("one-ulp", ("1",)),
+            ("half", (str(1 << 63),)),
+            ("one", (str(1 << 64),)),
+            ("below-two", (str((2 << 64) - 1),)),
+            ("mixed", (str((100 << 64) + 0xDEADBEEF1234),)),
+            ("near-bound", (str((191 << 64) + 0xFEDCBA9876543210),)),
+        ),
+    ),
+    ("commonMulDiv", "uint256,uint256,uint256", "uint256", PRB_MUL_DIV_INPUTS),
+    ("commonMulDiv18", "uint256,uint256", "uint256", PRB_MUL_DIV18_INPUTS),
+    (
+        "commonSqrt",
+        "uint256",
+        "uint256",
+        (
+            ("zero", ("0",)),
+            ("one", ("1",)),
+            ("three", ("3",)),
+            ("unit", (fixed("1"),)),
+            ("odd", ("123456789012345678901234567890",)),
+            ("square", (str(1 << 128),)),
+            ("max", (PRB_WORD_MAX,)),
+        ),
+    ),
+    (
+        "udExp",
+        "uint256",
+        "uint256",
+        (
+            ("zero", ("0",)),
+            ("tiny", (fixed("0.000001"),)),
+            ("half", (fixed("0.5"),)),
+            ("one", (fixed("1"),)),
+            ("rate", (fixed("5.5"),)),
+            ("large", (fixed("42.123456789012345678"),)),
+            ("near-bound", (fixed("133"),)),
+        ),
+    ),
+    (
+        "udExp2",
+        "uint256",
+        "uint256",
+        (
+            ("zero", ("0",)),
+            ("half", (fixed("0.5"),)),
+            ("one", (fixed("1"),)),
+            ("pi", (fixed("3.141592653589793238"),)),
+            ("tenth", (fixed("10.7"),)),
+            ("exact", (fixed("64"),)),
+            ("near-bound", (fixed("191.5"),)),
+        ),
+    ),
+    (
+        "udLog2",
+        "uint256",
+        "uint256",
+        (
+            ("one", (fixed("1"),)),
+            ("two", (fixed("2"),)),
+            ("above-one", (fixed("1.000000000000000001"),)),
+            ("three-halves", (fixed("1.5"),)),
+            ("three", (fixed("3"),)),
+            ("large", (fixed("123456789.123456789"),)),
+            ("huge", (str(1 << 255),)),
+        ),
+    ),
+    (
+        "udLn",
+        "uint256",
+        "uint256",
+        (
+            ("one", (fixed("1"),)),
+            ("two", (fixed("2"),)),
+            ("above-one", (fixed("1.000000000000000001"),)),
+            ("e", (fixed("2.718281828459045235"),)),
+            ("ten", (fixed("10"),)),
+            ("large", (fixed("123456789.123456789"),)),
+            ("huge", (str(1 << 255),)),
+        ),
+    ),
+    (
+        "udSqrt",
+        "uint256",
+        "uint256",
+        (
+            ("zero", ("0",)),
+            ("tiny", (fixed("0.01"),)),
+            ("one", (fixed("1"),)),
+            ("two", (fixed("2"),)),
+            ("square", (fixed("144"),)),
+            ("large", (fixed("123456789"),)),
+            ("huge", (str(10**50),)),
+        ),
+    ),
+    (
+        "udPow",
+        "uint256,uint256",
+        "uint256",
+        (
+            ("zero-base", (fixed("0"), fixed("5"))),
+            ("one-base", (fixed("1"), fixed("5"))),
+            ("cube", (fixed("2"), fixed("3"))),
+            ("root", (fixed("3"), fixed("0.5"))),
+            ("per-second", (fixed("1.000000001"), fixed("31536000"))),
+            ("large", (fixed("10"), fixed("20"))),
+        ),
+    ),
+    ("udMul", "uint256,uint256", "uint256", PRB_MUL_DIV18_INPUTS),
+    (
+        "udDiv",
+        "uint256,uint256",
+        "uint256",
+        (
+            ("third", (fixed("1"), fixed("3"))),
+            ("ratio", (fixed("7"), fixed("2"))),
+            ("small-divisor", (fixed("123456789"), fixed("0.000001"))),
+            ("wide", (str(1 << 200), fixed("3"))),
+        ),
+    ),
+    (
+        "sdExp",
+        "int256",
+        "int256",
+        (
+            ("zero", ("0",)),
+            ("one", (fixed("1"),)),
+            ("minus-one", (fixed("-1"),)),
+            ("minus-rate", (fixed("-5.5"),)),
+            ("positive", (fixed("3.3"),)),
+            ("near-lower", (fixed("-41"),)),
+            ("underflow", (fixed("-42"),)),
+            ("near-upper", (fixed("133"),)),
+        ),
+    ),
+    (
+        "sdExp2",
+        "int256",
+        "int256",
+        (
+            ("zero", ("0",)),
+            ("half", (fixed("0.5"),)),
+            ("minus-half", (fixed("-0.5"),)),
+            ("minus-ten", (fixed("-10.5"),)),
+            ("minus-exact", (fixed("-64"),)),
+            ("one", (fixed("1"),)),
+            ("near-upper", (fixed("191"),)),
+        ),
+    ),
+    (
+        "sdLog2",
+        "int256",
+        "int256",
+        (
+            ("one", (fixed("1"),)),
+            ("two", (fixed("2"),)),
+            ("half", (fixed("0.5"),)),
+            ("tenth", (fixed("0.1"),)),
+            ("three-halves", (fixed("1.5"),)),
+            ("large", (fixed("123456789.123456789"),)),
+            ("one-ulp", ("1",)),
+        ),
+    ),
+    (
+        "sdLn",
+        "int256",
+        "int256",
+        (
+            ("one", (fixed("1"),)),
+            ("two", (fixed("2"),)),
+            ("half", (fixed("0.5"),)),
+            ("tenth", (fixed("0.1"),)),
+            ("e", (fixed("2.718281828459045235"),)),
+            ("large", (fixed("123456789.123456789"),)),
+            ("one-ulp", ("1",)),
+        ),
+    ),
+    (
+        "sdSqrt",
+        "int256",
+        "int256",
+        (
+            ("zero", ("0",)),
+            ("quarter", (fixed("0.25"),)),
+            ("one", (fixed("1"),)),
+            ("two", (fixed("2"),)),
+            ("large", (fixed("123456.789"),)),
+            ("huge", (str(10**40),)),
+        ),
+    ),
+    (
+        "sdPow",
+        "int256,int256",
+        "int256",
+        (
+            ("zero-base", (fixed("0"), fixed("5"))),
+            ("cube", (fixed("2"), fixed("3"))),
+            ("inverse-square", (fixed("1.5"), fixed("-2"))),
+            ("per-block", (fixed("1.0001"), fixed("1000"))),
+            ("root", (fixed("10"), fixed("0.5"))),
+        ),
+    ),
+    (
+        "sdMul",
+        "int256,int256",
+        "int256",
+        (
+            ("negative-left", (fixed("-2.5"), fixed("4"))),
+            ("negative-right", (fixed("3"), fixed("-3"))),
+            ("both-negative", (fixed("-1"), fixed("-1"))),
+            ("wide", (str(1 << 200), str(-(1 << 100)))),
+        ),
+    ),
+    (
+        "sdDiv",
+        "int256,int256",
+        "int256",
+        (
+            ("negative-left", (fixed("-7"), fixed("2"))),
+            ("negative-right", (fixed("1"), fixed("-3"))),
+            ("both-negative", (str(-(1 << 200)), fixed("-3"))),
+            ("small-divisor", (fixed("123456789"), fixed("-0.000001"))),
+        ),
+    ),
+)
+PRB_CALLS = tuple(
+    (f"{name}-{label}", f"{name}({types})", result, args)
+    for name, types, result, inputs in PRB_INPUTS
+    for label, args in inputs
 )
 
 
@@ -1653,6 +1917,25 @@ TEST_CASES: Sequence[TestCase] = (
         runtime_checks=tuple(
             RuntimeCheck(label, f"{signature}({result})", (value,))
             for label, signature, result, value in ALGORITHM_INPUTS
+        ),
+        suite="repository",
+    ),
+    TestCase(
+        test_id="prb-math",
+        description="PRBMath fixed-point exp, log, pow, sqrt and mulDiv",
+        min_solc="0.8.19",
+        project=PROJECTS["prb-math-4.1.1"],
+        source="PRBMath.sol",
+        source_code=(TESTDATA_ROOT / "runtime/PRBMath.sol").read_text(),
+        source_path="testdata/runtime/PRBMath.sol",
+        contract_name="PRBMath",
+        settings_profile="runtime",
+        gas_calls=tuple(
+            GasCall(label, signature, args) for label, signature, _, args in PRB_CALLS
+        ),
+        runtime_checks=tuple(
+            RuntimeCheck(label, f"{signature}({result})", args)
+            for label, signature, result, args in PRB_CALLS
         ),
         suite="repository",
     ),
