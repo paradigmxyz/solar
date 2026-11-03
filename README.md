@@ -42,8 +42,8 @@ the same CI run, we were **44× faster on average** over the six and **34×** ov
 
 We measured on `main` at [commit `0303bb7d`](https://github.com/paradigmxyz/solar/commit/0303bb7d606a50ef158e34669b5851f47a1e054e)
 against solc 0.8.38, targeting Cancun. [Build from source](#binary-usage) to match it.
-Build times are the median of five runs on an AMD EPYC 9254 (24 cores), using our default eight
-threads; solc is single-threaded.
+Build times are the median of five runs on an AMD EPYC 9254 (24 cores), using eight
+threads (`-j8`); solc is single-threaded.
 
 Across the 15 real-world contracts in our runtime corpus (via-IR at 200 runs, unless a case pins
 its project's settings), the generated contracts used **5% less gas**, cost **26% less gas to

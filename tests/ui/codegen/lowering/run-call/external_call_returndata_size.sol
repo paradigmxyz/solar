@@ -3,8 +3,8 @@
 //@ codegen-matrix: standard
 //@ run-call: directOne => 0, 42
 //@ run-call: pointerOne => 0, 42
-//@ run-call: directTwo => 32, 42, 43
-//@ run-call: pointerTwo => 32, 42, 43
+//@ run-call: directTwo => 0, 42, 43
+//@ run-call: pointerTwo => 0, 42, 43
 //@ run-call-fail: directShort
 //@ run-call-fail: pointerShort
 //@ run-call-fail: directInvalidBool

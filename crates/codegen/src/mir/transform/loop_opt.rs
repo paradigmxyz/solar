@@ -191,7 +191,7 @@ impl Scratch {
 const MAX_LICM_HOISTED_INSTS: usize = 8;
 
 /// Loop optimizer.
-struct LoopOptimizer {
+pub(super) struct LoopOptimizer {
     /// Whether pure arithmetic executed on every iteration is hoisted even when its per-iteration
     /// saving does not satisfy [`Target::licm_pays`]. The backend carries a preheader value on
     /// the stack through a loop or rebuilds it at its use sites, whichever its pricing prefers, so
@@ -239,7 +239,12 @@ impl LoopOptimizer {
         let mut carried = loops
             .iter()
             .map(|loop_data| {
-                let words = Self::carried_words(func, loop_data, &inst_blocks, &mut scratch.values);
+                let words = Self::carried_words(
+                    func,
+                    loop_data,
+                    |inst| Self::in_loop(loop_data, &inst_blocks, inst),
+                    &mut scratch.values,
+                );
                 (loop_data.header, words)
             })
             .collect::<FxHashMap<_, _>>();
@@ -263,10 +268,10 @@ impl LoopOptimizer {
     /// The words the backend carries through a loop: the header's phis and the values defined
     /// outside the loop that its non-phi instructions read. Immediates, calldata words at constant
     /// offsets, and nullary rematerializable reads are rebuilt where used and cost no word.
-    fn carried_words(
+    pub(super) fn carried_words(
         func: &Function,
         loop_data: &Loop,
-        inst_blocks: &IndexVec<InstId, Option<BlockId>>,
+        in_loop: impl Fn(InstId) -> bool,
         seen: &mut DenseBitSet<ValueId>,
     ) -> usize {
         let header = &func.blocks[loop_data.header];
@@ -277,9 +282,7 @@ impl LoopOptimizer {
             .count();
         seen.clear_to(func.num_values());
         let mut visit = |operand| {
-            if Self::is_carried_operand(func, loop_data, inst_blocks, operand)
-                && seen.insert(operand)
-            {
+            if Self::is_carried_operand(func, &in_loop, operand) && seen.insert(operand) {
                 count += 1;
             }
         };
@@ -298,25 +301,29 @@ impl LoopOptimizer {
         count
     }
 
-    /// Whether a value read inside `loop_data` occupies a carried word: an instruction result
+    /// Whether a value read inside a loop occupies a carried word: an instruction result
     /// outside the loop that is not a nullary rematerializable read or a calldata word at a
     /// constant offset.
     fn is_carried_operand(
         func: &Function,
-        loop_data: &Loop,
-        inst_blocks: &IndexVec<InstId, Option<BlockId>>,
+        in_loop: &impl Fn(InstId) -> bool,
         value: ValueId,
     ) -> bool {
         let Value::Inst(inst_id) = func.value(value) else { return false };
         let kind = &func.inst(*inst_id).kind;
-        inst_blocks
-            .get(*inst_id)
-            .copied()
-            .flatten()
-            .is_none_or(|block| !loop_data.blocks.contains(block))
+        !in_loop(*inst_id)
             && !(kind.operands().is_empty()
                 && kind.op_def().traits.contains(OpTraits::REMATERIALIZABLE))
             && !func.is_constant_calldata_load(value)
+    }
+
+    /// Whether `inst` sits in a block of `loop_data`.
+    fn in_loop(
+        loop_data: &Loop,
+        inst_blocks: &IndexVec<InstId, Option<BlockId>>,
+        inst: InstId,
+    ) -> bool {
+        inst_blocks.get(inst).copied().flatten().is_some_and(|b| loop_data.blocks.contains(b))
     }
 
     /// The change in carried words of loop `inner` (the hoisting loop or one nested in it) when
@@ -347,8 +354,11 @@ impl LoopOptimizer {
         }
         released.clear_to(func.num_values());
         for operand in closure.iter().flat_map(|&inst_id| func.inst(inst_id).kind.operands()) {
-            if Self::is_carried_operand(func, inner, inst_blocks, operand)
-                && !released.contains(operand)
+            if Self::is_carried_operand(
+                func,
+                &|inst| Self::in_loop(inner, inst_blocks, inst),
+                operand,
+            ) && !released.contains(operand)
                 && !inner.blocks.iter().any(|block| reads_outside_closure(operand, block))
             {
                 released.insert(operand);
@@ -1113,7 +1123,14 @@ fn reduce_product_checks(
                 .filter(|inner| {
                     loop_data.blocks.contains(inner.header) && inner.blocks.contains(block)
                 })
-                .map(|inner| LoopOptimizer::carried_words(func, inner, &inst_blocks, seen))
+                .map(|inner| {
+                    LoopOptimizer::carried_words(
+                        func,
+                        inner,
+                        |inst| LoopOptimizer::in_loop(inner, &inst_blocks, inst),
+                        seen,
+                    )
+                })
                 .max()
                 .unwrap_or_default();
             let worst = worst.entry(y).or_default();

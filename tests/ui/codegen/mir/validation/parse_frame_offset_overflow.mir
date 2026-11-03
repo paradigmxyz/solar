@@ -1,0 +1,10 @@
+//@compile-flags: -Zmir-pipeline=none
+
+// A frame offset that does not fit in `u64` is a parse error at the literal, not an ICE.
+@module FrameOffsetOverflow
+
+fn @f() {
+  bb0:
+    v0 = internal_frame_addr 18446744073709551616 //~ ERROR: integer `18446744073709551616` does not fit in u64
+    stop
+}

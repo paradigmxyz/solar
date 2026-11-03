@@ -1,0 +1,10 @@
+//@compile-flags: -Zmir-pipeline=none
+
+// The largest `u32` is not a valid HIR expression ID, so `hir` rejects it instead of panicking.
+@module HirIdOverflow
+
+fn @f() {
+  bb0:
+    v0 = sload 7 !metadata(hir=4294967295) //~ ERROR: HIR expression ID exceeds the index limit
+    stop
+}

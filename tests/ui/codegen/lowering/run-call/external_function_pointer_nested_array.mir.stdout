@@ -132,12 +132,12 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     revert_returndata
   bb8:                                            ; preds = bb2
     v33 = gas
-    v34 = abi_encode [memory_array<function>], selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args v4
-    v35 = extract_value slice<memory>, v34, 0
-    v36 = extract_value slice<memory>, v34, 1
-    v37 = alloc 96
+    v34 = alloc 96
+    v35 = abi_encode [memory_array<function>], scratch, selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args v4
+    v36 = extract_value slice<memory>, v35, 0
+    v37 = extract_value slice<memory>, v35, 1
     v38 = zext i160 v31 to i256
-    v39 = call v33, v38, 0, v35, v36, v37, 96
+    v39 = call v33, v38, 0, v36, v37, v34, 96
     jumpi v39, bb10, bb9
   bb9:                                            ; preds = bb8
     revert_returndata
@@ -145,7 +145,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v40 = returndatasize
     v41 = lt v40, 96
     icall revert_if<tuple_data_too_short>, v41
-    v42 = make_memory_slice v37, 96
+    v42 = make_memory_slice v34, 96
     v43 = abi_decode [array<3, function>], v42
     v44 = lt 0, 3
     v45 = eq v44, false

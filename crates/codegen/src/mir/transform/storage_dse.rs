@@ -30,7 +30,9 @@
 //! one predecessor, whose terminator touches no storage, so a check that lowering splits off
 //! between the load and the store keeps the pair visible; every other block starts with none.
 //! After a possible `gas` observation, which `GasObservations` tracks through every path and
-//! transitive callee, accesses stay explicit, as in `storage-cse`.
+//! through callees that may return after reading gas, accesses stay explicit, as in
+//! `storage-cse`. A call whose every gas read precedes a revert starts no such interval, but
+//! the backward facts still end at it, since the read follows the stores before it.
 //!
 //! Removing a store of the word its slot holds changes behavior only where the store itself
 //! would fail: in a static context, where it reverts, and, for an `SSTORE`, with at most 2,300

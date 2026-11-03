@@ -21,7 +21,7 @@ fn @main() -> i1 [selector=0xdffeadd0, abi_params=[], abi_returns=[word<bool>], 
     mstore v8, 10
     v9 = ptradd v8, 32
     mstore v9, 0x74657374537472696e6700000000000000000000000000000000000000000000
-    v10 = abi_encode [memory_bytes], selector v5, args v8
+    v10 = abi_encode [memory_bytes], scratch, selector v5, args v8
     v11 = extract_value slice<memory>, v10, 0
     v12 = extract_value slice<memory>, v10, 1
     v13 = call v7, v6, 0, v11, v12, 0, 32
