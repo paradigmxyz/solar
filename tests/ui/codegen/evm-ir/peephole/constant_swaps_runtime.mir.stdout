@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/evm-ir/peephole/constant_swaps_runtime.sol:ConstantSwaps ===
+; === ROOT/tests/ui/codegen/evm-ir/peephole/constant_swaps_runtime.sol:ConstantSwaps ===
 @module ConstantSwaps
 ; function fingerprint(uint256 x, uint256 y) public pure returns (bytes32) [selector 0x501a2bfb]
 fn @fingerprint(arg0: i256, arg1: i256) -> i256 [selector=0x501a2bfb, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -6,11 +6,11 @@ fn @fingerprint(arg0: i256, arg1: i256) -> i256 [selector=0x501a2bfb, pure, abi_
     v0 = alloc zeroed checked 128
     mstore v0, 3
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v9]
     v2 = lt v1, 3
     jumpi v2, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v10 = alloc 64
     mstore v10, 4
     v11 = ptradd v10, 32
@@ -101,7 +101,7 @@ fn @fingerprint(arg0: i256, arg1: i256) -> i256 [selector=0x501a2bfb, pure, abi_
     v63 = extract_value slice<memory>, v61, 1
     v64 = keccak256 v62, v63
     ret v64
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v3 = alloc 64 !metadata(preserves_fmp)
     mstore v3, 0
     v4 = ptradd v3, 32

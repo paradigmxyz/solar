@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/storage_array_push_calldata.sol:StorageArrayPushCalldata ===
+; === ROOT/tests/ui/codegen/lowering/run-call/storage_array_push_calldata.sol:StorageArrayPushCalldata ===
 @module StorageArrayPushCalldata
 ; function pushArray(uint120[] calldata values) external returns (uint120) [selector 0xac513f44]
 fn @pushArray(arg0: slice<calldata>) -> i120 [selector=0xac513f44, abi_params=[array<_, uint120>], abi_returns=[word<uint120>], abi_return_params=[uint120]] {
@@ -24,11 +24,11 @@ fn @pushArray(arg0: slice<calldata>) -> i120 [selector=0xac513f44, abi_params=[a
     v14 = alloc v12
     mstore v14, v0
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v15 = phi [bb0: 0], [bb2: v27]
     v16 = lt v15, v0
     jumpi v16, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v28 = sload 0 !metadata(storage=slot(0))
     v29 = gt v28, 0xffffffffffffffff
     icall panic_if<0x41>, v29
@@ -39,27 +39,27 @@ fn @pushArray(arg0: slice<calldata>) -> i120 [selector=0xac513f44, abi_params=[a
     v34 = sload v32 !metadata(storage=symbolic(v32))
     v35 = lt v33, v34
     jumpi v35, bb4, bb5
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     jump bb6
-  bb6:  ; preds = bb4, bb7
+  bb6:                                            ; preds = bb4, bb7
     v36 = phi [bb4: v33], [bb7: v50]
     v37 = lt v36, v34
     jumpi v37, bb7, bb8
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     jump bb5
-  bb5:  ; preds = bb3, bb8
+  bb5:                                            ; preds = bb3, bb8
     sstore v32, v33 !metadata(storage=symbolic(v32))
     jump bb9
-  bb9:  ; preds = bb5, bb10
+  bb9:                                            ; preds = bb5, bb10
     v51 = phi [bb5: 0], [bb10: v70]
     v52 = lt v51, v33
     jumpi v52, bb10, bb11
-  bb11:  ; preds = bb9
+  bb11:                                           ; preds = bb9
     v71 = shr v33, 1
     v72 = and v33, 1
     v73 = eq v72, 0
     jumpi v73, bb13, bb12
-  bb12:  ; preds = bb11
+  bb12:                                           ; preds = bb11
     v74 = mul v72, 120
     v75 = shl 1, v74
     v76 = sub v75, 1
@@ -69,7 +69,7 @@ fn @pushArray(arg0: slice<calldata>) -> i120 [selector=0xac513f44, abi_params=[a
     v80 = and v79, v76
     sstore v78, v80 !metadata(storage=symbolic(v78))
     jump bb13
-  bb13:  ; preds = bb11, bb12
+  bb13:                                           ; preds = bb11, bb12
     sstore 0, v30 !metadata(storage=slot(0))
     v81 = sload 0 !metadata(storage=slot(0))
     v82 = gt v81, 0
@@ -85,7 +85,7 @@ fn @pushArray(arg0: slice<calldata>) -> i120 [selector=0xac513f44, abi_params=[a
     v90 = shr v89, 0
     v91 = trunc i256 v90 to i120
     ret v91
-  bb10:  ; preds = bb9
+  bb10:                                           ; preds = bb9
     v53 = shl v51, 5
     v54 = ptradd v14, v53
     v55 = ptradd v54, 32
@@ -106,7 +106,7 @@ fn @pushArray(arg0: slice<calldata>) -> i120 [selector=0xac513f44, abi_params=[a
     sstore v59, v69 !metadata(storage=symbolic(v59))
     v70 = add v51, 1
     jump bb9
-  bb7:  ; preds = bb6
+  bb7:                                            ; preds = bb6
     v38 = storage_array_data_slot v32
     v39 = div v36, 2
     v40 = add v38, v39
@@ -122,7 +122,7 @@ fn @pushArray(arg0: slice<calldata>) -> i120 [selector=0xac513f44, abi_params=[a
     sstore v40, v49 !metadata(storage=symbolic(v40))
     v50 = add v36, 1
     jump bb6
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v17 = mul v15, 32
     v18 = ptrtoint ptr<calldata> v1 to i256
     v19 = add v18, v17
@@ -176,11 +176,11 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     icall revert_if<calldata_tail_too_short>, v24
     v25 = alloc 96
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v26 = phi [bb0: 0], [bb2: v34]
     v27 = lt v26, 3
     jumpi v27, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v35 = inttoptr i256 v21 to ptr<calldata>
     v36 = make_calldata_slice v35, 96
     v37 = extract_value slice<calldata>, v36, 0
@@ -224,11 +224,11 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     v67 = alloc v65
     mstore v67, v55
     jump bb4
-  bb4:  ; preds = bb3, bb5
+  bb4:                                            ; preds = bb3, bb5
     v68 = phi [bb3: 0], [bb5: v79]
     v69 = lt v68, v55
     jumpi v69, bb5, bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     v80 = ptrtoint ptr<memory> v67 to i256
     v81 = ptradd v1, 96
     mstore v81, v80
@@ -257,11 +257,11 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     v101 = ptradd v1, 64
     v102 = mload v101
     jump bb7
-  bb7:  ; preds = bb6, bb12
+  bb7:                                            ; preds = bb6, bb12
     v103 = phi [bb6: 0], [bb12: v129]
     v104 = lt v103, 3
     jumpi v104, bb8, bb9
-  bb9:  ; preds = bb7
+  bb9:                                            ; preds = bb7
     v130 = add v87, 2
     v131 = ptradd v1, 96
     v132 = mload v131
@@ -269,27 +269,27 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     v134 = sload v130 !metadata(storage=offset(v87, 2))
     v135 = lt v133, v134
     jumpi v135, bb13, bb14
-  bb13:  ; preds = bb9
+  bb13:                                           ; preds = bb9
     jump bb15
-  bb15:  ; preds = bb13, bb16
+  bb15:                                           ; preds = bb13, bb16
     v136 = phi [bb13: v133], [bb16: v150]
     v137 = lt v136, v134
     jumpi v137, bb16, bb17
-  bb17:  ; preds = bb15
+  bb17:                                           ; preds = bb15
     jump bb14
-  bb14:  ; preds = bb9, bb17
+  bb14:                                           ; preds = bb9, bb17
     sstore v130, v133 !metadata(storage=offset(v87, 2))
     jump bb18
-  bb18:  ; preds = bb14, bb19
+  bb18:                                           ; preds = bb14, bb19
     v151 = phi [bb14: 0], [bb19: v171]
     v152 = lt v151, v133
     jumpi v152, bb19, bb20
-  bb20:  ; preds = bb18
+  bb20:                                           ; preds = bb18
     v172 = shr v133, 4
     v173 = and v133, 15
     v174 = eq v173, 0
     jumpi v174, bb22, bb21
-  bb21:  ; preds = bb20
+  bb21:                                           ; preds = bb20
     v175 = mul v173, 16
     v176 = shl 1, v175
     v177 = sub v176, 1
@@ -299,7 +299,7 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     v181 = and v180, v177
     sstore v179, v181 !metadata(storage=symbolic(v179))
     jump bb22
-  bb22:  ; preds = bb20, bb21
+  bb22:                                           ; preds = bb20, bb21
     sstore 1, v84 !metadata(storage=slot(1))
     v182 = sload 1 !metadata(storage=slot(1))
     v183 = gt v182, 0
@@ -353,7 +353,7 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     v225 = zext i16 v224 to i256
     v226 = checked_add uint256, v212, v225
     ret v226
-  bb19:  ; preds = bb18
+  bb19:                                           ; preds = bb18
     v153 = shl v151, 5
     v154 = inttoptr i256 v132 to ptr<memory>
     v155 = ptradd v154, v153
@@ -375,7 +375,7 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     sstore v160, v170 !metadata(storage=symbolic(v160))
     v171 = add v151, 1
     jump bb18
-  bb16:  ; preds = bb15
+  bb16:                                           ; preds = bb15
     v138 = storage_array_data_slot v130
     v139 = div v136, 16
     v140 = add v138, v139
@@ -391,14 +391,14 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     sstore v140, v149 !metadata(storage=symbolic(v140))
     v150 = add v136, 1
     jump bb15
-  bb8:  ; preds = bb7
+  bb8:                                            ; preds = bb7
     v105 = div v103, 16
     v106 = add v100, v105
     v107 = mod v103, 16
     v108 = mul v107, 2
     v109 = lt v103, 3
     jumpi v109, bb10, bb11
-  bb11:  ; preds = bb8
+  bb11:                                           ; preds = bb8
     v122 = mul v108, 8
     v123 = shl 0xffff, v122
     v124 = sload v106 !metadata(storage=symbolic(v106))
@@ -408,7 +408,7 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     v128 = or v126, v127
     sstore v106, v128 !metadata(storage=symbolic(v106))
     jump bb12
-  bb10:  ; preds = bb8
+  bb10:                                           ; preds = bb8
     v110 = shl v103, 5
     v111 = inttoptr i256 v102 to ptr<memory>
     v112 = ptradd v111, v110
@@ -423,10 +423,10 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     v121 = or v118, v120
     sstore v106, v121 !metadata(storage=symbolic(v106))
     jump bb12
-  bb12:  ; preds = bb10, bb11
+  bb12:                                           ; preds = bb10, bb11
     v129 = add v103, 1
     jump bb7
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     v70 = mul v68, 32
     v71 = add v59, v70
     v72 = calldataload v71
@@ -440,7 +440,7 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     mstore v78, v72
     v79 = add v68, 1
     jump bb4
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v28 = mul v26, 32
     v29 = add v21, v28
     v30 = calldataload v29

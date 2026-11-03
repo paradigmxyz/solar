@@ -1,0 +1,168 @@
+// === ROOT/tests/ui/codegen/mir/lower-abi-encode/struct_block_enums.sol:StructBlockEnums ===
+@module StructBlockEnums
+; function lots(uint256 kind, uint256 level, uint256 at, uint256 dirty) external pure returns (bytes memory) [selector 0x27de1856]
+fn @lots(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> ptr<memory> [selector=0x27de1856, pure, abi_params=[uint256, uint256, uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = alloc zeroed checked 96
+    mstore v0, 2
+    jump bb1
+  bb1:  ; preds = bb0, bb2
+    v1 = phi [bb0: 0], [bb2: v8]
+    v2 = lt v1, 2
+    jumpi v2, bb2, bb3
+  bb3:  ; preds = bb1
+    jump bb4
+  bb4:  ; preds = bb3, bb6
+    v9 = phi [bb3: arg0], [bb6: v9]
+    v10 = phi [bb3: arg1], [bb6: v10]
+    v11 = phi [bb3: arg2], [bb6: v11]
+    v12 = phi [bb3: arg3], [bb6: v12]
+    v13 = phi [bb3: ptr<memory> 96], [bb6: v13]
+    v14 = phi [bb3: v0], [bb6: v14]
+    v15 = phi [bb3: 0], [bb6: v51]
+    v16 = lt v15, 2
+    jumpi v16, bb7, bb8
+  bb8:  ; preds = bb4
+    jump bb5
+  bb5:  ; preds = bb8
+    v52 = abi_encode [memory_array<tuple<word, word<uint160>, word<enum 3>, word<bool>, word<enum 2>, word<bytes2>, word>>], object, args v14
+    ret v52
+  bb7:  ; preds = bb4
+    v17 = mload v14
+    v18 = lt v15, v17
+    v19 = eq v18, false
+    icall panic_if<0x32>, v19
+    v20 = shl v15, 5
+    v21 = ptradd v14, v20
+    v22 = ptradd v21, 32
+    v23 = mload v22, ptr<memory>
+    v24 = eq v15, v11
+    jumpi v24, bb10, bb11
+  bb11:  ; preds = bb7
+    jump bb12
+  bb10:  ; preds = bb7
+    jump bb12
+  bb12:  ; preds = bb10, bb11
+    v25 = phi [bb10: i8 1], [bb11: i8 0]
+    v26 = zext i8 v25 to i256
+    v27 = add v12, v15
+    v28 = ptrtoint ptr<memory> v23 to i256
+    mstore v23, v27
+    v29 = add v15, 160
+    v30 = shl v12, 160
+    v31 = or v30, v29
+    v32 = ptrtoint ptr<memory> v23 to i256
+    v33 = add v32, 32
+    mstore v33, v31
+    v34 = mul v26, v9
+    v35 = ptrtoint ptr<memory> v23 to i256
+    v36 = add v35, 64
+    mstore v36, v34
+    v37 = shl v12, 8
+    v38 = ptrtoint ptr<memory> v23 to i256
+    v39 = add v38, 96
+    mstore v39, v37
+    v40 = mul v26, v10
+    v41 = ptrtoint ptr<memory> v23 to i256
+    v42 = add v41, 128
+    mstore v42, v40
+    v43 = shr v12, 16
+    v44 = or v43, 0x1122000000000000000000000000000000000000000000000000000000000000
+    v45 = ptrtoint ptr<memory> v23 to i256
+    v46 = add v45, 160
+    mstore v46, v44
+    v47 = xor v12, v15
+    v48 = xor v47, 119
+    v49 = ptrtoint ptr<memory> v23 to i256
+    v50 = add v49, 192
+    mstore v50, v48
+    jump bb9
+  bb9:  ; preds = bb12
+    jump bb6
+  bb6:  ; preds = bb9
+    v51 = checked_add uint256, v15, 1
+    jump bb4
+  bb2:  ; preds = bb1
+    v3 = alloc 224 !metadata(preserves_fmp)
+    memory_zero v3, 224
+    v4 = shl v1, 5
+    v5 = ptradd v0, v4
+    v6 = ptradd v5, 32
+    v7 = ptrtoint ptr<memory> v3 to i256
+    mstore v6, v7
+    v8 = add v1, 1
+    jump bb1
+}
+
+; function one(uint256 dirty) external pure returns (Lot memory) [selector 0xef56f928]
+fn @one(arg0: i256) -> ptr<memory> [selector=0xef56f928, pure, abi_params=[uint256], abi_returns=[tuple<word, word<uint160>, word<enum 3>, word<bool>, word<enum 2>, word<bytes2>, word>], abi_return_params=[tuple<uint256, address, enum<3, uint8>, bool, enum<2, uint8>, bytes2, uint256>]] {
+  bb0:
+    v0 = alloc 224 !metadata(preserves_fmp)
+    memory_zero v0, 224
+    v1 = icall @dirtyLot, arg0
+    ret v1
+}
+
+; function bad(uint256 dirty) external pure [selector 0xf331920b]
+fn @bad(arg0: i256) [selector=0xf331920b, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = icall @dirtyLot, arg0
+    icall require<custom_error [tuple<word, word<uint160>, word<enum 3>, word<bool>, word<enum 2>, word<bytes2>, word>]>, false, 0xad1e41c900000000000000000000000000000000000000000000000000000000, v0
+    invalid
+}
+
+; function dirtyLot(uint256 dirty) internal pure returns (Lot memory item)
+fn @dirtyLot(arg0: i256) -> ptr<memory> [pure] {
+  bb0:
+    v0 = alloc zeroed checked 64
+    mstore v0, 1
+    jump bb1
+  bb1:  ; preds = bb0, bb2
+    v1 = phi [bb0: 0], [bb2: v8]
+    v2 = lt v1, 1
+    jumpi v2, bb2, bb3
+  bb3:  ; preds = bb1
+    v9 = mload v0
+    v10 = gt v9, 0
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    v12 = ptradd v0, 32
+    v13 = mload v12, ptr<memory>
+    v14 = ptrtoint ptr<memory> v13 to i256
+    mstore v13, arg0
+    v15 = shl arg0, 160
+    v16 = or v15, 160
+    v17 = ptrtoint ptr<memory> v13 to i256
+    v18 = add v17, 32
+    mstore v18, v16
+    v19 = ptrtoint ptr<memory> v13 to i256
+    v20 = add v19, 64
+    mstore v20, 1
+    v21 = shl arg0, 8
+    v22 = ptrtoint ptr<memory> v13 to i256
+    v23 = add v22, 96
+    mstore v23, v21
+    v24 = ptrtoint ptr<memory> v13 to i256
+    v25 = add v24, 128
+    mstore v25, 1
+    v26 = shr arg0, 16
+    v27 = or v26, 0x1122000000000000000000000000000000000000000000000000000000000000
+    v28 = ptrtoint ptr<memory> v13 to i256
+    v29 = add v28, 160
+    mstore v29, v27
+    v30 = xor arg0, 119
+    v31 = ptrtoint ptr<memory> v13 to i256
+    v32 = add v31, 192
+    mstore v32, v30
+    ret v13
+  bb2:  ; preds = bb1
+    v3 = alloc 224 !metadata(preserves_fmp)
+    memory_zero v3, 224
+    v4 = shl v1, 5
+    v5 = ptradd v0, v4
+    v6 = ptradd v5, 32
+    v7 = ptrtoint ptr<memory> v3 to i256
+    mstore v6, v7
+    v8 = add v1, 1
+    jump bb1
+}

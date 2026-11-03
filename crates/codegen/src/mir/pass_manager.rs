@@ -224,7 +224,7 @@ pub(crate) fn run_passes_inner(
         if let Some(before) = before {
             print_pass_diff(&output_name, pass_name, before, module.to_text());
         } else if gcx.sess.opts.unstable.print_after_each && !gcx.sess.opts.unstable.pass_diff {
-            println!("// === {output_name} (after {pass_name}) ===");
+            println!("; === {output_name} (after {pass_name}) ===");
             print!("{}", module.to_text());
         }
     }
@@ -274,7 +274,7 @@ pub(crate) fn print_pass_diff(
     before: impl Display,
     after: impl Display,
 ) {
-    let before = format!("// === {name} (before {pass}) ===\n{before}");
-    let after = format!("// === {name} (after {pass}) ===\n{after}");
+    let before = format!("; === {name} (before {pass}) ===\n{before}");
+    let after = format!("; === {name} (after {pass}) ===\n{after}");
     print!("{}", line_diff(&before, &after));
 }

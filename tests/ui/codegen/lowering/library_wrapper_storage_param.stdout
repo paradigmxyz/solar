@@ -1,12 +1,12 @@
-// === ROOT/tests/ui/codegen/lowering/library_wrapper_storage_param.sol:DataTypes (runtime) ===
+; === ROOT/tests/ui/codegen/lowering/library_wrapper_storage_param.sol:DataTypes (runtime) ===
 @module DataTypes_runtime
-bb0:  ; runtime dispatch entry
+bb0:                                              ; runtime dispatch entry
   push 0
   push 0
   revert
-// === ROOT/tests/ui/codegen/lowering/library_wrapper_storage_param.sol:L (runtime) ===
+; === ROOT/tests/ui/codegen/lowering/library_wrapper_storage_param.sol:L (runtime) ===
 @module L_runtime
-bb0:  ; runtime dispatch entry
+bb0:                                              ; runtime dispatch entry
   push 0
   calldataload
   push 224
@@ -31,7 +31,7 @@ bb8 [cold]:
   push 36
   push 28
   revert
-bb1:  ; function settle(DataTypes.Reserve storage r, uint256 amount) public returns (uint256) [selector 0xdef537e0]
+bb1:                                              ; function settle(DataTypes.Reserve storage r, uint256 amount) public returns (uint256) [selector 0xdef537e0]
   push_immutable 0, 20
   address
   eq

@@ -1,6 +1,6 @@
-// === ROOT/tests/ui/codegen/lowering/storage_bytes_member.sol:StorageBytesMember (runtime) ===
+; === ROOT/tests/ui/codegen/lowering/storage_bytes_member.sol:StorageBytesMember (runtime) ===
 @module StorageBytesMember_runtime
-bb0:  ; runtime dispatch entry
+bb0:                                              ; runtime dispatch entry
   callvalue
   push bb14
   jumpi
@@ -12,7 +12,13 @@ bb0:  ; runtime dispatch entry
   push 15
   and
   indexed_jump bb2, bb14, bb14, bb14, bb14, bb3, bb4, bb5, bb14, bb14, bb6, bb14, bb14, bb7, bb14, bb14
-bb72 [cold]:  ; revert_stub.7 (synthesized)
+bb73 [cold]:                                      ; revert_stub.8 (synthesized)
+  push 50
+  jump bb74
+bb69 [cold]:
+  push 65
+  jump bb74
+bb72 [cold]:                                      ; revert_stub.7 (synthesized)
   push 34
   jump bb74
 bb74 [cold]:
@@ -24,9 +30,6 @@ bb74 [cold]:
   push 36
   push 28
   revert
-bb73 [cold]:  ; revert_stub.8 (synthesized)
-  push 50
-  jump bb74
 bb2:
   dup 1
   push 0xe0886f90
@@ -73,7 +76,7 @@ bb14 [cold]:
   push 0
   push 0
   revert
-bb15 [loop]:  ; function pushRange(uint8 from, uint8 count) external [selector 0x4407bb95]
+bb15 [loop]:                                      ; function pushRange(uint8 from, uint8 count) external [selector 0x4407bb95]
   push 4
   calldataload
   push 8
@@ -259,7 +262,7 @@ bb27 [loop]:
   push bb19
   jumpi
   stop
-bb30:  ; function popOne() external [selector 0x53b8a6c6]
+bb30:                                             ; function popOne() external [selector 0x53b8a6c6]
   caller
   push 0
   mstore
@@ -388,7 +391,7 @@ bb36:
   swap 1
   sstore
   stop
-bb40:  ; function len() external view returns (uint256) [selector 0x56d88e27]
+bb40:                                             ; function len() external view returns (uint256) [selector 0x56d88e27]
   caller
   push 0
   mstore
@@ -429,7 +432,7 @@ bb40:  ; function len() external view returns (uint256) [selector 0x56d88e27]
   push 32
   push 0
   return
-bb43:  ; function at(uint256 i) external view returns (bytes1) [selector 0xe0886f90]
+bb43:                                             ; function at(uint256 i) external view returns (bytes1) [selector 0xe0886f90]
   push 36
   calldatasize
   lt
@@ -513,7 +516,7 @@ bb49:
   push 32
   push 0
   return
-bb52:  ; function setAt(uint256 i, bytes1 b) external [selector 0xbee6975a]
+bb52:                                             ; function setAt(uint256 i, bytes1 b) external [selector 0xbee6975a]
   push 36
   calldataload
   push 8
@@ -609,7 +612,7 @@ bb58:
   swap 1
   sstore
   stop
-bb61:  ; function whole() external view returns (bytes memory) [selector 0x72bd964d]
+bb61:                                             ; function whole() external view returns (bytes memory) [selector 0x72bd964d]
   push 160
   push 64
   mstore
@@ -759,7 +762,4 @@ bb68 [loop]:
   jump bb67
 bb38 [cold]:
   push 49
-  jump bb74
-bb69 [cold]:
-  push 65
   jump bb74

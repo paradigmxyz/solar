@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/run-call/fresh_fmp_floor.sol:Test ===
+; === ROOT/tests/ui/codegen/run-call/fresh_fmp_floor.sol:Test ===
 @module Test
 ; creation entry
 fn @constructor() [constructor] {
@@ -199,7 +199,7 @@ fn @mix(arg0: i256) -> i256 [view] {
     v52 = checked_mul uint256, v51, 61
     v53 = checked_add uint256, v52, arg0
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v54 = phi [bb0: arg0], [bb3: v54]
     v55 = phi [bb0: 0], [bb3: v112]
     v56 = phi [bb0: v2], [bb3: v56]
@@ -225,11 +225,11 @@ fn @mix(arg0: i256) -> i256 [view] {
     v76 = checked_add uint256, v75, 1
     v77 = lt v74, v76
     jumpi v77, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     ret v55
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v78 = checked_add uint256, v73, v74
     v79 = xor v78, v56
     v80 = checked_add uint256, v55, v79
@@ -266,9 +266,9 @@ fn @mix(arg0: i256) -> i256 [view] {
     v111 = checked_add uint256, v109, v110
     v112 = checked_add uint256, v96, v111
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v113 = checked_add uint256, v74, 1
     jump bb1
 }

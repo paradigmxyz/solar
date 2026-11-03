@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/function_comments_mir.sol:C ===
+; === ROOT/tests/ui/codegen/lowering/function_comments_mir.sol:C ===
 @module C
 ; constructor(uint256 start) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
@@ -30,12 +30,12 @@ fn @total() -> i256 [selector=0x2ddbd13a, view, abi_params=[], abi_returns=[word
 fn @pick(arg0: i1, arg1: i256, arg2: i256) -> i256 [selector=0xb67daf62, pure, abi_params=[bool, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v0 = icall @step, arg2
     ret v0
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     ret arg1
 }
 

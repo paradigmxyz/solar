@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/pack-data/subslices.evmir (before pack-data) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/pack-data/subslices.evmir (after pack-data) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/pack-data/subslices.evmir (before pack-data) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/pack-data/subslices.evmir (after pack-data) ===
   @module subslices
   @libraries
     L_0: "A.sol:L"

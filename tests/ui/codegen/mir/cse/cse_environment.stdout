@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/cse/cse_environment.mir (before cse) ===
-+ // === ROOT/tests/ui/codegen/mir/cse/cse_environment.mir (after cse) ===
+- ; === ROOT/tests/ui/codegen/mir/cse/cse_environment.mir (before cse) ===
++ ; === ROOT/tests/ui/codegen/mir/cse/cse_environment.mir (after cse) ===
   @module CseEnvironment
   fn @keep_cheap_nullary_environment_reads(arg0: i256) -> i256 {
     bb0:

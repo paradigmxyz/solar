@@ -502,10 +502,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             if let Some(&guard) = reachable_heap_prefix_guards.get(&entry) {
                 floor = floor.checked_add(guard).unwrap_or_else(|| {
-                    gcx.dcx()
-                        .err("runtime heap prefix exceeds the addressable memory range")
-                        .span(module.functions[entry].name_span)
-                        .emit();
+                    gcx.dcx().emit_err(
+                        module.functions[entry].name_span,
+                        "runtime heap prefix exceeds the addressable memory range",
+                    );
                     floor
                 });
             }

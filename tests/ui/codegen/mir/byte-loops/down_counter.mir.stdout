@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/byte-loops/down_counter.sol:Test ===
+; === ROOT/tests/ui/codegen/mir/byte-loops/down_counter.sol:Test ===
 @module Test
 @types
   struct0: {ptr<memory>, i256}
@@ -14,20 +14,20 @@ fn @fromCalldata(arg0: slice<calldata>, arg1: i256) -> struct0 [selector=0xffc7a
     v4 = alloc zeroed checked v2
     mstore v4, arg1
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v5 = phi [bb0: arg0], [bb3: v5]
     v6 = phi [bb0: arg1], [bb3: v6]
     v7 = phi [bb0: v4], [bb3: v7]
     v8 = phi [bb0: arg1], [bb3: v28]
     v9 = gt v8, 0
     jumpi v9, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     v29 = insert_value struct0, undef struct0, 0, v7
     v30 = insert_value struct0, v29, 1, v8
     ret v30
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v10 = checked_sub uint256, v8, 1
     v11 = extract_value slice<calldata>, v5, 1
     v12 = lt v10, v11
@@ -50,9 +50,9 @@ fn @fromCalldata(arg0: slice<calldata>, arg1: i256) -> struct0 [selector=0xffc7a
     v27 = ptradd v26, 32
     mstore8 v27, v25
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v28 = checked_sub uint256, v8, 1
     jump bb1
 }
@@ -68,7 +68,7 @@ fn @fromFresh(arg0: i256) -> struct0 [selector=0x1f6686bd, pure, abi_params=[uin
     v4 = alloc zeroed checked v2
     mstore v4, arg0
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v5 = phi [bb0: arg0], [bb3: v5]
     v6 = phi [bb0: ptr<memory> 96], [bb3: v6]
     v7 = phi [bb0: 0], [bb3: v7]
@@ -76,9 +76,9 @@ fn @fromFresh(arg0: i256) -> struct0 [selector=0x1f6686bd, pure, abi_params=[uin
     v9 = phi [bb0: 0], [bb3: v21]
     v10 = lt v9, v5
     jumpi v10, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     v22 = add v5, 31
     v23 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v24 = add v23, 32
@@ -87,7 +87,7 @@ fn @fromFresh(arg0: i256) -> struct0 [selector=0x1f6686bd, pure, abi_params=[uin
     v26 = alloc zeroed checked v24
     mstore v26, v5
     jump bb7
-  bb7:  ; preds = bb2, bb9
+  bb7:                                            ; preds = bb2, bb9
     v27 = phi [bb2: v5], [bb9: v27]
     v28 = phi [bb2: v26], [bb9: v28]
     v29 = phi [bb2: v5], [bb9: v49]
@@ -95,13 +95,13 @@ fn @fromFresh(arg0: i256) -> struct0 [selector=0x1f6686bd, pure, abi_params=[uin
     v31 = phi [bb2: v9], [bb9: v31]
     v32 = gt v29, 0
     jumpi v32, bb10, bb11
-  bb11:  ; preds = bb7
+  bb11:                                           ; preds = bb7
     jump bb8
-  bb8:  ; preds = bb11
+  bb8:                                            ; preds = bb11
     v50 = insert_value struct0, undef struct0, 0, v28
     v51 = insert_value struct0, v50, 1, v29
     ret v51
-  bb10:  ; preds = bb7
+  bb10:                                           ; preds = bb7
     v33 = checked_sub uint256, v29, 1
     v34 = mload v30
     v35 = lt v33, v34
@@ -122,12 +122,12 @@ fn @fromFresh(arg0: i256) -> struct0 [selector=0x1f6686bd, pure, abi_params=[uin
     v48 = ptradd v47, 32
     mstore8 v48, v46
     jump bb12
-  bb12:  ; preds = bb10
+  bb12:                                           ; preds = bb10
     jump bb9
-  bb9:  ; preds = bb12
+  bb9:                                            ; preds = bb12
     v49 = checked_sub uint256, v29, 1
     jump bb7
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v11 = checked_add uint256, v9, 1
     v12 = trunc i256 v11 to i8
     v13 = zext i8 v12 to i256
@@ -141,9 +141,9 @@ fn @fromFresh(arg0: i256) -> struct0 [selector=0x1f6686bd, pure, abi_params=[uin
     v20 = ptradd v19, 32
     mstore8 v20, v18
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v21 = checked_add uint256, v9, 1
     jump bb1
 }

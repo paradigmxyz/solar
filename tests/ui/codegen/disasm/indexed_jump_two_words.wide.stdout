@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/disasm/indexed_jump_two_words.evmir (before none) ===
-+ // === ROOT/tests/ui/codegen/disasm/indexed_jump_two_words.evmir (after none) ===
+- ; === ROOT/tests/ui/codegen/disasm/indexed_jump_two_words.evmir (before none) ===
++ ; === ROOT/tests/ui/codegen/disasm/indexed_jump_two_words.evmir (after none) ===
   @module two_words
   bb0:
     push 1
@@ -81,7 +81,7 @@
     push 0xf000000000000000000000000000000000000000000000000000000000000001
     stop
   
-// === two_words (runtime) ===
+; === two_words (runtime) ===
 PUSH1 0x01
 DUP1
 PUSH1 0x05

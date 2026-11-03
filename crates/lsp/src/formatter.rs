@@ -33,7 +33,7 @@ fn matches_ignore(path: &Path, root: &Path, ignores: &[String]) -> bool {
     ignores.iter().any(|ignore| {
         let ignore = root.join(ignore.trim_end_matches(['/', '\\']));
         let lexical_ignore = normalize_under_root(&ignore, &normalized_root, &canonical_root);
-        if Pattern::new(&lexical_ignore.to_string_lossy()).is_ok_and(|pattern| {
+        if Pattern::new(&escape_glob_root(&lexical_ignore, &canonical_root)).is_ok_and(|pattern| {
             path.ancestors()
                 .take_while(|ancestor| ancestor.starts_with(&canonical_root))
                 .any(|candidate| pattern.matches_path_with(candidate, options))
@@ -41,7 +41,7 @@ fn matches_ignore(path: &Path, root: &Path, ignores: &[String]) -> bool {
             return true;
         }
 
-        glob_with(&ignore.to_string_lossy(), options).is_ok_and(|paths| {
+        glob_with(&escape_glob_root(&ignore, root), options).is_ok_and(|paths| {
             paths.filter_map(Result::ok).any(|ignore| {
                 let ignore = canonicalize_or_normalize(
                     file_loader,
@@ -72,6 +72,15 @@ fn normalize_under_root(path: &Path, root: &Path, canonical_root: &Path) -> Path
     let path = path.normalize();
     // Keep lexical paths in the same root representation as canonicalized paths.
     path.strip_prefix(root).map_or_else(|_| path.clone(), |relative| canonical_root.join(relative))
+}
+
+/// Keeps the workspace root literal without escaping the configured ignore pattern.
+fn escape_glob_root(path: &Path, root: &Path) -> String {
+    let Ok(relative) = path.strip_prefix(root) else { return path.to_string_lossy().into_owned() };
+    Path::new(&Pattern::escape(&root.to_string_lossy()))
+        .join(relative)
+        .to_string_lossy()
+        .into_owned()
 }
 
 async fn resolved_formatter_ignores(
@@ -352,5 +361,60 @@ printf 'contract Formatted {}'
             }
         })
         .await;
+    }
+
+    #[test]
+    fn foundry_ignore_patterns_keep_workspace_roots_literal() {
+        let project = TestProject::new();
+        for name in ["workspace[1]", "workspace?", "workspace*"] {
+            project.write_file(&format!("/{name}/src/Exact.sol"), "");
+            project.write_file(&format!("/{name}/src/nested/Nested.sol"), "");
+            project.write_file(&format!("/{name}/generated/Generated.sol"), "");
+            let root = project.path(&format!("/{name}"));
+            symlink(root.join("generated"), root.join("linked")).unwrap();
+
+            for (path, ignore, expected) in [
+                ("src/Exact.sol", "src/Exact.sol", true),
+                ("src/Exact.sol", "src/*.sol", true),
+                ("src/Exact.sol", "src/", true),
+                ("src/Exact.sol", "./src/Exact.sol", true),
+                ("src/Exact.sol", "src/../src/Exact.sol", true),
+                ("src/Unsaved.sol", "src/Unsaved.sol", true),
+                ("src/Unsaved.sol", "src/*.sol", true),
+                ("src/nested/Nested.sol", "src/*.sol", false),
+                ("generated/Generated.sol", "linked/*.sol", true),
+                ("generated/Generated.sol", "linked/", true),
+                ("generated/Generated.sol", "src/*.sol", false),
+            ] {
+                assert_eq!(
+                    matches_ignore(&root.join(path), &root, &[ignore.into()]),
+                    expected,
+                    "{name}/{path} with {ignore}"
+                );
+            }
+
+            let alias = project.path(&format!("/{name}-alias"));
+            symlink(&root, &alias).unwrap();
+            assert!(matches_ignore(&alias.join("src/Exact.sol"), &alias, &["src/*.sol".into()]));
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn glob_root_escape_preserves_windows_prefixes() {
+        for root in [
+            Path::new(r"C:\workspace[1]"),
+            Path::new(r"\\?\C:\workspace[1]"),
+            Path::new(r"\\?\UNC\server\share\workspace[1]"),
+        ] {
+            let escaped = escape_glob_root(&root.join("src/*.sol"), root);
+            assert_eq!(
+                root.components().next(),
+                Path::new(&escaped).components().next(),
+                "{escaped}"
+            );
+            let pattern = Pattern::new(&escaped).unwrap();
+            assert!(pattern.matches_path(&root.join("src/Exact.sol")), "{escaped}");
+        }
     }
 }

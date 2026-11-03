@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/abi_decode_dynamic_tuple.sol:AbiDecodeDynamicTuple ===
+; === ROOT/tests/ui/codegen/lowering/abi_decode_dynamic_tuple.sol:AbiDecodeDynamicTuple ===
 @module AbiDecodeDynamicTuple
 @types
   struct0: {i256, ptr<memory>, ptr<memory>}

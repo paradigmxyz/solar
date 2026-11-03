@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/dead-arg-elim/effectful_dependencies.mir (before dead-arg-elim) ===
-+ // === ROOT/tests/ui/codegen/mir/dead-arg-elim/effectful_dependencies.mir (after dead-arg-elim) ===
+- ; === ROOT/tests/ui/codegen/mir/dead-arg-elim/effectful_dependencies.mir (before dead-arg-elim) ===
++ ; === ROOT/tests/ui/codegen/mir/dead-arg-elim/effectful_dependencies.mir (after dead-arg-elim) ===
   @module EffectfulDependencies
   fn @read() -> i256 {
     bb0:

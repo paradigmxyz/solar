@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/validation/unlinked_deferred_data.evmir (before none) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/validation/unlinked_deferred_data.evmir (after none) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/validation/unlinked_deferred_data.evmir (before none) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/validation/unlinked_deferred_data.evmir (after none) ===
   @module module
   @data
     child_0: creation_code "child.sol:Child"

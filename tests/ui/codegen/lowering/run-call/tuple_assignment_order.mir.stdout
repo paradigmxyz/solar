@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/tuple_assignment_order.sol:TupleAssignmentOrder ===
+; === ROOT/tests/ui/codegen/lowering/run-call/tuple_assignment_order.sol:TupleAssignmentOrder ===
 @module TupleAssignmentOrder
 @types
   struct0: {i256, i256}
@@ -173,12 +173,12 @@ fn @storageBytesTargets() -> struct0 [selector=0x58cc8be8, abi_params=[], abi_re
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v9 = storage_array_data_slot 3
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v10 = phi [bb1: v9], [bb2: 3]
     v11 = sload 3 !metadata(storage=slot(3))
     validate_storage_bytes v11
@@ -192,12 +192,12 @@ fn @storageBytesTargets() -> struct0 [selector=0x58cc8be8, abi_params=[], abi_re
     v19 = eq v18, false
     icall panic_if<0x32>, v19
     jumpi v13, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb6
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v20 = storage_array_data_slot 3
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6:                                            ; preds = bb4, bb5
     v21 = phi [bb4: v20], [bb5: 3]
     v22 = sload v21 !metadata(storage=symbolic(v21))
     v23 = and v22, 0xff00ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -219,12 +219,12 @@ fn @storageBytesTargets() -> struct0 [selector=0x58cc8be8, abi_params=[], abi_re
     v36 = eq v35, false
     icall panic_if<0x32>, v36
     jumpi v30, bb7, bb8
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     jump bb9
-  bb7:  ; preds = bb6
+  bb7:                                            ; preds = bb6
     v37 = storage_array_data_slot 3
     jump bb9
-  bb9:  ; preds = bb7, bb8
+  bb9:                                            ; preds = bb7, bb8
     v38 = phi [bb7: v37], [bb8: 3]
     v39 = sload v38 !metadata(storage=symbolic(v38))
     v40 = shr v39, 248
@@ -241,12 +241,12 @@ fn @storageBytesTargets() -> struct0 [selector=0x58cc8be8, abi_params=[], abi_re
     v50 = eq v49, false
     icall panic_if<0x32>, v50
     jumpi v44, bb10, bb11
-  bb11:  ; preds = bb9
+  bb11:                                           ; preds = bb9
     jump bb12
-  bb10:  ; preds = bb9
+  bb10:                                           ; preds = bb9
     v51 = storage_array_data_slot 3
     jump bb12
-  bb12:  ; preds = bb10, bb11
+  bb12:                                           ; preds = bb10, bb11
     v52 = phi [bb10: v51], [bb11: 3]
     v53 = sload v52 !metadata(storage=symbolic(v52))
     v54 = shr v53, 240

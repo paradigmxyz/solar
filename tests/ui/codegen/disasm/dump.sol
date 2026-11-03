@@ -5,13 +5,13 @@
 //@[runtime] filecheck: --check-prefix=RUNTIME
 
 contract C {
-    // DEPLOY-LABEL: // === {{.*}}:C (deployment) ===
+    // DEPLOY-LABEL: ; === {{.*}}:C (deployment) ===
     // DEPLOY: CODECOPY
     // DEPLOY-NEXT: PUSH0
     // DEPLOY-NEXT: RETURN
     // DEPLOY-NOT: CALLDATALOAD
 
-    // RUNTIME-LABEL: // === {{.*}}:C (runtime) ===
+    // RUNTIME-LABEL: ; === {{.*}}:C (runtime) ===
     // RUNTIME: CALLDATALOAD
     function f(uint256 x) external pure returns (uint256) {
         return x + 1;
