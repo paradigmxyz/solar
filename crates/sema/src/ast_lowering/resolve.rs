@@ -182,7 +182,7 @@ impl super::LoweringContext<'_> {
                     continue;
                 }
                 if self.hir.contract(base_id).kind.is_library() {
-                    self.dcx().emit_err(
+                    self.dcx().emit_err_code(
                         name.span(),
                         error_code!(2571),
                         "libraries cannot be inherited from",
@@ -646,14 +646,14 @@ impl<'gcx> ResolveContext<'gcx> {
                 if !prev.args.is_empty() {
                     self.sess
                         .dcx
-                        .err_at(base.span, None, "base constructor arguments given twice")
+                        .err_at(base.span, "base constructor arguments given twice")
                         .span_help(prev.span, "previous declaration")
                         .emit();
                 } else if !prev.args.is_dummy() && !base.args.is_empty() {
                     // Empty parens in inheritance list, but args in constructor
                     self.sess
                         .dcx
-                        .err_at(base.span, None, "base constructor arguments given here")
+                        .err_at(base.span, "base constructor arguments given here")
                         .span_help(
                             prev.span,
                             "remove parentheses if you do not want to provide arguments here",
@@ -1108,7 +1108,11 @@ impl<'gcx> ResolveContext<'gcx> {
                     has_flag = true;
                     memory_safe = true;
                 }
-                _ => self.dcx().emit_warn(span, error_code!(4430), "unknown inline assembly flag"),
+                _ => self.dcx().emit_warn_code(
+                    span,
+                    error_code!(4430),
+                    "unknown inline assembly flag",
+                ),
             }
         }
 
@@ -1414,11 +1418,7 @@ impl<'gcx> ResolveContext<'gcx> {
             if builtin == Builtin::YulPrevrandao && !target.has_prev_randao() {
                 return Err(self
                     .dcx()
-                    .err_at(
-                        name.span,
-                        None,
-                        "Yul builtin `prevrandao` requires Paris-compatible EVM",
-                    )
+                    .err_at(name.span, "Yul builtin `prevrandao` requires Paris-compatible EVM")
                     .help("compile with `--evm-version paris` or newer")
                     .emit());
             }
@@ -1427,7 +1427,6 @@ impl<'gcx> ResolveContext<'gcx> {
                     .dcx()
                     .err_at(
                         name.span,
-                        None,
                         "Yul builtin `difficulty` is unavailable for Paris-compatible EVM",
                     )
                     .help("use `prevrandao()` when compiling for `paris` or newer")
@@ -1436,7 +1435,7 @@ impl<'gcx> ResolveContext<'gcx> {
             if let Some(required) = builtin.required_evm_version(target) {
                 return Err(self
                     .dcx()
-                    .err_at(
+                    .err_code_at(
                         name.span,
                         builtin
                             .evm_version_error_code()
@@ -1521,11 +1520,10 @@ impl<'gcx> ResolveContext<'gcx> {
                 if index < yul_root_scope {
                     return Err(self
                         .dcx()
-                        .emit_err(
+                        .emit_err_code(
                             name.span,
                             error_code!(6578),
-                            "cannot access local Solidity variables from inside an inline assembly function",
-                        ));
+                            "cannot access local Solidity variables from inside an inline assembly function"));
                 }
                 continue;
             }
@@ -1898,7 +1896,7 @@ impl<'gcx> ResolveContext<'gcx> {
                 let guar = if let ast::CallArgsKind::Named(args) = &args.kind
                     && args.len() == 1
                 {
-                    self.dcx().emit_err(
+                    self.dcx().emit_err_code(
                         expr.span,
                         error_code!(5153),
                         "type conversions cannot take named arguments",
@@ -1948,7 +1946,7 @@ impl<'gcx> ResolveContext<'gcx> {
         if has_nested_options {
             self.sess
                 .dcx
-                .err_at(expr.span, None, "function call options have already been set")
+                .err_at(expr.span, "function call options have already been set")
                 .help("combine them into a single `{...}` option")
                 .emit();
         }
@@ -2081,7 +2079,7 @@ impl<'gcx> ResolveContext<'gcx> {
 
             if !self.hir.contract(c).linearized_bases[1..].contains(&id) {
                 self.dcx()
-                    .err_at(
+                    .err_code_at(
                         ov.span,
                         error_code!(2353),
                         format!(
@@ -2102,7 +2100,7 @@ impl<'gcx> ResolveContext<'gcx> {
 
     /// Reports a library name used as a type or in an override list.
     fn report_library_name(&self, span: Span) -> ErrorGuaranteed {
-        self.dcx().emit_err(span, error_code!(1130), "invalid use of a library name")
+        self.dcx().emit_err_code(span, error_code!(1130), "invalid use of a library name")
     }
 }
 
@@ -2426,7 +2424,7 @@ impl SymbolResolverScopes {
                 _ => ("variable", error_code!(1395)),
             };
             return Err(dcx
-                .err_at(
+                .err_code_at(
                     name.span,
                     code,
                     format!("{kind} name `{name}` already taken in this scope"),
@@ -2672,7 +2670,8 @@ pub(super) fn report_conflict(
 ) -> ErrorGuaranteed {
     debug_assert_ne!(decl.span, previous.span);
 
-    let mut err = sess.dcx.err_at(decl.span, code, format!("identifier `{name}` already declared"));
+    let mut err =
+        sess.dcx.err_code_at(decl.span, code, format!("identifier `{name}` already declared"));
 
     // If `previous` is coming from an import, show both the import and the real span.
     if let Res::Item(item_id) = previous.res
@@ -2706,7 +2705,11 @@ fn check_reserved_name(sess: &Session, hir: &hir::Hir<'_>, name: Symbol, decl: D
         _ => false,
     };
     if !allowed {
-        sess.dcx.emit_err(decl.span, error_code!(3726), format!("the name `{name}` is reserved"));
+        sess.dcx.emit_err_code(
+            decl.span,
+            error_code!(3726),
+            format!("the name `{name}` is reserved"),
+        );
     }
 }
 
