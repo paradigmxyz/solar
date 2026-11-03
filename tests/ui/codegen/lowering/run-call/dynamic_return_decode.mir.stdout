@@ -412,38 +412,36 @@ fn @fixedSum() -> i256 [selector=0x1f080ca7, abi_params=[], abi_returns=[word], 
     revert_returndata
   bb2:                                            ; preds = bb0
     v4 = gas
-    v5 = abi_encode [], selector 0x8695275000000000000000000000000000000000000000000000000000000000
-    v6 = extract_value slice<memory>, v5, 0
-    v7 = extract_value slice<memory>, v5, 1
-    v8 = alloc 96
-    v9 = zext i160 v2 to i256
-    v10 = staticcall v4, v9, v6, v7, v8, 96
-    jumpi v10, bb4, bb3
+    v5 = alloc 96
+    mstore 0, 0x86952750 !metadata(memory=scratch)
+    v6 = zext i160 v2 to i256
+    v7 = staticcall v4, v6, 28, 4, v5, 96
+    jumpi v7, bb4, bb3
   bb3:                                            ; preds = bb2
     revert_returndata
   bb4:                                            ; preds = bb2
-    v11 = returndatasize
-    v12 = lt v11, 96
-    icall revert_if<tuple_data_too_short>, v12
-    v13 = make_memory_slice v8, 96
-    v14 = abi_decode [array<3, uint256>], v13
-    v15 = lt 0, 3
+    v8 = returndatasize
+    v9 = lt v8, 96
+    icall revert_if<tuple_data_too_short>, v9
+    v10 = make_memory_slice v5, 96
+    v11 = abi_decode [array<3, uint256>], v10
+    v12 = lt 0, 3
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = mload v11
+    v15 = lt 1, 3
     v16 = eq v15, false
     icall panic_if<0x32>, v16
-    v17 = mload v14
-    v18 = lt 1, 3
-    v19 = eq v18, false
-    icall panic_if<0x32>, v19
-    v20 = ptradd v14, 32
-    v21 = mload v20
-    v22 = checked_add uint256, v17, v21
-    v23 = lt 2, 3
-    v24 = eq v23, false
-    icall panic_if<0x32>, v24
-    v25 = ptradd v14, 64
-    v26 = mload v25
-    v27 = checked_add uint256, v22, v26
-    ret v27
+    v17 = ptradd v11, 32
+    v18 = mload v17
+    v19 = checked_add uint256, v14, v18
+    v20 = lt 2, 3
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = ptradd v11, 64
+    v23 = mload v22
+    v24 = checked_add uint256, v19, v23
+    ret v24
 }
 
 ; === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:StringElementCaller ===

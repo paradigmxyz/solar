@@ -34,7 +34,7 @@ fn @recordFirst(arg0: i160) {
     mstore v1, 5
     v2 = ptradd v1, 32
     mstore v2, 0x6669727374000000000000000000000000000000000000000000000000000000
-    v3 = abi_encode [word<uint160>, memory_bytes], selector 0x1b2c69800000000000000000000000000000000000000000000000000000000, args 1, v1
+    v3 = abi_encode [word<uint160>, memory_bytes], scratch, selector 0x1b2c69800000000000000000000000000000000000000000000000000000000, args 1, v1
     v4 = extract_value slice<memory>, v3, 0
     v5 = extract_value slice<memory>, v3, 1
     v6 = zext i160 arg0 to i256
@@ -58,7 +58,7 @@ fn @recordSecond(arg0: i160) {
     mstore v1, 6
     v2 = ptradd v1, 32
     mstore v2, 0x7365636f6e640000000000000000000000000000000000000000000000000000
-    v3 = abi_encode [word<uint160>, memory_bytes], selector 0x1b2c69800000000000000000000000000000000000000000000000000000000, args 2, v1
+    v3 = abi_encode [word<uint160>, memory_bytes], scratch, selector 0x1b2c69800000000000000000000000000000000000000000000000000000000, args 2, v1
     v4 = extract_value slice<memory>, v3, 0
     v5 = extract_value slice<memory>, v3, 1
     v6 = zext i160 arg0 to i256

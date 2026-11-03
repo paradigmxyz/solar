@@ -35,38 +35,34 @@ fn @fa() {
     v17 = add v16, 4
     v19 = sub v11, 36
     v20 = lt v19, v16
-    v50 = zext i1 v20 to i256
-    v51 = or v14, v50
+    v46 = zext i1 v20 to i256
+    v47 = or v14, v46
     v21 = calldataload v17
     v22 = add v17, 32
     v23 = sub v11, v22
     v24 = shr v23, 5
     v25 = lt v24, v21
-    v53 = zext i1 v25 to i256
-    v54 = or v51, v53
-    v55 = ne v54, 0
-    jumpi v55, bb3, bb5
+    v49 = zext i1 v25 to i256
+    v50 = or v47, v49
+    v51 = ne v50, 0
+    jumpi v51, bb3, bb5
   bb5:                                            ; preds = bb0
-    v56 = calldataload 4
+    v52 = calldataload 4
     v0 = gas
-    v46 = heap_floor !metadata(alloc_ptr)
-    mstore v46, 0xe9c7a9a00000000000000000000000000000000000000000000000000000000
-    v31 = add v46, 4
+    v44 = heap_floor !metadata(alloc_ptr)
+    mstore v44, 0xe9c7a9a00000000000000000000000000000000000000000000000000000000
+    v31 = add v44, 4
     v32 = add v31, 32
     mstore v31, 32
     v35 = icall @encode_abi_calldata.4, v22, v21, v32
     v36 = add v32, v35
     v37 = sub v36, v31
     v38 = add v37, 4
-    v39 = add v37, 32
-    v47 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v48 = add v47, v39 !metadata(alloc_ptr)
-    mstore 64, v48 !metadata(memory=scratch)
-    v5 = extcodesize v56
+    v5 = extcodesize v52
     v6 = eq v5, 0
     jumpi v6, bb3, bb4
   bb4:                                            ; preds = bb5
-    v8 = call v0, v56, 0, v47, v38, 0, 0
+    v8 = call v0, v52, 0, v44, v38, 0, 0
     jumpi v8, bb2, bb1
   bb1 [cold]:                                     ; preds = bb4
     v9 = returndatasize
@@ -89,23 +85,23 @@ fn @fb() {
     v17 = add v16, 4
     v19 = sub v11, 36
     v20 = lt v19, v16
-    v51 = zext i1 v20 to i256
-    v52 = or v14, v51
+    v47 = zext i1 v20 to i256
+    v48 = or v14, v47
     v21 = calldataload v17
     v22 = add v17, 32
     v23 = sub v11, v22
     v24 = shr v23, 5
     v25 = lt v24, v21
-    v54 = zext i1 v25 to i256
-    v55 = or v52, v54
-    v56 = ne v55, 0
-    jumpi v56, bb3, bb5
+    v50 = zext i1 v25 to i256
+    v51 = or v48, v50
+    v52 = ne v51, 0
+    jumpi v52, bb3, bb5
   bb5:                                            ; preds = bb0
-    v57 = calldataload 4
+    v53 = calldataload 4
     v0 = gas
-    v47 = heap_floor !metadata(alloc_ptr)
-    mstore v47, 0xf3b450f00000000000000000000000000000000000000000000000000000000
-    v31 = add v47, 4
+    v45 = heap_floor !metadata(alloc_ptr)
+    mstore v45, 0xf3b450f00000000000000000000000000000000000000000000000000000000
+    v31 = add v45, 4
     v32 = add v31, 64
     mstore v31, 64
     v35 = icall @encode_abi_calldata.4, v22, v21, v32
@@ -114,15 +110,11 @@ fn @fb() {
     mstore v37, 1
     v38 = sub v36, v31
     v39 = add v38, 4
-    v40 = add v38, 32
-    v48 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v49 = add v48, v40 !metadata(alloc_ptr)
-    mstore 64, v49 !metadata(memory=scratch)
-    v5 = extcodesize v57
+    v5 = extcodesize v53
     v6 = eq v5, 0
     jumpi v6, bb3, bb4
   bb4:                                            ; preds = bb5
-    v8 = call v0, v57, 0, v48, v39, 0, 0
+    v8 = call v0, v53, 0, v45, v39, 0, 0
     jumpi v8, bb2, bb1
   bb1 [cold]:                                     ; preds = bb4
     v9 = returndatasize
@@ -145,22 +137,22 @@ fn @fc() {
     v17 = add v16, 4
     v19 = sub v11, 36
     v20 = lt v19, v16
-    v104 = zext i1 v20 to i256
-    v105 = or v14, v104
+    v100 = zext i1 v20 to i256
+    v101 = or v14, v100
     v21 = calldataload v17
     v22 = add v17, 32
     v23 = sub v11, v22
     v24 = shr v23, 5
     v25 = lt v24, v21
-    v107 = zext i1 v25 to i256
-    v108 = or v105, v107
-    v109 = ne v108, 0
-    jumpi v109, bb3, bb5
+    v103 = zext i1 v25 to i256
+    v104 = or v101, v103
+    v105 = ne v104, 0
+    jumpi v105, bb3, bb5
   bb5:                                            ; preds = bb0
     v0 = gas
-    v100 = heap_floor !metadata(alloc_ptr)
-    mstore v100, 0xd6c30fce00000000000000000000000000000000000000000000000000000000
-    v31 = add v100, 4
+    v98 = heap_floor !metadata(alloc_ptr)
+    mstore v98, 0xd6c30fce00000000000000000000000000000000000000000000000000000000
+    v31 = add v98, 4
     v32 = add v31, 32
     mstore v31, 32
     mstore v32, v21
@@ -173,21 +165,17 @@ fn @fc() {
     v40 = phi [bb5: v38], [bb12: v78]
     v41 = phi [bb5: v35], [bb12: v86]
     v42 = phi [bb5: v22], [bb12: v85]
-    v43 = gt v39, 0
+    v43 = ne v39, 0
     jumpi v43, bb7, bb8
   bb8:                                            ; preds = bb6
-    v110 = calldataload 4
+    v106 = calldataload 4
     v88 = sub v40, v31
     v89 = add v88, 4
-    v90 = add v88, 32
-    v101 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v102 = add v101, v90 !metadata(alloc_ptr)
-    mstore 64, v102 !metadata(memory=scratch)
-    v5 = extcodesize v110
+    v5 = extcodesize v106
     v6 = eq v5, 0
     jumpi v6, bb3, bb4
   bb4:                                            ; preds = bb8
-    v8 = call v0, v110, 0, v101, v89, 0, 0
+    v8 = call v0, v106, 0, v98, v89, 0, 0
     jumpi v8, bb2, bb1
   bb1 [cold]:                                     ; preds = bb4
     v9 = returndatasize
@@ -215,8 +203,8 @@ fn @fc() {
   bb10:                                           ; preds = bb9
     v66 = add v52, v58
     v67 = calldataload v66
-    v93 = shr v67, 64
-    v68 = ne v93, 0
+    v91 = shr v67, 64
+    v68 = ne v91, 0
     jumpi v68, bb3, bb11
   bb11:                                           ; preds = bb10
     v69 = shl v67, 6
@@ -286,7 +274,7 @@ fn @encode_abi_calldata.4(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retur
     v7 = phi [bb0: v5], [bb15: v102]
     v8 = phi [bb0: v2], [bb15: v106]
     v9 = phi [bb0: arg0], [bb15: v105]
-    v10 = gt v6, 0
+    v10 = ne v6, 0
     jumpi v10, bb2, bb3
   bb3:                                            ; preds = bb1
     v108 = sub v7, arg2

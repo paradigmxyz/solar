@@ -87,12 +87,12 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     mstore v38, 7
     v39 = address
     v40 = gas
-    v41 = abi_encode [tuple<function, word>], selector 0x30fb1b200000000000000000000000000000000000000000000000000000000, args v36
-    v42 = extract_value slice<memory>, v41, 0
-    v43 = extract_value slice<memory>, v41, 1
-    v44 = alloc 64
+    v41 = alloc 64
+    v42 = abi_encode [tuple<function, word>], scratch, selector 0x30fb1b200000000000000000000000000000000000000000000000000000000, args v36
+    v43 = extract_value slice<memory>, v42, 0
+    v44 = extract_value slice<memory>, v42, 1
     v45 = zext i160 v39 to i256
-    v46 = staticcall v40, v45, v42, v43, v44, 64
+    v46 = staticcall v40, v45, v43, v44, v41, 64
     jumpi v46, bb4, bb3
   bb3:                                            ; preds = bb2
     revert_returndata
@@ -100,7 +100,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v47 = returndatasize
     v48 = lt v47, 64
     icall revert_if<tuple_data_too_short>, v48
-    v49 = make_memory_slice v44, 64
+    v49 = make_memory_slice v41, 64
     v50 = abi_decode [tuple<function, uint256>], v49
     v51 = mload v50
     v52 = shr v51, 64
@@ -131,7 +131,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     mstore v71, v70
     v72 = address
     v73 = gas
-    v74 = abi_encode [memory_array<function>], selector 0xb4b1645600000000000000000000000000000000000000000000000000000000, args v66
+    v74 = abi_encode [memory_array<function>], scratch, selector 0xb4b1645600000000000000000000000000000000000000000000000000000000, args v66
     v75 = extract_value slice<memory>, v74, 0
     v76 = extract_value slice<memory>, v74, 1
     v77 = zext i160 v72 to i256

@@ -59,13 +59,12 @@ fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v1 = trunc i256 v0 to i160
     v2 = gas
     v3 = ne true, false
+    mstore 0, 0xc4d47ed1 !metadata(memory=scratch)
     v4 = zext i1 v3 to i256
-    v5 = abi_encode [word<bool>], selector 0xc4d47ed100000000000000000000000000000000000000000000000000000000, args v4
-    v6 = extract_value slice<memory>, v5, 0
-    v7 = extract_value slice<memory>, v5, 1
-    v8 = zext i160 v1 to i256
-    v9 = staticcall v2, v8, v6, v7, 0, 0
-    jumpi v9, bb1, bb2
+    mstore 32, v4 !metadata(memory=scratch)
+    v5 = zext i160 v1 to i256
+    v6 = staticcall v2, v5, 28, 36, 0, 0
+    jumpi v6, bb1, bb2
   bb2:                                            ; preds = bb0
     jumpi true, bb4, bb5
   bb5:                                            ; preds = bb2
@@ -74,18 +73,18 @@ fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
   bb4:                                            ; preds = bb2
     ret 0
   bb1:                                            ; preds = bb0
-    v10 = returndatasize
-    v11 = add v10, 31
-    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v13 = alloc v12
-    returndatacopy v13, 0, v10
-    v14 = make_memory_slice v13, v10
-    v15 = abi_decode [uint256, bytes], v14
-    v16 = extract_value struct0, v15, 0
-    v17 = extract_value struct0, v15, 1
-    v18 = mload v17
-    v19 = checked_add uint256, v16, v18
-    ret v19
+    v7 = returndatasize
+    v8 = add v7, 31
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v10 = alloc v9
+    returndatacopy v10, 0, v7
+    v11 = make_memory_slice v10, v7
+    v12 = abi_decode [uint256, bytes], v11
+    v13 = extract_value struct0, v12, 0
+    v14 = extract_value struct0, v12, 1
+    v15 = mload v14
+    v16 = checked_add uint256, v13, v15
+    ret v16
   bb3:
     ret 0
 }
@@ -97,13 +96,12 @@ fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v1 = trunc i256 v0 to i160
     v2 = gas
     v3 = ne false, false
+    mstore 0, 0xc4d47ed1 !metadata(memory=scratch)
     v4 = zext i1 v3 to i256
-    v5 = abi_encode [word<bool>], selector 0xc4d47ed100000000000000000000000000000000000000000000000000000000, args v4
-    v6 = extract_value slice<memory>, v5, 0
-    v7 = extract_value slice<memory>, v5, 1
-    v8 = zext i160 v1 to i256
-    v9 = staticcall v2, v8, v6, v7, 0, 0
-    jumpi v9, bb1, bb2
+    mstore 32, v4 !metadata(memory=scratch)
+    v5 = zext i160 v1 to i256
+    v6 = staticcall v2, v5, 28, 36, 0, 0
+    jumpi v6, bb1, bb2
   bb2:                                            ; preds = bb0
     jumpi true, bb4, bb5
   bb5:                                            ; preds = bb2
@@ -112,15 +110,15 @@ fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
   bb4:                                            ; preds = bb2
     ret 9
   bb1:                                            ; preds = bb0
-    v10 = returndatasize
-    v11 = add v10, 31
-    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v13 = alloc v12
-    returndatacopy v13, 0, v10
-    v14 = make_memory_slice v13, v10
-    v15 = abi_decode [uint256, bytes], v14
-    v16 = extract_value struct0, v15, 0
-    v17 = extract_value struct0, v15, 1
+    v7 = returndatasize
+    v8 = add v7, 31
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v10 = alloc v9
+    returndatacopy v10, 0, v7
+    v11 = make_memory_slice v10, v7
+    v12 = abi_decode [uint256, bytes], v11
+    v13 = extract_value struct0, v12, 0
+    v14 = extract_value struct0, v12, 1
     ret 0
   bb3:
     ret 0

@@ -87,7 +87,7 @@ fn @squaresDown() {
   bb1:                                            ; preds = bb9, bb10
     v1 = phi [bb10: v39], [bb9: v34]
     v2 = phi [bb10: v40], [bb9: v36]
-    v3 = gt v2, 0
+    v3 = ne v2, 0
     jumpi v3, bb3, bb2
   bb2:                                            ; preds = bb1
     mstore 0, v1 !metadata(memory=scratch)
@@ -144,7 +144,7 @@ fn @stepDown() {
   bb1:                                            ; preds = bb3, bb7
     v1 = phi [bb7: v24], [bb3: v19]
     v2 = phi [bb7: v25], [bb3: v20]
-    v3 = gt v2, 0
+    v3 = ne v2, 0
     jumpi v3, bb3, bb2
   bb2:                                            ; preds = bb1
     mstore 0, v1 !metadata(memory=scratch)

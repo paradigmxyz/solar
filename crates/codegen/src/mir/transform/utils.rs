@@ -86,8 +86,8 @@ pub(super) fn rebase_frame_offsets(func: &Function, slots: usize) -> Option<Vec<
     if old_slots == slots {
         return Some(Vec::new());
     }
-    let old_base = frame_prefix(old_slots)?;
-    let new_base = frame_prefix(slots)?;
+    let old_base = EvmMemoryLayout::internal_frame_prefix(old_slots)?;
+    let new_base = EvmMemoryLayout::internal_frame_prefix(slots)?;
     let mut offsets = Vec::new();
     for inst in func.instructions() {
         if let InstKind::InternalFrameAddr(offset) = func.inst(inst).kind {
@@ -158,15 +158,6 @@ pub(super) fn is_internal_body(
     func: &Function,
 ) -> bool {
     !roots.contains(id) && !func.is_public()
-}
-
-/// Returns the offset of the locals region of an internal frame whose signature has `slots`
-/// parameter and result words: the frame header plus one word per slot.
-pub(super) fn frame_prefix(slots: usize) -> Option<u64> {
-    u64::try_from(slots)
-        .ok()?
-        .checked_mul(EvmMemoryLayout::WORD_SIZE)?
-        .checked_add(EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE)
 }
 
 /// A reader of a value: an instruction, or a block's terminator.

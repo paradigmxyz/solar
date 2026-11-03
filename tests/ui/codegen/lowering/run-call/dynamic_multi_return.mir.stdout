@@ -93,32 +93,30 @@ fn @strAndNum() -> struct0 [selector=0x713d228b, abi_params=[], abi_returns=[wor
     revert_returndata
   bb2:                                            ; preds = bb0
     v4 = gas
-    v5 = abi_encode [], selector 0x713d228b00000000000000000000000000000000000000000000000000000000
-    v6 = extract_value slice<memory>, v5, 0
-    v7 = extract_value slice<memory>, v5, 1
-    v8 = zext i160 v2 to i256
-    v9 = staticcall v4, v8, v6, v7, 0, 0
-    jumpi v9, bb4, bb3
+    mstore 0, 0x713d228b !metadata(memory=scratch)
+    v5 = zext i160 v2 to i256
+    v6 = staticcall v4, v5, 28, 4, 0, 0
+    jumpi v6, bb4, bb3
   bb3:                                            ; preds = bb2
     revert_returndata
   bb4:                                            ; preds = bb2
-    v10 = returndatasize
-    v11 = add v10, 31
-    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v13 = alloc v12
-    returndatacopy v13, 0, v10
-    v14 = make_memory_slice v13, v10
-    v15 = abi_decode [bytes, uint256], v14
-    v16 = extract_value struct1, v15, 0
-    v17 = extract_value struct1, v15, 1
-    v18 = insert_value struct1, undef struct1, 0, v16
-    v19 = insert_value struct1, v18, 1, v17
-    v20 = extract_value struct1, v19, 0
-    v21 = extract_value struct1, v19, 1
-    v22 = mload v20
-    v23 = insert_value struct0, undef struct0, 0, v22
-    v24 = insert_value struct0, v23, 1, v21
-    ret v24
+    v7 = returndatasize
+    v8 = add v7, 31
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v10 = alloc v9
+    returndatacopy v10, 0, v7
+    v11 = make_memory_slice v10, v7
+    v12 = abi_decode [bytes, uint256], v11
+    v13 = extract_value struct1, v12, 0
+    v14 = extract_value struct1, v12, 1
+    v15 = insert_value struct1, undef struct1, 0, v13
+    v16 = insert_value struct1, v15, 1, v14
+    v17 = extract_value struct1, v16, 0
+    v18 = extract_value struct1, v16, 1
+    v19 = mload v17
+    v20 = insert_value struct0, undef struct0, 0, v19
+    v21 = insert_value struct0, v20, 1, v18
+    ret v21
 }
 
 ; function numAndStr() public returns (uint256, uint256) [selector 0xed19722c]
@@ -134,32 +132,30 @@ fn @numAndStr() -> struct0 [selector=0xed19722c, abi_params=[], abi_returns=[wor
     revert_returndata
   bb2:                                            ; preds = bb0
     v4 = gas
-    v5 = abi_encode [], selector 0xed19722c00000000000000000000000000000000000000000000000000000000
-    v6 = extract_value slice<memory>, v5, 0
-    v7 = extract_value slice<memory>, v5, 1
-    v8 = zext i160 v2 to i256
-    v9 = staticcall v4, v8, v6, v7, 0, 0
-    jumpi v9, bb4, bb3
+    mstore 0, 0xed19722c !metadata(memory=scratch)
+    v5 = zext i160 v2 to i256
+    v6 = staticcall v4, v5, 28, 4, 0, 0
+    jumpi v6, bb4, bb3
   bb3:                                            ; preds = bb2
     revert_returndata
   bb4:                                            ; preds = bb2
-    v10 = returndatasize
-    v11 = add v10, 31
-    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v13 = alloc v12
-    returndatacopy v13, 0, v10
-    v14 = make_memory_slice v13, v10
-    v15 = abi_decode [uint256, bytes], v14
-    v16 = extract_value struct2, v15, 0
-    v17 = extract_value struct2, v15, 1
-    v18 = insert_value struct2, undef struct2, 0, v16
-    v19 = insert_value struct2, v18, 1, v17
-    v20 = extract_value struct2, v19, 0
-    v21 = extract_value struct2, v19, 1
-    v22 = mload v21
-    v23 = insert_value struct0, undef struct0, 0, v20
-    v24 = insert_value struct0, v23, 1, v22
-    ret v24
+    v7 = returndatasize
+    v8 = add v7, 31
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v10 = alloc v9
+    returndatacopy v10, 0, v7
+    v11 = make_memory_slice v10, v7
+    v12 = abi_decode [uint256, bytes], v11
+    v13 = extract_value struct2, v12, 0
+    v14 = extract_value struct2, v12, 1
+    v15 = insert_value struct2, undef struct2, 0, v13
+    v16 = insert_value struct2, v15, 1, v14
+    v17 = extract_value struct2, v16, 0
+    v18 = extract_value struct2, v16, 1
+    v19 = mload v18
+    v20 = insert_value struct0, undef struct0, 0, v17
+    v21 = insert_value struct0, v20, 1, v19
+    ret v21
 }
 
 ; function twoStrings() public returns (uint256, uint256) [selector 0x477be19f]
@@ -175,33 +171,31 @@ fn @twoStrings() -> struct0 [selector=0x477be19f, abi_params=[], abi_returns=[wo
     revert_returndata
   bb2:                                            ; preds = bb0
     v4 = gas
-    v5 = abi_encode [], selector 0x477be19f00000000000000000000000000000000000000000000000000000000
-    v6 = extract_value slice<memory>, v5, 0
-    v7 = extract_value slice<memory>, v5, 1
-    v8 = zext i160 v2 to i256
-    v9 = staticcall v4, v8, v6, v7, 0, 0
-    jumpi v9, bb4, bb3
+    mstore 0, 0x477be19f !metadata(memory=scratch)
+    v5 = zext i160 v2 to i256
+    v6 = staticcall v4, v5, 28, 4, 0, 0
+    jumpi v6, bb4, bb3
   bb3:                                            ; preds = bb2
     revert_returndata
   bb4:                                            ; preds = bb2
-    v10 = returndatasize
-    v11 = add v10, 31
-    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v13 = alloc v12
-    returndatacopy v13, 0, v10
-    v14 = make_memory_slice v13, v10
-    v15 = abi_decode [bytes, bytes], v14
-    v16 = extract_value struct3, v15, 0
-    v17 = extract_value struct3, v15, 1
-    v18 = insert_value struct3, undef struct3, 0, v16
-    v19 = insert_value struct3, v18, 1, v17
-    v20 = extract_value struct3, v19, 0
-    v21 = extract_value struct3, v19, 1
-    v22 = mload v20
-    v23 = mload v21
-    v24 = insert_value struct0, undef struct0, 0, v22
-    v25 = insert_value struct0, v24, 1, v23
-    ret v25
+    v7 = returndatasize
+    v8 = add v7, 31
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v10 = alloc v9
+    returndatacopy v10, 0, v7
+    v11 = make_memory_slice v10, v7
+    v12 = abi_decode [bytes, bytes], v11
+    v13 = extract_value struct3, v12, 0
+    v14 = extract_value struct3, v12, 1
+    v15 = insert_value struct3, undef struct3, 0, v13
+    v16 = insert_value struct3, v15, 1, v14
+    v17 = extract_value struct3, v16, 0
+    v18 = extract_value struct3, v16, 1
+    v19 = mload v17
+    v20 = mload v18
+    v21 = insert_value struct0, undef struct0, 0, v19
+    v22 = insert_value struct0, v21, 1, v20
+    ret v22
 }
 
 ; function mixed() public returns (uint256, uint256, uint256) [selector 0x354df1f9]
@@ -217,43 +211,41 @@ fn @mixed() -> struct4 [selector=0x354df1f9, abi_params=[], abi_returns=[word, w
     revert_returndata
   bb2:                                            ; preds = bb0
     v4 = gas
-    v5 = abi_encode [], selector 0x354df1f900000000000000000000000000000000000000000000000000000000
-    v6 = extract_value slice<memory>, v5, 0
-    v7 = extract_value slice<memory>, v5, 1
-    v8 = zext i160 v2 to i256
-    v9 = staticcall v4, v8, v6, v7, 0, 0
-    jumpi v9, bb4, bb3
+    mstore 0, 0x354df1f9 !metadata(memory=scratch)
+    v5 = zext i160 v2 to i256
+    v6 = staticcall v4, v5, 28, 4, 0, 0
+    jumpi v6, bb4, bb3
   bb3:                                            ; preds = bb2
     revert_returndata
   bb4:                                            ; preds = bb2
-    v10 = returndatasize
-    v11 = add v10, 31
-    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v13 = alloc v12
-    returndatacopy v13, 0, v10
-    v14 = make_memory_slice v13, v10
-    v15 = abi_decode [array<_, uint256>, uint256, bytes], v14
-    v16 = extract_value struct5, v15, 0
-    v17 = extract_value struct5, v15, 1
-    v18 = extract_value struct5, v15, 2
-    v19 = insert_value struct5, undef struct5, 0, v16
-    v20 = insert_value struct5, v19, 1, v17
-    v21 = insert_value struct5, v20, 2, v18
-    v22 = extract_value struct5, v21, 0
-    v23 = extract_value struct5, v21, 1
-    v24 = extract_value struct5, v21, 2
-    v25 = mload v22
-    v26 = mload v22
-    v27 = gt v26, 0
-    v28 = eq v27, false
-    icall panic_if<0x32>, v28
-    v29 = ptradd v22, 32
-    v30 = mload v29
-    v31 = checked_sub uint256, v23, 7
-    v32 = checked_add uint256, v30, v31
-    v33 = mload v24
-    v34 = insert_value struct4, undef struct4, 0, v25
-    v35 = insert_value struct4, v34, 1, v32
-    v36 = insert_value struct4, v35, 2, v33
-    ret v36
+    v7 = returndatasize
+    v8 = add v7, 31
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v10 = alloc v9
+    returndatacopy v10, 0, v7
+    v11 = make_memory_slice v10, v7
+    v12 = abi_decode [array<_, uint256>, uint256, bytes], v11
+    v13 = extract_value struct5, v12, 0
+    v14 = extract_value struct5, v12, 1
+    v15 = extract_value struct5, v12, 2
+    v16 = insert_value struct5, undef struct5, 0, v13
+    v17 = insert_value struct5, v16, 1, v14
+    v18 = insert_value struct5, v17, 2, v15
+    v19 = extract_value struct5, v18, 0
+    v20 = extract_value struct5, v18, 1
+    v21 = extract_value struct5, v18, 2
+    v22 = mload v19
+    v23 = mload v19
+    v24 = gt v23, 0
+    v25 = eq v24, false
+    icall panic_if<0x32>, v25
+    v26 = ptradd v19, 32
+    v27 = mload v26
+    v28 = checked_sub uint256, v20, 7
+    v29 = checked_add uint256, v27, v28
+    v30 = mload v21
+    v31 = insert_value struct4, undef struct4, 0, v22
+    v32 = insert_value struct4, v31, 1, v29
+    v33 = insert_value struct4, v32, 2, v30
+    ret v33
 }

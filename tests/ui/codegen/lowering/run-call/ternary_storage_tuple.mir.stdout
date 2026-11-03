@@ -54,39 +54,37 @@ fn @returnCall(arg0: i1) -> struct0 [selector=0x5ac1cd5e, view, abi_params=[bool
   bb2:                                            ; preds = bb0
     v2 = address
     v3 = gas
-    v4 = abi_encode [], selector 0xf2a75fe400000000000000000000000000000000000000000000000000000000
-    v5 = extract_value slice<memory>, v4, 0
-    v6 = extract_value slice<memory>, v4, 1
-    v7 = zext i160 v2 to i256
-    v8 = staticcall v3, v7, v5, v6, 0, 0
-    jumpi v8, bb5, bb4
+    mstore 0, 0xf2a75fe4 !metadata(memory=scratch)
+    v4 = zext i160 v2 to i256
+    v5 = staticcall v3, v4, 28, 4, 0, 0
+    jumpi v5, bb5, bb4
   bb4:                                            ; preds = bb2
     revert_returndata
   bb5:                                            ; preds = bb2
-    v9 = returndatasize
-    v10 = add v9, 31
-    v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v12 = alloc v11
-    returndatacopy v12, 0, v9
-    v13 = make_memory_slice v12, v9
-    v14 = abi_decode [array<_, uint256>, array<_, uint256>], v13
-    v15 = extract_value struct0, v14, 0
-    v16 = extract_value struct0, v14, 1
-    v17 = insert_value struct0, undef struct0, 0, v15
-    v18 = insert_value struct0, v17, 1, v16
-    v19 = extract_value struct0, v18, 0
-    v20 = extract_value struct0, v18, 1
+    v6 = returndatasize
+    v7 = add v6, 31
+    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v9 = alloc v8
+    returndatacopy v9, 0, v6
+    v10 = make_memory_slice v9, v6
+    v11 = abi_decode [array<_, uint256>, array<_, uint256>], v10
+    v12 = extract_value struct0, v11, 0
+    v13 = extract_value struct0, v11, 1
+    v14 = insert_value struct0, undef struct0, 0, v12
+    v15 = insert_value struct0, v14, 1, v13
+    v16 = extract_value struct0, v15, 0
+    v17 = extract_value struct0, v15, 1
     jump bb3
   bb1:                                            ; preds = bb0
     v0 = icall @load_storage_word_array, 0
     v1 = icall @load_storage_word_array, 1
     jump bb3
   bb3:                                            ; preds = bb1, bb5
-    v21 = phi [bb1: v0], [bb5: v19]
-    v22 = phi [bb1: v1], [bb5: v20]
-    v23 = insert_value struct0, undef struct0, 0, v21
-    v24 = insert_value struct0, v23, 1, v22
-    ret v24
+    v18 = phi [bb1: v0], [bb5: v16]
+    v19 = phi [bb1: v1], [bb5: v17]
+    v20 = insert_value struct0, undef struct0, 0, v18
+    v21 = insert_value struct0, v20, 1, v19
+    ret v21
 }
 
 ; function returnSwap(bool condition) external view returns (uint256[] memory, uint256[] memory) [selector 0x8e13d368]
@@ -180,39 +178,37 @@ fn @assignMemory(arg0: i1) -> struct0 [selector=0x75a65ceb, view, abi_params=[bo
   bb2:                                            ; preds = bb0
     v2 = address
     v3 = gas
-    v4 = abi_encode [], selector 0xf2a75fe400000000000000000000000000000000000000000000000000000000
-    v5 = extract_value slice<memory>, v4, 0
-    v6 = extract_value slice<memory>, v4, 1
-    v7 = zext i160 v2 to i256
-    v8 = staticcall v3, v7, v5, v6, 0, 0
-    jumpi v8, bb5, bb4
+    mstore 0, 0xf2a75fe4 !metadata(memory=scratch)
+    v4 = zext i160 v2 to i256
+    v5 = staticcall v3, v4, 28, 4, 0, 0
+    jumpi v5, bb5, bb4
   bb4:                                            ; preds = bb2
     revert_returndata
   bb5:                                            ; preds = bb2
-    v9 = returndatasize
-    v10 = add v9, 31
-    v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v12 = alloc v11
-    returndatacopy v12, 0, v9
-    v13 = make_memory_slice v12, v9
-    v14 = abi_decode [array<_, uint256>, array<_, uint256>], v13
-    v15 = extract_value struct0, v14, 0
-    v16 = extract_value struct0, v14, 1
-    v17 = insert_value struct0, undef struct0, 0, v15
-    v18 = insert_value struct0, v17, 1, v16
-    v19 = extract_value struct0, v18, 0
-    v20 = extract_value struct0, v18, 1
+    v6 = returndatasize
+    v7 = add v6, 31
+    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v9 = alloc v8
+    returndatacopy v9, 0, v6
+    v10 = make_memory_slice v9, v6
+    v11 = abi_decode [array<_, uint256>, array<_, uint256>], v10
+    v12 = extract_value struct0, v11, 0
+    v13 = extract_value struct0, v11, 1
+    v14 = insert_value struct0, undef struct0, 0, v12
+    v15 = insert_value struct0, v14, 1, v13
+    v16 = extract_value struct0, v15, 0
+    v17 = extract_value struct0, v15, 1
     jump bb3
   bb1:                                            ; preds = bb0
     v0 = icall @load_storage_word_array, 0
     v1 = icall @load_storage_word_array, 1
     jump bb3
   bb3:                                            ; preds = bb1, bb5
-    v21 = phi [bb1: v0], [bb5: v19]
-    v22 = phi [bb1: v1], [bb5: v20]
-    v23 = insert_value struct0, undef struct0, 0, v21
-    v24 = insert_value struct0, v23, 1, v22
-    ret v24
+    v18 = phi [bb1: v0], [bb5: v16]
+    v19 = phi [bb1: v1], [bb5: v17]
+    v20 = insert_value struct0, undef struct0, 0, v18
+    v21 = insert_value struct0, v20, 1, v19
+    ret v21
 }
 
 ; function assignPointers(bool condition) external view returns (uint256) [selector 0x33a1f821]

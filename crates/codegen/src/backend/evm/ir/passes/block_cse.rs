@@ -151,7 +151,9 @@ impl Cse {
             let mut operand_exprs =
                 operands.iter().map(|value| value.expr).collect::<SmallVec<_>>();
             if op::is_commutative(opcode) {
-                operand_exprs.sort_unstable();
+                // The commuting pair is the top two operands, which come last.
+                let pair = operand_exprs.len() - 2;
+                operand_exprs[pair..].sort_unstable();
             }
             let expr = self.intern(Expr::Op(opcode, epoch, operand_exprs));
             let start = closed_span_start(operands.iter().map(|value| value.span), self.out.len());

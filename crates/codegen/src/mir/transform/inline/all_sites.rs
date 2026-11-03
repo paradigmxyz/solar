@@ -25,7 +25,7 @@ use crate::{
         Callee, EffectKind, Function, FunctionId, InstKind, MirType, Module, Terminator,
         analysis::{Liveness, direct_callees},
     },
-    target::Cost,
+    target::{Cost, Target},
 };
 use solar_data_structures::{index::IndexVec, map::FxHashSet};
 
@@ -95,7 +95,7 @@ fn drop_stack_bound(
                     let liveness =
                         liveness.get_or_insert_with(|| Liveness::compute_live_sets(func));
                     if surviving_call_words(func, liveness, block, index) + peak
-                        > MirInliner::STACK_BUDGET
+                        > Target::INLINE_STACK_BUDGET
                     {
                         consumed.remove(&callee);
                     }

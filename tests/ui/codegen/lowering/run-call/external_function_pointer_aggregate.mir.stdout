@@ -77,26 +77,25 @@ fn @read() -> struct0 [selector=0x57de26a4, view, abi_params=[], abi_returns=[wo
     v6 = shl v5, 224
     v7 = shr v4, 32
     v8 = gas
-    v9 = abi_encode [], selector v6
-    v10 = extract_value slice<memory>, v9, 0
-    v11 = extract_value slice<memory>, v9, 1
-    v12 = staticcall v8, v7, v10, v11, 0, 0
-    jumpi v12, bb2, bb1
+    v9 = shr v6, 224
+    mstore 0, v9 !metadata(memory=scratch)
+    v10 = staticcall v8, v7, 28, 4, 0, 0
+    jumpi v10, bb2, bb1
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    v13 = returndatasize
-    v14 = add v13, 31
-    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v16 = alloc v15
-    returndatacopy v16, 0, v13
-    v17 = make_memory_slice v16, v13
-    v18 = abi_decode [uint256, bytes], v17
-    v19 = extract_value struct0, v18, 0
-    v20 = extract_value struct0, v18, 1
-    v21 = insert_value struct0, undef struct0, 0, v19
-    v22 = insert_value struct0, v21, 1, v20
-    ret v22
+    v11 = returndatasize
+    v12 = add v11, 31
+    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v14 = alloc v13
+    returndatacopy v14, 0, v11
+    v15 = make_memory_slice v14, v11
+    v16 = abi_decode [uint256, bytes], v15
+    v17 = extract_value struct0, v16, 0
+    v18 = extract_value struct0, v16, 1
+    v19 = insert_value struct0, undef struct0, 0, v17
+    v20 = insert_value struct0, v19, 1, v18
+    ret v20
 }
 
 ; function readArguments() external view returns (uint256, string memory) [selector 0x372fd38b]
@@ -129,7 +128,7 @@ fn @readArguments() -> struct0 [selector=0x372fd38b, view, abi_params=[], abi_re
     mstore v18, 2
     v19 = ptradd v18, 32
     mstore v19, 0x6f6b000000000000000000000000000000000000000000000000000000000000
-    v20 = abi_encode [memory_array<word>, memory_bytes], selector v15, args v5, v18
+    v20 = abi_encode [memory_array<word>, memory_bytes], scratch, selector v15, args v5, v18
     v21 = extract_value slice<memory>, v20, 0
     v22 = extract_value slice<memory>, v20, 1
     v23 = staticcall v17, v16, v21, v22, 0, 0
@@ -390,7 +389,7 @@ fn @calldataPointerRoundtrip() -> i1 [selector=0x1d9b1866, abi_params=[], abi_re
     mstore v8, 10
     v9 = ptradd v8, 32
     mstore v9, 0x74657374537472696e6700000000000000000000000000000000000000000000
-    v10 = abi_encode [memory_bytes], selector v5, args v8
+    v10 = abi_encode [memory_bytes], scratch, selector v5, args v8
     v11 = extract_value slice<memory>, v10, 0
     v12 = extract_value slice<memory>, v10, 1
     v13 = call v7, v6, 0, v11, v12, 0, 32

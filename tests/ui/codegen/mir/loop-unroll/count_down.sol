@@ -52,7 +52,7 @@ contract CountDown {
     // CHECK-LABEL: fn @squaresDown()
     // CHECK: [[N:v[0-9]+]] = calldataload 4
     // CHECK: and [[N]], 1
-    // CHECK: gt {{v[0-9]+}}, 0
+    // CHECK: ne {{v[0-9]+}}, 0
     // CHECK-COUNT-2: mul
     function squaresDown(uint256 n) external pure returns (uint256 s) {
         for (uint256 i = n; i > 0; i--) s += i * i;

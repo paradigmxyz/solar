@@ -282,32 +282,30 @@ fn @directMixed() -> struct1 [selector=0xf96b16c5, abi_params=[], abi_returns=[w
     revert_returndata
   bb2:                                            ; preds = bb0
     v4 = gas
-    v5 = abi_encode [], selector 0x354df1f900000000000000000000000000000000000000000000000000000000
-    v6 = extract_value slice<memory>, v5, 0
-    v7 = extract_value slice<memory>, v5, 1
-    v8 = zext i160 v2 to i256
-    v9 = staticcall v4, v8, v6, v7, 0, 0
-    jumpi v9, bb4, bb3
+    mstore 0, 0x354df1f9 !metadata(memory=scratch)
+    v5 = zext i160 v2 to i256
+    v6 = staticcall v4, v5, 28, 4, 0, 0
+    jumpi v6, bb4, bb3
   bb3:                                            ; preds = bb2
     revert_returndata
   bb4:                                            ; preds = bb2
-    v10 = returndatasize
-    v11 = add v10, 31
-    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v13 = alloc v12
-    returndatacopy v13, 0, v10
-    v14 = make_memory_slice v13, v10
-    v15 = abi_decode [uint256, bytes], v14
-    v16 = extract_value struct2, v15, 0
-    v17 = extract_value struct2, v15, 1
-    v18 = insert_value struct2, undef struct2, 0, v16
-    v19 = insert_value struct2, v18, 1, v17
-    v20 = extract_value struct2, v19, 0
-    v21 = extract_value struct2, v19, 1
-    v22 = mload v21
-    v23 = insert_value struct1, undef struct1, 0, v20
-    v24 = insert_value struct1, v23, 1, v22
-    ret v24
+    v7 = returndatasize
+    v8 = add v7, 31
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v10 = alloc v9
+    returndatacopy v10, 0, v7
+    v11 = make_memory_slice v10, v7
+    v12 = abi_decode [uint256, bytes], v11
+    v13 = extract_value struct2, v12, 0
+    v14 = extract_value struct2, v12, 1
+    v15 = insert_value struct2, undef struct2, 0, v13
+    v16 = insert_value struct2, v15, 1, v14
+    v17 = extract_value struct2, v16, 0
+    v18 = extract_value struct2, v16, 1
+    v19 = mload v18
+    v20 = insert_value struct1, undef struct1, 0, v17
+    v21 = insert_value struct1, v20, 1, v19
+    ret v21
 }
 
 ; function directUnaligned() external returns (uint256 length, uint8 first) [selector 0x3e1991d6]
