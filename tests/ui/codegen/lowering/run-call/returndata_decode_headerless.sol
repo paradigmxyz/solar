@@ -4,6 +4,7 @@
 //@ run-call: tryBytes => 224, 33, 0x61
 //@ run-call: directEmpty => 96, 0
 //@ run-call: directMixed => 7, 33
+//@ run-call: directUnaligned => 1, 0x61
 //@ run-call-fail: directTruncated
 
 // The return data of a dynamic return is copied into a buffer with no length word, sized to the
@@ -33,6 +34,17 @@ contract Truncated {
             mstore(0, 0x20)
             mstore(32, 64)
             return(0, 64)
+        }
+    }
+}
+
+contract Unaligned {
+    fallback() external {
+        assembly {
+            mstore(0, 0x20)
+            mstore(32, 1)
+            mstore8(64, 0x61)
+            return(0, 65)
         }
     }
 }
@@ -101,6 +113,12 @@ contract ReturndataDecodeHeaderless {
         bytes memory result;
         (number, result) = Callee(address(new Impl())).mixed();
         length = result.length;
+    }
+
+    function directUnaligned() external returns (uint256 length, uint8 first) {
+        bytes memory result = Callee(address(new Unaligned())).bytesOf(1);
+        length = result.length;
+        first = uint8(result[0]);
     }
 
     function directTruncated() external returns (bytes memory) {

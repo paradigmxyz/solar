@@ -50,16 +50,29 @@ fn @fallback() [fallback] {
     returndata 0, 64
 }
 
+// === ROOT/tests/ui/codegen/lowering/run-call/returndata_decode_headerless.sol:Unaligned ===
+@module Unaligned
+; fallback() external [fallback]
+fn @fallback() [fallback] {
+  bb0:
+    mstore 0, 32 !metadata(memory=scratch)
+    mstore 32, 1 !metadata(memory=scratch)
+    mstore8 64, 97 !metadata(memory=scratch)
+    returndata 0, 65
+}
+
 // === ROOT/tests/ui/codegen/lowering/run-call/returndata_decode_headerless.sol:ReturndataDecodeHeaderless ===
 @module ReturndataDecodeHeaderless
 @types
   struct0: {i256, i256, i8}
   struct1: {i256, i256}
   struct2: {i256, ptr<memory>}
+  struct3: {i256, i8}
 
 @data
   Impl_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/returndata_decode_headerless.sol:Impl"
-  Truncated_creation_code_1: creation_code "ROOT/tests/ui/codegen/lowering/run-call/returndata_decode_headerless.sol:Truncated"
+  Unaligned_creation_code_1: creation_code "ROOT/tests/ui/codegen/lowering/run-call/returndata_decode_headerless.sol:Unaligned"
+  Truncated_creation_code_2: creation_code "ROOT/tests/ui/codegen/lowering/run-call/returndata_decode_headerless.sol:Truncated"
 
 ; function directBytes() external returns (uint256 allocated, uint256 length, uint8 first) [selector 0x107e820f]
 fn @directBytes() -> struct0 [selector=0x107e820f, abi_params=[], abi_returns=[word, word, word<uint8>], abi_return_params=[uint256, uint256, uint8]] {
@@ -297,12 +310,56 @@ fn @directMixed() -> struct1 [selector=0xf96b16c5, abi_params=[], abi_returns=[w
     ret v24
 }
 
+; function directUnaligned() external returns (uint256 length, uint8 first) [selector 0x3e1991d6]
+fn @directUnaligned() -> struct3 [selector=0x3e1991d6, abi_params=[], abi_returns=[word, word<uint8>], abi_return_params=[uint256, uint8]] {
+  bb0:
+    v0 = datasize Unaligned_creation_code_1
+    v1 = fmp
+    datacopy Unaligned_creation_code_1, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
+  bb1:  ; preds = bb0
+    revert_returndata
+  bb2:  ; preds = bb0
+    v4 = gas
+    mstore 0, 0xee98e81 !metadata(memory=scratch)
+    mstore 32, 1 !metadata(memory=scratch)
+    v5 = zext i160 v2 to i256
+    v6 = staticcall v4, v5, 28, 36, 0, 0
+    jumpi v6, bb4, bb3
+  bb3:  ; preds = bb2
+    revert_returndata
+  bb4:  ; preds = bb2
+    v7 = returndatasize
+    v8 = add v7, 31
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v10 = alloc v9
+    returndatacopy v10, 0, v7
+    v11 = make_memory_slice v10, v7
+    v12 = abi_decode [bytes], v11
+    v13 = mload v12
+    v14 = mload v12
+    v15 = gt v14, 0
+    v16 = eq v15, false
+    icall panic_if<0x32>, v16
+    v17 = ptradd v12, 32
+    v18 = mload v17
+    v19 = byte 0, v18
+    v20 = shl v19, 248
+    v21 = shr v20, 248
+    v22 = trunc i256 v21 to i8
+    v23 = insert_value struct3, undef struct3, 0, v13
+    v24 = insert_value struct3, v23, 1, v22
+    ret v24
+}
+
 ; function directTruncated() external returns (bytes memory) [selector 0xb9234a39]
 fn @directTruncated() -> ptr<memory> [selector=0xb9234a39, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = datasize Truncated_creation_code_1
+    v0 = datasize Truncated_creation_code_2
     v1 = fmp
-    datacopy Truncated_creation_code_1, v1, v0
+    datacopy Truncated_creation_code_2, v1, v0
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1

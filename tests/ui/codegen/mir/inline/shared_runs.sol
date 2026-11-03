@@ -8,7 +8,7 @@ interface Vm {
 }
 
 // `paintUint` and `paintBool` each call one cheatcode and wrap the result through the same
-// helper, and their code differs only in a selector and an argument. The backend shares
+// helper twice, and their code differs only in a selector and an argument. The backend shares
 // everything after those while both stay functions, so consuming either into its single caller
 // would emit the shared run again.
 contract SharedRuns {

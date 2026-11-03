@@ -303,6 +303,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// `abi_decode` reads in place. The buffer has no length word because nothing observes it
     /// after the decoding.
     pub(super) fn materialize_returndata_decode_source(&mut self) -> ValueId {
+        // NOTE: The padding of `returndatasize`, which is far below `2^64`, cannot wrap.
         // size = returndatasize
         // buffer = alloc pad32(size)
         // returndatacopy(buffer, 0, size)
