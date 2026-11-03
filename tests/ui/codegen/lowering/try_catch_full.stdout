@@ -216,7 +216,8 @@ fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
   bb2:                                            ; preds = bb1
     v6 = add v2, v3
     v7 = mload v6
-    v9 = gt v7, 0xffffffffffffffff
+    v15 = shr v7, 64
+    v9 = ne v15, 0
     v8 = add v3, 36
     v10 = sub arg1, v8
     v11 = lt v10, v7

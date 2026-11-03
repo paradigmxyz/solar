@@ -26,7 +26,9 @@
   
   fn @other_block(arg0: i256) -> i256 {
     bb0:
-      v0 = gt arg0, 0xffffffffffffffff
+-     v0 = gt arg0, 0xffffffffffffffff
++     v1 = shr arg0, 64
++     v0 = ne v1, 0
       jump bb1
     bb1:                                            ; preds = bb0
       jumpi v0, bb2, bb3

@@ -96,7 +96,8 @@ fn @fls.3(arg0: i256) -> i256 {
     v51 = zext i1 v2 to i256
     v52 = shl v51, 7
     v53 = shr arg0, v52
-    v7 = gt v53, 0xffffffffffffffff
+    v94 = shr v53, 64
+    v7 = ne v94, 0
     v56 = zext i1 v7 to i256
     v57 = shl v56, 6
     v58 = shr v53, v57

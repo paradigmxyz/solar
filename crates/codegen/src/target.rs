@@ -525,12 +525,12 @@ impl Target {
     /// Whether a width test, that a word fits in `bits` bits when `fits` and that it does not
     /// otherwise, is the shift `x >> bits` against zero rather than the comparison with its limit
     /// (`x < 2^bits`, `x > 2^bits - 1`). A `branch` reads the word of a test of the other sense
-    /// for free, and a `value` pays `ISZERO`s: one to turn the word into a fit, two into a
-    /// boolean. The comparison pays the push of its limit, as the compact-push pass leaves it,
-    /// which grows with `bits`. The shift wins when it is no dearer in bytes and gas and cheaper
-    /// in one; equal prices keep the comparison. A shift that saves bytes and costs gas is taken
-    /// as a compact recipe is, by [`Self::compacts_immediate`]. Without shifts only the
-    /// comparison exists.
+    /// for free, and a `value` pays for its zero test: an `ISZERO` to turn the word into a fit, or
+    /// [`Self::ne_zero`] to turn it into a boolean. The comparison pays the push of its limit, as
+    /// the compact-push pass leaves it, which grows with `bits`. The shift wins when it is no
+    /// dearer in bytes and gas and cheaper in one; equal prices keep the comparison. A shift that
+    /// saves bytes and costs gas is taken as a compact recipe is, by [`Self::compacts_immediate`].
+    /// Without shifts only the comparison exists.
     pub(crate) fn shifts_bits_test(
         &self,
         bits: u32,
@@ -544,7 +544,7 @@ impl Target {
         let zero_tests = match (fits, branch) {
             (false, true) => Cost::ZERO,
             (true, _) => self.opcode(op::ISZERO),
-            (false, false) => self.opcode(op::ISZERO) + self.opcode(op::ISZERO),
+            (false, false) => self.ne_zero().0,
         };
         let shift = self.push(U256::from(bits)) + self.opcode(op::SHR) + zero_tests;
         let compare = if fits {
