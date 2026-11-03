@@ -456,10 +456,10 @@ def artifact_compiler_input(input_text: str, test_case: TestCase, kind: str) -> 
         "evm.bytecode.object",
         "evm.deployedBytecode.object",
     ]
-    # Slang-based solx rejects `ir` and `irOptimized`.
+    # Slang rejects `ir` and `irOptimized`.
     if kind in ("solc", "oksolc"):
         outputs.extend(("ir", "irOptimized"))
-    if kind == "solx":
+    if kind == "slang":
         outputs.extend(
             f"evm.{segment}.{field}"
             for segment in ("bytecode", "deployedBytecode")
@@ -631,7 +631,7 @@ def write_artifacts(
     bytecodes: dict[str, bytes] = {}
     for prefix, key in (("creation", "bytecode"), ("runtime", "deployedBytecode")):
         bytecode = evm.get(key) or {}
-        if spec.kind == "solx":
+        if spec.kind == "slang":
             for field, suffix in (
                 ("llvmIrUnoptimized", "unoptimized.ll"),
                 ("llvmIr", "optimized.ll"),
@@ -2374,8 +2374,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Also benchmark the --solc binary with viaIR disabled (default: disabled)",
     )
     parser.add_argument(
-        "--solx",
-        help="Also benchmark solx using this binary (default: disabled)",
+        "--slang",
+        help="Also benchmark slang using this binary (default: disabled)",
     )
     parser.add_argument(
         "--oksolc",
@@ -2517,8 +2517,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.ignore_compile_time = True
     if args.ignore_compile_time:
         args.compile_repeats = 1
-    if args.reference_results and (args.solc or args.solx):
-        parser.error("--reference-results cannot be combined with --solc or --solx")
+    if args.reference_results and (args.solc or args.slang):
+        parser.error("--reference-results cannot be combined with --solc or --slang")
     if args.solc_legacy and not args.solc:
         parser.error("--solc-legacy requires --solc")
     if args.solar_size and args.optimizer_runs is not None:
@@ -2614,15 +2614,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                 via_ir=False,
             )
         )
-    if args.solx:
-        solx = find_binary(args.solx, ["solx"])
-        if solx is None:
-            parser.error(f"solx not found: {args.solx}")
-        solx_version, solx_error = binary_version(solx)
-        if solx_error:
-            parser.error(f"solx --version failed: {solx_error}")
-        # The pinned solx is Nomic's Slang build, so label its results that way.
-        specs.append(CompilerSpec("solx", f"slang {solx_version}", solx, "solx"))
+    if args.slang:
+        slang = find_binary(args.slang, ["slang"])
+        if slang is None:
+            parser.error(f"slang not found: {args.slang}")
+        slang_version, slang_error = binary_version(slang)
+        if slang_error:
+            parser.error(f"slang --version failed: {slang_error}")
+        specs.append(CompilerSpec("slang", f"slang {slang_version}", slang, "slang"))
     if args.oksolc:
         oksolc = find_binary(args.oksolc, ["oksolc"])
         if oksolc is None:
@@ -2663,7 +2662,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             for name, via_ir in (
                 ("solc", None),
                 ("solc-legacy", False),
-                ("solx", None),
+                ("slang", None),
                 ("oksolc", None),
             )
             if name not in {spec.compiler_id for spec in specs}
