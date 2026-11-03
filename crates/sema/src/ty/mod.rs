@@ -2214,6 +2214,11 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
                 "expected data location".to_string()
             };
             let mut err = gcx.dcx().err_at(var.span, msg);
+            // solc rejects a location on a state variable, and `transient` anywhere but on one,
+            // in its parser with a generic error, so those stay uncoded.
+            if !var.is_state_variable() && var_loc != Some(Transient) {
+                err = err.code(error_code!(6651));
+            }
             if has_reference_or_mapping_type() {
                 let note = format!(
                     "data location must be {expected} for {vis}{descr}{got}",
