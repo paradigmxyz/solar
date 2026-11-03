@@ -1363,6 +1363,7 @@ fn encode_dynamic_body(
     helpers: &EncodeHelpers,
 ) -> ValueId {
     match ty {
+        AbiType::Bytes(PtrLocation::Storage) => encode_storage_bytes(builder, value, dest),
         AbiType::Bytes(location) => {
             let location = effective_slice_location(builder.func(), value, *location);
             encode_bytes(builder, value, dest, location, helpers.literal_objects.contains(&value))
@@ -1465,9 +1466,6 @@ fn is_calldata_slice(func: &Function, value: ValueId) -> bool {
 }
 
 fn effective_slice_location(func: &Function, value: ValueId, declared: PtrLocation) -> PtrLocation {
-    if declared == PtrLocation::Storage {
-        return declared;
-    }
     match func.value_ty(value) {
         Some(MirType::Slice(location)) => location,
         Some(MirType::I256 | MirType::MEMPTR) => PtrLocation::Memory,
@@ -1872,9 +1870,6 @@ fn encode_bytes(
         return builder.add(data, size);
     }
 
-    if location == PtrLocation::Storage {
-        return encode_storage_bytes(builder, value, dest);
-    }
     let len = match location {
         PtrLocation::Memory => memory_object_len(builder, value),
         _ => builder.slice_len(value),

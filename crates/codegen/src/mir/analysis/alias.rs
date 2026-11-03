@@ -20,10 +20,10 @@
 
 use super::{CfgInfo, DominatorTree, MemoryCallSummaries};
 use crate::mir::{
-    AbiType, AddressCallKind, AllocationFailure, ArgIdx, BlockId, Builtin, Callee, FrameMode,
-    FrameSlotKind, Function, FunctionId, ImmutableId, InstId, InstKind, MAX_SCRATCH_ERROR_WORDS,
-    MemoryRegion, MirType, PtrLocation, RawMemoryAccess, RawMemorySize, RequireKind, StorageAlias,
-    Terminator, Value, ValueId, memory::EvmMemoryLayout,
+    AbiLayout, AbiType, AddressCallKind, AllocationFailure, ArgIdx, BlockId, Builtin, Callee,
+    FrameMode, FrameSlotKind, Function, FunctionId, ImmutableId, InstId, InstKind,
+    MAX_SCRATCH_ERROR_WORDS, MemoryRegion, MirType, PtrLocation, RawMemoryAccess, RawMemorySize,
+    RequireKind, StorageAlias, Terminator, Value, ValueId, memory::EvmMemoryLayout,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -1396,7 +1396,7 @@ impl AliasAnalysis {
                     _ => {}
                 }
                 if let RequireKind::CustomError(layout) = kind
-                    && layout.types.iter().any(Self::abi_type_reads_storage)
+                    && Self::layout_reads_storage(layout)
                 {
                     effects.read_any(AddressSpace::Storage);
                 }
@@ -1411,7 +1411,7 @@ impl AliasAnalysis {
                         read_memory(&mut effects, arg, SizeOperand::Unknown);
                     }
                 }
-                if layout.types.iter().any(Self::abi_type_reads_storage) {
+                if Self::layout_reads_storage(layout) {
                     effects.read_any(AddressSpace::Storage);
                 }
                 effects.write_any(AddressSpace::Memory);
@@ -2754,9 +2754,9 @@ impl AliasAnalysis {
         }
     }
 
-    /// Whether encoding `ty` reads the storage its slot operand names.
-    fn abi_type_reads_storage(ty: &AbiType) -> bool {
-        matches!(ty, AbiType::Bytes(PtrLocation::Storage))
+    /// Whether encoding `layout` reads the storage its slot operands name.
+    fn layout_reads_storage(layout: &AbiLayout) -> bool {
+        layout.types.iter().any(|ty| matches!(ty, AbiType::Bytes(PtrLocation::Storage)))
     }
 
     /// Returns the memory object `p` of an address `p + 32 + len`, the end of `p`'s payload, in

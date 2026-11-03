@@ -38,15 +38,13 @@ impl AbiType {
     }
 
     fn input_type(&self, actual: Option<MirType>) -> MirType {
-        if matches!(
-            self,
-            Self::Bytes(_) | Self::DynamicArray { .. } | Self::FixedArray { .. } | Self::Tuple(_)
-        ) && *self != Self::Bytes(PtrLocation::Storage)
+        let operand = self.operand_type();
+        if operand != MirType::I256
             && let Some(ty @ MirType::Slice(PtrLocation::Memory | PtrLocation::Calldata)) = actual
         {
             ty
         } else {
-            self.operand_type()
+            operand
         }
     }
 }
