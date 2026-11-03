@@ -118,8 +118,6 @@ pub struct OpTraits(u16);
 impl OpTraits {
     /// No additional operation traits.
     pub(crate) const NONE: Self = Self(0);
-    /// The operation's binary operands may be exchanged by the scheduler.
-    pub(crate) const REORDERABLE: Self = Self(1 << 0);
     /// The operation is cheap and stable enough to rematerialize when its
     /// operands can themselves be rebuilt from stable leaves.
     pub const REMATERIALIZABLE: Self = Self(1 << 1);
@@ -1353,7 +1351,7 @@ define_mir_ops! {
         result = Integer,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::REORDERABLE.union(OpTraits::REMATERIALIZABLE).union(OpTraits::EGRAPH_REWRITE),
+        traits = OpTraits::REMATERIALIZABLE.union(OpTraits::EGRAPH_REWRITE),
         side_effects = false,
         category = None
     )]
@@ -1382,7 +1380,7 @@ define_mir_ops! {
         result = Integer,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::REORDERABLE.union(OpTraits::REMATERIALIZABLE).union(OpTraits::EGRAPH_REWRITE),
+        traits = OpTraits::REMATERIALIZABLE.union(OpTraits::EGRAPH_REWRITE),
         side_effects = false,
         category = None
     )]
@@ -1499,7 +1497,7 @@ define_mir_ops! {
         result = Integer,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::REORDERABLE.union(OpTraits::REMATERIALIZABLE).union(OpTraits::EGRAPH_REWRITE),
+        traits = OpTraits::REMATERIALIZABLE.union(OpTraits::EGRAPH_REWRITE),
         side_effects = false,
         category = None
     )]
@@ -1514,7 +1512,7 @@ define_mir_ops! {
         result = Integer,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::REORDERABLE.union(OpTraits::REMATERIALIZABLE).union(OpTraits::EGRAPH_REWRITE),
+        traits = OpTraits::REMATERIALIZABLE.union(OpTraits::EGRAPH_REWRITE),
         side_effects = false,
         category = None
     )]
@@ -1529,7 +1527,7 @@ define_mir_ops! {
         result = Integer,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::REORDERABLE.union(OpTraits::REMATERIALIZABLE).union(OpTraits::EGRAPH_REWRITE),
+        traits = OpTraits::REMATERIALIZABLE.union(OpTraits::EGRAPH_REWRITE),
         side_effects = false,
         category = None
     )]
@@ -1631,7 +1629,7 @@ define_mir_ops! {
         result = I1,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::REORDERABLE.union(OpTraits::EGRAPH_REWRITE),
+        traits = OpTraits::EGRAPH_REWRITE,
         side_effects = false,
         category = None
     )]
@@ -1645,7 +1643,7 @@ define_mir_ops! {
         result = I1,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::REORDERABLE.union(OpTraits::EGRAPH_REWRITE),
+        traits = OpTraits::EGRAPH_REWRITE,
         side_effects = false,
         category = None
     )]
@@ -1659,7 +1657,7 @@ define_mir_ops! {
         result = I1,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::REORDERABLE.union(OpTraits::EGRAPH_REWRITE),
+        traits = OpTraits::EGRAPH_REWRITE,
         side_effects = false,
         category = None
     )]
@@ -1673,7 +1671,7 @@ define_mir_ops! {
         result = I1,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::REORDERABLE.union(OpTraits::EGRAPH_REWRITE),
+        traits = OpTraits::EGRAPH_REWRITE,
         side_effects = false,
         category = None
     )]
@@ -1687,7 +1685,7 @@ define_mir_ops! {
         result = I1,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::REORDERABLE.union(OpTraits::EGRAPH_REWRITE),
+        traits = OpTraits::EGRAPH_REWRITE,
         side_effects = false,
         category = None
     )]
@@ -1702,7 +1700,7 @@ define_mir_ops! {
         result = I1,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::REORDERABLE.union(OpTraits::EGRAPH_REWRITE),
+        traits = OpTraits::EGRAPH_REWRITE,
         side_effects = false,
         category = None
     )]
@@ -2061,7 +2059,7 @@ define_mir_ops! {
         result = None,
         phases = PhaseSet::ALL,
         effect = MemoryWrite,
-        traits = OpTraits::REORDERABLE,
+        traits = OpTraits::NONE,
         side_effects = true,
         category = None
     )]

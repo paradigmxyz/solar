@@ -85,12 +85,7 @@ impl DocumentLinkIndex {
     }
 
     #[cfg(test)]
-    pub(crate) fn insert_for_test(
-        &mut self,
-        source: PathBuf,
-        range: lsp_types::Range,
-        target: Url,
-    ) {
+    pub(crate) fn insert_for_test(&mut self, source: PathBuf, range: Range, target: Url) {
         self.push(
             source,
             Arc::new(String::new()),
@@ -111,7 +106,7 @@ impl DocumentLinkIndex {
     pub(crate) fn insert_import_path_for_test(
         &mut self,
         source: PathBuf,
-        range: lsp_types::Range,
+        range: Range,
         import_path: PathBuf,
         target: PathBuf,
         resolver_root: Option<PathBuf>,

@@ -263,29 +263,34 @@ fn @distinctDynamicReturns() -> i256 [selector=0x56c7de2c, abi_params=[], abi_re
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    v4 = icall returndata_bytes<>
-    v5 = abi_decode [tuple<array<_, uint256>>, tuple<array<_, uint256>>], v4
-    v6 = extract_value struct1, v5, 0
-    v7 = extract_value struct1, v5, 1
-    v8 = insert_value struct1, undef struct1, 0, v6
-    v9 = insert_value struct1, v8, 1, v7
+    v4 = returndatasize
+    v5 = add v4, 31
+    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v7 = alloc v6
+    returndatacopy v7, 0, v4
+    v8 = make_memory_slice v7, v4
+    v9 = abi_decode [tuple<array<_, uint256>>, tuple<array<_, uint256>>], v8
     v10 = extract_value struct1, v9, 0
     v11 = extract_value struct1, v9, 1
-    v12 = mload v10, ptr<memory>
-    v13 = mload v12
-    v14 = gt v13, 0
-    v15 = eq v14, false
-    icall panic_if<0x32>, v15
-    v16 = ptradd v12, 32
-    mstore v16, 9
-    v17 = mload v11, ptr<memory>
-    v18 = mload v17
-    v19 = gt v18, 0
-    v20 = eq v19, false
-    icall panic_if<0x32>, v20
-    v21 = ptradd v17, 32
+    v12 = insert_value struct1, undef struct1, 0, v10
+    v13 = insert_value struct1, v12, 1, v11
+    v14 = extract_value struct1, v13, 0
+    v15 = extract_value struct1, v13, 1
+    v16 = mload v14, ptr<memory>
+    v17 = mload v16
+    v18 = gt v17, 0
+    v19 = eq v18, false
+    icall panic_if<0x32>, v19
+    v20 = ptradd v16, 32
+    mstore v20, 9
+    v21 = mload v15, ptr<memory>
     v22 = mload v21
-    ret v22
+    v23 = gt v22, 0
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    v25 = ptradd v21, 32
+    v26 = mload v25
+    ret v26
 }
 
 ; function dirtyArray() external pure returns (bool[] memory values) [selector 0xab113bc3]
@@ -594,8 +599,13 @@ fn @dynamicShort(arg0: i256) -> i1 [selector=0x73932459, view, abi_params=[uint2
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    v4 = icall returndata_bytes<>
-    v5 = abi_decode [bytes], v4
+    v4 = returndatasize
+    v5 = add v4, 31
+    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v7 = alloc v6
+    returndatacopy v7, 0, v4
+    v8 = make_memory_slice v7, v4
+    v9 = abi_decode [bytes], v8
     ret true
 }
 
@@ -619,10 +629,15 @@ fn @dynamicLengthOverflow() -> i256 [selector=0x5e963174, view, abi_params=[], a
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    v4 = icall returndata_bytes<>
-    v5 = abi_decode [bytes], v4
-    v6 = mload v5
-    ret v6
+    v4 = returndatasize
+    v5 = add v4, 31
+    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v7 = alloc v6
+    returndatacopy v7, 0, v4
+    v8 = make_memory_slice v7, v4
+    v9 = abi_decode [bytes], v8
+    v10 = mload v9
+    ret v10
 }
 
 ; function dynamicLengthOverflowTarget() external pure returns (bytes memory) [selector 0xe1365904]
@@ -645,10 +660,15 @@ fn @dynamicArrayLengthOverflow() -> i256 [selector=0xbd5e58ee, view, abi_params=
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    v4 = icall returndata_bytes<>
-    v5 = abi_decode [array<_, uint256>], v4
-    v6 = mload v5
-    ret v6
+    v4 = returndatasize
+    v5 = add v4, 31
+    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v7 = alloc v6
+    returndatacopy v7, 0, v4
+    v8 = make_memory_slice v7, v4
+    v9 = abi_decode [array<_, uint256>], v8
+    v10 = mload v9
+    ret v10
 }
 
 ; function dynamicArrayLengthOverflowTarget() external pure returns (uint256[] memory) [selector 0x839ae554]
