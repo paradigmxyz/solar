@@ -53,7 +53,9 @@
 //! incoming transfer's origin; later passes and assembly discard it if the entry becomes shared,
 //! falls through, or acquires opaque address uses. It never keeps a label or changes a rewrite.
 //! Empty prefixes of a thunk chain have no origin to lend. The whole chain must have one source
-//! origin; an otherwise unmapped dispatch transfer can identify itself by its function event.
+//! origin; an otherwise unmapped dispatch transfer records a separate checkpoint identity.
+//! A conditional edge's function entry moves only to its exclusive destination, never to the
+//! shared terminator or label push, which also execute when that edge is not taken.
 
 use super::{
     EvmPass,
@@ -506,19 +508,19 @@ fn redirect_jump_thunks(
                         block.instructions.get(at + 1).is_some_and(|inst| inst.opcode == op::JUMPI);
                     if conditional && track_checkpoints {
                         let chain = thunk_chain_debug_info(target, thunks);
-                        if let Some(checkpoint) = thunk_checkpoint(
+                        if let Some((destination, checkpoint)) = thunk_checkpoint(
                             target,
                             thunks,
                             references,
                             &block.instructions[at].metadata,
                             &chain,
                         ) {
-                            checkpoints.push(checkpoint);
-                        }
-                        if block.instructions[at].metadata.function_invoke().is_none()
-                            && let Some(function) = chain.function_invoke()
-                        {
-                            block.instructions[at].metadata.set_function_invoke(function);
+                            if block.instructions[at].metadata.source_spans().is_empty() {
+                                block.instructions[at]
+                                    .metadata
+                                    .add_checkpoint_transfer(checkpoint.transfer);
+                            }
+                            checkpoints.push((destination, checkpoint, chain.function_invoke()));
                         }
                     }
                     absorb_thunk_debug_info(
@@ -547,15 +549,13 @@ fn redirect_jump_thunks(
                 if let Some(thunk) = thunks.get(target) {
                     if conditional && track_checkpoints {
                         let chain = thunk_chain_debug_info(*target, thunks);
-                        if let Some(checkpoint) =
+                        if let Some((destination, checkpoint)) =
                             thunk_checkpoint(*target, thunks, references, &term.metadata, &chain)
                         {
-                            checkpoints.push(checkpoint);
-                        }
-                        if term.metadata.function_invoke().is_none()
-                            && let Some(function) = chain.function_invoke()
-                        {
-                            term.metadata.set_function_invoke(function);
+                            if term.metadata.source_spans().is_empty() {
+                                term.metadata.add_checkpoint_transfer(checkpoint.transfer);
+                            }
+                            checkpoints.push((destination, checkpoint, chain.function_invoke()));
                         }
                     }
                     absorb_thunk_debug_info(&mut term.metadata, &thunk.metadata, conditional);
@@ -566,10 +566,15 @@ fn redirect_jump_thunks(
             });
         }
     }
-    for (target, checkpoint) in checkpoints {
-        let entry = &mut module.blocks[target].metadata.entry_checkpoint;
-        if entry.is_none() || *entry == Some(checkpoint) {
-            *entry = Some(checkpoint);
+    for (target, checkpoint, invocation) in checkpoints {
+        let metadata = &mut module.blocks[target].metadata;
+        if metadata.entry_checkpoint.is_none() || metadata.entry_checkpoint == Some(checkpoint) {
+            metadata.entry_checkpoint = Some(checkpoint);
+            // The exclusive entry executes only on this edge, even if assembly inverts the
+            // branch. A shared conditional transfer must never inherit its function event.
+            if metadata.function_invoke.is_none() {
+                metadata.function_invoke = invocation;
+            }
         }
     }
     // target: <unobservable control continuation>
@@ -793,13 +798,11 @@ fn simplify_known_jumps(module: &mut Module) -> bool {
 
 /// Moves a bypassed thunk's debug information to the transfer that now skips it.
 /// An unconditional transfer executes on the thunk's path; a conditional one also executes on
-/// other paths, so only the former can inherit its source origins.
+/// other paths, so only the former can inherit its origins or function events.
 // NOTE: Without an exclusive destination label, a conditional edge loses its zero-byte
 // checkpoint. Do not retain a jump or attribute an operation executed on other paths to it.
 fn absorb_thunk_debug_info(metadata: &mut Metadata, thunk: &Metadata, conditional: bool) {
-    if conditional {
-        metadata.absorb_function_events(thunk);
-    } else {
+    if !conditional {
         metadata.absorb_debug_info(thunk);
     }
 }
@@ -840,7 +843,7 @@ fn thunk_checkpoint(
 }
 
 /// Collects the chain's origins and compatible function events, including beyond empty prefixes.
-/// Only its entry identity is propagated to a conditional transfer, not its exit events.
+/// Its entry identity can validate an exclusive checkpoint without becoming a transfer event.
 fn thunk_chain_debug_info(start: BlockId, thunks: &FxHashMap<BlockId, Thunk>) -> Metadata {
     let chain =
         std::iter::successors(Some(start), |target| thunks.get(target).map(|thunk| thunk.next))

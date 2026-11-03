@@ -211,9 +211,10 @@ impl Module {
                 || !metadata.is_some_and(|metadata| {
                     metadata.source_spans() == [checkpoint.transfer]
                         || (metadata.source_spans().is_empty()
-                            && metadata.function_invoke().is_some_and(|function| {
-                                function.declaration == checkpoint.transfer
-                            }))
+                            && (metadata.checkpoint_transfers().contains(&checkpoint.transfer)
+                                || metadata.function_invoke().is_some_and(|function| {
+                                    function.declaration == checkpoint.transfer
+                                })))
                 })
             {
                 invalid.insert(target);
@@ -906,6 +907,9 @@ pub struct Metadata {
     modifier_depth: u32,
     /// Whether the source location was preserved or intentionally dropped.
     debug_info_handled: bool,
+    /// Identities of removed thunk entries reached by this transfer, not function events.
+    /// These only validate exclusive destination checkpoints and are never emitted as calls.
+    checkpoint_transfers: DebugSpans,
 }
 
 fn common_debug_event<T: Eq>(mut events: impl Iterator<Item = T>) -> Option<T> {
@@ -970,6 +974,7 @@ impl Metadata {
         self.copy_source_debug_from(other);
         self.function_invoke = other.function_invoke;
         self.function_exit = other.function_exit;
+        self.checkpoint_transfers.clone_from(&other.checkpoint_transfers);
     }
 
     /// Absorbs another operation's debug information: its origins are added and its function
@@ -1069,6 +1074,23 @@ impl Metadata {
     #[must_use]
     pub const fn debug_info_is_handled(&self) -> bool {
         self.debug_info_handled
+    }
+
+    /// Returns identities used only to validate removed entry checkpoints.
+    #[must_use]
+    pub fn checkpoint_transfers(&self) -> &[Span] {
+        &self.checkpoint_transfers
+    }
+
+    /// Records a checkpoint proof without describing a function activation.
+    pub fn add_checkpoint_transfer(&mut self, span: Span) {
+        if !span.is_dummy()
+            && self.checkpoint_transfers.len() < MAX_DEBUG_SPANS
+            && !self.checkpoint_transfers.contains(&span)
+        {
+            self.checkpoint_transfers.push(span);
+            self.debug_info_handled = true;
+        }
     }
 }
 

@@ -150,9 +150,11 @@ fn display_metadata(metadata: &Metadata, visible: bool) -> impl fmt::Display + '
         let spans = if visible { metadata.source_spans() } else { &[] };
         let function_invoke = visible.then(|| metadata.function_invoke()).flatten();
         let function_exit = visible.then(|| metadata.function_exit()).flatten();
+        let checkpoints = if visible { metadata.checkpoint_transfers() } else { &[] };
         if spans.is_empty()
             && function_invoke.is_none()
             && function_exit.is_none()
+            && checkpoints.is_empty()
             && !metadata.keep_with_next
         {
             return Ok(());
@@ -190,6 +192,10 @@ fn display_metadata(metadata: &Metadata, visible: bool) -> impl fmt::Display + '
                 DebugFunctionExit::Revert => "revert",
             };
             write!(f, "{separator}exit={exit}")?;
+            separator = ", ";
+        }
+        for span in checkpoints {
+            write!(f, "{separator}checkpoint={}..{}", span.lo().0, span.hi().0)?;
             separator = ", ";
         }
         if metadata.keep_with_next {

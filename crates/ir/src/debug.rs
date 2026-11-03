@@ -33,13 +33,14 @@ pub enum DebugFunctionExit {
 
 /// A removed transfer's source checkpoint carried by an existing destination label.
 /// The label must still have exactly one direct incoming reference with `transfer` as its sole
-/// source origin, or as its invoked function's span when it has no source origin. This proof is
-/// rechecked after transformations; it never keeps a label alive.
+/// source origin, or as an explicit checkpoint identity when it has no source origin. An existing
+/// function invocation's declaration also identifies an unlocated transfer. This proof is
+/// rechecked after transformations; it never keeps a label alive or invents a function event.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DebugEntryCheckpoint {
     /// Source operation executed on entry to the label.
     pub source: Span,
-    /// Source or invoked-function origin of the transfer that exclusively reaches this label.
+    /// Source or checkpoint identity of the transfer that exclusively reaches this label.
     pub transfer: Span,
     /// Modifier depth of the source operation.
     pub modifier_depth: u32,

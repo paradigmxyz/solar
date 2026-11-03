@@ -457,28 +457,40 @@ fn evm_ir_dump_preserves_bytecode() {
 }
 
 #[test]
-fn peephole_debug_contexts_preserve_bytecode() {
-    let source = RealFileLoader
-        .load_file(
-            &Path::new(FIXTURES).join("../../codegen/evm-ir/peephole/debug_replacements.evmir"),
-        )
-        .unwrap();
-    let plain = source
-        .lines()
-        .map(|line| line.split_once(" !metadata(").map_or(line, |(code, _)| code))
-        .collect::<Vec<_>>()
-        .join("\n");
+fn evm_ir_debug_contexts_preserve_bytecode() {
     let temp = tempfile::tempdir().unwrap();
     let path = temp.path().join("debug.evmir");
     let path = path.to_str().unwrap();
-    for mode in ["none", "gas", "size"] {
-        let args = [path, "-O", mode, "--emit=bin,bin-runtime", "-Zevm-ir-pipeline=peephole"];
-        fs::write(path, &plain).unwrap();
-        let baseline = compile_json(&args);
-        fs::write(path, &source).unwrap();
-        let annotated = compile_json(&args);
-        let audited = compile_json(&[args.as_slice(), &["-Zdebugify=check"]].concat());
-        assert_eq!(baseline["contracts"], annotated["contracts"], "{mode}: source contexts");
-        assert_eq!(baseline["contracts"], audited["contracts"], "{mode}: debugify");
+    for (pipeline, fixture) in [
+        ("peephole", "peephole/debug_replacements.evmir"),
+        ("cfg-simplify", "cfg-simplify/branch_entry_inversion.evmir"),
+        ("cfg-simplify", "cfg-simplify/thunk_chain_spans.evmir"),
+    ] {
+        let source = RealFileLoader
+            .load_file(&Path::new(FIXTURES).join("../../codegen/evm-ir").join(fixture))
+            .unwrap();
+        let plain = source
+            .lines()
+            .map(|line| line.split_once(" !metadata(").map_or(line, |(code, _)| code))
+            .map(|line| {
+                line.split_once(" [invoke=")
+                    .map_or_else(|| line.to_owned(), |(code, _)| format!("{code}:"))
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        for mode in ["none", "gas", "size"] {
+            let pipeline = format!("-Zevm-ir-pipeline={pipeline}");
+            let args = [path, "-O", mode, "--emit=bin,bin-runtime", &pipeline];
+            fs::write(path, &plain).unwrap();
+            let baseline = compile_json(&args);
+            fs::write(path, &source).unwrap();
+            let annotated = compile_json(&args);
+            let audited = compile_json(&[args.as_slice(), &["-Zdebugify=check"]].concat());
+            assert_eq!(
+                baseline["contracts"], annotated["contracts"],
+                "{fixture}, {mode}: source contexts"
+            );
+            assert_eq!(baseline["contracts"], audited["contracts"], "{fixture}, {mode}: debugify");
+        }
     }
 }

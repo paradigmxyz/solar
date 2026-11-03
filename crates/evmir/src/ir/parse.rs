@@ -72,12 +72,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 || block.metadata.entry_checkpoint.is_some()
                 || block.instructions.iter().any(|inst| {
                     inst.metadata.source_span().is_some()
+                        || !inst.metadata.checkpoint_transfers().is_empty()
                         || inst.metadata.function_invoke().is_some()
                         || inst.metadata.function_exit().is_some()
                         || inst.metadata.modifier_depth() != 0
                 })
                 || block.terminator.as_ref().is_some_and(|term| {
                     term.metadata.source_span().is_some()
+                        || !term.metadata.checkpoint_transfers().is_empty()
                         || term.metadata.function_invoke().is_some()
                         || term.metadata.function_exit().is_some()
                         || term.metadata.modifier_depth() != 0
@@ -536,6 +538,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
                 self.parser.expect(TokenKind::CloseDelim(Delimiter::Bracket))?;
                 metadata.set_source_spans(spans);
+            } else if key == sym::checkpoint {
+                self.parser.expect(TokenKind::Eq)?;
+                let (lo, hi) = self.parser.parse_span_bounds()?;
+                metadata.add_checkpoint_transfer(Span::new(BytePos(lo), BytePos(hi)));
             } else if key == sym::invoke {
                 self.parser.expect(TokenKind::Eq)?;
                 let identifier = self.parser.parse_ident()?;

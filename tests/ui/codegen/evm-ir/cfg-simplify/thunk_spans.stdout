@@ -7,14 +7,14 @@
 -   jumpi bb1, bb2 !metadata(span=10..20)
 - bb1:
 -   jump bb3 !metadata(span=30..40, invoke=callee@30..50)
-+   jumpi bb3, bb2 !metadata(span=10..20, invoke=callee@30..50)
++   jumpi bb3, bb2 !metadata(span=10..20)
   bb2:
     push 1
     push 0
     mstore
     stop
 - bb3:
-+ bb3 [checkpoint=30..40@10..20@0]:
++ bb3 [invoke=callee@30..50, checkpoint=30..40@10..20@0]:
     push 2
     push 0
     mstore
