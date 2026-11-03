@@ -1,0 +1,85 @@
+//@ revisions: gas size
+//@ compile-flags: -Zmir-pipeline=lower-builtins
+//@[gas] compile-flags: -O gas
+//@[gas] filecheck: --check-prefixes=CHECK,GAS
+//@[size] compile-flags: -O size
+//@[size] filecheck: --check-prefixes=CHECK,SIZE
+@module PackedWordArrayBlock
+
+// An array of words in calldata packs with one `calldatacopy`, as the standard encoder copies it.
+// CHECK-LABEL: fn @calldata_words(
+// CHECK-NOT: calldataload
+// CHECK: calldatacopy
+// CHECK-NOT: calldataload
+// CHECK: ret
+fn @calldata_words(arg0: slice<calldata>) -> ptr<memory> {
+  bb0:
+    v0 = abi_encode_packed (array<word> calldata arg0)
+    ret v0
+}
+
+// An array of fixed arrays of words copies as one block behind the wrap guard under the gas
+// objective, with the element loop as the fallback, and as the loop alone under size.
+// CHECK-LABEL: fn @calldata_nested(
+// GAS: calldatacopy
+// GAS: calldataload
+// SIZE-NOT: calldatacopy
+// SIZE: calldataload
+// SIZE-NOT: calldatacopy
+fn @calldata_nested(arg0: slice<calldata>) -> ptr<memory> {
+  bb0:
+    v0 = abi_encode_packed (array<array<2, word>> calldata arg0)
+    ret v0
+}
+
+// Words that solc loads one at a time, as for `int256`, keep the element loop.
+// CHECK-LABEL: fn @calldata_wordwise(
+// CHECK-NOT: calldatacopy
+// CHECK: calldataload
+fn @calldata_wordwise(arg0: slice<calldata>) -> ptr<memory> {
+  bb0:
+    v0 = abi_encode_packed (array<word, wordwise> calldata arg0)
+    ret v0
+}
+
+// Words that need cleanup keep the element loop.
+// CHECK-LABEL: fn @calldata_narrow(
+// CHECK-NOT: calldatacopy
+// CHECK: calldataload
+fn @calldata_narrow(arg0: slice<calldata>) -> ptr<memory> {
+  bb0:
+    v0 = abi_encode_packed (array<word<uint8>> calldata arg0)
+    ret v0
+}
+
+// A memory array of words copies with one `mcopy`.
+// CHECK-LABEL: fn @memory_words(
+// CHECK: mload arg0
+// CHECK-NOT: mload
+// CHECK: mcopy
+fn @memory_words(arg0: ptr<memory>) -> ptr<memory> {
+  bb0:
+    v0 = abi_encode_packed (array<word> memoryarray<1> arg0)
+    ret v0
+}
+
+// Each row of a memory array of arrays is its own object, so a loop over the rows copies each as a
+// block.
+// CHECK-LABEL: fn @memory_nested(
+// CHECK: mload
+// CHECK: mcopy
+fn @memory_nested(arg0: ptr<memory>) -> ptr<memory> {
+  bb0:
+    v0 = abi_encode_packed (array<array<2, word>> memoryfixedarray<2, 1> arg0)
+    ret v0
+}
+
+// Cleaned memory words keep the element loop.
+// CHECK-LABEL: fn @memory_narrow(
+// CHECK-NOT: mcopy
+// CHECK: mload
+fn @memory_narrow(arg0: ptr<memory>) -> ptr<memory> {
+  bb0:
+    v0 = abi_encode_packed (array<word<uint8>> memoryarray<1> arg0)
+    ret v0
+}

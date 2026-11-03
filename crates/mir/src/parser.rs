@@ -1897,6 +1897,15 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         sym::array => {
                             self.parser.expect(TokenKind::Lt)?;
                             let element = self.parse_abi_type()?;
+                            // A split `>>` still owes its closer, so the next comma belongs to the
+                            // caller.
+                            let wordwise =
+                                self.pending_gt == 0 && self.parser.eat(TokenKind::Comma);
+                            if wordwise && self.parser.parse_ident()? != sym::wordwise {
+                                return Err(self
+                                    .parser
+                                    .error("expected `wordwise` after the array element"));
+                            }
                             self.expect_gt()?;
                             let source_name = self.parser.parse_ident()?;
                             let source = match source_name {
@@ -1912,6 +1921,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                                 value: self.parse_value(builder)?,
                                 element,
                                 source,
+                                wordwise,
                             }
                         }
                         _ => super::PackedPart::Scalar {

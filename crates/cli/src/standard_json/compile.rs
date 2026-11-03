@@ -3,7 +3,7 @@
 use super::{
     data::{
         BytecodeOutput, CborAuxdata, CompilerInput, CompilerOutput, ContractOutput,
-        DebugInfoComponent, DebugSettings, EthdebugOutput, EvmOutput, FxIndexMap, MetadataHash,
+        DebugInfoComponent, DebugSettings, EthdebugOutput, EvmOutput, MetadataHash,
         MetadataSettings, OffsetLength, OutputSelection, OutputSelectionFlags, ReadCallbackResult,
         Settings, SourceOutput, StandardJsonReadCallback, optimizer_settings,
         print_standard_json_stats, strip_json_comments,
@@ -21,7 +21,7 @@ use solar_config::{
     CompileOpts, CompilerStage, EvmVersion, ImportRemapping, Language, LibraryAddress,
     OptimizationMode, RevertStrings, UnstableOpts,
 };
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::map::{FxHashMap, FxIndexMap};
 use solar_interface::{
     SourceMap,
     diagnostics::{DiagCtxt, InMemoryEmitter, JsonEmitter, SolcDiagnostic},
@@ -799,7 +799,7 @@ fn requested_bytecode_contracts(
 
     let mut contracts = ContractSelection::empty(gcx);
     for (contract_id, contract) in gcx.hir.contracts_enumerated() {
-        if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
+        if !contract.can_be_deployed() {
             continue;
         }
 
@@ -860,7 +860,7 @@ fn requested_debug_info_contracts(
 
     let mut contracts = ContractSelection::empty(gcx);
     for (contract_id, contract) in gcx.hir.contracts_enumerated() {
-        if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
+        if !contract.can_be_deployed() {
             continue;
         }
 
