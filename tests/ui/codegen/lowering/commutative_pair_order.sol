@@ -1,8 +1,8 @@
 //@ codegen-matrix: standard ir irsize
 //@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
-//@[ir] filecheck: --check-prefix=GAS
+//@[ir] filecheck:
 //@[irsize] compile-flags: -Osize -Zdump=evm-ir-runtime
-//@[irsize] filecheck: --check-prefix=SIZE
+//@[irsize] filecheck:
 //@ run-call: mulmodPair 7, 9, 10 => 4
 //@ run-call: addmodPair 7, 9, 10 => 7
 //@ run-call: mulmodPair 0x8000000000000000000000000000000000000000000000000000000000003039, 0x100000000000000000000000000000000000000000000000063, 1000003 => 790015
@@ -11,40 +11,23 @@
 // `addmod(a, b, n)` and `mulmod(a, b, n)` are commutative in `a` and `b` only. The planner tries
 // both orders of that pair and keeps the modulus in place, so the copies of `n` and `a` are pushed
 // first and the computed `b` goes last, on top, where it needs no swap.
-// GAS-LABEL: @module CommutativePairOrder_runtime
-// GAS: dup 2
-// GAS-NEXT: dup 2
-// GAS-NEXT: push 2
-// GAS-NEXT: push 36
-// GAS-NEXT: calldataload
-// GAS-NEXT: add
-// GAS-NEXT: addmod
-// GAS-NEXT: addmod
-// GAS: dup 2
-// GAS-NEXT: dup 2
-// GAS-NEXT: push 2
-// GAS-NEXT: push 36
-// GAS-NEXT: calldataload
-// GAS-NEXT: add
-// GAS-NEXT: mulmod
-// GAS-NEXT: mulmod
-// SIZE-LABEL: @module CommutativePairOrder_runtime
-// SIZE: dup 2
-// SIZE-NEXT: dup 2
-// SIZE-NEXT: push 2
-// SIZE-NEXT: push 36
-// SIZE-NEXT: calldataload
-// SIZE-NEXT: add
-// SIZE-NEXT: addmod
-// SIZE-NEXT: addmod
-// SIZE: dup 2
-// SIZE-NEXT: dup 2
-// SIZE-NEXT: push 2
-// SIZE-NEXT: push 36
-// SIZE-NEXT: calldataload
-// SIZE-NEXT: add
-// SIZE-NEXT: mulmod
-// SIZE-NEXT: mulmod
+// CHECK-LABEL: @module CommutativePairOrder_runtime
+// CHECK: dup 2
+// CHECK-NEXT: dup 2
+// CHECK-NEXT: push 2
+// CHECK-NEXT: push 36
+// CHECK-NEXT: calldataload
+// CHECK-NEXT: add
+// CHECK-NEXT: addmod
+// CHECK-NEXT: addmod
+// CHECK: dup 2
+// CHECK-NEXT: dup 2
+// CHECK-NEXT: push 2
+// CHECK-NEXT: push 36
+// CHECK-NEXT: calldataload
+// CHECK-NEXT: add
+// CHECK-NEXT: mulmod
+// CHECK-NEXT: mulmod
 contract CommutativePairOrder {
     function mulmodPair(uint256, uint256, uint256) external pure returns (uint256 r) {
         assembly {
