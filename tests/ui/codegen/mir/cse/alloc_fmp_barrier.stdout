@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/cse/alloc_fmp_barrier.mir (before cse) ===
-+ // === ROOT/tests/ui/codegen/mir/cse/alloc_fmp_barrier.mir (after cse) ===
+- ; === ROOT/tests/ui/codegen/mir/cse/alloc_fmp_barrier.mir (before cse) ===
++ ; === ROOT/tests/ui/codegen/mir/cse/alloc_fmp_barrier.mir (after cse) ===
   @module AllocFmpBarrier
   fn @unique_across_alloc(arg0: i256, arg1: i256) -> i256 {
     bb0:
@@ -85,7 +85,7 @@
   fn @loop_allocation(arg0: i256, arg1: i256, arg2: i1) -> i256 {
     bb0:
       jump bb1
-    bb1:  ; preds = bb0, bb1
+    bb1:                                            ; preds = bb0, bb1
       v0 = alloc 64
       v1 = ptrtoint ptr<memory> v0 to i256
       v2 = mload v1
@@ -93,7 +93,7 @@
       v4 = mload v1
       v5 = add v2, v4
       jumpi arg2, bb1, bb2
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       ret v5
   }
   

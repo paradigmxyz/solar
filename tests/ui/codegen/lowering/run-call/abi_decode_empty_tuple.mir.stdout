@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_empty_tuple.sol:AbiDecodeEmptyTuple ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_empty_tuple.sol:AbiDecodeEmptyTuple ===
 @module AbiDecodeEmptyTuple
 ; function record(uint256 value) internal returns (bytes memory)
 fn @record(arg0: i256) -> ptr<memory> {

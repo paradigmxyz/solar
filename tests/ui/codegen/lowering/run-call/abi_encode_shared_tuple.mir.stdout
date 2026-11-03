@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_shared_tuple.sol:AbiEncodeSharedTuple ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_shared_tuple.sol:AbiEncodeSharedTuple ===
 @module AbiEncodeSharedTuple
 ; function first(uint256 a, bytes memory b) external pure returns (bytes memory) [selector 0xa743b805]
 fn @first(arg0: i256, arg1: ptr<memory>) -> ptr<memory> [selector=0xa743b805, pure, abi_params=[uint256, bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/late-structural/shared_reverts.evmir (before terminal-dedup) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/late-structural/shared_reverts.evmir (after terminal-dedup) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/late-structural/shared_reverts.evmir (before terminal-dedup) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/late-structural/shared_reverts.evmir (after terminal-dedup) ===
   @module SharedReverts
   bb0:
     push 4

@@ -1230,6 +1230,18 @@ impl Op {
         }
         out
     }
+
+    /// Returns the value operands in visit order.
+    #[must_use]
+    pub fn operands(self) -> SmallVec<[ValueId; 8]> {
+        let mut operands = SmallVec::new();
+        // Only the visit matters; the mapped copy is discarded.
+        let _ = self.map_values(|value| {
+            operands.push(value);
+            value
+        });
+        operands
+    }
 }
 
 define_mir_ops! {

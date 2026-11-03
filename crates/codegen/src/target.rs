@@ -20,7 +20,7 @@
 use crate::{
     backend::evm::{ir::compact_pushes, op, select},
     mir::{
-        BlockId, Function, FunctionAttributes, Hotness, InstId, Op, Terminator, Value, ValueId,
+        BlockId, Function, FunctionAttributes, Hotness, InstId, Op, Terminator, ValueId,
         analysis::AddressSpace, memory::EvmMemoryLayout,
     },
 };
@@ -575,6 +575,9 @@ impl Target {
         if matches!(op, Op::Zext { .. } | Op::IntToPtr { .. }) {
             return Cost::ZERO;
         }
+        if matches!(op, Op::Select { .. }) {
+            return self.select();
+        }
         if matches!(op, Op::Eq { .. } | Op::Ne { .. }) {
             let comparison =
                 if Self::zero_test_input(op, &immediate).is_some() { op::ISZERO } else { op::EQ };
@@ -590,12 +593,7 @@ impl Target {
         if dynamic_gas == 0 {
             return Cost::new(static_gas, 1).with_steps(1);
         }
-        let mut arguments = SmallVec::<[Option<U256>; 8]>::new();
-        // Only the visit matters; the mapped copy is discarded.
-        let _ = op.map_values(|value| {
-            arguments.push(immediate(value));
-            value
-        });
+        let arguments = op.operands().into_iter().map(immediate).collect::<SmallVec<[_; 8]>>();
         let dynamic = dynamic_gas.saturating_mul(tier.dynamic_units(&arguments));
         Cost::new(static_gas.saturating_add(dynamic), 1).with_steps(1)
     }
@@ -628,13 +626,9 @@ impl Target {
     }
 
     /// Cost of the generic Select emitter, excluding initial operand placement.
-    pub(crate) fn select(&self, normalize_condition: bool) -> Cost {
-        // dup3; swap1; sub; mul; add.
-        let sequence = [op::DUP3, op::SWAP1, op::SUB, op::MUL, op::ADD]
-            .into_iter()
-            .map(|opcode| self.opcode(opcode))
-            .sum::<Cost>();
-        if normalize_condition { sequence + self.opcode(op::ISZERO) } else { sequence }
+    pub(crate) fn select(&self) -> Cost {
+        // sub; mul; add.
+        self.select_stack_ops() + self.opcode(op::SUB) + self.opcode(op::MUL) + self.opcode(op::ADD)
     }
 
     /// Gas of copying one more word with a copy opcode.
@@ -745,10 +739,7 @@ impl Target {
     /// Estimated code of one instruction: its operation and the pushes of its immediate operands.
     pub(crate) fn instruction_estimate(&self, func: &Function, inst: InstId) -> Cost {
         let kind = &func.inst(inst).kind;
-        let immediate = |value| match func.value(value) {
-            Value::Immediate(immediate) => immediate.as_u256(),
-            _ => None,
-        };
+        let immediate = |value| func.value_u256(value);
         let mut cost = self.op(&kind.op(), immediate);
         kind.visit_operands(|operand| {
             if let Some(value) = immediate(operand) {
@@ -1024,6 +1015,39 @@ impl Target {
         self.cmp_lifetime(guarded, copy).is_lt()
     }
 
+    /// Whether ABI encoding of a memory struct of `words` word fields copies them as one
+    /// `MCOPY` block, then cleans its narrow fields in place, rather than loading and storing
+    /// each field. `full` lists the indices of the full-width fields, the only ones the copy
+    /// saves: a narrow field is loaded, cleaned, and stored in either shape. Each saved field
+    /// computes its source and destination addresses, which field 0 shares with the struct
+    /// and its output, and loads and stores the word; the copy pushes its size, copies both
+    /// addresses, and pays for every word, narrow ones included.
+    pub(crate) fn copies_struct_block(
+        &self,
+        words: usize,
+        full: impl Iterator<Item = usize>,
+    ) -> bool {
+        if !self.evm_version.has_mcopy() {
+            return false;
+        }
+        let word = op::WORD_BYTES;
+        let address = |index: usize| {
+            if index == 0 {
+                self.dup()
+            } else {
+                self.dup() + self.push(U256::from(index * word)) + self.opcode(op::ADD)
+            }
+        };
+        let fields = full
+            .map(|index| address(index).times(2) + self.opcode(op::MLOAD) + self.opcode(op::MSTORE))
+            .sum::<Cost>();
+        let copy = self.push(U256::from(words * word))
+            + self.dup().times(2)
+            + self.opcode(op::MCOPY)
+            + self.copied_words(words * word);
+        self.cmp(copy, fields).is_lt()
+    }
+
     /// The factor `2**shift` that a constant shift lowered to `MUL` or `DIV` pushes, or `None`
     /// when computing it with `EXP` costs less over the deployment lifetime. Shifts of 256 or
     /// more give a zero factor, which matches the wrapped `EXP` result.
@@ -1288,6 +1312,12 @@ impl Target {
         };
         linear.times(recurrences) + linear.times(quadratic) + self.jump() + triangular
     }
+
+    /// Cost of the stack operations the Select emitter adds around its arithmetic: from
+    /// `[f, c, t]`, `dup3; swap1` leaves `[f, c, f, t]` for `sub; mul; add`.
+    pub(crate) fn select_stack_ops(&self) -> Cost {
+        self.opcode(op::DUP3) + self.opcode(op::SWAP1)
+    }
 }
 
 #[cfg(test)]
@@ -1420,8 +1450,13 @@ mod tests {
     #[test]
     fn select_prices_the_emitted_sequence() {
         let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
-        assert_eq!(target.select(false), Cost::new(17, 5).with_steps(5));
-        assert_eq!(target.select(true), Cost::new(20, 6).with_steps(6));
+        assert_eq!(target.select_stack_ops(), Cost::new(6, 2).with_steps(2));
+        assert_eq!(target.select(), Cost::new(17, 5).with_steps(5));
+
+        let mut function = Function::new(Ident::DUMMY);
+        let value = function.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
+        let select = InstKind::Select(value, value, value).op();
+        assert_eq!(target.op(&select, |_| None), target.select());
     }
 
     #[test]
@@ -1818,6 +1853,25 @@ mod tests {
             assert!(gas.guards_zero_copy_return());
             let once = Target::with(version, OptimizationMode::Gas, 1);
             assert!(!once.guards_zero_copy_return());
+        }
+    }
+
+    #[test]
+    fn struct_block_copy_needs_mcopy_and_saved_words() {
+        for mode in [OptimizationMode::Gas, OptimizationMode::Size] {
+            let shanghai = Target::with(EvmVersion::Shanghai, mode, 200);
+            let cancun = Target::with(EvmVersion::Cancun, mode, 200);
+            // Seaport's `OfferItem` (enum, address, three words) and `ConsiderationItem`
+            // (the same and an address).
+            assert!(!shanghai.copies_struct_block(5, [2, 3, 4].into_iter()));
+            assert!(cancun.copies_struct_block(5, [2, 3, 4].into_iter()));
+            assert!(cancun.copies_struct_block(6, [2, 3, 4].into_iter()));
+            assert!(cancun.copies_struct_block(2, [0, 1].into_iter()));
+            assert!(cancun.copies_struct_block(2, [1].into_iter()));
+            // One full word at the struct's own address is cheaper to move by itself, and a
+            // struct of narrow fields saves nothing.
+            assert!(!cancun.copies_struct_block(1, [0].into_iter()));
+            assert!(!cancun.copies_struct_block(3, [].into_iter()));
         }
     }
 

@@ -9,80 +9,29 @@
 ;; (x & y) & (x ^ y) => 0.
 (rule (rewrite (Op.And (band v0 v1) (bxor v0 v1))) (Op.Add (imm (u256 0)) (imm (u256 0))))
 
-;; (x & y) & (y ^ x) => 0.
-(rule (rewrite (Op.And (band v0 v1) (bxor v1 v0))) (Op.Add (imm (u256 0)) (imm (u256 0))))
-
 ;; (x & y) & (x | y) => x & y.
 (rule (rewrite (Op.And (band v0 v1) (bor v0 v1))) (Op.And v0 v1))
-
-;; (x & y) & (y | x) => x & y.
-(rule (rewrite (Op.And (band v0 v1) (bor v1 v0))) (Op.And v0 v1))
-
-;; (x | y) & (y & x) => x & y.
-(rule (rewrite (Op.And (bor v0 v1) (band v1 v0))) (Op.And v0 v1))
 
 ;; (x | y) & (x ^ y) => x ^ y.
 (rule (rewrite (Op.And (bor v0 v1) (bxor v0 v1))) (Op.Xor v0 v1))
 
-;; (x | y) & (y ^ x) => x ^ y.
-(rule (rewrite (Op.And (bor v0 v1) (bxor v1 v0))) (Op.Xor v0 v1))
-
-;; (x ^ y) & (y | x) => x ^ y.
-(rule (rewrite (Op.And (bxor v0 v1) (bor v1 v0))) (Op.Xor v0 v1))
-
 ;; (x & y) | (x | y) => x | y.
 (rule (rewrite (Op.Or (band v0 v1) (bor v0 v1))) (Op.Or v0 v1))
-
-;; (x & y) | (y | x) => x | y.
-(rule (rewrite (Op.Or (band v0 v1) (bor v1 v0))) (Op.Or v0 v1))
-
-;; (x | y) | (y & x) => x | y.
-(rule (rewrite (Op.Or (bor v0 v1) (band v1 v0))) (Op.Or v0 v1))
 
 ;; (x & y) | (x ^ y) => x | y.
 (rule (rewrite (Op.Or (band v0 v1) (bxor v0 v1))) (Op.Or v0 v1))
 
-;; (x & y) | (y ^ x) => x | y.
-(rule (rewrite (Op.Or (band v0 v1) (bxor v1 v0))) (Op.Or v0 v1))
-
-;; (x ^ y) | (y & x) => x | y.
-(rule (rewrite (Op.Or (bxor v0 v1) (band v1 v0))) (Op.Or v0 v1))
-
 ;; (x | y) | (x ^ y) => x | y.
 (rule (rewrite (Op.Or (bor v0 v1) (bxor v0 v1))) (Op.Or v0 v1))
-
-;; (x | y) | (y ^ x) => x | y.
-(rule (rewrite (Op.Or (bor v0 v1) (bxor v1 v0))) (Op.Or v0 v1))
-
-;; (x ^ y) | (y | x) => x | y.
-(rule (rewrite (Op.Or (bxor v0 v1) (bor v1 v0))) (Op.Or v0 v1))
 
 ;; (x & y) ^ (x | y) => x ^ y.
 (rule (rewrite (Op.Xor (band v0 v1) (bor v0 v1))) (Op.Xor v0 v1))
 
-;; (x & y) ^ (y | x) => x ^ y.
-(rule (rewrite (Op.Xor (band v0 v1) (bor v1 v0))) (Op.Xor v0 v1))
-
-;; (x | y) ^ (y & x) => x ^ y.
-(rule (rewrite (Op.Xor (bor v0 v1) (band v1 v0))) (Op.Xor v0 v1))
-
 ;; (x & y) ^ (x ^ y) => x | y.
 (rule (rewrite (Op.Xor (band v0 v1) (bxor v0 v1))) (Op.Or v0 v1))
 
-;; (x & y) ^ (y ^ x) => x | y.
-(rule (rewrite (Op.Xor (band v0 v1) (bxor v1 v0))) (Op.Or v0 v1))
-
-;; (x ^ y) ^ (y & x) => x | y.
-(rule (rewrite (Op.Xor (bxor v0 v1) (band v1 v0))) (Op.Or v0 v1))
-
 ;; (x | y) ^ (x ^ y) => x & y.
 (rule (rewrite (Op.Xor (bor v0 v1) (bxor v0 v1))) (Op.And v0 v1))
-
-;; (x | y) ^ (y ^ x) => x & y.
-(rule (rewrite (Op.Xor (bor v0 v1) (bxor v1 v0))) (Op.And v0 v1))
-
-;; (x ^ y) ^ (y | x) => x & y.
-(rule (rewrite (Op.Xor (bxor v0 v1) (bor v1 v0))) (Op.And v0 v1))
 
 ;; ((x | y) - x) & x => 0.
 (rule (rewrite (Op.And (sub (bor v0 v1) v0) v0)) (Op.Add (imm (u256 0)) (imm (u256 0))))
@@ -139,12 +88,6 @@
 
 ;; (t ^ x) ^ (t ^ y) => x ^ y.
 (rule (rewrite (Op.Xor (bxor t x) (bxor t y)))  (Op.Xor x y))
-
-;; (x ^ t) ^ (t ^ y) => x ^ y.
-(rule (rewrite (Op.Xor (bxor x t) (bxor t y)))  (Op.Xor x y))
-
-;; (t ^ x) ^ (y ^ t) => x ^ y.
-(rule (rewrite (Op.Xor (bxor t x) (bxor y t)))  (Op.Xor x y))
 
 ;; (x ^ t) ^ (y ^ t) => x ^ y.
 (rule (rewrite (Op.Xor (bxor x t) (bxor y t)))  (Op.Xor x y))
@@ -207,14 +150,8 @@
 ;; (x < y) ^ (x != y) => x > y.
 (rule (rewrite (Op.Xor (lt x y) (ne x y))) (Op.Gt x y))
 
-;; (x < y) ^ (y != x) => x > y.
-(rule (rewrite (Op.Xor (lt x y) (ne y x))) (Op.Gt x y))
-
 ;; (x > y) ^ (x != y) => x < y.
 (rule (rewrite (Op.Xor (gt x y) (ne x y))) (Op.Lt x y))
-
-;; (x > y) ^ (y != x) => x < y.
-(rule (rewrite (Op.Xor (gt x y) (ne y x))) (Op.Lt x y))
 
 ;; (x < y) | (y < x) => x != y.
 (rule (rewrite (Op.Or (lt x y) (lt y x))) (Op.Ne x y))
@@ -222,32 +159,14 @@
 ;; (x < y) ^ (y < x) => x != y.
 (rule (rewrite (Op.Xor (lt x y) (lt y x))) (Op.Ne x y))
 
-;; (x > y) | (y > x) => x != y.
-(rule (rewrite (Op.Or (gt x y) (gt y x))) (Op.Ne x y))
-
-;; (x > y) ^ (y > x) => x != y.
-(rule (rewrite (Op.Xor (gt x y) (gt y x))) (Op.Ne x y))
-
 ;; (signed(x) < signed(y)) ^ (x != y) => signed(x) > signed(y).
 (rule (rewrite (Op.Xor (slt x y) (ne x y))) (Op.SGt x y))
 
-;; (signed(x) < signed(y)) ^ (y != x) => signed(x) > signed(y).
-(rule (rewrite (Op.Xor (slt x y) (ne y x))) (Op.SGt x y))
-
 ;; (signed(x) > signed(y)) ^ (x != y) => signed(x) < signed(y).
 (rule (rewrite (Op.Xor (sgt x y) (ne x y))) (Op.SLt x y))
-
-;; (signed(x) > signed(y)) ^ (y != x) => signed(x) < signed(y).
-(rule (rewrite (Op.Xor (sgt x y) (ne y x))) (Op.SLt x y))
 
 ;; (signed(x) < signed(y)) | (signed(y) < signed(x)) => x != y.
 (rule (rewrite (Op.Or (slt x y) (slt y x))) (Op.Ne x y))
 
 ;; (signed(x) < signed(y)) ^ (signed(y) < signed(x)) => x != y.
 (rule (rewrite (Op.Xor (slt x y) (slt y x))) (Op.Ne x y))
-
-;; (signed(x) > signed(y)) | (signed(y) > signed(x)) => x != y.
-(rule (rewrite (Op.Or (sgt x y) (sgt y x))) (Op.Ne x y))
-
-;; (signed(x) > signed(y)) ^ (signed(y) > signed(x)) => x != y.
-(rule (rewrite (Op.Xor (sgt x y) (sgt y x))) (Op.Ne x y))

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/delete_memory_local.sol:DeleteMemoryLocal ===
+; === ROOT/tests/ui/codegen/lowering/run-call/delete_memory_local.sol:DeleteMemoryLocal ===
 @module DeleteMemoryLocal
 ; function length(bool clear) external pure returns (uint256) [selector 0x80328f7c]
 fn @length(arg0: i1) -> i256 [selector=0x80328f7c, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
@@ -12,13 +12,13 @@ fn @length(arg0: i1) -> i256 [selector=0x80328f7c, pure, abi_params=[bool], abi_
     v4 = ptradd v0, 32
     mstore v4, 7
     jumpi arg0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v5 = alloc 32
     mstore v5, 0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v6 = phi [bb1: v5], [bb2: v0]
     v7 = mload v6
     ret v7

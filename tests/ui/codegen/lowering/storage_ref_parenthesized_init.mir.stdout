@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/storage_ref_parenthesized_init.sol:StorageRefParenthesizedInit ===
+; === ROOT/tests/ui/codegen/lowering/storage_ref_parenthesized_init.sol:StorageRefParenthesizedInit ===
 @module StorageRefParenthesizedInit
 ; function put(bytes32 itemHash, uint256 value) external returns (uint256) [selector 0xda4a9842]
 fn @put(arg0: i256, arg1: i256) -> i256 [selector=0xda4a9842, abi_params=[bytes32, uint256], abi_returns=[word], abi_return_params=[uint256]] {

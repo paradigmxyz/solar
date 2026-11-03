@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/inline/stack_budget.sol:StackBudget ===
+; === ROOT/tests/ui/codegen/mir/inline/stack_budget.sol:StackBudget ===
 @module StackBudget
 ; function choose(bool condition, uint256 x) external pure returns (uint256) [selector 0xced8609d]
 fn @choose(arg0: i1, arg1: i256) -> i256 [selector=0xced8609d, pure, abi_params=[bool, uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -12,13 +12,13 @@ fn @choose(arg0: i1, arg1: i256) -> i256 [selector=0xced8609d, pure, abi_params=
 fn @branch(arg0: i1, arg1: i256) -> i256 [pure] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v1 = xor arg1, 23
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v0 = add arg1, 7
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v2 = phi [bb1: v0], [bb2: v1]
     ret v2
 }

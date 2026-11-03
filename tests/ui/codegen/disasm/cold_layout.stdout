@@ -1,4 +1,4 @@
-// === cold_layout (runtime) ===
+; === cold_layout (runtime) ===
 PUSH1 0x01
 PUSH1 0x06 ; bb0
 JUMPI

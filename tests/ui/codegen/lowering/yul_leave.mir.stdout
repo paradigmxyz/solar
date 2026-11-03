@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/yul_leave.sol:YulLeave ===
+; === ROOT/tests/ui/codegen/lowering/yul_leave.sol:YulLeave ===
 @module YulLeave
 @types
   struct0: {i256, i256}
@@ -46,11 +46,11 @@ fn @value.5(arg0: i256) -> i256 {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     ret 9
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     ret 2
 }
 

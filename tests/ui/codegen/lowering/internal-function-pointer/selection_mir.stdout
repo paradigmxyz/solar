@@ -1,14 +1,14 @@
-// === ROOT/tests/ui/codegen/lowering/internal-function-pointer/selection_mir.sol:FunctionPointerSelection ===
+; === ROOT/tests/ui/codegen/lowering/internal-function-pointer/selection_mir.sol:FunctionPointerSelection ===
 @module FunctionPointerSelection
 ; function choose(bool add, uint256 value) public returns (uint256) [selector 0xced8609d]
 fn @choose(arg0: i1, arg1: i256) -> i256 [selector=0xced8609d, abi_params=[bool, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v0 = phi [bb1: 1], [bb2: 2]
     v1 = icall @internal_dispatcher_p_uint256_r_uint256, v0, arg1
     ret v1
@@ -55,12 +55,12 @@ fn @incrementView(arg0: i256) -> i256 [view] {
     v0 = number
     v1 = eq v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jumpi v1, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v2 = checked_add uint256, arg0, 1
     ret v2
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     ret arg0
 }
 
@@ -68,22 +68,22 @@ fn @internal_dispatcher_p_uint256_r_uint256(arg0: i256, arg1: i256) -> i256 [fun
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v2 = eq arg0, 2
     jumpi v2, bb3, bb4
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v4 = eq arg0, 3
     jumpi v4, bb5, bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     icall panic_if<0x51>, true
     invalid
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     v5 = icall @incrementView, arg1
     ret v5
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v3 = icall @decrement, arg1
     ret v3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = icall @increment, arg1
     ret v1
 }

@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/none/exchange_lowering.evmir (before none) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/none/exchange_lowering.evmir (after none) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/none/exchange_lowering.evmir (before none) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/none/exchange_lowering.evmir (after none) ===
   @module exchange_lowering
   bb0:
     push 0
@@ -8,7 +8,7 @@
     exchange 1, 2
     stop
   
-// === exchange_lowering (deployment) ===
+; === exchange_lowering (deployment) ===
 PUSH0
 PUSH1 0x01
 PUSH1 0x02

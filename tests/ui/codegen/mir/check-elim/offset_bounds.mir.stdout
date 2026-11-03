@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/check-elim/offset_bounds.sol:OffsetBounds ===
+; === ROOT/tests/ui/codegen/mir/check-elim/offset_bounds.sol:OffsetBounds ===
 @module OffsetBounds
 ; function copyHigh() external pure returns (bytes memory d) [selector 0xf4f1833d]
 fn @copyHigh() -> ptr<memory> [selector=0xf4f1833d, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -15,17 +15,17 @@ fn @copyHigh() -> ptr<memory> [selector=0xf4f1833d, pure, abi_params=[], abi_ret
     v8 = alloc zeroed checked v6
     mstore v8, v3
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v9 = phi [bb0: v8], [bb3: v9]
     v10 = phi [bb0: v2], [bb3: v10]
     v11 = phi [bb0: 0], [bb3: v32]
     v12 = lt v11, v10
     jumpi v12, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     ret v9
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v13 = calldatasize
     v14 = make_calldata_slice ptr<calldata> 0, v13
     v15 = extract_value slice<calldata>, v14, 1
@@ -49,9 +49,9 @@ fn @copyHigh() -> ptr<memory> [selector=0xf4f1833d, pure, abi_params=[], abi_ret
     v31 = ptradd v30, 32
     mstore8 v31, v29
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v32 = checked_add uint256, v11, 1
     jump bb1
 }

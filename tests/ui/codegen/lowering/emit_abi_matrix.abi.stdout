@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/emit_abi_matrix.sol:C ===
+; === ROOT/tests/ui/codegen/lowering/emit_abi_matrix.sol:C ===
 @module C
 ; constructor(uint value) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {

@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/tail-merge/keep_with_next.evmir (before tail-merge) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/tail-merge/keep_with_next.evmir (after tail-merge) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/tail-merge/keep_with_next.evmir (before tail-merge) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/tail-merge/keep_with_next.evmir (after tail-merge) ===
   @module KeepWithNextTailMerge
   bb0:
     push 1
