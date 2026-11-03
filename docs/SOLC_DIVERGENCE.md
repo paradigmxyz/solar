@@ -542,6 +542,35 @@ needs to number its AST.
 
 Coverage: `tests/ui/typeck/constant_cycles/cross_source_dependency_order.sol`.
 
+### TYPECK-023: AST JSON
+
+Status: parity debt for statements, expressions and inline assembly;
+intentional for the rest.
+
+Difference: `solar` writes the compact AST JSON of `solc` (the `ast` output of
+Standard JSON and `--emit=ast`) for declarations, not yet for statements,
+expressions and inline assembly. Function and modifier bodies, the arguments
+of modifier invocations and base constructor calls, array lengths, the initial
+values of variables and the base slot of a contract are left out. Node IDs do
+not follow the numbering of `solc`: items take the IDs that
+`immutableReferences`, the storage layout and ETHDebug report, source units and
+imports follow them, and every other node takes the next free ID. `solar`
+leaves out the `EnumValue` documentation, which its AST does not keep, and
+reads `contractDependencies`, `usedEvents` and `usedErrors` from the call
+graph used for code generation. It reads the `license` only from the comments
+before the first token, and includes a comment between a variable and its `;`
+in the location of the variable. For a module alias that reaches a source
+through another source's imports, `exportedSymbols` and imported symbols name
+the first directive that declares an alias to that source, which differs from
+`solc` when several sources declare the same alias.
+
+Rationale: IDs must agree across the outputs of one compilation, not with
+`solc`. Consumers that look up declarations by ID do not need `solc`'s
+numbering.
+
+Coverage: `tests/ui/standard-json/ast/test.jsonc`,
+`tests/ui/standard-json/ast-ids/test.jsonc` and `tests/ui/cli/emit_ast.sol`.
+
 ### TYPECK-011: Module-typed conditionals
 
 Status: intentional.

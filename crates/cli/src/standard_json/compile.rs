@@ -15,6 +15,7 @@ use crate::{
     ethdebug::{EthdebugCompilation, make_ethdebug_compilation, make_ethdebug_program},
 };
 use rayon::prelude::*;
+use serde::Serialize;
 use serde_json::json;
 use solar_codegen::{ContractArtifact, ContractSelection, ImmutableReference, RuntimeDataFn};
 use solar_config::{
@@ -30,6 +31,7 @@ use solar_interface::{
 use solar_sema::{Gcx, hir::ContractId};
 use std::{
     borrow::Cow,
+    cell::OnceCell,
     fs::File,
     io::{self, Read, Write},
     path::{Path, PathBuf},
@@ -121,14 +123,14 @@ fn write_empty_standard_json_output(
     diagnostics: &solar_data_structures::sync::RwLock<Vec<solar_interface::diagnostics::Diag>>,
     out: &mut (dyn Write + Send),
 ) -> io::Result<()> {
-    let output = CompilerOutput::default();
+    let output: CompilerOutput<'_> = CompilerOutput::default();
     let diagnostics = diagnostics.read();
     finish_standard_json_output(output, source_map, opts, &diagnostics, out)
 }
 
 #[tracing::instrument(name = "write_output", level = "debug", skip_all)]
-fn finish_standard_json_output<'a>(
-    mut output: CompilerOutput<'a>,
+fn finish_standard_json_output<'a, S: Serialize>(
+    mut output: CompilerOutput<'a, ContractOutput<'a>, S>,
     source_map: Arc<SourceMap>,
     opts: &CompileOpts,
     diagnostics: &'a [solar_interface::diagnostics::Diag],
@@ -311,11 +313,14 @@ fn compile(
     let _ = crate::commands::compile::run_compiler_session_with(
         sess,
         |compiler| {
+            // The AST JSON must outlive the output that borrows it.
+            let ast_json = OnceCell::new();
             let mut output = CompilerOutput::default();
             let result = (|| {
                 let mut parsed_sources = FxIndexMap::default();
                 let control_flow = crate::commands::compile::run_pipeline(
                     compiler,
+                    output_selection.requests_ast(),
                     |pcx| {
                         let mut files = Vec::<(PathBuf, String)>::with_capacity(sources.len());
                         for (name, source) in sources {
@@ -341,6 +346,15 @@ fn compile(
                 }
 
                 let gcx = compiler.gcx();
+                if output_selection.requests_ast() {
+                    let ast_json = ast_json.get_or_init(|| gcx.ast_json());
+                    let sources = output.sources.iter_mut().flatten();
+                    for ((name, source), id) in sources.zip(gcx.hir.source_ids()) {
+                        if output_selection.ast(name) {
+                            source.ast = ast_json.source(id);
+                        }
+                    }
+                }
                 let bytecode_contracts = requested_bytecode_contracts(gcx, output_selection);
                 let debug_info_contracts = requested_debug_info_contracts(gcx, output_selection);
                 let needs_metadata = output_selection.requests_metadata()
@@ -532,14 +546,17 @@ fn disallowed_io(path: &Path) -> io::Error {
 }
 
 #[tracing::instrument(name = "source_outputs", level = "debug", skip_all)]
-fn source_outputs_from_compiler(
+fn source_outputs_from_compiler<'a, 'gcx>(
     compiler: &solar_sema::CompilerRef<'_>,
-) -> FxIndexMap<String, SourceOutput> {
+) -> FxIndexMap<String, SourceOutput<'a, 'gcx>> {
     let gcx = compiler.gcx();
     gcx.sources
         .iter_enumerated()
         .map(|(id, source)| {
-            (source.file.name.display().to_string(), SourceOutput { id: id.index() as u32 })
+            (
+                source.file.name.display().to_string(),
+                SourceOutput { id: id.index() as u32, ast: None },
+            )
         })
         .collect()
 }

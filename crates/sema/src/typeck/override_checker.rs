@@ -36,6 +36,11 @@ pub(crate) fn check(gcx: Gcx<'_>, contract_id: ContractId) {
     checker.check();
 }
 
+/// Returns `true` if the contract implements every function it declares or inherits.
+pub(crate) fn is_fully_implemented(gcx: Gcx<'_>, contract_id: ContractId) -> bool {
+    OverrideChecker::new(gcx, contract_id).unimplemented_functions().is_empty()
+}
+
 type InheritedFunctions<'gcx> = FxIndexMap<OverrideSignature<'gcx>, Vec<OverrideProxy>>;
 
 pub(crate) struct OverrideIndex<'gcx> {
@@ -917,19 +922,17 @@ impl<'gcx> OverrideChecker<'gcx> {
         diag.emit();
     }
 
-    fn check_abstract_definitions(&self) {
+    /// Returns the functions of the linearized bases that the contract does not implement, and
+    /// the bases that declare them.
+    fn unimplemented_functions(&self) -> Vec<(OverrideProxy, ContractId)> {
         let contract = self.contract();
-
-        if contract.is_abstract() || contract.kind.is_interface() {
-            return;
-        }
-
         let mut unimplemented: Vec<(OverrideProxy, ContractId)> = Vec::new();
 
         for &f_id in &override_index(self.gcx).unimplemented_functions {
             let f = self.gcx.hir.function(f_id);
             let Some(base_id) = f.contract else { continue };
             if f.kind.is_constructor()
+                || f.is_yul
                 || f.name.is_none()
                 || !contract.linearized_bases.contains(&base_id)
             {
@@ -953,6 +956,17 @@ impl<'gcx> OverrideChecker<'gcx> {
             }
         }
 
+        unimplemented
+    }
+
+    fn check_abstract_definitions(&self) {
+        let contract = self.contract();
+
+        if contract.is_abstract() || contract.kind.is_interface() {
+            return;
+        }
+
+        let unimplemented = self.unimplemented_functions();
         let mut seen_sigs: FxHashSet<OverrideSignature<'gcx>> = FxHashSet::default();
         for (proxy, base_id) in unimplemented {
             let sig = self.signature(proxy);

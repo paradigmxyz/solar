@@ -16,7 +16,7 @@ use solar_codegen::{
 use solar_config::{CompilerOutput, Dump, DumpKind};
 use solar_data_structures::map::FxHashMap;
 use solar_interface::Result;
-use solar_sema::{CompilerRef, Gcx, hir::ContractId};
+use solar_sema::{CompilerRef, Gcx, hir::ContractId, output::SourceAstJson};
 use std::{
     collections::BTreeMap,
     fmt,
@@ -28,14 +28,23 @@ use std::{
 type Hashes = BTreeMap<String, String>;
 
 #[derive(Default, serde::Serialize)]
-struct CombinedJson<'a> {
+struct CombinedJson<'a, 'gcx> {
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     contracts: BTreeMap<String, CombinedJsonContract<'a>>,
     #[serde(rename = "sourceList", skip_serializing_if = "Option::is_none")]
     source_list: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    sources: BTreeMap<String, CombinedJsonSource<'a, 'gcx>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     ethdebug: Option<EthdebugResources>,
     version: &'static str,
+}
+
+#[derive(serde::Serialize)]
+struct CombinedJsonSource<'a, 'gcx> {
+    #[serde(rename = "AST")]
+    ast: SourceAstJson<'a, 'gcx>,
+    id: u32,
 }
 
 #[derive(Default, serde::Serialize)]
@@ -441,6 +450,7 @@ fn emit_combined_json(
 
     let [
         mut emit_abi,
+        mut emit_ast,
         mut emit_hashes,
         mut emit_bin,
         mut emit_bin_runtime,
@@ -455,6 +465,7 @@ fn emit_combined_json(
         codegen_requested |= output.is_codegen();
         match output {
             CompilerOutput::Abi => emit_abi = true,
+            CompilerOutput::Ast => emit_ast = true,
             CompilerOutput::Hashes => emit_hashes = true,
             CompilerOutput::Bin => emit_bin = true,
             CompilerOutput::BinRuntime => emit_bin_runtime = true,
@@ -470,8 +481,9 @@ fn emit_combined_json(
         .then(|| make_ethdebug_compilation(gcx, None));
     let source_map_encoder =
         (emit_srcmap || emit_srcmap_runtime).then(|| SourceMapEncoder::new(gcx));
+    let ast_json = emit_ast.then(|| gcx.ast_json());
     let mut output = CombinedJson {
-        source_list: source_map_encoder.as_ref().map(|_| {
+        source_list: (emit_ast || source_map_encoder.is_some()).then(|| {
             gcx.hir
                 .source_ids()
                 .map(|id| gcx.hir.source(id).file.name.display().to_string())
@@ -480,6 +492,14 @@ fn emit_combined_json(
         version: solar_config::version::solc_compat_version(),
         ..Default::default()
     };
+    if let Some(ast_json) = &ast_json {
+        for id in gcx.hir.source_ids() {
+            if let Some(ast) = ast_json.source(id) {
+                let name = gcx.hir.source(id).file.name.display().to_string();
+                output.sources.insert(name, CombinedJsonSource { ast, id: id.index() as u32 });
+            }
+        }
+    }
 
     let emit_contracts = emit_abi || emit_hashes || codegen_requested;
     for id in gcx.hir.contract_ids().filter(|_| emit_contracts) {
@@ -531,7 +551,7 @@ fn emit_combined_json(
 
     // Every emitted program references this resource, including its source contents.
     output.ethdebug = compilation.map(|compilation| compilation.into_resources());
-    write_output_json(gcx, &output, codegen_requested || output.ethdebug.is_some())
+    write_output_json(gcx, &output, codegen_requested || emit_ast || output.ethdebug.is_some())
 }
 
 #[tracing::instrument(name = "write_output", level = "debug", skip_all)]

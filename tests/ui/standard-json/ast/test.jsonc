@@ -1,0 +1,52 @@
+//@ filecheck:
+// Every node type of a declaration, and some of their fields, in order of appearance.
+// CHECK: "nodeType": "SourceUnit"
+// CHECK: "license": "MIT"
+// CHECK: "nodeType": "PragmaDirective"
+// CHECK: ".20"
+// CHECK: "nodeType": "ContractDefinition"
+// CHECK: "nodeType": "FunctionDefinition"
+// CHECK: "nodeType": "ParameterList"
+// CHECK: "nodeType": "VariableDeclaration"
+// CHECK: "nodeType": "ElementaryTypeName"
+// CHECK: "nodeType": "ImportDirective"
+// CHECK: "nodeType": "Identifier"
+// CHECK: "unitAlias": "B"
+// CHECK: "nodeType": "UserDefinedValueTypeDefinition"
+// CHECK: "nodeType": "StructDefinition"
+// CHECK: "nodeType": "EnumDefinition"
+// CHECK: "nodeType": "EnumValue"
+// CHECK: "nodeType": "ErrorDefinition"
+// CHECK: "errorSelector": "{{[0-9a-f]+}}"
+// CHECK: "nodeType": "UserDefinedTypeName"
+// CHECK: "nodeType": "IdentifierPath"
+// CHECK: "nodeType": "UsingForDirective"
+// CHECK: "operator": "+"
+// CHECK: "libraryName": {
+// CHECK: "functionSelector": "{{[0-9a-f]+}}"
+// CHECK: "nodeType": "ModifierDefinition"
+// CHECK: "nodeType": "StructuredDocumentation"
+// CHECK: "text": "@title A vault"
+// CHECK: "nodeType": "InheritanceSpecifier"
+// CHECK: "nodeType": "ArrayTypeName"
+// CHECK: "nodeType": "Mapping"
+// CHECK: "nodeType": "FunctionTypeName"
+// CHECK: "typeIdentifier": "t_function_external_nonpayable$_t_uint256_$returns$__$"
+// CHECK: "nodeType": "EventDefinition"
+// CHECK: "eventSelector": "{{[0-9a-f]+}}"
+// CHECK: "typeIdentifier": "t_array$_t_struct$_Point_${{[0-9]+}}_storage_$2_storage"
+// CHECK: "nodeType": "OverrideSpecifier"
+// CHECK: "nodeType": "ModifierInvocation"
+// CHECK: "kind": "modifierInvocation"
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "": [
+          "ast"
+        ]
+      }
+    }
+  }
+}

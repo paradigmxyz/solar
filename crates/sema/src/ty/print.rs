@@ -328,4 +328,127 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
         }
         self.buf.write_str(")")
     }
+
+    /// Prints the type as implemented in `Type::identifier()` in solc, the `typeIdentifier` of
+    /// the AST JSON.
+    ///
+    /// solc marks the reference types of every declaration but a storage state variable as
+    /// pointers: `pointer` is that mark. A reference type outside of a [`TyKind::Ref`] lives in
+    /// storage.
+    ///
+    /// Only the types of declarations and type names are supported; the other types print
+    /// `t_unsupported`.
+    pub(crate) fn print_identifier(&mut self, ty: Ty<'gcx>, pointer: bool) -> fmt::Result {
+        self.identifier(ty, DataLocation::Storage, pointer)
+    }
+
+    fn identifier(&mut self, ty: Ty<'gcx>, loc: DataLocation, pointer: bool) -> fmt::Result {
+        // The elements of a reference type are pointers unless the type lives in storage.
+        let element_pointer = loc != DataLocation::Storage;
+        match ty.kind {
+            TyKind::Elementary(ty) => match ty {
+                ElementaryType::Address(payable) => {
+                    self.buf.write_str(if payable { "t_address_payable" } else { "t_address" })
+                }
+                ElementaryType::Bool => self.buf.write_str("t_bool"),
+                ElementaryType::String => {
+                    self.buf.write_str("t_string")?;
+                    self.identifier_location(loc, pointer)
+                }
+                ElementaryType::Bytes => {
+                    self.buf.write_str("t_bytes")?;
+                    self.identifier_location(loc, pointer)
+                }
+                ElementaryType::Int(size) => write!(self.buf, "t_int{}", size.bits()),
+                ElementaryType::UInt(size) => write!(self.buf, "t_uint{}", size.bits()),
+                ElementaryType::FixedBytes(size) => write!(self.buf, "t_bytes{}", size.bytes()),
+            },
+            TyKind::Ref(ty, loc) => self.identifier(ty, loc, pointer),
+            TyKind::DynArray(element) => {
+                self.buf.write_str("t_array$_")?;
+                self.identifier(element, loc, element_pointer)?;
+                self.buf.write_str("_$dyn")?;
+                self.identifier_location(loc, pointer)
+            }
+            TyKind::Array(element, len) => {
+                self.buf.write_str("t_array$_")?;
+                self.identifier(element, loc, element_pointer)?;
+                write!(self.buf, "_${len}")?;
+                self.identifier_location(loc, pointer)
+            }
+            TyKind::Contract(id) => self.identifier_item("t_contract", id),
+            TyKind::Super(id) => self.identifier_item("t_super", id),
+            TyKind::Struct(id) => {
+                self.identifier_item("t_struct", id)?;
+                self.identifier_location(loc, pointer)
+            }
+            TyKind::Enum(id) => self.identifier_item("t_enum", id),
+            TyKind::Udvt(_, id) => self.identifier_item("t_userDefinedValueType", id),
+            TyKind::Mapping(key, value) => {
+                self.buf.write_str("t_mapping$_")?;
+                self.identifier(key, DataLocation::Memory, true)?;
+                self.buf.write_str("_$_")?;
+                self.identifier(value, DataLocation::Storage, false)?;
+                self.buf.write_str("_$")
+            }
+            TyKind::Fn(f) => {
+                let kind = match f.kind {
+                    TyFnKind::External => "external",
+                    TyFnKind::Declaration => "declaration",
+                    TyFnKind::DelegateCall => "delegatecall",
+                    TyFnKind::BareCall => "barecall",
+                    TyFnKind::BareDelegateCall => "baredelegatecall",
+                    TyFnKind::BareStaticCall => "barestaticcall",
+                    TyFnKind::Creation => "creation",
+                    TyFnKind::Internal | TyFnKind::InternalWithSelector | TyFnKind::Builtin => {
+                        "internal"
+                    }
+                };
+                write!(self.buf, "t_function_{kind}_{}", f.state_mutability)?;
+                self.identifier_list(f.parameters)?;
+                self.buf.write_str("returns")?;
+                self.identifier_list(f.returns)
+            }
+            TyKind::Tuple(tys) => {
+                self.buf.write_str("t_tuple")?;
+                self.identifier_list(tys)
+            }
+            TyKind::Type(ty) => {
+                self.buf.write_str("t_type$_")?;
+                self.identifier(ty, loc, pointer)?;
+                self.buf.write_str("_$")
+            }
+            _ => self.buf.write_str("t_unsupported"),
+        }
+    }
+
+    /// Prints the location suffix of a reference type.
+    fn identifier_location(&mut self, loc: DataLocation, pointer: bool) -> fmt::Result {
+        write!(self.buf, "_{loc}")?;
+        if pointer { self.buf.write_str("_ptr") } else { Ok(()) }
+    }
+
+    /// Prints `prefix`, the escaped name and the AST ID of an item.
+    fn identifier_item(&mut self, prefix: &str, id: impl Into<hir::ItemId> + Copy) -> fmt::Result {
+        write!(self.buf, "{prefix}$_")?;
+        for c in self.gcx.item_name(id).as_str().chars() {
+            if c == '$' {
+                self.buf.write_str("$$$")?;
+            } else {
+                self.buf.write_char(c)?;
+            }
+        }
+        write!(self.buf, "_${}", self.gcx.hir.global_item_id(id))
+    }
+
+    fn identifier_list(&mut self, tys: &[Ty<'gcx>]) -> fmt::Result {
+        self.buf.write_str("$_")?;
+        for (i, &ty) in tys.iter().enumerate() {
+            if i > 0 {
+                self.buf.write_str("_$_")?;
+            }
+            self.identifier(ty, DataLocation::Storage, true)?;
+        }
+        self.buf.write_str("_$")
+    }
 }
