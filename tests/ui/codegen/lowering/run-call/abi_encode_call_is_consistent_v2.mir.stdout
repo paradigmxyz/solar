@@ -68,7 +68,7 @@ fn @test() -> i8 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<uint8>],
   bb2:  ; preds = bb0
     jump bb3
   bb1:  ; preds = bb0
-    v40 = or i8 0, i8 1
+    v40 = or i8 1, i8 0
     jump bb3
   bb3:  ; preds = bb1, bb2
     v41 = phi [bb1: v40], [bb2: i8 0]
