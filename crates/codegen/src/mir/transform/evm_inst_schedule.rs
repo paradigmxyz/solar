@@ -117,10 +117,11 @@ impl EvmInstSchedule {
                 segment_start = index + 1;
             }
 
+            // Terminator operands are pushed last to first.
             let terminator_inputs = func.blocks[block_id]
                 .terminator
                 .as_ref()
-                .map(Self::terminator_input_order)
+                .map(|term| term.operands().into_iter().rev().collect::<SmallVec<[_; 8]>>())
                 .unwrap_or_default();
             Self::schedule_segment(
                 func,
@@ -292,14 +293,6 @@ impl EvmInstSchedule {
             && !effects.control.any()
             && inst.kind.effect_kind().is_read_only()
             && inst.metadata.effect().is_none_or(EffectKind::is_read_only)
-    }
-
-    /// Returns a terminator's operands in the order their producers should run for EVM emission:
-    /// deepest stack input first and the eventual top-of-stack input last.
-    fn terminator_input_order(term: &Terminator) -> SmallVec<[ValueId; 8]> {
-        let mut operands = SmallVec::from_iter(term.operands());
-        operands.reverse();
-        operands
     }
 
     fn schedule_segment(
