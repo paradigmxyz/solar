@@ -1,13 +1,14 @@
 //@compile-flags: -Zmir-pipeline=jump-threading
 //@filecheck:
 @module JumpThreadingLoopCarriedPhi
-// A loop header whose own phi carries one of its results around the back edge
-// keeps its entry edge: entering the body directly would reach the latch
-// without defining the carried value.
-// CHECK-LABEL: {{^[ +].*}}fn @carried_header_result{{[( ]}}
+// A loop header whose phi carries its own result around the back edge, with no other reader, has
+// a dead phi. Entering the body directly drops it: the latch would otherwise read a value the
+// entry path never defines.
+// CHECK-LABEL: {{^[ +].*}}fn @dead_carried_header_result{{[( ]}}
 // CHECK: {{^ +}}bb0:
-// CHECK-NEXT: {{^ +jump bb1$}}
-fn @carried_header_result(arg0: i256) -> i256 {
+// CHECK-NEXT: {{^\+ +jump bb3$}}
+// CHECK: {{^- +v[0-9]+ = phi \[bb0: arg0\], \[bb3: v[0-9]+\]$}}
+fn @dead_carried_header_result(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -19,6 +20,25 @@ fn @carried_header_result(arg0: i256) -> i256 {
     jump bb3
   bb3:
     v3 = add 0, 1
+    jump bb1
+  bb4:
+    ret 0
+}
+
+// A phi that feeds the header's own comparison is live, so its carried result keeps the entry edge.
+// CHECK-LABEL: {{^[ +].*}}fn @live_carried_header_result{{[( ]}}
+// CHECK: {{^ +}}bb0:
+// CHECK-NEXT: {{^ +jump bb1$}}
+fn @live_carried_header_result(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: false], [bb3: v1]
+    v1 = eq v0, false
+    jumpi v1, bb2, bb4
+  bb2:
+    jump bb3
+  bb3:
     jump bb1
   bb4:
     ret 0
