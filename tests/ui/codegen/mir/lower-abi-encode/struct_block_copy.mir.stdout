@@ -1,0 +1,117 @@
+// === ROOT/tests/ui/codegen/mir/lower-abi-encode/struct_block_copy.sol:StructBlockCopy ===
+@module StructBlockCopy
+; function encodeItems(uint256 kind, uint256 dirty) external pure returns (bytes memory) [selector 0x9d5586ab]
+fn @encodeItems(arg0: i256, arg1: i256) -> ptr<memory> [selector=0x9d5586ab, pure, abi_params=[uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = alloc zeroed checked 128
+    mstore v0, 3
+    jump bb1
+  bb1:  ; preds = bb0, bb2
+    v1 = phi [bb0: 0], [bb2: v8]
+    v2 = lt v1, 3
+    jumpi v2, bb2, bb3
+  bb3:  ; preds = bb1
+    jump bb4
+  bb4:  ; preds = bb3, bb6
+    v9 = phi [bb3: arg0], [bb6: v9]
+    v10 = phi [bb3: arg1], [bb6: v10]
+    v11 = phi [bb3: ptr<memory> 96], [bb6: v11]
+    v12 = phi [bb3: v0], [bb6: v12]
+    v13 = phi [bb3: 0], [bb6: v45]
+    v14 = lt v13, 3
+    jumpi v14, bb7, bb8
+  bb8:  ; preds = bb4
+    jump bb5
+  bb5:  ; preds = bb8
+    v46 = mload v12
+    v47 = gt v46, 2
+    v48 = eq v47, false
+    icall panic_if<0x32>, v48
+    v49 = ptradd v12, 96
+    v50 = mload v49, ptr<memory>
+    v51 = abi_encode [memory_array<tuple<word<enum 3>, word<uint160>, word, word<bytes4>, word<int8>, word<bool>, word>>, tuple<word<enum 3>, word<uint160>, word, word<bytes4>, word<int8>, word<bool>, word>], object, args v12, v50
+    ret v51
+  bb7:  ; preds = bb4
+    v15 = mload v12
+    v16 = lt v13, v15
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    v18 = shl v13, 5
+    v19 = ptradd v12, v18
+    v20 = ptradd v19, 32
+    v21 = mload v20, ptr<memory>
+    v22 = ptrtoint ptr<memory> v21 to i256
+    mstore v21, v9
+    v23 = add v13, 160
+    v24 = shl v10, 160
+    v25 = or v24, v23
+    v26 = ptrtoint ptr<memory> v21 to i256
+    v27 = add v26, 32
+    mstore v27, v25
+    v28 = not v13
+    v29 = ptrtoint ptr<memory> v21 to i256
+    v30 = add v29, 64
+    mstore v30, v28
+    v31 = shr v10, 32
+    v32 = or v31, 0x1122334400000000000000000000000000000000000000000000000000000000
+    v33 = ptrtoint ptr<memory> v21 to i256
+    v34 = add v33, 96
+    mstore v34, v32
+    v35 = shl v10, 8
+    v36 = or v35, 128
+    v37 = ptrtoint ptr<memory> v21 to i256
+    v38 = add v37, 128
+    mstore v38, v36
+    v39 = shl v10, 8
+    v40 = ptrtoint ptr<memory> v21 to i256
+    v41 = add v40, 160
+    mstore v41, v39
+    v42 = add v10, v13
+    v43 = ptrtoint ptr<memory> v21 to i256
+    v44 = add v43, 192
+    mstore v44, v42
+    jump bb9
+  bb9:  ; preds = bb7
+    jump bb6
+  bb6:  ; preds = bb9
+    v45 = checked_add uint256, v13, 1
+    jump bb4
+  bb2:  ; preds = bb1
+    v3 = alloc 224 !metadata(preserves_fmp)
+    memory_zero v3, 224
+    v4 = shl v1, 5
+    v5 = ptradd v0, v4
+    v6 = ptradd v5, 32
+    v7 = ptrtoint ptr<memory> v3 to i256
+    mstore v6, v7
+    v8 = add v1, 1
+    jump bb1
+}
+
+; function literal(uint256 amount) external pure returns (bytes memory) [selector 0x41d012fd]
+fn @literal(arg0: i256) -> ptr<memory> [selector=0x41d012fd, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = alloc 224
+    v1 = lt i8 1, i8 3
+    v2 = eq v1, false
+    icall panic_if<0x21>, v2
+    v3 = trunc i256 arg0 to i160
+    v4 = zext i160 v3 to i256
+    v5 = sext i8 254 to i256
+    v6 = checked_add uint256, arg0, 1
+    mstore v0, 1
+    v7 = ptradd v0, 32
+    mstore v7, v4
+    v8 = ptradd v0, 64
+    mstore v8, arg0
+    v9 = ptradd v0, 96
+    mstore v9, 0x1122334400000000000000000000000000000000000000000000000000000000
+    v10 = ptradd v0, 128
+    mstore v10, v5
+    v11 = ptradd v0, 160
+    mstore v11, 1
+    v12 = ptradd v0, 192
+    mstore v12, v6
+    v13 = abi_encode [tuple<word<enum 3>, word<uint160>, word, word<bytes4>, word<int8>, word<bool>, word>], object, args v0
+    ret v13
+}
