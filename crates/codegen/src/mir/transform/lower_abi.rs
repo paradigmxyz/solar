@@ -2863,7 +2863,7 @@ fn find_canonical_return_calls(
 
     candidates.retain(|(id, ty)| {
         is_canonical_return_function(
-            &mut CanonicalCallProof { module: Some(module), visiting: Default::default() },
+            &mut CanonicalCallProof { module: Some(module), ..Default::default() },
             *id,
             ty,
         )

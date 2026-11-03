@@ -117,11 +117,7 @@ struct IndexedFile {
 
 impl IndexedFile {
     fn new(source: Arc<String>) -> Self {
-        Self {
-            source: Some(source),
-            syntax_fingerprint: Default::default(),
-            entries: Default::default(),
-        }
+        Self { source: Some(source), ..Self::default() }
     }
 
     fn syntax_fingerprint(&self) -> Option<&str> {

@@ -216,14 +216,14 @@ impl FunctionMemorySummary {
             writes: 0b1111,
             slot_reads: std::array::from_fn(|_| SlotFootprint {
                 unknown: true,
-                slots: Default::default(),
+                ..Default::default()
             }),
             slot_writes: std::array::from_fn(|_| SlotFootprint {
                 unknown: true,
-                slots: Default::default(),
+                ..Default::default()
             }),
-            memory_reads: MemoryFootprint { unknown: true, ranges: Default::default() },
-            memory_writes: MemoryFootprint { unknown: true, ranges: Default::default() },
+            memory_reads: MemoryFootprint { unknown: true, ..Default::default() },
+            memory_writes: MemoryFootprint { unknown: true, ..Default::default() },
             has_multiple_returns: false,
             restores_memory: false,
             may_reset_fmp: true,

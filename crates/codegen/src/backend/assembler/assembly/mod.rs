@@ -58,10 +58,7 @@ impl Program {
             modifier_depths: capture.then(Vec::new),
             current_source_spans: DebugSpans::new(),
             current_modifier_depth: 0,
-            instructions: Default::default(),
-            packed_labels: Default::default(),
-            data: Default::default(),
-            data_refs: Default::default(),
+            ..Self::default()
         }
     }
 

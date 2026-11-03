@@ -134,20 +134,10 @@ fn selected_documentation(
     let view = gcx.natspec_view(item_id);
     if returns {
         let returns = return_doc_at(gcx, id, index, view).into_iter().collect();
-        NatSpecDocumentation {
-            returns,
-            notice: Default::default(),
-            dev: Default::default(),
-            params: Default::default(),
-        }
+        NatSpecDocumentation { returns, ..NatSpecDocumentation::default() }
     } else {
         let params = parameter_doc_at(gcx, id, index, view).into_iter().collect();
-        NatSpecDocumentation {
-            params,
-            notice: Default::default(),
-            dev: Default::default(),
-            returns: Default::default(),
-        }
+        NatSpecDocumentation { params, ..NatSpecDocumentation::default() }
     }
 }
 

@@ -39,19 +39,7 @@ impl EvmPass for BlockCse {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let mut cse = Cse {
-            evm_version: gcx.sess.opts.evm_version,
-            out: Default::default(),
-            stack: Default::default(),
-            expressions: Default::default(),
-            next_expr: 0,
-            memory_epoch: 0,
-            storage_epoch: 0,
-            known_stores: Default::default(),
-            const_exprs: Default::default(),
-            gas_observed: false,
-            changed: false,
-        };
+        let mut cse = Cse { evm_version: gcx.sess.opts.evm_version, ..Default::default() };
         let mut changed = false;
         for block in &mut module.blocks {
             changed |= cse.regenerate(&mut block.instructions);
