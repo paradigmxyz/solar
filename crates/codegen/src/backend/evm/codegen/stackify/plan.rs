@@ -252,7 +252,8 @@ pub(super) struct Planner<'a> {
     /// The operand order that tied with the one `prepare_any` kept, when they leave different
     /// words below the operands.
     tie: Cell<Option<usize>>,
-    /// The stack `prepare_any` started from when it recorded a tie.
+    /// The stack `prepare_any` started from when it recorded a tie, so that `plan_inst` forks
+    /// only for ties, not before every instruction.
     tie_base: RefCell<Sim>,
     /// The operand order the next `prepare_any` with several orders must use.
     forced_order: Cell<Option<usize>>,
@@ -840,6 +841,7 @@ impl<'a> Planner<'a> {
             uses.consume(&step.operands);
             return Ok(());
         };
+        // [base] -> [base, second order]
         let mut second = std::mem::take(&mut self.place_sim);
         second.refork(&self.tie_base.borrow());
         self.forced_order.set(Some(order));
