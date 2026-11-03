@@ -108,14 +108,18 @@ impl<P: EvmPass> EvmPass for RunsAtNone<P> {
     }
 }
 
-/// All EVM IR passes exposed by `-Zevm-ir-pipeline`.
+/// All EVM IR passes exposed by `-Zevm-ir-pipeline`, one per name: a name resolves to its first
+/// pass, so every pass the canonical pipeline runs needs an entry under a name of its own for
+/// `-Zevm-ir-pipeline` to replay it.
 static ALL_PASSES: &[&dyn EvmPass] = &[
     &block_cse::BlockCse,
+    &peephole::Peephole::EARLY,
     &peephole::Peephole::FINAL,
     &peephole::LateWord,
     &dce::Dce,
     &tail_copy::InlineReturns,
     &reorder_pushes::REORDER_PUSHES,
+    &reorder_pushes::FINAL_REORDER_PUSHES,
     &reorder_pushes::REORDER_EXPRESSIONS,
     &share_reverts::ShareReverts,
     &stack_normalize::StackDedup,
@@ -126,6 +130,7 @@ static ALL_PASSES: &[&dyn EvmPass] = &[
     &coalesce_copies::CoalesceCopies,
     &data::PackData,
     &legalize_revert::LegalizeRevert,
+    &cfg_simplify::CfgSimplify::EARLY,
     &cfg_simplify::CfgSimplify::FINAL,
     &outline::Outline,
     &terminal_dedup::TerminalDedup,
@@ -361,4 +366,26 @@ pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bo
         }
     }
     changed
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use solar_data_structures::map::FxHashSet;
+
+    #[test]
+    fn default_pipeline_passes_have_unique_names() {
+        let mut names = FxHashSet::default();
+        for pass in ALL_PASSES {
+            assert!(names.insert(pass.name()), "duplicate EVM IR pass name `{}`", pass.name());
+        }
+        for pass in DEFAULT_PIPELINE {
+            let exposed = lookup_pass(pass.name());
+            assert!(
+                exposed.is_some_and(|exposed| exposed.cache_config() == pass.cache_config()),
+                "`{}` names a different configuration of the pass",
+                pass.name(),
+            );
+        }
+    }
 }

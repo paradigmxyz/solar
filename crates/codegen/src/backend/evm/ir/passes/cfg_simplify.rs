@@ -78,7 +78,7 @@ impl CfgSimplify {
 
 impl EvmPass for CfgSimplify {
     fn name(&self) -> &'static str {
-        "cfg-simplify"
+        if self.thread_shared_jumps { "cfg-simplify" } else { "cfg-simplify-early" }
     }
 
     fn cache_config(&self) -> u64 {
