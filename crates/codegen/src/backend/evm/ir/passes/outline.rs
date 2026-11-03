@@ -50,7 +50,9 @@
 
 use super::{
     EvmPass,
-    utils::{FreshLabels, MachineInstKey, instruction_size_lower_bound, is_split_point},
+    utils::{
+        FreshLabels, MachineInstKey, instruction_size_lower_bound, is_split_point, lower_bound,
+    },
 };
 use crate::{
     backend::evm::{
@@ -151,7 +153,7 @@ fn may_share_machine_runs(gcx: Gcx<'_>, module: &Module) -> bool {
     let mut prefixes = FxHashSet::default();
     let mut budget = MAX_MACHINE_RUN_CANDIDATES;
     for block in &module.blocks {
-        if in_hot_loop(block) {
+        if block.in_hot_loop() {
             continue;
         }
         metrics.clear();
@@ -196,11 +198,6 @@ fn may_share_machine_runs(gcx: Gcx<'_>, module: &Module) -> bool {
     false
 }
 
-/// Whether `block` is in a loop that runs on a successful call.
-fn in_hot_loop(block: &Block) -> bool {
-    block.metadata.in_loop && !block.metadata.hotness.is_cold()
-}
-
 /// Whether `site` is in a block that does not run on a successful call.
 fn is_cold(module: &Module, site: &Site) -> bool {
     module.blocks[site.block].metadata.hotness.is_cold()
@@ -228,16 +225,12 @@ fn repeats(module: &Module, blocks: impl IntoIterator<Item = BlockId>) -> bool {
 /// jump
 /// jumpdest
 fn transfer_size(target: &Target) -> usize {
-    (target.opcode(op::PUSH2).bytes * 2
-        + target.opcode(op::JUMP).bytes
-        + target.opcode(op::JUMPDEST).bytes) as usize
+    (target.label_push() + target.jump()).bytes as usize
 }
 
 /// Returns the gas of one call and return, excluding the shared body's rotations.
 fn transfer_gas(target: &Target) -> u32 {
-    target.runtime_gas(
-        (target.opcode(op::PUSH2) + target.opcode(op::JUMP) + target.opcode(op::JUMPDEST)).times(2),
-    )
+    target.runtime_gas(target.jump().times(2))
 }
 
 /// Returns the per-site bytes, shared body bytes, and transfer gas of a push share.
@@ -282,7 +275,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
     let is_gas = target.optimization().is_gas();
     let is_size = target.optimization().is_size();
     let metrics = hashes.metrics(module, |block, inst| {
-        if is_gas && in_hot_loop(block) {
+        if is_gas && block.in_hot_loop() {
             return None;
         }
         shared_body_effect(inst).map(|effect| (effect, instruction_size_lower_bound(target, inst)))
@@ -480,7 +473,7 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     let is_gas = target.optimization().is_gas();
     for (block_id, block) in module.blocks.iter_enumerated() {
         // Size mode prices every loop block, cold or not, by the iterations it may run.
-        let in_loop = if is_gas { in_hot_loop(block) } else { block.metadata.in_loop };
+        let in_loop = if is_gas { block.in_hot_loop() } else { block.metadata.in_loop };
         if is_gas && in_loop {
             continue;
         }
@@ -739,10 +732,6 @@ fn shared_body_effect(inst: &Instruction) -> Option<(u16, u16, u16)> {
     let definition = inst.definition().filter(|definition| definition.is_position_independent())?;
     let (inputs, outputs) = definition.stack_io?;
     Some((u16::from(inputs), u16::from(inputs), u16::from(outputs)))
-}
-
-fn lower_bound(target: Target, instructions: &[Instruction]) -> usize {
-    instructions.iter().map(|inst| instruction_size_lower_bound(target, inst)).sum()
 }
 
 #[derive(Clone, Copy, Debug)]

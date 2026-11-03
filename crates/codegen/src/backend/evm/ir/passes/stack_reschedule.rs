@@ -203,8 +203,7 @@ impl EvmPass for StackReschedule {
         let mut changed = false;
         for block in &mut module.blocks {
             let target = &block.target(gcx, optimization, code_follows);
-            let hot_loop = block.metadata.in_loop && !block.metadata.hotness.is_cold();
-            let budget = if hot_loop {
+            let budget = if block.in_hot_loop() {
                 LOOP_BUDGET
             } else if target.optimization().is_size() {
                 SIZE_BLOCK_BUDGET

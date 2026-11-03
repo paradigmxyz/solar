@@ -487,7 +487,13 @@ opcodes! {
 
 /// Returns the encoded length of a minimally sized PUSH for an EVM version.
 pub fn push_len(evm_version: EvmVersion, value: U256) -> usize {
-    if value.is_zero() && evm_version.has_push0() { 1 } else { value.byte_len().max(1) + 1 }
+    usize::from(push_width(evm_version, value)) + 1
+}
+
+/// Returns the immediate width of a minimally sized PUSH for an EVM version, where `PUSH0` has
+/// width 0.
+pub fn push_width(evm_version: EvmVersion, value: U256) -> u8 {
+    if value.is_zero() && !evm_version.has_push0() { 1 } else { value.byte_len() as u8 }
 }
 
 /// Returns the PUSH opcode for the given width (1-32).
