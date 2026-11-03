@@ -1,4 +1,4 @@
-error: unresolved symbol `x`
+error[7576]: unresolved symbol `x`
    ╭▸ ROOT/tests/ui/resolve/base_scope.sol:LL:CC
    │
 LL │ contract D is C(x) {

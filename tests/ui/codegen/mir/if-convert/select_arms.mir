@@ -40,19 +40,39 @@ fn @search_step(arg0: i256, arg1: i256) -> i256 {
 // CHECK: + [[C:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} {{(arg[0-9]+|v[0-9]+)}}
 // CHECK: + [[S:v[0-9]+]] = mul [[D]], [[C]]
 // CHECK: + {{v[0-9]+}} = add [[F]], [[S]]
-fn @cheap_diamond(arg0: i256, arg1: i256) -> i256 {
+fn @cheap_diamond(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v3 = lt arg0, 10
     jumpi v3, bb1, bb2
   bb1:
-    v0 = mul arg1, 3
+    v0 = and arg1, arg2
     jump bb3
   bb2:
-    v1 = xor arg1, 7
+    v1 = xor arg1, arg2
     jump bb3
   bb3:
     v2 = phi [bb1: v0], [bb2: v1]
     ret v2
+}
+
+// A fixed-point exponent step: the then value is computed from the else
+// value, so the select needs a swap to order them for the subtraction and
+// would run the multiply on every step. The branch stays.
+// CHECK-LABEL: {{^[ +].*}}fn @exp2_step{{[( ]}}
+// CHECK: {{^ +}}jumpi
+// CHECK-NOT: {{^[+-]}}
+fn @exp2_step(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = and arg0, 0x8000000000000000
+    v1 = gt v0, 0
+    jumpi v1, bb1, bb2
+  bb1:
+    v2 = mul arg1, 0x16a09e667f3bcc909
+    v3 = shr v2, 64
+    jump bb2
+  bb2:
+    v4 = phi [bb0: arg1], [bb1: v3]
+    ret v4
 }
 
 // The same diamond on a nonzero test keeps its branch: `jumpi` reads the
@@ -61,15 +81,15 @@ fn @cheap_diamond(arg0: i256, arg1: i256) -> i256 {
 // CHECK: {{^ +}}[[COND:v[0-9]+]] = ne arg0, 0
 // CHECK: {{^ +}}jumpi [[COND]]
 // CHECK-NOT: {{^[+-]}}
-fn @nonzero_diamond(arg0: i256, arg1: i256) -> i256 {
+fn @nonzero_diamond(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v3 = ne arg0, 0
     jumpi v3, bb1, bb2
   bb1:
-    v0 = mul arg1, 3
+    v0 = and arg1, arg2
     jump bb3
   bb2:
-    v1 = xor arg1, 7
+    v1 = xor arg1, arg2
     jump bb3
   bb3:
     v2 = phi [bb1: v0], [bb2: v1]
