@@ -310,11 +310,11 @@ and inline assembly, and rejects `1_000`, `0x1_0` and `1e5` with error 4828.
 and rejects fractions such as `0.5` with error 4828.
 
 `solc` also accepts only a plain string literal or a single `hex` string
-literal in Yul and inline assembly, and rejects `unicode"é"`, `"a" "b"` and
-`hex"ab" hex"cd"` with "Call or assignment expected". `solar` accepts all
-three as in Solidity: `unicode` literals are UTF-8, adjacent literals are
-concatenated, and the result is the left-aligned word, such as `0x6162…` for
-`"a" "b"`.
+literal in Yul and inline assembly. It rejects `unicode"é"` with error 1856
+and adjacent literals such as `"a" "b"` and `hex"ab" hex"cd"` with error 6913.
+`solar` accepts all three as in Solidity: `unicode` literals are UTF-8,
+adjacent literals of the same kind are concatenated, and the result is the
+left-aligned word, such as `0x6162…` for `"a" "b"`.
 
 Rationale: these literals have one obvious value, so rejecting them only makes
 the language harder to use.
