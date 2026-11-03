@@ -84,7 +84,6 @@ fn @bools() {
   bb7:                                            ; preds = bb6, bb10
     v26 = phi [bb6: v16], [bb10: v35]
     v27 = phi [bb6: v11], [bb10: v36]
-    v28 = phi [bb6: 0], [bb10: v37]
     v85 = phi [bb6: v84], [bb10: v86]
     v29 = gt v26, 0
     jumpi v29, bb8, bb9
@@ -123,7 +122,6 @@ fn @bools() {
     mstore v85, v30
     v35 = sub v26, 1
     v36 = add v27, 32
-    v37 = add v28, 1
     v86 = add v85, 32
     jump bb7
   bb4 [cold]:                                     ; preds = bb3
