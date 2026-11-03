@@ -34,9 +34,14 @@
 //! the caller instead would test every bool before the call, whether the body reads it or not.
 //! Other internal functions keep their `i1` parameters.
 //!
-//! Calldata aggregates that repeat across parameters, or dynamic tuples that repeat anywhere
-//! inside them, decode through shared helpers; tuple helpers take the base of their enclosing
-//! tuple so enclosing decoders can call them for nested values.
+//! Calldata aggregates that repeat across parameters, or dynamic tuples and dynamic arrays that
+//! repeat anywhere inside them, decode through shared helpers; tuple and array helpers take the
+//! base of their enclosing tuple so enclosing decoders can call them for nested values. Memory
+//! `abi_decode` helpers follow the same policy. A shared nested decode costs one internal call
+//! where inline decoding costs none, and saves the decoder's code at every further site. Fixed
+//! arrays with dynamic elements and nested `bytes` decode inline: sharing them saves too little
+//! code to pay for the call.
+//!
 //! Scalar arrays whose canonicality requires zero bits fold their words with OR and validate
 //! once after the loop. Their checked source range supplies a non-wrapping end for a word
 //! cursor. An empty array skips the cursor setup and validation; signed and enum validators
@@ -105,7 +110,7 @@ use crate::mir::{
     EffectKind, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, Immediate, InstId,
     InstKind, Instruction, MangledSymbol, MemoryObjectLayout, MirPhase, MirType, Module,
     PtrLocation, RevertReason, Terminator, Value, ValueId, ValueLayout,
-    analysis::{AliasAnalysis, HotnessAnalysis, LocationSize, MemoryBase},
+    analysis::{AliasAnalysis, HotnessAnalysis, LocationSize, MemoryBase, integers::integer_mask},
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
     transform::{cfg_simplify::remove_unreachable_blocks, utils::expand_block},
@@ -636,7 +641,7 @@ impl LowerAbiCx {
                 let count = decode_counts.entry((layout.clone(), data_ty)).or_insert(0);
                 if *count == 0 {
                     for ty in &layout.types {
-                        count_dynamic_tuple_types(ty, 1, &mut memory_type_counts);
+                        count_nested_types(ty, 1, &mut memory_type_counts);
                     }
                 }
                 *count += 1;
@@ -751,8 +756,8 @@ impl LowerAbiCx {
         module: &mut Module,
         targets: &[FunctionId],
     ) {
-        // Parameters share a helper per type, and so do the dynamic tuples repeated
-        // anywhere inside them, which the helpers of enclosing types then call.
+        // Parameters share a helper per type, and so do the dynamic tuples and arrays
+        // repeated anywhere inside them, which the helpers of enclosing types then call.
         // Debug revert strings give nested sites their own offset reasons, which only inline
         // decoding reports, so only parameters count there.
         let nested = !self.revert_strings.is_debug();
@@ -762,12 +767,12 @@ impl LowerAbiCx {
             let Some(layout) = func.abi_params.as_ref() else { continue };
             for (ty, &arg_type) in layout.types.iter().zip(&func.params) {
                 if !ty.is_scalar_word() && arg_type == MirType::MEMPTR {
-                    // `count_dynamic_tuple_types` counts a dynamic tuple itself.
+                    // `count_nested_types` counts a dynamic tuple or array itself.
                     if !nested || !decodes_nested(ty) {
                         count_type(&mut counts, ty, 1);
                     }
                     if nested {
-                        count_dynamic_tuple_types(ty, 1, &mut counts);
+                        count_nested_types(ty, 1, &mut counts);
                     }
                 }
             }
@@ -2694,7 +2699,7 @@ fn abi_head_size(ty: &AbiParamType) -> u64 {
 /// Returns whether shared calldata decoders also decode `ty` nested in other values, which makes
 /// its decoder take the base of the enclosing tuple.
 fn decodes_nested(ty: &AbiParamType) -> bool {
-    matches!(ty, AbiParamType::Tuple(_)) && ty.is_dynamic()
+    matches!(ty, AbiParamType::Tuple(_) | AbiParamType::DynamicArray(_)) && ty.is_dynamic()
 }
 
 /// Returns the arguments of the shared calldata decoder of `ty`.
@@ -2730,26 +2735,29 @@ fn repeated_types(counts: FxHashMap<AbiParamType, (usize, usize)>) -> Vec<AbiPar
     types.into_iter().map(|(_, ty)| ty).collect()
 }
 
-fn count_dynamic_tuple_types(
+/// Adds `occurrences` to the use count of every dynamic tuple and dynamic array in `ty`, itself
+/// included.
+fn count_nested_types(
     ty: &AbiParamType,
     occurrences: usize,
     counts: &mut FxHashMap<AbiParamType, (usize, usize)>,
 ) {
     match ty {
-        AbiParamType::FixedArray { element, len } => count_dynamic_tuple_types(
+        AbiParamType::FixedArray { element, len } => count_nested_types(
             element,
             occurrences.saturating_mul(usize::try_from(*len).unwrap_or(usize::MAX)).min(2),
             counts,
         ),
         AbiParamType::DynamicArray(element) => {
-            count_dynamic_tuple_types(element, occurrences, counts)
+            count_type(counts, ty, occurrences);
+            count_nested_types(element, occurrences, counts)
         }
         AbiParamType::Tuple(fields) => {
             if ty.has_dynamic_child() {
                 count_type(counts, ty, occurrences);
             }
             for field in fields {
-                count_dynamic_tuple_types(field, occurrences, counts);
+                count_nested_types(field, occurrences, counts);
             }
         }
         AbiParamType::Scalar(_) | AbiParamType::Enum { .. } | AbiParamType::Bytes => {}
@@ -2768,7 +2776,7 @@ fn abi_param_type_depth(ty: &AbiParamType) -> usize {
     }
 }
 
-/// Adds a helper for a repeated dynamic tuple in a memory ABI decode.
+/// Adds a helper for a repeated dynamic tuple or array in a memory ABI decode.
 fn synthesize_memory_decode_helper(
     revert_strings: RevertStrings,
     module: &mut Module,
@@ -3309,7 +3317,7 @@ fn is_canonical_return_scalar(
         return matches!(ty, ValueLayout::Int(size) if size.bits() >= 256);
     };
     let bits = super::egraph::max_bits_with_args(func, value, 8, &|_| 256);
-    if (U256::MAX >> (256 - bits)) & !expected == U256::ZERO {
+    if (integer_mask(bits) & !expected).is_zero() {
         return true;
     }
     if ty == ValueLayout::Function
@@ -3353,7 +3361,7 @@ fn is_canonical_return_scalar(
         return true;
     }
     let Value::Inst(inst) = func.value(value) else {
-        return func.value_u256(value).is_some_and(|value| value & !expected == U256::ZERO);
+        return func.value_u256(value).is_some_and(|value| (value & !expected).is_zero());
     };
     let InstKind::And(lhs, rhs) = func.inst(*inst).kind else { return false };
     let (source, mask) = if let Some(mask) = func.value_u256(rhs) {

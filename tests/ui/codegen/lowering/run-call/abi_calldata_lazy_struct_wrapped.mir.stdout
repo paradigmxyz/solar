@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_lazy_struct_wrapped.sol:AbiCalldataLazyStructWrapped ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_lazy_struct_wrapped.sol:AbiCalldataLazyStructWrapped ===
 @module AbiCalldataLazyStructWrapped
 @types
   struct0: {i256, ptr<memory>}

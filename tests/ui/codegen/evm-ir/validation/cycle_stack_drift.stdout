@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/validation/cycle_stack_drift.evmir (before none) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/validation/cycle_stack_drift.evmir (after none) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/validation/cycle_stack_drift.evmir (before none) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/validation/cycle_stack_drift.evmir (after none) ===
   @module module
   bb0:
     push 0

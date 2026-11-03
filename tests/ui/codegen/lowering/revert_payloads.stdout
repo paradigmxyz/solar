@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/revert_payloads.sol:RevertPayloads ===
+; === ROOT/tests/ui/codegen/lowering/revert_payloads.sol:RevertPayloads ===
 @module RevertPayloads
 ; function assert_panic(bool ok) public pure [selector 0x727ee374]
 fn @assert_panic(arg0: i1) [selector=0x727ee374, pure, abi_params=[bool], abi_returns=[], abi_return_params=[]] {

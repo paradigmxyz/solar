@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/yul_low_level_builtins.sol:YulLowLevelBuiltins ===
+; === ROOT/tests/ui/codegen/lowering/yul_low_level_builtins.sol:YulLowLevelBuiltins ===
 @module YulLowLevelBuiltins
 ; function yulStringLiteral() public pure returns (uint256 result) [selector 0x6756b569]
 fn @yulStringLiteral() -> i256 [selector=0x6756b569, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -40,16 +40,16 @@ fn @safeCall(arg0: i256, arg1: i256) -> i256 [selector=0x1dee2645, abi_params=[a
     v9 = zext i1 v8 to i256
     v10 = ne v9, 0
     jumpi v10, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v13 = extcodesize arg0
     v14 = gt v13, 0
     v15 = zext i1 v14 to i256
     v16 = and v3, v15
     mstore 64, v0 !metadata(memory=scratch)
     ret v16
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v11 = returndatasize
     returndatacopy v0, 0, v11
     v12 = returndatasize

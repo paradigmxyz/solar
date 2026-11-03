@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/outline/gas_default_runs.evmir (before outline) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/outline/gas_default_runs.evmir (after outline) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/outline/gas_default_runs.evmir (before outline) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/outline/gas_default_runs.evmir (after outline) ===
   @module GasDefaultRunsOutline
   bb0:
 -   push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef

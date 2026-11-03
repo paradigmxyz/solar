@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_offset_overflow.sol:AbiDecodeOffsetOverflow ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_offset_overflow.sol:AbiDecodeOffsetOverflow ===
 @module AbiDecodeOffsetOverflow
 ; function test() external pure returns (uint256) [selector 0xf8a8fd6d]
 fn @test() -> i256 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {

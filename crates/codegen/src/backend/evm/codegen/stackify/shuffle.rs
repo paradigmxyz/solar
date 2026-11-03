@@ -258,8 +258,7 @@ impl State {
         if depth >= self.reach || depth >= h {
             return Err(Unreachable(h.checked_sub(depth + 1)));
         }
-        self.stack.push(self.stack[h - 1 - depth]);
-        self.moves.push(Move::Dup(depth));
+        self.push(Move::Dup(depth), self.stack[h - 1 - depth]);
         Ok(())
     }
 

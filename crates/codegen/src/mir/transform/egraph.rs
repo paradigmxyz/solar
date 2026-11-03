@@ -4,9 +4,9 @@
 //! instructions become nodes over the canonical values of their operands.
 //! Constants stay on the right of commutative operations and comparisons,
 //! reversing comparison predicates when needed. Matching, node insertion, and
-//! final materialization share this ordering; equal-rank operands retain theirs.
-//! Nodes are hash-consed within dominator scopes, so an expression that already
-//! has a dominating definition reuses it. The rules in `isle/mir/egraph` run
+//! final materialization share this ordering; equal-rank operands retain their written order, but
+//! two constants order by value. Nodes are hash-consed within dominator scopes, so an expression
+//! that already has a dominating definition reuses it. The rules in `isle/mir/egraph` run
 //! on every new node: `simplify` merges the node's class into an existing
 //! value and `rewrite` adds an equivalent node to the class. New nodes only
 //! reference classes that already exist, so no rebuild or fixpoint is needed.
@@ -665,7 +665,7 @@ impl<'a> Builder<'a> {
         limit: usize,
     ) -> (SmallVec<[(ValueId, Op); MAX_OPERAND_VIEWS]>, bool) {
         let mut views = SmallVec::new();
-        for operand in operands_of(node) {
+        for operand in node.operands() {
             if let Some(class) = self.classes.get(operand) {
                 for &alternative in class.nodes.iter().skip(1) {
                     let view = (operand, alternative);
@@ -1445,20 +1445,17 @@ impl Costs<'_> {
 
     /// Cost of computing `node` in place of the instruction that roots `class`.
     fn node(&mut self, class: &Class, node: &Op) -> Cost {
-        let mut operands = operands_of(node);
+        let mut operands = node.operands();
         if let Some(value) = Target::zero_test_input(node, |value| self.func.value_u256(value)) {
             operands.clear();
             operands.push(value);
         }
-        let original = (node != &class.nodes[0]).then(|| operands_of(&class.nodes[0]));
+        let original = (node != &class.nodes[0]).then(|| class.nodes[0].operands());
         // An operand shared with other users is computed regardless of this
         // choice; an immediate is pushed at every use.
         let func = self.func;
         let target = self.target.priced_for_cold(class.cold);
-        let mut cost = target.op(node, |value| match func.value(value) {
-            Value::Immediate(immediate) => immediate.as_u256(),
-            _ => None,
-        });
+        let mut cost = target.op(node, |value| func.value_u256(value));
         for &operand in &operands {
             if matches!(self.func.value(operand), Value::Immediate(_))
                 || self.uses(operand) <= 1
@@ -1499,19 +1496,8 @@ impl Costs<'_> {
         original.iter().any(|&value| {
             self.shared_displaced(value, operands)
                 && self.classes.get(value).is_some_and(|class| {
-                    class.nodes.iter().all(|node| operands_of(node).contains(&input))
+                    class.nodes.iter().all(|node| node.operands().contains(&input))
                 })
         })
     }
-}
-
-/// Returns the value operands of a node.
-fn operands_of(node: &Op) -> SmallVec<[ValueId; 8]> {
-    let mut operands = SmallVec::new();
-    // Only the visit matters; the mapped copy is discarded.
-    let _ = node.map_values(|value| {
-        operands.push(value);
-        value
-    });
-    operands
 }

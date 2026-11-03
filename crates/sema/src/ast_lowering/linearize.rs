@@ -77,12 +77,19 @@ impl super::LoweringContext<'_> {
                                     _ => {}
                                 }
 
+                                // Like solc, report the declaration that comes later in the
+                                // source.
+                                let (later, earlier) = if conflict.span.lo() > decl.span.lo() {
+                                    (conflict, decl)
+                                } else {
+                                    (decl, conflict)
+                                };
                                 super::resolve::report_conflict(
                                     &self.hir,
                                     self.sess,
                                     name,
-                                    conflict,
-                                    decl,
+                                    later,
+                                    earlier,
                                     error_code!(9097),
                                 );
                             }

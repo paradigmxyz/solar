@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/tail-merge/tail_merge.evmir (before tail-merge) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/tail-merge/tail_merge.evmir (after tail-merge) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/tail-merge/tail_merge.evmir (before tail-merge) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/tail-merge/tail_merge.evmir (after tail-merge) ===
   @module module
   bb0:
     push 1

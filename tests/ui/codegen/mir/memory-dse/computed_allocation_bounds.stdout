@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/memory-dse/computed_allocation_bounds.mir (before memory-dse) ===
-+ // === ROOT/tests/ui/codegen/mir/memory-dse/computed_allocation_bounds.mir (after memory-dse) ===
+- ; === ROOT/tests/ui/codegen/mir/memory-dse/computed_allocation_bounds.mir (before memory-dse) ===
++ ; === ROOT/tests/ui/codegen/mir/memory-dse/computed_allocation_bounds.mir (after memory-dse) ===
   @module ComputedAllocationBounds
   fn @cancelled_word(arg0: i256) -> i256 {
     bb0:

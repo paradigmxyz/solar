@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/user_defined_operators.sol:UserDefinedOperators ===
+; === ROOT/tests/ui/codegen/lowering/run-call/user_defined_operators.sol:UserDefinedOperators ===
 @module UserDefinedOperators
 ; function addressEq(Account[] memory accounts) external pure returns (bool) [selector 0x83ede5a4]
 fn @addressEq(arg0: ptr<memory>) -> i1 [selector=0x83ede5a4, pure, abi_params=[array<_, address>], abi_returns=[word<bool>], abi_return_params=[bool]] {

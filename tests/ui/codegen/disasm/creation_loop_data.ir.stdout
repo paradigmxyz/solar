@@ -1,10 +1,10 @@
-// === ROOT/tests/ui/codegen/disasm/creation_loop_data.sol:LoopData (creation) ===
+; === ROOT/tests/ui/codegen/disasm/creation_loop_data.sol:LoopData (creation) ===
 @module LoopData_deployment
 @data
   literal_0: hex"1111111111111111111111111111111111111111111111111111111111111111222222222222222222222222222222222222222222222222222222222222222233333333333333333333333333333333333333333333333333333333333333334444444444444444444444444444444444444444444444444444444444444444"
   LoopData_runtime_code_1: hex"34601b575f3560e01c80636537214703601b575f545f5260205ff35b5f5ffd"
 
-bb0:  ; constructor() [creation entry]
+bb0:                                              ; constructor() [creation entry]
   callvalue
   push bb5
   jumpi

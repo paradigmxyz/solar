@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/egraph/word_candidates.mir (before egraph) ===
-+ // === ROOT/tests/ui/codegen/mir/egraph/word_candidates.mir (after egraph) ===
+- ; === ROOT/tests/ui/codegen/mir/egraph/word_candidates.mir (before egraph) ===
++ ; === ROOT/tests/ui/codegen/mir/egraph/word_candidates.mir (after egraph) ===
   @module WordCandidates
   fn @rule_42(arg0: i256, arg1: i256) -> i256 {
     bb0:

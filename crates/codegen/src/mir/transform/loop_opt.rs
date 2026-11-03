@@ -929,12 +929,7 @@ impl LoopOptimizer {
     }
 
     fn const_affine_expr(&self, func: &Function, value: ValueId) -> Option<AffineExpr> {
-        Some(AffineExpr {
-            base: None,
-            invariants: Default::default(),
-            constant: self.const_i128(func, value)?,
-            terms: Default::default(),
-        })
+        Some(AffineExpr::constant(self.const_i128(func, value)?))
     }
 
     fn const_i128(&self, func: &Function, value: ValueId) -> Option<i128> {
@@ -1232,10 +1227,7 @@ fn product_check(
     zero_test: ValueId,
     exact: ValueId,
 ) -> Option<(ValueId, ValueId, ValueId)> {
-    let def = |value: ValueId| match *func.value(value) {
-        Value::Inst(inst) => Some(&func.inst(inst).kind),
-        _ => None,
-    };
+    let def = |value| func.value_inst_kind(value);
     let InstKind::Eq(l, r) = *def(zero_test)? else { return None };
     let divisor = match (func.value_u256(l), func.value_u256(r)) {
         (None, Some(zero)) if zero.is_zero() => l,

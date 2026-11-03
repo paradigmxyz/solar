@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/memory_aggregate_allocation.sol:MemoryAggregateAllocation ===
+; === ROOT/tests/ui/codegen/lowering/run-call/memory_aggregate_allocation.sol:MemoryAggregateAllocation ===
 @module MemoryAggregateAllocation
 ; function allocate() external pure returns (uint256) [selector 0xabaa9916]
 fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -15,11 +15,11 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v6 = alloc zeroed checked 160
     mstore v6, 4
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v7 = phi [bb0: 0], [bb2: v14]
     v8 = lt v7, 4
     jumpi v8, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v15 = mload v6
     v16 = gt v15, 3
     v17 = eq v16, false
@@ -34,11 +34,11 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v23 = alloc zeroed checked 128
     mstore v23, 3
     jump bb4
-  bb4:  ; preds = bb3, bb5
+  bb4:                                            ; preds = bb3, bb5
     v24 = phi [bb3: 0], [bb5: v34]
     v25 = lt v24, 3
     jumpi v25, bb5, bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     v35 = mload v23
     v36 = gt v35, 2
     v37 = eq v36, false
@@ -134,7 +134,7 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v111 = zext i8 v110 to i256
     v112 = checked_add uint256, v94, v111
     ret v112
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     v26 = alloc 64 !metadata(preserves_fmp)
     v27 = alloc 64 !metadata(preserves_fmp)
     memory_zero v27, 64
@@ -149,7 +149,7 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     mstore v32, v33
     v34 = add v24, 1
     jump bb4
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v9 = alloc 64 !metadata(preserves_fmp)
     memory_zero v9, 64
     v10 = shl v7, 5

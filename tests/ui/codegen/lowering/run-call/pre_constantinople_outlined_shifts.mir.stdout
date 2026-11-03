@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/pre_constantinople_outlined_shifts.sol:PreConstantinopleOutlinedShifts ===
+; === ROOT/tests/ui/codegen/lowering/run-call/pre_constantinople_outlined_shifts.sol:PreConstantinopleOutlinedShifts ===
 @module PreConstantinopleOutlinedShifts
 @types
   struct0: {i256, i256, i256}
@@ -19,10 +19,10 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     icall panic_if<0x41>, v8
     v9 = gt v6, 31
     jumpi v9, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v23 = eq v6, 31
     jumpi v23, bb3, bb4
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v28 = add v0, 2
     v29 = sub 31, v6
     v30 = mul v29, 8
@@ -34,7 +34,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v36 = or v33, v35
     sstore 0, v36 !metadata(storage=slot(0))
     jump bb5
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v24 = storage_array_data_slot 0
     v25 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     v26 = byte 0, 0x700000000000000000000000000000000000000000000000000000000000000
@@ -42,7 +42,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     sstore v24, v27 !metadata(storage=symbolic(v24))
     sstore 0, 65 !metadata(storage=slot(0))
     jump bb5
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v10 = add v0, 2
     sstore 0, v10 !metadata(storage=slot(0))
     v11 = storage_array_data_slot 0
@@ -59,7 +59,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v22 = or v20, v21
     sstore v13, v22 !metadata(storage=symbolic(v13))
     jump bb5
-  bb5:  ; preds = bb2, bb3, bb4
+  bb5:                                            ; preds = bb2, bb3, bb4
     v37 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v37
     v38 = and v37, 1
@@ -73,10 +73,10 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     icall panic_if<0x41>, v45
     v46 = gt v43, 31
     jumpi v46, bb7, bb6
-  bb6:  ; preds = bb5
+  bb6:                                            ; preds = bb5
     v60 = eq v43, 31
     jumpi v60, bb8, bb9
-  bb9:  ; preds = bb6
+  bb9:                                            ; preds = bb6
     v65 = add v37, 2
     v66 = sub 31, v43
     v67 = mul v66, 8
@@ -88,7 +88,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v73 = or v70, v72
     sstore 0, v73 !metadata(storage=slot(0))
     jump bb10
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     v61 = storage_array_data_slot 0
     v62 = and v37, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     v63 = byte 0, 0x300000000000000000000000000000000000000000000000000000000000000
@@ -96,7 +96,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     sstore v61, v64 !metadata(storage=symbolic(v61))
     sstore 0, 65 !metadata(storage=slot(0))
     jump bb10
-  bb7:  ; preds = bb5
+  bb7:                                            ; preds = bb5
     v47 = add v37, 2
     sstore 0, v47 !metadata(storage=slot(0))
     v48 = storage_array_data_slot 0
@@ -113,7 +113,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v59 = or v57, v58
     sstore v50, v59 !metadata(storage=symbolic(v50))
     jump bb10
-  bb10:  ; preds = bb7, bb8, bb9
+  bb10:                                           ; preds = bb7, bb8, bb9
     v74 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v74
     v75 = and v74, 1
@@ -134,11 +134,11 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     icall panic_if<0x31>, v88
     v89 = eq v87, 32
     jumpi v89, bb14, bb11
-  bb11:  ; preds = bb10
+  bb11:                                           ; preds = bb10
     v94 = sub v87, 1
     v95 = lt v87, 32
     jumpi v95, bb12, bb13
-  bb13:  ; preds = bb11
+  bb13:                                           ; preds = bb11
     v104 = storage_array_data_slot 0
     v105 = shr v94, 5
     v106 = add v104, v105
@@ -155,7 +155,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v116 = sub v81, 2
     sstore 0, v116 !metadata(storage=slot(0))
     jump bb15
-  bb12:  ; preds = bb11
+  bb12:                                           ; preds = bb11
     v96 = sub 32, v94
     v97 = mul v96, 8
     v98 = shl 1, v97
@@ -166,7 +166,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v103 = or v101, v102
     sstore 0, v103 !metadata(storage=slot(0))
     jump bb15
-  bb14:  ; preds = bb10
+  bb14:                                           ; preds = bb10
     v90 = storage_array_data_slot 0
     v91 = sload v90 !metadata(storage=symbolic(v90))
     v92 = and v91, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
@@ -174,7 +174,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     sstore 0, v93 !metadata(storage=slot(0))
     sstore v90, 0 !metadata(storage=symbolic(v90))
     jump bb15
-  bb15:  ; preds = bb14, bb12, bb13
+  bb15:                                           ; preds = bb14, bb12, bb13
     v117 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v117
     v118 = and v117, 1
@@ -187,11 +187,11 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     icall panic_if<0x31>, v124
     v125 = eq v123, 32
     jumpi v125, bb19, bb16
-  bb16:  ; preds = bb15
+  bb16:                                           ; preds = bb15
     v130 = sub v123, 1
     v131 = lt v123, 32
     jumpi v131, bb17, bb18
-  bb18:  ; preds = bb16
+  bb18:                                           ; preds = bb16
     v140 = storage_array_data_slot 0
     v141 = shr v130, 5
     v142 = add v140, v141
@@ -208,7 +208,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v152 = sub v117, 2
     sstore 0, v152 !metadata(storage=slot(0))
     jump bb20
-  bb17:  ; preds = bb16
+  bb17:                                           ; preds = bb16
     v132 = sub 32, v130
     v133 = mul v132, 8
     v134 = shl 1, v133
@@ -219,7 +219,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v139 = or v137, v138
     sstore 0, v139 !metadata(storage=slot(0))
     jump bb20
-  bb19:  ; preds = bb15
+  bb19:                                           ; preds = bb15
     v126 = storage_array_data_slot 0
     v127 = sload v126 !metadata(storage=symbolic(v126))
     v128 = and v127, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
@@ -227,7 +227,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     sstore 0, v129 !metadata(storage=slot(0))
     sstore v126, 0 !metadata(storage=symbolic(v126))
     jump bb20
-  bb20:  ; preds = bb19, bb17, bb18
+  bb20:                                           ; preds = bb19, bb17, bb18
     v153 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v153
     v154 = and v153, 1
@@ -241,10 +241,10 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     icall panic_if<0x41>, v161
     v162 = gt v159, 31
     jumpi v162, bb22, bb21
-  bb21:  ; preds = bb20
+  bb21:                                           ; preds = bb20
     v176 = eq v159, 31
     jumpi v176, bb23, bb24
-  bb24:  ; preds = bb21
+  bb24:                                           ; preds = bb21
     v181 = add v153, 2
     v182 = sub 31, v159
     v183 = mul v182, 8
@@ -256,7 +256,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v189 = or v186, v188
     sstore 0, v189 !metadata(storage=slot(0))
     jump bb25
-  bb23:  ; preds = bb21
+  bb23:                                           ; preds = bb21
     v177 = storage_array_data_slot 0
     v178 = and v153, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     v179 = byte 0, 0x200000000000000000000000000000000000000000000000000000000000000
@@ -264,7 +264,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     sstore v177, v180 !metadata(storage=symbolic(v177))
     sstore 0, 65 !metadata(storage=slot(0))
     jump bb25
-  bb22:  ; preds = bb20
+  bb22:                                           ; preds = bb20
     v163 = add v153, 2
     sstore 0, v163 !metadata(storage=slot(0))
     v164 = storage_array_data_slot 0
@@ -281,7 +281,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v175 = or v173, v174
     sstore v166, v175 !metadata(storage=symbolic(v166))
     jump bb25
-  bb25:  ; preds = bb22, bb23, bb24
+  bb25:                                           ; preds = bb22, bb23, bb24
     v190 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v190
     v191 = and v190, 1

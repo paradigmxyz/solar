@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/chains.evmir (before reorder-pushes) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/chains.evmir (after reorder-pushes) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/chains.evmir (before reorder-pushes) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/chains.evmir (after reorder-pushes) ===
   @module ReorderChains
   bb0:
     push 1

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/named_arguments_extended.sol:Base ===
+; === ROOT/tests/ui/codegen/lowering/run-call/named_arguments_extended.sol:Base ===
 @module Base
 ; constructor(uint8 a, uint256 b) [creation entry]
 fn @constructor(arg0: i8, arg1: i256) [constructor, abi_params=[uint8, uint256]] {
@@ -17,7 +17,7 @@ fn @v() -> i256 [selector=0x7c2efcba, view, abi_params=[], abi_returns=[word], a
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/named_arguments_extended.sol:Derived ===
+; === ROOT/tests/ui/codegen/lowering/run-call/named_arguments_extended.sol:Derived ===
 @module Derived
 ; creation entry
 fn @constructor() [constructor] {
@@ -26,7 +26,7 @@ fn @constructor() [constructor] {
     v1 = checked_add uint256, v0, 1
     sstore 0, v1 !metadata(storage=slot(0))
     jump bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     ret
 }
 
@@ -38,9 +38,9 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     sstore 1, v1 !metadata(storage=slot(1))
     v2 = sload 1 !metadata(storage=slot(1))
     jump bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb1
-  bb1:  ; preds = bb2
+  bb1:                                            ; preds = bb2
     ret v2
 }
 
@@ -52,9 +52,9 @@ fn @g() -> i256 [selector=0xe2179b8e, abi_params=[], abi_returns=[word], abi_ret
     sstore 1, v1 !metadata(storage=slot(1))
     v2 = sload 1 !metadata(storage=slot(1))
     jump bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb1
-  bb1:  ; preds = bb2
+  bb1:                                            ; preds = bb2
     ret v2
 }
 

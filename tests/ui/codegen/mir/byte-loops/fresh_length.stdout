@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/byte-loops/fresh_length.mir (before byte-loops) ===
-+ // === ROOT/tests/ui/codegen/mir/byte-loops/fresh_length.mir (after byte-loops) ===
+- ; === ROOT/tests/ui/codegen/mir/byte-loops/fresh_length.mir (before byte-loops) ===
++ ; === ROOT/tests/ui/codegen/mir/byte-loops/fresh_length.mir (after byte-loops) ===
   @module FreshLength
   fn @changed_length(arg0: ptr<memory>, arg1: i256) -> ptr<memory> {
     bb0:
@@ -12,16 +12,16 @@
       v5 = alloc zeroed checked v3
       mstore v5, v0
       jump bb1
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       mstore v5, arg1
       jump bb2
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
 -     jump bb3
--   bb3:  ; preds = bb2, bb4
+-   bb3:                                            ; preds = bb2, bb4
 -     v6 = phi [bb2: 0], [bb4: v18]
 +     v22 = eq v0, 0
 +     jumpi v22, bb5, bb6
-+   bb6:  ; preds = bb2
++   bb6:                                            ; preds = bb2
 +     v23 = ptradd arg0, 32
 +     v24 = ptradd v5, 32
 +     v25 = ptrtoint ptr<memory> v23 to i256
@@ -34,7 +34,7 @@
 +     v32 = and v30, v31
 +     v33 = zext i1 v32 to i256
 +     jumpi v32, bb3, bb7
-+   bb7:  ; preds = bb6
++   bb7:                                            ; preds = bb6
 +     v34 = mload arg0
 +     v35 = lt v34, v0
 +     v36 = mload v5
@@ -46,17 +46,17 @@
 +     v41 = ptradd arg0, 32
 +     mcopy v40, v41, v0
 +     jump bb5
-+   bb3:  ; preds = bb4, bb6
++   bb3:                                            ; preds = bb4, bb6
 +     v6 = phi [bb6: 0], [bb4: v18]
       v7 = lt v6, v0
       jumpi v7, bb4, bb5
--   bb5:  ; preds = bb3
+-   bb5:                                            ; preds = bb3
 -     v19 = ptrtoint ptr<memory> v5 to i256
 -     v20 = add v19, 32
 -     v21 = add v20, v0
 -     mstore v21, 0
 -     ret v5
-    bb4:  ; preds = bb3
+    bb4:                                            ; preds = bb3
       v8 = mload arg0
       v9 = lt v6, v8
       icall panic_if_zero<0x32>, v9
@@ -72,7 +72,7 @@
       mstore8 v17, v13
       v18 = checked_add uint256, v6, 1
       jump bb3
-+   bb5:  ; preds = bb2, bb3, bb7
++   bb5:                                            ; preds = bb2, bb3, bb7
 +     v19 = ptrtoint ptr<memory> v5 to i256
 +     v20 = add v19, 32
 +     v21 = add v20, v0
@@ -92,16 +92,16 @@
 +     v5 = alloc checked v3
       mstore v5, v0
       jump bb1
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       mstore v5, v0
       jump bb2
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
 -     jump bb3
--   bb3:  ; preds = bb2, bb4
+-   bb3:                                            ; preds = bb2, bb4
 -     v6 = phi [bb2: 0], [bb4: v18]
 +     v22 = eq v0, 0
 +     jumpi v22, bb5, bb6
-+   bb6:  ; preds = bb2
++   bb6:                                            ; preds = bb2
 +     v23 = ptradd arg0, 32
 +     v24 = ptradd v5, 32
 +     v25 = ptrtoint ptr<memory> v23 to i256
@@ -119,10 +119,10 @@
 +     v37 = or v34, v36
 +     v38 = ne v37, 0
 +     jumpi v38, bb8, bb7
-+   bb7:  ; preds = bb6
++   bb7:                                            ; preds = bb6
 +     mcopy v24, v23, v0
 +     jump bb5
-+   bb8:  ; preds = bb6
++   bb8:                                            ; preds = bb6
 +     v39 = sub v3, 32
 +     memory_zero v24, v39
 +     v40 = ptradd arg0, 32
@@ -137,23 +137,23 @@
 +     v49 = and v47, v48
 +     v50 = zext i1 v49 to i256
 +     jumpi v49, bb3, bb9
-+   bb9:  ; preds = bb8
++   bb9:                                            ; preds = bb8
 +     v51 = mload arg0
 +     v52 = lt v51, v0
 +     icall panic_if<0x32>, v52
 +     mcopy v24, v23, v0
 +     jump bb5
-+   bb3:  ; preds = bb4, bb8
++   bb3:                                            ; preds = bb4, bb8
 +     v6 = phi [bb8: 0], [bb4: v18]
       v7 = lt v6, v0
       jumpi v7, bb4, bb5
--   bb5:  ; preds = bb3
+-   bb5:                                            ; preds = bb3
 -     v19 = ptrtoint ptr<memory> v5 to i256
 -     v20 = add v19, 32
 -     v21 = add v20, v0
 -     mstore v21, 0
 -     ret v5
-    bb4:  ; preds = bb3
+    bb4:                                            ; preds = bb3
       v8 = mload arg0
       v9 = lt v6, v8
       icall panic_if_zero<0x32>, v9
@@ -169,7 +169,7 @@
       mstore8 v17, v13
       v18 = checked_add uint256, v6, 1
       jump bb3
-+   bb5:  ; preds = bb2, bb3, bb7, bb9
++   bb5:                                            ; preds = bb2, bb3, bb7, bb9
 +     v19 = ptrtoint ptr<memory> v5 to i256
 +     v20 = add v19, 32
 +     v21 = add v20, v0

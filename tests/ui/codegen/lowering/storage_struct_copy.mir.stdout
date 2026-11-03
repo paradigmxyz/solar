@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/storage_struct_copy.sol:StorageStructCopy ===
+; === ROOT/tests/ui/codegen/lowering/storage_struct_copy.sol:StorageStructCopy ===
 @module StorageStructCopy
 @types
   struct0: {i160, i256}

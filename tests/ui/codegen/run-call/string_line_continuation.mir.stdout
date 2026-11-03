@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/run-call/string_line_continuation.sol:StringLineContinuation ===
+; === ROOT/tests/ui/codegen/run-call/string_line_continuation.sol:StringLineContinuation ===
 @module StringLineContinuation
 ; function unicodeLine() external pure returns (string memory) [selector 0x7d426567]
 fn @unicodeLine() -> ptr<memory> [selector=0x7d426567, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

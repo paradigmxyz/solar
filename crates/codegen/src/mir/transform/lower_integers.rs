@@ -19,9 +19,9 @@ use super::utils::expand_block;
 use crate::mir::{
     Function, FunctionBuilder, Immediate, ImmutableId, InstKind, MirType, Module, ResultKind,
     Value, ValueId, ValueLayout,
+    analysis::integers::integer_mask,
     pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
 };
-use alloy_primitives::U256;
 use solar_data_structures::{
     index::IndexVec,
     map::{FxHashMap, FxHashSet},
@@ -261,7 +261,7 @@ fn clean(builder: &mut FunctionBuilder<'_>, value: ValueId, bits: u32) -> ValueI
     if bits == 256 {
         return value;
     }
-    let mask = builder.imm(U256::MAX >> (256 - bits));
+    let mask = builder.imm(integer_mask(bits));
     if bits == 1 {
         let value = builder.and(value, mask);
         let zero = builder.imm(0);

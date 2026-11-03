@@ -1,4 +1,4 @@
-// === ReturnCleanup (runtime) ===
+; === ReturnCleanup (runtime) ===
 PUSH1 0x17
 PUSH1 0x07
 PUSH0

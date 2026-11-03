@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lowering/packed_known_lengths.mir (before lower-builtins) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/packed_known_lengths.mir (after lower-builtins) ===
+- ; === ROOT/tests/ui/codegen/mir/lowering/packed_known_lengths.mir (before lower-builtins) ===
++ ; === ROOT/tests/ui/codegen/mir/lowering/packed_known_lengths.mir (after lower-builtins) ===
   @module PackedKnownLengths
   @data
     payload_0: hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021"
@@ -31,7 +31,7 @@
 +     v16 = add v15, 32
 +     v17 = lt v16, v13
 +     jumpi v17, bb1, bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v18 = alloc v16 !metadata(preserves_fmp)
 +     mstore v18, v13
 +     v19 = ptradd v18, 32
@@ -48,7 +48,7 @@
 +     v28 = ptradd v27, 32
 +     mstore v28, 0
 +     ret v18
-+   bb1 [cold]:  ; preds = bb0
++   bb1 [cold]:                                     ; preds = bb0
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -74,7 +74,7 @@
 +     v11 = add v10, 32
 +     v12 = lt v11, v8
 +     jumpi v12, bb1, bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v13 = alloc v11 !metadata(preserves_fmp)
 +     mstore v13, v8
 +     v14 = ptradd v13, 32
@@ -90,7 +90,7 @@
 +     v22 = ptradd v21, 32
 +     mstore v22, 0
 +     ret v13
-+   bb1 [cold]:  ; preds = bb0
++   bb1 [cold]:                                     ; preds = bb0
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36
@@ -114,7 +114,7 @@
 +     v10 = add v9, 32
 +     v11 = lt v10, v7
 +     jumpi v11, bb1, bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v12 = alloc v10 !metadata(preserves_fmp)
 +     mstore v12, v7
 +     v13 = ptradd v12, 32
@@ -130,7 +130,7 @@
 +     v21 = ptradd v20, 32
 +     mstore v21, 0
 +     ret v12
-+   bb1 [cold]:  ; preds = bb0
++   bb1 [cold]:                                     ; preds = bb0
 +     mstore 32, 65 !metadata(memory=scratch)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     revert 28, 36

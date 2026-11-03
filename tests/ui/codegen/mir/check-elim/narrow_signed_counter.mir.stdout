@@ -1,31 +1,31 @@
-// === ROOT/tests/ui/codegen/mir/check-elim/narrow_signed_counter.sol:NarrowSignedCounter ===
+; === ROOT/tests/ui/codegen/mir/check-elim/narrow_signed_counter.sol:NarrowSignedCounter ===
 @module NarrowSignedCounter
 ; function count() external pure returns (uint256 n) [selector 0x06661abd]
 fn @count() -> i256 [selector=0x06661abd, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:  ; preds = bb0, bb5
+  bb1:                                            ; preds = bb0, bb5
     v0 = phi [bb0: 0], [bb5: v5]
     v1 = phi [bb0: i24 0xffffce], [bb5: v3]
     v2 = slt v1, i24 50
     jumpi v2, bb3, bb4
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb4
+  bb2:                                            ; preds = bb4
     ret v0
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v3 = add v1, i24 1
     v4 = icall @id, v1
     v5 = add v0, 1
     v6 = gt v5, 0x3e8
     jumpi v6, bb6, bb7
-  bb7:  ; preds = bb3
+  bb7:                                            ; preds = bb3
     jump bb8
-  bb8:  ; preds = bb7
+  bb8:                                            ; preds = bb7
     jump bb5
-  bb5:  ; preds = bb8
+  bb5:                                            ; preds = bb8
     jump bb1
-  bb6:  ; preds = bb3
+  bb6:                                            ; preds = bb3
     ret 0x270f
 }
 
