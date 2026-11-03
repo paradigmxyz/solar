@@ -1,0 +1,26 @@
+error[7576]: unresolved symbol `Missing`
+   ╭▸ ROOT/tests/ui/resolve/emit_unresolved.sol:LL:CC
+   │
+LL │         emit Missing();
+   ╰╴             ━━━━━━━
+
+error[7576]: unresolved symbol `Missing`
+   ╭▸ ROOT/tests/ui/resolve/emit_unresolved.sol:LL:CC
+   │
+LL │         revert Missing();
+   ╰╴               ━━━━━━━
+
+error[7576]: unresolved symbol `Missing`
+   ╭▸ ROOT/tests/ui/resolve/emit_unresolved.sol:LL:CC
+   │
+LL │         emit Missing.E();
+   ╰╴             ━━━━━━━
+
+error[7576]: unresolved symbol `Missing`
+   ╭▸ ROOT/tests/ui/resolve/emit_unresolved.sol:LL:CC
+   │
+LL │         revert Missing.Er();
+   ╰╴               ━━━━━━━
+
+error: aborting due to 4 previous errors
+

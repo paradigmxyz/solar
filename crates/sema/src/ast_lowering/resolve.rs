@@ -170,10 +170,12 @@ impl super::LoweringContext<'_> {
             let mut base_indices = SmallVec::<[u32; 8]>::new();
             for (index, base) in ast_contract.bases.iter().enumerate() {
                 let name = &base.name;
-                let Ok(base_id) = self
-                    .resolver
-                    .resolve_path_as::<hir::ContractId>(&base.name, &scopes, "contract")
-                else {
+                let Ok(base_id) = self.resolver.resolve_path_as::<hir::ContractId>(
+                    &base.name,
+                    &scopes,
+                    error_code!(7920),
+                    "contract",
+                ) else {
                     continue;
                 };
                 if base_id == contract_id {
@@ -410,7 +412,8 @@ impl<'gcx> ResolveContext<'gcx> {
                     } else {
                         "modifier"
                     };
-                    let Ok(id) = self.resolve_path_as(&modifier.name, expected) else {
+                    let Ok(id) = self.resolve_path_as(&modifier.name, error_code!(7920), expected)
+                    else {
                         continue;
                     };
                     match id {
@@ -516,7 +519,11 @@ impl<'gcx> ResolveContext<'gcx> {
         let ty = using.ty.as_ref().map(|ty| self.lower_type(ty));
         let entries = match &using.list {
             ast::UsingList::Single(path) => {
-                let kind = match self.resolve_path_as::<hir::ContractId>(path, "library") {
+                let kind = match self.resolve_path_as::<hir::ContractId>(
+                    path,
+                    error_code!(9589),
+                    "library",
+                ) {
                     Ok(id) => hir::UsingEntryKind::Library(id),
                     Err(guar) => hir::UsingEntryKind::Err(guar),
                 };
@@ -550,7 +557,7 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn lower_using_functions(&mut self, path: &ast::PathSlice) -> hir::UsingEntryKind<'gcx> {
-        let decls = match self.resolve_paths(path) {
+        let decls = match self.resolve_paths(path, error_code!(9589)) {
             Ok(decls) => decls,
             Err(guar) => return hir::UsingEntryKind::Err(guar),
         };
@@ -958,22 +965,29 @@ impl<'gcx> ResolveContext<'gcx> {
     fn resolve_paths<'a>(
         &'a self,
         path: &ast::PathSlice,
+        code: DiagId,
     ) -> Result<&'a [Declaration], ErrorGuaranteed> {
-        self.resolver.resolve_paths(path, &self.scopes).map_err(self.resolver.emit_resolver_error())
+        self.resolver
+            .resolve_paths(path, &self.scopes)
+            .map_err(self.resolver.emit_resolver_error(Some(code)))
     }
 
     fn resolve_path_as<T: TryFrom<Res>>(
         &self,
         path: &ast::PathSlice,
+        code: DiagId,
         description: &str,
     ) -> Result<T, ErrorGuaranteed> {
-        self.resolver.resolve_path_as(path, &self.scopes, description)
+        self.resolver.resolve_path_as(path, &self.scopes, code, description)
     }
 
     /// Resolves the event or error path of an `emit` or `revert` statement.
     ///
     /// solc checks the qualified callee as a member access, and a contract name exposes only the
     /// contract's own declarations, so `emit I.E()` ignores any `E` that `I` inherits.
+    ///
+    /// An unresolved first segment is an undeclared identifier. Later segments are member lookups,
+    /// which solc reports with other codes.
     ///
     /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libsolidity/ast/Types.cpp#L3966-L4010>
     fn resolve_callee_path(&self, path: &ast::PathSlice) -> Result<&'gcx [Res], ErrorGuaranteed> {
@@ -984,7 +998,11 @@ impl<'gcx> ResolveContext<'gcx> {
                 qualifier = last;
                 last = if let [decl] = decls { Some(decl.res) } else { None };
             })
-            .map_err(self.resolver.emit_resolver_error())?;
+            .map_err(|e| {
+                let undeclared = matches!(e.kind, ResolverErrorKind::Unresolved)
+                    && e.span() == path.first().span;
+                self.resolver.emit_resolver_error(undeclared.then(|| error_code!(7576)))(e)
+            })?;
         let res = decls.iter().map(|decl| decl.res);
         let Some(Res::Item(hir::ItemId::Contract(contract))) = qualifier else {
             return Ok(self.arena.alloc_slice_fill_iter(res));
@@ -994,7 +1012,7 @@ impl<'gcx> ResolveContext<'gcx> {
         }));
         if own.is_empty() {
             let error = ResolverError::new(*path.last(), ResolverErrorKind::Unresolved);
-            return Err(self.resolver.emit_resolver_error()(error));
+            return Err(self.resolver.emit_resolver_error(None)(error));
         }
         Ok(own)
     }
@@ -1457,7 +1475,7 @@ impl<'gcx> ResolveContext<'gcx> {
         if name.name.as_str().starts_with("verbatim_") {
             return Err(self.dcx().emit_err(name.span, "unsupported verbatim builtin"));
         }
-        Err(self.resolver.emit_resolver_error()(ResolverError::new(
+        Err(self.resolver.emit_resolver_error(None)(ResolverError::new(
             name,
             ResolverErrorKind::Unresolved,
         )))
@@ -1531,7 +1549,7 @@ impl<'gcx> ResolveContext<'gcx> {
         }
         self.resolver
             .resolve_name_non_local(name, &self.scopes)
-            .map_err(self.resolver.emit_resolver_error())
+            .map_err(self.resolver.emit_resolver_error(None))
     }
 
     fn yul_number_lit(&mut self, value: U256, span: Span) -> &'gcx hir::Expr<'gcx> {
@@ -1864,7 +1882,7 @@ impl<'gcx> ResolveContext<'gcx> {
             ast::ExprKind::CallOptions(..) => self.lower_call_options(expr),
             ast::ExprKind::Delete(expr) => hir::ExprKind::Delete(self.lower_expr(expr)),
             ast::ExprKind::Ident(name) => {
-                match self.resolve_paths(ast::PathSlice::from_ref(name)) {
+                match self.resolve_paths(ast::PathSlice::from_ref(name), error_code!(7576)) {
                     Ok(decls) => hir::ExprKind::Ident(
                         self.arena.alloc_slice_fill_iter(decls.iter().map(|decl| decl.res)),
                     ),
@@ -2033,7 +2051,7 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn lower_type_path(&self, path: &ast::PathSlice) -> hir::TypeKind<'gcx> {
-        match self.resolve_path_as(path, "item") {
+        match self.resolve_path_as(path, error_code!(7920), "item") {
             Ok(id) => hir::TypeKind::Custom(id),
             Err(guar) => hir::TypeKind::Err(guar),
         }
@@ -2063,7 +2081,9 @@ impl<'gcx> ResolveContext<'gcx> {
 
         let mut overrides = SmallVec::<[hir::ContractId; 8]>::new();
         for path in ov.paths.iter() {
-            let Ok(id) = self.resolver.resolve_path_as(path, &self.scopes, "contract") else {
+            let Ok(id) =
+                self.resolver.resolve_path_as(path, &self.scopes, error_code!(7920), "contract")
+            else {
                 continue;
             };
             if self.hir.contract(id).kind.is_library() {
@@ -2219,9 +2239,10 @@ impl<'gcx> SymbolResolver<'gcx> {
         &self,
         path: &ast::PathSlice,
         scopes: &SymbolResolverScopes,
+        code: DiagId,
         description: &str,
     ) -> Result<T, ErrorGuaranteed> {
-        let decl = self.resolve_path(path, scopes).map_err(self.emit_resolver_error())?;
+        let decl = self.resolve_path(path, scopes).map_err(self.emit_resolver_error(Some(code)))?;
         if let Res::Err(guar) = decl.res {
             return Err(guar);
         }
@@ -2229,8 +2250,14 @@ impl<'gcx> SymbolResolver<'gcx> {
             .map_err(|_| self.report_expected(description, decl.description(), path.span()))
     }
 
-    fn emit_resolver_error(&self) -> impl Fn(ResolverError) -> ErrorGuaranteed + '_ {
-        move |e| self.dcx.emit_err(e.span(), e.format())
+    fn emit_resolver_error(
+        &self,
+        code: Option<DiagId>,
+    ) -> impl FnOnce(ResolverError) -> ErrorGuaranteed + '_ {
+        move |e| match code {
+            Some(code) => self.dcx.emit_err_code(e.span(), code, e.format()),
+            None => self.dcx.emit_err(e.span(), e.format()),
+        }
     }
 
     fn resolve_path(
