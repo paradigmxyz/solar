@@ -4,7 +4,7 @@
   struct0: {i256, i256}
 
 ; function copied(uint256 base, uint256, uint256 count) external pure returns (uint256) [selector 0xc8ef3ab5]
-fn @copied(arg0: i256, arg1: i256, arg2: i256) [selector=0xc8ef3ab5, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+fn @copied(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xc8ef3ab5, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = add arg0, 32
     mstore 0, 7 !metadata(memory=scratch)
@@ -13,7 +13,7 @@ fn @copied(arg0: i256, arg1: i256, arg2: i256) [selector=0xc8ef3ab5, pure, abi_p
 }
 
 ; function zeroCopy(uint256 count) external pure returns (uint256) [selector 0xf16e8c2d]
-fn @zeroCopy(arg0: i256) [selector=0xf16e8c2d, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+fn @zeroCopy(arg0: i256) -> i256 [selector=0xf16e8c2d, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     calldatacopy 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg0
     mstore 0, 17 !metadata(memory=scratch)
@@ -21,7 +21,7 @@ fn @zeroCopy(arg0: i256) [selector=0xf16e8c2d, pure, abi_params=[uint256], abi_r
 }
 
 ; function unmatchedCount(uint256 count) external pure returns (uint256) [selector 0x747ce2e2]
-fn @unmatchedCount(arg0: i256) [selector=0x747ce2e2, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+fn @unmatchedCount(arg0: i256) -> i256 [selector=0x747ce2e2, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     mstore 0, 7 !metadata(memory=scratch)
     calldatacopy 0, 4, arg0 !metadata(memory=scratch)
@@ -41,7 +41,7 @@ fn @beforeCopy(arg0: i256) -> struct0 [selector=0xdc08924e, pure, abi_params=[ui
 }
 
 ; function partialCopy(uint256 value) external pure returns (uint256) [selector 0x2acedaf0]
-fn @partialCopy(arg0: i256) [selector=0x2acedaf0, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+fn @partialCopy(arg0: i256) -> i256 [selector=0x2acedaf0, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     mstore 0, 263 !metadata(memory=scratch)
     mstore8 31, arg0 !metadata(memory=scratch)
@@ -49,7 +49,7 @@ fn @partialCopy(arg0: i256) [selector=0x2acedaf0, pure, abi_params=[uint256], ab
 }
 
 ; function fromMemory(uint256 destination) external pure returns (uint256) [selector 0x934a1496]
-fn @fromMemory(arg0: i256) [selector=0x934a1496, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+fn @fromMemory(arg0: i256) -> i256 [selector=0x934a1496, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     mstore 0, 7 !metadata(memory=scratch)
     mcopy arg0, 0, 32
@@ -57,14 +57,14 @@ fn @fromMemory(arg0: i256) [selector=0x934a1496, pure, abi_params=[uint256], abi
 }
 
 ; function throughHelper(uint256 pointer) external pure returns (uint256) [selector 0x793709d6]
-fn @throughHelper(arg0: i256) [selector=0x793709d6, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+fn @throughHelper(arg0: i256) -> i256 [selector=0x793709d6, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall @writeAndCopy, 0, 0
     returndata arg0, 32
 }
 
 ; function loopRead(uint256 count) external pure returns (uint256) [selector 0xe24ad65f]
-fn @loopRead(arg0: i256) [selector=0xe24ad65f, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+fn @loopRead(arg0: i256) -> i256 [selector=0xe24ad65f, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     mstore 32, 7 !metadata(memory=scratch)
     jump bb1

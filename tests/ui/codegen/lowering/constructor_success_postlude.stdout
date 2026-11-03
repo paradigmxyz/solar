@@ -35,10 +35,9 @@ bb0:  ; constructor(bool fail) [creation entry]
   push bb3
   jumpi
   mload
+  dup 1
   push 1
   shr
-  push 192
-  mload
   or
   push bb3
   jumpi

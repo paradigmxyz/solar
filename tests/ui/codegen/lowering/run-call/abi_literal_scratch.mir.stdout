@@ -78,7 +78,7 @@ fn @observedRevert(arg0: i256) [selector=0x8cf17d01, pure, abi_params=[uint256],
     v9 = lt v8, 1
     v10 = zext i1 v9 to i256
     v11 = shl v10, 5
-    v12 = add 64, v11
+    v12 = add v11, 64
     revert v0, v12
 }
 

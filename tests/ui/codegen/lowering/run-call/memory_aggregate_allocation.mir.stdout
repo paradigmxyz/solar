@@ -6,7 +6,7 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v0 = alloc zeroed checked 96
     mstore v0, 35
     v1 = mload v0
-    v2 = lt 34, v1
+    v2 = gt v1, 34
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = byte 0, 0x4100000000000000000000000000000000000000000000000000000000000000
@@ -21,7 +21,7 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     jumpi v8, bb2, bb3
   bb3:  ; preds = bb1
     v15 = mload v6
-    v16 = lt 3, v15
+    v16 = gt v15, 3
     v17 = eq v16, false
     icall panic_if<0x32>, v17
     v18 = ptradd v6, 128
@@ -40,7 +40,7 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     jumpi v25, bb5, bb6
   bb6:  ; preds = bb4
     v35 = mload v23
-    v36 = lt 2, v35
+    v36 = gt v35, 2
     v37 = eq v36, false
     icall panic_if<0x32>, v37
     v38 = ptradd v23, 96
@@ -54,7 +54,7 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v44 = alloc zeroed checked 64
     mstore v44, 6
     v45 = mload v23
-    v46 = lt 2, v45
+    v46 = gt v45, 2
     v47 = eq v46, false
     icall panic_if<0x32>, v47
     v48 = ptradd v23, 96
@@ -63,7 +63,7 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v51 = ptradd v49, 32
     mstore v51, v50
     v52 = mload v23
-    v53 = lt 2, v52
+    v53 = gt v52, 2
     v54 = eq v53, false
     icall panic_if<0x32>, v54
     v55 = ptradd v23, 96
@@ -71,14 +71,14 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v57 = ptradd v56, 32
     v58 = mload v57, ptr<memory>
     v59 = mload v58
-    v60 = lt 5, v59
+    v60 = gt v59, 5
     v61 = eq v60, false
     icall panic_if<0x32>, v61
     v62 = byte 0, 0x4200000000000000000000000000000000000000000000000000000000000000
     v63 = ptradd v58, 37
     mstore8 v63, v62
     v64 = mload v0
-    v65 = lt 34, v64
+    v65 = gt v64, 34
     v66 = eq v65, false
     icall panic_if<0x32>, v66
     v67 = ptradd v0, 66
@@ -88,7 +88,7 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v71 = shr v70, 248
     v72 = trunc i256 v71 to i8
     v73 = mload v6
-    v74 = lt 3, v73
+    v74 = gt v73, 3
     v75 = eq v74, false
     icall panic_if<0x32>, v75
     v76 = ptradd v6, 128
@@ -101,7 +101,7 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v82 = zext i8 v72 to i256
     v83 = checked_add uint256, v82, v81
     v84 = mload v23
-    v85 = lt 2, v84
+    v85 = gt v84, 2
     v86 = eq v85, false
     icall panic_if<0x32>, v86
     v87 = ptradd v23, 96
@@ -114,7 +114,7 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v93 = mload v92
     v94 = checked_add uint256, v83, v93
     v95 = mload v23
-    v96 = lt 2, v95
+    v96 = gt v95, 2
     v97 = eq v96, false
     icall panic_if<0x32>, v97
     v98 = ptradd v23, 96
@@ -122,7 +122,7 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v100 = ptradd v99, 32
     v101 = mload v100, ptr<memory>
     v102 = mload v101
-    v103 = lt 5, v102
+    v103 = gt v102, 5
     v104 = eq v103, false
     icall panic_if<0x32>, v104
     v105 = ptradd v101, 37

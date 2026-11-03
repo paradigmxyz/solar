@@ -11,8 +11,8 @@
 
 // CHECK-LABEL: @module Signatures
 // CHECK-LABEL: fn @entry()
-// CHECK: calldataload 4
 // CHECK: switch
+// CHECK: calldataload 4
 // CHECK-NOT: tail_call
 contract Signatures {
     function ping() external pure { }

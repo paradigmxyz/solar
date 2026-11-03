@@ -7,7 +7,7 @@
 fn @read(arg0: slice<calldata>) -> struct0 [selector=0x171e22c6, pure, abi_params=[array<_, tuple<uint256, bytes>>], abi_returns=[word, memory_bytes], abi_return_params=[uint256, bytes]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
-    v1 = lt 0, v0
+    v1 = gt v0, 0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = extract_value slice<calldata>, arg0, 0
@@ -34,7 +34,7 @@ fn @read(arg0: slice<calldata>) -> struct0 [selector=0x171e22c6, pure, abi_param
     v22 = add v21, 0
     v23 = calldataload v22
     v24 = extract_value slice<calldata>, arg0, 1
-    v25 = lt 0, v24
+    v25 = gt v24, 0
     v26 = eq v25, false
     icall panic_if<0x32>, v26
     v27 = extract_value slice<calldata>, arg0, 0
@@ -79,7 +79,7 @@ fn @read(arg0: slice<calldata>) -> struct0 [selector=0x171e22c6, pure, abi_param
     icall revert_if<invalid_calldata_tail_length>, v61
     v62 = add v52, 32
     v63 = sub v60, v59
-    v64 = sgt v62, v63
+    v64 = slt v63, v62
     icall revert_if<calldata_tail_too_short>, v64
     v65 = inttoptr i256 v62 to ptr<calldata>
     v66 = make_calldata_slice v65, v59
@@ -90,7 +90,7 @@ fn @read(arg0: slice<calldata>) -> struct0 [selector=0x171e22c6, pure, abi_param
     icall revert_if<invalid_calldata_tail_length>, v70
     v71 = sub v69, v68
     v72 = ptrtoint ptr<calldata> v67 to i256
-    v73 = sgt v72, v71
+    v73 = slt v71, v72
     icall revert_if<calldata_tail_too_short>, v73
     v74 = extract_value slice<calldata>, v66, 1
     v75 = add v74, 31

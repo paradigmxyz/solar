@@ -18,7 +18,7 @@ fn @entry() [entry] {
 }
 
 ; function copyHigh() external pure returns (bytes memory d) [selector 0xf4f1833d]
-fn @copyHigh() [selector=0xf4f1833d, abi_wrapper, pure] {
+fn @copyHigh() {
   bb0:
     v0 = calldatasize
     v60 = add v0, 64
@@ -29,7 +29,7 @@ fn @copyHigh() [selector=0xf4f1833d, abi_wrapper, pure] {
     v91 = lt v90, v89
     v92 = zext i1 v91 to i256
     v93 = shr v90, 64
-    v94 = or v92, v93
+    v94 = or v93, v92
     v95 = ne v94, 0
     jumpi v95, bb9, bb8
   bb8:  ; preds = bb0

@@ -14,7 +14,7 @@ fn @entry() [entry] {
     revert 0, 0
 }
 
-fn @counter() [selector=0x61bc221a, abi_wrapper] {
+fn @counter() {
   bb0:
     sstore 0, 5
     tstore 1, 7

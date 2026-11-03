@@ -59,11 +59,8 @@ impl<'sess, 'ast> AstValidator<'sess, 'ast> {
                 .emit();
         }
         if matches!(stmt.kind, ast::StmtKind::UncheckedBlock(..)) {
-            self.dcx().emit_err(
-                stmt.span,
-                None,
-                "`unchecked` blocks can only be used inside regular blocks",
-            );
+            self.dcx()
+                .emit_err(stmt.span, "`unchecked` blocks can only be used inside regular blocks");
         }
     }
 
@@ -103,11 +100,7 @@ impl<'sess, 'ast> AstValidator<'sess, 'ast> {
         }
 
         if let ast::SubDenomination::Time(ast::TimeSubDenomination::Years) = denom {
-            self.dcx().emit_err(
-                lit.span,
-                None,
-                "using \"years\" as a unit denomination is deprecated",
-            );
+            self.dcx().emit_err(lit.span, "using \"years\" as a unit denomination is deprecated");
         }
     }
 
@@ -235,7 +228,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
     ) -> ControlFlow<Self::BreakValue> {
         let ast::ItemStruct { name, fields, .. } = item;
         if fields.is_empty() {
-            self.dcx().emit_err(name.span, None, "structs must have at least one field");
+            self.dcx().emit_err(name.span, "structs must have at least one field");
         }
         self.walk_item_struct(item)
     }
@@ -246,10 +239,10 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
     ) -> ControlFlow<Self::BreakValue> {
         let ast::ItemEnum { name, variants } = enum_;
         if variants.is_empty() {
-            self.dcx().emit_err(name.span, None, "enum must have at least one variant");
+            self.dcx().emit_err(name.span, "enum must have at least one variant");
         }
         if variants.len() > 256 {
-            self.dcx().emit_err(name.span, None, "enum cannot have more than 256 variants");
+            self.dcx().emit_err(name.span, "enum cannot have more than 256 variants");
         }
         ControlFlow::Continue(())
     }
@@ -262,7 +255,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
             ast::PragmaTokens::Version(name, req) => {
                 if name.name != sym::solidity {
                     let msg = "only `solidity` is supported as a version pragma";
-                    self.dcx().emit_err(name.span, None, msg);
+                    self.dcx().emit_err(name.span, msg);
                 } else if !req.dis.is_empty()
                     && let version = solc_semver_version()
                     && !req.matches(&version.into())
@@ -294,15 +287,15 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                     ("experimental", Some("SMTChecker")) => {}
                     ("experimental", Some("solidity")) => {
                         let msg = "experimental solidity features are not supported";
-                        self.dcx().emit_err(self.item_span, None, msg);
+                        self.dcx().emit_err(self.item_span, msg);
                     }
                     _ => {
-                        self.dcx().emit_err(self.item_span, None, "unknown pragma");
+                        self.dcx().emit_err(self.item_span, "unknown pragma");
                     }
                 }
             }
             ast::PragmaTokens::Verbatim(_) => {
-                self.dcx().emit_err(self.item_span, None, "unknown pragma");
+                self.dcx().emit_err(self.item_span, "unknown pragma");
             }
         }
         ControlFlow::Continue(())
@@ -323,7 +316,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
             }
             ast::StmtKind::UncheckedBlock(_block) => {
                 if self.in_unchecked_block {
-                    self.dcx().emit_err(stmt.span, None, "`unchecked` blocks cannot be nested");
+                    self.dcx().emit_err(stmt.span, "`unchecked` blocks cannot be nested");
                 }
 
                 let prev = self.in_unchecked_block;
@@ -337,14 +330,12 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                 if !self.function_kind.is_some_and(|k| k.is_modifier()) {
                     self.dcx().emit_err(
                         stmt.span,
-                        None,
                         "placeholder statements can only be used in modifiers",
                     );
                 }
                 if self.in_unchecked_block {
                     self.dcx().emit_err(
                         stmt.span,
-                        None,
                         "placeholder statements cannot be used inside unchecked blocks",
                     );
                 }
@@ -405,17 +396,14 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
 
         if contract.kind.is_library() {
             if !contract.bases.is_empty() {
-                self.dcx().emit_err(contract.name.span, None, "library is not allowed to inherit");
+                self.dcx().emit_err(contract.name.span, "library is not allowed to inherit");
             }
             for item in contract.body.iter() {
                 if let ast::ItemKind::Variable(var) = &item.kind
                     && !var.mutability.is_some_and(|m| m.is_constant())
                 {
-                    self.dcx().emit_err(
-                        var.span,
-                        None,
-                        "library cannot have non-constant state variable",
-                    );
+                    self.dcx()
+                        .emit_err(var.span, "library cannot have non-constant state variable");
                 }
             }
         }
@@ -442,15 +430,11 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                             .emit();
             }
             if contract.kind.is_interface() && !func.header.modifiers.is_empty() {
-                self.dcx().emit_err(
-                    self.item_span,
-                    None,
-                    "functions in interfaces cannot have modifiers",
-                );
+                self.dcx()
+                    .emit_err(self.item_span, "functions in interfaces cannot have modifiers");
             } else if !func.is_implemented() && !func.header.modifiers.is_empty() {
                 self.dcx().emit_err(
                     self.item_span,
-                    None,
                     "functions without implementation cannot have modifiers",
                 );
             }
@@ -479,7 +463,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
 
         if self.contract.is_none() && func.kind.is_function() {
             if !func.is_implemented() {
-                self.dcx().emit_err(self.item_span, None, "free functions must be implemented");
+                self.dcx().emit_err(self.item_span, "free functions must be implemented");
             }
             // Checked here rather than in `typeck` because a modifier invocation on a free
             // function never resolves, so it is never lowered into the HIR function.
@@ -507,11 +491,8 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
             if num_placeholders_increased == 0
                 && let Some(func_name) = func.header.name
             {
-                self.dcx().emit_err(
-                    func_name.span,
-                    None,
-                    "modifier must have a `_;` placeholder statement",
-                );
+                self.dcx()
+                    .emit_err(func_name.span, "modifier must have a `_;` placeholder statement");
             }
         }
         r
@@ -526,33 +507,27 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         if self.contract.is_none() && !with_ty {
             self.dcx().emit_err(
                 self.item_span,
-                None,
                 "the type has to be specified explicitly at file level (cannot use `*`)",
             );
         }
         if self.contract.is_some() && !with_ty && matches!(list, ast::UsingList::Multiple(_)) {
             self.dcx().emit_err(
                 self.item_span,
-                None,
                 "the type has to be specified explicitly when attaching specific functions",
             );
         }
         if global && !with_ty {
-            self.dcx().emit_err(
-                self.item_span,
-                None,
-                "can only globally attach functions to specific types",
-            );
+            self.dcx()
+                .emit_err(self.item_span, "can only globally attach functions to specific types");
         }
         if global && self.contract.is_some() {
-            self.dcx().emit_err(self.item_span, None, "`global` can only be used at file level");
+            self.dcx().emit_err(self.item_span, "`global` can only be used at file level");
         }
         if !global && let ast::UsingList::Multiple(paths) = list {
             for (path, operator) in paths.iter() {
                 if operator.is_some() {
                     self.dcx().emit_err(
                         path.span(),
-                        None,
                         "operators can only be defined in a global `using for` directive",
                     );
                 }
@@ -563,7 +538,6 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         {
             self.dcx().emit_err(
                 self.item_span,
-                None,
                 "the `using for` directive is not allowed inside interfaces",
             );
         }

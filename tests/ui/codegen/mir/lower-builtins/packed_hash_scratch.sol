@@ -29,8 +29,9 @@ contract PackedHashScratch {
 
     // A third store would reach past 0x40, so the bytes go to the initial heap floor.
     // CHECK-LABEL: fn @tooLong(
+    // CHECK: [[A:v[0-9]+]] = calldataload 4
     // CHECK: [[HEAP:v[0-9]+]] = heap_floor
-    // CHECK: mstore [[HEAP]], arg0
+    // CHECK: mstore [[HEAP]], [[A]]
     // CHECK: keccak256 [[HEAP]], 68
     function tooLong(uint256 a, uint256 b, uint32 c) external pure returns (bytes32) {
         return keccak256(abi.encodePacked(a, b, c));

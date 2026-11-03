@@ -4,14 +4,14 @@
 fn @addressEq(arg0: ptr<memory>) -> i1 [selector=0x83ede5a4, pure, abi_params=[array<_, address>], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = mload arg0
-    v1 = lt 0, v0
+    v1 = gt v0, 0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = ptradd arg0, 32
     v4 = mload v3
     v5 = trunc i256 v4 to i160
     v6 = mload arg0
-    v7 = lt 1, v6
+    v7 = gt v6, 1
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     v9 = ptradd arg0, 64

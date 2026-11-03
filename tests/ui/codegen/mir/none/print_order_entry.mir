@@ -1,0 +1,50 @@
+//@compile-flags: -Zmir-pipeline=none
+//@filecheck:
+
+// In lowered MIR, the constructor, the runtime entry, `receive` and `fallback` print first, in
+// that order, and `receive` and `fallback` are marked like the other roots. The other functions
+// keep their order.
+@module PrintOrderEntry
+@phase lowered
+
+// CHECK-LABEL: fn @constructor() [constructor]
+// CHECK-LABEL: fn @entry() [entry]
+// CHECK-LABEL: fn @receive() [receive]
+// CHECK-LABEL: fn @fallback() [fallback]
+// CHECK-LABEL: fn @helper_a
+// CHECK-LABEL: fn @helper_b
+
+fn @helper_a() {
+  bb0:
+    stop
+}
+
+fn @fallback() [fallback] {
+  bb0:
+    stop
+}
+
+fn @helper_b() {
+  bb0:
+    stop
+}
+
+fn @receive() [receive] {
+  bb0:
+    stop
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = calldatasize
+    switch v0, default bb1, [0 => bb2]
+  bb1:
+    tail_call @fallback
+  bb2:
+    tail_call @receive
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    stop
+}

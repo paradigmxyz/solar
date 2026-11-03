@@ -21,7 +21,7 @@ fn @entry() [entry] {
     revert 0, 0
 }
 
-fn @allocation() [selector=1, abi_wrapper] {
+fn @allocation() {
   bb0:
     v0 = alloc 64 !metadata(deferred_alloc)
     v1 = ptrtoint ptr<memory> v0 to i256
@@ -31,7 +31,7 @@ fn @allocation() [selector=1, abi_wrapper] {
     returndata 0, 32
 }
 
-fn @results() [selector=2, abi_wrapper] {
+fn @results() {
   bb0:
     v0 = icall @pair
     icall @noop

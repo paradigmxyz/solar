@@ -15,7 +15,7 @@ fn @right(arg0: i256) -> i256 {
 }
 
 // CHECK-LABEL: fn @left(
-// CHECK: mul 2, arg0
+// CHECK: mul arg0, 2
 // CHECK-NEXT: [[HIGH:v[0-9]+]] = shr arg0, 255
 // CHECK-NEXT: ne [[HIGH]], 0
 fn @left(arg0: i256) -> i256 {

@@ -13,7 +13,7 @@
 //! failed check leaves its phase semantic and prevents the backend from consuming it.
 //!
 //! Arguments ride along on the stack: the backend jumps with them in place and
-//! pushes no return address. Only bodied, selectorless, non-recursive callees
+//! pushes no return address. Only bodied, non-recursive callees that are not external entries
 //! qualify.
 //! Returnability follows explicit returns and tail-call chains conservatively;
 //! unreachable returns can prevent a proof until CFG cleanup removes them. A

@@ -305,8 +305,12 @@ changed. Passes emit diagnostics through the session; an error stops the pass
 manager and custom pipelines. Keep `run_pass` last in each trait implementation.
 The canonical pipeline arrays are private to the pass manager.
 `abi_wrapper` marks an explicit entry ABI; it is verified independently of the
-module phase. The final phase uses a shared legality check, and runtime codegen
-requires an immutable `LoweredModule` view.
+module phase. Once `lower-dispatch` builds `entry`, no function carries an entry or ABI
+attribute (`selector`, visibility, mutability, `abi_wrapper`, `receive`, `fallback`, the ABI
+layouts, or proved array element widths) and the verifier rejects them. The module roots are
+`entry`, whose tail calls name the runtime entries, and the constructor, which the module
+records and the text marks with `[constructor]`. The final phase uses a shared legality
+check, and runtime codegen requires an immutable `LoweredModule` view.
 
 Define one legality implementation for instructions, types, function signatures,
 terminators, and module entries. Use it both when completing conversion and when

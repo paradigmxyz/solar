@@ -22,10 +22,10 @@ fn @poke() [selector=0x18178358, abi_params=[], abi_returns=[], abi_return_param
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
-    v7 = lt 5, v6
+    v7 = gt v6, 5
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2

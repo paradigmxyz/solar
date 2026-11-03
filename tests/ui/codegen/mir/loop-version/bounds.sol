@@ -30,12 +30,13 @@ contract Bounds {
     // The fast copy reuses that length; its stores cannot reach the header and change it.
     // CHECK-LABEL: fn @siftValues(
     // CHECK: [[ARRAY:v[0-9]+]] = heap_floor
+    // CHECK: [[END:v[0-9]+]] = calldataload 36
     // CHECK: [[BITS:v[0-9]+]] = or [[ARRAY]], [[LENGTH:v[0-9]+]]
     // CHECK-NEXT: [[HIGH:v[0-9]+]] = shr [[BITS]], 64
     // CHECK-NEXT: [[SMALL:v[0-9]+]] = eq [[HIGH]], 0
     // CHECK-NEXT: jumpi [[SMALL]], [[BOUNDS:bb[0-9]+]], [[SLOW:bb[0-9]+]]
     // CHECK: [[BOUNDS]]:
-    // CHECK-NEXT: [[SHORT:v[0-9]+]] = lt [[LENGTH]], arg1
+    // CHECK-NEXT: [[SHORT:v[0-9]+]] = lt [[LENGTH]], [[END]]
     // CHECK-NEXT: jumpi [[SHORT]], [[SLOW]], [[FAST:bb[0-9]+]]
     // CHECK-NEXT: [[FAST]]:
     // CHECK-NOT: mload [[ARRAY]]

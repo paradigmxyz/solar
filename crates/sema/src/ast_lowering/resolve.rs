@@ -112,7 +112,7 @@ impl super::LoweringContext<'_> {
                                         .source_map()
                                         .filename_for_diagnostics(&source.file.name)
                                 );
-                                let guar = self.sess.dcx.emit_err(import.span, None, msg);
+                                let guar = self.sess.dcx.emit_err(import.span, msg);
                                 let _ = source_scope.declare_res(
                                     self.sess,
                                     &self.hir,
@@ -178,7 +178,7 @@ impl super::LoweringContext<'_> {
                 };
                 if base_id == contract_id {
                     let msg = "contracts cannot inherit from themselves";
-                    self.dcx().emit_err(name.span(), None, msg);
+                    self.dcx().emit_err(name.span(), msg);
                     continue;
                 }
                 if self.hir.contract(base_id).kind.is_library() {
@@ -227,7 +227,7 @@ impl super::LoweringContext<'_> {
                         let msg = format!("{} function already declared", func.kind);
                         let note = "previous declaration here";
                         let prev_span = self.hir.function(prev).span;
-                        self.dcx().err_at(func.span, None, msg).span_note(prev_span, note).emit();
+                        self.dcx().err_at(func.span, msg).span_note(prev_span, note).emit();
                     } else {
                         *slot = Some(function_id);
                     }
@@ -432,7 +432,7 @@ impl<'gcx> ResolveContext<'gcx> {
                                     .contains(&modifier_contract)
                             });
                             if !allowed {
-                                self.dcx().emit_err(modifier.name.span(), None, "can only use modifiers defined in the current contract or in base contracts");
+                                self.dcx().emit_err(modifier.name.span(), "can only use modifiers defined in the current contract or in base contracts");
                                 continue;
                             }
                         }
@@ -569,7 +569,7 @@ impl<'gcx> ResolveContext<'gcx> {
             return hir::UsingEntryKind::Err(guar);
         }
         if functions.len() != 1 || saw_non_function {
-            let guar = self.dcx().emit_err(path.span(), None, "expected function name");
+            let guar = self.dcx().emit_err(path.span(), "expected function name");
             return hir::UsingEntryKind::Err(guar);
         }
         hir::UsingEntryKind::Functions(self.arena.alloc_smallvec(functions))
@@ -637,11 +637,9 @@ impl<'gcx> ResolveContext<'gcx> {
                 // bad: `contract is C` ... `constructor() C`
                 //  ok: `contract is C` ... `constructor() C()`
                 // So we use `is_dummy` here instead of `is_empty`.
-                self.sess.dcx.emit_err(
-                    base.span,
-                    None,
-                    "modifier-style base constructor call without arguments",
-                );
+                self.sess
+                    .dcx
+                    .emit_err(base.span, "modifier-style base constructor call without arguments");
             }
             let prev = &mut base_args[base_idx];
             if let Some(prev) = prev {
@@ -853,7 +851,7 @@ impl<'gcx> ResolveContext<'gcx> {
                 [] => {
                     let msg = "getter must return at least one value";
                     let note = "the struct has all its members omitted, therefore the getter cannot return any values";
-                    self.dcx().err_at(span, None, msg).span_note(ret_ty.span, note).emit();
+                    self.dcx().err_at(span, msg).span_note(ret_ty.span, note).emit();
                     Some(&[])
                 }
                 // `return <expr>;`
@@ -1104,11 +1102,8 @@ impl<'gcx> ResolveContext<'gcx> {
             match flag.value {
                 sym::memory_dash_safe => {
                     if has_flag {
-                        self.dcx().emit_err(
-                            span,
-                            None,
-                            "inline assembly marked memory-safe multiple times",
-                        );
+                        self.dcx()
+                            .emit_err(span, "inline assembly marked memory-safe multiple times");
                     }
                     has_flag = true;
                     memory_safe = true;
@@ -1461,7 +1456,7 @@ impl<'gcx> ResolveContext<'gcx> {
             }
         }
         if name.name.as_str().starts_with("verbatim_") {
-            return Err(self.dcx().emit_err(name.span, None, "unsupported verbatim builtin"));
+            return Err(self.dcx().emit_err(name.span, "unsupported verbatim builtin"));
         }
         Err(self.resolver.emit_resolver_error()(ResolverError::new(
             name,
@@ -1910,7 +1905,7 @@ impl<'gcx> ResolveContext<'gcx> {
                     )
                 } else {
                     let msg = "expected exactly one unnamed argument";
-                    self.sess.dcx.emit_err(expr.span, None, msg)
+                    self.sess.dcx.emit_err(expr.span, msg)
                 };
                 hir::ExprKind::Err(guar)
             }
@@ -2237,7 +2232,7 @@ impl<'gcx> SymbolResolver<'gcx> {
     }
 
     fn emit_resolver_error(&self) -> impl Fn(ResolverError) -> ErrorGuaranteed + '_ {
-        move |e| self.dcx.emit_err(e.span(), None, e.format())
+        move |e| self.dcx.emit_err(e.span(), e.format())
     }
 
     fn resolve_path(
@@ -2324,7 +2319,7 @@ impl<'gcx> SymbolResolver<'gcx> {
     }
 
     fn report_expected(&self, expected: &str, found: &str, span: Span) -> ErrorGuaranteed {
-        self.dcx.emit_err(span, None, format!("expected {expected}, found {found}"))
+        self.dcx.emit_err(span, format!("expected {expected}, found {found}"))
     }
 }
 

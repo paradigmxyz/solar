@@ -47,7 +47,7 @@ fn @orderedSuffix(arg0: ptr<memory>) -> i256 [selector=0xf6f5f115, pure, abi_par
     v8 = phi [bb0: v4], [bb5: v20]
     v9 = ptrtoint ptr<memory> v5 to i256
     v10 = add v9, 32
-    v11 = gt v8, v10
+    v11 = lt v10, v8
     v12 = zext i1 v11 to i256
     v13 = ne v12, 0
     jumpi v13, bb3, bb4
@@ -57,7 +57,7 @@ fn @orderedSuffix(arg0: ptr<memory>) -> i256 [selector=0xf6f5f115, pure, abi_par
     v14 = mload v8
     v15 = sub v8, 32
     v16 = mload v15
-    v17 = gt v16, v14
+    v17 = lt v14, v16
     v18 = zext i1 v17 to i256
     v19 = ne v18, 0
     jumpi v19, bb6, bb7

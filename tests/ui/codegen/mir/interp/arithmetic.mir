@@ -17,20 +17,22 @@ fn @entry() [entry] {
     revert 0, 0
 }
 
-fn @edges() [selector=0x70cfc9de, abi_wrapper] {
+fn @edges() {
   bb0:
-    v0 = div arg0, arg1
-    v1 = sdiv arg0, arg1
-    v2 = mod arg0, arg1
-    v3 = smod arg0, arg1
-    v4 = addmod arg0, arg0, arg1
-    v5 = mulmod arg0, arg0, arg1
-    v6 = exp arg0, arg1
-    v7 = signextend arg1, arg0
-    v8 = sar arg0, arg1
-    v9 = byte arg1, arg0
-    v10 = shl arg0, arg1
-    v11 = shr arg0, arg1
+    v900 = calldataload 4
+    v901 = calldataload 36
+    v0 = div v900, v901
+    v1 = sdiv v900, v901
+    v2 = mod v900, v901
+    v3 = smod v900, v901
+    v4 = addmod v900, v900, v901
+    v5 = mulmod v900, v900, v901
+    v6 = exp v900, v901
+    v7 = signextend v901, v900
+    v8 = sar v900, v901
+    v9 = byte v901, v900
+    v10 = shl v900, v901
+    v11 = shr v900, v901
     mstore 0x80, v0
     mstore 0xa0, v1
     mstore 0xc0, v2

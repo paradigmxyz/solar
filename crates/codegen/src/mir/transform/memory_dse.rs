@@ -349,11 +349,11 @@ fn return_facts(
     for (id, func) in module.functions.iter_enumerated() {
         names.entry(func.name).and_modify(|unique| *unique = None).or_insert(Some(id));
     }
+    let roots = module.root_functions();
     let mut tracked = DenseBitSet::new_empty(module.functions.len());
     for (id, func) in module.functions.iter_enumerated() {
         if !func.blocks.is_empty()
-            && !func.is_external_entry()
-            && module.dispatch_entry() != Some(id)
+            && !roots.contains(id)
             && func.return_components().len() <= 1
             && !(calls[id].is_empty() && tails[id].is_empty())
             && names[&func.name] == Some(id)

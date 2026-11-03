@@ -32,7 +32,7 @@ fn @fixedLength() -> i256 [selector=0x47f1a57f, abi_params=[], abi_returns=[word
     v0 = alloc 32
     mstore v0, 0
     v1 = sload 0 !metadata(storage=slot(0))
-    v2 = lt 1, v1
+    v2 = gt v1, 1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = storage_array_data_slot 0
@@ -101,7 +101,7 @@ fn @fixedLength() -> i256 [selector=0x47f1a57f, abi_params=[], abi_returns=[word
     v96 = mul v95, 4
     sstore 0, v91 !metadata(storage=slot(0))
     v97 = sload 0 !metadata(storage=slot(0))
-    v98 = lt 1, v97
+    v98 = gt v97, 1
     v99 = eq v98, false
     icall panic_if<0x32>, v99
     v100 = storage_array_data_slot 0
@@ -193,7 +193,7 @@ fn @dynamicLength(arg0: i256) -> i256 [selector=0x3e3319e9, abi_params=[uint256]
     v1 = phi [bb0: arg0], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v2]
     v3 = phi [bb0: v0], [bb3: v14]
-    v4 = gt v3, v1
+    v4 = lt v1, v3
     v5 = eq v4, false
     jumpi v5, bb4, bb5
   bb5:  ; preds = bb1
@@ -227,7 +227,7 @@ fn @dynamicLength(arg0: i256) -> i256 [selector=0x3e3319e9, abi_params=[uint256]
     v35 = mul v34, 4
     v36 = mload v27
     v37 = sload 0 !metadata(storage=slot(0))
-    v38 = gt v37, v36
+    v38 = lt v36, v37
     jumpi v38, bb7, bb8
   bb7:  ; preds = bb2
     jump bb9
@@ -270,7 +270,7 @@ fn @dynamicLength(arg0: i256) -> i256 [selector=0x3e3319e9, abi_params=[uint256]
     sstore v33, v90 !metadata(storage=symbolic(v33))
     v91 = mload v27
     v92 = sload 0 !metadata(storage=slot(0))
-    v93 = gt v92, v91
+    v93 = lt v91, v92
     jumpi v93, bb17, bb18
   bb17:  ; preds = bb16
     jump bb19
@@ -437,7 +437,7 @@ fn @exactSlotBoundary() -> i256 [selector=0xe55d27b8, abi_params=[], abi_returns
     v13 = alloc 256 !metadata(preserves_fmp)
     memory_zero v13, 256
     v14 = sload 0 !metadata(storage=slot(0))
-    v15 = lt 8, v14
+    v15 = gt v14, 8
     v16 = eq v15, false
     icall panic_if<0x32>, v16
     v17 = storage_array_data_slot 0
@@ -495,7 +495,7 @@ fn @exactSlotBoundary() -> i256 [selector=0xe55d27b8, abi_params=[], abi_returns
     v101 = mul v100, 4
     sstore 0, v96 !metadata(storage=slot(0))
     v102 = sload 0 !metadata(storage=slot(0))
-    v103 = lt 8, v102
+    v103 = gt v102, 8
     v104 = eq v103, false
     icall panic_if<0x32>, v104
     v105 = storage_array_data_slot 0

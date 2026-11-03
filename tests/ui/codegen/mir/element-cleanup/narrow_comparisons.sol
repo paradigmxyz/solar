@@ -81,7 +81,8 @@ contract NarrowComparisons {
     // CHECK-LABEL: fn @below(
     // CHECK: [[ELEMENT:v[0-9]+]] = add {{v[0-9]+}}, 32
     // CHECK-NEXT: [[WORD:v[0-9]+]] = mload [[ELEMENT]]
-    // CHECK-NEXT: [[X:v[0-9]+]] = and {{arg[0-9]+|v[0-9]+}}, 0xffffffffffffffffffffffffffffffffffffffff
+    // CHECK-NEXT: [[ARG:v[0-9]+]] = calldataload 36
+    // CHECK-NEXT: [[X:v[0-9]+]] = and [[ARG]], 0xffffffffffffffffffffffffffffffffffffffff
     // CHECK-NEXT: {{v[0-9]+}} = lt [[WORD]], [[X]]
     function below(uint160[] memory a, uint256 x) external pure returns (bool) {
         return a[0] < uint160(x);
