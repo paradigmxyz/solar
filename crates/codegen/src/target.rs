@@ -1023,6 +1023,39 @@ impl Target {
         self.cmp_lifetime(guarded, copy).is_lt()
     }
 
+    /// Whether ABI encoding of a memory struct of `words` word fields copies them as one
+    /// `MCOPY` block, then cleans its narrow fields in place, rather than loading and storing
+    /// each field. `full` lists the indices of the full-width fields, the only ones the copy
+    /// saves: a narrow field is loaded, cleaned, and stored in either shape. Each saved field
+    /// computes its source and destination addresses, which field 0 shares with the struct
+    /// and its output, and loads and stores the word; the copy pushes its size, copies both
+    /// addresses, and pays for every word, narrow ones included.
+    pub(crate) fn copies_struct_block(
+        &self,
+        words: usize,
+        full: impl Iterator<Item = usize>,
+    ) -> bool {
+        if !self.evm_version.has_mcopy() {
+            return false;
+        }
+        let word = op::WORD_BYTES;
+        let address = |index: usize| {
+            if index == 0 {
+                self.dup()
+            } else {
+                self.dup() + self.push(U256::from(index * word)) + self.opcode(op::ADD)
+            }
+        };
+        let fields = full
+            .map(|index| address(index).times(2) + self.opcode(op::MLOAD) + self.opcode(op::MSTORE))
+            .sum::<Cost>();
+        let copy = self.push(U256::from(words * word))
+            + self.dup().times(2)
+            + self.opcode(op::MCOPY)
+            + self.copied_words(words * word);
+        self.cmp(copy, fields).is_lt()
+    }
+
     /// The factor `2**shift` that a constant shift lowered to `MUL` or `DIV` pushes, or `None`
     /// when computing it with `EXP` costs less over the deployment lifetime. Shifts of 256 or
     /// more give a zero factor, which matches the wrapped `EXP` result.
@@ -1828,6 +1861,25 @@ mod tests {
             assert!(gas.guards_zero_copy_return());
             let once = Target::with(version, OptimizationMode::Gas, 1);
             assert!(!once.guards_zero_copy_return());
+        }
+    }
+
+    #[test]
+    fn struct_block_copy_needs_mcopy_and_saved_words() {
+        for mode in [OptimizationMode::Gas, OptimizationMode::Size] {
+            let shanghai = Target::with(EvmVersion::Shanghai, mode, 200);
+            let cancun = Target::with(EvmVersion::Cancun, mode, 200);
+            // Seaport's `OfferItem` (enum, address, three words) and `ConsiderationItem`
+            // (the same and an address).
+            assert!(!shanghai.copies_struct_block(5, [2, 3, 4].into_iter()));
+            assert!(cancun.copies_struct_block(5, [2, 3, 4].into_iter()));
+            assert!(cancun.copies_struct_block(6, [2, 3, 4].into_iter()));
+            assert!(cancun.copies_struct_block(2, [0, 1].into_iter()));
+            assert!(cancun.copies_struct_block(2, [1].into_iter()));
+            // One full word at the struct's own address is cheaper to move by itself, and a
+            // struct of narrow fields saves nothing.
+            assert!(!cancun.copies_struct_block(1, [0].into_iter()));
+            assert!(!cancun.copies_struct_block(3, [].into_iter()));
         }
     }
 
