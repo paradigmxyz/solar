@@ -46,9 +46,12 @@ fn emit_version(solc_version: &str) -> Result<(), Box<dyn std::error::Error>> {
     let version = env::var("CARGO_PKG_VERSION").unwrap();
 
     // `git describe --tags` prints the tag only on a tagged commit. Builds without Git metadata,
-    // such as from a published crate, report unknown and come from a release.
+    // such as from a published crate, report unknown and come from a release. Without any tags,
+    // `--always` prints the bare SHA; Cargo checks out git dependencies that way, even when they
+    // are pinned to a release tag, so treat them like builds without Git metadata.
     let describe = vergen_env("VERGEN_GIT_DESCRIBE");
-    let is_release_checkout = describe == VERSION_UNKNOWN || describe == format!("v{version}");
+    let has_tags = describe != VERSION_UNKNOWN && !sha.starts_with(&describe);
+    let is_release_checkout = !has_tags || describe == format!("v{version}");
     let is_dev = vergen_env("VERGEN_GIT_DIRTY") == "true" || !is_release_checkout;
     let version_suffix = if is_dev { "-dev" } else { "" };
 
