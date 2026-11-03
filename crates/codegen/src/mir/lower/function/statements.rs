@@ -561,6 +561,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     )?;
                     return Some((argument, value));
                 }
+                if !this.cx.gcx.hir.variable(parameter).indexed
+                    && this.is_storage_bytes_operand(argument)
+                {
+                    let (slot, _) = this.lower_storage_bytes_operand(argument)?;
+                    return Some((argument, slot));
+                }
                 let value = this.lower_typed_expr(argument, parameter_ty)?;
                 Some((argument, value))
             },
@@ -622,6 +628,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             } else {
                 // data_values += argument
+                if self.is_storage_bytes_operand(argument) {
+                    data_values.push(value);
+                    data_types.push(AbiType::Bytes(PtrLocation::Storage));
+                    continue;
+                }
                 let mut abi_type = self.types.abi_type(parameter_ty)?;
                 abi_type = self.abi_type_for_value(value, abi_type);
                 self.check_calldata_array_size(value, parameter_ty, &abi_type);

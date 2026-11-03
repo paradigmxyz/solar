@@ -7,27 +7,38 @@ use alloy_primitives::Bytes;
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum PackedPart {
     Literal(Bytes),
-    Scalar { value: ValueId, ty: ValueLayout },
+    Scalar {
+        value: ValueId,
+        ty: ValueLayout,
+    },
     Bytes(ValueId),
-    Array { value: ValueId, element: AbiType, source: PackedArraySource },
+    /// A storage `bytes` or `string`, given by its slot, which the encoder reads in place.
+    StorageBytes(ValueId),
+    Array {
+        value: ValueId,
+        element: AbiType,
+        source: PackedArraySource,
+    },
 }
 
 impl PackedPart {
     pub(crate) fn value(&self) -> Option<ValueId> {
         match *self {
             Self::Literal(_) => None,
-            Self::Scalar { value, .. } | Self::Bytes(value) | Self::Array { value, .. } => {
-                Some(value)
-            }
+            Self::Scalar { value, .. }
+            | Self::Bytes(value)
+            | Self::StorageBytes(value)
+            | Self::Array { value, .. } => Some(value),
         }
     }
 
     pub(crate) fn value_mut(&mut self) -> Option<&mut ValueId> {
         match self {
             Self::Literal(_) => None,
-            Self::Scalar { value, .. } | Self::Bytes(value) | Self::Array { value, .. } => {
-                Some(value)
-            }
+            Self::Scalar { value, .. }
+            | Self::Bytes(value)
+            | Self::StorageBytes(value)
+            | Self::Array { value, .. } => Some(value),
         }
     }
 }

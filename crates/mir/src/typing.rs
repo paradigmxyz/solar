@@ -12,7 +12,8 @@ impl AbiType {
     /// Returns the carrier consumed by ABI encoding, before layout cleanup.
     pub(crate) fn operand_type(&self) -> MirType {
         match self {
-            Self::Word(_) | Self::Function => MirType::I256,
+            // A storage byte string travels as its slot, which the encoder reads in place.
+            Self::Word(_) | Self::Function | Self::Bytes(PtrLocation::Storage) => MirType::I256,
             Self::Bytes(PtrLocation::Memory)
             | Self::DynamicArray { location: PtrLocation::Memory, .. }
             | Self::FixedArray { .. }
@@ -131,6 +132,7 @@ pub(super) fn packed_types(func: &Function, parts: &[PackedPart]) -> SmallVec<[M
             PackedPart::Literal(_) => None,
             PackedPart::Scalar { ty, .. } => Some(ty.mir_type()),
             PackedPart::Bytes(value) => Some(read_object(func, *value)),
+            PackedPart::StorageBytes(_) => Some(MirType::I256),
             PackedPart::Array { source, .. } => Some(match source {
                 PackedArraySource::Memory { .. } => MirType::MEMPTR,
                 PackedArraySource::Slice(location) => MirType::Slice(*location),

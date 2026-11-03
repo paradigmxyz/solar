@@ -1342,8 +1342,15 @@ impl AliasAnalysis {
                 effects.read_any(AddressSpace::Storage);
                 effects.read_write_any([AddressSpace::Memory]);
             }
+            InstKind::AbiEncodePacked { .. } => {
+                let InstKind::AbiEncodePacked { parts, .. } = kind else { unreachable!() };
+                if parts.iter().any(|part| matches!(part, crate::mir::PackedPart::StorageBytes(_)))
+                {
+                    effects.read_any(AddressSpace::Storage);
+                }
+                effects.read_write_any([AddressSpace::Memory]);
+            }
             InstKind::ICall { function: Callee::Builtin(Builtin::Erc7201), .. }
-            | InstKind::AbiEncodePacked { .. }
             | InstKind::ICall {
                 function:
                     Callee::Builtin(
@@ -1384,6 +1391,11 @@ impl AliasAnalysis {
                     }
                     _ => {}
                 }
+                if let RequireKind::CustomError(layout) = kind
+                    && layout.types.iter().any(Self::abi_type_reads_storage)
+                {
+                    effects.read_any(AddressSpace::Storage);
+                }
             }
             InstKind::AbiEncode { .. } => {
                 let InstKind::AbiEncode { args, layout, .. } = kind else { unreachable!() };
@@ -1394,6 +1406,9 @@ impl AliasAnalysis {
                     if Self::abi_type_reads_memory(ty) {
                         read_memory(&mut effects, arg, SizeOperand::Unknown);
                     }
+                }
+                if layout.types.iter().any(Self::abi_type_reads_storage) {
+                    effects.read_any(AddressSpace::Storage);
                 }
                 effects.write_any(AddressSpace::Memory);
             }
@@ -2733,6 +2748,11 @@ impl AliasAnalysis {
             }
             AbiType::FixedArray { .. } | AbiType::Tuple(_) => true,
         }
+    }
+
+    /// Whether encoding `ty` reads the storage its slot operand names.
+    fn abi_type_reads_storage(ty: &AbiType) -> bool {
+        matches!(ty, AbiType::Bytes(PtrLocation::Storage))
     }
 
     /// Returns the memory object `p` of an address `p + 32 + len`, the end of `p`'s payload, in

@@ -579,6 +579,9 @@ fn display_inst_kind<'a>(
                     super::PackedPart::Bytes(value) => {
                         write!(f, "bytes {}", display_val(*value, func))?
                     }
+                    super::PackedPart::StorageBytes(value) => {
+                        write!(f, "storage_bytes {}", display_val(*value, func))?
+                    }
                     super::PackedPart::Array { value, element, source } => {
                         write!(f, "array<{element}> ")?;
                         match source {

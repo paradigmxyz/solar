@@ -717,7 +717,10 @@ indexed jump tables, since wider entries use a larger stride table, or shifts an
 with `-Zpack-wide-jump-tables`.
 
 Packed ABI encoding skips allocation rounding when every component occupies
-whole words, while retaining overflow checks. Storage-byte pushes place the
+whole words, while retaining overflow checks. A storage `bytes` or `string`
+operand of an ABI encoding travels as its slot (`storage_bytes` in packed parts
+and layouts) and the encoder reads its words into the output when it runs, after
+the operands that follow it, with no memory copy of the value. Storage-byte pushes place the
 short-header path first so packed writes can fall through during growth.
 
 Semantic checks fold a negated condition into their failure polarity. This lets

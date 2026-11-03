@@ -6,6 +6,11 @@
 //! loops. Hash-only encodings use the existing scratch policy when the shape permits it. Literal
 //! bytes and adjacent narrow scalars, fixed bytes included, can share a word store without merging
 //! signed high bits or the low bytes of a fixed-bytes word.
+//! A storage `bytes` or `string` part holds its slot: the encoder validates the header for the
+//! length, then writes the data words from storage straight into the output or the hash buffer,
+//! as solc does, so the value has no memory copy and costs no free-memory growth. Storage is
+//! read here, after the arguments ran. Whole words are written, so a part that is not last may
+//! write up to 31 bytes past its end, where the next part writes next.
 //! Encodings made entirely of whole words need no allocation-size rounding. As in solc, part
 //! lengths and offsets add without overflow checks; the size rounding still checks. Array loops use
 //! plain element-offset arithmetic: their index is below the length whose total extent was checked.
@@ -24,6 +29,7 @@
 //! two writes leave memory as it was, whatever the word held, even when the bytes are the zero
 //! slot or lie inside another object.
 
+use super::lower_storage_bytes;
 use crate::mir::{
     AbiType, AbiWordValidator, AllocationSemantics, BlockId, EffectKind, Function, FunctionBuilder,
     InstKind, MemoryObjectLayout, MirType, PackedArraySource, PackedPart, PtrLocation, Value,
@@ -35,6 +41,7 @@ enum PackedPiece {
     Bytes(Bytes),
     Static { value: ValueId, length: u64, fixed_bytes: bool, signed: bool },
     Dynamic { source: ValueId, length: ValueId, bounded_heap: bool },
+    Storage { slot: ValueId, header: ValueId, is_long: ValueId, length: ValueId },
     Array { value: ValueId, length: ValueId, element: AbiType, source: PackedArraySource },
 }
 
@@ -44,7 +51,7 @@ impl PackedPiece {
         match self {
             Self::Bytes(bytes) => Some(bytes.len() as u64),
             Self::Static { length, .. } => Some(*length),
-            Self::Dynamic { .. } | Self::Array { .. } => None,
+            Self::Dynamic { .. } | Self::Storage { .. } | Self::Array { .. } => None,
         }
     }
 }
@@ -101,6 +108,13 @@ impl PackedEncoder<'_, '_> {
                     let length = self.builder.slice_len(source);
                     (PackedPiece::Dynamic { source, length, bounded_heap }, length)
                 }
+                PackedPart::StorageBytes(slot) => {
+                    // header = sload(slot)
+                    // is_long, length = validate_storage_bytes(header)
+                    let header = self.builder.sload(slot);
+                    let (is_long, length) = lower_storage_bytes::validate(self.builder, header);
+                    (PackedPiece::Storage { slot, header, is_long, length }, length)
+                }
                 PackedPart::Array { value, element, source } => {
                     let length = match source {
                         PackedArraySource::Memory {
@@ -129,13 +143,13 @@ impl PackedEncoder<'_, '_> {
         let bounded = pieces.iter().all(|piece| match piece {
             PackedPiece::Bytes(_) | PackedPiece::Static { .. } => true,
             PackedPiece::Dynamic { bounded_heap, .. } => *bounded_heap,
-            PackedPiece::Array { .. } => false,
+            PackedPiece::Storage { .. } | PackedPiece::Array { .. } => false,
         });
         let word_aligned = pieces.iter().all(|piece| match piece {
             PackedPiece::Bytes(bytes) => bytes.len().is_multiple_of(32),
             PackedPiece::Static { length, .. } => length.is_multiple_of(32),
             PackedPiece::Array { .. } => true,
-            PackedPiece::Dynamic { .. } => false,
+            PackedPiece::Dynamic { .. } | PackedPiece::Storage { .. } => false,
         });
         let output = if word_aligned {
             // size = checked_add(total, 32)
@@ -195,6 +209,23 @@ impl PackedEncoder<'_, '_> {
                     }
                     offset = self.builder.add(offset, *length);
                 }
+                PackedPiece::Storage { slot, header, is_long, length } => {
+                    // for each data word { mstore(output + offset + word_offset, word) }
+                    let start = offset;
+                    let words = lower_storage_bytes::word_count(self.builder, *length);
+                    lower_storage_bytes::read_words(
+                        self.builder,
+                        *slot,
+                        *header,
+                        *is_long,
+                        words,
+                        |builder, word_offset, word| {
+                            let word_offset = builder.add(start, word_offset);
+                            builder.memory_store_word(output, word_offset, word);
+                        },
+                    );
+                    offset = self.builder.add(offset, *length);
+                }
                 PackedPiece::Array { value, length, element, source } => {
                     // offset = copy_packed_array(output, offset, value)
                     offset =
@@ -225,7 +256,9 @@ impl PackedEncoder<'_, '_> {
     }
 
     fn hash(&mut self, pieces: Vec<PackedPiece>, total: ValueId) -> Option<ValueId> {
-        let has_dynamic = pieces.iter().any(|piece| matches!(piece, PackedPiece::Dynamic { .. }));
+        let has_dynamic = pieces.iter().any(|piece| {
+            matches!(piece, PackedPiece::Dynamic { .. } | PackedPiece::Storage { .. })
+        });
         // base = has_dynamic ? fmp : (scratch_needed ? fmp : 0)
         let base = if has_dynamic {
             Some(self.builder.fmp())
@@ -266,6 +299,24 @@ impl PackedEncoder<'_, '_> {
                     let source_length = self.builder.slice_len(*source);
                     let pointer = self.builder.slice_ptr(*source);
                     self.builder.copy_heap(dest, pointer, source_length, location);
+                    cursor = Some(self.builder.add(dest, *length));
+                    offset = 0;
+                }
+                PackedPiece::Storage { slot, header, is_long, length } => {
+                    // for each data word { mstore(cursor + offset + word_offset, word) }
+                    let dest = self.packed_scratch_offset(cursor, offset);
+                    let words = lower_storage_bytes::word_count(self.builder, *length);
+                    lower_storage_bytes::read_words(
+                        self.builder,
+                        *slot,
+                        *header,
+                        *is_long,
+                        words,
+                        |builder, word_offset, word| {
+                            let address = builder.add(dest, word_offset);
+                            builder.store(address, word);
+                        },
+                    );
                     cursor = Some(self.builder.add(dest, *length));
                     offset = 0;
                 }
@@ -446,7 +497,9 @@ impl PackedEncoder<'_, '_> {
                     terms.push((*value, shift, *piece_length, *signed, *fixed_bytes));
                     offset += *piece_length;
                 }
-                PackedPiece::Dynamic { .. } | PackedPiece::Array { .. } => {
+                PackedPiece::Dynamic { .. }
+                | PackedPiece::Storage { .. }
+                | PackedPiece::Array { .. } => {
                     unreachable!("packed word groups hold only literals and narrow scalars")
                 }
             }
@@ -565,7 +618,9 @@ fn static_write_end(pieces: &[PackedPiece]) -> Option<u64> {
                 max_write_end = max_write_end.max(offset.checked_add(32)?);
                 offset = offset.checked_add(*length)?;
             }
-            PackedPiece::Dynamic { .. } | PackedPiece::Array { .. } => return None,
+            PackedPiece::Dynamic { .. }
+            | PackedPiece::Storage { .. }
+            | PackedPiece::Array { .. } => return None,
         }
         index += 1;
     }
@@ -665,7 +720,7 @@ fn static_piece(part: &PackedPart) -> Option<PackedPiece> {
             fixed_bytes: matches!(ty, ValueLayout::FixedBytes(_)),
             signed: matches!(ty, ValueLayout::Int(_)),
         }),
-        PackedPart::Bytes(_) | PackedPart::Array { .. } => None,
+        PackedPart::Bytes(_) | PackedPart::StorageBytes(_) | PackedPart::Array { .. } => None,
     }
 }
 

@@ -287,11 +287,33 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(value)
     }
 
+    /// Whether `expr` is a storage `bytes` or `string`, which ABI encoders read in place instead
+    /// of through a memory copy.
+    pub(super) fn is_storage_bytes_operand(&self, expr: &hir::Expr<'_>) -> bool {
+        self.cx
+            .gcx
+            .type_of_expr(self.peel_bytes_conversion(expr).id)
+            .is_some_and(|ty| ty.is_ref_at(DataLocation::Storage) && self.is_dynamic_bytes_type(ty))
+    }
+
+    /// Lowers a storage `bytes` or `string` operand of an ABI encoding to its slot. The encoder
+    /// reads the bytes when it runs, after the operands that follow, as solc does.
+    pub(super) fn lower_storage_bytes_operand(
+        &mut self,
+        expr: &hir::Expr<'_>,
+    ) -> Option<(ValueId, AbiType)> {
+        let slot = self.require_storage_access(self.peel_bytes_conversion(expr))?.slot;
+        Some((slot, AbiType::Bytes(PtrLocation::Storage)))
+    }
+
     pub(super) fn lower_abi_call_argument(
         &mut self,
         argument: &hir::Expr<'_>,
         parameter_ty: Ty<'gcx>,
     ) -> Option<(ValueId, AbiType)> {
+        if self.is_storage_bytes_operand(argument) {
+            return self.lower_storage_bytes_operand(argument);
+        }
         let value = self.lower_typed_expr(argument, parameter_ty)?;
         let abi_type = self.types.abi_type(parameter_ty)?;
         let abi_type = if self.cx.gcx.type_of_expr(argument.id).is_some_and(|ty| {

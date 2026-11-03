@@ -42,6 +42,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             CallArgumentParams { count: exprs.len(), names: None, reverse: false },
             exprs.iter().enumerate(),
             |this, _, expr| {
+                if this.is_storage_bytes_operand(expr) {
+                    return this.lower_storage_bytes_operand(expr);
+                }
                 let ty = this.cx.gcx.type_of_expr(expr.id)?;
                 let memory_ty = ty.with_loc_if_ref(this.cx.gcx, DataLocation::Memory);
                 let value = this.lower_typed_expr(expr, memory_ty)?;
@@ -167,6 +170,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             CallArgumentParams { count: exprs.len(), names: None, reverse: false },
             exprs.into_iter().enumerate(),
             |this, index, expr| {
+                if this.is_storage_bytes_operand(expr) {
+                    return this.lower_storage_bytes_operand(expr);
+                }
                 let ty = parameter_types[index];
                 let memory_ty = ty.with_loc_if_ref(this.cx.gcx, DataLocation::Memory);
                 let value = this.lower_typed_expr(expr, memory_ty)?;
@@ -488,6 +494,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else {
                     parts.push(PackedPart::Literal(bytes.to_vec().into()));
                 }
+                continue;
+            }
+            if self.is_storage_bytes_operand(expr) {
+                let (slot, _) = self.lower_storage_bytes_operand(expr)?;
+                parts.push(PackedPart::StorageBytes(slot));
                 continue;
             }
             let memory_ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);

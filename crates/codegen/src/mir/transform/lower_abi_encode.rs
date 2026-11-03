@@ -35,6 +35,11 @@
 //! every unobserved literal and any other whose stores take fewer bytes than
 //! the length computation and copy they replace, with or without native MCOPY.
 //!
+//! Storage bytes. A `bytes` or `string` operand in storage (`AbiType::Bytes(Storage)`) arrives as
+//! its slot. The encoder validates the header, writes the length, and copies the data words from
+//! storage into the tail with the loop that loads storage bytes into memory, so neither a memory
+//! copy nor its free-memory growth exists. The whole words carry the zero padding.
+//!
 //! Element loops. Full-word memory arrays and calldata word arrays copy as one
 //! block. Memory words that need cleanup use a guarded do-while over a
 //! destination cursor with a fixed source displacement. The original count
@@ -94,7 +99,7 @@ use crate::{
         MirModuleTarget, MirType, Module, PtrLocation, RevertReason, Terminator, Value, ValueId,
         memory::EvmMemoryLayout,
         pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
-        transform::{egraph::use_counts, utils::expand_block},
+        transform::{egraph::use_counts, lower_storage_bytes, utils::expand_block},
         utils::resolve_replacement,
     },
     target::Target,
@@ -1358,6 +1363,7 @@ fn encode_dynamic_body(
     helpers: &EncodeHelpers,
 ) -> ValueId {
     match ty {
+        AbiType::Bytes(PtrLocation::Storage) => encode_storage_bytes(builder, value, dest),
         AbiType::Bytes(location) => {
             let location = effective_slice_location(builder.func(), value, *location);
             encode_bytes(builder, value, dest, location, helpers.literal_objects.contains(&value))
@@ -1887,6 +1893,38 @@ fn encode_bytes(
     let tail = builder.add(data_dest, padded);
     copy_source_data(builder, location, data_dest, data_source, len);
     tail
+}
+
+/// Encodes the storage `bytes` or `string` at `slot` at `dest`, reading its words from storage
+/// straight into the output, and returns the end of the padded tail.
+fn encode_storage_bytes(
+    builder: &mut FunctionBuilder<'_>,
+    slot: ValueId,
+    dest: ValueId,
+) -> ValueId {
+    // header = sload(slot)
+    // is_long, len = validate_storage_bytes(header)
+    // mstore dest, len
+    // for each data word { mstore(dest + 32 + offset, word) }
+    let header = builder.sload(slot);
+    let (is_long, len) = lower_storage_bytes::validate(builder, header);
+    builder.store(dest, len);
+    let word = builder.imm(32);
+    let data_dest = builder.add(dest, word);
+    let words = lower_storage_bytes::word_count(builder, len);
+    lower_storage_bytes::read_words(
+        builder,
+        slot,
+        header,
+        is_long,
+        words,
+        |builder, offset, word| {
+            let address = builder.add(data_dest, offset);
+            builder.store(address, word);
+        },
+    );
+    let padded = builder.pad_to_word(len);
+    builder.add(data_dest, padded)
 }
 
 /// Copies a source value's data into the output buffer.
