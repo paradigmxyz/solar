@@ -42,9 +42,12 @@ use std::{any::TypeId, cell::Cell, convert::Infallible, rc::Rc, sync::Arc};
 
 pub use crate::mir::pass_manager::{MirPass, pipeline_label, run_passes};
 
-/// All known MIR passes exposed by `-Zmir-pipeline`.
+/// All known MIR passes exposed by `-Zmir-pipeline`, one per name: a name resolves to its first
+/// pass, so every pass the canonical pipeline runs needs an entry under a name of its own for
+/// `-Zmir-pipeline` to replay it.
 static ALL_PASSES: &[&dyn MirPass] = &[
     &inline::Inline::Semantic,
+    &inline::Inline::Physical,
     &inline::Inline::Tagged,
     &if_convert::IfConvert,
     &inline::SpecializeFunctionPointers,
@@ -62,6 +65,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &pre::Pre::Pure,
     &element_cleanup::ElementCleanup,
     &egraph::Egraph,
+    &word_sequence::WordSequence::Early,
     &word_sequence::WordSequence::Late,
     &byte_loops::ByteLoops,
     &byte_run::ByteRunLoads,
@@ -1307,4 +1311,21 @@ fn run_parallel_function_pass(
     }
     analyses.preserved_by_pass = true;
     Some(changed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use solar_data_structures::map::FxHashSet;
+
+    #[test]
+    fn canonical_pipeline_passes_have_unique_names() {
+        let mut names = FxHashSet::default();
+        for pass in ALL_PASSES {
+            assert!(names.insert(pass.name()), "duplicate MIR pass name `{}`", pass.name());
+        }
+        for pass in SEMANTIC_PIPELINE.iter().chain(LOWERING_PIPELINE).chain(LOWERED_PIPELINE) {
+            assert!(names.contains(pass.name()), "`{}` is not exposed by name", pass.name());
+        }
+    }
 }

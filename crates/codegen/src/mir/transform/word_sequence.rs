@@ -71,7 +71,10 @@ pub(crate) enum WordSequence {
 
 impl MirPass for WordSequence {
     fn name(&self) -> &'static str {
-        "word-sequence"
+        match self {
+            Self::Early => "word-sequence-early",
+            Self::Late => "word-sequence",
+        }
     }
 
     fn run_pass(

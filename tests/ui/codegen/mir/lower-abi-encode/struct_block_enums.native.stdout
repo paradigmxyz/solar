@@ -1,0 +1,366 @@
+; === ROOT/tests/ui/codegen/mir/lower-abi-encode/struct_block_enums.sol:StructBlockEnums ===
+@module StructBlockEnums
+@phase lowered
+; backend-memory-v1
+; backend-floor 1 0xa0
+; backend-floor 2 0x160
+; backend-entry 3 0x80
+; backend-floor 3 0x80
+
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb5, bb1
+  bb1:                                            ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb5, [0x27de1856 => bb2, 0xef56f928 => bb3, 0xf331920b => bb4]
+  bb4 [cold]:                                     ; preds = bb1
+    tail_call @bad
+  bb3:                                            ; preds = bb1
+    tail_call @one
+  bb2:                                            ; preds = bb1
+    tail_call @lots
+  bb5 [cold]:                                     ; preds = bb0, bb1
+    revert 0, 0
+}
+
+; function lots(uint256 kind, uint256 level, uint256 at, uint256 dirty) external pure returns (bytes memory) [selector 0x27de1856]
+fn @lots() {
+  bb0:
+    v60 = calldatasize
+    v61 = lt v60, 132
+    jumpi v61, bb9, bb10
+  bb10:                                           ; preds = bb0
+    v168 = heap_floor !metadata(alloc_ptr)
+    v169 = add v168, 96 !metadata(alloc_ptr)
+    v170 = lt v169, v168
+    v171 = zext i1 v170 to i256
+    v172 = shr v169, 64
+    v173 = or v172, v171
+    v174 = ne v173, 0
+    jumpi v174, bb17, bb22
+  bb22:                                           ; preds = bb10
+    mstore 64, v169 !metadata(memory=scratch)
+    mstore v168, 2
+    v182 = add v168, 32
+    v185 = add v168, 96
+    jump bb1
+  bb1:                                            ; preds = bb2, bb22
+    v183 = phi [bb22: v182], [bb2: v184]
+    v2 = lt v183, v185
+    jumpi v2, bb2, bb3
+  bb3:                                            ; preds = bb1
+    v189 = calldataload 100
+    v188 = calldataload 68
+    v187 = calldataload 36
+    v186 = calldataload 4
+    v30 = shl v189, 160
+    v37 = shl v189, 8
+    v43 = shr v189, 16
+    v44 = or v43, 0x1122000000000000000000000000000000000000000000000000000000000000
+    jump bb4
+  bb4:                                            ; preds = bb3, bb8
+    v15 = phi [bb3: 0], [bb8: v51]
+    v16 = lt v15, 2
+    jumpi v16, bb6, bb5
+  bb5:                                            ; preds = bb4
+    v53 = mload 64 !metadata(memory=scratch)
+    v54 = heap_floor
+    v55 = lt v53, v54
+    v56 = select v55, v54, v53
+    mstore 64, v56 !metadata(memory=scratch)
+    v71 = add v56, 32
+    v72 = add v71, 32
+    mstore v71, 32
+    v74 = mload v168
+    mstore v72, v74
+    v75 = add v72, 32
+    v76 = mul v74, 224
+    v77 = add v75, v76
+    v150 = add v168, 32
+    jump bb11
+  bb11:                                           ; preds = bb5, bb16
+    v79 = phi [bb5: v74], [bb16: v103]
+    v81 = phi [bb5: v75], [bb16: v104]
+    v82 = phi [bb5: v150], [bb16: v106]
+    v83 = gt v79, 0
+    jumpi v83, bb12, bb13
+  bb13:                                           ; preds = bb11
+    v108 = sub v77, v71
+    v110 = add v108, 31
+    v111 = and v110, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v112 = add v111, 32
+    v113 = lt v112, v108
+    jumpi v113, bb17, bb18
+  bb18:                                           ; preds = bb13
+    v178 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v179 = add v178, v112 !metadata(alloc_ptr)
+    mstore 64, v179 !metadata(memory=scratch)
+    mstore v178, v108
+    v116 = lt v178, 32
+    jumpi v116, bb19, bb20
+  bb20:                                           ; preds = bb18
+    v157 = add v178, 32
+    v140 = add v157, v108
+    mstore v140, 0
+    v159 = sub v178, 32
+    mstore v159, 32
+    v142 = add v111, 64
+    jump bb21
+  bb19:                                           ; preds = bb18
+    v180 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v119 = add v180, 32
+    mstore v180, 32
+    v122 = mload v178
+    v123 = add v122, 31
+    v124 = and v123, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v125 = add v119, 32
+    v126 = add v119, v124
+    mstore v126, 0
+    mstore v119, v122
+    v128 = add v125, v124
+    v155 = add v178, 32
+    mcopy v125, v155, v122 !metadata(memory=heap, disjoint)
+    v130 = sub v128, v180
+    jump bb21
+  bb21:                                           ; preds = bb19, bb20
+    v143 = phi [bb19: v180], [bb20: v159]
+    v144 = phi [bb19: v130], [bb20: v142]
+    returndata v143, v144
+  bb12:                                           ; preds = bb11
+    v84 = mload v82
+    mcopy v81, v84, 224 !metadata(memory=heap, disjoint)
+    v85 = add v81, 32
+    v86 = mload v85
+    v87 = and v86, 0xffffffffffffffffffffffffffffffffffffffff
+    mstore v85, v87
+    v88 = add v81, 64
+    v89 = mload v88
+    v91 = gt v89, 2
+    jumpi v91, bb14, bb15
+  bb15:                                           ; preds = bb12
+    v92 = add v81, 96
+    v93 = mload v92
+    v94 = ne v93, 0
+    v95 = zext i1 v94 to i256
+    mstore v92, v95
+    v96 = add v81, 128
+    v97 = mload v96
+    v99 = gt v97, 1
+    jumpi v99, bb14, bb16
+  bb16:                                           ; preds = bb15
+    v100 = add v81, 160
+    v101 = mload v100
+    v102 = and v101, 0xffff000000000000000000000000000000000000000000000000000000000000
+    mstore v100, v102
+    v103 = sub v79, 1
+    v104 = add v81, 224
+    v106 = add v82, 32
+    jump bb11
+  bb14 [cold]:                                    ; preds = bb12, bb15
+    mstore 32, 33 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb6:                                            ; preds = bb4
+    v17 = mload v168
+    v18 = lt v15, v17
+    jumpi v18, bb8, bb7
+  bb7 [cold]:                                     ; preds = bb6
+    tail_call @revert_stub
+  bb8:                                            ; preds = bb6
+    v20 = shl v15, 5
+    v152 = add v168, v20
+    v153 = add v152, 32
+    v162 = mload v153
+    v24 = eq v188, v15
+    v57 = zext i1 v24 to i256
+    v27 = add v189, v15
+    mstore v162, v27
+    v29 = add v15, 160
+    v31 = or v30, v29
+    v33 = add v162, 32
+    mstore v33, v31
+    v34 = mul v186, v57
+    v36 = add v162, 64
+    mstore v36, v34
+    v39 = add v162, 96
+    mstore v39, v37
+    v40 = mul v187, v57
+    v42 = add v162, 128
+    mstore v42, v40
+    v46 = add v162, 160
+    mstore v46, v44
+    v47 = xor v189, v15
+    v48 = xor v47, 119
+    v50 = add v162, 192
+    mstore v50, v48
+    v51 = add v15, 1
+    jump bb4
+  bb2:                                            ; preds = bb1
+    v175 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v176 = add v175, 224 !metadata(alloc_ptr)
+    mstore 64, v176 !metadata(memory=scratch)
+    v181 = calldatasize
+    calldatacopy v175, v181, 224
+    mstore v183, v175
+    v184 = add v183, 32
+    jump bb1
+  bb17 [cold]:                                    ; preds = bb10, bb13
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb9 [cold]:                                     ; preds = bb0
+    revert 0, 0
+}
+
+; function one(uint256 dirty) external pure returns (Lot memory) [selector 0xef56f928]
+fn @one() {
+  bb0:
+    v2 = calldatasize
+    v3 = lt v2, 36
+    jumpi v3, bb1, bb2
+  bb2:                                            ; preds = bb0
+    v4 = calldataload 4
+    v39 = heap_floor !metadata(alloc_ptr)
+    v40 = add v39, 224 !metadata(alloc_ptr)
+    mstore 64, v40 !metadata(memory=scratch)
+    v1 = icall @dirtyLot, v4
+    v5 = mload v1
+    mstore 128, v5
+    v27 = add v1, 32
+    v7 = mload v27
+    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
+    mstore 160, v8
+    v29 = add v1, 64
+    v10 = mload v29
+    v12 = gt v10, 2
+    jumpi v12, bb3, bb4
+  bb4:                                            ; preds = bb2
+    mstore 192, v10
+    v31 = add v1, 96
+    v14 = mload v31
+    v15 = ne v14, 0
+    v16 = zext i1 v15 to i256
+    mstore 224, v16
+    v33 = add v1, 128
+    v18 = mload v33
+    v20 = gt v18, 1
+    jumpi v20, bb3, bb5
+  bb5:                                            ; preds = bb4
+    mstore 256, v18
+    v35 = add v1, 160
+    v22 = mload v35
+    v23 = and v22, 0xffff000000000000000000000000000000000000000000000000000000000000
+    mstore 288, v23
+    v37 = add v1, 192
+    v25 = mload v37
+    mstore 320, v25
+    returndata 128, 224
+  bb3 [cold]:                                     ; preds = bb2, bb4
+    mstore 32, 33 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb1 [cold]:                                     ; preds = bb0
+    revert 0, 0
+}
+
+; function bad(uint256 dirty) external pure [selector 0xf331920b]
+fn @bad() [cold] {
+  bb0 [cold]:
+    v8 = calldatasize
+    v9 = lt v8, 36
+    jumpi v9, bb1, bb2
+  bb2 [cold]:                                     ; preds = bb0
+    v10 = calldataload 4
+    v0 = icall @dirtyLot, v10
+    v1 = mload 64 !metadata(memory=scratch)
+    v2 = heap_floor
+    v3 = lt v1, v2
+    v4 = select v3, v2, v1
+    mstore 64, v4 !metadata(memory=scratch)
+    mstore v4, 0xad1e41c900000000000000000000000000000000000000000000000000000000
+    v13 = add v4, 4
+    mcopy v13, v0, 224 !metadata(disjoint)
+    v14 = add v13, 32
+    v15 = mload v14
+    v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
+    mstore v14, v16
+    v17 = add v13, 64
+    v18 = mload v17
+    v20 = gt v18, 2
+    jumpi v20, bb3, bb4
+  bb4 [cold]:                                     ; preds = bb2
+    v21 = add v13, 96
+    v22 = mload v21
+    v23 = ne v22, 0
+    v24 = zext i1 v23 to i256
+    mstore v21, v24
+    v25 = add v13, 128
+    v26 = mload v25
+    v28 = gt v26, 1
+    jumpi v28, bb3, bb5
+  bb5 [cold]:                                     ; preds = bb4
+    v29 = add v13, 160
+    v30 = mload v29
+    v31 = and v30, 0xffff000000000000000000000000000000000000000000000000000000000000
+    mstore v29, v31
+    revert v4, 228
+  bb3 [cold]:                                     ; preds = bb2, bb4
+    mstore 32, 33 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb1 [cold]:                                     ; preds = bb0
+    revert 0, 0
+}
+
+; function dirtyLot(uint256 dirty) internal pure returns (Lot memory item)
+fn @dirtyLot(arg0: i256) -> i256 [may_return_memory] {
+  bb0:
+    v39 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v40 = add v39, 64
+    v41 = lt v40, v39
+    v42 = zext i1 v41 to i256
+    v43 = shr v40, 64
+    v44 = or v43, v42
+    v45 = ne v44, 0
+    jumpi v45, bb2, bb1
+  bb1:                                            ; preds = bb0
+    v47 = add v40, 224 !metadata(alloc_ptr)
+    mstore 64, v47 !metadata(memory=scratch)
+    v35 = add v39, 32
+    mstore v35, v40
+    mstore v40, arg0
+    v15 = shl arg0, 160
+    v16 = or v15, 160
+    v18 = add v40, 32
+    mstore v18, v16
+    v20 = add v40, 64
+    mstore v20, 1
+    v21 = shl arg0, 8
+    v23 = add v40, 96
+    mstore v23, v21
+    v25 = add v40, 128
+    mstore v25, 1
+    v26 = shr arg0, 16
+    v27 = or v26, 0x1122000000000000000000000000000000000000000000000000000000000000
+    v29 = add v40, 160
+    mstore v29, v27
+    v30 = xor arg0, 119
+    v32 = add v40, 192
+    mstore v32, v30
+    ret v40
+  bb2 [cold]:                                     ; preds = bb0
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @revert_stub() [cold] {
+  bb0 [cold]:
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+}
