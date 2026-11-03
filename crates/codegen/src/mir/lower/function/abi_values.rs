@@ -66,12 +66,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             self.lower_expr(expr)?
         };
-        let fixed_bytes = self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| {
-            matches!(
-                ty.peel_refs().kind,
-                TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(_))
-            )
-        });
+        let fixed_bytes =
+            self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.peel_refs().is_fixed_bytes());
         if !fixed_bytes
             && matches!(expr.peel_parens().kind, ExprKind::Lit(lit) if lit.kind.is_number())
         {
