@@ -171,7 +171,9 @@ fn @lots() {
     v18 = lt v15, v17
     jumpi v18, bb8, bb7
   bb7 [cold]:                                     ; preds = bb6
-    tail_call @revert_stub
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb8:                                            ; preds = bb6
     v162 = mload v187
     v24 = eq v191, v15
@@ -353,13 +355,6 @@ fn @dirtyLot(arg0: i256) -> i256 [may_return_memory] {
     ret v40
   bb2 [cold]:                                     ; preds = bb0
     mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
-}
-
-fn @revert_stub() [cold] {
-  bb0 [cold]:
-    mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }

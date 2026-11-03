@@ -38,11 +38,11 @@ bb6 [cold]:
   revert
 bb15 [cold]:
   push 65
-  jump bb50
-bb46 [cold]:                                      ; revert_stub (synthesized)
+  jump bb49
+bb14 [cold]:
   push 50
-  jump bb50
-bb50 [cold]:
+  jump bb49
+bb49 [cold]:
   push 32
   mstore
   push 0x4e487b71
@@ -152,7 +152,7 @@ bb10 [continuation]:
   mload
   dup 1
   iszero
-  push bb46
+  push bb14
   jumpi
   push 32
   dup 3
@@ -163,7 +163,7 @@ bb10 [continuation]:
   push 2
   dup 3
   lt
-  push bb46
+  push bb14
   jumpi
   push 33
   dup 4
@@ -174,7 +174,7 @@ bb10 [continuation]:
   swap 2
   push 3
   gt
-  push bb46
+  push bb14
   jumpi
   swap 2
   push 34
@@ -223,7 +223,7 @@ bb19 [continuation]:
   mload
   push 2
   gt
-  push bb46
+  push bb14
   jumpi
   push 33
   add
@@ -244,8 +244,8 @@ bb22:                                             ; function run(bytes memory in
   push 36
   calldataload
   push bb24
-  jump bb47
-bb47 [ret=0, inputs=1, outputs=1]:                ; decode_calldata_type (synthesized)
+  jump bb46
+bb46 [ret=0, inputs=1, outputs=1]:                ; decode_calldata_type (synthesized)
   push 4
   calldatasize
   push 36
@@ -311,7 +311,7 @@ bb47 [ret=0, inputs=1, outputs=1]:                ; decode_calldata_type (synthe
   swap 1
   jump
 bb24 [continuation]:
-  push bb51
+  push bb50
   jump bb39
 bb30:                                             ; function twice(bytes memory input, uint256 marker) public pure returns (bytes memory) [selector 0x5a2aaa96]
   push 68
@@ -323,7 +323,7 @@ bb30:                                             ; function twice(bytes memory 
   calldataload
   dup 1
   push bb32
-  jump bb47
+  jump bb46
 bb32 [continuation]:
   push bb24
   jump bb39
@@ -374,7 +374,7 @@ bb45:
   pop
   pop
   jump bb44
-bb49 [continuation]:
+bb48 [continuation]:
   push 64
   mload
   push 32
@@ -416,7 +416,7 @@ bb49 [continuation]:
   sub
   swap 1
   return
-bb51 [continuation]:
+bb50 [continuation]:
   push 64
   mload
   push 160
@@ -434,7 +434,7 @@ bb51 [continuation]:
   push 32
   dup 2
   lt
-  push bb49
+  push bb48
   jumpi
   dup 1
   mload

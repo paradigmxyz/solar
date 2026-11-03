@@ -12,16 +12,16 @@ bb0:                                              ; runtime dispatch entry
   push 15
   and
   indexed_jump bb2, bb14, bb14, bb14, bb14, bb3, bb4, bb5, bb14, bb14, bb6, bb14, bb14, bb7, bb14, bb14
-bb73 [cold]:                                      ; revert_stub.8 (synthesized)
-  push 50
-  jump bb74
-bb69 [cold]:
+bb23 [cold]:
   push 65
-  jump bb74
-bb72 [cold]:                                      ; revert_stub.7 (synthesized)
+  jump bb69
+bb47 [cold]:
+  push 50
+  jump bb69
+bb22 [cold]:
   push 34
-  jump bb74
-bb74 [cold]:
+  jump bb69
+bb69 [cold]:
   push 32
   mstore
   push 0x4e487b71
@@ -142,12 +142,12 @@ bb19 [loop]:
   dup 3
   lt
   eq
-  push bb72
+  push bb22
   jumpi
   dup 1
   push 64
   shr
-  push bb69
+  push bb23
   jumpi
   push 31
   dup 2
@@ -297,7 +297,7 @@ bb30:                                             ; function popOne() external [
   swap 2
   dup 3
   eq
-  push bb72
+  push bb22
   jumpi
   dup 1
   iszero
@@ -425,7 +425,7 @@ bb40:                                             ; function len() external view
   dup 3
   lt
   eq
-  push bb72
+  push bb22
   jumpi
   push 0
   mstore
@@ -473,7 +473,7 @@ bb43:                                             ; function at(uint256 i) exter
   lt
   dup 3
   eq
-  push bb72
+  push bb22
   jumpi
   push 4
   calldataload
@@ -481,7 +481,7 @@ bb43:                                             ; function at(uint256 i) exter
   dup 2
   lt
   iszero
-  push bb73
+  push bb47
   jumpi
   swap 1
   jumpi bb48, bb49
@@ -562,7 +562,7 @@ bb52:                                             ; function setAt(uint256 i, by
   lt
   dup 3
   eq
-  push bb72
+  push bb22
   jumpi
   push 4
   calldataload
@@ -570,7 +570,7 @@ bb52:                                             ; function setAt(uint256 i, by
   dup 2
   lt
   iszero
-  push bb73
+  push bb47
   jumpi
   swap 1
   jumpi bb57, bb58
@@ -649,7 +649,7 @@ bb61:                                             ; function whole() external vi
   lt
   dup 3
   eq
-  push bb72
+  push bb22
   jumpi
   dup 1
   push 31
@@ -669,7 +669,7 @@ bb61:                                             ; function whole() external vi
   push 64
   shr
   or
-  push bb69
+  push bb23
   jumpi
   swap 1
   push 160
@@ -762,4 +762,4 @@ bb68 [loop]:
   jump bb67
 bb38 [cold]:
   push 49
-  jump bb74
+  jump bb69

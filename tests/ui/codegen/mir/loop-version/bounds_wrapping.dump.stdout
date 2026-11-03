@@ -40,7 +40,9 @@ fn @empty() {
     v6 = lt v3, v5
     jumpi v6, bb5, bb4
   bb4 [cold]:                                     ; preds = bb3
-    tail_call @revert_stub
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb5:                                            ; preds = bb3
     v8 = shl v3, 5
     v17 = add v8, 0x10000000000000020
@@ -124,17 +126,12 @@ fn @_write(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory] {
     v8 = lt v5, v7
     jumpi v8, bb10, bb9
   bb9 [cold]:                                     ; preds = bb3
-    tail_call @revert_stub
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb10:                                           ; preds = bb3
     mstore v47, 0
     v13 = add v5, 1
     v48 = add v47, 32
     jump bb1
-}
-
-fn @revert_stub() [cold] {
-  bb0 [cold]:
-    mstore 32, 50 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }
