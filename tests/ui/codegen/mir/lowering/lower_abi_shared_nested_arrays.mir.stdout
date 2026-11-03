@@ -136,3 +136,215 @@ fn @sumDecoded(arg0: ptr<memory>) -> i256 [selector=0x753dd3ed, pure, abi_params
     v17 = checked_add uint256, v4, 1
     jump bb1
 }
+
+; function narrow(Narrow memory n) external pure returns (uint256 total) [selector 0x103c9e8e]
+fn @narrow(arg0: ptr<memory>) -> i256 [selector=0x103c9e8e, pure, abi_params=[tuple<array<_, uint8>, array<_, uint8>>], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    jump bb1
+  bb1:  ; preds = bb0, bb3
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v16]
+    v2 = phi [bb0: 0], [bb3: v17]
+    v3 = mload v0, ptr<memory>
+    v4 = mload v3
+    v5 = lt v2, v4
+    jumpi v5, bb4, bb5
+  bb5:  ; preds = bb1
+    jump bb2
+  bb2:  ; preds = bb5
+    jump bb7
+  bb7:  ; preds = bb2, bb9
+    v18 = phi [bb2: v0], [bb9: v18]
+    v19 = phi [bb2: v1], [bb9: v37]
+    v20 = phi [bb2: v2], [bb9: v20]
+    v21 = phi [bb2: 0], [bb9: v38]
+    v22 = ptradd v18, 32
+    v23 = mload v22, ptr<memory>
+    v24 = mload v23
+    v25 = lt v21, v24
+    jumpi v25, bb10, bb11
+  bb11:  ; preds = bb7
+    jump bb8
+  bb8:  ; preds = bb11
+    ret v19
+  bb10:  ; preds = bb7
+    v26 = ptradd v18, 32
+    v27 = mload v26, ptr<memory>
+    v28 = mload v27
+    v29 = lt v21, v28
+    v30 = eq v29, false
+    icall panic_if<0x32>, v30
+    v31 = shl v21, 5
+    v32 = ptradd v27, v31
+    v33 = ptradd v32, 32
+    v34 = mload v33
+    v35 = trunc i256 v34 to i8
+    v36 = zext i8 v35 to i256
+    v37 = checked_add uint256, v19, v36
+    jump bb12
+  bb12:  ; preds = bb10
+    jump bb9
+  bb9:  ; preds = bb12
+    v38 = checked_add uint256, v21, 1
+    jump bb7
+  bb4:  ; preds = bb1
+    v6 = mload v0, ptr<memory>
+    v7 = mload v6
+    v8 = lt v2, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = shl v2, 5
+    v11 = ptradd v6, v10
+    v12 = ptradd v11, 32
+    v13 = mload v12
+    v14 = trunc i256 v13 to i8
+    v15 = zext i8 v14 to i256
+    v16 = checked_add uint256, v1, v15
+    jump bb6
+  bb6:  ; preds = bb4
+    jump bb3
+  bb3:  ; preds = bb6
+    v17 = checked_add uint256, v2, 1
+    jump bb1
+}
+
+; function grid(Grid memory g) external pure returns (uint256 total) [selector 0x96087a12]
+fn @grid(arg0: ptr<memory>) -> i256 [selector=0x96087a12, pure, abi_params=[tuple<array<_, array<_, uint256>>, array<_, array<_, uint256>>>], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    jump bb1
+  bb1:  ; preds = bb0, bb3
+    v0 = phi [bb0: arg0], [bb3: v6]
+    v1 = phi [bb0: 0], [bb3: v7]
+    v2 = phi [bb0: 0], [bb3: v37]
+    v3 = mload v0, ptr<memory>
+    v4 = mload v3
+    v5 = lt v2, v4
+    jumpi v5, bb4, bb5
+  bb5:  ; preds = bb1
+    jump bb2
+  bb2:  ; preds = bb5
+    jump bb13
+  bb13:  ; preds = bb2, bb15
+    v38 = phi [bb2: v0], [bb15: v46]
+    v39 = phi [bb2: v1], [bb15: v47]
+    v40 = phi [bb2: v2], [bb15: v48]
+    v41 = phi [bb2: 0], [bb15: v80]
+    v42 = ptradd v38, 32
+    v43 = mload v42, ptr<memory>
+    v44 = mload v43
+    v45 = lt v41, v44
+    jumpi v45, bb16, bb17
+  bb17:  ; preds = bb13
+    jump bb14
+  bb14:  ; preds = bb17
+    ret v39
+  bb16:  ; preds = bb13
+    jump bb19
+  bb19:  ; preds = bb16, bb21
+    v46 = phi [bb16: v38], [bb21: v46]
+    v47 = phi [bb16: v39], [bb21: v78]
+    v48 = phi [bb16: v40], [bb21: v48]
+    v49 = phi [bb16: v41], [bb21: v49]
+    v50 = phi [bb16: 0], [bb21: v79]
+    v51 = ptradd v46, 32
+    v52 = mload v51, ptr<memory>
+    v53 = mload v52
+    v54 = lt v49, v53
+    v55 = eq v54, false
+    icall panic_if<0x32>, v55
+    v56 = shl v49, 5
+    v57 = ptradd v52, v56
+    v58 = ptradd v57, 32
+    v59 = mload v58, ptr<memory>
+    v60 = mload v59
+    v61 = lt v50, v60
+    jumpi v61, bb22, bb23
+  bb23:  ; preds = bb19
+    jump bb20
+  bb20:  ; preds = bb23
+    jump bb18
+  bb18:  ; preds = bb20
+    jump bb15
+  bb15:  ; preds = bb18
+    v80 = checked_add uint256, v49, 1
+    jump bb13
+  bb22:  ; preds = bb19
+    v62 = ptradd v46, 32
+    v63 = mload v62, ptr<memory>
+    v64 = mload v63
+    v65 = lt v49, v64
+    v66 = eq v65, false
+    icall panic_if<0x32>, v66
+    v67 = shl v49, 5
+    v68 = ptradd v63, v67
+    v69 = ptradd v68, 32
+    v70 = mload v69, ptr<memory>
+    v71 = mload v70
+    v72 = lt v50, v71
+    v73 = eq v72, false
+    icall panic_if<0x32>, v73
+    v74 = shl v50, 5
+    v75 = ptradd v70, v74
+    v76 = ptradd v75, 32
+    v77 = mload v76
+    v78 = checked_add uint256, v47, v77
+    jump bb24
+  bb24:  ; preds = bb22
+    jump bb21
+  bb21:  ; preds = bb24
+    v79 = checked_add uint256, v50, 1
+    jump bb19
+  bb4:  ; preds = bb1
+    jump bb7
+  bb7:  ; preds = bb4, bb9
+    v6 = phi [bb4: v0], [bb9: v6]
+    v7 = phi [bb4: v1], [bb9: v35]
+    v8 = phi [bb4: v2], [bb9: v8]
+    v9 = phi [bb4: 0], [bb9: v36]
+    v10 = mload v6, ptr<memory>
+    v11 = mload v10
+    v12 = lt v8, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = shl v8, 5
+    v15 = ptradd v10, v14
+    v16 = ptradd v15, 32
+    v17 = mload v16, ptr<memory>
+    v18 = mload v17
+    v19 = lt v9, v18
+    jumpi v19, bb10, bb11
+  bb11:  ; preds = bb7
+    jump bb8
+  bb8:  ; preds = bb11
+    jump bb6
+  bb6:  ; preds = bb8
+    jump bb3
+  bb3:  ; preds = bb6
+    v37 = checked_add uint256, v8, 1
+    jump bb1
+  bb10:  ; preds = bb7
+    v20 = mload v6, ptr<memory>
+    v21 = mload v20
+    v22 = lt v8, v21
+    v23 = eq v22, false
+    icall panic_if<0x32>, v23
+    v24 = shl v8, 5
+    v25 = ptradd v20, v24
+    v26 = ptradd v25, 32
+    v27 = mload v26, ptr<memory>
+    v28 = mload v27
+    v29 = lt v9, v28
+    v30 = eq v29, false
+    icall panic_if<0x32>, v30
+    v31 = shl v9, 5
+    v32 = ptradd v27, v31
+    v33 = ptradd v32, 32
+    v34 = mload v33
+    v35 = checked_add uint256, v7, v34
+    jump bb12
+  bb12:  ; preds = bb10
+    jump bb9
+  bb9:  ; preds = bb12
+    v36 = checked_add uint256, v9, 1
+    jump bb7
+}

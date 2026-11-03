@@ -39,9 +39,8 @@
 //! base of their enclosing tuple so enclosing decoders can call them for nested values. Memory
 //! `abi_decode` helpers follow the same policy. A shared nested decode costs one internal call
 //! where inline decoding costs none, and saves the decoder's code at every further site. Fixed
-//! arrays with dynamic elements and nested `bytes` decode inline: sharing the first changed no
-//! output in the benchmark corpus, and sharing `bytes` saved little code per site against the
-//! call.
+//! arrays with dynamic elements and nested `bytes` decode inline: sharing them saves too little
+//! code to pay for the call.
 //!
 //! Scalar arrays whose canonicality requires zero bits fold their words with OR and validate
 //! once after the loop. Their checked source range supplies a non-wrapping end for a word
