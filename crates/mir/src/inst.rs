@@ -464,16 +464,16 @@ impl StorageAlias {
             Value::Immediate(imm) => imm.as_u256().map_or(Self::Symbolic(value), Self::Slot),
             Value::Inst(inst_id) => match func.inst(*inst_id).kind {
                 InstKind::Add(lhs, rhs) => {
-                    if let Some(offset) = Self::immediate_u256(func, rhs) {
+                    if let Some(offset) = func.value_u256(rhs) {
                         Self::add_offset(func, lhs, offset)
-                    } else if let Some(offset) = Self::immediate_u256(func, lhs) {
+                    } else if let Some(offset) = func.value_u256(lhs) {
                         Self::add_offset(func, rhs, offset)
                     } else {
                         Self::Symbolic(value)
                     }
                 }
                 InstKind::Sub(lhs, rhs) => {
-                    if let Some(offset) = Self::immediate_u256(func, rhs) {
+                    if let Some(offset) = func.value_u256(rhs) {
                         Self::add_offset(func, lhs, U256::ZERO.wrapping_sub(offset))
                     } else {
                         Self::Symbolic(value)
@@ -546,13 +546,6 @@ impl StorageAlias {
 
     fn add_offset(func: &Function, value: ValueId, offset: U256) -> Self {
         Self::for_value(func, value).offset_by(offset)
-    }
-
-    fn immediate_u256(func: &Function, value: ValueId) -> Option<U256> {
-        match func.value(value) {
-            Value::Immediate(imm) => imm.as_u256(),
-            _ => None,
-        }
     }
 }
 

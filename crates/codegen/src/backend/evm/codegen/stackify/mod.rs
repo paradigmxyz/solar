@@ -88,8 +88,9 @@
 //! the uses under each branch alone, so the paths that never use it do not carry it. A complete
 //! replan prices the resulting copies, shuffles, and edges. It keeps the original spill set and
 //! falls back if the constant makes a word unreachable. The trial must improve the target's
-//! runs-weighted objective without increasing estimated gas or bytes. Gas outside loops must not
-//! increase either, so estimated loop trips cannot fund more setup. Size mode reserves a jump's
+//! runs-weighted objective without increasing estimated gas or bytes. Gas outside loops may
+//! increase only when the bytes saved repay it under [`Target::deposit_repays_gas`], so estimated
+//! loop trips alone cannot fund more setup. Size mode reserves a jump's
 //! bytes as a margin: small local savings can disrupt later outlining. Within the defining block,
 //! materialization waits until the first use, or the terminator if only successors need it.
 //! Call-chain overflow retries omit this word.
@@ -976,10 +977,15 @@ impl<'gcx> EvmCodegen<'gcx> {
                 plan::retention_liveness(func, &analysis.cfg, &analysis.liveness, &retained)
                 && let Ok(candidate) = planner.retain_constants(&retained, &liveness).plan()
                 // Creation code pays for every byte it leaves out, so a constant kept on the
-                // stack may cost gas, as long as the deployment gets cheaper.
+                // stack may cost gas, as long as the deployment gets cheaper. Elsewhere it may
+                // cost setup gas outside loops only when the bytes it saves repay that gas.
                 && (target.is_creation()
                     || (target.dominates(candidate.plan.cost, best.cost)
-                        && candidate.plan.non_loop_gas <= best.non_loop_gas))
+                        && (candidate.plan.non_loop_gas <= best.non_loop_gas
+                            || target.deposit_repays_gas(
+                                u64::from(best.cost.bytes - candidate.plan.cost.bytes),
+                                u64::from(candidate.plan.non_loop_gas - best.non_loop_gas),
+                            ))))
                 && target.cmp_lifetime(candidate.plan.cost, best.cost).is_lt()
                 && (!target.optimization().is_size()
                     || candidate.plan.cost.bytes.saturating_add(target.jump().bytes)
