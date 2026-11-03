@@ -425,11 +425,18 @@ fn counted(func: &Function, l: &Loop) -> Option<Counted> {
     let next = incoming.iter().find(|(b, _)| b == latch)?.1;
     let Value::Inst(step) = *func.value(next) else { return None };
     let bound = if descending {
-        // k = phi [bound, k - 1]; k > 0
+        // k = phi [bound, k - 1]; k != 0
+        // NOTE: A signed checked decrement panics at the minimum, which the bulk copy would
+        // replace with its range check, so only unsigned or unchecked decrements qualify.
         match func.inst(step).kind {
             InstKind::Sub(a, b)
-            | InstKind::CheckedBinary { op: CheckedOp::Sub, lhs: a, rhs: b, .. }
-                if a == counter && func.value_u64(b) == Some(1) => {}
+            | InstKind::CheckedBinary {
+                op: CheckedOp::Sub,
+                lhs: a,
+                rhs: b,
+                arithmetic: ArithmeticKind::Unsigned(_),
+                ..
+            } if a == counter && func.value_u64(b) == Some(1) => {}
             _ => return None,
         }
         init
