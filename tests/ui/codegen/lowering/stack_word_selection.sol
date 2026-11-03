@@ -7,17 +7,22 @@
 // GAS-LABEL: @module StackWords_runtime
 // In gas mode each dispatched function returns on its own, which saves the jump and the
 // swaps a shared tail needs.
-// GAS: dup 2
-// GAS-NEXT: dup 2
-// GAS-NEXT: dup 2
-// GAS-NEXT: dup 2
+// GAS: push 36
+// GAS-NEXT: calldataload
+// GAS-NEXT: dup 1
+// GAS-NEXT: dup 1
+// GAS-NEXT: push 4
+// GAS-NEXT: calldataload
+// GAS-NEXT: swap 3
+// GAS-NEXT: dup 4
 // GAS-NEXT: and
 // GAS-NEXT: push 0
 // GAS-NEXT: mstore
-// GAS-NEXT: xor
+// GAS-NEXT: dup 3
+// GAS-NEXT: or
 // GAS-NEXT: push 32
 // GAS-NEXT: mstore
-// GAS-NEXT: {{^ *}}or{{$}}
+// GAS-NEXT: add
 // GAS-NEXT: push 64
 // GAS-NEXT: mstore
 // GAS-NEXT: push 96
@@ -25,23 +30,23 @@
 // GAS-NEXT: return
 // SIZE-LABEL: @module StackWords_runtime
 // In size mode the dispatched functions share their ABI return tail.
-// SIZE: xor
-// SIZE-NEXT: swap 1
-// SIZE-NEXT: dup 3
-// SIZE-NEXT: dup 2
-// SIZE-NEXT: and
+// SIZE: jump [[JOIN:bb[0-9]+]]
+// SIZE-NEXT: [[JOIN]]:
 // SIZE-NEXT: swap 3
-// SIZE-NEXT: {{^ *}}or{{$}}
-// SIZE-NEXT: jump [[COMMON:bb[0-9]+]]
-// SIZE-NEXT: [[COMMON]]:
+// SIZE-NEXT: and
+// SIZE-NEXT: jump [[TAIL:bb[0-9]+]]
+// SIZE-NEXT: [[TAIL]]:
 // SIZE-NEXT: push 0
 // SIZE-NEXT: mstore
-// SIZE: {{^ *}}add{{$}}
-// SIZE-NEXT: swap 4
-// SIZE-NEXT: {{^ *}}or{{$}}
-// SIZE-NEXT: swap 2
-// SIZE-NEXT: and
-// SIZE-NEXT: jump [[COMMON]]
+// SIZE-NEXT: push 32
+// SIZE-NEXT: mstore
+// SIZE-NEXT: push 64
+// SIZE-NEXT: mstore
+// SIZE-NEXT: push 96
+// SIZE-NEXT: push 0
+// SIZE-NEXT: return
+// SIZE-NOT: {{^ *return$}}
+// SIZE: jump [[TAIL]]
 //@ run-call: sum 9, 4 => 0, 13, 13
 //@ run-call: sum 7, 7 => 7, 7, 14
 //@ run-call: xor 9, 4 => 0, 13, 13
