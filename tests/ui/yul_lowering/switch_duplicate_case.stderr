@@ -1,0 +1,86 @@
+error[6792]: duplicate case `0` defined
+   ╭▸ ROOT/tests/ui/yul_lowering/switch_duplicate_case.sol:LL:CC
+   │
+LL │             case 0 {}
+   │                  ━
+   ╰╴
+note: first defined here
+   ╭▸ ROOT/tests/ui/yul_lowering/switch_duplicate_case.sol:LL:CC
+   │
+LL │             case 0 {}
+   ╰╴                 ━
+
+error[6792]: duplicate case `0x0` defined
+   ╭▸ ROOT/tests/ui/yul_lowering/switch_duplicate_case.sol:LL:CC
+   │
+LL │             case 0x0 {}
+   │                  ━━━
+   ╰╴
+note: first defined here
+   ╭▸ ROOT/tests/ui/yul_lowering/switch_duplicate_case.sol:LL:CC
+   │
+LL │             case 0 {}
+   ╰╴                 ━
+
+error[6792]: duplicate case `0` defined
+   ╭▸ ROOT/tests/ui/yul_lowering/switch_duplicate_case.sol:LL:CC
+   │
+LL │             case 0 {}
+   │                  ━
+   ╰╴
+note: first defined here
+   ╭▸ ROOT/tests/ui/yul_lowering/switch_duplicate_case.sol:LL:CC
+   │
+LL │             case "" {}
+   ╰╴                 ━━
+
+error[6792]: duplicate case `1` defined
+   ╭▸ ROOT/tests/ui/yul_lowering/switch_duplicate_case.sol:LL:CC
+   │
+LL │             case 1 {}
+   │                  ━
+   ╰╴
+note: first defined here
+   ╭▸ ROOT/tests/ui/yul_lowering/switch_duplicate_case.sol:LL:CC
+   │
+LL │             case true {}
+   ╰╴                 ━━━━
+
+error[6792]: duplicate case `0x6100000000000000000000000000000000000000000000000000000000000000` defined
+   ╭▸ ROOT/tests/ui/yul_lowering/switch_duplicate_case.sol:LL:CC
+   │
+LL │ …     case 0x6100000000000000000000000000000000000000000000000000000000000000 {}
+   │            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: first defined here
+   ╭▸ ROOT/tests/ui/yul_lowering/switch_duplicate_case.sol:LL:CC
+   │
+LL │             case "a" {}
+   ╰╴                 ━━━
+
+error[6792]: duplicate case `1` defined
+   ╭▸ ROOT/tests/ui/yul_lowering/switch_duplicate_case.sol:LL:CC
+   │
+LL │             case 1 {}
+   │                  ━
+   ╰╴
+note: first defined here
+   ╭▸ ROOT/tests/ui/yul_lowering/switch_duplicate_case.sol:LL:CC
+   │
+LL │             case 1 {}
+   ╰╴                 ━
+
+error[6792]: duplicate case `2` defined
+   ╭▸ ROOT/tests/ui/yul_lowering/switch_duplicate_case.sol:LL:CC
+   │
+LL │             case 2 {}
+   │                  ━
+   ╰╴
+note: first defined here
+   ╭▸ ROOT/tests/ui/yul_lowering/switch_duplicate_case.sol:LL:CC
+   │
+LL │             case 2 {}
+   ╰╴                 ━
+
+error: aborting due to 7 previous errors
+
