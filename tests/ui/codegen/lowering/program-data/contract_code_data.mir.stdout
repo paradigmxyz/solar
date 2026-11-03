@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/program-data/contract_code_data.sol:CodeTarget ===
 @module CodeTarget
+@data
+  literal_0: hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
+
 ; function value() external pure returns (uint256) [selector 0x3fa4f245]
 fn @value() -> i256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
@@ -12,13 +15,7 @@ fn @payload() -> ptr<memory> [selector=0xa878f858, pure, abi_params=[], abi_retu
     v0 = alloc 160 !metadata(preserves_fmp)
     mstore v0, 128
     v1 = ptradd v0, 32
-    mstore v1, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
-    v2 = ptradd v0, 64
-    mstore v2, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
-    v3 = ptradd v0, 96
-    mstore v3, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
-    v4 = ptradd v0, 128
-    mstore v4, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
+    datacopy literal_0, v1, 128
     ret v0
 }
 

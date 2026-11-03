@@ -7,6 +7,9 @@
   struct3: {i256, ptr<memory>}
   struct4: {i256, i256, i256, i256}
 
+@data
+  literal_0: hex"6162636465666768696a6b6c6d6e6f707172737475767778797a303132333435363738394142434445464748494a4b4c4d4e4f505152535455565758595a2d2b"
+
 ; function one(uint256 x) external pure returns (uint256) [selector 0xef56f928]
 fn @one(arg0: i256) -> i256 [selector=0xef56f928, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
@@ -154,8 +157,6 @@ fn @longString() -> ptr<memory> [selector=0x68a55dc0, pure, abi_params=[], abi_r
     v0 = alloc 96 !metadata(preserves_fmp)
     mstore v0, 64
     v1 = ptradd v0, 32
-    mstore v1, 0x6162636465666768696a6b6c6d6e6f707172737475767778797a303132333435
-    v2 = ptradd v0, 64
-    mstore v2, 0x363738394142434445464748494a4b4c4d4e4f505152535455565758595a2d2b
+    datacopy literal_0, v1, 64
     ret v0
 }

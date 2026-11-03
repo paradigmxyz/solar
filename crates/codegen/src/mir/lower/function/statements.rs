@@ -1,6 +1,7 @@
 //! Statement-level HIR to MIR lowering.
 
 use super::*;
+use crate::mir::lower::data::stores_data_as_words;
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_stmt(&mut self, stmt: &hir::Stmt<'_>) -> Option<()> {
@@ -534,8 +535,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             |this, index, argument| {
                 let parameter = event.parameters[index];
                 let parameter_ty = this.cx.gcx.type_of_item(parameter.into());
-                // A literal in the event's data needs no object of its own: the encoder writes
-                // its words.
+                // A literal stored as words in the event's data needs no object of its own: the
+                // encoder writes its words.
                 if !this.cx.gcx.hir.variable(parameter).indexed
                     && matches!(
                         parameter_ty.peel_refs().kind,
@@ -545,6 +546,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         this.peel_bytes_conversion(argument).peel_parens().kind
                     && let LitKind::Str(_, bytes, _) = &lit.kind
                     && !bytes.as_byte_str().is_empty()
+                    && stores_data_as_words(
+                        this.cx.module.target_of(this.cx.gcx, this.builder.func()),
+                        bytes.as_byte_str(),
+                    )
                 {
                     let value = Self::build_bytes_literal(
                         this.cx.gcx,

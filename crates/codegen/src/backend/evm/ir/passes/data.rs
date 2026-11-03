@@ -1,9 +1,10 @@
 //! Materialize and pack program data.
 //!
 //! `pack-data` interns equal data objects, pools contained byte strings, and replaces runs of
-//! constant memory stores with one copy each. MIR writes constant data as word stores in every
-//! mode, so this pass makes the one choice between stores and a copy, where the final opcodes are
-//! visible. A run is found by symbolically executing pushes,
+//! constant memory stores with one copy each. MIR keeps a constant byte-string object as a
+//! `datacopy` when the shared `Target` price says a copy wins, and writes short data as stores;
+//! this pass prices the runs of stores that remain against the same copy, where the final opcodes
+//! are visible. A run is found by symbolically executing pushes,
 //! stack operations, constant expressions (folded with the MIR evaluator), and constant `MSTORE`
 //! and `MSTORE8`s to one base: a stack word plus constant offsets, or absolute addresses. Stores
 //! may come in any order and overlap, but must fill one contiguous range, since a copy would

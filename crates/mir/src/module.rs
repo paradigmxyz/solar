@@ -2,8 +2,8 @@
 
 use super::{
     AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, BackendMemory, Data, DataBytes,
-    DataId, Disambiguator, Function, FunctionId, HirVariableId, ImmutableId, MangledSymbol,
-    MirType, StructId, StructType, Terminator, ValueId,
+    DataId, DataRef, Disambiguator, Function, FunctionId, HirVariableId, ImmutableId,
+    MangledSymbol, MirType, StructId, StructType, Terminator, ValueId,
 };
 use crate::analysis::{CallGraphInfo, CfgInfo, direct_callees, tail_callees};
 use alloy_primitives::Bytes;
@@ -16,7 +16,7 @@ use solar_data_structures::{
 };
 use solar_interface::{Ident, Session, Symbol, config::OptimizationMode, sym};
 use solar_ir::link::{ContractCode, LibraryTable, QualifiedName, Trailer};
-use std::{fmt, sync::Arc};
+use std::{borrow::Cow, fmt, sync::Arc};
 
 /// Returns whether pass managers should validate IR after each pass.
 pub fn should_validate_ir(sess: &Session) -> bool {
@@ -109,6 +109,8 @@ pub struct Module {
     immutables: IndexVec<ImmutableId, Immutable>,
     /// Constant byte strings embedded in generated code.
     pub data: IndexVec<DataId, Data>,
+    /// Exact data lookup used before the final subslice-packing pass.
+    data_index: FxHashMap<Bytes, DataId>,
     /// Whether this is an interface (no bytecode generation).
     pub is_interface: bool,
     /// Whether this module was lowered from a library.
@@ -196,6 +198,7 @@ impl Module {
             abi_param_layouts: Vec::new(),
             immutables: IndexVec::new(),
             data: IndexVec::new(),
+            data_index: FxHashMap::default(),
             libraries: LibraryTable::default(),
             is_interface: false,
             is_library: false,
@@ -784,6 +787,16 @@ impl Module {
         self.immutables.iter_enumerated()
     }
 
+    /// Adds a data entry, interning its bytes when they are plain literal data.
+    pub(crate) fn add_data_entry(&mut self, data: Data) -> DataId {
+        let bytes = data.bytes.known().filter(|_| data.library_relocations.is_empty()).cloned();
+        let id = self.data.push(data);
+        if let Some(bytes) = bytes {
+            self.data_index.entry(bytes).or_insert(id);
+        }
+        id
+    }
+
     /// Interns another contract's bytecode, which final assembly links in.
     pub fn intern_contract_code(&mut self, code: ContractCode, name: Symbol) -> DataId {
         let existing =
@@ -792,6 +805,23 @@ impl Module {
             Some((id, _)) => id,
             None => self.data.push(Data::contract_code(code, Some(name))),
         }
+    }
+
+    /// Interns constant data and returns its stable identifier.
+    pub fn intern_data(&mut self, data: Cow<'_, [u8]>, name: Option<Symbol>) -> DataRef {
+        let name = name.unwrap_or(sym::literal);
+        if let Some(&id) = self.data_index.get(data.as_ref()) {
+            if self.data[id].name.is_none_or(|old| old == sym::literal) {
+                self.data[id].name = Some(name);
+            }
+            return DataRef::new(id, 0);
+        }
+        let id = self.add_data(Bytes::from(data.into_owned()), Some(name));
+        DataRef::new(id, 0)
+    }
+
+    pub(crate) fn add_data(&mut self, data: Bytes, name: Option<Symbol>) -> DataId {
+        self.add_data_entry(Data::new(data, name))
     }
 
     /// Adds `contract`'s trailing runtime data, which must be emitted at the end of the runtime
@@ -804,7 +834,7 @@ impl Module {
     ) -> DataId {
         let trailers =
             vec![Trailer { contracts: smallvec::smallvec![contract], range: 0..data.len() }];
-        self.data.push(Data { emit_in_runtime: true, trailers, ..Data::new(data, name) })
+        self.add_data_entry(Data { emit_in_runtime: true, trailers, ..Data::new(data, name) })
     }
 
     /// Returns an iterator over all functions.

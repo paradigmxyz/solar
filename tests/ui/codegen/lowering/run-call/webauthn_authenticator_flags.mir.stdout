@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/webauthn_authenticator_flags.sol:C ===
 @module C
+@data
+  literal_0: hex"68de9469627f4002c727fe634985a916f4414d6309d81cc2a26ca3f1785725b649ddbb03b8b89d41b77e5e5ad00b388d3e95043177ee2ef763a67a3e2cd40000"
+
 ; function test() external pure returns (bool) [selector 0xf8a8fd6d]
 fn @test() -> i256 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
@@ -47,25 +50,23 @@ fn @auth() -> ptr<memory> [pure] {
     v0 = alloc 96 !metadata(preserves_fmp)
     mstore v0, 62
     v1 = ptradd v0, 32
-    mstore v1, 0x68de9469627f4002c727fe634985a916f4414d6309d81cc2a26ca3f1785725b6
-    v2 = ptradd v0, 64
-    mstore v2, 0x49ddbb03b8b89d41b77e5e5ad00b388d3e95043177ee2ef763a67a3e2cd40000
-    v3 = alloc 192 !metadata(preserves_fmp)
-    memory_zero v3, 192
+    datacopy literal_0, v1, 64
+    v2 = alloc 192 !metadata(preserves_fmp)
+    memory_zero v2, 192
+    mstore v2, 96
+    v3 = ptradd v2, 32
     mstore v3, 96
-    v4 = ptradd v3, 32
-    mstore v4, 96
-    v5 = ptrtoint ptr<memory> v0 to i256
-    mstore v3, v5
-    v6 = abi_encode_packed (data hex"7b252274797065223a22776562617574686e2e676574220ff9062c226368616c6c656e6765223a22466722d2df7d")
-    v7 = ptrtoint ptr<memory> v6 to i256
-    v8 = ptradd v3, 32
-    mstore v8, v7
-    v9 = ptradd v3, 64
-    mstore v9, 27
-    v10 = ptradd v3, 96
-    mstore v10, 2
-    ret v3
+    v4 = ptrtoint ptr<memory> v0 to i256
+    mstore v2, v4
+    v5 = abi_encode_packed (data hex"7b252274797065223a22776562617574686e2e676574220ff9062c226368616c6c656e6765223a22466722d2df7d")
+    v6 = ptrtoint ptr<memory> v5 to i256
+    v7 = ptradd v2, 32
+    mstore v7, v6
+    v8 = ptradd v2, 64
+    mstore v8, 27
+    v9 = ptradd v2, 96
+    mstore v9, 2
+    ret v2
 }
 
 ; function check(bool requireUserVerification, Auth memory auth) internal pure returns (bool result)

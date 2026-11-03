@@ -4,7 +4,7 @@
 
 // CHECK-LABEL: data_fallthrough.sol:DataFallthrough (runtime)
 // CHECK: STOP
-// CHECK-NEXT: GT
+// CHECK-NEXT: INVALID
 contract DataFallthrough {
     event Seen(bytes data);
 

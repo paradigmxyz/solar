@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/program-data/contract_creation_args_data_dedup.sol:ChildWithArg ===
 @module ChildWithArg
+@data
+  literal_0: hex"ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
+
 @immutables
   value: uint256
 
@@ -23,13 +26,7 @@ fn @payload() -> ptr<memory> [selector=0xa878f858, pure, abi_params=[], abi_retu
     v0 = alloc 160 !metadata(preserves_fmp)
     mstore v0, 128
     v1 = ptradd v0, 32
-    mstore v1, 0xffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100
-    v2 = ptradd v0, 64
-    mstore v2, 0xffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100
-    v3 = ptradd v0, 96
-    mstore v3, 0xffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100
-    v4 = ptradd v0, 128
-    mstore v4, 0xffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100
+    datacopy literal_0, v1, 128
     ret v0
 }
 
