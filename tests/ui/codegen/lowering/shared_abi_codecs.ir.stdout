@@ -28,7 +28,7 @@ fn @encodeFirst() {
     v2 = lt v1, 36
     jumpi v2, bb1, bb2
   bb2:                                            ; preds = bb0
-    v3 = icall @decode_calldata_type.6
+    v3 = icall @decode_calldata_type.5
     v4 = icall @encodeFirst.body, v3
     v28 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v10 = add v28, 32
@@ -56,7 +56,7 @@ fn @encodeSecond() {
     v2 = lt v1, 36
     jumpi v2, bb1, bb2
   bb2:                                            ; preds = bb0
-    v3 = icall @decode_calldata_type.6
+    v3 = icall @decode_calldata_type.5
     v7 = icall @encode_abi_tuple, v3
     v28 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v10 = add v28, 32
@@ -213,7 +213,9 @@ fn @roundTrip() {
     mstore 0, v91
     returndata 0, 32
   bb16 [cold]:                                    ; preds = bb13, bb15
-    tail_call @revert_stub
+    mstore 32, 17
+    mstore 0, 0x4e487b71
+    revert 28, 36
   bb25:                                           ; preds = bb24
     v131 = mload v128
     v132 = add v112, v131
@@ -293,14 +295,7 @@ fn @roundTrip() {
     revert 0, 0
 }
 
-fn @revert_stub() [cold] {
-  bb0 [cold]:
-    mstore 32, 17 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
-}
-
-fn @decode_calldata_type.5(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
+fn @decode_calldata_type.4(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
   bb0:
     v0 = calldatasize
     v1 = calldataload arg0
@@ -379,7 +374,7 @@ fn @decode_calldata_type.5(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     revert 0, 0
 }
 
-fn @decode_calldata_type.6() -> i256 [may_return_memory] {
+fn @decode_calldata_type.5() -> i256 [may_return_memory] {
   bb0:
     v0 = calldatasize
     v1 = calldataload 4
@@ -397,7 +392,7 @@ fn @decode_calldata_type.6() -> i256 [may_return_memory] {
     v8 = calldataload v2
     mstore v19, v8
     v9 = add v2, 32
-    v10 = icall @decode_calldata_type.5, v9, v2
+    v10 = icall @decode_calldata_type.4, v9, v2
     v15 = add v19, 32
     mstore v15, v10
     v17 = add v19, 64

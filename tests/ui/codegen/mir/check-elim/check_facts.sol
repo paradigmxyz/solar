@@ -13,17 +13,17 @@
 // The asserted position only falls to `(pos - 1) >> 1`, but its bound cannot be reused
 // across indexed stores without proving that those stores leave the length unchanged.
 // OPT-LABEL: fn @siftDown()
-// OPT: tail_call @revert_stub
+// OPT: mstore 32, 50
 //
 // Without the assertion, the start position is unbounded and the writes keep
 // their checks.
 // OPT-LABEL: fn @keepsCheck()
-// OPT: tail_call @revert_stub
+// OPT: mstore 32, 50
 //
 // An allocation's size checks bound its length, `(m + 1) << 5 >> 5 == m + 1`,
 // so the doubled length cannot overflow.
 // OPT-LABEL: fn @afterAllocation()
-// OPT-NOT: tail_call @revert_stub
+// OPT-NOT: mstore 32, 50
 // OPT-NOT: mstore 32, 17
 // OPT-LABEL: fn @decode_calldata_type
 contract CheckFacts {

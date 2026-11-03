@@ -45,7 +45,9 @@ fn @plain() {
     v1 = lt v32, v23
     jumpi v1, bb2, bb1
   bb1 [cold]:                                     ; preds = bb4
-    tail_call @revert_stub.4
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb2:                                            ; preds = bb4
     v4 = shl v32, 7
     v8 = add v24, v4
@@ -101,7 +103,9 @@ fn @member() {
     v25 = lt v58, v15
     jumpi v25, bb6, bb5
   bb5 [cold]:                                     ; preds = bb4
-    tail_call @revert_stub.4
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb6:                                            ; preds = bb4
     v28 = shl v58, 7
     v32 = add v19, v28
@@ -157,7 +161,9 @@ fn @word() {
     v25 = lt v53, v15
     jumpi v25, bb6, bb5
   bb5 [cold]:                                     ; preds = bb4
-    tail_call @revert_stub.4
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb6:                                            ; preds = bb4
     v28 = shl v53, 5
     v32 = add v19, v28
@@ -259,18 +265,4 @@ fn @lengths() {
     returndata 0, 96
   bb1 [cold]:                                     ; preds = bb2, bb3, bb4, bb5, bb6, bb7, bb0
     revert 0, 0
-}
-
-fn @revert_stub.4() [cold] {
-  bb0 [cold]:
-    mstore 32, 50 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
-}
-
-fn @revert_stub.5() [cold] {
-  bb0 [cold]:
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }

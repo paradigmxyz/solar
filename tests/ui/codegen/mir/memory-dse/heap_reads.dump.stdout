@@ -36,7 +36,9 @@ fn @constructor() [constructor] {
     sstore v16, 0x2021222324252627000000000000000000000000000000000000000000000000 !metadata(storage=offset(v19, 1))
     ret
   bb2 [cold]:                                     ; preds = bb1
-    tail_call @revert_stub.6
+    mstore 32, 34 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb6 [cold]:                                     ; preds = bb0
     revert 0, 0
 }
@@ -128,7 +130,9 @@ fn @load() {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb1 [cold]:                                     ; preds = bb0
-    tail_call @revert_stub.6
+    mstore 32, 34 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 ; function hashes(uint256 n) external pure returns (bytes32[] memory out) [selector 0x501895ae]
@@ -136,27 +140,25 @@ fn @hashes() {
   bb0:
     v53 = calldatasize
     v54 = lt v53, 36
-    jumpi v54, bb13, bb14
-  bb14:                                           ; preds = bb0
+    jumpi v54, bb12, bb13
+  bb13:                                           ; preds = bb0
     v55 = calldataload 4
     v7 = add v55, 1
     v8 = eq v7, 0
     jumpi v8, bb8, bb9
-  bb9:                                            ; preds = bb14
+  bb9:                                            ; preds = bb13
     v9 = shl v7, 5
     v10 = shr v7, 251
-    v11 = ne v10, 0
-    jumpi v11, bb8, bb10
-  bb10:                                           ; preds = bb9
     v75 = heap_floor !metadata(alloc_ptr)
     v76 = add v75, v9 !metadata(alloc_ptr)
     v77 = lt v76, v75
     v78 = zext i1 v77 to i256
     v79 = shr v76, 64
     v80 = or v79, v78
-    v81 = ne v80, 0
-    jumpi v81, bb16, bb15
-  bb15:                                           ; preds = bb10
+    v89 = or v10, v80
+    v90 = ne v89, 0
+    jumpi v90, bb8, bb14
+  bb14:                                           ; preds = bb9
     v82 = calldatasize
     calldatacopy v75, v82, v9
     mstore v75, v55
@@ -166,12 +168,12 @@ fn @hashes() {
     v46 = gt v75, 31
     v47 = and v45, v46
     jumpi v47, bb6, bb7
-  bb7:                                            ; preds = bb15
+  bb7:                                            ; preds = bb14
     v83 = add v75, 32
     jump bb1
-  bb1:                                            ; preds = bb7, bb12
-    v15 = phi [bb7: 0], [bb12: v24]
-    v84 = phi [bb7: v83], [bb12: v85]
+  bb1:                                            ; preds = bb7, bb11
+    v15 = phi [bb7: 0], [bb11: v24]
+    v84 = phi [bb7: v83], [bb11: v85]
     v16 = lt v15, v55
     jumpi v16, bb3, bb2
   bb3:                                            ; preds = bb1
@@ -179,17 +181,17 @@ fn @hashes() {
     v49 = keccak256 0, 32 !metadata(memory=scratch)
     v18 = mload v75
     v19 = lt v15, v18
-    jumpi v19, bb12, bb11
-  bb11 [cold]:                                    ; preds = bb3
+    jumpi v19, bb11, bb10
+  bb10 [cold]:                                    ; preds = bb3
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb12:                                           ; preds = bb3
+  bb11:                                           ; preds = bb3
     mstore v84, v49
     v24 = add v15, 1
     v85 = add v84, 32
     jump bb1
-  bb6:                                            ; preds = bb15
+  bb6:                                            ; preds = bb14
     v86 = add v75, 32
     jump bb4
   bb4:                                            ; preds = bb5, bb6
@@ -211,13 +213,11 @@ fn @hashes() {
     v33 = add v25, 1
     v88 = add v87, 32
     jump bb4
-  bb16 [cold]:                                    ; preds = bb10
+  bb8 [cold]:                                     ; preds = bb9, bb13
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb8 [cold]:                                     ; preds = bb9, bb14
-    tail_call @revert_stub.7
-  bb13 [cold]:                                    ; preds = bb0
+  bb12 [cold]:                                    ; preds = bb0
     revert 0, 0
 }
 
@@ -302,18 +302,4 @@ fn @clear_storage_words(arg0: i256, arg1: i256, arg2: i256) {
     v5 = add v2, 1
     v6 = add v3, 1
     jump bb1
-}
-
-fn @revert_stub.6() [cold] {
-  bb0 [cold]:
-    mstore 32, 34 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
-}
-
-fn @revert_stub.7() [cold] {
-  bb0 [cold]:
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }

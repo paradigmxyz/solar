@@ -33,13 +33,13 @@ bb6 [cold]:
   push 0
   push 0
   revert
-bb34 [cold]:                                      ; revert_stub (synthesized)
+bb16 [cold]:
   push 65
-  jump bb35
+  jump bb32
 bb31 [cold]:
   push 17
-  jump bb35
-bb35 [cold]:
+  jump bb32
+bb32 [cold]:
   push 32
   mstore
   push 0x4e487b71
@@ -103,7 +103,7 @@ bb8:                                              ; function viaDecl(uint256[] c
   push 32
   dup 2
   lt
-  push bb34
+  push bb16
   jumpi
   push 128
   dup 5
@@ -207,7 +207,7 @@ bb18:                                             ; function viaAssign(uint256[]
   add
   push 32
   gt
-  push bb34
+  push bb16
   jumpi
   push 128
   dup 4
@@ -298,7 +298,7 @@ bb23:                                             ; function viaStructLiteral(ui
   dup 1
   push 32
   gt
-  push bb34
+  push bb16
   jumpi
   push 64
   mload

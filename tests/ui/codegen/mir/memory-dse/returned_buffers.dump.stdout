@@ -36,7 +36,9 @@ fn @constructor() [constructor] {
     sstore v16, 0x2021222324252627000000000000000000000000000000000000000000000000 !metadata(storage=offset(v19, 1))
     ret
   bb2 [cold]:                                     ; preds = bb1
-    tail_call @revert_stub
+    mstore 32, 34 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb6 [cold]:                                     ; preds = bb0
     revert 0, 0
 }
@@ -216,7 +218,9 @@ fn @_copy(arg0: i256) -> i256 [may_return_memory] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb7 [cold]:                                     ; preds = bb0
-    tail_call @revert_stub
+    mstore 32, 34 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @clear_storage_words(arg0: i256, arg1: i256, arg2: i256) {
@@ -237,11 +241,4 @@ fn @clear_storage_words(arg0: i256, arg1: i256, arg2: i256) {
     v5 = add v2, 1
     v6 = add v3, 1
     jump bb1
-}
-
-fn @revert_stub() [cold] {
-  bb0 [cold]:
-    mstore 32, 34 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }
