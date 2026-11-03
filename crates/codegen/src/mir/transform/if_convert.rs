@@ -599,7 +599,7 @@ fn agreeing_value(
         && let (Some((a, then_amount)), Some((b, else_amount))) =
             (added_literal(func, then_value), added_literal(func, else_value))
         && a == b
-        && then_amount.wrapping_sub(else_amount) & integer_mask(bits.get()) == U256::ZERO
+        && (then_amount.wrapping_sub(else_amount) & integer_mask(bits.get())).is_zero()
     {
         return Some(else_value);
     }

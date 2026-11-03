@@ -244,7 +244,7 @@ fn packed(value: &ConstValue, data: &mut Vec<u8>) -> Result<(), EE> {
 /// Reference: <https://docs.soliditylang.org/en/latest/units-and-global-variables.html#mathematical-and-cryptographic-functions>
 fn erc7201_slot(namespace_id: &[u8]) -> B256 {
     let inner = keccak256(namespace_id);
-    let inner = U256::from_be_bytes(inner.0).wrapping_sub(U256::from(1));
+    let inner = U256::from_be_bytes(inner.0).wrapping_sub(U256::ONE);
     let mut outer = keccak256(inner.to_be_bytes::<32>());
     outer.0[31] = 0;
     outer

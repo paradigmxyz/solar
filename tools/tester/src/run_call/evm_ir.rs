@@ -211,8 +211,8 @@ fn describe_evm(expected: Option<&Outcome>, stop: InstrStop) -> String {
 /// Describes how a run ended.
 fn describe(outcome: &Outcome) -> String {
     match outcome {
-        Outcome::Success(data) => format!("returned 0x{}", hex::encode(data)),
-        Outcome::Revert(data) => format!("reverted with 0x{}", hex::encode(data)),
+        Outcome::Success(data) => format!("returned {}", hex::encode_prefixed(data)),
+        Outcome::Revert(data) => format!("reverted with {}", hex::encode_prefixed(data)),
         Outcome::Halt(halt) => format!("halted ({halt})"),
         Outcome::Unsupported(reason) => format!("could not run: {reason}"),
     }

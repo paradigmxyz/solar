@@ -206,7 +206,7 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
         let (slot, offset) = (cursor.slot, cursor.offset);
         cursor.offset += bytes;
         if cursor.offset == 32 {
-            cursor.advance(U256::from(1));
+            cursor.advance(U256::ONE);
         }
         (slot, offset)
     }
@@ -390,7 +390,7 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
             TyKind::Ref(inner, _) => self.storage_bytes(inner),
             TyKind::Elementary(ty) => match ty {
                 ElementaryType::Address(_) => U256::from(20),
-                ElementaryType::Bool => U256::from(1),
+                ElementaryType::Bool => U256::ONE,
                 ElementaryType::String | ElementaryType::Bytes => U256::from(32),
                 ElementaryType::Int(size)
                 | ElementaryType::UInt(size)
@@ -401,7 +401,7 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
             }
             TyKind::DynArray(_) | TyKind::Mapping(..) => U256::from(32),
             TyKind::Contract(_) => U256::from(20),
-            TyKind::Enum(_) => U256::from(1),
+            TyKind::Enum(_) => U256::ONE,
             TyKind::Udvt(inner, _) => self.storage_bytes(inner),
             TyKind::Fn(function) if function.is_external() => U256::from(24),
             TyKind::Fn(_) => U256::from(8),
@@ -455,8 +455,7 @@ impl StorageCursor {
 
     fn align(&mut self) {
         if self.offset != 0 {
-            self.slot = self.slot.wrapping_add(U256::from(1));
-            self.offset = 0;
+            self.advance(U256::ONE);
         }
     }
 
