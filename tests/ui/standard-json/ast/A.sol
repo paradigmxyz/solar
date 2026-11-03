@@ -29,6 +29,7 @@ using {add as +} for Price global;
 using M for uint256;
 
 interface IToken {
+    /// @dev A non-breaking space leads this comment.
     function balanceOf(address owner) external view returns (uint256);
 }
 

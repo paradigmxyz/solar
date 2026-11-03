@@ -551,8 +551,11 @@ Difference: `solar` writes the compact AST JSON of `solc` (the `ast` output of
 Standard JSON and `--emit=ast`) for declarations, not yet for statements,
 expressions and inline assembly. Function and modifier bodies, the arguments
 of modifier invocations and base constructor calls, array lengths, the initial
-values of variables and the base slot of a contract are left out. Node IDs do
-not follow the numbering of `solc`: items take the IDs that
+values of variables and the base slot of a contract are left out, and so is
+`internalFunctionIDs`, which `solc` fills from its call graph's set of internal
+dispatch targets, numbered by its own node order, whenever a contract uses
+internal function pointers. Only `solc`'s via-IR code generation reads it. Node
+IDs do not follow the numbering of `solc`: items take the IDs that
 `immutableReferences`, the storage layout and ETHDebug report, source units and
 imports follow them, and every other node takes the next free ID. `solar`
 leaves out the `EnumValue` documentation, which its AST does not keep, and
