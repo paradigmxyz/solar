@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/named_arguments.sol:NamedArguments ===
+; === ROOT/tests/ui/codegen/lowering/run-call/named_arguments.sol:NamedArguments ===
 @module NamedArguments
 ; function a(uint a, uint b, uint c) internal pure returns (uint r)
 fn @a(arg0: i256, arg1: i256, arg2: i256) -> i256 [pure] {
@@ -32,9 +32,9 @@ fn @d() -> i256 [selector=0x8a054ac2, pure, abi_params=[], abi_returns=[word], a
     icall revert_if<empty>, v1
     v2 = icall @a, 0, 0, 7
     jump bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb1
-  bb1:  ; preds = bb2
+  bb1:                                            ; preds = bb2
     ret v2
 }
 
@@ -145,9 +145,9 @@ fn @externalNamed() -> i256 [selector=0x1747fe5f, abi_params=[], abi_returns=[wo
     v10 = zext i160 v0 to i256
     v11 = staticcall v1, v10, v5, v6, 0, 0
     jumpi v11, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v12 = sload 0 !metadata(storage=slot(0))
     ret v12
 }

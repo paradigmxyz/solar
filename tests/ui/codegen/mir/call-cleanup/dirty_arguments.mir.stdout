@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/call-cleanup/dirty_arguments.sol:DirtyArguments ===
+; === ROOT/tests/ui/codegen/mir/call-cleanup/dirty_arguments.sol:DirtyArguments ===
 @module DirtyArguments
 ; function normalizedReturn(uint256 word) external pure returns (bool) [selector 0xaca23352]
 fn @normalizedReturn(arg0: i256) -> i256 [selector=0xaca23352, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -38,11 +38,11 @@ fn @canonicalReturn(arg0: i256) -> i1 [pure] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     ret false
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     ret true
 }
 
@@ -65,11 +65,11 @@ fn @selected(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v1 = phi [bb1: i8 19], [bb2: i8 7]
     v2 = zext i8 v1 to i256
     ret v2
@@ -192,13 +192,13 @@ fn @recursive(arg0: i8, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = eq arg1, 0
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v2 = checked_sub uint256, arg1, 1
     v3 = icall @recursive, arg0, v2
     ret v3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = zext i8 arg0 to i256
     ret v1
 }

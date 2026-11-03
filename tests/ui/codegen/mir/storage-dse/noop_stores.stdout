@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/storage-dse/noop_stores.mir (before storage-dse) ===
-+ // === ROOT/tests/ui/codegen/mir/storage-dse/noop_stores.mir (after storage-dse) ===
+- ; === ROOT/tests/ui/codegen/mir/storage-dse/noop_stores.mir (before storage-dse) ===
++ ; === ROOT/tests/ui/codegen/mir/storage-dse/noop_stores.mir (after storage-dse) ===
   @module NoopStores
   fn @store_loaded_word(arg0: i256) -> i256 {
     bb0:
@@ -58,9 +58,9 @@
 -     v0 = sload 0
 +     v0 = sload 0 !metadata(storage=slot(0))
       jumpi arg0, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       ret v0
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
 -     sstore 0, v0
       ret v0
   }
@@ -70,11 +70,11 @@
 -     v0 = sload 0
 +     v0 = sload 0 !metadata(storage=slot(0))
       jumpi arg0, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       jump bb3
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       jump bb3
-    bb3:  ; preds = bb1, bb2
+    bb3:                                            ; preds = bb1, bb2
 -     sstore 0, v0
 +     sstore 0, v0 !metadata(storage=slot(0))
       ret v0
@@ -88,13 +88,13 @@
 +     v1 = sload 0 !metadata(storage=slot(0))
 +     sstore 0, v1 !metadata(storage=slot(0))
       jumpi arg0, bb1, bb2
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
 -     v2 = sload 1
 -     sstore 1, v2
 +     v2 = sload 1 !metadata(storage=slot(1))
 +     sstore 1, v2 !metadata(storage=slot(1))
       jump bb2
-    bb2:  ; preds = bb0, bb1
+    bb2:                                            ; preds = bb0, bb1
       v3 = gas
       v4 = sub v0, v3
       ret v4

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_assignment_cleanup.sol:StorageBytesAssignmentCleanup ===
+; === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_assignment_cleanup.sol:StorageBytesAssignmentCleanup ===
 @module StorageBytesAssignmentCleanup
 @types
   struct0: {i256, i256, i256}

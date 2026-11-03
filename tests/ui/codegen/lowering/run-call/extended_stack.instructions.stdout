@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/extended_stack.sol:ExtendedStack (runtime) ===
+; === ROOT/tests/ui/codegen/lowering/run-call/extended_stack.sol:ExtendedStack (runtime) ===
 CALLVALUE
 PUSH2 0x016f ; bb0
 JUMPI

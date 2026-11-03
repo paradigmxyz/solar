@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/proxy_clobbered_local.sol:Impl ===
+; === ROOT/tests/ui/codegen/lowering/run-call/proxy_clobbered_local.sol:Impl ===
 @module Impl
 ; function echo(uint256 x) external pure returns (uint256) [selector 0x6279e43c]
 fn @echo(arg0: i256) -> i256 [selector=0x6279e43c, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -6,7 +6,7 @@ fn @echo(arg0: i256) -> i256 [selector=0x6279e43c, pure, abi_params=[uint256], a
     ret arg0
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/proxy_clobbered_local.sol:C ===
+; === ROOT/tests/ui/codegen/lowering/run-call/proxy_clobbered_local.sol:C ===
 @module C
 @data
   Impl_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/proxy_clobbered_local.sol:Impl"
@@ -16,11 +16,11 @@ fn @keepsLocal(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) -> i2
   bb0:
     v0 = gt arg0, 0
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v1 = phi [bb1: 42], [bb2: 1]
     v2 = calldatasize
     calldatacopy 0, 0, v2 !metadata(memory=scratch)
@@ -44,9 +44,9 @@ fn @forwards() -> i256 [selector=0xa38e2a32, abi_params=[], abi_returns=[word], 
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = zext i160 v2 to i256
     v5 = abi_encode [word], object, selector 0x6279e43c00000000000000000000000000000000000000000000000000000000, args 7
     v6 = mload 64 !metadata(memory=scratch)

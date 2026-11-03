@@ -735,8 +735,13 @@ class FailureHandlingTests(unittest.TestCase):
                 self.assertEqual(compiler["label"], "oksolc test")
 
     def test_saved_reference_results_preserve_solc_version_filter(self) -> None:
-        case = next(
-            case for case in benchmark.TEST_CASES if case.test_id == "uniswap-v2-pair"
+        case = replace(
+            next(
+                case
+                for case in benchmark.TEST_CASES
+                if case.test_id == "uniswap-v2-pair"
+            ),
+            solc_only=False,
         )
         for version, flags, expected_calls in (
             ("0.8.37", [], 0),
@@ -789,6 +794,77 @@ class FailureHandlingTests(unittest.TestCase):
                     0,
                 )
                 self.assertEqual(run_case.call_count, expected_calls)
+
+    def test_solc_only_cases_run_only_with_live_solc(self) -> None:
+        case = next(
+            case for case in benchmark.TEST_CASES if case.test_id == "uniswap-v2-pair"
+        )
+        self.assertTrue(case.solc_only)
+        for flags, expected_calls in (([], 0), (["--solc", "solc"], 1)):
+            with (
+                self.subTest(flags=flags),
+                tempfile.TemporaryDirectory() as directory,
+                mock.patch.object(benchmark, "select_tests", return_value=[case]),
+                mock.patch.object(
+                    benchmark,
+                    "find_binary",
+                    side_effect=lambda value, _fallbacks: Path(value),
+                ),
+                mock.patch.object(
+                    benchmark, "binary_version", return_value=("0.5.16", "")
+                ),
+                mock.patch.object(
+                    benchmark,
+                    "run_test_case",
+                    return_value={
+                        "test_id": case.test_id,
+                        "suite": case.suite,
+                        "compilers": {"solc": {"status": "ok"}},
+                    },
+                ) as run_case,
+            ):
+                self.assertEqual(
+                    benchmark.main(
+                        [
+                            "--solar",
+                            "solar",
+                            "--output",
+                            str(Path(directory) / "results.json"),
+                            *flags,
+                        ]
+                    ),
+                    0,
+                )
+                self.assertEqual(run_case.call_count, expected_calls)
+
+    def test_solc_only_cases_skip_our_compilers(self) -> None:
+        case = next(
+            case for case in benchmark.TEST_CASES if case.test_id == "uniswap-v2-pair"
+        )
+        specs = [
+            benchmark.CompilerSpec("solar", "solar", Path("solar"), "solar"),
+            benchmark.CompilerSpec(
+                "solar-size", "solar-size", Path("solar"), "solar", optimizer_runs=1
+            ),
+            benchmark.CompilerSpec("solc", "solc", Path("solc"), "solc"),
+        ]
+        for solc_only, expected in (
+            (True, {"solc"}),
+            (False, {"solar", "solar-size", "solc"}),
+        ):
+            with (
+                self.subTest(solc_only=solc_only),
+                mock.patch.object(
+                    benchmark, "prepare_input", return_value=("{}", 0, "")
+                ),
+                mock.patch.object(
+                    benchmark, "compile_case", return_value={"status": "failed"}
+                ),
+            ):
+                result = benchmark.run_test_case(
+                    replace(case, solc_only=solc_only), specs, False, "hot", "", ""
+                )
+                self.assertEqual(set(result["compilers"]), expected)
 
     def test_saved_results_reject_live_reference_options(self) -> None:
         for flag in ("--solc", "--solx"):
@@ -1330,11 +1406,11 @@ class ArtifactTests(unittest.TestCase):
     def test_solar_dump_covers_every_contract_with_the_target_first(self) -> None:
         def dump(contract: str, tag: str, mir: str | None = None) -> list[str]:
             return [
-                f"// === {contract} ===\n{mir or f'mir {tag}'}",
-                f"// === {contract} (creation) ===\ncreation ir {tag}",
-                f"// === {contract} (runtime) ===\nruntime ir {tag}",
-                f"// === {contract} (deployment) ===\ncreation asm {tag}",
-                f"// === {contract} (runtime) ===\nruntime asm {tag}",
+                f"; === {contract} ===\n{mir or f'mir {tag}'}",
+                f"; === {contract} (creation) ===\ncreation ir {tag}",
+                f"; === {contract} (runtime) ===\nruntime ir {tag}",
+                f"; === {contract} (deployment) ===\ncreation asm {tag}",
+                f"; === {contract} (runtime) ===\nruntime asm {tag}",
             ]
 
         # Solar prints each kind for all contracts in turn.
@@ -1378,7 +1454,7 @@ class ArtifactTests(unittest.TestCase):
             self.assertEqual(
                 artifacts[name],
                 "\n".join(
-                    f"// === {heading.format(contract)} ===\n{tag} {suffix}\n"
+                    f"; === {heading.format(contract)} ===\n{tag} {suffix}\n"
                     for contract, suffix in (
                         ("B.sol:Target", "target"),
                         ("A.sol:Child", "child"),
@@ -1395,7 +1471,7 @@ class ArtifactTests(unittest.TestCase):
         )
         stdout = (
             "\n".join(
-                f"// === {c}{k} ===\n{stub}"
+                f"; === {c}{k} ===\n{stub}"
                 for k in (
                     "",
                     " (creation)",
@@ -1432,7 +1508,7 @@ class ArtifactTests(unittest.TestCase):
         )
 
     def test_solar_dump_without_the_target_is_rejected(self) -> None:
-        stdout = '// === A.sol:A ===\nmir\n{"contracts":{}}'
+        stdout = '; === A.sol:A ===\nmir\n{"contracts":{}}'
 
         with self.assertRaisesRegex(ValueError, "expected 5 .* B.sol:B, found 0"):
             benchmark.split_solar_artifact_output(stdout, "B.sol:B")

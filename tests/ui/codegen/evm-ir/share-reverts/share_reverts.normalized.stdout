@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/share-reverts/share_reverts.evmir (before peephole) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/share-reverts/share_reverts.evmir (after peephole) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/share-reverts/share_reverts.evmir (before peephole) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/share-reverts/share_reverts.evmir (after peephole) ===
   @module module
   bb0:
 -   push 1
@@ -133,8 +133,8 @@
   bb26:
     stop
   
-- // === ROOT/tests/ui/codegen/evm-ir/share-reverts/share_reverts.evmir (before share-reverts) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/share-reverts/share_reverts.evmir (after share-reverts) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/share-reverts/share_reverts.evmir (before share-reverts) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/share-reverts/share_reverts.evmir (after share-reverts) ===
   @module module
   bb0:
     jump bb1

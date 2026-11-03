@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/none/display.mir (before none) ===
-+ // === ROOT/tests/ui/codegen/mir/none/display.mir (after none) ===
+- ; === ROOT/tests/ui/codegen/mir/none/display.mir (before none) ===
++ ; === ROOT/tests/ui/codegen/mir/none/display.mir (after none) ===
   @module Display
   fn @linear(arg0: i256) -> i256 {
     bb0:
@@ -10,9 +10,9 @@
   fn @diamond(arg0: i256, arg1: i1) -> i256 {
     bb0:
       jumpi arg1, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       ret arg0
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       ret arg0
   }
   
@@ -40,9 +40,9 @@
       v1 = or v0, arg1
       v2 = xor v1, arg0
       jumpi v2, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       ret v0
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       ret v1
   }
   

@@ -22,13 +22,13 @@ error: `S2` is a struct, which cannot be indexed in type paths
 LL │     S2.x s4;
    ╰╴    ━━
 
-error: symbol `f` resolved to multiple declarations
+error[7920]: symbol `f` resolved to multiple declarations
    ╭▸ ROOT/tests/ui/resolve/bad_type_path.sol:LL:CC
    │
 LL │     f f1;
    ╰╴    ━
 
-error: symbol `f` resolved to multiple declarations
+error[7920]: symbol `f` resolved to multiple declarations
    ╭▸ ROOT/tests/ui/resolve/bad_type_path.sol:LL:CC
    │
 LL │     f.x f2;

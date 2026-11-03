@@ -1,16 +1,16 @@
-- // === ROOT/tests/ui/codegen/mir/integer-cleanup/edge_equality.mir (before integer-cleanup) ===
-+ // === ROOT/tests/ui/codegen/mir/integer-cleanup/edge_equality.mir (after integer-cleanup) ===
+- ; === ROOT/tests/ui/codegen/mir/integer-cleanup/edge_equality.mir (before integer-cleanup) ===
++ ; === ROOT/tests/ui/codegen/mir/integer-cleanup/edge_equality.mir (after integer-cleanup) ===
   @module EdgeEquality
   fn @padded(arg0: i256) {
     bb0:
       v0 = ne arg0, 64
       jumpi v0, bb2, bb1
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
 -     v1 = add arg0, 31
 +     v1 = add 64, 31
       mstore 0, v1
       returndata 0, 32
-    bb2 [cold]:  ; preds = bb0
+    bb2 [cold]:                                     ; preds = bb0
       revert 0, 0
   }
   
@@ -18,20 +18,20 @@
     bb0:
       v0 = eq arg0, 5
       jumpi v0, bb1, bb4
-    bb4:  ; preds = bb0
+    bb4:                                            ; preds = bb0
       returndata 0, 0
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
 -     v1 = eq arg0, 6
 +     v1 = eq 5, 6
       jumpi v1, bb3, bb2
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
 -     v2 = add arg0, 1
 -     v3 = add v2, arg0
 +     v2 = add 5, 1
 +     v3 = add v2, 5
       mstore 0, v3
       returndata 0, 32
-    bb3:  ; preds = bb1
+    bb3:                                            ; preds = bb1
 -     v4 = add arg0, arg0
 +     v4 = add 5, 5
       mstore 0, v4
@@ -42,9 +42,9 @@
     bb0:
       v0 = eq arg0, 3
       jumpi v0, bb1, bb2
-    bb2 [cold]:  ; preds = bb0
+    bb2 [cold]:                                     ; preds = bb0
       revert 0, 0
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
 -     v1 = and arg0, 255
 -     mstore 0, v1
 -     mstore 32, arg0

@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lowering/phase_explicit_built.mir (before dce) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/phase_explicit_built.mir (after dce) ===
+- ; === ROOT/tests/ui/codegen/mir/lowering/phase_explicit_built.mir (before dce) ===
++ ; === ROOT/tests/ui/codegen/mir/lowering/phase_explicit_built.mir (after dce) ===
   @module PhaseExplicitBuilt
   fn @f() {
     bb0:

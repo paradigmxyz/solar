@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/ternary_operand_reuse.sol:TernaryOperandReuse ===
+; === ROOT/tests/ui/codegen/lowering/ternary_operand_reuse.sol:TernaryOperandReuse ===
 @module TernaryOperandReuse
 @types
   struct0: {i256, i160}

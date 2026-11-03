@@ -1,6 +1,6 @@
-// === ROOT/tests/ui/codegen/lowering/stack_word_selection.sol:StackWords (runtime) ===
+; === ROOT/tests/ui/codegen/lowering/stack_word_selection.sol:StackWords (runtime) ===
 @module StackWords_runtime
-bb0:  ; runtime dispatch entry
+bb0:                                              ; runtime dispatch entry
   push 68
   calldatasize
   lt

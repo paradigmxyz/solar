@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/compact-pushes/continuation_stack_limit.evmir (before compact-pushes) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/compact-pushes/continuation_stack_limit.evmir (after compact-pushes) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/compact-pushes/continuation_stack_limit.evmir (before compact-pushes) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/compact-pushes/continuation_stack_limit.evmir (after compact-pushes) ===
   @module ContinuationStackLimit
   bb0 [stack=1000]:
     push bb2

@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/jumpi-fallthrough/debug_info.evmir (before jumpi-fallthrough) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/jumpi-fallthrough/debug_info.evmir (after jumpi-fallthrough) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/jumpi-fallthrough/debug_info.evmir (before jumpi-fallthrough) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/jumpi-fallthrough/debug_info.evmir (after jumpi-fallthrough) ===
   @module DebugInfo
   bb0:
     push 4

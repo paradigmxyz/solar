@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (before none) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (after none) ===
+- ; === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (before none) ===
++ ; === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (after none) ===
   @module Integers
   @immutables
     signed: int64
@@ -65,13 +65,13 @@
   fn @phi(arg0: i1, arg1: i8, arg2: i8) -> i8 {
     bb0:
       jumpi arg0, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       v1 = sub arg1, arg2
       jump bb3
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       v0 = add arg1, arg2
       jump bb3
-    bb3:  ; preds = bb1, bb2
+    bb3:                                            ; preds = bb1, bb2
       v2 = phi [bb1: v0], [bb2: v1]
       ret v2
   }
@@ -79,14 +79,14 @@
   fn @wrapping_loop(arg0: i8) -> i8 {
     bb0:
       jump bb1
-    bb1:  ; preds = bb0, bb2
+    bb1:                                            ; preds = bb0, bb2
       v0 = phi [bb0: arg0], [bb2: v1]
       v1 = add v0, i8 1
       v2 = ne v1, i8 0
       jumpi v2, bb2, bb3
-    bb3:  ; preds = bb1
+    bb3:                                            ; preds = bb1
       ret v1
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       jump bb1
   }
   
@@ -100,9 +100,9 @@
     bb0:
       v0 = lt arg0, 3
       jumpi v0, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       ret i8 0
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       v1 = trunc i256 arg0 to i8
       ret v1
   }
@@ -118,9 +118,9 @@
       v0 = and arg0, 255
       v1 = eq arg0, v0
       jumpi v1, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       ret 0
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       v2 = and arg0, 255
       ret v2
   }
@@ -129,9 +129,9 @@
     bb0:
       v0 = lt arg0, 256
       jumpi v0, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       ret 0
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       v1 = and arg0, 255 !metadata(effect=memory_read)
       ret v1
   }
@@ -145,10 +145,10 @@
     bb0:
       v0 = gt arg1, arg0
       jumpi v0, bb2, bb1
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       v1 = sub arg0, arg1
       ret v1
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       v2 = sub arg0, arg1
       ret v2
   }

@@ -4,7 +4,7 @@ error: constant variable must be initialized
 LL │     Unknown[2] constant A;
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━━
 
-error: unresolved symbol `Unknown`
+error[7920]: unresolved symbol `Unknown`
    ╭▸ ROOT/tests/ui/typeck/constant_unresolved_array_element.sol:LL:CC
    │
 LL │     Unknown[2] constant A;

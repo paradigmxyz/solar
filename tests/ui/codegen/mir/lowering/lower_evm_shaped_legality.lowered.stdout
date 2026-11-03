@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_legality.mir (before lower-mapping-slots) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_legality.mir (after lower-mapping-slots) ===
+- ; === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_legality.mir (before lower-mapping-slots) ===
++ ; === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_legality.mir (after lower-mapping-slots) ===
   @module LowerEvmShapedLegality
   ; runtime dispatch entry
   fn @entry() [entry] {
@@ -19,8 +19,8 @@
       ret v1
   }
   
-- // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_legality.mir (before lower-integers) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_legality.mir (after lower-integers) ===
+- ; === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_legality.mir (before lower-integers) ===
++ ; === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_legality.mir (after lower-integers) ===
   @module LowerEvmShapedLegality
   ; runtime dispatch entry
   fn @entry() [entry] {
@@ -49,8 +49,8 @@
 +     ret v11
   }
   
-- // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_legality.mir (before lower-evm-shaped) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_legality.mir (after lower-evm-shaped) ===
+- ; === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_legality.mir (before lower-evm-shaped) ===
++ ; === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_legality.mir (after lower-evm-shaped) ===
   @module LowerEvmShapedLegality
 + @phase lowered
   ; runtime dispatch entry

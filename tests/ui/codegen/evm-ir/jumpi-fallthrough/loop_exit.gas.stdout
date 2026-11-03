@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/jumpi-fallthrough/loop_exit.evmir (before jumpi-fallthrough) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/jumpi-fallthrough/loop_exit.evmir (after jumpi-fallthrough) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/jumpi-fallthrough/loop_exit.evmir (before jumpi-fallthrough) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/jumpi-fallthrough/loop_exit.evmir (after jumpi-fallthrough) ===
   @module LoopExit
   bb0:
     push 4

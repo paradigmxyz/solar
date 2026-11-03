@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/stack_expression_selection.sol:StackExpressionSelection ===
+; === ROOT/tests/ui/codegen/lowering/stack_expression_selection.sol:StackExpressionSelection ===
 @module StackExpressionSelection
 @types
   struct0: {i256, i256, i1}
@@ -74,32 +74,32 @@ fn @xorDifference(arg0: i256, arg1: i256) -> struct1 [selector=0x30ca6808, pure,
 fn @loop(arg0: i256) -> i256 [selector=0x0b7d796e, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v7]
     v2 = phi [bb0: 0], [bb3: v8]
     v3 = phi [bb0: 0], [bb3: v9]
     v4 = lt v3, v0
     jumpi v4, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     ret v1
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v5 = eq v3, v2
     jumpi v5, bb7, bb8
-  bb8:  ; preds = bb4
+  bb8:                                            ; preds = bb4
     jump bb9
-  bb7:  ; preds = bb4
+  bb7:                                            ; preds = bb4
     v6 = checked_add uint256, v1, 1
     jump bb9
-  bb9:  ; preds = bb7, bb8
+  bb9:                                            ; preds = bb7, bb8
     v7 = phi [bb7: v6], [bb8: v1]
     v8 = checked_add uint256, v3, 1
     jump bb6
-  bb6:  ; preds = bb9
+  bb6:                                            ; preds = bb9
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v9 = checked_add uint256, v3, 1
     jump bb1
 }
