@@ -566,10 +566,12 @@ Difference: `solar` accepts inline assembly that `solc` rejects:
 
 Rationale: these rules reject code that `solar` compiles correctly. Yul scoping
 resolves the inner declaration first, and constant folding gives assembly the
-same value Solidity sees. The parser also serves formatters and linters, which
-should accept the names.
+same value Solidity sees. An initializer reads the declaration its own `let`
+shadows: `uint x = 5; assembly { let x := add(x, 1) }` sets the Yul `x` to 6.
+The parser also serves formatters and linters, which should accept the names.
 
 Coverage: `tests/ui/codegen/lowering/run-call/assembly_constant_expressions.sol`,
+`tests/ui/codegen/lowering/run-call/assembly_let_initializer_scope.sol`,
 `tests/ui/codegen/lowering/run-call/assembly_names.sol` and
 `tests/ui/typeck/assembly_unfolded_constant.sol`.
 
