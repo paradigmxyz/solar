@@ -877,7 +877,10 @@ fn pack_data(module: &mut Module, scan: &mut DataScan) -> bool {
             });
         let shared = key.as_ref().and_then(|key| {
             let exact = exact.get(key).map(|&id| DataRef::new(id, 0));
-            exact.or_else(|| subslices.then(|| find_data(&packed, data, old_id)).flatten())
+            exact.or_else(|| {
+                let at_end = Some(old_id) == *tail;
+                subslices.then(|| find_data(&packed, data, old_id, at_end)).flatten()
+            })
         });
         let data_ref = shared.unwrap_or_else(|| {
             packed.insert(old_id, data.clone());
@@ -926,11 +929,13 @@ fn pack_data(module: &mut Module, scan: &mut DataScan) -> bool {
     true
 }
 
-/// Finds `needle` inside an entry created from an older entry than `needle_id`.
+/// Finds `needle` inside an entry created from an older entry than `needle_id`, at its end when
+/// `at_end`.
 fn find_data(
     packed: &FxIndexMap<DataId, Data>,
     needle: &Data,
     needle_id: DataId,
+    at_end: bool,
 ) -> Option<DataRef> {
     let needle_bytes = needle.bytes.known()?;
     let mut finder = NeedleFinder::new(needle_bytes.clone());
@@ -938,7 +943,13 @@ fn find_data(
         if id >= needle_id {
             return None;
         }
-        let offset = finder.find(known.bytes.known()?)?;
+        let haystack = known.bytes.known()?;
+        let offset = if at_end {
+            // The tail must end its host, which goes last, so the deployment code ends with it.
+            haystack.ends_with(needle_bytes).then(|| haystack.len() - needle_bytes.len())?
+        } else {
+            finder.find(haystack)?
+        };
         let end = offset + needle_bytes.len();
         let compatible = known
             .library_relocations
