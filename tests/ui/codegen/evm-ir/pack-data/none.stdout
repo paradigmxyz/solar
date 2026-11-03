@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/pack-data/none.evmir (before pack-data) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/pack-data/none.evmir (after pack-data) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/pack-data/none.evmir (before pack-data) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/pack-data/none.evmir (after pack-data) ===
   @module None
 + @data
 +   literal_0: hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00ffeeddccbbaa99887766554433221100ffeeddccbbaa998877665544332211000123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"

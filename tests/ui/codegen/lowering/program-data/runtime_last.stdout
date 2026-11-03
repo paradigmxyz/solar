@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/program-data/runtime_last.sol:RuntimeLast (deployment) ===
+; === ROOT/tests/ui/codegen/lowering/program-data/runtime_last.sol:RuntimeLast (deployment) ===
 PUSH1 0xc0
 PUSH1 0x40
 MSTORE
