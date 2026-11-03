@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/inline/storage-readers/readers.mir (before inline) ===
-+ // === ROOT/tests/ui/codegen/mir/inline/storage-readers/readers.mir (after inline) ===
+- ; === ROOT/tests/ui/codegen/mir/inline/storage-readers/readers.mir (before inline) ===
++ ; === ROOT/tests/ui/codegen/mir/inline/storage-readers/readers.mir (after inline) ===
   @module StorageReaders
   @types
     struct0: {i256, i256}
@@ -29,10 +29,10 @@
 -     v2 = icall @scale, v1
 -     ret v2
 +     jump bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v3 = mul v1, 7
 +     jump bb1
-+   bb1:  ; preds = bb2
++   bb1:                                            ; preds = bb2
 +     v4 = phi [bb2: v3]
 +     ret v4
   }
@@ -65,10 +65,10 @@
     bb0:
 -     icall @store, arg0
 +     jump bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     sstore 3, arg0
 +     jump bb1
-+   bb1:  ; preds = bb2
++   bb1:                                            ; preds = bb2
       v0 = sload 3
       ret v0
   }
@@ -84,12 +84,12 @@
     bb0:
 -     v0 = icall @observer
 +     jump bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v3 = gas
 +     v4 = sload 3
 +     v5 = add v3, v4
 +     jump bb1
-+   bb1:  ; preds = bb2
++   bb1:                                            ; preds = bb2
 +     v6 = phi [bb2: v5]
       v1 = sload 3
 -     v2 = add v0, v1
@@ -112,10 +112,10 @@
 -     v1 = icall @wrapper, arg0
 -     v2 = add v0, v1
 +     jump bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v3 = icall @reader, arg0
 +     jump bb1
-+   bb1:  ; preds = bb2
++   bb1:                                            ; preds = bb2
 +     v4 = phi [bb2: v3]
 +     v2 = add v0, v4
       ret v2
@@ -134,10 +134,10 @@
 -     v1 = icall @pair, arg0
 -     v2 = add v0, v1
 +     jump bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v3 = sload 3
 +     jump bb1
-+   bb1:  ; preds = bb2
++   bb1:                                            ; preds = bb2
 +     v4 = phi [bb2: v3]
 +     v5 = phi [bb2: arg0]
 +     mstore 160, v5

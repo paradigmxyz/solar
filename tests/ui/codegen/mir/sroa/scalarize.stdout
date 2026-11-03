@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/sroa/scalarize.mir (before sroa) ===
-+ // === ROOT/tests/ui/codegen/mir/sroa/scalarize.mir (after sroa) ===
+- ; === ROOT/tests/ui/codegen/mir/sroa/scalarize.mir (before sroa) ===
++ ; === ROOT/tests/ui/codegen/mir/sroa/scalarize.mir (after sroa) ===
   @module Sroa
   fn @local_struct(arg0: i256, arg1: i256) -> i256 {
     bb0:
@@ -76,7 +76,7 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       v3 = add v2, 32
       jump bb1
-    bb1 [cold]:  ; preds = bb0
+    bb1 [cold]:                                     ; preds = bb0
       revert v3, 32
   }
   
@@ -102,8 +102,8 @@
       ret v4
   }
   
-- // === ROOT/tests/ui/codegen/mir/sroa/scalarize.mir (before dce) ===
-+ // === ROOT/tests/ui/codegen/mir/sroa/scalarize.mir (after dce) ===
+- ; === ROOT/tests/ui/codegen/mir/sroa/scalarize.mir (before dce) ===
++ ; === ROOT/tests/ui/codegen/mir/sroa/scalarize.mir (after dce) ===
   @module Sroa
   fn @local_struct(arg0: i256, arg1: i256) -> i256 {
     bb0:
@@ -168,7 +168,7 @@
       v2 = ptrtoint ptr<memory> v0 to i256
       v3 = add v2, 32
       jump bb1
-    bb1 [cold]:  ; preds = bb0
+    bb1 [cold]:                                     ; preds = bb0
       revert v3, 32
   }
   

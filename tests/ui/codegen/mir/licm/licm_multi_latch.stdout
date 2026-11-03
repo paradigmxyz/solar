@@ -1,29 +1,29 @@
-- // === ROOT/tests/ui/codegen/mir/licm/licm_multi_latch.mir (before licm) ===
-+ // === ROOT/tests/ui/codegen/mir/licm/licm_multi_latch.mir (after licm) ===
+- ; === ROOT/tests/ui/codegen/mir/licm/licm_multi_latch.mir (before licm) ===
++ ; === ROOT/tests/ui/codegen/mir/licm/licm_multi_latch.mir (after licm) ===
   @module LicmMultiLatch
   fn @multi_latch_mixed_step() -> i256 {
     bb0:
 +     v5 = calldataload 0
 +     v6 = ne v5, 0
       jump bb1
-    bb1:  ; preds = bb0, bb3, bb4
+    bb1:                                            ; preds = bb0, bb3, bb4
       v0 = phi [bb0: 0], [bb3: v4], [bb4: v4]
       v1 = phi [bb0: 0], [bb3: v7], [bb4: v8]
       v2 = lt v1, 10
       jumpi v2, bb2, bb5
-    bb5:  ; preds = bb1
+    bb5:                                            ; preds = bb1
       ret v0
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       v3 = mul v1, 32
       mstore v3, 1
       v4 = mload 288
 -     v5 = calldataload 0
 -     v6 = ne v5, 0
       jumpi v6, bb3, bb4
-    bb4:  ; preds = bb2
+    bb4:                                            ; preds = bb2
       v8 = add v1, 7
       jump bb1
-    bb3:  ; preds = bb2
+    bb3:                                            ; preds = bb2
       v7 = add v1, 1
       jump bb1
   }
@@ -34,14 +34,14 @@
 +     v6 = calldataload 0
 +     v7 = ne v6, 0
       jump bb1
-    bb1:  ; preds = bb0, bb3, bb4
+    bb1:                                            ; preds = bb0, bb3, bb4
       v0 = phi [bb0: 0], [bb3: v4], [bb4: v4]
       v1 = phi [bb0: 0], [bb3: v5], [bb4: v5]
       v2 = lt v1, 10
       jumpi v2, bb2, bb5
-    bb5:  ; preds = bb1
+    bb5:                                            ; preds = bb1
       ret v0
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       v3 = mul v1, 32
       mstore v3, 1
 -     v4 = mload 320
@@ -49,9 +49,9 @@
 -     v6 = calldataload 0
 -     v7 = ne v6, 0
       jumpi v7, bb3, bb4
-    bb4:  ; preds = bb2
+    bb4:                                            ; preds = bb2
       jump bb1
-    bb3:  ; preds = bb2
+    bb3:                                            ; preds = bb2
       jump bb1
   }
   

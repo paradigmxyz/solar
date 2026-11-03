@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/memory_fixed_array_alloc.sol:MemoryFixedArrayAlloc ===
+; === ROOT/tests/ui/codegen/lowering/memory_fixed_array_alloc.sol:MemoryFixedArrayAlloc ===
 @module MemoryFixedArrayAlloc
 @types
   struct0: {i256, i256}
@@ -40,11 +40,11 @@ fn @nested(arg0: i256, arg1: i256) -> i256 [selector=0x50d1f082, pure, abi_param
   bb0:
     v0 = alloc 96 !metadata(preserves_fmp)
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v7]
     v2 = lt v1, 3
     jumpi v2, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v8 = lt 0, 3
     v9 = eq v8, false
     icall panic_if<0x32>, v9
@@ -66,7 +66,7 @@ fn @nested(arg0: i256, arg1: i256) -> i256 [selector=0x50d1f082, pure, abi_param
     v21 = ptradd v17, v20
     v22 = mload v21
     ret v22
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v3 = alloc 64 !metadata(preserves_fmp)
     memory_zero v3, 64
     v4 = shl v1, 5
@@ -142,7 +142,7 @@ fn @bulkDefault(arg0: i256) -> i256 [selector=0xbe4421b6, pure, abi_params=[uint
     ret v5
 }
 
-// === ROOT/tests/ui/codegen/lowering/memory_fixed_array_alloc.sol:NamedReturnAndDelete ===
+; === ROOT/tests/ui/codegen/lowering/memory_fixed_array_alloc.sol:NamedReturnAndDelete ===
 @module NamedReturnAndDelete
 @types
   struct0: {ptr<memory>, i256}

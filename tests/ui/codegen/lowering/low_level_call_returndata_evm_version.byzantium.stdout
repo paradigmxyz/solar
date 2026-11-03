@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/low_level_call_returndata_evm_version.sol:Caller ===
+; === ROOT/tests/ui/codegen/lowering/low_level_call_returndata_evm_version.sol:Caller ===
 @module Caller
 ; function probeCall(address target) external returns (uint256) [selector 0x9c6db033]
 fn @probeCall(arg0: i160) -> i256 [selector=0x9c6db033, abi_params=[address], abi_returns=[word], abi_return_params=[uint256]] {

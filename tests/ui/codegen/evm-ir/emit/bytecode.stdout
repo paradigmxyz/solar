@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/emit/bytecode.evmir (before none) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/emit/bytecode.evmir (after none) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/emit/bytecode.evmir (before none) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/emit/bytecode.evmir (after none) ===
   @module program
   @data
     0: hex"1122"

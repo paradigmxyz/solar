@@ -198,7 +198,7 @@ mod round_trip {
             let gcx = c.gcx();
             for id in gcx.hir.contract_ids() {
                 let contract = gcx.hir.contract(id);
-                if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
+                if !contract.can_be_deployed() {
                     continue;
                 }
                 let errors_before = gcx.dcx().err_count();
@@ -276,7 +276,7 @@ mod round_trip {
             let gcx = c.gcx();
             for id in gcx.hir.contract_ids() {
                 let contract = gcx.hir.contract(id);
-                if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
+                if !contract.can_be_deployed() {
                     continue;
                 }
                 let module = lower::lower_contract(gcx, id);

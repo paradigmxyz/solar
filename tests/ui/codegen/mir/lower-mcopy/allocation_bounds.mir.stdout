@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/lower-mcopy/allocation_bounds.sol:CopyAllocationBounds ===
+; === ROOT/tests/ui/codegen/mir/lower-mcopy/allocation_bounds.sol:CopyAllocationBounds ===
 @module CopyAllocationBounds
 @types
   struct0: {i256, i256}

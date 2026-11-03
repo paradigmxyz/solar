@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_hashing.sol:StorageBytesHashing ===
+; === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_hashing.sol:StorageBytesHashing ===
 @module StorageBytesHashing
 ; function mappingEmpty() external returns (bool) [selector 0x20f98002]
 fn @mappingEmpty() -> i1 [selector=0x20f98002, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {

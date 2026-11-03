@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/jumpi-fallthrough/latch.evmir (before jumpi-fallthrough) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/jumpi-fallthrough/latch.evmir (after jumpi-fallthrough) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/jumpi-fallthrough/latch.evmir (before jumpi-fallthrough) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/jumpi-fallthrough/latch.evmir (after jumpi-fallthrough) ===
   @module Latch
   bb0:
     push 0

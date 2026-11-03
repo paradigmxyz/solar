@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/stack_arg_rotation.sol:StackArgRotation ===
+; === ROOT/tests/ui/codegen/lowering/stack_arg_rotation.sol:StackArgRotation ===
 @module StackArgRotation
 ; getter for `uint256 public sink` [selector 0xc74e820e]
 fn @sink() -> i256 [selector=0xc74e820e, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {

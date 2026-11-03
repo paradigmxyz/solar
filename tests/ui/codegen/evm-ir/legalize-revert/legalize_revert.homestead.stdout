@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/legalize-revert/legalize_revert.evmir (before legalize-revert) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/legalize-revert/legalize_revert.evmir (after legalize-revert) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/legalize-revert/legalize_revert.evmir (before legalize-revert) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/legalize-revert/legalize_revert.evmir (after legalize-revert) ===
   @module module
   bb0:
     push 0

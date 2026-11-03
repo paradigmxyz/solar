@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lower-shifts/debug_spans.mir (before lower-shifts) ===
-+ // === ROOT/tests/ui/codegen/mir/lower-shifts/debug_spans.mir (after lower-shifts) ===
+- ; === ROOT/tests/ui/codegen/mir/lower-shifts/debug_spans.mir (before lower-shifts) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-shifts/debug_spans.mir (after lower-shifts) ===
   @module LowerShiftDebugSpans
   fn @spans(arg0: i256, arg1: i256) -> i256 {
     bb0:

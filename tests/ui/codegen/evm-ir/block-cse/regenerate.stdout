@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/block-cse/regenerate.evmir (before block-cse) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/block-cse/regenerate.evmir (after block-cse) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/block-cse/regenerate.evmir (before block-cse) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/block-cse/regenerate.evmir (after block-cse) ===
   @module module
   bb0:
     push 2

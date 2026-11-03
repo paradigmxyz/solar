@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/word-sequence/constraints.mir (before word-sequence) ===
-+ // === ROOT/tests/ui/codegen/mir/word-sequence/constraints.mir (after word-sequence) ===
+- ; === ROOT/tests/ui/codegen/mir/word-sequence/constraints.mir (before word-sequence) ===
++ ; === ROOT/tests/ui/codegen/mir/word-sequence/constraints.mir (after word-sequence) ===
   @module RecipeConstraints
   fn @shared_producers(arg0: i256, arg1: i256) -> i256 {
     bb0:
@@ -44,7 +44,7 @@
       v0 = not arg0
       v1 = not arg1
       jump bb1
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       v2 = and v0, v1
       ret v2
   }

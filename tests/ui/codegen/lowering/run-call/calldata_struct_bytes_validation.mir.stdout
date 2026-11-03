@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/calldata_struct_bytes_validation.sol:CalldataStructBytesValidation ===
+; === ROOT/tests/ui/codegen/lowering/run-call/calldata_struct_bytes_validation.sol:CalldataStructBytesValidation ===
 @module CalldataStructBytesValidation
 ; function copy(Value calldata value) external pure returns (uint256) [selector 0xd1ee4a1a]
 fn @copy(arg0: slice<calldata>) -> i256 [selector=0xd1ee4a1a, pure, abi_params=[tuple<bytes, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
@@ -439,11 +439,11 @@ fn @copyArray(arg0: slice<calldata>) -> i256 [selector=0x58bdfbf3, pure, abi_par
     v14 = alloc v12
     mstore v14, v0
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v15 = phi [bb0: 0], [bb2: v53]
     v16 = lt v15, v0
     jumpi v16, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v54 = mload v14
     v55 = gt v54, 0
     v56 = eq v55, false
@@ -452,7 +452,7 @@ fn @copyArray(arg0: slice<calldata>) -> i256 [selector=0x58bdfbf3, pure, abi_par
     v58 = mload v57, ptr<memory>
     v59 = mload v58
     ret v59
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v17 = mul v15, 32
     v18 = ptrtoint ptr<calldata> v1 to i256
     v19 = add v18, v17

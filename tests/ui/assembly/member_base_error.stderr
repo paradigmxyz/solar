@@ -1,22 +1,22 @@
-error: unresolved symbol `Missing`
+error[7920]: unresolved symbol `Missing`
    ╭▸ ROOT/tests/ui/assembly/member_base_error.sol:LL:CC
    │
 LL │     Missing constant K = 1;
    ╰╴    ━━━━━━━
 
-error: unresolved symbol `Missing`
+error[7920]: unresolved symbol `Missing`
    ╭▸ ROOT/tests/ui/assembly/member_base_error.sol:LL:CC
    │
 LL │     mapping(uint256 => Missing) badMap;
    ╰╴                       ━━━━━━━
 
-error: unresolved symbol `Missing`
+error[7920]: unresolved symbol `Missing`
    ╭▸ ROOT/tests/ui/assembly/member_base_error.sol:LL:CC
    │
 LL │     function f(Missing[] calldata cd) public view {
    ╰╴               ━━━━━━━
 
-error: unresolved symbol `Missing`
+error[7920]: unresolved symbol `Missing`
    ╭▸ ROOT/tests/ui/assembly/member_base_error.sol:LL:CC
    │
 LL │         Missing storage ptr;
@@ -28,7 +28,7 @@ error: unresolved symbol `missing`
 LL │             pop(missing.slot)
    ╰╴                ━━━━━━━
 
-error: unresolved symbol `Missing`
+error[7920]: unresolved symbol `Missing`
    ╭▸ ROOT/tests/ui/assembly/member_base_error.sol:LL:CC
    │
 LL │         mapping(uint256 => Missing) storage ptr = stateMap;

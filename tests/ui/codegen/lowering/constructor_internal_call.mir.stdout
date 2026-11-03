@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/constructor_internal_call.sol:ConstructorICall ===
+; === ROOT/tests/ui/codegen/lowering/constructor_internal_call.sol:ConstructorICall ===
 @module ConstructorICall
 ; constructor(uint256 x) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
@@ -21,14 +21,14 @@ fn @helper(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v1 = checked_mul uint256, arg0, 11
     v2 = checked_sub uint256, arg0, 1
     v3 = icall @helper, v2
     v4 = checked_add uint256, v1, v3
     ret v4
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     ret 1
 }

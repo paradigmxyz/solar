@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_constant_shift.sol:FixedBytesConstantShift ===
+; === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_constant_shift.sol:FixedBytesConstantShift ===
 @module FixedBytesConstantShift
 ; function low() external pure returns (bytes32) [selector 0xc40de79a]
 fn @low() -> i256 [selector=0xc40de79a, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {

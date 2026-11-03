@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/memory-dse/scratch_encoding_fmp.mir (before memory-dse) ===
-+ // === ROOT/tests/ui/codegen/mir/memory-dse/scratch_encoding_fmp.mir (after memory-dse) ===
+- ; === ROOT/tests/ui/codegen/mir/memory-dse/scratch_encoding_fmp.mir (before memory-dse) ===
++ ; === ROOT/tests/ui/codegen/mir/memory-dse/scratch_encoding_fmp.mir (after memory-dse) ===
   @module ScratchEncodingFmp
   fn @scratch() {
     bb0:

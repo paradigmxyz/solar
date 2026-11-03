@@ -107,7 +107,8 @@ pub(crate) enum Inline {
 impl MirPass for Inline {
     fn name(&self) -> &'static str {
         match self {
-            Self::Semantic | Self::Physical => "inline",
+            Self::Semantic => "inline",
+            Self::Physical => "inline-physical",
             Self::Tagged => "inline-tagged",
         }
     }

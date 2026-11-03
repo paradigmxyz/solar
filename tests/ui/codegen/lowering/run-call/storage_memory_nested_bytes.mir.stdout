@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/storage_memory_nested_bytes.sol:StorageMemoryNestedBytes ===
+; === ROOT/tests/ui/codegen/lowering/run-call/storage_memory_nested_bytes.sol:StorageMemoryNestedBytes ===
 @module StorageMemoryNestedBytes
 ; function copy() external returns (uint256) [selector 0x60726abb]
 fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
