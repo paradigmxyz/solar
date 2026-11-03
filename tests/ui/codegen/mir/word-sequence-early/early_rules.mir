@@ -1,0 +1,20 @@
+//@ revisions: early late
+//@[early] compile-flags: -Ogas -Zmir-pipeline=word-sequence-early
+//@[late] compile-flags: -Ogas -Zmir-pipeline=word-sequence
+//@[early] filecheck: --check-prefix=EARLY
+//@[late] filecheck: --check-prefix=LATE
+@module WordSequenceEarlyRules
+
+// Only the late rules turn a selector mask into a shift pair, so `word-sequence-early` names the
+// early slot and `word-sequence` the late one.
+// EARLY-NOT: {{^[+].*}}shr
+// LATE: + [[LOW:v[0-9]+]] = shr arg0, 224
+// LATE: + {{v[0-9]+}} = shl [[LOW]], 224
+fn @selectors(arg0: i256) -> i1 {
+  bb0:
+    v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v1 = eq v0, 0x01ffc9a700000000000000000000000000000000000000000000000000000000
+    v2 = eq v0, 0x80ac58cd00000000000000000000000000000000000000000000000000000000
+    v3 = or v1, v2
+    ret v3
+}
