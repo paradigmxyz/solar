@@ -279,7 +279,7 @@ fn run_passes(
         if let Some(before) = before {
             print_pass_diff(&output_name, pass_name, before, module.to_text());
         } else if gcx.sess.opts.unstable.print_after_each && !gcx.sess.opts.unstable.pass_diff {
-            println!("// === {output_name} (after {pass_name}) ===");
+            println!("; === {output_name} (after {pass_name}) ===");
             print!("{}", module.to_text());
         }
     }
@@ -356,7 +356,7 @@ pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bo
             let text = module.to_text();
             print_pass_diff(&name, "none", &text, &text);
         } else if gcx.sess.opts.unstable.print_after_each {
-            println!("// === {name} (after none) ===");
+            println!("; === {name} (after none) ===");
             print!("{}", module.to_text());
         }
     }

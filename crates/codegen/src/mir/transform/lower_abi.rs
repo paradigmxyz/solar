@@ -3317,7 +3317,7 @@ fn is_canonical_return_scalar(
         return matches!(ty, ValueLayout::Int(size) if size.bits() >= 256);
     };
     let bits = super::egraph::max_bits_with_args(func, value, 8, &|_| 256);
-    if (U256::MAX >> (256 - bits)) & !expected == U256::ZERO {
+    if ((U256::MAX >> (256 - bits)) & !expected).is_zero() {
         return true;
     }
     if ty == ValueLayout::Function
@@ -3361,7 +3361,7 @@ fn is_canonical_return_scalar(
         return true;
     }
     let Value::Inst(inst) = func.value(value) else {
-        return func.value_u256(value).is_some_and(|value| value & !expected == U256::ZERO);
+        return func.value_u256(value).is_some_and(|value| (value & !expected).is_zero());
     };
     let InstKind::And(lhs, rhs) = func.inst(*inst).kind else { return false };
     let (source, mask) = if let Some(mask) = func.value_u256(rhs) {

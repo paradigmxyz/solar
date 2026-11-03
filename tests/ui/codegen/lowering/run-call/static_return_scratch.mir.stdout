@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/static_return_scratch.sol:StaticReturnScratch ===
+; === ROOT/tests/ui/codegen/lowering/run-call/static_return_scratch.sol:StaticReturnScratch ===
 @module StaticReturnScratch
 @types
   struct0: {i256, i256}
@@ -107,13 +107,13 @@ fn @modified(arg0: i256) -> struct1 [selector=0xd492dffb, pure, abi_params=[uint
     v0 = checked_add uint256, arg0, 1
     v1 = checked_add uint256, arg0, 2
     jump bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     mstore 0, 1 !metadata(memory=scratch)
     mstore 32, 2 !metadata(memory=scratch)
     mstore 64, 3 !metadata(memory=scratch)
     mstore 96, 4 !metadata(memory=scratch)
     jump bb1
-  bb1:  ; preds = bb2
+  bb1:                                            ; preds = bb2
     v2 = insert_value struct1, undef struct1, 0, arg0
     v3 = insert_value struct1, v2, 1, v0
     v4 = insert_value struct1, v3, 2, v1

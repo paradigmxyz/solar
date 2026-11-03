@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_cleanup.mir (before lower-structs) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_cleanup.mir (after lower-structs) ===
+- ; === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_cleanup.mir (before lower-structs) ===
++ ; === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_cleanup.mir (after lower-structs) ===
   @module LowerEvmShapedCleanup
 - @types
 -   struct0: {i256, i256}
@@ -13,7 +13,7 @@
     bb0:
       icall @fused
       jump bb1
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       v0 = add 1, 2
       mstore 128, v0
       returndata 128, 32
@@ -33,7 +33,7 @@
 +     v4 = add v3, 32
 +     v5 = mload v4
       jump bb1
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
 -     v1 = extract_value struct0, v0, 1
 -     sstore 0, v1
 -     ret v0
@@ -48,8 +48,8 @@
       revert 0, 32
   }
   
-- // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_cleanup.mir (before lower-frame-slots) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_cleanup.mir (after lower-frame-slots) ===
+- ; === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_cleanup.mir (before lower-frame-slots) ===
++ ; === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_cleanup.mir (after lower-frame-slots) ===
   @module LowerEvmShapedCleanup
   fn @entry() {
     bb0:
@@ -60,7 +60,7 @@
     bb0:
       icall @fused
       jump bb1
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       v0 = add 1, 2
       mstore 128, v0
       returndata 128, 32
@@ -80,7 +80,7 @@
 +     v4 = add v6, 32
       v5 = mload v4
       jump bb1
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       sstore 0, v5
       ret v2, v5
   }
@@ -91,8 +91,8 @@
       revert 0, 32
   }
   
-- // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_cleanup.mir (before lower-evm-shaped) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_cleanup.mir (after lower-evm-shaped) ===
+- ; === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_cleanup.mir (before lower-evm-shaped) ===
++ ; === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_cleanup.mir (after lower-evm-shaped) ===
   @module LowerEvmShapedCleanup
 + @phase lowered
   fn @entry() {
@@ -104,7 +104,7 @@
     bb0:
 -     icall @fused
 -     jump bb1
--   bb1:  ; preds = bb0
+-   bb1:                                            ; preds = bb0
 -     v0 = add 1, 2
 -     mstore 128, v0
 -     returndata 128, 32
@@ -123,7 +123,7 @@
 -     v4 = add v6, 32
 -     v5 = mload v4
 -     jump bb1
--   bb1:  ; preds = bb0
+-   bb1:                                            ; preds = bb0
 -     sstore 0, v5
 -     ret v2, v5
 +     tail_call @pair_fail, 29

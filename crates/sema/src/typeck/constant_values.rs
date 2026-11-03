@@ -79,21 +79,21 @@ fn check_base_slot_value(
 ) {
     let code = |code| ConstContext::BaseSlot.value_code(solc, code);
     let Some(base_slot) = value.as_u256() else {
-        gcx.dcx()
-            .err("base slot of storage layout evaluates to a value outside the range of type `uint256`")
-            .code(code(error_code!(6753)))
-            .span(slot.span)
-            .emit();
+        gcx.dcx().emit_err_code(
+            slot.span,
+            code(error_code!(6753)),
+            "base slot of storage layout evaluates to a value outside the range of type `uint256`",
+        );
         return;
     };
     if let Ok(Some(size)) = super::storage_size_upper_bound(gcx, contract, DataLocation::Storage)
         && base_slot.checked_add(size).is_none()
     {
-        gcx.dcx()
-            .err("contract extends past the end of storage when this base slot value is specified")
-            .code(code(error_code!(5015)))
-            .span(slot.span)
-            .emit();
+        gcx.dcx().emit_err_code(
+            slot.span,
+            code(error_code!(5015)),
+            "contract extends past the end of storage when this base slot value is specified",
+        );
     }
 }
 
@@ -135,9 +135,11 @@ impl<'gcx> Visit<'gcx> for AssemblyConstants<'gcx> {
         {
             self.gcx
                 .dcx()
-                .err("inline assembly can only read constants with a compile-time value")
-                .code(error_code!(7615))
-                .span(expr.span)
+                .err_code_at(
+                    expr.span,
+                    error_code!(7615),
+                    "inline assembly can only read constants with a compile-time value",
+                )
                 .span_label(err.span, "this has no value at compile time")
                 .note("every use of the constant runs its initializer, which can allocate memory")
                 .emit();

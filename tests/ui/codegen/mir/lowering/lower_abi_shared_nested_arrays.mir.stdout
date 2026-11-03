@@ -1,10 +1,10 @@
-// === ROOT/tests/ui/codegen/mir/lowering/lower_abi_shared_nested_arrays.sol:SharedNestedArrays ===
+; === ROOT/tests/ui/codegen/mir/lowering/lower_abi_shared_nested_arrays.sol:SharedNestedArrays ===
 @module SharedNestedArrays
 ; function sum(Pair memory pair) external pure returns (uint256 total) [selector 0x06889ec9]
 fn @sum(arg0: ptr<memory>) -> i256 [selector=0x06889ec9, pure, abi_params=[tuple<array<_, uint256>, array<_, uint256>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v14]
     v2 = phi [bb0: 0], [bb3: v15]
@@ -12,11 +12,11 @@ fn @sum(arg0: ptr<memory>) -> i256 [selector=0x06889ec9, pure, abi_params=[tuple
     v4 = mload v3
     v5 = lt v2, v4
     jumpi v5, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     jump bb7
-  bb7:  ; preds = bb2, bb9
+  bb7:                                            ; preds = bb2, bb9
     v16 = phi [bb2: v0], [bb9: v16]
     v17 = phi [bb2: v1], [bb9: v33]
     v18 = phi [bb2: v2], [bb9: v18]
@@ -26,11 +26,11 @@ fn @sum(arg0: ptr<memory>) -> i256 [selector=0x06889ec9, pure, abi_params=[tuple
     v22 = mload v21
     v23 = lt v19, v22
     jumpi v23, bb10, bb11
-  bb11:  ; preds = bb7
+  bb11:                                           ; preds = bb7
     jump bb8
-  bb8:  ; preds = bb11
+  bb8:                                            ; preds = bb11
     ret v17
-  bb10:  ; preds = bb7
+  bb10:                                           ; preds = bb7
     v24 = ptradd v16, 32
     v25 = mload v24, ptr<memory>
     v26 = mload v25
@@ -43,12 +43,12 @@ fn @sum(arg0: ptr<memory>) -> i256 [selector=0x06889ec9, pure, abi_params=[tuple
     v32 = mload v31
     v33 = checked_add uint256, v17, v32
     jump bb12
-  bb12:  ; preds = bb10
+  bb12:                                           ; preds = bb10
     jump bb9
-  bb9:  ; preds = bb12
+  bb9:                                            ; preds = bb12
     v34 = checked_add uint256, v19, 1
     jump bb7
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v6 = mload v0, ptr<memory>
     v7 = mload v6
     v8 = lt v2, v7
@@ -60,9 +60,9 @@ fn @sum(arg0: ptr<memory>) -> i256 [selector=0x06889ec9, pure, abi_params=[tuple
     v13 = mload v12
     v14 = checked_add uint256, v1, v13
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v15 = checked_add uint256, v2, 1
     jump bb1
 }
@@ -72,7 +72,7 @@ fn @sumDecoded(arg0: ptr<memory>) -> i256 [selector=0x753dd3ed, pure, abi_params
   bb0:
     v0 = abi_decode [tuple<array<_, uint256>, array<_, uint256>>], arg0
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v1 = phi [bb0: arg0], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v16]
     v3 = phi [bb0: v0], [bb3: v3]
@@ -81,11 +81,11 @@ fn @sumDecoded(arg0: ptr<memory>) -> i256 [selector=0x753dd3ed, pure, abi_params
     v6 = mload v5
     v7 = lt v4, v6
     jumpi v7, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     jump bb7
-  bb7:  ; preds = bb2, bb9
+  bb7:                                            ; preds = bb2, bb9
     v18 = phi [bb2: v1], [bb9: v18]
     v19 = phi [bb2: v2], [bb9: v36]
     v20 = phi [bb2: v3], [bb9: v20]
@@ -96,11 +96,11 @@ fn @sumDecoded(arg0: ptr<memory>) -> i256 [selector=0x753dd3ed, pure, abi_params
     v25 = mload v24
     v26 = lt v22, v25
     jumpi v26, bb10, bb11
-  bb11:  ; preds = bb7
+  bb11:                                           ; preds = bb7
     jump bb8
-  bb8:  ; preds = bb11
+  bb8:                                            ; preds = bb11
     ret v19
-  bb10:  ; preds = bb7
+  bb10:                                           ; preds = bb7
     v27 = ptradd v20, 32
     v28 = mload v27, ptr<memory>
     v29 = mload v28
@@ -113,12 +113,12 @@ fn @sumDecoded(arg0: ptr<memory>) -> i256 [selector=0x753dd3ed, pure, abi_params
     v35 = mload v34
     v36 = checked_add uint256, v19, v35
     jump bb12
-  bb12:  ; preds = bb10
+  bb12:                                           ; preds = bb10
     jump bb9
-  bb9:  ; preds = bb12
+  bb9:                                            ; preds = bb12
     v37 = checked_add uint256, v22, 1
     jump bb7
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v8 = mload v3, ptr<memory>
     v9 = mload v8
     v10 = lt v4, v9
@@ -130,9 +130,9 @@ fn @sumDecoded(arg0: ptr<memory>) -> i256 [selector=0x753dd3ed, pure, abi_params
     v15 = mload v14
     v16 = checked_add uint256, v2, v15
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v17 = checked_add uint256, v4, 1
     jump bb1
 }
@@ -141,7 +141,7 @@ fn @sumDecoded(arg0: ptr<memory>) -> i256 [selector=0x753dd3ed, pure, abi_params
 fn @narrow(arg0: ptr<memory>) -> i256 [selector=0x103c9e8e, pure, abi_params=[tuple<array<_, uint8>, array<_, uint8>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v16]
     v2 = phi [bb0: 0], [bb3: v17]
@@ -149,11 +149,11 @@ fn @narrow(arg0: ptr<memory>) -> i256 [selector=0x103c9e8e, pure, abi_params=[tu
     v4 = mload v3
     v5 = lt v2, v4
     jumpi v5, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     jump bb7
-  bb7:  ; preds = bb2, bb9
+  bb7:                                            ; preds = bb2, bb9
     v18 = phi [bb2: v0], [bb9: v18]
     v19 = phi [bb2: v1], [bb9: v37]
     v20 = phi [bb2: v2], [bb9: v20]
@@ -163,11 +163,11 @@ fn @narrow(arg0: ptr<memory>) -> i256 [selector=0x103c9e8e, pure, abi_params=[tu
     v24 = mload v23
     v25 = lt v21, v24
     jumpi v25, bb10, bb11
-  bb11:  ; preds = bb7
+  bb11:                                           ; preds = bb7
     jump bb8
-  bb8:  ; preds = bb11
+  bb8:                                            ; preds = bb11
     ret v19
-  bb10:  ; preds = bb7
+  bb10:                                           ; preds = bb7
     v26 = ptradd v18, 32
     v27 = mload v26, ptr<memory>
     v28 = mload v27
@@ -182,12 +182,12 @@ fn @narrow(arg0: ptr<memory>) -> i256 [selector=0x103c9e8e, pure, abi_params=[tu
     v36 = zext i8 v35 to i256
     v37 = checked_add uint256, v19, v36
     jump bb12
-  bb12:  ; preds = bb10
+  bb12:                                           ; preds = bb10
     jump bb9
-  bb9:  ; preds = bb12
+  bb9:                                            ; preds = bb12
     v38 = checked_add uint256, v21, 1
     jump bb7
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v6 = mload v0, ptr<memory>
     v7 = mload v6
     v8 = lt v2, v7
@@ -201,9 +201,9 @@ fn @narrow(arg0: ptr<memory>) -> i256 [selector=0x103c9e8e, pure, abi_params=[tu
     v15 = zext i8 v14 to i256
     v16 = checked_add uint256, v1, v15
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v17 = checked_add uint256, v2, 1
     jump bb1
 }
@@ -212,7 +212,7 @@ fn @narrow(arg0: ptr<memory>) -> i256 [selector=0x103c9e8e, pure, abi_params=[tu
 fn @grid(arg0: ptr<memory>) -> i256 [selector=0x96087a12, pure, abi_params=[tuple<array<_, array<_, uint256>>, array<_, array<_, uint256>>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v6]
     v1 = phi [bb0: 0], [bb3: v7]
     v2 = phi [bb0: 0], [bb3: v37]
@@ -220,11 +220,11 @@ fn @grid(arg0: ptr<memory>) -> i256 [selector=0x96087a12, pure, abi_params=[tupl
     v4 = mload v3
     v5 = lt v2, v4
     jumpi v5, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     jump bb13
-  bb13:  ; preds = bb2, bb15
+  bb13:                                           ; preds = bb2, bb15
     v38 = phi [bb2: v0], [bb15: v46]
     v39 = phi [bb2: v1], [bb15: v47]
     v40 = phi [bb2: v2], [bb15: v48]
@@ -234,13 +234,13 @@ fn @grid(arg0: ptr<memory>) -> i256 [selector=0x96087a12, pure, abi_params=[tupl
     v44 = mload v43
     v45 = lt v41, v44
     jumpi v45, bb16, bb17
-  bb17:  ; preds = bb13
+  bb17:                                           ; preds = bb13
     jump bb14
-  bb14:  ; preds = bb17
+  bb14:                                           ; preds = bb17
     ret v39
-  bb16:  ; preds = bb13
+  bb16:                                           ; preds = bb13
     jump bb19
-  bb19:  ; preds = bb16, bb21
+  bb19:                                           ; preds = bb16, bb21
     v46 = phi [bb16: v38], [bb21: v46]
     v47 = phi [bb16: v39], [bb21: v78]
     v48 = phi [bb16: v40], [bb21: v48]
@@ -259,16 +259,16 @@ fn @grid(arg0: ptr<memory>) -> i256 [selector=0x96087a12, pure, abi_params=[tupl
     v60 = mload v59
     v61 = lt v50, v60
     jumpi v61, bb22, bb23
-  bb23:  ; preds = bb19
+  bb23:                                           ; preds = bb19
     jump bb20
-  bb20:  ; preds = bb23
+  bb20:                                           ; preds = bb23
     jump bb18
-  bb18:  ; preds = bb20
+  bb18:                                           ; preds = bb20
     jump bb15
-  bb15:  ; preds = bb18
+  bb15:                                           ; preds = bb18
     v80 = checked_add uint256, v49, 1
     jump bb13
-  bb22:  ; preds = bb19
+  bb22:                                           ; preds = bb19
     v62 = ptradd v46, 32
     v63 = mload v62, ptr<memory>
     v64 = mload v63
@@ -289,14 +289,14 @@ fn @grid(arg0: ptr<memory>) -> i256 [selector=0x96087a12, pure, abi_params=[tupl
     v77 = mload v76
     v78 = checked_add uint256, v47, v77
     jump bb24
-  bb24:  ; preds = bb22
+  bb24:                                           ; preds = bb22
     jump bb21
-  bb21:  ; preds = bb24
+  bb21:                                           ; preds = bb24
     v79 = checked_add uint256, v50, 1
     jump bb19
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     jump bb7
-  bb7:  ; preds = bb4, bb9
+  bb7:                                            ; preds = bb4, bb9
     v6 = phi [bb4: v0], [bb9: v6]
     v7 = phi [bb4: v1], [bb9: v35]
     v8 = phi [bb4: v2], [bb9: v8]
@@ -313,16 +313,16 @@ fn @grid(arg0: ptr<memory>) -> i256 [selector=0x96087a12, pure, abi_params=[tupl
     v18 = mload v17
     v19 = lt v9, v18
     jumpi v19, bb10, bb11
-  bb11:  ; preds = bb7
+  bb11:                                           ; preds = bb7
     jump bb8
-  bb8:  ; preds = bb11
+  bb8:                                            ; preds = bb11
     jump bb6
-  bb6:  ; preds = bb8
+  bb6:                                            ; preds = bb8
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v37 = checked_add uint256, v8, 1
     jump bb1
-  bb10:  ; preds = bb7
+  bb10:                                           ; preds = bb7
     v20 = mload v6, ptr<memory>
     v21 = mload v20
     v22 = lt v8, v21
@@ -342,9 +342,9 @@ fn @grid(arg0: ptr<memory>) -> i256 [selector=0x96087a12, pure, abi_params=[tupl
     v34 = mload v33
     v35 = checked_add uint256, v7, v34
     jump bb12
-  bb12:  ; preds = bb10
+  bb12:                                           ; preds = bb10
     jump bb9
-  bb9:  ; preds = bb12
+  bb9:                                            ; preds = bb12
     v36 = checked_add uint256, v9, 1
     jump bb7
 }

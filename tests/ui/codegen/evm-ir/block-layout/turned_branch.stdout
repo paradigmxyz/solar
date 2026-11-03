@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/block-layout/turned_branch.evmir (before block-layout) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/block-layout/turned_branch.evmir (after block-layout) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/block-layout/turned_branch.evmir (before block-layout) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/block-layout/turned_branch.evmir (after block-layout) ===
   @module TurnedBranch
   bb0:
     push 4

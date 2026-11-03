@@ -170,10 +170,12 @@ impl super::LoweringContext<'_> {
             let mut base_indices = SmallVec::<[u32; 8]>::new();
             for (index, base) in ast_contract.bases.iter().enumerate() {
                 let name = &base.name;
-                let Ok(base_id) = self
-                    .resolver
-                    .resolve_path_as::<hir::ContractId>(&base.name, &scopes, "contract")
-                else {
+                let Ok(base_id) = self.resolver.resolve_path_as::<hir::ContractId>(
+                    &base.name,
+                    &scopes,
+                    error_code!(7920),
+                    "contract",
+                ) else {
                     continue;
                 };
                 if base_id == contract_id {
@@ -182,11 +184,11 @@ impl super::LoweringContext<'_> {
                     continue;
                 }
                 if self.hir.contract(base_id).kind.is_library() {
-                    self.dcx()
-                        .err("libraries cannot be inherited from")
-                        .code(error_code!(2571))
-                        .span(name.span())
-                        .emit();
+                    self.dcx().emit_err_code(
+                        name.span(),
+                        error_code!(2571),
+                        "libraries cannot be inherited from",
+                    );
                     continue;
                 }
                 bases.push(base_id);
@@ -410,7 +412,8 @@ impl<'gcx> ResolveContext<'gcx> {
                     } else {
                         "modifier"
                     };
-                    let Ok(id) = self.resolve_path_as(&modifier.name, expected) else {
+                    let Ok(id) = self.resolve_path_as(&modifier.name, error_code!(7920), expected)
+                    else {
                         continue;
                     };
                     match id {
@@ -516,7 +519,11 @@ impl<'gcx> ResolveContext<'gcx> {
         let ty = using.ty.as_ref().map(|ty| self.lower_type(ty));
         let entries = match &using.list {
             ast::UsingList::Single(path) => {
-                let kind = match self.resolve_path_as::<hir::ContractId>(path, "library") {
+                let kind = match self.resolve_path_as::<hir::ContractId>(
+                    path,
+                    error_code!(9589),
+                    "library",
+                ) {
                     Ok(id) => hir::UsingEntryKind::Library(id),
                     Err(guar) => hir::UsingEntryKind::Err(guar),
                 };
@@ -550,7 +557,7 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn lower_using_functions(&mut self, path: &ast::PathSlice) -> hir::UsingEntryKind<'gcx> {
-        let decls = match self.resolve_paths(path) {
+        let decls = match self.resolve_paths(path, error_code!(9589)) {
             Ok(decls) => decls,
             Err(guar) => return hir::UsingEntryKind::Err(guar),
         };
@@ -646,16 +653,14 @@ impl<'gcx> ResolveContext<'gcx> {
                 if !prev.args.is_empty() {
                     self.sess
                         .dcx
-                        .err("base constructor arguments given twice")
-                        .span(base.span)
+                        .err_at(base.span, "base constructor arguments given twice")
                         .span_help(prev.span, "previous declaration")
                         .emit();
                 } else if !prev.args.is_dummy() && !base.args.is_empty() {
                     // Empty parens in inheritance list, but args in constructor
                     self.sess
                         .dcx
-                        .err("base constructor arguments given here")
-                        .span(base.span)
+                        .err_at(base.span, "base constructor arguments given here")
                         .span_help(
                             prev.span,
                             "remove parentheses if you do not want to provide arguments here",
@@ -960,22 +965,28 @@ impl<'gcx> ResolveContext<'gcx> {
     fn resolve_paths<'a>(
         &'a self,
         path: &ast::PathSlice,
+        code: DiagId,
     ) -> Result<&'a [Declaration], ErrorGuaranteed> {
-        self.resolver.resolve_paths(path, &self.scopes).map_err(self.resolver.emit_resolver_error())
+        self.resolver
+            .resolve_paths(path, &self.scopes)
+            .map_err(self.resolver.emit_resolver_error(Some(code)))
     }
 
     fn resolve_path_as<T: TryFrom<Res>>(
         &self,
         path: &ast::PathSlice,
+        code: DiagId,
         description: &str,
     ) -> Result<T, ErrorGuaranteed> {
-        self.resolver.resolve_path_as(path, &self.scopes, description)
+        self.resolver.resolve_path_as(path, &self.scopes, code, description)
     }
 
     /// Resolves the event or error path of an `emit` or `revert` statement.
     ///
     /// solc checks the qualified callee as a member access, and a contract name exposes only the
     /// contract's own declarations, so `emit I.E()` ignores any `E` that `I` inherits.
+    ///
+    /// An unresolved first segment is an undeclared identifier, as in any expression path.
     ///
     /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libsolidity/ast/Types.cpp#L3966-L4010>
     fn resolve_callee_path(&self, path: &ast::PathSlice) -> Result<&'gcx [Res], ErrorGuaranteed> {
@@ -986,7 +997,7 @@ impl<'gcx> ResolveContext<'gcx> {
                 qualifier = last;
                 last = if let [decl] = decls { Some(decl.res) } else { None };
             })
-            .map_err(self.resolver.emit_resolver_error())?;
+            .map_err(|e| self.resolver.emit_resolver_error(e.expr_path_code(path))(e))?;
         let res = decls.iter().map(|decl| decl.res);
         let Some(Res::Item(hir::ItemId::Contract(contract))) = qualifier else {
             return Ok(self.arena.alloc_slice_fill_iter(res));
@@ -996,7 +1007,7 @@ impl<'gcx> ResolveContext<'gcx> {
         }));
         if own.is_empty() {
             let error = ResolverError::new(*path.last(), ResolverErrorKind::Unresolved);
-            return Err(self.resolver.emit_resolver_error()(error));
+            return Err(self.resolver.emit_resolver_error(None)(error));
         }
         Ok(own)
     }
@@ -1110,12 +1121,11 @@ impl<'gcx> ResolveContext<'gcx> {
                     has_flag = true;
                     memory_safe = true;
                 }
-                _ => self
-                    .dcx()
-                    .warn("unknown inline assembly flag")
-                    .code(error_code!(4430))
-                    .span(span)
-                    .emit(),
+                _ => self.dcx().emit_warn_code(
+                    span,
+                    error_code!(4430),
+                    "unknown inline assembly flag",
+                ),
             }
         }
 
@@ -1247,6 +1257,8 @@ impl<'gcx> ResolveContext<'gcx> {
         expr: Option<&ast::yul::Expr<'_>>,
         span: Span,
     ) -> hir::StmtKind<'gcx> {
+        // The new names are not visible in the initializer.
+        let expr = expr.map(|expr| self.lower_yul_expr(expr));
         let vars = idents
             .iter()
             .map(|&ident| self.lower_yul_variable(ident, hir::VarKind::Statement))
@@ -1258,7 +1270,7 @@ impl<'gcx> ResolveContext<'gcx> {
         match (vars.as_slice(), expr) {
             ([(var, _)], None) => hir::StmtKind::DeclSingle(*var),
             ([(var, _)], Some(expr)) => {
-                self.hir.variables[*var].initializer = Some(self.lower_yul_expr(expr));
+                self.hir.variables[*var].initializer = Some(expr);
                 hir::StmtKind::DeclSingle(*var)
             }
             (vars, None) => {
@@ -1270,7 +1282,7 @@ impl<'gcx> ResolveContext<'gcx> {
             }
             (vars, Some(expr)) => hir::StmtKind::DeclMulti(
                 self.arena.alloc_slice_fill_iter(vars.iter().map(|&(var, _)| Some(var))),
-                self.lower_yul_expr(expr),
+                expr,
             ),
         }
     }
@@ -1421,32 +1433,30 @@ impl<'gcx> ResolveContext<'gcx> {
             if builtin == Builtin::YulPrevrandao && !target.has_prev_randao() {
                 return Err(self
                     .dcx()
-                    .err("Yul builtin `prevrandao` requires Paris-compatible EVM")
-                    .span(name.span)
+                    .err_at(name.span, "Yul builtin `prevrandao` requires Paris-compatible EVM")
                     .help("compile with `--evm-version paris` or newer")
                     .emit());
             }
             if builtin == Builtin::YulDifficulty && target.has_prev_randao() {
                 return Err(self
                     .dcx()
-                    .err("Yul builtin `difficulty` is unavailable for Paris-compatible EVM")
-                    .span(name.span)
+                    .err_at(
+                        name.span,
+                        "Yul builtin `difficulty` is unavailable for Paris-compatible EVM",
+                    )
                     .help("use `prevrandao()` when compiling for `paris` or newer")
                     .emit());
             }
             if let Some(required) = builtin.required_evm_version(target) {
                 return Err(self
                     .dcx()
-                    .err(format!(
-                        "Yul builtin `{}` requires {required:?}-compatible EVM",
-                        name.name
-                    ))
-                    .code(
+                    .err_code_at(
+                        name.span,
                         builtin
                             .evm_version_error_code()
                             .expect("version-gated Yul builtin without a diagnostic code"),
+                        format!("Yul builtin `{}` requires {required:?}-compatible EVM", name.name),
                     )
-                    .span(name.span)
                     .help(format!("compile with `--evm-version {required}` or newer"))
                     .emit());
             }
@@ -1462,7 +1472,7 @@ impl<'gcx> ResolveContext<'gcx> {
         if name.name.as_str().starts_with("verbatim_") {
             return Err(self.dcx().emit_err(name.span, "unsupported verbatim builtin"));
         }
-        Err(self.resolver.emit_resolver_error()(ResolverError::new(
+        Err(self.resolver.emit_resolver_error(None)(ResolverError::new(
             name,
             ResolverErrorKind::Unresolved,
         )))
@@ -1525,10 +1535,10 @@ impl<'gcx> ResolveContext<'gcx> {
                 if index < yul_root_scope {
                     return Err(self
                         .dcx()
-                        .err("cannot access local Solidity variables from inside an inline assembly function")
-                        .code(error_code!(6578))
-                        .span(name.span)
-                        .emit());
+                        .emit_err_code(
+                            name.span,
+                            error_code!(6578),
+                            "cannot access local Solidity variables from inside an inline assembly function"));
                 }
                 continue;
             }
@@ -1536,7 +1546,7 @@ impl<'gcx> ResolveContext<'gcx> {
         }
         self.resolver
             .resolve_name_non_local(name, &self.scopes)
-            .map_err(self.resolver.emit_resolver_error())
+            .map_err(self.resolver.emit_resolver_error(None))
     }
 
     fn yul_number_lit(&mut self, value: U256, span: Span) -> &'gcx hir::Expr<'gcx> {
@@ -1869,7 +1879,7 @@ impl<'gcx> ResolveContext<'gcx> {
             ast::ExprKind::CallOptions(..) => self.lower_call_options(expr),
             ast::ExprKind::Delete(expr) => hir::ExprKind::Delete(self.lower_expr(expr)),
             ast::ExprKind::Ident(name) => {
-                match self.resolve_paths(ast::PathSlice::from_ref(name)) {
+                match self.resolve_paths(ast::PathSlice::from_ref(name), error_code!(7576)) {
                     Ok(decls) => hir::ExprKind::Ident(
                         self.arena.alloc_slice_fill_iter(decls.iter().map(|decl| decl.res)),
                     ),
@@ -1901,11 +1911,11 @@ impl<'gcx> ResolveContext<'gcx> {
                 let guar = if let ast::CallArgsKind::Named(args) = &args.kind
                     && args.len() == 1
                 {
-                    self.dcx()
-                        .err("type conversions cannot take named arguments")
-                        .code(error_code!(5153))
-                        .span(expr.span)
-                        .emit()
+                    self.dcx().emit_err_code(
+                        expr.span,
+                        error_code!(5153),
+                        "type conversions cannot take named arguments",
+                    )
                 } else {
                     let msg = "expected exactly one unnamed argument";
                     self.sess.dcx.emit_err(expr.span, msg)
@@ -1923,7 +1933,12 @@ impl<'gcx> ResolveContext<'gcx> {
             ast::ExprKind::TypeCall(ty) => hir::ExprKind::TypeCall(match &ty.kind {
                 // `type(L)` is the one type position that accepts a library name.
                 ast::TypeKind::Custom(path) => {
-                    hir::Type { kind: self.lower_type_path(path), span: ty.span }
+                    let kind = match self.resolver.resolve_expr_path_as(path, &self.scopes, "item")
+                    {
+                        Ok(id) => hir::TypeKind::Custom(id),
+                        Err(guar) => hir::TypeKind::Err(guar),
+                    };
+                    hir::Type { kind, span: ty.span }
                 }
                 _ => self.lower_type(ty),
             }),
@@ -1951,8 +1966,7 @@ impl<'gcx> ResolveContext<'gcx> {
         if has_nested_options {
             self.sess
                 .dcx
-                .err("function call options have already been set")
-                .span(expr.span)
+                .err_at(expr.span, "function call options have already been set")
                 .help("combine them into a single `{...}` option")
                 .emit();
         }
@@ -2039,7 +2053,7 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn lower_type_path(&self, path: &ast::PathSlice) -> hir::TypeKind<'gcx> {
-        match self.resolve_path_as(path, "item") {
+        match self.resolve_path_as(path, error_code!(7920), "item") {
             Ok(id) => hir::TypeKind::Custom(id),
             Err(guar) => hir::TypeKind::Err(guar),
         }
@@ -2069,7 +2083,7 @@ impl<'gcx> ResolveContext<'gcx> {
 
         let mut overrides = SmallVec::<[hir::ContractId; 8]>::new();
         for path in ov.paths.iter() {
-            let Ok(id) = self.resolver.resolve_path_as(path, &self.scopes, "contract") else {
+            let Ok(id) = self.resolve_path_as(path, error_code!(7920), "contract") else {
                 continue;
             };
             if self.hir.contract(id).kind.is_library() {
@@ -2085,12 +2099,14 @@ impl<'gcx> ResolveContext<'gcx> {
 
             if !self.hir.contract(c).linearized_bases[1..].contains(&id) {
                 self.dcx()
-                    .err(format!(
-                        "invalid contract `{}` specified in override list",
-                        self.hir.contract(id).name.as_str()
-                    ))
-                    .code(error_code!(2353))
-                    .span(ov.span)
+                    .err_code_at(
+                        ov.span,
+                        error_code!(2353),
+                        format!(
+                            "invalid contract `{}` specified in override list",
+                            self.hir.contract(id).name.as_str()
+                        ),
+                    )
                     .note("contract is not a direct or indirect base")
                     .emit();
                 continue;
@@ -2104,7 +2120,7 @@ impl<'gcx> ResolveContext<'gcx> {
 
     /// Reports a library name used as a type or in an override list.
     fn report_library_name(&self, span: Span) -> ErrorGuaranteed {
-        self.dcx().err("invalid use of a library name").code(error_code!(1130)).span(span).emit()
+        self.dcx().emit_err_code(span, error_code!(1130), "invalid use of a library name")
     }
 }
 
@@ -2150,6 +2166,33 @@ impl ResolverError {
 
     fn span(&self) -> Span {
         self.name.span
+    }
+
+    /// Returns the code of this error on a path that solc parses as an expression, which is the
+    /// callee of `emit` and `revert` and the argument of `type`.
+    ///
+    /// solc reports an unresolved first segment as an undeclared identifier. Later segments are
+    /// member lookups with other codes.
+    fn expr_path_code(&self, path: &ast::PathSlice) -> Option<DiagId> {
+        let undeclared =
+            matches!(self.kind, ResolverErrorKind::Unresolved) && self.span() == path.first().span;
+        undeclared.then_some(error_code!(7576))
+    }
+
+    /// Whether solc looks up the next segment in a scope of the qualifier, and so fails in a later
+    /// check when the member exists: structs, enums, functions, events and errors open scopes
+    /// there. The resolver does not know their members, so a missing member stays uncoded too.
+    fn is_scoped_qualifier(&self) -> bool {
+        matches!(
+            self.kind,
+            ResolverErrorKind::NotAScope(Res::Item(
+                hir::ItemId::Function(_)
+                    | hir::ItemId::Struct(_)
+                    | hir::ItemId::Enum(_)
+                    | hir::ItemId::Error(_)
+                    | hir::ItemId::Event(_)
+            ))
+        )
     }
 
     fn format(&self) -> String {
@@ -2223,9 +2266,32 @@ impl<'gcx> SymbolResolver<'gcx> {
         &self,
         path: &ast::PathSlice,
         scopes: &SymbolResolverScopes,
+        code: DiagId,
         description: &str,
     ) -> Result<T, ErrorGuaranteed> {
-        let decl = self.resolve_path(path, scopes).map_err(self.emit_resolver_error())?;
+        let decl = self.resolve_path(path, scopes).map_err(self.emit_resolver_error(Some(code)))?;
+        self.expect_decl(decl, path, description)
+    }
+
+    /// Like [`Self::resolve_path_as`], for a path that solc parses as an expression.
+    fn resolve_expr_path_as<T: TryFrom<Res>>(
+        &self,
+        path: &ast::PathSlice,
+        scopes: &SymbolResolverScopes,
+        description: &str,
+    ) -> Result<T, ErrorGuaranteed> {
+        let decl = self
+            .resolve_path(path, scopes)
+            .map_err(|e| self.emit_resolver_error(e.expr_path_code(path))(e))?;
+        self.expect_decl(decl, path, description)
+    }
+
+    fn expect_decl<T: TryFrom<Res>>(
+        &self,
+        decl: Declaration,
+        path: &ast::PathSlice,
+        description: &str,
+    ) -> Result<T, ErrorGuaranteed> {
         if let Res::Err(guar) = decl.res {
             return Err(guar);
         }
@@ -2233,8 +2299,14 @@ impl<'gcx> SymbolResolver<'gcx> {
             .map_err(|_| self.report_expected(description, decl.description(), path.span()))
     }
 
-    fn emit_resolver_error(&self) -> impl Fn(ResolverError) -> ErrorGuaranteed + '_ {
-        move |e| self.dcx.emit_err(e.span(), e.format())
+    fn emit_resolver_error(
+        &self,
+        code: Option<DiagId>,
+    ) -> impl FnOnce(ResolverError) -> ErrorGuaranteed + '_ {
+        move |e| match code.filter(|_| !e.is_scoped_qualifier()) {
+            Some(code) => self.dcx.emit_err_code(e.span(), code, e.format()),
+            None => self.dcx.emit_err(e.span(), e.format()),
+        }
     }
 
     fn resolve_path(
@@ -2428,9 +2500,11 @@ impl SymbolResolverScopes {
                 _ => ("variable", error_code!(1395)),
             };
             return Err(dcx
-                .err(format!("{kind} name `{name}` already taken in this scope"))
-                .code(code)
-                .span(name.span)
+                .err_code_at(
+                    name.span,
+                    code,
+                    format!("{kind} name `{name}` already taken in this scope"),
+                )
                 .span_note(previous.span, "previous declaration declared here")
                 .emit());
         }
@@ -2673,7 +2747,7 @@ pub(super) fn report_conflict(
     debug_assert_ne!(decl.span, previous.span);
 
     let mut err =
-        sess.dcx.err(format!("identifier `{name}` already declared")).code(code).span(decl.span);
+        sess.dcx.err_code_at(decl.span, code, format!("identifier `{name}` already declared"));
 
     // If `previous` is coming from an import, show both the import and the real span.
     if let Res::Item(item_id) = previous.res
@@ -2707,11 +2781,11 @@ fn check_reserved_name(sess: &Session, hir: &hir::Hir<'_>, name: Symbol, decl: D
         _ => false,
     };
     if !allowed {
-        sess.dcx
-            .err(format!("the name `{name}` is reserved"))
-            .code(error_code!(3726))
-            .span(decl.span)
-            .emit();
+        sess.dcx.emit_err_code(
+            decl.span,
+            error_code!(3726),
+            format!("the name `{name}` is reserved"),
+        );
     }
 }
 

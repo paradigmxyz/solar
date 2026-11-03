@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/call-cleanup/shifted_out.mir (before call-cleanup) ===
-+ // === ROOT/tests/ui/codegen/mir/call-cleanup/shifted_out.mir (after call-cleanup) ===
+- ; === ROOT/tests/ui/codegen/mir/call-cleanup/shifted_out.mir (before call-cleanup) ===
++ ; === ROOT/tests/ui/codegen/mir/call-cleanup/shifted_out.mir (after call-cleanup) ===
   @module ShiftedOut
   fn @root() -> i256 {
     bb0:
@@ -17,9 +17,9 @@
 -     v1 = ne v0, 0
 +     v1 = ne 0, 0
       jumpi v1, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       ret arg0
-    bb1 [cold]:  ; preds = bb0
+    bb1 [cold]:                                     ; preds = bb0
       revert 0, 0
   }
   

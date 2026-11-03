@@ -1,17 +1,17 @@
-// === ROOT/tests/ui/codegen/lowering/stack-resident/branch_join_spilled_phi_store.sol:C ===
+; === ROOT/tests/ui/codegen/lowering/stack-resident/branch_join_spilled_phi_store.sol:C ===
 @module C
 ; function h(uint256 a) internal returns (uint256)
 fn @h(arg0: i256) -> i256 {
   bb0:
     v0 = gt arg0, 5
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = mapping_slot arg0, 0
     v2 = sload v1 !metadata(storage=symbolic(v1))
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v3 = phi [bb1: v2], [bb2: 5]
     v4 = checked_mul uint256, v3, 3
     v5 = checked_add uint256, v4, 1

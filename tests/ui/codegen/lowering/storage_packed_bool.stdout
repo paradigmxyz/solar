@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/storage_packed_bool.sol:PackedBool ===
+; === ROOT/tests/ui/codegen/lowering/storage_packed_bool.sol:PackedBool ===
 @module PackedBool
 ; getter for `bool public a` [selector 0x0dbe671f]
 fn @a() -> i1 [selector=0x0dbe671f, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -45,15 +45,15 @@ fn @both() -> i1 [selector=0x35f2e0a7, view, abi_params=[], abi_returns=[word<bo
     v1 = trunc i256 v0 to i8
     v2 = ne v1, i8 0
     jumpi v2, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v3 = sload 0 !metadata(storage=slot(0))
     v4 = shr v3, 8
     v5 = trunc i256 v4 to i8
     v6 = ne v5, i8 0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v7 = phi [bb1: v6], [bb2: false]
     ret v7
 }

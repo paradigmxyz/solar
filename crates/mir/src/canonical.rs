@@ -6,7 +6,10 @@
 //!
 //! - A commutative pair orders its operands by [`OperandRank`], the more complex operand first and
 //!   equal ranks in their written order, so constants end up on the right. This follows LLVM's
-//!   `getComplexity`, with unary operations and casts ranked as one class.
+//!   `getComplexity`, with unary operations and casts ranked as one class. The pair is the one the
+//!   operation schema declares, so `addmod` and `mulmod` order their addends and factors and leave
+//!   the modulus in place. Two constants order by value, the larger first, which puts `0` and `1`
+//!   on the right where the rules look for them.
 //! - A comparison with a constant on the left swaps its operands and flips its predicate: the
 //!   constant moves to the right of `gt`.
 //! - A comparison of two non-constants is always `lt` or `slt`: `gt a, b` becomes `lt b, a`. LLVM
@@ -16,7 +19,8 @@
 //!
 //! A pass that rewrites an instruction in place passes the new kind through
 //! [`Function::canonical_kind`]. Replacing the uses of a value does not re-establish the order;
-//! the e-graph restores it through [`Function::canonical_op`] when it next runs.
+//! the e-graph and word-sequence rule contexts restore it through [`Function::canonical_op`] on
+//! every node they match.
 
 use super::{Function, InstKind, Op, OpTraits, Value, ValueId};
 use std::{borrow::Cow, cmp::Reverse};
@@ -37,7 +41,9 @@ impl Function {
     #[must_use]
     pub fn canonical_op(&self, op: Op) -> Op {
         let is_constant = |value| matches!(self.value(value), Value::Immediate(_));
-        let op = op.canonicalize_commutative_by_key(|value| Reverse(self.operand_rank(value)));
+        let op = op.canonicalize_commutative_by_key(|value| {
+            (Reverse(self.operand_rank(value)), Reverse(self.value_u256(value)))
+        });
         match op {
             // lt constant, value => gt value, constant
             Op::Lt { a, b } if is_constant(a) && !is_constant(b) => Op::Gt { a: b, b: a },

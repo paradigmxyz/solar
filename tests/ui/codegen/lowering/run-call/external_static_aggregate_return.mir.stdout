@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/external_static_aggregate_return.sol:ExternalStaticAggregateReturn ===
+; === ROOT/tests/ui/codegen/lowering/run-call/external_static_aggregate_return.sol:ExternalStaticAggregateReturn ===
 @module ExternalStaticAggregateReturn
 @types
   struct0: {ptr<memory>, i256}
@@ -70,9 +70,9 @@ fn @structReturn(arg0: i256) -> i256 [selector=0xc3f9a16c, view, abi_params=[uin
     v6 = zext i160 v0 to i256
     v7 = staticcall v1, v6, v3, v4, v5, 64
     jumpi v7, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v8 = returndatasize
     v9 = lt v8, 64
     icall revert_if<tuple_data_too_short>, v9
@@ -97,9 +97,9 @@ fn @arrayReturn(arg0: i256) -> i256 [selector=0xad0cb941, view, abi_params=[uint
     v6 = zext i160 v0 to i256
     v7 = staticcall v1, v6, v3, v4, v5, 96
     jumpi v7, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v8 = returndatasize
     v9 = lt v8, 96
     icall revert_if<tuple_data_too_short>, v9
@@ -136,14 +136,14 @@ fn @tryStructReturn(arg0: i256) -> i256 [selector=0xcc20ef0a, view, abi_params=[
     v6 = zext i160 v0 to i256
     v7 = staticcall v1, v6, v3, v4, v5, 64
     jumpi v7, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     ret 0
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v8 = returndatasize
     v9 = lt v8, 64
     icall revert_if<tuple_data_too_short>, v9
@@ -170,9 +170,9 @@ fn @pairReturn(arg0: i256) -> i256 [selector=0xc6630f71, view, abi_params=[uint2
     v6 = zext i160 v0 to i256
     v7 = staticcall v1, v6, v3, v4, v5, 96
     jumpi v7, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v8 = returndatasize
     v9 = lt v8, 96
     icall revert_if<tuple_data_too_short>, v9
@@ -204,9 +204,9 @@ fn @shortReturn() -> i256 [selector=0xc41518f3, view, abi_params=[], abi_returns
     v6 = zext i160 v0 to i256
     v7 = staticcall v1, v6, v3, v4, v5, 64
     jumpi v7, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v8 = returndatasize
     v9 = lt v8, 64
     icall revert_if<tuple_data_too_short>, v9

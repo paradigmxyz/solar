@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/memory-dse/msize_caller.mir (before memory-dse) ===
-+ // === ROOT/tests/ui/codegen/mir/memory-dse/msize_caller.mir (after memory-dse) ===
+- ; === ROOT/tests/ui/codegen/mir/memory-dse/msize_caller.mir (before memory-dse) ===
++ ; === ROOT/tests/ui/codegen/mir/memory-dse/msize_caller.mir (after memory-dse) ===
   @module MemoryDseMsizeCaller
   fn @icall_msize_barrier() -> i256 {
     bb0:

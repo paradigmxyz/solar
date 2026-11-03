@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_is_consistent_v2.sol:AbiEncodeCallConsistent ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_is_consistent_v2.sol:AbiEncodeCallConsistent ===
 @module AbiEncodeCallConsistent
 ; function fExternal(uint256, string memory) external [selector 0x33d85810]
 fn @fExternal(arg0: i256, arg1: ptr<memory>) [selector=0x33d85810, abi_params=[uint256, bytes], abi_returns=[], abi_return_params=[]] {
@@ -65,12 +65,12 @@ fn @test() -> i8 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<uint8>],
     v38 = keccak256 v36, v37
     v39 = eq v35, v38
     jumpi v39, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
-    v40 = or i8 0, i8 1
+  bb1:                                            ; preds = bb0
+    v40 = or i8 1, i8 0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v41 = phi [bb1: v40], [bb2: i8 0]
     v42 = ptradd v2, 32
     v43 = mload v2
@@ -80,12 +80,12 @@ fn @test() -> i8 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<uint8>],
     v47 = keccak256 v45, v46
     v48 = eq v44, v47
     jumpi v48, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb6
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v49 = or v41, i8 2
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6:                                            ; preds = bb4, bb5
     v50 = phi [bb4: v49], [bb5: v41]
     v51 = ptradd v2, 32
     v52 = mload v2
@@ -95,23 +95,23 @@ fn @test() -> i8 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<uint8>],
     v56 = keccak256 v54, v55
     v57 = eq v53, v56
     jumpi v57, bb7, bb8
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     jump bb9
-  bb7:  ; preds = bb6
+  bb7:                                            ; preds = bb6
     v58 = or v50, i8 4
     jump bb9
-  bb9:  ; preds = bb7, bb8
+  bb9:                                            ; preds = bb7, bb8
     v59 = phi [bb7: v58], [bb8: v50]
     v60 = sload 0 !metadata(storage=slot(0))
     v61 = trunc i256 v60 to i8
     v62 = ne v61, i8 0
     jumpi v62, bb10, bb11
-  bb11:  ; preds = bb9
+  bb11:                                           ; preds = bb9
     jump bb12
-  bb10:  ; preds = bb9
+  bb10:                                           ; preds = bb9
     v63 = or v59, i8 8
     jump bb12
-  bb12:  ; preds = bb10, bb11
+  bb12:                                           ; preds = bb10, bb11
     v64 = phi [bb10: v63], [bb11: v59]
     ret v64
 }

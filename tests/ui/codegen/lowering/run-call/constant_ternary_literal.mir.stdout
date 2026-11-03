@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/constant_ternary_literal.sol:ConstantTernaryLiteral ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constant_ternary_literal.sol:ConstantTernaryLiteral ===
 @module ConstantTernaryLiteral
 ; function aligned() external pure returns (uint256) [selector 0x0d60ac76]
 fn @aligned() -> i256 [selector=0x0d60ac76, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {

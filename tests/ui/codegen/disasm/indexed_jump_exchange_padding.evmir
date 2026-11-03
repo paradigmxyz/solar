@@ -6,7 +6,7 @@
 // stores one-byte distances from the first target.
 @module exchange_padding
 
-// CHECK-LABEL: // === exchange_padding (runtime) ===
+// CHECK-LABEL: ; === exchange_padding (runtime) ===
 // CHECK: PUSH10
 // CHECK-NEXT: SWAP1
 // CHECK-NEXT: BYTE

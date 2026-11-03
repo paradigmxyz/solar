@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/cse/restored_words_runtime.sol:RestoredWords ===
+; === ROOT/tests/ui/codegen/mir/cse/restored_words_runtime.sol:RestoredWords ===
 @module RestoredWords
 @types
   struct0: {i256, i256, i256}

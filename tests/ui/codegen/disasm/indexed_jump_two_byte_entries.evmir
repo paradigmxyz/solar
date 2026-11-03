@@ -14,14 +14,14 @@
 // bytecode JIT cannot resolve that pick.
 @module two_byte_entries
 
-// STRIDE-LABEL: // === two_byte_entries (runtime) ===
+// STRIDE-LABEL: ; === two_byte_entries (runtime) ===
 // STRIDE-NEXT: PUSH1 0x01
 // STRIDE-NEXT: PUSH1 0x05
 // STRIDE-NEXT: MUL
 // STRIDE-NEXT: PUSH2
 // STRIDE-NEXT: ADD
 // STRIDE-NEXT: JUMP ; unknown
-// WIDE-LABEL: // === two_byte_entries (runtime) ===
+// WIDE-LABEL: ; === two_byte_entries (runtime) ===
 // WIDE-NEXT: PUSH1 0x01
 // WIDE-NEXT: PUSH1 0x04
 // WIDE-NEXT: SHL

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/integer_conversions.sol:IntegerConversions ===
+; === ROOT/tests/ui/codegen/lowering/run-call/integer_conversions.sol:IntegerConversions ===
 @module IntegerConversions
 ; function int8ToUint256(int8 value) external pure returns (uint256) [selector 0x73b01ffc]
 fn @int8ToUint256(arg0: i8) -> i256 [selector=0x73b01ffc, pure, abi_params=[int8], abi_returns=[word], abi_return_params=[uint256]] {

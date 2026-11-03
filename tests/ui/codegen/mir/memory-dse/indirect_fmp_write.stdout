@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/memory-dse/indirect_fmp_write.mir (before memory-dse) ===
-+ // === ROOT/tests/ui/codegen/mir/memory-dse/indirect_fmp_write.mir (after memory-dse) ===
+- ; === ROOT/tests/ui/codegen/mir/memory-dse/indirect_fmp_write.mir (before memory-dse) ===
++ ; === ROOT/tests/ui/codegen/mir/memory-dse/indirect_fmp_write.mir (after memory-dse) ===
   @module IndirectFmpWrite
   fn @wrapped_write() {
     bb0:

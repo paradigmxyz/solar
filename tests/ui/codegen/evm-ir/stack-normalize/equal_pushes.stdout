@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/stack-normalize/equal_pushes.evmir (before stack-normalize) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/stack-normalize/equal_pushes.evmir (after stack-normalize) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/stack-normalize/equal_pushes.evmir (before stack-normalize) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/stack-normalize/equal_pushes.evmir (after stack-normalize) ===
   @module module
   bb0:
     address
