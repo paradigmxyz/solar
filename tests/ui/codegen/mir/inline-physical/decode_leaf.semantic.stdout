@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/inline-physical/decode_leaf.mir (before inline) ===
-+ // === ROOT/tests/ui/codegen/mir/inline-physical/decode_leaf.mir (after inline) ===
+- ; === ROOT/tests/ui/codegen/mir/inline-physical/decode_leaf.mir (before inline) ===
++ ; === ROOT/tests/ui/codegen/mir/inline-physical/decode_leaf.mir (after inline) ===
   @module InlinePhysicalDecodeLeaf
   fn @decode_caller(arg0: ptr<memory>) -> ptr<memory> {
     bb0:
