@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/call_result_repeated_args.sol:CallResultRepeatedArgs ===
+; === ROOT/tests/ui/codegen/lowering/run-call/call_result_repeated_args.sol:CallResultRepeatedArgs ===
 @module CallResultRepeatedArgs
 ; creation entry
 fn @constructor() [constructor] {
@@ -17,12 +17,12 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     calldatacopy 0, 0, v1 !metadata(memory=scratch)
     v2 = ne v0, 0
     jumpi v2, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     sstore 1, v0 !metadata(storage=slot(1))
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     icall @store, v0, v0
     v3 = sload 2 !metadata(storage=slot(2))
     ret v3

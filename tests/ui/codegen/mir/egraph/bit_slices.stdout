@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/egraph/bit_slices.mir (before egraph) ===
-+ // === ROOT/tests/ui/codegen/mir/egraph/bit_slices.mir (after egraph) ===
+- ; === ROOT/tests/ui/codegen/mir/egraph/bit_slices.mir (before egraph) ===
++ ; === ROOT/tests/ui/codegen/mir/egraph/bit_slices.mir (after egraph) ===
   @module BitSlices
   @types
     struct0: {i256, i256, i256}
@@ -145,8 +145,8 @@
 +     ret 256, 256, 256, 256
   }
   
-- // === ROOT/tests/ui/codegen/mir/egraph/bit_slices.mir (before dce) ===
-+ // === ROOT/tests/ui/codegen/mir/egraph/bit_slices.mir (after dce) ===
+- ; === ROOT/tests/ui/codegen/mir/egraph/bit_slices.mir (before dce) ===
++ ; === ROOT/tests/ui/codegen/mir/egraph/bit_slices.mir (after dce) ===
   @module BitSlices
   @types
     struct0: {i256, i256, i256}

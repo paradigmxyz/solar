@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/dce/debug_info.evmir (before dce) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/dce/debug_info.evmir (after dce) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/dce/debug_info.evmir (before dce) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/dce/debug_info.evmir (after dce) ===
   @module DebugInfo
   bb0:
 -   push 7 !metadata(span=1..5)

@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/coalesce-copies/constant_words.evmir (before coalesce-copies) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/coalesce-copies/constant_words.evmir (after coalesce-copies) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/coalesce-copies/constant_words.evmir (before coalesce-copies) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/coalesce-copies/constant_words.evmir (after coalesce-copies) ===
   @module ConstantWords
   bb0:
 +   push 64

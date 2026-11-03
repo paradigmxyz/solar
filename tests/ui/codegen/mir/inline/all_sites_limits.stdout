@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/inline/all_sites_limits.mir (before inline) ===
-+ // === ROOT/tests/ui/codegen/mir/inline/all_sites_limits.mir (after inline) ===
+- ; === ROOT/tests/ui/codegen/mir/inline/all_sites_limits.mir (before inline) ===
++ ; === ROOT/tests/ui/codegen/mir/inline/all_sites_limits.mir (after inline) ===
   @module AllSitesLimits
   fn @phi_caller(arg0: i256, arg1: i256) -> i256 {
     bb0:
@@ -12,11 +12,11 @@
     bb0:
       v0 = lt arg0, arg1
       jumpi v0, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       jump bb3
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       jump bb3
-    bb3:  ; preds = bb1, bb2
+    bb3:                                            ; preds = bb1, bb2
       v1 = phi [bb1: arg0], [bb2: arg1]
       ret v1
   }

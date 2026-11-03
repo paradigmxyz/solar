@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/lower-shifts/legacy_validators.sol:LegacyValidators ===
+; === ROOT/tests/ui/codegen/mir/lower-shifts/legacy_validators.sol:LegacyValidators ===
 @module LegacyValidators
 ; function word8(uint8 x) external pure returns (uint256) [selector 0x8464342e]
 fn @word8(arg0: i8) -> i256 [selector=0x8464342e, pure, abi_params=[uint8], abi_returns=[word], abi_return_params=[uint256]] {
@@ -11,11 +11,11 @@ fn @word8(arg0: i8) -> i256 [selector=0x8464342e, pure, abi_params=[uint8], abi_
 fn @flag(arg0: i1) -> i256 [selector=0xa92a4c3b, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v0 = phi [bb1: i8 1], [bb2: i8 0]
     v1 = zext i8 v0 to i256
     ret v1

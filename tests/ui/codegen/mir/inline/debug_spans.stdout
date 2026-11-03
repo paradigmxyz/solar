@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/inline/debug_spans.mir (before inline) ===
-+ // === ROOT/tests/ui/codegen/mir/inline/debug_spans.mir (after inline) ===
+- ; === ROOT/tests/ui/codegen/mir/inline/debug_spans.mir (before inline) ===
++ ; === ROOT/tests/ui/codegen/mir/inline/debug_spans.mir (after inline) ===
   @module InlineDebugSpans
   fn @caller(arg0: i256) -> i256 {
     bb0:
@@ -12,10 +12,10 @@
 -     v0 = add arg0, 1 !metadata(spans=[100..110, 130..140])
 -     ret v0 !metadata(spans=[110..120, 150..160])
 +     jump bb2 !metadata(span=10..20)
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v1 = add arg0, 1 !metadata(spans=[100..110, 130..140])
 +     jump bb1 !metadata(spans=[110..120, 150..160])
-+   bb1:  ; preds = bb2
++   bb1:                                            ; preds = bb2
 +     v2 = phi [bb2: v1]
 +     ret v2 !metadata(span=20..30)
   }

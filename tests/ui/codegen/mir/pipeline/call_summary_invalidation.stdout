@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/pipeline/call_summary_invalidation.mir (before cse) ===
-+ // === ROOT/tests/ui/codegen/mir/pipeline/call_summary_invalidation.mir (after cse) ===
+- ; === ROOT/tests/ui/codegen/mir/pipeline/call_summary_invalidation.mir (before cse) ===
++ ; === ROOT/tests/ui/codegen/mir/pipeline/call_summary_invalidation.mir (after cse) ===
   @module CallSummaryInvalidation
   fn @caller() {
     bb0:
@@ -10,14 +10,14 @@
   fn @callee() {
     bb0:
       jumpi true, bb1, bb2
-    bb2 [cold]:  ; preds = bb0
+    bb2 [cold]:                                     ; preds = bb0
       revert 0, 0
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       ret
   }
   
-- // === ROOT/tests/ui/codegen/mir/pipeline/call_summary_invalidation.mir (before cfg-simplify) ===
-+ // === ROOT/tests/ui/codegen/mir/pipeline/call_summary_invalidation.mir (after cfg-simplify) ===
+- ; === ROOT/tests/ui/codegen/mir/pipeline/call_summary_invalidation.mir (before cfg-simplify) ===
++ ; === ROOT/tests/ui/codegen/mir/pipeline/call_summary_invalidation.mir (after cfg-simplify) ===
   @module CallSummaryInvalidation
   fn @caller() {
     bb0:
@@ -28,14 +28,14 @@
   fn @callee() {
     bb0:
 -     jumpi true, bb1, bb2
--   bb2 [cold]:  ; preds = bb0
+-   bb2 [cold]:                                     ; preds = bb0
 -     revert 0, 0
--   bb1:  ; preds = bb0
+-   bb1:                                            ; preds = bb0
       ret
   }
   
-- // === ROOT/tests/ui/codegen/mir/pipeline/call_summary_invalidation.mir (before dce) ===
-+ // === ROOT/tests/ui/codegen/mir/pipeline/call_summary_invalidation.mir (after dce) ===
+- ; === ROOT/tests/ui/codegen/mir/pipeline/call_summary_invalidation.mir (before dce) ===
++ ; === ROOT/tests/ui/codegen/mir/pipeline/call_summary_invalidation.mir (after dce) ===
   @module CallSummaryInvalidation
   fn @caller() {
     bb0:

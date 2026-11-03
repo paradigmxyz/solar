@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/fold_economics.evmir (before peephole) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/fold_economics.evmir (after peephole) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/fold_economics.evmir (before peephole) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/fold_economics.evmir (after peephole) ===
   @module FoldEconomics
   bb0:
 +   push 1

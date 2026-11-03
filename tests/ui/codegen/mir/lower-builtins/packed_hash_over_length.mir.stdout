@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/lower-builtins/packed_hash_over_length.sol:PackedHashOverLength ===
+; === ROOT/tests/ui/codegen/mir/lower-builtins/packed_hash_over_length.sol:PackedHashOverLength ===
 @module PackedHashOverLength
 @types
   struct0: {i256, ptr<memory>}

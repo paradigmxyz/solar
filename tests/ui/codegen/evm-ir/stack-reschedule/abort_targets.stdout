@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/stack-reschedule/abort_targets.evmir (before stack-reschedule) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/stack-reschedule/abort_targets.evmir (after stack-reschedule) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/stack-reschedule/abort_targets.evmir (before stack-reschedule) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/stack-reschedule/abort_targets.evmir (after stack-reschedule) ===
   @module module
   bb0 [stack=2]:
 -   swap 1

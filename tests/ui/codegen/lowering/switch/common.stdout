@@ -1,6 +1,6 @@
-// === ROOT/tests/ui/codegen/lowering/switch/common.sol:ProxyResult (runtime) ===
+; === ROOT/tests/ui/codegen/lowering/switch/common.sol:ProxyResult (runtime) ===
 @module ProxyResult_runtime
-bb1:  ; fallback() external payable [fallback]
+bb1:                                              ; fallback() external payable [fallback]
   push 0
   calldataload
   dup 1
@@ -11,9 +11,9 @@ bb1:  ; fallback() external payable [fallback]
   revert
 bb2:
   stop
-// === ROOT/tests/ui/codegen/lowering/switch/common.sol:Base64Remainder (runtime) ===
+; === ROOT/tests/ui/codegen/lowering/switch/common.sol:Base64Remainder (runtime) ===
 @module Base64Remainder_runtime
-bb0:  ; runtime dispatch entry + fallback() external [fallback]
+bb0:                                              ; runtime dispatch entry + fallback() external [fallback]
   callvalue
   push bb2
   jumpi
@@ -50,9 +50,9 @@ bb2 [cold]:
   push 0
   push 0
   revert
-// === ROOT/tests/ui/codegen/lowering/switch/common.sol:SignatureLength (runtime) ===
+; === ROOT/tests/ui/codegen/lowering/switch/common.sol:SignatureLength (runtime) ===
 @module SignatureLength_runtime
-bb0:  ; runtime dispatch entry + fallback() external [fallback]
+bb0:                                              ; runtime dispatch entry + fallback() external [fallback]
   callvalue
   push bb2
   jumpi
@@ -93,9 +93,9 @@ bb2 [cold]:
   push 0
   push 0
   revert
-// === ROOT/tests/ui/codegen/lowering/switch/common.sol:RpowEdges (runtime) ===
+; === ROOT/tests/ui/codegen/lowering/switch/common.sol:RpowEdges (runtime) ===
 @module RpowEdges_runtime
-bb0:  ; runtime dispatch entry + fallback() external [fallback]
+bb0:                                              ; runtime dispatch entry + fallback() external [fallback]
   callvalue
   push bb2
   jumpi

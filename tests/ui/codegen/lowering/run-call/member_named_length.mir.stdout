@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/member_named_length.sol:MemberNamedLength ===
+; === ROOT/tests/ui/codegen/lowering/run-call/member_named_length.sol:MemberNamedLength ===
 @module MemberNamedLength
 ; function variant() external pure returns (uint256) [selector 0x05bc64eb]
 fn @variant() -> i256 [selector=0x05bc64eb, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
