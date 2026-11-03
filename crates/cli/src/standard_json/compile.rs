@@ -302,6 +302,7 @@ fn compile(
         }));
     }
     opts.input = sources.keys().map(ToString::to_string).collect();
+    opts.unstable.keep_asts = output_selection.requests_ast();
 
     let sess = solar_interface::Session::builder()
         .source_map(Arc::clone(&source_map))
@@ -320,7 +321,6 @@ fn compile(
                 let mut parsed_sources = FxIndexMap::default();
                 let control_flow = crate::commands::compile::run_pipeline(
                     compiler,
-                    output_selection.requests_ast(),
                     |pcx| {
                         let mut files = Vec::<(PathBuf, String)>::with_capacity(sources.len());
                         for (name, source) in sources {

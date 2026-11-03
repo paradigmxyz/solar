@@ -13,7 +13,8 @@ pub(super) fn run(opts: CompileOpts) -> ExitCode {
     }
 }
 
-pub fn run_compiler_args(opts: CompileOpts) -> Result {
+pub fn run_compiler_args(mut opts: CompileOpts) -> Result {
+    opts.unstable.keep_asts |= opts.emit.contains(&CompilerOutput::Ast);
     if opts.standard_json {
         crate::standard_json::run(opts)
             .map_err(|_e| solar_interface::diagnostics::ErrorGuaranteed::new_unchecked())?;
@@ -24,10 +25,8 @@ pub fn run_compiler_args(opts: CompileOpts) -> Result {
 }
 
 fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
-    let keep_asts = compiler.gcx().sess.opts.emit.contains(&CompilerOutput::Ast);
     let control_flow = run_pipeline(
         compiler,
-        keep_asts,
         |pcx| {
             // Partition arguments into three categories:
             // - `stdin`: `-`, occurrences after the first are ignored
@@ -75,12 +74,8 @@ fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
     Ok(())
 }
 
-/// Runs the pipeline up to analysis.
-///
-/// Drops the ASTs after lowering unless `keep_asts`.
 pub(crate) fn run_pipeline(
     compiler: &mut CompilerRef<'_>,
-    keep_asts: bool,
     load_sources: impl FnOnce(&mut ParsingContext<'_>) -> Result,
     after_parsing: impl FnOnce(&CompilerRef<'_>),
 ) -> Result<ControlFlow<()>> {
@@ -109,7 +104,7 @@ pub(crate) fn run_pipeline(
     let ControlFlow::Continue(()) = compiler.lower_asts()? else {
         return Ok(ControlFlow::Break(()));
     };
-    if !keep_asts {
+    if !sess.opts.unstable.keep_asts {
         compiler.drop_asts();
     }
     let ControlFlow::Continue(()) = compiler.analysis()? else {
