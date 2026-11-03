@@ -1688,26 +1688,19 @@ fn encode_calldata_elements(
                 );
             });
         };
-        if needs_calldata_validation(element)
-            || !helpers.target.guards_block_copy(element.head_size() / 32)
-        {
+        if needs_calldata_validation(element) {
             encode_each(builder);
-            return initial_tail;
+        } else {
+            copy_calldata_words(
+                builder,
+                &helpers.target,
+                area,
+                base,
+                head_bytes,
+                element.head_size() / 32,
+                encode_each,
+            );
         }
-        // if base + head_bytes < base { encode_each } else { calldatacopy area, base, head_bytes }
-        let end = builder.add(base, head_bytes);
-        let wraps = builder.lt(end, base);
-        let each = builder.create_block();
-        let copy = builder.create_block();
-        let done = builder.create_block();
-        builder.branch(wraps, each, copy);
-        builder.switch_to_block(each);
-        encode_each(builder);
-        builder.jump(done);
-        builder.switch_to_block(copy);
-        copy_source_data(builder, PtrLocation::Calldata, area, base, head_bytes);
-        builder.jump(done);
-        builder.switch_to_block(done);
         return initial_tail;
     }
 
@@ -1749,6 +1742,39 @@ fn encode_calldata_elements(
 
     builder.switch_to_block(done);
     current_tail
+}
+
+/// Copies `bytes` bytes of calldata words that need no validation, in elements of
+/// `element_words` words, from `source` to `dest`. The block copy stays behind a guard for a
+/// range that wraps past 2^256, which `each` copies a word at a time at the wrapping addresses,
+/// unless the target prices the guarded copy above `each` alone.
+pub(super) fn copy_calldata_words(
+    builder: &mut FunctionBuilder<'_>,
+    target: &Target,
+    dest: ValueId,
+    source: ValueId,
+    bytes: ValueId,
+    element_words: u64,
+    each: impl FnOnce(&mut FunctionBuilder<'_>),
+) {
+    if !target.guards_block_copy(element_words) {
+        each(builder);
+        return;
+    }
+    // if source + bytes < source { each } else { calldatacopy dest, source, bytes }
+    let end = builder.add(source, bytes);
+    let wraps = builder.lt(end, source);
+    let wrapped = builder.create_block();
+    let copy = builder.create_block();
+    let done = builder.create_block();
+    builder.branch(wraps, wrapped, copy);
+    builder.switch_to_block(wrapped);
+    each(builder);
+    builder.jump(done);
+    builder.switch_to_block(copy);
+    copy_source_data(builder, PtrLocation::Calldata, dest, source, bytes);
+    builder.jump(done);
+    builder.switch_to_block(done);
 }
 
 /// Whether a static calldata value holds a word that ABI decoding would validate.
@@ -1893,7 +1919,7 @@ fn encode_bytes(
 ///
 /// Source objects live below the free-memory pointer, and the output is either untouched memory
 /// above it or a fresh allocation, so memory copies run forward.
-fn copy_source_data(
+pub(super) fn copy_source_data(
     builder: &mut FunctionBuilder<'_>,
     location: PtrLocation,
     dest: ValueId,
