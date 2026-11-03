@@ -274,7 +274,12 @@ class CorpusTests(unittest.TestCase):
             self.assertTrue(bytes.fromhex(bytecode))
 
     def test_benchmark_wrapper_preserves_pinned_sources(self) -> None:
-        for test_id, count in (("solady-encoding", 153), ("solady-algorithms", 85)):
+        solady = ("src/utils/LibString.sol", "test/LibString.t.sol")
+        for test_id, count, closure, excluded in (
+            ("solady-encoding", 153, *solady),
+            ("solady-algorithms", 85, *solady),
+            ("prb-math", 120, "src/ud60x18/Math.sol", "test/Base.t.sol"),
+        ):
             with self.subTest(test_id=test_id):
                 case = next(
                     case for case in benchmark.TEST_CASES if case.test_id == test_id
@@ -285,8 +290,8 @@ class CorpusTests(unittest.TestCase):
                 self.assertEqual(
                     payload["sources"][case.source]["content"], case.source_code
                 )
-                self.assertIn("src/utils/LibString.sol", payload["sources"])
-                self.assertNotIn("test/LibString.t.sol", payload["sources"])
+                self.assertIn(closure, payload["sources"])
+                self.assertNotIn(excluded, payload["sources"])
                 for source, contents in payload["sources"].items():
                     if source != case.source:
                         self.assertEqual(contents, project["sources"][source])
@@ -478,19 +483,6 @@ class CorpusTests(unittest.TestCase):
             payload, _, _ = benchmark.compiler_input(case, None)
             selected = json.loads(payload)["sources"]
             self.assertEqual(len(selected), expected_source_counts[case.test_id])
-
-    def test_prb_math_wrapper_runs_every_library_call(self) -> None:
-        case = next(case for case in benchmark.TEST_CASES if case.test_id == "prb-math")
-        project = benchmark.load_project(case.project_path)
-        self.assertNotIn(case.source, project["sources"])
-        payload = json.loads(benchmark.compiler_input(case, None)[0])
-        self.assertEqual(payload["sources"][case.source]["content"], case.source_code)
-        self.assertIn("src/ud60x18/Math.sol", payload["sources"])
-        self.assertNotIn("test/Base.t.sol", payload["sources"])
-        labels = [call.label for call in case.gas_calls]
-        self.assertEqual(len(labels), 120)
-        self.assertEqual(len(set(labels)), 120)
-        self.assertEqual(labels, [check.label for check in case.runtime_checks])
 
     def test_project_slice_follows_aliased_imports(self) -> None:
         project = {

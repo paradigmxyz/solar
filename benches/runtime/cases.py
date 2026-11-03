@@ -154,18 +154,17 @@ def fixed(value: str) -> str:
 # `exp2` takes 192.64 fixed point; its first input is the one from issue #2284.
 # `mulDiv` covers products with a zero and a nonzero high word. Every input
 # succeeds under solc.
-PRB_WORD_MAX = str((1 << 256) - 1)
 PRB_MUL_DIV_INPUTS = (
     ("small", (fixed("123456789.123456789"), fixed("987654321.987654321"), fixed("1"))),
     ("price", (fixed("3"), fixed("1"), "7")),
     ("wide", (str((1 << 200) + 12345), str((1 << 100) + 777), str((1 << 100) + 3))),
-    ("max", (PRB_WORD_MAX, PRB_WORD_MAX, PRB_WORD_MAX)),
+    ("max", (MAX_UINT256, MAX_UINT256, MAX_UINT256)),
 )
 PRB_MUL_DIV18_INPUTS = (
     ("price", (fixed("7"), fixed("3"))),
     ("balance", (fixed("123456789.123456789"), fixed("0.003"))),
     ("wide", (str((1 << 200) + 1), str((1 << 100) + 1))),
-    ("max", (PRB_WORD_MAX, fixed("1"))),
+    ("max", (MAX_UINT256, fixed("1"))),
 )
 PRB_INPUTS = (
     (
@@ -196,7 +195,7 @@ PRB_INPUTS = (
             ("unit", (fixed("1"),)),
             ("odd", ("123456789012345678901234567890",)),
             ("square", (str(1 << 128),)),
-            ("max", (PRB_WORD_MAX,)),
+            ("max", (MAX_UINT256,)),
         ),
     ),
     (

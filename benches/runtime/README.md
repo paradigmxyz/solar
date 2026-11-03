@@ -308,9 +308,9 @@ runtime observations.
 File counts are each case's sliced closure. Archives below are in `../../testdata/projects/`. The
 OpenZeppelin cases share `openzeppelin-5.6.1.json.gz`, which replaces the earlier extracted
 OpenZeppelin runtime archive; `lilweb3-flashloan` and `lilweb3-fractional` share
-`lilweb3-runtime.json.gz`; `aave-l2-encoder.json.gz` embeds the Aave harness. The large OpenZeppelin,
-Solady, and PRBMath cases, like the normal benchmark suite, read the pinned archives there.
-`counter` reuses the normal suite's `../../testdata/Counter.sol`. `fixtures/runtime/RuntimeFixtures.sol` holds local
+`lilweb3-runtime.json.gz`; `aave-l2-encoder.json.gz` embeds the Aave harness. The large OpenZeppelin
+and Solady cases and the PRBMath case, like the normal benchmark suite, read the pinned archives
+there. `counter` reuses the normal suite's `../../testdata/Counter.sol`. `fixtures/runtime/RuntimeFixtures.sol` holds local
 Apache-2.0 helpers with the interfaces the cold-path workloads use. Embedded sources keep their SPDX
 identifiers.
 
@@ -364,9 +364,10 @@ sources: plain external functions over raw words for Common's `exp2` (192.64 fix
 `div` on UD60x18 and SD59x18. Its 120 calls give each function several inputs that take different
 branches: the `exp2` input of issue #2284, negative SD59x18 exponents and logarithms, values near the
 documented bounds, exact results such as `log2(1e18)`, and `mulDiv` products whose high word is zero
-and not. Every call succeeds under solc and checks its return value across compilers. The 4.1.1
-archive's math code in `Common.sol` and the UD60x18 and SD59x18 `Math.sol` files matches v4.0.1,
-which the issue measured, apart from comments and formatting.
+and not. Every call succeeds under solc and checks its return value across compilers. Issue #2284
+measured v4.0.1; the archive is 4.1.1, whose `exp2` and `mulDiv` code is the same. Its other
+differences in these files are small: SD59x18 `exp` and `exp2` use named underflow thresholds, and
+`Common.sol` adds a `MAX_UINT64` constant.
 
 `solady-encoding` uses [`Encoding.sol`](../../testdata/runtime/Encoding.sol) with the same Solady
 and plain ABI calls. It measures both hex prefix modes and ASCII classification over nonuniform
