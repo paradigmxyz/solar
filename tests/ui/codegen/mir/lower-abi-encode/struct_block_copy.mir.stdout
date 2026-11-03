@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/lower-abi-encode/struct_block_copy.sol:StructBlockCopy ===
+; === ROOT/tests/ui/codegen/mir/lower-abi-encode/struct_block_copy.sol:StructBlockCopy ===
 @module StructBlockCopy
 ; function encodeItems(uint256 kind, uint256 dirty) external pure returns (bytes memory) [selector 0x9d5586ab]
 fn @encodeItems(arg0: i256, arg1: i256) -> ptr<memory> [selector=0x9d5586ab, pure, abi_params=[uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -6,13 +6,13 @@ fn @encodeItems(arg0: i256, arg1: i256) -> ptr<memory> [selector=0x9d5586ab, pur
     v0 = alloc zeroed checked 128
     mstore v0, 3
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v8]
     v2 = lt v1, 3
     jumpi v2, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     jump bb4
-  bb4:  ; preds = bb3, bb6
+  bb4:                                            ; preds = bb3, bb6
     v9 = phi [bb3: arg0], [bb6: v9]
     v10 = phi [bb3: arg1], [bb6: v10]
     v11 = phi [bb3: ptr<memory> 96], [bb6: v11]
@@ -20,9 +20,9 @@ fn @encodeItems(arg0: i256, arg1: i256) -> ptr<memory> [selector=0x9d5586ab, pur
     v13 = phi [bb3: 0], [bb6: v45]
     v14 = lt v13, 3
     jumpi v14, bb7, bb8
-  bb8:  ; preds = bb4
+  bb8:                                            ; preds = bb4
     jump bb5
-  bb5:  ; preds = bb8
+  bb5:                                            ; preds = bb8
     v46 = mload v12
     v47 = gt v46, 2
     v48 = eq v47, false
@@ -31,7 +31,7 @@ fn @encodeItems(arg0: i256, arg1: i256) -> ptr<memory> [selector=0x9d5586ab, pur
     v50 = mload v49, ptr<memory>
     v51 = abi_encode [memory_array<tuple<word<enum 3>, word<uint160>, word, word<bytes4>, word<int8>, word<bool>, word>>, tuple<word<enum 3>, word<uint160>, word, word<bytes4>, word<int8>, word<bool>, word>], object, args v12, v50
     ret v51
-  bb7:  ; preds = bb4
+  bb7:                                            ; preds = bb4
     v15 = mload v12
     v16 = lt v13, v15
     v17 = eq v16, false
@@ -71,12 +71,12 @@ fn @encodeItems(arg0: i256, arg1: i256) -> ptr<memory> [selector=0x9d5586ab, pur
     v44 = add v43, 192
     mstore v44, v42
     jump bb9
-  bb9:  ; preds = bb7
+  bb9:                                            ; preds = bb7
     jump bb6
-  bb6:  ; preds = bb9
+  bb6:                                            ; preds = bb9
     v45 = checked_add uint256, v13, 1
     jump bb4
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v3 = alloc 224 !metadata(preserves_fmp)
     memory_zero v3, 224
     v4 = shl v1, 5
