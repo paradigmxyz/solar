@@ -1,0 +1,49 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/assembly_let_initializer_scope.sol:AssemblyLetInitializerScope ===
+@module AssemblyLetInitializerScope
+@types
+  struct0: {i256, i256}
+
+; function shadowedLocal() external pure returns (uint256 r) [selector 0x62e68a7a]
+fn @shadowedLocal() -> i256 [selector=0x62e68a7a, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 6
+}
+
+; function shadowedMulti() external pure returns (uint256 r, uint256 s) [selector 0x037bf0df]
+fn @shadowedMulti() -> struct0 [selector=0x037bf0df, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = icall @swap, 10, 20
+    v1 = extract_value struct0, v0, 0
+    v2 = extract_value struct0, v0, 1
+    v3 = insert_value struct0, undef struct0, 0, v1
+    v4 = insert_value struct0, v3, 1, v2
+    ret v4
+}
+
+; function nestedBlock() external pure returns (uint256 r) [selector 0x4f1bc74e]
+fn @nestedBlock() -> i256 [selector=0x4f1bc74e, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 5
+}
+
+; function shadowedByFunction() external pure returns (uint256 r) [selector 0xdf017d5c]
+fn @shadowedByFunction() -> i256 [selector=0xdf017d5c, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @one
+    v1 = add v0, 30
+    ret v1
+}
+
+; function swap(p, q) -> u, v
+fn @swap(arg0: i256, arg1: i256) -> struct0 {
+  bb0:
+    v0 = insert_value struct0, undef struct0, 0, arg1
+    v1 = insert_value struct0, v0, 1, arg0
+    ret v1
+}
+
+; function one() -> o
+fn @one() -> i256 {
+  bb0:
+    ret 1
+}

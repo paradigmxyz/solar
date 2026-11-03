@@ -1,0 +1,14 @@
+error: unresolved symbol `x`
+   ╭▸ ROOT/tests/ui/yul_lowering/let_initializer_scope.sol:LL:CC
+   │
+LL │             let x := add(1, x)
+   ╰╴                            ━
+
+error: unresolved symbol `b`
+   ╭▸ ROOT/tests/ui/yul_lowering/let_initializer_scope.sol:LL:CC
+   │
+LL │             let a, b := f(b)
+   ╰╴                          ━
+
+error: aborting due to 2 previous errors
+
