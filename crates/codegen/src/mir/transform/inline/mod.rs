@@ -1396,11 +1396,6 @@ fn abi_layout_has_loops(layout: &AbiLayout) -> bool {
     layout.types.iter().any(AbiType::is_dynamic)
 }
 
-/// The cost of emitting the opcodes `codes` in order.
-fn seq(target: &Target, codes: &[u8]) -> Cost {
-    codes.iter().map(|&code| target.opcode(code)).sum()
-}
-
 /// Estimated code of an operation the later lowerings expand, as the opcode sequence they
 /// emit priced by the target, with the number of MIR instructions the expansion produces.
 /// An operation that lowers to one opcode is priced by the target directly; immediates are
@@ -1418,7 +1413,7 @@ fn estimate_inst_cost(
         }
     }
     let code = match kind {
-        InstKind::Ne(..) => seq(target, &[op::EQ, op::ISZERO]),
+        InstKind::Ne(..) => target.opcodes(&[op::EQ, op::ISZERO]),
         InstKind::Trunc(..) | InstKind::Sext(..) | InstKind::PtrToInt(..) => {
             target.op(&kind.op(), |_| None)
         }
@@ -1427,23 +1422,29 @@ fn estimate_inst_cost(
         | InstKind::MakeSlice { .. }
         | InstKind::IntToPtr(..)
         | InstKind::Zext(_) => Cost::ZERO,
-        InstKind::PtrAdd(..) => seq(target, &[op::ADD]),
-        InstKind::Fmp | InstKind::FrameLoad { .. } => seq(target, &[op::MLOAD]),
-        InstKind::SetFmp(_) | InstKind::FrameStore { .. } => seq(target, &[op::MSTORE]),
+        InstKind::PtrAdd(..) => target.opcodes(&[op::ADD]),
+        InstKind::Fmp | InstKind::FrameLoad { .. } => target.opcodes(&[op::MLOAD]),
+        InstKind::SetFmp(_) | InstKind::FrameStore { .. } => target.opcodes(&[op::MSTORE]),
         // Bump the free-memory pointer past the allocation.
-        InstKind::Alloc { .. } => seq(target, &[op::MLOAD, op::ADD, op::MSTORE]),
+        InstKind::Alloc { .. } => target.opcodes(&[op::MLOAD, op::ADD, op::MSTORE]),
         // Reserve the buffer, store the selector, produce the slice, store every argument's
         // head, and expand every dynamic value.
-        InstKind::AbiEncode { args, layout, .. } => seq(
-            target,
-            &[op::MLOAD, op::ADD, op::MSTORE, op::MSTORE, op::DUP1, op::DUP2, op::SWAP1, op::SWAP2],
-        )
-        .plus(seq(target, &[op::DUP1, op::ADD, op::MSTORE]).times(args.len() as u32))
-        .plus(seq(target, &[op::DUP1]).times(abi_layout_expansion(layout) as u32)),
+        InstKind::AbiEncode { args, layout, .. } => target
+            .opcodes(&[
+                op::MLOAD,
+                op::ADD,
+                op::MSTORE,
+                op::MSTORE,
+                op::DUP1,
+                op::DUP2,
+                op::SWAP1,
+                op::SWAP2,
+            ])
+            .plus(target.opcodes(&[op::DUP1, op::ADD, op::MSTORE]).times(args.len() as u32))
+            .plus(target.opcodes(&[op::DUP1]).times(abi_layout_expansion(layout) as u32)),
         // Check the calldata bound, then load and validate every head word.
-        InstKind::AbiDecode { layout, .. } => seq(
-            target,
-            &[
+        InstKind::AbiDecode { layout, .. } => target
+            .opcodes(&[
                 op::CALLDATASIZE,
                 op::SUB,
                 op::LT,
@@ -1452,22 +1453,25 @@ fn estimate_inst_cost(
                 op::ADD,
                 op::MSTORE,
                 op::SWAP1,
-            ],
-        )
-        .plus(
-            seq(target, &[op::CALLDATALOAD, op::DUP1, op::MSTORE]).times(layout.types.len() as u32),
-        ),
+            ])
+            .plus(
+                target
+                    .opcodes(&[op::CALLDATALOAD, op::DUP1, op::MSTORE])
+                    .times(layout.types.len() as u32),
+            ),
         // A pushed offset into the immutables area and the store.
-        InstKind::StoreImmutable(..) => seq(target, &[op::PUSH2, op::MSTORE]),
-        InstKind::DataCopy(..) => seq(target, &[op::CODECOPY]),
-        InstKind::DataSize(..) => seq(target, &[op::PUSH2]),
+        InstKind::StoreImmutable(..) => target.opcodes(&[op::PUSH2, op::MSTORE]),
+        InstKind::DataCopy(..) => target.opcodes(&[op::CODECOPY]),
+        InstKind::DataSize(..) => target.opcodes(&[op::PUSH2]),
         // Zero by copying from beyond the end of calldata.
-        InstKind::MemoryZero(..) => seq(target, &[op::CALLDATASIZE, op::CALLDATACOPY]),
-        InstKind::ConstructorArgsBase => seq(target, &[op::PUSH2]),
-        InstKind::ConstructorArgsEnd => seq(target, &[op::PUSH2, op::PUSH2, op::SUB, op::CODESIZE]),
-        InstKind::HeapFloor => seq(target, &[op::PUSH2]),
-        InstKind::InternalFrameAddr(_) => seq(target, &[op::PUSH1, op::ADD]),
-        InstKind::LibraryAddress(_) => seq(target, &[op::PUSH20]),
+        InstKind::MemoryZero(..) => target.opcodes(&[op::CALLDATASIZE, op::CALLDATACOPY]),
+        InstKind::ConstructorArgsBase => target.opcodes(&[op::PUSH2]),
+        InstKind::ConstructorArgsEnd => {
+            target.opcodes(&[op::PUSH2, op::PUSH2, op::SUB, op::CODESIZE])
+        }
+        InstKind::HeapFloor => target.opcodes(&[op::PUSH2]),
+        InstKind::InternalFrameAddr(_) => target.opcodes(&[op::PUSH1, op::ADD]),
+        InstKind::LibraryAddress(_) => target.opcodes(&[op::PUSH20]),
         // Typed PUSH<N> placeholder patched at deploy time, cleaned for the narrower types.
         InstKind::LoadImmutable(id) => {
             let ty = module.immutable_type(*id);
@@ -1479,12 +1483,16 @@ fn estimate_inst_cost(
             );
             let push = op::PUSH1 + (type_size.bytes() - 1);
             if type_size.bytes() == 32 {
-                seq(target, &[push])
+                target.opcodes(&[push])
             } else {
                 match encoding {
-                    ImmutableEncoding::Unsigned(_) => seq(target, &[push]),
-                    ImmutableEncoding::Signed(_) => seq(target, &[push, op::PUSH1, op::SIGNEXTEND]),
-                    ImmutableEncoding::LeftAligned(_) => seq(target, &[push, op::PUSH1, op::SHL]),
+                    ImmutableEncoding::Unsigned(_) => target.opcodes(&[push]),
+                    ImmutableEncoding::Signed(_) => {
+                        target.opcodes(&[push, op::PUSH1, op::SIGNEXTEND])
+                    }
+                    ImmutableEncoding::LeftAligned(_) => {
+                        target.opcodes(&[push, op::PUSH1, op::SHL])
+                    }
                 }
             }
         }
@@ -1519,10 +1527,9 @@ fn estimate_inst_cost(
         InstKind::AbiEncodePacked { parts, .. } => {
             Cost::new(60 + parts.len() as u32 * 20, 24 + parts.len() as u32 * 12)
         }
-        InstKind::MappingSlot(..) => seq(target, &[op::MSTORE, op::MSTORE, op::KECCAK256]),
-        InstKind::MappingSlotBytes(key, _) if func.value_ty(*key) == Some(MirType::MEMPTR) => seq(
-            target,
-            &[
+        InstKind::MappingSlot(..) => target.opcodes(&[op::MSTORE, op::MSTORE, op::KECCAK256]),
+        InstKind::MappingSlotBytes(key, _) if func.value_ty(*key) == Some(MirType::MEMPTR) => {
+            target.opcodes(&[
                 op::MLOAD,
                 op::ADD,
                 op::MSTORE,
@@ -1531,27 +1538,25 @@ fn estimate_inst_cost(
                 op::MSTORE,
                 op::ADD,
                 op::KECCAK256,
-            ],
-        ),
-        InstKind::MappingSlotBytes(..) => seq(
-            target,
-            &[
-                op::CALLDATALOAD,
-                op::ADD,
-                op::MSTORE,
-                op::CALLDATALOAD,
-                op::ADD,
-                op::MSTORE,
-                op::ADD,
-                op::ADD,
-                op::KECCAK256,
-            ],
-        ),
-        InstKind::StorageArrayDataSlot(..) => seq(target, &[op::MSTORE, op::MSTORE, op::KECCAK256]),
-        InstKind::StorageArrayElementSlot { element_slots, .. } => {
-            seq(target, &[op::MSTORE, op::MSTORE, op::KECCAK256, op::ADD])
-                .plus(if *element_slots > 1 { seq(target, &[op::MUL]) } else { Cost::ZERO })
+            ])
         }
+        InstKind::MappingSlotBytes(..) => target.opcodes(&[
+            op::CALLDATALOAD,
+            op::ADD,
+            op::MSTORE,
+            op::CALLDATALOAD,
+            op::ADD,
+            op::MSTORE,
+            op::ADD,
+            op::ADD,
+            op::KECCAK256,
+        ]),
+        InstKind::StorageArrayDataSlot(..) => {
+            target.opcodes(&[op::MSTORE, op::MSTORE, op::KECCAK256])
+        }
+        InstKind::StorageArrayElementSlot { element_slots, .. } => target
+            .opcodes(&[op::MSTORE, op::MSTORE, op::KECCAK256, op::ADD])
+            .plus(if *element_slots > 1 { target.opcodes(&[op::MUL]) } else { Cost::ZERO }),
         InstKind::AddressCall { .. } => Cost::new(720, 12),
         InstKind::ICall { function: Callee::Builtin(Builtin::ReturndataBytes), .. } => {
             Cost::new(60, 24)
@@ -1561,16 +1566,16 @@ fn estimate_inst_cost(
         InstKind::Call { .. }
         | InstKind::CallCode { .. }
         | InstKind::StaticCall { .. }
-        | InstKind::DelegateCall { .. } => seq(target, &[op::CALL]),
+        | InstKind::DelegateCall { .. } => target.opcodes(&[op::CALL]),
         InstKind::ICall { function: Callee::Function(function), args } => {
             target.icall(args.len(), module.function(*function).return_components().len(), 0)
         }
         // A phi or a select is a stack move at the join.
-        InstKind::Phi(_) | InstKind::Select(..) => seq(target, &[op::DUP1]),
+        InstKind::Phi(_) | InstKind::Select(..) => target.opcodes(&[op::DUP1]),
         // Every other operation lowers to one opcode and was priced above.
         _ => {
             debug_assert!(false, "operation without a single opcode is not priced: {kind}");
-            seq(target, &[op::ADD])
+            target.opcodes(&[op::ADD])
         }
     };
     let instructions = match kind {
@@ -1595,23 +1600,25 @@ fn estimate_inst_cost(
 /// Estimated code of a terminator, as the opcode sequence it emits priced by the target.
 fn estimate_terminator_cost(target: &Target, term: &Terminator) -> Cost {
     match term {
-        Terminator::Jump(_) => seq(target, &[op::PUSH2, op::JUMP]),
-        Terminator::Branch { .. } => seq(target, &[op::PUSH2, op::JUMPI]),
+        Terminator::Jump(_) => target.opcodes(&[op::PUSH2, op::JUMP]),
+        Terminator::Branch { .. } => target.opcodes(&[op::PUSH2, op::JUMPI]),
         // The dispatch on the value, then a compare and a jump per case.
-        Terminator::Switch { cases, .. } => seq(target, &[op::PUSH2, op::JUMPI])
-            .plus(seq(target, &[op::DUP1, op::PUSH1, op::EQ]).times(cases.len() as u32)),
+        Terminator::Switch { cases, .. } => target
+            .opcodes(&[op::PUSH2, op::JUMPI])
+            .plus(target.opcodes(&[op::DUP1, op::PUSH1, op::EQ]).times(cases.len() as u32)),
         // The values are staged by the instructions above; the return is the protocol's jump.
         Terminator::Return { .. } => target.internal_return(0, 0),
         Terminator::Revert { .. } | Terminator::RevertReturndata => {
-            seq(target, &[op::PUSH1, op::DUP1, op::REVERT])
+            target.opcodes(&[op::PUSH1, op::DUP1, op::REVERT])
         }
-        Terminator::ReturnData { .. } => seq(target, &[op::PUSH1, op::DUP1, op::RETURN]),
-        Terminator::Stop => seq(target, &[op::STOP]),
-        Terminator::SelfDestruct { .. } => seq(target, &[op::SELFDESTRUCT]),
+        Terminator::ReturnData { .. } => target.opcodes(&[op::PUSH1, op::DUP1, op::RETURN]),
+        Terminator::Stop => target.opcodes(&[op::STOP]),
+        Terminator::SelfDestruct { .. } => target.opcodes(&[op::SELFDESTRUCT]),
         // A jump with every argument staged.
-        Terminator::TailCall { args, .. } => seq(target, &[op::PUSH2, op::JUMP])
-            .plus(seq(target, &[op::DUP1]).times(args.len() as u32)),
-        Terminator::Invalid => seq(target, &[op::INVALID]),
+        Terminator::TailCall { args, .. } => target
+            .opcodes(&[op::PUSH2, op::JUMP])
+            .plus(target.opcodes(&[op::DUP1]).times(args.len() as u32)),
+        Terminator::Invalid => target.opcodes(&[op::INVALID]),
     }
 }
 
@@ -2277,11 +2284,7 @@ fn insert_return_buffer_stores(
         return Some(());
     }
 
-    let phi_count = caller.blocks[continuation]
-        .instructions
-        .iter()
-        .take_while(|&&inst_id| matches!(caller.inst(inst_id).kind, InstKind::Phi(_)))
-        .count();
+    let phi_count = caller.block_phi_count(continuation);
     let existing_len = caller.blocks[continuation].instructions.len();
     let instructions = {
         let mut builder = FunctionBuilder::new(caller);

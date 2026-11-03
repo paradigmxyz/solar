@@ -455,6 +455,11 @@ impl Target {
         Cost::new(self.opcode_gas(opcode), opcode_bytes(opcode)).with_steps(1)
     }
 
+    /// Cost of emitting `opcodes` in order.
+    pub(crate) fn opcodes(&self, opcodes: &[u8]) -> Cost {
+        opcodes.iter().map(|&opcode| self.opcode(opcode)).sum()
+    }
+
     /// Cost of an opcode whose arguments are known in EVM pop order.
     /// Includes operand-dependent work such as the exponent bytes of `EXP`;
     /// memory expansion and state-dependent access prices remain excluded.
@@ -2187,16 +2192,15 @@ mod tests {
     fn loop_header_tests_price_the_compare_and_the_exit() {
         for version in [EvmVersion::Homestead, EvmVersion::Istanbul, EvmVersion::Amsterdam] {
             let target = Target::with(version, OptimizationMode::Gas, 200);
-            let cost = |opcodes: &[u8]| opcodes.iter().map(|&opcode| target.opcode(opcode)).sum();
             assert_eq!(
                 target.loop_header_test(op::LT),
-                cost(&[op::LT, op::DUP1, op::DUP1, op::PUSH2, op::JUMPI])
+                target.opcodes(&[op::LT, op::DUP1, op::DUP1, op::PUSH2, op::JUMPI])
             );
             assert_eq!(
                 target.loop_header_test(op::SUB),
-                cost(&[op::SUB, op::DUP1, op::DUP1, op::PUSH2, op::JUMPI])
+                target.opcodes(&[op::SUB, op::DUP1, op::DUP1, op::PUSH2, op::JUMPI])
             );
-            assert_eq!(target.loop_exit_jump(), cost(&[op::DUP1, op::PUSH2, op::JUMPI]));
+            assert_eq!(target.loop_exit_jump(), target.opcodes(&[op::DUP1, op::PUSH2, op::JUMPI]));
         }
     }
 
@@ -2204,9 +2208,8 @@ mod tests {
     fn closed_forms_price_each_recurrence() {
         for version in [EvmVersion::Homestead, EvmVersion::Shanghai, EvmVersion::Amsterdam] {
             let target = Target::with(version, OptimizationMode::Gas, 200);
-            let cost = |opcodes: &[u8]| opcodes.iter().map(|&opcode| target.opcode(opcode)).sum();
-            let linear: Cost = cost(&[op::MUL, op::ADD, op::DUP1, op::DUP1]);
-            let triangular = cost(&[op::SHR, op::SUB, op::OR, op::MUL, op::DUP1])
+            let linear = target.opcodes(&[op::MUL, op::ADD, op::DUP1, op::DUP1]);
+            let triangular = target.opcodes(&[op::SHR, op::SUB, op::OR, op::MUL, op::DUP1])
                 + target.push(U256::ONE).times(3);
             assert_eq!(target.loop_closed_form(2, 0), linear.times(2) + target.jump());
             assert_eq!(target.loop_closed_form(2, 1), linear.times(3) + target.jump() + triangular);

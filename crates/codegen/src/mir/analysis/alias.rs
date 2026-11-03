@@ -101,6 +101,16 @@ pub(crate) enum MemoryBase {
     FreeMemory(InstId),
 }
 
+impl MemoryBase {
+    /// The allocation site of a fixed or dynamic allocation base.
+    pub(crate) fn allocation(self) -> Option<InstId> {
+        match self {
+            Self::Allocation(inst) | Self::DynamicAllocation(inst) => Some(inst),
+            _ => None,
+        }
+    }
+}
+
 /// A canonical memory address represented as a base plus byte offset.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct MemoryAddress {
@@ -913,11 +923,9 @@ impl AliasAnalysis {
         } else {
             return Some((self.memory_address(func, address)?, false));
         };
-        let base = match base.base {
-            MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst) => {
-                Self::unbounded_allocation(func, base, inst)?
-            }
-            _ => base,
+        let base = match base.base.allocation() {
+            Some(inst) => Self::unbounded_allocation(func, base, inst)?,
+            None => base,
         };
         Some((base, true))
     }
@@ -939,7 +947,7 @@ impl AliasAnalysis {
         mut address: MemoryAddress,
         size: LocationSize,
     ) -> Option<MemoryLocation> {
-        if let MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst) = address.base {
+        if let Some(inst) = address.base.allocation() {
             let bound = if matches!(address.base, MemoryBase::Allocation(_)) {
                 Self::allocation_min_size(func, inst)
             } else {
@@ -1179,11 +1187,7 @@ impl AliasAnalysis {
     /// An allocation-site base as `(site, is_loop_instance)`, or `None` for a
     /// non-allocation base.
     fn allocation_base(base: MemoryBase) -> Option<(InstId, bool)> {
-        match base {
-            MemoryBase::Allocation(id) => Some((id, false)),
-            MemoryBase::DynamicAllocation(id) => Some((id, true)),
-            _ => None,
-        }
+        base.allocation().map(|id| (id, matches!(base, MemoryBase::DynamicAllocation(_))))
     }
 
     pub(crate) fn alias_locations(first: Location, second: Location) -> AliasResult {
