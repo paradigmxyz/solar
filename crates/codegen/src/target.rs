@@ -1616,7 +1616,7 @@ impl Target {
     /// Gas that hoisting `inst` out of a loop saves on every iteration: the operation's price at
     /// the warmth the preheader's access leaves, so a hoisted storage or account read saves the
     /// warm access price, and a slot hash saves the opcodes `lower-mapping-slots` expands it to.
-    /// The pushes of immediate operands are left out, as they are not part of the operation.
+    /// The pushes of an operation's operands are left out; the mask of a cast is part of it.
     pub(crate) fn licm_saving(&self, func: &Function, inst: InstId) -> u32 {
         let kind = &func.inst(inst).kind;
         let cost = self.slot_expansion(func, kind).unwrap_or_else(|| {
@@ -1635,13 +1635,12 @@ impl Target {
     /// it, so hoisting it saves nothing and carries one more word.
     pub(crate) fn licm_pays(&self, func: &Function, inst: InstId) -> bool {
         let inst_data = func.inst(inst);
+        if inst_data.result_ty == Some(MirType::I1) {
+            return false;
+        }
         let saving = self.licm_saving(func, inst);
         let carry = self.runtime_gas(self.dup());
-        match inst_data.kind {
-            _ if inst_data.result_ty == Some(MirType::I1) => false,
-            InstKind::Load(..) => saving >= carry,
-            _ => saving > carry,
-        }
+        if matches!(inst_data.kind, InstKind::Load(..)) { saving >= carry } else { saving > carry }
     }
 }
 
