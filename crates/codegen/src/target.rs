@@ -1287,19 +1287,6 @@ impl Target {
                 )
     }
 
-    /// Whether one shared copy of a terminal block, entered by a jump from each of `sites`,
-    /// takes fewer bytes than a copy at every site. When optimizing for size, a copy no larger
-    /// than a jump to and from a shared body stays with the backend, whose terminal-block sharing
-    /// and outlining handle it in its final layout; sharing it earlier grew the measured code.
-    pub(crate) fn shares_terminal_copy(&self, copy: Cost, sites: u32) -> bool {
-        let jump = self.label_push() + self.opcode(op::JUMP);
-        if matches!(self.optimization, OptimizationMode::Size) && copy.bytes <= jump.times(2).bytes
-        {
-            return false;
-        }
-        (jump.times(sites) + copy + self.opcode(op::JUMPDEST)).bytes < copy.times(sites).bytes
-    }
-
     /// Whether code shared from a site inside a loop pays for itself when the bytes it saves at
     /// that site, `saved_bytes`, cost `transfer_gas` more on every iteration: the deposit of the
     /// bytes against the transfers over the expected executions,
@@ -1406,22 +1393,6 @@ impl Target {
     /// Words a loop carries before each further one deepens the `DUP` and `SWAP` reach of the
     /// accesses to all the others.
     pub(crate) const SHALLOW_CARRIED_WORDS: usize = 4;
-
-    /// Gas a hoisted read of a warm storage or transient slot saves per iteration: EIP-2929's
-    /// warm access, which `TLOAD` charges too, whatever the fork.
-    pub(crate) const LICM_STATE_READ_GAS: u32 = GasTier::WARM_ACCESS_GAS;
-    /// Gas a hoisted hash of storage slots saves per iteration: the base of `KECCAK256`.
-    pub(crate) const LICM_HASH_GAS: u32 = GasTier::Keccak.fixed_gas();
-    /// Gas a hoisted `EXP` saves per iteration: its base, without the exponent bytes.
-    pub(crate) const LICM_EXP_GAS: u32 = GasTier::Exp.fixed_gas();
-    /// Gas a hoisted multiplication, division, `ADDMOD`, `MULMOD`, or `CLZ` saves per iteration:
-    /// the low tier. `ADDMOD` and `MULMOD` sit in the mid tier, which costs more; they keep this
-    /// price until a separate change reprices them.
-    pub(crate) const LICM_ARITHMETIC_GAS: u32 = GasTier::Low.fixed_gas();
-    /// Gas a hoisted memory read saves per iteration: an `MLOAD`.
-    pub(crate) const LICM_MEMORY_READ_GAS: u32 = GasTier::VeryLow.fixed_gas();
-    /// Gas a hoist must save per iteration to be worth a root of its own: a memory read.
-    pub(crate) const MIN_LICM_PROFIT_GAS: u32 = Self::LICM_MEMORY_READ_GAS;
 
     /// Estimated code of an operation the later lowerings expand, as the opcode sequence they
     /// emit priced by the target, with the number of MIR instructions the expansion produces.
@@ -1558,36 +1529,12 @@ impl Target {
             InstKind::AbiEncodePacked { parts, .. } => {
                 Cost::new(60 + parts.len() as u32 * 20, 24 + parts.len() as u32 * 12)
             }
-            InstKind::MappingSlot(..) => self.opcodes(&[op::MSTORE, op::MSTORE, op::KECCAK256]),
-            InstKind::MappingSlotBytes(key, _) if func.value_ty(*key) == Some(MirType::MEMPTR) => {
-                self.opcodes(&[
-                    op::MLOAD,
-                    op::ADD,
-                    op::MSTORE,
-                    op::MLOAD,
-                    op::ADD,
-                    op::MSTORE,
-                    op::ADD,
-                    op::KECCAK256,
-                ])
+            InstKind::MappingSlot(..)
+            | InstKind::MappingSlotBytes(..)
+            | InstKind::StorageArrayDataSlot(..)
+            | InstKind::StorageArrayElementSlot { .. } => {
+                self.slot_expansion(func, kind).expect("a slot hash is priced")
             }
-            InstKind::MappingSlotBytes(..) => self.opcodes(&[
-                op::CALLDATALOAD,
-                op::ADD,
-                op::MSTORE,
-                op::CALLDATALOAD,
-                op::ADD,
-                op::MSTORE,
-                op::ADD,
-                op::ADD,
-                op::KECCAK256,
-            ]),
-            InstKind::StorageArrayDataSlot(..) => {
-                self.opcodes(&[op::MSTORE, op::MSTORE, op::KECCAK256])
-            }
-            InstKind::StorageArrayElementSlot { element_slots, .. } => self
-                .opcodes(&[op::MSTORE, op::MSTORE, op::KECCAK256, op::ADD])
-                .plus(if *element_slots > 1 { self.opcode(op::MUL) } else { Cost::ZERO }),
             InstKind::AddressCall { .. } => Cost::new(720, 12),
             InstKind::ICall { function: Callee::Builtin(Builtin::ReturndataBytes), .. } => {
                 Cost::new(60, 24)
@@ -1661,6 +1608,74 @@ impl Target {
     /// `[f, c, t]`, `dup3; swap1` leaves `[f, c, f, t]` for `sub; mul; add`.
     pub(crate) fn select_stack_ops(&self) -> Cost {
         self.opcode(op::DUP3) + self.opcode(op::SWAP1)
+    }
+
+    /// Estimated code of an operation that hashes a storage slot, as the opcode sequence
+    /// `lower-mapping-slots` emits, or `None` for any other operation.
+    fn slot_expansion(&self, func: &Function, kind: &InstKind) -> Option<Cost> {
+        Some(match kind {
+            InstKind::MappingSlot(..) => self.opcodes(&[op::MSTORE, op::MSTORE, op::KECCAK256]),
+            InstKind::MappingSlotBytes(key, _) if func.value_ty(*key) == Some(MirType::MEMPTR) => {
+                self.opcodes(&[
+                    op::MLOAD,
+                    op::ADD,
+                    op::MSTORE,
+                    op::MLOAD,
+                    op::ADD,
+                    op::MSTORE,
+                    op::ADD,
+                    op::KECCAK256,
+                ])
+            }
+            InstKind::MappingSlotBytes(..) => self.opcodes(&[
+                op::CALLDATALOAD,
+                op::ADD,
+                op::MSTORE,
+                op::CALLDATALOAD,
+                op::ADD,
+                op::MSTORE,
+                op::ADD,
+                op::ADD,
+                op::KECCAK256,
+            ]),
+            InstKind::StorageArrayDataSlot(..) => {
+                self.opcodes(&[op::MSTORE, op::MSTORE, op::KECCAK256])
+            }
+            InstKind::StorageArrayElementSlot { element_slots, .. } => self
+                .opcodes(&[op::MSTORE, op::MSTORE, op::KECCAK256, op::ADD])
+                .plus(if *element_slots > 1 { self.opcode(op::MUL) } else { Cost::ZERO }),
+            _ => return None,
+        })
+    }
+
+    /// Gas that hoisting `inst` out of a loop saves on every iteration: the operation's price at
+    /// the warmth the preheader's access leaves, so a hoisted storage or account read saves the
+    /// warm access price, and a slot hash saves the opcodes `lower-mapping-slots` expands it to.
+    /// The pushes of an operation's operands are left out; the mask of a cast is part of it.
+    pub(crate) fn licm_saving(&self, func: &Function, inst: InstId) -> u32 {
+        let kind = &func.inst(inst).kind;
+        let cost = self.slot_expansion(func, kind).unwrap_or_else(|| {
+            self.op_at(&kind.op(), |value| func.value_u256(value), Warmth::Warm)
+        });
+        self.runtime_gas(cost)
+    }
+
+    /// Whether hoisting `inst` out of a loop saves enough per iteration to be a root of its own,
+    /// which the carry budget does not bound. A carried value costs a `DUP` at each use, so a
+    /// load, which runs only where its execution is guaranteed, must save at least one, as a
+    /// memory read does. Any other operation must save more: it may run speculatively, and the
+    /// backend rebuilds a constant or a `VeryLow` one such as `ADD` at its uses for the price of
+    /// a `DUP`, so that one hoists only when it runs every iteration, within the carry budget.
+    /// A boolean never pays: it feeds a branch, which tests nonzero without the `ne` that prices
+    /// it, so hoisting it saves nothing and carries one more word.
+    pub(crate) fn licm_pays(&self, func: &Function, inst: InstId) -> bool {
+        let inst_data = func.inst(inst);
+        if inst_data.result_ty == Some(MirType::I1) {
+            return false;
+        }
+        let saving = self.licm_saving(func, inst);
+        let carry = self.runtime_gas(self.dup());
+        if matches!(inst_data.kind, InstKind::Load(..)) { saving >= carry } else { saving > carry }
     }
 }
 
@@ -2333,22 +2348,6 @@ mod tests {
     }
 
     #[test]
-    fn terminal_copy_sharing() {
-        let gas = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
-        let size = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 200);
-        // `mstore 0, 1; revert 0, 32`: four 4-byte jumps and one landing beat four copies.
-        let small = Cost::new(0, 8);
-        assert!(gas.shares_terminal_copy(small, 4));
-        assert!(!size.shares_terminal_copy(small, 4));
-        // A 9-byte copy shared by three sites: 12 + 9 + 1 bytes against 27.
-        let medium = Cost::new(0, 9);
-        assert!(gas.shares_terminal_copy(medium, 3));
-        assert!(size.shares_terminal_copy(medium, 3));
-        // One site never pays for a jump.
-        assert!(!gas.shares_terminal_copy(Cost::new(0, 40), 1));
-    }
-
-    #[test]
     fn legacy_shifts_push_the_factor_when_it_costs_less() {
         let shift = |bits| U256::from(bits);
         let size = Target::with(EvmVersion::Byzantium, OptimizationMode::Size, 1);
@@ -2572,21 +2571,28 @@ mod tests {
             assert_eq!(target.loop_closed_form(2, 1), linear.times(3) + target.jump() + triangular);
         }
     }
+
     #[test]
     fn licm_savings_follow_the_opcode_schedule() {
-        for version in
-            [EvmVersion::Berlin, EvmVersion::Cancun, EvmVersion::Osaka, EvmVersion::Amsterdam]
-        {
-            let target = Target::with(version, OptimizationMode::Gas, 200);
-            assert_eq!(Target::LICM_STATE_READ_GAS, target.opcode_gas_at(op::SLOAD, Warmth::Warm));
-        }
         let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
-        assert_eq!(Target::LICM_STATE_READ_GAS, target.opcode_gas(op::TLOAD));
-        assert_eq!(Target::LICM_HASH_GAS, target.opcode_gas(op::KECCAK256));
-        assert_eq!(Target::LICM_EXP_GAS, target.opcode_gas(op::EXP));
-        assert_eq!(Target::LICM_ARITHMETIC_GAS, target.opcode_gas(op::MUL));
-        assert_eq!(Target::LICM_MEMORY_READ_GAS, target.opcode_gas(op::MLOAD));
-        assert_eq!(Target::MIN_LICM_PROFIT_GAS, Target::LICM_MEMORY_READ_GAS);
+        let mut function = Function::new(Ident::DUMMY);
+        let value = function.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
+        let saving_as = |kind, ty| {
+            let mut function = function.clone();
+            let (inst, _) = function.alloc_value_inst_verbatim(Instruction::new(kind, Some(ty)));
+            (target.licm_saving(&function, inst), target.licm_pays(&function, inst))
+        };
+        let saving = |kind| saving_as(kind, MirType::I256);
+        let (add_mod, add_mod_pays) = saving(InstKind::AddMod(value, value, value));
+        assert_eq!(add_mod, target.opcode_gas(op::ADDMOD));
+        assert!(add_mod > saving(InstKind::Mul(value, value)).0 && add_mod_pays);
+        assert_eq!(
+            saving(InstKind::Load(value, PtrLocation::Storage)),
+            (target.opcode_gas_at(op::SLOAD, Warmth::Warm), true)
+        );
+        assert!(saving(InstKind::Load(value, PtrLocation::Memory)).1);
+        assert!(!saving(InstKind::Add(value, value)).1);
+        assert!(!saving_as(InstKind::Ne(value, value), MirType::I1).1);
     }
 
     #[test]

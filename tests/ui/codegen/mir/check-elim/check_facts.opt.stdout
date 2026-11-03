@@ -76,7 +76,9 @@ fn @siftDown() {
     v20 = lt v4, v10
     jumpi v20, bb10, bb7
   bb7 [cold]:                                     ; preds = bb2, bb3, bb4
-    tail_call @revert_stub
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb10:                                           ; preds = bb4
     v22 = shl v4, 5
     v53 = add v35, v22
@@ -134,7 +136,9 @@ fn @keepsCheck() {
     v17 = lt v1, v7
     jumpi v17, bb8, bb5
   bb5 [cold]:                                     ; preds = bb2, bb3, bb4
-    tail_call @revert_stub
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb8:                                            ; preds = bb4
     v19 = shl v1, 5
     v50 = add v32, v19
@@ -181,13 +185,6 @@ fn @afterAllocation() {
     revert 28, 36
   bb3 [cold]:                                     ; preds = bb0
     revert 0, 0
-}
-
-fn @revert_stub() [cold] {
-  bb0 [cold]:
-    mstore 32, 50 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }
 
 fn @decode_calldata_type() -> i256 [may_return_memory] {

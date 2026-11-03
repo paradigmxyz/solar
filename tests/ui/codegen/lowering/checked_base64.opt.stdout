@@ -348,7 +348,9 @@ fn @encode.4(arg0: i256, arg1: i1, arg2: i1) -> i256 [may_return_memory] {
     v115 = lt v176, v114
     jumpi v115, bb53, bb48
   bb48 [cold]:                                    ; preds = bb5, bb6, bb8, bb13, bb17, bb18, bb39
-    tail_call @revert_stub.7
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb53:                                           ; preds = bb17
     v117 = byte 0, v112
     v211 = add v231, 3
@@ -360,7 +362,9 @@ fn @encode.4(arg0: i256, arg1: i1, arg2: i1) -> i256 [may_return_memory] {
     v232 = add v231, 4
     jump bb3
   bb46 [cold]:                                    ; preds = bb2
-    tail_call @revert_stub.6
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb56 [cold]:                                    ; preds = bb1, bb0
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -600,7 +604,9 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory] {
     v133 = lt v217, v132
     jumpi v133, bb44, bb37
   bb37 [cold]:                                    ; preds = bb12, bb13, bb15, bb17, bb19, bb21, bb23
-    tail_call @revert_stub.7
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb44:                                           ; preds = bb23
     v269 = add v282, v217
     v270 = add v269, 32
@@ -615,20 +621,6 @@ fn @decode.8(arg0: i256) -> i256 [may_return_memory] {
     v281 = icall @alloc, 32
     mstore v281, 0
     ret v281
-}
-
-fn @revert_stub.6() [cold] {
-  bb0 [cold]:
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
-}
-
-fn @revert_stub.7() [cold] {
-  bb0 [cold]:
-    mstore 32, 50 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }
 
 fn @decode_calldata_type() -> i256 [may_return_memory] {

@@ -56,7 +56,9 @@ fn @plain(arg0: i256, arg1: i256) -> i256 {
   bb4 [cold]:                                     ; preds = bb2
     jump bb3
   bb3 [cold]:                                     ; preds = bb2, bb4
-    tail_call @revert_stub
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 ; function fast(bytes calldata data) internal pure returns (uint32 value)
@@ -98,7 +100,9 @@ fn @fast(arg0: i256, arg1: i256) -> i256 {
   bb4 [cold]:                                     ; preds = bb2
     jump bb3
   bb3 [cold]:                                     ; preds = bb2, bb4
-    tail_call @revert_stub
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 ; function small(bytes calldata data) internal pure returns (uint32 value)
@@ -118,7 +122,9 @@ fn @small(arg0: i256, arg1: i256) -> i256 [optimize=size] {
     v7 = lt v2, arg1
     jumpi v7, bb5, bb4
   bb4 [cold]:                                     ; preds = bb3
-    tail_call @revert_stub
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb5:                                            ; preds = bb3
     v12 = add arg0, v2
     v13 = calldataload v12
@@ -154,11 +160,4 @@ fn @run() {
     returndata 0, 96
   bb1 [cold]:                                     ; preds = bb0
     revert 0, 0
-}
-
-fn @revert_stub() [cold] {
-  bb0 [cold]:
-    mstore 32, 50 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }

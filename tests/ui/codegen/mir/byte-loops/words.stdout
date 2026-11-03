@@ -47,7 +47,9 @@ fn @load32() {
     mstore 0, v26 !metadata(memory=scratch)
     returndata 0, 32
   bb1 [cold]:                                     ; preds = bb4
-    tail_call @revert_stub
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb3 [cold]:                                     ; preds = bb0
     revert 0, 0
 }
@@ -75,7 +77,9 @@ fn @load4() {
     mstore 0, v29 !metadata(memory=scratch)
     returndata 0, 32
   bb1 [cold]:                                     ; preds = bb4
-    tail_call @revert_stub
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb3 [cold]:                                     ; preds = bb0
     revert 0, 0
 }
@@ -129,7 +133,9 @@ fn @store32() {
     v12 = lt v30, v11
     jumpi v12, bb6, bb5
   bb5 [cold]:                                     ; preds = bb4, bb9
-    tail_call @revert_stub
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb6:                                            ; preds = bb9
     v52 = add v36, v30
     v53 = add v52, 32
@@ -202,7 +208,9 @@ fn @store2() {
     v12 = lt v34, v11
     jumpi v12, bb6, bb5
   bb5 [cold]:                                     ; preds = bb4, bb9
-    tail_call @revert_stub
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb6:                                            ; preds = bb9
     v61 = add v42, v34
     v62 = add v61, 32
@@ -291,7 +299,9 @@ fn @slice() {
     v21 = lt v9, v20
     jumpi v21, bb10, bb8
   bb8 [cold]:                                     ; preds = bb5, bb9, bb13
-    tail_call @revert_stub
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb10:                                           ; preds = bb9
     v94 = add v101, v9
     v95 = add v94, 32
@@ -319,13 +329,6 @@ fn @slice() {
     revert 28, 36
   bb14 [cold]:                                    ; preds = bb0
     revert 0, 0
-}
-
-fn @revert_stub() [cold] {
-  bb0 [cold]:
-    mstore 32, 50 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }
 
 fn @decode_calldata_type() -> i256 [may_return_memory] {

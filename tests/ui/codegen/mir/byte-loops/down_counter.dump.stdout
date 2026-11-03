@@ -34,61 +34,61 @@ fn @fromCalldata() {
     v50 = lt v49, v47
     v51 = or v46, v50
     v90 = or v40, v51
-    jumpi v90, bb7, bb8
-  bb8:                                            ; preds = bb0
-    v91 = calldataload 36
-    v0 = add v91, 31
+    jumpi v90, bb6, bb7
+  bb7:                                            ; preds = bb0
+    v92 = calldataload 36
+    v0 = add v92, 31
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v2 = add v1, 32
-    v3 = lt v2, v91
-    jumpi v3, bb3, bb4
-  bb4:                                            ; preds = bb8
+    v3 = lt v2, v92
     v82 = heap_floor !metadata(alloc_ptr)
     v83 = add v82, v2 !metadata(alloc_ptr)
-    v92 = shr v83, 64
+    v93 = shr v83, 64
     v84 = lt v83, v82
-    v94 = zext i1 v84 to i256
-    v95 = or v92, v94
-    v86 = ne v95, 0
-    jumpi v86, bb10, bb9
-  bb9:                                            ; preds = bb4
+    v95 = zext i1 v84 to i256
+    v96 = or v93, v95
+    v98 = zext i1 v3 to i256
+    v99 = or v96, v98
+    v91 = ne v99, 0
+    jumpi v91, bb3, bb8
+  bb8:                                            ; preds = bb7
     mstore 64, v83 !metadata(memory=scratch)
     v89 = calldatasize
     calldatacopy v82, v89, v2
-    mstore v82, v91
-    v31 = eq v91, 0
+    mstore v82, v92
+    v31 = eq v92, 0
     jumpi v31, bb1, bb2
-  bb2:                                            ; preds = bb9
-    v33 = lt v47, v91
-    jumpi v33, bb5, bb6
-  bb6:                                            ; preds = bb2
+  bb2:                                            ; preds = bb8
+    v33 = lt v47, v92
+    jumpi v33, bb4, bb5
+  bb5:                                            ; preds = bb2
     v79 = add v82, 32
-    calldatacopy v79, v48, v91
+    calldatacopy v79, v48, v92
     jump bb1
-  bb5 [cold]:                                     ; preds = bb2
-    tail_call @revert_stub.3
-  bb1:                                            ; preds = bb6, bb9
+  bb4 [cold]:                                     ; preds = bb2
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:                                            ; preds = bb5, bb8
     v88 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v60 = add v88, 64
     mstore v88, 64
     v66 = add v60, 32
     v67 = add v60, v1
     mstore v67, 0
-    mstore v60, v91
+    mstore v60, v92
     v69 = add v66, v1
     v77 = add v82, 32
-    mcopy v66, v77, v91 !metadata(disjoint)
+    mcopy v66, v77, v92 !metadata(disjoint)
     v71 = add v88, 32
     mstore v71, 0
     v73 = sub v69, v88
     returndata v88, v73
-  bb10 [cold]:                                    ; preds = bb4
+  bb3 [cold]:                                     ; preds = bb7
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3 [cold]:                                     ; preds = bb8
-    tail_call @revert_stub.2
-  bb7 [cold]:                                     ; preds = bb0
+  bb6 [cold]:                                     ; preds = bb0
     revert 0, 0
 }
 
@@ -97,35 +97,35 @@ fn @fromFresh() {
   bb0:
     v92 = calldatasize
     v93 = lt v92, 36
-    jumpi v93, bb20, bb21
-  bb21:                                           ; preds = bb0
+    jumpi v93, bb19, bb20
+  bb20:                                           ; preds = bb0
     v94 = calldataload 4
     v159 = add v94, 63
     v2 = and v159, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v3 = lt v2, v94
-    jumpi v3, bb13, bb14
-  bb14:                                           ; preds = bb21
     v148 = heap_floor !metadata(alloc_ptr)
     v149 = add v148, v2 !metadata(alloc_ptr)
-    v171 = shr v149, 64
+    v172 = shr v149, 64
     v150 = lt v149, v148
-    v173 = zext i1 v150 to i256
-    v174 = or v171, v173
-    v152 = ne v174, 0
-    jumpi v152, bb23, bb24
-  bb24:                                           ; preds = bb14
+    v174 = zext i1 v150 to i256
+    v175 = or v172, v174
+    v177 = zext i1 v3 to i256
+    v178 = or v175, v177
+    v166 = ne v178, 0
+    jumpi v166, bb13, bb22
+  bb22:                                           ; preds = bb20
     mstore 64, v149 !metadata(memory=scratch)
     v156 = calldatasize
     calldatacopy v148, v156, v2
     mstore v148, v94
     v83 = or v148, v94
-    v176 = shr v83, 64
-    v87 = eq v176, 0
+    v180 = shr v83, 64
+    v87 = eq v180, 0
     jumpi v87, bb12, bb11
-  bb11:                                           ; preds = bb24
+  bb11:                                           ; preds = bb22
     jump bb1
-  bb1:                                            ; preds = bb11, bb16
-    v9 = phi [bb11: 0], [bb16: v11]
+  bb1:                                            ; preds = bb11, bb15
+    v9 = phi [bb11: 0], [bb15: v11]
     v10 = lt v9, v94
     jumpi v10, bb3, bb2
   bb3:                                            ; preds = bb1
@@ -133,13 +133,13 @@ fn @fromFresh() {
     v157 = and v11, 255
     v15 = mload v148
     v16 = lt v9, v15
-    jumpi v16, bb16, bb15
-  bb16:                                           ; preds = bb3
+    jumpi v16, bb15, bb14
+  bb15:                                           ; preds = bb3
     v126 = add v148, v9
     v127 = add v126, 32
     mstore8 v127, v157
     jump bb1
-  bb12:                                           ; preds = bb24
+  bb12:                                           ; preds = bb22
     v161 = add v148, 32
     v164 = add v148, v94
     v165 = add v164, 32
@@ -152,20 +152,20 @@ fn @fromFresh() {
   bb2:                                            ; preds = bb1, bb9
     v142 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v143 = add v142, v2 !metadata(alloc_ptr)
-    v166 = shr v143, 64
+    v167 = shr v143, 64
     v144 = lt v143, v142
-    v168 = zext i1 v144 to i256
-    v169 = or v166, v168
-    v146 = ne v169, 0
-    jumpi v146, bb23, bb22
-  bb22:                                           ; preds = bb2
+    v169 = zext i1 v144 to i256
+    v170 = or v167, v169
+    v146 = ne v170, 0
+    jumpi v146, bb13, bb21
+  bb21:                                           ; preds = bb2
     mstore 64, v143 !metadata(memory=scratch)
     v155 = calldatasize
     calldatacopy v142, v155, v2
     mstore v142, v94
     v52 = eq v94, 0
     jumpi v52, bb5, bb7
-  bb7:                                            ; preds = bb22
+  bb7:                                            ; preds = bb21
     v119 = add v148, 32
     v121 = add v142, 32
     v58 = add v119, v94
@@ -177,35 +177,37 @@ fn @fromFresh() {
   bb8:                                            ; preds = bb7
     v64 = mload v148
     v65 = lt v64, v94
-    jumpi v65, bb15, bb19
-  bb19:                                           ; preds = bb8
+    jumpi v65, bb14, bb18
+  bb18:                                           ; preds = bb8
     mcopy v121, v119, v94
     jump bb5
-  bb4:                                            ; preds = bb7, bb18
-    v29 = phi [bb7: v94], [bb18: v33]
+  bb4:                                            ; preds = bb7, bb17
+    v29 = phi [bb7: v94], [bb17: v33]
     v32 = ne v29, 0
     jumpi v32, bb6, bb5
   bb6:                                            ; preds = bb4
     v33 = sub v29, 1
     v34 = mload v148
     v35 = lt v33, v34
-    jumpi v35, bb17, bb15
-  bb17:                                           ; preds = bb6
+    jumpi v35, bb16, bb14
+  bb16:                                           ; preds = bb6
     v129 = add v148, v33
     v130 = add v129, 32
     v39 = mload v130
     v40 = byte 0, v39
     v43 = mload v142
     v44 = lt v33, v43
-    jumpi v44, bb18, bb15
-  bb15 [cold]:                                    ; preds = bb3, bb6, bb8, bb17
-    tail_call @revert_stub.3
-  bb18:                                           ; preds = bb17
+    jumpi v44, bb17, bb14
+  bb14 [cold]:                                    ; preds = bb3, bb6, bb8, bb16
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
+  bb17:                                           ; preds = bb16
     v132 = add v142, v33
     v133 = add v132, 32
     mstore8 v133, v40
     jump bb4
-  bb5:                                            ; preds = bb4, bb19, bb22
+  bb5:                                            ; preds = bb4, bb18, bb21
     v154 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v100 = add v154, 64
     mstore v154, 64
@@ -229,26 +231,10 @@ fn @fromFresh() {
     mstore8 v162, v158
     v163 = add v162, 1
     jump bb9
-  bb23 [cold]:                                    ; preds = bb2, bb14
+  bb13 [cold]:                                    ; preds = bb2, bb20
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb13 [cold]:                                    ; preds = bb21
-    tail_call @revert_stub.2
-  bb20 [cold]:                                    ; preds = bb0
+  bb19 [cold]:                                    ; preds = bb0
     revert 0, 0
-}
-
-fn @revert_stub.2() [cold] {
-  bb0 [cold]:
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
-}
-
-fn @revert_stub.3() [cold] {
-  bb0 [cold]:
-    mstore 32, 50 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }
