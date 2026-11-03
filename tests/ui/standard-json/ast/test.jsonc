@@ -38,6 +38,55 @@
 // CHECK: "nodeType": "OverrideSpecifier"
 // CHECK: "nodeType": "ModifierInvocation"
 // CHECK: "kind": "modifierInvocation"
+// Every statement and expression node of a function, in order of appearance.
+// CHECK: "name": "Statements"
+// CHECK: "nodeType": "VariableDeclaration"
+// CHECK: "nodeType": "ArrayTypeName"
+// CHECK: "length": {
+// CHECK: "nodeType": "Identifier"
+// CHECK: "nodeType": "Literal"
+// CHECK: "subdenomination": "ether"
+// CHECK: "typeIdentifier": "t_rational_1000000000000000000_by_1"
+// CHECK: "nodeType": "ModifierDefinition"
+// CHECK: "nodeType": "Block"
+// CHECK: "nodeType": "ExpressionStatement"
+// CHECK: "nodeType": "FunctionCall"
+// CHECK: "nodeType": "BinaryOperation"
+// CHECK: "commonType": {
+// CHECK: "nodeType": "PlaceholderStatement"
+// CHECK: "nodeType": "Return"
+// CHECK: "nodeType": "TupleExpression"
+// CHECK: "nodeType": "ModifierInvocation"
+// CHECK: "arguments": [
+// CHECK: "nodeType": "VariableDeclarationStatement"
+// CHECK: "assignments": [
+// CHECK: "nodeType": "UnaryOperation"
+// CHECK: "nodeType": "UncheckedBlock"
+// CHECK: "nodeType": "Assignment"
+// CHECK: "nodeType": "IfStatement"
+// CHECK: "nodeType": "ForStatement"
+// CHECK: "nodeType": "Continue"
+// CHECK: "nodeType": "Break"
+// CHECK: "isSimpleCounterLoop": true
+// CHECK: "nodeType": "WhileStatement"
+// CHECK: "nodeType": "DoWhileStatement"
+// CHECK: "nodeType": "Conditional"
+// CHECK: "nodeType": "NewExpression"
+// CHECK: "nodeType": "IndexAccess"
+// CHECK: "lValueRequested": true
+// CHECK: "nodeType": "IndexRangeAccess"
+// CHECK: "nodeType": "FunctionCallOptions"
+// CHECK: "nodeType": "ElementaryTypeNameExpression"
+// CHECK: "nodeType": "EmitStatement"
+// CHECK: "nodeType": "TryStatement"
+// CHECK: "nodeType": "TryCatchClause"
+// CHECK: "errorName": "Error"
+// CHECK: "nodeType": "RevertStatement"
+// CHECK: "nodeType": "InlineAssembly"
+// CHECK: "flags": [
+// CHECK: "typeString": "type(enum Statements.Mode)"
+// CHECK: "nodeType": "StorageLayoutSpecifier"
+// CHECK: "baseSlotExpression": {
 {
   "language": "Solidity",
   "settings": {

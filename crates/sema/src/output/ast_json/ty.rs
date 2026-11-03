@@ -1,13 +1,15 @@
 //! Type names and type descriptions.
 
-use super::{Cx, IdentPath, Params, Sym, W, name};
+use super::{Cx, Empty, IdentPath, Params, Sym, W, name, serialize_opt};
 use crate::{
+    builtins::Builtin,
+    eval::ConstValue,
     hir,
-    ty::{Gcx, Ty, TySolcPrinter},
+    ty::{Component, Gcx, Ty, TyFn, TyKind, TySolcPrinter},
 };
 use serde::ser::{Serialize, SerializeMap, Serializer};
-use solar_ast::{self as ast, ElementaryType};
-use solar_interface::{Ident, Span, kw};
+use solar_ast::{self as ast, DataLocation, ElementaryType};
+use solar_interface::{Ident, Span, kw, sym};
 
 /// The `typeDescriptions` of a declaration or a type name.
 pub(super) struct TypeDescriptions<'gcx> {
@@ -15,14 +17,53 @@ pub(super) struct TypeDescriptions<'gcx> {
     pub(super) ty: Ty<'gcx>,
     /// Whether solc marks the reference types as pointers.
     pub(super) pointer: bool,
+    /// Whether it is the type of an expression, which solc prints with data locations.
+    pub(super) expr: bool,
+    /// The value of the literal of the type.
+    pub(super) literal: Option<&'gcx ConstValue>,
+    /// What solc knows of the components of a tuple expression.
+    pub(super) components: Vec<Component<'gcx>>,
+    /// Whether the call options `gas`, `value` and `salt` are set on the function.
+    pub(super) call_options: [bool; 3],
+    /// The kind of the builtin function of the type, such as `keccak256`.
+    pub(super) function_kind: Option<&'static str>,
+}
+
+impl<'gcx> TypeDescriptions<'gcx> {
+    /// The descriptions of a declaration or a type name.
+    pub(super) fn new(gcx: Gcx<'gcx>, ty: Ty<'gcx>, pointer: bool) -> Self {
+        Self {
+            gcx,
+            ty,
+            pointer,
+            expr: false,
+            literal: None,
+            components: Vec::new(),
+            call_options: [false; 3],
+            function_kind: None,
+        }
+    }
 }
 
 impl Serialize for TypeDescriptions<'_> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        let Self { gcx, ty, pointer } = *self;
+        let Self { gcx, ty, pointer, expr, literal, ref components, call_options, function_kind } =
+            *self;
+        let printer = |buf| {
+            TySolcPrinter::new(gcx, buf)
+                .literal(literal)
+                .components(components.clone())
+                .call_options(call_options)
+                .function_kind(function_kind)
+        };
         let (mut identifier, mut string) = (String::new(), String::new());
-        TySolcPrinter::new(gcx, &mut identifier).print_identifier(ty, pointer).unwrap();
-        TySolcPrinter::new(gcx, &mut string).print(ty).unwrap();
+        printer(&mut identifier).print_identifier(ty, pointer).unwrap();
+        if expr {
+            printer(&mut string).locations(pointer).print(ty)
+        } else {
+            printer(&mut string).print(ty)
+        }
+        .unwrap();
         let mut m = s.serialize_map(None)?;
         m.serialize_entry("typeIdentifier", &identifier)?;
         m.serialize_entry("typeString", &string)?;
@@ -30,19 +71,183 @@ impl Serialize for TypeDescriptions<'_> {
     }
 }
 
-impl Serialize for W<'_, '_, (&ast::Type<'_>, &hir::Type<'_>)> {
+/// The `typeDescriptions` of an expression, which are empty if the expression has no type.
+pub(super) struct ExprType<'a, 'gcx> {
+    gcx: Gcx<'gcx>,
+    expr: &'a hir::Expr<'gcx>,
+    /// The arguments of the call that the expression is the callee of, which give `require` its
+    /// type.
+    args: Option<hir::CallArgs<'gcx>>,
+}
+
+impl<'a, 'gcx> ExprType<'a, 'gcx> {
+    pub(super) fn new(gcx: Gcx<'gcx>, expr: &'a hir::Expr<'gcx>) -> Self {
+        Self { gcx, expr, args: None }
+    }
+
+    pub(super) fn args(mut self, args: Option<hir::CallArgs<'gcx>>) -> Self {
+        self.args = args;
+        self
+    }
+}
+
+impl Serialize for ExprType<'_, '_> {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        let Self { gcx, expr, args } = *self;
+        let Some(mut ty) = expr_ty(gcx, expr) else { return Empty.serialize(s) };
+        // The call of an error has the magic type `error`.
+        if let hir::ExprKind::Call(callee, _) = expr.kind
+            && matches!(gcx.type_of_expr(callee.id), Some(ty) if matches!(ty.kind, TyKind::Error(..)))
+        {
+            let mut m = s.serialize_map(Some(2))?;
+            m.serialize_entry("typeIdentifier", "t_error")?;
+            m.serialize_entry("typeString", "error")?;
+            return m.end();
+        }
+        let builtin = gcx.resolved_expr(expr).and_then(|res| res.as_builtin());
+        if let TyKind::Fn(f) = ty.kind {
+            // solc gives an attached function the receiver as its first parameter, and `require`
+            // the type of its message.
+            let callee = expr.peel_parens();
+            let receiver = match callee.kind {
+                hir::ExprKind::Member(base, _)
+                    if gcx.resolved_callee(callee.id).is_some_and(|callee| callee.attached) =>
+                {
+                    // The receiver has the type that the function declares.
+                    let declared =
+                        f.function_id.and_then(|id| match gcx.type_of_item(id.into()).kind {
+                            TyKind::Fn(declared) => declared.parameters.first().copied(),
+                            _ => None,
+                        });
+                    declared.or_else(|| expr_ty(gcx, base))
+                }
+                _ => None,
+            };
+            let message = match (builtin, args) {
+                (Some(Builtin::Require), Some(args)) => {
+                    args.exprs().nth(1).and_then(|arg| message_ty(gcx, arg))
+                }
+                _ => None,
+            };
+            let parameters = match (receiver, message) {
+                (Some(receiver), _) => Some([&[receiver][..], f.parameters].concat()),
+                (None, Some(message)) => Some(vec![gcx.types.bool, message]),
+                (None, None) => None,
+            };
+            if let Some(parameters) = parameters {
+                ty = gcx.mk_ty_fn(TyFn {
+                    parameters: gcx.mk_tys(&parameters),
+                    attached: receiver.is_some(),
+                    ..*f
+                });
+            }
+        }
+        let literal_ty =
+            |ty: Ty<'_>| ty.is_number_literal() || matches!(ty.kind, TyKind::StringLiteral(..));
+        let literal = literal_ty(ty).then(|| gcx.const_eval().eval_expr(expr).ok()).flatten();
+        let components = match expr.kind {
+            hir::ExprKind::Tuple(components) => components
+                .iter()
+                .map(|component| {
+                    let Some(component) = component else {
+                        return Component { literal: None, pointer: true, empty: true };
+                    };
+                    Component {
+                        literal: expr_ty(gcx, component)
+                            .filter(|ty| literal_ty(*ty))
+                            .and_then(|_| gcx.const_eval().eval_expr(component).ok()),
+                        pointer: is_pointer(gcx, component),
+                        empty: false,
+                    }
+                })
+                .collect(),
+            _ => Vec::new(),
+        };
+        let call_options = match expr.kind {
+            hir::ExprKind::CallOptions(_, options) => [kw::Gas, sym::value, sym::salt]
+                .map(|name| options.args.iter().any(|arg| arg.name.name == name)),
+            _ => [false; 3],
+        };
+        let function_kind = match expr.kind {
+            // The only builtin function without a builtin is `new` on an array.
+            hir::ExprKind::New(_) => Some("objectcreation"),
+            _ => builtin.map(Builtin::solc_kind),
+        };
+        let descriptions = TypeDescriptions {
+            gcx,
+            ty,
+            pointer: is_pointer(gcx, expr),
+            expr: true,
+            literal,
+            components,
+            call_options,
+            function_kind,
+        };
+        descriptions.serialize(s)
+    }
+}
+
+/// Returns the type of the expression, which type checking leaves out for a type in an
+/// expression, such as `uint256` in `abi.decode(data, (uint256))`.
+pub(super) fn expr_ty<'gcx>(gcx: Gcx<'gcx>, expr: &hir::Expr<'gcx>) -> Option<Ty<'gcx>> {
+    gcx.type_of_expr(expr.id).or_else(|| match &expr.kind {
+        hir::ExprKind::Type(ty) => Some(gcx.mk_ty(TyKind::Type(gcx.type_of_hir_ty(ty)))),
+        hir::ExprKind::Lit(lit) => Some(gcx.type_of_lit(lit)),
+        hir::ExprKind::Tuple([Some(inner)]) => expr_ty(gcx, inner),
+        hir::ExprKind::Tuple(components) => {
+            let tys = components
+                .iter()
+                .map(|component| expr_ty(gcx, (*component)?))
+                .collect::<Option<Vec<_>>>()?;
+            Some(gcx.mk_ty_tuple(gcx.mk_tys(&tys)))
+        }
+        _ => None,
+    })
+}
+
+/// Returns the type of the message of `require`: `error` for a call of an error, else the type
+/// that a string converts to.
+fn message_ty<'gcx>(gcx: Gcx<'gcx>, message: &hir::Expr<'gcx>) -> Option<Ty<'gcx>> {
+    if let hir::ExprKind::Call(callee, _) = message.kind
+        && let Some(ty) = gcx.type_of_expr(callee.id)
+        && matches!(ty.kind, TyKind::Error(..))
+    {
+        return Some(ty);
+    }
+    // The parameter of `require` and `revert` is `string memory`.
+    Some(expr_ty(gcx, message)?.mobile(gcx)?.with_loc_if_ref(gcx, DataLocation::Memory))
+}
+
+/// Returns whether solc types the expression as a pointer, which it does for the reference types
+/// of local variables, parameters and calls of functions, and as a reference for all other storage
+/// expressions.
+fn is_pointer(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> bool {
+    match expr.kind {
+        hir::ExprKind::Ident(_) => gcx
+            .resolved_expr(expr)
+            .and_then(|res| res.as_variable())
+            .is_some_and(|id| !gcx.hir.variable(id).is_state_variable()),
+        hir::ExprKind::Call(callee, _) => gcx.resolved_builtin(callee).is_none(),
+        hir::ExprKind::Assign(lhs, ..) => is_pointer(gcx, lhs),
+        hir::ExprKind::Ternary(..) => true,
+        hir::ExprKind::Tuple([Some(inner)]) => is_pointer(gcx, inner),
+        _ => false,
+    }
+}
+
+impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Type<'_>, &hir::Type<'gcx>)> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self(cx, (ty, hir_ty)) = self;
         let gcx = cx.gcx;
         // The type of a type name is a pointer when it is a reference type.
-        let descriptions = TypeDescriptions { gcx, ty: gcx.type_of_hir_ty(hir_ty), pointer: true };
+        let descriptions = TypeDescriptions::new(gcx, gcx.type_of_hir_ty(hir_ty), true);
         match (&ty.kind, &hir_ty.kind) {
             (ast::TypeKind::Elementary(elementary), _) => {
                 let (mut m, _) = cx.node(s, "ElementaryTypeName", ty.span)?;
                 m.serialize_entry("name", &elementary_name(*elementary))?;
                 m.serialize_entry("typeDescriptions", &descriptions)?;
                 if let ElementaryType::Address(payable) = elementary
-                    && !cx.in_mapping_key
+                    && (*payable || !cx.in_mapping_key)
                 {
                     m.serialize_entry(
                         "stateMutability",
@@ -61,7 +266,10 @@ impl Serialize for W<'_, '_, (&ast::Type<'_>, &hir::Type<'_>)> {
             }
             (ast::TypeKind::Array(array), hir::TypeKind::Array(hir_array)) => {
                 let (mut m, _) = cx.node(s, "ArrayTypeName", ty.span)?;
-                m.serialize_entry("baseType", &cx.w((&array.element, &hir_array.element)))?;
+                let element = Cx { in_mapping_key: cx.in_mapping_key || cx.in_local, ..*cx };
+                m.serialize_entry("baseType", &element.w((&array.element, &hir_array.element)))?;
+                let length = array.size.as_deref().zip(hir_array.size);
+                serialize_opt(&mut m, "length", length.map(|exprs| cx.w(exprs)))?;
                 m.serialize_entry("typeDescriptions", &descriptions)?;
                 m.end()
             }
@@ -87,6 +295,7 @@ impl Serialize for W<'_, '_, (&ast::Type<'_>, &hir::Type<'_>)> {
                 m.serialize_entry("visibility", hir_function.visibility.to_str())?;
                 m.serialize_entry("stateMutability", hir_function.state_mutability.to_str())?;
                 let parameters = Params {
+                    id: None,
                     span: function.parameters.span,
                     ast: function.parameters.vars,
                     hir: hir_function.parameters,
@@ -94,8 +303,13 @@ impl Serialize for W<'_, '_, (&ast::Type<'_>, &hir::Type<'_>)> {
                 };
                 m.serialize_entry("parameterTypes", &cx.w(parameters))?;
                 let span = function.returns.as_ref().map_or(next.shrink_to_lo(), |r| r.span);
-                let returns =
-                    Params { span, ast: function.returns(), hir: hir_function.returns, scope: id };
+                let returns = Params {
+                    id: None,
+                    span,
+                    ast: function.returns(),
+                    hir: hir_function.returns,
+                    scope: id,
+                };
                 m.serialize_entry("returnParameterTypes", &cx.w(returns))?;
                 m.serialize_entry("typeDescriptions", &descriptions)?;
                 m.end()
@@ -110,7 +324,7 @@ fn span_of(name: Option<Ident>) -> Span {
 }
 
 /// Returns the name of an elementary type as written, such as `uint` and `address`.
-fn elementary_name(ty: ElementaryType) -> Sym {
+pub(super) fn elementary_name(ty: ElementaryType) -> Sym {
     Sym(match ty {
         ElementaryType::Address(_) => kw::Address,
         ElementaryType::Bool => kw::Bool,

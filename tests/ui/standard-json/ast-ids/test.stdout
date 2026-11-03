@@ -146,7 +146,7 @@
                 "stateMutability": "nonpayable",
                 "virtual": false,
                 "parameters": {
-                  "id": 17,
+                  "id": 18,
                   "src": "186:16:0",
                   "nodeType": "ParameterList",
                   "parameters": [
@@ -157,7 +157,7 @@
                       "name": "owner_",
                       "nameLocation": "195:6:0",
                       "typeName": {
-                        "id": 18,
+                        "id": 19,
                         "src": "187:7:0",
                         "nodeType": "ElementaryTypeName",
                         "name": "address",
@@ -181,7 +181,7 @@
                   ]
                 },
                 "returnParameters": {
-                  "id": 19,
+                  "id": 17,
                   "src": "203:0:0",
                   "nodeType": "ParameterList",
                   "parameters": []
@@ -189,7 +189,104 @@
                 "modifiers": [],
                 "implemented": true,
                 "scope": 0,
-                "visibility": "public"
+                "visibility": "public",
+                "body": {
+                  "id": 20,
+                  "src": "203:54:0",
+                  "nodeType": "Block",
+                  "statements": [
+                    {
+                      "id": 21,
+                      "src": "213:14:0",
+                      "nodeType": "ExpressionStatement",
+                      "expression": {
+                        "id": 22,
+                        "src": "213:14:0",
+                        "nodeType": "Assignment",
+                        "operator": "=",
+                        "leftHandSide": {
+                          "id": 23,
+                          "src": "213:5:0",
+                          "nodeType": "Identifier",
+                          "name": "owner",
+                          "referencedDeclaration": 6,
+                          "overloadedDeclarations": [],
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_address",
+                            "typeString": "address"
+                          }
+                        },
+                        "rightHandSide": {
+                          "id": 24,
+                          "src": "221:6:0",
+                          "nodeType": "Identifier",
+                          "name": "owner_",
+                          "referencedDeclaration": 11,
+                          "overloadedDeclarations": [],
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_address",
+                            "typeString": "address"
+                          }
+                        },
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_address",
+                          "typeString": "address"
+                        },
+                        "isLValue": false,
+                        "isPure": false,
+                        "isConstant": false,
+                        "lValueRequested": false
+                      }
+                    },
+                    {
+                      "id": 25,
+                      "src": "237:13:0",
+                      "nodeType": "ExpressionStatement",
+                      "expression": {
+                        "id": 26,
+                        "src": "237:13:0",
+                        "nodeType": "Assignment",
+                        "operator": "=",
+                        "leftHandSide": {
+                          "id": 27,
+                          "src": "237:8:0",
+                          "nodeType": "Identifier",
+                          "name": "decimals",
+                          "referencedDeclaration": 7,
+                          "overloadedDeclarations": [],
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_uint8",
+                            "typeString": "uint8"
+                          }
+                        },
+                        "rightHandSide": {
+                          "id": 28,
+                          "src": "248:2:0",
+                          "nodeType": "Literal",
+                          "kind": "number",
+                          "value": "18",
+                          "hexValue": "3138",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_rational_18_by_1",
+                            "typeString": "int_const 18"
+                          },
+                          "isLValue": false,
+                          "isPure": true,
+                          "isConstant": false,
+                          "lValueRequested": false
+                        },
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint8",
+                          "typeString": "uint8"
+                        },
+                        "isLValue": false,
+                        "isPure": false,
+                        "isConstant": false,
+                        "lValueRequested": false
+                      }
+                    }
+                  ]
+                }
               }
             ],
             "scope": 12,

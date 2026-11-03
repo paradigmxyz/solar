@@ -15,9 +15,7 @@
 //! - every other node takes the next ID when its writer reaches it, so a node writes the fields
 //!   that need its ID, such as the scope of its children, after allocating it.
 //!
-//! Statements and expressions are not supported yet: the bodies of functions and modifiers, the
-//! arguments of modifier invocations and base constructor calls, array lengths, the initial values
-//! of variables and the storage layout specifier are left out.
+//! Statements and expressions are in [`expr`], and inline assembly in [`yul`].
 //!
 //! [`Hir::global_item_id`]: crate::hir::Hir::global_item_id
 
@@ -34,7 +32,9 @@ use solar_interface::{BytePos, Ident, Span, Symbol, kw, source_map::SourceFile};
 use solar_parse::Lexer;
 use std::{borrow::Cow, cell::Cell, fmt};
 
+mod expr;
 mod ty;
+mod yul;
 
 impl<'gcx> Gcx<'gcx> {
     /// Returns the AST JSON of the compilation, which must have passed analysis.
@@ -79,7 +79,7 @@ impl<'gcx> AstJson<'gcx> {
     }
 
     fn source_unit_id(&self, id: SourceId) -> usize {
-        self.gcx.hir.item_count() + id.index()
+        self.gcx.hir.source_unit_id(id)
     }
 }
 
@@ -107,6 +107,12 @@ impl Serialize for SourceAstJson<'_, '_> {
             start: file.start_pos,
             in_event: false,
             in_mapping_key: false,
+            in_local: false,
+            block: json.source_unit_id(id),
+            returns: None,
+            function: None,
+            parent: expr::Parent::default(),
+            for_init: false,
         };
         let ast = gcx.sources[id].ast.as_ref().unwrap();
 
@@ -167,6 +173,20 @@ struct Cx<'a, 'gcx> {
     /// Whether the node is the key type of a mapping, which solc parses without the state
     /// mutability of `address`.
     in_mapping_key: bool,
+    /// Whether the node is the type of a local variable, whose array elements solc parses as
+    /// expressions and so gives no state mutability to an `address`.
+    in_local: bool,
+    /// The ID of the node that declares the variables of the statements: the innermost block,
+    /// `for` statement or `catch` clause.
+    block: usize,
+    /// The ID of the list of the return parameters of the function that holds the node.
+    returns: Option<usize>,
+    /// The function or modifier that holds the node.
+    function: Option<hir::FunctionId>,
+    /// What the parent of an expression tells it.
+    parent: expr::Parent<'gcx>,
+    /// Whether the node is the initialization of a `for` statement.
+    for_init: bool,
 }
 
 /// A node `T` that serializes itself in the context.
@@ -195,15 +215,18 @@ struct Src {
 
 impl Serialize for Src {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.collect_str(self)
+    }
+}
+
+impl fmt::Display for Src {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.span.is_dummy() {
-            return s.serialize_str("-1:-1:-1");
+            return f.write_str("-1:-1:-1");
         }
         let lo = self.span.lo().to_u32() - self.start.to_u32();
-        s.collect_str(&format_args!(
-            "{lo}:{}:{}",
-            self.span.hi().to_u32() - self.span.lo().to_u32(),
-            self.source.index()
-        ))
+        let len = self.span.hi().to_u32() - self.span.lo().to_u32();
+        write!(f, "{lo}:{len}:{}", self.source.index())
     }
 }
 
@@ -297,6 +320,15 @@ impl<'a, 'gcx> Cx<'a, 'gcx> {
         &file.src[(span.lo() - file.start_pos).to_usize()..(span.hi() - file.start_pos).to_usize()]
     }
 
+    /// Returns the span without a trailing `;`, which solc leaves out of the location of a
+    /// variable and of most statements.
+    fn without_semicolon(self, span: Span) -> Span {
+        match self.text(span).strip_suffix(';') {
+            Some(text) => span.with_hi(span.lo() + text.trim_end().len() as u32),
+            None => span,
+        }
+    }
+
     fn item_id(self, id: impl Into<ItemId>) -> usize {
         self.gcx.hir.global_item_id(id)
     }
@@ -305,6 +337,15 @@ impl<'a, 'gcx> Cx<'a, 'gcx> {
     fn scope(self, contract: Option<ContractId>) -> usize {
         contract.map_or_else(|| self.json.source_unit_id(self.source), |id| self.item_id(id))
     }
+}
+
+/// Writes an entry that solc leaves out when it is null.
+fn serialize_opt<M: SerializeMap>(
+    m: &mut M,
+    key: &str,
+    value: Option<impl Serialize>,
+) -> Result<(), M::Error> {
+    value.map_or(Ok(()), |value| m.serialize_entry(key, &value))
 }
 
 /// A symbol.
@@ -329,6 +370,14 @@ fn serialize_docs<M: SerializeMap>(
     cx: Cx<'_, '_>,
     docs: &DocComments<'_>,
 ) -> Result<(), M::Error> {
+    match last_docs(cx, docs) {
+        Some((span, text)) => m.serialize_entry("documentation", &cx.w(Doc { span, text })),
+        None => Ok(()),
+    }
+}
+
+/// Returns the span and the text of the last group of doc comments, unless the text is empty.
+fn last_docs(cx: Cx<'_, '_>, docs: &DocComments<'_>) -> Option<(Span, String)> {
     let start = (1..docs.len())
         .rev()
         .find(|&i| {
@@ -343,10 +392,10 @@ fn serialize_docs<M: SerializeMap>(
     let docs = &docs[start..];
     let text = doc_text(docs);
     if text.is_empty() {
-        return Ok(());
+        return None;
     }
     let span = Span::join_first_last(docs.iter().map(|doc| doc.span));
-    m.serialize_entry("documentation", &cx.w(Doc { span, text }))
+    Some((span, text))
 }
 
 /// Returns `true` for the whitespace that solc skips in doc comments, which excludes Unicode spaces
@@ -440,16 +489,16 @@ impl Serialize for W<'_, '_, ExportedSymbols> {
 }
 
 /// The items of a source or a contract.
-struct Items<'a, 'ast> {
+struct Items<'a, 'ast, 'gcx> {
     ast: &'a [ast::Item<'ast>],
     /// The HIR items, which also hold the getters and Yul functions lowering adds.
     hir: &'a [ItemId],
-    usings: &'a [hir::UsingDirective<'a>],
+    usings: &'a [hir::UsingDirective<'gcx>],
     /// The imports of the source.
     imports: &'a [(ast::ItemId, SourceId)],
 }
 
-impl Serialize for W<'_, '_, Items<'_, '_>> {
+impl<'gcx> Serialize for W<'_, 'gcx, Items<'_, '_, 'gcx>> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self(cx, items) = self;
         let hir = &cx.gcx.hir;
@@ -493,7 +542,13 @@ impl Serialize for W<'_, '_, Items<'_, '_>> {
                     // documentation out.
                     let docs = hir.variable(id).is_state_variable().then_some(&item.docs);
                     let scope = cx.scope(hir.variable(id).contract);
-                    seq.serialize_element(&cx.w(Var { ast: variable, id, docs, scope }))?
+                    seq.serialize_element(&cx.w(Var {
+                        ast: variable,
+                        id,
+                        value: true,
+                        docs,
+                        scope,
+                    }))?
                 }
                 ast::ItemKind::Struct(strukt) => {
                     seq.serialize_element(&cx.w((item, strukt, next_hir!(Struct))))?
@@ -633,7 +688,9 @@ impl Serialize for Empty {
     }
 }
 
-impl Serialize for W<'_, '_, (&ast::Item<'_>, &ast::UsingDirective<'_>, &hir::UsingDirective<'_>)> {
+impl<'gcx> Serialize
+    for W<'_, 'gcx, (&ast::Item<'_>, &ast::UsingDirective<'_>, &hir::UsingDirective<'gcx>)>
+{
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self(cx, (item, using, hir)) = self;
         let (mut m, _) = cx.node(s, "UsingForDirective", item.span)?;
@@ -726,7 +783,9 @@ impl Serialize for W<'_, '_, (&ast::Item<'_>, &ast::ItemContract<'_>, ContractId
             },
         )?;
         m.serialize_entry("abstract", &c.is_abstract())?;
-        let bases = Seq(|| contract.bases.iter().zip(c.bases).map(|(base, &id)| cx.w((base, id))));
+        let bases = Seq(|| {
+            contract.bases.iter().zip(c.bases_args).map(|(base, hir)| cx.w(Inheritance(base, hir)))
+        });
         m.serialize_entry("baseContracts", &bases)?;
         m.serialize_entry("canonicalName", c.name.as_str())?;
         m.serialize_entry(
@@ -738,6 +797,9 @@ impl Serialize for W<'_, '_, (&ast::Item<'_>, &ast::ItemContract<'_>, ContractId
         let items = Items { ast: contract.body, hir: c.items, usings: c.usings, imports: &[] };
         m.serialize_entry("nodes", &cx.w(items))?;
         m.serialize_entry("scope", &cx.scope(None))?;
+        if let (Some(layout), Some(slot)) = (&contract.layout, c.layout) {
+            m.serialize_entry("storageLayout", &cx.w(expr::StorageLayout(layout, slot)))?;
+        }
         m.serialize_entry("fullyImplemented", &is_fully_implemented(gcx, *id))?;
         if !c.linearization_failed() {
             let linearized = c.linearized_bases.iter().map(|&base| cx.item_id(base));
@@ -747,12 +809,18 @@ impl Serialize for W<'_, '_, (&ast::Item<'_>, &ast::ItemContract<'_>, ContractId
     }
 }
 
-impl Serialize for W<'_, '_, (&ast::Modifier<'_>, ContractId)> {
+/// A base contract in the inheritance list: an `InheritanceSpecifier` node.
+struct Inheritance<'a, 'ast, 'gcx>(&'a ast::Modifier<'ast>, &'a hir::Modifier<'gcx>);
+
+impl<'gcx> Serialize for W<'_, 'gcx, Inheritance<'_, '_, 'gcx>> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        let Self(cx, (base, id)) = self;
+        let Self(cx, Inheritance(base, hir)) = self;
         let (mut m, _) = cx.node(s, "InheritanceSpecifier", base.span())?;
-        let declaration = Some(cx.item_id(*id));
+        let declaration = Some(cx.item_id(hir.id));
         m.serialize_entry("baseName", &cx.w(IdentPath { path: &base.name, declaration }))?;
+        if !base.arguments.is_dummy() {
+            m.serialize_entry("arguments", &cx.w(expr::Args(&base.arguments, &hir.args)))?;
+        }
         m.end()
     }
 }
@@ -769,6 +837,8 @@ impl Serialize for W<'_, '_, (&ast::Item<'_>, &ast::ItemFunction<'_>, hir::Funct
         let mut m = cx.node_with_id(s, item_id, node_type, item.span)?;
         serialize_docs(&mut m, *cx, &item.docs)?;
         cx.serialize_name(&mut m, f.name)?;
+        // The `return` statements of the body refer to the list of return parameters.
+        let returns_id = (!is_modifier).then(|| cx.json.fresh_id());
         if !is_modifier {
             let kind = if f.is_free() { "freeFunction" } else { f.kind.to_str() };
             m.serialize_entry("kind", kind)?;
@@ -785,14 +855,25 @@ impl Serialize for W<'_, '_, (&ast::Item<'_>, &ast::ItemFunction<'_>, hir::Funct
             }
             _ => header.parameters.span,
         };
-        let parameters =
-            Params { span, ast: header.parameters.vars, hir: f.parameters, scope: item_id };
+        let parameters = Params {
+            id: None,
+            span,
+            ast: header.parameters.vars,
+            hir: f.parameters,
+            scope: item_id,
+        };
         m.serialize_entry("parameters", &cx.w(parameters))?;
         if !is_modifier {
             // The empty list of a function without `returns` sits where its body starts.
             let span =
                 header.returns.as_ref().map_or(function.body_span.shrink_to_lo(), |r| r.span);
-            let returns = Params { span, ast: header.returns(), hir: f.returns, scope: item_id };
+            let returns = Params {
+                id: returns_id,
+                span,
+                ast: header.returns(),
+                hir: f.returns,
+                scope: item_id,
+            };
             m.serialize_entry("returnParameters", &cx.w(returns))?;
             let modifiers =
                 Seq(|| header.modifiers.iter().zip(f.modifiers).map(|(m, hir)| cx.w((m, hir))));
@@ -812,6 +893,19 @@ impl Serialize for W<'_, '_, (&ast::Item<'_>, &ast::ItemFunction<'_>, hir::Funct
             _ => f.visibility.to_str(),
         };
         m.serialize_entry("visibility", visibility)?;
+        if let (Some(ast_body), Some(hir_body)) = (&function.body, &f.body) {
+            let body = expr::Block {
+                docs: None,
+                span: ast_body.span,
+                ast: ast_body,
+                hir: hir_body,
+                unchecked: false,
+            };
+            m.serialize_entry(
+                "body",
+                &Cx { returns: returns_id, function: Some(*id), ..*cx }.w(body),
+            )?;
+        }
         if f.is_part_of_external_interface() {
             m.serialize_entry("functionSelector", &hex::encode(gcx.function_selector(*id)))?;
         }
@@ -824,12 +918,15 @@ impl Serialize for W<'_, '_, (&ast::Item<'_>, &ast::ItemFunction<'_>, hir::Funct
     }
 }
 
-impl Serialize for W<'_, '_, (&ast::Modifier<'_>, &hir::Modifier<'_>)> {
+impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Modifier<'_>, &hir::Modifier<'gcx>)> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self(cx, (modifier, hir)) = self;
         let (mut m, _) = cx.node(s, "ModifierInvocation", modifier.span())?;
         let declaration = Some(cx.item_id(hir.id));
         m.serialize_entry("modifierName", &cx.w(IdentPath { path: &modifier.name, declaration }))?;
+        if !modifier.arguments.is_dummy() {
+            m.serialize_entry("arguments", &cx.w(expr::Args(&modifier.arguments, &hir.args)))?;
+        }
         let kind = match hir.id {
             ItemId::Contract(_) => "baseConstructorSpecifier",
             _ => "modifierInvocation",
@@ -857,6 +954,8 @@ impl Serialize for W<'_, '_, (&ast::Override<'_>, &[ContractId])> {
 
 /// A list of parameters: a `ParameterList` node.
 struct Params<'a, 'ast> {
+    /// The ID of the node, if it was allocated before.
+    id: Option<usize>,
     span: Span,
     ast: &'a [ast::VariableDefinition<'ast>],
     hir: &'a [VariableId],
@@ -866,8 +965,9 @@ struct Params<'a, 'ast> {
 
 impl Serialize for W<'_, '_, Params<'_, '_>> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        let Self(cx, Params { span, ast, hir, scope }) = self;
-        let (mut m, _) = cx.node(s, "ParameterList", *span)?;
+        let Self(cx, Params { id, span, ast, hir, scope }) = self;
+        let id = id.unwrap_or_else(|| cx.json.fresh_id());
+        let mut m = cx.node_with_id(s, id, "ParameterList", *span)?;
         m.serialize_entry("parameters", &cx.w(Vars { ast, hir, scope: *scope }))?;
         m.end()
     }
@@ -884,7 +984,9 @@ impl Serialize for W<'_, '_, Vars<'_, '_>> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self(cx, Vars { ast, hir, scope }) = self;
         s.collect_seq(
-            ast.iter().zip(*hir).map(|(ast, &id)| cx.w(Var { ast, id, docs: None, scope: *scope })),
+            ast.iter()
+                .zip(*hir)
+                .map(|(ast, &id)| cx.w(Var { ast, id, value: false, docs: None, scope: *scope })),
         )
     }
 }
@@ -893,6 +995,9 @@ impl Serialize for W<'_, '_, Vars<'_, '_>> {
 struct Var<'a, 'ast> {
     ast: &'a ast::VariableDefinition<'ast>,
     id: VariableId,
+    /// Whether the variable has its initial value, which a local variable leaves to its
+    /// declaration statement.
+    value: bool,
     /// The documentation, for state variables.
     docs: Option<&'a DocComments<'ast>>,
     /// The ID of the node that declares the variable.
@@ -901,23 +1006,21 @@ struct Var<'a, 'ast> {
 
 impl Serialize for W<'_, '_, Var<'_, '_>> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        let Self(cx, Var { ast, id, docs, scope }) = self;
+        let Self(cx, Var { ast, id, value, docs, scope }) = self;
         let gcx = cx.gcx;
         let var = gcx.hir.variable(*id);
-        // solc leaves the `;` out of the location.
-        let text = cx.text(ast.span);
-        let span = match text.strip_suffix(';') {
-            Some(text_without_semi) => {
-                ast.span.with_hi(ast.span.lo() + text_without_semi.trim_end().len() as u32)
-            }
-            None => ast.span,
-        };
+        let span = cx.without_semicolon(ast.span);
         // The end of a function type is the end of the next token, which an unnamed variable
         // of the type shares.
         let span = match ast.ty.kind {
             ast::TypeKind::Function(_) if var.name.is_none() => {
                 span.with_hi(cx.token_after(ast.ty.span).hi())
             }
+            _ => span,
+        };
+        // A local variable leaves its initial value to the declaration statement.
+        let span = match (&ast.initializer, var.name) {
+            (Some(_), Some(name)) if !*value => span.with_hi(name.span.hi()),
             _ => span,
         };
         let mut m = cx.item_node(s, *id, "VariableDeclaration", span)?;
@@ -944,12 +1047,15 @@ impl Serialize for W<'_, '_, Var<'_, '_>> {
             "visibility",
             var.visibility.unwrap_or(ast::Visibility::Internal).to_str(),
         )?;
+        if *value && let (Some(ast), Some(hir)) = (&ast.initializer, var.initializer) {
+            m.serialize_entry("value", &cx.w((&**ast, hir)))?;
+        }
         m.serialize_entry("scope", scope)?;
         // solc marks the reference types of every variable but a storage state variable as
         // pointers.
         let pointer = !var.is_state_variable() || var.mutability.is_some();
         let ty = gcx.type_of_item((*id).into());
-        m.serialize_entry("typeDescriptions", &ty::TypeDescriptions { gcx, ty, pointer })?;
+        m.serialize_entry("typeDescriptions", &ty::TypeDescriptions::new(gcx, ty, pointer))?;
         if let Some(getter) = var.getter {
             m.serialize_entry("functionSelector", &hex::encode(gcx.function_selector(getter)))?;
             let bases = gcx.base_override_items((*id).into());
@@ -1045,6 +1151,7 @@ impl Serialize for W<'_, '_, (&ast::Item<'_>, &ast::ItemEvent<'_>, hir::EventId)
         serialize_docs(&mut m, *cx, &item.docs)?;
         cx.serialize_name(&mut m, hir.name)?;
         let parameters = Params {
+            id: None,
             span: event.parameters.span,
             ast: event.parameters.vars,
             hir: hir.parameters,
@@ -1067,6 +1174,7 @@ impl Serialize for W<'_, '_, (&ast::Item<'_>, &ast::ItemError<'_>, hir::ErrorId)
         serialize_docs(&mut m, *cx, &item.docs)?;
         cx.serialize_name(&mut m, hir.name)?;
         let parameters = Params {
+            id: None,
             span: error.parameters.span,
             ast: error.parameters.vars,
             hir: hir.parameters,

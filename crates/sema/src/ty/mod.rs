@@ -43,7 +43,7 @@ use thread_local::ThreadLocal;
 pub use crate::natspec::NatSpecView;
 
 mod print;
-pub(crate) use print::TySolcPrinter;
+pub(crate) use print::{Component, TySolcPrinter};
 pub use print::{TyAbiPrinter, TyAbiPrinterMode};
 
 mod common;
@@ -781,6 +781,11 @@ impl<'gcx> Gcx<'gcx> {
     #[inline]
     pub fn unsupported_udvt_operator(self, id: hir::ExprId) -> bool {
         self.typeck_results.get().is_some_and(|results| results.unsupported_udvt_operator(id))
+    }
+
+    /// Returns whether the type-checked expression is a compile-time constant.
+    pub fn is_pure(self, expr: &hir::Expr<'gcx>) -> bool {
+        self.typeck_results.get().is_some_and(|results| results.is_pure(self, expr))
     }
 
     /// Returns the user-defined operator function this operator expression

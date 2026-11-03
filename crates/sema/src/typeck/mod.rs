@@ -20,6 +20,7 @@ use solar_interface::{
 use std::ops::ControlFlow;
 
 mod checker;
+pub(crate) use checker::binop_common_type;
 mod constant_cycles;
 mod constant_divisors;
 mod constant_values;

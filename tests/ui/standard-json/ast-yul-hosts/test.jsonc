@@ -1,0 +1,46 @@
+//@ filecheck:
+// Assembly blocks in a free function, a modifier, a constructor, `receive` and a function with an
+// `unchecked` block, which define Yul functions of the same name, and a constant of another source.
+// CHECK: "absolutePath": "Hosts.sol"
+// CHECK: "nodeType": "InlineAssembly"
+// CHECK: "name": "helper"
+// CHECK: "nodeType": "InlineAssembly"
+// CHECK: "name": "helper"
+// CHECK: "externalReferences": [
+// CHECK: "declaration": {{[0-9]+}}
+// CHECK: "nodeType": "InlineAssembly"
+// CHECK: "name": "check"
+// CHECK: "externalReferences": [
+// CHECK: "suffix": "slot"
+// CHECK: "nodeType": "InlineAssembly"
+// CHECK: "name": "init"
+// CHECK: "externalReferences": [
+// CHECK: "declaration": {{[0-9]+}}
+// CHECK: "suffix": "slot"
+// CHECK: "nodeType": "InlineAssembly"
+// CHECK: "name": "ping"
+// CHECK: "externalReferences": [
+// CHECK: "declaration": {{[0-9]+}}
+// CHECK: "nodeType": "UncheckedBlock"
+// CHECK: "nodeType": "InlineAssembly"
+// CHECK: "name": "one"
+// CHECK: "externalReferences": [
+// CHECK: "declaration": {{[0-9]+}}
+// CHECK: "nodeType": "InlineAssembly"
+// CHECK: "name": "one"
+// CHECK: "name": "two"
+// CHECK: "externalReferences": [
+// CHECK: "declaration": {{[0-9]+}}
+// CHECK: "suffix": "slot"
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "": [
+          "ast"
+        ]
+      }
+    }
+  }
+}

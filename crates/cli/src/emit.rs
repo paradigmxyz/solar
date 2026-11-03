@@ -481,6 +481,9 @@ fn emit_combined_json(
         .then(|| make_ethdebug_compilation(gcx, None));
     let source_map_encoder =
         (emit_srcmap || emit_srcmap_runtime).then(|| SourceMapEncoder::new(gcx));
+    if emit_ast {
+        gcx.dcx().has_errors()?;
+    }
     let ast_json = emit_ast.then(|| gcx.ast_json());
     let mut output = CombinedJson {
         source_list: (emit_ast || source_map_encoder.is_some()).then(|| {
@@ -1017,9 +1020,13 @@ pub(crate) fn to_json<W: io::Write, T: serde::Serialize>(
     value: &T,
     pretty: bool,
 ) -> serde_json::Result<()> {
+    // serde_json makes many tiny writes. A concrete buffer lets them inline, which a `dyn Write`
+    // behind the caller's buffer does not.
+    let mut writer = io::BufWriter::with_capacity(1 << 16, writer);
     if pretty {
-        serde_json::to_writer_pretty(writer, value)
+        serde_json::to_writer_pretty(&mut writer, value)?;
     } else {
-        serde_json::to_writer(writer, value)
+        serde_json::to_writer(&mut writer, value)?;
     }
+    writer.flush().map_err(serde_json::Error::io)
 }
