@@ -1,0 +1,46 @@
+// === ROOT/tests/ui/codegen/mir/if-convert/exp2_steps.sol:Exp2Steps ===
+@module Exp2Steps
+; function step(uint256 x, uint256 result) external pure returns (uint256) [selector 0xc3ea1f13]
+fn @step(arg0: i256, arg1: i256) -> i256 [selector=0xc3ea1f13, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = and arg0, 0x8000000000000000
+    v1 = gt v0, 0
+    jumpi v1, bb1, bb2
+  bb2:  ; preds = bb0
+    jump bb3
+  bb1:  ; preds = bb0
+    v2 = checked_mul uint256, arg1, 0x16a09e667f3bcc909
+    v3 = shr v2, 64
+    jump bb3
+  bb3:  ; preds = bb1, bb2
+    v4 = phi [bb1: v3], [bb2: arg1]
+    ret v4
+}
+
+; function two(uint256 x, uint256 result) external pure returns (uint256) [selector 0x744f15d9]
+fn @two(arg0: i256, arg1: i256) -> i256 [selector=0x744f15d9, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = and arg0, 0x8000000000000000
+    v1 = gt v0, 0
+    jumpi v1, bb1, bb2
+  bb2:  ; preds = bb0
+    jump bb3
+  bb1:  ; preds = bb0
+    v2 = checked_mul uint256, arg1, 0x16a09e667f3bcc909
+    v3 = shr v2, 64
+    jump bb3
+  bb3:  ; preds = bb1, bb2
+    v4 = phi [bb1: v3], [bb2: arg1]
+    v5 = and arg0, 0x4000000000000000
+    v6 = gt v5, 0
+    jumpi v6, bb4, bb5
+  bb5:  ; preds = bb3
+    jump bb6
+  bb4:  ; preds = bb3
+    v7 = checked_mul uint256, v4, 0x1306fe0a31b7152de
+    v8 = shr v7, 64
+    jump bb6
+  bb6:  ; preds = bb4, bb5
+    v9 = phi [bb4: v8], [bb5: v4]
+    ret v9
+}

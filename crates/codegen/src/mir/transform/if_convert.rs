@@ -42,7 +42,9 @@
 //! than the branch, the arm jump, their labels, and the arm that runs on an
 //! average path. The selects read the condition as a zero-or-one word, one
 //! copy each, while the branch reads a word tested against zero directly, so
-//! such a test pays for its comparison only after conversion. Runs after the
+//! such a test pays for its comparison only after conversion. A general select
+//! whose two values are both computed pays the Select emitter's sequence,
+//! including the swap that orders them for the subtraction. Runs after the
 //! late CFG cleanup, so folded conditions never reach it, and before hot-leaf
 //! inlining, so cloned lookup helpers arrive already branch-free. Converts a
 //! sweep of sites with updated predecessor lists before running CFG cleanup,
@@ -444,6 +446,13 @@ fn select_cost(func: &Function, target: &Target, select: &Select, shared: bool) 
         SelectForm::Or { negated } => {
             let cost = target.opcode(op::OR);
             if negated { cost.plus(target.opcode(op::ISZERO)) } else { cost }
+        }
+        // f + c * (t - f), with both values computed and the difference needing a swap
+        SelectForm::General(None)
+            if func.value_u256(select.then_value).is_none()
+                && func.value_u256(select.else_value).is_none() =>
+        {
+            target.select(false)
         }
         // f + c * (t - f), with f used twice
         SelectForm::General(None) => {
