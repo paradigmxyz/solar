@@ -8,9 +8,11 @@
 //! Static helpers overlay when their activations cannot coexist. The conservative placement
 //! reserves a region above every external entry; a final call-graph relaxation can lower each
 //! helper above its actual callers instead. Shared helpers take the maximum caller end, and an
-//! entry's heap starts above all reachable frames. This refinement must converge, never increase
-//! a frame address, and preserves the separate recursive-frame prefix and heap-prefix guards.
-//! All decisions use executable references and are independent of debug metadata.
+//! entry's heap starts above all reachable frames. A tail call from one entry into another sets
+//! no bound: the caller's memory is dead there, so an entry's helpers start above its own spill
+//! area, not its dispatcher's. This refinement must converge, never increase a frame address,
+//! and preserves the separate recursive-frame prefix and heap-prefix guards. All decisions use
+//! executable references and are independent of debug metadata.
 
 use super::{
     ArgIdx, Body, CallGraphInfo, DebugFunction, DebugFunctionExit, DeferredConst, DenseBitSet,
@@ -361,7 +363,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
             for block in func.blocks.iter() {
-                if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
+                // An entry's tail call into another entry never returns and entries take no
+                // arguments in the lowered phase, so nothing the caller placed reaches the
+                // callee: its helpers start above its own spill area.
+                if let Some(Terminator::TailCall { function, .. }) = &block.terminator
+                    && !(runtime_entries.contains(&func_id) && runtime_entries.contains(function))
+                {
                     edges.push((func_id, *function));
                 }
             }
