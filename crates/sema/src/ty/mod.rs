@@ -1054,7 +1054,7 @@ impl<'gcx> Gcx<'gcx> {
                 match array.size {
                     Some(size) => match self.early_const_eval().eval_array_len(size) {
                         Ok(size) => TyKind::Array(elem, size),
-                        Err(guar) => TyKind::Array(self.mk_ty_err(guar), U256::from(1)),
+                        Err(guar) => TyKind::Array(self.mk_ty_err(guar), U256::ONE),
                     },
                     None => TyKind::DynArray(elem),
                 }

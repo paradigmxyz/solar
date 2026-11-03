@@ -474,7 +474,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let (data, _, old_length) = decode_storage_bytes_header(&mut self.builder, slot);
         let one = self.builder.imm(1);
         let new_length = self.builder.add(old_length, one);
-        let max_length = self.builder.imm(U256::from(1u64) << 64);
+        let max_length = self.builder.imm(U256::ONE << 64);
         let too_long = self.builder.gt(new_length, max_length);
         self.builder.panic_if(too_long, PanicCode::MemoryAllocationOverflow);
 
@@ -663,7 +663,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // old_length = extract_length(data)
         // if !(old_length < 2**64) { panic(MemoryAllocationOverflow) }
         let (data, _, old_length) = decode_storage_bytes_header(&mut self.builder, slot);
-        let max_length = self.builder.imm(U256::from(1u64) << 64);
+        let max_length = self.builder.imm(U256::ONE << 64);
         let in_range = self.builder.lt(old_length, max_length);
         let too_long = self.builder.eq_zero(in_range);
         self.builder.panic_if(too_long, PanicCode::MemoryAllocationOverflow);
@@ -1519,7 +1519,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if remainder != 0 {
                     let slot_index = self.builder.imm(length / per_slot);
                     let used_bits = size.bits() * remainder;
-                    let mask = (U256::from(1) << used_bits) - U256::from(1);
+                    let mask = (U256::ONE << used_bits) - U256::ONE;
                     let mask = self.builder.imm(mask);
                     self.clear_unused_packed_array_elements(slot, slot_index, mask);
                 }

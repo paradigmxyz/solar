@@ -846,8 +846,7 @@ impl<'a, 'gcx> Builder<'a, 'gcx> {
             }
             StmtKind::Placeholder => {
                 if let Some((entry, exit)) = self.placeholder {
-                    self.connect(self.current, entry);
-                    self.current = self.new_node();
+                    self.jump(entry);
                     self.connect(exit, self.current);
                 }
             }

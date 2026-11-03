@@ -935,7 +935,7 @@ fn ty_storage_size_upper_bound(ty: Ty<'_>, gcx: Gcx<'_>) -> Result<Option<U256>,
         | TyKind::Udvt(..)
         | TyKind::Enum(..)
         | TyKind::Fn(..)
-        | TyKind::DynArray(..) => Ok(Some(U256::from(1))),
+        | TyKind::DynArray(..) => Ok(Some(U256::ONE)),
         TyKind::Ref(ty, _) => ty_storage_size_upper_bound(ty, gcx),
         TyKind::Array(ty, uint) => {
             // https://github.com/argotorg/solidity/blob/03e2739809769ae0c8d236a883aadc900da60536/libsolidity/ast/Types.cpp#L1800C1-L1806C2
@@ -944,7 +944,7 @@ fn ty_storage_size_upper_bound(ty: Ty<'_>, gcx: Gcx<'_>) -> Result<Option<U256>,
         }
         TyKind::Struct(struct_id) => {
             // https://github.com/argotorg/solidity/blob/03e2739809769ae0c8d236a883aadc900da60536/libsolidity/ast/Types.cpp#L2303C1-L2309C2
-            let mut total_size = U256::from(1);
+            let mut total_size = U256::ONE;
             for t in gcx.struct_field_types(struct_id) {
                 let Some(size_contribution) = ty_storage_size_upper_bound(*t, gcx)? else {
                     return Ok(None);
@@ -1072,7 +1072,7 @@ fn check_error(gcx: Gcx<'_>, id: hir::ErrorId) {
         );
     } else if params.is_ok() {
         let selector = gcx.function_selector(id);
-        if selector == Selector::ZERO || selector == Selector::repeat_byte(0xff) {
+        if selector.is_zero() || selector == Selector::repeat_byte(0xff) {
             gcx.dcx()
                 .err_code_at(
                     error.span,
