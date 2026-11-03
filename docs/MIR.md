@@ -708,7 +708,8 @@ terminators. Layout places the taken arm before its join so assembly can omit
 the arm’s jump. Known loops and cold arms keep their existing order, and the
 conversion preserves source origins and keeps glued instructions intact. Debug events move to retained operations where representable.
 
-EVM layout packs small shared terminal traces below the PUSH1 address limit.
+EVM layout packs small shared terminal traces, and cold traces that end in a jump such
+as revert stubs, below the PUSH1 address limit.
 It moves the whole fallthrough trace, so moving a shared exit does not insert
 jumps between its predecessor blocks. Multi-block traces must end at an exit
 with at least four references beyond the low-address range; the stricter limit
@@ -799,8 +800,9 @@ block list does not prevent reuse.
 ### Backend layout in final dumps
 
 `-Zdump=mir-final` runs backend placement and appends versioned
-`// backend-memory-v1` comments to the lowered module. `solar-mir` parses and
-prints them (`crates/mir/src/backend_memory.rs`), and the backend fills them in
+`; backend-memory-v1` comments to the lowered module. `solar-mir` parses and
+prints them (`crates/mir/src/backend_memory.rs`; the parser also reads the same
+records after `//`), and the backend fills them in
 `backend/evm/codegen/`. The records give static allocation addresses, dynamic
 FMP increments, published return-buffer addresses, entry FMP initialization,
 heap-floor constants, the end of the frames and spill slots each runtime entry

@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lower-abi-encode/byte_padding.mir (before lower-abi-encode) ===
-+ // === ROOT/tests/ui/codegen/mir/lower-abi-encode/byte_padding.mir (after lower-abi-encode) ===
+- ; === ROOT/tests/ui/codegen/mir/lower-abi-encode/byte_padding.mir (before lower-abi-encode) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-abi-encode/byte_padding.mir (after lower-abi-encode) ===
   @module BytePadding
   fn @encode(arg0: slice<calldata>) -> slice<memory> {
     bb0:

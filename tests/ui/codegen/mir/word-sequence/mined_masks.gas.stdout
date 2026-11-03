@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/word-sequence/mined_masks.mir (before word-sequence) ===
-+ // === ROOT/tests/ui/codegen/mir/word-sequence/mined_masks.mir (after word-sequence) ===
+- ; === ROOT/tests/ui/codegen/mir/word-sequence/mined_masks.mir (before word-sequence) ===
++ ; === ROOT/tests/ui/codegen/mir/word-sequence/mined_masks.mir (after word-sequence) ===
   @module MinedMasks
   @types
     struct0: {i256, i256}
@@ -178,8 +178,8 @@
       ret v2
   }
   
-- // === ROOT/tests/ui/codegen/mir/word-sequence/mined_masks.mir (before dce) ===
-+ // === ROOT/tests/ui/codegen/mir/word-sequence/mined_masks.mir (after dce) ===
+- ; === ROOT/tests/ui/codegen/mir/word-sequence/mined_masks.mir (before dce) ===
++ ; === ROOT/tests/ui/codegen/mir/word-sequence/mined_masks.mir (after dce) ===
   @module MinedMasks
   @types
     struct0: {i256, i256}

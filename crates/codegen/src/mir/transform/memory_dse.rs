@@ -520,7 +520,7 @@ fn forges_free_pointer(func: &Function, alias: &AliasAnalysis, inst: InstId) -> 
             if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT) =>
         {
             if let Some(value) = func.value_u256(value) {
-                return value.as_limbs()[0] < EvmMemoryLayout::HEAP_START;
+                return value.wrapping_to::<u64>() < EvmMemoryLayout::HEAP_START;
             }
             let Value::Inst(stored) = *func.value(value) else { return true };
             let stored = func.inst(stored);
@@ -2967,7 +2967,7 @@ impl AllocWalk<'_> {
             // `and x, mask` is monotonic in `x` when the mask only clears low bits.
             InstKind::And(x, mask) | InstKind::And(mask, x)
                 if let Some(mask) = func.value_u256(mask)
-                    && (!mask & (!mask).wrapping_add(U256::from(1))).is_zero() =>
+                    && (!mask & (!mask).wrapping_add(U256::ONE)).is_zero() =>
             {
                 crate::mir::utils::u256_to_u64(U256::from(bound(x)) & mask).unwrap_or(u64::MAX)
             }

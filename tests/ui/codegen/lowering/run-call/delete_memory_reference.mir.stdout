@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/delete_memory_reference.sol:DeleteMemoryReference ===
+; === ROOT/tests/ui/codegen/lowering/run-call/delete_memory_reference.sol:DeleteMemoryReference ===
 @module DeleteMemoryReference
 @types
   struct0: {i256, i256, i256}

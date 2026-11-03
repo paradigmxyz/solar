@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/library_storage_pointer_return.sol:Lib ===
+; === ROOT/tests/ui/codegen/lowering/library_storage_pointer_return.sol:Lib ===
 @module Lib
 @library
 @types
@@ -58,7 +58,7 @@ fn @pairRef(arg0: i256) -> struct1 [selector=0x4a3c24da, view, abi_params=[stora
     ret v2
 }
 
-// === ROOT/tests/ui/codegen/lowering/library_storage_pointer_return.sol:C ===
+; === ROOT/tests/ui/codegen/lowering/library_storage_pointer_return.sol:C ===
 @module C
 @types
   struct0: {i256, i256}
@@ -76,9 +76,9 @@ fn @len() -> i256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word],
     icall revert_if<target_contract_has_no_code>, v5
     v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 32
     jumpi v6, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v7 = mload v1
     v8 = sload v7 !metadata(storage=symbolic(v7))
     ret v8
@@ -96,9 +96,9 @@ fn @bytesLen() -> i256 [selector=0x6a4634a6, view, abi_params=[], abi_returns=[w
     icall revert_if<target_contract_has_no_code>, v5
     v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 32
     jumpi v6, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v7 = mload v1
     v8 = sload v7 !metadata(storage=symbolic(v7))
     validate_storage_bytes v8
@@ -123,9 +123,9 @@ fn @member() -> i256 [selector=0xe3f6b544, view, abi_params=[], abi_returns=[wor
     icall revert_if<target_contract_has_no_code>, v5
     v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 32
     jumpi v6, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v7 = mload v1
     v8 = sload v7 !metadata(storage=symbolic(v7))
     ret v8
@@ -143,9 +143,9 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[wo
     icall revert_if<target_contract_has_no_code>, v5
     v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 64
     jumpi v6, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v7 = mload v1
     v8 = ptrtoint ptr<memory> v1 to i256
     v9 = add v8, 32
@@ -172,9 +172,9 @@ fn @fixedLast() -> i256 [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[
     icall revert_if<target_contract_has_no_code>, v5
     v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 32
     jumpi v6, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v7 = mload v1
     v8 = lt 2, 3
     v9 = eq v8, false
@@ -196,9 +196,9 @@ fn @mapValue(arg0: i256) -> i256 [selector=0x152381f4, view, abi_params=[uint256
     icall revert_if<target_contract_has_no_code>, v5
     v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 32
     jumpi v6, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v7 = mload v1
     v8 = mapping_slot arg0, v7
     v9 = sload v8 !metadata(storage=symbolic(v8))
@@ -218,9 +218,9 @@ fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[wor
     icall revert_if<target_contract_has_no_code>, v6
     v7 = delegatecall v4, 0x1111111111111111111111111111111111111111, v2, v3, v2, 96
     jumpi v7, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     mcopy v0, v2, 96
     v8 = make_memory_slice v0, 96
     v9 = abi_decode [storageptr, array<2, uint256>], v8
@@ -253,9 +253,9 @@ fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[w
     icall revert_if<target_contract_has_no_code>, v5
     v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 32
     jumpi v6, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v7 = mload v1
     v8 = sload v7 !metadata(storage=symbolic(v7))
     ret v8

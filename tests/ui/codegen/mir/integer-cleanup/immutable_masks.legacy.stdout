@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/integer-cleanup/immutable_masks.mir (before integer-cleanup) ===
-+ // === ROOT/tests/ui/codegen/mir/integer-cleanup/immutable_masks.mir (after integer-cleanup) ===
+- ; === ROOT/tests/ui/codegen/mir/integer-cleanup/immutable_masks.mir (before integer-cleanup) ===
++ ; === ROOT/tests/ui/codegen/mir/integer-cleanup/immutable_masks.mir (after integer-cleanup) ===
   @module ImmutableMasks
   @immutables
     account: uint160

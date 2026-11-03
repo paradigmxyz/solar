@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/low_level_call_evaluation_order.sol:LowLevelCallEvaluationOrder ===
+; === ROOT/tests/ui/codegen/lowering/run-call/low_level_call_evaluation_order.sol:LowLevelCallEvaluationOrder ===
 @module LowLevelCallEvaluationOrder
 @types
   struct0: {ptr<memory>, ptr<memory>}
@@ -117,11 +117,11 @@ fn @captureAcrossCalls() -> struct0 [selector=0x23d1e290, abi_params=[], abi_ret
     v12 = address_call v7, v11, gas v8
     v13 = icall returndata_bytes<>
     jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v14 = phi [bb1: v12], [bb2: false]
     v15 = eq v14, false
     icall revert_if<empty>, v15

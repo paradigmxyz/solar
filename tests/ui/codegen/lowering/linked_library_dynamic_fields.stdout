@@ -1,6 +1,6 @@
-// === ROOT/tests/ui/codegen/lowering/linked_library_dynamic_fields.sol:L (runtime) ===
+; === ROOT/tests/ui/codegen/lowering/linked_library_dynamic_fields.sol:L (runtime) ===
 @module L_runtime
-bb0:  ; runtime dispatch entry
+bb0:                                              ; runtime dispatch entry
   push 0
   calldataload
   push 224
@@ -27,7 +27,7 @@ bb26 [cold]:
   push 36
   push 28
   revert
-bb1:  ; function apply_(mapping(address => uint256) storage m, P memory p) public returns (uint256) [selector 0xfa06cb96]
+bb1:                                              ; function apply_(mapping(address => uint256) storage m, P memory p) public returns (uint256) [selector 0xfa06cb96]
   push_immutable 0, 20
   address
   eq
@@ -98,7 +98,7 @@ bb1:  ; function apply_(mapping(address => uint256) storage m, P memory p) publi
   shl
   push bb8
   jump bb25
-bb25 [ret=0, inputs=2, outputs=1]:  ; alloc (synthesized)
+bb25 [ret=0, inputs=2, outputs=1]:                ; alloc (synthesized)
   push 64
   mload
   swap 2
@@ -335,9 +335,9 @@ bb22 [cold]:
 bb21 [cold]:
   push 50
   jump bb26
-// === ROOT/tests/ui/codegen/lowering/linked_library_dynamic_fields.sol:C (runtime) ===
+; === ROOT/tests/ui/codegen/lowering/linked_library_dynamic_fields.sol:C (runtime) ===
 @module C_runtime
-bb0:  ; runtime dispatch entry
+bb0:                                              ; runtime dispatch entry
   callvalue
   push bb4
   jumpi
@@ -360,7 +360,7 @@ bb4 [cold]:
   push 0
   push 0
   revert
-bb5 [entry]:  ; getter for `mapping(address => uint256) public score` [selector 0x776f3843]
+bb5 [entry]:                                      ; getter for `mapping(address => uint256) public score` [selector 0x776f3843]
   push 4
   calldataload
   push 160
@@ -387,7 +387,7 @@ bb5 [entry]:  ; getter for `mapping(address => uint256) public score` [selector 
   push 32
   push 0
   return
-bb8 [entry]:  ; function go(uint256 base, uint256[] calldata xs, bytes calldata tag, address who) external returns (uint256) [selector 0x2220ae27]
+bb8 [entry]:                                      ; function go(uint256 base, uint256[] calldata xs, bytes calldata tag, address who) external returns (uint256) [selector 0x2220ae27]
   push 100
   calldataload
   push 160

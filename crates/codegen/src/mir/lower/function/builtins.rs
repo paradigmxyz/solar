@@ -496,17 +496,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }))
             }
             TyKind::Elementary(ElementaryType::UInt(size)) => {
-                let max = (U256::from(1) << size.bits()) - U256::from(1);
+                let max = (U256::ONE << size.bits()) - U256::ONE;
                 Some(match maximum {
                     true => max,
                     false => U256::ZERO,
                 })
             }
             TyKind::Elementary(ElementaryType::Int(size)) => {
-                let magnitude = U256::from(1) << (size.bits() - 1);
+                let magnitude = U256::ONE << (size.bits() - 1);
                 Some(match maximum {
-                    true => magnitude - U256::from(1),
-                    false => U256::MAX - magnitude + U256::from(1),
+                    true => magnitude - U256::ONE,
+                    false => U256::MAX - magnitude + U256::ONE,
                 })
             }
             _ => self.cx.report_unsupported(span, "type limit"),
@@ -1042,17 +1042,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: &hir::CallArgs<'_>,
     ) -> Option<[ValueId; N]> {
         let exprs = self.builtin_args::<N>(builtin, args)?;
+        // Yul builtins take raw words, so they have no declared parameter types to convert to.
         let parameters = match builtin.ty(self.cx.gcx).kind {
-            TyKind::Fn(function) => function.parameters,
+            TyKind::Fn(function) if !builtin.is_yul() => function.parameters,
             _ => &[],
         };
         let values = self.lower_argument_exprs(
             CallArgumentParams { count: N, names: None, reverse: builtin.is_yul() },
             exprs.iter().enumerate(),
             |this, index, expr| {
-                if builtin.is_yul() {
-                    return this.lower_yul_word_expr(expr);
-                }
                 // Solidity builtins convert every argument to the declared parameter type. A
                 // narrow local dirtied by inline assembly is cleaned here, before any semantic
                 // check such as the zero-modulus panic observes it.

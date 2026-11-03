@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/storage_checked_arithmetic.sol:StorageCheckedArithmetic ===
+; === ROOT/tests/ui/codegen/lowering/storage_checked_arithmetic.sol:StorageCheckedArithmetic ===
 @module StorageCheckedArithmetic
 ; function storage_sub(address owner, uint256 amount) public [selector 0x8af2db43]
 fn @storage_sub(arg0: i160, arg1: i256) [selector=0x8af2db43, abi_params=[address, uint256], abi_returns=[], abi_return_params=[]] {
@@ -9,10 +9,10 @@ fn @storage_sub(arg0: i160, arg1: i256) [selector=0x8af2db43, abi_params=[addres
     v4 = sub v2, arg1
     v5 = lt v2, arg1
     jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     sstore v1, v4
     ret
-  bb1 [cold]:  ; preds = bb0
+  bb1 [cold]:                                     ; preds = bb0
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -27,12 +27,12 @@ fn @storage_binary_sub(arg0: i160, arg1: i256) [selector=0x816bb6a5, abi_params=
     v6 = sub v2, arg1
     v7 = lt v2, arg1
     jumpi v7, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = zext i160 arg0 to i256
     v5 = mapping_slot v4, 0
     sstore v5, v6
     ret
-  bb1 [cold]:  ; preds = bb0
+  bb1 [cold]:                                     ; preds = bb0
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -50,7 +50,7 @@ fn @storage_struct_add(arg0: i160, arg1: i128) [selector=0xb11dd1b8, abi_params=
     v12 = add v10, v11
     v13 = gt v12, 0xffffffffffffffffffffffffffffffff
     jumpi v13, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v14 = trunc i256 v12 to i128
     v5 = sload v1 !metadata(storage=symbolic(v1))
     v6 = and v5, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
@@ -59,7 +59,7 @@ fn @storage_struct_add(arg0: i160, arg1: i128) [selector=0xb11dd1b8, abi_params=
     v9 = or v6, v8
     sstore v1, v9 !metadata(storage=symbolic(v1))
     ret
-  bb1 [cold]:  ; preds = bb0
+  bb1 [cold]:                                     ; preds = bb0
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -92,7 +92,7 @@ fn @storage_struct_signed_sub(arg0: i160, arg1: i8) [selector=0x14ebfa30, abi_pa
     v28 = or v23, v27
     v29 = ne v28, 0
     jumpi v29, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v30 = trunc i256 v15 to i8
     v7 = sload v1 !metadata(storage=symbolic(v1))
     v8 = and v7, 0xffffffffffffffffffffffffffffff00ffffffffffffffffffffffffffffffff
@@ -102,7 +102,7 @@ fn @storage_struct_signed_sub(arg0: i160, arg1: i8) [selector=0x14ebfa30, abi_pa
     v12 = or v8, v11
     sstore v1, v12 !metadata(storage=symbolic(v1))
     ret
-  bb1 [cold]:  ; preds = bb0
+  bb1 [cold]:                                     ; preds = bb0
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36

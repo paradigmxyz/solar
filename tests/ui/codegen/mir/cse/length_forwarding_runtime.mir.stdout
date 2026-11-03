@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/cse/length_forwarding_runtime.sol:Test ===
+; === ROOT/tests/ui/codegen/mir/cse/length_forwarding_runtime.sol:Test ===
 @module Test
 ; function relay(bytes memory s) external returns (bytes memory) [selector 0x8f0d6f17]
 fn @relay(arg0: ptr<memory>) -> ptr<memory> [selector=0x8f0d6f17, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

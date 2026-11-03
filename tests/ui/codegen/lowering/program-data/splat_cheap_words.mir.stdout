@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/program-data/splat_cheap_words.sol:C ===
+; === ROOT/tests/ui/codegen/lowering/program-data/splat_cheap_words.sol:C ===
 @module C
 ; function f() external pure returns (bytes32) [selector 0x26121ff0]
 fn @f() -> i256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {

@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/peephole/constant_swaps.evmir (before peephole) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/peephole/constant_swaps.evmir (after peephole) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/peephole/constant_swaps.evmir (before peephole) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/peephole/constant_swaps.evmir (after peephole) ===
   @module ConstantSwaps
   bb0 [stack=5]:
 +   swap 4

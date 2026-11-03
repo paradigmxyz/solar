@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/copy-loop-blocks/copy_loop_blocks.evmir (before copy-loop-blocks) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/copy-loop-blocks/copy_loop_blocks.evmir (after copy-loop-blocks) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/copy-loop-blocks/copy_loop_blocks.evmir (before copy-loop-blocks) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/copy-loop-blocks/copy_loop_blocks.evmir (after copy-loop-blocks) ===
   @module CopyLoopBlocks
   bb0:
     push 3

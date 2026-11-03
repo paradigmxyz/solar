@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/abi_fixed_bytes_roundtrip.sol:AbiFixedBytesRoundtrip ===
+; === ROOT/tests/ui/codegen/lowering/abi_fixed_bytes_roundtrip.sol:AbiFixedBytesRoundtrip ===
 @module AbiFixedBytesRoundtrip
 ; function bare(bytes12 id) external pure returns (bytes12) [selector 0x1cd66b10]
 fn @bare(arg0: i256) -> i256 [selector=0x1cd66b10, pure, abi_params=[bytes12], abi_returns=[word<bytes12>], abi_return_params=[bytes12]] {

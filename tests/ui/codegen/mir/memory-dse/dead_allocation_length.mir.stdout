@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/memory-dse/dead_allocation_length.sol:DeadAllocationLength ===
+; === ROOT/tests/ui/codegen/mir/memory-dse/dead_allocation_length.sol:DeadAllocationLength ===
 @module DeadAllocationLength
 ; fallback(bytes calldata input) external returns (bytes memory) [fallback]
 fn @fallback(arg0: slice<calldata>) -> ptr<memory> [fallback] {
@@ -24,11 +24,11 @@ fn @fallback(arg0: slice<calldata>) -> ptr<memory> [fallback] {
     v16 = icall returndata_bytes<>
     v17 = eq v15, false
     jumpi v17, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     ret v16
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v18 = ptrtoint ptr<memory> v16 to i256
     v19 = mload v16
     v20 = ptrtoint ptr<memory> v16 to i256

@@ -343,7 +343,7 @@ fn promote(func: &mut Function, loop_data: &Loop, preheader: BlockId, candidates
     // `(dirty_addr, dirty_value)` tracks.
     let dirty = if let [candidate @ Candidate { init_store: None, .. }] = candidates {
         let dirty_addr = allocate_temp_addr(func);
-        let dirty_value = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(1))));
+        let dirty_value = func.alloc_value(Value::Immediate(Immediate::I256(U256::ONE)));
         // [v = sload slot; mstore temp, v;] mstore dirty_addr, 0
         if candidate.needs_initial_load {
             let (load_inst, load_value) =

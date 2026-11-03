@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lower-slices/frame_offset_overflow.mir (before lower-slices) ===
-+ // === ROOT/tests/ui/codegen/mir/lower-slices/frame_offset_overflow.mir (after lower-slices) ===
+- ; === ROOT/tests/ui/codegen/mir/lower-slices/frame_offset_overflow.mir (before lower-slices) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-slices/frame_offset_overflow.mir (after lower-slices) ===
   @module FrameOffsetOverflow
   fn @overflow(arg0: slice<memory>) {
     bb0:

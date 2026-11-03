@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/outline/exclusive_entries.evmir (before outline) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/outline/exclusive_entries.evmir (after outline) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/outline/exclusive_entries.evmir (before outline) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/outline/exclusive_entries.evmir (after outline) ===
   @module ExclusiveEntries
   bb0:
     push 0

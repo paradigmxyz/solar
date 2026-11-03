@@ -1,4 +1,4 @@
-error: unresolved symbol `_`
+error[7576]: unresolved symbol `_`
    ╭▸ ROOT/tests/ui/typeck/invalid_placeholder.sol:LL:CC
    │
 LL │       _;

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/literal_alias.sol:LiteralAlias ===
+; === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/literal_alias.sol:LiteralAlias ===
 @module LiteralAlias
 ; function overwritten(bytes32 word) external pure returns (bytes memory) [selector 0x55dcfb46]
 fn @overwritten(arg0: i256) -> ptr<memory> [selector=0x55dcfb46, pure, abi_params=[bytes32], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
