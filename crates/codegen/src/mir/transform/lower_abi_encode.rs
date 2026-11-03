@@ -889,9 +889,7 @@ fn write_head_before_object(
         let five = builder.imm(5);
         builder.shl(length, five)
     } else {
-        let thirty_one = builder.imm(31);
-        let rounded = builder.add(length, thirty_one);
-        let padded = builder.mask_padded_size(rounded);
+        let padded = builder.pad_to_word(length);
         // object: [length, bytes..., stale padding]
         // => [length, bytes..., zero padding]
         let source = builder.memory_data(object);
@@ -955,9 +953,7 @@ fn lower_encode(
             // object = alloc aligned_size + 32 !preserves_fmp
             let allocation_size = builder.imm(aligned_size.saturating_add(32));
             let object = builder.alloc(allocation_size, crate::mir::AllocationSemantics::INTERNAL);
-            if let Value::Inst(alloc) = *builder.func().value(object) {
-                builder.func_mut().inst_mut(alloc).metadata.set_preserves_fmp(true);
-            }
+            builder.mark_preserves_fmp(object);
             let total = builder.imm(total_size);
             builder.set_memory_len(object, total);
             if let Some(selector) = selector {
@@ -1040,7 +1036,7 @@ fn lower_encode(
         // mstore object, total
         let allocation_size = builder.checked_padded_size(total);
         let object = builder.alloc(allocation_size, crate::mir::AllocationSemantics::INTERNAL);
-        preserve_encoding_address(builder, object);
+        builder.mark_preserves_fmp(object);
         builder.set_memory_len(object, total);
         return object;
     }
@@ -1053,7 +1049,7 @@ fn lower_encode(
     // allocated = alloc aligned !metadata(preserves_fmp)
     // make_slice allocated, total
     let allocated = builder.alloc(aligned, crate::mir::AllocationSemantics::INTERNAL);
-    preserve_encoding_address(builder, allocated);
+    builder.mark_preserves_fmp(allocated);
     builder.make_slice(allocated, total, PtrLocation::Memory)
 }
 
@@ -1084,15 +1080,6 @@ fn literal_tuple_size(
     }
     size.checked_next_multiple_of(32)?;
     has_payload.then_some(size)
-}
-
-/// The reservation commits bytes already written through a separate FMP read.
-fn preserve_encoding_address(builder: &mut FunctionBuilder<'_>, allocation: ValueId) {
-    let Value::Inst(inst) = *builder.func().value(allocation) else {
-        unreachable!("allocation result must reference its instruction")
-    };
-    // allocation !metadata(preserves_fmp)
-    builder.func_mut().inst_mut(inst).metadata.set_preserves_fmp(true);
 }
 
 /// Encodes a statically shaped tuple into an existing physical return buffer.

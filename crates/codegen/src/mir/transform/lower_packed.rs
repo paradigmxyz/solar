@@ -188,9 +188,7 @@ impl PackedEncoder<'_, '_> {
             self.builder.alloc_bytes_object(total, AllocationSemantics::INTERNAL)
         };
         // output = alloc bytes(...) !preserves_fmp
-        if let Value::Inst(alloc) = *self.builder.func().value(output) {
-            self.builder.func_mut().inst_mut(alloc).metadata.set_preserves_fmp(true);
-        }
+        self.builder.mark_preserves_fmp(output);
 
         let mut offset = self.builder.imm(0);
         let mut index = 0;
