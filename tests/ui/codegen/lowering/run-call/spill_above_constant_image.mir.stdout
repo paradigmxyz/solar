@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/spill_above_constant_image.sol:Registry ===
 @module Registry
 ; function createAccount( address implementation, bytes32 salt, uint256 chainId, address tokenContract, uint256 tokenId ) external returns (address) [selector 0x8a54c52f]
-fn @createAccount(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [selector=0x8a54c52f, abi_params=[address, bytes32, uint256, address, uint256], abi_returns=[word<uint160>], abi_return_params=[address]] {
+fn @createAccount(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) -> i160 [selector=0x8a54c52f, abi_params=[address, bytes32, uint256, address, uint256], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
     calldatacopy 140, 36, 128
     mstore 108, 0x5af43d82803e903d91602b57fd5bf3 !metadata(memory=scratch)

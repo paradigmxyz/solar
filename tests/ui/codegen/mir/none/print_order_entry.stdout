@@ -1,0 +1,41 @@
+- // === ROOT/tests/ui/codegen/mir/none/print_order_entry.mir (before none) ===
++ // === ROOT/tests/ui/codegen/mir/none/print_order_entry.mir (after none) ===
+  @module PrintOrderEntry
+  @phase lowered
+  ; creation entry
+  fn @constructor() [constructor] {
+    bb0:
+      stop
+  }
+  
+  ; runtime dispatch entry
+  fn @entry() [entry] {
+    bb0:
+      v0 = calldatasize
+      switch v0, default bb1, [0 => bb2]
+    bb2:  ; preds = bb0
+      tail_call @receive
+    bb1:  ; preds = bb0
+      tail_call @fallback
+  }
+  
+  fn @receive() [receive] {
+    bb0:
+      stop
+  }
+  
+  fn @fallback() [fallback] {
+    bb0:
+      stop
+  }
+  
+  fn @helper_a() {
+    bb0:
+      stop
+  }
+  
+  fn @helper_b() {
+    bb0:
+      stop
+  }
+  

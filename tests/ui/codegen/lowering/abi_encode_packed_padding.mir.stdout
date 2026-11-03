@@ -73,7 +73,7 @@ fn @_tail(arg0: ptr<memory>) -> i256 [pure] {
     v5 = add v4, v2
     v6 = mload v5
     v7 = and v1, 31
-    v8 = mul 8, v7
+    v8 = mul v7, 8
     v9 = shl v6, v8
     ret v9
 }

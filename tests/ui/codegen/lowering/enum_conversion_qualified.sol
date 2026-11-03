@@ -15,9 +15,9 @@ library DataTypes {
 
 contract E {
     // CHECK: push 0xbc477c04
-    // CHECK: calldataload
-    // CHECK-NEXT: push 2
-    // CHECK-NEXT: dup 2
+    // CHECK: push 2{{$}}
+    // CHECK-NEXT: push 4
+    // CHECK-NEXT: calldataload
     // CHECK-NEXT: gt
     // CHECK-NEXT: push bb{{[0-9]+}}
     // CHECK-NEXT: jumpi

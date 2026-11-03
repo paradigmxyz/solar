@@ -94,7 +94,7 @@ fn @spills(arg0: i256) -> i256 [selector=0x565c11e3, view, abi_params=[uint256],
     v62 = zext i8 v61 to i256
     v63 = shl v62, 248
     v64 = mload v60
-    v65 = lt 1, v64
+    v65 = gt v64, 1
     v66 = eq v65, false
     icall panic_if<0x32>, v66
     v67 = byte 0, v63
@@ -231,7 +231,7 @@ fn @mix(arg0: i256) -> i256 [view] {
     ret v55
   bb4:  ; preds = bb1
     v78 = checked_add uint256, v73, v74
-    v79 = xor v56, v78
+    v79 = xor v78, v56
     v80 = checked_add uint256, v55, v79
     v81 = checked_mul uint256, v57, 2
     v82 = checked_mul uint256, v58, 3
@@ -289,7 +289,7 @@ fn @frames(arg0: i256) -> i256 [selector=0xa10340bc, view, abi_params=[uint256],
     v8 = zext i8 v7 to i256
     v9 = shl v8, 248
     v10 = mload v6
-    v11 = lt 1, v10
+    v11 = gt v10, 1
     v12 = eq v11, false
     icall panic_if<0x32>, v12
     v13 = byte 0, v9
@@ -300,7 +300,7 @@ fn @frames(arg0: i256) -> i256 [selector=0xa10340bc, view, abi_params=[uint256],
     v17 = zext i8 v16 to i256
     v18 = shl v17, 248
     v19 = mload v6
-    v20 = lt 40, v19
+    v20 = gt v19, 40
     v21 = eq v20, false
     icall panic_if<0x32>, v21
     v22 = byte 0, v18

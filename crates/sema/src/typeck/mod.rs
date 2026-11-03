@@ -243,14 +243,10 @@ fn check_using_directive<'gcx>(gcx: Gcx<'gcx>, using: &'gcx hir::UsingDirective<
         match ty.same_source_file_level_user_type(gcx, using.source) {
             Ok(()) => {}
             Err(SameSourceFileLevelUserTypeError::NotUserDefined) => {
-                gcx.dcx().emit_err(
-                    using.span,
-                    None,
-                    "can only use `global` with user-defined types",
-                );
+                gcx.dcx().emit_err(using.span, "can only use `global` with user-defined types");
             }
             Err(SameSourceFileLevelUserTypeError::NotSameSourceFileLevel) => {
-                gcx.dcx().emit_err(using.span, None, "can only use `global` with types defined in the same source unit at file level");
+                gcx.dcx().emit_err(using.span, "can only use `global` with types defined in the same source unit at file level");
             }
         }
     }
@@ -287,7 +283,7 @@ fn check_using_function<'gcx>(
     let is_library_function =
         function.contract.is_some_and(|id| gcx.hir.contract(id).kind.is_library());
     if !function.is_free() && !is_library_function {
-        gcx.dcx().emit_err(entry.span, None, "only file-level functions and library functions can be attached to a type in a `using` statement");
+        gcx.dcx().emit_err(entry.span, "only file-level functions and library functions can be attached to a type in a `using` statement");
     }
 
     let TyKind::Fn(function_ty) = gcx.type_of_item(function_id.into()).kind else { unreachable!() };
@@ -295,7 +291,6 @@ fn check_using_function<'gcx>(
         gcx.dcx()
             .err_at(
                 entry.span,
-                None,
                 format!(
                     "function `{}` does not have any parameters and therefore cannot be attached",
                     gcx.item_name(function_id).as_str()
@@ -307,7 +302,7 @@ fn check_using_function<'gcx>(
     }
 
     if function.visibility == Visibility::Private && function.contract != using.contract {
-        gcx.dcx().err_at(entry.span, None, format!(
+        gcx.dcx().err_at(entry.span, format!(
             "function `{}` is private and therefore cannot be attached to a type outside of the library where it is defined",
             gcx.item_name(function_id).as_str()
         )).span_note(function.span, "function defined here").emit();
@@ -567,7 +562,6 @@ fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
         if f.visibility != Visibility::External {
             gcx.dcx().emit_err(
                 gcx.item_span(receive),
-                None,
                 "receive ether function must be defined as `external`",
             );
         }
@@ -583,20 +577,14 @@ fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
 
         // Check parameters
         if !f.parameters.is_empty() {
-            gcx.dcx().emit_err(
-                gcx.item_span(receive),
-                None,
-                "receive ether function cannot take parameters",
-            );
+            gcx.dcx()
+                .emit_err(gcx.item_span(receive), "receive ether function cannot take parameters");
         }
 
         // Check return values
         if !f.returns.is_empty() {
-            gcx.dcx().emit_err(
-                gcx.item_span(receive),
-                None,
-                "receive ether function cannot return values",
-            );
+            gcx.dcx()
+                .emit_err(gcx.item_span(receive), "receive ether function cannot return values");
         }
     }
 }
@@ -866,7 +854,7 @@ fn check_storage_size_upper_bound(gcx: Gcx<'_>, contract_id: hir::ContractId) {
                 } else {
                     "contract requires too much transient storage"
                 };
-                gcx.dcx().emit_err(span, None, message);
+                gcx.dcx().emit_err(span, message);
                 continue;
             }
             Err(_) => continue,
@@ -988,7 +976,7 @@ impl<'gcx> BreakContinueChecker<'gcx> {
     fn check_break_continue(&self, span: Span, kind: &str) {
         if self.loop_depth == 0 {
             let msg = format!("`{kind}` outside of a loop");
-            self.gcx.sess.dcx.emit_err(span, None, msg);
+            self.gcx.sess.dcx.emit_err(span, msg);
         }
     }
 }

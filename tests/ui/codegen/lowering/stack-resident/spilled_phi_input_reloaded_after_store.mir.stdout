@@ -69,23 +69,23 @@ fn @fib(arg0: i256) -> i256 [selector=0xc6c2ea17, pure, abi_params=[uint256], ab
     ret v75
   bb4:  ; preds = bb1
     v22 = mul v3, 2
-    v23 = add v2, v22
+    v23 = add v22, v2
     v24 = mul v5, 3
-    v25 = add v4, v24
+    v25 = add v24, v4
     v26 = mul v7, 4
-    v27 = add v6, v26
+    v27 = add v26, v6
     v28 = mul v9, 5
-    v29 = add v8, v28
+    v29 = add v28, v8
     v30 = mul v11, 6
-    v31 = add v10, v30
+    v31 = add v30, v10
     v32 = mul v13, 7
-    v33 = add v12, v32
+    v33 = add v32, v12
     v34 = mul v15, 8
-    v35 = add v14, v34
+    v35 = add v34, v14
     v36 = mul v17, 9
-    v37 = add v16, v36
+    v37 = add v36, v16
     v38 = mul v19, 10
-    v39 = add v18, v38
+    v39 = add v38, v18
     jump bb6
   bb6:  ; preds = bb4
     jump bb3

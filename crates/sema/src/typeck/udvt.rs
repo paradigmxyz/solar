@@ -17,18 +17,15 @@ pub(super) fn check_using_operator<'gcx>(
 
     if function_ty.state_mutability != StateMutability::Pure || !function.is_free() {
         gcx.dcx()
-            .err_at(entry.span, None, "only pure free functions can be used to define operators")
+            .err_at(entry.span, "only pure free functions can be used to define operators")
             .span_note(function.span, "function defined here")
             .emit();
     }
 
     let Some(using_ty) = using_ty else { return };
     let TyKind::Udvt(_, _) = using_ty.kind else {
-        gcx.dcx().emit_err(
-            entry.span,
-            None,
-            "operators can only be implemented for user-defined value types",
-        );
+        gcx.dcx()
+            .emit_err(entry.span, "operators can only be implemented for user-defined value types");
         return;
     };
 
@@ -95,7 +92,7 @@ pub(super) fn check_using_operator<'gcx>(
             &mut |_| matches += 1,
         );
         if matches >= 2 {
-            gcx.dcx().emit_err(entry.span, None, format!(
+            gcx.dcx().emit_err(entry.span, format!(
                 "user-defined {} operator `{}` has more than one definition matching the operand type visible in the current scope",
                 if params.len() == 1 { "unary" } else { "binary" },
                 op.to_str()

@@ -1,0 +1,95 @@
+//@ compile-flags: -Ogas -Zmir-pipeline=integer-cleanup
+//@ filecheck:
+@module FusedTests
+
+// Both words are checked to be 0 or 1, so the two nonzero tests of an `and` become one test of the
+// `and` of the words, and widening it back returns the `and`.
+// CHECK-LABEL: fn @bounded_and
+// CHECK: + [[AND:v[0-9]+]] = and arg0, arg1
+// CHECK: + {{v[0-9]+}} = ne [[AND]], 0
+// CHECK-NOT: zext
+fn @bounded_and(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = lt arg0, 2
+    jumpi v0, bb1, bb4
+  bb1:
+    v1 = lt arg1, 2
+    jumpi v1, bb2, bb4
+  bb2:
+    v2 = ne arg0, 0
+    v3 = ne arg1, 0
+    v4 = and v2, v3
+    v5 = zext i1 v4 to i256
+    mstore 128, v5
+    returndata 128, 32
+  bb4:
+    revert 0, 0
+}
+
+// The same holds for `xor`.
+// CHECK-LABEL: fn @bounded_xor
+// CHECK: + [[XOR:v[0-9]+]] = xor arg0, arg1
+// CHECK: + {{v[0-9]+}} = ne [[XOR]], 0
+fn @bounded_xor(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = lt arg0, 2
+    jumpi v0, bb1, bb4
+  bb1:
+    v1 = lt arg1, 2
+    jumpi v1, bb2, bb4
+  bb2:
+    v2 = ne arg0, 0
+    v3 = ne arg1, 0
+    v4 = xor v2, v3
+    jumpi v4, bb3, bb4
+  bb3:
+    returndata 128, 0
+  bb4:
+    revert 0, 0
+}
+
+// A word that may exceed one keeps its own test: `2 & 1` is zero but both tests hold.
+// CHECK-LABEL: fn @unbounded_and
+// CHECK-NOT: {{^[-+]}}
+// CHECK: and
+fn @unbounded_and(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = lt arg0, 2
+    jumpi v0, bb1, bb4
+  bb1:
+    v2 = ne arg0, 0
+    v3 = ne arg1, 0
+    v4 = and v2, v3
+    jumpi v4, bb2, bb4
+  bb2:
+    returndata 128, 0
+  bb4:
+    revert 0, 0
+}
+
+// Rewriting the equality `v2 == true` first leaves the fused operands intact.
+// CHECK-LABEL: fn @equal_operand
+// CHECK: + [[AND:v[0-9]+]] = and arg0, arg1
+fn @equal_operand(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = lt arg0, 2
+    jumpi v0, bb1, bb9
+  bb1:
+    v1 = lt arg1, 2
+    jumpi v1, bb2, bb9
+  bb2:
+    v10 = ne arg0, 0
+    v11 = ne arg1, 0
+    v12 = eq v10, true
+    jumpi v12, bb3, bb9
+  bb3:
+    v13 = and v10, v11
+    v14 = xor v10, v11
+    v15 = zext i1 v13 to i256
+    v16 = zext i1 v14 to i256
+    v17 = add v15, v16
+    mstore 128, v17
+    returndata 128, 32
+  bb9:
+    revert 0, 0
+}

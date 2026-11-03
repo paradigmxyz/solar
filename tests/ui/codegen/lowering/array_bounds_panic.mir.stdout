@@ -113,7 +113,7 @@ fn @stFix(arg0: i256) -> i256 [selector=0xd0c9a47e, view, abi_params=[uint256], 
     v0 = lt arg0, 3
     v1 = eq v0, false
     icall panic_if<0x32>, v1
-    v2 = add 1, arg0
+    v2 = add arg0, 1
     v3 = sload v2 !metadata(storage=offset(arg0, 1))
     ret v3
 }

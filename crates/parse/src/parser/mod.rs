@@ -830,7 +830,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             }
             if !sep.trailing_sep_allowed && trailing {
                 let msg = format!("trailing `{sep_kind}` separator is not allowed");
-                self.dcx().emit_err(self.prev_token.span, None, msg);
+                self.dcx().emit_err(self.prev_token.span, msg);
             }
         }
 

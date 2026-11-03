@@ -109,7 +109,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
     v5 = lt v1, 100
     v6 = eq v5, false
     icall panic_if<0x32>, v6
-    v7 = add 0, v1
+    v7 = add v1, 0
     sstore v7, v4 !metadata(storage=symbolic(v1))
     jump bb6
   bb6:  ; preds = bb4
@@ -124,7 +124,7 @@ fn @arr(arg0: i256) -> i256 [selector=0x71e5ee5f, view, abi_params=[uint256], ab
   bb0:
     v0 = lt arg0, 100
     icall revert_if_zero<empty>, v0
-    v1 = add 0, arg0
+    v1 = add arg0, 0
     v2 = sload v1 !metadata(storage=symbolic(arg0))
     ret v2
 }
@@ -147,18 +147,18 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
   bb4:  ; preds = bb1
     v3 = add v0, v1
     v4 = icall @h, v3
-    v5 = mul 2, v1
-    v6 = add v0, v5
+    v5 = mul v1, 2
+    v6 = add v5, v0
     v7 = icall @h, v6
     v8 = add v4, v7
-    v9 = mul 3, v1
-    v10 = add v0, v9
+    v9 = mul v1, 3
+    v10 = add v9, v0
     v11 = icall @h, v10
     v12 = add v8, v11
     v13 = lt v1, 50
     v14 = eq v13, false
     icall panic_if<0x32>, v14
-    v15 = add 0, v1
+    v15 = add v1, 0
     sstore v15, v12 !metadata(storage=symbolic(v1))
     jump bb6
   bb6:  ; preds = bb4
@@ -173,7 +173,7 @@ fn @arr(arg0: i256) -> i256 [selector=0x71e5ee5f, view, abi_params=[uint256], ab
   bb0:
     v0 = lt arg0, 50
     icall revert_if_zero<empty>, v0
-    v1 = add 0, arg0
+    v1 = add arg0, 0
     v2 = sload v1 !metadata(storage=symbolic(arg0))
     ret v2
 }
@@ -245,7 +245,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
     v18 = lt v1, 50
     v19 = eq v18, false
     icall panic_if<0x32>, v19
-    v20 = add 0, v1
+    v20 = add v1, 0
     sstore v20, v17 !metadata(storage=symbolic(v1))
     v21 = add v14, 1
     v22 = xor v21, 0x4234567812345678123456781234567812345678123456781234567812345678
@@ -274,7 +274,7 @@ fn @arr(arg0: i256) -> i256 [selector=0x71e5ee5f, view, abi_params=[uint256], ab
   bb0:
     v0 = lt arg0, 50
     icall revert_if_zero<empty>, v0
-    v1 = add 0, arg0
+    v1 = add arg0, 0
     v2 = sload v1 !metadata(storage=symbolic(arg0))
     ret v2
 }

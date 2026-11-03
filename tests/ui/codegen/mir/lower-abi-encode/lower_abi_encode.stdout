@@ -165,7 +165,7 @@
 +     mstore v10, v14
 +     v15 = inttoptr i256 v9 to ptr<memory>
 +     v16 = icall @encode_abi_array, v13, v15
-+     v17 = add v9, v16
++     v17 = add v16, v9
 +     v18 = sub v8, 1
 +     v19 = add v10, 32
 +     v20 = add v11, 32
@@ -245,7 +245,7 @@
 +   bb1:  ; preds = bb0, bb1
 +     v8 = phi [bb0: v1], [bb1: v13]
 +     v9 = phi [bb0: v3], [bb1: v14]
-+     v10 = add v9, v6
++     v10 = add v6, v9
 +     v11 = mload v10
 +     v12 = and v11, 255
 +     mstore v9, v12

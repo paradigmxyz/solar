@@ -68,7 +68,7 @@ fn @truncate(arg0: i256, arg1: i256) -> struct0 [selector=0xe0b7b2e6, pure, abi_
     icall @_dirty
     v0 = abi_encode_packed (bytes32 arg0)
     v1 = mload v0
-    v2 = gt arg1, v1
+    v2 = lt v1, arg1
     jumpi v2, bb1, bb2
   bb2:  ; preds = bb0
     jump bb3
@@ -175,7 +175,7 @@ fn @_tail(arg0: ptr<memory>) -> i256 [pure] {
     v7 = add v6, v4
     v8 = mload v7
     v9 = and v1, 31
-    v10 = mul 8, v9
+    v10 = mul v9, 8
     v11 = shl v8, v10
     jump bb3
   bb3:  ; preds = bb1, bb2

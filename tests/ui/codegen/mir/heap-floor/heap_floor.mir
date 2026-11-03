@@ -7,7 +7,7 @@
 // An absolute word stored as the pointer and loaded back is raised to the heap floor.
 // CHECK-LABEL: {{^[ +].*}}fn @reset_then_load{{[( ]}}
 // CHECK: + [[FLOOR:v[0-9]+]] = heap_floor
-// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt 128, [[FLOOR]]
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = gt [[FLOOR]], 128
 // CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], 128
 // CHECK-NEXT: + mstore 64, [[CLAMPED]]
 fn @reset_then_load() -> i256 {
@@ -486,7 +486,7 @@ fn @use_public_pair() -> i256 [selector=0x12345683] {
 // reads nothing after the call.
 // CHECK-LABEL: {{^[ +].*}}fn @public_reset{{[( ]}}
 // CHECK: + [[FLOOR:v[0-9]+]] = heap_floor
-// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt 128, [[FLOOR]]
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = gt [[FLOOR]], 128
 // CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], 128
 // CHECK-NEXT: + mstore 64, [[CLAMPED]]
 fn @public_reset(arg0: ptr<memory>) -> ptr<memory> [selector=0x12345684, abi_returns=[memory_bytes]] {

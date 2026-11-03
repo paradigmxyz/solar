@@ -8,7 +8,7 @@
 // CHECK: + [[END:v[0-9]+]] = add arg0, 128
 // CHECK: - {{v[0-9]+}} = phi [bb0: 0], [bb2: {{v[0-9]+}}]
 // CHECK: + [[ADDRESS:v[0-9]+]] = phi [bb0: arg0], [bb2: [[NEXT:v[0-9]+]]]
-// CHECK: + {{v[0-9]+}} = ne [[ADDRESS]], [[END]]
+// CHECK: + {{v[0-9]+}} = ne [[END]], [[ADDRESS]]
 // CHECK: + {{v[0-9]+}} = mload [[ADDRESS]]
 // CHECK: + mstore [[ADDRESS]], {{v[0-9]+}}
 // CHECK: + [[NEXT]] = add [[ADDRESS]], 32
@@ -277,7 +277,7 @@ fn @wrapping_counter(arg0: i256, arg1: i8) -> i256 {
 // Widen a native loop-invariant base before accumulating word-sized offsets.
 // CHECK-LABEL: fn @native_base
 // CHECK: + [[BASE:v[0-9]+]] = zext i8 arg0 to i256
-// CHECK: + {{v[0-9]+}} = add [[BASE]],
+// CHECK: + {{v[0-9]+}} = add {{v[0-9]+}}, [[BASE]]
 fn @native_base(arg0: i8, arg1: i256) -> i256 {
   bb0:
     jump bb1
@@ -310,9 +310,9 @@ fn @native_base(arg0: i8, arg1: i256) -> i256 {
 // CHECK-LABEL: {{^[ +].*}}fn @reach_checked_bound{{[( ]}}
 // CHECK-NOT: = select
 // CHECK: + [[SCALED:v[0-9]+]] = shl arg1, 5
-// CHECK-NEXT: + [[END:v[0-9]+]] = add arg0, [[SCALED]]
+// CHECK-NEXT: + [[END:v[0-9]+]] = add [[SCALED]], arg0
 // CHECK: + [[ADDRESS:v[0-9]+]] = phi [bb1: arg0], [bb3: [[NEXT:v[0-9]+]]]
-// CHECK: + {{v[0-9]+}} = ne [[ADDRESS]], [[END]]
+// CHECK: + {{v[0-9]+}} = ne [[END]], [[ADDRESS]]
 // CHECK: + {{v[0-9]+}} = calldataload [[ADDRESS]]
 // CHECK: + [[NEXT]] = add [[ADDRESS]], 32
 fn @reach_checked_bound(arg0: i256, arg1: i256) -> i256 {
@@ -348,8 +348,8 @@ fn @reach_checked_bound(arg0: i256, arg1: i256) -> i256 {
 // CHECK: + [[ABOVE:v[0-9]+]] = gt arg1, 0x20000000000000000
 // CHECK-NEXT: + [[BOUND:v[0-9]+]] = select [[ABOVE]], 0x20000000000000000, arg1
 // CHECK-NEXT: + [[SCALED:v[0-9]+]] = shl [[BOUND]], 5
-// CHECK-NEXT: + [[END:v[0-9]+]] = add arg0, [[SCALED]]
-// CHECK: + {{v[0-9]+}} = ne {{v[0-9]+}}, [[END]]
+// CHECK-NEXT: + [[END:v[0-9]+]] = add [[SCALED]], arg0
+// CHECK: + {{v[0-9]+}} = ne [[END]], {{v[0-9]+}}
 fn @clamp_unchecked_bound(arg0: i256, arg1: i256) -> i256 {
   bb0:
     jump bb1
@@ -409,9 +409,9 @@ fn @clamp_bound_checked_on_one_path(arg0: i256, arg1: i256, arg2: i1) -> i256 {
 // CHECK: + [[BELOW:v[0-9]+]] = lt arg1, 1
 // CHECK-NEXT: + [[BOUND:v[0-9]+]] = select [[BELOW]], 1, arg1
 // CHECK-NEXT: + [[SCALED:v[0-9]+]] = shl [[BOUND]], 5
-// CHECK-NEXT: + [[END:v[0-9]+]] = add arg0, [[SCALED]]
+// CHECK-NEXT: + [[END:v[0-9]+]] = add [[SCALED]], arg0
 // CHECK: + [[ADDRESS:v[0-9]+]] = phi [bb1: [[START:v[0-9]+]]], [bb3: {{v[0-9]+}}]
-// CHECK: + {{v[0-9]+}} = ne [[ADDRESS]], [[END]]
+// CHECK: + {{v[0-9]+}} = ne [[END]], [[ADDRESS]]
 fn @clamp_bound_below_start(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = calldatasize
@@ -445,7 +445,7 @@ fn @clamp_bound_below_start(arg0: i256, arg1: i256) -> i256 {
 // CHECK-NOT: = select
 // CHECK: + [[END:v[0-9]+]] = add arg0, arg1
 // CHECK: + [[POINTER:v[0-9]+]] = phi [bb0: arg0], [bb2: [[NEXT:v[0-9]+]]]
-// CHECK: + {{v[0-9]+}} = ne [[POINTER]], [[END]]
+// CHECK: + {{v[0-9]+}} = ne [[END]], [[POINTER]]
 // CHECK: + [[NEXT]] = add [[POINTER]], 1
 fn @reach_odd_scale(arg0: i256, arg1: i256) -> i256 {
   bb0:
@@ -495,10 +495,10 @@ fn @keep_counter_stepping_by_two(arg0: i256, arg1: i256) -> i256 {
 // pointer, `(ptr - start) >> 5`, after splitting the edge, so the counter dies and the
 // pointer tests the exit.
 // CHECK-LABEL: {{^[ +].*}}fn @rebuild_counter_on_exit_edge{{[( ]}}
-// CHECK: + [[END:v[0-9]+]] = add arg0, {{v[0-9]+}}
+// CHECK: + [[END:v[0-9]+]] = add {{v[0-9]+}}, arg0
 // CHECK: - {{v[0-9]+}} = phi [bb1: 0]
 // CHECK: + [[POINTER:v[0-9]+]] = phi [bb1: arg0], [{{bb[0-9]+}}: {{v[0-9]+}}]
-// CHECK: + {{v[0-9]+}} = ne [[POINTER]], [[END]]
+// CHECK: + {{v[0-9]+}} = ne [[END]], [[POINTER]]
 // CHECK: + [[SPLIT:bb[0-9]+]]:
 // CHECK-NEXT: + [[DELTA:v[0-9]+]] = sub [[POINTER]], arg0
 // CHECK-NEXT: + [[INDEX:v[0-9]+]] = shr [[DELTA]], 5
@@ -657,7 +657,7 @@ fn @keep_descending_counter_read_after_loop(arg0: i256, arg1: i256) -> i256 {
 // CHECK-LABEL: {{^[ +].*}}fn @reach_heap_counter_read_after_loop{{[( ]}}
 // CHECK: + [[ABOVE:v[0-9]+]] = gt arg0, 0x20000000000000000
 // CHECK-NEXT: + {{v[0-9]+}} = select [[ABOVE]], 0x20000000000000000, arg0
-// CHECK: + {{v[0-9]+}} = ne [[POINTER:v[0-9]+]], {{v[0-9]+}}
+// CHECK: + {{v[0-9]+}} = ne {{v[0-9]+}}, [[POINTER:v[0-9]+]]
 // CHECK: + [[DELTA:v[0-9]+]] = sub [[POINTER]], {{v[0-9]+}}
 // CHECK-NEXT: + [[INDEX:v[0-9]+]] = shr [[DELTA]], 5
 // CHECK-NEXT: + ret [[INDEX]]

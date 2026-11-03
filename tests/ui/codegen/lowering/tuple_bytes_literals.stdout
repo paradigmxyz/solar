@@ -20,14 +20,14 @@ fn @entry() [entry] {
 }
 
 ; function prefix(bytes memory out) external pure returns (bytes memory) [selector 0x01cd9057]
-fn @prefix() [selector=0x01cd9057, abi_wrapper, pure] {
+fn @prefix() {
   bb0:
     v10 = calldatasize
     v11 = lt v10, 36
     v12 = calldataload 4
     v13 = add v12, 4
     v15 = sub v10, 36
-    v16 = gt v12, v15
+    v16 = lt v15, v12
     v63 = or v11, v16
     jumpi v63, bb3, bb4
   bb4:  ; preds = bb0
@@ -42,15 +42,15 @@ fn @prefix() [selector=0x01cd9057, abi_wrapper, pure] {
     v58 = lt v57, v56
     v59 = zext i1 v58 to i256
     v60 = shr v57, 64
-    v61 = or v59, v60
+    v61 = or v60, v59
     v64 = zext i1 v22 to i256
-    v65 = or v64, v61
+    v65 = or v61, v64
     v66 = ne v65, 0
     jumpi v66, bb5, bb7
   bb7:  ; preds = bb4
     mstore v56, v17
     v24 = sub v10, v18
-    v25 = gt v17, v24
+    v25 = lt v24, v17
     jumpi v25, bb3, bb6
   bb6:  ; preds = bb7
     v52 = add v56, 32
@@ -82,7 +82,7 @@ fn @prefix() [selector=0x01cd9057, abi_wrapper, pure] {
 }
 
 ; function words() external pure returns (bytes1 a, bytes2 b) [selector 0xf2c31bd9]
-fn @words() [selector=0xf2c31bd9, abi_wrapper, pure] {
+fn @words() {
   bb0:
     mstore 0, 0x3000000000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 32, 0x7879000000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

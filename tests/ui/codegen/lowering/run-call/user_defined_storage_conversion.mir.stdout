@@ -178,7 +178,7 @@ fn @storeSmall(arg0: slice<calldata>) -> i256 [selector=0x48de48f7, abi_params=[
     v10 = shr v0, 251
     v11 = ne v10, 0
     icall panic_if<0x41>, v11
-    v12 = add 32, v9
+    v12 = add v9, 32
     v13 = lt v12, 32
     icall panic_if<0x41>, v13
     v14 = alloc v12
@@ -191,7 +191,7 @@ fn @storeSmall(arg0: slice<calldata>) -> i256 [selector=0x48de48f7, abi_params=[
   bb3:  ; preds = bb1
     v28 = mload v14
     v29 = sload 1 !metadata(storage=slot(1))
-    v30 = gt v29, v28
+    v30 = lt v28, v29
     jumpi v30, bb4, bb5
   bb4:  ; preds = bb3
     jump bb6
@@ -225,7 +225,7 @@ fn @storeSmall(arg0: slice<calldata>) -> i256 [selector=0x48de48f7, abi_params=[
     jump bb13
   bb13:  ; preds = bb11, bb12
     v76 = sload 1 !metadata(storage=slot(1))
-    v77 = lt 1, v76
+    v77 = gt v76, 1
     v78 = eq v77, false
     icall panic_if<0x32>, v78
     v79 = storage_array_data_slot 1
@@ -306,7 +306,7 @@ fn @storeLeft(arg0: slice<calldata>) -> i256 [selector=0x2d92e508, abi_params=[a
     v10 = shr v0, 251
     v11 = ne v10, 0
     icall panic_if<0x41>, v11
-    v12 = add 32, v9
+    v12 = add v9, 32
     v13 = lt v12, 32
     icall panic_if<0x41>, v13
     v14 = alloc v12
@@ -319,7 +319,7 @@ fn @storeLeft(arg0: slice<calldata>) -> i256 [selector=0x2d92e508, abi_params=[a
   bb3:  ; preds = bb1
     v28 = mload v14
     v29 = sload 2 !metadata(storage=slot(2))
-    v30 = gt v29, v28
+    v30 = lt v28, v29
     jumpi v30, bb4, bb5
   bb4:  ; preds = bb3
     jump bb6
@@ -353,7 +353,7 @@ fn @storeLeft(arg0: slice<calldata>) -> i256 [selector=0x2d92e508, abi_params=[a
     jump bb13
   bb13:  ; preds = bb11, bb12
     v77 = sload 2 !metadata(storage=slot(2))
-    v78 = lt 1, v77
+    v78 = gt v77, 1
     v79 = eq v78, false
     icall panic_if<0x32>, v79
     v80 = storage_array_data_slot 2

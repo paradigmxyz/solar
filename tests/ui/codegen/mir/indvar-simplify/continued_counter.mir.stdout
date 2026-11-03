@@ -113,7 +113,7 @@ fn @remove(arg0: i256, arg1: i160) -> i256 [selector=0x9dfa4e94, abi_params=[uin
     v35 = eq v34, false
     icall panic_if<0x32>, v35
     v36 = mul v31, 2
-    v37 = add v32, v36
+    v37 = add v36, v32
     v38 = sload v37 !metadata(storage=symbolic(v37))
     v39 = trunc i256 v38 to i160
     v40 = eq v39, v28
@@ -189,7 +189,7 @@ fn @remove(arg0: i256, arg1: i160) -> i256 [selector=0x9dfa4e94, abi_params=[uin
     v105 = eq v104, false
     icall panic_if<0x32>, v105
     v106 = mul v100, 2
-    v107 = add v101, v106
+    v107 = add v106, v101
     v108 = add v107, 1
     v109 = sload v108 !metadata(storage=offset(v107, 1))
     v110 = checked_add uint256, v103, v109
@@ -205,12 +205,12 @@ fn @remove(arg0: i256, arg1: i160) -> i256 [selector=0x9dfa4e94, abi_params=[uin
     v51 = eq v50, false
     icall panic_if<0x32>, v51
     v52 = mul v49, 2
-    v53 = add v47, v52
+    v53 = add v52, v47
     v54 = lt v46, 5
     v55 = eq v54, false
     icall panic_if<0x32>, v55
     v56 = mul v46, 2
-    v57 = add v47, v56
+    v57 = add v56, v47
     v58 = alloc checked 64
     v59 = sload v53 !metadata(storage=symbolic(v53))
     v60 = trunc i256 v59 to i160
@@ -251,7 +251,7 @@ fn @remove(arg0: i256, arg1: i160) -> i256 [selector=0x9dfa4e94, abi_params=[uin
     icall panic_if<0x32>, v14
     v15 = zext i160 v4 to i256
     v16 = mul v15, 2
-    v17 = add v5, v16
+    v17 = add v16, v5
     v18 = mload v7
     v19 = sload v17 !metadata(storage=symbolic(v17))
     v20 = and v19, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000

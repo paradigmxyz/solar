@@ -23,7 +23,7 @@ fn @packed(arg0: i256, arg1: i256) -> i256 [selector=0xaf080e88, pure, abi_param
   bb4:  ; preds = bb1
     v7 = shr v0, 160
     v8 = and v7, 255
-    v9 = add v2, v8
+    v9 = add v8, v2
     v10 = shl v0, 1
     v11 = add v10, v3
     jump bb6

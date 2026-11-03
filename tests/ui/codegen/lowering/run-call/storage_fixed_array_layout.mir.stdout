@@ -143,7 +143,7 @@ fn @copyDoesNotOverlapSource() -> struct2 [selector=0x8b005e62, abi_params=[], a
     v82 = insert_value struct2, v81, 3, v78
     ret v82
   bb14:  ; preds = bb13
-    v51 = add 11, v49
+    v51 = add v49, 11
     v52 = lt v49, 7
     jumpi v52, bb16, bb17
   bb17:  ; preds = bb14
@@ -159,7 +159,7 @@ fn @copyDoesNotOverlapSource() -> struct2 [selector=0x8b005e62, abi_params=[], a
     v56 = add v49, 1
     jump bb13
   bb8:  ; preds = bb7
-    v32 = add 0, v30
+    v32 = add v30, 0
     v33 = sload v32 !metadata(storage=symbolic(v30))
     v34 = mul v30, 3
     v35 = sub 7, v34
@@ -191,7 +191,7 @@ fn @copyDoesNotOverlapSource() -> struct2 [selector=0x8b005e62, abi_params=[], a
     v10 = eq v9, false
     icall panic_if<0x32>, v10
     v11 = div v4, 3
-    v12 = add 0, v11
+    v12 = add v11, 0
     v13 = mod v4, 3
     v14 = mul v13, 9
     v15 = mul v14, 8

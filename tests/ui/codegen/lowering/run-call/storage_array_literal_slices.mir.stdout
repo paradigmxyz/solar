@@ -9,7 +9,7 @@ fn @copy(arg0: slice<calldata>) -> struct0 [selector=0x8d80fe50, abi_params=[arr
     v0 = alloc 64
     v1 = extract_value slice<calldata>, arg0, 0
     v2 = extract_value slice<calldata>, arg0, 1
-    v3 = gt 1, v2
+    v3 = lt v2, 1
     v4 = lt 1, 0
     v5 = or v3, v4
     v6 = zext i1 v5 to i256
@@ -31,7 +31,7 @@ fn @copy(arg0: slice<calldata>) -> struct0 [selector=0x8d80fe50, abi_params=[arr
     v19 = shr v9, 251
     v20 = ne v19, 0
     icall panic_if<0x41>, v20
-    v21 = add 32, v18
+    v21 = add v18, 32
     v22 = lt v21, 32
     icall panic_if<0x41>, v22
     v23 = alloc v21
@@ -45,7 +45,7 @@ fn @copy(arg0: slice<calldata>) -> struct0 [selector=0x8d80fe50, abi_params=[arr
     mstore v0, v28
     v29 = extract_value slice<calldata>, arg0, 0
     v30 = extract_value slice<calldata>, arg0, 1
-    v31 = gt 3, v30
+    v31 = lt v30, 3
     v32 = lt 3, 1
     v33 = or v31, v32
     v34 = zext i1 v33 to i256
@@ -67,7 +67,7 @@ fn @copy(arg0: slice<calldata>) -> struct0 [selector=0x8d80fe50, abi_params=[arr
     v47 = shr v37, 251
     v48 = ne v47, 0
     icall panic_if<0x41>, v48
-    v49 = add 32, v46
+    v49 = add v46, 32
     v50 = lt v49, 32
     icall panic_if<0x41>, v50
     v51 = alloc v49
@@ -94,7 +94,7 @@ fn @copy(arg0: slice<calldata>) -> struct0 [selector=0x8d80fe50, abi_params=[arr
     v106 = eq v105, false
     icall panic_if<0x32>, v106
     v107 = sload 0 !metadata(storage=slot(0))
-    v108 = lt 0, v107
+    v108 = gt v107, 0
     v109 = eq v108, false
     icall panic_if<0x32>, v109
     v110 = storage_array_data_slot 0
@@ -107,7 +107,7 @@ fn @copy(arg0: slice<calldata>) -> struct0 [selector=0x8d80fe50, abi_params=[arr
     v116 = eq v115, false
     icall panic_if<0x32>, v116
     v117 = sload 1 !metadata(storage=slot(1))
-    v118 = lt 1, v117
+    v118 = gt v117, 1
     v119 = eq v118, false
     icall panic_if<0x32>, v119
     v120 = storage_array_data_slot 1
@@ -119,7 +119,7 @@ fn @copy(arg0: slice<calldata>) -> struct0 [selector=0x8d80fe50, abi_params=[arr
     v126 = insert_value struct0, v125, 3, v122
     ret v126
   bb2:  ; preds = bb1
-    v60 = add 0, v58
+    v60 = add v58, 0
     v61 = lt v58, 2
     jumpi v61, bb4, bb5
   bb5:  ; preds = bb2
@@ -127,7 +127,7 @@ fn @copy(arg0: slice<calldata>) -> struct0 [selector=0x8d80fe50, abi_params=[arr
     mstore v83, 0
     v84 = mload v83
     v85 = sload v60 !metadata(storage=symbolic(v58))
-    v86 = gt v85, v84
+    v86 = lt v84, v85
     jumpi v86, bb15, bb16
   bb15:  ; preds = bb5
     jump bb17
@@ -168,7 +168,7 @@ fn @copy(arg0: slice<calldata>) -> struct0 [selector=0x8d80fe50, abi_params=[arr
     v64 = mload v63
     v65 = mload v64
     v66 = sload v60 !metadata(storage=symbolic(v58))
-    v67 = gt v66, v65
+    v67 = lt v65, v66
     jumpi v67, bb7, bb8
   bb7:  ; preds = bb4
     jump bb9

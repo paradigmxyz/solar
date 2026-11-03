@@ -381,6 +381,22 @@ impl DominatorTree {
         }
         out
     }
+
+    /// Returns the nearest block that dominates both blocks.
+    #[must_use]
+    pub fn common_dominator(&self, a: BlockId, b: BlockId) -> BlockId {
+        let ancestors = self.self_and_dominators(a);
+        let mut block = b;
+        loop {
+            if ancestors.contains(&block) {
+                return block;
+            }
+            match self.idom(block) {
+                Some(idom) if idom != block => block = idom,
+                _ => return BlockId::ENTRY,
+            }
+        }
+    }
 }
 
 /// Per-block lists of blocks.

@@ -32,42 +32,13 @@ fn @entry() [entry] {
 }
 
 ; function bytesForward(uint256 count) external pure returns (bytes memory destination) [selector 0x79571ebe]
-fn @bytesForward() [selector=0x79571ebe, abi_wrapper, pure] {
+fn @bytesForward() {
   bb0:
     v7 = calldatasize
     v8 = lt v7, 36
     jumpi v8, bb1, bb2
   bb2:  ; preds = bb0
-    v29 = heap_floor !metadata(alloc_ptr)
-    v30 = add v29, 64 !metadata(alloc_ptr)
-    mstore 64, v30 !metadata(memory=scratch)
-    mstore v29, 3
-    v22 = add v29, 32
-    mstore v22, 0x1122330000000000000000000000000000000000000000000000000000000000
-    v28 = icall @alloc, 32
-    mstore v28, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v6 = sub v29, v28
-    icall @_copyBytes, v28, v29, v6, 1, arg0
-    v12 = mload v29
-    v13 = add v12, 31
-    v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v17 = add v22, v12
-    mstore v17, 0
-    v24 = sub v29, 32
-    mstore v24, 32
-    v19 = add v14, 64
-    returndata v24, v19
-  bb1 [cold]:  ; preds = bb0
-    revert 0, 0
-}
-
-; function bytesBackward(uint256 count) external pure returns (bytes memory destination) [selector 0x3704b700]
-fn @bytesBackward() [selector=0x3704b700, abi_wrapper, pure] {
-  bb0:
-    v8 = calldatasize
-    v9 = lt v8, 36
-    jumpi v9, bb1, bb2
-  bb2:  ; preds = bb0
+    v9 = calldataload 4
     v30 = heap_floor !metadata(alloc_ptr)
     v31 = add v30, 64 !metadata(alloc_ptr)
     mstore 64, v31 !metadata(memory=scratch)
@@ -76,9 +47,8 @@ fn @bytesBackward() [selector=0x3704b700, abi_wrapper, pure] {
     mstore v23, 0x1122330000000000000000000000000000000000000000000000000000000000
     v29 = icall @alloc, 32
     mstore v29, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v6 = add v30, 1
-    v7 = sub v6, v29
-    icall @_copyBytesDown, v29, v30, v7, 0, arg0
+    v6 = sub v30, v29
+    icall @_copyBytes, v29, v30, v6, 1, v9
     v13 = mload v30
     v14 = add v13, 31
     v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -92,41 +62,74 @@ fn @bytesBackward() [selector=0x3704b700, abi_wrapper, pure] {
     revert 0, 0
 }
 
+; function bytesBackward(uint256 count) external pure returns (bytes memory destination) [selector 0x3704b700]
+fn @bytesBackward() {
+  bb0:
+    v8 = calldatasize
+    v9 = lt v8, 36
+    jumpi v9, bb1, bb2
+  bb2:  ; preds = bb0
+    v10 = calldataload 4
+    v31 = heap_floor !metadata(alloc_ptr)
+    v32 = add v31, 64 !metadata(alloc_ptr)
+    mstore 64, v32 !metadata(memory=scratch)
+    mstore v31, 3
+    v24 = add v31, 32
+    mstore v24, 0x1122330000000000000000000000000000000000000000000000000000000000
+    v30 = icall @alloc, 32
+    mstore v30, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v6 = add v31, 1
+    v7 = sub v6, v30
+    icall @_copyBytesDown, v30, v31, v7, 0, v10
+    v14 = mload v31
+    v15 = add v14, 31
+    v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v19 = add v24, v14
+    mstore v19, 0
+    v26 = sub v31, 32
+    mstore v26, 32
+    v21 = add v16, 64
+    returndata v26, v21
+  bb1 [cold]:  ; preds = bb0
+    revert 0, 0
+}
+
 ; function wordsForward(uint256 count) external pure returns (uint256[] memory destination) [selector 0xb2066b6b]
-fn @wordsForward() [selector=0xb2066b6b, abi_wrapper, pure] {
+fn @wordsForward() {
   bb0:
     v19 = calldatasize
     v20 = lt v19, 36
     jumpi v20, bb1, bb2
   bb2:  ; preds = bb0
-    v41 = heap_floor !metadata(alloc_ptr)
-    v42 = add v41, 128 !metadata(alloc_ptr)
-    v43 = lt v42, v41
-    v44 = zext i1 v43 to i256
-    v45 = shr v42, 64
-    v46 = or v44, v45
-    v47 = ne v46, 0
-    jumpi v47, bb4, bb3
+    v42 = heap_floor !metadata(alloc_ptr)
+    v43 = add v42, 128 !metadata(alloc_ptr)
+    v44 = lt v43, v42
+    v45 = zext i1 v44 to i256
+    v46 = shr v43, 64
+    v47 = or v46, v45
+    v48 = ne v47, 0
+    jumpi v48, bb4, bb3
   bb3:  ; preds = bb2
-    mstore 64, v42 !metadata(memory=scratch)
-    mstore v41, 3
-    v30 = add v41, 32
-    mstore v30, 11
-    v32 = add v41, 64
-    mstore v32, 22
-    v34 = add v41, 96
-    mstore v34, 33
-    v40 = icall @alloc, 32
-    mstore v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v17 = sub v41, v40
+    v49 = calldataload 4
+    mstore 64, v43 !metadata(memory=scratch)
+    mstore v42, 3
+    v31 = add v42, 32
+    mstore v31, 11
+    v33 = add v42, 64
+    mstore v33, 22
+    v35 = add v42, 96
+    mstore v35, 33
+    v41 = icall @alloc, 32
+    mstore v41, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v17 = sub v42, v41
     v18 = shr v17, 5
-    icall @_copyWords, v40, v41, v18, 1, arg0
-    v24 = mload v41
-    v25 = shl v24, 5
-    v36 = sub v41, 32
-    mstore v36, 32
-    v27 = add v25, 64
-    returndata v36, v27
+    icall @_copyWords, v41, v42, v18, 1, v49
+    v25 = mload v42
+    v26 = shl v25, 5
+    v37 = sub v42, 32
+    mstore v37, 32
+    v28 = add v26, 64
+    returndata v37, v28
   bb4 [cold]:  ; preds = bb2
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -136,37 +139,40 @@ fn @wordsForward() [selector=0xb2066b6b, abi_wrapper, pure] {
 }
 
 ; function bytesIntoHeader(uint256 count, bool sameObject) external pure returns (bool) [selector 0x10ca09ba]
-fn @bytesIntoHeader() [selector=0x10ca09ba, abi_wrapper, pure, implicit_args=[i256, i1]] {
+fn @bytesIntoHeader() {
   bb0:
-    v7 = calldataload 36
-    v8 = shr v7, 1
+    v8 = calldataload 36
+    v9 = shr v8, 1
     v5 = calldatasize
     v6 = lt v5, 68
-    v20 = zext i1 v6 to i256
-    v21 = or v20, v8
-    v22 = ne v21, 0
-    jumpi v22, bb6, bb7
+    v24 = zext i1 v6 to i256
+    v25 = or v9, v24
+    v26 = ne v25, 0
+    jumpi v26, bb6, bb7
   bb7:  ; preds = bb0
-    v18 = heap_floor !metadata(alloc_ptr)
-    v19 = add v18, 64 !metadata(alloc_ptr)
-    mstore 64, v19 !metadata(memory=scratch)
-    mstore v18, 2
-    v13 = add v18, 32
-    mstore v13, 0x102000000000000000000000000000000000000000000000000000000000000
-    v17 = icall @alloc, 64
-    mstore v17, 2
-    jumpi arg1, bb2, bb1
+    v28 = calldataload 36
+    v23 = ne v28, 0
+    v20 = heap_floor !metadata(alloc_ptr)
+    v21 = add v20, 64 !metadata(alloc_ptr)
+    mstore 64, v21 !metadata(memory=scratch)
+    mstore v20, 2
+    v15 = add v20, 32
+    mstore v15, 0x102000000000000000000000000000000000000000000000000000000000000
+    v19 = icall @alloc, 64
+    mstore v19, 2
+    jumpi v23, bb2, bb1
   bb1:  ; preds = bb7
     jump bb2
   bb2:  ; preds = bb1, bb7
-    v3 = phi [bb7: v18], [bb1: v17]
+    v3 = phi [bb7: v20], [bb1: v19]
+    v27 = calldataload 4
     mstore v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    jumpi arg1, bb3, bb4
+    jumpi v23, bb3, bb4
   bb4:  ; preds = bb2
-    icall @_copyBytes, v18, v3, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0, arg0
+    icall @_copyBytes, v20, v3, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0, v27
     jump bb5
   bb3:  ; preds = bb2
-    icall @_copyBytesSelf, v3, arg0
+    icall @_copyBytesSelf, v3, v27
     jump bb5
   bb5:  ; preds = bb3, bb4
     mstore 0, 1
@@ -176,131 +182,133 @@ fn @bytesIntoHeader() [selector=0x10ca09ba, abi_wrapper, pure, implicit_args=[i2
 }
 
 ; function freshWrapped(uint256 count) external pure returns (bytes memory) [selector 0x42a6a755]
-fn @freshWrapped() [selector=0x42a6a755, abi_wrapper, pure] {
+fn @freshWrapped() {
   bb0:
     v10 = calldatasize
     v11 = lt v10, 36
     jumpi v11, bb1, bb2
   bb2:  ; preds = bb0
+    v12 = calldataload 4
     v0 = mload 64 !metadata(memory=scratch)
     v1 = add v0, 256
     mstore v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v2 = add v0, 32
     mstore v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v3 = sub v0, v1
-    v5 = icall @_freshBytes, v1, v3, arg0
-    v15 = mload v5
-    v16 = add v15, 31
-    v17 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v25 = add v5, 32
-    v20 = add v25, v15
-    mstore v20, 0
-    v27 = sub v5, 32
-    mstore v27, 32
-    v22 = add v17, 64
-    returndata v27, v22
+    v5 = icall @_freshBytes, v1, v3, v12
+    v16 = mload v5
+    v17 = add v16, 31
+    v18 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v26 = add v5, 32
+    v21 = add v26, v16
+    mstore v21, 0
+    v28 = sub v5, 32
+    mstore v28, 32
+    v23 = add v18, 64
+    returndata v28, v23
   bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
 ; function calldataIntoHeader(bytes calldata source, bytes memory destination, uint256 count) external pure returns (bool) [selector 0x428158c8]
-fn @calldataIntoHeader() [selector=0x428158c8, abi_wrapper, pure] {
+fn @calldataIntoHeader() {
   bb0:
     v45 = calldatasize
     v46 = lt v45, 100
-    v47 = calldataload 4
-    v48 = add v47, 4
-    v50 = sub v45, 36
-    v51 = gt v47, v50
-    v52 = calldataload v48
-    v53 = add v48, 32
-    v54 = sub v45, v53
-    v55 = gt v52, v54
-    v56 = or v51, v55
-    v103 = or v46, v56
-    v60 = calldataload 36
-    v61 = add v60, 4
-    v64 = gt v60, v50
-    v104 = or v103, v64
-    jumpi v104, bb15, bb16
+    v48 = calldataload 4
+    v49 = add v48, 4
+    v51 = sub v45, 36
+    v52 = lt v51, v48
+    v53 = calldataload v49
+    v54 = add v49, 32
+    v55 = sub v45, v54
+    v56 = lt v55, v53
+    v57 = or v52, v56
+    v104 = or v46, v57
+    v61 = calldataload 36
+    v62 = add v61, 4
+    v65 = lt v51, v61
+    v105 = or v104, v65
+    jumpi v105, bb15, bb16
   bb16:  ; preds = bb0
-    v65 = calldataload v61
-    v66 = add v61, 32
-    v101 = add v65, 63
-    v69 = and v101, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v70 = lt v69, v65
-    v94 = heap_floor !metadata(alloc_ptr)
-    v95 = add v94, v69 !metadata(alloc_ptr)
-    v96 = lt v95, v94
-    v97 = zext i1 v96 to i256
-    v98 = shr v95, 64
-    v99 = or v97, v98
-    v105 = zext i1 v70 to i256
-    v106 = or v105, v99
-    v107 = ne v106, 0
-    jumpi v107, bb17, bb19
+    v66 = calldataload v62
+    v67 = add v62, 32
+    v102 = add v66, 63
+    v70 = and v102, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v71 = lt v70, v66
+    v95 = heap_floor !metadata(alloc_ptr)
+    v96 = add v95, v70 !metadata(alloc_ptr)
+    v97 = lt v96, v95
+    v98 = zext i1 v97 to i256
+    v99 = shr v96, 64
+    v100 = or v99, v98
+    v106 = zext i1 v71 to i256
+    v107 = or v100, v106
+    v108 = ne v107, 0
+    jumpi v108, bb17, bb19
   bb19:  ; preds = bb16
-    mstore v94, v65
-    v72 = sub v45, v66
-    v73 = gt v65, v72
-    jumpi v73, bb15, bb18
+    mstore v95, v66
+    v73 = sub v45, v67
+    v74 = lt v73, v66
+    jumpi v74, bb15, bb18
   bb18:  ; preds = bb19
-    v90 = add v94, 32
-    calldatacopy v90, v66, v65
-    v40 = lt v52, arg2
+    v109 = calldataload 68
+    v91 = add v95, 32
+    calldatacopy v91, v67, v66
+    v40 = lt v53, v109
     jumpi v40, bb7, bb6
   bb6:  ; preds = bb18
     jump bb4
   bb4:  ; preds = bb6, bb11
     v27 = phi [bb6: 0], [bb11: v39]
-    v28 = lt v27, arg2
+    v28 = lt v27, v109
     jumpi v28, bb5, bb2
   bb5:  ; preds = bb4
-    v30 = add v53, v27
+    v30 = add v54, v27
     v31 = calldataload v30
     v32 = byte 0, v31
     v43 = sub v27, 32
     v44 = lt v43, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     jumpi v44, bb12, bb14
   bb14:  ; preds = bb5
-    v34 = mload v90
+    v34 = mload v91
     v35 = lt v43, v34
     jumpi v35, bb11, bb8
   bb11:  ; preds = bb14
-    v87 = add v90, v43
-    v88 = add v87, 32
-    mstore8 v88, v32
+    v88 = add v91, v43
+    v89 = add v88, 32
+    mstore8 v89, v32
     v39 = add v27, 1
     jump bb4
   bb7:  ; preds = bb18
     jump bb1
   bb1:  ; preds = bb7, bb10
     v6 = phi [bb7: 0], [bb10: v26]
-    v7 = lt v6, arg2
+    v7 = lt v6, v109
     jumpi v7, bb3, bb2
   bb2:  ; preds = bb1, bb4
     mstore 0, 1
     returndata 0, 32
   bb3:  ; preds = bb1
-    v9 = lt v6, v52
+    v9 = lt v6, v53
     jumpi v9, bb9, bb8
   bb9:  ; preds = bb3
-    v14 = add v53, v6
+    v14 = add v54, v6
     v15 = calldataload v14
     v16 = byte 0, v15
     v41 = sub v6, 32
     v42 = lt v41, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     jumpi v42, bb12, bb13
   bb13:  ; preds = bb9
-    v19 = mload v90
+    v19 = mload v91
     v20 = lt v41, v19
     jumpi v20, bb10, bb8
   bb8 [cold]:  ; preds = bb3, bb13, bb14
     tail_call @revert_stub
   bb10:  ; preds = bb13
-    v85 = add v90, v41
-    v86 = add v85, 32
-    mstore8 v86, v16
+    v86 = add v91, v41
+    v87 = add v86, 32
+    mstore8 v87, v16
     v26 = add v6, 1
     jump bb1
   bb12 [cold]:  ; preds = bb5, bb9
@@ -316,7 +324,7 @@ fn @calldataIntoHeader() [selector=0x428158c8, abi_wrapper, pure] {
 }
 
 ; function _copyBytes(bytes memory source, bytes memory destination, uint256 sOff, uint256 dOff, uint256 count) private pure
-fn @_copyBytes(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [may_return_memory, pure] {
+fn @_copyBytes(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [may_return_memory] {
   bb0:
     v24 = eq arg4, 0
     jumpi v24, bb2, bb4
@@ -326,8 +334,8 @@ fn @_copyBytes(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [may_
     v75 = add arg1, arg3
     v76 = add v75, 32
     v32 = add v73, arg4
-    v33 = add v76, arg4
     v34 = lt v76, v32
+    v33 = add v76, arg4
     v35 = lt arg0, v33
     v36 = and v34, v35
     v37 = zext i1 v36 to i256
@@ -345,12 +353,12 @@ fn @_copyBytes(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [may_
     v49 = mload arg0
     v50 = lt v49, arg4
     v51 = sub v49, arg4
-    v52 = gt arg2, v51
+    v52 = lt v51, arg2
     v53 = or v50, v52
     v55 = mload arg1
     v56 = lt v55, arg4
     v57 = sub v55, arg4
-    v58 = gt arg3, v57
+    v58 = lt v57, arg3
     v59 = or v56, v58
     v62 = or v53, v59
     jumpi v62, bb6, bb9
@@ -398,7 +406,7 @@ fn @_copyBytes(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [may_
 }
 
 ; function _copyBytesDown(bytes memory source, bytes memory destination, uint256 sOff, uint256 dOff, uint256 count) private pure
-fn @_copyBytesDown(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [may_return_memory, pure] {
+fn @_copyBytesDown(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [may_return_memory] {
   bb0:
     v26 = eq arg4, 0
     jumpi v26, bb2, bb4
@@ -408,8 +416,8 @@ fn @_copyBytesDown(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [
     v71 = add arg1, arg3
     v72 = add v71, 32
     v34 = add v69, arg4
-    v35 = add v72, arg4
     v36 = lt v72, v34
+    v35 = add v72, arg4
     v37 = lt arg0, v35
     v38 = and v36, v37
     v39 = zext i1 v38 to i256
@@ -429,7 +437,7 @@ fn @_copyBytesDown(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [
     v53 = lt v52, arg2
     jumpi v53, bb9, bb10
   bb10:  ; preds = bb5
-    v54 = gt v52, v51
+    v54 = lt v51, v52
     jumpi v54, bb6, bb11
   bb11:  ; preds = bb10
     v55 = mload arg1
@@ -437,7 +445,7 @@ fn @_copyBytesDown(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [
     v57 = lt v56, arg3
     jumpi v57, bb9, bb12
   bb12:  ; preds = bb11
-    v58 = gt v56, v55
+    v58 = lt v55, v56
     jumpi v58, bb6, bb13
   bb13:  ; preds = bb12
     mcopy v72, v69, arg4
@@ -485,7 +493,7 @@ fn @_copyBytesDown(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [
 }
 
 ; function _copyWords(uint256[] memory source, uint256[] memory destination, uint256 sOff, uint256 dOff, uint256 count) private pure
-fn @_copyWords(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [may_return_memory, pure] {
+fn @_copyWords(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [may_return_memory] {
   bb0:
     v23 = eq arg4, 0
     jumpi v23, bb2, bb4
@@ -498,8 +506,8 @@ fn @_copyWords(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [may_
     v84 = add arg1, v28
     v85 = add v84, 32
     v34 = add v82, v24
-    v35 = add v85, v24
     v36 = lt v85, v34
+    v35 = add v85, v24
     v37 = lt arg0, v35
     v38 = and v36, v37
     v39 = zext i1 v38 to i256
@@ -520,12 +528,12 @@ fn @_copyWords(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [may_
     v55 = mload arg0
     v56 = lt v55, arg4
     v57 = sub v55, arg4
-    v58 = gt arg2, v57
+    v58 = lt v57, arg2
     v59 = or v56, v58
     v61 = mload arg1
     v62 = lt v61, arg4
     v63 = sub v61, arg4
-    v64 = gt arg3, v63
+    v64 = lt v63, arg3
     v65 = or v62, v64
     v68 = or v59, v65
     jumpi v68, bb6, bb9
@@ -574,7 +582,7 @@ fn @_copyWords(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [may_
 }
 
 ; function _freshBytes(bytes memory source, uint256 offset, uint256 count) private pure returns (bytes memory destination)
-fn @_freshBytes(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory, pure] {
+fn @_freshBytes(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory] {
   bb0:
     v0 = add arg2, 31
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -603,7 +611,7 @@ fn @_freshBytes(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory, 
     v50 = mload arg0
     v51 = lt v50, arg2
     v52 = sub v50, arg2
-    v53 = gt arg1, v52
+    v53 = lt v52, arg1
     v54 = or v51, v53
     jumpi v54, bb10, bb13
   bb13:  ; preds = bb5
@@ -612,8 +620,8 @@ fn @_freshBytes(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory, 
   bb6:  ; preds = bb4
     v104 = calldatasize
     calldatacopy v87, v104, v1
-    v64 = add v87, arg2
     v65 = lt v87, v35
+    v64 = add v87, arg2
     v66 = lt arg0, v64
     v67 = and v65, v66
     v74 = or v67, v46
@@ -622,7 +630,7 @@ fn @_freshBytes(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory, 
     v75 = mload arg0
     v76 = lt v75, arg2
     v77 = sub v75, arg2
-    v78 = gt arg1, v77
+    v78 = lt v77, arg1
     v79 = or v76, v78
     jumpi v79, bb10, bb14
   bb14:  ; preds = bb7
@@ -672,14 +680,14 @@ fn @_freshBytes(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory, 
 }
 
 ; function _copyBytesSelf(bytes memory buffer, uint256 count) private pure
-fn @_copyBytesSelf(arg0: i256, arg1: i256) [may_return_memory, pure] {
+fn @_copyBytesSelf(arg0: i256, arg1: i256) [may_return_memory] {
   bb0:
     v20 = eq arg1, 0
     jumpi v20, bb2, bb4
   bb4:  ; preds = bb0
     v54 = add arg0, 32
-    v26 = add v54, arg1
     v27 = lt v54, arg0
+    v26 = add v54, arg1
     v28 = lt arg0, v26
     v29 = and v27, v28
     v33 = lt arg0, v54
@@ -744,7 +752,7 @@ fn @alloc(arg0: i256) -> i256 {
     v3 = lt v2, v0
     v4 = zext i1 v3 to i256
     v5 = shr v2, 64
-    v6 = or v4, v5
+    v6 = or v5, v4
     v7 = ne v6, 0
     jumpi v7, bb1, bb2
   bb2:  ; preds = bb0

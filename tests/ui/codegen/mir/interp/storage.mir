@@ -22,7 +22,7 @@ fn @entry() [entry] {
     revert 0, 0
 }
 
-fn @increment() [selector=0xd09de08a, abi_wrapper] {
+fn @increment() {
   bb0:
     v0 = sload 0
     v1 = icall @add, v0, 1
@@ -33,14 +33,14 @@ fn @increment() [selector=0xd09de08a, abi_wrapper] {
     stop
 }
 
-fn @count() [selector=0x06661abd, abi_wrapper] {
+fn @count() {
   bb0:
     v0 = sload 0
     mstore 0, v0
     returndata 0, 32
 }
 
-fn @sum() [selector=0x771602f7, abi_wrapper] {
+fn @sum() {
   bb0:
     v0 = calldataload 4
     v1 = calldataload 36

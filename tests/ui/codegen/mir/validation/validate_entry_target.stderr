@@ -1,0 +1,4 @@
+error: [fn0] tail_call targets nonexistent function fn99
+
+error: aborting due to 1 previous error
+

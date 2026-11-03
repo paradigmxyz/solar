@@ -30,7 +30,7 @@ fn @check() -> i1 [selector=0x919840ad, abi_params=[], abi_returns=[word<bool>],
   bb1:  ; preds = bb0
     v13 = checked_add uint256, 0x100000000000000000000000000000000000000010000000000000000, 0x800000000000000
     v14 = checked_add uint256, v13, 1
-    v15 = eq 0x100000000000000000000000000000000000000010800000000000001, v14
+    v15 = eq v14, 0x100000000000000000000000000000000000000010800000000000001
     jump bb3
   bb3:  ; preds = bb1, bb2
     v16 = phi [bb1: v15], [bb2: false]
@@ -102,7 +102,7 @@ fn @read(arg0: i256) -> i256 [selector=0xed2e5a97, view, abi_params=[uint256], a
     v1 = eq v0, false
     icall panic_if<0x32>, v1
     v2 = mul arg0, 0x10000000000000000000000000000000000000001
-    v3 = add 0, v2
+    v3 = add v2, 0
     v4 = add v3, 0x10000000000000000000000000000000000000000
     v5 = sload v4 !metadata(storage=offset(v2, 0x10000000000000000000000000000000000000000))
     ret v5

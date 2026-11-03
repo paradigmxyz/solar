@@ -5,15 +5,46 @@
 // CHECK-LABEL: {{^[ +].*}}fn @entry{{[( ]}}
 // CHECK: + {{v[0-9]+}} = mload 64
 // CHECK-NOT: heap_floor
-fn @entry() [entry] {
+fn @entry() -> i256 [entry] {
   bb0:
     v0 = fmp
     v1 = ptrtoint ptr<memory> v0 to i256
     mstore v1, 1
+    v2 = calldataload 0
+    switch v2, default bb1, [0x1 => bb2, 0x2 => bb3, 0x3 => bb4, 0x4 => bb5, 0x5 => bb6, 0x6 => bb7, 0x7 => bb8, 0x8 => bb9, 0x9 => bb10, 0xa => bb11, 0xb => bb12, 0xc => bb13, 0xd => bb14, 0xe => bb15]
+  bb1:
     tail_call @dispatched
+  bb2:
+    tail_call @entry_reads
+  bb3:
+    tail_call @read_after_alloc
+  bb4:
+    tail_call @read_after_slot_store
+  bb5:
+    tail_call @read_after_unknown_store, 0
+  bb6:
+    tail_call @calls_leaf
+  bb7:
+    tail_call @tail_calls
+  bb8:
+    tail_call @read_after_allocating_call
+  bb9:
+    tail_call @shared_early
+  bb10:
+    tail_call @shared_late
+  bb11:
+    tail_call @calls_recursive
+  bb12:
+    tail_call @loop_reads, 0
+  bb13:
+    tail_call @read_after_deferred
+  bb14:
+    tail_call @checked_pair, 0
+  bb15:
+    tail_call @other_checked, 0
 }
 
-// A read in an external entry, before anything may write the slot, takes the heap floor, and so
+// A read in a runtime entry, before anything may write the slot, takes the heap floor, and so
 // does the pointer read of the allocation after it. Writes through a pointer derived from the
 // floor lie above the slot and keep the reads fresh. The bump still stores the pointer.
 // CHECK-LABEL: {{^[ +].*}}fn @entry_reads{{[( ]}}
@@ -25,7 +56,7 @@ fn @entry() [entry] {
 // CHECK: + [[END:v[0-9]+]] = add [[ALLOC_FLOOR]], 64
 // CHECK: + mstore 64, [[END]]
 // CHECK-NOT: mload 64
-fn @entry_reads() -> i256 [selector=0x10000001] {
+fn @entry_reads() -> i256 {
   bb0:
     v0 = fmp
     v1 = ptrtoint ptr<memory> v0 to i256
@@ -42,7 +73,7 @@ fn @entry_reads() -> i256 [selector=0x10000001] {
 // CHECK: + mstore 64, {{v[0-9]+}}
 // CHECK: + {{v[0-9]+}} = mload 64
 // CHECK-NOT: heap_floor
-fn @read_after_alloc() -> i256 [selector=0x10000002] {
+fn @read_after_alloc() -> i256 {
   bb0:
     v0 = alloc 32
     v1 = fmp
@@ -55,7 +86,7 @@ fn @read_after_alloc() -> i256 [selector=0x10000002] {
 // CHECK: mstore 64, 160
 // CHECK: + {{v[0-9]+}} = mload 64
 // CHECK-NOT: heap_floor
-fn @read_after_slot_store() -> i256 [selector=0x10000003] {
+fn @read_after_slot_store() -> i256 {
   bb0:
     mstore 64, 160
     v0 = fmp
@@ -67,7 +98,7 @@ fn @read_after_slot_store() -> i256 [selector=0x10000003] {
 // CHECK-LABEL: {{^[ +].*}}fn @read_after_unknown_store{{[( ]}}
 // CHECK: + {{v[0-9]+}} = mload 64
 // CHECK-NOT: heap_floor
-fn @read_after_unknown_store(arg0: i256) -> i256 [selector=0x10000004] {
+fn @read_after_unknown_store(arg0: i256) -> i256 {
   bb0:
     mstore arg0, 1
     v0 = fmp
@@ -96,7 +127,7 @@ fn @pure_helper(arg0: i256) -> i256 {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @calls_leaf{{[( ]}}
-fn @calls_leaf() -> i256 [selector=0x10000005] {
+fn @calls_leaf() -> i256 {
   bb0:
     v0 = icall @pure_helper, 1
     v1 = icall @leaf_reads
@@ -117,7 +148,7 @@ fn @tail_reads(arg0: i256) {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @tail_calls{{[( ]}}
-fn @tail_calls() [selector=0x10000006] {
+fn @tail_calls() {
   bb0:
     tail_call @tail_reads, 7
 }
@@ -135,7 +166,7 @@ fn @allocator() -> i256 {
 // CHECK-LABEL: {{^[ +].*}}fn @read_after_allocating_call{{[( ]}}
 // CHECK: {{v[0-9]+}} = icall @allocator
 // CHECK: + {{v[0-9]+}} = mload 64
-fn @read_after_allocating_call() -> i256 [selector=0x10000007] {
+fn @read_after_allocating_call() -> i256 {
   bb0:
     v0 = icall @allocator
     v1 = fmp
@@ -157,14 +188,14 @@ fn @shared() -> i256 {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @shared_early{{[( ]}}
-fn @shared_early() -> i256 [selector=0x10000008] {
+fn @shared_early() -> i256 {
   bb0:
     v0 = icall @shared
     ret v0
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @shared_late{{[( ]}}
-fn @shared_late() -> i256 [selector=0x10000009] {
+fn @shared_late() -> i256 {
   bb0:
     mstore 64, 160
     v0 = icall @shared
@@ -191,7 +222,7 @@ fn @recursive(arg0: i256) -> i256 {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @calls_recursive{{[( ]}}
-fn @calls_recursive() -> i256 [selector=0x1000000a] {
+fn @calls_recursive() -> i256 {
   bb0:
     v0 = icall @recursive, 3
     ret v0
@@ -201,7 +232,7 @@ fn @calls_recursive() -> i256 [selector=0x1000000a] {
 // CHECK-LABEL: {{^[ +].*}}fn @loop_reads{{[( ]}}
 // CHECK: + {{v[0-9]+}} = mload 64
 // CHECK-NOT: heap_floor
-fn @loop_reads(arg0: i256) -> i256 [selector=0x1000000b] {
+fn @loop_reads(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -218,7 +249,7 @@ fn @loop_reads(arg0: i256) -> i256 [selector=0x1000000b] {
 // CHECK-LABEL: {{^[ +].*}}fn @read_after_deferred{{[( ]}}
 // CHECK: + {{v[0-9]+}} = mload 64
 // CHECK-NOT: heap_floor
-fn @read_after_deferred() -> i256 [selector=0x1000000c] {
+fn @read_after_deferred() -> i256 {
   bb0:
     v0 = alloc 32 !metadata(deferred_alloc)
     v1 = fmp
@@ -232,7 +263,7 @@ fn @read_after_deferred() -> i256 [selector=0x1000000c] {
 // CHECK: + {{v[0-9]+}} = icall @alloc
 // CHECK-LABEL: {{^[ +].*}}fn @other_checked{{[( ]}}
 // CHECK: + {{v[0-9]+}} = icall @alloc
-fn @checked_pair(arg0: i256) -> i256 [selector=0x1000000d] {
+fn @checked_pair(arg0: i256) -> i256 {
   bb0:
     v0 = alloc zeroed checked arg0
     v1 = alloc zeroed checked arg0
@@ -242,7 +273,7 @@ fn @checked_pair(arg0: i256) -> i256 [selector=0x1000000d] {
     ret v4
 }
 
-fn @other_checked(arg0: i256) -> i256 [selector=0x1000000e] {
+fn @other_checked(arg0: i256) -> i256 {
   bb0:
     v0 = alloc zeroed checked arg0
     v1 = ptrtoint ptr<memory> v0 to i256
@@ -251,11 +282,11 @@ fn @other_checked(arg0: i256) -> i256 [selector=0x1000000e] {
     ret v1
 }
 
-// The dispatch entry tail-calls an external entry, whose reads stay fresh, but is not an entry
+// The dispatch entry tail-calls the runtime entries, whose reads stay fresh, but is not an entry
 // itself: its own read loads the slot.
 // CHECK-LABEL: {{^[ +].*}}fn @dispatched{{[( ]}}
 // CHECK: + {{v[0-9]+}} = heap_floor
-fn @dispatched() [selector=0x1000000f] {
+fn @dispatched() {
   bb0:
     v0 = fmp
     v1 = ptrtoint ptr<memory> v0 to i256

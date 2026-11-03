@@ -52,7 +52,7 @@ fn @ok() -> i256 [selector=0xd909b403, pure, abi_params=[], abi_returns=[word], 
 }
 
 ; function bad() external pure returns (uint) [selector 0x9c3674fc]
-fn @bad() [selector=0x9c3674fc, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+fn @bad() -> i256 [selector=0x9c3674fc, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     icall require<short_string>, false, 4, 0x626f6f6d00000000000000000000000000000000000000000000000000000000
     invalid
@@ -320,7 +320,7 @@ fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
     v2 = add arg0, 4
     v3 = mload v2
     v4 = sub arg1, 36
-    v5 = gt v3, v4
+    v5 = lt v4, v3
     jumpi v5, bb3, bb2
   bb2:  ; preds = bb1
     v6 = add v2, v3
@@ -328,7 +328,7 @@ fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
     v8 = add v3, 36
     v9 = gt v7, 0xffffffffffffffff
     v10 = sub arg1, v8
-    v11 = gt v7, v10
+    v11 = lt v10, v7
     v12 = or v9, v11
     v13 = zext i1 v12 to i256
     v14 = eq v13, 0

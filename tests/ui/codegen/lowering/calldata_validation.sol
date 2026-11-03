@@ -74,8 +74,9 @@ contract CalldataValidation {
     // CHECK-LABEL: fn @vWidened{{[( ]}}
     // CHECK: [[RAW:v[0-9]+]] = calldataload 4
     // CHECK: {{v[0-9]+}} = shr [[RAW]], 8
-    // CHECK-NOT: = and arg0
-    // CHECK: [[WIDE:v[0-9]+]] = zext i8 arg0 to i16
+    // CHECK-NOT: = and
+    // CHECK: [[NARROW:v[0-9]+]] = trunc i256 [[RAW]] to i8
+    // CHECK: [[WIDE:v[0-9]+]] = zext i8 [[NARROW]] to i16
     // CHECK: [[WORD:v[0-9]+]] = zext i16 [[WIDE]] to i256
     // CHECK: mstore 0, [[WORD]]
     function vWidened(uint8 x) external pure returns (uint16) {
@@ -94,8 +95,11 @@ contract CalldataValidation {
     // Full-word value types are canonical by construction: no validator.
     // CHECK-LABEL: fn @vFull{{[( ]}}
     // CHECK: {{v[0-9]+}} = lt {{v[0-9]+}}, 100
-    // CHECK-NOT: calldataload
-    // CHECK: checked_add uint256, arg0, arg1
+    // CHECK-NOT: = shr
+    // CHECK-NOT: = signextend
+    // CHECK: [[A:v[0-9]+]] = calldataload 4
+    // CHECK: [[B:v[0-9]+]] = calldataload 36
+    // CHECK: checked_add uint256, [[A]], [[B]]
     function vFull(uint256 a, bytes32 b, int256 c) external pure returns (uint256) {
         return a + uint256(b) + uint256(c);
     }

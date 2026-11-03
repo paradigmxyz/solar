@@ -687,26 +687,42 @@ impl DiagCtxt {
         self.diag(Level::Error, msg)
     }
 
-    /// Creates a builder at the `Error` level with the given `span`, optional `code`, and `msg`.
+    /// Creates a builder at the `Error` level with the given `span` and `msg`.
     #[track_caller]
     pub fn err_at(
         &self,
         span: impl Into<MultiSpan>,
-        code: impl Into<Option<DiagId>>,
         msg: impl Into<DiagMsg>,
     ) -> DiagBuilder<'_, ErrorGuaranteed> {
-        self.diag_at(Level::Error, span, code, msg)
+        self.diag_at(Level::Error, span, None, msg)
     }
 
-    /// Emits an error with the given `span`, optional `code`, and `msg`.
+    /// Creates a builder at the `Error` level with the given `span`, `code`, and `msg`.
     #[track_caller]
-    pub fn emit_err(
+    pub fn err_code_at(
         &self,
         span: impl Into<MultiSpan>,
-        code: impl Into<Option<DiagId>>,
+        code: DiagId,
+        msg: impl Into<DiagMsg>,
+    ) -> DiagBuilder<'_, ErrorGuaranteed> {
+        self.diag_at(Level::Error, span, Some(code), msg)
+    }
+
+    /// Emits an error with the given `span` and `msg`.
+    #[track_caller]
+    pub fn emit_err(&self, span: impl Into<MultiSpan>, msg: impl Into<DiagMsg>) -> ErrorGuaranteed {
+        self.err_at(span, msg).emit()
+    }
+
+    /// Emits an error with the given `span`, `code`, and `msg`.
+    #[track_caller]
+    pub fn emit_err_code(
+        &self,
+        span: impl Into<MultiSpan>,
+        code: DiagId,
         msg: impl Into<DiagMsg>,
     ) -> ErrorGuaranteed {
-        self.err_at(span, code, msg).emit()
+        self.err_code_at(span, code, msg).emit()
     }
 
     /// Creates a builder at the `Warning` level with the given `msg`.
@@ -717,28 +733,46 @@ impl DiagCtxt {
         self.diag(Level::Warning, msg)
     }
 
-    /// Creates a builder at the `Warning` level with the given `span`, optional `code`, and `msg`.
+    /// Creates a builder at the `Warning` level with the given `span` and `msg`.
     ///
     /// Attempting to `.emit()` the builder will only emit if `can_emit_warnings` is `true`.
     #[track_caller]
     pub fn warn_at(
         &self,
         span: impl Into<MultiSpan>,
-        code: impl Into<Option<DiagId>>,
         msg: impl Into<DiagMsg>,
     ) -> DiagBuilder<'_, ()> {
-        self.diag_at(Level::Warning, span, code, msg)
+        self.diag_at(Level::Warning, span, None, msg)
     }
 
-    /// Emits a warning with the given `span`, optional `code`, and `msg`.
+    /// Creates a builder at the `Warning` level with the given `span`, `code`, and `msg`.
+    ///
+    /// Attempting to `.emit()` the builder will only emit if `can_emit_warnings` is `true`.
     #[track_caller]
-    pub fn emit_warn(
+    pub fn warn_code_at(
         &self,
         span: impl Into<MultiSpan>,
-        code: impl Into<Option<DiagId>>,
+        code: DiagId,
+        msg: impl Into<DiagMsg>,
+    ) -> DiagBuilder<'_, ()> {
+        self.diag_at(Level::Warning, span, Some(code), msg)
+    }
+
+    /// Emits a warning with the given `span` and `msg`.
+    #[track_caller]
+    pub fn emit_warn(&self, span: impl Into<MultiSpan>, msg: impl Into<DiagMsg>) {
+        self.warn_at(span, msg).emit()
+    }
+
+    /// Emits a warning with the given `span`, `code`, and `msg`.
+    #[track_caller]
+    pub fn emit_warn_code(
+        &self,
+        span: impl Into<MultiSpan>,
+        code: DiagId,
         msg: impl Into<DiagMsg>,
     ) {
-        self.warn_at(span, code, msg).emit()
+        self.warn_code_at(span, code, msg).emit()
     }
 
     /// Creates a builder at the `Help` level with the given `msg`.
@@ -759,11 +793,11 @@ impl DiagCtxt {
         &self,
         level: Level,
         span: impl Into<MultiSpan>,
-        code: impl Into<Option<DiagId>>,
+        code: Option<DiagId>,
         msg: impl Into<DiagMsg>,
     ) -> DiagBuilder<'_, G> {
         let diag = self.diag(level, msg).span(span);
-        match code.into() {
+        match code {
             Some(code) => diag.code(code),
             None => diag,
         }

@@ -1,0 +1,113 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/bool_param_logic.sol:BoolParamLogic ===
+@module BoolParamLogic
+@types
+  struct0: {i256, i256}
+
+; function both(bool a, bool b) external pure returns (bool) [selector 0x599b0e88]
+fn @both(arg0: i1, arg1: i1) -> i1 [selector=0x599b0e88, pure, abi_params=[bool, bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:  ; preds = bb0
+    jump bb3
+  bb1:  ; preds = bb0
+    jump bb3
+  bb3:  ; preds = bb1, bb2
+    v0 = phi [bb1: arg1], [bb2: false]
+    ret v0
+}
+
+; function either(bool a, bool b) external pure returns (bool) [selector 0x47a7ecc2]
+fn @either(arg0: i1, arg1: i1) -> i1 [selector=0x47a7ecc2, pure, abi_params=[bool, bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    jumpi arg0, bb2, bb1
+  bb1:  ; preds = bb0
+    jump bb3
+  bb2:  ; preds = bb0
+    jump bb3
+  bb3:  ; preds = bb2, bb1
+    v0 = phi [bb1: arg1], [bb2: true]
+    ret v0
+}
+
+; function differ(bool a, bool b) external pure returns (bool) [selector 0x4c75808f]
+fn @differ(arg0: i1, arg1: i1) -> i1 [selector=0x4c75808f, pure, abi_params=[bool, bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = ne arg0, arg1
+    ret v0
+}
+
+; function pick(bool a, uint256 x, uint256 y) public pure returns (uint256) [selector 0xb67daf62]
+fn @pick(arg0: i1, arg1: i256, arg2: i256) -> i256 [selector=0xb67daf62, pure, abi_params=[bool, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:  ; preds = bb0
+    jump bb3
+  bb1:  ; preds = bb0
+    jump bb3
+  bb3:  ; preds = bb1, bb2
+    v0 = phi [bb1: arg1], [bb2: arg2]
+    ret v0
+}
+
+; function pickNegated(bool a, uint256 x, uint256 y) external pure returns (uint256) [selector 0x2c44b1a0]
+fn @pickNegated(arg0: i1, arg1: i256, arg2: i256) -> i256 [selector=0x2c44b1a0, pure, abi_params=[bool, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = eq arg0, false
+    v1 = icall @pick, v0, arg1, arg2
+    ret v1
+}
+
+; function store(bool a) external returns (bool) [selector 0x35561014]
+fn @store(arg0: i1) -> i1 [selector=0x35561014, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v2 = zext i1 arg0 to i256
+    v3 = and v2, 255
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = trunc i256 v5 to i8
+    v7 = ne v6, i8 0
+    ret v7
+}
+
+; function negated(bool a) external pure returns (bool) [selector 0x9dfb2ec5]
+fn @negated(arg0: i1) -> i1 [selector=0x9dfb2ec5, pure, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = eq arg0, false
+    ret v0
+}
+
+; function unless(bool a, uint256 x) external pure returns (uint256, uint256) [selector 0x21bd9a17]
+fn @unless(arg0: i1, arg1: i256) -> struct0 [selector=0x21bd9a17, pure, abi_params=[bool, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    jumpi arg0, bb2, bb1
+  bb1:  ; preds = bb0
+    v0 = gt arg1, 0
+    jump bb3
+  bb2:  ; preds = bb0
+    jump bb3
+  bb3:  ; preds = bb2, bb1
+    v1 = phi [bb1: v0], [bb2: true]
+    icall require<short_string>, v1, 5, 0x656d707479000000000000000000000000000000000000000000000000000000
+    jumpi arg0, bb4, bb5
+  bb5:  ; preds = bb3
+    jump bb6
+  bb4:  ; preds = bb3
+    jump bb6
+  bb6:  ; preds = bb4, bb5
+    v2 = phi [bb4: i8 0], [bb5: i8 1]
+    v3 = zext i8 v2 to i256
+    jumpi arg0, bb7, bb8
+  bb8:  ; preds = bb6
+    jump bb9
+  bb7:  ; preds = bb6
+    v4 = checked_add uint256, arg1, 1
+    jump bb9
+  bb9:  ; preds = bb7, bb8
+    v5 = phi [bb7: v4], [bb8: arg1]
+    v6 = insert_value struct0, undef struct0, 0, v3
+    v7 = insert_value struct0, v6, 1, v5
+    ret v7
+}
