@@ -61,6 +61,9 @@ bb11 [cold]:
 bb75 [cold]:                                      ; revert_stub.11 (synthesized)
   push 34
   jump bb85
+bb29 [cold]:
+  push 65
+  jump bb85
 bb85 [cold]:
   push 32
   mstore
@@ -700,9 +703,6 @@ bb74 [loop]:
   push 1
   add
   jump bb72
-bb29 [cold]:
-  push 65
-  jump bb85
 bb86:
   push 68
   calldatasize

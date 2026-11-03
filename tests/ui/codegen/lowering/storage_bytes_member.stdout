@@ -12,6 +12,12 @@ bb0:                                              ; runtime dispatch entry
   push 15
   and
   indexed_jump bb2, bb14, bb14, bb14, bb14, bb3, bb4, bb5, bb14, bb14, bb6, bb14, bb14, bb7, bb14, bb14
+bb73 [cold]:                                      ; revert_stub.8 (synthesized)
+  push 50
+  jump bb74
+bb69 [cold]:
+  push 65
+  jump bb74
 bb72 [cold]:                                      ; revert_stub.7 (synthesized)
   push 34
   jump bb74
@@ -24,9 +30,6 @@ bb74 [cold]:
   push 36
   push 28
   revert
-bb73 [cold]:                                      ; revert_stub.8 (synthesized)
-  push 50
-  jump bb74
 bb2:
   dup 1
   push 0xe0886f90
@@ -759,7 +762,4 @@ bb68 [loop]:
   jump bb67
 bb38 [cold]:
   push 49
-  jump bb74
-bb69 [cold]:
-  push 65
   jump bb74

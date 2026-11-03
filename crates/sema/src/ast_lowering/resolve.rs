@@ -1244,6 +1244,8 @@ impl<'gcx> ResolveContext<'gcx> {
         expr: Option<&ast::yul::Expr<'_>>,
         span: Span,
     ) -> hir::StmtKind<'gcx> {
+        // The new names are not visible in the initializer.
+        let expr = expr.map(|expr| self.lower_yul_expr(expr));
         let vars = idents
             .iter()
             .map(|&ident| self.lower_yul_variable(ident, hir::VarKind::Statement))
@@ -1255,7 +1257,7 @@ impl<'gcx> ResolveContext<'gcx> {
         match (vars.as_slice(), expr) {
             ([(var, _)], None) => hir::StmtKind::DeclSingle(*var),
             ([(var, _)], Some(expr)) => {
-                self.hir.variables[*var].initializer = Some(self.lower_yul_expr(expr));
+                self.hir.variables[*var].initializer = Some(expr);
                 hir::StmtKind::DeclSingle(*var)
             }
             (vars, None) => {
@@ -1267,7 +1269,7 @@ impl<'gcx> ResolveContext<'gcx> {
             }
             (vars, Some(expr)) => hir::StmtKind::DeclMulti(
                 self.arena.alloc_slice_fill_iter(vars.iter().map(|&(var, _)| Some(var))),
-                self.lower_yul_expr(expr),
+                expr,
             ),
         }
     }
