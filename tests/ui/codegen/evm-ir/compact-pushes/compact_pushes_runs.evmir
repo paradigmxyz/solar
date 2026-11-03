@@ -8,7 +8,7 @@
 
 // A gas build prices a push over at most 200 executions below 10,000 runs, and over every
 // execution from there on. `0xc00000000000000000000000` saves eight bytes of deposit for six
-// gas, and a left-aligned mask 27 bytes for eight: they pay on 200 executions, not on 10,000.
+// gas, and a left-aligned mask 28 bytes for eight: they pay on 200 executions, not on 10,000.
 // CAPPED-LABEL: {{^[ +].*}}bb0:
 // CAPPED: + push 192
 // CAPPED-NEXT: + push 88

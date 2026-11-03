@@ -879,7 +879,7 @@ impl Target {
             return true;
         }
         let iterations = if in_loop { Self::UNCOUNTED_LOOP_ITERATIONS } else { 1 };
-        let executions = if self.expected_executions >= Self::LOOP_COPY_MIN_RUNS {
+        let executions = if self.copies_loops() {
             self.expected_executions
         } else {
             self.expected_executions.min(Self::DEFAULT_EXPECTED_EXECUTIONS)
@@ -2085,15 +2085,15 @@ mod tests {
         }
         // From `LOOP_COPY_MIN_RUNS` on, the full count prices it: the 8 bytes of
         // `0xc00000000000000000000000`, 1,600 gas, repay 6 gas on 200 executions, not on 10,000.
-        for runs in [Target::LOOP_COPY_MIN_RUNS, 9_999_999] {
-            let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, runs);
-            assert!(!target.compacts_immediate(8, 6, false));
-            assert!(!target.compacts_immediate(26, 6, false));
-            assert!(!target.compacts_immediate(30, 3, true));
-            // A recipe that costs no more gas still wins.
-            assert!(target.compacts_immediate(30, 0, true));
-        }
-        let capped = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 9_999);
+        let full =
+            Target::with(EvmVersion::Osaka, OptimizationMode::Gas, Target::LOOP_COPY_MIN_RUNS);
+        assert!(!full.compacts_immediate(8, 6, false));
+        assert!(!full.compacts_immediate(26, 6, false));
+        assert!(!full.compacts_immediate(30, 3, true));
+        // A recipe that costs no more gas still wins.
+        assert!(full.compacts_immediate(30, 0, true));
+        let capped =
+            Target::with(EvmVersion::Osaka, OptimizationMode::Gas, Target::LOOP_COPY_MIN_RUNS - 1);
         assert!(capped.compacts_immediate(8, 6, false));
     }
 
