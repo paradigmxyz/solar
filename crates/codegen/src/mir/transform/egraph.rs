@@ -1258,11 +1258,9 @@ fn is_node(kind: &InstKind) -> bool {
     let pure = definition.effect == EffectKind::Pure
         && !definition.has_side_effects
         && !matches!(kind, InstKind::Phi(_));
-    // Stable context reads are rematerialized by the backend. Keep calldata size separate:
-    // merging it extends ABI-decoding live ranges and can introduce spills.
+    // Stable context reads are rematerialized by the backend.
     let frame_invariant = definition.effect == EffectKind::EnvironmentRead
-        && definition.traits.contains(OpTraits::REMATERIALIZABLE)
-        && !matches!(kind, InstKind::CalldataSize);
+        && definition.traits.contains(OpTraits::REMATERIALIZABLE);
     pure || frame_invariant
         || matches!(
             kind,

@@ -57,8 +57,7 @@ fn @uncheckedDown() {
     v78 = ne v77, 0
     jumpi v78, bb10, bb9
   bb9:                                            ; preds = bb4
-    v79 = calldatasize
-    calldatacopy v72, v79, v2
+    calldatacopy v72, v44, v2
     mstore v72, v47
     v31 = eq v47, 0
     jumpi v31, bb1, bb2
@@ -120,8 +119,7 @@ fn @checkedDown() {
     v76 = ne v75, 0
     jumpi v76, bb12, bb11
   bb11:                                           ; preds = bb4
-    v77 = calldatasize
-    calldatacopy v70, v77, v2
+    calldatacopy v70, v42, v2
     mstore v70, v45
     v31 = eq v45, 0
     jumpi v31, bb1, bb2
@@ -188,8 +186,7 @@ fn @mixedDown() {
     jumpi v70, bb14, bb13
   bb13:                                           ; preds = bb5
     v74 = calldataload 36
-    v71 = calldatasize
-    calldatacopy v64, v71, v2
+    calldatacopy v64, v33, v2
     mstore v64, v36
     jump bb1
   bb1:                                            ; preds = bb8, bb13
@@ -271,8 +268,7 @@ fn @sourceFirst() {
   bb13:                                           ; preds = bb5
     v78 = calldataload 68
     v77 = calldataload 36
-    v74 = calldatasize
-    calldatacopy v67, v74, v2
+    calldatacopy v67, v35, v2
     mstore v67, v39
     jump bb1
   bb1:                                            ; preds = bb8, bb13
@@ -356,8 +352,7 @@ fn @destinationFirst() {
   bb13:                                           ; preds = bb5
     v81 = calldataload 68
     v80 = calldataload 36
-    v76 = calldatasize
-    calldatacopy v69, v76, v2
+    calldatacopy v69, v37, v2
     mstore v69, v41
     jump bb1
   bb1:                                            ; preds = bb8, bb13
@@ -439,8 +434,7 @@ fn @wrappedCopy() {
     v85 = ne v84, 0
     jumpi v85, bb12, bb11
   bb11:                                           ; preds = bb6
-    v86 = calldatasize
-    calldatacopy v79, v86, v6
+    calldatacopy v79, v47, v6
     mstore v79, v49
     v31 = eq v49, 0
     jumpi v31, bb2, bb4
@@ -560,8 +554,7 @@ fn @wrappedArray() {
     v124 = ne v123, 0
     jumpi v124, bb18, bb17
   bb17:                                           ; preds = bb8
-    v125 = calldatasize
-    calldatacopy v118, v125, v14
+    calldatacopy v118, v81, v14
     mstore v118, v130
     v43 = eq v130, 0
     jumpi v43, bb2, bb4

@@ -63,8 +63,7 @@ fn @whole() {
     mcopy v81, v79, v0
     jump bb2
   bb6:                                            ; preds = bb4
-    v99 = calldatasize
-    calldatacopy v81, v99, v2
+    calldatacopy v81, v59, v2
     v53 = lt v81, v30
     v52 = add v81, v0
     v54 = lt v61, v52
@@ -165,8 +164,7 @@ fn @rest() {
     mcopy v114, v112, v86
     jump bb2
   bb6:                                            ; preds = bb4
-    v133 = calldatasize
-    calldatacopy v114, v133, v3
+    calldatacopy v114, v90, v3
     v70 = lt v114, v43
     v69 = add v114, v86
     v71 = lt v93, v69
@@ -289,8 +287,7 @@ fn @slice() {
     mcopy v151, v149, v6
     jump bb2
   bb6:                                            ; preds = bb4
-    v176 = calldatasize
-    calldatacopy v151, v176, v8
+    calldatacopy v151, v121, v8
     v83 = lt v151, v53
     v82 = add v151, v6
     v84 = lt v125, v82

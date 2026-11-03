@@ -186,9 +186,8 @@ fn @decode_calldata_type.2(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     calldatacopy v37, v16, v15
     v31 = sub 0, v15
     v32 = and v31, 31
-    v55 = calldatasize
     v38 = add v37, v15
-    calldatacopy v38, v55, v32
+    calldatacopy v38, v0, v32
     v40 = add v53, 32
     mstore v40, v46
     v42 = add v53, 64

@@ -99,9 +99,7 @@ fn @roundTrip() {
     v224 = add v223, 64
     mstore 64, v224
     v3 = shl v171, 5
-    v6 = calldatasize
-    v8 = sub v6, v172
-    v9 = slt v8, v3
+    v9 = slt v173, v3
     jumpi v9, bb5, bb6
   bb6:                                            ; preds = bb30
     v13 = add v3, 32
@@ -250,26 +248,24 @@ fn @roundTrip() {
   bb2:                                            ; preds = bb1
     v18 = shl v16, 5
     v20 = add v172, v18
-    v21 = calldatasize
-    v22 = sub v21, v20
+    v22 = sub v163, v20
     v23 = slt v22, 32
     v24 = calldataload v20
     v26 = add v172, v24
-    v30 = sub v8, 31
+    v30 = sub v173, 31
     v31 = slt v24, v30
     v227 = eq v31, false
     v228 = or v23, v227
     jumpi v228, bb5, bb8
   bb8:                                            ; preds = bb2
     v33 = calldataload v26
-    v34 = calldatasize
     v87 = shr v33, 64
     v35 = ne v87, 0
     jumpi v35, bb5, bb9
   bb9:                                            ; preds = bb8
     v36 = shl v33, 5
     v37 = add v26, 32
-    v38 = sub v34, v36
+    v38 = sub v163, v36
     v39 = slt v38, v37
     jumpi v39, bb5, bb10
   bb10:                                           ; preds = bb9
@@ -334,11 +330,9 @@ fn @decode_calldata_type.5(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
   bb8:                                            ; preds = bb6
     ret v32
   bb7:                                            ; preds = bb6
-    v33 = calldatasize
     v34 = calldataload v17
     v35 = add v34, v7
-    v36 = sub v33, v7
-    v37 = sub v36, 32
+    v37 = sub v13, 32
     v38 = lt v37, v34
     jumpi v38, bb1, bb9
   bb9:                                            ; preds = bb7
@@ -352,7 +346,7 @@ fn @decode_calldata_type.5(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     v44 = icall @alloc, v43
     mstore v44, v39
     v46 = shl v39, 5
-    v47 = sub v33, v40
+    v47 = sub v0, v40
     v48 = shr v47, 5
     v49 = lt v48, v39
     jumpi v49, bb1, bb12

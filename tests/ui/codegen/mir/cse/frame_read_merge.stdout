@@ -1,6 +1,6 @@
-- ; === ROOT/tests/ui/codegen/mir/cse/frame_constant_operands.mir (before cse) ===
-+ ; === ROOT/tests/ui/codegen/mir/cse/frame_constant_operands.mir (after cse) ===
-  @module FrameConstantOperands
+- ; === ROOT/tests/ui/codegen/mir/cse/frame_read_merge.mir (before cse) ===
++ ; === ROOT/tests/ui/codegen/mir/cse/frame_read_merge.mir (after cse) ===
+  @module FrameReadMerge
   fn @repeated_bound(arg0: i256) -> i256 {
     bb0:
       v0 = calldatasize
@@ -8,7 +8,7 @@
       v2 = slt v1, 32
       jumpi v2, bb3, bb1
     bb1:                                            ; preds = bb0
-      v3 = calldatasize
+-     v3 = calldatasize
 -     v4 = sub v3, arg0
 -     v5 = slt v4, 32
 -     jumpi v5, bb3, bb2
@@ -20,13 +20,14 @@
       revert 0, 0
   }
   
-  fn @casts_stay_apart() -> i256 {
+  fn @casts_merge() -> i256 {
     bb0:
       v0 = caller
       v1 = zext i160 v0 to i256
-      v2 = caller
-      v3 = zext i160 v2 to i256
-      v4 = add v1, v3
+-     v2 = caller
+-     v3 = zext i160 v2 to i256
+-     v4 = add v1, v3
++     v4 = add v1, v1
       ret v4
   }
   
@@ -34,7 +35,7 @@
     bb0:
       v0 = calldatasize
       v1 = sub v0, 4
-      v2 = calldatasize
+-     v2 = calldatasize
 -     v3 = sub v2, 4
 -     v4 = add v1, v3
 +     v4 = add v1, v1
@@ -46,7 +47,7 @@
       v0 = slotnum
       v1 = add v0, 4
       v2 = add v1, 32
-      v3 = slotnum
+-     v3 = slotnum
 -     v4 = add v3, 36
 -     v5 = add v2, v4
 +     v5 = add v2, v2

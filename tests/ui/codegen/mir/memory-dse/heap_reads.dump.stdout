@@ -157,8 +157,7 @@ fn @hashes() {
     v81 = ne v80, 0
     jumpi v81, bb16, bb15
   bb15:                                           ; preds = bb10
-    v82 = calldatasize
-    calldatacopy v75, v82, v9
+    calldatacopy v75, v53, v9
     mstore v75, v55
     v37 = or v75, v55
     v51 = shr v37, 64

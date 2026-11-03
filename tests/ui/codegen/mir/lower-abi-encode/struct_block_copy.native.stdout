@@ -223,8 +223,7 @@ fn @encodeItems() {
     v188 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v189 = add v188, 224 !metadata(alloc_ptr)
     mstore 64, v189 !metadata(memory=scratch)
-    v194 = calldatasize
-    calldatacopy v188, v194, 224
+    calldatacopy v188, v56, 224
     mstore v196, v188
     v197 = add v196, 32
     jump bb1
