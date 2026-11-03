@@ -181,6 +181,17 @@
 //! offset. Runs after the late loop passes have fixed the loop's physical
 //! shape, and before the final CFG cleanup and dead-code elimination remove the
 //! cloned tests the copies no longer read.
+//!
+//! Code size limit: from the runs that copy loops on, the pricing treats bytes as nearly free, and
+//! nothing else bounds what the copies add. In a gas build whose EVM version limits deployed
+//! code, the copies of all loops in the module, unrolling, peeling and complete unrolling alike,
+//! draw on one budget, [`Target::loop_copy_budget`]: the room the runtime's estimated code leaves
+//! under the limit. Every function plans and makes its copies on its own worker, and when they
+//! together fit the budget that is the result, so a module with room is unchanged. Otherwise the
+//! functions that copied take back their original bodies and the pass runs again, this time
+//! making only the copies that save at least as much gas per added byte as the last copy the
+//! budget affords, taken from the best down. That cutoff depends on the set of copies and not on
+//! the order the workers finish in, so the result is deterministic.
 
 use super::loop_split::{
     LoopCopy, add_exit_inputs, branch, clone_loop, jump, redirect, side_exits,
@@ -197,13 +208,15 @@ use crate::{
         pass::{MirPass, run_function_pass},
         utils::{rebuild_predecessors, replace_terminator_uses},
     },
-    target::{Cost, Target},
+    target::{CodeEstimate, Cost, Target, by_gas_per_byte},
 };
 use alloy_primitives::U256;
+use solar_config::OptimizationMode;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::IndexVec,
     map::{FxHashMap, FxHashSet},
+    sync::Mutex,
 };
 use std::cell::OnceCell;
 
@@ -223,9 +236,126 @@ impl MirPass for LoopUnroll {
     ) -> bool {
         let cold = module.cold_functions();
         let returns = return_bounds(module);
-        run_function_pass(module, analyses, |func, analyses| {
-            unroll_function(func, &cold, &returns, &analyses.loop_aware_target(gcx))
-        })
+        // A function's own tag may select the gas objective in a module that has another.
+        let objective = if module.runs_objective(OptimizationMode::is_gas) {
+            OptimizationMode::Gas
+        } else {
+            module.optimization
+        };
+        let target = Target::new(gcx, objective);
+        let runtime = module.runtime_reachable_functions();
+        let estimate = runtime_code_estimate(module, &runtime, &target);
+        // MIR without runtime entries has no code to bound.
+        let budget = if copies_loops(&target) && estimate != 0 {
+            target.loop_copy_budget(estimate, CodeEstimate::Mir)
+        } else {
+            u64::MAX
+        };
+        if budget == u64::MAX {
+            return run_function_pass(module, analyses, |func, analyses| {
+                let target = analyses.loop_aware_target(gcx);
+                unroll_function(func, &cold, &returns, &target, Cutoff::Every, &mut Vec::new())
+            });
+        }
+        // Each function keeps its original beside the copies it made, so a module over the budget
+        // can take them back.
+        let made = Mutex::new(Vec::new());
+        let mut changed = run_function_pass(module, analyses, |func, analyses| {
+            let target = analyses.loop_aware_target(gcx);
+            let original = (copies_loops(&target) && runtime.contains(analyses.function()))
+                .then(|| func.clone());
+            let mut copies = Vec::new();
+            let changed =
+                unroll_function(func, &cold, &returns, &target, Cutoff::Every, &mut copies);
+            if let Some(original) = original
+                && !copies.is_empty()
+            {
+                made.lock().push((analyses.function(), original, copies));
+            }
+            changed
+        });
+        let made = made.into_inner();
+        if made.iter().flat_map(|(.., copies)| copies).map(|copies| copies.added).sum::<u64>()
+            <= budget
+        {
+            return changed;
+        }
+        let mut restored = DenseBitSet::new_empty(module.functions.len());
+        let mut copies = Vec::new();
+        for (id, original, made) in made {
+            module.functions[id] = original;
+            restored.insert(id);
+            copies.extend(made);
+        }
+        let cutoff = Cutoff::within(copies, budget);
+        changed |= run_function_pass(module, analyses, |func, analyses| {
+            let target = analyses.loop_aware_target(gcx);
+            restored.contains(analyses.function())
+                && unroll_function(func, &cold, &returns, &target, cutoff, &mut Vec::new())
+        });
+        changed
+    }
+}
+
+/// The estimated bytes of the code that the module's runtime reaches.
+fn runtime_code_estimate(
+    module: &Module,
+    runtime: &DenseBitSet<FunctionId>,
+    target: &Target,
+) -> u64 {
+    runtime.iter().map(|id| u64::from(target.code_estimate(module.function(id)).bytes)).sum()
+}
+
+/// The code a loop transformation adds: the bytes by the target's estimate, and the gas per
+/// execution it saves.
+#[derive(Clone, Copy)]
+struct Copies {
+    added: u64,
+    saved: u64,
+}
+
+/// Which copies a run makes, by the gas they save per added byte.
+#[derive(Clone, Copy)]
+enum Cutoff {
+    /// Every copy that pays.
+    Every,
+    /// The copies that save at least as much per added byte as this one.
+    AtLeast(Copies),
+    /// No copy.
+    Never,
+}
+
+impl Cutoff {
+    /// The cutoff at which `copies`, taken by the gas they save per added byte from the best
+    /// down, add at most `budget` bytes. Copies that save the same per added byte go together or
+    /// not at all.
+    fn within(mut copies: Vec<Copies>, mut budget: u64) -> Self {
+        copies.sort_by(|a, b| by_gas_per_byte((a.added, a.saved), (b.added, b.saved)));
+        let mut cutoff = Self::Never;
+        let mut rest = copies.as_slice();
+        while let Some(&best) = rest.first() {
+            let group = rest.partition_point(|copy| {
+                by_gas_per_byte((copy.added, copy.saved), (best.added, best.saved)).is_eq()
+            });
+            let added = rest[..group].iter().map(|copy| copy.added).sum::<u64>();
+            if added > budget {
+                break;
+            }
+            budget -= added;
+            cutoff = Self::AtLeast(best);
+            rest = &rest[group..];
+        }
+        cutoff
+    }
+
+    fn allows(self, copies: Copies) -> bool {
+        match self {
+            Self::Every => true,
+            Self::AtLeast(least) => {
+                by_gas_per_byte((copies.added, copies.saved), (least.added, least.saved)).is_le()
+            }
+            Self::Never => false,
+        }
     }
 }
 
@@ -274,6 +404,7 @@ struct Unroll {
     /// Side exits that read loop values directly, with the values a phi on their edge
     /// carries instead before the loop is copied.
     exit_phis: Vec<(BlockId, Vec<ValueId>)>,
+    copies: Copies,
 }
 
 /// The shape both unrolling and peeling need: a natural loop with a preheader and a single
@@ -312,6 +443,7 @@ struct Peel {
     blocks: DenseBitSet<BlockId>,
     /// Body blocks ending with such a test, with the block each continues to.
     tests: Vec<(BlockId, BlockId)>,
+    copies: Copies,
 }
 
 /// A loop that runs a literal number of times, few enough to repeat its body that many times in
@@ -324,6 +456,7 @@ struct Full {
     exit: BlockId,
     blocks: DenseBitSet<BlockId>,
     trips: u32,
+    copies: Copies,
 }
 
 /// Whether the build trades code size for runtime gas by copying loop bodies.
@@ -344,11 +477,15 @@ fn carries_few_words(func: &Function, header: BlockId, latch: BlockId, target: &
 /// The most iterations a loop may run to be unrolled completely, whatever its pricing.
 const MAX_COMPLETE_TRIPS: u64 = 16;
 
+/// Unrolls, peels and completely unrolls the function's loops, in the copies the cutoff allows,
+/// and appends the copies it makes to `made`.
 fn unroll_function(
     func: &mut Function,
     cold: &DenseBitSet<FunctionId>,
     returns: &FxHashMap<FunctionId, U256>,
     target: &Target,
+    cutoff: Cutoff,
+    made: &mut Vec<Copies>,
 ) -> bool {
     let mut changed = false;
     let mut done = FxHashSet::default();
@@ -357,10 +494,12 @@ fn unroll_function(
     // no test or jump left between them.
     loop {
         let loops = LoopAnalyzer::new().analyze_structure(func);
-        let Some(full) = loops.all_loops().find_map(|l| plan_full(func, &loops, l, cold, target))
+        let Some(full) =
+            loops.all_loops().find_map(|l| plan_full(func, &loops, l, cold, target, cutoff))
         else {
             break;
         };
+        made.push(full.copies);
         unroll_fully(func, &full);
         changed = true;
     }
@@ -373,7 +512,8 @@ fn unroll_function(
     let reversals: Vec<_> = loops
         .all_loops()
         .filter(|l| {
-            plan(func, &loops, l, cold, returns, target).is_none_or(|unroll| unroll.factor != 4)
+            plan(func, &loops, l, cold, returns, target, cutoff)
+                .is_none_or(|unroll| unroll.factor != 4)
         })
         .filter_map(|l| plan_reverse(func, l, &uses))
         .collect();
@@ -387,9 +527,10 @@ fn unroll_function(
         if let Some(plan) = loops
             .all_loops()
             .filter(|l| !peeled.contains(&l.header))
-            .find_map(|l| plan_peel(func, &loops, l, cold, target))
+            .find_map(|l| plan_peel(func, &loops, l, cold, target, cutoff))
         {
             peeled.insert(plan.header);
+            made.push(plan.copies);
             peel(func, &plan);
             changed = true;
             continue;
@@ -397,10 +538,11 @@ fn unroll_function(
         let Some(unroll) = loops
             .all_loops()
             .filter(|l| !done.contains(&l.header))
-            .find_map(|l| plan(func, &loops, l, cold, returns, target))
+            .find_map(|l| plan(func, &loops, l, cold, returns, target, cutoff))
         else {
             break;
         };
+        made.push(unroll.copies);
         done.insert(unroll.header);
         done.insert(apply(func, &unroll));
         changed = true;
@@ -616,6 +758,7 @@ fn plan(
     cold: &DenseBitSet<FunctionId>,
     returns: &FxHashMap<FunctionId, U256>,
     target: &Target,
+    cutoff: Cutoff,
 ) -> Option<Unroll> {
     if !copies_loops(target) {
         return None;
@@ -683,10 +826,14 @@ fn plan(
             Test::Reaches if factor == 2 => MainTest::Parity,
             Test::Reaches => return None,
         };
-        let saving = lifetime_saving(func, l, main_test, factor, trips, step, target);
-        (saving > 0).then_some((saving, factor, main_test))
+        let (saving, copies) = lifetime_saving(func, l, main_test, factor, trips, step, target);
+        (saving > 0).then_some((saving, factor, main_test, copies))
     });
-    let (_, factor, main_test) = candidates.max_by_key(|&(saving, ..)| saving)?;
+    // The cutoff admits the factor that saves most or none, so a run under a cutoff makes a
+    // subset of the copies that a run without one makes, and stays within the budget it counted.
+    let (_, factor, main_test, copies) = candidates
+        .max_by_key(|&(saving, ..)| saving)
+        .filter(|&(.., copies)| cutoff.allows(copies))?;
 
     let exit_phis = exit_reads(func, l, exit, loop_insts, cold)?;
     Some(Unroll {
@@ -701,6 +848,7 @@ fn plan(
         bound,
         step,
         exit_phis,
+        copies,
     })
 }
 
@@ -853,7 +1001,7 @@ fn max_trips(
 }
 
 /// How much lifetime gas the tests and jumps the main loop skips save over the deposit of its
-/// code; positive when unrolling pays.
+/// code, positive when unrolling pays, and the code it adds.
 fn lifetime_saving(
     func: &Function,
     l: &Loop,
@@ -862,7 +1010,7 @@ fn lifetime_saving(
     trips: u64,
     step: U256,
     target: &Target,
-) -> i128 {
+) -> (i128, Copies) {
     let compare = match main_test {
         MainTest::AheadBelow(_) => op::LT,
         MainTest::AheadBeyond(_) | MainTest::Below => op::GT,
@@ -903,8 +1051,9 @@ fn lifetime_saving(
             target.block_code_estimate(func, block).times(copies)
         })
         .sum();
-    target.lifetime_gas(Cost::new(saving, 0)) as i128
-        - target.lifetime_gas(Cost::new(0, growth.bytes)) as i128
+    let net = target.lifetime_gas(Cost::new(saving, 0)) as i128
+        - target.lifetime_gas(Cost::new(0, growth.bytes)) as i128;
+    (net, Copies { added: u64::from(growth.bytes), saved: u64::from(saving) })
 }
 
 /// Plans to count a loop's iterations from `-n` up to zero when its counter starts at zero,
@@ -974,6 +1123,7 @@ fn plan_peel(
     l: &Loop,
     cold: &DenseBitSet<FunctionId>,
     target: &Target,
+    cutoff: Cutoff,
 ) -> Option<Peel> {
     if !copies_loops(target) {
         return None;
@@ -1022,15 +1172,18 @@ fn plan_peel(
     let iterations = u32::try_from(Target::UNCOUNTED_LOOP_ITERATIONS - 1).unwrap_or(u32::MAX);
     let saving = target.runtime_gas(skipped.times(iterations));
     let growth: Cost = l.blocks.iter().map(|block| target.block_code_estimate(func, block)).sum();
-    (target.lifetime_gas(Cost::new(saving, 0)) > target.lifetime_gas(Cost::new(0, growth.bytes)))
-        .then(|| Peel {
-            header: l.header,
-            preheader: shape.preheader,
-            latch: shape.latch,
-            exit: shape.exit,
-            blocks: l.blocks.clone(),
-            tests,
-        })
+    let copies = Copies { added: u64::from(growth.bytes), saved: u64::from(saving) };
+    (target.lifetime_gas(Cost::new(saving, 0)) > target.lifetime_gas(Cost::new(0, growth.bytes))
+        && cutoff.allows(copies))
+    .then(|| Peel {
+        header: l.header,
+        preheader: shape.preheader,
+        latch: shape.latch,
+        exit: shape.exit,
+        blocks: l.blocks.clone(),
+        tests,
+        copies,
+    })
 }
 
 /// Plans to unroll a loop completely when it runs a literal number of times and removing every
@@ -1041,6 +1194,7 @@ fn plan_full(
     l: &Loop,
     cold: &DenseBitSet<FunctionId>,
     target: &Target,
+    cutoff: Cutoff,
 ) -> Option<Full> {
     if !copies_loops(target) {
         return None;
@@ -1064,7 +1218,7 @@ fn plan_full(
     };
     let tested = target.loop_header_test(compare);
     let trips = u32::try_from(trips).ok()?;
-    let saving = (tested + target.jump()).times(trips) + tested;
+    let saving = target.runtime_gas((tested + target.jump()).times(trips) + tested);
     let body: Cost = l
         .blocks
         .iter()
@@ -1076,8 +1230,9 @@ fn plan_full(
     }
     let header = target.block_code_estimate(func, l.header);
     let growth = body.times(trips - 1).bytes.saturating_sub(header.bytes);
-    (target.lifetime_gas(Cost::new(target.runtime_gas(saving), 0))
-        > target.lifetime_gas(Cost::new(0, growth)))
+    let copies = Copies { added: u64::from(growth), saved: u64::from(saving) };
+    (target.lifetime_gas(Cost::new(saving, 0)) > target.lifetime_gas(Cost::new(0, growth))
+        && cutoff.allows(copies))
     .then(|| Full {
         header: l.header,
         preheader: shape.preheader,
@@ -1086,6 +1241,7 @@ fn plan_full(
         exit: shape.exit,
         blocks: l.blocks.clone(),
         trips,
+        copies,
     })
 }
 

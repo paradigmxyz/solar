@@ -36,6 +36,38 @@ pub(crate) use stack::StackCosts;
 
 pub(crate) use solar_evmir::gas::{GasTier, Warmth};
 
+/// The stage of the pipeline that estimates a module's runtime code.
+#[derive(Clone, Copy)]
+pub(crate) enum CodeEstimate {
+    /// [`Target::code_estimate`] of the MIR functions the runtime reaches.
+    Mir,
+    /// The encoded bytes of the runtime module's EVM IR.
+    EvmIr,
+}
+
+impl CodeEstimate {
+    /// The percent of the estimate that the final runtime code may reach. The MIR estimate prices
+    /// no operand shuffling and cannot see the sharing the backend finds: on the Seaport helpers
+    /// the final code came out between 1.13 and 1.60 times the estimate, `CriteriaHelper` with
+    /// the copies it makes at the top. The EVM IR bytes lack only later label widening and the
+    /// final cleanups, and came out between 0.99 and 1.01 times.
+    const fn percent(self) -> u64 {
+        match self {
+            Self::Mir => 165,
+            Self::EvmIr => 102,
+        }
+    }
+
+    /// The percent of the limit from which the code is undeployable whatever the copies add: the
+    /// estimate itself for MIR, which undercounts, and the EVM IR bytes' own error above it.
+    const fn overflow_percent(self) -> u64 {
+        match self {
+            Self::Mir => 100,
+            Self::EvmIr => 102,
+        }
+    }
+}
+
 /// Encoded size of an opcode including its immediate bytes.
 const fn opcode_bytes(opcode: u8) -> u32 {
     let immediate = match opcode {
@@ -414,6 +446,25 @@ impl Target {
         } else {
             code_bytes / Self::LOOP_JOIN_COPY_SHARE
         }
+    }
+
+    /// The most bytes the copies of loops may add to runtime code that `estimate` puts at
+    /// `code_bytes` bytes: in gas builds, the room that code leaves under the EVM version's limit
+    /// on deployed code once the estimate is scaled up by its [`CodeEstimate::percent`];
+    /// otherwise unbounded. From [`Self::LOOP_COPY_MIN_RUNS`] on a build values bytes at almost
+    /// nothing, so without the limit nothing else bounds what the unrolled loops add; at fewer runs
+    /// only the copies of loop blocks into their predecessors can reach it. Code that exceeds
+    /// the limit by its estimate, such as a test contract, is undeployable with or without the
+    /// copies, so it keeps them.
+    pub(crate) fn loop_copy_budget(&self, code_bytes: u64, estimate: CodeEstimate) -> u64 {
+        let Some(limit) = self.evm_version.runtime_code_size_limit().map(|limit| limit as u64)
+        else {
+            return u64::MAX;
+        };
+        if !self.optimization.is_gas() || code_bytes * 100 >= limit * estimate.overflow_percent() {
+            return u64::MAX;
+        }
+        (limit * 100 / estimate.percent()).saturating_sub(code_bytes)
     }
 
     /// Whether a loop rewritten into one copy keeps an optional test of its length before the
@@ -1290,6 +1341,19 @@ impl Target {
     }
 }
 
+/// Orders copies that add `added` bytes and save `saved` gas by the gas they save per added byte,
+/// highest first. Copies that add no bytes come first: compared by cross-multiplication, one that
+/// also saves no gas would tie with every other copy, which orders nothing consistently.
+pub(crate) fn by_gas_per_byte(
+    (added_a, saved_a): (u64, u64),
+    (added_b, saved_b): (u64, u64),
+) -> Ordering {
+    (added_a != 0).cmp(&(added_b != 0)).then_with(|| {
+        (u128::from(saved_b) * u128::from(added_a))
+            .cmp(&(u128::from(saved_a) * u128::from(added_b)))
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2122,5 +2186,49 @@ mod tests {
             assert_eq!(target.loop_closed_form(2, 0), linear.times(2) + target.jump());
             assert_eq!(target.loop_closed_form(2, 1), linear.times(3) + target.jump() + triangular);
         }
+    }
+
+    #[test]
+    fn loop_copies_leave_room_under_the_code_size_limit() {
+        let gas =
+            |version| Target::with(version, OptimizationMode::Gas, Target::LOOP_COPY_MIN_RUNS);
+        let cancun = gas(EvmVersion::Cancun);
+        assert_eq!(cancun.loop_copy_budget(0, CodeEstimate::Mir), 14_894);
+        assert_eq!(cancun.loop_copy_budget(10_000, CodeEstimate::Mir), 4_894);
+        assert_eq!(cancun.loop_copy_budget(14_894, CodeEstimate::Mir), 0);
+        assert_eq!(cancun.loop_copy_budget(20_000, CodeEstimate::Mir), 0);
+        assert_eq!(cancun.loop_copy_budget(20_000, CodeEstimate::EvmIr), 4_094);
+        // Code over the limit by its estimate is undeployable whatever the copies add.
+        assert_eq!(cancun.loop_copy_budget(24_575, CodeEstimate::Mir), 0);
+        assert_eq!(cancun.loop_copy_budget(24_576, CodeEstimate::Mir), u64::MAX);
+        assert_eq!(cancun.loop_copy_budget(24_576, CodeEstimate::EvmIr), 0);
+        assert_eq!(cancun.loop_copy_budget(25_068, CodeEstimate::EvmIr), u64::MAX);
+        assert_eq!(gas(EvmVersion::Amsterdam).loop_copy_budget(0, CodeEstimate::EvmIr), 64_250);
+        // Without a limit on deployed code, or when optimizing for size, nothing bounds the copies.
+        assert_eq!(
+            gas(EvmVersion::Homestead).loop_copy_budget(1 << 20, CodeEstimate::Mir),
+            u64::MAX
+        );
+        let size = Target::with(EvmVersion::Cancun, OptimizationMode::Size, 1);
+        assert_eq!(size.loop_copy_budget(1 << 20, CodeEstimate::Mir), u64::MAX);
+    }
+
+    #[test]
+    fn gas_per_byte_orders_totally() {
+        // (added, saved), with copies that add no bytes, save no gas, or both.
+        let copies = [(10, 10), (0, 0), (4, 8), (0, 12), (1, 120), (3, 0), (2, 4), (6, 0)];
+        for a in copies {
+            for b in copies {
+                assert_eq!(by_gas_per_byte(a, b), by_gas_per_byte(b, a).reverse(), "{a:?} {b:?}");
+                for c in copies {
+                    if by_gas_per_byte(a, b).is_le() && by_gas_per_byte(b, c).is_le() {
+                        assert!(by_gas_per_byte(a, c).is_le(), "{a:?} <= {b:?} <= {c:?}");
+                    }
+                }
+            }
+        }
+        let mut sorted = copies;
+        sorted.sort_by(|&a, &b| by_gas_per_byte(a, b));
+        assert_eq!(sorted, [(0, 0), (0, 12), (1, 120), (4, 8), (2, 4), (10, 10), (3, 0), (6, 0)]);
     }
 }

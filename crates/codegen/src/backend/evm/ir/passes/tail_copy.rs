@@ -72,6 +72,11 @@
 //! copies would grow it by a tenth or more, then keeps its size at the default runs, while the
 //! copies of a larger contract's loops, a small share of it, all go.
 //!
+//! The runtime module's copies, at any runs, also stay within
+//! [`crate::target::Target::loop_copy_budget`]: a contract that fits the limit on deployed code
+//! keeps its copies, and the copies that save the most gas per added byte go first until the module
+//! reaches the limit.
+//!
 //! The pass runs after the last structural sharing, so tail merging does not fold the copies
 //! back together, and before the final CFG cleanup and loop layout, which remove the blocks the
 //! copies replaced and pick the loop's fallthroughs.
@@ -117,12 +122,11 @@ use crate::{
         ir::{Block, BlockId, Instruction, Module, ModuleTarget, Terminator, TerminatorKind},
         op,
     },
-    target::{Cost, Target},
+    target::{CodeEstimate, Cost, Target, by_gas_per_byte},
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 use solar_sema::Gcx;
-use std::cmp::Ordering;
 
 pub(super) struct CopyLoopBlocks;
 
@@ -137,7 +141,13 @@ impl EvmPass for CopyLoopBlocks {
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let target = module.target(gcx);
-        let mut budget = target.loop_join_copy_budget(code_bytes(target, module));
+        let bytes = code_bytes(target, module);
+        let limit = if module.code_follows {
+            u64::MAX
+        } else {
+            target.loop_copy_budget(bytes, CodeEstimate::EvmIr)
+        };
+        let mut budget = target.loop_join_copy_budget(bytes).min(limit);
         let mut changed = false;
         for _ in 0..MAX_ROUNDS {
             let paths = incoming_paths(module);
@@ -498,38 +508,4 @@ fn label_fits_path(block: &Block, next: &Block) -> bool {
 fn stack_growth(inst: &Instruction) -> i64 {
     let effect = inst.stack_effect();
     i64::from(effect.outputs) - i64::from(effect.inputs)
-}
-
-/// Orders copies that add `added` bytes and save `saved` gas by the gas they save per added byte,
-/// highest first. Copies that add no bytes come first: compared by cross-multiplication, one that
-/// also saves no gas would tie with every other copy, which orders nothing consistently.
-fn by_gas_per_byte((added_a, saved_a): (u64, u64), (added_b, saved_b): (u64, u64)) -> Ordering {
-    (added_a != 0).cmp(&(added_b != 0)).then_with(|| {
-        (u128::from(saved_b) * u128::from(added_a))
-            .cmp(&(u128::from(saved_a) * u128::from(added_b)))
-    })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn gas_per_byte_orders_totally() {
-        // (added, saved), with copies that add no bytes, save no gas, or both.
-        let copies = [(10, 10), (0, 0), (4, 8), (0, 12), (1, 120), (3, 0), (2, 4), (6, 0)];
-        for a in copies {
-            for b in copies {
-                assert_eq!(by_gas_per_byte(a, b), by_gas_per_byte(b, a).reverse(), "{a:?} {b:?}");
-                for c in copies {
-                    if by_gas_per_byte(a, b).is_le() && by_gas_per_byte(b, c).is_le() {
-                        assert!(by_gas_per_byte(a, c).is_le(), "{a:?} <= {b:?} <= {c:?}");
-                    }
-                }
-            }
-        }
-        let mut sorted = copies;
-        sorted.sort_by(|&a, &b| by_gas_per_byte(a, b));
-        assert_eq!(sorted, [(0, 0), (0, 12), (1, 120), (4, 8), (2, 4), (10, 10), (3, 0), (6, 0)]);
-    }
 }
