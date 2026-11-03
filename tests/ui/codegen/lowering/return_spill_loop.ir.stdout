@@ -36,6 +36,9 @@ bb6 [cold]:
   push 0
   push 0
   revert
+bb15 [cold]:
+  push 65
+  jump bb50
 bb46 [cold]:  ; revert_stub (synthesized)
   push 50
   jump bb50
@@ -371,9 +374,6 @@ bb45:
   pop
   pop
   jump bb44
-bb15 [cold]:
-  push 65
-  jump bb50
 bb49 [continuation]:
   push 64
   mload
