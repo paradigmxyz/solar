@@ -343,30 +343,31 @@ fn evaluate_instruction(
     };
 
     if let InstKind::Select(condition, then_value, else_value) = *kind {
-        return match lattice[condition] {
-            LatticeValue::Constant(condition) => {
-                let chosen = if condition.is_zero() { else_value } else { then_value };
-                lattice[chosen]
+        match lattice[condition] {
+            LatticeValue::Constant(_) => {}
+            LatticeValue::Bottom => return lattice[then_value].meet(lattice[else_value]),
+            LatticeValue::Top => {
+                return match (get_const(then_value), get_const(else_value)) {
+                    (Some(then_value), Some(else_value)) if then_value == else_value => {
+                        LatticeValue::Constant(then_value)
+                    }
+                    _ => LatticeValue::Top,
+                };
             }
-            LatticeValue::Bottom => lattice[then_value].meet(lattice[else_value]),
-            LatticeValue::Top => match (get_const(then_value), get_const(else_value)) {
-                (Some(then_value), Some(else_value)) if then_value == else_value => {
-                    LatticeValue::Constant(then_value)
-                }
-                _ => LatticeValue::Top,
-            },
-        };
+        }
     }
 
-    match eval::eval_typed_inst(func, kind, |value| get_const(value).ok_or(())) {
+    match eval::eval_typed_inst(func, kind, |value| get_const(value).ok_or(value)) {
         Ok(Some(value)) => LatticeValue::Constant(value),
         Ok(None) => LatticeValue::Bottom,
-        Err(()) if zero_divisor(kind, get_const) => LatticeValue::Constant(U256::ZERO),
+        // A select with a constant condition takes the lattice value of its chosen operand.
+        Err(chosen) if matches!(kind, InstKind::Select(..)) => lattice[chosen],
+        Err(_) if zero_divisor(kind, get_const) => LatticeValue::Constant(U256::ZERO),
         // If any operand is Bottom, the result is Bottom; otherwise it is still waiting.
-        Err(()) if kind.any_operand(|value| lattice[value] == LatticeValue::Bottom) => {
+        Err(_) if kind.any_operand(|value| lattice[value] == LatticeValue::Bottom) => {
             LatticeValue::Bottom
         }
-        Err(()) => LatticeValue::Top,
+        Err(_) => LatticeValue::Top,
     }
 }
 
@@ -474,22 +475,16 @@ fn can_change(func: &Function) -> bool {
                 .is_some_and(|first| {
                     incoming.iter().all(|&(_, value)| func.value_u256(value) == Some(first))
                 }),
-            InstKind::Select(condition, then_value, else_value) => {
-                func.value_u256(*condition)
-                    .and_then(|condition| {
-                        func.value_u256(if condition.is_zero() { *else_value } else { *then_value })
-                    })
-                    .is_some()
-                    || func
-                        .value_u256(*then_value)
-                        .is_some_and(|then_value| func.value_u256(*else_value) == Some(then_value))
-            }
             kind => {
                 zero_divisor(kind, |value| func.value_u256(value))
                     || eval::eval_typed_inst(func, kind, |value| func.value_u256(value).ok_or(()))
                         .ok()
                         .flatten()
                         .is_some()
+                    || matches!(*kind, InstKind::Select(_, then_value, else_value)
+                    if func.value_u256(then_value).is_some_and(|then_value| {
+                        func.value_u256(else_value) == Some(then_value)
+                    }))
             }
         };
         if directly_constant {
