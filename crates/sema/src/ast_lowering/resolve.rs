@@ -2177,6 +2177,21 @@ impl ResolverError {
         undeclared.then_some(error_code!(7576))
     }
 
+    /// Whether solc looks up the next segment in a scope of the qualifier, and so reports a
+    /// failure with another code: structs, enums, functions, events and errors open scopes there.
+    fn is_scoped_qualifier(&self) -> bool {
+        matches!(
+            self.kind,
+            ResolverErrorKind::NotAScope(Res::Item(
+                hir::ItemId::Function(_)
+                    | hir::ItemId::Struct(_)
+                    | hir::ItemId::Enum(_)
+                    | hir::ItemId::Error(_)
+                    | hir::ItemId::Event(_)
+            ))
+        )
+    }
+
     fn format(&self) -> String {
         let name = self.name;
         match self.kind {
@@ -2285,7 +2300,7 @@ impl<'gcx> SymbolResolver<'gcx> {
         &self,
         code: Option<DiagId>,
     ) -> impl FnOnce(ResolverError) -> ErrorGuaranteed + '_ {
-        move |e| match code {
+        move |e| match code.filter(|_| !e.is_scoped_qualifier()) {
             Some(code) => self.dcx.emit_err_code(e.span(), code, e.format()),
             None => self.dcx.emit_err(e.span(), e.format()),
         }
