@@ -391,6 +391,12 @@ fn last_docs(cx: Cx<'_, '_>, docs: &DocComments<'_>) -> Option<(Span, String)> {
     Some((span, text))
 }
 
+/// Returns `true` for the whitespace that solc skips in doc comments, which excludes Unicode spaces
+/// such as a non-breaking space.
+fn is_ascii_space(c: char) -> bool {
+    c.is_ascii_whitespace()
+}
+
 /// Returns the text of doc comments like solc: without the comment markers, and the whitespace and
 /// stars that lead each line.
 fn doc_text(docs: &[ast::DocComment<'_>]) -> String {
@@ -405,12 +411,16 @@ fn doc_text(docs: &[ast::DocComment<'_>]) -> String {
                 if i > 0 {
                     text.push('\n');
                 }
-                text.push_str(if i == 0 { symbol.trim_start() } else { symbol });
+                text.push_str(if i == 0 {
+                    symbol.trim_start_matches(is_ascii_space)
+                } else {
+                    symbol
+                });
             }
             CommentKind::Block => {
                 let lines = symbol.split('\n').collect::<Vec<_>>();
                 for (i, line) in lines.iter().enumerate() {
-                    let mut line = line.trim_start().trim_end_matches('\r');
+                    let mut line = line.trim_start_matches(is_ascii_space).trim_end_matches('\r');
                     if i > 0 {
                         // A line that starts with `**` glues to the previous one, and the symbol of
                         // a comment that ends in `**/` ends in a line with a single `*`.
