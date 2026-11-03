@@ -163,6 +163,16 @@
       (if-let combined (make (Op.Or x y))) (if-let constant (imm (u256_or a b)))
       (sequence (Op.Or combined constant)))
 
+;; ((x & a) | b) & c => (x & (a & c)) | (b & c).
+;; Requires: a, b, c are constants, (a & c) != 0, (b & c) != 0.
+;; Packed storage writes chain these blends; folding the masks shows which bits of the
+;; loaded word survive, and the e-graph drops the load when none does.
+(rule (sequence_rewrite (Op.And (bor (band x (iconst a)) (iconst b)) (iconst c)))
+      (if-let false (u256_same (u256_and a c) (u256 0)))
+      (if-let false (u256_same (u256_and b c) (u256 0)))
+      (if-let kept (imm (u256_and a c))) (if-let masked (make (Op.And x kept)))
+      (if-let constant (imm (u256_and b c))) (sequence (Op.Or masked constant)))
+
 ;; (x ^ a) ^ (y ^ b) => (x ^ y) ^ (a ^ b).
 ;; Requires: a, b are constants.
 (rule (sequence_rewrite (Op.Xor (bxor x (iconst a)) (bxor y (iconst b))))

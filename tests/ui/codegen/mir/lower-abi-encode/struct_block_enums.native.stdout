@@ -36,11 +36,11 @@ fn @lots() {
   bb10:                                           ; preds = bb0
     v168 = heap_floor !metadata(alloc_ptr)
     v169 = add v168, 96 !metadata(alloc_ptr)
-    v189 = shr v169, 64
+    v192 = shr v169, 64
     v170 = lt v169, v168
-    v191 = zext i1 v170 to i256
-    v192 = or v189, v191
-    v172 = ne v192, 0
+    v194 = zext i1 v170 to i256
+    v195 = or v192, v194
+    v172 = ne v195, 0
     jumpi v172, bb17, bb22
   bb22:                                           ; preds = bb10
     mstore 64, v169 !metadata(memory=scratch)
@@ -53,17 +53,19 @@ fn @lots() {
     v2 = lt v182, v184
     jumpi v2, bb2, bb3
   bb3:                                            ; preds = bb1
-    v188 = calldataload 100
-    v187 = calldataload 68
-    v186 = calldataload 36
-    v185 = calldataload 4
-    v30 = shl v188, 160
-    v37 = shl v188, 8
-    v43 = shr v188, 16
+    v191 = calldataload 100
+    v190 = calldataload 68
+    v189 = calldataload 36
+    v188 = calldataload 4
+    v30 = shl v191, 160
+    v37 = shl v191, 8
+    v43 = shr v191, 16
     v44 = or v43, 0x1122000000000000000000000000000000000000000000000000000000000000
+    v185 = add v168, 32
     jump bb4
   bb4:                                            ; preds = bb3, bb8
     v15 = phi [bb3: 0], [bb8: v51]
+    v186 = phi [bb3: v185], [bb8: v187]
     v16 = lt v15, 2
     jumpi v16, bb6, bb5
   bb5:                                            ; preds = bb4
@@ -171,33 +173,31 @@ fn @lots() {
   bb7 [cold]:                                     ; preds = bb6
     tail_call @revert_stub
   bb8:                                            ; preds = bb6
-    v20 = shl v15, 5
-    v152 = add v168, v20
-    v153 = add v152, 32
-    v162 = mload v153
-    v24 = eq v187, v15
+    v162 = mload v186
+    v24 = eq v190, v15
     v57 = zext i1 v24 to i256
-    v27 = add v188, v15
+    v27 = add v191, v15
     mstore v162, v27
     v29 = add v15, 160
     v31 = or v30, v29
     v33 = add v162, 32
     mstore v33, v31
-    v34 = mul v185, v57
+    v34 = mul v188, v57
     v36 = add v162, 64
     mstore v36, v34
     v39 = add v162, 96
     mstore v39, v37
-    v40 = mul v186, v57
+    v40 = mul v189, v57
     v42 = add v162, 128
     mstore v42, v40
     v46 = add v162, 160
     mstore v46, v44
-    v47 = xor v188, v15
+    v47 = xor v191, v15
     v48 = xor v47, 119
     v50 = add v162, 192
     mstore v50, v48
     v51 = add v15, 1
+    v187 = add v186, 32
     jump bb4
   bb2:                                            ; preds = bb1
     v174 = mload 64 !metadata(memory=scratch, alloc_ptr)

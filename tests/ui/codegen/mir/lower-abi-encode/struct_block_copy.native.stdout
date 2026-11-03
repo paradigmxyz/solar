@@ -33,11 +33,11 @@ fn @encodeItems() {
   bb11:                                           ; preds = bb0
     v181 = heap_floor !metadata(alloc_ptr)
     v182 = add v181, 128 !metadata(alloc_ptr)
-    v200 = shr v182, 64
+    v203 = shr v182, 64
     v183 = lt v182, v181
-    v202 = zext i1 v183 to i256
-    v203 = or v200, v202
-    v185 = ne v203, 0
+    v205 = zext i1 v183 to i256
+    v206 = or v203, v205
+    v185 = ne v206, 0
     jumpi v185, bb18, bb23
   bb23:                                           ; preds = bb11
     mstore 64, v182 !metadata(memory=scratch)
@@ -50,15 +50,17 @@ fn @encodeItems() {
     v2 = lt v195, v197
     jumpi v2, bb2, bb3
   bb3:                                            ; preds = bb1
-    v199 = calldataload 36
-    v198 = calldataload 4
-    v24 = shl v199, 160
-    v31 = shr v199, 32
+    v202 = calldataload 36
+    v201 = calldataload 4
+    v24 = shl v202, 160
+    v31 = shr v202, 32
     v32 = or v31, 0x1122334400000000000000000000000000000000000000000000000000000000
-    v35 = shl v199, 8
+    v35 = shl v202, 8
+    v198 = add v181, 32
     jump bb4
   bb4:                                            ; preds = bb3, bb9
     v13 = phi [bb3: 0], [bb9: v45]
+    v199 = phi [bb3: v198], [bb9: v200]
     v14 = lt v13, 3
     jumpi v14, bb6, bb5
   bb5:                                            ; preds = bb4
@@ -195,11 +197,8 @@ fn @encodeItems() {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb9:                                            ; preds = bb6
-    v18 = shl v13, 5
-    v163 = add v181, v18
-    v164 = add v163, 32
-    v175 = mload v164
-    mstore v175, v198
+    v175 = mload v199
+    mstore v175, v201
     v23 = add v13, 160
     v25 = or v24, v23
     v27 = add v175, 32
@@ -214,10 +213,11 @@ fn @encodeItems() {
     mstore v38, v36
     v41 = add v175, 160
     mstore v41, v35
-    v42 = add v199, v13
+    v42 = add v202, v13
     v44 = add v175, 192
     mstore v44, v42
     v45 = add v13, 1
+    v200 = add v199, 32
     jump bb4
   bb2:                                            ; preds = bb1
     v187 = mload 64 !metadata(memory=scratch, alloc_ptr)

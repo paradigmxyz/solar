@@ -33,17 +33,18 @@ fn @shift() {
     v18 = shl v81, 5
     v108 = add v83, v18
     v109 = add v108, 32
+    v117 = add v82, 32
+    v120 = add v84, 32
     jump bb1
   bb1:                                            ; preds = bb9, bb16
     v5 = phi [bb16: 0], [bb9: v29]
+    v118 = phi [bb16: v117], [bb9: v119]
+    v121 = phi [bb16: v120], [bb9: v122]
     v6 = mload v82
     v7 = lt v5, v6
     jumpi v7, bb3, bb2
   bb3:                                            ; preds = bb1
-    v11 = shl v5, 5
-    v96 = add v82, v11
-    v97 = add v96, 32
-    v14 = mload v97
+    v14 = mload v118
     v15 = mload v83
     v16 = lt v81, v15
     jumpi v16, bb8, bb7
@@ -57,9 +58,7 @@ fn @shift() {
     v24 = lt v5, v23
     jumpi v24, bb9, bb7
   bb9:                                            ; preds = bb13
-    v102 = add v84, v11
-    v103 = add v102, 32
-    mstore v103, v75
+    mstore v121, v75
     v29 = add v5, 1
     v46 = mload v82
     v47 = mload v83
@@ -69,6 +68,8 @@ fn @shift() {
     v53 = shl v49, 5
     v54 = add v84, 1
     v55 = add v53, 31
+    v119 = add v118, 32
+    v122 = add v121, 32
     v57 = sub v82, v54
     v58 = lt v57, v55
     v60 = zext i1 v58 to i256
@@ -80,9 +81,9 @@ fn @shift() {
     v68 = lt v67, v55
     v69 = zext i1 v68 to i256
     v70 = or v65, v69
-    v117 = shr v52, 64
-    v118 = or v117, v70
-    v73 = eq v118, 0
+    v123 = shr v52, 64
+    v124 = or v123, v70
+    v73 = eq v124, 0
     jumpi v73, bb6, bb1
   bb6:                                            ; preds = bb9
     jump bb4
@@ -140,17 +141,18 @@ fn @shiftFar() {
     v18 = shl v81, 5
     v107 = add v18, 0x10000000000000020
     v55 = add v83, 1
+    v113 = add v82, 32
+    v116 = add v83, 32
     jump bb1
   bb1:                                            ; preds = bb9, bb16
     v5 = phi [bb16: 0], [bb9: v30]
+    v114 = phi [bb16: v113], [bb9: v115]
+    v117 = phi [bb16: v116], [bb9: v118]
     v6 = mload v82
     v7 = lt v5, v6
     jumpi v7, bb3, bb2
   bb3:                                            ; preds = bb1
-    v11 = shl v5, 5
-    v95 = add v82, v11
-    v96 = add v95, 32
-    v14 = mload v96
+    v14 = mload v114
     v15 = mload 0x10000000000000000
     v16 = lt v81, v15
     jumpi v16, bb8, bb7
@@ -164,9 +166,7 @@ fn @shiftFar() {
     v25 = lt v5, v24
     jumpi v25, bb9, bb7
   bb9:                                            ; preds = bb13
-    v101 = add v83, v11
-    v102 = add v101, 32
-    mstore v102, v75
+    mstore v117, v75
     v30 = add v5, 1
     v47 = mload v82
     v48 = mload 0x10000000000000000
@@ -175,6 +175,8 @@ fn @shiftFar() {
     v53 = or v83, v50
     v54 = shl v50, 5
     v56 = add v54, 31
+    v115 = add v114, 32
+    v118 = add v117, 32
     v58 = sub v82, v55
     v59 = lt v58, v56
     v61 = zext i1 v59 to i256
@@ -186,9 +188,9 @@ fn @shiftFar() {
     v68 = lt v67, v56
     v69 = zext i1 v68 to i256
     v70 = or v65, v69
-    v113 = shr v53, 64
-    v114 = or v113, v70
-    v73 = eq v114, 0
+    v119 = shr v53, 64
+    v120 = or v119, v70
+    v73 = eq v120, 0
     jumpi v73, bb6, bb1
   bb6:                                            ; preds = bb9
     jump bb4
