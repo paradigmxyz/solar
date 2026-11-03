@@ -4,8 +4,9 @@ use crate::{
     ty::{Ty, TyKind},
     typeck::constant_cycles::MAX_DEPTH,
 };
+use alloy_primitives::U256;
 use solar_ast::{DataLocation, ElementaryType, LitKind, Span};
-use solar_data_structures::map::FxHashSet;
+use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_interface::{
     Ident, Symbol,
     diagnostics::{DiagId, DiagMsg, ErrorGuaranteed},
@@ -34,6 +35,27 @@ impl<'gcx> TypeChecker<'gcx> {
         }
 
         self.gcx.type_of_lit(lit)
+    }
+
+    /// Reports `lit` if an earlier case of the same `switch` has the same word value.
+    ///
+    /// `seen` maps the values of the earlier cases to the span of the first case with that value.
+    /// A literal without a word already has an error.
+    pub(super) fn check_yul_duplicate_case(
+        &self,
+        seen: &mut FxHashMap<U256, Span>,
+        lit: &hir::Lit<'_>,
+    ) {
+        let Some(word) = lit.kind.yul_word() else { return };
+        let first = *seen.entry(word).or_insert(lit.span);
+        if first == lit.span {
+            return;
+        }
+        let text = self.gcx.sess.source_map().span_to_snippet(lit.span).unwrap_or_default();
+        self.dcx()
+            .err_code_at(lit.span, error_code!(6792), format!("duplicate case `{text}` defined"))
+            .span_note(first, "first defined here")
+            .emit();
     }
 
     /// Checks whether a resolved identifier should be treated as an external Solidity reference in

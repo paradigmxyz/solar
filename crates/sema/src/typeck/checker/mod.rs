@@ -3937,9 +3937,11 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
             }
             hir::StmtKind::Switch(switch) => {
                 let _ = self.check_expr(switch.selector);
+                let mut seen = FxHashMap::default();
                 for case in switch.cases {
                     if let Some(constant) = case.constant {
                         let _ = self.check_yul_lit(constant);
+                        self.check_yul_duplicate_case(&mut seen, constant);
                     }
                     for stmt in case.body.iter() {
                         self.visit_stmt(stmt)?;

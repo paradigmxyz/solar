@@ -5,10 +5,10 @@
 //! MIR folding must match 256-bit EVM wrapping and zero-divisor semantics.
 
 use crate::{
-    backend::evm::{op, select::InstKindOpcode},
+    backend::evm::op,
     mir::{
         ArithmeticKind, Builtin, Callee, CheckedOp, Function, InstKind, MirType, ResultKind,
-        ValueId,
+        Semantics, ValueId,
     },
 };
 use alloy_primitives::{I256, U256};
@@ -75,72 +75,53 @@ pub(crate) fn sign_extend(value: U256, bits: u32) -> U256 {
     if bits < 256 && value.bit((bits - 1) as usize) { value | (U256::MAX << bits) } else { value }
 }
 
-/// Evaluates a pure EVM word instruction.
+/// Evaluates a pure instruction from the semantics its schema row declares.
 ///
-/// Returns `Ok(None)` when `kind` has no word-level evaluator. Operand lookup
-/// errors pass through unchanged.
+/// A select reads its condition and then only the operand it chooses. Returns `Ok(None)` when
+/// `kind` has no word-level evaluator. Operand lookup errors pass through unchanged.
 pub(crate) fn eval_inst<E>(
     kind: &InstKind,
     mut get: impl FnMut(ValueId) -> Result<U256, E>,
 ) -> Result<Option<U256>, E> {
-    match *kind {
-        InstKind::Trunc(value, bits) | InstKind::PtrToInt(value, bits) => {
-            if bits == 0 || bits > 256 {
+    Ok(match kind.semantics() {
+        Some(Semantics::Word(value)) => Some(get(value)?),
+        Some(Semantics::LowBits(value, bits @ 1..=256)) => {
+            Some(get(value)? & (U256::MAX >> (256 - bits)))
+        }
+        Some(Semantics::SignExtend(value, from, to)) if 0 < from && from < to && to <= 256 => {
+            Some(sign_extend(get(value)?, from) & (U256::MAX >> (256 - to)))
+        }
+        Some(Semantics::NotEqual(a, b)) => Some(U256::from(get(a)? != get(b)?)),
+        Some(Semantics::Select(condition, if_true, if_false)) => {
+            let chosen = if get(condition)?.is_zero() { if_false } else { if_true };
+            Some(get(chosen)?)
+        }
+        Some(Semantics::Checked(op, arithmetic, lhs, rhs)) => {
+            eval_checked(op, arithmetic, get(lhs)?, get(rhs)?)
+        }
+        Some(Semantics::Call(
+            Callee::Builtin(builtin @ (Builtin::CheckedAddMod | Builtin::CheckedMulMod)),
+            &[a, b, modulus],
+        )) => {
+            let modulus = get(modulus)?;
+            let opcode =
+                if matches!(builtin, Builtin::CheckedAddMod) { op::ADDMOD } else { op::MULMOD };
+            if modulus.is_zero() { None } else { eval_opcode(opcode, &[get(a)?, get(b)?, modulus]) }
+        }
+        Some(Semantics::Opcode(name, operands)) => {
+            let Some(opcode) = op::from_mnemonic(name) else { return Ok(None) };
+            let mut values = [U256::ZERO; 3];
+            let Some(values) = values.get_mut(..operands.len()) else { return Ok(None) };
+            if eval_opcode(opcode, values).is_none() {
                 return Ok(None);
             }
-            return Ok(Some(get(value)? & (U256::MAX >> (256 - bits))));
-        }
-        InstKind::Zext(value) | InstKind::IntToPtr(value) => {
-            return Ok(Some(get(value)?));
-        }
-        InstKind::Sext(value, from, to) => {
-            if from == 0 || from >= to || to > 256 {
-                return Ok(None);
+            for (value, operand) in values.iter_mut().zip(operands) {
+                *value = get(operand)?;
             }
-            let value = sign_extend(get(value)?, from);
-            return Ok(Some(value & (U256::MAX >> (256 - to))));
+            eval_opcode(opcode, values)
         }
-        _ => {}
-    }
-    if let InstKind::Ne(a, b) = *kind {
-        return Ok(Some(U256::from(get(a)? != get(b)?)));
-    }
-    if let InstKind::CheckedBinary { op, arithmetic, lhs, rhs } = *kind {
-        return Ok(eval_checked(op, arithmetic, get(lhs)?, get(rhs)?));
-    }
-    if let InstKind::ICall {
-        function: Callee::Builtin(builtin @ (Builtin::CheckedAddMod | Builtin::CheckedMulMod)),
-        args,
-    } = kind
-        && let &[a, b, modulus] = args.as_ref()
-    {
-        let modulus = get(modulus)?;
-        if modulus.is_zero() {
-            return Ok(None);
-        }
-        let opcode =
-            if matches!(builtin, Builtin::CheckedAddMod) { op::ADDMOD } else { op::MULMOD };
-        return Ok(eval_opcode(opcode, &[get(a)?, get(b)?, modulus]));
-    }
-    let Some(opcode) = kind.evm_opcode() else { return Ok(None) };
-    let Some((inputs, 1)) = op::stack_io(opcode) else { return Ok(None) };
-    if inputs > 3 {
-        return Ok(None);
-    }
-
-    let mut values = [U256::ZERO; 3];
-    let values = &mut values[..usize::from(inputs)];
-    if eval_opcode(opcode, values).is_none() {
-        return Ok(None);
-    }
-    let operands = kind.operands();
-    if operands.len() != values.len() {
-        return Ok(None);
-    }
-    for (value, operand) in values.iter_mut().zip(operands) {
-        *value = get(operand)?;
-    }
-    Ok(eval_opcode(opcode, values))
+        _ => None,
+    })
 }
 
 /// Returns a value only when the complete checked operation succeeds.
