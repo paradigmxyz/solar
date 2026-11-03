@@ -66,6 +66,8 @@
 //! both typed word stores and their data-pointer/store form qualify. A single `abi_encode`
 //! of up to two constant words uses the same path while the encoding is still opaque. Other
 //! instructions, allocation policies, and literals longer than two words keep the general encoder.
+//! Fixed-buffer length and payload stores keep their value producer's source context; the outer
+//! ABI offset and return retain the return statement's context.
 //!
 //! The `fallback(bytes calldata) returns (bytes memory)` form is a separate
 //! raw-data boundary: it gets an argument-free dispatch wrapper and an
@@ -108,8 +110,8 @@ use crate::mir::{
     AbiEncodeMode, AbiLayout, AbiParamLayout, AbiParamLayoutRef, AbiParamLocation, AbiParamType,
     AbiType, AbiWordValidator, AllocationSemantics, ArgIdx, BlockId, CalldataTail, Callee,
     EffectKind, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, Immediate, InstId,
-    InstKind, Instruction, MangledSymbol, MemoryObjectLayout, MirPhase, MirType, Module,
-    PtrLocation, RevertReason, Terminator, Value, ValueId, ValueLayout,
+    InstKind, Instruction, InstructionMetadata, MangledSymbol, MemoryObjectLayout, MirPhase,
+    MirType, Module, PtrLocation, RevertReason, Terminator, Value, ValueId, ValueLayout,
     analysis::{AliasAnalysis, HotnessAnalysis, LocationSize, MemoryBase, integers::integer_mask},
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
@@ -221,6 +223,8 @@ struct StaticBytesReturn {
     len: u64,
     word: U256,
     tail: Option<U256>,
+    /// Length and two payload word contexts, in emitted order.
+    debug: [InstructionMetadata; 3],
 }
 
 impl DecodeOptions<'_> {
@@ -3844,7 +3848,13 @@ fn static_bytes_return(func: &Function) -> Option<StaticBytesReturn> {
             [word, tail] => (func.value_u256(*word)?, Some(func.value_u256(*tail)?)),
             _ => return None,
         };
-        return Some(StaticBytesReturn { len: args.len() as u64 * 32, word, tail });
+        let context = func.inst(*encode).metadata.debug_context();
+        return Some(StaticBytesReturn {
+            len: args.len() as u64 * 32,
+            word,
+            tail,
+            debug: [context.clone(), context.clone(), context],
+        });
     }
     let [alloc, initialization @ ..] = block.instructions.as_slice() else { return None };
     if !matches!(func.value(*object), Value::Inst(inst) if inst == alloc) {
@@ -3857,6 +3867,7 @@ fn static_bytes_return(func: &Function) -> Option<StaticBytesReturn> {
     // Payload words by offset, after the length store.
     let mut len = None;
     let mut words = [None; 2];
+    let mut debug = [const { InstructionMetadata::EMPTY }; 3];
     for &inst in initialization {
         if func.is_object_derivation(inst) {
             continue;
@@ -3868,15 +3879,16 @@ fn static_bytes_return(func: &Function) -> Option<StaticBytesReturn> {
         if base != *object {
             return None;
         }
-        let slot = match offset {
-            0 => &mut len,
-            32 => &mut words[0],
-            64 => &mut words[1],
+        let (slot, index) = match offset {
+            0 => (&mut len, 0),
+            32 => (&mut words[0], 1),
+            64 => (&mut words[1], 2),
             _ => return None,
         };
         if slot.replace(stored).is_some() {
             return None;
         }
+        debug[index] = func.inst(inst).metadata.debug_context();
     }
     let (len, [Some(value), tail]) = (len?, words) else { return None };
     let len = func.value_u64(len)?;
@@ -3891,7 +3903,7 @@ fn static_bytes_return(func: &Function) -> Option<StaticBytesReturn> {
     let trailing_bits = usize::try_from((len.next_multiple_of(32) - len) * 8).ok()?;
     let last = tail.as_mut().unwrap_or(&mut word);
     *last = *last >> trailing_bits << trailing_bits;
-    Some(StaticBytesReturn { len, word, tail })
+    Some(StaticBytesReturn { len, word, tail, debug })
 }
 
 fn encode_static_bytes_return(
@@ -3901,6 +3913,7 @@ fn encode_static_bytes_return(
 ) {
     let word_size = EvmMemoryLayout::WORD_SIZE;
     let return_size = word_size * 2 + value.len.next_multiple_of(word_size);
+    let return_context = func.blocks[return_block].terminator_metadata.debug_context();
     func.blocks[return_block].instructions.clear();
     func.blocks[return_block].terminator = None;
     let mut builder = FunctionBuilder::new(func);
@@ -3917,19 +3930,23 @@ fn encode_static_bytes_return(
     let len = builder.imm(value.len);
     let size = builder.imm(return_size);
     builder.store(offset, data_offset);
+    builder.set_debug_context(&value.debug[0]);
     builder.store(len_offset, len);
     if value.len != 0 {
         // mstore(64, word)
         let word_offset = builder.imm(EvmMemoryLayout::SCRATCH_SLOT + word_size * 2);
         let word = builder.imm(value.word);
+        builder.set_debug_context(&value.debug[1]);
         builder.store(word_offset, word);
     }
     if let Some(tail) = value.tail {
         // mstore(96, tail)
         let tail_offset = builder.imm(EvmMemoryLayout::SCRATCH_SLOT + word_size * 3);
         let tail = builder.imm(tail);
+        builder.set_debug_context(&value.debug[2]);
         builder.store(tail_offset, tail);
     }
+    builder.set_debug_context(&return_context);
     builder.ret_data(offset, size);
 }
 

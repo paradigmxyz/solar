@@ -69,6 +69,7 @@ fn debug_output_selection_preserves_optimized_bytecode() {
         "../../codegen/mir/if-convert/boolean_selects_runtime.sol",
         "../../codegen/lowering/mapping.sol",
         "../../codegen/lowering/calldata_slice_ternary.sol",
+        "../../codegen/lowering/run-call/internal_stop_runtime.sol",
     ] {
         for mode in ["none", "gas", "size"] {
             let baseline = compile_json(&[source, "-O", mode, "--emit=bin,bin-runtime"]);
@@ -452,5 +453,32 @@ fn evm_ir_dump_preserves_bytecode() {
         .expect("compiler JSON")
         .expect("parse compiler JSON");
         assert_eq!(dumped["contracts"], baseline["contracts"], "{mode}");
+    }
+}
+
+#[test]
+fn peephole_debug_contexts_preserve_bytecode() {
+    let source = RealFileLoader
+        .load_file(
+            &Path::new(FIXTURES).join("../../codegen/evm-ir/peephole/debug_replacements.evmir"),
+        )
+        .unwrap();
+    let plain = source
+        .lines()
+        .map(|line| line.split_once(" !metadata(").map_or(line, |(code, _)| code))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("debug.evmir");
+    let path = path.to_str().unwrap();
+    for mode in ["none", "gas", "size"] {
+        let args = [path, "-O", mode, "--emit=bin,bin-runtime", "-Zevm-ir-pipeline=peephole"];
+        fs::write(path, &plain).unwrap();
+        let baseline = compile_json(&args);
+        fs::write(path, &source).unwrap();
+        let annotated = compile_json(&args);
+        let audited = compile_json(&[args.as_slice(), &["-Zdebugify=check"]].concat());
+        assert_eq!(baseline["contracts"], annotated["contracts"], "{mode}: source contexts");
+        assert_eq!(baseline["contracts"], audited["contracts"], "{mode}: debugify");
     }
 }

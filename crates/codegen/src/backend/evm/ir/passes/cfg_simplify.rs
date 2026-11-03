@@ -52,6 +52,8 @@
 //! label only when the thunk chain exclusively reaches that entry. The checkpoint records the
 //! incoming transfer's origin; later passes and assembly discard it if the entry becomes shared,
 //! falls through, or acquires opaque address uses. It never keeps a label or changes a rewrite.
+//! Empty prefixes of a thunk chain have no origin to lend. The whole chain must have one source
+//! origin; an otherwise unmapped dispatch transfer can identify itself by its function event.
 
 use super::{
     EvmPass,
@@ -492,6 +494,7 @@ fn redirect_jump_thunks(
         count_block_references(module, references);
     }
     forwarded_continuations.clear_to(module.blocks.len());
+    let track_checkpoints = module.debug_info_is_tracked();
     for block in &mut module.blocks {
         for at in 0..block.instructions.len() {
             if let Some(PushValue::Block(target)) = block.instructions[at].value
@@ -501,15 +504,22 @@ fn redirect_jump_thunks(
                 if direct && let Some(thunk) = thunks.get(&target) {
                     let conditional =
                         block.instructions.get(at + 1).is_some_and(|inst| inst.opcode == op::JUMPI);
-                    if conditional
-                        && let Some(checkpoint) = thunk_checkpoint(
+                    if conditional && track_checkpoints {
+                        let chain = thunk_chain_debug_info(target, thunks);
+                        if let Some(checkpoint) = thunk_checkpoint(
                             target,
                             thunks,
                             references,
                             &block.instructions[at].metadata,
-                        )
-                    {
-                        checkpoints.push(checkpoint);
+                            &chain,
+                        ) {
+                            checkpoints.push(checkpoint);
+                        }
+                        if block.instructions[at].metadata.function_invoke().is_none()
+                            && let Some(function) = chain.function_invoke()
+                        {
+                            block.instructions[at].metadata.set_function_invoke(function);
+                        }
                     }
                     absorb_thunk_debug_info(
                         &mut block.instructions[at].metadata,
@@ -535,11 +545,18 @@ fn redirect_jump_thunks(
             let conditional = !matches!(term.kind, TerminatorKind::Jump(_));
             term.kind.visit_targets_mut(|target| {
                 if let Some(thunk) = thunks.get(target) {
-                    if conditional
-                        && let Some(checkpoint) =
-                            thunk_checkpoint(*target, thunks, references, &term.metadata)
-                    {
-                        checkpoints.push(checkpoint);
+                    if conditional && track_checkpoints {
+                        let chain = thunk_chain_debug_info(*target, thunks);
+                        if let Some(checkpoint) =
+                            thunk_checkpoint(*target, thunks, references, &term.metadata, &chain)
+                        {
+                            checkpoints.push(checkpoint);
+                        }
+                        if term.metadata.function_invoke().is_none()
+                            && let Some(function) = chain.function_invoke()
+                        {
+                            term.metadata.set_function_invoke(function);
+                        }
                     }
                     absorb_thunk_debug_info(&mut term.metadata, &thunk.metadata, conditional);
                 }
@@ -794,18 +811,25 @@ fn thunk_checkpoint(
     thunks: &FxHashMap<BlockId, Thunk>,
     references: &IndexVec<BlockId, usize>,
     transfer: &Metadata,
+    chain: &Metadata,
 ) -> Option<(BlockId, DebugEntryCheckpoint)> {
-    let [source] = thunks.get(&start)?.metadata.source_spans() else { return None };
-    let [origin] = transfer.source_spans() else { return None };
+    let [source] = chain.source_spans() else { return None };
+    let origin = match transfer.source_spans() {
+        [origin] => *origin,
+        [] => transfer.function_invoke().or_else(|| chain.function_invoke())?.declaration,
+        _ => return None,
+    };
     let checkpoint = DebugEntryCheckpoint {
         source: *source,
-        transfer: *origin,
-        modifier_depth: thunks[&start].metadata.modifier_depth(),
+        transfer: origin,
+        modifier_depth: chain.modifier_depth(),
     };
     let mut target = start;
     for _ in 0..thunks.len() {
         let Some(thunk) = thunks.get(&target) else { return Some((target, checkpoint)) };
         if !thunk.metadata.source_spans().iter().all(|&span| span == checkpoint.source)
+            || (!thunk.metadata.source_spans().is_empty()
+                && thunk.metadata.modifier_depth() != checkpoint.modifier_depth)
             || references.get(thunk.next) != Some(&1)
         {
             return None;
@@ -813,4 +837,17 @@ fn thunk_checkpoint(
         target = thunk.next;
     }
     (!thunks.contains_key(&target)).then_some((target, checkpoint))
+}
+
+/// Collects the chain's origins and compatible function events, including beyond empty prefixes.
+/// Only its entry identity is propagated to a conditional transfer, not its exit events.
+fn thunk_chain_debug_info(start: BlockId, thunks: &FxHashMap<BlockId, Thunk>) -> Metadata {
+    let chain =
+        std::iter::successors(Some(start), |target| thunks.get(target).map(|thunk| thunk.next))
+            .take(thunks.len())
+            .filter_map(|target| thunks.get(&target).map(|thunk| &thunk.metadata));
+    let mut context = Metadata::default();
+    context.mark_debug_info_dropped();
+    context.merge_equivalent_debug_info(chain);
+    context
 }

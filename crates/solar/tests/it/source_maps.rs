@@ -15,7 +15,7 @@ fn compile(mode: &str, outputs: &str) -> Value {
 fn compile_with(mode: &str, outputs: &str, flags: &[&str]) -> Value {
     let output = Command::new(SOLAR)
         .current_dir(FIXTURES)
-        .args(["src/Base.sol", "src/Decode.sol", "--allow=2264", "-O", mode])
+        .args(["src/Base.sol", "src/Decode.sol", "src/StaticBytes.sol", "--allow=2264", "-O", mode])
         .arg(format!("--emit={outputs}"))
         .args(flags)
         .output()
@@ -171,6 +171,10 @@ fn foundry_decode_and_require_coverage_matches_solc() {
             .split("end_of_record")
             .find(|record| record.lines().any(|line| line == "SF:src/Base.sol"))
             .expect("Base must appear in the coverage report");
+        let static_bytes = text
+            .split("end_of_record")
+            .find(|record| record.lines().any(|line| line == "SF:src/StaticBytes.sol"))
+            .expect("StaticBytes must appear in the coverage report");
         // LCOV combines statements on the same line. Also compare per-test source items so a
         // covered `if` line cannot hide a missing condition-expression statement.
         let mut attribution: Value = serde_json::from_str(&run("attribution")).unwrap();
@@ -178,12 +182,19 @@ fn foundry_decode_and_require_coverage_matches_solc() {
         for test in tests.iter_mut() {
             let covered = test["covered"].as_array_mut().unwrap();
             covered.retain(|item| {
-                item["source"] == "src/Decode.sol" || item["source"] == "src/Base.sol"
+                item["source"] == "src/Decode.sol"
+                    || item["source"] == "src/Base.sol"
+                    || item["source"] == "src/StaticBytes.sol"
             });
             covered.sort_by_key(Value::to_string);
         }
         tests.sort_by_key(|test| test["test"].to_string());
-        reports.push((decode.trim().to_owned(), base.trim().to_owned(), attribution));
+        reports.push((
+            decode.trim().to_owned(),
+            base.trim().to_owned(),
+            static_bytes.trim().to_owned(),
+            attribution,
+        ));
     }
     assert_eq!(reports[0], reports[1]);
 }
@@ -222,4 +233,80 @@ fn debugify_sidecars_preserve_output() {
             .collect::<std::collections::BTreeSet<_>>();
         assert_data_eq!(format!("{layers:?}"), str![[r#"{"EVM IR", "MIR"}"#]]);
     }
+}
+
+#[test]
+fn static_bytes_origins_survive_direct_returns() {
+    let source =
+        RealFileLoader.load_file(&Path::new(FIXTURES).join("src/StaticBytes.sol")).unwrap();
+    for mode in ["none", "gas", "size"] {
+        let plain = compile(mode, "bin,bin-runtime");
+        let debug = compile(mode, "bin,bin-runtime,srcmap-runtime,ethdebug-runtime");
+        let name = "src/StaticBytes.sol:StaticBytes";
+        for code in ["bin", "bin-runtime"] {
+            assert_eq!(plain["contracts"][name][code], debug["contracts"][name][code], "{mode}");
+        }
+        let id = debug["sourceList"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .position(|s| s == "src/StaticBytes.sol")
+            .unwrap();
+        let contract = &debug["contracts"][name];
+        let entries = source_entries(contract["srcmap-runtime"].as_str().unwrap());
+        for statement in
+            ["abi.encode(uint256(7), uint256(11))", "abi.encode()", "return hex\"0102\""]
+        {
+            let start = source.find(statement).unwrap();
+            let end = start + statement.len();
+            assert!(
+                entries.iter().any(|&entry| in_statement(entry, id, start, end)),
+                "{mode}: {statement} missing from source map"
+            );
+            assert!(
+                contract["ethdebug-runtime"]["instructions"].as_array().unwrap().iter().any(
+                    |inst| {
+                        let code = &inst["context"]["code"];
+                        code["source"]["id"].as_u64() == Some(id as u64)
+                            && code["range"]["offset"]
+                                .as_u64()
+                                .is_some_and(|offset| (start as u64..end as u64).contains(&offset))
+                    }
+                ),
+                "{mode}: {statement} missing from ethdebug"
+            );
+        }
+    }
+}
+
+#[test]
+fn tail_call_thunk_chain_keeps_call_site() {
+    let path =
+        Path::new(FIXTURES).join("../../ui/codegen/lowering/run-call/internal_stop_runtime.sol");
+    let source = RealFileLoader.load_file(&path).unwrap();
+    let start = source.find("halt();").unwrap();
+    let end = start + "halt()".len();
+    let compile = |outputs: &str| {
+        let output = Command::new(SOLAR)
+            .arg(&path)
+            .args(["-Onone", "--allow=2264"])
+            .arg(format!("--emit={outputs}"))
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        serde_json::from_slice::<Value>(&output.stdout).unwrap()
+    };
+    let plain = compile("bin,bin-runtime");
+    let debug = compile("bin,bin-runtime,srcmap-runtime,ethdebug-runtime");
+    let contract = debug["contracts"].as_object().unwrap().values().next().unwrap();
+    let baseline = plain["contracts"].as_object().unwrap().values().next().unwrap();
+    for code in ["bin", "bin-runtime"] {
+        assert_eq!(contract[code], baseline[code]);
+    }
+    let entries = source_entries(contract["srcmap-runtime"].as_str().unwrap());
+    assert!(entries.iter().any(|&entry| in_statement(entry, 0, start, end)));
+    assert!(contract["ethdebug-runtime"]["instructions"].as_array().unwrap().iter().any(|inst| {
+        inst["operation"]["mnemonic"] == "JUMPDEST"
+            && inst["context"]["code"]["range"]["offset"].as_u64() == Some(start as u64)
+    }));
 }

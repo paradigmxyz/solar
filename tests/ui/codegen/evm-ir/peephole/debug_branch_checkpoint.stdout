@@ -1,0 +1,13 @@
+- // === ROOT/tests/ui/codegen/evm-ir/peephole/debug_branch_checkpoint.evmir (before peephole) ===
++ // === ROOT/tests/ui/codegen/evm-ir/peephole/debug_branch_checkpoint.evmir (after peephole) ===
+  @module DebugBranchCheckpoint
+  bb0:
+    calldatasize
+-   iszero
+-   iszero !metadata(span=10..20)
+    push bb1 !metadata(span=30..40)
+    jumpi !metadata(span=50..60)
+    stop
+  bb1:
+    stop !metadata(span=70..80)
+  

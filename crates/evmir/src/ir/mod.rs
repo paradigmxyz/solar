@@ -208,8 +208,13 @@ impl Module {
         let mut reference = |target: BlockId, metadata: Option<&Metadata>| {
             let Some(checkpoint) = self.blocks[target].metadata.entry_checkpoint else { return };
             if !seen.insert(target)
-                || !metadata
-                    .is_some_and(|metadata| metadata.source_spans() == [checkpoint.transfer])
+                || !metadata.is_some_and(|metadata| {
+                    metadata.source_spans() == [checkpoint.transfer]
+                        || (metadata.source_spans().is_empty()
+                            && metadata.function_invoke().is_some_and(|function| {
+                                function.declaration == checkpoint.transfer
+                            }))
+                })
             {
                 invalid.insert(target);
             }

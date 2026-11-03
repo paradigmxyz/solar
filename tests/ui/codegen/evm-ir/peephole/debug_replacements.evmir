@@ -1,0 +1,58 @@
+//@ compile-flags: -Zevm-ir-pipeline=peephole -Zdebugify=check
+// Retained computations and branch tests keep their own origins, rather than the metadata
+// of a removed stack shuffle or operand. Intermediate permutation states remain unmapped.
+@module DebugReplacements
+bb0:
+  push 0
+  calldataload
+  indexed_jump bb1, bb2, bb3, bb4, bb5, bb6, bb7
+bb1:
+  calldatasize
+  caller
+  dup 2
+  add !metadata(span=10..20)
+  swap 1
+  pop
+  stop
+bb2:
+  push 7
+  push 0
+  mul !metadata(span=30..40)
+  stop
+bb3:
+  push 7
+  push 1
+  exp !metadata(span=50..60)
+  stop
+bb4:
+  calldatasize
+  iszero
+  iszero !metadata(span=90..100)
+  push bb8
+  jumpi
+  stop
+bb5:
+  calldatasize
+  push 0
+  lt !metadata(span=110..120)
+  push bb8 !metadata(span=130..140)
+  jumpi !metadata(span=130..140)
+  stop
+bb6:
+  calldatasize
+  caller
+  eq !metadata(span=150..160)
+  iszero !metadata(span=170..180)
+  push bb8
+  jumpi !metadata(span=190..200)
+  stop
+bb7:
+  calldatasize
+  caller
+  callvalue
+  origin
+  exchange 2, 3
+  swap 2 !metadata(span=210..220)
+  stop
+bb8:
+  stop !metadata(span=230..240)

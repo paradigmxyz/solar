@@ -1,0 +1,66 @@
+- // === ROOT/tests/ui/codegen/evm-ir/peephole/debug_replacements.evmir (before peephole) ===
++ // === ROOT/tests/ui/codegen/evm-ir/peephole/debug_replacements.evmir (after peephole) ===
+  @module DebugReplacements
+  bb0:
+    push 0
+    calldataload
+    indexed_jump bb1, bb2, bb3, bb4, bb5, bb6, bb7
+  bb1:
+    calldatasize
+    caller
+-   dup 2
+    add !metadata(span=10..20)
+-   swap 1
+-   pop
+    stop
+  bb2:
+-   push 7
+-   push 0
+-   mul !metadata(span=30..40)
++   push 0 !metadata(span=30..40)
+    stop
+  bb3:
+-   push 7
+-   push 1
+-   exp !metadata(span=50..60)
++   push 1 !metadata(span=50..60)
+    stop
+  bb4:
+    calldatasize
+-   iszero
+-   iszero !metadata(span=90..100)
+-   push bb8
++   push bb8 !metadata(span=90..100)
+    jumpi
+    stop
+  bb5:
+    calldatasize
+-   push 0
+-   lt !metadata(span=110..120)
+-   push bb8 !metadata(span=130..140)
++   push bb8 !metadata(span=110..120)
+    jumpi !metadata(span=130..140)
+    stop
+  bb6:
+    calldatasize
+    caller
+-   eq !metadata(span=150..160)
+-   iszero !metadata(span=170..180)
+-   push bb8
++   sub !metadata(span=150..160)
++   push bb8 !metadata(span=170..180)
+    jumpi !metadata(span=190..200)
+    stop
+  bb7:
+    calldatasize
+    caller
+    callvalue
+    origin
+-   exchange 2, 3
+-   swap 2 !metadata(span=210..220)
++   swap 2
++   swap 3 !metadata(span=210..220)
+    stop
+  bb8:
+    stop !metadata(span=230..240)
+  
