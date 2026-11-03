@@ -724,7 +724,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         }
         match &expr.kind {
-            ExprKind::Lit(lit) if self.in_inline_assembly => self.lower_word_literal(lit),
+            ExprKind::Lit(lit) if self.in_inline_assembly => {
+                Some(self.builder.imm(lit.kind.yul_word()?))
+            }
             ExprKind::Lit(lit) => self.lower_literal(lit.kind, expr.span),
             ExprKind::Array(elements) => self.lower_array(expr, elements),
             ExprKind::Ident(_) => {
