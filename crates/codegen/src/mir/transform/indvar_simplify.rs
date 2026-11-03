@@ -614,7 +614,7 @@ impl IndVarSimplifier {
             if let Some(bound) = bound
                 && let Some(end) = self.pointer_at(func, preheader, key, bound)
             {
-                func.inst_mut(test.condition).kind = match (*exit, test.counter_first) {
+                let kind = match (*exit, test.counter_first) {
                     // exit: lt counter, bound  =>  lt ptr, end   with end = ptr's value at the
                     // bound
                     (PointerExit::Below, true) => InstKind::Lt(*pointer, end),
@@ -623,6 +623,7 @@ impl IndVarSimplifier {
                     // bound clamped to [start, 2^65]
                     (PointerExit::Reaches(_), _) => InstKind::Ne(*pointer, end),
                 };
+                func.inst_mut(test.condition).kind = func.canonical_kind(kind);
                 test_rewritten = true;
             }
         }
@@ -848,7 +849,8 @@ impl IndVarSimplifier {
             let Some(magnitude) = self.offset_value(func, magnitude) else { continue };
             for &value in values {
                 let Value::Inst(inst) = *func.value(value) else { continue };
-                func.inst_mut(inst).kind = offset_kind(stepped, magnitude, offset >= 0);
+                func.inst_mut(inst).kind =
+                    func.canonical_kind(offset_kind(stepped, magnitude, offset >= 0));
             }
         }
         func.replace_uses(&replacements);
@@ -1769,7 +1771,8 @@ impl IndVarSimplifier {
         let Value::Inst(inst_id) = *func.value(value) else { return };
         let Some(magnitude) = offset.checked_abs() else { return };
         let Some(magnitude) = self.offset_value(func, magnitude) else { return };
-        func.inst_mut(inst_id).kind = offset_kind(pointer, magnitude, offset >= 0);
+        func.inst_mut(inst_id).kind =
+            func.canonical_kind(offset_kind(pointer, magnitude, offset >= 0));
     }
 
     /// Appends `delta / magnitude` to `block`: a shift for a power of two, a division otherwise.

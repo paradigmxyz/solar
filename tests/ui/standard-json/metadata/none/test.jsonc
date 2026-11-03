@@ -1,8 +1,8 @@
 // ported-from: test/libsolidity/Metadata.cpp
 // CHECK: "metadata":
 // CHECK: \"bytecodeHash\":\"none\"
-// CHECK: fea165736f6c617243000300000b
-// CHECK: fea165736f6c617243000300000b
+// CHECK: fea165736f6c617243000000000b
+// CHECK: fea165736f6c617243000000000b
 {
   "language": "Solidity",
   "sources": {

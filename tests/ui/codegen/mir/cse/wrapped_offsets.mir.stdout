@@ -70,19 +70,19 @@ fn @reset() -> i256 [selector=0xd826f88f, pure, abi_params=[], abi_returns=[word
     v13 = alloc zeroed checked 64
     mstore v13, 1
     v14 = mload v0
-    v15 = lt 0, v14
+    v15 = gt v14, 0
     v16 = eq v15, false
     icall panic_if<0x32>, v16
     v17 = ptradd v0, 32
     mstore v17, 7
     v18 = mload v13
-    v19 = lt 0, v18
+    v19 = gt v18, 0
     v20 = eq v19, false
     icall panic_if<0x32>, v20
     v21 = ptradd v13, 32
     mstore v21, 9
     v22 = mload v0
-    v23 = lt 0, v22
+    v23 = gt v22, 0
     v24 = eq v23, false
     icall panic_if<0x32>, v24
     v25 = ptradd v0, 32

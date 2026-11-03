@@ -80,6 +80,7 @@ struct Parser<'sess, 'ast> {
     parser: solar_ir::ir_parse::Parser<'sess, 'ast>,
     pending_function_ref: Option<(MangledSymbol, Span)>,
     parsed_dispatch_entry: bool,
+    parsed_constructor: bool,
     function_refs: Vec<PendingFunctionRef>,
     cast_sources: Vec<(ValueId, MirType, Span)>,
     explicit_results: Vec<InstId>,
@@ -133,6 +134,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             parser: solar_ir::ir_parse::Parser::new(sess, arena, source),
             pending_function_ref: None,
             parsed_dispatch_entry: false,
+            parsed_constructor: false,
             function_refs: Vec::new(),
             cast_sources: Vec::new(),
             explicit_results: Vec::new(),
@@ -236,6 +238,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         while !self.parser.is_eof() {
             let func = self.parse_function()?;
             let is_dispatch_entry = self.parsed_dispatch_entry;
+            let is_constructor = self.parsed_constructor;
             let function = module.add_function(func);
             explicit_results.extend(self.explicit_results.drain(..).map(|inst| (function, inst)));
             cast_sources.extend(self.cast_sources.drain(..).map(|source| (function, source)));
@@ -245,10 +248,24 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
                 module.set_dispatch_entry(function);
             }
+            if is_constructor {
+                if module.constructor().is_some() {
+                    return Err(self.parser.error("module has multiple constructors"));
+                }
+                module.set_constructor(function);
+            }
             function_refs
                 .extend(self.function_refs.drain(..).map(|reference| (function, reference)));
         }
         self.resolve_function_refs(&mut module, function_refs, &explicit_results)?;
+        // After entry lowering, `[receive]` and `[fallback]` mark module roots, like `[entry]`.
+        if module.dispatch_entry().is_some() {
+            module.record_receive_and_fallback();
+            for func in &mut module.functions {
+                func.attributes.is_receive = false;
+                func.attributes.is_fallback = false;
+            }
+        }
         for (function, (value, ty, span)) in cast_sources {
             if module.functions[function].value_ty(value) != Some(ty) {
                 return Err(self
@@ -454,6 +471,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     fn parse_function(&mut self) -> PResult<'sess, Function> {
         self.parsed_dispatch_entry = false;
+        self.parsed_constructor = false;
         self.arg_values.clear();
         self.block_labels.clear();
         self.block_order.clear();
@@ -465,7 +483,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let func_ident = Ident::with_dummy_span(name.symbol);
         let mut func = Function::new(func_ident);
         func.name = name;
-        func.attributes.is_constructor = name.symbol == kw::Constructor;
+        self.parsed_constructor = name.symbol == kw::Constructor;
         let block_remap = {
             let mut builder = FunctionBuilder::new(&mut func);
 
@@ -643,25 +661,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     }
                     builder.func_mut().set_return_abi(components);
                 }
-                sym::implicit_args => {
-                    if !builder.func().params.is_empty() {
-                        return Err(self
-                            .parser
-                            .error("a function with parameters has no implicit arguments"));
-                    }
-                    self.parser.expect(TokenKind::Eq)?;
-                    self.parser.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
-                    if !self.parser.eat(TokenKind::CloseDelim(Delimiter::Bracket)) {
-                        loop {
-                            let ty = self.parse_type()?;
-                            self.arg_values.push(builder.func_mut().alloc_implicit_arg(ty));
-                            if self.parser.eat(TokenKind::CloseDelim(Delimiter::Bracket)) {
-                                break;
-                            }
-                            self.parser.expect(TokenKind::Comma)?;
-                        }
-                    }
-                }
                 sym::abi_returns => {
                     self.parser.expect(TokenKind::Eq)?;
                     builder.func_mut().abi_returns = Some(self.parse_abi_layout()?);
@@ -685,12 +684,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 sym::always_inline => builder.func_mut().attributes.always_inline = true,
                 sym::inline_hint => builder.func_mut().attributes.inline_hint = true,
                 sym::cold => builder.func_mut().attributes.hotness = Hotness::Cold,
+                sym::cold_hint => builder.func_mut().attributes.cold_hint = true,
                 sym::optimize => {
                     self.parser.expect(TokenKind::Eq)?;
                     let objective = self.parser.parse_optimize_objective()?;
                     builder.func_mut().attributes.optimization = Some(objective);
                 }
-                kw::Constructor => builder.func_mut().attributes.is_constructor = true,
+                kw::Constructor => self.parsed_constructor = true,
                 kw::Receive => builder.func_mut().attributes.is_receive = true,
                 kw::Fallback => builder.func_mut().attributes.is_fallback = true,
                 kw::Pure => {
@@ -856,16 +856,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if let Some(rest) = ident.as_str().strip_prefix("arg") {
             let idx: usize =
                 rest.parse().map_err(|_| self.parser.error(format!("invalid arg `{ident}`")))?;
-            // ABI wrappers reference `argN` with an empty parameter list:
-            // those denote calldata head words. Allocate them on demand so
-            // printed ABI wrappers round-trip. A function that does
-            // declare parameters keeps strict bounds checking.
-            if idx >= self.arg_values.len() && builder.func().params.is_empty() {
-                for _ in self.arg_values.len()..=idx {
-                    let val = builder.func_mut().alloc_implicit_arg(MirType::I256);
-                    self.arg_values.push(val);
-                }
-            }
             return self
                 .arg_values
                 .get(idx)
@@ -1398,7 +1388,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let (inst_id, result) = if let Some(result) = existing_result {
             (builder.append_instruction_with_result(inst, result), Some(result))
         } else {
-            builder.append_instruction(inst)
+            builder.append_instruction_verbatim(inst)
         };
         if declared_result.is_some() {
             self.explicit_results.push(inst_id);

@@ -89,8 +89,8 @@ bb6 [loop]:
   push 0
   return
 bb9 [loop]:
-  dup 7
-  dup 7
+  dup 6
+  dup 8
   mul
   dup 8
   iszero

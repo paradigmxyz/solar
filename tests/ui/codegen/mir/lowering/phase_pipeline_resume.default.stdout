@@ -17,8 +17,7 @@ fn @entry() [entry] {
     revert 0, 0
 }
 
-; selector 0x5c36b186
-fn @ping() [selector=0x5c36b186, abi_wrapper] {
+fn @ping() {
   bb0:
     stop
 }

@@ -20,7 +20,7 @@ bb0:  ; runtime dispatch entry
   dup 1
   push 0x4b692dff
   eq
-  push bb9
+  push bb10
   jumpi
   jump bb4
 bb4 [cold]:
@@ -36,14 +36,14 @@ bb5:  ; function nonzero(uint256 value) external pure returns (uint256) [selecto
   calldataload
   dup 1
   iszero
-  push bb13
+  push bb15
   jumpi
   push 0
   mstore
   push 32
   push 0
   return
-bb9:  ; function belowLimit(uint256 value) external pure returns (uint256) [selector 0x4b692dff]
+bb10:  ; function belowLimit(uint256 value) external pure returns (uint256) [selector 0x4b692dff]
   push 36
   calldatasize
   lt
@@ -53,33 +53,33 @@ bb9:  ; function belowLimit(uint256 value) external pure returns (uint256) [sele
   push 100
   dup 2
   lt
-  push bb13
+  push bb15
   jumpi
   push 0
   mstore
   push 32
   push 0
   return
-bb13:  ; function abort(uint256 value) internal pure
+bb15:  ; function abort(uint256 value) internal pure
   dup 1
   iszero
-  push bb19
+  push bb21
   jumpi
   push 1
   dup 2
   eq
-  push bb18
+  push bb20
   jumpi
   push 2
   eq
-  push bb17
+  push bb19
   jumpi
   push 0x6f74686572
   push 216
   shl
   push 5
-  jump bb20
-bb20:  ; revert_error (synthesized)
+  jump bb22
+bb22:  ; revert_error (synthesized)
   push 32
   push 32
   mstore
@@ -93,21 +93,21 @@ bb20:  ; revert_error (synthesized)
   push 100
   push 28
   revert
-bb17:
+bb19:
   push 0x74776f
   push 232
   shl
   push 3
-  jump bb20
-bb18:
+  jump bb22
+bb20:
   push 0x6f6e65
   push 232
   shl
   push 3
-  jump bb20
-bb19:
+  jump bb22
+bb21:
   push 0x7a65726f
   push 224
   shl
   push 4
-  jump bb20
+  jump bb22

@@ -30,7 +30,6 @@ use crate::mir::{
     pass::{MirPass, ModuleAnalyses},
     transform::{cfg_simplify, check_elim, dce, egraph, sccp},
 };
-use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
@@ -87,6 +86,7 @@ fn specialize_round(
     tried: &mut FxHashSet<(FunctionId, Constants, usize, bool)>,
 ) -> bool {
     let graph = CallGraphInfo::new(module);
+    let roots = module.root_functions();
     let target = module.target(gcx);
     let mut sites = index_vec![Vec::new(); module.functions.len()];
     let mut tail_called = DenseBitSet::new_empty(module.functions.len());
@@ -129,7 +129,7 @@ fn specialize_round(
             || graph.is_recursive(callee)
             || tail_called.contains(callee)
             || body.params.len() != body.arg_indices().count()
-            || !is_internal_body(module, callee, body)
+            || !is_internal_body(&roots, callee, body)
             || body.attributes.no_inline
         {
             continue;
@@ -154,7 +154,7 @@ fn specialize_round(
             let uses = body.arg_uses();
             constants.retain(|(index, immediate)| {
                 !uses[*index].is_empty()
-                    && immediate.as_u256().is_some_and(|value| value <= U256::from(u8::MAX))
+                    && immediate.as_u256().is_some_and(|value| target.is_cheap_immediate(value))
             });
             if constants.is_empty() {
                 continue;

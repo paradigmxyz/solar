@@ -69,6 +69,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &pre::Pre::Reads,
     &loop_canonicalize::LoopCanonicalize,
     &loop_exit_remat::LoopExitRemat,
+    &place_reads::PlaceReads,
     &loop_reduce::LoopReduce,
     &loop_split::LoopSplit,
     &loop_unroll::LoopUnroll,
@@ -436,6 +437,9 @@ static LOWERED_PIPELINE: &[&dyn MirPass] = &[
     &cfg_simplify::BranchSimplify,
     // Reconstruct old induction values on exits before selecting physical stack order.
     &loop_exit_remat::LoopExitRemat,
+    // Give each calldata read the block that dominates its uses, after the last CSE could merge
+    // the copies again.
+    &place_reads::PlaceReads,
     // Late lowering can leave pure address and length calculations unused.
     // Remove their complete dependency chains before selecting physical stack order.
     &dce::Dce,
@@ -924,7 +928,7 @@ impl ModuleAnalyses {
             self.alias_with_summaries(func_id, summaries)
         });
         let cfg = requirements.cfg().then(|| self.cfg(func_id, &module.functions[func_id]));
-        let cold = module.functions[func_id].attributes.hotness.is_cold();
+        let cold = module.functions[func_id].attributes.is_rarely_run();
         FunctionAnalyses::new(func_id, alias, cfg, pricing, module.objective(func_id), cold)
     }
 
@@ -1205,7 +1209,7 @@ fn run_parallel_function_pass(
         .collect::<Vec<_>>();
     let results =
         sync::par_try_map(true, tasks, |(id, func, alias, cfg, pricing, optimization)| {
-            let cold = func.attributes.hotness.is_cold();
+            let cold = func.attributes.is_rarely_run();
             let bundle = FunctionAnalyses::new(
                 id,
                 alias.map(Rc::new),

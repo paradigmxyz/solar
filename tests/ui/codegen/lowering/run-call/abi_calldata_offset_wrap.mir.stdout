@@ -13,7 +13,7 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0xc26b6b9a, pure, abi_params=[
     jump bb3
   bb1:  ; preds = bb0
     v2 = extract_value slice<calldata>, arg0, 1
-    v3 = lt 0, v2
+    v3 = gt v2, 0
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = extract_value slice<calldata>, arg0, 0
@@ -40,7 +40,7 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0xc26b6b9a, pure, abi_params=[
     v23 = mul v20, 32
     v24 = add v13, 32
     v25 = sub v21, v23
-    v26 = sgt v24, v25
+    v26 = slt v25, v24
     icall revert_if<calldata_tail_too_short>, v26
     v27 = inttoptr i256 v24 to ptr<calldata>
     v28 = make_calldata_slice v27, v20
@@ -54,7 +54,7 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0xc26b6b9a, pure, abi_params=[
     jump bb6
   bb4:  ; preds = bb3
     v32 = extract_value slice<calldata>, arg0, 1
-    v33 = lt 1, v32
+    v33 = gt v32, 1
     v34 = eq v33, false
     icall panic_if<0x32>, v34
     v35 = extract_value slice<calldata>, arg0, 0
@@ -81,7 +81,7 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0xc26b6b9a, pure, abi_params=[
     v53 = mul v50, 32
     v54 = add v43, 32
     v55 = sub v51, v53
-    v56 = sgt v54, v55
+    v56 = slt v55, v54
     icall revert_if<calldata_tail_too_short>, v56
     v57 = inttoptr i256 v54 to ptr<calldata>
     v58 = make_calldata_slice v57, v50

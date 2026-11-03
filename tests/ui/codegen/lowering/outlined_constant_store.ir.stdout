@@ -118,15 +118,16 @@ bb5 [cold]:
   push 0
   revert
 bb6:  ; function narrow8(uint256 value) external pure returns (uint8) [selector 0x2da3006c]
+  push 255
   push 4
   calldataload
-  push 255
-  dup 2
   gt
   push bb8
   jumpi
   jump bb7
 bb7:
+  push 4
+  calldataload
   push 0
   mstore
   push 32
@@ -152,13 +153,14 @@ bb8 [cold]:
 bb9:  ; function narrow32(uint256 value) external pure returns (uint32) [selector 0xb5be099a]
   push 4
   calldataload
-  dup 1
   push 32
   shr
   push bb11
   jumpi
   jump bb10
 bb10:
+  push 4
+  calldataload
   push 0
   mstore
   push 32
@@ -184,13 +186,14 @@ bb11 [cold]:
 bb12:  ; function narrow128(uint256 value) external pure returns (uint128) [selector 0x9646654f]
   push 4
   calldataload
-  dup 1
   push 128
   shr
   push bb14
   jumpi
   jump bb13
 bb13:
+  push 4
+  calldataload
   push 0
   mstore
   push 32

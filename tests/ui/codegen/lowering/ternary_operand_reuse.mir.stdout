@@ -4,7 +4,7 @@
   struct0: {i256, i160}
 
 ; function addCaller(uint256 x, uint256 y) external view returns (uint256, address) [selector 0x0718ec94]
-fn @addCaller(arg0: i256, arg1: i256) [selector=0x0718ec94, view, abi_params=[uint256, uint256], abi_returns=[word, word<uint160>], abi_return_params=[uint256, address]] {
+fn @addCaller(arg0: i256, arg1: i256) -> struct0 [selector=0x0718ec94, view, abi_params=[uint256, uint256], abi_returns=[word, word<uint160>], abi_return_params=[uint256, address]] {
   bb0:
     v0 = caller
     v1 = zext i160 v0 to i256
@@ -15,7 +15,7 @@ fn @addCaller(arg0: i256, arg1: i256) [selector=0x0718ec94, view, abi_params=[ui
 }
 
 ; function mulRepeated(uint256 modulus) external view returns (uint256, address) [selector 0xfd9e0caf]
-fn @mulRepeated(arg0: i256) [selector=0xfd9e0caf, view, abi_params=[uint256], abi_returns=[word, word<uint160>], abi_return_params=[uint256, address]] {
+fn @mulRepeated(arg0: i256) -> struct0 [selector=0xfd9e0caf, view, abi_params=[uint256], abi_returns=[word, word<uint160>], abi_return_params=[uint256, address]] {
   bb0:
     v0 = caller
     v1 = zext i160 v0 to i256

@@ -12,7 +12,7 @@ fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0x15cfcc01, pure, abi_para
     icall revert_if<invalid_calldata_tail_length>, v5
     v6 = sub v4, v3
     v7 = ptrtoint ptr<calldata> v2 to i256
-    v8 = sgt v7, v6
+    v8 = slt v6, v7
     icall revert_if<calldata_tail_too_short>, v8
     v9 = extract_value slice<calldata>, v1, 1
     v10 = add v9, 31
@@ -41,7 +41,7 @@ fn @f2(arg0: slice<calldata>) -> ptr<memory> [selector=0xdc0ee233, pure, abi_par
     icall revert_if<invalid_calldata_tail_length>, v5
     v6 = sub v4, v3
     v7 = ptrtoint ptr<calldata> v2 to i256
-    v8 = sgt v7, v6
+    v8 = slt v6, v7
     icall revert_if<calldata_tail_too_short>, v8
     v9 = extract_value slice<calldata>, v1, 1
     v10 = add v9, 31
@@ -77,7 +77,7 @@ fn @g() -> ptr<memory> [selector=0xe2179b8e, view, abi_params=[], abi_returns=[m
     icall panic_if<0x32>, v12
     v13 = mload v0, ptr<memory>
     v14 = mload v13
-    v15 = lt 0, v14
+    v15 = gt v14, 0
     v16 = eq v15, false
     icall panic_if<0x32>, v16
     v17 = ptradd v13, 32
@@ -142,7 +142,7 @@ fn @i() -> ptr<memory> [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[m
     icall panic_if<0x32>, v23
     v24 = mload v0, ptr<memory>
     v25 = mload v24
-    v26 = lt 0, v25
+    v26 = gt v25, 0
     v27 = eq v26, false
     icall panic_if<0x32>, v27
     v28 = ptradd v24, 32
@@ -156,7 +156,7 @@ fn @i() -> ptr<memory> [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[m
     icall panic_if<0x32>, v33
     v34 = mload v0, ptr<memory>
     v35 = mload v34
-    v36 = lt 0, v35
+    v36 = gt v35, 0
     v37 = eq v36, false
     icall panic_if<0x32>, v37
     v38 = ptradd v34, 32
@@ -172,7 +172,7 @@ fn @i() -> ptr<memory> [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[m
     v45 = ptradd v0, 32
     v46 = mload v45, ptr<memory>
     v47 = mload v46
-    v48 = lt 0, v47
+    v48 = gt v47, 0
     v49 = eq v48, false
     icall panic_if<0x32>, v49
     v50 = ptradd v46, 32
@@ -187,7 +187,7 @@ fn @i() -> ptr<memory> [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[m
     v56 = ptradd v0, 32
     v57 = mload v56, ptr<memory>
     v58 = mload v57
-    v59 = lt 0, v58
+    v59 = gt v58, 0
     v60 = eq v59, false
     icall panic_if<0x32>, v60
     v61 = ptradd v57, 32

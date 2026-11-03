@@ -14,7 +14,7 @@ fn @one() -> i256 [selector=0x901717d1, abi_params=[], abi_returns=[word], abi_r
     ret 3
   bb2:  ; preds = bb1
     v3 = div v1, 4
-    v4 = add 0, v3
+    v4 = add v3, 0
     v5 = mod v1, 4
     v6 = mul v5, 8
     v7 = lt v1, 20

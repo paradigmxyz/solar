@@ -2,7 +2,7 @@
 @module Test
 @phase lowered
 ; constructor() [creation entry]
-fn @constructor() [abi_wrapper, constructor] {
+fn @constructor() [constructor] {
   bb0:
     v17 = callvalue
     v18 = ne v17, 0
@@ -64,7 +64,7 @@ fn @entry() [entry] {
 }
 
 ; function load() external view returns (bytes memory) [selector 0x86d5c4be]
-fn @load() [selector=0x86d5c4be, abi_wrapper, view] {
+fn @load() {
   bb0:
     v0 = icall @_copy, 1
     v4 = mload v0
@@ -80,7 +80,7 @@ fn @load() [selector=0x86d5c4be, abi_wrapper, view] {
 }
 
 ; function loadThenAllocate() external view returns (bytes memory a, bytes memory b) [selector 0xf84b9425]
-fn @loadThenAllocate() [selector=0xf84b9425, abi_wrapper, view] {
+fn @loadThenAllocate() {
   bb0:
     v0 = icall @_copy, 1
     v1 = mload 64 !metadata(memory=scratch)
@@ -118,29 +118,30 @@ fn @loadThenAllocate() [selector=0xf84b9425, abi_wrapper, view] {
 }
 
 ; function loadScaled(uint256 k) external view returns (bytes memory) [selector 0x69d1875c]
-fn @loadScaled() [selector=0x69d1875c, abi_wrapper, view] {
+fn @loadScaled() {
   bb0:
     v1 = calldatasize
     v2 = lt v1, 36
     jumpi v2, bb1, bb2
   bb2:  ; preds = bb0
-    v0 = icall @_copy, arg0
-    v6 = mload v0
-    v7 = add v6, 31
-    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v16 = add v0, 32
-    v11 = add v16, v6
-    mstore v11, 0
-    v18 = sub v0, 32
-    mstore v18, 32
-    v13 = add v8, 64
-    returndata v18, v13
+    v3 = calldataload 4
+    v0 = icall @_copy, v3
+    v7 = mload v0
+    v8 = add v7, 31
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v17 = add v0, 32
+    v12 = add v17, v7
+    mstore v12, 0
+    v19 = sub v0, 32
+    mstore v19, 32
+    v14 = add v9, 64
+    returndata v19, v14
   bb1 [cold]:  ; preds = bb0
     revert 0, 0
 }
 
 ; function _copy(uint256 k) internal view returns (bytes memory out)
-fn @_copy(arg0: i256) -> i256 [may_return_memory, view] {
+fn @_copy(arg0: i256) -> i256 [may_return_memory] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v50 = and v0, 1
@@ -160,7 +161,7 @@ fn @_copy(arg0: i256) -> i256 [may_return_memory, view] {
     v78 = lt v77, v76
     v79 = zext i1 v78 to i256
     v80 = shr v77, 64
-    v81 = or v79, v80
+    v81 = or v80, v79
     v82 = ne v81, 0
     jumpi v82, bb13, bb12
   bb12:  ; preds = bb8

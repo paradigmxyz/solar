@@ -16,10 +16,12 @@
 // of gas.
 contract Test {
     // CHECK-LABEL: fn @loadSome(
+    // CHECK: [[COUNT:v[0-9]+]] = calldataload 68
     // CHECK-NOT: byte 0
-    // CHECK: [[EMPTY:v[0-9]+]] = eq arg2, 0
+    // CHECK: [[EMPTY:v[0-9]+]] = eq [[COUNT]], 0
     // CHECK-NEXT: jumpi [[EMPTY]]
-    // CHECK: [[BASE:v[0-9]+]] = add {{v[0-9]+}}, arg1
+    // CHECK: [[OFFSET:v[0-9]+]] = calldataload 36
+    // CHECK: [[BASE:v[0-9]+]] = add {{v[0-9]+}}, [[OFFSET]]
     // CHECK-NEXT: [[ADDRESS:v[0-9]+]] = add [[BASE]], 32
     // CHECK-NEXT: mload [[ADDRESS]]
     // CHECK: phi [{{bb[0-9]+}}: 0], [{{bb[0-9]+}}: {{v[0-9]+}}]
@@ -30,10 +32,13 @@ contract Test {
     }
 
     // CHECK-LABEL: fn @storeSome(
+    // CHECK: [[COUNT:v[0-9]+]] = calldataload 100
     // CHECK-NOT: mstore8
-    // CHECK: [[EMPTY:v[0-9]+]] = eq arg3, 0
+    // CHECK: [[EMPTY:v[0-9]+]] = eq [[COUNT]], 0
     // CHECK-NEXT: jumpi [[EMPTY]]
-    // CHECK: [[BASE:v[0-9]+]] = add {{v[0-9]+}}, arg1
+    // CHECK: {{v[0-9]+}} = calldataload 68
+    // CHECK: [[OFFSET:v[0-9]+]] = calldataload 36
+    // CHECK: [[BASE:v[0-9]+]] = add {{v[0-9]+}}, [[OFFSET]]
     // CHECK-NEXT: [[ADDRESS:v[0-9]+]] = add [[BASE]], 32
     // CHECK: mload [[ADDRESS]]
     // CHECK: mstore [[ADDRESS]],

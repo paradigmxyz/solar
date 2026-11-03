@@ -32,7 +32,7 @@ fn @aggregate() -> ptr<memory> [selector=0xaf36778b, pure, abi_params=[], abi_re
 }
 
 ; function malformed() external pure returns (bytes memory) [selector 0x0a39e7bc]
-fn @malformed() [selector=0x0a39e7bc, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @malformed() -> ptr<memory> [selector=0x0a39e7bc, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     mstore 0, 32 !metadata(memory=scratch)
     mstore 32, 256 !metadata(memory=scratch)

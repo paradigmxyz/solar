@@ -1,0 +1,18 @@
+error: [fn1] `selector` survives entry lowering
+
+error: [fn2] `pure` survives entry lowering
+
+error: [fn3] `view` survives entry lowering
+
+error: [fn4] `payable` survives entry lowering
+
+error: [fn5] `abi_wrapper` survives entry lowering
+
+error: [fn6] `abi_params` survives entry lowering
+
+error: [fn7] `abi_returns` survives entry lowering
+
+error: [fn8] `abi_return_params` survives entry lowering
+
+error: aborting due to 8 previous errors
+

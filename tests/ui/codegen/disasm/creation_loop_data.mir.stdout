@@ -20,7 +20,7 @@ fn @constructor() [constructor] {
     mstore 64, 0x3333333333333333333333333333333333333333333333333333333333333333 !metadata(memory=scratch)
     mstore 96, 0x4444444444444444444444444444444444444444444444444444444444444444 !metadata(memory=scratch)
     v3 = keccak256 0, 128 !metadata(memory=scratch)
-    v4 = xor v0, v3
+    v4 = xor v3, v0
     jump bb6
   bb6:  ; preds = bb4
     jump bb3

@@ -305,8 +305,12 @@ changed. Passes emit diagnostics through the session; an error stops the pass
 manager and custom pipelines. Keep `run_pass` last in each trait implementation.
 The canonical pipeline arrays are private to the pass manager.
 `abi_wrapper` marks an explicit entry ABI; it is verified independently of the
-module phase. The final phase uses a shared legality check, and runtime codegen
-requires an immutable `LoweredModule` view.
+module phase. Once `lower-dispatch` builds `entry`, no function carries an entry or ABI
+attribute (`selector`, visibility, mutability, `abi_wrapper`, `receive`, `fallback`, the ABI
+layouts, or proved array element widths) and the verifier rejects them. The module roots are
+`entry`, whose tail calls name the runtime entries, and the constructor, which the module
+records and the text marks with `[constructor]`. The final phase uses a shared legality
+check, and runtime codegen requires an immutable `LoweredModule` view.
 
 Define one legality implementation for instructions, types, function signatures,
 terminators, and module entries. Use it both when completing conversion and when
@@ -777,6 +781,13 @@ no path to a normal exit. The pass manager recomputes the attributes before the 
 parsed `cold` is overwritten, and after every pass that changes the module, so passes and the
 backend read current values. The gas objective prices cold code like a size build, because it
 does not run on a successful call and its bytes are deposited anyway.
+
+A function the `@custom:solar-cold` tag marks carries the attribute `cold_hint`, which parsing
+keeps. It says the function is rarely run and nothing about whether it returns, so it never makes a
+call an abort and leaves `cold` alone. Every block of the function is cold, and so is the code
+behind a call to it that only a cold edge enters, such as a branch into the call. A call on the only
+path leaves its caller hot. The function and the inliner's decision to clone it are priced like
+cold code.
 
 The scheduler carries known loop membership into EVM IR, and block merging
 preserves it. Gas-mode outlining keeps loop computations and large pushes

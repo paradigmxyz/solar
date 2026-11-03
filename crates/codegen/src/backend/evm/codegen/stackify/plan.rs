@@ -206,8 +206,6 @@ pub(super) struct Planner<'a> {
     /// Branch conditions with their single-use zero tests peeled off, and whether that
     /// inverts the branch.
     conditions: FxHashMap<BlockId, (ValueId, bool)>,
-    /// External arguments loaded at the start of a block and kept on the stack.
-    arg_defs: FxHashMap<BlockId, SmallVec<[ValueId; 2]>>,
     /// The constants retained by this trial, with the blocks that first materialize them.
     constant_defs: Vec<(BlockId, ValueId)>,
     /// The blocks in which each retained constant is kept on the stack. The constant is pushed
@@ -269,10 +267,10 @@ impl<'a> Planner<'a> {
         batch_spills: bool,
         hints: &'a FxHashMap<BlockId, Layout>,
     ) -> Result<Self, &'static str> {
-        let Analysis { liveness, cfg, loops, pinned, recomputable, saved, .. } = analysis;
-        let internal = info.internal.contains(func_id);
+        let Analysis { liveness, cfg, loops, pinned, recomputable, saved, reads, .. } = analysis;
         let has_ret = info.returning.contains(func_id);
-        let args = if internal { argument_values(func)? } else { IndexVec::new() };
+        let gas_mode = target.optimization().is_gas();
+        let args = argument_values(func)?;
 
         let mut use_counts = index_vec![0u32; func.num_values()];
         for block in &func.blocks {
@@ -283,66 +281,16 @@ impl<'a> Planner<'a> {
                 term.visit_operands(|operand| use_counts[operand] += 1);
             }
         }
-        // External arguments are calldata words. One read more than once loads at the nearest
-        // block outside every loop that dominates its uses and then stays on the stack.
-        let gas_mode = target.optimization().is_gas();
-        let mut use_blocks = FxHashMap::<ValueId, BlockId>::default();
-        if !internal {
-            // In gas mode a read inside a loop also loads once, outside the loop.
-            let mut note = |value: ValueId, block: BlockId| {
-                if matches!(func.value(value), Value::Arg(_))
-                    && (use_counts[value] >= 2 || (gas_mode && cfg.cyclic_blocks().contains(block)))
-                {
-                    use_blocks
-                        .entry(value)
-                        .and_modify(|other| *other = common_dominator(cfg, *other, block))
-                        .or_insert(block);
-                }
-            };
-            for (block_id, block) in func.blocks.iter_enumerated() {
-                for &inst in &block.instructions {
-                    match &func.inst(inst).kind {
-                        InstKind::Phi(incoming) => {
-                            for &(pred, value) in incoming {
-                                note(value, pred);
-                            }
-                        }
-                        kind => kind.visit_operands(|value| note(value, block_id)),
-                    }
-                }
-                if let Some(term) = &block.terminator {
-                    term.visit_operands(|value| note(value, block_id));
-                }
-            }
-        }
-        let mut arg_defs = FxHashMap::<BlockId, SmallVec<[ValueId; 2]>>::default();
-        // A spilled argument is read from calldata again at each use instead.
-        use_blocks.retain(|&value, _| !spilled.contains(value));
-        for (value, mut block) in use_blocks {
-            while cfg.cyclic_blocks().contains(block)
-                && let Some(idom) = cfg.dominators().idom(block)
-            {
-                block = idom;
-            }
-            arg_defs.entry(block).or_default().push(value);
-        }
-        for defs in arg_defs.values_mut() {
-            defs.sort_unstable();
-        }
         let mut remat = DenseBitSet::new_empty(func.num_values());
         let mut skipped = DenseBitSet::new_empty(func.num_insts());
         for value in func.live_values() {
-            if matches!(func.value(value), Value::Immediate(_) | Value::Undef(_))
-                || (!internal
-                    && matches!(func.value(value), Value::Arg(_))
-                    && !arg_defs.values().any(|defs| defs.contains(&value)))
-            {
+            if matches!(func.value(value), Value::Immediate(_) | Value::Undef(_)) {
                 remat.insert(value);
             }
         }
         for inst in func.instructions() {
             if let Some(result) = func.inst_result_value(inst)
-                && materialized_at_use(func, internal, result)
+                && materialized_at_use(func, reads, result)
             {
                 remat.insert(result);
                 skipped.insert(inst);
@@ -557,7 +505,6 @@ impl<'a> Planner<'a> {
             projections,
             publish,
             conditions,
-            arg_defs,
             constant_defs: Vec::new(),
             held: FxHashMap::default(),
             current: Cell::new(BlockId::ENTRY),
@@ -606,13 +553,6 @@ impl<'a> Planner<'a> {
                 self.spill_entry_arguments(&mut sim)?;
             }
             self.pop_top_junk(&mut sim)?;
-            for value in self.arg_defs.get(&block).into_iter().flatten().copied() {
-                // push 4 + 32 * index; calldataload
-                sim.cost += self.materialize_cost(value);
-                sim.steps.push(Step::Materialize(value));
-                sim.stack.push(Slot::Value(value));
-                sim.observe(1);
-            }
             self.plan_body(&mut sim, block)?;
             let terminator_start = sim.steps.len();
             let exit = self.plan_terminator(&mut sim, block)?;
@@ -743,7 +683,8 @@ impl<'a> Planner<'a> {
 
     /// The nearest block outside loops that dominates every block of `uses`.
     fn definition_block(&self, uses: &[BlockId]) -> Option<BlockId> {
-        let mut block = uses.iter().copied().reduce(|a, b| common_dominator(self.cfg, a, b))?;
+        let mut block =
+            uses.iter().copied().reduce(|a, b| self.cfg.dominators().common_dominator(a, b))?;
         while self.cfg.cyclic_blocks().contains(block)
             && let Some(idom) = self.cfg.dominators().idom(block)
         {
@@ -1079,16 +1020,22 @@ impl<'a> Planner<'a> {
             }
             let Some(&def) = def_position.get(&value) else { continue };
             // The chain: single-use producers feeding the roots within this block, as the
-            // position of its first instruction.
+            // position of its first instruction. Each position is visited once, and the walk
+            // stops at the first position below the window, where the callers reject any start.
             let first = |roots: &[usize]| {
                 let mut work = roots.to_vec();
+                let mut seen = work.iter().copied().collect::<FxHashSet<_>>();
                 let mut start = work[0];
                 while let Some(position) = work.pop() {
                     start = start.min(position);
+                    if consumer - position > MAX_PREPLACEMENT_WINDOW {
+                        break;
+                    }
                     for &operand in &planned[position].operands {
                         if self.use_counts[operand] == 1
                             && let Some(&producer) = def_position.get(&operand)
                             && producer < position
+                            && seen.insert(producer)
                         {
                             work.push(producer);
                         }
@@ -3321,13 +3268,13 @@ pub(super) fn call_projection(
 }
 
 /// Values computed by stable single-opcode arithmetic, calldata loads, and casts from words
-/// pushed fresh at no risk of change: immediates, calldata arguments, stable environment reads,
+/// pushed fresh at no risk of change: immediates, calldata words, stable environment reads,
 /// and data sizes. Maps each to the cost and opcode count of recomputing it, at most
 /// [`MAX_RECOMPUTED_OPS`] opcodes.
 pub(super) fn recomputable(
     func: &Function,
     cfg: &CfgInfo,
-    internal: bool,
+    reads: &DenseBitSet<ValueId>,
     target: &Target,
 ) -> FxHashMap<ValueId, (Cost, u32)> {
     let mut values = FxHashMap::default();
@@ -3353,7 +3300,7 @@ pub(super) fn recomputable(
                 }
             };
             let computable = kind.operands().iter().all(|&operand| {
-                if materialized_at_use(func, internal, operand) {
+                if materialized_at_use(func, reads, operand) {
                     cost += materialize_cost(func, target, operand);
                 } else if let Some(&(operand_cost, operand_ops)) = values.get(&operand) {
                     cost += operand_cost;
@@ -3372,13 +3319,15 @@ pub(super) fn recomputable(
 }
 
 /// The cost of pushing a value that is materialized at its use.
-fn materialize_cost(func: &Function, target: &Target, value: ValueId) -> Cost {
+pub(super) fn materialize_cost(func: &Function, target: &Target, value: ValueId) -> Cost {
     match func.value(value) {
         Value::Immediate(imm) => target.push(imm.as_u256().unwrap_or_default()),
         Value::Undef(_) => target.push(U256::ZERO),
-        Value::Arg(_) => target.opcode(op::PUSH1).plus(target.opcode(op::CALLDATALOAD)),
         Value::Inst(inst) => match &func.inst(*inst).kind {
             InstKind::DataSize(_) => target.opcode(op::PUSH2),
+            InstKind::Load(address, PtrLocation::Calldata) => {
+                materialize_cost(func, target, *address).plus(target.opcode(op::CALLDATALOAD))
+            }
             InstKind::Gas => target.opcode(op::GAS),
             InstKind::Sub(..) if gas_minus(func, value).is_some() => {
                 target.opcode(op::GAS).plus(target.opcode(op::PUSH1)).plus(target.opcode(op::SUB))
@@ -3387,21 +3336,6 @@ fn materialize_cost(func: &Function, target: &Target, value: ValueId) -> Cost {
                 .map_or(StackCosts::NULLARY_READ, |opcode| target.opcode(opcode)),
         },
         _ => StackCosts::NULLARY_READ,
-    }
-}
-
-/// Returns the nearest block that dominates both blocks.
-fn common_dominator(cfg: &CfgInfo, a: BlockId, b: BlockId) -> BlockId {
-    let ancestors = cfg.dominators().self_and_dominators(a);
-    let mut block = b;
-    loop {
-        if ancestors.contains(&block) {
-            return block;
-        }
-        match cfg.dominators().idom(block) {
-            Some(idom) if idom != block => block = idom,
-            _ => return BlockId::ENTRY,
-        }
     }
 }
 

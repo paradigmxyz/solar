@@ -53,7 +53,7 @@
 -     ret v2
 +     v3 = sub 1, v1
 +     v4 = zext i1 v0 to i256
-+     v5 = mul v4, v3
++     v5 = mul v3, v4
 +     v6 = add v1, v5
 +     ret v6
   }

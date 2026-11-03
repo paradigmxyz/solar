@@ -85,13 +85,13 @@ fn solc_version_override() -> Option<&'static str> {
         .as_deref()
 }
 
-/// Returns [`SOLAR_VERSION`], or the release version under [`TEST_VERSION_ENV`].
+/// Returns [`SOLAR_VERSION`], or [`TEST_SEMVER_VERSION`] under [`TEST_VERSION_ENV`].
 #[cfg(feature = "version")]
 pub fn solar_version() -> &'static str {
-    if test_version() { SEMVER_VERSION } else { SOLAR_VERSION }
+    if test_version() { TEST_SEMVER_VERSION } else { SOLAR_VERSION }
 }
 
-/// Returns [`SOLC_COMPAT_VERSION`], or a fixed commit and the release version under
+/// Returns [`SOLC_COMPAT_VERSION`], or a fixed commit and [`TEST_SEMVER_VERSION`] under
 /// [`TEST_VERSION_ENV`].
 #[cfg(feature = "version")]
 pub fn solc_compat_version() -> &'static str {
@@ -100,11 +100,15 @@ pub fn solc_compat_version() -> &'static str {
 
 /// The solc-compatible version that compiler output reports under [`TEST_VERSION_ENV`].
 pub const TEST_SOLC_COMPAT_VERSION: &str =
-    concat!(env!("SOLC_SEMVER_VERSION"), "+commit.00000000.solar.", env!("CARGO_PKG_VERSION"));
+    concat!(env!("SOLC_SEMVER_VERSION"), "+commit.00000000.solar.0.0.0");
 
-/// Setting this to `1` replaces the commit and `-dev` suffix in compiler output with fixed values,
-/// so that test snapshots of metadata and bytecode do not change with every commit or build
-/// profile.
+/// The release version that compiler output reports under [`TEST_VERSION_ENV`], fixed so that
+/// version bumps do not change metadata and bytecode snapshots.
+pub const TEST_SEMVER_VERSION: &str = "0.0.0";
+
+/// Setting this to `1` replaces the version, commit, and `-dev` suffix in compiler output with
+/// fixed values, so that test snapshots of metadata and bytecode do not change with every release,
+/// commit, or build profile.
 pub const TEST_VERSION_ENV: &str = "SOLAR_TEST_VERSION";
 
 #[cfg(feature = "version")]

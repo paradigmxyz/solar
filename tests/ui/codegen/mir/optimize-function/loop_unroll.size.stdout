@@ -18,7 +18,7 @@ fn @entry() [entry] {
 }
 
 ; function plain(bytes calldata data) internal pure returns (uint32 value)
-fn @plain(arg0: i256, arg1: i256) -> i256 [pure] {
+fn @plain(arg0: i256, arg1: i256) -> i256 {
   bb0:
     jump bb1
   bb1:  ; preds = bb0, bb5
@@ -47,7 +47,7 @@ fn @plain(arg0: i256, arg1: i256) -> i256 [pure] {
 }
 
 ; function fast(bytes calldata data) internal pure returns (uint32 value)
-fn @fast(arg0: i256, arg1: i256) -> i256 [optimize=gas, pure] {
+fn @fast(arg0: i256, arg1: i256) -> i256 [optimize=gas] {
   bb0:
     v37 = lt arg1, 4
     jumpi v37, bb2, bb1
@@ -91,7 +91,7 @@ fn @fast(arg0: i256, arg1: i256) -> i256 [optimize=gas, pure] {
 }
 
 ; function small(bytes calldata data) internal pure returns (uint32 value)
-fn @small(arg0: i256, arg1: i256) -> i256 [pure] {
+fn @small(arg0: i256, arg1: i256) -> i256 {
   bb0:
     jump bb1
   bb1:  ; preds = bb0, bb5
@@ -120,18 +120,18 @@ fn @small(arg0: i256, arg1: i256) -> i256 [pure] {
 }
 
 ; function run(bytes calldata data) external pure returns (uint32, uint32, uint32) [selector 0x3a276523]
-fn @run() [selector=0x3a276523, abi_wrapper, pure] {
+fn @run() {
   bb0:
     v6 = calldatasize
     v7 = lt v6, 36
     v8 = calldataload 4
     v9 = add v8, 4
     v11 = sub v6, 36
-    v12 = gt v8, v11
+    v12 = lt v11, v8
     v13 = calldataload v9
     v14 = add v9, 32
     v15 = sub v6, v14
-    v16 = gt v13, v15
+    v16 = lt v15, v13
     v17 = or v12, v16
     v33 = or v7, v17
     jumpi v33, bb1, bb2

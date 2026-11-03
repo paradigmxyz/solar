@@ -24,7 +24,7 @@ fn @entry() [entry] {
     revert 0, 0
 }
 
-fn @who() [selector=0xd6d21dfd, abi_wrapper, payable] {
+fn @who() {
   bb0:
     v0: i256 = caller
     v1: i256 = origin
@@ -41,7 +41,7 @@ fn @who() [selector=0xd6d21dfd, abi_wrapper, payable] {
     returndata 0x80, 0xc0
 }
 
-fn @caller_balance() [selector=0xeb46f435, abi_wrapper, payable] {
+fn @caller_balance() {
   bb0:
     v0: i256 = caller
     v1 = balance v0
@@ -49,7 +49,7 @@ fn @caller_balance() [selector=0xeb46f435, abi_wrapper, payable] {
     returndata 0, 32
 }
 
-fn @chain() [selector=0xc763e5a1, abi_wrapper] {
+fn @chain() {
   bb0:
     v0 = chainid
     v1 = timestamp
@@ -72,7 +72,7 @@ fn @chain() [selector=0xc763e5a1, abi_wrapper] {
     returndata 0x80, 0x120
 }
 
-fn @code() [selector=0x24c12bf6, abi_wrapper] {
+fn @code() {
   bb0:
     v0 = codesize
     v1 = gt v0, 0

@@ -40,9 +40,12 @@ rewrites.
   Rust-backed predicates and projections in the rule file and implement them
   there.
 - MIR rules match the `Op` view of one instruction, so rules on different
-  operations never overlap. EVM IR rules match a hand-written `Inst` view of
-  each instruction in a window of the block tail; window extractors all
-  overlap, so every EVM IR rule needs a priority.
+  operations never overlap. A rule writes a commutative operation in one
+  operand order and matches the others too (see the
+  [rule README](../crates/codegen/isle/mir/README.md#matching-and-costs)). EVM
+  IR rules match a hand-written `Inst` view of each instruction in a window of
+  the block tail; window extractors all overlap, so every EVM IR rule needs a
+  priority.
 - Rules on the same operation need distinct priorities, which order the
   checks: higher first, default zero. ISLE rejects ambiguous overlaps at build
   time. A `multi` term such as `rewrite` instead returns every matching

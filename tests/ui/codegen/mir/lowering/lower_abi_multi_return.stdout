@@ -11,15 +11,17 @@
 - fn @pair(arg0: i256) -> struct0 [selector=0x1f6a26ff, return_abi=[i256, i256], abi_returns=[word, word]] {
 + fn @pair() [selector=0x1f6a26ff, abi_wrapper] {
     bb0:
+-     v0 = add arg0, 1
+-     ret arg0, v0
 +     v1 = calldatasize
 +     v2 = lt v1, 36
 +     jumpi v2, bb2, bb3
 +   bb3:  ; preds = bb0
++     v3 = calldataload 4
 +     jump bb1
 +   bb1:  ; preds = bb3
-      v0 = add arg0, 1
--     ret arg0, v0
-+     mstore 0, arg0 !metadata(memory=scratch)
++     v0 = add v3, 1
++     mstore 0, v3 !metadata(memory=scratch)
 +     mstore 32, v0 !metadata(memory=scratch)
 +     returndata 0, 64
 +   bb2 [cold]:  ; preds = bb0
@@ -58,7 +60,7 @@
   
   ; selector 0x01020305
 - fn @typed_address(arg0: i160, arg1: i256) -> i160 [selector=0x01020305, abi_params=[address, bool], abi_returns=[word<uint160>], abi_return_params=[address]] {
-+ fn @typed_address() [selector=0x01020305, abi_wrapper, implicit_args=[i160, i256]] {
++ fn @typed_address() [selector=0x01020305, abi_wrapper] {
     bb0:
 -     ret arg0
 +     v0 = calldatasize
@@ -75,10 +77,13 @@
 +     v7 = eq v6, 0
 +     jumpi v7, bb5, bb2
 +   bb5:  ; preds = bb4
++     v8 = trunc i256 v2 to i160
++     v9 = trunc i256 v5 to i1
++     v10 = zext i1 v9 to i256
 +     jump bb1
 +   bb1:  ; preds = bb5
-+     v8 = zext i160 arg0 to i256
-+     mstore 0, v8 !metadata(memory=scratch)
++     v11 = zext i160 v8 to i256
++     mstore 0, v11 !metadata(memory=scratch)
 +     returndata 0, 32
 +   bb2 [cold]:  ; preds = bb0, bb3, bb4
 +     revert 0, 0

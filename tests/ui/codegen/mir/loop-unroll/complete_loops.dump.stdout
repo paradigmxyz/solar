@@ -20,31 +20,31 @@ fn @entry() [entry] {
 }
 
 ; function u32(bytes calldata data, uint256 start) internal pure returns (uint32 value, uint256 offset)
-fn @u32(arg0: i256, arg1: i256) [pure, return_abi=[i256, i256]] {
+fn @u32(arg0: i256, arg1: i256) [return_abi=[i256, i256]] {
   bb0:
-    v40 = lt 0, arg1
     v41 = add arg0, 0
     v42 = calldataload v41
     v43 = byte 0, v42
     v44 = or 0, v43
     v49 = shl v44, 8
     v50 = and v49, 0xffffffff
-    v51 = lt 1, arg1
-    v79 = and v40, v51
     v52 = add arg0, 1
     v53 = calldataload v52
     v54 = byte 0, v53
     v55 = or v50, v54
     v60 = shl v55, 8
     v61 = and v60, 0xffffffff
-    v62 = lt 2, arg1
-    v80 = and v79, v62
     v63 = add arg0, 2
     v64 = calldataload v63
     v65 = byte 0, v64
     v66 = or v61, v65
     v71 = shl v66, 8
     v72 = and v71, 0xffffffff
+    v40 = lt 0, arg1
+    v51 = lt 1, arg1
+    v79 = and v40, v51
+    v62 = lt 2, arg1
+    v80 = and v79, v62
     v73 = lt 3, arg1
     v81 = and v80, v73
     jumpi v81, bb2, bb1
@@ -61,7 +61,7 @@ fn @u32(arg0: i256, arg1: i256) [pure, return_abi=[i256, i256]] {
 }
 
 ; function u16(bytes calldata data, uint256 start) internal pure returns (uint16 value, uint256 offset)
-fn @u16(arg0: i256, arg1: i256, arg2: i256) [pure, return_abi=[i256, i256]] {
+fn @u16(arg0: i256, arg1: i256, arg2: i256) [return_abi=[i256, i256]] {
   bb0:
     v41 = lt arg2, arg1
     v42 = add arg0, arg2
@@ -88,18 +88,18 @@ fn @u16(arg0: i256, arg1: i256, arg2: i256) [pure, return_abi=[i256, i256]] {
 }
 
 ; function decode(bytes calldata data) external pure returns (uint32 a, uint16 b) [selector 0xe5c5e9a3]
-fn @decode() [selector=0xe5c5e9a3, abi_wrapper, pure] {
+fn @decode() {
   bb0:
     v8 = calldatasize
     v9 = lt v8, 36
     v10 = calldataload 4
     v11 = add v10, 4
     v13 = sub v8, 36
-    v14 = gt v10, v13
+    v14 = lt v13, v10
     v15 = calldataload v11
     v16 = add v11, 32
     v17 = sub v8, v16
-    v18 = gt v15, v17
+    v18 = lt v17, v15
     v19 = or v14, v18
     v40 = or v9, v19
     jumpi v40, bb1, bb2
@@ -117,23 +117,23 @@ fn @decode() [selector=0xe5c5e9a3, abi_wrapper, pure] {
 }
 
 ; function sum4(uint256[4] calldata values) external pure returns (uint256 total) [selector 0x0540a714]
-fn @sum4() [selector=0x0540a714, abi_wrapper, pure] {
+fn @sum4() {
   bb0:
     v33 = calldatasize
     v34 = lt v33, 132
     jumpi v34, bb2, bb3
   bb3:  ; preds = bb0
     v77 = calldataload 4
-    v78 = add 0, v77
+    v78 = add v77, 0
     v86 = calldataload 36
-    v87 = add v78, v86
+    v87 = add v86, v78
     v88 = lt v87, v78
     v95 = calldataload 68
-    v96 = add v87, v95
+    v96 = add v95, v87
     v97 = lt v96, v87
     v108 = or v88, v97
     v104 = calldataload 100
-    v105 = add v96, v104
+    v105 = add v104, v96
     v106 = lt v105, v96
     v109 = or v108, v106
     jumpi v109, bb1, bb4

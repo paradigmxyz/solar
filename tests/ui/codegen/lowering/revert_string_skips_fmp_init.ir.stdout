@@ -30,10 +30,11 @@ bb4 [cold]:
 bb8:  ; function pass(uint256 x) external pure returns (uint256) [selector 0xd67c9961]
   push 4
   calldataload
-  dup 1
   iszero
   push bb7
   jumpi
+  push 4
+  calldataload
   push 0
   mstore
   push 32

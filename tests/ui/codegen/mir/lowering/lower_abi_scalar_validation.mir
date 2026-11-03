@@ -8,7 +8,7 @@
 // index nor retains the array base on every iteration. All words contribute to one check.
 // CHECK-LABEL: fn @bytes_array(
 // CHECK: + [[AVAILABLE:v[0-9]+]] = shr {{v[0-9]+}}, 5
-// CHECK-NEXT: + [[OUTSIDE:v[0-9]+]] = gt [[LEN:v[0-9]+]], [[AVAILABLE]]
+// CHECK-NEXT: + [[OUTSIDE:v[0-9]+]] = lt [[AVAILABLE]], [[LEN:v[0-9]+]]
 // CHECK-NEXT: + jumpi [[OUTSIDE]],
 // CHECK: + [[HAS_WORDS:v[0-9]+]] = ne [[LEN]], 0
 // CHECK-NEXT: + jumpi [[HAS_WORDS]], [[START:bb[0-9]+]], [[DONE:bb[0-9]+]]
@@ -20,7 +20,7 @@
 // CHECK: + [[CURSOR:v[0-9]+]] = phi [{{bb[0-9]+}}: [[DATA]]],
 // CHECK-NEXT: + [[FOLDED:v[0-9]+]] = phi [{{bb[0-9]+}}: 0],
 // CHECK-NEXT: + [[WORD:v[0-9]+]] = calldataload [[CURSOR]]
-// CHECK-NEXT: + [[NEXT:v[0-9]+]] = or [[FOLDED]], [[WORD]]
+// CHECK-NEXT: + [[NEXT:v[0-9]+]] = or [[WORD]], [[FOLDED]]
 // CHECK-NEXT: + [[NEXT_CURSOR:v[0-9]+]] = add [[CURSOR]], 32
 // CHECK-NEXT: + [[MORE:v[0-9]+]] = lt [[NEXT_CURSOR]], [[END]]
 // CHECK-NEXT: + jumpi [[MORE]], [[BODY]], [[VALIDATE:bb[0-9]+]]

@@ -22,7 +22,8 @@
 // CHECK: sub [[C]], [[B]]
 //
 // Without the second guard, `b` is unordered against `c` and its difference keeps the check.
-// CHECK: lt [[C]], [[B]]
+// CHECK: [[C2:v[0-9]+]] = calldataload 68
+// CHECK: lt [[C2]], {{v[0-9]+}}
 
 error Hole();
 

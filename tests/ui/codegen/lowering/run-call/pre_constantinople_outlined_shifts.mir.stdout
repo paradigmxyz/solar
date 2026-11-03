@@ -11,7 +11,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt v6, 0x10000000000000000
@@ -65,7 +65,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v38 = and v37, 1
     v39 = eq v38, 1
     v40 = sub 0, v38
-    v41 = or 127, v40
+    v41 = or v40, 127
     v42 = shr v37, 1
     v43 = and v42, v41
     v44 = lt v43, 0x10000000000000000
@@ -119,7 +119,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v75 = and v74, 1
     v76 = eq v75, 1
     v77 = sub 0, v75
-    v78 = or 127, v77
+    v78 = or v77, 127
     v79 = shr v74, 1
     v80 = and v79, v78
     v81 = sload 0 !metadata(storage=slot(0))
@@ -127,7 +127,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v82 = and v81, 1
     v83 = eq v82, 1
     v84 = sub 0, v82
-    v85 = or 127, v84
+    v85 = or v84, 127
     v86 = shr v81, 1
     v87 = and v86, v85
     v88 = eq v87, 0
@@ -180,7 +180,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v118 = and v117, 1
     v119 = eq v118, 1
     v120 = sub 0, v118
-    v121 = or 127, v120
+    v121 = or v120, 127
     v122 = shr v117, 1
     v123 = and v122, v121
     v124 = eq v123, 0
@@ -233,7 +233,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v154 = and v153, 1
     v155 = eq v154, 1
     v156 = sub 0, v154
-    v157 = or 127, v156
+    v157 = or v156, 127
     v158 = shr v153, 1
     v159 = and v158, v157
     v160 = lt v159, 0x10000000000000000
@@ -287,7 +287,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v191 = and v190, 1
     v192 = eq v191, 1
     v193 = sub 0, v191
-    v194 = or 127, v193
+    v194 = or v193, 127
     v195 = shr v190, 1
     v196 = and v195, v194
     v197 = sload 0 !metadata(storage=slot(0))
@@ -295,7 +295,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v198 = and v197, 1
     v199 = eq v198, 1
     v200 = sub 0, v198
-    v201 = or 127, v200
+    v201 = or v200, 127
     v202 = shr v197, 1
     v203 = and v202, v201
     v204 = insert_value struct0, undef struct0, 0, v80
