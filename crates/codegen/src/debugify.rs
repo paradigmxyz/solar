@@ -8,16 +8,19 @@
 //! source-map tests must also check that untaken paths do not acquire hits. This audits source
 //! spans, not variable locations or inline scopes, and does not synthesize LLVM-style line numbers.
 
+use crate::backend::evm::CodegenState;
 use solar_config::Debugify;
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::map::FxHashSet;
 use solar_interface::{Result, Span};
 use solar_sema::Gcx;
 use std::{
-    collections::hash_map::Entry,
     fs::{self, File},
     io::{self, Write},
-    path::{Path, PathBuf},
-    sync::{Mutex, OnceLock},
+    path::Path,
+    sync::{
+        Mutex,
+        atomic::{AtomicU64, Ordering},
+    },
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -105,33 +108,32 @@ pub(crate) fn enabled(gcx: Gcx<'_>) -> bool {
     gcx.sess.opts.unstable.debugify.is_some() || gcx.sess.opts.unstable.debugify_output.is_some()
 }
 
-/// One file per process and directory, with serialized writes from parallel codegen workers.
-/// Write complete records immediately: the command-line driver can exit without dropping globals.
+/// One file per compilation, with serialized writes from parallel codegen workers.
+/// Write complete records immediately: the command-line driver can exit without dropping state.
 fn write_record(gcx: Gcx<'_>, directory: &Path, record: &serde_json::Value) -> io::Result<()> {
-    static OUTPUTS: OnceLock<Mutex<FxHashMap<PathBuf, File>>> = OnceLock::new();
-    let mut outputs = OUTPUTS.get_or_init(Default::default).lock().unwrap();
-    let file = match outputs.entry(directory.to_owned()) {
-        Entry::Occupied(entry) => entry.into_mut(),
-        Entry::Vacant(entry) => {
-            fs::create_dir_all(directory)?;
-            let stamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos();
-            let path = directory.join(format!("{}-{stamp}.jsonl", std::process::id()));
-            let mut file = File::options().write(true).create_new(true).open(path)?;
-            let header = serde_json::json!({
-                "kind": "invocation",
-                "version": 1,
-                "arguments": std::env::args_os().map(|arg| arg.to_string_lossy().into_owned()).collect::<Vec<_>>(),
-                "sources": gcx.sess.source_map().files().iter().map(|file| serde_json::json!({
-                    "name": file.name.display().to_string(),
-                    "start": file.start_pos.0,
-                    "end": file.end_position().0,
-                })).collect::<Vec<_>>(),
-            });
-            write_json_line(&mut file, &header)?;
-            entry.insert(file)
-        }
-    };
-    write_json_line(file, record)
+    static NEXT_FILE: AtomicU64 = AtomicU64::new(0);
+    let mut output = gcx.codegen_state::<CodegenState>().debugify_output.0.lock().unwrap();
+    if output.is_none() {
+        fs::create_dir_all(directory)?;
+        let stamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos();
+        // Concurrent compilations may observe the same clock tick.
+        let sequence = NEXT_FILE.fetch_add(1, Ordering::Relaxed);
+        let path = directory.join(format!("{}-{stamp}-{sequence}.jsonl", std::process::id()));
+        let mut file = File::options().write(true).create_new(true).open(path)?;
+        let header = serde_json::json!({
+            "kind": "invocation",
+            "version": 1,
+            "arguments": std::env::args_os().map(|arg| arg.to_string_lossy().into_owned()).collect::<Vec<_>>(),
+            "sources": gcx.sess.source_map().files().iter().map(|file| serde_json::json!({
+                "name": file.name.display().to_string(),
+                "start": file.start_pos.0,
+                "end": file.end_position().0,
+            })).collect::<Vec<_>>(),
+        });
+        write_json_line(&mut file, &header)?;
+        *output = Some(file);
+    }
+    write_json_line(output.as_mut().expect("audit file initialized"), record)
 }
 
 fn write_json_line(file: &mut File, record: &serde_json::Value) -> io::Result<()> {
@@ -139,3 +141,7 @@ fn write_json_line(file: &mut File, record: &serde_json::Value) -> io::Result<()
     bytes.push(b'\n');
     file.write_all(&bytes)
 }
+
+/// The audit stream belongs to the compilation, not its process or output directory.
+#[derive(Default)]
+pub(crate) struct Output(Mutex<Option<File>>);

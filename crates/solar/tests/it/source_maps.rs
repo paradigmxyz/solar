@@ -1,8 +1,12 @@
 //! Source origins survive lowering and agree with the legacy map, without changing bytecode.
 
-use serde_json::Value;
+use serde_json::{Value, json};
 use snapbox::{assert_data_eq, str};
-use solar::interface::source_map::{FileLoader, RealFileLoader};
+use solar::{
+    cli::standard_json::compile_standard_json,
+    config::CompileOpts,
+    interface::source_map::{FileLoader, RealFileLoader},
+};
 use std::{path::Path, process::Command};
 
 const SOLAR: &str = env!("CARGO_BIN_EXE_solar");
@@ -309,4 +313,89 @@ fn tail_call_thunk_chain_keeps_call_site() {
         inst["operation"]["mnemonic"] == "JUMPDEST"
             && inst["context"]["code"]["range"]["offset"].as_u64() == Some(start as u64)
     }));
+}
+
+#[test]
+fn debugify_sidecars_separate_compilations() {
+    let temp = tempfile::tempdir().unwrap();
+    let cases = [
+        (
+            "First.sol",
+            "First",
+            "contract First { function f(uint256 x) external pure returns (uint256) { unchecked { uint256 dead = x * 3; return x + 1; } } } contract FirstExtra {}",
+        ),
+        (
+            "Second.sol",
+            "Second",
+            "// A different source table — its byte ranges also start at zero.\ncontract Second { function f(uint256 x) external pure returns (uint256) { unchecked { uint256 dead = x * 7; return x + 2; } } } contract SecondExtra {}",
+        ),
+    ];
+    for (name, contract, source) in cases {
+        let input = json!({
+            "language": "Solidity",
+            "sources": {name: {"content": source}},
+            "settings": {
+                "optimizer": {"enabled": true},
+                "metadata": {"appendCBOR": false, "bytecodeHash": "none"},
+                "outputSelection": {"*": {"*": ["evm.bytecode.object", "evm.deployedBytecode.object"]}}
+            }
+        }).to_string();
+        let compile = |audit| {
+            let mut opts = CompileOpts { threads: 2.into(), ..Default::default() };
+            if audit {
+                opts.unstable.debugify_output = Some(temp.path().to_owned());
+            }
+            let mut output = Vec::new();
+            compile_standard_json(&input, opts, None, &mut output).unwrap();
+            serde_json::from_slice::<Value>(&output).unwrap()
+        };
+        let plain = compile(false);
+        assert!(
+            plain["contracts"][name][contract]["evm"]["bytecode"]["object"]
+                .as_str()
+                .is_some_and(|code| !code.is_empty())
+        );
+        assert_eq!(compile(true), plain, "{name}: auditing changed compiler output");
+    }
+    let files = std::fs::read_dir(temp.path()).unwrap().collect::<Result<Vec<_>, _>>().unwrap();
+    assert_eq!(files.len(), 2, "each compilation needs its own source header");
+    let mut observed = Vec::new();
+    for file in files {
+        let text = RealFileLoader.load_file(&file.path()).unwrap();
+        let records = text
+            .lines()
+            .map(|line| serde_json::from_str::<Value>(line).unwrap())
+            .collect::<Vec<_>>();
+        let header = &records[0];
+        assert_eq!(header["kind"], "invocation");
+        let sources = header["sources"].as_array().unwrap();
+        assert_eq!(sources.len(), 1);
+        let name = sources[0]["name"].as_str().unwrap();
+        let (_, contract, source) = cases.iter().find(|(path, _, _)| *path == name).unwrap();
+        assert_eq!(sources[0]["start"], 0);
+        assert_eq!(sources[0]["end"], source.len());
+        let mut lost_count = 0;
+        for record in &records[1..] {
+            assert_eq!(record["kind"], "pass");
+            assert!(
+                record["module"].as_str().unwrap().starts_with(contract),
+                "{name}: mixed compilation records"
+            );
+            for span in record["lost"].as_array().unwrap() {
+                let start = span[0].as_u64().unwrap();
+                let end = span[1].as_u64().unwrap();
+                assert!(
+                    start <= end && end <= source.len() as u64,
+                    "{name}: span outside its source table"
+                );
+                lost_count += 1;
+            }
+        }
+        observed.push((name.to_owned(), records.len() > 1, lost_count > 0));
+    }
+    observed.sort();
+    assert_data_eq!(
+        format!("{observed:?}"),
+        str![[r#"[("First.sol", true, true), ("Second.sol", true, true)]"#]]
+    );
 }
