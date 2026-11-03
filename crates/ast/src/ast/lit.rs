@@ -158,6 +158,29 @@ impl LitKind<'_> {
             Self::Err(_) => "<error>",
         }
     }
+
+    /// Returns the word this literal evaluates to in Yul, or `None` if it has none.
+    ///
+    /// A string or hex string is left-aligned in 32 bytes, `true` and `false` are 1 and 0, and a
+    /// number or address is its value. Strings over 32 bytes, numbers over 256 bits, and
+    /// rational and erroneous literals have no word.
+    pub fn yul_word(&self) -> Option<U256> {
+        match *self {
+            Self::Str(_, bytes, _) => {
+                let bytes = bytes.as_byte_str();
+                if bytes.len() > 32 {
+                    return None;
+                }
+                let mut word = [0; 32];
+                word[..bytes.len()].copy_from_slice(bytes);
+                Some(U256::from_be_bytes(word))
+            }
+            Self::Number(value) => Some(value),
+            Self::Address(address) => Some(U256::from_be_slice(address.as_slice())),
+            Self::Bool(value) => Some(U256::from(value)),
+            Self::BigNumber(_) | Self::Rational(..) | Self::Err(_) => None,
+        }
+    }
 }
 
 /// An unsigned integer of a number literal, interned as its big-endian bytes.
