@@ -90,23 +90,21 @@ fn @staticAggregate() -> i256 [selector=0x9982aedb, abi_params=[], abi_returns=[
     revert_returndata
   bb2:  ; preds = bb0
     v4 = gas
-    v5 = abi_encode [], selector 0xaf36778b00000000000000000000000000000000000000000000000000000000
-    v6 = extract_value slice<memory>, v5, 0
-    v7 = extract_value slice<memory>, v5, 1
-    v8 = alloc 96
-    v9 = zext i160 v2 to i256
-    v10 = staticcall v4, v9, v6, v7, v8, 96
-    jumpi v10, bb4, bb3
+    v5 = alloc 96
+    mstore 0, 0xaf36778b !metadata(memory=scratch)
+    v6 = zext i160 v2 to i256
+    v7 = staticcall v4, v6, 28, 4, v5, 96
+    jumpi v7, bb4, bb3
   bb3:  ; preds = bb2
     revert_returndata
   bb4:  ; preds = bb2
-    v11 = returndatasize
-    v12 = lt v11, 96
-    icall revert_if<tuple_data_too_short>, v12
-    v13 = make_memory_slice v8, 96
-    v14 = abi_decode [tuple<tuple<array<2, uint256>>, uint256>], v13
-    v15 = icall @check, v14
-    ret v15
+    v8 = returndatasize
+    v9 = lt v8, 96
+    icall revert_if<tuple_data_too_short>, v9
+    v10 = make_memory_slice v5, 96
+    v11 = abi_decode [tuple<tuple<array<2, uint256>>, uint256>], v10
+    v12 = icall @check, v11
+    ret v12
 }
 
 ; function projectedAggregate() external returns (uint256) [selector 0xec2041b8]
@@ -122,29 +120,27 @@ fn @projectedAggregate() -> i256 [selector=0xec2041b8, abi_params=[], abi_return
     revert_returndata
   bb2:  ; preds = bb0
     v4 = gas
-    v5 = abi_encode [], selector 0xaf36778b00000000000000000000000000000000000000000000000000000000
-    v6 = extract_value slice<memory>, v5, 0
-    v7 = extract_value slice<memory>, v5, 1
-    v8 = alloc 96
-    v9 = zext i160 v2 to i256
-    v10 = staticcall v4, v9, v6, v7, v8, 96
-    jumpi v10, bb4, bb3
+    v5 = alloc 96
+    mstore 0, 0xaf36778b !metadata(memory=scratch)
+    v6 = zext i160 v2 to i256
+    v7 = staticcall v4, v6, 28, 4, v5, 96
+    jumpi v7, bb4, bb3
   bb3:  ; preds = bb2
     revert_returndata
   bb4:  ; preds = bb2
-    v11 = returndatasize
-    v12 = lt v11, 96
-    icall revert_if<tuple_data_too_short>, v12
-    v13 = make_memory_slice v8, 96
-    v14 = abi_decode [tuple<tuple<array<2, uint256>>, uint256>], v13
-    v15 = mload v14, ptr<memory>
-    v16 = mload v15, ptr<memory>
-    v17 = lt 1, 2
-    v18 = eq v17, false
-    icall panic_if<0x32>, v18
-    v19 = ptradd v16, 32
-    v20 = mload v19
-    ret v20
+    v8 = returndatasize
+    v9 = lt v8, 96
+    icall revert_if<tuple_data_too_short>, v9
+    v10 = make_memory_slice v5, 96
+    v11 = abi_decode [tuple<tuple<array<2, uint256>>, uint256>], v10
+    v12 = mload v11, ptr<memory>
+    v13 = mload v12, ptr<memory>
+    v14 = lt 1, 2
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = ptradd v13, 32
+    v17 = mload v16
+    ret v17
 }
 
 ; function functionPointerAggregate() external returns (uint256) [selector 0xebe6d175]
@@ -166,22 +162,21 @@ fn @functionPointerAggregate() -> i256 [selector=0xebe6d175, abi_params=[], abi_
     v8 = shl v7, 224
     v9 = shr v6, 32
     v10 = gas
-    v11 = abi_encode [], selector v8
-    v12 = extract_value slice<memory>, v11, 0
-    v13 = extract_value slice<memory>, v11, 1
-    v14 = alloc 96
-    v15 = staticcall v10, v9, v12, v13, v14, 96
-    jumpi v15, bb4, bb3
+    v11 = alloc 96
+    v12 = shr v8, 224
+    mstore 0, v12 !metadata(memory=scratch)
+    v13 = staticcall v10, v9, 28, 4, v11, 96
+    jumpi v13, bb4, bb3
   bb3:  ; preds = bb2
     revert_returndata
   bb4:  ; preds = bb2
-    v16 = returndatasize
-    v17 = lt v16, 96
-    icall revert_if<tuple_data_too_short>, v17
-    v18 = make_memory_slice v14, 96
-    v19 = abi_decode [tuple<tuple<array<2, uint256>>, uint256>], v18
-    v20 = icall @check, v19
-    ret v20
+    v14 = returndatasize
+    v15 = lt v14, 96
+    icall revert_if<tuple_data_too_short>, v15
+    v16 = make_memory_slice v11, 96
+    v17 = abi_decode [tuple<tuple<array<2, uint256>>, uint256>], v16
+    v18 = icall @check, v17
+    ret v18
 }
 
 ; function dirtyAddressBoundary() external returns (uint256) [selector 0x2986c9cc]

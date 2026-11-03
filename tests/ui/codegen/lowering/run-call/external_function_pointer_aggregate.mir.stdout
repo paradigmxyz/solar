@@ -77,21 +77,20 @@ fn @read() -> struct0 [selector=0x57de26a4, view, abi_params=[], abi_returns=[wo
     v6 = shl v5, 224
     v7 = shr v4, 32
     v8 = gas
-    v9 = abi_encode [], selector v6
-    v10 = extract_value slice<memory>, v9, 0
-    v11 = extract_value slice<memory>, v9, 1
-    v12 = staticcall v8, v7, v10, v11, 0, 0
-    jumpi v12, bb2, bb1
+    v9 = shr v6, 224
+    mstore 0, v9 !metadata(memory=scratch)
+    v10 = staticcall v8, v7, 28, 4, 0, 0
+    jumpi v10, bb2, bb1
   bb1:  ; preds = bb0
     revert_returndata
   bb2:  ; preds = bb0
-    v13 = icall returndata_bytes<>
-    v14 = abi_decode [uint256, bytes], v13
-    v15 = extract_value struct0, v14, 0
-    v16 = extract_value struct0, v14, 1
-    v17 = insert_value struct0, undef struct0, 0, v15
-    v18 = insert_value struct0, v17, 1, v16
-    ret v18
+    v11 = icall returndata_bytes<>
+    v12 = abi_decode [uint256, bytes], v11
+    v13 = extract_value struct0, v12, 0
+    v14 = extract_value struct0, v12, 1
+    v15 = insert_value struct0, undef struct0, 0, v13
+    v16 = insert_value struct0, v15, 1, v14
+    ret v16
 }
 
 ; function readArguments() external view returns (uint256, string memory) [selector 0x372fd38b]
@@ -124,7 +123,7 @@ fn @readArguments() -> struct0 [selector=0x372fd38b, view, abi_params=[], abi_re
     mstore v18, 2
     v19 = ptradd v18, 32
     mstore v19, 0x6f6b000000000000000000000000000000000000000000000000000000000000
-    v20 = abi_encode [memory_array<word>, memory_bytes], selector v15, args v5, v18
+    v20 = abi_encode [memory_array<word>, memory_bytes], scratch, selector v15, args v5, v18
     v21 = extract_value slice<memory>, v20, 0
     v22 = extract_value slice<memory>, v20, 1
     v23 = staticcall v17, v16, v21, v22, 0, 0
@@ -375,7 +374,7 @@ fn @calldataPointerRoundtrip() -> i1 [selector=0x1d9b1866, abi_params=[], abi_re
     mstore v8, 10
     v9 = ptradd v8, 32
     mstore v9, 0x74657374537472696e6700000000000000000000000000000000000000000000
-    v10 = abi_encode [memory_bytes], selector v5, args v8
+    v10 = abi_encode [memory_bytes], scratch, selector v5, args v8
     v11 = extract_value slice<memory>, v10, 0
     v12 = extract_value slice<memory>, v10, 1
     v13 = call v7, v6, 0, v11, v12, 0, 32

@@ -206,109 +206,106 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v85 = sload 0 !metadata(storage=slot(0))
     v86 = trunc i256 v85 to i160
     v87 = gas
-    v88 = abi_encode [word], selector 0xe420264a00000000000000000000000000000000000000000000000000000000, args 4
-    v89 = extract_value slice<memory>, v88, 0
-    v90 = extract_value slice<memory>, v88, 1
-    v91 = zext i160 v86 to i256
-    v92 = staticcall v87, v91, v89, v90, v89, 64
-    jumpi v92, bb26, bb27
+    mstore 0, 0xe420264a !metadata(memory=scratch)
+    mstore 32, 4 !metadata(memory=scratch)
+    v88 = zext i160 v86 to i256
+    v89 = staticcall v87, v88, 28, 36, 0, 64
+    jumpi v89, bb26, bb27
   bb27:  ; preds = bb21
     jumpi true, bb29, bb30
   bb30:  ; preds = bb27
     icall revert_if<empty>, true
     invalid
   bb29:  ; preds = bb27
-    v101 = checked_add uint256, v84, 600
+    v96 = checked_add uint256, v84, 600
     jump bb28
   bb26:  ; preds = bb21
-    v93 = returndatasize
-    v94 = lt v93, 64
-    icall revert_if<tuple_data_too_short>, v94
-    v95 = mload v89
-    v96 = ptrtoint ptr<memory> v89 to i256
-    v97 = add v96, 32
-    v98 = mload v97
-    v99 = checked_add uint256, v95, v98
-    v100 = checked_add uint256, v84, v99
+    v90 = returndatasize
+    v91 = lt v90, 64
+    icall revert_if<tuple_data_too_short>, v91
+    v92 = mload 0 !metadata(memory=scratch)
+    v93 = mload 32 !metadata(memory=scratch)
+    v94 = checked_add uint256, v92, v93
+    v95 = checked_add uint256, v84, v94
     jump bb28
   bb28:  ; preds = bb26, bb29
-    v102 = phi [bb26: v100], [bb29: v101]
-    v103 = sload 0 !metadata(storage=slot(0))
-    v104 = trunc i256 v103 to i160
-    v105 = gas
+    v97 = phi [bb26: v95], [bb29: v96]
+    v98 = sload 0 !metadata(storage=slot(0))
+    v99 = trunc i256 v98 to i160
+    v100 = gas
     mstore 0, 0xb3de648b !metadata(memory=scratch)
     mstore 32, 5 !metadata(memory=scratch)
-    v106 = zext i160 v104 to i256
-    v107 = staticcall 0x186a0, v106, 28, 36, 0, 32
-    jumpi v107, bb31, bb32
+    v101 = zext i160 v99 to i256
+    v102 = staticcall 0x186a0, v101, 28, 36, 0, 32
+    jumpi v102, bb31, bb32
   bb32:  ; preds = bb28
     jumpi true, bb34, bb35
   bb35:  ; preds = bb32
     icall revert_if<empty>, true
     invalid
   bb34:  ; preds = bb32
-    v112 = checked_add uint256, v102, 700
+    v107 = checked_add uint256, v97, 700
     jump bb33
   bb31:  ; preds = bb28
-    v108 = returndatasize
-    v109 = lt v108, 32
-    icall revert_if<tuple_data_too_short>, v109
-    v110 = mload 0 !metadata(memory=scratch)
-    v111 = checked_add uint256, v102, v110
+    v103 = returndatasize
+    v104 = lt v103, 32
+    icall revert_if<tuple_data_too_short>, v104
+    v105 = mload 0 !metadata(memory=scratch)
+    v106 = checked_add uint256, v97, v105
     jump bb33
   bb33:  ; preds = bb31, bb34
-    v113 = phi [bb31: v111], [bb34: v112]
-    v114 = datasize Callee_creation_code_0
-    v115 = fmp
-    datacopy Callee_creation_code_0, v115, v114
-    v116 = create 0, v115, v114
-    v117 = ne v116, i160 0
-    jumpi v117, bb36, bb37
+    v108 = phi [bb31: v106], [bb34: v107]
+    v109 = datasize Callee_creation_code_0
+    v110 = fmp
+    datacopy Callee_creation_code_0, v110, v109
+    v111 = create 0, v110, v109
+    v112 = ne v111, i160 0
+    jumpi v112, bb36, bb37
   bb37:  ; preds = bb33
     jumpi true, bb39, bb40
   bb40:  ; preds = bb37
     icall revert_if<empty>, true
     invalid
   bb39:  ; preds = bb37
-    v119 = checked_add uint256, v113, 900
+    v114 = checked_add uint256, v108, 900
     jump bb38
   bb36:  ; preds = bb33
-    v118 = checked_add uint256, v113, 800
+    v113 = checked_add uint256, v108, 800
     jump bb38
   bb38:  ; preds = bb36, bb39
-    v120 = phi [bb36: v118], [bb39: v119]
-    v121 = sload 0 !metadata(storage=slot(0))
-    v122 = trunc i256 v121 to i160
-    v123 = zext i160 v122 to i256
-    v124 = shl v123, 32
-    v125 = or v124, 0xb3de648b
-    v126 = and v125, 0xffffffff
-    v127 = shl v126, 224
-    v128 = shr v125, 32
-    v129 = gas
-    v130 = shr v127, 224
-    mstore 0, v130 !metadata(memory=scratch)
+    v115 = phi [bb36: v113], [bb39: v114]
+    v116 = sload 0 !metadata(storage=slot(0))
+    v117 = trunc i256 v116 to i160
+    v118 = zext i160 v117 to i256
+    v119 = shl v118, 32
+    v120 = or v119, 0xb3de648b
+    v121 = and v120, 0xffffffff
+    v122 = shl v121, 224
+    v123 = shr v120, 32
+    v124 = gas
+    v125 = shr v122, 224
+    mstore 0, v125 !metadata(memory=scratch)
     mstore 32, 6 !metadata(memory=scratch)
-    v131 = call v129, v128, 0, 28, 36, 0, 32
-    jumpi v131, bb41, bb42
+    v126 = call v124, v123, 0, 28, 36, 0, 32
+    jumpi v126, bb41, bb42
   bb42:  ; preds = bb38
     jumpi true, bb44, bb45
   bb45:  ; preds = bb42
     icall revert_if<empty>, true
     invalid
   bb44:  ; preds = bb42
-    v136 = checked_add uint256, v120, 0x3e8
+    v131 = checked_add uint256, v115, 0x3e8
     jump bb43
   bb41:  ; preds = bb38
-    v132 = returndatasize
-    v133 = lt v132, 32
-    icall revert_if<tuple_data_too_short>, v133
-    v134 = mload 0 !metadata(memory=scratch)
-    v135 = checked_add uint256, v120, v134
+    v127 = returndatasize
+    v128 = lt v127, 32
+    icall revert_if<tuple_data_too_short>, v128
+    v129 = mload 0 !metadata(memory=scratch)
+    v130 = checked_add uint256, v115, v129
     jump bb43
   bb43:  ; preds = bb41, bb44
-    v137 = phi [bb41: v135], [bb44: v136]
-    ret v137
+    v132 = phi [bb41: v130], [bb44: v131]
+    ret v132
 }
 
 fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {

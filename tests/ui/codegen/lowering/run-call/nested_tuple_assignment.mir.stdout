@@ -95,11 +95,11 @@ fn @sliceChoice(arg0: i1) -> struct2 [selector=0xdc4067fd, view, abi_params=[boo
     v5 = ptradd v4, 32
     mstore v5, 0x90a000000000000000000000000000000000000000000000000000000000000
     v6 = zext i1 arg0 to i256
-    v7 = abi_encode [word<bool>, memory_bytes, memory_bytes], selector 0xe745f2b200000000000000000000000000000000000000000000000000000000, args v6, v2, v4
+    v7 = abi_encode [word<bool>, memory_bytes, memory_bytes], scratch, selector 0xe745f2b200000000000000000000000000000000000000000000000000000000, args v6, v2, v4
     v8 = extract_value slice<memory>, v7, 0
     v9 = extract_value slice<memory>, v7, 1
     v10 = zext i160 v0 to i256
-    v11 = staticcall v1, v10, v8, v9, v8, 64
+    v11 = staticcall v1, v10, v8, v9, 0, 64
     jumpi v11, bb2, bb1
   bb1:  ; preds = bb0
     revert_returndata
@@ -107,22 +107,20 @@ fn @sliceChoice(arg0: i1) -> struct2 [selector=0xdc4067fd, view, abi_params=[boo
     v12 = returndatasize
     v13 = lt v12, 64
     icall revert_if<tuple_data_too_short>, v13
-    v14 = mload v8
-    v15 = ptrtoint ptr<memory> v8 to i256
-    v16 = add v15, 32
-    v17 = mload v16
-    v18 = signextend 1, v17
-    v19 = eq v17, v18
-    v20 = eq v19, false
-    icall revert_if<empty>, v20
-    v21 = trunc i256 v17 to i16
-    v22 = insert_value struct2, undef struct2, 0, v14
-    v23 = insert_value struct2, v22, 1, v21
-    v24 = extract_value struct2, v23, 0
-    v25 = extract_value struct2, v23, 1
-    v26 = insert_value struct2, undef struct2, 0, v24
-    v27 = insert_value struct2, v26, 1, v25
-    ret v27
+    v14 = mload 0 !metadata(memory=scratch)
+    v15 = mload 32 !metadata(memory=scratch)
+    v16 = signextend 1, v15
+    v17 = eq v15, v16
+    v18 = eq v17, false
+    icall revert_if<empty>, v18
+    v19 = trunc i256 v15 to i16
+    v20 = insert_value struct2, undef struct2, 0, v14
+    v21 = insert_value struct2, v20, 1, v19
+    v22 = extract_value struct2, v21, 0
+    v23 = extract_value struct2, v21, 1
+    v24 = insert_value struct2, undef struct2, 0, v22
+    v25 = insert_value struct2, v24, 1, v23
+    ret v25
 }
 
 ; function slicePair(bool choose, bytes calldata first, bytes calldata second) external pure returns (uint256, int16) [selector 0xe745f2b2]

@@ -146,7 +146,7 @@ fn @cleanupArray(arg0: i256) -> i256 [selector=0x7e130ca5, view, abi_params=[uin
     mstore v2, arg0
     v3 = address
     v4 = gas
-    v5 = abi_encode [memory_array<function>], selector 0xc124fd9700000000000000000000000000000000000000000000000000000000, args v0
+    v5 = abi_encode [memory_array<function>], scratch, selector 0xc124fd9700000000000000000000000000000000000000000000000000000000, args v0
     v6 = extract_value slice<memory>, v5, 0
     v7 = extract_value slice<memory>, v5, 1
     v8 = zext i160 v3 to i256

@@ -4,12 +4,12 @@
 //@[interpreter] compile-flags: -O gas -Ztune=interpreter -Zdump=evm-ir
 //@[interpreter] filecheck: --check-prefixes=CHECK,INTERPRETER
 //@ normalize-stdout-test: "(?s).+" -> ""
-//@ run-call: run => 2
+//@ run-call: run => 3
 
 contract DynamicSink {
     uint256 public calls;
 
-    function record(address, string calldata) external {
+    function record(address, string calldata, string calldata) external {
         calls++;
     }
 }
@@ -26,14 +26,19 @@ contract DynamicCaller {
     constructor(DynamicSink sink) {
         recordFirst(sink);
         recordSecond(sink);
+        recordThird(sink);
     }
 
     function recordFirst(DynamicSink sink) internal {
-        sink.record(address(1), "first");
+        sink.record(address(1), "xxxxxxxxxxxxxxx1", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1");
     }
 
     function recordSecond(DynamicSink sink) internal {
-        sink.record(address(2), "second");
+        sink.record(address(2), "xxxxxxxxxxxxxxx2", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx2");
+    }
+
+    function recordThird(DynamicSink sink) internal {
+        sink.record(address(3), "xxxxxxxxxxxxxxx3", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx3");
     }
 }
 

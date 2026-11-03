@@ -154,41 +154,39 @@ fn @narrow() {
 ; function structReturn(uint256 x) external view returns (uint256) [selector 0xc3f9a16c]
 fn @structReturn() {
   bb0:
-    v24 = calldatasize
-    v25 = lt v24, 36
-    jumpi v25, bb3, bb7
+    v21 = calldatasize
+    v22 = lt v21, 36
+    jumpi v22, bb3, bb7
   bb7:  ; preds = bb0
-    v26 = calldataload 4
+    v23 = calldataload 4
     v0: i256 = address
     v1 = gas
-    v37 = heap_floor !metadata(alloc_ptr)
-    v38 = add v37, 128 !metadata(alloc_ptr)
-    mstore 64, v38 !metadata(memory=scratch)
-    mstore v37, 0x62dc843600000000000000000000000000000000000000000000000000000000
-    v29 = add v37, 4
-    mstore v29, v26
-    v36 = add v37, 64
-    v7 = staticcall v1, v0, v37, 36, v36, 64
-    jumpi v7, bb2, bb1
+    v27 = heap_floor !metadata(alloc_ptr)
+    v28 = add v27, 64 !metadata(alloc_ptr)
+    mstore 64, v28 !metadata(memory=scratch)
+    mstore 0, 0x62dc8436 !metadata(memory=scratch)
+    mstore 32, v23
+    v4 = staticcall v1, v0, 28, 36, v27, 64
+    jumpi v4, bb2, bb1
   bb1 [cold]:  ; preds = bb7
-    v22 = returndatasize
-    returndatacopy 0, 0, v22 !metadata(memory=abi_return)
-    v23 = returndatasize
-    revert 0, v23
+    v19 = returndatasize
+    returndatacopy 0, 0, v19 !metadata(memory=abi_return)
+    v20 = returndatasize
+    revert 0, v20
   bb2:  ; preds = bb7
-    v8 = returndatasize
-    v9 = lt v8, 64
-    jumpi v9, bb3, bb4
+    v5 = returndatasize
+    v6 = lt v5, 64
+    jumpi v6, bb3, bb4
   bb4:  ; preds = bb2
-    v21 = icall @decode_static, v36
-    v12 = mload v21
-    v32 = add v21, 32
-    v14 = mload v32
-    v16 = add v12, v14
-    v17 = lt v16, v12
-    jumpi v17, bb5, bb6
+    v18 = icall @decode_static, v27
+    v9 = mload v18
+    v25 = add v18, 32
+    v11 = mload v25
+    v13 = add v9, v11
+    v14 = lt v13, v9
+    jumpi v14, bb5, bb6
   bb6:  ; preds = bb4
-    mstore 0, v16 !metadata(memory=scratch)
+    mstore 0, v13 !metadata(memory=scratch)
     returndata 0, 32
   bb5 [cold]:  ; preds = bb4
     mstore 32, 17 !metadata(memory=scratch)
@@ -201,48 +199,48 @@ fn @structReturn() {
 ; function arrayReturn(uint256 x) external view returns (uint256) [selector 0xad0cb941]
 fn @arrayReturn() {
   bb0:
-    v41 = calldatasize
-    v42 = lt v41, 36
-    jumpi v42, bb3, bb8
+    v38 = calldatasize
+    v39 = lt v38, 36
+    jumpi v39, bb3, bb8
   bb8:  ; preds = bb0
-    v43 = calldataload 4
+    v40 = calldataload 4
     v0: i256 = address
     v1 = gas
-    v58 = heap_floor !metadata(alloc_ptr)
-    v59 = add v58, 160 !metadata(alloc_ptr)
-    mstore 64, v59 !metadata(memory=scratch)
-    mstore v58, 0x9510f21200000000000000000000000000000000000000000000000000000000
-    v46 = add v58, 4
-    mstore v46, v43
-    v57 = add v58, 64
-    v7 = staticcall v1, v0, v58, 36, v57, 96
-    jumpi v7, bb2, bb1
+    v50 = heap_floor !metadata(alloc_ptr)
+    v51 = add v50, 96 !metadata(alloc_ptr)
+    mstore 64, v51 !metadata(memory=scratch)
+    mstore 0, 0x9510f212 !metadata(memory=scratch)
+    mstore 32, v40
+    v4 = staticcall v1, v0, 28, 36, v50, 96
+    jumpi v4, bb2, bb1
   bb1 [cold]:  ; preds = bb8
-    v39 = returndatasize
-    returndatacopy 0, 0, v39 !metadata(memory=abi_return)
-    v40 = returndatasize
-    revert 0, v40
+    v36 = returndatasize
+    returndatacopy 0, 0, v36 !metadata(memory=abi_return)
+    v37 = returndatasize
+    revert 0, v37
   bb2:  ; preds = bb8
-    v8 = returndatasize
-    v9 = lt v8, 96
-    jumpi v9, bb3, bb4
+    v5 = returndatasize
+    v6 = lt v5, 96
+    jumpi v6, bb3, bb4
   bb4:  ; preds = bb2
-    v34 = alloc 96 !metadata(deferred_alloc)
-    mcopy v34, v57, 96
-    v14 = mload v34
-    v49 = add v34, 32
-    v18 = mload v49
-    v25 = add v14, v18
-    v26 = lt v25, v14
-    jumpi v26, bb5, bb6
+    v48 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v49 = add v48, 96
+    mstore 64, v49 !metadata(memory=scratch)
+    mcopy v48, v50, 96
+    v11 = mload v48
+    v44 = add v48, 32
+    v15 = mload v44
+    v22 = add v11, v15
+    v23 = lt v22, v11
+    jumpi v23, bb5, bb6
   bb6:  ; preds = bb4
-    v51 = add v34, 64
-    v23 = mload v51
-    v27 = add v25, v23
-    v28 = lt v27, v25
-    jumpi v28, bb5, bb7
+    v42 = add v48, 64
+    v20 = mload v42
+    v24 = add v22, v20
+    v25 = lt v24, v22
+    jumpi v25, bb5, bb7
   bb7:  ; preds = bb6
-    mstore 0, v27 !metadata(memory=scratch)
+    mstore 0, v24 !metadata(memory=scratch)
     returndata 0, 32
   bb5 [cold]:  ; preds = bb4, bb6
     mstore 32, 17 !metadata(memory=scratch)
@@ -255,39 +253,37 @@ fn @arrayReturn() {
 ; function tryStructReturn(uint256 x) external view returns (uint256) [selector 0xcc20ef0a]
 fn @tryStructReturn() {
   bb0:
-    v22 = calldatasize
-    v23 = lt v22, 36
-    jumpi v23, bb3, bb7
+    v19 = calldatasize
+    v20 = lt v19, 36
+    jumpi v20, bb3, bb7
   bb7:  ; preds = bb0
-    v24 = calldataload 4
+    v21 = calldataload 4
     v0: i256 = address
     v1 = gas
-    v35 = heap_floor !metadata(alloc_ptr)
-    v36 = add v35, 128 !metadata(alloc_ptr)
-    mstore 64, v36 !metadata(memory=scratch)
-    mstore v35, 0x62dc843600000000000000000000000000000000000000000000000000000000
-    v27 = add v35, 4
-    mstore v27, v24
-    v34 = add v35, 64
-    v7 = staticcall v1, v0, v35, 36, v34, 64
-    jumpi v7, bb1, bb2
+    v25 = heap_floor !metadata(alloc_ptr)
+    v26 = add v25, 64 !metadata(alloc_ptr)
+    mstore 64, v26 !metadata(memory=scratch)
+    mstore 0, 0x62dc8436 !metadata(memory=scratch)
+    mstore 32, v21
+    v4 = staticcall v1, v0, 28, 36, v25, 64
+    jumpi v4, bb1, bb2
   bb2:  ; preds = bb7
     mstore 0, 0 !metadata(memory=scratch)
     returndata 0, 32
   bb1:  ; preds = bb7
-    v8 = returndatasize
-    v9 = lt v8, 64
-    jumpi v9, bb3, bb4
+    v5 = returndatasize
+    v6 = lt v5, 64
+    jumpi v6, bb3, bb4
   bb4:  ; preds = bb1
-    v21 = icall @decode_static, v34
-    v12 = mload v21
-    v30 = add v21, 32
-    v14 = mload v30
-    v16 = add v12, v14
-    v17 = lt v16, v12
-    jumpi v17, bb5, bb6
+    v18 = icall @decode_static, v25
+    v9 = mload v18
+    v23 = add v18, 32
+    v11 = mload v23
+    v13 = add v9, v11
+    v14 = lt v13, v9
+    jumpi v14, bb5, bb6
   bb6:  ; preds = bb4
-    mstore 0, v16 !metadata(memory=scratch)
+    mstore 0, v13 !metadata(memory=scratch)
     returndata 0, 32
   bb5 [cold]:  ; preds = bb4
     mstore 32, 17 !metadata(memory=scratch)
@@ -300,46 +296,44 @@ fn @tryStructReturn() {
 ; function pairReturn(uint256 x) external view returns (uint256) [selector 0xc6630f71]
 fn @pairReturn() {
   bb0:
-    v49 = calldatasize
-    v50 = lt v49, 36
-    jumpi v50, bb3, bb7
+    v46 = calldatasize
+    v47 = lt v46, 36
+    jumpi v47, bb3, bb7
   bb7:  ; preds = bb0
-    v51 = calldataload 4
+    v48 = calldataload 4
     v0: i256 = address
     v1 = gas
-    v60 = heap_floor !metadata(alloc_ptr)
-    v61 = add v60, 160 !metadata(alloc_ptr)
-    mstore 64, v61 !metadata(memory=scratch)
-    mstore v60, 0xf4d7be1100000000000000000000000000000000000000000000000000000000
-    v54 = add v60, 4
-    mstore v54, v51
-    v59 = add v60, 64
-    v7 = staticcall v1, v0, v60, 36, v59, 96
-    jumpi v7, bb2, bb1
+    v50 = heap_floor !metadata(alloc_ptr)
+    v51 = add v50, 96 !metadata(alloc_ptr)
+    mstore 64, v51 !metadata(memory=scratch)
+    mstore 0, 0xf4d7be11 !metadata(memory=scratch)
+    mstore 32, v48
+    v4 = staticcall v1, v0, 28, 36, v50, 96
+    jumpi v4, bb2, bb1
   bb1 [cold]:  ; preds = bb7
-    v47 = returndatasize
-    returndatacopy 0, 0, v47 !metadata(memory=abi_return)
-    v48 = returndatasize
-    revert 0, v48
+    v44 = returndatasize
+    returndatacopy 0, 0, v44 !metadata(memory=abi_return)
+    v45 = returndatasize
+    revert 0, v45
   bb2:  ; preds = bb7
-    v8 = returndatasize
-    v9 = lt v8, 96
-    jumpi v9, bb3, bb4
+    v5 = returndatasize
+    v6 = lt v5, 96
+    jumpi v6, bb3, bb4
   bb4:  ; preds = bb2
-    v32 = alloc 64 !metadata(deferred_alloc)
-    v33 = mload v59
-    v42 = add v60, 128
-    v43 = mload v42
-    v36 = add v60, 96
-    v37 = mload v36
-    v23 = add v33, v37
-    v24 = lt v23, v33
-    v25 = add v23, v43
-    v26 = lt v25, v23
-    v62 = or v24, v26
-    jumpi v62, bb5, bb6
+    v29 = alloc 64 !metadata(deferred_alloc)
+    v30 = mload v50
+    v39 = add v50, 64
+    v40 = mload v39
+    v33 = add v50, 32
+    v34 = mload v33
+    v20 = add v30, v34
+    v21 = lt v20, v30
+    v22 = add v20, v40
+    v23 = lt v22, v20
+    v52 = or v21, v23
+    jumpi v52, bb5, bb6
   bb6:  ; preds = bb4
-    mstore 0, v25 !metadata(memory=scratch)
+    mstore 0, v22 !metadata(memory=scratch)
     returndata 0, 32
   bb5 [cold]:  ; preds = bb4
     mstore 32, 17 !metadata(memory=scratch)
@@ -354,32 +348,31 @@ fn @shortReturn() {
   bb0:
     v0: i256 = address
     v1 = gas
-    v34 = heap_floor !metadata(alloc_ptr)
-    v35 = add v34, 96 !metadata(alloc_ptr)
-    mstore 64, v35 !metadata(memory=scratch)
-    mstore v34, 0xe3b21a7a00000000000000000000000000000000000000000000000000000000
-    v33 = add v34, 32
-    v7 = staticcall v1, v0, v34, 4, v33, 64
-    jumpi v7, bb2, bb1
+    v24 = heap_floor !metadata(alloc_ptr)
+    v25 = add v24, 64 !metadata(alloc_ptr)
+    mstore 64, v25 !metadata(memory=scratch)
+    mstore 0, 0xe3b21a7a !metadata(memory=scratch)
+    v4 = staticcall v1, v0, 28, 4, v24, 64
+    jumpi v4, bb2, bb1
   bb1 [cold]:  ; preds = bb0
-    v22 = returndatasize
-    returndatacopy 0, 0, v22 !metadata(memory=abi_return)
-    v23 = returndatasize
-    revert 0, v23
+    v19 = returndatasize
+    returndatacopy 0, 0, v19 !metadata(memory=abi_return)
+    v20 = returndatasize
+    revert 0, v20
   bb2:  ; preds = bb0
-    v8 = returndatasize
-    v9 = lt v8, 64
-    jumpi v9, bb3, bb4
+    v5 = returndatasize
+    v6 = lt v5, 64
+    jumpi v6, bb3, bb4
   bb4:  ; preds = bb2
-    v21 = icall @decode_static, v33
-    v12 = mload v21
-    v29 = add v21, 32
-    v14 = mload v29
-    v16 = add v12, v14
-    v17 = lt v16, v12
-    jumpi v17, bb5, bb6
+    v18 = icall @decode_static, v24
+    v9 = mload v18
+    v22 = add v18, 32
+    v11 = mload v22
+    v13 = add v9, v11
+    v14 = lt v13, v9
+    jumpi v14, bb5, bb6
   bb6:  ; preds = bb4
-    mstore 0, v16 !metadata(memory=scratch)
+    mstore 0, v13 !metadata(memory=scratch)
     returndata 0, 32
   bb5 [cold]:  ; preds = bb4
     mstore 32, 17 !metadata(memory=scratch)

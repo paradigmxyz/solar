@@ -49,7 +49,7 @@ contract DynamicReturnUnused {
     // HOMESTEAD: [[OK:v[0-9]+]] = call [[FWD]], {{v[0-9]+}}, 0, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 32
     // HOMESTEAD: jumpi [[OK]]
     // OSAKA-LABEL: fn @live()
-    // OSAKA: [[OK:v[0-9]+]] = call {{v[0-9]+}}, {{v[0-9]+}}, 0, {{v[0-9]+}}, {{v[0-9]+}}, 0, 0
+    // OSAKA: [[OK:v[0-9]+]] = call {{v[0-9]+}}, {{v[0-9]+}}, 0, 28, 4, 0, 0
     // OSAKA: jumpi [[OK]]
     function live() external returns (uint256) {
         DynamicTarget(address(new DynamicCallee())).dynBytes();
