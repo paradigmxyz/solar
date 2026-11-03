@@ -9,17 +9,15 @@ use crate::{
     backend::evm::{
         codegen::{
             StackOp,
-            select::{
-                InstKindOpcode, OpcodeLowering, opcode_lowering, rematerializable_nullary_value,
-            },
+            select::{InstKindOpcode, opcode_lowering, rematerializable_nullary_value},
             values::{gas_minus, late_gas_reads},
         },
         ir::INDEXED_JUMP_STACK_GROWTH,
         op,
     },
     mir::{
-        ArgIdx, BlockId, EffectKind, Function, FunctionId, InstId, InstKind, OpTraits, PtrLocation,
-        Terminator, Value, ValueId,
+        ArgIdx, BlockId, EffectKind, Function, FunctionId, InstId, InstKind, Op, OpTraits,
+        PtrLocation, Terminator, Value, ValueId,
         analysis::{CfgInfo, Liveness},
         memory::EvmMemoryLayout,
     },
@@ -1478,6 +1476,22 @@ impl<'a> Planner<'a> {
         self.prepare_any(sim, &[ops], dying).map(drop)
     }
 
+    /// Arranges the operands of `kind`, in push order, on top of the stack: either as given or
+    /// with the commutative pair the operation declares exchanged, whichever is cheaper. Every
+    /// other operand, such as a modulus, stays in place.
+    fn prepare_commutable(
+        &self,
+        sim: &mut Sim,
+        kind: &InstKind,
+        push_order: &[ValueId],
+        dying: &dyn Fn(ValueId) -> bool,
+    ) -> Result<(), Fail> {
+        let commuted = kind.op().commuted().and_then(Op::into_kind);
+        let Some(commuted) = commuted else { return self.prepare(sim, push_order, dying) };
+        let commuted: Operands = commuted.operands().into_iter().rev().collect();
+        self.prepare_any(sim, &[push_order, &commuted], dying).map(drop)
+    }
+
     /// Arranges one of the operand orders `orders` on top of the stack, choosing the cheapest
     /// order and strategy. The price counts each copy of a dying value left below the operands
     /// as a `POP` and two `SWAP`s. Pricing one `SWAP`, as [`Self::dead_word_removal`] does, leaves
@@ -2031,7 +2045,7 @@ impl<'a> Planner<'a> {
                     self.op(sim, op::ISZERO, 1, 1);
                 } else {
                     // ne a, b -> iszero (eq a, b)
-                    self.prepare_any(sim, &[&push_order, operands], &dying)?;
+                    self.prepare_commutable(sim, kind, &push_order, &dying)?;
                     self.op(sim, op::EQ, 2, 1);
                 }
                 if ne {
@@ -2120,15 +2134,14 @@ impl<'a> Planner<'a> {
                     return Err(Fail::Unsupported("instruction without a stack lowering"));
                 };
                 let opcode = lowering.opcode();
-                match lowering {
-                    OpcodeLowering::Binary { opcode }
-                        if let Some(mirror) = op::swapped_binary_opcode(opcode) =>
-                    {
+                // A mirrored comparison swaps the two operands and takes the opposite opcode.
+                match op::swapped_binary_opcode(opcode).filter(|&mirror| mirror != opcode) {
+                    Some(mirror) => {
                         let flipped = self.prepare_any(sim, &[&push_order, operands], &dying)? == 1;
                         self.op(sim, if flipped { mirror } else { opcode }, 2, pushes(result));
                     }
-                    _ => {
-                        self.prepare(sim, &push_order, &dying)?;
+                    None => {
+                        self.prepare_commutable(sim, kind, &push_order, &dying)?;
                         self.op(sim, opcode, operands.len(), pushes(result));
                     }
                 }
