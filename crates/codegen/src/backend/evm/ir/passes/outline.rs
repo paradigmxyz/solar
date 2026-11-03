@@ -24,6 +24,13 @@
 //! blocks is no loop, and a share whose sites are all cold needs only to save bytes. In a share
 //! that also has hot sites, only those pay the transfer gas.
 //!
+//! A call runs one external function, so the sites that different external entries reach never
+//! run together. A gas-mode share charges the transfer gas of the entry whose sites pay the most,
+//! as [`EntryReach`] finds them, plus the sites no entry reaches, rather than the sum over every
+//! site, which would count each call's jumps once per sibling entry point. A site that several
+//! entries reach, such as one in an internal function, counts for each of them. Code without
+//! entry blocks, such as creation code, pays for every site.
+//!
 //! Size mode shares a push inside a loop only when the bytes it saves there repay those jumps over
 //! the expected executions, at the target's estimate of a loop's iterations per execution, so a
 //! constant that enough other code repeats does not slow down every iteration of an unrelated
@@ -218,7 +225,6 @@ impl EntryReach {
     /// addresses, which include every call's return continuation.
     fn get(&self, module: &Module) -> &[DenseBitSet<BlockId>] {
         self.0.get_or_init(|| {
-            let mut targets = Vec::new();
             let mut pending = Vec::new();
             module
                 .blocks
@@ -232,14 +238,12 @@ impl EntryReach {
                             continue;
                         }
                         let block = &module.blocks[block_id];
-                        targets.clear();
-                        targets.extend(
+                        pending.extend(
                             block.instructions.iter().filter_map(Instruction::pushed_block),
                         );
                         if let Some(terminator) = &block.terminator {
-                            terminator.kind.visit_targets(|target| targets.push(target));
+                            terminator.kind.visit_targets(|target| pending.push(target));
                         }
-                        pending.extend(targets.iter().copied().filter(|&t| !reached.contains(t)));
                     }
                     reached
                 })
@@ -262,9 +266,6 @@ fn sites_transfer_gas(
 ) -> u64 {
     let site_gas = |site: &Site| u64::from(target.site_gas(is_cold(module, site), gas));
     let reach = entries.get(module);
-    if reach.len() < 2 {
-        return sites.iter().map(site_gas).sum();
-    }
     let shared = sites
         .iter()
         .filter(|site| !reach.iter().any(|reached| reached.contains(site.block)))
