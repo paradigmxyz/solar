@@ -2177,8 +2177,9 @@ impl ResolverError {
         undeclared.then_some(error_code!(7576))
     }
 
-    /// Whether solc looks up the next segment in a scope of the qualifier, and so reports a
-    /// failure with another code: structs, enums, functions, events and errors open scopes there.
+    /// Whether solc looks up the next segment in a scope of the qualifier, and so fails in a later
+    /// check when the member exists: structs, enums, functions, events and errors open scopes
+    /// there. The resolver does not know their members, so a missing member stays uncoded too.
     fn is_scoped_qualifier(&self) -> bool {
         matches!(
             self.kind,
