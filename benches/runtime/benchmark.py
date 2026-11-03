@@ -2621,7 +2621,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         solx_version, solx_error = binary_version(solx)
         if solx_error:
             parser.error(f"solx --version failed: {solx_error}")
-        specs.append(CompilerSpec("solx", f"solx {solx_version}", solx, "solx"))
+        # The pinned solx is Nomic's Slang build, so label its results that way.
+        specs.append(CompilerSpec("solx", f"slang {solx_version}", solx, "solx"))
     if args.oksolc:
         oksolc = find_binary(args.oksolc, ["oksolc"])
         if oksolc is None:
