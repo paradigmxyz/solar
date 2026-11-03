@@ -14,6 +14,11 @@ The audit checks span survival, not whether an instruction executes on the
 right path. Pair it with source-map and coverage tests, including untaken paths.
 It does not check variable locations or inline scopes.
 
+`-Zdebugify-output=DIR` enables the same audit and writes JSON-line sidecars
+without adding stderr output. It can be combined with either diagnostic mode.
+The [UI runner](../tools/tester/README.md#debug-info-differential-suite) uses
+this to audit the full suite in CI without changing its diagnostic snapshots.
+
 ## Operation Schema and ISLE Rules
 
 Declare each MIR operation once, as a row in `crates/mir/src/op_schema.rs`:

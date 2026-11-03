@@ -111,6 +111,19 @@ regression tests here.
 
 ## Debug-info differential suite
 
+`SOLAR_DEBUGIFY_DIR="$PWD/target/debugify/origins" TESTER_MODE=ui,standard-json
+cargo nextest run -p solar-compiler --test tests --no-capture` audits source
+origins around every MIR and EVM IR pass in all UI tests. Test diagnostics and
+snapshots stay unchanged; explicit `-Zdebugify=check` tests still reject losses.
+Frontend-only and rejected inputs do not reach IR passes.
+
+Run `python3 scripts/debugify_report.py target/debugify/origins --output
+target/debugify` for a summary by pass and test/revision. Raw JSON-line files
+contain the invocation, source-file bounds and each pass's lost spans. The CI
+job uploads these even when tests fail, and rejects missing or damaged audits.
+Ordinary optimization losses are reported for investigation, since removing
+dead code can legitimately delete its last source origin.
+
 `SOLDB=/path/to/soldb/target/debug/soldb cargo tq debug-diff` compiles and runs
 local debug-info comparisons against solc and between our ETHDebug and legacy
 source-map formats. See [the suite guide](../../tests/debug-diff/README.md) for

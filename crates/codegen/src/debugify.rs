@@ -9,9 +9,17 @@
 //! spans, not variable locations or inline scopes, and does not synthesize LLVM-style line numbers.
 
 use solar_config::Debugify;
-use solar_data_structures::map::FxHashSet;
+use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_interface::{Result, Span};
 use solar_sema::Gcx;
+use std::{
+    collections::hash_map::Entry,
+    fs::{self, File},
+    io::{self, Write},
+    path::{Path, PathBuf},
+    sync::{Mutex, OnceLock},
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 pub(crate) struct Origins(FxHashSet<Span>);
 
@@ -59,13 +67,29 @@ impl Origins {
         let mut lost = self.0.difference(&after.0).copied().collect::<Vec<_>>();
         lost.sort_unstable_by_key(|span| (span.lo(), span.hi()));
         let retained = self.0.len() - lost.len();
-        eprintln!(
-            "debugify: {ir} {module} after {pass}: {retained}/{} origins retained, {} lost",
-            self.0.len(),
-            lost.len()
-        );
-        for span in &lost {
-            eprintln!("debugify: lost {}..{}", span.lo().0, span.hi().0);
+        if gcx.sess.opts.unstable.debugify.is_some() {
+            eprintln!(
+                "debugify: {ir} {module} after {pass}: {retained}/{} origins retained, {} lost",
+                self.0.len(),
+                lost.len()
+            );
+            for span in &lost {
+                eprintln!("debugify: lost {}..{}", span.lo().0, span.hi().0);
+            }
+        }
+        if let Some(directory) = &gcx.sess.opts.unstable.debugify_output {
+            let record = serde_json::json!({
+                "kind": "pass",
+                "ir": ir,
+                "module": module.to_string(),
+                "pass": pass,
+                "before": self.0.len(),
+                "retained": retained,
+                "lost": lost.iter().map(|span| [span.lo().0, span.hi().0]).collect::<Vec<_>>(),
+            });
+            write_record(gcx, directory, &record).map_err(|error| {
+                gcx.dcx().err(format!("could not write debugify audit: {error}")).emit()
+            })?;
         }
         if !lost.is_empty() && gcx.sess.opts.unstable.debugify == Some(Debugify::Check) {
             return Err(gcx
@@ -75,4 +99,43 @@ impl Origins {
         }
         Ok(())
     }
+}
+
+pub(crate) fn enabled(gcx: Gcx<'_>) -> bool {
+    gcx.sess.opts.unstable.debugify.is_some() || gcx.sess.opts.unstable.debugify_output.is_some()
+}
+
+/// One file per process and directory, with serialized writes from parallel codegen workers.
+/// Write complete records immediately: the command-line driver can exit without dropping globals.
+fn write_record(gcx: Gcx<'_>, directory: &Path, record: &serde_json::Value) -> io::Result<()> {
+    static OUTPUTS: OnceLock<Mutex<FxHashMap<PathBuf, File>>> = OnceLock::new();
+    let mut outputs = OUTPUTS.get_or_init(Default::default).lock().unwrap();
+    let file = match outputs.entry(directory.to_owned()) {
+        Entry::Occupied(entry) => entry.into_mut(),
+        Entry::Vacant(entry) => {
+            fs::create_dir_all(directory)?;
+            let stamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos();
+            let path = directory.join(format!("{}-{stamp}.jsonl", std::process::id()));
+            let mut file = File::options().write(true).create_new(true).open(path)?;
+            let header = serde_json::json!({
+                "kind": "invocation",
+                "version": 1,
+                "arguments": std::env::args_os().map(|arg| arg.to_string_lossy().into_owned()).collect::<Vec<_>>(),
+                "sources": gcx.sess.source_map().files().iter().map(|file| serde_json::json!({
+                    "name": file.name.display().to_string(),
+                    "start": file.start_pos.0,
+                    "end": file.end_position().0,
+                })).collect::<Vec<_>>(),
+            });
+            write_json_line(&mut file, &header)?;
+            entry.insert(file)
+        }
+    };
+    write_json_line(file, record)
+}
+
+fn write_json_line(file: &mut File, record: &serde_json::Value) -> io::Result<()> {
+    let mut bytes = serde_json::to_vec(record)?;
+    bytes.push(b'\n');
+    file.write_all(&bytes)
 }

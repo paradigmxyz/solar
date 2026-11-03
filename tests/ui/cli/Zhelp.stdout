@@ -57,6 +57,9 @@ Options:
       -Zdebugify=<MODE>
           Compare source origins before and after each MIR and EVM IR pass. `report` lists lost origins; `check` also fails when any are lost. Loss can be legitimate after deleting code, so use `check` with a focused pipeline. Does not change generated code
 
+      -Zdebugify-output=<DIR>
+          Write per-pass source-origin audits as JSON lines into this directory. Enables auditing without stderr output; an explicit `-Zdebugify` mode still controls diagnostics
+
       -Zvalidate-ir=<BOOL>
           Validate MIR and EVM IR after each pass. Enabled by default in debug builds. Accepts `true` or `false`
 

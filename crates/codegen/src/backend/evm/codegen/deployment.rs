@@ -127,6 +127,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 .map(|(&func, &end)| (func, U256::from(end)))
                 .collect(),
         });
+        self.asm
+            .program
+            .set_debug_info_visible(self.display_debug_info || !crate::debugify::enabled(self.gcx));
         let scheduled_evm_ir = self.asm.optimize_capturing(self.capture_scheduled_evm_ir);
         if self.gcx.dcx().has_errors().is_err() {
             return false;
@@ -199,6 +202,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             copy_base,
             &immutable_refs,
         );
+        self.asm
+            .program
+            .set_debug_info_visible(self.display_debug_info || !crate::debugify::enabled(self.gcx));
         self.asm.optimize();
         let deploy_code = self.asm.assemble_linked(
             bytecodes,

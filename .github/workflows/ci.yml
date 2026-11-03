@@ -167,6 +167,61 @@ jobs:
       - name: doctest
         run: cargo test --doc --workspace --features "${{ matrix.features || '' }}"
 
+  debugify:
+    if: github.event_name != 'schedule'
+    name: Debug info UI audit
+    runs-on: depot-ubuntu-latest-8
+    timeout-minutes: 45
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Secure runner
+        uses: tempoxyz/gh-actions/actions/secure-runner@d5402286a7abdfb7232173b3228d56473feb8a66 # 2026-09-29T02-04-45Z-d5402286
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          submodules: true
+      - name: Checkout submodules
+        run: git submodule update --checkout
+      - name: Install LLVM
+        run: .github/scripts/install_llvm.sh ubuntu
+      - uses: tempoxyz/gh-actions/vendor/dtolnay/rust-toolchain@d5402286a7abdfb7232173b3228d56473feb8a66 # 2026-09-29T02-04-45Z-d5402286
+        with:
+          toolchain: stable
+      - name: Install nextest
+        uses: tempoxyz/gh-actions/vendor/taiki-e/install-action@d5402286a7abdfb7232173b3228d56473feb8a66 # 2026-09-29T02-04-45Z-d5402286
+        with:
+          tool: nextest@0.9.140
+          checksum: true
+          fallback: none
+      - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          cache-on-failure: true
+          cache-targets: false
+      - name: Audit all UI tests
+        env:
+          TESTER_MODE: ui,standard-json
+          SOLAR_DEBUGIFY_DIR: ${{ github.workspace }}/target/debugify/origins
+        run: |
+          set -euo pipefail
+          mkdir -p target/debugify
+          cargo nextest run --profile ci -p solar-compiler --test tests --no-capture 2>&1 | tee target/debugify/tests.log
+      - name: Summarize source-origin losses
+        if: always()
+        run: |
+          python3 scripts/debugify_report.py target/debugify/origins --output target/debugify
+          cat target/debugify/report.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload debugify audits
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: debugify
+          path: target/debugify
+          if-no-files-found: error
+          retention-days: 7
+
   python:
     if: github.event_name != 'schedule'
     name: Python
@@ -552,6 +607,7 @@ jobs:
     needs:
       - evm-rules
       - test
+      - debugify
       - python
       - feature-checks
       - wasm

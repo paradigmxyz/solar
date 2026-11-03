@@ -161,7 +161,7 @@ pub(crate) fn run_passes_inner(
         if enabled {
             assert_debug_info_handled(module, pass_name, "before");
             let origins =
-                gcx.sess.opts.unstable.debugify.map(|_| crate::debugify::Origins::mir(module));
+                crate::debugify::enabled(gcx).then(|| crate::debugify::Origins::mir(module));
             let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
             let key = pass.cache_key();
             let cached = key.is_some_and(|key| unchanged.contains(&key));

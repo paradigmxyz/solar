@@ -187,3 +187,39 @@ fn foundry_decode_and_require_coverage_matches_solc() {
     }
     assert_eq!(reports[0], reports[1]);
 }
+
+#[test]
+fn debugify_sidecars_preserve_output() {
+    let temp = tempfile::tempdir().unwrap();
+    for mode in ["none", "gas", "size"] {
+        let directory = temp.path().join(mode);
+        let flag = format!("-Zdebugify-output={}", directory.display());
+        let plain = compile(mode, "bin,bin-runtime");
+        let audited = compile_with(mode, "bin,bin-runtime", &[&flag]);
+        assert_eq!(plain, audited, "{mode}: sidecar auditing changed compiler output");
+        let files = std::fs::read_dir(&directory).unwrap().collect::<Result<Vec<_>, _>>().unwrap();
+        assert_eq!(files.len(), 1, "one serialized audit file per compiler invocation");
+        let text = RealFileLoader.load_file(&files[0].path()).unwrap();
+        let records = text
+            .lines()
+            .map(|line| serde_json::from_str::<Value>(line).unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(records[0]["kind"], "invocation");
+        assert_eq!(records[0]["version"], 1);
+        assert!(!records[0]["sources"].as_array().unwrap().is_empty());
+        let layers = records
+            .iter()
+            .skip(1)
+            .map(|record| {
+                assert_eq!(record["kind"], "pass");
+                assert_eq!(
+                    record["before"].as_u64().unwrap(),
+                    record["retained"].as_u64().unwrap()
+                        + record["lost"].as_array().unwrap().len() as u64
+                );
+                record["ir"].as_str().unwrap()
+            })
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_data_eq!(format!("{layers:?}"), str![[r#"{"EVM IR", "MIR"}"#]]);
+    }
+}

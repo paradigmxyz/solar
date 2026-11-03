@@ -406,6 +406,11 @@ pub struct UnstableOpts {
     )]
     pub debugify: Option<Debugify>,
 
+    /// Write per-pass source-origin audits as JSON lines into this directory. Enables auditing
+    /// without stderr output; an explicit `-Zdebugify` mode still controls diagnostics.
+    #[cfg_attr(feature = "clap", arg(long, require_equals = true, value_name = "DIR"))]
+    pub debugify_output: Option<PathBuf>,
+
     /// Validate MIR and EVM IR after each pass. Enabled by default in debug builds.
     /// Accepts `true` or `false`.
     #[cfg_attr(
@@ -532,6 +537,7 @@ impl UnstableOpts {
             print_after_each: _,
             pass_diff: _,
             debugify: _,
+            debugify_output: _,
             validate_ir: _,
             time_passes: _,
             forget_gcx: _,

@@ -256,7 +256,7 @@ fn run_passes(
         if enabled {
             assert_debug_info_handled(module, pass_name, "before");
             let origins =
-                gcx.sess.opts.unstable.debugify.map(|_| crate::debugify::Origins::evm(module));
+                crate::debugify::enabled(gcx).then(|| crate::debugify::Origins::evm(module));
             let errors_before = gcx.dcx().err_count();
             let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
             let cache_key = PassCacheKey::new(*pass);

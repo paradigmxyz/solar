@@ -73,6 +73,8 @@ pub struct Module {
     pub code_follows: bool,
     /// Whether passes must account for every operation's source debug information.
     debug_info_tracked: bool,
+    /// Audit-only origins are retained internally but do not change ordinary text dumps.
+    hide_debug_info: bool,
     /// Block contents in which an earlier peephole run found nothing to rewrite.
     pub peephole_clean: CleanBlocks,
     /// Comments the text format prints before blocks.
@@ -140,6 +142,7 @@ impl Module {
             data: IndexVec::new(),
             code_follows: false,
             debug_info_tracked: false,
+            hide_debug_info: false,
             peephole_clean: CleanBlocks::default(),
             comments: BlockComments::default(),
             optimization: OptimizationMode::default(),
@@ -153,6 +156,7 @@ impl Module {
         self.libraries.clear();
         self.code_follows = false;
         self.debug_info_tracked = false;
+        self.hide_debug_info = false;
         self.peephole_clean.clear();
         self.comments.clear();
         self.optimization = OptimizationMode::default();
@@ -257,6 +261,11 @@ impl Module {
                 block.metadata.entry_checkpoint = None;
             }
         }
+    }
+
+    /// Controls debug-only fields in text dumps, independently of the metadata being audited.
+    pub fn set_debug_info_visible(&mut self, visible: bool) {
+        self.hide_debug_info = !visible;
     }
 }
 
