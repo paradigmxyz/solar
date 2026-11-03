@@ -16,7 +16,7 @@
 // constructor against its execution gas at 16 to 1. The checked `p * 3` divides to test for
 // overflow instead of comparing against a 32-byte limit, and the address that three stores share
 // stays on the stack after one push.
-// DEPLOY-LABEL: // === {{.*}}:Constants (deployment) ===
+// DEPLOY-LABEL: ; === {{.*}}:Constants (deployment) ===
 // DEPLOY-NOT: PUSH32
 // DEPLOY: DIV
 // DEPLOY: PUSH20 0x1111111111111111111111111111111111111111
@@ -39,9 +39,9 @@ contract Constants {
 // A helper that the runtime also calls is not creation-only code, so the constructor's copy of it
 // and the runtime's both keep the gas-first overflow check against a 32-byte limit. The
 // constructor calls it twice, so inlining does not give the constructor a private copy.
-// DEPLOY-LABEL: // === {{.*}}:Shared (deployment) ===
+// DEPLOY-LABEL: ; === {{.*}}:Shared (deployment) ===
 // DEPLOY: PUSH32 0x5555555555555555555555555555555555555555555555555555555555555555
-// RUNTIME-LABEL: // === {{.*}}:Shared (runtime) ===
+// RUNTIME-LABEL: ; === {{.*}}:Shared (runtime) ===
 // RUNTIME: PUSH32 0x5555555555555555555555555555555555555555555555555555555555555555
 contract Shared {
     uint256 public v;
@@ -61,7 +61,7 @@ contract Shared {
 
 // A loop body runs once per iteration, so a loop in the constructor keeps the check against a
 // 32-byte limit.
-// DEPLOY-LABEL: // === {{.*}}:Looped (deployment) ===
+// DEPLOY-LABEL: ; === {{.*}}:Looped (deployment) ===
 // DEPLOY: PUSH32 0x5555555555555555555555555555555555555555555555555555555555555555
 contract Looped {
     uint256[100] public arr;
@@ -75,7 +75,7 @@ contract Looped {
 
 // A helper that a constructor loop calls runs once per iteration, so it keeps its four pushes of
 // the constant instead of sharing them through a stub that costs gas on every call.
-// DEPLOY-LABEL: // === {{.*}}:LoopCalled (deployment) ===
+// DEPLOY-LABEL: ; === {{.*}}:LoopCalled (deployment) ===
 // DEPLOY-COUNT-4: PUSH32 0x1234567812345678123456781234567812345678123456781234567812345678
 contract LoopCalled {
     uint256[50] public arr;
@@ -105,7 +105,7 @@ contract LoopCalled {
 
 // The code after a call in a constructor loop runs once per iteration too, so the constants it
 // uses stay on the stack from one push before the loop instead of being shared through a stub.
-// DEPLOY-LABEL: // === {{.*}}:LoopAfterCall (deployment) ===
+// DEPLOY-LABEL: ; === {{.*}}:LoopAfterCall (deployment) ===
 // DEPLOY: PUSH32 0x4234567812345678123456781234567812345678123456781234567812345678
 // DEPLOY-NEXT: PUSH32 0x3234567812345678123456781234567812345678123456781234567812345678
 // DEPLOY-NEXT: PUSH32 0x2234567812345678123456781234567812345678123456781234567812345678

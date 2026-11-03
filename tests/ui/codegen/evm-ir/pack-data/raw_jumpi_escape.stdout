@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/pack-data/raw_jumpi_escape.evmir (before pack-data) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/pack-data/raw_jumpi_escape.evmir (after pack-data) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/pack-data/raw_jumpi_escape.evmir (before pack-data) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/pack-data/raw_jumpi_escape.evmir (after pack-data) ===
   @module raw_jumpi_escape
   @data
     literal_0: hex"22"

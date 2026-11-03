@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/heap_floor_constructor.sol:HeapFloorConstructor ===
+; === ROOT/tests/ui/codegen/lowering/run-call/heap_floor_constructor.sol:HeapFloorConstructor ===
 @module HeapFloorConstructor
 ; constructor(uint256 n, uint256 m) [creation entry]
 fn @constructor(arg0: i256, arg1: i256) [constructor, abi_params=[uint256, uint256]] {

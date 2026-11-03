@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/cse/cse_non_commutative.mir (before cse) ===
-+ // === ROOT/tests/ui/codegen/mir/cse/cse_non_commutative.mir (after cse) ===
+- ; === ROOT/tests/ui/codegen/mir/cse/cse_non_commutative.mir (before cse) ===
++ ; === ROOT/tests/ui/codegen/mir/cse/cse_non_commutative.mir (after cse) ===
   @module CseNonCommutative
   fn @non_commutative(arg0: i256, arg1: i256) -> i256 {
     bb0:

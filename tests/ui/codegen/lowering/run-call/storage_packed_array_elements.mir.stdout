@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/storage_packed_array_elements.sol:StoragePackedArrayElements ===
+; === ROOT/tests/ui/codegen/lowering/run-call/storage_packed_array_elements.sol:StoragePackedArrayElements ===
 @module StoragePackedArrayElements
 @types
   struct0: {i8, i32, i120}

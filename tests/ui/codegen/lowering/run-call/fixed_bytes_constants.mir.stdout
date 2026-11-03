@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_constants.sol:FixedBytesConstants ===
+; === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_constants.sol:FixedBytesConstants ===
 @module FixedBytesConstants
 ; getter for `bytes4 public constant constantHex` [selector 0x28cc24e9]
 fn @constantHex() -> i256 [selector=0x28cc24e9, view, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {

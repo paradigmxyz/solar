@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/byte-run-loads/shared_across_store.mir (before byte-run-loads) ===
-+ // === ROOT/tests/ui/codegen/mir/byte-run-loads/shared_across_store.mir (after byte-run-loads) ===
+- ; === ROOT/tests/ui/codegen/mir/byte-run-loads/shared_across_store.mir (before byte-run-loads) ===
++ ; === ROOT/tests/ui/codegen/mir/byte-run-loads/shared_across_store.mir (after byte-run-loads) ===
   @module SharedAcrossStore
   fn @stored(arg0: i256) -> i256 {
     bb0:

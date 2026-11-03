@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/loop-layout/weighted_latch.evmir (before loop-layout) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/loop-layout/weighted_latch.evmir (after loop-layout) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/loop-layout/weighted_latch.evmir (before loop-layout) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/loop-layout/weighted_latch.evmir (after loop-layout) ===
   @module WeightedLoop
   bb0:
     push 10

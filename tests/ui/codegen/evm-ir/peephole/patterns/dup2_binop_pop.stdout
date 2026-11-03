@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/dup2_binop_pop.evmir (before peephole) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/dup2_binop_pop.evmir (after peephole) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/dup2_binop_pop.evmir (before peephole) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/dup2_binop_pop.evmir (after peephole) ===
   @module module
   bb0:
     calldatasize

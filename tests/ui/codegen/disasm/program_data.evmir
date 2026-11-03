@@ -5,7 +5,7 @@
 @data
   literal_0: hex"11223344"
 
-// CHECK-LABEL: // === program_data (runtime) ===
+// CHECK-LABEL: ; === program_data (runtime) ===
 // CHECK-NEXT: PUSH1 0x04
 // CHECK-NEXT: PUSH1 0x0a
 // CHECK-NEXT: PUSH0

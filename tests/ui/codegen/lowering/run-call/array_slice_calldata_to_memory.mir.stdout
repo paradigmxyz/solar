@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/array_slice_calldata_to_memory.sol:ArraySliceCalldataToMemory ===
+; === ROOT/tests/ui/codegen/lowering/run-call/array_slice_calldata_to_memory.sol:ArraySliceCalldataToMemory ===
 @module ArraySliceCalldataToMemory
 ; function copy(uint256[] calldata values, uint256 start, uint256 end) external pure returns (uint256) [selector 0x65750e30]
 fn @copy(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0x65750e30, pure, abi_params=[array<_, uint256>, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {

@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/stack-dedup/runs.evmir (before stack-dedup) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/stack-dedup/runs.evmir (after stack-dedup) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/stack-dedup/runs.evmir (before stack-dedup) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/stack-dedup/runs.evmir (after stack-dedup) ===
   @module StackDedup
   bb0:
     push 45

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/mutual_recursive_yul_frames.sol:MutualRecursiveYulFrames ===
+; === ROOT/tests/ui/codegen/lowering/run-call/mutual_recursive_yul_frames.sol:MutualRecursiveYulFrames ===
 @module MutualRecursiveYulFrames
 @types
   struct0: {i256, i256, i256}
@@ -26,16 +26,16 @@ fn @walk(arg0: i256, arg1: i256) -> struct1 {
     v1 = zext i1 v0 to i256
     v2 = ne v1, 0
     jumpi v2, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v6 = icall @container, arg0, arg1
     v7 = extract_value struct1, v6, 0
     v8 = extract_value struct1, v6, 1
     v9 = insert_value struct1, undef struct1, 0, v7
     v10 = insert_value struct1, v9, 1, v8
     ret v10
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     mstore8 arg1, 192
     v3 = add arg1, 1
     v4 = insert_value struct1, undef struct1, 0, v3

@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/memory-dse/memory_dse_alias.mir (before memory-dse) ===
-+ // === ROOT/tests/ui/codegen/mir/memory-dse/memory_dse_alias.mir (after memory-dse) ===
+- ; === ROOT/tests/ui/codegen/mir/memory-dse/memory_dse_alias.mir (before memory-dse) ===
++ ; === ROOT/tests/ui/codegen/mir/memory-dse/memory_dse_alias.mir (after memory-dse) ===
   @module MemoryDseAlias
   fn @keep_symbolic_store_read_by_const_load(arg0: i256) -> i256 {
     bb0:

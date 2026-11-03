@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/disasm/indexed_jump_outlined.evmir (before none) ===
-+ // === ROOT/tests/ui/codegen/disasm/indexed_jump_outlined.evmir (after none) ===
+- ; === ROOT/tests/ui/codegen/disasm/indexed_jump_outlined.evmir (before none) ===
++ ; === ROOT/tests/ui/codegen/disasm/indexed_jump_outlined.evmir (after none) ===
   @module outlined
   bb0:
     push 1
@@ -87,7 +87,7 @@
     push 0xf000000000000000000000000000000000000000000000000000000000000001
     stop
   
-// === outlined (runtime) ===
+; === outlined (runtime) ===
 PUSH1 0x01
 PUSH1 0x04
 MUL

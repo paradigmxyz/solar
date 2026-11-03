@@ -23,12 +23,12 @@
 // BOTH: checked_add
 // BOTH: @module DumpPhase
 // BOTH-NEXT: @phase lowered
-// BOTH: // backend-memory-v1
+// BOTH: ; backend-memory-v1
 // BOTH-NOT: checked_add
 // BOTH-NOT: @module
 // GAS: @phase lowered
 // GAS-NOT: add arg0, 0
-// PIPELINE: {{^// === .*:DumpPhase \(after none\) ===$}}
+// PIPELINE: {{^; === .*:DumpPhase \(after none\) ===$}}
 // PIPELINE: @module DumpPhase
 // PIPELINE: checked_add {{u?int[0-9]+}}, arg0, 0
 // SUBSTITUTE: @module DumpPhase

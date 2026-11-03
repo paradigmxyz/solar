@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/memory-dse/constant_offset_wrap.mir (before memory-dse) ===
-+ // === ROOT/tests/ui/codegen/mir/memory-dse/constant_offset_wrap.mir (after memory-dse) ===
+- ; === ROOT/tests/ui/codegen/mir/memory-dse/constant_offset_wrap.mir (before memory-dse) ===
++ ; === ROOT/tests/ui/codegen/mir/memory-dse/constant_offset_wrap.mir (after memory-dse) ===
   @module ConstantOffsetWrap
   fn @wrapped_read() {
     bb0:

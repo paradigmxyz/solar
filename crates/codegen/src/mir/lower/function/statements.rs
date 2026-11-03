@@ -53,11 +53,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let value = self.builder.imm(value);
                     self.coerce_value(value, expr_ty, ty)
                 } else if let Some(expr) = initializer {
-                    if self.in_inline_assembly {
-                        self.lower_yul_word_expr(expr)?
-                    } else {
-                        self.lower_typed_expr(expr, ty)?
-                    }
+                    self.lower_typed_expr(expr, ty)?
                 } else {
                     self.default_binding_value(ty)
                 };

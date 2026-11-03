@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/dirty_storage_array_index.sol:DirtyStorageArrayIndex ===
+; === ROOT/tests/ui/codegen/lowering/run-call/dirty_storage_array_index.sol:DirtyStorageArrayIndex ===
 @module DirtyStorageArrayIndex
 ; function inject(uint256 raw) internal pure returns (uint8 x)
 fn @inject(arg0: i256) -> i256 [pure] {

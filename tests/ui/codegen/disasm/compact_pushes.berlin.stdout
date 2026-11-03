@@ -1,4 +1,4 @@
-// === compact_pushes (runtime) ===
+; === compact_pushes (runtime) ===
 RETURNDATASIZE
 NOT
 DUP1

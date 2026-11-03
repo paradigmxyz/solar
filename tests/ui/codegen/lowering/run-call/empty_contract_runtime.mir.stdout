@@ -1,7 +1,7 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:A ===
+; === ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:A ===
 @module A
 
-// === ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:B ===
+; === ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:B ===
 @module B
 @data
   A_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:A"
@@ -23,9 +23,9 @@ fn @nonEmptyCode() -> i1 [selector=0x73c60a6b, pure, abi_params=[], abi_returns=
     v7 = mload v2
     v8 = gt v7, 0
     jumpi v8, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v9 = datasize A_runtime_code_1
     v10 = datasize A_runtime_code_1, 63, aligned
     v11 = alloc v10 !metadata(preserves_fmp)
@@ -39,15 +39,15 @@ fn @nonEmptyCode() -> i1 [selector=0x73c60a6b, pure, abi_params=[], abi_returns=
     v16 = mload v11
     v17 = gt v16, 0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v18 = phi [bb1: v17], [bb2: false]
     ret v18
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:InternalContract ===
+; === ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:InternalContract ===
 @module InternalContract
 
-// === ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:ConstructorOnly ===
+; === ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:ConstructorOnly ===
 @module ConstructorOnly
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
@@ -55,11 +55,11 @@ fn @constructor() [constructor] {
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:InternalLibrary ===
+; === ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:InternalLibrary ===
 @module InternalLibrary
 @library
 
-// === ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:EmptyContractRuntime ===
+; === ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:EmptyContractRuntime ===
 @module EmptyContractRuntime
 @data
   InternalContract_runtime_code_0: runtime_code "ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:InternalContract"
@@ -83,9 +83,9 @@ fn @hasNonCallableRuntime() -> i1 [selector=0x0fedb051, pure, abi_params=[], abi
     v7 = mload v2
     v8 = gt v7, 0
     jumpi v8, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v9 = datasize ConstructorOnly_runtime_code_1
     v10 = datasize ConstructorOnly_runtime_code_1, 63, aligned
     v11 = alloc v10 !metadata(preserves_fmp)
@@ -99,12 +99,12 @@ fn @hasNonCallableRuntime() -> i1 [selector=0x0fedb051, pure, abi_params=[], abi
     v16 = mload v11
     v17 = gt v16, 0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v18 = phi [bb1: v17], [bb2: false]
     jumpi v18, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb6
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v19 = datasize InternalLibrary_runtime_code_2
     v20 = datasize InternalLibrary_runtime_code_2, 63, aligned
     v21 = alloc v20 !metadata(preserves_fmp)
@@ -118,7 +118,7 @@ fn @hasNonCallableRuntime() -> i1 [selector=0x0fedb051, pure, abi_params=[], abi
     v26 = mload v21
     v27 = gt v26, 0
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6:                                            ; preds = bb4, bb5
     v28 = phi [bb4: v27], [bb5: false]
     ret v28
 }
@@ -132,9 +132,9 @@ fn @deploysRevertingRuntime() -> i1 [selector=0x7c2d5470, abi_params=[], abi_ret
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = gas
     v5 = alloc 64 !metadata(preserves_fmp)
     mstore v5, 4
@@ -145,12 +145,12 @@ fn @deploysRevertingRuntime() -> i1 [selector=0x7c2d5470, abi_params=[], abi_ret
     v9 = extcodesize v8
     v10 = gt v9, 0
     jumpi v10, bb3, bb4
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     jump bb5
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v11 = eq v7, false
     jump bb5
-  bb5:  ; preds = bb3, bb4
+  bb5:                                            ; preds = bb3, bb4
     v12 = phi [bb3: v11], [bb4: false]
     ret v12
 }
@@ -164,9 +164,9 @@ fn @hasCode() -> i1 [selector=0xfffc60a2, abi_params=[], abi_returns=[word<bool>
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = zext i160 v2 to i256
     v5 = extcodesize v4
     v6 = ne v5, 0
@@ -182,9 +182,9 @@ fn @rejectsCalls() -> i1 [selector=0x99b623b6, abi_params=[], abi_returns=[word<
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = gas
     v5 = address_call v2, ptr<memory> 96, gas v4
     v6 = eq v5, false
