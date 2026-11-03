@@ -2,25 +2,25 @@
 //@ filecheck:
 
 contract RematerializeNullaryReads {
-    // Each value is defined once and used twice. Stable two-gas reads should be
-    // re-emitted at both stores instead of being retained or spilled. `NUMBER`
-    // preserves its evaluated value because instrumented EVMs can change it
-    // across calls.
+    // Each value is defined once and used twice. Stable two-gas reads are
+    // re-emitted at both stores instead of being retained or spilled. Reads that
+    // instrumented EVMs can change across calls (cheatcodes such as `vm.roll`
+    // or `vm.warp`) keep their evaluated value.
     // CHECK-COUNT-2: {{^ +}}calldatasize{{$}}
     // CHECK-COUNT-2: {{^ +}}codesize{{$}}
     // CHECK-COUNT-2: {{^ +}}caller{{$}}
     // CHECK-COUNT-2: {{^ +}}callvalue{{$}}
     // CHECK-COUNT-2: {{^ +}}address{{$}}
     // CHECK-COUNT-2: {{^ +}}origin{{$}}
-    // CHECK-COUNT-2: {{^ +}}gasprice{{$}}
-    // CHECK-COUNT-2: {{^ +}}coinbase{{$}}
-    // CHECK-COUNT-2: {{^ +}}timestamp{{$}}
+    // CHECK-COUNT-1: {{^ +}}gasprice{{$}}
+    // CHECK-COUNT-1: {{^ +}}coinbase{{$}}
+    // CHECK-COUNT-1: {{^ +}}timestamp{{$}}
     // CHECK-COUNT-1: {{^ +}}number{{$}}
-    // CHECK-COUNT-2: {{^ +}}prevrandao{{$}}
+    // CHECK-COUNT-1: {{^ +}}prevrandao{{$}}
     // CHECK-COUNT-2: {{^ +}}gaslimit{{$}}
-    // CHECK-COUNT-2: {{^ +}}chainid{{$}}
-    // CHECK-COUNT-2: {{^ +}}basefee{{$}}
-    // CHECK-COUNT-2: {{^ +}}blobbasefee{{$}}
+    // CHECK-COUNT-1: {{^ +}}chainid{{$}}
+    // CHECK-COUNT-1: {{^ +}}basefee{{$}}
+    // CHECK-COUNT-1: {{^ +}}blobbasefee{{$}}
     function readTwice() external payable {
         assembly {
             let v0 := calldatasize()

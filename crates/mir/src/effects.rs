@@ -281,7 +281,21 @@ impl InstKind {
                     | Self::StorageBytesStoreLiteral { .. }
                     | Self::StorageClearWords(..)
             ),
-            observes_execution: self.observes_gas() || matches!(self, Self::MSize),
+            observes_execution: self.observes_gas()
+                || matches!(self, Self::MSize)
+                // Nullary environment reads that a cheatcode can mutate mid-frame
+                // (Foundry `vm.roll`/`vm.warp`/`vm.fee`/...), so two evaluations can differ.
+                || matches!(
+                    self,
+                    Self::GasPrice
+                        | Self::Coinbase
+                        | Self::Timestamp
+                        | Self::BlockNumber
+                        | Self::PrevRandao
+                        | Self::ChainId
+                        | Self::BaseFee
+                        | Self::BlobBaseFee
+                ),
             idempotent_write: matches!(
                 self,
                 Self::MappingSlot(..)

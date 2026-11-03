@@ -51,33 +51,33 @@ bb3:  ; function readTwice() external payable [selector 0x5895c907]
   push 352
   mstore
   gasprice
+  dup 1
   push 384
   mstore
-  gasprice
   push 416
   mstore
   coinbase
+  dup 1
   push 448
   mstore
-  coinbase
   push 480
   mstore
   timestamp
+  dup 1
   push 512
   mstore
-  timestamp
   push 544
   mstore
   number
+  dup 1
   push 576
   mstore
-  number
   push 608
   mstore
   prevrandao
+  dup 1
   push 640
   mstore
-  prevrandao
   push 672
   mstore
   gaslimit
@@ -87,21 +87,21 @@ bb3:  ; function readTwice() external payable [selector 0x5895c907]
   push 736
   mstore
   chainid
+  dup 1
   push 768
   mstore
-  chainid
   push 800
   mstore
   basefee
+  dup 1
   push 832
   mstore
-  basefee
   push 864
   mstore
   blobbasefee
+  dup 1
   push 896
   mstore
-  blobbasefee
   push 928
   mstore
   push 960

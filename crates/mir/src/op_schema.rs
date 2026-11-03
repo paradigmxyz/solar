@@ -122,6 +122,9 @@ impl OpTraits {
     pub(crate) const REORDERABLE: Self = Self(1 << 0);
     /// The operation is cheap and stable enough to rematerialize when its
     /// operands can themselves be rebuilt from stable leaves.
+    /// Environment reads must not be rematerializable when an external agent can
+    /// mutate them mid-frame (e.g. Foundry cheatcodes `vm.roll`/`vm.warp`):
+    /// rematerializing re-reads the value at the use site, after the mutation.
     pub const REMATERIALIZABLE: Self = Self(1 << 1);
     /// The declared operand pair may be exchanged without changing the result.
     pub(crate) const COMMUTATIVE: Self = Self(1 << 3);
@@ -2215,7 +2218,7 @@ define_mir_ops! {
         result = I256,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
-        traits = OpTraits::REMATERIALIZABLE,
+        traits = OpTraits::NONE,
         side_effects = false,
         category = None
     )]
@@ -2243,7 +2246,7 @@ define_mir_ops! {
         result = I160,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
-        traits = OpTraits::REMATERIALIZABLE,
+        traits = OpTraits::NONE,
         side_effects = false,
         category = None
     )]
@@ -2257,7 +2260,7 @@ define_mir_ops! {
         result = I256,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
-        traits = OpTraits::REMATERIALIZABLE,
+        traits = OpTraits::NONE,
         side_effects = false,
         category = None
     )]
@@ -2271,7 +2274,7 @@ define_mir_ops! {
         result = I256,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
-        traits = OpTraits::REMATERIALIZABLE,
+        traits = OpTraits::NONE,
         side_effects = false,
         category = None
     )]
@@ -2285,7 +2288,7 @@ define_mir_ops! {
         result = I256,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
-        traits = OpTraits::REMATERIALIZABLE,
+        traits = OpTraits::NONE,
         side_effects = false,
         category = None
     )]
@@ -2326,7 +2329,7 @@ define_mir_ops! {
         result = I256,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
-        traits = OpTraits::REMATERIALIZABLE,
+        traits = OpTraits::NONE,
         side_effects = false,
         category = None
     )]
@@ -2396,7 +2399,7 @@ define_mir_ops! {
         result = I256,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
-        traits = OpTraits::REMATERIALIZABLE,
+        traits = OpTraits::NONE,
         side_effects = false,
         category = None
     )]
@@ -2410,7 +2413,7 @@ define_mir_ops! {
         result = I256,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
-        traits = OpTraits::REMATERIALIZABLE,
+        traits = OpTraits::NONE,
         side_effects = false,
         category = None
     )]
