@@ -96,10 +96,10 @@ pub fn transact(
     })
 }
 
-/// Splits an EVM IR dump of the compiler into its modules, each after a `// === NAME ===` or
-/// `// === NAME (PROGRAM) ===` header. Text without headers is one module, named by its `@module`
-/// line. The compiler's JSON output, which the compiler prints before its EVM IR dumps, is no
-/// module's text.
+/// Splits an EVM IR dump of the compiler into its modules, each after a `; === NAME ===` or
+/// `; === NAME (PROGRAM) ===` header (or the same with `//`). Text without headers is one module,
+/// named by its `@module` line. The compiler's JSON output, which the compiler prints before its
+/// EVM IR dumps, is no module's text.
 pub fn parse_dump(text: &str) -> Vec<DumpedModule> {
     let headed = text.lines().any(|line| header(line).is_some());
     let mut modules = Vec::new();
@@ -131,7 +131,8 @@ pub fn parse_dump(text: &str) -> Vec<DumpedModule> {
 
 /// Returns the contract a dump's module header names, and the program it names in parentheses.
 fn header(line: &str) -> Option<(&str, Option<&str>)> {
-    let name = line.strip_prefix("// === ")?.strip_suffix(" ===")?;
+    let rest = line.strip_prefix(';').or_else(|| line.strip_prefix("//"))?;
+    let name = rest.strip_prefix(" === ")?.strip_suffix(" ===")?;
     Some(match name.strip_suffix(')').and_then(|name| name.rsplit_once(" (")) {
         Some((name, program)) => (name, Some(program)),
         None => (name, None),
@@ -437,7 +438,7 @@ bb0:
     #[test]
     fn dumps() {
         let dump = "{\"contracts\":{}}
-// === a.sol:A (scheduled runtime) ===
+; === a.sol:A (scheduled runtime) ===
 @module A_runtime
 bb0:
   stop

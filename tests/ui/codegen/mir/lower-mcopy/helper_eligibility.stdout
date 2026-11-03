@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lower-mcopy/helper_eligibility.mir (before lower-mcopy) ===
-+ // === ROOT/tests/ui/codegen/mir/lower-mcopy/helper_eligibility.mir (after lower-mcopy) ===
+- ; === ROOT/tests/ui/codegen/mir/lower-mcopy/helper_eligibility.mir (before lower-mcopy) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-mcopy/helper_eligibility.mir (after lower-mcopy) ===
   @module CopyHelperEligibility
   ; creation entry
   fn @constructor(arg0: i256, arg1: i256, arg2: i256) [constructor] {
@@ -7,26 +7,26 @@
 -     mcopy arg0, arg1, arg2
 +     v0 = eq arg2, 0
 +     jumpi v0, bb1, bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v1 = and arg2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
 +     v2 = lt arg1, arg0
 +     jumpi v2, bb4, bb3
-+   bb3:  ; preds = bb2
++   bb3:                                            ; preds = bb2
 +     jump bb5
-+   bb5:  ; preds = bb3, bb6
++   bb5:                                            ; preds = bb3, bb6
 +     v3 = phi [bb3: 0], [bb6: v8]
 +     v4 = lt v3, v1
 +     jumpi v4, bb6, bb7
-+   bb7:  ; preds = bb5
++   bb7:                                            ; preds = bb5
 +     v9 = lt v1, arg2
 +     jumpi v9, bb8, bb1
-+   bb8:  ; preds = bb7
++   bb8:                                            ; preds = bb7
 +     v10 = and arg2, 31
 +     v11 = sub 32, v10
 +     v12 = shl v11, 3
-+     v13 = add arg1, v1
++     v13 = add v1, arg1
 +     v14 = mload v13
-+     v15 = add arg0, v1
++     v15 = add v1, arg0
 +     v16 = mload v15
 +     v17 = xor v14, v16
 +     v18 = shr v17, v12
@@ -34,25 +34,25 @@
 +     v20 = xor v16, v19
 +     mstore v15, v20
 +     jump bb1
-+   bb6:  ; preds = bb5
++   bb6:                                            ; preds = bb5
 +     v5 = add arg1, v3
 +     v6 = mload v5
 +     v7 = add arg0, v3
 +     mstore v7, v6
 +     v8 = add v3, 32
 +     jump bb5
-+   bb4:  ; preds = bb2
++   bb4:                                            ; preds = bb2
 +     v21 = lt v1, arg2
 +     jumpi v21, bb12, bb11
-+   bb11:  ; preds = bb4
++   bb11:                                           ; preds = bb4
 +     jump bb9
-+   bb12:  ; preds = bb4
++   bb12:                                           ; preds = bb4
 +     v22 = and arg2, 31
 +     v23 = sub 32, v22
 +     v24 = shl v23, 3
-+     v25 = add arg1, v1
++     v25 = add v1, arg1
 +     v26 = mload v25
-+     v27 = add arg0, v1
++     v27 = add v1, arg0
 +     v28 = mload v27
 +     v29 = xor v26, v28
 +     v30 = shr v29, v24
@@ -60,18 +60,18 @@
 +     v32 = xor v28, v31
 +     mstore v27, v32
 +     jump bb9
-+   bb9:  ; preds = bb11, bb12, bb10
++   bb9:                                            ; preds = bb11, bb12, bb10
 +     v33 = phi [bb11: v1], [bb12: v1], [bb10: v35]
 +     v34 = eq v33, 0
 +     jumpi v34, bb1, bb10
-+   bb10:  ; preds = bb9
++   bb10:                                           ; preds = bb9
 +     v35 = sub v33, 32
-+     v36 = add arg1, v35
++     v36 = add v35, arg1
 +     v37 = mload v36
-+     v38 = add arg0, v35
++     v38 = add v35, arg0
 +     mstore v38, v37
 +     jump bb9
-+   bb1:  ; preds = bb0, bb7, bb8, bb9
++   bb1:                                            ; preds = bb0, bb7, bb8, bb9
       ret
   }
   
@@ -97,13 +97,13 @@
     bb0:
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       jump bb3
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       v1 = alloc 64
       v2 = ptrtoint ptr<memory> v1 to i256
       jump bb3
-    bb3:  ; preds = bb1, bb2
+    bb3:                                            ; preds = bb1, bb2
       v3 = phi [bb1: v2], [bb2: 128]
 -     mcopy v3, arg1, arg2
 +     icall @mcopy_words, v3, arg1, arg2
@@ -115,26 +115,26 @@
 -     mcopy 128, arg0, arg1
 +     v0 = eq arg1, 0
 +     jumpi v0, bb1, bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v1 = and arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
 +     v2 = lt arg0, 128
 +     jumpi v2, bb4, bb3
-+   bb3:  ; preds = bb2
++   bb3:                                            ; preds = bb2
 +     jump bb5
-+   bb5:  ; preds = bb3, bb6
++   bb5:                                            ; preds = bb3, bb6
 +     v3 = phi [bb3: 0], [bb6: v8]
 +     v4 = lt v3, v1
 +     jumpi v4, bb6, bb7
-+   bb7:  ; preds = bb5
++   bb7:                                            ; preds = bb5
 +     v9 = lt v1, arg1
 +     jumpi v9, bb8, bb1
-+   bb8:  ; preds = bb7
++   bb8:                                            ; preds = bb7
 +     v10 = and arg1, 31
 +     v11 = sub 32, v10
 +     v12 = shl v11, 3
-+     v13 = add arg0, v1
++     v13 = add v1, arg0
 +     v14 = mload v13
-+     v15 = add 128, v1
++     v15 = add v1, 128
 +     v16 = mload v15
 +     v17 = xor v14, v16
 +     v18 = shr v17, v12
@@ -142,25 +142,25 @@
 +     v20 = xor v16, v19
 +     mstore v15, v20
 +     jump bb1
-+   bb6:  ; preds = bb5
++   bb6:                                            ; preds = bb5
 +     v5 = add arg0, v3
 +     v6 = mload v5
-+     v7 = add 128, v3
++     v7 = add v3, 128
 +     mstore v7, v6
 +     v8 = add v3, 32
 +     jump bb5
-+   bb4:  ; preds = bb2
++   bb4:                                            ; preds = bb2
 +     v21 = lt v1, arg1
 +     jumpi v21, bb12, bb11
-+   bb11:  ; preds = bb4
++   bb11:                                           ; preds = bb4
 +     jump bb9
-+   bb12:  ; preds = bb4
++   bb12:                                           ; preds = bb4
 +     v22 = and arg1, 31
 +     v23 = sub 32, v22
 +     v24 = shl v23, 3
-+     v25 = add arg0, v1
++     v25 = add v1, arg0
 +     v26 = mload v25
-+     v27 = add 128, v1
++     v27 = add v1, 128
 +     v28 = mload v27
 +     v29 = xor v26, v28
 +     v30 = shr v29, v24
@@ -168,18 +168,18 @@
 +     v32 = xor v28, v31
 +     mstore v27, v32
 +     jump bb9
-+   bb9:  ; preds = bb11, bb12, bb10
++   bb9:                                            ; preds = bb11, bb12, bb10
 +     v33 = phi [bb11: v1], [bb12: v1], [bb10: v35]
 +     v34 = eq v33, 0
 +     jumpi v34, bb1, bb10
-+   bb10:  ; preds = bb9
++   bb10:                                           ; preds = bb9
 +     v35 = sub v33, 32
-+     v36 = add arg0, v35
++     v36 = add v35, arg0
 +     v37 = mload v36
-+     v38 = add 128, v35
++     v38 = add v35, 128
 +     mstore v38, v37
 +     jump bb9
-+   bb1:  ; preds = bb0, bb7, bb8, bb9
++   bb1:                                            ; preds = bb0, bb7, bb8, bb9
       ret
   }
   
@@ -189,24 +189,24 @@
 -     mcopy v0, arg0, arg1
 +     v1 = eq arg1, 0
 +     jumpi v1, bb1, bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v2 = and arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
 +     v3 = lt arg0, v0
 +     jumpi v3, bb4, bb3
-+   bb3:  ; preds = bb2
++   bb3:                                            ; preds = bb2
 +     jump bb5
-+   bb5:  ; preds = bb3, bb6
++   bb5:                                            ; preds = bb3, bb6
 +     v4 = phi [bb3: 0], [bb6: v9]
 +     v5 = lt v4, v2
 +     jumpi v5, bb6, bb7
-+   bb7:  ; preds = bb5
++   bb7:                                            ; preds = bb5
 +     v10 = lt v2, arg1
 +     jumpi v10, bb8, bb1
-+   bb8:  ; preds = bb7
++   bb8:                                            ; preds = bb7
 +     v11 = and arg1, 31
 +     v12 = sub 32, v11
 +     v13 = shl v12, 3
-+     v14 = add arg0, v2
++     v14 = add v2, arg0
 +     v15 = mload v14
 +     v16 = add v0, v2
 +     v17 = mload v16
@@ -216,23 +216,23 @@
 +     v21 = xor v17, v20
 +     mstore v16, v21
 +     jump bb1
-+   bb6:  ; preds = bb5
++   bb6:                                            ; preds = bb5
 +     v6 = add arg0, v4
 +     v7 = mload v6
 +     v8 = add v0, v4
 +     mstore v8, v7
 +     v9 = add v4, 32
 +     jump bb5
-+   bb4:  ; preds = bb2
++   bb4:                                            ; preds = bb2
 +     v22 = lt v2, arg1
 +     jumpi v22, bb12, bb11
-+   bb11:  ; preds = bb4
++   bb11:                                           ; preds = bb4
 +     jump bb9
-+   bb12:  ; preds = bb4
++   bb12:                                           ; preds = bb4
 +     v23 = and arg1, 31
 +     v24 = sub 32, v23
 +     v25 = shl v24, 3
-+     v26 = add arg0, v2
++     v26 = add v2, arg0
 +     v27 = mload v26
 +     v28 = add v0, v2
 +     v29 = mload v28
@@ -242,18 +242,18 @@
 +     v33 = xor v29, v32
 +     mstore v28, v33
 +     jump bb9
-+   bb9:  ; preds = bb11, bb12, bb10
++   bb9:                                            ; preds = bb11, bb12, bb10
 +     v34 = phi [bb11: v2], [bb12: v2], [bb10: v36]
 +     v35 = eq v34, 0
 +     jumpi v35, bb1, bb10
-+   bb10:  ; preds = bb9
++   bb10:                                           ; preds = bb9
 +     v36 = sub v34, 32
-+     v37 = add arg0, v36
++     v37 = add v36, arg0
 +     v38 = mload v37
 +     v39 = add v0, v36
 +     mstore v39, v38
 +     jump bb9
-+   bb1:  ; preds = bb0, bb7, bb8, bb9
++   bb1:                                            ; preds = bb0, bb7, bb8, bb9
       ret
   }
   
@@ -264,24 +264,24 @@
 -     mcopy v1, arg1, arg2
 +     v2 = eq arg2, 0
 +     jumpi v2, bb1, bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v3 = and arg2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
 +     v4 = lt arg1, v1
 +     jumpi v4, bb4, bb3
-+   bb3:  ; preds = bb2
++   bb3:                                            ; preds = bb2
 +     jump bb5
-+   bb5:  ; preds = bb3, bb6
++   bb5:                                            ; preds = bb3, bb6
 +     v5 = phi [bb3: 0], [bb6: v10]
 +     v6 = lt v5, v3
 +     jumpi v6, bb6, bb7
-+   bb7:  ; preds = bb5
++   bb7:                                            ; preds = bb5
 +     v11 = lt v3, arg2
 +     jumpi v11, bb8, bb1
-+   bb8:  ; preds = bb7
++   bb8:                                            ; preds = bb7
 +     v12 = and arg2, 31
 +     v13 = sub 32, v12
 +     v14 = shl v13, 3
-+     v15 = add arg1, v3
++     v15 = add v3, arg1
 +     v16 = mload v15
 +     v17 = add v1, v3
 +     v18 = mload v17
@@ -291,23 +291,23 @@
 +     v22 = xor v18, v21
 +     mstore v17, v22
 +     jump bb1
-+   bb6:  ; preds = bb5
++   bb6:                                            ; preds = bb5
 +     v7 = add arg1, v5
 +     v8 = mload v7
 +     v9 = add v1, v5
 +     mstore v9, v8
 +     v10 = add v5, 32
 +     jump bb5
-+   bb4:  ; preds = bb2
++   bb4:                                            ; preds = bb2
 +     v23 = lt v3, arg2
 +     jumpi v23, bb12, bb11
-+   bb11:  ; preds = bb4
++   bb11:                                           ; preds = bb4
 +     jump bb9
-+   bb12:  ; preds = bb4
++   bb12:                                           ; preds = bb4
 +     v24 = and arg2, 31
 +     v25 = sub 32, v24
 +     v26 = shl v25, 3
-+     v27 = add arg1, v3
++     v27 = add v3, arg1
 +     v28 = mload v27
 +     v29 = add v1, v3
 +     v30 = mload v29
@@ -317,18 +317,18 @@
 +     v34 = xor v30, v33
 +     mstore v29, v34
 +     jump bb9
-+   bb9:  ; preds = bb11, bb12, bb10
++   bb9:                                            ; preds = bb11, bb12, bb10
 +     v35 = phi [bb11: v3], [bb12: v3], [bb10: v37]
 +     v36 = eq v35, 0
 +     jumpi v36, bb1, bb10
-+   bb10:  ; preds = bb9
++   bb10:                                           ; preds = bb9
 +     v37 = sub v35, 32
-+     v38 = add arg1, v37
++     v38 = add v37, arg1
 +     v39 = mload v38
 +     v40 = add v1, v37
 +     mstore v40, v39
 +     jump bb9
-+   bb1:  ; preds = bb0, bb7, bb8, bb9
++   bb1:                                            ; preds = bb0, bb7, bb8, bb9
       ret
   }
   
@@ -338,24 +338,24 @@
 -     mcopy v0, arg0, arg1
 +     v1 = eq arg1, 0
 +     jumpi v1, bb1, bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v2 = and arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
 +     v3 = lt arg0, v0
 +     jumpi v3, bb4, bb3
-+   bb3:  ; preds = bb2
++   bb3:                                            ; preds = bb2
 +     jump bb5
-+   bb5:  ; preds = bb3, bb6
++   bb5:                                            ; preds = bb3, bb6
 +     v4 = phi [bb3: 0], [bb6: v9]
 +     v5 = lt v4, v2
 +     jumpi v5, bb6, bb7
-+   bb7:  ; preds = bb5
++   bb7:                                            ; preds = bb5
 +     v10 = lt v2, arg1
 +     jumpi v10, bb8, bb1
-+   bb8:  ; preds = bb7
++   bb8:                                            ; preds = bb7
 +     v11 = and arg1, 31
 +     v12 = sub 32, v11
 +     v13 = shl v12, 3
-+     v14 = add arg0, v2
++     v14 = add v2, arg0
 +     v15 = mload v14
 +     v16 = add v0, v2
 +     v17 = mload v16
@@ -365,23 +365,23 @@
 +     v21 = xor v17, v20
 +     mstore v16, v21
 +     jump bb1
-+   bb6:  ; preds = bb5
++   bb6:                                            ; preds = bb5
 +     v6 = add arg0, v4
 +     v7 = mload v6
 +     v8 = add v0, v4
 +     mstore v8, v7
 +     v9 = add v4, 32
 +     jump bb5
-+   bb4:  ; preds = bb2
++   bb4:                                            ; preds = bb2
 +     v22 = lt v2, arg1
 +     jumpi v22, bb12, bb11
-+   bb11:  ; preds = bb4
++   bb11:                                           ; preds = bb4
 +     jump bb9
-+   bb12:  ; preds = bb4
++   bb12:                                           ; preds = bb4
 +     v23 = and arg1, 31
 +     v24 = sub 32, v23
 +     v25 = shl v24, 3
-+     v26 = add arg0, v2
++     v26 = add v2, arg0
 +     v27 = mload v26
 +     v28 = add v0, v2
 +     v29 = mload v28
@@ -391,18 +391,18 @@
 +     v33 = xor v29, v32
 +     mstore v28, v33
 +     jump bb9
-+   bb9:  ; preds = bb11, bb12, bb10
++   bb9:                                            ; preds = bb11, bb12, bb10
 +     v34 = phi [bb11: v2], [bb12: v2], [bb10: v36]
 +     v35 = eq v34, 0
 +     jumpi v35, bb1, bb10
-+   bb10:  ; preds = bb9
++   bb10:                                           ; preds = bb9
 +     v36 = sub v34, 32
-+     v37 = add arg0, v36
++     v37 = add v36, arg0
 +     v38 = mload v37
 +     v39 = add v0, v36
 +     mstore v39, v38
 +     jump bb9
-+   bb1:  ; preds = bb0, bb7, bb8, bb9
++   bb1:                                            ; preds = bb0, bb7, bb8, bb9
       ret
   }
   
@@ -411,16 +411,16 @@
 -     mcopy 0, 64, 72
 +     v0 = eq 72, 0
 +     jumpi v0, bb1, bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     jump bb3
-+   bb3:  ; preds = bb2, bb4
++   bb3:                                            ; preds = bb2, bb4
 +     v1 = phi [bb2: 0], [bb4: v6]
 +     v2 = lt v1, 64
 +     jumpi v2, bb4, bb5
-+   bb5:  ; preds = bb3
++   bb5:                                            ; preds = bb3
 +     v7 = lt 64, 72
 +     jumpi v7, bb6, bb1
-+   bb6:  ; preds = bb5
++   bb6:                                            ; preds = bb5
 +     v8 = mload 128
 +     v9 = mload 64 !metadata(memory=scratch)
 +     v10 = xor v8, v9
@@ -429,14 +429,14 @@
 +     v13 = xor v9, v12
 +     mstore 64, v13 !metadata(memory=scratch)
 +     jump bb1
-+   bb4:  ; preds = bb3
-+     v3 = add 64, v1
++   bb4:                                            ; preds = bb3
++     v3 = add v1, 64
 +     v4 = mload v3
-+     v5 = add 0, v1
++     v5 = add v1, 0
 +     mstore v5, v4
 +     v6 = add v1, 32
 +     jump bb3
-+   bb1:  ; preds = bb0, bb5, bb6
++   bb1:                                            ; preds = bb0, bb5, bb6
 +     ret
 + }
 + 
@@ -444,26 +444,26 @@
 +   bb0:
 +     v0 = eq arg2, 0
 +     jumpi v0, bb1, bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v1 = and arg2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
 +     v2 = lt arg1, arg0
 +     jumpi v2, bb4, bb3
-+   bb3:  ; preds = bb2
++   bb3:                                            ; preds = bb2
 +     jump bb5
-+   bb5:  ; preds = bb3, bb6
++   bb5:                                            ; preds = bb3, bb6
 +     v3 = phi [bb3: 0], [bb6: v8]
 +     v4 = lt v3, v1
 +     jumpi v4, bb6, bb7
-+   bb7:  ; preds = bb5
++   bb7:                                            ; preds = bb5
 +     v9 = lt v1, arg2
 +     jumpi v9, bb8, bb1
-+   bb8:  ; preds = bb7
++   bb8:                                            ; preds = bb7
 +     v10 = and arg2, 31
 +     v11 = sub 32, v10
 +     v12 = shl v11, 3
-+     v13 = add arg1, v1
++     v13 = add v1, arg1
 +     v14 = mload v13
-+     v15 = add arg0, v1
++     v15 = add v1, arg0
 +     v16 = mload v15
 +     v17 = xor v14, v16
 +     v18 = shr v17, v12
@@ -471,25 +471,25 @@
 +     v20 = xor v16, v19
 +     mstore v15, v20
 +     jump bb1
-+   bb6:  ; preds = bb5
++   bb6:                                            ; preds = bb5
 +     v5 = add arg1, v3
 +     v6 = mload v5
 +     v7 = add arg0, v3
 +     mstore v7, v6
 +     v8 = add v3, 32
 +     jump bb5
-+   bb4:  ; preds = bb2
++   bb4:                                            ; preds = bb2
 +     v21 = lt v1, arg2
 +     jumpi v21, bb12, bb11
-+   bb11:  ; preds = bb4
++   bb11:                                           ; preds = bb4
 +     jump bb9
-+   bb12:  ; preds = bb4
++   bb12:                                           ; preds = bb4
 +     v22 = and arg2, 31
 +     v23 = sub 32, v22
 +     v24 = shl v23, 3
-+     v25 = add arg1, v1
++     v25 = add v1, arg1
 +     v26 = mload v25
-+     v27 = add arg0, v1
++     v27 = add v1, arg0
 +     v28 = mload v27
 +     v29 = xor v26, v28
 +     v30 = shr v29, v24
@@ -497,18 +497,18 @@
 +     v32 = xor v28, v31
 +     mstore v27, v32
 +     jump bb9
-+   bb9:  ; preds = bb11, bb12, bb10
++   bb9:                                            ; preds = bb11, bb12, bb10
 +     v33 = phi [bb11: v1], [bb12: v1], [bb10: v35]
 +     v34 = eq v33, 0
 +     jumpi v34, bb1, bb10
-+   bb10:  ; preds = bb9
++   bb10:                                           ; preds = bb9
 +     v35 = sub v33, 32
-+     v36 = add arg1, v35
++     v36 = add v35, arg1
 +     v37 = mload v36
-+     v38 = add arg0, v35
++     v38 = add v35, arg0
 +     mstore v38, v37
 +     jump bb9
-+   bb1:  ; preds = bb0, bb7, bb8, bb9
++   bb1:                                            ; preds = bb0, bb7, bb8, bb9
       ret
   }
   

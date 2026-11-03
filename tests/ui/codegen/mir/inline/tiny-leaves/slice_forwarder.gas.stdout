@@ -1,17 +1,17 @@
-- // === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/slice_forwarder.mir (before inline) ===
-+ // === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/slice_forwarder.mir (after inline) ===
+- ; === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/slice_forwarder.mir (before inline) ===
++ ; === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/slice_forwarder.mir (after inline) ===
   @module SliceForwarder
   fn @caller(arg0: ptr<calldata>, arg1: i256) -> slice<calldata> {
     bb0:
 -     v0 = icall @construct, arg0, arg1
 -     ret v0
 +     jump bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v1 = make_calldata_slice arg0, 0
 +     v2 = extract_value slice<calldata>, v1, 0
 +     v3 = make_calldata_slice v2, arg1
 +     jump bb1
-+   bb1:  ; preds = bb2
++   bb1:                                            ; preds = bb2
 +     v4 = phi [bb2: v3]
 +     ret v4
   }
@@ -23,10 +23,10 @@
 -     v1 = extract_value slice<calldata>, v0, 0
 -     v2 = make_calldata_slice v1, arg1
 +     jump bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v1 = make_memory_slice arg0, arg1
 +     jump bb1
-+   bb1:  ; preds = bb2
++   bb1:                                            ; preds = bb2
 +     v2 = phi [bb2: v1]
       ret v2
   }
@@ -54,10 +54,10 @@
 -     v0 = make_returndata_slice arg0, arg1
 -     ret v0
 +     jump bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v1 = make_returndata_slice arg0, arg1
 +     jump bb1
-+   bb1:  ; preds = bb2
++   bb1:                                            ; preds = bb2
 +     v2 = phi [bb2: v1]
 +     ret v2
   }
@@ -75,18 +75,18 @@
       ret v1
   }
   
-- // === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/slice_forwarder.mir (before cfg-simplify) ===
-+ // === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/slice_forwarder.mir (after cfg-simplify) ===
+- ; === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/slice_forwarder.mir (before cfg-simplify) ===
++ ; === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/slice_forwarder.mir (after cfg-simplify) ===
   @module SliceForwarder
   fn @caller(arg0: ptr<calldata>, arg1: i256) -> slice<calldata> {
     bb0:
 -     jump bb2
--   bb2:  ; preds = bb0
+-   bb2:                                            ; preds = bb0
       v1 = make_calldata_slice arg0, 0
       v2 = extract_value slice<calldata>, v1, 0
       v3 = make_calldata_slice v2, arg1
 -     jump bb1
--   bb1:  ; preds = bb2
+-   bb1:                                            ; preds = bb2
 -     v4 = phi [bb2: v3]
 -     ret v4
 +     ret v3
@@ -95,10 +95,10 @@
   fn @memory_caller(arg0: ptr<memory>, arg1: i256) -> slice<memory> {
     bb0:
 -     jump bb2
--   bb2:  ; preds = bb0
+-   bb2:                                            ; preds = bb0
       v1 = make_memory_slice arg0, arg1
 -     jump bb1
--   bb1:  ; preds = bb2
+-   bb1:                                            ; preds = bb2
 -     v2 = phi [bb2: v1]
 -     ret v2
 +     ret v1
@@ -107,10 +107,10 @@
   fn @returndata_caller(arg0: ptr<returndata>, arg1: i256) -> slice<returndata> {
     bb0:
 -     jump bb2
--   bb2:  ; preds = bb0
+-   bb2:                                            ; preds = bb0
       v1 = make_returndata_slice arg0, arg1
 -     jump bb1
--   bb1:  ; preds = bb2
+-   bb1:                                            ; preds = bb2
 -     v2 = phi [bb2: v1]
 -     ret v2
 +     ret v1
@@ -129,8 +129,8 @@
       ret v1
   }
   
-- // === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/slice_forwarder.mir (before dce) ===
-+ // === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/slice_forwarder.mir (after dce) ===
+- ; === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/slice_forwarder.mir (before dce) ===
++ ; === ROOT/tests/ui/codegen/mir/inline/tiny-leaves/slice_forwarder.mir (after dce) ===
   @module SliceForwarder
   fn @caller(arg0: ptr<calldata>, arg1: i256) -> slice<calldata> {
     bb0:

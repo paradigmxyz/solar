@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/storage_nested_struct_calldata.sol:StorageNestedStructCalldata ===
+; === ROOT/tests/ui/codegen/lowering/run-call/storage_nested_struct_calldata.sol:StorageNestedStructCalldata ===
 @module StorageNestedStructCalldata
 ; function copy(Entry[][] calldata input) external returns (uint256) [selector 0xc58b68ae]
 fn @copy(arg0: slice<calldata>) -> i256 [selector=0xc58b68ae, abi_params=[array<_, array<_, tuple<array<_, uint8>, array<2, uint8>>>>], abi_returns=[word], abi_return_params=[uint256]] {
@@ -18,50 +18,50 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0xc58b68ae, abi_params=[array<
     v10 = shr v0, 251
     v11 = ne v10, 0
     icall panic_if<0x41>, v11
-    v12 = add 32, v9
+    v12 = add v9, 32
     v13 = lt v12, 32
     icall panic_if<0x41>, v13
     v14 = alloc v12
     mstore v14, v0
     jump bb1
-  bb1:  ; preds = bb0, bb6
+  bb1:                                            ; preds = bb0, bb6
     v15 = phi [bb0: 0], [bb6: v125]
     v16 = lt v15, v0
     jumpi v16, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v126 = mload v14
     v127 = sload 0 !metadata(storage=slot(0))
-    v128 = gt v127, v126
+    v128 = lt v126, v127
     jumpi v128, bb13, bb14
-  bb13:  ; preds = bb3
+  bb13:                                           ; preds = bb3
     jump bb15
-  bb15:  ; preds = bb13, bb20
+  bb15:                                           ; preds = bb13, bb20
     v129 = phi [bb13: v126], [bb20: v151]
     v130 = lt v129, v127
     jumpi v130, bb16, bb17
-  bb17:  ; preds = bb15
+  bb17:                                           ; preds = bb15
     jump bb14
-  bb14:  ; preds = bb3, bb17
+  bb14:                                           ; preds = bb3, bb17
     sstore 0, v126 !metadata(storage=slot(0))
     jump bb24
-  bb24:  ; preds = bb14, bb37
+  bb24:                                           ; preds = bb14, bb37
     v152 = phi [bb14: 0], [bb37: v270]
     v153 = lt v152, v126
     jumpi v153, bb25, bb26
-  bb26:  ; preds = bb24
+  bb26:                                           ; preds = bb24
     v271 = sload 0 !metadata(storage=slot(0))
-    v272 = lt 0, v271
+    v272 = gt v271, 0
     v273 = eq v272, false
     icall panic_if<0x32>, v273
     v274 = storage_array_data_slot 0
     v275 = sload v274 !metadata(storage=symbolic(v274))
-    v276 = lt 1, v275
+    v276 = gt v275, 1
     v277 = eq v276, false
     icall panic_if<0x32>, v277
     v278 = storage_array_data_slot v274
     v279 = add v278, 2
     v280 = sload v279 !metadata(storage=offset(v278, 2))
-    v281 = lt 1, v280
+    v281 = gt v280, 1
     v282 = eq v281, false
     icall panic_if<0x32>, v282
     v283 = storage_array_data_slot v279
@@ -69,12 +69,12 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0xc58b68ae, abi_params=[array<
     v285 = shr v284, 8
     v286 = trunc i256 v285 to i8
     v287 = sload 0 !metadata(storage=slot(0))
-    v288 = lt 0, v287
+    v288 = gt v287, 0
     v289 = eq v288, false
     icall panic_if<0x32>, v289
     v290 = storage_array_data_slot 0
     v291 = sload v290 !metadata(storage=symbolic(v290))
-    v292 = lt 0, v291
+    v292 = gt v291, 0
     v293 = eq v292, false
     icall panic_if<0x32>, v293
     v294 = storage_array_data_slot v290
@@ -87,12 +87,12 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0xc58b68ae, abi_params=[array<
     v300 = trunc i256 v299 to i8
     v301 = checked_add uint8, v286, v300
     v302 = sload 0 !metadata(storage=slot(0))
-    v303 = lt 0, v302
+    v303 = gt v302, 0
     v304 = eq v303, false
     icall panic_if<0x32>, v304
     v305 = storage_array_data_slot 0
     v306 = sload v305 !metadata(storage=symbolic(v305))
-    v307 = lt 1, v306
+    v307 = gt v306, 1
     v308 = eq v307, false
     icall panic_if<0x32>, v308
     v309 = storage_array_data_slot v305
@@ -107,7 +107,7 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0xc58b68ae, abi_params=[array<
     v317 = checked_add uint8, v301, v316
     v318 = zext i8 v317 to i256
     ret v318
-  bb25:  ; preds = bb24
+  bb25:                                           ; preds = bb24
     v154 = shl v152, 5
     v155 = ptradd v14, v154
     v156 = ptradd v155, 32
@@ -116,27 +116,27 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0xc58b68ae, abi_params=[array<
     v159 = add v158, v152
     v160 = mload v157
     v161 = sload v159 !metadata(storage=symbolic(v159))
-    v162 = gt v161, v160
+    v162 = lt v160, v161
     jumpi v162, bb27, bb28
-  bb27:  ; preds = bb25
+  bb27:                                           ; preds = bb25
     jump bb29
-  bb29:  ; preds = bb27, bb34
+  bb29:                                           ; preds = bb27, bb34
     v163 = phi [bb27: v160], [bb34: v179]
     v164 = lt v163, v161
     jumpi v164, bb30, bb31
-  bb31:  ; preds = bb29
+  bb31:                                           ; preds = bb29
     jump bb28
-  bb28:  ; preds = bb25, bb31
+  bb28:                                           ; preds = bb25, bb31
     sstore v159, v160 !metadata(storage=symbolic(v159))
     jump bb35
-  bb35:  ; preds = bb28, bb50
+  bb35:                                           ; preds = bb28, bb50
     v180 = phi [bb28: 0], [bb50: v269]
     v181 = lt v180, v160
     jumpi v181, bb36, bb37
-  bb37:  ; preds = bb35
+  bb37:                                           ; preds = bb35
     v270 = add v152, 1
     jump bb24
-  bb36:  ; preds = bb35
+  bb36:                                           ; preds = bb35
     v182 = shl v180, 5
     v183 = ptradd v157, v182
     v184 = ptradd v183, 32
@@ -147,29 +147,29 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0xc58b68ae, abi_params=[array<
     v189 = mload v185
     v190 = mload v189
     v191 = sload v188 !metadata(storage=symbolic(v188))
-    v192 = gt v191, v190
+    v192 = lt v190, v191
     jumpi v192, bb38, bb39
-  bb38:  ; preds = bb36
+  bb38:                                           ; preds = bb36
     jump bb40
-  bb40:  ; preds = bb38, bb41
+  bb40:                                           ; preds = bb38, bb41
     v193 = phi [bb38: v190], [bb41: v207]
     v194 = lt v193, v191
     jumpi v194, bb41, bb42
-  bb42:  ; preds = bb40
+  bb42:                                           ; preds = bb40
     jump bb39
-  bb39:  ; preds = bb36, bb42
+  bb39:                                           ; preds = bb36, bb42
     sstore v188, v190 !metadata(storage=symbolic(v188))
     jump bb43
-  bb43:  ; preds = bb39, bb44
+  bb43:                                           ; preds = bb39, bb44
     v208 = phi [bb39: 0], [bb44: v228]
     v209 = lt v208, v190
     jumpi v209, bb44, bb45
-  bb45:  ; preds = bb43
+  bb45:                                           ; preds = bb43
     v229 = shr v190, 5
     v230 = and v190, 31
     v231 = eq v230, 0
     jumpi v231, bb47, bb46
-  bb46:  ; preds = bb45
+  bb46:                                           ; preds = bb45
     v232 = mul v230, 8
     v233 = shl 1, v232
     v234 = sub v233, 1
@@ -179,26 +179,26 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0xc58b68ae, abi_params=[array<
     v238 = and v237, v234
     sstore v236, v238 !metadata(storage=symbolic(v236))
     jump bb47
-  bb47:  ; preds = bb45, bb46
+  bb47:                                           ; preds = bb45, bb46
     v239 = add v188, 1
     v240 = ptradd v185, 32
     v241 = mload v240
     jump bb48
-  bb48:  ; preds = bb47, bb53
+  bb48:                                           ; preds = bb47, bb53
     v242 = phi [bb47: 0], [bb53: v268]
     v243 = lt v242, 2
     jumpi v243, bb49, bb50
-  bb50:  ; preds = bb48
+  bb50:                                           ; preds = bb48
     v269 = add v180, 1
     jump bb35
-  bb49:  ; preds = bb48
+  bb49:                                           ; preds = bb48
     v244 = div v242, 32
     v245 = add v239, v244
     v246 = mod v242, 32
     v247 = mul v246, 1
     v248 = lt v242, 2
     jumpi v248, bb51, bb52
-  bb52:  ; preds = bb49
+  bb52:                                           ; preds = bb49
     v261 = mul v247, 8
     v262 = shl 255, v261
     v263 = sload v245 !metadata(storage=symbolic(v245))
@@ -208,7 +208,7 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0xc58b68ae, abi_params=[array<
     v267 = or v265, v266
     sstore v245, v267 !metadata(storage=symbolic(v245))
     jump bb53
-  bb51:  ; preds = bb49
+  bb51:                                           ; preds = bb49
     v249 = shl v242, 5
     v250 = inttoptr i256 v241 to ptr<memory>
     v251 = ptradd v250, v249
@@ -223,10 +223,10 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0xc58b68ae, abi_params=[array<
     v260 = or v257, v259
     sstore v245, v260 !metadata(storage=symbolic(v245))
     jump bb53
-  bb53:  ; preds = bb51, bb52
+  bb53:                                           ; preds = bb51, bb52
     v268 = add v242, 1
     jump bb48
-  bb44:  ; preds = bb43
+  bb44:                                           ; preds = bb43
     v210 = shl v208, 5
     v211 = inttoptr i256 v189 to ptr<memory>
     v212 = ptradd v211, v210
@@ -248,7 +248,7 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0xc58b68ae, abi_params=[array<
     sstore v217, v227 !metadata(storage=symbolic(v217))
     v228 = add v208, 1
     jump bb43
-  bb41:  ; preds = bb40
+  bb41:                                           ; preds = bb40
     v195 = storage_array_data_slot v188
     v196 = div v193, 32
     v197 = add v195, v196
@@ -264,7 +264,7 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0xc58b68ae, abi_params=[array<
     sstore v197, v206 !metadata(storage=symbolic(v197))
     v207 = add v193, 1
     jump bb40
-  bb30:  ; preds = bb29
+  bb30:                                           ; preds = bb29
     v165 = storage_array_data_slot v159
     v166 = mul v163, 2
     v167 = add v165, v166
@@ -278,32 +278,32 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0xc58b68ae, abi_params=[array<
     clear_storage_words v167, 0, v173
     v174 = add v167, 1
     jump bb32
-  bb32:  ; preds = bb30, bb33
+  bb32:                                           ; preds = bb30, bb33
     v175 = phi [bb30: 0], [bb33: v178]
     v176 = lt v175, 1
     jumpi v176, bb33, bb34
-  bb34:  ; preds = bb32
+  bb34:                                           ; preds = bb32
     v179 = add v163, 1
     jump bb29
-  bb33:  ; preds = bb32
+  bb33:                                           ; preds = bb32
     v177 = add v174, v175
     sstore v177, 0 !metadata(storage=symbolic(v177))
     v178 = add v175, 1
     jump bb32
-  bb16:  ; preds = bb15
+  bb16:                                           ; preds = bb15
     v131 = storage_array_data_slot 0
     v132 = add v131, v129
     v133 = sload v132 !metadata(storage=symbolic(v132))
     sstore v132, 0 !metadata(storage=symbolic(v132))
     jump bb18
-  bb18:  ; preds = bb16, bb23
+  bb18:                                           ; preds = bb16, bb23
     v134 = phi [bb16: 0], [bb23: v150]
     v135 = lt v134, v133
     jumpi v135, bb19, bb20
-  bb20:  ; preds = bb18
+  bb20:                                           ; preds = bb18
     v151 = add v129, 1
     jump bb15
-  bb19:  ; preds = bb18
+  bb19:                                           ; preds = bb18
     v136 = storage_array_data_slot v132
     v137 = mul v134, 2
     v138 = add v136, v137
@@ -317,19 +317,19 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0xc58b68ae, abi_params=[array<
     clear_storage_words v138, 0, v144
     v145 = add v138, 1
     jump bb21
-  bb21:  ; preds = bb19, bb22
+  bb21:                                           ; preds = bb19, bb22
     v146 = phi [bb19: 0], [bb22: v149]
     v147 = lt v146, 1
     jumpi v147, bb22, bb23
-  bb23:  ; preds = bb21
+  bb23:                                           ; preds = bb21
     v150 = add v134, 1
     jump bb18
-  bb22:  ; preds = bb21
+  bb22:                                           ; preds = bb21
     v148 = add v145, v146
     sstore v148, 0 !metadata(storage=symbolic(v148))
     v149 = add v146, 1
     jump bb21
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v17 = mul v15, 32
     v18 = ptrtoint ptr<calldata> v1 to i256
     v19 = add v18, v17
@@ -354,23 +354,23 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0xc58b68ae, abi_params=[array<
     v35 = mul v32, 32
     v36 = add v25, 32
     v37 = sub v33, v35
-    v38 = sgt v36, v37
+    v38 = slt v37, v36
     icall revert_if<calldata_tail_too_short>, v38
     v39 = mul v32, 32
     v40 = shr v32, 251
     v41 = ne v40, 0
     icall panic_if<0x41>, v41
-    v42 = add 32, v39
+    v42 = add v39, 32
     v43 = lt v42, 32
     icall panic_if<0x41>, v43
     v44 = alloc v42
     mstore v44, v32
     jump bb4
-  bb4:  ; preds = bb2, bb12
+  bb4:                                            ; preds = bb2, bb12
     v45 = phi [bb2: 0], [bb12: v120]
     v46 = lt v45, v32
     jumpi v46, bb5, bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     v121 = ptrtoint ptr<memory> v44 to i256
     v122 = shl v15, 5
     v123 = ptradd v14, v122
@@ -378,7 +378,7 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0xc58b68ae, abi_params=[array<
     mstore v124, v121
     v125 = add v15, 1
     jump bb1
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     v47 = mul v45, 32
     v48 = add v36, v47
     v49 = calldatasize
@@ -413,23 +413,23 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0xc58b68ae, abi_params=[array<
     v73 = mul v70, 32
     v74 = add v64, 32
     v75 = sub v71, v73
-    v76 = sgt v74, v75
+    v76 = slt v75, v74
     icall revert_if<calldata_tail_too_short>, v76
     v77 = mul v70, 32
     v78 = shr v70, 251
     v79 = ne v78, 0
     icall panic_if<0x41>, v79
-    v80 = add 32, v77
+    v80 = add v77, 32
     v81 = lt v80, 32
     icall panic_if<0x41>, v81
     v82 = alloc v80
     mstore v82, v70
     jump bb7
-  bb7:  ; preds = bb5, bb8
+  bb7:                                            ; preds = bb5, bb8
     v83 = phi [bb5: 0], [bb8: v94]
     v84 = lt v83, v70
     jumpi v84, bb8, bb9
-  bb9:  ; preds = bb7
+  bb9:                                            ; preds = bb7
     v95 = ptrtoint ptr<memory> v82 to i256
     mstore v59, v95
     v96 = add v53, 32
@@ -439,11 +439,11 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0xc58b68ae, abi_params=[array<
     icall revert_if<calldata_tail_too_short>, v99
     v100 = alloc 64
     jump bb10
-  bb10:  ; preds = bb9, bb11
+  bb10:                                           ; preds = bb9, bb11
     v101 = phi [bb9: 0], [bb11: v109]
     v102 = lt v101, 2
     jumpi v102, bb11, bb12
-  bb12:  ; preds = bb10
+  bb12:                                           ; preds = bb10
     v110 = inttoptr i256 v96 to ptr<calldata>
     v111 = make_calldata_slice v110, 64
     v112 = extract_value slice<calldata>, v111, 0
@@ -459,7 +459,7 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0xc58b68ae, abi_params=[array<
     mstore v119, v116
     v120 = add v45, 1
     jump bb4
-  bb11:  ; preds = bb10
+  bb11:                                           ; preds = bb10
     v103 = mul v101, 32
     v104 = add v96, v103
     v105 = calldataload v104
@@ -469,7 +469,7 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0xc58b68ae, abi_params=[array<
     icall revert_if<empty>, v108
     v109 = add v101, 1
     jump bb10
-  bb8:  ; preds = bb7
+  bb8:                                            ; preds = bb7
     v85 = mul v83, 32
     v86 = add v74, v85
     v87 = calldataload v86
@@ -496,28 +496,28 @@ fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x39bd9a66, abi_params=[a
     icall revert_if<calldata_tail_too_short>, v4
     v5 = alloc 32
     jump bb1
-  bb1:  ; preds = bb0, bb6
+  bb1:                                            ; preds = bb0, bb6
     v6 = phi [bb0: 0], [bb6: v115]
     v7 = lt v6, 1
     jumpi v7, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     jump bb13
-  bb13:  ; preds = bb3, bb18
+  bb13:                                           ; preds = bb3, bb18
     v116 = phi [bb3: 0], [bb18: v345]
     v117 = lt v116, 1
     jumpi v117, bb14, bb15
-  bb15:  ; preds = bb13
+  bb15:                                           ; preds = bb13
     v346 = lt 0, 1
     v347 = eq v346, false
     icall panic_if<0x32>, v347
     v348 = sload 1 !metadata(storage=slot(1))
-    v349 = lt 1, v348
+    v349 = gt v348, 1
     v350 = eq v349, false
     icall panic_if<0x32>, v350
     v351 = storage_array_data_slot 1
     v352 = add v351, 2
     v353 = sload v352 !metadata(storage=offset(v351, 2))
-    v354 = lt 1, v353
+    v354 = gt v353, 1
     v355 = eq v354, false
     icall panic_if<0x32>, v355
     v356 = storage_array_data_slot v352
@@ -528,7 +528,7 @@ fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x39bd9a66, abi_params=[a
     v361 = eq v360, false
     icall panic_if<0x32>, v361
     v362 = sload 1 !metadata(storage=slot(1))
-    v363 = lt 0, v362
+    v363 = gt v362, 0
     v364 = eq v363, false
     icall panic_if<0x32>, v364
     v365 = storage_array_data_slot 1
@@ -544,7 +544,7 @@ fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x39bd9a66, abi_params=[a
     v374 = eq v373, false
     icall panic_if<0x32>, v374
     v375 = sload 1 !metadata(storage=slot(1))
-    v376 = lt 1, v375
+    v376 = gt v375, 1
     v377 = eq v376, false
     icall panic_if<0x32>, v377
     v378 = storage_array_data_slot 1
@@ -559,35 +559,35 @@ fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x39bd9a66, abi_params=[a
     v386 = checked_add uint8, v372, v385
     v387 = zext i8 v386 to i256
     ret v387
-  bb14:  ; preds = bb13
-    v118 = add 1, v116
+  bb14:                                           ; preds = bb13
+    v118 = add v116, 1
     v119 = lt v116, 1
     jumpi v119, bb16, bb17
-  bb17:  ; preds = bb14
+  bb17:                                           ; preds = bb14
     v234 = alloc 32
     mstore v234, 0
     v235 = mload v234
     v236 = sload v118 !metadata(storage=offset(v116, 1))
-    v237 = gt v236, v235
+    v237 = lt v235, v236
     jumpi v237, bb46, bb47
-  bb46:  ; preds = bb17
+  bb46:                                           ; preds = bb17
     jump bb48
-  bb48:  ; preds = bb46, bb53
+  bb48:                                           ; preds = bb46, bb53
     v238 = phi [bb46: v235], [bb53: v254]
     v239 = lt v238, v236
     jumpi v239, bb49, bb50
-  bb50:  ; preds = bb48
+  bb50:                                           ; preds = bb48
     jump bb47
-  bb47:  ; preds = bb17, bb50
+  bb47:                                           ; preds = bb17, bb50
     sstore v118, v235 !metadata(storage=offset(v116, 1))
     jump bb54
-  bb54:  ; preds = bb47, bb69
+  bb54:                                           ; preds = bb47, bb69
     v255 = phi [bb47: 0], [bb69: v344]
     v256 = lt v255, v235
     jumpi v256, bb55, bb56
-  bb56:  ; preds = bb54
+  bb56:                                           ; preds = bb54
     jump bb18
-  bb55:  ; preds = bb54
+  bb55:                                           ; preds = bb54
     v257 = shl v255, 5
     v258 = ptradd v234, v257
     v259 = ptradd v258, 32
@@ -598,29 +598,29 @@ fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x39bd9a66, abi_params=[a
     v264 = mload v260
     v265 = mload v264
     v266 = sload v263 !metadata(storage=symbolic(v263))
-    v267 = gt v266, v265
+    v267 = lt v265, v266
     jumpi v267, bb57, bb58
-  bb57:  ; preds = bb55
+  bb57:                                           ; preds = bb55
     jump bb59
-  bb59:  ; preds = bb57, bb60
+  bb59:                                           ; preds = bb57, bb60
     v268 = phi [bb57: v265], [bb60: v282]
     v269 = lt v268, v266
     jumpi v269, bb60, bb61
-  bb61:  ; preds = bb59
+  bb61:                                           ; preds = bb59
     jump bb58
-  bb58:  ; preds = bb55, bb61
+  bb58:                                           ; preds = bb55, bb61
     sstore v263, v265 !metadata(storage=symbolic(v263))
     jump bb62
-  bb62:  ; preds = bb58, bb63
+  bb62:                                           ; preds = bb58, bb63
     v283 = phi [bb58: 0], [bb63: v303]
     v284 = lt v283, v265
     jumpi v284, bb63, bb64
-  bb64:  ; preds = bb62
+  bb64:                                           ; preds = bb62
     v304 = shr v265, 5
     v305 = and v265, 31
     v306 = eq v305, 0
     jumpi v306, bb66, bb65
-  bb65:  ; preds = bb64
+  bb65:                                           ; preds = bb64
     v307 = mul v305, 8
     v308 = shl 1, v307
     v309 = sub v308, 1
@@ -630,26 +630,26 @@ fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x39bd9a66, abi_params=[a
     v313 = and v312, v309
     sstore v311, v313 !metadata(storage=symbolic(v311))
     jump bb66
-  bb66:  ; preds = bb64, bb65
+  bb66:                                           ; preds = bb64, bb65
     v314 = add v263, 1
     v315 = ptradd v260, 32
     v316 = mload v315
     jump bb67
-  bb67:  ; preds = bb66, bb72
+  bb67:                                           ; preds = bb66, bb72
     v317 = phi [bb66: 0], [bb72: v343]
     v318 = lt v317, 2
     jumpi v318, bb68, bb69
-  bb69:  ; preds = bb67
+  bb69:                                           ; preds = bb67
     v344 = add v255, 1
     jump bb54
-  bb68:  ; preds = bb67
+  bb68:                                           ; preds = bb67
     v319 = div v317, 32
     v320 = add v314, v319
     v321 = mod v317, 32
     v322 = mul v321, 1
     v323 = lt v317, 2
     jumpi v323, bb70, bb71
-  bb71:  ; preds = bb68
+  bb71:                                           ; preds = bb68
     v336 = mul v322, 8
     v337 = shl 255, v336
     v338 = sload v320 !metadata(storage=symbolic(v320))
@@ -659,7 +659,7 @@ fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x39bd9a66, abi_params=[a
     v342 = or v340, v341
     sstore v320, v342 !metadata(storage=symbolic(v320))
     jump bb72
-  bb70:  ; preds = bb68
+  bb70:                                           ; preds = bb68
     v324 = shl v317, 5
     v325 = inttoptr i256 v316 to ptr<memory>
     v326 = ptradd v325, v324
@@ -674,10 +674,10 @@ fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x39bd9a66, abi_params=[a
     v335 = or v332, v334
     sstore v320, v335 !metadata(storage=symbolic(v320))
     jump bb72
-  bb72:  ; preds = bb70, bb71
+  bb72:                                           ; preds = bb70, bb71
     v343 = add v317, 1
     jump bb67
-  bb63:  ; preds = bb62
+  bb63:                                           ; preds = bb62
     v285 = shl v283, 5
     v286 = inttoptr i256 v264 to ptr<memory>
     v287 = ptradd v286, v285
@@ -699,7 +699,7 @@ fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x39bd9a66, abi_params=[a
     sstore v292, v302 !metadata(storage=symbolic(v292))
     v303 = add v283, 1
     jump bb62
-  bb60:  ; preds = bb59
+  bb60:                                           ; preds = bb59
     v270 = storage_array_data_slot v263
     v271 = div v268, 32
     v272 = add v270, v271
@@ -715,7 +715,7 @@ fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x39bd9a66, abi_params=[a
     sstore v272, v281 !metadata(storage=symbolic(v272))
     v282 = add v268, 1
     jump bb59
-  bb49:  ; preds = bb48
+  bb49:                                           ; preds = bb48
     v240 = storage_array_data_slot v118
     v241 = mul v238, 2
     v242 = add v240, v241
@@ -729,47 +729,47 @@ fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x39bd9a66, abi_params=[a
     clear_storage_words v242, 0, v248
     v249 = add v242, 1
     jump bb51
-  bb51:  ; preds = bb49, bb52
+  bb51:                                           ; preds = bb49, bb52
     v250 = phi [bb49: 0], [bb52: v253]
     v251 = lt v250, 1
     jumpi v251, bb52, bb53
-  bb53:  ; preds = bb51
+  bb53:                                           ; preds = bb51
     v254 = add v238, 1
     jump bb48
-  bb52:  ; preds = bb51
+  bb52:                                           ; preds = bb51
     v252 = add v249, v250
     sstore v252, 0 !metadata(storage=symbolic(v252))
     v253 = add v250, 1
     jump bb51
-  bb16:  ; preds = bb14
+  bb16:                                           ; preds = bb14
     v120 = shl v116, 5
     v121 = ptradd v5, v120
     v122 = mload v121
     v123 = mload v122
     v124 = sload v118 !metadata(storage=offset(v116, 1))
-    v125 = gt v124, v123
+    v125 = lt v123, v124
     jumpi v125, bb19, bb20
-  bb19:  ; preds = bb16
+  bb19:                                           ; preds = bb16
     jump bb21
-  bb21:  ; preds = bb19, bb26
+  bb21:                                           ; preds = bb19, bb26
     v126 = phi [bb19: v123], [bb26: v142]
     v127 = lt v126, v124
     jumpi v127, bb22, bb23
-  bb23:  ; preds = bb21
+  bb23:                                           ; preds = bb21
     jump bb20
-  bb20:  ; preds = bb16, bb23
+  bb20:                                           ; preds = bb16, bb23
     sstore v118, v123 !metadata(storage=offset(v116, 1))
     jump bb27
-  bb27:  ; preds = bb20, bb42
+  bb27:                                           ; preds = bb20, bb42
     v143 = phi [bb20: 0], [bb42: v233]
     v144 = lt v143, v123
     jumpi v144, bb28, bb29
-  bb29:  ; preds = bb27
+  bb29:                                           ; preds = bb27
     jump bb18
-  bb18:  ; preds = bb29, bb56
+  bb18:                                           ; preds = bb29, bb56
     v345 = add v116, 1
     jump bb13
-  bb28:  ; preds = bb27
+  bb28:                                           ; preds = bb27
     v145 = shl v143, 5
     v146 = inttoptr i256 v122 to ptr<memory>
     v147 = ptradd v146, v145
@@ -781,29 +781,29 @@ fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x39bd9a66, abi_params=[a
     v153 = mload v149
     v154 = mload v153
     v155 = sload v152 !metadata(storage=symbolic(v152))
-    v156 = gt v155, v154
+    v156 = lt v154, v155
     jumpi v156, bb30, bb31
-  bb30:  ; preds = bb28
+  bb30:                                           ; preds = bb28
     jump bb32
-  bb32:  ; preds = bb30, bb33
+  bb32:                                           ; preds = bb30, bb33
     v157 = phi [bb30: v154], [bb33: v171]
     v158 = lt v157, v155
     jumpi v158, bb33, bb34
-  bb34:  ; preds = bb32
+  bb34:                                           ; preds = bb32
     jump bb31
-  bb31:  ; preds = bb28, bb34
+  bb31:                                           ; preds = bb28, bb34
     sstore v152, v154 !metadata(storage=symbolic(v152))
     jump bb35
-  bb35:  ; preds = bb31, bb36
+  bb35:                                           ; preds = bb31, bb36
     v172 = phi [bb31: 0], [bb36: v192]
     v173 = lt v172, v154
     jumpi v173, bb36, bb37
-  bb37:  ; preds = bb35
+  bb37:                                           ; preds = bb35
     v193 = shr v154, 5
     v194 = and v154, 31
     v195 = eq v194, 0
     jumpi v195, bb39, bb38
-  bb38:  ; preds = bb37
+  bb38:                                           ; preds = bb37
     v196 = mul v194, 8
     v197 = shl 1, v196
     v198 = sub v197, 1
@@ -813,26 +813,26 @@ fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x39bd9a66, abi_params=[a
     v202 = and v201, v198
     sstore v200, v202 !metadata(storage=symbolic(v200))
     jump bb39
-  bb39:  ; preds = bb37, bb38
+  bb39:                                           ; preds = bb37, bb38
     v203 = add v152, 1
     v204 = ptradd v149, 32
     v205 = mload v204
     jump bb40
-  bb40:  ; preds = bb39, bb45
+  bb40:                                           ; preds = bb39, bb45
     v206 = phi [bb39: 0], [bb45: v232]
     v207 = lt v206, 2
     jumpi v207, bb41, bb42
-  bb42:  ; preds = bb40
+  bb42:                                           ; preds = bb40
     v233 = add v143, 1
     jump bb27
-  bb41:  ; preds = bb40
+  bb41:                                           ; preds = bb40
     v208 = div v206, 32
     v209 = add v203, v208
     v210 = mod v206, 32
     v211 = mul v210, 1
     v212 = lt v206, 2
     jumpi v212, bb43, bb44
-  bb44:  ; preds = bb41
+  bb44:                                           ; preds = bb41
     v225 = mul v211, 8
     v226 = shl 255, v225
     v227 = sload v209 !metadata(storage=symbolic(v209))
@@ -842,7 +842,7 @@ fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x39bd9a66, abi_params=[a
     v231 = or v229, v230
     sstore v209, v231 !metadata(storage=symbolic(v209))
     jump bb45
-  bb43:  ; preds = bb41
+  bb43:                                           ; preds = bb41
     v213 = shl v206, 5
     v214 = inttoptr i256 v205 to ptr<memory>
     v215 = ptradd v214, v213
@@ -857,10 +857,10 @@ fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x39bd9a66, abi_params=[a
     v224 = or v221, v223
     sstore v209, v224 !metadata(storage=symbolic(v209))
     jump bb45
-  bb45:  ; preds = bb43, bb44
+  bb45:                                           ; preds = bb43, bb44
     v232 = add v206, 1
     jump bb40
-  bb36:  ; preds = bb35
+  bb36:                                           ; preds = bb35
     v174 = shl v172, 5
     v175 = inttoptr i256 v153 to ptr<memory>
     v176 = ptradd v175, v174
@@ -882,7 +882,7 @@ fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x39bd9a66, abi_params=[a
     sstore v181, v191 !metadata(storage=symbolic(v181))
     v192 = add v172, 1
     jump bb35
-  bb33:  ; preds = bb32
+  bb33:                                           ; preds = bb32
     v159 = storage_array_data_slot v152
     v160 = div v157, 32
     v161 = add v159, v160
@@ -898,7 +898,7 @@ fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x39bd9a66, abi_params=[a
     sstore v161, v170 !metadata(storage=symbolic(v161))
     v171 = add v157, 1
     jump bb32
-  bb22:  ; preds = bb21
+  bb22:                                           ; preds = bb21
     v128 = storage_array_data_slot v118
     v129 = mul v126, 2
     v130 = add v128, v129
@@ -912,19 +912,19 @@ fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x39bd9a66, abi_params=[a
     clear_storage_words v130, 0, v136
     v137 = add v130, 1
     jump bb24
-  bb24:  ; preds = bb22, bb25
+  bb24:                                           ; preds = bb22, bb25
     v138 = phi [bb22: 0], [bb25: v141]
     v139 = lt v138, 1
     jumpi v139, bb25, bb26
-  bb26:  ; preds = bb24
+  bb26:                                           ; preds = bb24
     v142 = add v126, 1
     jump bb21
-  bb25:  ; preds = bb24
+  bb25:                                           ; preds = bb24
     v140 = add v137, v138
     sstore v140, 0 !metadata(storage=symbolic(v140))
     v141 = add v138, 1
     jump bb24
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v8 = mul v6, 32
     v9 = ptrtoint ptr<calldata> v0 to i256
     v10 = add v9, v8
@@ -949,30 +949,30 @@ fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x39bd9a66, abi_params=[a
     v26 = mul v23, 32
     v27 = add v16, 32
     v28 = sub v24, v26
-    v29 = sgt v27, v28
+    v29 = slt v28, v27
     icall revert_if<calldata_tail_too_short>, v29
     v30 = mul v23, 32
     v31 = shr v23, 251
     v32 = ne v31, 0
     icall panic_if<0x41>, v32
-    v33 = add 32, v30
+    v33 = add v30, 32
     v34 = lt v33, 32
     icall panic_if<0x41>, v34
     v35 = alloc v33
     mstore v35, v23
     jump bb4
-  bb4:  ; preds = bb2, bb12
+  bb4:                                            ; preds = bb2, bb12
     v36 = phi [bb2: 0], [bb12: v111]
     v37 = lt v36, v23
     jumpi v37, bb5, bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     v112 = ptrtoint ptr<memory> v35 to i256
     v113 = shl v6, 5
     v114 = ptradd v5, v113
     mstore v114, v112
     v115 = add v6, 1
     jump bb1
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     v38 = mul v36, 32
     v39 = add v27, v38
     v40 = calldatasize
@@ -1007,23 +1007,23 @@ fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x39bd9a66, abi_params=[a
     v64 = mul v61, 32
     v65 = add v55, 32
     v66 = sub v62, v64
-    v67 = sgt v65, v66
+    v67 = slt v66, v65
     icall revert_if<calldata_tail_too_short>, v67
     v68 = mul v61, 32
     v69 = shr v61, 251
     v70 = ne v69, 0
     icall panic_if<0x41>, v70
-    v71 = add 32, v68
+    v71 = add v68, 32
     v72 = lt v71, 32
     icall panic_if<0x41>, v72
     v73 = alloc v71
     mstore v73, v61
     jump bb7
-  bb7:  ; preds = bb5, bb8
+  bb7:                                            ; preds = bb5, bb8
     v74 = phi [bb5: 0], [bb8: v85]
     v75 = lt v74, v61
     jumpi v75, bb8, bb9
-  bb9:  ; preds = bb7
+  bb9:                                            ; preds = bb7
     v86 = ptrtoint ptr<memory> v73 to i256
     mstore v50, v86
     v87 = add v44, 32
@@ -1033,11 +1033,11 @@ fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x39bd9a66, abi_params=[a
     icall revert_if<calldata_tail_too_short>, v90
     v91 = alloc 64
     jump bb10
-  bb10:  ; preds = bb9, bb11
+  bb10:                                           ; preds = bb9, bb11
     v92 = phi [bb9: 0], [bb11: v100]
     v93 = lt v92, 2
     jumpi v93, bb11, bb12
-  bb12:  ; preds = bb10
+  bb12:                                           ; preds = bb10
     v101 = inttoptr i256 v87 to ptr<calldata>
     v102 = make_calldata_slice v101, 64
     v103 = extract_value slice<calldata>, v102, 0
@@ -1053,7 +1053,7 @@ fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x39bd9a66, abi_params=[a
     mstore v110, v107
     v111 = add v36, 1
     jump bb4
-  bb11:  ; preds = bb10
+  bb11:                                           ; preds = bb10
     v94 = mul v92, 32
     v95 = add v87, v94
     v96 = calldataload v95
@@ -1063,7 +1063,7 @@ fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x39bd9a66, abi_params=[a
     icall revert_if<empty>, v99
     v100 = add v92, 1
     jump bb10
-  bb8:  ; preds = bb7
+  bb8:                                            ; preds = bb7
     v76 = mul v74, 32
     v77 = add v65, v76
     v78 = calldataload v77
@@ -1097,39 +1097,39 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0x62d70355, abi_pa
     v10 = shr v0, 251
     v11 = ne v10, 0
     icall panic_if<0x41>, v11
-    v12 = add 32, v9
+    v12 = add v9, 32
     v13 = lt v12, 32
     icall panic_if<0x41>, v13
     v14 = alloc v12
     mstore v14, v0
     jump bb1
-  bb1:  ; preds = bb0, bb6
+  bb1:                                            ; preds = bb0, bb6
     v15 = phi [bb0: 0], [bb6: v115]
     v16 = lt v15, v0
     jumpi v16, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v116 = mload v14
     v117 = sload 2 !metadata(storage=slot(2))
-    v118 = gt v117, v116
+    v118 = lt v116, v117
     jumpi v118, bb13, bb14
-  bb13:  ; preds = bb3
+  bb13:                                           ; preds = bb3
     jump bb15
-  bb15:  ; preds = bb13, bb20
+  bb15:                                           ; preds = bb13, bb20
     v119 = phi [bb13: v116], [bb20: v140]
     v120 = lt v119, v117
     jumpi v120, bb16, bb17
-  bb17:  ; preds = bb15
+  bb17:                                           ; preds = bb15
     jump bb14
-  bb14:  ; preds = bb3, bb17
+  bb14:                                           ; preds = bb3, bb17
     sstore 2, v116 !metadata(storage=slot(2))
     jump bb24
-  bb24:  ; preds = bb14, bb29
+  bb24:                                           ; preds = bb14, bb29
     v141 = phi [bb14: 0], [bb29: v325]
     v142 = lt v141, v116
     jumpi v142, bb25, bb26
-  bb26:  ; preds = bb24
+  bb26:                                           ; preds = bb24
     v326 = sload 2 !metadata(storage=slot(2))
-    v327 = lt 1, v326
+    v327 = gt v326, 1
     v328 = eq v327, false
     icall panic_if<0x32>, v328
     v329 = storage_array_data_slot 2
@@ -1138,7 +1138,7 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0x62d70355, abi_pa
     v332 = eq v331, false
     icall panic_if<0x32>, v332
     v333 = sload v330 !metadata(storage=offset(v329, 2))
-    v334 = lt 1, v333
+    v334 = gt v333, 1
     v335 = eq v334, false
     icall panic_if<0x32>, v335
     v336 = storage_array_data_slot v330
@@ -1146,7 +1146,7 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0x62d70355, abi_pa
     v338 = shr v337, 8
     v339 = trunc i256 v338 to i8
     v340 = sload 2 !metadata(storage=slot(2))
-    v341 = lt 0, v340
+    v341 = gt v340, 0
     v342 = eq v341, false
     icall panic_if<0x32>, v342
     v343 = storage_array_data_slot 2
@@ -1162,7 +1162,7 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0x62d70355, abi_pa
     v351 = trunc i256 v350 to i8
     v352 = checked_add uint8, v339, v351
     v353 = sload 2 !metadata(storage=slot(2))
-    v354 = lt 1, v353
+    v354 = gt v353, 1
     v355 = eq v354, false
     icall panic_if<0x32>, v355
     v356 = storage_array_data_slot 2
@@ -1180,7 +1180,7 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0x62d70355, abi_pa
     v366 = checked_add uint8, v352, v365
     v367 = zext i8 v366 to i256
     ret v367
-  bb25:  ; preds = bb24
+  bb25:                                           ; preds = bb24
     v143 = shl v141, 5
     v144 = ptradd v14, v143
     v145 = ptradd v144, 32
@@ -1189,19 +1189,19 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0x62d70355, abi_pa
     v148 = mul v141, 2
     v149 = add v147, v148
     jump bb27
-  bb27:  ; preds = bb25, bb32
+  bb27:                                           ; preds = bb25, bb32
     v150 = phi [bb25: 0], [bb32: v324]
     v151 = lt v150, 1
     jumpi v151, bb28, bb29
-  bb29:  ; preds = bb27
+  bb29:                                           ; preds = bb27
     v325 = add v141, 1
     jump bb24
-  bb28:  ; preds = bb27
+  bb28:                                           ; preds = bb27
     v152 = mul v150, 2
     v153 = add v149, v152
     v154 = lt v150, 1
     jumpi v154, bb30, bb31
-  bb31:  ; preds = bb28
+  bb31:                                           ; preds = bb28
     v238 = alloc 64
     v239 = alloc 32
     mstore v239, 0
@@ -1215,29 +1215,29 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0x62d70355, abi_pa
     v244 = mload v238
     v245 = mload v244
     v246 = sload v153 !metadata(storage=symbolic(v153))
-    v247 = gt v246, v245
+    v247 = lt v245, v246
     jumpi v247, bb49, bb50
-  bb49:  ; preds = bb31
+  bb49:                                           ; preds = bb31
     jump bb51
-  bb51:  ; preds = bb49, bb52
+  bb51:                                           ; preds = bb49, bb52
     v248 = phi [bb49: v245], [bb52: v262]
     v249 = lt v248, v246
     jumpi v249, bb52, bb53
-  bb53:  ; preds = bb51
+  bb53:                                           ; preds = bb51
     jump bb50
-  bb50:  ; preds = bb31, bb53
+  bb50:                                           ; preds = bb31, bb53
     sstore v153, v245 !metadata(storage=symbolic(v153))
     jump bb54
-  bb54:  ; preds = bb50, bb55
+  bb54:                                           ; preds = bb50, bb55
     v263 = phi [bb50: 0], [bb55: v283]
     v264 = lt v263, v245
     jumpi v264, bb55, bb56
-  bb56:  ; preds = bb54
+  bb56:                                           ; preds = bb54
     v284 = shr v245, 5
     v285 = and v245, 31
     v286 = eq v285, 0
     jumpi v286, bb58, bb57
-  bb57:  ; preds = bb56
+  bb57:                                           ; preds = bb56
     v287 = mul v285, 8
     v288 = shl 1, v287
     v289 = sub v288, 1
@@ -1247,25 +1247,25 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0x62d70355, abi_pa
     v293 = and v292, v289
     sstore v291, v293 !metadata(storage=symbolic(v291))
     jump bb58
-  bb58:  ; preds = bb56, bb57
+  bb58:                                           ; preds = bb56, bb57
     v294 = add v153, 1
     v295 = ptradd v238, 32
     v296 = mload v295
     jump bb59
-  bb59:  ; preds = bb58, bb64
+  bb59:                                           ; preds = bb58, bb64
     v297 = phi [bb58: 0], [bb64: v323]
     v298 = lt v297, 2
     jumpi v298, bb60, bb61
-  bb61:  ; preds = bb59
+  bb61:                                           ; preds = bb59
     jump bb32
-  bb60:  ; preds = bb59
+  bb60:                                           ; preds = bb59
     v299 = div v297, 32
     v300 = add v294, v299
     v301 = mod v297, 32
     v302 = mul v301, 1
     v303 = lt v297, 2
     jumpi v303, bb62, bb63
-  bb63:  ; preds = bb60
+  bb63:                                           ; preds = bb60
     v316 = mul v302, 8
     v317 = shl 255, v316
     v318 = sload v300 !metadata(storage=symbolic(v300))
@@ -1275,7 +1275,7 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0x62d70355, abi_pa
     v322 = or v320, v321
     sstore v300, v322 !metadata(storage=symbolic(v300))
     jump bb64
-  bb62:  ; preds = bb60
+  bb62:                                           ; preds = bb60
     v304 = shl v297, 5
     v305 = inttoptr i256 v296 to ptr<memory>
     v306 = ptradd v305, v304
@@ -1290,10 +1290,10 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0x62d70355, abi_pa
     v315 = or v312, v314
     sstore v300, v315 !metadata(storage=symbolic(v300))
     jump bb64
-  bb64:  ; preds = bb62, bb63
+  bb64:                                           ; preds = bb62, bb63
     v323 = add v297, 1
     jump bb59
-  bb55:  ; preds = bb54
+  bb55:                                           ; preds = bb54
     v265 = shl v263, 5
     v266 = inttoptr i256 v244 to ptr<memory>
     v267 = ptradd v266, v265
@@ -1315,7 +1315,7 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0x62d70355, abi_pa
     sstore v272, v282 !metadata(storage=symbolic(v272))
     v283 = add v263, 1
     jump bb54
-  bb52:  ; preds = bb51
+  bb52:                                           ; preds = bb51
     v250 = storage_array_data_slot v153
     v251 = div v248, 32
     v252 = add v250, v251
@@ -1331,36 +1331,36 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0x62d70355, abi_pa
     sstore v252, v261 !metadata(storage=symbolic(v252))
     v262 = add v248, 1
     jump bb51
-  bb30:  ; preds = bb28
+  bb30:                                           ; preds = bb28
     v155 = shl v150, 5
     v156 = ptradd v146, v155
     v157 = mload v156
     v158 = mload v157
     v159 = mload v158
     v160 = sload v153 !metadata(storage=symbolic(v153))
-    v161 = gt v160, v159
+    v161 = lt v159, v160
     jumpi v161, bb33, bb34
-  bb33:  ; preds = bb30
+  bb33:                                           ; preds = bb30
     jump bb35
-  bb35:  ; preds = bb33, bb36
+  bb35:                                           ; preds = bb33, bb36
     v162 = phi [bb33: v159], [bb36: v176]
     v163 = lt v162, v160
     jumpi v163, bb36, bb37
-  bb37:  ; preds = bb35
+  bb37:                                           ; preds = bb35
     jump bb34
-  bb34:  ; preds = bb30, bb37
+  bb34:                                           ; preds = bb30, bb37
     sstore v153, v159 !metadata(storage=symbolic(v153))
     jump bb38
-  bb38:  ; preds = bb34, bb39
+  bb38:                                           ; preds = bb34, bb39
     v177 = phi [bb34: 0], [bb39: v197]
     v178 = lt v177, v159
     jumpi v178, bb39, bb40
-  bb40:  ; preds = bb38
+  bb40:                                           ; preds = bb38
     v198 = shr v159, 5
     v199 = and v159, 31
     v200 = eq v199, 0
     jumpi v200, bb42, bb41
-  bb41:  ; preds = bb40
+  bb41:                                           ; preds = bb40
     v201 = mul v199, 8
     v202 = shl 1, v201
     v203 = sub v202, 1
@@ -1370,28 +1370,28 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0x62d70355, abi_pa
     v207 = and v206, v203
     sstore v205, v207 !metadata(storage=symbolic(v205))
     jump bb42
-  bb42:  ; preds = bb40, bb41
+  bb42:                                           ; preds = bb40, bb41
     v208 = add v153, 1
     v209 = add v157, 32
     v210 = mload v209
     jump bb43
-  bb43:  ; preds = bb42, bb48
+  bb43:                                           ; preds = bb42, bb48
     v211 = phi [bb42: 0], [bb48: v237]
     v212 = lt v211, 2
     jumpi v212, bb44, bb45
-  bb45:  ; preds = bb43
+  bb45:                                           ; preds = bb43
     jump bb32
-  bb32:  ; preds = bb45, bb61
+  bb32:                                           ; preds = bb45, bb61
     v324 = add v150, 1
     jump bb27
-  bb44:  ; preds = bb43
+  bb44:                                           ; preds = bb43
     v213 = div v211, 32
     v214 = add v208, v213
     v215 = mod v211, 32
     v216 = mul v215, 1
     v217 = lt v211, 2
     jumpi v217, bb46, bb47
-  bb47:  ; preds = bb44
+  bb47:                                           ; preds = bb44
     v230 = mul v216, 8
     v231 = shl 255, v230
     v232 = sload v214 !metadata(storage=symbolic(v214))
@@ -1401,7 +1401,7 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0x62d70355, abi_pa
     v236 = or v234, v235
     sstore v214, v236 !metadata(storage=symbolic(v214))
     jump bb48
-  bb46:  ; preds = bb44
+  bb46:                                           ; preds = bb44
     v218 = shl v211, 5
     v219 = inttoptr i256 v210 to ptr<memory>
     v220 = ptradd v219, v218
@@ -1416,10 +1416,10 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0x62d70355, abi_pa
     v229 = or v226, v228
     sstore v214, v229 !metadata(storage=symbolic(v214))
     jump bb48
-  bb48:  ; preds = bb46, bb47
+  bb48:                                           ; preds = bb46, bb47
     v237 = add v211, 1
     jump bb43
-  bb39:  ; preds = bb38
+  bb39:                                           ; preds = bb38
     v179 = shl v177, 5
     v180 = inttoptr i256 v158 to ptr<memory>
     v181 = ptradd v180, v179
@@ -1441,7 +1441,7 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0x62d70355, abi_pa
     sstore v186, v196 !metadata(storage=symbolic(v186))
     v197 = add v177, 1
     jump bb38
-  bb36:  ; preds = bb35
+  bb36:                                           ; preds = bb35
     v164 = storage_array_data_slot v153
     v165 = div v162, 32
     v166 = add v164, v165
@@ -1457,19 +1457,19 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0x62d70355, abi_pa
     sstore v166, v175 !metadata(storage=symbolic(v166))
     v176 = add v162, 1
     jump bb35
-  bb16:  ; preds = bb15
+  bb16:                                           ; preds = bb15
     v121 = storage_array_data_slot 2
     v122 = mul v119, 2
     v123 = add v121, v122
     jump bb18
-  bb18:  ; preds = bb16, bb23
+  bb18:                                           ; preds = bb16, bb23
     v124 = phi [bb16: 0], [bb23: v139]
     v125 = lt v124, 1
     jumpi v125, bb19, bb20
-  bb20:  ; preds = bb18
+  bb20:                                           ; preds = bb18
     v140 = add v119, 1
     jump bb15
-  bb19:  ; preds = bb18
+  bb19:                                           ; preds = bb18
     v126 = mul v124, 2
     v127 = add v123, v126
     v128 = sload v127 !metadata(storage=symbolic(v127))
@@ -1482,19 +1482,19 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0x62d70355, abi_pa
     clear_storage_words v127, 0, v133
     v134 = add v127, 1
     jump bb21
-  bb21:  ; preds = bb19, bb22
+  bb21:                                           ; preds = bb19, bb22
     v135 = phi [bb19: 0], [bb22: v138]
     v136 = lt v135, 1
     jumpi v136, bb22, bb23
-  bb23:  ; preds = bb21
+  bb23:                                           ; preds = bb21
     v139 = add v124, 1
     jump bb18
-  bb22:  ; preds = bb21
+  bb22:                                           ; preds = bb21
     v137 = add v134, v135
     sstore v137, 0 !metadata(storage=symbolic(v137))
     v138 = add v135, 1
     jump bb21
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v17 = mul v15, 32
     v18 = ptrtoint ptr<calldata> v1 to i256
     v19 = add v18, v17
@@ -1518,11 +1518,11 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0x62d70355, abi_pa
     icall revert_if<calldata_tail_too_short>, v34
     v35 = alloc 32
     jump bb4
-  bb4:  ; preds = bb2, bb12
+  bb4:                                            ; preds = bb2, bb12
     v36 = phi [bb2: 0], [bb12: v110]
     v37 = lt v36, 1
     jumpi v37, bb5, bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     v111 = ptrtoint ptr<memory> v35 to i256
     v112 = shl v15, 5
     v113 = ptradd v14, v112
@@ -1530,7 +1530,7 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0x62d70355, abi_pa
     mstore v114, v111
     v115 = add v15, 1
     jump bb1
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     v38 = mul v36, 32
     v39 = add v25, v38
     v40 = calldatasize
@@ -1565,23 +1565,23 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0x62d70355, abi_pa
     v64 = mul v61, 32
     v65 = add v55, 32
     v66 = sub v62, v64
-    v67 = sgt v65, v66
+    v67 = slt v66, v65
     icall revert_if<calldata_tail_too_short>, v67
     v68 = mul v61, 32
     v69 = shr v61, 251
     v70 = ne v69, 0
     icall panic_if<0x41>, v70
-    v71 = add 32, v68
+    v71 = add v68, 32
     v72 = lt v71, 32
     icall panic_if<0x41>, v72
     v73 = alloc v71
     mstore v73, v61
     jump bb7
-  bb7:  ; preds = bb5, bb8
+  bb7:                                            ; preds = bb5, bb8
     v74 = phi [bb5: 0], [bb8: v85]
     v75 = lt v74, v61
     jumpi v75, bb8, bb9
-  bb9:  ; preds = bb7
+  bb9:                                            ; preds = bb7
     v86 = ptrtoint ptr<memory> v73 to i256
     mstore v50, v86
     v87 = add v44, 32
@@ -1591,11 +1591,11 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0x62d70355, abi_pa
     icall revert_if<calldata_tail_too_short>, v90
     v91 = alloc 64
     jump bb10
-  bb10:  ; preds = bb9, bb11
+  bb10:                                           ; preds = bb9, bb11
     v92 = phi [bb9: 0], [bb11: v100]
     v93 = lt v92, 2
     jumpi v93, bb11, bb12
-  bb12:  ; preds = bb10
+  bb12:                                           ; preds = bb10
     v101 = inttoptr i256 v87 to ptr<calldata>
     v102 = make_calldata_slice v101, 64
     v103 = extract_value slice<calldata>, v102, 0
@@ -1610,7 +1610,7 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0x62d70355, abi_pa
     mstore v109, v107
     v110 = add v36, 1
     jump bb4
-  bb11:  ; preds = bb10
+  bb11:                                           ; preds = bb10
     v94 = mul v92, 32
     v95 = add v87, v94
     v96 = calldataload v95
@@ -1620,7 +1620,7 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0x62d70355, abi_pa
     icall revert_if<empty>, v99
     v100 = add v92, 1
     jump bb10
-  bb8:  ; preds = bb7
+  bb8:                                            ; preds = bb7
     v76 = mul v74, 32
     v77 = add v65, v76
     v78 = calldataload v77

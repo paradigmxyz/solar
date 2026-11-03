@@ -17,7 +17,7 @@
 // CHECK-NEXT: + {{v[0-9]+}} = phi {{\[}}[[MAIN]]: [[S]]], [bb2: {{v[0-9]+}}]
 // CHECK: + [[FIRST]]:
 // CHECK-NEXT: + [[P:v[0-9]+]] = mul [[I]], 3
-// CHECK-NEXT: + {{v[0-9]+}} = add [[S]], [[P]]
+// CHECK-NEXT: + {{v[0-9]+}} = add [[P]], [[S]]
 // CHECK-NEXT: + {{v[0-9]+}} = add [[I]], 1
 // CHECK-COUNT-2: = mul
 // CHECK: + [[LATCH]]:
@@ -234,7 +234,7 @@ fn @hoisted(arg0: i256, arg1: i256) -> i256 {
 // CHECK-LABEL: {{^[ +].*}}fn @hoisted_limit{{[( ]}}
 // CHECK: + [[AHEAD:v[0-9]+]] = add {{v[0-9]+}}, 3
 // CHECK-NEXT: + {{v[0-9]+}} = lt [[AHEAD]], arg0
-// CHECK-COUNT-4: + {{v[0-9]+}} = gt {{v[0-9]+}}, v0
+// CHECK-COUNT-4: + {{v[0-9]+}} = lt v0, {{v[0-9]+}}
 fn @hoisted_limit(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v6 = shl arg1, 3
@@ -459,7 +459,7 @@ fn @variable_start_below(arg0: i256, arg1: i256) -> i256 {
 // CHECK-LABEL: {{^[ +].*}}fn @at_most{{[( ]}}
 // CHECK: + [[I:v[0-9]+]] = phi [bb0: 2], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
 // CHECK: + [[AHEAD:v[0-9]+]] = add [[I]], 6
-// CHECK-NEXT: + [[BEYOND:v[0-9]+]] = gt [[AHEAD]], arg0
+// CHECK-NEXT: + [[BEYOND:v[0-9]+]] = lt arg0, [[AHEAD]]
 // CHECK-NEXT: + jumpi [[BEYOND]], bb1, {{bb[0-9]+}}
 fn @at_most(arg0: i256) -> i256 {
   bb0:

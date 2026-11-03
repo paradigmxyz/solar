@@ -214,6 +214,7 @@ struct Analysis<'a> {
     module: &'a Module,
     summaries: &'a Arc<MemoryCallSummaries>,
     call_graph: CallGraphInfo,
+    runtime_entries: DenseBitSet<FunctionId>,
     callers: IndexVec<FunctionId, Vec<CallSite>>,
     /// Indexed by [`Fact`].
     memo: [FactMemo; 2],
@@ -245,6 +246,7 @@ impl<'a> Analysis<'a> {
             module,
             summaries,
             call_graph: CallGraphInfo::new(module),
+            runtime_entries: module.runtime_entries(),
             callers,
             memo: [memo(), memo()],
             observes_gas: index_vec![None; module.functions.len()],
@@ -257,13 +259,12 @@ impl<'a> Analysis<'a> {
             return entered;
         }
         let module = self.module;
-        let func = &module.functions[id];
-        let entered = if func.attributes.is_constructor
+        let entered = if module.constructor() == Some(id)
             || module.dispatch_entry() == Some(id)
             || self.call_graph.is_recursive(id)
         {
             false
-        } else if func.is_runtime_entry() {
+        } else if self.runtime_entries.contains(id) {
             let dispatch = module.dispatch_entry();
             self.callers[id].iter().all(|site| Some(site.caller()) == dispatch)
         } else {

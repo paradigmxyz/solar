@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/try_catch_library_call.sol:Lib ===
+; === ROOT/tests/ui/codegen/lowering/try_catch_library_call.sol:Lib ===
 @module Lib
 @library
 @immutables
@@ -45,7 +45,7 @@ fn @empty() [selector=0xf2a75fe4, pure, abi_params=[], abi_returns=[], abi_retur
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/try_catch_library_call.sol:C ===
+; === ROOT/tests/ui/codegen/lowering/try_catch_library_call.sol:C ===
 @module C
 ; function direct(bool fail) external pure returns (uint256) [selector 0xa8f96c85]
 fn @direct(arg0: i1) -> i256 [selector=0xa8f96c85, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
@@ -57,7 +57,7 @@ fn @direct(arg0: i1) -> i256 [selector=0xa8f96c85, pure, abi_params=[bool], abi_
     v4 = extract_value slice<memory>, v2, 1
     v5 = delegatecall v0, 0x1111111111111111111111111111111111111111, v3, v4, 0, 32
     jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v9 = icall returndata_bytes<>
     v10 = ptradd v9, 32
     v11 = mload v9
@@ -69,25 +69,25 @@ fn @direct(arg0: i1) -> i256 [selector=0xa8f96c85, pure, abi_params=[bool], abi_
     v17 = shr v16, 224
     v18 = eq v17, 0x8c379a0
     jumpi v18, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     jump bb6
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v19 = ptrtoint ptr<memory> v13 to i256
     v20 = icall @try_decode_error_message, v19, v14
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6:                                            ; preds = bb4, bb5
     v21 = phi [bb4: v20], [bb5: false]
     jumpi v21, bb7, bb8
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     revert v13, v14
-  bb7:  ; preds = bb6
+  bb7:                                            ; preds = bb6
     v22 = mload v9
     v23 = ptradd v9, 36
     v24 = sub v22, 4
     v25 = make_memory_slice v23, v24
     v26 = abi_decode [bytes], v25
     ret 18
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v6 = returndatasize
     v7 = lt v6, 32
     icall revert_if<tuple_data_too_short>, v7
@@ -107,7 +107,7 @@ fn @attached(arg0: i1) -> i256 [selector=0x42425916, abi_params=[bool], abi_retu
     v4 = extract_value slice<memory>, v2, 1
     v5 = delegatecall v0, 0x1111111111111111111111111111111111111111, v3, v4, 0, 32
     jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v9 = icall returndata_bytes<>
     v10 = ptradd v9, 32
     v11 = mload v9
@@ -119,25 +119,25 @@ fn @attached(arg0: i1) -> i256 [selector=0x42425916, abi_params=[bool], abi_retu
     v17 = shr v16, 224
     v18 = eq v17, 0x8c379a0
     jumpi v18, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     jump bb6
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v19 = ptrtoint ptr<memory> v13 to i256
     v20 = icall @try_decode_error_message, v19, v14
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6:                                            ; preds = bb4, bb5
     v21 = phi [bb4: v20], [bb5: false]
     jumpi v21, bb7, bb8
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     revert v13, v14
-  bb7:  ; preds = bb6
+  bb7:                                            ; preds = bb6
     v22 = mload v9
     v23 = ptradd v9, 36
     v24 = sub v22, 4
     v25 = make_memory_slice v23, v24
     v26 = abi_decode [bytes], v25
     ret 19
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v6 = returndatasize
     v7 = lt v6, 32
     icall revert_if<tuple_data_too_short>, v7
@@ -157,7 +157,7 @@ fn @attachedValue(arg0: i256, arg1: i1) -> i256 [selector=0xcece4c7f, pure, abi_
     v4 = extract_value slice<memory>, v2, 1
     v5 = delegatecall v0, 0x1111111111111111111111111111111111111111, v3, v4, 0, 32
     jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v9 = icall returndata_bytes<>
     v10 = ptradd v9, 32
     v11 = mload v9
@@ -169,25 +169,25 @@ fn @attachedValue(arg0: i256, arg1: i1) -> i256 [selector=0xcece4c7f, pure, abi_
     v17 = shr v16, 224
     v18 = eq v17, 0x8c379a0
     jumpi v18, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     jump bb6
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v19 = ptrtoint ptr<memory> v13 to i256
     v20 = icall @try_decode_error_message, v19, v14
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6:                                            ; preds = bb4, bb5
     v21 = phi [bb4: v20], [bb5: false]
     jumpi v21, bb7, bb8
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     revert v13, v14
-  bb7:  ; preds = bb6
+  bb7:                                            ; preds = bb6
     v22 = mload v9
     v23 = ptradd v9, 36
     v24 = sub v22, 4
     v25 = make_memory_slice v23, v24
     v26 = abi_decode [bytes], v25
     ret 20
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v6 = returndatasize
     v7 = lt v6, 32
     icall revert_if<tuple_data_too_short>, v7
@@ -207,17 +207,17 @@ fn @emptyCode() [selector=0xddb3636e, pure, abi_params=[], abi_returns=[], abi_r
     icall revert_if<target_contract_has_no_code>, v2
     v3 = delegatecall v0, 0x1111111111111111111111111111111111111111, 28, 4, 0, 0
     jumpi v3, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     icall require<short_string>, false, 6, 0x6361756768740000000000000000000000000000000000000000000000000000
     invalid
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     ret
 }
 
@@ -226,23 +226,23 @@ fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
     v0 = lt arg1, 68
     v1 = eq v0, false
     jumpi v1, bb1, bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v2 = add arg0, 4
     v3 = mload v2
     v4 = sub arg1, 36
-    v5 = gt v3, v4
+    v5 = lt v4, v3
     jumpi v5, bb3, bb2
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v6 = add v2, v3
     v7 = mload v6
     v8 = add v3, 36
     v9 = gt v7, 0xffffffffffffffff
     v10 = sub arg1, v8
-    v11 = gt v7, v10
+    v11 = lt v10, v7
     v12 = or v9, v11
     v13 = zext i1 v12 to i256
     v14 = eq v13, 0
     ret v14
-  bb3:  ; preds = bb0, bb1
+  bb3:                                            ; preds = bb0, bb1
     ret false
 }

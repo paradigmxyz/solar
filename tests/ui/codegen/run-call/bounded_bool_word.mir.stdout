@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/run-call/bounded_bool_word.sol:BoundedBoolWord ===
+; === ROOT/tests/ui/codegen/run-call/bounded_bool_word.sol:BoundedBoolWord ===
 @module BoundedBoolWord
 ; function fromWord(uint256 word) external pure returns (bool flag) [selector 0xe49449e9]
 fn @fromWord(arg0: i256) -> i256 [selector=0xe49449e9, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {

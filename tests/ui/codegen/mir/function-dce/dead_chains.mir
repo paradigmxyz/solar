@@ -19,7 +19,7 @@ fn @entry() [entry] {
 
 // CHECK-LABEL: {{^[ +].*}}fn @run{{[( ]}}
 // CHECK: icall @middle
-fn @run() [selector=0xa444f5e9, abi_wrapper] {
+fn @run() {
   bb0:
     v0 = calldataload 4
     v1 = icall @middle, v0

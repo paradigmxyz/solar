@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/emit/disasm.evmir (before none) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/emit/disasm.evmir (after none) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/emit/disasm.evmir (before none) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/emit/disasm.evmir (after none) ===
   @module program
   bb0:
     push 1
@@ -7,7 +7,7 @@
     sstore
     stop
   
-// === program (runtime) ===
+; === program (runtime) ===
 PUSH1 0x01
 PUSH0
 SSTORE

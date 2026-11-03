@@ -1,6 +1,6 @@
-// === ROOT/tests/ui/codegen/lowering/cold_phi_inputs.sol:ColdPhiInputs (runtime) ===
+; === ROOT/tests/ui/codegen/lowering/cold_phi_inputs.sol:ColdPhiInputs (runtime) ===
 @module ColdPhiInputs_runtime
-bb0:  ; runtime dispatch entry + function latchRevert(uint256 a, uint256 n) external pure returns (uint256 s) [selector 0x76f4ddf4]
+bb0:                                              ; runtime dispatch entry + function latchRevert(uint256 a, uint256 n) external pure returns (uint256 s) [selector 0x76f4ddf4]
   callvalue
   push bb3
   jumpi
@@ -52,9 +52,9 @@ bb3 [cold]:
   push 0
   revert
 bb9 [loop]:
-  dup 4
-  dup 3
-  gt
+  dup 2
+  dup 5
+  lt
   iszero
   push bb6
   jumpi

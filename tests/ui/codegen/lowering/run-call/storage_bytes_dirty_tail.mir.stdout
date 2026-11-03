@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_dirty_tail.sol:StorageBytesDirtyTail ===
+; === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_dirty_tail.sol:StorageBytesDirtyTail ===
 @module StorageBytesDirtyTail
 @types
   struct0: {i256, i256, i256}
@@ -27,7 +27,7 @@ fn @storeLong() -> struct0 [selector=0xc4a6ec73, abi_params=[], abi_returns=[wor
     v10 = and v9, 1
     v11 = eq v10, 1
     v12 = sub 0, v10
-    v13 = or 127, v12
+    v13 = or v12, 127
     v14 = shr v9, 1
     v15 = and v14, v13
     v16 = insert_value struct0, undef struct0, 0, v6
@@ -53,7 +53,7 @@ fn @storeShort() -> struct1 [selector=0x5296e6c1, abi_params=[], abi_returns=[wo
     v6 = and v5, 1
     v7 = eq v6, 1
     v8 = sub 0, v6
-    v9 = or 127, v8
+    v9 = or v8, 127
     v10 = shr v5, 1
     v11 = and v10, v9
     v12 = insert_value struct1, undef struct1, 0, v4

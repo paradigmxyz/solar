@@ -1,10 +1,10 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_bytes_array_wrapped_offset.sol:AbiCalldataBytesArrayWrappedOffset ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_bytes_array_wrapped_offset.sol:AbiCalldataBytesArrayWrappedOffset ===
 @module AbiCalldataBytesArrayWrappedOffset
 ; function first(bytes[] calldata values) external pure returns (bytes memory) [selector 0xcf452bd8]
 fn @first(arg0: slice<calldata>) -> ptr<memory> [selector=0xcf452bd8, pure, abi_params=[array<_, bytes>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
-    v1 = lt 0, v0
+    v1 = gt v0, 0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = extract_value slice<calldata>, arg0, 0
@@ -30,7 +30,7 @@ fn @first(arg0: slice<calldata>) -> ptr<memory> [selector=0xcf452bd8, pure, abi_
     icall revert_if<invalid_calldata_tail_length>, v20
     v21 = add v11, 32
     v22 = sub v19, v18
-    v23 = sgt v21, v22
+    v23 = slt v22, v21
     icall revert_if<calldata_tail_too_short>, v23
     v24 = inttoptr i256 v21 to ptr<calldata>
     v25 = make_calldata_slice v24, v18
@@ -41,7 +41,7 @@ fn @first(arg0: slice<calldata>) -> ptr<memory> [selector=0xcf452bd8, pure, abi_
     icall revert_if<invalid_calldata_tail_length>, v29
     v30 = sub v28, v27
     v31 = ptrtoint ptr<calldata> v26 to i256
-    v32 = sgt v31, v30
+    v32 = slt v30, v31
     icall revert_if<calldata_tail_too_short>, v32
     v33 = extract_value slice<calldata>, v25, 1
     v34 = add v33, 31

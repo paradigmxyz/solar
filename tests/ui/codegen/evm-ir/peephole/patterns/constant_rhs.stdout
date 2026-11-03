@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/constant_rhs.evmir (before peephole) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/constant_rhs.evmir (after peephole) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/constant_rhs.evmir (before peephole) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/constant_rhs.evmir (after peephole) ===
   @module module
   bb0:
     push 2

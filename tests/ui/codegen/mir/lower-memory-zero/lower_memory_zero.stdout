@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lower-memory-zero/lower_memory_zero.mir (before lower-memory-zero) ===
-+ // === ROOT/tests/ui/codegen/mir/lower-memory-zero/lower_memory_zero.mir (after lower-memory-zero) ===
+- ; === ROOT/tests/ui/codegen/mir/lower-memory-zero/lower_memory_zero.mir (before lower-memory-zero) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-memory-zero/lower_memory_zero.mir (after lower-memory-zero) ===
   @module LowerMemoryZero
   fn @zero(arg0: i256, arg1: i256) {
     bb0:

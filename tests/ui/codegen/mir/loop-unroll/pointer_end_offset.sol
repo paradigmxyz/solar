@@ -19,7 +19,7 @@ contract PointerEndOffset {
     // CHECK-NEXT: [[BIT:v[0-9]+]] = and {{v[0-9]+}}, 1
     // CHECK-NEXT: [[ODD:v[0-9]+]] = ne [[BIT]], 0
     // CHECK-NEXT: jumpi [[ODD]], {{bb[0-9]+}}, {{bb[0-9]+}}
-    // CHECK: ne {{v[0-9]+}}, [[END]]
+    // CHECK: ne [[END]], {{v[0-9]+}}
     function sumWords(uint256[] memory a) external pure returns (uint256 s) {
         assembly {
             let p := add(a, 32)

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/egraph/lossless_shifts_runtime.sol:LosslessShifts ===
+; === ROOT/tests/ui/codegen/mir/egraph/lossless_shifts_runtime.sol:LosslessShifts ===
 @module LosslessShifts
 @types
   struct0: {i256, i256, i256, i256}
@@ -18,7 +18,7 @@ fn @narrow(arg0: i256, arg1: i256) -> struct0 [selector=0x6945dd4d, pure, abi_pa
     v6 = zext i1 v5 to i256
     v7 = lt v1, v3
     v8 = zext i1 v7 to i256
-    v9 = gt v1, v3
+    v9 = lt v3, v1
     v10 = zext i1 v9 to i256
     v11 = insert_value struct0, undef struct0, 0, v4
     v12 = insert_value struct0, v11, 1, v6
@@ -38,11 +38,11 @@ fn @aligned(arg0: i256) -> struct1 [selector=0x86ae3e38, pure, abi_params=[uint2
     v5 = zext i1 v4 to i256
     v6 = gt v1, 0x700000000000000000000000000000000000000000000000000000000000000
     v7 = zext i1 v6 to i256
-    v8 = eq 0x700000000000000000000000000000000000000000000000000000000000000, v1
+    v8 = eq v1, 0x700000000000000000000000000000000000000000000000000000000000000
     v9 = zext i1 v8 to i256
-    v10 = lt 0x700000000000000000000000000000000000000000000000000000000000000, v1
+    v10 = gt v1, 0x700000000000000000000000000000000000000000000000000000000000000
     v11 = zext i1 v10 to i256
-    v12 = gt 0x700000000000000000000000000000000000000000000000000000000000000, v1
+    v12 = lt v1, 0x700000000000000000000000000000000000000000000000000000000000000
     v13 = zext i1 v12 to i256
     v14 = insert_value struct1, undef struct1, 0, v3
     v15 = insert_value struct1, v14, 1, v5
@@ -87,7 +87,7 @@ fn @signedCompare(arg0: i256, arg1: i256) -> struct3 [selector=0xd094ad81, pure,
     v3 = shl v2, 248
     v4 = slt v1, v3
     v5 = zext i1 v4 to i256
-    v6 = sgt v1, v3
+    v6 = slt v3, v1
     v7 = zext i1 v6 to i256
     v8 = insert_value struct3, undef struct3, 0, v5
     v9 = insert_value struct3, v8, 1, v7
@@ -145,7 +145,7 @@ fn @greater(arg0: i256, arg1: i256) -> i256 [selector=0x71343515, pure, abi_para
     v1 = shl v0, 248
     v2 = byte 31, arg0
     v3 = shl v2, 248
-    v4 = gt v3, v1
+    v4 = lt v1, v3
     v5 = zext i1 v4 to i256
     ret v5
 }

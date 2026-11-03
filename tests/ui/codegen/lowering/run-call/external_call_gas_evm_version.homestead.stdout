@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/external_call_gas_evm_version.sol:CallGasCallee ===
+; === ROOT/tests/ui/codegen/lowering/run-call/external_call_gas_evm_version.sol:CallGasCallee ===
 @module CallGasCallee
 @types
   struct0: {i256, i256}
@@ -67,7 +67,7 @@ fn @agg() -> ptr<memory> [selector=0xf5e34bfa, pure, abi_params=[], abi_returns=
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/external_call_gas_evm_version.sol:CallGasCalls ===
+; === ROOT/tests/ui/codegen/lowering/run-call/external_call_gas_evm_version.sol:CallGasCalls ===
 @module CallGasCalls
 @types
   struct0: {i256, i256}
@@ -85,9 +85,9 @@ fn @noReturn() -> i256 [selector=0x31794254, abi_params=[], abi_returns=[word], 
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
     v5 = extract_value slice<memory>, v4, 0
     v6 = extract_value slice<memory>, v4, 1
@@ -100,9 +100,9 @@ fn @noReturn() -> i256 [selector=0x31794254, abi_params=[], abi_returns=[word], 
     v12 = zext i160 v2 to i256
     v13 = call v11, v12, 0, v5, v6, v5, 0
     jumpi v13, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     ret 1
 }
 
@@ -115,9 +115,9 @@ fn @withReturn() -> i256 [selector=0x2149184b, abi_params=[], abi_returns=[word]
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = fmp
     v5 = ptrtoint ptr<memory> v4 to i256
     v6 = add v5, 32
@@ -134,9 +134,9 @@ fn @withReturn() -> i256 [selector=0x2149184b, abi_params=[], abi_returns=[word]
     v15 = zext i160 v2 to i256
     v16 = call v14, v15, 0, v8, v9, v8, 32
     jumpi v16, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v17 = mload v8
     ret v17
 }
@@ -150,9 +150,9 @@ fn @withValue() -> i256 [selector=0xd6b69802, abi_params=[], abi_returns=[word],
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = fmp
     v5 = ptrtoint ptr<memory> v4 to i256
     v6 = add v5, 32
@@ -169,9 +169,9 @@ fn @withValue() -> i256 [selector=0xd6b69802, abi_params=[], abi_returns=[word],
     v15 = zext i160 v2 to i256
     v16 = call v14, v15, 0, v8, v9, v8, 32
     jumpi v16, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v17 = mload v8
     ret v17
 }
@@ -185,9 +185,9 @@ fn @twoReturns() -> i256 [selector=0xf7f4979a, abi_params=[], abi_returns=[word]
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = fmp
     v5 = ptrtoint ptr<memory> v4 to i256
     v6 = add v5, 64
@@ -204,9 +204,9 @@ fn @twoReturns() -> i256 [selector=0xf7f4979a, abi_params=[], abi_returns=[word]
     v15 = zext i160 v2 to i256
     v16 = call v14, v15, 0, v8, v9, v8, 64
     jumpi v16, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v17 = mload v8
     v18 = ptrtoint ptr<memory> v8 to i256
     v19 = add v18, 32
@@ -228,9 +228,9 @@ fn @eightReturns() -> i256 [selector=0x67b0b213, abi_params=[], abi_returns=[wor
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = fmp
     v5 = ptrtoint ptr<memory> v4 to i256
     v6 = add v5, 256
@@ -247,9 +247,9 @@ fn @eightReturns() -> i256 [selector=0x67b0b213, abi_params=[], abi_returns=[wor
     v15 = zext i160 v2 to i256
     v16 = call v14, v15, 0, v8, v9, v8, 256
     jumpi v16, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v17 = mload v8
     v18 = ptrtoint ptr<memory> v8 to i256
     v19 = add v18, 32
@@ -307,9 +307,9 @@ fn @aggregate() -> i256 [selector=0xaf36778b, abi_params=[], abi_returns=[word],
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = alloc 64
     v5 = fmp
     v6 = ptrtoint ptr<memory> v5 to i256
@@ -327,9 +327,9 @@ fn @aggregate() -> i256 [selector=0xaf36778b, abi_params=[], abi_returns=[word],
     v16 = zext i160 v2 to i256
     v17 = call v15, v16, 0, v9, v10, v9, 64
     jumpi v17, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     mcopy v4, v9, 64
     v18 = make_memory_slice v4, 64
     v19 = abi_decode [array<2, uint256>], v18
@@ -355,17 +355,17 @@ fn @bare() -> i256 [selector=0x8095dd0b, abi_params=[], abi_returns=[word], abi_
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = abi_encode [], object, selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
     v5 = address_call v2, v4
     jumpi v5, bb3, bb4
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     jump bb5
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     jump bb5
-  bb5:  ; preds = bb3, bb4
+  bb5:                                            ; preds = bb3, bb4
     v6 = phi [bb3: i8 1], [bb4: i8 0]
     v7 = zext i8 v6 to i256
     ret v7
@@ -380,17 +380,17 @@ fn @sendZero() -> i256 [selector=0xe857d88b, abi_params=[], abi_returns=[word], 
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = icall send<>, v2, 0
     v5 = ne v4, 0
     jumpi v5, bb3, bb4
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     jump bb5
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     jump bb5
-  bb5:  ; preds = bb3, bb4
+  bb5:                                            ; preds = bb3, bb4
     v6 = phi [bb3: i8 1], [bb4: i8 0]
     v7 = zext i8 v6 to i256
     ret v7

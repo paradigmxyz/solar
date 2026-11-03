@@ -54,8 +54,7 @@ impl<'sess, 'ast> AstValidator<'sess, 'ast> {
     fn check_single_statement_variable_declaration(&self, stmt: &ast::Stmt<'_>) {
         if matches!(stmt.kind, ast::StmtKind::DeclSingle(..) | ast::StmtKind::DeclMulti(..)) {
             self.dcx()
-                .err("variable declarations can only be used inside blocks")
-                .span(stmt.span)
+                .err_at(stmt.span, "variable declarations can only be used inside blocks")
                 .help("wrap the statement in a block (`{ ... }`)")
                 .emit();
         }
@@ -72,8 +71,7 @@ impl<'sess, 'ast> AstValidator<'sess, 'ast> {
         for help in number_literal_underscore_errors(lit.symbol.as_str()) {
             let _ = self
                 .dcx()
-                .err("invalid use of underscores in number literal")
-                .span(lit.span)
+                .err_at(lit.span, "invalid use of underscores in number literal")
                 .help(help)
                 .emit();
         }
@@ -92,8 +90,7 @@ impl<'sess, 'ast> AstValidator<'sess, 'ast> {
 
         if lit.symbol.as_str().starts_with("0x") {
             self.dcx()
-                .err("hexadecimal numbers cannot be used with unit denominations")
-                .span(lit.span)
+                .err_at(lit.span, "hexadecimal numbers cannot be used with unit denominations")
                 .help("you can use an expression of the form \"0x1234 * 1 days\" instead")
                 .emit();
         }
@@ -111,10 +108,22 @@ impl<'sess, 'ast> AstValidator<'sess, 'ast> {
         let checksummed = addr.to_checksum_buffer(None);
         let digits = lit.symbol.as_str().bytes().filter(|&b| b != b'_');
         if !digits.eq(checksummed.as_str().bytes()) {
+            // Keep the literal's underscores in the suggestion.
+            let mut correct = checksummed.as_str().chars();
+            let suggestion = lit
+                .symbol
+                .as_str()
+                .chars()
+                .map(|c| if c == '_' { c } else { correct.next().unwrap_or(c) })
+                .collect::<String>();
             self.dcx()
-                .err("invalid checksummed address")
-                .span(lit.span)
-                .help(format!("correct checksummed address: \"{checksummed}\""))
+                .err_code_at(lit.span, error_code!(9429), "invalid checksummed address")
+                .span_suggestion(
+                    lit.span,
+                    "use the correctly checksummed address",
+                    suggestion,
+                    solar_interface::diagnostics::Applicability::MachineApplicable,
+                )
                 .note("if this is not used as an address, please prepend \"00\"")
                 .emit();
         }
@@ -131,25 +140,31 @@ impl<'sess, 'ast> AstValidator<'sess, 'ast> {
         match *visibility {
             ast::Visibility::Public if is_abstract => {
                 self.dcx()
-                    .err("abstract contracts cannot have public constructors")
-                    .code(error_code!(8295))
-                    .span(visibility.span)
+                    .err_code_at(
+                        visibility.span,
+                        error_code!(8295),
+                        "abstract contracts cannot have public constructors",
+                    )
                     .help("remove the `public` keyword")
                     .emit();
             }
             ast::Visibility::Internal if !is_abstract => {
                 self.dcx()
-                    .err("non-abstract contracts cannot have internal constructors")
-                    .code(error_code!(1845))
-                    .span(visibility.span)
+                    .err_code_at(
+                        visibility.span,
+                        error_code!(1845),
+                        "non-abstract contracts cannot have internal constructors",
+                    )
                     .help("remove the `internal` keyword and make the contract `abstract`")
                     .emit();
             }
             _ => {
                 self.dcx()
-                    .warn("visibility for constructor is ignored")
-                    .code(error_code!(2462))
-                    .span(visibility.span)
+                    .warn_code_at(
+                        visibility.span,
+                        error_code!(2462),
+                        "visibility for constructor is ignored",
+                    )
                     .note(
                         "to make the contract non-deployable, marking it `abstract` is sufficient",
                     )
@@ -165,7 +180,7 @@ impl<'sess, 'ast> AstValidator<'sess, 'ast> {
             YulForPart::Post => (error_code!(2461), "in for-loop post block is not allowed"),
             YulForPart::Body => return,
         };
-        self.dcx().err(format!("keyword `{kw}` {msg}")).code(code).span(span).emit();
+        self.dcx().emit_err_code(span, code, format!("keyword `{kw}` {msg}"));
     }
 
     fn visit_yul_block_in(
@@ -190,9 +205,11 @@ impl<'sess, 'ast> AstValidator<'sess, 'ast> {
                 && name == key_name
             {
                 self.dcx()
-                    .err(format!("conflicting parameter name `{key_name}` in mapping"))
-                    .code(error_code!(1809))
-                    .span(span)
+                    .err_code_at(
+                        span,
+                        error_code!(1809),
+                        format!("conflicting parameter name `{key_name}` in mapping"),
+                    )
                     .span_note(name.span, "the name is reused here")
                     .emit();
             }
@@ -256,7 +273,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                         "source file requires different compiler version \
                          (current compiler is {version})"
                     );
-                    self.dcx().warn(msg).code(error_code!(5333)).span(self.item_span).emit();
+                    self.dcx().emit_warn_code(self.item_span, error_code!(5333), msg);
                 }
             }
             ast::PragmaTokens::Custom(name, value) => {
@@ -265,9 +282,11 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                 match (name, value) {
                     ("abicoder", Some("v1")) => {
                         self.dcx()
-                            .warn("ABI coder v1 is not supported")
-                            .code(error_code!(9511))
-                            .span(self.item_span)
+                            .warn_code_at(
+                                self.item_span,
+                                error_code!(9511),
+                                "ABI coder v1 is not supported",
+                            )
                             .note("ABI coder v2 is used instead")
                             .help("remove the pragma or use `pragma abicoder v2`")
                             .emit();
@@ -344,11 +363,11 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
             ast::yul::StmtKind::Break => self.check_yul_break_continue(stmt.span, "break"),
             ast::yul::StmtKind::Continue => self.check_yul_break_continue(stmt.span, "continue"),
             ast::yul::StmtKind::Leave if !self.in_yul_function => {
-                self.dcx()
-                    .err("keyword `leave` can only be used inside a function")
-                    .code(error_code!(8149))
-                    .span(stmt.span)
-                    .emit();
+                self.dcx().emit_err_code(
+                    stmt.span,
+                    error_code!(8149),
+                    "keyword `leave` can only be used inside a function",
+                );
             }
             ast::yul::StmtKind::For(ast::yul::StmtFor { init, cond, step, body }) => {
                 self.visit_yul_block_in(YulForPart::Init, init)?;
@@ -358,11 +377,11 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
             }
             ast::yul::StmtKind::FunctionDef(function) => {
                 if self.yul_for_part == YulForPart::Init {
-                    self.dcx()
-                        .err("functions cannot be defined inside a for-loop init block")
-                        .code(error_code!(3441))
-                        .span(function.name.span)
-                        .emit();
+                    self.dcx().emit_err_code(
+                        function.name.span,
+                        error_code!(3441),
+                        "functions cannot be defined inside a for-loop init block",
+                    );
                 }
                 let prev = (
                     std::mem::replace(&mut self.yul_for_part, YulForPart::None),
@@ -415,9 +434,8 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                 && func_name == contract.name
             {
                 self.dcx()
-                            .err("functions are not allowed to have the same name as the contract")
+                            .err_at(func_name.span, "functions are not allowed to have the same name as the contract")
                             .note("if you intend this to be a constructor, use `constructor(...) { ... }` to define it")
-                            .span(func_name.span)
                             .emit();
             }
             if contract.kind.is_interface() && !func.header.modifiers.is_empty() {
@@ -447,8 +465,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
             }
         {
             self.dcx()
-                .err("no visibility specified")
-                .span(self.item_span)
+                .err_at(self.item_span, "no visibility specified")
                 .help(format!("add `{suggested_visibility}` to the declaration"))
                 .emit();
         }
@@ -460,16 +477,15 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
             // Checked here rather than in `typeck` because a modifier invocation on a free
             // function never resolves, so it is never lowered into the HIR function.
             if !func.header.modifiers.is_empty() {
-                self.dcx()
-                    .err("free functions cannot have modifiers")
-                    .code(error_code!(5811))
-                    .span(self.item_span)
-                    .emit();
+                self.dcx().emit_err_code(
+                    self.item_span,
+                    error_code!(5811),
+                    "free functions cannot have modifiers",
+                );
             }
             if let Some(visibility) = func.header.visibility {
                 self.dcx()
-                    .err("free functions cannot have visibility")
-                    .span(self.item_span)
+                    .err_at(self.item_span, "free functions cannot have visibility")
                     .help(format!("remove `{}` from the declaration", *visibility))
                     .emit();
             }
@@ -552,8 +568,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
             for ret in f.returns().iter() {
                 if let Some(ret_name) = ret.name {
                     self.dcx()
-                        .err("return parameters in function types may not be named")
-                        .span(ret.span)
+                        .err_at(ret.span, "return parameters in function types may not be named")
                         .span_suggestion(
                             ret_name.span.with_lo(ret.ty.span.hi()),
                             format!("remove `{ret_name}`"),
@@ -566,21 +581,21 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
             if let Some(vis) = f.visibility
                 && matches!(*vis, ast::Visibility::Private | ast::Visibility::Public)
             {
-                self.dcx()
-                    .err("invalid visibility, can only be `external` or `internal`")
-                    .code(error_code!(6012))
-                    .span(vis.span)
-                    .emit();
+                self.dcx().emit_err_code(
+                    vis.span,
+                    error_code!(6012),
+                    "invalid visibility, can only be `external` or `internal`",
+                );
             }
             if let Some(state_mutability) = f.state_mutability
                 && state_mutability.is_payable()
                 && matches!(f.visibility(), None | Some(ast::Visibility::Internal))
             {
-                self.dcx()
-                    .err("only external function types can be payable")
-                    .code(error_code!(7415))
-                    .span(state_mutability.span)
-                    .emit();
+                self.dcx().emit_err_code(
+                    state_mutability.span,
+                    error_code!(7415),
+                    "only external function types can be payable",
+                );
             }
         } else if let ast::TypeKind::Mapping(mapping) = &ty.kind {
             self.check_mapping_names(ty.span, mapping);

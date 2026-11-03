@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/lvalue_evaluation_order.sol:LValueEvaluationOrder ===
+; === ROOT/tests/ui/codegen/lowering/run-call/lvalue_evaluation_order.sol:LValueEvaluationOrder ===
 @module LValueEvaluationOrder
 @types
   struct0: {i256, i256, i256}
@@ -42,13 +42,13 @@ fn @compound() -> struct0 [selector=0xf69e2046, abi_params=[], abi_returns=[word
     sstore v6, v8 !metadata(storage=symbolic(v6))
     v9 = sload 1 !metadata(storage=slot(1))
     v10 = sload 0 !metadata(storage=slot(0))
-    v11 = lt 0, v10
+    v11 = gt v10, 0
     v12 = eq v11, false
     icall panic_if<0x32>, v12
     v13 = storage_array_data_slot 0
     v14 = sload v13 !metadata(storage=symbolic(v13))
     v15 = sload 0 !metadata(storage=slot(0))
-    v16 = lt 1, v15
+    v16 = gt v15, 1
     v17 = eq v16, false
     icall panic_if<0x32>, v17
     v18 = storage_array_data_slot 0
@@ -77,13 +77,13 @@ fn @postIncrement() -> struct0 [selector=0x016e4842, abi_params=[], abi_returns=
     sstore v6, v8 !metadata(storage=symbolic(v6))
     v9 = sload 1 !metadata(storage=slot(1))
     v10 = sload 0 !metadata(storage=slot(0))
-    v11 = lt 0, v10
+    v11 = gt v10, 0
     v12 = eq v11, false
     icall panic_if<0x32>, v12
     v13 = storage_array_data_slot 0
     v14 = sload v13 !metadata(storage=symbolic(v13))
     v15 = sload 0 !metadata(storage=slot(0))
-    v16 = lt 1, v15
+    v16 = gt v15, 1
     v17 = eq v16, false
     icall panic_if<0x32>, v17
     v18 = storage_array_data_slot 0
@@ -118,9 +118,9 @@ fn @pushSideEffect() -> struct0 [selector=0x0753e3a7, abi_params=[], abi_returns
     v2 = zext i160 v0 to i256
     v3 = call v1, v2, 0, 28, 4, 0, 32
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = returndatasize
     v5 = lt v4, 32
     icall revert_if<tuple_data_too_short>, v5
@@ -135,13 +135,13 @@ fn @pushSideEffect() -> struct0 [selector=0x0753e3a7, abi_params=[], abi_returns
     sstore 2, v9 !metadata(storage=slot(2))
     v12 = sload 2 !metadata(storage=slot(2))
     v13 = sload 2 !metadata(storage=slot(2))
-    v14 = lt 0, v13
+    v14 = gt v13, 0
     v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = storage_array_data_slot 2
     v17 = sload v16 !metadata(storage=symbolic(v16))
     v18 = sload 2 !metadata(storage=slot(2))
-    v19 = lt 1, v18
+    v19 = gt v18, 1
     v20 = eq v19, false
     icall panic_if<0x32>, v20
     v21 = storage_array_data_slot 2

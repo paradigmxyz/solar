@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/cse/cse_basic.mir (before cse) ===
-+ // === ROOT/tests/ui/codegen/mir/cse/cse_basic.mir (after cse) ===
+- ; === ROOT/tests/ui/codegen/mir/cse/cse_basic.mir (before cse) ===
++ ; === ROOT/tests/ui/codegen/mir/cse/cse_basic.mir (after cse) ===
   @module CseBasic
   fn @redundant_add(arg0: i256, arg1: i256) -> i256 {
     bb0:

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/folded_operand_spills.sol:FoldedOperandSpills ===
+; === ROOT/tests/ui/codegen/lowering/run-call/folded_operand_spills.sol:FoldedOperandSpills ===
 @module FoldedOperandSpills
 ; function constantCopy(uint256 a, uint256 flag, uint256 d) external pure returns (bytes32 result) [selector 0xd4b4046e]
 fn @constantCopy(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xd4b4046e, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -24,14 +24,14 @@ fn @constantCopy(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xd4b4046
     calldatacopy arg2, 0, 64
     v17 = ne arg1, 0
     jumpi v17, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v18 = icall @_copy, 0x400
     v19 = mload v18
     v20 = shl v19, 0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v21 = phi [bb1: v20], [bb2: 0]
     v22 = xor v0, v1
     v23 = xor v22, v2
@@ -49,7 +49,7 @@ fn @constantCopy(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xd4b4046
     v35 = xor v34, v14
     v36 = xor v35, v15
     v37 = xor v36, v16
-    v38 = xor v21, v37
+    v38 = xor v37, v21
     ret v38
 }
 
@@ -79,14 +79,14 @@ fn @xoredCopy(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x472d6876, 
     calldatacopy v18, 0, 64
     v19 = ne arg1, 0
     jumpi v19, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v20 = icall @_copy, 0x400
     v21 = mload v20
     v22 = shl v21, 0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v23 = phi [bb1: v22], [bb2: 0]
     v24 = xor v0, v1
     v25 = xor v24, v2
@@ -104,7 +104,7 @@ fn @xoredCopy(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x472d6876, 
     v37 = xor v36, v14
     v38 = xor v37, v15
     v39 = xor v38, v16
-    v40 = xor v23, v39
+    v40 = xor v39, v23
     ret v40
 }
 
@@ -131,14 +131,14 @@ fn @passedPointer(arg0: i256, arg1: i256) -> i256 [selector=0xfbc52b73, pure, ab
     icall @_setPointer, 128
     v17 = ne arg1, 0
     jumpi v17, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v18 = icall @_copy, 0x400
     v19 = mload v18
     v20 = shl v19, 0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v21 = phi [bb1: v20], [bb2: 0]
     v22 = xor v0, v1
     v23 = xor v22, v2
@@ -156,7 +156,7 @@ fn @passedPointer(arg0: i256, arg1: i256) -> i256 [selector=0xfbc52b73, pure, ab
     v35 = xor v34, v14
     v36 = xor v35, v15
     v37 = xor v36, v16
-    v38 = xor v21, v37
+    v38 = xor v37, v21
     ret v38
 }
 
@@ -183,14 +183,14 @@ fn @highPointer(arg0: i256, arg1: i256) -> i256 [selector=0x90af289d, pure, abi_
     icall @_setPointer, 0x1000
     v17 = ne arg1, 0
     jumpi v17, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v18 = icall @_copy, 0x400
     v19 = mload v18
     v20 = shl v19, 0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v21 = phi [bb1: v20], [bb2: 0]
     v22 = xor v0, v1
     v23 = xor v22, v2
@@ -208,7 +208,7 @@ fn @highPointer(arg0: i256, arg1: i256) -> i256 [selector=0x90af289d, pure, abi_
     v35 = xor v34, v14
     v36 = xor v35, v15
     v37 = xor v36, v16
-    v38 = xor v21, v37
+    v38 = xor v37, v21
     ret v38
 }
 
@@ -237,14 +237,14 @@ fn @raisedPointer(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x630f32
     icall @_setPointer, 0x2080
     v18 = ne arg1, 0
     jumpi v18, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v19 = icall @_copy, 0x400
     v20 = mload v19
     v21 = shl v20, 0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v22 = phi [bb1: v21], [bb2: 0]
     v23 = xor v0, v1
     v24 = xor v23, v2
@@ -262,7 +262,7 @@ fn @raisedPointer(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x630f32
     v36 = xor v35, v14
     v37 = xor v36, v15
     v38 = xor v37, v16
-    v39 = xor v22, v38
+    v39 = xor v38, v22
     ret v39
 }
 
@@ -292,14 +292,14 @@ fn @inlinedReturndataCopy(arg0: i256, arg1: i256) -> i256 [selector=0xc8ee4561, 
     icall @_variableCopy, v18, 64
     v19 = ne arg1, 0
     jumpi v19, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v20 = icall @_copy, 0x400
     v21 = mload v20
     v22 = shl v21, 0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v23 = phi [bb1: v22], [bb2: 0]
     v24 = xor v0, v1
     v25 = xor v24, v2
@@ -317,7 +317,7 @@ fn @inlinedReturndataCopy(arg0: i256, arg1: i256) -> i256 [selector=0xc8ee4561, 
     v37 = xor v36, v14
     v38 = xor v37, v15
     v39 = xor v38, v16
-    v40 = xor v23, v39
+    v40 = xor v39, v23
     ret v40
 }
 
@@ -347,14 +347,14 @@ fn @inlinedXorCopy(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x00288
     icall @_variableCopy, v18, 64
     v19 = ne arg1, 0
     jumpi v19, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v20 = icall @_copy, 0x400
     v21 = mload v20
     v22 = shl v21, 0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v23 = phi [bb1: v22], [bb2: 0]
     v24 = xor v0, v1
     v25 = xor v24, v2
@@ -372,7 +372,7 @@ fn @inlinedXorCopy(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x00288
     v37 = xor v36, v14
     v38 = xor v37, v15
     v39 = xor v38, v16
-    v40 = xor v23, v39
+    v40 = xor v39, v23
     ret v40
 }
 
@@ -403,14 +403,14 @@ fn @inlinedMemoryCopy(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x02
     icall @_variableCopy, v18, 64
     v19 = ne arg1, 0
     jumpi v19, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v20 = icall @_copy, 0x400
     v21 = mload v20
     v22 = shl v21, 0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v23 = phi [bb1: v22], [bb2: 0]
     v24 = xor v0, v1
     v25 = xor v24, v2
@@ -428,7 +428,7 @@ fn @inlinedMemoryCopy(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x02
     v37 = xor v36, v14
     v38 = xor v37, v15
     v39 = xor v38, v16
-    v40 = xor v23, v39
+    v40 = xor v39, v23
     ret v40
 }
 
@@ -457,14 +457,14 @@ fn @inlinedByteCopy(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x6192
     icall @_variableCopy, v17, 64
     v18 = ne arg1, 0
     jumpi v18, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v19 = icall @_copy, 0x400
     v20 = mload v19
     v21 = shl v20, 0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v22 = phi [bb1: v21], [bb2: 0]
     v23 = xor v0, v1
     v24 = xor v23, v2
@@ -482,7 +482,7 @@ fn @inlinedByteCopy(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x6192
     v36 = xor v35, v14
     v37 = xor v36, v15
     v38 = xor v37, v16
-    v39 = xor v22, v38
+    v39 = xor v38, v22
     ret v39
 }
 
@@ -508,34 +508,34 @@ fn @inlinedSelectCopy(arg0: i256, arg1: i256) -> i256 [selector=0xb39526b0, pure
     v16 = keccak256_packed (uint256 arg0, uint256 16)
     v17 = gt arg1, 1
     jumpi v17, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v18 = phi [bb1: i8 160], [bb2: i8 128]
     v19 = zext i8 v18 to i256
     icall @_variableCopy, v19, 64
     v20 = gt arg1, 1
     jumpi v20, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb6
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6:                                            ; preds = bb4, bb5
     v21 = phi [bb4: i8 160], [bb5: i8 128]
     v22 = zext i8 v21 to i256
     icall @_variableCopy, v22, 64
     v23 = ne arg1, 0
     jumpi v23, bb7, bb8
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     jump bb9
-  bb7:  ; preds = bb6
+  bb7:                                            ; preds = bb6
     v24 = icall @_copy, 0x400
     v25 = mload v24
     v26 = shl v25, 0
     jump bb9
-  bb9:  ; preds = bb7, bb8
+  bb9:                                            ; preds = bb7, bb8
     v27 = phi [bb7: v26], [bb8: 0]
     v28 = xor v0, v1
     v29 = xor v28, v2
@@ -553,7 +553,7 @@ fn @inlinedSelectCopy(arg0: i256, arg1: i256) -> i256 [selector=0xb39526b0, pure
     v41 = xor v40, v14
     v42 = xor v41, v15
     v43 = xor v42, v16
-    v44 = xor v27, v43
+    v44 = xor v43, v27
     ret v44
 }
 
@@ -581,14 +581,14 @@ fn @farRaisedPointer(arg0: i256, arg1: i256) -> i256 [selector=0x9caab65c, pure,
     icall @_setPointer, 0x1000
     v17 = ne arg1, 0
     jumpi v17, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v18 = icall @_copy, 0x400
     v19 = mload v18
     v20 = shl v19, 0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v21 = phi [bb1: v20], [bb2: 0]
     v22 = xor v0, v1
     v23 = xor v22, v2
@@ -606,7 +606,7 @@ fn @farRaisedPointer(arg0: i256, arg1: i256) -> i256 [selector=0x9caab65c, pure,
     v35 = xor v34, v14
     v36 = xor v35, v15
     v37 = xor v36, v16
-    v38 = xor v21, v37
+    v38 = xor v37, v21
     ret v38
 }
 
@@ -645,11 +645,11 @@ fn @twoPointers(arg0: i256, arg1: i256) -> i256 [selector=0x7c9988a0, pure, abi_
     v20 = icall @_copy, 32
     v21 = eq arg1, 0
     jumpi v21, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v22 = phi [bb1: 0], [bb2: v19]
     v23 = xor v0, v1
     v24 = xor v23, v2
@@ -667,7 +667,7 @@ fn @twoPointers(arg0: i256, arg1: i256) -> i256 [selector=0x7c9988a0, pure, abi_
     v36 = xor v35, v14
     v37 = xor v36, v15
     v38 = xor v37, v16
-    v39 = xor v22, v38
+    v39 = xor v38, v22
     ret v39
 }
 
@@ -695,14 +695,14 @@ fn @nearSpillPointer(arg0: i256, arg1: i256) -> i256 [selector=0xc2786ba1, pure,
     icall @_setPointer, 0x1840
     v17 = ne arg1, 0
     jumpi v17, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v18 = icall @_copy, 0x400
     v19 = mload v18
     v20 = shl v19, 0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v21 = phi [bb1: v20], [bb2: 0]
     v22 = xor v0, v1
     v23 = xor v22, v2
@@ -720,7 +720,7 @@ fn @nearSpillPointer(arg0: i256, arg1: i256) -> i256 [selector=0xc2786ba1, pure,
     v35 = xor v34, v14
     v36 = xor v35, v15
     v37 = xor v36, v16
-    v38 = xor v21, v37
+    v38 = xor v37, v21
     ret v38
 }
 
@@ -747,23 +747,23 @@ fn @comparisonPointer(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xcf
     v17 = calldataload 68
     v18 = ne v17, 0
     jumpi v18, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v19 = phi [bb1: 0x800], [bb2: 128]
     icall @_setPointer, v19
     v20 = ne arg1, 0
     jumpi v20, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb6
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v21 = icall @_copy, 0x400
     v22 = mload v21
     v23 = shl v22, 0
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6:                                            ; preds = bb4, bb5
     v24 = phi [bb4: v23], [bb5: 0]
     v25 = xor v0, v1
     v26 = xor v25, v2
@@ -781,7 +781,7 @@ fn @comparisonPointer(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xcf
     v38 = xor v37, v14
     v39 = xor v38, v15
     v40 = xor v39, v16
-    v41 = xor v24, v40
+    v41 = xor v40, v24
     ret v41
 }
 
@@ -808,24 +808,24 @@ fn @shiftedPointer(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x5035a
     v17 = calldataload 68
     v18 = ne v17, 0
     jumpi v18, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v19 = phi [bb1: 0x2100], [bb2: 0x2000]
     v20 = add v19, 32
     icall @_setPointer, v20
     v21 = ne arg1, 0
     jumpi v21, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb6
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v22 = icall @_copy, 0x400
     v23 = mload v22
     v24 = shl v23, 0
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6:                                            ; preds = bb4, bb5
     v25 = phi [bb4: v24], [bb5: 0]
     v26 = xor v0, v1
     v27 = xor v26, v2
@@ -843,7 +843,7 @@ fn @shiftedPointer(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x5035a
     v39 = xor v38, v14
     v40 = xor v39, v15
     v41 = xor v40, v16
-    v42 = xor v25, v41
+    v42 = xor v41, v25
     ret v42
 }
 
@@ -870,26 +870,26 @@ fn @shiftedCopy(arg0: i256, arg1: i256) -> i256 [selector=0xe8fd2ffe, pure, abi_
     v17 = calldataload 36
     v18 = ne v17, 0
     jumpi v18, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     mstore 0, 7 !metadata(memory=scratch)
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v19 = phi [bb1: 0x800], [bb2: 16]
     v20 = shl v19, 56
     v21 = shr v20, 60
     calldatacopy v21, 0, 512
     v22 = ne arg1, 0
     jumpi v22, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb6
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v23 = icall @_copy, 0x400
     v24 = mload v23
     v25 = shl v24, 0
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6:                                            ; preds = bb4, bb5
     v26 = phi [bb4: v25], [bb5: 0]
     v27 = xor v0, v1
     v28 = xor v27, v2
@@ -907,7 +907,7 @@ fn @shiftedCopy(arg0: i256, arg1: i256) -> i256 [selector=0xe8fd2ffe, pure, abi_
     v40 = xor v39, v14
     v41 = xor v40, v15
     v42 = xor v41, v16
-    v43 = xor v26, v42
+    v43 = xor v42, v26
     ret v43
 }
 
@@ -934,25 +934,25 @@ fn @subtractedCopy(arg0: i256, arg1: i256) -> i256 [selector=0x6e3a8e5c, pure, a
     v17 = calldataload 36
     v18 = ne v17, 0
     jumpi v18, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     mstore 0, 7 !metadata(memory=scratch)
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v19 = phi [bb1: 640], [bb2: 16]
     v20 = sub v19, 512
     calldatacopy v20, 0, 512
     v21 = ne arg1, 0
     jumpi v21, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb6
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v22 = icall @_copy, 0x400
     v23 = mload v22
     v24 = shl v23, 0
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6:                                            ; preds = bb4, bb5
     v25 = phi [bb4: v24], [bb5: 0]
     v26 = xor v0, v1
     v27 = xor v26, v2
@@ -970,7 +970,7 @@ fn @subtractedCopy(arg0: i256, arg1: i256) -> i256 [selector=0x6e3a8e5c, pure, a
     v39 = xor v38, v14
     v40 = xor v39, v15
     v41 = xor v40, v16
-    v42 = xor v25, v41
+    v42 = xor v41, v25
     ret v42
 }
 

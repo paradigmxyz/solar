@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/outline/outline_push.evmir (before outline) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/outline/outline_push.evmir (after outline) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/outline/outline_push.evmir (before outline) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/outline/outline_push.evmir (after outline) ===
   @module module
   bb0:
 +   push bb4

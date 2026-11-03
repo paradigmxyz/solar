@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/storage_gas_observation.sol:StorageGasObservation ===
+; === ROOT/tests/ui/codegen/lowering/run-call/storage_gas_observation.sol:StorageGasObservation ===
 @module StorageGasObservation
 ; function overwrittenStore() external returns (uint256) [selector 0x92d23338]
 fn @overwrittenStore() -> i256 [selector=0x92d23338, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -9,13 +9,13 @@ fn @overwrittenStore() -> i256 [selector=0x92d23338, abi_params=[], abi_returns=
     v2 = checked_sub uint256, v0, v1
     v3 = gt v2, 0x2710
     jumpi v3, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     sstore 0, 3 !metadata(storage=slot(0))
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     sstore 0, 2 !metadata(storage=slot(0))
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v4 = sload 0 !metadata(storage=slot(0))
     ret v4
 }
@@ -31,16 +31,16 @@ fn @forwardedLoad() -> i256 [selector=0x7cfab297, abi_params=[], abi_returns=[wo
     v4 = gt v3, 50
     v5 = eq v4, false
     jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v6 = phi [bb1: 99], [bb2: v1]
     ret v6
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/storage_gas_observation.sol:StorageGasCfgObservation ===
+; === ROOT/tests/ui/codegen/lowering/run-call/storage_gas_observation.sol:StorageGasCfgObservation ===
 @module StorageGasCfgObservation
 ; function diamond(bool observe) external view returns (bool result) [selector 0xdf460a0e]
 fn @diamond(arg0: i256) -> i256 [selector=0xdf460a0e, view, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -48,12 +48,12 @@ fn @diamond(arg0: i256) -> i256 [selector=0xdf460a0e, view, abi_params=[bool], a
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = ne arg0, 0
     jumpi v1, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v2 = gas
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v3 = phi [bb1: v2], [bb2: 0]
     v4 = sload 0 !metadata(storage=slot(0))
     v5 = gas
@@ -65,7 +65,7 @@ fn @diamond(arg0: i256) -> i256 [selector=0xdf460a0e, view, abi_params=[bool], a
     v11 = or v10, v8
     v12 = eq v0, v4
     v13 = zext i1 v12 to i256
-    v14 = and v13, v11
+    v14 = and v11, v13
     ret v14
 }
 
@@ -74,7 +74,7 @@ fn @loop() -> i256 [selector=0xa92100cb, view, abi_params=[], abi_returns=[word<
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v1 = phi [bb0: 1], [bb3: v18]
     v2 = phi [bb0: v0], [bb3: v2]
     v3 = phi [bb0: 0], [bb3: v19]
@@ -83,33 +83,33 @@ fn @loop() -> i256 [selector=0xa92100cb, view, abi_params=[], abi_returns=[word<
     v6 = zext i1 v5 to i256
     v7 = ne v6, 0
     jumpi v7, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     ret v1
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v8 = sload 0 !metadata(storage=slot(0))
     v9 = gas
     v10 = ne v4, 0
     jumpi v10, bb7, bb8
-  bb8:  ; preds = bb4
+  bb8:                                            ; preds = bb4
     jump bb9
-  bb7:  ; preds = bb4
+  bb7:                                            ; preds = bb4
     v11 = sub v3, v9
     v12 = gt v11, 80
     v13 = zext i1 v12 to i256
-    v14 = and v1, v13
+    v14 = and v13, v1
     jump bb9
-  bb9:  ; preds = bb7, bb8
+  bb9:                                            ; preds = bb7, bb8
     v15 = phi [bb7: v14], [bb8: v1]
-    v16 = eq v2, v8
+    v16 = eq v8, v2
     v17 = zext i1 v16 to i256
-    v18 = and v15, v17
+    v18 = and v17, v15
     v19 = gas
     jump bb6
-  bb6:  ; preds = bb9
+  bb6:                                            ; preds = bb9
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v20 = add v4, 1
     jump bb1
 }

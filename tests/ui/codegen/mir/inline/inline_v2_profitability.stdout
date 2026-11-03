@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/inline/inline_v2_profitability.mir (before inline) ===
-+ // === ROOT/tests/ui/codegen/mir/inline/inline_v2_profitability.mir (after inline) ===
+- ; === ROOT/tests/ui/codegen/mir/inline/inline_v2_profitability.mir (before inline) ===
++ ; === ROOT/tests/ui/codegen/mir/inline/inline_v2_profitability.mir (after inline) ===
   @module InlineV2Profitability
   @types
     struct0: {i256, i256}
@@ -13,37 +13,37 @@
 - fn @single_large_callee(arg0: i256) -> i256 {
 -   bb0:
 -     jump bb1
--   bb1:  ; preds = bb0
+-   bb1:                                            ; preds = bb0
       jump bb2
--   bb2:  ; preds = bb1
-+   bb2:  ; preds = bb0
+-   bb2:                                            ; preds = bb1
++   bb2:                                            ; preds = bb0
       jump bb3
-    bb3:  ; preds = bb2
+    bb3:                                            ; preds = bb2
       jump bb4
-    bb4:  ; preds = bb3
+    bb4:                                            ; preds = bb3
       jump bb5
-    bb5:  ; preds = bb4
+    bb5:                                            ; preds = bb4
       jump bb6
-    bb6:  ; preds = bb5
+    bb6:                                            ; preds = bb5
       jump bb7
-    bb7:  ; preds = bb6
+    bb7:                                            ; preds = bb6
       jump bb8
-    bb8:  ; preds = bb7
+    bb8:                                            ; preds = bb7
       jump bb9
-    bb9:  ; preds = bb8
+    bb9:                                            ; preds = bb8
       jump bb10
-    bb10:  ; preds = bb9
+    bb10:                                           ; preds = bb9
       jump bb11
-    bb11:  ; preds = bb10
+    bb11:                                           ; preds = bb10
 -     v0 = add arg0, 1
 -     ret v0
 +     jump bb12
-+   bb12:  ; preds = bb11
++   bb12:                                           ; preds = bb11
 +     jump bb13
-+   bb13:  ; preds = bb12
++   bb13:                                           ; preds = bb12
 +     v1 = add arg0, 1
 +     jump bb1
-+   bb1:  ; preds = bb13
++   bb1:                                            ; preds = bb13
 +     v2 = phi [bb13: v1]
 +     ret v2
   }
@@ -52,11 +52,11 @@
     bb0:
 -     v0 = icall @multi_return_callee, arg0
 +     jump bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v3 = add arg0, 1
 +     v4 = add arg0, 2
 +     jump bb1
-+   bb1:  ; preds = bb2
++   bb1:                                            ; preds = bb2
 +     v5 = phi [bb2: v3]
 +     v6 = phi [bb2: v4]
 +     v7 = internal_frame_addr 160
@@ -87,16 +87,16 @@
 - fn @tiny_stateful_callee(arg0: i256) {
 -   bb0:
 +     jump bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
       sstore 0, arg0
 -     ret
 +     jump bb1
-+   bb1:  ; preds = bb2
++   bb1:                                            ; preds = bb2
 +     jump bb4
-+   bb4:  ; preds = bb1
++   bb4:                                            ; preds = bb1
 +     sstore 0, arg1
 +     jump bb3
-+   bb3:  ; preds = bb4
++   bb3:                                            ; preds = bb4
 +     stop
   }
   
@@ -117,27 +117,27 @@
   fn @large_shared_callee(arg0: i256) -> i256 {
     bb0:
       jump bb1
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       jump bb2
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       jump bb3
-    bb3:  ; preds = bb2
+    bb3:                                            ; preds = bb2
       jump bb4
-    bb4:  ; preds = bb3
+    bb4:                                            ; preds = bb3
       jump bb5
-    bb5:  ; preds = bb4
+    bb5:                                            ; preds = bb4
       jump bb6
-    bb6:  ; preds = bb5
+    bb6:                                            ; preds = bb5
       jump bb7
-    bb7:  ; preds = bb6
+    bb7:                                            ; preds = bb6
       jump bb8
-    bb8:  ; preds = bb7
+    bb8:                                            ; preds = bb7
       jump bb9
-    bb9:  ; preds = bb8
+    bb9:                                            ; preds = bb8
       jump bb10
-    bb10:  ; preds = bb9
+    bb10:                                           ; preds = bb9
       jump bb11
-    bb11:  ; preds = bb10
+    bb11:                                           ; preds = bb10
       v0 = add arg0, 1
       ret v0
   }

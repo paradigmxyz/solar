@@ -59,11 +59,11 @@ fn @overflow(arg0: i256) -> i256 {
 // A variable shift computes its factor with `exp`, shared by shifts of one amount in a block.
 // GAS-LABEL: fn @variable
 // GAS: + v3 = exp 2, arg1
-// GAS-NEXT: + v0 = mul arg0, v3
+// GAS-NEXT: + v0 = mul v3, arg0
 // GAS-NEXT: + v1 = div arg0, v3
 // SIZE-LABEL: fn @variable
 // SIZE: + v3 = exp 2, arg1
-// SIZE-NEXT: + v0 = mul arg0, v3
+// SIZE-NEXT: + v0 = mul v3, arg0
 // SIZE-NEXT: + v1 = div arg0, v3
 // MODERN-LABEL: fn @variable
 fn @variable(arg0: i256, arg1: i256) -> i256 {

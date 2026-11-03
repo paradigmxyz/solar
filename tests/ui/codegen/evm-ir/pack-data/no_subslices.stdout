@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/pack-data/no_subslices.evmir (before pack-data) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/pack-data/no_subslices.evmir (after pack-data) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/pack-data/no_subslices.evmir (before pack-data) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/pack-data/no_subslices.evmir (after pack-data) ===
   @module no_subslices
   @data
     small_0: hex"2233"

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/tuple_decl_bytes_conversion.sol:TupleDeclBytesConversion ===
+; === ROOT/tests/ui/codegen/lowering/run-call/tuple_decl_bytes_conversion.sol:TupleDeclBytesConversion ===
 @module TupleDeclBytesConversion
 @types
   struct0: {i256, ptr<memory>}
@@ -22,7 +22,7 @@ fn @declareStorage() -> struct0 [selector=0xd76e0072, abi_params=[], abi_returns
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = sub 0, v1
-    v4 = or 127, v3
+    v4 = or v3, 127
     v5 = shr v0, 1
     v6 = and v5, v4
     v7 = lt v6, 0x10000000000000000
@@ -30,10 +30,10 @@ fn @declareStorage() -> struct0 [selector=0xd76e0072, abi_params=[], abi_returns
     icall panic_if<0x41>, v8
     v9 = gt v6, 31
     jumpi v9, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v23 = eq v6, 31
     jumpi v23, bb3, bb4
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v28 = add v0, 2
     v29 = sub 31, v6
     v30 = mul v29, 8
@@ -45,7 +45,7 @@ fn @declareStorage() -> struct0 [selector=0xd76e0072, abi_params=[], abi_returns
     v36 = or v33, v35
     sstore 0, v36 !metadata(storage=slot(0))
     jump bb5
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v24 = storage_array_data_slot 0
     v25 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     v26 = byte 0, 0x2100000000000000000000000000000000000000000000000000000000000000
@@ -53,7 +53,7 @@ fn @declareStorage() -> struct0 [selector=0xd76e0072, abi_params=[], abi_returns
     sstore v24, v27 !metadata(storage=symbolic(v24))
     sstore 0, 65 !metadata(storage=slot(0))
     jump bb5
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v10 = add v0, 2
     sstore 0, v10 !metadata(storage=slot(0))
     v11 = storage_array_data_slot 0
@@ -70,13 +70,13 @@ fn @declareStorage() -> struct0 [selector=0xd76e0072, abi_params=[], abi_returns
     v22 = or v20, v21
     sstore v13, v22 !metadata(storage=symbolic(v13))
     jump bb5
-  bb5:  ; preds = bb2, bb3, bb4
+  bb5:                                            ; preds = bb2, bb3, bb4
     v37 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v37
     v38 = and v37, 1
     v39 = eq v38, 1
     v40 = sub 0, v38
-    v41 = or 127, v40
+    v41 = or v40, 127
     v42 = shr v37, 1
     v43 = and v42, v41
     v44 = load_storage_bytes 0

@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/compacted_push.evmir (before reorder-pushes) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/compacted_push.evmir (after reorder-pushes) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/compacted_push.evmir (before reorder-pushes) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/compacted_push.evmir (after reorder-pushes) ===
   @module CompactedPush
   bb0 [stack=1020]:
     push 0
@@ -57,8 +57,8 @@
     sub
     stop
   
-- // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/compacted_push.evmir (before compact-pushes) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/compacted_push.evmir (after compact-pushes) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/compacted_push.evmir (before compact-pushes) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/compacted_push.evmir (after compact-pushes) ===
   @module CompactedPush
   bb0 [stack=1020]:
     push 0

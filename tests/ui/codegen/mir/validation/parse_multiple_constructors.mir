@@ -1,0 +1,12 @@
+//@compile-flags: -Zmir-pipeline=none
+@module MultipleConstructors
+
+fn @constructor() {
+  bb0:
+    stop
+}
+
+fn @other() [constructor] {
+  bb0:
+    stop
+} //~ ERROR: module has multiple constructors

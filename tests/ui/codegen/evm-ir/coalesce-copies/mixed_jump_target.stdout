@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/coalesce-copies/mixed_jump_target.evmir (before coalesce-copies) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/coalesce-copies/mixed_jump_target.evmir (after coalesce-copies) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/coalesce-copies/mixed_jump_target.evmir (before coalesce-copies) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/coalesce-copies/mixed_jump_target.evmir (after coalesce-copies) ===
   @module MixedJumpTarget
   bb0 [stack=1020]:
     push 0

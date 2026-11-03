@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/cse/length_across_alloc.mir (before cse) ===
-+ // === ROOT/tests/ui/codegen/mir/cse/length_across_alloc.mir (after cse) ===
+- ; === ROOT/tests/ui/codegen/mir/cse/length_across_alloc.mir (before cse) ===
++ ; === ROOT/tests/ui/codegen/mir/cse/length_across_alloc.mir (after cse) ===
   @module AllocationExtent
   fn @fresh(arg0: i256) -> i256 {
     bb0:

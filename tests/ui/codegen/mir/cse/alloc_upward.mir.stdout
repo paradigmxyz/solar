@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/cse/alloc_upward.sol:AllocUpward ===
+; === ROOT/tests/ui/codegen/mir/cse/alloc_upward.sol:AllocUpward ===
 @module AllocUpward
 @types
   struct0: {i256, i256}
@@ -51,7 +51,7 @@ fn @reset(arg0: slice<calldata>) -> i256 [selector=0x12a20190, pure, abi_params=
     v0 = alloc zeroed checked 64
     mstore v0, 1
     v1 = mload v0
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = ptradd v0, 32
@@ -69,7 +69,7 @@ fn @reset(arg0: slice<calldata>) -> i256 [selector=0x12a20190, pure, abi_params=
     v13 = extract_value slice<calldata>, arg0, 1
     calldatacopy v11, v12, v13
     v14 = mload v0
-    v15 = lt 0, v14
+    v15 = gt v14, 0
     v16 = eq v15, false
     icall panic_if<0x32>, v16
     v17 = ptradd v0, 32
@@ -102,7 +102,7 @@ fn @wrappedIndex(arg0: i256, arg1: i256) -> i256 [selector=0xf6bbb82e, pure, abi
     v13 = alloc zeroed checked v10
     mstore v13, arg0
     v14 = mload v0
-    v15 = lt 0, v14
+    v15 = gt v14, 0
     v16 = eq v15, false
     icall panic_if<0x32>, v16
     v17 = ptradd v0, 32
@@ -118,7 +118,7 @@ fn @wrappedIndex(arg0: i256, arg1: i256) -> i256 [selector=0xf6bbb82e, pure, abi
     v24 = ptradd v23, 32
     mstore v24, 9
     v25 = mload v0
-    v26 = lt 0, v25
+    v26 = gt v25, 0
     v27 = eq v26, false
     icall panic_if<0x32>, v27
     v28 = ptradd v0, 32

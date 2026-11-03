@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/inline/memory-wrappers/wrappers.mir (before inline) ===
-+ // === ROOT/tests/ui/codegen/mir/inline/memory-wrappers/wrappers.mir (after inline) ===
+- ; === ROOT/tests/ui/codegen/mir/inline/memory-wrappers/wrappers.mir (before inline) ===
++ ; === ROOT/tests/ui/codegen/mir/inline/memory-wrappers/wrappers.mir (after inline) ===
   @module MemoryWrappers
   ; selector 0x00000001
   fn @entry(arg0: i256) -> i256 [selector=0x00000001] {
@@ -9,16 +9,16 @@
 -     v2 = icall @single, v1
 -     v3 = icall @effects, v2
 +     jump bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     jump bb4
-+   bb4:  ; preds = bb2
++   bb4:                                            ; preds = bb2
 +     jump bb3
-+   bb3:  ; preds = bb4
++   bb3:                                            ; preds = bb4
 +     v7 = phi [bb4: v1]
 +     v5 = mload v7
 +     mstore v7, v5
 +     jump bb1
-+   bb1:  ; preds = bb3
++   bb1:                                            ; preds = bb3
 +     v6 = phi [bb3: v7]
 +     v3 = icall @effects, v6
       ret v3
@@ -29,9 +29,9 @@
 -     v0 = icall @base, arg0
 -     v1 = mload v0
 +     jump bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     jump bb1
-+   bb1:  ; preds = bb2
++   bb1:                                            ; preds = bb2
 +     v3 = phi [bb2: arg0]
 +     v1 = mload v3
       v2 = add v1, 2
@@ -54,9 +54,9 @@
 -     v0 = icall @base, arg0
 -     mstore v0, 5
 +     jump bb2
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     jump bb1
-+   bb1:  ; preds = bb2
++   bb1:                                            ; preds = bb2
 +     v1 = phi [bb2: arg0]
 +     mstore v1, 5
       sstore 0, 5
@@ -95,8 +95,8 @@
       ret v11
   }
   
-- // === ROOT/tests/ui/codegen/mir/inline/memory-wrappers/wrappers.mir (before cfg-simplify) ===
-+ // === ROOT/tests/ui/codegen/mir/inline/memory-wrappers/wrappers.mir (after cfg-simplify) ===
+- ; === ROOT/tests/ui/codegen/mir/inline/memory-wrappers/wrappers.mir (before cfg-simplify) ===
++ ; === ROOT/tests/ui/codegen/mir/inline/memory-wrappers/wrappers.mir (after cfg-simplify) ===
   @module MemoryWrappers
   ; selector 0x00000001
   fn @entry(arg0: i256) -> i256 [selector=0x00000001] {
@@ -104,16 +104,16 @@
       v0 = icall @wrap, arg0
       v1 = icall @wrap, v0
 -     jump bb2
--   bb2:  ; preds = bb0
+-   bb2:                                            ; preds = bb0
 -     jump bb4
--   bb4:  ; preds = bb2
+-   bb4:                                            ; preds = bb2
 -     jump bb3
--   bb3:  ; preds = bb4
+-   bb3:                                            ; preds = bb4
 -     v7 = phi [bb4: v1]
 -     v5 = mload v7
 -     mstore v7, v5
 -     jump bb1
--   bb1:  ; preds = bb3
+-   bb1:                                            ; preds = bb3
 -     v6 = phi [bb3: v7]
 -     v3 = icall @effects, v6
 +     v5 = mload v1
@@ -125,9 +125,9 @@
   fn @wrap(arg0: i256) -> i256 {
     bb0:
 -     jump bb2
--   bb2:  ; preds = bb0
+-   bb2:                                            ; preds = bb0
 -     jump bb1
--   bb1:  ; preds = bb2
+-   bb1:                                            ; preds = bb2
 -     v3 = phi [bb2: arg0]
 -     v1 = mload v3
 +     v1 = mload arg0
@@ -141,9 +141,9 @@
   fn @effects(arg0: i256) -> i256 {
     bb0:
 -     jump bb2
--   bb2:  ; preds = bb0
+-   bb2:                                            ; preds = bb0
 -     jump bb1
--   bb1:  ; preds = bb2
+-   bb1:                                            ; preds = bb2
 -     v1 = phi [bb2: arg0]
 -     mstore v1, 5
 +     mstore arg0, 5
@@ -178,8 +178,8 @@
       ret v11
   }
   
-- // === ROOT/tests/ui/codegen/mir/inline/memory-wrappers/wrappers.mir (before dce) ===
-+ // === ROOT/tests/ui/codegen/mir/inline/memory-wrappers/wrappers.mir (after dce) ===
+- ; === ROOT/tests/ui/codegen/mir/inline/memory-wrappers/wrappers.mir (before dce) ===
++ ; === ROOT/tests/ui/codegen/mir/inline/memory-wrappers/wrappers.mir (after dce) ===
   @module MemoryWrappers
   ; selector 0x00000001
   fn @entry(arg0: i256) -> i256 [selector=0x00000001] {

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_creation_spill.sol:Implementation ===
+; === ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_creation_spill.sol:Implementation ===
 @module Implementation
 ; function ping() external pure returns (uint256) [selector 0x5c36b186]
 fn @ping() -> i256 [selector=0x5c36b186, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -6,7 +6,7 @@ fn @ping() -> i256 [selector=0x5c36b186, pure, abi_params=[], abi_returns=[word]
     ret 7
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_creation_spill.sol:Harness ===
+; === ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_creation_spill.sol:Harness ===
 @module Harness
 @data
   Implementation_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_creation_spill.sol:Implementation"
@@ -20,9 +20,9 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = alloc 64 !metadata(preserves_fmp)
     mstore v4, 15
     v5 = ptradd v4, 32
@@ -35,9 +35,9 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v10 = zext i160 v8 to i256
     v11 = staticcall v9, v10, 28, 4, 0, 32
     jumpi v11, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v12 = returndatasize
     v13 = lt v12, 32
     icall revert_if<tuple_data_too_short>, v13
@@ -85,7 +85,7 @@ fn @_cloneDeterministic(arg0: i256, arg1: ptr<memory>, arg2: i256) -> i256 {
     v28 = or v27, 0xfd6100003d81600a3d39f336602c57343d527f
     v29 = lt v16, 0xff9e
     v30 = zext i1 v29 to i256
-    v31 = add 89, v30
+    v31 = add v30, 89
     v32 = ptrtoint ptr<memory> arg1 to i256
     v33 = sub v32, v31
     mstore v33, v28
@@ -97,9 +97,9 @@ fn @_cloneDeterministic(arg0: i256, arg1: ptr<memory>, arg2: i256) -> i256 {
     v38 = zext i1 v37 to i256
     v39 = ne v38, 0
     jumpi v39, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     mstore v14, v15
     v40 = ptrtoint ptr<memory> arg1 to i256
     mstore arg1, v11
@@ -113,7 +113,7 @@ fn @_cloneDeterministic(arg0: i256, arg1: ptr<memory>, arg2: i256) -> i256 {
     v46 = sub v45, 96
     mstore v46, v3
     ret v36
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert 0, 0
 }
 
@@ -125,7 +125,7 @@ fn @_creationStart(arg0: ptr<memory>) -> i256 [pure] {
     ret v1
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_creation_spill.sol:HeapPrefixTuple ===
+; === ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_creation_spill.sol:HeapPrefixTuple ===
 @module HeapPrefixTuple
 @types
   struct0: {i256, i256}
@@ -174,7 +174,7 @@ fn @pair.3() -> struct0 {
     ret v3
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_creation_spill.sol:HeapPrefixConstructor ===
+; === ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_creation_spill.sol:HeapPrefixConstructor ===
 @module HeapPrefixConstructor
 ; constructor(uint256 seed) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
@@ -195,7 +195,7 @@ fn @saved() -> i256 [selector=0x164b045a, view, abi_params=[], abi_returns=[word
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_creation_spill.sol:HeapPrefixConstructorHelper ===
+; === ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_creation_spill.sol:HeapPrefixConstructorHelper ===
 @module HeapPrefixConstructorHelper
 ; constructor(uint256 seed) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
@@ -223,7 +223,7 @@ fn @build(arg0: i256) -> i256 [pure] {
     ret arg0
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_creation_spill.sol:HeapPrefixRecursive ===
+; === ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_creation_spill.sol:HeapPrefixRecursive ===
 @module HeapPrefixRecursive
 ; function check(uint256 seed, uint256 depth) external pure returns (uint256) [selector 0x8fefd8ea]
 fn @check(arg0: i256, arg1: i256) -> i256 [selector=0x8fefd8ea, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -237,16 +237,16 @@ fn @build(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = ne arg1, 0
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v4 = alloc zeroed checked 64
     mstore v4, 32
     v5 = ptrtoint ptr<memory> v4 to i256
     v6 = sub v5, 288
     mstore v6, 0xdeadbeef
     ret arg0
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = checked_sub uint256, arg1, 1
     v2 = icall @build, arg0, v1
     v3 = checked_add uint256, v2, 1

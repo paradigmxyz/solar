@@ -13,7 +13,7 @@
 // CHECK: + {{v[0-9]+}} = shr arg0, [[SCALED]]
 // CHECK: + [[COND2:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[BOOL]]
 // CHECK: + [[SCALED2:v[0-9]+]] = mul [[COND2]], 128
-// CHECK: + {{v[0-9]+}} = or arg1, [[SCALED2]]
+// CHECK: + {{v[0-9]+}} = or [[SCALED2]], arg1
 // CHECK-NOT: {{^[ +].*}}phi
 fn @search_step(arg0: i256, arg1: i256) -> i256 {
   bb0:
@@ -38,21 +38,41 @@ fn @search_step(arg0: i256, arg1: i256) -> i256 {
 // CHECK: - jumpi
 // CHECK: + [[D:v[0-9]+]] = sub [[T:v[0-9]+]], [[F:v[0-9]+]]
 // CHECK: + [[C:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} {{(arg[0-9]+|v[0-9]+)}}
-// CHECK: + [[S:v[0-9]+]] = mul [[C]], [[D]]
+// CHECK: + [[S:v[0-9]+]] = mul [[D]], [[C]]
 // CHECK: + {{v[0-9]+}} = add [[F]], [[S]]
-fn @cheap_diamond(arg0: i256, arg1: i256) -> i256 {
+fn @cheap_diamond(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v3 = lt arg0, 10
     jumpi v3, bb1, bb2
   bb1:
-    v0 = mul arg1, 3
+    v0 = and arg1, arg2
     jump bb3
   bb2:
-    v1 = xor arg1, 7
+    v1 = xor arg1, arg2
     jump bb3
   bb3:
     v2 = phi [bb1: v0], [bb2: v1]
     ret v2
+}
+
+// A fixed-point exponent step: the then value is computed from the else
+// value, so the select needs a swap to order them for the subtraction and
+// would run the multiply on every step. The branch stays.
+// CHECK-LABEL: {{^[ +].*}}fn @exp2_step{{[( ]}}
+// CHECK: {{^ +}}jumpi
+// CHECK-NOT: {{^[+-]}}
+fn @exp2_step(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = and arg0, 0x8000000000000000
+    v1 = gt v0, 0
+    jumpi v1, bb1, bb2
+  bb1:
+    v2 = mul arg1, 0x16a09e667f3bcc909
+    v3 = shr v2, 64
+    jump bb2
+  bb2:
+    v4 = phi [bb0: arg1], [bb1: v3]
+    ret v4
 }
 
 // The same diamond on a nonzero test keeps its branch: `jumpi` reads the
@@ -61,15 +81,15 @@ fn @cheap_diamond(arg0: i256, arg1: i256) -> i256 {
 // CHECK: {{^ +}}[[COND:v[0-9]+]] = ne arg0, 0
 // CHECK: {{^ +}}jumpi [[COND]]
 // CHECK-NOT: {{^[+-]}}
-fn @nonzero_diamond(arg0: i256, arg1: i256) -> i256 {
+fn @nonzero_diamond(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v3 = ne arg0, 0
     jumpi v3, bb1, bb2
   bb1:
-    v0 = mul arg1, 3
+    v0 = and arg1, arg2
     jump bb3
   bb2:
-    v1 = xor arg1, 7
+    v1 = xor arg1, arg2
     jump bb3
   bb3:
     v2 = phi [bb1: v0], [bb2: v1]
@@ -160,7 +180,7 @@ fn @wide_arm(arg0: i1, arg1: i256) -> i256 {
 // CHECK-LABEL: {{^[ +].*}}fn @word_condition{{[( ]}}
 // CHECK: + [[C:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} {{v[0-9]+}}
 // CHECK: + [[S:v[0-9]+]] = mul [[C]], 5
-// CHECK: + {{v[0-9]+}} = add arg1, [[S]]
+// CHECK: + {{v[0-9]+}} = add [[S]], arg1
 fn @word_condition(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v2 = ne arg0, 0
@@ -179,7 +199,7 @@ fn @word_condition(arg0: i256, arg1: i256) -> i256 {
 // CHECK: - jumpi
 // CHECK: + [[C:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} arg0
 // CHECK: + [[S:v[0-9]+]] = mul [[C]], 0x1200000000000000000000000000000000000000000000000000000000000000
-// CHECK: + {{v[0-9]+}} = add 0x5f00000000000000000000000000000000000000000000000000000000000000, [[S]]
+// CHECK: + {{v[0-9]+}} = add [[S]], 0x5f00000000000000000000000000000000000000000000000000000000000000
 // CHECK-NOT: {{^[ +].*}}phi
 fn @literal_arms(arg0: i1) -> i256 {
   bb0:
@@ -198,8 +218,8 @@ fn @literal_arms(arg0: i1) -> i256 {
 // CHECK: - jumpi
 // CHECK: + [[D:v[0-9]+]] = sub 7, arg1
 // CHECK: + [[C:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} {{(arg[0-9]+|v[0-9]+)}}
-// CHECK: + [[S:v[0-9]+]] = mul [[C]], [[D]]
-// CHECK: + {{v[0-9]+}} = add arg1, [[S]]
+// CHECK: + [[S:v[0-9]+]] = mul [[D]], [[C]]
+// CHECK: + {{v[0-9]+}} = add [[S]], arg1
 fn @literal_or_value(arg0: i1, arg1: i256) -> i256 {
   bb0:
     jumpi arg0, bb2, bb1
@@ -218,7 +238,7 @@ fn @literal_or_value(arg0: i1, arg1: i256) -> i256 {
 // CHECK: {{^ +}}[[C2:v[0-9]+]] = lt arg0, 96
 // CHECK: + [[W2:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[C2]]
 // CHECK: + [[S2:v[0-9]+]] = mul [[W2]], 0x{{[0-9a-f]+}}
-// CHECK: + [[E:v[0-9]+]] = add 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000, [[S2]]
+// CHECK: + [[E:v[0-9]+]] = add [[S2]], 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000
 // CHECK: + [[W1:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[C1]]
 // CHECK: + [[S1:v[0-9]+]] = mul [[W1]], 0x{{[0-9a-f]+}}
 // CHECK: + {{v[0-9]+}} = add [[E]], [[S1]]

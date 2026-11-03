@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/none/push_family.evmir (before none) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/none/push_family.evmir (after none) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/none/push_family.evmir (before none) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/none/push_family.evmir (after none) ===
   @module module
   @libraries
     L_0: "dir/name\".sol:L"

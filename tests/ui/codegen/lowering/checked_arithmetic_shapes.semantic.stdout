@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/checked_arithmetic_shapes.sol:CheckedArithmeticShapes ===
+; === ROOT/tests/ui/codegen/lowering/checked_arithmetic_shapes.sol:CheckedArithmeticShapes ===
 @module CheckedArithmeticShapes
 ; function sadd(int256 a, int256 b) public pure returns (int256) [selector 0x16495fa8]
 fn @sadd(arg0: i256, arg1: i256) -> i256 [selector=0x16495fa8, pure, abi_params=[int256, int256], abi_returns=[word], abi_return_params=[int256]] {

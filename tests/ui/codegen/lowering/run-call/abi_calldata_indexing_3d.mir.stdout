@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_indexing_3d.sol:AbiCalldataIndexing3d ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_indexing_3d.sol:AbiCalldataIndexing3d ===
 @module AbiCalldataIndexing3d
 @types
   struct0: {i256, i256, i256, i256}
@@ -93,7 +93,7 @@ fn @f(arg0: slice<calldata>, arg1: i256, arg2: i256, arg3: i256) -> struct0 [sel
     v71 = mul v68, 32
     v72 = add v61, 32
     v73 = sub v69, v71
-    v74 = sgt v72, v73
+    v74 = slt v73, v72
     icall revert_if<calldata_tail_too_short>, v74
     v75 = inttoptr i256 v72 to ptr<calldata>
     v76 = make_calldata_slice v75, v68
@@ -157,7 +157,7 @@ fn @f(arg0: slice<calldata>, arg1: i256, arg2: i256, arg3: i256) -> struct0 [sel
     v125 = mul v122, 32
     v126 = add v115, 32
     v127 = sub v123, v125
-    v128 = sgt v126, v127
+    v128 = slt v127, v126
     icall revert_if<calldata_tail_too_short>, v128
     v129 = inttoptr i256 v126 to ptr<calldata>
     v130 = make_calldata_slice v129, v122

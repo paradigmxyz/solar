@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/memory-dse/memory_slice_reads.mir (before memory-dse) ===
-+ // === ROOT/tests/ui/codegen/mir/memory-dse/memory_slice_reads.mir (after memory-dse) ===
+- ; === ROOT/tests/ui/codegen/mir/memory-dse/memory_slice_reads.mir (before memory-dse) ===
++ ; === ROOT/tests/ui/codegen/mir/memory-dse/memory_slice_reads.mir (after memory-dse) ===
   @module MemorySliceReads
   fn @copy_reads_slice_range(arg0: ptr<memory>) {
     bb0:

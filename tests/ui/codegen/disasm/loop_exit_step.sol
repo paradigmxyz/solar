@@ -11,7 +11,7 @@
 // The inner loop of `sorted` steps `j` down by one slot and uses the old `j` only after it. The
 // stack carries the stepped word through the loop and the exit computes the old one from it,
 // instead of the backedge dropping the old word on every iteration.
-// CHECK-LABEL: // === {{.*}}:C (runtime) ===
+// CHECK-LABEL: === {{.*}}:C (runtime) ===
 // CHECK: {{JUMPI[[:space:]]+POP[[:space:]]+PUSH1 0x20[[:space:]]+ADD[[:space:]]+MSTORE}}
 contract C {
     function sorted() external pure returns (uint256, uint256, uint256, uint256) {

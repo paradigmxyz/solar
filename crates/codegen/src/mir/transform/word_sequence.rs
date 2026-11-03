@@ -71,7 +71,10 @@ pub(crate) enum WordSequence {
 
 impl MirPass for WordSequence {
     fn name(&self) -> &'static str {
-        "word-sequence"
+        match self {
+            Self::Early => "word-sequence-early",
+            Self::Late => "word-sequence",
+        }
     }
 
     fn run_pass(
@@ -162,11 +165,7 @@ fn operation_cost(
     constants: &FxHashMap<ValueId, Temporary>,
 ) -> Cost {
     let immediate = |value| recipe_immediate(func, constants, value);
-    let mut cost = if let Op::Select { cond, .. } = op {
-        target.select(!super::egraph::is_bool_value(func, *cond))
-    } else {
-        target.op(op, immediate)
-    };
+    let mut cost = target.op(op, immediate);
     let operand_cost =
         |value| immediate(value).map_or_else(|| target.dup(), |value| target.push(value));
     if let Some(value) = Target::zero_test_input(op, immediate) {
@@ -265,7 +264,7 @@ impl Recipe {
             &mut inserted,
         );
         let Value::Inst(last) = *func.value(result) else { unreachable!() };
-        let kind = func.inst(last).kind.clone();
+        let kind = func.canonical_kind(func.inst(last).kind.clone());
         inserted.retain(|&id| id != last);
         func.inst_mut(root).replace_kind(kind);
         inserted

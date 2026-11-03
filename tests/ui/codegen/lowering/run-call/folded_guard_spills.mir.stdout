@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/folded_guard_spills.sol:FoldedGuardSpills ===
+; === ROOT/tests/ui/codegen/lowering/run-call/folded_guard_spills.sol:FoldedGuardSpills ===
 @module FoldedGuardSpills
 ; function sized(uint256 a, uint256 flag, uint256) external pure returns (bytes32 result) [selector 0xf5037775]
 fn @sized(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xf5037775, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -29,24 +29,24 @@ fn @sized(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xf5037775, pure
     v23 = and v22, v20
     v24 = ne v23, 0
     jumpi v24, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     calldatacopy v17, 0, v18
     calldatacopy v17, 0, v18
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v25 = ne arg1, 0
     jumpi v25, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb6
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v26 = alloc zeroed checked 0x420
     mstore v26, 0x400
     v27 = mload v26
     v28 = shl v27, 0
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6:                                            ; preds = bb4, bb5
     v29 = phi [bb4: v28], [bb5: 0]
     v30 = xor v0, v1
     v31 = xor v30, v2
@@ -64,7 +64,7 @@ fn @sized(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xf5037775, pure
     v43 = xor v42, v14
     v44 = xor v43, v15
     v45 = xor v44, v16
-    v46 = xor v29, v45
+    v46 = xor v45, v29
     ret v46
 }
 
@@ -93,24 +93,24 @@ fn @addressed(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xa249b625, 
     v19 = zext i1 v18 to i256
     v20 = ne v19, 0
     jumpi v20, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     mstore v17, 256
     mstore v17, 128
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v21 = ne arg1, 0
     jumpi v21, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb6
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v22 = alloc zeroed checked 0x420
     mstore v22, 0x400
     v23 = mload v22
     v24 = shl v23, 0
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6:                                            ; preds = bb4, bb5
     v25 = phi [bb4: v24], [bb5: 0]
     v26 = xor v0, v1
     v27 = xor v26, v2
@@ -128,7 +128,7 @@ fn @addressed(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xa249b625, 
     v39 = xor v38, v14
     v40 = xor v39, v15
     v41 = xor v40, v16
-    v42 = xor v25, v41
+    v42 = xor v41, v25
     ret v42
 }
 
@@ -157,25 +157,25 @@ fn @derived(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x5d97a064, pu
     v19 = zext i1 v18 to i256
     v20 = ne v19, 0
     jumpi v20, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v21 = add v17, 32
     mstore v21, 256
     v22 = add v17, 32
     mstore v22, 128
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v23 = ne arg1, 0
     jumpi v23, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb6
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v24 = icall @_copy, 0x400
     v25 = mload v24
     v26 = shl v25, 0
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6:                                            ; preds = bb4, bb5
     v27 = phi [bb4: v26], [bb5: 0]
     v28 = xor v0, v1
     v29 = xor v28, v2
@@ -193,7 +193,7 @@ fn @derived(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x5d97a064, pu
     v41 = xor v40, v14
     v42 = xor v41, v15
     v43 = xor v42, v16
-    v44 = xor v27, v43
+    v44 = xor v43, v27
     ret v44
 }
 
@@ -222,23 +222,23 @@ fn @derivedOnce(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x1304ae34
     v19 = zext i1 v18 to i256
     v20 = ne v19, 0
     jumpi v20, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v21 = add v17, 32
     mstore v21, 128
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v22 = ne arg1, 0
     jumpi v22, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb6
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v23 = icall @_copy, 0x400
     v24 = mload v23
     v25 = shl v24, 0
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6:                                            ; preds = bb4, bb5
     v26 = phi [bb4: v25], [bb5: 0]
     v27 = xor v0, v1
     v28 = xor v27, v2
@@ -256,7 +256,7 @@ fn @derivedOnce(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x1304ae34
     v40 = xor v39, v14
     v41 = xor v40, v15
     v42 = xor v41, v16
-    v43 = xor v26, v42
+    v43 = xor v42, v26
     ret v43
 }
 
@@ -285,23 +285,23 @@ fn @copied(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xc8ef3ab5, pur
     v19 = zext i1 v18 to i256
     v20 = ne v19, 0
     jumpi v20, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     mstore v17, 256
     mstore v17, 128
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v21 = ne arg1, 0
     jumpi v21, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb6
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v22 = icall @_copy, 0x400
     v23 = mload v22
     v24 = shl v23, 0
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6:                                            ; preds = bb4, bb5
     v25 = phi [bb4: v24], [bb5: 0]
     v26 = xor v0, v1
     v27 = xor v26, v2
@@ -319,7 +319,7 @@ fn @copied(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xc8ef3ab5, pur
     v39 = xor v38, v14
     v40 = xor v39, v15
     v41 = xor v40, v16
-    v42 = xor v25, v41
+    v42 = xor v41, v25
     ret v42
 }
 
@@ -346,23 +346,23 @@ fn @called(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xb59297ac, pur
     v17 = calldataload 100
     v18 = eq v17, 64
     jumpi v18, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     icall @_write, arg2, v17
     icall @_write, arg2, v17
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v19 = ne arg1, 0
     jumpi v19, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb6
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v20 = icall @_copy, 0x400
     v21 = mload v20
     v22 = shl v21, 0
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6:                                            ; preds = bb4, bb5
     v23 = phi [bb4: v22], [bb5: 0]
     v24 = xor v0, v1
     v25 = xor v24, v2
@@ -380,7 +380,7 @@ fn @called(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xb59297ac, pur
     v37 = xor v36, v14
     v38 = xor v37, v15
     v39 = xor v38, v16
-    v40 = xor v23, v39
+    v40 = xor v39, v23
     ret v40
 }
 
@@ -407,25 +407,25 @@ fn @calledDerived(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x619af4
     v17 = calldataload 100
     v18 = eq v17, 63
     jumpi v18, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v19 = checked_add uint256, v17, 1
     icall @_write, arg2, v19
     v20 = checked_add uint256, v17, 1
     icall @_write, arg2, v20
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v21 = ne arg1, 0
     jumpi v21, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb6
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v22 = icall @_copy, 0x400
     v23 = mload v22
     v24 = shl v23, 0
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6:                                            ; preds = bb4, bb5
     v25 = phi [bb4: v24], [bb5: 0]
     v26 = xor v0, v1
     v27 = xor v26, v2
@@ -443,7 +443,7 @@ fn @calledDerived(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x619af4
     v39 = xor v38, v14
     v40 = xor v39, v15
     v41 = xor v40, v16
-    v42 = xor v25, v41
+    v42 = xor v41, v25
     ret v42
 }
 
@@ -472,25 +472,25 @@ fn @masked(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xdd455ef0, pur
     v19 = zext i1 v18 to i256
     v20 = ne v19, 0
     jumpi v20, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v21 = and v17, 255
     calldatacopy arg2, 0, v21
     v22 = and v17, 255
     calldatacopy arg2, 0, v22
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v23 = ne arg1, 0
     jumpi v23, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb6
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v24 = icall @_copy, 0x400
     v25 = mload v24
     v26 = shl v25, 0
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6:                                            ; preds = bb4, bb5
     v27 = phi [bb4: v26], [bb5: 0]
     v28 = xor v0, v1
     v29 = xor v28, v2
@@ -508,7 +508,7 @@ fn @masked(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xdd455ef0, pur
     v41 = xor v40, v14
     v42 = xor v41, v15
     v43 = xor v42, v16
-    v44 = xor v27, v43
+    v44 = xor v43, v27
     ret v44
 }
 
@@ -537,14 +537,14 @@ fn @returned(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xdfd2c4db, p
     calldatacopy arg2, 0, v18
     v19 = ne arg1, 0
     jumpi v19, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v20 = icall @_copy, 0x400
     v21 = mload v20
     v22 = shl v21, 0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v23 = phi [bb1: v22], [bb2: 0]
     v24 = xor v0, v1
     v25 = xor v24, v2
@@ -562,7 +562,7 @@ fn @returned(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xdfd2c4db, p
     v37 = xor v36, v14
     v38 = xor v37, v15
     v39 = xor v38, v16
-    v40 = xor v23, v39
+    v40 = xor v39, v23
     ret v40
 }
 

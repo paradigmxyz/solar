@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/storage_array_copy.sol:C ===
+; === ROOT/tests/ui/codegen/lowering/run-call/storage_array_copy.sol:C ===
 @module C
 @types
   struct0: {i256, i256}
@@ -32,7 +32,7 @@ fn @copyState() -> struct0 [selector=0x183a6195, abi_params=[], abi_returns=[wor
     sstore 0, v12 !metadata(storage=slot(0))
     v15 = icall @load_storage_word_array, 0
     v16 = mload v15
-    v17 = lt 0, v16
+    v17 = gt v16, 0
     v18 = eq v17, false
     icall panic_if<0x32>, v18
     v19 = ptradd v15, 32
@@ -64,7 +64,7 @@ fn @copyReference() -> struct0 [selector=0x4cf1051d, abi_params=[], abi_returns=
     sstore 0, v7 !metadata(storage=slot(0))
     v10 = icall @load_storage_word_array, 0
     v11 = mload v10
-    v12 = lt 0, v11
+    v12 = gt v11, 0
     v13 = eq v12, false
     icall panic_if<0x32>, v13
     v14 = ptradd v10, 32
@@ -81,7 +81,7 @@ fn @load_storage_word_array(arg0: i256) -> ptr<memory> {
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/storage_array_copy.sol:AggregateStorageCopy ===
+; === ROOT/tests/ui/codegen/lowering/run-call/storage_array_copy.sol:AggregateStorageCopy ===
 @module AggregateStorageCopy
 @types
   struct0: {i256, i256, i256}
@@ -98,13 +98,13 @@ fn @copyAggregate() -> struct0 [selector=0x515a112e, abi_params=[], abi_returns=
     v5 = add v3, v4
     sstore 0, v2 !metadata(storage=slot(0))
     v6 = sload 0 !metadata(storage=slot(0))
-    v7 = lt 0, v6
+    v7 = gt v6, 0
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     v9 = storage_array_data_slot 0
     sstore v9, 7 !metadata(storage=symbolic(v9))
     v10 = sload 0 !metadata(storage=slot(0))
-    v11 = lt 0, v10
+    v11 = gt v10, 0
     v12 = eq v11, false
     icall panic_if<0x32>, v12
     v13 = storage_array_data_slot 0
@@ -112,14 +112,14 @@ fn @copyAggregate() -> struct0 [selector=0x515a112e, abi_params=[], abi_returns=
     sstore v14, 9 !metadata(storage=offset(v13, 1))
     v15 = icall @load_storage_struct_array_0, 0
     v16 = mload v15
-    v17 = lt 0, v16
+    v17 = gt v16, 0
     v18 = eq v17, false
     icall panic_if<0x32>, v18
     v19 = ptradd v15, 32
     v20 = mload v19, ptr<memory>
     v21 = mload v20
     v22 = mload v15
-    v23 = lt 0, v22
+    v23 = gt v22, 0
     v24 = eq v23, false
     icall panic_if<0x32>, v24
     v25 = ptradd v15, 32
@@ -144,14 +144,14 @@ fn @load_storage_struct_array_0(arg0: i256) -> ptr<memory> {
     mstore v4, v0
     v5 = storage_array_data_slot arg0
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v6 = phi [bb0: 0], [bb2: v18]
     v7 = phi [bb0: v5], [bb2: v19]
     v8 = lt v6, v0
     jumpi v8, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     ret v4
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v9 = alloc checked 64
     v10 = sload v7 !metadata(storage=symbolic(v7))
     mstore v9, v10
@@ -169,7 +169,7 @@ fn @load_storage_struct_array_0(arg0: i256) -> ptr<memory> {
     jump bb1
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/storage_array_copy.sol:EnumStorageCopy ===
+; === ROOT/tests/ui/codegen/lowering/run-call/storage_array_copy.sol:EnumStorageCopy ===
 @module EnumStorageCopy
 ; function smallInvalid() public returns (uint256) [selector 0x7ab5e63b]
 fn @smallInvalid() -> i256 [selector=0x7ab5e63b, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -180,7 +180,7 @@ fn @smallInvalid() -> i256 [selector=0x7ab5e63b, abi_params=[], abi_returns=[wor
     sstore v0, 2 !metadata(storage=symbolic(v0))
     v1 = icall @load_storage_packed_array_1_0_enum_2, 0
     v2 = mload v1
-    v3 = lt 0, v2
+    v3 = gt v2, 0
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = ptradd v1, 32
@@ -202,7 +202,7 @@ fn @largeValid() -> i256 [selector=0x9f458284, abi_params=[], abi_returns=[word]
     sstore v0, 2 !metadata(storage=symbolic(v0))
     v1 = icall @load_storage_packed_array_1_0_enum_3, 1
     v2 = mload v1
-    v3 = lt 0, v2
+    v3 = gt v2, 0
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = ptradd v1, 32

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_calldata_array.sol:ExternalFunctionPointerCalldataArray ===
+; === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_calldata_array.sol:ExternalFunctionPointerCalldataArray ===
 @module ExternalFunctionPointerCalldataArray
 @types
   struct0: {i256, i256, i256}
@@ -11,7 +11,7 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<
     v2 = eq v1, false
     icall revert_if<empty>, v2
     v3 = extract_value slice<calldata>, arg0, 1
-    v4 = lt 0, v3
+    v4 = gt v3, 0
     v5 = eq v4, false
     icall panic_if<0x32>, v5
     v6 = extract_value slice<calldata>, arg0, 0
@@ -31,15 +31,15 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<
     mstore 0, v18 !metadata(memory=scratch)
     v19 = call v17, v16, 0, 28, 4, 0, 32
     jumpi v19, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v20 = returndatasize
     v21 = lt v20, 32
     icall revert_if<tuple_data_too_short>, v21
     v22 = mload 0 !metadata(memory=scratch)
     v23 = extract_value slice<calldata>, arg0, 1
-    v24 = lt 1, v23
+    v24 = gt v23, 1
     v25 = eq v24, false
     icall panic_if<0x32>, v25
     v26 = extract_value slice<calldata>, arg0, 0
@@ -59,15 +59,15 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<
     mstore 0, v38 !metadata(memory=scratch)
     v39 = call v37, v36, 0, 28, 4, 0, 32
     jumpi v39, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v40 = returndatasize
     v41 = lt v40, 32
     icall revert_if<tuple_data_too_short>, v41
     v42 = mload 0 !metadata(memory=scratch)
     v43 = extract_value slice<calldata>, arg0, 1
-    v44 = lt 2, v43
+    v44 = gt v43, 2
     v45 = eq v44, false
     icall panic_if<0x32>, v45
     v46 = extract_value slice<calldata>, arg0, 0
@@ -87,9 +87,9 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<
     mstore 0, v58 !metadata(memory=scratch)
     v59 = call v57, v56, 0, 28, 4, 0, 32
     jumpi v59, bb6, bb5
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     revert_returndata
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     v60 = returndatasize
     v61 = lt v60, 32
     icall revert_if<tuple_data_too_short>, v61
@@ -111,9 +111,9 @@ fn @fReenc(arg0: slice<calldata>) -> struct0 [selector=0xfbeba237, abi_params=[a
     v5 = zext i160 v0 to i256
     v6 = call v1, v5, 0, v3, v4, v3, 96
     jumpi v6, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v7 = returndatasize
     v8 = lt v7, 96
     icall revert_if<tuple_data_too_short>, v8
@@ -164,7 +164,7 @@ fn @g(arg0: i1) -> struct0 [selector=0xd48092f7, abi_params=[bool], abi_returns=
     v3 = shl v2, 32
     v4 = or v3, 0xec1632e
     v5 = mload v0
-    v6 = lt 0, v5
+    v6 = gt v5, 0
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = shl v4, 64
@@ -175,7 +175,7 @@ fn @g(arg0: i1) -> struct0 [selector=0xd48092f7, abi_params=[bool], abi_returns=
     v12 = shl v11, 32
     v13 = or v12, 0xe255e5f9
     v14 = mload v0
-    v15 = lt 1, v14
+    v15 = gt v14, 1
     v16 = eq v15, false
     icall panic_if<0x32>, v16
     v17 = shl v13, 64
@@ -186,14 +186,14 @@ fn @g(arg0: i1) -> struct0 [selector=0xd48092f7, abi_params=[bool], abi_returns=
     v21 = shl v20, 32
     v22 = or v21, 0xec202537
     v23 = mload v0
-    v24 = lt 2, v23
+    v24 = gt v23, 2
     v25 = eq v24, false
     icall panic_if<0x32>, v25
     v26 = shl v22, 64
     v27 = ptradd v0, 96
     mstore v27, v26
     jumpi arg0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v50 = address
     v51 = gas
     v52 = abi_encode [memory_array<function>], selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args v0
@@ -202,9 +202,9 @@ fn @g(arg0: i1) -> struct0 [selector=0xd48092f7, abi_params=[bool], abi_returns=
     v55 = zext i160 v50 to i256
     v56 = call v51, v55, 0, v53, v54, v53, 96
     jumpi v56, bb7, bb6
-  bb6:  ; preds = bb2
+  bb6:                                            ; preds = bb2
     revert_returndata
-  bb7:  ; preds = bb2
+  bb7:                                            ; preds = bb2
     v57 = returndatasize
     v58 = lt v57, 96
     icall revert_if<tuple_data_too_short>, v58
@@ -222,7 +222,7 @@ fn @g(arg0: i1) -> struct0 [selector=0xd48092f7, abi_params=[bool], abi_returns=
     v70 = extract_value struct0, v68, 1
     v71 = extract_value struct0, v68, 2
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v28 = address
     v29 = gas
     v30 = abi_encode [memory_array<function>], selector 0xfbeba23700000000000000000000000000000000000000000000000000000000, args v0
@@ -231,9 +231,9 @@ fn @g(arg0: i1) -> struct0 [selector=0xd48092f7, abi_params=[bool], abi_returns=
     v33 = zext i160 v28 to i256
     v34 = call v29, v33, 0, v31, v32, v31, 96
     jumpi v34, bb5, bb4
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     revert_returndata
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     v35 = returndatasize
     v36 = lt v35, 96
     icall revert_if<tuple_data_too_short>, v36
@@ -251,7 +251,7 @@ fn @g(arg0: i1) -> struct0 [selector=0xd48092f7, abi_params=[bool], abi_returns=
     v48 = extract_value struct0, v46, 1
     v49 = extract_value struct0, v46, 2
     jump bb3
-  bb3:  ; preds = bb5, bb7
+  bb3:                                            ; preds = bb5, bb7
     v72 = phi [bb5: v47], [bb7: v69]
     v73 = phi [bb5: v48], [bb7: v70]
     v74 = phi [bb5: v49], [bb7: v71]

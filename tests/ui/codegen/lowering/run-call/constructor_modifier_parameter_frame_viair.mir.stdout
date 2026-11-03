@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_modifier_parameter_frame_viair.sol:ConstructorModifierParameterFrameBase ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_modifier_parameter_frame_viair.sol:ConstructorModifierParameterFrameBase ===
 @module ConstructorModifierParameterFrameBase
 ; constructor(uint256 x) repeat [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
@@ -6,13 +6,13 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
     v0 = checked_add uint256, arg0, 1
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v1 = checked_add uint256, arg0, 1
     sstore 0, v1 !metadata(storage=slot(0))
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     jump bb1
-  bb1:  ; preds = bb3
+  bb1:                                            ; preds = bb3
     ret
 }
 
@@ -23,7 +23,7 @@ fn @observed() -> i256 [selector=0xba210709, view, abi_params=[], abi_returns=[w
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_modifier_parameter_frame_viair.sol:ConstructorModifierParameterFrame ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_modifier_parameter_frame_viair.sol:ConstructorModifierParameterFrame ===
 @module ConstructorModifierParameterFrame
 ; constructor() ConstructorModifierParameterFrameBase(5) [creation entry]
 fn @constructor() [constructor] {
@@ -31,17 +31,17 @@ fn @constructor() [constructor] {
     v0 = checked_add uint256, 5, 1
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb3
-  bb3:  ; preds = bb0
+  bb3:                                            ; preds = bb0
     v1 = checked_add uint256, 5, 1
     sstore 0, v1 !metadata(storage=slot(0))
     jump bb4
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     jump bb2
-  bb2:  ; preds = bb4
+  bb2:                                            ; preds = bb4
     jump bb1
-  bb1:  ; preds = bb2
+  bb1:                                            ; preds = bb2
     jump bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     ret
 }
 

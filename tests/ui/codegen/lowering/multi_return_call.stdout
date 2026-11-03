@@ -1,8 +1,8 @@
-// === ROOT/tests/ui/codegen/lowering/multi_return_call.sol:Math ===
+; === ROOT/tests/ui/codegen/lowering/multi_return_call.sol:Math ===
 @module Math
 @library
 
-// === ROOT/tests/ui/codegen/lowering/multi_return_call.sol:C ===
+; === ROOT/tests/ui/codegen/lowering/multi_return_call.sol:C ===
 @module C
 @types
   struct0: {i1, i256}
@@ -16,11 +16,11 @@ fn @sat(arg0: i256, arg1: i256) -> i256 [selector=0xf4c11983, pure, abi_params=[
     v3 = ne v1, false
     v4 = eq v3, false
     jumpi v4, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     ret v2
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 }
 

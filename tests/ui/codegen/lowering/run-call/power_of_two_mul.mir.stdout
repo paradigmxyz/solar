@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/power_of_two_mul.sol:PowerOfTwoMul ===
+; === ROOT/tests/ui/codegen/lowering/run-call/power_of_two_mul.sol:PowerOfTwoMul ===
 @module PowerOfTwoMul
 ; function exp2(uint256 exponent) external pure returns (uint256 result) [selector 0xa75826ae]
 fn @exp2(arg0: i256) -> i256 [selector=0xa75826ae, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -31,7 +31,7 @@ fn @mul32(arg0: i256) -> i256 [selector=0xde1efc56, pure, abi_params=[uint256], 
 ; function mulHigh(uint256 value) external pure returns (uint256 result) [selector 0x25ee2d76]
 fn @mulHigh(arg0: i256) -> i256 [selector=0x25ee2d76, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = mul 0x8000000000000000000000000000000000000000000000000000000000000000, arg0
+    v0 = mul arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
     ret v0
 }
 

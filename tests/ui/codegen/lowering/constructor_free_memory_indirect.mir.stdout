@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/constructor_free_memory_indirect.sol:Base ===
+; === ROOT/tests/ui/codegen/lowering/constructor_free_memory_indirect.sol:Base ===
 @module Base
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
@@ -35,7 +35,7 @@ fn @freeMemoryStarted() -> i256 [pure] {
     ret v4
 }
 
-// === ROOT/tests/ui/codegen/lowering/constructor_free_memory_indirect.sol:ThroughBase ===
+; === ROOT/tests/ui/codegen/lowering/constructor_free_memory_indirect.sol:ThroughBase ===
 @module ThroughBase
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
@@ -49,7 +49,7 @@ fn @constructor() [constructor] {
     v6 = or v3, v5
     sstore 0, v6 !metadata(storage=slot(0))
     jump bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     sstore 1, 1 !metadata(storage=slot(1))
     ret
 }
@@ -82,7 +82,7 @@ fn @freeMemoryStarted() -> i256 [pure] {
     ret v4
 }
 
-// === ROOT/tests/ui/codegen/lowering/constructor_free_memory_indirect.sol:ThroughModifier ===
+; === ROOT/tests/ui/codegen/lowering/constructor_free_memory_indirect.sol:ThroughModifier ===
 @module ThroughModifier
 ; constructor() recordFreeMemory [creation entry]
 fn @constructor() [constructor] {
@@ -96,9 +96,9 @@ fn @constructor() [constructor] {
     v6 = or v3, v5
     sstore 0, v6 !metadata(storage=slot(0))
     jump bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb1
-  bb1:  ; preds = bb2
+  bb1:                                            ; preds = bb2
     ret
 }
 
@@ -123,7 +123,7 @@ fn @freeMemoryStarted() -> i256 [pure] {
     ret v4
 }
 
-// === ROOT/tests/ui/codegen/lowering/constructor_free_memory_indirect.sol:ThroughHelper ===
+; === ROOT/tests/ui/codegen/lowering/constructor_free_memory_indirect.sol:ThroughHelper ===
 @module ThroughHelper
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
@@ -167,7 +167,7 @@ fn @freeMemoryStarted() -> i256 [pure] {
     ret v4
 }
 
-// === ROOT/tests/ui/codegen/lowering/constructor_free_memory_indirect.sol:Allocating ===
+; === ROOT/tests/ui/codegen/lowering/constructor_free_memory_indirect.sol:Allocating ===
 @module Allocating
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
@@ -177,13 +177,13 @@ fn @constructor() [constructor] {
     v1 = alloc zeroed checked 64
     mstore v1, 1
     v2 = mload v1
-    v3 = lt 0, v2
+    v3 = gt v2, 0
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = ptradd v1, 32
     mstore v5, 5
     v6 = mload v0
-    v7 = lt 2, v6
+    v7 = gt v6, 2
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     v9 = ptradd v0, 96
@@ -211,7 +211,7 @@ fn @matches() -> i1 [selector=0x55590d58, view, abi_params=[], abi_returns=[word
     ret v1
 }
 
-// === ROOT/tests/ui/codegen/lowering/constructor_free_memory_indirect.sol:WithArgument ===
+; === ROOT/tests/ui/codegen/lowering/constructor_free_memory_indirect.sol:WithArgument ===
 @module WithArgument
 ; constructor(uint256 v) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {

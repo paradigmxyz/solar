@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/lower-mcopy/allocation_bounds.sol:CopyAllocationBounds ===
+; === ROOT/tests/ui/codegen/mir/lower-mcopy/allocation_bounds.sol:CopyAllocationBounds ===
 @module CopyAllocationBounds
 @types
   struct0: {i256, i256}
@@ -10,7 +10,7 @@ fn @copy(arg0: i256) -> struct0 [selector=0x8370392c, pure, abi_params=[uint256]
     mstore v0, 32
     v1 = ptrtoint ptr<memory> v0 to i256
     v2 = sub v1, arg0
-    v3 = add arg0, v2
+    v3 = add v2, arg0
     mstore v3, 96
     v4 = add v3, 32
     mstore v4, 11

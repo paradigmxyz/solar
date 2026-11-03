@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/compact-pushes/stack_limit.evmir (before compact-pushes) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/compact-pushes/stack_limit.evmir (after compact-pushes) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/compact-pushes/stack_limit.evmir (before compact-pushes) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/compact-pushes/stack_limit.evmir (after compact-pushes) ===
   @module StackLimit
   bb0 [stack=1023]:
     push 0x3030303030303030303030303030303030303030303030303030303030303030
@@ -38,7 +38,13 @@
     push bb7
     jump
   bb7:
-    push 0x3030303030303030303030303030303030303030303030303030303030303030
+-   push 0x3030303030303030303030303030303030303030303030303030303030303030
++   push 255
++   push 0
++   not
++   div
++   push 48
++   mul
     pop
     pop
     pop
@@ -55,7 +61,13 @@
     push bb9
     jump
   bb9:
-    push 0x3030303030303030303030303030303030303030303030303030303030303030
+-   push 0x3030303030303030303030303030303030303030303030303030303030303030
++   push 255
++   push 0
++   not
++   div
++   push 48
++   mul
     pop
     push bb10
     jumpi
@@ -88,5 +100,40 @@
 +   push 48
 +   mul
     pop
+    stop
+  bb15 [stack=3]:
+    push bb16
+    dup 1
+    pop
+    jump
+  bb16:
+    push 0x3030303030303030303030303030303030303030303030303030303030303030
+    pop
+    pop
+    pop
+    pop
+-   push 0x3030303030303030303030303030303030303030303030303030303030303030
++   push 255
++   push 0
++   not
++   div
++   push 48
++   mul
+    stop
+  bb17 [stack=1]:
+    push bb18
+    dup 1
+    pop
+    jump
+  bb18:
+    push 0x3030303030303030303030303030303030303030303030303030303030303030
+    pop
+    push bb19
+    jumpi
+    push 1
+    push 2
+    push 3
+    stop
+  bb19:
     stop
   

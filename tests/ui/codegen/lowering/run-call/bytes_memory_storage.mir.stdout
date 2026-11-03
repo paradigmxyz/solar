@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/bytes_memory_storage.sol:BytesMemoryStorage ===
+; === ROOT/tests/ui/codegen/lowering/run-call/bytes_memory_storage.sol:BytesMemoryStorage ===
 @module BytesMemoryStorage
 ; function copy() external returns (uint256) [selector 0x60726abb]
 fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
@@ -13,7 +13,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v3 = and v2, 1
     v4 = eq v3, 1
     v5 = sub 0, v3
-    v6 = or 127, v5
+    v6 = or v5, 127
     v7 = shr v2, 1
     v8 = and v7, v6
     v9 = sload 0 !metadata(storage=slot(0))
@@ -21,19 +21,19 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v10 = and v9, 1
     v11 = eq v10, 1
     v12 = sub 0, v10
-    v13 = or 127, v12
+    v13 = or v12, 127
     v14 = shr v9, 1
     v15 = and v14, v13
-    v16 = lt 0, v15
+    v16 = gt v15, 0
     v17 = eq v16, false
     icall panic_if<0x32>, v17
     jumpi v11, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v18 = storage_array_data_slot 0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v19 = phi [bb1: v18], [bb2: 0]
     v20 = sload v19 !metadata(storage=symbolic(v19))
     v21 = shr v20, 248
@@ -59,7 +59,7 @@ fn @dirty() -> i256 [selector=0x7dce0fd0, abi_params=[], abi_returns=[word], abi
     v4 = and v3, 1
     v5 = eq v4, 1
     v6 = sub 0, v4
-    v7 = or 127, v6
+    v7 = or v6, 127
     v8 = shr v3, 1
     v9 = and v8, v7
     v10 = sload 0 !metadata(storage=slot(0))
@@ -67,19 +67,19 @@ fn @dirty() -> i256 [selector=0x7dce0fd0, abi_params=[], abi_returns=[word], abi
     v11 = and v10, 1
     v12 = eq v11, 1
     v13 = sub 0, v11
-    v14 = or 127, v13
+    v14 = or v13, 127
     v15 = shr v10, 1
     v16 = and v15, v14
-    v17 = lt 0, v16
+    v17 = gt v16, 0
     v18 = eq v17, false
     icall panic_if<0x32>, v18
     jumpi v12, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v19 = storage_array_data_slot 0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v20 = phi [bb1: v19], [bb2: 0]
     v21 = sload v20 !metadata(storage=symbolic(v20))
     v22 = shr v21, 248
@@ -93,19 +93,19 @@ fn @dirty() -> i256 [selector=0x7dce0fd0, abi_params=[], abi_returns=[word], abi
     v29 = and v28, 1
     v30 = eq v29, 1
     v31 = sub 0, v29
-    v32 = or 127, v31
+    v32 = or v31, 127
     v33 = shr v28, 1
     v34 = and v33, v32
-    v35 = lt 2, v34
+    v35 = gt v34, 2
     v36 = eq v35, false
     icall panic_if<0x32>, v36
     jumpi v30, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb6
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v37 = storage_array_data_slot 0
     jump bb6
-  bb6:  ; preds = bb4, bb5
+  bb6:                                            ; preds = bb4, bb5
     v38 = phi [bb4: v37], [bb5: 0]
     v39 = sload v38 !metadata(storage=symbolic(v38))
     v40 = shr v39, 232

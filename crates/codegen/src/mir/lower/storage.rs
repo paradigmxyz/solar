@@ -61,7 +61,7 @@ impl StorageLocation {
         if self.size >= Self::WORD {
             U256::MAX
         } else {
-            (U256::from(1) << self.size.bits()) - U256::from(1)
+            (U256::ONE << self.size.bits()) - U256::ONE
         }
     }
 
@@ -319,7 +319,7 @@ impl StorageCursor {
 
     fn finish_word(&mut self) -> Option<()> {
         if self.offset != 0 {
-            self.slot = self.slot.checked_add(U256::from(1))?;
+            self.slot = self.slot.checked_add(U256::ONE)?;
             self.offset = 0;
         }
         Some(())
@@ -368,9 +368,7 @@ impl<'gcx> StorageBuilder<'gcx> {
         cursor.take(encoding, slots).or_else(|| {
             self.gcx
                 .dcx()
-                .err("contract storage layout exceeds the addressable storage space")
-                .span(span)
-                .emit();
+                .emit_err(span, "contract storage layout exceeds the addressable storage space");
             None
         })
     }
@@ -474,6 +472,6 @@ impl<'gcx> StorageBuilder<'gcx> {
     }
 
     fn unsupported_size(&self, span: Span, kind: &str) {
-        self.gcx.dcx().err(format!("{kind} is too large for codegen")).span(span).emit();
+        self.gcx.dcx().emit_err(span, format!("{kind} is too large for codegen"));
     }
 }

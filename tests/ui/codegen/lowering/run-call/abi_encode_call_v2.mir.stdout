@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_v2.sol:AbiEncodeCallV2 ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_v2.sol:AbiEncodeCallV2 ===
 @module AbiEncodeCallV2
 ; function callMeMaybe(Struct calldata data, int256 intVal, string memory nameVal) external pure [selector 0x291c5a61]
 fn @callMeMaybe(arg0: slice<calldata>, arg1: i256, arg2: ptr<memory>) [selector=0x291c5a61, pure, abi_params=[tuple<array<_, uint256>, uint256, bytes, bytes, enum<3, uint8>>, int256, bytes], abi_returns=[], abi_return_params=[]] {
@@ -27,7 +27,7 @@ fn @callMeMaybe(arg0: slice<calldata>, arg1: i256, arg2: ptr<memory>) [selector=
     v18 = mul v15, 32
     v19 = add v8, 32
     v20 = sub v16, v18
-    v21 = sgt v19, v20
+    v21 = slt v20, v19
     icall revert_if<calldata_tail_too_short>, v21
     v22 = inttoptr i256 v19 to ptr<calldata>
     v23 = make_calldata_slice v22, v15
@@ -59,12 +59,12 @@ fn @callMeMaybe(arg0: slice<calldata>, arg1: i256, arg2: ptr<memory>) [selector=
     v45 = mul v42, 32
     v46 = add v35, 32
     v47 = sub v43, v45
-    v48 = sgt v46, v47
+    v48 = slt v47, v46
     icall revert_if<calldata_tail_too_short>, v48
     v49 = inttoptr i256 v46 to ptr<calldata>
     v50 = make_calldata_slice v49, v42
     v51 = extract_value slice<calldata>, v50, 1
-    v52 = lt 0, v51
+    v52 = gt v51, 0
     v53 = eq v52, false
     icall panic_if<0x32>, v53
     v54 = extract_value slice<calldata>, v50, 0
@@ -98,12 +98,12 @@ fn @callMeMaybe(arg0: slice<calldata>, arg1: i256, arg2: ptr<memory>) [selector=
     v78 = mul v75, 32
     v79 = add v68, 32
     v80 = sub v76, v78
-    v81 = sgt v79, v80
+    v81 = slt v80, v79
     icall revert_if<calldata_tail_too_short>, v81
     v82 = inttoptr i256 v79 to ptr<calldata>
     v83 = make_calldata_slice v82, v75
     v84 = extract_value slice<calldata>, v83, 1
-    v85 = lt 1, v84
+    v85 = gt v84, 1
     v86 = eq v85, false
     icall panic_if<0x32>, v86
     v87 = extract_value slice<calldata>, v83, 0
@@ -137,12 +137,12 @@ fn @callMeMaybe(arg0: slice<calldata>, arg1: i256, arg2: ptr<memory>) [selector=
     v111 = mul v108, 32
     v112 = add v101, 32
     v113 = sub v109, v111
-    v114 = sgt v112, v113
+    v114 = slt v113, v112
     icall revert_if<calldata_tail_too_short>, v114
     v115 = inttoptr i256 v112 to ptr<calldata>
     v116 = make_calldata_slice v115, v108
     v117 = extract_value slice<calldata>, v116, 1
-    v118 = lt 2, v117
+    v118 = gt v117, 2
     v119 = eq v118, false
     icall panic_if<0x32>, v119
     v120 = extract_value slice<calldata>, v116, 0
@@ -182,7 +182,7 @@ fn @callMeMaybe(arg0: slice<calldata>, arg1: i256, arg2: ptr<memory>) [selector=
     icall revert_if<invalid_calldata_tail_length>, v149
     v150 = add v140, 32
     v151 = sub v148, v147
-    v152 = sgt v150, v151
+    v152 = slt v151, v150
     icall revert_if<calldata_tail_too_short>, v152
     v153 = inttoptr i256 v150 to ptr<calldata>
     v154 = make_calldata_slice v153, v147
@@ -193,7 +193,7 @@ fn @callMeMaybe(arg0: slice<calldata>, arg1: i256, arg2: ptr<memory>) [selector=
     icall revert_if<invalid_calldata_tail_length>, v158
     v159 = sub v157, v156
     v160 = ptrtoint ptr<calldata> v155 to i256
-    v161 = sgt v160, v159
+    v161 = slt v159, v160
     icall revert_if<calldata_tail_too_short>, v161
     v162 = extract_value slice<calldata>, v154, 1
     v163 = add v162, 31
@@ -236,7 +236,7 @@ fn @callMeMaybe(arg0: slice<calldata>, arg1: i256, arg2: ptr<memory>) [selector=
     icall revert_if<invalid_calldata_tail_length>, v193
     v194 = add v184, 32
     v195 = sub v192, v191
-    v196 = sgt v194, v195
+    v196 = slt v195, v194
     icall revert_if<calldata_tail_too_short>, v196
     v197 = inttoptr i256 v194 to ptr<calldata>
     v198 = make_calldata_slice v197, v191
@@ -247,7 +247,7 @@ fn @callMeMaybe(arg0: slice<calldata>, arg1: i256, arg2: ptr<memory>) [selector=
     icall revert_if<invalid_calldata_tail_length>, v202
     v203 = sub v201, v200
     v204 = ptrtoint ptr<calldata> v199 to i256
-    v205 = sgt v204, v203
+    v205 = slt v203, v204
     icall revert_if<calldata_tail_too_short>, v205
     v206 = extract_value slice<calldata>, v198, 1
     v207 = add v206, 31
@@ -306,21 +306,21 @@ fn @callExternal() -> i1 [selector=0x5f431992, abi_params=[], abi_returns=[word<
     mstore v0, v4
     v5 = mload v0, ptr<memory>
     v6 = mload v5
-    v7 = lt 0, v6
+    v7 = gt v6, 0
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     v9 = ptradd v5, 32
     mstore v9, 0
     v10 = mload v0, ptr<memory>
     v11 = mload v10
-    v12 = lt 1, v11
+    v12 = gt v11, 1
     v13 = eq v12, false
     icall panic_if<0x32>, v13
     v14 = ptradd v10, 64
     mstore v14, 1
     v15 = mload v0, ptr<memory>
     v16 = mload v15
-    v17 = lt 2, v16
+    v17 = gt v16, 2
     v18 = eq v17, false
     icall panic_if<0x32>, v18
     v19 = ptradd v15, 96

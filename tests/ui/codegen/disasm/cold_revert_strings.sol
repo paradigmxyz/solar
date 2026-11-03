@@ -18,7 +18,7 @@ contract ColdRevertStrings {
     // IR-NEXT: push 136
     // IR-NEXT: shl
 
-    // DISASM-LABEL: // === {{.*}}:ColdRevertStrings (runtime) ===
+    // DISASM-LABEL: ; === {{.*}}:ColdRevertStrings (runtime) ===
     // DISASM: PUSH25 0x45524332303a503a494e56414c49445f5349474e4154555245
     // DISASM-NEXT: PUSH1 0x38
     // DISASM-NEXT: SHL

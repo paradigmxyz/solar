@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/dynamic_struct_param.sol:DynamicStructParam ===
+; === ROOT/tests/ui/codegen/lowering/dynamic_struct_param.sol:DynamicStructParam ===
 @module DynamicStructParam
 ; function init(InitInput calldata input, address sink) external pure returns (uint256) [selector 0x5c58abd8]
 fn @init(arg0: slice<calldata>, arg1: i160) -> i256 [selector=0x5c58abd8, pure, abi_params=[tuple<address, uint8, bytes, bytes>, address], abi_returns=[word], abi_return_params=[uint256]] {
@@ -18,11 +18,11 @@ fn @init(arg0: slice<calldata>, arg1: i160) -> i256 [selector=0x5c58abd8, pure, 
     v13 = add v11, v12
     v14 = gt v13, 0xffffffffffffffffffffffffffffffffffffffff
     jumpi v14, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v15 = trunc i256 v13 to i160
     v10 = zext i160 v15 to i256
     ret v10
-  bb1 [cold]:  ; preds = bb0
+  bb1 [cold]:                                     ; preds = bb0
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -65,7 +65,7 @@ fn @words(arg0: slice<calldata>) -> i256 [selector=0x6d5f7443, pure, abi_params=
     v18 = mul v15, 32
     v19 = add v8, 32
     v20 = sub v16, v18
-    v21 = sgt v19, v20
+    v21 = slt v20, v19
     icall revert_if<calldata_tail_too_short>, v21
     v22 = inttoptr i256 v19 to ptr<calldata>
     v23 = make_calldata_slice v22, v15
@@ -77,9 +77,9 @@ fn @words(arg0: slice<calldata>) -> i256 [selector=0x6d5f7443, pure, abi_params=
     v30 = add v24, v28
     v31 = lt v30, v24
     jumpi v31, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     ret v30
-  bb1 [cold]:  ; preds = bb0
+  bb1 [cold]:                                     ; preds = bb0
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -112,7 +112,7 @@ fn @signedWords(arg0: slice<calldata>) -> i256 [selector=0x69491962, pure, abi_p
     v18 = mul v15, 32
     v19 = add v8, 32
     v20 = sub v16, v18
-    v21 = sgt v19, v20
+    v21 = slt v20, v19
     icall revert_if<calldata_tail_too_short>, v21
     v22 = inttoptr i256 v19 to ptr<calldata>
     v23 = make_calldata_slice v22, v15
@@ -124,9 +124,9 @@ fn @signedWords(arg0: slice<calldata>) -> i256 [selector=0x69491962, pure, abi_p
     v30 = add v24, v28
     v31 = lt v30, v24
     jumpi v31, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     ret v30
-  bb1 [cold]:  ; preds = bb0
+  bb1 [cold]:                                     ; preds = bb0
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
@@ -159,7 +159,7 @@ fn @nestedWords(arg0: slice<calldata>) -> i256 [selector=0x0b0be15f, pure, abi_p
     v18 = mul v15, 32
     v19 = add v8, 32
     v20 = sub v16, v18
-    v21 = sgt v19, v20
+    v21 = slt v20, v19
     icall revert_if<calldata_tail_too_short>, v21
     v22 = inttoptr i256 v19 to ptr<calldata>
     v23 = make_calldata_slice v22, v15
@@ -188,12 +188,12 @@ fn @nestedWords(arg0: slice<calldata>) -> i256 [selector=0x0b0be15f, pure, abi_p
     v43 = mul v40, 32
     v44 = add v33, 32
     v45 = sub v41, v43
-    v46 = sgt v44, v45
+    v46 = slt v45, v44
     icall revert_if<calldata_tail_too_short>, v46
     v47 = inttoptr i256 v44 to ptr<calldata>
     v48 = make_calldata_slice v47, v40
     v49 = extract_value slice<calldata>, v48, 1
-    v50 = lt 0, v49
+    v50 = gt v49, 0
     v51 = eq v50, false
     icall panic_if<0x32>, v51
     v52 = extract_value slice<calldata>, v48, 0
@@ -220,7 +220,7 @@ fn @nestedWords(arg0: slice<calldata>) -> i256 [selector=0x0b0be15f, pure, abi_p
     v70 = mul v67, 32
     v71 = add v60, 32
     v72 = sub v68, v70
-    v73 = sgt v71, v72
+    v73 = slt v72, v71
     icall revert_if<calldata_tail_too_short>, v73
     v74 = inttoptr i256 v71 to ptr<calldata>
     v75 = make_calldata_slice v74, v67
@@ -228,9 +228,9 @@ fn @nestedWords(arg0: slice<calldata>) -> i256 [selector=0x0b0be15f, pure, abi_p
     v78 = add v24, v76
     v79 = lt v78, v24
     jumpi v79, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     ret v78
-  bb1 [cold]:  ; preds = bb0
+  bb1 [cold]:                                     ; preds = bb0
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36

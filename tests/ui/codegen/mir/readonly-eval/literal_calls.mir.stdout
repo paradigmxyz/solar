@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/readonly-eval/literal_calls.sol:LiteralCalls ===
+; === ROOT/tests/ui/codegen/mir/readonly-eval/literal_calls.sol:LiteralCalls ===
 @module LiteralCalls
 @types
   struct0: {i256, i256}
@@ -125,14 +125,14 @@ fn @toShort(arg0: ptr<memory>) -> i256 [pure] {
 fn @choose(arg0: ptr<memory>, arg1: i1) -> i256 {
   bb0:
     jumpi arg1, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = checked_add uint256, v1, 1
     sstore 0, v2 !metadata(storage=slot(0))
     ret 7
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v0 = icall @readWord, arg0
     ret v0
 }

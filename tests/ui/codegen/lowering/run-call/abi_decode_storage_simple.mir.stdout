@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_storage_simple.sol:AbiDecodeStorageSimple ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_storage_simple.sol:AbiDecodeStorageSimple ===
 @module AbiDecodeStorageSimple
 @types
   struct0: {i256, i256, i256}
@@ -14,7 +14,7 @@ fn @decode(arg0: ptr<memory>) -> struct0 [selector=0xe5c5e9a3, abi_params=[bytes
     v3 = extract_value struct1, v1, 1
     v4 = mload v3
     v5 = mload v3
-    v6 = lt 0, v5
+    v6 = gt v5, 0
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = ptradd v3, 32

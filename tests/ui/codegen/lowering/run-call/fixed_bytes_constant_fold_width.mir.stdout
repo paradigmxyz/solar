@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_constant_fold_width.sol:FixedBytesConstantFoldWidth ===
+; === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_constant_fold_width.sol:FixedBytesConstantFoldWidth ===
 @module FixedBytesConstantFoldWidth
 ; function crossWidthLocal() external pure returns (bytes2) [selector 0x7a24c6ed]
 fn @crossWidthLocal() -> i256 [selector=0x7a24c6ed, pure, abi_params=[], abi_returns=[word<bytes2>], abi_return_params=[bytes2]] {

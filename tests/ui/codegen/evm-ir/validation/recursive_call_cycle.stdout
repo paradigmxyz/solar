@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/validation/recursive_call_cycle.evmir (before none) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/validation/recursive_call_cycle.evmir (after none) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/validation/recursive_call_cycle.evmir (before none) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/validation/recursive_call_cycle.evmir (after none) ===
   @module module
   bb0:
     push bb4

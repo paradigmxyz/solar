@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_constant_wide_shift.sol:FixedBytesConstantWideShift ===
+; === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_constant_wide_shift.sol:FixedBytesConstantWideShift ===
 @module FixedBytesConstantWideShift
 ; function shiftOut() external pure returns (bytes32) [selector 0x937035d7]
 fn @shiftOut() -> i256 [selector=0x937035d7, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
