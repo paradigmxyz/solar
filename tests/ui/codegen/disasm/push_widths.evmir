@@ -3,7 +3,7 @@
 
 @module push_widths
 
-// CHECK-LABEL: // === push_widths (runtime) ===
+// CHECK-LABEL: ; === push_widths (runtime) ===
 // CHECK-NEXT: PUSH4 0x80000000
 // CHECK-NEXT: PUSH1 0x02
 bb0:

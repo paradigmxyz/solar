@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/fixed_bytes_canonical.sol:FixedBytesCanonical ===
+; === ROOT/tests/ui/codegen/lowering/fixed_bytes_canonical.sol:FixedBytesCanonical ===
 @module FixedBytesCanonical
 @types
   struct0: {i128, i128, i160, i160}

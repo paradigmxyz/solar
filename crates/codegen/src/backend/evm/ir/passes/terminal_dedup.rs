@@ -27,6 +27,7 @@
 
 use super::{
     EvmPass,
+    block_layout::terminator_kind,
     cfg_simplify::mark_addressed_blocks,
     utils::{MachineInstKey, is_terminal_boundary},
 };
@@ -148,8 +149,7 @@ fn same_terminal_body(a: &Block, b: &Block) -> bool {
         && a.instructions.iter().zip(&b.instructions).all(|(a, b)| {
             a.as_evm_opcode() != Some(op::PC) && MachineInstKey::new(a) == MachineInstKey::new(b)
         })
-        && a.terminator.as_ref().map(|term| &term.kind)
-            == b.terminator.as_ref().map(|term| &term.kind)
+        && terminator_kind(a) == terminator_kind(b)
 }
 
 /// Folds `copy` into `target` when both reach, directly or through empty jumps, distinct halting

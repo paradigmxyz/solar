@@ -10,37 +10,37 @@ error[3726]: the name `super` is reserved
 LL │     struct super { uint x; }
    ╰╴           ━━━━━
 
-error: unresolved symbol `this`
+error[7920]: unresolved symbol `this`
    ╭▸ ROOT/tests/ui/resolve/super_type.sol:LL:CC
    │
 LL │ contract D is this.C {}
    ╰╴              ━━━━
 
-error: unresolved symbol `super`
+error[7920]: unresolved symbol `super`
    ╭▸ ROOT/tests/ui/resolve/super_type.sol:LL:CC
    │
 LL │ contract E is super.C {}
    ╰╴              ━━━━━
 
-error: `this` is a builtin, which cannot be indexed in type paths
+error[7920]: `this` is a builtin, which cannot be indexed in type paths
    ╭▸ ROOT/tests/ui/resolve/super_type.sol:LL:CC
    │
 LL │         this.S1 memory x0;
    ╰╴        ━━━━
 
-error: `super` is a builtin, which cannot be indexed in type paths
+error[7920]: `super` is a builtin, which cannot be indexed in type paths
    ╭▸ ROOT/tests/ui/resolve/super_type.sol:LL:CC
    │
 LL │         super.S1 memory x1;
    ╰╴        ━━━━━
 
-error: `super` is a builtin, which cannot be indexed in type paths
+error[7920]: `super` is a builtin, which cannot be indexed in type paths
    ╭▸ ROOT/tests/ui/resolve/super_type.sol:LL:CC
    │
 LL │         super.S2 memory x2;
    ╰╴        ━━━━━
 
-error: `super` is a builtin, which cannot be indexed in type paths
+error[7920]: `super` is a builtin, which cannot be indexed in type paths
    ╭▸ ROOT/tests/ui/resolve/super_type.sol:LL:CC
    │
 LL │         super.super.S2 memory x3;

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/byte-run-loads/pack.sol:Test ===
+; === ROOT/tests/ui/codegen/mir/byte-run-loads/pack.sol:Test ===
 @module Test
 @phase lowered
 ; runtime dispatch entry
@@ -11,21 +11,21 @@ fn @entry() [entry] {
     v4 = or v0, v3
     v5 = ne v4, 0
     jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v6 = calldataload 0
     v7 = shr v6, 224
     switch v7, default bb1, [0x1158e167 => bb3, 0x63cfbce4 => bb4, 0x65313149 => bb5, 0xab0edd4e => bb6, 0xd033fb43 => bb7]
-  bb7:  ; preds = bb2
+  bb7:                                            ; preds = bb2
     tail_call @lowByte
-  bb6:  ; preds = bb2
+  bb6:                                            ; preds = bb2
     tail_call @stored
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     tail_call @two
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     tail_call @gapped
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     tail_call @three
-  bb1 [cold]:  ; preds = bb0, bb2
+  bb1 [cold]:                                     ; preds = bb0, bb2
     revert 0, 0
 }
 
@@ -36,13 +36,13 @@ fn @three() {
     v0 = mload v38
     v1 = lt v0, 3
     jumpi v1, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v40 = add v38, 32
     v6 = mload v40
     v35 = shr v6, 232
     mstore 0, v35 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     mstore 0, 0 !metadata(memory=scratch)
     returndata 0, 32
 }
@@ -54,13 +54,13 @@ fn @two() {
     v0 = mload v26
     v1 = lt v0, 2
     jumpi v1, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v28 = add v26, 32
     v6 = mload v28
     v23 = shr v6, 240
     mstore 0, v23 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     mstore 0, 0 !metadata(memory=scratch)
     returndata 0, 32
 }
@@ -72,7 +72,7 @@ fn @gapped() {
     v0 = mload v26
     v1 = lt v0, 3
     jumpi v1, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v28 = add v26, 32
     v6 = mload v28
     v7 = byte 0, v6
@@ -81,7 +81,7 @@ fn @gapped() {
     v23 = or v12, v18
     mstore 0, v23 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     mstore 0, 0 !metadata(memory=scratch)
     returndata 0, 32
 }
@@ -93,7 +93,7 @@ fn @stored() {
     v0 = mload v43
     v1 = lt v0, 3
     jumpi v1, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v45 = add v43, 32
     v6 = mload v45
     v7 = byte 0, v6
@@ -108,7 +108,7 @@ fn @stored() {
     v40 = or v29, v35
     mstore 0, v40 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     mstore 0, 0 !metadata(memory=scratch)
     returndata 0, 32
 }
@@ -137,7 +137,7 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v4 = sub v0, 36
     v5 = lt v4, v1
     jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v6 = calldataload v2
     v7 = add v2, 32
     v36 = add v6, 63
@@ -153,20 +153,20 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
     v39 = or v34, v38
     v40 = ne v39, 0
     jumpi v40, bb3, bb5
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     mstore 64, v30 !metadata(memory=scratch)
     mstore v29, v6
     v13 = sub v0, v7
     v14 = lt v13, v6
     jumpi v14, bb1, bb4
-  bb4:  ; preds = bb5
+  bb4:                                            ; preds = bb5
     v25 = add v29, 32
     calldatacopy v25, v7, v6
     ret v29
-  bb3 [cold]:  ; preds = bb2
+  bb3 [cold]:                                     ; preds = bb2
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1 [cold]:  ; preds = bb0, bb5
+  bb1 [cold]:                                     ; preds = bb0, bb5
     revert 0, 0
 }

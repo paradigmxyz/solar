@@ -1,4 +1,4 @@
-// === label_resolution (runtime) ===
+; === label_resolution (runtime) ===
 ; bb0
 JUMPDEST
 PUSH1 0x01

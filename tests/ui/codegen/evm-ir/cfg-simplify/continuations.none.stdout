@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/continuations.evmir (before none) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/continuations.evmir (after none) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/continuations.evmir (before none) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/continuations.evmir (after none) ===
   @module Continuations
   bb0:
     push 0

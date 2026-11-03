@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/cse/bounded_offsets.mir (before cse) ===
-+ // === ROOT/tests/ui/codegen/mir/cse/bounded_offsets.mir (after cse) ===
+- ; === ROOT/tests/ui/codegen/mir/cse/bounded_offsets.mir (before cse) ===
++ ; === ROOT/tests/ui/codegen/mir/cse/bounded_offsets.mir (after cse) ===
   @module BoundedOffsets
   fn @copied_length(arg0: i256, arg1: i256) -> i256 {
     bb0:
@@ -59,10 +59,10 @@
       v4 = add v3, 32
       v5 = ne arg2, 0
       jumpi v5, bb1, bb2
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       calldatacopy v4, arg1, arg0
       jump bb2
-    bb2:  ; preds = bb0, bb1
+    bb2:                                            ; preds = bb0, bb1
       v6 = add v4, arg0
       v7 = inttoptr i256 v6 to ptr<memory>
       memory_zero v7, 1

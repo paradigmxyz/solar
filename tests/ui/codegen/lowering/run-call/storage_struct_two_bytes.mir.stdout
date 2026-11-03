@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/storage_struct_two_bytes.sol:StorageStructTwoBytes ===
+; === ROOT/tests/ui/codegen/lowering/run-call/storage_struct_two_bytes.sol:StorageStructTwoBytes ===
 @module StorageStructTwoBytes
 @types
   struct0: {ptr<memory>, ptr<memory>}

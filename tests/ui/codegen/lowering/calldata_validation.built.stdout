@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/calldata_validation.sol:CalldataValidation ===
+; === ROOT/tests/ui/codegen/lowering/calldata_validation.sol:CalldataValidation ===
 @module CalldataValidation
 ; function vUint8(uint8 x) external pure returns (uint8) [selector 0xd5f6949e]
 fn @vUint8(arg0: i8) -> i8 [selector=0xd5f6949e, pure, abi_params=[uint8], abi_returns=[word<uint8>], abi_return_params=[uint8]] {

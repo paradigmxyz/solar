@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/validation/mir_input_embedded_code.mir (before none) ===
-+ // === ROOT/tests/ui/codegen/mir/validation/mir_input_embedded_code.mir (after none) ===
+- ; === ROOT/tests/ui/codegen/mir/validation/mir_input_embedded_code.mir (before none) ===
++ ; === ROOT/tests/ui/codegen/mir/validation/mir_input_embedded_code.mir (after none) ===
   @module Deployer
   @phase lowered
   @data

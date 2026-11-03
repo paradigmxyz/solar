@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/terminal-layout/inline_edges.evmir (before terminal-layout) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/terminal-layout/inline_edges.evmir (after terminal-layout) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/terminal-layout/inline_edges.evmir (before terminal-layout) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/terminal-layout/inline_edges.evmir (after terminal-layout) ===
   @module InlineEdges
   bb0:
     push 1

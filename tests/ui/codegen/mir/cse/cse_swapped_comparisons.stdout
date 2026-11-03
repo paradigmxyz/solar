@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/cse/cse_swapped_comparisons.mir (before cse) ===
-+ // === ROOT/tests/ui/codegen/mir/cse/cse_swapped_comparisons.mir (after cse) ===
+- ; === ROOT/tests/ui/codegen/mir/cse/cse_swapped_comparisons.mir (before cse) ===
++ ; === ROOT/tests/ui/codegen/mir/cse/cse_swapped_comparisons.mir (after cse) ===
   @module CseSwappedComparisons
   @types
     struct0: {i1, i1}
