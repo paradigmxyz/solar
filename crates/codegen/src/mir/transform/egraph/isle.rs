@@ -441,7 +441,7 @@ impl generated::Context for RuleContext<'_> {
     }
 
     fn one(&mut self, value: Value) -> Option<()> {
-        self.has_const(value, U256::from(1)).then_some(())
+        self.has_const(value, U256::ONE).then_some(())
     }
 
     fn all_ones(&mut self, value: Value) -> Option<()> {
@@ -475,7 +475,7 @@ impl generated::Context for RuleContext<'_> {
     }
 
     fn is_zero_or_one(&mut self, value: Value) -> bool {
-        self.has_const(value, U256::ZERO) || self.has_const(value, U256::from(1))
+        self.has_const(value, U256::ZERO) || self.has_const(value, U256::ONE)
     }
 
     fn below_const(&mut self, value: Value, bound: U256) -> bool {
@@ -498,7 +498,7 @@ impl generated::Context for RuleContext<'_> {
 
     fn mask_covers(&mut self, mask: U256, value: Value) -> bool {
         // A mask of the form `2^n - 1` keeps `n` low bits.
-        let contiguous = mask.wrapping_add(U256::ONE) & mask == U256::ZERO;
+        let contiguous = (mask.wrapping_add(U256::ONE) & mask).is_zero();
         contiguous && max_bits(self.func, value, MAX_BITS_DEPTH) <= mask.bit_len() as u32
     }
 
@@ -555,7 +555,7 @@ impl generated::Context for RuleContext<'_> {
     }
 
     fn u256_is_one(&mut self, value: U256) -> bool {
-        value == U256::from(1)
+        value == U256::ONE
     }
 
     fn u256_is_all_ones(&mut self, value: U256) -> bool {
@@ -655,7 +655,7 @@ impl generated::Context for RuleContext<'_> {
     }
 
     fn power_of_two_shift(&mut self, value: U256) -> Option<U256> {
-        if value.is_zero() || (value & (value - U256::from(1))) != U256::ZERO {
+        if value.is_zero() || !(value & (value - U256::ONE)).is_zero() {
             return None;
         }
         let shift = U256::from(value.trailing_zeros());
