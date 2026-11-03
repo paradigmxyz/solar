@@ -19,14 +19,14 @@ fn @lots(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> ptr<memory> [selecto
     v12 = phi [bb3: arg3], [bb6: v12]
     v13 = phi [bb3: ptr<memory> 96], [bb6: v13]
     v14 = phi [bb3: v0], [bb6: v14]
-    v15 = phi [bb3: 0], [bb6: v54]
+    v15 = phi [bb3: 0], [bb6: v51]
     v16 = lt v15, 2
     jumpi v16, bb7, bb8
   bb8:  ; preds = bb4
     jump bb5
   bb5:  ; preds = bb8
-    v55 = abi_encode [memory_array<tuple<word, word<uint160>, word<enum 3>, word<bool>, word<enum 2>, word<bytes2>, word>>], object, args v14
-    ret v55
+    v52 = abi_encode [memory_array<tuple<word, word<uint160>, word<enum 3>, word<bool>, word<enum 2>, word<bytes2>, word>>], object, args v14
+    ret v52
   bb7:  ; preds = bb4
     v17 = mload v14
     v18 = lt v15, v17
@@ -71,20 +71,16 @@ fn @lots(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> ptr<memory> [selecto
     v45 = ptrtoint ptr<memory> v23 to i256
     v46 = add v45, 160
     mstore v46, v44
-    v47 = xor v12, 119
-    v48 = ptrtoint ptr<memory> v23 to i256
-    v49 = add v48, 192
-    mstore v49, v47
-    v50 = xor v12, v15
-    v51 = xor v50, 119
-    v52 = ptrtoint ptr<memory> v23 to i256
-    v53 = add v52, 192
-    mstore v53, v51
+    v47 = xor v12, v15
+    v48 = xor v47, 119
+    v49 = ptrtoint ptr<memory> v23 to i256
+    v50 = add v49, 192
+    mstore v50, v48
     jump bb9
   bb9:  ; preds = bb12
     jump bb6
   bb6:  ; preds = bb9
-    v54 = checked_add uint256, v15, 1
+    v51 = checked_add uint256, v15, 1
     jump bb4
   bb2:  ; preds = bb1
     v3 = alloc 224 !metadata(preserves_fmp)

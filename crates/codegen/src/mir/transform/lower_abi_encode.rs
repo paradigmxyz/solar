@@ -1109,9 +1109,9 @@ pub(crate) fn encode_static_tuple(
     for (&value, ty) in values.iter().zip(types) {
         // head = add dest, size
         let head = builder.add_offset(dest, size);
-        // The destination is a fixed low address that a source struct may overlap, so fields
-        // keep their word-by-word order.
-        encode_static_impl(builder, ty, value, head, false, AbiValueSource::Scalar, None);
+        // The destination is a fixed low address that a source may overlap, so values keep their
+        // word-by-word order instead of copying as blocks.
+        encode_static_impl(builder, ty, value, head, AbiValueSource::Scalar, None);
         size += ty.head_size();
     }
     // size = head bytes written
@@ -1123,11 +1123,12 @@ fn encode_static_impl(
     ty: &AbiType,
     value: ValueId,
     head_addr: ValueId,
-    allow_slice_fast_path: bool,
     source: AbiValueSource,
-    block_copy: Option<&Target>,
+    copy_target: Option<&Target>,
 ) {
-    if allow_slice_fast_path
+    // A `copy_target` means the destination cannot overlap the source, so a slice or a struct
+    // may copy as one block.
+    if copy_target.is_some()
         && let Some(location @ (PtrLocation::Calldata | PtrLocation::Memory)) =
             builder.func().value_slice_location(value)
     {
@@ -1137,7 +1138,7 @@ fn encode_static_impl(
     }
     match ty {
         AbiType::Tuple(fields) => {
-            if let Some(target) = block_copy
+            if let Some(target) = copy_target
                 && copies_struct_block(builder.func(), target, fields, value)
             {
                 encode_struct_block(builder, fields, value, head_addr);
@@ -1151,23 +1152,14 @@ fn encode_static_impl(
                     field,
                     field_value,
                     field_head,
-                    allow_slice_fast_path,
                     AbiValueSource::Memory,
-                    block_copy,
+                    copy_target,
                 );
                 field_head = builder.add_offset(field_head, field.head_size());
             }
         }
         AbiType::FixedArray { element, len, .. } => {
-            encode_static_array(
-                builder,
-                element,
-                *len,
-                value,
-                head_addr,
-                allow_slice_fast_path,
-                block_copy,
-            );
+            encode_static_array(builder, element, *len, value, head_addr, copy_target);
         }
         AbiType::Function => {
             let value = if source == AbiValueSource::Scalar {
@@ -1199,8 +1191,7 @@ fn encode_static_array(
     len: u64,
     value: ValueId,
     head_addr: ValueId,
-    allow_slice_fast_path: bool,
-    block_copy: Option<&Target>,
+    copy_target: Option<&Target>,
 ) {
     let length = builder.imm(len);
     let stride = builder.imm(element.head_size());
@@ -1214,9 +1205,8 @@ fn encode_static_array(
             element,
             element_value,
             element_head,
-            allow_slice_fast_path,
             AbiValueSource::Memory,
-            block_copy,
+            copy_target,
         );
     });
 }
@@ -1234,7 +1224,7 @@ fn encode_tuple(
         let mut head_offset = 0;
         for (&value, ty) in values.iter().zip(types) {
             let head = builder.add_offset(dest, head_offset);
-            encode_static_impl(builder, ty, value, head, true, source, Some(&helpers.target));
+            encode_static_impl(builder, ty, value, head, source, Some(&helpers.target));
             head_offset += ty.head_size();
         }
         return builder.imm(head_size);
@@ -1271,7 +1261,7 @@ fn encode_value(
         builder.store(dest.head_addr, relative);
         encode_dynamic_body(builder, ty, value, dest.tail, helpers)
     } else {
-        encode_static_impl(builder, ty, value, dest.head_addr, true, source, Some(&helpers.target));
+        encode_static_impl(builder, ty, value, dest.head_addr, source, Some(&helpers.target));
         dest.tail
     }
 }
@@ -1388,9 +1378,7 @@ fn copies_struct_block(
     fields: &[AbiType],
     value: ValueId,
 ) -> bool {
-    if func.value_slice_location(value).is_some()
-        || !fields.iter().all(|field| matches!(field, AbiType::Word(_)))
-    {
+    if !fields.iter().all(|field| matches!(field, AbiType::Word(_))) {
         return false;
     }
     if let Value::Inst(inst) = func.value(value)
@@ -1412,17 +1400,19 @@ fn encode_struct_block(
     value: ValueId,
     head_addr: ValueId,
 ) {
-    // mcopy head_addr, value, 32 * fields [!metadata(disjoint)]
+    // mcopy head_addr, value, 32 * fields
     let size = builder.imm(fields.len() as u64 * EvmMemoryLayout::WORD_SIZE);
     copy_source_data(builder, PtrLocation::Memory, head_addr, value, size);
     for (index, field) in fields.iter().enumerate() {
         let AbiType::Word(Some(cleanup)) = *field else { continue };
         // word = mload head_addr + 32 * index
-        // mstore head_addr + 32 * index, clean(word), or only check an enum's range
+        // cleaned = clean(word)
+        // mstore head_addr + 32 * index, cleaned
         let address = builder.add_offset(head_addr, index as u64 * EvmMemoryLayout::WORD_SIZE);
         let word = builder.load(address, PtrLocation::Memory);
         let cleaned = clean_word(builder, cleanup, word);
-        if !matches!(cleanup, AbiWordValidator::EnumRange(_)) {
+        // An enum is only checked, and a word that passes is already clean.
+        if cleaned != word {
             builder.store(address, cleaned);
         }
     }
