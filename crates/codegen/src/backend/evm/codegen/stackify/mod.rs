@@ -976,10 +976,15 @@ impl<'gcx> EvmCodegen<'gcx> {
                 plan::retention_liveness(func, &analysis.cfg, &analysis.liveness, &retained)
                 && let Ok(candidate) = planner.retain_constants(&retained, &liveness).plan()
                 // Creation code pays for every byte it leaves out, so a constant kept on the
-                // stack may cost gas, as long as the deployment gets cheaper.
+                // stack may cost gas, as long as the deployment gets cheaper. Elsewhere it may
+                // cost setup gas outside loops only when the bytes it saves repay that gas.
                 && (target.is_creation()
                     || (target.dominates(candidate.plan.cost, best.cost)
-                        && candidate.plan.non_loop_gas <= best.non_loop_gas))
+                        && (candidate.plan.non_loop_gas <= best.non_loop_gas
+                            || target.deposit_repays_gas(
+                                u64::from(best.cost.bytes - candidate.plan.cost.bytes),
+                                u64::from(candidate.plan.non_loop_gas - best.non_loop_gas),
+                            ))))
                 && target.cmp_lifetime(candidate.plan.cost, best.cost).is_lt()
                 && (!target.optimization().is_size()
                     || candidate.plan.cost.bytes.saturating_add(target.jump().bytes)
