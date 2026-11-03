@@ -115,7 +115,7 @@ impl Assembler<'_> {
 }
 
 fn failed_preparation(ir_program: ir::Module, capture_evm_ir: bool) -> PreparedAssembly {
-    PreparedAssembly { evm_ir: capture_evm_ir.then_some(ir_program), ..Default::default() }
+    PreparedAssembly { evm_ir: capture_evm_ir.then_some(ir_program), program: Default::default() }
 }
 
 fn validate_program_evm_version(assembler: &Assembler<'_>, program: &Program) {

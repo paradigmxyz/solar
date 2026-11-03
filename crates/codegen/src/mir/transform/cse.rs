@@ -182,7 +182,11 @@ impl MirPass for Cse {
                 call_summaries: summaries.as_ref().map(Arc::clone),
                 pure_calls: pure_calls.as_ref().map(Arc::clone),
                 storage_only,
-                ..Default::default()
+                eliminated_count: 0,
+                eliminated_settled: 0,
+                gas: None,
+                alias: None,
+                zero_word: None,
             };
             eliminator.run_to_fixpoint(func, analyses.cfg()) != 0
         };

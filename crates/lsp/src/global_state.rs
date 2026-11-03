@@ -2788,7 +2788,14 @@ struct AnalysisBatch {
 
 impl AnalysisBatch {
     fn new(opts: CompileOpts) -> Self {
-        Self { opts, ..Default::default() }
+        Self {
+            opts,
+            files: Default::default(),
+            preloaded_files: Default::default(),
+            preloaded_paths: Default::default(),
+            open_file_versions: Default::default(),
+            seen_paths: Default::default(),
+        }
     }
 
     #[cfg(test)]

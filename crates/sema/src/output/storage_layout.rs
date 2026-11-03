@@ -224,7 +224,10 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
             encoding: StorageEncoding::Inplace,
             label: self.storage_type_label(ty),
             number_of_bytes: self.storage_bytes(ty).to_string(),
-            ..Default::default()
+            base: None,
+            key: None,
+            value: None,
+            members: Default::default(),
         };
         match ty.kind {
             TyKind::Struct(struct_id) => {

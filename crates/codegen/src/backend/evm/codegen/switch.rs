@@ -796,7 +796,8 @@ fn lowering_cost_with_tests(
         let mut cost = LoweringCost {
             code_size: default.code_size(evm_version),
             max_code_size: default.max_code_size(evm_version, table_target_width),
-            ..Default::default()
+            hit_gas_sum: 0,
+            miss_gas: 0,
         };
         let mut path_gas = 0;
         for &test in equality_costs {

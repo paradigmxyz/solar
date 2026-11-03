@@ -102,7 +102,7 @@ pub fn parse_dump(text: &str) -> Vec<DumpedModule> {
     for line in text.lines() {
         if let Some(name) = header(line) {
             modules.extend(current.take());
-            current = Some(DumpedModule { name: name.to_owned(), ..Default::default() });
+            current = Some(DumpedModule { name: name.to_owned(), mir: Default::default() });
             continue;
         }
         if line.starts_with('{') {

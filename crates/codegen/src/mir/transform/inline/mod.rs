@@ -1006,7 +1006,20 @@ fn summarize_function(
         is_check_wrapper: is_check_wrapper(func),
         is_function_pointer_dispatcher: func.attributes.is_function_pointer_dispatcher,
         has_loop: !func.blocks.is_empty() && has_back_edge(func),
-        ..MirInlineSummary::default()
+        instruction_count: 0,
+        return_count: 0,
+        estimated_code_size: 0,
+        has_icall: false,
+        has_alloc: false,
+        has_returning_icall: false,
+        has_phi: false,
+        phi_stack_peak: None,
+        has_state_effect: false,
+        has_control_flow: false,
+        has_unsupported_terminator: false,
+        void_forwarder_adds_args: false,
+        is_impure: false,
+        is_scalar: false,
     };
 
     let mut all_scalar_ops = true;

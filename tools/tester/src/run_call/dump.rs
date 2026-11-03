@@ -120,7 +120,8 @@ pub(super) fn parse_dump(
     stdout: &[u8],
     modules: fn(&str) -> HashMap<String, String>,
 ) -> Result<Dump, String> {
-    let mut dump = Dump { modules: modules(&String::from_utf8_lossy(stdout)), ..Dump::default() };
+    let mut dump =
+        Dump { modules: modules(&String::from_utf8_lossy(stdout)), runtimes: Default::default() };
     let json = super::compiler_json(stdout)?;
     let contracts = json.get("contracts").and_then(serde_json::Value::as_object);
     for (name, contract) in contracts.into_iter().flatten() {
