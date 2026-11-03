@@ -79,9 +79,8 @@ fn @pairs() {
   bb10:                                           ; preds = bb9, bb11
     v52 = phi [bb9: v42], [bb11: v61]
     v53 = phi [bb9: v43], [bb11: v62]
-    v54 = phi [bb9: 0], [bb11: v63]
     v96 = phi [bb9: v95], [bb11: v97]
-    v55 = gt v52, 0
+    v55 = ne v52, 0
     jumpi v55, bb11, bb12
   bb12:                                           ; preds = bb10
     v29 = mload v80
@@ -127,7 +126,6 @@ fn @pairs() {
     mstore v96, v56
     v61 = sub v52, 1
     v62 = add v53, 32
-    v63 = add v54, 1
     v97 = add v96, 32
     jump bb10
   bb8 [cold]:                                     ; preds = bb7

@@ -583,8 +583,12 @@ fn display_inst_kind<'a>(
                     super::PackedPart::Bytes { value, location } => {
                         write!(f, "{location}_bytes {}", display_val(*value, func))?
                     }
-                    super::PackedPart::Array { value, element, source } => {
-                        write!(f, "array<{element}> ")?;
+                    super::PackedPart::Array { value, element, source, wordwise } => {
+                        write!(
+                            f,
+                            "array<{element}{}> ",
+                            if *wordwise { ", wordwise" } else { "" }
+                        )?;
                         match source {
                             super::PackedArraySource::Memory { layout } => write!(f, "{layout}")?,
                             super::PackedArraySource::Slice(location) => write!(f, "{location}")?,

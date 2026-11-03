@@ -459,8 +459,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             // post-emission end. The heap prefix follows the complete ABI blob.
             let constructor_fixed_memory_end = self.asm.new_deferred_const();
             // The arguments start where the runtime code, the last data entry, ends.
-            // Their size reads `CODESIZE`, which makes the data layout observable, so
-            // data packing keeps every entry in place.
+            // Their size reads `CODESIZE`, so data packing keeps this entry in place.
             let constructor_arg_offset = reads_constructor_args(ctor).then(|| {
                 let runtime_end = u32::try_from(runtime_len).expect("runtime code exceeds `u32`");
                 ir::DataRef::new(runtime, runtime_end)

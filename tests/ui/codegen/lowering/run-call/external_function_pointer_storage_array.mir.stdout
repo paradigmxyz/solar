@@ -219,7 +219,7 @@ fn @runAll() -> ptr<memory> [selector=0x34ba89a6, abi_params=[], abi_returns=[me
   bb12:                                           ; preds = bb10
     v91 = address
     v92 = gas
-    v93 = abi_encode [memory_array<function>], selector 0x6aabe1c400000000000000000000000000000000000000000000000000000000, args v0
+    v93 = abi_encode [memory_array<function>], scratch, selector 0x6aabe1c400000000000000000000000000000000000000000000000000000000, args v0
     v94 = extract_value slice<memory>, v93, 0
     v95 = extract_value slice<memory>, v93, 1
     v96 = zext i160 v91 to i256

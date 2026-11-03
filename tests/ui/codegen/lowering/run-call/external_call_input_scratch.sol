@@ -10,11 +10,27 @@
 //@ run-call: narrowReturn => 0, 1
 //@ run-call: twoScalars => 0, 5, 1, 2, 3
 //@ run-call: functionArgument => 0, 7, 1, 2, 3
+//@ run-call: dynamicArgumentWord => 0, 106, 1, 2, 3
+//@ run-call: dynamicArgumentPair => 0, 100001, 1, 2, 3
+//@ run-call: dynamicArgumentTriple => 0, 100001002, 1, 2, 3
+//@ run-call: staticStructReturn => 192, 7008009, 1, 2, 3
+//@ run-call: dynamicArgumentStructReturn => 192, 100001002, 1, 2, 3
+//@ run-call: dynamicArgumentDynamicReturn => 3, 1, 2, 3
+//@ run-call: dynamicArgumentCatch => 0, 1, 1, 2, 3
+//@ run-call: tripleFromStaleMemory => 0, 100001002, 1, 2, 3
+
+struct Triple {
+    uint256 a;
+    uint256 b;
+    uint256 c;
+}
 
 // A call whose input nothing keeps stages it without reserving it, so the free memory pointer does
 // not move across the call: a selector with at most one scalar goes to the scratch words, and
-// larger static inputs go to the free memory pointer. Memory below the pointer stays intact, and a
-// return that overlays the input (more than one word, or a static aggregate) still decodes.
+// larger or dynamic inputs go to the free memory pointer. Memory below the pointer stays intact.
+// Returns of up to two words land in the scratch words, longer ones in unreserved free memory, and
+// a static aggregate return, the one buffer a call keeps, is allocated before the input, so the
+// pointer moves by that buffer and the decoded struct (192 bytes) and by nothing for the input.
 interface ITarget {
     function balanceOf(uint256 account) external view returns (uint256);
     function ping(uint256 value) external;
@@ -27,9 +43,18 @@ interface ITarget {
     function add(uint256 a, uint256 b) external view returns (uint256);
     function small(uint256 value) external view returns (uint8);
     function selectorOf(function() external view returns (uint256) callback) external view returns (uint256);
+    function checksum(bytes memory data) external view returns (uint256);
+    function lengthAndFirst(bytes memory data) external view returns (uint256, uint256);
+    function lengthAndTwo(bytes memory data) external view returns (uint256, uint256, uint256);
+    function wrap(bytes memory data) external view returns (Triple memory);
+    function wrapWord(uint256 value) external view returns (Triple memory);
+    function echo(bytes memory data) external view returns (bytes memory);
+    function failWith(bytes memory data) external pure;
 }
 
 contract Target is ITarget {
+    error Failure(bytes data);
+
     uint256 public pings;
 
     function balanceOf(uint256 account) external pure returns (uint256) {
@@ -84,6 +109,34 @@ contract Target is ITarget {
         returns (uint256)
     {
         return callback();
+    }
+
+    function checksum(bytes memory data) external pure returns (uint256) {
+        return data.length + uint8(data[5]);
+    }
+
+    function lengthAndFirst(bytes memory data) external pure returns (uint256, uint256) {
+        return (data.length, uint8(data[0]));
+    }
+
+    function lengthAndTwo(bytes memory data) external pure returns (uint256, uint256, uint256) {
+        return (data.length, uint8(data[0]), uint8(data[1]));
+    }
+
+    function wrap(bytes memory data) external pure returns (Triple memory) {
+        return Triple(data.length, uint8(data[0]), uint8(data[1]));
+    }
+
+    function wrapWord(uint256 value) external pure returns (Triple memory) {
+        return Triple(value, value + 1, value + 2);
+    }
+
+    function echo(bytes memory data) external pure returns (bytes memory) {
+        return data;
+    }
+
+    function failWith(bytes memory data) external pure {
+        revert Failure(data);
     }
 }
 
@@ -181,6 +234,91 @@ contract ExternalCallInputScratch {
         return 7;
     }
 
+
+    function payload() internal pure returns (bytes memory data) {
+        data = new bytes(100);
+        for (uint256 i; i < 100; ++i) {
+            data[i] = bytes1(uint8(i + 1));
+        }
+    }
+
+    function dynamicArgumentWord() external view returns (uint256 moved, uint256 value, uint256, uint256, uint256) {
+        uint256[] memory values = live();
+        bytes memory data = payload();
+        uint256 before = fmp();
+        value = target.checksum(data);
+        moved = fmp() - before;
+        return (moved, value, values[0], values[1], values[2]);
+    }
+
+    function dynamicArgumentPair() external view returns (uint256 moved, uint256 value, uint256, uint256, uint256) {
+        uint256[] memory values = live();
+        bytes memory data = payload();
+        uint256 before = fmp();
+        (uint256 length, uint256 first) = target.lengthAndFirst(data);
+        moved = fmp() - before;
+        return (moved, length * 1000 + first, values[0], values[1], values[2]);
+    }
+
+    function dynamicArgumentTriple() external view returns (uint256 moved, uint256 value, uint256, uint256, uint256) {
+        uint256[] memory values = live();
+        bytes memory data = payload();
+        uint256 before = fmp();
+        (uint256 length, uint256 first, uint256 second) = target.lengthAndTwo(data);
+        moved = fmp() - before;
+        return (moved, length * 1000000 + first * 1000 + second, values[0], values[1], values[2]);
+    }
+
+    function staticStructReturn() external view returns (uint256 moved, uint256 value, uint256, uint256, uint256) {
+        uint256[] memory values = live();
+        uint256 before = fmp();
+        Triple memory result = target.wrapWord(7);
+        moved = fmp() - before;
+        return (moved, result.a * 1000000 + result.b * 1000 + result.c, values[0], values[1], values[2]);
+    }
+
+    function dynamicArgumentStructReturn() external view returns (uint256 moved, uint256 value, uint256, uint256, uint256) {
+        uint256[] memory values = live();
+        bytes memory data = payload();
+        uint256 before = fmp();
+        Triple memory result = target.wrap(data);
+        moved = fmp() - before;
+        return (moved, result.a * 1000000 + result.b * 1000 + result.c, values[0], values[1], values[2]);
+    }
+
+    function dynamicArgumentDynamicReturn() external view returns (uint256 value, uint256, uint256, uint256) {
+        uint256[] memory values = live();
+        bytes memory result = target.echo(payload());
+        return (uint256(uint8(result[2])), values[0], values[1], values[2]);
+    }
+
+    function dynamicArgumentCatch() external view returns (uint256 moved, uint256 caught, uint256, uint256, uint256) {
+        uint256[] memory values = live();
+        bytes memory data = payload();
+        uint256 before = fmp();
+        try target.failWith(data) {} catch {
+            caught = 1;
+        }
+        moved = fmp() - before;
+        return (moved, caught, values[0], values[1], values[2]);
+    }
+
+    // The three returned words land in free memory above the pointer, where the input was staged,
+    // over words an earlier write left there, and the call must read what it returned.
+    function tripleFromStaleMemory() external view returns (uint256 moved, uint256 value, uint256, uint256, uint256) {
+        uint256[] memory values = live();
+        bytes memory data = payload();
+        assembly {
+            let top := mload(0x40)
+            mstore(top, not(0))
+            mstore(add(top, 32), not(0))
+            mstore(add(top, 64), not(0))
+        }
+        uint256 before = fmp();
+        (uint256 length, uint256 first, uint256 second) = target.lengthAndTwo(data);
+        moved = fmp() - before;
+        return (moved, length * 1000000 + first * 1000 + second, values[0], values[1], values[2]);
+    }
 
     function twoScalars() external view returns (uint256 moved, uint256 value, uint256, uint256, uint256) {
         uint256[] memory values = live();

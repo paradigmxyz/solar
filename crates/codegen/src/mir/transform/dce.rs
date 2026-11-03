@@ -3,11 +3,10 @@
 //! Remove unused computations and internal calls whose summaries prove that they have no
 //! observable behavior and terminate normally. Calls with missing bodies, recursive cycles,
 //! checks, or external termination remain conservative; lowered multi-return buffer writes also
-//! prevent removal. Run on either representation, sharing cached module summaries. A use-count
-//! worklist removes dead chains in linear time; cyclic uses remain live. Reachability is computed
-//! once.
+//! prevent removal. Run on either representation, sharing cached module summaries. A mark phase
+//! from instructions that must execute and from terminator operands finds the live values in
+//! linear time, so dead chains and dead phi cycles both go. Reachability is computed once.
 
-use super::egraph::use_counts;
 use crate::mir::{
     Callee, Function, InstId, InstKind, Module, Value,
     analysis::MemoryCallSummaries,
@@ -47,9 +46,8 @@ impl MirPass for Dce {
 }
 
 fn remove_dead_chains(func: &mut Function, summaries: &MemoryCallSummaries) -> usize {
-    let mut uses = use_counts(func);
-
     let mut discardable = DenseBitSet::new_empty(func.num_insts());
+    let mut live = DenseBitSet::<InstId>::new_empty(func.num_insts());
     let mut pending = Vec::new();
     for inst_id in func.instructions() {
         let inst = func.inst(inst_id);
@@ -57,32 +55,33 @@ fn remove_dead_chains(func: &mut Function, summaries: &MemoryCallSummaries) -> u
             if summaries.get(*function).is_some_and(|summary| summary.can_discard_call()));
         if !inst.kind.has_side_effects() || discardable_call {
             discardable.insert(inst_id);
-            if inst.result().is_none_or(|result| uses[result] == 0) {
-                pending.push(inst_id);
-            }
+        } else if live.insert(inst_id) {
+            pending.push(inst_id);
         }
     }
 
-    let mut dead = DenseBitSet::<InstId>::new_empty(func.num_insts());
+    let mut mark_operand = |func: &Function, operand, pending: &mut Vec<InstId>| {
+        if let Value::Inst(producer) = *func.value(operand)
+            && live.insert(producer)
+        {
+            pending.push(producer);
+        }
+    };
+    for block in func.blocks.iter() {
+        if let Some(term) = &block.terminator {
+            term.visit_operands(|operand| mark_operand(func, operand, &mut pending));
+        }
+    }
     while let Some(inst) = pending.pop() {
-        if !dead.insert(inst) {
-            continue;
-        }
-        func.inst(inst).kind.visit_operands(|operand| {
-            uses[operand] -= 1;
-            if uses[operand] == 0
-                && let Value::Inst(producer) = *func.value(operand)
-                && discardable.contains(producer)
-            {
-                pending.push(producer);
-            }
-        });
+        func.inst(inst).kind.visit_operands(|operand| mark_operand(func, operand, &mut pending));
     }
-    if !dead.is_empty() {
-        for block in &mut func.blocks {
-            // unused, discardable instruction -> removed
-            block.instructions.retain(|&inst| !dead.contains(inst));
-        }
+
+    let mut removed = 0;
+    for block in &mut func.blocks {
+        // unused, discardable instruction -> removed
+        let len = block.instructions.len();
+        block.instructions.retain(|&inst| live.contains(inst) || !discardable.contains(inst));
+        removed += len - block.instructions.len();
     }
-    dead.count()
+    removed
 }

@@ -8,11 +8,10 @@ library Lib {
 }
 
 contract C {
-    // Linked-library calls return through DELEGATECALL into the input area.
+    // Linked-library calls return through DELEGATECALL into the scratch words.
     // Lowering loads the returned words before tuple extraction.
     // CHECK-LABEL: fn @pair{{[( ]}}
-    // CHECK: [[INPUT:v[0-9]+]] = extract_value slice<memory>, {{[^,]+}}, 0
-    // CHECK: delegatecall {{v[0-9]+}}, {{.*}}, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 64
+    // CHECK: delegatecall {{v[0-9]+}}, {{.*}}, 28, 4, 0, 64
     // CHECK-NOT: returndata_bytes
     // CHECK: [[PAIR:v[0-9]+]] = insert_value {{struct[0-9]+}}, {{v[0-9]+}}, 1
     // CHECK: extract_value {{struct[0-9]+}}, [[PAIR]], 0

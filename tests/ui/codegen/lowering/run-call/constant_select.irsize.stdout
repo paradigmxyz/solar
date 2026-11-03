@@ -87,8 +87,8 @@ bb12:                                             ; function choose(uint256 raw,
   sub
   push 4
   calldataload
-  iszero
-  iszero
+  push 0
+  lt
   mul
   jump bb82
 bb82:
@@ -511,8 +511,8 @@ bb84:
   shl
   push 4
   calldataload
-  iszero
-  iszero
+  push 0
+  lt
   push 0x26121ff0
   jump bb83
 bb83:
@@ -576,8 +576,8 @@ bb45:                                             ; function reverseSignature(ui
   shl
   push 4
   calldataload
-  iszero
-  iszero
+  push 0
+  lt
   push 0xe2179b8e
   jump bb83
 bb58 [continuation]:
@@ -715,8 +715,8 @@ bb86:
   sub
   push 4
   calldataload
-  iszero
-  iszero
+  push 0
+  lt
   mul
   push 7
   jump bb82

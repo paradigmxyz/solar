@@ -49,6 +49,14 @@
 //! zero their last padded word before writing the length header, which needs
 //! no branch even for an empty tail.
 //!
+//! Struct blocks. With native `MCOPY`, a memory struct whose fields are all words, such as each
+//! element of a struct array, copies its words to the output as one block, then reloads, cleans,
+//! and stores each narrow field in place and checks each enum, so dirty memory encodes as on
+//! the per-field path. The cost model takes the copy only when the full-width fields it saves
+//! repay it (`Target::copies_struct_block`). A struct allocated in the same function keeps
+//! per-field loads and stores, and so does the fixed low-memory output of a static external
+//! return.
+//!
 //! Calldata aggregates. A struct or array in calldata, with dynamic members at any depth,
 //! encodes straight from where it lies instead of through a memory copy. Offsets in calldata
 //! need not be canonical, so each dynamic member is followed through its offset, encoded at the
@@ -886,9 +894,7 @@ fn write_head_before_object(
         let five = builder.imm(5);
         builder.shl(length, five)
     } else {
-        let thirty_one = builder.imm(31);
-        let rounded = builder.add(length, thirty_one);
-        let padded = builder.mask_padded_size(rounded);
+        let padded = builder.pad_to_word(length);
         // object: [length, bytes..., stale padding]
         // => [length, bytes..., zero padding]
         let source = builder.memory_data(object);
@@ -952,9 +958,7 @@ fn lower_encode(
             // object = alloc aligned_size + 32 !preserves_fmp
             let allocation_size = builder.imm(aligned_size.saturating_add(32));
             let object = builder.alloc(allocation_size, crate::mir::AllocationSemantics::INTERNAL);
-            if let Value::Inst(alloc) = *builder.func().value(object) {
-                builder.func_mut().inst_mut(alloc).metadata.set_preserves_fmp(true);
-            }
+            builder.mark_preserves_fmp(object);
             let total = builder.imm(total_size);
             builder.set_memory_len(object, total);
             if let Some(selector) = selector {
@@ -1037,7 +1041,7 @@ fn lower_encode(
         // mstore object, total
         let allocation_size = builder.checked_padded_size(total);
         let object = builder.alloc(allocation_size, crate::mir::AllocationSemantics::INTERNAL);
-        preserve_encoding_address(builder, object);
+        builder.mark_preserves_fmp(object);
         builder.set_memory_len(object, total);
         return object;
     }
@@ -1050,7 +1054,7 @@ fn lower_encode(
     // allocated = alloc aligned !metadata(preserves_fmp)
     // make_slice allocated, total
     let allocated = builder.alloc(aligned, crate::mir::AllocationSemantics::INTERNAL);
-    preserve_encoding_address(builder, allocated);
+    builder.mark_preserves_fmp(allocated);
     builder.make_slice(allocated, total, PtrLocation::Memory)
 }
 
@@ -1083,15 +1087,6 @@ fn literal_tuple_size(
     has_payload.then_some(size)
 }
 
-/// The reservation commits bytes already written through a separate FMP read.
-fn preserve_encoding_address(builder: &mut FunctionBuilder<'_>, allocation: ValueId) {
-    let Value::Inst(inst) = *builder.func().value(allocation) else {
-        unreachable!("allocation result must reference its instruction")
-    };
-    // allocation !metadata(preserves_fmp)
-    builder.func_mut().inst_mut(inst).metadata.set_preserves_fmp(true);
-}
-
 /// Encodes a statically shaped tuple into an existing physical return buffer.
 ///
 /// Static ABI returns use the fixed return buffer owned by the ABI boundary;
@@ -1106,7 +1101,9 @@ pub(crate) fn encode_static_tuple(
     for (&value, ty) in values.iter().zip(types) {
         // head = add dest, size
         let head = builder.add_offset(dest, size);
-        encode_static_impl(builder, ty, value, head, false, AbiValueSource::Scalar);
+        // The destination is a fixed low address that a source may overlap, so values keep their
+        // word-by-word order instead of copying as blocks.
+        encode_static_impl(builder, ty, value, head, AbiValueSource::Scalar, None);
         size += ty.head_size();
     }
     // size = head bytes written
@@ -1118,10 +1115,12 @@ fn encode_static_impl(
     ty: &AbiType,
     value: ValueId,
     head_addr: ValueId,
-    allow_slice_fast_path: bool,
     source: AbiValueSource,
+    copy_target: Option<&Target>,
 ) {
-    if allow_slice_fast_path
+    // A `copy_target` means the destination cannot overlap the source, so a slice or a struct
+    // may copy as one block.
+    if copy_target.is_some()
         && let Some(location @ (PtrLocation::Calldata | PtrLocation::Memory)) =
             builder.func().value_slice_location(value)
     {
@@ -1131,6 +1130,12 @@ fn encode_static_impl(
     }
     match ty {
         AbiType::Tuple(fields) => {
+            if let Some(target) = copy_target
+                && copies_struct_block(builder.func(), target, fields, value)
+            {
+                encode_struct_block(builder, fields, value, head_addr);
+                return;
+            }
             let mut field_head = head_addr;
             for (index, field) in fields.iter().enumerate() {
                 let field_value = builder.memory_load_field(value, index as u64);
@@ -1139,14 +1144,14 @@ fn encode_static_impl(
                     field,
                     field_value,
                     field_head,
-                    allow_slice_fast_path,
                     AbiValueSource::Memory,
+                    copy_target,
                 );
                 field_head = builder.add_offset(field_head, field.head_size());
             }
         }
         AbiType::FixedArray { element, len, .. } => {
-            encode_static_array(builder, element, *len, value, head_addr, allow_slice_fast_path);
+            encode_static_array(builder, element, *len, value, head_addr, copy_target);
         }
         AbiType::Function => {
             let value = if source == AbiValueSource::Scalar {
@@ -1178,7 +1183,7 @@ fn encode_static_array(
     len: u64,
     value: ValueId,
     head_addr: ValueId,
-    allow_slice_fast_path: bool,
+    copy_target: Option<&Target>,
 ) {
     let length = builder.imm(len);
     let stride = builder.imm(element.head_size());
@@ -1192,8 +1197,8 @@ fn encode_static_array(
             element,
             element_value,
             element_head,
-            allow_slice_fast_path,
             AbiValueSource::Memory,
+            copy_target,
         );
     });
 }
@@ -1211,7 +1216,7 @@ fn encode_tuple(
         let mut head_offset = 0;
         for (&value, ty) in values.iter().zip(types) {
             let head = builder.add_offset(dest, head_offset);
-            encode_static_impl(builder, ty, value, head, true, source);
+            encode_static_impl(builder, ty, value, head, source, Some(&helpers.target));
             head_offset += ty.head_size();
         }
         return builder.imm(head_size);
@@ -1248,7 +1253,7 @@ fn encode_value(
         builder.store(dest.head_addr, relative);
         encode_dynamic_body(builder, ty, value, dest.tail, helpers)
     } else {
-        encode_static_impl(builder, ty, value, dest.head_addr, true, source);
+        encode_static_impl(builder, ty, value, dest.head_addr, source, Some(&helpers.target));
         dest.tail
     }
 }
@@ -1352,6 +1357,56 @@ fn clean_word(
             value
         }
         _ => cleanup.cleanup(builder, value),
+    }
+}
+
+/// Whether the memory struct `value` with layout `fields` encodes as one block copy (see
+/// [`encode_struct_block`]). Its fields must all be words, so the struct is one run of words
+/// in ABI order; a nested aggregate is a pointer in memory. A struct allocated in this
+/// function keeps per-field loads and stores.
+fn copies_struct_block(
+    func: &Function,
+    target: &Target,
+    fields: &[AbiType],
+    value: ValueId,
+) -> bool {
+    if !fields.iter().all(|field| matches!(field, AbiType::Word(_))) {
+        return false;
+    }
+    if let Value::Inst(inst) = func.value(value)
+        && matches!(func.inst(*inst).kind, InstKind::Alloc { .. })
+    {
+        return false;
+    }
+    let full = fields.iter().enumerate().filter(|(_, field)| matches!(field, AbiType::Word(None)));
+    target.copies_struct_block(fields.len(), full.map(|(index, _)| index))
+}
+
+/// Encodes a memory struct of word fields by copying its words to `head_addr` with one
+/// `MCOPY`, then cleaning each narrow field in place exactly as [`clean_word`] cleans it on
+/// the per-field path, so the output is the same for any memory contents. A failing enum
+/// check still reverts, and the revert discards the partial output.
+fn encode_struct_block(
+    builder: &mut FunctionBuilder<'_>,
+    fields: &[AbiType],
+    value: ValueId,
+    head_addr: ValueId,
+) {
+    // mcopy head_addr, value, 32 * fields
+    let size = builder.imm(fields.len() as u64 * EvmMemoryLayout::WORD_SIZE);
+    copy_source_data(builder, PtrLocation::Memory, head_addr, value, size);
+    for (index, field) in fields.iter().enumerate() {
+        let AbiType::Word(Some(cleanup)) = *field else { continue };
+        // word = mload head_addr + 32 * index
+        // cleaned = clean(word)
+        // mstore head_addr + 32 * index, cleaned
+        let address = builder.add_offset(head_addr, index as u64 * EvmMemoryLayout::WORD_SIZE);
+        let word = builder.load(address, PtrLocation::Memory);
+        let cleaned = clean_word(builder, cleanup, word);
+        // An enum is only checked, and a word that passes is already clean.
+        if cleaned != word {
+            builder.store(address, cleaned);
+        }
     }
 }
 
@@ -1694,26 +1749,19 @@ fn encode_calldata_elements(
                 );
             });
         };
-        if needs_calldata_validation(element)
-            || !helpers.target.guards_block_copy(element.head_size() / 32)
-        {
+        if needs_calldata_validation(element) {
             encode_each(builder);
-            return initial_tail;
+        } else {
+            copy_calldata_words(
+                builder,
+                &helpers.target,
+                area,
+                base,
+                head_bytes,
+                element.head_size() / 32,
+                encode_each,
+            );
         }
-        // if base + head_bytes < base { encode_each } else { calldatacopy area, base, head_bytes }
-        let end = builder.add(base, head_bytes);
-        let wraps = builder.lt(end, base);
-        let each = builder.create_block();
-        let copy = builder.create_block();
-        let done = builder.create_block();
-        builder.branch(wraps, each, copy);
-        builder.switch_to_block(each);
-        encode_each(builder);
-        builder.jump(done);
-        builder.switch_to_block(copy);
-        copy_source_data(builder, PtrLocation::Calldata, area, base, head_bytes);
-        builder.jump(done);
-        builder.switch_to_block(done);
         return initial_tail;
     }
 
@@ -1755,6 +1803,39 @@ fn encode_calldata_elements(
 
     builder.switch_to_block(done);
     current_tail
+}
+
+/// Copies `bytes` bytes of calldata words that need no validation, in elements of
+/// `element_words` words, from `source` to `dest`. A range that wraps past 2^256 runs `each`,
+/// which loads each word at its own wrapping address. When the target prices the guarded copy
+/// above `each` alone, only `each` runs.
+pub(super) fn copy_calldata_words(
+    builder: &mut FunctionBuilder<'_>,
+    target: &Target,
+    dest: ValueId,
+    source: ValueId,
+    bytes: ValueId,
+    element_words: u64,
+    each: impl FnOnce(&mut FunctionBuilder<'_>),
+) {
+    if !target.guards_block_copy(element_words) {
+        each(builder);
+        return;
+    }
+    // if source + bytes < source { each } else { calldatacopy dest, source, bytes }
+    let end = builder.add(source, bytes);
+    let wraps = builder.lt(end, source);
+    let wrapped = builder.create_block();
+    let copy = builder.create_block();
+    let done = builder.create_block();
+    builder.branch(wraps, wrapped, copy);
+    builder.switch_to_block(wrapped);
+    each(builder);
+    builder.jump(done);
+    builder.switch_to_block(copy);
+    copy_source_data(builder, PtrLocation::Calldata, dest, source, bytes);
+    builder.jump(done);
+    builder.switch_to_block(done);
 }
 
 /// Whether a static calldata value holds a word that ABI decoding would validate.
@@ -1931,7 +2012,7 @@ fn encode_storage_bytes(
 ///
 /// Source objects live below the free-memory pointer, and the output is either untouched memory
 /// above it or a fresh allocation, so memory copies run forward.
-fn copy_source_data(
+pub(super) fn copy_source_data(
     builder: &mut FunctionBuilder<'_>,
     location: PtrLocation,
     dest: ValueId,

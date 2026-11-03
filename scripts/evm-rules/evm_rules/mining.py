@@ -94,7 +94,8 @@ def mine(
             direct
             and opcode in prices.ops
             and name[3:].lower() == opcode
-            and shape in ("OpcodeLowering.Unary", "OpcodeLowering.Binary")
+            and shape == "OpcodeLowering.Valued"
+            and arity in (1, 2)
         ):
             try:
                 term(Expr(opcode, (Expr.var("x"),) * arity))

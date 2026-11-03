@@ -36,23 +36,22 @@ fn @first(arg0: i256) -> i256 [selector=0x0b3f62f5, view, abi_params=[uint256], 
   bb0:
     v0 = loadimmutable target
     v1 = gas
-    v2 = abi_encode [word], selector 0x9507d39a00000000000000000000000000000000000000000000000000000000, args arg0
-    v3 = extract_value slice<memory>, v2, 0
-    v4 = extract_value slice<memory>, v2, 1
-    v5 = alloc 128
-    v6 = zext i160 v0 to i256
-    v7 = staticcall v1, v6, v3, v4, v5, 128
-    jumpi v7, bb2, bb1
+    v2 = alloc 128
+    mstore 0, 0x9507d39a !metadata(memory=scratch)
+    mstore 32, arg0 !metadata(memory=scratch)
+    v3 = zext i160 v0 to i256
+    v4 = staticcall v1, v3, 28, 36, v2, 128
+    jumpi v4, bb2, bb1
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    v8 = returndatasize
-    v9 = lt v8, 128
-    icall revert_if<tuple_data_too_short>, v9
-    v10 = make_memory_slice v5, 128
-    v11 = abi_decode [tuple<uint256, uint256, uint256, uint256>], v10
-    v12 = mload v11
-    ret v12
+    v5 = returndatasize
+    v6 = lt v5, 128
+    icall revert_if<tuple_data_too_short>, v6
+    v7 = make_memory_slice v2, 128
+    v8 = abi_decode [tuple<uint256, uint256, uint256, uint256>], v7
+    v9 = mload v8
+    ret v9
 }
 
 ; function second(uint256 x) external view returns (uint256) [selector 0x7896dfe3]
@@ -60,27 +59,26 @@ fn @second(arg0: i256) -> i256 [selector=0x7896dfe3, view, abi_params=[uint256],
   bb0:
     v0 = loadimmutable target
     v1 = gas
-    v2 = abi_encode [word], selector 0x9507d39a00000000000000000000000000000000000000000000000000000000, args arg0
-    v3 = extract_value slice<memory>, v2, 0
-    v4 = extract_value slice<memory>, v2, 1
-    v5 = alloc 128
-    v6 = zext i160 v0 to i256
-    v7 = staticcall v1, v6, v3, v4, v5, 128
-    jumpi v7, bb2, bb1
+    v2 = alloc 128
+    mstore 0, 0x9507d39a !metadata(memory=scratch)
+    mstore 32, arg0 !metadata(memory=scratch)
+    v3 = zext i160 v0 to i256
+    v4 = staticcall v1, v3, 28, 36, v2, 128
+    jumpi v4, bb2, bb1
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    v8 = returndatasize
-    v9 = lt v8, 128
-    icall revert_if<tuple_data_too_short>, v9
-    v10 = make_memory_slice v5, 128
-    v11 = abi_decode [tuple<uint256, uint256, uint256, uint256>], v10
-    v12 = mload v11
-    v13 = ptradd v11, 32
-    v14 = mload v13
-    v15 = checked_add uint256, v12, v14
-    v16 = checked_sub uint256, v15, 1
-    ret v16
+    v5 = returndatasize
+    v6 = lt v5, 128
+    icall revert_if<tuple_data_too_short>, v6
+    v7 = make_memory_slice v2, 128
+    v8 = abi_decode [tuple<uint256, uint256, uint256, uint256>], v7
+    v9 = mload v8
+    v10 = ptradd v8, 32
+    v11 = mload v10
+    v12 = checked_add uint256, v9, v11
+    v13 = checked_sub uint256, v12, 1
+    ret v13
 }
 
 ; function third(uint256 x) external view returns (uint256) [selector 0xf1680ae6]
@@ -88,25 +86,24 @@ fn @third(arg0: i256) -> i256 [selector=0xf1680ae6, view, abi_params=[uint256], 
   bb0:
     v0 = loadimmutable target
     v1 = gas
-    v2 = abi_encode [word], selector 0x9507d39a00000000000000000000000000000000000000000000000000000000, args arg0
-    v3 = extract_value slice<memory>, v2, 0
-    v4 = extract_value slice<memory>, v2, 1
-    v5 = alloc 128
-    v6 = zext i160 v0 to i256
-    v7 = staticcall v1, v6, v3, v4, v5, 128
-    jumpi v7, bb2, bb1
+    v2 = alloc 128
+    mstore 0, 0x9507d39a !metadata(memory=scratch)
+    mstore 32, arg0 !metadata(memory=scratch)
+    v3 = zext i160 v0 to i256
+    v4 = staticcall v1, v3, 28, 36, v2, 128
+    jumpi v4, bb2, bb1
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    v8 = returndatasize
-    v9 = lt v8, 128
-    icall revert_if<tuple_data_too_short>, v9
-    v10 = make_memory_slice v5, 128
-    v11 = abi_decode [tuple<uint256, uint256, uint256, uint256>], v10
-    v12 = ptradd v11, 64
-    v13 = mload v12
-    v14 = ptradd v11, 96
-    v15 = mload v14
-    v16 = checked_add uint256, v13, v15
-    ret v16
+    v5 = returndatasize
+    v6 = lt v5, 128
+    icall revert_if<tuple_data_too_short>, v6
+    v7 = make_memory_slice v2, 128
+    v8 = abi_decode [tuple<uint256, uint256, uint256, uint256>], v7
+    v9 = ptradd v8, 64
+    v10 = mload v9
+    v11 = ptradd v8, 96
+    v12 = mload v11
+    v13 = checked_add uint256, v10, v12
+    ret v13
 }
