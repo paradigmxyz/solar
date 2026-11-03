@@ -169,11 +169,11 @@ fn @switchUserCall() -> i256 [selector=0x6fc5e2a6, pure, abi_params=[], abi_retu
   bb0:
     v0 = icall @id.37, 0x6162000000000000000000000000000000000000000000000000000000000000
     switch v0, default bb3, [0x6162000000000000000000000000000000000000000000000000000000000000 => bb2]
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb1
-  bb3:  ; preds = bb0
+  bb3:                                            ; preds = bb0
     jump bb1
-  bb1:  ; preds = bb2, bb3
+  bb1:                                            ; preds = bb2, bb3
     v1 = phi [bb2: 1], [bb3: 2]
     ret v1
 }
@@ -183,11 +183,11 @@ fn @ifEmptyString() -> i256 [selector=0x31b2b844, pure, abi_params=[], abi_retur
   bb0:
     v0 = ne 0, 0
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v1 = phi [bb1: 2], [bb2: 1]
     ret v1
 }
@@ -197,11 +197,11 @@ fn @ifNonZeroHex() -> i256 [selector=0xab7969cd, pure, abi_params=[], abi_return
   bb0:
     v0 = ne 0x100000000000000000000000000000000000000000000000000000000000000, 0
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v1 = phi [bb1: 2], [bb2: 1]
     ret v1
 }
@@ -211,11 +211,11 @@ fn @ifZeroHex() -> i256 [selector=0xcca303b9, pure, abi_params=[], abi_returns=[
   bb0:
     v0 = ne 0, 0
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v1 = phi [bb1: 2], [bb2: 1]
     ret v1
 }
@@ -226,11 +226,11 @@ fn @ifUserCall() -> i256 [selector=0x888623e4, pure, abi_params=[], abi_returns=
     v0 = icall @id.38, 0
     v1 = ne v0, 0
     jumpi v1, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v2 = phi [bb1: 2], [bb2: 1]
     ret v2
 }
@@ -239,15 +239,15 @@ fn @ifUserCall() -> i256 [selector=0x888623e4, pure, abi_params=[], abi_returns=
 fn @forEmptyString() -> i256 [selector=0x5f4c2e12, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v0 = phi [bb0: 0]
     v1 = ne 0, 0
     jumpi v1, bb3, bb4
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     jump bb2
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb3, bb4
+  bb2:                                            ; preds = bb3, bb4
     v2 = phi [bb3: 5], [bb4: v0]
     ret v2
   bb5:
