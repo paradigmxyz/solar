@@ -13,7 +13,8 @@
 //! after later folding makes its size constant. That extent is the encoding, a
 //! whole number of words, plus the padded selector, with no rounding at
 //! runtime. `Scratch` encodings stage at
-//! the free-memory pointer without reserving. `Bytes` results keep their
+//! the free-memory pointer, or at an explicit `base` (constructor arguments go after the
+//! creation code), without reserving. `Bytes` results keep their
 //! allocation point because source code can observe the pointer bump. A tuple
 //! whose only dynamic values are literal byte strings has a known size, so it
 //! reserves its output before encoding; empty literal tails keep the general
@@ -85,7 +86,8 @@
 //! encodes, are priced like a size build ([`Target::priced_for_cold`]): the helper's gas runs
 //! only on a failing call. Functions reachable from a constructor always encode inline: a
 //! constructor call frame is allocated at the free-memory pointer, where an outlined encoder
-//! would still be writing its unreserved output.
+//! would still be writing its unreserved output. Encodings at an explicit `base` always encode
+//! inline.
 
 use crate::{
     mir::{
@@ -244,11 +246,13 @@ fn synthesize_tuple_helpers(
     for (func_id, func) in module.functions.iter_enumerated() {
         for block in func.blocks.iter() {
             for &inst in &block.instructions {
-                let InstKind::AbiEncode { mode, selector, args, layout } = &func.inst(inst).kind
+                let InstKind::AbiEncode { mode, base, selector, args, layout } =
+                    &func.inst(inst).kind
                 else {
                     continue;
                 };
                 if zero_copy_returns[func_id].contains_key(&inst)
+                    || base.is_some()
                     || (*mode == AbiEncodeMode::Scratch && ends_function(block.terminator.as_ref()))
                 {
                     continue;
@@ -280,7 +284,8 @@ fn synthesize_tuple_helpers(
             let args = key.arg_types.iter().map(|ty| builder.add_param(*ty)).collect::<Vec<_>>();
             let selector = key.selector.then(|| builder.add_param(MirType::I256));
             let layout = AbiLayout::new(key.types.clone());
-            let encoded = lower_encode(&mut builder, &layout, selector, &args, key.mode, helpers);
+            let encoded =
+                lower_encode(&mut builder, &layout, None, selector, &args, key.mode, helpers);
             let result_ty = builder.func().value_ty(encoded).unwrap_or(MirType::I256);
             builder.set_return_type(result_ty);
             builder.ret([encoded]);
@@ -615,11 +620,12 @@ fn lower_function(
         let terminal = ends_function(func.blocks[block].terminator.as_ref());
         let mut builder = FunctionBuilder::new(func).with_revert_strings(revert_strings);
         expand_block(&mut builder, block, |builder, inst| {
-            let InstKind::AbiEncode { mode, selector, args, layout } =
+            let InstKind::AbiEncode { mode, base, selector, args, layout } =
                 &builder.func().inst(inst).kind
             else {
                 return false;
             };
+            let base = base.map(|value| resolve_replacement(value, &replacements));
             let selector = selector.map(|value| resolve_replacement(value, &replacements));
             let args = args
                 .iter()
@@ -636,6 +642,7 @@ fn lower_function(
                 encode_zero_copy_return(builder, &layout, &args, mode, form, &helpers)
             } else {
                 let helper = (!helpers.tuples.is_empty()
+                    && base.is_none()
                     && !(mode == AbiEncodeMode::Scratch && terminal))
                     .then(|| {
                         let key =
@@ -650,7 +657,7 @@ fn lower_function(
                         let call_args = args.iter().copied().chain(selector).collect();
                         builder.icall(helper, call_args, result_ty)
                     }
-                    None => lower_encode(builder, &layout, selector, &args, mode, &helpers),
+                    None => lower_encode(builder, &layout, base, selector, &args, mode, &helpers),
                 }
             };
             literal_objects.extend(args.iter().copied());
@@ -850,7 +857,7 @@ fn encode_zero_copy_return(
     builder.branch(small, copy, zero_copy);
 
     builder.switch_to_block(copy);
-    let copied = lower_encode(builder, layout, None, args, mode, helpers);
+    let copied = lower_encode(builder, layout, None, None, args, mode, helpers);
     let copied_start = builder.slice_ptr(copied);
     let copied_total = builder.slice_len(copied);
     let copy_end = builder.current_block();
@@ -933,6 +940,7 @@ fn fold_slice_projections(func: &Function, replacements: &mut FxHashMap<ValueId,
 fn lower_encode(
     builder: &mut FunctionBuilder<'_>,
     layout: &AbiLayout,
+    base: Option<ValueId>,
     selector: Option<ValueId>,
     args: &[ValueId],
     mode: AbiEncodeMode,
@@ -961,9 +969,8 @@ fn lower_encode(
             return object;
         }
         if mode == AbiEncodeMode::Slice && selector.is_none() {
-            // Constructor arguments do not need a raw slice, and keeping their
-            // object header lets the memory lowering preserve the established
-            // allocation path for creation code.
+            // A slice without a selector keeps its object header, which lets the
+            // memory lowering preserve the established allocation path.
             let allocation_size = builder.imm(aligned_size.saturating_add(32));
             let object = builder.alloc(allocation_size, crate::mir::AllocationSemantics::INTERNAL);
             let total = builder.imm(total_size);
@@ -973,7 +980,7 @@ fn lower_encode(
             return builder.make_slice(data, total, PtrLocation::Memory);
         }
         let buffer = if mode == AbiEncodeMode::Scratch {
-            builder.fmp()
+            base.unwrap_or_else(|| builder.fmp())
         } else {
             let allocation_size = builder.imm(aligned_size);
             builder.alloc(allocation_size, crate::mir::AllocationSemantics::INTERNAL)
@@ -1014,7 +1021,7 @@ fn lower_encode(
 
     // Source objects already live below the free-memory pointer. Encode into
     // the untouched range, then reserve the exact output in one pass.
-    let allocation_base = builder.fmp();
+    let allocation_base = base.unwrap_or_else(|| builder.fmp());
     let header_size = if mode == AbiEncodeMode::Bytes { 32 } else { 0 };
     if let Some(selector) = selector {
         let buffer = builder.add_offset(allocation_base, header_size);

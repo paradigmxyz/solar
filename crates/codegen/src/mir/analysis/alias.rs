@@ -1386,10 +1386,12 @@ impl AliasAnalysis {
                 }
             }
             InstKind::AbiEncode { .. } => {
-                let InstKind::AbiEncode { args, layout, .. } = kind else { unreachable!() };
+                let InstKind::AbiEncode { base, args, layout, .. } = kind else { unreachable!() };
                 // Scratch encodings also read the free memory pointer for their destination,
                 // even though they do not reserve the output.
-                effects.read(Access::Location(Location::Memory(Self::fmp_location())));
+                if base.is_none() {
+                    effects.read(Access::Location(Location::Memory(Self::fmp_location())));
+                }
                 for (&arg, ty) in args.iter().zip(layout.types.iter()) {
                     if Self::abi_type_reads_memory(ty) {
                         read_memory(&mut effects, arg, SizeOperand::Unknown);

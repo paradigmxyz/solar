@@ -636,12 +636,15 @@ fn display_inst_kind<'a>(
             }
             Ok(())
         }
-        InstKind::AbiEncode { mode, selector, args, layout } => {
+        InstKind::AbiEncode { mode, base, selector, args, layout } => {
             write!(f, "abi_encode {layout}")?;
             match mode {
                 super::AbiEncodeMode::Slice => {}
                 super::AbiEncodeMode::Bytes => write!(f, ", object")?,
                 super::AbiEncodeMode::Scratch => write!(f, ", scratch")?,
+            }
+            if let Some(base) = base {
+                write!(f, ", base {}", display_val(*base, func))?;
             }
             if let Some(selector) = selector {
                 write!(f, ", selector {}", display_val(*selector, func))?;

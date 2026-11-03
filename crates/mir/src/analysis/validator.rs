@@ -894,6 +894,15 @@ impl<'a> Validator<'a> {
                             Callee::Builtin(Builtin::Require(RequireKind::CustomError(layout))),
                         args,
                     } => {
+                        if let InstKind::AbiEncode { mode, base: Some(_), .. } = &inst.kind
+                            && *mode != crate::AbiEncodeMode::Scratch
+                        {
+                            self.emit_at_inst(
+                                "ABI encode base requires a scratch encoding",
+                                block,
+                                id,
+                            );
+                        }
                         let values = if matches!(inst.kind, InstKind::ICall { .. }) {
                             &args[2..]
                         } else {

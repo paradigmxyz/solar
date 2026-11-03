@@ -259,37 +259,34 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v36 = ptrtoint ptr<memory> v29 to i256
     v37 = ptradd v35, 32
     mstore v37, v36
-    v38 = abi_encode [memory_array<tuple<word, memory_bytes>>], args v0
-    v39 = extract_value slice<memory>, v38, 1
-    v40 = datasize ConstructorAggregateMain_creation_code_0
-    v41 = add v40, v39
-    v42 = lt v41, v40
-    icall panic_if<0x41>, v42
-    v43 = fmp
-    datacopy ConstructorAggregateMain_creation_code_0, v43, v40
-    v44 = extract_value slice<memory>, v38, 0
-    v45 = ptrtoint ptr<memory> v43 to i256
-    v46 = add v45, v40
-    mcopy v46, v44, v39 !metadata(memory=heap)
-    v47 = create 0, v43, v41
-    v48 = ne v47, i160 0
-    jumpi v48, bb5, bb4
+    v38 = datasize ConstructorAggregateMain_creation_code_0
+    v39 = fmp
+    datacopy ConstructorAggregateMain_creation_code_0, v39, v38
+    v40 = ptradd v39, v38
+    v41 = abi_encode [memory_array<tuple<word, memory_bytes>>], scratch, base v40, args v0
+    v42 = extract_value slice<memory>, v41, 1
+    v43 = add v38, v42
+    v44 = lt v43, v38
+    icall panic_if<0x41>, v44
+    v45 = create 0, v39, v43
+    v46 = ne v45, i160 0
+    jumpi v46, bb5, bb4
   bb4:  ; preds = bb3
     revert_returndata
   bb5:  ; preds = bb3
-    v49 = gas
+    v47 = gas
     mstore 0, 0x57de26a4 !metadata(memory=scratch)
-    v50 = zext i160 v47 to i256
-    v51 = staticcall v49, v50, 28, 4, 0, 32
-    jumpi v51, bb7, bb6
+    v48 = zext i160 v45 to i256
+    v49 = staticcall v47, v48, 28, 4, 0, 32
+    jumpi v49, bb7, bb6
   bb6:  ; preds = bb5
     revert_returndata
   bb7:  ; preds = bb5
-    v52 = returndatasize
-    v53 = lt v52, 32
-    icall revert_if<tuple_data_too_short>, v53
-    v54 = mload 0 !metadata(memory=scratch)
-    ret v54
+    v50 = returndatasize
+    v51 = lt v50, 32
+    icall revert_if<tuple_data_too_short>, v51
+    v52 = mload 0 !metadata(memory=scratch)
+    ret v52
   bb2:  ; preds = bb1
     v3 = alloc 64 !metadata(preserves_fmp)
     mstore v3, 0

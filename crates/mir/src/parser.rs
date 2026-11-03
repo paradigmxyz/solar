@@ -1693,11 +1693,15 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::abi_encode => {
                 let layout = self.parse_abi_layout()?;
                 let mut mode = AbiEncodeMode::Slice;
+                let mut base = None;
                 let mut selector = None;
                 let mut args = Vec::new();
                 while self.parser.eat(TokenKind::Comma) {
                     let group = self.parser.parse_ident()?;
                     match group {
+                        sym::base if mode == AbiEncodeMode::Scratch && base.is_none() => {
+                            base = Some(self.parse_value(builder)?)
+                        }
                         sym::object if mode == AbiEncodeMode::Slice => mode = AbiEncodeMode::Bytes,
                         sym::scratch if mode == AbiEncodeMode::Slice => {
                             mode = AbiEncodeMode::Scratch
@@ -1727,7 +1731,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     )));
                 }
                 (
-                    InstKind::AbiEncode { mode, selector, args: args.into(), layout },
+                    InstKind::AbiEncode { mode, base, selector, args: args.into(), layout },
                     Some(mode.result_type()),
                 )
             }

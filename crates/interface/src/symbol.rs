@@ -1030,6 +1030,7 @@ symbols! {
         asm,
         assert,
         at,
+        base,
         block,
         built,
         calldata_array,

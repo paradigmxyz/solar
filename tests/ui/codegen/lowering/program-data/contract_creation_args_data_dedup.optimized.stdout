@@ -104,30 +104,19 @@ bb26 [cold]:
   push 0
   revert
 bb6:  ; function plain() external returns (uint256) [selector 0x59748c98]
-  push 192
+  push 128
   push 64
   mstore
   push 128
-  push 32
-  dup 2
-  mstore
-  push 32
-  add
-  push 11
-  dup 2
-  mstore
-  push 64
-  mload
   push 311
   push_data ChildWithArg_creation_code_0
   dup 3
   codecopy
-  push 32
-  dup 3
+  push 11
   push 311
-  dup 4
+  dup 3
   add
-  mcopy
+  mstore
   push 343
   swap 1
   push 0
@@ -164,30 +153,19 @@ bb28:
   push 0
   return
 bb12:  ; function salted() external returns (uint256) [selector 0x1f981516]
-  push 192
+  push 128
   push 64
   mstore
   push 128
-  push 32
-  dup 2
-  mstore
-  push 32
-  add
-  push 22
-  dup 2
-  mstore
-  push 64
-  mload
   push 311
   push_data ChildWithArg_creation_code_0
   dup 3
   codecopy
-  push 32
-  dup 3
+  push 22
   push 311
-  dup 4
+  dup 3
   add
-  mcopy
+  mstore
   push 1
   push 343
   dup 3
@@ -197,31 +175,17 @@ bb12:  ; function salted() external returns (uint256) [selector 0x1f981516]
 bb18:  ; function pair() external returns (uint256) [selector 0xa8aa1b31]
   push 128
   push 64
-  dup 2
-  add
-  dup 1
-  push 64
   mstore
-  push 32
-  dup 3
-  mstore
-  swap 1
-  push 32
-  add
-  push 3
-  dup 2
-  mstore
+  push 128
   push 311
   push_data ChildWithArg_creation_code_0
-  dup 4
+  dup 3
   codecopy
-  push 32
-  dup 2
+  push 3
   push 311
-  dup 5
+  dup 3
   add
-  mcopy
-  pop
+  mstore
   push 343
   swap 1
   push 0
@@ -232,32 +196,15 @@ bb18:  ; function pair() external returns (uint256) [selector 0xa8aa1b31]
   jumpi
   push 64
   mload
-  push 64
-  dup 2
-  add
-  dup 1
-  push 64
-  mstore
-  push 32
-  dup 3
-  mstore
-  swap 1
-  push 32
-  add
-  push 4
-  dup 2
-  mstore
   push 311
   push_data ChildWithArg_creation_code_0
-  dup 4
+  dup 3
   codecopy
-  push 32
-  dup 2
+  push 4
   push 311
-  dup 5
+  dup 3
   add
-  mcopy
-  pop
+  mstore
   push 343
   swap 1
   push 0
