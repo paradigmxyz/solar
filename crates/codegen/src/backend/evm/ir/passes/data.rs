@@ -100,41 +100,15 @@ impl EvmPass for PackData {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        pack(gcx, module, false)
+        let Some(mut scan) = scan_data_references(module, None) else { return false };
+        let groups = find_runs(gcx, module);
+        let packed = pack_data(module, &mut scan);
+        let materialized = materialize_data(gcx, module, groups);
+        if materialized && let Some(mut scan) = scan_data_references(module, scan.tail) {
+            pack_data(module, &mut scan);
+        }
+        packed || materialized
     }
-}
-
-/// Shares the common core of runs at different sites early in size builds, before the structural
-/// passes outline them into one-word blocks that no core can span. Other runs wait for
-/// [`PackData`], which judges them in the final layout, where merged tails and outlined sequences
-/// already share their stores. A gas build keeps its runs whole, so it needs no early pass.
-pub(super) struct ShareCores;
-
-impl EvmPass for ShareCores {
-    fn name(&self) -> &'static str {
-        "share-data-cores"
-    }
-
-    fn is_enabled(&self, _gcx: Gcx<'_>, module: &Module) -> bool {
-        module.optimization.is_size()
-    }
-
-    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        pack(gcx, module, true)
-    }
-}
-
-/// Packs the data pool and materializes runs; with `cores_only`, it materializes only the cores
-/// that `share_cores` picks and leaves every other run as stores.
-fn pack(gcx: Gcx<'_>, module: &mut Module, cores_only: bool) -> bool {
-    let Some(mut scan) = scan_data_references(module, None) else { return false };
-    let groups = find_runs(gcx, module);
-    let packed = !cores_only && pack_data(module, &mut scan);
-    let materialized = materialize_data(gcx, module, groups, cores_only);
-    if materialized && let Some(mut scan) = scan_data_references(module, scan.tail) {
-        pack_data(module, &mut scan);
-    }
-    packed || materialized
 }
 
 /// A literal-store run that one copy can replace.
@@ -243,7 +217,6 @@ fn materialize_data(
     gcx: Gcx<'_>,
     module: &mut Module,
     groups: FxHashMap<Bytes, Vec<Rewrite>>,
-    cores_only: bool,
 ) -> bool {
     if groups.is_empty() {
         return false;
@@ -268,9 +241,6 @@ fn materialize_data(
     for splits in [true, false] {
         for (data, rewrites) in std::mem::take(&mut groups) {
             if data.iter().all(|&byte| byte == 0) {
-                if cores_only {
-                    continue;
-                }
                 // Zero fills need no data, so each site stands alone.
                 prepared.extend(
                     rewrites
@@ -302,7 +272,7 @@ fn materialize_data(
                     absorbed.push((index, offset));
                 }
             }
-            if cores_only || !improvement.is_profitable(target_of(repeats)) {
+            if !improvement.is_profitable(target_of(repeats)) {
                 rejected.push((NeedleFinder::new(data), rewrites));
                 continue;
             }
@@ -321,9 +291,6 @@ fn materialize_data(
         // evaluation of whole runs, which can accept a run that only pays when sites share it.
         if splits {
             share_cores(gcx, module, &mut pool, &mut prepared, &mut rejected, &mut scratch);
-            if cores_only {
-                break;
-            }
             let mut inner = FxHashMap::<Bytes, Vec<Rewrite>>::default();
             for rewrite in rejected.drain(..).flat_map(|(_, rewrites)| rewrites) {
                 let block = &module.blocks[rewrite.block];
@@ -693,15 +660,16 @@ fn share_cores(
                 );
             }
         }
-        // A core that replaces runs no group accepted must also beat their stores as a group would,
-        // so that growing the code to save gas on a run that stays cold is no more allowed here
-        // than for a whole run. A core that replaces copies only has to beat them.
-        let saving = Improvement {
-            runtime_gas: i64::from(target.runtime_gas(stores))
-                - i64::from(target.runtime_gas(core)),
-            bytes: i64::from(stores.bytes) - i64::from(core.bytes),
+        // A core must improve on what it replaces as a group must, so that growing the code to
+        // save gas, or giving up gas to save bytes, is no more allowed here than for a whole run.
+        // A core that replaces runs no group accepted must also beat their stores.
+        let improves = |old: Cost| Improvement {
+            runtime_gas: i64::from(target.runtime_gas(old)) - i64::from(target.runtime_gas(core)),
+            bytes: i64::from(old.bytes) - i64::from(core.bytes),
         };
-        if target.cmp_lifetime(core, whole).is_ge() || left > 0 && !saving.is_profitable(target) {
+        if !improves(whole).is_profitable(target)
+            || left > 0 && !improves(stores).is_profitable(target)
+        {
             continue;
         }
         let data_ref = existing.unwrap_or_else(|| pool.push(module, data));
@@ -1285,7 +1253,8 @@ fn pack_data(module: &mut Module, scan: &mut DataScan) -> bool {
 
     // The entry that holds the tail stays last, which new entries would otherwise follow, and the
     // trailers of the runtime code stay at its end.
-    let host = tail.map(|tail| remap[&tail].id);
+    // A tail that no instruction references is gone with the other unreferenced entries.
+    let host = tail.and_then(|tail| remap.get(&tail)).map(|data_ref| data_ref.id);
     let last = |id: &DataId, data: &Data| (Some(*id) == host || data.emit_in_runtime, *id);
     packed.sort_unstable_by(|id, data, other_id, other| last(id, data).cmp(&last(other_id, other)));
     if packed.values().eq(&module.data) {
@@ -1294,7 +1263,7 @@ fn pack_data(module: &mut Module, scan: &mut DataScan) -> bool {
     for data_ref in remap.values_mut() {
         data_ref.id = DataId::new(packed.get_index_of(&data_ref.id).unwrap());
     }
-    *tail = tail.map(|tail| remap[&tail].id);
+    *tail = tail.and_then(|tail| remap.get(&tail)).map(|data_ref| data_ref.id);
     for block in &mut module.blocks {
         for inst in &mut block.instructions {
             match &mut inst.value {

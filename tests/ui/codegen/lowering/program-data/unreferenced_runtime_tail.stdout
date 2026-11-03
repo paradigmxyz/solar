@@ -1,0 +1,48 @@
+// === ROOT/tests/ui/codegen/lowering/program-data/unreferenced_runtime_tail.sol:Reverts (creation) ===
+@module Reverts_deployment
+@data
+  literal_0: hex"303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465662d7468697320737472696e67206973206c6f6e6720656e6f75676820666f72206120636f70792d6665646362613938373635343332313066656463626139383736353433323130"
+
+bb0:  ; constructor() [creation entry]
+  push 192
+  push 64
+  mstore
+  callvalue
+  push bb2
+  jumpi
+  push 64
+  mload
+  push 0
+  push 196
+  dup 3
+  add
+  mstore
+  push 135
+  push 68
+  dup 3
+  add
+  push_data literal_0
+  swap 1
+  codecopy
+  push 135
+  push 36
+  dup 3
+  add
+  mstore
+  push 0x8c379a0
+  push 224
+  shl
+  dup 2
+  mstore
+  push 32
+  push 4
+  dup 3
+  add
+  mstore
+  push 228
+  swap 1
+  revert
+bb2 [cold]:
+  push 0
+  push 0
+  revert
