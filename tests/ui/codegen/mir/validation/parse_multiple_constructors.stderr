@@ -1,0 +1,8 @@
+error: module has multiple constructors
+   ╭▸ ROOT/tests/ui/codegen/mir/validation/parse_multiple_constructors.mir:LL:CC
+   │
+LL │ }
+   ╰╴━
+
+error: aborting due to 1 previous error
+

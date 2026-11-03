@@ -6,14 +6,14 @@ fn @alloc() -> i256 [selector=0xbbc001c3, pure, abi_params=[], abi_returns=[word
     v0 = alloc zeroed checked 128
     mstore v0, 96
     v1 = mload v0
-    v2 = lt 5, v1
+    v2 = gt v1, 5
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = byte 0, 0xaa00000000000000000000000000000000000000000000000000000000000000
     v5 = ptradd v0, 37
     mstore8 v5, v4
     v6 = mload v0
-    v7 = lt 95, v6
+    v7 = gt v6, 95
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     v9 = byte 0, 0xff00000000000000000000000000000000000000000000000000000000000000
@@ -33,7 +33,7 @@ fn @literal() -> i256 [selector=0x1373185e, pure, abi_params=[], abi_returns=[wo
     v1 = ptradd v0, 32
     mstore v1, 0x1020304050607080900000000000000000000000000000000000000000000
     v2 = mload v0
-    v3 = lt 5, v2
+    v3 = gt v2, 5
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = byte 0, 0xaa00000000000000000000000000000000000000000000000000000000000000

@@ -16,9 +16,9 @@ fn @compareUnsignedLiterals(arg0: i8) -> i1 [selector=0xdc492d0e, pure, abi_para
     jump bb3
   bb1:  ; preds = bb0
     v5 = zext i8 arg0 to i16
-    v6 = eq i16 300, v5
+    v6 = eq v5, i16 300
     v7 = zext i8 arg0 to i256
-    v8 = eq 300, v7
+    v8 = eq v7, 300
     v9 = eq v6, v8
     jump bb3
   bb3:  ; preds = bb1, bb2
@@ -40,9 +40,9 @@ fn @compareUnsignedLiterals(arg0: i8) -> i1 [selector=0xdc492d0e, pure, abi_para
     jump bb9
   bb7:  ; preds = bb6
     v17 = zext i8 arg0 to i16
-    v18 = ne i16 300, v17
+    v18 = ne v17, i16 300
     v19 = zext i8 arg0 to i256
-    v20 = ne 300, v19
+    v20 = ne v19, 300
     v21 = eq v18, v20
     jump bb9
   bb9:  ; preds = bb7, bb8
@@ -64,9 +64,9 @@ fn @compareUnsignedLiterals(arg0: i8) -> i1 [selector=0xdc492d0e, pure, abi_para
     jump bb15
   bb13:  ; preds = bb12
     v29 = zext i8 arg0 to i16
-    v30 = lt i16 300, v29
+    v30 = gt v29, i16 300
     v31 = zext i8 arg0 to i256
-    v32 = lt 300, v31
+    v32 = gt v31, 300
     v33 = eq v30, v32
     jump bb15
   bb15:  ; preds = bb13, bb14
@@ -88,9 +88,9 @@ fn @compareUnsignedLiterals(arg0: i8) -> i1 [selector=0xdc492d0e, pure, abi_para
     jump bb21
   bb19:  ; preds = bb18
     v41 = zext i8 arg0 to i16
-    v42 = gt i16 300, v41
+    v42 = lt v41, i16 300
     v43 = zext i8 arg0 to i256
-    v44 = gt 300, v43
+    v44 = lt v43, 300
     v45 = eq v42, v44
     jump bb21
   bb21:  ; preds = bb19, bb20
@@ -114,10 +114,10 @@ fn @compareUnsignedLiterals(arg0: i8) -> i1 [selector=0xdc492d0e, pure, abi_para
     jump bb27
   bb25:  ; preds = bb24
     v55 = zext i8 arg0 to i16
-    v56 = gt i16 300, v55
+    v56 = lt v55, i16 300
     v57 = eq v56, false
     v58 = zext i8 arg0 to i256
-    v59 = gt 300, v58
+    v59 = lt v58, 300
     v60 = eq v59, false
     v61 = eq v57, v60
     jump bb27
@@ -142,10 +142,10 @@ fn @compareUnsignedLiterals(arg0: i8) -> i1 [selector=0xdc492d0e, pure, abi_para
     jump bb33
   bb31:  ; preds = bb30
     v71 = zext i8 arg0 to i16
-    v72 = lt i16 300, v71
+    v72 = gt v71, i16 300
     v73 = eq v72, false
     v74 = zext i8 arg0 to i256
-    v75 = lt 300, v74
+    v75 = gt v74, 300
     v76 = eq v75, false
     v77 = eq v73, v76
     jump bb33
@@ -167,9 +167,9 @@ fn @compareSignedLiterals(arg0: i8) -> i1 [selector=0x7ce2ee7f, pure, abi_params
     jump bb3
   bb1:  ; preds = bb0
     v5 = sext i8 arg0 to i16
-    v6 = eq i16 0xff7f, v5
+    v6 = eq v5, i16 0xff7f
     v7 = sext i8 arg0 to i256
-    v8 = eq 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f, v7
+    v8 = eq v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f
     v9 = eq v6, v8
     jump bb3
   bb3:  ; preds = bb1, bb2
@@ -191,9 +191,9 @@ fn @compareSignedLiterals(arg0: i8) -> i1 [selector=0x7ce2ee7f, pure, abi_params
     jump bb9
   bb7:  ; preds = bb6
     v17 = sext i8 arg0 to i16
-    v18 = ne i16 0xff7f, v17
+    v18 = ne v17, i16 0xff7f
     v19 = sext i8 arg0 to i256
-    v20 = ne 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f, v19
+    v20 = ne v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f
     v21 = eq v18, v20
     jump bb9
   bb9:  ; preds = bb7, bb8
@@ -215,9 +215,9 @@ fn @compareSignedLiterals(arg0: i8) -> i1 [selector=0x7ce2ee7f, pure, abi_params
     jump bb15
   bb13:  ; preds = bb12
     v29 = sext i8 arg0 to i16
-    v30 = slt i16 0xff7f, v29
+    v30 = sgt v29, i16 0xff7f
     v31 = sext i8 arg0 to i256
-    v32 = slt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f, v31
+    v32 = sgt v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f
     v33 = eq v30, v32
     jump bb15
   bb15:  ; preds = bb13, bb14
@@ -239,9 +239,9 @@ fn @compareSignedLiterals(arg0: i8) -> i1 [selector=0x7ce2ee7f, pure, abi_params
     jump bb21
   bb19:  ; preds = bb18
     v41 = sext i8 arg0 to i16
-    v42 = sgt i16 0xff7f, v41
+    v42 = slt v41, i16 0xff7f
     v43 = sext i8 arg0 to i256
-    v44 = sgt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f, v43
+    v44 = slt v43, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f
     v45 = eq v42, v44
     jump bb21
   bb21:  ; preds = bb19, bb20
@@ -265,10 +265,10 @@ fn @compareSignedLiterals(arg0: i8) -> i1 [selector=0x7ce2ee7f, pure, abi_params
     jump bb27
   bb25:  ; preds = bb24
     v55 = sext i8 arg0 to i16
-    v56 = sgt i16 0xff7f, v55
+    v56 = slt v55, i16 0xff7f
     v57 = eq v56, false
     v58 = sext i8 arg0 to i256
-    v59 = sgt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f, v58
+    v59 = slt v58, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f
     v60 = eq v59, false
     v61 = eq v57, v60
     jump bb27
@@ -293,10 +293,10 @@ fn @compareSignedLiterals(arg0: i8) -> i1 [selector=0x7ce2ee7f, pure, abi_params
     jump bb33
   bb31:  ; preds = bb30
     v71 = sext i8 arg0 to i16
-    v72 = slt i16 0xff7f, v71
+    v72 = sgt v71, i16 0xff7f
     v73 = eq v72, false
     v74 = sext i8 arg0 to i256
-    v75 = slt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f, v74
+    v75 = sgt v74, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f
     v76 = eq v75, false
     v77 = eq v73, v76
     jump bb33
@@ -316,10 +316,10 @@ fn @compareLiteralBoundaries(arg0: i8, arg1: i8) -> i1 [selector=0x03bc5c10, pur
   bb2:  ; preds = bb0
     jump bb3
   bb1:  ; preds = bb0
-    v4 = gt i8 127, arg0
+    v4 = lt arg0, i8 127
     v5 = eq v4, false
     v6 = zext i8 arg0 to i256
-    v7 = gt 127, v6
+    v7 = lt v6, 127
     v8 = eq v7, false
     v9 = eq v5, v8
     jump bb3
@@ -340,10 +340,10 @@ fn @compareLiteralBoundaries(arg0: i8, arg1: i8) -> i1 [selector=0x03bc5c10, pur
   bb8:  ; preds = bb6
     jump bb9
   bb7:  ; preds = bb6
-    v16 = gt i8 128, arg0
+    v16 = lt arg0, i8 128
     v17 = eq v16, false
     v18 = zext i8 arg0 to i256
-    v19 = gt 128, v18
+    v19 = lt v18, 128
     v20 = eq v19, false
     v21 = eq v17, v20
     jump bb9
@@ -364,10 +364,10 @@ fn @compareLiteralBoundaries(arg0: i8, arg1: i8) -> i1 [selector=0x03bc5c10, pur
   bb14:  ; preds = bb12
     jump bb15
   bb13:  ; preds = bb12
-    v28 = gt i8 255, arg0
+    v28 = lt arg0, i8 255
     v29 = eq v28, false
     v30 = zext i8 arg0 to i256
-    v31 = gt 255, v30
+    v31 = lt v30, 255
     v32 = eq v31, false
     v33 = eq v29, v32
     jump bb15
@@ -390,10 +390,10 @@ fn @compareLiteralBoundaries(arg0: i8, arg1: i8) -> i1 [selector=0x03bc5c10, pur
     jump bb21
   bb19:  ; preds = bb18
     v41 = zext i8 arg0 to i16
-    v42 = gt i16 256, v41
+    v42 = lt v41, i16 256
     v43 = eq v42, false
     v44 = zext i8 arg0 to i256
-    v45 = gt 256, v44
+    v45 = lt v44, 256
     v46 = eq v45, false
     v47 = eq v43, v46
     jump bb21
@@ -416,10 +416,10 @@ fn @compareLiteralBoundaries(arg0: i8, arg1: i8) -> i1 [selector=0x03bc5c10, pur
     jump bb27
   bb25:  ; preds = bb24
     v55 = zext i8 arg0 to i16
-    v56 = gt i16 257, v55
+    v56 = lt v55, i16 257
     v57 = eq v56, false
     v58 = zext i8 arg0 to i256
-    v59 = gt 257, v58
+    v59 = lt v58, 257
     v60 = eq v59, false
     v61 = eq v57, v60
     jump bb27
@@ -442,10 +442,10 @@ fn @compareLiteralBoundaries(arg0: i8, arg1: i8) -> i1 [selector=0x03bc5c10, pur
     jump bb33
   bb31:  ; preds = bb30
     v69 = zext i8 arg0 to i16
-    v70 = gt i16 0xffff, v69
+    v70 = lt v69, i16 0xffff
     v71 = eq v70, false
     v72 = zext i8 arg0 to i256
-    v73 = gt 0xffff, v72
+    v73 = lt v72, 0xffff
     v74 = eq v73, false
     v75 = eq v71, v74
     jump bb33
@@ -468,10 +468,10 @@ fn @compareLiteralBoundaries(arg0: i8, arg1: i8) -> i1 [selector=0x03bc5c10, pur
     jump bb39
   bb37:  ; preds = bb36
     v83 = zext i8 arg0 to i24
-    v84 = gt i24 0x10000, v83
+    v84 = lt v83, i24 0x10000
     v85 = eq v84, false
     v86 = zext i8 arg0 to i256
-    v87 = gt 0x10000, v86
+    v87 = lt v86, 0x10000
     v88 = eq v87, false
     v89 = eq v85, v88
     jump bb39
@@ -492,10 +492,10 @@ fn @compareLiteralBoundaries(arg0: i8, arg1: i8) -> i1 [selector=0x03bc5c10, pur
   bb44:  ; preds = bb42
     jump bb45
   bb43:  ; preds = bb42
-    v96 = sgt i8 129, arg1
+    v96 = slt arg1, i8 129
     v97 = eq v96, false
     v98 = sext i8 arg1 to i256
-    v99 = sgt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff81, v98
+    v99 = slt v98, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff81
     v100 = eq v99, false
     v101 = eq v97, v100
     jump bb45
@@ -516,10 +516,10 @@ fn @compareLiteralBoundaries(arg0: i8, arg1: i8) -> i1 [selector=0x03bc5c10, pur
   bb50:  ; preds = bb48
     jump bb51
   bb49:  ; preds = bb48
-    v108 = sgt i8 128, arg1
+    v108 = slt arg1, i8 128
     v109 = eq v108, false
     v110 = sext i8 arg1 to i256
-    v111 = sgt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80, v110
+    v111 = slt v110, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
     v112 = eq v111, false
     v113 = eq v109, v112
     jump bb51
@@ -542,10 +542,10 @@ fn @compareLiteralBoundaries(arg0: i8, arg1: i8) -> i1 [selector=0x03bc5c10, pur
     jump bb57
   bb55:  ; preds = bb54
     v121 = sext i8 arg1 to i16
-    v122 = sgt i16 0xff7f, v121
+    v122 = slt v121, i16 0xff7f
     v123 = eq v122, false
     v124 = sext i8 arg1 to i256
-    v125 = sgt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f, v124
+    v125 = slt v124, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f
     v126 = eq v125, false
     v127 = eq v123, v126
     jump bb57
@@ -568,10 +568,10 @@ fn @compareLiteralBoundaries(arg0: i8, arg1: i8) -> i1 [selector=0x03bc5c10, pur
     jump bb63
   bb61:  ; preds = bb60
     v135 = sext i8 arg1 to i16
-    v136 = sgt i16 0xff01, v135
+    v136 = slt v135, i16 0xff01
     v137 = eq v136, false
     v138 = sext i8 arg1 to i256
-    v139 = sgt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff01, v138
+    v139 = slt v138, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff01
     v140 = eq v139, false
     v141 = eq v137, v140
     jump bb63
@@ -594,10 +594,10 @@ fn @compareLiteralBoundaries(arg0: i8, arg1: i8) -> i1 [selector=0x03bc5c10, pur
     jump bb69
   bb67:  ; preds = bb66
     v149 = sext i8 arg1 to i16
-    v150 = sgt i16 0xff00, v149
+    v150 = slt v149, i16 0xff00
     v151 = eq v150, false
     v152 = sext i8 arg1 to i256
-    v153 = sgt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00, v152
+    v153 = slt v152, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     v154 = eq v153, false
     v155 = eq v151, v154
     jump bb69
@@ -620,10 +620,10 @@ fn @compareLiteralBoundaries(arg0: i8, arg1: i8) -> i1 [selector=0x03bc5c10, pur
     jump bb75
   bb73:  ; preds = bb72
     v163 = sext i8 arg1 to i16
-    v164 = sgt i16 0xfeff, v163
+    v164 = slt v163, i16 0xfeff
     v165 = eq v164, false
     v166 = sext i8 arg1 to i256
-    v167 = sgt 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffeff, v166
+    v167 = slt v166, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffeff
     v168 = eq v167, false
     v169 = eq v165, v168
     jump bb75
@@ -646,10 +646,10 @@ fn @compareLiteralBoundaries(arg0: i8, arg1: i8) -> i1 [selector=0x03bc5c10, pur
     jump bb81
   bb79:  ; preds = bb78
     v177 = sext i8 arg1 to i16
-    v178 = sgt i16 0x8000, v177
+    v178 = slt v177, i16 0x8000
     v179 = eq v178, false
     v180 = sext i8 arg1 to i256
-    v181 = sgt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8000, v180
+    v181 = slt v180, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8000
     v182 = eq v181, false
     v183 = eq v179, v182
     jump bb81
@@ -672,10 +672,10 @@ fn @compareLiteralBoundaries(arg0: i8, arg1: i8) -> i1 [selector=0x03bc5c10, pur
     jump bb87
   bb85:  ; preds = bb84
     v191 = sext i8 arg1 to i24
-    v192 = sgt i24 0xff7fff, v191
+    v192 = slt v191, i24 0xff7fff
     v193 = eq v192, false
     v194 = sext i8 arg1 to i256
-    v195 = sgt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7fff, v194
+    v195 = slt v194, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7fff
     v196 = eq v195, false
     v197 = eq v193, v196
     jump bb87
@@ -759,7 +759,7 @@ fn @unsigned8(arg0: i8, arg1: i8, arg2: i256) -> i1 [selector=0x48146746, pure, 
     v3 = zext i8 v2 to i256
     v4 = add v0, v1
     v5 = and v4, 255
-    v6 = eq v3, v5
+    v6 = eq v5, v3
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb0
     jump bb3
@@ -768,7 +768,7 @@ fn @unsigned8(arg0: i8, arg1: i8, arg2: i256) -> i1 [selector=0x48146746, pure, 
     v8 = zext i8 v7 to i256
     v9 = sub v0, v1
     v10 = and v9, 255
-    v11 = eq v8, v10
+    v11 = eq v10, v8
     jump bb3
   bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: false]
@@ -780,7 +780,7 @@ fn @unsigned8(arg0: i8, arg1: i8, arg2: i256) -> i1 [selector=0x48146746, pure, 
     v14 = zext i8 v13 to i256
     v15 = mul v0, v1
     v16 = and v15, 255
-    v17 = eq v14, v16
+    v17 = eq v16, v14
     jump bb6
   bb6:  ; preds = bb4, bb5
     v18 = phi [bb4: v17], [bb5: false]
@@ -791,7 +791,7 @@ fn @unsigned8(arg0: i8, arg1: i8, arg2: i256) -> i1 [selector=0x48146746, pure, 
     v19 = wrapping_div uint8, arg0, arg1
     v20 = zext i8 v19 to i256
     v21 = wrapping_div uint256, v0, v1
-    v22 = eq v20, v21
+    v22 = eq v21, v20
     jump bb9
   bb9:  ; preds = bb7, bb8
     v23 = phi [bb7: v22], [bb8: false]
@@ -802,7 +802,7 @@ fn @unsigned8(arg0: i8, arg1: i8, arg2: i256) -> i1 [selector=0x48146746, pure, 
     v24 = checked_rem uint8, arg0, arg1
     v25 = zext i8 v24 to i256
     v26 = checked_rem uint256, v0, v1
-    v27 = eq v25, v26
+    v27 = eq v26, v25
     jump bb12
   bb12:  ; preds = bb10, bb11
     v28 = phi [bb10: v27], [bb11: false]
@@ -817,7 +817,7 @@ fn @unsigned8(arg0: i8, arg1: i8, arg2: i256) -> i1 [selector=0x48146746, pure, 
     v33 = zext i8 v32 to i256
     v34 = shl v0, arg2
     v35 = and v34, 255
-    v36 = eq v33, v35
+    v36 = eq v35, v33
     jump bb15
   bb15:  ; preds = bb13, bb14
     v37 = phi [bb13: v36], [bb14: false]
@@ -831,7 +831,7 @@ fn @unsigned8(arg0: i8, arg1: i8, arg2: i256) -> i1 [selector=0x48146746, pure, 
     v41 = shr arg0, v40
     v42 = zext i8 v41 to i256
     v43 = shr v0, arg2
-    v44 = eq v42, v43
+    v44 = eq v43, v42
     jump bb18
   bb18:  ; preds = bb16, bb17
     v45 = phi [bb16: v44], [bb17: false]
@@ -843,7 +843,7 @@ fn @unsigned8(arg0: i8, arg1: i8, arg2: i256) -> i1 [selector=0x48146746, pure, 
     v47 = zext i8 v46 to i256
     v48 = not v0
     v49 = and v48, 255
-    v50 = eq v47, v49
+    v50 = eq v49, v47
     jump bb21
   bb21:  ; preds = bb19, bb20
     v51 = phi [bb19: v50], [bb20: false]
@@ -854,7 +854,7 @@ fn @unsigned8(arg0: i8, arg1: i8, arg2: i256) -> i1 [selector=0x48146746, pure, 
     v52 = and arg0, arg1
     v53 = zext i8 v52 to i256
     v54 = and v0, v1
-    v55 = eq v53, v54
+    v55 = eq v54, v53
     jump bb24
   bb24:  ; preds = bb22, bb23
     v56 = phi [bb22: v55], [bb23: false]
@@ -865,7 +865,7 @@ fn @unsigned8(arg0: i8, arg1: i8, arg2: i256) -> i1 [selector=0x48146746, pure, 
     v57 = or arg0, arg1
     v58 = zext i8 v57 to i256
     v59 = or v0, v1
-    v60 = eq v58, v59
+    v60 = eq v59, v58
     jump bb27
   bb27:  ; preds = bb25, bb26
     v61 = phi [bb25: v60], [bb26: false]
@@ -876,7 +876,7 @@ fn @unsigned8(arg0: i8, arg1: i8, arg2: i256) -> i1 [selector=0x48146746, pure, 
     v62 = xor arg0, arg1
     v63 = zext i8 v62 to i256
     v64 = xor v0, v1
-    v65 = eq v63, v64
+    v65 = eq v64, v63
     jump bb30
   bb30:  ; preds = bb28, bb29
     v66 = phi [bb28: v65], [bb29: false]
@@ -890,7 +890,7 @@ fn @unsigned8(arg0: i8, arg1: i8, arg2: i256) -> i1 [selector=0x48146746, pure, 
     v70 = zext i8 v69 to i256
     v71 = exp v0, 3
     v72 = and v71, 255
-    v73 = eq v70, v72
+    v73 = eq v72, v70
     jump bb33
   bb33:  ; preds = bb31, bb32
     v74 = phi [bb31: v73], [bb32: false]
@@ -1037,9 +1037,9 @@ fn @identity(arg0: i8, arg1: i8) -> struct0 [pure] {
 fn @compoundUnchecked16(arg0: i16, arg1: i8) -> i1 [selector=0xb812f80f, pure, abi_params=[int16, int8], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sext i8 arg1 to i16
-    v1 = add arg0, v0
+    v1 = add v0, arg0
     v2 = sext i8 arg1 to i16
-    v3 = add arg0, v2
+    v3 = add v2, arg0
     v4 = ne v1, v3
     jumpi v4, bb1, bb2
   bb2:  ; preds = bb0
@@ -1055,9 +1055,9 @@ fn @compoundUnchecked16(arg0: i16, arg1: i8) -> i1 [selector=0xb812f80f, pure, a
     jump bb6
   bb6:  ; preds = bb5
     v10 = sext i8 arg1 to i16
-    v11 = mul arg0, v10
+    v11 = mul v10, arg0
     v12 = sext i8 arg1 to i16
-    v13 = mul arg0, v12
+    v13 = mul v12, arg0
     v14 = ne v11, v13
     jumpi v14, bb7, bb8
   bb8:  ; preds = bb6
@@ -1082,27 +1082,27 @@ fn @compoundUnchecked16(arg0: i16, arg1: i8) -> i1 [selector=0xb812f80f, pure, a
     jump bb15
   bb15:  ; preds = bb14
     v25 = sext i8 arg1 to i16
-    v26 = and arg0, v25
+    v26 = and v25, arg0
     v27 = sext i8 arg1 to i16
-    v28 = and arg0, v27
+    v28 = and v27, arg0
     v29 = ne v26, v28
     jumpi v29, bb16, bb17
   bb17:  ; preds = bb15
     jump bb18
   bb18:  ; preds = bb17
     v30 = sext i8 arg1 to i16
-    v31 = or arg0, v30
+    v31 = or v30, arg0
     v32 = sext i8 arg1 to i16
-    v33 = or arg0, v32
+    v33 = or v32, arg0
     v34 = ne v31, v33
     jumpi v34, bb19, bb20
   bb20:  ; preds = bb18
     jump bb21
   bb21:  ; preds = bb20
     v35 = sext i8 arg1 to i16
-    v36 = xor arg0, v35
+    v36 = xor v35, arg0
     v37 = sext i8 arg1 to i16
-    v38 = xor arg0, v37
+    v38 = xor v37, arg0
     v39 = ne v36, v38
     jumpi v39, bb22, bb23
   bb23:  ; preds = bb21
@@ -1176,27 +1176,27 @@ fn @compoundChecked16(arg0: i16, arg1: i8) -> i1 [selector=0x0081a88e, pure, abi
     jump bb15
   bb15:  ; preds = bb14
     v25 = sext i8 arg1 to i16
-    v26 = and arg0, v25
+    v26 = and v25, arg0
     v27 = sext i8 arg1 to i16
-    v28 = and arg0, v27
+    v28 = and v27, arg0
     v29 = ne v26, v28
     jumpi v29, bb16, bb17
   bb17:  ; preds = bb15
     jump bb18
   bb18:  ; preds = bb17
     v30 = sext i8 arg1 to i16
-    v31 = or arg0, v30
+    v31 = or v30, arg0
     v32 = sext i8 arg1 to i16
-    v33 = or arg0, v32
+    v33 = or v32, arg0
     v34 = ne v31, v33
     jumpi v34, bb19, bb20
   bb20:  ; preds = bb18
     jump bb21
   bb21:  ; preds = bb20
     v35 = sext i8 arg1 to i16
-    v36 = xor arg0, v35
+    v36 = xor v35, arg0
     v37 = sext i8 arg1 to i16
-    v38 = xor arg0, v37
+    v38 = xor v37, arg0
     v39 = ne v36, v38
     jumpi v39, bb22, bb23
   bb23:  ; preds = bb21
@@ -1296,7 +1296,7 @@ fn @unsigned16(arg0: i16, arg1: i16, arg2: i256) -> i1 [selector=0x87f9ccb1, pur
     v3 = zext i16 v2 to i256
     v4 = add v0, v1
     v5 = and v4, 0xffff
-    v6 = eq v3, v5
+    v6 = eq v5, v3
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb0
     jump bb3
@@ -1305,7 +1305,7 @@ fn @unsigned16(arg0: i16, arg1: i16, arg2: i256) -> i1 [selector=0x87f9ccb1, pur
     v8 = zext i16 v7 to i256
     v9 = sub v0, v1
     v10 = and v9, 0xffff
-    v11 = eq v8, v10
+    v11 = eq v10, v8
     jump bb3
   bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: false]
@@ -1317,7 +1317,7 @@ fn @unsigned16(arg0: i16, arg1: i16, arg2: i256) -> i1 [selector=0x87f9ccb1, pur
     v14 = zext i16 v13 to i256
     v15 = mul v0, v1
     v16 = and v15, 0xffff
-    v17 = eq v14, v16
+    v17 = eq v16, v14
     jump bb6
   bb6:  ; preds = bb4, bb5
     v18 = phi [bb4: v17], [bb5: false]
@@ -1328,7 +1328,7 @@ fn @unsigned16(arg0: i16, arg1: i16, arg2: i256) -> i1 [selector=0x87f9ccb1, pur
     v19 = wrapping_div uint16, arg0, arg1
     v20 = zext i16 v19 to i256
     v21 = wrapping_div uint256, v0, v1
-    v22 = eq v20, v21
+    v22 = eq v21, v20
     jump bb9
   bb9:  ; preds = bb7, bb8
     v23 = phi [bb7: v22], [bb8: false]
@@ -1339,7 +1339,7 @@ fn @unsigned16(arg0: i16, arg1: i16, arg2: i256) -> i1 [selector=0x87f9ccb1, pur
     v24 = checked_rem uint16, arg0, arg1
     v25 = zext i16 v24 to i256
     v26 = checked_rem uint256, v0, v1
-    v27 = eq v25, v26
+    v27 = eq v26, v25
     jump bb12
   bb12:  ; preds = bb10, bb11
     v28 = phi [bb10: v27], [bb11: false]
@@ -1354,7 +1354,7 @@ fn @unsigned16(arg0: i16, arg1: i16, arg2: i256) -> i1 [selector=0x87f9ccb1, pur
     v33 = zext i16 v32 to i256
     v34 = shl v0, arg2
     v35 = and v34, 0xffff
-    v36 = eq v33, v35
+    v36 = eq v35, v33
     jump bb15
   bb15:  ; preds = bb13, bb14
     v37 = phi [bb13: v36], [bb14: false]
@@ -1368,7 +1368,7 @@ fn @unsigned16(arg0: i16, arg1: i16, arg2: i256) -> i1 [selector=0x87f9ccb1, pur
     v41 = shr arg0, v40
     v42 = zext i16 v41 to i256
     v43 = shr v0, arg2
-    v44 = eq v42, v43
+    v44 = eq v43, v42
     jump bb18
   bb18:  ; preds = bb16, bb17
     v45 = phi [bb16: v44], [bb17: false]
@@ -1380,7 +1380,7 @@ fn @unsigned16(arg0: i16, arg1: i16, arg2: i256) -> i1 [selector=0x87f9ccb1, pur
     v47 = zext i16 v46 to i256
     v48 = not v0
     v49 = and v48, 0xffff
-    v50 = eq v47, v49
+    v50 = eq v49, v47
     jump bb21
   bb21:  ; preds = bb19, bb20
     v51 = phi [bb19: v50], [bb20: false]
@@ -1391,7 +1391,7 @@ fn @unsigned16(arg0: i16, arg1: i16, arg2: i256) -> i1 [selector=0x87f9ccb1, pur
     v52 = and arg0, arg1
     v53 = zext i16 v52 to i256
     v54 = and v0, v1
-    v55 = eq v53, v54
+    v55 = eq v54, v53
     jump bb24
   bb24:  ; preds = bb22, bb23
     v56 = phi [bb22: v55], [bb23: false]
@@ -1402,7 +1402,7 @@ fn @unsigned16(arg0: i16, arg1: i16, arg2: i256) -> i1 [selector=0x87f9ccb1, pur
     v57 = or arg0, arg1
     v58 = zext i16 v57 to i256
     v59 = or v0, v1
-    v60 = eq v58, v59
+    v60 = eq v59, v58
     jump bb27
   bb27:  ; preds = bb25, bb26
     v61 = phi [bb25: v60], [bb26: false]
@@ -1413,7 +1413,7 @@ fn @unsigned16(arg0: i16, arg1: i16, arg2: i256) -> i1 [selector=0x87f9ccb1, pur
     v62 = xor arg0, arg1
     v63 = zext i16 v62 to i256
     v64 = xor v0, v1
-    v65 = eq v63, v64
+    v65 = eq v64, v63
     jump bb30
   bb30:  ; preds = bb28, bb29
     v66 = phi [bb28: v65], [bb29: false]
@@ -1427,7 +1427,7 @@ fn @unsigned16(arg0: i16, arg1: i16, arg2: i256) -> i1 [selector=0x87f9ccb1, pur
     v70 = zext i16 v69 to i256
     v71 = exp v0, 3
     v72 = and v71, 0xffff
-    v73 = eq v70, v72
+    v73 = eq v72, v70
     jump bb33
   bb33:  ; preds = bb31, bb32
     v74 = phi [bb31: v73], [bb32: false]
@@ -1645,7 +1645,7 @@ fn @unsigned24(arg0: i24, arg1: i24, arg2: i256) -> i1 [selector=0x32bceb48, pur
     v3 = zext i24 v2 to i256
     v4 = add v0, v1
     v5 = and v4, 0xffffff
-    v6 = eq v3, v5
+    v6 = eq v5, v3
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb0
     jump bb3
@@ -1654,7 +1654,7 @@ fn @unsigned24(arg0: i24, arg1: i24, arg2: i256) -> i1 [selector=0x32bceb48, pur
     v8 = zext i24 v7 to i256
     v9 = sub v0, v1
     v10 = and v9, 0xffffff
-    v11 = eq v8, v10
+    v11 = eq v10, v8
     jump bb3
   bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: false]
@@ -1666,7 +1666,7 @@ fn @unsigned24(arg0: i24, arg1: i24, arg2: i256) -> i1 [selector=0x32bceb48, pur
     v14 = zext i24 v13 to i256
     v15 = mul v0, v1
     v16 = and v15, 0xffffff
-    v17 = eq v14, v16
+    v17 = eq v16, v14
     jump bb6
   bb6:  ; preds = bb4, bb5
     v18 = phi [bb4: v17], [bb5: false]
@@ -1677,7 +1677,7 @@ fn @unsigned24(arg0: i24, arg1: i24, arg2: i256) -> i1 [selector=0x32bceb48, pur
     v19 = wrapping_div uint24, arg0, arg1
     v20 = zext i24 v19 to i256
     v21 = wrapping_div uint256, v0, v1
-    v22 = eq v20, v21
+    v22 = eq v21, v20
     jump bb9
   bb9:  ; preds = bb7, bb8
     v23 = phi [bb7: v22], [bb8: false]
@@ -1688,7 +1688,7 @@ fn @unsigned24(arg0: i24, arg1: i24, arg2: i256) -> i1 [selector=0x32bceb48, pur
     v24 = checked_rem uint24, arg0, arg1
     v25 = zext i24 v24 to i256
     v26 = checked_rem uint256, v0, v1
-    v27 = eq v25, v26
+    v27 = eq v26, v25
     jump bb12
   bb12:  ; preds = bb10, bb11
     v28 = phi [bb10: v27], [bb11: false]
@@ -1703,7 +1703,7 @@ fn @unsigned24(arg0: i24, arg1: i24, arg2: i256) -> i1 [selector=0x32bceb48, pur
     v33 = zext i24 v32 to i256
     v34 = shl v0, arg2
     v35 = and v34, 0xffffff
-    v36 = eq v33, v35
+    v36 = eq v35, v33
     jump bb15
   bb15:  ; preds = bb13, bb14
     v37 = phi [bb13: v36], [bb14: false]
@@ -1717,7 +1717,7 @@ fn @unsigned24(arg0: i24, arg1: i24, arg2: i256) -> i1 [selector=0x32bceb48, pur
     v41 = shr arg0, v40
     v42 = zext i24 v41 to i256
     v43 = shr v0, arg2
-    v44 = eq v42, v43
+    v44 = eq v43, v42
     jump bb18
   bb18:  ; preds = bb16, bb17
     v45 = phi [bb16: v44], [bb17: false]
@@ -1729,7 +1729,7 @@ fn @unsigned24(arg0: i24, arg1: i24, arg2: i256) -> i1 [selector=0x32bceb48, pur
     v47 = zext i24 v46 to i256
     v48 = not v0
     v49 = and v48, 0xffffff
-    v50 = eq v47, v49
+    v50 = eq v49, v47
     jump bb21
   bb21:  ; preds = bb19, bb20
     v51 = phi [bb19: v50], [bb20: false]
@@ -1740,7 +1740,7 @@ fn @unsigned24(arg0: i24, arg1: i24, arg2: i256) -> i1 [selector=0x32bceb48, pur
     v52 = and arg0, arg1
     v53 = zext i24 v52 to i256
     v54 = and v0, v1
-    v55 = eq v53, v54
+    v55 = eq v54, v53
     jump bb24
   bb24:  ; preds = bb22, bb23
     v56 = phi [bb22: v55], [bb23: false]
@@ -1751,7 +1751,7 @@ fn @unsigned24(arg0: i24, arg1: i24, arg2: i256) -> i1 [selector=0x32bceb48, pur
     v57 = or arg0, arg1
     v58 = zext i24 v57 to i256
     v59 = or v0, v1
-    v60 = eq v58, v59
+    v60 = eq v59, v58
     jump bb27
   bb27:  ; preds = bb25, bb26
     v61 = phi [bb25: v60], [bb26: false]
@@ -1762,7 +1762,7 @@ fn @unsigned24(arg0: i24, arg1: i24, arg2: i256) -> i1 [selector=0x32bceb48, pur
     v62 = xor arg0, arg1
     v63 = zext i24 v62 to i256
     v64 = xor v0, v1
-    v65 = eq v63, v64
+    v65 = eq v64, v63
     jump bb30
   bb30:  ; preds = bb28, bb29
     v66 = phi [bb28: v65], [bb29: false]
@@ -1776,7 +1776,7 @@ fn @unsigned24(arg0: i24, arg1: i24, arg2: i256) -> i1 [selector=0x32bceb48, pur
     v70 = zext i24 v69 to i256
     v71 = exp v0, 3
     v72 = and v71, 0xffffff
-    v73 = eq v70, v72
+    v73 = eq v72, v70
     jump bb33
   bb33:  ; preds = bb31, bb32
     v74 = phi [bb31: v73], [bb32: false]
@@ -1927,7 +1927,7 @@ fn @compareComputedLiteral(arg0: i32) -> i1 [selector=0x83b388b9, pure, abi_para
     v2 = eq v1, false
     icall revert_if<empty>, v2
     v3 = zext i32 arg0 to i40
-    v4 = gt i40 0x100000000, v3
+    v4 = lt v3, i40 0x100000000
     v5 = eq v4, false
     icall revert_if<empty>, v5
     ret true
@@ -2008,7 +2008,7 @@ fn @unsigned32(arg0: i32, arg1: i32, arg2: i256) -> i1 [selector=0xb1eb5348, pur
     v3 = zext i32 v2 to i256
     v4 = add v0, v1
     v5 = and v4, 0xffffffff
-    v6 = eq v3, v5
+    v6 = eq v5, v3
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb0
     jump bb3
@@ -2017,7 +2017,7 @@ fn @unsigned32(arg0: i32, arg1: i32, arg2: i256) -> i1 [selector=0xb1eb5348, pur
     v8 = zext i32 v7 to i256
     v9 = sub v0, v1
     v10 = and v9, 0xffffffff
-    v11 = eq v8, v10
+    v11 = eq v10, v8
     jump bb3
   bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: false]
@@ -2029,7 +2029,7 @@ fn @unsigned32(arg0: i32, arg1: i32, arg2: i256) -> i1 [selector=0xb1eb5348, pur
     v14 = zext i32 v13 to i256
     v15 = mul v0, v1
     v16 = and v15, 0xffffffff
-    v17 = eq v14, v16
+    v17 = eq v16, v14
     jump bb6
   bb6:  ; preds = bb4, bb5
     v18 = phi [bb4: v17], [bb5: false]
@@ -2040,7 +2040,7 @@ fn @unsigned32(arg0: i32, arg1: i32, arg2: i256) -> i1 [selector=0xb1eb5348, pur
     v19 = wrapping_div uint32, arg0, arg1
     v20 = zext i32 v19 to i256
     v21 = wrapping_div uint256, v0, v1
-    v22 = eq v20, v21
+    v22 = eq v21, v20
     jump bb9
   bb9:  ; preds = bb7, bb8
     v23 = phi [bb7: v22], [bb8: false]
@@ -2051,7 +2051,7 @@ fn @unsigned32(arg0: i32, arg1: i32, arg2: i256) -> i1 [selector=0xb1eb5348, pur
     v24 = checked_rem uint32, arg0, arg1
     v25 = zext i32 v24 to i256
     v26 = checked_rem uint256, v0, v1
-    v27 = eq v25, v26
+    v27 = eq v26, v25
     jump bb12
   bb12:  ; preds = bb10, bb11
     v28 = phi [bb10: v27], [bb11: false]
@@ -2066,7 +2066,7 @@ fn @unsigned32(arg0: i32, arg1: i32, arg2: i256) -> i1 [selector=0xb1eb5348, pur
     v33 = zext i32 v32 to i256
     v34 = shl v0, arg2
     v35 = and v34, 0xffffffff
-    v36 = eq v33, v35
+    v36 = eq v35, v33
     jump bb15
   bb15:  ; preds = bb13, bb14
     v37 = phi [bb13: v36], [bb14: false]
@@ -2080,7 +2080,7 @@ fn @unsigned32(arg0: i32, arg1: i32, arg2: i256) -> i1 [selector=0xb1eb5348, pur
     v41 = shr arg0, v40
     v42 = zext i32 v41 to i256
     v43 = shr v0, arg2
-    v44 = eq v42, v43
+    v44 = eq v43, v42
     jump bb18
   bb18:  ; preds = bb16, bb17
     v45 = phi [bb16: v44], [bb17: false]
@@ -2092,7 +2092,7 @@ fn @unsigned32(arg0: i32, arg1: i32, arg2: i256) -> i1 [selector=0xb1eb5348, pur
     v47 = zext i32 v46 to i256
     v48 = not v0
     v49 = and v48, 0xffffffff
-    v50 = eq v47, v49
+    v50 = eq v49, v47
     jump bb21
   bb21:  ; preds = bb19, bb20
     v51 = phi [bb19: v50], [bb20: false]
@@ -2103,7 +2103,7 @@ fn @unsigned32(arg0: i32, arg1: i32, arg2: i256) -> i1 [selector=0xb1eb5348, pur
     v52 = and arg0, arg1
     v53 = zext i32 v52 to i256
     v54 = and v0, v1
-    v55 = eq v53, v54
+    v55 = eq v54, v53
     jump bb24
   bb24:  ; preds = bb22, bb23
     v56 = phi [bb22: v55], [bb23: false]
@@ -2114,7 +2114,7 @@ fn @unsigned32(arg0: i32, arg1: i32, arg2: i256) -> i1 [selector=0xb1eb5348, pur
     v57 = or arg0, arg1
     v58 = zext i32 v57 to i256
     v59 = or v0, v1
-    v60 = eq v58, v59
+    v60 = eq v59, v58
     jump bb27
   bb27:  ; preds = bb25, bb26
     v61 = phi [bb25: v60], [bb26: false]
@@ -2125,7 +2125,7 @@ fn @unsigned32(arg0: i32, arg1: i32, arg2: i256) -> i1 [selector=0xb1eb5348, pur
     v62 = xor arg0, arg1
     v63 = zext i32 v62 to i256
     v64 = xor v0, v1
-    v65 = eq v63, v64
+    v65 = eq v64, v63
     jump bb30
   bb30:  ; preds = bb28, bb29
     v66 = phi [bb28: v65], [bb29: false]
@@ -2139,7 +2139,7 @@ fn @unsigned32(arg0: i32, arg1: i32, arg2: i256) -> i1 [selector=0xb1eb5348, pur
     v70 = zext i32 v69 to i256
     v71 = exp v0, 3
     v72 = and v71, 0xffffffff
-    v73 = eq v70, v72
+    v73 = eq v72, v70
     jump bb33
   bb33:  ; preds = bb31, bb32
     v74 = phi [bb31: v73], [bb32: false]
@@ -2357,7 +2357,7 @@ fn @unsigned40(arg0: i40, arg1: i40, arg2: i256) -> i1 [selector=0x46fb98f2, pur
     v3 = zext i40 v2 to i256
     v4 = add v0, v1
     v5 = and v4, 0xffffffffff
-    v6 = eq v3, v5
+    v6 = eq v5, v3
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb0
     jump bb3
@@ -2366,7 +2366,7 @@ fn @unsigned40(arg0: i40, arg1: i40, arg2: i256) -> i1 [selector=0x46fb98f2, pur
     v8 = zext i40 v7 to i256
     v9 = sub v0, v1
     v10 = and v9, 0xffffffffff
-    v11 = eq v8, v10
+    v11 = eq v10, v8
     jump bb3
   bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: false]
@@ -2378,7 +2378,7 @@ fn @unsigned40(arg0: i40, arg1: i40, arg2: i256) -> i1 [selector=0x46fb98f2, pur
     v14 = zext i40 v13 to i256
     v15 = mul v0, v1
     v16 = and v15, 0xffffffffff
-    v17 = eq v14, v16
+    v17 = eq v16, v14
     jump bb6
   bb6:  ; preds = bb4, bb5
     v18 = phi [bb4: v17], [bb5: false]
@@ -2389,7 +2389,7 @@ fn @unsigned40(arg0: i40, arg1: i40, arg2: i256) -> i1 [selector=0x46fb98f2, pur
     v19 = wrapping_div uint40, arg0, arg1
     v20 = zext i40 v19 to i256
     v21 = wrapping_div uint256, v0, v1
-    v22 = eq v20, v21
+    v22 = eq v21, v20
     jump bb9
   bb9:  ; preds = bb7, bb8
     v23 = phi [bb7: v22], [bb8: false]
@@ -2400,7 +2400,7 @@ fn @unsigned40(arg0: i40, arg1: i40, arg2: i256) -> i1 [selector=0x46fb98f2, pur
     v24 = checked_rem uint40, arg0, arg1
     v25 = zext i40 v24 to i256
     v26 = checked_rem uint256, v0, v1
-    v27 = eq v25, v26
+    v27 = eq v26, v25
     jump bb12
   bb12:  ; preds = bb10, bb11
     v28 = phi [bb10: v27], [bb11: false]
@@ -2415,7 +2415,7 @@ fn @unsigned40(arg0: i40, arg1: i40, arg2: i256) -> i1 [selector=0x46fb98f2, pur
     v33 = zext i40 v32 to i256
     v34 = shl v0, arg2
     v35 = and v34, 0xffffffffff
-    v36 = eq v33, v35
+    v36 = eq v35, v33
     jump bb15
   bb15:  ; preds = bb13, bb14
     v37 = phi [bb13: v36], [bb14: false]
@@ -2429,7 +2429,7 @@ fn @unsigned40(arg0: i40, arg1: i40, arg2: i256) -> i1 [selector=0x46fb98f2, pur
     v41 = shr arg0, v40
     v42 = zext i40 v41 to i256
     v43 = shr v0, arg2
-    v44 = eq v42, v43
+    v44 = eq v43, v42
     jump bb18
   bb18:  ; preds = bb16, bb17
     v45 = phi [bb16: v44], [bb17: false]
@@ -2441,7 +2441,7 @@ fn @unsigned40(arg0: i40, arg1: i40, arg2: i256) -> i1 [selector=0x46fb98f2, pur
     v47 = zext i40 v46 to i256
     v48 = not v0
     v49 = and v48, 0xffffffffff
-    v50 = eq v47, v49
+    v50 = eq v49, v47
     jump bb21
   bb21:  ; preds = bb19, bb20
     v51 = phi [bb19: v50], [bb20: false]
@@ -2452,7 +2452,7 @@ fn @unsigned40(arg0: i40, arg1: i40, arg2: i256) -> i1 [selector=0x46fb98f2, pur
     v52 = and arg0, arg1
     v53 = zext i40 v52 to i256
     v54 = and v0, v1
-    v55 = eq v53, v54
+    v55 = eq v54, v53
     jump bb24
   bb24:  ; preds = bb22, bb23
     v56 = phi [bb22: v55], [bb23: false]
@@ -2463,7 +2463,7 @@ fn @unsigned40(arg0: i40, arg1: i40, arg2: i256) -> i1 [selector=0x46fb98f2, pur
     v57 = or arg0, arg1
     v58 = zext i40 v57 to i256
     v59 = or v0, v1
-    v60 = eq v58, v59
+    v60 = eq v59, v58
     jump bb27
   bb27:  ; preds = bb25, bb26
     v61 = phi [bb25: v60], [bb26: false]
@@ -2474,7 +2474,7 @@ fn @unsigned40(arg0: i40, arg1: i40, arg2: i256) -> i1 [selector=0x46fb98f2, pur
     v62 = xor arg0, arg1
     v63 = zext i40 v62 to i256
     v64 = xor v0, v1
-    v65 = eq v63, v64
+    v65 = eq v64, v63
     jump bb30
   bb30:  ; preds = bb28, bb29
     v66 = phi [bb28: v65], [bb29: false]
@@ -2488,7 +2488,7 @@ fn @unsigned40(arg0: i40, arg1: i40, arg2: i256) -> i1 [selector=0x46fb98f2, pur
     v70 = zext i40 v69 to i256
     v71 = exp v0, 3
     v72 = and v71, 0xffffffffff
-    v73 = eq v70, v72
+    v73 = eq v72, v70
     jump bb33
   bb33:  ; preds = bb31, bb32
     v74 = phi [bb31: v73], [bb32: false]
@@ -2706,7 +2706,7 @@ fn @unsigned48(arg0: i48, arg1: i48, arg2: i256) -> i1 [selector=0x9c13e7a8, pur
     v3 = zext i48 v2 to i256
     v4 = add v0, v1
     v5 = and v4, 0xffffffffffff
-    v6 = eq v3, v5
+    v6 = eq v5, v3
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb0
     jump bb3
@@ -2715,7 +2715,7 @@ fn @unsigned48(arg0: i48, arg1: i48, arg2: i256) -> i1 [selector=0x9c13e7a8, pur
     v8 = zext i48 v7 to i256
     v9 = sub v0, v1
     v10 = and v9, 0xffffffffffff
-    v11 = eq v8, v10
+    v11 = eq v10, v8
     jump bb3
   bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: false]
@@ -2727,7 +2727,7 @@ fn @unsigned48(arg0: i48, arg1: i48, arg2: i256) -> i1 [selector=0x9c13e7a8, pur
     v14 = zext i48 v13 to i256
     v15 = mul v0, v1
     v16 = and v15, 0xffffffffffff
-    v17 = eq v14, v16
+    v17 = eq v16, v14
     jump bb6
   bb6:  ; preds = bb4, bb5
     v18 = phi [bb4: v17], [bb5: false]
@@ -2738,7 +2738,7 @@ fn @unsigned48(arg0: i48, arg1: i48, arg2: i256) -> i1 [selector=0x9c13e7a8, pur
     v19 = wrapping_div uint48, arg0, arg1
     v20 = zext i48 v19 to i256
     v21 = wrapping_div uint256, v0, v1
-    v22 = eq v20, v21
+    v22 = eq v21, v20
     jump bb9
   bb9:  ; preds = bb7, bb8
     v23 = phi [bb7: v22], [bb8: false]
@@ -2749,7 +2749,7 @@ fn @unsigned48(arg0: i48, arg1: i48, arg2: i256) -> i1 [selector=0x9c13e7a8, pur
     v24 = checked_rem uint48, arg0, arg1
     v25 = zext i48 v24 to i256
     v26 = checked_rem uint256, v0, v1
-    v27 = eq v25, v26
+    v27 = eq v26, v25
     jump bb12
   bb12:  ; preds = bb10, bb11
     v28 = phi [bb10: v27], [bb11: false]
@@ -2764,7 +2764,7 @@ fn @unsigned48(arg0: i48, arg1: i48, arg2: i256) -> i1 [selector=0x9c13e7a8, pur
     v33 = zext i48 v32 to i256
     v34 = shl v0, arg2
     v35 = and v34, 0xffffffffffff
-    v36 = eq v33, v35
+    v36 = eq v35, v33
     jump bb15
   bb15:  ; preds = bb13, bb14
     v37 = phi [bb13: v36], [bb14: false]
@@ -2778,7 +2778,7 @@ fn @unsigned48(arg0: i48, arg1: i48, arg2: i256) -> i1 [selector=0x9c13e7a8, pur
     v41 = shr arg0, v40
     v42 = zext i48 v41 to i256
     v43 = shr v0, arg2
-    v44 = eq v42, v43
+    v44 = eq v43, v42
     jump bb18
   bb18:  ; preds = bb16, bb17
     v45 = phi [bb16: v44], [bb17: false]
@@ -2790,7 +2790,7 @@ fn @unsigned48(arg0: i48, arg1: i48, arg2: i256) -> i1 [selector=0x9c13e7a8, pur
     v47 = zext i48 v46 to i256
     v48 = not v0
     v49 = and v48, 0xffffffffffff
-    v50 = eq v47, v49
+    v50 = eq v49, v47
     jump bb21
   bb21:  ; preds = bb19, bb20
     v51 = phi [bb19: v50], [bb20: false]
@@ -2801,7 +2801,7 @@ fn @unsigned48(arg0: i48, arg1: i48, arg2: i256) -> i1 [selector=0x9c13e7a8, pur
     v52 = and arg0, arg1
     v53 = zext i48 v52 to i256
     v54 = and v0, v1
-    v55 = eq v53, v54
+    v55 = eq v54, v53
     jump bb24
   bb24:  ; preds = bb22, bb23
     v56 = phi [bb22: v55], [bb23: false]
@@ -2812,7 +2812,7 @@ fn @unsigned48(arg0: i48, arg1: i48, arg2: i256) -> i1 [selector=0x9c13e7a8, pur
     v57 = or arg0, arg1
     v58 = zext i48 v57 to i256
     v59 = or v0, v1
-    v60 = eq v58, v59
+    v60 = eq v59, v58
     jump bb27
   bb27:  ; preds = bb25, bb26
     v61 = phi [bb25: v60], [bb26: false]
@@ -2823,7 +2823,7 @@ fn @unsigned48(arg0: i48, arg1: i48, arg2: i256) -> i1 [selector=0x9c13e7a8, pur
     v62 = xor arg0, arg1
     v63 = zext i48 v62 to i256
     v64 = xor v0, v1
-    v65 = eq v63, v64
+    v65 = eq v64, v63
     jump bb30
   bb30:  ; preds = bb28, bb29
     v66 = phi [bb28: v65], [bb29: false]
@@ -2837,7 +2837,7 @@ fn @unsigned48(arg0: i48, arg1: i48, arg2: i256) -> i1 [selector=0x9c13e7a8, pur
     v70 = zext i48 v69 to i256
     v71 = exp v0, 3
     v72 = and v71, 0xffffffffffff
-    v73 = eq v70, v72
+    v73 = eq v72, v70
     jump bb33
   bb33:  ; preds = bb31, bb32
     v74 = phi [bb31: v73], [bb32: false]
@@ -3055,7 +3055,7 @@ fn @unsigned56(arg0: i56, arg1: i56, arg2: i256) -> i1 [selector=0x068856f4, pur
     v3 = zext i56 v2 to i256
     v4 = add v0, v1
     v5 = and v4, 0xffffffffffffff
-    v6 = eq v3, v5
+    v6 = eq v5, v3
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb0
     jump bb3
@@ -3064,7 +3064,7 @@ fn @unsigned56(arg0: i56, arg1: i56, arg2: i256) -> i1 [selector=0x068856f4, pur
     v8 = zext i56 v7 to i256
     v9 = sub v0, v1
     v10 = and v9, 0xffffffffffffff
-    v11 = eq v8, v10
+    v11 = eq v10, v8
     jump bb3
   bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: false]
@@ -3076,7 +3076,7 @@ fn @unsigned56(arg0: i56, arg1: i56, arg2: i256) -> i1 [selector=0x068856f4, pur
     v14 = zext i56 v13 to i256
     v15 = mul v0, v1
     v16 = and v15, 0xffffffffffffff
-    v17 = eq v14, v16
+    v17 = eq v16, v14
     jump bb6
   bb6:  ; preds = bb4, bb5
     v18 = phi [bb4: v17], [bb5: false]
@@ -3087,7 +3087,7 @@ fn @unsigned56(arg0: i56, arg1: i56, arg2: i256) -> i1 [selector=0x068856f4, pur
     v19 = wrapping_div uint56, arg0, arg1
     v20 = zext i56 v19 to i256
     v21 = wrapping_div uint256, v0, v1
-    v22 = eq v20, v21
+    v22 = eq v21, v20
     jump bb9
   bb9:  ; preds = bb7, bb8
     v23 = phi [bb7: v22], [bb8: false]
@@ -3098,7 +3098,7 @@ fn @unsigned56(arg0: i56, arg1: i56, arg2: i256) -> i1 [selector=0x068856f4, pur
     v24 = checked_rem uint56, arg0, arg1
     v25 = zext i56 v24 to i256
     v26 = checked_rem uint256, v0, v1
-    v27 = eq v25, v26
+    v27 = eq v26, v25
     jump bb12
   bb12:  ; preds = bb10, bb11
     v28 = phi [bb10: v27], [bb11: false]
@@ -3113,7 +3113,7 @@ fn @unsigned56(arg0: i56, arg1: i56, arg2: i256) -> i1 [selector=0x068856f4, pur
     v33 = zext i56 v32 to i256
     v34 = shl v0, arg2
     v35 = and v34, 0xffffffffffffff
-    v36 = eq v33, v35
+    v36 = eq v35, v33
     jump bb15
   bb15:  ; preds = bb13, bb14
     v37 = phi [bb13: v36], [bb14: false]
@@ -3127,7 +3127,7 @@ fn @unsigned56(arg0: i56, arg1: i56, arg2: i256) -> i1 [selector=0x068856f4, pur
     v41 = shr arg0, v40
     v42 = zext i56 v41 to i256
     v43 = shr v0, arg2
-    v44 = eq v42, v43
+    v44 = eq v43, v42
     jump bb18
   bb18:  ; preds = bb16, bb17
     v45 = phi [bb16: v44], [bb17: false]
@@ -3139,7 +3139,7 @@ fn @unsigned56(arg0: i56, arg1: i56, arg2: i256) -> i1 [selector=0x068856f4, pur
     v47 = zext i56 v46 to i256
     v48 = not v0
     v49 = and v48, 0xffffffffffffff
-    v50 = eq v47, v49
+    v50 = eq v49, v47
     jump bb21
   bb21:  ; preds = bb19, bb20
     v51 = phi [bb19: v50], [bb20: false]
@@ -3150,7 +3150,7 @@ fn @unsigned56(arg0: i56, arg1: i56, arg2: i256) -> i1 [selector=0x068856f4, pur
     v52 = and arg0, arg1
     v53 = zext i56 v52 to i256
     v54 = and v0, v1
-    v55 = eq v53, v54
+    v55 = eq v54, v53
     jump bb24
   bb24:  ; preds = bb22, bb23
     v56 = phi [bb22: v55], [bb23: false]
@@ -3161,7 +3161,7 @@ fn @unsigned56(arg0: i56, arg1: i56, arg2: i256) -> i1 [selector=0x068856f4, pur
     v57 = or arg0, arg1
     v58 = zext i56 v57 to i256
     v59 = or v0, v1
-    v60 = eq v58, v59
+    v60 = eq v59, v58
     jump bb27
   bb27:  ; preds = bb25, bb26
     v61 = phi [bb25: v60], [bb26: false]
@@ -3172,7 +3172,7 @@ fn @unsigned56(arg0: i56, arg1: i56, arg2: i256) -> i1 [selector=0x068856f4, pur
     v62 = xor arg0, arg1
     v63 = zext i56 v62 to i256
     v64 = xor v0, v1
-    v65 = eq v63, v64
+    v65 = eq v64, v63
     jump bb30
   bb30:  ; preds = bb28, bb29
     v66 = phi [bb28: v65], [bb29: false]
@@ -3186,7 +3186,7 @@ fn @unsigned56(arg0: i56, arg1: i56, arg2: i256) -> i1 [selector=0x068856f4, pur
     v70 = zext i56 v69 to i256
     v71 = exp v0, 3
     v72 = and v71, 0xffffffffffffff
-    v73 = eq v70, v72
+    v73 = eq v72, v70
     jump bb33
   bb33:  ; preds = bb31, bb32
     v74 = phi [bb31: v73], [bb32: false]
@@ -3404,7 +3404,7 @@ fn @unsigned64(arg0: i64, arg1: i64, arg2: i256) -> i1 [selector=0x932fd0cd, pur
     v3 = zext i64 v2 to i256
     v4 = add v0, v1
     v5 = and v4, 0xffffffffffffffff
-    v6 = eq v3, v5
+    v6 = eq v5, v3
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb0
     jump bb3
@@ -3413,7 +3413,7 @@ fn @unsigned64(arg0: i64, arg1: i64, arg2: i256) -> i1 [selector=0x932fd0cd, pur
     v8 = zext i64 v7 to i256
     v9 = sub v0, v1
     v10 = and v9, 0xffffffffffffffff
-    v11 = eq v8, v10
+    v11 = eq v10, v8
     jump bb3
   bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: false]
@@ -3425,7 +3425,7 @@ fn @unsigned64(arg0: i64, arg1: i64, arg2: i256) -> i1 [selector=0x932fd0cd, pur
     v14 = zext i64 v13 to i256
     v15 = mul v0, v1
     v16 = and v15, 0xffffffffffffffff
-    v17 = eq v14, v16
+    v17 = eq v16, v14
     jump bb6
   bb6:  ; preds = bb4, bb5
     v18 = phi [bb4: v17], [bb5: false]
@@ -3436,7 +3436,7 @@ fn @unsigned64(arg0: i64, arg1: i64, arg2: i256) -> i1 [selector=0x932fd0cd, pur
     v19 = wrapping_div uint64, arg0, arg1
     v20 = zext i64 v19 to i256
     v21 = wrapping_div uint256, v0, v1
-    v22 = eq v20, v21
+    v22 = eq v21, v20
     jump bb9
   bb9:  ; preds = bb7, bb8
     v23 = phi [bb7: v22], [bb8: false]
@@ -3447,7 +3447,7 @@ fn @unsigned64(arg0: i64, arg1: i64, arg2: i256) -> i1 [selector=0x932fd0cd, pur
     v24 = checked_rem uint64, arg0, arg1
     v25 = zext i64 v24 to i256
     v26 = checked_rem uint256, v0, v1
-    v27 = eq v25, v26
+    v27 = eq v26, v25
     jump bb12
   bb12:  ; preds = bb10, bb11
     v28 = phi [bb10: v27], [bb11: false]
@@ -3462,7 +3462,7 @@ fn @unsigned64(arg0: i64, arg1: i64, arg2: i256) -> i1 [selector=0x932fd0cd, pur
     v33 = zext i64 v32 to i256
     v34 = shl v0, arg2
     v35 = and v34, 0xffffffffffffffff
-    v36 = eq v33, v35
+    v36 = eq v35, v33
     jump bb15
   bb15:  ; preds = bb13, bb14
     v37 = phi [bb13: v36], [bb14: false]
@@ -3476,7 +3476,7 @@ fn @unsigned64(arg0: i64, arg1: i64, arg2: i256) -> i1 [selector=0x932fd0cd, pur
     v41 = shr arg0, v40
     v42 = zext i64 v41 to i256
     v43 = shr v0, arg2
-    v44 = eq v42, v43
+    v44 = eq v43, v42
     jump bb18
   bb18:  ; preds = bb16, bb17
     v45 = phi [bb16: v44], [bb17: false]
@@ -3488,7 +3488,7 @@ fn @unsigned64(arg0: i64, arg1: i64, arg2: i256) -> i1 [selector=0x932fd0cd, pur
     v47 = zext i64 v46 to i256
     v48 = not v0
     v49 = and v48, 0xffffffffffffffff
-    v50 = eq v47, v49
+    v50 = eq v49, v47
     jump bb21
   bb21:  ; preds = bb19, bb20
     v51 = phi [bb19: v50], [bb20: false]
@@ -3499,7 +3499,7 @@ fn @unsigned64(arg0: i64, arg1: i64, arg2: i256) -> i1 [selector=0x932fd0cd, pur
     v52 = and arg0, arg1
     v53 = zext i64 v52 to i256
     v54 = and v0, v1
-    v55 = eq v53, v54
+    v55 = eq v54, v53
     jump bb24
   bb24:  ; preds = bb22, bb23
     v56 = phi [bb22: v55], [bb23: false]
@@ -3510,7 +3510,7 @@ fn @unsigned64(arg0: i64, arg1: i64, arg2: i256) -> i1 [selector=0x932fd0cd, pur
     v57 = or arg0, arg1
     v58 = zext i64 v57 to i256
     v59 = or v0, v1
-    v60 = eq v58, v59
+    v60 = eq v59, v58
     jump bb27
   bb27:  ; preds = bb25, bb26
     v61 = phi [bb25: v60], [bb26: false]
@@ -3521,7 +3521,7 @@ fn @unsigned64(arg0: i64, arg1: i64, arg2: i256) -> i1 [selector=0x932fd0cd, pur
     v62 = xor arg0, arg1
     v63 = zext i64 v62 to i256
     v64 = xor v0, v1
-    v65 = eq v63, v64
+    v65 = eq v64, v63
     jump bb30
   bb30:  ; preds = bb28, bb29
     v66 = phi [bb28: v65], [bb29: false]
@@ -3535,7 +3535,7 @@ fn @unsigned64(arg0: i64, arg1: i64, arg2: i256) -> i1 [selector=0x932fd0cd, pur
     v70 = zext i64 v69 to i256
     v71 = exp v0, 3
     v72 = and v71, 0xffffffffffffffff
-    v73 = eq v70, v72
+    v73 = eq v72, v70
     jump bb33
   bb33:  ; preds = bb31, bb32
     v74 = phi [bb31: v73], [bb32: false]
@@ -3753,7 +3753,7 @@ fn @unsigned72(arg0: i72, arg1: i72, arg2: i256) -> i1 [selector=0xc27ee74c, pur
     v3 = zext i72 v2 to i256
     v4 = add v0, v1
     v5 = and v4, 0xffffffffffffffffff
-    v6 = eq v3, v5
+    v6 = eq v5, v3
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb0
     jump bb3
@@ -3762,7 +3762,7 @@ fn @unsigned72(arg0: i72, arg1: i72, arg2: i256) -> i1 [selector=0xc27ee74c, pur
     v8 = zext i72 v7 to i256
     v9 = sub v0, v1
     v10 = and v9, 0xffffffffffffffffff
-    v11 = eq v8, v10
+    v11 = eq v10, v8
     jump bb3
   bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: false]
@@ -3774,7 +3774,7 @@ fn @unsigned72(arg0: i72, arg1: i72, arg2: i256) -> i1 [selector=0xc27ee74c, pur
     v14 = zext i72 v13 to i256
     v15 = mul v0, v1
     v16 = and v15, 0xffffffffffffffffff
-    v17 = eq v14, v16
+    v17 = eq v16, v14
     jump bb6
   bb6:  ; preds = bb4, bb5
     v18 = phi [bb4: v17], [bb5: false]
@@ -3785,7 +3785,7 @@ fn @unsigned72(arg0: i72, arg1: i72, arg2: i256) -> i1 [selector=0xc27ee74c, pur
     v19 = wrapping_div uint72, arg0, arg1
     v20 = zext i72 v19 to i256
     v21 = wrapping_div uint256, v0, v1
-    v22 = eq v20, v21
+    v22 = eq v21, v20
     jump bb9
   bb9:  ; preds = bb7, bb8
     v23 = phi [bb7: v22], [bb8: false]
@@ -3796,7 +3796,7 @@ fn @unsigned72(arg0: i72, arg1: i72, arg2: i256) -> i1 [selector=0xc27ee74c, pur
     v24 = checked_rem uint72, arg0, arg1
     v25 = zext i72 v24 to i256
     v26 = checked_rem uint256, v0, v1
-    v27 = eq v25, v26
+    v27 = eq v26, v25
     jump bb12
   bb12:  ; preds = bb10, bb11
     v28 = phi [bb10: v27], [bb11: false]
@@ -3811,7 +3811,7 @@ fn @unsigned72(arg0: i72, arg1: i72, arg2: i256) -> i1 [selector=0xc27ee74c, pur
     v33 = zext i72 v32 to i256
     v34 = shl v0, arg2
     v35 = and v34, 0xffffffffffffffffff
-    v36 = eq v33, v35
+    v36 = eq v35, v33
     jump bb15
   bb15:  ; preds = bb13, bb14
     v37 = phi [bb13: v36], [bb14: false]
@@ -3825,7 +3825,7 @@ fn @unsigned72(arg0: i72, arg1: i72, arg2: i256) -> i1 [selector=0xc27ee74c, pur
     v41 = shr arg0, v40
     v42 = zext i72 v41 to i256
     v43 = shr v0, arg2
-    v44 = eq v42, v43
+    v44 = eq v43, v42
     jump bb18
   bb18:  ; preds = bb16, bb17
     v45 = phi [bb16: v44], [bb17: false]
@@ -3837,7 +3837,7 @@ fn @unsigned72(arg0: i72, arg1: i72, arg2: i256) -> i1 [selector=0xc27ee74c, pur
     v47 = zext i72 v46 to i256
     v48 = not v0
     v49 = and v48, 0xffffffffffffffffff
-    v50 = eq v47, v49
+    v50 = eq v49, v47
     jump bb21
   bb21:  ; preds = bb19, bb20
     v51 = phi [bb19: v50], [bb20: false]
@@ -3848,7 +3848,7 @@ fn @unsigned72(arg0: i72, arg1: i72, arg2: i256) -> i1 [selector=0xc27ee74c, pur
     v52 = and arg0, arg1
     v53 = zext i72 v52 to i256
     v54 = and v0, v1
-    v55 = eq v53, v54
+    v55 = eq v54, v53
     jump bb24
   bb24:  ; preds = bb22, bb23
     v56 = phi [bb22: v55], [bb23: false]
@@ -3859,7 +3859,7 @@ fn @unsigned72(arg0: i72, arg1: i72, arg2: i256) -> i1 [selector=0xc27ee74c, pur
     v57 = or arg0, arg1
     v58 = zext i72 v57 to i256
     v59 = or v0, v1
-    v60 = eq v58, v59
+    v60 = eq v59, v58
     jump bb27
   bb27:  ; preds = bb25, bb26
     v61 = phi [bb25: v60], [bb26: false]
@@ -3870,7 +3870,7 @@ fn @unsigned72(arg0: i72, arg1: i72, arg2: i256) -> i1 [selector=0xc27ee74c, pur
     v62 = xor arg0, arg1
     v63 = zext i72 v62 to i256
     v64 = xor v0, v1
-    v65 = eq v63, v64
+    v65 = eq v64, v63
     jump bb30
   bb30:  ; preds = bb28, bb29
     v66 = phi [bb28: v65], [bb29: false]
@@ -3884,7 +3884,7 @@ fn @unsigned72(arg0: i72, arg1: i72, arg2: i256) -> i1 [selector=0xc27ee74c, pur
     v70 = zext i72 v69 to i256
     v71 = exp v0, 3
     v72 = and v71, 0xffffffffffffffffff
-    v73 = eq v70, v72
+    v73 = eq v72, v70
     jump bb33
   bb33:  ; preds = bb31, bb32
     v74 = phi [bb31: v73], [bb32: false]
@@ -4102,7 +4102,7 @@ fn @unsigned80(arg0: i80, arg1: i80, arg2: i256) -> i1 [selector=0xb8a6facd, pur
     v3 = zext i80 v2 to i256
     v4 = add v0, v1
     v5 = and v4, 0xffffffffffffffffffff
-    v6 = eq v3, v5
+    v6 = eq v5, v3
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb0
     jump bb3
@@ -4111,7 +4111,7 @@ fn @unsigned80(arg0: i80, arg1: i80, arg2: i256) -> i1 [selector=0xb8a6facd, pur
     v8 = zext i80 v7 to i256
     v9 = sub v0, v1
     v10 = and v9, 0xffffffffffffffffffff
-    v11 = eq v8, v10
+    v11 = eq v10, v8
     jump bb3
   bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: false]
@@ -4123,7 +4123,7 @@ fn @unsigned80(arg0: i80, arg1: i80, arg2: i256) -> i1 [selector=0xb8a6facd, pur
     v14 = zext i80 v13 to i256
     v15 = mul v0, v1
     v16 = and v15, 0xffffffffffffffffffff
-    v17 = eq v14, v16
+    v17 = eq v16, v14
     jump bb6
   bb6:  ; preds = bb4, bb5
     v18 = phi [bb4: v17], [bb5: false]
@@ -4134,7 +4134,7 @@ fn @unsigned80(arg0: i80, arg1: i80, arg2: i256) -> i1 [selector=0xb8a6facd, pur
     v19 = wrapping_div uint80, arg0, arg1
     v20 = zext i80 v19 to i256
     v21 = wrapping_div uint256, v0, v1
-    v22 = eq v20, v21
+    v22 = eq v21, v20
     jump bb9
   bb9:  ; preds = bb7, bb8
     v23 = phi [bb7: v22], [bb8: false]
@@ -4145,7 +4145,7 @@ fn @unsigned80(arg0: i80, arg1: i80, arg2: i256) -> i1 [selector=0xb8a6facd, pur
     v24 = checked_rem uint80, arg0, arg1
     v25 = zext i80 v24 to i256
     v26 = checked_rem uint256, v0, v1
-    v27 = eq v25, v26
+    v27 = eq v26, v25
     jump bb12
   bb12:  ; preds = bb10, bb11
     v28 = phi [bb10: v27], [bb11: false]
@@ -4160,7 +4160,7 @@ fn @unsigned80(arg0: i80, arg1: i80, arg2: i256) -> i1 [selector=0xb8a6facd, pur
     v33 = zext i80 v32 to i256
     v34 = shl v0, arg2
     v35 = and v34, 0xffffffffffffffffffff
-    v36 = eq v33, v35
+    v36 = eq v35, v33
     jump bb15
   bb15:  ; preds = bb13, bb14
     v37 = phi [bb13: v36], [bb14: false]
@@ -4174,7 +4174,7 @@ fn @unsigned80(arg0: i80, arg1: i80, arg2: i256) -> i1 [selector=0xb8a6facd, pur
     v41 = shr arg0, v40
     v42 = zext i80 v41 to i256
     v43 = shr v0, arg2
-    v44 = eq v42, v43
+    v44 = eq v43, v42
     jump bb18
   bb18:  ; preds = bb16, bb17
     v45 = phi [bb16: v44], [bb17: false]
@@ -4186,7 +4186,7 @@ fn @unsigned80(arg0: i80, arg1: i80, arg2: i256) -> i1 [selector=0xb8a6facd, pur
     v47 = zext i80 v46 to i256
     v48 = not v0
     v49 = and v48, 0xffffffffffffffffffff
-    v50 = eq v47, v49
+    v50 = eq v49, v47
     jump bb21
   bb21:  ; preds = bb19, bb20
     v51 = phi [bb19: v50], [bb20: false]
@@ -4197,7 +4197,7 @@ fn @unsigned80(arg0: i80, arg1: i80, arg2: i256) -> i1 [selector=0xb8a6facd, pur
     v52 = and arg0, arg1
     v53 = zext i80 v52 to i256
     v54 = and v0, v1
-    v55 = eq v53, v54
+    v55 = eq v54, v53
     jump bb24
   bb24:  ; preds = bb22, bb23
     v56 = phi [bb22: v55], [bb23: false]
@@ -4208,7 +4208,7 @@ fn @unsigned80(arg0: i80, arg1: i80, arg2: i256) -> i1 [selector=0xb8a6facd, pur
     v57 = or arg0, arg1
     v58 = zext i80 v57 to i256
     v59 = or v0, v1
-    v60 = eq v58, v59
+    v60 = eq v59, v58
     jump bb27
   bb27:  ; preds = bb25, bb26
     v61 = phi [bb25: v60], [bb26: false]
@@ -4219,7 +4219,7 @@ fn @unsigned80(arg0: i80, arg1: i80, arg2: i256) -> i1 [selector=0xb8a6facd, pur
     v62 = xor arg0, arg1
     v63 = zext i80 v62 to i256
     v64 = xor v0, v1
-    v65 = eq v63, v64
+    v65 = eq v64, v63
     jump bb30
   bb30:  ; preds = bb28, bb29
     v66 = phi [bb28: v65], [bb29: false]
@@ -4233,7 +4233,7 @@ fn @unsigned80(arg0: i80, arg1: i80, arg2: i256) -> i1 [selector=0xb8a6facd, pur
     v70 = zext i80 v69 to i256
     v71 = exp v0, 3
     v72 = and v71, 0xffffffffffffffffffff
-    v73 = eq v70, v72
+    v73 = eq v72, v70
     jump bb33
   bb33:  ; preds = bb31, bb32
     v74 = phi [bb31: v73], [bb32: false]
@@ -4451,7 +4451,7 @@ fn @unsigned88(arg0: i88, arg1: i88, arg2: i256) -> i1 [selector=0xf7f5894d, pur
     v3 = zext i88 v2 to i256
     v4 = add v0, v1
     v5 = and v4, 0xffffffffffffffffffffff
-    v6 = eq v3, v5
+    v6 = eq v5, v3
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb0
     jump bb3
@@ -4460,7 +4460,7 @@ fn @unsigned88(arg0: i88, arg1: i88, arg2: i256) -> i1 [selector=0xf7f5894d, pur
     v8 = zext i88 v7 to i256
     v9 = sub v0, v1
     v10 = and v9, 0xffffffffffffffffffffff
-    v11 = eq v8, v10
+    v11 = eq v10, v8
     jump bb3
   bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: false]
@@ -4472,7 +4472,7 @@ fn @unsigned88(arg0: i88, arg1: i88, arg2: i256) -> i1 [selector=0xf7f5894d, pur
     v14 = zext i88 v13 to i256
     v15 = mul v0, v1
     v16 = and v15, 0xffffffffffffffffffffff
-    v17 = eq v14, v16
+    v17 = eq v16, v14
     jump bb6
   bb6:  ; preds = bb4, bb5
     v18 = phi [bb4: v17], [bb5: false]
@@ -4483,7 +4483,7 @@ fn @unsigned88(arg0: i88, arg1: i88, arg2: i256) -> i1 [selector=0xf7f5894d, pur
     v19 = wrapping_div uint88, arg0, arg1
     v20 = zext i88 v19 to i256
     v21 = wrapping_div uint256, v0, v1
-    v22 = eq v20, v21
+    v22 = eq v21, v20
     jump bb9
   bb9:  ; preds = bb7, bb8
     v23 = phi [bb7: v22], [bb8: false]
@@ -4494,7 +4494,7 @@ fn @unsigned88(arg0: i88, arg1: i88, arg2: i256) -> i1 [selector=0xf7f5894d, pur
     v24 = checked_rem uint88, arg0, arg1
     v25 = zext i88 v24 to i256
     v26 = checked_rem uint256, v0, v1
-    v27 = eq v25, v26
+    v27 = eq v26, v25
     jump bb12
   bb12:  ; preds = bb10, bb11
     v28 = phi [bb10: v27], [bb11: false]
@@ -4509,7 +4509,7 @@ fn @unsigned88(arg0: i88, arg1: i88, arg2: i256) -> i1 [selector=0xf7f5894d, pur
     v33 = zext i88 v32 to i256
     v34 = shl v0, arg2
     v35 = and v34, 0xffffffffffffffffffffff
-    v36 = eq v33, v35
+    v36 = eq v35, v33
     jump bb15
   bb15:  ; preds = bb13, bb14
     v37 = phi [bb13: v36], [bb14: false]
@@ -4523,7 +4523,7 @@ fn @unsigned88(arg0: i88, arg1: i88, arg2: i256) -> i1 [selector=0xf7f5894d, pur
     v41 = shr arg0, v40
     v42 = zext i88 v41 to i256
     v43 = shr v0, arg2
-    v44 = eq v42, v43
+    v44 = eq v43, v42
     jump bb18
   bb18:  ; preds = bb16, bb17
     v45 = phi [bb16: v44], [bb17: false]
@@ -4535,7 +4535,7 @@ fn @unsigned88(arg0: i88, arg1: i88, arg2: i256) -> i1 [selector=0xf7f5894d, pur
     v47 = zext i88 v46 to i256
     v48 = not v0
     v49 = and v48, 0xffffffffffffffffffffff
-    v50 = eq v47, v49
+    v50 = eq v49, v47
     jump bb21
   bb21:  ; preds = bb19, bb20
     v51 = phi [bb19: v50], [bb20: false]
@@ -4546,7 +4546,7 @@ fn @unsigned88(arg0: i88, arg1: i88, arg2: i256) -> i1 [selector=0xf7f5894d, pur
     v52 = and arg0, arg1
     v53 = zext i88 v52 to i256
     v54 = and v0, v1
-    v55 = eq v53, v54
+    v55 = eq v54, v53
     jump bb24
   bb24:  ; preds = bb22, bb23
     v56 = phi [bb22: v55], [bb23: false]
@@ -4557,7 +4557,7 @@ fn @unsigned88(arg0: i88, arg1: i88, arg2: i256) -> i1 [selector=0xf7f5894d, pur
     v57 = or arg0, arg1
     v58 = zext i88 v57 to i256
     v59 = or v0, v1
-    v60 = eq v58, v59
+    v60 = eq v59, v58
     jump bb27
   bb27:  ; preds = bb25, bb26
     v61 = phi [bb25: v60], [bb26: false]
@@ -4568,7 +4568,7 @@ fn @unsigned88(arg0: i88, arg1: i88, arg2: i256) -> i1 [selector=0xf7f5894d, pur
     v62 = xor arg0, arg1
     v63 = zext i88 v62 to i256
     v64 = xor v0, v1
-    v65 = eq v63, v64
+    v65 = eq v64, v63
     jump bb30
   bb30:  ; preds = bb28, bb29
     v66 = phi [bb28: v65], [bb29: false]
@@ -4582,7 +4582,7 @@ fn @unsigned88(arg0: i88, arg1: i88, arg2: i256) -> i1 [selector=0xf7f5894d, pur
     v70 = zext i88 v69 to i256
     v71 = exp v0, 3
     v72 = and v71, 0xffffffffffffffffffffff
-    v73 = eq v70, v72
+    v73 = eq v72, v70
     jump bb33
   bb33:  ; preds = bb31, bb32
     v74 = phi [bb31: v73], [bb32: false]
@@ -4800,7 +4800,7 @@ fn @unsigned96(arg0: i96, arg1: i96, arg2: i256) -> i1 [selector=0x543017da, pur
     v3 = zext i96 v2 to i256
     v4 = add v0, v1
     v5 = and v4, 0xffffffffffffffffffffffff
-    v6 = eq v3, v5
+    v6 = eq v5, v3
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb0
     jump bb3
@@ -4809,7 +4809,7 @@ fn @unsigned96(arg0: i96, arg1: i96, arg2: i256) -> i1 [selector=0x543017da, pur
     v8 = zext i96 v7 to i256
     v9 = sub v0, v1
     v10 = and v9, 0xffffffffffffffffffffffff
-    v11 = eq v8, v10
+    v11 = eq v10, v8
     jump bb3
   bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: false]
@@ -4821,7 +4821,7 @@ fn @unsigned96(arg0: i96, arg1: i96, arg2: i256) -> i1 [selector=0x543017da, pur
     v14 = zext i96 v13 to i256
     v15 = mul v0, v1
     v16 = and v15, 0xffffffffffffffffffffffff
-    v17 = eq v14, v16
+    v17 = eq v16, v14
     jump bb6
   bb6:  ; preds = bb4, bb5
     v18 = phi [bb4: v17], [bb5: false]
@@ -4832,7 +4832,7 @@ fn @unsigned96(arg0: i96, arg1: i96, arg2: i256) -> i1 [selector=0x543017da, pur
     v19 = wrapping_div uint96, arg0, arg1
     v20 = zext i96 v19 to i256
     v21 = wrapping_div uint256, v0, v1
-    v22 = eq v20, v21
+    v22 = eq v21, v20
     jump bb9
   bb9:  ; preds = bb7, bb8
     v23 = phi [bb7: v22], [bb8: false]
@@ -4843,7 +4843,7 @@ fn @unsigned96(arg0: i96, arg1: i96, arg2: i256) -> i1 [selector=0x543017da, pur
     v24 = checked_rem uint96, arg0, arg1
     v25 = zext i96 v24 to i256
     v26 = checked_rem uint256, v0, v1
-    v27 = eq v25, v26
+    v27 = eq v26, v25
     jump bb12
   bb12:  ; preds = bb10, bb11
     v28 = phi [bb10: v27], [bb11: false]
@@ -4858,7 +4858,7 @@ fn @unsigned96(arg0: i96, arg1: i96, arg2: i256) -> i1 [selector=0x543017da, pur
     v33 = zext i96 v32 to i256
     v34 = shl v0, arg2
     v35 = and v34, 0xffffffffffffffffffffffff
-    v36 = eq v33, v35
+    v36 = eq v35, v33
     jump bb15
   bb15:  ; preds = bb13, bb14
     v37 = phi [bb13: v36], [bb14: false]
@@ -4872,7 +4872,7 @@ fn @unsigned96(arg0: i96, arg1: i96, arg2: i256) -> i1 [selector=0x543017da, pur
     v41 = shr arg0, v40
     v42 = zext i96 v41 to i256
     v43 = shr v0, arg2
-    v44 = eq v42, v43
+    v44 = eq v43, v42
     jump bb18
   bb18:  ; preds = bb16, bb17
     v45 = phi [bb16: v44], [bb17: false]
@@ -4884,7 +4884,7 @@ fn @unsigned96(arg0: i96, arg1: i96, arg2: i256) -> i1 [selector=0x543017da, pur
     v47 = zext i96 v46 to i256
     v48 = not v0
     v49 = and v48, 0xffffffffffffffffffffffff
-    v50 = eq v47, v49
+    v50 = eq v49, v47
     jump bb21
   bb21:  ; preds = bb19, bb20
     v51 = phi [bb19: v50], [bb20: false]
@@ -4895,7 +4895,7 @@ fn @unsigned96(arg0: i96, arg1: i96, arg2: i256) -> i1 [selector=0x543017da, pur
     v52 = and arg0, arg1
     v53 = zext i96 v52 to i256
     v54 = and v0, v1
-    v55 = eq v53, v54
+    v55 = eq v54, v53
     jump bb24
   bb24:  ; preds = bb22, bb23
     v56 = phi [bb22: v55], [bb23: false]
@@ -4906,7 +4906,7 @@ fn @unsigned96(arg0: i96, arg1: i96, arg2: i256) -> i1 [selector=0x543017da, pur
     v57 = or arg0, arg1
     v58 = zext i96 v57 to i256
     v59 = or v0, v1
-    v60 = eq v58, v59
+    v60 = eq v59, v58
     jump bb27
   bb27:  ; preds = bb25, bb26
     v61 = phi [bb25: v60], [bb26: false]
@@ -4917,7 +4917,7 @@ fn @unsigned96(arg0: i96, arg1: i96, arg2: i256) -> i1 [selector=0x543017da, pur
     v62 = xor arg0, arg1
     v63 = zext i96 v62 to i256
     v64 = xor v0, v1
-    v65 = eq v63, v64
+    v65 = eq v64, v63
     jump bb30
   bb30:  ; preds = bb28, bb29
     v66 = phi [bb28: v65], [bb29: false]
@@ -4931,7 +4931,7 @@ fn @unsigned96(arg0: i96, arg1: i96, arg2: i256) -> i1 [selector=0x543017da, pur
     v70 = zext i96 v69 to i256
     v71 = exp v0, 3
     v72 = and v71, 0xffffffffffffffffffffffff
-    v73 = eq v70, v72
+    v73 = eq v72, v70
     jump bb33
   bb33:  ; preds = bb31, bb32
     v74 = phi [bb31: v73], [bb32: false]
@@ -5149,7 +5149,7 @@ fn @unsigned104(arg0: i104, arg1: i104, arg2: i256) -> i1 [selector=0xd016a100, 
     v3 = zext i104 v2 to i256
     v4 = add v0, v1
     v5 = and v4, 0xffffffffffffffffffffffffff
-    v6 = eq v3, v5
+    v6 = eq v5, v3
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb0
     jump bb3
@@ -5158,7 +5158,7 @@ fn @unsigned104(arg0: i104, arg1: i104, arg2: i256) -> i1 [selector=0xd016a100, 
     v8 = zext i104 v7 to i256
     v9 = sub v0, v1
     v10 = and v9, 0xffffffffffffffffffffffffff
-    v11 = eq v8, v10
+    v11 = eq v10, v8
     jump bb3
   bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: false]
@@ -5170,7 +5170,7 @@ fn @unsigned104(arg0: i104, arg1: i104, arg2: i256) -> i1 [selector=0xd016a100, 
     v14 = zext i104 v13 to i256
     v15 = mul v0, v1
     v16 = and v15, 0xffffffffffffffffffffffffff
-    v17 = eq v14, v16
+    v17 = eq v16, v14
     jump bb6
   bb6:  ; preds = bb4, bb5
     v18 = phi [bb4: v17], [bb5: false]
@@ -5181,7 +5181,7 @@ fn @unsigned104(arg0: i104, arg1: i104, arg2: i256) -> i1 [selector=0xd016a100, 
     v19 = wrapping_div uint104, arg0, arg1
     v20 = zext i104 v19 to i256
     v21 = wrapping_div uint256, v0, v1
-    v22 = eq v20, v21
+    v22 = eq v21, v20
     jump bb9
   bb9:  ; preds = bb7, bb8
     v23 = phi [bb7: v22], [bb8: false]
@@ -5192,7 +5192,7 @@ fn @unsigned104(arg0: i104, arg1: i104, arg2: i256) -> i1 [selector=0xd016a100, 
     v24 = checked_rem uint104, arg0, arg1
     v25 = zext i104 v24 to i256
     v26 = checked_rem uint256, v0, v1
-    v27 = eq v25, v26
+    v27 = eq v26, v25
     jump bb12
   bb12:  ; preds = bb10, bb11
     v28 = phi [bb10: v27], [bb11: false]
@@ -5207,7 +5207,7 @@ fn @unsigned104(arg0: i104, arg1: i104, arg2: i256) -> i1 [selector=0xd016a100, 
     v33 = zext i104 v32 to i256
     v34 = shl v0, arg2
     v35 = and v34, 0xffffffffffffffffffffffffff
-    v36 = eq v33, v35
+    v36 = eq v35, v33
     jump bb15
   bb15:  ; preds = bb13, bb14
     v37 = phi [bb13: v36], [bb14: false]
@@ -5221,7 +5221,7 @@ fn @unsigned104(arg0: i104, arg1: i104, arg2: i256) -> i1 [selector=0xd016a100, 
     v41 = shr arg0, v40
     v42 = zext i104 v41 to i256
     v43 = shr v0, arg2
-    v44 = eq v42, v43
+    v44 = eq v43, v42
     jump bb18
   bb18:  ; preds = bb16, bb17
     v45 = phi [bb16: v44], [bb17: false]
@@ -5233,7 +5233,7 @@ fn @unsigned104(arg0: i104, arg1: i104, arg2: i256) -> i1 [selector=0xd016a100, 
     v47 = zext i104 v46 to i256
     v48 = not v0
     v49 = and v48, 0xffffffffffffffffffffffffff
-    v50 = eq v47, v49
+    v50 = eq v49, v47
     jump bb21
   bb21:  ; preds = bb19, bb20
     v51 = phi [bb19: v50], [bb20: false]
@@ -5244,7 +5244,7 @@ fn @unsigned104(arg0: i104, arg1: i104, arg2: i256) -> i1 [selector=0xd016a100, 
     v52 = and arg0, arg1
     v53 = zext i104 v52 to i256
     v54 = and v0, v1
-    v55 = eq v53, v54
+    v55 = eq v54, v53
     jump bb24
   bb24:  ; preds = bb22, bb23
     v56 = phi [bb22: v55], [bb23: false]
@@ -5255,7 +5255,7 @@ fn @unsigned104(arg0: i104, arg1: i104, arg2: i256) -> i1 [selector=0xd016a100, 
     v57 = or arg0, arg1
     v58 = zext i104 v57 to i256
     v59 = or v0, v1
-    v60 = eq v58, v59
+    v60 = eq v59, v58
     jump bb27
   bb27:  ; preds = bb25, bb26
     v61 = phi [bb25: v60], [bb26: false]
@@ -5266,7 +5266,7 @@ fn @unsigned104(arg0: i104, arg1: i104, arg2: i256) -> i1 [selector=0xd016a100, 
     v62 = xor arg0, arg1
     v63 = zext i104 v62 to i256
     v64 = xor v0, v1
-    v65 = eq v63, v64
+    v65 = eq v64, v63
     jump bb30
   bb30:  ; preds = bb28, bb29
     v66 = phi [bb28: v65], [bb29: false]
@@ -5280,7 +5280,7 @@ fn @unsigned104(arg0: i104, arg1: i104, arg2: i256) -> i1 [selector=0xd016a100, 
     v70 = zext i104 v69 to i256
     v71 = exp v0, 3
     v72 = and v71, 0xffffffffffffffffffffffffff
-    v73 = eq v70, v72
+    v73 = eq v72, v70
     jump bb33
   bb33:  ; preds = bb31, bb32
     v74 = phi [bb31: v73], [bb32: false]
@@ -5498,7 +5498,7 @@ fn @unsigned112(arg0: i112, arg1: i112, arg2: i256) -> i1 [selector=0x64006f9c, 
     v3 = zext i112 v2 to i256
     v4 = add v0, v1
     v5 = and v4, 0xffffffffffffffffffffffffffff
-    v6 = eq v3, v5
+    v6 = eq v5, v3
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb0
     jump bb3
@@ -5507,7 +5507,7 @@ fn @unsigned112(arg0: i112, arg1: i112, arg2: i256) -> i1 [selector=0x64006f9c, 
     v8 = zext i112 v7 to i256
     v9 = sub v0, v1
     v10 = and v9, 0xffffffffffffffffffffffffffff
-    v11 = eq v8, v10
+    v11 = eq v10, v8
     jump bb3
   bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: false]
@@ -5519,7 +5519,7 @@ fn @unsigned112(arg0: i112, arg1: i112, arg2: i256) -> i1 [selector=0x64006f9c, 
     v14 = zext i112 v13 to i256
     v15 = mul v0, v1
     v16 = and v15, 0xffffffffffffffffffffffffffff
-    v17 = eq v14, v16
+    v17 = eq v16, v14
     jump bb6
   bb6:  ; preds = bb4, bb5
     v18 = phi [bb4: v17], [bb5: false]
@@ -5530,7 +5530,7 @@ fn @unsigned112(arg0: i112, arg1: i112, arg2: i256) -> i1 [selector=0x64006f9c, 
     v19 = wrapping_div uint112, arg0, arg1
     v20 = zext i112 v19 to i256
     v21 = wrapping_div uint256, v0, v1
-    v22 = eq v20, v21
+    v22 = eq v21, v20
     jump bb9
   bb9:  ; preds = bb7, bb8
     v23 = phi [bb7: v22], [bb8: false]
@@ -5541,7 +5541,7 @@ fn @unsigned112(arg0: i112, arg1: i112, arg2: i256) -> i1 [selector=0x64006f9c, 
     v24 = checked_rem uint112, arg0, arg1
     v25 = zext i112 v24 to i256
     v26 = checked_rem uint256, v0, v1
-    v27 = eq v25, v26
+    v27 = eq v26, v25
     jump bb12
   bb12:  ; preds = bb10, bb11
     v28 = phi [bb10: v27], [bb11: false]
@@ -5556,7 +5556,7 @@ fn @unsigned112(arg0: i112, arg1: i112, arg2: i256) -> i1 [selector=0x64006f9c, 
     v33 = zext i112 v32 to i256
     v34 = shl v0, arg2
     v35 = and v34, 0xffffffffffffffffffffffffffff
-    v36 = eq v33, v35
+    v36 = eq v35, v33
     jump bb15
   bb15:  ; preds = bb13, bb14
     v37 = phi [bb13: v36], [bb14: false]
@@ -5570,7 +5570,7 @@ fn @unsigned112(arg0: i112, arg1: i112, arg2: i256) -> i1 [selector=0x64006f9c, 
     v41 = shr arg0, v40
     v42 = zext i112 v41 to i256
     v43 = shr v0, arg2
-    v44 = eq v42, v43
+    v44 = eq v43, v42
     jump bb18
   bb18:  ; preds = bb16, bb17
     v45 = phi [bb16: v44], [bb17: false]
@@ -5582,7 +5582,7 @@ fn @unsigned112(arg0: i112, arg1: i112, arg2: i256) -> i1 [selector=0x64006f9c, 
     v47 = zext i112 v46 to i256
     v48 = not v0
     v49 = and v48, 0xffffffffffffffffffffffffffff
-    v50 = eq v47, v49
+    v50 = eq v49, v47
     jump bb21
   bb21:  ; preds = bb19, bb20
     v51 = phi [bb19: v50], [bb20: false]
@@ -5593,7 +5593,7 @@ fn @unsigned112(arg0: i112, arg1: i112, arg2: i256) -> i1 [selector=0x64006f9c, 
     v52 = and arg0, arg1
     v53 = zext i112 v52 to i256
     v54 = and v0, v1
-    v55 = eq v53, v54
+    v55 = eq v54, v53
     jump bb24
   bb24:  ; preds = bb22, bb23
     v56 = phi [bb22: v55], [bb23: false]
@@ -5604,7 +5604,7 @@ fn @unsigned112(arg0: i112, arg1: i112, arg2: i256) -> i1 [selector=0x64006f9c, 
     v57 = or arg0, arg1
     v58 = zext i112 v57 to i256
     v59 = or v0, v1
-    v60 = eq v58, v59
+    v60 = eq v59, v58
     jump bb27
   bb27:  ; preds = bb25, bb26
     v61 = phi [bb25: v60], [bb26: false]
@@ -5615,7 +5615,7 @@ fn @unsigned112(arg0: i112, arg1: i112, arg2: i256) -> i1 [selector=0x64006f9c, 
     v62 = xor arg0, arg1
     v63 = zext i112 v62 to i256
     v64 = xor v0, v1
-    v65 = eq v63, v64
+    v65 = eq v64, v63
     jump bb30
   bb30:  ; preds = bb28, bb29
     v66 = phi [bb28: v65], [bb29: false]
@@ -5629,7 +5629,7 @@ fn @unsigned112(arg0: i112, arg1: i112, arg2: i256) -> i1 [selector=0x64006f9c, 
     v70 = zext i112 v69 to i256
     v71 = exp v0, 3
     v72 = and v71, 0xffffffffffffffffffffffffffff
-    v73 = eq v70, v72
+    v73 = eq v72, v70
     jump bb33
   bb33:  ; preds = bb31, bb32
     v74 = phi [bb31: v73], [bb32: false]
@@ -5847,7 +5847,7 @@ fn @unsigned120(arg0: i120, arg1: i120, arg2: i256) -> i1 [selector=0x94c2ba94, 
     v3 = zext i120 v2 to i256
     v4 = add v0, v1
     v5 = and v4, 0xffffffffffffffffffffffffffffff
-    v6 = eq v3, v5
+    v6 = eq v5, v3
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb0
     jump bb3
@@ -5856,7 +5856,7 @@ fn @unsigned120(arg0: i120, arg1: i120, arg2: i256) -> i1 [selector=0x94c2ba94, 
     v8 = zext i120 v7 to i256
     v9 = sub v0, v1
     v10 = and v9, 0xffffffffffffffffffffffffffffff
-    v11 = eq v8, v10
+    v11 = eq v10, v8
     jump bb3
   bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: false]
@@ -5868,7 +5868,7 @@ fn @unsigned120(arg0: i120, arg1: i120, arg2: i256) -> i1 [selector=0x94c2ba94, 
     v14 = zext i120 v13 to i256
     v15 = mul v0, v1
     v16 = and v15, 0xffffffffffffffffffffffffffffff
-    v17 = eq v14, v16
+    v17 = eq v16, v14
     jump bb6
   bb6:  ; preds = bb4, bb5
     v18 = phi [bb4: v17], [bb5: false]
@@ -5879,7 +5879,7 @@ fn @unsigned120(arg0: i120, arg1: i120, arg2: i256) -> i1 [selector=0x94c2ba94, 
     v19 = wrapping_div uint120, arg0, arg1
     v20 = zext i120 v19 to i256
     v21 = wrapping_div uint256, v0, v1
-    v22 = eq v20, v21
+    v22 = eq v21, v20
     jump bb9
   bb9:  ; preds = bb7, bb8
     v23 = phi [bb7: v22], [bb8: false]
@@ -5890,7 +5890,7 @@ fn @unsigned120(arg0: i120, arg1: i120, arg2: i256) -> i1 [selector=0x94c2ba94, 
     v24 = checked_rem uint120, arg0, arg1
     v25 = zext i120 v24 to i256
     v26 = checked_rem uint256, v0, v1
-    v27 = eq v25, v26
+    v27 = eq v26, v25
     jump bb12
   bb12:  ; preds = bb10, bb11
     v28 = phi [bb10: v27], [bb11: false]
@@ -5905,7 +5905,7 @@ fn @unsigned120(arg0: i120, arg1: i120, arg2: i256) -> i1 [selector=0x94c2ba94, 
     v33 = zext i120 v32 to i256
     v34 = shl v0, arg2
     v35 = and v34, 0xffffffffffffffffffffffffffffff
-    v36 = eq v33, v35
+    v36 = eq v35, v33
     jump bb15
   bb15:  ; preds = bb13, bb14
     v37 = phi [bb13: v36], [bb14: false]
@@ -5919,7 +5919,7 @@ fn @unsigned120(arg0: i120, arg1: i120, arg2: i256) -> i1 [selector=0x94c2ba94, 
     v41 = shr arg0, v40
     v42 = zext i120 v41 to i256
     v43 = shr v0, arg2
-    v44 = eq v42, v43
+    v44 = eq v43, v42
     jump bb18
   bb18:  ; preds = bb16, bb17
     v45 = phi [bb16: v44], [bb17: false]
@@ -5931,7 +5931,7 @@ fn @unsigned120(arg0: i120, arg1: i120, arg2: i256) -> i1 [selector=0x94c2ba94, 
     v47 = zext i120 v46 to i256
     v48 = not v0
     v49 = and v48, 0xffffffffffffffffffffffffffffff
-    v50 = eq v47, v49
+    v50 = eq v49, v47
     jump bb21
   bb21:  ; preds = bb19, bb20
     v51 = phi [bb19: v50], [bb20: false]
@@ -5942,7 +5942,7 @@ fn @unsigned120(arg0: i120, arg1: i120, arg2: i256) -> i1 [selector=0x94c2ba94, 
     v52 = and arg0, arg1
     v53 = zext i120 v52 to i256
     v54 = and v0, v1
-    v55 = eq v53, v54
+    v55 = eq v54, v53
     jump bb24
   bb24:  ; preds = bb22, bb23
     v56 = phi [bb22: v55], [bb23: false]
@@ -5953,7 +5953,7 @@ fn @unsigned120(arg0: i120, arg1: i120, arg2: i256) -> i1 [selector=0x94c2ba94, 
     v57 = or arg0, arg1
     v58 = zext i120 v57 to i256
     v59 = or v0, v1
-    v60 = eq v58, v59
+    v60 = eq v59, v58
     jump bb27
   bb27:  ; preds = bb25, bb26
     v61 = phi [bb25: v60], [bb26: false]
@@ -5964,7 +5964,7 @@ fn @unsigned120(arg0: i120, arg1: i120, arg2: i256) -> i1 [selector=0x94c2ba94, 
     v62 = xor arg0, arg1
     v63 = zext i120 v62 to i256
     v64 = xor v0, v1
-    v65 = eq v63, v64
+    v65 = eq v64, v63
     jump bb30
   bb30:  ; preds = bb28, bb29
     v66 = phi [bb28: v65], [bb29: false]
@@ -5978,7 +5978,7 @@ fn @unsigned120(arg0: i120, arg1: i120, arg2: i256) -> i1 [selector=0x94c2ba94, 
     v70 = zext i120 v69 to i256
     v71 = exp v0, 3
     v72 = and v71, 0xffffffffffffffffffffffffffffff
-    v73 = eq v70, v72
+    v73 = eq v72, v70
     jump bb33
   bb33:  ; preds = bb31, bb32
     v74 = phi [bb31: v73], [bb32: false]
@@ -6196,7 +6196,7 @@ fn @unsigned128(arg0: i128, arg1: i128, arg2: i256) -> i1 [selector=0xebd3df98, 
     v3 = zext i128 v2 to i256
     v4 = add v0, v1
     v5 = and v4, 0xffffffffffffffffffffffffffffffff
-    v6 = eq v3, v5
+    v6 = eq v5, v3
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb0
     jump bb3
@@ -6205,7 +6205,7 @@ fn @unsigned128(arg0: i128, arg1: i128, arg2: i256) -> i1 [selector=0xebd3df98, 
     v8 = zext i128 v7 to i256
     v9 = sub v0, v1
     v10 = and v9, 0xffffffffffffffffffffffffffffffff
-    v11 = eq v8, v10
+    v11 = eq v10, v8
     jump bb3
   bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: false]
@@ -6217,7 +6217,7 @@ fn @unsigned128(arg0: i128, arg1: i128, arg2: i256) -> i1 [selector=0xebd3df98, 
     v14 = zext i128 v13 to i256
     v15 = mul v0, v1
     v16 = and v15, 0xffffffffffffffffffffffffffffffff
-    v17 = eq v14, v16
+    v17 = eq v16, v14
     jump bb6
   bb6:  ; preds = bb4, bb5
     v18 = phi [bb4: v17], [bb5: false]
@@ -6228,7 +6228,7 @@ fn @unsigned128(arg0: i128, arg1: i128, arg2: i256) -> i1 [selector=0xebd3df98, 
     v19 = wrapping_div uint128, arg0, arg1
     v20 = zext i128 v19 to i256
     v21 = wrapping_div uint256, v0, v1
-    v22 = eq v20, v21
+    v22 = eq v21, v20
     jump bb9
   bb9:  ; preds = bb7, bb8
     v23 = phi [bb7: v22], [bb8: false]
@@ -6239,7 +6239,7 @@ fn @unsigned128(arg0: i128, arg1: i128, arg2: i256) -> i1 [selector=0xebd3df98, 
     v24 = checked_rem uint128, arg0, arg1
     v25 = zext i128 v24 to i256
     v26 = checked_rem uint256, v0, v1
-    v27 = eq v25, v26
+    v27 = eq v26, v25
     jump bb12
   bb12:  ; preds = bb10, bb11
     v28 = phi [bb10: v27], [bb11: false]
@@ -6254,7 +6254,7 @@ fn @unsigned128(arg0: i128, arg1: i128, arg2: i256) -> i1 [selector=0xebd3df98, 
     v33 = zext i128 v32 to i256
     v34 = shl v0, arg2
     v35 = and v34, 0xffffffffffffffffffffffffffffffff
-    v36 = eq v33, v35
+    v36 = eq v35, v33
     jump bb15
   bb15:  ; preds = bb13, bb14
     v37 = phi [bb13: v36], [bb14: false]
@@ -6268,7 +6268,7 @@ fn @unsigned128(arg0: i128, arg1: i128, arg2: i256) -> i1 [selector=0xebd3df98, 
     v41 = shr arg0, v40
     v42 = zext i128 v41 to i256
     v43 = shr v0, arg2
-    v44 = eq v42, v43
+    v44 = eq v43, v42
     jump bb18
   bb18:  ; preds = bb16, bb17
     v45 = phi [bb16: v44], [bb17: false]
@@ -6280,7 +6280,7 @@ fn @unsigned128(arg0: i128, arg1: i128, arg2: i256) -> i1 [selector=0xebd3df98, 
     v47 = zext i128 v46 to i256
     v48 = not v0
     v49 = and v48, 0xffffffffffffffffffffffffffffffff
-    v50 = eq v47, v49
+    v50 = eq v49, v47
     jump bb21
   bb21:  ; preds = bb19, bb20
     v51 = phi [bb19: v50], [bb20: false]
@@ -6291,7 +6291,7 @@ fn @unsigned128(arg0: i128, arg1: i128, arg2: i256) -> i1 [selector=0xebd3df98, 
     v52 = and arg0, arg1
     v53 = zext i128 v52 to i256
     v54 = and v0, v1
-    v55 = eq v53, v54
+    v55 = eq v54, v53
     jump bb24
   bb24:  ; preds = bb22, bb23
     v56 = phi [bb22: v55], [bb23: false]
@@ -6302,7 +6302,7 @@ fn @unsigned128(arg0: i128, arg1: i128, arg2: i256) -> i1 [selector=0xebd3df98, 
     v57 = or arg0, arg1
     v58 = zext i128 v57 to i256
     v59 = or v0, v1
-    v60 = eq v58, v59
+    v60 = eq v59, v58
     jump bb27
   bb27:  ; preds = bb25, bb26
     v61 = phi [bb25: v60], [bb26: false]
@@ -6313,7 +6313,7 @@ fn @unsigned128(arg0: i128, arg1: i128, arg2: i256) -> i1 [selector=0xebd3df98, 
     v62 = xor arg0, arg1
     v63 = zext i128 v62 to i256
     v64 = xor v0, v1
-    v65 = eq v63, v64
+    v65 = eq v64, v63
     jump bb30
   bb30:  ; preds = bb28, bb29
     v66 = phi [bb28: v65], [bb29: false]
@@ -6327,7 +6327,7 @@ fn @unsigned128(arg0: i128, arg1: i128, arg2: i256) -> i1 [selector=0xebd3df98, 
     v70 = zext i128 v69 to i256
     v71 = exp v0, 3
     v72 = and v71, 0xffffffffffffffffffffffffffffffff
-    v73 = eq v70, v72
+    v73 = eq v72, v70
     jump bb33
   bb33:  ; preds = bb31, bb32
     v74 = phi [bb31: v73], [bb32: false]
@@ -6545,7 +6545,7 @@ fn @unsigned136(arg0: i136, arg1: i136, arg2: i256) -> i1 [selector=0x95237e18, 
     v3 = zext i136 v2 to i256
     v4 = add v0, v1
     v5 = and v4, 0xffffffffffffffffffffffffffffffffff
-    v6 = eq v3, v5
+    v6 = eq v5, v3
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb0
     jump bb3
@@ -6554,7 +6554,7 @@ fn @unsigned136(arg0: i136, arg1: i136, arg2: i256) -> i1 [selector=0x95237e18, 
     v8 = zext i136 v7 to i256
     v9 = sub v0, v1
     v10 = and v9, 0xffffffffffffffffffffffffffffffffff
-    v11 = eq v8, v10
+    v11 = eq v10, v8
     jump bb3
   bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: false]
@@ -6566,7 +6566,7 @@ fn @unsigned136(arg0: i136, arg1: i136, arg2: i256) -> i1 [selector=0x95237e18, 
     v14 = zext i136 v13 to i256
     v15 = mul v0, v1
     v16 = and v15, 0xffffffffffffffffffffffffffffffffff
-    v17 = eq v14, v16
+    v17 = eq v16, v14
     jump bb6
   bb6:  ; preds = bb4, bb5
     v18 = phi [bb4: v17], [bb5: false]
@@ -6577,7 +6577,7 @@ fn @unsigned136(arg0: i136, arg1: i136, arg2: i256) -> i1 [selector=0x95237e18, 
     v19 = wrapping_div uint136, arg0, arg1
     v20 = zext i136 v19 to i256
     v21 = wrapping_div uint256, v0, v1
-    v22 = eq v20, v21
+    v22 = eq v21, v20
     jump bb9
   bb9:  ; preds = bb7, bb8
     v23 = phi [bb7: v22], [bb8: false]
@@ -6588,7 +6588,7 @@ fn @unsigned136(arg0: i136, arg1: i136, arg2: i256) -> i1 [selector=0x95237e18, 
     v24 = checked_rem uint136, arg0, arg1
     v25 = zext i136 v24 to i256
     v26 = checked_rem uint256, v0, v1
-    v27 = eq v25, v26
+    v27 = eq v26, v25
     jump bb12
   bb12:  ; preds = bb10, bb11
     v28 = phi [bb10: v27], [bb11: false]
@@ -6603,7 +6603,7 @@ fn @unsigned136(arg0: i136, arg1: i136, arg2: i256) -> i1 [selector=0x95237e18, 
     v33 = zext i136 v32 to i256
     v34 = shl v0, arg2
     v35 = and v34, 0xffffffffffffffffffffffffffffffffff
-    v36 = eq v33, v35
+    v36 = eq v35, v33
     jump bb15
   bb15:  ; preds = bb13, bb14
     v37 = phi [bb13: v36], [bb14: false]
@@ -6617,7 +6617,7 @@ fn @unsigned136(arg0: i136, arg1: i136, arg2: i256) -> i1 [selector=0x95237e18, 
     v41 = shr arg0, v40
     v42 = zext i136 v41 to i256
     v43 = shr v0, arg2
-    v44 = eq v42, v43
+    v44 = eq v43, v42
     jump bb18
   bb18:  ; preds = bb16, bb17
     v45 = phi [bb16: v44], [bb17: false]
@@ -6629,7 +6629,7 @@ fn @unsigned136(arg0: i136, arg1: i136, arg2: i256) -> i1 [selector=0x95237e18, 
     v47 = zext i136 v46 to i256
     v48 = not v0
     v49 = and v48, 0xffffffffffffffffffffffffffffffffff
-    v50 = eq v47, v49
+    v50 = eq v49, v47
     jump bb21
   bb21:  ; preds = bb19, bb20
     v51 = phi [bb19: v50], [bb20: false]
@@ -6640,7 +6640,7 @@ fn @unsigned136(arg0: i136, arg1: i136, arg2: i256) -> i1 [selector=0x95237e18, 
     v52 = and arg0, arg1
     v53 = zext i136 v52 to i256
     v54 = and v0, v1
-    v55 = eq v53, v54
+    v55 = eq v54, v53
     jump bb24
   bb24:  ; preds = bb22, bb23
     v56 = phi [bb22: v55], [bb23: false]
@@ -6651,7 +6651,7 @@ fn @unsigned136(arg0: i136, arg1: i136, arg2: i256) -> i1 [selector=0x95237e18, 
     v57 = or arg0, arg1
     v58 = zext i136 v57 to i256
     v59 = or v0, v1
-    v60 = eq v58, v59
+    v60 = eq v59, v58
     jump bb27
   bb27:  ; preds = bb25, bb26
     v61 = phi [bb25: v60], [bb26: false]
@@ -6662,7 +6662,7 @@ fn @unsigned136(arg0: i136, arg1: i136, arg2: i256) -> i1 [selector=0x95237e18, 
     v62 = xor arg0, arg1
     v63 = zext i136 v62 to i256
     v64 = xor v0, v1
-    v65 = eq v63, v64
+    v65 = eq v64, v63
     jump bb30
   bb30:  ; preds = bb28, bb29
     v66 = phi [bb28: v65], [bb29: false]
@@ -6676,7 +6676,7 @@ fn @unsigned136(arg0: i136, arg1: i136, arg2: i256) -> i1 [selector=0x95237e18, 
     v70 = zext i136 v69 to i256
     v71 = exp v0, 3
     v72 = and v71, 0xffffffffffffffffffffffffffffffffff
-    v73 = eq v70, v72
+    v73 = eq v72, v70
     jump bb33
   bb33:  ; preds = bb31, bb32
     v74 = phi [bb31: v73], [bb32: false]
@@ -6894,7 +6894,7 @@ fn @unsigned144(arg0: i144, arg1: i144, arg2: i256) -> i1 [selector=0x0b88fa82, 
     v3 = zext i144 v2 to i256
     v4 = add v0, v1
     v5 = and v4, 0xffffffffffffffffffffffffffffffffffff
-    v6 = eq v3, v5
+    v6 = eq v5, v3
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb0
     jump bb3
@@ -6903,7 +6903,7 @@ fn @unsigned144(arg0: i144, arg1: i144, arg2: i256) -> i1 [selector=0x0b88fa82, 
     v8 = zext i144 v7 to i256
     v9 = sub v0, v1
     v10 = and v9, 0xffffffffffffffffffffffffffffffffffff
-    v11 = eq v8, v10
+    v11 = eq v10, v8
     jump bb3
   bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: false]
@@ -6915,7 +6915,7 @@ fn @unsigned144(arg0: i144, arg1: i144, arg2: i256) -> i1 [selector=0x0b88fa82, 
     v14 = zext i144 v13 to i256
     v15 = mul v0, v1
     v16 = and v15, 0xffffffffffffffffffffffffffffffffffff
-    v17 = eq v14, v16
+    v17 = eq v16, v14
     jump bb6
   bb6:  ; preds = bb4, bb5
     v18 = phi [bb4: v17], [bb5: false]
@@ -6926,7 +6926,7 @@ fn @unsigned144(arg0: i144, arg1: i144, arg2: i256) -> i1 [selector=0x0b88fa82, 
     v19 = wrapping_div uint144, arg0, arg1
     v20 = zext i144 v19 to i256
     v21 = wrapping_div uint256, v0, v1
-    v22 = eq v20, v21
+    v22 = eq v21, v20
     jump bb9
   bb9:  ; preds = bb7, bb8
     v23 = phi [bb7: v22], [bb8: false]
@@ -6937,7 +6937,7 @@ fn @unsigned144(arg0: i144, arg1: i144, arg2: i256) -> i1 [selector=0x0b88fa82, 
     v24 = checked_rem uint144, arg0, arg1
     v25 = zext i144 v24 to i256
     v26 = checked_rem uint256, v0, v1
-    v27 = eq v25, v26
+    v27 = eq v26, v25
     jump bb12
   bb12:  ; preds = bb10, bb11
     v28 = phi [bb10: v27], [bb11: false]
@@ -6952,7 +6952,7 @@ fn @unsigned144(arg0: i144, arg1: i144, arg2: i256) -> i1 [selector=0x0b88fa82, 
     v33 = zext i144 v32 to i256
     v34 = shl v0, arg2
     v35 = and v34, 0xffffffffffffffffffffffffffffffffffff
-    v36 = eq v33, v35
+    v36 = eq v35, v33
     jump bb15
   bb15:  ; preds = bb13, bb14
     v37 = phi [bb13: v36], [bb14: false]
@@ -6966,7 +6966,7 @@ fn @unsigned144(arg0: i144, arg1: i144, arg2: i256) -> i1 [selector=0x0b88fa82, 
     v41 = shr arg0, v40
     v42 = zext i144 v41 to i256
     v43 = shr v0, arg2
-    v44 = eq v42, v43
+    v44 = eq v43, v42
     jump bb18
   bb18:  ; preds = bb16, bb17
     v45 = phi [bb16: v44], [bb17: false]
@@ -6978,7 +6978,7 @@ fn @unsigned144(arg0: i144, arg1: i144, arg2: i256) -> i1 [selector=0x0b88fa82, 
     v47 = zext i144 v46 to i256
     v48 = not v0
     v49 = and v48, 0xffffffffffffffffffffffffffffffffffff
-    v50 = eq v47, v49
+    v50 = eq v49, v47
     jump bb21
   bb21:  ; preds = bb19, bb20
     v51 = phi [bb19: v50], [bb20: false]
@@ -6989,7 +6989,7 @@ fn @unsigned144(arg0: i144, arg1: i144, arg2: i256) -> i1 [selector=0x0b88fa82, 
     v52 = and arg0, arg1
     v53 = zext i144 v52 to i256
     v54 = and v0, v1
-    v55 = eq v53, v54
+    v55 = eq v54, v53
     jump bb24
   bb24:  ; preds = bb22, bb23
     v56 = phi [bb22: v55], [bb23: false]
@@ -7000,7 +7000,7 @@ fn @unsigned144(arg0: i144, arg1: i144, arg2: i256) -> i1 [selector=0x0b88fa82, 
     v57 = or arg0, arg1
     v58 = zext i144 v57 to i256
     v59 = or v0, v1
-    v60 = eq v58, v59
+    v60 = eq v59, v58
     jump bb27
   bb27:  ; preds = bb25, bb26
     v61 = phi [bb25: v60], [bb26: false]
@@ -7011,7 +7011,7 @@ fn @unsigned144(arg0: i144, arg1: i144, arg2: i256) -> i1 [selector=0x0b88fa82, 
     v62 = xor arg0, arg1
     v63 = zext i144 v62 to i256
     v64 = xor v0, v1
-    v65 = eq v63, v64
+    v65 = eq v64, v63
     jump bb30
   bb30:  ; preds = bb28, bb29
     v66 = phi [bb28: v65], [bb29: false]
@@ -7025,7 +7025,7 @@ fn @unsigned144(arg0: i144, arg1: i144, arg2: i256) -> i1 [selector=0x0b88fa82, 
     v70 = zext i144 v69 to i256
     v71 = exp v0, 3
     v72 = and v71, 0xffffffffffffffffffffffffffffffffffff
-    v73 = eq v70, v72
+    v73 = eq v72, v70
     jump bb33
   bb33:  ; preds = bb31, bb32
     v74 = phi [bb31: v73], [bb32: false]
@@ -7243,7 +7243,7 @@ fn @unsigned152(arg0: i152, arg1: i152, arg2: i256) -> i1 [selector=0x6e09ce08, 
     v3 = zext i152 v2 to i256
     v4 = add v0, v1
     v5 = and v4, 0xffffffffffffffffffffffffffffffffffffff
-    v6 = eq v3, v5
+    v6 = eq v5, v3
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb0
     jump bb3
@@ -7252,7 +7252,7 @@ fn @unsigned152(arg0: i152, arg1: i152, arg2: i256) -> i1 [selector=0x6e09ce08, 
     v8 = zext i152 v7 to i256
     v9 = sub v0, v1
     v10 = and v9, 0xffffffffffffffffffffffffffffffffffffff
-    v11 = eq v8, v10
+    v11 = eq v10, v8
     jump bb3
   bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: false]
@@ -7264,7 +7264,7 @@ fn @unsigned152(arg0: i152, arg1: i152, arg2: i256) -> i1 [selector=0x6e09ce08, 
     v14 = zext i152 v13 to i256
     v15 = mul v0, v1
     v16 = and v15, 0xffffffffffffffffffffffffffffffffffffff
-    v17 = eq v14, v16
+    v17 = eq v16, v14
     jump bb6
   bb6:  ; preds = bb4, bb5
     v18 = phi [bb4: v17], [bb5: false]
@@ -7275,7 +7275,7 @@ fn @unsigned152(arg0: i152, arg1: i152, arg2: i256) -> i1 [selector=0x6e09ce08, 
     v19 = wrapping_div uint152, arg0, arg1
     v20 = zext i152 v19 to i256
     v21 = wrapping_div uint256, v0, v1
-    v22 = eq v20, v21
+    v22 = eq v21, v20
     jump bb9
   bb9:  ; preds = bb7, bb8
     v23 = phi [bb7: v22], [bb8: false]
@@ -7286,7 +7286,7 @@ fn @unsigned152(arg0: i152, arg1: i152, arg2: i256) -> i1 [selector=0x6e09ce08, 
     v24 = checked_rem uint152, arg0, arg1
     v25 = zext i152 v24 to i256
     v26 = checked_rem uint256, v0, v1
-    v27 = eq v25, v26
+    v27 = eq v26, v25
     jump bb12
   bb12:  ; preds = bb10, bb11
     v28 = phi [bb10: v27], [bb11: false]
@@ -7301,7 +7301,7 @@ fn @unsigned152(arg0: i152, arg1: i152, arg2: i256) -> i1 [selector=0x6e09ce08, 
     v33 = zext i152 v32 to i256
     v34 = shl v0, arg2
     v35 = and v34, 0xffffffffffffffffffffffffffffffffffffff
-    v36 = eq v33, v35
+    v36 = eq v35, v33
     jump bb15
   bb15:  ; preds = bb13, bb14
     v37 = phi [bb13: v36], [bb14: false]
@@ -7315,7 +7315,7 @@ fn @unsigned152(arg0: i152, arg1: i152, arg2: i256) -> i1 [selector=0x6e09ce08, 
     v41 = shr arg0, v40
     v42 = zext i152 v41 to i256
     v43 = shr v0, arg2
-    v44 = eq v42, v43
+    v44 = eq v43, v42
     jump bb18
   bb18:  ; preds = bb16, bb17
     v45 = phi [bb16: v44], [bb17: false]
@@ -7327,7 +7327,7 @@ fn @unsigned152(arg0: i152, arg1: i152, arg2: i256) -> i1 [selector=0x6e09ce08, 
     v47 = zext i152 v46 to i256
     v48 = not v0
     v49 = and v48, 0xffffffffffffffffffffffffffffffffffffff
-    v50 = eq v47, v49
+    v50 = eq v49, v47
     jump bb21
   bb21:  ; preds = bb19, bb20
     v51 = phi [bb19: v50], [bb20: false]
@@ -7338,7 +7338,7 @@ fn @unsigned152(arg0: i152, arg1: i152, arg2: i256) -> i1 [selector=0x6e09ce08, 
     v52 = and arg0, arg1
     v53 = zext i152 v52 to i256
     v54 = and v0, v1
-    v55 = eq v53, v54
+    v55 = eq v54, v53
     jump bb24
   bb24:  ; preds = bb22, bb23
     v56 = phi [bb22: v55], [bb23: false]
@@ -7349,7 +7349,7 @@ fn @unsigned152(arg0: i152, arg1: i152, arg2: i256) -> i1 [selector=0x6e09ce08, 
     v57 = or arg0, arg1
     v58 = zext i152 v57 to i256
     v59 = or v0, v1
-    v60 = eq v58, v59
+    v60 = eq v59, v58
     jump bb27
   bb27:  ; preds = bb25, bb26
     v61 = phi [bb25: v60], [bb26: false]
@@ -7360,7 +7360,7 @@ fn @unsigned152(arg0: i152, arg1: i152, arg2: i256) -> i1 [selector=0x6e09ce08, 
     v62 = xor arg0, arg1
     v63 = zext i152 v62 to i256
     v64 = xor v0, v1
-    v65 = eq v63, v64
+    v65 = eq v64, v63
     jump bb30
   bb30:  ; preds = bb28, bb29
     v66 = phi [bb28: v65], [bb29: false]
@@ -7374,7 +7374,7 @@ fn @unsigned152(arg0: i152, arg1: i152, arg2: i256) -> i1 [selector=0x6e09ce08, 
     v70 = zext i152 v69 to i256
     v71 = exp v0, 3
     v72 = and v71, 0xffffffffffffffffffffffffffffffffffffff
-    v73 = eq v70, v72
+    v73 = eq v72, v70
     jump bb33
   bb33:  ; preds = bb31, bb32
     v74 = phi [bb31: v73], [bb32: false]
@@ -7592,7 +7592,7 @@ fn @unsigned160(arg0: i160, arg1: i160, arg2: i256) -> i1 [selector=0x1ee5b025, 
     v3 = zext i160 v2 to i256
     v4 = add v0, v1
     v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
-    v6 = eq v3, v5
+    v6 = eq v5, v3
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb0
     jump bb3
@@ -7601,7 +7601,7 @@ fn @unsigned160(arg0: i160, arg1: i160, arg2: i256) -> i1 [selector=0x1ee5b025, 
     v8 = zext i160 v7 to i256
     v9 = sub v0, v1
     v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffff
-    v11 = eq v8, v10
+    v11 = eq v10, v8
     jump bb3
   bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: false]
@@ -7613,7 +7613,7 @@ fn @unsigned160(arg0: i160, arg1: i160, arg2: i256) -> i1 [selector=0x1ee5b025, 
     v14 = zext i160 v13 to i256
     v15 = mul v0, v1
     v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
-    v17 = eq v14, v16
+    v17 = eq v16, v14
     jump bb6
   bb6:  ; preds = bb4, bb5
     v18 = phi [bb4: v17], [bb5: false]
@@ -7624,7 +7624,7 @@ fn @unsigned160(arg0: i160, arg1: i160, arg2: i256) -> i1 [selector=0x1ee5b025, 
     v19 = wrapping_div uint160, arg0, arg1
     v20 = zext i160 v19 to i256
     v21 = wrapping_div uint256, v0, v1
-    v22 = eq v20, v21
+    v22 = eq v21, v20
     jump bb9
   bb9:  ; preds = bb7, bb8
     v23 = phi [bb7: v22], [bb8: false]
@@ -7635,7 +7635,7 @@ fn @unsigned160(arg0: i160, arg1: i160, arg2: i256) -> i1 [selector=0x1ee5b025, 
     v24 = checked_rem uint160, arg0, arg1
     v25 = zext i160 v24 to i256
     v26 = checked_rem uint256, v0, v1
-    v27 = eq v25, v26
+    v27 = eq v26, v25
     jump bb12
   bb12:  ; preds = bb10, bb11
     v28 = phi [bb10: v27], [bb11: false]
@@ -7650,7 +7650,7 @@ fn @unsigned160(arg0: i160, arg1: i160, arg2: i256) -> i1 [selector=0x1ee5b025, 
     v33 = zext i160 v32 to i256
     v34 = shl v0, arg2
     v35 = and v34, 0xffffffffffffffffffffffffffffffffffffffff
-    v36 = eq v33, v35
+    v36 = eq v35, v33
     jump bb15
   bb15:  ; preds = bb13, bb14
     v37 = phi [bb13: v36], [bb14: false]
@@ -7664,7 +7664,7 @@ fn @unsigned160(arg0: i160, arg1: i160, arg2: i256) -> i1 [selector=0x1ee5b025, 
     v41 = shr arg0, v40
     v42 = zext i160 v41 to i256
     v43 = shr v0, arg2
-    v44 = eq v42, v43
+    v44 = eq v43, v42
     jump bb18
   bb18:  ; preds = bb16, bb17
     v45 = phi [bb16: v44], [bb17: false]
@@ -7676,7 +7676,7 @@ fn @unsigned160(arg0: i160, arg1: i160, arg2: i256) -> i1 [selector=0x1ee5b025, 
     v47 = zext i160 v46 to i256
     v48 = not v0
     v49 = and v48, 0xffffffffffffffffffffffffffffffffffffffff
-    v50 = eq v47, v49
+    v50 = eq v49, v47
     jump bb21
   bb21:  ; preds = bb19, bb20
     v51 = phi [bb19: v50], [bb20: false]
@@ -7687,7 +7687,7 @@ fn @unsigned160(arg0: i160, arg1: i160, arg2: i256) -> i1 [selector=0x1ee5b025, 
     v52 = and arg0, arg1
     v53 = zext i160 v52 to i256
     v54 = and v0, v1
-    v55 = eq v53, v54
+    v55 = eq v54, v53
     jump bb24
   bb24:  ; preds = bb22, bb23
     v56 = phi [bb22: v55], [bb23: false]
@@ -7698,7 +7698,7 @@ fn @unsigned160(arg0: i160, arg1: i160, arg2: i256) -> i1 [selector=0x1ee5b025, 
     v57 = or arg0, arg1
     v58 = zext i160 v57 to i256
     v59 = or v0, v1
-    v60 = eq v58, v59
+    v60 = eq v59, v58
     jump bb27
   bb27:  ; preds = bb25, bb26
     v61 = phi [bb25: v60], [bb26: false]
@@ -7709,7 +7709,7 @@ fn @unsigned160(arg0: i160, arg1: i160, arg2: i256) -> i1 [selector=0x1ee5b025, 
     v62 = xor arg0, arg1
     v63 = zext i160 v62 to i256
     v64 = xor v0, v1
-    v65 = eq v63, v64
+    v65 = eq v64, v63
     jump bb30
   bb30:  ; preds = bb28, bb29
     v66 = phi [bb28: v65], [bb29: false]
@@ -7723,7 +7723,7 @@ fn @unsigned160(arg0: i160, arg1: i160, arg2: i256) -> i1 [selector=0x1ee5b025, 
     v70 = zext i160 v69 to i256
     v71 = exp v0, 3
     v72 = and v71, 0xffffffffffffffffffffffffffffffffffffffff
-    v73 = eq v70, v72
+    v73 = eq v72, v70
     jump bb33
   bb33:  ; preds = bb31, bb32
     v74 = phi [bb31: v73], [bb32: false]
@@ -7941,7 +7941,7 @@ fn @unsigned168(arg0: i168, arg1: i168, arg2: i256) -> i1 [selector=0xc4d0c8fc, 
     v3 = zext i168 v2 to i256
     v4 = add v0, v1
     v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffff
-    v6 = eq v3, v5
+    v6 = eq v5, v3
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb0
     jump bb3
@@ -7950,7 +7950,7 @@ fn @unsigned168(arg0: i168, arg1: i168, arg2: i256) -> i1 [selector=0xc4d0c8fc, 
     v8 = zext i168 v7 to i256
     v9 = sub v0, v1
     v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffff
-    v11 = eq v8, v10
+    v11 = eq v10, v8
     jump bb3
   bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: false]
@@ -7962,7 +7962,7 @@ fn @unsigned168(arg0: i168, arg1: i168, arg2: i256) -> i1 [selector=0xc4d0c8fc, 
     v14 = zext i168 v13 to i256
     v15 = mul v0, v1
     v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffffff
-    v17 = eq v14, v16
+    v17 = eq v16, v14
     jump bb6
   bb6:  ; preds = bb4, bb5
     v18 = phi [bb4: v17], [bb5: false]
@@ -7973,7 +7973,7 @@ fn @unsigned168(arg0: i168, arg1: i168, arg2: i256) -> i1 [selector=0xc4d0c8fc, 
     v19 = wrapping_div uint168, arg0, arg1
     v20 = zext i168 v19 to i256
     v21 = wrapping_div uint256, v0, v1
-    v22 = eq v20, v21
+    v22 = eq v21, v20
     jump bb9
   bb9:  ; preds = bb7, bb8
     v23 = phi [bb7: v22], [bb8: false]
@@ -7984,7 +7984,7 @@ fn @unsigned168(arg0: i168, arg1: i168, arg2: i256) -> i1 [selector=0xc4d0c8fc, 
     v24 = checked_rem uint168, arg0, arg1
     v25 = zext i168 v24 to i256
     v26 = checked_rem uint256, v0, v1
-    v27 = eq v25, v26
+    v27 = eq v26, v25
     jump bb12
   bb12:  ; preds = bb10, bb11
     v28 = phi [bb10: v27], [bb11: false]
@@ -7999,7 +7999,7 @@ fn @unsigned168(arg0: i168, arg1: i168, arg2: i256) -> i1 [selector=0xc4d0c8fc, 
     v33 = zext i168 v32 to i256
     v34 = shl v0, arg2
     v35 = and v34, 0xffffffffffffffffffffffffffffffffffffffffff
-    v36 = eq v33, v35
+    v36 = eq v35, v33
     jump bb15
   bb15:  ; preds = bb13, bb14
     v37 = phi [bb13: v36], [bb14: false]
@@ -8013,7 +8013,7 @@ fn @unsigned168(arg0: i168, arg1: i168, arg2: i256) -> i1 [selector=0xc4d0c8fc, 
     v41 = shr arg0, v40
     v42 = zext i168 v41 to i256
     v43 = shr v0, arg2
-    v44 = eq v42, v43
+    v44 = eq v43, v42
     jump bb18
   bb18:  ; preds = bb16, bb17
     v45 = phi [bb16: v44], [bb17: false]
@@ -8025,7 +8025,7 @@ fn @unsigned168(arg0: i168, arg1: i168, arg2: i256) -> i1 [selector=0xc4d0c8fc, 
     v47 = zext i168 v46 to i256
     v48 = not v0
     v49 = and v48, 0xffffffffffffffffffffffffffffffffffffffffff
-    v50 = eq v47, v49
+    v50 = eq v49, v47
     jump bb21
   bb21:  ; preds = bb19, bb20
     v51 = phi [bb19: v50], [bb20: false]
@@ -8036,7 +8036,7 @@ fn @unsigned168(arg0: i168, arg1: i168, arg2: i256) -> i1 [selector=0xc4d0c8fc, 
     v52 = and arg0, arg1
     v53 = zext i168 v52 to i256
     v54 = and v0, v1
-    v55 = eq v53, v54
+    v55 = eq v54, v53
     jump bb24
   bb24:  ; preds = bb22, bb23
     v56 = phi [bb22: v55], [bb23: false]
@@ -8047,7 +8047,7 @@ fn @unsigned168(arg0: i168, arg1: i168, arg2: i256) -> i1 [selector=0xc4d0c8fc, 
     v57 = or arg0, arg1
     v58 = zext i168 v57 to i256
     v59 = or v0, v1
-    v60 = eq v58, v59
+    v60 = eq v59, v58
     jump bb27
   bb27:  ; preds = bb25, bb26
     v61 = phi [bb25: v60], [bb26: false]
@@ -8058,7 +8058,7 @@ fn @unsigned168(arg0: i168, arg1: i168, arg2: i256) -> i1 [selector=0xc4d0c8fc, 
     v62 = xor arg0, arg1
     v63 = zext i168 v62 to i256
     v64 = xor v0, v1
-    v65 = eq v63, v64
+    v65 = eq v64, v63
     jump bb30
   bb30:  ; preds = bb28, bb29
     v66 = phi [bb28: v65], [bb29: false]
@@ -8072,7 +8072,7 @@ fn @unsigned168(arg0: i168, arg1: i168, arg2: i256) -> i1 [selector=0xc4d0c8fc, 
     v70 = zext i168 v69 to i256
     v71 = exp v0, 3
     v72 = and v71, 0xffffffffffffffffffffffffffffffffffffffffff
-    v73 = eq v70, v72
+    v73 = eq v72, v70
     jump bb33
   bb33:  ; preds = bb31, bb32
     v74 = phi [bb31: v73], [bb32: false]
@@ -8290,7 +8290,7 @@ fn @unsigned176(arg0: i176, arg1: i176, arg2: i256) -> i1 [selector=0x648a32fb, 
     v3 = zext i176 v2 to i256
     v4 = add v0, v1
     v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffff
-    v6 = eq v3, v5
+    v6 = eq v5, v3
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb0
     jump bb3
@@ -8299,7 +8299,7 @@ fn @unsigned176(arg0: i176, arg1: i176, arg2: i256) -> i1 [selector=0x648a32fb, 
     v8 = zext i176 v7 to i256
     v9 = sub v0, v1
     v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffff
-    v11 = eq v8, v10
+    v11 = eq v10, v8
     jump bb3
   bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: false]
@@ -8311,7 +8311,7 @@ fn @unsigned176(arg0: i176, arg1: i176, arg2: i256) -> i1 [selector=0x648a32fb, 
     v14 = zext i176 v13 to i256
     v15 = mul v0, v1
     v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffff
-    v17 = eq v14, v16
+    v17 = eq v16, v14
     jump bb6
   bb6:  ; preds = bb4, bb5
     v18 = phi [bb4: v17], [bb5: false]
@@ -8322,7 +8322,7 @@ fn @unsigned176(arg0: i176, arg1: i176, arg2: i256) -> i1 [selector=0x648a32fb, 
     v19 = wrapping_div uint176, arg0, arg1
     v20 = zext i176 v19 to i256
     v21 = wrapping_div uint256, v0, v1
-    v22 = eq v20, v21
+    v22 = eq v21, v20
     jump bb9
   bb9:  ; preds = bb7, bb8
     v23 = phi [bb7: v22], [bb8: false]
@@ -8333,7 +8333,7 @@ fn @unsigned176(arg0: i176, arg1: i176, arg2: i256) -> i1 [selector=0x648a32fb, 
     v24 = checked_rem uint176, arg0, arg1
     v25 = zext i176 v24 to i256
     v26 = checked_rem uint256, v0, v1
-    v27 = eq v25, v26
+    v27 = eq v26, v25
     jump bb12
   bb12:  ; preds = bb10, bb11
     v28 = phi [bb10: v27], [bb11: false]
@@ -8348,7 +8348,7 @@ fn @unsigned176(arg0: i176, arg1: i176, arg2: i256) -> i1 [selector=0x648a32fb, 
     v33 = zext i176 v32 to i256
     v34 = shl v0, arg2
     v35 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffff
-    v36 = eq v33, v35
+    v36 = eq v35, v33
     jump bb15
   bb15:  ; preds = bb13, bb14
     v37 = phi [bb13: v36], [bb14: false]
@@ -8362,7 +8362,7 @@ fn @unsigned176(arg0: i176, arg1: i176, arg2: i256) -> i1 [selector=0x648a32fb, 
     v41 = shr arg0, v40
     v42 = zext i176 v41 to i256
     v43 = shr v0, arg2
-    v44 = eq v42, v43
+    v44 = eq v43, v42
     jump bb18
   bb18:  ; preds = bb16, bb17
     v45 = phi [bb16: v44], [bb17: false]
@@ -8374,7 +8374,7 @@ fn @unsigned176(arg0: i176, arg1: i176, arg2: i256) -> i1 [selector=0x648a32fb, 
     v47 = zext i176 v46 to i256
     v48 = not v0
     v49 = and v48, 0xffffffffffffffffffffffffffffffffffffffffffff
-    v50 = eq v47, v49
+    v50 = eq v49, v47
     jump bb21
   bb21:  ; preds = bb19, bb20
     v51 = phi [bb19: v50], [bb20: false]
@@ -8385,7 +8385,7 @@ fn @unsigned176(arg0: i176, arg1: i176, arg2: i256) -> i1 [selector=0x648a32fb, 
     v52 = and arg0, arg1
     v53 = zext i176 v52 to i256
     v54 = and v0, v1
-    v55 = eq v53, v54
+    v55 = eq v54, v53
     jump bb24
   bb24:  ; preds = bb22, bb23
     v56 = phi [bb22: v55], [bb23: false]
@@ -8396,7 +8396,7 @@ fn @unsigned176(arg0: i176, arg1: i176, arg2: i256) -> i1 [selector=0x648a32fb, 
     v57 = or arg0, arg1
     v58 = zext i176 v57 to i256
     v59 = or v0, v1
-    v60 = eq v58, v59
+    v60 = eq v59, v58
     jump bb27
   bb27:  ; preds = bb25, bb26
     v61 = phi [bb25: v60], [bb26: false]
@@ -8407,7 +8407,7 @@ fn @unsigned176(arg0: i176, arg1: i176, arg2: i256) -> i1 [selector=0x648a32fb, 
     v62 = xor arg0, arg1
     v63 = zext i176 v62 to i256
     v64 = xor v0, v1
-    v65 = eq v63, v64
+    v65 = eq v64, v63
     jump bb30
   bb30:  ; preds = bb28, bb29
     v66 = phi [bb28: v65], [bb29: false]
@@ -8421,7 +8421,7 @@ fn @unsigned176(arg0: i176, arg1: i176, arg2: i256) -> i1 [selector=0x648a32fb, 
     v70 = zext i176 v69 to i256
     v71 = exp v0, 3
     v72 = and v71, 0xffffffffffffffffffffffffffffffffffffffffffff
-    v73 = eq v70, v72
+    v73 = eq v72, v70
     jump bb33
   bb33:  ; preds = bb31, bb32
     v74 = phi [bb31: v73], [bb32: false]
@@ -8639,7 +8639,7 @@ fn @unsigned184(arg0: i184, arg1: i184, arg2: i256) -> i1 [selector=0xf0c3b136, 
     v3 = zext i184 v2 to i256
     v4 = add v0, v1
     v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffff
-    v6 = eq v3, v5
+    v6 = eq v5, v3
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb0
     jump bb3
@@ -8648,7 +8648,7 @@ fn @unsigned184(arg0: i184, arg1: i184, arg2: i256) -> i1 [selector=0xf0c3b136, 
     v8 = zext i184 v7 to i256
     v9 = sub v0, v1
     v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffff
-    v11 = eq v8, v10
+    v11 = eq v10, v8
     jump bb3
   bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: false]
@@ -8660,7 +8660,7 @@ fn @unsigned184(arg0: i184, arg1: i184, arg2: i256) -> i1 [selector=0xf0c3b136, 
     v14 = zext i184 v13 to i256
     v15 = mul v0, v1
     v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffff
-    v17 = eq v14, v16
+    v17 = eq v16, v14
     jump bb6
   bb6:  ; preds = bb4, bb5
     v18 = phi [bb4: v17], [bb5: false]
@@ -8671,7 +8671,7 @@ fn @unsigned184(arg0: i184, arg1: i184, arg2: i256) -> i1 [selector=0xf0c3b136, 
     v19 = wrapping_div uint184, arg0, arg1
     v20 = zext i184 v19 to i256
     v21 = wrapping_div uint256, v0, v1
-    v22 = eq v20, v21
+    v22 = eq v21, v20
     jump bb9
   bb9:  ; preds = bb7, bb8
     v23 = phi [bb7: v22], [bb8: false]
@@ -8682,7 +8682,7 @@ fn @unsigned184(arg0: i184, arg1: i184, arg2: i256) -> i1 [selector=0xf0c3b136, 
     v24 = checked_rem uint184, arg0, arg1
     v25 = zext i184 v24 to i256
     v26 = checked_rem uint256, v0, v1
-    v27 = eq v25, v26
+    v27 = eq v26, v25
     jump bb12
   bb12:  ; preds = bb10, bb11
     v28 = phi [bb10: v27], [bb11: false]
@@ -8697,7 +8697,7 @@ fn @unsigned184(arg0: i184, arg1: i184, arg2: i256) -> i1 [selector=0xf0c3b136, 
     v33 = zext i184 v32 to i256
     v34 = shl v0, arg2
     v35 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffff
-    v36 = eq v33, v35
+    v36 = eq v35, v33
     jump bb15
   bb15:  ; preds = bb13, bb14
     v37 = phi [bb13: v36], [bb14: false]
@@ -8711,7 +8711,7 @@ fn @unsigned184(arg0: i184, arg1: i184, arg2: i256) -> i1 [selector=0xf0c3b136, 
     v41 = shr arg0, v40
     v42 = zext i184 v41 to i256
     v43 = shr v0, arg2
-    v44 = eq v42, v43
+    v44 = eq v43, v42
     jump bb18
   bb18:  ; preds = bb16, bb17
     v45 = phi [bb16: v44], [bb17: false]
@@ -8723,7 +8723,7 @@ fn @unsigned184(arg0: i184, arg1: i184, arg2: i256) -> i1 [selector=0xf0c3b136, 
     v47 = zext i184 v46 to i256
     v48 = not v0
     v49 = and v48, 0xffffffffffffffffffffffffffffffffffffffffffffff
-    v50 = eq v47, v49
+    v50 = eq v49, v47
     jump bb21
   bb21:  ; preds = bb19, bb20
     v51 = phi [bb19: v50], [bb20: false]
@@ -8734,7 +8734,7 @@ fn @unsigned184(arg0: i184, arg1: i184, arg2: i256) -> i1 [selector=0xf0c3b136, 
     v52 = and arg0, arg1
     v53 = zext i184 v52 to i256
     v54 = and v0, v1
-    v55 = eq v53, v54
+    v55 = eq v54, v53
     jump bb24
   bb24:  ; preds = bb22, bb23
     v56 = phi [bb22: v55], [bb23: false]
@@ -8745,7 +8745,7 @@ fn @unsigned184(arg0: i184, arg1: i184, arg2: i256) -> i1 [selector=0xf0c3b136, 
     v57 = or arg0, arg1
     v58 = zext i184 v57 to i256
     v59 = or v0, v1
-    v60 = eq v58, v59
+    v60 = eq v59, v58
     jump bb27
   bb27:  ; preds = bb25, bb26
     v61 = phi [bb25: v60], [bb26: false]
@@ -8756,7 +8756,7 @@ fn @unsigned184(arg0: i184, arg1: i184, arg2: i256) -> i1 [selector=0xf0c3b136, 
     v62 = xor arg0, arg1
     v63 = zext i184 v62 to i256
     v64 = xor v0, v1
-    v65 = eq v63, v64
+    v65 = eq v64, v63
     jump bb30
   bb30:  ; preds = bb28, bb29
     v66 = phi [bb28: v65], [bb29: false]
@@ -8770,7 +8770,7 @@ fn @unsigned184(arg0: i184, arg1: i184, arg2: i256) -> i1 [selector=0xf0c3b136, 
     v70 = zext i184 v69 to i256
     v71 = exp v0, 3
     v72 = and v71, 0xffffffffffffffffffffffffffffffffffffffffffffff
-    v73 = eq v70, v72
+    v73 = eq v72, v70
     jump bb33
   bb33:  ; preds = bb31, bb32
     v74 = phi [bb31: v73], [bb32: false]
@@ -8988,7 +8988,7 @@ fn @unsigned192(arg0: i192, arg1: i192, arg2: i256) -> i1 [selector=0x31253623, 
     v3 = zext i192 v2 to i256
     v4 = add v0, v1
     v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v6 = eq v3, v5
+    v6 = eq v5, v3
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb0
     jump bb3
@@ -8997,7 +8997,7 @@ fn @unsigned192(arg0: i192, arg1: i192, arg2: i256) -> i1 [selector=0x31253623, 
     v8 = zext i192 v7 to i256
     v9 = sub v0, v1
     v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v11 = eq v8, v10
+    v11 = eq v10, v8
     jump bb3
   bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: false]
@@ -9009,7 +9009,7 @@ fn @unsigned192(arg0: i192, arg1: i192, arg2: i256) -> i1 [selector=0x31253623, 
     v14 = zext i192 v13 to i256
     v15 = mul v0, v1
     v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v17 = eq v14, v16
+    v17 = eq v16, v14
     jump bb6
   bb6:  ; preds = bb4, bb5
     v18 = phi [bb4: v17], [bb5: false]
@@ -9020,7 +9020,7 @@ fn @unsigned192(arg0: i192, arg1: i192, arg2: i256) -> i1 [selector=0x31253623, 
     v19 = wrapping_div uint192, arg0, arg1
     v20 = zext i192 v19 to i256
     v21 = wrapping_div uint256, v0, v1
-    v22 = eq v20, v21
+    v22 = eq v21, v20
     jump bb9
   bb9:  ; preds = bb7, bb8
     v23 = phi [bb7: v22], [bb8: false]
@@ -9031,7 +9031,7 @@ fn @unsigned192(arg0: i192, arg1: i192, arg2: i256) -> i1 [selector=0x31253623, 
     v24 = checked_rem uint192, arg0, arg1
     v25 = zext i192 v24 to i256
     v26 = checked_rem uint256, v0, v1
-    v27 = eq v25, v26
+    v27 = eq v26, v25
     jump bb12
   bb12:  ; preds = bb10, bb11
     v28 = phi [bb10: v27], [bb11: false]
@@ -9046,7 +9046,7 @@ fn @unsigned192(arg0: i192, arg1: i192, arg2: i256) -> i1 [selector=0x31253623, 
     v33 = zext i192 v32 to i256
     v34 = shl v0, arg2
     v35 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v36 = eq v33, v35
+    v36 = eq v35, v33
     jump bb15
   bb15:  ; preds = bb13, bb14
     v37 = phi [bb13: v36], [bb14: false]
@@ -9060,7 +9060,7 @@ fn @unsigned192(arg0: i192, arg1: i192, arg2: i256) -> i1 [selector=0x31253623, 
     v41 = shr arg0, v40
     v42 = zext i192 v41 to i256
     v43 = shr v0, arg2
-    v44 = eq v42, v43
+    v44 = eq v43, v42
     jump bb18
   bb18:  ; preds = bb16, bb17
     v45 = phi [bb16: v44], [bb17: false]
@@ -9072,7 +9072,7 @@ fn @unsigned192(arg0: i192, arg1: i192, arg2: i256) -> i1 [selector=0x31253623, 
     v47 = zext i192 v46 to i256
     v48 = not v0
     v49 = and v48, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v50 = eq v47, v49
+    v50 = eq v49, v47
     jump bb21
   bb21:  ; preds = bb19, bb20
     v51 = phi [bb19: v50], [bb20: false]
@@ -9083,7 +9083,7 @@ fn @unsigned192(arg0: i192, arg1: i192, arg2: i256) -> i1 [selector=0x31253623, 
     v52 = and arg0, arg1
     v53 = zext i192 v52 to i256
     v54 = and v0, v1
-    v55 = eq v53, v54
+    v55 = eq v54, v53
     jump bb24
   bb24:  ; preds = bb22, bb23
     v56 = phi [bb22: v55], [bb23: false]
@@ -9094,7 +9094,7 @@ fn @unsigned192(arg0: i192, arg1: i192, arg2: i256) -> i1 [selector=0x31253623, 
     v57 = or arg0, arg1
     v58 = zext i192 v57 to i256
     v59 = or v0, v1
-    v60 = eq v58, v59
+    v60 = eq v59, v58
     jump bb27
   bb27:  ; preds = bb25, bb26
     v61 = phi [bb25: v60], [bb26: false]
@@ -9105,7 +9105,7 @@ fn @unsigned192(arg0: i192, arg1: i192, arg2: i256) -> i1 [selector=0x31253623, 
     v62 = xor arg0, arg1
     v63 = zext i192 v62 to i256
     v64 = xor v0, v1
-    v65 = eq v63, v64
+    v65 = eq v64, v63
     jump bb30
   bb30:  ; preds = bb28, bb29
     v66 = phi [bb28: v65], [bb29: false]
@@ -9119,7 +9119,7 @@ fn @unsigned192(arg0: i192, arg1: i192, arg2: i256) -> i1 [selector=0x31253623, 
     v70 = zext i192 v69 to i256
     v71 = exp v0, 3
     v72 = and v71, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v73 = eq v70, v72
+    v73 = eq v72, v70
     jump bb33
   bb33:  ; preds = bb31, bb32
     v74 = phi [bb31: v73], [bb32: false]
@@ -9337,7 +9337,7 @@ fn @unsigned200(arg0: i200, arg1: i200, arg2: i256) -> i1 [selector=0xc4988795, 
     v3 = zext i200 v2 to i256
     v4 = add v0, v1
     v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffff
-    v6 = eq v3, v5
+    v6 = eq v5, v3
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb0
     jump bb3
@@ -9346,7 +9346,7 @@ fn @unsigned200(arg0: i200, arg1: i200, arg2: i256) -> i1 [selector=0xc4988795, 
     v8 = zext i200 v7 to i256
     v9 = sub v0, v1
     v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffff
-    v11 = eq v8, v10
+    v11 = eq v10, v8
     jump bb3
   bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: false]
@@ -9358,7 +9358,7 @@ fn @unsigned200(arg0: i200, arg1: i200, arg2: i256) -> i1 [selector=0xc4988795, 
     v14 = zext i200 v13 to i256
     v15 = mul v0, v1
     v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffff
-    v17 = eq v14, v16
+    v17 = eq v16, v14
     jump bb6
   bb6:  ; preds = bb4, bb5
     v18 = phi [bb4: v17], [bb5: false]
@@ -9369,7 +9369,7 @@ fn @unsigned200(arg0: i200, arg1: i200, arg2: i256) -> i1 [selector=0xc4988795, 
     v19 = wrapping_div uint200, arg0, arg1
     v20 = zext i200 v19 to i256
     v21 = wrapping_div uint256, v0, v1
-    v22 = eq v20, v21
+    v22 = eq v21, v20
     jump bb9
   bb9:  ; preds = bb7, bb8
     v23 = phi [bb7: v22], [bb8: false]
@@ -9380,7 +9380,7 @@ fn @unsigned200(arg0: i200, arg1: i200, arg2: i256) -> i1 [selector=0xc4988795, 
     v24 = checked_rem uint200, arg0, arg1
     v25 = zext i200 v24 to i256
     v26 = checked_rem uint256, v0, v1
-    v27 = eq v25, v26
+    v27 = eq v26, v25
     jump bb12
   bb12:  ; preds = bb10, bb11
     v28 = phi [bb10: v27], [bb11: false]
@@ -9395,7 +9395,7 @@ fn @unsigned200(arg0: i200, arg1: i200, arg2: i256) -> i1 [selector=0xc4988795, 
     v33 = zext i200 v32 to i256
     v34 = shl v0, arg2
     v35 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffff
-    v36 = eq v33, v35
+    v36 = eq v35, v33
     jump bb15
   bb15:  ; preds = bb13, bb14
     v37 = phi [bb13: v36], [bb14: false]
@@ -9409,7 +9409,7 @@ fn @unsigned200(arg0: i200, arg1: i200, arg2: i256) -> i1 [selector=0xc4988795, 
     v41 = shr arg0, v40
     v42 = zext i200 v41 to i256
     v43 = shr v0, arg2
-    v44 = eq v42, v43
+    v44 = eq v43, v42
     jump bb18
   bb18:  ; preds = bb16, bb17
     v45 = phi [bb16: v44], [bb17: false]
@@ -9421,7 +9421,7 @@ fn @unsigned200(arg0: i200, arg1: i200, arg2: i256) -> i1 [selector=0xc4988795, 
     v47 = zext i200 v46 to i256
     v48 = not v0
     v49 = and v48, 0xffffffffffffffffffffffffffffffffffffffffffffffffff
-    v50 = eq v47, v49
+    v50 = eq v49, v47
     jump bb21
   bb21:  ; preds = bb19, bb20
     v51 = phi [bb19: v50], [bb20: false]
@@ -9432,7 +9432,7 @@ fn @unsigned200(arg0: i200, arg1: i200, arg2: i256) -> i1 [selector=0xc4988795, 
     v52 = and arg0, arg1
     v53 = zext i200 v52 to i256
     v54 = and v0, v1
-    v55 = eq v53, v54
+    v55 = eq v54, v53
     jump bb24
   bb24:  ; preds = bb22, bb23
     v56 = phi [bb22: v55], [bb23: false]
@@ -9443,7 +9443,7 @@ fn @unsigned200(arg0: i200, arg1: i200, arg2: i256) -> i1 [selector=0xc4988795, 
     v57 = or arg0, arg1
     v58 = zext i200 v57 to i256
     v59 = or v0, v1
-    v60 = eq v58, v59
+    v60 = eq v59, v58
     jump bb27
   bb27:  ; preds = bb25, bb26
     v61 = phi [bb25: v60], [bb26: false]
@@ -9454,7 +9454,7 @@ fn @unsigned200(arg0: i200, arg1: i200, arg2: i256) -> i1 [selector=0xc4988795, 
     v62 = xor arg0, arg1
     v63 = zext i200 v62 to i256
     v64 = xor v0, v1
-    v65 = eq v63, v64
+    v65 = eq v64, v63
     jump bb30
   bb30:  ; preds = bb28, bb29
     v66 = phi [bb28: v65], [bb29: false]
@@ -9468,7 +9468,7 @@ fn @unsigned200(arg0: i200, arg1: i200, arg2: i256) -> i1 [selector=0xc4988795, 
     v70 = zext i200 v69 to i256
     v71 = exp v0, 3
     v72 = and v71, 0xffffffffffffffffffffffffffffffffffffffffffffffffff
-    v73 = eq v70, v72
+    v73 = eq v72, v70
     jump bb33
   bb33:  ; preds = bb31, bb32
     v74 = phi [bb31: v73], [bb32: false]
@@ -9686,7 +9686,7 @@ fn @unsigned208(arg0: i208, arg1: i208, arg2: i256) -> i1 [selector=0xf13088a0, 
     v3 = zext i208 v2 to i256
     v4 = add v0, v1
     v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v6 = eq v3, v5
+    v6 = eq v5, v3
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb0
     jump bb3
@@ -9695,7 +9695,7 @@ fn @unsigned208(arg0: i208, arg1: i208, arg2: i256) -> i1 [selector=0xf13088a0, 
     v8 = zext i208 v7 to i256
     v9 = sub v0, v1
     v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v11 = eq v8, v10
+    v11 = eq v10, v8
     jump bb3
   bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: false]
@@ -9707,7 +9707,7 @@ fn @unsigned208(arg0: i208, arg1: i208, arg2: i256) -> i1 [selector=0xf13088a0, 
     v14 = zext i208 v13 to i256
     v15 = mul v0, v1
     v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v17 = eq v14, v16
+    v17 = eq v16, v14
     jump bb6
   bb6:  ; preds = bb4, bb5
     v18 = phi [bb4: v17], [bb5: false]
@@ -9718,7 +9718,7 @@ fn @unsigned208(arg0: i208, arg1: i208, arg2: i256) -> i1 [selector=0xf13088a0, 
     v19 = wrapping_div uint208, arg0, arg1
     v20 = zext i208 v19 to i256
     v21 = wrapping_div uint256, v0, v1
-    v22 = eq v20, v21
+    v22 = eq v21, v20
     jump bb9
   bb9:  ; preds = bb7, bb8
     v23 = phi [bb7: v22], [bb8: false]
@@ -9729,7 +9729,7 @@ fn @unsigned208(arg0: i208, arg1: i208, arg2: i256) -> i1 [selector=0xf13088a0, 
     v24 = checked_rem uint208, arg0, arg1
     v25 = zext i208 v24 to i256
     v26 = checked_rem uint256, v0, v1
-    v27 = eq v25, v26
+    v27 = eq v26, v25
     jump bb12
   bb12:  ; preds = bb10, bb11
     v28 = phi [bb10: v27], [bb11: false]
@@ -9744,7 +9744,7 @@ fn @unsigned208(arg0: i208, arg1: i208, arg2: i256) -> i1 [selector=0xf13088a0, 
     v33 = zext i208 v32 to i256
     v34 = shl v0, arg2
     v35 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v36 = eq v33, v35
+    v36 = eq v35, v33
     jump bb15
   bb15:  ; preds = bb13, bb14
     v37 = phi [bb13: v36], [bb14: false]
@@ -9758,7 +9758,7 @@ fn @unsigned208(arg0: i208, arg1: i208, arg2: i256) -> i1 [selector=0xf13088a0, 
     v41 = shr arg0, v40
     v42 = zext i208 v41 to i256
     v43 = shr v0, arg2
-    v44 = eq v42, v43
+    v44 = eq v43, v42
     jump bb18
   bb18:  ; preds = bb16, bb17
     v45 = phi [bb16: v44], [bb17: false]
@@ -9770,7 +9770,7 @@ fn @unsigned208(arg0: i208, arg1: i208, arg2: i256) -> i1 [selector=0xf13088a0, 
     v47 = zext i208 v46 to i256
     v48 = not v0
     v49 = and v48, 0xffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v50 = eq v47, v49
+    v50 = eq v49, v47
     jump bb21
   bb21:  ; preds = bb19, bb20
     v51 = phi [bb19: v50], [bb20: false]
@@ -9781,7 +9781,7 @@ fn @unsigned208(arg0: i208, arg1: i208, arg2: i256) -> i1 [selector=0xf13088a0, 
     v52 = and arg0, arg1
     v53 = zext i208 v52 to i256
     v54 = and v0, v1
-    v55 = eq v53, v54
+    v55 = eq v54, v53
     jump bb24
   bb24:  ; preds = bb22, bb23
     v56 = phi [bb22: v55], [bb23: false]
@@ -9792,7 +9792,7 @@ fn @unsigned208(arg0: i208, arg1: i208, arg2: i256) -> i1 [selector=0xf13088a0, 
     v57 = or arg0, arg1
     v58 = zext i208 v57 to i256
     v59 = or v0, v1
-    v60 = eq v58, v59
+    v60 = eq v59, v58
     jump bb27
   bb27:  ; preds = bb25, bb26
     v61 = phi [bb25: v60], [bb26: false]
@@ -9803,7 +9803,7 @@ fn @unsigned208(arg0: i208, arg1: i208, arg2: i256) -> i1 [selector=0xf13088a0, 
     v62 = xor arg0, arg1
     v63 = zext i208 v62 to i256
     v64 = xor v0, v1
-    v65 = eq v63, v64
+    v65 = eq v64, v63
     jump bb30
   bb30:  ; preds = bb28, bb29
     v66 = phi [bb28: v65], [bb29: false]
@@ -9817,7 +9817,7 @@ fn @unsigned208(arg0: i208, arg1: i208, arg2: i256) -> i1 [selector=0xf13088a0, 
     v70 = zext i208 v69 to i256
     v71 = exp v0, 3
     v72 = and v71, 0xffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v73 = eq v70, v72
+    v73 = eq v72, v70
     jump bb33
   bb33:  ; preds = bb31, bb32
     v74 = phi [bb31: v73], [bb32: false]
@@ -10035,7 +10035,7 @@ fn @unsigned216(arg0: i216, arg1: i216, arg2: i256) -> i1 [selector=0x6267e9cb, 
     v3 = zext i216 v2 to i256
     v4 = add v0, v1
     v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v6 = eq v3, v5
+    v6 = eq v5, v3
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb0
     jump bb3
@@ -10044,7 +10044,7 @@ fn @unsigned216(arg0: i216, arg1: i216, arg2: i256) -> i1 [selector=0x6267e9cb, 
     v8 = zext i216 v7 to i256
     v9 = sub v0, v1
     v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v11 = eq v8, v10
+    v11 = eq v10, v8
     jump bb3
   bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: false]
@@ -10056,7 +10056,7 @@ fn @unsigned216(arg0: i216, arg1: i216, arg2: i256) -> i1 [selector=0x6267e9cb, 
     v14 = zext i216 v13 to i256
     v15 = mul v0, v1
     v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v17 = eq v14, v16
+    v17 = eq v16, v14
     jump bb6
   bb6:  ; preds = bb4, bb5
     v18 = phi [bb4: v17], [bb5: false]
@@ -10067,7 +10067,7 @@ fn @unsigned216(arg0: i216, arg1: i216, arg2: i256) -> i1 [selector=0x6267e9cb, 
     v19 = wrapping_div uint216, arg0, arg1
     v20 = zext i216 v19 to i256
     v21 = wrapping_div uint256, v0, v1
-    v22 = eq v20, v21
+    v22 = eq v21, v20
     jump bb9
   bb9:  ; preds = bb7, bb8
     v23 = phi [bb7: v22], [bb8: false]
@@ -10078,7 +10078,7 @@ fn @unsigned216(arg0: i216, arg1: i216, arg2: i256) -> i1 [selector=0x6267e9cb, 
     v24 = checked_rem uint216, arg0, arg1
     v25 = zext i216 v24 to i256
     v26 = checked_rem uint256, v0, v1
-    v27 = eq v25, v26
+    v27 = eq v26, v25
     jump bb12
   bb12:  ; preds = bb10, bb11
     v28 = phi [bb10: v27], [bb11: false]
@@ -10093,7 +10093,7 @@ fn @unsigned216(arg0: i216, arg1: i216, arg2: i256) -> i1 [selector=0x6267e9cb, 
     v33 = zext i216 v32 to i256
     v34 = shl v0, arg2
     v35 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v36 = eq v33, v35
+    v36 = eq v35, v33
     jump bb15
   bb15:  ; preds = bb13, bb14
     v37 = phi [bb13: v36], [bb14: false]
@@ -10107,7 +10107,7 @@ fn @unsigned216(arg0: i216, arg1: i216, arg2: i256) -> i1 [selector=0x6267e9cb, 
     v41 = shr arg0, v40
     v42 = zext i216 v41 to i256
     v43 = shr v0, arg2
-    v44 = eq v42, v43
+    v44 = eq v43, v42
     jump bb18
   bb18:  ; preds = bb16, bb17
     v45 = phi [bb16: v44], [bb17: false]
@@ -10119,7 +10119,7 @@ fn @unsigned216(arg0: i216, arg1: i216, arg2: i256) -> i1 [selector=0x6267e9cb, 
     v47 = zext i216 v46 to i256
     v48 = not v0
     v49 = and v48, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v50 = eq v47, v49
+    v50 = eq v49, v47
     jump bb21
   bb21:  ; preds = bb19, bb20
     v51 = phi [bb19: v50], [bb20: false]
@@ -10130,7 +10130,7 @@ fn @unsigned216(arg0: i216, arg1: i216, arg2: i256) -> i1 [selector=0x6267e9cb, 
     v52 = and arg0, arg1
     v53 = zext i216 v52 to i256
     v54 = and v0, v1
-    v55 = eq v53, v54
+    v55 = eq v54, v53
     jump bb24
   bb24:  ; preds = bb22, bb23
     v56 = phi [bb22: v55], [bb23: false]
@@ -10141,7 +10141,7 @@ fn @unsigned216(arg0: i216, arg1: i216, arg2: i256) -> i1 [selector=0x6267e9cb, 
     v57 = or arg0, arg1
     v58 = zext i216 v57 to i256
     v59 = or v0, v1
-    v60 = eq v58, v59
+    v60 = eq v59, v58
     jump bb27
   bb27:  ; preds = bb25, bb26
     v61 = phi [bb25: v60], [bb26: false]
@@ -10152,7 +10152,7 @@ fn @unsigned216(arg0: i216, arg1: i216, arg2: i256) -> i1 [selector=0x6267e9cb, 
     v62 = xor arg0, arg1
     v63 = zext i216 v62 to i256
     v64 = xor v0, v1
-    v65 = eq v63, v64
+    v65 = eq v64, v63
     jump bb30
   bb30:  ; preds = bb28, bb29
     v66 = phi [bb28: v65], [bb29: false]
@@ -10166,7 +10166,7 @@ fn @unsigned216(arg0: i216, arg1: i216, arg2: i256) -> i1 [selector=0x6267e9cb, 
     v70 = zext i216 v69 to i256
     v71 = exp v0, 3
     v72 = and v71, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v73 = eq v70, v72
+    v73 = eq v72, v70
     jump bb33
   bb33:  ; preds = bb31, bb32
     v74 = phi [bb31: v73], [bb32: false]
@@ -10384,7 +10384,7 @@ fn @unsigned224(arg0: i224, arg1: i224, arg2: i256) -> i1 [selector=0x99720c70, 
     v3 = zext i224 v2 to i256
     v4 = add v0, v1
     v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v6 = eq v3, v5
+    v6 = eq v5, v3
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb0
     jump bb3
@@ -10393,7 +10393,7 @@ fn @unsigned224(arg0: i224, arg1: i224, arg2: i256) -> i1 [selector=0x99720c70, 
     v8 = zext i224 v7 to i256
     v9 = sub v0, v1
     v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v11 = eq v8, v10
+    v11 = eq v10, v8
     jump bb3
   bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: false]
@@ -10405,7 +10405,7 @@ fn @unsigned224(arg0: i224, arg1: i224, arg2: i256) -> i1 [selector=0x99720c70, 
     v14 = zext i224 v13 to i256
     v15 = mul v0, v1
     v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v17 = eq v14, v16
+    v17 = eq v16, v14
     jump bb6
   bb6:  ; preds = bb4, bb5
     v18 = phi [bb4: v17], [bb5: false]
@@ -10416,7 +10416,7 @@ fn @unsigned224(arg0: i224, arg1: i224, arg2: i256) -> i1 [selector=0x99720c70, 
     v19 = wrapping_div uint224, arg0, arg1
     v20 = zext i224 v19 to i256
     v21 = wrapping_div uint256, v0, v1
-    v22 = eq v20, v21
+    v22 = eq v21, v20
     jump bb9
   bb9:  ; preds = bb7, bb8
     v23 = phi [bb7: v22], [bb8: false]
@@ -10427,7 +10427,7 @@ fn @unsigned224(arg0: i224, arg1: i224, arg2: i256) -> i1 [selector=0x99720c70, 
     v24 = checked_rem uint224, arg0, arg1
     v25 = zext i224 v24 to i256
     v26 = checked_rem uint256, v0, v1
-    v27 = eq v25, v26
+    v27 = eq v26, v25
     jump bb12
   bb12:  ; preds = bb10, bb11
     v28 = phi [bb10: v27], [bb11: false]
@@ -10442,7 +10442,7 @@ fn @unsigned224(arg0: i224, arg1: i224, arg2: i256) -> i1 [selector=0x99720c70, 
     v33 = zext i224 v32 to i256
     v34 = shl v0, arg2
     v35 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v36 = eq v33, v35
+    v36 = eq v35, v33
     jump bb15
   bb15:  ; preds = bb13, bb14
     v37 = phi [bb13: v36], [bb14: false]
@@ -10456,7 +10456,7 @@ fn @unsigned224(arg0: i224, arg1: i224, arg2: i256) -> i1 [selector=0x99720c70, 
     v41 = shr arg0, v40
     v42 = zext i224 v41 to i256
     v43 = shr v0, arg2
-    v44 = eq v42, v43
+    v44 = eq v43, v42
     jump bb18
   bb18:  ; preds = bb16, bb17
     v45 = phi [bb16: v44], [bb17: false]
@@ -10468,7 +10468,7 @@ fn @unsigned224(arg0: i224, arg1: i224, arg2: i256) -> i1 [selector=0x99720c70, 
     v47 = zext i224 v46 to i256
     v48 = not v0
     v49 = and v48, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v50 = eq v47, v49
+    v50 = eq v49, v47
     jump bb21
   bb21:  ; preds = bb19, bb20
     v51 = phi [bb19: v50], [bb20: false]
@@ -10479,7 +10479,7 @@ fn @unsigned224(arg0: i224, arg1: i224, arg2: i256) -> i1 [selector=0x99720c70, 
     v52 = and arg0, arg1
     v53 = zext i224 v52 to i256
     v54 = and v0, v1
-    v55 = eq v53, v54
+    v55 = eq v54, v53
     jump bb24
   bb24:  ; preds = bb22, bb23
     v56 = phi [bb22: v55], [bb23: false]
@@ -10490,7 +10490,7 @@ fn @unsigned224(arg0: i224, arg1: i224, arg2: i256) -> i1 [selector=0x99720c70, 
     v57 = or arg0, arg1
     v58 = zext i224 v57 to i256
     v59 = or v0, v1
-    v60 = eq v58, v59
+    v60 = eq v59, v58
     jump bb27
   bb27:  ; preds = bb25, bb26
     v61 = phi [bb25: v60], [bb26: false]
@@ -10501,7 +10501,7 @@ fn @unsigned224(arg0: i224, arg1: i224, arg2: i256) -> i1 [selector=0x99720c70, 
     v62 = xor arg0, arg1
     v63 = zext i224 v62 to i256
     v64 = xor v0, v1
-    v65 = eq v63, v64
+    v65 = eq v64, v63
     jump bb30
   bb30:  ; preds = bb28, bb29
     v66 = phi [bb28: v65], [bb29: false]
@@ -10515,7 +10515,7 @@ fn @unsigned224(arg0: i224, arg1: i224, arg2: i256) -> i1 [selector=0x99720c70, 
     v70 = zext i224 v69 to i256
     v71 = exp v0, 3
     v72 = and v71, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v73 = eq v70, v72
+    v73 = eq v72, v70
     jump bb33
   bb33:  ; preds = bb31, bb32
     v74 = phi [bb31: v73], [bb32: false]
@@ -10733,7 +10733,7 @@ fn @unsigned232(arg0: i232, arg1: i232, arg2: i256) -> i1 [selector=0x8db26f81, 
     v3 = zext i232 v2 to i256
     v4 = add v0, v1
     v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v6 = eq v3, v5
+    v6 = eq v5, v3
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb0
     jump bb3
@@ -10742,7 +10742,7 @@ fn @unsigned232(arg0: i232, arg1: i232, arg2: i256) -> i1 [selector=0x8db26f81, 
     v8 = zext i232 v7 to i256
     v9 = sub v0, v1
     v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v11 = eq v8, v10
+    v11 = eq v10, v8
     jump bb3
   bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: false]
@@ -10754,7 +10754,7 @@ fn @unsigned232(arg0: i232, arg1: i232, arg2: i256) -> i1 [selector=0x8db26f81, 
     v14 = zext i232 v13 to i256
     v15 = mul v0, v1
     v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v17 = eq v14, v16
+    v17 = eq v16, v14
     jump bb6
   bb6:  ; preds = bb4, bb5
     v18 = phi [bb4: v17], [bb5: false]
@@ -10765,7 +10765,7 @@ fn @unsigned232(arg0: i232, arg1: i232, arg2: i256) -> i1 [selector=0x8db26f81, 
     v19 = wrapping_div uint232, arg0, arg1
     v20 = zext i232 v19 to i256
     v21 = wrapping_div uint256, v0, v1
-    v22 = eq v20, v21
+    v22 = eq v21, v20
     jump bb9
   bb9:  ; preds = bb7, bb8
     v23 = phi [bb7: v22], [bb8: false]
@@ -10776,7 +10776,7 @@ fn @unsigned232(arg0: i232, arg1: i232, arg2: i256) -> i1 [selector=0x8db26f81, 
     v24 = checked_rem uint232, arg0, arg1
     v25 = zext i232 v24 to i256
     v26 = checked_rem uint256, v0, v1
-    v27 = eq v25, v26
+    v27 = eq v26, v25
     jump bb12
   bb12:  ; preds = bb10, bb11
     v28 = phi [bb10: v27], [bb11: false]
@@ -10791,7 +10791,7 @@ fn @unsigned232(arg0: i232, arg1: i232, arg2: i256) -> i1 [selector=0x8db26f81, 
     v33 = zext i232 v32 to i256
     v34 = shl v0, arg2
     v35 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v36 = eq v33, v35
+    v36 = eq v35, v33
     jump bb15
   bb15:  ; preds = bb13, bb14
     v37 = phi [bb13: v36], [bb14: false]
@@ -10805,7 +10805,7 @@ fn @unsigned232(arg0: i232, arg1: i232, arg2: i256) -> i1 [selector=0x8db26f81, 
     v41 = shr arg0, v40
     v42 = zext i232 v41 to i256
     v43 = shr v0, arg2
-    v44 = eq v42, v43
+    v44 = eq v43, v42
     jump bb18
   bb18:  ; preds = bb16, bb17
     v45 = phi [bb16: v44], [bb17: false]
@@ -10817,7 +10817,7 @@ fn @unsigned232(arg0: i232, arg1: i232, arg2: i256) -> i1 [selector=0x8db26f81, 
     v47 = zext i232 v46 to i256
     v48 = not v0
     v49 = and v48, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v50 = eq v47, v49
+    v50 = eq v49, v47
     jump bb21
   bb21:  ; preds = bb19, bb20
     v51 = phi [bb19: v50], [bb20: false]
@@ -10828,7 +10828,7 @@ fn @unsigned232(arg0: i232, arg1: i232, arg2: i256) -> i1 [selector=0x8db26f81, 
     v52 = and arg0, arg1
     v53 = zext i232 v52 to i256
     v54 = and v0, v1
-    v55 = eq v53, v54
+    v55 = eq v54, v53
     jump bb24
   bb24:  ; preds = bb22, bb23
     v56 = phi [bb22: v55], [bb23: false]
@@ -10839,7 +10839,7 @@ fn @unsigned232(arg0: i232, arg1: i232, arg2: i256) -> i1 [selector=0x8db26f81, 
     v57 = or arg0, arg1
     v58 = zext i232 v57 to i256
     v59 = or v0, v1
-    v60 = eq v58, v59
+    v60 = eq v59, v58
     jump bb27
   bb27:  ; preds = bb25, bb26
     v61 = phi [bb25: v60], [bb26: false]
@@ -10850,7 +10850,7 @@ fn @unsigned232(arg0: i232, arg1: i232, arg2: i256) -> i1 [selector=0x8db26f81, 
     v62 = xor arg0, arg1
     v63 = zext i232 v62 to i256
     v64 = xor v0, v1
-    v65 = eq v63, v64
+    v65 = eq v64, v63
     jump bb30
   bb30:  ; preds = bb28, bb29
     v66 = phi [bb28: v65], [bb29: false]
@@ -10864,7 +10864,7 @@ fn @unsigned232(arg0: i232, arg1: i232, arg2: i256) -> i1 [selector=0x8db26f81, 
     v70 = zext i232 v69 to i256
     v71 = exp v0, 3
     v72 = and v71, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v73 = eq v70, v72
+    v73 = eq v72, v70
     jump bb33
   bb33:  ; preds = bb31, bb32
     v74 = phi [bb31: v73], [bb32: false]
@@ -11082,7 +11082,7 @@ fn @unsigned240(arg0: i240, arg1: i240, arg2: i256) -> i1 [selector=0x7aed47d2, 
     v3 = zext i240 v2 to i256
     v4 = add v0, v1
     v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v6 = eq v3, v5
+    v6 = eq v5, v3
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb0
     jump bb3
@@ -11091,7 +11091,7 @@ fn @unsigned240(arg0: i240, arg1: i240, arg2: i256) -> i1 [selector=0x7aed47d2, 
     v8 = zext i240 v7 to i256
     v9 = sub v0, v1
     v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v11 = eq v8, v10
+    v11 = eq v10, v8
     jump bb3
   bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: false]
@@ -11103,7 +11103,7 @@ fn @unsigned240(arg0: i240, arg1: i240, arg2: i256) -> i1 [selector=0x7aed47d2, 
     v14 = zext i240 v13 to i256
     v15 = mul v0, v1
     v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v17 = eq v14, v16
+    v17 = eq v16, v14
     jump bb6
   bb6:  ; preds = bb4, bb5
     v18 = phi [bb4: v17], [bb5: false]
@@ -11114,7 +11114,7 @@ fn @unsigned240(arg0: i240, arg1: i240, arg2: i256) -> i1 [selector=0x7aed47d2, 
     v19 = wrapping_div uint240, arg0, arg1
     v20 = zext i240 v19 to i256
     v21 = wrapping_div uint256, v0, v1
-    v22 = eq v20, v21
+    v22 = eq v21, v20
     jump bb9
   bb9:  ; preds = bb7, bb8
     v23 = phi [bb7: v22], [bb8: false]
@@ -11125,7 +11125,7 @@ fn @unsigned240(arg0: i240, arg1: i240, arg2: i256) -> i1 [selector=0x7aed47d2, 
     v24 = checked_rem uint240, arg0, arg1
     v25 = zext i240 v24 to i256
     v26 = checked_rem uint256, v0, v1
-    v27 = eq v25, v26
+    v27 = eq v26, v25
     jump bb12
   bb12:  ; preds = bb10, bb11
     v28 = phi [bb10: v27], [bb11: false]
@@ -11140,7 +11140,7 @@ fn @unsigned240(arg0: i240, arg1: i240, arg2: i256) -> i1 [selector=0x7aed47d2, 
     v33 = zext i240 v32 to i256
     v34 = shl v0, arg2
     v35 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v36 = eq v33, v35
+    v36 = eq v35, v33
     jump bb15
   bb15:  ; preds = bb13, bb14
     v37 = phi [bb13: v36], [bb14: false]
@@ -11154,7 +11154,7 @@ fn @unsigned240(arg0: i240, arg1: i240, arg2: i256) -> i1 [selector=0x7aed47d2, 
     v41 = shr arg0, v40
     v42 = zext i240 v41 to i256
     v43 = shr v0, arg2
-    v44 = eq v42, v43
+    v44 = eq v43, v42
     jump bb18
   bb18:  ; preds = bb16, bb17
     v45 = phi [bb16: v44], [bb17: false]
@@ -11166,7 +11166,7 @@ fn @unsigned240(arg0: i240, arg1: i240, arg2: i256) -> i1 [selector=0x7aed47d2, 
     v47 = zext i240 v46 to i256
     v48 = not v0
     v49 = and v48, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v50 = eq v47, v49
+    v50 = eq v49, v47
     jump bb21
   bb21:  ; preds = bb19, bb20
     v51 = phi [bb19: v50], [bb20: false]
@@ -11177,7 +11177,7 @@ fn @unsigned240(arg0: i240, arg1: i240, arg2: i256) -> i1 [selector=0x7aed47d2, 
     v52 = and arg0, arg1
     v53 = zext i240 v52 to i256
     v54 = and v0, v1
-    v55 = eq v53, v54
+    v55 = eq v54, v53
     jump bb24
   bb24:  ; preds = bb22, bb23
     v56 = phi [bb22: v55], [bb23: false]
@@ -11188,7 +11188,7 @@ fn @unsigned240(arg0: i240, arg1: i240, arg2: i256) -> i1 [selector=0x7aed47d2, 
     v57 = or arg0, arg1
     v58 = zext i240 v57 to i256
     v59 = or v0, v1
-    v60 = eq v58, v59
+    v60 = eq v59, v58
     jump bb27
   bb27:  ; preds = bb25, bb26
     v61 = phi [bb25: v60], [bb26: false]
@@ -11199,7 +11199,7 @@ fn @unsigned240(arg0: i240, arg1: i240, arg2: i256) -> i1 [selector=0x7aed47d2, 
     v62 = xor arg0, arg1
     v63 = zext i240 v62 to i256
     v64 = xor v0, v1
-    v65 = eq v63, v64
+    v65 = eq v64, v63
     jump bb30
   bb30:  ; preds = bb28, bb29
     v66 = phi [bb28: v65], [bb29: false]
@@ -11213,7 +11213,7 @@ fn @unsigned240(arg0: i240, arg1: i240, arg2: i256) -> i1 [selector=0x7aed47d2, 
     v70 = zext i240 v69 to i256
     v71 = exp v0, 3
     v72 = and v71, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v73 = eq v70, v72
+    v73 = eq v72, v70
     jump bb33
   bb33:  ; preds = bb31, bb32
     v74 = phi [bb31: v73], [bb32: false]
@@ -11431,7 +11431,7 @@ fn @unsigned248(arg0: i248, arg1: i248, arg2: i256) -> i1 [selector=0x6a12d3dc, 
     v3 = zext i248 v2 to i256
     v4 = add v0, v1
     v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v6 = eq v3, v5
+    v6 = eq v5, v3
     jumpi v6, bb1, bb2
   bb2:  ; preds = bb0
     jump bb3
@@ -11440,7 +11440,7 @@ fn @unsigned248(arg0: i248, arg1: i248, arg2: i256) -> i1 [selector=0x6a12d3dc, 
     v8 = zext i248 v7 to i256
     v9 = sub v0, v1
     v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v11 = eq v8, v10
+    v11 = eq v10, v8
     jump bb3
   bb3:  ; preds = bb1, bb2
     v12 = phi [bb1: v11], [bb2: false]
@@ -11452,7 +11452,7 @@ fn @unsigned248(arg0: i248, arg1: i248, arg2: i256) -> i1 [selector=0x6a12d3dc, 
     v14 = zext i248 v13 to i256
     v15 = mul v0, v1
     v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v17 = eq v14, v16
+    v17 = eq v16, v14
     jump bb6
   bb6:  ; preds = bb4, bb5
     v18 = phi [bb4: v17], [bb5: false]
@@ -11463,7 +11463,7 @@ fn @unsigned248(arg0: i248, arg1: i248, arg2: i256) -> i1 [selector=0x6a12d3dc, 
     v19 = wrapping_div uint248, arg0, arg1
     v20 = zext i248 v19 to i256
     v21 = wrapping_div uint256, v0, v1
-    v22 = eq v20, v21
+    v22 = eq v21, v20
     jump bb9
   bb9:  ; preds = bb7, bb8
     v23 = phi [bb7: v22], [bb8: false]
@@ -11474,7 +11474,7 @@ fn @unsigned248(arg0: i248, arg1: i248, arg2: i256) -> i1 [selector=0x6a12d3dc, 
     v24 = checked_rem uint248, arg0, arg1
     v25 = zext i248 v24 to i256
     v26 = checked_rem uint256, v0, v1
-    v27 = eq v25, v26
+    v27 = eq v26, v25
     jump bb12
   bb12:  ; preds = bb10, bb11
     v28 = phi [bb10: v27], [bb11: false]
@@ -11489,7 +11489,7 @@ fn @unsigned248(arg0: i248, arg1: i248, arg2: i256) -> i1 [selector=0x6a12d3dc, 
     v33 = zext i248 v32 to i256
     v34 = shl v0, arg2
     v35 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v36 = eq v33, v35
+    v36 = eq v35, v33
     jump bb15
   bb15:  ; preds = bb13, bb14
     v37 = phi [bb13: v36], [bb14: false]
@@ -11503,7 +11503,7 @@ fn @unsigned248(arg0: i248, arg1: i248, arg2: i256) -> i1 [selector=0x6a12d3dc, 
     v41 = shr arg0, v40
     v42 = zext i248 v41 to i256
     v43 = shr v0, arg2
-    v44 = eq v42, v43
+    v44 = eq v43, v42
     jump bb18
   bb18:  ; preds = bb16, bb17
     v45 = phi [bb16: v44], [bb17: false]
@@ -11515,7 +11515,7 @@ fn @unsigned248(arg0: i248, arg1: i248, arg2: i256) -> i1 [selector=0x6a12d3dc, 
     v47 = zext i248 v46 to i256
     v48 = not v0
     v49 = and v48, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v50 = eq v47, v49
+    v50 = eq v49, v47
     jump bb21
   bb21:  ; preds = bb19, bb20
     v51 = phi [bb19: v50], [bb20: false]
@@ -11526,7 +11526,7 @@ fn @unsigned248(arg0: i248, arg1: i248, arg2: i256) -> i1 [selector=0x6a12d3dc, 
     v52 = and arg0, arg1
     v53 = zext i248 v52 to i256
     v54 = and v0, v1
-    v55 = eq v53, v54
+    v55 = eq v54, v53
     jump bb24
   bb24:  ; preds = bb22, bb23
     v56 = phi [bb22: v55], [bb23: false]
@@ -11537,7 +11537,7 @@ fn @unsigned248(arg0: i248, arg1: i248, arg2: i256) -> i1 [selector=0x6a12d3dc, 
     v57 = or arg0, arg1
     v58 = zext i248 v57 to i256
     v59 = or v0, v1
-    v60 = eq v58, v59
+    v60 = eq v59, v58
     jump bb27
   bb27:  ; preds = bb25, bb26
     v61 = phi [bb25: v60], [bb26: false]
@@ -11548,7 +11548,7 @@ fn @unsigned248(arg0: i248, arg1: i248, arg2: i256) -> i1 [selector=0x6a12d3dc, 
     v62 = xor arg0, arg1
     v63 = zext i248 v62 to i256
     v64 = xor v0, v1
-    v65 = eq v63, v64
+    v65 = eq v64, v63
     jump bb30
   bb30:  ; preds = bb28, bb29
     v66 = phi [bb28: v65], [bb29: false]
@@ -11562,7 +11562,7 @@ fn @unsigned248(arg0: i248, arg1: i248, arg2: i256) -> i1 [selector=0x6a12d3dc, 
     v70 = zext i248 v69 to i256
     v71 = exp v0, 3
     v72 = and v71, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v73 = eq v70, v72
+    v73 = eq v72, v70
     jump bb33
   bb33:  ; preds = bb31, bb32
     v74 = phi [bb31: v73], [bb32: false]
@@ -11711,9 +11711,9 @@ fn @identity(arg0: i248, arg1: i248) -> struct0 [pure] {
 fn @compoundUnchecked256(arg0: i256, arg1: i8) -> i1 [selector=0x27316e92, pure, abi_params=[int256, int8], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sext i8 arg1 to i256
-    v1 = add arg0, v0
+    v1 = add v0, arg0
     v2 = sext i8 arg1 to i256
-    v3 = add arg0, v2
+    v3 = add v2, arg0
     v4 = ne v1, v3
     jumpi v4, bb1, bb2
   bb2:  ; preds = bb0
@@ -11729,9 +11729,9 @@ fn @compoundUnchecked256(arg0: i256, arg1: i8) -> i1 [selector=0x27316e92, pure,
     jump bb6
   bb6:  ; preds = bb5
     v10 = sext i8 arg1 to i256
-    v11 = mul arg0, v10
+    v11 = mul v10, arg0
     v12 = sext i8 arg1 to i256
-    v13 = mul arg0, v12
+    v13 = mul v12, arg0
     v14 = ne v11, v13
     jumpi v14, bb7, bb8
   bb8:  ; preds = bb6
@@ -11756,27 +11756,27 @@ fn @compoundUnchecked256(arg0: i256, arg1: i8) -> i1 [selector=0x27316e92, pure,
     jump bb15
   bb15:  ; preds = bb14
     v25 = sext i8 arg1 to i256
-    v26 = and arg0, v25
+    v26 = and v25, arg0
     v27 = sext i8 arg1 to i256
-    v28 = and arg0, v27
+    v28 = and v27, arg0
     v29 = ne v26, v28
     jumpi v29, bb16, bb17
   bb17:  ; preds = bb15
     jump bb18
   bb18:  ; preds = bb17
     v30 = sext i8 arg1 to i256
-    v31 = or arg0, v30
+    v31 = or v30, arg0
     v32 = sext i8 arg1 to i256
-    v33 = or arg0, v32
+    v33 = or v32, arg0
     v34 = ne v31, v33
     jumpi v34, bb19, bb20
   bb20:  ; preds = bb18
     jump bb21
   bb21:  ; preds = bb20
     v35 = sext i8 arg1 to i256
-    v36 = xor arg0, v35
+    v36 = xor v35, arg0
     v37 = sext i8 arg1 to i256
-    v38 = xor arg0, v37
+    v38 = xor v37, arg0
     v39 = ne v36, v38
     jumpi v39, bb22, bb23
   bb23:  ; preds = bb21
@@ -11850,27 +11850,27 @@ fn @compoundChecked256(arg0: i256, arg1: i8) -> i1 [selector=0x37c7ece4, pure, a
     jump bb15
   bb15:  ; preds = bb14
     v25 = sext i8 arg1 to i256
-    v26 = and arg0, v25
+    v26 = and v25, arg0
     v27 = sext i8 arg1 to i256
-    v28 = and arg0, v27
+    v28 = and v27, arg0
     v29 = ne v26, v28
     jumpi v29, bb16, bb17
   bb17:  ; preds = bb15
     jump bb18
   bb18:  ; preds = bb17
     v30 = sext i8 arg1 to i256
-    v31 = or arg0, v30
+    v31 = or v30, arg0
     v32 = sext i8 arg1 to i256
-    v33 = or arg0, v32
+    v33 = or v32, arg0
     v34 = ne v31, v33
     jumpi v34, bb19, bb20
   bb20:  ; preds = bb18
     jump bb21
   bb21:  ; preds = bb20
     v35 = sext i8 arg1 to i256
-    v36 = xor arg0, v35
+    v36 = xor v35, arg0
     v37 = sext i8 arg1 to i256
-    v38 = xor arg0, v37
+    v38 = xor v37, arg0
     v39 = ne v36, v38
     jumpi v39, bb22, bb23
   bb23:  ; preds = bb21
@@ -12030,7 +12030,7 @@ fn @unsigned256(arg0: i256, arg1: i256, arg2: i256) -> i1 [selector=0xf159b3a8, 
     v31 = not arg0
     v32 = not arg0
     v33 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v34 = eq v31, v33
+    v34 = eq v33, v31
     jump bb21
   bb21:  ; preds = bb19, bb20
     v35 = phi [bb19: v34], [bb20: false]

@@ -51,9 +51,10 @@ impl MirPass for DeferAlloc {
     ) -> bool {
         let calls = CallGraphInfo::new(module);
         let summaries = analyses.call_summaries(module);
+        let entries = module.runtime_entries();
         let mut candidates = Vec::new();
         for (func_id, func) in module.functions.iter_enumerated() {
-            let eligible = eligible_static_allocations(func_id, func, &calls, &summaries);
+            let eligible = eligible_static_allocations(func_id, func, &entries, &calls, &summaries);
             candidates.extend(eligible.into_iter().map(|candidate| (func_id, candidate.alloc)));
         }
 
@@ -129,10 +130,11 @@ struct StaticAllocCandidate {
 fn eligible_static_allocations(
     func_id: FunctionId,
     func: &Function,
+    entries: &DenseBitSet<FunctionId>,
     calls: &CallGraphInfo,
     summaries: &MemoryCallSummaries,
 ) -> Vec<StaticAllocCandidate> {
-    if !func.is_runtime_entry()
+    if !entries.contains(func_id)
         || calls.is_recursive(func_id)
         || !func.instructions().any(|inst_id| {
             matches!(

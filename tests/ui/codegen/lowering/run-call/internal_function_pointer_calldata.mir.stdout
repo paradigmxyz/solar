@@ -14,7 +14,7 @@ fn @constructor() [constructor] {
 fn @read(arg0: slice<calldata>) -> i256 [pure] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
-    v1 = lt 2, v0
+    v1 = gt v0, 2
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = extract_value slice<calldata>, arg0, 0
@@ -42,7 +42,7 @@ fn @run() -> i8 [selector=0xc0406226, abi_params=[], abi_returns=[word<uint8>], 
     v0 = alloc zeroed checked 96
     mstore v0, 34
     v1 = mload v0
-    v2 = lt 2, v1
+    v2 = gt v1, 2
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = byte 0, 0x700000000000000000000000000000000000000000000000000000000000000

@@ -4,7 +4,7 @@
 fn @read(arg0: slice<calldata>) -> i256 [selector=0x7bb08336, pure, abi_params=[array<2, tuple<bytes, bytes>>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
-    v1 = lt 0, v0
+    v1 = gt v0, 0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = extract_value slice<calldata>, arg0, 0
@@ -49,7 +49,7 @@ fn @read(arg0: slice<calldata>) -> i256 [selector=0x7bb08336, pure, abi_params=[
     icall revert_if<invalid_calldata_tail_length>, v37
     v38 = add v28, 32
     v39 = sub v36, v35
-    v40 = sgt v38, v39
+    v40 = slt v39, v38
     icall revert_if<calldata_tail_too_short>, v40
     v41 = inttoptr i256 v38 to ptr<calldata>
     v42 = make_calldata_slice v41, v35

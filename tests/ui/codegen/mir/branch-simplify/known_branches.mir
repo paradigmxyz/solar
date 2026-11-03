@@ -39,7 +39,7 @@ fn @entry() [entry] {
 // CHECK: - jumpi true, bb1, bb2
 // CHECK: - mstore 0, 99
 // CHECK: + jump bb1
-fn @constant() [selector=0xce4d3874, abi_wrapper] {
+fn @constant() {
   bb0:
     v0 = calldataload 4
     jumpi true, bb1, bb2
@@ -55,7 +55,7 @@ fn @constant() [selector=0xce4d3874, abi_wrapper] {
 // CHECK-LABEL: {{^[ +].*}}fn @same{{[( ]}}
 // CHECK: - jumpi {{v[0-9]+}}, bb1, bb1
 // CHECK: + jump bb1
-fn @same() [selector=0x8f5383a4, abi_wrapper] {
+fn @same() {
   bb0:
     v0 = calldataload 4
     v1 = ne v0, 0
@@ -71,7 +71,7 @@ fn @same() [selector=0x8f5383a4, abi_wrapper] {
 // CHECK: - jumpi {{v[0-9]+}}, bb2, bb3
 // CHECK: - mstore 0, 7
 // CHECK: + jump bb2
-fn @repeated() [selector=0x0abef8a2, abi_wrapper] {
+fn @repeated() {
   bb0:
     v0 = calldataload 4
     v1 = ne v0, 0
@@ -97,7 +97,7 @@ fn @repeated() [selector=0x0abef8a2, abi_wrapper] {
 // CHECK: + jump bb1
 // CHECK: - switch {{v[0-9]+}}, default bb3, [1 => bb2, 2 => bb3]
 // CHECK: + switch {{v[0-9]+}}, default bb3, [1 => bb2]
-fn @switched() [selector=0x10198fd2, abi_wrapper] {
+fn @switched() {
   bb0:
     v0 = calldataload 4
     switch v0, default bb1, [1 => bb1, 2 => bb1]
@@ -117,7 +117,7 @@ fn @switched() [selector=0x10198fd2, abi_wrapper] {
 // CHECK-LABEL: {{^[ +].*}}fn @unknown{{[( ]}}
 // CHECK: {{^ +}}jumpi {{v[0-9]+}}, bb4, bb5
 // CHECK-NOT: {{^[-+] +(jump|jumpi|switch)}}
-fn @unknown() [selector=0x71667367, abi_wrapper] {
+fn @unknown() {
   bb0:
     v0 = calldataload 4
     v1 = ne v0, 0

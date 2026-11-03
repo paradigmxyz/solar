@@ -99,7 +99,9 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 ElementaryType::FixedBytes(TypeSize::new_fb_bytes(bytes as u8))
             }
             // The other elementary type names are fixed-point types.
-            _ => return Err(self.dcx().err("fixed-point types are not supported").span(id.span)),
+            _ => {
+                return Err(self.dcx().err_at(id.span, "fixed-point types are not supported"));
+            }
         };
 
         let sm = self.parse_state_mutability();
@@ -128,8 +130,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         // `address payable`. Keep parsing to recover.
         if let TypeKind::Elementary(ElementaryType::Address(true)) = key.kind {
             self.dcx()
-                .err("`address payable` is not allowed as a mapping key type")
-                .span(key.span)
+                .err_at(key.span, "`address payable` is not allowed as a mapping key type")
                 .help("use `address` instead")
                 .emit();
         }

@@ -142,7 +142,7 @@ fn @bytesObjectCast() -> i256 [selector=0x3edbb59d, pure, abi_params=[], abi_ret
     v4 = mload v0
     v5 = lt v4, 4
     v6 = sub 4, v4
-    v7 = mul 8, v6
+    v7 = mul v6, 8
     v8 = shl 0xffffffff00000000000000000000000000000000000000000000000000000000, v7
     v9 = select v5, v8, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v10 = and v3, v9
@@ -160,7 +160,7 @@ fn @returnedBytesObjectCast() -> i256 [selector=0x28a9d934, pure, abi_params=[],
     v5 = mload v2
     v6 = lt v5, 32
     v7 = sub 32, v5
-    v8 = mul 8, v7
+    v8 = mul v7, 8
     v9 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v8
     v10 = select v6, v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v11 = and v4, v10
@@ -185,7 +185,7 @@ fn @takeSlice(arg0: slice<calldata>) -> i256 [selector=0x4f4c8d8b, pure, abi_par
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = extract_value slice<calldata>, arg0, 1
-    v2 = gt 5, v1
+    v2 = lt v1, 5
     v3 = lt 5, 0
     v4 = or v2, v3
     v5 = zext i1 v4 to i256
@@ -197,7 +197,7 @@ fn @takeSlice(arg0: slice<calldata>) -> i256 [selector=0x4f4c8d8b, pure, abi_par
     v10 = extract_value slice<calldata>, v7, 1
     v11 = lt v10, 32
     v12 = sub 32, v10
-    v13 = mul 8, v12
+    v13 = mul v12, 8
     v14 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v13
     v15 = select v11, v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v16 = and v9, v15

@@ -22,7 +22,7 @@ fn @chunksAndHash() -> struct0 [pure] {
     v9 = ptradd v7, 64
     mstore v9, 0x4748494a4b4c4d4e000000000000000000000000000000000000000000000000
     v10 = mload v0
-    v11 = lt 0, v10
+    v11 = gt v10, 0
     v12 = eq v11, false
     icall panic_if<0x32>, v12
     v13 = ptrtoint ptr<memory> v7 to i256
@@ -33,7 +33,7 @@ fn @chunksAndHash() -> struct0 [pure] {
     v16 = ptradd v15, 32
     mstore v16, 0x7461696c00000000000000000000000000000000000000000000000000000000
     v17 = mload v0
-    v18 = lt 15, v17
+    v18 = gt v17, 15
     v19 = eq v18, false
     icall panic_if<0x32>, v19
     v20 = ptrtoint ptr<memory> v15 to i256

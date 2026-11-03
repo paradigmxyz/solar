@@ -85,7 +85,7 @@ fn @_cloneDeterministic(arg0: i256, arg1: ptr<memory>, arg2: i256) -> i256 {
     v28 = or v27, 0xfd6100003d81600a3d39f336602c57343d527f
     v29 = lt v16, 0xff9e
     v30 = zext i1 v29 to i256
-    v31 = add 89, v30
+    v31 = add v30, 89
     v32 = ptrtoint ptr<memory> arg1 to i256
     v33 = sub v32, v31
     mstore v33, v28

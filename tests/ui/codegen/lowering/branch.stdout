@@ -3,7 +3,7 @@
 ; function max(uint256 a, uint256 b) public pure returns (uint256) [selector 0x6d5433e6]
 fn @max(arg0: i256, arg1: i256) -> i256 [selector=0x6d5433e6, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = gt arg0, arg1
+    v0 = lt arg1, arg0
     jumpi v0, bb1, bb2
   bb2:  ; preds = bb0
     jump bb3

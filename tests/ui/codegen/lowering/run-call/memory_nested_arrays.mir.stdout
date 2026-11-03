@@ -23,37 +23,37 @@ fn @assignment(arg0: i256) -> i256 [selector=0xc806bb2c, pure, abi_params=[uint2
     jump bb5
   bb5:  ; preds = bb8
     v49 = mload v9
-    v50 = lt 1, v49
+    v50 = gt v49, 1
     v51 = eq v50, false
     icall panic_if<0x32>, v51
     v52 = ptradd v9, 64
     v53 = mload v52, ptr<memory>
     v54 = mload v53
-    v55 = lt 1, v54
+    v55 = gt v54, 1
     v56 = eq v55, false
     icall panic_if<0x32>, v56
     v57 = ptradd v53, 64
     v58 = mload v57, ptr<memory>
     v59 = mload v58
-    v60 = lt 1, v59
+    v60 = gt v59, 1
     v61 = eq v60, false
     icall panic_if<0x32>, v61
     v62 = ptradd v58, 64
     mstore v62, v7
     v63 = mload v9
-    v64 = lt 1, v63
+    v64 = gt v63, 1
     v65 = eq v64, false
     icall panic_if<0x32>, v65
     v66 = ptradd v9, 64
     v67 = mload v66, ptr<memory>
     v68 = mload v67
-    v69 = lt 1, v68
+    v69 = gt v68, 1
     v70 = eq v69, false
     icall panic_if<0x32>, v70
     v71 = ptradd v67, 64
     v72 = mload v71, ptr<memory>
     v73 = mload v72
-    v74 = lt 1, v73
+    v74 = gt v73, 1
     v75 = eq v74, false
     icall panic_if<0x32>, v75
     v76 = ptradd v72, 64
@@ -160,19 +160,19 @@ fn @newValue(arg0: i256) -> i256 [selector=0x44772b8c, pure, abi_params=[uint256
     jump bb5
   bb5:  ; preds = bb8
     v49 = mload v9
-    v50 = lt 1, v49
+    v50 = gt v49, 1
     v51 = eq v50, false
     icall panic_if<0x32>, v51
     v52 = ptradd v9, 64
     v53 = mload v52, ptr<memory>
     v54 = mload v53
-    v55 = lt 1, v54
+    v55 = gt v54, 1
     v56 = eq v55, false
     icall panic_if<0x32>, v56
     v57 = ptradd v53, 64
     v58 = mload v57, ptr<memory>
     v59 = mload v58
-    v60 = lt 1, v59
+    v60 = gt v59, 1
     v61 = eq v60, false
     icall panic_if<0x32>, v61
     v62 = ptradd v58, 64

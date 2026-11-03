@@ -36,38 +36,8 @@
       (if-let combined (make (Op.Add x y)))
       (sequence (Op.Mul r combined)))
 
-;; (x * r) + (r * y) => r * (x + y).
-(rule (sequence_rewrite (Op.Add (mul x r) (mul r y)))
-      (if-let combined (make (Op.Add x y)))
-      (sequence (Op.Mul r combined)))
-
-;; (r * x) + (y * r) => r * (x + y).
-(rule (sequence_rewrite (Op.Add (mul r x) (mul y r)))
-      (if-let combined (make (Op.Add x y)))
-      (sequence (Op.Mul r combined)))
-
-;; (x * r) + (y * r) => r * (x + y).
-(rule (sequence_rewrite (Op.Add (mul x r) (mul y r)))
-      (if-let combined (make (Op.Add x y)))
-      (sequence (Op.Mul r combined)))
-
 ;; (r * x) - (r * y) => r * (x - y).
 (rule (sequence_rewrite (Op.Sub (mul r x) (mul r y)))
-      (if-let combined (make (Op.Sub x y)))
-      (sequence (Op.Mul r combined)))
-
-;; (x * r) - (r * y) => r * (x - y).
-(rule (sequence_rewrite (Op.Sub (mul x r) (mul r y)))
-      (if-let combined (make (Op.Sub x y)))
-      (sequence (Op.Mul r combined)))
-
-;; (r * x) - (y * r) => r * (x - y).
-(rule (sequence_rewrite (Op.Sub (mul r x) (mul y r)))
-      (if-let combined (make (Op.Sub x y)))
-      (sequence (Op.Mul r combined)))
-
-;; (x * r) - (y * r) => r * (x - y).
-(rule (sequence_rewrite (Op.Sub (mul x r) (mul y r)))
       (if-let combined (make (Op.Sub x y)))
       (sequence (Op.Mul r combined)))
 

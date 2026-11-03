@@ -267,7 +267,8 @@
       v0 = ne arg0, 0
       v1 = zext i1 v0 to i256
       v2 = div arg0, arg1
-      v3 = mul v1, v2
+-     v3 = mul v1, v2
++     v3 = mul v2, v1
       ret v3
   }
   
@@ -495,7 +496,7 @@
       v0 = ne arg0, 0
       v1 = zext i1 v0 to i256
       v2 = div arg0, arg1
-      v3 = mul v1, v2
+      v3 = mul v2, v1
       ret v3
   }
   

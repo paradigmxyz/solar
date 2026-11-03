@@ -35,13 +35,13 @@ fn @test_multi() -> struct0 [selector=0x255f2946, pure, abi_params=[], abi_retur
     v0 = alloc zeroed checked 96
     mstore v0, 2
     v1 = mload v0
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = ptradd v0, 32
     mstore v4, 7
     v5 = mload v0
-    v6 = lt 1, v5
+    v6 = gt v5, 1
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = ptradd v0, 64
@@ -67,13 +67,13 @@ fn @test_using() -> i256 [selector=0xd6c053d5, pure, abi_params=[], abi_returns=
     v0 = alloc zeroed checked 96
     mstore v0, 2
     v1 = mload v0
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = ptradd v0, 32
     mstore v4, 7
     v5 = mload v0
-    v6 = lt 1, v5
+    v6 = gt v5, 1
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = ptradd v0, 64
@@ -112,13 +112,13 @@ fn @bump(arg0: i256) {
 fn @pick(arg0: ptr<memory>) -> struct0 [pure] {
   bb0:
     v0 = mload arg0
-    v1 = lt 0, v0
+    v1 = gt v0, 0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = ptradd arg0, 32
     v4 = mload v3
     v5 = mload arg0
-    v6 = lt 1, v5
+    v6 = gt v5, 1
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = ptradd arg0, 64
@@ -132,7 +132,7 @@ fn @pick(arg0: ptr<memory>) -> struct0 [pure] {
 fn @first(arg0: slice<calldata>) -> i256 [pure] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
-    v1 = lt 0, v0
+    v1 = gt v0, 0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = extract_value slice<calldata>, arg0, 0

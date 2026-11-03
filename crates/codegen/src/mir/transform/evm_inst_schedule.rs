@@ -15,7 +15,8 @@
 //! moving one use changes which physical copy should survive for later consumers. Single-use
 //! islands between those pinned producers are still scheduled independently; references left in the
 //! arena by eliminated instructions do not count as sharing. The pass also preserves the producer
-//! order of binary operations whose lowering already costs both equivalent operand orientations.
+//! order of binary operations whose lowering already costs both equivalent operand orientations,
+//! so the canonical operand order of such an operation does not decide which producer runs first.
 //! Instruction and value identities do not change; codegen recomputes liveness from the resulting
 //! order before stack scheduling.
 //!
@@ -58,6 +59,7 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
 };
 use solar_sema::Gcx;
+use std::cmp::Reverse;
 
 /// Orders movable MIR instructions for the EVM stack scheduler.
 pub(crate) struct EvmInstSchedule;
@@ -348,9 +350,10 @@ impl EvmInstSchedule {
         }
         let output_start = ordered.len();
         scratch.clear_segment();
-        for &inst_id in segment {
+        for (position, &inst_id) in segment.iter().enumerate() {
             scratch.members.insert(inst_id);
             scratch.active_members.push(inst_id);
+            scratch.original_positions[inst_id] = position;
         }
         for &inst_id in segment {
             func.inst(inst_id).kind.visit_operands(|operand| {
@@ -414,9 +417,6 @@ impl EvmInstSchedule {
         candidate: &[InstId],
         scratch: &mut ScheduleScratch,
     ) -> bool {
-        for (position, &inst_id) in original.iter().enumerate() {
-            scratch.original_positions[inst_id] = position;
-        }
         for (position, &inst_id) in candidate.iter().enumerate() {
             scratch.candidate_positions[inst_id] = position;
         }
@@ -502,7 +502,9 @@ impl EvmInstSchedule {
             }
 
             scratch.work.push((inst_id, true));
-            func.inst(inst_id).kind.visit_operands(|value| {
+            let kind = &func.inst(inst_id).kind;
+            let start = scratch.work.len();
+            kind.visit_operands(|value| {
                 if let Value::Inst(dependency) = func.value(value)
                     && scratch.members.contains(*dependency)
                     && !scratch.visited.contains(*dependency)
@@ -510,6 +512,13 @@ impl EvmInstSchedule {
                     scratch.work.push((*dependency, false));
                 }
             });
+            // The backend takes either operand order of a reorderable operation, so its producers
+            // keep their stored order whichever operand order is canonical.
+            if kind.reorderable_binary_operands().is_some() {
+                scratch.work[start..].sort_by_key(|&(dependency, _)| {
+                    Reverse(scratch.original_positions[dependency])
+                });
+            }
         }
     }
 }

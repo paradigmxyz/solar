@@ -34,7 +34,7 @@ fn @pushShorterCalldata(arg0: slice<calldata>) -> struct0 [selector=0x4e10bf3a, 
   bb3:  ; preds = bb1
     sstore 0, v11 !metadata(storage=slot(0))
     v23 = sload 0 !metadata(storage=slot(0))
-    v24 = lt 0, v23
+    v24 = gt v23, 0
     v25 = eq v24, false
     icall panic_if<0x32>, v25
     v26 = storage_array_data_slot 0
@@ -43,7 +43,7 @@ fn @pushShorterCalldata(arg0: slice<calldata>) -> struct0 [selector=0x4e10bf3a, 
     icall panic_if<0x32>, v28
     v29 = sload v26 !metadata(storage=symbolic(v26))
     v30 = sload 0 !metadata(storage=slot(0))
-    v31 = lt 0, v30
+    v31 = gt v30, 0
     v32 = eq v31, false
     icall panic_if<0x32>, v32
     v33 = storage_array_data_slot 0
@@ -53,7 +53,7 @@ fn @pushShorterCalldata(arg0: slice<calldata>) -> struct0 [selector=0x4e10bf3a, 
     v36 = add v33, 1
     v37 = sload v36 !metadata(storage=offset(v33, 1))
     v38 = sload 0 !metadata(storage=slot(0))
-    v39 = lt 0, v38
+    v39 = gt v38, 0
     v40 = eq v39, false
     icall panic_if<0x32>, v40
     v41 = storage_array_data_slot 0
@@ -119,7 +119,7 @@ fn @pushNarrowCalldata(arg0: slice<calldata>) -> struct0 [selector=0x3c12c61b, a
   bb6:  ; preds = bb4
     sstore 0, v21 !metadata(storage=slot(0))
     v33 = sload 0 !metadata(storage=slot(0))
-    v34 = lt 0, v33
+    v34 = gt v33, 0
     v35 = eq v34, false
     icall panic_if<0x32>, v35
     v36 = storage_array_data_slot 0
@@ -128,7 +128,7 @@ fn @pushNarrowCalldata(arg0: slice<calldata>) -> struct0 [selector=0x3c12c61b, a
     icall panic_if<0x32>, v38
     v39 = sload v36 !metadata(storage=symbolic(v36))
     v40 = sload 0 !metadata(storage=slot(0))
-    v41 = lt 0, v40
+    v41 = gt v40, 0
     v42 = eq v41, false
     icall panic_if<0x32>, v42
     v43 = storage_array_data_slot 0
@@ -138,7 +138,7 @@ fn @pushNarrowCalldata(arg0: slice<calldata>) -> struct0 [selector=0x3c12c61b, a
     v46 = add v43, 1
     v47 = sload v46 !metadata(storage=offset(v43, 1))
     v48 = sload 0 !metadata(storage=slot(0))
-    v49 = lt 0, v48
+    v49 = gt v48, 0
     v50 = eq v49, false
     icall panic_if<0x32>, v50
     v51 = storage_array_data_slot 0
@@ -211,7 +211,7 @@ fn @pushNestedShorterCalldata(arg0: slice<calldata>) -> struct1 [selector=0xae05
   bb6:  ; preds = bb4
     sstore 2, v22 !metadata(storage=slot(2))
     v53 = sload 2 !metadata(storage=slot(2))
-    v54 = lt 0, v53
+    v54 = gt v53, 0
     v55 = eq v54, false
     icall panic_if<0x32>, v55
     v56 = storage_array_data_slot 2
@@ -223,7 +223,7 @@ fn @pushNestedShorterCalldata(arg0: slice<calldata>) -> struct1 [selector=0xae05
     icall panic_if<0x32>, v60
     v61 = sload v56 !metadata(storage=symbolic(v56))
     v62 = sload 2 !metadata(storage=slot(2))
-    v63 = lt 0, v62
+    v63 = gt v62, 0
     v64 = eq v63, false
     icall panic_if<0x32>, v64
     v65 = storage_array_data_slot 2
@@ -236,7 +236,7 @@ fn @pushNestedShorterCalldata(arg0: slice<calldata>) -> struct1 [selector=0xae05
     v70 = add v65, 1
     v71 = sload v70 !metadata(storage=offset(v65, 1))
     v72 = sload 2 !metadata(storage=slot(2))
-    v73 = lt 0, v72
+    v73 = gt v72, 0
     v74 = eq v73, false
     icall panic_if<0x32>, v74
     v75 = storage_array_data_slot 2
@@ -249,7 +249,7 @@ fn @pushNestedShorterCalldata(arg0: slice<calldata>) -> struct1 [selector=0xae05
     v80 = add v75, 2
     v81 = sload v80 !metadata(storage=offset(v75, 2))
     v82 = sload 2 !metadata(storage=slot(2))
-    v83 = lt 0, v82
+    v83 = gt v82, 0
     v84 = eq v83, false
     icall panic_if<0x32>, v84
     v85 = storage_array_data_slot 2
@@ -262,7 +262,7 @@ fn @pushNestedShorterCalldata(arg0: slice<calldata>) -> struct1 [selector=0xae05
     icall panic_if<0x32>, v90
     v91 = sload v88 !metadata(storage=offset(v85, 3))
     v92 = sload 2 !metadata(storage=slot(2))
-    v93 = lt 0, v92
+    v93 = gt v92, 0
     v94 = eq v93, false
     icall panic_if<0x32>, v94
     v95 = storage_array_data_slot 2
@@ -276,7 +276,7 @@ fn @pushNestedShorterCalldata(arg0: slice<calldata>) -> struct1 [selector=0xae05
     v101 = add v98, 1
     v102 = sload v101 !metadata(storage=offset(v95, 4))
     v103 = sload 2 !metadata(storage=slot(2))
-    v104 = lt 0, v103
+    v104 = gt v103, 0
     v105 = eq v104, false
     icall panic_if<0x32>, v105
     v106 = storage_array_data_slot 2
@@ -405,7 +405,7 @@ fn @pushExactCalldata(arg0: slice<calldata>) -> struct2 [selector=0x9b4dcbee, ab
   bb3:  ; preds = bb1
     sstore 1, v11 !metadata(storage=slot(1))
     v23 = sload 1 !metadata(storage=slot(1))
-    v24 = lt 0, v23
+    v24 = gt v23, 0
     v25 = eq v24, false
     icall panic_if<0x32>, v25
     v26 = storage_array_data_slot 1
@@ -414,7 +414,7 @@ fn @pushExactCalldata(arg0: slice<calldata>) -> struct2 [selector=0x9b4dcbee, ab
     icall panic_if<0x32>, v28
     v29 = sload v26 !metadata(storage=symbolic(v26))
     v30 = sload 1 !metadata(storage=slot(1))
-    v31 = lt 0, v30
+    v31 = gt v30, 0
     v32 = eq v31, false
     icall panic_if<0x32>, v32
     v33 = storage_array_data_slot 1

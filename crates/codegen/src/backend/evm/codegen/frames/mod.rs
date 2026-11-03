@@ -141,10 +141,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         })
     }
 
-    pub(in crate::backend::evm::codegen) fn is_runtime_function(func: &Function) -> bool {
-        !func.attributes.is_constructor
-    }
-
     /// Returns whether every explicit frame address belongs to the local region above the frame
     /// header and signature slots.
     ///
@@ -228,16 +224,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.emit_constructor_args_size(arg_offset);
         }
         self.emit_constructor_heap_start();
-    }
-
-    pub(in crate::backend::evm::codegen) fn emit_constructor_arg_load(&mut self, index: ArgIdx) {
-        self.emit_constructor_args_base();
-        let offset = index.index() as u64 * EvmMemoryLayout::WORD_SIZE;
-        if offset != 0 {
-            self.asm.emit_push(U256::from(offset));
-            self.asm.emit_op(op::ADD);
-        }
-        self.asm.emit_op(op::MLOAD);
     }
 
     /// Address of `offset` within the current function's frame: a fixed frame for internal
@@ -516,10 +502,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             if let Some(&guard) = reachable_heap_prefix_guards.get(&entry) {
                 floor = floor.checked_add(guard).unwrap_or_else(|| {
-                    gcx.dcx()
-                        .err("runtime heap prefix exceeds the addressable memory range")
-                        .span(module.functions[entry].name_span)
-                        .emit();
+                    gcx.dcx().emit_err(
+                        module.functions[entry].name_span,
+                        "runtime heap prefix exceeds the addressable memory range",
+                    );
                     floor
                 });
             }

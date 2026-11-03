@@ -140,8 +140,8 @@ bb40 [loop]:
   eq
   push bb43
   jumpi
-  dup 3
-  dup 3
+  dup 2
+  dup 4
   add
   mstore
   push 1
@@ -330,8 +330,8 @@ bb32 [continuation]:
   jump bb39
 bb43 [loop]:
   not
-  dup 3
-  dup 3
+  dup 2
+  dup 4
   add
   mstore
   push 1

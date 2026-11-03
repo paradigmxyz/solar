@@ -16,7 +16,7 @@ fn @slice(arg0: slice<calldata>) -> slice<calldata> [selector=0x82cbd9d7, pure, 
     v0 = make_calldata_slice ptr<calldata> 0, 0
     v1 = extract_value slice<calldata>, arg0, 0
     v2 = extract_value slice<calldata>, arg0, 1
-    v3 = gt 2, v2
+    v3 = lt v2, 2
     v4 = lt 2, 1
     v5 = or v3, v4
     v6 = zext i1 v5 to i256
@@ -98,7 +98,7 @@ fn @row(arg0: slice<calldata>, arg1: i256) -> slice<calldata> [selector=0x538f7f
     v25 = mul v22, 64
     v26 = add v15, 32
     v27 = sub v23, v25
-    v28 = sgt v26, v27
+    v28 = slt v27, v26
     icall revert_if<calldata_tail_too_short>, v28
     v29 = inttoptr i256 v26 to ptr<calldata>
     v30 = make_calldata_slice v29, v22
@@ -133,7 +133,7 @@ fn @member(arg0: slice<calldata>) -> slice<calldata> [selector=0xef3fa208, pure,
     v19 = mul v16, 64
     v20 = add v9, 32
     v21 = sub v17, v19
-    v22 = sgt v20, v21
+    v22 = slt v21, v20
     icall revert_if<calldata_tail_too_short>, v22
     v23 = inttoptr i256 v20 to ptr<calldata>
     v24 = make_calldata_slice v23, v16

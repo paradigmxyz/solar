@@ -42,7 +42,7 @@ fn @sum(arg0: slice<calldata>) -> i256 [selector=0x0194db8e, view, abi_params=[a
     v14 = ptrtoint ptr<calldata> v10 to i256
     v15 = add v14, v11
     v16 = calldataload v15
-    v17 = ne v2, v16
+    v17 = ne v16, v2
     jumpi v17, bb7, bb8
   bb8:  ; preds = bb4
     jump bb9

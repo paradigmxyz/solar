@@ -8,7 +8,7 @@ fn @echo(arg0: ptr<memory>) -> i256 [selector=0x624fbfdc, pure, abi_params=[byte
     v2 = mload arg0
     v3 = lt v2, 2
     v4 = sub 2, v2
-    v5 = mul 8, v4
+    v5 = mul v4, 8
     v6 = shl 0xffff000000000000000000000000000000000000000000000000000000000000, v5
     v7 = select v3, v6, 0xffff000000000000000000000000000000000000000000000000000000000000
     v8 = and v1, v7

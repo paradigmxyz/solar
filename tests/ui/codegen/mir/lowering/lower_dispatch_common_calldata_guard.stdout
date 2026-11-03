@@ -1,9 +1,11 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_common_calldata_guard.mir (before lower-dispatch) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_common_calldata_guard.mir (after lower-dispatch) ===
   @module DispatchCommonCalldataGuard
+- ; selector 0x00000001
+- fn @a() [selector=0x00000001, abi_wrapper] {
 + ; runtime dispatch entry
 + fn @entry() [entry] {
-+   bb0:
+    bb0:
 +     v0 = callvalue
 +     v1 = calldatasize
 +     v2 = lt v1, 36
@@ -23,9 +25,8 @@
 +     revert 0, 0
 + }
 + 
-  ; selector 0x00000001
-  fn @a() [selector=0x00000001, abi_wrapper] {
-    bb0:
++ fn @a() {
++   bb0:
       v0 = calldatasize
       v1 = lt v0, 36
 -     jumpi v1, bb1, bb2
@@ -37,8 +38,9 @@
       revert 0, 0
   }
   
-  ; selector 0x00000002
-  fn @b() [selector=0x00000002, abi_wrapper] {
+- ; selector 0x00000002
+- fn @b() [selector=0x00000002, abi_wrapper] {
++ fn @b() {
     bb0:
       v0 = calldatasize
       v1 = lt v0, 36
@@ -76,8 +78,7 @@
       revert 0, 0
   }
   
-  ; selector 0x00000001
-  fn @a() [selector=0x00000001, abi_wrapper] {
+  fn @a() {
     bb0:
 -     v0 = calldatasize
 -     v1 = lt v0, 36
@@ -89,8 +90,7 @@
 +     invalid
   }
   
-  ; selector 0x00000002
-  fn @b() [selector=0x00000002, abi_wrapper] {
+  fn @b() {
     bb0:
 -     v0 = calldatasize
 -     v1 = lt v0, 36

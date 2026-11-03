@@ -82,7 +82,7 @@ fn @sumWords(arg0: ptr<memory>) -> i256 [selector=0x5a761098, pure, abi_params=[
     ret v7
   bb4:  ; preds = bb1
     v15 = mload v8
-    v16 = add v7, v15
+    v16 = add v15, v7
     jump bb6
   bb6:  ; preds = bb4
     jump bb3

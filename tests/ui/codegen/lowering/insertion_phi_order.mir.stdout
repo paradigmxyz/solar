@@ -24,7 +24,7 @@ fn @sort(arg0: ptr<memory>) -> ptr<memory> [selector=0x9ec8b026, pure, abi_param
     jump bb2
   bb3:  ; preds = bb1
     v13 = add v12, 32
-    v14 = gt v13, v11
+    v14 = lt v11, v13
     v15 = zext i1 v14 to i256
     v16 = ne v15, 0
     jumpi v16, bb6, bb7
@@ -34,7 +34,7 @@ fn @sort(arg0: ptr<memory>) -> ptr<memory> [selector=0x9ec8b026, pure, abi_param
     v17 = mload v13
     v18 = sub v13, 32
     v19 = mload v18
-    v20 = gt v19, v17
+    v20 = lt v17, v19
     v21 = zext i1 v20 to i256
     v22 = eq v21, 0
     v23 = zext i1 v22 to i256
@@ -61,7 +61,7 @@ fn @sort(arg0: ptr<memory>) -> ptr<memory> [selector=0x9ec8b026, pure, abi_param
     mstore v33, v32
     v34 = sub v31, 32
     v35 = mload v34
-    v36 = gt v35, v30
+    v36 = lt v30, v35
     v37 = zext i1 v36 to i256
     v38 = eq v37, 0
     v39 = zext i1 v38 to i256

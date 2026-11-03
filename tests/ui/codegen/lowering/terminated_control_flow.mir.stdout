@@ -278,7 +278,7 @@ fn @precompileReturndata(arg0: i256, arg1: i256) -> i256 [selector=0x3553277c, p
     v3 = phi [bb0: 0], [bb10: v14]
     v4 = returndatasize
     v5 = mul v4, 3
-    v6 = add v2, v5
+    v6 = add v5, v2
     v7 = eq v1, 0
     jumpi v7, bb4, bb5
   bb5:  ; preds = bb1

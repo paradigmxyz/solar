@@ -5,11 +5,6 @@
       (if-let shifted (make (Op.Shr s m)))
       (sequence (Op.And x shifted)))
 
-;; (m & (x << s)) >> s => x & (m >> s).
-(rule (sequence_rewrite (Op.Shr s (band m (shl s x))))
-      (if-let shifted (make (Op.Shr s m)))
-      (sequence (Op.And x shifted)))
-
 ;; (x << a) >> b => (x << (a - b)) & ((MAX << a) >> b).
 ;; Requires: b, a are constants, a != b, a >= b.
 (rule (sequence_rewrite (Op.Shr (iconst b) (shl (iconst a) x)))

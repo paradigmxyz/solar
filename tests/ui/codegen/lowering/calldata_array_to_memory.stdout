@@ -146,8 +146,8 @@ bb13 [loop]:
   add
   jump bb11
 bb11 [loop]:
-  dup 2
-  dup 2
+  dup 1
+  dup 3
   sub
   push bb13
   jumpi
