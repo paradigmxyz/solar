@@ -112,7 +112,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 } else {
                     "only address types can have state mutability"
                 };
-                self.dcx().emit_err(id.span.to(self.prev_token.span), None, msg);
+                self.dcx().emit_err(id.span.to(self.prev_token.span), msg);
             }
         }
 

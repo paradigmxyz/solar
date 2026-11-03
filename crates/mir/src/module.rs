@@ -325,7 +325,6 @@ impl Module {
         if self.phase != MirPhase::Lowered {
             return Err(dcx.emit_err(
                 self.name.span,
-                None,
                 format!(
                     "EVM codegen requires MIR in the `lowered` phase, stopped at `{}`",
                     self.phase.name(),

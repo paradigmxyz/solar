@@ -322,7 +322,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 let span = inst.metadata.source_span().unwrap_or(module.name.span);
                 self.gcx
                     .dcx()
-                    .err_at(span, None, message)
+                    .err_at(span, message)
                     .note(format!("remaining MIR slice is in function `{}`", func.name))
                     .emit();
                 emitted = true;

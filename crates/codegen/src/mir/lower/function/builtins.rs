@@ -59,7 +59,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .gcx
                     .dcx()
                     // solc assigns codes from 1000 to 9999, so a code below 1000 cannot collide.
-                    .warn_at(callee.span, error_code!(67), "`msize` is not exact when optimizing")
+                    .warn_code_at(
+                        callee.span,
+                        error_code!(67),
+                        "`msize` is not exact when optimizing",
+                    )
                     .note("the optimizer does not preserve the exact value")
                     .emit();
             }
@@ -919,7 +923,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let expected = expected.description();
         self.cx.gcx.dcx().emit_err(
             span,
-            None,
             format!(
                 "wrong number of arguments for {kind} `{}`: expected {expected}, found {actual}",
                 builtin.name()
@@ -938,7 +941,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let kind = if builtin.is_yul() { "Yul builtin" } else { "builtin" };
                 self.cx.gcx.dcx().emit_err(
                     args.span,
-                    None,
                     format!(
                         "named arguments are not supported for {kind} `{}` in codegen",
                         builtin.name()
@@ -1064,11 +1066,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn unsupported_builtin<T>(&self, builtin: Builtin, span: Span) -> Option<T> {
-        self.cx.gcx.dcx().emit_err(
-            span,
-            None,
-            format!("unsupported builtin call `{}`", builtin.name()),
-        );
+        self.cx.gcx.dcx().emit_err(span, format!("unsupported builtin call `{}`", builtin.name()));
         None
     }
 }

@@ -241,7 +241,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if !self.cx.bytecode_dependencies.contains(contract_id) {
             return Err(gcx
                 .dcx()
-                .err_at(span, None, format!("codegen is missing {} for `{name}`", kind.keyword()))
+                .err_at(span, format!("codegen is missing {} for `{name}`", kind.keyword()))
                 .note("the contract is not a bytecode dependency of the contract being compiled")
                 .emit());
         }

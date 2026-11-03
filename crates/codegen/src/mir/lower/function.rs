@@ -81,11 +81,7 @@ impl<'gcx, 'ctx> LoweringContext<'gcx, 'ctx> {
 
     /// Reports a lowering bail-out and returns `None`.
     pub(super) fn report_unsupported<T>(&self, span: Span, what: &str) -> Option<T> {
-        self.gcx.dcx().emit_err(
-            span,
-            None,
-            format!("codegen rewrite does not support this {what} yet"),
-        );
+        self.gcx.dcx().emit_err(span, format!("codegen rewrite does not support this {what} yet"));
         None
     }
 }
@@ -1026,7 +1022,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.cx
             .gcx
             .dcx()
-            .err_at(span, None, "user-defined operators are not supported in this codegen path")
+            .err_at(span, "user-defined operators are not supported in this codegen path")
             .help("unwrap the user-defined value type before using this operator")
             .emit();
         None
@@ -1193,7 +1189,7 @@ fn is_signed_packed_scalar(ty: Ty<'_>) -> bool {
 }
 
 fn report_error<T>(gcx: Gcx<'_>, span: Span, message: &'static str) -> Option<T> {
-    gcx.dcx().emit_err(span, None, message);
+    gcx.dcx().emit_err(span, message);
     None
 }
 

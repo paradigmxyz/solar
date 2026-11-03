@@ -476,7 +476,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                 let func = &module.functions[func];
                 self.gcx.dcx().emit_err(
                     func.name_span,
-                    None,
                     format!("codegen cannot lower `{}`: {reason}", func.name),
                 );
             }

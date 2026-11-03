@@ -504,7 +504,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                 floor = floor.checked_add(guard).unwrap_or_else(|| {
                     gcx.dcx().emit_err(
                         module.functions[entry].name_span,
-                        None,
                         "runtime heap prefix exceeds the addressable memory range",
                     );
                     floor

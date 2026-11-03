@@ -338,17 +338,14 @@ impl ContractGraph {
         if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
             return Err(gcx.dcx().emit_err(
                 contract.span,
-                None,
                 "cannot generate creation bytecode for non-deployable contract",
             ));
         }
 
         if !visiting.insert(contract_id) {
-            return Err(gcx.dcx().emit_err(
-                contract.span,
-                None,
-                "recursive contract creation bytecode dependency",
-            ));
+            return Err(gcx
+                .dcx()
+                .emit_err(contract.span, "recursive contract creation bytecode dependency"));
         }
 
         let dependencies = gcx.contract_bytecode_dependencies(contract_id);
@@ -361,7 +358,6 @@ impl ContractGraph {
                     .dcx()
                     .err_at(
                         gcx.hir.contract(dependency).span,
-                        None,
                         format!("cannot embed two contracts named `{}`", name.as_str()),
                     )
                     .span_note(gcx.hir.contract(other).span, "the other contract is here")

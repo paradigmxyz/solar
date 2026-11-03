@@ -511,7 +511,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             if fixed_memory_end.checked_add(heap_guard).is_none() {
                 self.gcx.dcx().emit_err(
                     ctor.name_span,
-                    None,
                     "constructor heap prefix exceeds the addressable memory range",
                 );
             }
