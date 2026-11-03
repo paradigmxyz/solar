@@ -94,6 +94,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     pub fn parse_uint(&mut self) -> Result<U256, PErr<'sess>> {
+        self.parse_uint_spanned().map(|(value, _)| value)
+    }
+
+    /// Parses an integer literal and returns it with its span, for errors that name the literal.
+    pub fn parse_uint_spanned(&mut self) -> Result<(U256, Span), PErr<'sess>> {
+        let span = self.token().span;
         let TokenKind::Literal(TokenLitKind::Integer, symbol) = self.token().kind else {
             return Err(self.error("expected integer literal"));
         };
@@ -106,7 +112,16 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         };
         let value = value.map_err(|err| self.error(format!("invalid integer: {err}")))?;
         self.bump();
-        Ok(value)
+        Ok((value, span))
+    }
+
+    /// Parses an integer literal that must fit in `T`, reporting an overflow at the literal.
+    pub fn parse_uint_as<T: TryFrom<U256>>(&mut self) -> Result<T, PErr<'sess>> {
+        let (value, span) = self.parse_uint_spanned()?;
+        value.try_into().map_err(|_| {
+            let ty = std::any::type_name::<T>();
+            self.error_at(span, format!("integer `{value}` does not fit in {ty}"))
+        })
     }
 
     pub fn parse_data_id(&mut self) -> Result<(U256, Option<Symbol>), PErr<'sess>> {
@@ -249,9 +264,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if !self.eat(TokenKind::Comma) {
             return Ok((0, false));
         }
-        let value = self.parse_uint()?;
-        let addend = u64::try_from(value)
-            .map_err(|_| self.error(format!("integer `{value}` does not fit in u64")))?;
+        let addend = self.parse_uint_as()?;
         let aligned = self.eat(TokenKind::Comma);
         if aligned {
             self.expect_keyword(sym::aligned)?;
@@ -282,9 +295,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if self.eat_keyword(sym::library_relocations) {
             self.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
             while !self.eat(TokenKind::CloseDelim(Delimiter::Bracket)) {
-                let value = self.parse_uint()?;
-                let offset = usize::try_from(value)
-                    .map_err(|_| self.error("library offset exceeds `usize`"))?;
+                let offset = self.parse_uint_as::<usize>()?;
                 if offset.checked_add(20).is_none_or(|end| end > bytes.len()) {
                     return Err(self.error("library relocation exceeds data size"));
                 }
@@ -325,8 +336,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             return Ok((lo, hi));
         }
 
-        let lo = self.parse_uint()?;
-        let lo = self.u256_to_u32(lo)?;
+        let lo = self.parse_uint_as()?;
         self.expect(TokenKind::Dot)?;
         if let TokenKind::Literal(TokenLitKind::Rational, symbol) = self.token().kind
             && let Some(hi) = symbol.as_str().strip_prefix('.')
@@ -337,8 +347,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             return Ok((lo, hi));
         }
         self.expect(TokenKind::Dot)?;
-        let hi = self.parse_uint()?;
-        Ok((lo, self.u256_to_u32(hi)?))
+        Ok((lo, self.parse_uint_as()?))
     }
 
     fn u256_to_u32(&self, value: U256) -> Result<u32, PErr<'sess>> {
