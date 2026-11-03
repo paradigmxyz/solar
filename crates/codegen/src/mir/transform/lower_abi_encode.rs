@@ -2079,12 +2079,6 @@ fn literal_bytes(func: &Function, object: ValueId, block: BlockId) -> Option<Vec
         if !func.blocks[block].instructions.contains(&inst) {
             return None;
         }
-        // An encoding at a base derived from the object can overwrite its words.
-        if let InstKind::AbiEncode { base: Some(base), .. } = func.inst(inst).kind
-            && func.object_address(base).is_some_and(|(base, _)| base == object)
-        {
-            return None;
-        }
         if func.is_object_derivation(inst)
             || matches!(func.inst(inst).kind, InstKind::AbiEncode { .. })
         {
