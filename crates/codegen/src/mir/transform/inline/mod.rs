@@ -67,23 +67,21 @@
 //! whether they can go.
 
 use crate::{
-    backend::evm::{op, select},
     mir::{
         AbiLayout, AbiType, AllocationSemantics, BlockId, Builtin, Callee, EffectKind, FrameMode,
-        FrameSlotKind, Function, FunctionBuilder, FunctionId as MirFunctionId, Immediate,
-        ImmutableEncoding, InstId, InstKind, Instruction, MirModuleTarget, MirPhase, MirType,
-        Module, PtrLocation, StorageAlias, Terminator, Value, ValueId,
+        FrameSlotKind, Function, FunctionBuilder, FunctionId as MirFunctionId, Immediate, InstId,
+        InstKind, Instruction, MirModuleTarget, MirPhase, MirType, Module, PtrLocation,
+        StorageAlias, Terminator, Value, ValueId,
         analysis::{
             AddressSpace, CallGraphInfo, Liveness, LoopAnalyzer, MemoryCallSummaries,
             direct_callees,
         },
-        immutable::immutable_push_type_size,
         memory::EvmMemoryLayout,
         pass::{MirPass, ModuleAnalyses},
         transform::utils::redirect_successor_predecessors,
         utils::rebuild_predecessors,
     },
-    target::{Cost, Target},
+    target::Target,
 };
 use smallvec::SmallVec;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
@@ -210,13 +208,6 @@ impl MirInliner {
     /// A hot leaf shared by more call sites than this stays a call: every
     /// clone deposits the whole body again.
     const MAX_HOT_LEAF_CALL_SITES: usize = 8;
-    /// Live words a caller may hold across an inlined body plus the body's own
-    /// peak, leaving stack-addressing headroom for operand staging. A hot-leaf
-    /// clone inside a loop body also keeps the loop's carried words resident
-    /// through every join it adds; at ten words, two of the Base64 decoder's four
-    /// lookups stayed calls that drained every carried word, and twelve took 15%
-    /// off decoding.
-    const STACK_BUDGET: usize = 12;
     /// Instructions `@custom:solar-inline` clones may add to a module over every run of the
     /// inliner. Tagged helpers that each call the previous one twice would otherwise clone
     /// `2^depth` bodies, and compile time would grow with them. The largest safe-Solady module
@@ -400,7 +391,7 @@ impl MirInliner {
                         caller_liveness.get_or_insert_with(|| Liveness::compute_live_sets(caller));
                     if surviving_call_words(caller, liveness, site.block, site.inst_index)
                         .saturating_add(peak)
-                        > Self::STACK_BUDGET
+                        > Target::INLINE_STACK_BUDGET
                     {
                         continue;
                     }
@@ -1014,7 +1005,7 @@ fn summarize_function(
     for block in func.blocks.iter() {
         for &inst_id in &block.instructions {
             let kind = &func.inst(inst_id).kind;
-            let (inst_cost, instructions) = estimate_inst_cost(target, module, func, kind);
+            let (inst_cost, instructions) = target.expansion_estimate(module, func, kind);
             summary.instruction_count += instructions;
             summary.estimated_code_size += inst_cost.bytes as usize;
             match kind {
@@ -1105,7 +1096,7 @@ fn summarize_function(
                 continue;
             }
         }
-        summary.estimated_code_size += estimate_terminator_cost(target, term).bytes as usize;
+        summary.estimated_code_size += target.terminator_estimate(term).bytes as usize;
     }
 
     summary.is_scalar = all_scalar_ops
@@ -1367,28 +1358,6 @@ fn is_transparent_function_pointer_cast(func: &Function) -> bool {
     func.params == [MirType::I256]
         && func.return_components() == [MirType::I256]
         && is_identity_function(func)
-}
-
-/// Estimates the instructions an `abi_encode` of `ty` expands into after `lower-abi-encode`.
-///
-/// The placeholder is one MIR instruction, but words are loaded, cleaned, and stored one by
-/// one, dynamic values become copy loops, and aggregates encode field by field, so inlining
-/// decisions must see the expanded shape rather than the placeholder.
-fn abi_type_expansion(ty: &AbiType) -> usize {
-    match ty {
-        AbiType::Word(None) => 2,
-        AbiType::Word(Some(_)) | AbiType::Function => 3,
-        AbiType::Bytes(_) => 14,
-        AbiType::DynamicArray { element, .. } => 12 + 2 * abi_type_expansion(element),
-        AbiType::FixedArray { element, len, .. } => {
-            1 + abi_type_expansion(element) * usize::try_from(*len).unwrap_or(usize::MAX).min(8)
-        }
-        AbiType::Tuple(fields) => 1 + fields.iter().map(abi_type_expansion).sum::<usize>(),
-    }
-}
-
-fn abi_layout_expansion(layout: &AbiLayout) -> usize {
-    layout.types.iter().map(abi_type_expansion).sum()
 }
 
 /// Whether encoding the layout emits loops or branches: every dynamic value does.
