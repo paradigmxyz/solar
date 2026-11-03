@@ -173,14 +173,17 @@ jobs:
             echo "ref=$base_ref"
           } >> "$GITHUB_OUTPUT"
 
-          runs_json="$(
+          if ! runs_json="$(
             gh run list \
               --workflow bench.yml \
               --commit "$base_sha" \
               --limit 10 \
               --json createdAt,databaseId,status \
-              2>/dev/null || true
-          )"
+              2>/dev/null
+          )"; then
+            runs_json='[]'
+            echo "::warning::Could not query exact-base benchmark runs; building the base locally if needed"
+          fi
           latest_run_id="$(
             jq -r --argjson current "$CURRENT_RUN_ID" \
               '[.[] | select(.databaseId != $current)] | max_by(.createdAt).databaseId // empty' \
@@ -194,14 +197,21 @@ jobs:
             )"
             if [[ "$latest_status" != "completed" ]]; then
               echo "Waiting for exact-base benchmark run $latest_run_id"
-              gh run watch "$latest_run_id" --interval 10
-              runs_json="$(
-                gh run list \
-                  --workflow bench.yml \
-                  --commit "$base_sha" \
-                  --limit 10 \
-                  --json createdAt,databaseId,status
-              )"
+              if gh run watch "$latest_run_id" --interval 10; then
+                if refreshed_runs="$(
+                  gh run list \
+                    --workflow bench.yml \
+                    --commit "$base_sha" \
+                    --limit 10 \
+                    --json createdAt,databaseId,status
+                )"; then
+                  runs_json="$refreshed_runs"
+                else
+                  echo "::warning::Could not refresh exact-base benchmark runs; using the previous lookup"
+                fi
+              else
+                echo "::warning::Could not wait for the exact-base benchmark; using completed runs or building locally"
+              fi
             fi
           fi
           run_ids="$(
