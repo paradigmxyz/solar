@@ -1,0 +1,26 @@
+- // === ROOT/tests/ui/codegen/mir/cse/gas_revert_only.mir (before storage-cse) ===
++ // === ROOT/tests/ui/codegen/mir/cse/gas_revert_only.mir (after storage-cse) ===
+  @module GasRevertOnly
+  fn @revert_only_callee(arg0: i256, arg1: i1) -> i256 {
+    bb0:
+      v0 = sload arg0
+      icall @revert_with_gas, arg1
+-     v1 = sload arg0
+      v2 = gas
+-     v3 = add v0, v1
++     v3 = add v0, v0
+      v4 = add v3, v2
+      ret v4
+  }
+  
+  fn @revert_with_gas(arg0: i1) {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:  ; preds = bb0
+      ret
+    bb1 [cold]:  ; preds = bb0
+      v0 = gas
+      mstore 0, v0
+      revert 0, 32
+  }
+  

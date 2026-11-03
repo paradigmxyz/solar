@@ -1,0 +1,33 @@
+//@ revisions: cse storage
+//@[cse] compile-flags: -Zmir-pipeline=cse
+//@[storage] compile-flags: -Zmir-pipeline=storage-cse
+//@ filecheck:
+
+@module GasRevertOnly
+
+// The helper reads gas only before it reverts, so the call starts no observation, and the
+// load after it forwards the one before it.
+// CHECK-LABEL: fn @revert_only_callee
+// CHECK-COUNT-1: {{^[ +].*}}v{{[0-9]+}} = sload arg0
+// CHECK-NOT: {{^[ +].*}}v{{[0-9]+}} = sload arg0
+fn @revert_only_callee(arg0: i256, arg1: i1) -> i256 {
+  bb0:
+    v2 = sload arg0
+    icall @revert_with_gas, arg1
+    v3 = sload arg0
+    v4 = gas
+    v5 = add v2, v3
+    v6 = add v5, v4
+    ret v6
+}
+
+fn @revert_with_gas(arg0: i1) {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v0 = gas
+    mstore 0, v0
+    revert 0, 32
+  bb2:
+    ret
+}

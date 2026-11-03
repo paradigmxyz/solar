@@ -314,7 +314,7 @@ pub(crate) struct ModRef {
     reads: SmallVec<[Access; 4]>,
     writes: SmallVec<[Access; 4]>,
     observes_gas: bool,
-    /// Whether an internal call may observe remaining gas and then return to its caller.
+    /// Whether the operation may observe remaining gas and then continue after it.
     continues_after_gas: bool,
 }
 
@@ -337,9 +337,8 @@ impl ModRef {
         self.observes_gas
     }
 
-    /// Returns whether an internal call may observe remaining gas on a path that returns to its
-    /// caller. A call whose every gas read precedes a revert observes gas but never returns after
-    /// it.
+    /// Returns whether the operation may observe remaining gas on a path that continues after it.
+    /// A call whose every gas read precedes a revert observes gas but never continues after it.
     #[must_use]
     pub(crate) const fn continues_after_gas(&self) -> bool {
         self.continues_after_gas
@@ -1540,6 +1539,7 @@ impl AliasAnalysis {
             _ => {}
         }
         effects.observes_gas |= kind.observes_gas();
+        effects.continues_after_gas |= kind.observes_gas();
         effects
     }
 
