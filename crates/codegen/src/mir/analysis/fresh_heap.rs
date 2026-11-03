@@ -643,8 +643,7 @@ fn zeroed_range(
         alias.location_size(func, size)
     });
     if let Some(location) = alias.memory_location(func, fill, address, size)
-        && let MemoryBase::Allocation(alloc) | MemoryBase::DynamicAllocation(alloc) =
-            location.address.base
+        && let Some(alloc) = location.address.base.allocation()
     {
         return Some((alloc, location));
     }
@@ -656,9 +655,7 @@ fn zeroed_range(
         }
     })?;
     let start = alias.memory_address(func, start)?;
-    let (MemoryBase::Allocation(alloc) | MemoryBase::DynamicAllocation(alloc)) = start.base else {
-        return None;
-    };
+    let alloc = start.base.allocation()?;
     // The padding starts at or above the payload, and lies in the pointer's family.
     let base = if matches!(start.base, MemoryBase::Allocation(_)) {
         MemoryBase::UnboundedAllocation(alloc)

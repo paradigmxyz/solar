@@ -166,7 +166,7 @@ use crate::mir::{
     Terminator, Value, ValueId,
     analysis::{
         AddressSpace, AliasAnalysis, CfgInfo, Location, LocationSize, Loop, LoopAnalyzer,
-        MemoryBase, MemoryLocation,
+        MemoryLocation,
     },
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses, run_function_pass},
@@ -1216,10 +1216,7 @@ fn word_array_size(func: &Function, size: ValueId, len: ValueId) -> bool {
 /// argument may overlap a fresh allocation, and an allocation after a free memory pointer reset
 /// may overlap an earlier one, so only the bases the alias analysis keeps apart count.
 fn disjoint_objects(func: &Function, aa: &AliasAnalysis, a: ValueId, b: ValueId) -> bool {
-    let site = |value| match aa.memory_address(func, value)?.base {
-        MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst) => Some(inst),
-        _ => None,
-    };
+    let site = |value| aa.memory_address(func, value)?.base.allocation();
     matches!((site(a), site(b)), (Some(a), Some(b)) if a != b)
 }
 

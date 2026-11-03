@@ -618,42 +618,47 @@ fn @dynamicReturn() -> struct1 [selector=0x43f14bbb, view, abi_params=[], abi_re
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    v6 = icall returndata_bytes<>
-    v7 = abi_decode [bytes], v6
-    v8 = mload v7
-    v9 = gt v8, 2
-    v10 = eq v9, false
-    icall panic_if<0x32>, v10
-    v11 = ptradd v7, 34
+    v6 = returndatasize
+    v7 = add v6, 31
+    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v9 = alloc v8
+    returndatacopy v9, 0, v6
+    v10 = make_memory_slice v9, v6
+    v11 = abi_decode [bytes], v10
     v12 = mload v11
-    v13 = byte 0, v12
-    v14 = shl v13, 248
-    v15 = shr v14, 248
-    v16 = trunc i256 v15 to i8
-    v17 = zext i8 v16 to i256
-    v18 = mload v0
-    v19 = gt v18, 0
-    v20 = eq v19, false
-    icall panic_if<0x32>, v20
-    v21 = ptradd v0, 32
-    v22 = mload v21
-    v23 = mload v0
-    v24 = gt v23, 1
-    v25 = eq v24, false
-    icall panic_if<0x32>, v25
-    v26 = ptradd v0, 64
-    v27 = mload v26
-    v28 = mload v0
-    v29 = gt v28, 2
-    v30 = eq v29, false
-    icall panic_if<0x32>, v30
-    v31 = ptradd v0, 96
-    v32 = mload v31
-    v33 = insert_value struct1, undef struct1, 0, v17
-    v34 = insert_value struct1, v33, 1, v22
-    v35 = insert_value struct1, v34, 2, v27
-    v36 = insert_value struct1, v35, 3, v32
-    ret v36
+    v13 = gt v12, 2
+    v14 = eq v13, false
+    icall panic_if<0x32>, v14
+    v15 = ptradd v11, 34
+    v16 = mload v15
+    v17 = byte 0, v16
+    v18 = shl v17, 248
+    v19 = shr v18, 248
+    v20 = trunc i256 v19 to i8
+    v21 = zext i8 v20 to i256
+    v22 = mload v0
+    v23 = gt v22, 0
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    v25 = ptradd v0, 32
+    v26 = mload v25
+    v27 = mload v0
+    v28 = gt v27, 1
+    v29 = eq v28, false
+    icall panic_if<0x32>, v29
+    v30 = ptradd v0, 64
+    v31 = mload v30
+    v32 = mload v0
+    v33 = gt v32, 2
+    v34 = eq v33, false
+    icall panic_if<0x32>, v34
+    v35 = ptradd v0, 96
+    v36 = mload v35
+    v37 = insert_value struct1, undef struct1, 0, v21
+    v38 = insert_value struct1, v37, 1, v26
+    v39 = insert_value struct1, v38, 2, v31
+    v40 = insert_value struct1, v39, 3, v36
+    ret v40
 }
 
 ; function dynamicInput() external view returns (uint256 total, uint256, uint256, uint256) [selector 0xb78f73fc]
@@ -1251,42 +1256,47 @@ fn @dynamicArgumentDynamicReturn() -> struct1 [selector=0x27641e2b, view, abi_pa
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    v10 = icall returndata_bytes<>
-    v11 = abi_decode [bytes], v10
-    v12 = mload v11
-    v13 = gt v12, 2
-    v14 = eq v13, false
-    icall panic_if<0x32>, v14
-    v15 = ptradd v11, 34
+    v10 = returndatasize
+    v11 = add v10, 31
+    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v13 = alloc v12
+    returndatacopy v13, 0, v10
+    v14 = make_memory_slice v13, v10
+    v15 = abi_decode [bytes], v14
     v16 = mload v15
-    v17 = byte 0, v16
-    v18 = shl v17, 248
-    v19 = shr v18, 248
-    v20 = trunc i256 v19 to i8
-    v21 = zext i8 v20 to i256
-    v22 = mload v0
-    v23 = gt v22, 0
-    v24 = eq v23, false
-    icall panic_if<0x32>, v24
-    v25 = ptradd v0, 32
-    v26 = mload v25
-    v27 = mload v0
-    v28 = gt v27, 1
-    v29 = eq v28, false
-    icall panic_if<0x32>, v29
-    v30 = ptradd v0, 64
-    v31 = mload v30
-    v32 = mload v0
-    v33 = gt v32, 2
-    v34 = eq v33, false
-    icall panic_if<0x32>, v34
-    v35 = ptradd v0, 96
-    v36 = mload v35
-    v37 = insert_value struct1, undef struct1, 0, v21
-    v38 = insert_value struct1, v37, 1, v26
-    v39 = insert_value struct1, v38, 2, v31
-    v40 = insert_value struct1, v39, 3, v36
-    ret v40
+    v17 = gt v16, 2
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
+    v19 = ptradd v15, 34
+    v20 = mload v19
+    v21 = byte 0, v20
+    v22 = shl v21, 248
+    v23 = shr v22, 248
+    v24 = trunc i256 v23 to i8
+    v25 = zext i8 v24 to i256
+    v26 = mload v0
+    v27 = gt v26, 0
+    v28 = eq v27, false
+    icall panic_if<0x32>, v28
+    v29 = ptradd v0, 32
+    v30 = mload v29
+    v31 = mload v0
+    v32 = gt v31, 1
+    v33 = eq v32, false
+    icall panic_if<0x32>, v33
+    v34 = ptradd v0, 64
+    v35 = mload v34
+    v36 = mload v0
+    v37 = gt v36, 2
+    v38 = eq v37, false
+    icall panic_if<0x32>, v38
+    v39 = ptradd v0, 96
+    v40 = mload v39
+    v41 = insert_value struct1, undef struct1, 0, v25
+    v42 = insert_value struct1, v41, 1, v30
+    v43 = insert_value struct1, v42, 2, v35
+    v44 = insert_value struct1, v43, 3, v40
+    ret v44
 }
 
 ; function dynamicArgumentCatch() external view returns (uint256 moved, uint256 caught, uint256, uint256, uint256) [selector 0x40086014]

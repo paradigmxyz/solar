@@ -295,6 +295,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.returndata_bytes()
     }
 
+    /// Copies the call's returndata into a headerless memory buffer and returns its slice, which
+    /// `abi_decode` reads in place. The buffer has no length word because nothing observes it
+    /// after the decoding.
+    pub(super) fn materialize_returndata_decode_source(&mut self) -> ValueId {
+        // NOTE: The padding of `returndatasize`, which is far below `2^64`, cannot wrap.
+        // size = returndatasize
+        // buffer = alloc pad32(size)
+        // returndatacopy(buffer, 0, size)
+        // source = make_slice(buffer, size)
+        let size = self.builder.returndatasize();
+        let padded = self.builder.pad_to_word(size);
+        let buffer = self.builder.alloc(padded, AllocationSemantics::INTERNAL);
+        let zero = self.builder.imm(U256::ZERO);
+        self.builder.copy(buffer, zero, size, PtrLocation::Returndata);
+        self.builder.make_slice(buffer, size, PtrLocation::Memory)
+    }
+
     /// Returns the current call's returndata size, or zero before Byzantium.
     pub(super) fn current_returndata_size(&mut self) -> ValueId {
         if self.cx.gcx.sess.opts.evm_version.supports_returndata() {

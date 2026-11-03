@@ -65,8 +65,13 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
   bb3:                                            ; preds = bb2
     revert_returndata
   bb4:                                            ; preds = bb2
-    v7 = icall returndata_bytes<>
-    v8 = abi_decode [bytes], v7
+    v7 = returndatasize
+    v8 = add v7, 31
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v10 = alloc v9
+    returndatacopy v10, 0, v7
+    v11 = make_memory_slice v10, v7
+    v12 = abi_decode [bytes], v11
     ret 1
 }
 
@@ -90,8 +95,13 @@ fn @liveString() -> i256 [selector=0x86c92c52, abi_params=[], abi_returns=[word]
   bb3:                                            ; preds = bb2
     revert_returndata
   bb4:                                            ; preds = bb2
-    v7 = icall returndata_bytes<>
-    v8 = abi_decode [bytes], v7
+    v7 = returndatasize
+    v8 = add v7, 31
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v10 = alloc v9
+    returndatacopy v10, 0, v7
+    v11 = make_memory_slice v10, v7
+    v12 = abi_decode [bytes], v11
     ret 1
 }
 
@@ -120,12 +130,17 @@ fn @liveTry() -> i256 [selector=0xc2e69a83, abi_params=[], abi_returns=[word], a
   bb6:                                            ; preds = bb4
     jump bb5
   bb3:                                            ; preds = bb2
-    v7 = icall returndata_bytes<>
-    v8 = abi_decode [bytes], v7
+    v7 = returndatasize
+    v8 = add v7, 31
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v10 = alloc v9
+    returndatacopy v10, 0, v7
+    v11 = make_memory_slice v10, v7
+    v12 = abi_decode [bytes], v11
     jump bb5
   bb5:                                            ; preds = bb3, bb6
-    v9 = phi [bb3: 1], [bb6: 2]
-    ret v9
+    v13 = phi [bb3: 1], [bb6: 2]
+    ret v13
 }
 
 ; function liveMixed() external returns (uint256 r) [selector 0xaf1b6bff]
@@ -148,15 +163,20 @@ fn @liveMixed() -> i256 [selector=0xaf1b6bff, abi_params=[], abi_returns=[word],
   bb3:                                            ; preds = bb2
     revert_returndata
   bb4:                                            ; preds = bb2
-    v7 = icall returndata_bytes<>
-    v8 = abi_decode [uint256, bytes], v7
-    v9 = extract_value struct0, v8, 0
-    v10 = extract_value struct0, v8, 1
-    v11 = insert_value struct0, undef struct0, 0, v9
-    v12 = insert_value struct0, v11, 1, v10
+    v7 = returndatasize
+    v8 = add v7, 31
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v10 = alloc v9
+    returndatacopy v10, 0, v7
+    v11 = make_memory_slice v10, v7
+    v12 = abi_decode [uint256, bytes], v11
     v13 = extract_value struct0, v12, 0
     v14 = extract_value struct0, v12, 1
-    ret v13
+    v15 = insert_value struct0, undef struct0, 0, v13
+    v16 = insert_value struct0, v15, 1, v14
+    v17 = extract_value struct0, v16, 0
+    v18 = extract_value struct0, v16, 1
+    ret v17
 }
 
 ; function liveTuple() external returns (uint256) [selector 0x04e1eee0]
@@ -179,18 +199,28 @@ fn @liveTuple() -> i256 [selector=0x04e1eee0, abi_params=[], abi_returns=[word],
   bb3:                                            ; preds = bb2
     revert_returndata
   bb4:                                            ; preds = bb2
-    v7 = icall returndata_bytes<>
-    v8 = abi_decode [bytes], v7
-    v9 = gas
+    v7 = returndatasize
+    v8 = add v7, 31
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v10 = alloc v9
+    returndatacopy v10, 0, v7
+    v11 = make_memory_slice v10, v7
+    v12 = abi_decode [bytes], v11
+    v13 = gas
     mstore 0, 0x2f4e7409 !metadata(memory=scratch)
-    v10 = zext i160 v2 to i256
-    v11 = call v9, v10, 0, 28, 4, 0, 0
-    jumpi v11, bb6, bb5
+    v14 = zext i160 v2 to i256
+    v15 = call v13, v14, 0, 28, 4, 0, 0
+    jumpi v15, bb6, bb5
   bb5:                                            ; preds = bb4
     revert_returndata
   bb6:                                            ; preds = bb4
-    v12 = icall returndata_bytes<>
-    v13 = abi_decode [bytes], v12
+    v16 = returndatasize
+    v17 = add v16, 31
+    v18 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v19 = alloc v18
+    returndatacopy v19, 0, v16
+    v20 = make_memory_slice v19, v16
+    v21 = abi_decode [bytes], v20
     ret 1
 }
 
@@ -220,8 +250,13 @@ fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
   bb3:                                            ; preds = bb2
     revert_returndata
   bb4:                                            ; preds = bb2
-    v13 = icall returndata_bytes<>
-    v14 = abi_decode [bytes], v13
+    v13 = returndatasize
+    v14 = add v13, 31
+    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v16 = alloc v15
+    returndatacopy v16, 0, v13
+    v17 = make_memory_slice v16, v13
+    v18 = abi_decode [bytes], v17
     ret 1
 }
 
@@ -239,9 +274,9 @@ fn @liveLoop() -> i256 [selector=0xcb9e3e0f, abi_params=[], abi_returns=[word], 
   bb2:                                            ; preds = bb0
     jump bb3
   bb3:                                            ; preds = bb2, bb5
-    v4 = phi [bb2: 0], [bb5: v13]
+    v4 = phi [bb2: 0], [bb5: v17]
     v5 = phi [bb2: v2], [bb5: v5]
-    v6 = phi [bb2: 0], [bb5: v14]
+    v6 = phi [bb2: 0], [bb5: v18]
     v7 = lt v6, 3
     jumpi v7, bb6, bb7
   bb7:                                            ; preds = bb3
@@ -257,14 +292,19 @@ fn @liveLoop() -> i256 [selector=0xcb9e3e0f, abi_params=[], abi_returns=[word], 
   bb9:                                            ; preds = bb6
     revert_returndata
   bb10:                                           ; preds = bb6
-    v11 = icall returndata_bytes<>
-    v12 = abi_decode [bytes], v11
-    v13 = checked_add uint256, v4, 1
+    v11 = returndatasize
+    v12 = add v11, 31
+    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v14 = alloc v13
+    returndatacopy v14, 0, v11
+    v15 = make_memory_slice v14, v11
+    v16 = abi_decode [bytes], v15
+    v17 = checked_add uint256, v4, 1
     jump bb8
   bb8:                                            ; preds = bb10
     jump bb5
   bb5:                                            ; preds = bb8
-    v14 = checked_add uint256, v6, 1
+    v18 = checked_add uint256, v6, 1
     jump bb3
 }
 
@@ -278,8 +318,13 @@ fn @noCode() -> i256 [selector=0x96c56dce, abi_params=[], abi_returns=[word], ab
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    v2 = icall returndata_bytes<>
-    v3 = abi_decode [bytes], v2
+    v2 = returndatasize
+    v3 = add v2, 31
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v5 = alloc v4
+    returndatacopy v5, 0, v2
+    v6 = make_memory_slice v5, v2
+    v7 = abi_decode [bytes], v6
     ret 1
 }
 
@@ -298,10 +343,15 @@ fn @noCodeTry() -> i256 [selector=0x1908ad35, abi_params=[], abi_returns=[word],
   bb4:                                            ; preds = bb2
     jump bb3
   bb1:                                            ; preds = bb0
-    v2 = icall returndata_bytes<>
-    v3 = abi_decode [bytes], v2
+    v2 = returndatasize
+    v3 = add v2, 31
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v5 = alloc v4
+    returndatacopy v5, 0, v2
+    v6 = make_memory_slice v5, v2
+    v7 = abi_decode [bytes], v6
     jump bb3
   bb3:                                            ; preds = bb1, bb4
-    v4 = phi [bb1: 1], [bb4: 2]
-    ret v4
+    v8 = phi [bb1: 1], [bb4: 2]
+    ret v8
 }

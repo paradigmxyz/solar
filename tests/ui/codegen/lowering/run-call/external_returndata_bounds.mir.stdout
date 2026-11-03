@@ -231,8 +231,13 @@ fn @truncated() -> i256 [selector=0xfc1dad0b, abi_params=[], abi_returns=[word],
   bb3:                                            ; preds = bb2
     revert_returndata
   bb4:                                            ; preds = bb2
-    v7 = icall returndata_bytes<>
-    v8 = abi_decode [bytes], v7
-    v9 = mload v8
-    ret v9
+    v7 = returndatasize
+    v8 = add v7, 31
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v10 = alloc v9
+    returndatacopy v10, 0, v7
+    v11 = make_memory_slice v10, v7
+    v12 = abi_decode [bytes], v11
+    v13 = mload v12
+    ret v13
 }
