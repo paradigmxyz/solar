@@ -249,7 +249,7 @@ impl<'gcx> TypeChecker<'gcx> {
         if ty.references_error() {
             return;
         }
-        if !self.is_pure(slot) {
+        if !self.results.is_pure(self.gcx, slot) {
             self.dcx().emit_err_code(
                 slot.span,
                 error_code!(1139),
@@ -3186,7 +3186,10 @@ impl<'gcx> TypeChecker<'gcx> {
                 } else {
                     self.expect_ty(init, ty)
                 };
-                if var.is_constant() && !ty.references_error() && !self.is_pure(init) {
+                if var.is_constant()
+                    && !ty.references_error()
+                    && !self.results.is_pure(self.gcx, init)
+                {
                     self.dcx().emit_err_code(
                         init.span,
                         error_code!(8349),
@@ -4306,7 +4309,7 @@ fn valid_unop(ty: Ty<'_>, op: hir::UnOpKind) -> bool {
     }
 }
 
-fn binop_common_type<'gcx>(
+pub(crate) fn binop_common_type<'gcx>(
     gcx: Gcx<'gcx>,
     ty: Ty<'gcx>,
     other: Ty<'gcx>,

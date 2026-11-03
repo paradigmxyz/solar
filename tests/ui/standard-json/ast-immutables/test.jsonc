@@ -1,0 +1,60 @@
+//@ filecheck:
+// The keys of `immutableReferences` are the IDs of the immutable `VariableDeclaration`s.
+// CHECK: "nodeType": "ContractDefinition",
+// CHECK: "nodes": [
+// CHECK-NEXT: {
+// CHECK-NEXT: "id": [[ORIGINAL:[0-9]+]],
+// CHECK-NEXT: "src": "{{[0-9:]+}}",
+// CHECK-NEXT: "nodeType": "VariableDeclaration",
+// CHECK-NEXT: "name": "ORIGINAL",
+// CHECK: "scope": {{[0-9]+}},
+// CHECK-NEXT: "typeDescriptions": {
+// CHECK-NEXT: "typeIdentifier": "t_address",
+// CHECK-NEXT: "typeString": "address"
+// CHECK-NEXT: }
+// CHECK-NEXT: },
+// CHECK-NEXT: {
+// CHECK-NEXT: "id": [[LENDER:[0-9]+]],
+// CHECK-NEXT: "src": "{{[0-9:]+}}",
+// CHECK-NEXT: "nodeType": "VariableDeclaration",
+// CHECK-NEXT: "name": "LENDER",
+// CHECK: "parameters": [
+// CHECK-NEXT: {
+// CHECK-NEXT: "id": [[PARAM:[0-9]+]],
+// CHECK-NEXT: "src": "{{[0-9:]+}}",
+// CHECK-NEXT: "nodeType": "VariableDeclaration",
+// CHECK-NEXT: "name": "lender",
+// The constructor assigns `address(this)` to the first and its parameter to the second.
+// CHECK: "nodeType": "Assignment",
+// CHECK: "leftHandSide": {
+// CHECK: "name": "ORIGINAL",
+// CHECK-NEXT: "referencedDeclaration": [[ORIGINAL]],
+// CHECK: "rightHandSide": {
+// CHECK: "nodeType": "FunctionCall",
+// CHECK: "kind": "typeConversion",
+// CHECK: "nodeType": "Assignment",
+// CHECK: "leftHandSide": {
+// CHECK: "name": "LENDER",
+// CHECK-NEXT: "referencedDeclaration": [[LENDER]],
+// CHECK: "rightHandSide": {
+// CHECK: "name": "lender",
+// CHECK-NEXT: "referencedDeclaration": [[PARAM]],
+// CHECK: "immutableReferences": {
+// CHECK-NEXT: "[[ORIGINAL]]": [
+// CHECK: "[[LENDER]]": [
+{
+  "language": "Solidity",
+  "sources": {},
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "": [
+          "ast"
+        ],
+        "*": [
+          "evm.deployedBytecode.immutableReferences"
+        ]
+      }
+    }
+  }
+}

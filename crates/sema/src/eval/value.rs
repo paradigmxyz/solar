@@ -783,6 +783,11 @@ impl IntScalar {
         Self::bits(&self.data)
     }
 
+    /// Returns the value.
+    pub fn as_bigint(&self) -> &BigInt {
+        &self.data
+    }
+
     /// Returns whether the value is negative.
     pub fn is_negative(&self) -> bool {
         self.data.is_negative()
