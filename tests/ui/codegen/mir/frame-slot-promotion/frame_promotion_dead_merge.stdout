@@ -1,19 +1,19 @@
-- // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_dead_merge.mir (before frame-slot-promotion) ===
-+ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_dead_merge.mir (after frame-slot-promotion) ===
+- ; === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_dead_merge.mir (before frame-slot-promotion) ===
++ ; === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_dead_merge.mir (after frame-slot-promotion) ===
   @module FramePromotionDeadMerge
   fn @dead_merge(arg0: i256, arg1: i1) -> i256 {
     bb0:
       jumpi arg1, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       jump bb3
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       jump bb3
-    bb3:  ; preds = bb1, bb2
+    bb3:                                            ; preds = bb1, bb2
       v0 = internal_frame_addr 128
       v1 = ptrtoint ptr<memory> v0 to i256
 -     mstore v1, 0
       jump bb4
-    bb4:  ; preds = bb3, bb5
+    bb4:                                            ; preds = bb3, bb5
 +     v12 = phi [bb3: 0], [bb5: v6]
       v2 = internal_frame_addr 128
       v3 = ptrtoint ptr<memory> v2 to i256
@@ -21,13 +21,13 @@
 -     v5 = lt v4, arg0
 +     v5 = lt v12, arg0
       jumpi v5, bb5, bb6
-    bb6:  ; preds = bb4
+    bb6:                                            ; preds = bb4
       v9 = internal_frame_addr 128
       v10 = ptrtoint ptr<memory> v9 to i256
 -     v11 = mload v10
 -     ret v11
 +     ret v12
-    bb5:  ; preds = bb4
+    bb5:                                            ; preds = bb4
 -     v6 = add v4, 1
 +     v6 = add v12, 1
       v7 = internal_frame_addr 128

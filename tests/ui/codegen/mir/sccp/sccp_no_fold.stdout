@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/sccp/sccp_no_fold.mir (before sccp) ===
-+ // === ROOT/tests/ui/codegen/mir/sccp/sccp_no_fold.mir (after sccp) ===
+- ; === ROOT/tests/ui/codegen/mir/sccp/sccp_no_fold.mir (before sccp) ===
++ ; === ROOT/tests/ui/codegen/mir/sccp/sccp_no_fold.mir (after sccp) ===
   @module SccpNoFold
   fn @with_arg(arg0: i256) -> i256 {
     bb0:

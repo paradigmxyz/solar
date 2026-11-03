@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/extended_stack.sol:ExtendedStack ===
+; === ROOT/tests/ui/codegen/lowering/run-call/extended_stack.sol:ExtendedStack ===
 @module ExtendedStack
 ; function check() external view returns (bool result) [selector 0x919840ad]
 fn @check() -> i256 [selector=0x919840ad, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {

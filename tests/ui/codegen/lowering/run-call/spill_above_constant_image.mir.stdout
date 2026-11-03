@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/spill_above_constant_image.sol:Registry ===
+; === ROOT/tests/ui/codegen/lowering/run-call/spill_above_constant_image.sol:Registry ===
 @module Registry
 ; function createAccount( address implementation, bytes32 salt, uint256 chainId, address tokenContract, uint256 tokenId ) external returns (address) [selector 0x8a54c52f]
 fn @createAccount(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) -> i160 [selector=0x8a54c52f, abi_params=[address, bytes32, uint256, address, uint256], abi_returns=[word<uint160>], abi_return_params=[address]] {
@@ -21,31 +21,31 @@ fn @createAccount(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) ->
     v7 = zext i1 v6 to i256
     v8 = ne v7, 0
     jumpi v8, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v13 = shl v4, 96
     v14 = shr v13, 96
     mstore 0, v14 !metadata(memory=scratch)
     returndata 0, 32
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v9: i256 = create2 0, 85, 183, arg1
     v10 = eq v9, 0
     v11 = zext i1 v10 to i256
     v12 = ne v11, 0
     jumpi v12, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb6
-  bb6:  ; preds = bb5
+  bb6:                                            ; preds = bb5
     mstore 108, v9 !metadata(memory=scratch)
     log 108, 96, 0x79f19b3655ee38b1ce526556b7731a20c8f218fbda4a3990b6cc4172fdf88722, arg0, arg3, arg4
     returndata 108, 32
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     mstore 0, 0x20188a59 !metadata(memory=scratch)
     revert 28, 4
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/spill_above_constant_image.sol:Harness ===
+; === ROOT/tests/ui/codegen/lowering/run-call/spill_above_constant_image.sol:Harness ===
 @module Harness
 @data
   Registry_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/spill_above_constant_image.sol:Registry"
@@ -59,9 +59,9 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = gas
     v5 = abi_encode [word<uint160>, word, word, word<uint160>, word], scratch, selector 0x8a54c52f00000000000000000000000000000000000000000000000000000000, args 0x1111111111111111111111111111111111111111, 0x2200000000000000000000000000000000000000000000000000000000000033, 0x7a69, 0x4444444444444444444444444444444444444444, 0x5555
     v6 = extract_value slice<memory>, v5, 0
@@ -69,9 +69,9 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v8 = zext i160 v2 to i256
     v9 = call v4, v8, 0, v6, v7, 0, 32
     jumpi v9, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v10 = returndatasize
     v11 = lt v10, 32
     icall revert_if<tuple_data_too_short>, v11

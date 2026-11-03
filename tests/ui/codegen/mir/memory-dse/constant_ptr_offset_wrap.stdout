@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/memory-dse/constant_ptr_offset_wrap.mir (before memory-dse) ===
-+ // === ROOT/tests/ui/codegen/mir/memory-dse/constant_ptr_offset_wrap.mir (after memory-dse) ===
+- ; === ROOT/tests/ui/codegen/mir/memory-dse/constant_ptr_offset_wrap.mir (before memory-dse) ===
++ ; === ROOT/tests/ui/codegen/mir/memory-dse/constant_ptr_offset_wrap.mir (after memory-dse) ===
   @module ConstantPointerOffsetWrap
   fn @wrapped_read(arg0: i256) {
     bb0:
@@ -63,13 +63,13 @@
       mstore 32, 7
       v0 = mload 64
       jumpi arg0, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       jump bb3
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       v1 = mload v0
 -     mstore 160, v1
       jump bb3
-    bb3:  ; preds = bb1, bb2
+    bb3:                                            ; preds = bb1, bb2
       v2 = inttoptr i256 v0 to ptr<memory>
       v3 = ptradd v2, 64
       returndata v3, 32

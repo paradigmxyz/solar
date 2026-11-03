@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/spill_hazard_loaded_pointer.sol:C ===
+; === ROOT/tests/ui/codegen/lowering/run-call/spill_hazard_loaded_pointer.sol:C ===
 @module C
 ; function g(uint x, uint n, uint s, uint i) external pure returns (bytes32) [selector 0x84fac6b9]
 fn @g(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector=0x84fac6b9, pure, abi_params=[uint256, uint256, uint256, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -6,11 +6,11 @@ fn @g(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector=0x84fac6
     v0 = alloc zeroed checked 64
     mstore v0, 1
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v6]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v7 = shl arg3, 5
     v8 = ptrtoint ptr<memory> v0 to i256
     v9 = add v8, 32
@@ -80,7 +80,7 @@ fn @g(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector=0x84fac6
     v70 = xor v69, v49
     v71 = xor v70, v51
     ret v71
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32

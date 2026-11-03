@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/memory-dse/overwritten_ranges.sol:OverwrittenRanges ===
+; === ROOT/tests/ui/codegen/mir/memory-dse/overwritten_ranges.sol:OverwrittenRanges ===
 @module OverwrittenRanges
 @phase lowered
 ; runtime dispatch entry
@@ -7,21 +7,21 @@ fn @entry() [entry] {
     v0 = callvalue
     v1 = ne v0, 0
     jumpi v1, bb7, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v2 = calldataload 0
     v3 = shr v2, 224
     switch v3, default bb7, [0x5e97f278 => bb2, 0x6649a3b9 => bb3, 0x7fce0203 => bb4, 0x9defb653 => bb5, 0xa6a0e5ea => bb6]
-  bb6:  ; preds = bb1
+  bb6:                                            ; preds = bb1
     tail_call @returndataBounds
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     tail_call @partialOverwrite
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     tail_call @expansion
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     tail_call @allocated
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     tail_call @overwritten
-  bb7 [cold]:  ; preds = bb0, bb1
+  bb7 [cold]:                                     ; preds = bb0, bb1
     revert 0, 0
 }
 
@@ -68,7 +68,7 @@ fn @allocated() {
     v9 = calldatasize
     v10 = lt v9, 68
     jumpi v10, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v28 = heap_floor !metadata(alloc_ptr)
     v29 = add v28, 96 !metadata(alloc_ptr)
     v30 = lt v29, v28
@@ -77,7 +77,7 @@ fn @allocated() {
     v33 = or v32, v31
     v34 = ne v33, 0
     jumpi v34, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v36 = calldataload 36
     v35 = calldataload 4
     mstore v28, 2
@@ -88,10 +88,10 @@ fn @allocated() {
     v26 = sub v28, 32
     mstore v26, 32
     returndata v26, 128
-  bb4 [cold]:  ; preds = bb2
+  bb4 [cold]:                                     ; preds = bb2
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1 [cold]:  ; preds = bb0
+  bb1 [cold]:                                     ; preds = bb0
     revert 0, 0
 }

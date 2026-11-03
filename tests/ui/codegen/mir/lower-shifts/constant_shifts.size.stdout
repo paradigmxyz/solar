@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lower-shifts/constant_shifts.mir (before lower-shifts) ===
-+ // === ROOT/tests/ui/codegen/mir/lower-shifts/constant_shifts.mir (after lower-shifts) ===
+- ; === ROOT/tests/ui/codegen/mir/lower-shifts/constant_shifts.mir (before lower-shifts) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-shifts/constant_shifts.mir (after lower-shifts) ===
   @module ConstantShifts
   fn @narrow(arg0: i256) -> i256 {
     bb0:

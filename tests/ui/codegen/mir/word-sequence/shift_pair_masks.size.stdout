@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/word-sequence/shift_pair_masks.mir (before word-sequence) ===
-+ // === ROOT/tests/ui/codegen/mir/word-sequence/shift_pair_masks.mir (after word-sequence) ===
+- ; === ROOT/tests/ui/codegen/mir/word-sequence/shift_pair_masks.mir (before word-sequence) ===
++ ; === ROOT/tests/ui/codegen/mir/word-sequence/shift_pair_masks.mir (after word-sequence) ===
   @module ShiftPairMasks
   fn @extract(arg0: i256) -> i256 {
     bb0:

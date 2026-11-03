@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_nested_reencode.sol:AbiCalldataNestedReencode ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_nested_reencode.sol:AbiCalldataNestedReencode ===
 @module AbiCalldataNestedReencode
 ; function encode3d(uint8[][][] calldata values) external pure returns (bytes32) [selector 0x92a57dfa]
 fn @encode3d(arg0: slice<calldata>) -> i256 [selector=0x92a57dfa, pure, abi_params=[array<_, array<_, array<_, uint8>>>], abi_returns=[word], abi_return_params=[bytes32]] {

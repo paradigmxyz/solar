@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/peephole/modular_swaps.evmir (before peephole) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/peephole/modular_swaps.evmir (after peephole) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/peephole/modular_swaps.evmir (before peephole) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/peephole/modular_swaps.evmir (after peephole) ===
   @module ModularSwaps
   bb0 [stack=3]:
 -   swap 1

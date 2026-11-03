@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/stack-normalize/debug_info.evmir (before stack-normalize) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/stack-normalize/debug_info.evmir (after stack-normalize) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/stack-normalize/debug_info.evmir (before stack-normalize) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/stack-normalize/debug_info.evmir (after stack-normalize) ===
   @module DebugInfo
   bb0:
     push 1 !metadata(span=1..2)

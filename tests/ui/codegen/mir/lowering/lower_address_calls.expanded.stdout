@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/lowering/lower_address_calls.mir (before lower-builtins) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/lower_address_calls.mir (after lower-builtins) ===
+- ; === ROOT/tests/ui/codegen/mir/lowering/lower_address_calls.mir (before lower-builtins) ===
++ ; === ROOT/tests/ui/codegen/mir/lowering/lower_address_calls.mir (after lower-builtins) ===
   @module AddressCalls
   fn @default_call(arg0: i160, arg1: ptr<memory>) -> i256 {
     bb0:
@@ -29,7 +29,7 @@
 +     v9 = add v8, 32 !metadata(span=30..40, modifier_depth=3)
 +     v10 = lt v9, v6 !metadata(span=30..40, modifier_depth=3)
 +     jumpi v10, bb1, bb2 !metadata(span=30..40, modifier_depth=3)
-+   bb2:  ; preds = bb0
++   bb2:                                            ; preds = bb0
 +     v11 = alloc v9 !metadata(span=30..40, modifier_depth=3)
 +     mstore v11, v6 !metadata(span=30..40, modifier_depth=3)
 +     v12 = make_returndata_slice ptr<returndata> 0, v6 !metadata(span=30..40, modifier_depth=3)
@@ -38,7 +38,7 @@
 +     v15 = extract_value slice<returndata>, v12, 1 !metadata(span=30..40, modifier_depth=3)
 +     returndatacopy v13, v14, v15 !metadata(span=30..40, modifier_depth=3)
 +     ret v11
-+   bb1 [cold]:  ; preds = bb0
++   bb1 [cold]:                                     ; preds = bb0
 +     mstore 32, 65 !metadata(memory=scratch, span=30..40, modifier_depth=3)
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=30..40, modifier_depth=3)
 +     revert 28, 36 !metadata(span=30..40, modifier_depth=3)

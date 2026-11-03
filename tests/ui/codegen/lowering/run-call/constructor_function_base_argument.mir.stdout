@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_base_argument.sol:ConstructorFunctionBaseBase ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_base_argument.sol:ConstructorFunctionBaseBase ===
 @module ConstructorFunctionBaseBase
 ; constructor(uint256 value_) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
@@ -13,7 +13,7 @@ fn @two() -> i256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word],
     ret 2
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_base_argument.sol:ConstructorFunctionBase ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_base_argument.sol:ConstructorFunctionBase ===
 @module ConstructorFunctionBase
 ; creation entry
 fn @constructor() [constructor] {
@@ -21,7 +21,7 @@ fn @constructor() [constructor] {
     v0 = icall @two
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     ret
 }
 
@@ -31,7 +31,7 @@ fn @two() -> i256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word],
     ret 2
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_base_argument.sol:ConstructorFunctionBaseDerived ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_base_argument.sol:ConstructorFunctionBaseDerived ===
 @module ConstructorFunctionBaseDerived
 ; creation entry
 fn @constructor() [constructor] {
@@ -39,7 +39,7 @@ fn @constructor() [constructor] {
     v0 = icall @two
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     ret
 }
 

@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/stack-normalize/runs.evmir (before stack-normalize) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/stack-normalize/runs.evmir (after stack-normalize) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/stack-normalize/runs.evmir (before stack-normalize) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/stack-normalize/runs.evmir (after stack-normalize) ===
   @module module
   bb0:
     push 1

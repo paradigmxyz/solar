@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/inline/dispatch/signatures.sol:Signatures ===
+; === ROOT/tests/ui/codegen/mir/inline/dispatch/signatures.sol:Signatures ===
 @module Signatures
 ; function ping() external pure [selector 0x5c36b186]
 fn @ping() [selector=0x5c36b186, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
