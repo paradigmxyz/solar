@@ -1356,6 +1356,18 @@ impl<'a> Planner<'a> {
                 || !self.held.get(&value).is_some_and(|held| held.contains(self.current.get())))
     }
 
+    /// Whether a phi result can take over a word that holds `input`: a word dead in the successor
+    /// always can, and so can the word of a fresh input that the successor reads, since the
+    /// successor pushes it again at each use.
+    fn word_reusable(&self, input: ValueId, live_in: bool) -> bool {
+        self.is_fresh(input) == live_in
+    }
+
+    /// Whether a view word keeps `input` live although the successor can push it again.
+    fn is_live_fresh_word(&self, slot: Slot, input: ValueId) -> bool {
+        slot == Slot::Value(input) && self.is_fresh(input)
+    }
+
     /// Whether a word can be pushed without a stack copy.
     fn is_fresh_slot(&self, slot: Slot) -> bool {
         match slot {
@@ -2320,8 +2332,10 @@ impl<'a> Planner<'a> {
     }
 
     /// The successor's view of each word of the predecessor's stack, with phi inputs renamed to
-    /// their results where an otherwise dead word holds them. Returns `None` when a phi input
-    /// has no such word.
+    /// their results where an otherwise dead word holds them. A fresh input that the successor
+    /// reads also gives its word to the result, except for a floating successor: `view` fixes
+    /// its layout from the first edge, and renaming there grew `openzeppelin-p256` at `-Osize`.
+    /// Returns `None` when a phi input has no such word.
     fn view(&self, sim: &Sim, pred: BlockId, succ: BlockId) -> Option<Layout> {
         let live_in = self.liveness.live_in(succ);
         let floating = self.floating.contains(succ);
@@ -2338,9 +2352,11 @@ impl<'a> Planner<'a> {
             if self.spilled.contains(result) {
                 return None;
             }
-            let position = (0..view.len())
-                .rev()
-                .find(|&p| sim.stack[p] == Slot::Value(input) && view[p] == Slot::Junk)?;
+            let position = (0..view.len()).rev().find(|&p| {
+                sim.stack[p] == Slot::Value(input)
+                    && (view[p] == Slot::Junk
+                        || (!floating && self.is_live_fresh_word(view[p], input)))
+            })?;
             view[position] = Slot::Value(result);
         }
         Some(view)
@@ -2751,8 +2767,7 @@ impl<'a> Planner<'a> {
             if self.spilled.contains(result) {
                 continue;
             }
-            let reusable = !self.is_fresh(input)
-                && !live_in.contains(input)
+            let reusable = self.word_reusable(input, live_in.contains(input))
                 && (0..sim.stack.len()).rev().any(|p| {
                     sim.stack[p] == Slot::Value(input) && !claimed.contains(&p) && {
                         claimed.push(p);
@@ -2819,7 +2834,10 @@ impl<'a> Planner<'a> {
             }
             let position = (0..base)
                 .rev()
-                .find(|&p| sim.stack[p] == Slot::Value(input) && view[p] == Slot::Junk)
+                .find(|&p| {
+                    sim.stack[p] == Slot::Value(input)
+                        && (view[p] == Slot::Junk || self.is_live_fresh_word(view[p], input))
+                })
                 .expect("reusable phi input word");
             view[position] = Slot::Value(result);
         }
@@ -2966,8 +2984,7 @@ impl<'a> Planner<'a> {
                     if self.spilled.contains(result) {
                         continue;
                     }
-                    let reusable = !self.is_fresh(input)
-                        && !live_in.contains(input)
+                    let reusable = self.word_reusable(input, live_in.contains(input))
                         && (0..sim.stack.len()).rev().any(|p| {
                             sim.stack[p] == Slot::Value(input) && !claimed.contains(&p) && {
                                 claimed.push(p);

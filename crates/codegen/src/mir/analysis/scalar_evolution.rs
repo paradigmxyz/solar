@@ -42,7 +42,7 @@ pub(crate) struct AffineExpr {
 }
 
 impl AffineExpr {
-    fn constant(constant: i128) -> Self {
+    pub(crate) fn constant(constant: i128) -> Self {
         Self { base: None, invariants: SmallVec::new(), constant, terms: SmallVec::new() }
     }
 

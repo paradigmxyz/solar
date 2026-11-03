@@ -126,7 +126,7 @@ impl ContractSelection {
             Self::Specific(contracts) => Either::Left(contracts.iter()),
             Self::All => Either::Right(gcx.hir.contract_ids().filter(move |&contract_id| {
                 let contract = gcx.hir.contract(contract_id);
-                !contract.kind.is_interface() && !contract.kind.is_abstract_contract()
+                contract.can_be_deployed()
             })),
         }
     }
@@ -335,7 +335,7 @@ impl ContractGraph {
         }
 
         let contract = gcx.hir.contract(contract_id);
-        if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
+        if !contract.can_be_deployed() {
             return Err(gcx.dcx().emit_err(
                 contract.span,
                 "cannot generate creation bytecode for non-deployable contract",
