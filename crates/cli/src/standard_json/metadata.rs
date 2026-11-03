@@ -5,6 +5,7 @@ use alloy_primitives::{Bytes, keccak256};
 use rayon::prelude::*;
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
+use solar_codegen::backend::evm::op;
 use solar_config::{RevertStrings, version};
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
@@ -19,7 +20,6 @@ use std::{
     sync::{LazyLock, OnceLock},
 };
 
-const INVALID: u8 = 0xfe;
 const IPFS_MULTIHASH_LEN: usize = 34;
 
 impl MetadataHash {
@@ -92,7 +92,7 @@ impl<'a, 'input, 'gcx> Metadata<'a, 'input, 'gcx> {
         }
         let hash = settings.bytecode_hash.value;
         let mut data = Vec::with_capacity(cbor_metadata_len(hash) + 1);
-        data.push(INVALID);
+        data.push(op::INVALID);
         match hash {
             MetadataHash::Ipfs | MetadataHash::Bzzr1 => {
                 push_cbor_metadata(&mut data, self.json(contract_id), hash);
