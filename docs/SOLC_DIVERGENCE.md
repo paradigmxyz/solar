@@ -570,12 +570,14 @@ cases:
 
 - the type of an array literal such as `[1, 2, 3]` is `uint256[3] memory`, where
   `solc` gives `uint8[3] memory`;
-- a tuple type with omitted components inside another tuple type keeps them as
-  empty tuples, such as `tuple(tuple(int256,tuple()),tuple())`;
+- a tuple type inside another tuple type takes the literal values, storage
+  locations and omitted components of the outer one, so it can print as
+  `tuple(tuple(int_const 3,int_const 3),int_const 3)` or keep omitted components
+  as empty tuples, such as `tuple(tuple(int256,tuple()),tuple())`;
 - `solc` types `require` and the functions attached to a type from the call, which
   `solar` rebuilds from the arguments and the declared receiver;
-- `isPure` of a member of `abi.decode(...)`, and a few member accesses through a
-  getter, differ;
+- `isPure` of a member of `abi.decode(...)`, of a tuple that holds a type declared
+  in a contract, and of a few member accesses through a getter, differ;
 - the names before the last one in the callee of `emit` and `revert`, and in the
   argument of `type(...)`, take their resolution from name resolution alone;
 - `isSimpleCounterLoop` does not look for writes in inline assembly.
