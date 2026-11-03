@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/egraph/clz_runtime.sol:YulClzSimplify ===
+; === ROOT/tests/ui/codegen/mir/egraph/clz_runtime.sol:YulClzSimplify ===
 @module YulClzSimplify
 @types
   struct0: {i256, i256, i256, i256}

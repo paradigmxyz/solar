@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_store_function.sol:ConstructorStoreFunction ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_store_function.sol:ConstructorStoreFunction ===
 @module ConstructorStoreFunction
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
@@ -40,10 +40,10 @@ fn @internal_dispatcher_p_uint256_r_uint256(arg0: i256, arg1: i256) -> i256 [fun
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = icall @double, arg1
     ret v1
 }

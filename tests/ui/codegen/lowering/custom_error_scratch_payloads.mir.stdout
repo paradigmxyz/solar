@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/custom_error_scratch_payloads.sol:CustomErrorPayloads ===
+; === ROOT/tests/ui/codegen/lowering/custom_error_scratch_payloads.sol:CustomErrorPayloads ===
 @module CustomErrorPayloads
 ; function none() external pure [selector 0xa877db9f]
 fn @none() [selector=0xa877db9f, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
@@ -56,9 +56,9 @@ fn @allocateBelow(arg0: i256) -> i256 [selector=0x552a8664, pure, abi_params=[ui
   bb0:
     v0 = gt arg0, 10
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v1 = mul arg0, 1
     v2 = eq 1, 0
     v3 = div v1, 1
@@ -97,7 +97,7 @@ fn @allocateBelow(arg0: i256) -> i256 [selector=0x552a8664, pure, abi_params=[ui
     v29 = mload v28
     v30 = checked_add uint256, v21, v29
     ret v30
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     icall require<custom_error [word]>, false, 0xb24d1aa00000000000000000000000000000000000000000000000000000000, arg0
     invalid
 }

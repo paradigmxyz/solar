@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/readonly-eval/closed_calls.mir (before readonly-eval) ===
-+ // === ROOT/tests/ui/codegen/mir/readonly-eval/closed_calls.mir (after readonly-eval) ===
+- ; === ROOT/tests/ui/codegen/mir/readonly-eval/closed_calls.mir (before readonly-eval) ===
++ ; === ROOT/tests/ui/codegen/mir/readonly-eval/closed_calls.mir (after readonly-eval) ===
   @module ClosedCalls
   fn @closed() -> i256 {
     bb0:
@@ -19,10 +19,10 @@
     bb0:
       v0 = eq arg0, 42
       jumpi v0, bb1, bb2
-    bb2 [cold]:  ; preds = bb0
+    bb2 [cold]:                                     ; preds = bb0
       mstore 0, 17
       revert 0, 32
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       ret
   }
   

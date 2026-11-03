@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/disasm/creation_pricing.sol:Constants (deployment) ===
+; === ROOT/tests/ui/codegen/disasm/creation_pricing.sol:Constants (deployment) ===
 PUSH1 0xff
 CODESIZE
 SUB
@@ -95,7 +95,7 @@ JUMPDEST
 PUSH0
 PUSH0
 REVERT
-// === ROOT/tests/ui/codegen/disasm/creation_pricing.sol:Shared (deployment) ===
+; === ROOT/tests/ui/codegen/disasm/creation_pricing.sol:Shared (deployment) ===
 PUSH2 0x0129
 CODESIZE
 SUB
@@ -186,7 +186,7 @@ JUMPDEST
 PUSH0
 PUSH0
 REVERT
-// === ROOT/tests/ui/codegen/disasm/creation_pricing.sol:Looped (deployment) ===
+; === ROOT/tests/ui/codegen/disasm/creation_pricing.sol:Looped (deployment) ===
 PUSH1 0xc1
 CODESIZE
 SUB
@@ -277,7 +277,7 @@ JUMPDEST
 PUSH0
 PUSH0
 REVERT
-// === ROOT/tests/ui/codegen/disasm/creation_pricing.sol:LoopCalled (deployment) ===
+; === ROOT/tests/ui/codegen/disasm/creation_pricing.sol:LoopCalled (deployment) ===
 PUSH2 0x020a
 CODESIZE
 SUB
@@ -392,7 +392,7 @@ JUMPDEST
 PUSH0
 PUSH0
 REVERT
-// === ROOT/tests/ui/codegen/disasm/creation_pricing.sol:LoopAfterCall (deployment) ===
+; === ROOT/tests/ui/codegen/disasm/creation_pricing.sol:LoopAfterCall (deployment) ===
 PUSH2 0x01c6
 CODESIZE
 SUB

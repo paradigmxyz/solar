@@ -1,18 +1,18 @@
-- // === ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_phi_forwarders.mir (before cfg-simplify) ===
-+ // === ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_phi_forwarders.mir (after cfg-simplify) ===
+- ; === ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_phi_forwarders.mir (before cfg-simplify) ===
++ ; === ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_phi_forwarders.mir (after cfg-simplify) ===
   @module CfgSimplifyPhiForwarders
   fn @keep_conflicting_diamond(arg0: i1) -> i256 {
     bb0:
 -     jumpi arg0, bb1, bb2
--   bb2:  ; preds = bb0
+-   bb2:                                            ; preds = bb0
 -     jump bb3
 +     jumpi arg0, bb2, bb1
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
 -     jump bb3
--   bb3:  ; preds = bb1, bb2
+-   bb3:                                            ; preds = bb1, bb2
 -     v0 = phi [bb1: 1], [bb2: 2]
 +     jump bb2
-+   bb2:  ; preds = bb1, bb0
++   bb2:                                            ; preds = bb1, bb0
 +     v0 = phi [bb0: 1], [bb1: 2]
       ret v0
   }
@@ -20,15 +20,15 @@
   fn @fold_equal_value_diamond(arg0: i1) -> i256 {
     bb0:
 -     jumpi arg0, bb1, bb2
--   bb2:  ; preds = bb0
+-   bb2:                                            ; preds = bb0
 -     jump bb3
 +     jumpi arg0, bb2, bb1
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
 -     jump bb3
--   bb3:  ; preds = bb1, bb2
+-   bb3:                                            ; preds = bb1, bb2
 -     v0 = phi [bb1: 7], [bb2: 7]
 +     jump bb2
-+   bb2:  ; preds = bb1, bb0
++   bb2:                                            ; preds = bb1, bb0
 +     v0 = phi [bb0: 7], [bb1: 7]
       ret v0
   }

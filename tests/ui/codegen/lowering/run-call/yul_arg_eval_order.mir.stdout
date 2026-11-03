@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/yul_arg_eval_order.sol:C ===
+; === ROOT/tests/ui/codegen/lowering/run-call/yul_arg_eval_order.sol:C ===
 @module C
 ; function builtinOrder() external pure returns (uint256 r) [selector 0x0eb481d9]
 fn @builtinOrder() -> i256 [selector=0x0eb481d9, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {

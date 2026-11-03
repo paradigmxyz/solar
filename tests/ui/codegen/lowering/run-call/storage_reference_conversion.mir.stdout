@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/storage_reference_conversion.sol:StorageReferenceConversion ===
+; === ROOT/tests/ui/codegen/lowering/run-call/storage_reference_conversion.sol:StorageReferenceConversion ===
 @module StorageReferenceConversion
 @types
   struct0: {i256, i256}
@@ -202,11 +202,11 @@ fn @ternary(arg0: i1) -> i256 [selector=0xee58c378, abi_params=[bool], abi_retur
     sstore v4, 1 !metadata(storage=symbolic(v4))
     sstore 1, v2 !metadata(storage=slot(1))
     jumpi arg0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v5 = phi [bb1: 1], [bb2: 2]
     v6 = sload v5 !metadata(storage=symbolic(v5))
     ret v6
@@ -313,12 +313,12 @@ fn @stringWrite() -> i1 [selector=0xbe9c4022, abi_params=[], abi_returns=[word<b
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v9 = storage_array_data_slot 8
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v10 = phi [bb1: v9], [bb2: 8]
     v11 = sload v10 !metadata(storage=symbolic(v10))
     v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -349,10 +349,10 @@ fn @stringPush() -> i256 [selector=0x2c6d0933, abi_params=[], abi_returns=[word]
     icall panic_if<0x41>, v8
     v9 = gt v6, 31
     jumpi v9, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v23 = eq v6, 31
     jumpi v23, bb3, bb4
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v28 = add v0, 2
     v29 = sub 31, v6
     v30 = mul v29, 8
@@ -364,7 +364,7 @@ fn @stringPush() -> i256 [selector=0x2c6d0933, abi_params=[], abi_returns=[word]
     v36 = or v33, v35
     sstore 8, v36 !metadata(storage=slot(8))
     jump bb5
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v24 = storage_array_data_slot 8
     v25 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     v26 = byte 0, 0x7800000000000000000000000000000000000000000000000000000000000000
@@ -372,7 +372,7 @@ fn @stringPush() -> i256 [selector=0x2c6d0933, abi_params=[], abi_returns=[word]
     sstore v24, v27 !metadata(storage=symbolic(v24))
     sstore 8, 65 !metadata(storage=slot(8))
     jump bb5
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v10 = add v0, 2
     sstore 8, v10 !metadata(storage=slot(8))
     v11 = storage_array_data_slot 8
@@ -389,7 +389,7 @@ fn @stringPush() -> i256 [selector=0x2c6d0933, abi_params=[], abi_returns=[word]
     v22 = or v20, v21
     sstore v13, v22 !metadata(storage=symbolic(v13))
     jump bb5
-  bb5:  ; preds = bb2, bb3, bb4
+  bb5:                                            ; preds = bb2, bb3, bb4
     v37 = sload 8 !metadata(storage=slot(8))
     validate_storage_bytes v37
     v38 = and v37, 1
@@ -417,13 +417,13 @@ fn @longStringRead() -> i256 [selector=0x14aade0a, abi_params=[], abi_returns=[w
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v9 = storage_array_data_slot 8
     v10 = add v9, 1
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v11 = phi [bb1: v10], [bb2: 8]
     v12 = sload v11 !metadata(storage=symbolic(v11))
     v13 = shr v12, 224
@@ -447,13 +447,13 @@ fn @longStringWrite() -> i1 [selector=0xe6b30d9b, abi_params=[], abi_returns=[wo
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v9 = storage_array_data_slot 8
     v10 = add v9, 1
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v11 = phi [bb1: v10], [bb2: 8]
     v12 = sload v11 !metadata(storage=symbolic(v11))
     v13 = and v12, 0xffffff00ffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -484,10 +484,10 @@ fn @longStringPush() -> i1 [selector=0x34665a4c, abi_params=[], abi_returns=[wor
     icall panic_if<0x41>, v8
     v9 = gt v6, 31
     jumpi v9, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v23 = eq v6, 31
     jumpi v23, bb3, bb4
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v28 = add v0, 2
     v29 = sub 31, v6
     v30 = mul v29, 8
@@ -499,7 +499,7 @@ fn @longStringPush() -> i1 [selector=0x34665a4c, abi_params=[], abi_returns=[wor
     v36 = or v33, v35
     sstore 8, v36 !metadata(storage=slot(8))
     jump bb5
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v24 = storage_array_data_slot 8
     v25 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     v26 = byte 0, 0x3500000000000000000000000000000000000000000000000000000000000000
@@ -507,7 +507,7 @@ fn @longStringPush() -> i1 [selector=0x34665a4c, abi_params=[], abi_returns=[wor
     sstore v24, v27 !metadata(storage=symbolic(v24))
     sstore 8, 65 !metadata(storage=slot(8))
     jump bb5
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v10 = add v0, 2
     sstore 8, v10 !metadata(storage=slot(8))
     v11 = storage_array_data_slot 8
@@ -524,7 +524,7 @@ fn @longStringPush() -> i1 [selector=0x34665a4c, abi_params=[], abi_returns=[wor
     v22 = or v20, v21
     sstore v13, v22 !metadata(storage=symbolic(v13))
     jump bb5
-  bb5:  ; preds = bb2, bb3, bb4
+  bb5:                                            ; preds = bb2, bb3, bb4
     v37 = sload 8 !metadata(storage=slot(8))
     validate_storage_bytes v37
     v38 = and v37, 1
@@ -535,16 +535,16 @@ fn @longStringPush() -> i1 [selector=0x34665a4c, abi_params=[], abi_returns=[wor
     v43 = and v42, v41
     v44 = eq v43, 32
     jumpi v44, bb6, bb7
-  bb7:  ; preds = bb5
+  bb7:                                            ; preds = bb5
     jump bb8
-  bb6:  ; preds = bb5
+  bb6:                                            ; preds = bb5
     v45 = icall @load_storage_bytes, 8
     v46 = ptradd v45, 32
     v47 = mload v45
     v48 = keccak256 v46, v47
     v49 = eq v48, 0x7a6f737e43d8df6b957106ab38e3ee7356f9640efbd029c659cfb25aa1f033a1
     jump bb8
-  bb8:  ; preds = bb6, bb7
+  bb8:                                            ; preds = bb6, bb7
     v50 = phi [bb6: v49], [bb7: false]
     ret v50
 }
@@ -565,11 +565,11 @@ fn @longStringPop() -> i1 [selector=0xd2953b6b, abi_params=[], abi_returns=[word
     icall panic_if<0x31>, v7
     v8 = eq v6, 32
     jumpi v8, bb4, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v13 = sub v6, 1
     v14 = lt v6, 32
     jumpi v14, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v23 = storage_array_data_slot 8
     v24 = shr v13, 5
     v25 = add v23, v24
@@ -586,7 +586,7 @@ fn @longStringPop() -> i1 [selector=0xd2953b6b, abi_params=[], abi_returns=[word
     v35 = sub v0, 2
     sstore 8, v35 !metadata(storage=slot(8))
     jump bb5
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v15 = sub 32, v13
     v16 = mul v15, 8
     v17 = shl 1, v16
@@ -597,7 +597,7 @@ fn @longStringPop() -> i1 [selector=0xd2953b6b, abi_params=[], abi_returns=[word
     v22 = or v20, v21
     sstore 8, v22 !metadata(storage=slot(8))
     jump bb5
-  bb4:  ; preds = bb0
+  bb4:                                            ; preds = bb0
     v9 = storage_array_data_slot 8
     v10 = sload v9 !metadata(storage=symbolic(v9))
     v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
@@ -605,7 +605,7 @@ fn @longStringPop() -> i1 [selector=0xd2953b6b, abi_params=[], abi_returns=[word
     sstore 8, v12 !metadata(storage=slot(8))
     sstore v9, 0 !metadata(storage=symbolic(v9))
     jump bb5
-  bb5:  ; preds = bb4, bb2, bb3
+  bb5:                                            ; preds = bb4, bb2, bb3
     v36 = sload 8 !metadata(storage=slot(8))
     validate_storage_bytes v36
     v37 = and v36, 1
@@ -616,16 +616,16 @@ fn @longStringPop() -> i1 [selector=0xd2953b6b, abi_params=[], abi_returns=[word
     v42 = and v41, v40
     v43 = eq v42, 31
     jumpi v43, bb6, bb7
-  bb7:  ; preds = bb5
+  bb7:                                            ; preds = bb5
     jump bb8
-  bb6:  ; preds = bb5
+  bb6:                                            ; preds = bb5
     v44 = icall @load_storage_bytes, 8
     v45 = ptradd v44, 32
     v46 = mload v44
     v47 = keccak256 v45, v46
     v48 = eq v47, 0x3543932457eeb70fdd26eee26b08ef8d5b039e5d2936242e767026359c7bf7ea
     jump bb8
-  bb8:  ; preds = bb6, bb7
+  bb8:                                            ; preds = bb6, bb7
     v49 = phi [bb6: v48], [bb7: false]
     ret v49
 }

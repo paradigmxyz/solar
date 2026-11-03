@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/lowering/element_cleanup.sol:ElementCleanup (before element-cleanup) ===
-+ // === ROOT/tests/ui/codegen/lowering/element_cleanup.sol:ElementCleanup (after element-cleanup) ===
+- ; === ROOT/tests/ui/codegen/lowering/element_cleanup.sol:ElementCleanup (before element-cleanup) ===
++ ; === ROOT/tests/ui/codegen/lowering/element_cleanup.sol:ElementCleanup (after element-cleanup) ===
   @module ElementCleanup
   ; selector 0x61c4cbc4
   fn @first(arg0: ptr<memory>) -> i160 [selector=0x61c4cbc4, pure, abi_params=[array<_, address>], abi_returns=[word<uint160>], abi_return_params=[address]] {
@@ -65,13 +65,13 @@
       v1 = mload arg0
       v2 = eq v0, v1
       jumpi v2, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       jump bb3
-    bb3:  ; preds = bb2
+    bb3:                                            ; preds = bb2
       v11 = checked_add uint256, arg1, 1
       v12 = icall @last, arg0, v11
       ret v12
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       v3 = mload arg0
       v4 = lt arg1, v3
       v5 = eq v4, false

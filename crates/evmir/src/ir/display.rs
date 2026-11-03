@@ -54,15 +54,15 @@ fn display_block<'a>(module: &'a Module, block: &'a Block) -> impl fmt::Display 
         if let Some(depth) = metadata.entry_depth {
             attributes.push(format!("stack={depth}"));
         }
-        write!(f, "bb{}", block.label)?;
-        if !attributes.is_empty() {
-            write!(f, " [{}]", attributes.iter().format(", "))?;
-        }
-        write!(f, ":")?;
-        if let Some(comment) = module.comments.get(block.label) {
-            write!(f, "  ; {comment}")?;
-        }
-        writeln!(f)?;
+        let label = fmt::from_fn(|f| {
+            write!(f, "bb{}", block.label)?;
+            if !attributes.is_empty() {
+                write!(f, " [{}]", attributes.iter().format(", "))?;
+            }
+            write!(f, ":")
+        });
+        let comment = module.comments.get(block.label);
+        writeln!(f, "{}", solar_ir::comment::display_label_comment(label, comment))?;
         for inst in &block.instructions {
             writeln!(f, "  {}", display_instruction(module, inst))?;
         }

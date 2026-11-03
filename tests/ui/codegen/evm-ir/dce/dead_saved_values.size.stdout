@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/dce/dead_saved_values.evmir (before dce) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/dce/dead_saved_values.evmir (after dce) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/dce/dead_saved_values.evmir (before dce) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/dce/dead_saved_values.evmir (after dce) ===
   @module module
   bb0:
     push 7

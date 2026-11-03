@@ -1,8 +1,8 @@
-// === ROOT/tests/ui/codegen/lowering/long_revert_strings.sol:Messages ===
+; === ROOT/tests/ui/codegen/lowering/long_revert_strings.sol:Messages ===
 @module Messages
 @library
 
-// === ROOT/tests/ui/codegen/lowering/long_revert_strings.sol:LongRevertStrings ===
+; === ROOT/tests/ui/codegen/lowering/long_revert_strings.sol:LongRevertStrings ===
 @module LongRevertStrings
 ; function require32(uint256 x) external pure [selector 0xae6a90d7]
 fn @require32(arg0: i256) [selector=0xae6a90d7, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
@@ -49,11 +49,11 @@ fn @revertLiteral(arg0: i256) [selector=0x18541a59, pure, abi_params=[uint256], 
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     ret
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     icall require<long_string hex"656c737a474e55313862697077444b5259352e666d7441484f563239636a7178454c535a362d676e75424950573320646b7279464d54303761686f76434a515834">, false
     invalid
 }

@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/coalesce-allocs/access_bounds.mir (before coalesce-allocs) ===
-+ // === ROOT/tests/ui/codegen/mir/coalesce-allocs/access_bounds.mir (after coalesce-allocs) ===
+- ; === ROOT/tests/ui/codegen/mir/coalesce-allocs/access_bounds.mir (before coalesce-allocs) ===
++ ; === ROOT/tests/ui/codegen/mir/coalesce-allocs/access_bounds.mir (after coalesce-allocs) ===
   @module CoalesceAccessBounds
   fn @access_before_use() -> i256 {
     bb0:

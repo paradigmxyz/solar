@@ -1,8 +1,8 @@
-// === ROOT/tests/ui/codegen/lowering/solar_safe_unchecked.sol:Wrapping ===
+; === ROOT/tests/ui/codegen/lowering/solar_safe_unchecked.sol:Wrapping ===
 @module Wrapping
 @library
 
-// === ROOT/tests/ui/codegen/lowering/solar_safe_unchecked.sol:Base ===
+; === ROOT/tests/ui/codegen/lowering/solar_safe_unchecked.sol:Base ===
 @module Base
 ; creation entry
 fn @constructor() [constructor] {
@@ -19,7 +19,7 @@ fn @decrement(arg0: i256) -> i256 [pure] {
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/solar_safe_unchecked.sol:Test ===
+; === ROOT/tests/ui/codegen/lowering/solar_safe_unchecked.sol:Test ===
 @module Test
 ; creation entry
 fn @constructor() [constructor] {

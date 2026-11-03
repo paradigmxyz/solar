@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/signed_integer_literals.sol:SignedIntegerLiterals ===
+; === ROOT/tests/ui/codegen/lowering/run-call/signed_integer_literals.sol:SignedIntegerLiterals ===
 @module SignedIntegerLiterals
 ; function negativeRemainder() external pure returns (int256) [selector 0x5356187e]
 fn @negativeRemainder() -> i256 [selector=0x5356187e, pure, abi_params=[], abi_returns=[word], abi_return_params=[int256]] {

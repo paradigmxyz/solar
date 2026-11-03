@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/pack-data/reuse.evmir (before pack-data) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/pack-data/reuse.evmir (after pack-data) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/pack-data/reuse.evmir (before pack-data) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/pack-data/reuse.evmir (after pack-data) ===
   @module reuse
   @data
     words_0: hex"00000000000000000000000000000000000000000000000000000000000000110000000000000000000000000000000000000000000000000000000000000011"

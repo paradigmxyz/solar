@@ -3,7 +3,7 @@
 
 @module sparse_label
 
-// CHECK-LABEL: // === sparse_label (runtime) ===
+// CHECK-LABEL: ; === sparse_label (runtime) ===
 // CHECK-NEXT: PUSH1 0x03
 // CHECK-NEXT: POP
 // CHECK-NEXT: ; bb0

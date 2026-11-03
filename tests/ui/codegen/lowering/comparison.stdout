@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/comparison.sol:Comparison ===
+; === ROOT/tests/ui/codegen/lowering/comparison.sol:Comparison ===
 @module Comparison
 ; function eq(uint256 a, uint256 b) public pure returns (bool) [selector 0x32148d73]
 fn @eq(arg0: i256, arg1: i256) -> i1 [selector=0x32148d73, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {

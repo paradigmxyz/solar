@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/continuation_provenance.evmir (before cfg-simplify) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/continuation_provenance.evmir (after cfg-simplify) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/continuation_provenance.evmir (before cfg-simplify) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/continuation_provenance.evmir (after cfg-simplify) ===
   @module ContinuationProvenance
   bb0:
 -   push bb1

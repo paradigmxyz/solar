@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/cse/semantic_scratch_writes.mir (before cse) ===
-+ // === ROOT/tests/ui/codegen/mir/cse/semantic_scratch_writes.mir (after cse) ===
+- ; === ROOT/tests/ui/codegen/mir/cse/semantic_scratch_writes.mir (before cse) ===
++ ; === ROOT/tests/ui/codegen/mir/cse/semantic_scratch_writes.mir (after cse) ===
   @module SemanticScratchWrites
   fn @mapping_slot(arg0: i256) -> i256 {
     bb0:

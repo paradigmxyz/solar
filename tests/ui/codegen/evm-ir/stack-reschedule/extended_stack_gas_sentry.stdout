@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/stack-reschedule/extended_stack_gas_sentry.evmir (before stack-reschedule) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/stack-reschedule/extended_stack_gas_sentry.evmir (after stack-reschedule) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/stack-reschedule/extended_stack_gas_sentry.evmir (before stack-reschedule) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/stack-reschedule/extended_stack_gas_sentry.evmir (after stack-reschedule) ===
   @module module
   bb0 [stack=16]:
     push 5

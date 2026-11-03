@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/internal-function-pointer/signatures_mir.sol:FunctionPointerSignatures ===
+; === ROOT/tests/ui/codegen/lowering/internal-function-pointer/signatures_mir.sol:FunctionPointerSignatures ===
 @module FunctionPointerSignatures
 @types
   struct0: {i256, i256}
@@ -92,10 +92,10 @@ fn @internal_dispatcher_p_none_r_none(arg0: i256) [function_pointer_dispatcher] 
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     icall @setFlag
     ret
 }
@@ -104,10 +104,10 @@ fn @internal_dispatcher_p_uint256_r_uint256_uint256(arg0: i256, arg1: i256) -> s
   bb0:
     v0 = eq arg0, 2
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = icall @pair, arg1
     ret v1
 }
@@ -116,10 +116,10 @@ fn @internal_dispatcher_p_uint256_uint256_r_uint256(arg0: i256, arg1: i256, arg2
   bb0:
     v0 = eq arg0, 3
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     icall panic_if<0x51>, true
     invalid
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = icall @sum, arg1, arg2
     ret v1
 }
