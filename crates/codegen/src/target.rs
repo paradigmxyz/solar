@@ -1891,7 +1891,8 @@ mod tests {
         let target = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 1);
         // A zero fill copies from `CALLDATASIZE`, which needs no data operand push.
         assert!(target.copy_operands(64, true).bytes < target.copy_operands(64, false).bytes);
-        assert!(target.copy_operands(1024, false).bytes > target.copy_operands(64, false).bytes);
+        // A longer copy pays more word gas.
+        assert!(target.copy_operands(1024, false).gas > target.copy_operands(64, false).gas);
     }
 
     #[test]
