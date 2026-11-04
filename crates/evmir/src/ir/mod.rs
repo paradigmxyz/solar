@@ -1113,8 +1113,18 @@ impl Metadata {
 
     /// Records a checkpoint proof without describing a function activation.
     pub fn add_checkpoint_transfer(&mut self, span: Span) {
-        if !span.is_dummy() && !self.checkpoint_transfers.contains(&span) {
-            self.checkpoint_transfers.push(span);
+        self.add_checkpoint_transfers([span]);
+    }
+
+    /// Records several checkpoint proofs, keeping the work linear in their number.
+    pub fn add_checkpoint_transfers(&mut self, spans: impl IntoIterator<Item = Span>) {
+        let mut distinct = DistinctSpans::default();
+        for span in spans {
+            if !span.is_dummy()
+                && distinct.is_new(span, || self.checkpoint_transfers.iter().copied())
+            {
+                self.checkpoint_transfers.push(span);
+            }
         }
     }
 }

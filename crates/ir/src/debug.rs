@@ -13,8 +13,8 @@ pub type DebugSpans = SmallVec<[Span; 2]>;
 /// Finds the spans of a batch that a list of origins lacks.
 ///
 /// A list that grows without bound cannot afford a scan per span. This scans while a batch is
-/// small and hashes the list once the batch passes [`Self::SCAN_LIMIT`] spans, so merging many
-/// origins into one list stays linear in the origins merged.
+/// small and hashes the list once the batch passes [`Self::SCAN_LIMIT`] lookups, duplicates
+/// included, so merging many origins into one list stays linear in the origins merged.
 #[derive(Default)]
 pub struct DistinctSpans {
     inspected: usize,
@@ -22,7 +22,7 @@ pub struct DistinctSpans {
 }
 
 impl DistinctSpans {
-    /// Number of spans looked up by scanning before the list is hashed.
+    /// Number of lookups answered by scanning before the list is hashed.
     pub const SCAN_LIMIT: usize = 16;
 
     /// Returns whether `span` is missing from the list, which holds `existing`.
@@ -34,17 +34,16 @@ impl DistinctSpans {
         span: Span,
         existing: impl Fn() -> I,
     ) -> bool {
+        if self.seen.is_none() {
+            self.inspected += 1;
+            if self.inspected > Self::SCAN_LIMIT {
+                self.seen = Some(existing().collect());
+            }
+        }
         if let Some(seen) = &mut self.seen {
             return seen.insert(span);
         }
-        if existing().any(|old| old == span) {
-            return false;
-        }
-        self.inspected += 1;
-        if self.inspected > Self::SCAN_LIMIT {
-            self.seen = Some(existing().chain([span]).collect());
-        }
-        true
+        !existing().any(|old| old == span)
     }
 }
 
