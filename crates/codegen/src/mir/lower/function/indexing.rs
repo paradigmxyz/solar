@@ -55,7 +55,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let Some(index) = index else {
             return self.cx.report_unsupported(expr.span, "index");
         };
-        // The base is evaluated before the index.
+        // object = lower(receiver)
+        // index = lower(index)
         let receiver_ty = self.cx.gcx.type_of_expr(receiver.id)?;
         let object = self.lower_expr(receiver)?;
         let index = self.lower_typed_expr(index, self.cx.gcx.types.uint(256))?;
