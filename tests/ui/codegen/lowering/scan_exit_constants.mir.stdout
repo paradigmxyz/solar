@@ -1,7 +1,7 @@
 ; === ROOT/tests/ui/codegen/lowering/scan_exit_constants.sol:ScanExitConstants ===
 @module ScanExitConstants
 ; function check(uint256 length, uint256 badIndex) external pure returns (bool result) [selector 0x8fefd8ea]
-fn @check(arg0: i256, arg1: i256) -> i256 [selector=0x8fefd8ea, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @check(arg0: i256, arg1: i256) -> i1 [selector=0x8fefd8ea, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = gt arg0, 0x400
     v1 = eq v0, false
@@ -18,7 +18,7 @@ fn @check(arg0: i256, arg1: i256) -> i256 [selector=0x8fefd8ea, pure, abi_params
   bb1:                                            ; preds = bb0, bb3
     v8 = phi [bb0: arg0], [bb3: v8]
     v9 = phi [bb0: arg1], [bb3: v9]
-    v10 = phi [bb0: 0], [bb3: v10]
+    v10 = phi [bb0: false], [bb3: v10]
     v11 = phi [bb0: v7], [bb3: v11]
     v12 = phi [bb0: 0], [bb3: v22]
     v13 = lt v12, v8
@@ -65,7 +65,7 @@ fn @check(arg0: i256, arg1: i256) -> i256 [selector=0x8fefd8ea, pure, abi_params
 }
 
 ; function scan(bytes memory data) internal pure returns (bool result)
-fn @scan(arg0: ptr<memory>) -> i256 [pure] {
+fn @scan(arg0: ptr<memory>) -> i1 [pure] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
     v1 = mload arg0
@@ -125,6 +125,5 @@ fn @scan(arg0: ptr<memory>) -> i256 [pure] {
     v25 = phi [bb5: v22], [bb2: 1]
     v26 = phi [bb5: v9], [bb2: v1]
     v27 = ne v25, 0
-    v28 = zext i1 v27 to i256
-    ret v28
+    ret v27
 }

@@ -194,21 +194,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn canonicalize_abi_value(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
-        let external_only = self.is_decoded_external_argument(value);
-        let dirty = self.dirty_values.contains(&value);
         match ty.peel_refs().kind {
             // Aggregates are cleaned and validated word by word while encoding; copying them
             // into a canonical object first would duplicate the whole tree at every call site.
             TyKind::DynArray(_) | TyKind::Array(_, _) | TyKind::Struct(_) => value,
             _ => {
-                let value = if external_only && !dirty {
-                    value
-                } else {
-                    self.normalize_abi_scalar(value, ty)
-                };
                 let layout = types::TypeLowerer::value_layout(ty);
                 if matches!(layout, crate::mir::ValueLayout::Int(_)) {
-                    raw_scalars::cast_carrier(&mut self.builder, value, layout, MirType::I256)
+                    widen_to_word(&mut self.builder, value, layout)
                 } else {
                     value
                 }
@@ -553,7 +546,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let Some((length, fixed_bytes)) = self.packed_static_shape(ty) else {
                     return self.cx.report_unsupported(expr.span, "abi.encodePacked argument");
                 };
-                let value = self.normalize_abi_scalar(value, ty);
                 let size = TypeSize::new_int_bits((length * 8) as u16);
                 let ty = if fixed_bytes {
                     crate::mir::ValueLayout::FixedBytes(size)
@@ -784,13 +776,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .cleanup(&mut self.builder, value)
             }
             _ => {
+                // The element is a word read from memory, which assembly can have dirtied.
                 let value = self.normalize_abi_scalar(value, ty);
-                raw_scalars::cast_carrier(
-                    &mut self.builder,
-                    value,
-                    types::TypeLowerer::value_layout(ty),
-                    MirType::I256,
-                )
+                widen_to_word(&mut self.builder, value, types::TypeLowerer::value_layout(ty))
             }
         };
         self.builder.memory_store_word(output, offset, value);

@@ -4,21 +4,15 @@
 fn @structField() -> i8 [selector=0x3442156e, pure, abi_params=[], abi_returns=[word<enum 2>], abi_return_params=[enum<2, uint8>]] {
   bb0:
     v0 = alloc 32
-    v1 = lt i8 0, i8 2
-    v2 = eq v1, false
-    icall panic_if<0x21>, v2
     mstore v0, 0
-    v3 = ptrtoint ptr<memory> v0 to i256
+    v1 = ptrtoint ptr<memory> v0 to i256
     mstore v0, 2
-    v4 = mload v0
-    v5 = lt v4, 2
-    v6 = eq v5, false
-    icall panic_if<0x21>, v6
-    v7 = trunc i256 v4 to i8
-    v8 = lt v7, i8 2
-    v9 = eq v8, false
-    icall panic_if<0x21>, v9
-    ret v7
+    v2 = mload v0
+    v3 = lt v2, 2
+    v4 = eq v3, false
+    icall panic_if<0x21>, v4
+    v5 = trunc i256 v2 to i8
+    ret v5
 }
 
 ; function fixedArrayElement() external pure returns (Mode) [selector 0x43876e90]
@@ -36,9 +30,6 @@ fn @fixedArrayElement() -> i8 [selector=0x43876e90, pure, abi_params=[], abi_ret
     v6 = eq v5, false
     icall panic_if<0x21>, v6
     v7 = trunc i256 v4 to i8
-    v8 = lt v7, i8 2
-    v9 = eq v8, false
-    icall panic_if<0x21>, v9
     ret v7
 }
 
@@ -60,8 +51,5 @@ fn @dynamicArrayElement() -> i8 [selector=0xff96177b, pure, abi_params=[], abi_r
     v9 = eq v8, false
     icall panic_if<0x21>, v9
     v10 = trunc i256 v7 to i8
-    v11 = lt v10, i8 2
-    v12 = eq v11, false
-    icall panic_if<0x21>, v12
     ret v10
 }

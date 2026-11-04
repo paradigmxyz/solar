@@ -55,7 +55,7 @@ fn @writeStructs() -> i256 [selector=0xa4c02825, pure, abi_params=[], abi_return
 }
 
 ; function sharedBytesDefault() external pure returns (bool result) [selector 0x8e773052]
-fn @sharedBytesDefault() -> i256 [selector=0x8e773052, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @sharedBytesDefault() -> i1 [selector=0x8e773052, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc zeroed checked 96
     mstore v0, 2
@@ -74,8 +74,7 @@ fn @sharedBytesDefault() -> i256 [selector=0x8e773052, pure, abi_params=[], abi_
     v13 = eq v12, v9
     v14 = zext i1 v13 to i256
     v15 = ne v14, 0
-    v16 = zext i1 v15 to i256
-    ret v16
+    ret v15
   bb2:                                            ; preds = bb1
     v3 = shl v1, 5
     v4 = ptradd v0, v3

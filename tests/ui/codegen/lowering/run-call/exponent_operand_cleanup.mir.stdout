@@ -40,11 +40,10 @@ fn @branchedDirtyOperand(arg0: i1) -> i256 [selector=0x3d6d96b7, pure, abi_param
   bb1:                                            ; preds = bb0
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v0 = phi [bb1: 3], [bb2: 2]
-    v1 = trunc i256 v0 to i8
-    v2 = zext i8 v1 to i256
-    v3 = checked_pow int256, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd, v2
-    ret v3
+    v0 = phi [bb1: i8 3], [bb2: i8 2]
+    v1 = zext i8 v0 to i256
+    v2 = checked_pow int256, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd, v1
+    ret v2
 }
 
 ; function fullWidthOperands() external pure returns (uint256) [selector 0xd0e127e5]

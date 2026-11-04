@@ -4,15 +4,14 @@
 fn @choose(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x739ca28b, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = ne arg0, 0
-    v1 = zext i1 v0 to i256
     jumpi v0, bb1, bb2
   bb2:                                            ; preds = bb0
     jump bb3
   bb1:                                            ; preds = bb0
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v2 = phi [bb1: arg1], [bb2: arg2]
-    ret v2
+    v1 = phi [bb1: arg1], [bb2: arg2]
+    ret v1
 }
 
 ; function store(bytes memory value) external returns (bytes memory) [selector 0xb374012b]
@@ -65,35 +64,32 @@ fn @signature(arg0: i1) -> ptr<memory> [selector=0x59834352, pure, abi_params=[b
 fn @dirtySignature(arg0: i256) -> ptr<memory> [selector=0xca22fbdf, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = ne arg0, 0
-    v1 = zext i1 v0 to i256
-    v2 = select v0, 0x26121ff000000000000000000000000000000000000000000000000000000000, 0xe2179b8e00000000000000000000000000000000000000000000000000000000
-    v3 = abi_encode [], object, selector v2
-    ret v3
+    v1 = select v0, 0x26121ff000000000000000000000000000000000000000000000000000000000, 0xe2179b8e00000000000000000000000000000000000000000000000000000000
+    v2 = abi_encode [], object, selector v1
+    ret v2
 }
 
 ; function reverseSignature(uint256 raw) external pure returns (bytes memory) [selector 0x97ffd282]
 fn @reverseSignature(arg0: i256) -> ptr<memory> [selector=0x97ffd282, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = ne arg0, 0
-    v1 = zext i1 v0 to i256
-    v2 = select v0, 0xe2179b8e00000000000000000000000000000000000000000000000000000000, 0x26121ff000000000000000000000000000000000000000000000000000000000
-    v3 = abi_encode [], object, selector v2
-    ret v3
+    v1 = select v0, 0xe2179b8e00000000000000000000000000000000000000000000000000000000, 0x26121ff000000000000000000000000000000000000000000000000000000000
+    v2 = abi_encode [], object, selector v1
+    ret v2
 }
 
 ; function dirtyTernary(uint256 raw, uint256 x) external pure returns (uint256) [selector 0xcd9c288e]
 fn @dirtyTernary(arg0: i256, arg1: i256) -> i256 [selector=0xcd9c288e, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = ne arg0, 0
-    v1 = zext i1 v0 to i256
     jumpi v0, bb1, bb2
   bb2:                                            ; preds = bb0
     jump bb3
   bb1:                                            ; preds = bb0
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v2 = phi [bb1: arg1], [bb2: 7]
-    ret v2
+    v1 = phi [bb1: arg1], [bb2: 7]
+    ret v1
 }
 
 ; function yulBranch(uint256 raw, uint256 x) external pure returns (uint256 result) [selector 0x3701b99b]

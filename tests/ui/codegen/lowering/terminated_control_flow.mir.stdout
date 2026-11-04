@@ -51,17 +51,15 @@ fn @trySuccess() -> i256 [selector=0x3984eec7, view, abi_params=[], abi_returns=
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = trunc i256 v0 to i160
     v2 = gas
-    v3 = ne false, false
     mstore 0, 0x2605fe98 !metadata(memory=scratch)
-    v4 = zext i1 v3 to i256
-    mstore 32, v4 !metadata(memory=scratch)
-    v5 = zext i160 v1 to i256
-    v6 = extcodesize v5
-    v7 = eq v6, 0
-    icall revert_if<target_contract_has_no_code>, v7
-    v8 = zext i160 v1 to i256
-    v9 = staticcall v2, v8, 28, 36, 0, 0
-    jumpi v9, bb1, bb2
+    mstore 32, 0 !metadata(memory=scratch)
+    v3 = zext i160 v1 to i256
+    v4 = extcodesize v3
+    v5 = eq v4, 0
+    icall revert_if<target_contract_has_no_code>, v5
+    v6 = zext i160 v1 to i256
+    v7 = staticcall v2, v6, 28, 36, 0, 0
+    jumpi v7, bb1, bb2
   bb2:                                            ; preds = bb0
     jumpi true, bb4, bb5
   bb5:                                            ; preds = bb2
@@ -81,17 +79,15 @@ fn @tryFailure() -> i256 [selector=0x86763122, view, abi_params=[], abi_returns=
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = trunc i256 v0 to i160
     v2 = gas
-    v3 = ne true, false
     mstore 0, 0x2605fe98 !metadata(memory=scratch)
-    v4 = zext i1 v3 to i256
-    mstore 32, v4 !metadata(memory=scratch)
-    v5 = zext i160 v1 to i256
-    v6 = extcodesize v5
-    v7 = eq v6, 0
-    icall revert_if<target_contract_has_no_code>, v7
-    v8 = zext i160 v1 to i256
-    v9 = staticcall v2, v8, 28, 36, 0, 0
-    jumpi v9, bb1, bb2
+    mstore 32, 1 !metadata(memory=scratch)
+    v3 = zext i160 v1 to i256
+    v4 = extcodesize v3
+    v5 = eq v4, 0
+    icall revert_if<target_contract_has_no_code>, v5
+    v6 = zext i160 v1 to i256
+    v7 = staticcall v2, v6, 28, 36, 0, 0
+    jumpi v7, bb1, bb2
   bb2:                                            ; preds = bb0
     jumpi true, bb4, bb5
   bb5:                                            ; preds = bb2

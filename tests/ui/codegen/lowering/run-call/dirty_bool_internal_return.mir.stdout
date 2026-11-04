@@ -4,22 +4,22 @@
   struct0: {i1, i256}
 
 ; function dirty(bool value) internal pure returns (bool result)
-fn @dirty(arg0: i256) -> i256 [pure] {
+fn @dirty(arg0: i1) -> i1 [pure] {
   bb0:
-    v0 = mul arg0, 3
-    v1 = ne v0, 0
-    v2 = zext i1 v1 to i256
+    v0 = zext i1 arg0 to i256
+    v1 = mul v0, 3
+    v2 = ne v1, 0
     ret v2
 }
 
 ; function readDirty() external pure returns (bool equal, uint256 raw) [selector 0xd1f2dbc1]
 fn @readDirty() -> struct0 [selector=0xd1f2dbc1, pure, abi_params=[], abi_returns=[word<bool>, word], abi_return_params=[bool, uint256]] {
   bb0:
-    v0 = icall @dirty, 1
-    v1 = ne v0, 0
-    v2 = eq v1, true
-    v3 = insert_value struct0, undef struct0, 0, v2
-    v4 = insert_value struct0, v3, 1, v0
+    v0 = icall @dirty, true
+    v1 = eq v0, true
+    v2 = zext i1 v0 to i256
+    v3 = insert_value struct0, undef struct0, 0, v1
+    v4 = insert_value struct0, v3, 1, v2
     ret v4
 }
 
@@ -29,12 +29,12 @@ fn @join(arg0: i1) -> i256 [selector=0xe2c05593, pure, abi_params=[bool], abi_re
     jumpi arg0, bb1, bb2
   bb2:                                            ; preds = bb0
     v0 = ne 3, 0
-    v1 = zext i1 v0 to i256
     jump bb3
   bb1:                                            ; preds = bb0
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v2 = phi [bb1: 1], [bb2: v1]
+    v1 = phi [bb1: true], [bb2: v0]
+    v2 = zext i1 v1 to i256
     ret v2
 }
 
@@ -46,10 +46,10 @@ fn @reverseJoin(arg0: i1) -> i256 [selector=0x2022dd82, pure, abi_params=[bool],
     jump bb3
   bb1:                                            ; preds = bb0
     v0 = ne 3, 0
-    v1 = zext i1 v0 to i256
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v2 = phi [bb1: v1], [bb2: 1]
+    v1 = phi [bb1: v0], [bb2: true]
+    v2 = zext i1 v1 to i256
     ret v2
 }
 
@@ -58,13 +58,14 @@ fn @chooseValue(arg0: i1) -> i256 [selector=0x204ac68b, pure, abi_params=[bool],
   bb0:
     jumpi arg0, bb1, bb2
   bb2:                                            ; preds = bb0
-    v0 = icall @dirty, 1
+    v0 = icall @dirty, true
     jump bb3
   bb1:                                            ; preds = bb0
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v1 = phi [bb1: 1], [bb2: v0]
-    ret v1
+    v1 = phi [bb1: true], [bb2: v0]
+    v2 = zext i1 v1 to i256
+    ret v2
 }
 
 ; function loopValue(uint256 n) external pure returns (uint256 raw) [selector 0x0f49c3a4]
@@ -74,18 +75,19 @@ fn @loopValue(arg0: i256) -> i256 [selector=0x0f49c3a4, pure, abi_params=[uint25
   bb1:                                            ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v1]
-    v2 = phi [bb0: 1], [bb3: v7]
+    v2 = phi [bb0: true], [bb3: v7]
     v3 = phi [bb0: 0], [bb3: v8]
     v4 = lt v3, v0
     jumpi v4, bb4, bb5
   bb5:                                            ; preds = bb1
     jump bb2
   bb2:                                            ; preds = bb5
-    ret v2
+    v9 = zext i1 v2 to i256
+    ret v9
   bb4:                                            ; preds = bb1
-    v5 = add v2, 1
-    v6 = ne v5, 0
-    v7 = zext i1 v6 to i256
+    v5 = zext i1 v2 to i256
+    v6 = add v5, 1
+    v7 = ne v6, 0
     jump bb6
   bb6:                                            ; preds = bb4
     jump bb3

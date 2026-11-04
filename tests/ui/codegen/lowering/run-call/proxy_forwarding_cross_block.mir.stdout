@@ -21,15 +21,14 @@ fn @set(arg0: i256, arg1: i256, arg2: i256, arg3: slice<calldata>) [selector=0x5
 ; === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:FixedRangeProxy ===
 @module FixedRangeProxy
 ; constructor(address target) [creation entry]
-fn @constructor(arg0: i256) [constructor, abi_params=[address]] {
+fn @constructor(arg0: i160) [constructor, abi_params=[address]] {
   bb0:
-    v0 = trunc i256 arg0 to i160
-    v1 = sload 0 !metadata(storage=slot(0))
-    v2 = and v1, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
-    v3 = zext i160 v0 to i256
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    v2 = zext i160 arg0 to i256
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
     ret
 }
 
@@ -38,11 +37,11 @@ fn @fallback() [fallback] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = trunc i256 v0 to i160
-    v2 = zext i160 v1 to i256
     calldatacopy 0, 0, 0x3000 !metadata(memory=scratch)
-    v3 = calldatasize
+    v2 = calldatasize
+    v3 = zext i160 v1 to i256
     v4 = gas
-    v5 = delegatecall v4, v2, 0, v3, 0, 0
+    v5 = delegatecall v4, v3, 0, v2, 0, 0
     v6 = zext i1 v5 to i256
     v7 = eq v6, 0
     v8 = zext i1 v7 to i256
@@ -65,15 +64,14 @@ fn @fallback() [fallback] {
 ; === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:CrossBlockProxy ===
 @module CrossBlockProxy
 ; constructor(address target) [creation entry]
-fn @constructor(arg0: i256) [constructor, abi_params=[address]] {
+fn @constructor(arg0: i160) [constructor, abi_params=[address]] {
   bb0:
-    v0 = trunc i256 arg0 to i160
-    v1 = sload 0 !metadata(storage=slot(0))
-    v2 = and v1, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
-    v3 = zext i160 v0 to i256
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    v2 = zext i160 arg0 to i256
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
     ret
 }
 
@@ -82,24 +80,24 @@ fn @fallback() [fallback] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = trunc i256 v0 to i160
-    v2 = zext i160 v1 to i256
-    v3 = calldatasize
-    v4 = make_calldata_slice ptr<calldata> 0, v3
-    v5 = extract_value slice<calldata>, v4, 1
-    v6 = gt v5, 128
-    jumpi v6, bb1, bb2
+    v2 = calldatasize
+    v3 = make_calldata_slice ptr<calldata> 0, v2
+    v4 = extract_value slice<calldata>, v3, 1
+    v5 = gt v4, 128
+    jumpi v5, bb1, bb2
   bb2:                                            ; preds = bb0
-    v8 = calldatasize
-    calldatacopy 0, 0, v8 !metadata(memory=scratch)
-    jump bb3
-  bb1:                                            ; preds = bb0
     v7 = calldatasize
     calldatacopy 0, 0, v7 !metadata(memory=scratch)
     jump bb3
+  bb1:                                            ; preds = bb0
+    v6 = calldatasize
+    calldatacopy 0, 0, v6 !metadata(memory=scratch)
+    jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v9 = calldatasize
+    v8 = calldatasize
+    v9 = zext i160 v1 to i256
     v10 = gas
-    v11 = delegatecall v10, v2, 0, v9, 0, 0
+    v11 = delegatecall v10, v9, 0, v8, 0, 0
     v12 = zext i1 v11 to i256
     v13 = eq v12, 0
     v14 = zext i1 v13 to i256
@@ -355,7 +353,7 @@ fn @buffer() -> i256 [pure] {
 }
 
 ; function forward(address target, bytes calldata data) external returns (bool success) [selector 0x6fadcf72]
-fn @forward(arg0: i256, arg1: slice<calldata>) -> i256 [selector=0x6fadcf72, abi_params=[address, bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @forward(arg0: i160, arg1: slice<calldata>) -> i1 [selector=0x6fadcf72, abi_params=[address, bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @buffer
     v1 = extract_value slice<calldata>, arg1, 1
@@ -365,10 +363,10 @@ fn @forward(arg0: i256, arg1: slice<calldata>) -> i256 [selector=0x6fadcf72, abi
     calldatacopy v4, v2, v1
     v5 = extract_value slice<calldata>, arg1, 1
     v6 = add v5, 64
-    v7 = gas
-    v8 = call v7, arg0, 0, v0, v6, 0, 0
-    v9 = zext i1 v8 to i256
-    v10 = ne v9, 0
-    v11 = zext i1 v10 to i256
+    v7 = zext i160 arg0 to i256
+    v8 = gas
+    v9 = call v8, v7, 0, v0, v6, 0, 0
+    v10 = zext i1 v9 to i256
+    v11 = ne v10, 0
     ret v11
 }

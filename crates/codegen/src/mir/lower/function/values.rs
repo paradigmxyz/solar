@@ -587,15 +587,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return vec![value];
         };
         let fields = self.cx.module.struct_types[id].fields.clone();
-        let dirty = self.dirty_values.contains(&value);
         fields
             .iter()
             .enumerate()
             .map(|(index, &field)| {
                 // field = extract_value result, index
                 let result = self.builder.extract_value(id, value, index as u32, field);
-                if dirty || field == MirType::Slice(PtrLocation::Calldata) {
-                    self.dirty_values.insert(result);
+                if field == MirType::Slice(PtrLocation::Calldata) {
+                    self.unchecked_calldata_slices.insert(result);
                 }
                 result
             })

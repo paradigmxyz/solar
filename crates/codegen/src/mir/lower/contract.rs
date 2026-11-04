@@ -1,6 +1,6 @@
 //! Contract-level lowering and function discovery.
 
-use super::{function, storage::StorageLayout};
+use super::{function, storage::StorageLayout, types::TypeLowerer};
 use solar_config::OptimizationMode;
 use solar_data_structures::{
     Never,
@@ -134,7 +134,7 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
     let mut seen_ids = FxHashSet::default();
     let function_ids =
         function_ids.into_iter().filter(|(id, _)| seen_ids.insert(*id)).collect::<Vec<_>>();
-    state.analyze_raw_scalars(gcx, contract_id, &function_ids);
+    state.analyze_pointer_exposure(gcx, contract_id, &function_ids);
     let mut immutable_ids = FxHashMap::default();
     for &base in contract.linearized_bases.iter().rev() {
         for id in gcx.hir.contract(base).variables() {
@@ -145,7 +145,7 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
             let Some(name) = variable.name else { continue };
             let mir_id = module.add_immutable(
                 name,
-                state.immutable_layout(gcx, id),
+                TypeLowerer::value_layout(gcx.type_of_item(id.into())),
                 Some(HirVariableId::from_usize(id.index())),
             );
             immutable_ids.insert(id, mir_id);
@@ -244,13 +244,13 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
                 let return_types = function
                     .returns
                     .iter()
-                    .map(|&ret| context.state.scalar_carrier(gcx, ret))
+                    .map(|&ret| TypeLowerer::mir_type(gcx.type_of_item(ret.into())))
                     .collect();
                 let return_type = context.module.intern_return_type(return_types);
                 let mut builder =
                     FunctionBuilder::new_semantic(context.module.function_mut(mir_id));
                 for &param in function.parameters {
-                    builder.add_param(context.state.scalar_carrier(gcx, param));
+                    builder.add_param(TypeLowerer::mir_type(gcx.type_of_item(param.into())));
                 }
                 if let Some(ty) = return_type {
                     builder.set_return_type(ty);

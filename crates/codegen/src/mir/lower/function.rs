@@ -17,7 +17,7 @@ use alloy_primitives::{U256, keccak256};
 use solar_ast::{BinOpKind, DataLocation, LitKind, StateMutability, TypeSize, UnOpKind};
 use solar_data_structures::{
     bit_set::DenseBitSet,
-    map::{FxHashMap, FxHashSet, FxIndexSet, StdEntry},
+    map::{FxHashMap, FxHashSet, FxIndexSet},
 };
 use solar_interface::{ByteSymbol, Ident, Span, Symbol, kw, sym};
 use solar_sema::{
@@ -27,7 +27,7 @@ use solar_sema::{
     hir::{self, ElementaryType, ExprKind, LoopSource, StmtKind, VariableId},
     ty::{CallableParamNames, CallableParamSource, Ty, TyFn, TyKind},
 };
-use std::{collections::BTreeSet, fmt::Display, sync::Arc};
+use std::{fmt::Display, sync::Arc};
 
 mod abi_calls;
 mod abi_values;
@@ -41,7 +41,7 @@ mod lvalues;
 mod memory_values;
 mod modifiers;
 mod operators;
-mod raw_scalars;
+mod pointer_exposure;
 mod statements;
 mod storage_values;
 mod values;
@@ -98,8 +98,6 @@ pub(super) struct LoweringState {
     pub(super) pointer_registry: InternalFunctionPointerRegistry,
     /// DO NOT ADD OTHER HELPER MAPS. USE THIS ONE ONLY.
     pub(super) helpers: FxHashMap<Symbol, FunctionId>,
-    raw_scalars: FxHashSet<VariableId>,
-    raw_pointer_types: FxHashSet<MirType>,
 }
 
 /// Lowers one HIR function into a typed MIR function.
@@ -211,7 +209,9 @@ struct FunctionLowerer<'gcx, 'ctx> {
     types: types::TypeLowerer<'gcx>,
     builder: FunctionBuilder<'ctx>,
     values: FxHashMap<VariableId, ValueId>,
-    dirty_values: FxHashSet<ValueId>,
+    /// Calldata slices that inline assembly may have built or changed, which ABI decoding did not
+    /// range check.
+    unchecked_calldata_slices: FxHashSet<ValueId>,
     default_bindings: FxHashSet<VariableId>,
     deferred_bindings: FxHashSet<VariableId>,
     storage_refs: FxHashMap<VariableId, StorageAccess>,
@@ -231,8 +231,6 @@ struct FunctionLowerer<'gcx, 'ctx> {
     /// Whether the inline assembly lowered so far may write memory: a store, a copy, a call with
     /// a return buffer, or an assignment to a memory reference.
     assembly_writes_memory: bool,
-    /// The variables the inline assembly lowered so far assigned, in id order.
-    assembly_assigned: BTreeSet<VariableId>,
 }
 
 /// The lowered `{gas: ..., value: ...}` options of an external call.
@@ -360,21 +358,31 @@ impl BuiltinArgCount {
 pub(super) struct InternalFunctionPointerShape {
     params: Vec<crate::mir::ValueLayout>,
     returns: Vec<crate::mir::ValueLayout>,
+    /// The variant count of each parameter that is an enum.
+    param_enums: Vec<Option<usize>>,
+    /// The variant count of each return that is an enum.
+    return_enums: Vec<Option<usize>>,
 }
 
 impl InternalFunctionPointerShape {
-    fn from_ty(function: &TyFn<'_>) -> Self {
+    fn from_ty(gcx: Gcx<'_>, function: &TyFn<'_>) -> Self {
+        let layouts = |types: &[Ty<'_>]| {
+            types.iter().map(|&ty| types::TypeLowerer::value_layout(ty)).collect::<Vec<_>>()
+        };
+        let enums = |types: &[Ty<'_>]| {
+            types
+                .iter()
+                .map(|ty| match ty.peel_refs().kind {
+                    TyKind::Enum(id) => Some(gcx.hir.enumm(id).variants.len()),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+        };
         Self {
-            params: function
-                .parameters
-                .iter()
-                .map(|&ty| types::TypeLowerer::value_layout(ty))
-                .collect(),
-            returns: function
-                .returns
-                .iter()
-                .map(|&ty| types::TypeLowerer::value_layout(ty))
-                .collect(),
+            params: layouts(function.parameters),
+            returns: layouts(function.returns),
+            param_enums: enums(function.parameters),
+            return_enums: enums(function.returns),
         }
     }
 
@@ -414,8 +422,19 @@ impl InternalFunctionPointerShape {
     }
 
     fn helper_name(&self, from_assembly: bool) -> Symbol {
-        let params = self.params.iter().map(ToString::to_string).collect::<Vec<_>>().join("_");
-        let returns = self.returns.iter().map(ToString::to_string).collect::<Vec<_>>().join("_");
+        let names = |layouts: &[crate::mir::ValueLayout], enums: &[Option<usize>]| {
+            layouts
+                .iter()
+                .zip(enums)
+                .map(|(layout, variants)| match variants {
+                    Some(variants) => format!("enum{variants}"),
+                    None => layout.to_string(),
+                })
+                .collect::<Vec<_>>()
+                .join("_")
+        };
+        let params = names(&self.params, &self.param_enums);
+        let returns = names(&self.returns, &self.return_enums);
         let suffix = format!(
             "{}p_{}_r_{}",
             if from_assembly { "asm_" } else { "" },
@@ -450,7 +469,7 @@ impl InternalFunctionPointerRegistry {
             let TyKind::Fn(function) = gcx.type_of_item(function_id.into()).kind else {
                 return false;
             };
-            let candidate = InternalFunctionPointerShape::from_ty(function);
+            let candidate = InternalFunctionPointerShape::from_ty(gcx, function);
             !shape.is_assembly_cast_compatible_with(&candidate)
                 && shape.is_word_compatible_with(&candidate)
         })
@@ -493,7 +512,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .with_revert_strings(gcx.sess.opts.revert_strings),
             types: types::TypeLowerer::new(gcx),
             values: FxHashMap::default(),
-            dirty_values: FxHashSet::default(),
+            unchecked_calldata_slices: FxHashSet::default(),
             default_bindings: FxHashSet::default(),
             deferred_bindings: FxHashSet::default(),
             storage_refs: FxHashMap::default(),
@@ -509,7 +528,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             unchecked: false,
             in_inline_assembly: false,
             assembly_writes_memory: false,
-            assembly_assigned: BTreeSet::new(),
         }
     }
 
@@ -676,7 +694,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let previous_modifier_depth = self.builder.replace_modifier_depth(self.modifier_depth);
         let result = self.lower_expr_inner(expr).map(|value| {
             if !self.in_inline_assembly
-                && !self.dirty_values.contains(&value)
                 && let Some(ty) = self.cx.gcx.type_of_expr(expr.id)
                 && ty.is_value_type()
                 && let ty @ MirType::Int(_) = types::TypeLowerer::mir_type(ty)
@@ -740,6 +757,25 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 let id = self.cx.gcx.resolved_variable(expr)?;
                 let value = self.load_variable(id, expr.span)?;
+                if self.in_inline_assembly {
+                    // Assembly reads a Solidity variable as a word.
+                    let ty = self.cx.gcx.type_of_item(id.into());
+                    if ty.is_value_type()
+                        && !matches!(ty.kind, TyKind::Fn(_))
+                        && self
+                            .builder
+                            .func()
+                            .value_ty(value)
+                            .and_then(MirType::integer_bits)
+                            .is_some()
+                    {
+                        return Some(widen_to_word(
+                            &mut self.builder,
+                            value,
+                            types::TypeLowerer::value_layout(ty),
+                        ));
+                    }
+                }
                 if self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_value_type())
                     && self.cx.gcx.type_of_item(id.into()).is_ref_at(DataLocation::Calldata)
                     && matches!(
@@ -791,20 +827,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else {
                     None
                 };
-                let mut lhs = match lhs_word {
+                let lhs = match lhs_word {
                     Some(word) => word,
                     None => self.lower_expr(lhs)?,
                 };
-                if let Some(ty) = lhs_ty {
-                    lhs = self.normalize_dirty_scalar(lhs, ty);
-                }
-                let mut rhs = match rhs_word {
+                let rhs = match rhs_word {
                     Some(word) => word,
                     None => self.lower_expr(rhs)?,
                 };
-                if let Some(ty) = rhs_ty {
-                    rhs = self.normalize_dirty_scalar(rhs, ty);
-                }
                 let (lhs, rhs) = match (lhs_ty, rhs_ty) {
                     (Some(lhs_ty), Some(rhs_ty))
                         if rhs_word.is_none() && fixed_bytes(Some(lhs_ty)) && rhs_literal =>
@@ -896,7 +926,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let place = self.resolve_lvalue_place(value)?;
                     let ty = self.cx.gcx.type_of_expr(value.id);
                     let old = self.load_lvalue_place(&place)?;
-                    let old = ty.map_or(old, |ty| self.normalize_dirty_scalar(old, ty));
                     let one = self.builder.imm(1);
                     let kind = if matches!(op.kind, UnOpKind::PreInc | UnOpKind::PostInc) {
                         BinOpKind::Add
@@ -918,9 +947,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if self.cx.gcx.unsupported_udvt_operator(expr.id) {
                     return self.report_unsupported_udvt_operator(expr.span);
                 }
-                let ty = self.cx.gcx.type_of_expr(value.id);
                 let value = self.lower_expr(value)?;
-                let value = ty.map_or(value, |ty| self.normalize_dirty_scalar(value, ty));
                 Some(self.unary(op.kind, value, self.cx.gcx.type_of_expr(expr.id)))
             }
             ExprKind::Assign(lhs, op, rhs) => {
@@ -966,8 +993,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if let Some(kind) = compound_op {
                     let place = self.resolve_lvalue_place(lhs)?;
                     let lhs_value = self.load_lvalue_place(&place)?;
-                    let lhs_value = self.normalize_dirty_scalar(lhs_value, lhs_ty);
-                    let rhs_value = self.normalize_dirty_scalar(rhs_value, rhs_ty);
                     let value = self.binary(kind, lhs_value, rhs_value, Some(lhs_ty));
                     let value = if let Some(bytes) = fixed_bytes {
                         self.clean_fixed_bytes(value, bytes)
@@ -1047,7 +1072,7 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                 let TyKind::Fn(function) = gcx.type_of_item(function_id.into()).kind else {
                     return None;
                 };
-                let candidate_shape = InternalFunctionPointerShape::from_ty(function);
+                let candidate_shape = InternalFunctionPointerShape::from_ty(gcx, function);
                 (shape.is_assembly_cast_compatible_with(&candidate_shape)
                     || (from_assembly
                         && state.pointer_registry.assembly_exposed.contains(&function_id)
@@ -1069,14 +1094,11 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
         {
             let mut builder = FunctionBuilder::new_semantic(&mut function);
             let function_value = builder.add_param(MirType::I256);
-            let arguments = shape
-                .params
-                .iter()
-                .map(|ty| builder.add_param(state.pointer_carrier(ty.mir_type())))
-                .collect::<Vec<_>>();
-            if let Some(ty) = module.intern_return_type(
-                shape.returns.iter().map(|ty| state.pointer_carrier(ty.mir_type())).collect(),
-            ) {
+            let arguments =
+                shape.params.iter().map(|ty| builder.add_param(ty.mir_type())).collect::<Vec<_>>();
+            if let Some(ty) =
+                module.intern_return_type(shape.returns.iter().map(|ty| ty.mir_type()).collect())
+            {
                 builder.set_return_type(ty);
             }
 
@@ -1098,16 +1120,16 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                 let call_arguments = arguments
                     .iter()
                     .copied()
-                    .zip(&shape.params)
-                    .zip(&candidate_shape.params)
-                    .zip(gcx.hir.function(function_id).parameters)
-                    .map(|(((argument, &source), &target), &parameter)| {
-                        let carrier = state.scalar_carrier(gcx, parameter);
-                        if source == target {
-                            raw_scalars::cast_carrier(&mut builder, argument, source, carrier)
-                        } else {
-                            reinterpret_word(&mut builder, argument, source, target, carrier)
-                        }
+                    .enumerate()
+                    .map(|(index, argument)| {
+                        let parameter = gcx.hir.function(function_id).parameters[index];
+                        dispatch_cast(
+                            &mut builder,
+                            argument,
+                            (shape.params[index], shape.param_enums[index]),
+                            (candidate_shape.params[index], candidate_shape.param_enums[index]),
+                            types::TypeLowerer::mir_type(gcx.type_of_item(parameter.into())),
+                        )
                     })
                     .collect::<Vec<_>>();
                 if shape.returns.is_empty() {
@@ -1119,13 +1141,13 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                     let result_ty = module.function(mir_id).return_type();
                     let result = builder.icall(mir_id, call_arguments, result_ty);
                     let cast_return = |builder: &mut FunctionBuilder<'_>, value, index, ty| {
-                        let (source, target) =
-                            (candidate_shape.returns[index], shape.returns[index]);
-                        if source == target {
-                            raw_scalars::cast_carrier(builder, value, target, ty)
-                        } else {
-                            reinterpret_word(builder, value, source, target, ty)
-                        }
+                        dispatch_cast(
+                            builder,
+                            value,
+                            (candidate_shape.returns[index], candidate_shape.return_enums[index]),
+                            (shape.returns[index], shape.return_enums[index]),
+                            ty,
+                        )
                     };
                     let result = if let (MirType::Struct(source), MirType::Struct(target)) =
                         (result_ty, builder.func().return_type())
@@ -1190,29 +1212,54 @@ fn report_error<T>(gcx: Gcx<'_>, span: Span, message: &'static str) -> Option<T>
     None
 }
 
-/// Reinterprets a one-word value that inline assembly retyped from `source` to `target`.
-fn reinterpret_word(
+/// Widens a Solidity value to the word inline assembly sees: signed integers sign-extend and
+/// every other type zero-extends.
+fn widen_to_word(
     builder: &mut FunctionBuilder<'_>,
     value: ValueId,
-    source: crate::mir::ValueLayout,
-    target: crate::mir::ValueLayout,
-    carrier: MirType,
+    layout: crate::mir::ValueLayout,
 ) -> ValueId {
+    if matches!(layout, crate::mir::ValueLayout::Int(_))
+        && let Some(bits) = builder.func().value_ty(value).and_then(MirType::integer_bits)
+        && bits < 256
+    {
+        builder.emit_inst(InstKind::Sext(value, bits, 256), Some(MirType::I256))
+    } else {
+        builder.cast(value, MirType::I256)
+    }
+}
+
+/// Converts a value that crosses an internal function pointer dispatcher from the `source` type
+/// to the `target` type, each given as its layout and, for an enum, its variant count. Inline
+/// assembly can retype the pointer, so a word that is not a value of the target type is cleaned
+/// for it, and an out of range enum reverts.
+fn dispatch_cast(
+    builder: &mut FunctionBuilder<'_>,
+    value: ValueId,
+    (source, source_enum): (crate::mir::ValueLayout, Option<usize>),
+    (target, target_enum): (crate::mir::ValueLayout, Option<usize>),
+    ty: MirType,
+) -> ValueId {
+    if source == target && source_enum == target_enum {
+        return builder.cast(value, ty);
+    }
     // word = zext | sext | ptrtoint value to i256
-    // word = canonical(target, word), unless the carrier is a raw word
-    // value = trunc | ne 0 | inttoptr word to carrier
-    let word = raw_scalars::cast_carrier(builder, value, source, MirType::I256);
-    // A raw word carrier passes the bits on as a direct call would: the receiver cleans them where
-    // Solidity reads the value, and its assembly sees them as they are. Internal function pointers
-    // are small identifiers: the ABI's left-aligned cleanup of external function words does not
-    // apply to them.
-    let word = if carrier == MirType::I256 || target == crate::mir::ValueLayout::Function {
+    // validate_enum(word), unless the target is not an enum
+    // word = canonical(target, word)
+    // value = trunc | ne 0 | inttoptr word to ty
+    let word = widen_to_word(builder, value, source);
+    if let Some(variants) = target_enum.filter(|_| source_enum != target_enum) {
+        builder.validate_enum_value(variants as u64, word);
+    }
+    // Internal function pointers are small identifiers: the ABI's left-aligned cleanup of
+    // external function words does not apply to them.
+    let word = if target == crate::mir::ValueLayout::Function {
         word
     } else {
         AbiWordValidator::from_layout(target)
             .map_or(word, |validator| validator.cleanup(builder, word))
     };
-    builder.cast(word, carrier)
+    builder.cast(word, ty)
 }
 
 /// Returns `true` if `expr` is a number literal, an operation on them, or a comparison of them.

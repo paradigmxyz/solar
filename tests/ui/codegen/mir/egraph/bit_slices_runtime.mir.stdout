@@ -63,7 +63,7 @@ fn @offsets(arg0: i256) -> i256 [selector=0x81914619, pure, abi_params=[uint256]
 }
 
 ; function addressRoundtrip() external view returns (bool result) [selector 0xe6132fae]
-fn @addressRoundtrip() -> i256 [selector=0xe6132fae, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @addressRoundtrip() -> i1 [selector=0xe6132fae, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256
@@ -75,8 +75,7 @@ fn @addressRoundtrip() -> i256 [selector=0xe6132fae, view, abi_params=[], abi_re
     v7 = eq v6, v1
     v8 = zext i1 v7 to i256
     v9 = ne v8, 0
-    v10 = zext i1 v9 to i256
-    ret v10
+    ret v9
 }
 
 ; function repeated(uint256 x, uint256 index) external pure returns (uint256 result) [selector 0x6196485c]

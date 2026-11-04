@@ -139,7 +139,7 @@ fn @signedWords() -> i1 [selector=0xdab1aab6, pure, abi_params=[], abi_returns=[
     v31 = abi_encode [word<int8>, word<int16>, word<int24>, word<int32>, word<int40>, word<int48>, word<int56>, word<int64>, word<int72>, word<int80>, word<int88>, word<int96>, word<int104>, word<int112>, word<int120>, word<int128>, word<int136>, word<int144>, word<int152>, word<int160>, word<int168>, word<int176>, word<int184>, word<int192>, word<int200>, word<int208>, word<int216>, word<int224>, word<int232>, word<int240>, word<int248>, word], object, args v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23, v24, v25, v26, v27, v28, v29, v30, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jump bb1
   bb1:                                            ; preds = bb0, bb3
-    v32 = phi [bb0: 0], [bb3: v32]
+    v32 = phi [bb0: false], [bb3: v32]
     v33 = phi [bb0: v31], [bb3: v33]
     v34 = phi [bb0: 0], [bb3: v46]
     v35 = mload v33
@@ -237,17 +237,15 @@ fn @firstByteSigned16() -> i256 [selector=0x951569ca, pure, abi_params=[], abi_r
 ; function packedHash(uint8 prefix, int16 value, bytes3 suffix) external pure returns (bytes32) [selector 0x4ef47d0a]
 fn @packedHash(arg0: i8, arg1: i16, arg2: i256) -> i256 [selector=0x4ef47d0a, pure, abi_params=[uint8, int16, bytes3], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = and arg2, 0xffffff0000000000000000000000000000000000000000000000000000000000
-    v1 = keccak256_packed (uint8 arg0, int16 arg1, bytes3 v0)
-    ret v1
+    v0 = keccak256_packed (uint8 arg0, int16 arg1, bytes3 arg2)
+    ret v0
 }
 
 ; function packedHashLocal(uint8 prefix, int16 value, bytes3 suffix) external pure returns (bytes32) [selector 0x63ba958c]
 fn @packedHashLocal(arg0: i8, arg1: i16, arg2: i256) -> i256 [selector=0x63ba958c, pure, abi_params=[uint8, int16, bytes3], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = and arg2, 0xffffff0000000000000000000000000000000000000000000000000000000000
-    v1 = keccak256_packed (uint8 arg0, int16 arg1, bytes3 v0)
-    ret v1
+    v0 = keccak256_packed (uint8 arg0, int16 arg1, bytes3 arg2)
+    ret v0
 }
 
 ; function packedDynamicHashLocal(bytes32 prefix, bytes calldata value) external pure returns (bytes32) [selector 0xd119ea87]

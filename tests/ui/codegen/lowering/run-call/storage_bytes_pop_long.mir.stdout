@@ -5,7 +5,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>], 
   bb0:
     jump bb1
   bb1:                                            ; preds = bb0, bb3
-    v0 = phi [bb0: 0], [bb3: v0]
+    v0 = phi [bb0: false], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v47]
     v2 = gt v1, 40
     v3 = eq v2, false

@@ -128,11 +128,10 @@ fn @callOptions() -> i256 [selector=0xec5f47fe, abi_params=[], abi_returns=[word
 }
 
 ; function dirtyUint8(uint256 raw) internal pure returns (uint8 value)
-fn @dirtyUint8(arg0: i256) -> i256 [pure] {
+fn @dirtyUint8(arg0: i256) -> i8 [pure] {
   bb0:
     v0 = trunc i256 arg0 to i8
-    v1 = zext i8 v0 to i256
-    ret v1
+    ret v0
 }
 
 ; function dirtyGasOption() external returns (bool success) [selector 0x494be41f]
@@ -141,22 +140,20 @@ fn @dirtyGasOption() -> i1 [selector=0x494be41f, abi_params=[], abi_returns=[wor
     v0 = address
     v1 = gas
     v2 = icall @dirtyUint8, 0x10000
-    v3 = trunc i256 v2 to i8
-    v4 = zext i8 v3 to i256
-    v5 = abi_encode [word], object, selector 0xa4ba067e00000000000000000000000000000000000000000000000000000000, args 0
-    v6 = address_call v0, v5, gas v4
-    ret v6
+    v3 = zext i8 v2 to i256
+    v4 = abi_encode [word], object, selector 0xa4ba067e00000000000000000000000000000000000000000000000000000000, args 0
+    v5 = address_call v0, v4, gas v3
+    ret v5
 }
 
 ; function dirtySend() external payable returns (bool) [selector 0x82ec93de]
 fn @dirtySend() -> i1 [selector=0x82ec93de, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @dirtyUint8, 256
-    v1 = trunc i256 v0 to i8
-    v2 = zext i8 v1 to i256
-    v3 = icall send<>, i160 0xbeef, v2
-    v4 = ne v3, 0
-    ret v4
+    v1 = zext i8 v0 to i256
+    v2 = icall send<>, i160 0xbeef, v1
+    v3 = ne v2, 0
+    ret v3
 }
 
 ; function dirtyIndex() external pure returns (uint256) [selector 0xe98f4d7c]
@@ -174,15 +171,14 @@ fn @dirtyIndex() -> i256 [selector=0xe98f4d7c, pure, abi_params=[], abi_returns=
     v5 = ptradd v0, 0x2000
     mstore v5, 9
     v6 = icall @dirtyUint8, 256
-    v7 = trunc i256 v6 to i8
-    v8 = zext i8 v7 to i256
-    v9 = lt v8, 257
-    v10 = eq v9, false
-    icall panic_if<0x32>, v10
-    v11 = shl v8, 5
-    v12 = ptradd v0, v11
-    v13 = mload v12
-    ret v13
+    v7 = zext i8 v6 to i256
+    v8 = lt v7, 257
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = shl v7, 5
+    v11 = ptradd v0, v10
+    v12 = mload v11
+    ret v12
 }
 
 ; function mutate() external view override returns (uint256) [selector 0x7795b5fc]

@@ -438,7 +438,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 //     validate_calldata_bytes(data)
                 //     object = materialize_calldata_bytes(data)
                 // }
-                if self.dirty_values.contains(&value) {
+                if self.unchecked_calldata_slices.contains(&value) {
                     let length = self.builder.slice_len(value);
                     let object =
                         self.builder.alloc_bytes_object(length, AllocationSemantics::INTERNAL);

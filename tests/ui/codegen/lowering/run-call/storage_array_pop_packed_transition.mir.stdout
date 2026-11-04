@@ -8,9 +8,9 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<uin
   bb0:
     jump bb1
   bb1:                                            ; preds = bb0, bb3
-    v0 = phi [bb0: 0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v1]
-    v2 = phi [bb0: 0], [bb3: v2]
+    v0 = phi [bb0: i16 0], [bb3: v0]
+    v1 = phi [bb0: i16 0], [bb3: v1]
+    v2 = phi [bb0: i16 0], [bb3: v2]
     v3 = phi [bb0: 1], [bb3: v24]
     v4 = gt v3, 48
     v5 = eq v4, false

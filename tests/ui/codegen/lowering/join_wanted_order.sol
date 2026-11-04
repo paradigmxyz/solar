@@ -1,7 +1,8 @@
 //@ revisions: gas size
 //@[gas] compile-flags: -O gas -Zdump=evm-ir-runtime
 //@[size] compile-flags: -O size -Zdump=evm-ir-runtime
-//@ filecheck:
+//@[gas] filecheck: --check-prefix=GAS
+//@[size] filecheck: --check-prefix=SIZE
 //@ normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: one 3, 7 => 5
 //@ run-call: two 3, 7 => 6
@@ -12,10 +13,19 @@
 // join branches on the flag. The join takes the flag on top, the order its branch consumes the
 // words in, so the call's block pays the shuffle and the join starts with `iszero` instead of
 // a `swap 1` first.
-// CHECK: staticcall
-// CHECK: jump [[JOIN:bb[0-9]+]]
-// CHECK-NEXT: [[JOIN]]:
-// CHECK-NEXT: iszero
+// GAS: staticcall
+// GAS: jump [[JOIN:bb[0-9]+]]
+// GAS-NEXT: [[JOIN]]:
+// GAS-NEXT: iszero
+//
+// At `-O size` the join drops two dead words first.
+// SIZE: staticcall
+// SIZE: jump [[JOIN:bb[0-9]+]]
+// SIZE-NEXT: [[JOIN]]:
+// SIZE-NEXT: pop
+// SIZE-NEXT: pop
+// SIZE-NEXT: swap 2
+// SIZE-NEXT: iszero
 contract JoinWantedOrder {
     function tryModExp(uint256 b, uint256 e, uint256 m) internal view returns (bool success, uint256 result) {
         if (m == 0) return (false, 0);

@@ -223,24 +223,21 @@ fn @wrapLoop(arg0: i256) -> i8 [selector=0xe58d2ef9, pure, abi_params=[uint256],
     jump bb1
   bb1:                                            ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v7]
-    v2 = phi [bb0: 0], [bb3: v6]
+    v1 = phi [bb0: i8 0], [bb3: v4]
+    v2 = phi [bb0: 0], [bb3: v5]
     v3 = lt v2, v0
     jumpi v3, bb4, bb5
   bb5:                                            ; preds = bb1
     jump bb2
   bb2:                                            ; preds = bb5
-    v8 = trunc i256 v1 to i8
-    ret v8
+    ret v1
   bb4:                                            ; preds = bb1
-    v4 = trunc i256 v1 to i8
-    v5 = add v4, i8 1
+    v4 = add v1, i8 1
     jump bb6
   bb6:                                            ; preds = bb4
     jump bb3
   bb3:                                            ; preds = bb6
-    v6 = checked_add uint256, v2, 1
-    v7 = zext i8 v5 to i256
+    v5 = checked_add uint256, v2, 1
     jump bb1
 }
 
@@ -250,23 +247,20 @@ fn @checked(arg0: i256) -> i8 [selector=0x2e53fee2, pure, abi_params=[uint256], 
     jump bb1
   bb1:                                            ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v7]
-    v2 = phi [bb0: 0], [bb3: v6]
+    v1 = phi [bb0: i8 0], [bb3: v4]
+    v2 = phi [bb0: 0], [bb3: v5]
     v3 = lt v2, v0
     jumpi v3, bb4, bb5
   bb5:                                            ; preds = bb1
     jump bb2
   bb2:                                            ; preds = bb5
-    v8 = trunc i256 v1 to i8
-    ret v8
+    ret v1
   bb4:                                            ; preds = bb1
-    v4 = trunc i256 v1 to i8
-    v5 = checked_add uint8, v4, i8 1
+    v4 = checked_add uint8, v1, i8 1
     jump bb6
   bb6:                                            ; preds = bb4
     jump bb3
   bb3:                                            ; preds = bb6
-    v6 = checked_add uint256, v2, 1
-    v7 = zext i8 v5 to i256
+    v5 = checked_add uint256, v2, 1
     jump bb1
 }

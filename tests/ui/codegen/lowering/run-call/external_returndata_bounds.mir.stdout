@@ -40,9 +40,9 @@ fn @malformed() -> ptr<memory> [selector=0x0a39e7bc, pure, abi_params=[], abi_re
 }
 
 ; function dirtyAddress() external pure returns (address result) [selector 0x986597e5]
-fn @dirtyAddress() -> i256 [selector=0x986597e5, pure, abi_params=[], abi_returns=[word<uint160>], abi_return_params=[address]] {
+fn @dirtyAddress() -> i160 [selector=0x986597e5, pure, abi_params=[], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
-    ret 0xffffffffffffffffffffffffffffffffffffffff
+    ret i160 0xffffffffffffffffffffffffffffffffffffffff
 }
 
 ; === ROOT/tests/ui/codegen/lowering/run-call/external_returndata_bounds.sol:ReturnHarness ===

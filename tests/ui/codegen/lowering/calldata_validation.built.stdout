@@ -33,9 +33,6 @@ fn @vBytes4(arg0: i256) -> i256 [selector=0x2c920949, pure, abi_params=[bytes4],
 ; function vEnum(Dir x) external pure returns (Dir) [selector 0x5aa5e60a]
 fn @vEnum(arg0: i8) -> i8 [selector=0x5aa5e60a, pure, abi_params=[enum<3, uint8>], abi_returns=[word<enum 3>], abi_return_params=[enum<3, uint8>]] {
   bb0:
-    v0 = lt arg0, i8 3
-    v1 = eq v0, false
-    icall panic_if<0x21>, v1
     ret arg0
 }
 

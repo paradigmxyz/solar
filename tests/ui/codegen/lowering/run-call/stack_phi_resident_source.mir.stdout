@@ -26,7 +26,7 @@ fn @constructor() [constructor] {
 }
 
 ; function run(uint256 length, bool choose) external returns (uint256) [selector 0x0a3395f5]
-fn @run(arg0: i256, arg1: i256) -> i256 [selector=0x0a3395f5, abi_params=[uint256, bool], abi_returns=[word], abi_return_params=[uint256]] {
+fn @run(arg0: i256, arg1: i1) -> i256 [selector=0x0a3395f5, abi_params=[uint256, bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = sload 1 !metadata(storage=slot(1))
@@ -42,28 +42,29 @@ fn @run(arg0: i256, arg1: i256) -> i256 [selector=0x0a3395f5, abi_params=[uint25
     v11 = sload 11 !metadata(storage=slot(11))
     v12 = calldatasize
     calldatacopy 128, v12, arg0
-    v13 = ne arg1, 0
-    jumpi v13, bb1, bb2
+    v13 = zext i1 arg1 to i256
+    v14 = ne v13, 0
+    jumpi v14, bb1, bb2
   bb2:                                            ; preds = bb0
     jump bb3
   bb1:                                            ; preds = bb0
     log 0, 0
-    v14 = add v0, 7
+    v15 = add v0, 7
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v15 = phi [bb1: v14], [bb2: v0]
-    v16 = add v0, v15
-    v17 = add v16, v1
-    v18 = add v17, v2
-    v19 = add v18, v3
-    v20 = add v19, v4
-    v21 = add v20, v5
-    v22 = add v21, v6
-    v23 = add v22, v7
-    v24 = add v23, v8
-    v25 = add v24, v9
-    v26 = add v25, v10
-    v27 = add v26, v11
-    mstore 0, v27 !metadata(memory=scratch)
+    v16 = phi [bb1: v15], [bb2: v0]
+    v17 = add v0, v16
+    v18 = add v17, v1
+    v19 = add v18, v2
+    v20 = add v19, v3
+    v21 = add v20, v4
+    v22 = add v21, v5
+    v23 = add v22, v6
+    v24 = add v23, v7
+    v25 = add v24, v8
+    v26 = add v25, v9
+    v27 = add v26, v10
+    v28 = add v27, v11
+    mstore 0, v28 !metadata(memory=scratch)
     returndata 0, 32
 }

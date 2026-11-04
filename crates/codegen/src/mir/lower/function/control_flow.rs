@@ -127,8 +127,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_if(
         &mut self,
         condition: &hir::Expr<'_>,
-        then_stmt: &hir::Stmt<'_>,
-        else_stmt: Option<&hir::Stmt<'_>>,
+        then_stmt: &'gcx hir::Stmt<'gcx>,
+        else_stmt: Option<&'gcx hir::Stmt<'gcx>>,
     ) -> Option<()> {
         let condition_span = condition.span;
         let condition = self.lower_expr(condition)?;
@@ -155,7 +155,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(())
     }
 
-    pub(super) fn lower_switch(&mut self, switch: &hir::StmtSwitch<'_>) -> Option<()> {
+    pub(super) fn lower_switch(&mut self, switch: &'gcx hir::StmtSwitch<'gcx>) -> Option<()> {
         let selector = self.lower_yul_word_expr(switch.selector)?;
         self.materialize_default_bindings();
         let switch_block = self.builder.current_block();
@@ -208,7 +208,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(())
     }
 
-    pub(super) fn lower_try(&mut self, try_stmt: &hir::StmtTry<'_>) -> Option<()> {
+    pub(super) fn lower_try(&mut self, try_stmt: &'gcx hir::StmtTry<'gcx>) -> Option<()> {
         // Parenthesizing the target changes nothing about the call it wraps, so peel the parens
         // here exactly as the checker does when it accepts the statement. solc rejects
         // `try (c.f()) { ... }` because its target must be a call syntactically, but the
@@ -467,8 +467,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let Some(value) = creation_value else {
                 return self.cx.report_unsupported(returns_clause.span, "try return binding list");
             };
-            let value = self.materialize_raw_scalar(binding, value);
-            self.values.insert(binding, value);
+            let value = self.cast_to_native(binding, value);
+            self.bind_variable(binding, value);
         } else if let Some(plan) = ret_plan {
             // success.returns = load_words | abi_decode(buffer) | abi_decode(returndata)
             let values = self.finish_external_call(
@@ -479,8 +479,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 "codegen cannot decode try/catch returndata before Byzantium",
             )?;
             for (&binding, value) in returns_clause.args.iter().zip(values) {
-                let value = self.materialize_raw_scalar(binding, value);
-                self.values.insert(binding, value);
+                // The decoded word is already validated for the binding's type.
+                let value = self.cast_to_native(binding, value);
+                self.bind_variable(binding, value);
             }
         }
         self.lower_block(returns_clause.block)?;
@@ -573,7 +574,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else {
                     object
                 };
-                self.values.insert(binding, value);
+                self.bind_variable(binding, value);
             }
             self.lower_block(catch_clause.block)?;
             let catch_terminated = self.is_terminated();
@@ -615,12 +616,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .map(|id| self.cx.gcx.type_of_item(id.into()))
             .or_else(|| self.cx.gcx.type_of_expr(expr.id));
         Some(if let Some(ty) = ty {
-            raw_scalars::cast_carrier(
-                &mut self.builder,
-                value,
-                types::TypeLowerer::value_layout(ty),
-                MirType::I256,
-            )
+            widen_to_word(&mut self.builder, value, types::TypeLowerer::value_layout(ty))
         } else {
             self.builder.cast_word(value)
         })
@@ -688,38 +684,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             (true, false) => Some(else_branch.value),
             (false, true) => Some(then_branch.value),
             _ if then_branch.value == else_branch.value => Some(then_branch.value),
-            _ => Some(self.merge_ternary_phi(
-                vec![
-                    (then_branch.block, then_branch.value),
-                    (else_branch.block, else_branch.value),
-                ],
-                ty,
-            )),
+            _ => Some(self.merge_value_phi(vec![
+                (then_branch.block, then_branch.value),
+                (else_branch.block, else_branch.value),
+            ])),
         }
-    }
-
-    fn merge_ternary_phi(
-        &mut self,
-        mut incoming: Vec<(BlockId, ValueId)>,
-        ty: Ty<'gcx>,
-    ) -> ValueId {
-        let layout = types::TypeLowerer::value_layout(ty);
-        if matches!(layout, crate::mir::ValueLayout::Int(_))
-            && incoming.iter().any(|(_, value)| self.dirty_values.contains(value))
-        {
-            let current = self.builder.current_block();
-            for (block, value) in &mut incoming {
-                self.builder.switch_to_block(*block);
-                let dirty = self.dirty_values.contains(value);
-                *value =
-                    raw_scalars::cast_carrier(&mut self.builder, *value, layout, MirType::I256);
-                if dirty {
-                    self.dirty_values.insert(*value);
-                }
-            }
-            self.builder.switch_to_block(current);
-        }
-        self.merge_value_phi(incoming)
     }
 
     pub(super) fn lower_ternary_value(
@@ -798,14 +767,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .into_iter()
                 .zip(else_branch.value)
                 .zip(types)
-                .map(|((then, else_), &ty)| {
+                .map(|((then, else_), _)| {
                     if then == else_ {
                         then
                     } else {
-                        self.merge_ternary_phi(
-                            vec![(then_branch.block, then), (else_branch.block, else_)],
-                            ty,
-                        )
+                        self.merge_value_phi(vec![
+                            (then_branch.block, then),
+                            (else_branch.block, else_),
+                        ])
                     }
                 })
                 .collect(),
@@ -833,8 +802,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_loop(
         &mut self,
-        mut block: hir::Block<'_>,
-        source: LoopSource<'_>,
+        mut block: hir::Block<'gcx>,
+        source: LoopSource<'gcx>,
     ) -> Option<()> {
         self.materialize_default_bindings();
         let update_stmt = match source {
@@ -871,16 +840,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             before_values.iter().map(|(&id, &value)| (id, value)).collect::<Vec<_>>();
         loop_values.sort_unstable_by_key(|&(id, _)| id);
         for (id, value) in loop_values {
-            let value = if self.cx.state.raw_scalars.contains(&id)
-                && self.builder.func().value_ty(value).is_some_and(|ty| ty.integer_bits().is_some())
-            {
-                self.builder.switch_to_block(preheader);
-                let value = self.materialize_raw_scalar(id, value);
-                self.builder.switch_to_block(header);
-                value
-            } else {
-                value
-            };
             let phi = self.merge_value_phi(vec![(preheader, value)]);
             header_values.insert(id, phi);
             header_phis.insert(id, phi);
@@ -987,8 +946,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         for (&id, &phi) in header_phis {
             let value = state.values.get(&id).copied().unwrap_or(phi);
             self.builder.add_phi_incoming(phi, state.block, value);
-            if !self.dirty_values.is_empty() && self.dirty_values.contains(&value) {
-                self.dirty_values.insert(phi);
+            if self.unchecked_calldata_slices.contains(&value) {
+                self.unchecked_calldata_slices.insert(phi);
             }
         }
     }
@@ -1145,20 +1104,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn merge_value_phi(&mut self, incoming: Vec<(BlockId, ValueId)>) -> ValueId {
-        let dirty = !self.dirty_values.is_empty()
-            && incoming.iter().any(|(_, value)| self.dirty_values.contains(value));
-        let value = if dirty {
-            // Preserve native widths; raw assembly carriers already use i256.
-            self.builder.phi(incoming)
-        } else {
-            let ty = incoming
-                .first()
-                .and_then(|(_, value)| self.builder.func().value_ty(*value))
-                .unwrap_or(MirType::I256);
-            self.builder.emit_inst(InstKind::Phi(incoming), Some(ty))
-        };
-        if dirty {
-            self.dirty_values.insert(value);
+        let unchecked =
+            incoming.iter().any(|(_, value)| self.unchecked_calldata_slices.contains(value));
+        let ty = incoming
+            .first()
+            .and_then(|(_, value)| self.builder.func().value_ty(*value))
+            .unwrap_or(MirType::I256);
+        let value = self.builder.emit_inst(InstKind::Phi(incoming), Some(ty));
+        if unchecked {
+            self.unchecked_calldata_slices.insert(value);
         }
         value
     }

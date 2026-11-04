@@ -97,17 +97,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let Some(&mir_id) = self.cx.function_ids.get(&function_id) else {
             return self.cx.report_unsupported(span, "user-defined operator function");
         };
-        let result_ty = self.cx.state.scalar_carrier(self.cx.gcx, function.returns[0]);
-        // argument = cast operand to the operator's declared carrier type
+        let result_ty =
+            types::TypeLowerer::mir_type(self.cx.gcx.type_of_item(function.returns[0].into()));
         // result = icall operator, arguments
         let values = values
             .iter()
             .zip(function.parameters)
-            .map(|(&value, &parameter)| self.materialize_scalar_carrier(parameter, value, span))
+            .map(|(&value, &parameter)| self.materialize_binding(parameter, value, span))
             .collect::<Option<Vec<_>>>()?;
-        let result = self.builder.icall(mir_id, values, result_ty);
-        self.dirty_values.insert(result);
-        Some(result)
+        Some(self.builder.icall(mir_id, values, result_ty))
     }
 
     pub(super) fn lower_call(
@@ -465,23 +463,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             "named internal function argument",
             |this, index, argument| {
                 let parameter = function.parameters[index];
-                let value = if Self::is_storage_parameter(parameter) {
+                if Self::is_storage_parameter(parameter) {
                     // argument = slot of the storage argument
-                    this.require_storage_access(argument)?.slot
+                    return Some(this.require_storage_access(argument)?.slot);
+                }
+                let value = this.lower_typed_expr(argument, parameter)?;
+                if parameter.is_value_type() {
+                    Some(value)
                 } else {
-                    let value = this.lower_typed_expr(argument, parameter)?;
-                    if !parameter.is_value_type() {
-                        return this.materialize_call_argument(parameter, value, argument.span);
-                    }
-                    value
-                };
-                let ty = this.cx.state.pointer_carrier(types::TypeLowerer::mir_type(parameter));
-                Some(raw_scalars::cast_carrier(
-                    &mut this.builder,
-                    value,
-                    types::TypeLowerer::value_layout(parameter),
-                    ty,
-                ))
+                    this.materialize_call_argument(parameter, value, argument.span)
+                }
             },
         )?;
         values.insert(0, function_value);
@@ -490,23 +481,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // functions than the per-type one.
         let registry = &self.cx.state.pointer_registry;
         let from_assembly = registry.assembly_calls.contains(&expr.id)
-            && registry
-                .assembly_widens(self.cx.gcx, &InternalFunctionPointerShape::from_ty(function));
+            && registry.assembly_widens(
+                self.cx.gcx,
+                &InternalFunctionPointerShape::from_ty(self.cx.gcx, function),
+            );
         let dispatcher = self.ensure_internal_function_pointer_dispatcher(function, from_assembly);
         if function.returns.is_empty() {
             // icall_void(dispatcher, function, args)
             self.builder.icall_void(dispatcher, values);
             return Some(CallResult::Void);
         }
-        let return_types = function
-            .returns
-            .iter()
-            .map(|&ty| self.cx.state.pointer_carrier(types::TypeLowerer::mir_type(ty)))
-            .collect();
+        let return_types =
+            function.returns.iter().map(|&ty| types::TypeLowerer::mir_type(ty)).collect();
         let result_ty = self.cx.module.intern_return_type(return_types)?;
         // result = icall(dispatcher, function, args)
         let result = self.builder.icall(dispatcher, values, result_ty);
-        self.dirty_values.insert(result);
         Some(CallResult::Value(result))
     }
 
@@ -535,9 +524,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         from_assembly: bool,
     ) -> FunctionId {
         // dispatch(function_ptr, params...) -> returns...
-        let shape = InternalFunctionPointerShape::from_ty(function);
+        let shape = InternalFunctionPointerShape::from_ty(self.cx.gcx, function);
         let name = shape.helper_name(from_assembly);
-        let InternalFunctionPointerShape { params, returns } = shape.clone();
+        let InternalFunctionPointerShape { params, returns, .. } = shape.clone();
         let id = self
             .lazy_helper(name, |this, function| {
                 function.attributes.is_function_pointer_dispatcher = true;
@@ -565,16 +554,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn coerce_value(&mut self, value: ValueId, from: Ty<'gcx>, to: Ty<'gcx>) -> ValueId {
-        if from == to && self.dirty_values.contains(&value) {
-            return value;
-        }
-        // value = from != to ? normalize_dirty(value, from) : value
-        let value = if from.peel_refs() != to.peel_refs() {
-            self.normalize_dirty_scalar(value, from)
-        } else {
-            value
-        };
-        if matches!(to.peel_refs().kind, TyKind::Enum(_)) {
+        if matches!(to.peel_refs().kind, TyKind::Enum(_)) && from.peel_refs() != to.peel_refs() {
             self.validate_enum(to, value);
         }
         if let (Some(from_bits), Some(to_bits)) = (
@@ -706,13 +686,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    pub(super) fn normalize_dirty_scalar(&mut self, value: ValueId, ty: Ty<'gcx>) -> ValueId {
-        if self.in_inline_assembly || !self.dirty_values.contains(&value) {
-            return value;
-        }
-        self.normalize_abi_scalar(value, ty)
-    }
-
     // External functions are low-aligned as scalar MIR values, but Solidity memory stores their
     // 24-byte representation left-aligned. Keep the conversion at typed memory boundaries.
     // A word read from memory is cleaned: inline assembly may have stored a dirty word, so a
@@ -746,13 +719,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let shift = self.builder.imm(64);
             return self.builder.shl(value, shift);
         }
-        let value = self.normalize_dirty_scalar(value, ty);
-        raw_scalars::cast_carrier(
-            &mut self.builder,
-            value,
-            types::TypeLowerer::value_layout(ty),
-            MirType::I256,
-        )
+        widen_to_word(&mut self.builder, value, types::TypeLowerer::value_layout(ty))
     }
 
     pub(super) fn lower_function_call(
@@ -824,11 +791,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             } else {
                 self.lower_typed_expr(receiver, parameter_ty)?
             };
-            values.push(self.materialize_scalar_carrier(
-                function.parameters[0],
-                value,
-                receiver.span,
-            )?);
+            values.push(self.materialize_binding(function.parameters[0], value, receiver.span)?);
         }
         let arguments = self.lower_call_arguments(
             args,
@@ -847,7 +810,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else {
                     this.lower_typed_expr(argument, parameter_ty)?
                 };
-                this.materialize_scalar_carrier(parameter, value, argument.span)
+                this.materialize_binding(parameter, value, argument.span)
             },
         )?;
         values.extend(arguments);
@@ -865,13 +828,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let return_types = function
             .returns
             .iter()
-            .map(|&ret| self.cx.state.scalar_carrier(self.cx.gcx, ret))
+            .map(|&ret| types::TypeLowerer::mir_type(self.cx.gcx.type_of_item(ret.into())))
             .collect();
         let result_ty = self.cx.module.intern_return_type(return_types)?;
         // result = icall(function, call_args)
-        let result = self.builder.icall(mir_id, values, result_ty);
-        self.dirty_values.insert(result);
-        Some(CallResult::Value(result))
+        Some(CallResult::Value(self.builder.icall(mir_id, values, result_ty)))
     }
 
     fn lower_pure_struct_constructor(

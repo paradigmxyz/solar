@@ -7,7 +7,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.parameters.extend_from_slice(function.parameters);
         for &param in function.parameters {
             let ty = self.cx.gcx.type_of_item(param.into());
-            let value = self.builder.add_param(self.cx.state.scalar_carrier(self.cx.gcx, param));
+            let value = self.builder.add_param(types::TypeLowerer::mir_type(ty));
             if ty.is_ref_at(DataLocation::Storage) {
                 self.storage_refs.insert(
                     param,
@@ -18,17 +18,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     },
                 );
             } else {
-                self.values.insert(param, value);
-                if ty.is_value_type() && self.builder.func().value_ty(value) == Some(MirType::I256)
-                {
-                    self.dirty_values.insert(value);
-                }
+                self.bind_variable(param, value);
             }
         }
         let return_types = function
             .returns
             .iter()
-            .map(|&ret| self.cx.state.scalar_carrier(self.cx.gcx, ret))
+            .map(|&ret| types::TypeLowerer::mir_type(self.cx.gcx.type_of_item(ret.into())))
             .collect();
         if let Some(ty) = self.cx.module.intern_return_type(return_types) {
             self.builder.set_return_type(ty);
@@ -65,7 +61,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let source_ty = self.cx.gcx.type_of_expr(initializer.id)?;
             let value = self.lower_typed_expr(initializer, ty)?;
             if let Some(&immutable_id) = self.cx.immutable_ids.get(&id) {
-                self.store_immutable_value(id, immutable_id, value);
+                self.store_immutable_value(immutable_id, value);
             } else {
                 self.store_state_variable(id, value, source_ty, initializer.span)?;
             }
@@ -175,8 +171,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 );
             } else {
                 self.storage_refs.remove(&parameter);
-                let value = self.materialize_raw_scalar(parameter, value);
-                self.values.insert(parameter, value);
+                self.bind_variable(parameter, value);
             }
         }
     }
@@ -269,7 +264,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else {
                     self.values.get(&id).copied().unwrap_or_else(|| self.default_binding_value(ty))
                 };
-                values.push(self.materialize_scalar_carrier(
+                values.push(self.materialize_binding(
                     id,
                     value,
                     self.cx.gcx.hir.variable(id).span,
@@ -301,8 +296,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         for id in ids {
             let ty = self.cx.gcx.type_of_item(id.into());
             let value = self.default_binding_value(ty);
-            let value = self.materialize_raw_scalar(id, value);
-            self.values.insert(id, value);
+            self.bind_variable(id, value);
         }
     }
 

@@ -79,9 +79,9 @@ fn @copyDoesNotOverlapSource() -> struct2 [selector=0x8b005e62, abi_params=[], a
   bb0:
     jump bb1
   bb1:                                            ; preds = bb0, bb3
-    v0 = phi [bb0: 0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v1]
-    v2 = phi [bb0: 0], [bb3: v2]
+    v0 = phi [bb0: i72 0], [bb3: v0]
+    v1 = phi [bb0: i72 0], [bb3: v1]
+    v2 = phi [bb0: i72 0], [bb3: v2]
     v3 = phi [bb0: 0], [bb3: v3]
     v4 = phi [bb0: 0], [bb3: v24]
     v5 = lt v4, 7

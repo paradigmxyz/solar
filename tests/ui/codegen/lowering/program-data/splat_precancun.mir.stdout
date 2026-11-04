@@ -25,7 +25,7 @@ fn @hash() -> i256 [selector=0x09bd5a60, pure, abi_params=[], abi_returns=[word]
 }
 
 ; function paddingIsZero() external pure returns (bool result) [selector 0x06793283]
-fn @paddingIsZero() -> i256 [selector=0x06793283, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @paddingIsZero() -> i1 [selector=0x06793283, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @data
     v1 = ptrtoint ptr<memory> v0 to i256
@@ -38,8 +38,7 @@ fn @paddingIsZero() -> i256 [selector=0x06793283, pure, abi_params=[], abi_retur
     v8 = eq v7, 0
     v9 = zext i1 v8 to i256
     v10 = ne v9, 0
-    v11 = zext i1 v10 to i256
-    ret v11
+    ret v10
 }
 
 ; function shortHash() external pure returns (bytes32) [selector 0x0c6b2786]

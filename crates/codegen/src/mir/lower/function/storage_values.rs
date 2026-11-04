@@ -280,7 +280,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let index = self
                         .lower_fixed_bytes_literal(key, index)
                         .or_else(|| self.lower_typed_expr(index, key))?;
-                    let index = self.normalize_abi_scalar(index, key);
                     let slot = self.mapping_slot(index, key, base.slot);
                     if let Some((size, encoding)) = self.cx.storage.packed_encoding(value) {
                         let location = StorageLocation::packed_word(size, encoding);
@@ -969,11 +968,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<()> {
         if self.types.memory_layout(ty).is_some() {
             return self.store_storage_object_with_source(ty, source_ty, access.slot, value, span);
-        }
-        let dirty = !self.in_inline_assembly && self.dirty_values.contains(&value);
-        let value = self.normalize_dirty_scalar(value, ty);
-        if !dirty {
-            self.validate_enum(ty, value);
         }
         if let Some(offset) = access.offset {
             self.cx.storage.store_at_offset(

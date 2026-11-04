@@ -329,7 +329,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let zero = self.builder.imm(U256::ZERO);
             return self.builder.make_slice(zero, zero, PtrLocation::Calldata);
         }
-        self.default_object_with_mode(ty, true).unwrap_or_else(|| self.builder.imm(U256::ZERO))
+        self.default_object_with_mode(ty, true).unwrap_or_else(|| {
+            let zero = self.builder.imm(U256::ZERO);
+            let native = types::TypeLowerer::mir_type(ty);
+            if native.integer_bits().is_some() { self.builder.cast(zero, native) } else { zero }
+        })
     }
 
     pub(super) fn default_object(&mut self, ty: Ty<'gcx>) -> Option<ValueId> {

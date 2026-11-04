@@ -125,7 +125,7 @@ fn @calldataIntoHeader(arg0: slice<calldata>, arg1: ptr<memory>, arg2: i256) -> 
     v2 = phi [bb0: arg0], [bb3: v2]
     v3 = phi [bb0: v1], [bb3: v3]
     v4 = phi [bb0: arg2], [bb3: v4]
-    v5 = phi [bb0: 0], [bb3: v5]
+    v5 = phi [bb0: false], [bb3: v5]
     v6 = phi [bb0: 0], [bb3: v26]
     v7 = lt v6, v4
     jumpi v7, bb4, bb5

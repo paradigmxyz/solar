@@ -1,11 +1,11 @@
 ; === ROOT/tests/ui/codegen/lowering/run-call/yul_switch_word_selector.sol:YulSwitchWordSelector ===
 @module YulSwitchWordSelector
 ; function dirty(bool value) internal pure returns (bool result)
-fn @dirty(arg0: i256) -> i256 [pure] {
+fn @dirty(arg0: i1) -> i1 [pure] {
   bb0:
-    v0 = mul arg0, 3
-    v1 = ne v0, 0
-    v2 = zext i1 v1 to i256
+    v0 = zext i1 arg0 to i256
+    v1 = mul v0, 3
+    v2 = ne v1, 0
     ret v2
 }
 
@@ -26,23 +26,25 @@ fn @switchCallResult() -> i256 [selector=0x2e6d4117, abi_params=[], abi_returns=
 }
 
 ; function switchBool(bool value) external pure returns (uint256 result) [selector 0xec9b6d62]
-fn @switchBool(arg0: i256) -> i256 [selector=0xec9b6d62, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
+fn @switchBool(arg0: i1) -> i256 [selector=0xec9b6d62, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    switch arg0, default bb3, [0 => bb2]
+    v0 = zext i1 arg0 to i256
+    switch v0, default bb3, [0 => bb2]
   bb2:                                            ; preds = bb0
     jump bb1
   bb3:                                            ; preds = bb0
     jump bb1
   bb1:                                            ; preds = bb2, bb3
-    v0 = phi [bb2: 7], [bb3: 11]
-    ret v0
+    v1 = phi [bb2: 7], [bb3: 11]
+    ret v1
 }
 
 ; function switchDirty() external pure returns (uint256 result) [selector 0x49dc0693]
 fn @switchDirty() -> i256 [selector=0x49dc0693, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = icall @dirty, 1
-    switch v0, default bb4, [0 => bb2, 1 => bb3]
+    v0 = icall @dirty, true
+    v1 = zext i1 v0 to i256
+    switch v1, default bb4, [0 => bb2, 1 => bb3]
   bb3:                                            ; preds = bb0
     jump bb1
   bb2:                                            ; preds = bb0
@@ -50,6 +52,6 @@ fn @switchDirty() -> i256 [selector=0x49dc0693, pure, abi_params=[], abi_returns
   bb4:                                            ; preds = bb0
     jump bb1
   bb1:                                            ; preds = bb2, bb3, bb4
-    v1 = phi [bb2: 7], [bb3: 11], [bb4: 13]
-    ret v1
+    v2 = phi [bb2: 7], [bb3: 11], [bb4: 13]
+    ret v2
 }

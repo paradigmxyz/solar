@@ -19,16 +19,17 @@ fn @single(arg0: ptr<memory>, arg1: i8) -> ptr<memory> [selector=0x1f48d2ce, pur
 }
 
 ; function wordAndByte(bytes memory prefix, bytes32 head, uint8 tail) external pure returns (bytes memory) [selector 0x28e22812]
-fn @wordAndByte(arg0: ptr<memory>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x28e22812, pure, abi_params=[bytes, bytes32, uint8], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @wordAndByte(arg0: ptr<memory>, arg1: i256, arg2: i8) -> ptr<memory> [selector=0x28e22812, pure, abi_params=[bytes, bytes32, uint8], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc zeroed checked 96
     mstore v0, 33
     v1 = ptrtoint ptr<memory> v0 to i256
     v2 = add v1, 32
     mstore v2, arg1
-    v3 = ptrtoint ptr<memory> v0 to i256
-    v4 = add v3, 64
-    mstore8 v4, arg2
-    v5 = abi_encode_packed (memory_bytes arg0, memory_bytes v0)
-    ret v5
+    v3 = zext i8 arg2 to i256
+    v4 = ptrtoint ptr<memory> v0 to i256
+    v5 = add v4, 64
+    mstore8 v5, v3
+    v6 = abi_encode_packed (memory_bytes arg0, memory_bytes v0)
+    ret v6
 }

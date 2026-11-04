@@ -665,9 +665,10 @@ fn @trace(arg0: i256) -> i256 {
 fn @constructor() [constructor] {
   bb0:
     sstore 1, 120 !metadata(storage=slot(1))
-    v0 = icall @forward, 52
+    v0 = icall @forward, i8 52
     v1 = icall @internal_dispatcher_p_uint8_r_uint8, 1, v0
-    sstore 0, v1 !metadata(storage=slot(0))
+    v2 = zext i8 v1 to i256
+    sstore 0, v2 !metadata(storage=slot(0))
     jump bb2
   bb2:                                            ; preds = bb0
     jump bb1
@@ -690,12 +691,12 @@ fn @modified() -> i256 [selector=0x45ecd3d7, view, abi_params=[], abi_returns=[w
 }
 
 ; function forward(uint8 value) internal pure returns (uint8)
-fn @forward(arg0: i256) -> i256 [pure] {
+fn @forward(arg0: i8) -> i8 [pure] {
   bb0:
     ret arg0
 }
 
-fn @internal_dispatcher_p_uint8_r_uint8(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_uint8_r_uint8(arg0: i256, arg1: i8) -> i8 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
@@ -713,9 +714,10 @@ fn @internal_dispatcher_p_uint8_r_uint8(arg0: i256, arg1: i256) -> i256 [functio
 fn @constructor() [constructor] {
   bb0:
     sstore 1, 120 !metadata(storage=slot(1))
-    v0 = icall @forward, 52
+    v0 = icall @forward, i8 52
     v1 = icall @internal_dispatcher_p_uint8_r_uint8, 1, v0
-    sstore 0, v1 !metadata(storage=slot(0))
+    v2 = zext i8 v1 to i256
+    sstore 0, v2 !metadata(storage=slot(0))
     jump bb3
   bb3:                                            ; preds = bb0
     jump bb2
@@ -740,12 +742,12 @@ fn @modified() -> i256 [selector=0x45ecd3d7, view, abi_params=[], abi_returns=[w
 }
 
 ; function forward(uint8 value) internal pure returns (uint8)
-fn @forward(arg0: i256) -> i256 [pure] {
+fn @forward(arg0: i8) -> i8 [pure] {
   bb0:
     ret arg0
 }
 
-fn @internal_dispatcher_p_uint8_r_uint8(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_uint8_r_uint8(arg0: i256, arg1: i8) -> i8 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
@@ -763,9 +765,10 @@ fn @internal_dispatcher_p_uint8_r_uint8(arg0: i256, arg1: i256) -> i256 [functio
 fn @constructor() [constructor] {
   bb0:
     sstore 1, 120 !metadata(storage=slot(1))
-    v0 = icall @forward, 52
+    v0 = icall @forward, i8 52
     v1 = icall @internal_dispatcher_p_uint8_r_uint8, 1, v0
-    sstore 0, v1 !metadata(storage=slot(0))
+    v2 = zext i8 v1 to i256
+    sstore 0, v2 !metadata(storage=slot(0))
     jump bb3
   bb3:                                            ; preds = bb0
     jump bb2
@@ -790,12 +793,12 @@ fn @modified() -> i256 [selector=0x45ecd3d7, view, abi_params=[], abi_returns=[w
 }
 
 ; function forward(uint8 value) internal pure returns (uint8)
-fn @forward(arg0: i256) -> i256 [pure] {
+fn @forward(arg0: i8) -> i8 [pure] {
   bb0:
     ret arg0
 }
 
-fn @internal_dispatcher_p_uint8_r_uint8(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_uint8_r_uint8(arg0: i256, arg1: i8) -> i8 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2

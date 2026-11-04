@@ -21,7 +21,8 @@ contract YulLowLevelBuiltins {
     }
 
     // CHECK-LABEL: fn @callCode{{[( ]}}
-    // CHECK: {{v[0-9]+}} = callcode {{v[0-9]+}}, arg0, 0, 0, 0, 0, 0
+    // CHECK: [[TARGET:v[0-9]+]] = zext i160 arg0 to i256
+    // CHECK: {{v[0-9]+}} = callcode {{v[0-9]+}}, [[TARGET]], 0, 0, 0, 0, 0
     function callCode(address target) public returns (uint256 success) {
         assembly {
             success := callcode(gas(), target, 0, 0, 0, 0, 0)
@@ -30,8 +31,10 @@ contract YulLowLevelBuiltins {
 
     // CHECK-LABEL: fn @safeCall{{[( ]}}
     // CHECK: [[FMP:v[0-9]+]] = mload 64
-    // CHECK: {{v[0-9]+}} = call {{v[0-9]+}}, arg0, 0, 0, 4, 0, 32
-    // CHECK: extcodesize arg0
+    // CHECK: [[TOKEN:v[0-9]+]] = zext i160 arg0 to i256
+    // CHECK: {{v[0-9]+}} = call {{v[0-9]+}}, [[TOKEN]], 0, 0, 4, 0, 32
+    // CHECK: [[CODE_TOKEN:v[0-9]+]] = zext i160 arg0 to i256
+    // CHECK: extcodesize [[CODE_TOKEN]]
     // CHECK: mstore 64, [[FMP]]
     // CHECK: returndatacopy [[FMP]], 0,
     // CHECK: revert [[FMP]],

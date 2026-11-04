@@ -40,7 +40,7 @@ fn @probe() -> i256 [selector=0xb74af5a9, view, abi_params=[], abi_returns=[word
 }
 
 ; function observed() external view returns (bool result) [selector 0xba210709]
-fn @observed() -> i256 [selector=0xba210709, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @observed() -> i1 [selector=0xba210709, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = address
@@ -93,6 +93,5 @@ fn @observed() -> i256 [selector=0xba210709, view, abi_params=[], abi_returns=[w
     v38 = zext i1 v37 to i256
     v39 = and v34, v38
     v40 = ne v39, 0
-    v41 = zext i1 v40 to i256
-    ret v41
+    ret v40
 }

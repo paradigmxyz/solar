@@ -30,7 +30,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     jump bb1
   bb1:                                            ; preds = bb0, bb3
     v2 = phi [bb0: 0], [bb3: v2]
-    v3 = phi [bb0: 0], [bb3: v3]
+    v3 = phi [bb0: false], [bb3: v3]
     v4 = phi [bb0: 0], [bb3: v59]
     v5 = phi [bb0: v0], [bb3: v5]
     v6 = phi [bb0: v1], [bb3: v6]

@@ -32,7 +32,7 @@ fn @ascii(arg0: ptr<memory>) -> i1 [selector=0x6f11c5d5, pure, abi_params=[bytes
     jump bb1
   bb1:                                            ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v1]
+    v1 = phi [bb0: false], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v16]
     v3 = mload v0
     v4 = lt v2, v3
