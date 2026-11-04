@@ -1,5 +1,6 @@
 //@ compile-flags: -Ogas --emit=srcmap-runtime -Zdump=evm-ir-runtime-scheduled
 //@ filecheck:
+//@ normalize-stdout-test: "(?s).+" -> ""
 
 // A value recomputed at its use keeps the origin of the instruction that defines it, not the one of
 // the instruction that consumes it.
