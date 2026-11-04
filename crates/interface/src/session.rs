@@ -491,7 +491,10 @@ impl Session {
             }
         }
 
-        self.enter_sequential(|| self.thread_pool().install(f))
+        // Set the globals inside `install`, not around it. When the caller is a worker of another
+        // thread pool, `install` steals and runs that pool's jobs while it waits, and they must not
+        // see these globals. The workers of this pool already have them.
+        self.thread_pool().install(|| self.enter_sequential(f))
     }
 
     /// Sets up the session globals and executes the given closure in the current thread.
@@ -657,7 +660,11 @@ fn in_rayon() -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
+    use std::{
+        path::PathBuf,
+        sync::atomic::{AtomicBool, Ordering},
+        time::{Duration, Instant},
+    };
 
     /// Session to test `enter`.
     fn enter_tests_session() -> Session {
@@ -865,6 +872,35 @@ mod tests {
                 use_globals();
             });
             use_globals();
+        });
+    }
+
+    #[test]
+    fn enter_different_nested_sessions_no_steal() {
+        let sess1 = Session::builder().with_buffer_emitter(ColorChoice::Never).threads(4).build();
+        let sess2 = Session::builder().with_buffer_emitter(ColorChoice::Never).threads(4).build();
+        sess1.enter(|| {
+            for _ in 0..50 {
+                let done = AtomicBool::new(false);
+                let mut ok = false;
+                rayon::join(
+                    || {
+                        sess2.enter(|| {
+                            let start = Instant::now();
+                            while !done.load(Ordering::Acquire)
+                                && start.elapsed() < Duration::from_millis(200)
+                            {
+                                std::hint::spin_loop();
+                            }
+                        })
+                    },
+                    || {
+                        ok = sess1.is_entered();
+                        done.store(true, Ordering::Release);
+                    },
+                );
+                assert!(ok, "job ran with the wrong session globals");
+            }
         });
     }
 
