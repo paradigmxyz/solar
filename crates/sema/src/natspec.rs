@@ -771,18 +771,20 @@ impl<'gcx> Resolver<'gcx> {
         local_tags: LocalTags,
         inherited_tags: &'gcx [hir::NatSpecItem],
     ) -> &'gcx [hir::NatSpecItem] {
+        use hir::NatSpecKind as HirKind;
+
         let mut merged = SmallVec::<[hir::NatSpecItem; 8]>::from_slice(items);
 
         for item in inherited_tags.iter() {
             let should_inherit = match &item.kind {
-                NatSpecKind::Notice => !local_tags.contains(LocalTags::NOTICE),
-                NatSpecKind::Dev => !local_tags.contains(LocalTags::DEV),
-                NatSpecKind::Title => !local_tags.contains(LocalTags::TITLE),
-                NatSpecKind::Author => !local_tags.contains(LocalTags::AUTHOR),
-                NatSpecKind::Param { .. } => !local_tags.contains(LocalTags::PARAM),
-                NatSpecKind::Return { .. } => !local_tags.contains(LocalTags::RETURN),
-                NatSpecKind::Custom { .. } | NatSpecKind::Internal { .. } => false,
-                NatSpecKind::Inheritdoc { .. } => false,
+                HirKind::Notice => !local_tags.contains(LocalTags::NOTICE),
+                HirKind::Dev => !local_tags.contains(LocalTags::DEV),
+                HirKind::Title => !local_tags.contains(LocalTags::TITLE),
+                HirKind::Author => !local_tags.contains(LocalTags::AUTHOR),
+                HirKind::Param { .. } => !local_tags.contains(LocalTags::PARAM),
+                HirKind::Return { .. } => !local_tags.contains(LocalTags::RETURN),
+                HirKind::Custom { .. } | HirKind::Internal { .. } => false,
+                HirKind::Inheritdoc { .. } => false,
             };
 
             if should_inherit {
