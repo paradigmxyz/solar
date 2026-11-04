@@ -18,7 +18,7 @@ contract StackPhiLoop {
     // The step select is arithmetic, `11 + flag * (7 - 11)`, so no join
     // precedes the loop. The loop test, which returns once the loop ends, runs at
     // the end of the entry and of the body, whose branch closes the loop.
-    // CHECK: [[CARRIED]]{{( \[loop\])?}}:
+    // CHECK: [[CARRIED]]{{( \[[a-z, ]+\])?}}:
     // CHECK: mul
     // CHECK-NEXT: push 11
     // CHECK-NEXT: add

@@ -11,7 +11,7 @@ contract NoneCheapCleanup {
     // CHECK: eq
     // CHECK-NEXT: push [[WRAPPER:bb[0-9]+]]
     // CHECK-NEXT: jumpi
-    // CHECK: [[WRAPPER]]:
+    // CHECK: [[WRAPPER]]{{( \[[a-z, ]+\])?}}:
     // CHECK-NEXT: push 36
     // CHECK-NOT: jump bb
     // CHECK: return

@@ -22,6 +22,7 @@ struct ParsedBlockHeader {
     hotness: Hotness,
     in_loop: bool,
     is_continuation: bool,
+    external_entry: bool,
     function_invoke: Option<DebugFunction>,
     entry_depth: Option<u16>,
     call_effect: Option<CallEffect>,
@@ -108,6 +109,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 module.blocks[block_id].metadata.hotness = header.hotness;
                 module.blocks[block_id].metadata.in_loop = header.in_loop;
                 module.blocks[block_id].metadata.is_continuation = header.is_continuation;
+                module.blocks[block_id].metadata.external_entry = header.external_entry;
                 module.blocks[block_id].metadata.function_invoke = header.function_invoke;
                 module.blocks[block_id].metadata.entry_depth = header.entry_depth;
                 module.blocks[block_id].metadata.call_effect = header.call_effect;
@@ -135,6 +137,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let mut hotness = Hotness::Hot;
         let mut in_loop = false;
         let mut is_continuation = false;
+        let mut external_entry = false;
         let mut function_invoke = None;
         let mut entry_depth = None;
         let mut ret = None;
@@ -148,6 +151,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     in_loop = true;
                 } else if self.parser.eat_keyword(sym::continuation) {
                     is_continuation = true;
+                } else if self.parser.eat_keyword(sym::entry) {
+                    external_entry = true;
                 } else if self.parser.eat_keyword(sym::invoke) {
                     self.parser.expect(TokenKind::Eq)?;
                     let identifier = self.parser.parse_ident()?;
@@ -171,8 +176,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     outputs = Some(self.parser.parse_uint_as()?);
                 } else {
                     return Err(self.parser.error(
-                        "expected `cold`, `loop`, `continuation`, `invoke`, `stack`, `ret`, `inputs`, \
-                         or `outputs` block attribute",
+                        "expected `cold`, `loop`, `continuation`, `entry`, `invoke`, `stack`, `ret`, \
+                         `inputs`, or `outputs` block attribute",
                     ));
                 }
                 if !self.parser.eat(TokenKind::Comma) {
@@ -201,6 +206,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             hotness,
             in_loop,
             is_continuation,
+            external_entry,
             function_invoke,
             entry_depth,
             call_effect,
