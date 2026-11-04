@@ -350,6 +350,14 @@ class StackProofTests(unittest.TestCase):
             self.assertEqual(result["status"], "counterexample")
             self.assertTrue(result["proofs"][0]["replayed"])
 
+    def test_pushed_word_is_independent_of_incoming_stack_words(self):
+        source = (
+            "(rule (peep_op (last2 (push s0) (opcode $OR))) (rewrite 2 (Edit.Keep 0)))"
+        )
+        result = self.verify(source)["rules"][0]
+        self.assertEqual(result["status"], "counterexample")
+        self.assertTrue(result["proofs"][0]["replayed"])
+
     def test_unknown_effect_and_changed_extent_fail_closed(self):
         for source in (
             "(rule (peep_pop (last2 (opcode $MLOAD) (pop))) (rewrite 2 (Edit.Keep 0)))",

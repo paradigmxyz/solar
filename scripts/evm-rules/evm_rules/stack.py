@@ -36,7 +36,8 @@ def instruction(pattern, bindings):
     if name == "pop" and not args:
         return "pop", ()
     if name == "push" and len(args) == 1:
-        return "push", (bindings.get(args[0], args[0]),)
+        # A pushed word is independent of the incoming stack words `s0`, `s1`, ....
+        return "push", (bindings.get(args[0], f"pushed_{args[0]}"),)
     if name == "opcode" and len(args) == 1:
         opcode = args[0].removeprefix("$").lower()
         if opcode in ("pop", *OPERATIONS):
