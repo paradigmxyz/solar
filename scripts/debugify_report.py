@@ -105,11 +105,11 @@ def markdown(summary: dict) -> str:
         (
             "Losses are investigation candidates: deleting dead code can legitimately "
             "remove its last origin. Frontend-only and rejected inputs never reach IR passes. "
-            "The test log includes those tests; counts above cover audited compilations only."
+            "Counts above cover audited compilations only."
         ),
         "",
         (
-            "Strict preservation tests still fail CI. The artifact contains the full JSON "
+            "Strict preservation tests still fail. The output directory contains the full JSON "
             "summary and raw per-invocation reports, including arguments, source-file "
             "bounds and lost spans."
         ),

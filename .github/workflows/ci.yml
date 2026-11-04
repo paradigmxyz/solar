@@ -161,27 +161,11 @@ jobs:
           # interpreter, which must agree with the EVM. The check does not depend on the host, so
           # one job runs it.
           SOLAR_RUN_CALL_EVM_IR: ${{ matrix.os == 'ubuntu-latest' && matrix.rust == 'stable' && '1' || '' }}
-          # Also records per-pass source-origin audits for every UI-mode compilation. The audits
-          # only add JSON files and never change compiler output, so one job collects them.
-          SOLAR_DEBUGIFY_DIR: ${{ matrix.os == 'ubuntu-latest' && matrix.rust == 'stable' && format('{0}/target/debugify/origins', github.workspace) || '' }}
       - name: test C API
         if: matrix.os == 'ubuntu-latest' && matrix.rust == 'stable'
         run: ./crates/capi/test
       - name: doctest
         run: cargo test --doc --workspace --features "${{ matrix.features || '' }}"
-      - name: Summarize source-origin losses
-        if: always() && matrix.os == 'ubuntu-latest' && matrix.rust == 'stable'
-        run: |
-          python3 scripts/debugify_report.py target/debugify/origins --output target/debugify
-          cat target/debugify/report.md >> "$GITHUB_STEP_SUMMARY"
-      - name: Upload debugify audits
-        if: always() && matrix.os == 'ubuntu-latest' && matrix.rust == 'stable'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: debugify
-          path: target/debugify
-          if-no-files-found: error
-          retention-days: 7
 
   python:
     if: github.event_name != 'schedule'

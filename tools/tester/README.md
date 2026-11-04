@@ -120,10 +120,9 @@ Frontend-only and rejected inputs do not reach IR passes.
 Run `python3 scripts/debugify_report.py target/debugify/origins --output
 target/debugify` for a summary by pass and test/revision. Raw JSON-line files
 contain the invocation, source-file bounds and each pass's lost spans. The
-`test ubuntu-latest stable` CI job sets `SOLAR_DEBUGIFY_DIR` for its normal test
-run and uploads the audits even when tests fail. It rejects missing or damaged
-audits. Ordinary optimization losses are reported for investigation, since removing
-dead code can legitimately delete its last source origin.
+report rejects missing or damaged audits. Ordinary optimization losses are
+reported for investigation, since removing dead code can legitimately delete its
+last source origin.
 
 `SOLDB=/path/to/soldb/target/debug/soldb cargo tq debug-diff` compiles and runs
 local debug-info comparisons against solc and between our ETHDebug and legacy

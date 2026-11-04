@@ -17,7 +17,7 @@ It does not check variable locations or inline scopes.
 `-Zdebugify-output=DIR` enables the same audit and writes JSON-line sidecars
 without adding stderr output. It can be combined with either diagnostic mode.
 The [UI runner](../tools/tester/README.md#debug-info-differential-suite) uses
-this to audit the full suite in CI without changing its diagnostic snapshots.
+this to audit the full suite without changing its diagnostic snapshots.
 
 ## Operation Schema and ISLE Rules
 
