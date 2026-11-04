@@ -43,10 +43,16 @@ fn constructor_local_memory_end(module: &Module) -> u64 {
 
 /// Returns the first immutable staging word, above every constructor-owned
 /// fixed memory word.
+///
+/// `lower-immutables` fixes the base on the module, since its stores are themselves absolute
+/// accesses that a later computation would count.
 pub fn immutable_staging_base(module: &Module) -> u64 {
-    let fixed_end = constructor_local_memory_end(module)
-        .max(EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT + EvmMemoryLayout::WORD_SIZE);
-    EvmMemoryLayout::align_word(fixed_end).expect("constructor immutable staging address overflow")
+    module.immutable_staging_base().unwrap_or_else(|| {
+        let fixed_end = constructor_local_memory_end(module)
+            .max(EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT + EvmMemoryLayout::WORD_SIZE);
+        EvmMemoryLayout::align_word(fixed_end)
+            .expect("constructor immutable staging address overflow")
+    })
 }
 
 /// Returns the constructor-memory address assigned to an immutable.
