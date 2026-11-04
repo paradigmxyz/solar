@@ -2188,6 +2188,7 @@ pub struct TypeMapping<'hir> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use snapbox::{assert_data_eq, str};
 
     #[test]
     fn resolution_projections() {
@@ -2226,7 +2227,6 @@ mod tests {
     #[cfg_attr(not(target_pointer_width = "64"), ignore = "64-bit only")]
     #[cfg_attr(feature = "nightly", ignore = "stable only")]
     fn sizes() {
-        use snapbox::{assert_data_eq, str};
         #[track_caller]
         fn assert_size<T>(size: impl snapbox::IntoData) {
             assert_size_(std::mem::size_of::<T>(), size.into_data());
