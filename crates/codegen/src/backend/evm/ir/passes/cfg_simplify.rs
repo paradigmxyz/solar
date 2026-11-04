@@ -48,14 +48,9 @@
 //! return address. Ordinary address-taken labels remain opaque. The declaration is emitted by call
 //! lowering and machine outlining and round-trips through EVM IR independently of debug output.
 //!
-//! A bypassed conditional thunk can lend its source span to an already required destination
-//! label only when the thunk chain exclusively reaches that entry. The checkpoint records the
-//! incoming transfer's origin; later passes and assembly discard it if the entry becomes shared,
-//! falls through, or acquires opaque address uses. It never keeps a label or changes a rewrite.
-//! Empty prefixes of a thunk chain have no origin to lend. The whole chain must have one source
-//! origin; an otherwise unmapped dispatch transfer records a separate checkpoint identity.
-//! A conditional edge's function entry moves only to its exclusive destination, never to the
-//! shared terminator or label push, which also execute when that edge is not taken.
+//! A bypassed thunk's jump takes its source origin with it, as a removed branch does in LLVM. Its
+//! function events move to an unconditional transfer that skips it, never to a conditional one,
+//! which also executes when that edge is not taken.
 
 use super::{
     EvmPass,
@@ -74,7 +69,6 @@ use crate::backend::evm::{
     op,
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
-use solar_evmir::debug::DebugEntryCheckpoint;
 use solar_sema::Gcx;
 
 pub(super) struct CfgSimplify {
@@ -277,7 +271,8 @@ fn inline_shared_return_thunks(
     changed
 }
 
-/// An empty block that only jumps on, with the debug info its removal moves to incoming edges.
+/// An empty block that only jumps on, with the function events its removal moves to incoming
+/// edges.
 struct Thunk {
     next: BlockId,
     metadata: Metadata,
@@ -427,9 +422,7 @@ fn redirect_jump_thunks(
     thread_shared_jumps: bool,
     state: &mut RunState,
 ) -> bool {
-    let RunState {
-        thunks, addressed, jump_heads, forwarded_continuations, order, references, ..
-    } = state;
+    let RunState { thunks, addressed, jump_heads, forwarded_continuations, order, .. } = state;
     // Redirect direct edges through empty blocks. Keep labels used as values distinct, and move
     // each removed thunk's debug event to its incoming edges. A thunk is an empty block that only
     // jumps on: redirect direct branches and explicitly unobservable return addresses; ordinary
@@ -468,7 +461,7 @@ fn redirect_jump_thunks(
             thunk.metadata.set_function_invoke(function);
         }
         if let Some(terminator) = &block.terminator {
-            thunk.metadata.absorb_debug_info(&terminator.metadata);
+            thunk.metadata.absorb_function_events(&terminator.metadata);
         }
         true
     });
@@ -490,12 +483,7 @@ fn redirect_jump_thunks(
     };
 
     let mut changed = false;
-    let mut checkpoints = Vec::new();
-    if thunks.values().any(|thunk| !thunk.metadata.source_spans().is_empty()) {
-        count_block_references(module, references);
-    }
     forwarded_continuations.clear_to(module.blocks.len());
-    let track_checkpoints = module.debug_info_is_tracked();
     for block in &mut module.blocks {
         for at in 0..block.instructions.len() {
             if let Some(PushValue::Block(target)) = block.instructions[at].value
@@ -505,23 +493,6 @@ fn redirect_jump_thunks(
                 if direct && let Some(thunk) = thunks.get(&target) {
                     let conditional =
                         block.instructions.get(at + 1).is_some_and(|inst| inst.opcode == op::JUMPI);
-                    if conditional && track_checkpoints {
-                        let chain = thunk_chain_debug_info(target, thunks);
-                        if let Some((destination, checkpoint)) = thunk_checkpoint(
-                            target,
-                            thunks,
-                            references,
-                            &block.instructions[at].metadata,
-                            &chain,
-                        ) {
-                            if block.instructions[at].metadata.source_spans().is_empty() {
-                                block.instructions[at]
-                                    .metadata
-                                    .add_checkpoint_transfer(checkpoint.transfer);
-                            }
-                            checkpoints.push((destination, checkpoint, chain.function_invoke()));
-                        }
-                    }
                     absorb_thunk_debug_info(
                         &mut block.instructions[at].metadata,
                         &thunk.metadata,
@@ -529,8 +500,8 @@ fn redirect_jump_thunks(
                     );
                 }
                 // NOTE: A return-address push executes before the callee, while the bypassed
-                // continuation runs after it. Its debug events cannot move onto that push;
-                // those zero-instruction checkpoints are intentionally dropped with the thunk.
+                // continuation runs after it. Its debug events cannot move onto that push, so
+                // they are dropped with the thunk.
                 let resolved = resolve(target);
                 if !direct && !addressed.contains(resolved) {
                     // The forwarded return address remains unobservable. Retain that fact on
@@ -546,32 +517,12 @@ fn redirect_jump_thunks(
             let conditional = !matches!(term.kind, TerminatorKind::Jump(_));
             term.kind.visit_targets_mut(|target| {
                 if let Some(thunk) = thunks.get(target) {
-                    if conditional && track_checkpoints {
-                        let chain = thunk_chain_debug_info(*target, thunks);
-                        if let Some((destination, checkpoint)) =
-                            thunk_checkpoint(*target, thunks, references, &term.metadata, &chain)
-                        {
-                            if term.metadata.source_spans().is_empty() {
-                                term.metadata.add_checkpoint_transfer(checkpoint.transfer);
-                            }
-                            checkpoints.push((destination, checkpoint, chain.function_invoke()));
-                        }
-                    }
                     absorb_thunk_debug_info(&mut term.metadata, &thunk.metadata, conditional);
                 }
                 let resolved = resolve(*target);
                 changed |= resolved != *target;
                 *target = resolved;
             });
-        }
-    }
-    for (target, mut checkpoint, invocation) in checkpoints {
-        let metadata = &mut module.blocks[target].metadata;
-        if metadata.function_invoke.is_none() {
-            checkpoint.function_invoke = invocation;
-        }
-        if metadata.entry_checkpoint.is_none() || metadata.entry_checkpoint == Some(checkpoint) {
-            metadata.entry_checkpoint = Some(checkpoint);
         }
     }
     // target: <unobservable control continuation>
@@ -800,59 +751,10 @@ fn simplify_known_jumps(module: &mut Module) -> bool {
 /// other paths, so only the former can inherit its events. The thunk's jump takes its origins
 /// with it, as a removed branch does in LLVM's `MergeBlockIntoPredecessor`
 /// (llvm/lib/Transforms/Utils/BasicBlockUtils.cpp#L346-L371 at llvm-project e98b16a2710b).
-// NOTE: Without an exclusive destination label, a conditional edge loses its zero-byte
-// checkpoint. Do not retain a jump or attribute an operation executed on other paths to it.
+// NOTE: A conditional edge loses the thunk's events. Do not retain a jump or attribute an
+// operation executed on other paths to it.
 fn absorb_thunk_debug_info(metadata: &mut Metadata, thunk: &Metadata, conditional: bool) {
     if !conditional {
         metadata.absorb_function_events(thunk);
     }
-}
-
-/// Finds an existing destination reached exclusively through this thunk chain. Its label can
-/// represent the removed source operation, while the conditional transfer keeps its own origin.
-fn thunk_checkpoint(
-    start: BlockId,
-    thunks: &FxHashMap<BlockId, Thunk>,
-    references: &IndexVec<BlockId, usize>,
-    transfer: &Metadata,
-    chain: &Metadata,
-) -> Option<(BlockId, DebugEntryCheckpoint)> {
-    let [source] = chain.source_spans() else { return None };
-    let origin = match transfer.source_spans() {
-        [origin] => *origin,
-        [] => transfer.function_invoke().or_else(|| chain.function_invoke())?.declaration,
-        _ => return None,
-    };
-    let checkpoint = DebugEntryCheckpoint {
-        source: *source,
-        transfer: origin,
-        modifier_depth: chain.modifier_depth(),
-        function_invoke: None,
-    };
-    let mut target = start;
-    for _ in 0..thunks.len() {
-        let Some(thunk) = thunks.get(&target) else { return Some((target, checkpoint)) };
-        if !thunk.metadata.source_spans().iter().all(|&span| span == checkpoint.source)
-            || (!thunk.metadata.source_spans().is_empty()
-                && thunk.metadata.modifier_depth() != checkpoint.modifier_depth)
-            || references.get(thunk.next) != Some(&1)
-        {
-            return None;
-        }
-        target = thunk.next;
-    }
-    (!thunks.contains_key(&target)).then_some((target, checkpoint))
-}
-
-/// Collects the chain's origins and compatible function events, including beyond empty prefixes.
-/// Its entry identity can validate an exclusive checkpoint without becoming a transfer event.
-fn thunk_chain_debug_info(start: BlockId, thunks: &FxHashMap<BlockId, Thunk>) -> Metadata {
-    let chain =
-        std::iter::successors(Some(start), |target| thunks.get(target).map(|thunk| thunk.next))
-            .take(thunks.len())
-            .filter_map(|target| thunks.get(&target).map(|thunk| &thunk.metadata));
-    let mut context = Metadata::default();
-    context.mark_debug_info_dropped();
-    context.merge_equivalent_debug_info(chain);
-    context
 }

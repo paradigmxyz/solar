@@ -473,13 +473,7 @@ fn evm_ir_debug_contexts_preserve_bytecode() {
     let path = path.to_str().unwrap();
     for (pipeline, fixture, audit) in [
         ("peephole", "peephole/debug_replacements.evmir", "report"),
-        ("cfg-simplify", "cfg-simplify/branch_entry_inversion.evmir", "check"),
-        ("cfg-simplify", "cfg-simplify/thunk_chain_spans.evmir", "check"),
-        (
-            "cfg-simplify,terminal-dedup,cfg-simplify",
-            "cfg-simplify/checkpoint_shared_entry.evmir",
-            "report",
-        ),
+        ("cfg-simplify", "cfg-simplify/thunk_spans.evmir", "check"),
     ] {
         let source = RealFileLoader
             .load_file(&Path::new(FIXTURES).join("../../codegen/evm-ir").join(fixture))

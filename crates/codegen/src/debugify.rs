@@ -259,13 +259,7 @@ impl Origins {
 
     pub(crate) fn evm(module: &solar_evmir::ir::Module) -> Self {
         let mut spans = FxHashSet::default();
-        let valid = module.valid_entry_checkpoints();
-        for (id, block) in module.blocks.iter_enumerated() {
-            if valid.contains(id)
-                && let Some(checkpoint) = block.metadata.entry_checkpoint
-            {
-                spans.insert(checkpoint.source);
-            }
+        for block in &module.blocks {
             for inst in &block.instructions {
                 spans.extend(inst.metadata.source_spans());
             }

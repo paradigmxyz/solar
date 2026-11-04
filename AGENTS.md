@@ -85,8 +85,8 @@ Pipeline: lex -> parse -> sema (AST -> HIR, typeck) -> MIR -> EVM IR -> bytecode
 
 Debug info must never change codegen: no changes to executable MIR or EVM IR,
 optimization decisions, stack scheduling, layout, or bytecode to keep metadata,
-and no kept instructions, duplicated code, or disabled optimizations to create
-a source checkpoint. Keep valid metadata when possible; otherwise mark it
+and no kept instructions, duplicated code, or disabled optimizations to keep
+a source location. Keep valid metadata when possible; otherwise mark it
 dropped or unknown rather than inventing a location or picking an arbitrary
 origin for shared code. Explain deliberate limits with a `NOTE:` comment. Cover
 debug-info changes with bytecode-neutrality tests.
