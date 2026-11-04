@@ -1,6 +1,7 @@
 //! Shared source fixtures and compiler adapters for Solidity compiler benchmarks.
 
 #![allow(clippy::disallowed_methods)]
+#![cfg_attr(test, allow(unused_crate_dependencies))]
 
 use flate2::read::GzDecoder;
 use solar::{
