@@ -1,19 +1,23 @@
 //! Native pass registration and loading.
 //!
-//! Libraries export a versioned C entry point speaking the `solar-pass-plugin` JSON protocol.
+//! Rust libraries implement the SDK's `Plugin` trait and use its export macro. The loader checks
+//! the SDK and Rust build fingerprint before using typed Rust callbacks. No byte protocol or
+//! foreign-language interface is exposed.
 //! Registration is cached per compilation; libraries outlive their callbacks and each compilation
 //! serializes calls into its library handles. MIR and EVM IR adapters submit edits through the
 //! normal pass managers, without granting foreign code access to Rust compiler objects. The host
-//! owns response buffers and rejects missing, duplicate, oversized, malformed, or incompatible
-//! replies. Native libraries are trusted executable code, not a sandbox. Validation checks IR
+//! clones borrowed responses and rejects missing, duplicate, or incompatible replies. Native
+//! libraries are trusted executable code, not a sandbox. Validation checks IR
 //! invariants, not semantic equivalence of a third-party transformation.
 
 use crate::{backend::evm::CodegenState, mir::MirPhase};
 use solar_interface::diagnostics::ErrorGuaranteed;
-use solar_pass_plugin::{API_VERSION, Entry, FAILURE, Ir, Manifest, Request, Response, SUCCESS};
+use solar_pass_plugin::{
+    __private::{ABI_SYMBOL, ENTRY_SYMBOL, Entry, Exports, Receiver, build_fingerprint},
+    API_VERSION, Ir, Manifest, Request, Response,
+};
 use solar_sema::Gcx;
 use std::{
-    ffi::c_void,
     path::Path,
     sync::{Arc, Mutex},
 };
@@ -34,11 +38,11 @@ pub(crate) struct Registry {
 }
 
 struct NativePlugin {
-    // The library must remain loaded until every entry-point call has returned.
+    exports: &'static Exports,
+    calls: Mutex<()>,
+    // Drop the library only after every borrowed export and callback has finished.
     #[cfg(any(unix, windows))]
     _library: Library,
-    entry: Entry,
-    calls: Mutex<()>,
 }
 
 struct Pass {
@@ -56,15 +60,13 @@ impl Pass {
         optimization: String,
         module: solar_pass_plugin::Snapshot,
     ) -> Result<Response, String> {
-        let request = Request::Run {
-            api_version: API_VERSION,
+        let request = Request {
             pass: self.local_name.clone(),
             evm_version: gcx.sess.opts.evm_version.to_string(),
             optimization,
             module,
         };
-        let bytes = self.plugin.call(&request)?;
-        serde_json::from_slice(&bytes).map_err(|error| format!("invalid pass response: {error}"))
+        self.plugin.run(&request)
     }
 
     fn error(&self, gcx: Gcx<'_>, error: impl std::fmt::Display) -> ErrorGuaranteed {
@@ -93,10 +95,7 @@ impl Registry {
         let path = std::fs::canonicalize(path)
             .map_err(|error| format!("cannot open pass plugin `{}`: {error}", path.display()))?;
         let plugin = Arc::new(NativePlugin::load(&path)?);
-        let bytes = plugin.call(&Request::Describe { api_version: API_VERSION })?;
-        let manifest: Manifest = serde_json::from_slice(&bytes).map_err(|error| {
-            format!("invalid plugin manifest from `{}`: {error}", path.display())
-        })?;
+        let manifest = plugin.manifest()?;
         if manifest.api_version != API_VERSION {
             return Err(format!(
                 "plugin `{}` requires API {}, expected {API_VERSION}",
@@ -144,75 +143,67 @@ impl NativePlugin {
     fn load(path: &Path) -> Result<Self, String> {
         #[cfg(any(unix, windows))]
         {
-            // SAFETY: Loading was explicitly requested by the user. The library must obey
-            // the documented entry-point ABI, including its initialization/destruction code.
+            // SAFETY: Loading was explicitly requested. Libraries must use the Rust SDK,
+            // including its export adapter and initialization/destruction contract.
             let library = unsafe { Library::new(path) }.map_err(|error| {
                 format!("cannot load pass plugin `{}`: {error}", path.display())
             })?;
-            // SAFETY: Version 1 fixes this symbol's C signature. Keep the library with it.
-            let entry = unsafe { library.get::<Entry>(solar_pass_plugin::ENTRY_SYMBOL) }.map_err(
-                |error| {
-                    format!(
-                        "pass plugin `{}` has no `solar_pass_plugin_v1` entry point: {error}",
-                        path.display()
-                    )
-                },
-            )?;
-            Ok(Self { entry: *entry, _library: library, calls: Mutex::new(()) })
+            // SAFETY: The SDK exports this identity as exactly 32 bytes. Inspect it before
+            // interpreting any Rust-layout values or calling an entry point.
+            let fingerprint =
+                unsafe { library.get::<*const [u8; 32]>(ABI_SYMBOL) }.map_err(|_| {
+                    format!("pass plugin `{}` is missing the Rust SDK fingerprint", path.display())
+                })?;
+            // SAFETY: A trusted SDK library exports the fixed-size byte array above.
+            if unsafe { &**fingerprint } != &build_fingerprint(cfg!(panic = "unwind")) {
+                return Err(format!(
+                    "pass plugin `{}` was built with an incompatible Rust SDK or toolchain",
+                    path.display()
+                ));
+            }
+            // SAFETY: The fingerprint matches this SDK and Rust build. The export macro fixes
+            // the Rust signature, and the library stays loaded while its exports are borrowed.
+            let entry = unsafe { library.get::<Entry>(ENTRY_SYMBOL) }.map_err(|error| {
+                format!(
+                    "pass plugin `{}` has no `solar_rust_pass_plugin_v1` entry point: {error}",
+                    path.display()
+                )
+            })?;
+            let exports = entry();
+            Ok(Self { exports, calls: Mutex::new(()), _library: library })
         }
         #[cfg(not(any(unix, windows)))]
         Err(format!("native pass plugins are not supported on this target: `{}`", path.display()))
     }
 
-    fn call(&self, request: &Request) -> Result<Vec<u8>, String> {
+    fn manifest(&self) -> Result<Manifest, String> {
         let _guard = self.calls.lock().map_err(|_| "plugin call lock is poisoned")?;
-        let request = serde_json::to_vec(request).map_err(|error| error.to_string())?;
-        let mut response = ResponseBuffer::default();
-        // SAFETY: The input and response context outlive this synchronous call. Plugins must
-        // not retain pointers, unwind, or invoke the writer asynchronously.
-        let status = unsafe {
-            (self.entry)(
-                request.as_ptr(),
-                request.len(),
-                write_response,
-                (&mut response as *mut ResponseBuffer).cast(),
-            )
-        };
-        if response.invalid {
-            return Err("plugin wrote an invalid, duplicate, or oversized response".into());
-        }
-        let bytes = response.bytes.ok_or("plugin did not write a response")?;
-        match status {
-            SUCCESS => Ok(bytes),
-            FAILURE => Err(String::from_utf8_lossy(&bytes).into_owned()),
-            _ => Err(format!("plugin returned unknown status {status}")),
-        }
+        receive(|respond| (self.exports.manifest)(respond))
     }
-}
 
-#[derive(Default)]
-struct ResponseBuffer {
-    bytes: Option<Vec<u8>>,
-    invalid: bool,
-}
-
-unsafe extern "C" fn write_response(context: *mut c_void, bytes: *const u8, length: usize) -> u32 {
-    // SAFETY: NativePlugin::call owns this context until the entry point returns.
-    let response = unsafe { &mut *context.cast::<ResponseBuffer>() };
-    if response.bytes.is_some() || length > 64 * 1024 * 1024 || (length != 0 && bytes.is_null()) {
-        response.invalid = true;
-        return FAILURE;
+    fn run(&self, request: &Request) -> Result<Response, String> {
+        let _guard = self.calls.lock().map_err(|_| "plugin call lock is poisoned")?;
+        receive(|respond| (self.exports.run)(request, respond))
     }
-    // SAFETY: The plugin lends a readable buffer for this call. Empty buffers need no pointer.
-    response.bytes = Some(if length == 0 {
-        Vec::new()
-    } else {
-        unsafe { std::slice::from_raw_parts(bytes, length) }.to_vec()
-    });
-    SUCCESS
 }
 
 fn valid_name(name: &str) -> bool {
     !name.is_empty()
         && name.bytes().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+}
+
+fn receive<T: Clone>(call: impl FnOnce(&mut Receiver<'_, T>)) -> Result<T, String> {
+    let mut response = None;
+    let mut duplicate = false;
+    call(&mut |value| {
+        if response.is_some() {
+            duplicate = true;
+        } else {
+            response = Some(value.cloned().map_err(str::to_owned));
+        }
+    });
+    if duplicate {
+        return Err("Rust plugin returned more than one response".into());
+    }
+    response.ok_or_else(|| "Rust plugin did not return a response".to_owned())?
 }

@@ -50,8 +50,8 @@ suite without changing its diagnostic snapshots.
 ## Native pass plugins
 
 `-Zload-pass-plugin=/path/to/library` loads out-of-tree MIR and EVM IR passes.
-The [plugin SDK](../crates/pass-plugin/README.md) defines the versioned C ABI,
-registration, pipeline hooks, and supported edits. The
+The [Rust plugin SDK](../crates/pass-plugin/README.md) defines the `Plugin` trait,
+export macro, build compatibility checks, pipeline hooks, and supported edits. The
 [`solar-pass-plugin-example`](../tools/pass-plugin-example/src/lib.rs) package
 builds a working shared library without linking compiler internals.
 

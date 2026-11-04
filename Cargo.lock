@@ -4413,7 +4413,6 @@ dependencies = [
  "either",
  "libloading",
  "memchr",
- "serde_json",
  "smallvec",
  "snapbox",
  "solar-ast",
@@ -4450,7 +4449,9 @@ dependencies = [
  "solar-macros",
  "solar-mir-interpreter",
  "solar-parse",
+ "solar-pass-plugin",
  "solar-pass-plugin-example",
+ "solar-pass-plugin-fixture",
  "solar-sema",
  "solar-tester",
  "tempfile",
@@ -4659,16 +4660,18 @@ dependencies = [
 [[package]]
 name = "solar-pass-plugin"
 version = "0.3.0"
-dependencies = [
- "serde",
- "serde_json",
-]
 
 [[package]]
 name = "solar-pass-plugin-example"
 version = "0.3.0"
 dependencies = [
- "serde_json",
+ "solar-pass-plugin",
+]
+
+[[package]]
+name = "solar-pass-plugin-fixture"
+version = "0.3.0"
+dependencies = [
  "solar-pass-plugin",
 ]
 

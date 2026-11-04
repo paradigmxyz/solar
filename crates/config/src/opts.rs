@@ -389,7 +389,7 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long, require_equals = true, value_name = "PASS[,PASS...]"))]
     pub evm_ir_pipeline: Option<String>,
 
-    /// Load a trusted native MIR/EVM IR pass plugin (command line only). Repeat for multiple
+    /// Load a trusted Rust MIR/EVM IR pass plugin (command line only). Repeat for multiple
     /// libraries.
     #[cfg_attr(feature = "clap", arg(long, require_equals = true, value_name = "PATH"))]
     pub load_pass_plugin: Vec<PathBuf>,
