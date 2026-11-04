@@ -17,6 +17,9 @@
 //@ run-call: calldataSliceRead [0,0,0,0] => [1, 0, 3, 2]
 //@ run-call: calldataBytesSliceRead 0x00000000 => [1, 0, 3, 2]
 //@ run-call: memNestedRead => [1, 1, 2]
+//@ run-call: reassignedLocalRead => 1
+//@ run-call: calldataSliceBaseRead [0,0,77,0] => 77, [1, 3, 4]
+//@ run-call-fail: sliceBoundsRevertBeforeIndex [0,0,77,0] => 0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000067365636f6e640000000000000000000000000000000000000000000000000000
 
 // The base of an index access is evaluated before the index: the first helper call
 // logs 1 and the index expression logs the following values, as in solc.
@@ -67,4 +70,23 @@ contract C {
     function memNestedRead() external returns (uint256[] memory) { init(); mkNested()[t(1)][t(2)]; return log; }
     function mkNested() internal returns (uint256[][] memory a) { log.push(1); a = new uint256[][](3); a[1] = new uint256[](3); }
 
+    function reassignedLocalRead() external returns (uint256) {
+        init();
+        uint256[] memory a = new uint256[](1);
+        a[0] = 1;
+        uint256[] memory b = new uint256[](3);
+        b[0] = 2;
+        return a[(a = b).length - 3];
+    }
+    function calldataSliceBaseRead(uint256[] calldata d) external returns (uint256, uint256[] memory) {
+        init();
+        uint256 r = d[t(1):t(3)][tv(4, 1)];
+        return (r, log);
+    }
+    function sliceBoundsRevertBeforeIndex(uint256[] calldata d) external returns (uint256) {
+        return d[0:revertSecond()][revertThird()];
+    }
+    function tv(uint256 k, uint256 v) internal returns (uint256) { log.push(k); return v; }
+    function revertSecond() internal returns (uint256 r) { log.push(2); if (log.length != 0) revert("second"); }
+    function revertThird() internal returns (uint256 r) { log.push(3); if (log.length != 0) revert("third"); }
 }
