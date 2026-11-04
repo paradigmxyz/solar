@@ -51,7 +51,7 @@ fn emit_version(solc_version: &str) -> Result<(), Box<dyn std::error::Error>> {
     // without reachable tags, `git describe --always --tags` prints the bare SHA.
     let describe = vergen_env("VERGEN_GIT_DESCRIBE");
     let has_tags = describe != VERSION_UNKNOWN && !sha.starts_with(&describe);
-    let is_dev = env::var("CARGO_PKG_VERSION_PRE").unwrap().is_empty()
+    let is_dev = env::var("CARGO_PKG_VERSION_PRE").unwrap() != "dev"
         && (vergen_env("VERGEN_GIT_DIRTY") == "true"
             || (has_tags && describe != format!("v{version}")));
     let version_suffix = if is_dev { "-dev" } else { "" };

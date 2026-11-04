@@ -48,21 +48,25 @@ commit.
   is attached, and a downloaded binary reports `solar <version>+commit...`
   without `-dev`.
 
-## Publish
-
-- [ ] Publish the crates: `cargo release publish --execute [--no-verify]`
-
 ## Start the next version
 
 - [ ] Bump `main` to the next patch version as a `-dev` pre-release, such as
   `0.3.1-dev` after `0.3.0`, in a PR named `chore: bump to <next>-dev`:
   `cargo release version --execute <next>-dev`. Builds read the release from the
-  version, because Cargo git checkouts have no tags.
+  version, because Cargo git checkouts have no tags, so merge nothing else to
+  `main` between the release PR and this bump.
+
+## Publish
+
+- [ ] Publish the crates from the tag: `git checkout v<version>` and
+  `cargo release publish --execute [--no-verify]`
 
 ## Downstream
 
 - [ ] In foundry-core and Foundry, set the solar requirements to `=<version>`
   and point the solar `[patch.crates-io]` entries at `tag = "v<version>"`.
+  To patch them to an unreleased `main` commit instead, set the requirements to
+  its `=<next>-dev` version.
 - [ ] Raise their MSRV if solar's `rust-version` is higher.
 
 These steps are adapted from the recommended `cargo-release` + `dist` workflow, described in more detail [here](https://opensource.axo.dev/cargo-dist/book/workspaces/cargo-release-guide.html#using-cargo-release-with-pull-requests).
