@@ -166,14 +166,11 @@ fn @raw() -> i256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word],
 fn @constructor() [constructor] {
   bb0:
     v0 = icall @viaPointer
-    v1 = lt v0, i8 2
+    v1 = lt v0, 2
     v2 = eq v1, false
     icall panic_if<0x21>, v2
-    v3 = zext i8 v0 to i256
-    v4 = lt v3, 2
-    v5 = eq v4, false
-    icall panic_if<0x21>, v5
-    storeimmutable choice, v0
+    v3 = trunc i256 v0 to i8
+    storeimmutable choice, v3
     jump bb1
   bb1:                                            ; preds = bb0
     ret
@@ -194,14 +191,10 @@ fn @five(arg0: i256) -> i256 [pure] {
 }
 
 ; function viaPointer() pure returns (Choice)
-fn @viaPointer() -> i8 [pure] {
+fn @viaPointer() -> i256 [pure] {
   bb0:
     v0 = icall @internal_dispatcher_asm_p_uint256_r_uint8, 1, 0
-    v1 = lt v0, 2
-    v2 = eq v1, false
-    icall panic_if<0x21>, v2
-    v3 = trunc i256 v0 to i8
-    ret v3
+    ret v0
 }
 
 fn @internal_dispatcher_asm_p_uint256_r_uint8(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
