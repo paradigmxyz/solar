@@ -268,14 +268,14 @@ fn lower_evm_ir_once(
             pending_block_invoke = Some(function);
         }
         if let Some(label) = labels.get(original).copied().flatten() {
-            // A checkpoint carries the origin of a jump that was removed, which maps nowhere
-            // else, so it wins over the label's own origin.
-            if let Some(checkpoint) = checkpoint {
-                program.set_source_span(Some(checkpoint.source));
-                program.set_modifier_depth(checkpoint.modifier_depth);
-            } else if let [span] = block.label_metadata.source_spans() {
+            // The label's own origin wins over a checkpoint, which only lends one to a label
+            // that has none.
+            if let [span] = block.label_metadata.source_spans() {
                 program.set_source_span(Some(*span));
                 program.set_modifier_depth(block.label_metadata.modifier_depth());
+            } else if let Some(checkpoint) = checkpoint {
+                program.set_source_span(Some(checkpoint.source));
+                program.set_modifier_depth(checkpoint.modifier_depth);
             }
             program.define_label(label);
             program.mark_last_function_invoke(pending_block_invoke.take());
