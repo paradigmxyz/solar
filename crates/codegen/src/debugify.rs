@@ -59,6 +59,10 @@ impl Origins {
         Self(spans)
     }
 
+    pub(crate) fn extend(&mut self, other: Self) {
+        self.0.extend(other.0);
+    }
+
     pub(crate) fn check(
         self,
         gcx: Gcx<'_>,

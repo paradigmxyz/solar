@@ -3,21 +3,25 @@
 use super::{AsmInst, AsmInstKind, Program, TablePacking, indexed_jump};
 use crate::{
     backend::{
-        assembler::{ArtifactKind, Assembler, Label, OptimizedProgram, PreparedAssembly},
+        assembler::{
+            ArtifactKind, Assembler, Label, OptimizedProgram, PreparedAssembly, ScheduledProgram,
+        },
         evm::{
             ir::{self, BlockId},
             op,
         },
     },
+    debugify::Origins,
     link::{EmbeddedBytecodes, LibraryTable},
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 
 impl Assembler<'_> {
     /// Runs the EVM IR pipeline over the emitted program and keeps the result for
-    /// [`Self::prepare_linked`].
-    pub(in crate::backend) fn optimize(&mut self) {
-        let _scheduled = self.optimize_capturing(false);
+    /// [`Self::prepare_linked`]. Returns the origins of the program as stack scheduling emitted
+    /// it when auditing.
+    pub(in crate::backend) fn optimize(&mut self) -> Option<Origins> {
+        self.optimize_capturing(false).origins
     }
 
     /// Runs [`Self::optimize`], first returning a copy of the program as stack scheduling emitted
@@ -31,12 +35,15 @@ impl Assembler<'_> {
     pub(in crate::backend) fn optimize_capturing(
         &mut self,
         capture_scheduled: bool,
-    ) -> Option<ir::Module> {
-        let (mut program, labels) = self.finish_evm_ir()?;
-        let scheduled = capture_scheduled.then(|| program.clone());
+    ) -> ScheduledProgram {
+        let Some((mut program, labels)) = self.finish_evm_ir() else {
+            return ScheduledProgram::default();
+        };
+        let evm_ir = capture_scheduled.then(|| program.clone());
+        let origins = crate::debugify::enabled(self.gcx).then(|| Origins::evm(&program));
         let failed = !self.run_pipeline(&mut program, true);
         self.optimized = Some(OptimizedProgram { program, labels, failed });
-        scheduled
+        ScheduledProgram { evm_ir, origins }
     }
 
     /// Legalizes the emitted program for the target without the EVM IR pipeline, which already
