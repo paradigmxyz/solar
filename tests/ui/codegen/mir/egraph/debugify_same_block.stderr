@@ -1,1 +1,3 @@
-debugify: MIR DebugifySameBlock after egraph: 6/6 origins retained, 0 lost
+debugify: MIR DebugifySameBlock after egraph: 11/13 origins retained, 2 lost
+debugify: lost 430..440
+debugify: lost 530..540

@@ -1,6 +1,9 @@
-//@ compile-flags: -Zmir-pipeline=cse -Zdebugify=check
-// The surviving instruction runs exactly when the deleted one would have: it is in the same
-// block, before it, with no side effect between them, so the survivor keeps both origins.
+//@ compile-flags: -Zmir-pipeline=cse -Zdebugify=report
+//@ normalize-stdout-test: "(?s).+" -> ""
+// A survivor in the same block, before the deleted instruction and with no side effect between
+// them, takes its origin: `@pure`, `@load` and `@restoring` lose nothing. A survivor in a dominating block
+// (`@across_blocks`) or across a store (`@across_effect`) can run on paths that never reach the
+// deleted expression, so those two origins stay lost and the report names them.
 @module DebugifySameBlock
 fn @pure(arg0: i256, arg1: i256) -> i256 {
   bb0:
@@ -33,5 +36,26 @@ fn @restore(arg0: i256, arg1: i256) -> i256 {
     v1 = lt v0, arg1 !metadata(span=350..360)
     v2 = zext i1 v1 to i256 !metadata(span=370..380)
     mstore arg0, v0 !metadata(span=390..400)
+    ret v2
+}
+
+fn @across_blocks(arg0: i256, arg1: i256, arg2: i1) -> i256 {
+  bb0:
+    v0 = add arg0, arg1 !metadata(span=410..420)
+    jumpi arg2, bb1, bb2
+  bb1:
+    v1 = add arg0, arg1 !metadata(span=430..440)
+    v2 = mul v0, v1 !metadata(span=450..460)
+    ret v2
+  bb2:
+    ret v0
+}
+
+fn @across_effect(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = add arg0, arg1 !metadata(span=510..520)
+    sstore 0, arg1 !metadata(span=525..528)
+    v1 = add arg0, arg1 !metadata(span=530..540)
+    v2 = mul v0, v1 !metadata(span=550..560)
     ret v2
 }
